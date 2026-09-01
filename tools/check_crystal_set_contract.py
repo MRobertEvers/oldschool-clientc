@@ -22,8 +22,11 @@ from pathlib import Path
 # which is not necessarily the submodule -- TORIRSSERVER_CONTENT_DIR selects it, and
 # a checker that ignored it reported the submodule's failures against a bake of
 # a different tree entirely.
-CLIENT = Path("scripts/script_7304.cs2")
-CHAT_ENTER = Path("scripts/script_73.cs2")
+# The content tree renamed every `script_<id>.cs2` to its RuneStar name in
+# a7872d33aa/cf2f3c9655; these two are the same scripts 7304 and 73, and each
+# still carries its id in a leading `// <id>` comment.
+CLIENT = Path("scripts/torirs_emote_command.cs2")
+CHAT_ENTER = Path("scripts/chatdefault_onkey.cs2")
 SCRIPTS = Path("server/scripts")
 CRYSTAL_PROC = SCRIPTS / "skill_combat/scripts/player/crystal_set.rs2"
 PACKET_TABLE = Path("src/net/rev/osrs239/packetout.h")
@@ -119,11 +122,11 @@ def check(root: Path, content: Path) -> list[str]:
     errors.extend(f"{content / CLIENT}: {item}" for item in client_errors(client))
 
     chat_enter = (content / CHAT_ENTER).read_text(encoding="utf-8")
-    local = chat_enter.find("~script7304(")
+    local = chat_enter.find("~torirs_emote_command(")
     server = chat_enter.find("docheat(")
     if local < 0 or server < 0 or local >= server:
         errors.append(
-            f"{content / CHAT_ENTER}: expected local script7304 dispatch "
+            f"{content / CHAT_ENTER}: expected local torirs_emote_command dispatch "
             "before the docheat server path"
         )
 

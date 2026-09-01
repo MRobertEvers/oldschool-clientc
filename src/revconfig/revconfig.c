@@ -1869,6 +1869,27 @@ revconfig_item_apply_uilayout_field(
     case RCFIELD_UILAYOUT_XALIGN:
         layout->xalign_center = strcmp(value, "center") == 0 || strcmp(value, "centre") == 0;
         break;
+    case RCFIELD_UILAYOUT_SAFE_AREA:
+        /* `<area>:<edge>`. Both halves are required and both are checked: an
+         * unrecognised half is a typo in a profile, and a typo that silently
+         * means "never move" is a login box under a keyboard on a device the
+         * author cannot see. */
+        if( strcmp(value, "os:bottom") == 0 )
+        {
+            layout->safe_area_source = REVCONFIG_SAFE_AREA_SOURCE_OS;
+            layout->safe_area_flags |= REVCONFIG_SAFE_AREA_FLAG_BOTTOM;
+        }
+        else
+        {
+            TORIRS_ERR(
+                "revconfig: layout safe_area= expects <area>:<edge> "
+                "('os:bottom' is the only one this client resolves), got '%s'\n",
+                value);
+        }
+        break;
+    case RCFIELD_UILAYOUT_SAFE_AREA_MARGIN:
+        layout->safe_area_margin = revconfig_parse_int(value);
+        break;
     case RCFIELD_UILAYOUT_PARENT:
         strncpy(layout->parent, value, sizeof(layout->parent) - 1);
         break;

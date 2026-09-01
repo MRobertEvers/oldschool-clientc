@@ -20,8 +20,41 @@ extern int UITree_LayoutRootHeight;
 void
 UITree_LayoutSetRootSize(int width, int height);
 
+/** Canvas rows the OPERATING SYSTEM is covering at the bottom of the window --
+ *  a soft keyboard, and nothing else so far. 0 on every platform that never
+ *  raises one, which is what makes this a no-op everywhere but a phone.
+ *
+ *  As reported, not as the canvas can honour it: read it through
+ *  UITree_LayoutSafeBottomEdge, which is what both consumers actually want. */
+extern int UITree_LayoutSafeBottomInset;
+
+/** Set the bottom inset. Does NOT invalidate any tree -- the caller owns the
+ *  tree and knows whether one exists, exactly as with the root size. */
+void
+UITree_LayoutSetSafeBottomInset(int inset);
+
 #define UITREE_LAYOUT_ROOT_W (UITree_LayoutRootWidth)
 #define UITREE_LAYOUT_ROOT_H (UITree_LayoutRootHeight)
+
+/**
+ * The canvas row where the OS safe area ends -- the canvas height, less
+ * whatever the platform is covering at the bottom.
+ *
+ * At least 1. A band can never cover the WHOLE canvas, and answering 0 would
+ * turn every consumer's arithmetic negative for a state only a bogus platform
+ * report can produce. Clamped on the way out rather than on the way in
+ * because the canvas is free to shrink after the band was reported.
+ *
+ * Both consumers of the band read it here: the layout, for rows whose profile
+ * declared `safe_area=os:bottom`, and `api->safe_os`, for plugins placing their
+ * own chrome. They cannot disagree about where the keyboard starts.
+ */
+static inline int
+UITree_LayoutSafeBottomEdge(void)
+{
+    int const edge = UITree_LayoutRootHeight - UITree_LayoutSafeBottomInset;
+    return edge < 1 ? 1 : edge;
+}
 #define UITREE_SIDEBAR_PANEL_W 190
 #define UITREE_SIDEBAR_PANEL_H 261
 

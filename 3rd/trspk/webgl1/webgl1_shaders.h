@@ -123,16 +123,30 @@ static char const* const trspk_webgl1_fragment_shader =
     "    gl_FragColor = vec4(finalColor, finalAlpha);\n"
     "}\n";
 
+/*
+ * The atlas window a quad may sample travels in the VERTEX, not in a uniform.
+ *
+ * It used to be `uniform vec4 u_uv_bounds`, which made it batch state: every
+ * sprite has its own tile, so every sprite ended the batch and the UI went out
+ * as one draw per sprite -- 53 flushes and ~850 GL calls a frame on the phone.
+ * D3D9's UI batcher has no per-sprite state at all and draws the whole
+ * interface in a handful of calls; this is how the same batching is reached
+ * while keeping the clamp WebGL1 needs because it filters. A quad that wants
+ * no clamp passes a window wider than any texture coordinate.
+ */
 static char const* const trspk_webgl1_2d_vertex_shader =
     "attribute vec2 a_position;\n"
     "attribute vec2 a_texcoord;\n"
     "attribute vec4 a_color;\n"
+    "attribute vec4 a_uv_bounds;\n"
     "uniform mat4 u_projection;\n"
     "varying vec2 v_texcoord;\n"
     "varying vec4 v_color;\n"
+    "varying vec4 v_uv_bounds;\n"
     "void main() {\n"
     "    v_texcoord = a_texcoord;\n"
     "    v_color = a_color;\n"
+    "    v_uv_bounds = a_uv_bounds;\n"
     "    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);\n"
     "}\n";
 
@@ -140,13 +154,12 @@ static char const* const trspk_webgl1_2d_fragment_shader =
     TRSPK_WEBGL1_FRAG_PRECISION
     "varying vec2 v_texcoord;\n"
     "varying vec4 v_color;\n"
+    "varying vec4 v_uv_bounds;\n"
     "uniform sampler2D u_texture;\n"
     "uniform int u_text_mode;\n"
-    "uniform int u_uv_clamp;\n"
-    "uniform vec4 u_uv_bounds;\n"
     "void main() {\n"
-    "    if (u_uv_clamp == 1 && (v_texcoord.x < u_uv_bounds.x || v_texcoord.x > u_uv_bounds.z ||\n"
-    "        v_texcoord.y < u_uv_bounds.y || v_texcoord.y > u_uv_bounds.w))\n"
+    "    if (v_texcoord.x < v_uv_bounds.x || v_texcoord.x > v_uv_bounds.z ||\n"
+    "        v_texcoord.y < v_uv_bounds.y || v_texcoord.y > v_uv_bounds.w)\n"
     "        discard;\n"
     "    vec4 tex = texture2D(u_texture, v_texcoord);\n"
     /* The font atlas is single-channel. GLES2 has no GL_RED/GL_R8, so it is

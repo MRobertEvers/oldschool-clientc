@@ -37,6 +37,13 @@ struct ToriRS_GL3;
 #else
 struct ToriRS_D3D9;
 #endif
+#if defined(TORIRS_HAVE_GLES2)
+/* The native Android GPU renderer: OpenGL ES 2.0, no extensions, its own
+ * files. Selected by --gles2 / --gles2-zbuffer. */
+#include "platform/platform_android_renderer_gles2.h"
+#else
+struct ToriRS_GLES2;
+#endif
 /* GL/WebGL remains opt-in. The XP lane instead defaults to classic fixed-
  * function D3D9; --soft3d explicitly selects its GDI fallback. */
 #define TORIRS_GPU_DEFAULT 0
@@ -437,6 +444,14 @@ capture_from_d3d9(void* user, int* pixels, int width, int height)
 }
 #endif
 
+#if defined(TORIRS_HAVE_GLES2)
+static int
+capture_from_gles2(void* user, int* pixels, int width, int height)
+{
+    return ToriRS_GLES2_ReadPixels((struct ToriRS_GLES2*)user, pixels, width, height) ? 1 : 0;
+}
+#endif
+
 static int
 capture_from_software(void* user, int* pixels, int width, int height)
 {
@@ -458,7 +473,8 @@ interactive_render_present(
     struct App* app,
     struct PlatformSDL2* sdl,
     struct ToriRS_GL3* gl3,
-    struct ToriRS_D3D9* d3d9)
+    struct ToriRS_D3D9* d3d9,
+    struct ToriRS_GLES2* gles2)
 {
     int const interface_scale_mode = RS_CS2Host_UiScaleMode(&app->host);
 
@@ -534,6 +550,68 @@ interactive_render_present(
     }
 #else
     (void)d3d9;
+#endif
+
+#if defined(TORIRS_HAVE_GLES2)
+    if( gles2 )
+    {
+        struct ToriRS_Frame frame;
+        int progress = 0;
+        int pick_armed = 0;
+
+        ToriRS_GLES2_SetInterfaceScaleMode(gles2, interface_scale_mode);
+
+        if( App_IsBooting(app, &progress) )
+        {
+            int caption_font_id = -1;
+            char const* caption = App_BootBarCaption(app, &caption_font_id);
+
+            ToriRS_GLES2_DrawBootBar(
+                gles2,
+                App_BootTextOnly(app) ? -1 : progress,
+                caption_font_id,
+                caption);
+        }
+        else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
+        {
+            if( app->world_mouse_in_viewport )
+            {
+                ToriRS_GLES2_SetPick(gles2, app->world_mouse_x, app->world_mouse_y);
+                pick_armed = 1;
+            }
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+            {
+                ToriRS_GLES2_RenderFrame(gles2, &frame);
+            }
+            if( getenv("TORIRS_FRAME_DEBUG") )
+                TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                    frame.dbg_emit_element,
+                    frame.dbg_emit_terrain,
+                    frame.dbg_drop_not_live,
+                    frame.dbg_drop_no_model);
+            if( pick_armed )
+            {
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
+                {
+                    App_PickFinish(app, ToriRS_GLES2_PickHits(gles2));
+                }
+            }
+        }
+        /*
+         * BEFORE the swap, like D3D9 and unlike the desktop GL lane: an EGL
+         * window surface's back buffer is undefined after eglSwapBuffers
+         * (EGL_BUFFER_DESTROYED is the default swap behaviour), so this is
+         * the last instant the finished frame exists to be read.
+         */
+        App_DrawComplete(app, capture_from_gles2, gles2);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+            PlatformSDL2_PresentGL(sdl);
+        }
+        return;
+    }
+#else
+    (void)gles2;
 #endif
 
 #if defined(TORIRS_HAVE_GL3)
@@ -665,13 +743,20 @@ static void
 interactive_present_retained(
     struct PlatformSDL2* sdl,
     struct ToriRS_GL3* gl3,
-    struct ToriRS_D3D9* d3d9)
+    struct ToriRS_D3D9* d3d9,
+    struct ToriRS_GLES2* gles2)
 {
 #if defined(TORIRS_HAVE_D3D9)
     if( d3d9 )
         return;
 #else
     (void)d3d9;
+#endif
+#if defined(TORIRS_HAVE_GLES2)
+    if( gles2 )
+        return;
+#else
+    (void)gles2;
 #endif
 #if defined(TORIRS_HAVE_GL3)
     if( gl3 )
@@ -754,6 +839,8 @@ static uint64_t replay_now;
 static struct ToriRS_GL3* gl3;
 /* NULL unless the Win32 fixed-function D3D9 renderer was selected. */
 static struct ToriRS_D3D9* d3d9;
+/* NULL unless the Android GLES2 renderer was built AND --gles2 was passed. */
+static struct ToriRS_GLES2* gles2;
 static struct PlatformAudio* audio;
 static struct ToriRS_AudioCommand audio_commands[TORIRS_AUDIO_QUEUE_MAX];
 static int sim_sound_id = -1;
@@ -2446,6 +2533,10 @@ frame_loop_step(void)
         if( gl3 )
             ToriRS_GL3_SetViewport(gl3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
+#if defined(TORIRS_HAVE_GLES2)
+        if( gles2 )
+            ToriRS_GLES2_SetViewport(gles2, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+#endif
     }
 
     app_redraw = 0;
@@ -2499,14 +2590,14 @@ frame_loop_step(void)
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
         {
-            interactive_render_present(&app, sdl, gl3, d3d9);
+            interactive_render_present(&app, sdl, gl3, d3d9, gles2);
         }
     }
     else
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            interactive_present_retained(sdl, gl3, d3d9);
+            interactive_present_retained(sdl, gl3, d3d9, gles2);
         }
     }
 
@@ -3011,6 +3102,9 @@ frame_loop_teardown(void)
 #if defined(TORIRS_HAVE_GL3)
     ToriRS_GL3_Free(gl3);
 #endif
+#if defined(TORIRS_HAVE_GLES2)
+    ToriRS_GLES2_Free(gles2);
+#endif
     PlatformSDL2_Free(sdl);
 }
 
@@ -3216,6 +3310,9 @@ struct MainArgState
     /* Depth-buffered world pass for the GL backends — the peer of
      * --d3d9-zbuffer. Selected by --opengl3-zbuffer / --webgl1-zbuffer. */
     int gl3_zbuffer;
+    /* The Android lane's own GLES2 renderer, and its depth-buffered pass. */
+    int use_gles2;
+    int gles2_zbuffer;
 };
 
 static void
@@ -3229,8 +3326,8 @@ main_print_usage(char const* program)
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] "
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
-        "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|--d3d9|"
-        "--d3d9-zbuffer|--soft3d]\n",
+        "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|--gles2|"
+        "--gles2-zbuffer|--d3d9|--d3d9-zbuffer|--soft3d]\n",
         program);
 }
 
@@ -3429,9 +3526,13 @@ main_parse_argument_layer(
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
             state->gl3_zbuffer = 0;
+            state->use_gles2 = 0;
             continue;
 #elif defined(TORIRS_GL_ES2)
             TORIRS_LOG("torirs: this build renders through WebGL1 — use --webgl1\n");
+            return 0;
+#elif defined(TORIRS_HAVE_GLES2)
+            TORIRS_ERR("torirs: this build renders through GLES2 — use --gles2\n");
             return 0;
 #else
             TORIRS_LOG("torirs: --opengl3 is not available in this build\n");
@@ -3446,6 +3547,11 @@ main_parse_argument_layer(
             state->d3d9_zbuffer = 0;
             state->gl3_zbuffer = 0;
             continue;
+#elif defined(TORIRS_HAVE_GLES2)
+            /* WebGL1 is a browser API; there is no WebGL1 renderer on native
+             * Android and the flag is refused, not aliased. */
+            TORIRS_ERR("torirs: --webgl1 is the browser build's flag — use --gles2\n");
+            return 0;
 #else
             TORIRS_LOG("torirs: --webgl1 is the browser build's flag — use --opengl3\n");
             return 0;
@@ -3461,9 +3567,13 @@ main_parse_argument_layer(
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
             state->gl3_zbuffer = 1;
+            state->use_gles2 = 0;
             continue;
 #elif defined(TORIRS_GL_ES2)
             TORIRS_LOG("torirs: this build renders through WebGL1 — use --webgl1-zbuffer\n");
+            return 0;
+#elif defined(TORIRS_HAVE_GLES2)
+            TORIRS_ERR("torirs: this build renders through GLES2 — use --gles2-zbuffer\n");
             return 0;
 #else
             TORIRS_LOG("torirs: --opengl3-zbuffer is not available in this build\n");
@@ -3478,9 +3588,31 @@ main_parse_argument_layer(
             state->d3d9_zbuffer = 0;
             state->gl3_zbuffer = 1;
             continue;
+#elif defined(TORIRS_HAVE_GLES2)
+            TORIRS_ERR("torirs: --webgl1-zbuffer is the browser build's flag — use "
+                       "--gles2-zbuffer\n");
+            return 0;
 #else
             TORIRS_LOG("torirs: --webgl1-zbuffer is the browser build's flag — "
                 "use --opengl3-zbuffer\n");
+            return 0;
+#endif
+        }
+        /* The Android lane's own renderer. Each build accepts only the names
+         * it can honour, so the flag is never silently ignored elsewhere. */
+        if( strcmp(argv[argi], "--gles2") == 0 || strcmp(argv[argi], "--gles2-zbuffer") == 0 )
+        {
+#if defined(TORIRS_HAVE_GLES2)
+            state->use_gles2 = 1;
+            state->gles2_zbuffer = strcmp(argv[argi], "--gles2-zbuffer") == 0;
+            state->use_opengl3 = 0;
+            state->gl3_zbuffer = 0;
+            state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
+            continue;
+#else
+            TORIRS_ERR("torirs: %s is the Android build's flag and is not available here\n",
+                argv[argi]);
             return 0;
 #endif
         }
@@ -3490,6 +3622,7 @@ main_parse_argument_layer(
             state->use_d3d9 = 1;
             state->use_opengl3 = 0;
             state->d3d9_zbuffer = 0;
+            state->use_gles2 = 0;
             continue;
 #else
             TORIRS_LOG("torirs: --d3d9 is not available in this build\n");
@@ -3501,6 +3634,7 @@ main_parse_argument_layer(
 #if defined(TORIRS_HAVE_D3D9)
             state->use_d3d9 = 1;
             state->use_opengl3 = 0;
+            state->use_gles2 = 0;
             state->d3d9_zbuffer = 1;
             continue;
 #else
@@ -3514,6 +3648,8 @@ main_parse_argument_layer(
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
             state->gl3_zbuffer = 0;
+            state->use_gles2 = 0;
+            state->gles2_zbuffer = 0;
             continue;
         }
         if( positional == 0 && argv[argi][0] != '-' )
@@ -3596,6 +3732,8 @@ main(
         .use_d3d9 = TORIRS_D3D9_DEFAULT,
         .d3d9_zbuffer = 0,
         .gl3_zbuffer = 0,
+        .use_gles2 = 0,
+        .gles2_zbuffer = 0,
     };
     int argi;
     int i;
@@ -3674,6 +3812,11 @@ main(
     int const use_d3d9 = arg_state.use_d3d9;
     int const d3d9_zbuffer = arg_state.d3d9_zbuffer;
     int const gl3_zbuffer = arg_state.gl3_zbuffer;
+    int const use_gles2 = arg_state.use_gles2;
+    int const gles2_zbuffer = arg_state.gles2_zbuffer;
+    /* Only the TORIRS_HAVE_GLES2 arm reads these two. */
+    (void)use_gles2;
+    (void)gles2_zbuffer;
     /* Only the TORIRS_HAVE_GL3 arm reads this one, and the win64/d3d9 lane is
      * built without it. Kept out here with its siblings rather than moved under
      * the #if, so the flag is parsed and rejected identically in every lane. */
@@ -4861,6 +5004,39 @@ main(
          * scaled and nothing downstream can tell that it was. */
         if( cfg.hidpi )
             PlatformSDL2_SetWantHighDPI(cfg.hidpi > 0);
+        /* Read on every lane so a build without a GPU renderer has no unused
+         * variable; the flag was refused at parse time where it does not apply. */
+        (void)use_opengl3;
+#if defined(TORIRS_HAVE_GLES2)
+        if( use_gles2 )
+        {
+            if( !PlatformSDL2_InitForOpenGL3(
+                    sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
+            {
+                TORIRS_ERR("GLES2 surface init failed\n");
+                PlatformSDL2_Free(sdl);
+                App_Shutdown(&app);
+                return 1;
+            }
+            gles2 = ToriRS_GLES2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            if( !gles2 ||
+                !ToriRS_GLES2_Init(
+                    gles2, PlatformSDL2_Window(sdl), app.scene, gles2_zbuffer != 0) )
+            {
+                TORIRS_ERR("GLES2 renderer init failed\n");
+                ToriRS_GLES2_Free(gles2);
+                PlatformSDL2_Free(sdl);
+                App_Shutdown(&app);
+                return 1;
+            }
+            /* Same contract as D3D9 and GL3: the depth pass needs the app to
+             * stop collecting the visible set through the tile wavefront and
+             * the opaque face-distance sort. */
+            App_SetWorldRenderMode(
+                &app, gles2_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+        }
+        else
+#endif
 #if defined(TORIRS_HAVE_GL3)
         if( use_opengl3 )
         {
@@ -4890,10 +5066,6 @@ main(
                 &app, gl3_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
         }
         else
-#else
-        /* No desktop-GL renderer in this build; --opengl3 was rejected during
-         * argument parsing, so this is unreachable rather than ignored. */
-        (void)use_opengl3;
 #endif
         if( !PlatformSDL2_Init(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
         {
@@ -5167,7 +5339,7 @@ main(
             }
         }
 
-        interactive_render_present(&app, sdl, gl3, d3d9);
+        interactive_render_present(&app, sdl, gl3, d3d9, gles2);
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */

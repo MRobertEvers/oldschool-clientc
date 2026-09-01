@@ -81,14 +81,14 @@ LANE_FORBID_web  := ASYNCIFY -dead_strip -O0
 #                     fail, but deep in the linker with "relocation R_ARM_REL32
 #                     cannot be used against symbol 's_mp_prime_tab'", which
 #                     names a tommath symbol and not the cause.
-#   TORIRS_GL_ES2     the GPU renderer is built against the GLES2 ceiling. With
-#                     TORIRS_HAVE_GL3 but not this, main.c would accept
-#                     --opengl3 and hand this lane the desktop GL 3.3 renderer,
-#                     which no phone driver here can run.
+#   TORIRS_HAVE_GLES2 this lane's own GLES2 renderer is the GPU path. Neither
+#                     TORIRS_HAVE_GL3 nor TORIRS_GL_ES2 may appear: the first
+#                     would let main.c hand this lane the desktop GL 3.3
+#                     renderer no phone driver can run, the second names the
+#                     web lane's renderer, which this lane no longer builds.
 LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
-                        TORIRS_HAVE_GL3=1 TORIRS_GL_ES2=1 \
-                        -shared -llog -landroid -lGLESv2 -lEGL \
-                        webgl1_index16.o
+                        TORIRS_HAVE_GLES2=1 \
+                        -shared -llog -landroid -lGLESv2 -lEGL
 # -lSDL2/-sUSE_SDL=2 are forbidden, not merely absent. "No SDL on Android" is
 # the defining property of this lane, and the way it would be lost is somebody
 # adding SDL to a SHARED variable to fix another host -- which this catches at
@@ -97,7 +97,8 @@ LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
 # -dead_strip is ld64-only; -mfpmath=sse and -march=pentium4 are x86. Their
 # presence would mean a desktop block's flags leaked into this one.
 LANE_FORBID_android  := -lSDL2 -sUSE_SDL=2 -dead_strip -mfpmath=sse \
-                        -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9
+                        -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9 \
+                        TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1
 
 # Everything a lane actually compiles and links with. GPU object names are in
 # here so "no WebGL in the win32 link" is checkable as a flag would be.

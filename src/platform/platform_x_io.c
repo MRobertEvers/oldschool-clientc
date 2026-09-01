@@ -1366,6 +1366,18 @@ PlatformXIO_Dat1OnDemandJagChecksums(
     return PlatformXIOOnDemand_JagChecksums(px->dat1_on_demand, out);
 }
 
+int
+PlatformXIO_Dat1OnDemandJagChecksumsRefresh(
+    struct PlatformX_IO* px,
+    int32_t out[9])
+{
+    assert(px);
+    assert(out);
+    if( !px->dat1_on_demand )
+        return -1;
+    return PlatformXIOOnDemand_JagChecksumsRefresh(px->dat1_on_demand, out);
+}
+
 uint8_t*
 PlatformXIO_Dat1OnDemandContainerFetch(
     struct PlatformX_IO* px,

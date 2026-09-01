@@ -559,6 +559,9 @@ UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
         spr->height = baked->h;
         spr->crop_width = baked->w;
         spr->crop_height = baked->h;
+        /* Baked chrome art carries real coverage (rounded corners, soft
+         * shadows). @see ToriDraw_Sprite::alpha_channel. */
+        spr->alpha_channel = 1;
         /* Deep copy, for the reason the font path above deep-copies: the scene
          * frees every sprite it holds, and these pixels are `static const`. */
         spr->pixels_argb = malloc(bytes);
@@ -609,6 +612,11 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
                 spr->height = size;
                 spr->crop_width = size;
                 spr->crop_height = size;
+                /* The frames carry real coverage -- soft edges, and coloured
+                 * pixels under alpha 0 where the baker padded -- so a consumer
+                 * must read the alpha byte, never derive one from the colour.
+                 * @see ToriDraw_Sprite::alpha_channel. */
+                spr->alpha_channel = 1;
                 /* Deep copy: the scene frees every sprite it holds, and the
                  * generator hands back a pointer into its own static table. */
                 spr->pixels_argb = malloc(bytes);
@@ -663,6 +671,10 @@ UITreeSceneBridge_PublishPluginImage(
     sprite->height = height;
     sprite->crop_width = width;
     sprite->crop_height = height;
+    /* A plugin image is a decoded PNG: alpha is a channel, and a plugin that
+     * drew a transparent coloured pixel meant it. @see
+     * ToriDraw_Sprite::alpha_channel. */
+    sprite->alpha_channel = 1;
     /* Deep copy, for the reason the skin path above deep-copies: the scene
      * frees every sprite it holds, and these pixels belong to the decode the
      * caller is about to free. */

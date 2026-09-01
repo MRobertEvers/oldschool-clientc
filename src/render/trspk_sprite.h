@@ -47,6 +47,25 @@ trspk_sprite_argb_to_rgba(
     size_t count);
 
 /**
+ * The same swap with the alpha byte kept exactly -- the software blit's
+ * reading of a sprite. For a sprite whose producer set alpha_channel.
+ * @see ToriDraw_Sprite::alpha_channel, trspk_sprite_argb_to_rgba_for.
+ */
+void
+trspk_sprite_argb_to_rgba_alpha(
+    uint32_t const* src,
+    uint32_t* dst,
+    size_t count);
+
+/** Pick the conversion the sprite declared. `alpha_channel` is the sprite's. */
+void
+trspk_sprite_argb_to_rgba_for(
+    int alpha_channel,
+    uint32_t const* src,
+    uint32_t* dst,
+    size_t count);
+
+/**
  * Rotate `sp` through `mask_sp` into a dst_w x dst_h RGBA rectangle.
  *
  * Returns the baked pixels, owned by `bake` and valid until the next bake on

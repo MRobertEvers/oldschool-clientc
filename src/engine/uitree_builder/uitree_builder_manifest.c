@@ -446,6 +446,9 @@ add_layout_op(
     op->right = layout->right;
     op->dirty = layout->dirty;
     op->xalign_center = layout->xalign_center;
+    op->safe_area_source = layout->safe_area_source;
+    op->safe_area_flags = layout->safe_area_flags;
+    op->safe_area_margin = layout->safe_area_margin;
 
     fill_tree_op_from_component(op, comp, root_interface_id);
 }

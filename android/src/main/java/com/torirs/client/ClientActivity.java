@@ -337,8 +337,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          */
 
         /*
-         * An extra_args file lets a profile be tried with a flag -- --webgl1 to
-         * take the GLES2 path, --offline, a --connect override -- without
+         * An extra_args file lets a profile be tried with a flag -- --gles2 to
+         * take the GPU path, --offline, a --connect override -- without
          * rebuilding the APK. One argument per line, blank lines and '#'
          * comments ignored.
          */
@@ -376,10 +376,49 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
     /* ---- input ----------------------------------------------------------- */
 
+    /*
+     * Where the surface sits inside the window.
+     *
+     * Activity.onTouchEvent is handed the event the decor view could not
+     * deliver to any child, and its coordinates are relative to the WINDOW.
+     * The native side treats what it is given as a point on the SURFACE, and
+     * the two are not the same origin: the surface is the content area, which
+     * begins below the status bar and beside the navigation bar, and moves
+     * again whenever the soft keyboard pans the window. Forwarding the window
+     * point unchanged therefore offsets every touch by however far the surface
+     * has been pushed -- which is a tap landing somewhere it was not made.
+     *
+     * Re-read per gesture rather than cached: the offset changes with rotation,
+     * with the system bars, and with the IME, and none of those notify here.
+     */
+    private final int[] surfaceOrigin = new int[2];
+
+    private void readSurfaceOrigin()
+    {
+        if( surfaceView == null )
+        {
+            surfaceOrigin[0] = 0;
+            surfaceOrigin[1] = 0;
+            return;
+        }
+        surfaceView.getLocationInWindow(surfaceOrigin);
+    }
+
+    private void touchToSurface(int action, int pointerId, float windowX, float windowY)
+    {
+        nativeTouch(
+                action,
+                pointerId,
+                (int)(windowX - surfaceOrigin[0]),
+                (int)(windowY - surfaceOrigin[1]));
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event)
     {
         final int action = event.getActionMasked();
+
+        readSurfaceOrigin();
 
         switch( action )
         {
@@ -387,7 +426,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         case MotionEvent.ACTION_POINTER_DOWN:
         {
             int i = event.getActionIndex();
-            nativeTouch(TOUCH_DOWN, event.getPointerId(i), (int)event.getX(i), (int)event.getY(i));
+            touchToSurface(TOUCH_DOWN, event.getPointerId(i), event.getX(i), event.getY(i));
             return true;
         }
         case MotionEvent.ACTION_MOVE:
@@ -404,18 +443,18 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
             for( int h = 0; h < history; h++ )
             {
                 for( int i = 0; i < pointers; i++ )
-                    nativeTouch(TOUCH_MOVE, event.getPointerId(i),
-                            (int)event.getHistoricalX(i, h), (int)event.getHistoricalY(i, h));
+                    touchToSurface(TOUCH_MOVE, event.getPointerId(i),
+                            event.getHistoricalX(i, h), event.getHistoricalY(i, h));
             }
             for( int i = 0; i < pointers; i++ )
-                nativeTouch(TOUCH_MOVE, event.getPointerId(i), (int)event.getX(i), (int)event.getY(i));
+                touchToSurface(TOUCH_MOVE, event.getPointerId(i), event.getX(i), event.getY(i));
             return true;
         }
         case MotionEvent.ACTION_UP:
         case MotionEvent.ACTION_POINTER_UP:
         {
             int i = event.getActionIndex();
-            nativeTouch(TOUCH_UP, event.getPointerId(i), (int)event.getX(i), (int)event.getY(i));
+            touchToSurface(TOUCH_UP, event.getPointerId(i), event.getX(i), event.getY(i));
             return true;
         }
         case MotionEvent.ACTION_CANCEL:
@@ -424,7 +463,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
              * a notification pull). Every finger must be ended, or the C side
              * keeps tracking contacts that will never be lifted. */
             for( int i = 0; i < event.getPointerCount(); i++ )
-                nativeTouch(TOUCH_UP, event.getPointerId(i), (int)event.getX(i), (int)event.getY(i));
+                touchToSurface(TOUCH_UP, event.getPointerId(i), event.getX(i), event.getY(i));
             return true;
         }
         default:

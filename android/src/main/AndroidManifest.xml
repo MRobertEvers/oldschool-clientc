@@ -91,7 +91,7 @@
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:launchMode="singleTask"
-            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|keyboard|navigation|uiMode|density" />
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|keyboard|navigation|uiMode|density|mcc|mnc|locale|layoutDirection|fontScale" />
 
     </application>
 

@@ -192,6 +192,13 @@ struct WebGL1MaterialPose
     uint32_t opaque_count;
     uint32_t cutout_count;
     uint32_t blended_count;
+    /* Maximal runs of consecutive OPAQUE/CUTOUT faces as (first_face, count)
+     * pairs, computed once with the passes. A pose's vertices are sequential
+     * triplets, so each run is one glDrawArrays range -- the per-frame
+     * per-face loop and its index list go away, hidden faces or not.
+     * @see ToriRS_GL3::array_ranges. */
+    uint32_t* runs;
+    uint32_t run_count;
 };
 
 struct WebGL1MaterialTrack
@@ -213,9 +220,19 @@ struct WebGL1MaterialTable
     uint32_t element_capacity;
 };
 
+/*
+ * One model's translucent faces, held until the opaque pass is done.
+ *
+ * The indices are already page-local U16 — (group, page_base) is the binding
+ * they are relative to, exactly as for the opaque chain — so ordering them is
+ * a sort of these records and nothing more. `depth` is the model's projected
+ * depth: the pass sorts per model, and faces within a model keep the
+ * priority/depth order ToriDraw_RenderModel2SortFaces produced.
+ */
 struct WebGL1AlphaSubmission
 {
     uint32_t group;
+    uint32_t page_base;
     uint32_t index_start;
     uint32_t index_count;
     int depth;
@@ -307,16 +324,37 @@ struct WebGL1Vertex2D
     float position[2];
     float texcoord[2];
     float color[4];
+    /* The atlas window this quad may sample, per vertex so it is not batch
+     * state. @see trspk_webgl1_2d_vertex_shader, WEBGL1_UV_BOUNDS_NONE. */
+    float uv_bounds[4];
 };
 
+/* "Clamp to nothing": a window no texture coordinate can fall outside, for a
+ * quad that owns its whole texture (fonts, the white pixel, the rotmask
+ * targets). Wider than [0,1] rather than equal to it, so a coordinate exactly
+ * on an edge is not discarded by a float comparison. */
+#define WEBGL1_UV_BOUNDS_NONE                                                  \
+    (float const[4]) { -1.0f, -1.0f, 2.0f, 2.0f }
+
+/*
+ * What the 2D batcher may merge across.
+ *
+ * Only the things the GPU genuinely cannot vary within one draw: the texture,
+ * the font/colour mode, and the scissor. Everything per-quad rides in the
+ * vertex. That is D3D9's UI batch key (texture + atlas flag + scissor,
+ * @see d3d9_ui_prepare_batch) and it is why its interface goes out in a
+ * handful of DrawPrimitiveUP calls.
+ */
 struct WebGL1Batch2DState
 {
     struct WebGL1Vertex2D* verts;
     uint32_t vert_count;
     GLuint texture;
     int text_mode;
-    bool uv_clamp;
-    float uv_bounds[4];
+    /* Set when any quad in the batch sampled the shared sprite atlas, so the
+     * flush can upload a dirty atlas ONCE for the whole batch instead of once
+     * per sprite inserted. @see d3d9_ui_flush. */
+    bool uses_sprite_atlas;
     int scissor_x;
     int scissor_y;
     int scissor_w;
@@ -377,14 +415,48 @@ struct ToriRS_GL3
     struct WebGL1AlphaSubmission* alpha_submissions;
     uint32_t alpha_submission_count;
     uint32_t alpha_submission_capacity;
-    uint32_t* alpha_indices;
+    uint16_t* alpha_indices;
     uint32_t alpha_index_count;
     uint32_t alpha_index_capacity;
     uint32_t* alpha_order;
     uint32_t alpha_order_capacity;
-    /* Scratch for one model's index list while it is being classified. */
-    uint32_t* model_indices;
+    /* The blended pass's own chain, built after the sort. Its nodes carry the
+     * same (group, page_base) binding the opaque chain's do, so a run of
+     * translucent models that happen to share a page is one draw. */
+    struct TRSPK_IBOChain* alpha_ibo_chain;
+    /* Scratch for one model's page-local index list while it is being built. */
+    uint16_t* model_indices;
     uint32_t model_index_capacity;
+    /*
+     * The frame's opaque and cutout faces, gathered per (group, page).
+     *
+     * Depth testing makes opaque submission order irrelevant, so these do not
+     * have to go out in the order the scene walked them -- and they must not,
+     * because the scene order ping-pongs across the arena's pages and every
+     * hop is a draw call. Gathered per page instead, a whole page's opaque
+     * world is ONE glDrawElements no matter how many models contributed to it
+     * or how they were interleaved. This is D3D9's D3D9OpaqueBucket
+     * (WINDOWS-D3D9-ZBUFFER-001), without its vertex-span clustering: that
+     * exists to bound what software vertex processing transforms, and this
+     * lane has hardware T&L.
+     *
+     * A run of consecutive drawable faces is a run of consecutive vertices --
+     * face f is vertices 3f, 3f+1, 3f+2 -- so appending one is a sequential
+     * fill, not a per-face gather. The runs themselves were found once when
+     * the pose was classified. @see WebGL1MaterialPose::runs.
+     *
+     * Slots keep their index storage across frames; only the counts reset.
+     */
+    struct WebGL1OpaqueBucket
+    {
+        uint32_t group;
+        uint32_t page_base;
+        uint16_t* indices;
+        uint32_t index_count;
+        uint32_t index_capacity;
+    }* opaque_buckets;
+    uint32_t opaque_bucket_count;
+    uint32_t opaque_bucket_capacity;
 
     GLuint atlas_texture;
     /* Texture storage is allocated once; every later write is a dirty-rect
@@ -410,9 +482,19 @@ struct ToriRS_GL3
 
     struct TRSPK_PoseTable poses;
 
+    /*
+     * The frame's world indices, already in the only width WebGL1 has.
+     *
+     * A node is keyed (group, page_base) and holds indices local to that
+     * 65536-vertex page, so the page IS the draw call's vertex base — folded
+     * into the attribute pointers, which is what glDrawElementsBaseVertex
+     * would otherwise do and what D3D9 spells BaseVertexIndex. The chain
+     * merges consecutive pushes that share a key, so one push per MODEL comes
+     * back out as one draw per page-run. Nothing searches for a window,
+     * nothing re-expresses 32-bit indices, and no triangle is ever visited
+     * twice: the model arena's paging already decided where every pose sits.
+     */
     struct TRSPK_IBOChain* ibo_chain;
-    struct TRSPK_IBO* ibo_staging;
-    struct TRSPK_DrawRangeList* draw_ranges;
 
     GLuint program3d;
     GLint a_position;
@@ -433,11 +515,9 @@ struct ToriRS_GL3
     GLint u_clock;
     GLint u_atlas_dim;
     GLint u_atlas_slots;
-    /* 16-bit index staging, and the draw chunks it was split into. */
+    /* Where the chain is concatenated for its one upload per pass. */
     uint16_t* idx16;
     uint32_t idx16_capacity;
-    struct TRSPK_WebGL1Chunk* chunks;
-    uint32_t chunk_capacity;
 
     float view[16];
     float proj[16];
@@ -467,6 +547,12 @@ struct ToriRS_GL3
     GLint u2d_uv_clamp;
     GLint u2d_uv_bounds;
     bool in2d;
+    /* The invariant 2D device state (program, projection, blend, attribute
+     * pointers) is already established. Set once per 2D pass and cleared by
+     * anything that binds the world program or re-points attributes, so the
+     * flush issues only what actually changes between two batches -- which is
+     * what d3d9_ui_set_states / d3d9_ui_flush split between them. */
+    bool ui_states_set;
     float proj2d[16];
     struct WebGL1Batch2DState batch2d;
     int draw_scissor_x;
@@ -498,10 +584,49 @@ webgl1_ensure_gpu_ibo(
     struct ToriRS_GL3* renderer,
     uint32_t index_count);
 
-/** Grow the 16-bit index staging and the chunk table. */
+/** Re-point the attribute pointers at `base_vertex` without touching buffer
+ *  binds or array enables. Only valid while a group's attribs are already
+ *  bound — the world draw loop's fast path between pages. */
+void
+webgl1_point_group_attribs(
+    struct ToriRS_GL3* renderer,
+    uint32_t base_vertex);
+
+/** Grow the 16-bit index staging. */
 bool
 webgl1_ensure_index16(
     struct ToriRS_GL3* renderer,
     uint32_t index_count);
+
+/** Grow ToriRS_GL3::model_indices to hold at least `count` U16 indices. */
+bool
+webgl1_reserve_model_indices(
+    struct ToriRS_GL3* renderer,
+    uint32_t count);
+
+/**
+ * Upload one U16 index chain and draw it, one glDrawElements per node.
+ *
+ * This is the whole draw side of the world pass. Everything a node needs is
+ * already decided by the time it exists: `group` picks the vertex buffer,
+ * `offset` is the page and becomes the attribute base, and the indices are
+ * page-local. So the loop concatenates the chain into one buffer, uploads it
+ * once, and walks the nodes rebinding only what actually changed between two
+ * of them.
+ */
+void
+webgl1_draw_index_chain(
+    struct ToriRS_GL3* renderer,
+    struct TRSPK_IBOChain* chain);
+
+/** The page a baked pose's vertex base sits in, and its offset within it.
+ *  The arena is paged at exactly TRSPK_WEBGL1_VBO_PAGE and never lets a pose
+ *  cross a boundary, so the local base plus any of the pose's own vertex
+ *  indices is always a valid U16. */
+static inline uint32_t
+webgl1_page_base_of(uint32_t vertex_base)
+{
+    return vertex_base & ~(TRSPK_WEBGL1_VBO_PAGE - 1u);
+}
 
 #endif

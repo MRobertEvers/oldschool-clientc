@@ -446,6 +446,27 @@ ToriDraw_SceneElementGet(
     struct ToriDraw_Scene* scene,
     int element_id);
 
+/*
+ * Warm the caches for an element a caller is ABOUT to get, in two stages.
+ *
+ * An element is reached through the pool's node table and then the node's
+ * data pointer: two dependent loads, and in painter order both are cold --
+ * consecutive draws are neighbours in depth, not in memory. A frame that
+ * walks two thousand of them spends its iterator waiting on exactly those
+ * loads. The stages let a loop pipeline them: prefetch the NODE for the
+ * command two ahead, and the DATA for the one ahead (whose node the previous
+ * iteration fetched). Neither stalls, neither reads past what the list
+ * holds, and an id that is not live is simply ignored.
+ */
+void
+ToriDraw_SceneElementPrefetchNode(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+void
+ToriDraw_SceneElementPrefetchData(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+
 bool
 ToriDraw_SceneElementIsLive(
     struct ToriDraw_Scene* scene,

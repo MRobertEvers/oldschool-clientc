@@ -890,6 +890,9 @@ one lane only.
   | WebGL1 | `platform_sdl2_renderer_webgl1.c` | `platform_sdl2_renderer_webgl1zb.c` |
   | GL 3.2 | `platform_sdl2_renderer_gl3.c` | `platform_sdl2_renderer_gl3zb.c` |
 
+  Android's GLES2 renderer is a third, separate set of files with its own
+  public header (`platform_android_renderer_gles2.h`); see ANDROID-GLES2-001.
+
   Each backend's pair shares its own `*_internal.h` (renderer state, constants,
   the few helpers both need). Both backends implement the same public interface
   in `platform_sdl2_renderer_gl3.h`; `platform.mk` links exactly one, so the
@@ -932,6 +935,57 @@ one lane only.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
   [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c),
   [`3rd/trspk/webgl1/`](../3rd/trspk/webgl1/)
+
+### ANDROID-GLES2-001 - Android has its own GLES2 renderer, with no extensions
+
+- **Status:** Contract
+- **Applies to:** Android `--gles2` / `--gles2-zbuffer`
+- **Behavior:** The Android lane's GPU path is
+  `platform_android_renderer_gles2_{core,ui,painter,zbuffer}.c` -- OpenGL ES 2.0
+  core and nothing else. It is neither the WebGL1 renderer compiled for a phone
+  (that is what it replaced) nor a build of the GL3 one. Its retained model is
+  the D3D9 renderer's (WINDOWS-D3D9-CORE-001 / -ZBUFFER-001 / -UPLOAD-001 /
+  -2D-001), because that is the model that already answers a 2013 phone's
+  questions:
+  - geometry baked once into 65,536-vertex pages (Batch16 for the scene, a
+    paged arena otherwise), addressed with `uint16` page-local indices; the
+    page is selected by re-pointing the vertex attributes, never by a
+    base-vertex draw or a 32-bit index;
+  - one 2048x2048 world atlas for every texture, scrolling ones included. The
+    vertex (`TRSPK_VertexGLES2`, 28 bytes) carries its tile and scroll bytes and
+    the fragment shader wraps/clamps the local coordinate per fragment (the GL3
+    formula), so the world pass binds one texture and the index stream is never
+    split by texture;
+  - on the depth path a pose whose faces are all opaque/cutout is drawn as an
+    array range (`glDrawArrays`, no indices), coalesced with its neighbours;
+    only mixed poses go through per-page index buckets and only genuinely
+    blended faces are sorted. Opaque faces run a fragment shader that cannot
+    `discard`, so tile-based GPUs keep early depth rejection for them;
+  - the 2D stack is a retained sprite atlas, `GL_LUMINANCE_ALPHA` font atlases,
+    one streamed vertex ring appended at the head, and a two-sampler rotmask
+    draw. Widget models carry the view depth in the vertex's w for
+    perspective-correct interpolation through the UI program.
+- **Required alternatives (the GLES2 ceiling):** no VAOs (attribute pointers
+  re-issued per (buffer, page)), no buffer mapping (glBufferData orphaning +
+  glBufferSubData at a ring head), no `GL_UNPACK_ROW_LENGTH` (packed staging
+  rows), no sized internal formats, no BGRA (ARGB swizzled at upload, vertex
+  colour stored in RGBA byte order), no uniform blocks. NPOT textures are used
+  only with `CLAMP_TO_EDGE` and no mipmaps, which core ES2 permits.
+- **Flags:** `--gles2` and `--gles2-zbuffer` exist only under
+  `TORIRS_HAVE_GLES2`; `--opengl3` and `--webgl1` / `--webgl1-zbuffer` are
+  refused on this lane by name (WebGL1 is a browser API and has no native
+  Android renderer). A device manifest written before this renderer existed
+  carries `arg=--webgl1-zbuffer` and must be edited.
+  `make lane-check PLATFORM=android` forbids `TORIRS_HAVE_GL3`, `TORIRS_GL_ES2`
+  and any `webgl1` object on the command line.
+- **Verification:** `grep -c "GL_OES_\|GL_EXT_\|glGetString(GL_EXTENSIONS)"`
+  over the four `.c` files is zero; `TORIRS_PERF=1` on the device reports
+  `gl_draw_calls` in the tens for a settled scene under `--gles2-zbuffer` and
+  `gl_static_vbo_upload_bytes` at zero once the scene is built.
+- **Sources:** [`src/platform/platform_android_renderer_gles2_core.h`](../src/platform/platform_android_renderer_gles2_core.h),
+  [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`3rd/trspk/gles2/gles2_vertex.h`](../3rd/trspk/gles2/gles2_vertex.h)
 
 ### GPU-PROJ-001 - The projection is a scale, never a field of view
 

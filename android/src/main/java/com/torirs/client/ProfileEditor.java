@@ -38,19 +38,21 @@ final class ProfileEditor
      * The renderer is not a key -- it is an argv token.
      *
      * `[client:args]` is a lower-priority command line the manifest carries
-     * (see src/bootmanifest/bootmanifest.h), and `--soft3d` / `--webgl1` are
-     * how the client is told which renderer to use. There is deliberately no
+     * (see src/bootmanifest/bootmanifest.h), and `--soft3d` / `--gles2` are
+     * how the client is told which renderer to use (`--gles2-zbuffer` is the
+     * depth-buffered world pass of the same renderer). There is deliberately no
      * `renderer=` key to edit: the flag IS the interface, and inventing a
      * second spelling for it here would be a second thing to keep true.
      *
      * So this one field reads and writes repeated `arg=` lines rather than a
      * single key, which is why it is handled apart from the others.
      */
-    static final String[] RENDERER_ARGS = { "", "--soft3d", "--webgl1" };
+    static final String[] RENDERER_ARGS = { "", "--soft3d", "--gles2", "--gles2-zbuffer" };
     static final String[] RENDERER_LABELS = {
         "(unset - client default)",
         "Software rasterizer",
-        "GPU (GLES2)"
+        "GPU (GLES2, painter order)",
+        "GPU (GLES2, depth buffer)"
     };
 
     /** One editable key: which section it lives in, and how to label it. */

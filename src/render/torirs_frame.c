@@ -2235,6 +2235,25 @@ try_emit_world_draw_model(
         struct ToriDraw_Position abs_pos;
         struct World* view_world;
 
+        /* Warm the next two element commands' pool entries while this one
+         * is worked on (see ToriDraw_SceneElementPrefetchNode). Painter
+         * order is depth order, so every element here is a cold line, and
+         * the walk was measured spending its time on exactly that load. */
+        {
+            int ahead = frame->painters_index; /* the command after this one */
+            int count = frame->painters->command_count;
+            if( ahead < count &&
+                frame->painters->commands[ahead]._bf_kind == PNTR_CMD_ELEMENT )
+                ToriDraw_SceneElementPrefetchData(
+                    frame->scene,
+                    painter_command_element_id(&frame->painters->commands[ahead]));
+            if( ahead + 1 < count &&
+                frame->painters->commands[ahead + 1]._bf_kind == PNTR_CMD_ELEMENT )
+                ToriDraw_SceneElementPrefetchNode(
+                    frame->scene,
+                    painter_command_element_id(&frame->painters->commands[ahead + 1]));
+        }
+
         /* The descent markers are bookkeeping, not draws: they move the view
          * stack and are consumed here, ahead of every filter below, so a
          * TORIRS_ONLY_LOC or TORIRS_PAINT_LIMIT run cannot desync the stack. */

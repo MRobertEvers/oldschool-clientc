@@ -1404,6 +1404,35 @@ ToriDraw_SceneElementGet(
     return td_scene_element_ptr(scene, element_id);
 }
 
+void
+ToriDraw_SceneElementPrefetchNode(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    assert(scene);
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return;
+    __builtin_prefetch(&scene->elements.nodes[index], 0, 1);
+}
+
+void
+ToriDraw_SceneElementPrefetchData(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    const void* data;
+    assert(scene);
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return;
+    data = scene->elements.nodes[index].data;
+    if( data )
+        __builtin_prefetch(data, 0, 1);
+}
+
 bool
 ToriDraw_SceneElementIsLive(
     struct ToriDraw_Scene* scene,

@@ -175,6 +175,15 @@ apply_layout_position(
     }
     pos->anchor_x = op->anchor_x;
     pos->anchor_y = op->anchor_y;
+
+    /* Independent of which placement branch ran above: clearing a safe area is
+     * a rule about the resolved box, and a row states it the same way whether
+     * it was placed by x/y, by edge insets or centred. */
+    if( op->safe_area_source == REVCONFIG_SAFE_AREA_SOURCE_OS )
+        pos->safe_area_source = UITREE_SAFE_AREA_SOURCE_OS;
+    if( op->safe_area_flags & REVCONFIG_SAFE_AREA_FLAG_BOTTOM )
+        pos->safe_area_flags |= UITREE_SAFE_AREA_FLAG_BOTTOM;
+    pos->safe_area_margin = op->safe_area_margin;
 }
 
 static void

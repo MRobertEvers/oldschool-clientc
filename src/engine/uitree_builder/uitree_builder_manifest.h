@@ -119,6 +119,12 @@ struct UIBuilderTreeOp
     int dirty;
     /** @see RevConfigUILayoutItem::xalign_center. */
     int xalign_center;
+    /** REVCONFIG_SAFE_AREA_SOURCE_* / _FLAG_*: which safe area this row keeps
+     *  clear of, which of its edges, and the room it wants beyond the overlap.
+     *  @see RevConfigUILayoutItem::safe_area_source. */
+    int safe_area_source;
+    int safe_area_flags;
+    int safe_area_margin;
     int level_mask;
     /** Effect names this component advertises (revconfig hotkey= lines). */
     char hotkeys[REVCONFIG_COMPONENT_HOTKEY_MAX][64];

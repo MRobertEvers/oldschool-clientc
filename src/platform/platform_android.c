@@ -958,10 +958,25 @@ PlatformSDL2_Resize(struct PlatformSDL2* p, int width, int height)
     assert(width > 0);
     assert(height > 0);
 
-    if( p->gl_mode )
-        return false; /* GL draws to the surface and owns no CPU buffer */
     if( p->width == width && p->height == height )
         return false;
+    if( p->gl_mode )
+    {
+        /*
+         * GL draws to the surface and owns no CPU buffer -- but the logical
+         * size is still the space every touch is mapped INTO
+         * (map_surface_to_canvas) and the keyboard inset is measured in, so
+         * it must follow the canvas exactly as the SDL backend's does.
+         * Returning before recording it left the mapper letterboxing a
+         * 765x503 canvas that no longer existed once the mobile layout had
+         * grown the canvas to the whole surface: every finger landed at
+         * two thirds of where it was put, and the touch marker drew there
+         * to prove it.
+         */
+        p->width = width;
+        p->height = height;
+        return true;
+    }
     return android_make_canvas(p, width, height) != 0;
 }
 
@@ -1014,6 +1029,30 @@ PlatformSDL2_PollCommands(struct PlatformSDL2* p, struct ToriRS_CmdBus* bus)
              * decides the mapping belongs to the frame thread and can change
              * between the finger landing and this drain. */
             map_surface_to_canvas(p, ev.x, ev.y, &cx, &cy);
+            /* TORIRS_TOUCH_DEBUG=1: the finger, the window it was measured in,
+             * the canvas it was mapped into, and the letterbox that did it --
+             * the four numbers that decide whether a tap lands where it was
+             * made, printed for the tap rather than argued about. */
+            {
+                static int dbg = -1;
+                if( dbg < 0 )
+                    dbg = getenv("TORIRS_TOUCH_DEBUG") != NULL;
+                if( dbg && ev.action != PLATFORM_ANDROID_TOUCH_MOVE )
+                {
+                    struct android_rect box;
+                    int ww = 0;
+                    int wh = 0;
+                    PlatformAndroid_WindowSize(&ww, &wh);
+                    letterbox_dst(p->width, p->height, ww, wh, &box);
+                    __android_log_print(
+                        ANDROID_LOG_INFO,
+                        ANDROID_LOG_TAG,
+                        "touch: surface=%d,%d window=%dx%d canvas=%dx%d "
+                        "box=%d,%d %dx%d -> canvas=%d,%d",
+                        ev.x, ev.y, ww, wh, p->width, p->height,
+                        box.x, box.y, box.w, box.h, cx, cy);
+                }
+            }
             ToriRS_TouchEvent(&p->touch, bus, phase, (int64_t)ev.pointer_id, cx, cy, now);
             continue;
         }

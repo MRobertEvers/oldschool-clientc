@@ -17,6 +17,28 @@ trspk_sprite_argb_to_rgba(
     trspk_swizzle_argb_to_abgr(src, dst, count);
 }
 
+void
+trspk_sprite_argb_to_rgba_alpha(
+    uint32_t const* src,
+    uint32_t* dst,
+    size_t count)
+{
+    trspk_swizzle_argb_to_abgr_alpha(src, dst, count);
+}
+
+void
+trspk_sprite_argb_to_rgba_for(
+    int alpha_channel,
+    uint32_t const* src,
+    uint32_t* dst,
+    size_t count)
+{
+    if( alpha_channel )
+        trspk_swizzle_argb_to_abgr_alpha(src, dst, count);
+    else
+        trspk_swizzle_argb_to_abgr(src, dst, count);
+}
+
 uint32_t const*
 trspk_sprite_rotmask_bake(
     struct TRSPK_RotmaskBake* bake,

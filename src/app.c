@@ -5806,64 +5806,6 @@ app_title_sync_groups(struct App* app)
             UITree_SetScreenHiddenAt(
                 app->tree, idx, app->screen == APP_SCREEN_CONNECTING);
     }
-
-    /*
-     * Lift the stone box clear of the soft keyboard.
-     *
-     * The box is authored against the canvas's middle, and on a phone the
-     * keyboard covers the canvas's lower half -- which is where the password
-     * row and the Login button land. The lift is exactly the overlap (plus a
-     * margin), so on a desktop, and on a phone with the keyboard away, the
-     * box sits where the profile put it; a profile that declares no
-     * `title_box` role keeps its own arrangement and is never moved.
-     *
-     * The AUTHORED place is the current position plus whatever lift this
-     * generation already applied -- the tree is rebuilt on every resize, and
-     * a rebuild restores the profile's coordinates, which is what the
-     * generation check catches.
-     */
-    {
-        int32_t idx = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_box");
-        if( idx >= 0 )
-        {
-            struct UITreeComponent const* node = &app->tree->components[idx];
-            int base_x;
-            int base_y;
-            int box_h = 0;
-            int desired = 0;
-
-            if( app->title_box_lift_gen != app->tree->generation )
-            {
-                app->title_box_lift = 0;
-                app->title_box_lift_gen = app->tree->generation;
-            }
-            base_x = node->position.x;
-            base_y = node->position.y + app->title_box_lift;
-            UITree_LayoutGetBounds(&node->position, NULL, NULL, NULL, &box_h);
-
-            if( app->keyboard_inset > 0 )
-            {
-                /* The box's parent is the title root at the canvas origin, so
-                 * its relative coordinates are canvas coordinates -- the same
-                 * assumption its authored x/y already make. */
-                int const margin = 8;
-                int const visible_bottom = UITREE_LAYOUT_ROOT_H - app->keyboard_inset;
-
-                desired = base_y + box_h + margin - visible_bottom;
-                if( desired < 0 )
-                    desired = 0;
-                if( desired > base_y )
-                    desired = base_y; /* never past the canvas top */
-            }
-
-            if( desired != app->title_box_lift )
-            {
-                UITree_SetPositionAt(app->tree, idx, base_x, base_y - desired);
-                app->title_box_lift = desired;
-                app->title_box_lift_gen = app->tree->generation;
-            }
-        }
-    }
 }
 
 /*
@@ -9442,22 +9384,59 @@ App_Init(
             app->runner.px, host, cfg->connect_port, cfg->web_port,
             cfg->cache_dir);
         if( enabled != 0 )
-            TORIRS_LOG("app: [cache:boot] source=ondemand, but %s is not serving a cache "
-                "(game port %d, web port %d)\n",
+        {
+            /* Once more before giving up: the first attempt rides a cold
+             * Wi-Fi association or a server mid-repack often enough on the
+             * phone that a single 10s HTTP miss is not yet "the server is
+             * down". A failed enable leaves the IO with no on-demand source,
+             * so the second call starts clean. */
+            struct timespec pause = { 1, 0 };
+            nanosleep(&pause, NULL);
+            enabled = PlatformXIO_Dat1OnDemandEnable(
+                app->runner.px, host, cfg->connect_port, cfg->web_port,
+                cfg->cache_dir);
+        }
+        if( enabled != 0 )
+        {
+            /* An unreachable cache server is a RUNTIME state -- the server is
+             * down, the host moved with a DHCP lease, the phone is on the
+             * wrong network -- not a caller bug, so it must fail loudly on
+             * every build flavor. This used to be a TORIRS_LOG plus an
+             * assert: the release client printed nothing, limped on with no
+             * cache provider at all, and SIGSEGV'd in the first buildcache
+             * hmap lookup -- which, on a device whose profile armed --webgl1,
+             * read as a GLES2 renderer crash. */
+            TORIRS_ERR("app: [cache:boot] source=ondemand, but %s is not serving a cache "
+                "(game port %d, web port %d); cannot boot without one\n",
                 host,
                 cfg->connect_port > 0 ? cfg->connect_port : 43594,
                 cfg->web_port > 0 ? cfg->web_port : 80);
-        assert(enabled == 0);
+#if defined(TORIRS_PLATFORM_ANDROID)
+            /* The trap this message exists for: a manifest authored on the
+             * desktop says host=localhost, and on the phone localhost IS the
+             * phone. The gear in the boot menu edits the profile's host; the
+             * server machine's bare hostname resolves through the router's
+             * DNS (`.local` does not on old Android). */
+            if( strcmp(host, "localhost") == 0 || strcmp(host, "127.0.0.1") == 0 )
+                TORIRS_ERR("app: on this device 'localhost' is the phone itself -- edit the "
+                    "profile's host (boot menu gear) to the server machine's LAN name\n");
+#endif
+            exit(1);
+        }
         app->cache_on_demand = 1;
     }
     else if( cfg->cache_kind == APP_CACHE_DAT1 )
     {
         app->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cfg->cache_dir);
         if( !app->dat1_disk )
+        {
+            /* Same rule as the ondemand refusal above: a missing cache is a
+             * deployment state, and the message is the whole diagnosis. */
             TORIRS_ERR("app: no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a "
                 "js5 cache)\n",
                 cfg->cache_dir);
-        assert(app->dat1_disk != NULL);
+            exit(1);
+        }
         Platform_IO_InitDat1Disk(app->runner.px, app->dat1_disk);
         /* No xtea step: dat1 archives are not encrypted. */
     }
@@ -9467,10 +9446,12 @@ App_Init(
          * and decoding the rest at open cost several MB it never looked at. */
         app->dat2_disk = RSCache_Dat2DiskNewFromDirectoryLazyTables(cfg->cache_dir);
         if( !app->dat2_disk )
+        {
             TORIRS_ERR("app: no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
                 "317-era cache)\n",
                 cfg->cache_dir);
-        assert(app->dat2_disk != NULL);
+            exit(1);
+        }
         /* Map archives may be xtea-encrypted (OldSchool below 237; RS2 dat2
          * from 414). Keys load into the rscache global table the disk layer
          * consults on archive fetch — only when the identity gate says so. */
@@ -10166,6 +10147,10 @@ App_Init(
         if( app->cache_on_demand && !cfg->jag_crc_set && !getenv("TORIRS_JAG_CRC") )
         {
             int32_t crc[9];
+            /* The dial path refreshes these before every login attempt --
+             * this read only primes the table for a client that never dials
+             * (and keeps the failure loud when the endpoint is down). */
+            app->jag_crc_from_ondemand = 1;
             if( PlatformXIO_Dat1OnDemandJagChecksums(app->runner.px, crc) == 0 )
                 GameProtoRev_SetJagChecksums(rev, crc);
             else
@@ -15871,6 +15856,33 @@ app_pump_net_packets(struct App* app)
  * take, which is what makes the scripted lanes exercise the login screen
  * instead of going around it.
  */
+/*
+ * Restate the login checksums from the cache server, when that is where they
+ * came from at boot.
+ *
+ * Before EVERY dial, because the init-time read alone left a trap: the server
+ * repacks whenever its content changes, and a client that had been sitting at
+ * the title since before the repack sent boot-time sums with each attempt --
+ * a reply=6 ("client out of date") loop that no retry could leave, on
+ * exactly the machine that keeps a client open across server iterations.
+ * One HTTP GET per Login click; a failed read keeps the table it has.
+ */
+static void
+app_login_refresh_jag_checksums(struct App* app)
+{
+#if !defined(TORIRS_PLATFORM_WEB)
+    int32_t crc[9];
+
+    assert(app);
+    if( !app->jag_crc_from_ondemand || !app->net || !app->net->rev )
+        return;
+    if( PlatformXIO_Dat1OnDemandJagChecksumsRefresh(app->runner.px, crc) == 0 )
+        GameProtoRev_SetJagChecksums(app->net->rev, crc);
+#else
+    (void)app;
+#endif
+}
+
 static void
 app_title_submit(struct App* app)
 {
@@ -15940,6 +15952,7 @@ app_title_tick(struct App* app)
         app->screen == APP_SCREEN_GAME && app->autologin_user[0] )
     {
         app->autologin_done = 1;
+        app_login_refresh_jag_checksums(app);
         ToriRS_Network_ConnectLogin(
             app->net, app->connect_target, app->autologin_user, app->autologin_pass);
         return 0;
@@ -15980,6 +15993,7 @@ app_title_tick(struct App* app)
     else if( app->title_connect_pending )
     {
         app->title_connect_pending = 0;
+        app_login_refresh_jag_checksums(app);
         ToriRS_Network_ConnectLogin(
             app->net,
             app->connect_target,
@@ -29410,6 +29424,22 @@ App_PluginLayoutTick(struct App* app)
              * survive this release transaction. */
             PluginHost_LayoutChanged(app->plugins);
         }
+        /*
+         * The chrome tier does not wait for a frame OWNER.
+         *
+         * Claims exist on lanes whose gameframe is the cache's own -- that is
+         * minimap-orbs' whole osrs239 shape: the lane draws the orb and the
+         * claim provides the CLICK. Returning before the tick left every
+         * claim's needs_declare standing forever: EV_CHROME never fired,
+         * chrome_ops never ran, and the canvas paint pass had no verbs to
+         * install a region with -- orbs that draw and do nothing, on exactly
+         * the lane that ships them. The readiness gate mirrors the owned
+         * path's below: nothing is declared against a tree that is still
+         * baking.
+         */
+        if( app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0 )
+            PluginHost_ChromeTick(
+                app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         /* app_plugin_layout_set already restored the lane's default on the
          * ownership transition. Do not restate it on every ownerless tick:
          * ordinary CS2/user window-mode changes own this state again now. */
@@ -29652,13 +29682,22 @@ App_DrainCommands(
                 if( app->keyboard_inset != (int)cmd->bottom )
                 {
                     app->keyboard_inset = (int)cmd->bottom;
+                    /* The band the layout hands to every row whose profile
+                     * declared `safe_area=os:bottom` -- the login box on the
+                     * profiles that state it, and nothing at all on the ones
+                     * that do not. The same number api->safe_os answers from,
+                     * so a plugin's chrome and a profile's panel cannot
+                     * disagree about where the keyboard starts. */
+                    UITree_LayoutSetSafeBottomInset(app->keyboard_inset);
                     /* A layout event, exactly like a resize: the mobile frame
                      * reads the new safe_os box in EV_LAYOUT and slides its
                      * chatbox above (or back under) the keyboard. */
                     app->plugin_layout_dirty = 1;
-                    /* And the title screen's, whose stone box lifts its login
-                     * inputs the same way. Harmless in game: a tree with no
-                     * title roles has nothing for the sync to move. */
+                    if( app->tree )
+                        UITree_LayoutInvalidate(app->tree);
+                    /* And the title screen's, whose emit walk would otherwise
+                     * reuse last frame's command buffer and draw the box at
+                     * its old place. */
                     app_title_state_changed(app);
                     app->need_redraw = 1;
                 }

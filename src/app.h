@@ -771,6 +771,13 @@ struct App
      *  the record that it was enabled, which the login block needs to know to
      *  ask that server for its checksums. */
     int cache_on_demand;
+    /** 1 when the login checksums were taken from that server's /crc (no
+     *  manifest jag_crc= and no TORIRS_JAG_CRC override) -- the condition
+     *  under which each login attempt refreshes them. The init-time read
+     *  alone was not enough: a server that repacks while this client sits at
+     *  the title leaves every later login sending boot-time sums, which is a
+     *  reply=6 loop no retry can leave. */
+    int jag_crc_from_ondemand;
     /** 1 once a bake has queued the on-demand prefetch passes. They belong to
      *  the SESSION's first loading screen, not to every tree bake -- the
      *  post-login gameframe rebake reaches app_open_tree too, and re-walking
@@ -1558,13 +1565,6 @@ struct App
      */
     char title_field_line[RS_TITLE_FIELD_COUNT][RS_TITLE_FIELD_LEN + 64];
 
-    /** How far the title stone box is currently lifted above its authored
-     *  place so the login inputs clear the soft keyboard, and the tree
-     *  generation that lift was applied against -- a rebuild restores the
-     *  authored position, so a remembered lift from another generation is a
-     *  lift that is no longer applied. @see app_title_sync_groups. */
-    int title_box_lift;
-    uint32_t title_box_lift_gen;
     /** What each login rejection means, in this revision's words. Loaded from
      *  the profile beside RevConfigRefs and alive for the whole session. */
     struct RS_LoginReplyTable login_replies;
@@ -2449,8 +2449,9 @@ struct App
 
     /** CANVAS rows the OS soft keyboard covers at the bottom, 0 when it is
      *  away (TORIRS_CMD_KEYBOARD_INSET; only touch platforms ever push it).
-     *  What api->safe_os subtracts from the canvas, and what the title
-     *  screen lifts the login stones by. */
+     *  What api->safe_os subtracts from the canvas, and what the layout
+     *  subtracts for every row whose profile declared `safe_area=os:bottom` --
+     *  the login box, on the profiles that say so. */
     int keyboard_inset;
 
     /** A plugin asked for the on-screen keyboard. Drained by the shell, which

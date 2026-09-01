@@ -3279,25 +3279,20 @@ static int
 app_plugin_safe_os(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
 {
     struct App* app = (struct App*)user;
-    int inset;
 
     assert(app);
-    inset = app->keyboard_inset;
-    if( inset < 0 )
-        inset = 0;
-    /* A keyboard can never cover the WHOLE canvas -- and answering an empty
-     * box would turn every consumer's arithmetic negative for a state that
-     * only a bogus platform report can produce. */
-    if( inset > UITREE_LAYOUT_ROOT_H - 1 )
-        inset = UITREE_LAYOUT_ROOT_H - 1;
     if( out_x )
         *out_x = 0;
     if( out_y )
         *out_y = 0;
     if( out_w )
         *out_w = UITREE_LAYOUT_ROOT_W;
+    /* The layout's own answer, not a second computation off
+     * app->keyboard_inset: a plugin placing chrome must be dodging exactly the
+     * band a profile-authored `safe_area=os:bottom` row dodges, and the clamping
+     * (a keyboard can never cover the WHOLE canvas) lives there. */
     if( out_h )
-        *out_h = UITREE_LAYOUT_ROOT_H - inset;
+        *out_h = UITree_LayoutSafeBottomEdge();
     return 1;
 }
 

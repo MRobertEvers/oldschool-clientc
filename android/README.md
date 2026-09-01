@@ -1,7 +1,8 @@
 # ToriRS on Android
 
 The client as a native Android app: **no SDL**, the tree's own software
-rasterizer, and GLES2 as an opt-in GPU path.
+rasterizer, and the lane's own GLES2 renderer as an opt-in GPU path
+(`--gles2` / `--gles2-zbuffer`).
 
 For *how it works* — the threading, the surface lifecycle, the frame path, the
 NEON split — see **[`docs/android_architecture.md`](../docs/android_architecture.md)**.
@@ -137,7 +138,8 @@ per line. This is how you try a profile with a flag without rebuilding anything:
 ```sh
 cat > /tmp/extra_args.txt <<'EOF'
 # the GLES2 GPU renderer instead of the software rasterizer
---webgl1
+# (--gles2-zbuffer for its depth-buffered world pass)
+--gles2
 EOF
 adb push /tmp/extra_args.txt /sdcard/Android/data/com.torirs.client/files/
 ```
@@ -220,13 +222,18 @@ the app is uninstalled.
 
 The **software rasterizer is the default** and needs nothing from the device.
 
-The GPU path is **GLES2**, opted into with `--webgl1` (via `extra_args.txt`). It
-is the same renderer the browser build uses — WebGL1 *is* GLES2 — compiled
-unchanged; only the context differs (EGL here, SDL there). See
+The GPU path is the lane's **own GLES2 renderer**
+(`src/platform/platform_android_renderer_gles2_*.c`), opted into with `--gles2`
+(painter order) or `--gles2-zbuffer` (hardware depth) via `extra_args.txt` or
+the profile editor. OpenGL ES 2.0 core, no extensions; shaped after the Windows
+D3D9 renderer's retained model rather than either desktop GL renderer. See
 [`docs/android_architecture.md`](../docs/android_architecture.md) §4.
 
-`--opengl3` is refused on this lane and says so: that flag names the desktop GL
-3.3 renderer, which this build does not contain.
+`--opengl3` and `--webgl1` name other lanes' renderers (desktop GL 3.3 and the
+browser's WebGL1, which does not exist on native Android). Both are refused
+here and say so; a device manifest still carrying `arg=--webgl1-zbuffer` from
+before this renderer existed must be edited to `arg=--gles2` (or
+`--gles2-zbuffer`).
 
 ---
 

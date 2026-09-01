@@ -608,8 +608,10 @@ else ifeq ($(PLATFORM),android)
                        platform/platform_audio_null.c \
                        platform/platform_android_jni.c \
                        platform/platform_android_gl.c \
-                       platform/platform_sdl2_renderer_webgl1.c \
-                       platform/platform_sdl2_renderer_webgl1zb.c
+                       platform/platform_android_renderer_gles2_core.c \
+                       platform/platform_android_renderer_gles2_ui.c \
+                       platform/platform_android_renderer_gles2_painter.c \
+                       platform/platform_android_renderer_gles2_zbuffer.c
   PLATFORM_WINDOW_SRC := platform/platform_android.c
   JS5_SRCS          := $(wildcard js5/*.c)
 
@@ -635,26 +637,22 @@ else ifeq ($(PLATFORM),android)
   # OBJ_DIR, as on every other host. Nothing here forbids it; it is simply not
   # what this lane is for.
 
-  # --- The GPU variant is GLES2, and it is the one this tree already has ------
+  # --- The GPU variant is this lane's OWN GLES2 renderer -----------------------
   #
-  # Android's GPU renderer is the WEB lane's renderer, unchanged. That is not a
-  # shortcut -- WebGL1 *is* GLES2, and the file was written to that ceiling: no
-  # uniform blocks, no 32-bit element indices (hence webgl1_index16.o, which
-  # splits an index range into 16-bit windows), no GLES3/desktop pixel-store
-  # parameters. Every constraint it already respects is a constraint a 2013
-  # armv7 phone's driver actually has, so pointing this lane at the GL3
-  # renderer instead would mean relaxing a ceiling the device still enforces.
+  # platform_android_renderer_gles2_*.c: OpenGL ES 2.0 core, no extension of
+  # any kind, written to the shape of the Windows D3D9 renderer (retained
+  # Batch16 pages addressed by 16-bit page-local indices, a material pre-pass
+  # on the depth path, native 2D composition) rather than as a build of either
+  # desktop GL renderer. See platform_android_renderer_gles2_core.h for what
+  # each GLES2 limit turned into. The four units are peers of the D3D9 lane's
+  # core/painter/zbuffer split, plus the 2D stack in its own unit.
   #
-  # trspk_webgl1.h includes <GLES2/gl2.h> on any non-emscripten host already,
-  # and the NDK sysroot ships it -- so the renderer needs nothing added for the
-  # GL calls themselves. What it needed was a CONTEXT, and that was the only
-  # thing it ever used SDL for. That seam is now platform/platform_gl_context.h,
-  # which BOTH GL renderers program to and which each lane implements once:
-  # platform_gl_context_sdl.c on the SDL hosts, platform_android_gl.c over EGL
-  # here. There is no SDL on this lane -- no header, no library, no SDL symbol
-  # in any object it links -- and the 11k-line GLES2 renderer is still the same
-  # file the browser builds.
-  PLATFORM_GPU_OBJ_NAMES := webgl1_index16.o
+  # <GLES2/gl2.h> comes from the NDK sysroot; the context comes from
+  # platform_android_gl.c through the neutral seam in platform_gl_context.h.
+  # There is no SDL on this lane -- no header, no library, no SDL symbol in any
+  # object it links -- and no out-of-tree GPU binding object: every GL call is
+  # in the renderer's own translation units.
+  PLATFORM_GPU_OBJ_NAMES :=
   PLATFORM_EXE_SUFFIX :=
 
   # -fPIC because the output is a shared library and every object lands in it.
@@ -664,14 +662,15 @@ else ifeq ($(PLATFORM),android)
   # ABI, and a crash nowhere near the call.
   PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_ANDROID=1 -D_GNU_SOURCE -fPIC \
                           $(ANDROID_ARCH_CFLAGS)
-  # TORIRS_HAVE_GL3 says a GPU renderer exists at all; TORIRS_GL_ES2 says it is
-  # built against the GLES2 ceiling. Both are the web lane's spelling, because
-  # it is the web lane's renderer. Like every other host with a GPU path, it is
-  # OPT-IN at run time (`--opengl3`); the software rasterizer stays the default,
-  # so a device whose driver refuses the context still boots.
+  # TORIRS_HAVE_GLES2 says this lane's GPU renderer exists; main.c's `--gles2`
+  # and `--gles2-zbuffer` are accepted only under it. Deliberately NOT
+  # TORIRS_HAVE_GL3: that names the desktop/web renderer, and defining it here
+  # would let main.c hand this lane a GL 3.3 renderer no phone driver can run.
+  # Like every other host with a GPU path, it is OPT-IN at run time; the
+  # software rasterizer stays the default, so a device whose driver refuses the
+  # context still boots.
   #
-  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) \
-                      -DTORIRS_HAVE_GL3=1 -DTORIRS_GL_ES2=1
+  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -DTORIRS_HAVE_GLES2=1
   # -llog is __android_log_print (this lane's stderr -- see platform_android.c),
   # -landroid is ANativeWindow. -shared, and -Wl,--no-undefined so a symbol this
   # library forgot to define fails at link here rather than as an

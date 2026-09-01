@@ -1,6 +1,8 @@
 #ifndef SRC_PLATFORM_PLATFORM_SDL2_RENDERER_WEBGL1ZB_H
 #define SRC_PLATFORM_PLATFORM_SDL2_RENDERER_WEBGL1ZB_H
 
+#include <stdbool.h>
+
 /*
  * The depth-buffered world pass for the WebGL1 backend.
  *
@@ -103,9 +105,26 @@ WEBGL1ZB_ForgetTrack(
     int element_id,
     int anim_index);
 
+/** Whether one baked pose has any translucent face, from the cached
+ *  classification. Lets the caller decide whether the model needs the software
+ *  vertex projection at all. */
+bool
+WEBGL1ZB_PoseHasBlendedFaces(
+    struct ToriRS_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id);
+
 /** Drop the frame's queue. Must run even on a frame that bailed early, or its
  *  models would be drawn against the next frame's depth buffer and camera. */
 void
 WEBGL1ZB_ResetFrame(struct ToriRS_GL3* renderer);
+
+/** Push the frame's gathered per-page opaque indices onto the world chain,
+ *  one node per (group, page) instead of one per model, then empty the
+ *  buckets. Must run before the chain is drawn.
+ *  @see ToriRS_GL3::opaque_buckets. */
+void
+WEBGL1ZB_FlushOpaque(struct ToriRS_GL3* renderer);
 
 #endif

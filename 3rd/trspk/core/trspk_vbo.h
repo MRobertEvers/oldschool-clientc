@@ -9,6 +9,7 @@
 #include "../opengl3/opengl3_vertex.h"
 #include "../webgl1/webgl1_vertex.h"
 #include "../d3d9/d3d9_vertex.h"
+#include "../gles2/gles2_vertex.h"
 // clang-format on
 
 #include <stdbool.h>
@@ -40,6 +41,7 @@ struct TRSPK_VBO
         struct TRSPK_VertexWebGL1* as_webgl1;
         struct TRSPK_VertexOpenGl3* as_opengl3;
         struct TRSPK_VertexD3D9* as_d3d9;
+        struct TRSPK_VertexGLES2* as_gles2;
     } vertices;
 };
 
@@ -249,6 +251,44 @@ trspk_vbo_write_vertex_d3d9(
     vertex->texdata[0] = tex_id;
     vertex->texdata[1] = 0.0f;
     trspk_vbo_set_dirty(vbo);
+}
+
+/* Write one GLES2 vertex. `rgba` is already in R,G,B,A memory order and
+ * `u`/`v` are the face's LOCAL tile coordinates (see gles2_vertex.h); `slot`
+ * is the atlas slot (col = slot % 16, row = slot / 16) and `anim_u`/`anim_v`
+ * the biased scroll speeds.
+ *
+ * Like the D3D9 packed writer this does NOT touch the dirty flag: a bake
+ * writes a whole model and marks its own range once afterwards
+ * (trspk_vbo_mark_dirty_range), which is what keeps a retained upload the
+ * size of the model that changed rather than the buffer it lives in. */
+static inline void
+trspk_vbo_write_vertex_gles2(
+    struct TRSPK_VBO* vbo,
+    uint32_t index,
+    float x,
+    float y,
+    float z,
+    uint32_t rgba,
+    float u,
+    float v,
+    uint8_t tile_col,
+    uint8_t tile_row,
+    uint8_t anim_u,
+    uint8_t anim_v)
+{
+    struct TRSPK_VertexGLES2* vertex = &vbo->vertices.as_gles2[index];
+
+    vertex->position[0] = x;
+    vertex->position[1] = y;
+    vertex->position[2] = z;
+    vertex->rgba = rgba;
+    vertex->texcoord[0] = u;
+    vertex->texcoord[1] = v;
+    vertex->tile_col = tile_col;
+    vertex->tile_row = tile_row;
+    vertex->anim_u = anim_u;
+    vertex->anim_v = anim_v;
 }
 
 #endif

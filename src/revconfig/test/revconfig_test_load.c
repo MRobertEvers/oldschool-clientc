@@ -64,6 +64,8 @@ test_load(void)
         "c=compass\n"
         "p=compass_slot\n"
         "left=1\n"
+        "safe_area=os:bottom\n"
+        "safe_area_margin=8\n"
         "\n"
         "[inv:backpack]\n"
         "item=bronze_dagger\n"
@@ -119,6 +121,29 @@ test_load(void)
             break;
         case RCITEM_UILAYOUT:
             layouts++;
+            /* The row that asked to dodge the soft keyboard, and the one that
+             * did not: an edge nobody named must stay unnamed, or every panel
+             * in every profile starts moving on a phone. */
+            if( strcmp(items->items[i].u.uilayout.name, "child") == 0 )
+            {
+                TEST_ASSERT(
+                    items->items[i].u.uilayout.safe_area_source ==
+                        REVCONFIG_SAFE_AREA_SOURCE_OS,
+                    "safe_area area is os");
+                TEST_ASSERT(
+                    items->items[i].u.uilayout.safe_area_flags ==
+                        REVCONFIG_SAFE_AREA_FLAG_BOTTOM,
+                    "safe_area edge is bottom");
+                TEST_ASSERT(
+                    items->items[i].u.uilayout.safe_area_margin == 8, "safe_area_margin");
+            }
+            else
+            {
+                TEST_ASSERT(
+                    items->items[i].u.uilayout.safe_area_source ==
+                        REVCONFIG_SAFE_AREA_SOURCE_NONE,
+                    "safe_area unstated");
+            }
             break;
         case RCITEM_INV:
             invs++;

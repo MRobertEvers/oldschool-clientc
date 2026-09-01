@@ -220,6 +220,26 @@ ToriDraw_AabbCull(
     return TORIDRAW_CULL_VISIBLE;
 }
 
+/*
+ * Does the pick point lie inside the bounds cylinder's screen box?
+ *
+ * Asked HERE, where the box already exists, because the answer is worth a
+ * whole model's projection. The box is the same conservative bound the cull
+ * rejects models with, so every projected vertex of the model provably lies
+ * inside it: a point outside cannot touch the model, and a caller whose only
+ * reason to project was the pick can stop. Widened by a pixel each side so
+ * the truncation the real projection performs cannot fall outside it.
+ *
+ * `rel_x`/`rel_y` are viewport-CENTRE relative, the space the extents are in
+ * and the space toridraw_projected_model_hit_face converts its argument into.
+ */
+struct ToriDraw_CullPointTest
+{
+    int rel_x;
+    int rel_y;
+    bool contains;
+};
+
 static inline int
 ToriDraw_FastCull(
     const struct ToriDraw_Scene* scene,
@@ -227,8 +247,11 @@ ToriDraw_FastCull(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_Camera* camera,
-    struct ProjectedVertex* projected_vertex)
+    struct ProjectedVertex* projected_vertex,
+    struct ToriDraw_CullPointTest* point)
 {
+    if( point )
+        point->contains = false;
     assert(hnd.kind != TORIDRAWMK_NONE);
     assert(ToriDraw_ModelKindIsFull(hnd.kind));
     int scene_x = position->x;
@@ -344,6 +367,11 @@ ToriDraw_FastCull(
             screen_y_max_unoffset < -screen_edge_height )
             return TORIDRAW_CULL_FAST;
 
+        if( point )
+            point->contains = point->rel_x >= screen_x_min_unoffset - 1 &&
+                point->rel_x <= screen_x_max_unoffset + 1 &&
+                point->rel_y >= screen_y_min_unoffset - 1 &&
+                point->rel_y <= screen_y_max_unoffset + 1;
         return TORIDRAW_CULL_VISIBLE;
     }
 
@@ -394,6 +422,19 @@ ToriDraw_FastCull(
 
         if( ny_min >= z_h || ny_max <= -z_h )
             return TORIDRAW_CULL_FAST;
+
+        /* The same cancelled divide the culls above use, turned into a
+         * containment test: pixel p lies in [n_min/z, n_max/z] widened by one
+         * pixel exactly when p*z is in [n_min - z, n_max + z]. No divide, and
+         * the same int arithmetic, so it agrees with what the projection will
+         * produce. */
+        if( point )
+        {
+            long long const px = (long long)point->rel_x * mid_z;
+            long long const py = (long long)point->rel_y * mid_z;
+            point->contains = px >= nx_min - mid_z && px <= nx_max + mid_z &&
+                py >= ny_min - mid_z && py <= ny_max + mid_z;
+        }
     }
 #undef TORIDRAW_FASTCULL_Y_EXTENT
 
@@ -1337,7 +1378,8 @@ ToriDraw_ProjectWithVTable(
 
     int cull = TORIDRAW_CULL_VISIBLE;
 
-    cull = ToriDraw_FastCull(scene, view_port, hnd, position, camera, &center_projection);
+    cull = ToriDraw_FastCull(
+        scene, view_port, hnd, position, camera, &center_projection, NULL);
     if( cull != TORIDRAW_CULL_VISIBLE )
     {
         if( cull == TORIDRAW_CULL_ERROR )
@@ -1819,4 +1861,49 @@ ToriDraw_ProjectedTileMouseHitTest(
         screen_y,
         TORIDRAW_PICKTEST_REFERENCE_TILE,
         /* include_hidden */ true);
+}
+
+
+/*
+ * The cull verdict, and whether one screen point could possibly be on this
+ * model -- without projecting a single vertex.
+ *
+ * A GPU backend does not consume the software projection at all: it exists
+ * there for the cull and for the pick. The cull is this call's prologue, and
+ * the pick only ever asks about ONE point, so a model whose bounds-cylinder
+ * screen box excludes that point has nothing left to project for. On a
+ * settled scene that is essentially every model on screen.
+ *
+ * `point_x`/`point_y` are absolute screen coordinates, the same space
+ * ToriDraw_ProjectedModelMouseHitTest takes. Pass a NULL out pointer to ask
+ * only for the cull.
+ */
+int
+ToriDraw_RenderModel1CullPoint(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    int point_x,
+    int point_y,
+    bool* out_point_inside)
+{
+    struct ProjectedVertex center_projection;
+    struct ToriDraw_CullPointTest test;
+    int cull;
+
+    assert(scene);
+    assert(position);
+    assert(view_port);
+    assert(camera);
+    test.rel_x = point_x - view_port->x_center;
+    test.rel_y = point_y - view_port->y_center;
+    test.contains = false;
+    cull = ToriDraw_FastCull(
+        scene, view_port, hnd, position, camera, &center_projection,
+        out_point_inside ? &test : NULL);
+    if( out_point_inside )
+        *out_point_inside = test.contains;
+    return cull;
 }

@@ -52,6 +52,28 @@
 #define UITREE_RELATIVE_FLAG_RIGHT 4
 #define UITREE_RELATIVE_FLAG_BOTTOM 8
 
+/*
+ * WHICH safe area a node keeps clear of, and which of its edges.
+ *
+ * There is more than one box that deserves the name, and they answer to
+ * different occluders -- the difference ToriRS_PluginApi::safe_os spells out.
+ * The OS one is the canvas minus what the PLATFORM put on top of the whole
+ * window (today a soft keyboard, a band off the bottom while it is up); the
+ * game-chrome one, when the layout learns to resolve it, is the canvas minus
+ * what the CLIENT put there -- frame regions, edges plugins reserved. A row
+ * that wants to clear a keyboard and a row that wants to clear the chat box
+ * are asking different questions, so the profile names the area rather than
+ * saying "the safe one" and leaving the client to guess which.
+ *
+ * Only the bottom edge exists because only the bottom edge is ever eaten. A
+ * notch would add UITREE_SAFE_AREA_FLAG_TOP and an inset for it in
+ * uitree_layout; nothing else about the rule would change.
+ */
+#define UITREE_SAFE_AREA_SOURCE_NONE 0
+#define UITREE_SAFE_AREA_SOURCE_OS 1
+
+#define UITREE_SAFE_AREA_FLAG_BOTTOM 1
+
 /** Client.ts overMainComId / overSideComId / overChatComId. -1 = none. */
 struct UITreeHoverIds
 {
@@ -267,6 +289,26 @@ struct UITreeElemPosition
     int8_t height_mode;
     int aspect_w;
     int aspect_h;
+
+    /*
+     * Which safe area this node keeps itself clear of, which of its edges, and
+     * how much room it wants beyond the overlap (UITREE_SAFE_AREA_SOURCE_*,
+     * UITREE_SAFE_AREA_FLAG_*, and canvas rows). All three come from the
+     * profile's layout row -- `safe_area=os:bottom`, `safe_area_margin=` -- so
+     * WHICH panel moves out from under a soft keyboard is a statement the
+     * revision makes about its own interface, not a role name compiled into
+     * the client.
+     *
+     * Applied to the RESOLVED box, never to x/y: the authored coordinates stay
+     * the authored coordinates, so a keyboard going away restores the row by
+     * re-resolving rather than by remembering what it displaced.
+     *
+     * SOURCE_NONE -- the overwhelmingly common case -- means the node sits
+     * exactly where its coordinates put it, whatever is covering the canvas.
+     */
+    int safe_area_source;
+    int safe_area_flags;
+    int safe_area_margin;
 };
 
 /* Runtime script hooks live in their own file: the slot type, its accessors and

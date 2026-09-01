@@ -781,6 +781,9 @@ struct ToriRS_SpriteFrame
     int crop_y;
     int crop_width;
     int crop_height;
+    /* Whether the alpha byte is a real channel; carried to the ToriDraw
+     * sprite this frame becomes. @see ToriDraw_Sprite::alpha_channel. */
+    unsigned char alpha_channel;
 };
 
 struct ToriRS_Sprite

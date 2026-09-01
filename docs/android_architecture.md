@@ -128,8 +128,8 @@ returns, because Android destroys the surface the moment it does.
                                   │
               ┌───────────────────┴────────────────────┐
               ▼                                        ▼
-   SOFTWARE (default)                        GLES2 (--webgl1, opt-in)
-   toridraw rasterises into                  platform_sdl2_renderer_webgl1.c
+   SOFTWARE (default)                        GLES2 (--gles2[-zbuffer], opt-in)
+   toridraw rasterises into                  platform_android_renderer_gles2_*.c
    the ARGB8888 canvas                       draws into the EGL surface
               │                                        │
    PlatformSDL2_Present                      PlatformSDL2_PresentGL
@@ -139,18 +139,40 @@ returns, because Android destroys the surface the moment it does.
    ANativeWindow_unlockAndPost
 ```
 
-### Why the GPU path is the *WebGL1* renderer
+### The GPU path is the lane's own renderer
 
-Because WebGL1 **is** GLES2. `platform_sdl2_renderer_webgl1.c` was written to
-that ceiling and already respects every part of it: no uniform blocks, no 32-bit
-element indices (`webgl1_index16.c` splits an index range into 16-bit windows),
-no GLES3/desktop pixel-store parameters. Those are not browser quirks — they are
-the limits a 2013 armv7 phone's driver still enforces. The desktop GL3 renderer
-would have to have each of them put back.
+`platform_android_renderer_gles2_{core,ui,painter,zbuffer}.c` is OpenGL ES 2.0
+core with **no extensions**, and it is shaped after the Windows D3D9 renderer's
+retained model rather than after either desktop GL renderer:
 
-So Android compiles that file **unchanged**. The only thing it ever needed SDL
-for was making a context, and that seam is now
-`platform/platform_gl_context.h` — nine functions, implemented twice:
+- geometry is baked once into Batch16 chunks for the scene (packed densely
+  into one static buffer) and a paged arena for everything else, and addressed
+  with 16-bit indices relative to wherever the attributes are bound; a window
+  change is an attribute re-point, never a base-vertex draw;
+- on the painter path (`--gles2`, the default) the static models being drawn
+  live in a **resident window**: a 65,536-vertex GPU ring a model is copied
+  into the first time it is drawn (one sequential upload, staged per frame)
+  and indexed from every frame after, until the ring wraps over it. A frame
+  draws ~40k static vertices out of a ~960k-vertex loaded region, so the
+  window holds the whole visible set and a still camera places nothing.
+  Actors are baked into a per-frame stream in sorted order; anything that
+  cannot be resident is gathered into that stream. Measured on the Moto X
+  against the previous whole-frame gather: 12.9k faces/frame indexed, ~300
+  gathered, `memcpy` from 17% of the frame to 2%;
+- on the depth path (`--gles2-zbuffer`) a pose whose faces are all opaque is a
+  contiguous run of triangles and is drawn with `glDrawArrays` -- no index
+  stream at all for most of the static world -- while mixed poses go through
+  per-page index buckets and only genuinely blended faces are sorted;
+- every world texture lives in one 2048² atlas. The vertex carries the tile and
+  the scroll speed (28 bytes a vertex, `TRSPK_VertexGLES2`), and the fragment
+  shader wraps/clamps the local coordinate per fragment, so the world pass binds
+  one texture and never switches for scrolling water or lava;
+- the UI is a retained sprite atlas, `GL_LUMINANCE_ALPHA` font atlases and one
+  streamed vertex ring; the minimap/compass rotmask is a single two-sampler
+  draw.
+
+The only thing it needs from the platform is a context, and that seam is
+`platform/platform_gl_context.h` -- nine functions, implemented twice:
 
 | lane | implementation | backing |
 |---|---|---|
@@ -311,7 +333,7 @@ Three decisions worth naming:
   drifting the moment the real one gains a key.
 
 `<files>/extra_args.txt` (one argument per line) is appended to argv, so a
-profile can be tried with `--webgl1` or `--offline` without rebuilding the APK.
+profile can be tried with `--gles2` or `--offline` without rebuilding the APK.
 
 ---
 

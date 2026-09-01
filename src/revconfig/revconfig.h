@@ -270,6 +270,8 @@ enum RevConfigFieldKind
     RCFIELD_UILAYOUT_RIGHT,
     RCFIELD_UILAYOUT_DIRTY,
     RCFIELD_UILAYOUT_XALIGN,
+    RCFIELD_UILAYOUT_SAFE_AREA,
+    RCFIELD_UILAYOUT_SAFE_AREA_MARGIN,
     RCFIELD_UILAYOUT_PARENT,
     RCFIELD_UILAYOUT_NAME,
     RCFIELD_UILAYOUT_GROUP,
@@ -1069,6 +1071,20 @@ struct RevConfigUIComponentItem
     int chat_button_mode_color[4];
 };
 
+/* The area and edge named by a layout's `safe_area=<area>:<edge>`. Mirrors
+ * UITREE_SAFE_AREA_SOURCE_* / UITREE_SAFE_AREA_FLAG_* one for one, translated
+ * at bake -- revconfig describes an interface, it does not include the widget
+ * tree that renders one.
+ *
+ * `os` is the canvas minus what the PLATFORM put over the window; the
+ * game-chrome area (the canvas minus what the CLIENT put there) is the second
+ * one coming, and is why the area is named at all rather than left implicit.
+ * Only the bottom edge exists, because only the bottom edge is ever covered. */
+#define REVCONFIG_SAFE_AREA_SOURCE_NONE 0
+#define REVCONFIG_SAFE_AREA_SOURCE_OS 1
+
+#define REVCONFIG_SAFE_AREA_FLAG_BOTTOM 1
+
 /*
  * UI placement from a [layout:group] revconfig INI section (*_ui.ini).
  * One section may contain multiple entries separated by bare '=' lines.
@@ -1146,6 +1162,45 @@ struct RevConfigUILayoutItem
      * indistinguishable from one that simply never set any.
      */
     int xalign_center;
+
+    /*
+     * INI: safe_area=<area>:<edge>, e.g. `safe_area=os:bottom`
+     * Keep this row clear of one named safe area's edge. `os` is the part of
+     * the window the OPERATING SYSTEM is covering -- today a soft keyboard, a
+     * band off the bottom while it is up. When the band would overlap the row,
+     * the row slides up by exactly the overlap; when it would not, the row
+     * does not move at all.
+     *
+     * The area is named because there is going to be more than one: the client
+     * also has a game-chrome area, the canvas minus the frame regions and the
+     * edges plugins reserved, and a row dodging the chat box is not asking the
+     * same question as a row dodging the keyboard. A bare edge would have to
+     * pick one of them silently.
+     *
+     * This is the login box's rule, and it belongs here for the same reason
+     * `xalign=center` does: which panel must stay reachable while someone is
+     * typing into it is a fact about THIS revision's interface -- one profile's
+     * stone box is another's chat entry -- and the client cannot know it by
+     * looking. It used to be a role name (`title_box`) that a hardcoded block
+     * in app.c went looking for every frame, which meant a new profile could
+     * only get the behaviour by naming its panel what that block expected.
+     *
+     * A profile that says nothing here keeps its row exactly where it authored
+     * it, on a phone as on a desktop.
+     *
+     * @see REVCONFIG_SAFE_AREA_SOURCE_*, and ToriRS_PluginApi::safe_os -- the
+     * same band, offered to plugins that place their own chrome.
+     */
+    int safe_area_source;
+    int safe_area_flags;
+
+    /*
+     * INI: safe_area_margin=
+     * Extra canvas rows to leave between this row's bottom edge and the safe
+     * area's, on top of the overlap. Unstated = 0, i.e. flush against the
+     * keyboard. Ignored unless safe_area= names an area and an edge.
+     */
+    int safe_area_margin;
 };
 
 #define REVCONFIG_INV_MAX_ITEMS 32

@@ -92,6 +92,7 @@ webgl1_material_pose_clear(struct WebGL1MaterialPose* pose)
 {
     assert(pose);
     free(pose->face_passes);
+    free(pose->runs);
     memset(pose, 0, sizeof(*pose));
 }
 
@@ -128,6 +129,48 @@ webgl1_material_pose_set(
             pose->cutout_count++;
         else if( pass == WEBGL1_WORLD_FACE_BLENDED )
             pose->blended_count++;
+    }
+    /* The drawable runs. Two passes over a byte per face, once per pose. */
+    {
+        uint32_t runs = 0u;
+        uint32_t face = 0u;
+        uint32_t* out;
+        while( face < pose->face_count )
+        {
+            if( pose->face_passes[face] == WEBGL1_WORLD_FACE_OPAQUE ||
+                pose->face_passes[face] == WEBGL1_WORLD_FACE_CUTOUT )
+            {
+                runs++;
+                while( face < pose->face_count &&
+                       (pose->face_passes[face] == WEBGL1_WORLD_FACE_OPAQUE ||
+                        pose->face_passes[face] == WEBGL1_WORLD_FACE_CUTOUT) )
+                    face++;
+            }
+            else
+                face++;
+        }
+        out = realloc(pose->runs, (size_t)(runs ? runs : 1u) * 2u * sizeof(*out));
+        assert(out);
+        pose->runs = out;
+        pose->run_count = 0u;
+        face = 0u;
+        while( face < pose->face_count )
+        {
+            if( pose->face_passes[face] == WEBGL1_WORLD_FACE_OPAQUE ||
+                pose->face_passes[face] == WEBGL1_WORLD_FACE_CUTOUT )
+            {
+                uint32_t const start = face;
+                while( face < pose->face_count &&
+                       (pose->face_passes[face] == WEBGL1_WORLD_FACE_OPAQUE ||
+                        pose->face_passes[face] == WEBGL1_WORLD_FACE_CUTOUT) )
+                    face++;
+                out[pose->run_count * 2u] = start;
+                out[pose->run_count * 2u + 1u] = face - start;
+                pose->run_count++;
+            }
+            else
+                face++;
+        }
     }
     return true;
 }
@@ -292,42 +335,18 @@ webgl1_material_table_free(struct WebGL1MaterialTable* table)
     memset(table, 0, sizeof(*table));
 }
 
-/*
- * Signed area of the face's projected triangle.
+/* Hold one model's translucent faces for the sorted pass.
  *
- * The painter path gets back-face rejection for free from
- * ToriDraw_RenderModel2SortFaces, which the depth path deliberately does not
- * run for opaque faces. Without this the pass submits both sides of every
- * closed model — twice the triangles, and the depth test cannot tell them
- * apart because the far side is genuinely behind.
- */
-static bool
-webgl1_reserve_model_indices(
-    struct ToriRS_GL3* renderer,
-    uint32_t count)
-{
-    if( count <= renderer->model_index_capacity )
-        return true;
-    {
-        uint32_t cap = renderer->model_index_capacity ? renderer->model_index_capacity : 1024u;
-        uint32_t* grown;
-        while( cap < count )
-            cap *= 2u;
-        grown = (uint32_t*)realloc(renderer->model_indices, (size_t)cap * sizeof(uint32_t));
-        assert(grown);
-        renderer->model_indices = grown;
-        renderer->model_index_capacity = cap;
-    }
-    return true;
-}
-
-/* Hold one model's translucent faces for the sorted pass. */
+ * The indices arrive page-local and stay that way: (group, page_base) is
+ * carried on the record, so ordering the pass is a sort of records and the
+ * chain it builds afterwards is keyed exactly like the opaque one. */
 static bool
 webgl1_queue_alpha_submission(
     struct ToriRS_GL3* renderer,
     uint32_t group,
+    uint32_t page_base,
     int depth,
-    const uint32_t* indices,
+    const uint16_t* indices,
     uint32_t index_count)
 {
     struct WebGL1AlphaSubmission* submission;
@@ -341,10 +360,10 @@ webgl1_queue_alpha_submission(
     if( renderer->alpha_index_count + index_count > renderer->alpha_index_capacity )
     {
         uint32_t cap = renderer->alpha_index_capacity ? renderer->alpha_index_capacity : 1024u;
-        uint32_t* grown;
+        uint16_t* grown;
         while( cap < renderer->alpha_index_count + index_count )
             cap *= 2u;
-        grown = (uint32_t*)realloc(renderer->alpha_indices, (size_t)cap * sizeof(uint32_t));
+        grown = (uint16_t*)realloc(renderer->alpha_indices, (size_t)cap * sizeof(uint16_t));
         assert(grown);
         renderer->alpha_indices = grown;
         renderer->alpha_index_capacity = cap;
@@ -363,13 +382,14 @@ webgl1_queue_alpha_submission(
 
     submission = &renderer->alpha_submissions[renderer->alpha_submission_count++];
     submission->group = group;
+    submission->page_base = page_base;
     submission->index_start = renderer->alpha_index_count;
     submission->index_count = index_count;
     submission->depth = depth;
     memcpy(
         renderer->alpha_indices + renderer->alpha_index_count,
         indices,
-        (size_t)index_count * sizeof(uint32_t));
+        (size_t)index_count * sizeof(uint16_t));
     renderer->alpha_index_count += index_count;
     return true;
 }
@@ -388,6 +408,120 @@ webgl1_queue_alpha_submission(
  * A model with no translucent faces never runs the sort at all, which is what
  * the mode is for.
  */
+/*
+ * Append one run of consecutive drawable faces to its page's bucket.
+ *
+ * A run of faces [f, f+n) is the vertex range [3f, 3f+3n) -- consecutive, by
+ * construction of the bake -- so the indices are simply the integers from
+ * first_local upwards. There is no per-face gather here and nothing to look
+ * up: the pose's runs were found once when it was classified, and the page it
+ * lives in was decided when it was placed.
+ */
+static void
+webgl1_queue_opaque_run(
+    struct ToriRS_GL3* renderer,
+    uint32_t group,
+    uint32_t page_base,
+    uint32_t first_local,
+    uint32_t count)
+{
+    struct WebGL1OpaqueBucket* bucket = NULL;
+    uint16_t* dst;
+
+    assert(renderer);
+    if( count == 0u )
+        return;
+    for( uint32_t i = 0u; i < renderer->opaque_bucket_count; i++ )
+        if( renderer->opaque_buckets[i].group == group &&
+            renderer->opaque_buckets[i].page_base == page_base )
+        {
+            bucket = &renderer->opaque_buckets[i];
+            break;
+        }
+    if( !bucket )
+    {
+        if( renderer->opaque_bucket_count >= renderer->opaque_bucket_capacity )
+        {
+            uint32_t cap = renderer->opaque_bucket_capacity
+                ? renderer->opaque_bucket_capacity * 2u
+                : 16u;
+            struct WebGL1OpaqueBucket* grown =
+                realloc(renderer->opaque_buckets, (size_t)cap * sizeof(*grown));
+            assert(grown);
+            memset(
+                grown + renderer->opaque_bucket_capacity,
+                0,
+                (size_t)(cap - renderer->opaque_bucket_capacity) * sizeof(*grown));
+            renderer->opaque_buckets = grown;
+            renderer->opaque_bucket_capacity = cap;
+        }
+        bucket = &renderer->opaque_buckets[renderer->opaque_bucket_count++];
+        bucket->group = group;
+        bucket->page_base = page_base;
+        bucket->index_count = 0u;
+    }
+    if( bucket->index_count + count > bucket->index_capacity )
+    {
+        uint32_t cap = bucket->index_capacity ? bucket->index_capacity : 4096u;
+        uint16_t* grown;
+        while( cap < bucket->index_count + count )
+            cap *= 2u;
+        grown = (uint16_t*)realloc(bucket->indices, (size_t)cap * sizeof(*grown));
+        assert(grown);
+        bucket->indices = grown;
+        bucket->index_capacity = cap;
+    }
+    dst = bucket->indices + bucket->index_count;
+    for( uint32_t i = 0u; i < count; i++ )
+        dst[i] = (uint16_t)(first_local + i);
+    bucket->index_count += count;
+}
+
+void
+WEBGL1ZB_FlushOpaque(struct ToriRS_GL3* renderer)
+{
+    assert(renderer);
+    for( uint32_t i = 0u; i < renderer->opaque_bucket_count; i++ )
+    {
+        struct WebGL1OpaqueBucket* bucket = &renderer->opaque_buckets[i];
+        if( bucket->index_count > 0u )
+            trspk_ibochain_push16(
+                renderer->ibo_chain,
+                bucket->group,
+                bucket->page_base,
+                bucket->indices,
+                bucket->index_count);
+        bucket->index_count = 0u;
+    }
+    renderer->opaque_bucket_count = 0u;
+}
+
+/*
+ * Does this pose carry any genuinely translucent face?
+ *
+ * Asked BEFORE the model is projected, because the answer decides whether it
+ * has to be: only a blended model runs ToriDraw_RenderModel2SortFaces, and
+ * that is the only consumer of the software projection left on this lane once
+ * the pick has been answered from the cull bound. The classification is the
+ * cached one -- keyed (element, track, pose) -- so this costs a table lookup,
+ * or one classification the frame was going to pay anyway.
+ */
+bool
+WEBGL1ZB_PoseHasBlendedFaces(
+    struct ToriRS_GL3* renderer,
+    struct ToriRS_RenderCommand_Model const* mcmd,
+    int anim_index,
+    int pose_id)
+{
+    const struct WebGL1MaterialPose* material;
+
+    assert(renderer);
+    assert(mcmd);
+    material = webgl1_material_for(
+        renderer, mcmd->element_id, anim_index, pose_id, mcmd->model);
+    return material && material->blended_count > 0u;
+}
+
 void
 WEBGL1ZB_SubmitModel(
     struct ToriRS_GL3* renderer,
@@ -398,6 +532,8 @@ WEBGL1ZB_SubmitModel(
     int face_count)
 {
     const struct WebGL1MaterialPose* material;
+    const uint32_t page_base = webgl1_page_base_of(vertex_base);
+    const uint32_t local_base = vertex_base - page_base;
     uint32_t written = 0u;
     int sorted_face_count;
     int* face_order;
@@ -415,23 +551,21 @@ WEBGL1ZB_SubmitModel(
     if( !material || material->face_count != (uint32_t)face_count )
         return;
 
-    for( int i = 0; i < face_count; i++ )
+    /* The opaque and cutout faces go into this page's bucket, one run of
+     * consecutive drawable faces at a time -- the runs were found once when
+     * the pose was classified, so there is no per-face loop here either.
+     * @see ToriRS_GL3::opaque_buckets. */
+    for( uint32_t r = 0u; r < material->run_count; r++ )
     {
-        const uint32_t face = (uint32_t)i;
-        const uint8_t pass = material->face_passes[face];
-        uint32_t b;
-
-        if( pass != WEBGL1_WORLD_FACE_OPAQUE && pass != WEBGL1_WORLD_FACE_CUTOUT )
-            continue;
-        b = vertex_base + face * 3u;
-        renderer->model_indices[written++] = b;
-        renderer->model_indices[written++] = b + 1u;
-        renderer->model_indices[written++] = b + 2u;
-    }
-    if( written > 0u )
-    {
-        trspk_ibochain_push32(renderer->ibo_chain, group, 0u, renderer->model_indices, written);
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_OPAQUE_TRIANGLES, written / 3u);
+        uint32_t const first_face = material->runs[r * 2u];
+        uint32_t const run_faces = material->runs[r * 2u + 1u];
+        webgl1_queue_opaque_run(
+            renderer,
+            group,
+            page_base,
+            local_base + first_face * 3u,
+            run_faces * 3u);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_OPAQUE_TRIANGLES, run_faces);
     }
 
     if( material->blended_count == 0u )
@@ -455,87 +589,21 @@ WEBGL1ZB_SubmitModel(
         if( face >= material->face_count ||
             material->face_passes[face] != WEBGL1_WORLD_FACE_BLENDED )
             continue;
-        b = vertex_base + face * 3u;
-        renderer->model_indices[written++] = b;
-        renderer->model_indices[written++] = b + 1u;
-        renderer->model_indices[written++] = b + 2u;
+        b = local_base + face * 3u;
+        renderer->model_indices[written++] = (uint16_t)b;
+        renderer->model_indices[written++] = (uint16_t)(b + 1u);
+        renderer->model_indices[written++] = (uint16_t)(b + 2u);
     }
     if( written == 0u )
         return;
     (void)webgl1_queue_alpha_submission(
-        renderer, group, ctx->projected_vertex.z, renderer->model_indices, written);
+        renderer,
+        group,
+        page_base,
+        ctx->projected_vertex.z,
+        renderer->model_indices,
+        written);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES, written / 3u);
-}
-
-/*
- * Upload and draw one contiguous run of absolute 32-bit indices.
- *
- * The blended pass cannot share the frame's main index upload: its order is
- * only known after every model has been submitted. Runs are per translucent
- * model and there are few of them, so an upload each is cheaper than the
- * bookkeeping to merge them.
- *
- * On WebGL1 the run still has to be expressed in 16-bit windows, which is the
- * same sliding split the main pass uses — inlined here because it is over one
- * contiguous array rather than a draw-range list.
- */
-static void
-webgl1_draw_indices32(
-    struct ToriRS_GL3* renderer,
-    uint32_t group,
-    const uint32_t* idx,
-    uint32_t count)
-{
-    if( count < 3u || !webgl1_ensure_gpu_ibo(renderer, count) )
-        return;
-    if( !webgl1_ensure_index16(renderer, count) )
-        return;
-    {
-        uint32_t i = 0u;
-        while( i + 2u < count )
-        {
-            uint32_t lo = idx[i];
-            uint32_t hi = idx[i];
-            const uint32_t start = i;
-            uint32_t span;
-            for( uint32_t k = 1u; k < 3u; k++ )
-            {
-                if( idx[i + k] < lo )
-                    lo = idx[i + k];
-                if( idx[i + k] > hi )
-                    hi = idx[i + k];
-            }
-            i += 3u;
-            while( i + 2u < count )
-            {
-                uint32_t nlo = lo;
-                uint32_t nhi = hi;
-                for( uint32_t k = 0u; k < 3u; k++ )
-                {
-                    if( idx[i + k] < nlo )
-                        nlo = idx[i + k];
-                    if( idx[i + k] > nhi )
-                        nhi = idx[i + k];
-                }
-                if( nhi - nlo > 65535u )
-                    break;
-                lo = nlo;
-                hi = nhi;
-                i += 3u;
-            }
-            span = i - start;
-            for( uint32_t k = 0u; k < span; k++ )
-                renderer->idx16[k] = (uint16_t)(idx[start + k] - lo);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-            glBufferSubData(
-                GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(span * sizeof(uint16_t)),
-                renderer->idx16);
-            webgl1_bind_group_attribs(renderer, &renderer->groups[group], lo);
-            glDrawElements(GL_TRIANGLES, (GLsizei)span, GL_UNSIGNED_SHORT, (const void*)0);
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
-        }
-    }
 }
 
 static int
@@ -600,19 +668,27 @@ WEBGL1ZB_DrawAlphaPass(struct ToriRS_GL3* renderer)
         renderer->alpha_order[j] = key;
     }
 
-    glDepthMask(GL_FALSE);
+    /* Sorted order becomes chain order, and the chain merges the runs that
+     * share a page -- so a screen full of translucent models is one upload and
+     * a handful of draws, where it used to be a glBufferSubData, an attribute
+     * rebind and a draw call for every single model. */
+    trspk_ibochain_reset(renderer->alpha_ibo_chain);
     for( uint32_t oi = 0u; oi < renderer->alpha_submission_count; oi++ )
     {
         const struct WebGL1AlphaSubmission* sub =
             &renderer->alpha_submissions[renderer->alpha_order[oi]];
         if( sub->index_count == 0u )
             continue;
-        webgl1_draw_indices32(
-            renderer,
+        trspk_ibochain_push16(
+            renderer->alpha_ibo_chain,
             sub->group,
+            sub->page_base,
             renderer->alpha_indices + sub->index_start,
             sub->index_count);
     }
+
+    glDepthMask(GL_FALSE);
+    webgl1_draw_index_chain(renderer, renderer->alpha_ibo_chain);
     glDepthMask(GL_TRUE);
 }
 
@@ -626,6 +702,11 @@ WEBGL1ZB_Free(struct ToriRS_GL3* renderer)
     free(renderer->alpha_indices);
     free(renderer->alpha_order);
     free(renderer->model_indices);
+    for( uint32_t i = 0u; i < renderer->opaque_bucket_capacity; i++ )
+        free(renderer->opaque_buckets[i].indices);
+    free(renderer->opaque_buckets);
+    renderer->opaque_buckets = NULL;
+    renderer->opaque_bucket_capacity = 0u;
     webgl1_material_table_free(&renderer->materials);
     renderer->alpha_submissions = NULL;
     renderer->alpha_indices = NULL;
@@ -644,6 +725,11 @@ WEBGL1ZB_ResetFrame(struct ToriRS_GL3* renderer)
     assert(renderer);
     renderer->alpha_submission_count = 0u;
     renderer->alpha_index_count = 0u;
+    for( uint32_t i = 0u; i < renderer->opaque_bucket_count; i++ )
+        renderer->opaque_buckets[i].index_count = 0u;
+    renderer->opaque_bucket_count = 0u;
+    if( renderer->alpha_ibo_chain )
+        trspk_ibochain_reset(renderer->alpha_ibo_chain);
 }
 
 void

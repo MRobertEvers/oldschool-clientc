@@ -390,6 +390,10 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES,
     TORIRS_PERF_CTR_GL_IBO_UPLOADS,
     TORIRS_PERF_CTR_GL_DRAW_RANGES,
+    /* 2D batches the interface pass drew, the peer of d3d9_ui_batch_draws. */
+    TORIRS_PERF_CTR_GL_UI_BATCH_DRAWS,
+    /* Models the cull bound answered for, so no vertex was projected. */
+    TORIRS_PERF_CTR_GL_PROJECT_SKIPPED,
     TORIRS_PERF_CTR_GL_DRAW_CALLS,
     TORIRS_PERF_CTR_GL_ATTRIB_REBINDS,
     TORIRS_PERF_CTR_GL_2D_BATCH_FLUSHES,

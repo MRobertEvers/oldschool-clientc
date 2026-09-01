@@ -3,18 +3,13 @@
  *
  * Android's implementation of platform_gl_context.h, and the counterpart of
  * platform_gl_context_sdl.c on the lanes that do run SDL. Between them they are
- * the only two files in this tree that know how a GL context is made, which is
- * what lets the ~11k-line GLES2 renderer (platform_sdl2_renderer_webgl1.c) be
- * compiled UNCHANGED for both a browser and a phone.
+ * the only two files in this tree that know how a GL context is made; the
+ * renderers program to the seam and never see EGL or SDL.
  *
- * WHY THE GLES2 RENDERER IS THE RIGHT ONE HERE
- *
- * WebGL1 *is* GLES2. That renderer was written to the GLES2 ceiling and
- * respects every part of it: no uniform blocks, no 32-bit element indices
- * (webgl1_index16.c splits an index range into 16-bit windows instead), no
- * GLES3/desktop pixel-store parameters. Those are not browser quirks -- they
- * are exactly the limits a 2013-era armv7 phone's driver still enforces. The
- * desktop GL3 renderer would have to have each of them added back.
+ * The renderer on the other side of this seam here is the lane's own
+ * platform_android_renderer_gles2_*.c: OpenGL ES 2.0 core with no extensions,
+ * shaped after the Windows D3D9 renderer's retained model. This file's only
+ * job is the context it draws into.
  *
  * SURFACE LIFETIME
  *
@@ -34,6 +29,9 @@
 #include <android/native_window.h>
 
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <time.h>
 
 #define ANDROID_LOG_TAG "torirs"
 
@@ -242,7 +240,49 @@ ToriRS_GLContext_LastError(void)
 void
 PlatformAndroidGL_SwapBuffers(void)
 {
+    /* TORIRS_SWAP_DEBUG=1: how long eglSwapBuffers blocks, averaged over 300
+     * swaps and printed to logcat. With the swap interval at 0 the only thing
+     * this can wait on is the GPU being behind -- the driver stalling the
+     * dequeue until an earlier frame finishes -- so it is the number that
+     * separates "the CPU is slow" from "the GPU is", which no CPU profile
+     * can. */
+    static int debug = -1;
+    static int64_t accumulated_ns = 0;
+    static int64_t worst_ns = 0;
+    static int swaps = 0;
+    struct timespec before;
+    struct timespec after;
+
     if( g_display == EGL_NO_DISPLAY || g_surface == EGL_NO_SURFACE )
         return; /* stopped activity -- nothing to show it on */
+    if( debug < 0 )
+        debug = getenv("TORIRS_SWAP_DEBUG") != NULL;
+    if( !debug )
+    {
+        eglSwapBuffers(g_display, g_surface);
+        return;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &before);
     eglSwapBuffers(g_display, g_surface);
+    clock_gettime(CLOCK_MONOTONIC, &after);
+    {
+        int64_t elapsed_ns = ((int64_t)(after.tv_sec - before.tv_sec) * 1000000000LL) +
+            (int64_t)(after.tv_nsec - before.tv_nsec);
+        accumulated_ns += elapsed_ns;
+        if( elapsed_ns > worst_ns )
+            worst_ns = elapsed_ns;
+        if( ++swaps == 300 )
+        {
+            __android_log_print(
+                ANDROID_LOG_INFO,
+                ANDROID_LOG_TAG,
+                "swap: mean %.2f ms, worst %.2f ms over %d swaps",
+                (double)accumulated_ns / swaps / 1e6,
+                (double)worst_ns / 1e6,
+                swaps);
+            accumulated_ns = 0;
+            worst_ns = 0;
+            swaps = 0;
+        }
+    }
 }

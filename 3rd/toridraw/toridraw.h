@@ -210,6 +210,33 @@ ToriDraw_RenderZBufferedWithRasterKernel(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_RasterKernelSD* kernel);
 
+/**
+ * Cull one model WITHOUT projecting its vertices, and say whether one screen
+ * point could possibly lie on it.
+ *
+ * The bound tested is the model's bounds cylinder projected to a screen box --
+ * the same conservative box ToriDraw_FastCull rejects models with, so every
+ * vertex the full projection would produce lies inside it. `false` therefore
+ * means the point cannot hit this model, whatever its geometry.
+ *
+ * For a GPU backend, which draws from baked world-space vertices and uses the
+ * software projection only for the cull and the pick: a model this rejects
+ * needs no projection at all.
+ *
+ * Returns the same TORIDRAW_CULL_* verdict ToriDraw_RenderModel1Project would.
+ */
+int
+ToriDraw_RenderModel1CullPoint(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    int point_x,
+    int point_y,
+    bool* out_point_inside);
+
+
 /** Bounding-box hit test against the last projected model (reference
  *  Model.useAABBMouseCheck). Cheaper and far more forgiving than the per-face
  *  test — the reference uses it for npcs, players and ground objs. */
