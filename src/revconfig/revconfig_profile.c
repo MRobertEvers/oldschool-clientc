@@ -1,6 +1,7 @@
 #include "revconfig_profile.h"
 
 #include "revconfig_load.h"
+#include "log/torirs_log.h"
 
 #include <assert.h>
 #include <string.h>
@@ -89,6 +90,19 @@ profile_merge_camera(
         dst->controls = src->controls;
     if( src->has_wheel_step )
         dst->wheel_step = src->wheel_step;
+    if( src->has_zoom_closest )
+    {
+        /* Applied after `zoom=`, whichever section carried it: the floor is
+         * an override of the band, not part of deriving it. A floor above
+         * the far end would invert the band, so it is refused, not clamped. */
+        if( src->zoom_closest <= dst->zoom_max )
+            dst->zoom_min = src->zoom_closest;
+        else
+            TORIRS_ERR("revconfig: [camera] zoom_closest=%d is past the band's far end %d; "
+                "ignored\n",
+                src->zoom_closest,
+                dst->zoom_max);
+    }
 }
 
 static void

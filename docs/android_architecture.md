@@ -395,6 +395,8 @@ and never an upload.
 type=cross
 
 [component:cross@mobile]    ; touch only, and it OVERRIDES the above
+[camera@mobile]             ; the nameless sections take the tag on the type;
+zoom_closest=150            ; this one lets the phone zoom in past the desktop floor
 type=inkwell
 style=splash
 walk_color=yellow

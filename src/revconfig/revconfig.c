@@ -971,6 +971,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CAMERA_CONTROLS";
     case RCFIELD_CAMERA_WHEEL_STEP:
         return "RCFIELD_CAMERA_WHEEL_STEP";
+    case RCFIELD_CAMERA_ZOOM_CLOSEST:
+        return "RCFIELD_CAMERA_ZOOM_CLOSEST";
     case RCFIELD_CHROME_PLUGIN_IFACE:
         return "RCFIELD_CHROME_PLUGIN_IFACE";
     case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
@@ -1988,6 +1990,21 @@ revconfig_item_apply_camera_field(
         else
             TORIRS_LOG("revconfig: [camera] wheel_step must be a positive eye-height "
                 "step, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_ZOOM_CLOSEST:
+    {
+        char const* end;
+        int height;
+        if( revconfig_parse_int_expr(value, &end, &height) && *revconfig_skip_space(end) == '\0' &&
+            height > 0 )
+        {
+            camera->zoom_closest = height;
+            camera->has_zoom_closest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] zoom_closest must be an eye height > 0, got '%s'\n",
                 value);
         break;
     }

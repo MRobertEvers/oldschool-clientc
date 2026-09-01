@@ -135,9 +135,12 @@ push_element_from_ini_header(
      * `name@tag` -- the tag decides whether this section is for this build, and
      * is then removed so the element is stored under its BASE name and
      * overrides the unsuffixed declaration. @see revconfig_platform_tag_matches.
+     *
+     * A nameless section carries the tag on its type instead: `[camera@mobile]`
+     * is the same `[camera]`, applied on top of it on a touch build.
      */
     {
-        char* at = strchr(item_name, '@');
+        char* at = strchr(item_name[0] ? item_name : item_type, '@');
         if( at )
         {
             *at = '\0';
@@ -236,6 +239,8 @@ push_field_from_ini_kv(
             kind = RCFIELD_CAMERA_CONTROLS;
         else if( strcmp(key, "wheel_step") == 0 )
             kind = RCFIELD_CAMERA_WHEEL_STEP;
+        else if( strcmp(key, "zoom_closest") == 0 )
+            kind = RCFIELD_CAMERA_ZOOM_CLOSEST;
         else
             TORIRS_LOG("revconfig: [camera] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )

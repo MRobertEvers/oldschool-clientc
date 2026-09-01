@@ -1,5 +1,6 @@
 #include "test_harness.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static uint32_t
@@ -84,6 +85,36 @@ test_load(void)
         "wheel_step=60\n";
 
     revconfig_load_fields_from_ini_bytes((const uint8_t*)ini, (uint32_t)strlen(ini), fields);
+
+    /* A nameless section with a platform tag: `[camera@mobile]` is the same
+     * `[camera]` on a touch build and skipped whole elsewhere. The tag is
+     * read through TORIRS_REVCONFIG_PLATFORM so the test can be both. */
+    {
+        static const char mobile_ini[] =
+            "[camera]\n"
+            "zoom=fixed:600\n"
+            "\n"
+            "[camera@mobile]\n"
+            "zoom_closest=150\n";
+        struct RevConfigBuffer* mobile = revconfig_buffer_new(128);
+        struct RevConfigBuffer* desktop = revconfig_buffer_new(128);
+        setenv("TORIRS_REVCONFIG_PLATFORM", "mobile", 1);
+        revconfig_load_fields_from_ini_bytes(
+            (const uint8_t*)mobile_ini, (uint32_t)strlen(mobile_ini), mobile);
+        setenv("TORIRS_REVCONFIG_PLATFORM", "desktop", 1);
+        revconfig_load_fields_from_ini_bytes(
+            (const uint8_t*)mobile_ini, (uint32_t)strlen(mobile_ini), desktop);
+        unsetenv("TORIRS_REVCONFIG_PLATFORM");
+        TEST_ASSERT(count_kind(mobile, RCFIELD_CAMERA_ZOOM) == 1, "mobile: base zoom kept");
+        TEST_ASSERT(
+            count_kind(mobile, RCFIELD_CAMERA_ZOOM_CLOSEST) == 1, "mobile: [camera@mobile] applied");
+        TEST_ASSERT(count_kind(desktop, RCFIELD_CAMERA_ZOOM) == 1, "desktop: base zoom kept");
+        TEST_ASSERT(
+            count_kind(desktop, RCFIELD_CAMERA_ZOOM_CLOSEST) == 0,
+            "desktop: [camera@mobile] skipped whole");
+        revconfig_buffer_free(mobile);
+        revconfig_buffer_free(desktop);
+    }
 
     TEST_ASSERT(count_kind(fields, RCFIELD_ITEMTYPE) >= 4, "item types");
     TEST_ASSERT(count_kind(fields, RCFIELD_ITEMDONE) >= 4, "item dones");

@@ -284,6 +284,7 @@ enum RevConfigFieldKind
     RCFIELD_CAMERA_ZOOM,
     RCFIELD_CAMERA_CONTROLS,
     RCFIELD_CAMERA_WHEEL_STEP,
+    RCFIELD_CAMERA_ZOOM_CLOSEST,
     RCFIELD_CHROME_PLUGIN_IFACE,
     RCFIELD_CHROME_PLUGIN_BUTTON_PARENT,
     RCFIELD_CHROME_PLUGIN_BUTTON_X,
@@ -1409,12 +1410,23 @@ struct RevConfigCameraItem
     /* INI: wheel_step= — eye-height units one wheel notch moves. Only the
      * `clamped:` camera reads it; a `fixed:` band has nowhere to move. */
     int wheel_step;
+    /*
+     * INI: zoom_closest= — the near end of the band on its own, an eye
+     * height, overriding whatever `zoom=` derived. The one band value that
+     * differs by device: a phone's viewport is a few inches across and the
+     * desktop's 40%-of-rest floor leaves the player small on it, so the
+     * profiles state a closer floor under `[camera@mobile]`. Stated apart
+     * from `zoom=` because restating `zoom=` as `clamped:` on a `fixed:`
+     * profile would also flip the camera's viewport term (see viewport_zoom).
+     */
+    int zoom_closest;
 
     /* Which keys this section actually carried, so a later source can override
      * one of them without silently restoring the default for the other. */
     uint8_t has_zoom;
     uint8_t has_controls;
     uint8_t has_wheel_step;
+    uint8_t has_zoom_closest;
 };
 
 /** Longest `[chrome]` name or op text. One field value is 64 bytes, so nothing
