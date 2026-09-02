@@ -8074,6 +8074,14 @@ app_debug_overlay_init(struct App* app)
      * a fourth panel would eventually be found not to have.
      */
     app->plugin_ui = app->dbg_ui;
+    ToriRSChromeShell_Init(&app->plugin_shell, 320);
+    /* File-static view state survives Android recreating main() in one
+     * process; the App does not, so a new App must not inherit a selected page
+     * whose model belonged to the previous run. */
+    g_plugin_page = -1;
+    g_plugin_page_built = -1;
+    g_plugin_fullscreen = 0;
+    g_plugin_fullscreen_built = -1;
     app->plugin_panel = -1;
     app->plugin_button_node = -1;
     app->plugin_button_disabled = 0;

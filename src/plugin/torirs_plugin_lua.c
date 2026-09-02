@@ -131,7 +131,8 @@ struct LuaScript
     {
         LUA_SURFACE_NONE = 0,
         LUA_SURFACE_WORLD,
-        LUA_SURFACE_CANVAS
+        LUA_SURFACE_CANVAS,
+        LUA_SURFACE_PANEL
     } cur_surface_kind;
     /** Inside on_chrome: chrome.paint and chrome.ops are legal. */
     int cur_in_chrome;
@@ -676,6 +677,26 @@ lua_window_kind_from_name(char const* name)
         return TORIRS_PLUGIN_W_BUTTON;
     if( strcmp(name, "separator") == 0 )
         return TORIRS_PLUGIN_W_SEPARATOR;
+    if( strcmp(name, "section") == 0 )
+        return TORIRS_PLUGIN_W_SECTION;
+    if( strcmp(name, "paragraph") == 0 )
+        return TORIRS_PLUGIN_W_PARAGRAPH;
+    if( strcmp(name, "key_value") == 0 )
+        return TORIRS_PLUGIN_W_KEY_VALUE;
+    if( strcmp(name, "toggle") == 0 )
+        return TORIRS_PLUGIN_W_TOGGLE;
+    if( strcmp(name, "textarea") == 0 )
+        return TORIRS_PLUGIN_W_TEXTAREA;
+    if( strcmp(name, "list_row") == 0 )
+        return TORIRS_PLUGIN_W_LIST_ROW;
+    if( strcmp(name, "image") == 0 )
+        return TORIRS_PLUGIN_W_IMAGE;
+    if( strcmp(name, "progress") == 0 )
+        return TORIRS_PLUGIN_W_PROGRESS;
+    if( strcmp(name, "error") == 0 )
+        return TORIRS_PLUGIN_W_ERROR;
+    if( strcmp(name, "custom") == 0 )
+        return TORIRS_PLUGIN_W_CUSTOM;
     return -1;
 }
 
@@ -1456,6 +1477,133 @@ lua_window_clear(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
     g_api->win_clear(script->cur_ctx);
+    return 0;
+}
+
+/* ------------------------------------------------ application panel ---- */
+
+static int
+lua_panel_request(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_PluginPanelDesc desc;
+    char title[TORIRS_PLUGIN_TITLE_MAX];
+    char icon[TORIRS_PLUGIN_ASSET_NAME_MAX];
+
+    memset(&desc, 0, sizeof(desc));
+    title[0] = '\0';
+    icon[0] = '\0';
+    if( lua_istable(L, 1) )
+    {
+        lua_getfield(L, 1, "title");
+        if( lua_type(L, -1) == LUA_TSTRING )
+            snprintf(title, sizeof(title), "%s", lua_tostring(L, -1));
+        lua_pop(L, 1);
+        lua_getfield(L, 1, "icon");
+        if( lua_type(L, -1) == LUA_TSTRING )
+            snprintf(icon, sizeof(icon), "%s", lua_tostring(L, -1));
+        lua_pop(L, 1);
+        lua_getfield(L, 1, "icon_asset");
+        if( !icon[0] && lua_type(L, -1) == LUA_TSTRING )
+            snprintf(icon, sizeof(icon), "%s", lua_tostring(L, -1));
+        lua_pop(L, 1);
+        lua_getfield(L, 1, "preferred_width");
+        if( lua_isinteger(L, -1) )
+            desc.preferred_width = (int)lua_tointeger(L, -1);
+        lua_pop(L, 1);
+    }
+    else if( !lua_isnoneornil(L, 1) )
+        snprintf(title, sizeof(title), "%s", luaL_checkstring(L, 1));
+
+    desc.title = title[0] ? title : NULL;
+    desc.icon_asset = icon[0] ? icon : NULL;
+    lua_pushboolean(L, g_api->panel_request(script->cur_ctx, &desc));
+    return 1;
+}
+
+static int
+lua_panel_widget(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* kind_name = luaL_checkstring(L, 1);
+    char const* id = luaL_checkstring(L, 2);
+    char const* label = luaL_optstring(L, 3, NULL);
+    int const kind = lua_window_kind_from_name(kind_name);
+
+    if( kind < 0 )
+        return luaL_error(L, "panel.widget: unknown kind '%s'", kind_name);
+    lua_pushboolean(L, g_api->panel_widget(script->cur_ctx, kind, id, label));
+    return 1;
+}
+
+static int
+lua_panel_set_text(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* id = luaL_checkstring(L, 1);
+    char const* value = luaL_tolstring(L, 2, NULL);
+    lua_pushboolean(L, g_api->panel_set_text(script->cur_ctx, id, value));
+    return 1;
+}
+
+static int
+lua_panel_set_value(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* id = luaL_checkstring(L, 1);
+    int value;
+
+    if( lua_isboolean(L, 2) )
+        value = lua_toboolean(L, 2) ? 1 : 0;
+    else
+        value = (int)luaL_checkinteger(L, 2);
+    lua_pushboolean(L, g_api->panel_set_value(script->cur_ctx, id, value));
+    return 1;
+}
+
+static int
+lua_panel_set_options(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* id = luaL_checkstring(L, 1);
+    char const* choices = luaL_checkstring(L, 2);
+    int const selected = (int)luaL_optinteger(L, 3, 0) - 1;
+    lua_pushboolean(L, g_api->panel_set_options(script->cur_ctx, id, choices, selected));
+    return 1;
+}
+
+static int
+lua_panel_set_badge(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* text = luaL_optstring(L, 1, "");
+    lua_pushboolean(L, g_api->panel_set_badge(script->cur_ctx, text));
+    return 1;
+}
+
+static int
+lua_panel_set_attention(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushboolean(
+        L,
+        g_api->panel_set_attention(script->cur_ctx, lua_toboolean(L, 1) != 0));
+    return 1;
+}
+
+static int
+lua_panel_clear(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->panel_clear(script->cur_ctx);
+    return 0;
+}
+
+static int
+lua_panel_invalidate(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->panel_invalidate(script->cur_ctx, luaL_checkstring(L, 1));
     return 0;
 }
 
@@ -2583,6 +2731,35 @@ lua_build_api_table(struct LuaScript* script)
         lua_setfield(L, -2, "window");
     }
 
+    /* api.panel: an opt-in rail page in the one shared application shell.
+     * It deliberately uses the same kind names and result-state vocabulary as
+     * api.window, so a script can migrate without learning a platform UI. */
+    {
+        static const struct
+        {
+            char const* name;
+            lua_CFunction fn;
+        } PANEL[] = {
+            { "request", lua_panel_request },
+            { "widget", lua_panel_widget },
+            { "set_text", lua_panel_set_text },
+            { "set_value", lua_panel_set_value },
+            { "set_options", lua_panel_set_options },
+            { "set_badge", lua_panel_set_badge },
+            { "set_attention", lua_panel_set_attention },
+            { "clear", lua_panel_clear },
+            { "invalidate", lua_panel_invalidate },
+        };
+        lua_createtable(L, 0, (int)(sizeof(PANEL) / sizeof(PANEL[0])));
+        for( size_t i = 0; i < sizeof(PANEL) / sizeof(PANEL[0]); i++ )
+        {
+            lua_pushlightuserdata(L, script);
+            lua_pushcclosure(L, PANEL[i].fn, 1);
+            lua_setfield(L, -2, PANEL[i].name);
+        }
+        lua_setfield(L, -2, "panel");
+    }
+
     /* api.config: a proxy, so panel edits are visible on the next event
      * without the script reloading or caching anything. */
     lua_createtable(L, 0, 0);
@@ -2730,6 +2907,10 @@ static char const* const LUA_HANDLER_NAME[TORIRS_PLUGIN_EV_COUNT] = {
     [TORIRS_PLUGIN_EV_UI_BUILD] = "on_ui_build",
     [TORIRS_PLUGIN_EV_SETTING] = "on_setting",
     [TORIRS_PLUGIN_EV_SCREEN_CHANGE] = "on_screen_change",
+    [TORIRS_PLUGIN_EV_PANEL_BUILD] = "on_panel_build",
+    [TORIRS_PLUGIN_EV_PANEL_ACTION] = "on_panel_action",
+    [TORIRS_PLUGIN_EV_PANEL_LAYOUT] = "on_panel_layout",
+    [TORIRS_PLUGIN_EV_PANEL_DRAW] = "on_panel_draw",
 };
 
 /* The screen as a word, because the numeric TORIRS_PLUGIN_SCREEN_* values are
@@ -2876,6 +3057,98 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
         /* No payload worth pushing: "build your tab" carries nothing but the
          * instruction, and the api the handler needs is its first argument. */
         return 0;
+    case TORIRS_PLUGIN_EV_PANEL_BUILD:
+    {
+        struct ToriRS_PluginEvPanelBuild const* ev = payload;
+        lua_createtable(L, 0, 1);
+        lua_pushinteger(L, (lua_Integer)ev->selection_generation);
+        lua_setfield(L, -2, "generation");
+        return 1;
+    }
+    case TORIRS_PLUGIN_EV_PANEL_ACTION:
+    {
+        struct ToriRS_PluginEvPanelAction const* ev = payload;
+        static char const* const ACTION[] = {
+            "activate", "toggle", "text", "pick", "drag", "scroll", "key"
+        };
+        lua_createtable(L, 0, 10);
+        lua_pushstring(L, ev->id ? ev->id : "");
+        lua_setfield(L, -2, "id");
+        lua_pushstring(
+            L,
+            ev->action >= 0 && ev->action < (int)(sizeof(ACTION) / sizeof(ACTION[0]))
+                ? ACTION[ev->action]
+                : "");
+        lua_setfield(L, -2, "action");
+        lua_pushinteger(
+            L, ev->action == TORIRS_PLUGIN_UI_PICK ? ev->value + 1 : ev->value);
+        lua_setfield(L, -2, "value");
+        lua_pushboolean(L, ev->value != 0);
+        lua_setfield(L, -2, "on");
+        lua_pushstring(L, ev->text ? ev->text : "");
+        lua_setfield(L, -2, "text");
+        lua_pushinteger(L, ev->x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, ev->y);
+        lua_setfield(L, -2, "y");
+        lua_pushinteger(L, (lua_Integer)ev->selection_generation);
+        lua_setfield(L, -2, "generation");
+        lua_pushinteger(L, (lua_Integer)ev->widget_serial);
+        lua_setfield(L, -2, "serial");
+        lua_pushinteger(L, (lua_Integer)ev->intent_sequence);
+        lua_setfield(L, -2, "sequence");
+        return 1;
+    }
+    case TORIRS_PLUGIN_EV_PANEL_LAYOUT:
+    {
+        struct ToriRS_PluginEvPanelLayout const* ev = payload;
+        static char const* const SIZE[] = { "compact", "medium", "expanded" };
+        lua_createtable(L, 0, 7);
+        lua_pushinteger(L, ev->width);
+        lua_setfield(L, -2, "width");
+        lua_pushinteger(L, ev->height);
+        lua_setfield(L, -2, "height");
+        lua_pushinteger(L, ev->scale_milli);
+        lua_setfield(L, -2, "scale_milli");
+        lua_pushnumber(L, (lua_Number)ev->scale_milli / 1000.0);
+        lua_setfield(L, -2, "scale");
+        lua_pushstring(
+            L,
+            ev->size_class >= TORIRS_PLUGIN_PANEL_COMPACT &&
+                    ev->size_class <= TORIRS_PLUGIN_PANEL_EXPANDED
+                ? SIZE[ev->size_class]
+                : "");
+        lua_setfield(L, -2, "size_class");
+        lua_pushboolean(L, ev->visible);
+        lua_setfield(L, -2, "visible");
+        lua_pushboolean(L, ev->game_visible);
+        lua_setfield(L, -2, "game_visible");
+        lua_pushinteger(L, (lua_Integer)ev->selection_generation);
+        lua_setfield(L, -2, "generation");
+        return 1;
+    }
+    case TORIRS_PLUGIN_EV_PANEL_DRAW:
+    {
+        struct ToriRS_PluginEvPanelDraw const* ev = payload;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script->draw_ref);
+        lua_pushstring(L, ev->id ? ev->id : "");
+        lua_setfield(L, -2, "id");
+        lua_pushinteger(L, ev->x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, ev->y);
+        lua_setfield(L, -2, "y");
+        lua_pushinteger(L, ev->width);
+        lua_setfield(L, -2, "width");
+        lua_pushinteger(L, ev->height);
+        lua_setfield(L, -2, "height");
+        lua_pushinteger(L, ev->scale_milli);
+        lua_setfield(L, -2, "scale_milli");
+        lua_pushinteger(L, (lua_Integer)ev->selection_generation);
+        lua_setfield(L, -2, "generation");
+        lua_pushinteger(L, (lua_Integer)ev->widget_serial);
+        lua_setfield(L, -2, "serial");
+        return 1;
+    }
     case TORIRS_PLUGIN_EV_SCREEN_CHANGE:
     {
         struct ToriRS_PluginEvScreen const* ev = payload;
@@ -3080,6 +3353,11 @@ lua_trampoline(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     {
         script->cur_surface = ((struct ToriRS_PluginEvDrawCanvas*)event)->surface;
         script->cur_surface_kind = LUA_SURFACE_CANVAS;
+    }
+    if( binding->event == TORIRS_PLUGIN_EV_PANEL_DRAW )
+    {
+        script->cur_surface = ((struct ToriRS_PluginEvPanelDraw*)event)->surface;
+        script->cur_surface_kind = LUA_SURFACE_PANEL;
     }
     if( binding->event == TORIRS_PLUGIN_EV_MENU_BUILD )
         script->cur_menu = (struct ToriRS_PluginEvMenuBuild*)event;

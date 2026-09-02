@@ -48,6 +48,9 @@ struct ToriRS_PluginCtx
      * anything the plugin itself does -- see `refused`. */
     bool enabled;
     bool running;
+    /** Guards teardown re-entry when a visibility/stop callback disables its
+     *  own plugin. */
+    bool tearing_down;
     /*
      * The plugin looked at the lane and stood down. @see
      * ToriRS_PluginApi::disable_self.
@@ -266,7 +269,9 @@ enum PluginDrawSurface
     PLUGIN_DRAW_SURFACE_WORLD = 0,
     PLUGIN_DRAW_SURFACE_CANVAS = 1,
     /** Over the scene, under the interfaces. @see EV_DRAW_FRAME. */
-    PLUGIN_DRAW_SURFACE_FRAME = 2
+    PLUGIN_DRAW_SURFACE_FRAME = 2,
+    /** Panel-local custom region prepared by the application shell. */
+    PLUGIN_DRAW_SURFACE_PANEL = TORIRS_PLUGIN_ENGINE_DRAW_PANEL
 };
 
 struct ToriRS_PluginHost
@@ -289,6 +294,9 @@ struct ToriRS_PluginHost
     /* The plugin currently being dispatched, so the api knows whose ctx it is
      * serving without every call carrying it separately. */
     int dispatching;
+    /** enum ToriRS_PluginEvent for that callback, or -1 outside one. Needed by
+     *  panel_request's EV_START-only registration rule. */
+    int dispatch_event;
     /** engine.screen's answer at the last frame boundary, so the boundary can
      *  tell a change from a steady state. @see TORIRS_PLUGIN_EV_SCREEN_CHANGE. */
     int last_screen;
@@ -454,6 +462,43 @@ struct ToriRS_PluginHost
      *  tell a declaration from a mutation. */
     bool win_building;
 
+    /*
+     * Application plugin panel: many inert rail registrations, ONE mounted
+     * page model. Presentation and application-window placement deliberately
+     * live above this host; these fields are only the authority/gating layer.
+     */
+    bool panel_registered[TORIRS_PLUGIN_MAX];
+    char panel_title[TORIRS_PLUGIN_MAX][TORIRS_PLUGIN_TITLE_MAX];
+    char panel_icon[TORIRS_PLUGIN_MAX][TORIRS_PLUGIN_ASSET_NAME_MAX];
+    int panel_preferred_width[TORIRS_PLUGIN_MAX];
+    char panel_badge[TORIRS_PLUGIN_MAX][TORIRS_PLUGIN_PANEL_BADGE_MAX];
+    bool panel_attention[TORIRS_PLUGIN_MAX];
+    int panel_active;
+    uint32_t panel_selection_generation;
+    uint32_t panel_registry_revision;
+    uint32_t panel_model_revision;
+    uint64_t panel_last_intent_sequence;
+
+    /* The active page alone owns records. Switching pages empties this array
+     * before the new plugin is called, so hidden plugins retain no native/DOM
+     * model and cannot consume the shared widget budget. */
+    struct ToriRS_PluginWinWidget panel_widgets[TORIRS_PLUGIN_WIDGETS_MAX];
+    bool panel_invalidated[TORIRS_PLUGIN_WIDGETS_MAX];
+    int panel_widget_count;
+    uint32_t next_widget_serial;
+    bool panel_building;
+    bool panel_needs_build;
+    int panel_transitioning;
+
+    /* Last neutral allocation, for hide notification and custom draw size. */
+    bool panel_has_layout;
+    int panel_width;
+    int panel_height;
+    int panel_scale_milli;
+    int panel_size_class;
+    bool panel_visible;
+    bool panel_game_visible;
+
     bool config_dirty;
 };
 
@@ -581,6 +626,11 @@ plugin_drop_subs(struct ToriRS_PluginHost* host, int plugin_index)
  * verb that lets a plugin stand down is the only thing up here that needs it. */
 static void
 plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index);
+static void plugin_dispatch_one(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    enum ToriRS_PluginEvent ev,
+    void* payload);
 
 /* The entity half of the chrome tier, used by the claim and draw verbs that
  * are defined before it. @see the entities section below. */
@@ -604,6 +654,7 @@ plugin_dispatch(struct ToriRS_PluginHost* host, enum ToriRS_PluginEvent ev, void
 
     enum ToriRS_PluginVerdict verdict = TORIRS_PLUGIN_PASS;
     int const prev_dispatching = host->dispatching;
+    int const prev_event = host->dispatch_event;
 
     for( int i = 0; i < host->sub_count[ev]; i++ )
     {
@@ -622,8 +673,10 @@ plugin_dispatch(struct ToriRS_PluginHost* host, enum ToriRS_PluginEvent ev, void
         if( ev == TORIRS_PLUGIN_EV_DRAW_CANVAS )
             (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0, 0);
         host->dispatching = sub.plugin;
+        host->dispatch_event = ev;
         verdict = sub.handler(ctx, payload, sub.userdata);
         host->dispatching = prev_dispatching;
+        host->dispatch_event = prev_event;
         if( ev == TORIRS_PLUGIN_EV_DRAW_CANVAS )
             (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0, 0);
 
@@ -3182,6 +3235,17 @@ plugin_win_count_owned(struct ToriRS_PluginHost const* host, int plugin_index)
     return n;
 }
 
+/** A zero serial is reserved for "not a widget" in queued presenter work. */
+static uint32_t
+plugin_widget_next_serial(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    host->next_widget_serial++;
+    if( host->next_widget_serial == 0 )
+        host->next_widget_serial++;
+    return host->next_widget_serial;
+}
+
 /**
  * Drop every control of one plugin, compacting the pool.
  *
@@ -3266,6 +3330,8 @@ api_win_widget(struct ToriRS_PluginCtx* ctx, int kind, char const* id, char cons
     memset(w, 0, sizeof(*w));
     w->kind = kind;
     w->selected = -1;
+    w->value = 0;
+    w->serial = plugin_widget_next_serial(host);
     plugin_copy_str(w->id, sizeof(w->id), id);
     plugin_copy_str(w->label, sizeof(w->label), label ? label : "");
     host->win_owner[host->win_widget_count] = ctx->index;
@@ -3304,6 +3370,7 @@ api_win_set_checked(struct ToriRS_PluginCtx* ctx, char const* id, bool on)
     if( slot < 0 )
         return false;
     ctx->host->win_widgets[slot].checked = on ? 1 : 0;
+    ctx->host->win_widgets[slot].value = on ? 1 : 0;
     return true;
 }
 
@@ -3328,6 +3395,7 @@ api_win_set_options(
         ctx->host->win_revision++;
     }
     w->selected = selected;
+    w->value = selected;
     return true;
 }
 
@@ -3336,6 +3404,428 @@ api_win_clear(struct ToriRS_PluginCtx* ctx)
 {
     assert(ctx);
     plugin_win_drop(ctx->host, ctx->index);
+}
+
+/* -- the application plugin panel ----------------------------------------
+ *
+ * Registration is per plugin; content is not. Only panel_active owns the
+ * small array below, which is what makes "one shell, most recently selected
+ * plugin only" an invariant of the authority rather than a convention every
+ * presenter has to remember.
+ */
+
+static void
+plugin_panel_bump(uint32_t* revision)
+{
+    assert(revision);
+    (*revision)++;
+    if( *revision == 0 )
+        (*revision)++;
+}
+
+static void
+plugin_panel_generation_next(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    plugin_panel_bump(&host->panel_selection_generation);
+    host->panel_last_intent_sequence = 0;
+}
+
+static int
+plugin_panel_id_ok(char const* id)
+{
+    size_t n;
+
+    if( !id || !id[0] )
+        return 0;
+    n = strlen(id);
+    return n < TORIRS_PLUGIN_WIDGET_ID_MAX;
+}
+
+static int
+plugin_panel_find(struct ToriRS_PluginHost const* host, char const* id)
+{
+    assert(host);
+    assert(id);
+    for( int i = 0; i < host->panel_widget_count; i++ )
+        if( strcmp(host->panel_widgets[i].id, id) == 0 )
+            return i;
+    return -1;
+}
+
+static int
+plugin_panel_find_serial(struct ToriRS_PluginHost const* host, uint32_t serial)
+{
+    assert(host);
+    if( serial == 0 )
+        return -1;
+    for( int i = 0; i < host->panel_widget_count; i++ )
+        if( host->panel_widgets[i].serial == serial )
+            return i;
+    return -1;
+}
+
+static void
+plugin_panel_clear_model(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    if( host->panel_widget_count == 0 )
+        return;
+    memset(host->panel_widgets, 0, sizeof(host->panel_widgets));
+    memset(host->panel_invalidated, 0, sizeof(host->panel_invalidated));
+    host->panel_widget_count = 0;
+    plugin_panel_bump(&host->panel_model_revision);
+}
+
+static bool
+api_panel_request(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginPanelDesc const* desc)
+{
+    struct ToriRS_PluginHost* host;
+    char const* title;
+    char const* icon;
+    int width;
+    bool changed;
+
+    assert(ctx);
+    host = ctx->host;
+
+    /* Registration is a lifecycle declaration, not a way for an arbitrary
+     * game event to steal a rail slot or open UI. A plugin gets one precise
+     * moment to make it: its EV_START callback. */
+    if( host->dispatching != ctx->index ||
+        host->dispatch_event != TORIRS_PLUGIN_EV_START || !desc )
+        return false;
+
+    title = desc->title && desc->title[0] ? desc->title : ctx->title;
+    icon = desc->icon_asset ? desc->icon_asset : "";
+    if( icon[0] && !plugin_asset_name_ok(ctx, icon) )
+        return false;
+    width = desc->preferred_width;
+    if( width == 0 )
+        width = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+    if( width < TORIRS_PLUGIN_PANEL_WIDTH_MIN )
+        width = TORIRS_PLUGIN_PANEL_WIDTH_MIN;
+    if( width > TORIRS_PLUGIN_PANEL_WIDTH_MAX )
+        width = TORIRS_PLUGIN_PANEL_WIDTH_MAX;
+
+    changed = !host->panel_registered[ctx->index] ||
+              strcmp(host->panel_title[ctx->index], title) != 0 ||
+              strcmp(host->panel_icon[ctx->index], icon) != 0 ||
+              host->panel_preferred_width[ctx->index] != width;
+    host->panel_registered[ctx->index] = true;
+    plugin_copy_str(
+        host->panel_title[ctx->index], sizeof(host->panel_title[ctx->index]), title);
+    plugin_copy_str(
+        host->panel_icon[ctx->index], sizeof(host->panel_icon[ctx->index]), icon);
+    host->panel_preferred_width[ctx->index] = width;
+    if( changed )
+        plugin_panel_bump(&host->panel_registry_revision);
+    return true;
+}
+
+static bool
+api_panel_widget(
+    struct ToriRS_PluginCtx* ctx,
+    int kind,
+    char const* id,
+    char const* label)
+{
+    struct ToriRS_PluginHost* host;
+    struct ToriRS_PluginWinWidget* widget;
+
+    assert(ctx);
+    host = ctx->host;
+    if( host->panel_active != ctx->index || !host->panel_building ||
+        host->dispatching != ctx->index ||
+        host->dispatch_event != TORIRS_PLUGIN_EV_PANEL_BUILD )
+        return false;
+    if( kind < 0 || kind >= TORIRS_PLUGIN_W_COUNT || !plugin_panel_id_ok(id) )
+        return false;
+    /* Idempotent within one declaration, matching win_widget. */
+    if( plugin_panel_find(host, id) >= 0 )
+        return true;
+    if( host->panel_widget_count >= TORIRS_PLUGIN_WIDGETS_MAX )
+    {
+        PluginHost_SetError(host, ctx->index, "panel control budget exhausted");
+        return false;
+    }
+
+    widget = &host->panel_widgets[host->panel_widget_count];
+    memset(widget, 0, sizeof(*widget));
+    widget->kind = kind;
+    widget->selected = -1;
+    widget->serial = plugin_widget_next_serial(host);
+    plugin_copy_str(widget->id, sizeof(widget->id), id);
+    plugin_copy_str(widget->label, sizeof(widget->label), label);
+    host->panel_invalidated[host->panel_widget_count] =
+        kind == TORIRS_PLUGIN_W_CUSTOM;
+    host->panel_widget_count++;
+    plugin_panel_bump(&host->panel_model_revision);
+    return true;
+}
+
+static bool
+plugin_panel_mutable(
+    struct ToriRS_PluginCtx* ctx,
+    char const* id,
+    int* out_slot)
+{
+    int slot;
+
+    assert(ctx);
+    if( ctx->host->panel_active != ctx->index || !plugin_panel_id_ok(id) )
+        return false;
+    slot = plugin_panel_find(ctx->host, id);
+    if( slot < 0 )
+        return false;
+    if( out_slot )
+        *out_slot = slot;
+    return true;
+}
+
+static bool
+api_panel_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* text)
+{
+    struct ToriRS_PluginWinWidget* widget;
+    char const* next = text ? text : "";
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, id, &slot) )
+        return false;
+    widget = &ctx->host->panel_widgets[slot];
+    if( strcmp(widget->text, next) == 0 )
+        return true;
+    plugin_copy_str(widget->text, sizeof(widget->text), next);
+    plugin_panel_bump(&ctx->host->panel_model_revision);
+    return true;
+}
+
+static bool
+api_panel_set_value(struct ToriRS_PluginCtx* ctx, char const* id, int value)
+{
+    struct ToriRS_PluginWinWidget* widget;
+    int old_checked;
+    int old_selected;
+    int old_value;
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, id, &slot) )
+        return false;
+    widget = &ctx->host->panel_widgets[slot];
+    old_checked = widget->checked;
+    old_selected = widget->selected;
+    old_value = widget->value;
+    widget->value = value;
+    if( widget->kind == TORIRS_PLUGIN_W_CHECKBOX ||
+        widget->kind == TORIRS_PLUGIN_W_TOGGLE ||
+        widget->kind == TORIRS_PLUGIN_W_LIST_ROW )
+        widget->checked = value ? 1 : 0;
+    if( widget->kind == TORIRS_PLUGIN_W_DROPDOWN )
+        widget->selected = value;
+    if( old_checked != widget->checked || old_selected != widget->selected ||
+        old_value != widget->value )
+        plugin_panel_bump(&ctx->host->panel_model_revision);
+    return true;
+}
+
+static bool
+api_panel_set_options(
+    struct ToriRS_PluginCtx* ctx,
+    char const* id,
+    char const* choices,
+    int selected)
+{
+    struct ToriRS_PluginWinWidget* widget;
+    char const* next = choices ? choices : "";
+    bool changed;
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, id, &slot) )
+        return false;
+    widget = &ctx->host->panel_widgets[slot];
+    changed = strcmp(widget->choices, next) != 0 || widget->selected != selected ||
+              widget->value != selected;
+    plugin_copy_str(widget->choices, sizeof(widget->choices), next);
+    widget->selected = selected;
+    widget->value = selected;
+    if( changed )
+        plugin_panel_bump(&ctx->host->panel_model_revision);
+    return true;
+}
+
+static bool
+api_panel_set_badge(struct ToriRS_PluginCtx* ctx, char const* text)
+{
+    char const* next = text ? text : "";
+
+    assert(ctx);
+    if( !ctx->host->panel_registered[ctx->index] || !ctx->running )
+        return false;
+    if( strcmp(ctx->host->panel_badge[ctx->index], next) == 0 )
+        return true;
+    plugin_copy_str(
+        ctx->host->panel_badge[ctx->index],
+        sizeof(ctx->host->panel_badge[ctx->index]),
+        next);
+    plugin_panel_bump(&ctx->host->panel_registry_revision);
+    return true;
+}
+
+static bool
+api_panel_set_attention(struct ToriRS_PluginCtx* ctx, bool attention)
+{
+    assert(ctx);
+    if( !ctx->host->panel_registered[ctx->index] || !ctx->running )
+        return false;
+    if( ctx->host->panel_attention[ctx->index] == attention )
+        return true;
+    ctx->host->panel_attention[ctx->index] = attention;
+    plugin_panel_bump(&ctx->host->panel_registry_revision);
+    return true;
+}
+
+static void
+api_panel_clear(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    if( ctx->host->panel_active != ctx->index )
+        return;
+    plugin_panel_clear_model(ctx->host);
+    if( !ctx->host->panel_building )
+        ctx->host->panel_needs_build = true;
+}
+
+static void
+api_panel_invalidate(struct ToriRS_PluginCtx* ctx, char const* custom_view_id)
+{
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, custom_view_id, &slot) ||
+        ctx->host->panel_widgets[slot].kind != TORIRS_PLUGIN_W_CUSTOM ||
+        ctx->host->panel_invalidated[slot] )
+        return;
+    ctx->host->panel_invalidated[slot] = true;
+    plugin_panel_bump(&ctx->host->panel_model_revision);
+}
+
+/** Leave the mounted page before its plugin stops or another page replaces
+ * it. The invisible event is delivered while the old model still exists, and
+ * the model is gone before this returns. */
+static int
+plugin_panel_deactivate(struct ToriRS_PluginHost* host)
+{
+    struct ToriRS_PluginEvPanelLayout ev;
+    int const old = host->panel_active;
+    uint32_t const generation = host->panel_selection_generation;
+
+    assert(host);
+    if( old < 0 )
+        return 0;
+
+    if( host->panel_has_layout && host->panel_visible && !host->panel_transitioning &&
+        old < host->plugin_count && host->plugins[old].running )
+    {
+        memset(&ev, 0, sizeof(ev));
+        ev.width = host->panel_width;
+        ev.height = host->panel_height;
+        ev.scale_milli = host->panel_scale_milli;
+        ev.size_class = host->panel_size_class;
+        ev.visible = false;
+        ev.game_visible = host->panel_game_visible;
+        ev.selection_generation = generation;
+        host->panel_visible = false;
+        host->panel_transitioning++;
+        plugin_dispatch_one(host, old, TORIRS_PLUGIN_EV_PANEL_LAYOUT, &ev);
+        host->panel_transitioning--;
+    }
+
+    /* A callback above may have torn itself down and completed these steps. */
+    if( host->panel_active == old )
+    {
+        plugin_panel_clear_model(host);
+        host->panel_active = -1;
+        host->panel_needs_build = false;
+        host->panel_has_layout = false;
+        host->panel_visible = false;
+        plugin_panel_generation_next(host);
+        plugin_panel_bump(&host->panel_model_revision);
+    }
+    return 1;
+}
+
+static void
+plugin_panel_unregister(struct ToriRS_PluginHost* host, int plugin_index)
+{
+    bool const registered = host->panel_registered[plugin_index];
+
+    assert(host);
+    assert(plugin_index >= 0);
+    assert(plugin_index < host->plugin_count);
+
+    if( host->panel_active == plugin_index )
+    {
+        if( host->panel_transitioning )
+        {
+            plugin_panel_clear_model(host);
+            host->panel_active = -1;
+            host->panel_needs_build = false;
+            host->panel_has_layout = false;
+            host->panel_visible = false;
+            plugin_panel_generation_next(host);
+            plugin_panel_bump(&host->panel_model_revision);
+        }
+        else
+            (void)plugin_panel_deactivate(host);
+    }
+
+    host->panel_registered[plugin_index] = false;
+    host->panel_title[plugin_index][0] = '\0';
+    host->panel_icon[plugin_index][0] = '\0';
+    host->panel_preferred_width[plugin_index] = 0;
+    host->panel_badge[plugin_index][0] = '\0';
+    host->panel_attention[plugin_index] = false;
+    if( registered )
+        plugin_panel_bump(&host->panel_registry_revision);
+}
+
+static int
+plugin_panel_build_active(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation)
+{
+    struct ToriRS_PluginEvPanelBuild ev;
+    int plugin;
+
+    assert(host);
+    if( selection_generation == 0 ||
+        selection_generation != host->panel_selection_generation )
+        return 0;
+    plugin = host->panel_active;
+    if( plugin < 0 || plugin >= host->plugin_count ||
+        !host->panel_registered[plugin] || !host->plugins[plugin].running )
+        return 0;
+    if( !host->panel_needs_build )
+        return 1;
+
+    plugin_panel_clear_model(host);
+    host->panel_needs_build = false;
+    host->panel_building = true;
+    memset(&ev, 0, sizeof(ev));
+    ev.selection_generation = selection_generation;
+    plugin_dispatch_one(host, plugin, TORIRS_PLUGIN_EV_PANEL_BUILD, &ev);
+    host->panel_building = false;
+
+    /* A build handler is allowed to fault/disable itself. */
+    return host->panel_active == plugin &&
+                   host->panel_selection_generation == selection_generation
+               ? 1
+               : 0;
 }
 
 /* -- drawing -- */
@@ -5367,6 +5857,12 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
 
     host->engine = *engine;
     host->dispatching = -1;
+    host->dispatch_event = -1;
+    host->panel_active = -1;
+    /* Zero is the invalid/stale sentinel carried by queued presenter work. */
+    host->panel_selection_generation = 1;
+    host->panel_registry_revision = 1;
+    host->panel_model_revision = 1;
     /* The event is "it changed", never "here is what it is" -- so the baseline
      * is the answer at init, not a sentinel that would fire a phantom change
      * on the first frame. */
@@ -5524,6 +6020,15 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .layout_slot_overlay = api_layout_slot_overlay,
         .role_replace = api_role_replace,
         .role_anchor = api_role_anchor,
+        .panel_request = api_panel_request,
+        .panel_widget = api_panel_widget,
+        .panel_set_text = api_panel_set_text,
+        .panel_set_value = api_panel_set_value,
+        .panel_set_options = api_panel_set_options,
+        .panel_set_badge = api_panel_set_badge,
+        .panel_set_attention = api_panel_set_attention,
+        .panel_clear = api_panel_clear,
+        .panel_invalidate = api_panel_invalidate,
     };
     host->api = api;
     return host;
@@ -5739,6 +6244,15 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
 {
     struct ToriRS_PluginCtx* ctx = plugin_at(host, plugin_index);
 
+    if( ctx->tearing_down )
+        return;
+    ctx->tearing_down = true;
+
+    /* Selection is released first: the plugin learns it became invisible
+     * while its subscriptions and page model still exist, and no later STOP
+     * callback can leave interactive chrome behind. */
+    plugin_panel_unregister(host, plugin_index);
+
     if( ctx->running )
     {
         struct ToriRS_PluginEvFrame ev = { 0 };
@@ -5797,6 +6311,7 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
         host->win_revision++;
     }
     ctx->running = false;
+    ctx->tearing_down = false;
 }
 
 void
@@ -5846,6 +6361,7 @@ void
 PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
 {
     struct ToriRS_PluginCtx* ctx;
+    bool panel_was_selected;
 
     assert(host);
     ctx = plugin_at(host, plugin_index);
@@ -5855,6 +6371,7 @@ PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
     if( !ctx->enabled )
         return;
 
+    panel_was_selected = host->panel_active == plugin_index;
     plugin_teardown(host, plugin_index);
 
     /*
@@ -5909,6 +6426,11 @@ PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
     ctx->refused = false;
 
     PluginHost_Start(host);
+    /* Reload is replacement in place, not a user navigation action. If the
+     * plugin registered its page again, rebuild it as the still-selected
+     * entry; otherwise the shell remains collapsed. */
+    if( panel_was_selected && host->panel_registered[plugin_index] && ctx->running )
+        (void)PluginHost_PanelSelect(host, plugin_index);
 }
 
 bool
@@ -7227,6 +7749,7 @@ plugin_dispatch_one(
     void* payload)
 {
     int const prev_dispatching = host->dispatching;
+    int const prev_event = host->dispatch_event;
 
     assert(host);
     assert(ev >= 0);
@@ -7247,8 +7770,10 @@ plugin_dispatch_one(
             continue;
 
         host->dispatching = sub.plugin;
+        host->dispatch_event = ev;
         sub.handler(ctx, payload, sub.userdata);
         host->dispatching = prev_dispatching;
+        host->dispatch_event = prev_event;
 
         if( i < host->sub_count[ev] && host->subs[ev][i].handler != sub.handler )
             i--;
@@ -7357,12 +7882,14 @@ PluginHost_WinDispatch(
     {
     case TORIRS_PLUGIN_UI_TOGGLE:
         w->checked = value ? 1 : 0;
+        w->value = w->checked;
         break;
     case TORIRS_PLUGIN_UI_TEXT:
         plugin_copy_str(w->text, sizeof(w->text), text);
         break;
     case TORIRS_PLUGIN_UI_PICK:
         w->selected = value;
+        w->value = value;
         plugin_copy_str(w->text, sizeof(w->text), text);
         break;
     default:
@@ -7398,4 +7925,376 @@ PluginHost_WinRevision(struct ToriRS_PluginHost const* host)
 {
     assert(host);
     return host->win_revision;
+}
+
+bool
+PluginHost_PanelHasPage(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count )
+        return false;
+    return host->panel_registered[plugin_index] && host->plugins[plugin_index].running;
+}
+
+char const*
+PluginHost_PanelTitle(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count ||
+        !host->panel_registered[plugin_index] )
+        return "";
+    return host->panel_title[plugin_index];
+}
+
+char const*
+PluginHost_PanelIconAsset(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count ||
+        !host->panel_registered[plugin_index] )
+        return "";
+    return host->panel_icon[plugin_index];
+}
+
+int
+PluginHost_PanelPreferredWidth(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count ||
+        !host->panel_registered[plugin_index] )
+        return 0;
+    return host->panel_preferred_width[plugin_index];
+}
+
+char const*
+PluginHost_PanelBadge(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count ||
+        !host->panel_registered[plugin_index] )
+        return "";
+    return host->panel_badge[plugin_index];
+}
+
+bool
+PluginHost_PanelWantsAttention(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count ||
+        !host->panel_registered[plugin_index] )
+        return false;
+    return host->panel_attention[plugin_index];
+}
+
+uint32_t
+PluginHost_PanelRegistryRevision(struct ToriRS_PluginHost const* host)
+{
+    assert(host);
+    return host->panel_registry_revision;
+}
+
+int
+PluginHost_PanelActive(struct ToriRS_PluginHost const* host)
+{
+    assert(host);
+    return host->panel_active;
+}
+
+uint32_t
+PluginHost_PanelSelectionGeneration(struct ToriRS_PluginHost const* host)
+{
+    assert(host);
+    return host->panel_selection_generation;
+}
+
+int
+PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count ||
+        !host->panel_registered[plugin_index] || !host->plugins[plugin_index].enabled ||
+        !host->plugins[plugin_index].running )
+        return 0;
+
+    if( host->panel_active == plugin_index )
+        return plugin_panel_build_active(host, host->panel_selection_generation);
+
+    (void)plugin_panel_deactivate(host);
+    /* The old plugin's invisible callback may have changed lifecycle state. */
+    if( !host->panel_registered[plugin_index] || !host->plugins[plugin_index].enabled ||
+        !host->plugins[plugin_index].running )
+        return 0;
+
+    plugin_panel_generation_next(host);
+    host->panel_active = plugin_index;
+    host->panel_needs_build = true;
+    host->panel_has_layout = false;
+    host->panel_visible = false;
+    plugin_panel_bump(&host->panel_model_revision);
+
+    /* Attention is a request to be seen, and selecting it is the acknowledgement. */
+    if( host->panel_attention[plugin_index] )
+    {
+        host->panel_attention[plugin_index] = false;
+        plugin_panel_bump(&host->panel_registry_revision);
+    }
+    return plugin_panel_build_active(host, host->panel_selection_generation);
+}
+
+int
+PluginHost_PanelClose(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    return plugin_panel_deactivate(host);
+}
+
+int
+PluginHost_PanelEnsureBuilt(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation)
+{
+    assert(host);
+    return plugin_panel_build_active(host, selection_generation);
+}
+
+int
+PluginHost_PanelWidgetCount(
+    struct ToriRS_PluginHost const* host,
+    uint32_t selection_generation)
+{
+    assert(host);
+    if( selection_generation == 0 ||
+        selection_generation != host->panel_selection_generation || host->panel_active < 0 )
+        return 0;
+    return host->panel_widget_count;
+}
+
+struct ToriRS_PluginWinWidget const*
+PluginHost_PanelWidgetAt(
+    struct ToriRS_PluginHost const* host,
+    uint32_t selection_generation,
+    int widget_index)
+{
+    assert(host);
+    if( selection_generation == 0 ||
+        selection_generation != host->panel_selection_generation || host->panel_active < 0 ||
+        widget_index < 0 || widget_index >= host->panel_widget_count )
+        return NULL;
+    return &host->panel_widgets[widget_index];
+}
+
+uint32_t
+PluginHost_PanelModelRevision(struct ToriRS_PluginHost const* host)
+{
+    assert(host);
+    return host->panel_model_revision;
+}
+
+int
+PluginHost_PanelLayout(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int width,
+    int height,
+    int scale_milli,
+    int size_class,
+    bool visible,
+    bool game_visible)
+{
+    struct ToriRS_PluginEvPanelLayout ev;
+    int plugin;
+
+    assert(host);
+    if( selection_generation == 0 ||
+        selection_generation != host->panel_selection_generation )
+        return 0;
+    plugin = host->panel_active;
+    if( plugin < 0 || !host->panel_registered[plugin] || !host->plugins[plugin].running )
+        return 0;
+    if( width < 0 || height < 0 || scale_milli <= 0 ||
+        size_class < TORIRS_PLUGIN_PANEL_COMPACT ||
+        size_class > TORIRS_PLUGIN_PANEL_EXPANDED ||
+        (visible && (width == 0 || height == 0)) )
+        return 0;
+
+    if( host->panel_has_layout && host->panel_width == width &&
+        host->panel_height == height && host->panel_scale_milli == scale_milli &&
+        host->panel_size_class == size_class && host->panel_visible == visible &&
+        host->panel_game_visible == game_visible )
+        return 1;
+
+    host->panel_has_layout = true;
+    host->panel_width = width;
+    host->panel_height = height;
+    host->panel_scale_milli = scale_milli;
+    host->panel_size_class = size_class;
+    host->panel_visible = visible;
+    host->panel_game_visible = game_visible;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.width = width;
+    ev.height = height;
+    ev.scale_milli = scale_milli;
+    ev.size_class = size_class;
+    ev.visible = visible;
+    ev.game_visible = game_visible;
+    ev.selection_generation = selection_generation;
+    plugin_dispatch_one(host, plugin, TORIRS_PLUGIN_EV_PANEL_LAYOUT, &ev);
+    return 1;
+}
+
+int
+PluginHost_PanelDispatch(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial,
+    uint64_t intent_sequence,
+    char const* widget_id,
+    int action,
+    int value,
+    char const* text,
+    int x,
+    int y)
+{
+    struct ToriRS_PluginEvPanelAction ev;
+    struct ToriRS_PluginWinWidget* widget;
+    char event_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
+    char event_text[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+    int plugin;
+    int slot;
+    bool changed = false;
+
+    assert(host);
+    if( !widget_id || selection_generation == 0 ||
+        selection_generation != host->panel_selection_generation || intent_sequence == 0 ||
+        intent_sequence <= host->panel_last_intent_sequence || !host->panel_visible )
+        return 0;
+    plugin = host->panel_active;
+    if( plugin < 0 || !host->panel_registered[plugin] || !host->plugins[plugin].running )
+        return 0;
+    slot = plugin_panel_find_serial(host, widget_serial);
+    if( slot < 0 || strcmp(host->panel_widgets[slot].id, widget_id) != 0 )
+        return 0;
+    if( action < TORIRS_PLUGIN_UI_ACTIVATE || action > TORIRS_PLUGIN_UI_KEY )
+        return 0;
+    widget = &host->panel_widgets[slot];
+    if( action >= TORIRS_PLUGIN_UI_DRAG && widget->kind != TORIRS_PLUGIN_W_CUSTOM )
+        return 0;
+
+    plugin_copy_str(event_id, sizeof(event_id), widget->id);
+    plugin_copy_str(
+        event_text,
+        sizeof(event_text),
+        text ? text : widget->text);
+
+    /* Result state is committed before dispatch, matching win_* compatibility
+     * and making the model authoritative for native controls. */
+    switch( action )
+    {
+    case TORIRS_PLUGIN_UI_TOGGLE:
+        changed = widget->checked != (value ? 1 : 0) ||
+                  widget->value != (value ? 1 : 0);
+        widget->checked = value ? 1 : 0;
+        widget->value = widget->checked;
+        break;
+    case TORIRS_PLUGIN_UI_TEXT:
+        changed = strcmp(widget->text, event_text) != 0;
+        plugin_copy_str(widget->text, sizeof(widget->text), event_text);
+        break;
+    case TORIRS_PLUGIN_UI_PICK:
+        changed = widget->selected != value || widget->value != value ||
+                  strcmp(widget->text, event_text) != 0;
+        widget->selected = value;
+        widget->value = value;
+        plugin_copy_str(widget->text, sizeof(widget->text), event_text);
+        break;
+    default:
+        break;
+    }
+    if( changed )
+        plugin_panel_bump(&host->panel_model_revision);
+
+    /* Mark first so a re-entrant copy of a momentary action is still a duplicate. */
+    host->panel_last_intent_sequence = intent_sequence;
+    memset(&ev, 0, sizeof(ev));
+    ev.id = event_id;
+    ev.action = action;
+    ev.value = value;
+    ev.text = event_text;
+    ev.x = x;
+    ev.y = y;
+    ev.selection_generation = selection_generation;
+    ev.widget_serial = widget_serial;
+    ev.intent_sequence = intent_sequence;
+    plugin_dispatch_one(host, plugin, TORIRS_PLUGIN_EV_PANEL_ACTION, &ev);
+    return 1;
+}
+
+bool
+PluginHost_PanelNeedsDraw(
+    struct ToriRS_PluginHost const* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial)
+{
+    int slot;
+
+    assert(host);
+    if( selection_generation == 0 ||
+        selection_generation != host->panel_selection_generation || host->panel_active < 0 ||
+        !host->panel_visible )
+        return false;
+    slot = plugin_panel_find_serial(host, widget_serial);
+    return slot >= 0 && host->panel_widgets[slot].kind == TORIRS_PLUGIN_W_CUSTOM &&
+           host->panel_invalidated[slot];
+}
+
+int
+PluginHost_PanelDraw(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial,
+    void* surface,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    struct ToriRS_PluginEvPanelDraw ev;
+    char id[TORIRS_PLUGIN_WIDGET_ID_MAX];
+    int plugin;
+    int slot;
+
+    assert(host);
+    if( !surface || width <= 0 || height <= 0 ||
+        selection_generation != host->panel_selection_generation ||
+        !PluginHost_PanelNeedsDraw(host, selection_generation, widget_serial) )
+        return 0;
+    plugin = host->panel_active;
+    slot = plugin_panel_find_serial(host, widget_serial);
+    if( plugin < 0 || slot < 0 )
+        return 0;
+
+    plugin_copy_str(id, sizeof(id), host->panel_widgets[slot].id);
+    host->panel_invalidated[slot] = false;
+    plugin_panel_bump(&host->panel_model_revision);
+    memset(&ev, 0, sizeof(ev));
+    ev.id = id;
+    ev.surface = surface;
+    ev.x = x;
+    ev.y = y;
+    ev.width = width;
+    ev.height = height;
+    ev.scale_milli = host->panel_scale_milli;
+    ev.selection_generation = selection_generation;
+    ev.widget_serial = widget_serial;
+
+    assert(!host->draw_surface && "panel draw cannot nest another plugin draw pass");
+    host->draw_surface = surface;
+    host->draw_canvas = PLUGIN_DRAW_SURFACE_PANEL;
+    host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_PANEL);
+    plugin_dispatch_one(host, plugin, TORIRS_PLUGIN_EV_PANEL_DRAW, &ev);
+    host->draw_surface = NULL;
+    host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
+    host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
+    return 1;
 }

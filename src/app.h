@@ -43,6 +43,7 @@
 #include "ui/uitree_cross.h"
 #include "ui/uitree_ink.h"
 #include "ui/torirs_chrome_exec.h"
+#include "ui/torirs_chrome_shell.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_emit.h"
 #include "ui/uitree_host.h"
@@ -1797,6 +1798,8 @@ struct App
      * call that takes the instance (app_chrome_route_input).
      */
     struct ToriRSChrome plugin_ui;
+    /** Placement and selection generation for the one shared plugin shell. */
+    struct ToriRSChromeShell plugin_shell;
     /**
      * Which presentation the plugin window is bound to, and the sync driving
      * it.

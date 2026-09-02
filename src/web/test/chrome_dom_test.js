@@ -56,8 +56,8 @@ function makeNode(tag) {
     if (i >= 0) { node.children.splice(i, 1); c.parentNode = null; }
     return c;
   };
-  /* The window is inserted NEXT TO the stage rather than appended to the end
-   * of the page, so the fake has to be able to say where "next to" is. */
+  /* The shell slot is inserted next to the game region when a host page has
+   * not provided its stable mount point. */
   node.insertBefore = (c, ref) => {
     const i = ref ? node.children.indexOf(ref) : -1;
     c.parentNode = node;
@@ -72,10 +72,6 @@ function makeNode(tag) {
       return (i >= 0 && node.parentNode.children[i + 1]) || null;
     }
   });
-  /* An iframe is a window with a document of its own, which is the whole
-   * point of using one: the chrome's controls are then out of reach of the
-   * host page's stylesheet and its key listeners. */
-  if (node.tagName === 'IFRAME') node.contentDocument = makeDocument();
   /*
    * A canvas that can be drawn on, because the skin path turns baked pixels
    * into data: URLs through one -- and a fake that could not would test the
@@ -139,9 +135,21 @@ function makeNode(tag) {
    * fake was passing undefined. `over` carries the fields a particular event
    * has (a key, say), which is how the keyboard paths are driven. */
   node.fire = (t, over) => {
-    const ev = { type: t, target: node, stopPropagation() {}, preventDefault() {} };
+    let stopped = false;
+    const ev = {
+      type: t, target: node,
+      stopPropagation() { stopped = true; },
+      preventDefault() { this.defaultPrevented = true; },
+      defaultPrevented: false
+    };
     for (const k in (over || {})) ev[k] = over[k];
-    (node._listeners[t] || []).forEach(f => { f(ev); });
+    let at = node;
+    while (at) {
+      (at._listeners[t] || []).slice().forEach(f => { if (!stopped) f(ev); });
+      if (stopped) break;
+      at = at.parentNode;
+    }
+    return ev;
   };
   node.querySelector = sel => {
     /* Only the one selector the host uses. */
@@ -281,17 +289,20 @@ function intents() {
   }
   return out;
 }
-/* The host puts one root in the page; its three children are the title bar,
- * the tab strip and the body. Reached positionally because the host exposes no
- * handles -- a page never needs them, and neither does this. */
-function root() { return document.body.children[0]; }
+/* The host puts one slot in normal document flow, containing one shell. The
+ * shell's first child is the rail and its second is the sole live page. */
+function slot() { return document.body.children[0]; }
+function shell() { return slot().children[0]; }
+function root() { return shell().children[1]; }
 function tabStrip() { return root().children[1]; }
 function rows() { return root().children[2].children; }
 
 /* ---- the run -------------------------------------------------------------- */
 
 check(global_.torirsChromeOpen() === true, 'the window opens');
-check(document.body.children.length === 1, 'and puts exactly one root in the page');
+check(document.body.children.length === 1, 'and creates exactly one attached slot');
+check(shell().classList.contains('torirs-plugin-shell'), 'holding one shared shell');
+check(shell().children[0].classList.contains('torirs-plugin-rail'), 'with a native DOM rail');
 
 apply(cmd(CMD.PANEL_OPEN, { p: 0, v: 0, text: 'Plugins' }));
 
@@ -387,9 +398,9 @@ check(got.length === 1 && got[0].k === INTENT.TAB && got[0].v === 0, 'a tab clic
 
 /*
  * PANEL_RECT was dropped entirely, so a panel the model sized to its content
- * still rendered in the page's fixed 340px column and ellipsised every name
- * that did not fit. Position is still dropped, because this window is a corner
- * overlay rather than something laid out in canvas coordinates.
+ * still rendered in a fixed-width column and ellipsised every name that did
+ * not fit. Position is dropped because application layout, not canvas model
+ * coordinates, owns this pane.
  *
  * The width is honoured as a FLOOR under the page's own fit rather than as the
  * answer -- see the note above fitPanel, and the squashed dropdown below.
@@ -397,7 +408,7 @@ check(got.length === 1 && got[0].k === INTENT.TAB && got[0].v === 0, 'a tab clic
 apply(cmd(CMD.PANEL_RECT, { p: 0, x: 30, y: 40, cw: 420, ch: 900 }));
 check(root().style.width === '444px', "a panel's width reaches the page, plus its padding");
 apply(cmd(CMD.PANEL_RECT, { p: 0, x: 30, y: 40, cw: 4000, ch: 900 }));
-check(root().style.width === '720px', 'and is clamped rather than taking the screen');
+check(root().style.width === '480px', 'and obeys the shared maximum pane width');
 /*
  * A floor BELOW what the rows need does not pull the window down onto them.
  * That is not a hypothetical: the model's number arrives in the model's scale,
@@ -406,7 +417,7 @@ check(root().style.width === '720px', 'and is clamped rather than taking the scr
  * a 240px window.
  */
 apply(cmd(CMD.PANEL_RECT, { p: 0, x: 30, y: 40, cw: 10, ch: 900 }));
-check(parseFloat(root().style.width) > 240, 'a floor under the fit, never a cap on it');
+check(parseFloat(root().style.width) >= 280, 'a floor under the fit, never a cap on it');
 
 /* ---- the kinds the page used to have no branch for ------------------------ */
 
@@ -751,8 +762,8 @@ apply(cmd(CMD.WIDGET_TEXT, { w: 41, text: 'Off' }));
 
 check(parseFloat(root().style.width) > wasWide, 'a long option widens the window');
 check(
-  parseFloat(root().style.width) >= 104 * 2 + LONG.length * CHAR,
-  'past the label column by at least the option itself');
+  parseFloat(root().style.width) === 480,
+  'up to the shared maximum rather than beyond the application shell');
 
 const fitRow = addedRow(41);
 const fitBtn = fitRow.children.filter(c => c.classList.contains('dd'))[0];
@@ -826,9 +837,7 @@ function sendSkin(skip) {
   global_.torirsChromeSkinDone();
 }
 
-const chromeRoot = document.body.children[0].contentDocument
-  ? document.body.children[0].contentDocument.body.children[0]
-  : document.body.children[0];
+const chromeRoot = root();
 
 /* One sprite short: flat, and visibly so. A frame with no tile behind it reads
  * as a rendering fault, where a complete flat window reads as a theme. */
@@ -962,82 +971,109 @@ check(document.body.children.length === 0, 'closing the window removes its root'
   h.close();
 })();
 
-/* ---- beside the canvas, in a frame of its own ------------------------------ */
+/* ---- one attached shell, responsive and isolated -------------------------- */
 
-/*
- * Where the window GOES. Pinned to a corner it covered the part of the frame
- * the player was looking at; every executor with a real window of its own had
- * already answered this the other way. So: an iframe next to the stage, as
- * tall as the canvas, tracking it.
- *
- * The page is swapped for one that HAS a canvas -- the sections above ran
- * against one that does not, which is the floating fallback and is checked by
- * their passing at all.
- */
 (() => {
+  const app = makeNode('div');
+  const main = makeNode('main');
+  const game = makeNode('div');
   const stage = makeNode('div');
   const canvas = makeNode('canvas');
-  const main = makeNode('main');
   const log = makeNode('section');
-  const page = makeDocument({ canvas });
+  const mount = makeNode('aside');
+  const page = makeDocument({
+    canvas,
+    'torirs-app': app,
+    'app-content': main,
+    'game-region': game,
+    'plugin-chrome-mount': mount
+  });
+  let leakedKeys = 0;
+  let leakedPointers = 0;
+  let canvasFocus = 0;
 
+  app._rectW = 1200;
   canvas._rectW = 765;
   canvas._rectH = 503;
+  canvas.width = 765;
+  canvas.height = 503;
+  canvas.focus = () => { canvasFocus++; };
   stage.appendChild(canvas);
-  main.appendChild(stage);
-  /* A second flex child, so "inserted next to the stage" is a claim with
-   * somewhere else to be wrong: appended, it would land after this. */
-  main.appendChild(log);
-  page.body.appendChild(main);
+  game.appendChild(stage);
+  game.appendChild(log);
+  main.appendChild(game);
+  main.appendChild(mount);
+  app.appendChild(main);
+  page.body.appendChild(app);
+  main.addEventListener('keydown', () => { leakedKeys++; });
+  main.addEventListener('pointerdown', () => { leakedPointers++; });
   global_.document = page;
 
   const h = new ChromeHost();
   check(h.open() === true, 'the window opens against a page with a canvas');
-  check(page.body.children[0] === main, 'and does not go in the page body');
+  check(mount.children.length === 1, 'it uses the application-provided mount slot');
+  const oneShell = h.shell;
+  check(mount.children[0] === oneShell, 'and creates one shared shell in that slot');
+  check(oneShell.children[0] === h.railEl && oneShell.children[1] === h.root,
+    'whose only regions are the rail and active pane');
+  check(main.children.length === 2 && main.children[0] === game && main.children[1] === mount,
+    'the game and shell remain sibling layout tracks');
+  const attachedCss = page.head.children
+    .filter(c => c.tagName === 'STYLE').map(c => c.textContent).join('\n');
+  check(!attachedCss.includes('.torirs-chrome.floating'),
+    'there is no floating overlay presentation');
 
-  const frame = main.children.filter(c => c.tagName === 'IFRAME')[0];
-  check(frame !== undefined, 'it mounts in an iframe');
-  check(main.children.indexOf(frame) === 1, 'inserted next to the stage, not at the end');
-  check(frame.contentDocument.body.children[0] === h.root, 'the chrome is built inside it');
-  check(h.root.classList.contains('framed'), 'and is tagged as filling a window of its own');
-  check(frame.style.height === '503px', "the frame is exactly as tall as the canvas");
-
-  /* The picture's height changes with the page's scaled modes, the browser
-   * window and the game's own Display setting. All three end in the canvas's
-   * box changing, which is why the observer watches the box. */
-  canvas._rectH = 720;
-  observers.forEach(o => { o.fn(); });
-  check(frame.style.height === '720px', 'and follows it when the canvas is rescaled');
-
-  /*
-   * And it starts where the PICTURE starts, not where the row does. In the
-   * page's scaled modes the canvas is centred and letterboxed inside the
-   * stage, so a window that matched only the height hung above the picture it
-   * is meant to read as one object with.
-   */
-  canvas._rectT = 108;
-  observers.forEach(o => { o.fn(); });
-  check(frame.style.marginTop === '108px', 'the frame begins on the canvas top edge');
-  observers.forEach(o => { o.fn(); });
-  check(frame.style.marginTop === '108px', 'and holds there once nothing is moving');
-
-  /* The page pins its own corner chrome clear of the docked window by this. */
-  check(page.documentElement.style['--torirs-dock-width'] === '340px',
-    'the docked width reaches the page as a CSS variable');
-
-  /* Width still comes from the model, and now lands on the frame -- widening
-   * the root inside a 340px iframe would do nothing but clip. */
   h.apply(cmd(CMD.PANEL_OPEN, { p: 0, text: 'Plugins' }));
   h.apply(cmd(CMD.PANEL_RECT, { p: 0, cw: 420, ch: 900 }));
-  check(frame.style.width === '444px', "the model's width sizes the frame");
-  check(h.root.style.width !== '444px', 'not the root inside it');
-  check(page.documentElement.style['--torirs-dock-width'] === '444px',
-    'and the page hears about the wider window');
+  check(h.presentation === 'split', 'a wide application root uses split mode');
+  check(!game.hidden, 'split mode keeps the game region visible');
+  check(mount.style.width === '488px', 'the attached track contains rail plus pane width');
+  check(h.root.style.width === '444px', "the model's width sizes only the pane");
+  check(page.documentElement.style['--torirs-dock-width'] === '488px',
+    'and the page hears the whole attached shell width');
+  check(canvas.width === 765 && canvas.height === 503,
+    'opening chrome does not change the game canvas backing size');
+
+  /* Element resize, without window.resize: compact replaces rather than
+   * covers the game, and growing back restores split. */
+  app._rectW = 900;
+  observers.filter(o => o.target === app).forEach(o => { o.fn(); });
+  check(h.presentation === 'exclusive', 'a compact application root uses exclusive mode');
+  check(game.hidden, 'exclusive mode wholly hides the game region');
+  check(mount.style.width === '100%', 'and gives the application content track to the shell');
+  check(canvas.width === 765 && canvas.height === 503,
+    'exclusive mode still leaves logical canvas dimensions untouched');
+  app._rectW = 1200;
+  observers.filter(o => o.target === app).forEach(o => { o.fn(); });
+  check(h.presentation === 'split' && !game.hidden, 'growing restores split and the game');
+
+  /* Pointer, keyboard and composition events terminate at the shell. */
+  h.root.fire('keydown', { key: 'a' });
+  h.root.fire('pointerdown');
+  check(leakedKeys === 0 && leakedPointers === 0,
+    'pane keyboard and pointer input cannot reach application/game listeners');
+
+  /* A new PANEL_OPEN is selection under the compatible protocol. It clears
+   * the former page first, ignores stale commands, and keeps the shell. */
+  h.apply(cmd(CMD.WIDGET_ADD, { p: 0, w: 7, v: W.BUTTON, tab: -1, text: 'Old' }));
+  const oldRow = h.body.children[0];
+  h.apply(cmd(CMD.PANEL_OPEN, { p: 3, text: 'Newest' }));
+  check(h.shell === oneShell, 'selecting another page reuses the one shell');
+  check(Object.keys(h.panels).length === 1 && h.tabPanel === 3,
+    'only the most recently selected page remains active');
+  check(h.body.children.length === 0, 'the prior page DOM is removed before the new build');
+  h.apply(cmd(CMD.WIDGET_ADD, { p: 0, w: 8, v: W.BUTTON, tab: -1, text: 'Stale' }));
+  check(h.body.children.length === 0, 'commands for an inactive page cannot render');
+  h.apply(cmd(CMD.WIDGET_ADD, { p: 3, w: 9, v: W.BUTTON, tab: -1, text: 'Save' }));
+  const savedRow = h.body.children[0];
+  while (h.takeIntent()) { /* drain */ }
+  oldRow.children[0].fire('click');
+  check(h.takeIntent() === '', 'events from a removed page are rejected as stale');
+  check(h.railBtn.title === 'Newest' && h.railBtn.textContent === 'N',
+    'the one rail entry follows the active page metadata');
 
   /* ---- popped out into a tab of its own ------------------------------------ */
 
-  h.apply(cmd(CMD.WIDGET_ADD, { w: 7, v: W.BUTTON, tab: -1, text: 'Save' }));
-  const savedRow = h.body.children[0];
   const popBtn = h.root.children[0].children.filter(c => c.classList.contains('popout'))[0];
   check(popBtn !== undefined, 'the title bar offers a pop-out');
 
@@ -1049,10 +1085,10 @@ check(document.body.children.length === 0, 'closing the window removes its root'
   /* The state class the skin keys its second pair of sprites off. A toggle
    * that looked the same in both positions would not be saying anything. */
   check(popBtn.classList.contains('back'), 'and the button now points home');
-  check(popup.document.body.children[0] === h.root, 'and the window moves into it');
-  check(!main.children.includes(frame), 'the frame beside the canvas goes away');
+  check(popup.document.body.children[0] === oneShell, 'and the SAME shell DOM moves into it');
+  check(mount.children.length === 0 && !game.hidden, 'the attached track is vacated without hiding the game');
   check(page.documentElement.style['--torirs-dock-width'] === '0px',
-    'and the page stops reserving room beside the picture');
+    'and the page stops reserving room for detached chrome');
   check(h.body.children[0] === savedRow, 'the SAME row nodes moved, rather than being rebuilt');
 
   /* Which matters because a rebuilt page would be an empty one: the seam
@@ -1067,15 +1103,12 @@ check(document.body.children.length === 0, 'closing the window removes its root'
   popBtn.fire('click');
   check(popup.closed === true, 'putting it back closes the tab');
   check(!popBtn.classList.contains('back'), 'and the button points out again');
-  const back = main.children.filter(c => c.tagName === 'IFRAME')[0];
-  check(back !== undefined, 'and it docks beside the canvas again');
-  check(back.contentDocument.body.children[0] === h.root, 'with the same window in it');
-  check(back.style.height === '720px', 'matching the canvas it came back to');
-  check(back.style.marginTop === '108px', 'and starting where it starts');
-  check(page.documentElement.style['--torirs-dock-width'] === '340px',
-    'with the page told to keep clear of it again');
+  check(mount.children[0] === oneShell, 'and the same shell returns to its native page slot');
+  check(page.documentElement.style['--torirs-dock-width'] === '488px',
+    'with the page told about its restored split track');
 
-  /* ---- the popped-out tab, closed from its own title bar -------------------- */
+  /* A detached tab closed by the browser returns to the required attached
+   * presentation without closing or rebuilding plugin state. */
 
   /*
    * The presentation went away without the model hearing. Reported as a CLOSE,
@@ -1086,12 +1119,22 @@ check(document.body.children.length === 0, 'closing the window removes its root'
   popBtn.fire('click');
   const second = popups[popups.length - 1];
   check(second.closed === false, 'popped out again');
-  while (h.takeIntent()) { /* drain */ }
   second.closed = true;
-  const reported = JSON.parse(h.takeIntent() || '{}');
-  check(reported.k === INTENT.CLOSE, 'closing the tab reports a CLOSE');
-  check(reported.p === 0, 'naming the panel that was in it');
-  check(h.root === null, 'and the window is let go with the document it was in');
+  check(h.takeIntent() === '', 'closing an optional tab does not close the plugin page');
+  check(h.popup === null && mount.children[0] === oneShell,
+    'and the live shell recovers into its attached slot');
+  check(h.body.children[0] === savedRow, 'preserving the active page nodes and state');
+
+  /* Escape is consumed as plugin Back/Close; after the model confirms close,
+   * the game track and canvas focus are restored. */
+  h.shell.fire('focusin');
+  h.root.fire('keydown', { key: 'Escape' });
+  const escape = JSON.parse(h.takeIntent() || '{}');
+  check(escape.k === INTENT.CLOSE && escape.p === 3, 'Escape reports Close for the active page');
+  check(leakedKeys === 0, 'Escape is not also delivered to the game');
+  h.apply(cmd(CMD.PANEL_CLOSE, { p: 3 }));
+  check(mount.hidden && !game.hidden, 'the confirmed close collapses the shell and restores game');
+  check(canvasFocus === 1, 'canvas focus returns only after the pane closes');
 
   h.close();
   global_.document = document;

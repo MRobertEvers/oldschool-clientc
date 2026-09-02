@@ -10,10 +10,12 @@ register an entry but cannot create another shell or window. Wherever the host
 can allocate child content, this shell is embedded in the game's existing
 top-level application window like RuneLite's sidebar. On native desktop this is
 the required default, not an auxiliary-window fallback. The shell contains a
-navigation rail and, when expanded, only the most recently selected plugin's
-active page. Plugins describe pages with a small semantic UI API and receive
-semantic events. They do not create a window, Android `View`, DOM node, Cocoa
-object, Win32 `HWND`, or SDL surface.
+small navigation rail that remains when the content pane is collapsed. Clicking
+a plugin icon expands the one shared pane; clicking that selected icon again or
+using Close collapses it. When expanded, only the most recently selected
+plugin's active page renders. Plugins describe pages with a small semantic UI
+API and receive semantic events. They do not create a window, Android `View`,
+DOM node, Cocoa object, Win32 `HWND`, or SDL surface.
 
 The shell has two required presentations:
 
@@ -44,6 +46,9 @@ by the actual web build.
   Android, web, Linux, macOS, and Windows.
 - All plugins share one shell; selection replaces its content, and only the
   selected plugin can render or receive page input.
+- The narrow rail remains usable while the pane is collapsed. Expansion and
+  collapse are first-class shell states, not opening and destroying unrelated
+  windows.
 - On Linux, macOS, and Windows the default shell is a child region of the
   existing game window. Opening it expands that window while preserving the
   game presentation when the window manager permits.
@@ -139,9 +144,15 @@ compact / exclusive
 - The rail exists only when at least one plugin page or the Manage Plugins page
   is available. It consumes application layout space; it is never painted over
   the game.
-- Clicking an inactive entry opens it. Clicking the active entry collapses the
-  page in split mode. Back/Escape closes a popup within the page first, then
-  closes the page, then resumes the game's normal Back/Escape handling.
+- In the collapsed state, only the small rail is visible and no plugin renders.
+  The shell remembers the most recently selected entry so the same icon can be
+  highlighted and reopened without rebuilding unrelated plugins.
+- Clicking an inactive entry selects it and expands the pane. Clicking the
+  selected entry while expanded collapses the pane. Clicking a different entry
+  while expanded replaces the content in place without opening another pane.
+  Close collapses; it does not unregister or disable the plugin.
+- Back/Escape closes a popup within the page first, then collapses the pane,
+  then resumes the game's normal Back/Escape handling.
 - The shell owns title, icon, close/back, selected state, scrolling, resize
   divider, focus traversal, and error presentation.
 - Selecting a rail entry makes it the sole active plugin page. The previously
@@ -183,6 +194,24 @@ Placement follows this fixed preference order:
    shell in the same top-level window and temporarily replace the game region.
 4. **detached** -- only when the user explicitly asks and the platform supports
    it. This is not selected to solve a failed resize.
+
+Collapse reverses attached-grow: remove only the panel width from the outer
+window, preserve the rail and game region, and remember the last successfully
+expanded game size. Repeated expand/collapse must not accumulate width. If the
+window manager changed the window independently while expanded, clamp the
+shrink so the game never ends smaller than the size the user chose.
+
+The shell state machine is explicit:
+
+```text
+COLLAPSED(last_selected)
+  -- click plugin A --> EXPANDED(selected=A)
+EXPANDED(selected=A)
+  -- click plugin A / Close / Back --> COLLAPSED(last_selected=A)
+  -- click plugin B --> EXPANDED(selected=B)
+```
+
+Only the `EXPANDED` states mount controls or issue `EV_PANEL_DRAW`.
 
 The window manager owns final placement. The client requests a larger size but
 does not require global coordinates or force the window to remain on a
@@ -303,6 +332,12 @@ Selection is a host transaction:
 Nonselected plugins retain ordinary plugin/game state, but no native controls,
 DOM nodes, panel bitmap, or custom draw list. Their `panel_set_*` calls may mark
 their page data stale for the next build; they never produce presenter work.
+
+Collapse is similar but retains the selected plugin ID as
+`last_selected_plugin`: it marks that plugin invisible, clears the active model,
+and tears down presenter controls. Re-expansion builds only that remembered
+plugin. Registration metadata for all rail icons remains resident in either
+state.
 
 Lua mirrors the same contract:
 
@@ -727,7 +762,8 @@ although desktop attachment and Android are not yet enabled.
   rectangles; do not create an auxiliary window.
 - Update Soft3D, GL3, GLES2/WebGL1, and D3D9 present paths and input mapping.
 - Implement attached-grow, attached-fit, attached-exclusive, and
-  stable-game-canvas behavior.
+  stable-game-canvas behavior, including reversible grow/shrink with a
+  persistent collapsed rail.
 - Add the shell surface presenter and remove plugin use of the floating `buffer`
   fallback.
 
@@ -781,7 +817,7 @@ Every row is required for release unless marked optional.
 | --- | --- |
 | Model | full snapshot equals incremental result; transaction truncation never applies; duplicate intent dispatches once; recycled handle is a new node |
 | Isolation | toggling a page does not change game canvas dimensions/layout revision; no pane input reaches game; no game pointer reaches pane |
-| Responsive | default uses the existing top-level window; attached-grow preserves game size when accepted; resize across fit/exclusive threshold; maximize/fullscreen; collapse/reopen; panel width restore is clamped |
+| Responsive | default uses the existing top-level window; attached-grow preserves game size when accepted; collapse removes exactly the pane width but keeps the rail; repeated toggles do not drift; resize across fit/exclusive threshold; maximize/fullscreen; panel width restore is clamped |
 | Lifecycle | enable/disable/reload active plugin; presenter refusal and reset; suspend/resume; renderer/context recreation |
 | Focus | type and compose text; Tab/Shift-Tab; dropdown keyboard use; IME open/close; Back/Escape order; game/chat receives no focused-pane keys |
 | Accessibility | every semantic control has role/name/state; rail entries are navigable; custom hit regions have a labelled fallback |
@@ -811,18 +847,22 @@ The feature is complete only when all of the following are true:
    default and create no additional toplevel. An ordinary resizable window
    grows by the rail/pane width when the window manager accepts the request,
    while the game region keeps its prior dimensions.
-4. No required path presents plugin chrome over any portion of the gameframe.
-5. No native build links or instantiates an embedded browser engine.
-6. Compact windows offer the exclusive page and a deterministic return to the
+4. Clicking the selected rail icon, Close, or Back collapses the pane to the
+   narrow rail, stops all plugin rendering/input, and reverses accepted window
+   growth without cumulative size drift; clicking again expands the remembered
+   selection.
+5. No required path presents plugin chrome over any portion of the gameframe.
+6. No native build links or instantiates an embedded browser engine.
+7. Compact windows offer the exclusive page and a deterministic return to the
    game; they never make the page unreachable.
-7. A native presenter refusal, command overflow, popup block, context loss, or
+8. A native presenter refusal, command overflow, popup block, context loss, or
    plugin reload recovers from the authoritative model without process restart.
-8. Focused plugin text controls do not trigger game input on any platform.
-9. Plugins contain no platform branches. The probe may branch only on neutral
+9. Focused plugin text controls do not trigger game input on any platform.
+10. Plugins contain no platform branches. The probe may branch only on neutral
    allocation/capability facts supplied by the panel API.
-10. Idle closed chrome has no per-frame raster work and negligible sync work;
+11. Idle collapsed chrome has no plugin raster work and negligible sync work;
    opening it does not create a second game renderer or device.
-11. Existing `win_*` plugins and saved configuration continue to behave as
+12. Existing `win_*` plugins and saved configuration continue to behave as
    before through the compatibility adapter.
 
 These criteria deliberately make the portable shell presenter part of the

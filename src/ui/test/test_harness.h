@@ -19,6 +19,7 @@
 extern int g_failures;
 
 void test_roles(void);
+void test_chrome_shell(void);
 
 #define TEST_ASSERT(cond, msg)                                                                     \
     do                                                                                             \

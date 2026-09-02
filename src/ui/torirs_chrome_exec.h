@@ -714,6 +714,15 @@ struct ToriRSChromeExec
 ToriRSChromeExec_Web(void);
 #endif
 
+#if defined(TORIRS_CHROME_EXEC_ANDROID_AVAILABLE)
+/* ---- the Android native-widget executor -------------------------------- */
+
+/** Framework Views in ClientActivity's one shared plugin-chrome pane.
+ *  No WebView and no second Activity or OS window. */
+struct ToriRSChromeExec
+ToriRSChromeExec_Android(void* platform);
+#endif
+
 #if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
 /* ---- the SDL surface executor (ui/torirs_chrome_exec_sdl.c) --------------- */
 

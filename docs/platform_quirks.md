@@ -1191,6 +1191,78 @@ one lane only.
   [`src/platform/platform.mk`](../src/platform/platform.mk),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
 
+### ANDROID-UI-001 - A non-integer interface scale samples the canvas, and nearest deforms small text
+
+- **Status:** Contract
+- **Applies to:** Android (and any lane whose interface scale is not 100% or a
+  whole multiple)
+- **Behavior:** On the phone the minimap orbs' numbers came out misshapen --
+  a `9` with a squat loop, stems 1px on one digit and 2px on the next -- while
+  the same glyphs at 100% were exact.
+- **Cause or reason:** interface scale (device option 27) makes the CANVAS
+  smaller than the surface and the present scales it back up: 125% is
+  956x576 into 1196x720, a ratio of 1.251, so every fourth column and row is
+  duplicated. Device option 15 picks the sampler, and this phone had it stored
+  as `0` (nearest), which is what turns that duplication into a deformed
+  glyph. It is not a font bug and not an orb bug: the whole canvas is
+  resampled, and small green digits on a dark orb are just where the eye
+  catches it first.
+- **Verification:** on the device, in the data root's `preferences.ini`,
+  `[device_options] 15=0` with `27=125` reproduces it; `15=2` (the client's
+  own default -- bicubic in the cache's enum, `GL_LINEAR` in this renderer)
+  fixes it at the same scale, and `27=100` fixes it at the same sampler.
+  Screenshot the orbs with `adb exec-out screencap -p` and magnify: the
+  landscape content sits in a portrait frame, so crop first and rotate after.
+- **Note:** only the GLES2 lane reads the mode
+  (`ToriRS_GLES2_SetInterfaceScaleMode`). Android's software present stores it
+  in `PlatformWindow_SetInterfaceScaleMode` and its blit samples nearest
+  regardless, so a scaled software frame on this lane cannot be smoothed.
+- **Sources:** [`src/platform/platform_renderer_gles2_core.c`](../src/platform/platform_renderer_gles2_core.c),
+  [`src/platform/platform_android.c`](../src/platform/platform_android.c),
+  [`src/game/rs_cs2_host.c`](../src/game/rs_cs2_host.c)
+
+### ANDROID-DEVICE-001 - The battery and the link are Android's answers, and the pre-24 lane needs the broadcast
+
+- **Status:** Contract
+- **Applies to:** Android (every other lane keeps the seeded "100%, charging,
+  wifi")
+- **Behavior:** Three CS2 opcodes ask what the device's power and network are
+  -- `MOBILE_BATTERYLEVEL` (6524), `MOBILE_BATTERYCHARGING` (6525) and
+  `MOBILE_WIFIAVAILABLE` (6526). They used to push literals, so a phone at 8%
+  on cellular read as full and on wifi.
+- **Cause or reason:** only Java can answer. `ClientActivity` registers a
+  receiver for the sticky `ACTION_BATTERY_CHANGED` (which is why the first
+  report happens at boot rather than at the next percent) and, for the link, a
+  `registerDefaultNetworkCallback` on API 24+ and a `CONNECTIVITY_ACTION`
+  receiver below it. The pre-24 receiver is not optional: measured on an API 22
+  phone, a battery tick can be minutes away, and until one arrives the client
+  would keep reporting a link that is gone. Anything connected that is not
+  cellular counts as wifi -- what a script does with the answer is decide
+  whether the connection is the metered one.
+- **How it travels:** `nativeDeviceStatus` -> latest-value state under the
+  platform's lock -> `PlatformWindow_PollCommands` pushes
+  `TORIRS_CMD_DEVICE_STATUS` only when one of the three changes -> the app
+  calls `RS_CS2Host_SetDeviceStatus`. Level state, coalesced at the drain, for
+  the reason the keyboard inset is (ANDROID-INPUT-001's neighbour): a phone
+  reports its battery every percent, and a per-frame command for a value that
+  moves once a minute is noise in the record.
+- **Verification:** put `TORIRS_DEVICE_DEBUG=1` in the data root's `env.txt`,
+  then drive the battery service:
+
+  ```text
+  adb shell dumpsys battery set level 42     -> device status -> battery 42% ...
+  adb shell dumpsys battery set status 3     -> ... charging 0 ...
+  adb shell dumpsys battery reset            -> back to the real reading
+  ```
+
+  `adb shell svc wifi disable` is **not** a way to test the link half: on API
+  22 the shell uid is refused and `settings get global wifi_on` stays `1`, so
+  the absence of a report proves nothing.
+- **Sources:** [`android/src/main/java/com/torirs/client/ClientActivity.java`](../android/src/main/java/com/torirs/client/ClientActivity.java),
+  [`src/platform/platform_android.c`](../src/platform/platform_android.c),
+  [`src/game/rs_cs2_host.c`](../src/game/rs_cs2_host.c),
+  [`src/cmd/cmdbus.h`](../src/cmd/cmdbus.h)
+
 ### GPU-PROJ-001 - The projection is a scale, never a field of view
 
 - **Status:** Resolved defect

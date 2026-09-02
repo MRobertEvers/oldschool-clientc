@@ -26,6 +26,8 @@ enum ToriRSChromeExecKind
     TORIRS_CHROME_EXEC_WEB,
     /** An owned Win32 tool window of common controls. */
     TORIRS_CHROME_EXEC_GDI,
+    /** Native Android Views in the activity's one shared plugin-chrome pane. */
+    TORIRS_CHROME_EXEC_ANDROID,
     TORIRS_CHROME_EXEC_COUNT
 };
 

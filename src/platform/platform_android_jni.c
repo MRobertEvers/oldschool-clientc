@@ -32,6 +32,7 @@
  */
 
 #include "platform/platform_android.h"
+#include "ui/torirs_chrome_exec.h"
 
 #include <android/log.h>
 #include <android/native_window.h>
@@ -100,6 +101,8 @@ static JavaVM* g_vm;
 static jobject g_activity;      /* global ref, held for the app's life */
 static jmethodID g_show_keyboard;
 static jmethodID g_boot_failed;
+static jmethodID g_apply_chrome_batch;
+static jmethodID g_end_chrome;
 /**
  * The frame thread has been attached to the JVM.
  *
@@ -111,6 +114,22 @@ static jmethodID g_boot_failed;
  * happens somewhere else entirely (the end of frame_thread).
  */
 static int g_frame_thread_attached;
+
+/** Get a JNIEnv for the native frame thread and remember the detach debt. */
+static JNIEnv*
+frame_thread_jni(void)
+{
+    JNIEnv* env = NULL;
+
+    if( !g_vm )
+        return NULL;
+    if( (*g_vm)->GetEnv(g_vm, (void**)&env, JNI_VERSION_1_6) == JNI_OK )
+        return env;
+    if( (*g_vm)->AttachCurrentThread(g_vm, &env, NULL) != JNI_OK )
+        return NULL;
+    g_frame_thread_attached = 1;
+    return env;
+}
 
 /* ---- the frame thread ---------------------------------------------------- */
 
@@ -279,6 +298,112 @@ PlatformAndroidJni_SetSoftKeyboard(int on)
     if( attached )
         g_frame_thread_attached = 1;
     (*env)->CallVoidMethod(env, g_activity, g_show_keyboard, (jboolean)(on != 0));
+    if( (*env)->ExceptionCheck(env) )
+        (*env)->ExceptionClear(env);
+}
+
+/* ---- plugin chrome: frame thread -> one Java transaction ---------------- */
+
+#define ANDROID_CHROME_WORDS 10
+#define ANDROID_CHROME_LABEL_BYTES TORIRS_CHROME_LABEL_MAX
+#define ANDROID_CHROME_TEXT_BYTES TORIRS_CHROME_TEXT_MAX
+#define ANDROID_CHROME_STRING_BYTES                                                   \
+    (ANDROID_CHROME_LABEL_BYTES + ANDROID_CHROME_TEXT_BYTES)
+
+int
+PlatformAndroidJni_ChromeAvailable(void)
+{
+    return g_vm && g_activity && g_apply_chrome_batch && g_end_chrome;
+}
+
+void
+PlatformAndroidJni_ApplyChromeBatch(struct ToriRSChromeCmd const* commands, int count)
+{
+    JNIEnv* env;
+    jintArray java_words = NULL;
+    jbyteArray java_strings = NULL;
+    jint* words = NULL;
+    jbyte* strings = NULL;
+    size_t word_count;
+    size_t string_count;
+
+    if( !commands || count <= 0 || !PlatformAndroidJni_ChromeAvailable() )
+        return;
+    word_count = (size_t)count * ANDROID_CHROME_WORDS;
+    string_count = (size_t)count * ANDROID_CHROME_STRING_BYTES;
+    if( word_count > 0x7fffffffU || string_count > 0x7fffffffU )
+        return;
+    env = frame_thread_jni();
+    if( !env )
+        return;
+
+    words = (jint*)malloc(word_count * sizeof(*words));
+    strings = (jbyte*)malloc(string_count);
+    if( !words || !strings )
+        goto done;
+    memset(strings, 0, string_count);
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRSChromeCmd const* command = &commands[i];
+        jint* out = &words[(size_t)i * ANDROID_CHROME_WORDS];
+        jbyte* text = &strings[(size_t)i * ANDROID_CHROME_STRING_BYTES];
+
+        out[0] = (jint)command->kind;
+        out[1] = (jint)command->panel;
+        out[2] = (jint)command->widget;
+        out[3] = (jint)command->tab;
+        out[4] = (jint)command->value;
+        out[5] = (jint)command->color;
+        out[6] = (jint)command->x;
+        out[7] = (jint)command->y;
+        out[8] = (jint)command->w;
+        out[9] = (jint)command->h;
+        memcpy(text, command->label, ANDROID_CHROME_LABEL_BYTES);
+        memcpy(
+            text + ANDROID_CHROME_LABEL_BYTES,
+            command->text,
+            ANDROID_CHROME_TEXT_BYTES);
+    }
+
+    java_words = (*env)->NewIntArray(env, (jsize)word_count);
+    java_strings = (*env)->NewByteArray(env, (jsize)string_count);
+    if( !java_words || !java_strings || (*env)->ExceptionCheck(env) )
+        goto done;
+    (*env)->SetIntArrayRegion(env, java_words, 0, (jsize)word_count, words);
+    (*env)->SetByteArrayRegion(env, java_strings, 0, (jsize)string_count, strings);
+    if( (*env)->ExceptionCheck(env) )
+        goto done;
+
+    /* ClientActivity only enqueues here. The Views are mutated by its one
+     * Runnable on Android's UI thread after this call has returned. */
+    (*env)->CallVoidMethod(
+        env, g_activity, g_apply_chrome_batch, java_words, java_strings);
+
+done:
+    if( (*env)->ExceptionCheck(env) )
+    {
+        LOGE("could not enqueue Android plugin chrome transaction");
+        (*env)->ExceptionClear(env);
+    }
+    if( java_strings )
+        (*env)->DeleteLocalRef(env, java_strings);
+    if( java_words )
+        (*env)->DeleteLocalRef(env, java_words);
+    free(strings);
+    free(words);
+}
+
+void
+PlatformAndroidJni_EndChrome(void)
+{
+    JNIEnv* env;
+
+    if( !PlatformAndroidJni_ChromeAvailable() )
+        return;
+    env = frame_thread_jni();
+    if( !env )
+        return;
+    (*env)->CallVoidMethod(env, g_activity, g_end_chrome);
     if( (*env)->ExceptionCheck(env) )
         (*env)->ExceptionClear(env);
 }
@@ -481,6 +606,14 @@ Java_com_torirs_client_ClientActivity_nativeStart(
         g_boot_failed = (*env)->GetMethodID(env, cls, "bootFailed", "(Ljava/lang/String;)V");
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
+        g_apply_chrome_batch =
+            (*env)->GetMethodID(env, cls, "applyPluginChromeBatch", "([I[B)V");
+        if( (*env)->ExceptionCheck(env) )
+            (*env)->ExceptionClear(env);
+        g_end_chrome = (*env)->GetMethodID(env, cls, "endPluginChrome", "()V");
+        if( (*env)->ExceptionCheck(env) )
+            (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, cls);
     }
 
     argv_clear();
@@ -566,6 +699,27 @@ Java_com_torirs_client_ClientActivity_nativeDeviceStatus(
 }
 
 JNIEXPORT void JNICALL
+Java_com_torirs_client_ClientActivity_nativePluginChromeIntent(
+    JNIEnv* env,
+    jobject thiz,
+    jint kind,
+    jint panel,
+    jint widget,
+    jint value,
+    jstring text)
+{
+    char const* utf = NULL;
+
+    (void)thiz;
+    if( text )
+        utf = (*env)->GetStringUTFChars(env, text, NULL);
+    PlatformAndroidChrome_PostIntent(
+        (int)kind, (int)panel, (int)widget, (int)value, utf ? utf : "");
+    if( utf )
+        (*env)->ReleaseStringUTFChars(env, text, utf);
+}
+
+JNIEXPORT void JNICALL
 Java_com_torirs_client_ClientActivity_nativeTouch(
     JNIEnv* env, jobject thiz, jint action, jint pointer_id, jint x, jint y)
 {
@@ -602,5 +756,15 @@ Java_com_torirs_client_ClientActivity_nativeStop(JNIEnv* env, jobject thiz)
         g_thread_started = 0;
     }
     argv_clear();
+    if( g_activity )
+    {
+        (*env)->DeleteGlobalRef(env, g_activity);
+        g_activity = NULL;
+    }
+    g_show_keyboard = NULL;
+    g_boot_failed = NULL;
+    g_apply_chrome_batch = NULL;
+    g_end_chrome = NULL;
+    g_vm = NULL;
     LOGI("frame thread joined");
 }

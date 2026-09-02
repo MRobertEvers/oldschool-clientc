@@ -18,9 +18,13 @@
     background: #14100c;
     color: #c8bda4;
     font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    min-height: 100vh;
+  }
+  #torirs-app {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    width: 100%;
   }
   header {
     display: flex;
@@ -53,7 +57,30 @@
     border-color: #6b5426;
     color: #e8dcb8;
   }
-  main { display: flex; flex: 1; min-height: 0; flex-wrap: wrap; gap: 0.75rem; padding: 0.75rem; }
+  main { display: flex; flex: 1; min-width: 0; min-height: 0; }
+  #game-region {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+  #plugin-chrome-mount {
+    display: flex;
+    flex: 0 0 auto;
+    min-width: 0;
+    min-height: 0;
+    align-self: stretch;
+    overflow: hidden;
+  }
+  #plugin-chrome-mount[hidden] { display: none; }
+  main.torirs-chrome-exclusive #game-region { display: none; }
+  main.torirs-chrome-exclusive #plugin-chrome-mount {
+    flex: 1 1 100%;
+    width: 100%;
+  }
   #stage { flex: 0 0 auto; min-width: 0; min-height: 0; }
   /* The client renders at a fixed 765x503; scale it without smoothing so the
      software rasterizer's pixels stay the pixels it drew. */
@@ -73,7 +100,7 @@
      box being measured; the script sizes it to the largest rectangle of the
      backbuffer's aspect that fits, which is what the native window does when
      it letterboxes a fixed frame. */
-  body.fit main { flex-wrap: nowrap; }
+  body.fit #game-region { flex-wrap: nowrap; }
   body.fit #stage { position: relative; flex: 1 1 auto; align-self: stretch; }
   /* The panels are capped at the fixed frame's height; once the canvas is
      taller than that, they should be too. */
@@ -89,7 +116,7 @@
      strip, faded until pointed at, so the toggles stay reachable without
      taking a row from the picture. */
   body.fullcanvas { height: 100vh; overflow: hidden; }
-  body.fullcanvas main { padding: 0; gap: 0; }
+  body.fullcanvas #game-region { padding: 0; gap: 0; }
   body.fullcanvas .panel { display: none; }
   body.fullcanvas canvas#canvas { border: 0; }
   body.fullcanvas header {
@@ -112,6 +139,17 @@
   body.fullcanvas header:focus-within { opacity: 1; }
   body.fullcanvas header h1,
   body.fullcanvas header #status { display: none; }
+  /* Exclusive plugin chrome still belongs to the fullscreened application.
+     Keep its application controls in flow instead of floating them over the
+     only visible page. */
+  body.fullcanvas #torirs-app.torirs-chrome-exclusive > header {
+    position: static;
+    right: auto;
+    z-index: auto;
+    opacity: 1;
+    border-left: 0;
+    border-right: 0;
+  }
   .panel {
     display: flex;
     flex-direction: column;
@@ -162,6 +200,7 @@
 </style>
 </head>
 <body>
+<div id="torirs-app">
 <header>
   <h1>torirs — wasm</h1>
   <span id="status">loading…</span>
@@ -189,7 +228,8 @@
     </button>
   </span>
 </header>
-<main>
+<main id="app-content">
+  <div id="game-region">
   <div id="stage">
     <canvas id="canvas" width="765" height="503" tabindex="-1"
             oncontextmenu="event.preventDefault()"></canvas>
@@ -202,7 +242,13 @@
     <h2>client</h2>
     <pre id="log"></pre>
   </section>
+  </div>
+  <!-- One stable slot shared by every plugin page. torirs_chrome.js puts a
+       native DOM rail and the sole active pane here; responsive layout either
+       keeps it beside #game-region or replaces that region, never overlaps it. -->
+  <aside id="plugin-chrome-mount" aria-label="Plugin tools" hidden></aside>
 </main>
+</div>
 
 <!--
   View controls. Page chrome only — deliberately ahead of the module scripts
@@ -220,6 +266,7 @@
   'use strict';
 
   const body = document.body;
+  const app = document.getElementById('torirs-app');
   const canvas = document.getElementById('canvas');
   const stage = document.getElementById('stage');
   const btnCanvas = document.getElementById('btn-fullcanvas');
@@ -276,10 +323,9 @@
   };
 
   btnFull.onclick = () => {
-    // The page, not the canvas: fullscreening the canvas element alone would
-    // take the header — and with it the way back out of full canvas — off
-    // screen, and hand sizing to the browser's own letterbox.
-    const p = fullscreenElement() ? exitFullscreen() : requestFullscreen(document.documentElement);
+    // The application root, not the canvas: rail, active plugin pane and the
+    // way back out must stay in the same fullscreen presentation.
+    const p = fullscreenElement() ? exitFullscreen() : requestFullscreen(app);
     if (p && p.catch) { p.catch(() => { /* denied or unsupported */ }); }
   };
 

@@ -191,6 +191,50 @@ PlatformWindow_AuxPresent(struct PlatformWindow* platform);
 bool
 PlatformWindow_AuxTakeCloseRequest(struct PlatformWindow* platform);
 
+/* ---- plugin chrome attached to the main application window --------------
+ *
+ * The production plugin shell prefers these over PlatformWindow_Aux*. There
+ * is still exactly one top-level application window: opening reserves a pane
+ * at its trailing edge and, where the window manager accepts it, grows the
+ * client area so the game presentation keeps its previous size. A platform
+ * that cannot compose an attached surface returns false; the host then uses
+ * its native widget presenter or exclusive in-window fallback, never an
+ * in-game overlay.
+ *
+ * Sizes and input are in the attached pane's DRAWABLE pixels. `width` passed
+ * to Open is in window points, matching AuxOpen and making it a physical desk
+ * size on HighDPI displays.
+ */
+
+bool
+PlatformWindow_ChromeOpen(
+    struct PlatformWindow* platform, int width, int height, char const* title);
+
+void
+PlatformWindow_ChromeClose(struct PlatformWindow* platform);
+
+bool
+PlatformWindow_ChromeIsOpen(struct PlatformWindow const* platform);
+
+int*
+PlatformWindow_ChromePixels(struct PlatformWindow* platform);
+
+int
+PlatformWindow_ChromeWidth(struct PlatformWindow const* platform);
+
+int
+PlatformWindow_ChromeHeight(struct PlatformWindow const* platform);
+
+bool
+PlatformWindow_ChromeResize(struct PlatformWindow* platform, int width, int height);
+
+void
+PlatformWindow_ChromePresent(struct PlatformWindow* platform);
+
+bool
+PlatformWindow_ChromeTakeInput(
+    struct PlatformWindow* platform, struct PlatformWindow_AuxInput* out);
+
 /* ---- borderless windows, dragged by what is drawn in them -----------------
  *
  * Taking the OS frame off a window takes four things with it: the title bar

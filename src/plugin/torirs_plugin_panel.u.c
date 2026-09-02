@@ -72,6 +72,18 @@ static int g_plugin_page_built = -1;
  *  plugin, so it is remembered here rather than tracked as a row. */
 static int g_plugin_back_widget = -1;
 
+/* Change the ONE page selection and its generation together. A platform event
+ * queued by the page being left is stale from this statement onward. */
+static void
+app_plugin_page_select(struct App* app, int page)
+{
+    assert(app);
+    g_plugin_page = page;
+    ToriRSChromeShell_Select(
+        &app->plugin_shell,
+        page >= 0 ? page : TORIRS_CHROME_SHELL_PAGE_MANAGE);
+}
+
 /*
  * The window is filling the canvas.
  *
@@ -471,7 +483,7 @@ app_plugin_panel_sync(struct App* app)
     /* A page that named a plugin the host no longer has is a page with nothing
      * to build; the roster is the honest answer to that. */
     if( g_plugin_page >= count )
-        g_plugin_page = -1;
+        app_plugin_page_select(app, -1);
 
     /* The title says where you are, the way a page's own header would -- there
      * is no tab strip to say it any more. */
@@ -915,7 +927,7 @@ app_plugin_panel_apply(struct App* app, int widget)
      * in the row table the loop below walks. */
     if( widget >= 0 && widget == g_plugin_back_widget )
     {
-        g_plugin_page = -1;
+        app_plugin_page_select(app, -1);
         return;
     }
 
@@ -950,7 +962,7 @@ app_plugin_panel_apply(struct App* app, int widget)
              */
             if( ToriRSChrome_ActivationWasAction(&app->plugin_ui) )
             {
-                g_plugin_page = row->plugin;
+                app_plugin_page_select(app, row->plugin);
                 return;
             }
             /* Cleared BEFORE the start and not after: whatever it said was
@@ -1747,6 +1759,12 @@ app_plugin_window_set_open(struct App* app, int open)
             stderr, "chrome: plugin window set_open(%d) tick=%d\n", open ? 1 : 0,
             g_plugin_panel_ticks);
     app->plugin_panel_visible = open ? 1 : 0;
+    if( app->plugin_panel_visible )
+        ToriRSChromeShell_Select(
+            &app->plugin_shell,
+            g_plugin_page >= 0 ? g_plugin_page : TORIRS_CHROME_SHELL_PAGE_MANAGE);
+    else
+        ToriRSChromeShell_Collapse(&app->plugin_shell);
     if( app->plugin_panel >= 0 )
         ToriRSChrome_PanelSetVisible(
             &app->plugin_ui, app->plugin_panel, app->plugin_panel_visible);

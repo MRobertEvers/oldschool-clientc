@@ -738,6 +738,12 @@ ifeq ($(PLATFORM),web)
 # which is strictly better than a canvas pretending to be one.
 PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_web.c
 PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_WEB_AVAILABLE=1
+else ifeq ($(PLATFORM),android)
+# Framework Views in the existing Activity: one native rail/page beside the
+# SurfaceView in split mode, or replacing it in compact exclusive mode. No
+# WebView, AndroidX, second Activity or overlay permission.
+PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_android.c
+PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_ANDROID_AVAILABLE=1
 else ifeq ($(PLATFORM_WINDOW_SRC),platform/platform_sdl2.c)
 PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_sdl.c
 PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_SDL_AVAILABLE=1

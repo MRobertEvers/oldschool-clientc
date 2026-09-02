@@ -102,6 +102,10 @@
 
 struct ToriRS_PluginHost;
 
+/** Engine draw_select_canvas mode for a panel-local custom target. The
+ *  application prepares that target before PluginHost_PanelDraw. */
+#define TORIRS_PLUGIN_ENGINE_DRAW_PANEL 3
+
 /* ------------------------------------------------------------------------ */
 /* The engine seam. app.c implements every one of these.                     */
 /* ------------------------------------------------------------------------ */
@@ -801,6 +805,12 @@ struct ToriRS_PluginWinWidget
     int selected;
     /** "a|b|c" for a dropdown; empty otherwise. */
     char choices[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+    /** Generic result state for the ABI-21 semantic kinds. Legacy checkbox
+     *  and dropdown adapters keep this in step with checked/selected. */
+    int value;
+    /** Never reused within one host lifetime. Lets a queued intent distinguish
+     *  a removed node from a later declaration with the same string id. */
+    uint32_t serial;
 };
 
 /** Has this plugin claimed a tab? */
@@ -852,5 +862,112 @@ void PluginHost_WinClearPlugin(struct ToriRS_PluginHost* host, int plugin_index)
  * has compare-then-set mutators.
  */
 int PluginHost_WinRevision(struct ToriRS_PluginHost const* host);
+
+/* ---- the shared application plugin panel --------------------------------
+ *
+ * This is the platform-neutral authority boundary. PluginHost owns inert rail
+ * registrations, exactly one active plugin model, and the generation checks
+ * around work entering that model. A platform/application shell owns where
+ * the rail and page are placed and drives these entry points from user
+ * selection and queued presenter intents.
+ */
+
+/** Rail metadata. Entries exist only for running plugins which called
+ *  panel_request from EV_START. */
+bool PluginHost_PanelHasPage(struct ToriRS_PluginHost const* host, int plugin_index);
+char const* PluginHost_PanelTitle(struct ToriRS_PluginHost const* host, int plugin_index);
+char const* PluginHost_PanelIconAsset(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+int PluginHost_PanelPreferredWidth(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+char const* PluginHost_PanelBadge(struct ToriRS_PluginHost const* host, int plugin_index);
+bool PluginHost_PanelWantsAttention(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+
+/** Changes whenever an entry is added, removed, renamed, rebadged, or changes
+ *  attention state. Presenters use it to avoid rebuilding an idle rail. */
+uint32_t PluginHost_PanelRegistryRevision(struct ToriRS_PluginHost const* host);
+
+/** The only plugin whose page is mounted, or -1. */
+int PluginHost_PanelActive(struct ToriRS_PluginHost const* host);
+/** Nonzero and advanced for every active-selection transition. */
+uint32_t PluginHost_PanelSelectionGeneration(
+    struct ToriRS_PluginHost const* host);
+
+/**
+ * Select and synchronously build one registered page. Selecting the current
+ * page is idempotent; collapse is explicit through PanelClose. Returns 1 when
+ * selected and 0 for an absent/stopped entry.
+ */
+int PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index);
+/** Collapse the page, notifying the old plugin that it became invisible.
+ *  Returns 1 when a page was closed. */
+int PluginHost_PanelClose(struct ToriRS_PluginHost* host);
+
+/** Build the active page if it was explicitly cleared. A presenter resync
+ *  must read the retained model instead; it does not call this. */
+int PluginHost_PanelEnsureBuilt(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation);
+
+/** Active model reads are generation checked so a sync cannot accidentally
+ *  finish against a page which replaced the one it started reading. */
+int PluginHost_PanelWidgetCount(
+    struct ToriRS_PluginHost const* host,
+    uint32_t selection_generation);
+struct ToriRS_PluginWinWidget const* PluginHost_PanelWidgetAt(
+    struct ToriRS_PluginHost const* host,
+    uint32_t selection_generation,
+    int widget_index);
+/** Changes on every active model mutation, including result-state changes. */
+uint32_t PluginHost_PanelModelRevision(struct ToriRS_PluginHost const* host);
+
+/** Publish neutral layout facts for the current selection. Returns 0 for a
+ *  stale generation or invalid allocation. */
+int PluginHost_PanelLayout(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int width,
+    int height,
+    int scale_milli,
+    int size_class,
+    bool visible,
+    bool game_visible);
+
+/** Deliver a copied result-state intent. Both generation and serial must name
+ *  the active node; duplicate/stale presenter work therefore cannot reach a
+ *  newly selected or redeclared page. */
+int PluginHost_PanelDispatch(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial,
+    uint64_t intent_sequence,
+    char const* widget_id,
+    int action,
+    int value,
+    char const* text,
+    int x,
+    int y);
+
+/** Whether a selected custom node is dirty, followed by its scoped draw pass.
+ *  The caller prepares `surface` as a panel-local target before dispatch and
+ *  restores its renderer afterwards. Draw returns 0 for hidden, clean, stale,
+ *  or non-custom nodes. */
+bool PluginHost_PanelNeedsDraw(
+    struct ToriRS_PluginHost const* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial);
+int PluginHost_PanelDraw(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial,
+    void* surface,
+    int x,
+    int y,
+    int width,
+    int height);
 
 #endif /* TORIRS_PLUGIN_HOST_H */

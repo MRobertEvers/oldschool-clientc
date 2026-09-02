@@ -30,7 +30,6 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
-import android.widget.FrameLayout;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -87,7 +86,15 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
     private SurfaceView surfaceView;
     private Button hideKeyboardButton;
+    private PluginChromeLayout rootLayout;
+    private PluginChromePresenter pluginChrome;
     private boolean started;
+    private int lastImeInset;
+    private int lastChromeInsetLeft;
+    private int lastChromeInsetTop;
+    private int lastChromeInsetRight;
+    private int lastChromeInsetBottom;
+    private boolean chromeBackHeld;
 
     /** Latest battery reading, held so a network change can report both
      *  numbers together. @see #reportDeviceStatus. */
@@ -152,6 +159,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private native void nativeKey(int keycode, int down, int unicode);
     private native void nativeKeyboardInset(int bottomPx);
     private native void nativeDeviceStatus(int batteryPercent, int batteryCharging, int networkKind);
+    private native void nativePluginChromeIntent(
+            int kind, int panel, int widget, int value, String text);
     private native void nativeStop();
 
     /* ---- lifecycle ------------------------------------------------------- */
@@ -184,11 +193,6 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          * over the viewport would cover part of the world for a control that is
          * almost never wanted.
          */
-        FrameLayout root = new FrameLayout(this);
-        root.addView(surfaceView, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT));
-
         hideKeyboardButton = new Button(this);
         hideKeyboardButton.setText("Hide keyboard");
         hideKeyboardButton.setVisibility(View.GONE);
@@ -200,17 +204,33 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 showSoftKeyboard(false);
             }
         });
+        rootLayout = new PluginChromeLayout(this, surfaceView, hideKeyboardButton);
+        pluginChrome = new PluginChromePresenter(
+                this,
+                rootLayout,
+                new PluginChromePresenter.IntentSink()
+                {
+                    @Override
+                    public void send(int kind, int panel, int widget, int value, String text)
+                    {
+                        nativePluginChromeIntent(kind, panel, widget, value, text);
+                    }
+                });
+        rootLayout.setEditorFocusListener(new PluginChromeLayout.EditorFocusListener()
         {
-            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT);
-            /* Top-right: the keyboard occupies the bottom, and the client's own
-             * chat line sits along the bottom edge of the canvas. */
-            lp.gravity = android.view.Gravity.TOP | android.view.Gravity.END;
-            root.addView(hideKeyboardButton, lp);
-        }
+            @Override
+            public void onPluginEditorFocusChanged(boolean focused)
+            {
+                /* The native keyboard inset belongs to the game editor. A
+                 * framework EditText lays itself out through the pane's inset
+                 * and must not also squash the game canvas behind it. */
+                nativeKeyboardInset(focused ? 0 : lastImeInset);
+                if( focused && hideKeyboardButton != null )
+                    hideKeyboardButton.setVisibility(View.GONE);
+            }
+        });
 
-        setContentView(root);
+        setContentView(rootLayout);
         surfaceView.requestFocus();
 
         /*
@@ -231,7 +251,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          * Both report through one method so the native side has one number and
          * no opinion about which era produced it.
          */
-        final View insetRoot = root;
+        final View insetRoot = rootLayout;
         if( Build.VERSION.SDK_INT >= 30 )
         {
             insetRoot.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener()
@@ -239,7 +259,19 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 @Override
                 public WindowInsets onApplyWindowInsets(View v, WindowInsets insets)
                 {
-                    nativeKeyboardInset(insets.getInsets(WindowInsets.Type.ime()).bottom);
+                    android.graphics.Insets bars =
+                            insets.getInsets(WindowInsets.Type.systemBars());
+                    android.graphics.Insets cutout =
+                            insets.getInsets(WindowInsets.Type.displayCutout());
+                    android.graphics.Insets gestures =
+                            insets.getInsets(WindowInsets.Type.systemGestures());
+                    int ime = insets.getInsets(WindowInsets.Type.ime()).bottom;
+                    setChromeInsets(
+                            Math.max(bars.left, Math.max(cutout.left, gestures.left)),
+                            Math.max(bars.top, Math.max(cutout.top, gestures.top)),
+                            Math.max(bars.right, Math.max(cutout.right, gestures.right)),
+                            Math.max(bars.bottom, Math.max(cutout.bottom, gestures.bottom)));
+                    reportImeInset(ime);
                     return insets;
                 }
             });
@@ -260,13 +292,61 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                      * bars settling); a keyboard is never that short. */
                     if( covered < 80 )
                         covered = 0;
-                    nativeKeyboardInset(covered);
+                    reportImeInset(covered);
+                }
+            });
+
+            /* API 21-29 has no per-type inset query, but its stable system
+             * insets still keep the native rail/page clear of visible bars.
+             * The global-layout listener above supplies the separate IME
+             * estimate and the two are combined by reportImeInset(). */
+            insetRoot.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener()
+            {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets)
+                {
+                    setChromeInsets(
+                            insets.getSystemWindowInsetLeft(),
+                            insets.getSystemWindowInsetTop(),
+                            insets.getSystemWindowInsetRight(),
+                            insets.getSystemWindowInsetBottom());
+                    return insets;
                 }
             });
         }
 
         nativeSetDensity(displayDensityBucket());
         startDeviceStatusReports();
+    }
+
+    private void setChromeInsets(int left, int top, int right, int bottom)
+    {
+        lastChromeInsetLeft = Math.max(0, left);
+        lastChromeInsetTop = Math.max(0, top);
+        lastChromeInsetRight = Math.max(0, right);
+        lastChromeInsetBottom = Math.max(0, bottom);
+        if( rootLayout != null )
+            rootLayout.setChromeInsets(
+                    lastChromeInsetLeft,
+                    lastChromeInsetTop,
+                    lastChromeInsetRight,
+                    Math.max(lastChromeInsetBottom, lastImeInset));
+    }
+
+    private void reportImeInset(int bottom)
+    {
+        lastImeInset = Math.max(0, bottom);
+        if( rootLayout != null )
+        {
+            rootLayout.setChromeInsets(
+                    lastChromeInsetLeft,
+                    lastChromeInsetTop,
+                    lastChromeInsetRight,
+                    Math.max(lastChromeInsetBottom, lastImeInset));
+            nativeKeyboardInset(rootLayout.isPluginEditorFocused() ? 0 : lastImeInset);
+        }
+        else
+            nativeKeyboardInset(lastImeInset);
     }
 
     /* ---- battery and network --------------------------------------------- */
@@ -455,6 +535,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
             nativeStop();
             started = false;
         }
+        if( pluginChrome != null )
+            pluginChrome.shutdown();
     }
 
     /* ---- the surface ----------------------------------------------------- */
@@ -623,6 +705,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         case MotionEvent.ACTION_POINTER_DOWN:
         {
             int i = event.getActionIndex();
+            if( action == MotionEvent.ACTION_DOWN )
+                surfaceView.requestFocus();
             touchToSurface(TOUCH_DOWN, event.getPointerId(i), event.getX(i), event.getY(i));
             return true;
         }
@@ -709,6 +793,12 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          */
         if( keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN )
             return super.onKeyDown(keyCode, event);
+        if( (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) &&
+                pluginChrome != null && pluginChrome.handleBack() )
+        {
+            chromeBackHeld = true;
+            return true;
+        }
         if( isVirtualModifier(event) )
             return true;
 
@@ -721,6 +811,12 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     {
         if( keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN )
             return super.onKeyUp(keyCode, event);
+        if( chromeBackHeld &&
+                (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) )
+        {
+            chromeBackHeld = false;
+            return true;
+        }
         if( isVirtualModifier(event) )
             return true;
 
@@ -757,6 +853,41 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     }
 
     /**
+     * One complete native chrome transaction. JNI calls this from the frame
+     * thread only after SYNC_END; the single Runnable is the thread boundary,
+     * and PluginChromePresenter applies all mutations under one suppressed
+     * layout pass on Android's UI thread.
+     */
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void applyPluginChromeBatch(final int[] words, final byte[] strings)
+    {
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if( pluginChrome != null )
+                    pluginChrome.applyBatch(words, strings);
+            }
+        });
+    }
+
+    /** Release native controls when the one shared executor is unbound. */
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void endPluginChrome()
+    {
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if( pluginChrome != null )
+                    pluginChrome.shutdown();
+            }
+        });
+    }
+
+    /**
      * Called from the native frame thread. @see PlatformWindow_SetTextInput.
      *
      * Posted to the UI thread rather than acted on directly: every
@@ -777,6 +908,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                     return;
                 if( show )
                 {
+                    if( rootLayout != null && rootLayout.isPluginEditorFocused() )
+                        return;
                     /* Focus taken again from scratch, and the input session
                      * restarted: after the person hid the keyboard with the
                      * system's Back, InputMethodManager treats a plain show on

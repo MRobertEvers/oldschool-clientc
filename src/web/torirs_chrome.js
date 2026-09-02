@@ -148,9 +148,24 @@
    */
   const K = 2;
 
-  /* The CSS variable the docked window's width is published on -- see
+  /* The CSS variable the attached shell's width is published on -- see
    * ChromeHost.publishDockWidth. */
   const DOCK_WIDTH_VAR = '--torirs-dock-width';
+
+  /*
+   * Application-shell geometry, in logical CSS pixels.
+   *
+   * These are policy rather than widget metrics. The page is split only when
+   * the game minimum, the permanent rail, and the minimum useful pane all fit.
+   * A plugin never sees this choice and never branches on a browser or device.
+   */
+  const LAYOUT = {
+    railW: 44,
+    panelDefault: 320,
+    panelMin: 280,
+    panelMax: 480,
+    gameMin: 765
+  };
 
   /* The palette, from torirs_chrome_metrics.h. Spelled rather than sent: they
    * are colours in a stylesheet, they have never changed, and a CSS file whose
@@ -183,11 +198,28 @@
        * places (an iframe beside the canvas, a popped-out tab, the page
        * itself) and only the placement differs between them.
        */
+      /* The one application-owned shell. It stays in normal layout flow; the
+       * host page may give its slot a grid track or a flex item, but neither
+       * the shell nor the pane is ever absolutely positioned over the game. */
+      '.torirs-plugin-shell{display:flex;box-sizing:border-box;width:100%;height:100%;',
+      'min-width:0;min-height:0;background:', C.chrome, ';isolation:isolate}',
+      '.torirs-plugin-rail{box-sizing:border-box;display:flex;flex:0 0 ',
+      LAYOUT.railW, 'px;flex-direction:column;align-items:stretch;padding:', px(2), ';',
+      'background:', C.chrome, ';border-right:', px(1), ' solid ', C.frameInset, '}',
+      '.torirs-plugin-rail button{box-sizing:border-box;width:100%;min-height:',
+      (LAYOUT.railW - 8), 'px;padding:', px(2), ';font:', px(8), '/1 ',
+      '"Lucida Console",Menlo,Consolas,monospace;color:', C.label, ';',
+      'background:', C.body, ';border:', px(1), ' solid ', C.frameInset, ';cursor:pointer}',
+      '.torirs-plugin-rail button[aria-selected="true"]{color:', C.text, ';',
+      'border-color:', C.accent, '}',
+      '.torirs-plugin-rail button:focus-visible{outline:', px(1), ' solid ', C.accent, ';',
+      'outline-offset:', px(1), '}',
+
       /* `position:relative` is not decoration: an open dropdown list is placed
        * against this box (see placeDropdown), and a static root would hand it
-       * to whatever ancestor happened to be positioned -- the page's body in
-       * the floating case, which is not where the row is. */
+       * to whatever ancestor happened to be positioned. */
       '.torirs-chrome{display:flex;flex-direction:column;box-sizing:border-box;position:relative;',
+      'flex:1 1 auto;min-width:0;min-height:0;',
       'background:', C.body, ';border:', px(1), ' solid ', C.chrome, ';color:', C.text, ';',
       /* Sized from the row grid rather than named in points: the rows are
        * 18 chrome pixels and the p12 face they imitate has a 16px line box,
@@ -195,17 +227,10 @@
       'font:', px(8), '/1 "Lucida Console",Menlo,Consolas,monospace;',
       'text-shadow:', px(1), ' ', px(1), ' 0 rgba(0,0,0,.85);',
       'image-rendering:pixelated}',
-      /* In a document of its own -- the docked iframe or the popped-out tab --
-       * it IS the document: it fills the box the page gave that container and
-       * has nothing to float over, so it drops the drop shadow and the corner
-       * offsets with it. */
+      /* Attached or explicitly popped out, it fills the application-owned box
+       * and has nothing to float over. */
       '.torirs-chrome.framed{position:relative;width:100%;height:100%;max-height:none;',
       'box-shadow:none}',
-      /* Over the page, the fallback with no container of its own: pinned to a
-       * corner, capped so a long roster scrolls rather than running off the
-       * bottom of the viewport. */
-      '.torirs-chrome.floating{position:fixed;right:16px;top:16px;width:', px(340), ';',
-      'max-height:80vh;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.45)}',
 
       /* The title bar is the minimenu's: the body brown on black, which is
        * what emit_minimenu draws its own heading in. */
@@ -593,50 +618,29 @@
   }
 
   /*
-   * Where the window goes, in order of preference.
+   * The default home is one ordinary DOM subtree in the application's layout:
+   * a narrow rail and exactly one live page pane. A wide root gives it a track
+   * beside the game; a compact root hides the game track and gives that space
+   * to the pane. Neither presentation can cover the canvas because neither is
+   * positioned over it.
    *
-   * BESIDE THE CANVAS, IN AN IFRAME. The plugin window is a window, not a
-   * heads-up display: it is read while the game is played, so it belongs next
-   * to the picture rather than on top of it. Pinned to a corner -- which is
-   * what it used to be -- it covered the part of the frame the player was
-   * looking at, and every executor that has a real window of its own (SDL,
-   * GDI) had already answered this question the other way.
-   *
-   * An IFRAME rather than a div for the same reason the other executors get
-   * a window: the chrome is then in a document of its own, so the page's
-   * stylesheet cannot reach its controls, its scrolling is its own, and
-   * typing into a settings field cannot reach the canvas's key listeners and
-   * walk the player. The height is the canvas's, tracked, so the two read as
-   * one object however the page scales the picture.
-   *
-   * POPPED OUT, when the user asks: the same DOM, moved into a tab of its own.
-   *
-   * FLOATING over the page, when there is no canvas to sit beside -- a host
-   * page that is not index.html, or a document too small to have one. The old
-   * behaviour, kept as the fallback rather than as the rule.
+   * Detaching is an explicit, optional user action. It reparents this SAME DOM
+   * subtree; a blocked popup leaves the attached shell untouched.
    */
 
-  /** The canvas, and the element the window is inserted next to. */
+  /** Find the application regions around the game canvas. */
   function stageAnchor(page) {
     const canvas = page.getElementById ? page.getElementById('canvas') : null;
-    let anchor;
+    let stage;
+    let game;
+    let layout;
+    let app;
     if (!canvas || !canvas.parentNode) return null;
-    /*
-     * Beside the STAGE, not beside the canvas inside it: the page's scaled
-     * modes position the canvas absolutely within that stage and centre it
-     * there, so a sibling of the canvas would be centred along with it.
-     */
-    anchor = canvas;
-    if (anchor.parentNode !== page.body && anchor.parentNode.parentNode)
-      anchor = anchor.parentNode;
-    return { canvas, anchor, parent: anchor.parentNode };
-  }
-
-  /** Make a document of our own inside `frame`, or null if we cannot. */
-  function frameDocument(frame) {
-    const doc = frame.contentDocument || null;
-    if (!doc || !doc.body || !doc.head) return null;
-    return doc;
+    stage = canvas.parentNode;
+    game = (page.getElementById && page.getElementById('game-region')) || stage;
+    layout = (page.getElementById && page.getElementById('app-content')) || game.parentNode;
+    app = (page.getElementById && page.getElementById('torirs-app')) || layout;
+    return { canvas, stage, game, layout, app };
   }
 
   class ChromeHost {
@@ -645,23 +649,25 @@
       this.body = null;
       this.tabsEl = null;
       this.titleEl = null;
-      /*
-       * The document the chrome is BUILT IN, which is not always the page's.
-       *
-       * Every DOM call below goes through this rather than the global
-       * `document`, because the window can live in three places -- an iframe
-       * beside the canvas, a popped-out tab, or the page itself -- and two of
-       * those have a document of their own. A stray global `document` is then
-       * not a style slip but a node made in the wrong window, which appends
-       * nowhere and takes no clicks.
-       */
+      /* The document the live shell currently belongs to: normally the page,
+       * or the optional detached tab after an explicit user gesture. */
       this.doc = null;
-      /** The iframe when docked beside the canvas, else null. */
-      this.frame = null;
+      /** Stable application slot, the one shell subtree, and its rail. */
+      this.slot = null;
+      this.slotOwned = false;
+      this.shell = null;
+      this.railEl = null;
+      this.railBtn = null;
       /** The popped-out window when there is one, else null. */
       this.popup = null;
-      /** The canvas the docked frame matches the height of. */
+      /** Application regions used to choose split versus exclusive. */
       this.canvas = null;
+      this.gameRegion = null;
+      this.layoutRoot = null;
+      this.appRoot = null;
+      this.presentation = 'closed';
+      this.panelWidth = LAYOUT.panelDefault;
+      this.paneHadFocus = false;
       this.observer = null;
       this.onResize = null;
       /* Panels and widgets by chrome HANDLE, matching the C mirror: a command
@@ -700,46 +706,39 @@
       this.wantWidth = 0;
     }
 
-    mountFrame(page) {
+    /** Acquire or create a normal-flow slot in the application layout. */
+    mountAttached(page) {
       const at = stageAnchor(page);
-      let frame;
-      let doc;
+      let slot = page.getElementById && page.getElementById('plugin-chrome-mount');
 
-      if (!at || !page.createElement) return null;
-
-      frame = page.createElement('iframe');
-      frame.className = 'torirs-chrome-frame';
-      frame.title = 'Plugins';
-      /*
-       * No `src`, deliberately.
-       *
-       * An iframe created without one keeps the initial about:blank document it
-       * is born with, and writing into that is synchronous. Setting
-       * src="about:blank" instead NAVIGATES it, and the document we built into
-       * would be replaced a tick later -- the classic way to lose everything an
-       * iframe was filled with.
-       */
-      frame.style.border = '0';
-      frame.style.width = '340px';
-      frame.style.flex = '0 0 auto';
-      frame.style.alignSelf = 'flex-start';
-      frame.style.background = '#5D5447';
-      if (at.parent.insertBefore) at.parent.insertBefore(frame, at.anchor.nextSibling || null);
-      else at.parent.appendChild(frame);
-
-      doc = frameDocument(frame);
-      if (!doc) {
-        /* A document we cannot reach is not a window: back out cleanly and let
-         * the caller fall through to the floating overlay. */
-        if (frame.parentNode) frame.parentNode.removeChild(frame);
-        return null;
+      if (!page.createElement || !page.body) return null;
+      this.slotOwned = false;
+      if (!slot) {
+        slot = page.createElement('aside');
+        slot.className = 'torirs-plugin-chrome-slot';
+        slot.setAttribute('aria-label', 'Plugin tools');
+        this.slotOwned = true;
+        if (at && at.layout) {
+          if (at.layout.insertBefore)
+            at.layout.insertBefore(slot, at.game.nextSibling || null);
+          else
+            at.layout.appendChild(slot);
+        } else {
+          /* A harness without a canvas still gets an ordinary block in
+           * document flow. There is no fixed-position overlay fallback. */
+          page.body.appendChild(slot);
+        }
       }
 
-      this.frame = frame;
-      this.canvas = at.canvas;
-      this.followCanvas();
-      this.publishDockWidth();
-      return doc;
+      if (slot.classList) slot.classList.add('torirs-plugin-chrome-slot');
+      slot.hidden = true;
+      this.slot = slot;
+      this.canvas = at && at.canvas;
+      this.gameRegion = at && at.game;
+      this.layoutRoot = (at && at.layout) || slot.parentNode || page.body;
+      this.appRoot = (at && at.app) || this.layoutRoot;
+      this.observeLayout();
+      return page;
     }
 
     /*
@@ -762,125 +761,200 @@
       doc = win.document;
       if (!doc || !doc.body || !doc.head) { win.close(); return null; }
       doc.title = 'Plugins';
-      this.popup = win;
-      return doc;
+      return { win, doc };
     }
 
-    /** The page itself, the fallback with no window of its own. */
-    mountFloating(page) {
-      return page.body ? page : null;
+    /** Build the one rail + pane shell around the existing page root. */
+    buildShell(doc) {
+      const shell = doc.createElement('div');
+      const rail = doc.createElement('nav');
+      const entry = doc.createElement('button');
+
+      shell.className = 'torirs-plugin-shell';
+      shell.setAttribute('role', 'group');
+      shell.setAttribute('aria-label', 'Plugin chrome');
+      rail.className = 'torirs-plugin-rail';
+      rail.setAttribute('aria-label', 'Plugin pages');
+      entry.type = 'button';
+      entry.className = 'torirs-plugin-rail-entry';
+      entry.textContent = 'P';
+      entry.title = 'Plugins';
+      entry.setAttribute('aria-label', 'Plugins');
+      entry.setAttribute('aria-selected', 'true');
+      entry.addEventListener('click', () => {
+        if (this.tabPanel >= 0)
+          this.push({ k: INTENT.CLOSE, p: this.tabPanel, w: -1, v: 0, text: '' });
+      });
+      rail.appendChild(entry);
+      shell.appendChild(rail);
+      shell.appendChild(this.root);
+      this.shell = shell;
+      this.railEl = rail;
+      this.railBtn = entry;
+      this.isolateInput(shell);
+      return shell;
     }
 
-    /*
-     * The frame occupies exactly the canvas's rows, tracked.
-     *
-     * Not set once: the picture's box changes with the page's scaled modes, with
-     * the browser window, and with the game's own Display setting (which
-     * rewrites the canvas's width/height attributes). A ResizeObserver sees all
-     * three because all three end in the canvas's box changing; the resize
-     * listener is the fallback for a browser without one, and catches the two
-     * that come from the window.
-     *
-     * The canvas's CONTAINER is watched as well, because the top edge is
-     * tracked too and one shape change moves the canvas without resizing it: a
-     * page in a scaled mode centres the letterboxed picture inside the stage, so
-     * a stage that grows in the dimension the fit is not limited by leaves the
-     * canvas the same size lower down the page.
-     */
-    followCanvas() {
-      this.matchCanvasBox();
-      if (typeof global.ResizeObserver === 'function' && this.canvas) {
-        this.observer = new global.ResizeObserver(() => { this.matchCanvasBox(); });
-        this.observer.observe(this.canvas);
-        /* Never the frame's OWN row, though: our margin is inside that box, so
-         * watching it would be watching ourselves. */
-        if (this.canvas.parentNode && this.frame &&
-            this.canvas.parentNode !== this.frame.parentNode)
-          this.observer.observe(this.canvas.parentNode);
+    /** Stop pane input before document/canvas listeners can treat it as game input. */
+    isolateInput(shell) {
+      const stop = ev => { if (ev && ev.stopPropagation) ev.stopPropagation(); };
+      const pointer = [
+        'pointerdown', 'pointermove', 'pointerup', 'pointercancel',
+        'mousedown', 'mousemove', 'mouseup', 'click',
+        'touchstart', 'touchmove', 'touchend', 'wheel', 'contextmenu'
+      ];
+      const keys = [
+        'keydown', 'keyup', 'keypress', 'beforeinput', 'input',
+        'compositionstart', 'compositionupdate', 'compositionend'
+      ];
+
+      pointer.forEach(type => shell.addEventListener(type, ev => {
+        this.paneHadFocus = true;
+        stop(ev);
+      }));
+      keys.forEach(type => shell.addEventListener(type, ev => {
+        if (type === 'keydown' && ev && ev.key === 'Escape' && !ev.defaultPrevented) {
+          if (this.dropOpen >= 0) this.closeDropdown();
+          else if (this.tabPanel >= 0)
+            this.push({ k: INTENT.CLOSE, p: this.tabPanel, w: -1, v: 0, text: '' });
+          if (ev.preventDefault) ev.preventDefault();
+        }
+        stop(ev);
+      }));
+      shell.addEventListener('focusin', ev => {
+        this.paneHadFocus = true;
+        stop(ev);
+      });
+      shell.addEventListener('focusout', stop);
+    }
+
+    /** Observe element geometry, not only browser-window resize. */
+    observeLayout() {
+      const seen = [];
+      const observe = node => {
+        if (!node || seen.indexOf(node) >= 0) return;
+        seen.push(node);
+        this.observer.observe(node);
+      };
+      if (typeof global.ResizeObserver === 'function') {
+        this.observer = new global.ResizeObserver(() => { this.updateLayout(); });
+        observe(this.appRoot);
+        observe(this.layoutRoot);
+        observe(this.gameRegion);
+        observe(this.slot);
       } else if (typeof global.addEventListener === 'function') {
-        this.onResize = () => { this.matchCanvasBox(); };
+        this.onResize = () => { this.updateLayout(); };
         global.addEventListener('resize', this.onResize);
       }
     }
 
-    matchCanvasBox() {
-      let h = 0;
-      if (!this.frame || !this.canvas) return;
-      if (this.canvas.getBoundingClientRect)
-        h = Math.round(this.canvas.getBoundingClientRect().height || 0);
-      /* The backbuffer's height is the honest fallback: it is what the canvas
-       * is showing when the page has not scaled it. */
-      if (!h) h = this.canvas.height || 0;
-      if (h > 0) this.frame.style.height = `${h}px`;
-      this.matchCanvasTop();
-    }
-
-    /*
-     * ...and starts on the canvas's top edge, not the row's.
-     *
-     * The frame is a flex sibling of the STAGE the canvas sits in, so left alone
-     * it begins where that row begins. The canvas does not, once the page scales
-     * it: it is centred inside the stage and letterboxed, so the picture starts
-     * some way down. Matching the height without matching the top is what left
-     * the window hanging above the picture it is meant to read as part of.
-     *
-     * Measured as a DELTA off where the frame is now rather than computed from
-     * the parent's box, so the parent's padding, the row's alignment and any
-     * border are already in the number, whatever the host page's stylesheet
-     * does with them.
-     */
-    matchCanvasTop() {
-      let mine;
-      let theirs;
-      let top;
-
-      if (!this.frame || !this.canvas) return;
-      if (!this.frame.getBoundingClientRect || !this.canvas.getBoundingClientRect) return;
-      mine = this.frame.getBoundingClientRect();
-      theirs = this.canvas.getBoundingClientRect();
-      /* A picture the page is not showing at all measures as a zero box, and
-       * lining up with that would move the window somewhere arbitrary. */
-      if (!theirs.height) return;
-      top = (parseFloat(this.frame.style.marginTop) || 0) + (theirs.top - mine.top);
-      this.frame.style.marginTop = `${Math.max(0, Math.round(top))}px`;
-    }
-
-    /*
-     * How wide the docked window is, published to the page as a CSS variable.
-     *
-     * The window sits BESIDE the picture rather than over it -- but the host
-     * page has chrome of its own, and index.html pins its view toggles to the
-     * top-right corner in full-canvas mode. A corner pinned to the VIEWPORT is
-     * this window's title bar. The page cannot ask how wide we are without
-     * knowing about this file, so we tell it, and the variable reads 0px
-     * whenever nothing is docked -- so a rule that offsets by it needs no other
-     * state and no other page needs to care.
-     */
-    publishDockWidth() {
-      const page = global.document;
-      const root = page && (page.documentElement || page.body);
-      if (!root || !root.style || !root.style.setProperty) return;
-      root.style.setProperty(DOCK_WIDTH_VAR, (this.frame && this.frame.style.width) || '0px');
-    }
-
-    unfollowCanvas() {
+    unobserveLayout() {
       if (this.observer && this.observer.disconnect) this.observer.disconnect();
       if (this.onResize && typeof global.removeEventListener === 'function')
         global.removeEventListener('resize', this.onResize);
       this.observer = null;
       this.onResize = null;
-      this.canvas = null;
     }
 
-    /** Take down whichever container is up, leaving `this.root` alone. */
+    measuredWidth() {
+      const node = this.appRoot || this.layoutRoot;
+      let width = node && node.clientWidth;
+      if ((!width || width <= 0) && node && node.getBoundingClientRect)
+        width = node.getBoundingClientRect().width;
+      if ((!width || width <= 0) && typeof global.innerWidth === 'number')
+        width = global.innerWidth;
+      /* A host that has not laid out yet starts split and is corrected by the
+       * first ResizeObserver delivery. */
+      return width > 0 ? width : Number.POSITIVE_INFINITY;
+    }
+
+    setLayoutClass(mode) {
+      [this.layoutRoot, this.appRoot].forEach(node => {
+        if (!node || !node.classList) return;
+        node.classList.toggle('torirs-chrome-split', mode === 'split');
+        node.classList.toggle('torirs-chrome-exclusive', mode === 'exclusive');
+      });
+    }
+
+    /** Choose split/exclusive without changing the game's logical canvas. */
+    updateLayout() {
+      const open = this.tabPanel >= 0 && !!this.panels[this.tabPanel];
+      let mode = 'closed';
+
+      if (this.popup) {
+        this.presentation = 'detached';
+        if (this.shell) this.shell.setAttribute('data-presentation', 'detached');
+        if (this.root) this.root.style.width = '';
+        this.publishDockWidth();
+        return;
+      }
+      if (open)
+        mode = this.measuredWidth() >= LAYOUT.gameMin + LAYOUT.railW + LAYOUT.panelMin
+          ? 'split' : 'exclusive';
+
+      this.presentation = mode;
+      this.setLayoutClass(mode);
+      if (this.slot) this.slot.hidden = !open;
+      if (this.gameRegion) this.gameRegion.hidden = mode === 'exclusive';
+      if (this.shell) this.shell.setAttribute('data-presentation', mode);
+      if (this.slot && this.slot.style) {
+        this.slot.style.width = mode === 'split'
+          ? `${LAYOUT.railW + this.panelWidth}px`
+          : (mode === 'exclusive' ? '100%' : '0px');
+        this.slot.style.flex = mode === 'split'
+          ? `0 0 ${LAYOUT.railW + this.panelWidth}px`
+          : (mode === 'exclusive' ? '1 1 100%' : '0 0 0px');
+      }
+      if (this.root) this.root.style.width = mode === 'split' ? `${this.panelWidth}px` : '';
+      this.publishDockWidth();
+    }
+
+    /** Publish attached width for index.html's small full-canvas header. */
+    publishDockWidth() {
+      const page = global.document;
+      const root = page && (page.documentElement || page.body);
+      const width = this.presentation === 'split' ? LAYOUT.railW + this.panelWidth : 0;
+      if (!root || !root.style || !root.style.setProperty) return;
+      root.style.setProperty(DOCK_WIDTH_VAR, `${width}px`);
+    }
+
+    restoreGameFocus() {
+      const should = this.paneHadFocus;
+      this.paneHadFocus = false;
+      if (!should || !this.canvas || typeof this.canvas.focus !== 'function') return;
+      try { this.canvas.focus({ preventScroll: true }); }
+      catch (e) { this.canvas.focus(); }
+    }
+
+    /** Take down the one shell, leaving the host page and canvas intact. */
     unmount() {
-      if (this.root && this.root.parentNode) this.root.parentNode.removeChild(this.root);
-      this.unfollowCanvas();
-      if (this.frame && this.frame.parentNode) this.frame.parentNode.removeChild(this.frame);
+      this.restoreGameFocus();
+      this.setLayoutClass('closed');
+      if (this.gameRegion) this.gameRegion.hidden = false;
+      if (this.shell && this.shell.parentNode) this.shell.parentNode.removeChild(this.shell);
+      this.unobserveLayout();
+      if (this.slot) {
+        this.slot.hidden = true;
+        if (this.slot.style) {
+          this.slot.style.width = '0px';
+          this.slot.style.flex = '0 0 0px';
+        }
+      }
+      if (this.slotOwned && this.slot && this.slot.parentNode)
+        this.slot.parentNode.removeChild(this.slot);
       if (this.popup && !this.popup.closed && this.popup.close) this.popup.close();
-      this.frame = null;
       this.popup = null;
       this.doc = null;
+      this.slot = null;
+      this.slotOwned = false;
+      this.shell = null;
+      this.railEl = null;
+      this.railBtn = null;
+      this.canvas = null;
+      this.gameRegion = null;
+      this.layoutRoot = null;
+      this.appRoot = null;
+      this.presentation = 'closed';
       this.publishDockWidth();
     }
 
@@ -889,11 +963,12 @@
       if (this.root) return true;
       if (!page) return false;
 
-      this.doc = this.mountFrame(page) || this.mountFloating(page);
+      this.doc = this.mountAttached(page);
       if (!this.doc) return false;
       this.style(this.doc);
       this.root = this.buildRoot(this.doc);
-      this.doc.body.appendChild(this.root);
+      this.slot.appendChild(this.buildShell(this.doc));
+      this.updateLayout();
       this.applySkinClass();
       return true;
     }
@@ -913,54 +988,54 @@
      */
     setPoppedOut(want) {
       const page = global.document;
-      const root = this.root;
-      let doc;
+      const shell = this.shell;
+      let target;
+      let old;
 
-      if (!root || !page) return false;
+      if (!shell || !page) return false;
       if (!!this.popup === !!want) return true;
 
-      doc = want ? this.mountPopup() : this.mountFrame(page) || this.mountFloating(page);
-      if (!doc) return false;
-
-      if (root.parentNode) root.parentNode.removeChild(root);
-      /* Down goes the old one -- but not the popup we may have just made, and
-       * not the frame we may have just made, so this is done by hand rather
-       * than through unmount(). */
       if (want) {
-        this.unfollowCanvas();
-        if (this.frame && this.frame.parentNode) this.frame.parentNode.removeChild(this.frame);
-        this.frame = null;
-        this.publishDockWidth();
-      } else if (this.popup) {
-        if (!this.popup.closed && this.popup.close) this.popup.close();
+        target = this.mountPopup();
+        if (!target) return false;
+        if (shell.parentNode) shell.parentNode.removeChild(shell);
+        this.setLayoutClass('closed');
+        if (this.gameRegion) this.gameRegion.hidden = false;
+        if (this.slot) this.slot.hidden = true;
+        this.popup = target.win;
+        this.doc = target.doc;
+        this.style(this.doc);
+        if (this.doc.adoptNode) this.doc.adoptNode(shell);
+        this.doc.body.appendChild(shell);
+      } else {
+        if (!this.slot) return false;
+        old = this.popup;
+        if (shell.parentNode) shell.parentNode.removeChild(shell);
+        this.doc = page;
+        this.style(page);
+        if (page.adoptNode) page.adoptNode(shell);
+        this.slot.appendChild(shell);
         this.popup = null;
+        if (old && !old.closed && old.close) old.close();
       }
 
-      this.doc = doc;
-      this.style(doc);
-      if (doc.adoptNode) doc.adoptNode(root);
-      doc.body.appendChild(root);
       this.retagRoot();
-      /* The new document needs the skin CLASS as well as the sheet: the root was
-       * adopted, so it kept whatever classes it had, but a document that never
-       * saw skinDone would otherwise be styled by a sheet naming a class nothing
-       * sets. */
       this.applySkinClass();
+      this.updateLayout();
       return true;
     }
 
-    /** Which of the three places it is in, as the root's class. */
+    /** Attached and detached are application-owned boxes, never overlays. */
     retagRoot() {
-      const own = !!(this.frame || this.popup);
       if (!this.root) return;
-      this.root.classList.toggle('framed', own);
-      this.root.classList.toggle('floating', !own);
+      this.root.classList.add('framed');
+      this.root.classList.remove('floating');
       if (this.popOutBtn) {
         /* The glyph is the unskinned fallback; `back` is what the skin keys its
          * two sprites off. Both move together, so a build with art and one
          * without say the same thing about which way the button now goes. */
         this.popOutBtn.textContent = this.popup ? '\u2913' : '\u2197';
-        this.popOutBtn.title = this.popup ? 'Put it back beside the game' : 'Pop out into a tab';
+        this.popOutBtn.title = this.popup ? 'Put it back beside the game' : 'Detach into a tab';
         this.popOutBtn.classList.toggle('back', !!this.popup);
       }
     }
@@ -980,8 +1055,8 @@
         style.id = 'torirs-chrome-style';
         doc.head.appendChild(style);
       }
-      /* The reset goes only to a document we made. In the page's own document
-       * it would restyle the client's html/body. */
+      /* The reset goes only to the explicit detached tab. In-page chrome must
+       * not restyle the application's html/body. */
       style.textContent =
         (doc === global.document ? '' : FRAME_RESET) + baseStyle() + this.skinCss;
     }
@@ -1214,6 +1289,41 @@
       return root;
     }
 
+    setChromeTitle(title) {
+      const text = title || 'Plugins';
+      if (this.titleEl && this.titleEl.firstChild)
+        this.titleEl.firstChild.textContent = text;
+      if (this.railBtn) {
+        this.railBtn.textContent = String(text).trim().slice(0, 1).toUpperCase() || 'P';
+        this.railBtn.title = text;
+        this.railBtn.setAttribute('aria-label', text);
+        this.railBtn.setAttribute('aria-selected', this.tabPanel >= 0 ? 'true' : 'false');
+      }
+    }
+
+    /** Remove the old page before another one can build or receive input. */
+    clearActivePage(restoreFocus) {
+      this.closeDropdown();
+      if (this.body) this.body.textContent = '';
+      if (this.tabsEl) this.tabsEl.textContent = '';
+      this.widgets = {};
+      this.panels = {};
+      this.tabPanel = -1;
+      this.wantWidth = 0;
+      this.setChromeTitle('Plugins');
+      if (restoreFocus) this.restoreGameFocus();
+      this.updateLayout();
+    }
+
+    activatePage(panel, title) {
+      if (this.tabPanel !== panel) this.clearActivePage(false);
+      this.panels = {};
+      this.panels[panel] = { tabs: [], activeTab: 0, strip: -1 };
+      this.tabPanel = panel;
+      this.setChromeTitle(title);
+      this.updateLayout();
+    }
+
     close() {
       /* First, so its listeners come off the document that is about to go. */
       this.closeDropdown();
@@ -1234,6 +1344,10 @@
     }
 
     push(intent) {
+      /* A listener on a node from the previously selected page may finish
+       * after selection changed. Such an intent is stale by definition: only
+       * the current page is allowed to receive input. */
+      if (intent && intent.p >= 0 && intent.p !== this.tabPanel) return;
       /* Bounded: a page left open behind a client that stopped draining must not
        * grow a queue forever. The oldest go first, because the newest are what
        * the user last did and therefore what they are waiting to see. */
@@ -1247,38 +1361,30 @@
       return JSON.stringify(this.intents.shift());
     }
 
-    /*
-     * The popped-out tab, closed from its own title bar.
-     *
-     * There is no event for it worth trusting -- `unload` in the popup fires
-     * during a reload too -- so it is polled, here, because the client already
-     * calls this once a frame and a timer would be a second clock for one bit.
-     *
-     * Reported as a CLOSE, exactly as the SDL executor reports its window's X:
-     * the presentation is gone, the model is what decides whether the window is
-     * up, and the host takes the executor down on the answer. The DOM went with
-     * the tab, so `root` is dropped here rather than removed -- there is nothing
-     * left to remove it from.
-     */
+    /* A detached tab is optional. If the user closes it, adopt the retained
+     * shell nodes back into the application slot; plugin/model state does not
+     * change merely because an auxiliary browser surface disappeared. */
     checkPopup() {
+      const page = global.document;
       if (!this.popup || !this.popup.closed) return;
-      /* The tab took the list's document with it, so there is nothing to remove
-       * the node from -- but the state has to be dropped or the next open finds
-       * a `dropOpen` naming a widget that no longer exists. */
-      this.dropList = null;
-      this.dropOff = null;
       this.closeDropdown();
       this.popup = null;
-      this.root = null;
-      this.body = null;
-      this.tabsEl = null;
-      this.titleEl = null;
-      this.popOutBtn = null;
-      this.widgets = {};
-      this.doc = null;
-      this.push({ k: INTENT.CLOSE, p: this.tabPanel, w: -1, v: 0, text: '' });
-      this.panels = {};
-      this.tabPanel = -1;
+      try {
+        if (!page || !this.slot || !this.shell) throw new Error('no attached shell slot');
+        if (this.shell.parentNode) this.shell.parentNode.removeChild(this.shell);
+        this.doc = page;
+        this.style(page);
+        if (page.adoptNode) page.adoptNode(this.shell);
+        this.slot.appendChild(this.shell);
+        this.retagRoot();
+        this.applySkinClass();
+        this.updateLayout();
+      } catch (e) {
+        /* A browser that destroys adopted nodes with its tab cannot recover
+         * incrementally. Ask the authoritative model to close; its next open
+         * will provide a complete command snapshot. */
+        this.push({ k: INTENT.CLOSE, p: this.tabPanel, w: -1, v: 0, text: '' });
+      }
     }
 
     /* Which rows are on screen: not hidden, and on the active tab. The one place
@@ -1419,10 +1525,8 @@
     /**
      * Size the window to the widest row showing in it.
      *
-     * Lands on whatever owns the width -- the IFRAME when docked, because the
-     * root fills it and widening the root inside a narrower frame would do
-     * nothing but clip. A popped-out tab is the user's to size and is left
-     * alone, which is the rule PANEL_RECT already kept.
+     * Lands on the attached shell's pane track. A popped-out tab is the user's
+     * to size and is left alone, which is the rule PANEL_RECT already kept.
      */
     fitPanel() {
       const m = METRICS;
@@ -1437,7 +1541,7 @@
         width = this.rowWidth(w);
         if (width > content) content = width;
       }
-      /* Nothing to fit to. Not 240 -- the window is mounted at a width before
+      /* Nothing to fit to. The pane is mounted at its default width before
        * the first command arrives, and a panel that snapped to the minimum in
        * the gap between opening and its first row would be a visible flinch. */
       if (content <= 0 && this.wantWidth <= 0) return;
@@ -1450,19 +1554,12 @@
       this.setWidth(Math.max(content, this.wantWidth));
     }
 
-    /** The one place the window's width is written. Clamped: a panel that wants
-     *  1200px still may not have it, and one that wants nothing still needs
-     *  enough to be a window. */
+    /** The one place pane width is written, using the shared 280..480 policy. */
     setWidth(want) {
-      const width = Math.max(240, Math.min(Math.round(want), 720));
-      if (this.frame) {
-        if (this.frame.style.width === `${width}px`) return;
-        this.frame.style.width = `${width}px`;
-        this.publishDockWidth();
-      } else if (this.root) {
-        if (this.root.style.width === `${width}px`) return;
-        this.root.style.width = `${width}px`;
-      }
+      const width = Math.max(LAYOUT.panelMin, Math.min(Math.round(want), LAYOUT.panelMax));
+      if (this.panelWidth === width) return;
+      this.panelWidth = width;
+      this.updateLayout();
       /* An open list hangs off a button that has just moved. */
       if (this.dropOpen >= 0) this.placeDropdown();
     }
@@ -1725,8 +1822,12 @@
     }
 
     makeWidget(cmd) {
+      /* PANEL_OPEN selects the sole live page. Commands for an older visible
+       * model panel can still occur in a legacy snapshot, but they must not
+       * recreate hidden DOM or become interactive. */
+      if (cmd.p !== this.tabPanel || !this.panels[cmd.p]) return;
       /* Everything below is made in the document the chrome is IN -- the
-       * iframe's, the popped-out tab's, or the page's. See ChromeHost::doc. */
+       * attached page's or the popped-out tab's. See ChromeHost::doc. */
       const doc = this.doc;
       const row = doc.createElement('div');
       row.className = 'torirs-chrome-row';
@@ -2037,55 +2138,33 @@
           break;
 
         case CMD.PANEL_OPEN:
-          this.panels[cmd.p] = { tabs: [], activeTab: 0, strip: -1 };
           /*
-           * The panel this window is SHOWING, which is what Ok and Close name.
-           *
-           * Latched here because PANEL_OPEN is the only command that carries it
-           * and every window has one. It used to be latched when a TABSTRIP was
-           * added instead -- true of a tabbed panel, and the plugin window is
-           * PAGED, not tabbed, so no strip ever arrived: the handle stayed -1,
-           * both title-bar buttons addressed panel -1, and the model quietly
-           * validated them away. The window could be closed from anywhere except
-           * its own close mark.
+           * PANEL_OPEN is also selection in the compatible command protocol.
+           * The newest selection clears the former page before any of its rows
+           * can be built, leaving one shell, one presenter and one live page.
            */
-          this.tabPanel = cmd.p;
-          if (cmd.text && this.titleEl) this.titleEl.firstChild.textContent = cmd.text;
+          this.activatePage(cmd.p, cmd.text);
           break;
 
         case CMD.PANEL_CLOSE:
-          delete this.panels[cmd.p];
-          this.closeDropdown();
-          /* Its rows go with it: the seam says so once and means all of them,
-           * so a DOM node left behind would be a control with no model. */
-          for (const handle in this.widgets) {
-            if (!Object.prototype.hasOwnProperty.call(this.widgets, handle)) continue;
-            if (this.widgets[handle].panel !== cmd.p) continue;
-            const node = this.widgets[handle].row;
-            if (node.parentNode) node.parentNode.removeChild(node);
-            delete this.widgets[handle];
-          }
-          if (this.tabPanel === cmd.p) { this.tabPanel = -1; this.renderTabs(); }
-          /* The rows that sized the window have gone with it. */
-          this.wantWidth = 0;
-          this.fitPanel();
+          if (this.tabPanel !== cmd.p) break;
+          /* A detached page closes back into its application slot first, then
+           * the slot collapses. The optional tab never becomes required. */
+          if (this.popup) this.setPoppedOut(false);
+          this.clearActivePage(true);
           break;
 
         case CMD.PANEL_TITLE:
-          if (this.titleEl) this.titleEl.firstChild.textContent = cmd.text;
+          if (cmd.p === this.tabPanel) this.setChromeTitle(cmd.text);
           break;
 
         case CMD.PANEL_RECT:
           /*
            * The model's box, of which the page honours the WIDTH only.
            *
-           * Position is deliberately ignored: the model lays its panels out in
-           * canvas coordinates, and this window is not in the canvas at all --
-           * it is a frame beside it, a tab of its own, or an overlay pinned to a
-           * corner. Height is ignored for a sharper reason now: docked, it is
-           * the CANVAS's, because the two are meant to read as one object;
-           * popped out it is the tab's; floating it scrolls under a 70vh cap.
-           * None of those is the model's idea of how tall its rows came out.
+           * Position and height are deliberately ignored: application layout
+           * owns the attached track and the explicit detached tab owns itself.
+           * The game canvas's model-space rectangle is never reused for chrome.
            *
            * Width is different: it is the one dimension the model sizes to its
            * CONTENT (the widest row it laid out), so ignoring it is what made a

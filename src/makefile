@@ -698,7 +698,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c ui/uitree_snapshot.c \
-	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
+	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c ui/torirs_chrome_shell.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
@@ -2750,6 +2750,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_debug_overlay.c \
 		ui/test/uitree_test_chrome_exec.c ui/torirs_chrome_exec.c \
 		ui/torirs_chrome_exec_kind.c \
+		ui/test/uitree_test_chrome_shell.c ui/torirs_chrome_shell.c \
 		ui/torirs_chrome_mirror.c \
 		$(CHROME_EXEC_TEST_CFLAGS) \
 		ui/test/uitree_test_entity_overlay_order.c \

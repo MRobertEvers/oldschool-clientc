@@ -655,7 +655,15 @@ ToriRSChromeExec_ForKind(
     int* out_kind)
 {
     switch( kind )
+{
+#if defined(TORIRS_CHROME_EXEC_ANDROID_AVAILABLE)
+    case TORIRS_CHROME_EXEC_ANDROID:
     {
+        if( out_kind )
+            *out_kind = TORIRS_CHROME_EXEC_ANDROID;
+        return ToriRSChromeExec_Android(platform);
+    }
+#endif
 #if defined(TORIRS_CHROME_EXEC_GDI_AVAILABLE)
     case TORIRS_CHROME_EXEC_GDI:
     {

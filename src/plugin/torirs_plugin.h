@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 20
+#define TORIRS_PLUGIN_ABI 21
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -318,6 +318,27 @@ enum ToriRS_PluginEvent
      * per-event gates already answer for every frame drawn on the title.
      */
     TORIRS_PLUGIN_EV_SCREEN_CHANGE,
+
+    /* -- ABI 21 append: application plugin panel ------------------------- */
+
+    /**
+     * This plugin was selected in the one shared application-chrome shell and
+     * must declare its page. Payload: EvPanelBuild.
+     *
+     * Selection, not registration, raises this event. A registered plugin
+     * which is not selected therefore owns no page widgets and does no page
+     * build work.
+     */
+    TORIRS_PLUGIN_EV_PANEL_BUILD,
+    /** A semantic page control or custom hit target was used. Payload:
+     *  EvPanelAction. */
+    TORIRS_PLUGIN_EV_PANEL_ACTION,
+    /** The selected page's visibility or allocation changed. Payload:
+     *  EvPanelLayout. */
+    TORIRS_PLUGIN_EV_PANEL_LAYOUT,
+    /** A dirty custom region on the selected, visible page needs drawing.
+     *  Payload: EvPanelDraw. */
+    TORIRS_PLUGIN_EV_PANEL_DRAW,
 
     TORIRS_PLUGIN_EV_COUNT
 };
@@ -926,6 +947,22 @@ enum ToriRS_PluginWidgetKind
     TORIRS_PLUGIN_W_DROPDOWN,
     TORIRS_PLUGIN_W_BUTTON,
     TORIRS_PLUGIN_W_SEPARATOR,
+
+    /* ABI 21 semantic page controls. The first six deliberately retain their
+     * numbers: win_* and panel_* share this vocabulary, so every existing
+     * window presenter is also the compatibility presenter for those rows. */
+    TORIRS_PLUGIN_W_SECTION,
+    TORIRS_PLUGIN_W_PARAGRAPH,
+    TORIRS_PLUGIN_W_KEY_VALUE,
+    TORIRS_PLUGIN_W_TOGGLE,
+    TORIRS_PLUGIN_W_TEXTAREA,
+    TORIRS_PLUGIN_W_LIST_ROW,
+    TORIRS_PLUGIN_W_IMAGE,
+    TORIRS_PLUGIN_W_PROGRESS,
+    TORIRS_PLUGIN_W_ERROR,
+    TORIRS_PLUGIN_W_CUSTOM,
+
+    TORIRS_PLUGIN_W_COUNT
 };
 
 /** What happened to a control. */
@@ -939,6 +976,13 @@ enum ToriRS_PluginUiAction
     TORIRS_PLUGIN_UI_TEXT,
     /** A list choice was made: `value` is the index, `text` the chosen entry. */
     TORIRS_PLUGIN_UI_PICK,
+    /** A custom region's pointer capture moved. `value` is implementation
+     *  neutral; `x`/`y` in EvPanelAction carry the local position. */
+    TORIRS_PLUGIN_UI_DRAG,
+    /** A custom region was scrolled. `value` is the signed logical delta. */
+    TORIRS_PLUGIN_UI_SCROLL,
+    /** A custom region received a key. `value` is a TORIRS_PLUGIN_KEY_* code. */
+    TORIRS_PLUGIN_UI_KEY,
 };
 
 struct ToriRS_PluginEvUi
@@ -953,6 +997,97 @@ struct ToriRS_PluginEvUi
     /** The control's text after the change. Never NULL; "" when it has none.
      *  Valid for this dispatch only. */
     char const* text;
+};
+
+/* ------------------------------------------------------------------------ */
+/* Application plugin panel (ABI 21)                                        */
+/* ------------------------------------------------------------------------ */
+
+/** Bytes retained for a rail badge, terminator included. Badges are short
+ *  status hints, not a second page title. */
+#define TORIRS_PLUGIN_PANEL_BADGE_MAX 24
+/** The default and bounded width hints used by every shell presenter. */
+#define TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT 320
+#define TORIRS_PLUGIN_PANEL_WIDTH_MIN 280
+#define TORIRS_PLUGIN_PANEL_WIDTH_MAX 480
+
+/** Inert rail metadata copied by panel_request during EV_START. */
+struct ToriRS_PluginPanelDesc
+{
+    /** Human-facing page title. NULL or empty uses the plugin's title. */
+    char const* title;
+    /** Optional plugin asset name. NULL or empty asks for the host fallback. */
+    char const* icon_asset;
+    /** Logical units; 0 asks for TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT. */
+    int preferred_width;
+};
+
+/** Neutral allocation class. It describes space, never the platform. */
+enum ToriRS_PluginPanelSizeClass
+{
+    TORIRS_PLUGIN_PANEL_COMPACT = 0,
+    TORIRS_PLUGIN_PANEL_MEDIUM,
+    TORIRS_PLUGIN_PANEL_EXPANDED,
+};
+
+/** The page model was cleared for this exact selection and must be declared. */
+struct ToriRS_PluginEvPanelBuild
+{
+    uint32_t selection_generation;
+};
+
+/** One result-state intent from the shared shell. */
+struct ToriRS_PluginEvPanelAction
+{
+    /** Plugin-scoped semantic id. Valid for this dispatch only. */
+    char const* id;
+    /** enum ToriRS_PluginUiAction. */
+    int action;
+    /** Result value, index, scroll delta, or key according to action. */
+    int value;
+    /** Whole result text, never NULL and valid for this dispatch only. */
+    char const* text;
+    /** Custom-region-local logical coordinates; 0 for ordinary controls. */
+    int x;
+    int y;
+    /** Fences queued input from an older selected page. */
+    uint32_t selection_generation;
+    /** Fences a removed/redeclared id within the same selection. */
+    uint32_t widget_serial;
+    /** Monotonic within the selection; duplicates and older intents are
+     *  discarded before dispatch. */
+    uint64_t intent_sequence;
+};
+
+/** Visibility/allocation facts for the selected page. */
+struct ToriRS_PluginEvPanelLayout
+{
+    int width;
+    int height;
+    /** Scale in thousandths: 1000 is 1x, 2000 is 2x. */
+    int scale_milli;
+    /** enum ToriRS_PluginPanelSizeClass. */
+    int size_class;
+    bool visible;
+    /** False in attached-exclusive presentation. */
+    bool game_visible;
+    uint32_t selection_generation;
+};
+
+/** A scoped draw pass for one custom semantic node. */
+struct ToriRS_PluginEvPanelDraw
+{
+    char const* id;
+    /** Opaque token accepted by the ordinary portable draw_* verbs. */
+    void* surface;
+    /** Local logical dirty rectangle. */
+    int x;
+    int y;
+    int width;
+    int height;
+    int scale_milli;
+    uint32_t selection_generation;
+    uint32_t widget_serial;
 };
 
 struct ToriRS_PluginEvAsset
@@ -3682,6 +3817,50 @@ struct ToriRS_PluginApi
      * `tabno` is not a tab.
      */
     int (*tab_enabled)(struct ToriRS_PluginCtx* ctx, int tabno);
+
+    /* -- ABI 21 append: the one shared application plugin panel ----------- */
+
+    /**
+     * Register or update this plugin's inert rail entry. Legal only from
+     * EV_START; registration does not select, open, or build the page.
+     */
+    bool (*panel_request)(
+        struct ToriRS_PluginCtx* ctx,
+        struct ToriRS_PluginPanelDesc const* desc);
+
+    /**
+     * Append one semantic node while handling EV_PANEL_BUILD. IDs are stable
+     * and plugin-scoped. Only the selected plugin may declare nodes.
+     * `kind` is enum ToriRS_PluginWidgetKind.
+     */
+    bool (*panel_widget)(
+        struct ToriRS_PluginCtx* ctx,
+        int kind,
+        char const* id,
+        char const* label);
+    /** Update retained state on the selected page. Hidden plugins return
+     *  false and are rebuilt when next selected. */
+    bool (*panel_set_text)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* id,
+        char const* text);
+    bool (*panel_set_value)(struct ToriRS_PluginCtx* ctx, char const* id, int value);
+    /** `choices` is the same `a|b|c` spelling win_set_options accepts. */
+    bool (*panel_set_options)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* id,
+        char const* choices,
+        int selected);
+
+    /** Update rail state without selecting the page. */
+    bool (*panel_set_badge)(struct ToriRS_PluginCtx* ctx, char const* text);
+    bool (*panel_set_attention)(struct ToriRS_PluginCtx* ctx, bool attention);
+
+    /** Clear the selected page's semantic nodes. Outside its build event this
+     *  marks the page for one fresh EV_PANEL_BUILD. */
+    void (*panel_clear)(struct ToriRS_PluginCtx* ctx);
+    /** Mark a selected custom node dirty. Hidden pages never draw. */
+    void (*panel_invalidate)(struct ToriRS_PluginCtx* ctx, char const* custom_view_id);
 };
 
 /* ------------------------------------------------------------------------ */

@@ -7,6 +7,7 @@ static char const* const CHROME_EXEC_NAME[TORIRS_CHROME_EXEC_COUNT] = {
     [TORIRS_CHROME_EXEC_SDL] = "sdl",
     [TORIRS_CHROME_EXEC_WEB] = "web",
     [TORIRS_CHROME_EXEC_GDI] = "gdi",
+    [TORIRS_CHROME_EXEC_ANDROID] = "android",
 };
 
 char const*

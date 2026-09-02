@@ -33,6 +33,7 @@
 #include <stdint.h>
 
 struct ANativeWindow;
+struct ToriRSChromeCmd;
 
 /* ---- UI thread -> platform ------------------------------------------------
  *
@@ -243,5 +244,34 @@ PlatformAndroidGL_SwapBuffers(void);
  */
 void
 PlatformAndroidJni_SetSoftKeyboard(int on);
+
+/* ---- native plugin chrome ------------------------------------------------
+ *
+ * The executor runs on the frame thread. It accumulates one complete
+ * ToriRSChrome sync and crosses JNI only at SYNC_END; ClientActivity then
+ * posts exactly one Runnable which mutates framework Views on the UI thread.
+ * None of these functions takes platform_android.c's surface/input mutex, so
+ * calling Java can never hold that mutex across re-entry.
+ */
+
+/** Is the live ClientActivity able to receive native chrome transactions? */
+int
+PlatformAndroidJni_ChromeAvailable(void);
+
+/** Copy one complete transaction into Java. The call returns after enqueueing
+ * it; Views are not touched on the frame thread. */
+void
+PlatformAndroidJni_ApplyChromeBatch(struct ToriRSChromeCmd const* commands, int count);
+
+/** Tear down the Activity's one shared presenter. Asynchronous to the UI
+ * thread, like ApplyChromeBatch. */
+void
+PlatformAndroidJni_EndChrome(void);
+
+/** UI thread -> Android executor intent queue. Strings are copied before this
+ * returns; a toggle is paired with its activation by the native executor. */
+void
+PlatformAndroidChrome_PostIntent(
+    int kind, int panel, int widget, int value, char const* text);
 
 #endif

@@ -1,12 +1,13 @@
 /*
- * The SDL chrome executor: the plugin window as a real, movable OS window.
+ * The SDL chrome executor: the plugin shell attached to the game window.
  *
  * A SURFACE executor (see the two kinds in torirs_chrome_exec.h): the widgets
  * are still ToriRSChrome's, laid out by ToriRSChrome and rasterised by the same
  * software path that draws them in the game canvas. What changes is only where
  * the pixels land and where the pointer comes from. That is the whole reason it
- * can be pixel-identical to the in-canvas panel -- it IS the in-canvas panel,
- * in its own window.
+ * can be pixel-identical to the in-canvas panel. By default the surface is a
+ * pane inside the existing SDL window; TORIRS_CHROME_DETACHED=1 is the
+ * explicit developer/user opt-in to the legacy auxiliary window.
  *
  * It is the first thing in this tree to want a second OS window, so the
  * platform API under it (PlatformWindow_Aux*) is deliberately the smallest one
@@ -64,6 +65,8 @@ struct ChromeSdl
     /** Set once begin() succeeded, so present/input on a refused executor are
      *  no-ops rather than calls into a window that was never made. */
     int open;
+    /** The surface is inside the main native window, not the optional aux. */
+    int attached;
     /**
      * The panel this window is showing, latched from PANEL_OPEN.
      *
@@ -141,12 +144,23 @@ static int
 chrome_sdl_begin(void* user)
 {
     struct ChromeSdl* s = user;
+    int const detached = getenv("TORIRS_CHROME_DETACHED") != NULL;
 
     assert(s);
     if( !s->platform )
         return 0;
-    if( !PlatformWindow_AuxOpen(s->platform, CHROME_SDL_W, CHROME_SDL_H, "Plugins") )
-        return 0;
+    if( detached )
+    {
+        if( !PlatformWindow_AuxOpen(s->platform, CHROME_SDL_W, CHROME_SDL_H, "Plugins") )
+            return 0;
+        s->attached = 0;
+    }
+    else
+    {
+        if( !PlatformWindow_ChromeOpen(s->platform, CHROME_SDL_W, CHROME_SDL_H, "Plugins") )
+            return 0;
+        s->attached = 1;
+    }
     s->open = 1;
     s->panel = -1;
     s->close_pending = 0;
@@ -156,7 +170,7 @@ chrome_sdl_begin(void* user)
      * whatever the old one had a strip at. */
     memset(&s->drag, 0, sizeof(s->drag));
 
-    if( chrome_sdl_borderless_wanted() )
+    if( !s->attached && chrome_sdl_borderless_wanted() )
     {
         /*
          * The provider goes on before the frame comes off, and the frame is
@@ -197,8 +211,12 @@ chrome_sdl_end(void* user)
     assert(s);
     if( !s->open )
         return;
-    PlatformWindow_AuxClose(s->platform);
+    if( s->attached )
+        PlatformWindow_ChromeClose(s->platform);
+    else
+        PlatformWindow_AuxClose(s->platform);
     s->open = 0;
+    s->attached = 0;
     s->borderless = 0;
 }
 
@@ -244,9 +262,12 @@ chrome_sdl_present(void* user, struct ToriRSChromePrim const* prims, int count)
     if( !s->open || !prims )
         return;
 
-    pixels = PlatformWindow_AuxPixels(s->platform);
-    w = PlatformWindow_AuxWidth(s->platform);
-    h = PlatformWindow_AuxHeight(s->platform);
+    pixels = s->attached ? PlatformWindow_ChromePixels(s->platform)
+                         : PlatformWindow_AuxPixels(s->platform);
+    w = s->attached ? PlatformWindow_ChromeWidth(s->platform)
+                    : PlatformWindow_AuxWidth(s->platform);
+    h = s->attached ? PlatformWindow_ChromeHeight(s->platform)
+                    : PlatformWindow_AuxHeight(s->platform);
     if( !pixels || w <= 0 || h <= 0 )
         return;
 
@@ -261,7 +282,10 @@ chrome_sdl_present(void* user, struct ToriRSChromePrim const* prims, int count)
 
     if( s->rasterise )
         s->rasterise(s->rasterise_user, pixels, w, h, prims, count);
-    PlatformWindow_AuxPresent(s->platform);
+    if( s->attached )
+        PlatformWindow_ChromePresent(s->platform);
+    else
+        PlatformWindow_AuxPresent(s->platform);
 }
 
 /*
@@ -289,8 +313,10 @@ chrome_sdl_surface_size(void* user, int* out_w, int* out_h)
     assert(out_h);
     if( !s->open )
         return 0;
-    w = PlatformWindow_AuxWidth(s->platform);
-    h = PlatformWindow_AuxHeight(s->platform);
+    w = s->attached ? PlatformWindow_ChromeWidth(s->platform)
+                    : PlatformWindow_AuxWidth(s->platform);
+    h = s->attached ? PlatformWindow_ChromeHeight(s->platform)
+                    : PlatformWindow_AuxHeight(s->platform);
     if( w <= 0 || h <= 0 )
         return 0;
     *out_w = w;
@@ -342,7 +368,7 @@ chrome_sdl_surface_input(void* user, struct ToriRSChromeSurfaceInput* out)
      * the GDI rule, which can afford to wait for the model because its window
      * is still there to wait in; this one is not.
      */
-    if( PlatformWindow_AuxTakeCloseRequest(s->platform) )
+    if( !s->attached && PlatformWindow_AuxTakeCloseRequest(s->platform) )
     {
         PlatformWindow_AuxClose(s->platform);
         s->open = 0;
@@ -351,7 +377,8 @@ chrome_sdl_surface_input(void* user, struct ToriRSChromeSurfaceInput* out)
         return 0;
     }
 
-    if( !PlatformWindow_AuxTakeInput(s->platform, &aux) )
+    if( !(s->attached ? PlatformWindow_ChromeTakeInput(s->platform, &aux)
+                      : PlatformWindow_AuxTakeInput(s->platform, &aux)) )
         return 0;
 
     /* The platform's POD across to the chrome's; see the _Static_asserts. */
@@ -378,7 +405,12 @@ chrome_sdl_surface_input(void* user, struct ToriRSChromeSurfaceInput* out)
      * it also fires when only the DENSITY changed, which is a window dragged
      * to a display of another kind. */
     if( out->resized )
-        PlatformWindow_AuxResize(s->platform, out->width, out->height);
+    {
+        if( s->attached )
+            PlatformWindow_ChromeResize(s->platform, out->width, out->height);
+        else
+            PlatformWindow_AuxResize(s->platform, out->width, out->height);
+    }
     return 1;
 }
 
