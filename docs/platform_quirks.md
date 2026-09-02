@@ -1028,6 +1028,34 @@ one lane only.
   `TORIRS_LOGIN_DEBUG=1` (`ui_click: hovered/clicked`),
   `TORIRS_CLICK_DEBUG=1` (`invclick:` rows, `clickdbg: send op`).
 
+### ANDROID-INPUT-001 - A feedback overlay must be pass-through, and the touch overlay test must know the game's own windows
+
+- **Status:** Fixed 2026-09-02
+- **Applies to:** every touch lane (Android; a desktop with TORIRS_TOUCH_UI)
+- **Behavior:** On the mobile gameframe a TAP on the top-left stones (logout,
+  chat toggle) ran nothing while a LONG PRESS on the same pixel worked, and a
+  finger dragging a list or window turned the camera instead of the widget.
+- **Cause 1:** `UIELEM_BUILTIN_INKWELL`, the touch ripple, is a 64x64 late
+  root parked at the canvas origin and was missing from the pass-through
+  switch in `UITree_ComponentIsPassThrough`. A later root's hit beats an
+  earlier one, so it won every hit test over that corner. The minimenu builds
+  from components carrying ops and never sees it, which is why the long press
+  still worked. `MULTIWAY` and `REBOOT_TIMER` were missing too.
+- **Cause 2:** the touch layer's overlay test (`ToriRS_TouchSetOverlayTest`)
+  was answered by `App_ChromePointerOwned`, which knows only the debug chrome
+  and the plugin panel. Every drag starting over the viewport was therefore a
+  camera drag. It now answers `App_PointerOwnedByUi` -- chrome, or anything
+  `app_world_mouse_gate` refuses -- so the drag and the click agree about who
+  owns a pixel.
+- **Rule:** a node that is only feedback needs an entry in that switch (the
+  file says so; the click cross carries the same warning). Anything asking
+  "is this point the world" asks `app_world_mouse_gate`, not a chrome test.
+- **Verification:** `make -C src test-uitree`
+  (`test_feedback_overlay_never_takes_a_click`, which asserts the predicate
+  directly because the test host never reports the marker visible). On device:
+  `TORIRS_HIT_TRACE=1` names the node under a tap, `TORIRS_TOUCH_DEBUG=1`
+  prints `touch: drag ... button=LEFT(widget) ... overlay=1`.
+
 ### ANDROID-GLES2-003 - The fourth vertex attribute slot is shared, and the rotated-mask draw must leave it enabled
 
 - **Status:** Fixed 2026-09-02

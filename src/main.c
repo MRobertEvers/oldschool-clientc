@@ -486,7 +486,7 @@ capture_from_software(void* user, int* pixels, int width, int height)
 static int
 touch_overlay_owns_point(void* user, int x, int y)
 {
-    return App_ChromePointerOwned((struct App const*)user, x, y);
+    return App_PointerOwnedByUi((struct App*)user, x, y);
 }
 
 /** Interactive present: Soft3D writes pixels then blits; GPU backends drain the
@@ -2537,6 +2537,11 @@ frame_loop_step(void)
          * App.touch_ui. */
         if( getenv("TORIRS_TOUCH_UI") )
             app.touch_ui = 1;
+        /* A finger scrolls a list by dragging it; a mouse has the bar and the
+         * wheel. Mirrored here, beside the flag it follows, rather than after
+         * App_Init -- this block is what sets touch_ui, and it runs from the
+         * frame loop, so anything read at init time is still zero. */
+        app.interact.touch_scroll = app.touch_ui;
 
         /* Cheap and unconditional: a window dragged from a Retina display to
          * an ordinary one changes density with no event that says so, and
@@ -4082,9 +4087,6 @@ main(
         return 1;
 #endif
     App_Init(&app, &cfg);
-    /* A finger scrolls a list by dragging it (UIInteraction::touch_scroll);
-     * a mouse has the bar and the wheel. Same rule as App.touch_ui. */
-    app.interact.touch_scroll = app.touch_ui;
     if( getenv("TORIRS_PREVIEW_BMP") )
     {
         /* Default to the fixed-mode main/modal slot used by cs2dom. App_Init

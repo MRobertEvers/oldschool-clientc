@@ -3721,6 +3721,16 @@ int
 App_ChromePointerOwned(struct App const* app, int x, int y);
 
 /**
+ * Does anything drawn over the 3D world own the pointer at (x, y) -- the
+ * client's chrome, or one of the game's own interfaces?
+ *
+ * The touch layer's overlay test (@see ToriRS_TouchSetOverlayTest): a finger
+ * that comes down here is pressing that thing, not turning the camera.
+ */
+int
+App_PointerOwnedByUi(struct App* app, int x, int y);
+
+/**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree
  * mutation (slot mounts, packet-driven component changes).
  */

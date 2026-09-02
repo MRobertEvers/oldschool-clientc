@@ -148,6 +148,28 @@ UITree_ComponentIsPassThrough(
          * the top-left corner of the viewport went dead for the rest of every
          * click's marker. */
         return true;
+    case UIELEM_BUILTIN_INKWELL:
+    case UIELEM_BUILTIN_MULTIWAY:
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+        /*
+         * The rest of the decoration this switch's own rule ("every decorative
+         * overlay type needs an entry") had not caught yet.
+         *
+         * The touch marker is the cross's twin and cost the same way: 64x64,
+         * parked at the canvas ORIGIN when idle and following the finger when
+         * not, a late root sibling -- so with no entry here it fell to
+         * `default: return false` and won every hit test it covered. On the
+         * mobile gameframe the top-left corner is where the logout, chat and
+         * keyboard stones live: a TAP on them resolved to the marker and ran
+         * nothing, while a long press still worked, because the minimenu is
+         * built from components that carry ops and never sees this node.
+         *
+         * The multiway icon and the reboot countdown are the same kind of
+         * thing drawn over the viewport: never targets, and a node that eats a
+         * world click there is a dead patch of ground. A hook attached to any
+         * of the three still makes it interactive -- that test is above.
+         */
+        return true;
     case UIELEM_BUILTIN_MINIMENU:
     {
         assert(host);

@@ -494,3 +494,68 @@ test_touch_swipe_scrolls_layer(void)
 
     UITree_Free(tree);
 }
+
+/*
+ * Feedback overlays never take a click.
+ *
+ * The touch marker ("inkwell") is a 64x64 late root sibling parked at the
+ * canvas origin, and UITree_HitTestInteractive lets a later root's hit beat an
+ * earlier one -- so while it was missing from the pass-through switch it won
+ * every hit test it covered. On the mobile gameframe that corner holds the
+ * logout, chat and keyboard stones: a TAP on them resolved to the marker and
+ * ran nothing, while a long press still worked (the minimenu is built from
+ * components carrying ops and never sees this node).
+ */
+void
+test_feedback_overlay_never_takes_a_click(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hstate;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t button;
+
+    printf("TEST: a feedback overlay over a button does not take its click\n");
+
+    UITree_TestHostInit(&host, &hstate);
+    UIInteraction_Init(&interact);
+    {
+        int32_t panel = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 10, 0, 0, 200, 200);
+        button = UITree_TestPushXy(tree, panel, UIELEM_RS_RECT, 11, 10, 10, 40, 40);
+        set_on_op(tree, button, 200);
+        tree->components[button].behavior.click_mask = 1u;
+        /* The marker: its own root, pushed last, over the button. */
+        (void)UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_INKWELL, -1, 0, 0, 64, 64);
+    }
+    UITree_TestResolve(tree);
+
+    /* The predicate itself, because the walk above asks the HOST whether the
+     * marker is showing and this harness always answers no -- so only this
+     * assertion actually fails when the marker is interactive again. */
+    {
+        int32_t marker = -1;
+        for( uint32_t i = 0; i < tree->component_count; i++ )
+            if( tree->components[i].type == UIELEM_BUILTIN_INKWELL )
+                marker = (int32_t)i;
+        TEST_ASSERT(marker >= 0, "the marker is in the tree");
+        TEST_ASSERT(
+            UITree_ComponentIsPassThrough(&tree->components[marker], &host),
+            "the marker is pass-through, so a hit test walks past it");
+    }
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, 20, 20) == button,
+        "the hit under the marker is the button beneath it");
+
+    input = LibToriRS_Input_Init(&input_storage, 0);
+    LibToriRS_Input_Begin(input, 1000);
+    LibToriRS_Input_PushMouseMove(input, 20, 20);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 20, 20);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 20, 20);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id == 11, "and the tap runs the button, not the marker");
+
+    UITree_Free(tree);
+}

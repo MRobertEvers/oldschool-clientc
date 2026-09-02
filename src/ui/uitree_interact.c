@@ -96,9 +96,11 @@ scrollbar_capture_live(
 void
 UIInteraction_Init(struct UIInteraction* interact)
 {
-    interact->ts_layer = -1;
     assert(interact);
     memset(interact, 0, sizeof(*interact));
+    /* After the memset, not before it: zero is a valid node index, and a
+     * swipe owner of 0 makes the first frame swallow its click. */
+    interact->ts_layer = -1;
     interact->input_state.hovered = -1;
     interact->input_state.pressed = -1;
     interact->input_state.pressed_incarnation = 0;
@@ -558,6 +560,15 @@ bridge_input_to_uitree(
     return last;
 }
 
+static int
+touch_scroll_debug(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_TOUCH_DEBUG") ? 1 : 0;
+    return armed;
+}
+
 /*
  * Swipe-to-scroll (UIInteraction::touch_scroll). Returns 1 while the finger
  * owns the pointer; the caller then keeps the generic press/click/drag path
@@ -571,6 +582,58 @@ bridge_input_to_uitree(
  * anywhere inside it, which is what a phone expects. A layer that does not
  * need to scroll claims nothing, so an inventory slot still drags.
  */
+/*
+ * The layer a swipe scrolls: the innermost one that can scroll vertically and
+ * whose box holds the point.
+ *
+ * Deliberately NOT a hit test. The hit test answers "what is on top here",
+ * and what is on top of a finger is the touch marker -- which follows the
+ * finger by construction, so every swipe would find it and nothing else. It
+ * also answers -1 over the blank space between a list's rows, which is
+ * exactly where a thumb lands. The question here is containment, not
+ * occlusion, so it is asked directly.
+ *
+ * Innermost wins by area, so a list inside a panel takes the gesture from the
+ * panel. Hidden layers are not there to be scrolled.
+ */
+static int32_t
+touch_scroll_layer_at(
+    struct UITree* tree,
+    int x,
+    int y)
+{
+    int32_t best = -1;
+    int64_t best_area = 0;
+    uint32_t i;
+
+    assert(tree);
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        int64_t area;
+
+        if( c->freed || c->type != UIELEM_RS_LAYER )
+            continue;
+        if( !UITree_ScrollLayerNeedsVertical(c) )
+            continue;
+        UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+        if( bw <= 0 || bh <= 0 )
+            continue;
+        if( x < bx || x >= bx + bw || y < by || y >= by + bh )
+            continue;
+        if( UITree_NodeOrAncestorDisplayHidden(tree, (int32_t)i) )
+            continue;
+        area = (int64_t)bw * (int64_t)bh;
+        if( best < 0 || area < best_area )
+        {
+            best = (int32_t)i;
+            best_area = area;
+        }
+    }
+    return best;
+}
+
 static int
 interact_touch_scroll(
     struct UIInteraction* interact,
@@ -583,23 +646,35 @@ interact_touch_scroll(
 
     if( !interact->touch_scroll )
         return 0;
+    /* TORIRS_TOUCH_DEBUG=1: why a swipe did or did not take. The press edge
+     * is the only interesting frame -- what was under the finger, and which
+     * ancestor (if any) was a layer with somewhere to scroll. */
+    if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) && touch_scroll_debug() )
+    {
+        int32_t probe = touch_scroll_layer_at(tree, mx, my);
+        TORIRS_REPORT("swipe: press at %d,%d layer=%d click=%d\n", mx, my, (int)probe,
+            (int)LibToriRS_Input_IsClick(input, TORIRSM_LEFT));
+        if( probe >= 0 )
+        {
+            struct UITreeComponent const* c = &tree->components[probe];
+            int bx = 0, by = 0, bw = 0, bh = 0;
+            UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+            TORIRS_REPORT("swipe:   com=0x%x box=%d,%d %dx%d scroll_h=%d at %d\n",
+                (unsigned)c->component_id, bx, by, bw, bh, c->u.rs_layer.scroll_height,
+                c->scroll_y);
+        }
+    }
     if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
         !LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
     {
-        int32_t node = UITree_HitTest(tree, mx, my);
-        interact->ts_layer = -1;
-        while( node >= 0 && (uint32_t)node < tree->component_count )
+        int32_t node = touch_scroll_layer_at(tree, mx, my);
+        interact->ts_layer = node;
+        if( node >= 0 )
         {
             struct UITreeComponent const* c = &tree->components[node];
-            if( c->type == UIELEM_RS_LAYER && UITree_ScrollLayerNeedsVertical(c) )
-            {
-                interact->ts_layer = node;
-                interact->ts_incarnation = c->incarnation;
-                interact->ts_press_y = my;
-                interact->ts_start_scroll_y = c->scroll_y;
-                break;
-            }
-            node = c->parent;
+            interact->ts_incarnation = c->incarnation;
+            interact->ts_press_y = my;
+            interact->ts_start_scroll_y = c->scroll_y;
         }
     }
     if( interact->ts_layer < 0 )

@@ -31,6 +31,7 @@ main(void)
     test_key_dispatch();
     test_same_frame_press_release_clicks();
     test_touch_swipe_scrolls_layer();
+    test_feedback_overlay_never_takes_a_click();
     test_minimenu();
     test_id_index();
     test_child_subid();

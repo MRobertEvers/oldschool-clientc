@@ -367,6 +367,23 @@ ToriRS_TouchEvent(
                 touch->drag_button = touch_started_in_view(touch, finger)
                                          ? (uint8_t)TORIRSM_MIDDLE
                                          : (uint8_t)TORIRSM_LEFT;
+                /* TORIRS_TOUCH_DEBUG=1: which gesture this drag became, and
+                 * why. MIDDLE is the camera; LEFT is the widget under the
+                 * finger. The overlay's answer is the whole decision. */
+                {
+                    static int dbg = -1;
+                    if( dbg < 0 )
+                        dbg = getenv("TORIRS_TOUCH_DEBUG") ? 1 : 0;
+                    if( dbg )
+                        TORIRS_REPORT(
+                            "touch: drag from %d,%d button=%s view=%d,%d %dx%d overlay=%d\n",
+                            finger->start_x, finger->start_y,
+                            touch->drag_button == TORIRSM_MIDDLE ? "MIDDLE(camera)" : "LEFT(widget)",
+                            touch->view_x, touch->view_y, touch->view_w, touch->view_h,
+                            touch->overlay
+                                ? touch->overlay(touch->overlay_user, finger->start_x, finger->start_y)
+                                : -1);
+                }
                 /* From where the finger STARTED, so the first delta is the
                  * distance actually travelled rather than a jump -- and so a
                  * window is grabbed by the point the finger landed on rather

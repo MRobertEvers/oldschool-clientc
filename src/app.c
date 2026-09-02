@@ -19358,6 +19358,20 @@ app_world_mouse_gate(
      * interface is: no hover, no pick, no click-to-walk under the window. */
     if( app_chrome_wants_pointer(app, mouse_x, mouse_y) )
         return 0;
+    /*
+     * The world map, which is drawn into a surface box rather than out of
+     * ordinary components: the tree holds one BUILTIN_WORLDMAP node and the
+     * map itself -- its tiles, its icons, its blank margins -- is pixels this
+     * client paints. So nothing in the walk below sees it, and a click that
+     * missed the map's own chrome fell through to the world underneath and
+     * WALKED THE PLAYER, on a screen where the world is not even visible.
+     * The box is the same one app_worldmap_drag_tick arms its drag from.
+     */
+    if( app->worldmap_box_w > 0 && app->worldmap_box_h > 0 &&
+        mouse_x >= app->worldmap_box_x && mouse_x < app->worldmap_box_x + app->worldmap_box_w &&
+        mouse_y >= app->worldmap_box_y && mouse_y < app->worldmap_box_y + app->worldmap_box_h &&
+        app_worldmap_surface_live(app) )
+        return 0;
     /* A viewport interface (reference mainModalId) owns the entire viewport
      * rect: buildMinimenu adds that modal's component options there and NEVER
      * world options (Client.ts:2772 `if (mainModalId === -1) addWorldOptions
@@ -32306,6 +32320,32 @@ App_InputFrameConsumed(struct App const* app)
 {
     assert(app);
     return app->input_frame_consumed;
+}
+
+int
+App_PointerOwnedByUi(struct App* app, int x, int y)
+{
+    assert(app);
+    /*
+     * Everything drawn over the 3D world that owns what lands on it: the
+     * client's own chrome, AND the game's interfaces, which
+     * App_ChromePointerOwned knows nothing about.
+     *
+     * The touch layer asks this to decide whether a one-finger drag turns the
+     * CAMERA or presses a widget. Chrome alone was not enough: a finger that
+     * came down on the All Settings window, an inventory list or a dropdown
+     * still started a camera drag, because the interface it landed on is not
+     * chrome -- so the widget never saw a press and nothing could be dragged
+     * or swiped anywhere over the viewport.
+     *
+     * The question "is this point the world" already has one answer in this
+     * file, and it is the one the click-to-walk and the minimenu use; asking
+     * it here is what keeps the drag and the click agreeing about who owns a
+     * pixel.
+     */
+    if( app_chrome_wants_pointer(app, x, y) )
+        return 1;
+    return !app_world_mouse_gate(app, x, y);
 }
 
 int
