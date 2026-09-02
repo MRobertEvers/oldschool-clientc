@@ -1070,6 +1070,19 @@ PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
             int const vk = android_keycode_to_vk(ev.keycode);
             int const osrs = vk >= 0 ? LibToriRS_OsrsKeyFromVk(vk) : -1;
 
+            {
+                /* TORIRS_TOUCH_DEBUG=1: every key the activity forwards, both
+                 * edges, with the OSRS code the scripts see. A modifier whose
+                 * release never arrives (a soft keyboard's shift) leaves
+                 * keyheld() answering yes and turns every inventory tap into
+                 * the shift-click drop -- this is how that is seen. */
+                static int key_debug = -1;
+                if( key_debug < 0 )
+                    key_debug = getenv("TORIRS_TOUCH_DEBUG") != NULL;
+                if( key_debug )
+                    __android_log_print(ANDROID_LOG_INFO, ANDROID_LOG_TAG, "key: android=%d down=%d unicode=%d osrs=%d",
+                        ev.keycode, ev.down, ev.unicode, osrs);
+            }
             CmdBus_PushKey(
                 bus,
                 ev.down ? TORIRS_CMD_INPUT_KEY_DOWN : TORIRS_CMD_INPUT_KEY_UP,

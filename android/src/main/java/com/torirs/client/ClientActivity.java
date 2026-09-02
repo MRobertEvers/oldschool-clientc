@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.DisplayMetrics;
+import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.Surface;
@@ -472,6 +473,37 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         }
     }
 
+    /**
+     * A modifier the soft keyboard made up.
+     *
+     * The dummy input connection turns what the IME commits into KeyEvents,
+     * and an IME shifting for a capital sends SHIFT down, the letter, SHIFT up
+     * -- or not the up, depending on the keyboard app. The client keeps
+     * modifier state per key (the scripts ask keyheld(shift) when they
+     * rebuild the inventory: shift held binds the shift-click DROP to every
+     * slot), so one lost release turned every later tap on an item into a
+     * drop. A virtual keyboard's modifiers mean nothing to the game -- the
+     * character it commits already carries its case -- so they stop here.
+     * A hardware keyboard (a real device id) keeps its modifiers.
+     */
+    private static boolean isVirtualModifier(KeyEvent event)
+    {
+        if( event.getDeviceId() != KeyCharacterMap.VIRTUAL_KEYBOARD )
+            return false;
+        switch( event.getKeyCode() )
+        {
+        case KeyEvent.KEYCODE_SHIFT_LEFT:
+        case KeyEvent.KEYCODE_SHIFT_RIGHT:
+        case KeyEvent.KEYCODE_CTRL_LEFT:
+        case KeyEvent.KEYCODE_CTRL_RIGHT:
+        case KeyEvent.KEYCODE_ALT_LEFT:
+        case KeyEvent.KEYCODE_ALT_RIGHT:
+            return true;
+        default:
+            return false;
+        }
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event)
     {
@@ -482,6 +514,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          */
         if( keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN )
             return super.onKeyDown(keyCode, event);
+        if( isVirtualModifier(event) )
+            return true;
 
         nativeKey(keyCode, 1, event.getUnicodeChar(event.getMetaState()));
         return true;
@@ -492,6 +526,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     {
         if( keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN )
             return super.onKeyUp(keyCode, event);
+        if( isVirtualModifier(event) )
+            return true;
 
         nativeKey(keyCode, 0, 0);
         return true;
@@ -546,11 +582,24 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                     return;
                 if( show )
                 {
+                    /* Focus taken again from scratch, and the input session
+                     * restarted: after the person hid the keyboard with the
+                     * system's Back, InputMethodManager treats a plain show on
+                     * the still-focused view as already satisfied and does
+                     * nothing -- the dismiss button appeared, the keyboard did
+                     * not. Dropping and retaking focus is what makes the next
+                     * show a new request. */
+                    surfaceView.clearFocus();
                     surfaceView.requestFocus();
-                    /* Flags 0, not SHOW_IMPLICIT: implicit is the request the
-                     * system is documented as free to ignore, and this one is
-                     * the direct result of a deliberate tap. */
-                    imm.showSoftInput(surfaceView, 0);
+                    imm.restartInput(surfaceView);
+                    /* SHOW_FORCED, not 0: this is the direct result of a
+                     * deliberate tap on the client's own keyboard stone, and
+                     * the plain form is the one the system is free to ignore.
+                     * Deprecated on API 33+, which this device is far below;
+                     * HIDE_IMPLICIT_ONLY on the hide side keeps a forced show
+                     * dismissable by the client's own hide. */
+                    if( !imm.showSoftInput(surfaceView, InputMethodManager.SHOW_FORCED) )
+                        imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
                 }
                 else
                 {

@@ -72,6 +72,21 @@ struct UIInteraction
      * the normal click path (IsClick -> left_click_miss) and runs a second
      * action at the menu-row position. */
     int swallow_left_click;
+
+    /**
+     * Swipe-to-scroll, the touch UI's way of moving a list: a finger that
+     * lands inside a scrollable layer and is HELD (the touch layer sends a
+     * press on its own only for a drag; a tap arrives press-and-release
+     * together) scrolls that layer by its travel, and nothing under the
+     * finger is pressed. Set `touch_scroll` beside App.touch_ui; a mouse
+     * never takes this path. `ts_layer` is the layer being scrolled, -1
+     * between gestures; the incarnation guards a rebuilt tree.
+     */
+    int touch_scroll;
+    int32_t ts_layer;
+    uint32_t ts_incarnation;
+    int ts_press_y;
+    int ts_start_scroll_y;
 };
 
 #define UI_INTENT_MAX 16

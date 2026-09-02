@@ -12538,9 +12538,47 @@ CS2VM2_RunOp(
         return CS2VM2_PushInt(vm, 1);
     case CS2_OP_MOBILE_WIFIAVAILABLE:
         return CS2VM2_PushInt(vm, 1);
+    case CS2_OP_MOBILE_KEYBOARDSHOWSTRING:
+    case CS2_OP_MOBILE_KEYBOARDSHOWINTEGER:
+    {
+        /* (string text, int limit): the mobile client opens its soft keyboard
+         * on the line the script hands it -- the chatbox's "Start chatting"
+         * stone passes the message being typed. The host says what a
+         * keyboard is on this platform. */
+        struct CS2VM_HostRequest request;
+        char* text = NULL;
+        int limit;
+        if( CS2VM2_PopInt(vm, &limit) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( opcode == CS2_OP_MOBILE_KEYBOARDSHOWINTEGER )
+        {
+            request.kind = CS2VM_HOST_REQUEST_MOBILE_KEYBOARDSHOWINTEGER;
+            memset(
+                &request.u.MOBILE_KEYBOARDSHOWINTEGER, 0,
+                sizeof(request.u.MOBILE_KEYBOARDSHOWINTEGER));
+            request.u.MOBILE_KEYBOARDSHOWINTEGER.text = text;
+            request.u.MOBILE_KEYBOARDSHOWINTEGER.limit = limit;
+        }
+        else
+        {
+            request.kind = CS2VM_HOST_REQUEST_MOBILE_KEYBOARDSHOWSTRING;
+            memset(
+                &request.u.MOBILE_KEYBOARDSHOWSTRING, 0,
+                sizeof(request.u.MOBILE_KEYBOARDSHOWSTRING));
+            request.u.MOBILE_KEYBOARDSHOWSTRING.text = text;
+            request.u.MOBILE_KEYBOARDSHOWSTRING.limit = limit;
+        }
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_MOBILE_KEYBOARDHIDE:
-        /* No soft keyboard to hide. */
-        return CS2VM_EXECNO_OK;
+    {
+        struct CS2VM_HostRequest request;
+        request.kind = CS2VM_HOST_REQUEST_MOBILE_KEYBOARDHIDE;
+        memset(&request.u.MOBILE_KEYBOARDHIDE, 0, sizeof(request.u.MOBILE_KEYBOARDHIDE));
+        return vm->vm->host_exec(vm, &request);
+    }
 
     /* === CS2 opcode group: worldmap (6600..6699) ===
      * world-map and map-element commands.

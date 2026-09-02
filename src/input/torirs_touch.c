@@ -403,7 +403,19 @@ ToriRS_TouchEvent(
      * was only a long press still runs nothing.
      */
     if( !touch->multi && !finger->dragging )
-        touch_click(bus, TORIRSM_LEFT, canvas_x, canvas_y);
+    {
+        /* Where the click lands: a TAP clicks where the finger LANDED, the
+         * lift after a long press where it LIFTED. A finger rolls as it
+         * comes off the glass, up to the slop, and the slop is a quarter of
+         * a 40-pixel stone: a tap that landed on one button registered on
+         * its neighbour. The person aimed at the landing point. The long
+         * press is the other way round by design (the row is chosen by
+         * where the finger stops), and `held` says which gesture this was. */
+        if( finger->held )
+            touch_click(bus, TORIRSM_LEFT, canvas_x, canvas_y);
+        else
+            touch_click(bus, TORIRSM_LEFT, finger->start_x, finger->start_y);
+    }
 
     finger->id = -1;
     if( touch->count > 0 )

@@ -23,7 +23,7 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_PRODUCER_COUNT == 633,
+    HOST_REQUEST_PRODUCER_COUNT == 636,
     "the producer replay test must exercise every hosted opcode");
 
 struct CaptureHost

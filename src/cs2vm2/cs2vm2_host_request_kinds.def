@@ -442,6 +442,12 @@ CS2VM_HOST_REQUEST_KIND(NC_PARAM, 6513, (int param_id; int type_id;))
 CS2VM_HOST_REQUEST_KIND(LC_PARAM, 6514, (int param_id; int type_id;))
 CS2VM_HOST_REQUEST_KIND(OC_PARAM, 6515, (int param_id; int item_id;))
 CS2VM_HOST_REQUEST_KIND(STRUCT_PARAM, 6516, (int struct_id; int param_id;))
+/* The mobile soft keyboard: the OSM chatbox's "Start chatting" stone and the
+ * mobile text fields. `text` is the line the keyboard opens on, `limit` its
+ * length cap. */
+CS2VM_HOST_REQUEST_KIND(MOBILE_KEYBOARDHIDE, 6521, (int _unused;))
+CS2VM_HOST_REQUEST_KIND(MOBILE_KEYBOARDSHOWSTRING, 6522, (char* text; int limit;))
+CS2VM_HOST_REQUEST_KIND(MOBILE_KEYBOARDSHOWINTEGER, 6523, (char* text; int limit;))
 CS2VM_HOST_REQUEST_KIND(WORLDMAP_INIT, 6600, (int opcode; int arg0; int arg1;))
 CS2VM_HOST_REQUEST_KIND(WORLDMAP_GETMAPNAME, 6601, (int opcode; int arg0; int arg1;))
 CS2VM_HOST_REQUEST_KIND(WORLDMAP_SETMAP, 6602, (int opcode; int arg0; int arg1;))

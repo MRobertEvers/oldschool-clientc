@@ -148,15 +148,17 @@ main(void)
     struct ToriRS_Touch touch;
     struct Seen seen;
 
-    /* ---- a tap is a left click, where the finger was ---- */
+    /* ---- a tap is a left click, where the finger LANDED ---- */
+    /* A finger rolls as it comes off the glass -- by up to the slop, which is
+     * a quarter of a 40-pixel button. The person aimed at where it landed. */
     CmdBus_Init(&bus);
     ToriRS_TouchReset(&touch);
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 100, 80, 0);
-    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 101, 81, 90);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 101 + 8, 81 + 8, 90);
     drain(&bus, &seen);
     CHECK(seen.downs == 1 && seen.ups == 1, "a tap is one press and one release");
     CHECK(seen.last_button == TORIRSM_LEFT, "and the button is the left one");
-    CHECK(seen.last_x == 101 && seen.last_y == 81, "at the point the finger left");
+    CHECK(seen.last_x == 100 && seen.last_y == 80, "at the point the finger landed, not where it rolled to");
 
     /* ---- a drag is NOT a click ---- */
     CmdBus_Init(&bus);

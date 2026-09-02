@@ -294,6 +294,8 @@ void test_emit_stack_count_placeholder(void);
 void test_emit_golden(void);
 void test_minimenu(void);
 void test_key_dispatch(void);
+void test_same_frame_press_release_clicks(void);
+void test_touch_swipe_scrolls_layer(void);
 void test_id_index(void);
 void test_child_subid(void);
 void test_menu_submenus(void);

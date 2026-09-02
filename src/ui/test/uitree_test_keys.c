@@ -394,16 +394,103 @@ test_same_frame_press_release_clicks(void)
         LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 120);
         LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 120);
         run_frame(&interact, tree, &host, input, &out);
-        TEST_ASSERT(out.clicked_com_id == 11, "tap %d: the button under the finger is clicked", tap);
+        TEST_ASSERT(out.clicked_com_id == 11, "every tap clicks the button under the finger");
         TEST_ASSERT(!interact.swallow_left_click,
-            "tap %d: no release is owed, so nothing is latched to swallow the next tap", tap);
+            "no release is owed after a tap, so nothing is latched to swallow the next one");
         /* The finger lifted: the frame after a tap has no pointer and no
          * buttons, like the touch layer's mouse-leave. */
         LibToriRS_Input_Begin(input, (uint64_t)(1000 + tap * 700 + 100));
         LibToriRS_Input_PushMouseLeave(input);
         run_frame(&interact, tree, &host, input, &out);
-        TEST_ASSERT(out.clicked_com_id < 0, "tap %d: the idle frame clicks nothing", tap);
+        TEST_ASSERT(out.clicked_com_id < 0, "the idle frame after a tap clicks nothing");
     }
+
+    UITree_Free(tree);
+}
+
+/*
+ * A held finger inside a scrollable layer scrolls it (UIInteraction::
+ * touch_scroll): the layer moves by the finger's travel, the row under the
+ * finger is never pressed, and the lift is not a click. A tap in the same
+ * layer still clicks its row, and a mouse (touch_scroll off) still presses.
+ */
+void
+test_touch_swipe_scrolls_layer(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hstate;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t list;
+    int32_t row;
+
+    printf("TEST: a held finger inside a scrollable layer scrolls it\n");
+
+    UITree_TestHostInit(&host, &hstate);
+    UIInteraction_Init(&interact);
+    interact.touch_scroll = 1;
+    list = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 10, 0, 0, 200, 100);
+    row = UITree_TestPushXy(tree, list, UIELEM_RS_RECT, 11, 0, 20, 200, 20);
+    set_on_op(tree, row, 200);
+    tree->components[row].behavior.click_mask = 1u;
+    UITree_TestResolve(tree);
+    TEST_ASSERT(UITree_SetScrollSizeAt(tree, list, 200, 400), "the list is taller than its box");
+    TEST_ASSERT(UITree_ScrollLayerNeedsVertical(&tree->components[list]), "and so needs scrolling");
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    /* The finger lands on the row and is held (the touch layer's drag press). */
+    LibToriRS_Input_Begin(input, 1000);
+    LibToriRS_Input_PushMouseMove(input, 100, 30);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id < 0, "the row under a held finger is not pressed");
+    TEST_ASSERT(interact.ts_layer == list, "the list owns the gesture");
+
+    /* It travels 50 px up the screen: the list scrolls down by 50. */
+    LibToriRS_Input_Begin(input, 1050);
+    LibToriRS_Input_PushMouseMove(input, 100, -20);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(tree->components[list].scroll_y == 50, "the layer scrolled by the finger's travel");
+    TEST_ASSERT(out.clicked_com_id < 0, "still no click");
+
+    /* Past the end: clamped. */
+    LibToriRS_Input_Begin(input, 1100);
+    LibToriRS_Input_PushMouseMove(input, 100, -900);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(tree->components[list].scroll_y == 300, "the scroll is clamped to the content");
+
+    /* The lift is the gesture's, not a click. */
+    LibToriRS_Input_Begin(input, 1150);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, -900);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id < 0, "lifting after a swipe clicks nothing");
+    TEST_ASSERT(interact.ts_layer < 0, "the gesture is over");
+
+    /* A tap on the row (press and release together) still clicks it. */
+    LibToriRS_Input_Begin(input, 1300);
+    LibToriRS_Input_PushMouseLeave(input);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(UITree_SetScrollPosAt(tree, list, 0, 0), "back to the top");
+    LibToriRS_Input_Begin(input, 1400);
+    LibToriRS_Input_PushMouseMove(input, 100, 30);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id == 11, "a tap in a scrollable list still clicks its row");
+
+    /* A mouse: no swipe, the press reaches the row. */
+    interact.touch_scroll = 0;
+    LibToriRS_Input_Begin(input, 1500);
+    LibToriRS_Input_PushMouseLeave(input);
+    run_frame(&interact, tree, &host, input, &out);
+    LibToriRS_Input_Begin(input, 1600);
+    LibToriRS_Input_PushMouseMove(input, 100, 30);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id == 11, "a mouse press still presses the row");
 
     UITree_Free(tree);
 }

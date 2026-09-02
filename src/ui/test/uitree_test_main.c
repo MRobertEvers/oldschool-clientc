@@ -30,6 +30,7 @@ main(void)
     test_emit_golden();
     test_key_dispatch();
     test_same_frame_press_release_clicks();
+    test_touch_swipe_scrolls_layer();
     test_minimenu();
     test_id_index();
     test_child_subid();

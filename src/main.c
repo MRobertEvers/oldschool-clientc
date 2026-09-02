@@ -2917,7 +2917,10 @@ frame_loop_teardown(void)
                 struct UITreeComponent const* c = &app.tree->components[i];
                 if( c->freed || ((c->component_id >> 16) & 0xFFFF) != want )
                     continue;
-                TORIRS_LOG("BOUNDS com=0x%08x (%d|%d) type=%d graphic=%d hidden=%d "
+                /* TORIRS_REPORT, not TORIRS_LOG: the lever is the env var,
+                 * and the optimised build is the one the geometry question is
+                 * asked of. */
+                TORIRS_REPORT("BOUNDS com=0x%08x (%d|%d) type=%d graphic=%d hidden=%d "
                     "abs=%d,%d %dx%d "
                     "wh=%d,%d modes=w%d,h%d,x%d,y%d scroll=%dx%d off=%d,%d\n",
                     (unsigned)c->component_id,
@@ -4079,6 +4082,9 @@ main(
         return 1;
 #endif
     App_Init(&app, &cfg);
+    /* A finger scrolls a list by dragging it (UIInteraction::touch_scroll);
+     * a mouse has the bar and the wheel. Same rule as App.touch_ui. */
+    app.interact.touch_scroll = app.touch_ui;
     if( getenv("TORIRS_PREVIEW_BMP") )
     {
         /* Default to the fixed-mode main/modal slot used by cs2dom. App_Init

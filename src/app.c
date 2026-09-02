@@ -17006,6 +17006,23 @@ app_logic_tick(struct App* app)
         app->host.logout_requested = false;
         app->logout_requested = 1;
     }
+    /* The mobile scripts' soft keyboard: "Start chatting" shows it over the
+     * chat line, its second press hides it. The chat line's focus is what the
+     * platform keyboard follows (app_wants_text_input), so this is the same
+     * focus a tap on the chat area gives. */
+    if( app->host.keyboard_request )
+    {
+        app->chat_input_active = app->host.keyboard_request > 0;
+        /* The push to the platform is edge-triggered on "wanted" (see
+         * App_TakeTextInputChange), and the person may have dismissed the
+         * keyboard with the system's own button, which changes nothing here.
+         * A request is a deliberate ask: forget what was last pushed so the
+         * next take pushes the current answer again, as a tap on a login
+         * field does. */
+        app->text_input_effective = -1;
+        app->host.keyboard_request = 0;
+        app->need_redraw = 1;
+    }
 
     if( app->host.resume_pausebutton_component_id != -1 )
     {

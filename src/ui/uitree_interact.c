@@ -96,6 +96,7 @@ scrollbar_capture_live(
 void
 UIInteraction_Init(struct UIInteraction* interact)
 {
+    interact->ts_layer = -1;
     assert(interact);
     memset(interact, 0, sizeof(*interact));
     interact->input_state.hovered = -1;
@@ -555,6 +556,75 @@ bridge_input_to_uitree(
     }
 
     return last;
+}
+
+/*
+ * Swipe-to-scroll (UIInteraction::touch_scroll). Returns 1 while the finger
+ * owns the pointer; the caller then keeps the generic press/click/drag path
+ * from seeing it, as it does for a scrollbar grip.
+ *
+ * Only a HELD left press claims: the touch layer sends a press on its own
+ * when the finger has already travelled past its slop (a drag), and a tap
+ * as press-and-release in one frame, which IsClick tells apart. The layer
+ * is the nearest scrollable ancestor of whatever is under the finger --
+ * an item, a row, or the layer's own blank space -- so a list scrolls from
+ * anywhere inside it, which is what a phone expects. A layer that does not
+ * need to scroll claims nothing, so an inventory slot still drags.
+ */
+static int
+interact_touch_scroll(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out)
+{
+    int const mx = input->curr.mouse_x;
+    int const my = input->curr.mouse_y;
+
+    if( !interact->touch_scroll )
+        return 0;
+    if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
+        !LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
+    {
+        int32_t node = UITree_HitTest(tree, mx, my);
+        interact->ts_layer = -1;
+        while( node >= 0 && (uint32_t)node < tree->component_count )
+        {
+            struct UITreeComponent const* c = &tree->components[node];
+            if( c->type == UIELEM_RS_LAYER && UITree_ScrollLayerNeedsVertical(c) )
+            {
+                interact->ts_layer = node;
+                interact->ts_incarnation = c->incarnation;
+                interact->ts_press_y = my;
+                interact->ts_start_scroll_y = c->scroll_y;
+                break;
+            }
+            node = c->parent;
+        }
+    }
+    if( interact->ts_layer < 0 )
+        return 0;
+    if( (uint32_t)interact->ts_layer >= tree->component_count ||
+        tree->components[interact->ts_layer].incarnation != interact->ts_incarnation )
+    {
+        interact->ts_layer = -1;
+        return 0;
+    }
+    if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+    {
+        /* The finger lifted: the release is the gesture's, not a click. */
+        interact->ts_layer = -1;
+        out->cancelled_pointer_click = 1;
+        return 1;
+    }
+    {
+        struct UITreeComponent const* layer = &tree->components[interact->ts_layer];
+        UITree_SetScrollPosAt(
+            tree, interact->ts_layer, layer->scroll_x,
+            interact->ts_start_scroll_y - (my - interact->ts_press_y));
+    }
+    out->cancelled_pointer_click = 1;
+    return 1;
 }
 
 /* IF1 scrollbars are emit-drawn (not draggable components), so they have no
@@ -1811,9 +1881,11 @@ UITree_InteractFrameWithPointerOwner(
         out->cancelled_pointer_click = 1;
 
     sb_owns_mouse = interact_scrollbars(interact, tree, ui_host, input, out);
+    if( !sb_owns_mouse )
+        sb_owns_mouse = interact_touch_scroll(interact, tree, input, out);
 
-    /* While a scrollbar owns the mouse, keep the generic hover/click/drag path
-     * from seeing this press at all. */
+    /* While a scrollbar (or a swiping finger) owns the mouse, keep the generic
+     * hover/click/drag path from seeing this press at all. */
     if( sb_owns_mouse )
     {
         memset(&ui_result, 0, sizeof(ui_result));

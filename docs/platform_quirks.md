@@ -1001,6 +1001,60 @@ one lane only.
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
   [`3rd/trspk/gles2/gles2_vertex.h`](../3rd/trspk/gles2/gles2_vertex.h)
 
+### ANDROID-INPUT-001 - A finger's tap is a press and a release in one frame
+
+- **Status:** Fixed 2026-09-02
+- **Applies to:** Every touch backend (`input/torirs_touch.c` pushes move,
+  down and up together for a tap); a mouse clicked faster than a frame too
+- **Behavior:** Every 2D widget was dead to a tap while a long press (a right
+  click) worked; then, once taps worked, an inventory tap could drop the item.
+- **Cause or reason:** `UITree_InputUpdate` fires a component's on_op/on_click
+  on the DOWN (press-edge click) and suppresses the release; the bridge in
+  `uitree_interact.c` returned only the UP's result and so lost the click,
+  and the press-click latch that swallows the matching release stayed armed
+  for a release that had already happened, swallowing the NEXT tap. The
+  drop: the inventory grid's slot on_op is the SHIFT-CLICK handler, bound
+  only while `keyheld(shift)` -- a soft keyboard's synthesised modifier with
+  a lost release makes that true for the whole session.
+- **Rules:** the bridge carries a press-edge click across a same-frame UP;
+  the latch arms only while the button is still held; `ClientActivity` drops
+  SHIFT/CTRL/ALT that come from the virtual keyboard. Tests:
+  `test_same_frame_press_release_clicks`, `test_touch_swipe_scrolls_layer`
+  (`make -C src test-uitree`).
+- **Swipe-to-scroll:** `UIInteraction::touch_scroll` (from `App.touch_ui`):
+  a HELD left press inside a layer that needs vertical scrolling scrolls it
+  by the finger's travel and presses nothing beneath; a tap still clicks.
+- **Levers:** `TORIRS_TOUCH_DEBUG=1` (touch -> canvas mapping, every key edge),
+  `TORIRS_LOGIN_DEBUG=1` (`ui_click: hovered/clicked`),
+  `TORIRS_CLICK_DEBUG=1` (`invclick:` rows, `clickdbg: send op`).
+
+### ANDROID-GLES2-003 - The fourth vertex attribute slot is shared, and the rotated-mask draw must leave it enabled
+
+- **Status:** Fixed 2026-09-02
+- **Applies to:** Every GLES2 lane (Android, and the web build that shares
+  `platform_renderer_gles2_*`)
+- **Behavior:** The minimap terrain and the compass drew nothing, on every
+  identity and every UI path, with two rotated-mask draws per frame, live
+  textures and no GL error. The disc showed the 3D world through it.
+- **Cause or reason:** The enable-once attribute scheme (2ad46de3b, 2026-09-01)
+  put the world's texinfo, the UI's sampler select and the rotated-mask
+  program's `a_mask_texcoord` on ONE attribute index (the static assert in
+  `platform_renderer_gles2_core.c`). `gles2_bind_rotmask_stream` kept its
+  older line that switched "the unused texinfo array" off for this draw, and
+  re-enabled the mask uv only when arriving from the UI layout. Arriving from
+  the world layout -- every frame on the phone, the minimap being the first 2D
+  draw after the world pass -- the mask uv array stayed disabled, the shader
+  read the constant (0,0), an opaque mask corner, and discarded every
+  fragment.
+- **Rule:** the shared slot is enabled at init and by every layout; a layout
+  switch may re-point it, never disable it. The Adreno 320 note about a stray
+  enabled array applied only while the mask uv had its own index.
+- **How it was found:** `TORIRS_GLES2_DEBUG=1` shows `rotmask 2.0` draws per
+  frame; a one-shot print of each rotmask command (rect, anchors, sprite and
+  mask sizes, opaque pixel counts, texture ids) showed identical, sane inputs
+  on both identities, which left the draw itself; `TORIRS_GLES2_UI_DEFER=0`
+  failed the same way, which left the stream binding.
+
 ### ANDROID-GLES2-002 - The dual-core lane runs the world's model stage on the second core
 
 - **Status:** Opt-in contract

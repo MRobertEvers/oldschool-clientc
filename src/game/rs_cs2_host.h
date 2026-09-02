@@ -783,6 +783,14 @@ struct RS_CS2Host
      *  the teardown lands behind the packets this tick has already queued. */
     bool logout_requested;
 
+    /** Set by MOBILE_KEYBOARDSHOWSTRING / SHOWINTEGER (6522/6523) and
+     *  MOBILE_KEYBOARDHIDE (6521): 1 = show, -1 = hide, 0 = nothing pending.
+     *  Drained by the App's tick into the chat line's focus, which is what
+     *  raises and lowers the platform's soft keyboard (app_wants_text_input).
+     *  The mobile scripts own the toggle's state (%varcint1226); the host
+     *  only does what the last request said. */
+    int keyboard_request;
+
     /** Set by IF_CLOSE (3103) — an interface's close button. Drained by the
      *  App's tick, which sends CLOSE_MODAL; the server is what actually
      *  unmounts, so nothing here touches the tree. */
