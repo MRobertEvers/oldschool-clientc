@@ -1,9 +1,10 @@
 #include "platform/platform_audio.h"
 
+#include "platform/platform_audio_capture.h"
+
 #include <SDL.h>
 #include <assert.h>
 #include <math.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,28 +24,15 @@
  * mode lets the mixer run at the device's own cadence.
  */
 
-/*
- * TORIRS_AUDIO_WAV=<path> tees every block the device is given into a WAV.
- *
- * "It sounds wrong" is not a bug report anyone can act on, and the mixer's
- * counters cannot tell a click from a clean play. This makes the actual output
- * inspectable: open it in an editor, or run a spectrum over it. The header's
- * length fields are patched on close.
- */
-/* Diagnostics-only memory (~10 MiB stereo) that survives a long live boot
- * frame without dropping the very samples being investigated. */
+/* TORIRS_AUDIO_WAV, in platform_audio_capture.c -- the same tee the Android
+ * backend uses. Diagnostics-only memory (~10 MiB stereo) that survives a long
+ * live boot frame without dropping the very samples being investigated. */
 #define AUDIO_CAPTURE_RING_SECONDS 120
 
 struct PlatformAudio
 {
     SDL_AudioDeviceID device;
-    FILE* capture;
-    long capture_frames;
-    int16_t* capture_ring;
-    int capture_ring_frames;
-    _Atomic uint64_t capture_read_frame;
-    _Atomic uint64_t capture_write_frame;
-    _Atomic int capture_dropped_frames;
+    struct PlatformAudioCapture* capture;
     int sample_rate;
     bool owns_sdl_audio;
     bool device_open;
@@ -68,77 +56,6 @@ struct PlatformAudio
     uint64_t stream_ring_sum_frames;
     int stream_ring_current_frames;
 };
-
-static void
-capture_push(
-    struct PlatformAudio* audio,
-    const int16_t* pcm,
-    int frames)
-{
-    uint64_t write;
-    uint64_t read;
-    int first;
-
-    if( !audio->capture || !audio->capture_ring || frames <= 0 )
-        return;
-    write = atomic_load_explicit(&audio->capture_write_frame, memory_order_relaxed);
-    read = atomic_load_explicit(&audio->capture_read_frame, memory_order_acquire);
-    if( write - read + (uint64_t)frames > (uint64_t)audio->capture_ring_frames )
-    {
-        atomic_fetch_add_explicit(
-            &audio->capture_dropped_frames, frames, memory_order_relaxed);
-        return;
-    }
-    first = audio->capture_ring_frames - (int)(write % (uint64_t)audio->capture_ring_frames);
-    if( first > frames )
-        first = frames;
-    memcpy(
-        audio->capture_ring +
-            (size_t)(write % (uint64_t)audio->capture_ring_frames) * TORIRS_AUDIO_CHANNELS,
-        pcm,
-        (size_t)first * TORIRS_AUDIO_CHANNELS * sizeof(int16_t));
-    if( first < frames )
-        memcpy(
-            audio->capture_ring,
-            pcm + (size_t)first * TORIRS_AUDIO_CHANNELS,
-            (size_t)(frames - first) * TORIRS_AUDIO_CHANNELS * sizeof(int16_t));
-    atomic_store_explicit(
-        &audio->capture_write_frame, write + (uint64_t)frames, memory_order_release);
-}
-
-static void
-capture_drain(struct PlatformAudio* audio)
-{
-    uint64_t read;
-    uint64_t write;
-
-    assert(audio);
-    if( !audio->capture || !audio->capture_ring )
-        return;
-    read = atomic_load_explicit(&audio->capture_read_frame, memory_order_relaxed);
-    write = atomic_load_explicit(&audio->capture_write_frame, memory_order_acquire);
-    while( read < write )
-    {
-        int frames = (int)(write - read);
-        int contiguous =
-            audio->capture_ring_frames - (int)(read % (uint64_t)audio->capture_ring_frames);
-        size_t written;
-
-        if( frames > contiguous )
-            frames = contiguous;
-        written = fwrite(
-            audio->capture_ring +
-                (size_t)(read % (uint64_t)audio->capture_ring_frames) * TORIRS_AUDIO_CHANNELS,
-            sizeof(int16_t) * TORIRS_AUDIO_CHANNELS,
-            (size_t)frames,
-            audio->capture);
-        read += written;
-        audio->capture_frames += (long)written;
-        atomic_store_explicit(&audio->capture_read_frame, read, memory_order_release);
-        if( written != (size_t)frames )
-            break;
-    }
-}
 
 static void
 sample_stream_ring(struct PlatformAudio* audio)
@@ -221,7 +138,8 @@ audio_callback(
 
     audio->frames_played += frames;
 
-    capture_push(audio, (const int16_t*)stream, frames);
+    if( audio->capture )
+        PlatformAudioCapture_Push(audio->capture, (const int16_t*)stream, frames);
 }
 
 struct PlatformAudio*
@@ -286,50 +204,8 @@ PlatformAudio_Init(
             have.samples, have.freq);
     audio->callback_period_ms = (double)have.samples * 1000.0 / (double)have.freq;
 
-    if( getenv("TORIRS_AUDIO_WAV") )
-    {
-        audio->capture = fopen(getenv("TORIRS_AUDIO_WAV"), "wb");
-        if( audio->capture )
-        {
-            unsigned char header[44] = { 0 };
-            memcpy(header, "RIFF", 4);
-            memcpy(header + 8, "WAVEfmt ", 8);
-            header[16] = 16;
-            header[20] = 1;
-            header[22] = TORIRS_AUDIO_CHANNELS;
-            header[24] = (unsigned char)(audio->sample_rate & 0xFF);
-            header[25] = (unsigned char)((audio->sample_rate >> 8) & 0xFF);
-            header[26] = (unsigned char)((audio->sample_rate >> 16) & 0xFF);
-            {
-                int byte_rate = audio->sample_rate * TORIRS_AUDIO_CHANNELS * 2;
-                header[28] = (unsigned char)(byte_rate & 0xFF);
-                header[29] = (unsigned char)((byte_rate >> 8) & 0xFF);
-                header[30] = (unsigned char)((byte_rate >> 16) & 0xFF);
-            }
-            header[32] = TORIRS_AUDIO_CHANNELS * 2;
-            header[34] = 16;
-            memcpy(header + 36, "data", 4);
-            fwrite(header, 1, sizeof(header), audio->capture);
-            audio->capture_ring_frames = audio->sample_rate * AUDIO_CAPTURE_RING_SECONDS;
-            audio->capture_ring = calloc(
-                (size_t)audio->capture_ring_frames * TORIRS_AUDIO_CHANNELS,
-                sizeof(int16_t));
-            if( !audio->capture_ring )
-            {
-                fclose(audio->capture);
-                audio->capture = NULL;
-                fprintf(stderr, "audio: cannot allocate capture ring\n");
-            }
-            else
-            {
-                fprintf(
-                    stderr,
-                    "audio: capturing to %s via %d-frame asynchronous ring\n",
-                    getenv("TORIRS_AUDIO_WAV"),
-                    audio->capture_ring_frames);
-            }
-        }
-    }
+    audio->capture =
+        PlatformAudioCapture_Open(audio->sample_rate, AUDIO_CAPTURE_RING_SECONDS);
     /* Grow the mixer's accumulator before the real-time thread starts. */
     {
         int16_t* warmup = calloc((size_t)have.samples * TORIRS_AUDIO_CHANNELS, sizeof(int16_t));
@@ -353,21 +229,10 @@ PlatformAudio_Free(struct PlatformAudio* audio)
         SDL_CloseAudioDevice(audio->device);
         audio->device = 0;
     }
-    if( audio->capture )
-    {
-        capture_drain(audio);
-        uint32_t data_bytes = (uint32_t)(audio->capture_frames * TORIRS_AUDIO_CHANNELS * 2);
-        uint32_t riff_size = 36 + data_bytes;
-        fseek(audio->capture, 4, SEEK_SET);
-        fwrite(&riff_size, 4, 1, audio->capture);
-        fseek(audio->capture, 40, SEEK_SET);
-        fwrite(&data_bytes, 4, 1, audio->capture);
-        fclose(audio->capture);
-    }
+    PlatformAudioCapture_Close(audio->capture);
     if( audio->owns_sdl_audio )
         SDL_QuitSubSystem(SDL_INIT_AUDIO);
     ToriRS_Mixer_Free(&audio->mixer);
-    free(audio->capture_ring);
     free(audio);
 }
 
@@ -408,7 +273,9 @@ PlatformAudio_SubmitAll(
 void
 PlatformAudio_Update(struct PlatformAudio* audio)
 {
-    capture_drain(audio);
+    assert(audio);
+    if( audio->capture )
+        PlatformAudioCapture_Drain(audio->capture);
 }
 
 void
@@ -471,8 +338,8 @@ PlatformAudio_Stats(struct PlatformAudio* audio)
     stats.callback_period_ms = audio->callback_period_ms;
     stats.callback_jitter_max_ms = audio->callback_jitter_max_ms;
     stats.render_max_ms = audio->render_max_ms;
-    stats.capture_dropped_frames = atomic_load_explicit(
-        &audio->capture_dropped_frames, memory_order_relaxed);
+    stats.capture_dropped_frames =
+        audio->capture ? PlatformAudioCapture_DroppedFrames(audio->capture) : 0;
     if( audio->device )
         SDL_UnlockAudioDevice(audio->device);
     return stats;

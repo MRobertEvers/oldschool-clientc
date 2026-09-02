@@ -93,9 +93,16 @@ LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl
 #                     appear: the first would let main.c hand this lane the
 #                     desktop GL 3.3 renderer no phone driver can run, the
 #                     second was the switch of the retired WebGL1 fork of it.
+#   -lOpenSLES and    this lane has a real audio device (ANDROID-AUDIO-001).
+#   the opensles      Reverting it is a one-word edit -- platform_audio_null.c
+#   backend           defines exactly the same functions -- and the result
+#                     builds, boots, and is silent. Nothing else would say so,
+#                     so both halves are named: the library and the source that
+#                     needs it.
 LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
                         TORIRS_HAVE_GLES2=1 \
-                        -shared -llog -landroid -lGLESv2 -lEGL
+                        -shared -llog -landroid -lGLESv2 -lEGL -lOpenSLES \
+                        platform/platform_audio_opensles.c
 # -lSDL2/-sUSE_SDL=2 are forbidden, not merely absent. "No SDL on Android" is
 # the defining property of this lane, and the way it would be lost is somebody
 # adding SDL to a SHARED variable to fix another host -- which this catches at
@@ -105,11 +112,15 @@ LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
 # presence would mean a desktop block's flags leaked into this one.
 LANE_FORBID_android  := -lSDL2 -sUSE_SDL=2 -dead_strip -mfpmath=sse \
                         -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9 \
-                        TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1
+                        TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1 \
+                        platform/platform_audio_null.c
 
 # Everything a lane actually compiles and links with. GPU object names are in
-# here so "no WebGL in the win32 link" is checkable as a flag would be.
-LANE_EFFECTIVE = $(CFLAGS) $(LDFLAGS) $(PLATFORM_GPU_OBJ_NAMES)
+# here so "no WebGL in the win32 link" is checkable as a flag would be, and the
+# platform sources so is "which backend did this lane pick" -- a swapped
+# implementation of an interface every lane implements is invisible in the
+# flags.
+LANE_EFFECTIVE = $(CFLAGS) $(LDFLAGS) $(PLATFORM_GPU_OBJ_NAMES) $(PLATFORM_SRCS)
 
 LANE_MISSING = $(strip $(foreach f,$(LANE_REQUIRE_$(PLATFORM)), \
                  $(if $(findstring $(f),$(LANE_EFFECTIVE)),,$(f))))

@@ -119,6 +119,25 @@ ticks and the network drains, and `Present` simply has nowhere to put a picture
 until a surface returns. `surfaceDestroyed` publishes the NULL **before** it
 returns, because Android destroys the surface the moment it does.
 
+That NULL is also what stops the sound. Nothing else would: the loop above
+keeps stepping, so a client that did not read it would go on playing music from
+the recents list. `PlatformAudio_Update` reads `PlatformAndroid_Window()` once
+a frame and pauses or resumes the OpenSL ES player to match.
+
+### The audio device has its own thread, and its own mutex
+
+`platform_audio_opensles.c` is a third thread the lane does not start: OpenSL
+ES calls back on one of its own when a buffer completes, and the mix
+(`ToriRS_Mixer`) runs there rather than on the frame thread. It has to. This is
+the lane where a world rebuild costs hundreds of milliseconds, and a mixer fed
+from the frame loop would turn every one of them into a gap in the music.
+
+So the mixer is shared state, under a mutex of its own — nothing to do with
+`g_lock`, which the audio thread never takes. The frame thread holds it across
+a whole batch of submitted commands; the audio thread holds it across one 20ms
+render. Neither allocates while holding it, and the audio thread calls no JNI
+at all: it is not a JVM thread.
+
 ---
 
 ## 4. The frame: two paths
@@ -347,7 +366,7 @@ profile can be tried with `--gles2` or `--offline` without rebuilding the APK.
 | **A windowing library** | The point of the lane. No header, no library, no such symbol in the `.so`, and no mention of one in the lane's sources. |
 | **A CMakeLists.txt** | `src/platform/platform.mk` is the only thing that knows what a platform is. A second build description would restate every source and every `-D`, and drift silently — a stale duplicate still compiles. Gradle consumes the `.so`; it does not build C. |
 | **The embedded server** | `EMBED_SERVER` stays 0. Android is a *client*: it dials a real server over TCP or WebSocket. Linking ToriRSServer in would put a second world simulation on the phone — needing the compiled script pack and the server's own copy of the cache on the device — to serve one player already in the process. `net_transport_embed.c` compiles to a **silent stub** without it, so a `transport=embed` manifest would come up and connect to nothing; the boot menu refuses those by name instead. |
-| **Audio** | `platform_audio_null.c`, exactly as both Windows lanes do today. |
+| **AAudio** | Audio is OpenSL ES (`platform_audio_opensles.c`), not the newer API. AAudio does not exist below API 26 and this lane's floor is 21, on a phone from 2013 — a second backend the target device could never take. See ANDROID-AUDIO-001 in [`platform_quirks.md`](platform_quirks.md). |
 | **AndroidX** | Two Activities and a directory listing, against framework classes that have existed since API 1. |
 | **A `GLSurfaceView`** | It would bring a second render thread and a second GL context with its own opinion about when a frame starts. |
 | **Runtime storage permission** | Everything lives under the app's own external files directory. |
@@ -430,6 +449,7 @@ requirements have failed quietly before:
 | `-mfpu=neon` | armv7 does not enable NEON by default, and the kernels select their SIMD lane with `#if defined(__ARM_NEON)` at **compile** time. Without it every one silently takes the scalar fallback — no symptom but a slower frame. |
 | `-fPIC` | fails, but deep in the linker naming a *tommath* symbol rather than the cause. |
 | `TORIRS_HAVE_GLES2` | the GLES2 renderer (shared with the web lane); `TORIRS_HAVE_GL3` and `TORIRS_GL_ES2` are forbidden, so `main.c` cannot hand this lane a desktop GL renderer or the retired WebGL1 fork's switch. |
+| `-lOpenSLES` **and** `platform_audio_opensles.c` | the audio device. Reverting it is a one-word edit — `platform_audio_null.c` defines exactly the same functions — and the result builds, boots and is silent. So the *source* is named too: `LANE_EFFECTIVE` carries `PLATFORM_SRCS`, and the null backend is forbidden here by name. Which implementation of a shared interface a lane picked is invisible in the flags. |
 
 The desktop window library's link flags are **forbidden** by name in
 `platform_check.mk` (`LANE_FORBID_android`), not merely absent — the way the

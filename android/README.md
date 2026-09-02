@@ -238,6 +238,34 @@ cannot run on a phone unnoticed; a device manifest carrying
 
 ---
 
+## Sound
+
+Audio is on, through **OpenSL ES** (`src/platform/platform_audio_opensles.c`),
+and needs nothing turned on and nothing pushed: the clips and the music come
+out of whichever cache the profile named. The player sits on the **media**
+stream, so the volume rocker adjusts it while the client is in front, and it
+**pauses when you leave the app** and resumes when you come back -- the frame
+loop keeps running without a Surface, so nothing else would stop it.
+
+AAudio is not used. It does not exist below API 26 and this lane's floor is 21;
+see ANDROID-AUDIO-001 in
+[`docs/platform_quirks.md`](../docs/platform_quirks.md).
+
+To check it from the host rather than by ear:
+
+```sh
+# one active track for the client, 22050Hz, Type 3 (music), no underruns
+adb shell dumpsys media.audio_flinger | grep -A4 Tracks
+```
+
+`TORIRS_AUDIO_TRACE=1` in `env.txt` prints the mixer's ledger when the client
+exits, and `TORIRS_AUDIO_WAV=<path under the data root>` tees everything the
+device was given into a WAV you can pull off and open -- which is the only way
+to answer "it sounds wrong" on a phone. `TORIRS_SIM_SONG=<id>` /
+`TORIRS_SIM_SOUND=<id>` play something without a server to fire it.
+
+---
+
 ## No embedded server
 
 This lane is a **client**. `EMBED_SERVER` stays 0, so a manifest carrying

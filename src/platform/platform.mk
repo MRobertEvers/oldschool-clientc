@@ -77,6 +77,7 @@ ifneq ($(filter $(PLATFORM),macos linux),)
                        platform/platform_x_io_ondemand.c \
                        platform/platform_x_http.c \
                        platform/platform_audio_sdl2.c \
+                       platform/platform_audio_capture.c \
                        platform/platform_gl_context_sdl.c \
                        platform/platform_sdl2_renderer_gl3.c \
                        platform/platform_sdl2_renderer_gl3zb.c
@@ -614,15 +615,17 @@ else ifeq ($(PLATFORM),android)
   # C -- it consumes what this makefile produced (android/README.md).
   PLATFORM_TARGET   := $(REPO_ROOT)/android/src/main/jniLibs/$(ANDROID_ABI)/libtorirs.so
 
-  # Portable stdio IO and the null audio backend. Android has a filesystem and
-  # ordinary BSD sockets, so platform_x_io.c and the JS5/on-demand cache
-  # producers work here unchanged; audio is silent for now, exactly as the two
-  # Windows lanes are.
+  # Portable stdio IO and the OpenSL ES audio backend. Android has a filesystem
+  # and ordinary BSD sockets, so platform_x_io.c and the JS5/on-demand cache
+  # producers work here unchanged; audio is a real device on this lane, unlike
+  # the two Windows lanes, and platform_audio_capture.c is the TORIRS_AUDIO_WAV
+  # tee it shares with the desktop backend.
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_x_io_ondemand.c \
                        platform/platform_x_http.c \
-                       platform/platform_audio_null.c \
+                       platform/platform_audio_opensles.c \
+                       platform/platform_audio_capture.c \
                        platform/platform_android_jni.c \
                        platform/platform_android_gl.c \
                        platform/platform_renderer_gles2_core.c \
@@ -696,10 +699,13 @@ else ifeq ($(PLATFORM),android)
   # Android only: the browser has no second thread to give it.
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -DTORIRS_HAVE_GLES2=1 -DTORIRS_HAVE_GLES2_DUALCORE=1
   # -llog is __android_log_print (this lane's stderr -- see platform_android.c),
-  # -landroid is ANativeWindow. -shared, and -Wl,--no-undefined so a symbol this
-  # library forgot to define fails at link here rather than as an
-  # UnsatisfiedLinkError on the device.
-  PLATFORM_LDFLAGS := -shared -Wl,--no-undefined -lm -llog -landroid -lGLESv2 -lEGL
+  # -landroid is ANativeWindow, -lOpenSLES is the audio device
+  # (platform_audio_opensles.c; OpenSL ES rather than AAudio because AAudio does
+  # not exist below API 26 and this lane's floor is 21). -shared, and
+  # -Wl,--no-undefined so a symbol this library forgot to define fails at link
+  # here rather than as an UnsatisfiedLinkError on the device.
+  PLATFORM_LDFLAGS := -shared -Wl,--no-undefined -lm -llog -landroid -lGLESv2 -lEGL \
+                      -lOpenSLES
   # --gc-sections does real work only with -ffunction-sections/-fdata-sections,
   # which this tree does not compile with. Same reasoning as the linux lane.
   PLATFORM_STRIP_LDFLAGS :=

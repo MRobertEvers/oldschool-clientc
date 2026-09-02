@@ -260,7 +260,9 @@ one lane only.
   dropped while bytes from the previous clip remain queued.
 - **Reason:** This matches the reference client's one-effect-at-a-time behavior
   and avoids a separate callback mixer/audio synchronization path.
-- **Source:** [`src/platform/platform_audio_sdl2.c`](../src/platform/platform_audio_sdl2.c)
+- **Sources:** [`src/platform/platform_audio_sdl2.c`](../src/platform/platform_audio_sdl2.c),
+  [`src/platform/platform_audio_capture.c`](../src/platform/platform_audio_capture.c)
+  (`TORIRS_AUDIO_WAV`, shared with the Android backend)
 
 ## Windows (raw Win32, D3D9, and Soft3D/GDI)
 
@@ -1051,6 +1053,46 @@ one lane only.
   [`3rd/toridraw/toridraw.c`](../3rd/toridraw/toridraw.c) (scratch views),
   [`src/render/torirs_frame.c`](../src/render/torirs_frame.c)
   (`ToriRS_FrameBeginWorldOnly`)
+
+### ANDROID-AUDIO-001 - The device is OpenSL ES, and it stops with the activity
+
+- **Status:** Contract
+- **Applies to:** Android
+- **Behavior:** `platform_audio_opensles.c` opens an Android simple buffer
+  queue player and mixes `ToriRS_Mixer` on OpenSL ES's own callback thread,
+  four 20ms blocks in flight; the game thread submits under a plain mutex. It
+  is the SDL2 backend's shape (DESKTOP-AUDIO-001's callback mode), not the
+  browser's scheduled-block one, because a device callback is what keeps the
+  music continuous across the hundreds of milliseconds a world rebuild costs on
+  this hardware. Three things Android decides rather than the client:
+  - **OpenSL ES, not AAudio.** AAudio does not exist below API 26 and this
+    lane's floor is 21, on a 2013 armv7 phone. One backend serves every device
+    the APK installs on, and 80ms of queue is not a latency this client can
+    perceive -- an effect's trigger already arrived on a 600ms server tick.
+  - **22050Hz is asked for anyway.** No phone runs its mixer there, so
+    AudioFlinger resamples. The alternative is resampling every clip, voice and
+    synthesised music frame on the CPU this lane is shortest of, to hand the
+    platform something it will resample regardless.
+  - **The player is parked when the Surface goes.** The frame loop keeps
+    running with no Surface (the world ticks, the socket drains), so nothing
+    else in this lane would stop the sound and the client would sing from the
+    recents list. `PlatformAudio_Update` reads `PlatformAndroid_Window()` once
+    a frame and pauses/resumes the player; pause keeps the queue, so returning
+    is one call and no re-prime.
+
+  `SL_ANDROID_STREAM_MEDIA` is set explicitly, before Realize, through the one
+  interface OpenSL ES allows on an unrealized object -- it is what puts the
+  client under the volume rocker while it is in front.
+- **Verification:** on a device, with `TORIRS_AUDIO_TRACE=1` in the data root's
+  `env.txt`, `adb shell dumpsys media.audio_flinger` lists one **active** track
+  for the client's pid at `SRate 22050`, `Type 3` (music) and `UndFrmCnt 0`;
+  its `Server` position advances by ~22050 frames a second. Pressing Home flips
+  the same row to inactive and `P`, and its position freezes. On exit the
+  client's own ledger reports `stream 0 dropped / 0 starved`.
+- **Sources:** [`src/platform/platform_audio_opensles.c`](../src/platform/platform_audio_opensles.c),
+  [`src/platform/platform_audio_capture.c`](../src/platform/platform_audio_capture.c),
+  [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
 
 ### GPU-PROJ-001 - The projection is a scale, never a field of view
 

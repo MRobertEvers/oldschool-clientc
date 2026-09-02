@@ -5588,5 +5588,15 @@ main(
 
     App_Shutdown(&app);
     TorirsPerf_Shutdown();
+    /*
+     * The last flush. stderr is fully buffered (see the setvbuf above) and the
+     * per-frame flush lives inside the loop, so everything the shutdown path
+     * writes -- the audio ledger, the perf summary, the leak counts -- sits in
+     * the buffer when main returns. On a host that exits, the C runtime flushes
+     * it. Android does not exit: the frame thread returns into JNI and the
+     * process goes on living, and the whole teardown report was being dropped
+     * on the one lane where it is the only way to see it.
+     */
+    fflush(stderr);
     return 0;
 }
