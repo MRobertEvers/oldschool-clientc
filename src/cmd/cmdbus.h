@@ -71,6 +71,15 @@ enum ToriRS_CmdType
      * frame. Desktop backends never push it. */
     TORIRS_CMD_KEYBOARD_INSET = 49, /* struct ToriRS_CmdKeyboardInset */
 
+    /* -> App. What the device itself reports about its power and its link:
+     * a battery percentage, whether it is charging, and which network it is
+     * on. The CS2 scripts ask for all three (the MOBILE_BATTERYLEVEL,
+     * MOBILE_BATTERYCHARGING and MOBILE_WIFIAVAILABLE opcodes), so the answers
+     * have to come from the platform rather than from a constant. Pushed on
+     * change, not per frame; desktop backends never push it and the host keeps
+     * its "plugged in, on wifi" defaults. */
+    TORIRS_CMD_DEVICE_STATUS = 50, /* struct ToriRS_CmdDeviceStatus */
+
     /* -> App, from a HOST rather than from a device.
      *
      * The client is embedded — in a browser tab, under an editor, under a test
@@ -151,6 +160,25 @@ struct ToriRS_CmdKeyboardInset
 {
     /** Canvas rows covered at the bottom; 0 = keyboard away. */
     int32_t bottom;
+};
+
+/** @see TORIRS_CMD_DEVICE_STATUS::network_kind. Same values as the host's
+ *  RS_CS2_NETWORK_*, which is what the app forwards them to. */
+enum ToriRS_CmdNetworkKind
+{
+    TORIRS_CMD_NETWORK_NONE = 0,
+    TORIRS_CMD_NETWORK_WIFI = 1,
+    TORIRS_CMD_NETWORK_CELLULAR = 2
+};
+
+struct ToriRS_CmdDeviceStatus
+{
+    /** 0..100. */
+    int32_t battery_percent;
+    /** Nonzero while the battery is charging. */
+    int32_t battery_charging;
+    /** enum ToriRS_CmdNetworkKind */
+    int32_t network_kind;
 };
 
 struct ToriRS_CmdUiOpenRoot
@@ -325,6 +353,14 @@ int
 CmdBus_PushNetStatus(
     struct ToriRS_CmdBus* bus,
     int32_t status);
+
+/** The device's power and link, @see TORIRS_CMD_DEVICE_STATUS. */
+int
+CmdBus_PushDeviceStatus(
+    struct ToriRS_CmdBus* bus,
+    int32_t battery_percent,
+    int32_t battery_charging,
+    int32_t network_kind);
 
 /* ---- host commands ------------------------------------------------------ */
 

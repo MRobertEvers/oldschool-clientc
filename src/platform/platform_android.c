@@ -110,6 +110,13 @@ static int g_density = 1;
 /** Surface rows the soft keyboard covers at the bottom; 0 = away.
  *  @see PlatformAndroid_SetKeyboardInset. */
 static int g_keyboard_inset_px;
+/** What the device says about its power and its link.
+ *  @see PlatformAndroid_SetDeviceStatus. Seeded to the same "full, plugged in,
+ *  on wifi" the CS2 host starts from, so a build whose activity never reports
+ *  (or a device with no battery at all) reads as it always did. */
+static int g_battery_percent = 100;
+static int g_battery_charging = 1;
+static int g_network_kind = TORIRS_CMD_NETWORK_WIFI;
 static int g_quit;
 
 /* One queued input record. @see PlatformAndroid_PostTouch / _PostKey. */
@@ -263,6 +270,42 @@ PlatformAndroid_KeyboardInset(void)
     px = g_keyboard_inset_px;
     pthread_mutex_unlock(&g_lock);
     return px;
+}
+
+void
+PlatformAndroid_SetDeviceStatus(
+    int battery_percent,
+    int battery_charging,
+    int network_kind)
+{
+    if( battery_percent < 0 )
+        battery_percent = 0;
+    if( battery_percent > 100 )
+        battery_percent = 100;
+    if( network_kind < TORIRS_CMD_NETWORK_NONE || network_kind > TORIRS_CMD_NETWORK_CELLULAR )
+        network_kind = TORIRS_CMD_NETWORK_NONE;
+    pthread_mutex_lock(&g_lock);
+    g_battery_percent = battery_percent;
+    g_battery_charging = battery_charging ? 1 : 0;
+    g_network_kind = network_kind;
+    pthread_mutex_unlock(&g_lock);
+}
+
+void
+PlatformAndroid_DeviceStatus(
+    int* battery_percent,
+    int* battery_charging,
+    int* network_kind)
+{
+    assert(battery_percent);
+    assert(battery_charging);
+    assert(network_kind);
+
+    pthread_mutex_lock(&g_lock);
+    *battery_percent = g_battery_percent;
+    *battery_charging = g_battery_charging;
+    *network_kind = g_network_kind;
+    pthread_mutex_unlock(&g_lock);
 }
 
 void
@@ -473,6 +516,11 @@ struct PlatformWindow
     /** The keyboard inset (CANVAS rows) the last poll pushed, so the command
      *  goes out once per change rather than every frame. */
     int last_keyboard_inset;
+    /** The device status the last poll pushed, same reason. -1 on the percent
+     *  means "nothing pushed yet", so the first poll always reports. */
+    int last_battery_percent;
+    int last_battery_charging;
+    int last_network_kind;
 
     int present_dmg_x;
     int present_dmg_y;
@@ -709,6 +757,9 @@ PlatformWindow_New(void)
     p->interface_scale_mode = 2;
     p->last_seen_w = -1;
     p->last_seen_h = -1;
+    /* No plausible battery percentage, so the first poll always reports what
+     * the device actually says rather than assuming it matches the seed. */
+    p->last_battery_percent = -1;
     ToriRS_TouchReset(&p->touch);
     return p;
 }
@@ -1129,6 +1180,30 @@ PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
         {
             p->last_keyboard_inset = inset;
             CmdBus_PushKeyboardInset(bus, inset);
+        }
+    }
+
+    /*
+     * The battery and the link, coalesced the same way. Level state, not
+     * events: only where the three sit at the drain matters, and a phone
+     * reports its battery every percent and its link on every handover, so
+     * pushing unconditionally would put a command on the bus every frame for a
+     * value that changes once a minute.
+     */
+    {
+        int battery_percent = 0;
+        int battery_charging = 0;
+        int network_kind = 0;
+
+        PlatformAndroid_DeviceStatus(&battery_percent, &battery_charging, &network_kind);
+        if( battery_percent != p->last_battery_percent
+            || battery_charging != p->last_battery_charging
+            || network_kind != p->last_network_kind )
+        {
+            p->last_battery_percent = battery_percent;
+            p->last_battery_charging = battery_charging;
+            p->last_network_kind = network_kind;
+            CmdBus_PushDeviceStatus(bus, battery_percent, battery_charging, network_kind);
         }
     }
 }

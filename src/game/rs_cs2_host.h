@@ -108,6 +108,22 @@ enum RS_CS2SocialSendKind
 /* All Settings > Display: "Interface scaling mode". The cache's enum_4033
  * stores these values directly in device option 15. */
 #define RS_CS2_DEVICEOPTION_UI_SCALE_MODE 15
+
+/**
+ * The Display panel's "Limit Framerate" row, in frames per second.
+ *
+ * Written by the cache's own script chain -- the dropdown runs
+ * `~torirs_fps_cap_set`, which sets BOTH of these to the chosen rate (15, 20,
+ * 30, 60) or to 999 for Unlimited, and `~torirs_fps_cap_index` reads option 5
+ * back to draw the current choice. Zero, the untouched default, is also
+ * unlimited.
+ *
+ * Two options because the reference caps the foreground and the background
+ * separately. Only the first is honoured here; the second is stored so the
+ * scripts read back what they wrote.
+ */
+#define RS_CS2_DEVICEOPTION_FPS_CAP 5
+#define RS_CS2_DEVICEOPTION_FPS_CAP_BACKGROUND 26
 #define RS_CS2_UI_SCALE_MODE_NEAREST 0
 #define RS_CS2_UI_SCALE_MODE_LINEAR 1
 #define RS_CS2_UI_SCALE_MODE_BICUBIC 2
@@ -791,6 +807,24 @@ struct RS_CS2Host
      *  only does what the last request said. */
     int keyboard_request;
 
+    /**
+     * What the device is doing, for MOBILE_BATTERYLEVEL / BATTERYCHARGING /
+     * WIFIAVAILABLE.
+     *
+     * Seeded to the answer a machine with no battery gives -- full, on mains,
+     * on an unmetered link -- so a desktop reads exactly as it did when these
+     * three opcodes were literals. A platform that knows better writes them
+     * through RS_CS2Host_SetDeviceStatus.
+     *
+     * `network` is the LINK, not just wifi: the scripts only ask "is this
+     * wifi", but the same question is how a client decides it is on a metered
+     * connection, and answering it from a two-state flag would lose the
+     * difference between cellular and nothing at all.
+     */
+    int battery_percent;
+    int battery_charging;
+    int network_kind;
+
     /** Set by IF_CLOSE (3103) — an interface's close button. Drained by the
      *  App's tick, which sends CLOSE_MODAL; the server is what actually
      *  unmounts, so nothing here touches the tree. */
@@ -1366,6 +1400,35 @@ RS_CS2Host_UiScalePercent(
 
 /** The interface presentation filter selected by device option 15. Always one
  *  of RS_CS2_UI_SCALE_MODE_NEAREST..RS_CS2_UI_SCALE_MODE_BICUBIC. */
+/**
+ * The frame rate the screen is capped to, or 0 for uncapped.
+ *
+ * The cap is the SCREEN's: the world keeps ticking at its own rate whatever
+ * this says, which is why the caller applies it to the draw budget and not to
+ * the pacer's period. @see RS_CS2_DEVICEOPTION_FPS_CAP.
+ */
+int
+RS_CS2Host_FrameRateCapFps(struct RS_CS2Host const* host);
+
+/** @see RS_CS2Host::network_kind. */
+#define RS_CS2_NETWORK_NONE 0
+#define RS_CS2_NETWORK_WIFI 1
+#define RS_CS2_NETWORK_CELLULAR 2
+
+/**
+ * Tell the host what the device is doing: battery 0..100, whether it is
+ * charging, and which link it is on (RS_CS2_NETWORK_*).
+ *
+ * Cheap and idempotent -- the platform calls it whenever its own reading
+ * changes, and a value that has not moved costs a compare.
+ */
+void
+RS_CS2Host_SetDeviceStatus(
+    struct RS_CS2Host* host,
+    int battery_percent,
+    int battery_charging,
+    int network_kind);
+
 int
 RS_CS2Host_UiScaleMode(
     struct RS_CS2Host const* host);

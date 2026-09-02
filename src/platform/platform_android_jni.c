@@ -556,6 +556,16 @@ Java_com_torirs_client_ClientActivity_nativeKeyboardInset(
 }
 
 JNIEXPORT void JNICALL
+Java_com_torirs_client_ClientActivity_nativeDeviceStatus(
+    JNIEnv* env, jobject thiz, jint battery_percent, jint battery_charging, jint network_kind)
+{
+    (void)env;
+    (void)thiz;
+    PlatformAndroid_SetDeviceStatus(
+        (int)battery_percent, (int)battery_charging, (int)network_kind);
+}
+
+JNIEXPORT void JNICALL
 Java_com_torirs_client_ClientActivity_nativeTouch(
     JNIEnv* env, jobject thiz, jint action, jint pointer_id, jint x, jint y)
 {

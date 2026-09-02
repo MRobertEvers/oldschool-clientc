@@ -2615,17 +2615,46 @@ frame_loop_step(void)
          * wait would never be reached. The world keeps ticking at period_ms
          * either way; only the screen slows down.
          */
+        /*
+         * And the third: the Display panel's "Limit Framerate" row, which the
+         * person chose. It joins the pacer's own budget by taking whichever
+         * asks for the longer gap -- a 15 fps cap on a machine already stepped
+         * down to 30 is still 15, and a 60 fps cap does not undo a step-down
+         * to 30.
+         *
+         * It caps the SCREEN and nothing else, exactly like the step-down
+         * above it: the world still ticks at period_ms, so a capped client
+         * plays at the same speed and simply draws less. That is the whole
+         * point of the row on a phone, where the draw is the battery.
+         */
+        int draw_period_ms = ToriRS_Pacer_DrawPeriodMs(&frame_pacer);
+        int const cap_fps = RS_CS2Host_FrameRateCapFps(&app.host);
+        if( cap_fps > 0 && 1000 / cap_fps > draw_period_ms )
+            draw_period_ms = 1000 / cap_fps;
         if( app_redraw && !uncapped && !replay
-            && (App_AsyncPending(&app)
-                || ToriRS_Pacer_DrawPeriodMs(&frame_pacer)
-                       > frame_pacer.period_ms) )
+            && (App_AsyncPending(&app) || draw_period_ms > frame_pacer.period_ms) )
         {
             uint64_t const draw_now = PlatformWindow_Ticks64();
             if( draw_now < next_draw_ms )
                 app_redraw = 0;
             else
-                next_draw_ms =
-                    draw_now + (uint64_t)ToriRS_Pacer_DrawPeriodMs(&frame_pacer);
+            {
+                /*
+                 * The next deadline comes off the LAST one, not off now.
+                 *
+                 * A draw can only land on a loop iteration, and iterations are
+                 * period_ms apart, so `now + budget` always rounds the gap UP
+                 * to the next iteration: a 15 fps cap (66 ms) drew every 80 ms
+                 * and measured 13.5 fps on the phone. Advancing the deadline
+                 * itself lets the error alternate instead of accumulating --
+                 * 80, 60, 60, 80 -- and the average is the rate that was
+                 * asked for. A deadline already in the past (the client was
+                 * busy, or had stopped drawing) resyncs to now rather than
+                 * trying to catch up with a burst.
+                 */
+                uint64_t const next = next_draw_ms + (uint64_t)draw_period_ms;
+                next_draw_ms = next > draw_now ? next : draw_now + (uint64_t)draw_period_ms;
+            }
         }
     }
     input_frame_pending =

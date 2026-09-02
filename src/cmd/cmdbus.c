@@ -239,6 +239,19 @@ CmdBus_PushNetStatus(
     return CmdBus_Push(bus, TORIRS_CMD_NET_STATUS, &cmd, sizeof(cmd));
 }
 
+int
+CmdBus_PushDeviceStatus(
+    struct ToriRS_CmdBus* bus,
+    int32_t battery_percent,
+    int32_t battery_charging,
+    int32_t network_kind)
+{
+    struct ToriRS_CmdDeviceStatus cmd = {
+        battery_percent, battery_charging, network_kind
+    };
+    return CmdBus_Push(bus, TORIRS_CMD_DEVICE_STATUS, &cmd, sizeof(cmd));
+}
+
 /* ---- host commands ------------------------------------------------------ */
 
 int

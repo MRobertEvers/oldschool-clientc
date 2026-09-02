@@ -1253,6 +1253,42 @@ orbs_chrome(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     return TORIRS_PLUGIN_PASS;
 }
 
+/**
+ * Point the emit stream at where THIS orb's plate is.
+ *
+ * The plate and the disc are two halves placed by naming a role (@see
+ * orbs_anchor), and for an ADDED part that role is the one the whole column
+ * hangs off -- the same answer for all four, which is what the shared anchor
+ * is. A CLAIMED part is not ours to hang: it IS the lane's own node, and the
+ * host paints its plate at that node, wherever the cache's own interface puts
+ * it. On osrs239 that is interface 160, which paints AFTER the minimap -- so a
+ * disc anchored to the map has the whole map subtree and then the plate drawn
+ * over it, and every orb reads as the black hole in frame.png with no level,
+ * no icon and no number in it.
+ *
+ * Naming the part itself is the same rule the shared anchor already follows,
+ * asked per orb: hang the disc off the object whose plate it goes on top of.
+ *
+ * @return 0 when the role did not resolve, which is the caller's cue to draw
+ *         nothing for this orb -- every declaration after a failed retarget is
+ *         dropped by the host anyway.
+ */
+static int
+orbs_anchor_orb(struct ToriRS_PluginCtx* ctx, int orb, struct OrbAnchor const* anchor)
+{
+    assert(ctx);
+    assert(anchor);
+    assert(orb >= 0);
+    assert(orb < ORB_COUNT);
+
+    /* `anchor[0]` is the role an ADDED orb was introduced under; a claimed one
+     * carries none, and is the case this exists for. @see g_orb. */
+    return g_api->role_anchor(
+        ctx,
+        g_orb[orb].anchor[0] ? anchor->role : ORB_PART[orb].part,
+        TORIRS_PLUGIN_ANCHOR_AFTER);
+}
+
 /** Where an orb this plugin holds is, or 0 for one it does not hold or one
  *  the frame has nowhere for right now. */
 static int
@@ -1386,7 +1422,8 @@ orbs_draw(
     x = 0;
     y = 0;
 
-    if( g_api->cfg_bool(ctx, "show_hp") && orbs_part_box(ctx, ORB_HP, &x, &y) )
+    if( g_api->cfg_bool(ctx, "show_hp") && orbs_part_box(ctx, ORB_HP, &x, &y) &&
+        orbs_anchor_orb(ctx, ORB_HP, &anchor) )
     {
         int current = 0;
         int base = 0;
@@ -1414,7 +1451,8 @@ orbs_draw(
         }
     }
 
-    if( g_api->cfg_bool(ctx, "show_prayer") && orbs_part_box(ctx, ORB_PRAYER, &x, &y) )
+    if( g_api->cfg_bool(ctx, "show_prayer") && orbs_part_box(ctx, ORB_PRAYER, &x, &y) &&
+        orbs_anchor_orb(ctx, ORB_PRAYER, &anchor) )
     {
         int current = 0;
         int base = 0;
@@ -1442,7 +1480,8 @@ orbs_draw(
         }
     }
 
-    if( g_api->cfg_bool(ctx, "show_run") && orbs_part_box(ctx, ORB_RUN, &x, &y) )
+    if( g_api->cfg_bool(ctx, "show_run") && orbs_part_box(ctx, ORB_RUN, &x, &y) &&
+        orbs_anchor_orb(ctx, ORB_RUN, &anchor) )
     {
         char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
         /* Scratch: what the region carries is declared in EV_CHROME and kept
@@ -1479,7 +1518,8 @@ orbs_draw(
         }
     }
 
-    if( g_api->cfg_bool(ctx, "show_spec") && orbs_part_box(ctx, ORB_SPEC, &x, &y) )
+    if( g_api->cfg_bool(ctx, "show_spec") && orbs_part_box(ctx, ORB_SPEC, &x, &y) &&
+        orbs_anchor_orb(ctx, ORB_SPEC, &anchor) )
     {
         int const spec_varp =
             orbs_varp(ctx, "spec_varp", "special_attack_energy", ORB_VARP_SPEC_FALLBACK);

@@ -1,8 +1,15 @@
 package com.torirs.client;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
+import android.os.BatteryManager;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -65,6 +72,14 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private static final int TOUCH_MOVE = 1;
     private static final int TOUCH_UP = 2;
 
+    /*
+     * Must match enum ToriRS_CmdNetworkKind in src/cmd/cmdbus.h, for the same
+     * reason the touch actions above restate theirs.
+     */
+    private static final int NETWORK_NONE = 0;
+    private static final int NETWORK_WIFI = 1;
+    private static final int NETWORK_CELLULAR = 2;
+
     static
     {
         System.loadLibrary("torirs");
@@ -73,6 +88,14 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private SurfaceView surfaceView;
     private Button hideKeyboardButton;
     private boolean started;
+
+    /** Latest battery reading, held so a network change can report both
+     *  numbers together. @see #reportDeviceStatus. */
+    private int batteryPercent = 100;
+    private int batteryCharging = 1;
+    private BroadcastReceiver batteryReceiver;
+    private BroadcastReceiver connectivityReceiver;
+    private ConnectivityManager.NetworkCallback networkCallback;
 
     /**
      * A SurfaceView the IME will agree to type into.
@@ -128,6 +151,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private native void nativeTouch(int action, int pointerId, int x, int y);
     private native void nativeKey(int keycode, int down, int unicode);
     private native void nativeKeyboardInset(int bottomPx);
+    private native void nativeDeviceStatus(int batteryPercent, int batteryCharging, int networkKind);
     private native void nativeStop();
 
     /* ---- lifecycle ------------------------------------------------------- */
@@ -242,12 +266,183 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         }
 
         nativeSetDensity(displayDensityBucket());
+        startDeviceStatusReports();
+    }
+
+    /* ---- battery and network --------------------------------------------- */
+
+    /**
+     * Watch the battery and the network link, and report both to the client.
+     *
+     * The CS2 scripts ask for all three numbers -- percentage, charging, wifi
+     * -- and the answers are Android's to give. Level state, not events: each
+     * source updates its half and then reports both, and the native side
+     * coalesces to one command per change (src/platform/platform_android.c).
+     *
+     * ACTION_BATTERY_CHANGED is sticky, so registerReceiver hands back the
+     * current reading and the first report happens here rather than whenever
+     * the battery next moves a percent.
+     */
+    private void startDeviceStatusReports()
+    {
+        batteryReceiver = new BroadcastReceiver()
+        {
+            @Override
+            public void onReceive(Context context, Intent intent)
+            {
+                applyBatteryIntent(intent);
+            }
+        };
+        Intent sticky = registerReceiver(
+                batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        applyBatteryIntent(sticky);
+
+        /*
+         * The link, which has two eras like the keyboard inset does. API 24+
+         * has a default-network callback; below that the broadcast is the only
+         * signal, and it is not optional -- a battery tick can be minutes away
+         * (measured on an API 22 phone: wifi off, and the client still said
+         * wifi), so without this the answer is simply wrong for that long.
+         */
+        if( Build.VERSION.SDK_INT >= 24 )
+        {
+            ConnectivityManager cm =
+                    (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
+            if( cm != null )
+            {
+                networkCallback = new ConnectivityManager.NetworkCallback()
+                {
+                    @Override
+                    public void onAvailable(Network network)
+                    {
+                        reportDeviceStatus();
+                    }
+
+                    @Override
+                    public void onLost(Network network)
+                    {
+                        reportDeviceStatus();
+                    }
+
+                    @Override
+                    public void onCapabilitiesChanged(Network network, NetworkCapabilities caps)
+                    {
+                        reportDeviceStatus();
+                    }
+                };
+                try
+                {
+                    cm.registerDefaultNetworkCallback(networkCallback);
+                }
+                catch( RuntimeException e )
+                {
+                    /* Some devices refuse the registration (too many callbacks
+                     * process-wide). The battery tick still refreshes the link,
+                     * so this is a slower answer, not a missing one. */
+                    networkCallback = null;
+                }
+            }
+        }
+        else
+        {
+            connectivityReceiver = new BroadcastReceiver()
+            {
+                @Override
+                public void onReceive(Context context, Intent intent)
+                {
+                    reportDeviceStatus();
+                }
+            };
+            registerReceiver(
+                    connectivityReceiver,
+                    new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+        }
+    }
+
+    private void stopDeviceStatusReports()
+    {
+        if( batteryReceiver != null )
+        {
+            unregisterReceiver(batteryReceiver);
+            batteryReceiver = null;
+        }
+        if( connectivityReceiver != null )
+        {
+            unregisterReceiver(connectivityReceiver);
+            connectivityReceiver = null;
+        }
+        if( networkCallback != null )
+        {
+            ConnectivityManager cm =
+                    (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
+            if( cm != null )
+                cm.unregisterNetworkCallback(networkCallback);
+            networkCallback = null;
+        }
+    }
+
+    /** Take the battery half from a BATTERY_CHANGED intent, then report. */
+    private void applyBatteryIntent(Intent intent)
+    {
+        if( intent == null )
+            return;
+
+        int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+        int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+        int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+
+        if( level >= 0 && scale > 0 )
+            batteryPercent = (level * 100) / scale;
+        batteryCharging = (status == BatteryManager.BATTERY_STATUS_CHARGING
+                || status == BatteryManager.BATTERY_STATUS_FULL) ? 1 : 0;
+        reportDeviceStatus();
+    }
+
+    private void reportDeviceStatus()
+    {
+        nativeDeviceStatus(batteryPercent, batteryCharging, currentNetworkKind());
+    }
+
+    /**
+     * Which link the device is on right now, as a NETWORK_* value.
+     *
+     * Anything that is not cellular and is connected counts as wifi: what the
+     * scripts do with the answer is decide whether the connection is the
+     * metered one, and ethernet or a dock is not.
+     */
+    private int currentNetworkKind()
+    {
+        ConnectivityManager cm =
+                (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
+        if( cm == null )
+            return NETWORK_NONE;
+
+        if( Build.VERSION.SDK_INT >= 23 )
+        {
+            Network active = cm.getActiveNetwork();
+            if( active == null )
+                return NETWORK_NONE;
+            NetworkCapabilities caps = cm.getNetworkCapabilities(active);
+            if( caps == null )
+                return NETWORK_NONE;
+            if( caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) )
+                return NETWORK_CELLULAR;
+            return NETWORK_WIFI;
+        }
+
+        NetworkInfo info = cm.getActiveNetworkInfo();
+        if( info == null || !info.isConnected() )
+            return NETWORK_NONE;
+        return info.getType() == ConnectivityManager.TYPE_MOBILE
+                ? NETWORK_CELLULAR
+                : NETWORK_WIFI;
     }
 
     @Override
     protected void onDestroy()
     {
         super.onDestroy();
+        stopDeviceStatusReports();
         if( started )
         {
             /*

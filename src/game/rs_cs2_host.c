@@ -877,6 +877,12 @@ RS_CS2Host_Init(
     assert(invs);
 
     memset(host, 0, sizeof(*host));
+    /* The answer a machine with no battery gives, which is what the three
+     * device opcodes were literals for before the platform could answer.
+     * @see RS_CS2Host_SetDeviceStatus. */
+    host->battery_percent = 100;
+    host->battery_charging = 1;
+    host->network_kind = RS_CS2_NETWORK_WIFI;
     host->tree = tree;
     host->provider = provider;
     host->invs = invs;
@@ -1510,7 +1516,12 @@ static const struct OptionSpec device_option_spec[] = {
     { 2, true },   /* hide username on the login screen */
     { 3, true },   /* stored; nothing in rev 239 reads it back */
     { 4, true },   /* title music disabled */
-    { 5, true },
+    /* Foreground frame cap, and the background one the same script writes
+     * beside it. Persisted: chosen once, wanted at every launch -- and on a
+     * phone it is a battery setting, so forgetting it every launch is worse
+     * than on a desktop. @see RS_CS2_DEVICEOPTION_FPS_CAP. */
+    { RS_CS2_DEVICEOPTION_FPS_CAP, true },
+    { RS_CS2_DEVICEOPTION_FPS_CAP_BACKGROUND, true },
     { 6, false },  /* brightness — applied on the spot, never saved */
     { 14, true },  /* draw distance */
     /* Interface scaling mode (enum_4033: nearest, linear, bicubic). This is
@@ -1725,6 +1736,41 @@ RS_CS2Host_UiScalePercent(
         return RS_CS2_UI_SCALE_MIN;
     if( value > RS_CS2_UI_SCALE_MAX )
         return RS_CS2_UI_SCALE_MAX;
+    return value;
+}
+
+void
+RS_CS2Host_SetDeviceStatus(
+    struct RS_CS2Host* host,
+    int battery_percent,
+    int battery_charging,
+    int network_kind)
+{
+    assert(host);
+    if( battery_percent < 0 )
+        battery_percent = 0;
+    if( battery_percent > 100 )
+        battery_percent = 100;
+    if( network_kind < RS_CS2_NETWORK_NONE || network_kind > RS_CS2_NETWORK_CELLULAR )
+        network_kind = RS_CS2_NETWORK_NONE;
+    host->battery_percent = battery_percent;
+    host->battery_charging = battery_charging ? 1 : 0;
+    host->network_kind = network_kind;
+}
+
+int
+RS_CS2Host_FrameRateCapFps(
+    struct RS_CS2Host const* host)
+{
+    int value;
+
+    assert(host);
+    value = host->device_options[RS_CS2_DEVICEOPTION_FPS_CAP];
+    /* 0 is the untouched default and 999 is what the Unlimited row writes;
+     * both mean "do not pace the screen". A value the dropdown cannot produce
+     * is not second-guessed beyond that -- the rows are 15/20/30/60. */
+    if( value <= 0 || value >= 250 )
+        return 0;
     return value;
 }
 
@@ -10148,6 +10194,18 @@ rs_cs2_host_exec_dispatch(
         (void)request->u.MOBILE_KEYBOARDHIDE._unused;
         host->keyboard_request = -1;
         return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_MOBILE_BATTERYLEVEL:
+        (void)request->u.MOBILE_BATTERYLEVEL._unused;
+        return CS2VM2_PushInt(vm, host->battery_percent);
+
+    case CS2VM_HOST_REQUEST_MOBILE_BATTERYCHARGING:
+        (void)request->u.MOBILE_BATTERYCHARGING._unused;
+        return CS2VM2_PushInt(vm, host->battery_charging ? 1 : 0);
+
+    case CS2VM_HOST_REQUEST_MOBILE_WIFIAVAILABLE:
+        (void)request->u.MOBILE_WIFIAVAILABLE._unused;
+        return CS2VM2_PushInt(vm, host->network_kind == RS_CS2_NETWORK_WIFI ? 1 : 0);
 
         RS_CS2_VIEWPORT_CASE(VIEWPORT_SETFOV);
 

@@ -30131,6 +30131,29 @@ App_DrainCommands(
                 }
             }
             break;
+        case TORIRS_CMD_DEVICE_STATUS:
+        {
+            /* The CS2 scripts read the battery and the link through three
+             * opcodes; without this the host answers with the constants it was
+             * seeded with, and a phone on cellular at 4% still reads as
+             * plugged in on wifi. Pushed on change by the touch backends
+             * only. */
+            struct ToriRS_CmdDeviceStatus const* cmd =
+                (struct ToriRS_CmdDeviceStatus const*)payload;
+            assert(header.length >= sizeof(*cmd));
+            RS_CS2Host_SetDeviceStatus(
+                &app->host,
+                (int)cmd->battery_percent,
+                (int)cmd->battery_charging,
+                (int)cmd->network_kind);
+            if( getenv("TORIRS_DEVICE_DEBUG") )
+                TORIRS_REPORT(
+                    "device status -> battery %d%% charging %d network %d\n",
+                    (int)cmd->battery_percent,
+                    (int)cmd->battery_charging,
+                    (int)cmd->network_kind);
+            break;
+        }
         /*
          * Host commands. Each is the same call the equivalent TORIRS_SIM_*
          * harness makes, reached from the drain instead of from a pre-loop

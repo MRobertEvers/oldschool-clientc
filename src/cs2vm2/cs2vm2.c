@@ -12530,14 +12530,30 @@ CS2VM2_RunOp(
         return CS2VM2_Op_TypeParam(vm, opcode);
     case CS2_OP_STRUCT_PARAM:
         return CS2VM2_Op_StructParam(vm, frame, operand);
-    /* Mobile device queries — we are a desktop client: full battery, on mains,
-     * unmetered connection. Pushing nothing here underflows the next opcode. */
+    /* What the device is doing. The host answers, because only it knows
+     * whether there is a battery at all -- a desktop says full, on mains and
+     * unmetered, which is what this used to answer for everyone. */
     case CS2_OP_MOBILE_BATTERYLEVEL:
-        return CS2VM2_PushInt(vm, 100);
+    {
+        struct CS2VM_HostRequest request;
+        request.kind = CS2VM_HOST_REQUEST_MOBILE_BATTERYLEVEL;
+        memset(&request.u.MOBILE_BATTERYLEVEL, 0, sizeof(request.u.MOBILE_BATTERYLEVEL));
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_MOBILE_BATTERYCHARGING:
-        return CS2VM2_PushInt(vm, 1);
+    {
+        struct CS2VM_HostRequest request;
+        request.kind = CS2VM_HOST_REQUEST_MOBILE_BATTERYCHARGING;
+        memset(&request.u.MOBILE_BATTERYCHARGING, 0, sizeof(request.u.MOBILE_BATTERYCHARGING));
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_MOBILE_WIFIAVAILABLE:
-        return CS2VM2_PushInt(vm, 1);
+    {
+        struct CS2VM_HostRequest request;
+        request.kind = CS2VM_HOST_REQUEST_MOBILE_WIFIAVAILABLE;
+        memset(&request.u.MOBILE_WIFIAVAILABLE, 0, sizeof(request.u.MOBILE_WIFIAVAILABLE));
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_MOBILE_KEYBOARDSHOWSTRING:
     case CS2_OP_MOBILE_KEYBOARDSHOWINTEGER:
     {

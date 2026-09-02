@@ -448,6 +448,11 @@ CS2VM_HOST_REQUEST_KIND(STRUCT_PARAM, 6516, (int struct_id; int param_id;))
 CS2VM_HOST_REQUEST_KIND(MOBILE_KEYBOARDHIDE, 6521, (int _unused;))
 CS2VM_HOST_REQUEST_KIND(MOBILE_KEYBOARDSHOWSTRING, 6522, (char* text; int limit;))
 CS2VM_HOST_REQUEST_KIND(MOBILE_KEYBOARDSHOWINTEGER, 6523, (char* text; int limit;))
+/* What the device is doing, for the scripts that draw the battery and the
+ * signal in the mobile frame's corner. */
+CS2VM_HOST_REQUEST_KIND(MOBILE_BATTERYLEVEL, 6524, (int _unused;))
+CS2VM_HOST_REQUEST_KIND(MOBILE_BATTERYCHARGING, 6525, (int _unused;))
+CS2VM_HOST_REQUEST_KIND(MOBILE_WIFIAVAILABLE, 6526, (int _unused;))
 CS2VM_HOST_REQUEST_KIND(WORLDMAP_INIT, 6600, (int opcode; int arg0; int arg1;))
 CS2VM_HOST_REQUEST_KIND(WORLDMAP_GETMAPNAME, 6601, (int opcode; int arg0; int arg1;))
 CS2VM_HOST_REQUEST_KIND(WORLDMAP_SETMAP, 6602, (int opcode; int arg0; int arg1;))

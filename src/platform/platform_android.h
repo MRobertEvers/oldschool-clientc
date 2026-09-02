@@ -94,6 +94,29 @@ int
 PlatformAndroid_KeyboardInset(void);
 
 /**
+ * What the device reports about its power and its network link.
+ *
+ * `battery_percent` is 0..100, `battery_charging` nonzero while it is on
+ * mains, and `network_kind` is one of TORIRS_CMD_NETWORK_*. Reported by
+ * ClientActivity from a battery broadcast and a ConnectivityManager callback,
+ * both on the UI thread, so it is latest-value state like the keyboard inset:
+ * the drain pushes TORIRS_CMD_DEVICE_STATUS when any of the three changes, and
+ * the CS2 host answers MOBILE_BATTERYLEVEL and friends from it.
+ */
+void
+PlatformAndroid_SetDeviceStatus(
+    int battery_percent,
+    int battery_charging,
+    int network_kind);
+
+/** The latest reported device status. Every out parameter is required. */
+void
+PlatformAndroid_DeviceStatus(
+    int* battery_percent,
+    int* battery_charging,
+    int* network_kind);
+
+/**
  * Ask the frame loop to stop, from onDestroy.
  *
  * A request, not a kill: the loop finishes the frame it is in, App_Shutdown
