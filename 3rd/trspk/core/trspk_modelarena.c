@@ -52,6 +52,12 @@ move_vertices(
             &vbo->vertices.as_d3d9[src],
             count * sizeof(struct TRSPK_VertexD3D9));
         break;
+    case TRSPK_VERTEX_FORMAT_GLES2:
+        memmove(
+            &vbo->vertices.as_gles2[dst],
+            &vbo->vertices.as_gles2[src],
+            count * sizeof(struct TRSPK_VertexGLES2));
+        break;
     default:
         assert(false && "Unsupported vertex format");
         break;

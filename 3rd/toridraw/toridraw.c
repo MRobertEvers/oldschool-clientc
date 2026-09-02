@@ -369,6 +369,8 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->sm_face_y4);
     free(scene->sm_sort_keys);
     free(scene->sm_sort_tmp);
+    free(scene->sm_vertex_xyz);
+    free(scene->sm_vertex_xyz16);
     free(scene->sm_depth_offset);
     free(scene->sm_depth_cursor);
     free(scene->sm_faces_by_depth);
@@ -515,12 +517,17 @@ scene_alloc_bitonic_radix_keys(
 
     while( keys < (size_t)caps->max_faces )
         keys <<= 1;
-    keys += 4;
+    /* Eight lanes of slack: the K16 block stores eight keys whole. */
+    keys += 8;
     scene->sm_sort_keys = malloc(keys * sizeof(uint32_t));
     scene->sm_sort_tmp = malloc(keys * sizeof(uint32_t));
 
     assert(scene->sm_sort_keys);
     assert(scene->sm_sort_tmp);
+    scene->sm_vertex_xyz = malloc(((size_t)caps->max_vertices + 4) * 4 * sizeof(int));
+    assert(scene->sm_vertex_xyz);
+    scene->sm_vertex_xyz16 = malloc(((size_t)caps->max_vertices + 8) * 4 * sizeof(int16_t));
+    assert(scene->sm_vertex_xyz16);
     return true;
 }
 
@@ -1911,9 +1918,11 @@ ToriDraw_ScenePrepareProjectionCamera(
     values[1] = ToriDraw_ReadSinTable(camera->yaw);
     values[2] = ToriDraw_ReadCosTable(camera->pitch);
     values[3] = ToriDraw_ReadSinTable(camera->pitch);
-    values[4] = toridraw_projection_cot16(
-                    camera->projection_mode, camera->projection_scale, camera->fov_rpi2048) >>
-                1;
+    /* The full cot16 for the near-clip rule, and cot15 (the same value,
+     * halved) for the kernels' 16.15 multiply -- one ladder walk for both. */
+    scene->projection_prepared_cot16 = toridraw_projection_cot16(
+        camera->projection_mode, camera->projection_scale, camera->fov_rpi2048);
+    values[4] = scene->projection_prepared_cot16 >> 1;
 
     for( int lane = 0; lane < 4; lane++ )
     {

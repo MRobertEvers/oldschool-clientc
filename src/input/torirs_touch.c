@@ -2,6 +2,7 @@
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
+#include "log/torirs_log.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -110,6 +111,56 @@ touch_hold_pan(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus, uint8_t ke
 }
 
 void
+ToriRS_TouchSetViewport(struct ToriRS_Touch* touch, int x, int y, int w, int h)
+{
+    assert(touch);
+    touch->view_x = x;
+    touch->view_y = y;
+    touch->view_w = w;
+    touch->view_h = h;
+}
+
+void
+ToriRS_TouchSetOverlayTest(struct ToriRS_Touch* touch, ToriRS_TouchOverlayFn fn, void* user)
+{
+    assert(touch);
+    /* fn NULL is "nothing covers the world", the state this started in, so it
+     * is a value rather than a contract violation. */
+    touch->overlay = fn;
+    touch->overlay_user = user;
+}
+
+/** Did this finger come down on the 3D world? Tested against the finger's
+ *  START, not its current position: a camera drag that wanders onto the
+ *  interface is still the same drag. */
+static int
+touch_started_in_view(struct ToriRS_Touch const* touch, struct ToriRS_TouchFinger const* finger)
+{
+    if( touch->view_w <= 0 || touch->view_h <= 0 )
+        return 0;
+    if( finger->start_x < touch->view_x || finger->start_x >= touch->view_x + touch->view_w ||
+        finger->start_y < touch->view_y || finger->start_y >= touch->view_y + touch->view_h )
+        return 0;
+    /* Inside the box is not yet "on the world": a window drawn over the
+     * viewport owns what lands on it, and a drag there is that window's rather
+     * than the camera's. @see ToriRS_TouchSetOverlayTest. */
+    if( touch->overlay && touch->overlay(touch->overlay_user, finger->start_x, finger->start_y) )
+        return 0;
+    return 1;
+}
+
+/** Let go of whichever button a one-finger drag is holding, if any. */
+static void
+touch_release_drag(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus, int x, int y)
+{
+    if( !touch->drag_button )
+        return;
+    CmdBus_PushMouseButton(
+        bus, TORIRS_CMD_INPUT_MOUSE_UP, touch->drag_button, (int16_t)x, (int16_t)y);
+    touch->drag_button = 0;
+}
+
+void
 ToriRS_TouchReset(struct ToriRS_Touch* touch)
 {
     assert(touch);
@@ -150,7 +201,18 @@ touch_two_finger(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus)
      */
     if( abs(spread - touch->pinch_distance) >= TORIRS_TOUCH_PINCH_STEP )
     {
-        CmdBus_PushMouseWheel(bus, spread > touch->pinch_distance ? (int16_t)-1 : (int16_t)1);
+        /*
+         * Fingers APART is zoom IN, which is a positive notch.
+         *
+         * app_world_camera_mouse subtracts the wheel from the eye height, so
+         * positive lowers the eye and brings the world closer -- the same
+         * direction a wheel pushed forward means everywhere else in the client.
+         * Spelled out because it was backwards: pushing the fingers apart made
+         * the world recede, which is the one thing a pinch cannot be allowed
+         * to do -- every other application on the device agrees about this, and
+         * the hand does not consult a manual.
+         */
+        CmdBus_PushMouseWheel(bus, spread > touch->pinch_distance ? (int16_t)1 : (int16_t)-1);
         touch->pinch_distance = spread;
         touch->pan_x = mid_x;
         touch->pan_y = mid_y;
@@ -195,6 +257,8 @@ ToriRS_TouchEvent(
 
     if( phase == TORIRS_TOUCH_BEGAN )
     {
+        /* The pointer is back before the last one's departure was ever sent. */
+        touch->leave_countdown = 0;
         /*
          * A backend that begins an id it never ended is describing a driver,
          * not making a mistake -- a finger lost to a focus change never sends
@@ -251,18 +315,71 @@ ToriRS_TouchEvent(
     {
         if( touch->count >= 2 )
         {
+            /* A second finger turns this into a pinch/pan, so the one-finger
+             * camera drag ends here rather than staying held through it. */
+            touch_release_drag(touch, bus, canvas_x, canvas_y);
             touch_two_finger(touch, bus);
             return;
         }
         if( !finger->dragging && touch_far(finger) )
             finger->dragging = 1;
-        /* The pointer follows the finger whether or not this became a drag:
-         * what a drag withholds is the CLICK, not the position. */
+
+        /*
+         * A drag holds a button down, and WHICH button is the whole policy.
+         *
+         * On the 3D world it is the MIDDLE one, so the drag lands in
+         * app_world_camera_mouse -- the same path the desktop turns the camera
+         * with, and with the follow-cam split, the pitch clamps and the
+         * screen-space sign convention already applied. Reimplementing the
+         * rotation here would be a second copy of all three.
+         *
+         * Anywhere else it is the LEFT one. Off the world a drag is somebody
+         * moving the plugin window by its title bar, throwing a scrollbar, or
+         * dragging an inventory slot -- and all three are a press, some moves
+         * and a release, which the client already implements for a mouse and
+         * which no widget can begin without a button going down. This used to
+         * send the moves alone: the pointer tracked the finger perfectly and
+         * nothing could be dragged anywhere, because from the widget's side no
+         * press had ever happened.
+         *
+         * Either way the button goes down only once the finger has passed the
+         * slop, so a TAP is still a tap -- the walk-here click and the ordinary
+         * widget press are the common gestures and must not be swallowed by a
+         * drag that never moved.
+         */
+        if( finger->dragging )
+        {
+            if( !touch->drag_button )
+            {
+                touch->drag_button = touch_started_in_view(touch, finger)
+                                         ? (uint8_t)TORIRSM_MIDDLE
+                                         : (uint8_t)TORIRSM_LEFT;
+                /* From where the finger STARTED, so the first delta is the
+                 * distance actually travelled rather than a jump -- and so a
+                 * window is grabbed by the point the finger landed on rather
+                 * than snapping to wherever the slop was crossed. */
+                CmdBus_PushMouseMove(
+                    bus, (int16_t)finger->start_x, (int16_t)finger->start_y);
+                CmdBus_PushMouseButton(
+                    bus,
+                    TORIRS_CMD_INPUT_MOUSE_DOWN,
+                    touch->drag_button,
+                    (int16_t)finger->start_x,
+                    (int16_t)finger->start_y);
+            }
+            CmdBus_PushMouseMove(bus, (int16_t)canvas_x, (int16_t)canvas_y);
+            return;
+        }
+
+        /* Not a drag yet -- inside the slop, still a candidate for a tap or a
+         * long press. The pointer follows the finger so the client knows what
+         * is under it, and no button is held. */
         CmdBus_PushMouseMove(bus, (int16_t)canvas_x, (int16_t)canvas_y);
         return;
     }
 
     /* ENDED */
+    touch_release_drag(touch, bus, canvas_x, canvas_y);
     if( !touch->multi && !finger->dragging && !finger->held )
         touch_click(bus, TORIRSM_LEFT, canvas_x, canvas_y);
 
@@ -275,7 +392,23 @@ ToriRS_TouchEvent(
         touch->pinch_distance = -1;
     }
     if( touch->count == 0 )
+    {
         touch->multi = 0;
+        /*
+         * The pointer went up with the finger.
+         *
+         * A mouse leaves its cursor wherever it stopped, and everything the
+         * client hangs off the hover position -- the tile under the pointer,
+         * the mouseover text, the world pick -- is right to keep describing
+         * that spot. A finger leaves nothing behind, so without this the last
+         * tap becomes a cursor that never moves again: the tile indicator
+         * highlights the tile that was tapped minutes ago, and the pick runs
+         * every frame to re-answer a question nobody is asking.
+         *
+         * Counted down rather than sent here -- @see leave_countdown.
+         */
+        touch->leave_countdown = 2;
+    }
 }
 
 void
@@ -286,6 +419,15 @@ ToriRS_TouchTick(
 {
     assert(touch);
     assert(bus);
+
+    /* The deferred "the finger left" from the last release, once no finger has
+     * come back down in the meantime. */
+    if( touch->leave_countdown > 0 && touch->count == 0 )
+    {
+        touch->leave_countdown--;
+        if( touch->leave_countdown == 0 )
+            CmdBus_PushMouseLeave(bus);
+    }
 
     if( touch->count != 1 || touch->multi )
         return;

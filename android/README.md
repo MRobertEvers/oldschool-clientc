@@ -1,7 +1,8 @@
 # ToriRS on Android
 
-The client as a native Android app: **no SDL**, the tree's own software
-rasterizer, and GLES2 as an opt-in GPU path.
+The client as a native Android app: a raw `ANativeWindow` and EGL with no
+windowing library, the tree's own software rasterizer, and the lane's own
+GLES2 renderer as an opt-in GPU path (`--gles2` / `--gles2-zbuffer`).
 
 For *how it works* — the threading, the surface lifecycle, the frame path, the
 NEON split — see **[`docs/android_architecture.md`](../docs/android_architecture.md)**.
@@ -137,7 +138,8 @@ per line. This is how you try a profile with a flag without rebuilding anything:
 ```sh
 cat > /tmp/extra_args.txt <<'EOF'
 # the GLES2 GPU renderer instead of the software rasterizer
---webgl1
+# (--gles2-zbuffer for its depth-buffered world pass)
+--gles2
 EOF
 adb push /tmp/extra_args.txt /sdcard/Android/data/com.torirs.client/files/
 ```
@@ -145,6 +147,51 @@ adb push /tmp/extra_args.txt /sdcard/Android/data/com.torirs.client/files/
 Blank lines and `#` comments are ignored.
 
 ---
+
+## Touch, and the profile editor
+
+**Gestures.** Tap = click, long-press = right-click, **drag on the 3D viewport =
+camera**, pinch = zoom, two-finger pan = camera. Enabled for every revision; no
+profile has to opt in.
+
+**The inkwell** is the touch marker, shown for *every* touch — unlike the X,
+which only appears when a click resulted in something. Configured per profile:
+
+```ini
+[component:cross@mobile]
+type=inkwell
+style=splash          ; splash | blot | ripple
+walk_color=yellow
+interact_color=red
+```
+
+`@mobile` sections load only on touch devices and override the unsuffixed
+section above them. To compare the styles on a desktop:
+
+```sh
+TORIRS_REVCONFIG_PLATFORM=mobile ./src/torirs --manifest manifests/manifest_osrs239_bench.ini
+```
+
+**The keyboard** comes up when a text field takes focus (login form, chat line,
+or a plugin asking for input) and goes away with the **Hide keyboard** button
+that appears while it is up. That button exists because Back also closes the
+keyboard on most devices — but Back is *also* the client's Escape, so pressing
+it would close the interface you were typing into.
+
+While the keyboard is up, the activity reports how much of the surface it
+covers (`nativeKeyboardInset`, from the API 30+ ime inset or the older
+visible-frame comparison), and the client slides its chat sheet and the login
+stone box above it. On a device where neither signal fires the report stays 0
+and the layout simply keeps its old bottom-pinned behaviour.
+
+**The gear** in the boot menu edits each profile's server host/port, cache/CRC
+host/port, cache directory, IO server host/port, and renderer. Useful because a
+server's DHCP lease moves and every profile pointing at it goes stale, with no
+other way to fix it from the device.
+
+Prefer **names over addresses** in `host=`: your router serves DNS for its own
+clients, so `matthewllm` follows the lease. Note `.local`/mDNS does **not**
+resolve on Android 5.1; the bare name and the `.lan` suffix both do.
 
 ## Why the data is pushed and not bundled
 
@@ -175,13 +222,19 @@ the app is uninstalled.
 
 The **software rasterizer is the default** and needs nothing from the device.
 
-The GPU path is **GLES2**, opted into with `--webgl1` (via `extra_args.txt`). It
-is the same renderer the browser build uses — WebGL1 *is* GLES2 — compiled
-unchanged; only the context differs (EGL here, SDL there). See
+The GPU path is the **GLES2 renderer**
+(`src/platform/platform_renderer_gles2_*.c`), opted into with `--gles2`
+(painter order) or `--gles2-zbuffer` (hardware depth) via `extra_args.txt` or
+the profile editor. OpenGL ES 2.0 core, no extensions; shaped after the Windows
+D3D9 renderer's retained model rather than either desktop GL renderer. The web
+lane links the same four files against WebGL1. See
 [`docs/android_architecture.md`](../docs/android_architecture.md) §4.
 
-`--opengl3` is refused on this lane and says so: that flag names the desktop GL
-3.3 renderer, which this build does not contain.
+`--opengl3` names the desktop GL 3.2 renderer and `--webgl1` is the browser's
+spelling for this same renderer on a WebGL1 context. Both are refused here and
+say so -- the WebGL1 flag is not aliased, so a manifest written for the browser
+cannot run on a phone unnoticed; a device manifest carrying
+`arg=--webgl1-zbuffer` must say `arg=--gles2-zbuffer`.
 
 ---
 

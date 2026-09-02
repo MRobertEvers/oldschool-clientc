@@ -145,6 +145,7 @@ painter_w3d_emit_ground_pass(
                   bridge_underpass_tile->sz)) )
         {
             push_command_terrain(
+                painter,
                 buffer,
                 bridge_underpass_tile->sx,
                 bridge_underpass_tile->sz,
@@ -181,9 +182,9 @@ painter_w3d_emit_ground_pass(
                 if( set & (1u << ml) )
                 {
                     if( !ground_hidden )
-                        push_command_terrain(buffer, tile_sx, tile_sz, ml);
+                        push_command_terrain(painter, buffer, tile_sx, tile_sz, ml);
                     else if( camera_slevel >= 0 && ml <= camera_slevel )
-                        push_command_terrain_pick_only(buffer, tile_sx, tile_sz, ml);
+                        push_command_terrain_pick_only(painter, buffer, tile_sx, tile_sz, ml);
                 }
         }
 

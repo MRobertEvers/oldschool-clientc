@@ -51,7 +51,7 @@
 -- Where it goes is the whole of the setting, and the two families of answer
 -- are different in kind:
 --
---   * A CORNER of the world safe area -- the scene with the chrome and every
+--   * A CORNER of the world's safe_gamechrome region -- the scene with the chrome and every
 --     other plugin's claim already taken out, which is the only box that means
 --     "somewhere the player is not trying to look" on both a fixed and a
 --     resizable frame. It sits there mostly transparent and comes up solid
@@ -176,7 +176,7 @@ local TAG_CAPTURE = 1
 --- is also the left click, which is the whole of the interaction.
 local CAPTURE_OPS = { "Take Screenshot" }
 
---- How far a corner button sits off the safe area's edges.
+--- How far a corner button sits off the safe_gamechrome region's edges.
 local MARGIN = 6
 
 --- The report button's number in the chat_buttons role -- 0 public, 1 private,
@@ -454,7 +454,7 @@ end
 -- The box the button lives in this frame, and whether that box is a BUTTON --
 -- the report placement -- or a region to sit in a corner of.
 --
--- Measured EVERY frame and never cached, because every input is: the safe area
+-- Measured EVERY frame and never cached, because every input is: the safe_gamechrome region
 -- moves when a window is resized or another plugin reserves an edge, and the
 -- report button moves when the gameframe is rebuilt. A cached box is a button
 -- that answers clicks where it used to be.
@@ -479,9 +479,9 @@ local function button_box(api)
     end
 
     -- The scene with the chrome taken out. The fallback chain is slot_rect's
-    -- own: ask for the tightest region first, and a frame that has no safe
+    -- own: ask for the tightest region first, and a frame that has no safe_gamechrome
     -- area still has a canvas.
-    return api.layout.safe.rect()
+    return api.layout.safe_gamechrome.rect()
         or api.layout.viewport.rect()
         or api.layout.canvas.rect(), false
 end

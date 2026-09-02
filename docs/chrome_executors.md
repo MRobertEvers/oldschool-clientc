@@ -427,7 +427,7 @@ ToriRSChrome and rasterised by the same software path that draws them in the
 canvas. Only the destination and the pointer's origin change -- which is why it
 is pixel-identical to the panel it replaces rather than a second look.
 
-The platform API under it (`PlatformSDL2_Aux*`) is deliberately the smallest one
+The platform API under it (`PlatformWindow_Aux*`) is deliberately the smallest one
 that serves exactly this: open, close, a pixel buffer, resize, present, an input
 drain and a close request. It is the first thing in the tree to want a second OS
 window, and it is refusable, which is what keeps it from becoming a general
@@ -517,7 +517,7 @@ a drag band sitting where the panel used to be. An empty region is published
 too: an executor that simply stopped hearing about handles would go on offering
 the last set it was told.
 
-If the video driver has no hit test, `PlatformSDL2_AuxSetBorderless` **refuses
+If the video driver has no hit test, `PlatformWindow_AuxSetBorderless` **refuses
 and keeps the frame**, with a line on stderr saying why. Every way a user has of
 moving or resizing a window runs through the frame or the hit test; a window
 with neither is pinned where it opened, at the size it opened, for the rest of
@@ -525,7 +525,7 @@ the session -- a worse answer than the frame it was asked to hide. `dummy`
 refuses; Cocoa, Windows and X11 do not.
 
 The same platform calls exist for the **game** window
-(`PlatformSDL2_SetBorderless`, `PlatformSDL2_SetDragHandleProvider`, which takes
+(`PlatformWindow_SetBorderless`, `PlatformWindow_SetDragHandleProvider`, which takes
 canvas coordinates with the letterbox already undone). Nothing wires them: the
 game window has no drawn top bar to grab, and hiding its frame without one would
 leave it movable only from its resize edges.
@@ -925,7 +925,7 @@ the verification COMMON-CHROME-001 asks for.
 | `src/ui/torirs_chrome_exec_web.c` | The web executor's C half |
 | `src/web/torirs_chrome.js` | The web executor's DOM half |
 | `src/ui/torirs_chrome_exec_gdi.c` | The Win32 executor |
-| `src/platform/platform_sdl2.{h,c}` | `PlatformSDL2_Aux*` -- the auxiliary window; `*_SetBorderless` / `*_SetDragHandleProvider` -- the frameless one |
+| `src/platform/platform_sdl2.{h,c}` | `PlatformWindow_Aux*` -- the auxiliary window; `*_SetBorderless` / `*_SetDragHandleProvider` -- the frameless one |
 | `src/plugin/torirs_plugin.h` | The plugin contract, ABI 5: `win_*`, `EV_UI`, `EV_UI_BUILD` |
 | `src/plugin/torirs_plugin_host.{h,c}` | The window registry, dispatch, `PluginHost_Reload` |
 | `src/plugin/torirs_plugin_lua.c` | `api.window.*`, `on_ui` / `on_ui_build`, rebuild-from-source |

@@ -53,6 +53,10 @@
 #define VIEW_W 256
 #define VIEW_H 200
 
+/* The 2026-09 census pair beside the two toridraw.h declares. */
+extern int g_toridraw_sort_k16_tail_models;
+extern int g_toridraw_sort_tile_fast_models;
+
 static int g_failures;
 static int g_fixtures;
 static long g_faces_compared;
@@ -90,7 +94,12 @@ rnd_range(int lo, int hi)
 /* A random closed-ish blob: vertices in a box, faces random triples of
  * distinct vertices, a random winding, so roughly half face away. */
 static struct ToriDraw_Model*
-make_model(int vertex_count, int face_count, int extent, int with_priorities, int with_alpha)
+make_model(
+    int vertex_count,
+    int face_count,
+    int extent,
+    int with_priorities, /* 0 none, 1 all twelve classes, 2 one value throughout */
+    int with_alpha)
 {
     struct ToriDraw_Model* m = ToriDraw_ModelNew(vertex_count, face_count, 0);
     assert(m);
@@ -147,12 +156,19 @@ make_model(int vertex_count, int face_count, int extent, int with_priorities, in
         size_t nbytes = (size_t)((face_count + 1) / 2);
         m->face_priorities = calloc(nbytes, 1);
         assert(m->face_priorities);
+        /* with_priorities == 2: one value on every face, so the uniform
+         * fast path (toridraw_face_priorities_uniform) is what gets compared
+         * against the bucket lane's full partition; the value cycles through
+         * the fixed bands and both flexible ones across models. */
+        int const uniform = rnd_range(0, 11);
         for( int f = 0; f < face_count; f++ )
         {
             /* All twelve priority classes, the flexible 10 and 11 included,
              * with a bias toward the common few so runs are long enough for
              * the partition's within-run order to matter. */
             int prio = (rnd() & 3) ? rnd_range(0, 3) : rnd_range(0, 11);
+            if( with_priorities == 2 )
+                prio = uniform;
             m->face_priorities[f >> 1] |= (uint8_t)(prio << ((f & 1) * 4));
         }
     }
@@ -396,16 +412,45 @@ now_us(void)
     return (double)ts.tv_sec * 1e6 + (double)ts.tv_nsec * 1e-3;
 }
 
+/* A skipped arm (TORIDRAW_FACE_SORT_BENCH_ARM) keeps its 1e30 placeholder; print
+ * it as a blank rather than a 31-digit number. */
+static double
+bench_shown(double best)
+{
+    return best < 1e29 ? best : 0.0;
+}
+
+static double
+bench_ratio(double bucket, double keys)
+{
+    return (bucket < 1e29 && keys < 1e29 && bucket > 0.0) ? keys / bucket : 0.0;
+}
+
 static void
 bench_sorts(struct ToriDraw_Scene* scene)
 {
+    /* TORIDRAW_FACE_SORT_BENCH_PRESORT=0 times the sort WITHOUT the y-sorted
+     * XY stash the software raster asks for: what a GPU lane (GLES2, D3D9)
+     * actually runs, since its kernel table has no raster to presort for. */
+    bool const bench_presort =
+        !getenv("TORIDRAW_FACE_SORT_BENCH_PRESORT") || atoi(getenv("TORIDRAW_FACE_SORT_BENCH_PRESORT")) != 0;
+    /* TORIDRAW_FACE_SORT_BENCH_ARM=bucket|keys runs ONE arm only, so a
+     * hardware-counter run (`simpleperf stat`) attributes its cycles,
+     * instructions and misses to that kernel alone rather than to the two
+     * interleaved. Both arms by default, as the table's ratio column needs. */
+    const char* const bench_arm_only = getenv("TORIDRAW_FACE_SORT_BENCH_ARM");
+    int const arm_first = bench_arm_only && strcmp(bench_arm_only, "keys") == 0 ? 1 : 0;
+    int const arm_count = bench_arm_only ? 1 : 2;
     /* Many models per size, same vertices, different faces: the sort sees a
      * different index stream each call, so the branch predictor cannot learn
      * one model's winding/y-order sequence across repetitions the way it
      * would with a single model looped hot -- which is the trap a single
      * repeated model falls into, and no real frame repeats a model. */
     enum { MODELS = 64 };
-    static const int sizes[] = { 64, 200, 256, 1000, 2000 };
+    /* 71, 207 and 1007 are the sizes above plus a seven-face tail: every
+     * other size is a multiple of eight, so without them the K16 tail block
+     * (TORIDRAW_K16_TAIL) never runs in this bench. */
+    static const int sizes[] = { 64, 200, 256, 1000, 2000, 71, 207, 1007 };
     const struct ToriDraw_FaceCullSortKernel* k[2] = {
         ToriDraw_FaceCullSortKernelGetBucket(), ToriDraw_FaceCullSortKernelGetBitonicRadix()
     };
@@ -459,23 +504,24 @@ bench_sorts(struct ToriDraw_Scene* scene)
         /* Five batches, best-of, arms alternating inside each batch. */
         for( int batch = 0; batch < 5; batch++ )
         {
-            for( int arm = 0; arm < 2; arm++ )
+            for( int arm = 0; arm < arm_count; arm++ )
             {
                 double t0;
-                int a = (batch & 1) ? 1 - arm : arm;
+                int a = arm_count == 1 ? arm_first : ((batch & 1) ? 1 - arm : arm);
                 for( m = 0; m < MODELS; m++ )
-                    k[a]->sort(k[a]->user_data, scene, hnds[m], true); /* warm */
+                    k[a]->sort(k[a]->user_data, scene, hnds[m], bench_presort); /* warm */
                 drawn = 0;
                 t0 = now_us();
                 for( int r = 0; r < reps; r++ )
-                    drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % MODELS], true);
+                    drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % MODELS], bench_presort);
                 t0 = (now_us() - t0) / reps;
                 if( t0 < best[a] )
                     best[a] = t0;
             }
         }
-        printf("%-8d %-8ld %12.3f %12.3f %12.2f %12.2f   %.2fx\n", fc, drawn / reps, best[0],
-               best[1], best[0] * 1000.0 / fc, best[1] * 1000.0 / fc, best[1] / best[0]);
+        printf("%-8d %-8ld %12.3f %12.3f %12.2f %12.2f   %.2fx\n", fc, drawn / reps,
+               bench_shown(best[0]), bench_shown(best[1]), bench_shown(best[0]) * 1000.0 / fc,
+               bench_shown(best[1]) * 1000.0 / fc, bench_ratio(best[0], best[1]));
         for( m = 0; m < MODELS; m++ )
             ToriDraw_ModelFree(models[m]);
     }
@@ -516,24 +562,25 @@ bench_sorts(struct ToriDraw_Scene* scene)
         {
             for( int batch = 0; batch < 5; batch++ )
             {
-                for( int arm = 0; arm < 2; arm++ )
+                for( int arm = 0; arm < arm_count; arm++ )
                 {
                     double t0;
-                    int a = (batch & 1) ? 1 - arm : arm;
+                    int a = arm_count == 1 ? arm_first : ((batch & 1) ? 1 - arm : arm);
                     for( m = 0; m < TILE_MODELS; m++ )
-                        k[a]->sort(k[a]->user_data, scene, hnds[m], true); /* warm */
+                        k[a]->sort(k[a]->user_data, scene, hnds[m], bench_presort); /* warm */
                     drawn = 0;
                     t0 = now_us();
                     for( int r = 0; r < reps; r++ )
-                        drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % TILE_MODELS], true);
+                        drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % TILE_MODELS], bench_presort);
                     t0 = (now_us() - t0) / reps;
                     if( t0 < best[a] )
                         best[a] = t0;
                 }
             }
             printf("%-8s %-8ld %12.3f %12.3f %12.2f %12.2f   %.2fx   (tile kernel %s)\n", "tile2",
-                   drawn / reps, best[0], best[1], best[0] * 1000.0 / 2, best[1] * 1000.0 / 2,
-                   best[1] / best[0],
+                   drawn / reps, bench_shown(best[0]), bench_shown(best[1]),
+                   bench_shown(best[0]) * 1000.0 / 2, bench_shown(best[1]) * 1000.0 / 2,
+                   bench_ratio(best[0], best[1]),
                    getenv("TORIDRAW_TILE_SORT") ? getenv("TORIDRAW_TILE_SORT")
                                                 : "1 (scalar, default)");
         }
@@ -557,7 +604,10 @@ main(void)
     /* The small tier is the world painter's; it is the one with the
      * bitonic+radix sort's buffers. LOW_2K holds 2048 faces, so every count
      * above fits. */
-    scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    /* DEPTH_16K: what the Android client runs (src/app.c), and what sizes
+     * the radix's digits -- the bench has to sort the same key range. */
+    scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     assert(scene);
 
     for( size_t fi = 0; fi < sizeof(face_counts) / sizeof(face_counts[0]); fi++ )
@@ -565,18 +615,31 @@ main(void)
         int face_count = face_counts[fi];
         int vertex_count = face_count < 8 ? 8 : (face_count > 2000 ? 2000 : face_count);
 
-        for( int variant = 0; variant < 16; variant++ )
+        for( int variant = 0; variant < 64; variant++ )
         {
-            int with_priorities = (variant & 1);
+            /* Bit 4 turns the priority fixtures uniform: 0 none, 1 varied,
+             * 2 one value (the fast path). Unpriced models are run once. */
+            int with_priorities = (variant & 1) ? ((variant & 16) ? 2 : 1) : 0;
+            if( !(variant & 1) && (variant & 16) )
+                continue;
             int with_alpha = (variant & 2) != 0;
             /* 16 variants and not 12, so `presort` and the near distance
              * overlap: at 12 the two bits were disjoint and the stash was
              * never once compared on a model carrying a clipped face. */
             int presort = (variant & 4) != 0;
             /* Near enough that some vertices cross the near plane on the
-             * odd variants, far enough that none do on the even ones. */
+             * odd variants, far enough that none do on the even ones.
+             *
+             * Bit 5 adds a MIDDLE distance. At this camera pitch a model 900
+             * away projects below the viewport and is culled before the
+             * sort on all but a handful of fixtures, so nearly every
+             * fixture that reached the sort was a near-clipped one -- and a
+             * near-clipped or presorting model never takes the A32 lane's
+             * K16 block. 450 keeps the model on screen and unclipped, which
+             * is what puts the K16 block, its masked tail, and the plain
+             * int32 block under the parity test at all. */
             int extent = 120;
-            int distance = (variant & 8) ? 120 : 900;
+            int distance = (variant & 32) ? 450 : ((variant & 8) ? 120 : 900);
             struct ToriDraw_Model* model =
                 make_model(vertex_count, face_count, extent, with_priorities, with_alpha);
 
@@ -599,10 +662,15 @@ main(void)
      * over near enough that a corner crosses the near plane. */
     for( int rotation = 0; rotation < 4 && g_failures <= 20; rotation++ )
     {
-        for( int variant = 0; variant < 8; variant++ )
+        for( int variant = 0; variant < 16; variant++ )
         {
             int presort = (variant & 1) != 0;
-            int distance = (variant & 2) ? 120 : 900;
+            /* At this camera pitch a tile 900 away mostly projects below the
+             * viewport and is culled before the sort; 450 keeps more of them
+             * on screen, so the tile kernels (and the leaf fast path, which
+             * only a non-presorting fixture reaches) are compared on more
+             * than a few dozen fixtures. */
+            int distance = (variant & 2) ? 120 : ((variant & 8) ? 450 : 900);
             int height_extent = (variant & 4) ? 0 : 120; /* 0 = a flat tile */
             struct ToriDraw_Model* model = make_tile_model(rotation, height_extent);
 
@@ -623,6 +691,10 @@ done:
     if( !g_failures && getenv("TORIDRAW_FACE_SORT_BENCH") )
         bench_sorts(scene);
     ToriDraw_SceneFree(scene);
+    printf("k16 census: %d models took the K16 block, %d declined, %d took the masked tail "
+           "(A32 lane only); tile fast path: %d models\n",
+           g_toridraw_sort_k16_models, g_toridraw_sort_k16_declined,
+           g_toridraw_sort_k16_tail_models, g_toridraw_sort_tile_fast_models);
     printf("face sort bitonic+radix vs bucket: %d fixtures, %ld faces compared, "
            "%ld drawn -- %s\n",
            g_fixtures, g_faces_compared, g_faces_drawn, g_failures ? "FAIL" : "PASS");

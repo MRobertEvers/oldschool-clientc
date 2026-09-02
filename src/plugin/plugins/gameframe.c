@@ -1797,6 +1797,23 @@ frame_on_layout(
     assert(ctx);
     assert(ev);
 
+    /*
+     * Nothing before the gameframe exists.
+     *
+     * A gameframe plugin dresses the game's frame, and on the title screen
+     * there is no frame to dress -- but the slots it declares are claimed all
+     * the same, and a claim the client honours over art this plugin then draws
+     * none of leaves the title screen with its background, its logo and its
+     * login box taken away by furniture for a screen nobody is on yet.
+     *
+     * @see ToriRS_PluginApi::screen. Declared here rather than left to the
+     * host because only the plugin knows that its effect is a GAME effect;
+     * the host cannot tell a frame dresser from an overlay that belongs
+     * everywhere.
+     */
+    if( g_api->screen(ctx) != TORIRS_PLUGIN_SCREEN_GAME )
+        return TORIRS_PLUGIN_PASS;
+
     frame_build_redstones(ctx);
     frame_build_chat_plates(ctx);
 
@@ -1861,6 +1878,12 @@ frame_on_draw(
     (void)userdata;
     assert(ctx);
     assert(ev);
+
+    /* The other half of the layout gate: a frame declared on the last
+     * in-game frame must not keep drawing across a logout back to the title.
+     * @see frame_on_layout. */
+    if( g_api->screen(ctx) != TORIRS_PLUGIN_SCREEN_GAME )
+        return TORIRS_PLUGIN_PASS;
 
     if( !g_frame.declared )
         return TORIRS_PLUGIN_PASS;
@@ -1982,16 +2005,29 @@ frame_on_draw(
     for( int i = 0; i < g_frame.tab_count; i++ )
     {
         struct FrameTab const* t = &g_frame.tab[i];
+        /*
+         * A tab the SERVER has not handed over wears neither its icon nor its
+         * highlight -- only the bare stone the frame's own art puts there.
+         *
+         * Asked every frame rather than at declaration time, because this is
+         * the one thing about a tab that changes without a resize, a rebuild
+         * or a claim: the tutorial gives the fourteen out one at a time, and a
+         * frame that recorded the answer at its first EV_LAYOUT would still be
+         * drawing a new character's empty rail an hour later. The client's own
+         * chrome gates the same two pictures on the same fact.
+         * @see ToriRS_PluginApi::tab_enabled.
+         */
+        int const given = g_api->tab_enabled(ctx, t->tabno);
         /* Against the tab NUMBER, not the box index: on 548 they differ, and
          * comparing the index lights the stone next to the open panel. */
-        int const stone = (t->tabno == active) ? t->stone_pressed : t->stone;
+        int const stone = (given && t->tabno == active) ? t->stone_pressed : t->stone;
 
         if( stone >= 0 )
             g_api->draw_image(ctx, ev->surface, stone, t->box.x, t->box.y, 0, 0, 0, 0, 0);
         /* At the position the LAYOUT worked out, not one derived here: the two
          * frames arrive at it by different routes and only one of them is a
          * centring. @see FrameTab::icon_x. */
-        if( t->icon >= 0 )
+        if( given && t->icon >= 0 )
         {
             g_api->draw_image(
                 ctx, ev->surface, t->icon, t->icon_x, t->icon_y, 0, 0, 0, 0, 0);
@@ -2088,11 +2124,57 @@ frame_claim(struct ToriRS_PluginCtx* ctx)
             FRAME_FIXED_W,
             FRAME_FIXED_H) )
     {
+        /* The host also refuses every claim made off the game screen -- there
+         * is no frame to claim before there is a frame -- and that refusal is
+         * a wait, not a loss: frame_on_screen retries it on login. Logging
+         * "someone else owns it" for that case sent the reader hunting for a
+         * plugin that does not exist. */
+        if( g_api->screen(ctx) != TORIRS_PLUGIN_SCREEN_GAME )
+            return;
         /* Another layout plugin has it. Saying so is the whole response: two
          * frames drawn at once is worse than one, and the loser drawing
          * nothing is what makes the winner's frame correct. */
         g_api->log(ctx, "another plugin owns the gameframe; this one is idle");
     }
+}
+
+/*
+ * Entering the game re-states the frame.
+ *
+ * frame_on_layout declines to declare on the title screen -- correctly -- but
+ * a declaration only follows a claim, a resize or a rebuild, and logging in is
+ * none of the three. A plugin enabled at the title therefore answered its one
+ * EV_LAYOUT with nothing and was never asked again, which read as "needs a
+ * restart after login". The re-claim is idempotent for the holder and marks
+ * the frame as needing a fresh EV_LAYOUT -- the same call the layout config
+ * key makes.
+ *
+ * Leaving it FORGETS the one it declared. The layout and draw gates already
+ * keep that declaration off the title screen, so this is not about what is
+ * drawn there -- it is about what is drawn on the way BACK. The boxes in
+ * `g_frame` were measured against a gameframe that no longer exists, and the
+ * draw gate opens again the moment the next session reaches the game screen,
+ * which is several frames before the new tree has finished baking and a fresh
+ * declaration can replace them. Without this the first frames of every session
+ * after the first are painted with the previous session's frame.
+ */
+static enum ToriRS_PluginVerdict
+frame_on_screen(
+    struct ToriRS_PluginCtx* ctx,
+    void* payload,
+    void* userdata)
+{
+    struct ToriRS_PluginEvScreen const* ev = payload;
+
+    (void)userdata;
+    assert(ctx);
+    assert(ev);
+
+    if( ev->screen == TORIRS_PLUGIN_SCREEN_GAME )
+        frame_claim(ctx);
+    else
+        memset(&g_frame, 0, sizeof(g_frame));
+    return TORIRS_PLUGIN_PASS;
 }
 
 static enum ToriRS_PluginVerdict
@@ -2239,6 +2321,7 @@ frame_init(
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CHROME, frame_on_chrome, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, frame_on_click, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CONFIG_CHANGED, frame_on_config, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_SCREEN_CHANGE, frame_on_screen, NULL);
 }
 
 /*

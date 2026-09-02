@@ -39,6 +39,7 @@
 #include <jni.h>
 
 #include <pthread.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,6 +95,22 @@ argv_push(char const* value)
     g_argv[g_argc++] = copy;
 }
 
+static JavaVM* g_vm;
+static jobject g_activity;      /* global ref, held for the app's life */
+static jmethodID g_show_keyboard;
+static jmethodID g_boot_failed;
+/**
+ * The frame thread has been attached to the JVM.
+ *
+ * It MUST be detached before the thread exits. ART does not treat that as a
+ * leak to be tidied up later -- it aborts the process with "Native thread
+ * exited without calling DetachCurrentThread", which surfaces as a SIGSEGV in
+ * a thread with no relation to the code that attached. Tracked here because
+ * the attach happens on demand (the first soft-keyboard call) and the detach
+ * happens somewhere else entirely (the end of frame_thread).
+ */
+static int g_frame_thread_attached;
+
 /* ---- the frame thread ---------------------------------------------------- */
 
 static pthread_t g_thread;
@@ -110,6 +127,18 @@ frame_thread(void* unused)
         LOGI("  argv[%d] = %s", i, g_argv[i]);
 
     rc = main(g_argc, g_argv);
+
+    /*
+     * Detach BEFORE returning. A thread that attached to the JVM and then exits
+     * without detaching aborts the whole process -- ART checks this on thread
+     * exit and calls it fatal, and the crash it produces names a thread id with
+     * nothing to connect it back to the attach.
+     */
+    if( g_frame_thread_attached && g_vm )
+    {
+        (*g_vm)->DetachCurrentThread(g_vm);
+        g_frame_thread_attached = 0;
+    }
 
     LOGI("frame thread: main() returned %d", rc);
     return NULL;
@@ -184,13 +213,11 @@ redirect_stdio_to_log(void)
 
 /* ---- the soft keyboard ---------------------------------------------------
  *
- * PlatformSDL2_SetTextInput's implementation. InputMethodManager is Java-only,
+ * PlatformWindow_SetTextInput's implementation. InputMethodManager is Java-only,
  * so the actual show/hide is a method on the activity and this reaches back up
  * to call it.
  */
-static JavaVM* g_vm;
-static jobject g_activity;      /* global ref, held for the app's life */
-static jmethodID g_show_keyboard;
+
 
 void
 PlatformAndroidJni_SetSoftKeyboard(int on)
@@ -214,10 +241,80 @@ PlatformAndroidJni_SetSoftKeyboard(int on)
             return;
         attached = 1;
     }
-    (void)attached;
+    /*
+     * Attached and LEFT attached, deliberately: this is called once per focus
+     * change and re-attaching each time would be pure overhead. The debt is
+     * settled at the end of frame_thread, which is the only place that knows
+     * the thread is about to stop existing.
+     */
+    if( attached )
+        g_frame_thread_attached = 1;
     (*env)->CallVoidMethod(env, g_activity, g_show_keyboard, (jboolean)(on != 0));
     if( (*env)->ExceptionCheck(env) )
         (*env)->ExceptionClear(env);
+}
+
+/* ---- a boot that cannot proceed ------------------------------------------
+ *
+ * @see PlatformAndroid_BootFailed for why this is not exit().
+ */
+
+void
+PlatformAndroid_BootFailed(char const* message)
+{
+    JNIEnv* env = NULL;
+    int attached = 0;
+
+    assert(message);
+    LOGE("%s", message);
+
+    if( g_vm && g_activity && g_boot_failed )
+    {
+        if( (*g_vm)->GetEnv(g_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK )
+        {
+            if( (*g_vm)->AttachCurrentThread(g_vm, &env, NULL) == JNI_OK )
+                attached = 1;
+            else
+                env = NULL;
+        }
+        if( attached )
+            g_frame_thread_attached = 1;
+        if( env )
+        {
+            jstring text = (*env)->NewStringUTF(env, message);
+
+            /* The call POSTS to the UI thread and returns; it does not wait for
+             * the activity to go away. It must not -- the activity's teardown
+             * joins this thread, and waiting for it here would be each thread
+             * waiting on the other. */
+            (*env)->CallVoidMethod(env, g_activity, g_boot_failed, text);
+            if( (*env)->ExceptionCheck(env) )
+                (*env)->ExceptionClear(env);
+            if( text )
+                (*env)->DeleteLocalRef(env, text);
+        }
+    }
+
+    /*
+     * Detach before this thread stops existing. ART treats a thread that exits
+     * while still attached as fatal, and the abort it raises would be exactly
+     * the crash this function exists to prevent -- with a message naming a
+     * thread id and nothing else. frame_thread settles the same debt at its own
+     * end; this path never reaches it.
+     */
+    if( g_frame_thread_attached && g_vm )
+    {
+        (*g_vm)->DetachCurrentThread(g_vm);
+        g_frame_thread_attached = 0;
+    }
+
+    /*
+     * The client ends; the PROCESS does not. nativeStop's join returns at once
+     * for a thread that has already exited, so the activity's teardown is
+     * unchanged, and the next nativeStart begins a run in a process that is
+     * still alive.
+     */
+    pthread_exit(NULL);
 }
 
 /* ---- JNI entry points ----------------------------------------------------
@@ -248,6 +345,58 @@ PlatformAndroidJni_SetSoftKeyboard(int on)
  * configuration it parses. Adding `--home` would mean adding a concept to the
  * client that only one platform uses.
  */
+/*
+ * env.txt, one KEY=VALUE per line, applied before main().
+ *
+ * The renderer's A/B and kernel-selection knobs -- TORIDRAW_FRAME_AB,
+ * TORIDRAW_RASTER_BATCH, TORIDRAW_FACE_SORT -- are read with getenv(), which
+ * on every other host is set by the shell that launches the client. An Android
+ * app has no shell and inherits no environment, so on the one platform whose
+ * performance is most worth measuring, every one of those knobs was
+ * unreachable and the arm being measured was whatever the build defaulted to.
+ *
+ * This is the same shape as extra_args.txt next to it and for the same reason:
+ * a profile can be tried a different way without rebuilding the APK. It is
+ * deliberately not a manifest key -- these are host-level debug knobs, not
+ * properties of a world, and putting them in a manifest would ship them.
+ */
+static void
+apply_env_file(char const* data_root)
+{
+    char path[1024];
+    char line[512];
+    FILE* f;
+
+    assert(data_root);
+
+    snprintf(path, sizeof(path), "%s/env.txt", data_root);
+    f = fopen(path, "r");
+    if( !f )
+        return; /* optional, and its absence is the normal case */
+
+    while( fgets(line, sizeof(line), f) )
+    {
+        char* eq;
+        char* p = line;
+        size_t n;
+
+        while( *p == ' ' || *p == '\t' )
+            p++;
+        if( *p == '#' || *p == '\n' || *p == '\r' || *p == '\0' )
+            continue;
+        n = strlen(p);
+        while( n > 0 && ( p[n - 1] == '\n' || p[n - 1] == '\r' ) )
+            p[--n] = '\0';
+        eq = strchr(p, '=');
+        if( !eq )
+            continue;
+        *eq = '\0';
+        setenv(p, eq + 1, 1);
+        LOGI("env: %s=%s", p, eq + 1);
+    }
+    fclose(f);
+}
+
 static void
 place_process(char const* data_root)
 {
@@ -257,6 +406,7 @@ place_process(char const* data_root)
         LOGE("could not chdir to %s -- preferences will not persist", data_root);
     setenv("HOME", data_root, 1);
     LOGI("data root: %s", data_root);
+    apply_env_file(data_root);
 }
 
 JNIEXPORT void JNICALL
@@ -297,6 +447,9 @@ Java_com_torirs_client_ClientActivity_nativeStart(
     {
         jclass cls = (*env)->GetObjectClass(env, thiz);
         g_show_keyboard = (*env)->GetMethodID(env, cls, "showSoftKeyboard", "(Z)V");
+        if( (*env)->ExceptionCheck(env) )
+            (*env)->ExceptionClear(env);
+        g_boot_failed = (*env)->GetMethodID(env, cls, "bootFailed", "(Ljava/lang/String;)V");
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
     }
@@ -362,6 +515,15 @@ Java_com_torirs_client_ClientActivity_nativeSetDensity(
     (void)env;
     (void)thiz;
     PlatformAndroid_SetDensity((int)density);
+}
+
+JNIEXPORT void JNICALL
+Java_com_torirs_client_ClientActivity_nativeKeyboardInset(
+    JNIEnv* env, jobject thiz, jint bottom_px)
+{
+    (void)env;
+    (void)thiz;
+    PlatformAndroid_SetKeyboardInset((int)bottom_px);
 }
 
 JNIEXPORT void JNICALL

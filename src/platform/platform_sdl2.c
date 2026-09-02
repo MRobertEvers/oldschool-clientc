@@ -1,4 +1,4 @@
-#include "platform/platform_sdl2.h"
+#include "platform/platform_window.h"
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
@@ -26,8 +26,8 @@
  */
 struct SdlHitState
 {
-    struct PlatformSDL2* platform;
-    PlatformSDL2_DragHandleFn fn;
+    struct PlatformWindow* platform;
+    PlatformWindow_DragHandleFn fn;
     void* user;
     /** Skip the letterbox: this window's content is its own size. */
     int is_aux;
@@ -48,7 +48,7 @@ struct SdlHitState
  */
 #define SDL_BORDERLESS_RESIZE 6
 
-struct PlatformSDL2
+struct PlatformWindow
 {
     SDL_Window* window;
     SDL_Renderer* renderer;
@@ -96,7 +96,7 @@ struct PlatformSDL2
      *
      * Pixels, not points, and that is the whole of what this window used to get
      * wrong. The chrome picks its baked font size from the display's density
-     * (App_SetChromeScale off PlatformSDL2_PixelDensity), so on a 2x display it
+     * (App_SetChromeScale off PlatformWindow_PixelDensity), so on a 2x display it
      * lays out 36px rows and a 208px label column. Sized in POINTS this surface
      * gave a 2x chrome half the room it was laid out for: labels ran under
      * their fields, the fields were clipped against the scrollbar, and half of
@@ -118,11 +118,11 @@ struct PlatformSDL2
     /* Latched by the pump, drained by AuxTakeCloseRequest -- see the header. */
     bool aux_close_requested;
     /* This frame's aux gesture, coalesced by the pump. */
-    struct PlatformSDL2_AuxInput aux_input;
+    struct PlatformWindow_AuxInput aux_input;
     bool aux_have_input;
 
     /* Last title handed to SDL, so a per-frame caller does not repeat itself.
-     * See PlatformSDL2_SetTitle. Sized to hold main.c's readout whole: a title
+     * See PlatformWindow_SetTitle. Sized to hold main.c's readout whole: a title
      * that overflows would compare equal on its tail and stop updating. */
     char title[256];
     /* Drawable pixels per window point, from SDL: 1 on an ordinary display, 2
@@ -152,7 +152,7 @@ struct PlatformSDL2
  */
 static void
 sdl_drawable_size(
-    struct PlatformSDL2* platform,
+    struct PlatformWindow* platform,
     int* out_w,
     int* out_h)
 {
@@ -186,7 +186,7 @@ sdl_drawable_size(
  * one size and stretched to another.
  */
 static void
-sdl_refresh_pixel_density(struct PlatformSDL2* platform)
+sdl_refresh_pixel_density(struct PlatformWindow* platform)
 {
     int window_w = 0;
     int window_h = 0;
@@ -239,7 +239,7 @@ static bool g_want_highdpi = true;
 #endif
 
 void
-PlatformSDL2_SetWantHighDPI(bool want)
+PlatformWindow_SetWantHighDPI(bool want)
 {
     g_want_highdpi = want;
 }
@@ -541,12 +541,12 @@ letterbox_dst(
     }
 }
 
-struct PlatformSDL2*
-PlatformSDL2_New(void)
+struct PlatformWindow*
+PlatformWindow_New(void)
 {
-    struct PlatformSDL2* platform = malloc(sizeof(struct PlatformSDL2));
+    struct PlatformWindow* platform = malloc(sizeof(struct PlatformWindow));
     assert(platform);
-    memset(platform, 0, sizeof(struct PlatformSDL2));
+    memset(platform, 0, sizeof(struct PlatformWindow));
     platform->interface_scale_mode = 2;
     /* A zeroed finger table would read as eight fingers all holding id 0. */
     ToriRS_TouchReset(&platform->touch);
@@ -593,8 +593,8 @@ sdl_set_window_icon(SDL_Window* window)
 }
 
 bool
-PlatformSDL2_Init(
-    struct PlatformSDL2* platform,
+PlatformWindow_Init(
+    struct PlatformWindow* platform,
     int width,
     int height,
     char const* title)
@@ -700,8 +700,8 @@ PlatformSDL2_Init(
 }
 
 bool
-PlatformSDL2_InitForOpenGL3(
-    struct PlatformSDL2* platform,
+PlatformWindow_InitForOpenGL3(
+    struct PlatformWindow* platform,
     int width,
     int height,
     char const* title)
@@ -731,7 +731,7 @@ PlatformSDL2_InitForOpenGL3(
 
     platform->esc_quits = getenv("TORIRS_ESC_QUIT") != NULL;
 
-#if defined(TORIRS_GL_ES2)
+#if defined(TORIRS_PLATFORM_WEB)
     /* WebGL1 is GLES 2.0. Asking for exactly that (and nothing above it) is
      * what keeps the renderer honest about the extension-free feature set it
      * was written against — a WebGL2 context would quietly accept more. */
@@ -750,7 +750,21 @@ PlatformSDL2_InitForOpenGL3(
 #endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+#if defined(TORIRS_PLATFORM_WEB)
+    /* In the browser these are decided HERE, not at context creation: SDL's
+     * emscripten video chooses its EGL config when the window is made, and
+     * emscripten's EGL turns each nonzero size into a WebGL context attribute
+     * (depth, stencil, antialias). No renderer in this tree touches a stencil
+     * buffer, so asking for one would only allocate a full-screen attachment
+     * the browser then has to clear and carry every frame. Depth stays at 24:
+     * the depth-buffered world pass needs it, and the request in
+     * ToriRS_GLContext_Create arrives too late to add it on this host. */
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
+#else
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+#endif
 
     platform->window = SDL_CreateWindow(
         title ? title : "torirs",
@@ -790,7 +804,7 @@ PlatformSDL2_InitForOpenGL3(
 }
 
 ToriRS_GLWindow*
-PlatformSDL2_Window(struct PlatformSDL2* platform)
+PlatformWindow_GLWindow(struct PlatformWindow* platform)
 {
     assert(platform);
     /* SDL_Window and ToriRS_GLWindow are the same object under two names; this
@@ -799,13 +813,13 @@ PlatformSDL2_Window(struct PlatformSDL2* platform)
 }
 
 void
-PlatformSDL2_Free(struct PlatformSDL2* platform)
+PlatformWindow_Free(struct PlatformWindow* platform)
 {
     if( !platform )
         return;
     /* Before the main window's teardown, so the aux one never outlives the
      * SDL_Quit that follows. */
-    PlatformSDL2_AuxClose(platform);
+    PlatformWindow_AuxClose(platform);
     free(platform->pixels);
     platform->pixels = NULL;
     if( platform->texture )
@@ -832,7 +846,7 @@ PlatformSDL2_Free(struct PlatformSDL2* platform)
 }
 
 int*
-PlatformSDL2_Pixels(struct PlatformSDL2* platform)
+PlatformWindow_Pixels(struct PlatformWindow* platform)
 {
     assert(platform);
     return platform->pixels;
@@ -848,7 +862,7 @@ PlatformSDL2_Pixels(struct PlatformSDL2* platform)
  * points and the drawable in pixels, and on a HighDPI display those differ.
  */
 static void
-aux_drawable_size(struct PlatformSDL2* platform, int* out_w, int* out_h)
+aux_drawable_size(struct PlatformWindow* platform, int* out_w, int* out_h)
 {
     int w = 0;
     int h = 0;
@@ -867,7 +881,7 @@ aux_drawable_size(struct PlatformSDL2* platform, int* out_w, int* out_h)
 
 /** Re-read the window's size in points, which is what every event arrives in. */
 static void
-aux_refresh_points(struct PlatformSDL2* platform)
+aux_refresh_points(struct PlatformWindow* platform)
 {
     int w = 0;
     int h = 0;
@@ -885,13 +899,13 @@ aux_refresh_points(struct PlatformSDL2* platform)
 /**
  * One event coordinate, from SDL's points into the surface's pixels.
  *
- * PlatformSDL2_MapMouse's opposite number for this window: there is no
+ * PlatformWindow_MapMouse's opposite number for this window: there is no
  * letterbox here -- the surface IS the window -- so the whole of the mapping is
  * the density. A window whose points have not been read yet (or a 1x display)
  * scales by one, which is the identity this used to assume everywhere.
  */
 static void
-aux_point_to_pixel(struct PlatformSDL2 const* platform, int x, int y, int* out_x, int* out_y)
+aux_point_to_pixel(struct PlatformWindow const* platform, int x, int y, int* out_x, int* out_y)
 {
     assert(platform);
     assert(out_x);
@@ -907,11 +921,11 @@ aux_point_to_pixel(struct PlatformSDL2 const* platform, int x, int y, int* out_x
  * halves in PIXELS, and SDL does not have to send SIZE_CHANGED for that. The
  * surface would stay at the old resolution -- stretched, and with every click
  * scaled by a density the window no longer has. Watched rather than subscribed
- * to, for the reason PlatformSDL2_PixelDensity re-reads instead of caching:
+ * to, for the reason PlatformWindow_PixelDensity re-reads instead of caching:
  * two SDL getters on a path that runs once a frame.
  */
 static void
-sdl_aux_sync_drawable(struct PlatformSDL2* platform)
+sdl_aux_sync_drawable(struct PlatformWindow* platform)
 {
     int pixel_w = 0;
     int pixel_h = 0;
@@ -941,7 +955,7 @@ sdl_aux_sync_drawable(struct PlatformSDL2* platform)
  * surface IS the window; the density is the whole of the mapping.
  */
 static bool
-sdl_aux_event(struct PlatformSDL2* platform, SDL_Event const* event)
+sdl_aux_event(struct PlatformWindow* platform, SDL_Event const* event)
 {
     uint32_t const id = platform->aux_window_id;
 
@@ -1077,7 +1091,7 @@ sdl_aux_event(struct PlatformSDL2* platform, SDL_Event const* event)
 }
 
 bool
-PlatformSDL2_AuxTakeInput(struct PlatformSDL2* platform, struct PlatformSDL2_AuxInput* out)
+PlatformWindow_AuxTakeInput(struct PlatformWindow* platform, struct PlatformWindow_AuxInput* out)
 {
     assert(platform);
     assert(out);
@@ -1102,7 +1116,7 @@ PlatformSDL2_AuxTakeInput(struct PlatformSDL2* platform, struct PlatformSDL2_Aux
 
 /** Allocate (or reallocate) the aux surface and its texture at w x h. */
 static bool
-aux_make_surface(struct PlatformSDL2* platform, int width, int height)
+aux_make_surface(struct PlatformWindow* platform, int width, int height)
 {
     int* pixels;
     SDL_Texture* texture;
@@ -1138,7 +1152,7 @@ aux_make_surface(struct PlatformSDL2* platform, int width, int height)
 }
 
 bool
-PlatformSDL2_AuxOpen(struct PlatformSDL2* platform, int width, int height, char const* title)
+PlatformWindow_AuxOpen(struct PlatformWindow* platform, int width, int height, char const* title)
 {
     assert(platform);
 
@@ -1214,7 +1228,7 @@ PlatformSDL2_AuxOpen(struct PlatformSDL2* platform, int width, int height, char 
 }
 
 void
-PlatformSDL2_AuxClose(struct PlatformSDL2* platform)
+PlatformWindow_AuxClose(struct PlatformWindow* platform)
 {
     assert(platform);
 
@@ -1249,35 +1263,35 @@ PlatformSDL2_AuxClose(struct PlatformSDL2* platform)
 }
 
 bool
-PlatformSDL2_AuxIsOpen(struct PlatformSDL2 const* platform)
+PlatformWindow_AuxIsOpen(struct PlatformWindow const* platform)
 {
     assert(platform);
     return platform->aux_window != NULL;
 }
 
 int*
-PlatformSDL2_AuxPixels(struct PlatformSDL2* platform)
+PlatformWindow_AuxPixels(struct PlatformWindow* platform)
 {
     assert(platform);
     return platform->aux_pixels;
 }
 
 int
-PlatformSDL2_AuxWidth(struct PlatformSDL2 const* platform)
+PlatformWindow_AuxWidth(struct PlatformWindow const* platform)
 {
     assert(platform);
     return platform->aux_width;
 }
 
 int
-PlatformSDL2_AuxHeight(struct PlatformSDL2 const* platform)
+PlatformWindow_AuxHeight(struct PlatformWindow const* platform)
 {
     assert(platform);
     return platform->aux_height;
 }
 
 bool
-PlatformSDL2_AuxResize(struct PlatformSDL2* platform, int width, int height)
+PlatformWindow_AuxResize(struct PlatformWindow* platform, int width, int height)
 {
     assert(platform);
     if( !platform->aux_window )
@@ -1292,7 +1306,7 @@ PlatformSDL2_AuxResize(struct PlatformSDL2* platform, int width, int height)
 }
 
 void
-PlatformSDL2_AuxPresent(struct PlatformSDL2* platform)
+PlatformWindow_AuxPresent(struct PlatformWindow* platform)
 {
     int* write = NULL;
     int pitch = 0;
@@ -1325,7 +1339,7 @@ PlatformSDL2_AuxPresent(struct PlatformSDL2* platform)
 }
 
 bool
-PlatformSDL2_AuxTakeCloseRequest(struct PlatformSDL2* platform)
+PlatformWindow_AuxTakeCloseRequest(struct PlatformWindow* platform)
 {
     bool const asked = platform->aux_close_requested;
     assert(platform);
@@ -1428,7 +1442,7 @@ sdl_hit_test(SDL_Window* window, SDL_Point const* area, void* data)
          * arrives as the edge pixel beside it. Deliberately left that way: on
          * a frameless window the bars are bare background with nothing else to
          * do, and dragging one is the behaviour a user expects of them. */
-        PlatformSDL2_MapMouse(st->platform, area->x, area->y, &cx, &cy);
+        PlatformWindow_MapMouse(st->platform, area->x, area->y, &cx, &cy);
     }
     return st->fn(st->user, cx, cy) ? SDL_HITTEST_DRAGGABLE : SDL_HITTEST_NORMAL;
 }
@@ -1437,7 +1451,7 @@ sdl_hit_test(SDL_Window* window, SDL_Point const* area, void* data)
  *  state asked for. */
 static bool
 sdl_set_borderless(
-    struct PlatformSDL2* platform,
+    struct PlatformWindow* platform,
     struct SdlHitState* st,
     SDL_Window* window,
     int is_aux,
@@ -1487,8 +1501,8 @@ sdl_set_borderless(
 }
 
 void
-PlatformSDL2_SetDragHandleProvider(
-    struct PlatformSDL2* platform, PlatformSDL2_DragHandleFn fn, void* user)
+PlatformWindow_SetDragHandleProvider(
+    struct PlatformWindow* platform, PlatformWindow_DragHandleFn fn, void* user)
 {
     assert(platform);
     platform->hit_main.platform = platform;
@@ -1498,8 +1512,8 @@ PlatformSDL2_SetDragHandleProvider(
 }
 
 void
-PlatformSDL2_AuxSetDragHandleProvider(
-    struct PlatformSDL2* platform, PlatformSDL2_DragHandleFn fn, void* user)
+PlatformWindow_AuxSetDragHandleProvider(
+    struct PlatformWindow* platform, PlatformWindow_DragHandleFn fn, void* user)
 {
     assert(platform);
     platform->hit_aux.platform = platform;
@@ -1509,49 +1523,49 @@ PlatformSDL2_AuxSetDragHandleProvider(
 }
 
 bool
-PlatformSDL2_SetBorderless(struct PlatformSDL2* platform, bool borderless)
+PlatformWindow_SetBorderless(struct PlatformWindow* platform, bool borderless)
 {
     assert(platform);
     return sdl_set_borderless(platform, &platform->hit_main, platform->window, 0, borderless);
 }
 
 bool
-PlatformSDL2_AuxSetBorderless(struct PlatformSDL2* platform, bool borderless)
+PlatformWindow_AuxSetBorderless(struct PlatformWindow* platform, bool borderless)
 {
     assert(platform);
     return sdl_set_borderless(platform, &platform->hit_aux, platform->aux_window, 1, borderless);
 }
 
 bool
-PlatformSDL2_IsBorderless(struct PlatformSDL2 const* platform)
+PlatformWindow_IsBorderless(struct PlatformWindow const* platform)
 {
     assert(platform);
     return platform->hit_main.borderless != 0;
 }
 
 bool
-PlatformSDL2_AuxIsBorderless(struct PlatformSDL2 const* platform)
+PlatformWindow_AuxIsBorderless(struct PlatformWindow const* platform)
 {
     assert(platform);
     return platform->hit_aux.borderless != 0;
 }
 
 int
-PlatformSDL2_Width(struct PlatformSDL2* platform)
+PlatformWindow_Width(struct PlatformWindow* platform)
 {
     assert(platform);
     return platform->width;
 }
 
 int
-PlatformSDL2_Height(struct PlatformSDL2* platform)
+PlatformWindow_Height(struct PlatformWindow* platform)
 {
     assert(platform);
     return platform->height;
 }
 
 int
-PlatformSDL2_PixelDensity(struct PlatformSDL2* platform)
+PlatformWindow_PixelDensity(struct PlatformWindow* platform)
 {
     assert(platform);
     /* Re-read rather than answer from the cache. The value taken at window
@@ -1565,7 +1579,7 @@ PlatformSDL2_PixelDensity(struct PlatformSDL2* platform)
 }
 
 bool
-PlatformSDL2_QuitRequested(struct PlatformSDL2* platform)
+PlatformWindow_QuitRequested(struct PlatformWindow* platform)
 {
     assert(platform);
     return platform->quit;
@@ -1583,8 +1597,8 @@ PlatformSDL2_QuitRequested(struct PlatformSDL2* platform)
  * first costs a strcmp of a string that is already in cache.
  */
 void
-PlatformSDL2_SetTitle(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetTitle(
+    struct PlatformWindow* platform,
     char const* title)
 {
     assert(platform);
@@ -1597,8 +1611,8 @@ PlatformSDL2_SetTitle(
 }
 
 bool
-PlatformSDL2_Resize(
-    struct PlatformSDL2* platform,
+PlatformWindow_Resize(
+    struct PlatformWindow* platform,
     int width,
     int height)
 {
@@ -1653,8 +1667,8 @@ PlatformSDL2_Resize(
 }
 
 void
-PlatformSDL2_SetInterfaceScaleMode(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetInterfaceScaleMode(
+    struct PlatformWindow* platform,
     int mode)
 {
     assert(platform);
@@ -1670,7 +1684,7 @@ PlatformSDL2_SetInterfaceScaleMode(
 }
 
 void
-PlatformSDL2_SetTextInput(struct PlatformSDL2* platform, int on)
+PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on)
 {
     assert(platform);
     (void)platform;
@@ -1683,8 +1697,22 @@ PlatformSDL2_SetTextInput(struct PlatformSDL2* platform, int on)
 }
 
 void
-PlatformSDL2_SetCanvasFollowsWindow(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetTouchViewport(struct PlatformWindow* p, int x, int y, int w, int h)
+{
+    assert(p);
+    ToriRS_TouchSetViewport(&p->touch, x, y, w, h);
+}
+
+void
+PlatformWindow_SetTouchOverlayTest(struct PlatformWindow* p, ToriRS_TouchOverlayFn fn, void* user)
+{
+    assert(p);
+    ToriRS_TouchSetOverlayTest(&p->touch, fn, user);
+}
+
+void
+PlatformWindow_SetCanvasFollowsWindow(
+    struct PlatformWindow* platform,
     struct ToriRS_CmdBus* bus,
     bool follow,
     int min_w,
@@ -1747,8 +1775,8 @@ PlatformSDL2_SetCanvasFollowsWindow(
 }
 
 void
-PlatformSDL2_SetWindowSize(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetWindowSize(
+    struct PlatformWindow* platform,
     int width,
     int height)
 {
@@ -1759,8 +1787,8 @@ PlatformSDL2_SetWindowSize(
 }
 
 void
-PlatformSDL2_MapMouse(
-    struct PlatformSDL2* platform,
+PlatformWindow_MapMouse(
+    struct PlatformWindow* platform,
     int win_x,
     int win_y,
     int* out_x,
@@ -1804,8 +1832,8 @@ PlatformSDL2_MapMouse(
 }
 
 void
-PlatformSDL2_PollCommands(
-    struct PlatformSDL2* platform,
+PlatformWindow_PollCommands(
+    struct PlatformWindow* platform,
     struct ToriRS_CmdBus* bus)
 {
     SDL_Event event;
@@ -1937,19 +1965,19 @@ PlatformSDL2_PollCommands(
             }
             break;
         case SDL_MOUSEBUTTONDOWN:
-            PlatformSDL2_MapMouse(platform, event.button.x, event.button.y, &lx, &ly);
+            PlatformWindow_MapMouse(platform, event.button.x, event.button.y, &lx, &ly);
             button = sdl_mouse_button_to_torirs(event.button.button);
             CmdBus_PushMouseButton(
                 bus, TORIRS_CMD_INPUT_MOUSE_DOWN, (uint8_t)button, (int16_t)lx, (int16_t)ly);
             break;
         case SDL_MOUSEBUTTONUP:
-            PlatformSDL2_MapMouse(platform, event.button.x, event.button.y, &lx, &ly);
+            PlatformWindow_MapMouse(platform, event.button.x, event.button.y, &lx, &ly);
             button = sdl_mouse_button_to_torirs(event.button.button);
             CmdBus_PushMouseButton(
                 bus, TORIRS_CMD_INPUT_MOUSE_UP, (uint8_t)button, (int16_t)lx, (int16_t)ly);
             break;
         case SDL_MOUSEMOTION:
-            PlatformSDL2_MapMouse(platform, event.motion.x, event.motion.y, &lx, &ly);
+            PlatformWindow_MapMouse(platform, event.motion.x, event.motion.y, &lx, &ly);
             CmdBus_PushMouseMove(bus, (int16_t)lx, (int16_t)ly);
             break;
         case SDL_FINGERDOWN:
@@ -1969,7 +1997,7 @@ PlatformSDL2_PollCommands(
             enum ToriRS_TouchPhase phase = TORIRS_TOUCH_MOVED;
 
             SDL_GetWindowSize(platform->window, &window_w, &window_h);
-            PlatformSDL2_MapMouse(
+            PlatformWindow_MapMouse(
                 platform,
                 (int)(event.tfinger.x * (float)window_w),
                 (int)(event.tfinger.y * (float)window_h),
@@ -2015,8 +2043,8 @@ PlatformSDL2_PollCommands(
 }
 
 void
-PlatformSDL2_SetPresentDamage(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetPresentDamage(
+    struct PlatformWindow* platform,
     int x,
     int y,
     int w,
@@ -2034,8 +2062,8 @@ PlatformSDL2_SetPresentDamage(
 }
 
 void
-PlatformSDL2_SetPresentDamageRects(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetPresentDamageRects(
+    struct PlatformWindow* platform,
     int const (*rects)[4],
     int count)
 {
@@ -2046,7 +2074,7 @@ PlatformSDL2_SetPresentDamageRects(
 }
 
 void
-PlatformSDL2_Present(struct PlatformSDL2* platform)
+PlatformWindow_Present(struct PlatformWindow* platform)
 {
     int* pix_write = NULL;
     int texture_pitch = 0;
@@ -2111,7 +2139,7 @@ PlatformSDL2_Present(struct PlatformSDL2* platform)
 }
 
 void
-PlatformSDL2_PresentGL(struct PlatformSDL2* platform)
+PlatformWindow_PresentGL(struct PlatformWindow* platform)
 {
     assert(platform);
     assert(platform->use_opengl);
@@ -2120,13 +2148,13 @@ PlatformSDL2_PresentGL(struct PlatformSDL2* platform)
 }
 
 uint64_t
-PlatformSDL2_Ticks64(void)
+PlatformWindow_Ticks64(void)
 {
     return SDL_GetTicks64();
 }
 
 uint64_t
-PlatformSDL2_TicksUs(void)
+PlatformWindow_TicksUs(void)
 {
     uint64_t const frequency = SDL_GetPerformanceFrequency();
     uint64_t const counter = SDL_GetPerformanceCounter();
@@ -2140,7 +2168,7 @@ PlatformSDL2_TicksUs(void)
 }
 
 void
-PlatformSDL2_SleepUntil(uint64_t deadline_ms)
+PlatformWindow_SleepUntil(uint64_t deadline_ms)
 {
     for( ;; )
     {

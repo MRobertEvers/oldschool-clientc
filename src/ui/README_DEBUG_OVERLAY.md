@@ -721,7 +721,7 @@ the one `fontbake` run that writes both generated files.
 resolves the slot against the same scale so layout and glyphs cannot come from
 different bakes. `App_SetChromeScale` is the one call that does both (and
 re-points the tree's overlay components), and the desktop shell drives it from
-`PlatformSDL2_PixelDensity` every frame — so a window dragged between a Retina
+`PlatformWindow_PixelDensity` every frame — so a window dragged between a Retina
 display and an ordinary one re-bakes its chrome size on arrival.
 
 `TORIRS_CHROME_SCALE=N` pins it, which is how scaled chrome gets worked on from

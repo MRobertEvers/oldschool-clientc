@@ -244,6 +244,14 @@ void toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm(
 
 /* The batched pipeline can take a textured face only when these exist. */
 #define TORIDRAW_TEXTRI_PRESORTED_RUN 1
+/*
+ * NOT TORIDRAW_TEXTRI_PRESORTED_RUN_AFFINE: tri.tex.i686.S does not read the
+ * row's affine lane yet, so the batched walk hands an affine face
+ * (TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES, or a camera's texture_affine) back to
+ * the per-face C affine family on this lane. Port Ltex_affine_row from
+ * tri.tex.aarch64.S and score it with test-textri-asm on a 32-bit host
+ * before defining it here; the NEON lanes were scored on device.
+ */
 
 /*
  * The one piece of the triangle that stays in C, and the reason it does.
@@ -327,6 +335,10 @@ int toridraw_texplane_prepare32_asm(
 #endif
 
 #define TORIDRAW_TEXTRI_PRESORTED_RUN 1
+/* The run kernels read the row's affine lane (tri.tex.aarch64.S and
+ * tri.tex.aarch32.S, Ltex_affine_row), scored by toridraw_presorted_neon_test.c
+ * against the C affine family on both encodings. */
+#define TORIDRAW_TEXTRI_PRESORTED_RUN_AFFINE 1
 
 #define TORIDRAW_TEX_TRI_PERSP_OPAQUE      raster_texshadeblend_persp_texopaque_branching_lerp8_v3
 #define TORIDRAW_TEX_TRI_PERSP_TRANS       raster_texshadeblend_persp_textrans_branching_lerp8_v3
@@ -356,6 +368,12 @@ int toridraw_texplane_prepare32_asm(
  * an LP64 host, and the width and gate lanes move up behind it. The kernels
  * read their own lane's layout; TORIDRAW_TEXBATCH_SET_TEXELS is the one place
  * a texel pointer is written into a row, so nothing else has to know which.
+ *
+ * The AFFINE lane follows the gate: nonzero means the face's spans derive u
+ * and v at their two ends and step linearly between them (the C affine
+ * family, raster.texshadeblend.affine.*), zero means the perspective walk
+ * that re-derives them every eight pixels. A run may mix the two; the kernel
+ * reads the lane per face, as it reads the gate.
  */
 #define TORIDRAW_RASTER_TEXBATCH_ROW_INTS 24
 #define TORIDRAW_TEXBATCH_LANE_X 0
@@ -368,6 +386,7 @@ int toridraw_texplane_prepare32_asm(
 #if UINTPTR_MAX > 0xFFFFFFFFu
 #define TORIDRAW_TEXBATCH_LANE_TW 20
 #define TORIDRAW_TEXBATCH_LANE_GATE 21
+#define TORIDRAW_TEXBATCH_LANE_AFFINE 22
 #define TORIDRAW_TEXBATCH_SET_TEXELS(row, texels)                                                   \
     do                                                                                             \
     {                                                                                              \
@@ -378,6 +397,7 @@ int toridraw_texplane_prepare32_asm(
 #else
 #define TORIDRAW_TEXBATCH_LANE_TW 19
 #define TORIDRAW_TEXBATCH_LANE_GATE 20
+#define TORIDRAW_TEXBATCH_LANE_AFFINE 21
 #define TORIDRAW_TEXBATCH_SET_TEXELS(row, texels)                                                   \
     ((row)[TORIDRAW_TEXBATCH_LANE_TEXELS] = (int)(uintptr_t)(texels))
 #endif

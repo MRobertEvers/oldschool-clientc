@@ -53,6 +53,17 @@ public final class BootActivity extends Activity
     private static final int COUNTDOWN_MS = 4000;
     private static final int TICK_MS = 100;
 
+    /**
+     * Why the client just came back, when it did.
+     *
+     * A profile that cannot boot -- no cache on the device, or the server it
+     * streams one from is not up -- used to take the process with it, and an app
+     * that vanishes to the launcher is a crash as far as anyone holding the
+     * phone is concerned. The client hands the reason back through
+     * ClientActivity.bootFailed instead, and it arrives here as this extra.
+     */
+    public static final String EXTRA_BOOT_ERROR = "com.torirs.client.BOOT_ERROR";
+
     private static final String PREFS = "torirs_boot";
     private static final String KEY_DEFAULT = "default_manifest";
 
@@ -64,6 +75,9 @@ public final class BootActivity extends Activity
     private long deadline;
     private boolean countdownRunning;
     private boolean launched;
+    /** Set once onCreate has built the UI, so onResume can tell a first
+     *  show from a return out of the editor. */
+    private boolean uiBuilt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -73,8 +87,49 @@ public final class BootActivity extends Activity
         profiles = BootProfile.discover(this);
         setContentView(buildUi());
 
-        if( selected != null )
+        String bootError =
+                getIntent() != null ? getIntent().getStringExtra(EXTRA_BOOT_ERROR) : null;
+        if( bootError != null )
+        {
+            /*
+             * Back from a profile that refused to boot: say why, and do not
+             * start the countdown.
+             *
+             * The countdown would pick that same profile -- it is the remembered
+             * default, which is how it came to be booted -- and the person would
+             * watch the identical failure every four seconds with no time to
+             * reach the gear that fixes it. A refusal is a decision point, so it
+             * waits for a decision.
+             */
+            status.setTextColor(Color.rgb(255, 140, 120));
+            status.setText(bootError);
+        }
+        else if( selected != null )
             startCountdown();
+    }
+
+    /**
+     * Coming back from the editor re-reads the manifests, so an edit is visible
+     * immediately -- and does NOT restart the countdown.
+     *
+     * A user who has just been editing a profile is mid-decision; having the
+     * machine boot something four seconds after they hit Back is the one
+     * behaviour this screen must not have.
+     */
+    @Override
+    protected void onResume()
+    {
+        super.onResume();
+        if( uiBuilt )
+        {
+            profiles = BootProfile.discover(this);
+            selected = null;
+            setContentView(buildUi());
+            cancelCountdown();
+            if( status != null )
+                status.setText("tap a profile to boot it");
+        }
+        uiBuilt = true;
     }
 
     @Override
@@ -93,7 +148,43 @@ public final class BootActivity extends Activity
         root.setBackgroundColor(Color.BLACK);
         root.setPadding(dp(24), dp(20), dp(24), dp(20));
 
-        root.addView(label("ToriRS", 26, Color.WHITE, true));
+        /*
+         * Title on the left, gear on the right.
+         *
+         * The gear edits where a profile's SERVER is -- the one field that goes
+         * stale without anyone touching it, because it is a DHCP lease. Before
+         * this the only way to correct it was a desktop, a cable and an adb
+         * push to change one word.
+         */
+        {
+            LinearLayout header = new LinearLayout(this);
+            header.setOrientation(LinearLayout.HORIZONTAL);
+            header.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView title = label("ToriRS", 26, Color.WHITE, true);
+            header.addView(title, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            /* Drawn, not typed: U+2699 has no glyph in Android 5.1's font and
+             * comes out as a tofu box. @see GearView. */
+            GearView gear = new GearView(this, dp(34));
+            gear.setOnClickListener(new View.OnClickListener()
+            {
+                @Override
+                public void onClick(View v)
+                {
+                    /* Stop the clock first: opening the editor must not be
+                     * followed a second later by the countdown booting a world
+                     * underneath it. */
+                    cancelCountdown();
+                    if( status != null )
+                        status.setText("tap a profile to boot it");
+                    startActivity(new Intent(BootActivity.this, ProfileEditorActivity.class));
+                }
+            });
+            header.addView(gear);
+            root.addView(header);
+        }
 
         if( profiles.isEmpty() )
         {

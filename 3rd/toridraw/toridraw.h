@@ -212,6 +212,33 @@ ToriDraw_RenderZBufferedWithRasterKernel(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_RasterKernelSD* kernel);
 
+/**
+ * Cull one model WITHOUT projecting its vertices, and say whether one screen
+ * point could possibly lie on it.
+ *
+ * The bound tested is the model's bounds cylinder projected to a screen box --
+ * the same conservative box ToriDraw_FastCull rejects models with, so every
+ * vertex the full projection would produce lies inside it. `false` therefore
+ * means the point cannot hit this model, whatever its geometry.
+ *
+ * For a GPU backend, which draws from baked world-space vertices and uses the
+ * software projection only for the cull and the pick: a model this rejects
+ * needs no projection at all.
+ *
+ * Returns the same TORIDRAW_CULL_* verdict ToriDraw_RenderModel1Project would.
+ */
+int
+ToriDraw_RenderModel1CullPoint(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    int point_x,
+    int point_y,
+    bool* out_point_inside);
+
+
 /** Bounding-box hit test against the last projected model (reference
  *  Model.useAABBMouseCheck). Cheaper and far more forgiving than the per-face
  *  test — the reference uses it for npcs, players and ground objs. */
@@ -268,5 +295,40 @@ ToriDraw_ProjectedTileMouseHitTest(
     struct ToriDraw_ViewPort* view_port,
     int screen_x,
     int screen_y);
+
+
+/*
+ * Debug census of the bitonic+radix face sort's radix shapes (see
+ * toridraw_radix_sort_depth): models this frame whose depth range let the
+ * radix finish in one pass, and models that took two. A renderer that prints
+ * frame statistics reads and clears them; nothing else touches them.
+ */
+/*
+ * The projection gate's census, always on (seven increments per model):
+ * models handed to ToriDraw_ProjectWithVTable, where each left, and for the
+ * ones projected their vertex total and how many had a vertex count that is
+ * not a multiple of four (the kernels' scalar tail). A renderer that prints
+ * frame statistics reads and clears it.
+ */
+struct ToriDraw_ProjectCensus
+{
+    int calls;
+    int cull_fast;
+    int cull_error;
+    int cull_aabb;
+    int projected;
+    int projected_vertices;
+    int tail_models;
+};
+extern struct ToriDraw_ProjectCensus g_toridraw_project_census;
+
+extern int g_toridraw_sort_k16_models;
+extern int g_toridraw_sort_k16_declined;
+extern int g_toridraw_radix_shallow_models;
+extern int g_toridraw_radix_two_pass_models;
+/* Same census for the priority emit: models whose priorities were all one
+ * value (emitted in key order) against models that took the partition. */
+extern int g_toridraw_prio_uniform_models;
+extern int g_toridraw_prio_varied_models;
 
 #endif

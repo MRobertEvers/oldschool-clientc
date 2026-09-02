@@ -20,9 +20,10 @@ enum
     CHAT_COLOR_TRADE = 0x800080,
     CHAT_COLOR_DUEL = 0x7E3200,
     /* Not a reference colour: the unfocused prompt, muted against the
-     * chatbox's tan so it reads as chrome rather than as a message. Matches
-     * the widget chatbox's APP_CHAT_PROMPT_TEXT, so the two eras' prompts are
-     * the same prompt. */
+     * chatbox's tan so it reads as chrome rather than as a message. The
+     * WORDING is the profile's (revconfig `prompt=`, @see RS_Chat_BuildView);
+     * the colour stays here because the span api carries a plain int and no
+     * markup parser sits between the ini and this file. */
     CHAT_COLOR_PROMPT = 0x4A443A,
 };
 
@@ -444,6 +445,7 @@ RS_Chat_BuildView(
     int font_id,
     int dialog_mounted,
     int focused,
+    char const* prompt,
     struct UIChatView* out)
 {
     assert(chat && filters && out);
@@ -506,14 +508,18 @@ RS_Chat_BuildView(
         char buf[128];
         out->has_input_line = 1;
         out->input_line.baseline_y = 90;
-        /* Unfocused, the line says what to press instead of showing a name and
-         * a caret it is not collecting anything into. Same wording as the
-         * widget chatbox's prompt (app.c APP_CHAT_PROMPT_TEXT) -- one prompt,
-         * two renderers, because the eras differ in who draws the line and in
-         * nothing the player can see. */
+        /* Unfocused, the line says how to start typing instead of showing a
+         * name and a caret it is not collecting anything into. The wording is
+         * the profile's (`prompt=` on the chat component, which a `@mobile`
+         * override retells for a finger); NULL/empty is "no override", and
+         * keeps the reference wording. */
         if( !focused )
         {
-            line_add_span(&out->input_line, 4, CHAT_COLOR_PROMPT, "Press Enter to chat...");
+            line_add_span(
+                &out->input_line,
+                4,
+                CHAT_COLOR_PROMPT,
+                prompt && prompt[0] ? prompt : "Press Enter to chat...");
             return;
         }
         snprintf(buf, sizeof(buf), "%s:", chat->username);

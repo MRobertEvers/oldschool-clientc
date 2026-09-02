@@ -3,6 +3,7 @@
 #include "app.h"
 #include "engine/uitree_builder/task_slot_mount.h"
 #include "ui/uitree.h"
+#include "ui/uitree_role.h"
 #include "ui/uitree_layout.h"
 
 #include <assert.h>
@@ -128,6 +129,59 @@ RS_UISlots_TabEnabled(
     if( tabno < 0 || tabno >= RS_UI_SLOTS_TAB_MAX )
         return 0;
     return slots->side_overlay_id[tabno] != -1;
+}
+
+int
+RS_UISlots_TabGiven(struct App* app, int tabno)
+{
+    char role[UITREE_ROLE_NAME_MAX];
+    uint16_t role_id;
+    int32_t node;
+
+    assert(app);
+    if( tabno < 0 || tabno >= RS_UI_SLOTS_TAB_MAX )
+        return 0;
+
+    /*
+     * Rung 1. The gate is `side_owner_index` and not the overlay id: a lane
+     * whose gameframe is the cache's own has no sidebar builtins at all, so
+     * every overlay id is -1, and reading that as "the server took all
+     * fourteen away" would blank a rail nobody had said anything about.
+     */
+    if( app->slots.side_owner_index[tabno] >= 0 &&
+        !RS_UISlots_TabEnabled(&app->slots, tabno) )
+        return 0;
+
+    if( !app->tree )
+        return 1;
+
+    /* Rung 2. A name the PROFILE spells, numbered so it can be reached from a
+     * tabno -- `panel_<name>` cannot be. */
+    snprintf(role, sizeof(role), "sidetab_%d", tabno);
+    role_id = UITree_RoleFind(&app->ui_roles, role);
+    if( role_id == 0 )
+        return 1;
+
+    node = UITree_RoleNode(app->tree, &app->ui_roles, role_id);
+    if( node < 0 )
+        return 0;
+
+    /*
+     * The node's OWN hide, and not its ancestors'.
+     *
+     * On a cache gameframe an ancestor hide says something else entirely:
+     * `sideN` is `hidden=yes` in the cache and unhidden for the SELECTED tab,
+     * and a strip a display mode folds away is hidden with every icon in it.
+     * Walking up would read either as "the player has not got this tab" and
+     * blank thirteen icons out of fourteen.
+     *
+     * `frame_hidden` is ignored for a sharper reason: it is the ASKER's own
+     * doing. A tab icon is lane chrome (uitree_frame.c, frame_is_lane_chrome),
+     * so the moment a plugin claims the frame every one of them is suppressed
+     * -- and a verb that counted that would answer "hidden" to the one caller
+     * with any use for the answer.
+     */
+    return app->tree->components[node].behavior.hide ? 0 : 1;
 }
 
 /* Wrapper protothread: run the mount, then relayout + CS1 re-request over

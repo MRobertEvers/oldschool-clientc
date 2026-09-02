@@ -289,6 +289,9 @@ struct ToriRS_PluginHost
     /* The plugin currently being dispatched, so the api knows whose ctx it is
      * serving without every call carrying it separately. */
     int dispatching;
+    /** engine.screen's answer at the last frame boundary, so the boundary can
+     *  tell a change from a steady state. @see TORIRS_PLUGIN_EV_SCREEN_CHANGE. */
+    int last_screen;
     /* Non-NULL only between the open and close of a draw window. */
     void* draw_surface;
     /* Which surface that is -- enum PluginDrawSurface. Read by the two
@@ -748,6 +751,43 @@ api_log(struct ToriRS_PluginCtx* ctx, char const* fmt, ...)
     TORIRS_LOGC('\n');
 }
 
+/* The plugin header spells enum AppScreen's values again, because a plugin
+ * must not include the app's. These are what keep the two from drifting. */
+_Static_assert((int)TORIRS_PLUGIN_SCREEN_BOOT == 0, "plugin screen BOOT");
+_Static_assert((int)TORIRS_PLUGIN_SCREEN_TITLE == 10, "plugin screen TITLE");
+_Static_assert((int)TORIRS_PLUGIN_SCREEN_CONNECTING == 20, "plugin screen CONNECTING");
+_Static_assert((int)TORIRS_PLUGIN_SCREEN_GAME == 30, "plugin screen GAME");
+
+static int
+api_screen(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    return ctx->host->engine.screen(ctx->host->engine.user);
+}
+
+/*
+ * NOT gated on host_frame_exists, alone among the geometry verbs: the OS
+ * covering the window is a fact about the WINDOW, and it is as true on the
+ * title screen as in game. An engine with no notion of OS occlusion (a test
+ * fake, a desktop that never wired one) answers with the whole canvas, which
+ * is the honest answer on a machine with no soft keyboard.
+ */
+static int
+api_safe_os(
+    struct ToriRS_PluginCtx* ctx,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    assert(ctx);
+    if( ctx->host->engine.safe_os )
+        return ctx->host->engine.safe_os(
+            ctx->host->engine.user, out_x, out_y, out_w, out_h);
+    return ctx->host->engine.slot_rect(
+        ctx->host->engine.user, TORIRS_PLUGIN_SLOT_CANVAS, out_x, out_y, out_w, out_h);
+}
+
 static int
 api_world_cycle(struct ToriRS_PluginCtx* ctx)
 {
@@ -921,6 +961,24 @@ api_layout_claim(
         return false;
     if( canvas == TORIRS_PLUGIN_CANVAS_FIXED && (fixed_w <= 0 || fixed_h <= 0) )
         return false;
+    /*
+     * There is no frame to claim before there is a frame.
+     *
+     * A granted claim hands the plugin the canvas and takes the client's own
+     * frame out of the picture; on the title screen that means the background,
+     * the logo and the login box are given away to a plugin which then draws a
+     * gameframe's worth of nothing, because the parts it dresses do not exist
+     * yet. The symptom is a login screen with most of its art missing and no
+     * error anywhere -- every plugin behaved exactly as written.
+     *
+     * Refused HERE and not left to each plugin, even though the frame dressers
+     * gate themselves too (@see gameframe.c frame_on_layout): a plugin asking
+     * for something by name on a tree that has no gameframe gets whatever else
+     * happens to answer to that name, so "ask nicely" is not a property the
+     * host can rely on. This is the one door, so this is where it closes.
+     */
+    if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+        return false;
     if( host->layout_owner >= 0 && host->layout_owner != ctx->index )
         return false;
 
@@ -1047,6 +1105,16 @@ api_tab_select(struct ToriRS_PluginCtx* ctx, int tabno)
     return ctx->host->engine.tab_select(ctx->host->engine.user, tabno) ? true : false;
 }
 
+static int
+api_tab_enabled(struct ToriRS_PluginCtx* ctx, int tabno)
+{
+    assert(ctx);
+    /* A tab number a plugin read off its own stone table, like tab_select's. */
+    if( tabno < 0 )
+        return 0;
+    return ctx->host->engine.tab_enabled(ctx->host->engine.user, tabno);
+}
+
 
 /* -- layout regions ------------------------------------------------------- */
 
@@ -1141,7 +1209,7 @@ plugin_engine_rect(struct ToriRS_PluginHost* host, int slot, struct PluginRect* 
 }
 
 /**
- * SAFE: the scene's box with the chrome and every reservation taken out.
+ * SAFE_GAMECHROME: the scene's box with the chrome and every reservation taken out.
  *
  * Starts from VIEWPORT rather than from CANVAS because on a fixed frame that
  * is already the answer -- the chrome sits outside the scene box and every
@@ -1154,7 +1222,7 @@ plugin_engine_rect(struct ToriRS_PluginHost* host, int slot, struct PluginRect* 
  * it.
  */
 static int
-plugin_safe_rect(struct ToriRS_PluginHost* host, struct PluginRect* out)
+plugin_safe_gamechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* out)
 {
     static int const OCCLUDER[] = {
         TORIRS_PLUGIN_SLOT_MINIMAP,
@@ -1192,7 +1260,7 @@ plugin_safe_rect(struct ToriRS_PluginHost* host, struct PluginRect* out)
         struct PluginReserve const* r = &host->reserves[i];
         int px;
 
-        if( r->plugin < 0 || r->slot != TORIRS_PLUGIN_SLOT_SAFE || r->px <= 0 )
+        if( r->plugin < 0 || r->slot != TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME || r->px <= 0 )
             continue;
         switch( r->edge )
         {
@@ -1221,6 +1289,31 @@ plugin_safe_rect(struct ToriRS_PluginHost* host, struct PluginRect* out)
     return box.w > 0 && box.h > 0;
 }
 
+/**
+ * Does the GAMEFRAME exist right now?
+ *
+ * Every verb below that answers a question about the frame -- by role name, by
+ * slot, by component id -- answers "no such thing" when it does not, rather
+ * than resolving the name against whatever tree happens to be up.
+ *
+ * The title screen has a tree, and it has components, and some of them answer
+ * to the names a frame dresser asks for. A plugin that asks for a rectangle by
+ * name and is handed one has no way to tell that it belongs to the login box
+ * rather than to the chat frame, so it dresses it -- and the login screen loses
+ * its art to furniture drawn for a screen nobody is on. "Ask for things by
+ * name" is only safe while the names mean what the asker thinks they mean, and
+ * off the gameframe they do not.
+ *
+ * A refusal, not an abort: a plugin polling role_rect every frame across a
+ * logout is doing nothing wrong, and this is the answer it should get.
+ */
+static int
+host_frame_exists(struct ToriRS_PluginCtx const* ctx)
+{
+    assert(ctx);
+    return ctx->host->engine.screen(ctx->host->engine.user) == TORIRS_PLUGIN_SCREEN_GAME;
+}
+
 static int
 api_slot_rect(
     struct ToriRS_PluginCtx* ctx,
@@ -1233,6 +1326,9 @@ api_slot_rect(
     struct PluginRect box;
     int got;
 
+    if( !host_frame_exists(ctx) )
+        return 0; /* @see host_frame_exists */
+
     assert(ctx);
 
     /* A region id out of range is a plugin's arithmetic, not a broken
@@ -1241,7 +1337,7 @@ api_slot_rect(
     if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
         return 0;
 
-    got = slot == TORIRS_PLUGIN_SLOT_SAFE ? plugin_safe_rect(ctx->host, &box)
+    got = slot == TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME ? plugin_safe_gamechrome_rect(ctx->host, &box)
                                           : plugin_engine_rect(ctx->host, slot, &box);
     if( !got || box.w <= 0 || box.h <= 0 )
         return 0;
@@ -1262,8 +1358,8 @@ api_slot_rect(
 /*
  * Where a role's element is. @see ToriRS_PluginApi::role_rect.
  *
- * `safe` is answered here and never reaches the engine, for the same reason
- * SLOT_SAFE does not: it is the placeable regions minus every plugin's edge
+ * `safe_gamechrome` is answered here and never reaches the engine, for the same reason
+ * SLOT_SAFE_GAMECHROME does not: it is the placeable regions minus every plugin's edge
  * reservation, and the reservation table is the host's. Routing it through
  * api_slot_rect rather than re-deriving it is what keeps the name and the
  * region enum answering with one rectangle.
@@ -1279,14 +1375,17 @@ api_role_rect(
 {
     int x = 0, y = 0, w = 0, h = 0;
 
+    if( !host_frame_exists(ctx) )
+        return 0; /* @see host_frame_exists */
+
     assert(ctx);
     /* An empty name is a plugin's own string handling, and the answer is the
      * same one an undeclared role gets. */
     if( !role || role[0] == '\0' )
         return 0;
 
-    if( strcmp(role, "safe") == 0 )
-        return api_slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, out_x, out_y, out_w, out_h);
+    if( strcmp(role, "safe_gamechrome") == 0 )
+        return api_slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, out_x, out_y, out_w, out_h);
 
     if( !ctx->host->engine.role_rect(ctx->host->engine.user, role, &x, &y, &w, &h) )
         return 0;
@@ -1310,9 +1409,11 @@ api_role_visible(struct ToriRS_PluginCtx* ctx, char const* role)
     assert(ctx);
     if( !role || role[0] == '\0' )
         return 0;
-    /* `safe` and `canvas` are rectangles rather than things that can be
+    if( !host_frame_exists(ctx) )
+        return 0; /* @see host_frame_exists */
+    /* `safe_gamechrome` and `canvas` are rectangles rather than things that can be
      * hidden, and a derived region is on screen whenever the client is. */
-    if( strcmp(role, "safe") == 0 || strcmp(role, "canvas") == 0 )
+    if( strcmp(role, "safe_gamechrome") == 0 || strcmp(role, "canvas") == 0 )
         return api_role_rect(ctx, role, NULL, NULL, NULL, NULL);
     /*
      * A REPLACED role is on screen: its provider paints it at the tombstone
@@ -1336,6 +1437,9 @@ api_role_click(struct ToriRS_PluginCtx* ctx, char const* role, int op)
     assert(ctx);
     if( !role || role[0] == '\0' )
         return 0;
+    if( !host_frame_exists(ctx) )
+        return 0; /* @see host_frame_exists -- and a click on a name that means
+                   * something else is worse than a rectangle that does. */
     /* Same reading as if_click's: an op out of range came from a config key or
      * a script, so it is bad input and not a broken contract. */
     if( op < 0 || op > 10 )
@@ -1349,6 +1453,8 @@ api_role_id(struct ToriRS_PluginCtx* ctx, char const* role)
     assert(ctx);
     if( !role || role[0] == '\0' )
         return -1;
+    if( !host_frame_exists(ctx) )
+        return -1; /* @see host_frame_exists */
     return ctx->host->engine.role_id(ctx->host->engine.user, role);
 }
 
@@ -1435,7 +1541,7 @@ api_role_replace(
     if( !role || !role[0] || strlen(role) >= TORIRS_PLUGIN_ROLE_NAME_MAX )
         return 0;
     /* These are derived rectangles, not semantic component identities. */
-    if( strcmp(role, "safe") == 0 || strcmp(role, "canvas") == 0 )
+    if( strcmp(role, "safe_gamechrome") == 0 || strcmp(role, "canvas") == 0 )
         return 0;
 
     at = role_replacement_find(host, role);
@@ -1492,7 +1598,7 @@ api_role_anchor(struct ToriRS_PluginCtx* ctx, char const* role, int place)
         (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0, 0);
         return 0;
     }
-    if( strcmp(role, "safe") == 0 || strcmp(role, "canvas") == 0 )
+    if( strcmp(role, "safe_gamechrome") == 0 || strcmp(role, "canvas") == 0 )
     {
         (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0, 0);
         return 0;
@@ -1545,6 +1651,9 @@ api_slot_member_rect(
 {
     int x = 0, y = 0, w = 0, h = 0;
 
+    if( !host_frame_exists(ctx) )
+        return 0; /* @see host_frame_exists */
+
     assert(ctx);
 
     /* Same reading as slot_rect's: an id out of range is a plugin's
@@ -1586,6 +1695,9 @@ api_component_rect(
 {
     int x = 0, y = 0, w = 0, h = 0;
 
+    if( !host_frame_exists(ctx) )
+        return 0; /* @see host_frame_exists */
+
     assert(ctx);
 
     if( !ctx->host->engine.component_rect(ctx->host->engine.user, component_id, &x, &y, &w, &h) )
@@ -1616,7 +1728,7 @@ api_layout_reserve(struct ToriRS_PluginCtx* ctx, int slot, int edge, int px)
     /* Only the derived regions. A placeable role is whatever the frame says it
      * is, and eating an edge of it here would be arguing with the layout
      * rather than making room beside it. */
-    if( slot != TORIRS_PLUGIN_SLOT_SAFE )
+    if( slot != TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME )
     {
         TORIRS_LOG("plugin: %s reserved from region %d; only SAFE can be reserved from\n",
             ctx->name,
@@ -5133,6 +5245,15 @@ api_text_input(struct ToriRS_PluginCtx* ctx, int on)
     ctx->host->engine.text_input(ctx->host->engine.user, on ? 1 : 0);
 }
 
+static void
+api_chat_focus(struct ToriRS_PluginCtx* ctx, int on)
+{
+    assert(ctx);
+    if( !ctx->host->engine.chat_focus )
+        return;
+    ctx->host->engine.chat_focus(ctx->host->engine.user, on ? 1 : 0);
+}
+
 static int
 api_if_click(struct ToriRS_PluginCtx* ctx, int component_id, int op)
 {
@@ -5151,6 +5272,7 @@ struct ToriRS_PluginHost*
 PluginHost_New(struct ToriRS_PluginEngine const* engine)
 {
     assert(engine);
+    assert(engine->screen);
     assert(engine->world_cycle);
     assert(engine->frame_ms);
     assert(engine->frame_work_us);
@@ -5163,6 +5285,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->layout_scrollbar);
     assert(engine->tab_active);
     assert(engine->tab_select);
+    assert(engine->tab_enabled);
     assert(engine->local_player);
     assert(engine->npc_next);
     assert(engine->npc_by_slot);
@@ -5244,6 +5367,10 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
 
     host->engine = *engine;
     host->dispatching = -1;
+    /* The event is "it changed", never "here is what it is" -- so the baseline
+     * is the answer at init, not a sentinel that would fire a phantom change
+     * on the first frame. */
+    host->last_screen = engine->screen(engine->user);
     /* Same trap as the image slots below: 0 is a plugin index, so a calloc'd
      * owner would mean "the first plugin registered owns the gameframe" and
      * every lane would boot with its own chrome suppressed. */
@@ -5273,6 +5400,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .subscribe = api_subscribe,
         .log = api_log,
         .notify = api_notify,
+        .screen = api_screen,
+        .safe_os = api_safe_os,
         .world_cycle = api_world_cycle,
         .frame_ms = api_frame_ms,
         .frame_work_us = api_frame_work_us,
@@ -5320,6 +5449,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .layout_scrollbar = api_layout_scrollbar,
         .tab_active = api_tab_active,
         .tab_select = api_tab_select,
+        .tab_enabled = api_tab_enabled,
         .stat = api_stat,
         .stat_xp = api_stat_xp,
         .skill_name = api_skill_name,
@@ -5360,6 +5490,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .hit_region = api_hit_region,
         .if_click = api_if_click,
         .text_input = api_text_input,
+        .chat_focus = api_chat_focus,
         .asset_load = api_asset_load,
         .asset_data = api_asset_data,
         .asset_save = api_asset_save,
@@ -5910,6 +6041,25 @@ PluginHost_FrameStart(struct ToriRS_PluginHost* host, uint64_t now_ms)
         host->plugins[i].draw_used = 0;
         host->plugins[i].draw_clipped = false;
     }
+
+    /* The screen poll. Here rather than at the transitions themselves because
+     * the app changes screens from half a dozen places (login, logout, a
+     * disconnect, the title's own tabs) and a seam per place is how one gets
+     * missed; the boundary sees them all. Before EV_FRAME_START, so a frame
+     * handler polling api->screen never contradicts an EV_SCREEN_CHANGE it has
+     * not received yet. The baseline advances whether or not anyone listens --
+     * a subscriber must never be handed a change that predates it. */
+    {
+        int const screen = host->engine.screen(host->engine.user);
+        if( screen != host->last_screen )
+        {
+            struct ToriRS_PluginEvScreen ev = { screen, host->last_screen };
+            host->last_screen = screen;
+            if( host->sub_count[TORIRS_PLUGIN_EV_SCREEN_CHANGE] > 0 )
+                plugin_dispatch(host, TORIRS_PLUGIN_EV_SCREEN_CHANGE, &ev);
+        }
+    }
+
     if( host->sub_count[TORIRS_PLUGIN_EV_FRAME_START] == 0 )
         return;
 

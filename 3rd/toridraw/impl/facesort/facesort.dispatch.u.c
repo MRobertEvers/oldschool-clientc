@@ -31,6 +31,9 @@ struct sort_model_inputs
     /* NULL when this model's faces are not banded by render priority. */
     uint8_t* face_priorities;
     int face_count;
+    /** The model's projected vertex count: how much of screen_vertices_* is
+     *  this model's. A lane that re-lays the vertices out per model needs it. */
+    int vertex_count;
     /* -1 = not a two-triangle terrain tile; see ToriDraw_Model.tile_sort_kernel. */
     int tile2_rot;
     int model_min_depth;
@@ -50,6 +53,7 @@ sort_model_inputs(
     in->fic = NULL;
     in->face_priorities = NULL;
     in->face_count = 0;
+    in->vertex_count = 0;
     in->tile2_rot = -1;
 
     switch( hnd.kind )
@@ -78,6 +82,7 @@ sort_model_inputs(
         if( m->flags & (TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY) )
             in->face_priorities = NULL;
         in->face_count = m->face_count;
+        in->vertex_count = m->vertex_count;
         /* TORIDRAWMK_MODEL only. The tile kernel reads vx[0..3] on the promise
          * that this model's four projected vertices are its own and that its two
          * faces are the tile triples -- a promise world_decode_tile makes about a
@@ -110,31 +115,53 @@ sort_model_inputs(
  * bands its faces, the same priority fold the bucket lane ends with, reading
  * (face, depth) pairs off the key array instead of off the depth table.
  */
+/* TORIDRAW_PRIO_UNIFORM=0: every priced model takes the partition, uniform
+ * or not. The A/B control arm for the uniform fast path, in one binary. */
+static inline int
+toridraw_prio_uniform_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+    {
+        const char* v = getenv("TORIDRAW_PRIO_UNIFORM");
+        armed = (v && v[0] == '0') ? 0 : 1;
+    }
+    return armed;
+}
+
 static inline void
 face_order_small_bitonic_radix(
     struct ToriDraw_Scene* scene,
     const struct sort_model_inputs* in,
     bool presort)
 {
+    const uint32_t* keys;
     int const n = toridraw_face_sort_bitonic_radix(
         scene,
         presort,
         scene->near_clipped,
         in->model_min_depth,
         in->face_count,
+        in->vertex_count,
         in->tile2_rot,
         scene->screen_vertices_x,
         scene->screen_vertices_y,
         scene->screen_vertices_z,
         in->fia,
         in->fib,
-        in->fic);
-    const uint32_t* keys = scene->sm_sort_keys;
+        in->fic,
+        &keys);
 
-    if( !in->face_priorities )
+    /* No priorities, or priorities that are all one value: the key order is
+     * the draw order (see toridraw_face_priorities_uniform). The uniform
+     * test reads face_count, so an empty model is answered first. */
+    if( !in->face_priorities ||
+        (in->face_count > 0 && toridraw_prio_uniform_armed() &&
+         toridraw_face_priorities_uniform(in->face_priorities, in->face_count)) )
     {
-        for( int i = 0; i < n; i++ )
-            scene->tmp_face_order[i] = (int)(keys[i] & 0xFFFF);
+        if( in->face_priorities )
+            g_toridraw_prio_uniform_models++;
+        toridraw_face_sort_bitonic_radix_lane_emit(keys, n, scene->tmp_face_order);
         scene->tmp_face_order_count = n;
         return;
     }
@@ -143,6 +170,7 @@ face_order_small_bitonic_radix(
         int priority_depths[12] = { 0 };
         int counts[12] = { 0 };
 
+        g_toridraw_prio_varied_models++;
         partition_and_accumulate_faces_by_priority_keys(
             scene, keys, n, priority_depths, counts, in->face_priorities);
         scene->tmp_face_order_count =
@@ -234,9 +262,16 @@ face_order_small_bucket(
  * only in the bucket lane, so a run that asks for them goes there whatever
  * `bitonic_radix` says. That override is the reason the arming happens up here
  * and not inside the lane that uses it.
+ *
+ * NOINLINE, ON PURPOSE. Every lane is inlined into this body, so its prologue
+ * is the union of theirs -- on armv7 a 760-byte frame and a vpush of
+ * d8-d15 -- and it is paid before the first instruction that looks at the
+ * model. The front below keeps the terrain tile out of it (see
+ * toridraw_face_sort_bitonic_radix_tile2_fast), which only works if this body
+ * is a real call with its own prologue rather than inlined into the front.
  */
-static inline void
-toridraw_compute_projected_face_order_small(
+static void __attribute__((noinline))
+toridraw_compute_projected_face_order_small_general(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     bool presort,
@@ -253,6 +288,44 @@ toridraw_compute_projected_face_order_small(
         face_order_small_bitonic_radix(scene, &in, presort);
     else
         face_order_small_bucket(scene, hnd, &in, TORIDRAW_DBG_SORT_ARG presort);
+}
+
+/*
+ * The front: a two-face terrain tile that wants no stash, no priorities and
+ * no debug counters is answered by the leaf; everything else, and every tile
+ * when TORIDRAW_TILE_FAST=0, goes to the general body. The questions asked
+ * here are the ones sort_model_inputs would ask of the same model, in the
+ * same words, so the leaf and the tile2 kernel agree on which models are
+ * tiles; what the leaf does not read is TORIDRAW_TILE_SORT (see the leaf).
+ */
+static inline void
+toridraw_compute_projected_face_order_small(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    bool presort,
+    int bitonic_radix)
+{
+    TORIDRAW_DBG_SORT_LOCALS
+    if( bitonic_radix && !presort && hnd.kind == TORIDRAWMK_MODEL &&
+        toridraw_face_sort_tile_fast_armed() )
+    {
+        const struct ToriDraw_Model* const m = model_as_full(hnd);
+        /* An instrumented run wants the bucket lane's counters: the general
+         * body arms them again and routes there. In a default build the
+         * arming is a constant and folds away. */
+        TORIDRAW_DBG_SORT_ARM();
+        if( m->tile_sort_kernel && !m->face_priorities && !TORIDRAW_DBG_SORT_ARMED() )
+        {
+            int const model_min_depth =
+                m->has_bounds_cylinder ? m->bounds_cylinder.min_z_depth_any_rotation : 0;
+            assert(m->vertex_count == 4);
+            assert(m->face_count == 2);
+            toridraw_face_sort_bitonic_radix_tile2_fast(
+                scene, m->tile_sort_kernel - 1, scene->near_clipped, model_min_depth);
+            return;
+        }
+    }
+    toridraw_compute_projected_face_order_small_general(scene, hnd, presort, bitonic_radix);
 }
 
 /* The plain entry: the sort the environment / ToriDraw_FaceSortSetBitonicRadix

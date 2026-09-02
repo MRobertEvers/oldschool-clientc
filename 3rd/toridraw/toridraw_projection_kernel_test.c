@@ -266,9 +266,32 @@ main(void)
                                  16, 17, 31, 32,  33,  63,  64,  65, 100, 128,
                                  129, 200, 255, 256, 257, 390 };
 
+    /* Three cameras, not one. The first is the axis-aligned one the file
+     * started with (camera yaw 0 folds the yaw rotation to an identity, which
+     * hides a transposed cos/sin). The others turn and tilt it so every
+     * prepared constant -- cos/sin yaw, cos/sin pitch, the cot -- is a value
+     * a mistake would show through; the third also moves the fov, so a cot16
+     * read off the prepared block is compared against one re-derived. */
+    static const struct
+    {
+        int yaw;
+        int pitch;
+        int fov_rpi2048;
+    } cameras[] = {
+        { 0, 128, 512 },
+        { 300, 200, 512 },
+        { 1700, 96, 640 },
+    };
+
     ToriDraw_Init();
     scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     assert(scene);
+
+    for( size_t ci = 0; ci < sizeof(cameras) / sizeof(cameras[0]); ci++ )
+    {
+    camera.yaw = cameras[ci].yaw;
+    camera.pitch = cameras[ci].pitch;
+    camera.fov_rpi2048 = cameras[ci].fov_rpi2048;
     /* The same pointer the projection is handed, so the prepared gate passes
      * exactly as it does in the client. */
     ToriDraw_ScenePrepareProjectionCamera(scene, &camera);
@@ -303,8 +326,8 @@ main(void)
                     char label[96];
 
                     snprintf(
-                        label, sizeof(label), "pass%d size%d %s %s", pass, sizes[si],
-                        textured ? "tex" : "notex", yaw_case ? "yaw" : "noyaw");
+                        label, sizeof(label), "cam%zu pass%d size%d %s %s", ci, pass,
+                        sizes[si], textured ? "tex" : "notex", yaw_case ? "yaw" : "noyaw");
 
                     shot_take(
                         &prepared, scene, hnd, &position, &vp, &camera,
@@ -331,6 +354,7 @@ main(void)
                 }
             }
         }
+    }
     }
 
     printf(

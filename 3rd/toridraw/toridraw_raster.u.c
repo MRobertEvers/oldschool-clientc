@@ -757,7 +757,12 @@ context_from_handle(
         ctx->cache_texture_size = 0;
         ctx->cache_texture_height = 0;
         ctx->cache_texture_opaque = 0;
-        ctx->affine_textures = camera->texture_affine != 0;
+        /* Affine texturing is asked for by the camera (an interface-model
+         * projection that hands in its own screen triangle) or by the model
+         * itself (a terrain tile, which knows it lies flat to the camera).
+         * Either answer is per model and is read once, here. */
+        ctx->affine_textures = camera->texture_affine != 0 ||
+                               (m->flags & TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES) != 0;
         ctx->allow_near_clip = ToriDraw_ModelHasTextures(hnd);
         ctx->near_clipped = scene->near_clipped;
         TORIDRAW_DBG_RASTER_DISARM(ctx);

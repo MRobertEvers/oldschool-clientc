@@ -1624,7 +1624,7 @@ orb_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         int const run = g_globe_count * size + (g_globe_count - 1) * ORB_STEP;
 
         if( !g_api->slot_rect(
-                ctx, TORIRS_PLUGIN_SLOT_SAFE, &box_x, &box_y, &box_w, &box_h) &&
+                ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, &box_x, &box_y, &box_w, &box_h) &&
             !g_api->slot_rect(
                 ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, &box_x, &box_y, &box_w, &box_h) &&
             !g_api->slot_rect(

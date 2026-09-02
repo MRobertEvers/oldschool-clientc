@@ -257,7 +257,7 @@ player_ops_release(struct App* app, struct PktPlayerInfoOp* ops, int op_count)
  * they are reset at the top of each run.
  */
 uint64_t
-PlatformSDL2_TicksUs(void);
+PlatformWindow_TicksUs(void);
 
 static int g_npcinfo_bd_ms = -1;
 static uint64_t g_bd_decode;
@@ -279,12 +279,12 @@ npcinfo_bd_on(void)
     return g_npcinfo_bd_ms > 0;
 }
 
-#define BD_T0() (npcinfo_bd_on() ? PlatformSDL2_TicksUs() : 0)
+#define BD_T0() (npcinfo_bd_on() ? PlatformWindow_TicksUs() : 0)
 #define BD_ADD(acc, t0)                                                                            \
     do                                                                                             \
     {                                                                                              \
         if( npcinfo_bd_on() )                                                                      \
-            (acc) += PlatformSDL2_TicksUs() - (t0);                                                 \
+            (acc) += PlatformWindow_TicksUs() - (t0);                                                 \
     } while( 0 )
 
 void
@@ -1733,7 +1733,7 @@ Task_ExecNpcInfo_Run(
 
     if( npcinfo_bd_on() )
     {
-        uint64_t total = PlatformSDL2_TicksUs() - self->bd_start;
+        uint64_t total = PlatformWindow_TicksUs() - self->bd_start;
         if( total >= (uint64_t)g_npcinfo_bd_ms * 1000u )
             TORIRS_LOG("npcinfo_bd: total %.2f decode %.2f apply %.2f spawn %.2f retype %.2f "
                 "rest %.2f | ops %d spawns %d\n",

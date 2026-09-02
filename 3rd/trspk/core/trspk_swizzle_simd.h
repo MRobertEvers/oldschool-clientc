@@ -52,11 +52,34 @@ trspk_swizzle_pixel(uint32_t pix)
  * Exchange R and B across `count` pixels, applying the colour-0-is-transparent
  * rule to the alpha byte. `src` and `dst` may be the same buffer; they must
  * not otherwise overlap.
+ *
+ * This is the convention for a pixmap the client DREW -- Soft3D writes into
+ * an opaque framebuffer and leaves alpha 0 throughout. A sprite that carries
+ * a real alpha channel (every cache sprite, every baked frame) must not come
+ * through here: @see trspk_swizzle_argb_to_abgr_alpha, and the producer-set
+ * ToriDraw_Sprite::alpha_channel that chooses between the two.
  */
 static inline void
 trspk_swizzle_argb_to_abgr(uint32_t const* src, uint32_t* dst, size_t count)
 {
     trspk_swizzle_argb_to_abgr_impl(src, dst, count);
+}
+
+/**
+ * Exchange R and B and keep the alpha byte AS IS -- what the software blit
+ * does (its visibility test is `alpha != 0`, nothing more). For a buffer whose
+ * producer states that its alpha is a channel, not a convention.
+ */
+static inline void
+trspk_swizzle_argb_to_abgr_alpha(uint32_t const* src, uint32_t* dst, size_t count)
+{
+    size_t i;
+    for( i = 0u; i < count; i++ )
+    {
+        uint32_t const pix = src[i];
+        dst[i] = ((pix >> 16) & 0xFFu) | (((pix >> 8) & 0xFFu) << 8) | ((pix & 0xFFu) << 16) |
+                 (pix & 0xFF000000u);
+    }
 }
 
 #endif

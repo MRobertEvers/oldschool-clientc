@@ -263,7 +263,7 @@ GPU batching (`BATCH3D_*`, `TEX/SPRITE/FONT_BEGIN/END`).
 
 | backend | file | notes |
 |---|---|---|
-| Soft3D | `platform_sdl2_renderer_soft3d.c` | reference rasterizer; `App_Render` writes ARGB pixels, then `PlatformSDL2_Present` |
+| Soft3D | `platform_sdl2_renderer_soft3d.c` | reference rasterizer; `App_Render` writes ARGB pixels, then `PlatformWindow_Present` |
 | Desktop GL3 | `platform_sdl2_renderer_gl3.c` (+`gl3zb`) | `--opengl3` |
 | WebGL1 | `platform_sdl2_renderer_webgl1.c` (+`webgl1zb`) | same source family as GL3 under `TORIRS_GL_ES2`; needs the 16-bit index splitter |
 | D3D9 | `platform_win32_renderer_d3d9_*.c` | fixed-function, XP lane |
@@ -786,11 +786,11 @@ SDL delivers **mouse positions in points**. `SDL_RenderCopy` destinations and
 GL viewports are in **pixels**. `letterbox_dst` is therefore called in both
 units, at two sites, on purpose:
 
-- `PlatformSDL2_MapMouse` builds its box from `SDL_GetWindowSize` (points).
-- `PlatformSDL2_Present` builds its box from `sdl_drawable_size` (pixels).
+- `PlatformWindow_MapMouse` builds its box from `SDL_GetWindowSize` (points).
+- `PlatformWindow_Present` builds its box from `sdl_drawable_size` (pixels).
 
 Making those two agree "for consistency" breaks either picking or presentation.
-Likewise `PlatformSDL2_PixelDensity` re-reads rather than answering from a
+Likewise `PlatformWindow_PixelDensity` re-reads rather than answering from a
 cache: on macOS the drawable is not backed at device size until the window is
 shown, so a value taken at creation reports 1 on a Retina display.
 

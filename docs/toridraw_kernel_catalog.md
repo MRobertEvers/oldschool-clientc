@@ -5,5 +5,5 @@ derived from the filenames, which is the point of naming every axis.
 
 | stage | files |
 |---|---:|
-| (kept: instrumentation, shared headers, templates) | 44 |
+| (kept: instrumentation, shared headers, templates) | 45 |
 

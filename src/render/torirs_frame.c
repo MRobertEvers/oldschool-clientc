@@ -248,7 +248,10 @@ frame_take_scene_event(
     assert(frame);
     assert(out);
     assert(frame->scene);
-    eq = ToriDraw_SceneEvents(frame->scene);
+    if( frame->scene_events && frame->scene_events_of == frame->scene )
+        eq = frame->scene_events;
+    else
+        eq = ToriDraw_SceneEvents(frame->scene);
     if( !eq )
         return false;
     while( frame->event_index < eq->count )
@@ -2055,6 +2058,165 @@ frame_only_loc_allows(
  * Read once, not per view: this is on the per-frame drain path.
  * @see app_wev_debug_enabled
  */
+static void
+frame_lookahead_reset(struct ToriRS_Frame* frame)
+{
+    assert(frame);
+    for( int i = 0; i < TORIRS_FRAME_LOOKAHEAD_RING; i++ )
+        frame->lookahead_index[i] = -1;
+}
+
+/*
+ * TORIRS_FRAME_TERRAIN_ID: 1 (default) takes a terrain command's element id
+ * from the command itself -- the painter stamps it from its own per-tile
+ * table when it emits -- instead of resolving it through the world's terrain
+ * entity pool (index arithmetic, the pool's active bit, the entity record,
+ * its element_id: two to three dependent loads into a ~43K-entry pool per
+ * terrain command, 763 of them a frame). 0 keeps the pool lookup (the
+ * control arm). Debug builds check the two agree. Read once.
+ */
+static int
+frame_terrain_id_from_command(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_FRAME_TERRAIN_ID");
+
+        cached = (v && v[0] == '0') ? 0 : 1;
+    }
+    return cached;
+}
+
+/*
+ * TORIRS_FRAME_TRIM: 1 (default) applies the per-command trims -- the scene
+ * event queue pointer taken once a frame, one validity walk for the element
+ * instead of IsLive followed by Get, and both cache lines of the 112-byte
+ * element warmed by the data prefetch step. 0 is the control arm. Read once.
+ */
+static int
+frame_trim_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_FRAME_TRIM");
+
+        cached = (v && v[0] == '0') ? 0 : 1;
+    }
+    return cached;
+}
+
+/*
+ * TORIRS_FRAME_PREFETCH_MODEL: how deep the emit loop's prefetch pipeline
+ * runs. 0 = the element node and data only (the original), 1 = plus the
+ * model struct (the default), 2 = plus the model's vertex and face arrays.
+ *
+ * Measured on the Moto X (Lumbridge, 1,641 commands a frame, CPU ms per
+ * frame, two runs each, arms interleaved): 0 = 14.67 / 14.78, 1 = 14.07 /
+ * 14.50, 2 = 14.41 / 14.88. The model step takes FastCull from 0.81 to 0.29
+ * ms and the projection kernel from 0.76 to 0.70 by having the model's
+ * counts, array pointers and bounds cylinder warm when the renderer
+ * projects the command. The array step warms the kernel further (0.70 ->
+ * 0.50) but its six pointer reads and six PLDs per command cost the emit
+ * loop 0.4 ms -- more than they save -- so it is off. Read once.
+ */
+static int
+frame_prefetch_model_mode(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_FRAME_PREFETCH_MODEL");
+
+        cached = 1;
+        if( v && (v[0] == '0' || v[0] == '2') )
+            cached = v[0] - '0';
+    }
+    return cached;
+}
+
+/*
+ * The element id painter command `index` names, resolved in the CURRENT view
+ * world -- the caller has checked no view marker lies between here and it --
+ * and remembered in the frame's lookahead ring so the prefetch steps and the
+ * command's own turn share one resolution. -1 for a command that names no
+ * element (a marker, an unknown kind, a dead tile).
+ */
+static int
+frame_lookahead_element_id(
+    struct ToriRS_Frame* frame,
+    int index)
+{
+    int const slot = index & (TORIRS_FRAME_LOOKAHEAD_RING - 1);
+    const struct PaintersElementCommand* cmd;
+    int element_id;
+
+    assert(frame);
+    assert(index >= 0);
+    assert(index < frame->painters->command_count);
+
+    if( frame->lookahead_index[slot] == index )
+        return frame->lookahead_id[slot];
+
+    cmd = &frame->painters->commands[index];
+    if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+    {
+        element_id = painter_command_element_id(cmd);
+        assert(element_id == cmd->_element_id);
+    }
+    else if( cmd->_bf_kind == PNTR_CMD_TERRAIN || cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
+    {
+        if( frame_terrain_id_from_command() )
+        {
+            element_id = cmd->_element_id;
+            assert(
+                element_id == World_TerrainElementAt(
+                                  frame->view_stack[frame->view_depth].world,
+                                  (int)cmd->_terrain._bf_terrain_x,
+                                  (int)cmd->_terrain._bf_terrain_z,
+                                  (int)cmd->_terrain._bf_terrain_y));
+        }
+        else
+            element_id = World_TerrainElementAt(
+                frame->view_stack[frame->view_depth].world,
+                (int)cmd->_terrain._bf_terrain_x,
+                (int)cmd->_terrain._bf_terrain_z,
+                (int)cmd->_terrain._bf_terrain_y);
+    }
+    else
+        element_id = -1;
+
+    frame->lookahead_index[slot] = index;
+    frame->lookahead_id[slot] = element_id;
+    return element_id;
+}
+
+int
+ToriRS_FrameLookaheadElementId(
+    const struct ToriRS_Frame* frame,
+    int distance)
+{
+    int index;
+    int slot;
+
+    assert(frame);
+    assert(distance >= 1);
+    assert(distance <= 3);
+    if( !frame->in_world || !frame->painters )
+        return -1;
+    index = frame->painters_index - 1 + distance;
+    if( index < 0 || index >= frame->painters->command_count )
+        return -1;
+    slot = index & (TORIRS_FRAME_LOOKAHEAD_RING - 1);
+    if( frame->lookahead_index[slot] != index )
+        return -1;
+    return frame->lookahead_id[slot];
+}
+
 static int
 frame_wev_debug_enabled(void)
 {
@@ -2235,6 +2397,57 @@ try_emit_world_draw_model(
         struct ToriDraw_Position abs_pos;
         struct World* view_world;
 
+        /*
+         * Warm the next commands' lines while this one is worked on. Painter
+         * order is depth order, so every element here is a cold line, and
+         * the walk was measured spending its time on exactly that load.
+         *
+         * A four-deep pipeline, one line class per step, each step reading
+         * only what the step before it fetched: the pool NODE at +4, the
+         * element DATA at +3 (read off the node), the MODEL struct at +2
+         * (read off the data), the model's vertex and face ARRAYS at +1
+         * (read off the model). The renderer projects and sorts the command
+         * the moment it is handed over, so +1 is the last chance for the
+         * arrays. Terrain commands resolve their element through the world's
+         * tile pool; that lookup runs once, here, and the ring remembers it.
+         * TORIRS_FRAME_PREFETCH_MODEL=0 keeps only the two element steps
+         * (the A/B control arm); 1 adds the model step.
+         */
+        {
+            int const cur = frame->painters_index - 1;
+            int const count = frame->painters->command_count;
+            int const depth = 2 + frame_prefetch_model_mode();
+            int reach = cur;
+            int i;
+            /* A view marker between here and a command moves the world the
+             * command resolves in: stop the lookahead at the marker. */
+            for( i = cur + 1; i <= cur + depth && i < count; i++ )
+            {
+                uint32_t const kind = frame->painters->commands[i]._bf_kind;
+                if( kind == PNTR_CMD_BEGIN_WORLD || kind == PNTR_CMD_END_WORLD )
+                    break;
+                reach = i;
+            }
+            if( reach >= cur + depth )
+                ToriDraw_SceneElementPrefetchNode(
+                    frame->scene, frame_lookahead_element_id(frame, cur + depth));
+            if( reach >= cur + depth - 1 )
+            {
+                if( frame_trim_enabled() )
+                    ToriDraw_SceneElementPrefetchDataBothLines(
+                        frame->scene, frame_lookahead_element_id(frame, cur + depth - 1));
+                else
+                    ToriDraw_SceneElementPrefetchData(
+                        frame->scene, frame_lookahead_element_id(frame, cur + depth - 1));
+            }
+            if( depth >= 3 && reach >= cur + depth - 2 )
+                ToriDraw_SceneElementPrefetchModel(
+                    frame->scene, frame_lookahead_element_id(frame, cur + depth - 2));
+            if( depth >= 4 && reach >= cur + 1 )
+                ToriDraw_SceneElementPrefetchArrays(
+                    frame->scene, frame_lookahead_element_id(frame, cur + 1));
+        }
+
         /* The descent markers are bookkeeping, not draws: they move the view
          * stack and are consumed here, ahead of every filter below, so a
          * TORIRS_ONLY_LOC or TORIRS_PAINT_LIMIT run cannot desync the stack. */
@@ -2253,15 +2466,9 @@ try_emit_world_draw_model(
         assert(frame->view_depth < TORIRS_FRAME_MAX_VIEWS);
         view_world = frame->view_stack[frame->view_depth].world;
 
-        if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
-            element_id = painter_command_element_id(cmd);
-        else if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
-                 cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
-            element_id = World_TerrainElementAt(
-                view_world,
-                (int)cmd->_terrain._bf_terrain_x,
-                (int)cmd->_terrain._bf_terrain_z,
-                (int)cmd->_terrain._bf_terrain_y);
+        if( cmd->_bf_kind == PNTR_CMD_ELEMENT || cmd->_bf_kind == PNTR_CMD_TERRAIN ||
+            cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
+            element_id = frame_lookahead_element_id(frame, frame->painters_index - 1);
         else
             continue;
 
@@ -2269,14 +2476,29 @@ try_emit_world_draw_model(
          * painter emitting a command is not the same as geometry reaching the
          * raster — a dead element id or a model-less element drops out here
          * silently, which looks identical to "the painter found nothing". */
-        if( element_id < 0 || !ToriDraw_SceneElementIsLive(frame->scene, element_id) )
+        if( frame_trim_enabled() )
         {
-            if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
-                frame->dbg_drop_not_live++;
-            continue;
+            /* One validity walk: Get answers NULL for a dead id, which is
+             * the same question IsLive asked of the same list a moment
+             * earlier. */
+            el = element_id < 0 ? NULL : ToriDraw_SceneElementGet(frame->scene, element_id);
+            if( !el )
+            {
+                if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+                    frame->dbg_drop_not_live++;
+                continue;
+            }
         }
-
-        el = ToriDraw_SceneElementGet(frame->scene, element_id);
+        else
+        {
+            if( element_id < 0 || !ToriDraw_SceneElementIsLive(frame->scene, element_id) )
+            {
+                if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+                    frame->dbg_drop_not_live++;
+                continue;
+            }
+            el = ToriDraw_SceneElementGet(frame->scene, element_id);
+        }
         if( !el || el->model.kind == TORIDRAWMK_NONE )
         {
             if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
@@ -2610,6 +2832,19 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->emit_index = 0;
     frame->painters_index = 0;
+    frame_lookahead_reset(frame);
+    /* The queue's address is a fact about the scene, not about the command;
+     * take it once here rather than on every FrameNextCommand call. */
+    if( frame_trim_enabled() )
+    {
+        frame->scene_events = ToriDraw_SceneEvents(frame->scene);
+        frame->scene_events_of = frame->scene;
+    }
+    else
+    {
+        frame->scene_events = NULL;
+        frame->scene_events_of = NULL;
+    }
     /* Depth 0 is the root: identity transform, frame->world for terrain. */
     frame->view_depth = 0;
     memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
@@ -2719,6 +2954,7 @@ again:
             frame->in_world = true;
             frame->world_begun = false;
             frame->painters_index = 0;
+            frame_lookahead_reset(frame);
             /* The painter walk restarts here, so the descent stack does too. */
             frame->view_depth = 0;
             memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
@@ -2801,6 +3037,7 @@ ToriRS_FrameEnd(struct ToriRS_Frame* frame)
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->emit_index = 0;
     frame->painters_index = 0;
+    frame_lookahead_reset(frame);
     frame->scrollbar_step = 0;
     frame->event_index = 0;
     frame->in_world = false;

@@ -9,6 +9,7 @@
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/toridraw_sprite_from_torirs.h"
 #include "engine/torirs_chrome_skin_baked.h"
+#include "ui/torirs_chrome_inkwell.h"
 #include "engine/torirs_debug_font_baked.h"
 #include "engine/torirs_types.h"
 #include "hmap.h"
@@ -558,6 +559,9 @@ UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
         spr->height = baked->h;
         spr->crop_width = baked->w;
         spr->crop_height = baked->h;
+        /* Baked chrome art carries real coverage (rounded corners, soft
+         * shadows). @see ToriDraw_Sprite::alpha_channel. */
+        spr->alpha_channel = 1;
         /* Deep copy, for the reason the font path above deep-copies: the scene
          * frees every sprite it holds, and these pixels are `static const`. */
         spr->pixels_argb = malloc(bytes);
@@ -568,6 +572,65 @@ UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
 
     ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID, sprites, count);
     return UITREE_SCENE_CHROME_SKIN_ID;
+}
+
+int
+UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
+{
+    struct ToriDraw_Sprite** sprites;
+    int const count = TORIRS_INKWELL_ATLAS_COUNT;
+    /* The density's square, asked for once: the upload below and the emit that
+     * places the marker must agree, and the generator is the one that knows. */
+    int const size = ToriRSInkwell_Size();
+    int at = 0;
+
+    assert(bridge);
+    assert(bridge->scene);
+
+    if( ToriDraw_SceneSpriteHas(bridge->scene, UITREE_SCENE_INKWELL_ID) )
+        return UITREE_SCENE_INKWELL_ID;
+
+    /*
+     * Every style and colour in one entry. 48 frames of a fingertip-sized
+     * square is a few hundred KB, which buys the profile the freedom to name
+     * any style -- and a touch the freedom to pick a colour -- without either
+     * causing an upload mid-frame.
+     */
+    sprites = calloc((size_t)count, sizeof(*sprites));
+    assert(sprites);
+    for( int style = 0; style < TORIRS_INKWELL_STYLE_COUNT; style++ )
+    {
+        for( int colour = 0; colour < TORIRS_INKWELL_COLOUR_COUNT; colour++ )
+        {
+            for( int frame = 0; frame < TORIRS_INKWELL_FRAMES; frame++, at++ )
+            {
+                struct ToriDraw_Sprite* spr = calloc(1, sizeof(*spr));
+                size_t const bytes = (size_t)size * (size_t)size * sizeof(uint32_t);
+
+                assert(spr);
+                spr->width = size;
+                spr->height = size;
+                spr->crop_width = size;
+                spr->crop_height = size;
+                /* The frames carry real coverage -- soft edges, and coloured
+                 * pixels under alpha 0 where the baker padded -- so a consumer
+                 * must read the alpha byte, never derive one from the colour.
+                 * @see ToriDraw_Sprite::alpha_channel. */
+                spr->alpha_channel = 1;
+                /* Deep copy: the scene frees every sprite it holds, and the
+                 * generator hands back a pointer into its own static table. */
+                spr->pixels_argb = malloc(bytes);
+                assert(spr->pixels_argb);
+                memcpy(spr->pixels_argb,
+                       ToriRSInkwell_Frame(style, colour, frame), bytes);
+                assert(at == ToriRSInkwell_AtlasIndex(style, colour, frame));
+                sprites[at] = spr;
+            }
+        }
+    }
+
+    ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_INKWELL_ID, sprites, count);
+    return UITREE_SCENE_INKWELL_ID;
 }
 
 /** @see UITREE_SCENE_PLUGIN_IMAGE_SLOTS, which the header states so that the
@@ -608,6 +671,10 @@ UITreeSceneBridge_PublishPluginImage(
     sprite->height = height;
     sprite->crop_width = width;
     sprite->crop_height = height;
+    /* A plugin image is a decoded PNG: alpha is a channel, and a plugin that
+     * drew a transparent coloured pixel meant it. @see
+     * ToriDraw_Sprite::alpha_channel. */
+    sprite->alpha_channel = 1;
     /* Deep copy, for the reason the skin path above deep-copies: the scene
      * frees every sprite it holds, and these pixels belong to the decode the
      * caller is about to free. */

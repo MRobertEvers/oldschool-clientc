@@ -91,6 +91,7 @@
 #define R_TEXELS  72
 #define R_TW      80
 #define R_GATE    84
+#define R_AFFINE  88            /* nonzero: span-linear u/v, the affine family */
 #define ROWBYTES  96
 
 /* The frame. Slot 0 is the plane struct handed to the C prepare. */
@@ -145,7 +146,8 @@
 #define F_REMAIN  212           /* the row's ragged tail, 0..7 */
 #define F_TEXELS  216
 #define F_SAVE    224           /* x19..x28, x29, x30 */
-#define FRAME     320
+#define F_AFFINE  320           /* the row's affine lane, per face */
+#define FRAME     336
 
 #define LIM_F     0x4A000000    /* 2097152.0f: TEX_SPAN_RECIPROCAL_EXACT_LIMIT */
 
@@ -182,8 +184,59 @@
 .endm
 
 /*
- * tex_span_wrapped_quotient: trust the float reciprocal only while it still
- * carries the low bits that select the texel row, else the C's own `n / w`.
+ * tex_span_wrapped_quotient: trust the SINGLE-precision reciprocal only while
+ * it still carries the low bits that select the texel row, else redo the same
+ * quotient in DOUBLE.
+ *
+ * THERE IS NO INTEGER DIVIDE IN THIS KERNEL, on either encoding. The fallback
+ * used to be `sdiv`, which was the obvious way to say "exactly what the C
+ * computes" -- but it is not the only way, and it is not the way the armv7
+ * twin can say it (`sdiv` is not in the ARMv7-A base instruction set at all).
+ * A double reciprocal says the same thing on both, so the two files now agree
+ * instruction for instruction here.
+ *
+ * AND IT IS EXACTLY AS EXACT, which is the only reason this substitution is
+ * allowed. Both operands are int32 and convert to double exactly, vdiv/fdiv is
+ * correctly rounded, and the rounding can never cross an integer boundary:
+ * for any integer k the quotient does not equal, |q - k| >= 1/|w|, while half
+ * an ulp of q is |n| / (|w| * 2^53) -- so a wrong truncation would need
+ * |n| > 2^53, and |n| < 2^31 here. Where the quotient IS an integer, a
+ * correctly rounded divide returns it exactly. fcvtzs truncates toward zero,
+ * as C does.
+ *
+ * IT MUST BE A DIVIDE, NOT A RECIPROCAL AND A MULTIPLY, and that is the whole
+ * subtlety. `n * (1.0/w)` rounds twice, and 1.0/w is inexact for every w that
+ * is not a power of two -- so where the true quotient is an exact integer k
+ * the product can land a hair BELOW k and truncate to k-1. The measurement
+ * caught it: written that way this kernel moved from 3561 to 5510 ppm of
+ * triangles against the C, and the class of triangle it moved was exactly the
+ * one whose quotients land on texel boundaries. One correctly rounded fdiv has
+ * no such case. Cheaper is not available here.
+ *
+ * IT IS SINGLE PRECISION, AND THAT IS A DECISION, not an oversight. A double
+ * divide here is measurably closer to the C: it takes the kernel from 12353
+ * ppm of TRIANGLES differing from the reference down to 3561, because single
+ * is what the FAST path already uses -- s0 is 1/w in float -- and this
+ * fallback exists for the quotients single can no longer carry. The fcmp
+ * against s6 (2^21) above is where a 24-bit mantissa stops holding the low
+ * bits, and those low bits are what `& (tw-1)` turns into a texel row.
+ *
+ * It is single anyway, because the difference does not survive contact with a
+ * picture. Measured, not argued:
+ *
+ *   - a perspective-textured floor rendered both ways is BYTE-IDENTICAL --
+ *     0 differing bytes in 1,024,000;
+ *   - the pixel figure barely moves either (208 -> 269 ppm), and the worst
+ *     error inside any single triangle does not grow at all;
+ *   - both are far inside the door's 20000 / 2000 ppm budget;
+ *   - and the two cost the same on the target part (XT1060: 316.40 ms against
+ *     318.72 ms over the same 200 runs).
+ *
+ * So the whole difference is a tail of extreme geometry in the randomised
+ * corpus that no frame contains, and single is the narrower dependency: one
+ * precision through the entire span, and an armv7 twin that needs no VFP
+ * double at all. If a texel-row seam is ever seen in a real scene, THIS is
+ * the line to change back, and the numbers above say what it would buy.
  */
 .macro WRAPQ n, w, out
 	scvtf	s2, \n
@@ -194,7 +247,10 @@
 	fcvtzs	\out, s2
 	b	89f
 88:
-	sdiv	\out, \n, \w
+	scvtf	s16, \n
+	scvtf	s17, \w
+	fdiv	s16, s16, s17			/* n / w, single precision           */
+	fcvtzs	\out, s16
 89:
 .endm
 
@@ -204,6 +260,21 @@
  * the i686 took one -- WRAPQ trusts this quotient out to 2^21, and 16 bits
  * is thirty texel rows short of that. w is nonzero here.
  */
+/*
+ * The affine span's per-pixel step: ((u1 - u0) << shift) / width, the C's
+ * own int32 divide, truncating toward zero. Both operands convert to double
+ * exactly and a correctly rounded double divide cannot cross an integer
+ * boundary for |n| < 2^53 (the argument at WRAPQ), so this IS the C's
+ * quotient, bit for bit. Two of these per span, where the perspective walk
+ * spends a reciprocal ladder per eight pixels. Clobbers d16, d17.
+ */
+.macro DIVEXACT64 n, w, out
+	scvtf	d16, \n
+	scvtf	d17, \w
+	fdiv	d16, d16, d17
+	fcvtzs	\out, d16
+.endm
+
 .macro RECIP w
 	scvtf	s0, \w
 #ifdef TORIDRAW_TEX_RECIP_DIV
@@ -275,10 +346,17 @@
 .endm
 
 /*
- * tex_span_exact_block: \count pixels from x11, an exact divide per pixel,
+ * tex_span_exact_block: \count pixels from x11, an exact quotient per pixel,
  * the same mapping the reference rasterizer uses for every pixel. Cold.
  * Reads au/bv/cw from w4-w6 without touching them. Clobbers w0-w2, w8-w10,
- * w14, w17, x13.
+ * w14, w17, x13, d16-d18.
+ *
+ * TWO DIVIDES, NOT ONE RECIPROCAL AND TWO MULTIPLIES -- and no integer
+ * divide. Both quotients here divide by the same w, so sharing a reciprocal
+ * looks free and is not: see WRAPQ above for why a reciprocal-and-multiply
+ * loses the exact-integer quotients that a correctly rounded divide keeps.
+ * This is the cold block, entered only when the linear fit was refused, so
+ * the second fdiv costs nothing that shows.
  */
 .macro EXACTBLK count
 	mov	x13, x11
@@ -290,12 +368,17 @@
 91:
 	asr	w0, w17, w20			/* w                                 */
 	cbz	w0, 93f
-	sdiv	w1, w9, w0			/* clamp(au / w, 0, tw - 1)          */
+	scvtf	s17, w0				/* (float)w, shared by both          */
+	scvtf	s16, w9
+	fdiv	s16, s16, s17
+	fcvtzs	w1, s16				/* clamp(au / w, 0, tw - 1)          */
 	cmp	w1, #0
 	csel	w1, wzr, w1, lt
 	cmp	w1, w21
 	csel	w1, w21, w1, gt
-	sdiv	w0, w2, w0			/* (bv / w) & (tw - 1), then the row */
+	scvtf	s16, w2
+	fdiv	s16, s16, s17
+	fcvtzs	w0, s16				/* (bv / w) & (tw - 1), then the row */
 	and	w0, w0, w21
 	lsl	w0, w0, w20
 	add	w1, w1, w0
@@ -321,19 +404,12 @@
  * x0, v16, v19-v25, v31 -- and nothing in v0-v7, which hold the walk's
  * scalar constants.
  */
-.macro LERP8
-	sub	w8, w15, w13
-	sub	w9, w20, #3
-	lsl	w8, w8, w9			/* s_u = (nxt_u - cur_u) << (shift-3)*/
-	sub	w0, w16, w14
-	lsl	w0, w0, w9			/* s_v                               */
-	lsl	w1, w13, w20			/* u_scan = cur_u << shift           */
-	and	w2, w14, w21
-	lsl	w2, w2, w20			/* v_scan = (cur_v & (tw-1)) << shift*/
-	dup	v16.4s, w1
-	dup	v19.4s, w8
-	dup	v20.4s, w2
-	dup	v21.4s, w0
+/*
+ * The block from four splatted scan values: v16 u_scan, v19 s_u, v20 v_scan,
+ * v21 s_v, all in the << shift fixed point. Both walks arrive here; only how
+ * they built the four differs.
+ */
+.macro LERP8_BODY
 	mov	v22.16b, v16.16b
 	mla	v22.4s, v19.4s, v28.4s		/* u_scan + s_u * {0,1,2,3}          */
 	mla	v16.4s, v19.4s, v29.4s		/* u_scan + s_u * {4,5,6,7}          */
@@ -392,20 +468,43 @@
 96:
 .endm
 
+/* The perspective block: the fit between cur (w13, w14) and nxt (w15, w16). */
+.macro LERP8
+	sub	w8, w15, w13
+	sub	w9, w20, #3
+	lsl	w8, w8, w9			/* s_u = (nxt_u - cur_u) << (shift-3)*/
+	sub	w0, w16, w14
+	lsl	w0, w0, w9			/* s_v                               */
+	lsl	w1, w13, w20			/* u_scan = cur_u << shift           */
+	and	w2, w14, w21
+	lsl	w2, w2, w20			/* v_scan = (cur_v & (tw-1)) << shift*/
+	dup	v16.4s, w1
+	dup	v19.4s, w8
+	dup	v20.4s, w2
+	dup	v21.4s, w0
+	LERP8_BODY
+.endm
+
+/*
+ * The affine block: the span carries u_scan/v_scan in w13/w14 and the
+ * per-pixel steps in w15/w16, already in the << shift fixed point, so there
+ * is nothing to derive -- splat and go.
+ */
+.macro LERP8_SCAN
+	dup	v16.4s, w13
+	dup	v19.4s, w15
+	dup	v20.4s, w14
+	dup	v21.4s, w16
+	LERP8_BODY
+.endm
+
 /*
  * The ragged tail, 1..7 pixels, along the linear fit: a scalar walk of the
  * same scan, the same colour key. \count pixels. Clobbers w0-w2, w8-w10,
  * w14, w17, x13.
  */
-.macro TAILLERP count
-	sub	w8, w15, w13
-	sub	w9, w20, #3
-	lsl	w8, w8, w9			/* s_u                               */
-	sub	w17, w16, w14
-	lsl	w17, w17, w9			/* s_v                               */
-	lsl	w1, w13, w20			/* u_scan                            */
-	and	w2, w14, w21
-	lsl	w2, w2, w20			/* v_scan                            */
+/* The tail walk from w1 u_scan, w2 v_scan, w8 s_u, w17 s_v. */
+.macro TAILLERP_BODY count
 	mov	x13, x11
 	mov	w14, \count
 	asr	w10, w12, #8
@@ -426,6 +525,28 @@
 	add	w2, w2, w17
 	subs	w14, w14, #1
 	b.ne	97b
+.endm
+
+/* The perspective tail: along the fit between cur and nxt. */
+.macro TAILLERP count
+	sub	w8, w15, w13
+	sub	w9, w20, #3
+	lsl	w8, w8, w9			/* s_u                               */
+	sub	w17, w16, w14
+	lsl	w17, w17, w9			/* s_v                               */
+	lsl	w1, w13, w20			/* u_scan                            */
+	and	w2, w14, w21
+	lsl	w2, w2, w20			/* v_scan                            */
+	TAILLERP_BODY \count
+.endm
+
+/* The affine tail: the span's own scan values and steps carry straight on. */
+.macro TAILLERP_SCAN count
+	mov	w1, w13
+	mov	w2, w14
+	mov	w8, w15
+	mov	w17, w16
+	TAILLERP_BODY \count
 .endm
 
 /* ---- entries ---------------------------------------------------------- */
@@ -710,6 +831,8 @@ Ltex_sides:
 	ldr	w24, [sp, #F_STBV]
 	ldr	w25, [sp, #F_STCW]
 	ldr	w26, [x8, #R_GATE]
+	ldr	w9, [x8, #R_AFFINE]
+	str	w9, [sp, #F_AFFINE]
 	mov	w27, w22			/* placeholder; shx below            */
 	ldr	w27, [sp, #F_SHX]
 	ldr	w28, [sp, #F_SW]
@@ -765,6 +888,8 @@ Ltex_row:
 	add	x11, x11, w0, uxtw #2
 	ldr	w12, [sp, #F_SHADE]
 	madd	w12, w27, w0, w12		/* shade at x0, modular              */
+	ldr	w9, [sp, #F_AFFINE]
+	cbnz	w9, Ltex_affine_row
 	mov	w7, #0				/* have_cur                          */
 	cbz	w3, Ltex_tail
 
@@ -836,6 +961,73 @@ Ltex_tail:
 	b	Ltex_rowadv
 Ltex_texact:
 	EXACTBLK w10
+	b	Ltex_rowadv
+
+/*
+ * The affine span -- the C's draw_texture_scanline_*_affine_branching_lerp8_
+ * ish16_ordered. u and v are derived at the two ends of the span, with the
+ * same reciprocal, clamp and wrapped quotient the perspective walk uses at a
+ * block end, and every pixel between is a linear step: no reciprocal per
+ * block, no fit test, no exact fallback -- the C affine walk has none either.
+ * Two differences from the perspective prologue are the C's own: a span whose
+ * two edges coincide in 16.16 draws nothing (the perspective span would draw
+ * its one pixel), and an end whose w is zero is u = v = 0, not a skipped
+ * block. The steps are the C's int32 divides, exactly (DIVEXACT64).
+ *
+ * Registers on entry are the row's: w0 x0, w2 width, w3 blocks, w4-w6 the
+ * plane at x0, x11 the destination, w12 the shade; F_REMAIN is set. In the
+ * walk w13/w14 carry u_scan/v_scan and w15/w16 the per-pixel steps, where
+ * the perspective walk carried cur and nxt.
+ */
+Ltex_affine_row:
+	ldr	w8, [sp, #F_LX]
+	ldr	w9, [sp, #F_RX]
+	cmp	w8, w9
+	b.eq	Ltex_rowadv
+	asr	w17, w6, w20			/* w at the left end                 */
+	cbz	w17, 1f
+	RECIP	w17
+	UQUOT	w4, w13
+	WRAPQ	w5, w17, w14
+	b	2f
+1:
+	mov	w13, wzr
+	mov	w14, wzr
+2:
+	madd	w15, w23, w2, w4		/* the plane at the right end, modular */
+	madd	w16, w24, w2, w5
+	madd	w17, w25, w2, w6
+	asr	w17, w17, w20			/* w at the right end                */
+	cbz	w17, 3f
+	RECIP	w17
+	UQUOT	w15, w15
+	WRAPQ	w16, w17, w16
+	b	4f
+3:
+	mov	w15, wzr
+	mov	w16, wzr
+4:
+	sub	w15, w15, w13
+	lsl	w15, w15, w20			/* (u1 - u0) << shift                */
+	DIVEXACT64 w15, w2, w15			/* / width: s_u                      */
+	sub	w16, w16, w14
+	lsl	w16, w16, w20
+	DIVEXACT64 w16, w2, w16			/* s_v                               */
+	lsl	w13, w13, w20			/* u_scan = u0 << shift              */
+	lsl	w14, w14, w20			/* v_scan = v0 << shift              */
+	cbz	w3, Ltex_affine_tail
+Ltex_affine_blk:
+	LERP8_SCAN
+	add	w13, w13, w15, lsl #3
+	add	w14, w14, w16, lsl #3
+	add	x11, x11, #32
+	add	w12, w12, w27, lsl #3
+	subs	w3, w3, #1
+	b.ne	Ltex_affine_blk
+Ltex_affine_tail:
+	ldr	w10, [sp, #F_REMAIN]
+	cbz	w10, Ltex_rowadv
+	TAILLERP_SCAN w10
 
 Ltex_rowadv:
 	ldp	w0, w1, [sp, #F_LX]

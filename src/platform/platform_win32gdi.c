@@ -1,15 +1,15 @@
 /*
  * platform_win32gdi.c -- Win32 + GDI backend for the src/main.c App front-end.
  *
- * src/main.c programs to the PlatformSDL2 interface (platform_sdl2.h) and, when
+ * src/main.c programs to the PlatformWindow interface (platform_window.h) and, when
  * built without a GPU renderer, uses the software path:
  *
- *     App_Render(app, PlatformSDL2_Pixels(sdl), W, H);   // CPU raster into pixels
- *     PlatformSDL2_Present(sdl);                          // show the pixels
+ *     App_Render(app, PlatformWindow_Pixels(sdl), W, H);   // CPU raster into pixels
+ *     PlatformWindow_Present(sdl);                          // show the pixels
  *
  * That is exactly what GDI does well: hand out a top-down 32bpp DIB section as
  * the pixel buffer, then BitBlt/StretchBlt it to the window. This file is a
- * drop-in implementation of the SAME PlatformSDL2_* symbols backed by Win32 GDI
+ * drop-in implementation of the SAME PlatformWindow_* symbols backed by Win32 GDI
  * instead of SDL. It also owns the HWND used by both Windows lanes' fixed-
  * function D3D9 renderer; --soft3d keeps using the DIB presentation path below.
  *
@@ -27,7 +27,7 @@
  * for the i686 XP artifact or build_windows.ps1 for modern x86_64 Windows.
  */
 
-#include "platform/platform_sdl2.h"
+#include "platform/platform_window.h"
 #include "platform/platform_app_icon.h"
 #include "platform/platform_win32_timing.h"
 
@@ -127,7 +127,7 @@ win32_touch_load(void)
 
 static const char RPD_WNDCLASS[] = "TorirsWin32GdiWindow";
 
-struct PlatformSDL2
+struct PlatformWindow
 {
     HWND    hwnd;
     /* The window's own DC, fetched once. The class is CS_OWNDC, so this handle
@@ -144,7 +144,7 @@ struct PlatformSDL2
     int     height;
     int     gdi_frame_valid; /* the DIB contains one complete Soft3D frame    */
     /* One-shot damage box for the next present; w == 0 means the whole DIB.
-     * @see PlatformSDL2_SetPresentDamage. */
+     * @see PlatformWindow_SetPresentDamage. */
     int     present_dmg_x;
     int     present_dmg_y;
     int     present_dmg_w;
@@ -180,7 +180,7 @@ struct PlatformSDL2
 /* ---- pixel buffer ------------------------------------------------------- */
 
 static int
-gdi_make_dib(struct PlatformSDL2* p, int width, int height)
+gdi_make_dib(struct PlatformWindow* p, int width, int height)
 {
     BITMAPINFO bi;
     void* bits = NULL;
@@ -266,7 +266,7 @@ letterbox_dst(int logical_w, int logical_h, int win_w, int win_h, RECT* dst)
 }
 
 static void
-map_mouse(struct PlatformSDL2* p, int win_x, int win_y, int* out_x, int* out_y)
+map_mouse(struct PlatformWindow* p, int win_x, int win_y, int* out_x, int* out_y)
 {
     RECT client;
     RECT box;
@@ -334,7 +334,7 @@ gdi_abl_present_vp(void)
 }
 
 static void
-gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
+gdi_paint_latest(struct PlatformWindow* p, HDC dc)
 {
     RECT client;
     RECT box;
@@ -561,8 +561,8 @@ ctrl_or_alt_down(void)
 static LRESULT CALLBACK
 wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-    struct PlatformSDL2* p =
-        (struct PlatformSDL2*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    struct PlatformWindow* p =
+        (struct PlatformWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     struct ToriRS_CmdBus* bus = p ? p->poll_bus : NULL;
     int lx;
     int ly;
@@ -762,10 +762,10 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 
 /* ---- lifecycle ---------------------------------------------------------- */
 
-struct PlatformSDL2*
-PlatformSDL2_New(void)
+struct PlatformWindow*
+PlatformWindow_New(void)
 {
-    struct PlatformSDL2* p = (struct PlatformSDL2*)malloc(sizeof(*p));
+    struct PlatformWindow* p = (struct PlatformWindow*)malloc(sizeof(*p));
     assert(p);
     memset(p, 0, sizeof(*p));
     p->pending_resize_w = -1;
@@ -775,7 +775,7 @@ PlatformSDL2_New(void)
 }
 
 void
-PlatformSDL2_SetInterfaceScaleMode(struct PlatformSDL2* p, int mode)
+PlatformWindow_SetInterfaceScaleMode(struct PlatformWindow* p, int mode)
 {
     assert(p);
     if( mode < 0 )
@@ -889,7 +889,7 @@ register_class(void)
 }
 
 bool
-PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* title)
+PlatformWindow_Init(struct PlatformWindow* p, int width, int height, char const* title)
 {
     RECT r;
     HDC screen;
@@ -986,7 +986,7 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
  * TORIRS_HAVE_GL3, which the win32gdi target does not define. Safe stubs keep
  * the symbols resolvable regardless. */
 bool
-PlatformSDL2_InitForOpenGL3(struct PlatformSDL2* p, int width, int height, char const* title)
+PlatformWindow_InitForOpenGL3(struct PlatformWindow* p, int width, int height, char const* title)
 {
     (void)p;
     (void)width;
@@ -996,7 +996,7 @@ PlatformSDL2_InitForOpenGL3(struct PlatformSDL2* p, int width, int height, char 
 }
 
 ToriRS_GLWindow*
-PlatformSDL2_Window(struct PlatformSDL2* p)
+PlatformWindow_GLWindow(struct PlatformWindow* p)
 {
     (void)p;
     /* No GL renderer on this lane -- it selects fixed-function D3D9, which
@@ -1005,13 +1005,13 @@ PlatformSDL2_Window(struct PlatformSDL2* p)
 }
 
 void*
-PlatformSDL2_NativeWindowHandle(struct PlatformSDL2* p)
+PlatformWindow_NativeWindowHandle(struct PlatformWindow* p)
 {
     return p ? (void*)p->hwnd : NULL;
 }
 
 void
-PlatformSDL2_Free(struct PlatformSDL2* p)
+PlatformWindow_Free(struct PlatformWindow* p)
 {
     if( !p )
         return;
@@ -1035,19 +1035,19 @@ PlatformSDL2_Free(struct PlatformSDL2* p)
 }
 
 int*
-PlatformSDL2_Pixels(struct PlatformSDL2* p)
+PlatformWindow_Pixels(struct PlatformWindow* p)
 {
     return p->pixels;
 }
 
 int
-PlatformSDL2_Width(struct PlatformSDL2* p)
+PlatformWindow_Width(struct PlatformWindow* p)
 {
     return p->width;
 }
 
 int
-PlatformSDL2_Height(struct PlatformSDL2* p)
+PlatformWindow_Height(struct PlatformWindow* p)
 {
     return p->height;
 }
@@ -1062,14 +1062,14 @@ PlatformSDL2_Height(struct PlatformSDL2* p)
  * monitor's scale, rather than by inventing a factor at this accessor.
  */
 int
-PlatformSDL2_PixelDensity(struct PlatformSDL2* p)
+PlatformWindow_PixelDensity(struct PlatformWindow* p)
 {
     (void)p;
     return 1;
 }
 
 void
-PlatformSDL2_SetWantHighDPI(bool want)
+PlatformWindow_SetWantHighDPI(bool want)
 {
     /* Win32 GDI exposes one pixel coordinate space to this backend.  A future
      * per-monitor-DPI implementation belongs with PixelDensity above; until
@@ -1078,13 +1078,13 @@ PlatformSDL2_SetWantHighDPI(bool want)
 }
 
 bool
-PlatformSDL2_QuitRequested(struct PlatformSDL2* p)
+PlatformWindow_QuitRequested(struct PlatformWindow* p)
 {
     return p->quit != 0;
 }
 
 void
-PlatformSDL2_SetTitle(struct PlatformSDL2* p, char const* title)
+PlatformWindow_SetTitle(struct PlatformWindow* p, char const* title)
 {
     if( p->hwnd && title )
         SetWindowTextA(p->hwnd, title);
@@ -1101,15 +1101,29 @@ PlatformSDL2_SetTitle(struct PlatformSDL2* p, char const* title)
  * is a no-op rather than a link error.
  */
 void
-PlatformSDL2_SetTextInput(struct PlatformSDL2* p, int on)
+PlatformWindow_SetTextInput(struct PlatformWindow* p, int on)
 {
     (void)p;
     (void)on;
 }
 
 void
-PlatformSDL2_SetCanvasFollowsWindow(
-    struct PlatformSDL2* p, struct ToriRS_CmdBus* bus, bool follow, int min_w, int min_h)
+PlatformWindow_SetTouchViewport(struct PlatformWindow* p, int x, int y, int w, int h)
+{
+    assert(p);
+    ToriRS_TouchSetViewport(&p->touch, x, y, w, h);
+}
+
+void
+PlatformWindow_SetTouchOverlayTest(struct PlatformWindow* p, ToriRS_TouchOverlayFn fn, void* user)
+{
+    assert(p);
+    ToriRS_TouchSetOverlayTest(&p->touch, fn, user);
+}
+
+void
+PlatformWindow_SetCanvasFollowsWindow(
+    struct PlatformWindow* p, struct ToriRS_CmdBus* bus, bool follow, int min_w, int min_h)
 {
     RECT rc;
     int win_w = 0;
@@ -1134,13 +1148,13 @@ PlatformSDL2_SetCanvasFollowsWindow(
             p->resizable_h = win_h;
         }
         if( min_w > 0 && min_h > 0 )
-            PlatformSDL2_SetWindowSize(p, min_w, min_h);
+            PlatformWindow_SetWindowSize(p, min_w, min_h);
         return;
     }
 
     if( !was_following && p->resizable_w > 0 && p->resizable_h > 0 )
     {
-        PlatformSDL2_SetWindowSize(p, p->resizable_w, p->resizable_h);
+        PlatformWindow_SetWindowSize(p, p->resizable_w, p->resizable_h);
         p->resizable_w = 0;
         p->resizable_h = 0;
         GetClientRect(p->hwnd, &rc);
@@ -1152,7 +1166,7 @@ PlatformSDL2_SetCanvasFollowsWindow(
 }
 
 void
-PlatformSDL2_SetWindowSize(struct PlatformSDL2* p, int width, int height)
+PlatformWindow_SetWindowSize(struct PlatformWindow* p, int width, int height)
 {
     RECT r;
     if( !p->hwnd || width <= 0 || height <= 0 )
@@ -1169,7 +1183,7 @@ PlatformSDL2_SetWindowSize(struct PlatformSDL2* p, int width, int height)
 }
 
 bool
-PlatformSDL2_Resize(struct PlatformSDL2* p, int width, int height)
+PlatformWindow_Resize(struct PlatformWindow* p, int width, int height)
 {
     assert(p);
     if( width <= 0 || height <= 0 )
@@ -1180,13 +1194,13 @@ PlatformSDL2_Resize(struct PlatformSDL2* p, int width, int height)
 }
 
 void
-PlatformSDL2_MapMouse(struct PlatformSDL2* p, int win_x, int win_y, int* out_x, int* out_y)
+PlatformWindow_MapMouse(struct PlatformWindow* p, int win_x, int win_y, int* out_x, int* out_y)
 {
     map_mouse(p, win_x, win_y, out_x, out_y);
 }
 
 void
-PlatformSDL2_PollCommands(struct PlatformSDL2* p, struct ToriRS_CmdBus* bus)
+PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
 {
     MSG msg;
     assert(p);
@@ -1220,8 +1234,8 @@ PlatformSDL2_PollCommands(struct PlatformSDL2* p, struct ToriRS_CmdBus* bus)
 }
 
 void
-PlatformSDL2_SetPresentDamage(
-    struct PlatformSDL2* p,
+PlatformWindow_SetPresentDamage(
+    struct PlatformWindow* p,
     int x,
     int y,
     int w,
@@ -1249,8 +1263,8 @@ PlatformSDL2_SetPresentDamage(
 }
 
 void
-PlatformSDL2_SetPresentDamageRects(
-    struct PlatformSDL2* p,
+PlatformWindow_SetPresentDamageRects(
+    struct PlatformWindow* p,
     int const (*rects)[4],
     int count)
 {
@@ -1280,7 +1294,7 @@ PlatformSDL2_SetPresentDamageRects(
 }
 
 void
-PlatformSDL2_Present(struct PlatformSDL2* p)
+PlatformWindow_Present(struct PlatformWindow* p)
 {
     assert(p);
     assert(p->pixels);
@@ -1297,32 +1311,32 @@ PlatformSDL2_Present(struct PlatformSDL2* p)
 }
 
 void
-PlatformSDL2_PresentGL(struct PlatformSDL2* p)
+PlatformWindow_PresentGL(struct PlatformWindow* p)
 {
     (void)p; /* no GL in this backend */
 }
 
 uint64_t
-PlatformSDL2_Ticks64(void)
+PlatformWindow_Ticks64(void)
 {
     return PlatformWin32Timing_NowMs();
 }
 
 uint64_t
-PlatformSDL2_TicksUs(void)
+PlatformWindow_TicksUs(void)
 {
     return PlatformWin32Timing_NowUs();
 }
 
 void
-PlatformSDL2_SleepUntil(uint64_t deadline_ms)
+PlatformWindow_SleepUntil(uint64_t deadline_ms)
 {
     PlatformWin32Timing_SleepUntilMs(deadline_ms);
 }
 
 #if defined(TORIRS_WIN32_GDI_TEST_API)
 uint32_t
-PlatformSDL2_Win32TestPaintCount(struct PlatformSDL2* p)
+PlatformWindow_Win32TestPaintCount(struct PlatformWindow* p)
 {
     return p ? p->paint_count : 0;
 }

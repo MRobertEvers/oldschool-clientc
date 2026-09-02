@@ -178,6 +178,15 @@ fake_feature_set(
 
 /* Everything else the host asserts on, answered flatly. */
 
+/* In game: these harnesses exercise behaviour that is gated on it.
+ * @see ToriRS_PluginApi::screen. */
+static int
+fake_plugin_screen(void* u)
+{
+    (void)u;
+    return TORIRS_PLUGIN_SCREEN_GAME;
+}
+
 static int
 fake_world_cycle(void* u)
 {
@@ -1065,6 +1074,15 @@ fake_tab_select(
     return 0;
 }
 static int
+fake_tab_enabled(
+    void* u,
+    int t)
+{
+    (void)u;
+    (void)t;
+    return 1;
+}
+static int
 fake_asset_read(
     void* u,
     char const* p,
@@ -1185,6 +1203,7 @@ fake_engine(void)
     struct ToriRS_PluginEngine e;
 
     memset(&e, 0, sizeof(e));
+    e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;
@@ -1220,6 +1239,7 @@ fake_engine(void)
     e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
     e.component_rect = fake_component_rect;

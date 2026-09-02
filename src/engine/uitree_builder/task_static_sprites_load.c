@@ -58,15 +58,19 @@ Task_StaticSpritesLoad_Run(
         if( sprite_id < 0 || !CacheProvider_SpriteHas(self->provider, sprite_id) )
         {
             /* Era-absent or undeclared: leave the slot unbound. */
+            /* REPORT and not LOG: TORIRS_LOG compiles out under NDEBUG, so
+             * behind its own getenv this knob was dead in every optimised
+             * build -- which is the only kind anyone runs on a phone. */
             if( getenv("TORIRS_STATIC_SPRITE_DEBUG") )
-                TORIRS_LOG("static_sprite: '%s' unresolved\n", name);
+                TORIRS_REPORT("static_sprite: '%s' unresolved\n", name);
             continue;
         }
 
         scene_id = UITreeSceneBridge_EnsureStaticSprite(
             self->bridge, (enum StaticSpriteSlot)self->slot, sprite_id);
         if( getenv("TORIRS_STATIC_SPRITE_DEBUG") )
-            TORIRS_LOG("static_sprite: '%s' sprite=%d scene=%d\n", name, sprite_id, scene_id);
+            TORIRS_REPORT(
+                "static_sprite: '%s' sprite=%d scene=%d\n", name, sprite_id, scene_id);
     }
 
     PT_END(&self->pt);

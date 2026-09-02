@@ -191,13 +191,13 @@ the frame and hands the number over with `App_NoteFrameTime`:
 
 ```c
 TORIRS_PERF_FRAME_END();
-App_NoteFrameTime(&app, PlatformSDL2_TicksUs() - frame_start_us);
+App_NoteFrameTime(&app, PlatformWindow_TicksUs() - frame_start_us);
 ```
 
 Placed where the perf harness closes its own frame timer, and for the same
 reason: a capped loop sleeps out the residual of its 20 ms budget straight
 after, and an interval that spans that sleep reports the cap back instead of
-the cost of the frame. `PlatformSDL2_TicksUs` is new — millisecond ticks pace
+the cost of the frame. `PlatformWindow_TicksUs` is new — millisecond ticks pace
 the loop but cannot measure it, because a few-millisecond frame quantises to a
 couple of integers and the quantisation survives the averaging.
 

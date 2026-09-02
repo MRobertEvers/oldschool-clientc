@@ -9,11 +9,11 @@
  *   platform_android_jni.c   the JNI surface. Owns the render thread, receives
  *                            the Surface and the MotionEvents, and knows what a
  *                            jobject is. Draws nothing.
- *   platform_android.c       the PlatformSDL2 interface (platform_sdl2.h) over
+ *   platform_android.c       the PlatformWindow interface (platform_window.h) over
  *                            ANativeWindow. Owns the ARGB canvas, the
  *                            letterbox and the blit. Knows no Java.
- *   platform_android_gl.c    the EGL context, presented as the handful of
- *                            SDL_GL_* entry points the GLES2 renderer calls.
+ *   platform_android_gl.c    the EGL context, behind the platform_gl_context.h
+ *                            seam the GLES2 renderer calls.
  *
  * This header is the only thing the first two share, and everything on it
  * crosses a THREAD boundary: the JNI half runs on Android's main (UI) thread
@@ -48,7 +48,7 @@ PlatformAndroid_SetWindow(struct ANativeWindow* window, int width, int height);
 /**
  * Block until there is a surface, or until the app is being torn down.
  *
- * PlatformSDL2_Init needs a size before it can allocate the canvas, and on
+ * PlatformWindow_Init needs a size before it can allocate the canvas, and on
  * Android nothing knows one until the SurfaceView has been laid out. So the
  * frame thread waits here exactly once, at boot, rather than every lane above
  * learning that a window can be absent.
@@ -69,10 +69,29 @@ void
 PlatformAndroid_WindowSize(int* out_width, int* out_height);
 
 /** Display density, as drawable pixels per 160dpi point, rounded and clamped
- *  to 1..4. What PlatformSDL2_PixelDensity answers, and what the chrome picks
+ *  to 1..4. What PlatformWindow_PixelDensity answers, and what the chrome picks
  *  its baked font size from. */
 void
 PlatformAndroid_SetDensity(int density);
+
+/**
+ * How many SURFACE rows the soft keyboard covers at the bottom; 0 = away.
+ *
+ * Reported by ClientActivity's inset listener on the UI thread. Latest-value
+ * state rather than a queued event -- an inset is a level, and coalescing is
+ * what is wanted: only the value at the drain matters, exactly like the
+ * surface size. The drain (PlatformWindow_PollCommands) maps it through the
+ * letterbox into canvas rows and pushes TORIRS_CMD_KEYBOARD_INSET when the
+ * canvas answer changes, for the reason touch coordinates are mapped at the
+ * drain and not at the post: the letterbox is the frame thread's and moves
+ * under the UI thread.
+ */
+void
+PlatformAndroid_SetKeyboardInset(int bottom_px);
+
+/** The latest reported keyboard coverage, in surface rows. */
+int
+PlatformAndroid_KeyboardInset(void);
 
 /**
  * Ask the frame loop to stop, from onDestroy.
@@ -86,7 +105,7 @@ void
 PlatformAndroid_RequestQuit(void);
 
 /** Has a quit been requested? Read by the frame loop through
- *  PlatformSDL2_QuitRequested. */
+ *  PlatformWindow_QuitRequested. */
 int
 PlatformAndroid_QuitRequested(void);
 
@@ -108,12 +127,34 @@ PlatformAndroid_QuitRequested(void);
 void
 PlatformAndroid_ResetForStart(void);
 
+/**
+ * The client cannot boot, for a reason the person holding the phone can fix.
+ *
+ * DOES NOT RETURN: it ends the frame thread, and only the frame thread.
+ *
+ * This exists because `exit()` is the wrong verb on this platform. A desktop
+ * client that refuses to boot prints why and exits, and the person who typed
+ * the command reads the line. Here exit() takes the whole PROCESS down -- the
+ * activity vanishes to the launcher, which is indistinguishable from a crash,
+ * and the one sentence explaining it is in logcat where nobody holding the
+ * phone will ever see it.
+ *
+ * So the message goes to the boot menu instead (`ClientActivity.bootFailed`,
+ * which shows it and cancels the countdown so the same profile is not booted
+ * again on a loop), and the process is left alive for the next run.
+ *
+ * @param message one sentence, already logged by the caller, addressed to a
+ *                user and not to a developer -- it is shown on screen.
+ */
+void
+PlatformAndroid_BootFailed(char const* message);
+
 /* ---- input ---------------------------------------------------------------
  *
  * Queued rather than translated on the spot: a MotionEvent arrives on the UI
  * thread, and the gesture policy that turns it into clicks (input/torirs_touch.c)
  * mutates state the frame thread owns. So the UI thread only ever appends a
- * record, and PlatformSDL2_PollCommands drains the queue on the frame thread
+ * record, and PlatformWindow_PollCommands drains the queue on the frame thread
  * where every other input source is already handled.
  *
  * Coordinates are in the SURFACE's pixels; the drain maps them into canvas
@@ -162,10 +203,9 @@ PlatformAndroid_PostKey(int android_keycode, int down, int unicode);
 /**
  * Swap the EGL backbuffer. @see platform_android_gl.c.
  *
- * PlatformSDL2_PresentGL's whole body. Presenting is the platform's job on
- * every lane -- platform_sdl2.c calls SDL_GL_SwapWindow for the same reason --
- * so it is not part of the platform_gl_context.h seam, which covers only
- * making a context.
+ * PlatformWindow_PresentGL's whole body. Presenting is the platform's job on
+ * every lane, so it is not part of the platform_gl_context.h seam, which
+ * covers only making a context.
  */
 void
 PlatformAndroidGL_SwapBuffers(void);
@@ -173,7 +213,7 @@ PlatformAndroidGL_SwapBuffers(void);
 /**
  * Raise or dismiss the soft keyboard. @see platform_android_jni.c.
  *
- * What PlatformSDL2_SetTextInput means on a device whose only keyboard is
+ * What PlatformWindow_SetTextInput means on a device whose only keyboard is
  * drawn. It has to go through JNI (InputMethodManager is Java-only), so the
  * implementation lives with the rest of the JNI, and this is the one call
  * platform_android.c makes into it.

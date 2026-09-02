@@ -464,6 +464,52 @@ ToriDraw_SceneElementGet(
     struct ToriDraw_Scene* scene,
     int element_id);
 
+/*
+ * Warm the caches for an element a caller is ABOUT to get, in two stages.
+ *
+ * An element is reached through the pool's node table and then the node's
+ * data pointer: two dependent loads, and in painter order both are cold --
+ * consecutive draws are neighbours in depth, not in memory. A frame that
+ * walks two thousand of them spends its iterator waiting on exactly those
+ * loads. The stages let a loop pipeline them: prefetch the NODE for the
+ * command two ahead, and the DATA for the one ahead (whose node the previous
+ * iteration fetched). Neither stalls, neither reads past what the list
+ * holds, and an id that is not live is simply ignored.
+ */
+void
+ToriDraw_SceneElementPrefetchNode(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+void
+ToriDraw_SceneElementPrefetchData(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+/* The same, warming both cache lines of the element: the emit reads the model
+ * handle near the front and pick_aabb at the very end. */
+void
+ToriDraw_SceneElementPrefetchDataBothLines(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+/*
+ * Warm the lines the cull and the projection read off the element's MODEL:
+ * the leading struct (counts, vertex and face array pointers) and the bounds
+ * cylinder. Reads the element data, so the element's own line must already
+ * be warm -- issue this a step later in the pipeline than PrefetchData.
+ */
+void
+ToriDraw_SceneElementPrefetchModel(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+/*
+ * One step later again: the first line of each vertex axis and face index
+ * array, which the projection and the face sort read next. Reads the model
+ * struct, so PrefetchModel must have gone out a step earlier.
+ */
+void
+ToriDraw_SceneElementPrefetchArrays(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+
 bool
 ToriDraw_SceneElementIsLive(
     struct ToriDraw_Scene* scene,
@@ -599,6 +645,23 @@ ToriDraw_SceneElementSetAnimFrames(
     int primary_frame,
     int secondary_frame);
 
+/*
+ * Forget the pose the element's model holds, so the next
+ * ToriDraw_SceneElementApplyAnimation re-poses even for a frame it has
+ * already produced. The scene's own mutators call this; it is public for the
+ * caller that edits the element's model or animation fields directly.
+ */
+void
+ToriDraw_SceneElementPoseInvalidate(
+    struct ToriDraw_Scene* scene,
+    int element_id);
+
+/*
+ * Pose the element's model for `frame` of its primary (or secondary) track.
+ * A request identical to the pose the model already holds is skipped
+ * (TORIDRAW_ANIM_SKIP_SAME=0 re-poses every time) -- see the posed_* fields
+ * on ToriDraw_SceneElement for what "identical" means.
+ */
 void
 ToriDraw_SceneElementApplyAnimation(
     struct ToriDraw_Scene* scene,

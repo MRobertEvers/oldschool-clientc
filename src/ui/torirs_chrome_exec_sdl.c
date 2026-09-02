@@ -9,7 +9,7 @@
  * in its own window.
  *
  * It is the first thing in this tree to want a second OS window, so the
- * platform API under it (PlatformSDL2_Aux*) is deliberately the smallest one
+ * platform API under it (PlatformWindow_Aux*) is deliberately the smallest one
  * that serves exactly this: open, close, a pixel buffer, present, and a close
  * request coming back. A backend that has none of that returns false from
  * begin() and the surface falls back to the buffer executor, which is why none
@@ -21,7 +21,7 @@
 
 #include "torirs_chrome_exec.h"
 
-#include "../platform/platform_sdl2.h"
+#include "../platform/platform_window.h"
 #include "uitree_debug_overlay.h"
 
 #include <assert.h>
@@ -35,7 +35,7 @@
  *
  * The SURFACE that comes up inside it is the DRAWABLE, which on a HighDPI
  * display is a multiple of this, and it is the surface -- not this -- that the
- * chrome lays out in (PlatformSDL2_AuxWidth/Height, handed over by
+ * chrome lays out in (PlatformWindow_AuxWidth/Height, handed over by
  * chrome_sdl_surface_size). The chrome's scale is the display's density, so
  * the two rise together: a 2x display gets 2x rows in a 2x buffer, at the same
  * physical size as 1x rows in a 1x one. Sized in pixels here instead, a 2x
@@ -48,7 +48,7 @@
 
 struct ChromeSdl
 {
-    struct PlatformSDL2* platform;
+    struct PlatformWindow* platform;
     /*
      * How to turn a display list into pixels.
      *
@@ -145,7 +145,7 @@ chrome_sdl_begin(void* user)
     assert(s);
     if( !s->platform )
         return 0;
-    if( !PlatformSDL2_AuxOpen(s->platform, CHROME_SDL_W, CHROME_SDL_H, "Plugins") )
+    if( !PlatformWindow_AuxOpen(s->platform, CHROME_SDL_W, CHROME_SDL_H, "Plugins") )
         return 0;
     s->open = 1;
     s->panel = -1;
@@ -160,13 +160,13 @@ chrome_sdl_begin(void* user)
     {
         /*
          * The provider goes on before the frame comes off, and the frame is
-         * allowed not to come off: PlatformSDL2_AuxSetBorderless refuses on a
+         * allowed not to come off: PlatformWindow_AuxSetBorderless refuses on a
          * video driver with no hit test, because a frameless window nobody can
          * move is worse than the frame it was asked to hide. The window is
          * usable either way -- what changes is which title bar drags it.
          */
-        PlatformSDL2_AuxSetDragHandleProvider(s->platform, chrome_sdl_drag_at, s);
-        s->borderless = PlatformSDL2_AuxSetBorderless(s->platform, true) ? 1 : 0;
+        PlatformWindow_AuxSetDragHandleProvider(s->platform, chrome_sdl_drag_at, s);
+        s->borderless = PlatformWindow_AuxSetBorderless(s->platform, true) ? 1 : 0;
 
         /*
          * Once per ANSWER, not once per open -- the executor comes down with
@@ -197,7 +197,7 @@ chrome_sdl_end(void* user)
     assert(s);
     if( !s->open )
         return;
-    PlatformSDL2_AuxClose(s->platform);
+    PlatformWindow_AuxClose(s->platform);
     s->open = 0;
     s->borderless = 0;
 }
@@ -244,9 +244,9 @@ chrome_sdl_present(void* user, struct ToriRSChromePrim const* prims, int count)
     if( !s->open || !prims )
         return;
 
-    pixels = PlatformSDL2_AuxPixels(s->platform);
-    w = PlatformSDL2_AuxWidth(s->platform);
-    h = PlatformSDL2_AuxHeight(s->platform);
+    pixels = PlatformWindow_AuxPixels(s->platform);
+    w = PlatformWindow_AuxWidth(s->platform);
+    h = PlatformWindow_AuxHeight(s->platform);
     if( !pixels || w <= 0 || h <= 0 )
         return;
 
@@ -261,7 +261,7 @@ chrome_sdl_present(void* user, struct ToriRSChromePrim const* prims, int count)
 
     if( s->rasterise )
         s->rasterise(s->rasterise_user, pixels, w, h, prims, count);
-    PlatformSDL2_AuxPresent(s->platform);
+    PlatformWindow_AuxPresent(s->platform);
 }
 
 /*
@@ -289,8 +289,8 @@ chrome_sdl_surface_size(void* user, int* out_w, int* out_h)
     assert(out_h);
     if( !s->open )
         return 0;
-    w = PlatformSDL2_AuxWidth(s->platform);
-    h = PlatformSDL2_AuxHeight(s->platform);
+    w = PlatformWindow_AuxWidth(s->platform);
+    h = PlatformWindow_AuxHeight(s->platform);
     if( w <= 0 || h <= 0 )
         return 0;
     *out_w = w;
@@ -323,7 +323,7 @@ static int
 chrome_sdl_surface_input(void* user, struct ToriRSChromeSurfaceInput* out)
 {
     struct ChromeSdl* s = user;
-    struct PlatformSDL2_AuxInput aux;
+    struct PlatformWindow_AuxInput aux;
 
     assert(s);
     assert(out);
@@ -342,16 +342,16 @@ chrome_sdl_surface_input(void* user, struct ToriRSChromeSurfaceInput* out)
      * the GDI rule, which can afford to wait for the model because its window
      * is still there to wait in; this one is not.
      */
-    if( PlatformSDL2_AuxTakeCloseRequest(s->platform) )
+    if( PlatformWindow_AuxTakeCloseRequest(s->platform) )
     {
-        PlatformSDL2_AuxClose(s->platform);
+        PlatformWindow_AuxClose(s->platform);
         s->open = 0;
         s->borderless = 0;
         s->close_pending = 1;
         return 0;
     }
 
-    if( !PlatformSDL2_AuxTakeInput(s->platform, &aux) )
+    if( !PlatformWindow_AuxTakeInput(s->platform, &aux) )
         return 0;
 
     /* The platform's POD across to the chrome's; see the _Static_asserts. */
@@ -378,7 +378,7 @@ chrome_sdl_surface_input(void* user, struct ToriRSChromeSurfaceInput* out)
      * it also fires when only the DENSITY changed, which is a window dragged
      * to a display of another kind. */
     if( out->resized )
-        PlatformSDL2_AuxResize(s->platform, out->width, out->height);
+        PlatformWindow_AuxResize(s->platform, out->width, out->height);
     return 1;
 }
 

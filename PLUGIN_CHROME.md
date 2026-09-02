@@ -7,7 +7,7 @@
 | **lane** | One booted revision: the cache, its revconfig profile, and the client behaviour that goes with them. `rs289lc`, `osrs239` and the 2004 Classic frame are three lanes. |
 | **frame** / **gameframe** | The whole arrangement of the screen: where the scene, the minimap, the chatbox and the sidebar go, and the art around them. |
 | **arranger** | The one plugin holding the frame (`layout_claim`). It places the regions and declares the parts it dresses. Tier 1. |
-| **region** / **slot** | One of the placeable live surfaces — `viewport`, `minimap`, `compass`, `chat`, `sidebar`, `main_modal`, `chat_buttons` — plus the derived `canvas` and `safe`. Addressed by `enum ToriRS_PluginLayoutSlot`. |
+| **region** / **slot** | One of the placeable live surfaces — `viewport`, `minimap`, `compass`, `chat`, `sidebar`, `main_modal`, `chat_buttons` — plus the derived `canvas` and `safe_gamechrome`. Addressed by `enum ToriRS_PluginLayoutSlot`. |
 | **member** | One node of a region that has several: chat button 3 (Report abuse), sidebar tab 10. The region's OWN numbering, never a list position. |
 | **role** | A semantic NAME for a node, resolved per lane by the revconfig profile's `[role:…]` chain (`src/ui/uitree_role.c`). `report_button` is `slot(chat_buttons, report)` on a 2004 frame and `iface(chat, 31)` on OldSchool. |
 | **part** | Anything a plugin can claim: a chrome part (a role name — a button, an orb) or an entity part (`npc:12`, `player:7`, `loc:x,z,l,id`, `obj:x,z,l,id`). |

@@ -1,4 +1,4 @@
-#include "platform/platform_sdl2.h"
+#include "platform/platform_window.h"
 
 #include <windows.h>
 
@@ -15,7 +15,7 @@
 #endif
 
 extern uint32_t
-PlatformSDL2_Win32TestPaintCount(struct PlatformSDL2* platform);
+PlatformWindow_Win32TestPaintCount(struct PlatformWindow* platform);
 
 struct TestSurface
 {
@@ -104,7 +104,7 @@ main(void)
     int const logical_w = 160;
     int const logical_h = 80;
     uint32_t const sentinel = UINT32_C(0x00234567);
-    struct PlatformSDL2* platform;
+    struct PlatformWindow* platform;
     HWND hwnd;
     struct TestSurface target;
     RECT client;
@@ -113,10 +113,10 @@ main(void)
     uint32_t paints_before;
 
     SetEnvironmentVariableA("TORIRS_WIN32_HIDDEN", "1");
-    platform = PlatformSDL2_New();
-    if( !platform || !PlatformSDL2_Init(platform, logical_w, logical_h, "torirs-gdi-test") )
+    platform = PlatformWindow_New();
+    if( !platform || !PlatformWindow_Init(platform, logical_w, logical_h, "torirs-gdi-test") )
         fail("platform initialization failed");
-    hwnd = (HWND)PlatformSDL2_NativeWindowHandle(platform);
+    hwnd = (HWND)PlatformWindow_NativeWindowHandle(platform);
     if( !hwnd )
         fail("platform returned no HWND");
     if( GetClassLongPtrA(hwnd, GCLP_HBRBACKGROUND) != 0 )
@@ -139,11 +139,11 @@ main(void)
         fail("WM_ERASEBKGND was not suppressed");
     assert_surface_color(&target, sentinel, "background erase touched client pixels");
 
-    source = PlatformSDL2_Pixels(platform);
+    source = PlatformWindow_Pixels(platform);
     for( int y = 0; y < logical_h; y++ )
         for( int x = 0; x < logical_w; x++ )
             source[y * logical_w + x] = (int)pattern_at(x, y);
-    PlatformSDL2_Present(platform);
+    PlatformWindow_Present(platform);
 
     surface_fill(&target, sentinel);
     SendMessageA(hwnd, WM_PRINTCLIENT, (WPARAM)target.dc, PRF_CLIENT);
@@ -152,16 +152,16 @@ main(void)
             if( (target.pixels[y * logical_w + x] & UINT32_C(0x00ffffff)) != pattern_at(x, y) )
                 fail("1:1 repair paint did not reproduce the retained DIB");
 
-    paints_before = PlatformSDL2_Win32TestPaintCount(platform);
+    paints_before = PlatformWindow_Win32TestPaintCount(platform);
     InvalidateRect(hwnd, NULL, TRUE);
     SendMessageA(hwnd, WM_PAINT, 0, 0);
-    if( PlatformSDL2_Win32TestPaintCount(platform) <= paints_before )
+    if( PlatformWindow_Win32TestPaintCount(platform) <= paints_before )
         fail("invalidated client did not pass through WM_PAINT");
 
     /* A 2x-wide client letterboxes the unscaled image between two black bars.
      * This proves bars are isolated from the image instead of a full black
      * clear becoming visible before the image blit. */
-    PlatformSDL2_SetWindowSize(platform, logical_w * 2, logical_h);
+    PlatformWindow_SetWindowSize(platform, logical_w * 2, logical_h);
     GetClientRect(hwnd, &client);
     if( client.right != logical_w * 2 || client.bottom != logical_h )
         fail("SetWindowSize did not produce the requested client size");
@@ -188,19 +188,19 @@ main(void)
 
     /* Exercise transactional bitmap replacement and the cleanup path more
      * than once; a failed SelectObject must not publish dangling DIB state. */
-    if( !PlatformSDL2_Resize(platform, logical_w + 1, logical_h + 1) ||
-        PlatformSDL2_Width(platform) != logical_w + 1 ||
-        PlatformSDL2_Height(platform) != logical_h + 1 ||
-        !PlatformSDL2_Pixels(platform) )
+    if( !PlatformWindow_Resize(platform, logical_w + 1, logical_h + 1) ||
+        PlatformWindow_Width(platform) != logical_w + 1 ||
+        PlatformWindow_Height(platform) != logical_h + 1 ||
+        !PlatformWindow_Pixels(platform) )
         fail("first retained-DIB resize failed");
-    if( !PlatformSDL2_Resize(platform, logical_w, logical_h) ||
-        PlatformSDL2_Width(platform) != logical_w ||
-        PlatformSDL2_Height(platform) != logical_h ||
-        !PlatformSDL2_Pixels(platform) )
+    if( !PlatformWindow_Resize(platform, logical_w, logical_h) ||
+        PlatformWindow_Width(platform) != logical_w ||
+        PlatformWindow_Height(platform) != logical_h ||
+        !PlatformWindow_Pixels(platform) )
         fail("second retained-DIB resize failed");
 
     surface_free(&target);
-    PlatformSDL2_Free(platform);
+    PlatformWindow_Free(platform);
     SetEnvironmentVariableA("TORIRS_WIN32_HIDDEN", NULL);
     puts("win32_gdi_test: ok (retained paint, no erase, isolated letterbox bars)");
     return 0;

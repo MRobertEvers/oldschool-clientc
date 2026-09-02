@@ -214,11 +214,55 @@ UITree_FrameSlotIndex(
     }
 }
 
+/*
+ * The slot -> node answers, remembered per tree.
+ *
+ * Both lookups below are linear scans of every component, and a frame asks
+ * them several times (the plugin bridge's placement and "is this slot
+ * live" queries, the role placements): 0.18 ms a frame on the Moto X.
+ *
+ * What makes a node answer a slot is not only topology: a sidebar mount is
+ * a slot member only while `componentno >= 0`, which the server sets and
+ * clears with no topology bump (the minimap orbs vanished the first time
+ * this was keyed on `generation` alone). So a remembered HIT is re-checked
+ * against the node it names before it is returned -- O(1), the same tests
+ * the scan applies -- and falls back to the scan when the node no longer
+ * answers; a MISS is never remembered, because nothing cheap can say a
+ * new match has not appeared. Topology changes (add, free, re-parent) bump
+ * `generation` and reset the table outright, so a reclaimed index cannot
+ * be believed. One entry per tree pointer. -2 marks "not remembered".
+ */
+static struct
+{
+    struct UITree const* tree;
+    uint32_t generation;
+    uint32_t count;
+    int32_t node[UITREE_FRAME_SLOT_COUNT][1 + UITREE_FRAME_SLOT_NODES_MAX];
+} frame_slot_cache;
+
+static int32_t*
+frame_slot_cache_entry(
+    struct UITree const* tree,
+    int slot,
+    int member)
+{
+    if( frame_slot_cache.tree != tree || frame_slot_cache.generation != tree->generation ||
+        frame_slot_cache.count != tree->component_count )
+    {
+        frame_slot_cache.tree = tree;
+        frame_slot_cache.generation = tree->generation;
+        frame_slot_cache.count = tree->component_count;
+        memset(frame_slot_cache.node, 0xFE, sizeof(frame_slot_cache.node)); /* -2 */
+    }
+    return &frame_slot_cache.node[slot][1 + member];
+}
+
 int32_t
 UITree_FrameSlotNode(
     struct UITree const* tree,
     int slot)
 {
+    int32_t* cached;
     assert(tree);
     if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT )
         return -1;
@@ -227,6 +271,14 @@ UITree_FrameSlotNode(
      * every frame has. */
     if( slot == UITREE_FRAME_SLOT_VIEWPORT )
         return frame_node_alive(tree, tree->world_index) ? tree->world_index : -1;
+    cached = frame_slot_cache_entry(tree, slot, -1);
+    if( *cached >= 0 )
+    {
+        struct UITreeComponent const* c = &tree->components[*cached];
+        if( !c->freed && frame_node_is_slot(c, slot) )
+            return *cached;
+        *cached = -2;
+    }
 
     /*
      * The FIRST match, not the last.
@@ -243,7 +295,7 @@ UITree_FrameSlotNode(
         if( c->freed )
             continue;
         if( frame_node_is_slot(c, slot) )
-            return (int32_t)i;
+            return *cached = (int32_t)i;
     }
     return -1;
 }
@@ -254,11 +306,22 @@ UITree_FrameSlotMemberNode(
     int slot,
     int member)
 {
+    int32_t* cached;
     assert(tree);
     if( member < 0 )
         return UITree_FrameSlotNode(tree, slot);
     if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT )
         return -1;
+    if( member >= UITREE_FRAME_SLOT_NODES_MAX )
+        return -1;
+    cached = frame_slot_cache_entry(tree, slot, member);
+    if( *cached >= 0 )
+    {
+        struct UITreeComponent const* c = &tree->components[*cached];
+        if( !c->freed && frame_node_is_slot(c, slot) && UITree_FrameSlotIndex(c, slot) == member )
+            return *cached;
+        *cached = -2;
+    }
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
@@ -268,7 +331,7 @@ UITree_FrameSlotMemberNode(
         if( !frame_node_is_slot(c, slot) )
             continue;
         if( UITree_FrameSlotIndex(c, slot) == member )
-            return (int32_t)i;
+            return *cached = (int32_t)i;
     }
     return -1;
 }

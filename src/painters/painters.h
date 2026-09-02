@@ -432,6 +432,15 @@ struct PaintersElementCommand
             uint32_t _bf_terrain_y : 4;
         } _terrain;
     };
+    /**
+     * The scene element the command draws, resolved by the painter at emit
+     * time: the tagged id for PNTR_CMD_ELEMENT, the tile's mesh element for
+     * the two terrain kinds (from the painter's terrain_element table), -1
+     * for the markers and for a terrain tile with no mesh. Saves the frame a
+     * 2-3 dependent-load walk through the world's terrain entity pool per
+     * terrain command (TORIRS_FRAME_TERRAIN_ID).
+     */
+    int32_t _element_id;
 };
 
 /** The tagged element id a PNTR_CMD_ELEMENT command names. */
@@ -800,6 +809,55 @@ painter_add_normal_scenery_ex(
 void
 painter_mark_static_count(struct Painter* painter);
 
+/**
+ * The element id each terrain mesh draws with, kept beside the tiles so the
+ * paint walk can put it on the command. World_TerrainSet writes it; a scene
+ * reset clears it.
+ */
+void
+painter_set_terrain_element(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int element_id);
+
+int
+painter_terrain_element_at(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel);
+
+void
+painter_clear_terrain_elements(struct Painter* painter);
+
+/**
+ * The per-cycle dynamic pass, bracketed. Between the two, painter_add_normal_scenery(_ex),
+ * painter_add_world_entity, painter_add_wall and painter_add_ground_decor_dynamic are
+ * RECORDED rather than applied (they return -1). Commit compares the record
+ * with the previous cycle's: identical, and the static set untouched since,
+ * means the tiles already hold exactly what a rebuild would produce, so the
+ * tear-down (painter_reset_to_static) and the re-add are both skipped --
+ * all-or-nothing, so insertion-order ties are preserved. Otherwise it resets
+ * and replays the record in order. Returns 1 when it rebuilt, 0 when it
+ * skipped.
+ *
+ * TORIRS_PAINTER_DYN_SKIP=0 turns the journal off: begin is then
+ * painter_reset_to_static and the adds apply immediately, as they always did.
+ */
+void
+painter_dynamics_begin(struct Painter* painter);
+
+int
+painter_dynamics_commit(struct Painter* painter);
+
+/** Test hook: 1/0 forces the journal on/off for this painter, -1 follows the env knob. */
+void
+painter_set_dynamics_skip(
+    struct Painter* painter,
+    int enabled);
+
 /** Toggle suppression of the single-slot wall / wall_decor / ground_decor
  *  registrations. Set around a runtime loc spawn (WorldBuilder_ApplyLocChange)
  *  so reusing the build path doesn't assert on / clobber the baked static tile
@@ -1016,6 +1074,23 @@ painter_add_world_entity(
     int model_height,
     int size_x,
     int size_z);
+
+/*
+ * The paint walk's census, always on: walks this frame, walks whose inputs
+ * (camera tile and level, cull span, draw distance, level mask) were the
+ * previous walk's -- what a cached walk would hit -- tiles popped, commands
+ * emitted and how many of those were entities rather than static scenery.
+ * A renderer that prints frame statistics reads and clears it.
+ */
+struct TorirsPaintCensus
+{
+    int walks;
+    int same_inputs;
+    int pops;
+    int commands;
+    int entity_commands;
+};
+extern struct TorirsPaintCensus g_torirs_paint_census;
 
 int
 painter_paint_bucket(

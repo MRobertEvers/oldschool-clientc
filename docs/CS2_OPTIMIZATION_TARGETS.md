@@ -1716,7 +1716,7 @@ resizable modes on XP.
 This target assumes there is a conversion or a composition copy to remove. On
 `platform_win32gdi.c` there is neither, and has not been:
 
-- `PlatformSDL2_Pixels` returns the pointer `CreateDIBSection` handed back
+- `PlatformWindow_Pixels` returns the pointer `CreateDIBSection` handed back
   (`platform_win32gdi.c:134`). `App_Render` rasterises straight into the DIB
   bits. There is no staging buffer.
 - The DIB is `BI_RGB` 32bpp top-down, which on a little-endian box is
@@ -1769,10 +1769,10 @@ user32 for a DC and giving it back.
 The window class has carried `CS_OWNDC` since it was written
 (`platform_win32gdi.c:571`), which means the DC is permanently associated with
 the window and survives resizes — the per-frame `GetDC`/`ReleaseDC` pair was
-buying nothing. `struct PlatformSDL2` gained a `window_dc` field, the init path
+buying nothing. `struct PlatformWindow` gained a `window_dc` field, the init path
 fetches it once (reusing it for the `CreateCompatibleDC` that makes `mem_dc`,
-so this replaces a call rather than adding one), `PlatformSDL2_Present` uses it
-directly, and `PlatformSDL2_Free` releases it before `DestroyWindow`. The
+so this replaces a call rather than adding one), `PlatformWindow_Present` uses it
+directly, and `PlatformWindow_Free` releases it before `DestroyWindow`. The
 `WM_PAINT` handler keeps using `BeginPaint`'s DC, which is a different handle
 with a different clip region and is not interchangeable with this one.
 

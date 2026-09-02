@@ -221,15 +221,17 @@ endif
 # samples are correct as LEAVES (the flat EIP histogram is unaffected) but carry
 # no callers. The histogram is the ground truth for "where"; the stacks are the
 # call tree for the C around it.
-ifeq ($(PLATFORM),win32)
+#
+# Every platform, not only win32: the shipping OPT=1 build carries neither the
+# frame pointer nor DWARF. A sampling profile of it wants both (simpleperf's
+# fp call graphs on Android, the XP EIP profiles), and that is what PROFILE=1
+# is for -- it owns its own object directory (PROFILE_SUFFIX), so the two
+# flavours never share an object.
 ifeq ($(OPT),1)
 ifeq ($(PROFILE),1)
 BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
 else
 BUILD_DIAGNOSTIC_CFLAGS = -fomit-frame-pointer
-endif
-else
-BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
 endif
 else
 BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
@@ -694,9 +696,10 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/uitree_anim.c engine/entity_model_build.c engine/uitree_role_load.c \
 	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
+	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c ui/uitree_snapshot.c \
 	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
+	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
@@ -713,7 +716,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	net/rev/lc289/gameproto_rev_lc289.c net/rev/lc289/lc289_entity_info.c \
 	bootmanifest/bootmanifest.c features/features.c \
-	platform/sockstream.c platform/platform_socket.c \
+	platform/sockstream.c platform/platform_mdns.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
 	platform/net_transport_embed.c \
@@ -957,7 +960,7 @@ TEXTRI_ASM_OBJ := $(OBJ_DIR)/tex_tri_asm.o
 TORIDRAW_CFLAGS += -DTORIDRAW_TEXTRI_ASM=1
 endif
 
-# --- AArch64 presorted-run kernels (Advanced SIMD) --------------------------
+# --- NEON presorted-run kernels (Advanced SIMD) -----------------------------
 # The eight standard-definition presorted-run doors -- flat opaque/alpha,
 # gouraud opaque/alpha, textured opaque/trans x flat/shaded -- as NEON twins
 # of the i686 SSE2 kernels above. Same shape as the i686 lanes: the C per-face
@@ -966,18 +969,74 @@ endif
 # probe build for the same reason as the i686 kernels: the census and
 # ablation counters live in the C. TORIDRAW_NO_SIMD withdraws it with the rest
 # of the SIMD lanes.
+#
+# THESE DOORS ARE WHAT TURNS THE WHOLE-MODEL PIPELINE ON. toridraw_raster_batch.h
+# defines TORIDRAW_RASTER_BATCH if and only if the flat AND gouraud presorted-run
+# doors both exist, and toridraw_raster_batch_armed() then defaults to armed. So
+# this block is not "an optional asm speedup": without it the renderer walks a
+# model face by face through the C kernels, and with it a model's faces are depth
+# sorted and handed to one call per material class. Selecting no kernel here
+# silently selects the per-face pipeline.
+#
+# TWO ENCODINGS, ONE FAMILY, CHOSEN BY THE TARGET. A32 and A64 Advanced SIMD are
+# different instruction sets rather than two spellings of one, so each door has
+# two source files -- tri.*.aarch64.S and tri.*.aarch32.S -- and the lane picks by
+# the architecture being BUILT FOR. The old gate asked `uname -m`, which is the
+# build host: correct by accident on a native macOS arm64 build and wrong for
+# every cross-compile, which is why the Android arm64 APK was shipping the
+# per-face C pipeline on a part that has had these kernels all along.
 NEON_TRI_ASM_OBJS :=
+NEON_TRI_ASM_ISA :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
-ifeq ($(PLATFORM),macos)
-ifeq ($(shell uname -m),arm64)
 ifneq ($(TORIDRAW_NO_SIMD),1)
-NEON_TRI_ASM_OBJS := $(OBJ_DIR)/flat_tri_neon.o $(OBJ_DIR)/gouraud_tri_neon.o $(OBJ_DIR)/tex_tri_neon.o
-NEON_TRI_ASM_CFLAGS := -DTORIDRAW_FLAT_TRI_NEON_ASM=1 -DTORIDRAW_GOURAUD_TRI_NEON_ASM=1 -DTORIDRAW_TEXTRI_NEON_ASM=1
+  ifeq ($(PLATFORM),macos)
+    ifeq ($(shell uname -m),arm64)
+      NEON_TRI_ASM_ISA := aarch64
+    endif
+  endif
+  ifeq ($(PLATFORM),android)
+    ifeq ($(ANDROID_ABI),arm64-v8a)
+      NEON_TRI_ASM_ISA := aarch64
+    endif
+    ifeq ($(ANDROID_ABI),armeabi-v7a)
+      NEON_TRI_ASM_ISA := aarch32
+    endif
+  endif
+endif
+endif
+
+#
+# PER-KERNEL, not all-or-nothing: a kernel is taken when a source for THIS
+# encoding exists, and the C reference stands in for the ones that do not.
+#
+# The encodings are not ported in lockstep. While aarch32 had only the flat and
+# gouraud triangles (it has all three now), naming all three unconditionally
+# made that half-finished state a hard build failure ("No rule to make target
+# tri.tex.aarch32.S") on the one lane the port is for. Asking the filesystem
+# means a kernel arriving is picked up with no edit here, and a kernel that has
+# not arrived costs nothing but the C path it already had.
+ifneq ($(NEON_TRI_ASM_ISA),)
+NEON_TRI_ASM_DIR := $(TORIDRAW_DIR)/impl/raster/asm
+NEON_TRI_ASM_OBJS :=
+NEON_TRI_ASM_CFLAGS :=
+ifneq ($(wildcard $(NEON_TRI_ASM_DIR)/tri.flat.$(NEON_TRI_ASM_ISA).S),)
+NEON_TRI_ASM_OBJS  += $(OBJ_DIR)/flat_tri_neon.o
+NEON_TRI_ASM_CFLAGS += -DTORIDRAW_FLAT_TRI_NEON_ASM=1
+endif
+ifneq ($(wildcard $(NEON_TRI_ASM_DIR)/tri.gouraudhsllightness.$(NEON_TRI_ASM_ISA).S),)
+NEON_TRI_ASM_OBJS  += $(OBJ_DIR)/gouraud_tri_neon.o
+NEON_TRI_ASM_CFLAGS += -DTORIDRAW_GOURAUD_TRI_NEON_ASM=1
+endif
+ifneq ($(wildcard $(NEON_TRI_ASM_DIR)/tri.tex.$(NEON_TRI_ASM_ISA).S),)
+NEON_TRI_ASM_OBJS  += $(OBJ_DIR)/tex_tri_neon.o
+NEON_TRI_ASM_CFLAGS += -DTORIDRAW_TEXTRI_NEON_ASM=1
+endif
 TORIDRAW_CFLAGS += $(NEON_TRI_ASM_CFLAGS)
 endif
-endif
-endif
-endif
+
+# The shared edge-slope ladder, one per encoding. Named here so the three rules
+# below depend on the one their own ISA actually includes.
+NEON_TRI_EDGE_INC := $(TORIDRAW_DIR)/graphics/raster/edge_slopes_$(NEON_TRI_ASM_ISA).inc
 
 # The framebuffer clear. Unlike the three kernels above this one is not
 # withdrawn under the probe builds -- it has no census counters to invalidate,
@@ -1063,7 +1122,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
-.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
@@ -1071,7 +1130,7 @@ endif
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
 .PHONY: check-design-colours
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
-.PHONY: test-wev test-wev-rebuild test-painters-world-entity
+.PHONY: test-wev test-wev-rebuild test-painters-world-entity test-painters-dynamic-pool
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -1246,7 +1305,7 @@ IO_SERVER_FLAVOR = PLATFORM=native OPT=0 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0
 IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
 	platform/platform_x_io_ondemand.c \
-	platform/platform_x_http.c platform/sockstream.c \
+	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	ui/torirs_chrome_exec_kind.c $(INI_SRC)
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
@@ -1298,7 +1357,7 @@ JS5_TEST_PYTHON ?= python
 test-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_test \
-		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c platform/platform_mdns.c \
 		js5/server/js5_server_cache.c js5/test/js5_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
@@ -1312,7 +1371,7 @@ test-js5-server: js5-server $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server_client_test \
-		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c platform/platform_mdns.c \
 		js5/server/test/js5_server_client_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
@@ -1996,15 +2055,19 @@ $(TEXTRI_ASM_OBJ): $(TEXTRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/texture/spa
 	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
 endif
 
-# The AArch64 presorted-run kernels. Same treatment as the i686 lanes: cpp
-# first, no PLATFORM_BASE_CFLAGS. edge_slopes_aarch64.inc is the shared
-# slope reciprocal, so every one of the three depends on it.
+# The NEON presorted-run kernels. Same treatment as the i686 lanes: cpp first,
+# no PLATFORM_BASE_CFLAGS. The ISA in the filename is the one the gate above
+# picked for this target; edge_slopes_$(ISA).inc is the shared slope
+# reciprocal, so every one of the three depends on it.
+#
+# $(PLATFORM_CC) matters on the cross lanes: the .S files are guarded on
+# __arm__ / __aarch64__ and would assemble to nothing under the host compiler.
 ifneq ($(NEON_TRI_ASM_OBJS),)
-$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.$(NEON_TRI_ASM_ISA).S $(NEON_TRI_EDGE_INC) | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
-$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.$(NEON_TRI_ASM_ISA).S $(NEON_TRI_EDGE_INC) | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
-$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.$(NEON_TRI_ASM_ISA).S $(NEON_TRI_EDGE_INC) | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
 endif
 
@@ -2022,9 +2085,6 @@ $(EIP_SAMPLE_OBJ): $(TORIDRAW_DIR)/toridraw_eip_sample.c $(TORIDRAW_DIR)/toridra
 
 $(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_UNITY_SRC) -o $@
-
-$(OBJ_DIR)/webgl1_index16.o: $(TRSPK_DIR)/webgl1/webgl1_index16.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/opengl3_sdlgl.o: $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c -o $@
@@ -2638,6 +2698,19 @@ test-painters-ground-decor: $(OBJ_DIR)
 # between that boat's markers and one left ashore does not, plus the deck <->
 # parent transform and the half-open footprint that decide which of the two an
 # actor is (world/wev_deck.c -- pure arithmetic, still no cache and no world).
+# The painter's per-cycle dynamic pass: the scenery pool must not grow across
+# frames (the static high-water hands dynamic nodes back), and the registration
+# journal (TORIRS_PAINTER_DYN_SKIP) must paint byte-identical streams whether a
+# cycle was skipped or rebuilt. Bare painter, no cache, no world.
+test-painters-dynamic-pool: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
+		-o $(OBJ_DIR)/painters_dynamic_pool_test \
+		engine/test/painters_dynamic_pool_test.c \
+		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
+	./$(OBJ_DIR)/painters_dynamic_pool_test
+
 test-painters-world-entity: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
 		-o $(OBJ_DIR)/painters_test_world_entity \
@@ -2659,7 +2732,8 @@ test-uitree: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
+		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
+		ui/torirs_chrome_inkwell.c \
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
@@ -2787,7 +2861,7 @@ bench-uitree: $(OBJ_DIR)
 test-uitree-builder: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/uitree_builder -o $(OBJ_DIR)/uitree_builder_test \
 		engine/uitree_builder/uitree_builder_manifest.c \
-		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC) \
+		revconfig/revconfig.c revconfig/revconfig_load.c ui/torirs_chrome_inkwell.c $(INI_SRC) \
 		engine/uitree_builder/test/uitree_builder_test_manifest.c
 	./$(OBJ_DIR)/uitree_builder_test
 
@@ -3314,7 +3388,7 @@ test-uitree-builder-dat1: $(OBJ_DIR) $(OBJS)
 test-revconfig: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/revconfig -I$(SRC_DIR)/revconfig/test -o $(OBJ_DIR)/revconfig_test \
 		revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
-		revconfig/revconfig_profile.c $(INI_SRC) \
+		revconfig/revconfig_profile.c ui/torirs_chrome_inkwell.c $(INI_SRC) \
 		revconfig/test/revconfig_test_main.c revconfig/test/revconfig_test_buffer.c \
 		revconfig/test/revconfig_test_items.c revconfig/test/revconfig_test_load.c \
 		revconfig/test/revconfig_test_parse.c revconfig/test/revconfig_test_refs.c \
@@ -4863,6 +4937,15 @@ test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
 
+# mDNS response parser: name compression (including a pointer chain and a
+# self-referential one), truncation, out-of-range RDLENGTH, reserved label
+# types, and the `.local` suffix classifier. No socket -- every packet is built
+# by hand, because a cooperating responder never sends the malformed ones and
+# those are exactly the cases that would read out of bounds.
+test-mdns: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mdns_parse_test platform/test/mdns_parse_test.c
+	./$(OBJ_DIR)/mdns_parse_test
+
 # WebSocket frame codec: mask/deframe/ping/incomplete/back-to-back, no socket.
 test-ws-frame: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/platform -o $(OBJ_DIR)/ws_frame_test \
@@ -4892,6 +4975,15 @@ test-light-model: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/light_model_test \
 		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/light_model_test
+
+# ToriDraw_SceneElementApplyAnimation skips a pose the model already holds
+# (TORIDRAW_ANIM_SKIP_SAME); every mutator that can change a pose must force a
+# re-pose. Run on both arms: the control arm re-poses every call.
+test-scene-anim-skip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/scene_anim_skip_test \
+		$(TORIDRAW_DIR)/toridraw_scene_anim_skip_test.c $(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/scene_anim_skip_test
+	TORIDRAW_ANIM_SKIP_SAME=1 ./$(OBJ_DIR)/scene_anim_skip_test
 
 # DynamicObject sequence termination: frameStep governs the final location pose.
 test-animation-object-step: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
@@ -5066,23 +5158,53 @@ test-scene-profiles: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 		$(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/scene_profile_test
 
-# The AArch64 presorted-run kernels against the C per-face kernels, all
-# eight doors. The default arm is the reciprocal one (a triangle/pixel ppm
-# budget, as the i686 ladder is scored); NEON_TRI_ASM_FLAGS=-DTORIDRAW_EDGE_IDIV
-# assembles the exact-divide lane, under which the test demands zero.
-# Apple arm64 only -- elsewhere there is no kernel to score.
+# The NEON presorted-run kernels against the C per-face kernels, all eight
+# doors. The default arm is the reciprocal one (a triangle/pixel ppm budget,
+# as the i686 ladder is scored); NEON_TRI_ASM_FLAGS=-DTORIDRAW_EDGE_IDIV
+# assembles the exact-divide lane, under which the test demands zero -- that
+# is what separates a regression in the walk from the approximation in the
+# slope, and BOTH kernels are held to it.
+# Scores whichever encoding the gate picked: aarch64 on Apple arm64 and
+# Android arm64-v8a, aarch32 on Android armeabi-v7a.
 # The test includes the unity source itself (it reaches the static C
 # kernels), so it links the three asm objects alone, not the unity object.
+#
+# HOW IT IS RUN. A cross-compiled lane cannot execute on the build host, and a
+# target that quietly skipped the run would report a pass nothing observed --
+# so the Android lanes push to an attached device and run there, and say so
+# loudly if there is none. ANDROID_SERIAL picks one when several are attached.
+# adb shell on an older device does not propagate an exit status, hence the
+# RC= marker rather than trusting adb's own.
+ifeq ($(PLATFORM),android)
+ADB := adb $(if $(ANDROID_SERIAL),-s $(ANDROID_SERIAL),)
+define NEON_TEST_RUN
+	@$(ADB) get-state >/dev/null 2>&1 || { \
+		echo "test-presorted-neon: built for $(ANDROID_ABI), but no adb device is attached."; \
+		echo "  The kernels cannot run on the build host. Attach a device (or set"; \
+		echo "  ANDROID_SERIAL) and re-run; nothing was scored."; \
+		exit 1; }
+	$(ADB) push $(1) /data/local/tmp/presorted_neon_test >/dev/null
+	@$(ADB) shell "chmod 755 /data/local/tmp/presorted_neon_test && \
+		/data/local/tmp/presorted_neon_test; echo RC=\$$?" 2>&1 \
+		| grep -v -i "warning: linker" | tee $(1).log
+	@grep -q "RC=0" $(1).log || { echo "test-presorted-neon: FAILED on device"; exit 1; }
+endef
+else
+define NEON_TEST_RUN
+	./$(1)
+endef
+endif
+
 test-presorted-neon: $(OBJ_DIR) $(NEON_TRI_ASM_OBJS)
 ifeq ($(NEON_TRI_ASM_OBJS),)
-	@echo "test-presorted-neon: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+	@echo "test-presorted-neon: no kernel for PLATFORM=$(PLATFORM) ABI=$(ANDROID_ABI) -- nothing to score"
 else
 	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function \
 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) $(NEON_TRI_ASM_CFLAGS) \
 		$(NEON_TRI_ASM_FLAGS) -I$(TORIDRAW_DIR) -I$(BMP_DIR) \
 		-o $(OBJ_DIR)/presorted_neon_test \
 		$(TORIDRAW_DIR)/toridraw_presorted_neon_test.c $(NEON_TRI_ASM_OBJS) -lm
-	./$(OBJ_DIR)/presorted_neon_test
+	$(call NEON_TEST_RUN,$(OBJ_DIR)/presorted_neon_test)
 endif
 
 # --- the Xtensa lane, as far as a host can take it -------------------------
@@ -5166,6 +5288,25 @@ test-model-render-flags: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		engine/torirs_types.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/model_render_flags_test
+
+# TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES reaches the raster: a model carrying it
+# draws exactly what the camera's texture_affine draws, and not what the
+# perspective walk draws. Run on both arms of the batcher where the lane has
+# run kernels (the second run forces the per-face C path); a lane without
+# them takes the per-face path both times.
+test-affine-flag: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/affine_flag_test \
+		$(TORIDRAW_DIR)/toridraw_affine_flag_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/affine_flag_test
+	TORIDRAW_RASTER_BATCH=0 ./$(OBJ_DIR)/affine_flag_test
+
+# The tile decoder sets that flag on exactly the textured tiles.
+test-terrain-affine-flag: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/terrain_affine_flag_test \
+		engine/test/terrain_affine_flag_test.c engine/world_builder/world_decode_tile.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/terrain_affine_flag_test
 
 # Client-TS near-plane parity: sentinel faces bypass the meaningless pre-clip
 # winding, then the clipped polygon receives the real front-face test.

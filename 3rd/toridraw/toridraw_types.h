@@ -142,6 +142,26 @@ struct ToriDraw_Bones
 #define TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY ((uint8_t)(1u << 1))
 
 /**
+ * Rasterise this model's textured faces with the AFFINE texture kernels.
+ *
+ * The stock textured kernels are perspective-correct: every eight pixels they
+ * re-derive u and v from the plane equation, which is a reciprocal and two
+ * multiplies per block. The affine family derives u and v only at the two ends
+ * of each span and steps linearly between them. On a face that is nearly
+ * parallel to the screen -- a terrain tile seen from the game camera -- the two
+ * agree to the texel, and the affine walk is the cheaper one.
+ *
+ * This is a per-MODEL policy, set by whoever builds the model and knows what
+ * it is (world_decode_tile sets it on every textured terrain tile); the
+ * raster reads it once per model, next to the camera's own texture_affine.
+ * Every lane honours it: the per-face C kernels through the affine family
+ * (tri.texture_affine.u.c), the presorted-run assembly kernels through the
+ * affine lane of the staged row (tex_tri_asm.h, TORIDRAW_TEXBATCH_LANE_AFFINE).
+ * It is not implied by, and does not imply, either flag above.
+ */
+#define TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES ((uint8_t)(1u << 2))
+
+/**
  * A model that owns every array reachable from it.
  *
  * That is not a description, it is the invariant. Geometry a placement does NOT
@@ -780,6 +800,26 @@ struct ToriDraw_SceneElement
      *  ObjType.getWorldModel / ClientPlayer / NpcType); locs keep the exact
      *  per-face test. */
     bool pick_aabb;
+
+    /*
+     * The pose the model is currently holding, so ToriDraw_SceneElementApplyAnimation
+     * can skip a request for the pose it already computed (TORIDRAW_ANIM_SKIP_SAME):
+     * a sequence advances its frame every two to four cycles, and the
+     * renderer asks for the pose every frame, so most requests are repeats.
+     * posed_primary < 0 = the model holds no known pose. Every mutation that
+     * can change what a (track, frame) pair produces -- a model mounted or
+     * un-shared, a sequence bound or dropped, an in-place edit through
+     * ToriDraw_SceneElementModelForWrite -- bumps model_revision and
+     * clears posed_primary. The track pointers are in the tuple as well so
+     * a direct write of `animation` / `skeletal_animation` is caught by
+     * identity even without the bump.
+     */
+    int8_t posed_primary;
+    int16_t posed_frame;
+    int16_t posed_frame2;
+    uint32_t model_revision;
+    const void* posed_track;
+    const void* posed_track2;
 };
 
 struct ToriDraw_SceneBatchElementHandle
@@ -892,6 +932,15 @@ struct ToriDraw_Scene
      * pointer so the offset of projection_prepared_camera, which a static
      * assert pins relative to screen_vertices_x, does not move. */
     struct ToriDraw_ProjectionPreparedCameraFloat projection_prepared_camera_f;
+    /*
+     * The same camera's full cot16 -- the value the near-clip rule's safe
+     * plane scales by -- so the per-model near-clip reads it here instead of
+     * re-running the fov table and clamp ladder for every model in the frame
+     * (toridraw_projection_near_clip_perspective). Guarded by the same
+     * projection_prepared_camera_source, written by the same function. Here
+     * and not in the int block above: that block's size is pinned for
+     * projection16.aarch64.S. */
+    int projection_prepared_cot16;
 
     faceint_t* tmp_depth_face_count;
     faceint_t* tmp_depth_faces;
@@ -942,6 +991,36 @@ struct ToriDraw_Scene
      */
     uint32_t* sm_sort_keys;
     uint32_t* sm_sort_tmp;
+    /* The projected vertices of the model being sorted, interleaved as
+     * {x, y, z, 0} quads: max_vertices + 4 of them, rebuilt per model by a
+     * lane whose gather wants whole-register loads (the A32 NEON lane; see
+     * its block4). NULL until the bitonic+radix scratch is allocated. */
+    int* sm_vertex_xyz;
+    /*
+     * The same vertices as {x - box_min_x, y - box_min_y, z, 0} int16 quads,
+     * for the A32 lane's eight-face K16 block: a model whose screen box is
+     * under 32K wide and tall has every rebased coordinate and every winding
+     * delta an exact int16, and the products exact int32 (see the lane).
+     * (max_vertices + 8) quads.
+     */
+    int16_t* sm_vertex_xyz16;
+    /*
+     * The screen box toridraw_projected_bound swept for the model last
+     * projected, RAW: min x, max x, min y, max y in the projection's own
+     * space, before the viewport offset and the pick dilation that go into
+     * `aabb`. What a sort lane reads to classify a model's extent.
+     */
+    int projected_box[4];
+    /*
+     * The depth range a lane could prove for the model it just culled, from
+     * the z range of its vertices: every accepted face's depth is in
+     * [sm_sort_depth_lo, sm_sort_depth_hi]. The dispatcher resets both to
+     * "unknown" (0, INT_MAX) before the lane runs; a lane that sweeps the
+     * vertices anyway (the A32 lane's interleave pass) narrows them for
+     * free, and a range under 256 levels lets the radix finish in ONE pass.
+     */
+    int sm_sort_depth_lo;
+    int sm_sort_depth_hi;
     /*
      * Whether the LAST sort actually filled sm_face_x4/y4, which is not the same
      * question as whether the build can. Three things have to hold -- the

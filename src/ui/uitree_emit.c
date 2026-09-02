@@ -1,5 +1,7 @@
 #include "uitree_emit.h"
 
+#include "ui/torirs_chrome_inkwell.h"
+
 #include "uitree_frame.h"
 
 #include "perf/torirs_perf.h"
@@ -754,6 +756,51 @@ UITree_EmitFill(
         out->y = cy - 8;
         out->w = 16;
         out->h = 16;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_INKWELL:
+    {
+        /*
+         * The touch marker. Unlike the cross above, whose sprite pack comes
+         * from the cache through `sprite=`, this artwork is generated
+         * (ui/torirs_chrome_inkwell.c) and lives in one scene entry holding
+         * every style and colour -- so the component's configured style is an
+         * atlas index and never an upload.
+         */
+        int cx = 0;
+        int cy = 0;
+        int atlas = 0;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_INKWELL,
+            .u.get_inkwell = {
+                .style = component->u.inkwell.style,
+                .walk_color = component->u.inkwell.walk_color,
+                .interact_color = component->u.inkwell.interact_color,
+                .out_x = &cx,
+                .out_y = &cy,
+                .out_atlas_index = &atlas,
+            },
+        };
+        struct UITreeHostRequest scene_req = { .kind = UITREE_HOST_GET_INKWELL_SCENE };
+        int scene_id;
+
+        if( !UITree_Host(host, &req) )
+            return false; /* no marker running this frame */
+        scene_id = UITree_Host(host, &scene_req);
+        if( scene_id <= 0 )
+            return false;
+
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = scene_id;
+        out->atlas_index = atlas;
+        /* Centred on the touch, like the cross -- the frames are drawn about
+         * their own centre so the marker does not drift as it grows. */
+        int const size = ToriRSInkwell_Size();
+        out->x = cx - (size / 2);
+        out->y = cy - (size / 2);
+        out->w = size;
+        out->h = size;
         return true;
     }
 
@@ -2542,7 +2589,7 @@ emit_walk_node(
      * to a `hide` bit bumps dirty_gen unconditionally rather than through the
      * filtered MarkNodeDirty path — see UITree_SetHide. */
     if( (uint32_t)idx < tree->emit_visited_cap )
-        tree->emit_visited[idx] = 1;
+        tree->emit_visited[idx] = tree->emit_epoch;
 
     /* Inactive sidebar tabs prune their whole mounted subtree (same gate as
      * UITree_ComponentVisibleHost; ShouldEmit only skips the container's own
@@ -3428,12 +3475,25 @@ UITree_EmitWalk(
                                : tree->component_count;
             uint8_t* grown = realloc(mut->emit_visited, cap);
             assert(grown);
+            /* The new tail must not read as this walk's stamp by chance. */
+            memset(grown + mut->emit_visited_cap, 0, cap - mut->emit_visited_cap);
             mut->emit_visited = grown;
             mut->emit_visited_cap = cap;
         }
-        if( mut->emit_visited_cap > 0 )
-            memset(mut->emit_visited, 0, mut->emit_visited_cap);
+        /* A new stamp is the clear; the array itself is cleared only when the
+         * stamp wraps, once in 255 walks. See UITree::emit_epoch. */
+        mut->emit_epoch = (uint8_t)(mut->emit_epoch + 1u);
+        if( mut->emit_epoch == 0u )
+        {
+            mut->emit_epoch = 1u;
+            if( mut->emit_visited_cap > 0 )
+                memset(mut->emit_visited, 0, mut->emit_visited_cap);
+        }
     }
+    /* Perf readout only. The free-list walk is a pointer chase over every
+     * reclaimed slot, and it was 83% of this function on a phone while the
+     * counters it fed were off. */
+    if( g_torirs_perf_enabled )
     {
         int free_len = 0;
         for( int32_t i = tree->free_head; i >= 0; i = tree->components[i].free_next )

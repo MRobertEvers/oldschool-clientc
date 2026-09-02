@@ -43,6 +43,7 @@
 #define UITREE_SUBMENU_OP_SLOTS 10
 #define UITREE_SUBMENU_ENTRY_SLOTS 32
 #define UITREE_CHAT_OP_TEMPLATE_LEN 64
+#define UITREE_CHAT_PROMPT_LEN 64
 #define UITREE_WALK_STACK_MAX 64
 #define UITREE_INV_SOURCE_INVALID (-1)
 
@@ -50,6 +51,28 @@
 #define UITREE_RELATIVE_FLAG_TOP 2
 #define UITREE_RELATIVE_FLAG_RIGHT 4
 #define UITREE_RELATIVE_FLAG_BOTTOM 8
+
+/*
+ * WHICH safe area a node keeps clear of, and which of its edges.
+ *
+ * There is more than one box that deserves the name, and they answer to
+ * different occluders -- the difference ToriRS_PluginApi::safe_os spells out.
+ * The OS one is the canvas minus what the PLATFORM put on top of the whole
+ * window (today a soft keyboard, a band off the bottom while it is up); the
+ * game-chrome one, when the layout learns to resolve it, is the canvas minus
+ * what the CLIENT put there -- frame regions, edges plugins reserved. A row
+ * that wants to clear a keyboard and a row that wants to clear the chat box
+ * are asking different questions, so the profile names the area rather than
+ * saying "the safe one" and leaving the client to guess which.
+ *
+ * Only the bottom edge exists because only the bottom edge is ever eaten. A
+ * notch would add UITREE_SAFE_AREA_FLAG_TOP and an inset for it in
+ * uitree_layout; nothing else about the rule would change.
+ */
+#define UITREE_SAFE_AREA_SOURCE_NONE 0
+#define UITREE_SAFE_AREA_SOURCE_OS 1
+
+#define UITREE_SAFE_AREA_FLAG_BOTTOM 1
 
 /** Client.ts overMainComId / overSideComId / overChatComId. -1 = none. */
 struct UITreeHoverIds
@@ -140,6 +163,20 @@ enum UITreeComponentType
      *  click flips that answer -- the same TITLE_ACTION path a login_button
      *  takes. The LABEL beside it is a child rs_text, as with a button. */
     UIELEM_BUILTIN_LOGIN_TOGGLE = 37,
+    /**
+     * Touch marker -- the "inkwell". Shown for EVERY touch, which is the whole
+     * difference from UIELEM_BUILTIN_CROSS: the cross marks a click that
+     * resulted in something, and on a touchscreen a tap that draws nothing is
+     * indistinguishable from a tap the device never received.
+     *
+     * A builtin for the same reason CROSS is: no interface owns it, the
+     * reference plots it straight onto the canvas. Its artwork and its colour
+     * rules are revconfig's (`style=`, `walk_color=`, `interact_color=`), and a
+     * profile overrides them with a `[component:<name>@mobile]` section.
+     *
+     * @see ui/torirs_chrome_inkwell.h, ui/uitree_ink.h.
+     */
+    UIELEM_BUILTIN_INKWELL = 38,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -252,6 +289,26 @@ struct UITreeElemPosition
     int8_t height_mode;
     int aspect_w;
     int aspect_h;
+
+    /*
+     * Which safe area this node keeps itself clear of, which of its edges, and
+     * how much room it wants beyond the overlap (UITREE_SAFE_AREA_SOURCE_*,
+     * UITREE_SAFE_AREA_FLAG_*, and canvas rows). All three come from the
+     * profile's layout row -- `safe_area=os:bottom`, `safe_area_margin=` -- so
+     * WHICH panel moves out from under a soft keyboard is a statement the
+     * revision makes about its own interface, not a role name compiled into
+     * the client.
+     *
+     * Applied to the RESOLVED box, never to x/y: the authored coordinates stay
+     * the authored coordinates, so a keyboard going away restores the row by
+     * re-resolving rather than by remembering what it displaced.
+     *
+     * SOURCE_NONE -- the overwhelmingly common case -- means the node sits
+     * exactly where its coordinates put it, whatever is covering the canvas.
+     */
+    int safe_area_source;
+    int safe_area_flags;
+    int safe_area_margin;
 };
 
 /* Runtime script hooks live in their own file: the slot type, its accessors and
@@ -546,6 +603,9 @@ struct UITreeChatConfig
 {
     struct UITreeChatMinimenuConfig minimenu;
     int font_id; /* INI font= (message + input line font, e.g. p12) */
+    /** INI prompt= — the unfocused input line's invitation. Empty (the
+     * "none" state included) means the renderer's own default wording. */
+    char prompt[UITREE_CHAT_PROMPT_LEN];
 };
 
 struct UITreeDebugOverlayConfig
@@ -774,6 +834,19 @@ struct UITreeComponent
             int mask_scene_id;
             int mask_atlas_index;
         } sprite;
+        /*
+         * UIELEM_BUILTIN_INKWELL. No scene id here: the artwork is generated
+         * and uploaded once into a single scene entry holding every style and
+         * colour, so what a component carries is a CHOICE and not a binding.
+         * -1 for any of these means "the profile said nothing", and the host
+         * substitutes its default. @see ui/torirs_chrome_inkwell.h.
+         */
+        struct
+        {
+            int style;
+            int walk_color;
+            int interact_color;
+        } inkwell;
         struct
         {
             int scene_id;
@@ -1202,6 +1275,11 @@ struct UITree
      *  walked, so it must not be skipped). */
     uint8_t* emit_visited;
     uint32_t emit_visited_cap;
+    /** The stamp a walk writes into emit_visited: "visited this walk" is
+     *  `emit_visited[i] == emit_epoch`. Bumped at the start of every walk
+     *  instead of clearing the whole array (which was 92% of the walk on a
+     *  phone); the array is cleared for real only when the stamp wraps. */
+    uint8_t emit_epoch;
     /** Head of the reclaimed-slot free-list (chained via component free_next). */
     int32_t free_head;
     /** Lazy id->index acceleration for UITree_FindByComponentId. Open-addressed,
@@ -1409,6 +1487,14 @@ struct UITreeNodeSpec
             int mask_scene_id;
             int mask_atlas_index;
         } sprite;
+        /* UIELEM_BUILTIN_INKWELL: a CHOICE of artwork, not a binding to one.
+         * @see the matching member on UITreeComponent. */
+        struct
+        {
+            int style;
+            int walk_color;
+            int interact_color;
+        } inkwell;
         struct
         {
             int scene_id;
@@ -2497,6 +2583,25 @@ int
 UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
     struct UITree const* tree,
     int32_t node_index);
+
+/**
+ * The same query with each exemption stated separately.
+ *
+ * `ignore_own_replacement` is the ExceptReplacement form above.
+ * `ignore_frame_hidden` drops the gameframe PLUGIN's own suppression from the
+ * fence, and exists for the one caller that is not a click on pixels: a
+ * synthesised button press names a component, not a place on the screen, so a
+ * panel the arranger is simply not showing right now is not a reason to
+ * refuse it -- while a hide the cache or a script authored still is. Every
+ * other flag (behavior.hide, screen, projection, an ancestor's replacement,
+ * an orphaned root) fences as before.
+ */
+int
+UITree_NodeOrAncestorDisplayHiddenEx(
+    struct UITree const* tree,
+    int32_t node_index,
+    int ignore_own_replacement,
+    int ignore_frame_hidden);
 
 /** Set a replacement suppression only when `node_index` still holds the exact
  * incarnation the caller resolved. Returns 1 when the identity was live (also

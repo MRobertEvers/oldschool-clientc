@@ -71,7 +71,7 @@
  *
  * WHAT IS IN THIS FILE AND WHAT IS NOT. Steps 1 and 2 are written per
  * instruction set and each ISA's copy lives in its own file --
- * facesort.bitonic_radix.small.{neon,sse2,scalar}.u.c -- reached through the
+ * facesort.bitonic_radix.small.{neon64,neon32,sse2,scalar}.u.c -- reached through the
  * three hooks facesort.bitonic_radix.small.dispatch.h names. This file holds
  * only what every build compiles: the scalar per-face cull, the scalar terrain
  * tile, the radix sort, the environment gates, and the one dispatcher that
@@ -91,10 +91,36 @@
 #include "toridraw_model_internal.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
+/*
+ * Above this many accepted keys the radix sorts; at or below it, the lane's
+ * bitonic network does.
+ *
+ * PER LANE, because the crossover is a property of the core, not the
+ * algorithm. On x86 the wide network wins to 256. On the A32 NEON lane it
+ * does not: the network is 4-wide compare/swaps at an IPC under one, and at
+ * N = 256 its 36 stages cost more per face than the radix's two counting
+ * passes. Measured on the Moto X (Krait) with the sort bench, keys arm,
+ * presort off, ns per input face at 64/200/256/1000 faces:
+ *
+ *   BITONIC_MAX = 256   47.9  53.2  57.5  44.3     (the x86 default)
+ *   BITONIC_MAX = 128   47.7  53.3  47.0  44.4
+ *   BITONIC_MAX =  64   47.6  43.9  43.0  44.6
+ *   BITONIC_MAX =   0   55.1  44.2  43.2  45.2     (radix for everything)
+ *
+ * The network earns its keep below ~64 accepted keys (a 64-face model draws
+ * ~30) and loses above; 64 is the crossover. neon64 is untested and keeps
+ * the x86 value until it is measured. TORIDRAW_SORT_BITONIC_MAX overrides.
+ */
+#if defined(TORIDRAW_FACE_SORT_LANE_NEON32)
+#define TORIDRAW_FACE_SORT_BITONIC_MAX 64
+#else
 #define TORIDRAW_FACE_SORT_BITONIC_MAX 256
+#endif
 
 /* Runtime override for the A/B: -1 = the environment decides. */
 int g_toridraw_face_sort_bitonic_radix_override = -1;
@@ -178,6 +204,120 @@ toridraw_face_sort_bitonic_radix_armed(void)
 #define TORIDRAW_TILE_SORT_OFF 0
 #define TORIDRAW_TILE_SORT_SCALAR 1
 #define TORIDRAW_TILE_SORT_SIMD 2
+
+/*
+ * TORIDRAW_FACE_SORT_K16=0 turns the A32 lane's eight-face int16 block off
+ * (every model then takes the four-face int32 block). The A/B control arm.
+ */
+static inline int
+toridraw_face_sort_k16_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+    {
+        const char* v = getenv("TORIDRAW_FACE_SORT_K16");
+        armed = (v && v[0] == '0') ? 0 : 1;
+    }
+    return armed;
+}
+
+/* Census for the frame stat lines: models the K16 block took, and models a
+ * K16-capable lane sent down the int32 block instead (extent, clip, stash,
+ * or fewer than eight faces). */
+int g_toridraw_sort_k16_models = 0;
+int g_toridraw_sort_k16_declined = 0;
+/* ... and of those, models whose last 1..7 faces went through the masked
+ * K16 tail block rather than the scalar per-face loop. */
+int g_toridraw_sort_k16_tail_models = 0;
+/* Terrain tiles the leaf fast path answered without entering the general
+ * dispatcher at all (see toridraw_face_sort_bitonic_radix_tile2_fast). */
+int g_toridraw_sort_tile_fast_models = 0;
+
+/*
+ * THE 2026-09 A/B TOGGLES, one per step of the neon32 lane's second pass.
+ * Each is read from the environment once and cached; the default is the NEW
+ * behaviour, and NAME=0 selects the control arm -- the code path that stood
+ * before the step -- so one binary measures both, interleaved, which is the
+ * only A/B that has held up on the phone (see ARMVX_KERNEL_STATE.md).
+ */
+static inline int
+toridraw_face_sort_env_on_unless_zero(const char* name)
+{
+    const char* v = getenv(name);
+    return (v && v[0] == '0') ? 0 : 1;
+}
+
+/* TORIDRAW_K16_UZP=0: the K16 block's eight-quad gather goes back to the
+ * D-register vtrn.16 + vtrn.32 transposes (which clang lowers as 36 vext.32
+ * per block); on, the transposes are four vuzp.16 on Q pairs per corner. */
+static inline int
+toridraw_face_sort_k16_uzp_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_K16_UZP");
+    return armed;
+}
+
+/* TORIDRAW_K16_TAIL=0: the 1..7 faces after a K16 model's last full block
+ * take the scalar per-face loop; on, the K16 block runs once more over the
+ * overlapping window num_faces - 8 with the already-emitted lanes masked
+ * to sentinels. */
+static inline int
+toridraw_face_sort_k16_tail_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_K16_TAIL");
+    return armed;
+}
+
+/* TORIDRAW_SORT_EMIT_VEC=0: the sorted keys are truncated into
+ * tmp_face_order one at a time; on, four (eight) per vector store. */
+static inline int
+toridraw_face_sort_emit_vec_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_SORT_EMIT_VEC");
+    return armed;
+}
+
+/* TORIDRAW_SORT_PLD=0: no prefetch of the three face-index streams; on, each
+ * block prefetches the line 32 faces (64 bytes of int16) ahead on all three. */
+static inline int
+toridraw_face_sort_pld_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_SORT_PLD");
+    return armed;
+}
+
+/* TORIDRAW_SORT_BITONIC2=0: the bitonic network's original control loop (a
+ * skip test per vector, masks reloaded per vector, a memset pad); on, the
+ * nested-loop network with hoisted masks and a vector-store pad. */
+static inline int
+toridraw_face_sort_bitonic2_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_SORT_BITONIC2");
+    return armed;
+}
+
+/* TORIDRAW_TILE_FAST=0: a two-face terrain tile goes through the general
+ * dispatcher (its prologue, sort_model_inputs, the tile2 kernel's two
+ * outlined per-face calls, the sort and the emit); on, a leaf answers it
+ * before any of that is entered. See toridraw_face_sort_bitonic_radix_tile2_fast. */
+static inline int
+toridraw_face_sort_tile_fast_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_TILE_FAST");
+    return armed;
+}
 
 static inline int
 toridraw_face_sort_tile2_armed(void)
@@ -368,6 +508,135 @@ toridraw_face_sort_bitonic_radix_tile2_scalar(
 }
 
 /*
+ * THE TILE FAST PATH: the two-triangle terrain tile answered as a LEAF, before
+ * the general dispatcher's prologue is paid.
+ *
+ * WHAT A TILE PAID. On the Moto X the general path costs a two-face model
+ * about 320 instructions of which the faces are a small part: the
+ * dispatcher's prologue (a 760-byte frame and a vpush of d8-d15, since the
+ * whole lane is inlined into one function), sort_model_inputs, two OUTLINED
+ * calls to one_abc with twelve arguments each (eight on the stack), the
+ * two-key sort, and the emit loop. A Lumbridge frame hands the sort ~760 of
+ * these tiles, ~60% of its models.
+ *
+ * WHAT THIS DOES INSTEAD. The same arithmetic as one_abc (the same winding,
+ * the same clip exemption, the same depth) for both faces inline -- they
+ * share vertices 1 and 3, so eight corner loads and not twelve -- the two
+ * keys compared, and the face indices written straight into tmp_face_order.
+ * No key buffer, no stash (a presorting call takes the general path), no
+ * priorities (a tile has none; the caller checks). Called from
+ * toridraw_compute_projected_face_order_small's front, which is kept small
+ * enough that the general body is a separate, noinline function: the
+ * prologue this saves is the general body's, and it is saved only if this
+ * function is reached before it.
+ *
+ * TORIDRAW_TILE_FAST=0 is the control arm. Note it does NOT consult
+ * TORIDRAW_TILE_SORT: that switch chooses between the general path's tile
+ * kernels, and the leaf is the step before it.
+ */
+static inline __attribute__((always_inline)) void
+toridraw_face_sort_bitonic_radix_tile2_fast_corners(
+    struct ToriDraw_Scene* scene,
+    int const c0,
+    int const c1,
+    int const c2,
+    int const c3,
+    bool near_clipped,
+    int model_min_depth)
+{
+    const int* RESTRICT const vx = scene->screen_vertices_x;
+    const int* RESTRICT const vy = scene->screen_vertices_y;
+    const int* RESTRICT const vz = scene->screen_vertices_z;
+    int const x1 = vx[c1], y1 = vy[c1], z1 = vz[c1];
+    int const x3 = vx[c3], y3 = vy[c3], z3 = vz[c3];
+    unsigned int const levels = (unsigned int)scene->depth_levels;
+    int* const order = scene->tmp_face_order;
+    uint32_t key0 = 0;
+    uint32_t key1 = 0;
+    int accept0;
+    int accept1;
+    int n = 0;
+
+    /* Face 0 is (1, 2, 3), face 1 is (0, 1, 3): the tile triples, turned by
+     * the caller. Each is one_abc's decision sequence exactly: a face with a
+     * near-clipped corner is kept for the near-plane rebuild, otherwise the
+     * winding decides, then the depth-range gate. */
+    {
+        int const x2 = vx[c2], y2 = vy[c2], z2 = vz[c2];
+        int const depth = div3_fast_fixedpoint(z1 + z2 + z3) + model_min_depth;
+        bool const clip = near_clipped &&
+                          (x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                           x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                           x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
+        accept0 = (clip || toridraw_winding_2d_front_facing(x1, y1, x2, y2, x3, y3)) &&
+                  (unsigned int)depth < levels;
+        key0 = ((uint32_t)(0xFFFF - depth) << 16) | 0u;
+    }
+    {
+        int const x0 = vx[c0], y0 = vy[c0], z0 = vz[c0];
+        int const depth = div3_fast_fixedpoint(z0 + z1 + z3) + model_min_depth;
+        bool const clip = near_clipped &&
+                          (x0 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                           x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                           x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
+        accept1 = (clip || toridraw_winding_2d_front_facing(x0, y0, x1, y1, x3, y3)) &&
+                  (unsigned int)depth < levels;
+        key1 = ((uint32_t)(0xFFFF - depth) << 16) | 1u;
+    }
+
+    /* Ascending key order is back to front, face order within a depth: the
+     * two-key compare-swap the general path ends with. */
+    if( accept0 && accept1 )
+    {
+        int const first = key0 > key1;
+        order[0] = first;
+        order[1] = 1 - first;
+        n = 2;
+    }
+    else if( accept0 )
+    {
+        order[0] = 0;
+        n = 1;
+    }
+    else if( accept1 )
+    {
+        order[0] = 1;
+        n = 1;
+    }
+    scene->tmp_face_order_count = n;
+    /* Nothing was stashed; the general path says the same for a
+     * non-presorting call. */
+    scene->sm_face_xy_valid = 0;
+}
+
+static void
+toridraw_face_sort_bitonic_radix_tile2_fast(
+    struct ToriDraw_Scene* scene,
+    int rot,
+    bool near_clipped,
+    int model_min_depth)
+{
+    assert(scene);
+    assert(rot >= 0);
+    assert(rot <= 3);
+    g_toridraw_sort_tile_fast_models++;
+    /* Rotation 0 is 94% of tiles and gets the corners as literals; the
+     * other three turn them as world_decode_tile turned the triples. */
+    if( rot == 0 )
+        toridraw_face_sort_bitonic_radix_tile2_fast_corners(
+            scene, 0, 1, 2, 3, near_clipped, model_min_depth);
+    else
+        toridraw_face_sort_bitonic_radix_tile2_fast_corners(
+            scene,
+            (0 - rot) & 3,
+            (1 - rot) & 3,
+            (2 - rot) & 3,
+            (3 - rot) & 3,
+            near_clipped,
+            model_min_depth);
+}
+
+/*
  * ONE LANE, chosen by the ladder in toridraw_face_sort_bitonic_radix.h. Everything
  * above this line is what every build compiles; everything the lane brings is
  * behind the three hooks the header names, so the dispatcher below carries no
@@ -378,8 +647,10 @@ toridraw_face_sort_bitonic_radix_tile2_scalar(
  * function, one after the other, each redefining the same helper names -- read
  * as though a build could have both and would try each in turn.
  */
-#if defined(TORIDRAW_FACE_SORT_LANE_NEON)
+#if defined(TORIDRAW_FACE_SORT_LANE_NEON64)
 #include "impl/facesort/facesort.bitonic_radix.small.neon64.u.c"
+#elif defined(TORIDRAW_FACE_SORT_LANE_NEON32)
+#include "impl/facesort/facesort.bitonic_radix.small.neon32.u.c"
 #elif defined(TORIDRAW_FACE_SORT_LANE_SSE2)
 #include "impl/facesort/facesort.bitonic_radix.small.sse2.u.c"
 #else
@@ -387,48 +658,156 @@ toridraw_face_sort_bitonic_radix_tile2_scalar(
 #endif
 
 /*
- * Two-pass LSD counting sort on the depth half of the key. Stable, so the
- * face order the pack wrote survives within a depth. `tmp` is the bounce
- * buffer, as long as `keys`.
+ * The radix over the depth half of the key. Stable, so the face order the
+ * cull wrote survives within a depth. `tmp` is the bounce buffer, as long as
+ * `keys`; the return value says which of the two holds the sorted run.
+ *
+ * TWO SPECIALISATIONS, BOTH ON FACTS THE CALLER ALREADY HOLDS:
+ *
+ *   The digits are sized to depth_levels, not to the byte. An accepted
+ *   depth is < depth_levels <= 2^bits, so the field 0xFFFF - depth has its
+ *   top 16 - bits bits all ones on every key, and its low `bits` bits carry
+ *   the whole order. Two digits of bits/2 each: at 16K levels (14 bits) the
+ *   passes count into 128 buckets, not 256, and the prefix sums and the
+ *   histogram clears -- a FIXED cost per model, paid by every model above
+ *   the bitonic crossover, most of which have 60..150 keys -- halve.
+ *
+ *   A SHALLOW model takes ONE pass. When the lane could bound the model's
+ *   depths (scene->sm_sort_depth_lo/hi, off the z range of its vertices)
+ *   inside 256 levels, the field differs across the model only in its low
+ *   eight bits after a rebase to depth_hi, and one counting pass over 256
+ *   buckets is the whole sort: half the scatters and no second histogram.
+ *   A model a tile or two deep is shallow at any distance.
  */
-static void
-toridraw_radix_sort_depth16(
+static inline int
+toridraw_ceil_log2(int v)
+{
+    int bits = 0;
+    assert(v > 0);
+    while( (1 << bits) < v )
+        bits++;
+    return bits;
+}
+
+/*
+ * TORIDRAW_SORT_RADIX_LEGACY=1: the two 8-bit digits and no shallow pass,
+ * whatever depth_levels and the lane say. The A/B control arm for the two
+ * specialisations above, so one binary measures both.
+ */
+static inline int
+toridraw_face_sort_radix_legacy(void)
+{
+    static int legacy = -1;
+    if( legacy < 0 )
+    {
+        const char* v = getenv("TORIDRAW_SORT_RADIX_LEGACY");
+        legacy = (v && v[0] == '1') ? 1 : 0;
+    }
+    return legacy;
+}
+
+/* Debug census for the frame stat lines: how many models took each radix
+ * shape this frame. Read and cleared by the renderer that prints them. */
+int g_toridraw_radix_shallow_models = 0;
+int g_toridraw_radix_two_pass_models = 0;
+
+static const uint32_t*
+toridraw_radix_sort_depth(
     uint32_t* RESTRICT keys,
     uint32_t* RESTRICT tmp,
-    int n)
+    int n,
+    int depth_levels,
+    int depth_lo,
+    int depth_hi)
 {
     static int count0[256];
     static int count1[256];
     int i;
-    int sum0 = 0;
-    int sum1 = 0;
 
-    memset(count0, 0, sizeof(count0));
-    memset(count1, 0, sizeof(count1));
-    for( i = 0; i < n; i++ )
+    assert(keys);
+    assert(tmp);
+    assert(depth_levels > 0);
+    assert(depth_levels <= 0x10000);
+
+    if( toridraw_face_sort_radix_legacy() )
     {
-        uint32_t const k = keys[i];
-        count0[(k >> 16) & 0xFF]++;
-        count1[k >> 24]++;
+        depth_levels = 0x10000;
+        depth_hi = INT_MAX;
     }
-    for( i = 0; i < 256; i++ )
+
+    if( depth_hi != INT_MAX && depth_hi - depth_lo < 256 )
     {
-        int const c0 = count0[i];
-        int const c1 = count1[i];
-        count0[i] = sum0;
-        count1[i] = sum1;
-        sum0 += c0;
-        sum1 += c1;
+        /* Shallow: rebase to depth_hi and one pass over the low byte. */
+        int const base = 0xFFFF - depth_hi;
+        int sum = 0;
+        g_toridraw_radix_shallow_models++;
+        memset(count0, 0, sizeof(count0));
+        for( i = 0; i < n; i++ )
+        {
+            int const d = (int)(keys[i] >> 16) - base;
+            assert(d >= 0);
+            assert(d < 256);
+            count0[d]++;
+        }
+        for( i = 0; i < 256; i++ )
+        {
+            int const c = count0[i];
+            count0[i] = sum;
+            sum += c;
+        }
+        for( i = 0; i < n; i++ )
+        {
+            uint32_t const k = keys[i];
+            tmp[count0[(int)(k >> 16) - base]++] = k;
+        }
+        return tmp;
     }
-    for( i = 0; i < n; i++ )
+
     {
-        uint32_t const k = keys[i];
-        tmp[count0[(k >> 16) & 0xFF]++] = k;
-    }
-    for( i = 0; i < n; i++ )
-    {
-        uint32_t const k = tmp[i];
-        keys[count1[k >> 24]++] = k;
+        int const bits = toridraw_ceil_log2(depth_levels);
+        int const b0 = (bits + 1) >> 1;
+        int const b1 = bits - b0;
+        int const n0 = 1 << b0;
+        int const n1 = 1 << b1;
+        uint32_t const m0 = (uint32_t)n0 - 1u;
+        uint32_t const m1 = (uint32_t)n1 - 1u;
+        int sum0 = 0;
+        int sum1 = 0;
+
+        assert(bits >= 2);
+        assert(bits <= 16);
+        g_toridraw_radix_two_pass_models++;
+        memset(count0, 0, (size_t)n0 * sizeof(count0[0]));
+        memset(count1, 0, (size_t)n1 * sizeof(count1[0]));
+        for( i = 0; i < n; i++ )
+        {
+            uint32_t const d = keys[i] >> 16;
+            count0[d & m0]++;
+            count1[(d >> b0) & m1]++;
+        }
+        for( i = 0; i < n0; i++ )
+        {
+            int const c0 = count0[i];
+            count0[i] = sum0;
+            sum0 += c0;
+        }
+        for( i = 0; i < n1; i++ )
+        {
+            int const c1 = count1[i];
+            count1[i] = sum1;
+            sum1 += c1;
+        }
+        for( i = 0; i < n; i++ )
+        {
+            uint32_t const k = keys[i];
+            tmp[count0[(k >> 16) & m0]++] = k;
+        }
+        for( i = 0; i < n; i++ )
+        {
+            uint32_t const k = tmp[i];
+            keys[count1[(k >> (16 + b0)) & m1]++] = k;
+        }
+        return keys;
     }
 }
 
@@ -482,22 +861,32 @@ toridraw_face_sort_bitonic_radix(
     bool near_clipped,
     int model_min_depth,
     int num_faces,
+    int num_vertices,
     int tile2_rot,
     const int* RESTRICT vx,
     const int* RESTRICT vy,
     const int* RESTRICT vz,
     const faceint_t* RESTRICT face_a,
     const faceint_t* RESTRICT face_b,
-    const faceint_t* RESTRICT face_c)
+    const faceint_t* RESTRICT face_c,
+    const uint32_t** out_keys)
 {
     uint32_t* const keys = scene->sm_sort_keys;
     int const stash_xy = presort;
     int tile_n = 0;
     int n = 0;
+    int accepted = 0;
     int f = 0;
 
     assert(scene);
     assert(keys);
+    assert(out_keys);
+
+    /* The sorted run is in `keys` unless the radix says otherwise below. */
+    *out_keys = keys;
+    /* Unknown until a lane narrows it; see the fields' comment. */
+    scene->sm_sort_depth_lo = 0;
+    scene->sm_sort_depth_hi = INT_MAX;
 
     scene->sm_face_xy_valid = stash_xy;
     if( stash_xy )
@@ -526,10 +915,15 @@ toridraw_face_sort_bitonic_radix(
     /* The lane's vector cull over whole blocks, then the scalar tail over
      * whatever it left. A lane with no vector cull leaves f at 0 and the tail
      * is the whole model. */
+    /* `n` counts keys WRITTEN; `accepted` the faces among them that passed
+     * the cull. A lane that stores rejected lanes as sentinels makes the two
+     * differ (see the hook contract); the sort runs over n and the sentinels
+     * land past `accepted`, which is what the caller is told. */
     n += toridraw_face_sort_bitonic_radix_lane_blocks(
         scene,
         &f,
         num_faces,
+        num_vertices,
         near_clipped,
         model_min_depth,
         stash_xy,
@@ -539,10 +933,12 @@ toridraw_face_sort_bitonic_radix(
         face_a,
         face_b,
         face_c,
-        keys);
+        keys,
+        &accepted);
 
     for( ; f < num_faces; f++ )
-        n += toridraw_face_sort_bitonic_radix_one(
+    {
+        int const one = toridraw_face_sort_bitonic_radix_one(
             scene,
             f,
             near_clipped,
@@ -555,6 +951,9 @@ toridraw_face_sort_bitonic_radix(
             face_b,
             face_c,
             keys + n);
+        n += one;
+        accepted += one;
+    }
 
     if( n <= 2 )
         return toridraw_face_sort_bitonic_radix_sort2(n, keys);
@@ -565,15 +964,77 @@ toridraw_face_sort_bitonic_radix(
             qsort(keys, (size_t)n, sizeof(*keys), toridraw_key_compare);
     }
     else
-        toridraw_radix_sort_depth16(keys, scene->sm_sort_tmp, n);
+        *out_keys = toridraw_radix_sort_depth(
+            keys,
+            scene->sm_sort_tmp,
+            n,
+            scene->depth_levels,
+            scene->sm_sort_depth_lo,
+            scene->sm_sort_depth_hi);
 
-    return n;
+    return accepted;
+}
+
+/*
+ * Debug census for the frame stat lines, beside the radix pair above: models
+ * this frame whose face priorities were all one value (and so emitted in key
+ * order, skipping the partition) and models that took the partition.
+ */
+int g_toridraw_prio_uniform_models = 0;
+int g_toridraw_prio_varied_models = 0;
+
+/*
+ * True when every one of the model's `face_count` priorities is the same
+ * value. THE DEGENERATE CASE OF THE PRIORITY PARTITION: with one band
+ * occupied, sort_face_draw_order_small emits that band alone -- the ten
+ * fixed bands in band order, or the flexible list in list order -- and
+ * either way that is the depth order the keys already hold. So a uniform
+ * model's draw order IS its key order, and the partition and the merge
+ * (two more passes over every key, the first with a scatter per key) are
+ * skipped. Measured on the phone before this existed: those two passes
+ * were a fifth of the sort.
+ *
+ * Answered per sort rather than cached on the model because the model
+ * tools rewrite face_priorities in place; a word compare over face_count/2
+ * nibble-packed bytes is under a tenth of an instruction per face.
+ */
+static inline bool
+toridraw_face_priorities_uniform(
+    const uint8_t* packed,
+    int face_count)
+{
+    uint8_t const first = packed[0] & 0x0Fu;
+    uint8_t const both = (uint8_t)(first | (first << 4));
+    int const whole = face_count >> 1; /* bytes holding two real faces */
+    int i;
+
+    assert(packed);
+    assert(face_count > 0);
+
+    for( i = 0; i + 4 <= whole; i += 4 )
+    {
+        uint32_t word;
+        memcpy(&word, packed + i, sizeof(word));
+        if( word != (uint32_t)both * 0x01010101u )
+            return false;
+    }
+    for( ; i < whole; i++ )
+        if( packed[i] != both )
+            return false;
+    if( face_count & 1 )
+        return (packed[whole] & 0x0Fu) == first;
+    return true;
 }
 
 /*
  * The priority partition off the sorted keys: the same fold of the old
  * partition and accumulation as the small-mode CSR twin, reading (face,
  * depth) pairs from the key array in the order the buckets emitted them.
+ *
+ * Trimmed against that twin on the phone's profile: the twelve band bases
+ * are computed once, not `prio * max_faces` per key; the nibble comes out
+ * with a shift by (index & 1) * 4 rather than a branch; and
+ * scene->sm_prio_count, which nothing reads back, is not stored per key.
  */
 static inline void
 partition_and_accumulate_faces_by_priority_keys(
@@ -585,16 +1046,29 @@ partition_and_accumulate_faces_by_priority_keys(
     const uint8_t* face_priorities)
 {
     const int max_faces = scene->max_faces;
+    faceint_t* const prio_faces = scene->sm_prio_faces;
+    int* const flex11 = scene->sm_flex_prio11_face_to_depth;
+    int* const flex12 = scene->sm_flex_prio12_face_to_depth;
+    int base[12];
     int i;
 
+    assert(scene);
+    assert(keys);
+    assert(priority_depths);
+    assert(counts);
+    assert(face_priorities);
+
+    for( i = 0; i < 12; i++ )
+        base[i] = i * max_faces;
     memset(scene->sm_prio_count, 0, sizeof(scene->sm_prio_count));
 
     for( i = 0; i < n; i++ )
     {
         uint32_t const k = keys[i];
-        faceint_t const face_idx = (faceint_t)(k & 0xFFFF);
+        int const face_idx = (int)(k & 0xFFFF);
         int const depth = 0xFFFF - (int)(k >> 16);
-        int const prio = faceprio_unpack(face_priorities, face_idx);
+        int const prio =
+            (face_priorities[face_idx >> 1] >> ((face_idx & 1) << 2)) & 0x0F;
         int nn;
 
         assert(face_idx >= 0 && face_idx < max_faces);
@@ -603,7 +1077,7 @@ partition_and_accumulate_faces_by_priority_keys(
         nn = counts[prio];
         assert(nn >= 0 && nn < max_faces);
 
-        scene->sm_prio_faces[prio * max_faces + nn] = face_idx;
+        prio_faces[base[prio] + nn] = (faceint_t)face_idx;
 
         if( prio < 10 )
             priority_depths[prio] += depth;
@@ -612,13 +1086,12 @@ partition_and_accumulate_faces_by_priority_keys(
             assert(depth >= 0 && depth <= 0xFFFF);
             assert(nn < scene->flex_prio_capacity);
             if( prio == 10 )
-                scene->sm_flex_prio11_face_to_depth[nn] = depth | (face_idx << 16);
+                flex11[nn] = depth | (face_idx << 16);
             else
-                scene->sm_flex_prio12_face_to_depth[nn] = depth | (face_idx << 16);
+                flex12[nn] = depth | (face_idx << 16);
         }
 
         counts[prio] = nn + 1;
-        scene->sm_prio_count[prio] = nn + 1;
     }
 }
 

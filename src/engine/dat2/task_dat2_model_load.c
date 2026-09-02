@@ -27,7 +27,6 @@ Task_Dat2ModelLoad_Run(
 {
     struct Task_Dat2ModelLoad* task = (struct Task_Dat2ModelLoad*)task_base;
     struct RSCache_Model* rscache_model = NULL;
-    struct RSCache_Model* model_copy = NULL;
     struct ToriRS_Model* torirs_model = NULL;
 
     PT_BEGIN(&task->pt);
@@ -48,12 +47,18 @@ Task_Dat2ModelLoad_Run(
             rscache_model->format_version,
             rscache_model->vertex_count);
 
-    dat2_buildcache_model_add(task->bc, task->model_id, rscache_model);
-
-    model_copy = RSCache_ModelNewCopy(rscache_model);
-    assert(model_copy);
-    torirs_model = ToriRS_ModelFromRSCache(model_copy);
-    RSCache_ModelFree(model_copy);
+    /*
+     * The decode is consumed here and nothing else reads it: the client works
+     * off the ToriRS_Model, and the buildcache's raw model store has no reader
+     * in the client (only the offline tools fill and read it). Stashing the
+     * decode there kept every model the session ever loaded until shutdown --
+     * and a model reloaded after the derived cache evicted it overwrote the
+     * entry, leaking the previous copy on top. The conversion steals the
+     * vertex arrays out of the decode, so the free below releases the rest.
+     */
+    torirs_model = ToriRS_ModelFromRSCache(rscache_model);
+    RSCache_ModelFree(rscache_model);
+    rscache_model = NULL;
     CacheProvider_ModelAdd(&task->bc->base, task->model_id, torirs_model);
 
     PT_END(&task->pt);

@@ -1,5 +1,7 @@
 #include "test_harness.h"
 
+#include "ui/torirs_chrome_inkwell.h"
+
 /* The per-component runtime param table behind CS2's CC_SETCOMPONENTPARAM /
  * CC_GETCOMPONENTPARAM (OldSchool wire 1704/1703).
  *
@@ -117,6 +119,74 @@ test_component_params(void)
     TEST_ASSERT(
         !UITree_ComponentParamGet(tree, tree->components[reused].component_id, 2365, &value),
         "the recycled component reads as untagged");
+
+    UITree_Free(tree);
+}
+
+/*
+ * The inkwell's three fields survive UITree_Push.
+ *
+ * This is a spec-copy test and not an artwork one, because the copy is where it
+ * broke: UITree_Push's per-type switch had no INKWELL case, so a component came
+ * out of push_element_unlinked's memset carrying {style=0, walk=0, interact=0}.
+ * Those are not "unstated" (-1, which is what makes the host substitute its own
+ * yellow-walks/red-interacts convention) -- they are three STATED zeros, and
+ * zero is SPLASH and YELLOW. Two of them happened to match the defaults, which
+ * is exactly why nobody saw it: `style=` was silently ignored, and every
+ * interact marker was painted yellow no matter how red the cross beside it was.
+ *
+ * So the assertion that matters is on a profile whose values are all DIFFERENT
+ * from zero -- a marker that agrees with the memset proves nothing.
+ */
+void
+test_inkwell_spec_copy(void)
+{
+    printf("TEST: inkwell spec copy\n");
+
+    struct UITree* tree = UITree_New(4);
+    TEST_ASSERT(tree != NULL, "UITree_New");
+
+    struct UITreeNodeSpec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_BUILTIN_INKWELL;
+    spec.component_id = -1;
+    spec.width = 64;
+    spec.height = 64;
+    spec.u.inkwell.style = TORIRS_INKWELL_RIPPLE;
+    spec.u.inkwell.walk_color = TORIRS_INKWELL_RED;
+    spec.u.inkwell.interact_color = TORIRS_INKWELL_RED;
+
+    int32_t idx = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(idx >= 0, "push the inkwell");
+    TEST_ASSERT(
+        tree->components[idx].u.inkwell.style == TORIRS_INKWELL_RIPPLE,
+        "style survives the push");
+    TEST_ASSERT(
+        tree->components[idx].u.inkwell.walk_color == TORIRS_INKWELL_RED,
+        "walk_color survives the push");
+    TEST_ASSERT(
+        tree->components[idx].u.inkwell.interact_color == TORIRS_INKWELL_RED,
+        "interact_color survives the push -- the red marker");
+
+    /* And -1 stays -1: the host's default substitution reads that sentinel, so a
+     * copy that helpfully clamped it would take the choice away from the
+     * profile in the other direction. */
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_BUILTIN_INKWELL;
+    spec.component_id = -1;
+    spec.width = 64;
+    spec.height = 64;
+    spec.u.inkwell.style = -1;
+    spec.u.inkwell.walk_color = -1;
+    spec.u.inkwell.interact_color = -1;
+
+    int32_t unstated = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(unstated >= 0, "push an unstated inkwell");
+    TEST_ASSERT(
+        tree->components[unstated].u.inkwell.style == -1 &&
+            tree->components[unstated].u.inkwell.walk_color == -1 &&
+            tree->components[unstated].u.inkwell.interact_color == -1,
+        "\"the profile said nothing\" survives as -1");
 
     UITree_Free(tree);
 }

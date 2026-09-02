@@ -2,7 +2,11 @@ package com.torirs.client;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
+import android.graphics.Rect;
+import android.os.Build;
 import android.os.Bundle;
+import android.text.InputType;
 import android.util.DisplayMetrics;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -10,8 +14,15 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewTreeObserver;
+import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
+import android.widget.FrameLayout;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -59,7 +70,54 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     }
 
     private SurfaceView surfaceView;
+    private Button hideKeyboardButton;
     private boolean started;
+
+    /**
+     * A SurfaceView the IME will agree to type into.
+     *
+     * A plain SurfaceView is not a text editor: onCreateInputConnection
+     * returns null, so no input session ever binds, and InputMethodManager
+     * quietly drops showSoftInput for a view it is not serving -- the request
+     * reached Java (the Hide-keyboard button appeared) and the keyboard never
+     * did. This is the same problem every game engine hits on Android, and
+     * the fix is the one they all ship: declare a dummy editor.
+     *
+     * TYPE_NULL is the whole contract: it tells the IME "no text field --
+     * send raw key events", which the dummy BaseInputConnection also enforces
+     * by synthesising KeyEvents for anything the IME commits as text. Those
+     * events run the normal dispatch, the SurfaceView handles none of them,
+     * and they land in the activity's onKeyDown/onKeyUp exactly where the
+     * hardware keys already do -- so the C side sees one key stream and never
+     * learns which kind of keyboard produced it.
+     *
+     * NO_EXTRACT_UI / NO_FULLSCREEN keep the landscape IME from replacing the
+     * whole screen with its own editor box, which is what a landscape phone
+     * otherwise does to an app it cannot show inline text for.
+     */
+    private static final class ClientSurfaceView extends SurfaceView
+    {
+        ClientSurfaceView(Context context)
+        {
+            super(context);
+        }
+
+        @Override
+        public boolean onCheckIsTextEditor()
+        {
+            return true;
+        }
+
+        @Override
+        public InputConnection onCreateInputConnection(EditorInfo outAttrs)
+        {
+            outAttrs.inputType = InputType.TYPE_NULL;
+            outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE
+                    | EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                    | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+            return new BaseInputConnection(this, false);
+        }
+    }
 
     /* ---- native ---------------------------------------------------------- */
 
@@ -68,6 +126,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private native void nativeSetDensity(int density);
     private native void nativeTouch(int action, int pointerId, int x, int y);
     private native void nativeKey(int keycode, int down, int unicode);
+    private native void nativeKeyboardInset(int bottomPx);
     private native void nativeStop();
 
     /* ---- lifecycle ------------------------------------------------------- */
@@ -79,14 +138,107 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        surfaceView = new SurfaceView(this);
+        surfaceView = new ClientSurfaceView(this);
         surfaceView.getHolder().addCallback(this);
         /* The view has to be focusable in touch mode or it never receives key
          * events from a hardware or soft keyboard. */
         surfaceView.setFocusable(true);
         surfaceView.setFocusableInTouchMode(true);
-        setContentView(surfaceView);
+
+        /*
+         * The surface, with a "Hide keyboard" button floating over it.
+         *
+         * The button exists because Android's soft keyboard has no dismiss
+         * affordance of its own that this app can rely on: Back closes it on
+         * most devices, but Back is ALSO the client's Escape (see
+         * android_keycode_to_torirsk), so a user pressing it to put the
+         * keyboard away also closes whatever interface they were typing into.
+         * An explicit button separates the two.
+         *
+         * It is visible only while the keyboard is up -- a permanent button
+         * over the viewport would cover part of the world for a control that is
+         * almost never wanted.
+         */
+        FrameLayout root = new FrameLayout(this);
+        root.addView(surfaceView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        hideKeyboardButton = new Button(this);
+        hideKeyboardButton.setText("Hide keyboard");
+        hideKeyboardButton.setVisibility(View.GONE);
+        hideKeyboardButton.setOnClickListener(new View.OnClickListener()
+        {
+            @Override
+            public void onClick(View v)
+            {
+                showSoftKeyboard(false);
+            }
+        });
+        {
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT);
+            /* Top-right: the keyboard occupies the bottom, and the client's own
+             * chat line sits along the bottom edge of the canvas. */
+            lp.gravity = android.view.Gravity.TOP | android.view.Gravity.END;
+            root.addView(hideKeyboardButton, lp);
+        }
+
+        setContentView(root);
         surfaceView.requestFocus();
+
+        /*
+         * Tell the native side how much of the surface the soft keyboard is
+         * covering, so the client can slide its chat line and login inputs up
+         * from under it. Two listeners, because the signal has two eras:
+         *
+         *   API 30+ -- the window dispatches ime() insets to a fullscreen
+         *   window as well, so the listener is the whole answer.
+         *
+         *   Older -- there is no ime inset type. The visible-display-frame
+         *   comparison is the classic substitute; under this activity's
+         *   fullscreen theme some devices never shrink the frame, and on those
+         *   the report simply stays 0 -- the client keeps working with the
+         *   keyboard over its chat, which is exactly what it did before this
+         *   listener existed.
+         *
+         * Both report through one method so the native side has one number and
+         * no opinion about which era produced it.
+         */
+        final View insetRoot = root;
+        if( Build.VERSION.SDK_INT >= 30 )
+        {
+            insetRoot.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener()
+            {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets)
+                {
+                    nativeKeyboardInset(insets.getInsets(WindowInsets.Type.ime()).bottom);
+                    return insets;
+                }
+            });
+        }
+        else
+        {
+            insetRoot.getViewTreeObserver().addOnGlobalLayoutListener(
+                    new ViewTreeObserver.OnGlobalLayoutListener()
+            {
+                private final Rect visible = new Rect();
+
+                @Override
+                public void onGlobalLayout()
+                {
+                    insetRoot.getWindowVisibleDisplayFrame(visible);
+                    int covered = insetRoot.getRootView().getHeight() - visible.bottom;
+                    /* A sliver can be reported with no keyboard up (system
+                     * bars settling); a keyboard is never that short. */
+                    if( covered < 80 )
+                        covered = 0;
+                    nativeKeyboardInset(covered);
+                }
+            });
+        }
 
         nativeSetDensity(displayDensityBucket());
     }
@@ -131,7 +283,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         {
             /*
              * The client starts only once there is a surface to draw on. It
-             * could be started earlier -- PlatformSDL2_Init waits for the
+             * could be started earlier -- PlatformWindow_Init waits for the
              * window anyway -- but starting it here means the first thing the
              * frame loop ever sees is a real size, so nothing boots at a
              * placeholder resolution and relayouts a moment later.
@@ -186,8 +338,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          */
 
         /*
-         * An extra_args file lets a profile be tried with a flag -- --webgl1 to
-         * take the GLES2 path, --offline, a --connect override -- without
+         * An extra_args file lets a profile be tried with a flag -- --gles2 to
+         * take the GPU path, --offline, a --connect override -- without
          * rebuilding the APK. One argument per line, blank lines and '#'
          * comments ignored.
          */
@@ -225,10 +377,49 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
     /* ---- input ----------------------------------------------------------- */
 
+    /*
+     * Where the surface sits inside the window.
+     *
+     * Activity.onTouchEvent is handed the event the decor view could not
+     * deliver to any child, and its coordinates are relative to the WINDOW.
+     * The native side treats what it is given as a point on the SURFACE, and
+     * the two are not the same origin: the surface is the content area, which
+     * begins below the status bar and beside the navigation bar, and moves
+     * again whenever the soft keyboard pans the window. Forwarding the window
+     * point unchanged therefore offsets every touch by however far the surface
+     * has been pushed -- which is a tap landing somewhere it was not made.
+     *
+     * Re-read per gesture rather than cached: the offset changes with rotation,
+     * with the system bars, and with the IME, and none of those notify here.
+     */
+    private final int[] surfaceOrigin = new int[2];
+
+    private void readSurfaceOrigin()
+    {
+        if( surfaceView == null )
+        {
+            surfaceOrigin[0] = 0;
+            surfaceOrigin[1] = 0;
+            return;
+        }
+        surfaceView.getLocationInWindow(surfaceOrigin);
+    }
+
+    private void touchToSurface(int action, int pointerId, float windowX, float windowY)
+    {
+        nativeTouch(
+                action,
+                pointerId,
+                (int)(windowX - surfaceOrigin[0]),
+                (int)(windowY - surfaceOrigin[1]));
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event)
     {
         final int action = event.getActionMasked();
+
+        readSurfaceOrigin();
 
         switch( action )
         {
@@ -236,7 +427,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         case MotionEvent.ACTION_POINTER_DOWN:
         {
             int i = event.getActionIndex();
-            nativeTouch(TOUCH_DOWN, event.getPointerId(i), (int)event.getX(i), (int)event.getY(i));
+            touchToSurface(TOUCH_DOWN, event.getPointerId(i), event.getX(i), event.getY(i));
             return true;
         }
         case MotionEvent.ACTION_MOVE:
@@ -253,18 +444,18 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
             for( int h = 0; h < history; h++ )
             {
                 for( int i = 0; i < pointers; i++ )
-                    nativeTouch(TOUCH_MOVE, event.getPointerId(i),
-                            (int)event.getHistoricalX(i, h), (int)event.getHistoricalY(i, h));
+                    touchToSurface(TOUCH_MOVE, event.getPointerId(i),
+                            event.getHistoricalX(i, h), event.getHistoricalY(i, h));
             }
             for( int i = 0; i < pointers; i++ )
-                nativeTouch(TOUCH_MOVE, event.getPointerId(i), (int)event.getX(i), (int)event.getY(i));
+                touchToSurface(TOUCH_MOVE, event.getPointerId(i), event.getX(i), event.getY(i));
             return true;
         }
         case MotionEvent.ACTION_UP:
         case MotionEvent.ACTION_POINTER_UP:
         {
             int i = event.getActionIndex();
-            nativeTouch(TOUCH_UP, event.getPointerId(i), (int)event.getX(i), (int)event.getY(i));
+            touchToSurface(TOUCH_UP, event.getPointerId(i), event.getX(i), event.getY(i));
             return true;
         }
         case MotionEvent.ACTION_CANCEL:
@@ -273,7 +464,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
              * a notification pull). Every finger must be ended, or the C side
              * keeps tracking contacts that will never be lifted. */
             for( int i = 0; i < event.getPointerCount(); i++ )
-                nativeTouch(TOUCH_UP, event.getPointerId(i), (int)event.getX(i), (int)event.getY(i));
+                touchToSurface(TOUCH_UP, event.getPointerId(i), event.getX(i), event.getY(i));
             return true;
         }
         default:
@@ -307,7 +498,35 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     }
 
     /**
-     * Called from the native frame thread. @see PlatformSDL2_SetTextInput.
+     * Called from the native frame thread when the client refuses to boot.
+     * @see PlatformAndroid_BootFailed, which is where the reason comes from.
+     *
+     * The native side has already ended its own thread; all that is left is to
+     * put the person back where they can act on the message. That is the boot
+     * menu, which shows it and does NOT run its countdown -- booting the same
+     * profile again four seconds later would replay the same failure forever.
+     *
+     * Posted to the UI thread: the caller is the frame thread, and finishing an
+     * activity is not its to do.
+     */
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void bootFailed(final String message)
+    {
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                Intent intent = new Intent(ClientActivity.this, BootActivity.class);
+                intent.putExtra(BootActivity.EXTRA_BOOT_ERROR, message);
+                startActivity(intent);
+                finish();
+            }
+        });
+    }
+
+    /**
+     * Called from the native frame thread. @see PlatformWindow_SetTextInput.
      *
      * Posted to the UI thread rather than acted on directly: every
      * InputMethodManager call must happen there, and the caller is the frame
@@ -328,12 +547,19 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 if( show )
                 {
                     surfaceView.requestFocus();
-                    imm.showSoftInput(surfaceView, InputMethodManager.SHOW_IMPLICIT);
+                    /* Flags 0, not SHOW_IMPLICIT: implicit is the request the
+                     * system is documented as free to ignore, and this one is
+                     * the direct result of a deliberate tap. */
+                    imm.showSoftInput(surfaceView, 0);
                 }
                 else
                 {
                     imm.hideSoftInputFromWindow(surfaceView.getWindowToken(), 0);
                 }
+                /* The dismiss button exists exactly as long as the thing it
+                 * dismisses. */
+                if( hideKeyboardButton != null )
+                    hideKeyboardButton.setVisibility(show ? View.VISIBLE : View.GONE);
             }
         });
     }

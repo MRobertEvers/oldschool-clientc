@@ -424,6 +424,23 @@ RSCache_ArchiveDecompressDat(
             expect = RSCache_CompressionGzipUncompressedSize(
                 (uint8_t*)archive->data, archive->data_size);
 
+        /*
+         * The footer is a CLAIM, and the LostCity server's is false: its
+         * packer stamps every on-demand container with ISIZE = 16 MiB
+         * (0x01000000) whatever the payload -- a 107-byte model archive that
+         * inflates to 175 bytes carries it too. Trusting it meant a 16 MiB
+         * malloc per archive, and the shrink below only hides that where the
+         * allocator commits lazily. On wasm the heap grows to fit the malloc
+         * and never shrinks, so the browser boot climbed past a gigabyte on
+         * ~20 tiny models before the title screen.
+         *
+         * Deflate cannot expand a stream beyond 1032:1, so any footer claiming
+         * more than that of this container is not a size, and the growing
+         * scratch below (64 KiB, doubling) is the right allocation for it.
+         */
+        if( expect > 0 && (uint64_t)expect > (uint64_t)archive->data_size * 1032u )
+            expect = 0;
+
         uint32_t capacity = expect > 0 ? expect : 65536u;
         uint8_t* out = NULL;
         uint32_t uncompressed_length = 0;

@@ -1310,6 +1310,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "compass";
     case UIELEM_BUILTIN_CROSS:
         return "cross";
+    case UIELEM_BUILTIN_INKWELL:
+        return "inkwell";
     case UIELEM_BUILTIN_LOGIN_INPUT:
         return "login_input";
     case UIELEM_BUILTIN_LOGIN_BUTTON:
@@ -1614,7 +1616,7 @@ UITree_MarkNodeDirty(
      * will not enter it either unless an ancestor moved, and that ancestor
      * bumps. See UITree::emit_visited for why this is a bitmap rather than a
      * hidden-ancestor query, and why a node past the bitmap counts as reached. */
-    if( (uint32_t)idx >= tree->emit_visited_cap || tree->emit_visited[idx] )
+    if( (uint32_t)idx >= tree->emit_visited_cap || tree->emit_visited[idx] == tree->emit_epoch )
     {
         tree->dirty_gen++;
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_DIRTY_MARK, 1);
@@ -2313,6 +2315,20 @@ UITree_Push(
         component->u.sprite.atlas_index = spec->u.sprite.atlas_index;
         component->u.sprite.mask_scene_id = spec->u.sprite.mask_scene_id;
         component->u.sprite.mask_atlas_index = spec->u.sprite.mask_atlas_index;
+        break;
+
+    /* The inkwell carries a CHOICE, not a binding, and the three fields use
+     * -1 for "the profile said nothing" so the host can substitute its own
+     * defaults (yellow walks, red interacts). Falling through to the memset
+     * push_element_unlinked left behind does not mean "unstated": it means
+     * style=SPLASH, walk=YELLOW and interact=YELLOW, all stated. The first two
+     * happen to equal the defaults, which is why only the third showed --
+     * every interact marker came out yellow however red the cross beside it
+     * was, and `style=` in a profile was silently ignored. */
+    case UIELEM_BUILTIN_INKWELL:
+        component->u.inkwell.style = spec->u.inkwell.style;
+        component->u.inkwell.walk_color = spec->u.inkwell.walk_color;
+        component->u.inkwell.interact_color = spec->u.inkwell.interact_color;
         break;
 
     case UIELEM_BUILTIN_MINIMENU:
@@ -5284,7 +5300,8 @@ uitree_node_or_ancestor_hidden(
     struct UITree const* tree,
     int32_t idx,
     int include_plugin_hidden,
-    int32_t ignore_own_replacement)
+    int32_t ignore_own_replacement,
+    int ignore_frame_hidden)
 {
     int group;
     int mount_hops = 0;
@@ -5309,10 +5326,16 @@ uitree_node_or_ancestor_hidden(
              * gameframe's suppression is excused along with the replacement
              * itself: the replacement IS what the arranger provides in place
              * of the decoration it hid. @see emit_walk_node, which paints the
-             * tombstone of such a node for the same reason. */
+             * tombstone of such a node for the same reason.
+             *
+             * `ignore_frame_hidden` excuses it on the whole walk instead, for
+             * a caller that names a COMPONENT rather than a place -- a
+             * synthesised press. Two separate excuses because they answer two
+             * different questions, and only the first is about this node.
+             * @see UITree_NodeOrAncestorDisplayHiddenEx. */
             if( tree->components[idx].behavior.hide ||
                 (include_plugin_hidden &&
-                 ((tree->components[idx].frame_hidden &&
+                 ((tree->components[idx].frame_hidden && !ignore_frame_hidden &&
                    idx != ignore_own_replacement) ||
                   tree->components[idx].screen_hidden ||
                   tree->components[idx].projection_hidden ||
@@ -5351,7 +5374,7 @@ UITree_ComponentOrAncestorHidden(
     /* Cache/script activity remains live beneath a plugin frame so native CS2
      * state is current the instant the effective frame layer is released. */
     return uitree_node_or_ancestor_hidden(
-        tree, UITree_FindByComponentId(tree, component_id), 0, -1);
+        tree, UITree_FindByComponentId(tree, component_id), 0, -1, 0);
 }
 
 int
@@ -5360,7 +5383,7 @@ UITree_ComponentOrAncestorDisplayHidden(
     int component_id)
 {
     return uitree_node_or_ancestor_hidden(
-        tree, UITree_FindByComponentId(tree, component_id), 1, -1);
+        tree, UITree_FindByComponentId(tree, component_id), 1, -1, 0);
 }
 
 int
@@ -5371,7 +5394,7 @@ UITree_NodeOrAncestorDisplayHidden(
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
-    return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1);
+    return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1, 0);
 }
 
 int
@@ -5383,7 +5406,25 @@ UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
     return uitree_node_or_ancestor_hidden(
-        tree, node_index, 1, node_index);
+        tree, node_index, 1, node_index, 0);
+}
+
+int
+UITree_NodeOrAncestorDisplayHiddenEx(
+    struct UITree const* tree,
+    int32_t node_index,
+    int ignore_own_replacement,
+    int ignore_frame_hidden)
+{
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 1;
+    return uitree_node_or_ancestor_hidden(
+        tree,
+        node_index,
+        1,
+        ignore_own_replacement ? node_index : -1,
+        ignore_frame_hidden);
 }
 
 static int

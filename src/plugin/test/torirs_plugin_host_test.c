@@ -89,6 +89,18 @@ struct FakeEngine
 
 static struct FakeEngine g_engine;
 
+/* In game: these harnesses exercise behaviour that is gated on it. Mutable so
+ * the EV_SCREEN_CHANGE test can move it; everything else leaves it alone.
+ * @see ToriRS_PluginApi::screen. */
+static int g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+
+static int
+fake_plugin_screen(void* u)
+{
+    (void)u;
+    return g_screen_now;
+}
+
 static int
 fake_world_cycle(void* u)
 {
@@ -780,6 +792,13 @@ fake_tab_select(void* u, int tabno)
     return 0;
 }
 static int
+fake_tab_enabled(void* u, int tabno)
+{
+    (void)u;
+    (void)tabno;
+    return 1;
+}
+static int
 fake_obj_info(void* u, int obj_id, struct ToriRS_PluginObjInfo* out)
 {
     (void)u;
@@ -1177,6 +1196,7 @@ fake_engine(void)
     struct ToriRS_PluginEngine e;
     memset(&e, 0, sizeof(e));
     e.user = &g_engine;
+    e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;
@@ -1223,6 +1243,7 @@ fake_engine(void)
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.obj_info = fake_obj_info;
     e.inv_slot = fake_inv_slot;
     e.inv_size = fake_inv_size;
@@ -1275,6 +1296,9 @@ static int g_order_count;
 static int g_alpha_ticks;
 static uint32_t g_last_tag;
 static int g_select_calls;
+static int g_screen_changes;
+static int g_screen_change_to;
+static int g_screen_change_from;
 
 static enum ToriRS_PluginVerdict
 alpha_tick(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
@@ -1285,6 +1309,18 @@ alpha_tick(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
     g_alpha_ticks++;
     if( g_order_count < 8 )
         g_order[g_order_count++] = 1;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+alpha_screen(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ctx;
+    (void)ud;
+    struct ToriRS_PluginEvScreen const* screen_ev = ev;
+    g_screen_changes++;
+    g_screen_change_to = screen_ev->screen;
+    g_screen_change_from = screen_ev->previous;
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -1358,6 +1394,7 @@ alpha_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
 {
     g_api = api;
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LOGIC_TICK, alpha_tick, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_SCREEN_CHANGE, alpha_screen, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_MENU_BUILD, alpha_menu_add, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_MENU_SELECT, alpha_select, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PACKET_IN, alpha_packet_in, NULL);
@@ -1937,6 +1974,31 @@ main(void)
     CHECK(g_alpha_ticks == 1, "re-enabling restores its subscriptions");
 
     /*
+     * EV_SCREEN_CHANGE: the frame boundary polls api->screen's source and
+     * raises on a CHANGE, once, with both halves of the transition -- never
+     * on a steady answer. The baseline is taken at host creation, so the
+     * first frame of a session raises nothing.
+     */
+    {
+        PluginHost_FrameStart(host, 100);
+        CHECK(g_screen_changes == 0, "a steady screen raises nothing");
+        g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
+        PluginHost_FrameStart(host, 200);
+        CHECK(g_screen_changes == 1, "a moved screen raises once");
+        CHECK(g_screen_change_to == TORIRS_PLUGIN_SCREEN_TITLE,
+              "carrying the new answer");
+        CHECK(g_screen_change_from == TORIRS_PLUGIN_SCREEN_GAME,
+              "and the one it replaced");
+        PluginHost_FrameStart(host, 300);
+        CHECK(g_screen_changes == 1, "and not again while it holds");
+        g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+        PluginHost_FrameStart(host, 400);
+        CHECK(g_screen_changes == 2, "moving back is a change of its own");
+        CHECK(g_screen_change_to == TORIRS_PLUGIN_SCREEN_GAME,
+              "the login every gameframe gate waits for");
+    }
+
+    /*
      * Essential: listed, and with no second state.
      *
      * Every one of these is a way the switch could come back on a plugin whose
@@ -2037,7 +2099,7 @@ main(void)
               "a member this frame does not declare is 0");
         CHECK(x == -1 && y == -1 && w == -1 && h == -1, "and leaves the outputs untouched");
 
-        CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, 0, &x, &y, &w, &h),
+        CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, 0, &x, &y, &w, &h),
               "SAFE is derived and has no members to number");
         CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, -1, &x, &y, &w, &h),
               "and \"any member\" is not a question this verb takes");
@@ -2205,7 +2267,7 @@ main(void)
               "teardown automatically releases every replacement the plugin owns");
         PluginHost_SetEnabled(host, b, true);
 
-        CHECK(!api->role_replace(ctx, "safe", 1) &&
+        CHECK(!api->role_replace(ctx, "safe_gamechrome", 1) &&
                   !api->role_replace(ctx, "canvas", 1),
               "derived rectangles cannot be claimed as component replacements");
 
@@ -2216,8 +2278,8 @@ main(void)
          */
         {
             int sx, sy, sw, sh, rx, ry, rw, rh;
-            int by_slot = api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, &sx, &sy, &sw, &sh);
-            int by_role = api->role_rect(ctx, "safe", &rx, &ry, &rw, &rh);
+            int by_slot = api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, &sx, &sy, &sw, &sh);
+            int by_role = api->role_rect(ctx, "safe_gamechrome", &rx, &ry, &rw, &rh);
             CHECK(by_slot == by_role, "the safe role and the safe region agree that it exists");
             if( by_slot && by_role )
                 CHECK(sx == rx && sy == ry && sw == rw && sh == rh,

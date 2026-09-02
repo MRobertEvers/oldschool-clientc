@@ -72,7 +72,7 @@ second_layout_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     {
         g_reentrant_left--;
         g_api->layout_reserve(
-            ctx, TORIRS_PLUGIN_SLOT_SAFE, TORIRS_PLUGIN_EDGE_LEFT,
+            ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, TORIRS_PLUGIN_EDGE_LEFT,
             10 + g_reentrant_left);
     }
     g_reentrant_depth--;
@@ -166,6 +166,15 @@ fake_build_xp_table(void)
         points += (double)level + 300.0 * pow(2.0, (double)level / 7.0);
         g_level_xp[level - 1] = (int)(points / 4.0);
     }
+}
+
+/* In game: these harnesses exercise behaviour that is gated on it.
+ * @see ToriRS_PluginApi::screen. */
+static int
+fake_plugin_screen(void* u)
+{
+    (void)u;
+    return TORIRS_PLUGIN_SCREEN_GAME;
 }
 
 static int
@@ -917,6 +926,13 @@ fake_tab_select(void* u, int tabno)
     return 0;
 }
 static int
+fake_tab_enabled(void* u, int tabno)
+{
+    (void)u;
+    (void)tabno;
+    return 1;
+}
+static int
 fake_model_publish(void* u, int m, void const* d, int size)
 {
     (void)u;
@@ -1259,6 +1275,7 @@ main(void)
     fake_build_xp_table();
 
     memset(&e, 0, sizeof(e));
+    e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;
@@ -1328,6 +1345,7 @@ main(void)
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.model_publish = fake_model_publish;
     e.model_release = fake_model_release;
     e.mesh_create = fake_mesh_create;
@@ -1595,7 +1613,7 @@ main(void)
 
         CHECK(
             g_api->layout_reserve(
-                ctx, TORIRS_PLUGIN_SLOT_SAFE, TORIRS_PLUGIN_EDGE_RIGHT, 180),
+                ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, TORIRS_PLUGIN_EDGE_RIGHT, 180),
             "a plugin can reserve an edge of the safe region");
         CHECK(
             g_api->layout_revision(ctx) > before,
@@ -1613,7 +1631,7 @@ main(void)
             struct ToriRS_PluginCtx* other = PluginHost_Ctx(g_host, g_second);
             CHECK(
                 g_api->layout_reserve(
-                    other, TORIRS_PLUGIN_SLOT_SAFE, TORIRS_PLUGIN_EDGE_RIGHT, 120),
+                    other, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, TORIRS_PLUGIN_EDGE_RIGHT, 120),
                 "a second plugin reserves the same edge");
             draw();
             CHECK(
@@ -1639,7 +1657,7 @@ main(void)
 
         /* Zero gives it back. */
         g_api->layout_reserve(
-            ctx, TORIRS_PLUGIN_SLOT_SAFE, TORIRS_PLUGIN_EDGE_RIGHT, 0);
+            ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, TORIRS_PLUGIN_EDGE_RIGHT, 0);
         draw();
         CHECK(
             g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,

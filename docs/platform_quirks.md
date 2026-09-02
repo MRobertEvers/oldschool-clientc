@@ -128,13 +128,13 @@ one lane only.
   own (`TORIRS_CHROME_EXECUTOR=sdl` today)
 - **Behavior:** The window is OPENED at a size in window points -- a physical
   size on a desk. Its SURFACE is the DRAWABLE, in pixels, which on a HighDPI
-  display is a multiple of that; `PlatformSDL2_AuxWidth/Height` report the
-  surface, `PlatformSDL2_AuxResize` takes the surface, and every pointer
+  display is a multiple of that; `PlatformWindow_AuxWidth/Height` report the
+  surface, `PlatformWindow_AuxResize` takes the surface, and every pointer
   coordinate the platform hands the chrome has already been scaled from points
   into it. A density that changes without a resize -- a window dragged to
   another display -- is noticed per frame and reported as a resize.
 - **Reason:** The chrome picks its baked font size from the display's density
-  (`App_SetChromeScale` off `PlatformSDL2_PixelDensity`), so a 2x display lays
+  (`App_SetChromeScale` off `PlatformWindow_PixelDensity`), so a 2x display lays
   out 36px rows and a 208px label column. That layout needs a 2x surface. It is
   the same rule the game window already keeps -- "everything this platform hands
   the client is a PIXEL count" -- and the aux window was the one surface that
@@ -150,7 +150,7 @@ one lane only.
   and a click at window point (x, y) reaches the chrome as (2x, 2y) -- open a
   plugin's page from its `...` well and every row of it, Save and Revert
   included, is on screen and clickable.
-- **Sources:** [`src/platform/platform_sdl2.h`](../src/platform/platform_sdl2.h),
+- **Sources:** [`src/platform/platform_window.h`](../src/platform/platform_window.h),
   [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
   [`src/ui/torirs_chrome_exec_sdl.c`](../src/ui/torirs_chrome_exec_sdl.c)
 
@@ -535,7 +535,7 @@ one lane only.
   vs 48,862 — back faces and hidden faces never enter the stream) and no longer
   sorts them.
 - **Sources:**
-  [`src/platform/platform_sdl2_renderer_webgl1zb.c`](../src/platform/platform_sdl2_renderer_webgl1zb.c),
+  [`src/platform/platform_renderer_gles2_zbuffer.c`](../src/platform/platform_renderer_gles2_zbuffer.c),
   [`src/platform/platform_sdl2_renderer_gl3zb.c`](../src/platform/platform_sdl2_renderer_gl3zb.c)
 
 ### WINDOWS-D3D9-UPLOAD-001 - Retained resources upload only when dirty
@@ -877,36 +877,43 @@ one lane only.
   shell text. Keep platform-only renderer flags out of shared manifests.
 - **Detail:** [Web query-string and manifest arguments](web_build.md#the-query-string-is-the-command-line)
 
-### WEB-GL1-000 - WebGL1 is its own renderer, not a compile flag on GL3
+### WEB-GL1-000 - The browser's GPU renderer is the GLES2 renderer, shared with Android
 
 - **Status:** Contract
-- **Applies to:** Web `--webgl1` / `--webgl1-zbuffer`, desktop `--opengl3` /
-  `--opengl3-zbuffer`
-- **Behavior:** There are four GPU world renderers, in four sets of files, with
-  no preprocessor switch between them:
+- **Applies to:** Web `--webgl1` / `--webgl1-zbuffer`, Android `--gles2` /
+  `--gles2-zbuffer`, desktop `--opengl3` / `--opengl3-zbuffer`
+- **Behavior:** There are two GPU world renderers in the GL family, each in its
+  own set of files, with no preprocessor switch between them:
 
-  | | painter order | depth buffered |
+  | | files | lanes |
   |---|---|---|
-  | WebGL1 | `platform_sdl2_renderer_webgl1.c` | `platform_sdl2_renderer_webgl1zb.c` |
-  | GL 3.2 | `platform_sdl2_renderer_gl3.c` | `platform_sdl2_renderer_gl3zb.c` |
+  | GLES2 / WebGL1 | `platform_renderer_gles2_{core,ui,painter,zbuffer}.c` | android, web |
+  | GL 3.2 | `platform_sdl2_renderer_gl3.c`, `platform_sdl2_renderer_gl3zb.c` | macos, linux |
 
-  Each backend's pair shares its own `*_internal.h` (renderer state, constants,
-  the few helpers both need). Both backends implement the same public interface
-  in `platform_sdl2_renderer_gl3.h`; `platform.mk` links exactly one, so the
-  shared handle name is the interface and not the backend.
-- **Why:** it used to be one renderer compiled twice, with `TORIRS_GL_ES2`
-  choosing at 21 branches. That made WebGL1 correctness depend on someone
-  remembering to add an `#else`, and it stopped GL3 from using GL3 — every
-  desktop feature needed an ES2 twin beside it. Neither file now contains the
-  switch: the WebGL1 pair may use only WebGL1 with no extensions, and the GL3
-  pair may use anything GL 3.2 core offers.
-- **Verification:** `grep -c TORIRS_GL_ES2` over the four `.c` files is zero.
-  The WebGL1 pair contains no `glBindVertexArray`, `GL_UNSIGNED_INT` element
-  type, sized internal format, `GL_BGRA`, `glReadBuffer` or
-  `GL_UNPACK_ROW_LENGTH` (mentions of those names survive only in comments
-  explaining why they are unavailable).
+  The GLES2 renderer is one set of sources linked by two lanes. WebGL1 is
+  OpenGL ES 2.0 with no extensions, which is exactly the ceiling that renderer
+  was written to (ANDROID-GLES2-001), so the browser compiles the four files
+  unchanged against emscripten's `<GLES2/gl2.h>` and reaches its context through
+  the same `platform_gl_context.h` seam the phone does. The flag is spelled per
+  lane -- `--webgl1` in the browser, `--gles2` on Android -- and each build
+  refuses the other's spelling by name rather than aliasing it, so a manifest
+  written for one cannot run on the other unnoticed.
+- **Why:** there used to be a third renderer here, a fork of the desktop GL one
+  switched at 21 places by `TORIRS_GL_ES2` and later split into its own pair of
+  files. It re-expressed 32-bit indices into 16-bit windows every frame, issued
+  a draw per model, and retained nothing of the scene; the GLES2 renderer bakes
+  the scene once into 16-bit pages, streams one index buffer a frame, and on
+  the depth path draws most of the static world as array ranges with no
+  indices at all. Keeping the fork meant every fix landing twice and the slower
+  renderer being the one in the browser.
+- **Verification:** `grep -c TORIRS_GL_ES2` over `src/` is zero outside
+  `platform_check.mk`, which forbids it. `make lane-check PLATFORM=web` requires
+  `TORIRS_HAVE_GLES2=1` and forbids `TORIRS_HAVE_GL3`, `TORIRS_GL_ES2` and the
+  fork's `webgl1_index16` object. No file under `src/platform/` is named
+  `*webgl1*`.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
-  [`src/platform/`](../src/platform/)
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`src/platform/platform_renderer_gles2.h`](../src/platform/platform_renderer_gles2.h)
 
 ### WEB-GL1-001 - WebGL1 means no extensions
 
@@ -916,11 +923,10 @@ one lane only.
   and disables automatic extension enablement. It uses no VAOs, 32-bit element
   indices, uniform blocks, sized GLES3 texture formats, BGRA upload, instancing,
   derivative, depth-texture, or float-texture extensions.
-- **Required alternatives:** Re-point attributes when the base vertex changes;
-  split retained ranges into 16-bit base windows; use plain uniforms and ES2
-  formats; convert ToriDraw ARGB pixels to RGBA before upload. The world texture
-  atlas is pinned to 2048x2048 (256 slots) even when the browser reports a
-  larger limit.
+- **Required alternatives:** those of ANDROID-GLES2-001, because it is that
+  renderer: 65,536-vertex pages selected by re-pointing the attributes, plain
+  uniforms and ES2 formats, ToriDraw ARGB swizzled to RGBA at upload, a
+  2048x2048 world atlas (256 slots) whatever limit the browser reports.
 - **Also absent, and not obvious:** `GL_UNPACK_ROW_LENGTH`. It is a
   GLES3/desktop pixel-store parameter, so a sub-rectangle of a wider CPU buffer
   cannot be handed to `glTexSubImage2D` in place — the rows must be packed into
@@ -929,9 +935,69 @@ one lane only.
 - **Reason:** The renderer must work on a conforming WebGL1 implementation,
   rather than only on browsers that happen to expose a desktop-like extension
   set.
+- **Browser specifics the shared code does not see:** depth and stencil are
+  fixed when the SDL WINDOW is created (SDL's emscripten backend chooses its
+  EGL config there), so `platform_sdl2.c` asks for depth 24 and stencil 0 on
+  this lane; `ToriRS_GLContext_SetSwapInterval` is a no-op here because
+  emscripten's `eglSwapInterval` re-times the main loop, which `main.c` owns;
+  and no `glGetError` runs per frame, because in a browser it is a synchronous
+  round trip to the GPU process.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
-  [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c),
-  [`3rd/trspk/webgl1/`](../3rd/trspk/webgl1/)
+  [`src/platform/platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h),
+  [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
+  [`src/platform/platform_gl_context_sdl.c`](../src/platform/platform_gl_context_sdl.c)
+
+### ANDROID-GLES2-001 - The GLES2 renderer, with no extensions
+
+- **Status:** Contract
+- **Applies to:** Android `--gles2` / `--gles2-zbuffer`; Web `--webgl1` /
+  `--webgl1-zbuffer` (WEB-GL1-000)
+- **Behavior:** The GPU path on both lanes is
+  `platform_renderer_gles2_{core,ui,painter,zbuffer}.c` -- OpenGL ES 2.0
+  core and nothing else. It is not a build of the GL3 renderer, and it replaced
+  the WebGL1 fork of that renderer on both hosts. Its retained model is
+  the D3D9 renderer's (WINDOWS-D3D9-CORE-001 / -ZBUFFER-001 / -UPLOAD-001 /
+  -2D-001), because that is the model that already answers a 2013 phone's
+  questions:
+  - geometry baked once into 65,536-vertex pages (Batch16 for the scene, a
+    paged arena otherwise), addressed with `uint16` page-local indices; the
+    page is selected by re-pointing the vertex attributes, never by a
+    base-vertex draw or a 32-bit index;
+  - one 2048x2048 world atlas for every texture, scrolling ones included. The
+    vertex (`TRSPK_VertexGLES2`, 28 bytes) carries its tile and scroll bytes and
+    the fragment shader wraps/clamps the local coordinate per fragment (the GL3
+    formula), so the world pass binds one texture and the index stream is never
+    split by texture;
+  - on the depth path a pose whose faces are all opaque/cutout is drawn as an
+    array range (`glDrawArrays`, no indices), coalesced with its neighbours;
+    only mixed poses go through per-page index buckets and only genuinely
+    blended faces are sorted. Opaque faces run a fragment shader that cannot
+    `discard`, so tile-based GPUs keep early depth rejection for them;
+  - the 2D stack is a retained sprite atlas, `GL_LUMINANCE_ALPHA` font atlases,
+    one streamed vertex ring appended at the head, and a two-sampler rotmask
+    draw. Widget models carry the view depth in the vertex's w for
+    perspective-correct interpolation through the UI program.
+- **Required alternatives (the GLES2 ceiling):** no VAOs (attribute pointers
+  re-issued per (buffer, page)), no buffer mapping (glBufferData orphaning +
+  glBufferSubData at a ring head), no `GL_UNPACK_ROW_LENGTH` (packed staging
+  rows), no sized internal formats, no BGRA (ARGB swizzled at upload, vertex
+  colour stored in RGBA byte order), no uniform blocks. NPOT textures are used
+  only with `CLAMP_TO_EDGE` and no mipmaps, which core ES2 permits.
+- **Flags:** `--gles2` and `--gles2-zbuffer` exist only under
+  `TORIRS_HAVE_GLES2` off the web; the browser spells the same renderer
+  `--webgl1` / `--webgl1-zbuffer`. Each lane refuses the other's spelling by
+  name rather than aliasing it, so a device manifest carrying
+  `arg=--webgl1-zbuffer` must be edited to `--gles2-zbuffer`.
+  `make lane-check PLATFORM=android` forbids `TORIRS_HAVE_GL3`, `TORIRS_GL_ES2`
+  and any `webgl1` object on the command line.
+- **Verification:** `grep -c "GL_OES_\|GL_EXT_\|glGetString(GL_EXTENSIONS)"`
+  over the four `.c` files is zero; `TORIRS_PERF=1` on the device reports
+  `gl_draw_calls` in the tens for a settled scene under `--gles2-zbuffer` and
+  `gl_static_vbo_upload_bytes` at zero once the scene is built.
+- **Sources:** [`src/platform/platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h),
+  [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`3rd/trspk/gles2/gles2_vertex.h`](../3rd/trspk/gles2/gles2_vertex.h)
 
 ### GPU-PROJ-001 - The projection is a scale, never a field of view
 
@@ -988,84 +1054,41 @@ one lane only.
   allocation and one 64 MB static vertex upload; window 1 (steady) carries
   neither, and 120 frames produce 120 index uploads.
 - **Sources:** [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c),
+  [`src/platform/platform_renderer_gles2_core.c`](../src/platform/platform_renderer_gles2_core.c),
   [`src/perf/torirs_perf.h`](../src/perf/torirs_perf.h)
 
-### WEB-GL1-002 - 16-bit indices cost a draw call per visible model
+### WEB-GL1-002 - 16-bit indices used to cost a draw call per visible model
 
-- **Status:** Open - measured, partially mitigated
+- **Status:** Resolved by replacing the renderer (WEB-GL1-000)
 - **Applies to:** Web `--webgl1`
-- **Behavior:** WebGL1 draws with `GL_UNSIGNED_SHORT` and has no
+- **Behavior, as it was:** WebGL1 draws with `GL_UNSIGNED_SHORT` and has no
   `glDrawElementsBaseVertex`, so a draw's vertices must lie inside one
   65536-vertex window and the base is folded into the `glVertexAttribPointer`
-  offsets. `trspk_webgl1_split16` groups consecutive triangles into one draw
-  for as long as the span between the lowest and highest vertex index they
-  touch stays inside that window.
-- **A draw call should cost a state change, and here it costs an arena jump.**
-  The renderer is otherwise built the right way — static models baked once into
-  retained buffers, dynamic elements baked per frame, the index chain built from
-  face order at render time, and draws split at state boundaries. A settled
-  osrs239 scene produces exactly **one** draw range, i.e. one state config for
-  the whole world pass. It then submits ~48,900 triangles as **2,878 draw
-  calls**, and every one of those extra splits is the 16-bit window, not a state
-  change.
-- **The cause is arena locality, measured** (`TORIRS_GL_CHUNK_DEBUG=1`, settled
-  osrs239 boot). Distance between consecutive drawn triangles' arena indices:
-
-  | delta | count | |
-  |---|---|---|
-  | < 64 | 29,432 | within one model |
-  | < 1K | 16,157 | within one model |
-  | < 8K | 209 | |
-  | < 64K | 212 | |
-  | >= 64K | **2,875** | forces a split |
-
-  94% of transitions group perfectly; it is the model-to-model boundary that
-  fails, and it fails essentially every time (2,875 of 2,877). The drawn models
-  span the entire 1,333,334-vertex arena (bases 582..1,333,010), so painter
-  order — which is distance order — is uncorrelated with arena order, which is
-  load order.
-- **What does not fix it:** a better splitter (the runs it can merge, it already
-  merges), and baking into 64K-sized VBOs (painter order would hop among 21
-  buffers just as randomly, for the same ~2,878 switches). Reordering draws is
-  not available either: painter order is the correctness constraint.
-- **What would fix it:** allocating static arena slots with *spatial* locality
-  rather than in load order, so that a spatial traversal is also a local arena
-  traversal. Then a run stays inside one 64K window across many models and the
-  draw count falls toward the state-change count, which is 1. This is not done.
-- **Paging the arena was tried and is worse.** Setting the arena page to 65536
-  (as D3D9 does at `D3D9_VBO_PAGE`, for the identical 16-bit limit) lets the
-  base be derived from the triangle's page in one pass with no search, which
-  sounds strictly better. It is not: a page boundary is an arbitrary place to
-  cut, while the sliding window merges any run that happens to fit wherever it
-  starts. Measured on the same scene, **2,990 chunks paged versus 2,878
-  searching**. `trspk_webgl1_split16_paged` is kept for the arena-invariant
-  check it makes possible, and is not what the renderer uses. D3D9 needs the
-  paging because fixed-function `SetStreamSource` binds a page; WebGL1 folds
-  the base into pointers and does not.
-- **What was mitigated:** the per-chunk state. Each chunk used to issue twelve
-  GL calls (an array-buffer bind, five `glEnableVertexAttribArray`, five
-  `glVertexAttribPointer`, an element-buffer bind); only the five pointers carry
-  the base vertex. The buffer binds and enables are now hoisted out of the draw
-  loop, taking the frame from ~37,400 GL calls to ~17,300. Every GL call on this
-  host is a crossing out of wasm into JavaScript.
-- **Measured effect:** under SwiftShader (headless software GL) the `render`
-  stage moved 4.97ms -> 4.82ms of a 6.9ms frame, so on that host rasterization
-  dominates and the call reduction is small. The saving is expected to matter
-  more on a real GPU, where the driver call is the cost rather than the
-  fragments; that has not been measured here and should not be assumed.
-- **Do not re-bake the visible set per frame to get around this.** It would make
-  the indices sequential and collapse the draw count, and it is the wrong trade:
-  it throws away the retained static buffers that WINDOWS-D3D9-UPLOAD-001 and
-  GPU-UPLOAD-001 exist to protect, and pays ~7 MB/frame of vertex upload
-  (146K vertices x 48 bytes) to save GL calls. Static geometry is baked once;
-  only dynamic elements are baked per frame. Fix the allocation order instead.
-- **Diagnostic:** `TORIRS_GL_CHUNK_DEBUG=1` dumps one frame's chunking —
-  chunks, triangles per chunk, single-triangle chunks, and how many 64K windows
-  the bases span. Use it before changing anything here; the obvious metric
-  (whether adjacent chunks share a base) is tautologically zero, because the
-  splitter has already merged any that would.
-- **Sources:** [`3rd/trspk/webgl1/webgl1_index16.c`](../3rd/trspk/webgl1/webgl1_index16.c),
-  [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c)
+  offsets. The previous WebGL1 renderer baked static models into one
+  1.3M-vertex arena in LOAD order and then, every frame, scanned the
+  painter-ordered 32-bit index list for runs that fit a window
+  (`trspk_webgl1_split16`). A settled osrs239 scene had exactly one state
+  configuration for the whole world pass and still went out as **2,878 draw
+  calls**, because painter order is distance order and was uncorrelated with
+  arena order: 2,875 of 2,877 model-to-model transitions crossed a window.
+  Hoisting the buffer binds and attribute enables out of the loop took the
+  frame from ~37,400 GL calls to ~17,300 and no further.
+- **Resolution:** the GLES2 renderer never has this problem to solve. Geometry
+  is baked once into 65,536-vertex PAGES (Batch16 for the scene, a paged arena
+  for the rest) and a slot never crosses a page, so a draw's page is decided at
+  placement and the index stream is page-local `uint16` from the start -- no
+  re-expression, no search. On the painter path the static models being drawn
+  are copied once into a resident 65,536-vertex window and indexed from it
+  every frame after, so the whole visible static set is ONE page; actors go
+  into a per-frame stream in sorted order. On the depth path opaque poses are
+  array ranges with no indices at all. Draws are issued only at a page change
+  or the plain/cutout program boundary.
+- **Verification:** `TORIRS_GLES2_DEBUG=1` prints the census every 300 frames
+  (`gles2 draws/frame: world N ...`); `TORIRS_PERF=1` reports
+  `gl_draw_calls`. Both should read in the tens for a settled scene.
+- **Sources:** [`src/platform/platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h),
+  [`src/platform/platform_renderer_gles2_painter.c`](../src/platform/platform_renderer_gles2_painter.c),
+  [`3rd/trspk/core/trspk_batch16.h`](../3rd/trspk/core/trspk_batch16.h)
 
 ### GPU-CAPTURE-001 - The generic BMP dump is a Soft3D image
 
@@ -1074,8 +1097,9 @@ one lane only.
 - **Behavior:** `TORIRS_EXIT_BMP` writes the framebuffer produced by
   `App_Render`, not the pixels presented by a GPU backend. It can look correct
   while GL/WebGL is black or channel-swapped.
-- **Verification:** Use `TORIRS_GL3_READBACK=<path>` and optionally
-  `TORIRS_GL3_READBACK_FRAME=<n>` to capture the actual GPU framebuffer.
+- **Verification:** Use `TORIRS_GL3_READBACK=<path>` (desktop) or
+  `TORIRS_GLES2_READBACK=<path>` (web, Android), optionally with the matching
+  `*_READBACK_FRAME=<n>`, to capture the actual GPU framebuffer.
 - **Reason:** This distinction previously hid a missing ARGB-to-RGBA conversion
   on rotated/masked sprite uploads.
 - **Detail:** [Web sprite pixel conversion](web_build.md#sprite-pixels-are-argb-gl-wants-rgba)

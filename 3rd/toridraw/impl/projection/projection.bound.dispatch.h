@@ -11,7 +11,13 @@
  * only ever has to answer "what are the four extremes".
  *
  *   projection_bound.u.c          selects one lane
- *   projection_bound.neon64.u.c     AArch64: lane-wise min/max + vminvq reduce
+ *   projection_bound.neon64.u.c   AArch64: lane-wise min/max + vminvq reduce
+ *   projection_bound.neon32.u.c   armv7: the same sweep, closed with a
+ *                                 pairwise vpmin/vpmax fold, because A32 has
+ *                                 no horizontal reduce instruction. The fold
+ *                                 runs once per model, not per vertex, so the
+ *                                 two lanes differ only in their last three
+ *                                 instructions.
  *   projection_bound.sse41.u.c    SSE4.1: pmin/pmaxsd + shuffle reduce
  *   projection_bound.scalar.u.c   everywhere else, including plain SSE2 --
  *                                 it has neither a 32-bit lane min/max nor a

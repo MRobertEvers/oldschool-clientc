@@ -476,4 +476,55 @@ test_layout_build(void)
 
         UITree_Free(tree);
     }
+    /*
+     * safe_area=os:bottom: a row gives up the overlap with the OS band and no
+     * more, and gets it all back when the band goes away.
+     *
+     * The login box is the row this exists for -- 360x200 at 202,171 in the
+     * rs245/rs289 profile -- so it is the geometry used here.
+     */
+    {
+        struct UITree* tree = UITree_New(8);
+        int32_t box = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 1, 202, 171, 360, 200);
+        int32_t row = UITree_TestPushXy(tree, box, UIELEM_RS_RECT, 2, 10, 120, 200, 20);
+        int32_t plain = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 3, 202, 171, 360, 200);
+
+        tree->components[box].position.safe_area_source = UITREE_SAFE_AREA_SOURCE_OS;
+        tree->components[box].position.safe_area_flags = UITREE_SAFE_AREA_FLAG_BOTTOM;
+        tree->components[box].position.safe_area_margin = 8;
+
+        /* No keyboard: the authored place, exactly. */
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 171, "safe area: unlifted abs_y");
+
+        /* 200 rows covered leaves 303; the box wants its bottom (371) plus an
+         * 8px margin above that, so it gives up 76 and not a pixel more. */
+        UITree_LayoutSetSafeBottomInset(200);
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 95, "safe area: lifted abs_y");
+        TEST_ASSERT(tree->components[box].position.abs_x == 202, "safe area: x untouched");
+        TEST_ASSERT(tree->components[box].position.abs_h == 200, "safe area: height untouched");
+        TEST_ASSERT(tree->components[box].position.y == 171, "safe area: authored y untouched");
+        TEST_ASSERT(tree->components[row].position.abs_y == 215, "safe area: child moves with it");
+        TEST_ASSERT(
+            tree->components[plain].position.abs_y == 171, "safe area: undeclared row stays put");
+
+        /* Taller than what the keyboard leaves: stop at the canvas top rather
+         * than sliding the box off it. */
+        UITree_LayoutSetSafeBottomInset(480);
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 0, "safe area: clamped at canvas top");
+
+        /* Keyboard away: back where the profile put it, with nothing
+         * remembered about how far it had moved. */
+        UITree_LayoutSetSafeBottomInset(0);
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 171, "safe area: restored abs_y");
+
+        UITree_Free(tree);
+    }
 }

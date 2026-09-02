@@ -57,14 +57,21 @@ LANE_FORBID_win64  := -march=i686 -march=pentium4 -mfpmath=387 console:5.01 -dea
 # back in (docs/web_build.md). ASYNCIFY would rewrite the entire module to buy
 # the same behaviour at a large size and speed cost, so its absence is a
 # property of the design rather than an accident worth re-deciding.
+#
+# TORIRS_HAVE_GLES2 is the GPU renderer here -- the same four GLES2 units the
+# Android lane links, against WebGL1. TORIRS_HAVE_GL3 and TORIRS_GL_ES2 are
+# forbidden: the first would offer main.c a GL 3.2 renderer no browser can
+# create, the second was the switch of the retired WebGL1 fork of that
+# renderer, and webgl1_index16 was that fork's index-splitting object.
 LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 \
-                    GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0
+                    GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
+                    TORIRS_HAVE_GLES2=1
 # -O0 is forbidden here at any OPT level, which is the one lane where that is
 # true. wasm at -O0 is several times larger and slow enough that the client
 # stops reproducing what you are trying to look at, so the debug flavor is -Og
 # (PLATFORM_DEBUG_O_LEVEL in platform.mk) rather than the -O0 every other lane
 # gets. Check it with: make -C src lane-check PLATFORM=web OPT=0
-LANE_FORBID_web  := ASYNCIFY -dead_strip -O0
+LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1_index16
 
 # --- Android: GLES2, armv7 NEON, and NO SDL ---------------------------------
 #
@@ -81,14 +88,14 @@ LANE_FORBID_web  := ASYNCIFY -dead_strip -O0
 #                     fail, but deep in the linker with "relocation R_ARM_REL32
 #                     cannot be used against symbol 's_mp_prime_tab'", which
 #                     names a tommath symbol and not the cause.
-#   TORIRS_GL_ES2     the GPU renderer is built against the GLES2 ceiling. With
-#                     TORIRS_HAVE_GL3 but not this, main.c would accept
-#                     --opengl3 and hand this lane the desktop GL 3.3 renderer,
-#                     which no phone driver here can run.
+#   TORIRS_HAVE_GLES2 the GLES2 renderer (shared with the web lane) is the
+#                     GPU path. Neither TORIRS_HAVE_GL3 nor TORIRS_GL_ES2 may
+#                     appear: the first would let main.c hand this lane the
+#                     desktop GL 3.3 renderer no phone driver can run, the
+#                     second was the switch of the retired WebGL1 fork of it.
 LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
-                        TORIRS_HAVE_GL3=1 TORIRS_GL_ES2=1 \
-                        -shared -llog -landroid -lGLESv2 -lEGL \
-                        webgl1_index16.o
+                        TORIRS_HAVE_GLES2=1 \
+                        -shared -llog -landroid -lGLESv2 -lEGL
 # -lSDL2/-sUSE_SDL=2 are forbidden, not merely absent. "No SDL on Android" is
 # the defining property of this lane, and the way it would be lost is somebody
 # adding SDL to a SHARED variable to fix another host -- which this catches at
@@ -97,7 +104,8 @@ LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
 # -dead_strip is ld64-only; -mfpmath=sse and -march=pentium4 are x86. Their
 # presence would mean a desktop block's flags leaked into this one.
 LANE_FORBID_android  := -lSDL2 -sUSE_SDL=2 -dead_strip -mfpmath=sse \
-                        -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9
+                        -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9 \
+                        TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1
 
 # Everything a lane actually compiles and links with. GPU object names are in
 # here so "no WebGL in the win32 link" is checkable as a flag would be.

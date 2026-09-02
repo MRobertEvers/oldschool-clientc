@@ -1,5 +1,6 @@
 #include "uitree_layout.h"
 
+#include "log/torirs_log.h"
 #include "perf/torirs_perf.h"
 #include "ui_if3_layout.h"
 #include "uitree_frame.h"
@@ -14,6 +15,9 @@
 int UITree_LayoutRootWidth = 765;
 int UITree_LayoutRootHeight = 503;
 
+/* Nothing covers the canvas until a platform says so. */
+int UITree_LayoutSafeBottomInset = 0;
+
 void
 UITree_LayoutSetRootSize(int width, int height)
 {
@@ -21,6 +25,15 @@ UITree_LayoutSetRootSize(int width, int height)
         UITree_LayoutRootWidth = width;
     if( height > 0 )
         UITree_LayoutRootHeight = height;
+}
+
+void
+UITree_LayoutSetSafeBottomInset(int inset)
+{
+    /* Stored as reported. UITree_LayoutSafeBottomEdge does the clamping, so a
+     * canvas that shrinks AFTER the platform reported the band is still
+     * answered sanely -- and both readers get the same answer. */
+    UITree_LayoutSafeBottomInset = inset < 0 ? 0 : inset;
 }
 
 /*
@@ -240,6 +253,63 @@ resolve_relative(
 }
 
 /*
+ * Slide a resolved box clear of the safe area its profile named, if it named
+ * one. The OS one is the only area this resolves today.
+ *
+ * Only the bottom edge exists to dodge (see UITREE_SAFE_AREA_FLAG_BOTTOM), and
+ * the move is a pure translation: the box keeps its size and gives up exactly
+ * the overlap plus the margin it asked for, so with the keyboard away -- which
+ * is every desktop frame ever drawn -- the shift is zero and the row sits where
+ * its coordinates put it.
+ *
+ * Written onto abs_y and nothing else. The authored y is never touched, so the
+ * keyboard going away is undone by the next resolve rather than by remembering
+ * how far something was displaced -- which is what made the old role-specific
+ * version need a tree-generation stamp to tell an un-lifted rebuild from a
+ * lifted one.
+ *
+ * Canvas coordinates, not the parent's: the band belongs to the WINDOW, and a
+ * panel three parents deep is under the keyboard on exactly the same rows as
+ * one hung off the root.
+ */
+static void
+apply_safe_area(struct UITreeElemPosition* pos)
+{
+    int visible_bottom;
+    int shift;
+
+    assert(pos);
+    if( pos->safe_area_source == UITREE_SAFE_AREA_SOURCE_NONE )
+        return;
+    if( pos->safe_area_source != UITREE_SAFE_AREA_SOURCE_OS )
+    {
+        /* A profile written against a client that cannot resolve the area it
+         * named. Saying so beats placing the row as though it had asked for
+         * nothing, which is indistinguishable from a working layout until
+         * somebody raises a keyboard. */
+        TORIRS_ERR(
+            "layout: safe area source %d is not one this client resolves\n",
+            pos->safe_area_source);
+        return;
+    }
+    if( !(pos->safe_area_flags & UITREE_SAFE_AREA_FLAG_BOTTOM) )
+        return;
+    if( UITree_LayoutSafeBottomInset <= 0 )
+        return;
+
+    visible_bottom = UITree_LayoutSafeBottomEdge();
+    shift = pos->abs_y + pos->abs_h + pos->safe_area_margin - visible_bottom;
+    if( shift <= 0 )
+        return;
+    /* Off the top is not a rescue. A box taller than what the keyboard leaves
+     * cannot fit whatever it does, and the top of it is the half that names
+     * what the player is looking at. */
+    if( shift > pos->abs_y )
+        shift = pos->abs_y;
+    pos->abs_y -= shift;
+}
+
+/*
  * Parent box a child lays out against: the parent's resolved box, with an
  * RS_LAYER's scroll extent standing in for its visible size. Falls back to the
  * root box when there is no parent.
@@ -314,7 +384,12 @@ layout_compute_node(
             /* Slot declarations are in canvas coordinates, regardless of the
              * cache nesting used to discover the semantic node. Treat the
              * effective slot box as absolute rather than adding parent abs_*;
-             * the latter offsets deep roles whenever a native shell moves. */
+             * the latter offsets deep roles whenever a native shell moves.
+             *
+             * No safe-area shift here, and that is not an omission: a frame
+             * that owns a node's position computed this box in EV_LAYOUT with
+             * api->safe_os in hand. Dodging the keyboard a second time on its
+             * behalf would move the box twice. */
             pos->abs_x = override.x;
             pos->abs_y = override.y;
             pos->abs_w = override.width;
@@ -329,6 +404,7 @@ layout_compute_node(
     if( spec->kind == UIPOS_RELATIVE )
     {
         resolve_relative(spec, pos, px, py, pw, ph);
+        apply_safe_area(pos);
         return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y ||
                pos->abs_w != old_w || pos->abs_h != old_h;
     }
@@ -380,6 +456,7 @@ layout_compute_node(
     pos->abs_y = py + ry;
     pos->abs_w = w;
     pos->abs_h = h;
+    apply_safe_area(pos);
     pos->layout_resolved = 1;
     return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y || pos->abs_w != old_w ||
            pos->abs_h != old_h;

@@ -141,6 +141,9 @@ static struct
     int scrollbar_pieces;
     /** A sidebar tab this fake gameframe does NOT have, or -1. */
     int missing_tab;
+    /** A tab the frame HAS and the server has not handed over, or -1. The
+     *  tutorial's state, and a different question from missing_tab. */
+    int ungiven_tab;
 } g_frame;
 
 /** Which roles this fake gameframe has. Everything but the compass, so that
@@ -246,6 +249,13 @@ fake_layout_scrollbar(void* u, int const* images, int count)
     (void)images;
     g_frame.scrollbar_pieces = count;
     return count > 0;
+}
+
+static int
+fake_tab_enabled(void* u, int tabno)
+{
+    (void)u;
+    return tabno != g_frame.ungiven_tab;
 }
 
 static int
@@ -411,6 +421,12 @@ fake_asset_read(void* u, char const* plugin, char const* name)
 
 /* -- everything the plugin does not use, answered flatly -- */
 
+/* In game: these harnesses exercise behaviour that is gated on it.
+ * @see ToriRS_PluginApi::screen. */
+/* Mutable so the enabled-at-the-title scenario can move it; everything else
+ * leaves it be. */
+static int g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+static int fake_plugin_screen(void* u) { (void)u; return g_screen_now; }
 static int fake_world_cycle(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_ms(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_work_us(void* u) { (void)u; return 0; }
@@ -610,6 +626,7 @@ main(void)
     struct ToriRS_PluginEngine e;
 
     memset(&e, 0, sizeof(e));
+    e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;
@@ -661,6 +678,7 @@ main(void)
     e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -703,6 +721,7 @@ main(void)
     /* asset_read answers into the host it is reading for, and the engine user
      * pointer is the only channel it has -- so the host is built twice. */
     g_frame.missing_tab = -1;
+    g_frame.ungiven_tab = -1;
     g_host = PluginHost_New(&e);
     e.user = g_host;
     PluginHost_Free(g_host);
@@ -1075,6 +1094,35 @@ main(void)
         g_frame.missing_tab = -1;
         declare(1440, 900);
 
+        /*
+         * A tab the SERVER has not handed over draws neither.
+         *
+         * The tutorial's state, and a different question from the one above:
+         * the frame has the tab and the cache has the panel, but the player
+         * has not been given it yet. The client's own chrome gates its icon
+         * and its pressed highlight on exactly this (reference
+         * drawSidebarIcons, `sideOverlayId[n] !== -1`), and a plugin frame
+         * that replaced that chrome inherited the duty.
+         *
+         * Redrawn and NOT re-declared, unlike the missing tab above: which
+         * tabs the CACHE has is settled at declaration, but which of them the
+         * player has been given changes on a packet -- no resize, no rebuild
+         * and no claim -- so a layout that recorded it would draw a new
+         * character's first minute for the rest of the session.
+         */
+        g_frame.ungiven_tab = 7;
+        g_frame.active_tab = 7;
+        draw(1440, 900);
+        CHECK(
+            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 13,
+            "a tab the server has not given draws neither its icon nor its lit stone");
+        g_frame.ungiven_tab = -1;
+        draw(1440, 900);
+        CHECK(
+            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 15,
+            "and handing it over puts both back, with nothing re-declared");
+        g_frame.active_tab = -1;
+
         /* The map housing is no longer a global canvas draw. Legacy canvas
          * drawing remains global by contract; moving this one there covered
          * unrelated later chrome as well as the minimap it was meant for. */
@@ -1100,6 +1148,34 @@ main(void)
         CHECK(g_frame.end_calls == before, "a released layout declares nothing");
         CHECK(g_frame.blits == 0, "and draws nothing");
     }
+
+    /* ---- 6b. enabled at the title screen -------------------------------- */
+
+    /*
+     * The restart-shaped bug, this frame's copy of it. The host refuses a
+     * layout claim while the title is up -- there is no frame to claim before
+     * there is a frame -- so a plugin switched on at the title owned nothing,
+     * and with no claim there is no EV_LAYOUT to ask it to declare after
+     * login either. EV_SCREEN_CHANGE is the missing rung: entering the game
+     * re-claims, and the next layout pass declares.
+     */
+    g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
+    PluginHost_SetEnabled(g_host, g_plugin, true);
+    /* The title's frames tick too -- and one has to, for the frame boundary
+     * to see the title at all before login moves the screen again. */
+    PluginHost_FrameStart(g_host, 950);
+    CHECK(
+        g_frame.owned == 0,
+        "enabling at the title claims nothing -- the host refuses the frame");
+    g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+    PluginHost_FrameStart(g_host, 1000);
+    CHECK(g_frame.owned == 1, "logging in claims the frame without a restart");
+    {
+        int const before = g_frame.end_calls;
+        declare(765, 503);
+        CHECK(g_frame.end_calls == before + 1, "and the next layout pass declares");
+    }
+    PluginHost_SetEnabled(g_host, g_plugin, false);
 
     /* ---- 7. the lane that brings its own ------------------------------- */
 

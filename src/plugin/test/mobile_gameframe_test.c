@@ -128,6 +128,9 @@ static struct
     int scrollbar_pieces;
     /** A sidebar tab this fake gameframe does NOT have, or -1. */
     int missing_tab;
+    /** A tab the frame HAS and the server has not handed over, or -1. The
+     *  tutorial's state, and a different question from missing_tab. */
+    int ungiven_tab;
 } g_frame;
 
 /** Which roles this fake gameframe has. Everything but the compass, so that
@@ -233,6 +236,13 @@ fake_layout_scrollbar(void* u, int const* images, int count)
     (void)images;
     g_frame.scrollbar_pieces = count;
     return count > 0;
+}
+
+static int
+fake_tab_enabled(void* u, int tabno)
+{
+    (void)u;
+    return tabno != g_frame.ungiven_tab;
 }
 
 static int
@@ -382,6 +392,11 @@ fake_asset_read(void* u, char const* plugin, char const* name)
 
 /* -- everything the plugin does not use, answered flatly -- */
 
+/* In game: these harnesses exercise behaviour that is gated on it. Mutable so
+ * the enabled-at-the-title scenario can move it; everything else leaves it be.
+ * @see ToriRS_PluginApi::screen. */
+static int g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+static int fake_plugin_screen(void* u) { (void)u; return g_screen_now; }
 static int fake_world_cycle(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_ms(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_work_us(void* u) { (void)u; return 0; }
@@ -581,6 +596,7 @@ main(void)
     struct ToriRS_PluginEngine e;
 
     memset(&e, 0, sizeof(e));
+    e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;
@@ -632,6 +648,7 @@ main(void)
     e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -674,6 +691,7 @@ main(void)
     /* asset_read answers into the host it is reading for, and the engine user
      * pointer is the only channel it has -- so the host is built twice. */
     g_frame.missing_tab = -1;
+    g_frame.ungiven_tab = -1;
     g_frame.active_tab = -1;
     g_host = PluginHost_New(&e);
     e.user = g_host;
@@ -1030,10 +1048,92 @@ main(void)
         CHECK(!saw_missing, "and the one it lacks claims no box to tap");
     }
 
+    /* ---- 7b. a tab the server has not handed over ------------------------ */
+
+    /*
+     * The tutorial's state, and NOT the one above: the frame has the tab, the
+     * cache has the panel, and the player has not been given it yet. The
+     * client's own chrome draws neither the icon nor the pressed stone for
+     * such a tab; a plugin frame that replaced that chrome was drawing both,
+     * so a new character's rail wore fourteen icons for the one panel that
+     * opened.
+     */
+    g_frame.missing_tab = -1;
+    g_frame.ungiven_tab = -1;
+    g_frame.active_tab = 3;
+    declare(M_W, M_H);
+    draw(M_W, M_H);
+    {
+        int const given = g_frame.blits;
+
+        g_frame.ungiven_tab = 3;
+        /*
+         * Redrawn and NOT re-declared, which is the point of asking in the
+         * draw pass: a tab handed over mid-tutorial is not a resize, a rebuild
+         * or a claim, so nothing would ever re-run the layout to notice it.
+         */
+        draw(M_W, M_H);
+        CHECK(
+            g_frame.blits == given - 2,
+            "a tab the server has not given loses its icon and its lit stone, "
+            "with no re-declaration to prompt it");
+    }
+
+    /*
+     * And its rock is inert.
+     *
+     * The gate is needed on the tap as well as on the picture because this
+     * stone does two things: tab_select refuses the tab, but the drawer opens
+     * on any tap -- so without it a blank rock still pulled the panel out on
+     * whatever tab was last selected.
+     */
+    g_frame.active_tab = 5;
+    click(M_TAG_TAB | 5u); /* a tab that IS given, and the open one: shuts it */
+    declare(M_W, M_H);
+    CHECK(!g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].placed, "the drawer is shut");
+    g_frame.select_calls = 0;
+    click(M_TAG_TAB | 3u);
+    declare(M_W, M_H);
+    CHECK(
+        !g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].placed,
+        "a tap on a rock the server has not filled leaves the drawer shut");
+    CHECK(g_frame.select_calls == 0, "and selects nothing");
+    g_frame.ungiven_tab = -1;
+
     /* ---- 8. release ----------------------------------------------------- */
 
     PluginHost_SetEnabled(g_host, g_plugin, false);
     CHECK(g_frame.owned == 0, "switching the plugin off hands the lane's gameframe back");
+
+    /* ---- 9. enabled at the title screen ---------------------------------- */
+
+    /*
+     * The restart-shaped bug. The host refuses a layout claim while the title
+     * is up -- there is no frame to claim before there is a frame -- so a
+     * plugin switched on at the title owned nothing; and with no claim there
+     * is no EV_LAYOUT, so nothing asked it to declare after login either. The
+     * drawer only appeared if the plugin was toggled off and on while already
+     * in game. EV_SCREEN_CHANGE is the missing rung: entering the game
+     * re-claims, and the next layout pass declares.
+     */
+    g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
+    PluginHost_SetEnabled(g_host, g_plugin, true);
+    /* The title's frames tick too: this is where the art finishes composing
+     * and the latched retry in mobile_on_frame makes its one claim -- refused,
+     * because the title is still up. Without it the harness never reproduces
+     * the stuck state: the first frame the plugin saw would already be in
+     * game, and the art retry would claim by accident. */
+    PluginHost_FrameStart(g_host, 950);
+    CHECK(
+        g_frame.owned == 0,
+        "enabling at the title claims nothing -- the host refuses the frame");
+    g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+    PluginHost_FrameStart(g_host, 1000);
+    CHECK(g_frame.owned == 1, "logging in claims the frame without a restart");
+    declare(M_W, M_H);
+    CHECK(
+        g_frame.slot[TORIRS_PLUGIN_SLOT_VIEWPORT].placed,
+        "and the next layout pass declares it");
 
     PluginHost_Free(g_host);
 

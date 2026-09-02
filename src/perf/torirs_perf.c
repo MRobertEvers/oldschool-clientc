@@ -261,6 +261,8 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "gl_ibo_upload_bytes",
     "gl_ibo_uploads",
     "gl_draw_ranges",
+    "gl_ui_batch_draws",
+    "gl_project_skipped",
     "gl_draw_calls",
     "gl_attrib_rebinds",
     "gl_2d_batch_flushes",

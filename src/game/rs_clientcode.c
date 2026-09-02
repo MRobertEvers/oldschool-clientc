@@ -517,8 +517,18 @@ RS_ClientCode_Button(
     switch( cc )
     {
     case RS_CC_LOGOUT:
-        /* Reference sets logoutTimer=250 and notifies the server. */
-        TORIRS_LOG("clientcode: logout requested\n");
+        /*
+         * "Click here to logout".
+         *
+         * The reference arms logoutTimer=250 and waits for the server's own
+         * LOGOUT packet to end the session. That wait only works against a
+         * server whose content answers the button; this one is asked either
+         * way, and the client ends the session itself once the request is on
+         * the wire -- which is what the deferral is for. Returning 1 is what
+         * sends it: the caller notifies the server with IF_BUTTON after this
+         * returns, and the logout is performed a tick later, behind it.
+         */
+        app->logout_requested = 1;
         return 1;
     case RS_CC_ACCEPT_DESIGN:
         /* Reference sends IDK_SAVEDESIGN and returns true, so the plain

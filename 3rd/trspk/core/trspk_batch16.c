@@ -33,7 +33,7 @@ static bool
 trspk_batch16_format_supported(enum TRSPK_VertexFormat format)
 {
     return format == TRSPK_VERTEX_FORMAT_WEBGL1 || format == TRSPK_VERTEX_FORMAT_OPENGL3 ||
-           format == TRSPK_VERTEX_FORMAT_D3D9;
+           format == TRSPK_VERTEX_FORMAT_D3D9 || format == TRSPK_VERTEX_FORMAT_GLES2;
 }
 
 static uint32_t

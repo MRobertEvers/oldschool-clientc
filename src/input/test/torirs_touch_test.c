@@ -17,6 +17,10 @@
  *   4. A pinch is the WHEEL and a two-finger pan is the ARROWS, and one pass
  *      does at most one of them -- fingers moving apart also move their
  *      midpoint, so a naive reading zooms and swings the camera together.
+ *   5. WHICH BUTTON a drag holds, which is how "turn the camera" and "throw a
+ *      scrollbar" are told apart -- and that a window drawn over the viewport
+ *      wins, because the client draws its panels inside the world's rectangle
+ *      and a rectangle alone cannot tell the two apart.
  *
  * The bus is a real ToriRS_CmdBus drained into a list, so what is asserted is
  * the commands the client would actually receive, in order.
@@ -32,6 +36,14 @@
 
 static int g_checks;
 static int g_failures;
+
+/** A window covering 0,0..200x100 of the canvas, for the overlay test. */
+static int
+overlay_top_left(void* user, int x, int y)
+{
+    (void)user;
+    return x >= 0 && x < 200 && y >= 0 && y < 100;
+}
 
 #define CHECK(cond, what)                                         \
     do                                                            \
@@ -50,6 +62,7 @@ struct Seen
     int ups;
     int moves;
     int wheels;
+    int leaves;
     int key_downs;
     int key_ups;
     int last_button;
@@ -104,6 +117,9 @@ drain(struct ToriRS_CmdBus* bus, struct Seen* seen)
             seen->last_wheel = wheel.wheel_y;
             break;
         }
+        case TORIRS_CMD_INPUT_MOUSE_LEAVE:
+            seen->leaves++;
+            break;
         case TORIRS_CMD_INPUT_KEY_DOWN:
         case TORIRS_CMD_INPUT_KEY_UP:
         {
@@ -236,6 +252,126 @@ main(void)
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 2, 0, 0, 90);
     drain(&bus, &seen);
     CHECK(seen.key_ups == 1, "and lifting releases it");
+
+    /* ---- a drag on the world turns the camera: the MIDDLE button ---- */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300 + TORIRS_TOUCH_SLOP + 4, 200, 40);
+    drain(&bus, &seen);
+    CHECK(seen.downs == 1, "a drag presses a button once it passes the slop");
+    CHECK(seen.last_button == TORIRSM_MIDDLE, "and on the world that button is the middle one");
+
+    /*
+     * ---- a drag on a WINDOW drawn over the world is the window's ----
+     *
+     * The panel, the developer chrome and the plugin window are all drawn
+     * inside the viewport's rectangle. Read by the rectangle alone this is the
+     * camera; the camera then refuses it (its own gate asks whether the chrome
+     * owns the pointer) and the finger drives nothing at all, which is what
+     * made the plugin panel's scrollbar impossible to drag by touch.
+     */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
+    ToriRS_TouchSetOverlayTest(&touch, overlay_top_left, NULL);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 40, 50, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 40, 50 + TORIRS_TOUCH_SLOP + 4, 40);
+    drain(&bus, &seen);
+    CHECK(seen.downs == 1, "a drag on a window over the world still presses");
+    CHECK(seen.last_button == TORIRSM_LEFT, "and that button is the left one");
+
+    /* and the window is not the whole viewport: outside it the camera is back */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
+    ToriRS_TouchSetOverlayTest(&touch, overlay_top_left, NULL);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300, 200 + TORIRS_TOUCH_SLOP + 4, 40);
+    drain(&bus, &seen);
+    CHECK(seen.last_button == TORIRSM_MIDDLE, "a drag beside the window is still the camera");
+
+    /* the press lands where the finger LANDED, not where it crossed the slop:
+     * a scrollbar grip is grabbed by the point it was touched */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
+    ToriRS_TouchSetOverlayTest(&touch, overlay_top_left, NULL);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 40, 50, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 40, 50 + TORIRS_TOUCH_SLOP + 4, 40);
+    {
+        struct ToriRS_CmdHeader header;
+        uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+        int press_x = -1;
+        int press_y = -1;
+
+        while( CmdBus_Pop(&bus, &header, payload) )
+        {
+            if( header.type == TORIRS_CMD_INPUT_MOUSE_DOWN )
+            {
+                struct ToriRS_CmdMouseButton btn;
+
+                memcpy(&btn, payload, sizeof(btn));
+                press_x = btn.x;
+                press_y = btn.y;
+            }
+        }
+        CHECK(press_x == 40 && press_y == 50, "the press is at the point the finger landed on");
+    }
+
+    /*
+     * ---- the pointer leaves with the finger, but not in the tap's own frame
+     *
+     * A mouse leaves a cursor behind and everything hover means keeps
+     * describing that spot; a finger leaves nothing, so the client is told the
+     * position went stale. The DELAY is the load-bearing half: the tap is
+     * dispatched against the previous frame's world pick, so a leave arriving
+     * in the same batch as the click would take the "Walk here" row and the
+     * target out from under the click it belongs to.
+     */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 100, 80, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 100, 80, 90);
+    drain(&bus, &seen);
+    CHECK(seen.downs == 1 && seen.leaves == 0, "the tap's own frame carries no leave");
+    ToriRS_TouchTick(&touch, &bus, 100);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 0, "nor the frame the click is still being dispatched in");
+    ToriRS_TouchTick(&touch, &bus, 116);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 1, "then the pointer is gone");
+    ToriRS_TouchTick(&touch, &bus, 132);
+    ToriRS_TouchTick(&touch, &bus, 148);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 0, "and it is said once, not every idle frame");
+
+    /* a finger back down before the leave was ever sent cancels it: the
+     * pointer is there again, and saying it left would blank the hover the
+     * new touch just established */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 100, 80, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 100, 80, 90);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 2, 120, 90, 100);
+    ToriRS_TouchTick(&touch, &bus, 116);
+    ToriRS_TouchTick(&touch, &bus, 132);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 0, "a finger back down cancels the pending leave");
+
+    /* a drag ends the same way -- the finger that was holding the camera is
+     * gone too, and its last position is no more a hover than a tap's */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300, 200 + TORIRS_TOUCH_SLOP + 4, 40);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 300, 200 + TORIRS_TOUCH_SLOP + 4, 80);
+    ToriRS_TouchTick(&touch, &bus, 96);
+    ToriRS_TouchTick(&touch, &bus, 112);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 1, "a drag's finger leaves too");
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

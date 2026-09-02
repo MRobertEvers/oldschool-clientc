@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "toridraw_types.h"
 
@@ -55,6 +56,8 @@
 #include "impl/raster/span/span.tex.dispatch.u.c"
 #include "impl/raster/tex/raster.texshadeblend.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
 #include "impl/raster/tex/raster.texshadeblend.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.affine.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.affine.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
 #include "graphics/raster/texture/tex_tri_asm.h"
 #include "graphics/raster/texture/tex_tri_asm_support.u.c"
 #include "graphics/raster/flat/flat_tri_asm.h"
@@ -277,13 +280,40 @@ enum door
     DOOR_TEX_TRANS,
     DOOR_TEX_FLAT_OPAQUE,
     DOOR_TEX_FLAT_TRANS,
+    /* The same four entries with the row's affine lane set: scored against
+     * the C AFFINE kernels, which derive u and v only at the span's ends. */
+    DOOR_TEX_AFFINE_OPAQUE,
+    DOOR_TEX_AFFINE_TRANS,
+    DOOR_TEX_AFFINE_FLAT_OPAQUE,
+    DOOR_TEX_AFFINE_FLAT_TRANS,
     DOOR_COUNT
 };
 
 static const char* const g_door_name[DOOR_COUNT] = {
-    "flat opaque",     "flat alpha",      "gouraud opaque",   "gouraud alpha",
-    "tex opaque blend", "tex trans blend", "tex opaque flat", "tex trans flat",
+    "flat opaque",      "flat alpha",       "gouraud opaque",    "gouraud alpha",
+    "tex opaque blend", "tex trans blend",  "tex opaque flat",   "tex trans flat",
+    "affine opaque",    "affine trans",     "affine opaque flat", "affine trans flat",
 };
+
+static int
+door_is_tex_flat(enum door door)
+{
+    return door == DOOR_TEX_FLAT_OPAQUE || door == DOOR_TEX_FLAT_TRANS ||
+           door == DOOR_TEX_AFFINE_FLAT_OPAQUE || door == DOOR_TEX_AFFINE_FLAT_TRANS;
+}
+
+static int
+door_is_tex_trans(enum door door)
+{
+    return door == DOOR_TEX_TRANS || door == DOOR_TEX_FLAT_TRANS ||
+           door == DOOR_TEX_AFFINE_TRANS || door == DOOR_TEX_AFFINE_FLAT_TRANS;
+}
+
+static int
+door_is_tex_affine(enum door door)
+{
+    return door >= DOOR_TEX_AFFINE_OPAQUE;
+}
 
 static void
 stage_solid(int* rows, int i, const struct tri* t, enum door door)
@@ -315,7 +345,7 @@ stage_tex(int* rows, int i, const struct tri* t, enum door door, int* texels)
 {
     const unsigned char* pm = g_ysort[ysort_perm(t->y)];
     int* row = rows + i * TORIDRAW_RASTER_TEXBATCH_ROW_INTS;
-    int flat = (door == DOOR_TEX_FLAT_OPAQUE || door == DOOR_TEX_FLAT_TRANS);
+    int flat = door_is_tex_flat(door);
     int k;
 
     for( k = 0; k < 3; k++ )
@@ -331,8 +361,8 @@ stage_tex(int* rows, int i, const struct tri* t, enum door door, int* texels)
     }
     TORIDRAW_TEXBATCH_SET_TEXELS(row, texels);
     row[TORIDRAW_TEXBATCH_LANE_TW] = t->texture_width;
-    row[TORIDRAW_TEXBATCH_LANE_GATE] =
-        (door == DOOR_TEX_TRANS || door == DOOR_TEX_FLAT_TRANS) ? 1 : 0;
+    row[TORIDRAW_TEXBATCH_LANE_GATE] = door_is_tex_trans(door) ? 1 : 0;
+    row[TORIDRAW_TEXBATCH_LANE_AFFINE] = door_is_tex_affine(door) ? 1 : 0;
 }
 
 static void
@@ -391,6 +421,34 @@ reference(int* fb, const struct tri* t, enum door door, int* texels)
             t->oz[0], t->oz[1], t->oz[2], t->shade[0], t->shade[0], t->shade[0],
             texels, t->texture_width);
         break;
+    case DOOR_TEX_AFFINE_OPAQUE:
+        raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
+            pix, STRIDE, W, H, COT16, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1],
+            t->y[2], t->ox[0], t->ox[1], t->ox[2], t->oy[0], t->oy[1], t->oy[2],
+            t->oz[0], t->oz[1], t->oz[2], t->shade[0], t->shade[1], t->shade[2],
+            texels, t->texture_width);
+        break;
+    case DOOR_TEX_AFFINE_TRANS:
+        raster_texshadeblend_affine_textrans_branching_lerp8_v3(
+            pix, STRIDE, W, H, COT16, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1],
+            t->y[2], t->ox[0], t->ox[1], t->ox[2], t->oy[0], t->oy[1], t->oy[2],
+            t->oz[0], t->oz[1], t->oz[2], t->shade[0], t->shade[1], t->shade[2],
+            texels, t->texture_width);
+        break;
+    case DOOR_TEX_AFFINE_FLAT_OPAQUE:
+        raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
+            pix, STRIDE, W, H, COT16, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1],
+            t->y[2], t->ox[0], t->ox[1], t->ox[2], t->oy[0], t->oy[1], t->oy[2],
+            t->oz[0], t->oz[1], t->oz[2], t->shade[0], t->shade[0], t->shade[0],
+            texels, t->texture_width);
+        break;
+    case DOOR_TEX_AFFINE_FLAT_TRANS:
+        raster_texshadeblend_affine_textrans_branching_lerp8_v3(
+            pix, STRIDE, W, H, COT16, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1],
+            t->y[2], t->ox[0], t->ox[1], t->ox[2], t->oy[0], t->oy[1], t->oy[2],
+            t->oz[0], t->oz[1], t->oz[2], t->shade[0], t->shade[0], t->shade[0],
+            texels, t->texture_width);
+        break;
     default:
         assert(0);
     }
@@ -430,6 +488,23 @@ run_door(int* fb, const int* rows, int count, enum door door)
             pix, STRIDE, W, H, COT16, rows, count);
         break;
     case DOOR_TEX_FLAT_TRANS:
+        toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm(
+            pix, STRIDE, W, H, COT16, rows, count);
+        break;
+    /* The affine doors are the same entries; the row's lane selects the walk. */
+    case DOOR_TEX_AFFINE_OPAQUE:
+        toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
+            pix, STRIDE, W, H, COT16, rows, count);
+        break;
+    case DOOR_TEX_AFFINE_TRANS:
+        toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm(
+            pix, STRIDE, W, H, COT16, rows, count);
+        break;
+    case DOOR_TEX_AFFINE_FLAT_OPAQUE:
+        toridraw_textri_flat_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
+            pix, STRIDE, W, H, COT16, rows, count);
+        break;
+    case DOOR_TEX_AFFINE_FLAT_TRANS:
         toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm(
             pix, STRIDE, W, H, COT16, rows, count);
         break;
@@ -606,12 +681,85 @@ door_pass(enum door door, int chunks, int* texels)
     return ok ? 0 : 1;
 }
 
+/*
+ * TIMING, not scoring. TORIDRAW_PRESORTED_BENCH=N in the environment runs the
+ * asm door alone over the same staged chunks the parity pass stages -- the
+ * same generators, the same seeds, the same run lengths -- N times per chunk
+ * under CLOCK_MONOTONIC, and prints ns per triangle and per drawn pixel. The
+ * reference is not drawn and nothing is compared: this is for putting a
+ * kernel rewrite on a scale, before and after, on the part it is for. The
+ * framebuffer is NOT reset between the N repeats (a blend re-blends its own
+ * output), which changes no instruction the kernel executes.
+ */
+static long long
+now_ns(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+static void
+door_bench(enum door door, int chunks, int reps, int* texels)
+{
+    static _Alignas(16) int rows[BATCH_MAX * TORIDRAW_RASTER_TEXBATCH_ROW_INTS];
+    int* fb = malloc(sizeof(*fb) * ALLOC);
+    struct tri t[BATCH_MAX];
+    int tex = door >= DOOR_TEX_OPAQUE;
+    long long ns = 0;
+    long triangles = 0;
+    long drawn = 0;
+    int fb_hint;
+    int chunk;
+
+    assert(fb);
+    assert(reps > 0);
+    memset(&fb_hint, 0x5A, sizeof(fb_hint));
+
+    for( chunk = 0; chunk < chunks; chunk++ )
+    {
+        int const count = 1 + (chunk % BATCH_MAX);
+        long long t0;
+        int i;
+        int rep;
+
+        memset(fb, 0x5A, sizeof(*fb) * ALLOC);
+        memset(rows, 0x7E, sizeof(rows));
+        for( i = 0; i < count; i++ )
+        {
+            generate_screen(&t[i], chunk * BATCH_MAX + i);
+            if( tex )
+            {
+                generate_texture(&t[i]);
+                stage_tex(rows, i, &t[i], door, texels);
+            }
+            else
+                stage_solid(rows, i, &t[i], door);
+        }
+
+        t0 = now_ns();
+        for( rep = 0; rep < reps; rep++ )
+            run_door(fb, rows, count, door);
+        ns += now_ns() - t0;
+
+        triangles += (long)count * reps;
+        drawn += count_drawn(fb, fb_hint) * reps;
+    }
+
+    free(fb);
+    printf("BENCH: %-19s reps %d  %ld triangles  %ld px  %.1f ns/tri  %.3f ns/px  %.2f ms\n",
+           g_door_name[door], reps, triangles, drawn,
+           triangles ? (double)ns / (double)triangles : 0.0,
+           drawn ? (double)ns / (double)drawn : 0.0, (double)ns / 1e6);
+}
+
 int
 main(int argc, char** argv)
 {
     int const iters = (argc > 1) ? atoi(argv[1]) : 100000;
     int const chunks = (iters / BATCH_MAX) > 0 ? (iters / BATCH_MAX) : 1;
     int* texels = malloc(sizeof(*texels) * 128 * 128);
+    const char* bench = getenv("TORIDRAW_PRESORTED_BENCH");
     int failed = 0;
     int i;
 
@@ -633,7 +781,10 @@ main(int argc, char** argv)
         if( (flat && !TEST_FLAT) || (gouraud && !TEST_GOURAUD) || (tex && !TEST_TEX) )
             continue;
         g_seed = 20260828u + (unsigned)i;
-        failed |= door_pass((enum door)i, chunks, texels);
+        if( bench && atoi(bench) > 0 )
+            door_bench((enum door)i, chunks, atoi(bench), texels);
+        else
+            failed |= door_pass((enum door)i, chunks, texels);
     }
 
     free(texels);

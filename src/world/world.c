@@ -638,6 +638,8 @@ World_TerrainReset(struct World* world)
 {
     assert(world);
     World_EntityPoolReset(&world->entities.terrain);
+    if( world->painter )
+        painter_clear_terrain_elements(world->painter);
 }
 
 void
@@ -661,6 +663,14 @@ World_TerrainSet(
     terrain->grid_position.level = level;
     terrain->grid_position.x = x;
     terrain->grid_position.z = z;
+
+    /* Mirror into the painter so the paint walk can stamp the id onto the
+     * terrain command (World_TerrainElementAt is the pool walk the frame
+     * then need not make). The painter is made in World_ResetSceneAlloc,
+     * ahead of the build that sets tiles; a world with no painter is a
+     * headless test. */
+    if( world->painter )
+        painter_set_terrain_element(world->painter, x, z, level, element_id);
 }
 
 int

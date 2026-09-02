@@ -39,7 +39,7 @@
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_zone.h"
 #include "perf/torirs_perf.h"
-#include "platform_sdl2.h"
+#include "platform_window.h"
 
 /* The server's own tick. Matched to the real one rather than to the frame rate:
  * a client rendering at 144 Hz must not run the world 144 times a second. */
@@ -132,7 +132,7 @@ embed_poll(
         return;
 
     /* 2. let the server act, and tick it on its own schedule */
-    now = (long)PlatformSDL2_Ticks64();
+    now = (long)PlatformWindow_Ticks64();
     run_tick = self->next_tick_ms == 0 || now >= self->next_tick_ms;
     if( run_tick )
     {

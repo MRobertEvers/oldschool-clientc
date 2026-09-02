@@ -360,11 +360,128 @@ test_sprite_lru_independent_of_models(void)
     dat2_buildcache_free(dat2_buildcache);
 }
 
+static struct ToriRS_MapTerrain*
+fake_terrain(int map_id)
+{
+    struct ToriRS_MapTerrain* terrain = calloc(1, sizeof(*terrain));
+    assert(terrain);
+    terrain->map_x = map_id >> 8;
+    terrain->map_z = map_id & 0xff;
+    return terrain;
+}
+
+static struct ToriRS_MapLocs*
+fake_locs(int map_id)
+{
+    struct ToriRS_MapLocs* locs = calloc(1, sizeof(*locs));
+    assert(locs);
+    locs->chunk_mapx = map_id >> 8;
+    locs->chunk_mapz = map_id & 0xff;
+    locs->locs_count = 1;
+    locs->locs = calloc(1, sizeof(*locs->locs));
+    assert(locs->locs);
+    return locs;
+}
+
+/*
+ * Map squares: the same LRU, keyed by the last build that read the square.
+ * Before this trim existed a session walking the map kept every square it
+ * had ever loaded, which is where "running around" grew the heap without
+ * bound. A 3x3 the next build is about to read has to survive; the squares
+ * that were only ever read many builds ago must not.
+ */
+static void
+test_map_square_lru_keeps_recently_used(void)
+{
+    struct Dat2BuildCache* dat2_buildcache = dat2_buildcache_new();
+    struct CacheProvider* provider = dat2_buildcache_as_provider(dat2_buildcache);
+    const int total = 100;
+    const int recent_first = 10;
+    const int recent_count = 9;
+    int terrain_survivors = 0;
+    int scenery_survivors = 0;
+    int recent_survivors = 0;
+
+    for( int i = 0; i < total; i++ )
+    {
+        CacheProvider_MapTerrainAdd(provider, i, fake_terrain(i));
+        CacheProvider_MapSceneryAdd(provider, i, fake_locs(i));
+    }
+    CHECK(
+        provider->map_terrain_cache->size == (size_t)total,
+        "expected %d squares resident, got %zu",
+        total,
+        provider->map_terrain_cache->size);
+
+    /* A build reads its squares through Get; that is what makes them recent. */
+    for( int i = recent_first; i < recent_first + recent_count; i++ )
+    {
+        CHECK(CacheProvider_MapTerrainGet(provider, i) != NULL, "terrain %d absent", i);
+        CHECK(CacheProvider_MapSceneryGet(provider, i) != NULL, "scenery %d absent", i);
+    }
+
+    CacheProvider_TrimDerivedCaches(provider);
+
+    CHECK(
+        provider->map_terrain_cache->size < (size_t)total,
+        "square trim evicted no terrain (size still %zu)",
+        provider->map_terrain_cache->size);
+    CHECK(
+        provider->map_scenery_cache->size < (size_t)total,
+        "square trim evicted no scenery (size still %zu)",
+        provider->map_scenery_cache->size);
+
+    for( int i = 0; i < total; i++ )
+    {
+        int has_terrain = CacheProvider_MapTerrainHas(provider, i);
+        int has_scenery = CacheProvider_MapSceneryHas(provider, i);
+        terrain_survivors += has_terrain;
+        scenery_survivors += has_scenery;
+        if( i >= recent_first && i < recent_first + recent_count )
+            recent_survivors += has_terrain && has_scenery;
+    }
+    CHECK(
+        recent_survivors == recent_count,
+        "every square the last build read should survive: %d of %d did",
+        recent_survivors,
+        recent_count);
+    CHECK(
+        (size_t)terrain_survivors == provider->map_terrain_cache->size,
+        "walk found %d terrain survivors, map reports %zu",
+        terrain_survivors,
+        provider->map_terrain_cache->size);
+    CHECK(
+        (size_t)scenery_survivors == provider->map_scenery_cache->size,
+        "walk found %d scenery survivors, map reports %zu",
+        scenery_survivors,
+        provider->map_scenery_cache->size);
+
+    /* Below the keep threshold nothing moves: a second trim with the working
+     * set already at size is a no-op, not a slow drain to zero. */
+    {
+        size_t before = provider->map_terrain_cache->size;
+        CacheProvider_TrimDerivedCaches(provider);
+        CHECK(
+            provider->map_terrain_cache->size == before,
+            "repeated square trim drained %zu -> %zu",
+            before,
+            provider->map_terrain_cache->size);
+    }
+
+    printf(
+        "  map square trim: %d of %d squares kept, all %d recently read ones among them\n",
+        terrain_survivors,
+        total,
+        recent_count);
+    dat2_buildcache_free(dat2_buildcache);
+}
+
 int
 main(void)
 {
     printf("cache_trim_test\n");
     test_model_lru_keeps_recently_used();
+    test_map_square_lru_keeps_recently_used();
     test_trim_below_threshold_is_a_noop();
     test_repeated_trim_is_stable();
     test_sprite_lru_independent_of_models();

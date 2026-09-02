@@ -58,6 +58,11 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
     case UITREE_HOST_GET_CROSS_ACTIVE:
     case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
     case UITREE_HOST_GET_CROSS_POSITION:
+    /* The touch marker answers where the last press landed and which frame of
+     * its 400 ms life is showing -- the cross's two inputs exactly. Its
+     * ARTWORK is an asset, but that is the separate _SCENE request; this one
+     * is live state and must not be retained across a frame. */
+    case UITREE_HOST_GET_INKWELL:
         return pointer | animation;
 
     case UITREE_HOST_GET_MINIMENU_VISIBLE:
@@ -75,6 +80,9 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
     case UITREE_HOST_GET_OBJ_NAME:
     case UITREE_HOST_GET_OBJ_ICON_PLAIN:
     case UITREE_HOST_GET_OBJ_ICON_BORDERED:
+    /* The inkwell's generated atlas, uploaded once and holding every style and
+     * colour -- an asset like any baked pack, however it was drawn. */
+    case UITREE_HOST_GET_INKWELL_SCENE:
         return assets;
 
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
@@ -107,6 +115,7 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
     case UITREE_HOST_GET_TITLE_SCREEN:
     case UITREE_HOST_GET_TITLE_MESSAGE:
     case UITREE_HOST_GET_TITLE_PROGRESS:
+    case UITREE_HOST_GET_TITLE_TOGGLE:
         return client;
 
     case UITREE_HOST_GET_TITLE_FIELD:
@@ -235,6 +244,11 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_CROSS_ACTIVE:
     case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
     case UITREE_HOST_GET_CROSS_POSITION:
+    /* No session, so no touch has landed and there is no atlas to point at --
+     * 0 from the state request is "no marker running this frame", which is
+     * exactly what the emit reads it as. */
+    case UITREE_HOST_GET_INKWELL:
+    case UITREE_HOST_GET_INKWELL_SCENE:
     case UITREE_HOST_GET_MINIMENU_VISIBLE:
     case UITREE_HOST_GET_MINIMENU_STATE:
     case UITREE_HOST_GET_HOVERTEXT_STATE:
@@ -261,6 +275,7 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_TITLE_MESSAGE:
     case UITREE_HOST_GET_TITLE_PROGRESS:
     case UITREE_HOST_GET_TITLE_FLAMES:
+    case UITREE_HOST_GET_TITLE_TOGGLE:
     case UITREE_HOST_TITLE_ACTION:
     case UITREE_HOST_GET_MINIMAP_DOTS:
     case UITREE_HOST_BEGIN_OVERLAYS:

@@ -184,6 +184,18 @@ enum UITreeHostRequestKind
     UITREE_HOST_GET_CROSS_ATLAS_FRAME,
     /** Writes the cross center (click point) to u.get_cross_position outs. */
     UITREE_HOST_GET_CROSS_POSITION,
+    /**
+     * The touch marker's whole state in one ask: whether it is running, where,
+     * and which atlas frame. One request rather than the cross's three because
+     * this one is answered from a single struct and splitting it would let the
+     * position and the frame come from different ticks.
+     *
+     * @return non-zero when a marker is running; the outs are untouched
+     * otherwise. @see ui/uitree_ink.h.
+     */
+    UITREE_HOST_GET_INKWELL,
+    /** Scene id of the uploaded inkwell atlas, or <=0 when it has none. */
+    UITREE_HOST_GET_INKWELL_SCENE,
     UITREE_HOST_GET_MINIMENU_VISIBLE,
     /** Writes the live minimenu model pointer to u.get_minimenu_state.out. */
     UITREE_HOST_GET_MINIMENU_STATE,
@@ -565,6 +577,18 @@ struct UITreeHostRequest
             int* out_x;
             int* out_y;
         } get_cross_position;
+        struct
+        {
+            /* In: the component's configured artwork, so the host does not
+             * have to know what a profile said. -1 for any of them means
+             * "unstated", and the host substitutes its default. */
+            int style;
+            int walk_color;
+            int interact_color;
+            int* out_x;
+            int* out_y;
+            int* out_atlas_index;
+        } get_inkwell;
         struct
         {
             int* out_src_anchor_x;

@@ -98,6 +98,26 @@
 #define TORIRS_PLUGIN_KEY_SPACE 45
 
 /* Opaque per-plugin instance handle. The host defines it. */
+/**
+ * What `api->screen` answers: where the client is in a session.
+ *
+ * The values are enum AppScreen's, spelled again here because a plugin header
+ * must not include the app's -- the same "local copies of constants" pattern
+ * the rest of this file uses. engine/torirs_plugin_host.c static_asserts the
+ * two agree, so a value that moved cannot go unnoticed.
+ */
+enum ToriRS_PluginScreen
+{
+    /** Engine still coming up; no title tree yet. */
+    TORIRS_PLUGIN_SCREEN_BOOT = 0,
+    /** Title screen: main menu, login form or the info page. */
+    TORIRS_PLUGIN_SCREEN_TITLE = 10,
+    /** Login handshake in flight; the title tree is still what draws. */
+    TORIRS_PLUGIN_SCREEN_CONNECTING = 20,
+    /** In game: the gameframe is rooted and its parts exist. */
+    TORIRS_PLUGIN_SCREEN_GAME = 30
+};
+
 struct ToriRS_PluginCtx;
 
 /* ------------------------------------------------------------------------ */
@@ -279,6 +299,25 @@ enum ToriRS_PluginEvent
      * was. chrome_paint and chrome_ops are legal here and nowhere else.
      */
     TORIRS_PLUGIN_EV_CHROME,
+    /**
+     * `api->screen`'s answer changed. Payload: EvScreen, carrying the new
+     * answer and the one it replaced.
+     *
+     * Raised at the frame boundary, before that frame's EV_FRAME_START, so a
+     * handler acts on the same answer every later poll of api->screen this
+     * frame will get.
+     *
+     * This event exists because several handlers GATE on the screen -- a
+     * gameframe declares nothing on the title screen, a HUD draws nothing
+     * there -- and a gate needs a moment to reopen. A plugin enabled at the
+     * title screen would decline to declare, and nothing would ever ask it
+     * again: EV_LAYOUT re-fires on a claim, a resize or a rebuild, and logging
+     * in is none of the three. Entering the game is the moment such a plugin
+     * re-claims (idempotent for the holder, and it marks the frame as needing
+     * a fresh EV_LAYOUT); leaving it needs no handler at all, because the
+     * per-event gates already answer for every frame drawn on the title.
+     */
+    TORIRS_PLUGIN_EV_SCREEN_CHANGE,
 
     TORIRS_PLUGIN_EV_COUNT
 };
@@ -613,6 +652,15 @@ struct ToriRS_PluginEvWorld
 {
     int base_tile_x;
     int base_tile_z;
+};
+
+/** @see TORIRS_PLUGIN_EV_SCREEN_CHANGE. Both are TORIRS_PLUGIN_SCREEN_*. */
+struct ToriRS_PluginEvScreen
+{
+    /** What api->screen answers now. */
+    int screen;
+    /** What it answered until this moment. */
+    int previous;
 };
 
 struct ToriRS_PluginEvNpc
@@ -1310,12 +1358,17 @@ enum ToriRS_PluginLayoutSlot
      *
      * DERIVED rather than declared, and that is the value of it: it is
      * computed from what is actually claimed, so it stays right when a plugin
-     * adds a dock nobody anticipated. A declared "safe area" is only ever as
+     * adds a dock nobody anticipated. A declared safe region is only ever as
      * current as the last person who remembered to update it.
+     *
+     * GAMECHROME names the occluder: this is the canvas minus the CLIENT's
+     * own furniture. What the OPERATING SYSTEM covers (the soft keyboard) is
+     * a different question with a different answer -- @see
+     * ToriRS_PluginApi::safe_os.
      *
      * @see layout_reserve, which is how a plugin takes a bite out of it.
      */
-    TORIRS_PLUGIN_SLOT_SAFE,
+    TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME,
 
     TORIRS_PLUGIN_SLOT_COUNT
 };
@@ -1640,6 +1693,56 @@ struct ToriRS_PluginApi
      */
     void (*disable_self)(struct ToriRS_PluginCtx* ctx, char const* reason);
 
+    /* -- where the client is -- */
+
+    /**
+     * Which SCREEN the client is showing, as a TORIRS_PLUGIN_SCREEN_* value.
+     *
+     * The question a plugin that dresses the GAMEFRAME has to ask before it
+     * does anything at all: there is no gameframe on the title screen, so a
+     * claim made there is a claim on parts that do not exist, and the parts
+     * that DO exist -- the title background, the logo, the login box -- get
+     * covered by furniture drawn for a frame nobody is looking at yet.
+     *
+     * That is not hypothetical: it is what "half the static sprites are
+     * missing" looked like, and the plugin doing it was behaving exactly as
+     * written -- it had no way to ask. A plugin whose effect belongs in the
+     * game gates on TORIRS_PLUGIN_SCREEN_GAME and leaves the rest alone.
+     *
+     * CONNECTING is deliberately its own value rather than folded into either
+     * neighbour: the title tree is still up and still drawing (that is where
+     * "Connecting to server..." appears), so it is a screen where gameframe
+     * work is still wrong -- but a plugin that wants to know a login is in
+     * flight can see it without inferring it from a transition.
+     */
+    int (*screen)(struct ToriRS_PluginCtx* ctx);
+
+    /**
+     * The part of the canvas the OPERATING SYSTEM is not covering, in canvas
+     * coordinates. Always answers 1 and always fills a non-empty box.
+     *
+     * Not the `safe_gamechrome` role, and the difference is who the occluder
+     * answers to. `safe_gamechrome` is the canvas minus the CLIENT's own
+     * chrome -- regions the frame declared, edges plugins reserved -- and
+     * this, `safe_os`, is the canvas minus what
+     * the platform put on top of the whole window: today the soft keyboard, a
+     * band off the bottom while it is up. On a desktop, and on a phone with
+     * the keyboard away, the answer IS the canvas.
+     *
+     * The question a mobile frame asks in EV_LAYOUT: a chatbox pinned to the
+     * canvas's bottom edge is pinned under the keyboard the moment one is
+     * raised, so the bottom it wants is THIS box's. The host re-declares the
+     * layout when the answer changes -- a keyboard arriving is a layout event
+     * exactly as a resize is -- so reading it in EV_LAYOUT is enough; nothing
+     * needs to poll.
+     *
+     * Answered on every screen, unlike the frame queries: the keyboard is a
+     * property of the WINDOW, and a plugin sizing something on the title
+     * screen is as entitled to the answer as the gameframe is.
+     */
+    int (*safe_os)(
+        struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h);
+
     /* -- clocks -- */
 
     /** World cycle (advances once per 20ms client tick). */
@@ -1761,7 +1864,7 @@ struct ToriRS_PluginApi
      * is an ANSWER, not a fault -- plenty of frames have no compass -- so the
      * idiom is to ask for the tightest region first and fall back:
      *
-     *     if( !api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, ...) &&
+     *     if( !api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, ...) &&
      *         !api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, ...) &&
      *         !api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, ...) )
      *         api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_CANVAS, ...);
@@ -2040,6 +2143,10 @@ struct ToriRS_PluginApi
      * about the gameframe -- so a layout draws the stones and the icons and
      * asks this which one to draw pressed, rather than keeping a selection of
      * its own that the server could contradict.
+     *
+     * Which of those tabs the PLAYER has been given is a third question again.
+     * @see tab_enabled, which a layout has to ask before it draws either the
+     * icon or the pressed stone.
      */
     int (*tab_active)(struct ToriRS_PluginCtx* ctx);
     /**
@@ -2563,6 +2670,25 @@ struct ToriRS_PluginApi
      */
     void (*text_input)(struct ToriRS_PluginCtx* ctx, int on);
 
+    /**
+     * Give the client's chat input line the keyboard focus (or drop it) --
+     * the other half of text_input, and the same thing pressing Enter on the
+     * unfocused line does.
+     *
+     * The verb a touch frame's "Tap here to chat..." needs: a tap on the chat
+     * sheet is swallowed by the frame's own hit region (that is what keeps it
+     * off the world behind it), so the client's click-to-focus never sees it,
+     * and raising the keyboard alone points the typing at the HOTKEYS -- the
+     * doc above says exactly that. Focusing the line is also what makes the
+     * keyboard follow by itself: the client raises and lowers the soft
+     * keyboard off its own focus state, so a frame that calls this does not
+     * need text_input for the chat at all.
+     *
+     * A no-op on a lane with no client-drawn chat line (a cache-era chatbox
+     * routes its own keys), exactly as the focus flag itself is.
+     */
+    void (*chat_focus)(struct ToriRS_PluginCtx* ctx, int on);
+
     int (*if_click)(struct ToriRS_PluginCtx* ctx, int component_id, int op);
 
     /**
@@ -2613,7 +2739,7 @@ struct ToriRS_PluginApi
      *
      * `role` is the profile's own spelling, and the well-known ones are the
      * regions (`viewport`, `minimap`, `compass`, `chat`, `sidebar`,
-     * `main_modal`, `chat_buttons`, `canvas`, `safe`) plus whatever elements
+     * `main_modal`, `chat_buttons`, `canvas`, `safe_gamechrome`) plus whatever elements
      * a profile has named. The vocabulary is OPEN: a role nobody declared is
      * not an error, it is a role this revision does not have.
      *
@@ -3504,6 +3630,58 @@ struct ToriRS_PluginApi
         char const* const* ops,
         int op_count,
         uint32_t tag);
+
+    /* -- ABI 20 append: the tabs the server took away --------------------- */
+
+    /**
+     * Whether tab `tabno` has a panel behind it RIGHT NOW.
+     *
+     * The SERVER's answer, and the other half of the question layout_slot_at
+     * answers. Those two are not the same question and a frame needs both:
+     *
+     *   layout_slot_at  does this cache have a Clan chat tab at all
+     *   tab_enabled     has the server given this player that tab yet
+     *
+     * The first is a fact about the gameframe and cannot change while a world
+     * is loaded; the second changes on a packet -- the tutorial hands the tabs
+     * out one at a time and starts with none of them, so every tab but one is
+     * "not yet" for the first minutes of a new character's life.
+     *
+     * ONE question, however the lane happens to spell it. A 2004 frame carries
+     * its own sidebar mounts and the tab is IF_SETTAB's; a frame that is the
+     * cache's own IF3 tree has neither, and there the tab is a node the
+     * revision's own scripts hide (IF_SETHIDE) or a sub-interface the server
+     * closed. Which of those is in play is the profile's business -- it names
+     * the tab, `[role:sidetab_<n>]` -- and the engine's; a plugin asks the
+     * question and is not told the mechanism. @see RS_UISlots_TabGiven.
+     *
+     * A lane whose profile says nothing about a tab answers 1: nothing there
+     * claims it is hidden, and a frame that drew no icons at all would be a
+     * worse wrong than one that drew every icon.
+     *
+     * A layout that draws an icon for a tab the server has taken away is
+     * showing a panel that cannot open, which is the same wrong as a stone for
+     * a tab this cache lacks and worse for being temporary: the player is
+     * being invited to tap the very thing the tutorial has just hidden. The
+     * client's own chrome gates its icon and its pressed highlight on this
+     * (reference drawSidebarIcons, `sideOverlayId[n] !== -1`), and a plugin
+     * frame that replaces that chrome takes on the same duty.
+     *
+     * Answered from live state on every call and never cached by the host, so
+     * a frame asks it in its DRAW pass and not in its layout: a tab handed
+     * over mid-tutorial is not a resize, a rebuild or a claim, and a layout
+     * that recorded the answer once would keep drawing the tutorial's first
+     * minute for the rest of the session.
+     *
+     * `tab_select` already refuses a tab this answers 0 for, so a frame that
+     * only draws needs no second gate on the click -- but a frame whose stone
+     * does something of its OWN (the mobile drawer opens on any tap) has to
+     * ask before doing it.
+     *
+     * @return 1 when the tab has an interface mounted, 0 when it does not or
+     * `tabno` is not a tab.
+     */
+    int (*tab_enabled)(struct ToriRS_PluginCtx* ctx, int tabno);
 };
 
 /* ------------------------------------------------------------------------ */

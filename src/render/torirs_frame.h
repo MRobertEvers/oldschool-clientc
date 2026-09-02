@@ -23,6 +23,9 @@ enum ToriRS_FramePassKind
 /** Views the frame can hold transforms for; matches PAINTER_MAX_WORLD_VIEWS
  * and WORLDVIEW_MAX, and doubles as the descent depth cap. */
 #define TORIRS_FRAME_MAX_VIEWS 16
+/** Slots in the emit loop's lookahead ring; a power of two, and more than
+ *  the deepest prefetch pipeline reaches (cur..cur+4). */
+#define TORIRS_FRAME_LOOKAHEAD_RING 8
 
 /**
  * One world view's descent transform (SAILING_PLAN C3, SAILING.md §5.2).
@@ -100,6 +103,21 @@ struct ToriRS_Frame
     enum ToriRS_FramePassKind pass;
     int emit_index;
     int painters_index;
+    /* The element ids of the next few painter commands, resolved once when
+     * they are prefetched (a terrain command's id is a pool lookup) and
+     * reused when the command comes round. Slot i & (RING-1) holds command
+     * i. Eight slots, not four: the deepest pipeline the emit loop offers
+     * (TORIRS_FRAME_PREFETCH_MODEL=2) resolves cur+4 while cur is still
+     * pending, and a four-slot ring put both in the same slot -- the
+     * prefetch evicted the current command's own id, which was then resolved
+     * a second time at its turn. */
+    int lookahead_index[TORIRS_FRAME_LOOKAHEAD_RING];
+    int lookahead_id[TORIRS_FRAME_LOOKAHEAD_RING];
+    /** ToriDraw_SceneEvents(scene), taken once at ToriRS_FrameBegin instead of
+     *  per command (TORIRS_FRAME_TRIM); `scene_events_of` is the scene it was
+     *  taken from, so a re-pointed scene cannot be served a stale queue. */
+    struct ToriDraw_EventQueue* scene_events;
+    const struct ToriDraw_Scene* scene_events_of;
     /* TORIRS_FRAME_DEBUG counters — painted commands that did / did not become
      * draws. Diagnostic only; nothing reads them outside the debug print. */
     int dbg_emit_element;
@@ -216,6 +234,18 @@ ToriRS_FrameSetViewXform(
 
 void
 ToriRS_FrameBegin(struct ToriRS_Frame* frame);
+
+/*
+ * The element id of the painter command `distance` (1..3) after the one the
+ * last ToriRS_FrameNextCommand emitted, when the emit loop's lookahead has
+ * already resolved it; -1 outside the world pass, past the end, at a view
+ * marker, or when it is not resolved. A renderer uses it to warm its own
+ * per-element tables a step ahead of the dispatch that reads them.
+ */
+int
+ToriRS_FrameLookaheadElementId(
+    const struct ToriRS_Frame* frame,
+    int distance);
 
 bool
 ToriRS_FrameNextCommand(

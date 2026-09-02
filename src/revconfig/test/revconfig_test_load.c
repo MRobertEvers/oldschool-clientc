@@ -1,5 +1,6 @@
 #include "test_harness.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static uint32_t
@@ -64,6 +65,8 @@ test_load(void)
         "c=compass\n"
         "p=compass_slot\n"
         "left=1\n"
+        "safe_area=os:bottom\n"
+        "safe_area_margin=8\n"
         "\n"
         "[inv:backpack]\n"
         "item=bronze_dagger\n"
@@ -77,11 +80,42 @@ test_load(void)
         "mover=cycle\n"
         "\n"
         "[camera]\n"
-        "zoom=clamped:[240, 2160]\n"
+        "zoom_closest=240\n"
+        "zoom_furthest=2160\n"
         "controls=mmb,arrow_keys\n"
         "wheel_step=60\n";
 
     revconfig_load_fields_from_ini_bytes((const uint8_t*)ini, (uint32_t)strlen(ini), fields);
+
+    /* A nameless section with a platform tag: `[camera@mobile]` is the same
+     * `[camera]` on a touch build and skipped whole elsewhere. The tag is
+     * read through TORIRS_REVCONFIG_PLATFORM so the test can be both. */
+    {
+        static const char mobile_ini[] =
+            "[camera]\n"
+            "rest=600\n"
+            "\n"
+            "[camera@mobile]\n"
+            "zoom_closest=60\n";
+        struct RevConfigBuffer* mobile = revconfig_buffer_new(128);
+        struct RevConfigBuffer* desktop = revconfig_buffer_new(128);
+        setenv("TORIRS_REVCONFIG_PLATFORM", "mobile", 1);
+        revconfig_load_fields_from_ini_bytes(
+            (const uint8_t*)mobile_ini, (uint32_t)strlen(mobile_ini), mobile);
+        setenv("TORIRS_REVCONFIG_PLATFORM", "desktop", 1);
+        revconfig_load_fields_from_ini_bytes(
+            (const uint8_t*)mobile_ini, (uint32_t)strlen(mobile_ini), desktop);
+        unsetenv("TORIRS_REVCONFIG_PLATFORM");
+        TEST_ASSERT(count_kind(mobile, RCFIELD_CAMERA_REST) == 1, "mobile: base rest kept");
+        TEST_ASSERT(
+            count_kind(mobile, RCFIELD_CAMERA_ZOOM_CLOSEST) == 1, "mobile: [camera@mobile] applied");
+        TEST_ASSERT(count_kind(desktop, RCFIELD_CAMERA_REST) == 1, "desktop: base rest kept");
+        TEST_ASSERT(
+            count_kind(desktop, RCFIELD_CAMERA_ZOOM_CLOSEST) == 0,
+            "desktop: [camera@mobile] skipped whole");
+        revconfig_buffer_free(mobile);
+        revconfig_buffer_free(desktop);
+    }
 
     TEST_ASSERT(count_kind(fields, RCFIELD_ITEMTYPE) >= 4, "item types");
     TEST_ASSERT(count_kind(fields, RCFIELD_ITEMDONE) >= 4, "item dones");
@@ -119,6 +153,29 @@ test_load(void)
             break;
         case RCITEM_UILAYOUT:
             layouts++;
+            /* The row that asked to dodge the soft keyboard, and the one that
+             * did not: an edge nobody named must stay unnamed, or every panel
+             * in every profile starts moving on a phone. */
+            if( strcmp(items->items[i].u.uilayout.name, "child") == 0 )
+            {
+                TEST_ASSERT(
+                    items->items[i].u.uilayout.safe_area_source ==
+                        REVCONFIG_SAFE_AREA_SOURCE_OS,
+                    "safe_area area is os");
+                TEST_ASSERT(
+                    items->items[i].u.uilayout.safe_area_flags ==
+                        REVCONFIG_SAFE_AREA_FLAG_BOTTOM,
+                    "safe_area edge is bottom");
+                TEST_ASSERT(
+                    items->items[i].u.uilayout.safe_area_margin == 8, "safe_area_margin");
+            }
+            else
+            {
+                TEST_ASSERT(
+                    items->items[i].u.uilayout.safe_area_source ==
+                        REVCONFIG_SAFE_AREA_SOURCE_NONE,
+                    "safe_area unstated");
+            }
             break;
         case RCITEM_INV:
             invs++;
@@ -149,9 +206,9 @@ test_load(void)
         TEST_ASSERT(strcmp(features->u.features.mover, "cycle") == 0, "features mover");
         TEST_ASSERT(camera != NULL, "[camera] section parsed");
         TEST_ASSERT(
-            camera->u.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_CLAMPED, "camera clamped");
-        TEST_ASSERT(camera->u.camera.zoom_min == 240, "camera zoom min");
-        TEST_ASSERT(camera->u.camera.zoom_max == 2160, "camera zoom max");
+            camera->u.camera.wheel == REVCONFIG_CAMERA_WHEEL_LIVE, "camera clamped");
+        TEST_ASSERT(camera->u.camera.zoom_closest == 240, "camera band near end");
+        TEST_ASSERT(camera->u.camera.zoom_furthest == 2160, "camera band far end");
         TEST_ASSERT(
             camera->u.camera.controls ==
                 (REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS),

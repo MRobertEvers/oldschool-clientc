@@ -31,9 +31,10 @@ struct RevConfigProfile
      *  struct RevConfigFeaturesItem. */
     struct RevConfigFeaturesItem features;
 
-    /** `[camera]`, fully resolved: RevConfigProfile_Init seeds the defaults and
-     *  a stated key replaces one. Read directly — has_zoom / has_controls are
-     *  spent by the merge and mean nothing afterwards. */
+    /** `[camera]`, fully resolved: RevConfigProfile_Init seeds one default per
+     *  key and a stated key replaces exactly that one. Read directly — the
+     *  has_* flags are the merge's own bookkeeping (they also say whether a
+     *  band end is still derived from `rest`) and mean nothing to a reader. */
     struct RevConfigCameraItem camera;
 
     /** `[chrome]` — where this revision mounts the client's own plugin button.
@@ -75,10 +76,11 @@ RevConfigProfile_LoadSources(
     char const* cache_ini,
     char const* inline_ini);
 
-/** Clamp `height` into the camera's zoom band. A `fixed:` camera has a band of
- *  one, so this is also what pins it. */
+/** Clamp a live zoom into `zoom_closest..zoom_furthest`. The band is always
+ *  real, so this narrows a value the wheel moved; it never pins the camera.
+ *  Pinning is the player's REVCONFIG_CAMERA_WHEEL_PINNED, not a band of one. */
 int
-RevConfigProfile_CameraClampHeight(
+RevConfigProfile_CameraClampZoom(
     struct RevConfigProfile const* profile,
     int height);
 

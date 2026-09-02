@@ -93,6 +93,15 @@ struct FakeEngine
 
 static struct FakeEngine g_engine;
 
+/* In game: these harnesses exercise behaviour that is gated on it.
+ * @see ToriRS_PluginApi::screen. */
+static int
+fake_plugin_screen(void* u)
+{
+    (void)u;
+    return TORIRS_PLUGIN_SCREEN_GAME;
+}
+
 static int
 fake_world_cycle(void* u)
 {
@@ -636,6 +645,13 @@ fake_tab_select(void* u, int tabno)
     return 0;
 }
 static int
+fake_tab_enabled(void* u, int tabno)
+{
+    (void)u;
+    (void)tabno;
+    return 1;
+}
+static int
 fake_model_publish(void* u, int m, void const* d, int size)
 {
     (void)u;
@@ -988,6 +1004,7 @@ fake_engine(void)
     struct ToriRS_PluginEngine e;
     memset(&e, 0, sizeof(e));
     e.user = &g_engine;
+    e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;
@@ -1057,6 +1074,7 @@ fake_engine(void)
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.model_publish = fake_model_publish;
     e.model_release = fake_model_release;
     e.mesh_create = fake_mesh_create;

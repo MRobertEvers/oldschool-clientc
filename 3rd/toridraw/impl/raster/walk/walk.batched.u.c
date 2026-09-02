@@ -109,6 +109,7 @@ struct ToriDraw_RasterBatchFace
     const int* texels; /* textured: the resolved texture           */
     int texture_width;
     int gate; /* 1 = a zero texel keys out                */
+    int affine; /* 1 = span-linear u/v (the affine family) */
     int p;    /* textured: the frame's three vertices,    */
     int m;    /*   which are NOT permuted by the y sort   */
     int n;
@@ -289,10 +290,21 @@ toridraw_raster_batch_classify_textured(
     if( ctx->skip_textured )
         return TORIDRAW_RASTER_BATCH_NONE;
 
-    /* The affine family is a different rasteriser with a different signature;
-     * the batch kernels are the perspective one. */
+    /* The affine family (the model's TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES, or
+     * the camera's texture_affine) is the same walk with u and v derived at
+     * the span's two ends instead of every eight pixels. The run kernels
+     * carry it as a lane of the row, so an affine face is staged like any
+     * other and the kernel reads the lane per face. Only the render_type
+     * family below is a different rasteriser, and it still declines. A lane
+     * whose run kernel does not read the lane yet (tex_tri_asm.h says which)
+     * hands the face to the per-face C affine family instead. */
+#ifdef TORIDRAW_TEXTRI_PRESORTED_RUN_AFFINE
+    out->affine = ctx->target.affine_textures ? 1 : 0;
+#else
     if( ctx->target.affine_textures )
         return TORIDRAW_RASTER_BATCH_NONE;
+    out->affine = 0;
+#endif
 
     if( texture_id == ctx->cache_texture_id )
     {
@@ -527,6 +539,7 @@ toridraw_raster_batch_append_textured(
     TORIDRAW_TEXBATCH_SET_TEXELS(row, info->texels);
     row[TORIDRAW_TEXBATCH_LANE_TW] = info->texture_width;
     row[TORIDRAW_TEXBATCH_LANE_GATE] = info->gate;
+    row[TORIDRAW_TEXBATCH_LANE_AFFINE] = info->affine;
     /* The rest pads the row to 16 bytes; no kernel reads it. */
 
     batch->kind = kind;

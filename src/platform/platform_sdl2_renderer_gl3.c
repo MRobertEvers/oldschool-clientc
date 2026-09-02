@@ -310,31 +310,76 @@ gl3_upload_sprite_atlas(struct ToriRS_GL3* renderer)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    if( !renderer->sprite_atlas_texture_allocated )
+    /*
+     * Push only the rectangle that changed -- the discipline D3D9 has followed
+     * since it was written (WINDOWS-D3D9-UPLOAD-001) and the one this path
+     * lacked. The writers (trspk_atlas_update_rect) merge an exact dirty
+     * rectangle; the upload used to ignore it and push the whole 2048^2 RGBA
+     * atlas -- 16 MB -- on every dirty frame. The title flames dirty it EVERY
+     * frame. A desktop bus hides that; the GLES2 lane, which shares this
+     * function's shape, measured it at 60-70 ms of render per frame on the
+     * phone. Rows are packed rather than GL_UNPACK_ROW_LENGTH'd so both GL
+     * backends run one path and a bug in it cannot hide on the host nobody
+     * tests.
+     */
     {
-        glTexImage2D(
+        struct TRSPK_AtlasDirtyRect dirty;
+        size_t need;
+
+        if( !renderer->sprite_atlas_texture_allocated )
+        {
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                TORIRS_GL_TEX_RGBA,
+                (GLsizei)renderer->sprite_atlas.width,
+                (GLsizei)renderer->sprite_atlas.height,
+                0,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                renderer->sprite_atlas.pixels);
+            renderer->sprite_atlas_texture_allocated = true;
+            trspk_atlas_clear_dirty(&renderer->sprite_atlas);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            return;
+        }
+        if( !trspk_atlas_get_dirty_rect(&renderer->sprite_atlas, &dirty) || dirty.w == 0u ||
+            dirty.h == 0u )
+        {
+            trspk_atlas_clear_dirty(&renderer->sprite_atlas);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            return;
+        }
+        need = (size_t)dirty.w * (size_t)dirty.h * 4u;
+        if( need > renderer->atlas_stage_capacity )
+        {
+            size_t cap = renderer->atlas_stage_capacity ? renderer->atlas_stage_capacity : 65536u;
+            uint8_t* grown;
+            while( cap < need )
+                cap *= 2u;
+            grown = (uint8_t*)realloc(renderer->atlas_stage, cap);
+            assert(grown);
+            renderer->atlas_stage = grown;
+            renderer->atlas_stage_capacity = cap;
+        }
+        for( uint32_t y = 0u; y < dirty.h; y++ )
+        {
+            const uint8_t* src = renderer->sprite_atlas.pixels +
+                                 (size_t)(dirty.y + y) * renderer->sprite_atlas.stride +
+                                 (size_t)dirty.x * 4u;
+            memcpy(renderer->atlas_stage + (size_t)y * dirty.w * 4u, src, (size_t)dirty.w * 4u);
+        }
+        glTexSubImage2D(
             GL_TEXTURE_2D,
             0,
-            TORIRS_GL_TEX_RGBA,
-            (GLsizei)renderer->sprite_atlas.width,
-            (GLsizei)renderer->sprite_atlas.height,
-            0,
+            (GLint)dirty.x,
+            (GLint)dirty.y,
+            (GLsizei)dirty.w,
+            (GLsizei)dirty.h,
             GL_RGBA,
             GL_UNSIGNED_BYTE,
-            NULL);
-        renderer->sprite_atlas_texture_allocated = true;
+            renderer->atlas_stage);
     }
-
-    glTexSubImage2D(
-        GL_TEXTURE_2D,
-        0,
-        0,
-        0,
-        (GLsizei)renderer->sprite_atlas.width,
-        (GLsizei)renderer->sprite_atlas.height,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        renderer->sprite_atlas.pixels);
     trspk_atlas_clear_dirty(&renderer->sprite_atlas);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
@@ -1278,7 +1323,8 @@ gl3_sprite_ensure_base(
         float uv[4];
         if( !rgba )
             return false;
-        trspk_sprite_argb_to_rgba(
+        trspk_sprite_argb_to_rgba_for(
+            sp->alpha_channel,
             (uint32_t const*)sp->pixels_argb, rgba, (size_t)sp->width * (size_t)sp->height);
         if( sp->crop_width > 0 &&
             (sp->crop_width < sp->width || sp->crop_height < sp->height) )
@@ -1438,7 +1484,7 @@ gl3_sprite_ensure_variant(
     {
         float uv[4];
         /* Transforms leave ToriDraw ARGB in spr_px; GL_RGBA wants R,G,B,A. */
-        trspk_sprite_argb_to_rgba(spr_px, spr_px, (size_t)sw * (size_t)sh);
+        trspk_sprite_argb_to_rgba_for(sp->alpha_channel, spr_px, spr_px, (size_t)sw * (size_t)sh);
         if( !gl3_sprite_upload_rgba(
                 renderer, (uint8_t const*)spr_px, (uint32_t)sw * 4u, sw, sh, NULL, uv) )
         {

@@ -39,6 +39,15 @@
  */
 #define CACHE_PROVIDER_MODEL_KEEP ((size_t)1536)
 #define CACHE_PROVIDER_SPRITE_KEEP ((size_t)1024)
+/*
+ * Map squares (terrain + scenery) are trimmed at the same seam. A square is
+ * ~200 KB of terrain plus its loc list, and a rebuild touches at most a 4x4
+ * of them (a 104-tile scene straddling square borders), so 32 holds the
+ * current scene, the previous one, and an entity-viewer view's squares
+ * beside them. Squares were never evicted before this: every square walked
+ * past stayed resident until shutdown.
+ */
+#define CACHE_PROVIDER_MAP_SQUARE_KEEP ((size_t)32)
 #define CACHE_PROVIDER_FONT_CAPACITY 16
 #define CACHE_PROVIDER_ENUM_CAPACITY 256
 #define CACHE_PROVIDER_STRUCT_CAPACITY 128
@@ -215,12 +224,14 @@ struct MapEntry_ProviderMapTerrain
 {
     int id;
     struct ToriRS_MapTerrain* terrain;
+    uint64_t last_used;
 };
 
 struct MapEntry_ProviderMapScenery
 {
     int id;
     struct ToriRS_MapLocs* locs;
+    uint64_t last_used;
 };
 
 struct MapEntry_ProviderLocation
@@ -707,12 +718,96 @@ cache_provider_trim_sprites(struct CacheProvider* provider, size_t keep)
     free(doomed);
 }
 
+static void
+cache_provider_trim_map_terrain(struct CacheProvider* provider, size_t keep)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderMapTerrain* entry;
+    uint64_t threshold;
+    int* doomed;
+    int doomed_count = 0;
+
+    if( !provider->map_terrain_cache || (size_t)provider->map_terrain_cache->size <= keep )
+        return;
+
+    threshold = cache_provider_lru_threshold(
+        provider->map_terrain_cache,
+        sizeof(*entry),
+        offsetof(struct MapEntry_ProviderMapTerrain, last_used),
+        keep);
+    if( threshold == 0 )
+        return;
+
+    doomed = malloc((size_t)provider->map_terrain_cache->size * sizeof(*doomed));
+    assert(doomed);
+
+    iter = hmap_iter_new(provider->map_terrain_cache);
+    while( (entry = (struct MapEntry_ProviderMapTerrain*)hmap_iter_next(iter)) )
+    {
+        if( entry->last_used <= threshold )
+            doomed[doomed_count++] = entry->id;
+    }
+    hmap_iter_free(iter);
+
+    for( int i = 0; i < doomed_count; i++ )
+    {
+        entry = (struct MapEntry_ProviderMapTerrain*)hmap_search(
+            provider->map_terrain_cache, &doomed[i], HMAP_REMOVE);
+        if( entry && entry->terrain )
+            ToriRS_MapTerrainFree(entry->terrain);
+    }
+    free(doomed);
+}
+
+static void
+cache_provider_trim_map_scenery(struct CacheProvider* provider, size_t keep)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderMapScenery* entry;
+    uint64_t threshold;
+    int* doomed;
+    int doomed_count = 0;
+
+    if( !provider->map_scenery_cache || (size_t)provider->map_scenery_cache->size <= keep )
+        return;
+
+    threshold = cache_provider_lru_threshold(
+        provider->map_scenery_cache,
+        sizeof(*entry),
+        offsetof(struct MapEntry_ProviderMapScenery, last_used),
+        keep);
+    if( threshold == 0 )
+        return;
+
+    doomed = malloc((size_t)provider->map_scenery_cache->size * sizeof(*doomed));
+    assert(doomed);
+
+    iter = hmap_iter_new(provider->map_scenery_cache);
+    while( (entry = (struct MapEntry_ProviderMapScenery*)hmap_iter_next(iter)) )
+    {
+        if( entry->last_used <= threshold )
+            doomed[doomed_count++] = entry->id;
+    }
+    hmap_iter_free(iter);
+
+    for( int i = 0; i < doomed_count; i++ )
+    {
+        entry = (struct MapEntry_ProviderMapScenery*)hmap_search(
+            provider->map_scenery_cache, &doomed[i], HMAP_REMOVE);
+        if( entry && entry->locs )
+            ToriRS_MapLocsFree(entry->locs);
+    }
+    free(doomed);
+}
+
 void
 CacheProvider_TrimDerivedCaches(struct CacheProvider* provider)
 {
     assert(provider);
     cache_provider_trim_models(provider, CACHE_PROVIDER_MODEL_KEEP);
     cache_provider_trim_sprites(provider, CACHE_PROVIDER_SPRITE_KEEP);
+    cache_provider_trim_map_terrain(provider, CACHE_PROVIDER_MAP_SQUARE_KEEP);
+    cache_provider_trim_map_scenery(provider, CACHE_PROVIDER_MAP_SQUARE_KEEP);
 }
 
 void
@@ -2364,6 +2459,7 @@ CacheProvider_MapTerrainAdd(
 
     entry->id = map_id;
     entry->terrain = terrain;
+    entry->last_used = ++provider->derived_clock;
 }
 
 struct ToriRS_MapTerrain*
@@ -2379,6 +2475,7 @@ CacheProvider_MapTerrainGet(
         provider->map_terrain_cache, &map_id, HMAP_FIND);
     if( !entry )
         return NULL;
+    entry->last_used = ++provider->derived_clock;
     return entry->terrain;
 }
 
@@ -2431,6 +2528,7 @@ CacheProvider_MapSceneryAdd(
 
     entry->id = map_id;
     entry->locs = locs;
+    entry->last_used = ++provider->derived_clock;
 }
 
 struct ToriRS_MapLocs*
@@ -2446,6 +2544,7 @@ CacheProvider_MapSceneryGet(
         provider->map_scenery_cache, &map_id, HMAP_FIND);
     if( !entry )
         return NULL;
+    entry->last_used = ++provider->derived_clock;
     return entry->locs;
 }
 

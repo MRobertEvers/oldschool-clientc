@@ -382,9 +382,13 @@ if [ "$USE_TORIRSSERVER" = 1 ] && [ "$CLI_CONNECT_SET" = 0 ]; then
     export TORIRS_WS_HOST=127.0.0.1
 fi
 
-# lc254 live login checks cache CRCs; fetch the 9 big-endian int32s from the
-# server's web endpoint (TORIRS_JAG_CRC env wins over the manifest).
-if [ "$REV" = "lc254" ] && [ "$OFFLINE" = 0 ] && [ -z "${TORIRS_JAG_CRC:-}" ]; then
+# LostCity live login checks cache CRCs; fetch the 9 big-endian int32s from the
+# server's web endpoint (TORIRS_JAG_CRC env wins over the manifest). Every
+# LostCity revision, not only 254: an on-demand 289 boot reads /crc itself
+# natively, but the browser build cannot -- the page has no HTTP client for a
+# cross-origin server -- and sends nine zeros, which the server answers with
+# reply 6 ("client out of date") that names neither the cause nor the fix.
+if { [ "$REV" = "lc254" ] || [ "$REV" = "lc289" ]; } && [ "$OFFLINE" = 0 ] && [ -z "${TORIRS_JAG_CRC:-}" ]; then
     CRC_URL="http://${WS_HOST}:${WS_PORT}/crc"
     TORIRS_JAG_CRC=$(curl -sf "$CRC_URL" | python3 -c "
 import sys, struct

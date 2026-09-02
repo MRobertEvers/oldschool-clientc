@@ -72,6 +72,41 @@ static int g_plugin_page_built = -1;
  *  plugin, so it is remembered here rather than tracked as a row. */
 static int g_plugin_back_widget = -1;
 
+/*
+ * The window is filling the canvas.
+ *
+ * A phone is the reason this exists. The floating geometry below is authored
+ * against a desktop window, where a settings box that leaves the game visible
+ * behind it is the right shape; on a 765x503 canvas scaled onto a handset the
+ * same box is a stamp in the corner with rows too small to hit. Fullscreen is
+ * the same panel with the canvas for its box -- no second layout, no second
+ * widget set, and the rows grow with the panel because they always did.
+ */
+static int g_plugin_fullscreen;
+/** The state the current display list was built for, so a toggle rebuilds. */
+static int g_plugin_fullscreen_built = -1;
+/*
+ * The scale and canvas the panel's BOX was last placed against.
+ *
+ * The box is a function of both -- 8*scale/320*scale windowed, the whole
+ * canvas fullscreen -- and neither is a term the build gate below tests, so a
+ * scale or interface-scaling change while the window was open used to leave
+ * the old box standing. That is not cosmetic: the close X hangs off the
+ * panel's RIGHT edge, and the platform clamps the pointer into the canvas, so
+ * a box wider than the shrunken canvas is a window that can never be closed
+ * (and one broad enough to swallow the Manage Plugins button under it, which
+ * was the other way out). Tracked separately from the build gate so a resize
+ * re-places the box WITHOUT tearing down the rows -- the gate exists so a
+ * field being typed into is not rebuilt under the caret, and a resize is not
+ * a reason to lose that.
+ */
+static int g_plugin_geom_scale_built = -1;
+static int g_plugin_geom_canvas_w_built = -1;
+static int g_plugin_geom_canvas_h_built = -1;
+/** Handle of the Fullscreen/Windowed row, or -1. Belongs to no plugin, so it
+ *  is remembered here rather than tracked as one of the panel's rows. */
+static int g_plugin_fullscreen_widget = -1;
+
 static char const* const*
 app_plugin_choices_add(struct App* app, char const* choices, int* out_count)
 {
@@ -294,6 +329,66 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
  * tab around it -- and a text field being typed into is not torn down under
  * the caret.
  */
+/*
+ * Place the window's box for the CURRENT scale and canvas, and remember which
+ * ones it was placed for. @see g_plugin_geom_scale_built.
+ *
+ * Fullscreen is not a second panel: it is this one with the CANVAS for its
+ * box. Stating both cases here, together, is what keeps them the same window
+ * -- a fullscreen path that built its own panel would have its own scroll
+ * position, its own focus and its own rows to keep in step, and the toggle
+ * would lose the page you were on every time you pressed it.
+ *
+ * The canvas and not the display: the panel is drawn into the game's own
+ * 765x503 (or whatever the profile is) and scaled to the screen with it, so a
+ * window that fills the canvas fills the screen, and one measured in device
+ * pixels would hang off the side of a scaled canvas.
+ *
+ * The windowed box is CLAMPED into the canvas for the reason the geometry is
+ * re-applied at all: the close X rides the panel's right edge and the pointer
+ * cannot leave the canvas, so any part of the box past the edge is a control
+ * that cannot be pressed.
+ */
+static void
+app_plugin_panel_place(struct App* app)
+{
+    int const scale = ToriRSChrome_Scale(&app->plugin_ui);
+
+    assert(app);
+    assert(app->plugin_panel >= 0);
+
+    if( g_plugin_fullscreen )
+    {
+        ToriRSChrome_PanelMove(&app->plugin_ui, app->plugin_panel, 0, 0);
+        ToriRSChrome_PanelSetFixedWidth(&app->plugin_ui, app->plugin_panel, UITREE_LAYOUT_ROOT_W);
+        app->plugin_ui.panels[app->plugin_panel].fixed_h = UITREE_LAYOUT_ROOT_H;
+    }
+    else
+    {
+        int x = 8 * scale;
+        int y = 72 * scale;
+        int w = 320 * scale;
+        int h = 260 * scale;
+
+        if( w > UITREE_LAYOUT_ROOT_W )
+            w = UITREE_LAYOUT_ROOT_W;
+        if( h > UITREE_LAYOUT_ROOT_H )
+            h = UITREE_LAYOUT_ROOT_H;
+        if( x + w > UITREE_LAYOUT_ROOT_W )
+            x = UITREE_LAYOUT_ROOT_W - w;
+        if( y + h > UITREE_LAYOUT_ROOT_H )
+            y = UITREE_LAYOUT_ROOT_H - h;
+
+        ToriRSChrome_PanelMove(&app->plugin_ui, app->plugin_panel, x, y);
+        ToriRSChrome_PanelSetFixedWidth(&app->plugin_ui, app->plugin_panel, w);
+        app->plugin_ui.panels[app->plugin_panel].fixed_h = h;
+    }
+
+    g_plugin_geom_scale_built = scale;
+    g_plugin_geom_canvas_w_built = UITREE_LAYOUT_ROOT_W;
+    g_plugin_geom_canvas_h_built = UITREE_LAYOUT_ROOT_H;
+}
+
 static void
 app_plugin_panel_sync(struct App* app)
 {
@@ -304,10 +399,21 @@ app_plugin_panel_sync(struct App* app)
     if( !app->plugins )
         return;
 
+    /* A scale or canvas change re-places the BOX without rebuilding the rows:
+     * the build gate below deliberately keeps a typed-into field alive, and a
+     * resize is not a reason to lose the caret -- but it is a reason to move
+     * the window back where it can be reached. */
+    if( app->plugin_panel >= 0 &&
+        (g_plugin_geom_scale_built != ToriRSChrome_Scale(&app->plugin_ui) ||
+         g_plugin_geom_canvas_w_built != UITREE_LAYOUT_ROOT_W ||
+         g_plugin_geom_canvas_h_built != UITREE_LAYOUT_ROOT_H) )
+        app_plugin_panel_place(app);
+
     count = PluginHost_Count(app->plugins);
     rev = PluginHost_WinRevision(app->plugins);
     if( app->plugin_panel_built_for == count && app->plugin_panel_built_rev == rev &&
-        g_plugin_page_built == g_plugin_page )
+        g_plugin_page_built == g_plugin_page &&
+        g_plugin_fullscreen_built == g_plugin_fullscreen )
         return;
 
     if( app->plugin_panel < 0 )
@@ -343,6 +449,11 @@ app_plugin_panel_sync(struct App* app)
             &app->plugin_ui, app->plugin_panel, app->plugin_panel_visible);
     }
 
+    /* Geometry, re-applied on every build rather than only on the first.
+     * @see app_plugin_panel_place, which is also how a scale or canvas change
+     * re-places the box between builds. */
+    app_plugin_panel_place(app);
+
     /*
      * Ask EVERY plugin to declare its controls, before the walk below reads
      * them -- not only the ones that already have a tab.
@@ -370,6 +481,27 @@ app_plugin_panel_sync(struct App* app)
 
     ToriRSChrome_PanelClearWidgets(&app->plugin_ui, app->plugin_panel);
     g_plugin_back_widget = -1;
+    g_plugin_fullscreen_widget = -1;
+
+    /*
+     * The size toggle, first and on EVERY page.
+     *
+     * On every page because the window is a window whichever page is open, and
+     * a control that only exists on the roster is one you cannot reach from
+     * the page you are actually reading. First because it changes the shape of
+     * everything under it, and a row that reflows the list it sits in the
+     * middle of moves under the finger that is reaching for it.
+     *
+     * A row and not a title-bar box: the title bar's only control is Close,
+     * every widget in this chrome is a row, and a second kind of hit target up
+     * there would need its own sprite, hover state and hit region for one
+     * button. It also has to be pressable with a finger, and a row already is.
+     */
+    g_plugin_fullscreen_widget = ToriRSChrome_Button(
+        &app->plugin_ui, app->plugin_panel,
+        g_plugin_fullscreen ? "Exit fullscreen" : "Fullscreen");
+    ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+
     app->plugin_panel_row_count = 0;
     /* Reset with the widgets that point into it -- the slices handed out below
      * must live exactly as long as the row set they belong to. */
@@ -689,6 +821,7 @@ app_plugin_panel_sync(struct App* app)
     app->plugin_panel_built_for = count;
     app->plugin_panel_built_rev = rev;
     g_plugin_page_built = g_plugin_page;
+    g_plugin_fullscreen_built = g_plugin_fullscreen;
 }
 
 /*
@@ -783,6 +916,16 @@ app_plugin_panel_apply(struct App* app, int widget)
     if( widget >= 0 && widget == g_plugin_back_widget )
     {
         g_plugin_page = -1;
+        return;
+    }
+
+    /* Nor does the size toggle. Flipping the flag is the whole of it: the
+     * rebuild gate above notices the change and app_plugin_panel_sync re-applies
+     * the geometry and re-labels this row on the next frame, so there is one
+     * place that knows what each state looks like. */
+    if( widget >= 0 && widget == g_plugin_fullscreen_widget )
+    {
+        g_plugin_fullscreen = !g_plugin_fullscreen;
         return;
     }
 
@@ -1769,6 +1912,29 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     /* Scripts register asynchronously, so the list can still be growing the
      * first few frames the window is open. */
     app_plugin_panel_sync(app);
+
+    /*
+     * Lay the window out and produce its display list.
+     *
+     * The IN-CANVAS executor is the one that needs this, and it is the reason
+     * ToriRSChromeExec_Buffer's apply() is deliberately empty: "the model draws
+     * itself through ToriRSChrome_Build/Prims". Nothing was calling Build on
+     * plugin_ui, so the model never drew itself -- Prims handed back a count of
+     * zero, app_chrome_merged_prims took its `win_count == 0` early-out, and
+     * the window opened, bound its executor and rendered nothing at all.
+     *
+     * It went unnoticed because every desktop lane authors `[chrome]
+     * executor=sdl` and a surface executor rasterises through its own path.
+     * Android has one Surface and is clamped to the buffer executor, so it is
+     * the first platform to depend on the half of the contract that was never
+     * implemented -- which is why "Manage Plugins does nothing" was an
+     * Android-only report about code no platform-specific file touches.
+     *
+     * Unconditional rather than gated on the bound executor: Build returns 0
+     * and does no work on a frame where nothing moved, and a display list that
+     * is always current is what lets the merge stay a pointer copy.
+     */
+    ToriRSChrome_Build(&app->plugin_ui);
 
     /*
      * Input, from whichever surface this window is on.

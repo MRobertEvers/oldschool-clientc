@@ -84,7 +84,7 @@ dat2 alike, carried to `UITreeComponent.behavior.client_code`. Two uses:
 
 | semantic | today |
 |---|---|
-| world safe viewport | ✅ served — `TORIRS_PLUGIN_SLOT_SAFE`, derived live (`plugin_safe_rect`, `src/plugin/torirs_plugin_host.c:913`) |
+| world safe viewport | ✅ served — `TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME`, derived live (`plugin_safe_gamechrome_rect`, `src/plugin/torirs_plugin_host.c:913`) |
 | minimap box | ✅ served — `TORIRS_PLUGIN_SLOT_MINIMAP` (dat1 `type=minimap`; dat2 clientCode 1338) |
 | report button | ⚠️ dat1 only, and only as a chat-button *member*; no element-level verb; nothing on CS2 lanes |
 | logout screen | ❌ no role at all; dat1 knows it as sidebar tab 10's `componentno=2449`, dat2 as an interface group; clientCode 205 marks only the button inside it |
@@ -119,7 +119,7 @@ string; the registry is open vocabulary so profiles and plugins can grow it
 without touching C. The client's own well-known roles get documented name
 constants (meta.lua + `#define`s), not a closed enum.
 
-Region roles stay where they are: `safe`, `minimap`, `viewport` etc. continue
+Region roles stay where they are: `safe_gamechrome`, `minimap`, `viewport` etc. continue
 to answer through the layout system, and the new element verbs **delegate** to
 the frame-slot resolver for those names rather than growing a second lookup —
 one vocabulary, one resolver underneath, per the collapse doctrine recorded at
@@ -205,7 +205,7 @@ int (*role_click)(struct ToriRS_PluginCtx* ctx, char const* role, int op);
 int (*role_id)(struct ToriRS_PluginCtx* ctx, char const* role); /* transient */
 ```
 
-- `role_rect` on a region-role name (`safe`, `minimap`, `viewport`, …)
+- `role_rect` on a region-role name (`safe_gamechrome`, `minimap`, `viewport`, …)
   answers **exactly** what `slot_rect` answers — same resolver underneath.
 - `role_visible` walks ancestor visibility including `frame_hidden` (the
   layout-suppression flag deliberately separate from `behavior.hide`,
@@ -229,14 +229,14 @@ report.visible()
 
 `plugin_api.meta.lua` gains `torirs.Role` and `api.role` together with the
 binding (the two files change together, per the meta.lua header contract).
-Well-known names are documented there: `"safe"`, `"viewport"`, `"minimap"`,
+Well-known names are documented there: `"safe_gamechrome"`, `"viewport"`, `"minimap"`,
 `"report_button"`, `"logout_screen"`.
 
 ### 2.5 The four target semantics, bound per profile
 
 | role | rs245_2lc / rs289lc (dat1) | osrs239 (dat2/CS2) |
 |---|---|---|
-| `safe` | delegate to `SLOT_SAFE` (derived; nothing to declare) | same |
+| `safe_gamechrome` | delegate to `SLOT_SAFE_GAMECHROME` (derived; nothing to declare) | same |
 | `minimap` | delegate to `SLOT_MINIMAP` (`type=minimap`) | same (clientCode 1338 retype already feeds the slot) |
 | `report_button` | `role=report_button` on `[component:chat_button_report]` — or nothing at all, since `match=slot(chat_buttons, report)` in a shared default works | `[role:report_button]` with the surveyed uid/clientcode for the chat-button strip (survey task, §5 phase 5 — do **not** guess ids) |
 | `logout_screen` | `[role:logout_screen] match=id(2449)` (tab 10's pack root); optionally `match=clientcode(205)` names the button inside it as `logout_button` later | `[role:logout_screen] match=iface(logout)` plus a `[iface:logout]` ref with the surveyed group id |
@@ -436,6 +436,33 @@ that file has carried in its header comment since long before roles existed
 (5855 combat, 3917 stats, 638 quests, 3213 inventory, …). All 13 `tab_*` stones
 resolve with `component_id` = −1, so the role API is the only thing that can
 reach them.
+
+### `sidetab_<n>` — the one role reached by arithmetic
+
+`tab_<name>` and `panel_<name>` are both spelled by NAME, which is right for
+every caller that has one. A gameframe does not: it holds a tab NUMBER and
+needs the node, and no amount of naming gets you from 3 to `panel_inventory`.
+
+So `[role:sidetab_<n>]` is numbered, in the cache's own `side0..side13`
+ordering, and it names the node whose state answers *"has the server given this
+player tab n"* — the question the client's own chrome asks before it draws a
+tab icon, and the one a plugin gameframe that replaced that chrome inherits
+(`ToriRS_PluginApi::tab_enabled` → `RS_UISlots_TabGiven`).
+
+`osrs239_dat2_cache.ini` declares fourteen of them, each a three-rung chain —
+`iconN` on Classic (161), Fixed (548) and Modern (164), since `if_opentop`
+swaps the whole root and only the live one is in the tree. The ICON and not the
+`sideN` mount: `sideN` is `hidden=yes` in the cache and unhidden for the
+SELECTED tab, so reading its hide would call thirteen tabs out of fourteen
+taken away at every moment.
+
+The dat1 profiles declare none and do not need to. Their gameframe carries its
+own sidebar mounts, so IF_SETTAB answers there and the engine reads
+`sideOverlayId` directly — which is also why this role could not simply be the
+existing `tab_<name>`: those name the client's own tab-icon builtins, and a
+gameframe plugin suppresses every one of them (`frame_is_lane_chrome`) the
+moment it claims the frame. A verb reading their visibility would answer
+"hidden" to the only caller that has any use for the answer.
 
 The osrs239 panel ids were each read off that cache before being written down:
 218 carries "Spell Filters", 541 "Prayer Filters", 239 "Playing:", 216 is the

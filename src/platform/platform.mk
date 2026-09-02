@@ -311,9 +311,9 @@ else ifeq ($(PLATFORM),win64)
 else ifeq ($(PLATFORM),web)
   PLATFORM_CC       := emcc
   PLATFORM_TARGET   := $(REPO_ROOT)/build-web/torirs.js
-  # WebGL1 cannot index past 16 bits, so this lane needs the index-splitting
-  # object the desktop GL binding does not (see webgl1_index16.h).
-  PLATFORM_GPU_OBJ_NAMES := webgl1_index16.o
+  # No out-of-tree GPU binding object: the GLES2 renderer's GL calls are all
+  # in its own translation units, and <GLES2/gl2.h> is emscripten's.
+  PLATFORM_GPU_OBJ_NAMES :=
   # emcc names its own outputs (PLATFORM_TARGET is explicit); host tools built
   # alongside a web build are native and take the host's suffix, which on the
   # machines this lane runs on is none.
@@ -377,8 +377,10 @@ else ifeq ($(PLATFORM),web)
   PLATFORM_SRCS     := platform/platform_web_api.c \
                        platform/platform_audio_wasm.c \
                        platform/platform_gl_context_sdl.c \
-                       platform/platform_sdl2_renderer_webgl1.c \
-                       platform/platform_sdl2_renderer_webgl1zb.c
+                       platform/platform_renderer_gles2_core.c \
+                       platform/platform_renderer_gles2_ui.c \
+                       platform/platform_renderer_gles2_painter.c \
+                       platform/platform_renderer_gles2_zbuffer.c
   # The queue's ABI reporter. Not in PLATFORM_SRCS because it belongs to the
   # QUEUE, not to any platform: a second non-C executor would need the same
   # numbers, and putting it beside the platform that reads it today would make
@@ -413,11 +415,26 @@ else ifeq ($(PLATFORM),web)
   # so a definition only the client saw would give the two halves different
   # ideas of the same struct.
   PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE $(WEB_CACHE_CFLAGS)
-  # TORIRS_GL_ES2 builds the GPU renderer against WebGL1 (GLES2, no
-  # extensions); TORIRS_HAVE_GL3 says a GPU renderer exists at all. It is
-  # opt-in, like the desktop one: pass --webgl1 (in the page's query string).
+  # --- The GPU variant is the GLES2 renderer, shared with Android ------------
+  #
+  # WebGL1 IS OpenGL ES 2.0 with no extensions, which is exactly the ceiling
+  # platform_renderer_gles2_*.c was written to (see platform_renderer_gles2_core.h
+  # for what each GLES2 limit turned into). So the browser links the same four
+  # translation units the phone does, unchanged: the context comes from
+  # platform_gl_context_sdl.c through the neutral seam in platform_gl_context.h,
+  # and <GLES2/gl2.h> is emscripten's. There is no WebGL1-specific renderer any
+  # more -- there used to be a fork of the desktop GL renderer switched at 21
+  # places by TORIRS_GL_ES2, and it was slower than this one in every measured
+  # way (per-frame 32-bit index re-expression, a draw per model, no retained
+  # scene pages) while costing every fix twice.
+  #
+  # TORIRS_HAVE_GLES2 says the renderer exists; main.c spells the opt-in
+  # --webgl1 / --webgl1-zbuffer on this lane (pass it in the page's query
+  # string). Neither TORIRS_HAVE_GL3 nor TORIRS_GL_ES2 is defined here, and
+  # lane-check forbids both: the first would offer a GL 3.2 renderer no browser
+  # can create, the second was the retired fork's switch.
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -sUSE_SDL=2 \
-                      -DTORIRS_GL_ES2=1 -DTORIRS_HAVE_GL3=1 \
+                      -DTORIRS_HAVE_GLES2=1 \
                       -Wno-unknown-warning-option
 
   # Nothing is baked into the module. The files the client opens by name — the
@@ -501,10 +518,10 @@ else ifeq ($(PLATFORM),web)
   endif
 
 else ifeq ($(PLATFORM),android)
-  # --- Android, NDK, no SDL ---------------------------------------------------
+  # --- Android, NDK, no windowing library ------------------------------------
   #
   # The same shape as the win32 lane: a raw platform window backend implementing
-  # platform_sdl2.h, a CPU-presented software frame, and no SDL, GL, or audio
+  # platform_window.h, a CPU-presented software frame, and no windowing, GL or audio
   # dependency at all. What differs is that the link output is a SHARED LIBRARY
   # rather than an executable -- an Android app's process is started by the
   # runtime, and this lane's `main` is called on a thread the Java side spawns
@@ -512,7 +529,7 @@ else ifeq ($(PLATFORM),android)
   #
   # Two backends, both new, and the split is the same one every lane makes:
   #
-  #   platform_android.c       the PlatformSDL2 interface over ANativeWindow.
+  #   platform_android.c       the PlatformWindow interface over ANativeWindow.
   #                            Owns the ARGB canvas, the letterbox, and the
   #                            blit. Knows nothing about Java.
   #   platform_android_jni.c   the JNI surface. Owns the render thread, the
@@ -608,8 +625,10 @@ else ifeq ($(PLATFORM),android)
                        platform/platform_audio_null.c \
                        platform/platform_android_jni.c \
                        platform/platform_android_gl.c \
-                       platform/platform_sdl2_renderer_webgl1.c \
-                       platform/platform_sdl2_renderer_webgl1zb.c
+                       platform/platform_renderer_gles2_core.c \
+                       platform/platform_renderer_gles2_ui.c \
+                       platform/platform_renderer_gles2_painter.c \
+                       platform/platform_renderer_gles2_zbuffer.c
   PLATFORM_WINDOW_SRC := platform/platform_android.c
   JS5_SRCS          := $(wildcard js5/*.c)
 
@@ -635,26 +654,23 @@ else ifeq ($(PLATFORM),android)
   # OBJ_DIR, as on every other host. Nothing here forbids it; it is simply not
   # what this lane is for.
 
-  # --- The GPU variant is GLES2, and it is the one this tree already has ------
+  # --- The GPU variant is the GLES2 renderer, shared with the web lane ---------
   #
-  # Android's GPU renderer is the WEB lane's renderer, unchanged. That is not a
-  # shortcut -- WebGL1 *is* GLES2, and the file was written to that ceiling: no
-  # uniform blocks, no 32-bit element indices (hence webgl1_index16.o, which
-  # splits an index range into 16-bit windows), no GLES3/desktop pixel-store
-  # parameters. Every constraint it already respects is a constraint a 2013
-  # armv7 phone's driver actually has, so pointing this lane at the GL3
-  # renderer instead would mean relaxing a ceiling the device still enforces.
+  # platform_renderer_gles2_*.c: OpenGL ES 2.0 core, no extension of
+  # any kind, written to the shape of the Windows D3D9 renderer (retained
+  # Batch16 pages addressed by 16-bit page-local indices, a material pre-pass
+  # on the depth path, native 2D composition) rather than as a build of either
+  # desktop GL renderer. See platform_renderer_gles2_core.h for what
+  # each GLES2 limit turned into. The four units are peers of the D3D9 lane's
+  # core/painter/zbuffer split, plus the 2D stack in its own unit. The web
+  # lane links the same four files against WebGL1, which is the same API.
   #
-  # trspk_webgl1.h includes <GLES2/gl2.h> on any non-emscripten host already,
-  # and the NDK sysroot ships it -- so the renderer needs nothing added for the
-  # GL calls themselves. What it needed was a CONTEXT, and that was the only
-  # thing it ever used SDL for. That seam is now platform/platform_gl_context.h,
-  # which BOTH GL renderers program to and which each lane implements once:
-  # platform_gl_context_sdl.c on the SDL hosts, platform_android_gl.c over EGL
-  # here. There is no SDL on this lane -- no header, no library, no SDL symbol
-  # in any object it links -- and the 11k-line GLES2 renderer is still the same
-  # file the browser builds.
-  PLATFORM_GPU_OBJ_NAMES := webgl1_index16.o
+  # <GLES2/gl2.h> comes from the NDK sysroot; the context comes from
+  # platform_android_gl.c through the neutral seam in platform_gl_context.h.
+  # There is no windowing library on this lane -- no header, no library, no such symbol in any
+  # object it links -- and no out-of-tree GPU binding object: every GL call is
+  # in the renderer's own translation units.
+  PLATFORM_GPU_OBJ_NAMES :=
   PLATFORM_EXE_SUFFIX :=
 
   # -fPIC because the output is a shared library and every object lands in it.
@@ -664,14 +680,15 @@ else ifeq ($(PLATFORM),android)
   # ABI, and a crash nowhere near the call.
   PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_ANDROID=1 -D_GNU_SOURCE -fPIC \
                           $(ANDROID_ARCH_CFLAGS)
-  # TORIRS_HAVE_GL3 says a GPU renderer exists at all; TORIRS_GL_ES2 says it is
-  # built against the GLES2 ceiling. Both are the web lane's spelling, because
-  # it is the web lane's renderer. Like every other host with a GPU path, it is
-  # OPT-IN at run time (`--opengl3`); the software rasterizer stays the default,
-  # so a device whose driver refuses the context still boots.
+  # TORIRS_HAVE_GLES2 says the GLES2 renderer exists; main.c's `--gles2`
+  # and `--gles2-zbuffer` are accepted only under it. Deliberately NOT
+  # TORIRS_HAVE_GL3: that names the desktop renderer, and defining it here
+  # would let main.c hand this lane a GL 3.3 renderer no phone driver can run.
+  # Like every other host with a GPU path, it is OPT-IN at run time; the
+  # software rasterizer stays the default, so a device whose driver refuses the
+  # context still boots.
   #
-  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) \
-                      -DTORIRS_HAVE_GL3=1 -DTORIRS_GL_ES2=1
+  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -DTORIRS_HAVE_GLES2=1
   # -llog is __android_log_print (this lane's stderr -- see platform_android.c),
   # -landroid is ANativeWindow. -shared, and -Wl,--no-undefined so a symbol this
   # library forgot to define fails at link here rather than as an
@@ -691,7 +708,7 @@ else
   $(error unknown PLATFORM '$(PLATFORM)' — expected one of: native $(PLATFORM_LIST))
 endif
 
-# The windowing implementation of the PlatformSDL2 interface. SDL platforms use
+# The windowing implementation of the PlatformWindow interface. SDL platforms use
 # platform_sdl2.c; both Windows blocks override this with platform_win32gdi.c.
 PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c
 

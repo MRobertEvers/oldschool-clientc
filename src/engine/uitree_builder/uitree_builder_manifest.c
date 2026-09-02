@@ -154,7 +154,21 @@ find_component(
     char const* name)
 {
     assert(items && name);
-    for( uint32_t i = 0; i < items->item_count; i++ )
+    /*
+     * LAST match, not first: a later declaration of the same name OVERRIDES an
+     * earlier one.
+     *
+     * That is what makes layering work at all, and the load order is built
+     * around it -- `revconfig_ui=`, then `revconfig_cache=`, then the
+     * manifest's own inline `[revconfig:...]` sections, each able to restate
+     * what came before. It is also what makes a platform-suffixed section an
+     * override rather than a second component with a decorated name: the
+     * suffix is stripped before the name is stored (see
+     * revconfig_load.c), so `[component:cross@mobile]` lands here as a second
+     * `cross`, and scanning forwards would return the desktop one and silently
+     * ignore the override.
+     */
+    for( uint32_t i = items->item_count; i-- > 0; )
     {
         if( items->items[i].kind != RCITEM_UICOMPONENT )
             continue;
@@ -302,6 +316,9 @@ fill_tree_op_from_component(
     strncpy(op->sprite_active_ref, comp->sprite_active, sizeof(op->sprite_active_ref) - 1);
     strncpy(op->inv_name, comp->inv, sizeof(op->inv_name) - 1);
     op->font = comp->font;
+    op->ink_style = comp->ink_style;
+    op->ink_walk_color = comp->ink_walk_color;
+    op->ink_interact_color = comp->ink_interact_color;
     op->has_font_ref = comp->has_font_ref;
     if( comp->has_font_ref )
         strncpy(op->font_ref, comp->font_ref, sizeof(op->font_ref) - 1);
@@ -365,6 +382,7 @@ fill_tree_op_from_component(
     strncpy(
         op->chat_op_accept_duel, comp->chat_op_accept_duel, sizeof(op->chat_op_accept_duel) - 1);
     op->chat_op_accept_duel_action = comp->chat_op_accept_duel_action;
+    strncpy(op->chat_prompt, comp->chat_prompt, sizeof(op->chat_prompt) - 1);
     op->chat_button_filter = comp->chat_button_filter;
     strncpy(op->chat_button_label, comp->chat_button_label, sizeof(op->chat_button_label) - 1);
     op->chat_button_label_y = comp->chat_button_label_y;
@@ -428,6 +446,9 @@ add_layout_op(
     op->right = layout->right;
     op->dirty = layout->dirty;
     op->xalign_center = layout->xalign_center;
+    op->safe_area_source = layout->safe_area_source;
+    op->safe_area_flags = layout->safe_area_flags;
+    op->safe_area_margin = layout->safe_area_margin;
 
     fill_tree_op_from_component(op, comp, root_interface_id);
 }

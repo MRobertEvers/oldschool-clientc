@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "log/torirs_log.h"
+#include "ui/torirs_chrome_inkwell.h"
 
 static enum UITreeComponentType
 type_from_string(char const* type)
@@ -32,6 +33,8 @@ type_from_string(char const* type)
         return UIELEM_BUILTIN_COMPASS;
     if( strcmp(type, "cross") == 0 )
         return UIELEM_BUILTIN_CROSS;
+    if( strcmp(type, "inkwell") == 0 )
+        return UIELEM_BUILTIN_INKWELL;
     if( strcmp(type, "entity_overlay") == 0 )
         return UIELEM_BUILTIN_ENTITY_OVERLAY;
     if( strcmp(type, "hovertext") == 0 )
@@ -172,6 +175,15 @@ apply_layout_position(
     }
     pos->anchor_x = op->anchor_x;
     pos->anchor_y = op->anchor_y;
+
+    /* Independent of which placement branch ran above: clearing a safe area is
+     * a rule about the resolved box, and a row states it the same way whether
+     * it was placed by x/y, by edge insets or centred. */
+    if( op->safe_area_source == REVCONFIG_SAFE_AREA_SOURCE_OS )
+        pos->safe_area_source = UITREE_SAFE_AREA_SOURCE_OS;
+    if( op->safe_area_flags & REVCONFIG_SAFE_AREA_FLAG_BOTTOM )
+        pos->safe_area_flags |= UITREE_SAFE_AREA_FLAG_BOTTOM;
+    pos->safe_area_margin = op->safe_area_margin;
 }
 
 static void
@@ -757,6 +769,32 @@ push_builtin_op(
         spec.u.sprite.scene_id = sprite_id;
         spec.u.sprite.atlas_index = 0;
         break;
+    /*
+     * The touch marker carries a CHOICE of artwork, not a binding to one: the
+     * generated atlas holds every style and colour, so there is no sprite_id
+     * to resolve and nothing here to look up in the cache.
+     *
+     * always_dirty for the same reason the cross is: it animates, so its box
+     * has to be repainted every frame it is alive.
+     */
+    case UIELEM_BUILTIN_INKWELL:
+        spec.always_dirty = 1;
+        spec.u.inkwell.style = op->ink_style;
+        spec.u.inkwell.walk_color = op->ink_walk_color;
+        spec.u.inkwell.interact_color = op->ink_interact_color;
+        /* Said out loud, beside the renderer's own "toridraw: table" lines: an
+         * `@mobile` section that did not match is SILENT by design, so without
+         * this there is no way to tell "the override applied" from "the profile
+         * was not read" -- and the marker itself lives for 400 ms, which is
+         * shorter than a screenshot on the devices this lane targets. */
+        /* REPORT, not LOG: TORIRS_LOG compiles out under NDEBUG, which is the
+         * optimized build this actually ships as. */
+        TORIRS_REPORT(
+            "inkwell: style=%s walk=%d interact=%d\n",
+            ToriRSInkwell_StyleName(op->ink_style),
+            op->ink_walk_color,
+            op->ink_interact_color);
+        break;
     /* Unlike the cross, the frame matters: `sprite=headicons[1]` is how the
      * indicator picks its icon out of a 20-frame pack, so the atlas index the
      * ref resolved has to survive. */
@@ -961,6 +999,7 @@ push_builtin_op(
             op->chat_op_accept_duel,
             sizeof(spec.u.chat.minimenu.op_accept_duel) - 1);
         spec.u.chat.minimenu.op_accept_duel_action = op->chat_op_accept_duel_action;
+        strncpy(spec.u.chat.prompt, op->chat_prompt, sizeof(spec.u.chat.prompt) - 1);
         break;
     case UIELEM_BUILTIN_CHAT_BUTTON:
     {

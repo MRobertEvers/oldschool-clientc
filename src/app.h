@@ -41,6 +41,7 @@
 #include "toridraw_sprite.h"
 #include "ui/uitree.h"
 #include "ui/uitree_cross.h"
+#include "ui/uitree_ink.h"
 #include "ui/torirs_chrome_exec.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_emit.h"
@@ -770,6 +771,13 @@ struct App
      *  the record that it was enabled, which the login block needs to know to
      *  ask that server for its checksums. */
     int cache_on_demand;
+    /** 1 when the login checksums were taken from that server's /crc (no
+     *  manifest jag_crc= and no TORIRS_JAG_CRC override) -- the condition
+     *  under which each login attempt refreshes them. The init-time read
+     *  alone was not enough: a server that repacks while this client sits at
+     *  the title leaves every later login sending boot-time sums, which is a
+     *  reply=6 loop no retry can leave. */
+    int jag_crc_from_ondemand;
     /** 1 once a bake has queued the on-demand prefetch passes. They belong to
      *  the SESSION's first loading screen, not to every tree bake -- the
      *  post-login gameframe rebake reaches app_open_tree too, and re-walking
@@ -878,6 +886,9 @@ struct App
     struct PaintersBuffer* painter_buffer;
     /** Selected only after the platform renderer has initialized successfully. */
     enum ToriRS_WorldRenderMode world_render_mode;
+    /** The active renderer scrolls animated textures itself (GPU lanes), so the
+     *  per-cycle CPU texel rotate is skipped. @see App_SetRendererAnimatesTextures */
+    bool renderer_animates_textures;
     /** Viewport size remembered for TORIRS_PAINTER_CULL=baked debounce (0 = none). */
     int painter_cullmap_bake_w;
     int painter_cullmap_bake_h;
@@ -913,21 +924,40 @@ struct App
     int cam_mmb_active;
     int cam_mmb_x;
     int cam_mmb_y;
+    /*
+     * This platform aims the camera with a FINGER, so the revision's
+     * `controls=` list does not decide whether it may.
+     *
+     * That list reproduces a revision's DESKTOP control scheme -- rev-289's
+     * client had no middle-button rotate, so `controls=arrow_keys` says so and
+     * the mouse gesture is refused. A finger drag is synthesised as a
+     * middle-button drag (ToriRS_TouchSetViewport says why: it is the one path
+     * that already has the follow-cam split, the sign convention and the pitch
+     * clamps), and it would be refused by the same test -- for reproducing a
+     * decision no revision ever made, because none of them ran on a phone.
+     *
+     * So the platform states it instead, once, at boot: where a finger is the
+     * pointer, the finger may turn the camera on every revision.
+     */
+    int touch_camera;
     /* Keys a revconfig hotkey binding acted on this frame, indexed by OSRS key
      * code. Debug world hotkeys share the digit row with the rev-254 tab
      * bindings, so they check this and stand down rather than firing both. */
     uint8_t hotkey_consumed[TORIRS_OSRSKEY_COUNT];
     /*
-     * The follow camera's eye HEIGHT: the eye sits `pitch * 3 + height` behind
-     * the player, so this is the whole of "zoom". 600 is the reference's
-     * constant (Client-TS camFollow) and smaller is closer.
+     * The follow camera's live ZOOM: the eye sits `pitch * 3 + this` behind
+     * the player, in fine units, so this is the additive half of zoom. It
+     * starts at `[camera] rest=` (the reference's 600, Client-TS camFollow)
+     * and smaller is closer.
      *
-     * The wheel moves it inside the band `[camera] zoom=clamped:[min,max]`
-     * states; under `zoom=fixed:<height>` there is no band and nothing moves
-     * it, which is how a 2004 revision says it does not zoom. The free camera
-     * dollies along the view axis instead and ignores this entirely.
+     * The wheel and the pinch move it inside `[camera] zoom_closest=` ..
+     * `zoom_furthest=`, in `wheel_step=` notches; the settings page's
+     * REVCONFIG_CAMERA_WHEEL_PINNED stops them, which is how a player asks for
+     * the 2004 camera that does not zoom. The MULTIPLICATIVE half is
+     * `[camera] distance_scale=`, which this field knows nothing about. The
+     * free camera dollies along the view axis instead and ignores all of it.
      */
-    int world_cam_height;
+    int world_cam_zoom;
     int world_active; /* 1 once Task_WorldLoad completed */
     /** U toggles: 1 = the follow camera stands down and W/A/S/D + R/F fly
      *  world_camera_pos freely; relocking eases back onto the player (the
@@ -1471,6 +1501,12 @@ struct App
     int world_mouse_in_viewport;
     int world_mouse_x; /* last input mouse, canvas coords */
     int world_mouse_y;
+    /** No pointer is resting at world_mouse_x/y: the finger that was the
+     *  pointer lifted (LibToriRS_Input_PushMouseLeave). The position is kept,
+     *  because a popup the tap opened is anchored to it, but everything hover
+     *  means -- the tile under the pointer, the world pick, the mouseover line
+     *  -- goes quiet until something points at the canvas again. */
+    int pointer_absent;
     int world_hover_tile_x; /* scene tile, -1 = none */
     int world_hover_tile_z;
     int world_hover_tile_level;
@@ -1544,6 +1580,7 @@ struct App
      * password, which is exactly as bad as it sounds.
      */
     char title_field_line[RS_TITLE_FIELD_COUNT][RS_TITLE_FIELD_LEN + 64];
+
     /** What each login rejection means, in this revision's words. Loaded from
      *  the profile beside RevConfigRefs and alive for the whole session. */
     struct RS_LoginReplyTable login_replies;
@@ -1647,6 +1684,16 @@ struct App
      * because that rebuild is the server's whole world state arriving again
      * and its acknowledgement is what releases the rest of the burst. */
     int net_force_rebuild;
+    /**
+     * The player asked to leave, and the request has not been acted on yet.
+     *
+     * Deferred rather than done at the click, so the button's own IF_BUTTON is
+     * already in the outbound ring when the DISCONNECT is queued behind it --
+     * the server hears the request instead of a bare FIN. Raised by the CS1
+     * logout clientCode and by the CS2 host's LOGOUT opcode, drained by the
+     * logic tick. @see App_Logout.
+     */
+    int logout_requested;
     /** Client-behaviour era table (src/features/features.h). Never NULL after
      *  App_Init — unlike `net`, it is resolved on every boot because an
      *  offline click still has to pick an approach model. Points at
@@ -1688,6 +1735,10 @@ struct App
     struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;
     struct UICross cross;
+    /* The touch marker. Separate from `cross` because it is shown for EVERY
+     * touch, before anything has decided what the touch meant -- @see
+     * ui/uitree_ink.h for why that cannot be a mode on the cross. */
+    struct UIInk ink;
     /** Mouseover text under the pointer, rebuilt every frame (reference: CS2
      * script 4726 rebuilds it every client cycle). */
     struct UIHoverText hover_text;
@@ -2422,10 +2473,20 @@ struct App
     int window_w;
     int window_h;
 
+    /** CANVAS rows the OS soft keyboard covers at the bottom, 0 when it is
+     *  away (TORIRS_CMD_KEYBOARD_INSET; only touch platforms ever push it).
+     *  What api->safe_os subtracts from the canvas, and what the layout
+     *  subtracts for every row whose profile declared `safe_area=os:bottom` --
+     *  the login box, on the profiles that say so. */
+    int keyboard_inset;
+
     /** A plugin asked for the on-screen keyboard. Drained by the shell, which
      *  is the only thing here with a platform to raise one on.
      *  @see App_TakeTextInputChange. */
     int text_input_on;
+    /** What the platform was last told. The keyboard is raised and lowered off
+     *  this, so a redundant change never reaches the IME. */
+    int text_input_effective;
     int text_input_dirty;
 };
 
@@ -2484,7 +2545,7 @@ App_SetCanvasSize(
  * -- which reads as a broken font rather than as a missed call.
  *
  * The caller is whoever knows the display: on the desktop shell that is
- * PlatformSDL2_PixelDensity, so a Retina window gets 2x chrome authored at 2x
+ * PlatformWindow_PixelDensity, so a Retina window gets 2x chrome authored at 2x
  * rather than 1x chrome stretched onto it. @return 1 if the scale changed.
  */
 int
@@ -2740,12 +2801,41 @@ App_Shutdown(struct App* app);
 void
 App_NetSessionReset(struct App* app);
 
+/**
+ * End the session on purpose and go back to the login screen.
+ *
+ * The reference's `logout` (Client-TS Client.ts:2699): close the socket, forget
+ * the world, and put the title screen back up with the credential fields
+ * cleared. Distinct from the connection-lost path in every way that matters --
+ * nothing is being re-established, so the reconnect watch is disarmed rather
+ * than armed.
+ *
+ * Reached three ways, all of which mean the same thing: the logout button (via
+ * App::logout_requested, so the button's IF_BUTTON goes out first), the CS2
+ * LOGOUT opcode, and the server's own LOGOUT packet.
+ *
+ * A profile that declares no [layout:title] has no login screen to return to;
+ * the session still ends, and the client stays on the gameframe it booted into.
+ */
+void
+App_Logout(struct App* app);
+
 /** Select world submission after renderer initialization. A software fallback
  * must always restore TORIRS_WORLD_PAINTER. */
 void
 App_SetWorldRenderMode(
     struct App* app,
     enum ToriRS_WorldRenderMode mode);
+
+/**
+ * Tell the app the renderer animates water/lava textures in its own shader
+ * (GLES2, GL3, D3D9), so ToriDraw_TextureMapAnimate need not scroll the
+ * texels on the CPU each cycle. Default false: the software lane needs it.
+ */
+void
+App_SetRendererAnimatesTextures(
+    struct App* app,
+    bool animates);
 
 /** Resolved interface-logic VM (enum AppUiLogic, never DEFAULT): the manifest's
  * explicit choice, or derived from cache_kind (dat1 -> CS1, dat2 -> CS2). The
@@ -3599,6 +3689,18 @@ App_FrameSettled(struct App const* app);
  * key edge. */
 int
 App_InputFrameConsumed(struct App const* app);
+
+/**
+ * Does chrome DRAWN IN THIS CANVAS own this canvas point?
+ *
+ * The same question the game's own hover, wheel and click-to-walk gates ask
+ * (app_chrome_wants_pointer), exported because the TOUCH layer has to ask it
+ * too: a finger landing on the plugin window is landing on a window, not on the
+ * world it happens to be drawn over, and only this can tell the two apart.
+ * Const and side-effect free -- it may be asked at any point in a frame.
+ */
+int
+App_ChromePointerOwned(struct App const* app, int x, int y);
 
 /**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree

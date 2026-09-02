@@ -1,22 +1,25 @@
-#ifndef SRC_PLATFORM_PLATFORM_SDL2_H
-#define SRC_PLATFORM_PLATFORM_SDL2_H
+#ifndef SRC_PLATFORM_PLATFORM_WINDOW_H
+#define SRC_PLATFORM_PLATFORM_WINDOW_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
-struct PlatformSDL2;
+struct PlatformWindow;
 struct ToriRS_CmdBus;
 
 /* The GL window handle, opaque and windowing-library-free.
  * @see platform/platform_gl_context.h. */
 #include "platform/platform_gl_context.h"
+/* ToriRS_TouchOverlayFn, for the gesture seam below. The touch header is
+ * policy and two integers deep -- it pulls in nothing. */
+#include "input/torirs_touch.h"
 
-struct PlatformSDL2*
-PlatformSDL2_New(void);
+struct PlatformWindow*
+PlatformWindow_New(void);
 
 bool
-PlatformSDL2_Init(
-    struct PlatformSDL2* platform,
+PlatformWindow_Init(
+    struct PlatformWindow* platform,
     int width,
     int height,
     char const* title);
@@ -24,8 +27,8 @@ PlatformSDL2_Init(
 /** Create an SDL OpenGL window (no CPU pixel buffer / SDL_Renderer).
  *  macOS: GL 3.2 core + forward-compatible; elsewhere: GL 3.3 core. */
 bool
-PlatformSDL2_InitForOpenGL3(
-    struct PlatformSDL2* platform,
+PlatformWindow_InitForOpenGL3(
+    struct PlatformWindow* platform,
     int width,
     int height,
     char const* title);
@@ -39,12 +42,12 @@ PlatformSDL2_InitForOpenGL3(
  * platform_gl_context.h.
  */
 ToriRS_GLWindow*
-PlatformSDL2_Window(struct PlatformSDL2* platform);
+PlatformWindow_GLWindow(struct PlatformWindow* platform);
 
 /** Return the platform's native window handle without exposing OS headers.
  *  The SDL-free Win32 backend returns its HWND as a void pointer. */
 void*
-PlatformSDL2_NativeWindowHandle(struct PlatformSDL2* platform);
+PlatformWindow_NativeWindowHandle(struct PlatformWindow* platform);
 
 /* ---- the auxiliary window -------------------------------------------------
  *
@@ -75,7 +78,7 @@ PlatformSDL2_NativeWindowHandle(struct PlatformSDL2* platform);
  * contract restates key codes instead of including the input header. The
  * executor copies across, and the two are three ints and a string apart.
  */
-struct PlatformSDL2_AuxInput
+struct PlatformWindow_AuxInput
 {
     /*
      * The pointer in the SURFACE's pixels, not in SDL's points.
@@ -92,11 +95,11 @@ struct PlatformSDL2_AuxInput
     int wheel;
     /** Printable bytes typed this frame, NUL-terminated. */
     char text[32];
-    /** SDL scancode-derived editing key, or 0. @see PlatformSDL2_AuxEditKey. */
+    /** SDL scancode-derived editing key, or 0. @see PlatformWindow_AuxEditKey. */
     int edit_key;
     int resized;
     /** The new surface size, in PIXELS -- the drawable, not the points SDL's
-     *  own resize event carries. Feed it straight to PlatformSDL2_AuxResize. */
+     *  own resize event carries. Feed it straight to PlatformWindow_AuxResize. */
     int width;
     int height;
 };
@@ -106,7 +109,7 @@ struct PlatformSDL2_AuxInput
  * agree without either including the other. Values match enum ToriRSChromeKey,
  * which a _Static_assert in the executor pins.
  */
-enum PlatformSDL2_AuxEditKey
+enum PlatformWindow_AuxEditKey
 {
     PLATFORM_AUX_KEY_NONE = 0,
     PLATFORM_AUX_KEY_BACKSPACE,
@@ -133,49 +136,49 @@ enum PlatformSDL2_AuxEditKey
  * position, because a pointer that stopped moving is still where it was.
  */
 bool
-PlatformSDL2_AuxTakeInput(struct PlatformSDL2* platform, struct PlatformSDL2_AuxInput* out);
+PlatformWindow_AuxTakeInput(struct PlatformWindow* platform, struct PlatformWindow_AuxInput* out);
 
 /**
  * Open the aux window at `width` x `height` POINTS.
  *
  * Points, because the size asked for is a physical one -- how big the window
  * should be on a desk. Its SURFACE comes up at the drawable, which on a
- * HighDPI display is a multiple of that; ask PlatformSDL2_AuxWidth/Height for
+ * HighDPI display is a multiple of that; ask PlatformWindow_AuxWidth/Height for
  * the size anything drawing into it must use.
  *
  * @return false when this backend has none.
  */
 bool
-PlatformSDL2_AuxOpen(struct PlatformSDL2* platform, int width, int height, char const* title);
+PlatformWindow_AuxOpen(struct PlatformWindow* platform, int width, int height, char const* title);
 
 /** Close it. Safe when it was never opened. */
 void
-PlatformSDL2_AuxClose(struct PlatformSDL2* platform);
+PlatformWindow_AuxClose(struct PlatformWindow* platform);
 
 /** Is it up? */
 bool
-PlatformSDL2_AuxIsOpen(struct PlatformSDL2 const* platform);
+PlatformWindow_AuxIsOpen(struct PlatformWindow const* platform);
 
 /** Its ARGB staging buffer, or NULL when closed. Width * height ints. */
 int*
-PlatformSDL2_AuxPixels(struct PlatformSDL2* platform);
+PlatformWindow_AuxPixels(struct PlatformWindow* platform);
 
 /** The SURFACE's size, in pixels -- the space its contents are laid out and
  *  rasterised in, and the space every gesture above is reported in. Not the
  *  window's size in points, which on a HighDPI display is smaller. */
 int
-PlatformSDL2_AuxWidth(struct PlatformSDL2 const* platform);
+PlatformWindow_AuxWidth(struct PlatformWindow const* platform);
 int
-PlatformSDL2_AuxHeight(struct PlatformSDL2 const* platform);
+PlatformWindow_AuxHeight(struct PlatformWindow const* platform);
 
 /** Resize the aux surface, in PIXELS. @return false when it could not be
  *  resized. */
 bool
-PlatformSDL2_AuxResize(struct PlatformSDL2* platform, int width, int height);
+PlatformWindow_AuxResize(struct PlatformWindow* platform, int width, int height);
 
 /** Push the staging buffer to the aux window. */
 void
-PlatformSDL2_AuxPresent(struct PlatformSDL2* platform);
+PlatformWindow_AuxPresent(struct PlatformWindow* platform);
 
 /**
  * Did the user close the aux window since the last ask? Clears the flag.
@@ -186,7 +189,7 @@ PlatformSDL2_AuxPresent(struct PlatformSDL2* platform);
  * drawn into.
  */
 bool
-PlatformSDL2_AuxTakeCloseRequest(struct PlatformSDL2* platform);
+PlatformWindow_AuxTakeCloseRequest(struct PlatformWindow* platform);
 
 /* ---- borderless windows, dragged by what is drawn in them -----------------
  *
@@ -219,7 +222,7 @@ PlatformSDL2_AuxTakeCloseRequest(struct PlatformSDL2* platform);
  *
  * @return non-zero to move the window, zero to let the press through.
  */
-typedef int (*PlatformSDL2_DragHandleFn)(void* user, int x, int y);
+typedef int (*PlatformWindow_DragHandleFn)(void* user, int x, int y);
 
 /**
  * Where the game window may be grabbed. NULL clears it, which is a legitimate
@@ -227,14 +230,14 @@ typedef int (*PlatformSDL2_DragHandleFn)(void* user, int x, int y);
  * from nowhere but its resize edges.
  */
 void
-PlatformSDL2_SetDragHandleProvider(
-    struct PlatformSDL2* platform, PlatformSDL2_DragHandleFn fn, void* user);
+PlatformWindow_SetDragHandleProvider(
+    struct PlatformWindow* platform, PlatformWindow_DragHandleFn fn, void* user);
 
 /** The same, for the aux window. Survives the window itself being closed and
  *  reopened, so a caller sets it once. */
 void
-PlatformSDL2_AuxSetDragHandleProvider(
-    struct PlatformSDL2* platform, PlatformSDL2_DragHandleFn fn, void* user);
+PlatformWindow_AuxSetDragHandleProvider(
+    struct PlatformWindow* platform, PlatformWindow_DragHandleFn fn, void* user);
 
 /**
  * Take the OS frame off the game window, or give it back.
@@ -247,31 +250,31 @@ PlatformSDL2_AuxSetDragHandleProvider(
  * which is a worse answer than the frame it was asked to hide.
  */
 bool
-PlatformSDL2_SetBorderless(struct PlatformSDL2* platform, bool borderless);
+PlatformWindow_SetBorderless(struct PlatformWindow* platform, bool borderless);
 
-/** The same, for the aux window. Call it after PlatformSDL2_AuxOpen: the wish
+/** The same, for the aux window. Call it after PlatformWindow_AuxOpen: the wish
  *  is not remembered across the window it applies to. */
 bool
-PlatformSDL2_AuxSetBorderless(struct PlatformSDL2* platform, bool borderless);
+PlatformWindow_AuxSetBorderless(struct PlatformWindow* platform, bool borderless);
 
 /** Is the frame currently off? */
 bool
-PlatformSDL2_IsBorderless(struct PlatformSDL2 const* platform);
+PlatformWindow_IsBorderless(struct PlatformWindow const* platform);
 
 bool
-PlatformSDL2_AuxIsBorderless(struct PlatformSDL2 const* platform);
+PlatformWindow_AuxIsBorderless(struct PlatformWindow const* platform);
 
 void
-PlatformSDL2_Free(struct PlatformSDL2* platform);
+PlatformWindow_Free(struct PlatformWindow* platform);
 
 int*
-PlatformSDL2_Pixels(struct PlatformSDL2* platform);
+PlatformWindow_Pixels(struct PlatformWindow* platform);
 
 int
-PlatformSDL2_Width(struct PlatformSDL2* platform);
+PlatformWindow_Width(struct PlatformWindow* platform);
 
 int
-PlatformSDL2_Height(struct PlatformSDL2* platform);
+PlatformWindow_Height(struct PlatformWindow* platform);
 
 /**
  * Drawable pixels per window point: 1 on an ordinary display, 2 on a Retina or
@@ -284,24 +287,24 @@ PlatformSDL2_Height(struct PlatformSDL2* platform);
  * bigger authored font rather than a stretch.
  */
 int
-PlatformSDL2_PixelDensity(struct PlatformSDL2* platform);
+PlatformWindow_PixelDensity(struct PlatformWindow* platform);
 
 /**
  * Ask the next window for a device-pixel (HighDPI) drawable.
  *
- * Must be called BEFORE PlatformSDL2_Init / _InitForOpenGL3: the flag becomes
+ * Must be called BEFORE PlatformWindow_Init / _InitForOpenGL3: the flag becomes
  * SDL_WINDOW_ALLOW_HIGHDPI at creation and SDL has no way to add it after.
  * `[ui:boot] hidpi=` is what drives it; TORIRS_HIDPI overrides either way.
  */
 void
-PlatformSDL2_SetWantHighDPI(bool want);
+PlatformWindow_SetWantHighDPI(bool want);
 
 bool
-PlatformSDL2_QuitRequested(struct PlatformSDL2* platform);
+PlatformWindow_QuitRequested(struct PlatformWindow* platform);
 
 void
-PlatformSDL2_SetTitle(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetTitle(
+    struct PlatformWindow* platform,
     char const* title);
 
 /**
@@ -327,7 +330,7 @@ PlatformSDL2_SetTitle(
  *
  * This does NOT resize the backbuffer. The client clamps the canvas to a floor
  * it owns, so the canvas — not the window — is what the backbuffer must match;
- * the caller reconciles them with PlatformSDL2_Resize after draining the bus.
+ * the caller reconciles them with PlatformWindow_Resize after draining the bus.
  */
 /**
  * Turn the on-screen keyboard on or off.
@@ -339,11 +342,45 @@ PlatformSDL2_SetTitle(
  * nothing ever turned it off -- there was nothing to put away.
  */
 void
-PlatformSDL2_SetTextInput(struct PlatformSDL2* platform, int on);
+PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on);
+
+/**
+ * Where the 3D world sits on the canvas, for the touch gesture policy.
+ *
+ * A one-finger drag that begins inside this box turns the camera instead of
+ * dragging the pointer across the interface; outside it, a drag is still a
+ * drag. The platform owns the finger state (@see input/torirs_touch.h) and the
+ * client owns the layout, so this is the one fact that has to cross.
+ *
+ * Called every frame. `w`/`h` <= 0 means "no world on screen", which disables
+ * the gesture rather than guessing -- the login screen and the world map both
+ * want that.
+ *
+ * A no-op on a backend with no touch state; every backend implements it so
+ * nothing above platform/ has to ask which host it is on.
+ */
+void
+PlatformWindow_SetTouchViewport(
+    struct PlatformWindow* platform, int x, int y, int w, int h);
+
+/**
+ * What is drawn OVER that viewport, so a drag beginning on it is not the camera.
+ *
+ * The client draws windows inside the world's rectangle -- the plugin panel, the
+ * developer chrome -- and a drag that starts on one belongs to it. The platform
+ * cannot know that, so the client hands down a predicate it can ask about the
+ * point a finger landed on. @see input/torirs_touch.h.
+ *
+ * Set once; NULL is "nothing covers the world". A no-op on a backend with no
+ * touch state, like the viewport above.
+ */
+void
+PlatformWindow_SetTouchOverlayTest(
+    struct PlatformWindow* platform, ToriRS_TouchOverlayFn fn, void* user);
 
 void
-PlatformSDL2_SetCanvasFollowsWindow(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetCanvasFollowsWindow(
+    struct PlatformWindow* platform,
     struct ToriRS_CmdBus* bus,
     bool follow,
     int min_w,
@@ -352,14 +389,14 @@ PlatformSDL2_SetCanvasFollowsWindow(
 /**
  * Resize the OS window, as if the user had dragged its corner.
  *
- * The distinction from PlatformSDL2_Resize matters: this touches the window and
+ * The distinction from PlatformWindow_Resize matters: this touches the window and
  * nothing else, so what happens next is decided by the follow gate exactly as it
  * would be for a real drag. It is the only way to exercise that gate headlessly
  * — pushing TORIRS_CMD_WINDOW_RESIZE straight onto the bus skips it.
  */
 void
-PlatformSDL2_SetWindowSize(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetWindowSize(
+    struct PlatformWindow* platform,
     int width,
     int height);
 
@@ -369,8 +406,8 @@ PlatformSDL2_SetWindowSize(
  * to the window and owns no CPU buffer). Returns true when the size changed.
  */
 bool
-PlatformSDL2_Resize(
-    struct PlatformSDL2* platform,
+PlatformWindow_Resize(
+    struct PlatformWindow* platform,
     int width,
     int height);
 
@@ -378,14 +415,14 @@ PlatformSDL2_Resize(
  *  into the window: 0 nearest-neighbour, 1 linear, 2 best/bicubic. Backends
  *  use their closest supported high-quality filter for mode 2. */
 void
-PlatformSDL2_SetInterfaceScaleMode(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetInterfaceScaleMode(
+    struct PlatformWindow* platform,
     int mode);
 
 /** Map window-pixel mouse coords into the letterboxed logical framebuffer. */
 void
-PlatformSDL2_MapMouse(
-    struct PlatformSDL2* platform,
+PlatformWindow_MapMouse(
+    struct PlatformWindow* platform,
     int win_x,
     int win_y,
     int* out_x,
@@ -397,8 +434,8 @@ PlatformSDL2_MapMouse(
  * independent). Window-level events (quit, esc-quit) stay platform state.
  */
 void
-PlatformSDL2_PollCommands(
-    struct PlatformSDL2* platform,
+PlatformWindow_PollCommands(
+    struct PlatformWindow* platform,
     struct ToriRS_CmdBus* bus);
 
 /**
@@ -413,8 +450,8 @@ PlatformSDL2_PollCommands(
  * does not bound, and a repair paint has no damage box at all).
  */
 void
-PlatformSDL2_SetPresentDamage(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetPresentDamage(
+    struct PlatformWindow* platform,
     int x,
     int y,
     int w,
@@ -430,20 +467,20 @@ PlatformSDL2_SetPresentDamage(
  * always correct and only ever copies more.
  */
 void
-PlatformSDL2_SetPresentDamageRects(
-    struct PlatformSDL2* platform,
+PlatformWindow_SetPresentDamageRects(
+    struct PlatformWindow* platform,
     int const (*rects)[4],
     int count);
 
 void
-PlatformSDL2_Present(struct PlatformSDL2* platform);
+PlatformWindow_Present(struct PlatformWindow* platform);
 
 /** Swap the GL backbuffer. Only valid after InitForOpenGL3. */
 void
-PlatformSDL2_PresentGL(struct PlatformSDL2* platform);
+PlatformWindow_PresentGL(struct PlatformWindow* platform);
 
 uint64_t
-PlatformSDL2_Ticks64(void);
+PlatformWindow_Ticks64(void);
 
 /**
  * The same monotonic clock at microsecond resolution.
@@ -453,10 +490,10 @@ PlatformSDL2_Ticks64(void);
  * to a couple of integers, and the quantisation survives averaging.
  */
 uint64_t
-PlatformSDL2_TicksUs(void);
+PlatformWindow_TicksUs(void);
 
-/** Wait until an absolute PlatformSDL2_Ticks64() deadline. */
+/** Wait until an absolute PlatformWindow_Ticks64() deadline. */
 void
-PlatformSDL2_SleepUntil(uint64_t deadline_ms);
+PlatformWindow_SleepUntil(uint64_t deadline_ms);
 
 #endif

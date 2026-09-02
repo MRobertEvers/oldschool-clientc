@@ -298,6 +298,7 @@ void test_id_index(void);
 void test_child_subid(void);
 void test_menu_submenus(void);
 void test_component_params(void);
+void test_inkwell_spec_copy(void);
 void test_open_close_steady(void);
 void test_mounted_component_inherits_container_hidden(void);
 void test_clear_hooks_preserves_sibling_on_op(void);

@@ -346,6 +346,86 @@ td_scene_reset_element(struct ToriDraw_SceneElement* element)
     memset(element, 0, sizeof(*element));
     element->scene_id = scene_id;
     element->anim_seq_id = -1;
+    element->posed_primary = -1;
+}
+
+/*
+ * The model no longer holds a pose ApplyAnimation may trust. Called by every
+ * mutator that can change what a (track, frame) pair produces; the revision
+ * is a count of those, kept for the readout rather than for the compare.
+ */
+static void
+td_scene_element_pose_invalidate(struct ToriDraw_SceneElement* element)
+{
+    assert(element);
+    element->posed_primary = -1;
+    element->posed_track = NULL;
+    element->posed_track2 = NULL;
+    element->model_revision++;
+}
+
+/*
+ * TORIDRAW_ANIM_SKIP_SAME=1 skips a re-pose whose (track, frame, secondary
+ * track, secondary frame) equals the pose the model holds; the default
+ * re-poses on every call. OFF BY DEFAULT ON MEASUREMENT: on the Moto X
+ * (rs289lc) two interleaved client pairs read 12.51 / 13.66 ms CPU/frame
+ * with the skip against 12.16 / 12.75 without -- the tuple compare and the
+ * revision bookkeeping on every drawn element cost as much as the poses
+ * they save at this scene's animation density. Read once.
+ */
+static int
+td_anim_skip_same_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIDRAW_ANIM_SKIP_SAME");
+
+        cached = (v && v[0] == '1') ? 1 : 0;
+    }
+    return cached;
+}
+
+static bool
+td_scene_element_pose_matches(
+    const struct ToriDraw_SceneElement* element,
+    bool primary,
+    int frame,
+    int frame2,
+    const void* track,
+    const void* track2)
+{
+    assert(element);
+    if( !td_anim_skip_same_enabled() )
+        return false;
+    return element->posed_primary == (int8_t)(primary ? 1 : 0) &&
+           element->posed_frame == frame && element->posed_frame2 == frame2 &&
+           element->posed_track == track && element->posed_track2 == track2;
+}
+
+static void
+td_scene_element_pose_record(
+    struct ToriDraw_SceneElement* element,
+    bool primary,
+    int frame,
+    int frame2,
+    const void* track,
+    const void* track2)
+{
+    assert(element);
+    /* A frame index past int16 would alias: refuse to remember rather than
+     * risk a false match. No sequence in any supported cache comes close. */
+    if( frame < 0 || frame > INT16_MAX || frame2 < 0 || frame2 > INT16_MAX )
+    {
+        element->posed_primary = -1;
+        return;
+    }
+    element->posed_primary = (int8_t)(primary ? 1 : 0);
+    element->posed_frame = (int16_t)frame;
+    element->posed_frame2 = (int16_t)frame2;
+    element->posed_track = track;
+    element->posed_track2 = track2;
 }
 
 static int
@@ -427,6 +507,9 @@ ToriDraw_SceneElementModelForWrite(
     element = ToriDraw_SceneElementGet(scene, element_id);
     if( !element || !ToriDraw_ModelKindIsFull(element->model.kind) )
         return NULL;
+    /* The caller asked in order to WRITE: whatever pose the model holds is
+     * about to be edited under it. */
+    td_scene_element_pose_invalidate(element);
     /* Already ours: nothing to un-share. */
     if( element->model.kind == TORIDRAWMK_MODEL || element->model.kind == TORIDRAWMK_MODEL_HD )
         return element->model.u.model.model;
@@ -1404,6 +1487,110 @@ ToriDraw_SceneElementGet(
     return td_scene_element_ptr(scene, element_id);
 }
 
+void
+ToriDraw_SceneElementPrefetchNode(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    assert(scene);
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return;
+    __builtin_prefetch(&scene->elements.nodes[index], 0, 1);
+}
+
+void
+ToriDraw_SceneElementPrefetchData(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    const void* data;
+    assert(scene);
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return;
+    data = scene->elements.nodes[index].data;
+    if( data )
+        __builtin_prefetch(data, 0, 1);
+}
+
+void
+ToriDraw_SceneElementPrefetchDataBothLines(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    const void* data;
+    assert(scene);
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return;
+    data = scene->elements.nodes[index].data;
+    if( !data )
+        return;
+    __builtin_prefetch(data, 0, 1);
+    __builtin_prefetch((const char*)data + 64, 0, 1);
+}
+
+static const struct ToriDraw_Model*
+td_scene_element_prefetch_model_of(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    const struct ToriDraw_SceneElement* element;
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return NULL;
+    element = scene->elements.nodes[index].data;
+    if( !element || !ToriDraw_ModelKindIsFull(element->model.kind) )
+        return NULL;
+    return element->model.u.model.model;
+}
+
+void
+ToriDraw_SceneElementPrefetchModel(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    const struct ToriDraw_Model* model;
+    assert(scene);
+    model = td_scene_element_prefetch_model_of(scene, element_id);
+    if( !model )
+        return;
+    /* flags, counts and the array pointers sit in the first two lines; the
+     * bounds cylinder some 270 bytes in. */
+    __builtin_prefetch(model, 0, 1);
+    __builtin_prefetch((const char*)model + 64, 0, 1);
+    __builtin_prefetch(&model->bounds_cylinder, 0, 1);
+}
+
+void
+ToriDraw_SceneElementPrefetchArrays(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    const struct ToriDraw_Model* model;
+    assert(scene);
+    model = td_scene_element_prefetch_model_of(scene, element_id);
+    if( !model )
+        return;
+    if( model->vertices_x )
+        __builtin_prefetch(model->vertices_x, 0, 1);
+    if( model->vertices_y )
+        __builtin_prefetch(model->vertices_y, 0, 1);
+    if( model->vertices_z )
+        __builtin_prefetch(model->vertices_z, 0, 1);
+    if( model->face_indices_a )
+        __builtin_prefetch(model->face_indices_a, 0, 1);
+    if( model->face_indices_b )
+        __builtin_prefetch(model->face_indices_b, 0, 1);
+    if( model->face_indices_c )
+        __builtin_prefetch(model->face_indices_c, 0, 1);
+}
+
 bool
 ToriDraw_SceneElementIsLive(
     struct ToriDraw_Scene* scene,
@@ -1492,6 +1679,7 @@ td_scene_element_assign_model(
 
     td_scene_dispose_element_model(element);
     element->model = model;
+    td_scene_element_pose_invalidate(element);
 
     if( scene->batch_building )
         element->pending_batch_add = true;
@@ -1591,6 +1779,9 @@ ToriDraw_SceneElementSetAnimation(
     assert(element);
 
     slot = primary ? &element->animation : &element->secondary_animation;
+    /* Either branch changes what the next pose composes from: a new track,
+     * or (below) the model reset to its bind pose. */
+    td_scene_element_pose_invalidate(element);
 
     if( animation )
     {
@@ -1686,6 +1877,7 @@ ToriDraw_SceneElementSetAnimationSeq(
     element->skeletal_animation = NULL;
     element->skeletal_play_frames = 0;
     scene->anim_list_dirty = true;
+    td_scene_element_pose_invalidate(element);
 
     if( element->model.kind == TORIDRAWMK_MODEL )
     {
@@ -1715,10 +1907,26 @@ ToriDraw_SceneElementSetSecondaryAnimationSeq(
 
     element->anim2_seq_id = seq_id;
     element->anim2_frame = 0;
+    td_scene_element_pose_invalidate(element);
     if( seq_id <= 0 )
         element->secondary_animation = NULL;
     else
         td_ensure_bind_pose(&element->model);
+}
+
+void
+ToriDraw_SceneElementPoseInvalidate(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    assert(element);
+    td_scene_element_pose_invalidate(element);
 }
 
 void
@@ -1774,7 +1982,10 @@ ToriDraw_SceneElementApplyAnimation(
             return;
         if( frame < 0 || frame >= skeletal->frame_count )
             frame = 0;
+        if( td_scene_element_pose_matches(element, primary, frame, 0, skeletal, NULL) )
+            return;
         ToriDraw_ModelAnimateSkeletal(model, skeletal, frame);
+        td_scene_element_pose_record(element, primary, frame, 0, skeletal, NULL);
     }
     else
     {
@@ -1791,7 +2002,35 @@ ToriDraw_SceneElementApplyAnimation(
             ToriDraw_ModelAnimateReset(model);
             ToriDraw_ModelApplyPostTransforms(model);
             ToriDraw_ModelSetBoundsCylinder(model);
+            element->posed_primary = -1;
             return;
+        }
+
+        /* The walkmerge blend below reads the secondary track; resolve what
+         * it would use so the pose the model holds can be compared against
+         * the one this call would produce before any of the work is done. */
+        {
+            struct ToriDraw_Animation* second = NULL;
+            int frame2 = 0;
+            if( primary && animation->walkmerge && element->secondary_animation &&
+                element->secondary_animation->base && element->secondary_animation->frames &&
+                element->secondary_animation->frame_count > 0 )
+            {
+                second = element->secondary_animation;
+                frame2 = element->anim2_frame;
+                if( frame2 < 0 || frame2 >= second->frame_count )
+                    frame2 = 0;
+                if( second->frames[frame2].length <= 0 )
+                {
+                    second = NULL;
+                    frame2 = 0;
+                }
+            }
+            if( td_scene_element_pose_matches(element, primary, frame, frame2, animation, second) )
+                return;
+            /* Remembered before the pose is applied: every path below leaves
+             * the model at exactly this (track, frame) pair. */
+            td_scene_element_pose_record(element, primary, frame, frame2, animation, second);
         }
         ToriDraw_ModelAnimateReset(model);
 

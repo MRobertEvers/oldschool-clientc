@@ -513,6 +513,7 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     struct ToriDraw_Scene* scene,
     int* f_io,
     int num_faces,
+    int num_vertices,
     bool near_clipped,
     int model_min_depth,
     int stash_xy,
@@ -522,8 +523,10 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     const faceint_t* RESTRICT face_a,
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c,
-    uint32_t* keys)
+    uint32_t* keys,
+    int* out_accepted)
 {
+    (void)num_vertices; /* this lane gathers lane by lane from the axis arrays */
     __m128i const sentinel =
         _mm_set1_epi32(near_clipped ? TORIDRAW_SCREEN_X_NEAR_CLIPPED : INT_MIN);
     __m128i const min_depth = _mm_set1_epi32(model_min_depth);
@@ -548,6 +551,7 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
             keys + n);
 
     *f_io = f;
+    *out_accepted = n; /* this lane left-packs: every key written is an accepted face */
     return n;
 }
 
@@ -614,6 +618,18 @@ toridraw_face_sort_bitonic_radix_lane_sort(
         keys[i] = 0xFFFFFFFFu;
     toridraw_bitonic_sort_u32_sse2(keys, N);
     return true;
+}
+
+/* The emit, one face at a time: see the header. */
+static inline void
+toridraw_face_sort_bitonic_radix_lane_emit(
+    const uint32_t* RESTRICT keys,
+    int n,
+    int* RESTRICT out)
+{
+    int i;
+    for( i = 0; i < n; i++ )
+        out[i] = (int)(keys[i] & 0xFFFFu);
 }
 
 #endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_SSE2_U_C */

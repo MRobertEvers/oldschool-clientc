@@ -276,13 +276,19 @@ static struct MobileRock const MOBILE_ROCK[MOBILE_RAIL_ROWS] = {
 /**
  * The chat surface's top row, and with it the whole block's.
  *
- * A macro because the layout pass and the tap-blocker both need it and used to
- * spell it out separately; that is exactly the pair that drifts when the sheet
- * art changes shape, and the blocker landing fourteen rows off the sheet is a
- * frame that swallows taps on the world and passes taps on the chat.
+ * A macro because the layout pass and the tap-blocker both spelled it out
+ * separately once; that is exactly the pair that drifts when the sheet art
+ * changes shape, and the blocker landing fourteen rows off the sheet is a
+ * frame that swallows taps on the world and passes taps on the chat. Only the
+ * layout evaluates it now -- the blocker reads the answer back out of
+ * g_frame.chat_y, which is the same number and is also the only one that
+ * survives a soft keyboard.
+ *
+ * The bottom is a PARAMETER and is not the canvas's: with a keyboard up the
+ * block hangs from the safe bottom instead. @see mobile_layout.
  */
-#define MOBILE_CHAT_Y(canvas_h)                                                \
-    ((canvas_h) -MOBILE_STRIP_H - MOBILE_CHAT_H - MOBILE_CHAT_FRINGE_B -        \
+#define MOBILE_CHAT_Y(bottom)                                                  \
+    ((bottom) -MOBILE_STRIP_H - MOBILE_CHAT_H - MOBILE_CHAT_FRINGE_B -          \
      MOBILE_CHAT_STRIP_GAP)
 
 /* The fringe is not symmetric -- seventeen columns of file to the surface's
@@ -732,6 +738,11 @@ static struct
     /** Whether the sheet was actually placed this declaration -- which is the
      *  intent AND the room for it. @see mobile_chat_visible. */
     int chat_placed;
+    /** Where the sheet's top ended up, so the draw pass claims the rectangle
+     *  the layout placed -- which is above the keyboard when one is up, and
+     *  not a recomputation from the canvas edge that would put the tap target
+     *  back under it. */
+    int chat_y;
     int declared;
 } g_frame;
 
@@ -1478,11 +1489,39 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     struct MobileHousing const* housing = mobile_housing(ctx);
     int const map_x = canvas_w - MOBILE_MARGIN - g_map_w;
     int const map_y = MOBILE_MARGIN;
-    int const strip_y = canvas_h - MOBILE_STRIP_H;
-    int const chat_y = MOBILE_CHAT_Y(canvas_h);
+    int safe_y = 0;
+    int safe_h = canvas_h;
+    int safe_bottom;
+    int strip_y;
+    int chat_y;
     int const chat_visible = mobile_chat_visible(canvas_w);
 
     assert(ctx);
+
+    /*
+     * The chat block hangs from the SAFE bottom, not the canvas's.
+     *
+     * The two differ exactly while the soft keyboard is up: the canvas keeps
+     * its size (the keyboard is painted over it by the OS), so a sheet pinned
+     * to the canvas's bottom edge is a sheet pinned under the keyboard the
+     * moment "Tap here to chat..." is answered. The host re-declares the
+     * layout when the keyboard comes and goes, so this one read is what
+     * slides the sheet up over it and back down after.
+     *
+     * Only the chat block follows it. The rail and the drawer stay on the
+     * canvas edge: the keyboard is up because somebody is TYPING, and the
+     * furniture they are not using has nothing to say from mid-air.
+     */
+    g_api->safe_os(ctx, NULL, &safe_y, NULL, &safe_h);
+    safe_bottom = safe_y + safe_h;
+    if( safe_bottom > canvas_h )
+        safe_bottom = canvas_h;
+    strip_y = safe_bottom - MOBILE_STRIP_H;
+    /* Through the macro rather than `strip_y - MOBILE_CHAT_H`, so the block is
+     * still pinned by the ART's last inked row and not by the surface's -- the
+     * safe bottom moved which edge it hangs from, not what hangs there.
+     * @see MOBILE_CHAT_Y. */
+    chat_y = MOBILE_CHAT_Y(safe_bottom);
 
     /*
      * The scene is the WHOLE canvas, chrome included.
@@ -1550,10 +1589,11 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
         mobile_blit(g_image[IMG_CHATBACK], 0, chat_y - MOBILE_CHAT_FRINGE_Y);
 
     /* The switch sits directly above whatever is in that corner: the sheet when
-     * it is up, the bottom margin when it is not. Pinned to the thing it
-     * operates rather than to a coordinate, so it never floats away from it. */
+     * it is up, the safe bottom margin when it is not. Pinned to the thing it
+     * operates rather than to a coordinate, so it never floats away from it --
+     * nor under the keyboard, which the safe bottom is what keeps it out of. */
     g_frame.toggle_x = MOBILE_MARGIN;
-    g_frame.toggle_y = (chat_visible ? chat_y - MOBILE_CHAT_FRINGE_Y : canvas_h) -
+    g_frame.toggle_y = (chat_visible ? chat_y - MOBILE_CHAT_FRINGE_Y : safe_bottom) -
                        MOBILE_MARGIN - MOBILE_TOGGLE_H;
     mobile_blit(g_image[IMG_SWITCH], g_frame.toggle_x, g_frame.toggle_y);
     /*
@@ -1670,6 +1710,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
         MOBILE_MODAL_H);
 
     g_frame.chat_placed = chat_visible;
+    g_frame.chat_y = chat_y;
     if( !chat_visible )
         return;
 
@@ -1779,6 +1820,16 @@ mobile_on_layout(
     assert(ctx);
     assert(ev);
 
+    /*
+     * Nothing before the gameframe exists -- @see gameframe.c's frame_on_layout
+     * for the whole reason. The short of it: the slots are claimed whether or
+     * not there is a frame to dress, and on the title screen that takes the
+     * background, the logo and the login box away and puts nothing in their
+     * place.
+     */
+    if( g_api->screen(ctx) != TORIRS_PLUGIN_SCREEN_GAME )
+        return TORIRS_PLUGIN_PASS;
+
     mobile_build_art(ctx);
 
     g_frame.canvas_w = ev->width;
@@ -1834,6 +1885,11 @@ mobile_on_draw(
     (void)userdata;
     assert(ctx);
     assert(ev);
+
+    /* The other half of the layout gate: a frame declared on the last in-game
+     * frame must not keep drawing across a logout back to the title. */
+    if( g_api->screen(ctx) != TORIRS_PLUGIN_SCREEN_GAME )
+        return TORIRS_PLUGIN_PASS;
 
     if( !g_frame.declared )
         return TORIRS_PLUGIN_PASS;
@@ -1913,14 +1969,20 @@ mobile_on_draw(
          * moved once and the sum is only ever "everything below the sheet's
          * top". The gap is in it: a slot that narrow between two pieces of
          * chrome is a mis-tap, not a walk.
+         *
+         * The top is the one the LAYOUT arrived at, not a recomputation from
+         * the canvas edge: with a soft keyboard up the block hangs from the
+         * safe bottom instead, and a blocker measured off ev->height would sit
+         * under the keys while the sheet the player can see took no taps at
+         * all. @see g_frame.chat_y.
          */
         g_api->hit_region(
             ctx,
             ev->surface,
             MOBILE_CHAT_FRINGE_X,
-            MOBILE_CHAT_Y(ev->height),
+            g_frame.chat_y,
             MOBILE_CHAT_W,
-            ev->height - MOBILE_CHAT_Y(ev->height),
+            ev->height - g_frame.chat_y,
             TYPE_OP,
             1,
             MOBILE_TAG_CHATLOG);
@@ -1939,6 +2001,20 @@ mobile_on_draw(
     for( int i = 0; i < g_frame.tab_count; i++ )
     {
         struct MobileTab const* t = &g_frame.tab[i];
+        /*
+         * A tab the SERVER has not handed over is a bare rock: no icon, and no
+         * lit stone even when it is the selected one.
+         *
+         * The twin of g_tab_present and NOT the same question. That one is
+         * about the CACHE -- rs289lc has no clan chat and never will -- and is
+         * answered once, at declaration. This one is about the PLAYER and
+         * changes on a packet: the tutorial hands the fourteen tabs out one at
+         * a time and a new character starts with almost none of them, so an
+         * answer recorded at declaration would draw the whole rail for someone
+         * who has been given one panel. Hence the ask here, in the draw pass.
+         * @see ToriRS_PluginApi::tab_enabled.
+         */
+        int const given = g_api->tab_enabled(ctx, t->tabno);
         int iw = 0;
         int ih = 0;
 
@@ -1953,7 +2029,7 @@ mobile_on_draw(
          * selected tab when the panel is shut, so a lit stone over a drawer
          * that is not there would say the panel is open when it is not.
          */
-        if( g_drawer_open && t->tabno == active )
+        if( given && g_drawer_open && t->tabno == active )
         {
             int sw = 0;
             int sh = 0;
@@ -1979,7 +2055,7 @@ mobile_on_draw(
          * are each a different size (20x19 up to 30x29) and the cell is a
          * uniform 36x34, so a corner blit puts every one of them somewhere
          * different within its own stone. */
-        if( t->icon >= 0 && g_api->image_size(ctx, t->icon, &iw, &ih) )
+        if( given && t->icon >= 0 && g_api->image_size(ctx, t->icon, &iw, &ih) )
             g_api->draw_image(
                 ctx,
                 ev->surface,
@@ -2066,11 +2142,17 @@ mobile_on_click(
         g_chat_open = !g_chat_open;
         /* Putting the sheet away takes the keyboard with it: there is nothing
          * left on screen to type into, and a keyboard covering half a phone
-         * with no input line above it is the worst of both. */
-        if( !g_chat_open && g_keyboard_on )
+         * with no input line above it is the worst of both. Both sources are
+         * dropped, because either can be holding it up -- the plugin's own
+         * latch (the keyboard switch) and the chat line's focus. */
+        if( !g_chat_open )
         {
-            g_keyboard_on = 0;
-            g_api->text_input(ctx, 0);
+            if( g_keyboard_on )
+            {
+                g_keyboard_on = 0;
+                g_api->text_input(ctx, 0);
+            }
+            g_api->chat_focus(ctx, 0);
         }
         mobile_claim(ctx);
         return TORIRS_PLUGIN_PASS;
@@ -2080,20 +2162,26 @@ mobile_on_click(
     {
         g_keyboard_on = !g_keyboard_on;
         g_api->text_input(ctx, g_keyboard_on);
+        /* Switching OFF also drops the chat line's focus, or the focus alone
+         * keeps the keyboard up and the switch does nothing visible. The
+         * belief can lag reality -- a keyboard raised by focus alone is one
+         * this latch never asked for -- and then the first press is absorbed
+         * bringing the two in step; the second dismisses. */
+        if( !g_keyboard_on )
+            g_api->chat_focus(ctx, 0);
         return TORIRS_PLUGIN_PASS;
     }
 
     if( ev->tag == MOBILE_TAG_CHATLOG )
     {
-        /* A tap on the sheet is "I want to type", which is a request to SHOW
-         * and never to hide -- so it is not a toggle. It is also the reason
-         * this region carries an op at all: it was a bare swallow, and a
-         * swallow cannot tell the plugin it happened. */
-        if( !g_keyboard_on )
-        {
-            g_keyboard_on = 1;
-            g_api->text_input(ctx, 1);
-        }
+        /* A tap on the sheet is "I want to type", which is a request to FOCUS
+         * and never to hide -- so it is not a toggle. Focusing the chat line
+         * is the whole of it: the client raises the soft keyboard off its own
+         * focus state, points the typing at the line rather than at the
+         * hotkeys, and drops both again when a tap lands anywhere else. This
+         * region carries an op at all because it was a bare swallow once, and
+         * a swallow cannot tell the plugin it happened. */
+        g_api->chat_focus(ctx, 1);
         return TORIRS_PLUGIN_PASS;
     }
 
@@ -2102,6 +2190,20 @@ mobile_on_click(
 
     {
         int const tabno = (int)(ev->tag & 0xffffu);
+
+        /*
+         * A rock the server has not put a panel behind swallows the tap and
+         * does nothing, which is what the client's own chrome does with a
+         * click on a tab it has no interface for.
+         *
+         * The gate is needed HERE and not only in the draw pass because this
+         * stone does something of its own: tab_select refuses a tab the server
+         * has taken away, but the line below opens the drawer before it asks,
+         * so a tap on a blank rock during the tutorial would pull the panel out
+         * on whatever tab was last selected.
+         */
+        if( !g_api->tab_enabled(ctx, tabno) )
+            return TORIRS_PLUGIN_PASS;
 
         /*
          * The tab you are already looking at shuts the drawer; any other opens
@@ -2141,12 +2243,60 @@ mobile_claim(struct ToriRS_PluginCtx* ctx)
     if( !g_api->layout_claim(
             ctx, TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW, MOBILE_MIN_W, MOBILE_MIN_H) )
     {
+        /* The host also refuses every claim made off the game screen -- there
+         * is no frame to claim before there is a frame -- and that refusal is
+         * a wait, not a loss: mobile_on_screen retries it on login. Logging
+         * "someone else owns it" for that case sent the reader hunting for a
+         * plugin that does not exist. */
+        if( g_api->screen(ctx) != TORIRS_PLUGIN_SCREEN_GAME )
+            return;
         /* Another layout plugin has it -- gameframe-layout, most likely, since
          * both are off until asked for and both want the same frame. Saying so
          * is the whole response: two frames drawn at once is worse than one,
          * and the loser drawing nothing is what makes the winner's correct. */
         g_api->log(ctx, "another plugin owns the gameframe; this one is idle");
     }
+}
+
+/*
+ * Entering the game re-states the frame.
+ *
+ * The layout handler declines to declare on the title screen -- that gate is
+ * mobile_on_layout's opening lines, and it is correct -- but a declaration only
+ * follows a claim, a resize or a rebuild, and logging in is none of the three.
+ * So a plugin ENABLED at the title screen answered its one EV_LAYOUT with
+ * nothing and was never asked again: the drawer worked only if the plugin was
+ * switched on while already in game, which read as "needs a restart after
+ * login". The re-claim is idempotent for the holder and marks the frame as
+ * needing a fresh EV_LAYOUT -- the same call the drawer and the chat switch
+ * make.
+ *
+ * Leaving it FORGETS the one it declared. The layout and draw gates already
+ * keep that declaration off the title screen, so this is not about what is
+ * drawn there -- it is about what is drawn on the way BACK. The boxes in
+ * `g_frame` were measured against a gameframe that no longer exists, and the
+ * draw gate opens again the moment the next session reaches the game screen,
+ * which is several frames before the new tree has finished baking and a fresh
+ * declaration can replace them. Without this the first frames of every session
+ * after the first are painted with the previous session's frame.
+ */
+static enum ToriRS_PluginVerdict
+mobile_on_screen(
+    struct ToriRS_PluginCtx* ctx,
+    void* payload,
+    void* userdata)
+{
+    struct ToriRS_PluginEvScreen const* ev = payload;
+
+    (void)userdata;
+    assert(ctx);
+    assert(ev);
+
+    if( ev->screen == TORIRS_PLUGIN_SCREEN_GAME )
+        mobile_claim(ctx);
+    else
+        memset(&g_frame, 0, sizeof(g_frame));
+    return TORIRS_PLUGIN_PASS;
 }
 
 static enum ToriRS_PluginVerdict
@@ -2301,6 +2451,7 @@ mobile_init(
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_FRAME, mobile_on_draw, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, mobile_on_click, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CONFIG_CHANGED, mobile_on_config, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_SCREEN_CHANGE, mobile_on_screen, NULL);
 }
 
 /*

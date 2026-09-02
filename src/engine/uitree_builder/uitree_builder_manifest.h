@@ -102,6 +102,13 @@ struct UIBuilderTreeOp
     char inv_name[64];
     char font_ref[64];
     int font;
+
+    /* type=inkwell: which artwork, and which colour each outcome uses.
+     * -1 = the profile said nothing, and the host keeps its default.
+     * @see ui/torirs_chrome_inkwell.h. */
+    int ink_style;
+    int ink_walk_color;
+    int ink_interact_color;
     uint8_t has_font_ref;
     int tabno;
     int selected;
@@ -112,6 +119,12 @@ struct UIBuilderTreeOp
     int dirty;
     /** @see RevConfigUILayoutItem::xalign_center. */
     int xalign_center;
+    /** REVCONFIG_SAFE_AREA_SOURCE_* / _FLAG_*: which safe area this row keeps
+     *  clear of, which of its edges, and the room it wants beyond the overlap.
+     *  @see RevConfigUILayoutItem::safe_area_source. */
+    int safe_area_source;
+    int safe_area_flags;
+    int safe_area_margin;
     int level_mask;
     /** Effect names this component advertises (revconfig hotkey= lines). */
     char hotkeys[REVCONFIG_COMPONENT_HOTKEY_MAX][64];
@@ -162,6 +175,7 @@ struct UIBuilderTreeOp
     int chat_op_accept_trade_action;
     char chat_op_accept_duel[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
     int chat_op_accept_duel_action;
+    char chat_prompt[REVCONFIG_CHAT_PROMPT_LEN];
     int chat_button_filter;
     char chat_button_label[64];
     int chat_button_label_y;

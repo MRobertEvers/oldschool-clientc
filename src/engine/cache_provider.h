@@ -383,11 +383,12 @@ void
 CacheProvider_ModelsCleanup(struct CacheProvider* provider);
 
 /*
- * Drop the least recently used models and sprites, keeping a working set.
+ * Drop the least recently used models, sprites and map squares (terrain and
+ * scenery), keeping a working set of each.
  *
- * Both caches are derived and nothing retains what it gets out of them — every
- * reader converts into its own object — so an eviction costs a reload and
- * nothing else. What is *not* safe is evicting at an arbitrary moment: a world
+ * All of these caches are derived and nothing retains what it gets out of them
+ * — every reader converts into its own object, and a square is only read while
+ * the builder meshes it — so an eviction costs a reload and nothing else. What is *not* safe is evicting at an arbitrary moment: a world
  * build preloads its models and then consumes them synchronously, so this must
  * be called between builds rather than from the insert path. Task_WorldLoad
  * calls it before it starts preloading, which is where Client-TS clears its

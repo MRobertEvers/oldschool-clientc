@@ -28,6 +28,9 @@ sprite_frame_from_dat2_sprite(
         return frame;
 
     frame.pixels_argb = (uint32_t*)px;
+    /* dat2 pixels arrive as (alpha << 24) | palette colour, the per-pixel
+     * alpha table applied. @see ToriDraw_Sprite::alpha_channel. */
+    frame.alpha_channel = 1;
     frame.width = def->crop_width > 0 ? def->crop_width : def->width;
     frame.height = def->crop_height > 0 ? def->crop_height : def->height;
     frame.crop_x = def->offset_x;
@@ -101,6 +104,9 @@ sprite_frame_from_dat1_pix8(struct RSCache_Dat1Pix8 const* pix8)
     }
 
     frame.pixels_argb = argb;
+    /* Real coverage: 0xFF for a palette colour, 0 for the transparent index.
+     * @see ToriDraw_Sprite::alpha_channel. */
+    frame.alpha_channel = 1;
     frame.width = pix8->width;
     frame.height = pix8->height;
     frame.crop_x = pix8->crop_x;
@@ -150,6 +156,7 @@ sprite_frame_from_dat1_pix32(struct RSCache_Dat1Pix32 const* pix32)
     }
 
     frame.pixels_argb = argb;
+    frame.alpha_channel = 1; /* as above: 0xFF or absent */
     frame.width = pix32->draw_width;
     frame.height = pix32->draw_height;
     frame.crop_width = pix32->draw_width;

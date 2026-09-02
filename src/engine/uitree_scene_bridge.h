@@ -125,6 +125,7 @@ struct UITreeSceneBridge
  * ids are cache font ids everywhere else (see EnsureFont), so these sit out of
  * that range alongside the reserved model/sprite ids above. */
 #define UITREE_SCENE_DEBUG_FONT_SMALL_ID 0x40000006
+
 #define UITREE_SCENE_DEBUG_FONT_MENU_ID 0x40000007
 #define UITREE_SCENE_DEBUG_FONT_BODY_ID 0x40000008
 
@@ -149,6 +150,25 @@ struct UITreeSceneBridge
  *  fire advances. @see engine/title_flames.h. */
 #define UITREE_SCENE_TITLE_FLAME_LEFT_ID 0x4000000B
 #define UITREE_SCENE_TITLE_FLAME_RIGHT_ID 0x4000000C
+
+/*
+ * The touch marker's artwork -- every style and colour in ONE scene entry, so a
+ * variant is an atlas index and switching one costs no upload. Same shape as
+ * UITREE_SCENE_CHROME_SKIN_ID above, and for the same reason: the render
+ * command already carries an atlas index, so nothing downstream needs a new
+ * field to reach these.
+ *
+ * 0x0D because it is the next free one. It was first written as 0x40000007,
+ * which is DEBUG_FONT_MENU's -- the exact collision the SCALED_BASE comment
+ * above warns about, and it behaves exactly as that comment says it does:
+ * whichever of the two uploads second owns the entry and the other draws the
+ * wrong atlas, three subsystems away from anything that mentions an inkwell.
+ * Keep this list contiguous and check it before adding to it.
+ *
+ * @see ui/torirs_chrome_inkwell.h for why the pixels are drawn rather than
+ * baked out of a cache.
+ */
+#define UITREE_SCENE_INKWELL_ID 0x4000000D
 
 /**
  * Base of the reserved scene-sprite range for PLUGIN IMAGES: art a plugin
@@ -212,6 +232,18 @@ UITreeSceneBridge_EnsureStaticSprite(
     int cache_graphic_id);
 
 /** Scene id bound to a static sprite slot, or -1. */
+/**
+ * Upload the touch-marker frames if they are not already resident.
+ *
+ * @return UITREE_SCENE_INKWELL_ID, or -1 when the scene refused them.
+ *
+ * The atlas index for one frame is ToriRSInkwell_AtlasIndex(style, colour,
+ * frame) -- every combination is present, so the profile can pick a style
+ * without the bridge knowing which one it picked.
+ */
+int
+UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge);
+
 int
 UITreeSceneBridge_StaticSpriteSceneId(
     struct UITreeSceneBridge const* bridge,

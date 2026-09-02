@@ -193,7 +193,7 @@ snapshot_write_node(
     int const effective_hidden = UITree_NodeOrAncestorDisplayHidden(tree, (int32_t)node) ? 1 : 0;
     int const culled = snapshot_node_or_ancestor_culled(tree, (int32_t)node);
     int const walked = tree->emit_visited && node < tree->emit_visited_cap
-                           ? (tree->emit_visited[node] ? 1 : 0)
+                           ? (tree->emit_visited[node] == tree->emit_epoch ? 1 : 0)
                            : 0;
     int const scroll_width = component->type == UIELEM_RS_LAYER
                                  ? component->u.rs_layer.scroll_width

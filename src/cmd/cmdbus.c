@@ -197,6 +197,12 @@ CmdBus_PushMouseMove(
 }
 
 int
+CmdBus_PushMouseLeave(struct ToriRS_CmdBus* bus)
+{
+    return CmdBus_Push(bus, TORIRS_CMD_INPUT_MOUSE_LEAVE, NULL, 0);
+}
+
+int
 CmdBus_PushMouseWheel(
     struct ToriRS_CmdBus* bus,
     int16_t wheel_y)
@@ -213,6 +219,15 @@ CmdBus_PushWindowResize(
 {
     struct ToriRS_CmdWindowResize cmd = { width, height };
     return CmdBus_Push(bus, TORIRS_CMD_WINDOW_RESIZE, &cmd, sizeof(cmd));
+}
+
+int
+CmdBus_PushKeyboardInset(
+    struct ToriRS_CmdBus* bus,
+    int32_t bottom)
+{
+    struct ToriRS_CmdKeyboardInset cmd = { bottom };
+    return CmdBus_Push(bus, TORIRS_CMD_KEYBOARD_INSET, &cmd, sizeof(cmd));
 }
 
 int

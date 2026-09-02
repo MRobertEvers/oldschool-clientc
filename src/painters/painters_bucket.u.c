@@ -361,8 +361,10 @@ bucket_emit_entity(
             ._bf_entity = (uint32_t)ElementId_Index(ElementId_FromRaw(entity)),
             ._bf_entity_kind = (uint32_t)ElementId_Kind(ElementId_FromRaw(entity)),
         },
+        ._element_id = entity,
     };
     (*cur)++;
+    g_torirs_paint_census.entity_commands++;
 }
 
 static inline void
@@ -371,7 +373,8 @@ bucket_emit_terrain(
     struct PaintersElementCommand* end,
     int sx,
     int sz,
-    int slevel)
+    int slevel,
+    int element_id)
 {
     (void)end;
     assert(*cur < end);
@@ -382,6 +385,7 @@ bucket_emit_terrain(
             ._bf_terrain_z = (uint32_t)sz,
             ._bf_terrain_y = (uint32_t)slevel,
         },
+        ._element_id = element_id,
     };
     (*cur)++;
 }
@@ -392,7 +396,8 @@ bucket_emit_terrain_pick_only(
     struct PaintersElementCommand* end,
     int sx,
     int sz,
-    int slevel)
+    int slevel,
+    int element_id)
 {
     (void)end;
     assert(*cur < end);
@@ -403,6 +408,7 @@ bucket_emit_terrain_pick_only(
             ._bf_terrain_z = (uint32_t)sz,
             ._bf_terrain_y = (uint32_t)slevel,
         },
+        ._element_id = element_id,
     };
     (*cur)++;
 }
@@ -992,54 +998,58 @@ bucket_paint_world(
                 }
             }
 
-            for( int x = min_draw_x, ti = row; x < max_draw_x; x++, ti++ )
+            /*
+             * The whole row of the box starts DONE and cleared, written as one
+             * sequential pass -- three word stores a tile, vectorisable --
+             * and the per-tile tests below run only over the row's visible
+             * span. Before this every tile in the box (a 51 x 51 x 4 box is
+             * ten thousand of them, of which ~1,300 are painted) took six
+             * byte stores and the full test ladder; that loop was 30% of the
+             * walk on the Moto X. A tile outside the span reads exactly as it
+             * did: step DONE, flags clear, not in the queue.
+             */
             {
-                tiles_in_box++;
+                struct TilePaint const done = {
+                    .queue_next = -1,
+                    .step = PAINT_STEP_DONE,
+                    .queue_count = 0,
+                    .near_wall_flags = 0,
+                    .in_queue = 0,
+                    .scenery_sorted = 0,
+                    .occlusion = TILE_OCCLUSION_UNKNOWN,
+                    .seam_relaxed = 0,
+                    .seam_scan = 0,
+                };
+                for( int ti = row; ti < row + (max_draw_x - min_draw_x); ti++ )
+                    paints[ti] = done;
+                tiles_in_box += max_draw_x - min_draw_x;
+            }
+            if( row_culled )
+                continue;
+
+            for( int x = span_lo, ti = row + (span_lo - min_draw_x); x < span_hi; x++, ti++ )
+            {
                 struct PaintersTile* t = &tiles[ti];
                 struct TilePaint* tp = &paints[ti];
-
-                tp->near_wall_flags = 0;
-                tp->in_queue = 0;
-                tp->occlusion = TILE_OCCLUSION_UNKNOWN;
-                tp->scenery_sorted = 0;
-                tp->seam_relaxed = 0;
-                tp->seam_scan = 0;
 
                 int tile_visible_gte_level = painters_tile_get_visible_gte_level(t);
                 if( tile_excluded_by_bridge_or_draw_mask(
                         painters_tile_get_flags(t), tile_visible_gte_level, draw_mask) )
-                {
-                    tp->step = PAINT_STEP_DONE;
-                    continue;
-                }
+                    continue; /* already DONE from the row fill */
 
-                if( cullspan_active )
-                {
-                    if( row_culled || x < span_lo || x >= span_hi )
-                    {
-                        tp->step = PAINT_STEP_DONE;
-                        continue;
-                    }
-                }
-                else if( !cull_all_visible )
+                if( !cullspan_active && !cull_all_visible )
                 {
                     int dx = x - camera_sx;
                     int dz = z - camera_sz;
                     if( dx < -cull_radius || dx > cull_radius || dz < -cull_radius ||
                         dz > cull_radius )
-                    {
-                        tp->step = PAINT_STEP_DONE;
                         continue;
-                    }
                     int ix = dx + cull_radius;
                     int iz = dz + cull_radius;
                     size_t bidx =
                         cull_camera_key + (size_t)ix * (size_t)cull_grid_side + (size_t)iz;
                     if( !pcull_bit_get(cull_vis, bidx) )
-                    {
-                        tp->step = PAINT_STEP_DONE;
                         continue;
-                    }
                 }
 
                 tp->step = PAINT_STEP_READY;
@@ -1105,6 +1115,7 @@ bucket_paint_world(
         if( e_tile < 0 )
             continue;
         BUCKET_PERF_INCREMENT(perf_pops);
+        g_torirs_paint_census.pops++;
         PAINTER_DBG_WEDGE_EVENTF(e_tile, "POP", "step=%d", (int)paints[e_tile].step);
 
         struct PaintersTile* tile = &tiles[e_tile];
@@ -1206,8 +1217,17 @@ bucket_paint_world(
                     for( int ml = 0; ml < 4; ml++ )
                         if( uset & (1u << ml) )
                         {
-                            bucket_emit_terrain(&cmd_cur, cmd_end, bridge_underpass_tile->sx,
-                                                bridge_underpass_tile->sz, ml);
+                            bucket_emit_terrain(
+                                &cmd_cur,
+                                cmd_end,
+                                bridge_underpass_tile->sx,
+                                bridge_underpass_tile->sz,
+                                ml,
+                                painter->terrain_element[painter_coord_idx(
+                                    painter,
+                                    bridge_underpass_tile->sx,
+                                    bridge_underpass_tile->sz,
+                                    ml)]);
                             PAINTER_DBG_WEDGE_PAINT(
                                 tile->bridge_tile, "floor:bridge", ml, -1, -1);
                         }
@@ -1225,13 +1245,26 @@ bucket_paint_world(
                     {
                         if( !ground_hidden )
                         {
-                            bucket_emit_terrain(&cmd_cur, cmd_end, tile_sx, tile_sz, ml);
+                            bucket_emit_terrain(
+                                &cmd_cur,
+                                cmd_end,
+                                tile_sx,
+                                tile_sz,
+                                ml,
+                                painter->terrain_element[painter_coord_idx(
+                                    painter, tile_sx, tile_sz, ml)]);
                             PAINTER_DBG_WEDGE_PAINT(e_tile, "floor", ml, -1, -1);
                         }
                         else if( camera_slevel >= 0 && ml <= camera_slevel )
                         {
                             bucket_emit_terrain_pick_only(
-                                &cmd_cur, cmd_end, tile_sx, tile_sz, ml);
+                                &cmd_cur,
+                                cmd_end,
+                                tile_sx,
+                                tile_sz,
+                                ml,
+                                painter->terrain_element[painter_coord_idx(
+                                    painter, tile_sx, tile_sz, ml)]);
                         }
                     }
             }
@@ -1722,11 +1755,43 @@ painter_paint_bucket(
     cursor.cur = buffer->commands;
     cursor.end = buffer->commands + buffer->command_capacity;
 
+    /* The walk's inputs, hashed, against the previous walk's: the hit rate a
+     * cached walk would see. The span rows are what the analytic cull
+     * changes per frame; the cullmap is keyed by cull_camera_key already. */
+    {
+        static uint32_t last_key;
+        uint32_t key = 2166136261u;
+        const uint8_t* bytes;
+        size_t i;
+        int ints[6] = { camera_sx,
+                        camera_sz,
+                        camera_slevel,
+                        painter->cullspan_active,
+                        painter->draw_distance,
+                        (int)painter->level_mask };
+        bytes = (const uint8_t*)ints;
+        for( i = 0; i < sizeof(ints); i++ )
+            key = (key ^ bytes[i]) * 16777619u;
+        bytes = (const uint8_t*)&painter->cull_camera_key;
+        for( i = 0; i < sizeof(painter->cull_camera_key); i++ )
+            key = (key ^ bytes[i]) * 16777619u;
+        if( painter->cullspan_active )
+        {
+            bytes = (const uint8_t*)&painter->cullspan;
+            for( i = 0; i < sizeof(painter->cullspan); i++ )
+                key = (key ^ bytes[i]) * 16777619u;
+        }
+        g_torirs_paint_census.walks++;
+        g_torirs_paint_census.same_inputs += (key == last_key);
+        last_key = key;
+    }
+
     buffer->command_count = 0;
     PAINTER_DBG_STALL_FRAME();
     bucket_paint_world(painter, &cursor, camera_sx, camera_sz, camera_slevel, &stack);
 
     buffer->command_count = (int)(cursor.cur - cursor.base);
+    g_torirs_paint_census.commands += buffer->command_count;
     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_COMMANDS, buffer->command_count);
 
     PAINTER_DBG_WEDGE_FRAME_END(buffer->command_count);
@@ -1927,7 +1992,9 @@ painter_collect_visible_depth(
                                     cmd_end,
                                     underpass->sx,
                                     underpass->sz,
-                                    ml);
+                                    ml,
+                                    painter->terrain_element[painter_coord_idx(
+                                        painter, underpass->sx, underpass->sz, ml)]);
                     }
                     if( underpass->wall_a >= 0 )
                     {
@@ -1953,10 +2020,23 @@ painter_collect_visible_depth(
                         if( terrain & (1u << ml) )
                         {
                             if( !ground_hidden )
-                                bucket_emit_terrain(&cmd_cur, cmd_end, sx, sz, ml);
+                                bucket_emit_terrain(
+                                    &cmd_cur,
+                                    cmd_end,
+                                    sx,
+                                    sz,
+                                    ml,
+                                    painter->terrain_element[painter_coord_idx(
+                                        painter, sx, sz, ml)]);
                             else if( camera_slevel >= 0 && ml <= camera_slevel )
                                 bucket_emit_terrain_pick_only(
-                                    &cmd_cur, cmd_end, sx, sz, ml);
+                                    &cmd_cur,
+                                    cmd_end,
+                                    sx,
+                                    sz,
+                                    ml,
+                                    painter->terrain_element[painter_coord_idx(
+                                        painter, sx, sz, ml)]);
                         }
                 }
 

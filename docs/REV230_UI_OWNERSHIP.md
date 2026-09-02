@@ -435,7 +435,7 @@ are engine.
 
 **Root cause — two client breaks.**
 
-1. **Code event cancelled.** `PlatformSDL2_PollCommands` held each
+1. **Code event cancelled.** `PlatformWindow_PollCommands` held each
    `SDL_KEYDOWN`'s OSRS code and cleared it when a printable `SDL_TEXTINPUT`
    followed, so space only reached scripts as `event_key = -1,
    event_keychar = ' '`. Script 57's code branch needs `event_key = 83`; its

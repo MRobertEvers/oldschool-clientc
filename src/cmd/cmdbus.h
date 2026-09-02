@@ -43,6 +43,11 @@ enum ToriRS_CmdType
     TORIRS_CMD_INPUT_MOUSE_MOVE = 22,  /* struct ToriRS_CmdMouseMove */
     TORIRS_CMD_INPUT_MOUSE_WHEEL = 23, /* struct ToriRS_CmdMouseWheel */
     TORIRS_CMD_INPUT_CLEAR_KEYS = 24,  /* no payload (focus loss) */
+    /* No payload. The pointer stopped resting anywhere: the finger that was
+     * the pointer has left the glass, or the cursor left the window. NOT a
+     * move -- the last position stays, because the popup a tap opened is
+     * anchored to it and a move off it would dismiss the popup. */
+    TORIRS_CMD_INPUT_MOUSE_LEAVE = 25,
 
     /* -> ToriRS_Network (raw-byte semantics, v0 net ring parity) */
     TORIRS_CMD_NET_CONNECT = 32, /* "host:port" string, not NUL-terminated */
@@ -56,6 +61,15 @@ enum ToriRS_CmdType
      * input that happened around it — a replay of a session that was resized
      * mid-way must resize at the same frame. */
     TORIRS_CMD_WINDOW_RESIZE = 48, /* struct ToriRS_CmdWindowResize */
+
+    /* -> App. The OS soft keyboard covers the bottom of the canvas, or stopped
+     * covering it. `bottom` is CANVAS rows (the platform owns the surface->
+     * canvas letterbox, so it converts before pushing — the same rule its
+     * touch mapping follows), 0 when the keyboard is away. A layout event for
+     * the reason WINDOW_RESIZE is: the mobile gameframe slides its chatbox
+     * above the keyboard, and a replayed session must slide at the same
+     * frame. Desktop backends never push it. */
+    TORIRS_CMD_KEYBOARD_INSET = 49, /* struct ToriRS_CmdKeyboardInset */
 
     /* -> App, from a HOST rather than from a device.
      *
@@ -131,6 +145,12 @@ struct ToriRS_CmdWindowResize
 {
     int32_t width;
     int32_t height;
+};
+
+struct ToriRS_CmdKeyboardInset
+{
+    /** Canvas rows covered at the bottom; 0 = keyboard away. */
+    int32_t bottom;
 };
 
 struct ToriRS_CmdUiOpenRoot
@@ -281,6 +301,10 @@ CmdBus_PushMouseMove(
     int16_t x,
     int16_t y);
 
+/** The pointer left the surface -- @see TORIRS_CMD_INPUT_MOUSE_LEAVE. */
+int
+CmdBus_PushMouseLeave(struct ToriRS_CmdBus* bus);
+
 int
 CmdBus_PushMouseWheel(
     struct ToriRS_CmdBus* bus,
@@ -291,6 +315,11 @@ CmdBus_PushWindowResize(
     struct ToriRS_CmdBus* bus,
     int32_t width,
     int32_t height);
+
+int
+CmdBus_PushKeyboardInset(
+    struct ToriRS_CmdBus* bus,
+    int32_t bottom);
 
 int
 CmdBus_PushNetStatus(

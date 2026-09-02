@@ -1296,3 +1296,60 @@ PlatformXIOOnDemand_JagChecksums(
     memcpy(out, od->jag_crc, sizeof(od->jag_crc));
     return 0;
 }
+
+int
+PlatformXIOOnDemand_JagChecksumsRefresh(
+    struct PlatformXIOOnDemand* od,
+    int32_t out[9])
+{
+    char* body = NULL;
+    int size = 0;
+    int32_t fresh[9];
+
+    assert(od);
+    assert(out);
+
+    /*
+     * A fresh `GET /crc`, bypassing the session cache.
+     *
+     * The cached table is right for ROUTES -- nine reads per boot, one fetch
+     * -- and wrong for LOGIN: the server repacks whenever its content
+     * changes, and a client that has been sitting at the title since before
+     * the repack would send boot-time sums with every attempt, earning a
+     * reply=6 loop that no amount of retrying leaves. One extra HTTP GET per
+     * Login click is what it costs to make the retry advice true.
+     *
+     * On a changed answer the session table is updated too, so later archive
+     * fetches build routes the repacked server still answers. IO workers may
+     * read the table concurrently; a torn read there costs one 404 and a
+     * refetch, which is the same failure a genuinely stale route already
+     * produces.
+     */
+    body = od_http_get(od, "/crc", &size);
+    if( !body || size < 9 * 4 )
+    {
+        free(body);
+        /* Unreachable right now: the cached table (if any) is still the best
+         * answer, and login will say out-of-date if it is stale. */
+        if( !od->jag_crc_valid )
+            return -1;
+        memcpy(out, od->jag_crc, sizeof(od->jag_crc));
+        return 0;
+    }
+    for( int i = 0; i < 9; i++ )
+    {
+        const unsigned char* p = (const unsigned char*)body + i * 4;
+        fresh[i] =
+            (int32_t)(((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) |
+                      (uint32_t)p[3]);
+    }
+    free(body);
+
+    if( od->jag_crc_valid && memcmp(fresh, od->jag_crc, sizeof(fresh)) != 0 )
+        TORIRS_ERR("ondemand: the cache server repacked since boot; refreshed the login "
+            "checksums\n");
+    memcpy(od->jag_crc, fresh, sizeof(od->jag_crc));
+    od->jag_crc_valid = 1;
+    memcpy(out, od->jag_crc, sizeof(od->jag_crc));
+    return 0;
+}

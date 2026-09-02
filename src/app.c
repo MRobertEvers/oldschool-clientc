@@ -30,6 +30,12 @@
 #define APP_OUTLINE_COLOR_EDITOR_SELECT 0xFF00FF00u
 /* 0 opaque .. 255 invisible. High enough that the model reads through it. */
 #define APP_OUTLINE_FILL_TRANS 205
+#if defined(TORIRS_PLATFORM_ANDROID)
+/* For the boot refusal below: on a phone there is no terminal to print to and
+ * no shell to have typed the command, so a refusal has to reach the screen. */
+#include "platform/platform_android.h"
+#endif
+
 #if defined(TORIRS_PLATFORM_WEB)
 #include <emscripten.h>
 
@@ -279,8 +285,8 @@ enum
     APP_WORLD_MMB_PITCH_PER_PX = 2,
     /* Free camera (offline / scripted): no orbit distance to scale, so a notch
      * dollies along the view axis instead. The follow camera's notch is not
-     * here — it is `[camera] wheel_step=` in the revconfig, beside the band
-     * `[camera] zoom=` gives it to move in. */
+     * here — it is `[camera] wheel_step=` in the revconfig, beside the
+     * `zoom_closest=`..`zoom_furthest=` band it moves in. */
     APP_WORLD_ZOOM_FREECAM_STEP = 140,
 };
 
@@ -294,6 +300,26 @@ app_chat_filters(struct App const* app)
         .social = &app->social,
     };
     return filters;
+}
+
+/*
+ * The follow camera's pitch, held inside the range the profile states.
+ *
+ * One place, because this used to be four: the boot value, the middle-button
+ * drag, TORIRS_ORBIT_CAM and the arrow-key ease each spelled `128` and `383`
+ * themselves, and the terrain clamp spelled them a fifth time in 256ths. A
+ * profile that moved the range would have moved one of the five.
+ * @see RevConfigCameraItem::pitch_flattest.
+ */
+static int
+app_world_clamp_pitch(struct App const* app, int pitch)
+{
+    assert(app);
+    if( pitch < app->revconfig_profile.camera.pitch_flattest )
+        return app->revconfig_profile.camera.pitch_flattest;
+    if( pitch > app->revconfig_profile.camera.pitch_steepest )
+        return app->revconfig_profile.camera.pitch_steepest;
+    return pitch;
 }
 
 /* Resolve a component id at the point an app-owned action is about to use it.
@@ -408,6 +434,21 @@ app_chat_region(
         *out_font_id =
             UITree_Chat(node)->font_id > 0 ? UITree_Chat(node)->font_id : 1;
     return 1;
+}
+
+/* The unfocused input line's wording, from the chat component's `prompt=` key
+ * (a `@mobile` override is how a touch lane says "Tap here to chat...").
+ * NULL when no chat region exists or the profile stated nothing, which
+ * RS_Chat_BuildView reads as "use the reference wording". */
+static char const*
+app_chat_prompt(struct App const* app)
+{
+    int32_t idx;
+
+    idx = app_chat_node_index(app);
+    if( idx < 0 )
+        return NULL;
+    return UITree_Chat(&app->tree->components[idx])->prompt;
 }
 
 /* True when a canvas-space point lands inside the chat region's bounds. Used to
@@ -645,6 +686,7 @@ app_chat_build_view(struct App* app)
          * and suppresses the log the same way a dialogue does. */
         RS_UISlots_ChatRegionIface(&app->slots) != -1,
         app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open,
+        app_chat_prompt(app),
         &app->chat_view);
 }
 
@@ -5975,6 +6017,38 @@ app_host_request(
         return 0;
     case UITREE_HOST_GET_SCROLLBAR_SCENE:
         return UITreeSceneBridge_ScrollbarSceneId(&app->bridge);
+    case UITREE_HOST_GET_INKWELL:
+    {
+        /*
+         * The component supplies the artwork it was configured with and the
+         * app supplies the marker's live state; neither knows the other's
+         * half. -1 from the profile means "unstated", and the defaults here
+         * are the reference client's convention: yellow walks, red interacts.
+         */
+        int const style = req->u.get_inkwell.style >= 0 ? req->u.get_inkwell.style
+                                                        : TORIRS_INKWELL_SPLASH;
+        int const walk = req->u.get_inkwell.walk_color >= 0
+                             ? req->u.get_inkwell.walk_color
+                             : TORIRS_INKWELL_YELLOW;
+        int const interact = req->u.get_inkwell.interact_color >= 0
+                                 ? req->u.get_inkwell.interact_color
+                                 : TORIRS_INKWELL_RED;
+        int colour;
+
+        if( !UIInk_IsActive(&app->ink) )
+            return 0;
+        colour = app->ink.colour == TORIRS_INKWELL_RED ? interact : walk;
+        if( req->u.get_inkwell.out_x )
+            *req->u.get_inkwell.out_x = app->ink.x;
+        if( req->u.get_inkwell.out_y )
+            *req->u.get_inkwell.out_y = app->ink.y;
+        if( req->u.get_inkwell.out_atlas_index )
+            *req->u.get_inkwell.out_atlas_index =
+                ToriRSInkwell_AtlasIndex(style, colour, UIInk_Frame(&app->ink));
+        return 1;
+    }
+    case UITREE_HOST_GET_INKWELL_SCENE:
+        return UITreeSceneBridge_EnsureInkwell(&app->bridge);
     case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
         return UITreeSceneBridge_StaticSpriteSceneId(
             &app->bridge, (enum StaticSpriteSlot)req->u.static_sprite.slot);
@@ -6167,6 +6241,18 @@ app_host_request(
     case UITREE_HOST_TITLE_ACTION:
     {
         enum RS_TitleAction action = (enum RS_TitleAction)req->u.title_action.action;
+        /*
+         * A tap on a field re-asks for the soft keyboard even when the focus
+         * did not move -- and it usually has not, because the form always has
+         * a focused field. The keyboard request is edge-triggered
+         * (App_TakeTextInputChange pushes only changes), so after the player
+         * hides the keyboard, "wanted" never changes and no tap could bring
+         * it back. Forgetting what was last pushed makes the next take push
+         * the current answer again; on a desktop that re-push is a no-op.
+         */
+        if( action == RS_TITLE_ACTION_FOCUS_USERNAME ||
+            action == RS_TITLE_ACTION_FOCUS_PASSWORD )
+            app->text_input_effective = -1;
         if( RS_Title_HandleAction(&app->title, action) )
         {
             /* The form is greeted with a prompt rather than an empty box, and
@@ -6381,6 +6467,15 @@ app_host_request(
 #define APP_UI_INPUT_HASH_OFFSET 1469598103934665603ull
 #define APP_UI_INPUT_HASH_PRIME 1099511628211ull
 
+/*
+ * Eight bytes per multiply, not one. This runs every frame over sizeof(slots),
+ * chat_view, the IF_SETEVENTS table and the minimenu, and a 64-bit multiply is
+ * three 32-bit ones on armv7 -- per BYTE, that was ~0.08 ms a frame on the
+ * Moto X. The semantics the callers rely on are unchanged: the signature is
+ * compared against last frame's and any byte that changed changes it (each
+ * xor-multiply step is a bijection in the word, so a single-word difference
+ * can never cancel). The values themselves are not persisted anywhere.
+ */
 static uint64_t
 app_ui_input_hash_bytes(
     uint64_t hash,
@@ -6388,10 +6483,21 @@ app_ui_input_hash_bytes(
     size_t size)
 {
     unsigned char const* bytes = (unsigned char const*)data;
+    size_t i = 0;
 
-    for( size_t i = 0; i < size; i++ )
+    while( i + sizeof(uint64_t) <= size )
     {
-        hash ^= bytes[i];
+        uint64_t word;
+        memcpy(&word, bytes + i, sizeof(word));
+        hash ^= word;
+        hash *= APP_UI_INPUT_HASH_PRIME;
+        i += sizeof(word);
+    }
+    if( i < size )
+    {
+        uint64_t word = 0;
+        memcpy(&word, bytes + i, size - i);
+        hash ^= word;
         hash *= APP_UI_INPUT_HASH_PRIME;
     }
     return hash;
@@ -8598,9 +8704,22 @@ app_chrome_route_input(
 
     if( ToriRSChrome_MouseMove(ui, input->curr.mouse_x, input->curr.mouse_y) )
         app->input_frame_consumed = 1;
+    /*
+     * The press lands where the button actually went DOWN, not where the
+     * pointer finished the frame.
+     *
+     * curr.mouse_x is the last position any event in this frame's batch
+     * carried, and a press is one event in that batch. A finger crossing the
+     * drag slop pushes move(landed), down(landed), move(now) in a single batch
+     * (input/torirs_touch.c), so reading curr here grabbed a scrollbar a slop's
+     * width from where the finger was put -- which pages the list instead of
+     * taking the grip when the grip's edge is inside that gap. press_origin is
+     * the position the down carried, and for a mouse it is the same number.
+     */
     if( !app->plugin_pointer_capture.active &&
         input->curr.mouse_button_down[TORIRSM_LEFT] &&
-        ToriRSChrome_MouseDown(ui, input->curr.mouse_x, input->curr.mouse_y) )
+        ToriRSChrome_MouseDown(
+            ui, input->press_origin_x[TORIRSM_LEFT], input->press_origin_y[TORIRSM_LEFT]) )
         app->input_frame_consumed = 1;
     if( !app->plugin_pointer_capture.active &&
         input->curr.mouse_button_up[TORIRSM_LEFT] &&
@@ -9170,6 +9289,15 @@ App_SetWorldRenderMode(
         app->world_render_mode = mode;
 }
 
+void
+App_SetRendererAnimatesTextures(
+    struct App* app,
+    bool animates)
+{
+    assert(app);
+    app->renderer_animates_textures = animates;
+}
+
 /* Defined with the other map-editor helpers below; App_Init registers it as
  * the editor session's shared-state sink. */
 static void
@@ -9178,6 +9306,37 @@ app_editor_on_state(
     uint32_t key,
     const int32_t* values,
     int count);
+
+/*
+ * The boot cannot proceed, for a reason the person running this can fix.
+ *
+ * A missing cache and a cache server that is not up are DEPLOYMENT states, not
+ * contract violations: an assert would name the wrong culprit, and carrying on
+ * is worse than either -- that is what this client used to do, limping past a
+ * failed on-demand enable with no cache provider at all and taking SIGSEGV in
+ * the first buildcache lookup, a mile from the cause.
+ *
+ * So it refuses, loudly, in one sentence addressed to whoever has to act on it.
+ * WHERE that sentence has to land is the platform's business and not this
+ * function's: a desktop run prints it to the terminal the command was typed in
+ * and exits, and on Android there is no such terminal -- exit() there kills the
+ * process, the activity vanishes to the launcher, and the diagnosis sits in
+ * logcat where nobody holding a phone will read it. Which is to say it reads
+ * exactly like a crash. @see PlatformAndroid_BootFailed.
+ */
+static void
+app_boot_refuse(char const* message)
+{
+    assert(message);
+    TORIRS_ERR("app: %s\n", message);
+#if defined(TORIRS_PLATFORM_ANDROID)
+    /* Hands the message to the boot menu and ends the frame thread; the process
+     * survives, so the gear can fix the profile and the next run is a new run
+     * rather than a new launch. Does not return. */
+    PlatformAndroid_BootFailed(message);
+#endif
+    exit(1);
+}
 
 /*
  * Boot / session-reset value for the two Attack options.
@@ -9329,22 +9488,72 @@ App_Init(
             app->runner.px, host, cfg->connect_port, cfg->web_port,
             cfg->cache_dir);
         if( enabled != 0 )
-            TORIRS_LOG("app: [cache:boot] source=ondemand, but %s is not serving a cache "
-                "(game port %d, web port %d)\n",
+        {
+            /* Once more before giving up: the first attempt rides a cold
+             * Wi-Fi association or a server mid-repack often enough on the
+             * phone that a single 10s HTTP miss is not yet "the server is
+             * down". A failed enable leaves the IO with no on-demand source,
+             * so the second call starts clean. */
+            struct timespec pause = { 1, 0 };
+            nanosleep(&pause, NULL);
+            enabled = PlatformXIO_Dat1OnDemandEnable(
+                app->runner.px, host, cfg->connect_port, cfg->web_port,
+                cfg->cache_dir);
+        }
+        if( enabled != 0 )
+        {
+            /* An unreachable cache server is a RUNTIME state -- the server is
+             * down, the host moved with a DHCP lease, the phone is on the
+             * wrong network -- not a caller bug, so it must fail loudly on
+             * every build flavor. This used to be a TORIRS_LOG plus an
+             * assert: the release client printed nothing, limped on with no
+             * cache provider at all, and SIGSEGV'd in the first buildcache
+             * hmap lookup -- which, on a device whose profile armed --webgl1,
+             * read as a GLES2 renderer crash. */
+            char message[512];
+            int used;
+
+            /* Composed rather than printed in pieces: on Android this same
+             * string is what the boot menu shows, and a diagnosis split across
+             * two calls arrives there as half of one. */
+            used = snprintf(message, sizeof(message),
+                "[cache:boot] source=ondemand, but %s is not serving a cache "
+                "(game port %d, web port %d); this profile streams its cache from "
+                "there and cannot boot without it.",
                 host,
                 cfg->connect_port > 0 ? cfg->connect_port : 43594,
                 cfg->web_port > 0 ? cfg->web_port : 80);
-        assert(enabled == 0);
+            if( used < 0 || used >= (int)sizeof(message) )
+                used = (int)sizeof(message) - 1;
+#if defined(TORIRS_PLATFORM_ANDROID)
+            /* The trap this message exists for: a manifest authored on the
+             * desktop says host=localhost, and on the phone localhost IS the
+             * phone. The gear in the boot menu edits the profile's host; the
+             * server machine's bare hostname resolves through the router's
+             * DNS (`.local` does not on old Android). */
+            if( strcmp(host, "localhost") == 0 || strcmp(host, "127.0.0.1") == 0 )
+                snprintf(message + used, sizeof(message) - (size_t)used,
+                    "\n\nOn this device 'localhost' is the phone itself. Tap the gear and set "
+                    "this profile's host to the server machine's LAN name.");
+#endif
+            app_boot_refuse(message);
+        }
         app->cache_on_demand = 1;
     }
     else if( cfg->cache_kind == APP_CACHE_DAT1 )
     {
         app->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cfg->cache_dir);
         if( !app->dat1_disk )
-            TORIRS_ERR("app: no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a "
-                "js5 cache)\n",
+        {
+            /* Same rule as the ondemand refusal above: a missing cache is a
+             * deployment state, and the message is the whole diagnosis. */
+            char message[512];
+
+            snprintf(message, sizeof(message),
+                "no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a js5 cache)",
                 cfg->cache_dir);
-        assert(app->dat1_disk != NULL);
+            app_boot_refuse(message);
+        }
         Platform_IO_InitDat1Disk(app->runner.px, app->dat1_disk);
         /* No xtea step: dat1 archives are not encrypted. */
     }
@@ -9354,10 +9563,15 @@ App_Init(
          * and decoding the rest at open cost several MB it never looked at. */
         app->dat2_disk = RSCache_Dat2DiskNewFromDirectoryLazyTables(cfg->cache_dir);
         if( !app->dat2_disk )
-            TORIRS_ERR("app: no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
-                "317-era cache)\n",
+        {
+            char message[512];
+
+            snprintf(message, sizeof(message),
+                "no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
+                "317-era cache)",
                 cfg->cache_dir);
-        assert(app->dat2_disk != NULL);
+            app_boot_refuse(message);
+        }
         /* Map archives may be xtea-encrypted (OldSchool below 237; RS2 dat2
          * from 414). Keys load into the rscache global table the disk layer
          * consults on archive fetch — only when the identity gate says so. */
@@ -9499,11 +9713,15 @@ App_Init(
         (getenv("TORIRS_NEAR_PLANE") ? atoi(getenv("TORIRS_NEAR_PLANE")) : 50);
     app->world_camera.pitch = 148;
     app->world_camera_pos.z = -800;
-    app->orbit_pitch = 128; /* reference orbitCameraPitch default */
+    /* The flattest the profile allows: the reference's orbitCameraPitch
+     * default IS its own lower bound, so a lane that states a different range
+     * boots at the bottom of the range it stated rather than at a 128 that no
+     * longer means anything there. */
+    app->orbit_pitch = app->revconfig_profile.camera.pitch_flattest;
     app->orbit_yaw = 0;
-    /* The rest position the profile chose: the reference height when the band
-     * contains it, the pinned height under `zoom=fixed:`. */
-    app->world_cam_height = app->revconfig_profile.camera.zoom_height;
+    /* Where the profile says this camera sits before anyone touches it.
+     * `[camera] rest=`, and the band is around it, not the other way up. */
+    app->world_cam_zoom = app->revconfig_profile.camera.rest;
     app->world_hover_tile_x = -1;
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
@@ -10053,6 +10271,10 @@ App_Init(
         if( app->cache_on_demand && !cfg->jag_crc_set && !getenv("TORIRS_JAG_CRC") )
         {
             int32_t crc[9];
+            /* The dial path refreshes these before every login attempt --
+             * this read only primes the table for a client that never dials
+             * (and keeps the failure loud when the endpoint is down). */
+            app->jag_crc_from_ondemand = 1;
             if( PlatformXIO_Dat1OnDemandJagChecksums(app->runner.px, crc) == 0 )
                 GameProtoRev_SetJagChecksums(rev, crc);
             else
@@ -12208,6 +12430,16 @@ app_rebuild_world_map(
     app->world_map_w = pixel_w;
     app->world_map_h = pixel_h;
     app->world_map_level = level;
+#if defined(TORIRS_HAVE_GLES2)
+    {
+        /* The GLES2 renderer keeps a GPU copy of the pixels behind the
+         * rotated-masked minimap and has no event that says they changed --
+         * this is the one place they do. Declared here rather than through
+         * its header because this is the one call site in this file. */
+        void ToriRS_GLES2_RotmaskSourceChanged(void);
+        ToriRS_GLES2_RotmaskSourceChanged();
+    }
+#endif
 }
 
 /* The level the minimap lives at: aboard, the rider's own level is a DECK
@@ -13653,13 +13885,14 @@ app_apply_wedge_scale(struct App* app)
     if( mode < 0 )
         return;
     /*
-     * A revision whose camera is `zoom=fixed:` has no viewport-derived
-     * projection either, and for the same reason the follow distance skips the
-     * interpolation (app_world_camera_follow): class159.method5357 IS the later
-     * client's zoom, and the 2004 client does not have it.
+     * A revision that states `[camera] viewport_zoom=no` has no
+     * viewport-derived projection either, and for the same reason the follow
+     * distance skips the interpolation (app_world_camera_follow):
+     * class159.method5357 IS the later client's zoom, and the 2004 client does
+     * not have it. One key, both halves -- they are one client era.
      *
-     * Asked of `viewport_zoom` and not of the live zoom_mode, because the
-     * settings page can flip that one: reading zoom_mode here meant switching
+     * Asked of `viewport_zoom` and not of the live wheel, because the
+     * settings page can flip that one: reading wheel here meant switching
      * the wheel ON halved the scale under the player, and no wheel band could
      * put it back. @see RevConfigCameraItem::viewport_zoom. Its projection is the
      * bare `<< 9` in Model.project / Model.draw (Client-TS dash3d/Model.ts) --
@@ -15251,11 +15484,16 @@ app_packet_may_mutate_ui(enum GameProtoPktName packet_type)
 
 /* --- connection loss and re-establishment -------------------------------
  *
- * The reference shape, from Client-TS `lostCon`/`logout` (Client.ts:2699,
- * 2734) and the deob's gameState 40: forget the world, say so over the
- * viewport, and ask for the session back. Nothing here returns to a login
- * screen — this client has none — so an exhausted retry budget leaves the
- * message up instead.
+ * The reference shape, from Client-TS `lostCon` (Client.ts:2734) and the deob's
+ * gameState 40: forget the world, say so over the viewport, and ask for the
+ * session back. An exhausted retry budget leaves that message up rather than
+ * dropping the player on the title screen, which is the one place this path
+ * departs from the reference -- the message names something the player can act
+ * on, and the title screen would replace it with a form that says nothing.
+ *
+ * A logout is the other half of the same reference pair and is NOT this: it is
+ * deliberate, it does return to the login screen, and it disarms everything
+ * below rather than arming it. @see App_Logout.
  */
 
 void
@@ -15270,6 +15508,68 @@ App_NetSessionReset(struct App* app)
      * session's choice until its own VARP arrived. */
     app_attack_options_reset(app);
     app->need_redraw = 1;
+}
+
+void
+App_Logout(struct App* app)
+{
+    assert(app);
+
+    app->logout_requested = 0;
+    /*
+     * The DISCONNECT is QUEUED, not performed: it goes into the same outbound
+     * ring the logout button's IF_BUTTON is already sitting in, and the
+     * transport drains that ring in order -- bytes appended and flushed, then
+     * the socket closed. Closing here instead would take the request with it.
+     */
+    if( app->net )
+        ToriRS_Network_Logout(app->net);
+    App_NetSessionReset(app);
+    /* Reference `stopMidi(false)` plus the effect queue: nothing the world was
+     * playing belongs to the screen we are going back to. */
+    RS_Audio_StopAll(&app->audio, &app->audio_out);
+
+    /*
+     * Disarm the reconnect watch.
+     *
+     * Every detector in app_net_link_watch is armed off net_last_recv_ms -- a
+     * session that was heard from and then went quiet. Leaving it set would
+     * make the socket this function just closed read as a connection that was
+     * lost, and the client would spend its way back to the title screen
+     * redialling the world the player just left.
+     */
+    app->net_last_recv_ms = 0;
+    app->net_first_recv_ms = 0;
+    app->net_lost = 0;
+    app->net_reconnect_attempts = 0;
+    app->net_reconnect_failed = 0;
+
+    if( !App_HasTitleScreen(app) )
+    {
+        /* Undeclared means absent (App_HasTitleScreen): this profile boots
+         * straight into the gameframe and has nowhere to send the player. The
+         * session has still ended -- the socket is gone and the world is
+         * cleared -- so say so rather than pretending the click did nothing. */
+        TORIRS_LOG("logout: no [layout:title] in this profile; staying on the gameframe\n");
+        app->need_redraw = 1;
+        return;
+    }
+
+    /* Credentials cleared with the screen, the reference's own behaviour
+     * (Client-TS logout clears loginUser/loginPass): a password left in a
+     * buffer after the player has left is a password nobody asked us to keep.
+     * Same reset RS_TITLE_ACTION_CANCEL performs. */
+    RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, NULL);
+    RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, NULL);
+    RS_Title_SetMessages(&app->title, NULL, NULL, NULL);
+    RS_Title_SetScreen(&app->title, RS_TITLE_MAIN_MENU);
+    /* The one automatic submit has already been spent on the session that just
+     * ended; re-arming it here would dial straight back into the world the
+     * player asked to leave. @see App::autologin_done. */
+    app->autologin_done = 1;
+    app->title_connect_pending = 0;
+    TORIRS_LOG("logout: session ended; back to the title screen\n");
+    App_OpenTitleScreen(app);
 }
 
 /*
@@ -15587,18 +15887,18 @@ app_pump_net_packets(struct App* app)
              * queued by the previous iteration and nothing else. */
             static int slow_ms = -1;
             uint64_t t0;
-            extern uint64_t PlatformSDL2_TicksUs(void);
+            extern uint64_t PlatformWindow_TicksUs(void);
 
             if( slow_ms < 0 )
             {
                 char const* v = getenv("TORIRS_PKT_SLOW_MS");
                 slow_ms = (v && v[0]) ? atoi(v) : 0;
             }
-            t0 = slow_ms > 0 ? PlatformSDL2_TicksUs() : 0;
+            t0 = slow_ms > 0 ? PlatformWindow_TicksUs() : 0;
             stat = TaskRunner_SettleFrame(&app->exec_runner);
             if( slow_ms > 0 && last_exec_packet_type >= 0 )
             {
-                uint64_t dt = PlatformSDL2_TicksUs() - t0;
+                uint64_t dt = PlatformWindow_TicksUs() - t0;
                 if( dt >= (uint64_t)slow_ms * 1000u )
                     TORIRS_LOG("pkt_slow: type=%d %.2f ms cycle=%llu\n",
                         last_exec_packet_type,
@@ -15758,6 +16058,33 @@ app_pump_net_packets(struct App* app)
  * take, which is what makes the scripted lanes exercise the login screen
  * instead of going around it.
  */
+/*
+ * Restate the login checksums from the cache server, when that is where they
+ * came from at boot.
+ *
+ * Before EVERY dial, because the init-time read alone left a trap: the server
+ * repacks whenever its content changes, and a client that had been sitting at
+ * the title since before the repack sent boot-time sums with each attempt --
+ * a reply=6 ("client out of date") loop that no retry could leave, on
+ * exactly the machine that keeps a client open across server iterations.
+ * One HTTP GET per Login click; a failed read keeps the table it has.
+ */
+static void
+app_login_refresh_jag_checksums(struct App* app)
+{
+#if !defined(TORIRS_PLATFORM_WEB)
+    int32_t crc[9];
+
+    assert(app);
+    if( !app->jag_crc_from_ondemand || !app->net || !app->net->rev )
+        return;
+    if( PlatformXIO_Dat1OnDemandJagChecksumsRefresh(app->runner.px, crc) == 0 )
+        GameProtoRev_SetJagChecksums(app->net->rev, crc);
+#else
+    (void)app;
+#endif
+}
+
 static void
 app_title_submit(struct App* app)
 {
@@ -15827,6 +16154,7 @@ app_title_tick(struct App* app)
         app->screen == APP_SCREEN_GAME && app->autologin_user[0] )
     {
         app->autologin_done = 1;
+        app_login_refresh_jag_checksums(app);
         ToriRS_Network_ConnectLogin(
             app->net, app->connect_target, app->autologin_user, app->autologin_pass);
         return 0;
@@ -15867,6 +16195,7 @@ app_title_tick(struct App* app)
     else if( app->title_connect_pending )
     {
         app->title_connect_pending = 0;
+        app_login_refresh_jag_checksums(app);
         ToriRS_Network_ConnectLogin(
             app->net,
             app->connect_target,
@@ -15934,6 +16263,23 @@ app_logic_tick(struct App* app)
     int redraw = 0;
 
     app->logic_cycle++;
+
+    /*
+     * The logout the player asked for, drained here rather than at the click.
+     *
+     * Order on the wire is the whole reason. The click's own notification --
+     * the logout button's IF_BUTTON -- is sent by the CALLER of the clientCode
+     * handler, after it returns, and the CS2 lane's is sent before the script
+     * that asks for the logout even runs. A logout performed inside either
+     * would put its DISCONNECT into the outbound ring ahead of the request the
+     * server is meant to act on, and the transport, which drains that ring in
+     * order, would close the socket without ever writing those bytes.
+     */
+    if( app->logout_requested )
+    {
+        App_Logout(app);
+        redraw = 1;
+    }
 
     if( app_title_tick(app) )
         redraw = 1;
@@ -16597,6 +16943,21 @@ app_logic_tick(struct App* app)
         }
     }
 
+    /*
+     * A CS2 script ran LOGOUT (5630) -- the modern lane's "Click here to
+     * logout", whose button is script-driven and carries no cache op.
+     *
+     * Parked by the host and turned into a session teardown here, the same
+     * split if_close above takes: the CS2 host knows nothing about the socket.
+     * Handed to the tick's own drain rather than performed here so it lands
+     * behind whatever this tick has already queued. @see App_Logout.
+     */
+    if( app->host.logout_requested )
+    {
+        app->host.logout_requested = false;
+        app->logout_requested = 1;
+    }
+
     if( app->host.resume_pausebutton_component_id != -1 )
     {
         int const com_id = app->host.resume_pausebutton_component_id;
@@ -17123,6 +17484,11 @@ app_logic_tick(struct App* app)
         UICross_Tick(&app->cross, APP_LOGIC_TICK_MS);
         redraw = 1;
     }
+
+    /* The inkwell is NOT ticked here -- see App_RunOnce, where it is advanced
+     * once per rendered frame by the real elapsed time. This function runs
+     * 0..APP_MAX_CATCHUP_TICKS times per frame, which is right for the
+     * simulation and wrong for anything the user watches. */
 
     return redraw;
 }
@@ -18611,11 +18977,8 @@ app_world_paint(struct App* app)
             app->world_camera.yaw = (app->world_camera.yaw + jitter) & 0x7ff;
             break;
         case 4:
-            app->world_camera.pitch += jitter;
-            if( app->world_camera.pitch < 128 )
-                app->world_camera.pitch = 128;
-            if( app->world_camera.pitch > 383 )
-                app->world_camera.pitch = 383;
+            app->world_camera.pitch =
+                app_world_clamp_pitch(app, app->world_camera.pitch + jitter);
             break;
         default:
             break;
@@ -19984,11 +20347,11 @@ app_ui_hotkeys(
 /*
  * Does the follow camera zoom right now? Both halves have to say yes.
  *
- * `zoom_mode` is the SWITCH -- the settings page's "Zoom" row, and what
- * `zoom=fixed:` states for the 2004 client, whose eye is `pitch * 3 + 600`
- * behind the player with nothing the player does moving it. `zoom_min <
- * zoom_max` is the ROOM: `fixed:` resolves to a band of one, and a band of one
- * has nowhere to go even when the switch is on.
+ * `wheel` is the SWITCH -- the settings page's "Zoom" row. Pinned, the eye
+ * stays at `[camera] rest=` with nothing the player does moving it, which is
+ * the 2004 camera. `zoom_closest < zoom_furthest` is the ROOM: a profile may
+ * state both ends the same and leave the wheel nowhere to go even when the
+ * switch is on.
  *
  * Reading only the band was what made the "Zoom" row a no-op on the two
  * behaviours it appeared to name -- it moved no wheel and only changed the
@@ -19998,9 +20361,9 @@ static int
 app_world_camera_zooms(struct App const* app)
 {
     assert(app);
-    if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_CLAMPED )
+    if( app->revconfig_profile.camera.wheel != REVCONFIG_CAMERA_WHEEL_LIVE )
         return 0;
-    return app->revconfig_profile.camera.zoom_min < app->revconfig_profile.camera.zoom_max;
+    return app->revconfig_profile.camera.zoom_closest < app->revconfig_profile.camera.zoom_furthest;
 }
 
 /* TORIRS_CAM_DEBUG=1: one line whenever a mouse gesture moves the camera.
@@ -20019,15 +20382,15 @@ app_debug_log_camera(
         follow_cam ? "orbit" : "free",
         follow_cam ? app->orbit_yaw : app->world_camera.yaw,
         follow_cam ? app->orbit_pitch : app->world_camera.pitch,
-        app->world_cam_height,
+        app->world_cam_zoom,
         app->world_camera_pos.x,
         app->world_camera_pos.y,
         app->world_camera_pos.z);
 }
 
 /* Middle-button rotate and wheel zoom over the world viewport. Both gestures
- * are properties of the REVISION (revconfig `[camera] controls=` and `zoom=`),
- * not of the viewport widget: a camera that cannot zoom cannot zoom over any
+ * are properties of the REVISION (revconfig `[camera] controls=` and the
+ * band), not of the viewport widget: a camera that cannot zoom cannot zoom over any
  * viewport. The emit desc is still what app_world_mouse_gate reads to decide
  * the pointer is on the scene rather than on the interface.
  *
@@ -20058,7 +20421,11 @@ app_world_camera_mouse(
      * the orbit follow cam owns the angles, otherwise the free camera does. */
     follow_cam = app->net && !app->cam_script.scripted;
 
-    if( app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_MMB )
+    /* `controls=` is the revision's answer for a MOUSE; app->touch_camera is
+     * the platform's answer for a FINGER, and the two are different questions.
+     * @see App.touch_camera. */
+    if( (app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_MMB) ||
+        app->touch_camera )
     {
         /* Only the press has to land on the scene; once latched the drag keeps
          * the pointer until release, so sweeping over the sidebar mid-rotate
@@ -20087,11 +20454,8 @@ app_world_camera_mouse(
                      * a position delta, so it writes the angle and zeroes the
                      * velocity rather than fighting the decay next frame. */
                     app->orbit_yaw = (app->orbit_yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
-                    app->orbit_pitch += dy * APP_WORLD_MMB_PITCH_PER_PX;
-                    if( app->orbit_pitch < 128 )
-                        app->orbit_pitch = 128;
-                    if( app->orbit_pitch > 383 )
-                        app->orbit_pitch = 383;
+                    app->orbit_pitch =
+                        app_world_clamp_pitch(app, app->orbit_pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
                     app->orbit_yaw_vel = 0;
                     app->orbit_pitch_vel = 0;
                 }
@@ -20141,9 +20505,9 @@ app_world_camera_mouse(
         }
         else if( app_world_camera_zooms(app) )
         {
-            app->world_cam_height = RevConfigProfile_CameraClampHeight(
+            app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
                 &app->revconfig_profile,
-                app->world_cam_height -
+                app->world_cam_zoom -
                     input->curr.mouse_wheel_y *
                         app->revconfig_profile.camera.wheel_step);
         }
@@ -21058,7 +21422,7 @@ app_world_spawn_npc_now(
     static int spawn_log = -1;
     uint64_t bd_t0, bd_t;
     uint64_t bd_model = 0, bd_elem = 0, bd_world = 0, bd_seq = 0, bd_tex = 0, bd_log = 0;
-    extern uint64_t PlatformSDL2_TicksUs(void);
+    extern uint64_t PlatformWindow_TicksUs(void);
 
     if( bd_us < 0 )
     {
@@ -21066,7 +21430,7 @@ app_world_spawn_npc_now(
         bd_us = (v && v[0]) ? atoi(v) : 0;
         spawn_log = getenv("TORIRS_SPAWN_LOG") ? 1 : 0;
     }
-    bd_t0 = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t0 = bd_us ? PlatformWindow_TicksUs() : 0;
 
     npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
     if( !npctype )
@@ -21080,7 +21444,7 @@ app_world_spawn_npc_now(
         return -1;
     }
 
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     if( npctype->models_count <= 0 )
     {
         /*
@@ -21110,7 +21474,7 @@ app_world_spawn_npc_now(
         model = app_world_build_npc_model(app, npc_id, npctype);
     }
     if( bd_us )
-        bd_model = PlatformSDL2_TicksUs() - bd_t;
+        bd_model = PlatformWindow_TicksUs() - bd_t;
     if( !model )
     {
         /* Same rationale as the models_count<=0 branch above: a missing
@@ -21139,7 +21503,7 @@ app_world_spawn_npc_now(
     world_x = tile_x * 128 + size * 64;
     world_z = tile_z * 128 + size * 64;
     world_y = app_world_height(app, world_x, world_z, level);
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_NPC, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
@@ -21150,9 +21514,9 @@ app_world_spawn_npc_now(
         ToriDraw_SceneAnimListInvalidate(app->scene);
     }
     if( bd_us )
-        bd_elem = PlatformSDL2_TicksUs() - bd_t;
+        bd_elem = PlatformWindow_TicksUs() - bd_t;
 
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     {
         /* Config movement anims (dat1 has no turn/run for npcs; the reference
          * walkanim_l/r swap applies here at spawn like at CHANGE_TYPE). */
@@ -21181,12 +21545,12 @@ app_world_spawn_npc_now(
             npc->server_slot = -1;
     }
     if( bd_us )
-        bd_world = PlatformSDL2_TicksUs() - bd_t;
+        bd_world = PlatformWindow_TicksUs() - bd_t;
 
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     app_world_apply_seq(app, element_id, facts.readyanim);
     if( bd_us )
-        bd_seq = PlatformSDL2_TicksUs() - bd_t;
+        bd_seq = PlatformWindow_TicksUs() - bd_t;
     /* Spawn does not carry menu data; the minimenu rows read it off the
      * entity, so copy name/actions/level from the config here. */
     {
@@ -21208,7 +21572,7 @@ app_world_spawn_npc_now(
      * per npc arrival on the packet-apply path -- and npcs arrive in bursts of
      * 20+ when the player crosses into a populated zone. Gated behind its own
      * switch so the cost stays measurable (spawn_bd's `log` column). */
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     if( spawn_log )
         TORIRS_LOG("spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d recolors=%d "
             "retextures=%d\n",
@@ -21221,16 +21585,16 @@ app_world_spawn_npc_now(
             npctype->recolor_count,
             npctype->retexture_count);
     if( bd_us )
-        bd_log = PlatformSDL2_TicksUs() - bd_t;
+        bd_log = PlatformWindow_TicksUs() - bd_t;
 
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     app_sync_textures(app);
     if( bd_us )
     {
         uint64_t total;
 
-        bd_tex = PlatformSDL2_TicksUs() - bd_t;
-        total = PlatformSDL2_TicksUs() - bd_t0;
+        bd_tex = PlatformWindow_TicksUs() - bd_t;
+        total = PlatformWindow_TicksUs() - bd_t0;
         if( total >= (uint64_t)bd_us )
             TORIRS_LOG("spawn_bd: npc=%d total %llu model %llu elem %llu world %llu seq %llu "
                 "log %llu tex %llu (us)\n",
@@ -25251,10 +25615,9 @@ app_cinema_angles(
     distance = (int)sqrt((double)dx * dx + (double)dz * dz);
 
     pitch = (int)(atan2((double)dy, (double)distance) * 325.949) & 0x7ff;
-    if( pitch < 128 )
-        pitch = 128;
-    else if( pitch > 383 )
-        pitch = 383;
+    /* The scripted camera tips no further than the player's own may: the
+     * profile's range, not a second copy of the reference's numbers. */
+    pitch = app_world_clamp_pitch(app, pitch);
 
     *out_pitch = pitch;
     *out_yaw = (int)(atan2((double)dx, (double)dz) * -325.949) & 0x7ff;
@@ -25460,12 +25823,13 @@ app_world_camera_follow(struct App* app)
      * before the step, every frame, with the easing velocities zeroed so the
      * angles cannot drift back.
      *
-     * yaw is 0..2047, pitch 128..383 (the same range the middle-button drag
-     * allows), zoom is the follow height as a percentage of the reference 600 —
-     * still a percentage here rather than a raw height, because that is the
+     * yaw is 0..2047, pitch is clamped into the profile's own
+     * `[camera] pitch_flattest=`..`pitch_steepest=` (the same range the
+     * middle-button drag allows), zoom is a percentage of `[camera] rest=` —
+     * still a percentage here rather than a raw distance, because that is the
      * spelling every recorded TORIRS_ORBIT_CAM string in the tree uses. It is
-     * clamped into whatever band `[camera] zoom=` allows, so a `fixed:` profile
-     * ignores it exactly as the wheel does.
+     * clamped into the `zoom_closest=`..`zoom_furthest=` band, so a profile
+     * that states a band of one ignores it exactly as the wheel does.
      */
     {
         static int resolved = 0;
@@ -25493,7 +25857,7 @@ app_world_camera_follow(struct App* app)
             app->orbit_yaw_vel = 0;
             if( cam_pitch >= 0 )
             {
-                app->orbit_pitch = cam_pitch < 128 ? 128 : (cam_pitch > 383 ? 383 : cam_pitch);
+                app->orbit_pitch = app_world_clamp_pitch(app, cam_pitch);
                 app->orbit_pitch_vel = 0;
             }
             if( cam_zoom > 0 )
@@ -25502,9 +25866,9 @@ app_world_camera_follow(struct App* app)
                  * and normal is wherever this camera rests -- reading it
                  * against a constant makes the same packet mean two different
                  * views on two lanes. */
-                app->world_cam_height = RevConfigProfile_CameraClampHeight(
+                app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
                     &app->revconfig_profile,
-                    app->revconfig_profile.camera.zoom_height * cam_zoom / 100);
+                    app->revconfig_profile.camera.rest * cam_zoom / 100);
         }
     }
     if( !RS_EntitySync_FindPlayer(
@@ -25593,11 +25957,7 @@ app_world_camera_follow(struct App* app)
         app->orbit_pitch_vel = app->orbit_pitch_vel / 2;
 
     app->orbit_yaw = (app->orbit_yaw + app->orbit_yaw_vel / 2) & 0x7ff;
-    app->orbit_pitch += app->orbit_pitch_vel / 2;
-    if( app->orbit_pitch < 128 )
-        app->orbit_pitch = 128;
-    if( app->orbit_pitch > 383 )
-        app->orbit_pitch = 383;
+    app->orbit_pitch = app_world_clamp_pitch(app, app->orbit_pitch + app->orbit_pitch_vel / 2);
 
     /* Terrain pitch clamp: scan the 9x9 tile block around the anchor for
      * ground higher than the anchor's; raise the minimum pitch so the eye
@@ -25628,10 +25988,17 @@ app_world_camera_follow(struct App* app)
                 }
         }
         clamp = max_y * 192;
-        if( clamp > 98048 )
-            clamp = 98048;
-        if( clamp < 32768 )
-            clamp = 32768;
+        /* The same range the drag and the keys respect, in the 256ths this
+         * clamp eases in -- `98048` and `32768` were exactly these two
+         * products, written out. */
+        if( clamp > app->revconfig_profile.camera.pitch_steepest *
+                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
+            clamp = app->revconfig_profile.camera.pitch_steepest *
+                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
+        if( clamp < app->revconfig_profile.camera.pitch_flattest *
+                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
+            clamp = app->revconfig_profile.camera.pitch_flattest *
+                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
         if( clamp > app->camera_pitch_clamp )
             app->camera_pitch_clamp += (clamp - app->camera_pitch_clamp) / 24;
         else if( clamp < app->camera_pitch_clamp )
@@ -25639,27 +26006,45 @@ app_world_camera_follow(struct App* app)
     }
 
     pitch = app->orbit_pitch;
-    if( app->camera_pitch_clamp / 256 > pitch )
-        pitch = app->camera_pitch_clamp / 256;
+    if( app->camera_pitch_clamp / REVCONFIG_CAMERA_PITCH_CLAMP_SCALE > pitch )
+        pitch = app->camera_pitch_clamp / REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
     yaw = app->orbit_yaw & 0x7ff;
     /*
-     * Reference distance is `pitch * 3 + 600` (Client-TS camFollow), later
+     * Reference distance is `pitch * 3 + 600` (Client-TS camFollow) -- here
+     * `pitch * pitch_distance + rest`, both stated by the profile -- later
      * scaled by a viewport-height zoom (`* viewportZoom / 256`,
-     * client.method2068). `world_cam_height` is that 600, moved by the wheel
-     * inside whatever band `[camera] zoom=` allows.
+     * client.method2068). `world_cam_zoom` is that 600 -- `[camera] rest=` --
+     * moved by the wheel inside the `zoom_closest=`..`zoom_furthest=` band.
      *
-     * Under `zoom=fixed:` the viewport interpolation is skipped as well as the
-     * wheel, and for the same reason: it is a later client's way of zooming,
-     * and a revision that states a fixed height has said its camera has none.
-     * `fixed:600` is then Client-TS's expression exactly.
+     * `[camera] viewport_zoom=no` skips the interpolation: it is a later
+     * client's way of zooming, and a revision that says it is the 2004 client
+     * has said its camera has none. `rest=600` + `viewport_zoom=no` is then
+     * Client-TS's expression exactly.
      *
-     * That is `viewport_zoom`, which the revision states and the player does
-     * not: a wheel switched on in the settings moves world_cam_height inside
-     * its band and leaves this term exactly as the revision left it.
+     * The revision states that key and the player does not: a wheel switched
+     * on in the settings moves world_cam_zoom inside its band and leaves this
+     * term exactly as the revision left it.
      */
-    distance = pitch * 3 + app->world_cam_height;
+    distance = pitch * app->revconfig_profile.camera.pitch_distance + app->world_cam_zoom;
     if( app->revconfig_profile.camera.viewport_zoom )
         distance = distance * app_world_cam_dist_zoom(app) / 256;
+    /*
+     * The device's own dolly, last, over the whole distance -- pitch term
+     * included, which is the point of it. The band under `world_cam_zoom`
+     * moves the additive term only, so it buys less and less as the camera
+     * tips over: overhead, `pitch * 3` is 1149 of the distance and no floor
+     * the band can state is worth more than a few percent of it.
+     * @see RevConfigCameraItem::distance_scale.
+     */
+    if( app->revconfig_profile.camera.distance_scale !=
+        REVCONFIG_CAMERA_DISTANCE_SCALE_DEFAULT )
+        distance = distance * app->revconfig_profile.camera.distance_scale / 100;
+    /* Not past the near plane. Anything closer than it is not a closer view,
+     * it is a dropped one -- the anchor itself fails the `dz < near_plane_z`
+     * test in ToriRS_WorldProject. The camera's own field, so TORIRS_NEAR_PLANE
+     * moves both together. */
+    if( distance < app->world_camera.near_plane_z )
+        distance = app->world_camera.near_plane_z;
     /* Look-at height: the reference samples the ground under the ACTOR (not
      * under the eased anchor), takes the minimum over its footprint, then
      * drops 8, then the camera's own 50 — client.method1605:
@@ -25798,6 +26183,34 @@ App_WorldDrainEntityRemoved(struct App* app)
     if( !app->world )
         return;
     App_WorldDrainEntityRemovedFor(app, app->world);
+}
+
+/*
+ * Whether the water and lava texels are scrolled on the CPU this cycle.
+ *
+ * The GPU renderers (GLES2, GL3, D3D9) animate a texture in the shader from a
+ * per-vertex scroll rate and a frame clock; they upload the texels once and
+ * never read them again, so ToriDraw_TextureMapAnimate's per-cycle rotate of
+ * every animated texture (128 KB of traffic per 128x128 texture) was dead
+ * work on those lanes. The software rasteriser samples the texels directly
+ * and still needs it. TORIRS_TEXANIM_CPU=1 forces the scroll on every lane
+ * (the control arm on a GPU lane). Read once.
+ */
+static int
+app_texture_anim_on_cpu(const struct App* app)
+{
+    static int forced = -1;
+
+    assert(app);
+    if( forced < 0 )
+    {
+        char const* v = getenv("TORIRS_TEXANIM_CPU");
+
+        forced = (v && v[0] == '1') ? 1 : 0;
+    }
+    if( forced )
+        return 1;
+    return !app->renderer_animates_textures;
 }
 
 static void
@@ -25943,7 +26356,7 @@ app_world_frame(
 
     /* Texture scroll (water/lava): dat2 texture defs carry direction/speed;
      * the map advances them per elapsed cycle (v1 runescape.c:3893). */
-    if( cycles > 0 )
+    if( cycles > 0 && app_texture_anim_on_cpu(app) )
     {
         struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(app->scene);
         /* The rotate buffer is the caller's now -- see the header. This client
@@ -26080,10 +26493,13 @@ app_hover_text_update(
 
     /* 4726's first gate: no hover line while the Choose Option popup is up.
      * Nor under a chrome window: the line would name whatever the window is
-     * drawn over, and the right click that row promises is refused. */
-    if( app->interact.minimenu.visible || app_chrome_wants_pointer(app, mouse_x, mouse_y) ||
-        mouse_x < 0 || mouse_y < 0 || mouse_x >= UITREE_LAYOUT_ROOT_W ||
-        mouse_y >= UITREE_LAYOUT_ROOT_H )
+     * drawn over, and the right click that row promises is refused. Nor with
+     * no pointer on the canvas at all -- after a touch tap the position is
+     * still there but nothing is hovering it, and a line naming what a finger
+     * touched a minute ago is the same ghost as an unmoving cursor. */
+    if( app->interact.minimenu.visible || app->pointer_absent ||
+        app_chrome_wants_pointer(app, mouse_x, mouse_y) || mouse_x < 0 || mouse_y < 0 ||
+        mouse_x >= UITREE_LAYOUT_ROOT_W || mouse_y >= UITREE_LAYOUT_ROOT_H )
     {
         app->hover_text.visible = false;
         app->hover_text.text[0] = '\0';
@@ -27588,10 +28004,11 @@ app_minimenu_ui_pick_live(
         if( pick->kind == UI_MINIMENU_PICK_UI && pick->id >= 0 &&
             app->tree->components[pick->node_index].component_id != pick->id )
             return 0;
-        if( pick->allow_own_replacement_hidden
-                ? UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
-                      app->tree, pick->node_index)
-                : UITree_NodeOrAncestorDisplayHidden(app->tree, pick->node_index) )
+        if( UITree_NodeOrAncestorDisplayHiddenEx(
+                app->tree,
+                pick->node_index,
+                pick->allow_own_replacement_hidden,
+                pick->allow_frame_hidden) )
             return 0;
         idx = pick->node_index;
     }
@@ -27735,7 +28152,17 @@ app_minimenu_run_option(
          */
         enum UICrossMode cross_mode = RS_Minimenu_CrossModeForAction(opt.action);
         if( cross_mode != UI_CROSS_OFF && cross_mode != UI_CROSS_WALK )
+        {
             UICross_Show(&app->cross, cross_mode, click_x, click_y);
+            /* Same answer, applied to the marker that is already running.
+             * Inside the guard, not beside it: a row that shows no cross has
+             * decided nothing about what the press meant, and the marker is
+             * already yellow -- "a touch happened" -- from the press itself. */
+            UIInk_SetColour(
+                &app->ink,
+                cross_mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED
+                                                : TORIRS_INKWELL_YELLOW);
+        }
     }
 
     /* method5229 marks component operations above targetPriority with the
@@ -29300,8 +29727,14 @@ App_PluginLayoutTick(struct App* app)
          * icons and the numbers still drew, because those are the plugin's
          * own per-frame drawing, which is why this read as "the orbs are
          * there but dead" rather than as a missing feature.
+         *
+         * The readiness gate mirrors the owned path's below: not waiting for
+         * an OWNER is not the same as not waiting for a TREE, and nothing is
+         * declared against one that is still baking.
          */
-        PluginHost_ChromeTick(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        if( app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0 )
+            PluginHost_ChromeTick(
+                app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         /* app_plugin_layout_set already restored the lane's default on the
          * ownership transition. Do not restate it on every ownerless tick:
          * ordinary CS2/user window-mode changes own this state again now. */
@@ -29323,6 +29756,37 @@ App_PluginLayoutTick(struct App* app)
      * declares even if nothing else changed.
      */
     if( app->app_state != APP_STATE_READY )
+    {
+        app->plugin_layout_dirty = 1;
+        return;
+    }
+
+    /*
+     * And nothing is declared against a tree that is not a gameframe at all.
+     *
+     * The other end of api_layout_claim's rule, which refuses to hand the frame
+     * over anywhere but the game screen and says there that it is "the one
+     * door". It was, for getting IN. This is the way OUT, and it did not exist
+     * until a logout could put a live session back on the title screen: a claim
+     * belongs to the PLUGIN, not to the session, so it is still held when the
+     * title tree bakes, and the tick would ask the owner to arrange a gameframe
+     * that is not there.
+     *
+     * What the owner declares into it is NOTHING -- every arranger gates its
+     * own declaration on being in game, which is correct and is not enough.
+     *
+     * An empty declaration is not "leave it alone". It is a complete one that
+     * happens to place no slots, and UITree_FrameApply answers it exactly as
+     * asked -- every role unplaced and therefore hidden, then the lane's own
+     * chrome collected and hidden too. Against the login screen that reads as
+     * the login screen falling apart: the plate and most of the background
+     * gone, two strips of brazier left standing.
+     *
+     * Marked dirty rather than merely skipped, so the frame is re-declared on
+     * the first READY frame of the next session instead of inheriting whatever
+     * the last one left behind.
+     */
+    if( app->screen != APP_SCREEN_GAME )
     {
         app->plugin_layout_dirty = 1;
         return;
@@ -29396,15 +29860,65 @@ App_PluginLayoutTick(struct App* app)
      * if topology somehow changed after this settled pass. */
 }
 
+/**
+ * Does the client have somewhere for typed characters to go right now?
+ *
+ * Three sources, and they are the three places this client accepts text: the
+ * login form's two fields, the chat line, and a plugin that asked for input.
+ *
+ * This exists for the soft keyboard. On a desktop the answer is not needed --
+ * a physical keyboard is always there, and SDL's text-input mode only governs
+ * whether TEXTINPUT events arrive, which the shell turns on once at boot and
+ * never turns off. On a touch device it is the whole question: there is no
+ * keyboard unless one is raised, and raising it at the wrong time covers half
+ * the screen with something the user cannot type into.
+ */
+static int
+app_wants_text_input(struct App const* app)
+{
+    assert(app);
+
+    /* The login form, and only while it is the screen being shown: `focus`
+     * keeps its last value across a screen change, so testing it alone would
+     * raise the keyboard over the main menu. */
+    if( app->title.screen == RS_TITLE_LOGIN_FORM &&
+        app->title.focus >= 0 && app->title.focus < RS_TITLE_FIELD_COUNT )
+        return 1;
+
+    if( app->chat_input_active )
+        return 1;
+
+    /* A plugin asked for it (torirs_plugin_bridge.u.c). Kept last so the
+     * client's own fields win when both are true. */
+    return app->text_input_on ? 1 : 0;
+}
+
 int
 App_TakeTextInputChange(struct App* app, int* out_on)
 {
+    int wanted;
+
     assert(app);
+
+    /*
+     * Poll rather than wait for a writer, because the two client-side sources
+     * are plain state that many code paths change -- clicking a field, pressing
+     * Escape, submitting the form, a script closing the chat. Making each of
+     * those remember to set a dirty flag would be a rule to keep, and the one
+     * that forgot would leave the keyboard up over a screen with no field.
+     */
+    wanted = app_wants_text_input(app);
+    if( wanted != app->text_input_effective )
+    {
+        app->text_input_effective = wanted;
+        app->text_input_dirty = 1;
+    }
+
     if( !app->text_input_dirty )
         return 0;
     app->text_input_dirty = 0;
     if( out_on )
-        *out_on = app->text_input_on;
+        *out_on = app->text_input_effective;
     return 1;
 }
 
@@ -29484,6 +29998,35 @@ App_DrainCommands(
                 app->host.ui_scale_dirty = false;
                 App_SetCanvasSize(
                     app, app_ui_scaled_axis(app, cmd->width), app_ui_scaled_axis(app, cmd->height));
+            }
+            break;
+        case TORIRS_CMD_KEYBOARD_INSET:
+            if( header.length >= sizeof(struct ToriRS_CmdKeyboardInset) )
+            {
+                struct ToriRS_CmdKeyboardInset const* cmd =
+                    (struct ToriRS_CmdKeyboardInset const*)payload;
+                if( app->keyboard_inset != (int)cmd->bottom )
+                {
+                    app->keyboard_inset = (int)cmd->bottom;
+                    /* The band the layout hands to every row whose profile
+                     * declared `safe_area=os:bottom` -- the login box on the
+                     * profiles that state it, and nothing at all on the ones
+                     * that do not. The same number api->safe_os answers from,
+                     * so a plugin's chrome and a profile's panel cannot
+                     * disagree about where the keyboard starts. */
+                    UITree_LayoutSetSafeBottomInset(app->keyboard_inset);
+                    /* A layout event, exactly like a resize: the mobile frame
+                     * reads the new safe_os box in EV_LAYOUT and slides its
+                     * chatbox above (or back under) the keyboard. */
+                    app->plugin_layout_dirty = 1;
+                    if( app->tree )
+                        UITree_LayoutInvalidate(app->tree);
+                    /* And the title screen's, whose emit walk would otherwise
+                     * reuse last frame's command buffer and draw the box at
+                     * its old place. */
+                    app_title_state_changed(app);
+                    app->need_redraw = 1;
+                }
             }
             break;
         /*
@@ -30036,6 +30579,33 @@ App_RunOnce(
             app->logic_frame_ms = APP_LOGIC_TICK_MS;
         }
         int const ticks_paid = ticks;
+
+        /*
+         * The touch marker, advanced ONCE per rendered frame by the time that
+         * really elapsed -- not by the 20 ms simulation cycle above.
+         *
+         * It used to ride app_logic_tick, and that is why it "often doesn't
+         * render at all". That loop runs `ticks` times per frame, and `ticks`
+         * is whatever the accumulator paid out: 0 on a frame shorter than a
+         * cycle, and a whole handful on a slow one. So on a phone drawing ~9
+         * frames a second the marker's entire 400 ms life was spent inside one
+         * or two frames -- five cycles charged at once, the marker retired
+         * before the frame after it was ever drawn. It was on screen for two
+         * frames, both showing frame 0, which is a flicker and not an
+         * animation.
+         *
+         * A marker exists to be looked at, so its clock is the clock of the
+         * frames it is looked at in. Advancing by logic_frame_ms (the same
+         * clamped elapsed the movers are paid from, so a stall costs it the
+         * same) plays the whole 400 ms across however many frames the device
+         * manages, and guarantees at least one drawn frame per touch.
+         */
+        if( UIInk_IsActive(&app->ink) )
+        {
+            UIInk_Tick(&app->ink, (int)app->logic_frame_ms);
+            app->need_redraw = 1;
+        }
+
         if( ticks > 0 )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_LOGIC_TICKS, ticks);
@@ -30188,6 +30758,37 @@ App_RunOnce(
     plugin_pointer_owned = app->plugin_pointer_capture.active;
     plugin_region_click = app_plugin_pointer_capture_release(app, input);
 
+    /*
+     * The touch marker, shown for EVERY press.
+     *
+     * Here, and not where the cross is set, because that is the point: the
+     * cross is shown by the paths that DID something, and a tap that hits a
+     * widget, misses every target, or lands during a modal shows nothing at
+     * all. On a touchscreen there is no pointer to prove the device saw it, so
+     * the marker goes up before anything has decided what the press meant.
+     *
+     * The colour is the walk one at this stage -- "a touch happened". If the
+     * press turns out to be an interaction, RS_Minimenu's cross path refines it
+     * through UIInk_SetColour a moment later, in the same frame, without
+     * restarting the animation.
+     *
+     * BEFORE the interact walk, and the order is load-bearing: a touch tap
+     * delivers its press and release in ONE command batch (touch_click), so
+     * the frame that shows the marker is also the frame whose click dispatch
+     * refines it. SetColour on an ink not yet shown is a no-op, and a Show
+     * after the dispatch repaints the refinement yellow -- either wrong order
+     * is a tap that never turns red, however red the cross says it was.
+     *
+     * Costs nothing on a lane with no inkwell component: the state ticks and
+     * the emit never asks for it.
+     */
+    if( input->curr.mouse_button_down[TORIRSM_LEFT] ||
+        input->curr.mouse_button_down[TORIRSM_RIGHT] )
+    {
+        UIInk_Show(
+            &app->ink, TORIRS_INKWELL_YELLOW, input->curr.mouse_x, input->curr.mouse_y);
+    }
+
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
     {
         UITree_InteractFrameWithPointerOwner(
@@ -30214,7 +30815,18 @@ App_RunOnce(
      * REBUILD_NORMAL instead (a default region load would race/clobber it). */
     if( app->world_view_valid && !app->world_load_attempted && !app->net_enabled )
         app_world_load_begin(app, NULL, 0);
+    /*
+     * `mouse_pointer_absent` is the touch host saying the finger that WAS the
+     * pointer has lifted (LibToriRS_Input_PushMouseLeave). The position it left
+     * behind is still needed -- the popup it opened is anchored there -- but
+     * nothing is hovering it any more, so the hover markers and the pick that
+     * feeds them go quiet. Without this the tile indicator keeps outlining the
+     * tile of the last tap for as long as the client runs, and the world pick
+     * keeps re-answering it every frame.
+     */
+    app->pointer_absent = input->mouse_pointer_absent;
     app->world_mouse_in_viewport =
+        !app->pointer_absent &&
         app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
     app->world_mouse_x = input->curr.mouse_x;
     app->world_mouse_y = input->curr.mouse_y;
@@ -31367,6 +31979,33 @@ App_RunOnce(
                 &app->emit,
                 app->hover_com_id,
                 &app->emit_gate);
+            /*
+             * A running touch marker is never a quiet frame.
+             *
+             * The gate's two terms are the TREE's dirty generation and the
+             * HOST's published dependency stamp, and the marker is in neither:
+             * its whole state (position, colour, which of the eight frames) is
+             * app-side, reached through UITREE_HOST_GET_INKWELL at walk time,
+             * and it advances every frame without any node claiming to be
+             * dirty. So the gate calls the frame quiet, the retained list --
+             * the one already on screen -- is reused, and the marker is frozen
+             * on whichever frame the last full walk happened to build.
+             *
+             * Measured on the phone: a tap produced two full walks, both
+             * emitting frame 0, then eighteen more animation ticks with no walk
+             * at all. On screen that is a blob that appears, does not animate,
+             * and stays until something unrelated forces a rebuild -- which is
+             * why it reads as "doesn't animate, often doesn't render".
+             *
+             * Stated here rather than by dirtying a node because the marker
+             * does not belong to a node: it is host state that a component
+             * renders, and the honest way to say that is that the frame is not
+             * quiet while it is running. It costs a full walk only for the
+             * ~400 ms a marker is alive, and only on a lane that declares one.
+             */
+            if( UIInk_IsActive(&app->ink) )
+                gate_quiet = 0;
+
             /* Every dirty_gen source was measured bursty (creates, hide flips,
              * child link/unlink — all interface-open work), so on a steady-state
              * frame the tree term should hold and the gate should fire. It fires
@@ -31581,6 +32220,16 @@ App_InputFrameConsumed(struct App const* app)
 {
     assert(app);
     return app->input_frame_consumed;
+}
+
+int
+App_ChromePointerOwned(struct App const* app, int x, int y)
+{
+    assert(app);
+    /* Asked LIVE rather than answered from app->chrome_pointer_owned: that
+     * field is this frame's pointer, latched once, and the caller here is the
+     * touch layer asking about a point of its own. */
+    return app_chrome_wants_pointer(app, x, y);
 }
 
 void
@@ -32168,8 +32817,11 @@ app_world_sync_one_entity_spotanim(
         if( entry->body )
             ToriDraw_ModelFree(entry->body);
         /* The renderer poses the element model in place each draw; reset to
-         * the rest pose so the snapshot is the true base. */
+         * the rest pose so the snapshot is the true base. The element's model
+         * no longer holds the pose the renderer last applied, and it must not
+         * skip re-applying it. */
         ToriDraw_ModelAnimateReset(el->model.u.model.model);
+        ToriDraw_SceneElementPoseInvalidate(app->scene, element_id);
         entry->body = ToriDraw_ModelCopy(el->model.u.model.model);
         entry->combined = NULL;
         entry->applied_frame = -1;

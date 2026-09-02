@@ -24,11 +24,25 @@
  *   facesort.bitonic_radix.small.dispatch.u.c  the shared scalar work, the
  *                                              lane selection, the radix, and
  *                                              the one dispatcher
- *   facesort.bitonic_radix.small.neon64.u.c      AArch64: vqtbl1q left-pack,
- *                                              64-bit winding in vmlsl_s32,
- *                                              vst4q stash, bitonic network.
- *                                              NO tile kernel -- nothing here
- *                                              was measured on NEON.
+ *   facesort.bitonic_radix.small.neon64.u.c    AArch64: 64-bit winding in
+ *                                              vmlsl_s32, vst4q stash, bitonic
+ *                                              network, sentinel store and a
+ *                                              scalar compaction (measured on
+ *                                              an M4 Max: beats the vqtbl1q
+ *                                              left-pack). Routes the tile to
+ *                                              the scalar tile kernel. Folds
+ *                                              near_clipped / stash per model.
+ *   facesort.bitonic_radix.small.neon32.u.c    the armv7 twin of it, and the
+ *                                              Android armeabi-v7a lane. Same
+ *                                              arithmetic; the five A64-only
+ *                                              intrinsics are replaced as the
+ *                                              ladder below lists. Routes the
+ *                                              tile to the scalar tile kernel
+ *                                              (measured on the Krait), and
+ *                                              gathers from an interleaved
+ *                                              copy of the vertices (an
+ *                                              in-order core cannot overlap
+ *                                              twelve lane loads on its own).
  *   facesort.bitonic_radix.small.sse2.u.c      the Win32 XP lane, written to
  *                                              the Pentium 4 floor: no pshufb,
  *                                              no pcmpgtq, no pminud, no
@@ -47,16 +61,30 @@
  * names -- that is what lets toridraw_face_sort_bitonic_radix carry no
  * preprocessor of its own:
  *
- *   int toridraw_face_sort_bitonic_radix_lane_blocks(...)
+ *   int toridraw_face_sort_bitonic_radix_lane_blocks(..., int* out_accepted)
  *       Runs the vector cull over whole blocks of faces starting at *f_io,
- *       appends the accepted keys at `keys`, advances *f_io past every face it
- *       consumed, and returns how many keys it wrote. A lane with no vector
- *       cull leaves *f_io alone and returns 0; the caller's scalar loop then
+ *       (num_vertices says how many projected vertices are the model's, for a
+ *       lane that re-lays them out per model), 
+ *       appends keys at `keys`, advances *f_io past every face it consumed,
+ *       returns how many keys it WROTE and stores in *out_accepted how many of
+ *       those are accepted faces. The two differ on a lane that does not
+ *       left-pack: it may write a rejected face as the sentinel 0xFFFFFFFF in
+ *       place, which the sort carries to the end -- the sort runs over the
+ *       written count, the caller reports the accepted one, and the sorted
+ *       prefix [0, accepted) is the same either way because the key is a
+ *       total order. Both NEON lanes store the sentinel and then COMPACT the
+ *       block's keys in a scalar pass before returning, so they report the
+ *       written count equal to the accepted count; what they gain is the
+ *       unconditional vector store in place of a table left-pack. (Sorting
+ *       the sentinels instead of compacting was measured on the Krait and
+ *       LOST -- the radix over the rejected keys cost more than the pack.)
+ *       The SSE2 lane packs. A lane with no vector cull leaves *f_io
+ *       alone, returns 0 with *out_accepted = 0; the caller's scalar loop then
  *       covers every face. The caller finishes [*f_io, num_faces) either way,
  *       so a lane may consume any whole number of faces it likes.
  *
- *       Writes up to four keys past the returned count (the left-pack stores a
- *       whole vector), so `keys` needs four lanes of slack.
+ *       Writes up to four keys past the returned count (a packing lane stores
+ *       a whole vector), so `keys` needs four lanes of slack.
  *
  *   bool toridraw_face_sort_bitonic_radix_lane_tile2(...)
  *       The two-triangle terrain tile, whose index triples are a compile-time
@@ -71,6 +99,15 @@
  *       false means the caller runs qsort instead. Called only for counts at
  *       or under toridraw_face_sort_bitonic_max().
  *
+ *   void toridraw_face_sort_bitonic_radix_lane_emit(const uint32_t* keys,
+ *                                                   int n, int* out)
+ *       The emit: out[i] = keys[i] & 0xFFFF for i in [0, n). `out` is
+ *       scene->tmp_face_order and has NO slack past max_faces, so a lane that
+ *       stores whole vectors finishes with a scalar tail; `keys` has eight
+ *       lanes of slack and may be over-read. The vector lanes vand + vst1q
+ *       (TORIDRAW_SORT_EMIT_VEC=0 is the scalar control arm); the SSE2 and
+ *       scalar lanes loop.
+ *
  * The lane a build gets is decided by the one `#elif` ladder below, which also
  * sets TORIDRAW_FACE_SORT_SIMD when the lane has a vector cull -- and so, one
  * layer up, whether the kernel is the one the family is named for. That is
@@ -84,8 +121,10 @@
  * shuffle immediates -- are reachable only from the SSE2 lane, and that is
  * deliberate rather than an omission: the A/B that chose between them
  * (toridraw_face_sort_tile2_armed) was run on an x86 host against the general
- * path, and no equivalent measurement exists on NEON. Until one does, the
- * NEON lane declines and a terrain tile there is an ordinary two-face model.
+ * path. The A32 lane has since been measured on the Krait (the scalar kernel
+ * wins there too, 117 -> 110 ns/face) and the A64 lane on an M4 Max (5.84 ->
+ * 5.09 ns/face); both route the tile. The saving is the same shape on every
+ * core: the per-model setup of a two-face model, not vector width.
  */
 
 #include "graphics/dash_restrict.h"
@@ -102,24 +141,50 @@
  * in toridraw_face_sort_bitonic_radix_armed.
  */
 /*
- * __aarch64__ is REQUIRED, not just NEON.
+ * THE ARM LANE IS SPLIT BY ENCODING WIDTH, not gated on __aarch64__.
  *
- * The NEON lane is written in A64-only intrinsics -- vmull_high_s32 /
+ * A32 and A64 NEON are different instruction sets, and the sort's body reaches
+ * five things the A64 file spells with A64-only intrinsics: vmull_high_s32 and
  * vmlsl_high_s32 (the widening high-half multiply), vcgtq_s64 (there is no
- * 64-bit vector compare in A32 NEON at all), vaddvq_u32 (horizontal add) and
+ * 64-bit lane-wise compare in A32 NEON at all), vaddvq_u32 (horizontal add) and
  * vqtbl1q_u8 (the full 16-byte table lookup; A32 has only the 8-byte vtbl).
- * None of the five exists on armv7, so an armv7 build that reached this lane
- * did not merely run slower -- it failed to compile, which is how the Android
- * armeabi-v7a lane found this.
+ * armv7 pointed at the A64 file did not merely run slower -- it failed to
+ * compile, which is how the Android armeabi-v7a lane found this.
  *
- * Same requirement, and the same reason, as the projection bound lane: see the
- * header comment in impl/projection/projection.bound.dispatch.u.c. armv7 falls
- * through the ladder to the scalar lane, which is correct and is what every
- * non-SIMD host already uses.
+ * All five have an A32 route, and the neon32 file takes it, so armv7 gets the
+ * SIMD winding cull and the bitonic network rather than falling through to the
+ * scalar lane:
+ *
+ *   vmull_high_s32 / vmlsl_high_s32  vmull_s32 / vmlsl_s32 of vget_high_s32.
+ *                                    The widening multiply is A32; only the
+ *                                    form that takes the quad and picks its
+ *                                    top half is A64.
+ *   vcgtq_s64 / vcltq_s64            synthesized from the 32-bit halves of the
+ *                                    product: the sign of a 64-bit value
+ *                                    against zero is its high word's sign,
+ *                                    with the unsigned low word breaking the
+ *                                    high == 0 tie. The SSE2 lane has the same
+ *                                    hole (no pcmpgtq) and answers it the same
+ *                                    way. No 32-bit truncation, so the sign
+ *                                    decisions stay bit-for-bit the scalar
+ *                                    reference's.
+ *   vaddvq_u32                       two vpadd_u32 folds, once per block.
+ *   vqtbl1q_u8                       the SSE2 lane's index-table left-pack:
+ *                                    a stack slot and four unconditional
+ *                                    scalar stores, no pshufb needed and none
+ *                                    available.
+ *
+ * aarch64 keeps neon64 for the five single instructions. Same split, and the
+ * same reason, as the projection bound lane: see the header comment in
+ * impl/projection/projection.bound.dispatch.u.c.
  */
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && defined(__aarch64__) &&                     \
     !defined(NEON_DISABLED)
-#define TORIDRAW_FACE_SORT_LANE_NEON 1
+#define TORIDRAW_FACE_SORT_LANE_NEON64 1
+#define TORIDRAW_FACE_SORT_SIMD 1
+#elif ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(__aarch64__) &&                  \
+    !defined(NEON_DISABLED)
+#define TORIDRAW_FACE_SORT_LANE_NEON32 1
 #define TORIDRAW_FACE_SORT_SIMD 1
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
 /* The Win32 XP lane: -march=pentium4 is SSE2 and nothing above it -- no

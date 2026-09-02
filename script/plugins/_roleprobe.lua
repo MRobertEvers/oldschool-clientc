@@ -20,7 +20,7 @@ local plugin = {
 }
 
 -- Bound once each, not spelled at the call sites. @see torirs.Role.
-local WATCHED = { "safe", "viewport", "minimap", "report_button", "logout_screen" }
+local WATCHED = { "safe_gamechrome", "viewport", "minimap", "report_button", "logout_screen" }
 local roles = {}
 
 local draws = 0

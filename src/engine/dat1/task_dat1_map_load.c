@@ -52,10 +52,13 @@ Task_Dat1MapTerrainLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    dat1_buildcache_map_terrain_add(task->bc, map_id, rscache_terrain);
-
     torirs_terrain = ToriRS_MapTerrainFromRSCache(task->map_x, task->map_z, rscache_terrain);
     CacheProvider_MapTerrainAdd(&task->bc->base, map_id, torirs_terrain);
+
+    /* The ToriRS copy is what every reader uses; the buildcache's raw
+     * terrain store has no reader in the client, so the decode is done with. */
+    RSCache_MapTerrainFree(rscache_terrain);
+    rscache_terrain = NULL;
 
     PT_END(&task->pt);
 }
@@ -88,10 +91,13 @@ Task_Dat1MapSceneryLoad_Run(
      * places the chunk from these (same fixup the dat2 task does). */
     rscache_locs->chunk_mapx = task->map_x;
     rscache_locs->chunk_mapz = task->map_z;
-    dat1_buildcache_map_scenery_add(task->bc, map_id, rscache_locs);
 
     torirs_locs = ToriRS_MapLocsFromRSCache(rscache_locs);
     CacheProvider_MapSceneryAdd(&task->bc->base, map_id, torirs_locs);
+
+    /* Same as the terrain task: consumed, not stashed in a store nobody reads. */
+    RSCache_MapLocsFree(rscache_locs);
+    rscache_locs = NULL;
 
     PT_END(&task->pt);
 }

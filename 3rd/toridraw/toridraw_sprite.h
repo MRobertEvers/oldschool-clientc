@@ -60,6 +60,24 @@ struct ToriDraw_Sprite
      * @see ToriDraw_SpriteAlphaClass. */
     unsigned char alpha_class;
     uint32_t const* alpha_class_src;
+    /*
+     * What the alpha byte MEANS, stated by whoever made the pixels.
+     *
+     * 1: a channel. The producer wrote real coverage -- the cache decoders
+     *    (0xFF for a palette colour, 0 for the transparent index), the
+     *    inkwell baker, anything with soft edges -- and a coloured pixel with
+     *    alpha 0 is transparent. This is what the software blit assumes for
+     *    every sprite (its test is `alpha != 0`).
+     * 0: a convention, the legacy default. The client drew this pixmap into
+     *    an opaque framebuffer and never wrote alpha at all, so a consumer
+     *    that needs coverage (a GPU upload) derives it from the colour key:
+     *    black is transparent, everything else opaque.
+     *
+     * A per-pixel guess cannot tell the two apart -- alpha 0 on a yellow
+     * pixel is padding in one and paint in the other -- which is how the
+     * touch marker came to draw as a yellow rectangle. So it is declared.
+     */
+    unsigned char alpha_channel;
 };
 
 /**

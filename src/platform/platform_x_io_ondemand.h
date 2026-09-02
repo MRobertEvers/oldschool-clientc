@@ -102,6 +102,18 @@ PlatformXIO_Dat1OnDemandJagChecksums(
     int32_t out[9]);
 
 /**
+ * The same nine, fetched FRESH from the server rather than from the session
+ * cache, and the cache updated when they changed. For the login path: a
+ * server that repacked while this client idled at the title otherwise
+ * receives boot-time sums forever (reply=6 on every attempt). One HTTP GET
+ * per call; falls back to the cached table when the endpoint is unreachable.
+ */
+int
+PlatformXIO_Dat1OnDemandJagChecksumsRefresh(
+    struct PlatformX_IO* px,
+    int32_t out[9]);
+
+/**
  * Raw container bytes for one dat1 cache read, for a caller that will hand
  * them to somebody else's decoder rather than decode them here.
  *
@@ -209,6 +221,12 @@ PlatformXIOOnDemand_ContainerFetch(
  */
 int
 PlatformXIOOnDemand_JagChecksums(
+    struct PlatformXIOOnDemand* od,
+    int32_t out[9]);
+
+/** The fresh-fetch variant. @see PlatformXIO_Dat1OnDemandJagChecksumsRefresh. */
+int
+PlatformXIOOnDemand_JagChecksumsRefresh(
     struct PlatformXIOOnDemand* od,
     int32_t out[9]);
 

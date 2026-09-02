@@ -756,7 +756,7 @@ enum ToriRSChromeKey
      * the two kinds do not need separate key routing.
      *
      * Appended rather than slotted beside LEFT/RIGHT: enum ToriRSChromeAuxKey's
-     * twin in platform/platform_sdl2.h is pinned to this one value for value
+     * twin in platform/platform_window.h is pinned to this one value for value
      * (see the _Static_asserts in torirs_chrome_exec_sdl.c), and inserting in
      * the middle would renumber every key the platform already reports.
      */

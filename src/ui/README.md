@@ -380,7 +380,7 @@ trees handle those).
 | `WORLD` / `MINIMAP` / `COMPASS` | Filled by `EmitFill`; Soft3D stubs ignore 2D placeholders |
 
 `main.c` demo path: open interface → live SDL present (`UITree_EmitWalk` →
-Soft3D frame → `PlatformSDL2_Present`); optional `--bmp`.
+Soft3D frame → `PlatformWindow_Present`); optional `--bmp`.
 
 ---
 
