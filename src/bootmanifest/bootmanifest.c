@@ -904,6 +904,17 @@ bm_set_kv(
             bm->plugins = atoi(value) != 0 ? 1 : -1;
             return;
         }
+        if( strcmp(key, "clienttype") == 0 )
+        {
+            bm->clienttype = atoi(value);
+            return;
+        }
+        if( strcmp(key, "on_mobile") == 0 )
+        {
+            /* Tri-state, like plugins above and for the same reason. */
+            bm->on_mobile = atoi(value) != 0 ? 1 : -1;
+            return;
+        }
         if( strcmp(key, "window") == 0 )
         {
             char* sep = NULL;
@@ -1699,6 +1710,10 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->hidpi = bm->hidpi;
     if( bm->plugins )
         cfg->plugins = bm->plugins;
+    if( bm->clienttype > 0 )
+        cfg->clienttype = bm->clienttype;
+    if( bm->on_mobile )
+        cfg->on_mobile = bm->on_mobile;
     if( bm->window_w > 0 && bm->window_h > 0 )
     {
         cfg->window_w = bm->window_w;

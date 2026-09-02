@@ -548,6 +548,14 @@ struct AppConfig
     /** `[ui:boot] plugins` -- -1 declines the plugin layer, 1 asks for it, 0 is
      *  unset and loads it. TORIRS_PLUGINS outranks both. */
     int plugins;
+    /** `[ui:boot] clienttype` / `on_mobile` -- what the CLIENTTYPE and
+     *  ON_MOBILE clientscript opcodes answer. 0 = unset for clienttype; on_mobile
+     *  is tri-state (1 yes, -1 no, 0 unset). Unset falls through to the
+     *  revconfig profile's `[features]`, then to the platform default (mobile
+     *  on Android, the desktop client elsewhere). TORIRS_CLIENTTYPE /
+     *  TORIRS_ON_MOBILE outrank all of them. */
+    int clienttype;
+    int on_mobile;
     /** `[ui:boot] window` — initial canvas AND window size, 0 = unset (the
      * 765x503 fixed frame). Only meaningful in resizable mode, where it is the
      * size the gameframe is laid out at before the user touches anything.

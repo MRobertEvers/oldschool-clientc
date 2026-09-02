@@ -225,6 +225,10 @@ push_field_from_ini_kv(
             kind = RCFIELD_FEATURES_MOVER;
         else if( strcmp(key, "painter_draw_distance") == 0 )
             kind = RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE;
+        else if( strcmp(key, "clienttype") == 0 )
+            kind = RCFIELD_FEATURES_CLIENTTYPE;
+        else if( strcmp(key, "on_mobile") == 0 )
+            kind = RCFIELD_FEATURES_ON_MOBILE;
         else
             TORIRS_LOG("revconfig: [features] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )

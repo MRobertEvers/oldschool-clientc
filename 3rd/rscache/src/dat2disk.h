@@ -34,6 +34,15 @@ struct RSCache_Dat2DiskArchive
     int revision;
     int file_count;
     int* file_ids;
+    /**
+     * How many holders the archive has beyond its creator. 0 is the ordinary
+     * archive with one owner, which RSCache_Dat2DiskArchiveFree frees; a
+     * holder added by RSCache_Dat2DiskArchiveRetain makes Free a release,
+     * and the archive is freed by the last of them. Every constructor
+     * zeroes it. An archive is shared READ-ONLY: nothing that retains one
+     * may write its data, its ids or its counts.
+     */
+    int holders;
 };
 
 /*
@@ -574,6 +583,16 @@ RSCache_Dat2DiskArchiveInitMetadataFromTable(
     struct RSCache_Dat2DiskArchive* archive);
 void
 RSCache_Dat2DiskArchiveFree(struct RSCache_Dat2DiskArchive* archive);
+
+/**
+ * Add a holder. The archive stays alive until every holder (the creator
+ * included) has called RSCache_Dat2DiskArchiveFree; the holders read only.
+ * This is how one loaded archive serves every request for it at once,
+ * where a copy per request cost 2.5 MB x a thousand pending loc lookups at
+ * world entry.
+ */
+void
+RSCache_Dat2DiskArchiveRetain(struct RSCache_Dat2DiskArchive* archive);
 
 uint32_t*
 RSCache_Dat2DiskArchiveXteaKey(

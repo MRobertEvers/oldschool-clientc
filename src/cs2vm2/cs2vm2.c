@@ -22,6 +22,30 @@
 #define CS2VM2_DEBUG_OPS 0
 
 int g_cs2_trace_mode = 0;
+
+/* See CS2VM2_SetClientIdentity. 10 / not-mobile is what this client always
+ * answered before the value was configurable. */
+static int g_cs2_clienttype = 10;
+static int g_cs2_on_mobile = 0;
+
+void
+CS2VM2_SetClientIdentity(int clienttype, int on_mobile)
+{
+    g_cs2_clienttype = clienttype;
+    g_cs2_on_mobile = on_mobile ? 1 : 0;
+}
+
+int
+CS2VM2_ClientType(void)
+{
+    return g_cs2_clienttype;
+}
+
+int
+CS2VM2_OnMobile(void)
+{
+    return g_cs2_on_mobile;
+}
 char g_cs2_trace_extra[512];
 
 /* --- Call frame pool ----------------------------------------------------- */
@@ -6520,7 +6544,7 @@ CS2VM2_Op_OnMobile(
     assert(frame);
     (void)operand;
 
-    return CS2VM2_PushInt(vm, 0);
+    return CS2VM2_PushInt(vm, g_cs2_on_mobile);
 }
 
 /* Rev 634 opcode 6910: push Class24.anInt359 (signed 24-bit login / packet-54
@@ -6756,7 +6780,7 @@ CS2VM2_Op_ClientType(
     assert(frame);
     (void)operand;
 
-    return CS2VM2_PushInt(vm, 10);
+    return CS2VM2_PushInt(vm, g_cs2_clienttype);
 }
 
 int

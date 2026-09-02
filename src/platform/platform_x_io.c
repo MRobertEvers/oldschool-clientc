@@ -299,29 +299,16 @@ PlatformX_IO_Free(struct PlatformX_IO* px)
     free(px);
 }
 
-static struct RSCache_Dat2DiskArchive*
-dat2_archive_clone(const struct RSCache_Dat2DiskArchive* src)
-{
-    struct RSCache_Dat2DiskArchive* dst = malloc(sizeof(*dst));
-    assert(dst);
-    *dst = *src;
-    dst->data = NULL;
-    dst->file_ids = NULL;
-
-    if( src->data && src->data_size > 0 )
-    {
-        dst->data = malloc((size_t)src->data_size);
-        assert(dst->data);
-        memcpy(dst->data, src->data, (size_t)src->data_size);
-    }
-    if( src->file_ids && src->file_count > 0 )
-    {
-        dst->file_ids = malloc((size_t)src->file_count * sizeof(int));
-        assert(dst->file_ids);
-        memcpy(dst->file_ids, src->file_ids, (size_t)src->file_count * sizeof(int));
-    }
-    return dst;
-}
+/*
+ * The archive cache LENDS its archives: a request that hits gets the cached
+ * archive itself with a holder added (RSCache_Dat2DiskArchiveRetain), and
+ * the task's RSCache_Dat2DiskArchiveFree is that holder letting go. It used
+ * to hand out a full copy per request, which at world entry meant the
+ * 2.5 MB loc config group copied once for each of ~1,000 loc lookups
+ * waiting on the platform at the same time -- 2.7 GB live, and on a phone
+ * the low-memory killer. Consumers read the archive only, so sharing is
+ * sound; the cache's own hold is released by eviction like any other.
+ */
 
 static struct RSCache_Dat2DiskArchive*
 dat2_archive_cache_get(
@@ -818,12 +805,8 @@ load_cache_item_dat2(
             dat2_archive_cache_get(px, table_id, archive_id);
         if( cached )
         {
-            archive = dat2_archive_clone(cached);
-            if( !archive )
-            {
-                item->error_code = -1;
-                return -1;
-            }
+            RSCache_Dat2DiskArchiveRetain(cached);
+            archive = cached;
             item->data = archive;
             item->data_size = sizeof(struct RSCache_Dat2DiskArchive);
             item->error_code = 0;
@@ -866,11 +849,9 @@ load_cache_item_dat2(
         return -1;
     }
 
-    {
-        struct RSCache_Dat2DiskArchive* master = dat2_archive_clone(archive);
-        if( master )
-            dat2_archive_cache_put(px, master);
-    }
+    /* The cache takes the archive as one holder and the task is another. */
+    dat2_archive_cache_put(px, archive);
+    RSCache_Dat2DiskArchiveRetain(archive);
 
     item->data = archive;
     item->data_size = sizeof(struct RSCache_Dat2DiskArchive);

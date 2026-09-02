@@ -484,6 +484,12 @@ struct BootManifest
      *  the chrome is torn down and rebuilt on a cycle and the client visibly
      *  flickers between the two. */
     int plugins;
+    /* `clienttype = N` -- what the CLIENTTYPE clientscript opcode answers;
+     * 0 = unset (the revconfig profile's value, else the platform default).
+     * `on_mobile = 0|1` -- what ON_MOBILE answers; tri-state like plugins
+     * (1 yes, -1 no, 0 unset). A profile's `[override:ui:boot]` reaches both. */
+    int clienttype;
+    int on_mobile;
     /* `window = WxH` — initial canvas/window size. 0 = unset (the fixed frame).
      * Clamped to the canvas floor by App_SetCanvasSize like any other size. */
     int window_w;

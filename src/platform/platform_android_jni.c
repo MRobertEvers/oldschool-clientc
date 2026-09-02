@@ -38,6 +38,7 @@
 #include <android/native_window_jni.h>
 #include <jni.h>
 
+#include <fcntl.h>
 #include <pthread.h>
 #include <assert.h>
 #include <stdio.h>
@@ -190,6 +191,33 @@ log_pump(void* unused)
     return NULL;
 }
 
+/*
+ * exit() ends the process while the pump thread may still be between the
+ * pipe and logcat -- and the line it is holding is the one that says why the
+ * client exited (every die()/exit(1) path prints first). Drain whatever is
+ * still in the pipe, synchronously, from the exiting thread. The pipe end is
+ * switched to non-blocking so a drain with nothing to read returns at once.
+ */
+static void
+drain_log_pipe_at_exit(void)
+{
+    char line[512];
+    int flags;
+    ssize_t n;
+
+    if( g_log_pipe[0] <= 0 )
+        return;
+    flags = fcntl(g_log_pipe[0], F_GETFL, 0);
+    if( flags >= 0 )
+        fcntl(g_log_pipe[0], F_SETFL, flags | O_NONBLOCK);
+    while( (n = read(g_log_pipe[0], line, sizeof(line) - 1)) > 0 )
+    {
+        line[n] = '\0';
+        __android_log_write(ANDROID_LOG_INFO, ANDROID_LOG_TAG, line);
+    }
+    __android_log_write(ANDROID_LOG_INFO, ANDROID_LOG_TAG, "process exiting (log pipe drained)");
+}
+
 static void
 redirect_stdio_to_log(void)
 {
@@ -209,6 +237,7 @@ redirect_stdio_to_log(void)
     dup2(g_log_pipe[1], STDERR_FILENO);
     pthread_create(&g_log_thread, NULL, log_pump, NULL);
     pthread_detach(g_log_thread);
+    atexit(drain_log_pipe_at_exit);
 }
 
 /* ---- the soft keyboard ---------------------------------------------------

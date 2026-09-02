@@ -1543,9 +1543,23 @@ RSCache_Dat2DiskArchiveFree(struct RSCache_Dat2DiskArchive* archive)
     if( !archive )
         return;
 
+    /* A shared archive: this is one holder letting go, not the end. */
+    if( archive->holders > 0 )
+    {
+        archive->holders--;
+        return;
+    }
+
     if( archive->data )
         free(archive->data);
 
     free(archive->file_ids);
     free(archive);
+}
+
+void
+RSCache_Dat2DiskArchiveRetain(struct RSCache_Dat2DiskArchive* archive)
+{
+    assert(archive);
+    archive->holders++;
 }

@@ -563,10 +563,39 @@ case_claims(struct Fixture* f)
     CHECK(visible >= 0, "claims: no visible model");
 
     GLES2DualCoreStageArena_Init(&arena);
+    arena.lead = 1u;
     GLES2DualCoreStageArena_BeginFrame(&arena, 3u);
     context_init(&context, f, view, false);
 
+    /* The producer is not ahead of the consumer (both at 0): it hands the
+     * slot over rather than claim it, and the claim word says so. */
+    atomic_store(&arena.consumer_index, 0u);
+    CHECK(GLES2DualCoreStageArena_ClaimNextForProducer(&arena) == GLES2_DUALCORE_CLAIM_TAKEN_BY_DRAW,
+        "claims: producer at the consumer's slot must hand it over");
+    CHECK(atomic_load(&arena.claims[0]) == GLES2_DUALCORE_CLAIM_CONSUMER,
+        "claims: handed-over slot not marked for the consumer");
+    CHECK(!GLES2DualCoreStageArena_ClaimForConsumer(&arena, 0u),
+        "claims: a handed-over slot is already the consumer's");
+    GLES2DualCoreStageArena_PublishTakenByDraw(&arena);
+    CHECK(atomic_load(&arena.ready) == 1u, "claims: hand-off placeholder not published");
+    /* Far enough ahead again: the producer claims for itself. */
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_BeginFrame(&arena, 3u);
+    atomic_store(&arena.consumer_index, 0u);
+    /* Pretend the producer is at slot 2 with the consumer at 0. */
+    arena.result_count = 2u;
+    CHECK(GLES2DualCoreStageArena_ClaimNextForProducer(&arena) == GLES2_DUALCORE_CLAIMED,
+        "claims: producer two ahead must claim for itself");
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_BeginFrame(&arena, 3u);
+    /* From here the consumer is kept far behind so the older cases hold. */
+    atomic_store(&arena.consumer_index, 0u);
+    arena.result_count = 0u;
+
     /* Slot 0: the consumer gets there first. */
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_BeginFrame(&arena, 4u);
+    atomic_store(&arena.consumer_index, 0u);
     CHECK(GLES2DualCoreStageArena_ClaimForConsumer(&arena, 0u), "claims: consumer claim 0");
     CHECK(GLES2DualCoreStageArena_ClaimNextForProducer(&arena) == GLES2_DUALCORE_CLAIM_TAKEN_BY_DRAW,
         "claims: producer should see slot 0 taken");
@@ -574,32 +603,36 @@ case_claims(struct Fixture* f)
     CHECK(atomic_load(&arena.ready) == 1u, "claims: placeholder not published");
     CHECK(arena.results[0].taken_by_draw, "claims: placeholder not marked");
 
-    /* Slot 1: the producer first; the consumer's claim then fails and the
-     * result is a real one. */
-    CHECK(GLES2DualCoreStageArena_ClaimNextForProducer(&arena) == GLES2_DUALCORE_CLAIMED,
-        "claims: producer claim 1");
-    CHECK(!GLES2DualCoreStageArena_ClaimForConsumer(&arena, 1u), "claims: consumer must lose 1");
-    CHECK(GLES2DualCoreStage_ComputeModel(&context, &arena, &f->commands[visible]),
-        "claims: compute 1");
-    CHECK(atomic_load(&arena.ready) == 2u && !arena.results[1].taken_by_draw &&
-              arena.results[1].cull == TORIDRAW_CULL_VISIBLE,
-        "claims: slot 1 should be a real visible result");
+    /* Slot 1: the consumer is still at 0, within the lead -- handed over. */
+    CHECK(GLES2DualCoreStageArena_ClaimNextForProducer(&arena) == GLES2_DUALCORE_CLAIM_TAKEN_BY_DRAW,
+        "claims: slot 1 within the lead must be handed over");
+    GLES2DualCoreStageArena_PublishTakenByDraw(&arena);
 
-    /* Slot 2: producer; slot 3 does not exist. */
+    /* Slots 2 and 3: two ahead of the consumer, the producer's own; the
+     * consumer's claim on 2 then fails and the result is a real one. */
     CHECK(GLES2DualCoreStageArena_ClaimNextForProducer(&arena) == GLES2_DUALCORE_CLAIMED,
         "claims: producer claim 2");
+    CHECK(!GLES2DualCoreStageArena_ClaimForConsumer(&arena, 2u), "claims: consumer must lose 2");
     CHECK(GLES2DualCoreStage_ComputeModel(&context, &arena, &f->commands[visible]),
         "claims: compute 2");
+    CHECK(atomic_load(&arena.ready) == 3u && !arena.results[2].taken_by_draw &&
+              arena.results[2].cull == TORIDRAW_CULL_VISIBLE,
+        "claims: slot 2 should be a real visible result");
+    CHECK(GLES2DualCoreStageArena_ClaimNextForProducer(&arena) == GLES2_DUALCORE_CLAIMED,
+        "claims: producer claim 3");
+    CHECK(GLES2DualCoreStage_ComputeModel(&context, &arena, &f->commands[visible]),
+        "claims: compute 3");
+    /* Slot 4 does not exist. */
     CHECK(GLES2DualCoreStageArena_ClaimNextForProducer(&arena) == GLES2_DUALCORE_CLAIM_EXHAUSTED,
-        "claims: slot 3 should be exhausted");
+        "claims: slot 4 should be exhausted");
     CHECK(arena.exhausted, "claims: exhaustion not flagged");
     GLES2DualCoreStage_EndPass(&context);
 
     /* The next frame starts with every claim free again. */
     atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_EXHAUSTED);
-    GLES2DualCoreStageArena_BeginFrame(&arena, 3u);
+    GLES2DualCoreStageArena_BeginFrame(&arena, 4u);
     CHECK(GLES2DualCoreStageArena_ClaimForConsumer(&arena, 0u), "claims: slot 0 not freed");
-    CHECK(GLES2DualCoreStageArena_ClaimForConsumer(&arena, 1u), "claims: slot 1 not freed");
+    CHECK(GLES2DualCoreStageArena_ClaimForConsumer(&arena, 2u), "claims: slot 2 not freed");
 
     GLES2DualCoreStageArena_Free(&arena);
     ToriDraw_SceneScratchViewFree(view);

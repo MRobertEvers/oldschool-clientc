@@ -281,6 +281,8 @@ enum RevConfigFieldKind
     RCFIELD_FEATURES_GROUND_CLICK_OFFMAP,
     RCFIELD_FEATURES_MOVER,
     RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE,
+    RCFIELD_FEATURES_CLIENTTYPE,
+    RCFIELD_FEATURES_ON_MOBILE,
     RCFIELD_CAMERA_REST,
     RCFIELD_CAMERA_ZOOM_CLOSEST,
     RCFIELD_CAMERA_ZOOM_FURTHEST,
@@ -1286,6 +1288,17 @@ struct RevConfigFeaturesItem
     /* INI: painter_draw_distance= — painter radius in tiles (the official
      * 25..90 band). 0 = not stated. */
     int painter_draw_distance;
+
+    /* INI: clienttype= — what the CLIENTTYPE clientscript opcode answers
+     * (rev-239 values: 1 desktop Java, 2 Android, 3 iOS, 4 enhanced, 5 Mac,
+     * 7 mobile, 10 Steam/enhanced; the cache's script 1972 takes
+     * `clienttype = 7 | on_mobile` as the mobile layout). -1 = not stated,
+     * i.e. the platform's own default. */
+    int clienttype;
+
+    /* INI: on_mobile= — what the ON_MOBILE opcode answers, 0/1. -1 = not
+     * stated. */
+    int on_mobile;
 };
 
 /*

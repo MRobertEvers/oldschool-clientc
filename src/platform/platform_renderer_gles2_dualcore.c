@@ -13,8 +13,11 @@
 #include "toridraw.h"
 
 #include <assert.h>
+#include <dlfcn.h>
 #include <pthread.h>
 #include <sched.h>
+#include <signal.h>
+#include <ucontext.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -30,7 +33,11 @@
  * two cores the worker is on the other one, so spinning costs it nothing;
  * yielding is for the case where it is not (a hot-plugged core, a pin the
  * kernel overrode). */
-#define GLES2_DUALCORE_SPINS_BEFORE_YIELD 64u
+#define GLES2_DUALCORE_SPINS_BEFORE_YIELD 4096u
+
+/* The worker's stack: 16 MB, the size class of a main thread rather than of
+ * a helper. See the note at the create. */
+#define GLES2_DUALCORE_WORKER_STACK_BYTES (16u * 1024u * 1024u)
 
 struct ToriRS_GLES2DualCore
 {
@@ -70,12 +77,19 @@ struct ToriRS_GLES2DualCore
     /* --- configuration ---------------------------------------------------- */
     bool enabled;
     uint32_t warmup_frames;
+    uint32_t lead;
     bool pin;
     bool debug;
 
     /* --- statistics --------------------------------------------------------- */
     uint64_t frames;
     uint64_t frames_dual;
+    /* Frames that carried a world pass and ran it INLINE: the warm-up is
+     * counted in these, not in frames. A title screen draws no model, so
+     * counting it would start the worker on the first frame that ever
+     * projects -- exactly when the kernels' lazily resolved statics are
+     * being written by the draw thread. */
+    uint64_t world_frames_inline;
     uint64_t models_taken;
     uint64_t models_inline;
     /* Models the draw claimed and staged itself because the worker had not
@@ -91,6 +105,89 @@ struct ToriRS_GLES2DualCore
     uint64_t worker_ns_window;
     uint64_t join_ns_window;
 };
+
+/* ---- crash breadcrumbs (TORIRS_GLES2_DUALCORE_DEBUG) --------------------------
+ *
+ * A fault on the worker with a corrupted program counter leaves the system's
+ * unwinder nothing to work with. This handler prints what the stage was
+ * doing (the crumb), the fault registers, and a frame-pointer walk from the
+ * faulting context -- the chain is usually intact even when the pc is not,
+ * since it is the last VALID function's frame the bad jump left behind. The
+ * addresses are printed as module offsets for the symbolizer. Then the
+ * default action is restored and the fault re-raised, so the tombstone is
+ * still written. Installed whenever the worker starts.
+ */
+static pthread_t g_dualcore_worker_thread;
+static int g_dualcore_worker_thread_set;
+static struct sigaction g_dualcore_previous_segv;
+
+static void
+dualcore_print_module_offset(char const* label, uintptr_t address)
+{
+    Dl_info info;
+    if( address && dladdr((void*)address, &info) && info.dli_fname )
+        fprintf(stderr, "gles2-dualcore: %s %#lx = %s+%#lx\n", label, (unsigned long)address,
+            info.dli_fname, (unsigned long)(address - (uintptr_t)info.dli_fbase));
+    else
+        fprintf(stderr, "gles2-dualcore: %s %#lx = ?\n", label, (unsigned long)address);
+}
+
+static void
+dualcore_segv_handler(int signal_number, siginfo_t* info, void* context)
+{
+    if( g_dualcore_worker_thread_set && pthread_equal(pthread_self(), g_dualcore_worker_thread) )
+    {
+        struct GLES2DualCoreStageCrumb const* crumb = &g_gles2_dualcore_stage_crumb;
+        fprintf(stderr,
+            "gles2-dualcore: WORKER FAULT signal %d addr %p; crumb step %d element %d kind %d "
+            "model %p anim_frame %d slot %d\n",
+            signal_number, info ? info->si_addr : NULL, crumb->step, crumb->element_id,
+            crumb->model_kind, (void*)crumb->model, crumb->anim_frame, crumb->slot);
+#if defined(__arm__)
+        if( context )
+        {
+            ucontext_t* uc = (ucontext_t*)context;
+            uintptr_t pc = uc->uc_mcontext.arm_pc;
+            uintptr_t lr = uc->uc_mcontext.arm_lr;
+            uintptr_t fp = uc->uc_mcontext.arm_fp;
+            uintptr_t sp = uc->uc_mcontext.arm_sp;
+            int depth;
+            dualcore_print_module_offset("pc", pc);
+            dualcore_print_module_offset("lr", lr);
+            fprintf(stderr, "gles2-dualcore: sp %#lx fp %#lx\n", (unsigned long)sp, (unsigned long)fp);
+            /* clang's ARM frame: [fp] = caller's fp, [fp+4] = return address.
+             * Walk while the chain stays on this stack and moves upward. */
+            for( depth = 0; depth < 24 && fp > sp && fp < sp + (64u * 1024u * 1024u) && (fp & 3u) == 0u;
+                 depth++ )
+            {
+                uintptr_t next_fp = ((uintptr_t*)fp)[0];
+                uintptr_t return_address = ((uintptr_t*)fp)[1];
+                char label[16];
+                snprintf(label, sizeof(label), "frame %d", depth);
+                dualcore_print_module_offset(label, return_address);
+                if( next_fp <= fp )
+                    break;
+                fp = next_fp;
+            }
+        }
+#endif
+        fflush(stderr);
+    }
+    /* Back to the default action for the re-raise: the tombstone. */
+    sigaction(signal_number, &g_dualcore_previous_segv, NULL);
+    raise(signal_number);
+}
+
+static void
+dualcore_install_segv_handler(void)
+{
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_sigaction = dualcore_segv_handler;
+    action.sa_flags = SA_SIGINFO;
+    sigemptyset(&action.sa_mask);
+    sigaction(SIGSEGV, &action, &g_dualcore_previous_segv);
+}
 
 static uint64_t
 dualcore_now_ns(void)
@@ -189,6 +286,14 @@ dualcore_worker_main(void* argument)
 #if defined(__linux__)
     pthread_setname_np(pthread_self(), "gles2-stage");
 #endif
+    g_dualcore_worker_thread = pthread_self();
+    g_dualcore_worker_thread_set = 1;
+    /* Always, not only under the debug env: the one worker fault seen so far
+     * (OSRS239, plugins off, 2026-09-02) left a program counter inside a data
+     * table and no usable frames in the tombstone, and stopped reproducing
+     * the moment the stage's breadcrumb stores went in. If it comes back, this
+     * is what turns it into a stack. */
+    dualcore_install_segv_handler();
     dualcore_worker_pin(lane);
     for( ;; )
     {
@@ -253,6 +358,8 @@ dualcore_source_take(
     (void)command;
     arena = &lane->arena;
     index = lane->take_index++;
+    /* Where the draw is, for the worker's hand-off decision. */
+    atomic_store_explicit(&arena->consumer_index, index, memory_order_relaxed);
     if( !lane->kicked )
     {
         /* A model command before any BEGIN_3D: not a frame shape the emitter
@@ -263,6 +370,15 @@ dualcore_source_take(
         return false;
     }
 
+    /* A slot the worker handed to this thread, or one it claimed earlier,
+     * is staged here without looking at `ready` at all. */
+    if( index < arena->result_capacity &&
+        atomic_load_explicit(&arena->claims[index], memory_order_acquire) ==
+            GLES2_DUALCORE_CLAIM_CONSUMER )
+    {
+        lane->models_claimed_by_draw++;
+        return false;
+    }
     for( ;; )
     {
         ready = atomic_load_explicit(&arena->ready, memory_order_acquire);
@@ -271,13 +387,18 @@ dualcore_source_take(
         /* Not published. If nobody has started it, it is ours: computing it
          * here on the scene's own bench beats waiting for a worker that is
          * behind, and it is what keeps the two halves of the frame level.
-         * (One attempt: a claim that fails means the worker is on it, and
-         * its result is moments away.) */
-        if( spins == 0u && index < arena->result_capacity &&
-            GLES2DualCoreStageArena_ClaimForConsumer(arena, index) )
+         * One attempt: a claim that fails means the worker is on it and its
+         * result is moments away -- or that it handed the slot over in the
+         * same instant, which the re-read below catches. */
+        if( spins == 0u && index < arena->result_capacity )
         {
-            lane->models_claimed_by_draw++;
-            return false;
+            if( GLES2DualCoreStageArena_ClaimForConsumer(arena, index) ||
+                atomic_load_explicit(&arena->claims[index], memory_order_acquire) ==
+                    GLES2_DUALCORE_CLAIM_CONSUMER )
+            {
+                lane->models_claimed_by_draw++;
+                return false;
+            }
         }
         if( atomic_load_explicit(&arena->finished, memory_order_acquire) !=
             GLES2_DUALCORE_STAGE_RUNNING )
@@ -306,9 +427,15 @@ dualcore_source_take(
     lane->models_taken++;
 
     result = &arena->results[index];
-    /* A placeholder is only ever published for a model the draw claimed, and
-     * a claimed model returned above before reaching here. */
-    assert(!result->taken_by_draw);
+    /* The worker can hand the slot over BETWEEN the claim-word read above and
+     * the ready check: then what was published is its placeholder, and the
+     * model is this thread's to stage. Not a fault, a race the protocol
+     * allows; the draw just takes the other branch. */
+    if( result->taken_by_draw )
+    {
+        lane->models_claimed_by_draw++;
+        return false;
+    }
     out->cull = result->cull;
     out->pick_hit = result->pick_hit != 0u;
     out->sorted = result->sorted != 0u;
@@ -338,10 +465,16 @@ dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
 {
     struct ToriRS_GLES2* renderer = lane->renderer;
 
-    if( !lane->enabled || lane->frames < lane->warmup_frames )
+    if( !lane->enabled || !renderer->scene || !frame->world || !frame->painters )
         return false;
-    if( !renderer->scene || !frame->world || !frame->painters )
+    if( lane->world_frames_inline < lane->warmup_frames )
+    {
+        /* This world frame runs on the draw thread alone and settles every
+         * first-use static the stage will read from the worker. */
+        if( frame->painters->command_count > 0 )
+            lane->world_frames_inline++;
         return false;
+    }
 
     /* The view snapshots the scene's non-scratch fields; it is taken (or
      * re-taken) every frame, after the app's last mutation and before the
@@ -363,6 +496,7 @@ dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
      * command per painter command. Running out is not an error (the draw
      * takes over), only a slower frame. */
     GLES2DualCoreStageArena_BeginFrame(&lane->arena, (uint32_t)frame->painters->command_count + 64u);
+    lane->arena.lead = lane->lead;
 
     memset(&lane->context, 0, sizeof(lane->context));
     lane->context.scene = lane->view;
@@ -464,6 +598,11 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
     warmup = dualcore_env_long("TORIRS_GLES2_DUALCORE_WARMUP", 1);
     lane->warmup_frames = warmup > 0 ? (uint32_t)warmup : 0u;
     lane->pin = dualcore_env_long("TORIRS_GLES2_DUALCORE_PIN", 0) != 0;
+    {
+        long lead = dualcore_env_long(
+            "TORIRS_GLES2_DUALCORE_LEAD", (long)GLES2_DUALCORE_STAGE_LEAD_DEFAULT);
+        lane->lead = lead >= 0 ? (uint32_t)lead : GLES2_DUALCORE_STAGE_LEAD_DEFAULT;
+    }
     lane->debug = dualcore_env_long("TORIRS_GLES2_DUALCORE_DEBUG", 0) != 0;
 
     pthread_mutex_init(&lane->lock, NULL);
@@ -471,19 +610,31 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
     pthread_cond_init(&lane->done, NULL);
     if( lane->enabled )
     {
-        if( pthread_create(&lane->thread, NULL, dualcore_worker_main, lane) != 0 )
+        /* The stage runs the same kernels the frame thread runs -- the
+         * skeletal pose, the projection lanes, the sort -- and some of them
+         * keep large frames on the stack. The frame thread's stack is the
+         * platform's; a pthread's default is far smaller on 32-bit Android,
+         * and an overflow past the guard page corrupts whatever is mapped
+         * below it instead of faulting. Give the worker a frame-thread-sized
+         * stack. */
+        pthread_attr_t attributes;
+        pthread_attr_init(&attributes);
+        pthread_attr_setstacksize(&attributes, GLES2_DUALCORE_WORKER_STACK_BYTES);
+        if( pthread_create(&lane->thread, &attributes, dualcore_worker_main, lane) != 0 )
         {
             TORIRS_ERR("gles2-dualcore: could not start the worker; running single-threaded\n");
             lane->enabled = false;
         }
         else
             lane->thread_started = true;
+        pthread_attr_destroy(&attributes);
     }
     if( lane->debug )
         TORIRS_ERR(
-            "gles2-dualcore: %s (warmup %u frames, pin %d)\n",
+            "gles2-dualcore: %s (warmup %u frames, lead %u, pin %d)\n",
             lane->enabled ? "worker started" : "disabled, single-threaded",
             lane->warmup_frames,
+            lane->lead,
             lane->pin ? 1 : 0);
     return lane;
 }

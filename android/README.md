@@ -38,7 +38,7 @@ make -C src PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 all
 # 2. the APK
 cd android && ./gradlew installDebug && cd ..
 
-# 3. the data -- manifests, revconfig, and whichever caches you want
+# 3. the data -- manifests, revconfig, plugins, and whichever caches you want
 tools/android_push_data.sh cache.osrs239
 
 # 4. watch it. stdout and stderr are redirected to logcat.
@@ -128,7 +128,8 @@ adb push manifests/manifest_osrs239_worldmap.ini \
 ```
 
 Re-running `tools/android_push_data.sh` with no cache arguments re-pushes all
-manifests and the revconfig tree in about a second — do that after editing one.
+manifests, the revconfig tree, the plugins and their settings in about a second
+— do that after editing one.
 
 ### 3. Extra arguments
 
@@ -324,6 +325,14 @@ their server is up.
 
 **Nothing in the boot menu.** The data was never pushed. The screen says so and
 names the directory it looked in. Run `tools/android_push_data.sh`.
+
+**The frame is the cache's own 2004 chrome and the touch chat is missing.**
+The device's `plugin_prefs.ini` is what decides which plugins run, and it is a
+file the client itself writes — so a phone set up before `mobile-gameframe`
+existed goes on booting without it however often the APK is rebuilt. The push
+overwrites it from `plugin_prefs.mobile.ini`; run `tools/android_push_data.sh`.
+The same bargain in reverse: a plugin toggled on the phone lasts until the next
+push.
 
 **`android_push_data.sh` says the app directory does not exist.** Android
 creates `Android/data/<pkg>/` on install. Install the APK once first.

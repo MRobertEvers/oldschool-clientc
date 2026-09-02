@@ -15,9 +15,11 @@
 # Everything lands under the app's own external files directory:
 #
 #     /sdcard/Android/data/com.torirs.client/files/
-#       manifests/     the boot menu lists these
-#       revconfig/     what the manifests' revconfig_ui= point at
-#       cache.<name>/  what their dir= points at
+#       manifests/         the boot menu lists these
+#       revconfig/         what the manifests' revconfig_ui= point at
+#       script/plugins/    the plugins and the art they draw from
+#       plugin_prefs.ini   which of them are on -- from plugin_prefs.mobile.ini
+#       cache.<name>/      what their dir= points at
 #
 # That directory needs NO storage permission on any API level, is reachable by
 # adb push, and is removed when the app is uninstalled -- which is the right
@@ -25,7 +27,7 @@
 #
 # USAGE
 #
-#     tools/android_push_data.sh                       # manifests + revconfig only
+#     tools/android_push_data.sh                       # everything but the caches
 #     tools/android_push_data.sh cache.osrs239         # ... and one cache
 #     tools/android_push_data.sh cache.osrs239 cache254.lostcity
 #     TORIRS_ANDROID_SERIAL=<serial> tools/android_push_data.sh ...   # pick a device
@@ -102,6 +104,29 @@ adb_ push "${REPO_ROOT}/revconfig" "${DEST}/" >/dev/null
 echo "==> plugin assets"
 adb_ shell "mkdir -p '${DEST}/script'" >/dev/null
 adb_ push "${REPO_ROOT}/script/plugins" "${DEST}/script/" >/dev/null
+
+# Which plugins are ON, and how they are configured.
+#
+# The phone reads `plugin_prefs.ini` beside the rest of its data, and the repo
+# keeps TWO of those files because the two hosts want different plugins: the
+# desktop one at the root, and `plugin_prefs.mobile.ini` -- mobile-gameframe,
+# the minimap orbs, the unlocked camera band -- which exists for no other
+# purpose than to be this device's.
+#
+# It goes every time, with the manifests and the art, because without it the
+# device keeps whatever file was last written THERE. A phone that was last set
+# up weeks ago then boots a lane with the plugins of weeks ago and no amount of
+# rebuilding changes it: the frame comes up as the cache's own 2004 chrome, and
+# the touch frame the mobile lane is written for -- its chat sheet, the
+# tap-to-chat line, the keyboard-safe area -- is simply not in the session. It
+# reads as "the chat is gone", which is nothing like "the settings are stale".
+#
+# The device's copy is the client's own writable file, so a plugin toggled on
+# the phone lasts until the next push and no longer. That is the same bargain
+# the manifests already make, and it is the right way round: the repo is where
+# a lane's plugin set is decided.
+echo "==> plugin settings  (plugin_prefs.mobile.ini -> plugin_prefs.ini)"
+adb_ push "${REPO_ROOT}/plugin_prefs.mobile.ini" "${DEST}/plugin_prefs.ini" >/dev/null
 
 for cache in "$@"; do
     src="${REPO_ROOT}/${cache}"

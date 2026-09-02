@@ -1032,7 +1032,13 @@ one lane only.
   unpublished stages i itself on the scene's own bench instead of waiting,
   and the worker publishes a placeholder for it. Without this the frame was
   paced by the worker's pass (measured 7.8 ms/frame: it also pays the frame
-  bus), and the draw stalled on half of all models.
+  bus), and the draw stalled on half of all models. The worker also HANDS
+  OFF a slot whenever the draw is within `TORIRS_GLES2_DUALCORE_LEAD`
+  (default 2) slots behind it, so the two never run in lockstep. Measured
+  on OSRS239 (draw thread CPU, simpleperf): 12.26 → 11.66 ms/frame, of
+  which ~1.2 ms is still the draw waiting: the worker's per-model cost
+  (it re-runs the frame bus) exceeds the draw's remainder. The next lever
+  is for the worker to publish the translated command with its result.
 - **Verification:** `make -C src test-gles2-dualcore-stage` (host, GL-free):
   the stage on a scratch view against the stage on the scene -- cull, pick,
   depth, sorted order -- interleaved, on both scene tiers, plus arena

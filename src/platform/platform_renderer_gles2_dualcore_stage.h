@@ -34,7 +34,13 @@
  *     finishes normally it sets GLES2_DUALCORE_STAGE_DONE. Nothing in the
  *     arena is reused, freed or resized while a frame is in flight;
  *   - BALANCE: a model is CLAIMED before it is computed, by whichever thread
- *     reaches it first. The producer claims model j as it comes to it; the
+ *     reaches it first -- and the producer HANDS OFF a slot to the consumer
+ *     whenever the consumer is right behind it (its published `consumer_index`
+ *     is within GLES2_DUALCORE_STAGE_LEAD of the producer's slot). Measured
+ *     without the hand-off: the two ran in lockstep, the producer one slot
+ *     ahead, and the consumer spent a quarter of its frame waiting on the
+ *     slot the producer had just started. With it the producer keeps a
+ *     lead and the consumer stages every slot it is handed instead. The producer claims model j as it comes to it; the
  *     consumer, finding result i not yet published, claims i for itself and
  *     computes it on the scene's own bench rather than wait. A producer that
  *     loses a claim publishes a placeholder (`taken_by_draw`) so the count
@@ -117,6 +123,12 @@ struct GLES2DualCoreStageArena
      * the other core is spinning on. */
     _Alignas(64) atomic_uint ready;
     _Alignas(64) atomic_uint finished;
+    /** The consumer's next take index, published (relaxed) at every take, so
+     *  the producer can tell how close behind it is. Its own line too. */
+    _Alignas(64) atomic_uint consumer_index;
+    /** The hand-off distance (see GLES2_DUALCORE_STAGE_LEAD_DEFAULT); set
+     *  between frames by whoever owns the arena. */
+    uint32_t lead;
 
     /** Set by the producer when it stopped for want of storage; read by
      *  BeginFrame to grow before the next frame. */
@@ -141,10 +153,18 @@ GLES2DualCoreStageArena_BeginFrame(
     struct GLES2DualCoreStageArena* arena,
     uint32_t model_commands);
 
+/* The default for GLES2DualCoreStageArena::lead: how far ahead of the
+ * consumer the producer must be to keep a slot for itself. At or under it,
+ * it hands the slot to the consumer instead. Measured on the phone: with 1
+ * the consumer (whose gather is faster than the producer's stage) still
+ * caught the producer mid-model on 13% of slots and waited ~1.5 ms a frame. */
+#define GLES2_DUALCORE_STAGE_LEAD_DEFAULT 2u
+
 /**
- * Producer: claim the next model (the one result_count names) for itself.
- * Not part of ComputeModel so the producer can stop, skip or compute on the
- * answer.
+ * Producer: claim the next model (the one result_count names) for itself,
+ * or hand it to the consumer when the consumer is within
+ * GLES2_DUALCORE_STAGE_LEAD slots. Not part of ComputeModel so the producer
+ * can stop, skip or compute on the answer.
  */
 enum GLES2DualCoreStageClaimResult
 GLES2DualCoreStageArena_ClaimNextForProducer(struct GLES2DualCoreStageArena* arena);
@@ -196,6 +216,39 @@ GLES2DualCoreStage_BeginPass(
 /** Unpublish the prepared camera block. */
 void
 GLES2DualCoreStage_EndPass(struct GLES2DualCoreStageContext* context);
+
+/*
+ * Crash breadcrumbs: the stage writes where it is -- which command, which
+ * step -- so a fault on the worker can be read back from a signal handler
+ * (platform_renderer_gles2_dualcore.c). Plain volatile ints; the reader is a
+ * handler on the same thread. Always on: the stores are a few words per
+ * model. NOTE (2026-09-02): a worker fault on OSRS239 with plugins off, which
+ * every build before these stores reproduced within a minute, has not
+ * reproduced since they went in. That is the signature of a timing-dependent
+ * race, not of a fix; the root cause is still open (see the memory note
+ * gles2-dualcore-lane). Do not remove these on the grounds that nothing
+ * reads them.
+ */
+enum GLES2DualCoreStageStep
+{
+    GLES2_DUALCORE_STEP_IDLE = 0,
+    GLES2_DUALCORE_STEP_POSE,
+    GLES2_DUALCORE_STEP_PROJECT,
+    GLES2_DUALCORE_STEP_PICK,
+    GLES2_DUALCORE_STEP_SORT,
+    GLES2_DUALCORE_STEP_COPY,
+    GLES2_DUALCORE_STEP_PUBLISH,
+};
+struct GLES2DualCoreStageCrumb
+{
+    volatile int step;
+    volatile int element_id;
+    volatile int model_kind;
+    volatile const void* model;
+    volatile int anim_frame;
+    volatile int slot;
+};
+extern struct GLES2DualCoreStageCrumb g_gles2_dualcore_stage_crumb;
 
 /**
  * Pose, cull, project, pick-test and sort one model and append its result.

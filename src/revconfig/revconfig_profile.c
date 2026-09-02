@@ -16,6 +16,8 @@ RevConfigProfile_Init(struct RevConfigProfile* profile)
      * painter_draw_distance's own sentinel is the 0 memset already left. */
     profile->features.ground_click_unbounded = -1;
     profile->features.ground_click_offmap = -1;
+    profile->features.clienttype = -1;
+    profile->features.on_mobile = -1;
 
     /* Nothing stated: the client builds no plugin launcher. The memset already
      * left both names empty; the numbers need their own sentinel because 0 is a
@@ -69,6 +71,10 @@ profile_merge_features(
         dst->ground_click_offmap = src->ground_click_offmap;
     if( src->painter_draw_distance > 0 )
         dst->painter_draw_distance = src->painter_draw_distance;
+    if( src->clienttype >= 0 )
+        dst->clienttype = src->clienttype;
+    if( src->on_mobile >= 0 )
+        dst->on_mobile = src->on_mobile;
 }
 
 /*

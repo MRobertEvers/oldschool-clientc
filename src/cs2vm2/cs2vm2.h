@@ -363,6 +363,20 @@ struct CS2VM2_ThreadError
 
 /* Trace controls (0=off, 1=targeting ops, 2=all). */
 extern int g_cs2_trace_mode;
+
+/*
+ * What the client SAYS it is, to the scripts: the CLIENTTYPE and ON_MOBILE
+ * opcodes push these. One fact about the process (a client is one kind of
+ * client), set once at boot from the manifest / revconfig / platform default
+ * (app.c) and read by every VM thread. Defaults to the desktop enhanced
+ * client (10, not mobile) until set.
+ */
+void
+CS2VM2_SetClientIdentity(int clienttype, int on_mobile);
+int
+CS2VM2_ClientType(void);
+int
+CS2VM2_OnMobile(void);
 extern char g_cs2_trace_extra[512];
 
 /**

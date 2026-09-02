@@ -965,6 +965,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_FEATURES_MOVER";
     case RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE:
         return "RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE";
+    case RCFIELD_FEATURES_CLIENTTYPE:
+        return "RCFIELD_FEATURES_CLIENTTYPE";
+    case RCFIELD_FEATURES_ON_MOBILE:
+        return "RCFIELD_FEATURES_ON_MOBILE";
     case RCFIELD_CAMERA_REST:
         return "RCFIELD_CAMERA_REST";
     case RCFIELD_CAMERA_CONTROLS:
@@ -1245,6 +1249,8 @@ revconfig_item_begin(
          * painter's smallest real radius. */
         item->u.features.ground_click_unbounded = -1;
         item->u.features.ground_click_offmap = -1;
+        item->u.features.clienttype = -1;
+        item->u.features.on_mobile = -1;
     }
     else if( strcmp(type_value, "camera") == 0 )
     {
@@ -1952,6 +1958,12 @@ revconfig_item_apply_features_field(
         break;
     case RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE:
         features->painter_draw_distance = revconfig_parse_int(value);
+        break;
+    case RCFIELD_FEATURES_CLIENTTYPE:
+        features->clienttype = revconfig_parse_int(value);
+        break;
+    case RCFIELD_FEATURES_ON_MOBILE:
+        features->on_mobile = revconfig_parse_int(value) ? 1 : 0;
         break;
     default:
         break;

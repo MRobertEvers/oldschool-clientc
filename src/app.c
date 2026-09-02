@@ -9892,6 +9892,41 @@ App_Init(
     {
         struct RevConfigFeaturesItem const* rc_features = &app->revconfig_profile.features;
         char const* era_name = cfg->features_era;
+
+        /*
+         * What the scripts are told this client is. Precedence, most specific
+         * first: TORIRS_CLIENTTYPE / TORIRS_ON_MOBILE, the manifest's
+         * `[ui:boot]` (which a profile's `[override:ui:boot]` writes), the
+         * revconfig `[features]`, then the platform: a phone is the mobile
+         * client (7, on_mobile -- the pair the cache's own script 1972 reads
+         * as the mobile layout), everything else the desktop enhanced one.
+         */
+        {
+#if defined(TORIRS_PLATFORM_ANDROID)
+            int clienttype = 7;
+            int on_mobile = 1;
+#else
+            int clienttype = 10;
+            int on_mobile = 0;
+#endif
+            char const* env_clienttype = getenv("TORIRS_CLIENTTYPE");
+            char const* env_on_mobile = getenv("TORIRS_ON_MOBILE");
+            if( rc_features->clienttype >= 0 )
+                clienttype = rc_features->clienttype;
+            if( rc_features->on_mobile >= 0 )
+                on_mobile = rc_features->on_mobile;
+            if( cfg->clienttype > 0 )
+                clienttype = cfg->clienttype;
+            if( cfg->on_mobile )
+                on_mobile = cfg->on_mobile > 0;
+            if( env_clienttype && env_clienttype[0] )
+                clienttype = atoi(env_clienttype);
+            if( env_on_mobile && env_on_mobile[0] )
+                on_mobile = atoi(env_on_mobile) != 0;
+            CS2VM2_SetClientIdentity(clienttype, on_mobile);
+            TORIRS_REPORT("app: clientscript identity: clienttype %d, on_mobile %d\n",
+                clienttype, on_mobile);
+        }
         if( !era_name || !era_name[0] )
             era_name = getenv("TORIRS_FEATURES_ERA");
         if( !era_name || !era_name[0] )

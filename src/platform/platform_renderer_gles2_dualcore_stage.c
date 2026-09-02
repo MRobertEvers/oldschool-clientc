@@ -20,6 +20,10 @@
  * larger one. */
 #define GLES2_DUALCORE_STAGE_ORDER_CAPACITY_MIN (256u * 1024u)
 
+struct GLES2DualCoreStageCrumb g_gles2_dualcore_stage_crumb;
+/* TEMP repro build: breadcrumb stores off, handler on. */
+#define CRUMB(s) ((void)0)
+
 void
 GLES2DualCoreStageArena_Init(struct GLES2DualCoreStageArena* arena)
 {
@@ -27,6 +31,7 @@ GLES2DualCoreStageArena_Init(struct GLES2DualCoreStageArena* arena)
     memset(arena, 0, sizeof(*arena));
     atomic_init(&arena->ready, 0u);
     atomic_init(&arena->finished, GLES2_DUALCORE_STAGE_DONE);
+    arena->lead = GLES2_DUALCORE_STAGE_LEAD_DEFAULT;
 }
 
 void
@@ -90,6 +95,7 @@ GLES2DualCoreStageArena_BeginFrame(
     arena->result_count = 0u;
     arena->order_count = 0u;
     atomic_store_explicit(&arena->ready, 0u, memory_order_relaxed);
+    atomic_store_explicit(&arena->consumer_index, 0u, memory_order_relaxed);
     atomic_store_explicit(&arena->finished, GLES2_DUALCORE_STAGE_RUNNING, memory_order_relaxed);
 }
 
@@ -98,14 +104,32 @@ GLES2DualCoreStageArena_ClaimNextForProducer(struct GLES2DualCoreStageArena* are
 {
     unsigned expected = GLES2_DUALCORE_CLAIM_FREE;
 
+    uint32_t slot;
+    uint32_t consumer;
+
     assert(arena);
-    if( arena->result_count >= arena->result_capacity )
+    slot = arena->result_count;
+    if( slot >= arena->result_capacity )
     {
         arena->exhausted = true;
         return GLES2_DUALCORE_CLAIM_EXHAUSTED;
     }
+    /* The consumer is right behind: this slot is its. Handing it over is a
+     * claim on its behalf (a lost race here means it claimed it already),
+     * and the answer is the same either way. */
+    consumer = atomic_load_explicit(&arena->consumer_index, memory_order_relaxed);
+    if( slot <= consumer + arena->lead )
+    {
+        (void)atomic_compare_exchange_strong_explicit(
+            &arena->claims[slot],
+            &expected,
+            GLES2_DUALCORE_CLAIM_CONSUMER,
+            memory_order_acq_rel,
+            memory_order_acquire);
+        return GLES2_DUALCORE_CLAIM_TAKEN_BY_DRAW;
+    }
     if( atomic_compare_exchange_strong_explicit(
-            &arena->claims[arena->result_count],
+            &arena->claims[slot],
             &expected,
             GLES2_DUALCORE_CLAIM_PRODUCER,
             memory_order_acq_rel,
@@ -258,19 +282,23 @@ GLES2DualCoreStage_ComputeModel(
         goto publish;
     }
 
+    CRUMB(GLES2_DUALCORE_STEP_POSE);
     if( command->animation && command->element_id >= 0 )
         ToriDraw_SceneElementApplyAnimation(
             scene, command->element_id, command->anim_index == 0, command->anim_frame);
+    CRUMB(GLES2_DUALCORE_STEP_PROJECT);
     position = command->position;
     result.cull = ToriDraw_RenderModel1ProjectWithTable(
         command->model, scene, &position, &context->view_port, &context->camera, context->kernel);
     if( result.cull != TORIDRAW_CULL_VISIBLE )
         goto publish;
 
+    CRUMB(GLES2_DUALCORE_STEP_PICK);
     result.pick_hit = stage_pick_hit(context, command) ? 1u : 0u;
     result.projected_depth = scene->projected_vertex.z;
     if( command->pick_only )
         goto publish;
+    CRUMB(GLES2_DUALCORE_STEP_SORT);
 
     /* The painter sorts every model; the depth path only one whose faces
      * must be blended, and tells the emit so with `sorted`. */
@@ -288,6 +316,7 @@ GLES2DualCoreStage_ComputeModel(
                 return false;
             }
             result.order_offset = arena->order_count;
+            CRUMB(GLES2_DUALCORE_STEP_COPY);
             memcpy(
                 arena->orders + arena->order_count,
                 ToriDraw_FaceOrder(scene),
@@ -297,7 +326,9 @@ GLES2DualCoreStage_ComputeModel(
     }
 
 publish:
+    CRUMB(GLES2_DUALCORE_STEP_PUBLISH);
     arena->results[arena->result_count++] = result;
     atomic_store_explicit(&arena->ready, arena->result_count, memory_order_release);
+    CRUMB(GLES2_DUALCORE_STEP_IDLE);
     return true;
 }
