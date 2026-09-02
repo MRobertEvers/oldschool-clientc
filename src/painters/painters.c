@@ -924,9 +924,14 @@ compute_normal_scenery_spans(
 static int
 painter_dyn_skip_enabled(struct Painter* painter)
 {
-    /* TORIRS_PAINTER_DYN_SKIP: 1 (default) keeps the previous cycle's dynamic
-     * registrations in place when this cycle's are identical; 0 rebuilds every
-     * cycle (the control arm). Read once. */
+    /* TORIRS_PAINTER_DYN_SKIP=1 keeps the previous cycle's dynamic
+     * registrations in place when this cycle's are identical; the default
+     * rebuilds every cycle. OFF BY DEFAULT ON MEASUREMENT: on the Moto X
+     * (rs289lc, ~30 dynamics) the journal and its compare cost more than the
+     * rebuild they avoid -- two interleaved client pairs, CPU ms/frame,
+     * 13.10 / 13.28 with the skip against 11.98 / 12.28 without. The entities
+     * move most cycles, so the skip rarely fires and the bookkeeping is
+     * pure overhead. Read once. */
     static int cached = -1;
 
     if( painter->dyn_skip_override >= 0 )
@@ -934,7 +939,7 @@ painter_dyn_skip_enabled(struct Painter* painter)
     if( cached < 0 )
     {
         char const* v = getenv("TORIRS_PAINTER_DYN_SKIP");
-        cached = (v && v[0] == '0') ? 0 : 1;
+        cached = (v && v[0] == '1') ? 1 : 0;
     }
     return cached;
 }

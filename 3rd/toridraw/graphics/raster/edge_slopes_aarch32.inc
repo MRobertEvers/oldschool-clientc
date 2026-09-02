@@ -144,7 +144,29 @@
 #endif
 .endm
 
-.macro EDGESLOPES3 dxac, dxab, dxbc, dyac, dyab, dybc, sac, sab, sbc
+/*
+ * EDGESTAGE_INIT, once per run: the two constant lanes of the input staging
+ * area -- the numerator's dead lane 3 (0) and the divisor's (1). Only the
+ * staged-input arm has such an area; the others expand to nothing.
+ */
+.macro EDGESTAGE_INIT tmp, stage
+#if !defined(TORIDRAW_EDGE_IDIV) && defined(TORIDRAW_EDGE_STAGE_IN)
+	mov	\tmp, #0
+	str	\tmp, [sp, #\stage + 12]
+	mov	\tmp, #1
+	str	\tmp, [sp, #\stage + 28]
+#endif
+.endm
+
+/*
+ * The three slopes land in \sac, \sab, \sbc AND in the frame at \out,
+ * \out + 4, \out + 8 (F_SAC, F_SAB, F_SBC in every kernel). \tmp is an ARM
+ * scratch register the staged arms use for an address; \stage the frame
+ * offset of the 32-byte input staging area. The out store may touch \out +
+ * 12 -- the vector's dead fourth lane -- so the slot after F_SBC must be one
+ * the kernel writes later, which every frame layout arranges.
+ */
+.macro EDGESLOPES3 dxac, dxab, dxbc, dyac, dyab, dybc, sac, sab, sbc, tmp, stage, out
 #ifdef TORIDRAW_EDGE_IDIV
 	.arch_extension idiv
 	lsl	\sac, \dxac, #16
@@ -153,6 +175,23 @@
 	sdiv	\sab, \sab, \dyab
 	lsl	\sbc, \dxbc, #16
 	sdiv	\sbc, \sbc, \dybc
+	str	\sac, [sp, #\out]
+	str	\sab, [sp, #\out + 4]
+	str	\sbc, [sp, #\out + 8]
+#else
+#ifdef TORIDRAW_EDGE_STAGE_IN
+	/* The six inputs through the frame: six ARM stores and two vector
+	 * loads instead of six ARM->NEON lane moves. The dead lanes were
+	 * planted by EDGESTAGE_INIT. */
+	str	\dxac, [sp, #\stage + 0]
+	str	\dxab, [sp, #\stage + 4]
+	str	\dxbc, [sp, #\stage + 8]
+	str	\dyac, [sp, #\stage + 16]
+	str	\dyab, [sp, #\stage + 20]
+	str	\dybc, [sp, #\stage + 24]
+	add	\tmp, sp, #\stage
+	vld1.32	{d16, d17}, [\tmp]!
+	vld1.32	{d18, d19}, [\tmp]
 #else
 	/* numerators (dx_AC, dx_AB, dx_BC, 0) -- NOT shifted left by 16 first;
 	 * see edge_slopes_i686.inc for why the scale is applied after. */
@@ -168,6 +207,7 @@
 	vmov.32	d18[0], \dyac
 	vmov.32	d18[1], \dyab
 	vmov.32	d19[0], \dybc
+#endif
 	/* the live-lane mask, from the INTEGER divisors: dy > 0 everywhere,
 	 * plus dy < 0 for the BC lane alone */
 	vcgt.s32	q10, q9, #0
@@ -186,8 +226,21 @@
 	vmul.f32	q8, q8, q11
 	vcvt.s32.f32	q8, q8			/* truncates toward zero, as C does  */
 	vand	q8, q8, q10			/* dead lanes -> 0, the branches gone */
+#ifdef TORIDRAW_EDGE_STAGE_OUT
+	/* One vector store to the frame and three ARM loads back, instead of
+	 * three NEON->ARM lane moves and three stores. */
+	add	\tmp, sp, #\out
+	vst1.32	{d16, d17}, [\tmp]
+	ldr	\sac, [sp, #\out]
+	ldr	\sab, [sp, #\out + 4]
+	ldr	\sbc, [sp, #\out + 8]
+#else
 	vmov.32	\sac, d16[0]
 	vmov.32	\sab, d16[1]
 	vmov.32	\sbc, d17[0]
+	str	\sac, [sp, #\out]
+	str	\sab, [sp, #\out + 4]
+	str	\sbc, [sp, #\out + 8]
+#endif
 #endif
 .endm

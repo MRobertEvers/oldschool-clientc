@@ -93,7 +93,8 @@
 #define F_C0       88	/* vertex 0's colour, while the steps are computed   */
 #define F_DAB      92	/* d_hsl_AB, ditto                                   */
 #define F_TMP      96	/* the span's block remainder -- see the header      */
-#define FRAMESZ   104
+#define F_STAGE   104	/* the edge ladder's input staging area, 32 bytes    */
+#define FRAMESZ   136
 
 #define A_ROWS   (FRAMESZ + 36)
 #define A_COUNT  (FRAMESZ + 40)
@@ -187,12 +188,29 @@
  * Clobbers r9, r10, r11, r12.
  */
 .macro SPANFILL
+#ifdef TORIDRAW_GOURAUD_SPAN_V1
 	cmp	r11, #4
 	blt	71f
 	and	r10, r11, #3
 	str	r10, [sp, #F_TMP]		/* see the header: no fifth scratch  */
 	lsr	r11, r11, #2
 70:
+	LOOKUP_ADDR r9, r10, r7
+	vld1.32	{d0[], d1[]}, [r10]
+	vst1.32	{d0, d1}, [r12]!
+	add	r9, r9, lr, lsl #2
+	subs	r11, r11, #1
+	bne	70b
+	ldr	r11, [sp, #F_TMP]
+	cmp	r11, #0
+	beq	73f
+#else
+	/* THE COUNT IS WALKED DOWN IN PLACE, four at a time, so the block loop
+	 * and the remainder share one register and the span borrows no frame
+	 * word: r11 is "pixels not yet started" and goes negative on the way
+	 * out, where adding the four back yields the 0..3 tail. */
+	subs	r11, r11, #4
+	blt	72f
 	/* THE BROADCAST COMES FROM MEMORY, NOT FROM AN ARM REGISTER.
 	 *
 	 * The obvious transcription of the AArch64 line is `ldr` the palette
@@ -206,16 +224,26 @@
 	 * VLD1 "load single element to all lanes" does the whole job in one
 	 * instruction and never leaves NEON, so LOOKUP hands over an ADDRESS
 	 * rather than a value. Measured on the XT1060, big triangles, this door
-	 * against the C it replaces: 0.68x before, 1.36x after. */
+	 * against the C it replaces: 0.68x before, 1.36x after.
+	 *
+	 * AND THE NEXT ADDRESS IS RESOLVED BEFORE THIS STORE ISSUES: the vld1
+	 * has taken its address by the time the ARM side steps the accumulator
+	 * and clamps the next one, so the palette address for block n+1 is
+	 * ready when block n's store goes out and the ARM never waits on the
+	 * NEON queue between blocks. The one address computed past the end is
+	 * never loaded. */
 	LOOKUP_ADDR r9, r10, r7
+70:
 	vld1.32	{d0[], d1[]}, [r10]
-	vst1.32	{d0, d1}, [r12]!
 	add	r9, r9, lr, lsl #2
-	subs	r11, r11, #1
-	bne	70b
-	ldr	r11, [sp, #F_TMP]
-	cmp	r11, #0
+	LOOKUP_ADDR r9, r10, r7
+	vst1.32	{d0, d1}, [r12]!
+	subs	r11, r11, #4
+	bge	70b
+72:
+	adds	r11, r11, #4			/* the 0..3 remainder                */
 	beq	73f
+#endif
 71:
 	/* 1..3 pixels: three stores and two conditional indices. */
 	LOOKUP	r9, r10, r7
@@ -477,20 +505,28 @@
 	vcvt.f64.s32	d3, s0
 	vmul.f64	d3, d3, d1
 	vcvt.s32.f64	s0, d3
-	vmov	r10, s0
-	str	r10, [sp, #F_STEPX]
 
 	/* step_y_hsl_ish8 */
 	mul	r12, lr, r8			/* d_hsl_AC * dx_AB                  */
 	ldr	lr, [sp, #F_DAB]
 	mls	r12, lr, r7, r12		/* - d_hsl_AB * dx_AC                */
 	lsl	r12, r12, #8
-	vmov	s0, r12
-	vcvt.f64.s32	d3, s0
-	vmul.f64	d3, d3, d1
-	vcvt.s32.f64	s0, d3
-	vmov	r12, s0
+	vmov	s1, r12
+	vcvt.f64.s32	d2, s1
+	vmul.f64	d2, d2, d1
+	vcvt.s32.f64	s1, d2
+#ifdef TORIDRAW_EDGE_STAGE_OUT
+	/* Both steps sit in d0 = {s0, s1}, and F_STEPX / F_STEPY are adjacent:
+	 * one vector store, and the one the ARM needs now comes back by ldr. */
+	add	lr, sp, #F_STEPX
+	vst1.32	{d0}, [lr]
+	ldr	r10, [sp, #F_STEPX]
+#else
+	vmov	r10, s0
+	str	r10, [sp, #F_STEPX]
+	vmov	r12, s1
 	str	r12, [sp, #F_STEPY]
+#endif
 
 	/* hsl = (step_x + (color0 << 8)) - x0*step_x, all modular */
 	ldr	lr, [sp, #F_C0]
@@ -504,10 +540,7 @@
 	 * ladder scratches q8-q11 and q14 only. */
 	sub	r10, r5, r4			/* dy_BC                             */
 	sub	r12, r2, r1			/* dx_BC                             */
-	EDGESLOPES3 r7, r8, r12, r6, r9, r10, r7, r8, r12
-	str	r7, [sp, #F_SAC]
-	str	r8, [sp, #F_SAB]
-	str	r12, [sp, #F_SBC]
+	EDGESLOPES3 r7, r8, r12, r6, r9, r10, r7, r8, r12, lr, F_STAGE, F_SAC
 
 	/* starting edges */
 	lsl	r6, r0, #16			/* eAC                               */
@@ -644,6 +677,7 @@
 	ldr	r0, [pc, r0]
 	str	r0, [sp, #F_PAL]
 	EDGECONST
+	EDGESTAGE_INIT r9, F_STAGE
 .endm
 
 .macro LEAVE

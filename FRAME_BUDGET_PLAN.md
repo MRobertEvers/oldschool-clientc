@@ -468,3 +468,89 @@ gates it). `test-affine-flag` proves the flag draws what the camera's
 affine route draws and not what the perspective walk draws, on both
 batcher arms; `test-terrain-affine-flag` pins the decoder. GPU lanes
 interpolate in hardware and are untouched.
+
+## 2026-09-01 night: the review's levers, built and measured
+
+Every lever from the review above is in, each behind an env toggle (default
+on, `NAME=0` is the control arm). Whole-client A/B on the Moto X, one
+PROFILE=1 build, interleaved pairs, CPU ms/frame:
+
+| | all on | all off |
+|---|---|---|
+| still, pair 1 | 13.05 | 14.50 |
+| still, pair 2 | 13.56 | 14.39 |
+| still, pair 3 | 12.54 | 14.41 |
+| dragging, pair 1 | 12.34 | 13.67 |
+| dragging, pair 2 | 12.23 | 13.75 |
+
+About **-1.4 ms (10%)**, still and dragging alike. Per-lever pairs for the
+ambiguous ones are logged below as they land.
+
+What is in, by area (toggle names in the code at the read site):
+
+- **Sort** `TORIDRAW_K16_UZP` (vuzp transposes: K16 loop 183 → 138
+  instructions, 0 spills), `TORIDRAW_K16_TAIL` (masked overlapping last
+  block), `TORIDRAW_SORT_EMIT_VEC`, `TORIDRAW_SORT_PLD`,
+  `TORIDRAW_SORT_BITONIC2`, `TORIDRAW_TILE_FAST` (leaf tile sort ahead of the
+  dispatcher's frame). Phone bench keys ns/face at 64/200/256/1000/2000 and
+  the tile: 38.6/30.2/29.8/30.4/34.1/86.1 → 28.4/25.1/24.1/22.2/24.7/57.2.
+  The parity fixtures now include a mid distance so K16, its tail and the
+  tile leaf are actually exercised (238/147/91 models). The scalar tail's
+  `else` bug is fixed.
+- **Projection** `TORIDRAW_PROJ_TILE4` (exact-four kernel: 60–77
+  instructions, no vpush, no frame, no divide), handle resolved once,
+  `TORIDRAW_PROJ_PREP_COT` (+ FastCull inlined), bound fold by one `vst1`,
+  constants at point of use (0 vector spills). Tile 385 → 327 ns/model.
+- **Bus and walk** the scenery pool leak (212 → 108,032 nodes over 600
+  frames before; flat at 212 after, `test-painters-dynamic-pool`), the
+  lookahead ring (8 slots), `TORIRS_FRAME_TERRAIN_ID`, `TORIDRAW_ANIM_SKIP_SAME`
+  (`test-scene-anim-skip`), CPU texture scroll off on GPU lanes
+  (`TORIRS_TEXANIM_CPU=1` forces it back), the input hash a word at a time,
+  `TORIRS_PAINTER_DYN_SKIP`, `TORIRS_FRAME_TRIM`. A headless Lumbridge frame
+  is byte-identical with every lever off.
+- **GLES2** uint64 hot-ring serials and a 30-frame compaction hysteresis,
+  the stream-growth assert, `glGetError` debug-gated, `TORIRS_GLES2_UI_DEFER`
+  (one upload, range draws, matrix only on change), `TORIRS_GLES2_RESIDENT_FAST`,
+  `TORIRS_GLES2_TRIPLET_NEON`, `TORIRS_GLES2_ROTMASK_GEN`, `TORIRS_GLES2_EGL_LAZY`,
+  the sort census and zbuffer-only index reservation gated.
+- **aarch32 asm** fused alpha blends (`vmull.u8` + `vshrn`), the edge-slope
+  ladder staged through the frame (`TORIDRAW_EDGE_STAGE_IN/OUT`, off by
+  default pending timing), WRAPQ's range test on the ARM side, LERP8's
+  texel-index gather staged through the frame instead of eight lane moves,
+  the gouraud remainder walked in place. All twelve doors keep their exact
+  ppm numbers.
+- **Build** the OPT=1 build no longer carries frame pointers or DWARF on
+  any platform; `PROFILE=1` keeps both in its own object directory.
+
+Measured facts about the device drive: a fresh account spawns behind the
+design panel (tap Accept first); `input swipe` takes landscape window
+coordinates; rotating in place places no new windows, so the hot-ring
+ghosting concern needs walking, not rotating.
+
+**Per-lever pairs (all on vs all on except the lever), CPU ms/frame:**
+
+| lever | with | without | verdict |
+|---|---|---|---|
+| `TORIRS_FRAME_TERRAIN_ID` | 12.69, 12.57 | 13.89, 13.22 | keep on (≈ −0.9) |
+| `TORIRS_GLES2_UI_DEFER` | 12.73, 12.01 | 13.66, 13.71 | keep on (≈ −1.3) |
+| `TORIDRAW_PROJ_TILE4` | 12.67, 13.60 | 12.95, 12.93 | inside noise; kept on the bench's −15 %/tile |
+| `TORIDRAW_ANIM_SKIP_SAME` | 12.51, 13.66 | 12.16, 12.75 | **loses**; now off by default (`=1` enables) |
+| `TORIRS_PAINTER_DYN_SKIP` | 13.10, 13.28 | 11.98, 12.28 | **loses** (≈ +1.0); now off by default (`=1` enables) |
+
+The two skips lose because their bookkeeping runs every cycle on every
+element while the case they skip is rare at this scene's entity density;
+the code stays behind its knob for a scene that is mostly idle. The
+sort's six levers, the projection's, the terrain id and the UI stream
+account for the rest of the all-on gain, which with the two skips off
+should sit at or below the 12.0–12.7 the best pairs already show.
+
+The aarch32 asm items were timed at whole-test resolution only (the test
+runs the C reference and the compare as well): the fused alpha blends and
+the ARM-side WRAPQ test are neutral there and stay (fewer instructions,
+parity exact); the LERP8 texel-index gather staged through the frame LOST
+(+2.5 % of the whole test, consistently) and was reverted — on this Krait
+the store-to-load forward costs more than the eight lane moves it
+replaced. Against the true pre-worker kernels the worker's changes DO
+measure: whole presorted test 20.40/20.43/20.40 s before, 20.27/19.89/20.12
+after (−1..2 %), 20.20/20.01/19.93 with the edge-slope staging on top,
+which is inside noise and so stays compiled out (`TORIDRAW_EDGE_STAGE_IN/OUT`).

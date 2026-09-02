@@ -365,9 +365,13 @@ td_scene_element_pose_invalidate(struct ToriDraw_SceneElement* element)
 }
 
 /*
- * TORIDRAW_ANIM_SKIP_SAME: 1 (default) skips a re-pose whose (track, frame,
- * secondary track, secondary frame) equals the pose the model holds; 0
- * re-poses on every call (the control arm). Read once.
+ * TORIDRAW_ANIM_SKIP_SAME=1 skips a re-pose whose (track, frame, secondary
+ * track, secondary frame) equals the pose the model holds; the default
+ * re-poses on every call. OFF BY DEFAULT ON MEASUREMENT: on the Moto X
+ * (rs289lc) two interleaved client pairs read 12.51 / 13.66 ms CPU/frame
+ * with the skip against 12.16 / 12.75 without -- the tuple compare and the
+ * revision bookkeeping on every drawn element cost as much as the poses
+ * they save at this scene's animation density. Read once.
  */
 static int
 td_anim_skip_same_enabled(void)
@@ -378,7 +382,7 @@ td_anim_skip_same_enabled(void)
     {
         char const* v = getenv("TORIDRAW_ANIM_SKIP_SAME");
 
-        cached = (v && v[0] == '0') ? 0 : 1;
+        cached = (v && v[0] == '1') ? 1 : 0;
     }
     return cached;
 }

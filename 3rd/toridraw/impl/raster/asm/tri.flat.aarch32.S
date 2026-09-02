@@ -106,7 +106,8 @@
 #define F_NC1      64	/* the two no-clip proofs                            */
 #define F_NC2      68
 #define F_ROWPTR   72	/* framebuffer row pointer                           */
-#define FRAMESZ    80	/* 8-byte aligned, as AAPCS requires at a call       */
+#define F_STAGE    80	/* the edge ladder's input staging area, 32 bytes    */
+#define FRAMESZ   112	/* 8-byte aligned, as AAPCS requires at a call       */
 
 /* push {r4-r11, lr} is nine words, so the two stack arguments sit above the
  * frame AND above the saved registers. */
@@ -173,12 +174,44 @@
 	blt	71f
 	add	lr, r12, r11, lsl #2
 	sub	lr, lr, #16			/* address of the last 16 bytes      */
+#ifdef TORIDRAW_FLAT_FILL_V1
 70:
 	vst1.32	{d0, d1}, [r12]!
 	cmp	r12, lr
 	blo	70b
 	vst1.32	{d0, d1}, [lr]			/* overlapping close; idempotent     */
 	b	73f
+#else
+	cmp	r11, #8
+	blt	72f
+	/* Eight or more: one unaligned store, the cursor rounded up to the next
+	 * 16-byte boundary (which that store has already covered), then
+	 * ALIGNED stores two at a time while a whole pair still fits, and two
+	 * overlapping closes at end-32 and end-16 -- between them they cover
+	 * whatever the pair loop left, which is under 32 bytes, and the store
+	 * is idempotent so overlap costs nothing. Nothing is written past the
+	 * span: the pair loop only runs while its 32 bytes fit. */
+	vst1.32	{d0, d1}, [r12]
+	add	r12, r12, #16
+	bic	r12, r12, #15
+	sub	r9, lr, #16			/* end - 32: the pair loop's stop    */
+	cmp	r12, r9
+	bhs	74f
+70:
+	vst1.32	{d0, d1}, [r12:128]!
+	vst1.32	{d0, d1}, [r12:128]!
+	cmp	r12, r9
+	blo	70b
+74:
+	vst1.32	{d0, d1}, [r9]
+	vst1.32	{d0, d1}, [lr]
+	b	73f
+72:
+	/* 4..7: the first 16 bytes and the last 16, overlapping. */
+	vst1.32	{d0, d1}, [r12]
+	vst1.32	{d0, d1}, [lr]
+	b	73f
+#endif
 71:
 	/* 1..3 pixels: three stores, two conditional indices, no jump table. */
 	str	r8, [r12]
@@ -436,10 +469,7 @@
 	 * both arms of the macro permit. */
 	sub	r10, r5, r4			/* dy_BC                             */
 	sub	r12, r2, r1			/* dx_BC                             */
-	EDGESLOPES3 r7, r8, r12, r6, r9, r10, r7, r8, r12
-	str	r7, [sp, #F_SAC]
-	str	r8, [sp, #F_SAB]
-	str	r12, [sp, #F_SBC]
+	EDGESLOPES3 r7, r8, r12, r6, r9, r10, r7, r8, r12, lr, F_STAGE, F_SAC
 
 	/* starting edges -- x0 and x1 are dead after this */
 	lsl	r6, r0, #16			/* eAC                               */
@@ -583,6 +613,7 @@
 	ldr	r0, [pc, r0]
 	str	r0, [sp, #F_PAL]
 	EDGECONST
+	EDGESTAGE_INIT r9, F_STAGE
 .endm
 
 .macro LEAVE

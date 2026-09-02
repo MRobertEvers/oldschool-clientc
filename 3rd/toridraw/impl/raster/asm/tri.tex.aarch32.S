@@ -199,12 +199,13 @@
 #define F_SAB     224
 #define F_SBC     228
 #define F_AFFINE  232	/* the row's affine lane, per face                  */
+#define F_STAGE   236	/* the edge ladder's input staging area, 32 bytes   */
 /*
- * 236, not 232: `push {r4-r11, lr}` is nine words, so an 8-aligned FRAMESZ
+ * 268, not 272: `push {r4-r11, lr}` is nine words, so an 8-aligned FRAMESZ
  * would leave sp 4 off at the call. AAPCS wants it 8-aligned there and the C
- * prepare is entitled to assume it.
+ * prepare is entitled to assume it. (FRAMESZ + 36) % 8 == 0 is the rule.
  */
-#define FRAMESZ   236
+#define FRAMESZ   268
 
 /* Above the frame AND above the nine saved words. */
 #define A_COT    (FRAMESZ + 36)
@@ -714,6 +715,7 @@ SYM(\name):
 	str	r0, [sp, #F_LEFT]
 	mov	r0, #\flat
 	str	r0, [sp, #F_FLAT]
+	EDGESTAGE_INIT r0, F_STAGE
 	b	Ltex_tri
 99:
 	bx	lr
@@ -849,10 +851,7 @@ Ltex_tri:
 
 	/* The three edge slopes, all three at once, off one packed reciprocal.
 	 * The outputs alias the dx inputs, which both arms of the macro permit. */
-	EDGESLOPES3 r9, r10, r12, r7, r8, r11, r9, r10, r12
-	str	r9,  [sp, #F_SAC]
-	str	r10, [sp, #F_SAB]
-	str	r12, [sp, #F_SBC]
+	EDGESLOPES3 r9, r10, r12, r7, r8, r11, r9, r10, r12, lr, F_STAGE, F_SAC
 
 	/* ---- shade: the gradients, or none ----
 	 * dx_AC and dx_AB are recomputed rather than saved: the slope ladder was
@@ -891,28 +890,37 @@ Ltex_tri:
 	vmov	s0, r5
 	vcvt.f64.s32	d3, s0
 	vmul.f64	d3, d3, d1
-	vcvt.s32.f64	s0, d3
-	vmov	r5, s0				/* shade_yhat                        */
+	vcvt.s32.f64	s0, d3			/* shade_yhat                        */
 	mul	r6, r8, r4
 	mls	r6, r7, r3, r6			/* dy_AB*dac - dy_AC*dab             */
 	lsl	r6, r6, #9
-	vmov	s0, r6
-	vcvt.f64.s32	d3, s0
-	vmul.f64	d3, d3, d1
-	vcvt.s32.f64	s0, d3
-	vmov	r6, s0				/* shade_xhat                        */
+	vmov	s1, r6
+	vcvt.f64.s32	d2, s1
+	vmul.f64	d2, d2, d1
+	vcvt.s32.f64	s1, d2			/* shade_xhat                        */
+#ifdef TORIDRAW_EDGE_STAGE_OUT
+	/* d0 = {shy, shx} and F_SHY / F_SHX are adjacent: one vector store,
+	 * and shx -- which the edge shade needs now -- comes back by ldr. */
+	add	lr, sp, #F_SHY
+	vst1.32	{d0}, [lr]
+	ldr	r6, [sp, #F_SHX]
+#else
+	vmov	r5, s0
+	str	r5, [sp, #F_SHY]
+	vmov	r6, s1
+	str	r6, [sp, #F_SHX]
+#endif
 	lsl	r2, r2, #9
 	mls	r2, r6, r1, r2
 	add	r2, r2, r6			/* shade at the edge, modular        */
 	b	Ltex_shade_done
 Ltex_flat_shade:
 	mov	r5, #0
-	mov	r6, #0
+	str	r5, [sp, #F_SHY]
+	str	r5, [sp, #F_SHX]
 	lsl	r2, r2, #9
 Ltex_shade_done:
 	str	r2, [sp, #F_SHADE]
-	str	r5, [sp, #F_SHY]
-	str	r6, [sp, #F_SHX]
 
 	/* ---- edges at their starting rows, then the y < 0 pre-step ---- */
 	ldr	r1, [r0, #R_X + 0]		/* x0                                */

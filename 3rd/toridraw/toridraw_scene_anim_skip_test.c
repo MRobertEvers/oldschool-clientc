@@ -147,7 +147,7 @@ int
 main(void)
 {
     char const* env = getenv("TORIDRAW_ANIM_SKIP_SAME");
-    int const skip_on = !(env && env[0] == '0');
+    int const skip_on = env && env[0] == '1'; /* the knob's own default is off */
     struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     struct ToriDraw_Animation* anim = make_animation();
     struct ToriDraw_Animation* other = make_animation();

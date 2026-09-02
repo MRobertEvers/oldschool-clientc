@@ -221,15 +221,17 @@ endif
 # samples are correct as LEAVES (the flat EIP histogram is unaffected) but carry
 # no callers. The histogram is the ground truth for "where"; the stacks are the
 # call tree for the C around it.
-ifeq ($(PLATFORM),win32)
+#
+# Every platform, not only win32: the shipping OPT=1 build carries neither the
+# frame pointer nor DWARF. A sampling profile of it wants both (simpleperf's
+# fp call graphs on Android, the XP EIP profiles), and that is what PROFILE=1
+# is for -- it owns its own object directory (PROFILE_SUFFIX), so the two
+# flavours never share an object.
 ifeq ($(OPT),1)
 ifeq ($(PROFILE),1)
 BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
 else
 BUILD_DIAGNOSTIC_CFLAGS = -fomit-frame-pointer
-endif
-else
-BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
 endif
 else
 BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
@@ -1007,8 +1009,8 @@ endif
 # PER-KERNEL, not all-or-nothing: a kernel is taken when a source for THIS
 # encoding exists, and the C reference stands in for the ones that do not.
 #
-# The encodings are not ported in lockstep. aarch32 currently has the flat and
-# gouraud triangles and not the textured one, and naming all three unconditionally
+# The encodings are not ported in lockstep. While aarch32 had only the flat and
+# gouraud triangles (it has all three now), naming all three unconditionally
 # made that half-finished state a hard build failure ("No rule to make target
 # tri.tex.aarch32.S") on the one lane the port is for. Asking the filesystem
 # means a kernel arriving is picked up with no edit here, and a kernel that has
@@ -4981,7 +4983,7 @@ test-scene-anim-skip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/scene_anim_skip_test \
 		$(TORIDRAW_DIR)/toridraw_scene_anim_skip_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/scene_anim_skip_test
-	TORIDRAW_ANIM_SKIP_SAME=0 ./$(OBJ_DIR)/scene_anim_skip_test
+	TORIDRAW_ANIM_SKIP_SAME=1 ./$(OBJ_DIR)/scene_anim_skip_test
 
 # DynamicObject sequence termination: frameStep governs the final location pose.
 test-animation-object-step: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
