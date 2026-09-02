@@ -438,6 +438,10 @@ test_touch_swipe_scrolls_layer(void)
     tree->components[row].behavior.click_mask = 1u;
     UITree_TestResolve(tree);
     TEST_ASSERT(UITree_SetScrollSizeAt(tree, list, 200, 400), "the list is taller than its box");
+    /* The cache hangs the scrollbar's own handler on the CONTENT layer
+     * (scrollbar_vertical_31: `if_setonscrollwheel(..., $content)`). */
+    UITree_HooksMut(&tree->components[list])->on_scroll_wheel.script_id = 77;
+    UITree_SyncHookMembership(tree, list);
     TEST_ASSERT(UITree_ScrollLayerNeedsVertical(&tree->components[list]), "and so needs scrolling");
     input = LibToriRS_Input_Init(&input_storage, 0);
 
@@ -455,6 +459,22 @@ test_touch_swipe_scrolls_layer(void)
     run_frame(&interact, tree, &host, input, &out);
     TEST_ASSERT(tree->components[list].scroll_y == 50, "the layer scrolled by the finger's travel");
     TEST_ASSERT(out.clicked_com_id < 0, "still no click");
+    /* And the interface is told, so a script-drawn scrollbar's dragger can
+     * follow: the list's own onScrollWheel handler, with a zero step. */
+    {
+        int found = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].component_id != 10 || !out.intents[i].hook )
+                continue;
+            if( out.intents[i].hook->script_id != 77 )
+                continue;
+            found = 1;
+            TEST_ASSERT(out.intents[i].has_event_mouse, "the notify carries an event mouse");
+            TEST_ASSERT(out.intents[i].event_mouse_y == 0, "and a zero wheel step");
+        }
+        TEST_ASSERT(found, "the swipe notifies the list's scroll handler");
+    }
 
     /* Past the end: clamped. */
     LibToriRS_Input_Begin(input, 1100);

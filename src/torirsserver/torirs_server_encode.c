@@ -1511,6 +1511,38 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
 /* ------------------------------------------------------------------ */
 
 /*
+ * The component a frame actually hosts a role in.
+ *
+ * Content names a role on one frame and the engine rewrites it to the same
+ * role on the live one, which holds while the role means the same thing
+ * everywhere. It does not always: the mobile frame's `mainmodal` is a fixed
+ * 512x334 box, because the mobile client does not host its big windows there,
+ * and a window that sizes ITSELF from the slot it was given came out squashed
+ * in it (see the `gameframe_slot_override` note in gameframe.enum).
+ *
+ * So a frame declares its own answer, in content, beside the mount table it
+ * already declares. Nothing here knows which frame or which role: this is a
+ * lookup, and a frame with nothing to say is not in the table and keeps the
+ * component its role named. That is what stops the next frame needing another
+ * branch in C.
+ */
+static int
+gameframe_slot_host(int uid)
+{
+    const struct ToriRSServerEnumDef* table;
+
+    if( uid <= 0 )
+        return uid;
+    table = ToriRSServer_ContentEnum("gameframe_slot_override");
+    if( !table )
+        return uid;
+    for( int i = 0; i < table->count; i++ )
+        if( table->values[i].key == uid && table->values[i].value > 0 )
+            return table->values[i].value;
+    return uid;
+}
+
+/*
  * Content often names `toplevel_osrs_stretch:sidemodal` / `:xp_drops` (etc.)
  * even after Display has remounted Fixed/Modern. Those are role aliases for
  * the live gameframe's matching slot — rewrite by the `:role` suffix. No list
@@ -1570,7 +1602,7 @@ ToriRSServer_RemapGameframeSlotUid(
         if( ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, probe) <= 0 )
             return uid;
         snprintf(probe, sizeof(probe), "%s:%s", live_iface_name, role);
-        live = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, probe);
+        live = gameframe_slot_host(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, probe));
     }
     return live > 0 ? live : uid;
 }
@@ -1637,21 +1669,21 @@ ToriRSServer_GameframeBindSlots(
 
     snprintf(name, sizeof(name), "%s:mainmodal", top_name);
     uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
-    player->gameframe_mainmodal = uid;
+    player->gameframe_mainmodal = gameframe_slot_host(uid);
 
     snprintf(name, sizeof(name), "%s:sidemodal", top_name);
     uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
-    player->gameframe_sidemodal = uid;
+    player->gameframe_sidemodal = gameframe_slot_host(uid);
 
     snprintf(name, sizeof(name), "%s:floater", top_name);
     uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
-    player->gameframe_floater = uid;
+    player->gameframe_floater = gameframe_slot_host(uid);
 
     /* `helper_content`, the innermost of the three helper layers -- see
      * ToriRSServerIds.com_gameframe_helper for why not `helper`. */
     snprintf(name, sizeof(name), "%s:helper_content", top_name);
     uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
-    player->gameframe_helper = uid;
+    player->gameframe_helper = gameframe_slot_host(uid);
 }
 
 static int

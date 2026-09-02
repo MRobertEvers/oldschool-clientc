@@ -1623,6 +1623,16 @@ struct App
      *  while composing a message. Clicking the chat region focuses; clicking
      *  elsewhere or pressing Escape unfocuses. */
     int chat_input_active;
+    /** The mobile scripts asked for the soft keyboard (MOBILE_KEYBOARDSHOW*)
+     *  and have not asked to put it away. Its own flag rather than the chat
+     *  line's focus: focusing the chat line means "typed keys go to the chat
+     *  line", which the script never said, and on a phone nothing else ever
+     *  clears it -- so the client asked for the keyboard for the rest of the
+     *  session and the safe-area inset it brings squashed the whole frame
+     *  into the top half of the screen. Cleared by the script's own hide, and
+     *  by the keyboard going away underneath it (the inset falling to zero,
+     *  which is what a system Back looks like from here). */
+    int vm_keyboard_open;
     /** Minimenu chat-line seam (points at app_chat_line_at). */
     struct RS_MinimenuChatSource chat_source;
     /** Server-notify callbacks for IF1 button clicks (NULL until net). */

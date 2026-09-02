@@ -589,17 +589,15 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                      * nothing -- the dismiss button appeared, the keyboard did
                      * not. Dropping and retaking focus is what makes the next
                      * show a new request. */
-                    surfaceView.clearFocus();
                     surfaceView.requestFocus();
-                    imm.restartInput(surfaceView);
-                    /* SHOW_FORCED, not 0: this is the direct result of a
-                     * deliberate tap on the client's own keyboard stone, and
-                     * the plain form is the one the system is free to ignore.
-                     * Deprecated on API 33+, which this device is far below;
-                     * HIDE_IMPLICIT_ONLY on the hide side keeps a forced show
-                     * dismissable by the client's own hide. */
-                    if( !imm.showSoftInput(surfaceView, InputMethodManager.SHOW_FORCED) )
-                        imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+                    /* Flags 0, and NOT SHOW_FORCED. A forced show survives
+                     * the system Back that the person uses to put the
+                     * keyboard away: the IME goes but the window keeps the
+                     * space reserved, so the client's safe-area inset never
+                     * returned to zero and the whole frame stayed squashed
+                     * into the top half of the screen. The focus dance above
+                     * is what makes a plain show work again after a Back. */
+                    imm.showSoftInput(surfaceView, 0);
                 }
                 else
                 {

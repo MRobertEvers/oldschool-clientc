@@ -693,10 +693,44 @@ interact_touch_scroll(
         return 1;
     }
     {
-        struct UITreeComponent const* layer = &tree->components[interact->ts_layer];
+        struct UITreeComponent* layer = &tree->components[interact->ts_layer];
+        int const before = layer->scroll_y;
         UITree_SetScrollPosAt(
             tree, interact->ts_layer, layer->scroll_x,
             interact->ts_start_scroll_y - (my - interact->ts_press_y));
+        /*
+         * Tell the interface its list moved, so a script-drawn scrollbar
+         * follows the finger.
+         *
+         * These scrollbars are CS2, not chrome: the bar and its dragger are
+         * components the cache builds, and the ONLY thing that repositions the
+         * dragger is `~scrollbar_vertical_setdragger`, reached through the
+         * content layer's own onScrollWheel hook. Moving `scroll_y` from here
+         * scrolled the list and left the dragger where it was.
+         *
+         * The wheel delta is ZERO on purpose. The handler is
+         * `pos + step * 45` -> `doscroll` -> reposition the dragger: a zero
+         * step re-applies the position this gesture just set (so the finger
+         * keeps its 1:1 travel, rather than the wheel's notches) and still
+         * runs the half that moves the dragger.
+         */
+        if( layer->scroll_y != before &&
+            UITree_Hooks(layer)->on_scroll_wheel.script_id > 0 )
+        {
+            int bx = 0, by = 0, bw = 0, bh = 0;
+            int offx = 0, offy = 0;
+            struct UIIntent intent = {
+                .component_id = layer->component_id,
+                .hook = &UITree_Hooks(layer)->on_scroll_wheel,
+            };
+            intent_bind_node(tree, &intent, interact->ts_layer);
+            UITree_LayoutGetBounds(&layer->position, &bx, &by, &bw, &bh);
+            UITree_AccumScrollOffset(tree, interact->ts_layer, &offx, &offy);
+            intent.has_event_mouse = 1;
+            intent.event_mouse_x = mx - (bx - offx);
+            intent.event_mouse_y = 0;
+            intent_push(tree, out, &intent);
+        }
     }
     out->cancelled_pointer_click = 1;
     return 1;

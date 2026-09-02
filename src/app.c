@@ -17012,7 +17012,7 @@ app_logic_tick(struct App* app)
      * focus a tap on the chat area gives. */
     if( app->host.keyboard_request )
     {
-        app->chat_input_active = app->host.keyboard_request > 0;
+        app->vm_keyboard_open = app->host.keyboard_request > 0;
         /* The push to the platform is edge-triggered on "wanted" (see
          * App_TakeTextInputChange), and the person may have dismissed the
          * keyboard with the system's own button, which changes nothing here.
@@ -29968,11 +29968,16 @@ app_wants_text_input(struct App const* app)
     /* The login form, and only while it is the screen being shown: `focus`
      * keeps its last value across a screen change, so testing it alone would
      * raise the keyboard over the main menu. */
-    if( app->title.screen == RS_TITLE_LOGIN_FORM &&
+    if( (app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING) &&
+        app->title.screen == RS_TITLE_LOGIN_FORM &&
         app->title.focus >= 0 && app->title.focus < RS_TITLE_FIELD_COUNT )
         return 1;
 
     if( app->chat_input_active )
+        return 1;
+
+    /* The mobile scripts' own request. @see App::vm_keyboard_open. */
+    if( app->vm_keyboard_open )
         return 1;
 
     /* A plugin asked for it (torirs_plugin_bridge.u.c). Kept last so the
@@ -30094,7 +30099,17 @@ App_DrainCommands(
                     (struct ToriRS_CmdKeyboardInset const*)payload;
                 if( app->keyboard_inset != (int)cmd->bottom )
                 {
+                    /* The keyboard went away under us -- the person pressed
+                     * the system's Back, which the client is never told about
+                     * any other way. A script's standing request to show it
+                     * does not survive that; leaving it standing kept the
+                     * client asking for a keyboard nobody wanted, and the
+                     * inset with it. */
+                    if( app->keyboard_inset > 0 && (int)cmd->bottom == 0 )
+                        app->vm_keyboard_open = 0;
                     app->keyboard_inset = (int)cmd->bottom;
+                    if( getenv("TORIRS_RESIZE_DEBUG") )
+                        TORIRS_REPORT("keyboard inset -> %d canvas rows\n", app->keyboard_inset);
                     /* The band the layout hands to every row whose profile
                      * declared `safe_area=os:bottom` -- the login box on the
                      * profiles that state it, and nothing at all on the ones
