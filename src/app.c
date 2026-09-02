@@ -27046,7 +27046,14 @@ app_minimenu_open(
         if( font )
             line_box = ToriDraw_FontLineBoxHeight(font);
     }
-    if( UIMinimenu_PrepareShow(menu, line_box, app_measure_text_cb, app, &layout, &content_w) )
+    if( UIMinimenu_PrepareShowStyled(
+            menu,
+            line_box,
+            app->touch_ui ? UI_MINIMENU_STYLE_TOUCH : UI_MINIMENU_STYLE_DESKTOP,
+            app_measure_text_cb,
+            app,
+            &layout,
+            &content_w) )
     {
         UIMinimenu_ShowAt(
             menu, layout, content_w, click_x, click_y, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -30606,6 +30613,14 @@ App_RunOnce(
             app->need_redraw = 1;
         }
 
+        /* The chosen minimenu row's afterimage: the same clock as the marker,
+         * for the same reason -- it exists to be looked at. */
+        if( UIMinimenu_AfterimageActive(&app->interact.minimenu) )
+        {
+            UIMinimenu_AfterimageTick(&app->interact.minimenu, (int)app->logic_frame_ms);
+            app->need_redraw = 1;
+        }
+
         if( ticks > 0 )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_LOGIC_TICKS, ticks);
@@ -30956,6 +30971,11 @@ App_RunOnce(
      * mousedown -> dispatch; right press with no menu open -> build + show. */
     if( out.minimenu_select >= 0 )
     {
+        /* Before the dispatch hides the popup: the afterimage is cut from the
+         * popup's geometry. Only where the pointer is a finger -- a mouse has
+         * the hover it watched turn yellow, and the reference shows nothing. */
+        if( app->touch_ui )
+            UIMinimenu_AfterimageShow(&app->interact.minimenu, out.minimenu_select);
         if( app_minimenu_use_option(
                 app, out.minimenu_select, input->curr.mouse_x, input->curr.mouse_y) )
             ran_cs2 = 1;

@@ -525,7 +525,9 @@ gles2_painter_emit_model(
         return;
     }
 
-    face_order = ToriDraw_FaceOrder(renderer->scene);
+    /* Whose ever bench it came from -- the scene's, or a stage source's. */
+    face_order = placement->face_order;
+    assert(face_order);
 
     /*
      * TORIRS_GLES2_RESIDENT_FAST: a batch entry is asked "are you resident?"

@@ -405,6 +405,74 @@ tile_remove_scenery_element(
     tile_recalculate_spans(painter, tile);
 }
 
+/*
+ * Strip a DYNAMIC element from a tile's chain so that the pool can be
+ * truncated to `high_water` afterwards.
+ *
+ * The paint's scenery_chain_sort_once permutes (element, span) PAYLOADS
+ * between a chain's nodes and leaves the links alone. After a sort the
+ * dynamic element's payload may therefore sit in a node BELOW the static
+ * high-water and a static payload in the node the dynamic add appended
+ * ABOVE it. Unlinking by payload alone would then drop a static node and
+ * leave the above-high-water node linked: the truncation hands that index
+ * out again, the next append writes a fresh `next` into it, and the chain
+ * is a cycle the paint walks forever (the 2026-09-01 freeze).
+ *
+ * So the node that leaves the chain is always one at or above the high-water:
+ * if the payload's node is a static one, the payload of some above-high-water
+ * node in the same chain is moved into it first. One such node exists for
+ * every dynamic element registered on the tile, and the sort only permutes
+ * within the chain, so the search cannot fail; the chain keeps exactly the
+ * static payloads it had, in static nodes.
+ */
+static void
+tile_unlink_dynamic_scenery_element(
+    struct Painter* painter,
+    struct PaintersTile* tile,
+    int element,
+    int high_water)
+{
+    int32_t* link = &tile->scenery_head;
+    struct SceneryNode* victim = NULL;
+
+    while( *link != -1 )
+    {
+        struct SceneryNode* node = &painter->scenery_pool[*link];
+        if( node->element_idx == element )
+        {
+            victim = node;
+            break;
+        }
+        link = &node->next;
+    }
+    if( !victim )
+    {
+        tile_recalculate_spans(painter, tile);
+        return;
+    }
+
+    if( *link < high_water )
+    {
+        /* The payload was permuted into a static node: take an
+         * above-high-water node's payload into it and retire that node. */
+        int32_t* dyn_link = &tile->scenery_head;
+        while( *dyn_link != -1 && *dyn_link < high_water )
+            dyn_link = &painter->scenery_pool[*dyn_link].next;
+        assert(*dyn_link != -1);
+        {
+            struct SceneryNode* dyn = &painter->scenery_pool[*dyn_link];
+            victim->element_idx = dyn->element_idx;
+            victim->span = dyn->span;
+            *dyn_link = dyn->next;
+        }
+    }
+    else
+    {
+        *link = victim->next;
+    }
+    tile_recalculate_spans(painter, tile);
+}
+
 struct Painter*
 painter_new(
     int width,
@@ -1382,7 +1450,8 @@ painter_reset_to_static(struct Painter* painter)
                 if( tx >= painter->width || tz >= painter->height )
                     continue;
                 tile = painter_tile_at(painter, tx, tz, painter->elements[i].source_level);
-                tile_remove_scenery_element(painter, tile, i);
+                tile_unlink_dynamic_scenery_element(
+                    painter, tile, i, painter->static_scenery_pool_count);
             }
         }
     }
@@ -1410,6 +1479,17 @@ painter_reset_to_static(struct Painter* painter)
                     assert(n < painter->static_scenery_pool_count);
             }
         }
+    }
+    /* And the stronger form, every chain in the painter: a node above the
+     * high-water still linked from ANY tile -- one appended by something that
+     * is not a dynamic element, or by a dynamic element whose footprint the
+     * unlink above did not cover -- would be handed out again by the next
+     * append and turn that chain into a cycle the paint walks forever. */
+    for( int t = 0; t < painter->tile_capacity; t++ )
+    {
+        for( int32_t n = painter->tiles[t].scenery_head; n != -1;
+             n = painter->scenery_pool[n].next )
+            assert(n < painter->static_scenery_pool_count);
     }
 #endif
     assert(painter->scenery_pool_count >= painter->static_scenery_pool_count);

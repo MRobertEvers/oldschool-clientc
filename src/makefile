@@ -4985,6 +4985,15 @@ test-scene-anim-skip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/scene_anim_skip_test
 	TORIDRAW_ANIM_SKIP_SAME=1 ./$(OBJ_DIR)/scene_anim_skip_test
 
+# The dual-core GLES2 lane's model stage on a scratch view of the scene
+# against the same stage on the scene itself: parity, bench independence,
+# the depth path's sort gate, arena exhaustion, view sync. GL-free.
+test-gles2-dualcore-stage: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/gles2_dualcore_stage_test \
+		platform/platform_renderer_gles2_dualcore_stage.c \
+		platform/test/gles2_dualcore_stage_test.c $(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/gles2_dualcore_stage_test
+
 # DynamicObject sequence termination: frameStep governs the final location pose.
 test-animation-object-step: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/animation_object_step_test \

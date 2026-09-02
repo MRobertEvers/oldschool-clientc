@@ -26,6 +26,27 @@
 /** Reference OPTIONS_MENU background/title color. */
 #define UITREE_MINIMENU_COLOR_BODY 0x5D5447
 
+/**
+ * How the popup is sized for the pointer that opened it.
+ *
+ * DESKTOP is the reference geometry, byte for byte. TOUCH is the same popup
+ * with rows a finger can land on: every row band is about twice as tall and
+ * the title bar and side insets grow with it, while the TEXT keeps the font's
+ * own metrics and sits centred in its band. Both are in CANVAS pixels, so the
+ * touch popup still follows the UI scale setting on top -- scaling is the
+ * user's lever, this is the finger's.
+ */
+enum UIMinimenuStyle
+{
+    UI_MINIMENU_STYLE_DESKTOP = 0,
+    UI_MINIMENU_STYLE_TOUCH,
+};
+
+/** A chosen row lingers for this long after the tap, fully drawn ... */
+#define UITREE_MINIMENU_AFTERIMAGE_HOLD_MS 300
+/** ... then fades out over this long. */
+#define UITREE_MINIMENU_AFTERIMAGE_FADE_MS 400
+
 /** What a menu row targets. World entity kinds (NPC/PLAYER/SCENERY/TERRAIN/OBJ)
  * come from the pickset; NONE/UI/INV_SLOT are UI/inv builders. */
 enum UIMinimenuPickKind
@@ -93,6 +114,43 @@ struct UIMinimenuLayout
     int width_pad;
     int click_y_bias;
     int border_inset;
+    /** Top of the title's text box, from the popup's top edge. */
+    int header_text_top;
+    /** Horizontal inset of every text box (title and rows) from the edges. */
+    int text_inset_x;
+    /** A row's text box, relative to the top of its band (the hit band
+     *  UIMinimenu_HitOption tests: option y - hover_above .. + hover_below). */
+    int row_text_offset_y;
+    int row_text_box_h;
+};
+
+/**
+ * The row a tap chose, left on screen after the popup has gone.
+ *
+ * A popup that vanishes on the press edge gives a finger nothing to confirm
+ * what it hit -- there is no hover state on a phone to have watched turn
+ * yellow. So the chosen row stays where it was, drawn exactly as the popup
+ * drew it and boxed in the popup's own border, lingers, and fades.
+ */
+struct UIMinimenuAfterimage
+{
+    bool active;
+    /** The bordered box: the row's band plus a one-pixel border all round. */
+    int x;
+    int y;
+    int w;
+    int h;
+    /** The row's text box, as the popup laid it out. */
+    int text_x;
+    int text_y;
+    int text_w;
+    int text_h;
+    int font_id;
+    /** The row's colour at the tap: hovered yellow, or white. */
+    int color;
+    char text[UITREE_MINIMENU_OPTION_LEN];
+    /** Milliseconds since the tap. */
+    int cycle_ms;
 };
 
 struct UIMinimenuOption
@@ -119,13 +177,21 @@ struct UIMinimenu
     struct UIMinimenuLayout layout;
     struct UIMinimenuOption options[UITREE_MINIMENU_MAX_OPTIONS];
     int option_count;
+    /** Outlives `visible`: Hide leaves it alone, only Reset and its own clock
+     *  end it. */
+    struct UIMinimenuAfterimage afterimage;
 };
 
 /** Width callback: pixel width of text in font_id, or <= 0 when unknown. */
 typedef int (*UIMinimenuMeasureFn)(void* ud, int font_id, char const* text);
 
+/** The reference (DESKTOP) geometry for a font whose glyph line box is
+ *  line_box. */
 struct UIMinimenuLayout
 UIMinimenu_LayoutFromLineBox(int line_box);
+
+struct UIMinimenuLayout
+UIMinimenu_LayoutFromLineBoxStyled(int line_box, enum UIMinimenuStyle style);
 
 void
 UIMinimenu_Reset(struct UIMinimenu* menu);
@@ -189,12 +255,34 @@ UIMinimenu_PrepareShow(
     struct UIMinimenuLayout* out_layout,
     int* out_content_width);
 
+/** PrepareShow in a chosen style; PrepareShow is this in DESKTOP. */
+bool
+UIMinimenu_PrepareShowStyled(
+    struct UIMinimenu const* menu,
+    int line_box,
+    enum UIMinimenuStyle style,
+    UIMinimenuMeasureFn measure,
+    void* measure_ud,
+    struct UIMinimenuLayout* out_layout,
+    int* out_content_width);
+
 int
 UIMinimenu_Height(struct UIMinimenuLayout const* layout, int option_count);
 
 /** Text baseline-row y of option i (bottom-to-top: 0 = bottom row). */
 int
 UIMinimenu_OptionY(struct UIMinimenu const* menu, int option_index);
+
+/** The text box a row is drawn in, canvas pixels. One formula for the emit
+ *  and for the afterimage, so the row it leaves behind is the row it drew. */
+void
+UIMinimenu_RowTextBox(
+    struct UIMinimenu const* menu,
+    int option_index,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
 
 /** Place at the click (centered horizontally, biased up), clamped inside the
  * viewport, and mark visible. */
@@ -215,5 +303,23 @@ UIMinimenu_HitOption(struct UIMinimenu const* menu, int click_x, int click_y);
 /** Returns true when the hovered row changed. */
 bool
 UIMinimenu_UpdateHover(struct UIMinimenu* menu, int mouse_x, int mouse_y);
+
+/**
+ * Leave the chosen row on screen. Call while the popup is still VISIBLE --
+ * the box is read off its geometry -- and before the app hides it.
+ */
+void
+UIMinimenu_AfterimageShow(struct UIMinimenu* menu, int option_index);
+
+void
+UIMinimenu_AfterimageTick(struct UIMinimenu* menu, int delta_ms);
+
+bool
+UIMinimenu_AfterimageActive(struct UIMinimenu const* menu);
+
+/** Transparency 0..255 of the afterimage right now: 0 while it lingers,
+ *  climbing through the fade, 255 once it is gone. */
+int
+UIMinimenu_AfterimageTrans(struct UIMinimenu const* menu);
 
 #endif

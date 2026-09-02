@@ -299,6 +299,177 @@ test_minimenu_emit(void)
     UITree_Free(tree);
 }
 
+/* The touch style: rows a finger can land on, the text still the font's own
+ * size and centred in its band, the desktop style untouched. */
+static void
+test_minimenu_touch_layout(void)
+{
+    struct UIMinimenuLayout desktop =
+        UIMinimenu_LayoutFromLineBoxStyled(16, UI_MINIMENU_STYLE_DESKTOP);
+    struct UIMinimenuLayout touch = UIMinimenu_LayoutFromLineBoxStyled(16, UI_MINIMENU_STYLE_TOUCH);
+    struct UIMinimenuLayout plain = UIMinimenu_LayoutFromLineBox(16);
+
+    TEST_ASSERT(memcmp(&desktop, &plain, sizeof(plain)) == 0, "desktop style is the reference");
+    TEST_ASSERT(desktop.text_inset_x == 3, "reference rows draw at x+3");
+    TEST_ASSERT(desktop.header_text_top == 2, "reference title just under the border");
+    TEST_ASSERT(
+        desktop.row_text_offset_y == 1 && desktop.row_text_box_h == 17, "reference row box");
+
+    TEST_ASSERT(touch.row_stride == 31, "touch rows about twice the stride");
+    TEST_ASSERT(touch.line_height == desktop.line_height, "text keeps the font's line height");
+    TEST_ASSERT(touch.header_bar_h > desktop.header_bar_h, "taller title bar");
+    TEST_ASSERT(
+        touch.hover_above + touch.hover_below == touch.row_stride + 1, "bands tile the rows");
+    TEST_ASSERT(touch.width_pad > desktop.width_pad, "wider side allowance");
+    /* The row's text box sits inside its band, centred: as much band above
+     * the text as below it (to a pixel). */
+    {
+        int const band_h = touch.hover_above + touch.hover_below;
+        int const above = touch.row_text_offset_y;
+        int const below = band_h - touch.row_text_offset_y - touch.row_text_box_h;
+        TEST_ASSERT(above > 0 && below >= 0, "text inside the band");
+        TEST_ASSERT(above - below >= 0 && above - below <= 2, "text centred in the band");
+    }
+    {
+        struct UIMinimenu menu;
+        UIMinimenu_Reset(&menu);
+        UIMinimenu_AddOption(&menu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
+        UIMinimenu_AddOption(&menu, "Op one", TEST_ACTION_OP1, 0, pick_none());
+        UIMinimenu_ShowAt(&menu, touch, 140, 300, 200, 765, 503);
+        TEST_ASSERT(
+            menu.height == UIMinimenu_OptionY(&menu, 0) + touch.hover_below + 2 - menu.y,
+            "touch popup ends two pixels under the bottom band");
+        TEST_ASSERT(
+            UIMinimenu_OptionY(&menu, 1) - touch.hover_above == menu.y + touch.separator_y,
+            "top band starts on the separator row, as the reference's does");
+        /* The press that opened it lands on the title bar, not a row. */
+        TEST_ASSERT(UIMinimenu_HitOption(&menu, 300, 200) == -1, "opening press is on the title bar");
+        /* And a finger anywhere in a band hits that row. */
+        {
+            int x;
+            int y;
+            int w;
+            int h;
+            int band_top;
+            UIMinimenu_RowTextBox(&menu, 1, &x, &y, &w, &h);
+            band_top = y - touch.row_text_offset_y;
+            TEST_ASSERT(UIMinimenu_HitOption(&menu, x, band_top + 1) == 1, "band top hits");
+            TEST_ASSERT(
+                UIMinimenu_HitOption(&menu, x, band_top + touch.row_stride) == 1, "band bottom hits");
+            TEST_ASSERT(
+                x == menu.x + touch.text_inset_x && w == menu.width - 2 * touch.text_inset_x,
+                "row text inset both sides");
+        }
+    }
+}
+
+/* The afterimage: cut from the popup's row, outlives Hide, lingers opaque,
+ * fades, ends -- and draws from the minimenu node while the popup is gone. */
+static void
+test_minimenu_afterimage(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeHost host;
+    struct TestHostState host_state;
+    struct UITreeEmitBuffer emit;
+    struct UIMinimenuLayout layout =
+        UIMinimenu_LayoutFromLineBoxStyled(16, UI_MINIMENU_STYLE_TOUCH);
+    struct UIMinimenu menu;
+    int32_t node;
+    int row_x;
+    int row_y;
+    int row_w;
+    int row_h;
+
+    UITree_TestHostInit(&host, &host_state);
+    UITree_EmitBufferInit(&emit);
+    node = UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_MINIMENU, 900, 0, 0, 0, 0);
+    tree->components[node].u.minimenu.font_id = 5;
+    UITree_TestResolve(tree);
+
+    UIMinimenu_Reset(&menu);
+    menu.font_id = 5;
+    TEST_ASSERT(!UIMinimenu_AfterimageActive(&menu), "no afterimage after reset");
+    TEST_ASSERT(UIMinimenu_AfterimageTrans(&menu) == 255, "an inactive afterimage is fully gone");
+    UIMinimenu_AddOption(&menu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
+    UIMinimenu_AddOption(&menu, "Op one", TEST_ACTION_OP1, 0, pick_none());
+    UIMinimenu_ShowAt(&menu, layout, 140, 300, 200, 765, 503);
+    UIMinimenu_RowTextBox(&menu, 1, &row_x, &row_y, &row_w, &row_h);
+    menu.hovered_option = 1;
+
+    UIMinimenu_AfterimageShow(&menu, 1);
+    TEST_ASSERT(UIMinimenu_AfterimageActive(&menu), "active after show");
+    TEST_ASSERT(strcmp(menu.afterimage.text, "Op one") == 0, "carries the row's text");
+    TEST_ASSERT(menu.afterimage.color == 0xFFFF00, "carries the row's hovered colour");
+    TEST_ASSERT(menu.afterimage.font_id == 5, "carries the popup's font");
+    TEST_ASSERT(
+        menu.afterimage.text_x == row_x && menu.afterimage.text_y == row_y &&
+            menu.afterimage.text_w == row_w && menu.afterimage.text_h == row_h,
+        "text exactly where the popup drew it");
+    TEST_ASSERT(
+        menu.afterimage.x == menu.x && menu.afterimage.w == menu.width, "box spans the popup");
+    TEST_ASSERT(
+        menu.afterimage.y == UIMinimenu_OptionY(&menu, 1) - layout.hover_above - 1 &&
+            menu.afterimage.h == layout.hover_above + layout.hover_below + 2,
+        "box is the band plus a one-pixel border");
+
+    /* Hide is the app's next move; the afterimage is not the popup's. */
+    UIMinimenu_Hide(&menu);
+    TEST_ASSERT(!menu.visible && UIMinimenu_AfterimageActive(&menu), "outlives hide");
+
+    /* Hidden popup, live afterimage: the node still draws, and draws only the
+     * afterimage: body + four border strips + the text. */
+    host_state.minimenu_visible = 0;
+    host_state.minimenu_state = &menu;
+    TEST_ASSERT(
+        UITree_ComponentShouldEmit(&tree->components[node], &host),
+        "node emits for the afterimage alone");
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    TEST_ASSERT(emit.count == 6, "afterimage is five rects and a text");
+    TEST_ASSERT(
+        emit.cmds[0].kind == UITREE_EMIT_RECT && emit.cmds[0].color == UITREE_MINIMENU_COLOR_BODY,
+        "body first");
+    TEST_ASSERT(
+        emit.cmds[0].x == menu.afterimage.x && emit.cmds[0].w == menu.afterimage.w &&
+            emit.cmds[0].h == menu.afterimage.h,
+        "body is the box");
+    TEST_ASSERT(emit.cmds[1].color == 0 && emit.cmds[1].h == 1, "top border strip");
+    TEST_ASSERT(emit.cmds[4].color == 0 && emit.cmds[4].w == 1, "right border strip");
+    TEST_ASSERT(emit.cmds[0].trans == 0, "opaque while it lingers");
+    TEST_ASSERT(emit.cmds[5].kind == UITREE_EMIT_TEXT, "text last");
+    TEST_ASSERT(strcmp(emit.cmds[5].text, "Op one") == 0, "the chosen row's text");
+    TEST_ASSERT(emit.cmds[5].color == 0xFFFF00, "in the row's colour while it lingers");
+    TEST_ASSERT(emit.cmds[5].text_shadowed, "shadowed like a row");
+    TEST_ASSERT(emit.cmds[5].x == row_x && emit.cmds[5].y == row_y, "text where the row was");
+
+    /* Linger, then fade. */
+    UIMinimenu_AfterimageTick(&menu, UITREE_MINIMENU_AFTERIMAGE_HOLD_MS - 1);
+    TEST_ASSERT(UIMinimenu_AfterimageTrans(&menu) == 0, "still opaque at the end of the hold");
+    UIMinimenu_AfterimageTick(&menu, 1 + UITREE_MINIMENU_AFTERIMAGE_FADE_MS / 2);
+    {
+        int const trans = UIMinimenu_AfterimageTrans(&menu);
+        TEST_ASSERT(trans > 100 && trans < 155, "half faded halfway through the fade");
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, -1);
+        TEST_ASSERT(emit.count == 6, "still drawing mid-fade");
+        TEST_ASSERT(emit.cmds[0].trans == trans, "rects carry the fade");
+        TEST_ASSERT(
+            emit.cmds[5].color != 0xFFFF00 && emit.cmds[5].color != UITREE_MINIMENU_COLOR_BODY,
+            "text colour is between the row's and the body's");
+    }
+    UIMinimenu_AfterimageTick(&menu, UITREE_MINIMENU_AFTERIMAGE_FADE_MS);
+    TEST_ASSERT(!UIMinimenu_AfterimageActive(&menu), "gone after hold + fade");
+    TEST_ASSERT(
+        !UITree_ComponentShouldEmit(&tree->components[node], &host),
+        "node stops emitting with it");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    TEST_ASSERT(emit.count == 0, "nothing drawn once it is gone");
+
+    UITree_EmitBufferFree(&emit);
+    UITree_Free(tree);
+}
+
 /* Cross model: frame progression walk/interact and 400ms expiry. */
 static void
 test_cross_model(void)
@@ -704,6 +875,8 @@ test_minimenu(void)
     test_minimenu_sort();
     test_minimenu_hit_and_hover();
     test_minimenu_emit();
+    test_minimenu_touch_layout();
+    test_minimenu_afterimage();
     test_cross_model();
     test_cross_action_policy();
     test_minimenu_release_swallow();

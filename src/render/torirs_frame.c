@@ -2854,6 +2854,36 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->in_world = false;
     frame->world_begun = false;
     frame->has_queued = false;
+    frame->world_only = false;
+    memset(&frame->queued, 0, sizeof(frame->queued));
+    memset(&frame->pending_begin_3d, 0, sizeof(frame->pending_begin_3d));
+}
+
+void
+ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame)
+{
+    assert(frame);
+    assert(frame->scene);
+    assert(frame->canvas_w > 0 && frame->canvas_h > 0);
+    /* ToriRS_FrameBegin minus the paint-limit step: that is a per-frame
+     * count, and the frame this is a copy of already counted. */
+    frame->pass = TORIRS_FRAME_PASS_NONE;
+    frame->emit_index = 0;
+    frame->painters_index = 0;
+    frame_lookahead_reset(frame);
+    /* No events are taken on a world-only replay; leave no queue to take
+     * them from either. */
+    frame->scene_events = NULL;
+    frame->scene_events_of = NULL;
+    frame->view_depth = 0;
+    memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
+    frame->view_stack[0].world = frame->world;
+    frame->scrollbar_step = 0;
+    frame->event_index = 0;
+    frame->in_world = false;
+    frame->world_begun = false;
+    frame->has_queued = false;
+    frame->world_only = true;
     memset(&frame->queued, 0, sizeof(frame->queued));
     memset(&frame->pending_begin_3d, 0, sizeof(frame->pending_begin_3d));
 }
@@ -2871,8 +2901,10 @@ ToriRS_FrameNextCommand(
         return true;
 
     /* Drain ordered scene resource events before any DRAW_MODEL so retained
-     * model/pose buffers and asynchronous textures are ready for the pass. */
-    if( frame_take_scene_event(frame, out) )
+     * model/pose buffers and asynchronous textures are ready for the pass.
+     * A world-only replay leaves them to the frame that draws: they are
+     * loads and unloads of renderer resources, not part of the walk. */
+    if( !frame->world_only && frame_take_scene_event(frame, out) )
         return true;
 
 again:
@@ -2944,6 +2976,16 @@ again:
         {
             is_scrollbar = 1;
             sb_steps = desc->debug_prim_count;
+        }
+
+        /* A world-only replay steps over every interface desc untranslated:
+         * the interface is the drawing frame's, and translating it here would
+         * touch font and sprite caches from a second thread. */
+        if( frame->world_only && desc->kind != UITREE_EMIT_WORLD )
+        {
+            frame->emit_index++;
+            frame->scrollbar_step = 0;
+            continue;
         }
 
         if( desc->kind == UITREE_EMIT_WORLD )

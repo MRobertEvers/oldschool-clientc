@@ -143,6 +143,16 @@ struct ToriRS_Frame
     bool in_world;
     bool world_begun;
     bool has_queued;
+    /**
+     * Emit ONLY the world pass: no scene events, no interface commands, just
+     * BEGIN_3D, the painter's model commands and END_3D. Set by
+     * ToriRS_FrameBeginWorldOnly for a second iterator that replays the
+     * painter walk somewhere other than the renderer -- the dual-core lane's
+     * worker, which projects and sorts one command ahead of the draw. The
+     * model commands it yields are the same ones, in the same order, as the
+     * full iteration's.
+     */
+    bool world_only;
     /** Cursor into ToriDraw_SceneEvents for unload/clear → TORIRSRC_* drain. */
     int event_index;
     struct ToriRS_RenderCommand queued;
@@ -234,6 +244,19 @@ ToriRS_FrameSetViewXform(
 
 void
 ToriRS_FrameBegin(struct ToriRS_Frame* frame);
+
+/**
+ * Begin a WORLD-ONLY replay of the frame (see ToriRS_Frame::world_only).
+ *
+ * `frame` is a copy of a frame ToriRS_FrameBegin has already begun, sharing
+ * that frame's buffers; this rewinds the copy's cursors without touching the
+ * process-wide paint-limit step, which the original's Begin already took for
+ * this frame. A world-only frame is never ended: ToriRS_FrameEnd finishes the
+ * SCENE's frame (pending poses, the event queue), and that is the original's
+ * to do, once.
+ */
+void
+ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame);
 
 /*
  * The element id of the painter command `distance` (1..3) after the one the

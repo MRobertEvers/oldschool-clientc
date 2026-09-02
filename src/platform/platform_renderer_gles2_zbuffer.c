@@ -936,7 +936,8 @@ gles2_zbuffer_emit_model(
     uint32_t opaque_written = 0u;
     uint32_t cutout_written = 0u;
     int sorted_face_count;
-    int* face_order;
+    const int* face_order;
+    int projected_depth;
     int face_index;
 
     assert(command);
@@ -1034,12 +1035,41 @@ gles2_zbuffer_emit_model(
      * Filter the sorted result so opaque faces never enter the blend pass. */
     if( material->blended_count == 0u )
         return;
-    sorted_face_count = ToriDraw_RenderModel2SortFacesWithTable(
-        command->model, renderer->scene, renderer->kernel);
+    if( placement->face_order )
+    {
+        /* Sorted already, by whoever ran the stage. */
+        sorted_face_count = placement->sorted_face_count;
+        face_order = placement->face_order;
+        projected_depth = placement->projected_depth;
+    }
+    else
+    {
+        if( !placement->projected_in_scene )
+        {
+            /* A stage source classified this model as having no blended
+             * face and left it unsorted, and the material table disagrees.
+             * The scene's bench holds some other model's projection, so
+             * project again here before sorting. Counted: the two tests are
+             * meant to agree, and this should stay at zero. */
+            struct ToriDraw_Position position = command->position;
+            renderer->stage_reprojected_models++;
+            if( ToriDraw_RenderModel1ProjectWithTable(
+                    command->model,
+                    renderer->scene,
+                    &position,
+                    &renderer->current_3d.view_port,
+                    &renderer->current_3d.camera,
+                    renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+                return;
+        }
+        sorted_face_count = ToriDraw_RenderModel2SortFacesWithTable(
+            command->model, renderer->scene, renderer->kernel);
+        face_order = ToriDraw_FaceOrder(renderer->scene);
+        projected_depth = renderer->scene->projected_vertex.z;
+    }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_SORTED_MODELS, 1);
     if( sorted_face_count <= 0 )
         return;
-    face_order = ToriDraw_FaceOrder(renderer->scene);
     opaque_written = 0u;
     for( face_index = 0; face_index < sorted_face_count; face_index++ )
     {
@@ -1063,7 +1093,7 @@ gles2_zbuffer_emit_model(
         world,
         placement->binding,
         placement->page_base,
-        renderer->scene->projected_vertex.z,
+        projected_depth,
         renderer->model_indices,
         opaque_written);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES, opaque_written / 3u);

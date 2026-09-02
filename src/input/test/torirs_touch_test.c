@@ -9,8 +9,10 @@
  *      fills the screen, a click the player did not mean is a walk across the
  *      map, so the slop boundary is the difference between aiming and moving.
  *   2. A HOLD is a right click, it fires while the finger is still down, and
- *      the release that follows is SWALLOWED. Without the swallow every long
- *      press would open the minimenu and immediately left-click through it.
+ *      from then on the finger is CHOOSING from the menu it opened: its
+ *      travel is the pointer and never a drag, and the release is the LEFT
+ *      click that picks a row, where the finger lifted. A release with no
+ *      travel lands on the popup's title bar, which the popup swallows.
  *   3. A SECOND finger cancels both. A pinch that left two taps behind would
  *      zoom and walk at once, and it is the one bug in this area that looks
  *      like the game misbehaving rather than the input.
@@ -185,10 +187,35 @@ main(void)
     ToriRS_TouchTick(&touch, &bus, TORIRS_TOUCH_HOLD_MS + 1);
     drain(&bus, &seen);
     CHECK(seen.downs == 1 && seen.last_button == TORIRSM_RIGHT, "holding is a right click");
-    /* and the release is swallowed rather than adding a left click on top */
+    /* and the release is the left click that chooses from the menu it opened */
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 60, 40, TORIRS_TOUCH_HOLD_MS + 50);
     drain(&bus, &seen);
-    CHECK(seen.downs == 0 && seen.ups == 0, "and lifting after a hold clicks nothing");
+    CHECK(
+        seen.downs == 1 && seen.ups == 1 && seen.last_button == TORIRSM_LEFT,
+        "lifting after a hold is a left click");
+    CHECK(seen.last_x == 60 && seen.last_y == 40, "the click is where the finger lifted");
+
+    /* ---- after a hold the finger slides over the rows: moves, never a drag ---- */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 60, 40, 0);
+    ToriRS_TouchTick(&touch, &bus, TORIRS_TOUCH_HOLD_MS + 1);
+    drain(&bus, &seen);
+    CHECK(seen.downs == 1 && seen.last_button == TORIRSM_RIGHT, "hold on the world opens the menu");
+    ToriRS_TouchEvent(
+        &touch, &bus, TORIRS_TOUCH_MOVED, 1, 60, 40 + TORIRS_TOUCH_SLOP * 4, TORIRS_TOUCH_HOLD_MS + 40);
+    drain(&bus, &seen);
+    CHECK(seen.moves == 1, "the slide moves the pointer");
+    CHECK(seen.downs == 0, "and holds no button: it is not a camera drag");
+    ToriRS_TouchEvent(
+        &touch, &bus, TORIRS_TOUCH_ENDED, 1, 60, 40 + TORIRS_TOUCH_SLOP * 4, TORIRS_TOUCH_HOLD_MS + 80);
+    drain(&bus, &seen);
+    CHECK(
+        seen.downs == 1 && seen.ups == 1 && seen.last_button == TORIRSM_LEFT,
+        "lifting on a row is the click that picks it");
+    CHECK(seen.last_y == 40 + TORIRS_TOUCH_SLOP * 4, "at the row, not where the hold began");
+    ToriRS_TouchSetViewport(&touch, 0, 0, 0, 0);
 
     /* ---- a hold only fires if the finger stayed put ---- */
     CmdBus_Init(&bus);

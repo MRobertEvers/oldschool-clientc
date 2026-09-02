@@ -999,6 +999,59 @@ one lane only.
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
   [`3rd/trspk/gles2/gles2_vertex.h`](../3rd/trspk/gles2/gles2_vertex.h)
 
+### ANDROID-GLES2-002 - The dual-core lane runs the world's model stage on the second core
+
+- **Status:** Opt-in contract
+- **Applies to:** Android `--gles2-dualcore` / `--gles2-dualcore-zbuffer`
+  (`TORIRS_HAVE_GLES2_DUALCORE`, the android lane only)
+- **Behavior:** The GLES2 renderer (ANDROID-GLES2-001), unchanged, driven
+  through `platform_renderer_gles2_dualcore.c`: a persistent worker thread
+  replays the frame's world pass on a scratch view of the scene
+  (`ToriDraw_SceneScratchViewNew`) and computes each model's pose, cull,
+  projection, pick test and face sort one command ahead of the draw. The draw
+  thread keeps the frame bus, the vertex-stream gather, the actor bakes, the
+  interface and every GL call. The renderer consults a `GLES2ModelStageSource`
+  when one is installed (`ToriRS_GLES2::model_stage_source`) and computes the
+  stage itself when not, so `--gles2` is byte for byte what it was.
+- **Cause or reason:** The target phone (MSM8960: two Krait cores, an Adreno
+  320 measured ~2% busy) spends its whole frame on one thread; the per-model
+  CPU stage is about a third of it and touches no GL. Measured on the XT1060
+  while the client played: both cores online at 1.73 GHz, the process using
+  1.0 CPU.
+- **Ordering:** The worker is woken at the draw's first `BEGIN_3D`, after the
+  frame's scene events (model and animation loads, which write models) have
+  run, and joined before `ToriRS_FrameEnd`, which frees the scene's pending
+  poses. Results are published per model with a release store and read with
+  an acquire; the model pose the worker applied is what the draw's bake reads.
+  A frame that exhausts the results arena finishes on the draw thread (the
+  inline stage is complete), and the arena grows for the next. The two
+  threads BALANCE by claiming: each model is claimed (a CAS per slot) by
+  whichever thread reaches it first, so a draw thread that finds result i
+  unpublished stages i itself on the scene's own bench instead of waiting,
+  and the worker publishes a placeholder for it. Without this the frame was
+  paced by the worker's pass (measured 7.8 ms/frame: it also pays the frame
+  bus), and the draw stalled on half of all models.
+- **Verification:** `make -C src test-gles2-dualcore-stage` (host, GL-free):
+  the stage on a scratch view against the stage on the scene -- cull, pick,
+  depth, sorted order -- interleaved, on both scene tiers, plus arena
+  exhaustion and view sync. On device: `TORIRS_GLES2_DUALCORE_DEBUG=1` prints
+  a line every 300 frames (`stalls`, `desyncs`, `exhausted-frames`,
+  `reprojected` should sit at or near zero); `TORIRS_GLES2_DUALCORE=0` is the
+  single-threaded control arm on the same binary.
+- **Limits:** A model that appears in two `DRAW_MODEL` commands of one frame
+  is not covered (the draw may bake it under the worker's second pose); the
+  walk emits each element once. Env-resolved `static` caches inside the
+  emitter and the kernels are settled by the warm-up frame(s)
+  (`TORIRS_GLES2_DUALCORE_WARMUP`, default 1) before the worker starts.
+- **Sources:**
+  [`src/platform/platform_renderer_gles2_dualcore.c`](../src/platform/platform_renderer_gles2_dualcore.c),
+  [`src/platform/platform_renderer_gles2_dualcore_stage.c`](../src/platform/platform_renderer_gles2_dualcore_stage.c),
+  [`src/platform/platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h)
+  (`GLES2ModelStageSource`),
+  [`3rd/toridraw/toridraw.c`](../3rd/toridraw/toridraw.c) (scratch views),
+  [`src/render/torirs_frame.c`](../src/render/torirs_frame.c)
+  (`ToriRS_FrameBeginWorldOnly`)
+
 ### GPU-PROJ-001 - The projection is a scale, never a field of view
 
 - **Status:** Resolved defect

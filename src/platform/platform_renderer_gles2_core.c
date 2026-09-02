@@ -2600,6 +2600,11 @@ gles2_begin_3d(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_
      * gated on this pointer being the one the projection is called with. */
     if( renderer->scene )
         ToriDraw_ScenePrepareProjectionCamera(renderer->scene, &renderer->current_3d.camera);
+    /* Every scene event of the frame has been dispatched by now (the frame
+     * drains them before its first non-event command): a stage source may
+     * start reading and posing models. */
+    if( renderer->model_stage_source && renderer->model_stage_source->begin_3d )
+        renderer->model_stage_source->begin_3d(renderer->model_stage_source->user, command);
 
     viewport = &renderer->current_3d.view_port;
     pass_w = viewport->width > 0 ? viewport->width : renderer->width;
@@ -2658,6 +2663,11 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
 {
     struct ToriDraw_Position projected_position;
     struct GLES2ModelPlacement placement;
+    struct GLES2ModelStage stage;
+    bool staged = false;
+    const int* face_order;
+    bool projected_in_scene;
+    int projected_depth;
     int face_count;
     int sorted_face_count = 0;
     bool dynamic;
@@ -2671,58 +2681,110 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
 
     assert(renderer);
     assert(command);
+    /* The stage source, when one is installed, is asked about EVERY model
+     * command before any early return: it hands results out in dispatch
+     * order and pairs them with the asks by count. */
+    if( renderer->model_stage_source )
+        staged = renderer->model_stage_source->take(
+            renderer->model_stage_source->user, command, &stage);
     if( !renderer->has_3d || !renderer->scene || command->model.kind == TORIDRAWMK_NONE )
         return;
     placement.page_id = UINT32_MAX;
     placement.batch_slot = UINT32_MAX;
     placement.entry_index = UINT32_MAX;
     placement.entry_vertex_count = 0u;
-    if( command->animation && command->element_id >= 0 )
-        ToriDraw_SceneElementApplyAnimation(
-            renderer->scene, command->element_id, command->anim_index == 0, command->anim_frame);
-    projected_position = command->position;
-    if( ToriDraw_RenderModel1ProjectWithTable(
-            command->model,
-            renderer->scene,
-            &projected_position,
-            &renderer->current_3d.view_port,
-            &renderer->current_3d.camera,
-            renderer->kernel) != TORIDRAW_CULL_VISIBLE )
-        return;
+    if( staged )
+    {
+        /* Pose, cull, projection, pick test and sort were done by the source
+         * (the dual-core lane's worker, on its own scratch view of the
+         * scene); this thread consumes. The pose the source applied is the
+         * one the bakes below read -- its results were published after it. */
+        if( stage.cull != TORIDRAW_CULL_VISIBLE )
+            return;
+        if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
+            stage.pick_hit )
+            ToriRS_PickHitsAdd(
+                &renderer->pick_hits,
+                command->element_id,
+                command->pick_terrain,
+                command->pick_tile_x,
+                command->pick_tile_z,
+                command->pick_tile_level,
+                command->pick_view);
+        if( command->pick_only )
+            return;
+        if( renderer->zbuffer )
+        {
+            face_count = trspk_toridraw_face_count(command->model);
+            sorted_face_count = stage.sorted ? stage.sorted_face_count : 0;
+        }
+        else
+        {
+            /* The painter draws sorted faces and nothing else; an unsorted
+             * stage here is the producer's bug, not a case. */
+            assert(stage.sorted);
+            face_count = stage.sorted_face_count;
+            sorted_face_count = face_count;
+        }
+        face_order = stage.sorted ? stage.face_order : NULL;
+        projected_depth = stage.projected_depth;
+        projected_in_scene = false;
+    }
+    else
+    {
+        if( command->animation && command->element_id >= 0 )
+            ToriDraw_SceneElementApplyAnimation(
+                renderer->scene,
+                command->element_id,
+                command->anim_index == 0,
+                command->anim_frame);
+        projected_position = command->position;
+        if( ToriDraw_RenderModel1ProjectWithTable(
+                command->model,
+                renderer->scene,
+                &projected_position,
+                &renderer->current_3d.view_port,
+                &renderer->current_3d.camera,
+                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
+            return;
 
-    if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
-        (command->pick_aabb
-             ? ToriDraw_ProjectedModelContainsAabb(
-                   renderer->scene, renderer->pick_mouse_x, renderer->pick_mouse_y)
-             : command->pick_terrain
-                 ? ToriDraw_ProjectedTileMouseHitTest(
-                       renderer->scene,
-                       command->model,
-                       &renderer->current_3d.view_port,
-                       renderer->pick_mouse_x,
-                       renderer->pick_mouse_y)
-                 : ToriDraw_ProjectedModelMouseHitTest(
-                       renderer->scene,
-                       command->model,
-                       &renderer->current_3d.view_port,
-                       renderer->pick_mouse_x,
-                       renderer->pick_mouse_y)) )
-        ToriRS_PickHitsAdd(
-            &renderer->pick_hits,
-            command->element_id,
-            command->pick_terrain,
-            command->pick_tile_x,
-            command->pick_tile_z,
-            command->pick_tile_level,
-            command->pick_view);
-    if( command->pick_only )
-        return;
+        if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
+            (command->pick_aabb
+                 ? ToriDraw_ProjectedModelContainsAabb(
+                       renderer->scene, renderer->pick_mouse_x, renderer->pick_mouse_y)
+                 : command->pick_terrain
+                     ? ToriDraw_ProjectedTileMouseHitTest(
+                           renderer->scene,
+                           command->model,
+                           &renderer->current_3d.view_port,
+                           renderer->pick_mouse_x,
+                           renderer->pick_mouse_y)
+                     : ToriDraw_ProjectedModelMouseHitTest(
+                           renderer->scene,
+                           command->model,
+                           &renderer->current_3d.view_port,
+                           renderer->pick_mouse_x,
+                           renderer->pick_mouse_y)) )
+            ToriRS_PickHitsAdd(
+                &renderer->pick_hits,
+                command->element_id,
+                command->pick_terrain,
+                command->pick_tile_x,
+                command->pick_tile_z,
+                command->pick_tile_level,
+                command->pick_view);
+        if( command->pick_only )
+            return;
 
-    /* The depth path classifies per face during emission and needs no order
-     * up front; the painter path must sort before it can count. */
-    face_count = renderer->zbuffer
-        ? trspk_toridraw_face_count(command->model)
-        : gles2_painter_sort_faces(renderer, command, &sorted_face_count);
+        /* The depth path classifies per face during emission and needs no
+         * order up front; the painter path must sort before it can count. */
+        face_count = renderer->zbuffer
+            ? trspk_toridraw_face_count(command->model)
+            : gles2_painter_sort_faces(renderer, command, &sorted_face_count);
+        face_order = ToriDraw_FaceOrder(renderer->scene);
+        projected_depth = renderer->scene->projected_vertex.z;
+        projected_in_scene = true;
+    }
     /* The sort census is a debug readout (TORIRS_GLES2_DEBUG); it costs a
      * second trspk_toridraw_face_count per model, so it is gated where it
      * is gathered, not only where it is printed. */
@@ -2758,9 +2820,12 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
                 first,
                 command->model,
                 &command->world_position,
-                ToriDraw_FaceOrder(renderer->scene),
+                face_order,
                 sorted_face_count) )
             return;
+        placement.face_order = face_order;
+        placement.projected_in_scene = projected_in_scene;
+        placement.projected_depth = projected_depth;
         placement.binding = GLES2_FRAME_STREAM_BINDING;
         placement.page_base = 0u;
         placement.local_base = first;
@@ -2870,6 +2935,9 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     placement.anim_index = anim_index;
     placement.pose_id = pose_id;
     placement.dynamic = dynamic;
+    placement.face_order = face_order;
+    placement.projected_in_scene = projected_in_scene;
+    placement.projected_depth = projected_depth;
     if( renderer->zbuffer )
         gles2_zbuffer_emit_model(renderer, command, &placement);
     else
@@ -3839,25 +3907,49 @@ ToriRS_GLES2_DrawBootBar(
         gles2_draw_boot_caption(renderer, caption_font_id, caption);
 }
 
-void
-ToriRS_GLES2_RenderFrame(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* frame)
+bool
+gles2_render_frame_begin(struct ToriRS_GLES2* renderer)
 {
-    struct ToriRS_RenderCommand command;
     assert(renderer);
-    assert(frame);
     if( !gles2_begin_frame(renderer, false) )
-        return;
+        return false;
     renderer->has_3d = false;
     renderer->in3d = false;
     renderer->in2d = false;
     renderer->frame_clock += 1.0;
-    ToriRS_FrameBegin(frame);
+    return true;
+}
+
+void
+gles2_render_frame_commands(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* frame)
+{
+    struct ToriRS_RenderCommand command;
+    assert(renderer);
+    assert(frame);
     while( ToriRS_FrameNextCommand(frame, &command) )
     {
         gles2_prefetch_ahead(renderer, frame);
         gles2_dispatch(renderer, &command);
     }
+}
+
+void
+ToriRS_GLES2_RenderFrame(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* frame)
+{
+    assert(renderer);
+    assert(frame);
+    if( !gles2_render_frame_begin(renderer) )
+        return;
+    ToriRS_FrameBegin(frame);
+    gles2_render_frame_commands(renderer, frame);
     ToriRS_FrameEnd(frame);
+    gles2_render_frame_end(renderer);
+}
+
+void
+gles2_render_frame_end(struct ToriRS_GLES2* renderer)
+{
+    assert(renderer);
     if( renderer->in3d )
         gles2_end_3d(renderer);
     if( renderer->in2d )

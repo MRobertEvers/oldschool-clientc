@@ -1,5 +1,6 @@
 #include "uitree_host.h"
 
+#include "uitree_minimenu.h"
 #include "uitree_scroll.h"
 
 #include <assert.h>
@@ -319,6 +320,31 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     return 0;
 }
 
+/*
+ * Does the minimenu node have anything to draw: the popup, or the afterimage
+ * of the row it just dispatched? Both gates below ask this. The INPUT gate
+ * (uitree_input.c) asks the VISIBLE request alone on purpose -- a fading row
+ * must not make the node interactive, the way the cross node once was for the
+ * 400 ms of its marker.
+ */
+static bool
+uitree_host_minimenu_drawn(struct UITreeHost const* host)
+{
+    struct UIMinimenu const* menu = NULL;
+    struct UITreeHostRequest visible = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
+    struct UITreeHostRequest state = {
+        .kind = UITREE_HOST_GET_MINIMENU_STATE,
+        .u.get_minimenu_state.out = &menu,
+    };
+
+    assert(host);
+    if( UITree_Host(host, &visible) != 0 )
+        return true;
+    if( !UITree_Host(host, &state) || !menu )
+        return false;
+    return UIMinimenu_AfterimageActive(menu);
+}
+
 bool
 UITree_ComponentVisibleHost(
     struct UITreeComponent const* component,
@@ -351,8 +377,7 @@ UITree_ComponentVisibleHost(
     if( component->type == UIELEM_BUILTIN_MINIMENU )
     {
         assert(host);
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
-        return UITree_Host(host, &req) != 0;
+        return uitree_host_minimenu_drawn(host);
     }
 
     return UITree_ComponentVisibleByHoverIds(component, hover_ids);
@@ -420,10 +445,7 @@ UITree_ComponentShouldEmit(
     }
 
     if( component->type == UIELEM_BUILTIN_MINIMENU )
-    {
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
-        return UITree_Host(host, &req) != 0;
-    }
+        return uitree_host_minimenu_drawn(host);
 
     if( component->type == UIELEM_RS_LAYER )
     {

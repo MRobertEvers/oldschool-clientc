@@ -821,6 +821,189 @@ ToriDraw_SceneFree(struct ToriDraw_Scene* scene)
     td_scene_free_aligned(scene);
 }
 
+/* ---- Scratch views ----------------------------------------------------
+ *
+ * A scratch view is a second ToriDraw_Scene that SHARES everything a scene
+ * holds -- elements, models, animations, textures, the event queue -- and
+ * OWNS only the per-model scratch: the arrays the cull, the projection and
+ * the face sort write while one model is on the bench. It exists so that a
+ * second thread can project and sort models of the same scene at the same
+ * time as the first, which the scene's own scratch forbids (there is one
+ * bench, and ToriDraw_FaceOrder names it).
+ *
+ * The list below is the whole of what a view owns. It is exactly the set
+ * ToriDraw_SceneFreeBuffers frees MINUS the four things that are state and
+ * not scratch (tex_state, anim_list, zbuffer, event_queue.events): those
+ * stay shared, and a view must never free them. Anything added to the scene
+ * that a projection or sort writes per model belongs in this list, or the
+ * two threads will write it together.
+ */
+/* Defined with the kernel table below; the view sizes its scratch from it. */
+static void
+scene_caps_from_scene(
+    const struct ToriDraw_Scene* scene,
+    struct ToriDraw_SceneCaps* caps);
+
+#define TD_SCENE_SCRATCH_POINTERS(X) \
+    X(screen_vertices_x) \
+    X(screen_vertices_y) \
+    X(screen_vertices_z) \
+    X(orthographic_vertices_x) \
+    X(orthographic_vertices_y) \
+    X(orthographic_vertices_z) \
+    X(tmp_depth_face_count) \
+    X(tmp_depth_faces) \
+    X(tmp_priority_face_count) \
+    X(tmp_priority_depth_sum) \
+    X(tmp_priority_faces) \
+    X(tmp_flex_prio11_face_to_depth) \
+    X(tmp_flex_prio12_face_to_depth) \
+    X(sm_face_depth) \
+    X(sm_face_x4) \
+    X(sm_face_y4) \
+    X(sm_sort_keys) \
+    X(sm_sort_tmp) \
+    X(sm_vertex_xyz) \
+    X(sm_vertex_xyz16) \
+    X(sm_depth_offset) \
+    X(sm_depth_cursor) \
+    X(sm_faces_by_depth) \
+    X(sm_prio_offset) \
+    X(sm_prio_faces) \
+    X(sm_flex_prio11_face_to_depth) \
+    X(sm_flex_prio12_face_to_depth) \
+    X(tmp_face_order)
+
+enum
+{
+#define TD_SCENE_SCRATCH_INDEX(field) td_scene_scratch_index_##field,
+    TD_SCENE_SCRATCH_POINTERS(TD_SCENE_SCRATCH_INDEX)
+#undef TD_SCENE_SCRATCH_INDEX
+    TD_SCENE_SCRATCH_POINTER_COUNT
+};
+
+static void
+td_scene_scratch_take(const struct ToriDraw_Scene* scene, void** out)
+{
+    int i = 0;
+#define TD_SCENE_SCRATCH_TAKE(field) out[i++] = scene->field;
+    TD_SCENE_SCRATCH_POINTERS(TD_SCENE_SCRATCH_TAKE)
+#undef TD_SCENE_SCRATCH_TAKE
+}
+
+static void
+td_scene_scratch_put(struct ToriDraw_Scene* scene, void* const* in)
+{
+    int i = 0;
+#define TD_SCENE_SCRATCH_PUT(field) scene->field = in[i++];
+    TD_SCENE_SCRATCH_POINTERS(TD_SCENE_SCRATCH_PUT)
+#undef TD_SCENE_SCRATCH_PUT
+}
+
+static void
+td_scene_scratch_free_own(struct ToriDraw_Scene* scene)
+{
+#define TD_SCENE_SCRATCH_FREE(field) \
+    free(scene->field); \
+    scene->field = NULL;
+    TD_SCENE_SCRATCH_POINTERS(TD_SCENE_SCRATCH_FREE)
+#undef TD_SCENE_SCRATCH_FREE
+}
+
+/* The view allocates the same groups the source has resident, at the
+ * source's capacities, so a kernel that runs on the source runs on the view.
+ * Value-typed scratch (projected_vertex, aabb, the prepared camera block,
+ * projected_box, ...) needs no allocation: the view's copy of the struct
+ * carries its own. */
+static void
+td_scene_view_alloc_scratch(
+    struct ToriDraw_Scene* view,
+    const struct ToriDraw_Scene* source)
+{
+    struct ToriDraw_SceneCaps caps;
+    uint32_t const resident = ToriDraw_SceneScratchResident(source);
+
+    scene_caps_from_scene(source, &caps);
+    if( resident & TORIDRAW_SCENE_SCRATCH_VERTICES )
+        scene_alloc_vertices(view, &caps);
+    if( resident & TORIDRAW_SCENE_SCRATCH_FACE_ORDER )
+        scene_alloc_face_order(view, &caps);
+    if( resident & TORIDRAW_SCENE_SCRATCH_BUCKET_SORT )
+        scene_alloc_bucket_sort(view, &caps);
+    if( resident & TORIDRAW_SCENE_SCRATCH_CSR_SORT )
+        scene_alloc_csr_sort(view, &caps);
+    if( resident & TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS )
+        scene_alloc_bitonic_radix_keys(view, &caps);
+    if( resident & TORIDRAW_SCENE_SCRATCH_PRESORT_XY )
+        scene_alloc_presort_xy(view, &caps);
+    assert(ToriDraw_SceneScratchResident(view) == resident);
+}
+
+static bool
+td_scene_view_scratch_matches(
+    const struct ToriDraw_Scene* view,
+    const struct ToriDraw_Scene* source)
+{
+    return view->max_vertices == source->max_vertices && view->max_faces == source->max_faces &&
+           view->depth_levels == source->depth_levels &&
+           view->depth_stride == source->depth_stride &&
+           view->priority_stride == source->priority_stride &&
+           view->flex_prio_capacity == source->flex_prio_capacity &&
+           ToriDraw_SceneScratchResident(view) == ToriDraw_SceneScratchResident(source);
+}
+
+struct ToriDraw_Scene*
+ToriDraw_SceneScratchViewNew(const struct ToriDraw_Scene* source)
+{
+    struct ToriDraw_Scene* view;
+
+    assert(source);
+    view = td_scene_alloc_aligned();
+    *view = *source;
+    /* The source's scratch is the source's: forget the copied pointers before
+     * allocating, or the group allocators see them resident and skip. */
+#define TD_SCENE_SCRATCH_NULL(field) view->field = NULL;
+    TD_SCENE_SCRATCH_POINTERS(TD_SCENE_SCRATCH_NULL)
+#undef TD_SCENE_SCRATCH_NULL
+    td_scene_view_alloc_scratch(view, source);
+    /* A prepared camera block is keyed on the camera pointer it was built
+     * from; the copied one belongs to the source's pass. */
+    view->projection_prepared_camera_source = NULL;
+    return view;
+}
+
+void
+ToriDraw_SceneScratchViewSync(
+    struct ToriDraw_Scene* view,
+    const struct ToriDraw_Scene* source)
+{
+    void* scratch[TD_SCENE_SCRATCH_POINTER_COUNT];
+    bool regrow;
+
+    assert(view);
+    assert(source);
+    assert(view != source);
+    regrow = !td_scene_view_scratch_matches(view, source);
+    td_scene_scratch_take(view, scratch);
+    *view = *source;
+    td_scene_scratch_put(view, scratch);
+    if( regrow )
+    {
+        td_scene_scratch_free_own(view);
+        td_scene_view_alloc_scratch(view, source);
+    }
+    view->projection_prepared_camera_source = NULL;
+}
+
+void
+ToriDraw_SceneScratchViewFree(struct ToriDraw_Scene* view)
+{
+    if( !view )
+        return;
+    td_scene_scratch_free_own(view);
+    td_scene_free_aligned(view);
+}
+
 /* Raster family selector; see graphics/raster/scanline/scanline_select.h. */
 int g_toridraw_raster_scanline = 0;
 

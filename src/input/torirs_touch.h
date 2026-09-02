@@ -33,7 +33,12 @@ struct ToriRS_CmdBus;
  *   long press   held inside the slop past the hold time: a RIGHT click, which
  *                is the minimenu. It fires while the finger is still down --
  *                that is what makes it feel like a press rather than a delay --
- *                and the release that follows is swallowed.
+ *                and from then on the finger is CHOOSING: its travel is the
+ *                pointer sliding over the rows (never a drag, whatever the
+ *                distance), and the release is a LEFT click where the finger
+ *                lifted. Lift on a row and that row runs; lift where the menu
+ *                opened, which is its title bar, and nothing happens, so a
+ *                press that was only a press still costs nothing.
  *   drag         moved beyond the slop: a button-held drag from where the
  *                finger LANDED, and never a click. Which button is the policy
  *                -- middle on the 3D world (the camera), left everywhere else
@@ -102,7 +107,8 @@ struct ToriRS_TouchFinger
     uint64_t began_ms;
     /** Wandered beyond the slop, so it can never become a tap or a hold. */
     int dragging;
-    /** The long press already fired for this finger. */
+    /** The long press already fired for this finger, so it is choosing from
+     *  the menu it opened: moves are the pointer, the release is the click. */
     int held;
 };
 

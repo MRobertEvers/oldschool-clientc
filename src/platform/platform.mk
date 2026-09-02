@@ -628,7 +628,9 @@ else ifeq ($(PLATFORM),android)
                        platform/platform_renderer_gles2_core.c \
                        platform/platform_renderer_gles2_ui.c \
                        platform/platform_renderer_gles2_painter.c \
-                       platform/platform_renderer_gles2_zbuffer.c
+                       platform/platform_renderer_gles2_zbuffer.c \
+                       platform/platform_renderer_gles2_dualcore.c \
+                       platform/platform_renderer_gles2_dualcore_stage.c
   PLATFORM_WINDOW_SRC := platform/platform_android.c
   JS5_SRCS          := $(wildcard js5/*.c)
 
@@ -688,7 +690,11 @@ else ifeq ($(PLATFORM),android)
   # software rasterizer stays the default, so a device whose driver refuses the
   # context still boots.
   #
-  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -DTORIRS_HAVE_GLES2=1
+  # TORIRS_HAVE_GLES2_DUALCORE is the dual-core lane (`--gles2-dualcore`,
+  # `--gles2-dualcore-zbuffer`): the same GLES2 renderer with the world's
+  # per-model CPU stage on a second thread (platform_renderer_gles2_dualcore.c).
+  # Android only: the browser has no second thread to give it.
+  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -DTORIRS_HAVE_GLES2=1 -DTORIRS_HAVE_GLES2_DUALCORE=1
   # -llog is __android_log_print (this lane's stderr -- see platform_android.c),
   # -landroid is ANativeWindow. -shared, and -Wl,--no-undefined so a symbol this
   # library forgot to define fails at link here rather than as an

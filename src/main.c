@@ -41,6 +41,15 @@ struct ToriRS_D3D9;
  * lane (--gles2 / --gles2-zbuffer) and the browser, where the same API is
  * WebGL1 (--webgl1 / --webgl1-zbuffer). */
 #include "platform/platform_renderer_gles2.h"
+#if defined(TORIRS_HAVE_GLES2_DUALCORE)
+#include "platform/platform_renderer_gles2_dualcore.h"
+#endif
+#if defined(TORIRS_HAVE_GLES2_DUALCORE)
+/* NULL unless --gles2-dualcore was passed: the same GLES2 renderer, driven
+ * through the dual-core lane (which wraps `gles2` and does not own it).
+ * Declared with the includes, above the frame functions that read it. */
+static struct ToriRS_GLES2DualCore* gles2_dualcore_lane;
+#endif
 #else
 struct ToriRS_GLES2;
 #endif
@@ -595,7 +604,12 @@ interactive_render_present(
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
-                ToriRS_GLES2_RenderFrame(gles2, &frame);
+#if defined(TORIRS_HAVE_GLES2_DUALCORE)
+                if( gles2_dualcore_lane )
+                    ToriRS_GLES2DualCore_RenderFrame(gles2_dualcore_lane, &frame);
+                else
+#endif
+                    ToriRS_GLES2_RenderFrame(gles2, &frame);
             }
             if( getenv("TORIRS_FRAME_DEBUG") )
                 TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
@@ -2517,7 +2531,12 @@ frame_loop_step(void)
          */
 #if defined(TORIRS_PLATFORM_ANDROID)
         app.touch_camera = 1;
+        app.touch_ui = 1;
 #endif
+        /* The touch-sized interface on a desktop, to look at it. @see
+         * App.touch_ui. */
+        if( getenv("TORIRS_TOUCH_UI") )
+            app.touch_ui = 1;
 
         /* Cheap and unconditional: a window dragged from a Retina display to
          * an ordinary one changes density with no event that says so, and
@@ -3122,6 +3141,11 @@ frame_loop_teardown(void)
 #if defined(TORIRS_HAVE_GL3)
     ToriRS_GL3_Free(gl3);
 #endif
+#if defined(TORIRS_HAVE_GLES2_DUALCORE)
+    /* Before the renderer it wraps: the join must come first. */
+    ToriRS_GLES2DualCore_Free(gles2_dualcore_lane);
+    gles2_dualcore_lane = NULL;
+#endif
 #if defined(TORIRS_HAVE_GLES2)
     ToriRS_GLES2_Free(gles2);
 #endif
@@ -3333,6 +3357,9 @@ struct MainArgState
     /* The Android lane's own GLES2 renderer, and its depth-buffered pass. */
     int use_gles2;
     int gles2_zbuffer;
+    /* The GLES2 renderer driven through the dual-core lane
+     * (--gles2-dualcore / --gles2-dualcore-zbuffer). */
+    int gles2_dualcore;
 };
 
 static void
@@ -3347,7 +3374,8 @@ main_print_usage(char const* program)
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|--gles2|"
-        "--gles2-zbuffer|--d3d9|--d3d9-zbuffer|--soft3d]\n",
+        "--gles2-zbuffer|--gles2-dualcore|--gles2-dualcore-zbuffer|"
+        "--d3d9|--d3d9-zbuffer|--soft3d]\n",
         program);
 }
 
@@ -3611,6 +3639,26 @@ main_parse_argument_layer(
             return 0;
 #endif
         }
+        if( strcmp(argv[argi], "--gles2-dualcore") == 0 ||
+            strcmp(argv[argi], "--gles2-dualcore-zbuffer") == 0 )
+        {
+            int const zbuffer = strcmp(argv[argi], "--gles2-dualcore-zbuffer") == 0;
+            (void)zbuffer;
+#if defined(TORIRS_HAVE_GLES2_DUALCORE)
+            state->use_gles2 = 1;
+            state->gles2_zbuffer = zbuffer;
+            state->gles2_dualcore = 1;
+            state->use_opengl3 = 0;
+            state->gl3_zbuffer = 0;
+            state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
+            continue;
+#else
+            TORIRS_ERR("torirs: %s is the Android build's flag and is not available here\n",
+                argv[argi]);
+            return 0;
+#endif
+        }
         if( strcmp(argv[argi], "--gles2") == 0 || strcmp(argv[argi], "--gles2-zbuffer") == 0 )
         {
             int const zbuffer = strcmp(argv[argi], "--gles2-zbuffer") == 0;
@@ -3753,6 +3801,7 @@ main(
         .gl3_zbuffer = 0,
         .use_gles2 = 0,
         .gles2_zbuffer = 0,
+        .gles2_dualcore = 0,
     };
     int argi;
     int i;
@@ -3833,9 +3882,11 @@ main(
     int const gl3_zbuffer = arg_state.gl3_zbuffer;
     int const use_gles2 = arg_state.use_gles2;
     int const gles2_zbuffer = arg_state.gles2_zbuffer;
-    /* Only the TORIRS_HAVE_GLES2 arm reads these two. */
+    int const gles2_dualcore = arg_state.gles2_dualcore;
+    /* Only the TORIRS_HAVE_GLES2 arm reads these three. */
     (void)use_gles2;
     (void)gles2_zbuffer;
+    (void)gles2_dualcore;
     /* Only the TORIRS_HAVE_GL3 arm reads this one, and the win64/d3d9 lane is
      * built without it. Kept out here with its siblings rather than moved under
      * the #if, so the flag is parsed and rejected identically in every lane. */
@@ -5054,6 +5105,12 @@ main(
             App_SetWorldRenderMode(
                 &app, gles2_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
             App_SetRendererAnimatesTextures(&app, true);
+#if defined(TORIRS_HAVE_GLES2_DUALCORE)
+            /* The lane wraps the renderer main.c just made and keeps driving
+             * through `gles2` for everything but the frame itself. */
+            if( gles2_dualcore )
+                gles2_dualcore_lane = ToriRS_GLES2DualCore_New(gles2);
+#endif
         }
         else
 #endif

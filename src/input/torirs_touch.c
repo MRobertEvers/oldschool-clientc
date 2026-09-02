@@ -321,6 +321,19 @@ ToriRS_TouchEvent(
             touch_two_finger(touch, bus);
             return;
         }
+        /*
+         * The long press already fired, so this finger is choosing from the
+         * minimenu it opened. Its travel is the pointer sliding down the rows
+         * -- the hover highlight follows it -- and never a drag: a button
+         * going down here would land on the popup as a press, and a press is
+         * how the popup selects. The release, below, is the click.
+         */
+        if( finger->held )
+        {
+            CmdBus_PushMouseMove(bus, (int16_t)canvas_x, (int16_t)canvas_y);
+            return;
+        }
+
         if( !finger->dragging && touch_far(finger) )
             finger->dragging = 1;
 
@@ -380,7 +393,16 @@ ToriRS_TouchEvent(
 
     /* ENDED */
     touch_release_drag(touch, bus, canvas_x, canvas_y);
-    if( !touch->multi && !finger->dragging && !finger->held )
+    /*
+     * A tap is a click, and so is the lift after a long press: the press
+     * opened the minimenu under the finger, the finger slid to a row, and
+     * lifting there is how the row is chosen -- one gesture, not a hold and
+     * then a second tap. The popup selects on the press edge, so the click
+     * goes where the finger LIFTED. A lift without any travel lands on the
+     * popup's own title bar, which the popup swallows, so a long press that
+     * was only a long press still runs nothing.
+     */
+    if( !touch->multi && !finger->dragging )
         touch_click(bus, TORIRSM_LEFT, canvas_x, canvas_y);
 
     finger->id = -1;
@@ -440,8 +462,9 @@ ToriRS_TouchTick(
         if( now_ms - finger->began_ms < TORIRS_TOUCH_HOLD_MS )
             continue;
         /* Fired while the finger is still down -- that is what makes a long
-         * press feel like a press and not a slow tap. The release that follows
-         * is swallowed by the `held` flag. */
+         * press feel like a press and not a slow tap. From here the finger is
+         * choosing from the menu this opened; `held` is what turns its moves
+         * into the pointer and its release into the click that picks a row. */
         finger->held = 1;
         touch_click(bus, TORIRSM_RIGHT, finger->x, finger->y);
     }

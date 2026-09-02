@@ -940,6 +940,16 @@ struct App
      * pointer, the finger may turn the camera on every revision.
      */
     int touch_camera;
+    /*
+     * The pointer on this platform is a FINGER, so the interface is sized for
+     * one: the minimenu opens in its touch style (UI_MINIMENU_STYLE_TOUCH), and
+     * the row a tap chooses lingers on screen after the popup has gone.
+     *
+     * Stated by the platform at boot, like touch_camera, and for the same
+     * reason: a desktop run can turn it on (TORIRS_TOUCH_UI=1) to look at the
+     * touch popup without a phone attached.
+     */
+    int touch_ui;
     /* Keys a revconfig hotkey binding acted on this frame, indexed by OSRS key
      * code. Debug world hotkeys share the digit row with the rev-254 tab
      * bindings, so they check this and stand down rather than firing both. */

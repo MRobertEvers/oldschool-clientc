@@ -67,6 +67,37 @@ ToriDraw_ScenePrepareProjectionCamera(
 void
 ToriDraw_SceneClearProjectionCamera(struct ToriDraw_Scene* scene);
 
+/*
+ * A scratch VIEW of a scene: a second ToriDraw_Scene that shares the scene's
+ * elements, models, animations, textures and events, and owns only the
+ * per-model scratch (the projected vertex arrays, the sort tables, the face
+ * order). A second thread projects and sorts on the view while the first
+ * uses the scene itself; each has its own bench, and neither writes the
+ * other's.
+ *
+ * The view is a SNAPSHOT of the scene's non-scratch fields, taken by New and
+ * again by every Sync. Sync it once per frame, after the last mutation of
+ * the scene and before the view is used, and use it only while the scene is
+ * not being mutated -- a view that outlives a scene rebuild points at freed
+ * storage. Sync re-sizes the view's scratch when the scene's capacities or
+ * resident scratch groups changed.
+ *
+ * ToriDraw_SceneFrameEnd, ToriDraw_SceneFree and every scene mutator are for
+ * the scene, never the view: the view's only destructor is
+ * ToriDraw_SceneScratchViewFree, which frees the scratch it owns and nothing
+ * it shares.
+ */
+struct ToriDraw_Scene*
+ToriDraw_SceneScratchViewNew(const struct ToriDraw_Scene* source);
+
+void
+ToriDraw_SceneScratchViewSync(
+    struct ToriDraw_Scene* view,
+    const struct ToriDraw_Scene* source);
+
+void
+ToriDraw_SceneScratchViewFree(struct ToriDraw_Scene* view);
+
 void
 ToriDraw_RenderModel(
     struct ToriDraw_ModelHandle hnd,

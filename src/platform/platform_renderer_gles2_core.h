@@ -498,11 +498,72 @@ struct GLES2ModelGroup
 
 struct GLES2ZBufferWorld;
 
+/*
+ * One model's CPU stage -- what gles2_draw_model computes between receiving
+ * a DRAW_MODEL command and emitting its faces: the animation pose, the cull
+ * verdict, the projection, the pick test against the armed mouse point, and
+ * the face sort. Everything in it is a pure function of the command, the
+ * scene and the pass camera, and none of it touches GL, which is why it can
+ * be computed somewhere other than the draw -- on the second core, one
+ * command ahead (platform_renderer_gles2_dualcore.c).
+ */
+struct GLES2ModelStage
+{
+    /** TORIDRAW_CULL_VISIBLE, or the reason the model was rejected. */
+    int cull;
+    /** The pick test's answer, for the mouse point armed by ToriRS_GLES2_SetPick.
+     *  Meaningful only when the pick was enabled and the command pickable. */
+    bool pick_hit;
+    /** Whether face_order / sorted_face_count hold a sort. The painter path
+     *  requires one for every visible model; the depth path sorts only a
+     *  model with blended faces. */
+    bool sorted;
+    int sorted_face_count;
+    /** The sorted faces, valid until the source is asked again. */
+    const int* face_order;
+    /** scene->projected_vertex.z after the projection. */
+    int projected_depth;
+};
+
+/**
+ * Where gles2_draw_model gets a model's stage from when it does not compute
+ * it itself. NULL on the renderer means "compute it here", which is the
+ * ordinary --gles2 lane; the dual-core lane installs one for the duration
+ * of its frame.
+ *
+ * `take` is called for EVERY DRAW_MODEL command the renderer dispatches, in
+ * dispatch order, before the draw does anything else with the command -- so
+ * a source that computes ahead can pair its results with the asks by count
+ * alone. It returns false when it has nothing for this command, and the draw
+ * computes the stage itself; a source may do that for the tail of a frame
+ * (its storage ran out) and the draw must be indifferent.
+ *
+ * `begin_3d` is called from gles2_begin_3d once the pass camera is set,
+ * after every scene event of the frame has been dispatched: the first point
+ * at which a producer may safely start reading models for this frame.
+ */
+struct GLES2ModelStageSource
+{
+    void* user;
+    bool (*take)(
+        void* user,
+        const struct ToriRS_RenderCommand_Model* command,
+        struct GLES2ModelStage* out);
+    void (*begin_3d)(void* user, const struct ToriRS_RenderCommand_Begin3D* command);
+};
+
 struct ToriRS_GLES2
 {
     struct ToriDraw_Scene* scene;
     /* Projection + face sort; the GPU table has no software raster stage. */
     const struct ToriDraw_Kernel* kernel;
+    /** Supplies each model's stage instead of gles2_draw_model computing it;
+     *  NULL (the default) computes here. See GLES2ModelStageSource. */
+    const struct GLES2ModelStageSource* model_stage_source;
+    /** Depth-path models a stage source left unsorted that the material
+     *  table then said were blended: projected again on this thread and
+     *  sorted. A count for the dual-core lane's debug line; should stay ~0. */
+    uint32_t stage_reprojected_models;
     ToriRS_GLWindow* window;
     ToriRS_GLContext gl_context;
 
@@ -789,6 +850,21 @@ struct GLES2ModelPlacement
     int anim_index;
     int pose_id;
     bool dynamic;
+    /**
+     * The faces to draw, back to front, `sorted_face_count` of them. Where
+     * the stage ran on this thread it is ToriDraw_FaceOrder of the scene;
+     * where a stage source supplied it (the dual-core lane) it points into
+     * that source's own storage. NULL on the depth path when the model was
+     * not sorted -- the emit sorts it there if the material says it must.
+     */
+    const int* face_order;
+    /** Whether the scene's own bench holds THIS model's projection right now.
+     *  False when a stage source projected it elsewhere: a depth-path emit
+     *  that needs to sort must project again first. */
+    bool projected_in_scene;
+    /** The model's projected depth (scene->projected_vertex.z after its
+     *  projection), the blended-submission sort key. */
+    int projected_depth;
 };
 
 /* The staging buffer for new residents starts here and doubles. */
@@ -840,6 +916,28 @@ gles2_zbuffer_emit_model(
     struct ToriRS_GLES2* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     const struct GLES2ModelPlacement* placement);
+
+/*
+ * ToriRS_GLES2_RenderFrame in three steps, for a lane that needs to do
+ * something between them (the dual-core lane arms its worker after the
+ * frame is begun and joins it before the frame is ended):
+ *
+ *   if( gles2_render_frame_begin(renderer) )
+ *   {
+ *       ToriRS_FrameBegin(frame);
+ *       gles2_render_frame_commands(renderer, frame);
+ *       ToriRS_FrameEnd(frame);
+ *       gles2_render_frame_end(renderer);
+ *   }
+ *
+ * is exactly ToriRS_GLES2_RenderFrame.
+ */
+bool
+gles2_render_frame_begin(struct ToriRS_GLES2* renderer);
+void
+gles2_render_frame_commands(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* frame);
+void
+gles2_render_frame_end(struct ToriRS_GLES2* renderer);
 
 /* Depth-only entry points; the core calls them under a ::zbuffer test. */
 bool

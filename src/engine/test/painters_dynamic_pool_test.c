@@ -93,6 +93,97 @@ buffers_equal(
                (size_t)a->command_count * sizeof(struct PaintersElementCommand)) == 0;
 }
 
+/*
+ * 3. A permuted chain survives the reset. The paint's scenery_chain_sort_once
+ *    swaps (element, span) PAYLOADS between a tile's nodes and leaves the links
+ *    alone, so after a sort a dynamic element's payload can sit in a static
+ *    node and a static payload in the node the dynamic add appended above the
+ *    high-water. The reset must still retire an above-high-water node -- or
+ *    the truncation hands that node's index out again and the next append
+ *    turns the chain into a cycle the paint walks forever. This is the
+ *    2026-09-01 freeze, reduced to one tile: it hung the phone in
+ *    bucket_paint_world while walking, and it fails here without the fix.
+ */
+static int
+chain_length_bounded(
+    struct Painter* p,
+    struct PaintersTile* tile,
+    int limit)
+{
+    int n = 0;
+    for( int32_t sn = tile->scenery_head; sn != -1; sn = p->scenery_pool[sn].next )
+        if( ++n > limit )
+            return -1; /* a cycle */
+    return n;
+}
+
+static void
+test_permuted_chain_survives_reset(void)
+{
+    struct Painter* p = painter_new(SCENE, SCENE, LEVELS, PAINTER_NEW_CTX_BUCKET);
+    struct PaintersTile* tile;
+    int high_water;
+    int static_element;
+    int32_t static_node;
+    int32_t dynamic_node;
+    int length;
+
+    assert(p);
+    painter_set_draw_distance(p, 25);
+    printf("a payload-permuted chain survives reset_to_static without cycling\n");
+
+    static_element = painter_add_normal_scenery(p, 5, 5, 0, 100, 1, 1, 100);
+    painter_mark_static_count(p);
+    high_water = p->static_scenery_pool_count;
+    tile = painter_tile_at(p, 5, 5, 0);
+    static_node = tile->scenery_head;
+    expect(static_node != -1 && static_node < high_water, "the static loc sits in a static node");
+
+    /* A dynamic on the same tile appends a node above the high-water... */
+    painter_add_normal_scenery(p, 5, 5, 0, 1000, 1, 1, 200);
+    dynamic_node = p->scenery_pool[static_node].next;
+    expect(dynamic_node >= high_water, "the dynamic's node is above the high-water");
+
+    /* ...and the paint's sort moves the payloads across: the dynamic's
+     * element now sits in the static node and the static loc's in the
+     * dynamic node, exactly what scenery_chain_sort_once does when the
+     * dynamic sorts first. */
+    {
+        struct SceneryNode tmp = p->scenery_pool[static_node];
+        p->scenery_pool[static_node].element_idx = p->scenery_pool[dynamic_node].element_idx;
+        p->scenery_pool[static_node].span = p->scenery_pool[dynamic_node].span;
+        p->scenery_pool[dynamic_node].element_idx = tmp.element_idx;
+        p->scenery_pool[dynamic_node].span = tmp.span;
+    }
+
+    painter_reset_to_static(p);
+    expect(p->scenery_pool_count == high_water, "the reset truncated the pool to the high-water");
+    length = chain_length_bounded(p, tile, 8);
+    expect(length == 1, "the tile keeps exactly one node");
+    expect(tile->scenery_head == static_node, "and it is the static node");
+    expect(
+        tile->scenery_head != -1 &&
+            p->scenery_pool[tile->scenery_head].element_idx == static_element,
+        "holding the static loc's payload");
+
+    /* The next cycle's dynamic reuses the truncated index: without the fix
+     * the stale link makes the chain a cycle right here. */
+    painter_add_normal_scenery(p, 5, 5, 0, 1000, 1, 1, 200);
+    length = chain_length_bounded(p, tile, 8);
+    expect(length == 2, "re-adding the dynamic gives a two-node chain, not a cycle");
+    /* A cyclic chain would hang the reset itself (tile_recalculate_spans
+     * walks it), so the second reset runs only on a chain that terminates:
+     * the failure above is the verdict, not a hung test binary. */
+    if( length == 2 )
+    {
+        painter_reset_to_static(p);
+        length = chain_length_bounded(p, tile, 8);
+        expect(length == 1, "and the second reset is clean too");
+    }
+
+    painter_free(p);
+}
+
 static void
 test_pool_does_not_grow(void)
 {
@@ -238,6 +329,7 @@ test_journal_is_invisible_to_the_paint(void)
 int
 main(void)
 {
+    test_permuted_chain_survives_reset();
     test_pool_does_not_grow();
     test_journal_is_invisible_to_the_paint();
     if( g_failures )

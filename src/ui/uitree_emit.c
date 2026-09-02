@@ -1286,12 +1286,29 @@ emit_minimenu_text(
     emit_buffer_append(out, &desc);
 }
 
+static void
+emit_minimenu_popup(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    struct UIMinimenu const* menu);
+
+static void
+emit_minimenu_afterimage(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    struct UIMinimenu const* menu);
+
 /*
  * Expand the minimenu node into the reference "Choose Option" popup: body
  * fill, black title bar + border strips, title, then one row per option
  * (hover yellow / white, shadowed) drawn bottom-to-top. Model comes from the
  * host so the ui layer stays leaf (reference Client.drawMinimenu; geometry
- * mirrors v1 runescape.c minimenu steps).
+ * mirrors v1 runescape.c minimenu steps). After a row is chosen its
+ * afterimage draws from the same node, popup or no popup.
  */
 static void
 emit_minimenu(
@@ -1319,9 +1336,20 @@ emit_minimenu(
         if( !UITree_Host(host, &req) || !menu )
             return;
     }
-    if( !menu->visible || menu->option_count <= 0 )
-        return;
+    if( menu->visible && menu->option_count > 0 )
+        emit_minimenu_popup(out, c, idx, parent_clip, menu);
+    if( UIMinimenu_AfterimageActive(menu) )
+        emit_minimenu_afterimage(out, c, idx, parent_clip, menu);
+}
 
+static void
+emit_minimenu_popup(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    struct UIMinimenu const* menu)
+{
     int const mx = menu->x;
     int const my = menu->y;
     int const mw = menu->width;
@@ -1359,15 +1387,15 @@ emit_minimenu(
 
     /* Title baseline sits at y+14 in the reference (drawString x+3,y+14);
      * DrawStringBox places the baseline at box_y + ascent, so the box starts
-     * just under the border. */
+     * just under the border (header_text_top = 2 on the desktop layout). */
     emit_minimenu_text(
         out,
         c,
         idx,
         parent_clip,
-        mx + 3,
-        my + 2,
-        mw - 6,
+        mx + layout->text_inset_x,
+        my + layout->header_text_top,
+        mw - 2 * layout->text_inset_x,
         layout->header_bar_h,
         font_id,
         UITREE_MINIMENU_COLOR_BODY,
@@ -1376,22 +1404,107 @@ emit_minimenu(
 
     for( int i = 0; i < menu->option_count; i++ )
     {
-        int const row_baseline = UIMinimenu_OptionY(menu, i);
         int const hovered = menu->hovered_option == i;
+        int text_x;
+        int text_y;
+        int text_w;
+        int text_h;
+        UIMinimenu_RowTextBox(menu, i, &text_x, &text_y, &text_w, &text_h);
         emit_minimenu_text(
             out,
             c,
             idx,
             parent_clip,
-            mx + 3,
-            row_baseline - layout->line_height + 2,
-            mw - 6,
-            layout->row_stride + 2,
+            text_x,
+            text_y,
+            text_w,
+            text_h,
             font_id,
             hovered ? 0xFFFF00 : 0xFFFFFF,
             1,
             menu->options[i].text);
     }
+}
+
+/** `from` moved toward `to` by t/255, per channel. */
+static int
+emit_lerp_rgb(int from, int to, int t)
+{
+    int out = 0;
+    for( int shift = 0; shift <= 16; shift += 8 )
+    {
+        int const a = (from >> shift) & 0xFF;
+        int const b = (to >> shift) & 0xFF;
+        out |= (a + ((b - a) * t) / 255) << shift;
+    }
+    return out;
+}
+
+/*
+ * The row a tap chose, after the popup has gone: the popup's body colour
+ * under the row's band, the popup's one-pixel black border around it, and the
+ * row's text exactly where the popup drew it. The box fades through the rect
+ * transparency; text has no transparency of its own on this pipeline, so its
+ * colour walks to the body colour underneath it at the same rate and its
+ * shadow is dropped once the box is more gone than there.
+ */
+static void
+emit_minimenu_afterimage(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    struct UIMinimenu const* menu)
+{
+    struct UIMinimenuAfterimage const* image = &menu->afterimage;
+    int const trans = UIMinimenu_AfterimageTrans(menu);
+    int const font_id = c->u.minimenu.font_id > 0 ? c->u.minimenu.font_id : image->font_id;
+    struct UITreeEmitDesc desc;
+    struct
+    {
+        int x;
+        int y;
+        int w;
+        int h;
+        int color;
+    } const rects[] = {
+        { image->x, image->y, image->w, image->h, UITREE_MINIMENU_COLOR_BODY },
+        { image->x, image->y, image->w, 1, 0x000000 },
+        { image->x, image->y + image->h - 1, image->w, 1, 0x000000 },
+        { image->x, image->y, 1, image->h, 0x000000 },
+        { image->x + image->w - 1, image->y, 1, image->h, 0x000000 },
+    };
+
+    for( size_t i = 0; i < sizeof(rects) / sizeof(rects[0]); i++ )
+    {
+        memset(&desc, 0, sizeof(desc));
+        desc.kind = UITREE_EMIT_RECT;
+        desc.node_index = idx;
+        desc.component_id = c->component_id;
+        desc.x = rects[i].x;
+        desc.y = rects[i].y;
+        desc.w = rects[i].w;
+        desc.h = rects[i].h;
+        desc.color = rects[i].color;
+        desc.filled = 1;
+        desc.trans = trans;
+        desc.clip = *parent_clip;
+        emit_buffer_append(out, &desc);
+    }
+
+    emit_minimenu_text(
+        out,
+        c,
+        idx,
+        parent_clip,
+        image->text_x,
+        image->text_y,
+        image->text_w,
+        image->text_h,
+        font_id,
+        emit_lerp_rgb(image->color, UITREE_MINIMENU_COLOR_BODY, trans),
+        trans < 128,
+        image->text);
 }
 
 /*
