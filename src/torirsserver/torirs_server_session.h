@@ -125,6 +125,14 @@ struct ToriRSServerSession
      */
     int reconnect;
 
+    /** The login header's clientType / platformType (rsprot LoginClientType /
+     *  LoginPlatformType), kept for the player the session becomes: a mobile
+     *  client (enhanced android 7 / ios 8, or platform android 2 / apple 3)
+     *  gets the mobile gameframe (`toplevel_osm`) instead of the desktop
+     *  layout modes. Zero for the classic wires that carry neither. */
+    int client_type;
+    int platform_type;
+
     /** Advances for every successfully queued server->client frame. The
      * online decoder uses it to put an explicit SERVER_TICK_END after an
      * immediate input-response burst, rather than leaving the client waiting

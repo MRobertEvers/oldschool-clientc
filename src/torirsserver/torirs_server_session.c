@@ -544,9 +544,9 @@ step_login(
     (void)rsab_g4(&in); /* subVersion */
     if( login_is_239(srv) )
         (void)rsab_g4(&in); /* serverVersion, new at revision 237 */
-    (void)rsab_g1(&in); /* clientType */
-    (void)rsab_g1(&in); /* platformType */
-    (void)rsab_g1(&in); /* externalAuth */
+    session->client_type = rsab_g1(&in);   /* clientType (LoginClientType) */
+    session->platform_type = rsab_g1(&in); /* platformType (LoginPlatformType) */
+    (void)rsab_g1(&in);                    /* externalAuth */
     rsa_size = rsab_g2(&in);
     /*
      * Where the XTEA body starts, captured now because `in` is about to be

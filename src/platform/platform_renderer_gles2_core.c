@@ -2247,15 +2247,18 @@ gles2_bind_rotmask_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset)
     glVertexAttribPointer(
         GLES2_ATTRIB_MASK_TEXCOORD, 2, GL_FLOAT, GL_FALSE, stride,
         (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexRotmask, mask_u)));
-    /* This program has no texinfo attribute: the array is switched off for
-     * the draw rather than pointed somewhere valid -- the driver was seen
-     * to drop the draw with it enabled. The UI and world streams switch it
-     * back on. */
-    if( renderer->stream_layout != GLES2_STREAM_ROTMASK )
-        glDisableVertexAttribArray(GLES2_ATTRIB_TEXINFO);
-    if( renderer->stream_layout != GLES2_STREAM_WORLD &&
-        renderer->stream_layout != GLES2_STREAM_ROTMASK )
-        glEnableVertexAttribArray(GLES2_ATTRIB_MASK_TEXCOORD);
+    /* The fourth slot is shared (the static assert at the top of this
+     * file): the world's texinfo, the UI's sampler select and this
+     * program's a_mask_texcoord are one attribute index, enabled at init
+     * and by every layout, so it stays enabled here. An earlier layout gave
+     * the mask uv its own index and switched the then-unused texinfo array
+     * off for this draw (the Adreno 320 drops a draw with a stray array
+     * enabled); once the slot was shared, that same switch-off disabled the
+     * mask uv itself whenever the previous layout was the world's, the
+     * shader read the constant (0,0) -- an opaque mask corner -- and
+     * discarded every fragment: the minimap and the compass drew nothing,
+     * with no GL error, on the phone. */
+    glEnableVertexAttribArray(GLES2_ATTRIB_MASK_TEXCOORD);
     renderer->stream_buffer = renderer->ui_vbo;
     renderer->stream_byte_offset = byte_offset;
     renderer->stream_layout = GLES2_STREAM_ROTMASK;

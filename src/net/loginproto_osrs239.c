@@ -258,8 +258,8 @@ build_login_block(struct Osrs239Login* h)
     p4(&obuf, h->net->rev->client_version);
     p4(&obuf, 0); /* subVersion */
     p4(&obuf, 0); /* serverVersion */
-    p1(&obuf, 0); /* clientType: desktop java */
-    p1(&obuf, 0); /* platformType */
+    p1(&obuf, h->net->client_type);   /* clientType (LoginClientType) */
+    p1(&obuf, h->net->platform_type); /* platformType (LoginPlatformType) */
     p1(&obuf, 0); /* externalAuthType */
     p2(&obuf, enclen);
     pbuf(&obuf, enc, enclen);

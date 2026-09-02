@@ -349,3 +349,61 @@ test_key_dispatch(void)
 
     UITree_Free(tree);
 }
+
+/*
+ * A press and its release in ONE frame still click.
+ *
+ * The touch layer pushes move, down and up together (a finger has no hover to
+ * watch), and a mouse clicked faster than a frame does the same. A component
+ * with on_op fires on the press edge and tells the release to stay quiet, so
+ * the bridge, returning only the release's result, said "clicked nothing" --
+ * and the mobile chrome's every tab and orb was dead to a tap while a long
+ * press (a right click) still worked. The second tap guards the latch that
+ * swallows a press-edge click's release: armed for a release still to come,
+ * it swallowed the NEXT tap instead.
+ */
+void
+test_same_frame_press_release_clicks(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hstate;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int tap;
+
+    printf("TEST: a press and its release in one frame click (a finger's tap)\n");
+
+    UITree_TestHostInit(&host, &hstate);
+    UIInteraction_Init(&interact);
+    {
+        int32_t layer = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 10, 0, 0, 400, 300);
+        int32_t button = UITree_TestPushXy(tree, layer, UIELEM_RS_RECT, 11, 100, 100, 40, 40);
+        set_on_op(tree, button, 200);
+        tree->components[button].behavior.click_mask = 1u; /* op1 */
+    }
+    UITree_TestResolve(tree);
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    for( tap = 0; tap < 3; tap++ )
+    {
+        LibToriRS_Input_Begin(input, (uint64_t)(1000 + tap * 700));
+        LibToriRS_Input_PushMouseMove(input, 120, 120);
+        LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 120);
+        LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 120);
+        run_frame(&interact, tree, &host, input, &out);
+        TEST_ASSERT(out.clicked_com_id == 11, "tap %d: the button under the finger is clicked", tap);
+        TEST_ASSERT(!interact.swallow_left_click,
+            "tap %d: no release is owed, so nothing is latched to swallow the next tap", tap);
+        /* The finger lifted: the frame after a tap has no pointer and no
+         * buttons, like the touch layer's mouse-leave. */
+        LibToriRS_Input_Begin(input, (uint64_t)(1000 + tap * 700 + 100));
+        LibToriRS_Input_PushMouseLeave(input);
+        run_frame(&interact, tree, &host, input, &out);
+        TEST_ASSERT(out.clicked_com_id < 0, "tap %d: the idle frame clicks nothing", tap);
+    }
+
+    UITree_Free(tree);
+}

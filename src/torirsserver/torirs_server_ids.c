@@ -33,6 +33,7 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_INTERFACE, "toplevel_osrs_stretch", &g_ids.iface_gameframe },
         { TORIRSSERVER_PACK_INTERFACE, "toplevel", &g_ids.iface_toplevel },
         { TORIRSSERVER_PACK_INTERFACE, "toplevel_pre_eoc", &g_ids.iface_toplevel_pre_eoc },
+        { TORIRSSERVER_PACK_INTERFACE, "toplevel_osm", &g_ids.iface_toplevel_osm },
         { TORIRSSERVER_PACK_INTERFACE, "inventory", &g_ids.iface_inventory },
         { TORIRSSERVER_PACK_INTERFACE, "wornitems", &g_ids.iface_wornitems },
         { TORIRSSERVER_PACK_INTERFACE, "bankmain", &g_ids.iface_bankmain },

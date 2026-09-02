@@ -84,8 +84,8 @@ build_login_block(struct Osrs230Login* h)
     /* header */
     p4(&obuf, h->net->rev->client_version); /* 230 */
     p4(&obuf, 0);                           /* subVersion */
-    p1(&obuf, 0);                           /* clientType */
-    p1(&obuf, 0);                           /* platformType */
+    p1(&obuf, h->net->client_type);         /* clientType */
+    p1(&obuf, h->net->platform_type);       /* platformType */
     p1(&obuf, 0);                           /* externalAuth */
     /* rsa block */
     p2(&obuf, enclen);

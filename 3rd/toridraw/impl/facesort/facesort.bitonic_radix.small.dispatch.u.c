@@ -720,8 +720,14 @@ toridraw_radix_sort_depth(
     int depth_lo,
     int depth_hi)
 {
-    static int count0[256];
-    static int count1[256];
+    /* On the stack, not static: a scene is sorted by whichever thread owns
+     * it, and two scenes sort at once on the dual-core lane (the frame
+     * thread on the scene, the stage worker on its scratch view). A shared
+     * table there let each thread's counts corrupt the other's scatter --
+     * slots collided, the rest of `tmp` kept a previous model's keys, and
+     * the priority partition read a face the model does not have. */
+    int count0[256];
+    int count1[256];
     int i;
 
     assert(keys);

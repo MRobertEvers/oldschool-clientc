@@ -38,6 +38,7 @@
 #include "toridraw_scene.h"
 
 #include <assert.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -658,6 +659,112 @@ case_sync(struct Fixture* f)
     ToriDraw_SceneScratchViewFree(view);
 }
 
+/* --- two benches sorting at once ------------------------------------------------ */
+
+/*
+ * The frame thread on the scene and the stage worker on its view sort at the
+ * same time, so nothing the sort reaches may be shared between benches. The
+ * radix sort's count tables were file statics until 2026-09-02: two threads
+ * scattering through one table corrupted each other's runs, and on the phone
+ * that surfaced as a foreign face index in the priority partition and a
+ * SIGSEGV on the worker. Each thread here projects and sorts every model
+ * many times over on its own bench and holds the order to the serial
+ * reference. The radix path needs more accepted keys than the bitonic
+ * limit, so the makefile runs this suite a second time with
+ * TORIDRAW_SORT_BITONIC_MAX low enough that every model takes it.
+ */
+#define CONCURRENT_SORT_ROUNDS 1500
+
+struct SortWorker
+{
+    struct Fixture* f;
+    struct ToriDraw_Scene* bench;
+    const struct Reference* refs;
+    int cull_mismatches;
+    int count_mismatches;
+    int order_mismatches;
+};
+
+static void*
+sort_worker_main(void* arg)
+{
+    struct SortWorker* worker = (struct SortWorker*)arg;
+    struct Fixture* f = worker->f;
+    int round;
+    int i;
+
+    ToriDraw_ScenePrepareProjectionCamera(worker->bench, &f->camera);
+    for( round = 0; round < CONCURRENT_SORT_ROUNDS; round++ )
+    {
+        for( i = 0; i < MODEL_COUNT; i++ )
+        {
+            const struct ToriRS_RenderCommand_Model* command = &f->commands[i];
+            const struct Reference* ref = &worker->refs[i];
+            struct ToriDraw_Position position = command->position;
+            int count;
+            int const cull = ToriDraw_RenderModel1ProjectWithTable(
+                command->model, worker->bench, &position, &f->view_port, &f->camera, f->kernel);
+            if( cull != ref->cull )
+            {
+                worker->cull_mismatches++;
+                continue;
+            }
+            if( cull != TORIDRAW_CULL_VISIBLE || command->pick_only )
+                continue;
+            count = ToriDraw_RenderModel2SortFacesWithTable(command->model, worker->bench, f->kernel);
+            if( count != ref->sorted_face_count )
+            {
+                worker->count_mismatches++;
+                continue;
+            }
+            if( count > 0 &&
+                memcmp(ToriDraw_FaceOrder(worker->bench), ref->order, (size_t)count * sizeof(int)) != 0 )
+                worker->order_mismatches++;
+        }
+    }
+    ToriDraw_SceneClearProjectionCamera(worker->bench);
+    return NULL;
+}
+
+static void
+case_concurrent_sort(struct Fixture* f)
+{
+    struct ToriDraw_Scene* view = ToriDraw_SceneScratchViewNew(f->scene);
+    struct Reference refs[MODEL_COUNT];
+    struct SortWorker workers[2];
+    pthread_t threads[2];
+    int i;
+
+    ToriDraw_ScenePrepareProjectionCamera(f->scene, &f->camera);
+    for( i = 0; i < MODEL_COUNT; i++ )
+        reference_stage(f, &f->commands[i], false, &refs[i]);
+    ToriDraw_SceneClearProjectionCamera(f->scene);
+
+    memset(workers, 0, sizeof(workers));
+    workers[0].f = f;
+    workers[0].bench = f->scene;
+    workers[0].refs = refs;
+    workers[1].f = f;
+    workers[1].bench = view;
+    workers[1].refs = refs;
+    for( i = 0; i < 2; i++ )
+        CHECK(pthread_create(&threads[i], NULL, sort_worker_main, &workers[i]) == 0,
+            "concurrent: thread %d did not start", i);
+    for( i = 0; i < 2; i++ )
+        pthread_join(threads[i], NULL);
+    for( i = 0; i < 2; i++ )
+    {
+        char const* const bench = i == 0 ? "scene" : "view";
+        CHECK(workers[i].cull_mismatches == 0, "concurrent: %s cull differed %d times", bench,
+            workers[i].cull_mismatches);
+        CHECK(workers[i].count_mismatches == 0, "concurrent: %s sort count differed %d times",
+            bench, workers[i].count_mismatches);
+        CHECK(workers[i].order_mismatches == 0, "concurrent: %s face order differed %d times",
+            bench, workers[i].order_mismatches);
+    }
+    ToriDraw_SceneScratchViewFree(view);
+}
+
 static void
 run_tier(char const* name, uint32_t flags)
 {
@@ -672,6 +779,7 @@ run_tier(char const* name, uint32_t flags)
     case_exhaustion(&fixture);
     case_claims(&fixture);
     case_sync(&fixture);
+    case_concurrent_sort(&fixture);
     fixture_free(&fixture);
     printf("%s tier: %s\n", name, failures == before ? "ok" : "FAILED");
 }

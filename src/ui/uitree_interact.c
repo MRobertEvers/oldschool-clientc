@@ -480,6 +480,8 @@ bridge_input_to_uitree(
     struct LibToriRS_Input* input)
 {
     struct UIInputResult last;
+    struct UIInputResult pressed;
+    int press_clicked = 0;
     struct UIInputEvent move = {
         .kind = UI_INPUT_MOVE,
         .x = input->curr.mouse_x,
@@ -498,6 +500,8 @@ bridge_input_to_uitree(
             .button = TORIRSM_LEFT,
         };
         last = UITree_InputUpdate(ui_state, tree, host, down);
+        pressed = last;
+        press_clicked = last.press_click && last.clicked >= 0;
     }
 
     if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
@@ -509,6 +513,20 @@ bridge_input_to_uitree(
             .button = TORIRSM_LEFT,
         };
         last = UITree_InputUpdate(ui_state, tree, host, up);
+        /* The press and its release in ONE frame: a finger (the touch layer
+         * pushes move, down and up together), or a mouse clicked faster
+         * than a frame. The DOWN already fired the component's press-edge
+         * click and told the UP to stay quiet about it, so the UP's result
+         * says "clicked nothing" -- and returning only the last result lost
+         * the click. Carry the press-edge click across; the release's own
+         * fields (drag end, released source) are the UP's. A mouse spread
+         * over frames never takes this branch: its DOWN result was returned
+         * on its own frame. */
+        if( press_clicked && last.clicked < 0 )
+        {
+            last.clicked = pressed.clicked;
+            last.press_click = 1;
+        }
         /* TORIRS_LOGIN_DEBUG=1: where a click landed and what it hit.
          *
          * The pair of questions a dead button raises -- did the click reach
@@ -1826,8 +1844,11 @@ UITree_InteractFrameWithPointerOwner(
     /* A component action may synchronously remount or close the interface on
      * its press edge.  Its matching release must remain owned by that UI
      * gesture even when the component no longer exists by then; otherwise the
-     * release falls through as a fresh world click. */
-    if( ui_result.press_click )
+     * release falls through as a fresh world click. Only while the button is
+     * still held: a release that arrived in this same frame (a finger's tap)
+     * was already the matching one, and a latch left armed would swallow the
+     * NEXT tap instead. */
+    if( ui_result.press_click && LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
         interact->swallow_left_click = 1;
 
     interact_wheel(tree, input, out);

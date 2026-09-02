@@ -21,8 +21,7 @@
 #define GLES2_DUALCORE_STAGE_ORDER_CAPACITY_MIN (256u * 1024u)
 
 struct GLES2DualCoreStageCrumb g_gles2_dualcore_stage_crumb;
-/* TEMP repro build: breadcrumb stores off, handler on. */
-#define CRUMB(s) ((void)0)
+#define CRUMB(s) (g_gles2_dualcore_stage_crumb.step = (s))
 
 void
 GLES2DualCoreStageArena_Init(struct GLES2DualCoreStageArena* arena)
@@ -273,6 +272,13 @@ GLES2DualCoreStage_ComputeModel(
 
     memset(&result, 0, sizeof(result));
     result.cull = TORIDRAW_CULL_VISIBLE;
+    g_gles2_dualcore_stage_crumb.element_id = command->element_id;
+    g_gles2_dualcore_stage_crumb.model_kind = (int)command->model.kind;
+    g_gles2_dualcore_stage_crumb.model =
+        ToriDraw_ModelKindIsFull(command->model.kind) ? (const void*)command->model.u.model.model
+                                                      : (const void*)command->model.u.model.ground;
+    g_gles2_dualcore_stage_crumb.anim_frame = command->animation ? command->anim_frame : -2;
+    g_gles2_dualcore_stage_crumb.slot = (int)arena->result_count;
 
     /* gles2_draw_model's own early-out, mirrored so the counts stay paired:
      * such a command yields a result too -- one the draw never reads. */

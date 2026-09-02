@@ -10612,6 +10612,23 @@ ToriRSServer_WorldNpcDied(
 /* Login + tick                                                        */
 /* ------------------------------------------------------------------ */
 
+int
+ToriRSServer_PlayerIsMobile(const struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    switch( player->client_type )
+    {
+    case 2: /* ANDROID */
+    case 3: /* IOS */
+    case 7: /* ENHANCED_ANDROID */
+    case 8: /* ENHANCED_IOS */
+        return 1;
+    default:
+        break;
+    }
+    return player->platform_type == 2 /* ANDROID */ || player->platform_type == 3 /* APPLE */;
+}
+
 /*
  * A varp id by symbol.
  *
@@ -11073,6 +11090,13 @@ ToriRSServer_WorldAddPlayer(
         player->pid = i;
         player->login_generation = generation;
         player->session = session;
+        /* A selftest player has no session (see `last_input_tick` below):
+         * it logs in as the desktop client. */
+        if( session )
+        {
+            player->client_type = session->client_type;
+            player->platform_type = session->platform_type;
+        }
         /* Logging in is input, and it has to be stated: the memset's 0 reads as
          * "idle since tick 0", so anyone joining a world older than
          * TORIRSSERVER_AFK_COMBAT_TICKS would arrive unable to fight. A slot with no
@@ -11579,6 +11603,11 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
         player->pid = pid;
         player->login_generation = login_generation;
         player->active = 1;
+        if( session )
+        {
+            player->client_type = session->client_type;
+            player->platform_type = session->platform_type;
+        }
         ToriRSServer_IfStateInit(&player->interfaces);
     }
     /* On the home tile, not in the middle of the scene: the scene is 104 tiles
@@ -12224,6 +12253,8 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
         int mode = player->client_layout_mode;
         int iface = ids->iface_gameframe;
         int32_t args[1];
+        int const mobile = ToriRSServer_PlayerIsMobile(player) && ids->iface_toplevel_osm > 0;
+        int const varp_client_mobile = ToriRSServer_WorldVarp("client_mobile");
 
         if( mode < 0 || mode > 2 )
             mode = 1;
@@ -12232,6 +12263,17 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
             iface = ids->iface_toplevel;
         else if( mode == 2 )
             iface = ids->iface_toplevel_pre_eoc;
+        /* A mobile client gets the mobile gameframe whatever its saved
+         * desktop mode says: the cache scripts lay out for `toplevel_osm`
+         * when ~script1972 answers mobile (clienttype 7 / on_mobile), and a
+         * desktop top under those scripts puts every side panel and tab
+         * where the mobile frame would have it. The mode stays the saved
+         * desktop preference, and %client_mobile tells ~gameframe_apply_mode
+         * to keep this top across WINDOW_STATUS changes. */
+        if( mobile )
+            iface = ids->iface_toplevel_osm;
+        if( varp_client_mobile >= 0 )
+            ToriRSServer_WorldSetVarpOn(srv, player, varp_client_mobile, mobile ? 1 : 0);
         ToriRSServer_GameframeOpentop(player, iface);
         args[0] = mode;
         ToriRSServer_ScriptsRunProc(srv, "[proc,gameframe_login_mode]", args, 1);

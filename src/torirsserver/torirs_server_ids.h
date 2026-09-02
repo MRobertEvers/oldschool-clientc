@@ -47,6 +47,8 @@ struct ToriRSServerIds
     int iface_gameframe;
     int iface_toplevel;
     int iface_toplevel_pre_eoc;
+    /** The mobile gameframe (601 at rev 239); -1 in a cache without it. */
+    int iface_toplevel_osm;
     /** The sidebar's inventory tab and worn-equipment tab. */
     int iface_inventory;
     int iface_wornitems;

@@ -20,8 +20,12 @@
  *   p4   version            must equal 239 or the server answers CLIENT_OUT_OF_DATE
  *   p4   subVersion
  *   p4   serverVersion      NEW at 237; absent from the 230 block
- *   p1   clientType         0 = desktop java
- *   p1   platformType
+ *   p1   clientType         rsprot LoginClientType: 1 desktop, 2 android,
+ *                           3 ios, 4/5/10 enhanced windows/mac/linux,
+ *                           7/8 enhanced android/ios (the client writes the
+ *                           clienttype the cache scripts are told)
+ *   p1   platformType       rsprot LoginPlatformType: 0 default, 1 steam,
+ *                           2 android, 3 apple, 5 jagex
  *   p1   externalAuthType
  *   --- RSA envelope ----------------------------------------------------
  *   p2   rsaSize

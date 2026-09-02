@@ -1046,6 +1046,15 @@ one lane only.
   a line every 300 frames (`stalls`, `desyncs`, `exhausted-frames`,
   `reprojected` should sit at or near zero); `TORIRS_GLES2_DUALCORE=0` is the
   single-threaded control arm on the same binary.
+- **Per-scene, not per-process:** everything the stage reaches must live on
+  the scene it runs on. The radix sort's count tables were file statics until
+  2026-09-02; the frame thread (scene) and the worker (view) scattering
+  through one table at once scrambled both face orders (visible as flicker
+  on OSRS239) and, through a foreign face index in the priority partition,
+  a SIGSEGV on the worker. `case_concurrent_sort` in the stage test holds
+  two benches sorting at once to a serial reference, and the makefile runs
+  the suite a second time with `TORIDRAW_SORT_BITONIC_MAX=4` so the host
+  takes the radix path the phone's neon32 lane takes past 64 keys.
 - **Limits:** A model that appears in two `DRAW_MODEL` commands of one frame
   is not covered (the draw may bake it under the worker's second pose); the
   walk emits each element once. Env-resolved `static` caches inside the

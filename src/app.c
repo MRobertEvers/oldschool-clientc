@@ -16104,6 +16104,18 @@ app_pump_net_packets(struct App* app)
  * exactly the machine that keeps a client open across server iterations.
  * One HTTP GET per Login click; a failed read keeps the table it has.
  */
+/* The login block carries the same identity the cache scripts are told
+ * (CS2VM2_SetClientIdentity, resolved in App_Init): a mobile client says so
+ * on the wire, and the server opens the mobile gameframe for it. */
+static void
+app_login_set_client_identity(struct App* app)
+{
+    assert(app);
+    assert(app->net);
+    app->net->client_type = CS2VM2_ClientType();
+    app->net->platform_type = CS2VM2_OnMobile() ? 2 : 0;
+}
+
 static void
 app_login_refresh_jag_checksums(struct App* app)
 {
@@ -16190,6 +16202,7 @@ app_title_tick(struct App* app)
     {
         app->autologin_done = 1;
         app_login_refresh_jag_checksums(app);
+        app_login_set_client_identity(app);
         ToriRS_Network_ConnectLogin(
             app->net, app->connect_target, app->autologin_user, app->autologin_pass);
         return 0;
@@ -16231,6 +16244,7 @@ app_title_tick(struct App* app)
     {
         app->title_connect_pending = 0;
         app_login_refresh_jag_checksums(app);
+        app_login_set_client_identity(app);
         ToriRS_Network_ConnectLogin(
             app->net,
             app->connect_target,

@@ -4993,6 +4993,9 @@ test-gles2-dualcore-stage: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 		platform/platform_renderer_gles2_dualcore_stage.c \
 		platform/test/gles2_dualcore_stage_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/gles2_dualcore_stage_test
+	# Again with every model past the bitonic limit: the radix sort path, which
+	# the concurrent case exists for (its tables must not be shared).
+	TORIDRAW_SORT_BITONIC_MAX=4 ./$(OBJ_DIR)/gles2_dualcore_stage_test
 
 # DynamicObject sequence termination: frameStep governs the final location pose.
 test-animation-object-step: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)

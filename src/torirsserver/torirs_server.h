@@ -3230,6 +3230,12 @@ struct ToriRSServerPlayer
     /** Last Display-panel clientMode (0/1/2) from WINDOW_STATUS.
      *  Persisted in the player save; login restores via ~gameframe_set_mode. */
     int client_layout_mode;
+    /** The login header's clientType / platformType, copied from the session
+     *  (see ToriRSServerSession). `ToriRSServer_PlayerIsMobile` reads them:
+     *  a mobile client keeps the mobile gameframe (`toplevel_osm`) through
+     *  every layout-mode change, and content sees it as %client_mobile. */
+    int client_type;
+    int platform_type;
     /** Index last chosen in the All Settings panel's shared dropdown list
      *  (settings:dropdown_buttons), or -1. Not a setting on its own: the panel
      *  reuses one list for every row, so the op says which entry was picked
@@ -4550,6 +4556,13 @@ ToriRSServer_VarbitSetOn(
     struct ToriRSServerPlayer* player,
     int varbit_id,
     int value);
+
+/** Whether the session logged in as a mobile client (rsprot LoginClientType
+ *  ENHANCED_ANDROID 7 / ENHANCED_IOS 8 or the pre-enhanced ANDROID 2 / IOS 3,
+ *  or LoginPlatformType ANDROID 2 / APPLE 3): the client the cache scripts
+ *  lay out for as mobile, and the one that gets `toplevel_osm`. */
+int
+ToriRSServer_PlayerIsMobile(const struct ToriRSServerPlayer* player);
 
 /** `ToriRSServer_WorldSetVarp` on a named player; side effects stay gated on the
  *  active one. */

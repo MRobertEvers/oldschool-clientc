@@ -104,6 +104,15 @@ struct ToriRS_Network
     char username[64];
     char password[64];
 
+    /** What the login block says this client is: the revision-239 login
+     *  header's clientType / platformType (rsprot LoginClientType /
+     *  LoginPlatformType: 7 = enhanced android, 10 = enhanced linux;
+     *  platform 2 = android, 0 = default). The app sets them from the same
+     *  resolved identity the cache scripts are told (CS2VM2_SetClientIdentity),
+     *  so the server and the scripts agree on which gameframe this is. */
+    int client_type;
+    int platform_type;
+
     loginproto_seed_fn seed_fn;
     void* seed_user;
 
