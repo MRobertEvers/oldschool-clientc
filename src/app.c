@@ -31352,8 +31352,17 @@ App_RunOnce(
      * which would dim the icon even when the short-click default is "Use"
      * (OPHELDT_START). Client-TS never sets selectedArea for Use. Drop those
      * click intents here; the machine runs the default row itself, and
-     * OPHELD1-5 / INV_BUTTON / IF_BUTTON re-fire on_op from inv_action. */
-    if( app->inv_drag_com_id >= 0 )
+     * OPHELD1-5 / INV_BUTTON / IF_BUTTON re-fire on_op from inv_action with the
+     * op the action actually chose.
+     *
+     * `pressed_filled_obj` is the same statement for a press and its release in
+     * ONE frame -- a finger's tap. The machine has not ticked yet when this
+     * runs (app_inv_drag_tick is later in this function), so its own field is
+     * still -1 and the intent survived. It then ran the cell's on_op with op
+     * index 1, which on an inventory slot is the SHIFT-CLICK handler, and that
+     * drops: a tap on a rune platebody sent the wear, was refused by the
+     * server, and dropped the platebody in the same tick. */
+    if( app->inv_drag_com_id >= 0 || pressed_filled_obj )
     {
         int kept = 0;
         for( int i = 0; i < out.intent_count; i++ )
