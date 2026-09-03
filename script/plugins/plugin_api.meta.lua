@@ -18,6 +18,22 @@ loadfile = nil
 ---@type nil
 dofile = nil
 
+---@deprecated Removed so an instruction-budget error cannot be caught and retried forever.
+---@type nil
+pcall = nil
+---@deprecated Removed so an instruction-budget error cannot be caught and retried forever.
+---@type nil
+xpcall = nil
+---@deprecated Removed so scripts cannot install unbudgeted __gc finalizers.
+---@type nil
+setmetatable = nil
+---@deprecated Removed so protected runtime metatables cannot be mutated.
+---@type nil
+getmetatable = nil
+---@deprecated Removed; use api.core.log so output follows the client log policy.
+---@type nil
+warn = nil
+
 ---@alias torirs.Colour integer|string
 ---@alias torirs.ResultName 'ok'|'not_found'|'pending'|'unsupported'|'conflict'|'budget'|'invalid'|'error'
 ---@alias torirs.AssetState 'pending'|'ready'|'missing'|'invalid'|'budget'|'error'

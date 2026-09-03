@@ -50,7 +50,7 @@
  *   The ORBS are a pack too -- interface 160, laid out inside a block the
  *   toplevel sets beside its map. The layout places that block at the same
  *   offset from its own housing that the toplevel used, or the orbs stay
- *   where the old map was. @see TORIRS_PLUGIN_SLOT_ORBS.
+ *   where the old map was. @see TORIRS_SURFACE_ORBS.
  *
  *   The SIDEBAR and the tab state are the cache's. The fourteen `sideN`
  *   panels and the side-modal box are named per toplevel by the profile

@@ -1337,13 +1337,6 @@ struct App
     /** Engine-side incarnation fence for the host's persistent replacement
      * claims. The host arbitrates ownership; these rows remember only which
      * exact component-array occupant was suppressed by each accepted claim. */
-    struct AppPluginRoleReplacement
-    {
-        int plugin;
-        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-        int32_t node_index;
-        uint32_t node_incarnation;
-    } plugin_ui_boundary_replacements[64];
     /** Named-UI facet suppression, separate from legacy whole-subtree role
      * replacement so appearance and actions remain independently composable. */
     struct AppPluginRoleFacetSuppression

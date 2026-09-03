@@ -286,8 +286,14 @@ GLES2DualCoreStageArena_BeginFrame(
  * consumer the producer must be to keep a slot for itself. At or under it,
  * it hands the slot to the consumer instead. Measured on the phone: with 1
  * the consumer (whose gather is faster than the producer's stage) still
- * caught the producer mid-model on 13% of slots and waited ~1.5 ms a frame. */
-#define GLES2_DUALCORE_STAGE_LEAD_DEFAULT 2u
+ * caught the producer mid-model on 13% of slots and waited ~1.5 ms a frame.
+ * 2 against 6, arms alternating in one launch (TORIRS_GLES2_DUALCORE_LEAD_AB,
+ * kr13): 6 won all five pairs -- draw CPU 15.06 against 15.46 ms/frame,
+ * the draw's wait on the producer 1.0 against 1.6 ms, stalls a quarter as
+ * many. Under 6 the producer keeps slots it will finish only microseconds
+ * before the consumer wants them, and the consumer pays for each one twice:
+ * the wait, and the cache line the result comes back on. */
+#define GLES2_DUALCORE_STAGE_LEAD_DEFAULT 6u
 
 /**
  * Producer: claim the next model (the one result_count names) for itself,

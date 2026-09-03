@@ -44,36 +44,6 @@ static char const* const UI_CORE_NAMES[] = {
     "frame.xp.drops",
 };
 
-struct UiAlias
-{
-    char const* old_name;
-    char const* canonical;
-};
-
-/* Temporary migration vocabulary.  It is intentionally data, not scattered
- * special cases, so deleting aliases after the bundled migration is one edit. */
-static struct UiAlias const UI_ALIASES[] = {
-    { "viewport",         "frame.viewport"           },
-    { "minimap",          "frame.minimap"            },
-    { "minimap_edge",     "frame.minimap.housing"    },
-    { "compass",          "frame.compass"            },
-    { "chat",             "frame.chat"               },
-    { "frame_chat",       "frame.chat"               },
-    { "chat_buttons",     "frame.chat.buttons"       },
-    { "report_button",    "frame.chat.button.report" },
-    { "sidebar",          "frame.sidebar"            },
-    { "frame_sidebar",    "frame.sidebar"            },
-    { "main_modal",       "frame.modal"              },
-    { "frame_main_modal", "frame.modal"              },
-    { "orbs",             "frame.orbs"               },
-    { "frame_orbs",       "frame.orbs"               },
-    { "orb_hitpoints",    "frame.orb.hitpoints"      },
-    { "orb_prayer",       "frame.orb.prayer"         },
-    { "orb_run",          "frame.orb.run"            },
-    { "orb_spec",         "frame.orb.special"        },
-    { "xp_drops",         "frame.xp.drops"           },
-};
-
 static uint32_t
 ui_revision_next(uint32_t revision)
 {
@@ -93,16 +63,6 @@ ui_hash(char const* text)
         hash *= 16777619u;
     }
     return hash;
-}
-
-static char const*
-ui_alias_canonical(char const* name)
-{
-    assert(name);
-    for( size_t i = 0; i < sizeof(UI_ALIASES) / sizeof(UI_ALIASES[0]); i++ )
-        if( strcmp(name, UI_ALIASES[i].old_name) == 0 )
-            return UI_ALIASES[i].canonical;
-    return name;
 }
 
 static bool
@@ -292,14 +252,6 @@ ToriRS_UiRegistry_Init(struct ToriRS_UiRegistry* registry)
         (void)ref;
     }
 
-#ifndef NDEBUG
-    for( size_t i = 0; i < sizeof(UI_ALIASES) / sizeof(UI_ALIASES[0]); i++ )
-    {
-        assert(ui_is_core_name(UI_ALIASES[i].canonical));
-        for( size_t j = i + 1; j < sizeof(UI_ALIASES) / sizeof(UI_ALIASES[0]); j++ )
-            assert(strcmp(UI_ALIASES[i].old_name, UI_ALIASES[j].old_name) != 0);
-    }
-#endif
 }
 
 struct ToriRS_UiNodeRef
@@ -308,15 +260,13 @@ ToriRS_UiRegistry_Find(
     char const* name)
 {
     struct ToriRS_UiNodeRef result = { 0 };
-    char const* canonical;
     int index;
 
     assert(registry);
     assert(name);
-    canonical = ui_alias_canonical(name);
-    if( !ToriRS_UiRegistry_NameIsValid(canonical) )
+    if( !ToriRS_UiRegistry_NameIsValid(name) )
         return result;
-    index = ui_find_index(registry, canonical);
+    index = ui_find_index(registry, name);
     if( index >= 0 )
         result.value = (uint32_t)index + 1u;
     return result;
@@ -328,16 +278,13 @@ ToriRS_UiRegistry_Ref(
     char const* name)
 {
     struct ToriRS_UiNodeRef result = { 0 };
-    char const* canonical;
-
     assert(registry);
     assert(name);
-    canonical = ui_alias_canonical(name);
-    if( !ToriRS_UiRegistry_NameIsValid(canonical) )
+    if( !ToriRS_UiRegistry_NameIsValid(name) )
         return result;
-    if( strncmp(canonical, "frame.", 6) == 0 && !ui_is_core_name(canonical) )
+    if( strncmp(name, "frame.", 6) == 0 && !ui_is_core_name(name) )
         return result;
-    return ui_intern_unchecked(registry, canonical);
+    return ui_intern_unchecked(registry, name);
 }
 
 static bool
@@ -347,7 +294,6 @@ ui_private_canonical(
     char* out,
     size_t out_size)
 {
-    char const* alias;
     int n;
 
     assert(plugin);
@@ -357,9 +303,8 @@ ui_private_canonical(
     if( !ui_plugin_id_valid(plugin) || !name[0] )
         return false;
 
-    alias = ui_alias_canonical(name);
-    if( alias != name || strncmp(name, "frame.", 6) == 0 )
-        n = snprintf(out, out_size, "%s", alias);
+    if( strncmp(name, "frame.", 6) == 0 )
+        n = snprintf(out, out_size, "%s", name);
     else if( strncmp(name, "plugin.", 7) == 0 )
     {
         size_t const plugin_length = strlen(plugin);
@@ -940,17 +885,15 @@ ui_base_canonical(
     char const* name,
     char* out)
 {
-    char const* canonical;
     int written;
 
     assert(name);
     assert(out);
-    canonical = ui_alias_canonical(name);
-    if( !ToriRS_UiRegistry_NameIsValid(canonical) )
+    if( !ToriRS_UiRegistry_NameIsValid(name) )
         return false;
-    if( strncmp(canonical, "frame.", 6) == 0 && !ui_is_core_name(canonical) )
+    if( strncmp(name, "frame.", 6) == 0 && !ui_is_core_name(name) )
         return false;
-    written = snprintf(out, TORIRS_UI_NAME_MAX, "%s", canonical);
+    written = snprintf(out, TORIRS_UI_NAME_MAX, "%s", name);
     return written > 0 && written < TORIRS_UI_NAME_MAX;
 }
 

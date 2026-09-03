@@ -583,9 +583,9 @@ fake_role_suppress_facets(void* u, char const* role, int paint, int input)
 }
 
 static int
-fake_ui_boundary(void* u, int plugin, char const* role, int replace, int place)
+fake_ui_boundary(void* u, char const* role, int place)
 {
-    (void)place; (void)u; (void)plugin; (void)replace;
+    (void)place; (void)u;
     return !role || strcmp(role, "viewport") == 0;
 }
 

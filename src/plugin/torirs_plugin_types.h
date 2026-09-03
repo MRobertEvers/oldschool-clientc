@@ -263,7 +263,7 @@ struct ToriRS_GroundItemSnapshot
 };
 
 /**
- * Which of the client's OWN containers. @see ToriRS_PluginApi::inv_slot.
+ * Which of the client's OWN containers. @see api->game->inventory_slot.
  *
  * Names rather than numbers, because the numbers are the client's and it
  * already holds them (INV_MANAGER_CONTAINER_WORN and friends). A plugin
@@ -306,7 +306,7 @@ enum ToriRS_EquipmentBonus
 };
 
 /**
- * One objtype, as the cache states it. @see ToriRS_PluginApi::obj_info.
+ * One objtype, as the cache states it. @see api->game->item_info.
  *
  * The record and nothing else: an obj snapshot describes a stack lying on a
  * tile, and this describes the ITEM -- what it is called, what it is worth,
@@ -368,7 +368,7 @@ struct ToriRS_ItemInfo
 
 /**
  * One group of recorded loot: what killed you gave up, and how often.
- * @see ToriRS_PluginApi::loot_source_next.
+ * @see api->game->loot_source_next.
  */
 struct ToriRS_LootSource
 {
@@ -390,7 +390,7 @@ struct ToriRS_LootSource
 };
 
 /** One row of one source: an item, a quantity, and what the store priced it
- *  at when it landed. @see ToriRS_PluginApi::loot_row_next. */
+ *  at when it landed. @see api->game->loot_row_next. */
 struct ToriRS_LootRow
 {
     int obj_id;
@@ -405,7 +405,7 @@ struct ToriRS_LootRow
  * The same three the interface emitter already asks the scene bridge for, and
  * not a fourth: an icon is baked art, so every variant here is one the client
  * builds anyway for its own inventory and is therefore free to hand over.
- * @see ToriRS_PluginApi::obj_image.
+ * @see api->game->item_image.
  */
 enum ToriRS_ItemIconStyle
 {
@@ -529,7 +529,7 @@ struct ToriRS_WorldLoadedEvent
     int base_tile_z;
 };
 
-/** @see TORIRS_PLUGIN_EV_SCREEN_CHANGE. Both are TORIRS_SCREEN_*. */
+/** @see on_screen_changed. Both are TORIRS_SCREEN_*. */
 struct ToriRS_ScreenChangedEvent
 {
     /** What api->screen answers now. */
@@ -659,7 +659,7 @@ struct ToriRS_GameEvent
  * handed the id alone, and a button, which has no value at all).
  */
 
-/** What the pointer is over. @see ToriRS_PluginApi::hover_entity. */
+/** What the pointer is over. @see api->input.hover_entity. */
 enum ToriRS_HoverKind
 {
     TORIRS_HOVER_NONE = 0,
@@ -743,7 +743,7 @@ struct ToriRS_PanelDescriptor
     /**
      * There is no title here, and that absence is the point.
      *
-     * A plugin's name is `ToriRS_PluginDef::title` -- the one a person sees in
+     * A plugin's name is `ToriRS_PluginDefV2::title` -- the one a person sees in
      * the roster, beside its switch, and against its saved settings. Letting
      * `panel_request` supply a second one made the name a thing a plugin could
      * change at runtime: two plugins could claim one spelling, a row could
@@ -962,7 +962,7 @@ enum ToriRS_DisplaySetting
  */
 enum ToriRS_GameVariant
 {
-    /** Nothing has stated one yet. @see ToriRS_PluginApi::lane. */
+    /** Nothing has stated one yet. @see api->core.lane. */
     TORIRS_GAME_UNKNOWN = 0,
     TORIRS_GAME_OLDSCHOOL = 1,
     /** The classic client's lineage: the 2004 dat1 worlds AND the later dat2

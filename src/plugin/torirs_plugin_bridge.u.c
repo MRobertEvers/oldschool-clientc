@@ -3744,7 +3744,7 @@ app_plugin_node_rect(
 }
 
 /*
- * A region's box, by role. @see ToriRS_PluginApi::slot_rect.
+ * A region's box, by role. @see slot_rect.
  *
  * Resolved through UITree_FrameSlotNode, which is the same role->node lookup
  * the layout WRITE path uses -- so a role a layout plugin can place is exactly
@@ -3802,7 +3802,7 @@ app_plugin_slot_node_rect(
 
 /*
  * The size the LANE gave a surface, before this frame moved it.
- * @see ToriRS_PluginApi::slot_native_size.
+ * @see slot_native_size.
  *
  * Only the placeable roles, and not because the derived ones are hard: CANVAS
  * and SAFE are computed from the window and from what plugins have reserved,
@@ -3897,7 +3897,7 @@ app_plugin_slot_rect(
 }
 
 /*
- * One member of a region. @see ToriRS_PluginApi::slot_member_rect.
+ * One member of a region. @see slot_member_rect.
  *
  * UITree_FrameSlotMemberNode rather than the cached per-role node above,
  * because that one holds the answer to "any member" and a caller asking for
@@ -3908,7 +3908,7 @@ app_plugin_slot_rect(
  * thing.
  */
 /*
- * Where a component is. @see ToriRS_PluginApi::component_rect.
+ * Where a component is. @see component_rect.
  *
  * The same node->rect the region readouts end in, reached by id rather than by
  * role, so a component and a region answer with one notion of "where".
@@ -3949,10 +3949,6 @@ app_plugin_role_slot(char const* role)
     assert(role);
     if( strcmp(role, "canvas") == 0 )
         return TORIRS_HOST_SURFACE_CANVAS;
-    if( strcmp(role, "safe_gamechrome") == 0 )
-        return TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME;
-    if( strcmp(role, "safe_lanechrome") == 0 )
-        return TORIRS_PLUGIN_SLOT_SAFE_LANECHROME;
     return UITree_RoleSlotFromName(role);
 }
 
@@ -3996,14 +3992,6 @@ app_plugin_role_rect(
      * desc, and that a dat2 modal has no declared region at all.
      */
     slot = app_plugin_role_slot(role);
-    if( slot == TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME ||
-        slot == TORIRS_PLUGIN_SLOT_SAFE_LANECHROME )
-        /* Both are DERIVED in the host -- one from the placeable regions plus
-         * the reservation table, one from the canvas minus the profile's
-         * `lane_chrome_<n>` roles. Neither reaches this verb except through
-         * slot_rect, and answering here would be a second derivation that
-         * could disagree with the first. */
-        return 0;
     if( slot >= 0 )
         return app_plugin_slot_rect(user, slot, out_x, out_y, out_w, out_h);
 
@@ -4171,56 +4159,6 @@ app_plugin_role_id(void* user, char const* role)
 }
 
 static int
-app_plugin_ui_boundary_replacement_find(
-    struct App const* app,
-    int plugin,
-    char const* role)
-{
-    assert(app);
-    assert(role);
-    for( int i = 0; i < (int)(sizeof(app->plugin_ui_boundary_replacements) /
-                              sizeof(app->plugin_ui_boundary_replacements[0])); i++ )
-    {
-        struct AppPluginRoleReplacement const* row =
-            &app->plugin_ui_boundary_replacements[i];
-        if( row->role[0] && row->plugin == plugin && strcmp(row->role, role) == 0 )
-            return i;
-    }
-    return -1;
-}
-
-static int
-app_plugin_ui_boundary_replacement_free(struct App const* app)
-{
-    assert(app);
-    for( int i = 0; i < (int)(sizeof(app->plugin_ui_boundary_replacements) /
-                              sizeof(app->plugin_ui_boundary_replacements[0])); i++ )
-        if( !app->plugin_ui_boundary_replacements[i].role[0] )
-            return i;
-    return -1;
-}
-
-static int
-app_plugin_ui_boundary_replacement_node_claimed(
-    struct App const* app,
-    int except,
-    int32_t node,
-    uint32_t incarnation)
-{
-    assert(app);
-    for( int i = 0; i < (int)(sizeof(app->plugin_ui_boundary_replacements) /
-                              sizeof(app->plugin_ui_boundary_replacements[0])); i++ )
-    {
-        struct AppPluginRoleReplacement const* row =
-            &app->plugin_ui_boundary_replacements[i];
-        if( i != except && row->role[0] && row->node_index == node &&
-            row->node_incarnation == incarnation )
-            return 1;
-    }
-    return 0;
-}
-
-static int
 app_plugin_role_facet_find(struct App const* app, char const* role)
 {
     assert(app);
@@ -4338,93 +4276,14 @@ app_plugin_role_suppress_facets(
  * this exact-incarnation fence because only it can resolve a semantic role to
  * a tree node. Repeating enabled=1 is the per-frame reconciliation path. */
 static int
-app_plugin_ui_boundary_replace(
-    void* user,
-    int plugin,
-    char const* role,
-    int enabled)
-{
-    struct App* app = (struct App*)user;
-    struct AppPluginRoleReplacement* row;
-    int at;
-    int32_t old_node;
-    uint32_t old_incarnation;
-    int32_t next_node = -1;
-    uint32_t next_incarnation = 0;
-
-    assert(app);
-    assert(role);
-    at = app_plugin_ui_boundary_replacement_find(app, plugin, role);
-    if( !enabled )
-    {
-        if( at < 0 )
-            return 1;
-        row = &app->plugin_ui_boundary_replacements[at];
-        old_node = row->node_index;
-        old_incarnation = row->node_incarnation;
-        memset(row, 0, sizeof(*row));
-        row->node_index = -1;
-        if( app->tree &&
-            !app_plugin_ui_boundary_replacement_node_claimed(
-                app, at, old_node, old_incarnation) )
-            (void)UITree_SetReplacementHidden(
-                app->tree, old_node, old_incarnation, 0);
-        return 1;
-    }
-
-    if( at < 0 )
-    {
-        at = app_plugin_ui_boundary_replacement_free(app);
-        if( at < 0 )
-            return 0;
-        row = &app->plugin_ui_boundary_replacements[at];
-        memset(row, 0, sizeof(*row));
-        row->plugin = plugin;
-        row->node_index = -1;
-        snprintf(row->role, sizeof(row->role), "%s", role);
-    }
-    row = &app->plugin_ui_boundary_replacements[at];
-    old_node = row->node_index;
-    old_incarnation = row->node_incarnation;
-
-    if( app->tree )
-    {
-        next_node = app_plugin_ui_boundary_node(app, role);
-        if( next_node >= 0 && (uint32_t)next_node < app->tree->component_count &&
-            !app->tree->components[next_node].freed )
-            next_incarnation = app->tree->components[next_node].incarnation;
-        else
-            next_node = -1;
-    }
-
-    if( old_node == next_node && old_incarnation == next_incarnation )
-        return next_node >= 0;
-
-    row->node_index = next_node;
-    row->node_incarnation = next_incarnation;
-    if( app->tree &&
-        !app_plugin_ui_boundary_replacement_node_claimed(
-            app, at, old_node, old_incarnation) )
-        (void)UITree_SetReplacementHidden(
-            app->tree, old_node, old_incarnation, 0);
-    if( app->tree && next_node >= 0 )
-        (void)UITree_SetReplacementHidden(
-            app->tree, next_node, next_incarnation, 1);
-    return next_node >= 0;
-}
-
-static int
 app_plugin_ui_boundary(
     void* user,
-    int plugin,
     char const* role,
-    int replace,
     int place)
 {
     struct App* app = (struct App*)user;
     int32_t node;
 
-    (void)plugin;
     assert(app);
     if( !role )
     {
@@ -4432,7 +4291,6 @@ app_plugin_ui_boundary(
         app->plugin_ui_boundary_valid = 0;
         app->plugin_ui_boundary_node = -1;
         app->plugin_ui_boundary_incarnation = 0;
-        app->plugin_ui_boundary_replace = 0;
         app->plugin_ui_boundary_place = 0;
         return 1;
     }
@@ -4444,7 +4302,6 @@ app_plugin_ui_boundary(
     app->plugin_ui_boundary_valid = 0;
     app->plugin_ui_boundary_node = -1;
     app->plugin_ui_boundary_incarnation = 0;
-    app->plugin_ui_boundary_replace = replace ? 1 : 0;
     app->plugin_ui_boundary_place = (uint8_t)place;
     if( !app->tree )
         return 0;
@@ -4452,12 +4309,7 @@ app_plugin_ui_boundary(
     if( node < 0 || (uint32_t)node >= app->tree->component_count ||
         app->tree->components[node].freed )
         return 0;
-    if( replace && !app->tree->components[node].replacement_hidden )
-        return 0;
-    if( replace &&
-        UITree_NodeOrAncestorDisplayHiddenExceptReplacement(app->tree, node) )
-        return 0;
-    if( !replace && UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
+    if( UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
         return 0;
 
     app->plugin_ui_boundary_valid = 1;
@@ -4468,7 +4320,7 @@ app_plugin_ui_boundary(
         app,
         app->plugin_ui_boundary_node,
         app->plugin_ui_boundary_incarnation,
-        app->plugin_ui_boundary_replace,
+        0,
         app->plugin_ui_boundary_place);
     return 1;
 }
@@ -4641,7 +4493,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
 
 /**
  * The live gameframe's root interface group, or -1 on a revconfig frame.
- * @see ToriRS_PluginApi::frame_root.
+ * @see frame_root.
  */
 static int
 app_plugin_frame_root(void* user)
@@ -5347,10 +5199,8 @@ app_plugin_engine(struct App* app)
     engine.role_rect = app_plugin_role_rect;
     engine.role_visible = app_plugin_role_visible;
     engine.role_click = app_plugin_role_click;
-    engine.role_id = app_plugin_role_id;
     engine.role_suppress_facets = app_plugin_role_suppress_facets;
     engine.ui_boundary = app_plugin_ui_boundary;
-    engine.role_slot = app_plugin_role_frame_slot;
     engine.menu_drop = app_plugin_menu_drop;
     engine.layout_set = app_plugin_layout_set;
     engine.layout_begin = app_plugin_layout_begin;
@@ -5375,7 +5225,6 @@ app_plugin_engine(struct App* app)
     engine.model_release = app_plugin_model_release;
     engine.mesh_create = app_plugin_mesh_create;
     engine.mesh_destroy = app_plugin_mesh_destroy;
-    engine.mesh_clear = app_plugin_mesh_clear;
     engine.mesh_vertex = app_plugin_mesh_vertex;
     engine.mesh_face = app_plugin_mesh_face;
     engine.object_create = app_plugin_object_create;

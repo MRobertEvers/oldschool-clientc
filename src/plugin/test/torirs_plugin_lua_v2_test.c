@@ -28,6 +28,8 @@ static int g_surfaces;
 static int g_reasons;
 static int g_disabled_self;
 static int g_config_dispatches;
+static char g_disable_reason[192];
+static int g_log_disable_snapshot;
 
 #define CHECK(condition, message)                                                       \
     do                                                                                  \
@@ -83,6 +85,7 @@ static char const* fake_plugin_id(struct ToriRS_ApiV2* api)
 static void fake_log(struct ToriRS_ApiV2* api, char const* format, ...)
 {
     (void)api; (void)format;
+    g_log_disable_snapshot = g_disabled_self;
     g_logs++;
 }
 static bool fake_config_get_int(struct ToriRS_ApiV2* api, char const* key, int* out)
@@ -148,6 +151,7 @@ static void fake_disable_self(struct ToriRS_ApiV2* api, char const* reason)
 {
     (void)api;
     CHECK(reason && reason[0], "disable_self receives an actionable reload reason");
+    snprintf(g_disable_reason, sizeof(g_disable_reason), "%s", reason ? reason : "");
     g_disabled_self++;
 }
 static void fake_draw_rect(
@@ -254,6 +258,22 @@ test_runtime(struct ToriRS_PluginHost* host)
     static char const INVALID_ENUM_SOURCE[] =
         /* Deliberately collides with lua-v2-test in the 32-slot id table. */
         "return {id='invalid-enum-59',on_start=function(api) api.placement.area(99) end}";
+    static char const BUDGET_SOURCE[] =
+        "return {id='budget-after-reentry',config={{key='answer',type='int',default='42'}},"
+        "on_config_changed=function() end,on_start=function(api)"
+        " assert(api.config.set('answer',43));local n=0;"
+        " for i=1,10000000 do n=n+i end;api.core.log(n) end}";
+    static char const NESTED_FAULT_SOURCE[] =
+        "return {id='nested-fault',config={{key='answer',type='int',default='42'}},"
+        "on_config_changed=function() error('inner boom') end,"
+        "on_start=function(api) assert(api.config.set('answer',43));"
+        "api.core.log('outer remained safe') end}";
+    static char const DISABLE_SOURCE[] =
+        "return {id='explicit-disable',on_start=function(api)"
+        "api.client.disable_self('requested stop');api.core.log('must not run') end}";
+    static char const BAD_PIXELS_SOURCE[] =
+        "return {id='bad-pixels',on_start=function(api)"
+        "api.assets.image_compose('x',2,2,{1,'bad',3,4}) end}";
     static char const DRIFT_SOURCE[] =
         "return {id='lua-v2-test',title='Lua V2 Test',version='2',"
         "frames={{id='changed',title='Changed',canvas='fixed',width=765,height=503,"
@@ -283,6 +303,8 @@ test_runtime(struct ToriRS_PluginHost* host)
         "  assert(api.log==nil and api.role==nil and api.window==nil and api.layout==nil)"
         "  assert(api.chrome==nil and api.entity==nil and api.object_create==nil)"
         "  assert(api.local_player==nil and api.image_load==nil and api.cfg_set==nil)"
+        "  assert(pcall==nil and xpcall==nil and setmetatable==nil and getmetatable==nil)"
+        "  assert(warn==nil)"
         "  assert(api.core.plugin_id()=='lua-v2-test' and api.config.answer==42)"
         "  local node=api.ui.ref('frame.chat.button.report')"
         "  assert(api.ui.set_enabled(node,true))"
@@ -395,6 +417,52 @@ test_runtime(struct ToriRS_PluginHost* host)
     g_defs[1]->callbacks.on_start(&invalid_api, NULL);
     CHECK(g_disabled_self == 3 && g_reported_errors == 0 && g_enabled_calls == 0,
         "out-of-range integer enum becomes a caught V2 lifecycle fault");
+    CHECK(strstr(g_disable_reason, "placement area must be between") != NULL,
+        "integer enum fault names the invalid domain");
+
+    CHECK(PluginLua_AddScript(host, "budget-after-reentry", BUDGET_SOURCE,
+              (int)strlen(BUDGET_SOURCE)) == 2,
+        "nested-budget probe registered");
+    struct FakeInstance budget_instance = { "budget-after-reentry", NULL };
+    struct ToriRS_ApiV2 budget_api = fake_api(&budget_instance);
+    g_defs[2]->callbacks.on_start(&budget_api, NULL);
+    CHECK(g_disabled_self == 4 &&
+            strstr(g_disable_reason, "instruction budget exhausted") != NULL,
+        "nested callback cannot disarm the outer instruction budget");
+
+    int const logs_before_nested_fault = g_logs;
+    int const disables_before_nested_fault = g_disabled_self;
+    CHECK(PluginLua_AddScript(host, "nested-fault", NESTED_FAULT_SOURCE,
+              (int)strlen(NESTED_FAULT_SOURCE)) == 3,
+        "nested-fault probe registered");
+    struct FakeInstance nested_instance = { "nested-fault", NULL };
+    struct ToriRS_ApiV2 nested_api = fake_api(&nested_instance);
+    g_defs[3]->callbacks.on_start(&nested_api, NULL);
+    CHECK(g_logs == logs_before_nested_fault + 1 &&
+            g_log_disable_snapshot == disables_before_nested_fault,
+        "inner fault leaves the outer API live until it unwinds");
+    CHECK(g_disabled_self == disables_before_nested_fault + 1 &&
+            strstr(g_disable_reason, "inner boom") != NULL,
+        "inner fault is disabled at the outer callback boundary");
+
+    int const logs_before_disable = g_logs;
+    CHECK(PluginLua_AddScript(host, "explicit-disable", DISABLE_SOURCE,
+              (int)strlen(DISABLE_SOURCE)) == 4,
+        "explicit-disable probe registered");
+    struct FakeInstance disable_instance = { "explicit-disable", NULL };
+    struct ToriRS_ApiV2 disable_api = fake_api(&disable_instance);
+    g_defs[4]->callbacks.on_start(&disable_api, NULL);
+    CHECK(g_logs == logs_before_disable && strstr(g_disable_reason, "requested stop") != NULL,
+        "disable_self unwinds Lua before native teardown and later API use");
+
+    CHECK(PluginLua_AddScript(host, "bad-pixels", BAD_PIXELS_SOURCE,
+              (int)strlen(BAD_PIXELS_SOURCE)) == 5,
+        "bad-pixels probe registered");
+    struct FakeInstance pixels_instance = { "bad-pixels", NULL };
+    struct ToriRS_ApiV2 pixels_api = fake_api(&pixels_instance);
+    g_defs[5]->callbacks.on_start(&pixels_api, NULL);
+    CHECK(strstr(g_disable_reason, "pixel 2 is not an integer") != NULL,
+        "malformed pixel input faults without retaining a host allocation");
 }
 
 static void

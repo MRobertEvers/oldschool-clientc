@@ -678,10 +678,10 @@ fake_role_suppress_facets(void* u, char const* r, int paint, int input)
 /* A UI boundary succeeds for a role this fake frame HAS, the same set
  * fake_role_rect answers for; a NULL role is the release and always works. */
 static int
-fake_ui_boundary(void* u, int p, char const* r, int replace, int place)
+fake_ui_boundary(void* u, char const* r, int place)
 {
     int x = 0;
-    (void)p; (void)replace; (void)place;
+    (void)place;
     if( !r )
         return 1;
     return fake_role_rect(u, r, &x, NULL, NULL, NULL);

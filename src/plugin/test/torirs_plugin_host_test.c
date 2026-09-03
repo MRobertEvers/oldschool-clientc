@@ -97,7 +97,7 @@ static struct FakeEngine g_engine;
 
 /* In game: these harnesses exercise behaviour that is gated on it. Mutable so
  * the EV_SCREEN_CHANGE test can move it; everything else leaves it alone.
- * @see ToriRS_PluginApi::screen. */
+ * @see api->core.screen. */
 static int g_screen_now = TORIRS_SCREEN_GAME;
 
 static int
@@ -1225,13 +1225,13 @@ static int g_role_suppress_calls;
 static int g_role_suppress_paint;
 static int g_role_suppress_input;
 static char g_role_suppress_name[TORIRS_PLUGIN_ROLE_NAME_MAX];
-static int g_role_anchor_calls;
-static int g_role_anchor_resets;
-static int g_role_anchor_invalids;
-static int g_role_anchor_current_plugin = -1;
-static int g_role_anchor_replace = -1;
-static int g_role_anchor_last_replace = -1;
-static int g_role_anchor_last_place = -1;
+static int g_ui_boundary_calls;
+static int g_ui_boundary_resets;
+static int g_ui_boundary_invalids;
+static int g_ui_boundary_current_plugin = -1;
+static int g_ui_boundary_replace = -1;
+static int g_ui_boundary_last_replace = -1;
+static int g_ui_boundary_last_place = -1;
 static int g_lane_rail_box[4];
 static int g_lane_rail_visible;
 
@@ -1356,23 +1356,23 @@ fake_ui_boundary(
     (void)u;
     if( !role )
     {
-        g_role_anchor_resets++;
-        g_role_anchor_current_plugin = -1;
-        g_role_anchor_replace = -1;
+        g_ui_boundary_resets++;
+        g_ui_boundary_current_plugin = -1;
+        g_ui_boundary_replace = -1;
         return 1;
     }
     if( role[0] == '\0' )
     {
-        g_role_anchor_invalids++;
-        g_role_anchor_current_plugin = plugin;
-        g_role_anchor_replace = -2;
+        g_ui_boundary_invalids++;
+        g_ui_boundary_current_plugin = plugin;
+        g_ui_boundary_replace = -2;
         return 0;
     }
-    g_role_anchor_calls++;
-    g_role_anchor_current_plugin = plugin;
-    g_role_anchor_replace = replace;
-    g_role_anchor_last_replace = replace;
-    g_role_anchor_last_place = place;
+    g_ui_boundary_calls++;
+    g_ui_boundary_current_plugin = plugin;
+    g_ui_boundary_replace = replace;
+    g_ui_boundary_last_replace = replace;
+    g_ui_boundary_last_place = place;
     return role_is(role);
 }
 
@@ -2509,7 +2509,7 @@ v2_aba_logic(
             api, g_v2_aba.instance_new, g_v2_aba.model_old);
 
         /* Void stale operations must be no-ops too. In particular they must
-         * not destroy/release the just-reallocated same legacy slots. */
+         * not destroy/release the just-reallocated same internal slots. */
         api->assets.image_release(api, g_v2_aba.image_old);
         api->assets.model_release(api, g_v2_aba.model_old);
         api->scene.mesh_destroy(api, g_v2_aba.mesh_old);
@@ -2768,7 +2768,7 @@ v2_present_start(struct ToriRS_ApiV2* api, void* state)
     struct ToriRS_UiNode foreign_image = appearance;
 
     (void)state;
-    foreign_image.image.value = 1; /* typed handle 1 -> unowned legacy slot 0 */
+    foreign_image.image.value = 1; /* typed handle 1 -> unowned internal slot 0 */
     g_present_foreign_update =
         api->ui.update(api, node, TORIRS_UI_FACET_APPEARANCE, &foreign_image);
     g_present_appearance_update =
@@ -3474,7 +3474,7 @@ main(void)
         PluginHost_Free(seam_host);
     }
 
-    /* ---- incarnation-fenced V2 resources survive legacy slot reuse ----- */
+    /* ---- incarnation-fenced V2 resources survive internal slot reuse ----- */
     {
         struct ToriRS_PluginHost* aba_host;
         struct ToriRS_FrameSelection selection;
@@ -3541,7 +3541,7 @@ main(void)
                 g_v2_aba.mesh_stale == TORIRS_RESULT_INVALID &&
                 g_v2_aba.instance_stale == TORIRS_RESULT_INVALID &&
                 g_v2_aba.model_stale == TORIRS_RESULT_INVALID,
-            "every stale typed resource operation fails before reaching a reused legacy slot");
+            "every stale typed resource operation fails before reaching a reused internal slot");
         CHECK(
             g_engine.image_releases == 1 && g_engine.model_releases == 1 &&
                 g_engine.meshes_live == 1 && g_engine.objects_live == 1,
@@ -4005,7 +4005,7 @@ main(void)
                 strcmp(g_present_order[1], "before") == 0 &&
                 strcmp(g_present_order[2], "target") == 0 &&
                 strcmp(g_present_order[3], "after") == 0 &&
-                g_role_anchor_last_place == PLUGIN_UI_BOUNDARY_SELF,
+                g_ui_boundary_last_place == PLUGIN_UI_BOUNDARY_SELF,
             "nested before/after presentation stays contiguous at the live target's SELF boundary");
         old_tag = g_hit_region_tag;
         old_actions = g_present_actions;

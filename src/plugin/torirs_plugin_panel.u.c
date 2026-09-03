@@ -1241,7 +1241,7 @@ app_plugin_panel_sync(struct App* app)
          *
          * Registration order already puts the client's own settings at the
          * top -- the registry lists it first on purpose -- but the roster is
-         * not only that table: the Lua adapter registers a further plugin per
+         * not only that table: the Lua runtime registers a further plugin per
          * script it loads, and a build that grows a second static plugin ahead
          * of it would move it without anyone noticing. The pass is what makes
          * "first" a property of the row rather than of a table somewhere else.
@@ -1258,9 +1258,9 @@ app_plugin_panel_sync(struct App* app)
                     continue;
 
                 /*
-                 * An ADAPTER is machinery, and a working one has no row.
+                 * A RUNTIME HOST is machinery, and a working one has no row.
                  *
-                 * The Lua adapter is registered beside the scripts it runs -- that
+                 * The Lua runtime host is registered beside the scripts it runs -- that
                  * uniformity is the whole design -- so it also appeared in the
                  * roster, called "lua", sitting among them and looking like a peer
                  * with nothing a user does to it. Its scripts are the rows; they
@@ -1270,7 +1270,7 @@ app_plugin_panel_sync(struct App* app)
                  * conditions below are the two states you cannot get out of
                  * otherwise: a fault has to be visible somewhere or a broken Lua
                  * layer is a client with no plugins and no explanation, and a
-                 * switched-off adapter has to have a switch or it can never come
+                 * switched-off runtime host has to have a switch or it can never come
                  * back on.
                  */
                 if( PluginHost_IsRuntimeHost(app->plugins, p) && !err &&
@@ -1280,10 +1280,10 @@ app_plugin_panel_sync(struct App* app)
                 /*
                  * A HIDDEN builtin has no row at all, faulting or not.
                  *
-                 * Unlike an adapter, there is nothing here for the user to do
+                 * Unlike a runtime host, there is nothing here for the user to do
                  * about it: it is a feature of the client whose switch is in the
                  * cache's own All Settings panel, and a row here would be a second
-                 * switch over the same thing. See ToriRS_PluginDef::hidden.
+                 * switch over the same thing.
                  */
                 if( PluginHost_IsHidden(app->plugins, p) )
                     continue;

@@ -17,16 +17,21 @@ static int failures;
         }                                                                         \
     } while( 0 )
 
-static struct ToriRS_EngineFrameOffer const DESKTOP[] = {
-    { "classic-fixed", "Classic Fixed", TORIRS_PLUGIN_CANVAS_FIXED, 765, 503 },
-    { "modern-resizable", "Modern Resizable", TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
-      765, 503 },
-    { NULL, NULL, 0, 0, 0 },
+static struct ToriRS_FrameOffer const DESKTOP[] = {
+    { .struct_size = sizeof(struct ToriRS_FrameOffer),
+      .id = "classic-fixed", .title = "Classic Fixed",
+      .canvas = TORIRS_FRAME_CANVAS_FIXED, .width = 765, .height = 503 },
+    { .struct_size = sizeof(struct ToriRS_FrameOffer),
+      .id = "modern-resizable", .title = "Modern Resizable",
+      .canvas = TORIRS_FRAME_CANVAS_WINDOW, .min_width = 765, .min_height = 503 },
+    { .id = NULL },
 };
 
-static struct ToriRS_EngineFrameOffer const MOBILE[] = {
-    { "stone-drawer", "Stone Drawer", TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW, 640, 480 },
-    { NULL, NULL, 0, 0, 0 },
+static struct ToriRS_FrameOffer const MOBILE[] = {
+    { .struct_size = sizeof(struct ToriRS_FrameOffer),
+      .id = "stone-drawer", .title = "Stone Drawer",
+      .canvas = TORIRS_FRAME_CANVAS_WINDOW, .min_width = 640, .min_height = 480 },
+    { .id = NULL },
 };
 
 int
@@ -35,9 +40,11 @@ main(void)
     struct PluginFrameCatalog a;
     struct PluginFrameCatalog b;
     struct PluginFrameCatalogEntry const* row;
-    struct ToriRS_EngineFrameOffer invalid[] = {
-        { "Bad/Id", "Bad", TORIRS_PLUGIN_CANVAS_FIXED, 765, 503 },
-        { NULL, NULL, 0, 0, 0 },
+    struct ToriRS_FrameOffer invalid[] = {
+        { .struct_size = sizeof(struct ToriRS_FrameOffer),
+          .id = "Bad/Id", .title = "Bad",
+          .canvas = TORIRS_FRAME_CANVAS_FIXED, .width = 765, .height = 503 },
+        { .id = NULL },
     };
 
     PluginFrameCatalog_Init(&a);
@@ -52,7 +59,7 @@ main(void)
         "canonical ids address offers directly");
     row = PluginFrameCatalog_At(&a, 1);
     CHECK(
-        row && row->plugin == 4 && row->canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW &&
+        row && row->plugin == 4 && row->canvas == TORIRS_FRAME_CANVAS_WINDOW &&
             row->width == 765 && row->height == 503,
         "the catalogue retains provider and canvas policy");
 

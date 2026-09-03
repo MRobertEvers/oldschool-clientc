@@ -55,9 +55,8 @@ enum PluginCallbackKind
     PLUGIN_CALLBACK_UI,
     PLUGIN_CALLBACK_UI_BUILD,
     PLUGIN_CALLBACK_LAYOUT,
-    PLUGIN_CALLBACK_LAYOUT_CHANGED,
+    PLUGIN_CALLBACK_PLACEMENT_CHANGED,
     PLUGIN_CALLBACK_DRAW_FRAME,
-    PLUGIN_CALLBACK_CHROME,
     PLUGIN_CALLBACK_SCREEN_CHANGE,
     PLUGIN_CALLBACK_PANEL_BUILD,
     PLUGIN_CALLBACK_PANEL_ACTION,
@@ -159,7 +158,7 @@ struct ToriRS_PluginCtx
     bool tearing_down;
     /*
      * The plugin looked at the lane and stood down. @see
-     * ToriRS_PluginApi::disable_self.
+     * disable_self.
      *
      * A second flag rather than a cleared `enabled`, because the two are
      * different facts with different lifetimes: `enabled` is a preference that
@@ -437,9 +436,8 @@ struct ToriRS_PluginHost
      * world-only draw verbs, which have nothing to mean on screen/panel. */
     int draw_canvas;
 
-    /* Static frame offers and the one host-resolved selection. The legacy
-     * layout_* fields below are temporarily the engine runtime for the active
-     * catalogue entry; plugins no longer arbitrate them once migrated. */
+    /* Static frame offers and the committed engine state for the active
+     * catalogue entry. */
     struct PluginFrameCatalog frame_catalog;
     struct ToriRS_FrameSelection frame_selection;
     /** Last completely validated and engine-committed offer. */
@@ -778,7 +776,7 @@ plugin_config_slot(
         return NULL;
     if( ctx->config_count >= TORIRS_PLUGIN_CONFIG_MAX )
     {
-        /* A declared schema cannot reach this -- PluginHost_Register refuses
+        /* A declared schema cannot reach this -- PluginHost_RegisterV2 refuses
          * one that does not fit. What can is an ini carrying more unclaimed
          * keys than the headroom above the schema, which is a settings file
          * that has outlived several renames. Said out loud because the
@@ -928,7 +926,7 @@ plugin_dispatch(
  * Is `ev` one of the passes whose order is a Z ORDER?
  *
  * On these, running first means being drawn UNDER, so they sort by
- * ToriRS_PluginDef::draw_order and the rest sort by `priority`. One list, two
+ * ToriRS_PluginDefV2::draw_order and the rest sort by `priority`. One list, two
  * keys, chosen here -- the alternative is a second subscription table that
  * only three events use.
  */
@@ -2154,7 +2152,7 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     };
     static struct
     {
-        char const* legacy;
+        char const* role;
         char const* canonical;
         uint32_t flags;
     } const ROLE[] = {
@@ -2167,7 +2165,7 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     struct ToriRS_UiBaseDeclaration declarations[
         TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX + 48];
     char dynamic_names[15][TORIRS_UI_NAME_MAX];
-    char legacy_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    char profile_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
     char const* provider;
     uint32_t tab_enabled_mask = 0;
     int active_tab = -1;
@@ -2234,8 +2232,8 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     for( size_t i = 0; i < sizeof(ROLE) / sizeof(ROLE[0]); i++ )
     {
         int x, y, w, h;
-        if( host->engine.role_rect(host->engine.user, ROLE[i].legacy, &x, &y, &w, &h) &&
-            host->engine.role_visible(host->engine.user, ROLE[i].legacy) )
+        if( host->engine.role_rect(host->engine.user, ROLE[i].role, &x, &y, &w, &h) &&
+            host->engine.role_visible(host->engine.user, ROLE[i].role) )
             count = plugin_ui_base_add_rect(
                 declarations,
                 count,
@@ -2251,7 +2249,7 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
 
     /* The lane-owned popout rail is the first frame-blocking node. Additional
      * RevConfig occluders migrate to named metadata rather than extending a
-     * numbered public API; this compatibility read keeps today's profiles. */
+     * numbered public API; this profile read keeps today's profiles. */
     {
         int x, y, w, h;
         if( host->engine.role_rect(host->engine.user, "lane_chrome_0", &x, &y, &w, &h) &&
@@ -2273,8 +2271,8 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     {
         int x, y, w, h;
         int const before = count;
-        snprintf(legacy_role, sizeof(legacy_role), "sidetab_%d", i);
-        if( !host->engine.role_rect(host->engine.user, legacy_role, &x, &y, &w, &h) )
+        snprintf(profile_role, sizeof(profile_role), "sidetab_%d", i);
+        if( !host->engine.role_rect(host->engine.user, profile_role, &x, &y, &w, &h) )
             continue;
         snprintf(dynamic_names[i], sizeof(dynamic_names[i]), "frame.sidebar.tab.%d", i);
         count = plugin_ui_base_add_rect(
@@ -2298,7 +2296,7 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     }
 
     /* A v2 frame can publish semantic furniture directly. It replaces the
-     * compatibility row inferred from the legacy role/slot when both name the
+     * profile-derived row inferred from the profile role/surface when both name the
      * same object, and otherwise joins the same atomic base transaction. */
     {
         int const owner = plugin_frame_owner(host);
@@ -2444,7 +2442,7 @@ api_slot_native_size(
 }
 
 /*
- * Where a component is. @see ToriRS_PluginApi::component_rect.
+ * Where a component is. @see component_rect.
  *
  * No range test on the id, unlike the region verbs above: every 32-bit value
  * is a well-formed component id, and "the tree has no such component" is the
@@ -4990,7 +4988,7 @@ api_image_release(
      * plugin's to free: the entry pointing at it would go on handing the
      * handle out, and the next caller would draw whatever landed in the
      * recycled slot. The cache decides when an icon goes.
-     * @see ToriRS_PluginApi::obj_image.
+     * @see obj_image.
      */
     if( plugin_obj_icon_owns(ctx->host, image) )
         return;
@@ -5000,7 +4998,7 @@ api_image_release(
 /* ------------------------------------------------------------------- chrome */
 
 /*
- * The second tier of the frame. @see ToriRS_PluginApi::chrome_claim.
+ * The second tier of the frame. @see chrome_claim.
  *
  * Everything here lives in the HOST and nothing new was needed from the
  * engine beyond one reverse lookup, which is not an accident: a chrome part is
@@ -5859,7 +5857,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->model_release);
     assert(engine->mesh_create);
     assert(engine->mesh_destroy);
-    assert(engine->mesh_clear);
     assert(engine->mesh_vertex);
     assert(engine->mesh_face);
     assert(engine->object_create);
@@ -5882,8 +5879,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->role_rect);
     assert(engine->role_visible);
     assert(engine->role_click);
-    assert(engine->role_id);
-    assert(engine->role_slot);
     assert(engine->menu_drop);
     assert(engine->ui_boundary);
     assert(engine->stat);
@@ -6063,33 +6058,12 @@ plugin_title_refresh(struct ToriRS_PluginCtx* ctx)
     ctx->title[out] = '\0';
 }
 
-#define PLUGIN_FRAME_PREFERENCE_MIGRATION 1
-
-static char const*
-plugin_frame_legacy_gameframe_choice(struct ToriRS_PluginCtx* ctx)
-{
-    char const* value;
-
-    assert(ctx);
-    value = api_cfg_str(ctx, "layout");
-    if( !value || !value[0] || strcmp(value, "Auto") == 0 || strcmp(value, "3") == 0 )
-        return "auto";
-    if( strcmp(value, "Classic Fixed") == 0 || strcmp(value, "0") == 0 )
-        return "gameframe-layout/classic-fixed";
-    if( strcmp(value, "Modern Fixed") == 0 || strcmp(value, "1") == 0 )
-        return "gameframe-layout/modern-fixed";
-    if( strcmp(value, "Modern Resizable") == 0 || strcmp(value, "2") == 0 )
-        return "gameframe-layout/modern-resizable";
-    return "auto";
-}
-
-/** Read/migrate the one device preference after plugin_prefs.ini has landed. */
+/** Read the one device preference after the preferences file has landed. */
 static void
 plugin_frame_preference_load(struct ToriRS_PluginHost* host)
 {
     char requested[TORIRS_PLUGIN_FRAME_ID_MAX] = "auto";
     int migration = 0;
-    int present = 0;
 
     assert(host);
     if( host->frame_preference_loaded )
@@ -6097,39 +6071,12 @@ plugin_frame_preference_load(struct ToriRS_PluginHost* host)
     host->frame_preference_loaded = 1;
 
     if( host->engine.frame_preference )
-        present = host->engine.frame_preference(
+        (void)host->engine.frame_preference(
             host->engine.user, requested, (int)sizeof(requested), &migration);
     if( !plugin_frame_preference_id_valid(requested) )
     {
         TORIRS_REPORT("plugin: invalid saved gameframe '%s'; using auto\n", requested);
         snprintf(requested, sizeof(requested), "%s", "auto");
-    }
-
-    if( migration < PLUGIN_FRAME_PREFERENCE_MIGRATION )
-    {
-        if( !present )
-        {
-            int const desktop = PluginHost_IndexOf(host, "gameframe-layout");
-            int const mobile = PluginHost_IndexOf(host, "mobile-gameframe");
-
-            if( desktop >= 0 && host->plugins[desktop].enabled )
-            {
-                snprintf(
-                    requested,
-                    sizeof(requested),
-                    "%s",
-                    plugin_frame_legacy_gameframe_choice(&host->plugins[desktop]));
-                if( mobile >= 0 && host->plugins[mobile].enabled )
-                    TORIRS_REPORT(
-                        "plugin: both legacy gameframe plugins were enabled; preserving "
-                        "gameframe-layout, which previously won by registry order\n");
-            }
-            else if( mobile >= 0 && host->plugins[mobile].enabled )
-                snprintf(requested, sizeof(requested), "%s", "mobile-gameframe/stone-drawer");
-        }
-        if( host->engine.frame_preference_set )
-            (void)host->engine.frame_preference_set(
-                host->engine.user, requested, PLUGIN_FRAME_PREFERENCE_MIGRATION);
     }
 
     snprintf(
@@ -6269,8 +6216,7 @@ plugin_frame_resolve(struct ToriRS_PluginHost* host)
     assert(host);
     if( host->frame_resolving )
         return;
-    /* Compatibility while bundled frame plugins are migrated: without any
-     * published offers the legacy claim API remains the sole authority. */
+    /* No providers means the native frame remains authoritative. */
     if( PluginFrameCatalog_Count(&host->frame_catalog) == 0 )
     {
         host->frame_selection_dirty = 0;
@@ -6792,7 +6738,7 @@ plugin_v2_image_release(
             break;
         }
 
-    /* The engine's committed layout consumes legacy image slots.  Take a
+    /* The engine's committed layout consumes internal image slots. Take a
      * frame that retained this exact token off-screen before freeing the slot;
      * otherwise a subsequent allocation in the same slot would repaint the
      * old frame with unrelated art before its next layout transaction. */
@@ -7297,11 +7243,8 @@ plugin_v2_has_event_callback(
         return def->callbacks.on_ui_draw != NULL;
     case PLUGIN_CALLBACK_PANEL_LAYOUT:
         return def->callbacks.on_ui_layout != NULL;
-    case PLUGIN_CALLBACK_LAYOUT_CHANGED:
-        /* A placement callback follows the resolved placement revision, not
-         * this broader legacy notification. It is dispatched directly after
-         * canonical area comparison. */
-        return 0;
+    case PLUGIN_CALLBACK_PLACEMENT_CHANGED:
+        return def->callbacks.on_placement_changed != NULL;
     default:
         return 0;
     }
@@ -9454,8 +9397,7 @@ plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
 static bool
 plugin_ui_present_anchor(
     struct ToriRS_PluginHost* host,
-    struct PluginUiPresentation const* row,
-    int plugin)
+    struct PluginUiPresentation const* row)
 {
     assert(host);
     assert(row);
@@ -9463,9 +9405,7 @@ plugin_ui_present_anchor(
         return true;
     if( host->engine.ui_boundary(
             host->engine.user,
-            plugin,
             row->boundary_role,
-            0,
             row->boundary_place) )
         return true;
     /* The live role disappeared between reconciliation and paint. Do not scan
@@ -9478,11 +9418,10 @@ plugin_ui_present_anchor(
 static void
 plugin_ui_present_anchor_reset(
     struct ToriRS_PluginHost* host,
-    struct PluginUiPresentation const* row,
-    int plugin)
+    struct PluginUiPresentation const* row)
 {
     if( row->boundary_role[0] )
-        (void)host->engine.ui_boundary(host->engine.user, plugin, NULL, 0, 0);
+        (void)host->engine.ui_boundary(host->engine.user, NULL, 0);
 }
 
 static struct ToriRS_ImageRef
@@ -9534,7 +9473,7 @@ plugin_ui_present_draw(
             continue;
 
         if( row->appearance_plugin >= 0 && (row->value.flags & TORIRS_UI_NODE_VISIBLE) &&
-            plugin_ui_present_anchor(host, row, row->appearance_plugin) )
+            plugin_ui_present_anchor(host, row) )
         {
             struct ToriRS_PluginCtx* context = &host->plugins[row->appearance_plugin];
             struct PluginV2Instance* v2 = context->v2;
@@ -9572,11 +9511,11 @@ plugin_ui_present_draw(
             host->dispatching = previous_dispatching;
             host->dispatch_event = previous_event;
         }
-        plugin_ui_present_anchor_reset(host, row, row->appearance_plugin);
+        plugin_ui_present_anchor_reset(host, row);
 
         if( row->actions_plugin >= 0 && (row->value.flags & TORIRS_UI_NODE_VISIBLE) &&
             (row->value.flags & TORIRS_UI_NODE_ENABLED) && row->value.action_count > 0 &&
-            plugin_ui_present_anchor(host, row, row->actions_plugin) )
+            plugin_ui_present_anchor(host, row) )
         {
             struct ToriRS_Rect hit = row->value.hit_rect;
             char const* actions[TORIRS_UI_NAMED_ACTIONS_MAX];
@@ -9600,7 +9539,7 @@ plugin_ui_present_draw(
                     count,
                     PLUGIN_UI_PRESENT_TAG_BIT | row->action_token);
         }
-        plugin_ui_present_anchor_reset(host, row, row->actions_plugin);
+        plugin_ui_present_anchor_reset(host, row);
     }
 }
 
@@ -9955,7 +9894,7 @@ PluginHost_DrawFrame(
     if( owner < 0 )
         return;
     v2_offer = plugin_v2_frame_offer(&host->plugins[owner], host->frame_active_entry);
-    if( host->callback_count[PLUGIN_CALLBACK_DRAW_FRAME] == 0 && !(v2_offer && v2_offer->draw) )
+    if( !v2_offer || !v2_offer->draw )
         return;
 
     /* A third token, for the third surface, on the same reasoning as the
@@ -10024,7 +9963,7 @@ plugin_placement_notify_v2(struct ToriRS_PluginHost* host)
             !v2->definition->callbacks.on_placement_changed )
             continue;
         host->dispatching = i;
-        host->dispatch_event = PLUGIN_CALLBACK_LAYOUT_CHANGED;
+        host->dispatch_event = PLUGIN_CALLBACK_PLACEMENT_CHANGED;
         v2->definition->callbacks.on_placement_changed(
             &v2->runtime.api, v2->state, revision);
         host->dispatching = previous_dispatching;
@@ -10033,8 +9972,7 @@ plugin_placement_notify_v2(struct ToriRS_PluginHost* host)
 }
 
 /**
- * Notify legacy region consumers, fold any reservations they restate into one
- * canonical placement result, then publish that result to v2 consumers.
+ * Resolve one canonical placement result and publish it to V2 consumers.
  */
 static void
 plugin_layout_notifications_run(struct ToriRS_PluginHost* host)
@@ -10323,6 +10261,8 @@ PluginHost_Layout(
     if( owner < 0 || owner >= host->plugin_count || !host->plugins[owner].running )
         return;
     v2_offer = plugin_v2_frame_offer(&host->plugins[owner], build_entry);
+    if( !v2_offer )
+        return;
     host->placement_cache_valid = 0;
     /*
      * A canvas of nothing is refused rather than laid out against.
@@ -10428,8 +10368,6 @@ PluginHost_Layout(
                     "The frame's named UI declaration is invalid or over budget.");
         }
     }
-    else
-        plugin_dispatch_one(host, owner, PLUGIN_CALLBACK_LAYOUT, &ev);
     host->layout_declaring = 0;
     host->layout_declarer = -1;
 

@@ -175,7 +175,7 @@ def main() -> int:
     }
     for token, label in forbidden_c.items():
         if token in c_source:
-            errors.append(f"C adapter still contains {label}: {token}")
+            errors.append(f"Lua runtime still contains {label}: {token}")
 
     canonical_modules = set(modules)
     legacy_callbacks = {

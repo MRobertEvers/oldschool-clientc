@@ -132,10 +132,8 @@ struct UITreeEntityOverlay
 /** One role-local canvas list, already grouped by exact target incarnation.
  * `replace` selects the pruned target's tombstone; `place` selects the exact
  * before/native-self/after boundary for a live target. */
-/* Where a role overlay group paints relative to its target. Stated as numbers
- * on both sides of the plugin/ui boundary (plugin/torirs_plugin.h's
- * ToriRS_LegacyAnchorPlace and torirs_plugin_host.h's SELF), which do not
- * include each other. */
+/* Where a role overlay group paints relative to its target. These values are
+ * the internal UITree side of the host's named-UI boundary contract. */
 #define UITREE_ROLE_PLACE_AFTER 0
 #define UITREE_ROLE_PLACE_BEFORE 1
 /** The target's own appearance, when a plugin provides it: paints between the

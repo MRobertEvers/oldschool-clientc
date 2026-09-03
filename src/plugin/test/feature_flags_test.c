@@ -179,7 +179,7 @@ fake_feature_set(
 /* Everything else the host asserts on, answered flatly. */
 
 /* In game: these harnesses exercise behaviour that is gated on it.
- * @see ToriRS_PluginApi::screen. */
+ * @see ToriRS_CoreApiV2::screen. */
 static int
 fake_plugin_screen(void* u)
 {
@@ -480,16 +480,16 @@ fake_mouse_pos(
 }
 /* Regions, by role. `w` of 0 means "this gameframe has no such region", which
  * is how the fallback chain in slot_rect's contract gets exercised. */
-static int g_slot_x[TORIRS_PLUGIN_SLOT_COUNT];
-static int g_slot_y[TORIRS_PLUGIN_SLOT_COUNT];
-static int g_slot_w[TORIRS_PLUGIN_SLOT_COUNT];
-static int g_slot_h[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_x[TORIRS_HOST_SURFACE_COUNT];
+static int g_slot_y[TORIRS_HOST_SURFACE_COUNT];
+static int g_slot_w[TORIRS_HOST_SURFACE_COUNT];
+static int g_slot_h[TORIRS_HOST_SURFACE_COUNT];
 
 static int
 fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
 {
     (void)u;
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_COUNT )
         return 0;
     if( g_slot_w[slot] <= 0 || g_slot_h[slot] <= 0 )
         return 0;
@@ -506,10 +506,10 @@ fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
 
 /* No frame under test declares MEMBERS of a role, so the honest answer is
  * "this gameframe has no such member" -- @see
- * ToriRS_PluginApi::slot_member_rect, where that is an answer and not a
+ * the host's surface-member query, where that is an answer and not a
  * fault. */
 /** The lane states no size for any surface, so a caller falls back to its own.
- *  @see ToriRS_PluginApi::slot_native_size. */
+ *  @see ToriRS_FrameApiV2::surface_native_size. */
 static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
@@ -534,7 +534,7 @@ fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int
 }
 
 /* Nothing under test mounts a component tree, so every id answers "not
- * here" -- @see ToriRS_PluginApi::component_rect, where that is an answer. */
+ * here" -- @see ToriRS_CacheApiV2::component_rect, where that is an answer. */
 static int
 fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
 {
@@ -600,16 +600,16 @@ fake_role_slot(void* user, char const* role, int* out_slot, int* out_member)
 
 
 static int
-fake_role_replace(void* u, int plugin, char const* role, int enabled)
+fake_role_suppress_facets(void* u, char const* role, int paint, int input)
 {
-    (void)u; (void)plugin; (void)role; (void)enabled;
+    (void)u; (void)role; (void)paint; (void)input;
     return 1;
 }
 
 static int
-fake_role_anchor(void* u, int plugin, char const* role, int replace, int place)
+fake_ui_boundary(void* u, char const* role, int place)
 {
-    (void)place; (void)u; (void)plugin; (void)replace;
+    (void)place; (void)u;
     return role ? 0 : 1;
 }
 
@@ -1298,8 +1298,8 @@ fake_engine(void)
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
     e.role_slot = fake_role_slot;
-    e.role_replace = fake_role_replace;
-    e.role_anchor = fake_role_anchor;
+    e.role_suppress_facets = fake_role_suppress_facets;
+    e.ui_boundary = fake_ui_boundary;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;

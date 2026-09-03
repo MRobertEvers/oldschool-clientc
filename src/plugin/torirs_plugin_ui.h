@@ -154,21 +154,20 @@ struct ToriRS_UiRegistry
 void
 ToriRS_UiRegistry_Init(struct ToriRS_UiRegistry* registry);
 
-/** Validate canonical dotted spelling (not a legacy alias). */
+/** Validate canonical dotted spelling. */
 bool
 ToriRS_UiRegistry_NameIsValid(char const* name);
 
 /**
- * Intern a canonical frame.* or plugin.* name.  A documented legacy alias is
- * canonicalized first.  Unknown frame.* names are refused because that
- * namespace is deliberately owned by the core vocabulary.
+ * Intern a canonical frame.* or plugin.* name. Unknown frame.* names are
+ * refused because that namespace is owned by the core vocabulary.
  */
 struct ToriRS_UiNodeRef
 ToriRS_UiRegistry_Ref(
     struct ToriRS_UiRegistry* registry,
     char const* name);
 
-/** Find an existing canonical name or alias without creating anything. */
+/** Find an existing canonical name without creating anything. */
 struct ToriRS_UiNodeRef
 ToriRS_UiRegistry_Find(
     struct ToriRS_UiRegistry const* registry,
@@ -176,8 +175,8 @@ ToriRS_UiRegistry_Find(
 
 /**
  * Intern a plugin-private local name as plugin.<plugin-id>.<local-name>.
- * Known legacy aliases and frame.* names still address the shared vocabulary.
- * A fully qualified plugin.* spelling is accepted only for the same plugin.
+ * Canonical frame.* names address the shared vocabulary. A fully qualified
+ * plugin.* spelling is accepted only for the same plugin.
  */
 struct ToriRS_UiNodeRef
 ToriRS_UiRegistry_PrivateRef(
