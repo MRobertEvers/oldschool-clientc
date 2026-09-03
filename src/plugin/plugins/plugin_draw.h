@@ -5,7 +5,7 @@
  * A drawing kit for plugins that compose their own pictures.
  *
  * WHY A PLUGIN COMPOSES AT ALL. The panel gives a plugin a bounded drawing
- * well (TORIRS_PLUGIN_W_CUSTOM) and four verbs to fill it with -- rect, line,
+ * well (TORIRS_PANEL_WIDGET_CUSTOM) and four verbs to fill it with -- rect, line,
  * text and image -- and one of those four is not enough on its own:
  * api->draw_text sets in the client's hitsplat face, one centred string per
  * overlay item, with no way to measure a string. A page that wants the game's

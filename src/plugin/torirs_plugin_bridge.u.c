@@ -614,7 +614,7 @@ app_plugin_highlight_loc_resolve_one(
                 return;
             if( !app_plugin_highlight_begin(app, k, m->group, &proto) )
                 return;
-            proto.kind = TORIRS_PLUGIN_HL_LOC;
+            proto.kind = TORIRS_HIGHLIGHT_LOC;
             proto.element_id = loc->element_id;
             proto.overhead_height = app_plugin_element_height(app, loc->element_id);
             proto.fine_x = (loc->grid_position.x * 128) + 64;
@@ -637,7 +637,7 @@ app_plugin_highlight_loc_resolve_one(
         if( group >= 0 &&
             app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
         {
-            proto.kind = TORIRS_PLUGIN_HL_LOC;
+            proto.kind = TORIRS_HIGHLIGHT_LOC;
             proto.element_id = loc->element_id;
             proto.overhead_height = app_plugin_element_height(app, loc->element_id);
             proto.fine_x = (loc->grid_position.x * 128) + 64;
@@ -840,7 +840,7 @@ app_plugin_highlights_rebuild_pools(
         struct RS_HighlightMember const* m = &hl->member[RS_HIGHLIGHT_TILE][i];
         if( !app_plugin_highlight_begin(app, RS_HIGHLIGHT_TILE, m->group, &proto) )
             continue;
-        proto.kind = TORIRS_PLUGIN_HL_TILE;
+        proto.kind = TORIRS_HIGHLIGHT_TILE;
         proto.tile_x = RS_HIGHLIGHT_COORD_X(m->coord);
         proto.tile_z = RS_HIGHLIGHT_COORD_Z(m->coord);
         proto.level = RS_HIGHLIGHT_COORD_PLANE(m->coord);
@@ -893,7 +893,7 @@ app_plugin_highlights_rebuild_pools(
                         continue;
                     if( !app_plugin_highlight_begin(app, k, m->group, &proto) )
                         continue;
-                    proto.kind = TORIRS_PLUGIN_HL_NPC;
+                    proto.kind = TORIRS_HIGHLIGHT_NPC;
                     proto.element_id = npc->element_id;
                     proto.overhead_height = app_plugin_element_height(app, npc->element_id);
                     proto.fine_x = (int)npc->draw_position.x;
@@ -917,7 +917,7 @@ app_plugin_highlights_rebuild_pools(
                 if( group >= 0 &&
                     app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
                 {
-                    proto.kind = TORIRS_PLUGIN_HL_NPC;
+                    proto.kind = TORIRS_HIGHLIGHT_NPC;
                     proto.element_id = npc->element_id;
                     proto.overhead_height = app_plugin_element_height(app, npc->element_id);
                     proto.fine_x = (int)npc->draw_position.x;
@@ -959,7 +959,7 @@ app_plugin_highlights_rebuild_pools(
                     continue;
                 if( !app_plugin_highlight_begin(app, RS_HIGHLIGHT_PLAYER, m->group, &proto) )
                     continue;
-                proto.kind = TORIRS_PLUGIN_HL_PLAYER;
+                proto.kind = TORIRS_HIGHLIGHT_PLAYER;
                 proto.element_id = player->element_id;
                 proto.overhead_height = app_plugin_element_height(app, player->element_id);
                 proto.fine_x = (int)player->draw_position.x;
@@ -1040,7 +1040,7 @@ app_plugin_highlights_rebuild_pools(
                         continue;
                     if( !app_plugin_highlight_begin(app, k, m->group, &proto) )
                         continue;
-                    proto.kind = TORIRS_PLUGIN_HL_OBJ;
+                    proto.kind = TORIRS_HIGHLIGHT_OBJ;
                     proto.element_id = stack->element_id;
                     proto.overhead_height = app_plugin_element_height(app, stack->element_id);
                     proto.fine_x = (stack->grid_position.x * 128) + 64;
@@ -1061,7 +1061,7 @@ app_plugin_highlights_rebuild_pools(
                 if( group >= 0 &&
                     app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
                 {
-                    proto.kind = TORIRS_PLUGIN_HL_OBJ;
+                    proto.kind = TORIRS_HIGHLIGHT_OBJ;
                     proto.element_id = stack->element_id;
                     proto.overhead_height = app_plugin_element_height(app, stack->element_id);
                     proto.fine_x = (stack->grid_position.x * 128) + 64;
@@ -1204,11 +1204,11 @@ app_plugin_highlights_report(struct App* app)
         stderr,
         "highlight-resolve: %d drawn (tile %d, npc %d, loc %d, obj %d, player %d)\n",
         app->plugin_highlight_count,
-        tally[TORIRS_PLUGIN_HL_TILE],
-        tally[TORIRS_PLUGIN_HL_NPC],
-        tally[TORIRS_PLUGIN_HL_LOC],
-        tally[TORIRS_PLUGIN_HL_OBJ],
-        tally[TORIRS_PLUGIN_HL_PLAYER]);
+        tally[TORIRS_HIGHLIGHT_TILE],
+        tally[TORIRS_HIGHLIGHT_NPC],
+        tally[TORIRS_HIGHLIGHT_LOC],
+        tally[TORIRS_HIGHLIGHT_OBJ],
+        tally[TORIRS_HIGHLIGHT_PLAYER]);
 }
 
 static int
@@ -1242,11 +1242,11 @@ app_plugin_highlight_next(void* user, int iter, struct ToriRS_HighlightItem* out
  * scope, so this is where they are held together: move the enum and the client
  * stops compiling, rather than every script silently gating on the wrong key.
  */
-_Static_assert(TORIRS_PLUGIN_KEY_SHIFT == TORIRSK_SHIFT, "plugin SHIFT keycode drifted");
-_Static_assert(TORIRS_PLUGIN_KEY_CTRL == TORIRSK_CTRL, "plugin CTRL keycode drifted");
-_Static_assert(TORIRS_PLUGIN_KEY_TAB == TORIRSK_TAB, "plugin TAB keycode drifted");
-_Static_assert(TORIRS_PLUGIN_KEY_SPACE == TORIRSK_SPACE, "plugin SPACE keycode drifted");
-_Static_assert(TORIRS_PLUGIN_KEY_ESCAPE == TORIRSK_ESCAPE, "plugin ESCAPE keycode drifted");
+_Static_assert(TORIRS_KEY_SHIFT == TORIRSK_SHIFT, "plugin SHIFT keycode drifted");
+_Static_assert(TORIRS_KEY_CTRL == TORIRSK_CTRL, "plugin CTRL keycode drifted");
+_Static_assert(TORIRS_KEY_TAB == TORIRSK_TAB, "plugin TAB keycode drifted");
+_Static_assert(TORIRS_KEY_SPACE == TORIRSK_SPACE, "plugin SPACE keycode drifted");
+_Static_assert(TORIRS_KEY_ESCAPE == TORIRSK_ESCAPE, "plugin ESCAPE keycode drifted");
 
 /* ---------------------------------------------------------------- queries */
 
@@ -1537,16 +1537,16 @@ app_plugin_hover_entity(void* user, struct ToriRS_HoverTarget* out)
         switch( hit->type )
         {
         case WORLD_PICK_SCENERY:
-            kind = TORIRS_PLUGIN_HOVER_SCENERY;
+            kind = TORIRS_HOVER_SCENERY;
             break;
         case WORLD_PICK_NPC:
-            kind = TORIRS_PLUGIN_HOVER_NPC;
+            kind = TORIRS_HOVER_NPC;
             break;
         case WORLD_PICK_PLAYER:
-            kind = TORIRS_PLUGIN_HOVER_PLAYER;
+            kind = TORIRS_HOVER_PLAYER;
             break;
         case WORLD_PICK_OBJSTACK:
-            kind = TORIRS_PLUGIN_HOVER_OBJ;
+            kind = TORIRS_HOVER_OBJ;
             break;
         default:
             continue;
@@ -1687,7 +1687,7 @@ enum
 {
     /** Whatever this boot resolved. Never in `values` -- the page's own
      *  "Revision default" entry is this one, and it arrives as
-     *  TORIRS_PLUGIN_FEATURE_UNSET. */
+     *  TORIRS_FEATURE_UNSET. */
     APP_PLUGIN_ZOOM_BAND_REVISION = 0,
     APP_PLUGIN_ZOOM_BAND_STANDARD,
     APP_PLUGIN_ZOOM_BAND_CLOSE,
@@ -1815,7 +1815,7 @@ struct AppPluginFeatureDesc
      * an integer in 64..16384 is a quiz.
      */
     char const* choices;
-    int values[TORIRS_PLUGIN_FEATURE_VALUES_MAX];
+    int values[TORIRS_FEATURE_VALUES_MAX];
     int value_count;
 };
 
@@ -1830,7 +1830,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Camera",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
         APP_PLUGIN_FEATURE_CAMERA_OFF(wheel),
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         "Mouse wheel|Fixed",
@@ -1843,7 +1843,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND,
         0,
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         /* "Revision default" is the entry the page prepends to every row; it
@@ -1862,7 +1862,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
         APP_PLUGIN_FEATURE_CAMERA_OFF(wheel_step),
-        TORIRS_PLUGIN_FEATURE_INT,
+        TORIRS_FEATURE_INT,
         1,
         1024,
         "Fine (20)|Small (40)|Normal (60)|Large (120)|Fastest (240)",
@@ -1875,7 +1875,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
         APP_PLUGIN_FEATURE_CAMERA_OFF(distance_scale),
-        TORIRS_PLUGIN_FEATURE_INT,
+        TORIRS_FEATURE_INT,
         10,
         400,
         /* A percentage of the whole follow distance, which is the only zoom
@@ -1893,7 +1893,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
         APP_PLUGIN_FEATURE_CAMERA_OFF(pitch_distance),
-        TORIRS_PLUGIN_FEATURE_INT,
+        TORIRS_FEATURE_INT,
         0,
         16,
         /* Fine units of eye distance per angle unit of pitch. Named for the
@@ -1911,7 +1911,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT,
         REVCONFIG_CAMERA_CONTROL_ARROW_KEYS,
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         "Off|On",
@@ -1924,7 +1924,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT,
         REVCONFIG_CAMERA_CONTROL_MMB,
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         "Off|On",
@@ -1939,7 +1939,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Clicking",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(ground_click_offmap_nearest),
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         "Does nothing|Nearest tile",
@@ -1952,7 +1952,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(ground_click_clamp_tiles),
-        TORIRS_PLUGIN_FEATURE_INT,
+        TORIRS_FEATURE_INT,
         0,
         104,
         "No limit|25 tiles|50 tiles|70 tiles (deob)|104 tiles",
@@ -1965,7 +1965,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(attack_option_model),
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         "Level bump (2004)|Dropdowns (OSRS)",
@@ -1978,7 +1978,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(target_mask_held),
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         "0x10 (2004)|0x20 (OSRS)",
@@ -1993,7 +1993,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Scene",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(mover_model),
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         "Per cycle (2004)|Per frame (OSRS)",
@@ -2006,7 +2006,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(painter_draw_distance),
-        TORIRS_PLUGIN_FEATURE_INT,
+        TORIRS_FEATURE_INT,
         /* The official band, not the field's own range. 0 is a real value of
          * the field -- it is how an era says "Client-TS's fixed 25" -- but it
          * is not a distance anyone means to pick, and 1..24 is nothing at all.
@@ -2023,7 +2023,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(npc_light_uses_type_ambient_contrast),
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         "Ignored (2004)|Applied (xrsps)",
@@ -2036,7 +2036,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(player_head_light_ambient),
-        TORIRS_PLUGIN_FEATURE_INT,
+        TORIRS_FEATURE_INT,
         0,
         255,
         "Scene regime|96|128 (xrsps)|160|192",
@@ -2051,7 +2051,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Sound",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(effects_monophonic),
-        TORIRS_PLUGIN_FEATURE_ENUM,
+        TORIRS_FEATURE_ENUM,
         0,
         0,
         "Mix freely|One at a time (2004)",
@@ -2226,7 +2226,7 @@ app_plugin_feature_get(void* user, char const* key)
 
     struct AppPluginFeatureDesc const* desc = app_plugin_feature_desc(key);
     if( !desc )
-        return TORIRS_PLUGIN_FEATURE_UNSET;
+        return TORIRS_FEATURE_UNSET;
     return app_plugin_feature_read(app, desc, 0);
 }
 
@@ -2247,9 +2247,9 @@ app_plugin_feature_set(void* user, char const* key, int value)
     /* The sentinel is a RESTORE, not a value: whatever this boot resolved from
      * the era table, the manifest and the revconfig, which nothing outside
      * app.c can reconstruct. */
-    if( value == TORIRS_PLUGIN_FEATURE_UNSET )
+    if( value == TORIRS_FEATURE_UNSET )
         value = app_plugin_feature_read(app, desc, 1);
-    else if( desc->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+    else if( desc->kind == TORIRS_FEATURE_ENUM )
     {
         /* An enum is its list and nothing else. An INT is its RANGE -- the
          * named values are the ones worth offering, not the only ones legal,
@@ -2381,12 +2381,12 @@ app_plugin_display_setting(
     assert(app);
     switch( setting )
     {
-    case TORIRS_PLUGIN_DISPLAY_UI_SCALE:
+    case TORIRS_DISPLAY_UI_SCALE:
         value = RS_CS2Host_UiScalePercent(&app->host);
         min = RS_CS2_UI_SCALE_MIN;
         max = RS_CS2_UI_SCALE_MAX;
         break;
-    case TORIRS_PLUGIN_DISPLAY_UI_SCALE_FILTER:
+    case TORIRS_DISPLAY_UI_SCALE_FILTER:
         value = RS_CS2Host_UiScaleMode(&app->host);
         min = RS_CS2_UI_SCALE_MODE_NEAREST;
         max = RS_CS2_UI_SCALE_MODE_BICUBIC;
@@ -2413,10 +2413,10 @@ app_plugin_display_setting_set(void* user, int setting, int value)
     assert(app);
     switch( setting )
     {
-    case TORIRS_PLUGIN_DISPLAY_UI_SCALE:
+    case TORIRS_DISPLAY_UI_SCALE:
         option = RS_CS2_DEVICEOPTION_UI_SCALE;
         break;
-    case TORIRS_PLUGIN_DISPLAY_UI_SCALE_FILTER:
+    case TORIRS_DISPLAY_UI_SCALE_FILTER:
         option = RS_CS2_DEVICEOPTION_UI_SCALE_MODE;
         break;
     default:
@@ -2520,25 +2520,25 @@ app_plugin_lane(void* user, struct ToriRS_LaneInfo* out)
     switch( profile->game )
     {
     case RSCACHE_GAME_OLDSCHOOL:
-        out->game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+        out->game = TORIRS_GAME_OLDSCHOOL;
         break;
     case RSCACHE_GAME_RS2:
-        out->game = TORIRS_PLUGIN_GAME_RS2;
+        out->game = TORIRS_GAME_RS2;
         break;
     default:
-        out->game = TORIRS_PLUGIN_GAME_UNKNOWN;
+        out->game = TORIRS_GAME_UNKNOWN;
         break;
     }
     switch( profile->epoch )
     {
     case RSCACHE_EPOCH_DAT1:
-        out->epoch = TORIRS_PLUGIN_EPOCH_DAT1;
+        out->epoch = TORIRS_CACHE_EPOCH_DAT1;
         break;
     case RSCACHE_EPOCH_DAT2:
-        out->epoch = TORIRS_PLUGIN_EPOCH_DAT2;
+        out->epoch = TORIRS_CACHE_EPOCH_DAT2;
         break;
     default:
-        out->epoch = TORIRS_PLUGIN_EPOCH_UNKNOWN;
+        out->epoch = TORIRS_CACHE_EPOCH_UNKNOWN;
         break;
     }
     out->revision = profile->revision;
@@ -2591,7 +2591,7 @@ app_plugin_obj_info(void* user, int obj_id, struct ToriRS_ItemInfo* out)
         struct ToriRS_Param const* param = &type->params[i];
         if( param->string_value )
             continue;
-        if( param->key >= 0 && param->key < TORIRS_PLUGIN_BONUS_COUNT )
+        if( param->key >= 0 && param->key < TORIRS_EQUIPMENT_BONUS_COUNT )
         {
             out->bonus[param->key] = param->int_value;
             out->has_bonuses = 1;
@@ -2620,11 +2620,11 @@ app_plugin_inv_container(int inv)
 {
     switch( inv )
     {
-    case TORIRS_PLUGIN_INV_BACKPACK:
+    case TORIRS_INVENTORY_BACKPACK:
         return INV_MANAGER_CONTAINER_BACKPACK;
-    case TORIRS_PLUGIN_INV_WORN:
+    case TORIRS_INVENTORY_WORN:
         return INV_MANAGER_CONTAINER_WORN;
-    case TORIRS_PLUGIN_INV_BANK:
+    case TORIRS_INVENTORY_BANK:
         return INV_MANAGER_CONTAINER_BANK;
     default:
         return INV_MANAGER_CONTAINER_NONE;
@@ -2854,13 +2854,13 @@ app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int fill_alpha, i
     int before;
 
     assert(app);
-    assert(shape == TORIRS_PLUGIN_HULL_BOUNDS || shape == TORIRS_PLUGIN_HULL_MESH);
+    assert(shape == TORIRS_HULL_BOUNDS || shape == TORIRS_HULL_MESH);
     before = app_overlay_count(app);
     /* Either silhouette the client already knows how to draw. Their fill
      * transparency is fixed at APP_OUTLINE_FILL_TRANS for the hover and editor
      * marks; here the plugin chooses, so an outline-only highlight is
      * possible. */
-    if( shape == TORIRS_PLUGIN_HULL_MESH )
+    if( shape == TORIRS_HULL_MESH )
         app_overlay_outline_element_mesh_trans(
             app,
             element_id,
@@ -3156,10 +3156,10 @@ app_plugin_obj_image(
 
     switch( style )
     {
-    case TORIRS_PLUGIN_OBJ_ICON_PLAIN:
+    case TORIRS_ITEM_ICON_PLAIN:
         scene_id = UITreeSceneBridge_EnsureObjIconPlain(&app->bridge, obj_id, count);
         break;
-    case TORIRS_PLUGIN_OBJ_ICON_SELECTED:
+    case TORIRS_ITEM_ICON_SELECTED:
         scene_id = UITreeSceneBridge_EnsureObjIconSelected(&app->bridge, obj_id, count);
         break;
     default:
@@ -3774,11 +3774,11 @@ app_plugin_slot_node_cached(struct App* app, int slot)
 {
     assert(app);
     assert(app->tree);
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT);
+    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT);
 
     if( app->plugin_slot_node_gen != app->tree->generation )
     {
-        for( int i = 0; i < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT; i++ )
+        for( int i = 0; i < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; i++ )
             app->plugin_slot_node[i] = UITree_FrameSlotNode(app->tree, i);
         app->plugin_slot_node_gen = app->tree->generation;
     }
@@ -3818,7 +3818,7 @@ app_plugin_slot_native_size(void* user, int slot, int* out_w, int* out_h)
     assert(app);
     if( !app->tree )
         return 0;
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return 0;
     return UITree_FrameSlotNativeSize(app->tree, slot, out_w, out_h);
 }
@@ -3833,7 +3833,7 @@ app_plugin_slot_rect(
 
     /* CANVAS is not a node and never can be: it is the surface every node is
      * laid out against. */
-    if( slot == TORIRS_PLUGIN_SLOT_CANVAS )
+    if( slot == TORIRS_HOST_SURFACE_CANVAS )
     {
         if( out_x )
             *out_x = 0;
@@ -3847,7 +3847,7 @@ app_plugin_slot_rect(
     }
     /* Both SAFE regions are the host's: one needs the reservation table, which
      * lives there, and the other is derived beside it. */
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return 0;
 
     /*
@@ -3858,7 +3858,7 @@ app_plugin_slot_rect(
      * gate rect and all, which is what a plugin drawing over the scene has to
      * agree with. The node is what the layout says it should be.
      */
-    if( slot == TORIRS_PLUGIN_SLOT_VIEWPORT && app->world_view_valid &&
+    if( slot == TORIRS_HOST_SURFACE_VIEWPORT && app->world_view_valid &&
         app->world_emit_desc.w > 0 && app->world_emit_desc.h > 0 )
     {
         if( out_x )
@@ -3871,7 +3871,7 @@ app_plugin_slot_rect(
             *out_h = app->world_emit_desc.h;
         return 1;
     }
-    if( slot == TORIRS_PLUGIN_SLOT_MINIMAP )
+    if( slot == TORIRS_HOST_SURFACE_MINIMAP )
         return app_plugin_minimap_rect(user, out_x, out_y, out_w, out_h);
 
     if( app_plugin_slot_node_rect(app, slot, out_x, out_y, out_w, out_h) )
@@ -3884,7 +3884,7 @@ app_plugin_slot_rect(
      * than in the resizable one -- so the only thing that knows is the mount,
      * and App records it there.
      */
-    if( slot == TORIRS_PLUGIN_SLOT_MAIN_MODAL && app->modal_host_uid >= 0 &&
+    if( slot == TORIRS_HOST_SURFACE_MODAL && app->modal_host_uid >= 0 &&
         app->tree )
         return app_plugin_node_rect(
             app,
@@ -3948,7 +3948,7 @@ app_plugin_role_slot(char const* role)
 {
     assert(role);
     if( strcmp(role, "canvas") == 0 )
-        return TORIRS_PLUGIN_SLOT_CANVAS;
+        return TORIRS_HOST_SURFACE_CANVAS;
     if( strcmp(role, "safe_gamechrome") == 0 )
         return TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME;
     if( strcmp(role, "safe_lanechrome") == 0 )
@@ -3969,7 +3969,7 @@ app_plugin_role_node(struct App* app, char const* role)
     slot = app_plugin_role_slot(role);
     /* SAFE and CANVAS are rectangles and not nodes, so they have no answer
      * here at all -- the rect verb handles them and the others do not. */
-    if( slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot >= 0 && slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return app_plugin_slot_node_cached(app, slot);
     if( slot >= 0 )
         return -1;
@@ -4043,7 +4043,7 @@ app_plugin_role_frame_slot(void* user, char const* role, int* out_slot, int* out
          * and SAFE fall out: they are derived rectangles with no node, and a
          * part cannot be a member of one. */
         int const slot = app_plugin_role_slot(role);
-        if( slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        if( slot >= 0 && slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         {
             if( out_slot )
                 *out_slot = slot;
@@ -4482,7 +4482,7 @@ app_plugin_slot_member_rect(
     assert(app);
     if( !app->tree )
         return 0;
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return 0;
     return app_plugin_node_rect(
         app, UITree_FrameSlotMemberNode(app->tree, slot, member), out_x, out_y, out_w, out_h);
@@ -4711,9 +4711,9 @@ app_plugin_layout_slot(void* user, int slot, int member, int x, int y, int w, in
     struct UITreeFrameRect* out;
 
     assert(app);
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return 0;
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT);
+    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT);
 
     /* A member number out of range is a plugin's arithmetic, not a broken
      * contract: it is refused and reported as "this frame has no such
@@ -4740,7 +4740,7 @@ app_plugin_layout_slot_exists(void* user, int slot, int member)
     struct App* app = (struct App*)user;
 
     assert(app);
-    if( !app->tree || slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( !app->tree || slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return 0;
     return member < 0 ? UITree_FrameSlotNode(app->tree, slot) >= 0
                       : UITree_FrameSlotMemberNode(app->tree, slot, member) >= 0;
@@ -4792,12 +4792,12 @@ app_plugin_layout_slot_skin(void* user, int slot, int art, int mask)
     struct UITreeFrameSkin* out;
 
     assert(app);
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return 0;
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT);
-    if( slot != TORIRS_PLUGIN_SLOT_MINIMAP && slot != TORIRS_PLUGIN_SLOT_COMPASS )
+    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT);
+    if( slot != TORIRS_HOST_SURFACE_MINIMAP && slot != TORIRS_HOST_SURFACE_COMPASS )
         return 0;
-    if( slot == TORIRS_PLUGIN_SLOT_MINIMAP && art >= 0 )
+    if( slot == TORIRS_HOST_SURFACE_MINIMAP && art >= 0 )
         return 0;
 
     out = &app->plugin_layout_slots[slot].skin;
@@ -4822,7 +4822,7 @@ app_plugin_layout_slot_overlay(
     struct UITreeFrameOverlay* out;
 
     assert(app);
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return 0;
 
     out = &app->plugin_layout_slots[slot].overlay;
@@ -4880,7 +4880,7 @@ app_plugin_tab_active(void* user)
         for( int tab = 0; tab < RS_UI_SLOTS_TAB_MAX; tab++ )
         {
             int32_t const node =
-                UITree_FrameSlotMemberNode(app->tree, TORIRS_PLUGIN_SLOT_SIDEBAR, tab);
+                UITree_FrameSlotMemberNode(app->tree, TORIRS_HOST_SURFACE_SIDEBAR, tab);
             if( node < 0 )
                 continue;
             named = 1;

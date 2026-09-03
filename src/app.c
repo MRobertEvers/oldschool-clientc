@@ -22810,12 +22810,12 @@ app_plugin_object_geometry_revision(struct App* app, struct AppPluginObject cons
     assert(app);
     assert(obj);
 
-    if( obj->source == TORIRS_PLUGIN_MODEL_MESH )
+    if( obj->source == TORIRS_HOST_MODEL_MESH )
     {
         struct AppPluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
         return mesh ? mesh->revision : 0;
     }
-    if( obj->source == TORIRS_PLUGIN_MODEL_ASSET )
+    if( obj->source == TORIRS_HOST_MODEL_ASSET )
     {
         struct AppPluginAssetModel const* shipped = app_plugin_asset_model_at(app, obj->model_id);
         return shipped ? shipped->revision : 0;
@@ -22832,7 +22832,7 @@ app_plugin_object_model_id(struct App* app, struct AppPluginObject const* obj)
     assert(app);
     assert(obj);
 
-    if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
+    if( obj->source == TORIRS_HOST_MODEL_SPOTANIM )
     {
         struct ToriRS_Spotanimtype* spot =
             obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id) : NULL;
@@ -22842,7 +22842,7 @@ app_plugin_object_model_id(struct App* app, struct AppPluginObject const* obj)
      * model-load handle -- neither is a cache id, and neither has anything for
      * the spawn task to make resident. That is the whole point of both: the
      * geometry travels with the plugin. */
-    if( obj->source == TORIRS_PLUGIN_MODEL_MESH || obj->source == TORIRS_PLUGIN_MODEL_ASSET )
+    if( obj->source == TORIRS_HOST_MODEL_MESH || obj->source == TORIRS_HOST_MODEL_ASSET )
         return -1;
     return obj->model_id;
 }
@@ -22863,11 +22863,11 @@ app_plugin_object_seq_id(struct App* app, struct AppPluginObject const* obj)
      * A SHIPPED model is not covered: a model file can carry bones, and a
      * plugin that ships one alongside a cache revision it knows may legitimately
      * name that revision's sequence. Whether the two agree is its business. */
-    assert(!(obj->source == TORIRS_PLUGIN_MODEL_MESH && obj->seq_id >= 0));
+    assert(!(obj->source == TORIRS_HOST_MODEL_MESH && obj->seq_id >= 0));
 
     if( obj->seq_id >= 0 )
         return obj->seq_id;
-    if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
+    if( obj->source == TORIRS_HOST_MODEL_SPOTANIM )
     {
         struct ToriRS_Spotanimtype* spot =
             obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id) : NULL;
@@ -22898,7 +22898,7 @@ app_plugin_object_build_model(struct App* app, struct AppPluginObject const* obj
     assert(app);
     assert(obj);
 
-    if( obj->source == TORIRS_PLUGIN_MODEL_ASSET )
+    if( obj->source == TORIRS_HOST_MODEL_ASSET )
     {
         /* Not resident yet is the ordinary state for the first frame or two:
          * the file crosses the IO queue like every other asset, and the settle
@@ -22911,7 +22911,7 @@ app_plugin_object_build_model(struct App* app, struct AppPluginObject const* obj
         if( !model )
             return NULL;
     }
-    else if( obj->source == TORIRS_PLUGIN_MODEL_MESH )
+    else if( obj->source == TORIRS_HOST_MODEL_MESH )
     {
         struct AppPluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
         /* An empty mesh is not a bug: a plugin that has taken a handle and not
@@ -22926,7 +22926,7 @@ app_plugin_object_build_model(struct App* app, struct AppPluginObject const* obj
     {
         int const model_id = app_plugin_object_model_id(app, obj);
 
-        if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
+        if( obj->source == TORIRS_HOST_MODEL_SPOTANIM )
             spot = obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id)
                                       : NULL;
         if( model_id < 0 )
@@ -23451,7 +23451,7 @@ Task_AppSpawn_Run(
         {
             struct AppPluginObject* obj = app_plugin_object_at(app, self->plugin_object);
             self->spotanim_id =
-                (obj && obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM) ? obj->model_id : -1;
+                (obj && obj->source == TORIRS_HOST_MODEL_SPOTANIM) ? obj->model_id : -1;
         }
         if( self->spotanim_id >= 0 )
             PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
@@ -24660,7 +24660,7 @@ app_plugin_geometry_settle(struct App* app)
         struct AppPluginObject* obj = &app->plugin_objects[i];
         if( !obj->in_use )
             continue;
-        if( obj->source != TORIRS_PLUGIN_MODEL_MESH && obj->source != TORIRS_PLUGIN_MODEL_ASSET )
+        if( obj->source != TORIRS_HOST_MODEL_MESH && obj->source != TORIRS_HOST_MODEL_ASSET )
             continue;
         if( obj->element_id >= 0 &&
             obj->built_geometry_revision == app_plugin_object_geometry_revision(app, obj) )
@@ -25367,7 +25367,7 @@ app_plugin_object_create(void* user)
             continue;
         memset(obj, 0, sizeof(*obj));
         obj->in_use = 1;
-        obj->source = TORIRS_PLUGIN_MODEL_CACHE;
+        obj->source = TORIRS_HOST_MODEL_CACHE;
         obj->model_id = -1;
         obj->seq_id = -1;
         obj->loop = 1;

@@ -23,6 +23,8 @@ static int g_ui_enabled;
 static int g_ui_updates;
 static int g_draws;
 static int g_headings;
+static int g_surfaces;
+static int g_reasons;
 
 #define CHECK(condition, message)                                                       \
     do                                                                                  \
@@ -69,7 +71,7 @@ void PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int index, bool enabl
     g_enabled_calls++;
 }
 
-struct FakeInstance { char const* id; };
+struct FakeInstance { char const* id; char const* active_frame; };
 
 static char const* fake_plugin_id(struct ToriRS_ApiV2* api)
 {
@@ -118,6 +120,12 @@ static enum ToriRS_Result fake_ui_set_enabled(
     g_ui_enabled += enabled ? 1 : -1;
     return TORIRS_RESULT_OK;
 }
+static void fake_frame_selection(struct ToriRS_ApiV2* api, struct ToriRS_FrameSelection* out)
+{
+    struct FakeInstance* instance = api->instance;
+    snprintf(out->active_id, sizeof(out->active_id), "%s",
+        instance->active_frame ? instance->active_frame : "");
+}
 static void fake_draw_rect(
     struct ToriRS_DrawBuilder* draw,
     struct ToriRS_Rect rect,
@@ -133,6 +141,22 @@ static void fake_heading(struct ToriRS_PanelBuilder* panel, char const* text)
     (void)panel;
     CHECK(strcmp(text, "Native V2") == 0, "panel builder forwards heading");
     g_headings++;
+}
+static void fake_surface(
+    struct ToriRS_FrameBuilder* frame,
+    int surface,
+    struct ToriRS_Rect rect)
+{
+    (void)frame;
+    CHECK(surface == TORIRS_SURFACE_VIEWPORT, "frame surface name mapped");
+    CHECK(rect.width == 512 && rect.height == 334, "frame surface rectangle forwarded");
+    g_surfaces++;
+}
+static void fake_reason(struct ToriRS_FrameBuilder* frame, char const* text)
+{
+    (void)frame;
+    CHECK(strcmp(text, "built by Lua") == 0, "frame reason forwarded");
+    g_reasons++;
 }
 
 static struct ToriRS_ApiV2
@@ -153,6 +177,8 @@ fake_api(struct FakeInstance* instance)
     api.ui.ref = fake_ui_ref;
     api.ui.update = fake_ui_update;
     api.ui.set_enabled = fake_ui_set_enabled;
+    api.frame.struct_size = sizeof(api.frame);
+    api.frame.selection = fake_frame_selection;
     return api;
 }
 
@@ -194,12 +220,25 @@ reset_fake(void)
 static void
 test_runtime(struct ToriRS_PluginHost* host)
 {
+    static char const LEGACY_SOURCE[] = "return { name='legacy' }";
     static char const SOURCE[] =
         "return { id='lua-v2-test', title='Lua V2 Test', version='2',"
         " config={{key='answer',type='int',default='42'}},"
         " ui_contributions={{node='frame.chat.button.report',"
         " mode='replace_or_provide',facets={'appearance','actions'},"
         " value={flags=3,label='Camera',action='capture',actions={'capture'}}}},"
+        " frames={"
+        "  {id='ready',title='Ready',canvas='fixed',width=765,height=503,"
+        "   build=function(api,frame,ctx)"
+        "    assert(ctx.offer_id=='ready' and ctx.canvas=='fixed')"
+        "    frame.surface('viewport',{x=0,y=0,width=512,height=334})"
+        "    frame.reason('built by Lua');return 'ready'"
+        "   end,draw=function(api,draw) draw.rect(1,2,3,4,0xffffff,255) end},"
+        "  {id='waiting',title='Waiting',canvas='window',min_width=640,min_height=480,"
+        "   build=function() return 'pending' end},"
+        "  {id='failure',title='Failure',canvas='fixed',width=765,height=503,"
+        "   build=function() return 'error' end}"
+        " },"
         " on_start=function(api)"
         "  assert(api.log==nil and api.role==nil and api.window==nil and api.layout==nil)"
         "  assert(api.core.plugin_id()=='lua-v2-test' and api.config.answer==42)"
@@ -212,16 +251,24 @@ test_runtime(struct ToriRS_PluginHost* host)
         " on_draw_canvas=function(api,draw) draw.rect(1,2,3,4,0xffffff,255) end,"
         " on_ui_build=function(api,panel,view) assert(view=='page');panel.heading('Native V2') end"
         "}";
-    struct FakeInstance instance = { "lua-v2-test" };
+    struct FakeInstance instance = { "lua-v2-test", "lua-v2-test/ready" };
     struct ToriRS_ApiV2 api = fake_api(&instance);
     struct ToriRS_DrawBuilder draw;
     struct ToriRS_PanelBuilder panel;
-    int index = PluginLua_AddScript(host, "lua-v2-test", SOURCE, (int)strlen(SOURCE));
+    struct ToriRS_FrameBuilder frame;
+    struct ToriRS_FrameBuildContext context;
+    int index;
+
+    CHECK(PluginLua_AddScript(host, "legacy", LEGACY_SOURCE,
+              (int)strlen(LEGACY_SOURCE)) < 0,
+        "legacy name field is not accepted as a V2 id");
+    index = PluginLua_AddScript(host, "lua-v2-test", SOURCE, (int)strlen(SOURCE));
 
     CHECK(index == 0, "runtime script registered through V2");
     CHECK(g_defs[0] && strcmp(g_defs[0]->id, "lua-v2-test") == 0, "Lua name is V2 id");
     CHECK(g_defs[0]->config && g_defs[0]->config->items, "V2 config schema retained");
     CHECK(g_defs[0]->ui_contributions != NULL, "V2 UI contribution retained");
+    CHECK(g_defs[0]->frames != NULL, "V2 frame offers retained");
     if( g_defs[0] && g_defs[0]->ui_contributions )
     {
         struct ToriRS_UiContribution const* contribution = g_defs[0]->ui_contributions;
@@ -242,16 +289,40 @@ test_runtime(struct ToriRS_PluginHost* host)
     memset(&panel, 0, sizeof(panel));
     panel.struct_size = sizeof(panel);
     panel.heading = fake_heading;
-    g_defs[0]->callbacks.on_ui_build(&api, NULL, &panel, TORIRS_PLUGIN_PANEL_VIEW_PAGE);
+    g_defs[0]->callbacks.on_ui_build(&api, NULL, &panel, TORIRS_PANEL_VIEW_PAGE);
+    memset(&frame, 0, sizeof(frame));
+    frame.struct_size = sizeof(frame);
+    frame.surface = fake_surface;
+    frame.reason = fake_reason;
+    memset(&context, 0, sizeof(context));
+    context.struct_size = sizeof(context);
+    context.canvas = TORIRS_FRAME_CANVAS_FIXED;
+    context.logical_canvas = (struct ToriRS_Rect){ 0, 0, 765, 503 };
+    context.offer_id = "ready";
+    CHECK(g_defs[0]->frames[0].build(&api, NULL, &frame, &context) == TORIRS_FRAME_READY,
+        "Lua frame build returns READY");
+    context.offer_id = "waiting";
+    context.canvas = TORIRS_FRAME_CANVAS_WINDOW;
+    CHECK(g_defs[0]->frames[1].build(&api, NULL, &frame, &context) == TORIRS_FRAME_PENDING,
+        "Lua frame build returns PENDING");
+    context.offer_id = "failure";
+    context.canvas = TORIRS_FRAME_CANVAS_FIXED;
+    CHECK(g_defs[0]->frames[2].build(&api, NULL, &frame, &context) == TORIRS_FRAME_ERROR,
+        "Lua frame build returns ERROR");
+    g_defs[0]->frames[0].draw(&api, NULL, &draw);
     CHECK(g_logs == 1 && g_ui_enabled == 1 && g_ui_updates == 1,
         "canonical API calls reached V2 functions");
-    CHECK(g_draws == 1 && g_headings == 1, "scoped builders reached V2 functions");
+    CHECK(g_draws == 2 && g_headings == 1, "scoped draw/panel builders reached V2 functions");
+    CHECK(g_surfaces == 1 && g_reasons == 1, "scoped frame builder reached V2 functions");
     CHECK(g_enabled_calls == 0, "runtime script did not fault");
 
     CHECK(g_reload[0] != NULL, "source reload handler installed");
     g_reload[0](host, 0, g_reload_user[0]);
     g_defs[0]->callbacks.on_start(&api, NULL);
     CHECK(g_logs == 2 && g_ui_updates == 2, "reload rebuilt and restarted the VM");
+    context.offer_id = "ready";
+    CHECK(g_defs[0]->frames[0].build(&api, NULL, &frame, &context) == TORIRS_FRAME_READY,
+        "reload rebuilt the frame-offer function");
 }
 
 static void

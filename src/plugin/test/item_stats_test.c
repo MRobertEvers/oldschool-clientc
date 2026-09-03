@@ -100,7 +100,7 @@ fake_inv_slot(
     int* out_obj_id,
     int* out_count)
 {
-    if( inv != TORIRS_PLUGIN_INV_WORN || slot < 0 || slot >= FAKE_WORN_SLOTS )
+    if( inv != TORIRS_INVENTORY_WORN || slot < 0 || slot >= FAKE_WORN_SLOTS )
         return 0;
     if( out_obj_id )
         *out_obj_id = g_client.worn[slot];
@@ -112,7 +112,7 @@ fake_inv_slot(
 static int
 fake_inv_size(int inv)
 {
-    return inv == TORIRS_PLUGIN_INV_WORN ? FAKE_WORN_SLOTS : 0;
+    return inv == TORIRS_INVENTORY_WORN ? FAKE_WORN_SLOTS : 0;
 }
 
 static int
@@ -671,8 +671,8 @@ test_equipment_against_nothing(void)
     whip->wearpos = 3;
     whip->has_bonuses = 1;
     whip->attack_rate = 4;
-    whip->bonus[TORIRS_PLUGIN_BONUS_ATTACK_SLASH] = 82;
-    whip->bonus[TORIRS_PLUGIN_BONUS_STRENGTH] = 82;
+    whip->bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_SLASH] = 82;
+    whip->bonus[TORIRS_EQUIPMENT_BONUS_STRENGTH] = 82;
     frame(4151);
     TEST_ASSERT(g_client.draw_count == 1, "a weapon gets a panel");
     /* Melee Str, the Attack bonus heading, and Slash. Speed does not appear:
@@ -691,8 +691,8 @@ test_equipment_against_the_same_item(void)
     whip->wearpos = 3;
     whip->has_bonuses = 1;
     whip->attack_rate = 4;
-    whip->bonus[TORIRS_PLUGIN_BONUS_ATTACK_SLASH] = 82;
-    whip->bonus[TORIRS_PLUGIN_BONUS_STRENGTH] = 82;
+    whip->bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_SLASH] = 82;
+    whip->bonus[TORIRS_EQUIPMENT_BONUS_STRENGTH] = 82;
     g_client.worn[3] = 4151;
     frame(4151);
     TEST_ASSERT(
@@ -716,7 +716,7 @@ test_two_handed_takes_the_shield_off(void)
     bow->wearpos2 = 5;
     bow->has_bonuses = 1;
     bow->attack_rate = 6;
-    bow->bonus[TORIRS_PLUGIN_BONUS_ATTACK_RANGE] = 100;
+    bow->bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_RANGE] = 100;
     frame(11785);
     without_shield = tip_rows();
 
@@ -726,11 +726,11 @@ test_two_handed_takes_the_shield_off(void)
     bow->wearpos2 = 5;
     bow->has_bonuses = 1;
     bow->attack_rate = 6;
-    bow->bonus[TORIRS_PLUGIN_BONUS_ATTACK_RANGE] = 100;
+    bow->bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_RANGE] = 100;
     shield = obj_add(1540, "Anti-dragon shield");
     shield->wearpos = 5;
     shield->has_bonuses = 1;
-    shield->bonus[TORIRS_PLUGIN_BONUS_DEFENCE_MAGIC] = 10;
+    shield->bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_MAGIC] = 10;
     g_client.worn[5] = 1540;
     frame(11785);
     with_shield = tip_rows();
@@ -790,7 +790,7 @@ test_cache_params_beat_the_table(void)
     scimitar->has_bonuses = 1;
     scimitar->wearpos = 3;
     scimitar->attack_rate = 4;
-    scimitar->bonus[TORIRS_PLUGIN_BONUS_ATTACK_SLASH] = 1;
+    scimitar->bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_SLASH] = 1;
     frame(1333);
     TEST_ASSERT(
         tip_rows() == 2,

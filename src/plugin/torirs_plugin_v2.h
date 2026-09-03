@@ -74,7 +74,7 @@ struct ToriRS_PlacementAreaRef
 
 /* Resource references are uniformly zero-invalid, positive opaque tokens. A
  * zeroed state or descriptor therefore owns no accidental resource. Slot,
- * plugin-instance and incarnation encoding is an adapter/host detail and
+ * plugin-instance and incarnation encoding is a host detail and
  * never leaks into plugin code. */
 struct ToriRS_ImageRef
 {
@@ -131,8 +131,7 @@ struct ToriRS_SelectOption
     ((uint32_t)(offsetof(struct ToriRS_SelectOption, detail) +                           \
                 sizeof(((struct ToriRS_SelectOption*)0)->detail)))
 
-/* The legacy item is already a language-neutral schema record, so v2 wraps
- * rather than duplicates it. */
+/* A definition points at one immutable, language-neutral schema. */
 struct ToriRS_ConfigSchema
 {
     uint32_t struct_size;
@@ -241,7 +240,7 @@ struct ToriRS_UiNode
     char const* label;
     char const* action;
 
-    /* Append-only rich facet data. The legacy fields above remain convenient
+    /* Append-only rich facet data. The common fields above remain convenient
      * shorthands: `image` supplies IDLE when its bit is absent below, and
      * `action` is the one-action set when action_count is zero. */
     int clip;
@@ -404,7 +403,7 @@ struct ToriRS_FrameScrollbar
     struct ToriRS_ImageRef up;
     struct ToriRS_ImageRef down;
     struct ToriRS_ImageRef track;
-    /* One-piece compatibility shorthand. */
+    /* A single-piece thumb when split_thumb is false. */
     struct ToriRS_ImageRef thumb;
     bool split_thumb;
     struct ToriRS_ImageRef thumb_top;
@@ -1143,7 +1142,7 @@ struct ToriRS_PanelApiV2
 };
 
 /* Explicit escape hatch for lane-specific plugins. Nothing in the ui, frame,
- * or placement modules exposes cache component ids or numeric legacy ops. */
+ * or placement modules exposes cache component ids or numeric cache ops. */
 struct ToriRS_CacheApiV2
 {
     uint32_t struct_size;

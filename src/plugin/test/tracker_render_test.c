@@ -667,26 +667,26 @@ static void v2_build_paragraph(struct ToriRS_PanelBuilder* panel, char const* te
 { (void)panel; (void)text; }
 static void v2_build_toggle(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, bool value)
-{ (void)panel; (void)value; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_CHECKBOX, id, label); }
+{ (void)panel; (void)value; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_CHECKBOX, id, label); }
 static void v2_build_select(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label,
     char const* value, struct ToriRS_SelectOption const* options, int count)
-{ (void)panel; (void)value; (void)options; (void)count; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_DROPDOWN, id, label); }
+{ (void)panel; (void)value; (void)options; (void)count; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_DROPDOWN, id, label); }
 static void v2_build_button(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, bool enabled)
-{ (void)panel; (void)enabled; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_BUTTON, id, label); }
+{ (void)panel; (void)enabled; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_BUTTON, id, label); }
 static void v2_build_custom(
     struct ToriRS_PanelBuilder* panel, char const* id, int height)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_CUSTOM, id, ""); (void)fake_panel_set_height(NULL, id, height); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_CUSTOM, id, ""); (void)fake_panel_set_height(NULL, id, height); }
 static void v2_build_label(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* text)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_LABEL, id, text); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_LABEL, id, text); }
 static void v2_build_key_value(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, char const* value)
-{ (void)panel; (void)value; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_KEY_VALUE, id, label); }
+{ (void)panel; (void)value; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_KEY_VALUE, id, label); }
 static enum ToriRS_Result v2_build_node(
     struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node)
-{ (void)panel; return fake_panel_widget(NULL, TORIRS_PLUGIN_W_SECTION, node->id, node->text) ? TORIRS_RESULT_OK : TORIRS_RESULT_BUDGET; }
+{ (void)panel; return fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_SECTION, node->id, node->text) ? TORIRS_RESULT_OK : TORIRS_RESULT_BUDGET; }
 static void v2_draw_image(
     struct ToriRS_DrawBuilder* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
 { (void)draw; (void)image; (void)x; (void)y; (void)alpha; }
@@ -898,14 +898,14 @@ panel_build(void)
     g_building = 1;
     if( g_plugin->callbacks.on_ui_build )
         g_plugin->callbacks.on_ui_build(
-            &g_api, g_plugin_state, &panel, TORIRS_PLUGIN_PANEL_VIEW_PAGE);
+            &g_api, g_plugin_state, &panel, TORIRS_PANEL_VIEW_PAGE);
     g_building = 0;
 
     memset(&lay, 0, sizeof(lay));
     lay.width = 264;
     lay.height = 491;
     lay.scale_milli = 1000;
-    lay.size_class = TORIRS_PLUGIN_PANEL_MEDIUM;
+    lay.size_class = TORIRS_PANEL_SIZE_MEDIUM;
     lay.visible = true;
     lay.game_visible = true;
     lay.selection_generation = 1;

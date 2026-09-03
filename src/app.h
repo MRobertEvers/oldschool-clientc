@@ -158,10 +158,7 @@ enum AppPluginRowKind
      * the user typed but has not committed".
      */
     APP_PLUGIN_ROW_CONFIG,
-    /** A control the plugin declared itself. Dispatched on use, not staged: a
-     *  plugin's own button is an action, not a setting. */
-    APP_PLUGIN_ROW_PLUGIN_WIDGET,
-    /** An ABI-21 semantic control belonging to the one selected panel model.
+    /** A semantic control belonging to the one selected panel model.
      *  Its generation and serial are checked again by PluginHost at dispatch. */
     APP_PLUGIN_ROW_PANEL_WIDGET,
     APP_PLUGIN_ROW_SAVE,
@@ -1165,7 +1162,7 @@ struct App
 
     /** Role -> node, resolved once per tree generation. @see
      *  app_plugin_slot_node_cached. */
-    int32_t plugin_slot_node[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT];
+    int32_t plugin_slot_node[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
     uint32_t plugin_slot_node_gen;
     /* Minimap widget: cached emit desc (on-screen box + the rotation/anchor
      * the blit drew with) for click-to-walk, and the destination flag tile
@@ -1384,7 +1381,7 @@ struct App
     int plugin_layout_fixed_h;
     /* The PLACEABLE half only: CANVAS and SAFE are derived and are never
      * placed, so a row for each would be two that nothing ever writes. */
-    struct UITreeFrameSlotRect plugin_layout_slots[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT];
+    struct UITreeFrameSlotRect plugin_layout_slots[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
     /**
      * Scene ids of the scrollbar art the standing declaration asked for, or
      * all zero for the client's own painted bar.

@@ -34,7 +34,7 @@ static int g_checks;
         }                                                                                          \
     } while( 0 )
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_FEATURE_FLAGS;
+extern struct ToriRS_PluginDefV2 const TORIRS_FEATURE_FLAGS;
 
 /* ------------------------------------------------------------ fake engine */
 
@@ -64,21 +64,21 @@ struct FakeFlag
 static struct FakeFlag g_flags[] = {
     { "draw_distance",
      "Draw distance", "Scene",
-     TORIRS_PLUGIN_FEATURE_INT,  25,
+     TORIRS_FEATURE_INT,  25,
      90, "25 tiles|40 tiles|60 tiles|90 tiles",
      { 25, 40, 60, 90 },
      4, 25,
      25   },
     { "camera_zoom",
      "Zoom",          "Camera",
-     TORIRS_PLUGIN_FEATURE_ENUM, 0,
+     TORIRS_FEATURE_ENUM, 0,
      0,  "Adjustable|Fixed",
      { 0, 1 },
      2, 0,
      0    },
     { "target_mask_held",
      "Held bit",      "",
-     TORIRS_PLUGIN_FEATURE_ENUM, 0,
+     TORIRS_FEATURE_ENUM, 0,
      0,  "0x10 (2004)|0x20 (OldSchool)",
      { 0x10, 0x20 },
      2, 0x10,
@@ -142,7 +142,7 @@ fake_feature_get(
 {
     (void)u;
     struct FakeFlag const* f = flag_find(k);
-    return f ? f->value : TORIRS_PLUGIN_FEATURE_UNSET;
+    return f ? f->value : TORIRS_FEATURE_UNSET;
 }
 
 static int
@@ -156,12 +156,12 @@ fake_feature_set(
     struct FakeFlag* f = flag_find(k);
     if( !f )
         return 0;
-    if( v == TORIRS_PLUGIN_FEATURE_UNSET )
+    if( v == TORIRS_FEATURE_UNSET )
     {
         f->value = f->boot;
         return 1;
     }
-    if( f->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+    if( f->kind == TORIRS_FEATURE_ENUM )
     {
         /* As the engine does: an enum is its list, an INT is its range. */
         int legal = 0;
@@ -184,7 +184,7 @@ static int
 fake_plugin_screen(void* u)
 {
     (void)u;
-    return TORIRS_PLUGIN_SCREEN_GAME;
+    return TORIRS_SCREEN_GAME;
 }
 
 static int
@@ -1360,7 +1360,7 @@ fake_engine(void)
 
 /* ------------------------------------------------------------------ tests */
 
-static struct ToriRS_PluginWinWidget const*
+static struct ToriRS_PanelWidget const*
 widget_named(
     struct ToriRS_PluginHost* host,
     int p,
@@ -1370,7 +1370,7 @@ widget_named(
     (void)p;
     for( int i = 0; i < PluginHost_PanelWidgetCount(host, generation); i++ )
     {
-        struct ToriRS_PluginWinWidget const* w =
+        struct ToriRS_PanelWidget const* w =
             PluginHost_PanelWidgetAt(host, generation, i);
         if( w && strcmp(w->id, id) == 0 )
             return w;
@@ -1381,7 +1381,7 @@ widget_named(
 /** Index of a control's choice whose text is `text`, or -1. */
 static int
 choice_index(
-    struct ToriRS_PluginWinWidget const* w,
+    struct ToriRS_PanelWidget const* w,
     char const* text)
 {
     if( w->structured_select )
@@ -1416,7 +1416,7 @@ pick(
     char const* text)
 {
     static uint64_t sequence;
-    struct ToriRS_PluginWinWidget const* w = widget_named(host, p, id);
+    struct ToriRS_PanelWidget const* w = widget_named(host, p, id);
     int const index = w ? choice_index(w, text) : -1;
 
     CHECK(index >= 0, text);
@@ -1428,7 +1428,7 @@ pick(
                                 : text;
         (void)PluginHost_PanelDispatch(
             host, generation, w->serial, ++sequence, id,
-            TORIRS_PLUGIN_UI_PICK, index, value, 0, 0);
+            TORIRS_PANEL_ACTION_PICK, index, value, 0, 0);
         (void)PluginHost_PanelEnsureBuilt(host, generation);
     }
 }
@@ -1438,7 +1438,7 @@ main(void)
 {
     struct ToriRS_PluginEngine engine = fake_engine();
     struct ToriRS_PluginHost* host = PluginHost_New(&engine);
-    int const p = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_FEATURE_FLAGS);
+    int const p = PluginHost_RegisterV2(host, &TORIRS_FEATURE_FLAGS);
 
     flags_reset();
 
@@ -1459,7 +1459,7 @@ main(void)
     CHECK(
         PluginHost_PanelLayout(
             host, PluginHost_PanelSelectionGeneration(host),
-            320, 480, 1000, TORIRS_PLUGIN_PANEL_MEDIUM, true, true),
+            320, 480, 1000, TORIRS_PANEL_SIZE_MEDIUM, true, true),
         "the selected page receives a live layout");
 
     /*
@@ -1475,9 +1475,9 @@ main(void)
                  host, PluginHost_PanelSelectionGeneration(host));
          i++ )
     {
-        struct ToriRS_PluginWinWidget const* w = PluginHost_PanelWidgetAt(
+        struct ToriRS_PanelWidget const* w = PluginHost_PanelWidgetAt(
             host, PluginHost_PanelSelectionGeneration(host), i);
-        CHECK(w && w->kind != TORIRS_PLUGIN_W_INPUT, "no row on the page is a text field");
+        CHECK(w && w->kind != TORIRS_PANEL_WIDGET_INPUT, "no row on the page is a text field");
     }
 
     /* Two sections and one row per flag. */
@@ -1486,10 +1486,10 @@ main(void)
             host, PluginHost_PanelSelectionGeneration(host)) == FLAG_COUNT + 2,
         "the page carries a row per flag and a heading per section");
     {
-        struct ToriRS_PluginWinWidget const* w = PluginHost_PanelWidgetAt(
+        struct ToriRS_PanelWidget const* w = PluginHost_PanelWidgetAt(
             host, PluginHost_PanelSelectionGeneration(host), 0);
         CHECK(
-            w && w->kind == TORIRS_PLUGIN_W_SECTION && strcmp(w->label, "Scene") == 0,
+            w && w->kind == TORIRS_PANEL_WIDGET_SECTION && strcmp(w->label, "Scene") == 0,
             "the first section's heading comes before its rows");
         CHECK(
             widget_named(host, p, "_v2_heading_1") != NULL,
@@ -1497,8 +1497,8 @@ main(void)
     }
 
     {
-        struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "draw_distance");
-        CHECK(w && w->kind == TORIRS_PLUGIN_W_DROPDOWN, "a number flag is a dropdown");
+        struct ToriRS_PanelWidget const* w = widget_named(host, p, "draw_distance");
+        CHECK(w && w->kind == TORIRS_PANEL_WIDGET_DROPDOWN, "a number flag is a dropdown");
         CHECK(w && strcmp(w->label, "Draw distance") == 0, "captioned short enough to fit");
         /*
          * The default entry NAMES the value in force. A page of untouched rows
@@ -1514,7 +1514,7 @@ main(void)
         CHECK(w && w->selected == 0, "opening on it when nothing is stored");
     }
     {
-        struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "camera_zoom");
+        struct ToriRS_PanelWidget const* w = widget_named(host, p, "camera_zoom");
         CHECK(
             w && w->structured_select && w->select_option_count == 3 &&
                 strcmp(w->select_options[0].label,
@@ -1525,9 +1525,9 @@ main(void)
     /* A pick reaches the engine. An ENUM stores the choice TEXT, so a settings
      * file survives the list gaining an entry. */
     {
-        struct ToriRS_PluginWinWidget const* camera =
+        struct ToriRS_PanelWidget const* camera =
             widget_named(host, p, "camera_zoom");
-        struct ToriRS_PluginWinWidget const* distance =
+        struct ToriRS_PanelWidget const* distance =
             widget_named(host, p, "draw_distance");
         uint32_t const camera_serial = camera ? camera->serial : 0;
         uint32_t const distance_serial = distance ? distance->serial : 0;
@@ -1545,7 +1545,7 @@ main(void)
         strcmp(PluginHost_ConfigGet(host, p, "camera_zoom"), "Fixed") == 0,
         "and an enum stores the choice text, not its index");
     {
-        struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "camera_zoom");
+        struct ToriRS_PanelWidget const* w = widget_named(host, p, "camera_zoom");
         CHECK(w && w->selected == 2, "the row comes back showing what was chosen");
         CHECK(
             w && strcmp(w->select_options[0].label, "Revision default") == 0,
@@ -1573,7 +1573,7 @@ main(void)
      * both would be two answers to "what is this set to" on one line.
      */
     {
-        struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "draw_distance");
+        struct ToriRS_PanelWidget const* w = widget_named(host, p, "draw_distance");
         CHECK(
             w && strcmp(w->select_options[0].label, "Revision default") == 0,
             "an overridden row's default entry names nothing");
@@ -1586,7 +1586,7 @@ main(void)
     {
         struct ToriRS_PluginEngine e2 = fake_engine();
         struct ToriRS_PluginHost* host2 = PluginHost_New(&e2);
-        int const p2 = PluginHost_RegisterV2(host2, &TORIRS_PLUGIN_FEATURE_FLAGS);
+        int const p2 = PluginHost_RegisterV2(host2, &TORIRS_FEATURE_FLAGS);
 
         flags_reset();
         PluginHost_ConfigApply(host2, "feature-flags", "camera_zoom", "Fixed");
@@ -1612,8 +1612,8 @@ main(void)
     {
         struct ToriRS_PluginEngine e3 = fake_engine();
         struct ToriRS_PluginHost* host3 = PluginHost_New(&e3);
-        int const p3 = PluginHost_RegisterV2(host3, &TORIRS_PLUGIN_FEATURE_FLAGS);
-        struct ToriRS_PluginWinWidget const* w;
+        int const p3 = PluginHost_RegisterV2(host3, &TORIRS_FEATURE_FLAGS);
+        struct ToriRS_PanelWidget const* w;
 
         flags_reset();
         PluginHost_ConfigApply(host3, "feature-flags", "draw_distance", "63");

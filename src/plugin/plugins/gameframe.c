@@ -455,7 +455,7 @@ frame_lane_oldschool(struct FrameCall* ctx)
     assert(ctx);
     if( !ctx->api->core.lane(ctx->api, &lane) )
         return 0;
-    return lane.game == TORIRS_PLUGIN_GAME_OLDSCHOOL;
+    return lane.game == TORIRS_GAME_OLDSCHOOL;
 }
 
 /*
@@ -2106,7 +2106,7 @@ frame_on_layout(
      * the host cannot tell a frame dresser from an overlay that belongs
      * everywhere.
      */
-    if( g_api->core.screen(g_api) != TORIRS_PLUGIN_SCREEN_GAME )
+    if( g_api->core.screen(g_api) != TORIRS_SCREEN_GAME )
     {
         builder->reason(builder, "The gameframe is waiting for the game screen.");
         return TORIRS_FRAME_PENDING;
@@ -2199,7 +2199,7 @@ frame_on_draw(
     /* The other half of the layout gate: a frame declared on the last
      * in-game frame must not keep drawing across a logout back to the title.
      * @see frame_on_layout. */
-    if( g_api->core.screen(g_api) != TORIRS_PLUGIN_SCREEN_GAME )
+    if( g_api->core.screen(g_api) != TORIRS_SCREEN_GAME )
         return;
 
     if( !g_frame.declared )

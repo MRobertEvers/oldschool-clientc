@@ -1528,7 +1528,7 @@ v2_scene_instance_model(
     if( instance_slot < 0 || model_slot < 0 )
         return TORIRS_RESULT_INVALID;
     api_object_set_model(
-        runtime->context, instance_slot, TORIRS_PLUGIN_MODEL_ASSET, model_slot);
+        runtime->context, instance_slot, TORIRS_HOST_MODEL_ASSET, model_slot);
     return TORIRS_RESULT_OK;
 }
 
@@ -1591,7 +1591,7 @@ v2_scene_instance_mesh(
     if( instance_slot < 0 || mesh_slot < 0 )
         return TORIRS_RESULT_INVALID;
     api_object_set_model(
-        runtime->context, instance_slot, TORIRS_PLUGIN_MODEL_MESH, mesh_slot);
+        runtime->context, instance_slot, TORIRS_HOST_MODEL_MESH, mesh_slot);
     return TORIRS_RESULT_OK;
 }
 
@@ -1611,8 +1611,8 @@ v2_scene_instance_cache_model(
     if( instance_slot < 0 || id < 0 ||
         (kind != TORIRS_SCENE_MODEL_CACHE && kind != TORIRS_SCENE_MODEL_SPOTANIM) )
         return TORIRS_RESULT_INVALID;
-    source = kind == TORIRS_SCENE_MODEL_CACHE ? TORIRS_PLUGIN_MODEL_CACHE
-                                              : TORIRS_PLUGIN_MODEL_SPOTANIM;
+    source = kind == TORIRS_SCENE_MODEL_CACHE ? TORIRS_HOST_MODEL_CACHE
+                                              : TORIRS_HOST_MODEL_SPOTANIM;
     api_object_set_model(runtime->context, instance_slot, source, id);
     return TORIRS_RESULT_OK;
 }
@@ -1945,7 +1945,7 @@ v2_client_feature_get(
     assert(key);
     assert(out_value);
     value = api_feature_get(runtime->context, key);
-    if( value == TORIRS_PLUGIN_FEATURE_UNSET )
+    if( value == TORIRS_FEATURE_UNSET )
         return false;
     *out_value = value;
     return true;
@@ -2414,8 +2414,8 @@ v2_builder_line(
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
 
-    /* v1 has no partially-transparent line.  Fully transparent is still a
-     * no-op; every visible alpha uses its exact geometry and colour. */
+    /* The low-level line renderer has no alpha channel. Fully transparent is
+     * a no-op; every visible alpha uses its exact geometry and colour. */
     if( v2_alpha(alpha) > 0 && v2_clip_line(scope, &x0, &y0, &x1, &y1) )
         api_draw_line(scope->runtime->context, scope->surface_token, x0, y0, x1, y1, rgb);
 }
@@ -2545,7 +2545,7 @@ v2_builder_world_hull(
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
 
-    if( shape != TORIRS_PLUGIN_HULL_BOUNDS && shape != TORIRS_PLUGIN_HULL_MESH )
+    if( shape != TORIRS_HULL_BOUNDS && shape != TORIRS_HULL_MESH )
         return TORIRS_RESULT_INVALID;
     api_draw_hull(
         scope->runtime->context, scope->surface_token, element_id, rgb, v2_alpha(alpha), shape);
@@ -2733,14 +2733,14 @@ static int
 v2_surface_slot(int surface)
 {
     static int const SURFACE[TORIRS_SURFACE_COUNT] = {
-        TORIRS_PLUGIN_SLOT_VIEWPORT,
-        TORIRS_PLUGIN_SLOT_MINIMAP,
-        TORIRS_PLUGIN_SLOT_SIDEBAR,
-        TORIRS_PLUGIN_SLOT_CHAT,
-        TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
-        TORIRS_PLUGIN_SLOT_MAIN_MODAL,
-        TORIRS_PLUGIN_SLOT_COMPASS,
-        TORIRS_PLUGIN_SLOT_ORBS,
+        TORIRS_HOST_SURFACE_VIEWPORT,
+        TORIRS_HOST_SURFACE_MINIMAP,
+        TORIRS_HOST_SURFACE_SIDEBAR,
+        TORIRS_HOST_SURFACE_CHAT,
+        TORIRS_HOST_SURFACE_CHAT_BUTTONS,
+        TORIRS_HOST_SURFACE_MODAL,
+        TORIRS_HOST_SURFACE_COMPASS,
+        TORIRS_HOST_SURFACE_ORBS,
     };
 
     if( surface < 0 || surface >= TORIRS_SURFACE_COUNT )
@@ -2837,7 +2837,7 @@ v2_builder_surface(
         return;
     }
     scope->surface_mask |= 1u << surface;
-        (void)api_layout_slot(
+        (void)host_frame_surface(
             scope->runtime->context, surface_token, rect.x, rect.y, rect.width, rect.height);
 }
 
@@ -2866,7 +2866,7 @@ v2_builder_surface_member(
     scope->members[scope->member_count].surface = surface;
     scope->members[scope->member_count].member = member;
     scope->member_count++;
-        (void)api_layout_slot_at(
+        (void)host_frame_surface_member(
             scope->runtime->context,
             surface_token,
             member,
@@ -2896,7 +2896,7 @@ v2_builder_skin(
     if( !v2_frame_image(scope, skin->image, &image) ||
         !v2_frame_image(scope, skin->mask, &mask) )
         return;
-        (void)api_layout_slot_skin(
+        (void)host_frame_surface_skin(
             scope->runtime->context, surface_token, image, mask);
 }
 
@@ -2920,7 +2920,7 @@ v2_builder_surface_overlay(
     }
     if( !v2_frame_image(scope, overlay->image, &image) )
         return;
-        (void)api_layout_slot_overlay(
+        (void)host_frame_surface_overlay(
             scope->runtime->context,
             surface_token,
             image,
@@ -2987,7 +2987,7 @@ v2_builder_scrollbar(
     top = images[1];
     middle = images[2];
     bottom = images[3];
-        (void)api_layout_scrollbar(
+        (void)host_frame_scrollbar(
             scope->runtime->context,
             images[0],
             top,
@@ -3103,7 +3103,7 @@ v2_builder_heading(
     assert(text);
     v2_panel_generated_id(scope, "heading", id, sizeof(id));
         (void)api_panel_widget(
-            scope->runtime->context, TORIRS_PLUGIN_W_SECTION, id, text);
+            scope->runtime->context, TORIRS_PANEL_WIDGET_SECTION, id, text);
 }
 
 static void
@@ -3117,7 +3117,7 @@ v2_builder_paragraph(
     assert(text);
     v2_panel_generated_id(scope, "paragraph", id, sizeof(id));
         (void)api_panel_widget(
-            scope->runtime->context, TORIRS_PLUGIN_W_PARAGRAPH, id, text);
+            scope->runtime->context, TORIRS_PANEL_WIDGET_PARAGRAPH, id, text);
 }
 
 static void
@@ -3131,7 +3131,7 @@ v2_builder_toggle(
 
     assert(id);
     if( api_panel_widget(
-            scope->runtime->context, TORIRS_PLUGIN_W_TOGGLE, id, label) )
+            scope->runtime->context, TORIRS_PANEL_WIDGET_TOGGLE, id, label) )
         (void)api_panel_set_value(scope->runtime->context, id, value ? 1 : 0);
 }
 
@@ -3190,7 +3190,7 @@ v2_builder_button(
 
     assert(id);
     if( api_panel_widget(
-            scope->runtime->context, TORIRS_PLUGIN_W_BUTTON, id, label) )
+            scope->runtime->context, TORIRS_PANEL_WIDGET_BUTTON, id, label) )
         (void)api_panel_set_value(scope->runtime->context, id, enabled ? 1 : 0);
 }
 
@@ -3204,7 +3204,7 @@ v2_builder_custom(
 
     assert(id);
     if( api_panel_widget(
-            scope->runtime->context, TORIRS_PLUGIN_W_CUSTOM, id, NULL) )
+            scope->runtime->context, TORIRS_PANEL_WIDGET_CUSTOM, id, NULL) )
         (void)api_panel_set_height(
             scope->runtime->context, id, preferred_height);
 }
@@ -3220,7 +3220,7 @@ v2_builder_label(
     assert(id);
     assert(text);
     if( api_panel_widget(
-            scope->runtime->context, TORIRS_PLUGIN_W_LABEL, id, NULL) )
+            scope->runtime->context, TORIRS_PANEL_WIDGET_LABEL, id, NULL) )
         (void)api_panel_set_text(
             scope->runtime->context, id, text);
 }
@@ -3238,7 +3238,7 @@ v2_builder_key_value(
     assert(label);
     assert(value);
     if( api_panel_widget(
-            scope->runtime->context, TORIRS_PLUGIN_W_KEY_VALUE, id, label) )
+            scope->runtime->context, TORIRS_PANEL_WIDGET_KEY_VALUE, id, label) )
         (void)api_panel_set_text(
             scope->runtime->context, id, value);
 }
@@ -3258,20 +3258,20 @@ v2_builder_node(
         return TORIRS_RESULT_INVALID;
     switch( node->kind )
     {
-    case TORIRS_PANEL_HEADING: kind = TORIRS_PLUGIN_W_SECTION; break;
-    case TORIRS_PANEL_PARAGRAPH: kind = TORIRS_PLUGIN_W_PARAGRAPH; break;
-    case TORIRS_PANEL_LABEL: kind = TORIRS_PLUGIN_W_LABEL; break;
-    case TORIRS_PANEL_KEY_VALUE: kind = TORIRS_PLUGIN_W_KEY_VALUE; break;
-    case TORIRS_PANEL_TOGGLE: kind = TORIRS_PLUGIN_W_TOGGLE; break;
-    case TORIRS_PANEL_INPUT: kind = TORIRS_PLUGIN_W_INPUT; break;
-    case TORIRS_PANEL_TEXTAREA: kind = TORIRS_PLUGIN_W_TEXTAREA; break;
-    case TORIRS_PANEL_SELECT: kind = TORIRS_PLUGIN_W_DROPDOWN; break;
-    case TORIRS_PANEL_BUTTON: kind = TORIRS_PLUGIN_W_BUTTON; break;
-    case TORIRS_PANEL_SEPARATOR: kind = TORIRS_PLUGIN_W_SEPARATOR; break;
-    case TORIRS_PANEL_PROGRESS: kind = TORIRS_PLUGIN_W_PROGRESS; break;
-    case TORIRS_PANEL_ERROR: kind = TORIRS_PLUGIN_W_ERROR; break;
-    case TORIRS_PANEL_LIST_ROW: kind = TORIRS_PLUGIN_W_LIST_ROW; break;
-    case TORIRS_PANEL_CUSTOM: kind = TORIRS_PLUGIN_W_CUSTOM; break;
+    case TORIRS_PANEL_HEADING: kind = TORIRS_PANEL_WIDGET_SECTION; break;
+    case TORIRS_PANEL_PARAGRAPH: kind = TORIRS_PANEL_WIDGET_PARAGRAPH; break;
+    case TORIRS_PANEL_LABEL: kind = TORIRS_PANEL_WIDGET_LABEL; break;
+    case TORIRS_PANEL_KEY_VALUE: kind = TORIRS_PANEL_WIDGET_KEY_VALUE; break;
+    case TORIRS_PANEL_TOGGLE: kind = TORIRS_PANEL_WIDGET_TOGGLE; break;
+    case TORIRS_PANEL_INPUT: kind = TORIRS_PANEL_WIDGET_INPUT; break;
+    case TORIRS_PANEL_TEXTAREA: kind = TORIRS_PANEL_WIDGET_TEXTAREA; break;
+    case TORIRS_PANEL_SELECT: kind = TORIRS_PANEL_WIDGET_DROPDOWN; break;
+    case TORIRS_PANEL_BUTTON: kind = TORIRS_PANEL_WIDGET_BUTTON; break;
+    case TORIRS_PANEL_SEPARATOR: kind = TORIRS_PANEL_WIDGET_SEPARATOR; break;
+    case TORIRS_PANEL_PROGRESS: kind = TORIRS_PANEL_WIDGET_PROGRESS; break;
+    case TORIRS_PANEL_ERROR: kind = TORIRS_PANEL_WIDGET_ERROR; break;
+    case TORIRS_PANEL_LIST_ROW: kind = TORIRS_PANEL_WIDGET_LIST_ROW; break;
+    case TORIRS_PANEL_CUSTOM: kind = TORIRS_PANEL_WIDGET_CUSTOM; break;
     default: return TORIRS_RESULT_INVALID;
     }
     if( node->kind == TORIRS_PANEL_SELECT )
@@ -3578,11 +3578,4 @@ plugin_v2_runtime_Reset(struct PluginV2Runtime* runtime)
     memset(&runtime->client_api, 0, sizeof(runtime->client_api));
     memset(&runtime->game_api, 0, sizeof(runtime->game_api));
     runtime->context = NULL;
-}
-
-struct ToriRS_ApiV2*
-plugin_v2_runtime_Api(struct PluginV2Runtime* runtime)
-{
-    assert(runtime);
-    return &runtime->api;
 }

@@ -423,7 +423,7 @@ struct PluginLayoutCandidate
         bool declared;
         int art;
         int mask;
-    } skins[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT];
+    } skins[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
     struct PluginLayoutOverlay
     {
         bool declared;
@@ -431,7 +431,7 @@ struct PluginLayoutCandidate
         int x;
         int y;
         int trans;
-    } overlays[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT];
+    } overlays[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
     bool scrollbar_declared;
     int scrollbar[6];
     int scrollbar_count;
@@ -744,28 +744,6 @@ struct ToriRS_PluginHost
     uint64_t icon_revision;
 
     /*
-     * The shared plugin window.
-     *
-     * One flat pool of controls, each stamped with its owning plugin, rather
-     * than a fixed slice per plugin: a pool of 256 lets one plugin with a rich
-     * settings tab spend what fifteen quiet ones never will, while
-     * TORIRS_PLUGIN_WIDGETS_MAX still stops any single plugin from taking the
-     * lot. A per-plugin array would have to be sized for the greediest and
-     * multiplied by thirty-two.
-     */
-    struct ToriRS_PluginWinWidget win_widgets[TORIRS_PLUGIN_WIN_WIDGETS_MAX];
-    /** Owning plugin index per slot, or -1 for a free one. */
-    int win_owner[TORIRS_PLUGIN_WIN_WIDGETS_MAX];
-    int win_widget_count;
-    /** Per plugin: has a tab, and what it is called. */
-    bool win_tab[TORIRS_PLUGIN_MAX];
-    char win_tab_title[TORIRS_PLUGIN_MAX][64];
-    int win_revision;
-    /** Set while an EV_UI_BUILD dispatch is in flight, so the win_* verbs can
-     *  tell a declaration from a mutation. */
-    bool win_building;
-
-    /*
      * Application plugin panel: many inert rail registrations, ONE mounted
      * page model. Presentation and application-window placement deliberately
      * live above this host; these fields are only the authority/gating layer.
@@ -801,7 +779,7 @@ struct ToriRS_PluginHost
     /* The active page alone owns records. Switching pages empties this array
      * before the new plugin is called, so hidden plugins retain no native/DOM
      * model and cannot consume the shared widget budget. */
-    struct ToriRS_PluginWinWidget panel_widgets[TORIRS_PLUGIN_WIDGETS_MAX];
+    struct ToriRS_PanelWidget panel_widgets[TORIRS_PLUGIN_WIDGETS_MAX];
     struct ToriRS_PluginSelectOption
         panel_select_options[TORIRS_PLUGIN_SELECT_OPTIONS_MAX];
     int panel_select_option_count;
@@ -1125,16 +1103,16 @@ api_log(
 /* The plugin header spells enum AppScreen's values again, because a plugin
  * must not include the app's. These are what keep the two from drifting. */
 _Static_assert(
-    (int)TORIRS_PLUGIN_SCREEN_BOOT == 0,
+    (int)TORIRS_SCREEN_BOOT == 0,
     "plugin screen BOOT");
 _Static_assert(
-    (int)TORIRS_PLUGIN_SCREEN_TITLE == 10,
+    (int)TORIRS_SCREEN_TITLE == 10,
     "plugin screen TITLE");
 _Static_assert(
-    (int)TORIRS_PLUGIN_SCREEN_CONNECTING == 20,
+    (int)TORIRS_SCREEN_CONNECTING == 20,
     "plugin screen CONNECTING");
 _Static_assert(
-    (int)TORIRS_PLUGIN_SCREEN_GAME == 30,
+    (int)TORIRS_SCREEN_GAME == 30,
     "plugin screen GAME");
 
 static int
@@ -1490,7 +1468,7 @@ plugin_layout_rect_valid(int x, int y, int w, int h)
 }
 
 static int
-api_layout_slot_at(
+host_frame_surface_member(
     struct ToriRS_PluginCtx* ctx,
     int slot,
     int member,
@@ -1517,7 +1495,7 @@ api_layout_slot_at(
     assert(host->layout_declaring && "layout_slot is legal only inside EV_LAYOUT");
     assert(host->layout_declarer == ctx->index);
     /* A number a plugin computed, so out of range is input. */
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
     {
         plugin_layout_candidate_fail(host, "The frame declared an unknown surface.");
         return 0;
@@ -1546,7 +1524,7 @@ api_layout_slot_at(
         .w = w,
         .h = h,
     };
-    if( slot == TORIRS_PLUGIN_SLOT_VIEWPORT && member == -1 )
+    if( slot == TORIRS_HOST_SURFACE_VIEWPORT && member == -1 )
         candidate->viewport_declared = true;
 
     /* The return remains the old "does this lane have the target" answer;
@@ -1562,7 +1540,7 @@ api_layout_slot_at(
 /* The whole role, which is `member` -1. One entry point with a name for the
  * common case, rather than every caller writing the sentinel. */
 static int
-api_layout_slot(
+host_frame_surface(
     struct ToriRS_PluginCtx* ctx,
     int slot,
     int x,
@@ -1570,7 +1548,7 @@ api_layout_slot(
     int w,
     int h)
 {
-    return api_layout_slot_at(ctx, slot, -1, x, y, w, h);
+    return host_frame_surface_member(ctx, slot, -1, x, y, w, h);
 }
 
 static int
@@ -1718,16 +1696,16 @@ plugin_safe_gamechrome_rect(
     struct PluginRect* out)
 {
     static int const OCCLUDER[] = {
-        TORIRS_PLUGIN_SLOT_MINIMAP,      TORIRS_PLUGIN_SLOT_COMPASS, TORIRS_PLUGIN_SLOT_CHAT,
-        TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, TORIRS_PLUGIN_SLOT_SIDEBAR, TORIRS_PLUGIN_SLOT_ORBS,
+        TORIRS_HOST_SURFACE_MINIMAP,      TORIRS_HOST_SURFACE_COMPASS, TORIRS_HOST_SURFACE_CHAT,
+        TORIRS_HOST_SURFACE_CHAT_BUTTONS, TORIRS_HOST_SURFACE_SIDEBAR, TORIRS_HOST_SURFACE_ORBS,
     };
     struct PluginRect box;
 
     assert(host);
     assert(out);
 
-    if( !plugin_engine_rect(host, TORIRS_PLUGIN_SLOT_VIEWPORT, &box) &&
-        !plugin_engine_rect(host, TORIRS_PLUGIN_SLOT_CANVAS, &box) )
+    if( !plugin_engine_rect(host, TORIRS_HOST_SURFACE_VIEWPORT, &box) &&
+        !plugin_engine_rect(host, TORIRS_HOST_SURFACE_CANVAS, &box) )
         return 0;
 
     for( size_t i = 0; i < sizeof(OCCLUDER) / sizeof(OCCLUDER[0]); i++ )
@@ -1770,10 +1748,10 @@ plugin_safe_lanechrome_rect(
     assert(host);
     assert(out);
 
-    if( !plugin_engine_rect(host, TORIRS_PLUGIN_SLOT_CANVAS, &box) )
+    if( !plugin_engine_rect(host, TORIRS_HOST_SURFACE_CANVAS, &box) )
         return 0;
 
-    for( int i = 0; i < TORIRS_PLUGIN_LANECHROME_MAX; i++ )
+    for( int i = 0; i < TORIRS_HOST_LANE_CHROME_MAX; i++ )
     {
         char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
         struct PluginRect cut;
@@ -2050,7 +2028,7 @@ plugin_placement_rebuild(
     }
 
     if( !host->engine.slot_rect(
-            host->engine.user, TORIRS_PLUGIN_SLOT_CANVAS, &rect.x, &rect.y, &rect.w, &rect.h) ||
+            host->engine.user, TORIRS_HOST_SURFACE_CANVAS, &rect.x, &rect.y, &rect.w, &rect.h) ||
         rect.w <= 0 || rect.h <= 0 )
         return 0;
     ToriRS_PlacementRegion_SetRect(&canvas, &rect);
@@ -2089,7 +2067,7 @@ plugin_placement_rebuild(
         return 0;
 
     if( host->engine.slot_rect(
-            host->engine.user, TORIRS_PLUGIN_SLOT_VIEWPORT, &rect.x, &rect.y, &rect.w, &rect.h) &&
+            host->engine.user, TORIRS_HOST_SURFACE_VIEWPORT, &rect.x, &rect.y, &rect.w, &rect.h) &&
         rect.w > 0 && rect.h > 0 )
         ToriRS_PlacementRegion_SetRect(&candidate[TORIRS_AREA_RAW_VIEWPORT], &rect);
     else
@@ -2475,14 +2453,14 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
         char const* name;
         uint32_t flags;
     } const SURFACE[] = {
-        { TORIRS_PLUGIN_SLOT_VIEWPORT,     "frame.viewport",     0                             },
-        { TORIRS_PLUGIN_SLOT_MINIMAP,      "frame.minimap",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_PLUGIN_SLOT_COMPASS,      "frame.compass",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_PLUGIN_SLOT_CHAT,         "frame.chat",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, "frame.chat.buttons", TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_PLUGIN_SLOT_SIDEBAR,      "frame.sidebar",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_PLUGIN_SLOT_MAIN_MODAL,   "frame.modal",        0                             },
-        { TORIRS_PLUGIN_SLOT_ORBS,         "frame.orbs",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_HOST_SURFACE_VIEWPORT,     "frame.viewport",     0                             },
+        { TORIRS_HOST_SURFACE_MINIMAP,      "frame.minimap",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_HOST_SURFACE_COMPASS,      "frame.compass",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_HOST_SURFACE_CHAT,         "frame.chat",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_HOST_SURFACE_CHAT_BUTTONS, "frame.chat.buttons", TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_HOST_SURFACE_SIDEBAR,      "frame.sidebar",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_HOST_SURFACE_MODAL,   "frame.modal",        0                             },
+        { TORIRS_HOST_SURFACE_ORBS,         "frame.orbs",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
     };
     static char const* const CHAT_BUTTON[] = {
         "frame.chat.button.public",
@@ -2512,7 +2490,7 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     int count = 0;
 
     assert(host);
-    if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+    if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
     {
         host->ui_tab_state_valid = false;
         ToriRS_UiRegistry_ClearBase(&host->ui_registry);
@@ -2534,9 +2512,9 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
         int x, y, w, h;
         int present = host->engine.slot_rect(
             host->engine.user, SURFACE[i].slot, &x, &y, &w, &h);
-        if( !present && SURFACE[i].slot == TORIRS_PLUGIN_SLOT_VIEWPORT )
+        if( !present && SURFACE[i].slot == TORIRS_HOST_SURFACE_VIEWPORT )
             present = host->engine.slot_rect(
-                host->engine.user, TORIRS_PLUGIN_SLOT_CANVAS, &x, &y, &w, &h);
+                host->engine.user, TORIRS_HOST_SURFACE_CANVAS, &x, &y, &w, &h);
         if( present )
             count = plugin_ui_base_add_rect(
                 declarations,
@@ -2555,7 +2533,7 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     {
         int x, y, w, h;
         if( host->engine.slot_member_rect(
-                host->engine.user, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, &x, &y, &w, &h) )
+                host->engine.user, TORIRS_HOST_SURFACE_CHAT_BUTTONS, i, &x, &y, &w, &h) )
             count = plugin_ui_base_add_rect(
                 declarations,
                 count,
@@ -2717,7 +2695,7 @@ plugin_ui_tab_state_poll(struct ToriRS_PluginHost* host)
     int active = -1;
 
     assert(host);
-    if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+    if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
         return;
     if( host->engine.tab_active )
         active = host->engine.tab_active(host->engine.user);
@@ -2752,7 +2730,7 @@ static int
 host_frame_exists(struct ToriRS_PluginCtx const* ctx)
 {
     assert(ctx);
-    return ctx->host->engine.screen(ctx->host->engine.user) == TORIRS_PLUGIN_SCREEN_GAME;
+    return ctx->host->engine.screen(ctx->host->engine.user) == TORIRS_SCREEN_GAME;
 }
 
 static int
@@ -2775,7 +2753,7 @@ api_slot_rect(
     /* A region id out of range is a plugin's arithmetic, not a broken
      * contract -- it may have come from a config key or from a script -- so it
      * answers "this frame has no such region", like any other absent one. */
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_COUNT )
         return 0;
 
     if( slot == TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME )
@@ -3121,7 +3099,7 @@ api_slot_member_rect(
 
     /* Same reading as slot_rect's: an id out of range is a plugin's
      * arithmetic, and the answer is "this frame has no such region". */
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT || member < 0 )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT || member < 0 )
         return 0;
 
     if( !ctx->host->engine.slot_member_rect(ctx->host->engine.user, slot, member, &x, &y, &w, &h) )
@@ -3161,7 +3139,7 @@ api_slot_native_size(
         return 0; /* @see host_frame_exists */
 
     assert(ctx);
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return 0;
     if( !ctx->host->engine.slot_native_size(ctx->host->engine.user, slot, &w, &h) )
         return 0;
@@ -3515,7 +3493,7 @@ api_display_setting(
      * broken contract -- and the answer it gets is the same one a build
      * without that setting gives, which is the answer a page should render
      * the same way either way. */
-    if( setting < 0 || setting >= TORIRS_PLUGIN_DISPLAY_SETTING_COUNT )
+    if( setting < 0 || setting >= TORIRS_DISPLAY_SETTING_COUNT )
         return 0;
     return ctx->host->engine.display_setting(
         ctx->host->engine.user, setting, out_value, out_min, out_max);
@@ -3528,7 +3506,7 @@ api_display_setting_set(
     int value)
 {
     assert(ctx);
-    if( setting < 0 || setting >= TORIRS_PLUGIN_DISPLAY_SETTING_COUNT )
+    if( setting < 0 || setting >= TORIRS_DISPLAY_SETTING_COUNT )
         return 0;
     return ctx->host->engine.display_setting_set(ctx->host->engine.user, setting, value);
 }
@@ -4207,7 +4185,7 @@ api_obj_image(
     /* An id and a count are NUMBERS the plugin computed -- off a drop table,
      * out of a container -- so a silly one is bad input rather than a bug in
      * the caller's frame, and the honest answer is "there is no such icon". */
-    if( obj_id < 0 || count < 0 || style < 0 || style > TORIRS_PLUGIN_OBJ_ICON_SELECTED )
+    if( obj_id < 0 || count < 0 || style < 0 || style > TORIRS_ITEM_ICON_SELECTED )
         return -1;
     if( count == 0 )
         count = 1;
@@ -5065,7 +5043,7 @@ api_win_widget(
     char const* label)
 {
     struct ToriRS_PluginHost* host;
-    struct ToriRS_PluginWinWidget* w;
+    struct ToriRS_PanelWidget* w;
 
     assert(ctx);
     assert(id);
@@ -5151,7 +5129,7 @@ api_win_set_options(
     char const* choices,
     int selected)
 {
-    struct ToriRS_PluginWinWidget* w;
+    struct ToriRS_PanelWidget* w;
     int slot;
 
     assert(ctx);
@@ -5338,11 +5316,11 @@ api_panel_request(
         return false;
     width = desc->preferred_width;
     if( width == 0 )
-        width = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
-    if( width < TORIRS_PLUGIN_PANEL_WIDTH_MIN )
-        width = TORIRS_PLUGIN_PANEL_WIDTH_MIN;
-    if( width > TORIRS_PLUGIN_PANEL_WIDTH_MAX )
-        width = TORIRS_PLUGIN_PANEL_WIDTH_MAX;
+        width = TORIRS_PANEL_WIDTH_DEFAULT;
+    if( width < TORIRS_PANEL_WIDTH_MIN )
+        width = TORIRS_PANEL_WIDTH_MIN;
+    if( width > TORIRS_PANEL_WIDTH_MAX )
+        width = TORIRS_PANEL_WIDTH_MAX;
 
     changed = !host->panel_registered[ctx->index] ||
               plugin_copy_str_would_change(
@@ -5383,14 +5361,14 @@ api_panel_widget(
     char const* label)
 {
     struct ToriRS_PluginHost* host;
-    struct ToriRS_PluginWinWidget* widget;
+    struct ToriRS_PanelWidget* widget;
 
     assert(ctx);
     host = ctx->host;
     if( host->panel_active != ctx->index || !host->panel_building ||
         host->dispatching != ctx->index || host->dispatch_event != PLUGIN_CALLBACK_PANEL_BUILD )
         return false;
-    if( kind < 0 || kind >= TORIRS_PLUGIN_W_COUNT || !plugin_panel_id_ok(id) )
+    if( kind < 0 || kind >= TORIRS_PANEL_WIDGET_COUNT || !plugin_panel_id_ok(id) )
         return false;
     /* Idempotent within one declaration, matching win_widget. */
     if( plugin_panel_find(host, id) >= 0 )
@@ -5405,12 +5383,12 @@ api_panel_widget(
     memset(widget, 0, sizeof(*widget));
     widget->kind = kind;
     widget->selected = -1;
-    if( kind == TORIRS_PLUGIN_W_CUSTOM )
-        widget->preferred_height = TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT;
+    if( kind == TORIRS_PANEL_WIDGET_CUSTOM )
+        widget->preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT;
     widget->serial = plugin_widget_next_serial(host);
     plugin_copy_str(widget->id, sizeof(widget->id), id);
     plugin_copy_str(widget->label, sizeof(widget->label), label);
-    host->panel_invalidated[host->panel_widget_count] = kind == TORIRS_PLUGIN_W_CUSTOM;
+    host->panel_invalidated[host->panel_widget_count] = kind == TORIRS_PANEL_WIDGET_CUSTOM;
     host->panel_widget_count++;
     plugin_panel_change_structural(host);
     plugin_panel_bump(&host->panel_model_revision);
@@ -5442,7 +5420,7 @@ api_panel_set_text(
     char const* id,
     char const* text)
 {
-    struct ToriRS_PluginWinWidget* widget;
+    struct ToriRS_PanelWidget* widget;
     char const* next = text ? text : "";
     int slot;
 
@@ -5465,7 +5443,7 @@ api_panel_set_value(
     char const* id,
     int value)
 {
-    struct ToriRS_PluginWinWidget* widget;
+    struct ToriRS_PanelWidget* widget;
     int old_checked;
     int old_selected;
     int old_value;
@@ -5479,10 +5457,10 @@ api_panel_set_value(
     old_selected = widget->selected;
     old_value = widget->value;
     widget->value = value;
-    if( widget->kind == TORIRS_PLUGIN_W_CHECKBOX || widget->kind == TORIRS_PLUGIN_W_TOGGLE ||
-        widget->kind == TORIRS_PLUGIN_W_LIST_ROW )
+    if( widget->kind == TORIRS_PANEL_WIDGET_CHECKBOX || widget->kind == TORIRS_PANEL_WIDGET_TOGGLE ||
+        widget->kind == TORIRS_PANEL_WIDGET_LIST_ROW )
         widget->checked = value ? 1 : 0;
-    if( widget->kind == TORIRS_PLUGIN_W_DROPDOWN )
+    if( widget->kind == TORIRS_PANEL_WIDGET_DROPDOWN )
         widget->selected = value;
     if( old_checked != widget->checked || old_selected != widget->selected ||
         old_value != widget->value )
@@ -5500,21 +5478,21 @@ api_panel_set_height(
     char const* custom_view_id,
     int preferred_height)
 {
-    struct ToriRS_PluginWinWidget* widget;
+    struct ToriRS_PanelWidget* widget;
     int slot;
 
     assert(ctx);
     if( !plugin_panel_mutable(ctx, custom_view_id, &slot) )
         return false;
     widget = &ctx->host->panel_widgets[slot];
-    if( widget->kind != TORIRS_PLUGIN_W_CUSTOM )
+    if( widget->kind != TORIRS_PANEL_WIDGET_CUSTOM )
         return false;
     if( preferred_height == 0 )
-        preferred_height = TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT;
-    if( preferred_height < TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MIN )
-        preferred_height = TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MIN;
-    if( preferred_height > TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MAX )
-        preferred_height = TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MAX;
+        preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT;
+    if( preferred_height < TORIRS_PANEL_CUSTOM_HEIGHT_MIN )
+        preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_MIN;
+    if( preferred_height > TORIRS_PANEL_CUSTOM_HEIGHT_MAX )
+        preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_MAX;
     if( widget->preferred_height == preferred_height )
         return true;
     widget->preferred_height = preferred_height;
@@ -5532,7 +5510,7 @@ api_panel_set_options(
     char const* choices,
     int selected)
 {
-    struct ToriRS_PluginWinWidget* widget;
+    struct ToriRS_PanelWidget* widget;
     char const* next = choices ? choices : "";
     bool changed;
     int slot;
@@ -5593,7 +5571,7 @@ api_panel_invalidate(
 
     assert(ctx);
     if( !plugin_panel_mutable(ctx, custom_view_id, &slot) ||
-        ctx->host->panel_widgets[slot].kind != TORIRS_PLUGIN_W_CUSTOM ||
+        ctx->host->panel_widgets[slot].kind != TORIRS_PANEL_WIDGET_CUSTOM ||
         ctx->host->panel_invalidated[slot] )
         return;
     ctx->host->panel_invalidated[slot] = true;
@@ -5794,7 +5772,7 @@ api_draw_hull(
     int fill_alpha,
     int shape)
 {
-    assert(shape == TORIRS_PLUGIN_HULL_BOUNDS || shape == TORIRS_PLUGIN_HULL_MESH);
+    assert(shape == TORIRS_HULL_BOUNDS || shape == TORIRS_HULL_MESH);
     plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
         return;
@@ -6855,7 +6833,7 @@ api_layout_slot_art(
     assert(host->layout_declaring && "layout_slot_art is legal only inside EV_LAYOUT");
     assert(host->layout_declarer == ctx->index);
 
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return 0;
 
     row = plugin_slot_art_find_in(host->slot_art_candidate, slot, member);
@@ -7150,25 +7128,25 @@ plugin_entity_parse(
     assert(part);
     if( strncmp(part, "npc:", 4) == 0 )
     {
-        kind = TORIRS_PLUGIN_ENTITY_NPC;
+        kind = TORIRS_ENTITY_NPC;
         rest = part + 4;
         want = 1;
     }
     else if( strncmp(part, "player:", 7) == 0 )
     {
-        kind = TORIRS_PLUGIN_ENTITY_PLAYER;
+        kind = TORIRS_ENTITY_PLAYER;
         rest = part + 7;
         want = 1;
     }
     else if( strncmp(part, "loc:", 4) == 0 )
     {
-        kind = TORIRS_PLUGIN_ENTITY_LOC;
+        kind = TORIRS_ENTITY_LOC;
         rest = part + 4;
         want = 4;
     }
     else if( strncmp(part, "obj:", 4) == 0 )
     {
-        kind = TORIRS_PLUGIN_ENTITY_OBJ;
+        kind = TORIRS_ENTITY_OBJ;
         rest = part + 4;
         want = 4;
     }
@@ -7211,16 +7189,16 @@ api_entity_part(
     assert(buf);
     switch( kind )
     {
-    case TORIRS_PLUGIN_ENTITY_NPC:
+    case TORIRS_ENTITY_NPC:
         n = snprintf(buf, (size_t)cap, "npc:%d", a);
         break;
-    case TORIRS_PLUGIN_ENTITY_PLAYER:
+    case TORIRS_ENTITY_PLAYER:
         n = snprintf(buf, (size_t)cap, "player:%d", a);
         break;
-    case TORIRS_PLUGIN_ENTITY_LOC:
+    case TORIRS_ENTITY_LOC:
         n = snprintf(buf, (size_t)cap, "loc:%d,%d,%d,%d", a, b, c, d);
         break;
-    case TORIRS_PLUGIN_ENTITY_OBJ:
+    case TORIRS_ENTITY_OBJ:
         n = snprintf(buf, (size_t)cap, "obj:%d,%d,%d,%d", a, b, c, d);
         break;
     default:
@@ -7251,12 +7229,12 @@ plugin_entity_element(
     kind = plugin_entity_parse(part, &a, &b, &c, &d);
     switch( kind )
     {
-    case TORIRS_PLUGIN_ENTITY_NPC:
+    case TORIRS_ENTITY_NPC:
     {
         struct ToriRS_NpcSnapshot snap;
         return host->engine.npc_by_slot(host->engine.user, a, &snap) ? snap.element_id : -1;
     }
-    case TORIRS_PLUGIN_ENTITY_PLAYER:
+    case TORIRS_ENTITY_PLAYER:
     {
         struct ToriRS_PlayerSnapshot snap;
         int iter = -1;
@@ -7267,7 +7245,7 @@ plugin_entity_element(
                 return snap.element_id;
         return -1;
     }
-    case TORIRS_PLUGIN_ENTITY_LOC:
+    case TORIRS_ENTITY_LOC:
     {
         struct ToriRS_ScenerySnapshot snap;
         int iter = -1;
@@ -7276,7 +7254,7 @@ plugin_entity_element(
                 return snap.element_id;
         return -1;
     }
-    case TORIRS_PLUGIN_ENTITY_OBJ:
+    case TORIRS_ENTITY_OBJ:
     {
         struct ToriRS_GroundItemSnapshot snap;
         int iter = -1;
@@ -7366,7 +7344,7 @@ api_entity_look(
     assert(ctx);
     assert(part);
     assert(look);
-    assert(look->shape == TORIRS_PLUGIN_HULL_BOUNDS || look->shape == TORIRS_PLUGIN_HULL_MESH);
+    assert(look->shape == TORIRS_HULL_BOUNDS || look->shape == TORIRS_HULL_MESH);
 
     row = plugin_chrome_row(ctx->host, ctx->index, part);
     if( !row || !row->entity || !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE) )
@@ -7389,7 +7367,7 @@ api_entity_ops(
     assert(ctx);
     assert(part);
 
-    if( mode < TORIRS_PLUGIN_ENTITY_OPS_APPEND || mode > TORIRS_PLUGIN_ENTITY_OPS_NONE )
+    if( mode < TORIRS_ENTITY_OPS_APPEND || mode > TORIRS_ENTITY_OPS_NONE )
         return 0;
     row = plugin_chrome_row(ctx->host, ctx->index, part);
     if( !row || !row->entity || !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_HITBOX) )
@@ -7446,23 +7424,23 @@ plugin_entity_row_holder(
         kind = plugin_entity_parse(claim->part, &a, &b, &c, &d);
         switch( kind )
         {
-        case TORIRS_PLUGIN_ENTITY_NPC:
+        case TORIRS_ENTITY_NPC:
             if( row->pick_kind == UI_MINIMENU_PICK_NPC && row->npc_slot == a )
                 return claim;
             break;
-        case TORIRS_PLUGIN_ENTITY_PLAYER:
+        case TORIRS_ENTITY_PLAYER:
             if( row->pick_kind == UI_MINIMENU_PICK_PLAYER && row->player_pid == a )
                 return claim;
             break;
-        case TORIRS_PLUGIN_ENTITY_LOC:
+        case TORIRS_ENTITY_LOC:
             if( row->pick_kind == UI_MINIMENU_PICK_SCENERY && row->target_id == d && hover &&
-                hover->kind == TORIRS_PLUGIN_HOVER_SCENERY && hover->tile_x == a &&
+                hover->kind == TORIRS_HOVER_SCENERY && hover->tile_x == a &&
                 hover->tile_z == b && hover->level == c )
                 return claim;
             break;
-        case TORIRS_PLUGIN_ENTITY_OBJ:
+        case TORIRS_ENTITY_OBJ:
             if( row->pick_kind == UI_MINIMENU_PICK_OBJ && row->target_id == d && hover &&
-                hover->kind == TORIRS_PLUGIN_HOVER_OBJ && hover->tile_x == a &&
+                hover->kind == TORIRS_HOVER_OBJ && hover->tile_x == a &&
                 hover->tile_z == b && hover->level == c )
                 return claim;
             break;
@@ -7510,14 +7488,14 @@ plugin_entity_apply_ops(
                 seen = 1;
         if( !seen && holder_count < TORIRS_PLUGIN_MENU_ROWS_MAX )
             holders[holder_count++] = holder;
-        if( holder->ops_mode != TORIRS_PLUGIN_ENTITY_OPS_APPEND )
+        if( holder->ops_mode != TORIRS_ENTITY_OPS_APPEND )
             (void)host->engine.menu_drop(host->engine.user, cursor, i);
     }
 
     for( int h = 0; h < holder_count; h++ )
     {
         struct PluginChromeClaim const* holder = holders[h];
-        if( holder->ops_mode == TORIRS_PLUGIN_ENTITY_OPS_NONE )
+        if( holder->ops_mode == TORIRS_ENTITY_OPS_NONE )
             continue;
         /* Last op first: rows draw bottom-to-top, so adding in reverse puts
          * op 0 on top -- the same order a region's own verbs are added in. */
@@ -7539,7 +7517,7 @@ plugin_entity_apply_ops(
 }
 
 static int
-api_layout_slot_skin(
+host_frame_surface_skin(
     struct ToriRS_PluginCtx* ctx,
     int slot,
     int art,
@@ -7553,19 +7531,19 @@ api_layout_slot_skin(
     host = ctx->host;
     assert(host->layout_declaring && "layout_slot_skin is legal only inside EV_LAYOUT");
     assert(host->layout_declarer == ctx->index);
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
     {
         plugin_layout_candidate_fail(host, "The frame skinned an unknown surface.");
         return 0;
     }
-    if( slot != TORIRS_PLUGIN_SLOT_MINIMAP && slot != TORIRS_PLUGIN_SLOT_COMPASS )
+    if( slot != TORIRS_HOST_SURFACE_MINIMAP && slot != TORIRS_HOST_SURFACE_COMPASS )
     {
         plugin_layout_candidate_fail(host, "The frame skinned a surface that cannot be skinned.");
         return 0;
     }
     /* The minimap picture is the live baked world; only its cut-out belongs to
      * the frame. Compass art is static frame art and is replaceable. */
-    if( slot == TORIRS_PLUGIN_SLOT_MINIMAP && art >= 0 )
+    if( slot == TORIRS_HOST_SURFACE_MINIMAP && art >= 0 )
     {
         plugin_layout_candidate_fail(host, "The frame replaced the live minimap image.");
         return 0;
@@ -7608,7 +7586,7 @@ api_layout_slot_skin(
 }
 
 static int
-api_layout_slot_overlay(
+host_frame_surface_overlay(
     struct ToriRS_PluginCtx* ctx,
     int slot,
     int image,
@@ -7625,7 +7603,7 @@ api_layout_slot_overlay(
     host = ctx->host;
     assert(host->layout_declaring && "layout_slot_overlay is legal only inside EV_LAYOUT");
     assert(host->layout_declarer == ctx->index);
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
     {
         plugin_layout_candidate_fail(host, "The frame overlaid an unknown surface.");
         return 0;
@@ -7661,7 +7639,7 @@ api_layout_slot_overlay(
 }
 
 static int
-api_layout_scrollbar(
+host_frame_scrollbar(
     struct ToriRS_PluginCtx* ctx,
     int trough,
     int dragger_top,
@@ -8334,7 +8312,7 @@ plugin_frame_resolve(struct ToriRS_PluginHost* host)
         plugin_frame_selection_active(host, "core/native", TORIRS_FRAME_STATUS_NATIVE, "");
         wanted_plugin = -1;
     }
-    else if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+    else if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
     {
         plugin_frame_target_set(host, target && target->available ? target_index : -1);
         plugin_frame_engine_activate(host, -1);
@@ -8382,7 +8360,7 @@ plugin_frame_resolve(struct ToriRS_PluginHost* host)
     {
         /* Already committed above. */
     }
-    else if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+    else if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
     {
         /* Native was committed above; keep the target provider warm. */
     }
@@ -8877,7 +8855,7 @@ plugin_v2_panel_select(
     int option_count)
 {
     struct ToriRS_PluginHost* host = user;
-    struct ToriRS_PluginWinWidget* widget;
+    struct ToriRS_PanelWidget* widget;
     int first;
     int slot;
 
@@ -8918,7 +8896,7 @@ plugin_v2_panel_select(
         PluginHost_SetError(host, context->index, "structured select id is duplicated");
         return;
     }
-    if( !api_panel_widget(context, TORIRS_PLUGIN_W_DROPDOWN, id, label) )
+    if( !api_panel_widget(context, TORIRS_PANEL_WIDGET_DROPDOWN, id, label) )
         return;
     slot = plugin_panel_find(host, id);
     assert(slot >= 0);
@@ -8960,7 +8938,7 @@ plugin_v2_panel_set_options(
     int option_count)
 {
     struct ToriRS_PluginHost* host = user;
-    struct ToriRS_PluginWinWidget* widget;
+    struct ToriRS_PanelWidget* widget;
     int selected = -1;
     int slot;
     bool changed = false;
@@ -8973,7 +8951,7 @@ plugin_v2_panel_set_options(
     if( !plugin_panel_mutable(context, id, &slot) )
         return TORIRS_RESULT_NOT_FOUND;
     widget = &host->panel_widgets[slot];
-    if( widget->kind != TORIRS_PLUGIN_W_DROPDOWN || !widget->structured_select ||
+    if( widget->kind != TORIRS_PANEL_WIDGET_DROPDOWN || !widget->structured_select ||
         option_count < 0 || option_count != widget->select_option_count ||
         (option_count > 0 && !options) ||
         strlen(value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX )
@@ -9255,8 +9233,8 @@ plugin_v2_item_image(
     assert(out_revision);
     *out_image = -1;
     *out_revision = 0;
-    if( obj_id < 0 || count < 0 || style < TORIRS_PLUGIN_OBJ_ICON_PLAIN ||
-        style > TORIRS_PLUGIN_OBJ_ICON_SELECTED )
+    if( obj_id < 0 || count < 0 || style < TORIRS_ITEM_ICON_PLAIN ||
+        style > TORIRS_ITEM_ICON_SELECTED )
         return TORIRS_ASSET_INVALID;
     if( count == 0 )
         count = 1;
@@ -12466,18 +12444,18 @@ PluginHost_FrameNeedsLayout(struct ToriRS_PluginHost const* host)
 static char const*
 plugin_frame_surface_name(int slot)
 {
-    static char const* const NAMES[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT] = {
-        [TORIRS_PLUGIN_SLOT_VIEWPORT] = "frame.viewport",
-        [TORIRS_PLUGIN_SLOT_MINIMAP] = "frame.minimap",
-        [TORIRS_PLUGIN_SLOT_COMPASS] = "frame.compass",
-        [TORIRS_PLUGIN_SLOT_CHAT] = "frame.chat",
-        [TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = "frame.chat.buttons",
-        [TORIRS_PLUGIN_SLOT_SIDEBAR] = "frame.sidebar",
-        [TORIRS_PLUGIN_SLOT_MAIN_MODAL] = "frame.modal",
-        [TORIRS_PLUGIN_SLOT_ORBS] = "frame.orbs",
+    static char const* const NAMES[TORIRS_HOST_SURFACE_PLACEABLE_COUNT] = {
+        [TORIRS_HOST_SURFACE_VIEWPORT] = "frame.viewport",
+        [TORIRS_HOST_SURFACE_MINIMAP] = "frame.minimap",
+        [TORIRS_HOST_SURFACE_COMPASS] = "frame.compass",
+        [TORIRS_HOST_SURFACE_CHAT] = "frame.chat",
+        [TORIRS_HOST_SURFACE_CHAT_BUTTONS] = "frame.chat.buttons",
+        [TORIRS_HOST_SURFACE_SIDEBAR] = "frame.sidebar",
+        [TORIRS_HOST_SURFACE_MODAL] = "frame.modal",
+        [TORIRS_HOST_SURFACE_ORBS] = "frame.orbs",
     };
 
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return NULL;
     return NAMES[slot];
 }
@@ -12487,12 +12465,12 @@ plugin_frame_surface_flags(int slot)
 {
     switch( slot )
     {
-    case TORIRS_PLUGIN_SLOT_MINIMAP:
-    case TORIRS_PLUGIN_SLOT_COMPASS:
-    case TORIRS_PLUGIN_SLOT_CHAT:
-    case TORIRS_PLUGIN_SLOT_CHAT_BUTTONS:
-    case TORIRS_PLUGIN_SLOT_SIDEBAR:
-    case TORIRS_PLUGIN_SLOT_ORBS:
+    case TORIRS_HOST_SURFACE_MINIMAP:
+    case TORIRS_HOST_SURFACE_COMPASS:
+    case TORIRS_HOST_SURFACE_CHAT:
+    case TORIRS_HOST_SURFACE_CHAT_BUTTONS:
+    case TORIRS_HOST_SURFACE_SIDEBAR:
+    case TORIRS_HOST_SURFACE_ORBS:
         return TORIRS_UI_NODE_BLOCKS_OVERLAY;
     default:
         return 0;
@@ -12637,7 +12615,7 @@ plugin_layout_candidate_apply(struct ToriRS_PluginHost* host)
             rect->w,
             rect->h);
     }
-    for( int slot = 0; slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT; slot++ )
+    for( int slot = 0; slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; slot++ )
     {
         if( candidate->skins[slot].declared )
             (void)host->engine.layout_slot_skin(
@@ -12826,7 +12804,7 @@ PluginHost_Layout(
 
     if( !host->layout_candidate.viewport_declared )
         plugin_layout_candidate_fail(host, "The frame did not declare its required viewport.");
-    for( int slot = 0; slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT; slot++ )
+    for( int slot = 0; slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; slot++ )
         if( host->layout_candidate.skins[slot].declared )
         {
             int surface_declared = 0;
@@ -13432,7 +13410,7 @@ PluginHost_WinWidgetCount(
     return plugin_win_count_owned(host, plugin_index);
 }
 
-struct ToriRS_PluginWinWidget const*
+struct ToriRS_PanelWidget const*
 PluginHost_WinWidgetAt(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
@@ -13490,7 +13468,7 @@ PluginHost_WinDispatch(
     char const* text)
 {
     struct ToriRS_LegacyPanelEvent ev;
-    struct ToriRS_PluginWinWidget* w;
+    struct ToriRS_PanelWidget* w;
     int slot;
 
     assert(host);
@@ -13509,14 +13487,14 @@ PluginHost_WinDispatch(
      */
     switch( action )
     {
-    case TORIRS_PLUGIN_UI_TOGGLE:
+    case TORIRS_PANEL_ACTION_TOGGLE:
         w->checked = value ? 1 : 0;
         w->value = w->checked;
         break;
-    case TORIRS_PLUGIN_UI_TEXT:
+    case TORIRS_PANEL_ACTION_TEXT:
         plugin_copy_str(w->text, sizeof(w->text), text);
         break;
-    case TORIRS_PLUGIN_UI_PICK:
+    case TORIRS_PANEL_ACTION_PICK:
         w->selected = value;
         w->value = value;
         plugin_copy_str(w->text, sizeof(w->text), text);
@@ -13712,14 +13690,14 @@ PluginHost_PanelSelect(
     struct ToriRS_PluginHost* host,
     int plugin_index)
 {
-    return PluginHost_PanelSelectView(host, plugin_index, TORIRS_PLUGIN_PANEL_VIEW_PAGE);
+    return PluginHost_PanelSelectView(host, plugin_index, TORIRS_PANEL_VIEW_PAGE);
 }
 
 int
 PluginHost_PanelView(struct ToriRS_PluginHost const* host)
 {
     assert(host);
-    return host->panel_active >= 0 ? host->panel_view : TORIRS_PLUGIN_PANEL_VIEW_PAGE;
+    return host->panel_active >= 0 ? host->panel_view : TORIRS_PANEL_VIEW_PAGE;
 }
 
 int
@@ -13729,7 +13707,7 @@ PluginHost_PanelSelectView(
     int view)
 {
     assert(host);
-    if( view < TORIRS_PLUGIN_PANEL_VIEW_PAGE || view > TORIRS_PLUGIN_PANEL_VIEW_SETTINGS )
+    if( view < TORIRS_PANEL_VIEW_PAGE || view > TORIRS_PANEL_VIEW_SETTINGS )
         return 0;
     if( plugin_index < 0 || plugin_index >= host->plugin_count ||
         !host->panel_registered[plugin_index] || !host->plugins[plugin_index].enabled ||
@@ -13798,7 +13776,7 @@ PluginHost_PanelWidgetCount(
     return host->panel_widget_count;
 }
 
-struct ToriRS_PluginWinWidget const*
+struct ToriRS_PanelWidget const*
 PluginHost_PanelWidgetAt(
     struct ToriRS_PluginHost const* host,
     uint32_t selection_generation,
@@ -13899,8 +13877,8 @@ PluginHost_PanelLayout(
     plugin = host->panel_active;
     if( plugin < 0 || !host->panel_registered[plugin] || !host->plugins[plugin].running )
         return 0;
-    if( width < 0 || height < 0 || scale_milli <= 0 || size_class < TORIRS_PLUGIN_PANEL_COMPACT ||
-        size_class > TORIRS_PLUGIN_PANEL_EXPANDED || (visible && (width == 0 || height == 0)) )
+    if( width < 0 || height < 0 || scale_milli <= 0 || size_class < TORIRS_PANEL_SIZE_COMPACT ||
+        size_class > TORIRS_PANEL_SIZE_EXPANDED || (visible && (width == 0 || height == 0)) )
         return 0;
 
     if( host->panel_has_layout && host->panel_width == width && host->panel_height == height &&
@@ -13942,7 +13920,7 @@ PluginHost_PanelDispatch(
     int y)
 {
     struct ToriRS_PanelActionEvent ev;
-    struct ToriRS_PluginWinWidget* widget;
+    struct ToriRS_PanelWidget* widget;
     char event_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
     char event_text[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
     int plugin;
@@ -13961,17 +13939,17 @@ PluginHost_PanelDispatch(
     slot = plugin_panel_find_serial(host, widget_serial);
     if( slot < 0 || strcmp(host->panel_widgets[slot].id, widget_id) != 0 )
         return 0;
-    if( action < TORIRS_PLUGIN_UI_ACTIVATE || action > TORIRS_PLUGIN_UI_KEY )
+    if( action < TORIRS_PANEL_ACTION_ACTIVATE || action > TORIRS_PANEL_ACTION_KEY )
         return 0;
     widget = &host->panel_widgets[slot];
-    if( action >= TORIRS_PLUGIN_UI_DRAG && widget->kind != TORIRS_PLUGIN_W_CUSTOM )
+    if( action >= TORIRS_PANEL_ACTION_DRAG && widget->kind != TORIRS_PANEL_WIDGET_CUSTOM )
         return 0;
 
     /* A structured selection is identified by its stable value as well as its
      * index. Requiring both rejects a queued pick authored against an older
      * option list whose index has since been reused. Disabled rows may remain
      * selected for display, but no input path may choose one. */
-    if( action == TORIRS_PLUGIN_UI_PICK && widget->structured_select )
+    if( action == TORIRS_PANEL_ACTION_PICK && widget->structured_select )
     {
         struct ToriRS_PluginSelectOption const* option;
 
@@ -13985,7 +13963,7 @@ PluginHost_PanelDispatch(
 
     plugin_copy_str(event_id, sizeof(event_id), widget->id);
     plugin_copy_str(event_text, sizeof(event_text), text ? text : widget->text);
-    if( action == TORIRS_PLUGIN_UI_PICK && widget->structured_select )
+    if( action == TORIRS_PANEL_ACTION_PICK && widget->structured_select )
         plugin_copy_str(
             event_text,
             sizeof(event_text),
@@ -13995,18 +13973,18 @@ PluginHost_PanelDispatch(
      * and making the model authoritative for native controls. */
     switch( action )
     {
-    case TORIRS_PLUGIN_UI_TOGGLE:
+    case TORIRS_PANEL_ACTION_TOGGLE:
         changed = widget->checked != (value ? 1 : 0) || widget->value != (value ? 1 : 0);
         widget->checked = value ? 1 : 0;
         widget->value = widget->checked;
         change_flags = TORIRS_PLUGIN_PANEL_CHANGE_VALUE;
         break;
-    case TORIRS_PLUGIN_UI_TEXT:
+    case TORIRS_PANEL_ACTION_TEXT:
         changed = strcmp(widget->text, event_text) != 0;
         plugin_copy_str(widget->text, sizeof(widget->text), event_text);
         change_flags = TORIRS_PLUGIN_PANEL_CHANGE_TEXT;
         break;
-    case TORIRS_PLUGIN_UI_PICK:
+    case TORIRS_PANEL_ACTION_PICK:
         changed = widget->selected != value || widget->value != value ||
                   strcmp(widget->text, event_text) != 0 ||
                   (widget->structured_select &&
@@ -14059,7 +14037,7 @@ PluginHost_PanelNeedsDraw(
         host->panel_active < 0 || !host->panel_visible )
         return false;
     slot = plugin_panel_find_serial(host, widget_serial);
-    return slot >= 0 && host->panel_widgets[slot].kind == TORIRS_PLUGIN_W_CUSTOM &&
+    return slot >= 0 && host->panel_widgets[slot].kind == TORIRS_PANEL_WIDGET_CUSTOM &&
            host->panel_invalidated[slot];
 }
 
@@ -14076,7 +14054,7 @@ PluginHost_PanelInvalidate(
         host->panel_active < 0 )
         return 0;
     slot = plugin_panel_find_serial(host, widget_serial);
-    if( slot < 0 || host->panel_widgets[slot].kind != TORIRS_PLUGIN_W_CUSTOM )
+    if( slot < 0 || host->panel_widgets[slot].kind != TORIRS_PANEL_WIDGET_CUSTOM )
         return 0;
     if( !host->panel_invalidated[slot] )
         host->panel_invalidated[slot] = true;

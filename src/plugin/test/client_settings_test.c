@@ -155,7 +155,7 @@ int main(void)
         .key_value = fake_key_value, .node = fake_node,
     };
     struct ToriRS_PanelActionEvent action = {
-        .id = "gameframe", .action = TORIRS_PLUGIN_UI_PICK,
+        .id = "gameframe", .action = TORIRS_PANEL_ACTION_PICK,
     };
     void* state;
     int invalidates;

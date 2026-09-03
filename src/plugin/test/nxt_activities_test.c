@@ -99,7 +99,7 @@ static int
 fake_plugin_screen(void* u)
 {
     (void)u;
-    return TORIRS_PLUGIN_SCREEN_GAME;
+    return TORIRS_SCREEN_GAME;
 }
 
 static int
@@ -208,7 +208,7 @@ static int
 fake_key_held(void* u, int key)
 {
     (void)u;
-    return key == TORIRS_PLUGIN_KEY_SHIFT && g_engine.shift_held;
+    return key == TORIRS_KEY_SHIFT && g_engine.shift_held;
 }
 static int
 fake_hover_tile(void* u, int* ox, int* oz, int* olevel)
@@ -228,7 +228,7 @@ fake_hover_entity(void* u, struct ToriRS_HoverTarget* out)
     if( !g_engine.hover_entity_ok )
         return 0;
     memset(out, 0, sizeof(*out));
-    out->kind = TORIRS_PLUGIN_HOVER_NPC;
+    out->kind = TORIRS_HOVER_NPC;
     out->element_id = 7;
     out->tile_x = g_engine.hover_x;
     out->tile_z = g_engine.hover_z;
@@ -253,7 +253,7 @@ fake_feature_get(void* u, char const* k)
 {
     (void)u;
     (void)k;
-    return TORIRS_PLUGIN_FEATURE_UNSET;
+    return TORIRS_FEATURE_UNSET;
 }
 static int
 fake_feature_set(void* u, char const* k, int v)
@@ -1236,7 +1236,7 @@ main(void)
          * fill, opacity 30%. */
         g_engine.highlight_count = 1;
         memset(&g_engine.highlights[0], 0, sizeof(g_engine.highlights[0]));
-        g_engine.highlights[0].kind = TORIRS_PLUGIN_HL_LOC;
+        g_engine.highlights[0].kind = TORIRS_HIGHLIGHT_LOC;
         g_engine.highlights[0].element_id = 41;
         g_engine.highlights[0].tile_x = 3200;
         g_engine.highlights[0].tile_z = 3200;
@@ -1255,7 +1255,7 @@ main(void)
         /* A hovered tile, as clientscript 5198 sets one up:
          * `_7035(5, colour, 0, 70, 10)` -- flags 10 = tile outline + tile
          * fill, and element_id -1, because a tile is a place and not a thing. */
-        g_engine.highlights[0].kind = TORIRS_PLUGIN_HL_TILE;
+        g_engine.highlights[0].kind = TORIRS_HIGHLIGHT_TILE;
         g_engine.highlights[0].element_id = -1;
         g_engine.highlights[0].rgb = 0xBEBA6E;
         g_engine.highlights[0].opacity = 70;

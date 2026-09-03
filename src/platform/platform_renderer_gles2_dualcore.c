@@ -823,9 +823,7 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         "lead-hist [0 %llu, 1-7 %llu, 8-63 %llu, 64-511 %llu, 512+ %llu] "
         "desyncs %llu exhausted-frames %u "
         "feed-waits %llu (spins %llu) feed-overflow-frames %u reprojected %u "
-        "worker %.2f ms/frame (feed-wait %.2f) draw-stall %.2f ms/frame join %.3f ms/frame "
-        "stall-us [<20 %llu, <50 %llu, <100 %llu, <200 %llu, <500 %llu, 500+ %llu] "
-        "stall-slot [<64 %llu, <256 %llu, <1024 %llu, 1024+ %llu] passes %llu\n",
+        "worker %.2f ms/frame (feed-wait %.2f) draw-stall %.2f ms/frame join %.3f ms/frame\n",
         lane->lookahead,
         (double)(draw_cpu_ns - lane->draw_cpu_ns_last) / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
         (double)(worker_cpu_ns - lane->worker_cpu_ns_last) / 1.0e6 /
@@ -858,7 +856,11 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         (double)lane->worker_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
         (double)lane->feed_wait_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
         (double)lane->stall_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
-        (double)lane->join_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
+        (double)lane->join_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD);
+    /* The window's stalls: how long each was, and where in the frame. */
+    TORIRS_ERR(
+        "gles2-dualcore: window stall-us [<20 %llu, <50 %llu, <100 %llu, <200 %llu, <500 %llu, "
+        "500+ %llu] stall-slot [<64 %llu, <256 %llu, <1024 %llu, 1024+ %llu] passes/frame %.1f\n",
         (unsigned long long)lane->stall_ns_hist[0],
         (unsigned long long)lane->stall_ns_hist[1],
         (unsigned long long)lane->stall_ns_hist[2],
@@ -869,7 +871,10 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         (unsigned long long)lane->stall_slot_hist[1],
         (unsigned long long)lane->stall_slot_hist[2],
         (unsigned long long)lane->stall_slot_hist[3],
-        (unsigned long long)lane->passes);
+        (double)lane->passes / (double)GLES2_DUALCORE_DEBUG_PERIOD);
+    memset(lane->stall_ns_hist, 0, sizeof(lane->stall_ns_hist));
+    memset(lane->stall_slot_hist, 0, sizeof(lane->stall_slot_hist));
+    lane->passes = 0u;
     lane->worker_ns += lane->worker_ns_window;
     lane->join_ns += lane->join_ns_window;
     lane->worker_ns_window = 0u;

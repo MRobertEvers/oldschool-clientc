@@ -7,7 +7,7 @@
 
 #define FF_DEFAULT_LABEL "Revision default"
 #define FF_MAX 32
-#define FF_OPTION_MAX (TORIRS_PLUGIN_FEATURE_VALUES_MAX + 2)
+#define FF_OPTION_MAX (TORIRS_FEATURE_VALUES_MAX + 2)
 
 struct FeatureFlagsState
 {
@@ -40,11 +40,11 @@ ff_enum_value(struct ToriRS_FeatureInfo const* flag, char const* text)
 {
     for( int i = 0; i < flag->value_count; i++ )
     {
-        char choice[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
+        char choice[TORIRS_FEATURE_CHOICES_MAX];
         if( !ff_choice_at(flag->choices, i, choice, sizeof(choice)) ) break;
         if( strcmp(choice, text) == 0 ) return flag->values[i];
     }
-    return TORIRS_PLUGIN_FEATURE_UNSET;
+    return TORIRS_FEATURE_UNSET;
 }
 
 static int
@@ -76,8 +76,8 @@ ff_stored_value(
     struct ToriRS_FeatureInfo const* flag,
     char const* stored)
 {
-    if( ff_is_default(stored) ) return TORIRS_PLUGIN_FEATURE_UNSET;
-    return flag->kind == TORIRS_PLUGIN_FEATURE_ENUM
+    if( ff_is_default(stored) ) return TORIRS_FEATURE_UNSET;
+    return flag->kind == TORIRS_FEATURE_ENUM
                ? ff_enum_value(flag, stored)
                : atoi(stored);
 }
@@ -119,7 +119,7 @@ ff_options(
     struct ToriRS_FeatureInfo const* flag,
     struct ToriRS_SelectOption* options,
     char values[FF_OPTION_MAX][32],
-    char labels[FF_OPTION_MAX][TORIRS_PLUGIN_FEATURE_CHOICES_MAX],
+    char labels[FF_OPTION_MAX][TORIRS_FEATURE_CHOICES_MAX],
     char const** out_selected)
 {
     char const* stored = ff_stored(api, flag);
@@ -134,11 +134,11 @@ ff_options(
     snprintf(values[count], sizeof(values[count]), "%s", FF_DEFAULT_LABEL);
     if( flag->is_default && named >= 0 )
     {
-        char choice[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
+        char choice[TORIRS_FEATURE_CHOICES_MAX];
         (void)ff_choice_at(flag->choices, named, choice, sizeof(choice));
         snprintf(labels[count], sizeof(labels[count]), "%s (%s)", FF_DEFAULT_LABEL, choice);
     }
-    else if( flag->is_default && flag->kind == TORIRS_PLUGIN_FEATURE_INT )
+    else if( flag->is_default && flag->kind == TORIRS_FEATURE_INT )
         snprintf(labels[count], sizeof(labels[count]), "%s (%d)", FF_DEFAULT_LABEL, effective);
     else
         snprintf(labels[count], sizeof(labels[count]), "%s", FF_DEFAULT_LABEL);
@@ -151,7 +151,7 @@ ff_options(
     for( int i = 0; i < flag->value_count && count < FF_OPTION_MAX; i++, count++ )
     {
         (void)ff_choice_at(flag->choices, i, labels[count], sizeof(labels[count]));
-        if( flag->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+        if( flag->kind == TORIRS_FEATURE_ENUM )
             snprintf(values[count], sizeof(values[count]), "%s", labels[count]);
         else
             snprintf(values[count], sizeof(values[count]), "%d", flag->values[i]);
@@ -160,9 +160,9 @@ ff_options(
             .value = values[count], .label = labels[count], .enabled = true,
         };
     }
-    if( wanted != TORIRS_PLUGIN_FEATURE_UNSET &&
+    if( wanted != TORIRS_FEATURE_UNSET &&
         ff_value_index(flag, wanted) < 0 &&
-        flag->kind == TORIRS_PLUGIN_FEATURE_INT && count < FF_OPTION_MAX )
+        flag->kind == TORIRS_FEATURE_INT && count < FF_OPTION_MAX )
     {
         snprintf(values[count], sizeof(values[count]), "%d", wanted);
         snprintf(labels[count], sizeof(labels[count]), "%d", wanted);
@@ -183,7 +183,7 @@ ff_publish_option(
 {
     struct ToriRS_SelectOption options[FF_OPTION_MAX];
     char values[FF_OPTION_MAX][32];
-    char labels[FF_OPTION_MAX][TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
+    char labels[FF_OPTION_MAX][TORIRS_FEATURE_CHOICES_MAX];
     char const* selected;
     int count;
     int effective;
@@ -201,7 +201,7 @@ static void
 ff_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 {
     struct FeatureFlagsState* state = state_ptr;
-    struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT };
+    struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PANEL_WIDTH_DEFAULT };
     assert(api->client);
     ff_refresh(api, state);
     ff_apply_all(api, state);
@@ -216,7 +216,7 @@ ff_on_ui_build(
     int view)
 {
     struct FeatureFlagsState* state = state_ptr;
-    char section[TORIRS_PLUGIN_FEATURE_KEY_MAX] = "";
+    char section[TORIRS_FEATURE_KEY_MAX] = "";
     (void)view;
     ff_refresh(api, state);
     for( int i = 0; i < state->flag_count; i++ )
@@ -224,7 +224,7 @@ ff_on_ui_build(
         struct ToriRS_FeatureInfo const* flag = &state->flags[i];
         struct ToriRS_SelectOption options[FF_OPTION_MAX];
         char values[FF_OPTION_MAX][32];
-        char labels[FF_OPTION_MAX][TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
+        char labels[FF_OPTION_MAX][TORIRS_FEATURE_CHOICES_MAX];
         char const* selected;
         int count;
         if( flag->section[0] && strcmp(section, flag->section) != 0 )
@@ -246,7 +246,7 @@ ff_on_ui_action(
     struct ToriRS_PanelActionEvent const* event)
 {
     struct FeatureFlagsState* state = state_ptr;
-    if( !event || event->action != TORIRS_PLUGIN_UI_PICK || !event->id || !event->text )
+    if( !event || event->action != TORIRS_PANEL_ACTION_PICK || !event->id || !event->text )
         return;
     for( int i = 0; i < state->flag_count; i++ )
     {
@@ -254,11 +254,11 @@ ff_on_ui_action(
         char const* stored = event->text;
         int value;
         if( strcmp(flag->key, event->id) != 0 ) continue;
-        if( flag->kind == TORIRS_PLUGIN_FEATURE_ENUM &&
-            !ff_is_default(stored) && ff_enum_value(flag, stored) == TORIRS_PLUGIN_FEATURE_UNSET )
+        if( flag->kind == TORIRS_FEATURE_ENUM &&
+            !ff_is_default(stored) && ff_enum_value(flag, stored) == TORIRS_FEATURE_UNSET )
             return;
         value = ff_stored_value(flag, stored);
-        if( flag->kind == TORIRS_PLUGIN_FEATURE_INT && value != TORIRS_PLUGIN_FEATURE_UNSET &&
+        if( flag->kind == TORIRS_FEATURE_INT && value != TORIRS_FEATURE_UNSET &&
             (value < flag->min || value > flag->max) )
             return;
         (void)api->config.set(api, flag->key, stored);
@@ -267,7 +267,7 @@ ff_on_ui_action(
             api->core.log(api, "feature-flags: engine refused %s=%s", flag->key, stored);
             (void)api->config.set(api, flag->key, FF_DEFAULT_LABEL);
             (void)api->client->feature_set(
-                api, flag->key, TORIRS_PLUGIN_FEATURE_UNSET);
+                api, flag->key, TORIRS_FEATURE_UNSET);
         }
         ff_publish_option(api, &state->flags[i]);
         return;
@@ -286,8 +286,8 @@ ff_on_config_changed(
     ff_apply_all(api, state);
 }
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_FEATURE_FLAGS = {
-    .struct_size = sizeof(TORIRS_PLUGIN_FEATURE_FLAGS),
+struct ToriRS_PluginDefV2 const TORIRS_FEATURE_FLAGS = {
+    .struct_size = sizeof(TORIRS_FEATURE_FLAGS),
     .id = "feature-flags",
     .title = "Feature Flags",
     .version = "2.0.0",

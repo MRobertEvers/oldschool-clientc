@@ -885,7 +885,7 @@ mobile_lane_oldschool(struct MobileCall* ctx)
     assert(ctx);
     if( !ctx->api->core.lane(ctx->api, &lane) )
         return 0;
-    return lane.game == TORIRS_PLUGIN_GAME_OLDSCHOOL;
+    return lane.game == TORIRS_GAME_OLDSCHOOL;
 }
 
 /** The choices, in the order the `art` setting lists them. */
@@ -3132,7 +3132,7 @@ mobile_on_layout(
      * background, the logo and the login box away and puts nothing in their
      * place.
      */
-    if( g_api->core.screen(g_api) != TORIRS_PLUGIN_SCREEN_GAME )
+    if( g_api->core.screen(g_api) != TORIRS_SCREEN_GAME )
     {
         builder->reason(builder, "Stone Drawer is waiting for the game screen.");
         return TORIRS_FRAME_PENDING;
@@ -3198,7 +3198,7 @@ mobile_on_draw(
 
     /* The other half of the layout gate: a frame declared on the last in-game
      * frame must not keep drawing across a logout back to the title. */
-    if( g_api->core.screen(g_api) != TORIRS_PLUGIN_SCREEN_GAME )
+    if( g_api->core.screen(g_api) != TORIRS_SCREEN_GAME )
         return;
 
     if( !g_frame.declared )
@@ -3536,7 +3536,7 @@ mobile_on_screen(
     call.api = api;
     call.state = state;
 
-    if( event->screen != TORIRS_PLUGIN_SCREEN_GAME )
+    if( event->screen != TORIRS_SCREEN_GAME )
     {
         memset(&g_frame, 0, sizeof(g_frame));
         /* The chat pack goes with the session. Releasing rather than merely
@@ -3698,7 +3698,7 @@ static struct ToriRS_ConfigItem const MOBILE_CONFIG[] = {
     /* Auto is the 2004 pieces on every lane; OldSchool Mobile's own are a
      * choice. @see mobile_family. */
     { "art",
-     TORIRS_PLUGIN_CFG_ENUM,
+     TORIRS_CONFIG_ENUM,
      "Art",
      "Auto",
      0,
@@ -3708,14 +3708,14 @@ static struct ToriRS_ConfigItem const MOBILE_CONFIG[] = {
     /* Auto is the family's own ring. Lizards and Ring keep the numbers they
      * were saved under. */
     { "housing",
-     TORIRS_PLUGIN_CFG_ENUM,
+     TORIRS_CONFIG_ENUM,
      "Map housing",
      "Auto",
      0,
      3,
      "Lizards|Ring|OldSchool|Auto",
      0 },
-    { NULL, TORIRS_PLUGIN_CFG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
+    { NULL, TORIRS_CONFIG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
 };
 
 static struct ToriRS_ConfigSchema const MOBILE_SCHEMA = {

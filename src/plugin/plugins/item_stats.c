@@ -499,7 +499,7 @@ is_has_holy_wrench(struct ItemStatsRuntime* rt)
     {
         int obj_id = -1;
         if( !g_api->game->inventory_slot(
-                g_api, TORIRS_PLUGIN_INV_WORN, worn[i], &obj_id, NULL) )
+                g_api, TORIRS_INVENTORY_WORN, worn[i], &obj_id, NULL) )
             continue;
         if( obj_id < 0 || !g_api->game->item_info(g_api, obj_id, &info) )
             continue;
@@ -519,14 +519,14 @@ is_has_holy_wrench(struct ItemStatsRuntime* rt)
     }
 
     for( int slot = 0,
-             size = g_api->game->inventory_size(g_api, TORIRS_PLUGIN_INV_BACKPACK);
+             size = g_api->game->inventory_size(g_api, TORIRS_INVENTORY_BACKPACK);
          slot < size;
          slot++ )
     {
         int obj_id = -1;
         char lowered[64];
         if( !g_api->game->inventory_slot(
-                g_api, TORIRS_PLUGIN_INV_BACKPACK, slot, &obj_id, NULL) )
+                g_api, TORIRS_INVENTORY_BACKPACK, slot, &obj_id, NULL) )
             continue;
         if( obj_id < 0 || !g_api->game->item_info(g_api, obj_id, &info) )
             continue;
@@ -553,7 +553,7 @@ is_worn_named(struct ItemStatsRuntime* rt, int slot, char const* prefix)
     assert(prefix);
 
     if( !g_api->game->inventory_slot(
-            g_api, TORIRS_PLUGIN_INV_WORN, slot, &obj_id, NULL) )
+            g_api, TORIRS_INVENTORY_WORN, slot, &obj_id, NULL) )
         return 0;
     if( obj_id < 0 || !g_api->game->item_info(g_api, obj_id, &info) )
         return 0;
@@ -2203,7 +2203,7 @@ struct is_bonus_row
     char name[56];
     short slot;
     short two_handed;
-    short bonus[TORIRS_PLUGIN_BONUS_COUNT];
+    short bonus[TORIRS_EQUIPMENT_BONUS_COUNT];
     short ranged_strength;
     short speed;
 };
@@ -2281,7 +2281,7 @@ is_load_bonuses(struct ItemStatsRuntime* rt)
             continue;
         row.slot = (short)v[0];
         row.two_handed = (short)v[1];
-        for( int i = 0; i < TORIRS_PLUGIN_BONUS_COUNT; i++ )
+        for( int i = 0; i < TORIRS_EQUIPMENT_BONUS_COUNT; i++ )
             row.bonus[i] = (short)v[2 + i];
         row.ranged_strength = (short)v[14];
         row.speed = (short)v[15];
@@ -2330,7 +2330,7 @@ is_bonus_lookup(struct ItemStatsRuntime* rt, char const* cache_name)
  */
 struct is_equip
 {
-    int bonus[TORIRS_PLUGIN_BONUS_COUNT];
+    int bonus[TORIRS_EQUIPMENT_BONUS_COUNT];
     int ranged_strength;
     int speed;
     int wearpos;
@@ -2390,7 +2390,7 @@ is_equip_resolve(
     out->ranged_strength = row->ranged_strength;
     out->speed = row->speed >= 0 ? row->speed : 0;
     out->stated = 1;
-    for( int i = 0; i < TORIRS_PLUGIN_BONUS_COUNT; i++ )
+    for( int i = 0; i < TORIRS_EQUIPMENT_BONUS_COUNT; i++ )
         out->bonus[i] = row->bonus[i];
     return 1;
 }
@@ -2418,7 +2418,7 @@ is_equip_from_info(struct ToriRS_ItemInfo const* info, struct is_equip* out)
     out->speed = info->attack_rate >= 0 ? info->attack_rate : 0;
     out->two_handed = info->wearpos == IS_SLOT_WEAPON &&
                       (info->wearpos2 == IS_SLOT_SHIELD || info->wearpos3 == IS_SLOT_SHIELD);
-    for( int i = 0; i < TORIRS_PLUGIN_BONUS_COUNT; i++ )
+    for( int i = 0; i < TORIRS_EQUIPMENT_BONUS_COUNT; i++ )
         out->bonus[i] = info->bonus[i];
 }
 
@@ -2438,7 +2438,7 @@ is_equip_subtract(struct is_equip* self, struct is_equip const* other)
 {
     assert(self);
     assert(other);
-    for( int i = 0; i < TORIRS_PLUGIN_BONUS_COUNT; i++ )
+    for( int i = 0; i < TORIRS_EQUIPMENT_BONUS_COUNT; i++ )
         self->bonus[i] -= other->bonus[i];
     self->ranged_strength -= other->ranged_strength;
     self->speed -= other->speed;
@@ -2455,7 +2455,7 @@ is_worn_equip(struct ItemStatsRuntime* rt, int slot, struct is_equip* out)
     assert(out);
 
     if( !g_api->game->inventory_slot(
-            g_api, TORIRS_PLUGIN_INV_WORN, slot, &obj_id, NULL) )
+            g_api, TORIRS_INVENTORY_WORN, slot, &obj_id, NULL) )
         return 0;
     if( obj_id < 0 || !g_api->game->item_info(g_api, obj_id, &info) )
         return 0;
@@ -2576,27 +2576,27 @@ is_build_equipment(
     if( have_offhand )
         is_equip_subtract(&diff, &offhand);
 
-    is_bonus_row(rt, "Prayer", self.bonus[TORIRS_PLUGIN_BONUS_PRAYER],
-        diff.bonus[TORIRS_PLUGIN_BONUS_PRAYER], 0, 1);
+    is_bonus_row(rt, "Prayer", self.bonus[TORIRS_EQUIPMENT_BONUS_PRAYER],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_PRAYER], 0, 1);
     /* Speed only where the item is a weapon: a cape has no attack rate, and
      * printing unarmed's four for one would invent a stat. */
     if( self.wearpos == IS_SLOT_WEAPON )
         is_bonus_row(rt, "Speed", self.speed, diff.speed, 1, 1);
-    is_bonus_row(rt, "Melee Str", self.bonus[TORIRS_PLUGIN_BONUS_STRENGTH],
-        diff.bonus[TORIRS_PLUGIN_BONUS_STRENGTH], 0, 1);
+    is_bonus_row(rt, "Melee Str", self.bonus[TORIRS_EQUIPMENT_BONUS_STRENGTH],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_STRENGTH], 0, 1);
     is_bonus_row(rt, "Range Str", self.ranged_strength, diff.ranged_strength, 0, 1);
 
     rows_before = g_row_count;
-    is_bonus_row(rt, "Stab", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_STAB],
-        diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_STAB], 0, 1);
-    is_bonus_row(rt, "Slash", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_SLASH],
-        diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_SLASH], 0, 1);
-    is_bonus_row(rt, "Crush", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_CRUSH],
-        diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_CRUSH], 0, 1);
-    is_bonus_row(rt, "Magic", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_MAGIC],
-        diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_MAGIC], 0, 1);
-    is_bonus_row(rt, "Range", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_RANGE],
-        diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_RANGE], 0, 1);
+    is_bonus_row(rt, "Stab", self.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_STAB],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_STAB], 0, 1);
+    is_bonus_row(rt, "Slash", self.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_SLASH],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_SLASH], 0, 1);
+    is_bonus_row(rt, "Crush", self.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_CRUSH],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_CRUSH], 0, 1);
+    is_bonus_row(rt, "Magic", self.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_MAGIC],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_MAGIC], 0, 1);
+    is_bonus_row(rt, "Range", self.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_RANGE],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_ATTACK_RANGE], 0, 1);
     /* The header goes in only if the group produced anything, which is why it
      * is inserted after the fact rather than printed first. */
     if( g_row_count > rows_before && g_row_count < IS_ROWS_MAX )
@@ -2612,16 +2612,16 @@ is_build_equipment(
     }
 
     rows_before = g_row_count;
-    is_bonus_row(rt, "Stab", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_STAB],
-        diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_STAB], 0, 1);
-    is_bonus_row(rt, "Slash", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_SLASH],
-        diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_SLASH], 0, 1);
-    is_bonus_row(rt, "Crush", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_CRUSH],
-        diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_CRUSH], 0, 1);
-    is_bonus_row(rt, "Magic", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_MAGIC],
-        diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_MAGIC], 0, 1);
-    is_bonus_row(rt, "Range", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_RANGE],
-        diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_RANGE], 0, 1);
+    is_bonus_row(rt, "Stab", self.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_STAB],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_STAB], 0, 1);
+    is_bonus_row(rt, "Slash", self.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_SLASH],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_SLASH], 0, 1);
+    is_bonus_row(rt, "Crush", self.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_CRUSH],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_CRUSH], 0, 1);
+    is_bonus_row(rt, "Magic", self.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_MAGIC],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_MAGIC], 0, 1);
+    is_bonus_row(rt, "Range", self.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_RANGE],
+        diff.bonus[TORIRS_EQUIPMENT_BONUS_DEFENCE_RANGE], 0, 1);
     if( g_row_count > rows_before && g_row_count < IS_ROWS_MAX )
     {
         memmove(
@@ -2901,19 +2901,19 @@ is_stop(struct ToriRS_ApiV2* api, void* state_ptr)
  * combination is the whole question of what a stat tooltip is for.
  */
 static struct ToriRS_ConfigItem const ITEM_STATS_CONFIG[] = {
-    { "consumable_stats", TORIRS_PLUGIN_CFG_BOOL, "Show food and potion effects", "1", 0, 0, NULL, 0 },
-    { "equipment_stats", TORIRS_PLUGIN_CFG_BOOL, "Show equipment bonuses", "1", 0, 0, NULL, 0 },
-    { "show_relative", TORIRS_PLUGIN_CFG_BOOL, "Show what you would gain", "1", 0, 0, NULL, 0 },
-    { "show_absolute", TORIRS_PLUGIN_CFG_BOOL, "Show where the stat lands", "1", 0, 0, NULL, 0 },
-    { "show_theoretical", TORIRS_PLUGIN_CFG_BOOL, "Show the boost before the cap", "0", 0, 0, NULL, 0 },
-    { "always_show_base_stats", TORIRS_PLUGIN_CFG_BOOL, "Always show the item's own bonuses", "0", 0, 0, NULL, 0 },
-    { "color_better", TORIRS_PLUGIN_CFG_COLOR, "Better (nothing wasted)", "#33EE33", 0, 0, NULL, 0 },
-    { "color_better_some_capped", TORIRS_PLUGIN_CFG_COLOR, "Better (some wasted)", "#9CEE33", 0, 0, NULL, 0 },
-    { "color_better_capped", TORIRS_PLUGIN_CFG_COLOR, "Better (capped)", "#EEEE33", 0, 0, NULL, 0 },
-    { "color_no_change", TORIRS_PLUGIN_CFG_COLOR, "No change", "#EEEEEE", 0, 0, NULL, 0 },
-    { "color_worse", TORIRS_PLUGIN_CFG_COLOR, "Worse", "#EE3333", 0, 0, NULL, 0 },
-    { "color_header", TORIRS_PLUGIN_CFG_COLOR, "Group heading", "#FF981F", 0, 0, NULL, 0 },
-    { NULL, TORIRS_PLUGIN_CFG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
+    { "consumable_stats", TORIRS_CONFIG_BOOL, "Show food and potion effects", "1", 0, 0, NULL, 0 },
+    { "equipment_stats", TORIRS_CONFIG_BOOL, "Show equipment bonuses", "1", 0, 0, NULL, 0 },
+    { "show_relative", TORIRS_CONFIG_BOOL, "Show what you would gain", "1", 0, 0, NULL, 0 },
+    { "show_absolute", TORIRS_CONFIG_BOOL, "Show where the stat lands", "1", 0, 0, NULL, 0 },
+    { "show_theoretical", TORIRS_CONFIG_BOOL, "Show the boost before the cap", "0", 0, 0, NULL, 0 },
+    { "always_show_base_stats", TORIRS_CONFIG_BOOL, "Always show the item's own bonuses", "0", 0, 0, NULL, 0 },
+    { "color_better", TORIRS_CONFIG_COLOR, "Better (nothing wasted)", "#33EE33", 0, 0, NULL, 0 },
+    { "color_better_some_capped", TORIRS_CONFIG_COLOR, "Better (some wasted)", "#9CEE33", 0, 0, NULL, 0 },
+    { "color_better_capped", TORIRS_CONFIG_COLOR, "Better (capped)", "#EEEE33", 0, 0, NULL, 0 },
+    { "color_no_change", TORIRS_CONFIG_COLOR, "No change", "#EEEEEE", 0, 0, NULL, 0 },
+    { "color_worse", TORIRS_CONFIG_COLOR, "Worse", "#EE3333", 0, 0, NULL, 0 },
+    { "color_header", TORIRS_CONFIG_COLOR, "Group heading", "#FF981F", 0, 0, NULL, 0 },
+    { NULL, TORIRS_CONFIG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
 };
 
 static struct ToriRS_ConfigSchema const ITEM_STATS_SCHEMA = {

@@ -144,16 +144,16 @@ app_plugin_page_select(struct App* app, int page, int view)
              * @see enum ToriRS_PanelView.
              */
             int const want = view == APP_PLUGIN_VIEW_PAGE
-                                 ? TORIRS_PLUGIN_PANEL_VIEW_PAGE
-                                 : TORIRS_PLUGIN_PANEL_VIEW_SETTINGS;
+                                 ? TORIRS_PANEL_VIEW_PAGE
+                                 : TORIRS_PANEL_VIEW_SETTINGS;
             if( PluginHost_PanelActive(app->plugins) != page ||
                 PluginHost_PanelView(app->plugins) != want )
                 (void)PluginHost_PanelSelectView(app->plugins, page, want);
             ToriRSChromeShell_SetPanelWidth(
                 &app->plugin_shell,
                 PluginHost_PanelPreferredWidth(app->plugins, page),
-                TORIRS_PLUGIN_PANEL_WIDTH_MIN,
-                TORIRS_PLUGIN_PANEL_WIDTH_MAX);
+                TORIRS_PANEL_WIDTH_MIN,
+                TORIRS_PANEL_WIDTH_MAX);
         }
         else if( PluginHost_PanelActive(app->plugins) >= 0 )
             (void)PluginHost_PanelClose(app->plugins);
@@ -320,8 +320,6 @@ app_plugin_has_page(struct App* app, int plugin)
 
     if( PluginHost_PanelHasPage(app->plugins, plugin) )
         return 1;
-    if( PluginHost_WinWidgetCount(app->plugins, plugin) > 0 )
-        return 1;
     for( int c = 0; c < cfg_count; c++ )
     {
         struct ToriRS_ConfigItem const* item =
@@ -370,7 +368,7 @@ app_plugin_panel_track_semantic(
     int widget,
     int plugin,
     int model_index,
-    struct ToriRS_PluginWinWidget const* model)
+    struct ToriRS_PanelWidget const* model)
 {
     struct AppPluginPanelRow* row;
     int row_index;
@@ -393,7 +391,7 @@ app_plugin_panel_track_semantic(
     row->widget_serial = model->serial;
     row->widget_kind = model->kind;
     snprintf(row->widget_id, sizeof(row->widget_id), "%s", model->id);
-    if( model->kind == TORIRS_PLUGIN_W_CUSTOM &&
+    if( model->kind == TORIRS_PANEL_WIDGET_CUSTOM &&
         app->plugin_panel_custom_row_count < TORIRS_PLUGIN_WIDGETS_MAX )
         app->plugin_panel_custom_rows[app->plugin_panel_custom_row_count++] =
             row_index;
@@ -438,14 +436,14 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
     item = PluginHost_ConfigItem(app->plugins, row->plugin, row->cfg_index);
     if( !item )
         return;
-    if( item->type == TORIRS_PLUGIN_CFG_BOOL )
+    if( item->type == TORIRS_CONFIG_BOOL )
     {
         ToriRSChrome_SetChecked(
             &app->plugin_ui,
             row->widget,
             atoi(app_plugin_panel_value(app, row->plugin, item->key)) != 0);
     }
-    else if( item->type == TORIRS_PLUGIN_CFG_ENUM &&
+    else if( item->type == TORIRS_CONFIG_ENUM &&
              row->widget < app->plugin_ui.widget_count &&
              app->plugin_ui.widgets[row->widget].kind == TORIRS_CHROME_W_DROPDOWN )
     {
@@ -459,7 +457,7 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
                 w->options, w->option_count,
                 app_plugin_panel_value(app, row->plugin, item->key)));
     }
-    else if( item->type == TORIRS_PLUGIN_CFG_COLOR )
+    else if( item->type == TORIRS_CONFIG_COLOR )
     {
         /* By VALUE, for the same reason a dropdown reverts by selection: the
          * hex a colour row shows is a rendering of its palette entry, so
@@ -531,7 +529,7 @@ app_plugin_panel_place(struct App* app)
     {
         int x = 8 * scale;
         int y = 72 * scale;
-        int logical_w = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+        int logical_w = TORIRS_PANEL_WIDTH_DEFAULT;
         int w;
         int h = 260 * scale;
 
@@ -594,7 +592,7 @@ app_plugin_panel_readout(
 
 static int
 app_plugin_panel_select_inputs(
-    struct ToriRS_PluginWinWidget const* model,
+    struct ToriRS_PanelWidget const* model,
     struct ToriRSChromeSelectOptionInput* out,
     int capacity)
 {
@@ -631,7 +629,7 @@ app_plugin_panel_add_semantic(
     struct App* app,
     int plugin,
     int model_index,
-    struct ToriRS_PluginWinWidget const* model)
+    struct ToriRS_PanelWidget const* model)
 {
     char text[TORIRS_CHROME_INPUT_MAX];
     int widget = -1;
@@ -641,7 +639,7 @@ app_plugin_panel_add_semantic(
 
     switch( model->kind )
     {
-    case TORIRS_PLUGIN_W_SECTION:
+    case TORIRS_PANEL_WIDGET_SECTION:
         ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
         app_plugin_panel_readout(
             text, sizeof(text), model->label, model->text, model->id);
@@ -649,22 +647,22 @@ app_plugin_panel_add_semantic(
             &app->plugin_ui, app->plugin_panel, text, 0xFFFFB83Fu);
         break;
 
-    case TORIRS_PLUGIN_W_PARAGRAPH:
-    case TORIRS_PLUGIN_W_LABEL:
+    case TORIRS_PANEL_WIDGET_PARAGRAPH:
+    case TORIRS_PANEL_WIDGET_LABEL:
         app_plugin_panel_readout(
             text, sizeof(text), model->label, model->text, model->id);
         widget = ToriRSChrome_Label(&app->plugin_ui, app->plugin_panel, text);
         break;
 
-    case TORIRS_PLUGIN_W_KEY_VALUE:
+    case TORIRS_PANEL_WIDGET_KEY_VALUE:
         app_plugin_panel_readout(
             text, sizeof(text), model->label, model->text, model->id);
         widget = ToriRSChrome_LabelColored(
             &app->plugin_ui, app->plugin_panel, text, 0xFFFFE7B0u);
         break;
 
-    case TORIRS_PLUGIN_W_CHECKBOX:
-    case TORIRS_PLUGIN_W_TOGGLE:
+    case TORIRS_PANEL_WIDGET_CHECKBOX:
+    case TORIRS_PANEL_WIDGET_TOGGLE:
         widget = ToriRSChrome_Checkbox(
             &app->plugin_ui,
             app->plugin_panel,
@@ -672,7 +670,7 @@ app_plugin_panel_add_semantic(
             model->value ? 1 : model->checked);
         break;
 
-    case TORIRS_PLUGIN_W_INPUT:
+    case TORIRS_PANEL_WIDGET_INPUT:
         widget = ToriRSChrome_TextInput(
             &app->plugin_ui,
             app->plugin_panel,
@@ -680,7 +678,7 @@ app_plugin_panel_add_semantic(
             model->text);
         break;
 
-    case TORIRS_PLUGIN_W_TEXTAREA:
+    case TORIRS_PANEL_WIDGET_TEXTAREA:
         widget = ToriRSChrome_TextArea(
             &app->plugin_ui,
             app->plugin_panel,
@@ -689,7 +687,7 @@ app_plugin_panel_add_semantic(
             0);
         break;
 
-    case TORIRS_PLUGIN_W_DROPDOWN:
+    case TORIRS_PANEL_WIDGET_DROPDOWN:
     {
         if( model->structured_select )
         {
@@ -730,18 +728,18 @@ app_plugin_panel_add_semantic(
         break;
     }
 
-    case TORIRS_PLUGIN_W_BUTTON:
+    case TORIRS_PANEL_WIDGET_BUTTON:
         widget = ToriRSChrome_Button(
             &app->plugin_ui,
             app->plugin_panel,
             model->label[0] ? model->label : model->id);
         break;
 
-    case TORIRS_PLUGIN_W_SEPARATOR:
+    case TORIRS_PANEL_WIDGET_SEPARATOR:
         widget = ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
         break;
 
-    case TORIRS_PLUGIN_W_LIST_ROW:
+    case TORIRS_PANEL_WIDGET_LIST_ROW:
         app_plugin_panel_readout(
             text, sizeof(text), model->label, model->text, model->id);
         widget = ToriRSChrome_ListRow(
@@ -749,7 +747,7 @@ app_plugin_panel_add_semantic(
             model->value ? 1 : model->checked, 1);
         break;
 
-    case TORIRS_PLUGIN_W_IMAGE:
+    case TORIRS_PANEL_WIDGET_IMAGE:
         app_plugin_panel_readout(
             text, sizeof(text), model->label, model->text, "Image");
         {
@@ -760,7 +758,7 @@ app_plugin_panel_add_semantic(
         }
         break;
 
-    case TORIRS_PLUGIN_W_PROGRESS:
+    case TORIRS_PANEL_WIDGET_PROGRESS:
         if( model->text[0] )
             app_plugin_panel_readout(
                 text, sizeof(text), model->label, model->text, model->id);
@@ -773,14 +771,14 @@ app_plugin_panel_add_semantic(
             &app->plugin_ui, app->plugin_panel, text, 0xFF9BC56Du);
         break;
 
-    case TORIRS_PLUGIN_W_ERROR:
+    case TORIRS_PANEL_WIDGET_ERROR:
         app_plugin_panel_readout(
             text, sizeof(text), model->label, model->text, "Plugin error");
         widget = ToriRSChrome_LabelColored(
             &app->plugin_ui, app->plugin_panel, text, 0xFFCC5555u);
         break;
 
-    case TORIRS_PLUGIN_W_CUSTOM:
+    case TORIRS_PANEL_WIDGET_CUSTOM:
         widget = ToriRSChrome_Custom(
             &app->plugin_ui,
             app->plugin_panel,
@@ -854,36 +852,36 @@ app_plugin_panel_set_options(struct App* app, int widget, char const* choices)
 
 /** Chrome primitive kind used for one semantic model kind. */
 static int
-app_plugin_panel_semantic_chrome_kind(struct ToriRS_PluginWinWidget const* model)
+app_plugin_panel_semantic_chrome_kind(struct ToriRS_PanelWidget const* model)
 {
     switch( model->kind )
     {
-    case TORIRS_PLUGIN_W_SECTION:
-    case TORIRS_PLUGIN_W_PARAGRAPH:
-    case TORIRS_PLUGIN_W_LABEL:
-    case TORIRS_PLUGIN_W_KEY_VALUE:
-    case TORIRS_PLUGIN_W_IMAGE:
-    case TORIRS_PLUGIN_W_PROGRESS:
-    case TORIRS_PLUGIN_W_ERROR:
+    case TORIRS_PANEL_WIDGET_SECTION:
+    case TORIRS_PANEL_WIDGET_PARAGRAPH:
+    case TORIRS_PANEL_WIDGET_LABEL:
+    case TORIRS_PANEL_WIDGET_KEY_VALUE:
+    case TORIRS_PANEL_WIDGET_IMAGE:
+    case TORIRS_PANEL_WIDGET_PROGRESS:
+    case TORIRS_PANEL_WIDGET_ERROR:
         return TORIRS_CHROME_W_LABEL;
-    case TORIRS_PLUGIN_W_CUSTOM:
+    case TORIRS_PANEL_WIDGET_CUSTOM:
         return TORIRS_CHROME_W_CUSTOM;
-    case TORIRS_PLUGIN_W_CHECKBOX:
-    case TORIRS_PLUGIN_W_TOGGLE:
+    case TORIRS_PANEL_WIDGET_CHECKBOX:
+    case TORIRS_PANEL_WIDGET_TOGGLE:
         return TORIRS_CHROME_W_CHECKBOX;
-    case TORIRS_PLUGIN_W_INPUT:
+    case TORIRS_PANEL_WIDGET_INPUT:
         return TORIRS_CHROME_W_TEXTINPUT;
-    case TORIRS_PLUGIN_W_TEXTAREA:
+    case TORIRS_PANEL_WIDGET_TEXTAREA:
         return TORIRS_CHROME_W_TEXTAREA;
-    case TORIRS_PLUGIN_W_DROPDOWN:
+    case TORIRS_PANEL_WIDGET_DROPDOWN:
         return model->structured_select || model->choices[0]
                    ? TORIRS_CHROME_W_DROPDOWN
                    : TORIRS_CHROME_W_TEXTINPUT;
-    case TORIRS_PLUGIN_W_BUTTON:
+    case TORIRS_PANEL_WIDGET_BUTTON:
         return TORIRS_CHROME_W_BUTTON;
-    case TORIRS_PLUGIN_W_SEPARATOR:
+    case TORIRS_PANEL_WIDGET_SEPARATOR:
         return TORIRS_CHROME_W_SEPARATOR;
-    case TORIRS_PLUGIN_W_LIST_ROW:
+    case TORIRS_PANEL_WIDGET_LIST_ROW:
         return TORIRS_CHROME_W_LISTROW;
     default:
         return TORIRS_CHROME_W_FREE;
@@ -898,7 +896,7 @@ app_plugin_panel_patch_row(
     struct ToriRS_PluginPanelChange const* change)
 {
     struct AppPluginPanelRow const* row;
-    struct ToriRS_PluginWinWidget const* model;
+    struct ToriRS_PanelWidget const* model;
     char text[TORIRS_CHROME_INPUT_MAX];
     int mapped;
 
@@ -925,11 +923,11 @@ app_plugin_panel_patch_row(
 
     switch( model->kind )
     {
-    case TORIRS_PLUGIN_W_SECTION:
-    case TORIRS_PLUGIN_W_PARAGRAPH:
-    case TORIRS_PLUGIN_W_LABEL:
-    case TORIRS_PLUGIN_W_KEY_VALUE:
-    case TORIRS_PLUGIN_W_ERROR:
+    case TORIRS_PANEL_WIDGET_SECTION:
+    case TORIRS_PANEL_WIDGET_PARAGRAPH:
+    case TORIRS_PANEL_WIDGET_LABEL:
+    case TORIRS_PANEL_WIDGET_KEY_VALUE:
+    case TORIRS_PANEL_WIDGET_ERROR:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
         {
             app_plugin_panel_readout(
@@ -937,7 +935,7 @@ app_plugin_panel_patch_row(
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, text);
         }
         break;
-    case TORIRS_PLUGIN_W_IMAGE:
+    case TORIRS_PANEL_WIDGET_IMAGE:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
         {
             char shown[TORIRS_CHROME_INPUT_MAX];
@@ -947,7 +945,7 @@ app_plugin_panel_patch_row(
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, shown);
         }
         break;
-    case TORIRS_PLUGIN_W_PROGRESS:
+    case TORIRS_PANEL_WIDGET_PROGRESS:
         if( change->flags & (TORIRS_PLUGIN_PANEL_CHANGE_TEXT |
                              TORIRS_PLUGIN_PANEL_CHANGE_VALUE) )
         {
@@ -962,26 +960,26 @@ app_plugin_panel_patch_row(
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, text);
         }
         break;
-    case TORIRS_PLUGIN_W_CUSTOM:
+    case TORIRS_PANEL_WIDGET_CUSTOM:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT )
             ToriRSChrome_SetCustomHeight(
                 &app->plugin_ui,
                 row->widget,
                 model->preferred_height * ToriRSChrome_Scale(&app->plugin_ui));
         break;
-    case TORIRS_PLUGIN_W_CHECKBOX:
-    case TORIRS_PLUGIN_W_TOGGLE:
+    case TORIRS_PANEL_WIDGET_CHECKBOX:
+    case TORIRS_PANEL_WIDGET_TOGGLE:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_VALUE )
             ToriRSChrome_SetChecked(
                 &app->plugin_ui, row->widget,
                 model->value ? 1 : model->checked);
         break;
-    case TORIRS_PLUGIN_W_INPUT:
-    case TORIRS_PLUGIN_W_TEXTAREA:
+    case TORIRS_PANEL_WIDGET_INPUT:
+    case TORIRS_PANEL_WIDGET_TEXTAREA:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
         break;
-    case TORIRS_PLUGIN_W_DROPDOWN:
+    case TORIRS_PANEL_WIDGET_DROPDOWN:
         if( model->structured_select )
         {
             if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS )
@@ -1016,10 +1014,10 @@ app_plugin_panel_patch_row(
         else if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
         break;
-    case TORIRS_PLUGIN_W_BUTTON:
+    case TORIRS_PANEL_WIDGET_BUTTON:
         /* Button captions are declaration identity in ABI-21. */
         break;
-    case TORIRS_PLUGIN_W_LIST_ROW:
+    case TORIRS_PANEL_WIDGET_LIST_ROW:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
         {
             app_plugin_panel_readout(
@@ -1031,7 +1029,7 @@ app_plugin_panel_patch_row(
                 &app->plugin_ui, row->widget,
                 model->value ? 1 : model->checked);
         break;
-    case TORIRS_PLUGIN_W_SEPARATOR:
+    case TORIRS_PANEL_WIDGET_SEPARATOR:
     default:
         break;
     }
@@ -1113,7 +1111,7 @@ app_plugin_panel_sync(struct App* app)
         panel_generation = PluginHost_PanelSelectionGeneration(app->plugins);
     }
     panel_model_rev = PluginHost_PanelModelRevision(app->plugins);
-    rev = PluginHost_WinRevision(app->plugins);
+    rev = 0;
     if( app->plugin_panel_built_for == count && app->plugin_panel_built_rev == rev &&
         app->plugin_panel_built_generation == panel_generation &&
         (g_plugin_page >= 0 ||
@@ -1170,20 +1168,6 @@ app_plugin_panel_sync(struct App* app)
      * @see app_plugin_panel_place, which is also how a scale or canvas change
      * re-places the box between builds. */
     app_plugin_panel_place(app);
-
-    /*
-     * Ask EVERY plugin to declare its controls, before the walk below reads
-     * them -- not only the ones that already have a tab.
-     *
-     * "Already has a tab" was the obvious gate and it is a deadlock: claiming
-     * the tab is the first thing a plugin does inside the build handler, so a
-     * plugin with no tab was never asked to build one and could therefore
-     * never get one. Asking everyone is also cheap, because a plugin with no
-     * on_ui_build handler has nothing subscribed and a tab that already has
-     * controls returns immediately.
-     */
-    for( int p = 0; p < count; p++ )
-        PluginHost_WinBuild(app->plugins, p);
 
     /* A page that named a plugin the host no longer has is a page with nothing
      * to build; the roster is the honest answer to that. */
@@ -1367,9 +1351,8 @@ app_plugin_panel_sync(struct App* app)
          */
         int const on_page =
             g_plugin_page_view == APP_PLUGIN_VIEW_PAGE && panel_active == p &&
-            PluginHost_PanelView(app->plugins) == TORIRS_PLUGIN_PANEL_VIEW_PAGE;
+            PluginHost_PanelView(app->plugins) == TORIRS_PANEL_VIEW_PAGE;
         int const cfg_count = on_page ? 0 : PluginHost_ConfigCount(app->plugins, p);
-        int const win_count = on_page ? 0 : PluginHost_WinWidgetCount(app->plugins, p);
         /* The declared model belongs to whichever face is mounted: the page's
          * own readouts, or the extra controls a plugin put on its settings. */
         int const panel_count =
@@ -1377,9 +1360,7 @@ app_plugin_panel_sync(struct App* app)
                 ? PluginHost_PanelWidgetCount(app->plugins, panel_generation)
                 : 0;
         /* Whether the OTHER face exists, so the page can offer a way to it. */
-        int const has_settings_face =
-            PluginHost_ConfigCount(app->plugins, p) > 0 ||
-            PluginHost_WinWidgetCount(app->plugins, p) > 0;
+        int const has_settings_face = PluginHost_ConfigCount(app->plugins, p) > 0;
         int has_settings = 0;
 
         if( getenv("TORIRS_CHROME_DEBUG") )
@@ -1409,7 +1390,7 @@ app_plugin_panel_sync(struct App* app)
          * Plugins cannot execute or allocate every custom page. */
         for( int i = 0; i < panel_count; i++ )
         {
-            struct ToriRS_PluginWinWidget const* model =
+            struct ToriRS_PanelWidget const* model =
                 PluginHost_PanelWidgetAt(app->plugins, panel_generation, i);
             if( !model )
                 break; /* selection changed while the model was being read */
@@ -1431,7 +1412,7 @@ app_plugin_panel_sync(struct App* app)
         /* On the SETTINGS face, whatever the plugin declared sits above the
          * generated form under a rule, so the two groups read as two: its own
          * controls, then the schema's staged rows and their Save. */
-        if( !on_page && panel_count > 0 && (cfg_count > 0 || win_count > 0) )
+        if( !on_page && panel_count > 0 && cfg_count > 0 )
         {
             ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
             ToriRSChrome_LabelColored(
@@ -1450,7 +1431,7 @@ app_plugin_panel_sync(struct App* app)
                 continue;
             has_settings = 1;
 
-            if( item->type == TORIRS_PLUGIN_CFG_BOOL )
+            if( item->type == TORIRS_CONFIG_BOOL )
             {
                 widget = ToriRSChrome_Checkbox(
                     &app->plugin_ui,
@@ -1458,7 +1439,7 @@ app_plugin_panel_sync(struct App* app)
                     item->label,
                     atoi(app_plugin_panel_value(app, p, item->key)) != 0);
             }
-            else if( item->type == TORIRS_PLUGIN_CFG_ENUM && item->choices )
+            else if( item->type == TORIRS_CONFIG_ENUM && item->choices )
             {
                 /* A declared enum is a real dropdown, not a text field with the
                  * choices printed in its label: the schema already says exactly
@@ -1482,7 +1463,7 @@ app_plugin_panel_sync(struct App* app)
                     widget = ToriRSChrome_TextInput(
                         &app->plugin_ui, app->plugin_panel, item->label, value);
             }
-            else if( item->type == TORIRS_PLUGIN_CFG_COLOR )
+            else if( item->type == TORIRS_CONFIG_COLOR )
             {
                 /*
                  * A declared colour is a real picker, for the same reason a
@@ -1508,7 +1489,7 @@ app_plugin_panel_sync(struct App* app)
                     item->label,
                     app_plugin_color_hsl(app_plugin_panel_value(app, p, item->key)));
             }
-            else if( item->type == TORIRS_PLUGIN_CFG_TEXT )
+            else if( item->type == TORIRS_CONFIG_TEXT )
             {
                 /*
                  * A declared LIST is a multiline box, for the same reason a
@@ -1543,70 +1524,6 @@ app_plugin_panel_sync(struct App* app)
                     app_plugin_panel_value(app, p, item->key));
             }
             app_plugin_panel_track(app, widget, p, APP_PLUGIN_ROW_CONFIG, c, NULL);
-        }
-
-        /* The plugin's own controls, under a rule so the two groups read as
-         * two groups: above it is the client's settings form, below it is
-         * whatever the plugin built. */
-        if( has_settings && win_count > 0 )
-            ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
-
-        for( int i = 0; i < win_count; i++ )
-        {
-            struct ToriRS_PluginWinWidget const* w =
-                PluginHost_WinWidgetAt(app->plugins, p, i);
-            int widget = -1;
-
-            if( !w )
-                continue;
-            switch( w->kind )
-            {
-            case TORIRS_PLUGIN_W_CHECKBOX:
-                widget = ToriRSChrome_Checkbox(
-                    &app->plugin_ui, app->plugin_panel, w->label, w->checked);
-                break;
-            case TORIRS_PLUGIN_W_INPUT:
-                widget = ToriRSChrome_TextInput(
-                    &app->plugin_ui, app->plugin_panel, w->label, w->text);
-                break;
-            case TORIRS_PLUGIN_W_BUTTON:
-                widget = ToriRSChrome_Button(
-                    &app->plugin_ui, app->plugin_panel, w->label[0] ? w->label : w->id);
-                break;
-            case TORIRS_PLUGIN_W_SEPARATOR:
-                widget = ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
-                break;
-            case TORIRS_PLUGIN_W_DROPDOWN:
-            {
-                /* Split into the window's own pool: the plugin owns its
-                 * "a|b|c" string and the chrome borrows an array that must
-                 * outlive the widget, so neither side's storage will do. */
-                int count = 0;
-                char const* const* choices =
-                    app_plugin_choices_add(app, w->choices, &count);
-                if( choices )
-                    widget = ToriRSChrome_Dropdown(
-                        &app->plugin_ui,
-                        app->plugin_panel,
-                        w->label,
-                        choices,
-                        count,
-                        w->selected >= 0 && w->selected < count
-                            ? w->selected
-                            : app_plugin_choice_index(choices, count, w->text));
-                else
-                    widget = ToriRSChrome_TextInput(
-                        &app->plugin_ui, app->plugin_panel, w->label, w->text);
-                break;
-            }
-            case TORIRS_PLUGIN_W_LABEL:
-            default:
-                widget = ToriRSChrome_Label(
-                    &app->plugin_ui, app->plugin_panel, w->label[0] ? w->label : w->text);
-                break;
-            }
-            app_plugin_panel_track(
-                app, widget, p, APP_PLUGIN_ROW_PLUGIN_WIDGET, -1, w->id);
         }
 
         /* Save and Revert, only where there is something staged to commit. */
@@ -1648,7 +1565,7 @@ app_plugin_panel_sync(struct App* app)
     /* Callbacks above may have changed either compatibility controls or the
      * active model. Stamp what was actually consumed, not the pre-build
      * revision, so an unchanged next frame stays an O(1) sync. */
-    app->plugin_panel_built_rev = PluginHost_WinRevision(app->plugins);
+    app->plugin_panel_built_rev = 0;
     app->plugin_panel_built_model_rev = PluginHost_PanelModelRevision(app->plugins);
     app->plugin_panel_built_generation =
         PluginHost_PanelSelectionGeneration(app->plugins);
@@ -1685,7 +1602,7 @@ app_plugin_panel_save(struct App* app, int plugin)
         if( !item )
             continue;
 
-        if( item->type == TORIRS_PLUGIN_CFG_BOOL )
+        if( item->type == TORIRS_CONFIG_BOOL )
         {
             char buf[4];
             snprintf(
@@ -1693,7 +1610,7 @@ app_plugin_panel_save(struct App* app, int plugin)
                 ToriRSChrome_Checked(&app->plugin_ui, row->widget) ? 1 : 0);
             PluginHost_ConfigSet(app->plugins, plugin, item->key, buf);
         }
-        else if( item->type == TORIRS_PLUGIN_CFG_ENUM )
+        else if( item->type == TORIRS_CONFIG_ENUM )
         {
             /* The chosen OPTION, not the widget's text field -- a dropdown's
              * text is empty, so reading it here wrote every enum key blank on
@@ -1712,7 +1629,7 @@ app_plugin_panel_save(struct App* app, int plugin)
             /* Clamp an int here rather than letting a typo through: the store
              * is textual, so nothing downstream would catch "999" for a key
              * declared 0..255, and the plugin would just read a wrong number. */
-            if( item->type == TORIRS_PLUGIN_CFG_INT && item->max > item->min )
+            if( item->type == TORIRS_CONFIG_INT && item->max > item->min )
             {
                 int v = atoi(text);
                 char buf[16];
@@ -1745,7 +1662,7 @@ app_plugin_panel_revert(struct App* app, int plugin)
 }
 
 /** The active host record named by one presented semantic row, or NULL. */
-static struct ToriRS_PluginWinWidget const*
+static struct ToriRS_PanelWidget const*
 app_plugin_panel_model_for_row(
     struct App* app,
     struct AppPluginPanelRow const* row)
@@ -1759,7 +1676,7 @@ app_plugin_panel_model_for_row(
         return NULL;
     for( int i = 0; i < count; i++ )
     {
-        struct ToriRS_PluginWinWidget const* model =
+        struct ToriRS_PanelWidget const* model =
             PluginHost_PanelWidgetAt(app->plugins, generation, i);
         if( model && model->serial == row->widget_serial &&
             strcmp(model->id, row->widget_id) == 0 )
@@ -1816,7 +1733,7 @@ app_plugin_panel_reconcile_semantic(struct App* app)
     for( int i = 0; i < app->plugin_panel_row_count; i++ )
     {
         struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
-        struct ToriRS_PluginWinWidget const* model;
+        struct ToriRS_PanelWidget const* model;
         int action = -1;
         int value = -1;
         char const* text = NULL;
@@ -1829,22 +1746,22 @@ app_plugin_panel_reconcile_semantic(struct App* app)
 
         switch( row->widget_kind )
         {
-        case TORIRS_PLUGIN_W_CHECKBOX:
-        case TORIRS_PLUGIN_W_TOGGLE:
-        case TORIRS_PLUGIN_W_LIST_ROW:
+        case TORIRS_PANEL_WIDGET_CHECKBOX:
+        case TORIRS_PANEL_WIDGET_TOGGLE:
+        case TORIRS_PANEL_WIDGET_LIST_ROW:
             value = ToriRSChrome_Checked(&app->plugin_ui, row->widget) ? 1 : 0;
             if( value != (model->checked ? 1 : 0) )
-                action = TORIRS_PLUGIN_UI_TOGGLE;
+                action = TORIRS_PANEL_ACTION_TOGGLE;
             break;
 
-        case TORIRS_PLUGIN_W_INPUT:
-        case TORIRS_PLUGIN_W_TEXTAREA:
+        case TORIRS_PANEL_WIDGET_INPUT:
+        case TORIRS_PANEL_WIDGET_TEXTAREA:
             text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
             if( strcmp(text ? text : "", model->text) != 0 )
-                action = TORIRS_PLUGIN_UI_TEXT;
+                action = TORIRS_PANEL_ACTION_TEXT;
             break;
 
-        case TORIRS_PLUGIN_W_DROPDOWN:
+        case TORIRS_PANEL_WIDGET_DROPDOWN:
             if( row->widget >= 0 && row->widget < app->plugin_ui.widget_count &&
                 app->plugin_ui.widgets[row->widget].kind == TORIRS_CHROME_W_DROPDOWN )
             {
@@ -1852,7 +1769,7 @@ app_plugin_panel_reconcile_semantic(struct App* app)
                 text = ToriRSChrome_DropdownSelectedValue(
                     &app->plugin_ui, row->widget);
                 if( value != model->selected )
-                    action = TORIRS_PLUGIN_UI_PICK;
+                    action = TORIRS_PANEL_ACTION_PICK;
             }
             else
             {
@@ -1861,7 +1778,7 @@ app_plugin_panel_reconcile_semantic(struct App* app)
                 text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
                 value = -1;
                 if( strcmp(text ? text : "", model->text) != 0 )
-                    action = TORIRS_PLUGIN_UI_PICK;
+                    action = TORIRS_PANEL_ACTION_PICK;
             }
             break;
 
@@ -1946,7 +1863,7 @@ app_plugin_panel_apply(struct App* app, int widget)
 
         case APP_PLUGIN_ROW_PANEL_WIDGET:
         {
-            int action = TORIRS_PLUGIN_UI_ACTIVATE;
+            int action = TORIRS_PANEL_ACTION_ACTIVATE;
             int value = -1;
             int local_x = 0;
             int local_y = 0;
@@ -1963,20 +1880,20 @@ app_plugin_panel_apply(struct App* app, int widget)
 
             switch( row->widget_kind )
             {
-            case TORIRS_PLUGIN_W_CHECKBOX:
-            case TORIRS_PLUGIN_W_TOGGLE:
-                action = TORIRS_PLUGIN_UI_TOGGLE;
+            case TORIRS_PANEL_WIDGET_CHECKBOX:
+            case TORIRS_PANEL_WIDGET_TOGGLE:
+                action = TORIRS_PANEL_ACTION_TOGGLE;
                 value = ToriRSChrome_Checked(&app->plugin_ui, widget) ? 1 : 0;
                 break;
 
-            case TORIRS_PLUGIN_W_INPUT:
-            case TORIRS_PLUGIN_W_TEXTAREA:
-                action = TORIRS_PLUGIN_UI_TEXT;
+            case TORIRS_PANEL_WIDGET_INPUT:
+            case TORIRS_PANEL_WIDGET_TEXTAREA:
+                action = TORIRS_PANEL_ACTION_TEXT;
                 text = ToriRSChrome_Text(&app->plugin_ui, widget);
                 break;
 
-            case TORIRS_PLUGIN_W_DROPDOWN:
-                action = TORIRS_PLUGIN_UI_PICK;
+            case TORIRS_PANEL_WIDGET_DROPDOWN:
+                action = TORIRS_PANEL_ACTION_PICK;
                 value = ToriRSChrome_DropdownSelected(&app->plugin_ui, widget);
                 text = ToriRSChrome_DropdownSelectedValue(
                     &app->plugin_ui, widget);
@@ -1984,18 +1901,18 @@ app_plugin_panel_apply(struct App* app, int widget)
                     text = "";
                 break;
 
-            case TORIRS_PLUGIN_W_LIST_ROW:
+            case TORIRS_PANEL_WIDGET_LIST_ROW:
                 if( !ToriRSChrome_ActivationWasAction(&app->plugin_ui) )
                 {
-                    action = TORIRS_PLUGIN_UI_TOGGLE;
+                    action = TORIRS_PANEL_ACTION_TOGGLE;
                     value = ToriRSChrome_Checked(&app->plugin_ui, widget) ? 1 : 0;
                 }
                 break;
 
-            case TORIRS_PLUGIN_W_BUTTON:
+            case TORIRS_PANEL_WIDGET_BUTTON:
                 break;
 
-            case TORIRS_PLUGIN_W_CUSTOM:
+            case TORIRS_PANEL_WIDGET_CUSTOM:
                 if( !ToriRSChrome_ActivationWasCustom(
                         &app->plugin_ui,
                         &local_x,
@@ -2010,77 +1927,20 @@ app_plugin_panel_apply(struct App* app, int widget)
                 break;
 
             /* Readouts have no interactive ToriRSChrome primitive. */
-            case TORIRS_PLUGIN_W_LABEL:
-            case TORIRS_PLUGIN_W_SEPARATOR:
-            case TORIRS_PLUGIN_W_SECTION:
-            case TORIRS_PLUGIN_W_PARAGRAPH:
-            case TORIRS_PLUGIN_W_KEY_VALUE:
-            case TORIRS_PLUGIN_W_IMAGE:
-            case TORIRS_PLUGIN_W_PROGRESS:
-            case TORIRS_PLUGIN_W_ERROR:
+            case TORIRS_PANEL_WIDGET_LABEL:
+            case TORIRS_PANEL_WIDGET_SEPARATOR:
+            case TORIRS_PANEL_WIDGET_SECTION:
+            case TORIRS_PANEL_WIDGET_PARAGRAPH:
+            case TORIRS_PANEL_WIDGET_KEY_VALUE:
+            case TORIRS_PANEL_WIDGET_IMAGE:
+            case TORIRS_PANEL_WIDGET_PROGRESS:
+            case TORIRS_PANEL_WIDGET_ERROR:
             default:
                 return;
             }
 
             (void)app_plugin_panel_dispatch_row(
                 app, row, action, value, text, local_x, local_y);
-            return;
-        }
-
-        case APP_PLUGIN_ROW_PLUGIN_WIDGET:
-        {
-            /* Straight to the owning plugin, with whatever the control now
-             * says. Not staged: a plugin's own control is an action. */
-            int const kind = ToriRSChrome_Checked(&app->plugin_ui, widget);
-            char const* text = ToriRSChrome_Text(&app->plugin_ui, widget);
-            struct ToriRS_PluginWinWidget const* w = NULL;
-
-            for( int j = 0; j < PluginHost_WinWidgetCount(app->plugins, row->plugin); j++ )
-            {
-                struct ToriRS_PluginWinWidget const* c =
-                    PluginHost_WinWidgetAt(app->plugins, row->plugin, j);
-                if( c && strcmp(c->id, row->widget_id) == 0 )
-                {
-                    w = c;
-                    break;
-                }
-            }
-            if( !w )
-                return;
-
-            switch( w->kind )
-            {
-            case TORIRS_PLUGIN_W_CHECKBOX:
-                PluginHost_WinDispatch(
-                    app->plugins, row->plugin, row->widget_id, TORIRS_PLUGIN_UI_TOGGLE, kind,
-                    NULL);
-                break;
-            case TORIRS_PLUGIN_W_INPUT:
-                PluginHost_WinDispatch(
-                    app->plugins, row->plugin, row->widget_id, TORIRS_PLUGIN_UI_TEXT, -1, text);
-                break;
-
-            case TORIRS_PLUGIN_W_DROPDOWN:
-            {
-                /* PICK, carrying both the index and the string: a plugin that
-                 * switches on the value should not have to keep its own copy
-                 * of the list to turn an index back into one. */
-                char const* chosen = app_plugin_dropdown_value(app, widget);
-                PluginHost_WinDispatch(
-                    app->plugins,
-                    row->plugin,
-                    row->widget_id,
-                    TORIRS_PLUGIN_UI_PICK,
-                    ToriRSChrome_DropdownSelected(&app->plugin_ui, widget),
-                    chosen ? chosen : "");
-                break;
-            }
-            default:
-                PluginHost_WinDispatch(
-                    app->plugins, row->plugin, row->widget_id, TORIRS_PLUGIN_UI_ACTIVATE, -1,
-                    NULL);
-                break;
-            }
             return;
         }
 
@@ -2819,8 +2679,8 @@ app_plugin_window_set_open(struct App* app, int open)
              * settings form on the plugin's readout would be the window
              * changing the subject. @see enum ToriRS_PanelView. */
             int const want = g_plugin_page_view == APP_PLUGIN_VIEW_PAGE
-                                 ? TORIRS_PLUGIN_PANEL_VIEW_PAGE
-                                 : TORIRS_PLUGIN_PANEL_VIEW_SETTINGS;
+                                 ? TORIRS_PANEL_VIEW_PAGE
+                                 : TORIRS_PANEL_VIEW_SETTINGS;
             /* The VIEW is half the test, not an afterthought: the plugin can
              * already be the mounted one while the host holds its other face,
              * and a guard that compared only the plugin would leave the page
@@ -3171,7 +3031,7 @@ app_plugin_panel_overlay_visible(
             return 0;
         row = &app->plugin_panel_rows[row_index];
         if( row->widget_serial != app->panel_overlay_owner[index] ||
-            row->widget_kind != TORIRS_PLUGIN_W_CUSTOM ||
+            row->widget_kind != TORIRS_PANEL_WIDGET_CUSTOM ||
             !row->custom_layout_valid )
             return 0;
         clip = row->custom_clip;
@@ -3374,7 +3234,7 @@ app_plugin_panel_draw_custom(struct App* app)
         int logical_h;
 
         assert(row->kind == APP_PLUGIN_ROW_PANEL_WIDGET);
-        assert(row->widget_kind == TORIRS_PLUGIN_W_CUSTOM);
+        assert(row->widget_kind == TORIRS_PANEL_WIDGET_CUSTOM);
         assert(row->widget_serial != 0);
 
         if( !ToriRSChrome_CustomRegion(
@@ -3593,7 +3453,7 @@ app_plugin_panel_present_custom(struct App* app)
         if( !row->custom_present_pending )
             continue;
         if( !row->custom_layout_valid ||
-            row->widget_kind != TORIRS_PLUGIN_W_CUSTOM )
+            row->widget_kind != TORIRS_PANEL_WIDGET_CUSTOM )
         {
             app_plugin_panel_custom_pending_set(app, row, 0);
             continue;
@@ -3661,12 +3521,12 @@ app_plugin_panel_publish_layout(struct App* app)
     if( width <= 0 || height <= 0 )
         return 0;
 
-    if( width < TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT )
-        size_class = TORIRS_PLUGIN_PANEL_COMPACT;
-    else if( width >= TORIRS_PLUGIN_PANEL_WIDTH_MAX )
-        size_class = TORIRS_PLUGIN_PANEL_EXPANDED;
+    if( width < TORIRS_PANEL_WIDTH_DEFAULT )
+        size_class = TORIRS_PANEL_SIZE_COMPACT;
+    else if( width >= TORIRS_PANEL_WIDTH_MAX )
+        size_class = TORIRS_PANEL_SIZE_EXPANDED;
     else
-        size_class = TORIRS_PLUGIN_PANEL_MEDIUM;
+        size_class = TORIRS_PANEL_SIZE_MEDIUM;
 
     /* The ordinary floating/attached panel leaves the game visible. The
      * phone/fullscreen presentation replaces the canvas and tells animated

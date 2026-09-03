@@ -672,7 +672,7 @@ static enum ToriRS_Result v2_panel_set_text(
     widget = fake_widget_find(id);
     if( !widget ) return TORIRS_RESULT_NOT_FOUND;
     (void)fake_panel_set_text(NULL, id, text);
-    if( widget->kind == TORIRS_PLUGIN_W_SECTION )
+    if( widget->kind == TORIRS_PANEL_WIDGET_SECTION )
         snprintf(widget->label, sizeof(widget->label), "%s", text ? text : "");
     return TORIRS_RESULT_OK;
 }
@@ -690,37 +690,37 @@ static void v2_build_heading(struct ToriRS_PanelBuilder* panel, char const* text
     char id[32];
     (void)panel;
     snprintf(id, sizeof(id), "_v2_heading_%d", g_heading_id++);
-    (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_SECTION, id, text);
+    (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_SECTION, id, text);
 }
 static void v2_build_paragraph(struct ToriRS_PanelBuilder* panel, char const* text)
 { (void)panel; (void)text; }
 static void v2_build_toggle(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, bool value)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_CHECKBOX, id, label); (void)fake_panel_set_value(NULL, id, value); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_CHECKBOX, id, label); (void)fake_panel_set_value(NULL, id, value); }
 static void v2_build_select(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label,
     char const* value, struct ToriRS_SelectOption const* options, int count)
-{ (void)panel; (void)value; (void)options; (void)count; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_DROPDOWN, id, label); }
+{ (void)panel; (void)value; (void)options; (void)count; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_DROPDOWN, id, label); }
 static void v2_build_button(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, bool enabled)
-{ (void)panel; (void)enabled; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_BUTTON, id, label); }
+{ (void)panel; (void)enabled; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_BUTTON, id, label); }
 static void v2_build_custom(
     struct ToriRS_PanelBuilder* panel, char const* id, int height)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_CUSTOM, id, ""); (void)fake_panel_set_height(NULL, id, height); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_CUSTOM, id, ""); (void)fake_panel_set_height(NULL, id, height); }
 static void v2_build_label(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* text)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_LABEL, id, text); (void)fake_panel_set_text(NULL, id, text); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_LABEL, id, text); (void)fake_panel_set_text(NULL, id, text); }
 static void v2_build_key_value(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, char const* value)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_KEY_VALUE, id, label); (void)fake_panel_set_text(NULL, id, value); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_KEY_VALUE, id, label); (void)fake_panel_set_text(NULL, id, value); }
 static enum ToriRS_Result v2_build_node(
     struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node)
 {
-    int kind = TORIRS_PLUGIN_W_LABEL;
+    int kind = TORIRS_PANEL_WIDGET_LABEL;
     (void)panel;
-    if( node->kind == TORIRS_PANEL_HEADING ) kind = TORIRS_PLUGIN_W_SECTION;
-    else if( node->kind == TORIRS_PANEL_KEY_VALUE ) kind = TORIRS_PLUGIN_W_KEY_VALUE;
-    else if( node->kind == TORIRS_PANEL_CUSTOM ) kind = TORIRS_PLUGIN_W_CUSTOM;
+    if( node->kind == TORIRS_PANEL_HEADING ) kind = TORIRS_PANEL_WIDGET_SECTION;
+    else if( node->kind == TORIRS_PANEL_KEY_VALUE ) kind = TORIRS_PANEL_WIDGET_KEY_VALUE;
+    else if( node->kind == TORIRS_PANEL_CUSTOM ) kind = TORIRS_PANEL_WIDGET_CUSTOM;
     if( !fake_panel_widget(NULL, kind, node->id, node->label ? node->label : node->text) )
         return TORIRS_RESULT_BUDGET;
     if( node->text ) (void)v2_panel_set_text(&g_api, node->id, node->text);
@@ -869,7 +869,7 @@ panel_build_view(int view)
         layout.width = 320;
         layout.height = 500;
         layout.scale_milli = 1000;
-        layout.size_class = TORIRS_PLUGIN_PANEL_MEDIUM;
+        layout.size_class = TORIRS_PANEL_SIZE_MEDIUM;
         layout.visible = true;
         layout.game_visible = true;
         layout.selection_generation = 1;
@@ -881,7 +881,7 @@ panel_build_view(int view)
 static void
 panel_build(void)
 {
-    panel_build_view(TORIRS_PLUGIN_PANEL_VIEW_PAGE);
+    panel_build_view(TORIRS_PANEL_VIEW_PAGE);
 }
 
 /** Advance the clock and run one logic tick, rebuilding the page if the tick
@@ -932,7 +932,7 @@ press_box(int row)
 
     memset(&ev, 0, sizeof(ev));
     ev.id = "boxes";
-    ev.action = TORIRS_PLUGIN_UI_ACTIVATE;
+    ev.action = TORIRS_PANEL_ACTION_ACTIVATE;
     ev.value = -1;
     ev.text = "";
     ev.x = 10;
@@ -961,7 +961,7 @@ press_strip(int y)
 
     memset(&ev, 0, sizeof(ev));
     ev.id = "strip";
-    ev.action = TORIRS_PLUGIN_UI_ACTIVATE;
+    ev.action = TORIRS_PANEL_ACTION_ACTIVATE;
     ev.value = -1;
     ev.text = "";
     ev.x = 10;
@@ -1188,10 +1188,10 @@ test_xp_rate_is_over_training_time(void)
      * PAUSING is what stops the clock, and this is the assertion that says so:
      * ten further idle minutes past a pause move the number not at all.
      */
-    press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     for( int i = 0; i < 600; i++ )
         tick(1000);
-    press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     TEST_ASSERT(
         row_text("d_hr") && strcmp(row_text("d_hr"), "3,272") == 0,
         "but a paused skill's clock does not run (got '%s')",
@@ -1331,7 +1331,7 @@ test_xp_pause(void)
         "a running skill offers Pause (got '%s')",
         row_text("d_pause") ? row_text("d_pause") : "(none)");
 
-    press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     TEST_ASSERT(
         row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
         "pressing it pauses the skill and offers the way back (got '%s')",
@@ -1349,7 +1349,7 @@ test_xp_pause(void)
         "and pausing keeps the xp already earned (got %s)",
         row_text("d_gained") ? row_text("d_gained") : "(none)");
 
-    press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     TEST_ASSERT(
         row_text("d_pause") && strcmp(row_text("d_pause"), "Pause") == 0,
         "and unpauses again");
@@ -1426,7 +1426,7 @@ test_xp_reset(void)
      * is a port of has no such control -- its resets are ops on a row.
      */
     press_box(0);
-    press("d_reset", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press("d_reset", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     TEST_ASSERT(
         box_count() == 0,
         "resetting the skill zeroes the session and takes its box with it (got %d)",
@@ -1627,7 +1627,7 @@ test_loot_ignore_button(void)
 
     /* The CS2 header's third op, on the band it acts on. */
     press_strip(TEST_TOTALS_H + 4);
-    press("d_ignore", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press("d_ignore", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     settle();
     TEST_ASSERT(!has_loot(), "Ignore drops the band");
     TEST_ASSERT(
@@ -1857,7 +1857,7 @@ test_settings_face_is_the_generated_form(void)
     settle();
     TEST_ASSERT(has_loot(), "the PAGE face carries the records");
 
-    panel_build_view(TORIRS_PLUGIN_PANEL_VIEW_SETTINGS);
+    panel_build_view(TORIRS_PANEL_VIEW_SETTINGS);
     TEST_ASSERT(
         g_client.widget_count == 0,
         "the SETTINGS face declares nothing, leaving the generated form (got %d)",
@@ -1871,7 +1871,7 @@ test_settings_face_is_the_generated_form(void)
     client_reset();
     xp_start();
     tick(20);
-    panel_build_view(TORIRS_PLUGIN_PANEL_VIEW_SETTINGS);
+    panel_build_view(TORIRS_PANEL_VIEW_SETTINGS);
     TEST_ASSERT(
         g_client.widget_count == 0, "the xp tracker answers the same way (got %d)",
         g_client.widget_count);

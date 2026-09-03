@@ -116,7 +116,7 @@ nxt_highlight_draw(
                 item.element_id,
                 item.rgb,
                 model_fill ? item.opacity : 0,
-                TORIRS_PLUGIN_HULL_MESH);
+                TORIRS_HULL_MESH);
 
         if( tile_outline || tile_fill )
         {

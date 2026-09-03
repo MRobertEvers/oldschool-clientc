@@ -452,7 +452,7 @@ fake_asset_read(void* u, char const* plugin, char const* name)
 /* In game: these harnesses exercise behaviour that is gated on it. Mutable so
  * the enabled-at-the-title scenario can move it; everything else leaves it be.
  * @see ToriRS_PluginApi::screen. */
-static int g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+static int g_screen_now = TORIRS_SCREEN_GAME;
 static int fake_plugin_screen(void* u) { (void)u; return g_screen_now; }
 static char g_frame_preference[TORIRS_PLUGIN_FRAME_ID_MAX] =
     "mobile-gameframe/stone-drawer";
@@ -495,7 +495,7 @@ static int fake_hover_tile(void* u, int* x, int* z, int* l) { (void)u; (void)x; 
 static int fake_hover_entity(void* u, struct ToriRS_HoverTarget* o) { (void)u; (void)o; return 0; }
 static int fake_element_height(void* u, int e) { (void)u; (void)e; return 0; }
 static int fake_feature_next(void* u, int i, struct ToriRS_FeatureInfo* o) { (void)u; (void)i; (void)o; return -1; }
-static int fake_feature_get(void* u, char const* k) { (void)u; (void)k; return TORIRS_PLUGIN_FEATURE_UNSET; }
+static int fake_feature_get(void* u, char const* k) { (void)u; (void)k; return TORIRS_FEATURE_UNSET; }
 static int fake_feature_set(void* u, char const* k, int v) { (void)u; (void)k; (void)v; return 0; }
 static int fake_display_setting(void* u, int s, int* v, int* mn, int* mx) { (void)u; (void)s; (void)v; (void)mn; (void)mx; return 0; }
 static int fake_display_setting_set(void* u, int s, int v) { (void)u; (void)s; (void)v; return 0; }
@@ -506,16 +506,16 @@ static int fake_cache_id(void* u, char const* k, char const* n) { (void)u; (void
  * that has not identified its cache yet answers -- and the plugin runs on it,
  * because standing down over a question nobody has answered would take the
  * frame away from every lane. */
-static int g_lane_game = TORIRS_PLUGIN_GAME_UNKNOWN;
+static int g_lane_game = TORIRS_GAME_UNKNOWN;
 static int fake_lane(void* u, struct ToriRS_LaneInfo* o)
 {
     (void)u;
     memset(o, 0, sizeof(*o));
     o->game = g_lane_game;
-    o->epoch = g_lane_game == TORIRS_PLUGIN_GAME_OLDSCHOOL ? TORIRS_PLUGIN_EPOCH_DAT2
-                                                           : TORIRS_PLUGIN_EPOCH_DAT1;
-    o->revision = g_lane_game == TORIRS_PLUGIN_GAME_OLDSCHOOL ? 239 : 254;
-    return g_lane_game != TORIRS_PLUGIN_GAME_UNKNOWN;
+    o->epoch = g_lane_game == TORIRS_GAME_OLDSCHOOL ? TORIRS_CACHE_EPOCH_DAT2
+                                                           : TORIRS_CACHE_EPOCH_DAT1;
+    o->revision = g_lane_game == TORIRS_GAME_OLDSCHOOL ? 239 : 254;
+    return g_lane_game != TORIRS_GAME_UNKNOWN;
 }
 static int fake_project(void* u, int a, int b, int c, int* x, int* y) { (void)u; (void)a; (void)b; (void)c; (void)x; (void)y; return 0; }
 static int fake_draw_tile(void* u, int x, int z, int l, uint32_t c, uint32_t f, int a) { (void)u; (void)x; (void)z; (void)l; (void)c; (void)f; (void)a; return 0; }
@@ -1472,7 +1472,7 @@ main(void)
      * in game. EV_SCREEN_CHANGE is the missing rung: entering the game
      * re-claims, and the next layout pass declares.
     */
-    g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
+    g_screen_now = TORIRS_SCREEN_TITLE;
     select_frame("mobile-gameframe/stone-drawer", 950);
     /* The title's frames tick too: this is where the art finishes composing
      * and the latched retry in mobile_on_frame makes its one claim -- refused,
@@ -1482,7 +1482,7 @@ main(void)
     CHECK(
         g_frame.owned == 0,
         "selecting at the title leaves the native frame in charge");
-    g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+    g_screen_now = TORIRS_SCREEN_GAME;
     PluginHost_FrameStart(g_host, 1000, 0);
     CHECK(g_frame.owned == 0, "logging in schedules the selected frame without a restart");
     declare(M_W, M_H);
@@ -1503,9 +1503,9 @@ main(void)
      * A fresh host: a lane is stated at boot and never changes in a process.
      */
     PluginHost_Free(g_host);
-    g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
     g_chat_pieces_exist = 1;
-    g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+    g_screen_now = TORIRS_SCREEN_GAME;
     snprintf(
         g_frame_preference,
         sizeof(g_frame_preference),
@@ -1653,7 +1653,7 @@ main(void)
         int const chat_h = 160;
         int const chat_y = M_H - M_STRIP_H - chat_h - M_CHAT_FRINGE_B - M_CHAT_GAP;
 
-        g_lane_game = TORIRS_PLUGIN_GAME_RS2;
+        g_lane_game = TORIRS_GAME_RS2;
         g_chat_native_w = chat_w;
         g_chat_native_h = chat_h;
         PluginHost_ConfigSet(g_host, g_plugin, "art", "Auto");
@@ -1723,7 +1723,7 @@ main(void)
         int const rail_x = free_w - M_MARGIN - M_RAIL_W;
         int const map_x = free_w - M_MARGIN - M_MAP_W;
 
-        g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+        g_lane_game = TORIRS_GAME_OLDSCHOOL;
         g_chat_native_w = 0;
         g_chat_native_h = 0;
         g_chat_pieces_exist = 0;

@@ -18,6 +18,7 @@
  */
 
 #include "plugin/torirs_plugin_types.h"
+#include "plugin/torirs_plugin_host_types.h"
 #include "plugin/torirs_plugin_ui.h"
 #include "plugin/torirs_plugin_v2.h"
 
@@ -131,7 +132,7 @@ struct ToriRS_PluginEngine
     /** struct App*. */
     void* user;
 
-    /** enum AppScreen, as a TORIRS_PLUGIN_SCREEN_* value.
+    /** enum AppScreen, as a TORIRS_SCREEN_* value.
      *  @see ToriRS_PluginApi::screen. */
     int (*screen)(void* user);
 
@@ -1329,7 +1330,7 @@ struct ToriRS_PluginSelectOption
 };
 
 /** One control on a plugin's tab, as the host holds it. */
-struct ToriRS_PluginWinWidget
+struct ToriRS_PanelWidget
 {
     /** enum ToriRS_PanelWidgetKind. */
     int kind;
@@ -1374,7 +1375,7 @@ int
 PluginHost_WinWidgetCount(
     struct ToriRS_PluginHost const* host,
     int plugin_index);
-struct ToriRS_PluginWinWidget const*
+struct ToriRS_PanelWidget const*
 PluginHost_WinWidgetAt(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
@@ -1540,7 +1541,7 @@ int
 PluginHost_PanelWidgetCount(
     struct ToriRS_PluginHost const* host,
     uint32_t selection_generation);
-struct ToriRS_PluginWinWidget const*
+struct ToriRS_PanelWidget const*
 PluginHost_PanelWidgetAt(
     struct ToriRS_PluginHost const* host,
     uint32_t selection_generation,

@@ -118,7 +118,7 @@ fake_lane(
     struct ToriRS_LaneInfo* out)
 {
     (void)state(context);
-    *out = (struct ToriRS_LaneInfo){ TORIRS_PLUGIN_GAME_RS2, TORIRS_PLUGIN_EPOCH_DAT1, 245 };
+    *out = (struct ToriRS_LaneInfo){ TORIRS_GAME_RS2, TORIRS_CACHE_EPOCH_DAT1, 245 };
     return 1;
 }
 
@@ -1404,7 +1404,7 @@ test_construction_and_basic_modules(
     CHECK(api->core.frame_ms(api) == 1234, "frame clock is forwarded");
     CHECK(api->core.frame_work_us(api) == 567, "work clock is forwarded");
     CHECK(
-        api->core.lane(api, &lane) && lane.game == TORIRS_PLUGIN_GAME_RS2 && lane.revision == 245,
+        api->core.lane(api, &lane) && lane.game == TORIRS_GAME_RS2 && lane.revision == 245,
         "lane snapshot is forwarded");
     CHECK(api->core.capability(api, "touch"), "new capability semantics use the host hook");
     CHECK(!api->core.capability(api, "vr"), "missing capability is false");
@@ -1837,8 +1837,8 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
             fake.last_d == 0xaabbcc && fake.last_e == 0x010203,
         "world tile fill and outline map in the right order");
     CHECK(
-        draw.world_hull(&draw, 44, 0xabcdef, 88, TORIRS_PLUGIN_HULL_MESH) == TORIRS_RESULT_OK &&
-            fake.last_a == 44 && fake.last_d == TORIRS_PLUGIN_HULL_MESH,
+        draw.world_hull(&draw, 44, 0xabcdef, 88, TORIRS_HULL_MESH) == TORIRS_RESULT_OK &&
+            fake.last_a == 44 && fake.last_d == TORIRS_HULL_MESH,
         "world hull forwards");
     CHECK(
         draw.action_region(&draw, (struct ToriRS_Rect){ 2, 3, 40, 20 }, "activate") ==
@@ -1926,9 +1926,9 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     panel.paragraph(&panel, "Words");
     panel.toggle(&panel, "enabled", "Enabled", true);
     CHECK(
-        fake.panel_count == 3 && fake.panel_kind[0] == TORIRS_PLUGIN_W_SECTION &&
-            fake.panel_kind[1] == TORIRS_PLUGIN_W_PARAGRAPH &&
-            fake.panel_kind[2] == TORIRS_PLUGIN_W_TOGGLE && fake.panel_value == 1,
+        fake.panel_count == 3 && fake.panel_kind[0] == TORIRS_PANEL_WIDGET_SECTION &&
+            fake.panel_kind[1] == TORIRS_PANEL_WIDGET_PARAGRAPH &&
+            fake.panel_kind[2] == TORIRS_PANEL_WIDGET_TOGGLE && fake.panel_value == 1,
         "semantic panel rows map to legacy widget kinds");
     hook_calls = fake.hook_calls;
     panel.select(&panel, "layout", "Layout", "b", options, 2);
@@ -1959,11 +1959,11 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     adapter->hooks.panel_select = hook_panel_select;
     panel.button(&panel, "reset", "Reset", false);
     CHECK(
-        fake.panel_kind[fake.panel_count - 1] == TORIRS_PLUGIN_W_BUTTON && fake.panel_value == 0,
+        fake.panel_kind[fake.panel_count - 1] == TORIRS_PANEL_WIDGET_BUTTON && fake.panel_value == 0,
         "button kind and enabled state forward");
     panel.custom(&panel, "chart", 144);
     CHECK(
-        fake.panel_kind[fake.panel_count - 1] == TORIRS_PLUGIN_W_CUSTOM && fake.last_a == 144,
+        fake.panel_kind[fake.panel_count - 1] == TORIRS_PANEL_WIDGET_CUSTOM && fake.last_a == 144,
         "custom well and height forward");
     ToriRS_PluginV2Adapter_PanelEnd(&panel_scope, &panel);
     CHECK(!panel_scope.active && !panel.implementation, "panel scope is explicitly ended");

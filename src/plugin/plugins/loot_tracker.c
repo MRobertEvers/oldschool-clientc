@@ -847,7 +847,7 @@ lt_draw_cell(
     if( !g_api->game ||
         g_api->game->item_image(
             g_api, item->obj_id, item->quantity,
-            TORIRS_PLUGIN_OBJ_ICON_BORDERED, &image) != TORIRS_ASSET_READY ||
+            TORIRS_ITEM_ICON_BORDERED, &image) != TORIRS_ASSET_READY ||
         !g_api->assets.image_size(g_api, image, &iw, &ih) )
     {
         g_redraw_pending = true;
@@ -1227,7 +1227,7 @@ lt_panel_build(
 
     /* The SETTINGS face is the generated form and nothing else -- every knob
      * here is a config key. @see enum ToriRS_PanelView. */
-    if( view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
+    if( view != TORIRS_PANEL_VIEW_PAGE )
     {
         g_page_built = false;
         return;
@@ -1498,7 +1498,7 @@ lt_start(struct ToriRS_ApiV2* api, void* state_ptr)
     g_dirty = false;
     g_redraw_pending = false;
     g_loot_revision = 0;
-    g_well_w = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+    g_well_w = TORIRS_PANEL_WIDTH_DEFAULT;
     g_strip_image.value = 0;
     /*
      * OPEN by default, which is what the game's own tracker does: a band with
@@ -1514,7 +1514,7 @@ lt_start(struct ToriRS_ApiV2* api, void* state_ptr)
     /* RuneLite's own, so a person who has used the plugin there recognises
      * the row. @see script/plugins/assets/loot-tracker/panel_icon.txt. */
     desc.icon_asset = "panel_icon.png";
-    desc.preferred_width = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+    desc.preferred_width = TORIRS_PANEL_WIDTH_DEFAULT;
     (void)g_api->panel.request(g_api, &desc);
 }
 
@@ -1612,12 +1612,12 @@ lt_tick(
 }
 
 static struct ToriRS_ConfigItem const LT_CONFIG[] = {
-    { "price_source",      TORIRS_PLUGIN_CFG_ENUM, "Value items by",                 "Cache value", 0, 0, "Cache value|High alchemy", 0 },
-    { "kill_chat_message", TORIRS_PLUGIN_CFG_BOOL, "Announce loot in chat",          "0", 0, 0, NULL, 0 },
-    { "chat_value_threshold", TORIRS_PLUGIN_CFG_INT, "Announce only above (gp)",     "0", 0, 100000000, NULL, 0 },
-    { "ignored_items",     TORIRS_PLUGIN_CFG_TEXT, "Ignored items",                  "", 0, 0, NULL, 4 },
-    { "ignored_sources",   TORIRS_PLUGIN_CFG_TEXT, "Ignored sources",                "", 0, 0, NULL, 4 },
-    { NULL,                TORIRS_PLUGIN_CFG_BOOL, NULL,                             NULL, 0, 0, NULL, 0 },
+    { "price_source",      TORIRS_CONFIG_ENUM, "Value items by",                 "Cache value", 0, 0, "Cache value|High alchemy", 0 },
+    { "kill_chat_message", TORIRS_CONFIG_BOOL, "Announce loot in chat",          "0", 0, 0, NULL, 0 },
+    { "chat_value_threshold", TORIRS_CONFIG_INT, "Announce only above (gp)",     "0", 0, 100000000, NULL, 0 },
+    { "ignored_items",     TORIRS_CONFIG_TEXT, "Ignored items",                  "", 0, 0, NULL, 4 },
+    { "ignored_sources",   TORIRS_CONFIG_TEXT, "Ignored sources",                "", 0, 0, NULL, 4 },
+    { NULL,                TORIRS_CONFIG_BOOL, NULL,                             NULL, 0, 0, NULL, 0 },
 };
 
 static void

@@ -1,8 +1,11 @@
 # Semantic UI tagging — design, and what shipped
 
-> **Status: implemented.** Phases 1–6 below are done and green. §8 records what
-> the survey actually measured, and the three things the plan got wrong.
-
+> **Historical and superseded API design.** Phases 1–6 below record what
+> shipped at that stage, including removed V1 roles, slots, and flat API
+> spellings. The current canonical named-UI, placement, frame, and native
+> C/Lua V2 contract is
+> [GAMECHROME_PLUGINAPI_V2.md](../GAMECHROME_PLUGINAPI_V2.md). §8 remains the
+> original survey record and notes what this plan got wrong.
 
 The plugin system needs to talk about interface elements by what they ARE —
 the report button, the logout screen, the minimap box, the safe part of the

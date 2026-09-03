@@ -202,7 +202,7 @@ example_frame_draw(
 static struct ToriRS_ConfigItem const EXAMPLE_CONFIG_ITEMS[] = {
     {
         .key = "enabled",
-        .type = TORIRS_PLUGIN_CFG_BOOL,
+        .type = TORIRS_CONFIG_BOOL,
         .label = "Enabled",
         .default_value = "1",
     },

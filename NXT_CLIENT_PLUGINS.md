@@ -1,5 +1,12 @@
 # The "Activities" settings, as builtin plugins
 
+> **Historical implementation record — plugin API examples are superseded.**
+> This document preserves the research and rollout history for Activities
+> settings. Its `ToriRS_PluginDef`, flat `ToriRS_PluginApi`, and subscription
+> examples describe the removed V1 API; new and maintained plugins use native
+> V2 modules and callbacks from
+> [GAMECHROME_PLUGINAPI_V2.md](GAMECHROME_PLUGINAPI_V2.md).
+
 The **All Settings** panel (interface `134`, `settings`) has an **Activities**
 category, and until now not one row in it did anything. The rows are drawn --
 the panel is built entirely by clientscripts and those work -- and every toggle

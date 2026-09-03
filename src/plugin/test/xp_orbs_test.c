@@ -177,7 +177,7 @@ static int
 fake_plugin_screen(void* u)
 {
     (void)u;
-    return TORIRS_PLUGIN_SCREEN_GAME;
+    return TORIRS_SCREEN_GAME;
 }
 
 static int
@@ -303,7 +303,7 @@ fake_feature_get(void* u, char const* k)
 {
     (void)u;
     (void)k;
-    return TORIRS_PLUGIN_FEATURE_UNSET;
+    return TORIRS_FEATURE_UNSET;
 }
 static int
 fake_feature_set(void* u, char const* k, int v)

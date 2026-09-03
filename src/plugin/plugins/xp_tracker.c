@@ -1463,7 +1463,7 @@ xt_panel_build(
 {
     struct XtState* state = plugin_state;
 
-    if( view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
+    if( view != TORIRS_PANEL_VIEW_PAGE )
     {
         g_page_built = false;
         return;
@@ -1652,7 +1652,7 @@ xt_start(struct ToriRS_ApiV2* api, void* plugin_state)
     memset(state, 0, sizeof(*state));
     g_detail = -1;
     g_built_detail = -1;
-    g_well_w = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+    g_well_w = TORIRS_PANEL_WIDTH_DEFAULT;
     g_skill_count = 0;
     memset(g_built_rows, 0, sizeof(g_built_rows));
     g_detail = -1;
@@ -1670,7 +1670,7 @@ xt_start(struct ToriRS_ApiV2* api, void* plugin_state)
     /* RuneLite's own, so a person who has used the plugin there recognises
      * the row here. @see script/plugins/assets/xp-tracker/panel_icon.txt. */
     desc.icon_asset = "panel_icon.png";
-    desc.preferred_width = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+    desc.preferred_width = TORIRS_PANEL_WIDTH_DEFAULT;
     (void)api->panel.request(api, &desc);
 
     /* Queued, not read: the file crosses the IO queue like every other asset,
@@ -1837,20 +1837,20 @@ xt_tick(
 }
 
 static struct ToriRS_ConfigItem const XT_CONFIG[] = {
-    { "save_state",        TORIRS_PLUGIN_CFG_BOOL, "Save between sessions",        "1", 0, 0,  NULL, 0 },
-    { "hide_maxed",        TORIRS_PLUGIN_CFG_BOOL, "Hide maxed skills",            "0", 0, 0,  NULL, 0 },
-    { "pause_on_logout",   TORIRS_PLUGIN_CFG_BOOL, "Pause on logout",              "1", 0, 0,  NULL, 0 },
-    { "pause_skill_after", TORIRS_PLUGIN_CFG_INT,  "Auto pause after (minutes)",   "0", 0, 60, NULL, 0 },
-    { "reset_rate_after",  TORIRS_PLUGIN_CFG_INT,  "Auto reset rate after (minutes)", "0", 0, 60, NULL, 0 },
+    { "save_state",        TORIRS_CONFIG_BOOL, "Save between sessions",        "1", 0, 0,  NULL, 0 },
+    { "hide_maxed",        TORIRS_CONFIG_BOOL, "Hide maxed skills",            "0", 0, 0,  NULL, 0 },
+    { "pause_on_logout",   TORIRS_CONFIG_BOOL, "Pause on logout",              "1", 0, 0,  NULL, 0 },
+    { "pause_skill_after", TORIRS_CONFIG_INT,  "Auto pause after (minutes)",   "0", 0, 60, NULL, 0 },
+    { "reset_rate_after",  TORIRS_CONFIG_INT,  "Auto reset rate after (minutes)", "0", 0, 60, NULL, 0 },
     /* The four corner slots of a box's 2x2 grid, and the reference's own
      * choice list for them (XpPanelLabel). The DEFAULTS are its defaults --
      * gained, rate, actions left, xp left -- which is also the pairing the
      * cache's own tracker hard-codes. @see enum XtLabel. */
-    { "label_top_left",     TORIRS_PLUGIN_CFG_ENUM, "Top-left stat",     "XP/hr",     0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
-    { "label_top_right",    TORIRS_PLUGIN_CFG_ENUM, "Top-right stat",    "XP Gained", 0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
-    { "label_bottom_left",  TORIRS_PLUGIN_CFG_ENUM, "Bottom-left stat",  "XP Left",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
-    { "label_bottom_right", TORIRS_PLUGIN_CFG_ENUM, "Bottom-right stat", "Actions",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
-    { NULL,                TORIRS_PLUGIN_CFG_BOOL, NULL,                           NULL, 0, 0, NULL, 0 },
+    { "label_top_left",     TORIRS_CONFIG_ENUM, "Top-left stat",     "XP/hr",     0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_top_right",    TORIRS_CONFIG_ENUM, "Top-right stat",    "XP Gained", 0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_bottom_left",  TORIRS_CONFIG_ENUM, "Bottom-left stat",  "XP Left",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_bottom_right", TORIRS_CONFIG_ENUM, "Bottom-right stat", "Actions",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { NULL,                TORIRS_CONFIG_BOOL, NULL,                           NULL, 0, 0, NULL, 0 },
 };
 
 static struct ToriRS_ConfigSchema const XT_SCHEMA = {

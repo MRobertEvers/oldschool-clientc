@@ -17,34 +17,34 @@
  * where the minimap was asked for.
  */
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_VIEWPORT == (int)TORIRS_PLUGIN_SLOT_VIEWPORT,
+    (int)UITREE_FRAME_SLOT_VIEWPORT == (int)TORIRS_HOST_SURFACE_VIEWPORT,
     "frame slot order must match the plugin contract");
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_MINIMAP == (int)TORIRS_PLUGIN_SLOT_MINIMAP,
+    (int)UITREE_FRAME_SLOT_MINIMAP == (int)TORIRS_HOST_SURFACE_MINIMAP,
     "frame slot order must match the plugin contract");
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_COMPASS == (int)TORIRS_PLUGIN_SLOT_COMPASS,
+    (int)UITREE_FRAME_SLOT_COMPASS == (int)TORIRS_HOST_SURFACE_COMPASS,
     "frame slot order must match the plugin contract");
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_CHAT == (int)TORIRS_PLUGIN_SLOT_CHAT,
+    (int)UITREE_FRAME_SLOT_CHAT == (int)TORIRS_HOST_SURFACE_CHAT,
     "frame slot order must match the plugin contract");
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_SIDEBAR == (int)TORIRS_PLUGIN_SLOT_SIDEBAR,
+    (int)UITREE_FRAME_SLOT_SIDEBAR == (int)TORIRS_HOST_SURFACE_SIDEBAR,
     "frame slot order must match the plugin contract");
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_MAIN_MODAL == (int)TORIRS_PLUGIN_SLOT_MAIN_MODAL,
+    (int)UITREE_FRAME_SLOT_MAIN_MODAL == (int)TORIRS_HOST_SURFACE_MODAL,
     "frame slot order must match the plugin contract");
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_CHAT_BUTTONS == (int)TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+    (int)UITREE_FRAME_SLOT_CHAT_BUTTONS == (int)TORIRS_HOST_SURFACE_CHAT_BUTTONS,
     "frame slot order must match the plugin contract");
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_ORBS == (int)TORIRS_PLUGIN_SLOT_ORBS,
+    (int)UITREE_FRAME_SLOT_ORBS == (int)TORIRS_HOST_SURFACE_ORBS,
     "frame slot order must match the plugin contract");
 /* The PLACEABLE half, and only that half: the plugin contract grew derived
  * regions -- CANVAS and SAFE -- which are read through the same enum and are
  * not nodes in this tree, so its own count is the placeable one. */
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_COUNT == (int)TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT,
+    (int)UITREE_FRAME_SLOT_COUNT == (int)TORIRS_HOST_SURFACE_PLACEABLE_COUNT,
     "frame slot count must match the plugin contract's placeable half");
 
 /* Chrome nodes one declaration may suppress. A 2004 surround is about twenty

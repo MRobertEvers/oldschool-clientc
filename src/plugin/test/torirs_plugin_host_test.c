@@ -98,7 +98,7 @@ static struct FakeEngine g_engine;
 /* In game: these harnesses exercise behaviour that is gated on it. Mutable so
  * the EV_SCREEN_CHANGE test can move it; everything else leaves it alone.
  * @see ToriRS_PluginApi::screen. */
-static int g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+static int g_screen_now = TORIRS_SCREEN_GAME;
 
 static int
 fake_plugin_screen(void* u)
@@ -245,7 +245,7 @@ fake_hover_entity(
     struct ToriRS_HoverTarget* out)
 {
     (void)u;
-    out->kind = TORIRS_PLUGIN_HOVER_NPC;
+    out->kind = TORIRS_HOVER_NPC;
     out->element_id = 7;
     out->tile_x = 3200;
     out->tile_z = 3200;
@@ -286,13 +286,13 @@ struct FakeFeature
 
 static struct FakeFeature g_fake_features[] = {
     { "draw_distance",
-     "Draw distance", TORIRS_PLUGIN_FEATURE_INT,
+     "Draw distance", TORIRS_FEATURE_INT,
      25, 90,
      NULL,               { 0, 0 },
      0, 25,
      25 },
     { "camera_zoom",
-     "Camera zoom",   TORIRS_PLUGIN_FEATURE_ENUM,
+     "Camera zoom",   TORIRS_FEATURE_ENUM,
      0,  0,
      "Adjustable|Fixed", { 0, 1 },
      2, 0,
@@ -349,7 +349,7 @@ fake_feature_get(
     (void)u;
 
     struct FakeFeature const* f = fake_feature_find(k);
-    return f ? f->value : TORIRS_PLUGIN_FEATURE_UNSET;
+    return f ? f->value : TORIRS_FEATURE_UNSET;
 }
 
 static int
@@ -363,12 +363,12 @@ fake_feature_set(
     struct FakeFeature* f = fake_feature_find(k);
     if( !f )
         return 0;
-    if( v == TORIRS_PLUGIN_FEATURE_UNSET )
+    if( v == TORIRS_FEATURE_UNSET )
     {
         f->value = f->boot;
         return 1;
     }
-    if( f->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+    if( f->kind == TORIRS_FEATURE_ENUM )
     {
         int legal = 0;
         for( int i = 0; i < f->value_count; i++ )
@@ -1690,7 +1690,7 @@ fake_if_click(
  * anything the host does and never changes under a running client -- the tests
  * set it, build a host, and that is the world that host lives in.
  */
-static int g_lane_game = TORIRS_PLUGIN_GAME_UNKNOWN;
+static int g_lane_game = TORIRS_GAME_UNKNOWN;
 
 static int
 fake_lane(
@@ -1702,10 +1702,10 @@ fake_lane(
     o->game = g_lane_game;
     /* An unidentified cache answers 0 with the whole struct zeroed, which is
      * the one answer a plugin is told not to decide on. */
-    if( g_lane_game == TORIRS_PLUGIN_GAME_UNKNOWN )
+    if( g_lane_game == TORIRS_GAME_UNKNOWN )
         return 0;
-    o->epoch = TORIRS_PLUGIN_EPOCH_DAT2;
-    o->revision = g_lane_game == TORIRS_PLUGIN_GAME_OLDSCHOOL ? 239 : 254;
+    o->epoch = TORIRS_CACHE_EPOCH_DAT2;
+    o->revision = g_lane_game == TORIRS_GAME_OLDSCHOOL ? 239 : 254;
     return 1;
 }
 
@@ -1908,7 +1908,7 @@ alpha_draw(
 {
     (void)ud;
     struct ToriRS_DrawEvent* d = ev;
-    g_api->draw_hull(ctx, d->surface, 3, 0xff0000u, 0, TORIRS_PLUGIN_HULL_MESH);
+    g_api->draw_hull(ctx, d->surface, 3, 0xff0000u, 0, TORIRS_HULL_MESH);
     /* Well past the budget, to prove the host stops handing calls through. */
     for( int i = 0; i < 400; i++ )
         g_api->draw_tile(ctx, d->surface, 1, 1, 0, 0xffffffu, 0xffffffu, 0);
@@ -1959,11 +1959,11 @@ alpha_init(
 }
 
 static struct ToriRS_ConfigItem const ALPHA_CONFIG[] = {
-    { "colour", TORIRS_PLUGIN_CFG_COLOR,  "Colour", "#00FF00", 0, 0,  NULL, 0 },
-    { "level",  TORIRS_PLUGIN_CFG_INT,    "Level",  "3",       0, 10, NULL, 0 },
-    { "on",     TORIRS_PLUGIN_CFG_BOOL,   "On",     "1",       0, 0,  NULL, 0 },
-    { "hidden", TORIRS_PLUGIN_CFG_STRING, NULL,     "",        0, 0,  NULL, 0 },
-    { NULL,     TORIRS_PLUGIN_CFG_BOOL,   NULL,     NULL,      0, 0,  NULL, 0 },
+    { "colour", TORIRS_CONFIG_COLOR,  "Colour", "#00FF00", 0, 0,  NULL, 0 },
+    { "level",  TORIRS_CONFIG_INT,    "Level",  "3",       0, 10, NULL, 0 },
+    { "on",     TORIRS_CONFIG_BOOL,   "On",     "1",       0, 0,  NULL, 0 },
+    { "hidden", TORIRS_CONFIG_STRING, NULL,     "",        0, 0,  NULL, 0 },
+    { NULL,     TORIRS_CONFIG_BOOL,   NULL,     NULL,      0, 0,  NULL, 0 },
 };
 
 static struct ToriRS_PluginDef const ALPHA = {
@@ -2112,10 +2112,10 @@ win_build(
     (void)ud;
     g_win_builds++;
     api->win_request(ctx, "Beams");
-    api->win_widget(ctx, TORIRS_PLUGIN_W_CHECKBOX, "enabled", "enabled");
-    api->win_widget(ctx, TORIRS_PLUGIN_W_INPUT, "colour", "colour");
-    api->win_widget(ctx, TORIRS_PLUGIN_W_DROPDOWN, "mode", "mode");
-    api->win_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "reset", "Reset");
+    api->win_widget(ctx, TORIRS_PANEL_WIDGET_CHECKBOX, "enabled", "enabled");
+    api->win_widget(ctx, TORIRS_PANEL_WIDGET_INPUT, "colour", "colour");
+    api->win_widget(ctx, TORIRS_PANEL_WIDGET_DROPDOWN, "mode", "mode");
+    api->win_widget(ctx, TORIRS_PANEL_WIDGET_BUTTON, "reset", "Reset");
     api->win_set_checked(ctx, "enabled", true);
     api->win_set_text(ctx, "colour", "#FFCC00");
     api->win_set_options(ctx, "mode", "beam|ring|off", 0);
@@ -2224,13 +2224,13 @@ panel_build(
         g_panel_b_builds++;
     /* The SETTINGS face of these probes declares nothing, exactly as a plugin
      * whose knobs are all config keys does. @see enum ToriRS_PanelView. */
-    if( ev->view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
+    if( ev->view != TORIRS_PANEL_VIEW_PAGE )
         return TORIRS_PLUGIN_PASS;
     CHECK(
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CHECKBOX, "shared", "Enabled"),
+        g_api->panel_widget(ctx, TORIRS_PANEL_WIDGET_CHECKBOX, "shared", "Enabled"),
         "the selected build may declare a semantic control");
     CHECK(
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CUSTOM, "chart", "Activity chart"),
+        g_api->panel_widget(ctx, TORIRS_PANEL_WIDGET_CUSTOM, "chart", "Activity chart"),
         "the selected build may declare a custom region");
     CHECK(g_api->panel_set_value(ctx, "shared", 1), "a build can seed result state");
     return TORIRS_PLUGIN_PASS;
@@ -2365,7 +2365,7 @@ reloader_stop(
 static struct ToriRS_ConfigItem const RELOADER_CFG[] = {
     { .key = "colour",
      .label = "colour",
-     .type = TORIRS_PLUGIN_CFG_STRING,
+     .type = TORIRS_CONFIG_STRING,
      .default_value = "#000000" },
     { 0 },
 };
@@ -2536,7 +2536,7 @@ standoff_init(
 
     /* Before the subscriptions, so a lane it cannot run on never gets a
      * handler of this plugin's registered at all. */
-    if( api->lane(ctx, &lane) && lane.game == TORIRS_PLUGIN_GAME_OLDSCHOOL )
+    if( api->lane(ctx, &lane) && lane.game == TORIRS_GAME_OLDSCHOOL )
     {
         api->disable_self(ctx, "this cache brings its own gameframe");
         return;
@@ -2596,7 +2596,7 @@ latecomer_start(
 static struct ToriRS_ConfigItem const LATECOMER_CFG[] = {
     { .key = "colour",
      .label = "colour",
-     .type = TORIRS_PLUGIN_CFG_STRING,
+     .type = TORIRS_CONFIG_STRING,
      .default_value = "#000000" },
     { 0 },
 };
@@ -2839,7 +2839,7 @@ v2_probe_start(
     g_v2_latest_state[marker] = state;
     g_v2_starts[marker]++;
 
-    CHECK(api->core.screen(api) == TORIRS_PLUGIN_SCREEN_GAME, "v2 core module reaches host");
+    CHECK(api->core.screen(api) == TORIRS_SCREEN_GAME, "v2 core module reaches host");
     CHECK(api->world.local_player(api, &player), "v2 world module reaches host");
     shared = api->ui.ref(api, "frame.xp.drops");
     CHECK(
@@ -2948,7 +2948,7 @@ v2_probe_ui_build(
 {
     (void)api;
     (void)state;
-    if( view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
+    if( view != TORIRS_PANEL_VIEW_PAGE )
         return;
     panel->heading(panel, "V2 probe");
     panel->toggle(panel, "enabled", "Enabled", true);
@@ -3077,15 +3077,15 @@ v2_probe_frame_draw(
 }
 
 static struct ToriRS_ConfigItem const V2_CONFIG_A_ITEMS[] = {
-    { .key = "marker", .label = "Marker", .type = TORIRS_PLUGIN_CFG_INT, .default_value = "1" },
+    { .key = "marker", .label = "Marker", .type = TORIRS_CONFIG_INT, .default_value = "1" },
     { 0 },
 };
 static struct ToriRS_ConfigItem const V2_CONFIG_B_ITEMS[] = {
-    { .key = "marker", .label = "Marker", .type = TORIRS_PLUGIN_CFG_INT, .default_value = "2" },
+    { .key = "marker", .label = "Marker", .type = TORIRS_CONFIG_INT, .default_value = "2" },
     { 0 },
 };
 static struct ToriRS_ConfigItem const V2_CONFIG_FRAME_ITEMS[] = {
-    { .key = "marker", .label = "Marker", .type = TORIRS_PLUGIN_CFG_INT, .default_value = "3" },
+    { .key = "marker", .label = "Marker", .type = TORIRS_CONFIG_INT, .default_value = "3" },
     { 0 },
 };
 static struct ToriRS_ConfigSchema const V2_CONFIG_A = { .struct_size = sizeof(V2_CONFIG_A),
@@ -3347,7 +3347,7 @@ v2_transition_build(
         g_v2_transition_callback_alive =
             selected == TORIRS_RESULT_OK && transition_state &&
             transition_state->canary == 0x51a7e123u && g_v2_transition_stops == stops &&
-            api->core.screen(api) == TORIRS_PLUGIN_SCREEN_GAME;
+            api->core.screen(api) == TORIRS_SCREEN_GAME;
     }
     return TORIRS_FRAME_READY;
 }
@@ -3817,7 +3817,7 @@ v2_teardown_stop(struct ToriRS_ApiV2* api, void* state_ptr)
     struct V2TeardownState* state = state_ptr;
 
     g_v2_teardown_stop_alive = state && state->canary == 0x7e4d0a11u &&
-                               api->core.screen(api) == TORIRS_PLUGIN_SCREEN_GAME;
+                               api->core.screen(api) == TORIRS_SCREEN_GAME;
 }
 
 static void
@@ -4302,18 +4302,18 @@ main(void)
     {
         PluginHost_FrameStart(host, 100, 0);
         CHECK(g_screen_changes == 0, "a steady screen raises nothing");
-        g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
+        g_screen_now = TORIRS_SCREEN_TITLE;
         PluginHost_FrameStart(host, 200, 0);
         CHECK(g_screen_changes == 1, "a moved screen raises once");
-        CHECK(g_screen_change_to == TORIRS_PLUGIN_SCREEN_TITLE, "carrying the new answer");
-        CHECK(g_screen_change_from == TORIRS_PLUGIN_SCREEN_GAME, "and the one it replaced");
+        CHECK(g_screen_change_to == TORIRS_SCREEN_TITLE, "carrying the new answer");
+        CHECK(g_screen_change_from == TORIRS_SCREEN_GAME, "and the one it replaced");
         PluginHost_FrameStart(host, 300, 0);
         CHECK(g_screen_changes == 1, "and not again while it holds");
-        g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+        g_screen_now = TORIRS_SCREEN_GAME;
         PluginHost_FrameStart(host, 400, 0);
         CHECK(g_screen_changes == 2, "moving back is a change of its own");
         CHECK(
-            g_screen_change_to == TORIRS_PLUGIN_SCREEN_GAME,
+            g_screen_change_to == TORIRS_SCREEN_GAME,
             "the login every gameframe gate waits for");
     }
 
@@ -4358,7 +4358,7 @@ main(void)
         CHECK(seen == FAKE_FEATURE_COUNT, "the walk visits every published flag");
 
         CHECK(
-            api->feature_get(ctx, "pathing_mode") == TORIRS_PLUGIN_FEATURE_UNSET,
+            api->feature_get(ctx, "pathing_mode") == TORIRS_FEATURE_UNSET,
             "an unpublished flag reads as unset");
         CHECK(
             !api->feature_set(ctx, "pathing_mode", 1),
@@ -4370,7 +4370,7 @@ main(void)
         CHECK(api->feature_get(ctx, "draw_distance") == 60, "and leaves the flag alone");
 
         CHECK(
-            api->feature_set(ctx, "draw_distance", TORIRS_PLUGIN_FEATURE_UNSET),
+            api->feature_set(ctx, "draw_distance", TORIRS_FEATURE_UNSET),
             "the sentinel is accepted");
         CHECK(api->feature_get(ctx, "draw_distance") == 25, "and restores what the boot resolved");
 
@@ -4717,7 +4717,7 @@ main(void)
         PluginHost_DrawWorld(host);
         CHECK(g_engine.draw_items > 0, "draw calls reach the engine");
         CHECK(
-            g_hull_shape == TORIRS_PLUGIN_HULL_MESH,
+            g_hull_shape == TORIRS_HULL_MESH,
             "the hull shape a plugin asked for reaches the engine");
         CHECK(
             g_engine.draw_items <= TORIRS_PLUGIN_DRAW_BUDGET + 8,
@@ -5138,9 +5138,9 @@ main(void)
         /* Values the plugin set during the build are held by the host, so a
          * presentation opening later shows them without asking the plugin. */
         {
-            struct ToriRS_PluginWinWidget const* c = PluginHost_WinWidgetAt(hw, w, 0);
-            struct ToriRS_PluginWinWidget const* t = PluginHost_WinWidgetAt(hw, w, 1);
-            struct ToriRS_PluginWinWidget const* d = PluginHost_WinWidgetAt(hw, w, 2);
+            struct ToriRS_PanelWidget const* c = PluginHost_WinWidgetAt(hw, w, 0);
+            struct ToriRS_PanelWidget const* t = PluginHost_WinWidgetAt(hw, w, 1);
+            struct ToriRS_PanelWidget const* d = PluginHost_WinWidgetAt(hw, w, 2);
             CHECK(c && strcmp(c->id, "enabled") == 0, "controls keep declaration order");
             CHECK(c && c->checked == 1, "a checkbox holds the state the plugin set");
             CHECK(t && strcmp(t->text, "#FFCC00") == 0, "a field holds its text");
@@ -5156,13 +5156,13 @@ main(void)
 
         /* Using a control reaches the plugin, and the host's copy is updated
          * FIRST so a handler reading its own control back sees the new value. */
-        PluginHost_WinDispatch(hw, w, "enabled", TORIRS_PLUGIN_UI_TOGGLE, 0, NULL);
+        PluginHost_WinDispatch(hw, w, "enabled", TORIRS_PANEL_ACTION_TOGGLE, 0, NULL);
         CHECK(g_win_events == 1, "a control's use reaches the plugin");
         CHECK(strcmp(g_win_last_id, "enabled") == 0, "naming the control");
-        CHECK(g_win_last_action == TORIRS_PLUGIN_UI_TOGGLE, "and the action");
+        CHECK(g_win_last_action == TORIRS_PANEL_ACTION_TOGGLE, "and the action");
         CHECK(PluginHost_WinWidgetAt(hw, w, 0)->checked == 0, "the host's copy is updated");
 
-        PluginHost_WinDispatch(hw, w, "colour", TORIRS_PLUGIN_UI_TEXT, -1, "#00FF00");
+        PluginHost_WinDispatch(hw, w, "colour", TORIRS_PANEL_ACTION_TEXT, -1, "#00FF00");
         CHECK(strcmp(g_win_last_text, "#00FF00") == 0, "an edit carries its new text");
         CHECK(
             strcmp(PluginHost_WinWidgetAt(hw, w, 1)->text, "#00FF00") == 0,
@@ -5172,7 +5172,7 @@ main(void)
          * presentation must not be able to raise events for controls that are
          * gone. */
         CHECK(
-            PluginHost_WinDispatch(hw, w, "ghost", TORIRS_PLUGIN_UI_ACTIVATE, -1, NULL) == 0,
+            PluginHost_WinDispatch(hw, w, "ghost", TORIRS_PANEL_ACTION_ACTIVATE, -1, NULL) == 0,
             "an unknown control dispatches nothing");
 
         /* Disabling takes the tab with it -- controls left in the window would
@@ -5195,7 +5195,7 @@ main(void)
     {
         struct ToriRS_PluginHost* hp = PluginHost_New(&engine);
         struct ToriRS_PanelDescriptor outside = { "too-late.png", 320 };
-        struct ToriRS_PluginWinWidget const* widget;
+        struct ToriRS_PanelWidget const* widget;
         uint32_t gen_a;
         uint32_t gen_b;
         uint32_t serial_a;
@@ -5311,9 +5311,9 @@ main(void)
                 "a malformed authored icon reaches the same baked fallback");
         }
         CHECK(
-            PluginHost_PanelPreferredWidth(hp, g_panel_a_index) == TORIRS_PLUGIN_PANEL_WIDTH_MIN &&
+            PluginHost_PanelPreferredWidth(hp, g_panel_a_index) == TORIRS_PANEL_WIDTH_MIN &&
                 PluginHost_PanelPreferredWidth(hp, g_panel_b_index) ==
-                    TORIRS_PLUGIN_PANEL_WIDTH_MAX,
+                    TORIRS_PANEL_WIDTH_MAX,
             "preferred width hints are clamped identically for every presenter");
         CHECK(
             PluginHost_PanelWantsAttention(hp, g_panel_b_index),
@@ -5386,9 +5386,9 @@ main(void)
             uint32_t gen_settings;
 
             CHECK(
-                PluginHost_PanelSelectView(hp, g_panel_a_index, TORIRS_PLUGIN_PANEL_VIEW_PAGE) &&
-                    PluginHost_PanelView(hp) == TORIRS_PLUGIN_PANEL_VIEW_PAGE &&
-                    g_panel_last_view == TORIRS_PLUGIN_PANEL_VIEW_PAGE,
+                PluginHost_PanelSelectView(hp, g_panel_a_index, TORIRS_PANEL_VIEW_PAGE) &&
+                    PluginHost_PanelView(hp) == TORIRS_PANEL_VIEW_PAGE &&
+                    g_panel_last_view == TORIRS_PANEL_VIEW_PAGE,
                 "the rail entry mounts the PAGE face and the build is told so");
             gen_page = PluginHost_PanelSelectionGeneration(hp);
             CHECK(
@@ -5403,16 +5403,16 @@ main(void)
              */
             CHECK(
                 PluginHost_PanelSelectView(
-                    hp, g_panel_a_index, TORIRS_PLUGIN_PANEL_VIEW_SETTINGS) &&
+                    hp, g_panel_a_index, TORIRS_PANEL_VIEW_SETTINGS) &&
                     PluginHost_PanelActive(hp) == g_panel_a_index,
                 "asking for the other face of the mounted plugin does not collapse it");
             gen_settings = PluginHost_PanelSelectionGeneration(hp);
             CHECK(
                 gen_settings != gen_page &&
-                    PluginHost_PanelView(hp) == TORIRS_PLUGIN_PANEL_VIEW_SETTINGS,
+                    PluginHost_PanelView(hp) == TORIRS_PANEL_VIEW_SETTINGS,
                 "it advances the selection generation and records the new face");
             CHECK(
-                g_panel_last_view == TORIRS_PLUGIN_PANEL_VIEW_SETTINGS &&
+                g_panel_last_view == TORIRS_PANEL_VIEW_SETTINGS &&
                     PluginHost_PanelWidgetCount(hp, gen_settings) == 0,
                 "and a plugin that declares nothing for it mounts an empty model");
             CHECK(
@@ -5423,7 +5423,7 @@ main(void)
              * rail's own stone performs. */
             CHECK(
                 PluginHost_PanelSelectView(
-                    hp, g_panel_a_index, TORIRS_PLUGIN_PANEL_VIEW_SETTINGS) &&
+                    hp, g_panel_a_index, TORIRS_PANEL_VIEW_SETTINGS) &&
                     PluginHost_PanelActive(hp) == -1,
                 "reselecting the mounted face collapses");
             gen_a = PluginHost_PanelSelectionGeneration(hp);
@@ -5433,11 +5433,11 @@ main(void)
         }
         CHECK(
             !PluginHost_PanelLayout(
-                hp, gen_a, 320, 500, 2000, TORIRS_PLUGIN_PANEL_MEDIUM, true, true),
+                hp, gen_a, 320, 500, 2000, TORIRS_PANEL_SIZE_MEDIUM, true, true),
             "a collapsed shell rejects page layout work");
         CHECK(
             !PluginHost_PanelDispatch(
-                hp, gen_a, serial_a, 1, "shared", TORIRS_PLUGIN_UI_ACTIVATE, -1, NULL, 0, 0),
+                hp, gen_a, serial_a, 1, "shared", TORIRS_PANEL_ACTION_ACTIVATE, -1, NULL, 0, 0),
             "a collapsed shell rejects page input");
         CHECK(
             !PluginHost_PanelNeedsDraw(hp, gen_a, serial_a) &&
@@ -5454,14 +5454,14 @@ main(void)
 
         CHECK(
             PluginHost_PanelLayout(
-                hp, gen_a, 320, 500, 2000, TORIRS_PLUGIN_PANEL_MEDIUM, true, true),
+                hp, gen_a, 320, 500, 2000, TORIRS_PANEL_SIZE_MEDIUM, true, true),
             "the shell can publish neutral allocation facts");
         CHECK(
             g_panel_a_layouts == 1 && g_panel_b_layouts == 0,
             "layout reaches only the selected plugin");
         CHECK(
             PluginHost_PanelLayout(
-                hp, gen_a, 320, 500, 2000, TORIRS_PLUGIN_PANEL_MEDIUM, true, true) &&
+                hp, gen_a, 320, 500, 2000, TORIRS_PANEL_SIZE_MEDIUM, true, true) &&
                 g_panel_a_layouts == 1 && g_panel_b_layouts == 0,
             "an unchanged allocation dispatches no duplicate layout event");
         CHECK(
@@ -5470,7 +5470,7 @@ main(void)
             "a nonselected plugin cannot mutate the mounted model");
         CHECK(
             PluginHost_PanelDispatch(
-                hp, gen_a, serial_a, 1, "shared", TORIRS_PLUGIN_UI_TOGGLE, 0, NULL, 0, 0),
+                hp, gen_a, serial_a, 1, "shared", TORIRS_PANEL_ACTION_TOGGLE, 0, NULL, 0, 0),
             "a current generation/serial/sequence intent is accepted");
         CHECK(
             g_panel_a_actions == 1 && g_panel_b_actions == 0 &&
@@ -5481,13 +5481,13 @@ main(void)
             "result state is committed before the action callback");
         CHECK(
             !PluginHost_PanelDispatch(
-                hp, gen_a, serial_a, 1, "shared", TORIRS_PLUGIN_UI_TOGGLE, 1, NULL, 0, 0) &&
+                hp, gen_a, serial_a, 1, "shared", TORIRS_PANEL_ACTION_TOGGLE, 1, NULL, 0, 0) &&
                 g_panel_a_actions == 1,
             "a duplicate momentary intent sequence dispatches once");
 
         widget = PluginHost_PanelWidgetAt(hp, gen_a, 1);
         CHECK(
-            widget && widget->preferred_height == TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT &&
+            widget && widget->preferred_height == TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT &&
                 PluginHost_PanelNeedsDraw(hp, gen_a, widget->serial),
             "a new custom region starts at the portable default height and dirty");
         CHECK(
@@ -5496,17 +5496,17 @@ main(void)
         CHECK(
             g_api->panel_set_height(PluginHost_Ctx(hp, g_panel_a_index), "chart", 1) &&
                 PluginHost_PanelWidgetAt(hp, gen_a, 1)->preferred_height ==
-                    TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MIN,
+                    TORIRS_PANEL_CUSTOM_HEIGHT_MIN,
             "custom preferred height clamps at the portable lower bound");
         CHECK(
             g_api->panel_set_height(PluginHost_Ctx(hp, g_panel_a_index), "chart", 9999) &&
                 PluginHost_PanelWidgetAt(hp, gen_a, 1)->preferred_height ==
-                    TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MAX,
+                    TORIRS_PANEL_CUSTOM_HEIGHT_MAX,
             "custom preferred height clamps at the portable upper bound");
         CHECK(
             g_api->panel_set_height(PluginHost_Ctx(hp, g_panel_a_index), "chart", 0) &&
                 PluginHost_PanelWidgetAt(hp, gen_a, 1)->preferred_height ==
-                    TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT,
+                    TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT,
             "zero restores the custom height default");
         model_before = PluginHost_PanelModelRevision(hp);
         CHECK(
@@ -5554,15 +5554,15 @@ main(void)
             "the same plugin-local id on the replacement page has a new serial");
         CHECK(
             !PluginHost_PanelDispatch(
-                hp, gen_a, serial_a, 2, "shared", TORIRS_PLUGIN_UI_ACTIVATE, -1, NULL, 0, 0),
+                hp, gen_a, serial_a, 2, "shared", TORIRS_PANEL_ACTION_ACTIVATE, -1, NULL, 0, 0),
             "late input from the old selection generation is dropped");
         CHECK(
             PluginHost_PanelLayout(
-                hp, gen_b, 300, 480, 1000, TORIRS_PLUGIN_PANEL_COMPACT, true, false),
+                hp, gen_b, 300, 480, 1000, TORIRS_PANEL_SIZE_COMPACT, true, false),
             "the replacement page receives its own exclusive allocation");
         CHECK(
             PluginHost_PanelDispatch(
-                hp, gen_b, serial_b, 1, "shared", TORIRS_PLUGIN_UI_ACTIVATE, -1, NULL, 0, 0) &&
+                hp, gen_b, serial_b, 1, "shared", TORIRS_PANEL_ACTION_ACTIVATE, -1, NULL, 0, 0) &&
                 g_panel_b_actions == 1,
             "intent sequence restarts within the new selection generation");
 
@@ -5585,7 +5585,7 @@ main(void)
             "redeclaring an id assigns a fresh widget serial");
         CHECK(
             !PluginHost_PanelDispatch(
-                hp, gen_b, serial_b, 2, "shared", TORIRS_PLUGIN_UI_ACTIVATE, -1, NULL, 0, 0),
+                hp, gen_b, serial_b, 2, "shared", TORIRS_PANEL_ACTION_ACTIVATE, -1, NULL, 0, 0),
             "a stale serial cannot address the redeclared id");
         CHECK(
             PluginHost_PanelDispatch(
@@ -5594,7 +5594,7 @@ main(void)
                 serial_b_rebuilt,
                 2,
                 "shared",
-                TORIRS_PLUGIN_UI_ACTIVATE,
+                TORIRS_PANEL_ACTION_ACTIVATE,
                 -1,
                 NULL,
                 0,
@@ -5704,7 +5704,7 @@ main(void)
 
         /* A lane it can run on, first, so the checks below are about the lane
          * and not about the plugin never having worked. */
-        g_lane_game = TORIRS_PLUGIN_GAME_RS2;
+        g_lane_game = TORIRS_GAME_RS2;
         g_standoff_inits = 0;
         g_standoff_starts = 0;
         g_standoff_stops = 0;
@@ -5718,7 +5718,7 @@ main(void)
         PluginHost_Free(hs);
 
         /* The same plugin, the same switch, a lane it stands down on. */
-        g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+        g_lane_game = TORIRS_GAME_OLDSCHOOL;
         g_standoff_inits = 0;
         g_standoff_starts = 0;
         g_standoff_stops = 0;
@@ -5774,7 +5774,7 @@ main(void)
 
         /* A reload is a fresh run decided from a fresh source, so the refusal
          * does not outlive it -- here the source now says a lane it accepts. */
-        g_lane_game = TORIRS_PLUGIN_GAME_RS2;
+        g_lane_game = TORIRS_GAME_RS2;
         PluginHost_Reload(hs, s);
         CHECK(PluginHost_IsEnabled(hs, s), "a reload takes the refusal back off");
         CHECK(g_standoff_starts == 1, "and the plugin runs");
@@ -5787,7 +5787,7 @@ main(void)
         CHECK(PluginHost_IsEnabled(hs, s), "and an ordinary enable switches it back on");
 
         PluginHost_Free(hs);
-        g_lane_game = TORIRS_PLUGIN_GAME_UNKNOWN;
+        g_lane_game = TORIRS_GAME_UNKNOWN;
     }
 
     /* Standing down from inside a handler rather than from init. */
@@ -5938,7 +5938,7 @@ main(void)
         struct ToriRS_UiNodeRef private_ref;
         struct ToriRS_UiNodeRef housing_ref;
         struct ToriRS_EngineFrameSelection selection;
-        struct ToriRS_PluginWinWidget const* widget;
+        struct ToriRS_PanelWidget const* widget;
         uint32_t generation;
         uint32_t presentation_rebuilds;
         int draw_before;
@@ -5969,8 +5969,8 @@ main(void)
         g_v2_frame_draws = 0;
         g_v2_node_actions = 0;
         g_v2_prefix_starts = 0;
-        g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
-        g_lane_game = TORIRS_PLUGIN_GAME_RS2;
+        g_screen_now = TORIRS_SCREEN_GAME;
+        g_lane_game = TORIRS_GAME_RS2;
         g_role_name = NULL;
         g_member_slot = -1;
         g_member_no = -1;
@@ -6104,7 +6104,7 @@ main(void)
             "v2 on_ui_build receives the semantic panel builder");
         CHECK(
             PluginHost_PanelLayout(
-                hv2, generation, 320, 480, 1000, TORIRS_PLUGIN_PANEL_COMPACT, true, true),
+                hv2, generation, 320, 480, 1000, TORIRS_PANEL_SIZE_COMPACT, true, true),
             "v2 panel receives a visible neutral allocation");
         widget = PluginHost_PanelWidgetAt(hv2, generation, 1);
         CHECK(
@@ -6115,7 +6115,7 @@ main(void)
                     widget->serial,
                     1,
                     "enabled",
-                    TORIRS_PLUGIN_UI_TOGGLE,
+                    TORIRS_PANEL_ACTION_TOGGLE,
                     0,
                     NULL,
                     0,
@@ -6147,7 +6147,7 @@ main(void)
                           widget->serial,
                           2,
                           "frame",
-                          TORIRS_PLUGIN_UI_PICK,
+                          TORIRS_PANEL_ACTION_PICK,
                           2,
                           "ready/frame",
                           0,
@@ -6160,7 +6160,7 @@ main(void)
                           widget->serial,
                           2,
                           "frame",
-                          TORIRS_PLUGIN_UI_PICK,
+                          TORIRS_PANEL_ACTION_PICK,
                           1,
                           "missing/frame",
                           0,
@@ -6173,7 +6173,7 @@ main(void)
                           widget->serial,
                           2,
                           "frame",
-                          TORIRS_PLUGIN_UI_PICK,
+                          TORIRS_PANEL_ACTION_PICK,
                           2,
                           "stale/index-value",
                           0,
@@ -6186,7 +6186,7 @@ main(void)
                           widget->serial,
                           2,
                           "frame",
-                          TORIRS_PLUGIN_UI_PICK,
+                          TORIRS_PANEL_ACTION_PICK,
                           2,
                           "ready/frame",
                           0,
@@ -6273,7 +6273,7 @@ main(void)
         int candidate_provider;
 
         memset(&g_engine, 0, sizeof(g_engine));
-        g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+        g_screen_now = TORIRS_SCREEN_GAME;
         g_frame_mobile_starts = 0;
         g_frame_mobile_stops = 0;
         g_frame_mobile_layouts = 0;
@@ -6463,7 +6463,7 @@ main(void)
         memset(&g_engine, 0, sizeof(g_engine));
         memset(&g_v2_aba, 0, sizeof(g_v2_aba));
         g_v2_aba_starts = 0;
-        g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+        g_screen_now = TORIRS_SCREEN_GAME;
         snprintf(
             g_engine.frame_preference,
             sizeof(g_engine.frame_preference),
@@ -6604,7 +6604,7 @@ main(void)
         memset(g_slot_y, 0, sizeof(g_slot_y));
         memset(g_slot_w, 0, sizeof(g_slot_w));
         memset(g_slot_h, 0, sizeof(g_slot_h));
-        g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+        g_screen_now = TORIRS_SCREEN_GAME;
         g_role_name = NULL;
         g_role_visible = 0;
         g_member_slot = -1;

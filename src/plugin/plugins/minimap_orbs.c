@@ -1007,19 +1007,19 @@ orbs_placement(
 
 /* Per-world overrides remain ordinary V2 config schema entries. */
 static struct ToriRS_ConfigItem const ORBS_CONFIG[] = {
-    { "show_hp",        TORIRS_PLUGIN_CFG_BOOL,   "Hitpoints orb",                  "1",    0,    0,      NULL, 0 },
-    { "show_prayer",    TORIRS_PLUGIN_CFG_BOOL,   "Prayer orb",                     "1",    0,    0,      NULL, 0 },
-    { "show_run",       TORIRS_PLUGIN_CFG_BOOL,   "Run energy orb",                 "1",    0,    0,      NULL, 0 },
-    { "show_spec",      TORIRS_PLUGIN_CFG_BOOL,   "Special attack orb",             "1",    0,    0,      NULL, 0 },
-    { "offset_x",       TORIRS_PLUGIN_CFG_INT,    "Offset from minimap left",       "6",    -512, 512,    NULL, 0 },
-    { "offset_y",       TORIRS_PLUGIN_CFG_INT,    "Offset from the anchor",         "-3",   -512, 512,    NULL, 0 },
-    { "run_varp",       TORIRS_PLUGIN_CFG_INT,    "Run mode varp (-1 auto)",        "-1",   -1,   65535,  NULL, 0 },
+    { "show_hp",        TORIRS_CONFIG_BOOL,   "Hitpoints orb",                  "1",    0,    0,      NULL, 0 },
+    { "show_prayer",    TORIRS_CONFIG_BOOL,   "Prayer orb",                     "1",    0,    0,      NULL, 0 },
+    { "show_run",       TORIRS_CONFIG_BOOL,   "Run energy orb",                 "1",    0,    0,      NULL, 0 },
+    { "show_spec",      TORIRS_CONFIG_BOOL,   "Special attack orb",             "1",    0,    0,      NULL, 0 },
+    { "offset_x",       TORIRS_CONFIG_INT,    "Offset from minimap left",       "6",    -512, 512,    NULL, 0 },
+    { "offset_y",       TORIRS_CONFIG_INT,    "Offset from the anchor",         "-3",   -512, 512,    NULL, 0 },
+    { "run_varp",       TORIRS_CONFIG_INT,    "Run mode varp (-1 auto)",        "-1",   -1,   65535,  NULL, 0 },
     { "spec_varp",
-     TORIRS_PLUGIN_CFG_INT,                       "Special attack varp (-1 auto)",
+     TORIRS_CONFIG_INT,                       "Special attack varp (-1 auto)",
      "-1",                                                                                  -1,
      65535,                                                                                               NULL,
      0                                                                                                            },
-    { "spec_max",       TORIRS_PLUGIN_CFG_INT,    "Special attack bar maximum",     "1000", 1,    100000, NULL, 0 },
+    { "spec_max",       TORIRS_CONFIG_INT,    "Special attack bar maximum",     "1000", 1,    100000, NULL, 0 },
     /*
      * The buttons each orb presses, `<interface>:<component>[:<op>]`, empty
      * for none.
@@ -1029,16 +1029,16 @@ static struct ToriRS_ConfigItem const ORBS_CONFIG[] = {
      * IF_BUTTON sent to a server about a component the player never touched.
      * Filling these in is a per-world job, which is what a config key is.
      */
-    { "hp_button",      TORIRS_PLUGIN_CFG_STRING, "Hitpoints orb button",           "",     0,    0,      NULL, 0 },
-    { "prayer_button",  TORIRS_PLUGIN_CFG_STRING, "Prayer orb button",              "",     0,    0,      NULL, 0 },
-    { "run_button",     TORIRS_PLUGIN_CFG_STRING, "Run orb button (turns run on)",  "",     0,    0,      NULL, 0 },
+    { "hp_button",      TORIRS_CONFIG_STRING, "Hitpoints orb button",           "",     0,    0,      NULL, 0 },
+    { "prayer_button",  TORIRS_CONFIG_STRING, "Prayer orb button",              "",     0,    0,      NULL, 0 },
+    { "run_button",     TORIRS_CONFIG_STRING, "Run orb button (turns run on)",  "",     0,    0,      NULL, 0 },
     { "run_button_off",
-     TORIRS_PLUGIN_CFG_STRING,                    "Run orb button (turns run off)",
+     TORIRS_CONFIG_STRING,                    "Run orb button (turns run off)",
      "",                                                                                    0,
      0,                                                                                                   NULL,
      0                                                                                                            },
-    { "spec_button",    TORIRS_PLUGIN_CFG_STRING, "Special attack orb button",      "",     0,    0,      NULL, 0 },
-    { NULL,             TORIRS_PLUGIN_CFG_BOOL,   NULL,                             NULL,   0,    0,      NULL, 0 },
+    { "spec_button",    TORIRS_CONFIG_STRING, "Special attack orb button",      "",     0,    0,      NULL, 0 },
+    { NULL,             TORIRS_CONFIG_BOOL,   NULL,                             NULL,   0,    0,      NULL, 0 },
 };
 
 _Static_assert(

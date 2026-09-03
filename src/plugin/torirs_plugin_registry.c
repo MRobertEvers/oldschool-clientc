@@ -18,7 +18,7 @@
  */
 
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_FEATURE_FLAGS;
+extern struct ToriRS_PluginDefV2 const TORIRS_FEATURE_FLAGS;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_TILEIND;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MINIMAP_ORBS;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_ORBS;
@@ -58,7 +58,7 @@ static struct ToriRS_PluginDefV2 const* const PLUGIN_TABLE[] = {
      * nothing reads a display setting at START at all.
      */
     &TORIRS_PLUGIN_CLIENT_SETTINGS,
-    &TORIRS_PLUGIN_FEATURE_FLAGS,
+    &TORIRS_FEATURE_FLAGS,
     &TORIRS_PLUGIN_TILEIND,
     &TORIRS_PLUGIN_MINIMAP_ORBS,
     &TORIRS_PLUGIN_XP_ORBS,

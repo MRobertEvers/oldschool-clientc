@@ -137,9 +137,6 @@ plugin_v2_runtime_Reinit(
 void
 plugin_v2_runtime_Reset(struct PluginV2Runtime* runtime);
 
-struct ToriRS_ApiV2*
-plugin_v2_runtime_Api(struct PluginV2Runtime* runtime);
-
 /* Internal bridge helpers.  Resolution validates type, token slot, liveness,
  * and incarnation before returning the zero-based engine slot. */
 int

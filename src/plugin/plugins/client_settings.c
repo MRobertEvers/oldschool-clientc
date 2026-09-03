@@ -215,7 +215,7 @@ static void
 cs_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 {
     struct ClientSettingsState* state = state_ptr;
-    struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT };
+    struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PANEL_WIDTH_DEFAULT };
     assert(api);
     assert(state);
     assert(api->client);
@@ -255,7 +255,7 @@ cs_on_ui_build(
     cs_remember(state, &frame);
 
     if( api->client->display_get(
-            api, TORIRS_PLUGIN_DISPLAY_UI_SCALE, &value, &min, &max) )
+            api, TORIRS_DISPLAY_UI_SCALE, &value, &min, &max) )
     {
         int const row = cs_nearest_row(value, min, 25, 13);
         (void)max;
@@ -264,7 +264,7 @@ cs_on_ui_build(
             CS_SCALE_VALUE[row], scale_options, 13);
     }
     if( api->client->display_get(
-            api, TORIRS_PLUGIN_DISPLAY_UI_SCALE_FILTER, &value, &min, &max) )
+            api, TORIRS_DISPLAY_UI_SCALE_FILTER, &value, &min, &max) )
     {
         int const row = cs_nearest_row(value, min, 1, 3);
         (void)max;
@@ -296,7 +296,7 @@ cs_on_ui_action(
     assert(api);
     assert(state);
     assert(event);
-    if( event->action != TORIRS_PLUGIN_UI_PICK || !event->id || !event->text ) return;
+    if( event->action != TORIRS_PANEL_ACTION_PICK || !event->id || !event->text ) return;
     if( strcmp(event->id, CS_ID_FRAME) == 0 )
     {
         struct ToriRS_FrameSelection selection = { .struct_size = sizeof(selection) };
@@ -316,16 +316,16 @@ cs_on_ui_action(
     if( strcmp(event->id, CS_ID_SCALE) == 0 )
     {
         if( api->client->display_get(
-                api, TORIRS_PLUGIN_DISPLAY_UI_SCALE, NULL, &min, NULL) )
+                api, TORIRS_DISPLAY_UI_SCALE, NULL, &min, NULL) )
             (void)api->client->display_set(
-                api, TORIRS_PLUGIN_DISPLAY_UI_SCALE, atoi(event->text));
+                api, TORIRS_DISPLAY_UI_SCALE, atoi(event->text));
         return;
     }
     if( strcmp(event->id, CS_ID_FILTER) == 0 &&
         api->client->display_get(
-            api, TORIRS_PLUGIN_DISPLAY_UI_SCALE_FILTER, NULL, &min, NULL) )
+            api, TORIRS_DISPLAY_UI_SCALE_FILTER, NULL, &min, NULL) )
         (void)api->client->display_set(
-            api, TORIRS_PLUGIN_DISPLAY_UI_SCALE_FILTER, min + atoi(event->text));
+            api, TORIRS_DISPLAY_UI_SCALE_FILTER, min + atoi(event->text));
 }
 
 static void

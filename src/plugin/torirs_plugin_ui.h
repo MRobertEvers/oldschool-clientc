@@ -1,5 +1,5 @@
-#ifndef TORIRS_PLUGIN_UI_H
-#define TORIRS_PLUGIN_UI_H
+#ifndef TORIRS_PANEL_ACTION_H
+#define TORIRS_PANEL_ACTION_H
 
 /*
  * Canonical, retained named-UI declarations.
@@ -334,4 +334,4 @@ ToriRS_UiRegistry_ChangeNext(
     struct ToriRS_UiRegistry* registry,
     struct ToriRS_UiChange* out);
 
-#endif /* TORIRS_PLUGIN_UI_H */
+#endif /* TORIRS_PANEL_ACTION_H */

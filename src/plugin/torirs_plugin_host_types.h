@@ -1,0 +1,35 @@
+#ifndef TORIRS_PLUGIN_HOST_TYPES_H
+#define TORIRS_PLUGIN_HOST_TYPES_H
+
+/*
+ * Engine-facing values used by the plugin host implementation. They are not
+ * part of the public plugin contract; V2 plugins address these through
+ * ToriRS_Surface, named UI, frame builders, and placement areas.
+ */
+
+enum ToriRS_HostSurfaceSlot
+{
+    TORIRS_HOST_SURFACE_VIEWPORT = 0,
+    TORIRS_HOST_SURFACE_MINIMAP,
+    TORIRS_HOST_SURFACE_COMPASS,
+    TORIRS_HOST_SURFACE_CHAT,
+    TORIRS_HOST_SURFACE_SIDEBAR,
+    TORIRS_HOST_SURFACE_MODAL,
+    TORIRS_HOST_SURFACE_CHAT_BUTTONS,
+    TORIRS_HOST_SURFACE_ORBS,
+    TORIRS_HOST_SURFACE_PLACEABLE_COUNT,
+    TORIRS_HOST_SURFACE_CANVAS = TORIRS_HOST_SURFACE_PLACEABLE_COUNT,
+    TORIRS_HOST_SURFACE_COUNT
+};
+
+#define TORIRS_HOST_LANE_CHROME_MAX 8
+
+enum ToriRS_HostModelSource
+{
+    TORIRS_HOST_MODEL_CACHE = 0,
+    TORIRS_HOST_MODEL_ASSET,
+    TORIRS_HOST_MODEL_MESH,
+    TORIRS_HOST_MODEL_SPOTANIM
+};
+
+#endif /* TORIRS_PLUGIN_HOST_TYPES_H */

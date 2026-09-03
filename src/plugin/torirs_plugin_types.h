@@ -18,8 +18,6 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 28
-
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
  * because replacement claims retain the name for their whole lifetime. */
@@ -89,11 +87,11 @@
  * shift and right-click" is the shape half the client's own settings describe
  * -- and a full mirror of the enum would be a second copy of it to keep true.
  */
-#define TORIRS_PLUGIN_KEY_ESCAPE 37
-#define TORIRS_PLUGIN_KEY_SHIFT 42
-#define TORIRS_PLUGIN_KEY_CTRL 43
-#define TORIRS_PLUGIN_KEY_TAB 44
-#define TORIRS_PLUGIN_KEY_SPACE 45
+#define TORIRS_KEY_ESCAPE 37
+#define TORIRS_KEY_SHIFT 42
+#define TORIRS_KEY_CTRL 43
+#define TORIRS_KEY_TAB 44
+#define TORIRS_KEY_SPACE 45
 
 /* Opaque per-plugin instance handle. The host defines it. */
 /**
@@ -107,13 +105,13 @@
 enum ToriRS_Screen
 {
     /** Engine still coming up; no title tree yet. */
-    TORIRS_PLUGIN_SCREEN_BOOT = 0,
+    TORIRS_SCREEN_BOOT = 0,
     /** Title screen: main menu, login form or the info page. */
-    TORIRS_PLUGIN_SCREEN_TITLE = 10,
+    TORIRS_SCREEN_TITLE = 10,
     /** Login handshake in flight; the title tree is still what draws. */
-    TORIRS_PLUGIN_SCREEN_CONNECTING = 20,
+    TORIRS_SCREEN_CONNECTING = 20,
     /** In game: the gameframe is rooted and its parts exist. */
-    TORIRS_PLUGIN_SCREEN_GAME = 30
+    TORIRS_SCREEN_GAME = 30
 };
 
 /* ------------------------------------------------------------------------ */
@@ -275,10 +273,10 @@ struct ToriRS_GroundItemSnapshot
 enum ToriRS_InventoryKind
 {
     /** The backpack: the 28 slots of the inventory tab. */
-    TORIRS_PLUGIN_INV_BACKPACK = 0,
+    TORIRS_INVENTORY_BACKPACK = 0,
     /** Worn equipment, indexed by an objtype's `wearpos`. */
-    TORIRS_PLUGIN_INV_WORN,
-    TORIRS_PLUGIN_INV_BANK
+    TORIRS_INVENTORY_WORN,
+    TORIRS_INVENTORY_BANK
 };
 
 /**
@@ -292,19 +290,19 @@ enum ToriRS_InventoryKind
  */
 enum ToriRS_EquipmentBonus
 {
-    TORIRS_PLUGIN_BONUS_ATTACK_STAB = 0,
-    TORIRS_PLUGIN_BONUS_ATTACK_SLASH,
-    TORIRS_PLUGIN_BONUS_ATTACK_CRUSH,
-    TORIRS_PLUGIN_BONUS_ATTACK_MAGIC,
-    TORIRS_PLUGIN_BONUS_ATTACK_RANGE,
-    TORIRS_PLUGIN_BONUS_DEFENCE_STAB,
-    TORIRS_PLUGIN_BONUS_DEFENCE_SLASH,
-    TORIRS_PLUGIN_BONUS_DEFENCE_CRUSH,
-    TORIRS_PLUGIN_BONUS_DEFENCE_MAGIC,
-    TORIRS_PLUGIN_BONUS_DEFENCE_RANGE,
-    TORIRS_PLUGIN_BONUS_STRENGTH,
-    TORIRS_PLUGIN_BONUS_PRAYER,
-    TORIRS_PLUGIN_BONUS_COUNT
+    TORIRS_EQUIPMENT_BONUS_ATTACK_STAB = 0,
+    TORIRS_EQUIPMENT_BONUS_ATTACK_SLASH,
+    TORIRS_EQUIPMENT_BONUS_ATTACK_CRUSH,
+    TORIRS_EQUIPMENT_BONUS_ATTACK_MAGIC,
+    TORIRS_EQUIPMENT_BONUS_ATTACK_RANGE,
+    TORIRS_EQUIPMENT_BONUS_DEFENCE_STAB,
+    TORIRS_EQUIPMENT_BONUS_DEFENCE_SLASH,
+    TORIRS_EQUIPMENT_BONUS_DEFENCE_CRUSH,
+    TORIRS_EQUIPMENT_BONUS_DEFENCE_MAGIC,
+    TORIRS_EQUIPMENT_BONUS_DEFENCE_RANGE,
+    TORIRS_EQUIPMENT_BONUS_STRENGTH,
+    TORIRS_EQUIPMENT_BONUS_PRAYER,
+    TORIRS_EQUIPMENT_BONUS_COUNT
 };
 
 /**
@@ -355,7 +353,7 @@ struct ToriRS_ItemInfo
      */
     int has_bonuses;
     /** Indexed by enum ToriRS_EquipmentBonus. */
-    int bonus[TORIRS_PLUGIN_BONUS_COUNT];
+    int bonus[TORIRS_EQUIPMENT_BONUS_COUNT];
     /** Ticks between swings (cache param 14), or -1 when unstated. */
     int attack_rate;
     /**
@@ -419,7 +417,7 @@ enum ToriRS_ItemIconStyle
      * its own edge, because stacking an outline pass on a shadow-baked icon
      * doubles the shadow.
      */
-    TORIRS_PLUGIN_OBJ_ICON_PLAIN = 0,
+    TORIRS_ITEM_ICON_PLAIN = 0,
     /**
      * A black border baked into the pixels, and the one to reach for.
      *
@@ -427,22 +425,22 @@ enum ToriRS_ItemIconStyle
      * legibility rather than taste: an unbordered icon on a dark panel loses
      * its silhouette, and a grid of them reads as a smear.
      */
-    TORIRS_PLUGIN_OBJ_ICON_BORDERED,
+    TORIRS_ITEM_ICON_BORDERED,
     /** The white outline the client puts on the item armed for "Use"
      *  (`outlineRgb = 0xFFFFFF`). For marking one entry of a set. */
-    TORIRS_PLUGIN_OBJ_ICON_SELECTED
+    TORIRS_ITEM_ICON_SELECTED
 };
 
 /** What a highlight item is attached to. @see ToriRS_HighlightItem. */
 enum ToriRS_HighlightKind
 {
-    TORIRS_PLUGIN_HL_TILE = 0,
-    TORIRS_PLUGIN_HL_NPC,
-    TORIRS_PLUGIN_HL_LOC,
-    TORIRS_PLUGIN_HL_OBJ,
+    TORIRS_HIGHLIGHT_TILE = 0,
+    TORIRS_HIGHLIGHT_NPC,
+    TORIRS_HIGHLIGHT_LOC,
+    TORIRS_HIGHLIGHT_OBJ,
     /** A player, named by DISPLAY NAME -- `highlight_player_on` is the one
      *  form of the family whose subject is a string. */
-    TORIRS_PLUGIN_HL_PLAYER
+    TORIRS_HIGHLIGHT_PLAYER
 };
 
 /**
@@ -531,7 +529,7 @@ struct ToriRS_WorldLoadedEvent
     int base_tile_z;
 };
 
-/** @see TORIRS_PLUGIN_EV_SCREEN_CHANGE. Both are TORIRS_PLUGIN_SCREEN_*. */
+/** @see TORIRS_PLUGIN_EV_SCREEN_CHANGE. Both are TORIRS_SCREEN_*. */
 struct ToriRS_ScreenChangedEvent
 {
     /** What api->screen answers now. */
@@ -755,11 +753,11 @@ struct ToriRS_SettingEvent
 /** What the pointer is over. @see ToriRS_PluginApi::hover_entity. */
 enum ToriRS_HoverKind
 {
-    TORIRS_PLUGIN_HOVER_NONE = 0,
-    TORIRS_PLUGIN_HOVER_SCENERY,
-    TORIRS_PLUGIN_HOVER_NPC,
-    TORIRS_PLUGIN_HOVER_PLAYER,
-    TORIRS_PLUGIN_HOVER_OBJ
+    TORIRS_HOVER_NONE = 0,
+    TORIRS_HOVER_SCENERY,
+    TORIRS_HOVER_NPC,
+    TORIRS_HOVER_PLAYER,
+    TORIRS_HOVER_OBJ
 };
 
 /**
@@ -797,48 +795,48 @@ struct ToriRS_HoverTarget
  */
 enum ToriRS_PanelWidgetKind
 {
-    TORIRS_PLUGIN_W_LABEL = 0,
-    TORIRS_PLUGIN_W_CHECKBOX,
-    TORIRS_PLUGIN_W_INPUT,
-    TORIRS_PLUGIN_W_DROPDOWN,
-    TORIRS_PLUGIN_W_BUTTON,
-    TORIRS_PLUGIN_W_SEPARATOR,
+    TORIRS_PANEL_WIDGET_LABEL = 0,
+    TORIRS_PANEL_WIDGET_CHECKBOX,
+    TORIRS_PANEL_WIDGET_INPUT,
+    TORIRS_PANEL_WIDGET_DROPDOWN,
+    TORIRS_PANEL_WIDGET_BUTTON,
+    TORIRS_PANEL_WIDGET_SEPARATOR,
 
     /* ABI 21 semantic page controls. The first six deliberately retain their
      * numbers: win_* and panel_* share this vocabulary, so every existing
      * window presenter is also the compatibility presenter for those rows. */
-    TORIRS_PLUGIN_W_SECTION,
-    TORIRS_PLUGIN_W_PARAGRAPH,
-    TORIRS_PLUGIN_W_KEY_VALUE,
-    TORIRS_PLUGIN_W_TOGGLE,
-    TORIRS_PLUGIN_W_TEXTAREA,
-    TORIRS_PLUGIN_W_LIST_ROW,
-    TORIRS_PLUGIN_W_IMAGE,
-    TORIRS_PLUGIN_W_PROGRESS,
-    TORIRS_PLUGIN_W_ERROR,
-    TORIRS_PLUGIN_W_CUSTOM,
+    TORIRS_PANEL_WIDGET_SECTION,
+    TORIRS_PANEL_WIDGET_PARAGRAPH,
+    TORIRS_PANEL_WIDGET_KEY_VALUE,
+    TORIRS_PANEL_WIDGET_TOGGLE,
+    TORIRS_PANEL_WIDGET_TEXTAREA,
+    TORIRS_PANEL_WIDGET_LIST_ROW,
+    TORIRS_PANEL_WIDGET_IMAGE,
+    TORIRS_PANEL_WIDGET_PROGRESS,
+    TORIRS_PANEL_WIDGET_ERROR,
+    TORIRS_PANEL_WIDGET_CUSTOM,
 
-    TORIRS_PLUGIN_W_COUNT
+    TORIRS_PANEL_WIDGET_COUNT
 };
 
 /** What happened to a control. */
 enum ToriRS_PanelActionKind
 {
     /** A button was pressed. */
-    TORIRS_PLUGIN_UI_ACTIVATE = 0,
+    TORIRS_PANEL_ACTION_ACTIVATE = 0,
     /** A checkbox changed: `value` is its new state. */
-    TORIRS_PLUGIN_UI_TOGGLE,
+    TORIRS_PANEL_ACTION_TOGGLE,
     /** A field was edited: `text` is its whole new contents. */
-    TORIRS_PLUGIN_UI_TEXT,
+    TORIRS_PANEL_ACTION_TEXT,
     /** A list choice was made: `value` is the index, `text` the chosen entry. */
-    TORIRS_PLUGIN_UI_PICK,
+    TORIRS_PANEL_ACTION_PICK,
     /** A custom region's pointer capture moved. `value` is implementation
      *  neutral; `x`/`y` in EvPanelAction carry the local position. */
-    TORIRS_PLUGIN_UI_DRAG,
+    TORIRS_PANEL_ACTION_DRAG,
     /** A custom region was scrolled. `value` is the signed logical delta. */
-    TORIRS_PLUGIN_UI_SCROLL,
-    /** A custom region received a key. `value` is a TORIRS_PLUGIN_KEY_* code. */
-    TORIRS_PLUGIN_UI_KEY,
+    TORIRS_PANEL_ACTION_SCROLL,
+    /** A custom region received a key. `value` is a TORIRS_KEY_* code. */
+    TORIRS_PANEL_ACTION_KEY,
 };
 
 struct ToriRS_LegacyPanelEvent
@@ -860,13 +858,13 @@ struct ToriRS_LegacyPanelEvent
 /* ------------------------------------------------------------------------ */
 
 /** The default and bounded width hints used by every shell presenter. */
-#define TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT 320
-#define TORIRS_PLUGIN_PANEL_WIDTH_MIN 280
-#define TORIRS_PLUGIN_PANEL_WIDTH_MAX 480
+#define TORIRS_PANEL_WIDTH_DEFAULT 320
+#define TORIRS_PANEL_WIDTH_MIN 280
+#define TORIRS_PANEL_WIDTH_MAX 480
 /** Bounded logical height of one custom drawing well. */
-#define TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT 120
-#define TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MIN 48
-#define TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MAX 512
+#define TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT 120
+#define TORIRS_PANEL_CUSTOM_HEIGHT_MIN 48
+#define TORIRS_PANEL_CUSTOM_HEIGHT_MAX 512
 
 /** Inert rail metadata copied by panel_request during EV_START. */
 struct ToriRS_PanelDescriptor
@@ -887,16 +885,16 @@ struct ToriRS_PanelDescriptor
      * malformed, over-budget, or larger-than-64x64 art uses the baked wrench.
      * NULL or empty asks for that fallback directly. */
     char const* icon_asset;
-    /** Logical units; 0 asks for TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT. */
+    /** Logical units; 0 asks for TORIRS_PANEL_WIDTH_DEFAULT. */
     int preferred_width;
 };
 
 /** Neutral allocation class. It describes space, never the platform. */
 enum ToriRS_PanelSizeClass
 {
-    TORIRS_PLUGIN_PANEL_COMPACT = 0,
-    TORIRS_PLUGIN_PANEL_MEDIUM,
-    TORIRS_PLUGIN_PANEL_EXPANDED,
+    TORIRS_PANEL_SIZE_COMPACT = 0,
+    TORIRS_PANEL_SIZE_MEDIUM,
+    TORIRS_PANEL_SIZE_EXPANDED,
 };
 
 /**
@@ -922,9 +920,9 @@ enum ToriRS_PanelSizeClass
 enum ToriRS_PanelView
 {
     /** The plugin's ACTIVE screen. Opened from its own rail entry. */
-    TORIRS_PLUGIN_PANEL_VIEW_PAGE = 0,
+    TORIRS_PANEL_VIEW_PAGE = 0,
     /** Its SETTINGS. Opened from the Manage Plugins roster. */
-    TORIRS_PLUGIN_PANEL_VIEW_SETTINGS
+    TORIRS_PANEL_VIEW_SETTINGS
 };
 
 /** The page model was cleared for this exact selection and must be declared. */
@@ -1018,15 +1016,15 @@ struct ToriRS_AssetEvent
 
 enum ToriRS_ConfigType
 {
-    TORIRS_PLUGIN_CFG_BOOL = 0,
+    TORIRS_CONFIG_BOOL = 0,
     /** Uses min/max. */
-    TORIRS_PLUGIN_CFG_INT,
+    TORIRS_CONFIG_INT,
     /** Written as "#RRGGBB" by the panel, read back as 0xRRGGBB. */
-    TORIRS_PLUGIN_CFG_COLOR,
+    TORIRS_CONFIG_COLOR,
     /** Also the carrier for lists, as comma-separated text. */
-    TORIRS_PLUGIN_CFG_STRING,
+    TORIRS_CONFIG_STRING,
     /** `choices` is a '|'-separated set, rendered as a dropdown. */
-    TORIRS_PLUGIN_CFG_ENUM,
+    TORIRS_CONFIG_ENUM,
     /**
      * A STRING the panel gives a multiline box instead of a one-line field.
      *
@@ -1040,7 +1038,7 @@ enum ToriRS_ConfigType
      *
      * `rows` is optional and defaults to the chrome's own.
      */
-    TORIRS_PLUGIN_CFG_TEXT
+    TORIRS_CONFIG_TEXT
 };
 
 struct ToriRS_ConfigItem
@@ -1062,7 +1060,7 @@ struct ToriRS_ConfigItem
      * CFG_TEXT only: visible lines of the box, 0 for the chrome's default.
      *
      * LAST, and that is not taste: every builtin plugin's schema is a table of
-     * POSITIONAL initialisers (`{ "show_dest", TORIRS_PLUGIN_CFG_BOOL, "Show
+     * POSITIONAL initialisers (`{ "show_dest", TORIRS_CONFIG_BOOL, "Show
      * destination", "1", 0, 0, NULL }`), so a field inserted anywhere above
      * `choices` silently shifts what each of those braces means.
      */
@@ -1100,11 +1098,11 @@ enum ToriRS_DisplaySetting
      * and text at a readable size on a high-density display, a scene rendered
      * at fewer pixels. 100 is untouched.
      */
-    TORIRS_PLUGIN_DISPLAY_UI_SCALE = 0,
+    TORIRS_DISPLAY_UI_SCALE = 0,
     /** How that stretch is filtered: 0 nearest, 1 linear, 2 bicubic. */
-    TORIRS_PLUGIN_DISPLAY_UI_SCALE_FILTER,
+    TORIRS_DISPLAY_UI_SCALE_FILTER,
 
-    TORIRS_PLUGIN_DISPLAY_SETTING_COUNT
+    TORIRS_DISPLAY_SETTING_COUNT
 };
 
 /* ------------------------------------------------------------------------ */
@@ -1123,22 +1121,22 @@ enum ToriRS_DisplaySetting
 enum ToriRS_GameVariant
 {
     /** Nothing has stated one yet. @see ToriRS_PluginApi::lane. */
-    TORIRS_PLUGIN_GAME_UNKNOWN = 0,
-    TORIRS_PLUGIN_GAME_OLDSCHOOL = 1,
+    TORIRS_GAME_UNKNOWN = 0,
+    TORIRS_GAME_OLDSCHOOL = 1,
     /** The classic client's lineage: the 2004 dat1 worlds AND the later dat2
      *  RS2 revisions, which are that same client with a different container. */
-    TORIRS_PLUGIN_GAME_RS2 = 2
+    TORIRS_GAME_RS2 = 2
 };
 
 /** Which on-disk container family the cache is stored in. Not a proxy for the
  *  lineage: OldSchool and the later RS2 revisions are both dat2. */
 enum ToriRS_CacheEpoch
 {
-    TORIRS_PLUGIN_EPOCH_UNKNOWN = 0,
+    TORIRS_CACHE_EPOCH_UNKNOWN = 0,
     /** Jagfile era: main_file_cache.dat + .idx1..5. */
-    TORIRS_PLUGIN_EPOCH_DAT1 = 1,
+    TORIRS_CACHE_EPOCH_DAT1 = 1,
     /** JS5: main_file_cache.dat2 + .idx0..N. */
-    TORIRS_PLUGIN_EPOCH_DAT2 = 2
+    TORIRS_CACHE_EPOCH_DAT2 = 2
 };
 
 /**
@@ -1172,15 +1170,15 @@ struct ToriRS_LaneInfo
  * behaviour" are the same number and a sentinel of 0 would make every default
  * indistinguishable from the classic choice.
  */
-#define TORIRS_PLUGIN_FEATURE_UNSET (-1)
+#define TORIRS_FEATURE_UNSET (-1)
 
 /** Bytes of a feature key / label, terminator included. */
-#define TORIRS_PLUGIN_FEATURE_KEY_MAX 32
-#define TORIRS_PLUGIN_FEATURE_LABEL_MAX 64
+#define TORIRS_FEATURE_KEY_MAX 32
+#define TORIRS_FEATURE_LABEL_MAX 64
 /** Bytes of a feature's '|'-separated choice list, terminator included. */
-#define TORIRS_PLUGIN_FEATURE_CHOICES_MAX 224
+#define TORIRS_FEATURE_CHOICES_MAX 224
 /** Choices one flag may offer. */
-#define TORIRS_PLUGIN_FEATURE_VALUES_MAX 12
+#define TORIRS_FEATURE_VALUES_MAX 12
 
 /**
  * How a published flag is WRITTEN DOWN. Both kinds are CHOSEN the same way --
@@ -1203,7 +1201,7 @@ enum ToriRS_FeatureKind
      * value outside the list is legal, and a settings file that carries one
      * keeps it. So this is stored as the NUMBER.
      */
-    TORIRS_PLUGIN_FEATURE_INT = 0,
+    TORIRS_FEATURE_INT = 0,
     /**
      * One of `choices` and nothing else, where choice i has value `values[i]`.
      *
@@ -1212,13 +1210,13 @@ enum ToriRS_FeatureKind
      * index would make the panel write 1 for a bit that is 32. Stored as the
      * CHOICE TEXT, so a settings file survives the list gaining an entry.
      */
-    TORIRS_PLUGIN_FEATURE_ENUM
+    TORIRS_FEATURE_ENUM
 };
 
 /** One published flag, as feature_next reports it. */
 struct ToriRS_FeatureInfo
 {
-    char key[TORIRS_PLUGIN_FEATURE_KEY_MAX];
+    char key[TORIRS_FEATURE_KEY_MAX];
     /**
      * What a PERSON is shown. Never empty.
      *
@@ -1226,7 +1224,7 @@ struct ToriRS_FeatureInfo
      * narrow. What the flag is about belongs in `section`; what its values mean
      * belongs in the choice names.
      */
-    char label[TORIRS_PLUGIN_FEATURE_LABEL_MAX];
+    char label[TORIRS_FEATURE_LABEL_MAX];
     /**
      * Heading this flag sits under, or "" for one that sits under none.
      *
@@ -1235,7 +1233,7 @@ struct ToriRS_FeatureInfo
      * headings, which is a fact about the engine's list and not something to
      * paper over.
      */
-    char section[TORIRS_PLUGIN_FEATURE_KEY_MAX];
+    char section[TORIRS_FEATURE_KEY_MAX];
     /** enum ToriRS_FeatureKind. */
     int kind;
     /** FEATURE_INT: the real range, wider than the named choices. */
@@ -1243,9 +1241,9 @@ struct ToriRS_FeatureInfo
     int max;
     /** "a|b|c", WITHOUT a "revision default" entry -- that is the sentinel's
      *  job and every flag has it, so no flag states it. */
-    char choices[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
+    char choices[TORIRS_FEATURE_CHOICES_MAX];
     /** The value each choice stands for. */
-    int values[TORIRS_PLUGIN_FEATURE_VALUES_MAX];
+    int values[TORIRS_FEATURE_VALUES_MAX];
     int value_count;
     /** The value the flag holds right now. */
     int value;
@@ -1310,9 +1308,9 @@ enum ToriRS_EngineModelSource
 enum ToriRS_HullShape
 {
     /** The bounds cylinder as an eight-corner box. Fixed cost. */
-    TORIRS_PLUGIN_HULL_BOUNDS = 0,
+    TORIRS_HULL_BOUNDS = 0,
     /** The model's own posed geometry: tight, and linear in the mesh. */
-    TORIRS_PLUGIN_HULL_MESH = 1
+    TORIRS_HULL_MESH = 1
 };
 
 /* ------------------------------------------------------------------------ */
@@ -1761,21 +1759,21 @@ struct ToriRS_LegacyChromePart
 
 enum ToriRS_EntityKind
 {
-    TORIRS_PLUGIN_ENTITY_NPC = 1,
-    TORIRS_PLUGIN_ENTITY_PLAYER,
-    TORIRS_PLUGIN_ENTITY_LOC,
-    TORIRS_PLUGIN_ENTITY_OBJ
+    TORIRS_ENTITY_NPC = 1,
+    TORIRS_ENTITY_PLAYER,
+    TORIRS_ENTITY_LOC,
+    TORIRS_ENTITY_OBJ
 };
 
 /** What a HITBOX holder does to the game's own rows. @see entity_ops. */
 enum ToriRS_EntityOpsMode
 {
     /** The game's rows stay; the plugin's are added. */
-    TORIRS_PLUGIN_ENTITY_OPS_APPEND = 0,
+    TORIRS_ENTITY_OPS_APPEND = 0,
     /** The game's rows for this thing go; the plugin's stand alone. */
-    TORIRS_PLUGIN_ENTITY_OPS_REPLACE,
+    TORIRS_ENTITY_OPS_REPLACE,
     /** The game's rows go and nothing replaces them: not clickable. */
-    TORIRS_PLUGIN_ENTITY_OPS_NONE
+    TORIRS_ENTITY_OPS_NONE
 };
 
 /** An APPEARANCE holder's standing declaration for an entity. */
