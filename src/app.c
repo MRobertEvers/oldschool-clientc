@@ -2698,23 +2698,23 @@ app_overlay_push(
      */
     if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_CANVAS )
     {
-        if( app->plugin_role_anchor_active )
+        if( app->plugin_ui_boundary_active )
         {
             struct AppPluginRoleOverlayRaw* anchored;
             int cap = (int)(sizeof(app->plugin_role_overlay_raw) /
                             sizeof(app->plugin_role_overlay_raw[0]));
             /* An explicit anchor that missed is a drop, never an implicit
              * promotion to the global canvas overlay. */
-            if( !app->plugin_role_anchor_valid ||
+            if( !app->plugin_ui_boundary_valid ||
                 app->plugin_role_overlay_raw_count >= cap )
                 return;
             anchored = &app->plugin_role_overlay_raw[
                 app->plugin_role_overlay_raw_count++];
             anchored->item = *item;
-            anchored->node_index = app->plugin_role_anchor_node;
-            anchored->node_incarnation = app->plugin_role_anchor_incarnation;
-            anchored->replace = app->plugin_role_anchor_replace;
-            anchored->place = app->plugin_role_anchor_place;
+            anchored->node_index = app->plugin_ui_boundary_node;
+            anchored->node_incarnation = app->plugin_ui_boundary_incarnation;
+            anchored->replace = app->plugin_ui_boundary_replace;
+            anchored->place = app->plugin_ui_boundary_place;
             return;
         }
         int cap = (int)(sizeof(app->canvas_overlays) / sizeof(app->canvas_overlays[0]));
@@ -2794,7 +2794,7 @@ app_role_overlays_group(struct App* app)
     int write = 0;
 
     assert(app);
-    /* Every raw item should already have a seed from role_anchor. Keep this
+    /* Every raw item should already have a seed from ui_boundary. Keep this
      * defensive pass so a future engine draw path cannot orphan one. */
     for( int i = 0; i < app->plugin_role_overlay_raw_count; i++ )
     {
@@ -4042,11 +4042,11 @@ app_plugin_pointer_capture_matches(
     assert(region);
     return capture->plugin == region->plugin && capture->tag == region->tag &&
            capture->surface == region->surface &&
-           capture->role_anchored == region->role_anchored &&
-           capture->role_replace == region->role_replace &&
-           (!capture->role_anchored ||
-            (capture->role_node == region->role_node &&
-             capture->role_incarnation == region->role_incarnation));
+           capture->ui_bounded == region->ui_bounded &&
+           capture->ui_boundary_replace == region->ui_boundary_replace &&
+           (!capture->ui_bounded ||
+            (capture->ui_boundary_node == region->ui_boundary_node &&
+             capture->ui_boundary_incarnation == region->ui_boundary_incarnation));
 }
 
 /* Latch after top chrome has first refusal but before world/editor raw-input
@@ -4078,11 +4078,11 @@ app_plugin_pointer_capture_latch(
             capture->plugin = region->plugin;
             capture->tag = region->tag;
             capture->surface = region->surface;
-            capture->role_anchored = region->role_anchored;
-            capture->role_replace = region->role_replace;
-            capture->role_place = region->role_place;
-            capture->role_node = region->role_node;
-            capture->role_incarnation = region->role_incarnation;
+            capture->ui_bounded = region->ui_bounded;
+            capture->ui_boundary_replace = region->ui_boundary_replace;
+            capture->ui_boundary_place = region->ui_boundary_place;
+            capture->ui_boundary_node = region->ui_boundary_node;
+            capture->ui_boundary_incarnation = region->ui_boundary_incarnation;
         }
     }
     if( capture->active )
@@ -5513,9 +5513,9 @@ app_build_canvas_overlays(
     app->canvas_overlay_count = 0;
     app->plugin_role_overlay_raw_count = 0;
     app->plugin_role_overlay_group_count = 0;
-    app->plugin_role_anchor_seen = 0;
-    app->plugin_role_anchor_active = 0;
-    app->plugin_role_anchor_valid = 0;
+    app->plugin_ui_boundary_seen = 0;
+    app->plugin_ui_boundary_active = 0;
+    app->plugin_ui_boundary_valid = 0;
     /* Regions are reset by UITREE_HOST_BEGIN_OVERLAYS before either surface is
      * requested, including trees with no world/FRAME pass. */
     *out_items = app->canvas_overlays;
@@ -6399,7 +6399,7 @@ app_host_request(
                 app->plugin_role_overlay_groups;
         if( req->u.get_role_overlay_groups.out_anchor_seen )
             *req->u.get_role_overlay_groups.out_anchor_seen =
-                app->plugin_role_anchor_seen;
+                app->plugin_ui_boundary_seen;
         return app->plugin_role_overlay_group_count;
     }
     case UITREE_HOST_SET_ROLE_OVERLAY_CLIP:
@@ -6409,12 +6409,12 @@ app_host_request(
         for( int i = 0; i < app->plugin_region_count; i++ )
         {
             struct AppPluginRegion* region = &app->plugin_regions[i];
-            if( !region->role_anchored ||
-                region->role_node != req->u.set_role_overlay_clip.node_index ||
-                region->role_incarnation !=
+            if( !region->ui_bounded ||
+                region->ui_boundary_node != req->u.set_role_overlay_clip.node_index ||
+                region->ui_boundary_incarnation !=
                     req->u.set_role_overlay_clip.node_incarnation ||
-                !!region->role_replace != !!req->u.set_role_overlay_clip.replace ||
-                region->role_place != req->u.set_role_overlay_clip.place )
+                !!region->ui_boundary_replace != !!req->u.set_role_overlay_clip.replace ||
+                region->ui_boundary_place != req->u.set_role_overlay_clip.place )
                 continue;
             region->role_clip_x = req->u.set_role_overlay_clip.clip_x;
             region->role_clip_y = req->u.set_role_overlay_clip.clip_y;
@@ -7102,10 +7102,6 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_OVERLAYS],
         &app->plugin_ui.build_serial,
         sizeof(app->plugin_ui.build_serial));
-    signature[UITREE_HOST_INPUT_OVERLAYS] = app_ui_input_hash_int(
-        signature[UITREE_HOST_INPUT_OVERLAYS],
-        app->plugins ? PluginHost_WinRevision(app->plugins) : 0);
-
     for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
         (void)UITree_HostPublishInputSignature(
             &app->ui_host, (enum UITreeHostInputDomain)domain, signature[domain]);
@@ -10255,7 +10251,6 @@ App_Init(
             app->plugin_panel_built_for = 0;
             app->plugins = PluginHost_New(&engine);
             app->plugin_prefs_path = PluginPrefs_Path();
-            PluginLua_Bind(app->plugins);
             PluginRegistry_RegisterAll(app->plugins);
         }
     }
@@ -28677,8 +28672,8 @@ app_minimenu_plugin_option_live(
     region = &app->plugin_regions[at];
     if( op < 0 || op >= region->op_count || region->plugin != opt->pick.id ||
         region->tag != (uint32_t)opt->pick.secondary_id ||
-        (region->role_anchored ? region->role_node : -1) != opt->pick.tertiary_id ||
-        (region->role_anchored ? region->role_incarnation : 0) !=
+        (region->ui_bounded ? region->ui_boundary_node : -1) != opt->pick.tertiary_id ||
+        (region->ui_bounded ? region->ui_boundary_incarnation : 0) !=
             (uint32_t)opt->pick.quaternary_id )
         return 0;
     return app_plugin_role_region_live(app, region);
@@ -30303,7 +30298,7 @@ App_PluginLayoutTick(struct App* app)
      * Resolve them at the same pre-interaction publication fence so a role
      * rebuilt into a recycled component-array slot cannot leak one native
      * frame or inherit another target's suppression. */
-    PluginHost_ReconcileRoleReplacements(app->plugins);
+    PluginHost_ReconcileUi(app->plugins);
     /*
      * Name the cache gameframe's regions before anyone asks for them: the
      * dressers' slot queries in the chrome tick, the owner's declaration, and
@@ -30337,29 +30332,6 @@ App_PluginLayoutTick(struct App* app)
         frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
         if( frame_candidate )
             goto candidate_layout;
-        /*
-         * The CHROME tier still runs, and it has to: it is not the frame.
-         *
-         * A dresser claims a NAMED part -- the report button, an orb -- and
-         * the chrome tick is what asks it for that part's picture and its
-         * verbs. None of that is about who arranges the frame, and most of
-         * the lanes it matters on have no arranger at all: on a stock 2004
-         * gameframe the minimap orbs are introduced parts, and returning here
-         * meant EV_CHROME was never dispatched to anything. The parts kept
-         * the placeholder art chrome_add was given, so the host painted no
-         * plate; and chrome_ops was never reached, so the orbs carried no hit
-         * region -- no mouseover verb, no menu row, no click. The fills, the
-         * icons and the numbers still drew, because those are the plugin's
-         * own per-frame drawing, which is why this read as "the orbs are
-         * there but dead" rather than as a missing feature.
-         *
-         * The readiness gate mirrors the owned path's below: not waiting for
-         * an OWNER is not the same as not waiting for a TREE, and nothing is
-         * declared against one that is still baking.
-         */
-        if( app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0 )
-            PluginHost_ChromeTick(
-                app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         /* app_plugin_layout_set already restored the lane's default on the
          * ownership transition. Do not restate it on every ownerless tick:
          * ordinary CS2/user window-mode changes own this state again now. */
@@ -30483,17 +30455,6 @@ candidate_layout:
          * that invalidation before interaction consumes the resolved boxes. */
         UITree_EnsureLayout(app->tree);
     }
-    /*
-     * The chrome tier, after the layout and never before it.
-     *
-     * That order IS the guarantee between the two: a plugin dressing the
-     * report button reads the box the gameframe plugin put it in on this pass,
-     * not the one it had last pass. Run every frame rather than only inside
-     * the branch above, because a claimant also has to be re-asked when a
-     * borrowed image lands off the IO queue -- which happens with no layout in
-     * flight at all.
-     */
-    PluginHost_ChromeTick(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     /* UITree_EmitWalk keeps a final generation fence as well. It no longer
      * rewrites CS2 geometry: it only rebinds the standing semantic declaration
      * if topology somehow changed after this settled pass. */
@@ -30668,12 +30629,12 @@ App_DrainCommands(
                     /* The band the layout hands to every row whose profile
                      * declared `safe_area=os:bottom` -- the login box on the
                      * profiles that state it, and nothing at all on the ones
-                     * that do not. The same number api->safe_os answers from,
+                     * that do not. The same number api->platform_safe_rect answers from,
                      * so a plugin's chrome and a profile's panel cannot
                      * disagree about where the keyboard starts. */
                     UITree_LayoutSetSafeBottomInset(app->keyboard_inset);
                     /* A layout event, exactly like a resize: the mobile frame
-                     * reads the new safe_os box in EV_LAYOUT and slides its
+                     * reads the new platform_safe_rect box in EV_LAYOUT and slides its
                      * chatbox above (or back under) the keyboard. */
                     app->plugin_layout_dirty = 1;
                     if( app->tree )

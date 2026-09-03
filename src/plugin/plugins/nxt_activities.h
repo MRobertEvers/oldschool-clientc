@@ -1,11 +1,6 @@
 #ifndef TORIRS_PLUGIN_NXT_ACTIVITIES_H
 #define TORIRS_PLUGIN_NXT_ACTIVITIES_H
 
-#include "plugin/torirs_plugin_types.h"
-
-#include <assert.h>
-#include <stdint.h>
-
 /*
  * The Activities category of the cache's All Settings panel, as NAMES.
  *
@@ -16,7 +11,8 @@
  * per plugin.
  *
  * What each name resolves to is the boot profile's -- `[varbit:npc_highlight]`
- * and friends in revconfig/osrs239 -- reached through api->cache_id. The
+ * and friends in revconfig/osrs239 -- reached through `api->cache.named_id`.
+ * The
  * derivation below is how those ids were obtained and how to re-derive them for
  * another revision; it is not a promise that the numbers are the same there.
  *
@@ -38,8 +34,8 @@
  * See NXT_CLIENT_PLUGINS.md for the whole table and what each row has to do.
  *
  * A COLOUR row's varp holds `colour + 1` so that zero can mean "never chosen";
- * read one with api->setting_color, which does that arithmetic and takes the
- * row's own default as its fallback. The NXT_COL_* values below ARE those
+ * read one with `api->client->setting_color`, which does that arithmetic and
+ * takes the row's own default as its fallback. The NXT_COL_* values below ARE those
  * defaults (`param_1230`), so a colour never read as unset differs from the
  * panel's swatch.
  *
@@ -53,11 +49,9 @@
  * and 8319 lights the poll booths when `%varbit9538 = 0`.
  *
  * 30 of the 54 desktop toggles in this category are inverted and 24 are not,
- * with no pattern to them, so every one below says which it is and is read
- * through NXT_ON() or NXT_ON_INVERTED() rather than as a bare truth value.
- * Reading an inverted row the plain way is a feature that is on exactly when
- * the user asked for it to be off, which looks like it works until someone
- * switches it off.
+ * with no pattern to them, so every one below says which it is. Callers must
+ * apply that inversion after resolving the named varbit rather than treating
+ * every nonzero value as enabled.
  */
 
 /*
@@ -74,54 +68,6 @@
  * both spellings below come out false, and a builtin whose switch does not
  * exist here stays switched off.
  */
-static inline int
-nxt_varbit(
-    struct ToriRS_PluginApi const* api,
-    struct ToriRS_PluginCtx* ctx,
-    char const* name,
-    int absent)
-{
-    int id;
-    assert(api);
-    assert(name);
-    id = api->cache_id(ctx, "varbit", name);
-    return id < 0 ? absent : api->varbit(ctx, id);
-}
-
-static inline int
-nxt_varp(
-    struct ToriRS_PluginApi const* api,
-    struct ToriRS_PluginCtx* ctx,
-    char const* name,
-    int absent)
-{
-    int id;
-    assert(api);
-    assert(name);
-    id = api->cache_id(ctx, "varp", name);
-    return id < 0 ? absent : api->varp(ctx, id);
-}
-
-/** A colour row, as 0xRRGGBB; `fallback` covers unset AND absent alike. */
-static inline uint32_t
-nxt_setting_color(
-    struct ToriRS_PluginApi const* api,
-    struct ToriRS_PluginCtx* ctx,
-    char const* name,
-    uint32_t fallback)
-{
-    int id;
-    assert(api);
-    assert(name);
-    id = api->cache_id(ctx, "varp", name);
-    return id < 0 ? fallback : api->setting_color(ctx, id, fallback);
-}
-
-/** A PLAIN row: the varbit is the feature. */
-#define NXT_ON(api, ctx, name) (nxt_varbit((api), (ctx), (name), 0) != 0)
-/** An INVERTED row (`param_1084 = 1`): the varbit is the feature's ABSENCE. */
-#define NXT_ON_INVERTED(api, ctx, name) (nxt_varbit((api), (ctx), (name), 1) == 0)
-
 /* ---- General ----------------------------------------------------------- */
 
 /** "Tile highlighting": shift + right-click the ground to place a marker.
@@ -132,8 +78,7 @@ nxt_setting_color(
 /** "Tile highlight colour". Default #00FF00. */
 #define NXT_VARP_TILE_MARKER_COLOR "tile_marker_color"
 #define NXT_COL_TILE_MARKER 0x00FF00u
-/** "Clear your highlighted tiles" -- a BUTTON row, so it has no var at all.
- *  Seen through EV_SETTING; see ToriRS_SettingEvent. */
+/** "Clear your highlighted tiles" -- a BUTTON row, so it has no var at all. */
 #define NXT_SETTING_CLEAR_TILE_MARKERS "clear_tile_markers"
 
 /** "Highlight entities on mouse-over". PLAIN. No cache script drives it. */

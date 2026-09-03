@@ -3243,22 +3243,22 @@ app_plugin_role_region_live(
 
     assert(app);
     assert(region);
-    if( !region->role_anchored )
+    if( !region->ui_bounded )
         return 1;
-    if( !app->tree || region->role_node < 0 ||
-        (uint32_t)region->role_node >= app->tree->component_count )
+    if( !app->tree || region->ui_boundary_node < 0 ||
+        (uint32_t)region->ui_boundary_node >= app->tree->component_count )
         return 0;
-    target = &app->tree->components[region->role_node];
-    if( target->freed || target->incarnation != region->role_incarnation )
+    target = &app->tree->components[region->ui_boundary_node];
+    if( target->freed || target->incarnation != region->ui_boundary_incarnation )
         return 0;
     if( region->role_clip_w <= 0 || region->role_clip_h <= 0 )
         return 0;
-    if( !region->role_replace )
-        return !UITree_NodeOrAncestorDisplayHidden(app->tree, region->role_node);
+    if( !region->ui_boundary_replace )
+        return !UITree_NodeOrAncestorDisplayHidden(app->tree, region->ui_boundary_node);
     if( !target->replacement_hidden )
         return 0;
     return !UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
-        app->tree, region->role_node);
+        app->tree, region->ui_boundary_node);
 }
 
 static int
@@ -3270,17 +3270,17 @@ app_plugin_role_region_occluded(
 {
     assert(app);
     assert(region);
-    if( !region->role_anchored || !app->tree )
+    if( !region->ui_bounded || !app->tree )
         return 0;
     return UITree_PointInputCoverPaintsAfterRolePlacement(
         app->tree,
         &app->ui_host,
         x,
         y,
-        region->role_node,
-        region->role_incarnation,
-        region->role_replace != 0,
-        region->role_place);
+        region->ui_boundary_node,
+        region->ui_boundary_incarnation,
+        region->ui_boundary_replace != 0,
+        region->ui_boundary_place);
 }
 
 static int
@@ -3302,7 +3302,7 @@ app_plugin_region_at(struct App const* app, int x, int y)
             struct AppPluginRegion const* region = &app->plugin_regions[i];
             int const region_group =
                 region->surface == APP_PLUGIN_SURFACE_CANVAS
-                    ? (region->role_anchored ? 1 : 0)
+                    ? (region->ui_bounded ? 1 : 0)
                     : (region->surface == APP_PLUGIN_SURFACE_FRAME ? 2 : -1);
             if( region_group != z_group )
                 continue;
@@ -3312,7 +3312,7 @@ app_plugin_region_at(struct App const* app, int x, int y)
                 continue;
             if( y < region->y || y >= region->y + region->h )
                 continue;
-            if( region->role_anchored &&
+            if( region->ui_bounded &&
                 (x < region->role_clip_x ||
                  x >= region->role_clip_x + region->role_clip_w ||
                  y < region->role_clip_y ||
@@ -3344,7 +3344,7 @@ app_plugin_region_at(struct App const* app, int x, int y)
                 best = i;
                 continue;
             }
-            if( region->role_anchored )
+            if( region->ui_bounded )
             {
                 struct AppPluginRegion const* prior = &app->plugin_regions[best];
                 /* Canvas callbacks declare in subscriber order, then semantic
@@ -3386,7 +3386,7 @@ app_plugin_hit_region(
 
     assert(app);
 
-    if( app->plugin_role_anchor_active && !app->plugin_role_anchor_valid )
+    if( app->plugin_ui_boundary_active && !app->plugin_ui_boundary_valid )
         return 0;
     if( app->plugin_region_count >= cap )
         return 0;
@@ -3400,13 +3400,13 @@ app_plugin_hit_region(
     region->h = h;
     region->tag = tag;
     region->surface = (uint8_t)app->plugin_draw_canvas;
-    if( app->plugin_role_anchor_active )
+    if( app->plugin_ui_boundary_active )
     {
-        region->role_anchored = 1;
-        region->role_replace = app->plugin_role_anchor_replace;
-        region->role_place = app->plugin_role_anchor_place;
-        region->role_node = app->plugin_role_anchor_node;
-        region->role_incarnation = app->plugin_role_anchor_incarnation;
+        region->ui_bounded = 1;
+        region->ui_boundary_replace = app->plugin_ui_boundary_replace;
+        region->ui_boundary_place = app->plugin_ui_boundary_place;
+        region->ui_boundary_node = app->plugin_ui_boundary_node;
+        region->ui_boundary_incarnation = app->plugin_ui_boundary_incarnation;
         /* Zero until emit reaches this exact subtree and publishes the same
          * parent clip as the role-local paint descriptor. */
         region->role_clip_w = 0;
@@ -3597,7 +3597,7 @@ app_plugin_chat_focus(void* user, int on)
 }
 
 static int
-app_plugin_safe_os(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
+app_plugin_platform_safe_rect(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
 {
     struct App* app = (struct App*)user;
 
@@ -3629,7 +3629,7 @@ app_plugin_platform_safe_next(
 {
     if( iter >= 0 )
         return -1;
-    return app_plugin_safe_os(user, out_x, out_y, out_w, out_h) ? 0 : -1;
+    return app_plugin_platform_safe_rect(user, out_x, out_y, out_w, out_h) ? 0 : -1;
 }
 
 static int
@@ -3957,7 +3957,7 @@ app_plugin_role_slot(char const* role)
 }
 
 static int32_t
-app_plugin_role_node(struct App* app, char const* role)
+app_plugin_ui_boundary_node(struct App* app, char const* role)
 {
     int slot;
 
@@ -4008,7 +4008,7 @@ app_plugin_role_rect(
         return app_plugin_slot_rect(user, slot, out_x, out_y, out_w, out_h);
 
     return app_plugin_node_rect(
-        app, app_plugin_role_node(app, role), out_x, out_y, out_w, out_h);
+        app, app_plugin_ui_boundary_node(app, role), out_x, out_y, out_w, out_h);
 }
 
 /*
@@ -4083,7 +4083,7 @@ app_plugin_role_visible(void* user, char const* role)
     if( !app->tree )
         return 0;
 
-    node = app_plugin_role_node(app, role);
+    node = app_plugin_ui_boundary_node(app, role);
     if( node < 0 )
         return 0;
 
@@ -4144,7 +4144,7 @@ app_plugin_role_click(void* user, char const* role, int op)
     if( !app->tree )
         return 0;
 
-    node = app_plugin_role_node(app, role);
+    node = app_plugin_ui_boundary_node(app, role);
     if( node < 0 )
         return 0;
     return app_plugin_click_node(app, node, op);
@@ -4161,7 +4161,7 @@ app_plugin_role_id(void* user, char const* role)
     if( !app->tree )
         return -1;
 
-    node = app_plugin_role_node(app, role);
+    node = app_plugin_ui_boundary_node(app, role);
     if( node < 0 )
         return -1;
     /* A node with no id of its own answers -1 too: an authored control that
@@ -4171,18 +4171,18 @@ app_plugin_role_id(void* user, char const* role)
 }
 
 static int
-app_plugin_role_replacement_find(
+app_plugin_ui_boundary_replacement_find(
     struct App const* app,
     int plugin,
     char const* role)
 {
     assert(app);
     assert(role);
-    for( int i = 0; i < (int)(sizeof(app->plugin_role_replacements) /
-                              sizeof(app->plugin_role_replacements[0])); i++ )
+    for( int i = 0; i < (int)(sizeof(app->plugin_ui_boundary_replacements) /
+                              sizeof(app->plugin_ui_boundary_replacements[0])); i++ )
     {
         struct AppPluginRoleReplacement const* row =
-            &app->plugin_role_replacements[i];
+            &app->plugin_ui_boundary_replacements[i];
         if( row->role[0] && row->plugin == plugin && strcmp(row->role, role) == 0 )
             return i;
     }
@@ -4190,29 +4190,29 @@ app_plugin_role_replacement_find(
 }
 
 static int
-app_plugin_role_replacement_free(struct App const* app)
+app_plugin_ui_boundary_replacement_free(struct App const* app)
 {
     assert(app);
-    for( int i = 0; i < (int)(sizeof(app->plugin_role_replacements) /
-                              sizeof(app->plugin_role_replacements[0])); i++ )
-        if( !app->plugin_role_replacements[i].role[0] )
+    for( int i = 0; i < (int)(sizeof(app->plugin_ui_boundary_replacements) /
+                              sizeof(app->plugin_ui_boundary_replacements[0])); i++ )
+        if( !app->plugin_ui_boundary_replacements[i].role[0] )
             return i;
     return -1;
 }
 
 static int
-app_plugin_role_replacement_node_claimed(
+app_plugin_ui_boundary_replacement_node_claimed(
     struct App const* app,
     int except,
     int32_t node,
     uint32_t incarnation)
 {
     assert(app);
-    for( int i = 0; i < (int)(sizeof(app->plugin_role_replacements) /
-                              sizeof(app->plugin_role_replacements[0])); i++ )
+    for( int i = 0; i < (int)(sizeof(app->plugin_ui_boundary_replacements) /
+                              sizeof(app->plugin_ui_boundary_replacements[0])); i++ )
     {
         struct AppPluginRoleReplacement const* row =
-            &app->plugin_role_replacements[i];
+            &app->plugin_ui_boundary_replacements[i];
         if( i != except && row->role[0] && row->node_index == node &&
             row->node_incarnation == incarnation )
             return 1;
@@ -4317,7 +4317,7 @@ app_plugin_role_suppress_facets(
     row = &app->plugin_role_facet_suppressions[at];
     if( app->tree )
     {
-        next_node = app_plugin_role_node(app, role);
+        next_node = app_plugin_ui_boundary_node(app, role);
         if( next_node >= 0 && (uint32_t)next_node < app->tree->component_count &&
             !app->tree->components[next_node].freed )
             next_incarnation = app->tree->components[next_node].incarnation;
@@ -4338,7 +4338,7 @@ app_plugin_role_suppress_facets(
  * this exact-incarnation fence because only it can resolve a semantic role to
  * a tree node. Repeating enabled=1 is the per-frame reconciliation path. */
 static int
-app_plugin_role_replace(
+app_plugin_ui_boundary_replace(
     void* user,
     int plugin,
     char const* role,
@@ -4354,18 +4354,18 @@ app_plugin_role_replace(
 
     assert(app);
     assert(role);
-    at = app_plugin_role_replacement_find(app, plugin, role);
+    at = app_plugin_ui_boundary_replacement_find(app, plugin, role);
     if( !enabled )
     {
         if( at < 0 )
             return 1;
-        row = &app->plugin_role_replacements[at];
+        row = &app->plugin_ui_boundary_replacements[at];
         old_node = row->node_index;
         old_incarnation = row->node_incarnation;
         memset(row, 0, sizeof(*row));
         row->node_index = -1;
         if( app->tree &&
-            !app_plugin_role_replacement_node_claimed(
+            !app_plugin_ui_boundary_replacement_node_claimed(
                 app, at, old_node, old_incarnation) )
             (void)UITree_SetReplacementHidden(
                 app->tree, old_node, old_incarnation, 0);
@@ -4374,22 +4374,22 @@ app_plugin_role_replace(
 
     if( at < 0 )
     {
-        at = app_plugin_role_replacement_free(app);
+        at = app_plugin_ui_boundary_replacement_free(app);
         if( at < 0 )
             return 0;
-        row = &app->plugin_role_replacements[at];
+        row = &app->plugin_ui_boundary_replacements[at];
         memset(row, 0, sizeof(*row));
         row->plugin = plugin;
         row->node_index = -1;
         snprintf(row->role, sizeof(row->role), "%s", role);
     }
-    row = &app->plugin_role_replacements[at];
+    row = &app->plugin_ui_boundary_replacements[at];
     old_node = row->node_index;
     old_incarnation = row->node_incarnation;
 
     if( app->tree )
     {
-        next_node = app_plugin_role_node(app, role);
+        next_node = app_plugin_ui_boundary_node(app, role);
         if( next_node >= 0 && (uint32_t)next_node < app->tree->component_count &&
             !app->tree->components[next_node].freed )
             next_incarnation = app->tree->components[next_node].incarnation;
@@ -4403,7 +4403,7 @@ app_plugin_role_replace(
     row->node_index = next_node;
     row->node_incarnation = next_incarnation;
     if( app->tree &&
-        !app_plugin_role_replacement_node_claimed(
+        !app_plugin_ui_boundary_replacement_node_claimed(
             app, at, old_node, old_incarnation) )
         (void)UITree_SetReplacementHidden(
             app->tree, old_node, old_incarnation, 0);
@@ -4414,7 +4414,7 @@ app_plugin_role_replace(
 }
 
 static int
-app_plugin_role_anchor(
+app_plugin_ui_boundary(
     void* user,
     int plugin,
     char const* role,
@@ -4428,27 +4428,27 @@ app_plugin_role_anchor(
     assert(app);
     if( !role )
     {
-        app->plugin_role_anchor_active = 0;
-        app->plugin_role_anchor_valid = 0;
-        app->plugin_role_anchor_node = -1;
-        app->plugin_role_anchor_incarnation = 0;
-        app->plugin_role_anchor_replace = 0;
-        app->plugin_role_anchor_place = 0;
+        app->plugin_ui_boundary_active = 0;
+        app->plugin_ui_boundary_valid = 0;
+        app->plugin_ui_boundary_node = -1;
+        app->plugin_ui_boundary_incarnation = 0;
+        app->plugin_ui_boundary_replace = 0;
+        app->plugin_ui_boundary_place = 0;
         return 1;
     }
 
     /* Active and invalid is intentionally distinct from no anchor: every
      * subsequent draw is dropped until this subscriber returns. */
-    app->plugin_role_anchor_seen = 1;
-    app->plugin_role_anchor_active = 1;
-    app->plugin_role_anchor_valid = 0;
-    app->plugin_role_anchor_node = -1;
-    app->plugin_role_anchor_incarnation = 0;
-    app->plugin_role_anchor_replace = replace ? 1 : 0;
-    app->plugin_role_anchor_place = (uint8_t)place;
+    app->plugin_ui_boundary_seen = 1;
+    app->plugin_ui_boundary_active = 1;
+    app->plugin_ui_boundary_valid = 0;
+    app->plugin_ui_boundary_node = -1;
+    app->plugin_ui_boundary_incarnation = 0;
+    app->plugin_ui_boundary_replace = replace ? 1 : 0;
+    app->plugin_ui_boundary_place = (uint8_t)place;
     if( !app->tree )
         return 0;
-    node = app_plugin_role_node(app, role);
+    node = app_plugin_ui_boundary_node(app, role);
     if( node < 0 || (uint32_t)node >= app->tree->component_count ||
         app->tree->components[node].freed )
         return 0;
@@ -4460,16 +4460,16 @@ app_plugin_role_anchor(
     if( !replace && UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
         return 0;
 
-    app->plugin_role_anchor_valid = 1;
-    app->plugin_role_anchor_node = node;
-    app->plugin_role_anchor_incarnation =
+    app->plugin_ui_boundary_valid = 1;
+    app->plugin_ui_boundary_node = node;
+    app->plugin_ui_boundary_incarnation =
         app->tree->components[node].incarnation;
     app_role_overlay_group_seed(
         app,
-        app->plugin_role_anchor_node,
-        app->plugin_role_anchor_incarnation,
-        app->plugin_role_anchor_replace,
-        app->plugin_role_anchor_place);
+        app->plugin_ui_boundary_node,
+        app->plugin_ui_boundary_incarnation,
+        app->plugin_ui_boundary_replace,
+        app->plugin_ui_boundary_place);
     return 1;
 }
 
@@ -5195,9 +5195,9 @@ app_plugin_menu_build(
                  * recycled list index can never invoke a different plugin region. */
                 pick.id = region->plugin;
                 pick.secondary_id = (int)region->tag;
-                pick.tertiary_id = region->role_anchored ? region->role_node : -1;
+                pick.tertiary_id = region->ui_bounded ? region->ui_boundary_node : -1;
                 pick.quaternary_id =
-                    region->role_anchored ? (int)region->role_incarnation : 0;
+                    region->ui_bounded ? (int)region->ui_boundary_incarnation : 0;
                 /* Last op first: rows draw bottom-to-top, so adding in reverse puts
                  * op 0 on top -- the same order add_menu_ops_rows walks a component's
                  * own verbs in, and the reason op 1 is the one beside Cancel. */
@@ -5284,7 +5284,7 @@ app_plugin_engine(struct App* app)
     memset(&engine, 0, sizeof(engine));
     engine.user = app;
     engine.screen = app_plugin_screen;
-    engine.safe_os = app_plugin_safe_os;
+    engine.platform_safe_rect = app_plugin_platform_safe_rect;
     engine.platform_safe_next = app_plugin_platform_safe_next;
     engine.world_cycle = app_plugin_world_cycle;
     engine.frame_ms = app_plugin_frame_ms;
@@ -5348,9 +5348,8 @@ app_plugin_engine(struct App* app)
     engine.role_visible = app_plugin_role_visible;
     engine.role_click = app_plugin_role_click;
     engine.role_id = app_plugin_role_id;
-    engine.role_replace = app_plugin_role_replace;
     engine.role_suppress_facets = app_plugin_role_suppress_facets;
-    engine.role_anchor = app_plugin_role_anchor;
+    engine.ui_boundary = app_plugin_ui_boundary;
     engine.role_slot = app_plugin_role_frame_slot;
     engine.menu_drop = app_plugin_menu_drop;
     engine.layout_set = app_plugin_layout_set;

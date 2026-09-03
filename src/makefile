@@ -2245,10 +2245,12 @@ test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c \
 # bundled scripts inside the real sandboxed Lua VM.
 .PHONY: test-plugin-lua
 test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
+		plugin/torirs_plugin_lua.c \
 		plugin/test/torirs_plugin_lua_v2_test.c test-plugin-lua-api-inventory
-	$(CC) $(CFLAGS) -I$(LUA_DIR) -o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
-		plugin/test/torirs_plugin_lua_v2_test.c \
-		$(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o $(LDFLAGS)
+	$(CC) $(CFLAGS) -DTORIRS_PLUGIN_LUA_TESTING=1 -I$(LUA_DIR) \
+		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
+		plugin/torirs_plugin_lua.c plugin/test/torirs_plugin_lua_v2_test.c \
+		$(OBJ_DIR)/lua_unity.o $(LDFLAGS)
 	./$(OBJ_DIR)/torirs_plugin_lua_v2_test
 
 # The item-stats tooltip, against a hand-built api table rather than the host:

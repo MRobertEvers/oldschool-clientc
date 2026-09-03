@@ -182,9 +182,9 @@
 /* The kit's text verbs take the face as an argument; every label on this page
  * is set in the one the CS2 sets its own in, so the calls name it once here. */
 #define PLUGIN_DRAW_TEXT(buf, w, h, x, top, text, tint)                                  \
-    PluginDraw_TextV2((buf), (w), (h), (x), (top), &g_font, (text), (tint))
+    PluginDraw_Text((buf), (w), (h), (x), (top), &g_font, (text), (tint))
 #define PLUGIN_DRAW_TEXT_RIGHT(buf, w, h, right, top, text, tint)                        \
-    PluginDraw_TextRightV2((buf), (w), (h), (right), (top), &g_font, (text), (tint))
+    PluginDraw_TextRight((buf), (w), (h), (right), (top), &g_font, (text), (tint))
 
 /** The face every label is set in, and the 25x25 icon strip. */
 /**
@@ -222,7 +222,7 @@ struct XtSkill
 
 struct XtState
 {
-    struct PluginDraw_AtlasV2 font;
+    struct PluginDraw_Atlas font;
     struct ToriRS_ImageRef img_skills;
     struct ToriRS_ImageRef img_over;
     uint32_t* over_px;
@@ -821,15 +821,15 @@ xt_stats_live(struct ToriRS_ApiV2* api, struct XtState* state)
 static int
 xt_art_ready(struct ToriRS_ApiV2* api, struct XtState* state)
 {
-    if( !PluginDraw_AtlasLoadV2(api, &g_font, "text") )
+    if( !PluginDraw_AtlasLoad(api, &g_font, "text") )
         return 0;
-    if( !PluginDraw_ImageLoadV2(
+    if( !PluginDraw_ImageLoad(
             api, "skills.png", &g_img_skills, &g_skill_px, &g_skill_w, &g_skill_h) )
         return 0;
     /* The overview icon is wanted but not REQUIRED: the box is two lines of
      * text and a picture, and a missing picture is a box with a gap in it
      * rather than a page that refuses to draw. */
-    (void)PluginDraw_ImageLoadV2(
+    (void)PluginDraw_ImageLoad(
         api, "panel_icon.png", &g_img_over, &g_over_px, &g_over_w, &g_over_h);
     return 1;
 }
@@ -1021,9 +1021,9 @@ xt_draw_box(
      * ">Lvl" and ">Goal" does not shuffle the columns sideways.
      */
     {
-        int const val_r = PluginDraw_TextWidthV2(&g_font, "88.888M");
-        int const key_l = PluginDraw_TextWidthV2(&g_font, "XP>Goal: ");
-        int const key_r = PluginDraw_TextWidthV2(&g_font, XT_GUTTER "Kills>Goal: ");
+        int const val_r = PluginDraw_TextWidth(&g_font, "88.888M");
+        int const key_l = PluginDraw_TextWidth(&g_font, "XP>Goal: ");
+        int const key_r = PluginDraw_TextWidth(&g_font, XT_GUTTER "Kills>Goal: ");
         int const edge = XT_GRID_PAD;
 
         val_w = val_r;
@@ -1118,7 +1118,7 @@ xt_draw_box(
         snprintf(text, sizeof(text), "%.3s.%.2s%%", spaced, spaced + 3);
     }
     PLUGIN_DRAW_TEXT(
-        buf, w, h, (w - PluginDraw_TextWidthV2(&g_font, text)) / 2, bar_y + 2, text,
+        buf, w, h, (w - PluginDraw_TextWidth(&g_font, text)) / 2, bar_y + 2, text,
         XT_INK_VALUE);
 }
 
@@ -1138,8 +1138,8 @@ xt_draw_overview(struct XtState* state, uint32_t* buf, int w, int h, int top)
     long long gained = 0;
     long long rate = 0;
     char value[32];
-    int const key_w = PluginDraw_TextWidthV2(&g_font, "Total XP Gained: ");
-    int const val_w = PluginDraw_TextWidthV2(&g_font, "88.888M");
+    int const key_w = PluginDraw_TextWidth(&g_font, "Total XP Gained: ");
+    int const val_w = PluginDraw_TextWidth(&g_font, "88.888M");
     /* Centred in the 48, which is what `^settextalign_centre` with a 12 line
      * box does to two lines: 48/2 - 12 above the pair. */
     int const y0 = top + (XT_BOX_H - 2 * XT_LINE_H) / 2;
@@ -1711,9 +1711,9 @@ xt_stop(struct ToriRS_ApiV2* api, void* plugin_state)
     g_page_built = false;
     free(g_compose);
     g_compose = NULL;
-    PluginDraw_AtlasFreeV2(api, &g_font);
-    PluginDraw_ImageFreeV2(api, &g_over_px, &g_img_over);
-    PluginDraw_ImageFreeV2(api, &g_skill_px, &g_img_skills);
+    PluginDraw_AtlasFree(api, &g_font);
+    PluginDraw_ImageFree(api, &g_over_px, &g_img_over);
+    PluginDraw_ImageFree(api, &g_skill_px, &g_img_skills);
     if( state->compose_image.value != 0 )
         api->assets.image_release(api, state->compose_image);
     api->assets.release(api, XT_STATE_ASSET);

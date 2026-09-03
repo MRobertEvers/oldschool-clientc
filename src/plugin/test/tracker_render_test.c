@@ -117,10 +117,10 @@ static struct
 
 /* ------------------------------------------------------------------- verbs */
 
-static uint64_t fake_frame_ms(struct ToriRS_PluginCtx* c) { (void)c; return g_c.now_ms; }
+static uint64_t fake_frame_ms(void* c) { (void)c; return g_c.now_ms; }
 
 static int
-fake_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PlayerSnapshot* out)
+fake_local_player(void* ctx, struct ToriRS_PlayerSnapshot* out)
 {
     (void)ctx;
     memset(out, 0, sizeof(*out));
@@ -132,7 +132,7 @@ fake_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PlayerSnapshot* ou
 /* ---- config ---- */
 
 static char const*
-fake_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
+fake_cfg_str(void* ctx, char const* key)
 {
     (void)ctx;
     for( int i = 0; i < g_c.cfg_count; i++ )
@@ -140,8 +140,8 @@ fake_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
             return g_c.cfg[i].v;
     return "";
 }
-static int fake_cfg_bool(struct ToriRS_PluginCtx* c, char const* k) { return atoi(fake_cfg_str(c, k)) != 0; }
-static int fake_cfg_int(struct ToriRS_PluginCtx* c, char const* k) { return atoi(fake_cfg_str(c, k)); }
+static int fake_cfg_bool(void* c, char const* k) { return atoi(fake_cfg_str(c, k)) != 0; }
+static int fake_cfg_int(void* c, char const* k) { return atoi(fake_cfg_str(c, k)); }
 
 static void
 cfg_set(char const* key, char const* value)
@@ -159,7 +159,7 @@ cfg_set(char const* key, char const* value)
 }
 
 static void
-fake_cfg_set(struct ToriRS_PluginCtx* ctx, char const* k, char const* v)
+fake_cfg_set(void* ctx, char const* k, char const* v)
 {
     (void)ctx;
     cfg_set(k, v);
@@ -177,7 +177,7 @@ asset_find(char const* name)
 }
 
 static int
-fake_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
+fake_asset_load(void* ctx, char const* name)
 {
     char path[512];
     FILE* f;
@@ -205,7 +205,7 @@ fake_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
 }
 
 static void const*
-fake_asset_data(struct ToriRS_PluginCtx* ctx, char const* name, int* out_size)
+fake_asset_data(void* ctx, char const* name, int* out_size)
 {
     struct FakeAsset* a;
     (void)ctx;
@@ -218,9 +218,9 @@ fake_asset_data(struct ToriRS_PluginCtx* ctx, char const* name, int* out_size)
 }
 
 static int
-fake_asset_save(struct ToriRS_PluginCtx* c, char const* n, void const* d, int s)
+fake_asset_save(void* c, char const* n, void const* d, int s)
 { (void)c; (void)n; (void)d; (void)s; return 1; }
-static void fake_asset_release(struct ToriRS_PluginCtx* c, char const* n) { (void)c; (void)n; }
+static void fake_asset_release(void* c, char const* n) { (void)c; (void)n; }
 
 /* ---- images ---- */
 
@@ -252,7 +252,7 @@ image_alloc(int w, int h)
  * unchanged -- the compose below simply keeps the pixels under the same name.
  */
 static int
-fake_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
+fake_image_load(void* ctx, char const* name)
 {
     struct FakeAsset* a;
     int w = 0;
@@ -282,7 +282,7 @@ fake_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
 }
 
 static int
-fake_image_size(struct ToriRS_PluginCtx* ctx, int im, int* w, int* h)
+fake_image_size(void* ctx, int im, int* w, int* h)
 {
     (void)ctx;
     if( im <= 0 || im >= FAKE_IMAGES || !g_c.image[im].used )
@@ -295,7 +295,7 @@ fake_image_size(struct ToriRS_PluginCtx* ctx, int im, int* w, int* h)
 }
 
 static int
-fake_image_pixels(struct ToriRS_PluginCtx* ctx, int im, uint32_t* out, int max)
+fake_image_pixels(void* ctx, int im, uint32_t* out, int max)
 {
     int n;
     (void)ctx;
@@ -308,12 +308,12 @@ fake_image_pixels(struct ToriRS_PluginCtx* ctx, int im, uint32_t* out, int max)
     return n;
 }
 
-static void fake_image_release(struct ToriRS_PluginCtx* c, int i) { (void)c; (void)i; }
+static void fake_image_release(void* c, int i) { (void)c; (void)i; }
 
 /** Keep the composed strip; this is the picture the test writes out. */
 static int
 fake_image_compose(
-    struct ToriRS_PluginCtx* ctx, char const* name, int w, int h, uint32_t const* argb)
+    void* ctx, char const* name, int w, int h, uint32_t const* argb)
 {
     (void)ctx;
     snprintf(g_c.composed, sizeof(g_c.composed), "%s", name);
@@ -346,7 +346,7 @@ fake_image_compose(
  * different swatches and a mis-indexed grid is visible.
  */
 static int
-fake_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
+fake_obj_image(void* ctx, int obj_id, int count, int style)
 {
     int const slot = image_alloc(36, 32);
     uint32_t rgb;
@@ -415,7 +415,7 @@ loot_add(char const* name, int kills, int const* obj, int const* qty, int const*
 
 static int
 fake_loot_source_next(
-    struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_LootSource* out)
+    void* ctx, int iter, struct ToriRS_LootSource* out)
 {
     int const next = iter + 1;
     (void)ctx;
@@ -431,7 +431,7 @@ fake_loot_source_next(
 
 static int
 fake_loot_row_next(
-    struct ToriRS_PluginCtx* ctx, int source_id, int iter,
+    void* ctx, int source_id, int iter,
     struct ToriRS_LootRow* out)
 {
     int const next = iter + 1;
@@ -448,7 +448,7 @@ fake_loot_row_next(
 }
 
 static int
-fake_obj_info(struct ToriRS_PluginCtx* ctx, int obj_id, struct ToriRS_ItemInfo* out)
+fake_obj_info(void* ctx, int obj_id, struct ToriRS_ItemInfo* out)
 {
     (void)ctx;
     memset(out, 0, sizeof(*out));
@@ -469,11 +469,11 @@ static int g_w_count;
 static int g_building;
 
 static bool
-fake_panel_request(struct ToriRS_PluginCtx* c, struct ToriRS_PanelDescriptor const* d)
+fake_panel_request(void* c, struct ToriRS_PanelDescriptor const* d)
 { (void)c; (void)d; return true; }
 
 static bool
-fake_panel_widget(struct ToriRS_PluginCtx* c, int kind, char const* id, char const* label)
+fake_panel_widget(void* c, int kind, char const* id, char const* label)
 {
     (void)c;
     (void)label;
@@ -498,16 +498,16 @@ w_find(char const* id)
     return NULL;
 }
 
-static bool fake_panel_set_text(struct ToriRS_PluginCtx* c, char const* i, char const* t)
+static bool fake_panel_set_text(void* c, char const* i, char const* t)
 { (void)c; (void)t; return w_find(i) != NULL; }
-static bool fake_panel_set_value(struct ToriRS_PluginCtx* c, char const* i, int v)
+static bool fake_panel_set_value(void* c, char const* i, int v)
 { (void)c; (void)v; return w_find(i) != NULL; }
-static bool fake_panel_set_attention(struct ToriRS_PluginCtx* c, bool o) { (void)c; (void)o; return true; }
-static void fake_panel_clear(struct ToriRS_PluginCtx* c) { (void)c; g_w_count = 0; }
-static void fake_panel_invalidate(struct ToriRS_PluginCtx* c, char const* i) { (void)c; (void)i; }
+static bool fake_panel_set_attention(void* c, bool o) { (void)c; (void)o; return true; }
+static void fake_panel_clear(void* c) { (void)c; g_w_count = 0; }
+static void fake_panel_invalidate(void* c, char const* i) { (void)c; (void)i; }
 
 static bool
-fake_panel_set_height(struct ToriRS_PluginCtx* c, char const* id, int px)
+fake_panel_set_height(void* c, char const* id, int px)
 {
     (void)c;
     {
@@ -848,33 +848,38 @@ plugin_prepare(struct ToriRS_PluginDefV2 const* definition)
 }
 
 static void
-dispatch(enum ToriRS_PluginEvent ev, void* payload)
+dispatch_start(void)
+{
+    assert(g_plugin && g_plugin_state);
+    if( g_plugin->callbacks.on_start )
+        g_plugin->callbacks.on_start(&g_api, g_plugin_state);
+}
+
+static void
+dispatch_stop(void)
 {
     assert(g_plugin);
-    switch( ev )
-    {
-    case TORIRS_PLUGIN_EV_START:
-        if( g_plugin->callbacks.on_start )
-            g_plugin->callbacks.on_start(&g_api, g_plugin_state);
-        break;
-    case TORIRS_PLUGIN_EV_STOP:
-        if( g_plugin_state && g_plugin->callbacks.on_stop )
-            g_plugin->callbacks.on_stop(&g_api, g_plugin_state);
-        free(g_plugin_state);
-        g_plugin_state = NULL;
-        g_plugin = NULL;
-        break;
-    case TORIRS_PLUGIN_EV_LOGIC_TICK:
-        if( g_plugin->callbacks.on_logic_tick )
-            g_plugin->callbacks.on_logic_tick(&g_api, g_plugin_state, payload);
-        break;
-    case TORIRS_PLUGIN_EV_PANEL_LAYOUT:
-        if( g_plugin->callbacks.on_ui_layout )
-            g_plugin->callbacks.on_ui_layout(&g_api, g_plugin_state, payload);
-        break;
-    default:
-        assert(!"unsupported direct-v2 render dispatch");
-    }
+    if( g_plugin_state && g_plugin->callbacks.on_stop )
+        g_plugin->callbacks.on_stop(&g_api, g_plugin_state);
+    free(g_plugin_state);
+    g_plugin_state = NULL;
+    g_plugin = NULL;
+}
+
+static void
+dispatch_logic_tick(struct ToriRS_TickEvent const* event)
+{
+    assert(g_plugin && g_plugin_state && event);
+    if( g_plugin->callbacks.on_logic_tick )
+        g_plugin->callbacks.on_logic_tick(&g_api, g_plugin_state, event);
+}
+
+static void
+dispatch_panel_layout(struct ToriRS_PanelLayoutEvent const* event)
+{
+    assert(g_plugin && g_plugin_state && event);
+    if( g_plugin->callbacks.on_ui_layout )
+        g_plugin->callbacks.on_ui_layout(&g_api, g_plugin_state, event);
 }
 
 static void
@@ -909,7 +914,7 @@ panel_build(void)
     lay.visible = true;
     lay.game_visible = true;
     lay.selection_generation = 1;
-    dispatch(TORIRS_PLUGIN_EV_PANEL_LAYOUT, &lay);
+    dispatch_panel_layout(&lay);
 }
 
 static void
@@ -918,7 +923,7 @@ tick(uint64_t ms)
     struct ToriRS_TickEvent ev;
     memset(&ev, 0, sizeof(ev));
     g_c.now_ms += ms;
-    dispatch(TORIRS_PLUGIN_EV_LOGIC_TICK, &ev);
+    dispatch_logic_tick(&ev);
 }
 
 /** Run one draw pass over the named custom well and keep what it composed. */
@@ -939,7 +944,7 @@ draw_well(char const* id, int width)
 static void
 reset(char const* asset_dir)
 {
-    if( g_plugin_state ) dispatch(TORIRS_PLUGIN_EV_STOP, NULL);
+    if( g_plugin_state ) dispatch_stop();
     for( int i = 0; i < g_c.asset_count; i++ )
         free(g_c.asset[i].bytes);
     for( int i = 0; i < FAKE_IMAGES; i++ )
@@ -984,7 +989,7 @@ render_xp(void)
     g_c.level[SLAY] = 98; g_c.xp[SLAY] = LEVEL_XP[98] + 90000;
 
     plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
-    dispatch(TORIRS_PLUGIN_EV_START, NULL);
+    dispatch_start();
     panel_build();
     tick(20);
 
@@ -1069,7 +1074,7 @@ render_loot(void)
     loot_add("Saradomin priest", 2, sara_o, sara_q, sara_v, 2);
 
     plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
-    dispatch(TORIRS_PLUGIN_EV_START, NULL);
+    dispatch_start();
     panel_build();
     tick(1000);
     panel_build();
@@ -1089,7 +1094,7 @@ main(void)
     api_init();
     render_xp();
     render_loot();
-    if( g_plugin_state ) dispatch(TORIRS_PLUGIN_EV_STOP, NULL);
+    if( g_plugin_state ) dispatch_stop();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

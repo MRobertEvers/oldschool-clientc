@@ -27,6 +27,7 @@ dofile = nil
 ---@alias torirs.Anchor 'top-left'|'top'|'top-right'|'left'|'center'|'right'|'bottom-left'|'bottom'|'bottom-right'|integer
 ---@alias torirs.Edge 'top'|'right'|'bottom'|'left'|integer
 ---@alias torirs.PanelView 'page'|'settings'
+---@alias torirs.Surface 'viewport'|'minimap'|'sidebar'|'chat'|'chat_buttons'|'modal'|'compass'|'orbs'|integer
 ---@alias torirs.KeyName 'shift'|'ctrl'|'space'|'tab'|'escape'
 ---@alias torirs.ImageRef integer
 ---@alias torirs.ModelRef integer
@@ -99,6 +100,91 @@ dofile = nil
 ---@field element_id integer
 ---@field interactive boolean
 ---@field visible_ops integer
+
+---@class torirs.FrameEvent
+---@field now_ms integer
+---@field drawn_frames integer
+
+---@class torirs.TickEvent
+---@field cycle integer
+
+---@class torirs.WorldLoadedEvent
+---@field base_tile_x integer
+---@field base_tile_z integer
+
+---@class torirs.ScreenChangedEvent
+---@field screen string
+---@field previous string
+
+---@class torirs.AssetEvent
+---@field name string
+---@field size integer
+---@field ok boolean
+
+---@class torirs.ChatMessageEvent
+---@field type integer
+---@field sender string
+---@field text string
+
+---@class torirs.GameEvent
+---@field kind string
+---@field subject string
+---@field value integer
+---@field text string
+
+---@class torirs.KeyEvent
+---@field key integer
+---@field ch integer
+---@field down boolean
+
+---@class torirs.MenuRow
+---@field text string
+---@field action integer
+---@field pick_kind integer
+---@field npc_slot integer
+---@field player_pid integer
+---@field target_id integer
+---@field component_id integer
+---@field slot integer
+
+---@class torirs.MenuBuildEvent
+---@field hover_pass boolean
+---@field rows torirs.MenuRow[]
+
+---@class torirs.MenuSelectEvent
+---@field row torirs.MenuRow
+---@field tag integer
+---@field owned boolean
+---@field x integer
+---@field y integer
+
+---@class torirs.PanelActionEvent
+---@field id string
+---@field action 'activate'|'toggle'|'text'|'pick'|'drag'|'scroll'|'key'|'unknown'
+---@field value integer
+---@field on boolean
+---@field text string Stable option value for a select action, never its label.
+---@field x integer
+---@field y integer
+---@field generation integer
+---@field serial integer
+---@field sequence integer
+
+---@class torirs.PanelLayoutEvent
+---@field width integer
+---@field height integer
+---@field scale_milli integer
+---@field scale number
+---@field size_class 'compact'|'medium'|'expanded'|'unknown'
+---@field visible boolean
+---@field game_visible boolean
+---@field generation integer
+
+---@class torirs.CanvasActionEvent
+---@field id integer
+---@field operation integer
+---@field x integer
+---@field y integer
 
 ---@class torirs.CoreApi
 ---@field log fun(...: any)
@@ -209,7 +295,26 @@ dofile = nil
 ---@field selection fun(): torirs.FrameSelection
 ---@field select fun(id: string): boolean, torirs.ResultName
 ---@field invalidate fun()
----@field surface_native_size fun(surface: integer): integer?, integer?
+---@field surface_native_size fun(surface: torirs.Surface): integer?, integer?
+
+---@class torirs.FrameOfferInfo
+---@field id string Canonical `<plugin-id>/<local-id>`.
+---@field title string
+---@field provider string
+---@field canvas integer
+---@field width integer
+---@field height integer
+---@field min_width integer
+---@field min_height integer
+---@field available boolean
+---@field detail string
+
+---@class torirs.FrameSelection
+---@field requested_id string
+---@field active_id string
+---@field status integer
+---@field reason string
+---@field revision integer
 
 ---@class torirs.FrameBuildContext
 ---@field offer_id string Local offer id.
@@ -219,13 +324,13 @@ dofile = nil
 ---@field lane torirs.Lane
 
 ---@class torirs.FrameBuilder
----@field surface fun(surface: string|integer, rect: torirs.Rect)
----@field surface_member fun(surface: string|integer, member: integer, rect: torirs.Rect)
----@field skin fun(surface: string|integer, skin: table)
+---@field surface fun(surface: torirs.Surface, rect: torirs.Rect)
+---@field surface_member fun(surface: torirs.Surface, member: integer, rect: torirs.Rect)
+---@field skin fun(surface: torirs.Surface, skin: table)
 ---@field ui_node fun(name: string, node: torirs.UiNode)
 ---@field scrollbar fun(skin: table)
 ---@field reason fun(text: string)
----@field surface_overlay fun(surface: string|integer, overlay: table)
+---@field surface_overlay fun(surface: torirs.Surface, overlay: table)
 
 ---@class torirs.FrameOffer
 ---@field id string Local stable id; the catalogue exposes `<plugin-id>/<id>`.
@@ -308,6 +413,66 @@ dofile = nil
 ---@field setting_color fun(varp_id: integer, fallback?: integer): integer
 ---@field memory_bytes fun(): integer
 ---@field disable_self fun(reason: string)
+
+---@class torirs.Feature
+---@field key string
+---@field label string
+---@field kind integer
+---@field value integer
+---@field min integer
+---@field max integer
+---@field choices string
+
+---@class torirs.Skill
+---@field index integer
+---@field name string
+---@field current_level integer
+---@field base_level integer
+---@field xp integer
+---@field level_xp integer
+---@field next_level_xp integer
+
+---@class torirs.ItemInfo
+---@field obj_id integer
+---@field name string
+---@field cost integer
+---@field stackable boolean
+---@field cert_link integer
+---@field wearpos integer
+---@field wearpos2 integer
+---@field wearpos3 integer
+---@field has_bonuses boolean
+---@field bonuses integer[]
+---@field attack_rate integer
+---@field ranged_strength integer
+
+---@class torirs.Highlight
+---@field kind integer
+---@field element_id integer
+---@field tile_x integer
+---@field tile_z integer
+---@field level integer
+---@field size_x integer
+---@field size_z integer
+---@field rgb integer
+---@field opacity integer
+---@field outline_width integer
+---@field flags integer
+---@field name string
+---@field fine_x integer
+---@field fine_z integer
+---@field overhead_height integer
+
+---@class torirs.LootSource
+---@field id integer
+---@field name string
+---@field row_count integer
+---@field kill_count integer
+
+---@class torirs.LootRow
+---@field obj_id integer
+---@field quantity integer
+---@field value integer
 
 ---@class torirs.GameApi
 ---@field skill fun(index: integer): torirs.Skill?
@@ -403,11 +568,11 @@ dofile = nil
 ---@field frames? torirs.FrameOffer[] Static offers published before startup.
 ---@field on_start? fun(api: torirs.Api)
 ---@field on_stop? fun(api: torirs.Api)
----@field on_frame_start? fun(api: torirs.Api, ev: table)
----@field on_logic_tick? fun(api: torirs.Api, ev: table)
----@field on_server_tick? fun(api: torirs.Api, ev: table)
----@field on_world_loaded? fun(api: torirs.Api, ev: table)
----@field on_screen_changed? fun(api: torirs.Api, ev: table)
+---@field on_frame_start? fun(api: torirs.Api, ev: torirs.FrameEvent)
+---@field on_logic_tick? fun(api: torirs.Api, ev: torirs.TickEvent)
+---@field on_server_tick? fun(api: torirs.Api, ev: torirs.TickEvent)
+---@field on_world_loaded? fun(api: torirs.Api, ev: torirs.WorldLoadedEvent)
+---@field on_screen_changed? fun(api: torirs.Api, ev: torirs.ScreenChangedEvent)
 ---@field on_npc_spawn? fun(api: torirs.Api, npc: torirs.NpcSnap)
 ---@field on_npc_retype? fun(api: torirs.Api, npc: torirs.NpcSnap)
 ---@field on_npc_despawn? fun(api: torirs.Api, npc: torirs.NpcSnap)
@@ -415,19 +580,19 @@ dofile = nil
 ---@field on_item_changed? fun(api: torirs.Api, item: torirs.ItemSnap)
 ---@field on_item_despawn? fun(api: torirs.Api, item: torirs.ItemSnap)
 ---@field on_config_changed? fun(api: torirs.Api, key: string)
----@field on_asset? fun(api: torirs.Api, ev: table)
----@field on_chat_message? fun(api: torirs.Api, ev: table)
----@field on_game_event? fun(api: torirs.Api, ev: table)
----@field on_key? fun(api: torirs.Api, ev: table): torirs.Verdict
----@field on_menu_build? fun(api: torirs.Api, ev: table): torirs.Verdict
----@field on_menu_select? fun(api: torirs.Api, ev: table): torirs.Verdict
+---@field on_asset? fun(api: torirs.Api, ev: torirs.AssetEvent)
+---@field on_chat_message? fun(api: torirs.Api, ev: torirs.ChatMessageEvent)
+---@field on_game_event? fun(api: torirs.Api, ev: torirs.GameEvent)
+---@field on_key? fun(api: torirs.Api, ev: torirs.KeyEvent): torirs.Verdict
+---@field on_menu_build? fun(api: torirs.Api, ev: torirs.MenuBuildEvent): torirs.Verdict
+---@field on_menu_select? fun(api: torirs.Api, ev: torirs.MenuSelectEvent): torirs.Verdict
 ---@field on_draw_world? fun(api: torirs.Api, draw: torirs.DrawBuilder)
 ---@field on_draw_canvas? fun(api: torirs.Api, draw: torirs.DrawBuilder)
 ---@field on_ui_build? fun(api: torirs.Api, panel: torirs.PanelBuilder, view: torirs.PanelView)
----@field on_ui_action? fun(api: torirs.Api, ev: table)
+---@field on_ui_action? fun(api: torirs.Api, ev: torirs.PanelActionEvent)
 ---@field on_ui_draw? fun(api: torirs.Api, node: string, draw: torirs.DrawBuilder)
 ---@field on_placement_changed? fun(api: torirs.Api, revision: integer)
 ---@field on_ui_node_draw? fun(api: torirs.Api, node: torirs.UiNodeRef, draw: torirs.DrawBuilder)
 ---@field on_ui_node_action? fun(api: torirs.Api, node: torirs.UiNodeRef, action: string): torirs.Verdict
----@field on_canvas_action? fun(api: torirs.Api, ev: table): torirs.Verdict
----@field on_ui_layout? fun(api: torirs.Api, ev: table)
+---@field on_canvas_action? fun(api: torirs.Api, ev: torirs.CanvasActionEvent): torirs.Verdict
+---@field on_ui_layout? fun(api: torirs.Api, ev: torirs.PanelLayoutEvent)

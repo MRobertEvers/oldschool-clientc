@@ -122,6 +122,7 @@ struct LuaScript
     struct ToriRS_PluginHost* host;
     int plugin_index;
     bool alive;
+    bool reload_failed;
 
     int table_ref;
     int api_ref;
@@ -197,7 +198,7 @@ lua_script_for_api(struct ToriRS_ApiV2* api)
     if( !id )
         return NULL;
     for( int i = 0; i < g_script_count; i++ )
-        if( g_scripts[i].alive && strcmp(g_scripts[i].name, id) == 0 )
+        if( strcmp(g_scripts[i].name, id) == 0 )
             return &g_scripts[i];
     return NULL;
 }
@@ -246,12 +247,18 @@ lua_disarm_budget(struct LuaScript* script)
 }
 
 static void
-lua_script_fault(struct LuaScript* script, char const* where, char const* error)
+lua_script_fault(
+    struct LuaScript* script,
+    struct ToriRS_ApiV2* api,
+    char const* where,
+    char const* error)
 {
     char message[160];
     snprintf(message, sizeof(message), "%s: %s", where, error ? error : "error");
     TORIRS_ERR("plugin: Lua script '%s' disabled: %s\n", script->name, message);
-    if( script->plugin_index >= 0 )
+    if( api && api->client && api->client->disable_self )
+        api->client->disable_self(api, message);
+    else if( script->plugin_index >= 0 )
     {
         PluginHost_SetError(script->host, script->plugin_index, message);
         PluginHost_SetEnabled(script->host, script->plugin_index, false);
@@ -1203,12 +1210,12 @@ lua_call_begin(struct LuaScript* script, struct ToriRS_ApiV2* api, enum LuaHandl
 static enum ToriRS_CallbackResult
 lua_call_end(struct LuaScript* script, enum LuaHandler handler, int argument_count, bool verdict)
 {
-    lua_State* L=script->L;enum ToriRS_CallbackResult result=TORIRS_CALLBACK_CONTINUE;
+    lua_State* L=script->L;struct ToriRS_ApiV2* api=script->cur_api;enum ToriRS_CallbackResult result=TORIRS_CALLBACK_CONTINUE;
     lua_arm_budget(script);int status=lua_pcall(L,argument_count,verdict?1:0,0);lua_disarm_budget(script);
     script->cur_api=NULL;script->cur_draw=NULL;script->cur_panel=NULL;script->cur_frame=NULL;script->cur_menu=NULL;
     if(status!=LUA_OK)
     {
-        char const* error=lua_tostring(L,-1);char copy[128];snprintf(copy,sizeof(copy),"%s",error?error:"error");lua_pop(L,1);lua_script_fault(script,LUA_HANDLER_NAMES[handler],copy);return TORIRS_CALLBACK_CONTINUE;
+        char const* error=lua_tostring(L,-1);char copy[128];snprintf(copy,sizeof(copy),"%s",error?error:"error");lua_pop(L,1);lua_script_fault(script,api,LUA_HANDLER_NAMES[handler],copy);return TORIRS_CALLBACK_CONTINUE;
     }
     if(verdict)
     {
@@ -1241,8 +1248,34 @@ static char const* lua_panel_action_name(int action){static char const* const na
 static void lua_push_panel_action(lua_State* L,struct ToriRS_PanelActionEvent const* e){lua_createtable(L,0,10);lua_pushstring(L,e->id?e->id:"");lua_setfield(L,-2,"id");lua_pushstring(L,lua_panel_action_name(e->action));lua_setfield(L,-2,"action");lua_pushinteger(L,e->value);lua_setfield(L,-2,"value");lua_pushboolean(L,e->value!=0);lua_setfield(L,-2,"on");lua_pushstring(L,e->text?e->text:"");lua_setfield(L,-2,"text");lua_pushinteger(L,e->x);lua_setfield(L,-2,"x");lua_pushinteger(L,e->y);lua_setfield(L,-2,"y");lua_pushinteger(L,e->selection_generation);lua_setfield(L,-2,"generation");lua_pushinteger(L,e->widget_serial);lua_setfield(L,-2,"serial");lua_pushinteger(L,(lua_Integer)e->intent_sequence);lua_setfield(L,-2,"sequence");}
 static void lua_push_panel_layout(lua_State* L,struct ToriRS_PanelLayoutEvent const* e){static char const* const size[]={"compact","medium","expanded"};lua_createtable(L,0,8);lua_pushinteger(L,e->width);lua_setfield(L,-2,"width");lua_pushinteger(L,e->height);lua_setfield(L,-2,"height");lua_pushinteger(L,e->scale_milli);lua_setfield(L,-2,"scale_milli");lua_pushnumber(L,(lua_Number)e->scale_milli/1000.0);lua_setfield(L,-2,"scale");lua_pushstring(L,e->size_class>=0&&e->size_class<3?size[e->size_class]:"unknown");lua_setfield(L,-2,"size_class");lua_pushboolean(L,e->visible);lua_setfield(L,-2,"visible");lua_pushboolean(L,e->game_visible);lua_setfield(L,-2,"game_visible");lua_pushinteger(L,e->selection_generation);lua_setfield(L,-2,"generation");}
 
-static void lua_cb_start(struct ToriRS_ApiV2* a,void* state){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_START))lua_call_end(s,LUA_ON_START,1,false);}
-static void lua_cb_stop(struct ToriRS_ApiV2* a,void* state){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_STOP))lua_call_end(s,LUA_ON_STOP,1,false);}
+static void
+lua_cb_start(struct ToriRS_ApiV2* api, void* state)
+{
+    struct LuaScript* script = lua_script_for_api(api);
+    (void)state;
+    if( script && script->reload_failed )
+    {
+        /* Reload clears the previous run's error before restarting. Refuse
+         * here, after that clear, so both ordinary scripts and selected frame
+         * providers remain inert and show an actionable current error. */
+        if( api->client && api->client->disable_self )
+            api->client->disable_self(
+                api, "Lua reload changed a static frame offer or failed; see the log");
+        return;
+    }
+    if( lua_call_begin(script, api, LUA_ON_START) )
+        (void)lua_call_end(script, LUA_ON_START, 1, false);
+}
+
+static void
+lua_cb_stop(struct ToriRS_ApiV2* api, void* state)
+{
+    struct LuaScript* script = lua_script_for_api(api);
+    (void)state;
+    if( script && script->reload_failed ) return;
+    if( lua_call_begin(script, api, LUA_ON_STOP) )
+        (void)lua_call_end(script, LUA_ON_STOP, 1, false);
+}
 #define SIMPLE_EVENT_CB(fn,handler,type,push) static void fn(struct ToriRS_ApiV2*a,void*state,type const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,handler)){push(s->L,e);lua_call_end(s,handler,2,false);}}
 SIMPLE_EVENT_CB(lua_cb_frame,LUA_ON_FRAME_START,struct ToriRS_FrameEvent,lua_push_frame_event)
 SIMPLE_EVENT_CB(lua_cb_logic,LUA_ON_LOGIC_TICK,struct ToriRS_TickEvent,lua_push_tick_event)
@@ -1359,7 +1392,7 @@ lua_frame_offer_build(
         char const* text = lua_tostring(script->L, -1);
         snprintf(error, sizeof(error), "%s", text ? text : "error");
         lua_pop(script->L, 1);
-        lua_script_fault(script, "frame.build", error);
+        lua_script_fault(script, api, "frame.build", error);
         return TORIRS_FRAME_ERROR;
     }
     result = lua_frame_build_result(script->L, -1);
@@ -1412,7 +1445,7 @@ lua_frame_offer_draw(
         char const* text = lua_tostring(script->L, -1);
         snprintf(error, sizeof(error), "%s", text ? text : "error");
         lua_pop(script->L, 1);
-        lua_script_fault(script, "frame.draw", error);
+        lua_script_fault(script, api, "frame.draw", error);
     }
 }
 
@@ -1873,19 +1906,120 @@ lua_script_build(
     return true;
 }
 
+struct LuaFrameSignature
+{
+    char id[TORIRS_PLUGIN_FRAME_ID_MAX];
+    char title[TORIRS_PLUGIN_TITLE_MAX];
+    int canvas;
+    int width;
+    int height;
+    int min_width;
+    int min_height;
+};
+
+static void
+lua_frame_signatures(
+    struct LuaScript const* script,
+    struct LuaFrameSignature out[PLUGIN_LUA_MAX_FRAMES])
+{
+    memset(out, 0, sizeof(*out) * PLUGIN_LUA_MAX_FRAMES);
+    for( int i = 0; i < script->frame_count; i++ )
+    {
+        snprintf(out[i].id, sizeof(out[i].id), "%s", script->frames[i].id);
+        snprintf(out[i].title, sizeof(out[i].title), "%s", script->frames[i].title);
+        out[i].canvas = script->frames[i].canvas;
+        out[i].width = script->frames[i].width;
+        out[i].height = script->frames[i].height;
+        out[i].min_width = script->frames[i].min_width;
+        out[i].min_height = script->frames[i].min_height;
+    }
+}
+
+static bool
+lua_frame_signatures_equal(
+    struct LuaFrameSignature const before[PLUGIN_LUA_MAX_FRAMES],
+    int before_count,
+    struct LuaScript const* script)
+{
+    if( before_count != script->frame_count ) return false;
+    for( int i = 0; i < before_count; i++ )
+    {
+        struct ToriRS_FrameOffer const* after = &script->frames[i];
+        if( strcmp(before[i].id, after->id) != 0 ||
+            strcmp(before[i].title, after->title) != 0 ||
+            before[i].canvas != after->canvas ||
+            before[i].width != after->width || before[i].height != after->height ||
+            before[i].min_width != after->min_width ||
+            before[i].min_height != after->min_height )
+            return false;
+    }
+    return true;
+}
+
+static void
+lua_frame_signatures_restore(
+    struct LuaScript* script,
+    struct LuaFrameSignature const saved[PLUGIN_LUA_MAX_FRAMES],
+    int count)
+{
+    memset(script->frames, 0, sizeof(script->frames));
+    memset(script->frame_ids, 0, sizeof(script->frame_ids));
+    memset(script->frame_titles, 0, sizeof(script->frame_titles));
+    script->frame_count = count;
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRS_FrameOffer* offer = &script->frames[i];
+        snprintf(script->frame_ids[i], sizeof(script->frame_ids[i]), "%s", saved[i].id);
+        snprintf(script->frame_titles[i], sizeof(script->frame_titles[i]), "%s", saved[i].title);
+        offer->struct_size = sizeof(*offer);
+        offer->id = script->frame_ids[i];
+        offer->title = script->frame_titles[i];
+        offer->canvas = saved[i].canvas;
+        offer->width = saved[i].width;
+        offer->height = saved[i].height;
+        offer->min_width = saved[i].min_width;
+        offer->min_height = saved[i].min_height;
+        offer->build = lua_frame_offer_build;
+        offer->draw = lua_frame_offer_draw;
+    }
+}
+
 static void
 lua_script_reload(struct ToriRS_PluginHost* host, int plugin_index, void* userdata)
 {
     struct LuaScript* script = userdata;
     char stable_name[TORIRS_PLUGIN_NAME_MAX];
+    struct LuaFrameSignature frames_before[PLUGIN_LUA_MAX_FRAMES];
+    int frame_count_before;
     assert(script && host == script->host && plugin_index == script->plugin_index);
+    (void)host;
+    (void)plugin_index;
+    frame_count_before = script->frame_count;
     snprintf(stable_name, sizeof(stable_name), "%s", script->name);
+    lua_frame_signatures(script, frames_before);
     lua_script_release(script);
     if( !lua_script_build(script, stable_name, script->source, script->source_len) )
     {
-        PluginHost_SetError(host, plugin_index, "Lua reload failed; see the log");
-        PluginHost_SetEnabled(host, plugin_index, false);
+        lua_frame_signatures_restore(script, frames_before, frame_count_before);
+        script->reload_failed = true;
+        return;
     }
+    if( !lua_frame_signatures_equal(frames_before, frame_count_before, script) )
+    {
+        TORIRS_ERR(
+            "plugin: Lua reload for '%s' changed static frame ids, titles, canvas, "
+            "or constraints; restart the client to publish a new catalogue\n",
+            script->name);
+        /* The host catalogue is immutable after registration. Keep the new VM
+         * only so the runtime host can close it normally, but do not start or
+         * dispatch it. on_start uses disable_self after Reload clears the old
+         * error, which also marks a frame provider unavailable. */
+        script->reload_failed = true;
+        script->contributions[0].node = NULL;
+        lua_frame_signatures_restore(script, frames_before, frame_count_before);
+        return;
+    }
+    script->reload_failed = false;
 }
 
 int
@@ -1946,6 +2080,26 @@ PluginLua_KeyCodeFromName(char const* name)
     return -1;
 }
 
+#if defined(TORIRS_PLUGIN_LUA_TESTING)
+bool
+PluginLua_TestReplaceSource(int plugin_index, char const* source, int source_len)
+{
+    if( !source || source_len <= 0 ) return false;
+    for( int i = 0; i < g_script_count; i++ )
+    {
+        struct LuaScript* script = &g_scripts[i];
+        if( script->plugin_index != plugin_index ) continue;
+        char* replacement = realloc(script->source, (size_t)source_len);
+        if( !replacement ) return false;
+        memcpy(replacement, source, (size_t)source_len);
+        script->source = replacement;
+        script->source_len = source_len;
+        return true;
+    }
+    return false;
+}
+#endif
+
 void
 PluginLua_Shutdown(void)
 {
@@ -1965,13 +2119,6 @@ lua_runtime_stop(struct ToriRS_ApiV2* api, void* state)
     (void)api;
     (void)state;
     PluginLua_Shutdown();
-}
-
-void
-PluginLua_Bind(struct ToriRS_PluginHost* host)
-{
-    assert(host);
-    (void)host;
 }
 
 struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LUA = {

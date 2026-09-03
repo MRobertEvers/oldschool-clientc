@@ -5,8 +5,8 @@
  * "given these events and these api answers, what does the page say", and
  * answering the verbs directly makes the test a table of cases rather than a
  * client. The page IS the assertion target -- every readout goes through
- * panel_widget / panel_set_text, so the fake below simply keeps the model and
- * the cases read rows out of it by id.
+ * the panel builder and retained setters, so the fake below simply keeps the
+ * model and the cases read rows out of it by id.
  *
  * The two halves under test that are worth naming, because neither is obvious
  * from a screenshot:
@@ -106,7 +106,7 @@ static struct
 
     struct FakeWidget widget[FAKE_WIDGETS];
     int widget_count;
-    /** True while the plugin is inside its EV_PANEL_BUILD dispatch. */
+    /** True while the plugin is inside its on_ui_build callback. */
     bool building;
     /** Raised by panel_clear outside a build: the page wants rebuilding. */
     bool rebuild_wanted;
@@ -141,7 +141,7 @@ static struct
 /* ------------------------------------------------------------------ verbs */
 
 static void
-fake_notify(struct ToriRS_PluginCtx* ctx, char const* text)
+fake_notify(void* ctx, char const* text)
 {
     (void)ctx;
     snprintf(g_client.notify, sizeof(g_client.notify), "%s", text);
@@ -149,14 +149,14 @@ fake_notify(struct ToriRS_PluginCtx* ctx, char const* text)
 }
 
 static uint64_t
-fake_frame_ms(struct ToriRS_PluginCtx* ctx)
+fake_frame_ms(void* ctx)
 {
     (void)ctx;
     return g_client.now_ms;
 }
 
 static int
-fake_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PlayerSnapshot* out)
+fake_local_player(void* ctx, struct ToriRS_PlayerSnapshot* out)
 {
     (void)ctx;
     if( !g_client.logged_in )
@@ -167,7 +167,7 @@ fake_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PlayerSnapshot* ou
 
 static int
 fake_stat_xp(
-    struct ToriRS_PluginCtx* ctx,
+    void* ctx,
     int skill,
     int* out_xp,
     int* out_level_xp,
@@ -216,7 +216,7 @@ fake_config_set_raw(char const* key, char const* value)
 }
 
 static char const*
-fake_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
+fake_cfg_str(void* ctx, char const* key)
 {
     struct FakeConfig const* row;
     (void)ctx;
@@ -225,19 +225,19 @@ fake_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
 }
 
 static int
-fake_cfg_bool(struct ToriRS_PluginCtx* ctx, char const* key)
+fake_cfg_bool(void* ctx, char const* key)
 {
     return atoi(fake_cfg_str(ctx, key)) != 0;
 }
 
 static int
-fake_cfg_int(struct ToriRS_PluginCtx* ctx, char const* key)
+fake_cfg_int(void* ctx, char const* key)
 {
     return atoi(fake_cfg_str(ctx, key));
 }
 
 static void
-fake_cfg_set(struct ToriRS_PluginCtx* ctx, char const* key, char const* value)
+fake_cfg_set(void* ctx, char const* key, char const* value)
 {
     (void)ctx;
     fake_config_set_raw(key, value);
@@ -246,16 +246,16 @@ fake_cfg_set(struct ToriRS_PluginCtx* ctx, char const* key, char const* value)
 /* ---- assets ---- */
 
 static int
-fake_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
+fake_asset_load(void* ctx, char const* name)
 {
     (void)ctx;
     /* Resident synchronously when the store holds it, which is the "1" branch
-     * of the contract; a miss queues and the plugin is told at EV_ASSET. */
+     * of the contract; a miss queues and the plugin is told through on_asset. */
     return g_client.asset_present && strcmp(g_client.asset_name, name) == 0 ? 1 : 0;
 }
 
 static void const*
-fake_asset_data(struct ToriRS_PluginCtx* ctx, char const* name, int* out_size)
+fake_asset_data(void* ctx, char const* name, int* out_size)
 {
     (void)ctx;
     if( !g_client.asset_present || strcmp(g_client.asset_name, name) != 0 )
@@ -267,7 +267,7 @@ fake_asset_data(struct ToriRS_PluginCtx* ctx, char const* name, int* out_size)
 
 static int
 fake_asset_save(
-    struct ToriRS_PluginCtx* ctx, char const* name, void const* data, int size)
+    void* ctx, char const* name, void const* data, int size)
 {
     (void)ctx;
     assert(size >= 0);
@@ -280,7 +280,7 @@ fake_asset_save(
 }
 
 static void
-fake_asset_release(struct ToriRS_PluginCtx* ctx, char const* name)
+fake_asset_release(void* ctx, char const* name)
 {
     (void)ctx;
     (void)name;
@@ -298,7 +298,7 @@ fake_widget_find(char const* id)
 }
 
 static bool
-fake_panel_request(struct ToriRS_PluginCtx* ctx, struct ToriRS_PanelDescriptor const* desc)
+fake_panel_request(void* ctx, struct ToriRS_PanelDescriptor const* desc)
 {
     (void)ctx;
     (void)desc;
@@ -309,7 +309,7 @@ fake_panel_request(struct ToriRS_PluginCtx* ctx, struct ToriRS_PanelDescriptor c
 }
 
 static bool
-fake_panel_widget(struct ToriRS_PluginCtx* ctx, int kind, char const* id, char const* label)
+fake_panel_widget(void* ctx, int kind, char const* id, char const* label)
 {
     struct FakeWidget* w;
     (void)ctx;
@@ -334,7 +334,7 @@ fake_panel_widget(struct ToriRS_PluginCtx* ctx, int kind, char const* id, char c
 }
 
 static bool
-fake_panel_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* text)
+fake_panel_set_text(void* ctx, char const* id, char const* text)
 {
     struct FakeWidget* w;
     (void)ctx;
@@ -347,7 +347,7 @@ fake_panel_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* te
 }
 
 static bool
-fake_panel_set_value(struct ToriRS_PluginCtx* ctx, char const* id, int value)
+fake_panel_set_value(void* ctx, char const* id, int value)
 {
     struct FakeWidget* w;
     (void)ctx;
@@ -359,7 +359,7 @@ fake_panel_set_value(struct ToriRS_PluginCtx* ctx, char const* id, int value)
 }
 
 static bool
-fake_panel_set_height(struct ToriRS_PluginCtx* ctx, char const* id, int height)
+fake_panel_set_height(void* ctx, char const* id, int height)
 {
     struct FakeWidget* w;
     (void)ctx;
@@ -372,7 +372,7 @@ fake_panel_set_height(struct ToriRS_PluginCtx* ctx, char const* id, int height)
 }
 
 static bool
-fake_panel_set_attention(struct ToriRS_PluginCtx* ctx, bool on)
+fake_panel_set_attention(void* ctx, bool on)
 {
     (void)ctx;
     g_client.attention = on;
@@ -380,7 +380,7 @@ fake_panel_set_attention(struct ToriRS_PluginCtx* ctx, bool on)
 }
 
 static void
-fake_panel_clear(struct ToriRS_PluginCtx* ctx)
+fake_panel_clear(void* ctx)
 {
     (void)ctx;
     g_client.widget_count = 0;
@@ -392,7 +392,7 @@ fake_panel_clear(struct ToriRS_PluginCtx* ctx)
 }
 
 static void
-fake_panel_invalidate(struct ToriRS_PluginCtx* ctx, char const* id)
+fake_panel_invalidate(void* ctx, char const* id)
 {
     (void)ctx;
     (void)id;
@@ -402,7 +402,7 @@ fake_panel_invalidate(struct ToriRS_PluginCtx* ctx, char const* id)
 /* ---- images ---- */
 
 static int
-fake_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
+fake_obj_image(void* ctx, int obj_id, int count, int style)
 {
     (void)ctx;
     g_client.icons_asked++;
@@ -489,7 +489,7 @@ loot_add(char const* name, int obj_id, int qty, int value, int event_id)
 
 static int
 fake_loot_source_next(
-    struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_LootSource* out)
+    void* ctx, int iter, struct ToriRS_LootSource* out)
 {
     int const next = iter + 1;
     (void)ctx;
@@ -505,7 +505,7 @@ fake_loot_source_next(
 
 static int
 fake_loot_row_next(
-    struct ToriRS_PluginCtx* ctx,
+    void* ctx,
     int source_id,
     int iter,
     struct ToriRS_LootRow* out)
@@ -526,7 +526,7 @@ fake_loot_row_next(
 
 static int
 fake_obj_info(
-    struct ToriRS_PluginCtx* ctx, int obj_id, struct ToriRS_ItemInfo* out)
+    void* ctx, int obj_id, struct ToriRS_ItemInfo* out)
 {
     (void)ctx;
     memset(out, 0, sizeof(*out));
@@ -773,10 +773,8 @@ api_init(void)
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_TRACKER;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LOOT_TRACKER;
 
-/* The plugins assert their context is real and never look inside it -- the
- * host owns that struct -- so any address does, and using one keeps their own
- * contract checks live. */
-static struct ToriRS_PluginCtx* const CTX = (struct ToriRS_PluginCtx*)&g_client;
+/* Opaque marker used only by the small fake-client helper functions above. */
+static void* const FAKE_CONTEXT = &g_client;
 
 static void
 plugin_prepare(struct ToriRS_PluginDefV2 const* definition)
@@ -789,49 +787,57 @@ plugin_prepare(struct ToriRS_PluginDefV2 const* definition)
 }
 
 static void
-dispatch(enum ToriRS_PluginEvent event, void* payload)
+dispatch_start(void)
 {
-    assert(g_plugin);
-    assert(g_plugin_state || event == TORIRS_PLUGIN_EV_STOP);
-    switch( event )
-    {
-    case TORIRS_PLUGIN_EV_START:
-        if( g_plugin->callbacks.on_start )
-            g_plugin->callbacks.on_start(&g_api, g_plugin_state);
-        break;
-    case TORIRS_PLUGIN_EV_STOP:
-        if( g_plugin_state && g_plugin->callbacks.on_stop )
-            g_plugin->callbacks.on_stop(&g_api, g_plugin_state);
-        free(g_plugin_state);
-        g_plugin_state = NULL;
-        g_plugin = NULL;
-        break;
-    case TORIRS_PLUGIN_EV_LOGIC_TICK:
-        if( g_plugin->callbacks.on_logic_tick )
-            g_plugin->callbacks.on_logic_tick(&g_api, g_plugin_state, payload);
-        break;
-    case TORIRS_PLUGIN_EV_ASSET:
-        if( g_plugin->callbacks.on_asset )
-            g_plugin->callbacks.on_asset(&g_api, g_plugin_state, payload);
-        break;
-    case TORIRS_PLUGIN_EV_GAME_EVENT:
-        if( g_plugin->callbacks.on_game_event )
-            g_plugin->callbacks.on_game_event(&g_api, g_plugin_state, payload);
-        break;
-    case TORIRS_PLUGIN_EV_PANEL_ACTION:
-        if( g_plugin->callbacks.on_ui_action )
-            g_plugin->callbacks.on_ui_action(&g_api, g_plugin_state, payload);
-        break;
-    case TORIRS_PLUGIN_EV_PANEL_LAYOUT:
-        if( g_plugin->callbacks.on_ui_layout )
-            g_plugin->callbacks.on_ui_layout(&g_api, g_plugin_state, payload);
-        break;
-    default:
-        assert(!"unsupported direct-v2 test dispatch");
-    }
+    assert(g_plugin && g_plugin_state);
+    if( g_plugin->callbacks.on_start )
+        g_plugin->callbacks.on_start(&g_api, g_plugin_state);
 }
 
-/** Run one EV_PANEL_BUILD for one face, with the model emptied as the host
+static void
+dispatch_stop(void)
+{
+    assert(g_plugin);
+    if( g_plugin_state && g_plugin->callbacks.on_stop )
+        g_plugin->callbacks.on_stop(&g_api, g_plugin_state);
+    free(g_plugin_state);
+    g_plugin_state = NULL;
+    g_plugin = NULL;
+}
+
+static void
+dispatch_logic_tick(struct ToriRS_TickEvent const* event)
+{
+    assert(g_plugin && g_plugin_state && event);
+    if( g_plugin->callbacks.on_logic_tick )
+        g_plugin->callbacks.on_logic_tick(&g_api, g_plugin_state, event);
+}
+
+static void
+dispatch_game_event(struct ToriRS_GameEvent const* event)
+{
+    assert(g_plugin && g_plugin_state && event);
+    if( g_plugin->callbacks.on_game_event )
+        g_plugin->callbacks.on_game_event(&g_api, g_plugin_state, event);
+}
+
+static void
+dispatch_panel_action(struct ToriRS_PanelActionEvent const* event)
+{
+    assert(g_plugin && g_plugin_state && event);
+    if( g_plugin->callbacks.on_ui_action )
+        g_plugin->callbacks.on_ui_action(&g_api, g_plugin_state, event);
+}
+
+static void
+dispatch_panel_layout(struct ToriRS_PanelLayoutEvent const* event)
+{
+    assert(g_plugin && g_plugin_state && event);
+    if( g_plugin->callbacks.on_ui_layout )
+        g_plugin->callbacks.on_ui_layout(&g_api, g_plugin_state, event);
+}
+
+/** Run one on_ui_build callback for one face, with the model emptied as the host
  *  empties it. @see enum ToriRS_PanelView. */
 static void
 panel_build_view(int view)
@@ -873,7 +879,7 @@ panel_build_view(int view)
         layout.visible = true;
         layout.game_visible = true;
         layout.selection_generation = 1;
-        dispatch(TORIRS_PLUGIN_EV_PANEL_LAYOUT, &layout);
+        dispatch_panel_layout(&layout);
     }
 }
 
@@ -893,7 +899,7 @@ tick(uint64_t advance_ms)
 
     memset(&ev, 0, sizeof(ev));
     g_client.now_ms += advance_ms;
-    dispatch(TORIRS_PLUGIN_EV_LOGIC_TICK, &ev);
+    dispatch_logic_tick(&ev);
     if( g_client.rebuild_wanted )
         panel_build();
 }
@@ -920,7 +926,7 @@ press(char const* id, int action, int value)
     ev.value = value;
     ev.text = "";
     ev.selection_generation = 1;
-    dispatch(TORIRS_PLUGIN_EV_PANEL_ACTION, &ev);
+    dispatch_panel_action(&ev);
     if( g_client.rebuild_wanted )
         panel_build();
 }
@@ -938,7 +944,7 @@ press_box(int row)
     ev.x = 10;
     ev.y = row * TEST_BOX_PITCH + 10;
     ev.selection_generation = 1;
-    dispatch(TORIRS_PLUGIN_EV_PANEL_ACTION, &ev);
+    dispatch_panel_action(&ev);
     if( g_client.rebuild_wanted )
         panel_build();
 }
@@ -967,7 +973,7 @@ press_strip(int y)
     ev.x = 10;
     ev.y = y;
     ev.selection_generation = 1;
-    dispatch(TORIRS_PLUGIN_EV_PANEL_ACTION, &ev);
+    dispatch_panel_action(&ev);
     if( g_client.rebuild_wanted )
         panel_build();
 }
@@ -1022,7 +1028,7 @@ row_text(char const* id)
 static void
 client_reset(void)
 {
-    if( g_plugin_state ) dispatch(TORIRS_PLUGIN_EV_STOP, NULL);
+    if( g_plugin_state ) dispatch_stop();
     memset(&g_client, 0, sizeof(g_client));
     memset(&g_store, 0, sizeof(g_store));
     g_store.revision = 1;
@@ -1056,7 +1062,7 @@ xp_start(void)
     fake_config_set_raw("pause_skill_after", "0");
     fake_config_set_raw("reset_rate_after", "0");
     plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
-    dispatch(TORIRS_PLUGIN_EV_START, NULL);
+    dispatch_start();
     panel_build();
 }
 
@@ -1448,12 +1454,12 @@ test_xp_offline_gains_are_not_the_session(void)
     fake_config_set_raw("save_state", "1");
     g_client.xp[SKILL_WOODCUTTING] = 1000;
     plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
-    dispatch(TORIRS_PLUGIN_EV_START, NULL);
+    dispatch_start();
     panel_build();
     tick(20);
     g_client.xp[SKILL_WOODCUTTING] = 1600;
     tick(1000);
-    dispatch(TORIRS_PLUGIN_EV_STOP, NULL);
+    dispatch_stop();
     TEST_ASSERT(g_client.asset_present, "stopping writes the session out");
 
     /*
@@ -1465,7 +1471,7 @@ test_xp_offline_gains_are_not_the_session(void)
      */
     g_client.xp[SKILL_WOODCUTTING] = 1001600;
     plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
-    dispatch(TORIRS_PLUGIN_EV_START, NULL);
+    dispatch_start();
     panel_build();
     tick(20);
     press_box(0);
@@ -1495,7 +1501,7 @@ loot_start(void)
     fake_config_set_raw("ignored_items", "");
     fake_config_set_raw("ignored_sources", "");
     plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
-    dispatch(TORIRS_PLUGIN_EV_START, NULL);
+    dispatch_start();
     panel_build();
 }
 
@@ -1631,9 +1637,9 @@ test_loot_ignore_button(void)
     settle();
     TEST_ASSERT(!has_loot(), "Ignore drops the band");
     TEST_ASSERT(
-        strstr(fake_cfg_str(CTX, "ignored_sources"), "Goblin") != NULL,
+        strstr(fake_cfg_str(FAKE_CONTEXT, "ignored_sources"), "Goblin") != NULL,
         "and writes it to the list a person can also type into (got '%s')",
-        fake_cfg_str(CTX, "ignored_sources"));
+        fake_cfg_str(FAKE_CONTEXT, "ignored_sources"));
 
     /* And it STAYS ignored, which is the point of writing it there: the store
      * still holds the kill, so anything less would bring it back next tick. */
@@ -1694,7 +1700,7 @@ test_loot_attention(void)
     ev.kind = "valuable_drop";
     snprintf(ev.subject, sizeof(ev.subject), "Rune 2h sword");
     ev.value = 100000;
-    dispatch(TORIRS_PLUGIN_EV_GAME_EVENT, &ev);
+    dispatch_game_event(&ev);
     TEST_ASSERT(g_client.attention, "a valuable drop asks the player to look");
 
     press_strip(TEST_TOTALS_H + 4);
@@ -1829,7 +1835,7 @@ test_hidden_page_does_no_work(void)
     memset(&hidden, 0, sizeof(hidden));
     hidden.selection_generation = 1;
     hidden.visible = false;
-    dispatch(TORIRS_PLUGIN_EV_PANEL_LAYOUT, &hidden);
+    dispatch_panel_layout(&hidden);
 
     visits = g_client.loot_source_visits;
     loot_add("Goblin", 526, 1, 100, 1);
@@ -1842,7 +1848,7 @@ test_hidden_page_does_no_work(void)
     /* The STORE still holds it -- only the drawing stopped -- so showing the
      * page again states everything that happened meanwhile. */
     hidden.visible = true;
-    dispatch(TORIRS_PLUGIN_EV_PANEL_LAYOUT, &hidden);
+    dispatch_panel_layout(&hidden);
     settle();
     TEST_ASSERT(has_loot(), "and showing it again catches up");
 }
@@ -1911,7 +1917,7 @@ main(void)
     test_xp_growth_does_not_rebuild();
     test_hidden_page_does_no_work();
 
-    if( g_plugin_state ) dispatch(TORIRS_PLUGIN_EV_STOP, NULL);
+    if( g_plugin_state ) dispatch_stop();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

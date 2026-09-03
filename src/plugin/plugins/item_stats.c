@@ -2698,7 +2698,7 @@ static void
 is_load_art(struct ItemStatsRuntime* rt)
 {
     (void)is_load_glyphs(rt);
-    (void)PluginDraw_ImageLoadV2(
+    (void)PluginDraw_ImageLoad(
         g_api, "text.png", &g_img_text, &g_text_px, &g_text_w, &g_text_h);
 }
 

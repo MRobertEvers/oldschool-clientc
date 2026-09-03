@@ -15,6 +15,7 @@
 
 #include <assert.h>
 #include <dlfcn.h>
+#include <errno.h>
 #include <pthread.h>
 #include <sched.h>
 #include <signal.h>
@@ -120,7 +121,7 @@ struct ToriRS_GLES2DualCore
     uint32_t warmup_frames;
     uint32_t lead;
     uint32_t lookahead;
-    bool pin;
+    int pin;
     bool debug;
 
     /* --- statistics --------------------------------------------------------- */
@@ -159,6 +160,9 @@ struct ToriRS_GLES2DualCore
      * clusters of big models mid-pass. Debug line only. */
     uint64_t stall_ns_hist[6];
     uint64_t stall_slot_hist[4];
+    /* Stalls of 200 us or more by the waited-on model's face count (<500,
+     * <2000, 2000+): the first bucket is a wait the model cannot explain. */
+    uint64_t stall_long_by_faces[3];
     /* BEGIN_3D commands seen: the world pass plus every model preview the
      * UI draws through its own pass. */
     uint64_t passes;
@@ -376,23 +380,63 @@ done:
     GLES2DualCore_SpinSignal();
 }
 
+/* TORIRS_GLES2_DUALCORE_PIN: 0 leaves placement to the scheduler; 1 pins
+ * the worker to cpu1; 2 pins the worker to cpu1 AND the draw to cpu0; 3 the
+ * other way round. Sampling /proc's `processor` field on the phone (kr13,
+ * 2026-09-03) found the two threads on the SAME core in over half the
+ * samples with the worker runnable: the scheduler wakes the worker on the
+ * waker's core each frame and the balancer takes milliseconds to move it,
+ * during which every draw stall is a wait on a thread that cannot run. */
 static void
-dualcore_worker_pin(struct ToriRS_GLES2DualCore* lane)
+dualcore_pin_to_cpu(struct ToriRS_GLES2DualCore* lane, int cpu, char const* who)
 {
 #if defined(__linux__)
     cpu_set_t set;
-    if( !lane->pin )
-        return;
     CPU_ZERO(&set);
-    CPU_SET(1, &set);
-    /* Best effort: a kernel that has the second CPU offline right now
-     * refuses, and the worker then runs wherever the scheduler puts it,
-     * which is the unpinned behaviour. */
+    CPU_SET(cpu, &set);
+    /* Best effort: a kernel that has that CPU offline right now refuses,
+     * and the thread then runs wherever the scheduler puts it, which is the
+     * unpinned behaviour. */
     if( sched_setaffinity(0, sizeof(set), &set) != 0 && lane->debug )
-        TORIRS_ERR("gles2-dualcore: could not pin the worker to cpu1\n");
+        TORIRS_ERR("gles2-dualcore: could not pin the %s to cpu%d: %s\n", who, cpu, strerror(errno));
+    else if( lane->debug && (lane->frames % GLES2_DUALCORE_DEBUG_PERIOD) == 1u )
+    {
+        cpu_set_t got;
+        CPU_ZERO(&got);
+        if( sched_getaffinity(0, sizeof(got), &got) == 0 )
+            TORIRS_ERR(
+                "gles2-dualcore: %s pinned to cpu%d; mask now cpu0=%d cpu1=%d, on cpu%d\n",
+                who, cpu, CPU_ISSET(0, &got) ? 1 : 0, CPU_ISSET(1, &got) ? 1 : 0, sched_getcpu());
+    }
 #else
     (void)lane;
+    (void)cpu;
+    (void)who;
 #endif
+}
+
+static void
+dualcore_worker_pin(struct ToriRS_GLES2DualCore* lane)
+{
+    if( lane->pin == 1 || lane->pin == 2 )
+        dualcore_pin_to_cpu(lane, 1, "worker");
+    else if( lane->pin == 3 )
+        dualcore_pin_to_cpu(lane, 0, "worker");
+}
+
+/* Re-applied every frame, not once: this phone's hotplug governor takes
+ * cpu1 offline whenever the load dips (the login screen, a menu), and a
+ * thread pinned to a CPU that goes offline has its mask reset to all CPUs
+ * by the kernel -- the first pin=2 run (kr13) ended with both masks at 0-1
+ * and the threads on the wrong cores. One sched_setaffinity a frame is a
+ * microsecond. */
+static void
+dualcore_draw_pin(struct ToriRS_GLES2DualCore* lane)
+{
+    if( lane->pin == 2 )
+        dualcore_pin_to_cpu(lane, 0, "draw");
+    else if( lane->pin == 3 )
+        dualcore_pin_to_cpu(lane, 1, "draw");
 }
 
 static void*
@@ -412,7 +456,6 @@ dualcore_worker_main(void* argument)
      * the moment the stage's breadcrumb stores went in. If it comes back, this
      * is what turns it into a stack. */
     dualcore_install_segv_handler();
-    dualcore_worker_pin(lane);
     for( ;; )
     {
         uint64_t began;
@@ -426,6 +469,7 @@ dualcore_worker_main(void* argument)
         }
         serial = lane->handed_serial;
         pthread_mutex_unlock(&lane->lock);
+        dualcore_worker_pin(lane);
 
         began = dualcore_now_ns();
         dualcore_worker_pass(lane);
@@ -600,6 +644,15 @@ dualcore_source_take(
         lane->stall_ns_hist[ns < 20000u ? 0 : ns < 50000u ? 1 : ns < 100000u ? 2
                              : ns < 200000u ? 3 : ns < 500000u ? 4 : 5]++;
         lane->stall_slot_hist[index < 64u ? 0 : index < 256u ? 1 : index < 1024u ? 2 : 3]++;
+        if( ns >= 200000u )
+        {
+            /* A long wait on a model too small to take that long to stage
+             * is the worker not running -- preempted, or sharing the core. */
+            int faces = 0;
+            if( ToriDraw_ModelKindIsFull(command->model.kind) )
+                faces = ToriDraw_ModelRead(command->model)->face_count;
+            lane->stall_long_by_faces[faces < 500 ? 0 : faces < 2000 ? 1 : 2]++;
+        }
         if( ToriDraw_ModelKindIsFull(command->model.kind) )
             class = ToriDraw_ModelRead(command->model)->face_count < GLES2_DUALCORE_SMALL_FACES ? 1 : 2;
         lane->stalls_by_class[class]++;
@@ -860,7 +913,8 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
     /* The window's stalls: how long each was, and where in the frame. */
     TORIRS_ERR(
         "gles2-dualcore: window stall-us [<20 %llu, <50 %llu, <100 %llu, <200 %llu, <500 %llu, "
-        "500+ %llu] stall-slot [<64 %llu, <256 %llu, <1024 %llu, 1024+ %llu] passes/frame %.1f\n",
+        "500+ %llu] stall-slot [<64 %llu, <256 %llu, <1024 %llu, 1024+ %llu] "
+        "long-stall faces [<500 %llu, <2000 %llu, 2000+ %llu] passes/frame %.1f\n",
         (unsigned long long)lane->stall_ns_hist[0],
         (unsigned long long)lane->stall_ns_hist[1],
         (unsigned long long)lane->stall_ns_hist[2],
@@ -871,9 +925,13 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         (unsigned long long)lane->stall_slot_hist[1],
         (unsigned long long)lane->stall_slot_hist[2],
         (unsigned long long)lane->stall_slot_hist[3],
+        (unsigned long long)lane->stall_long_by_faces[0],
+        (unsigned long long)lane->stall_long_by_faces[1],
+        (unsigned long long)lane->stall_long_by_faces[2],
         (double)lane->passes / (double)GLES2_DUALCORE_DEBUG_PERIOD);
     memset(lane->stall_ns_hist, 0, sizeof(lane->stall_ns_hist));
     memset(lane->stall_slot_hist, 0, sizeof(lane->stall_slot_hist));
+    memset(lane->stall_long_by_faces, 0, sizeof(lane->stall_long_by_faces));
     lane->passes = 0u;
     lane->worker_ns += lane->worker_ns_window;
     lane->join_ns += lane->join_ns_window;
@@ -906,6 +964,7 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
     ToriRS_FrameBegin(frame);
     if( dualcore_arm(lane, frame) )
     {
+        dualcore_draw_pin(lane);
         lane->frames_dual++;
         dualcore_render_frame_commands(lane, frame);
     }
@@ -951,7 +1010,7 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
     lane->enabled = dualcore_env_long("TORIRS_GLES2_DUALCORE", 1) != 0;
     warmup = dualcore_env_long("TORIRS_GLES2_DUALCORE_WARMUP", 1);
     lane->warmup_frames = warmup > 0 ? (uint32_t)warmup : 0u;
-    lane->pin = dualcore_env_long("TORIRS_GLES2_DUALCORE_PIN", 0) != 0;
+    lane->pin = (int)dualcore_env_long("TORIRS_GLES2_DUALCORE_PIN", 0);
     {
         long lead = dualcore_env_long(
             "TORIRS_GLES2_DUALCORE_LEAD", (long)GLES2_DUALCORE_STAGE_LEAD_DEFAULT);
@@ -1011,7 +1070,7 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
             lane->warmup_frames,
             lane->lead,
             lane->lookahead,
-            lane->pin ? 1 : 0);
+            lane->pin);
     return lane;
 }
 

@@ -66,6 +66,29 @@ enum PluginCallbackKind
     PLUGIN_CALLBACK_COUNT
 };
 
+struct PluginCanvasDispatch
+{
+    void* surface;
+    struct ToriRS_Rect bounds;
+};
+
+struct PluginFrameLayout
+{
+    int width;
+    int height;
+    int canvas;
+};
+
+struct PluginPanelDraw
+{
+    void* surface;
+    char const* id;
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
 static void
 plugin_panel_bump(uint32_t* revision);
 static void
@@ -296,110 +319,33 @@ struct PluginAsset
     bool missing;
 };
 
-#define TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX 64
-
-struct PluginRoleReplacement
+/* Standing entity appearance/input ownership. */
+#define PLUGIN_ENTITY_CLAIMS_MAX 64
+#define PLUGIN_ENTITY_OP_MAX 32
+enum PluginEntityScope
 {
-    int plugin;
-    char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    PLUGIN_ENTITY_APPEARANCE = 1 << 0,
+    PLUGIN_ENTITY_HITBOX = 1 << 1
 };
-
-/*
- * Temporary V1 chrome-part compatibility. New code declares named UI facets.
- * @see ToriRS_PluginApi::chrome_claim.
- *
- * 64, matching the role replacement table beside it, because the two bound the
- * same kind of thing -- a name a plugin has taken exclusive responsibility for
- * -- and a client with more than a handful of either is doing something no
- * gameframe in this tree does.
- */
-#define TORIRS_PLUGIN_CHROME_CLAIMS_MAX 64
-/** Bytes of one hit-region verb on a chrome part, terminator included. */
-#define TORIRS_PLUGIN_CHROME_OP_MAX 32
-/**
- * Arranger-declared parts standing at once.
- *
- * A frame declares one per CONTROL it dresses, which on the widest gameframe
- * in this tree is four chat buttons and fourteen sidebar stones. 32 is that
- * with room, and it is a per-declaration table rather than a per-plugin one
- * because only the frame's owner may write it.
- */
-#define TORIRS_PLUGIN_SLOT_ART_MAX 32
 /** Whole surfaces plus every V2 member declaration in one candidate. */
 #define TORIRS_PLUGIN_LAYOUT_RECTS_MAX 96
 /** A 64x64 PNG has no reason to approach this; cap pathological compressed
  * input before the automatic rail-icon decode spends work on it. */
 #define TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX (256 * 1024)
 
-/** One part a plugin has taken exclusive responsibility for dressing. */
-struct PluginChromeClaim
+/** One entity a plugin has taken responsibility for presenting or acting on. */
+struct PluginEntityClaim
 {
-    /** -1 for a free row. */
     int plugin;
     char part[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    /** Mask of enum ToriRS_LegacyChromeScope this row holds on `part`. */
     int scopes;
-    /** A POSITION declaration changed since the last layout pass, so one is
-     *  owed. @see PluginHost_ChromeTick. */
-    uint8_t moved;
-    /**
-     * ADDED parts only: the role this part hangs off, and the reason its box
-     * is stated relative rather than absolute.
-     */
-    char anchor[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    /** Which side of `anchor` an added part paints on. @see chrome_add. */
-    int place;
-    uint8_t added;
-
-    /**
-     * A LANE part this claim has taken a role replacement on.
-     *
-     * Kept because the routing has to be RECONCILED and not merely taken: a
-     * part that was the cache's own becomes a plugin arranger's when a plugin
-     * frame is committed, and a replacement left standing over
-     * it would prune a node the arranger is now placing.
-     */
-    uint8_t lane_replaced;
-
-    /** An ENTITY part: `part` parses as `<kind>:<ids>`. @see the entities
-     *  section of the contract. */
-    uint8_t entity;
-    /** The scene element the entity part names this frame, or -1. Rebound
-     *  once per world frame by plugin_entity_resolve_all. */
     int element_id;
-    /** An APPEARANCE holder's standing look for an entity. */
     struct ToriRS_EntityAppearance look;
-    /** enum ToriRS_EntityOpsMode, for a HITBOX holder's entity. */
     uint8_t ops_mode;
-
-    /** chrome_paint was called for this part in the last EV_CHROME. */
-    uint8_t declared;
-    /** The declaration is stale: re-raise EV_CHROME for this plugin. Set by a
-     *  fresh claim, a layout change, and a borrowed image becoming resident.
-     *  @see plugin_chrome_tick. */
-    uint8_t needs_declare;
-    /** enum ToriRS_LegacyChromeState, as chrome_state last selected it. */
-    uint8_t state;
-
-    /** What chrome_paint said. Anchor-relative for an added part, canvas
-     *  coordinates for every other kind. */
-    struct ToriRS_LegacyChromePart art;
-
-    char ops[TORIRS_PLUGIN_REGION_OPS_MAX][TORIRS_PLUGIN_CHROME_OP_MAX];
+    char ops[TORIRS_PLUGIN_REGION_OPS_MAX][PLUGIN_ENTITY_OP_MAX];
     int op_count;
     uint32_t tag;
     uint8_t has_ops;
-};
-
-/** One part the frame's OWNER declared, against the member it just placed. */
-struct PluginSlotArt
-{
-    uint8_t used;
-    uint8_t slot;
-    int member;
-    /** enum ToriRS_LegacyChromeState, as layout_slot_state last selected it. */
-    uint8_t state;
-    struct ToriRS_LegacyChromePart art;
 };
 
 /**
@@ -438,27 +384,6 @@ struct PluginLayoutCandidate
     bool viewport_declared;
     bool invalid;
     char reason[TORIRS_FRAME_REASON_MAX];
-};
-
-/**
- * One plugin's permission to draw another's image.
- *
- * The handle IS the lender's slot index -- there is no translation layer --
- * because a second numbering would have to be kept in step with a table that
- * deliberately never compacts. What this row grants is the RIGHT to pass that
- * handle to the read verbs, and nothing else: release and compose still go
- * through plugin_image_owned and still refuse.
- *
- * `generation` is what makes a borrow safe across the lender dropping the
- * image. The slot is recycled by the next image_load, so a row that only
- * remembered the index would silently start drawing a different picture.
- */
-struct PluginChromeBorrow
-{
-    /** -1 for a free row. */
-    int borrower;
-    int lender_image;
-    uint32_t generation;
 };
 
 /**
@@ -583,11 +508,6 @@ struct ToriRS_PluginHost
     int layout_candidate_entry;
     struct PluginLayoutCandidate layout_candidate;
 
-    /** Exclusive, persistent semantic replacements. The role spelling is
-     * retained rather than a node/id: only the engine can re-resolve it after
-     * a CS2 subtree rebuild, and reconciliation happens before interaction. */
-    struct PluginRoleReplacement role_replacements[TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX];
-
     struct PluginPlacementReservation
     {
         int plugin;
@@ -595,7 +515,7 @@ struct ToriRS_PluginHost
         int edge;
         int pixels;
         int assigned;
-        char name[TORIRS_PLUGIN_PLACEMENT_RESERVATION_NAME_MAX];
+        char name[TORIRS_HOST_RESERVATION_NAME_MAX];
         struct ToriRS_PlacementRect rect;
     } placement_reservations[TORIRS_PLUGIN_RESERVES_MAX];
 
@@ -604,37 +524,12 @@ struct ToriRS_PluginHost
     {
         int plugin;
         int assigned;
-        char name[TORIRS_PLUGIN_PLACEMENT_RESERVATION_NAME_MAX];
+        char name[TORIRS_HOST_RESERVATION_NAME_MAX];
         struct ToriRS_PlacementRect rect;
     } placement_resolved_reservations[TORIRS_PLUGIN_RESERVES_MAX];
 
-    /*
-     * The chrome tier: parts, and who dresses them.
-     *
-     * Flat tables and not per-plugin slices, on the reservation table's own
-     * reasoning: almost every plugin claims nothing, one or two claim a
-     * handful, and sizing a slice for the greediest and multiplying it by
-     * thirty-two spends memory on a case that does not happen. Declaration
-     * ORDER is meaningful here too -- claimants are dispatched and drawn in
-     * the order they claimed -- so nothing is compacted or sorted.
-     */
-    struct PluginChromeClaim chrome_claims[TORIRS_PLUGIN_CHROME_CLAIMS_MAX];
-    /** The committed frame provider's part declarations. V1 compatibility. */
-    struct PluginSlotArt slot_art[TORIRS_PLUGIN_SLOT_ART_MAX];
-    /** Candidate part declarations, copied above only on a complete commit. */
-    struct PluginSlotArt slot_art_candidate[TORIRS_PLUGIN_SLOT_ART_MAX];
-    /** Read permissions on other plugins' images. @see PluginChromeBorrow. */
-    struct PluginChromeBorrow
-        chrome_borrows[TORIRS_PLUGIN_CHROME_CLAIMS_MAX * TORIRS_PLUGIN_CHROME_STATE_COUNT];
-    /** Non-zero only inside an EV_CHROME dispatch: chrome_paint and chrome_ops
-     *  are legal then and at no other time, for the same reason layout_slot is
-     *  legal only inside EV_LAYOUT. */
-    int chrome_declaring;
-    /** The plugin whose declaration is being taken, while chrome_declaring. */
-    int chrome_declarer;
-    /** Set while the claim table is being walked, so a claim taken from inside
-     *  a handler is refused rather than invalidating the walk. */
-    int chrome_iterating;
+    /* Standing entity presentation/action claims. */
+    struct PluginEntityClaim entity_claims[PLUGIN_ENTITY_CLAIMS_MAX];
 
     /** Moves whenever anything about the layout does. @see layout_revision. */
     int layout_revision;
@@ -673,16 +568,6 @@ struct ToriRS_PluginHost
         int height;
         /** The engine has a scene entry for this slot. */
         bool published;
-        /**
-         * Bumped every time this slot is dropped, so a BORROW taken against
-         * the old occupant can tell it is stale.
-         *
-         * The table deliberately never compacts and the slot index IS the
-         * handle, so a recycled slot is the one way a borrower could end up
-         * drawing a picture it never asked for. Comparing one counter closes
-         * it. @see PluginChromeBorrow.
-         */
-        uint32_t generation;
     } images[TORIRS_PLUGIN_IMAGES_MAX];
 
     /*
@@ -1003,19 +888,6 @@ plugin_entity_hull_allowed(
     struct ToriRS_PluginHost* host,
     int plugin,
     int element_id);
-static void
-plugin_chrome_paint_all(
-    struct ToriRS_PluginHost* host,
-    int canvas_pass);
-static int
-role_replacement_find(
-    struct ToriRS_PluginHost const* host,
-    char const* role);
-static int
-role_replaced_by(
-    struct ToriRS_PluginHost const* host,
-    char const* role);
-
 static enum ToriRS_CallbackResult
 plugin_dispatch(
     struct ToriRS_PluginHost* host,
@@ -1040,19 +912,11 @@ plugin_dispatch(
             !plugin_v2_has_event_callback(ctx->def, ev) )
             continue;
 
-        /* A canvas anchor is subscriber-local. Reset on both sides of every
-         * callback so an early return, a plugin with no anchor call, or the
-         * next plugin in draw order can never inherit the previous target. */
-        if( ev == PLUGIN_CALLBACK_DRAW_CANVAS )
-            (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0, 0);
         host->dispatching = plugin;
         host->dispatch_event = ev;
         verdict = plugin_v2_event(ctx, payload, (void*)(intptr_t)(ev + 1));
         host->dispatching = prev_dispatching;
         host->dispatch_event = prev_event;
-        if( ev == PLUGIN_CALLBACK_DRAW_CANVAS )
-            (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0, 0);
-
         if( verdict == TORIRS_CALLBACK_CONSUME )
             return TORIRS_CALLBACK_CONSUME;
 
@@ -1607,167 +1471,6 @@ struct PluginRect
  * picks it every time. A cut sitting in the middle of the box has no good
  * answer and this gives the least bad one.
  */
-static struct PluginRect
-plugin_rect_subtract(
-    struct PluginRect box,
-    struct PluginRect cut)
-{
-    struct PluginRect best = box;
-    int best_area = -1;
-    int const bx1 = box.x + box.w;
-    int const by1 = box.y + box.h;
-    int const cx1 = cut.x + cut.w;
-    int const cy1 = cut.y + cut.h;
-    struct PluginRect candidate[4];
-
-    if( cut.w <= 0 || cut.h <= 0 )
-        return box;
-    /* Somewhere else on the screen entirely. */
-    if( cx1 <= box.x || cut.x >= bx1 || cy1 <= box.y || cut.y >= by1 )
-        return box;
-
-    /* Left of it, right of it, above it, below it. */
-    candidate[0].x = box.x;
-    candidate[0].y = box.y;
-    candidate[0].w = cut.x - box.x;
-    candidate[0].h = box.h;
-    candidate[1].x = cx1;
-    candidate[1].y = box.y;
-    candidate[1].w = bx1 - cx1;
-    candidate[1].h = box.h;
-    candidate[2].x = box.x;
-    candidate[2].y = box.y;
-    candidate[2].w = box.w;
-    candidate[2].h = cut.y - box.y;
-    candidate[3].x = box.x;
-    candidate[3].y = cy1;
-    candidate[3].w = box.w;
-    candidate[3].h = by1 - cy1;
-
-    for( int i = 0; i < 4; i++ )
-    {
-        int const area =
-            candidate[i].w > 0 && candidate[i].h > 0 ? candidate[i].w * candidate[i].h : 0;
-        if( area > best_area )
-        {
-            best_area = area;
-            best = candidate[i];
-        }
-    }
-    /* Every slice was empty: the cut covers the box. Answer with nothing
-     * rather than with a negative rectangle -- a caller's fallback chain reads
-     * that as "this frame has no such region", which is true. */
-    if( best_area <= 0 )
-    {
-        best.w = 0;
-        best.h = 0;
-    }
-    return best;
-}
-
-/** Ask the engine for a placeable region, or CANVAS. */
-static int
-plugin_engine_rect(
-    struct ToriRS_PluginHost* host,
-    int slot,
-    struct PluginRect* out)
-{
-    assert(host);
-    assert(out);
-    return host->engine.slot_rect(host->engine.user, slot, &out->x, &out->y, &out->w, &out->h);
-}
-
-/**
- * SAFE_GAMECHROME: the scene's box with the chrome and every reservation taken out.
- *
- * Starts from VIEWPORT rather than from CANVAS because on a fixed frame that
- * is already the answer -- the chrome sits outside the scene box and every
- * subtraction below misses. On a resizable frame the viewport IS the window,
- * and the same code then does real work as the minimap, the chatbox and the
- * sidebar are cut out of it one at a time. One rule, both window modes.
- *
- * MAIN_MODAL is deliberately not an occluder: it is the region a modal opens
- * INTO, which is the middle of the safe area rather than something covering
- * it.
- */
-static int
-plugin_safe_gamechrome_rect(
-    struct ToriRS_PluginHost* host,
-    struct PluginRect* out)
-{
-    static int const OCCLUDER[] = {
-        TORIRS_HOST_SURFACE_MINIMAP,      TORIRS_HOST_SURFACE_COMPASS, TORIRS_HOST_SURFACE_CHAT,
-        TORIRS_HOST_SURFACE_CHAT_BUTTONS, TORIRS_HOST_SURFACE_SIDEBAR, TORIRS_HOST_SURFACE_ORBS,
-    };
-    struct PluginRect box;
-
-    assert(host);
-    assert(out);
-
-    if( !plugin_engine_rect(host, TORIRS_HOST_SURFACE_VIEWPORT, &box) &&
-        !plugin_engine_rect(host, TORIRS_HOST_SURFACE_CANVAS, &box) )
-        return 0;
-
-    for( size_t i = 0; i < sizeof(OCCLUDER) / sizeof(OCCLUDER[0]); i++ )
-    {
-        struct PluginRect cut;
-        if( plugin_engine_rect(host, OCCLUDER[i], &cut) )
-            box = plugin_rect_subtract(box, cut);
-    }
-
-    *out = box;
-    return box.w > 0 && box.h > 0;
-}
-
-/**
- * SAFE_LANECHROME: the canvas with the lane's own immovable furniture taken out.
- *
- * The `lane_chrome_<n>` roles, resolved by the engine against whichever
- * toplevel is live and cut out of the CANVAS one at a time with the same
- * subtraction the region above uses. Starts from CANVAS and not from VIEWPORT,
- * which is the opposite of SAFE_GAMECHROME and deliberate: this is the box a
- * layout DECLARES into, and the viewport is one of the things it declares, so
- * deriving it from the viewport would be reading the answer back.
- *
- * A piece that is off screen is not an occluder -- role_visible, not merely
- * role_rect: the OldSchool side-tab rail is mounted on the mobile toplevel too
- * and hidden there, and a hidden rail that still ate 42 columns would move a
- * phone frame's furniture in from an edge nothing is standing on.
- *
- * Numbered rather than enumerated because a role is resolved LIVE by name and
- * the host holds no role table; the loop stops at the first name the profile
- * has not declared, so a revision with none costs one failed lookup.
- */
-static int
-plugin_safe_lanechrome_rect(
-    struct ToriRS_PluginHost* host,
-    struct PluginRect* out)
-{
-    struct PluginRect box;
-
-    assert(host);
-    assert(out);
-
-    if( !plugin_engine_rect(host, TORIRS_HOST_SURFACE_CANVAS, &box) )
-        return 0;
-
-    for( int i = 0; i < TORIRS_HOST_LANE_CHROME_MAX; i++ )
-    {
-        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-        struct PluginRect cut;
-
-        snprintf(role, sizeof(role), "lane_chrome_%d", i);
-        if( !host->engine.role_rect(host->engine.user, role, &cut.x, &cut.y, &cut.w, &cut.h) )
-            break;
-        if( !host->engine.role_visible(host->engine.user, role) )
-            continue;
-        box = plugin_rect_subtract(box, cut);
-    }
-
-    *out = box;
-    return box.w > 0 && box.h > 0;
-}
-
 /* ---------------------------------------------------------------- exact placement */
 
 static int
@@ -2046,8 +1749,8 @@ plugin_placement_rebuild(
         }
     }
     else if(
-        host->engine.safe_os &&
-        host->engine.safe_os(host->engine.user, &rect.x, &rect.y, &rect.w, &rect.h) && rect.w > 0 &&
+        host->engine.platform_safe_rect &&
+        host->engine.platform_safe_rect(host->engine.user, &rect.x, &rect.y, &rect.w, &rect.h) && rect.w > 0 &&
         rect.h > 0 )
         ToriRS_PlacementRegion_SetRect(&os, &rect);
     else
@@ -2224,7 +1927,7 @@ plugin_placement_reservation_name_valid(char const* name)
 
     assert(name);
     length = strlen(name);
-    if( length == 0 || length >= TORIRS_PLUGIN_PLACEMENT_RESERVATION_NAME_MAX )
+    if( length == 0 || length >= TORIRS_HOST_RESERVATION_NAME_MAX )
         return 0;
     for( size_t i = 0; i < length; i++ )
     {
@@ -2358,25 +2061,6 @@ plugin_ui_contribution_status(
         return 1;
     }
     return 0;
-}
-
-static int
-api_ui_contribution_facets(
-    struct ToriRS_PluginCtx* ctx,
-    char const* node,
-    int* out_conflict_facets)
-{
-    struct ToriRS_UiContributionStatus status;
-
-    assert(ctx);
-    assert(node);
-    if( out_conflict_facets )
-        *out_conflict_facets = 0;
-    if( !plugin_ui_contribution_status(ctx, node, &status) )
-        return 0;
-    if( out_conflict_facets )
-        *out_conflict_facets = (int)status.conflict_facets;
-    return (int)status.active_facets;
 }
 
 /* --------------------------------------------------------- canonical UI */
@@ -2726,406 +2410,13 @@ plugin_ui_tab_state_poll(struct ToriRS_PluginHost* host)
  * A refusal, not an abort: a plugin polling role_rect every frame across a
  * logout is doing nothing wrong, and this is the answer it should get.
  */
-static int
-host_frame_exists(struct ToriRS_PluginCtx const* ctx)
+static bool
+host_game_screen(struct ToriRS_PluginCtx const* ctx)
 {
     assert(ctx);
     return ctx->host->engine.screen(ctx->host->engine.user) == TORIRS_SCREEN_GAME;
 }
 
-static int
-api_slot_rect(
-    struct ToriRS_PluginCtx* ctx,
-    int slot,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    struct PluginRect box;
-    int got;
-
-    if( !host_frame_exists(ctx) )
-        return 0; /* @see host_frame_exists */
-
-    assert(ctx);
-
-    /* A region id out of range is a plugin's arithmetic, not a broken
-     * contract -- it may have come from a config key or from a script -- so it
-     * answers "this frame has no such region", like any other absent one. */
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_COUNT )
-        return 0;
-
-    if( slot == TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME )
-        got = plugin_safe_gamechrome_rect(ctx->host, &box);
-    else if( slot == TORIRS_PLUGIN_SLOT_SAFE_LANECHROME )
-        got = plugin_safe_lanechrome_rect(ctx->host, &box);
-    else
-        got = plugin_engine_rect(ctx->host, slot, &box);
-    if( !got || box.w <= 0 || box.h <= 0 )
-        return 0;
-
-    if( out_x )
-        *out_x = box.x;
-    if( out_y )
-        *out_y = box.y;
-    if( out_w )
-        *out_w = box.w;
-    if( out_h )
-        *out_h = box.h;
-    return 1;
-}
-
-/* ------------------------------------------------------------ roles */
-
-/*
- * Where a role's element is. @see ToriRS_PluginApi::role_rect.
- *
- * `safe_gamechrome` is answered here and never reaches the engine, for the same reason
- * SLOT_SAFE_GAMECHROME does not: it is the placeable regions minus every plugin's edge
- * reservation, and the reservation table is the host's. Routing it through
- * api_slot_rect rather than re-deriving it is what keeps the name and the
- * region enum answering with one rectangle. `safe_lanechrome` is routed the
- * same way and for the same reason -- it is derived here too.
- */
-static int
-api_role_rect(
-    struct ToriRS_PluginCtx* ctx,
-    char const* role,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    int x = 0, y = 0, w = 0, h = 0;
-
-    if( !host_frame_exists(ctx) )
-        return 0; /* @see host_frame_exists */
-
-    assert(ctx);
-    /* An empty name is a plugin's own string handling, and the answer is the
-     * same one an undeclared role gets. */
-    if( !role || role[0] == '\0' )
-        return 0;
-
-    if( strcmp(role, "safe_gamechrome") == 0 )
-        return api_slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, out_x, out_y, out_w, out_h);
-    if( strcmp(role, "safe_lanechrome") == 0 )
-        return api_slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_LANECHROME, out_x, out_y, out_w, out_h);
-
-    if( !ctx->host->engine.role_rect(ctx->host->engine.user, role, &x, &y, &w, &h) )
-        return 0;
-    if( w <= 0 || h <= 0 )
-        return 0;
-
-    if( out_x )
-        *out_x = x;
-    if( out_y )
-        *out_y = y;
-    if( out_w )
-        *out_w = w;
-    if( out_h )
-        *out_h = h;
-    return 1;
-}
-
-static int
-api_role_visible(
-    struct ToriRS_PluginCtx* ctx,
-    char const* role)
-{
-    assert(ctx);
-    if( !role || role[0] == '\0' )
-        return 0;
-    if( !host_frame_exists(ctx) )
-        return 0; /* @see host_frame_exists */
-    /* `safe_gamechrome` and `canvas` are rectangles rather than things that can be
-     * hidden, and a derived region is on screen whenever the client is. */
-    if( strcmp(role, "safe_gamechrome") == 0 || strcmp(role, "canvas") == 0 )
-        return api_role_rect(ctx, role, NULL, NULL, NULL, NULL);
-    /*
-     * A REPLACED role is on screen: its provider paints it at the tombstone
-     * every frame the provider runs. The engine would answer "hidden", which
-     * is true of the lane's own node and false of the object -- and the
-     * object is what a caller means. A plugin deciding whether to hang
-     * something off `minimap_edge` needs "is there a minimap_edge", not
-     * "is the cache's plate visible".
-     */
-    {
-        int const by = role_replaced_by(ctx->host, role);
-        if( by >= 0 && ctx->host->plugins[by].running )
-            return 1;
-    }
-    return ctx->host->engine.role_visible(ctx->host->engine.user, role);
-}
-
-static int
-api_role_click(
-    struct ToriRS_PluginCtx* ctx,
-    char const* role,
-    int op)
-{
-    assert(ctx);
-    if( !role || role[0] == '\0' )
-        return 0;
-    if( !host_frame_exists(ctx) )
-        return 0; /* @see host_frame_exists -- and a click on a name that means
-                   * something else is worse than a rectangle that does. */
-    /* Same reading as if_click's: an op out of range came from a config key or
-     * a script, so it is bad input and not a broken contract. */
-    if( op < 0 || op > 10 )
-        return 0;
-    return ctx->host->engine.role_click(ctx->host->engine.user, role, op);
-}
-
-static int
-api_role_id(
-    struct ToriRS_PluginCtx* ctx,
-    char const* role)
-{
-    assert(ctx);
-    if( !role || role[0] == '\0' )
-        return -1;
-    if( !host_frame_exists(ctx) )
-        return -1; /* @see host_frame_exists */
-    return ctx->host->engine.role_id(ctx->host->engine.user, role);
-}
-
-static int
-role_replacement_find(
-    struct ToriRS_PluginHost const* host,
-    char const* role)
-{
-    assert(host);
-    assert(role);
-    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
-        if( host->role_replacements[i].plugin >= 0 &&
-            strcmp(host->role_replacements[i].role, role) == 0 )
-            return i;
-    return -1;
-}
-
-/**
- * Which plugin currently PROVIDES `role` in place of the lane, or -1.
- *
- * Two tables answer, because a role is replaced two ways: a plugin says so
- * outright (role_replace), or it claims the APPEARANCE of a lane part and
- * the chrome pass replaces the node for it (PluginHost_ChromeTick,
- * `lane_replaced`). The second never entered role_replacements, so every
- * verb that asked "is this role replaced" -- role_visible, role_anchor, the
- * tombstone paint -- saw the claimed housing as unprovided: an orb column
- * asked whether `minimap_edge` was on screen, heard no, hung itself off the
- * map instead, and painted under the very plate it meant to sit on.
- */
-static int
-role_replaced_by(
-    struct ToriRS_PluginHost const* host,
-    char const* role)
-{
-    int at;
-
-    assert(host);
-    assert(role);
-    at = role_replacement_find(host, role);
-    if( at >= 0 )
-        return host->role_replacements[at].plugin;
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim const* row = &host->chrome_claims[i];
-        if( row->plugin >= 0 && row->lane_replaced && strcmp(row->part, role) == 0 )
-            return row->plugin;
-    }
-    return -1;
-}
-
-static int
-role_replacement_free(struct ToriRS_PluginHost const* host)
-{
-    assert(host);
-    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
-        if( host->role_replacements[i].plugin < 0 )
-            return i;
-    return -1;
-}
-
-static void
-role_replacements_drop_plugin(
-    struct ToriRS_PluginHost* host,
-    int plugin)
-{
-    assert(host);
-    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
-    {
-        struct PluginRoleReplacement* claim = &host->role_replacements[i];
-        if( claim->plugin != plugin )
-            continue;
-        (void)host->engine.role_replace(host->engine.user, plugin, claim->role, /*enabled=*/0);
-        claim->plugin = -1;
-        claim->role[0] = '\0';
-    }
-}
-
-static int
-api_role_replace(
-    struct ToriRS_PluginCtx* ctx,
-    char const* role,
-    int enabled)
-{
-    struct ToriRS_PluginHost* host;
-    int at;
-
-    assert(ctx);
-    host = ctx->host;
-    if( !role || !role[0] || strlen(role) >= TORIRS_PLUGIN_ROLE_NAME_MAX )
-        return 0;
-    /* These are derived rectangles, not semantic component identities. */
-    if( strcmp(role, "safe_gamechrome") == 0 || strcmp(role, "canvas") == 0 )
-        return 0;
-
-    at = role_replacement_find(host, role);
-    if( enabled )
-    {
-        if( at >= 0 && host->role_replacements[at].plugin != ctx->index )
-            return 0;
-        if( at < 0 )
-        {
-            at = role_replacement_free(host);
-            if( at < 0 )
-                return 0;
-            host->role_replacements[at].plugin = ctx->index;
-            snprintf(
-                host->role_replacements[at].role,
-                sizeof(host->role_replacements[at].role),
-                "%s",
-                role);
-        }
-        /* Resolution is intentionally not the return value. The persistent
-         * claim must survive a temporarily missing role and bind when its next
-         * incarnation appears. */
-        (void)host->engine.role_replace(host->engine.user, ctx->index, role, 1);
-        return 1;
-    }
-
-    if( at < 0 )
-        return 1; /* idempotent release */
-    if( host->role_replacements[at].plugin != ctx->index )
-        return 0;
-    (void)host->engine.role_replace(host->engine.user, ctx->index, role, 0);
-    host->role_replacements[at].plugin = -1;
-    host->role_replacements[at].role[0] = '\0';
-    return 1;
-}
-
-static int
-api_role_anchor(
-    struct ToriRS_PluginCtx* ctx,
-    char const* role,
-    int place)
-{
-    struct ToriRS_PluginHost* host;
-    int replace = 0;
-
-    assert(ctx);
-    host = ctx->host;
-    assert(
-        host->draw_surface && host->draw_canvas == PLUGIN_DRAW_SURFACE_CANVAS &&
-        "role_anchor is legal only inside EV_DRAW_CANVAS");
-    if( !role || !role[0] || strlen(role) >= TORIRS_PLUGIN_ROLE_NAME_MAX )
-    {
-        /* Non-NULL empty is the engine-side active-invalid sentinel. A failed
-         * retarget must drop subsequent declarations from this subscriber,
-         * never leave its previous anchor active or fall back to global
-         * Canvas. Empty is safe because it is not a legal public role name. */
-        (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0, 0);
-        return 0;
-    }
-    if( strcmp(role, "safe_gamechrome") == 0 || strcmp(role, "canvas") == 0 )
-    {
-        (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0, 0);
-        return 0;
-    }
-
-    /*
-     * A REPLACED role is anchored at its tombstone by everyone, not only by
-     * the plugin that replaced it.
-     *
-     * The name is the object. When one plugin provides `minimap_edge` in
-     * place of the lane's own plate, a second plugin hanging its orb column
-     * off `minimap_edge` is hanging it off that object -- and the object now
-     * paints at the tombstone, so that is where the column has to paint too.
-     * Refusing the second plugin (which this used to do, as an "active
-     * invalid" anchor) made every replacement an island: a semantic name
-     * whose meaning changed for exactly the plugins that had done the right
-     * thing and asked for it by name.
-     *
-     * Order inside the tombstone is arrival order, and the host paints the
-     * replacement's own declaration first (plugin_chrome_paint_all runs
-     * before EV_DRAW_CANVAS), so what is hung off the object lands on top
-     * of it.
-     */
-    if( role_replaced_by(host, role) >= 0 )
-        replace = 1;
-    return host->engine.role_anchor(
-        host->engine.user,
-        ctx->index,
-        role,
-        replace,
-        place == TORIRS_PLUGIN_ANCHOR_BEFORE ? TORIRS_PLUGIN_ANCHOR_BEFORE
-                                             : TORIRS_PLUGIN_ANCHOR_AFTER);
-}
-
-/*
- * One member of a region. @see ToriRS_PluginApi::slot_member_rect.
- *
- * SAFE is absent on purpose and is not an oversight: it is derived from the
- * placeable regions and has no members to number.
- */
-static int
-api_slot_member_rect(
-    struct ToriRS_PluginCtx* ctx,
-    int slot,
-    int member,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    int x = 0, y = 0, w = 0, h = 0;
-
-    if( !host_frame_exists(ctx) )
-        return 0; /* @see host_frame_exists */
-
-    assert(ctx);
-
-    /* Same reading as slot_rect's: an id out of range is a plugin's
-     * arithmetic, and the answer is "this frame has no such region". */
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT || member < 0 )
-        return 0;
-
-    if( !ctx->host->engine.slot_member_rect(ctx->host->engine.user, slot, member, &x, &y, &w, &h) )
-        return 0;
-    if( w <= 0 || h <= 0 )
-        return 0;
-
-    if( out_x )
-        *out_x = x;
-    if( out_y )
-        *out_y = y;
-    if( out_w )
-        *out_w = w;
-    if( out_h )
-        *out_h = h;
-    return 1;
-}
-
-/*
- * The size a surface came with. @see ToriRS_PluginApi::slot_native_size.
- *
- * Gated on host_frame_exists like every other frame query: on the title screen
- * there is no gameframe, so there is no chatbox and no size it was authored
- * at, and a frame plugin asking early has to hear that rather than a stale
- * number from the last session.
- */
 static int
 api_slot_native_size(
     struct ToriRS_PluginCtx* ctx,
@@ -3135,8 +2426,8 @@ api_slot_native_size(
 {
     int w = 0, h = 0;
 
-    if( !host_frame_exists(ctx) )
-        return 0; /* @see host_frame_exists */
+    if( !host_game_screen(ctx) )
+        return 0;
 
     assert(ctx);
     if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
@@ -3170,8 +2461,8 @@ api_component_rect(
 {
     int x = 0, y = 0, w = 0, h = 0;
 
-    if( !host_frame_exists(ctx) )
-        return 0; /* @see host_frame_exists */
+    if( !host_game_screen(ctx) )
+        return 0;
 
     assert(ctx);
 
@@ -3189,13 +2480,6 @@ api_component_rect(
     if( out_h )
         *out_h = h;
     return 1;
-}
-
-static int
-api_layout_revision(struct ToriRS_PluginCtx* ctx)
-{
-    assert(ctx);
-    return ctx->host->layout_revision;
 }
 
 static void
@@ -3851,136 +3135,16 @@ plugin_image_owned(
     return &ctx->host->images[image];
 }
 
-/* ------------------------------------------------------------------ borrows */
-
-/**
- * Is this plugin allowed to READ `image` -- because it owns it, or because
- * chrome_part lent it one?
- *
- * The read verbs go through here and the write verbs do not, which is the
- * whole of what a borrow permits. image_release still asks plugin_image_owned
- * and so is a no-op for a borrower; image_compose takes a NAME in the caller's
- * own namespace and can never reach a foreign slot at all.
- *
- * Silent about a handle it refuses, unlike plugin_image_owned: a borrow going
- * stale is an ORDINARY event -- the lender was switched off -- and the caller's
- * correct response is to draw nothing, which is what it already does for an
- * image whose pixels have not landed.
- */
+/* Read operations obey the same ownership rule as writes/releases. */
 static struct PluginImage const*
 plugin_image_readable(
     struct ToriRS_PluginCtx* ctx,
     int image)
 {
-    struct ToriRS_PluginHost const* host;
-
     assert(ctx);
-    if( image < 0 || image >= TORIRS_PLUGIN_IMAGES_MAX )
-        return NULL;
-
-    host = ctx->host;
-    if( host->images[image].plugin == ctx->index )
-        return &host->images[image];
-
-    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) / sizeof(host->chrome_borrows[0])); i++ )
-    {
-        struct PluginChromeBorrow const* row = &host->chrome_borrows[i];
-        if( row->borrower != ctx->index || row->lender_image != image )
-            continue;
-        /* Stale reads exactly as pending: the slot was dropped and possibly
-         * refilled, so the picture behind this handle is not the one that was
-         * lent. @see PluginChromeBorrow. */
-        if( row->generation != host->images[image].generation )
-            return NULL;
-        return &host->images[image];
-    }
-    return NULL;
+    return plugin_image_owned(ctx, image);
 }
 
-/**
- * Lend `lender_image` to `borrower`, returning the handle it should use.
- *
- * Idempotent on (borrower, image): a plugin asking chrome_part every EV_CHROME
- * gets the same row back rather than one per pass. A row whose generation has
- * moved is REBOUND rather than duplicated, so a lender that dropped and
- * reloaded its art is picked up on the next ask without the borrower knowing
- * anything happened.
- *
- * @return the handle, or -1 when the table is full -- which the caller reports
- * as a part with no art rather than as no part, because the BOX is still true
- * and a dresser that ships its own picture needs nothing else.
- */
-static int
-plugin_chrome_borrow(
-    struct ToriRS_PluginHost* host,
-    int borrower,
-    int lender_image)
-{
-    int free_row = -1;
-
-    assert(host);
-    if( lender_image < 0 || lender_image >= TORIRS_PLUGIN_IMAGES_MAX )
-        return -1;
-    /* A plugin never borrows from itself: the handle it already holds is the
-     * same number, and a row for it would only be a row to keep in step. */
-    if( host->images[lender_image].plugin == borrower )
-        return lender_image;
-    if( host->images[lender_image].plugin < 0 )
-        return -1;
-
-    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) / sizeof(host->chrome_borrows[0])); i++ )
-    {
-        struct PluginChromeBorrow* row = &host->chrome_borrows[i];
-        if( row->borrower < 0 )
-        {
-            if( free_row < 0 )
-                free_row = i;
-            continue;
-        }
-        if( row->borrower == borrower && row->lender_image == lender_image )
-        {
-            row->generation = host->images[lender_image].generation;
-            return lender_image;
-        }
-    }
-
-    if( free_row < 0 )
-    {
-        TORIRS_LOG(
-            "plugin: %s could not borrow image %d; the borrow table is full\n",
-            host->plugins[borrower].name,
-            lender_image);
-        return -1;
-    }
-    host->chrome_borrows[free_row].borrower = borrower;
-    host->chrome_borrows[free_row].lender_image = lender_image;
-    host->chrome_borrows[free_row].generation = host->images[lender_image].generation;
-    return lender_image;
-}
-
-/** Drop every borrow a plugin holds, and every borrow of ITS images. Both
- *  halves, because a teardown ends the lending in both directions. */
-static void
-plugin_chrome_borrows_drop_plugin(
-    struct ToriRS_PluginHost* host,
-    int plugin)
-{
-    assert(host);
-    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) / sizeof(host->chrome_borrows[0])); i++ )
-    {
-        struct PluginChromeBorrow* row = &host->chrome_borrows[i];
-        if( row->borrower < 0 )
-            continue;
-        if( row->borrower == plugin || host->images[row->lender_image].plugin == plugin )
-        {
-            row->borrower = -1;
-            row->lender_image = 0;
-            row->generation = 0;
-        }
-    }
-}
-
-/** Free a slot's scene entry and mark it free. Idempotent. */
 static void
 plugin_image_drop(
     struct ToriRS_PluginHost* host,
@@ -3991,18 +3155,7 @@ plugin_image_drop(
 
     if( host->images[image].published )
         host->engine.image_release(host->engine.user, image);
-    {
-        /*
-         * The generation SURVIVES the wipe and moves on, because it is a fact
-         * about the slot rather than about the image that was in it. A borrow
-         * taken against the old occupant compares it and reads as stale; if it
-         * were reset here, the next load into this slot would hand that borrow
-         * a matching counter and a different picture.
-         */
-        uint32_t const generation = host->images[image].generation + 1u;
-        memset(&host->images[image], 0, sizeof(host->images[image]));
-        host->images[image].generation = generation;
-    }
+    memset(&host->images[image], 0, sizeof(host->images[image]));
     host->images[image].plugin = -1;
 }
 
@@ -4693,15 +3846,6 @@ api_mesh_destroy(
     ctx->host->engine.mesh_destroy(ctx->host->engine.user, mesh);
 }
 
-static void
-api_mesh_clear(
-    struct ToriRS_PluginCtx* ctx,
-    int mesh)
-{
-    plugin_mesh_assert_owned(ctx, mesh);
-    ctx->host->engine.mesh_clear(ctx->host->engine.user, mesh);
-}
-
 static int
 api_mesh_vertex(
     struct ToriRS_PluginCtx* ctx,
@@ -4830,7 +3974,7 @@ static void
 api_object_set_model(
     struct ToriRS_PluginCtx* ctx,
     int object,
-    enum ToriRS_EngineModelSource source,
+    enum ToriRS_HostModelSource source,
     int id)
 {
     plugin_object_assert_owned(ctx, object);
@@ -4933,230 +4077,6 @@ api_hsl_to_rgb(
     return ctx->host->engine.hsl_to_rgb(ctx->host->engine.user, hsl);
 }
 
-/* -- the plugin window -----------------------------------------------------
- *
- * The registry is a flat pool stamped with owners, walked linearly. Linear
- * because a plugin's tab is a couple of dozen controls at most and the walks
- * happen when a control is declared or used -- never per frame, which is what
- * the revision counter exists to make true.
- */
-
-/** Slot index of `id` within `plugin`'s controls, or -1. */
-static int
-plugin_win_find(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index,
-    char const* id)
-{
-    assert(host);
-    assert(id);
-    for( int i = 0; i < host->win_widget_count; i++ )
-        if( host->win_owner[i] == plugin_index && strcmp(host->win_widgets[i].id, id) == 0 )
-            return i;
-    return -1;
-}
-
-static int
-plugin_win_count_owned(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index)
-{
-    int n = 0;
-    for( int i = 0; i < host->win_widget_count; i++ )
-        if( host->win_owner[i] == plugin_index )
-            n++;
-    return n;
-}
-
-/** A zero serial is reserved for "not a widget" in queued presenter work. */
-static uint32_t
-plugin_widget_next_serial(struct ToriRS_PluginHost* host)
-{
-    assert(host);
-    host->next_widget_serial++;
-    if( host->next_widget_serial == 0 )
-        host->next_widget_serial++;
-    return host->next_widget_serial;
-}
-
-/**
- * Drop every control of one plugin, compacting the pool.
- *
- * Compaction rather than a free list because these slots are addressed by
- * POSITION only within a walk that recomputes it -- nothing outside this file
- * holds a slot index across a call, so there is no handle to invalidate, and a
- * compact array keeps the enumeration the panel does a straight scan.
- */
-static void
-plugin_win_drop(
-    struct ToriRS_PluginHost* host,
-    int plugin_index)
-{
-    int keep = 0;
-
-    assert(host);
-    for( int i = 0; i < host->win_widget_count; i++ )
-    {
-        if( host->win_owner[i] == plugin_index )
-            continue;
-        host->win_widgets[keep] = host->win_widgets[i];
-        host->win_owner[keep] = host->win_owner[i];
-        keep++;
-    }
-    if( keep != host->win_widget_count )
-    {
-        host->win_widget_count = keep;
-        host->win_revision++;
-    }
-}
-
-static bool
-api_win_request(
-    struct ToriRS_PluginCtx* ctx,
-    char const* tab_title)
-{
-    struct ToriRS_PluginHost* host;
-
-    assert(ctx);
-    assert(tab_title);
-    host = ctx->host;
-
-    if( !host->win_tab[ctx->index] )
-    {
-        host->win_tab[ctx->index] = true;
-        host->win_revision++;
-    }
-    if( strcmp(host->win_tab_title[ctx->index], tab_title) != 0 )
-    {
-        plugin_copy_str(
-            host->win_tab_title[ctx->index], sizeof(host->win_tab_title[ctx->index]), tab_title);
-        host->win_revision++;
-    }
-    return true;
-}
-
-static bool
-api_win_widget(
-    struct ToriRS_PluginCtx* ctx,
-    int kind,
-    char const* id,
-    char const* label)
-{
-    struct ToriRS_PluginHost* host;
-    struct ToriRS_PanelWidget* w;
-
-    assert(ctx);
-    assert(id);
-    host = ctx->host;
-
-    /* A tab is implied by putting something on it, so a plugin that only ever
-     * wanted controls does not have to remember to ask for the tab first. */
-    if( !host->win_tab[ctx->index] )
-        api_win_request(ctx, ctx->name);
-
-    /* Re-declaring an id is a no-op rather than a duplicate: EV_UI_BUILD can be
-     * raised more than once for the same tab, and a plugin that declares its
-     * controls unconditionally there must not stack them up. */
-    if( plugin_win_find(host, ctx->index, id) >= 0 )
-        return true;
-
-    if( plugin_win_count_owned(host, ctx->index) >= TORIRS_PLUGIN_WIDGETS_MAX ||
-        host->win_widget_count >= TORIRS_PLUGIN_WIN_WIDGETS_MAX )
-    {
-        PluginHost_SetError(host, ctx->index, "window control budget exhausted");
-        return false;
-    }
-
-    w = &host->win_widgets[host->win_widget_count];
-    memset(w, 0, sizeof(*w));
-    w->kind = kind;
-    w->selected = -1;
-    w->value = 0;
-    w->serial = plugin_widget_next_serial(host);
-    plugin_copy_str(w->id, sizeof(w->id), id);
-    plugin_copy_str(w->label, sizeof(w->label), label ? label : "");
-    host->win_owner[host->win_widget_count] = ctx->index;
-    host->win_widget_count++;
-    host->win_revision++;
-    return true;
-}
-
-static bool
-api_win_set_text(
-    struct ToriRS_PluginCtx* ctx,
-    char const* id,
-    char const* text)
-{
-    int slot;
-
-    assert(ctx);
-    assert(id);
-    slot = plugin_win_find(ctx->host, ctx->index, id);
-    if( slot < 0 )
-        return false;
-    /* A value change deliberately does not bump the revision -- see the note on
-     * PluginHost_WinRevision. The presentation mirrors it onto the control it
-     * already has rather than rebuilding the tab around it. */
-    plugin_copy_str(
-        ctx->host->win_widgets[slot].text,
-        sizeof(ctx->host->win_widgets[slot].text),
-        text ? text : "");
-    return true;
-}
-
-static bool
-api_win_set_checked(
-    struct ToriRS_PluginCtx* ctx,
-    char const* id,
-    bool on)
-{
-    int slot;
-
-    assert(ctx);
-    assert(id);
-    slot = plugin_win_find(ctx->host, ctx->index, id);
-    if( slot < 0 )
-        return false;
-    ctx->host->win_widgets[slot].checked = on ? 1 : 0;
-    ctx->host->win_widgets[slot].value = on ? 1 : 0;
-    return true;
-}
-
-static bool
-api_win_set_options(
-    struct ToriRS_PluginCtx* ctx,
-    char const* id,
-    char const* choices,
-    int selected)
-{
-    struct ToriRS_PanelWidget* w;
-    int slot;
-
-    assert(ctx);
-    assert(id);
-    slot = plugin_win_find(ctx->host, ctx->index, id);
-    if( slot < 0 )
-        return false;
-    w = &ctx->host->win_widgets[slot];
-    if( strcmp(w->choices, choices ? choices : "") != 0 )
-    {
-        plugin_copy_str(w->choices, sizeof(w->choices), choices ? choices : "");
-        /* The LIST is shape, unlike the selection into it: a presentation
-         * holding a native combo box has to be rebuilt around a new list. */
-        ctx->host->win_revision++;
-    }
-    w->selected = selected;
-    w->value = selected;
-    return true;
-}
-
-static void
-api_win_clear(struct ToriRS_PluginCtx* ctx)
-{
-    assert(ctx);
-    plugin_win_drop(ctx->host, ctx->index);
-}
-
 /* -- the application plugin panel ----------------------------------------
  *
  * Registration is per plugin; content is not. Only panel_active owns the
@@ -5177,6 +4097,17 @@ plugin_panel_bump(uint32_t* revision)
     (*revision)++;
     if( *revision == 0 )
         (*revision)++;
+}
+
+/** Zero is reserved for "not a widget" in queued presenter work. */
+static uint32_t
+plugin_widget_next_serial(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    host->next_widget_serial++;
+    if( host->next_widget_serial == 0 )
+        host->next_widget_serial++;
+    return host->next_widget_serial;
 }
 
 /** Forget row deltas after a full page declaration became authoritative. */
@@ -5500,39 +4431,6 @@ api_panel_set_height(
     plugin_panel_bump(&ctx->host->panel_model_revision);
     plugin_panel_change_widget(
         ctx->host, slot, TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT);
-    return true;
-}
-
-static bool
-api_panel_set_options(
-    struct ToriRS_PluginCtx* ctx,
-    char const* id,
-    char const* choices,
-    int selected)
-{
-    struct ToriRS_PanelWidget* widget;
-    char const* next = choices ? choices : "";
-    bool changed;
-    int slot;
-
-    assert(ctx);
-    if( !plugin_panel_mutable(ctx, id, &slot) )
-        return false;
-    widget = &ctx->host->panel_widgets[slot];
-    changed = plugin_copy_str_would_change(widget->choices, sizeof(widget->choices), next) ||
-              widget->selected != selected || widget->value != selected;
-    plugin_copy_str(widget->choices, sizeof(widget->choices), next);
-    widget->selected = selected;
-    widget->value = selected;
-    if( changed )
-    {
-        plugin_panel_bump(&ctx->host->panel_model_revision);
-        plugin_panel_change_widget(
-            ctx->host,
-            slot,
-            TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS |
-                TORIRS_PLUGIN_PANEL_CHANGE_VALUE);
-    }
     return true;
 }
 
@@ -6109,7 +5007,7 @@ api_image_release(
  * a box, a picture and a click, and the engine already answers "where is this
  * role" (role_rect), "what does this name mean here" (role_slot), "hide the
  * cache's own" (role_replace), "put my drawing inside that subtree"
- * (role_anchor) and "blit this" (draw_image). The tier is those verbs
+ * (ui_boundary) and "blit this" (draw_image). The tier is those verbs
  * arranged, plus arbitration -- and arbitration between plugins was never the
  * engine's to do.
  *
@@ -6122,996 +5020,91 @@ api_image_release(
  */
 
 /** This plugin's row for `part`, or NULL. */
-static struct PluginChromeClaim*
-plugin_chrome_row(
+static struct PluginEntityClaim*
+plugin_entity_row(
     struct ToriRS_PluginHost* host,
     int plugin,
     char const* part)
 {
     assert(host);
     assert(part);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim* row = &host->chrome_claims[i];
-        if( row->plugin == plugin && strcmp(row->part, part) == 0 )
-            return row;
-    }
+    for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
+        if( host->entity_claims[i].plugin == plugin &&
+            strcmp(host->entity_claims[i].part, part) == 0 )
+            return &host->entity_claims[i];
     return NULL;
 }
 
-/** Whoever holds `scope` of `part`, or NULL when nobody does. */
-static struct PluginChromeClaim*
-plugin_chrome_holder(
-    struct ToriRS_PluginHost* host,
+static struct PluginEntityClaim const*
+plugin_entity_holder(
+    struct ToriRS_PluginHost const* host,
     char const* part,
     int scope)
 {
     assert(host);
     assert(part);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim* row = &host->chrome_claims[i];
-        if( row->plugin >= 0 && (row->scopes & scope) && strcmp(row->part, part) == 0 )
-            return row;
-    }
+    for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
+        if( host->entity_claims[i].plugin >= 0 &&
+            (host->entity_claims[i].scopes & scope) != 0 &&
+            strcmp(host->entity_claims[i].part, part) == 0 )
+            return &host->entity_claims[i];
     return NULL;
 }
 
-/** The mask of `scopes` held by anyone but `except` (-1 for anyone at all). */
-static int
-plugin_chrome_held(
-    struct ToriRS_PluginHost* host,
-    char const* part,
-    int scopes,
-    int except)
-{
-    int held = 0;
-
-    assert(host);
-    assert(part);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim const* row = &host->chrome_claims[i];
-        if( row->plugin < 0 || row->plugin == except )
-            continue;
-        if( strcmp(row->part, part) == 0 )
-            held |= row->scopes & scopes;
-    }
-    return held;
-}
-
-/** Any row at all for `part` -- the ADDED row is the one that matters. */
-static struct PluginChromeClaim*
-plugin_chrome_added_row(
-    struct ToriRS_PluginHost* host,
-    char const* part)
-{
-    assert(host);
-    assert(part);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim* row = &host->chrome_claims[i];
-        if( row->plugin >= 0 && row->added && strcmp(row->part, part) == 0 )
-            return row;
-    }
-    return NULL;
-}
-
-/** The arranger's declaration for one member, or NULL. */
-static struct PluginSlotArt*
-plugin_slot_art_find_in(
-    struct PluginSlotArt* rows,
-    int slot,
-    int member)
-{
-    assert(rows);
-    for( int i = 0; i < TORIRS_PLUGIN_SLOT_ART_MAX; i++ )
-    {
-        struct PluginSlotArt* row = &rows[i];
-        if( row->used && row->slot == (uint8_t)slot && row->member == member )
-            return row;
-    }
-    return NULL;
-}
-
-static struct PluginSlotArt*
-plugin_slot_art_find(
-    struct ToriRS_PluginHost* host,
-    int slot,
-    int member)
-{
-    assert(host);
-    return plugin_slot_art_find_in(host->slot_art, slot, member);
-}
-
-/**
- * What a part is UNDERNEATH every claim: its source, its box and its pictures
- * as the lane, the frame's arranger, or the introducing plugin provide them.
- *
- * Three authorities, most specific first; each step is an answer rather than
- * a fallback, and NONE is an answer too.
- *
- * `out_state` is the arranger's chosen state for a FRAME part, IDLE otherwise.
- */
-static int
-plugin_chrome_base(
-    struct ToriRS_PluginHost* host,
-    char const* part,
-    struct ToriRS_LegacyChromePart* out,
-    int* out_state)
-{
-    struct PluginChromeClaim* added;
-    int slot = -1;
-    int member = -1;
-
-    assert(host);
-    assert(part);
-    assert(out);
-    assert(out_state);
-
-    memset(out, 0, sizeof(*out));
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
-        out->art[i] = -1;
-    *out_state = TORIRS_PLUGIN_CHROME_IDLE;
-
-    added = plugin_chrome_added_row(host, part);
-    if( added )
-    {
-        int ax = 0;
-        int ay = 0;
-        int aw = 0;
-        int ah = 0;
-
-        /* An added part has no box of its own: it is an offset from something
-         * that does. An anchor this revision has not got means the part is
-         * not anywhere, which is the honest answer to "put an orb column on a
-         * gameframe with no minimap". */
-        if( !host->engine.role_rect(host->engine.user, added->anchor, &ax, &ay, &aw, &ah) )
-            return 0;
-        /* The introducer's OWN declaration is the base for its part; the
-         * composition below then lets other holders override the scopes they
-         * took from it. Its box is anchor-relative and is made absolute here,
-         * once, so every reader sees canvas coordinates. */
-        *out = added->art;
-        out->x = ax + added->art.x;
-        out->y = ay + added->art.y;
-        out->source = TORIRS_PLUGIN_CHROME_SOURCE_ADDED;
-        *out_state = added->state;
-        return 1;
-    }
-
-    if( host->engine.role_slot(host->engine.user, part, &slot, &member) )
-    {
-        struct PluginSlotArt const* declared = plugin_slot_art_find(host, slot, member);
-        int x = 0;
-        int y = 0;
-        int w = 0;
-        int h = 0;
-        int got =
-            member < 0
-                ? host->engine.slot_rect(host->engine.user, slot, &x, &y, &w, &h)
-                : host->engine.slot_member_rect(host->engine.user, slot, member, &x, &y, &w, &h);
-        if( declared )
-        {
-            *out = declared->art;
-            out->source = TORIRS_PLUGIN_CHROME_SOURCE_FRAME;
-            *out_state = declared->state;
-            return 1;
-        }
-        if( !got )
-            return 0;
-        out->x = x;
-        out->y = y;
-        out->w = w;
-        out->h = h;
-        out->source = TORIRS_PLUGIN_CHROME_SOURCE_LANE;
-        return 1;
-    }
-
-    {
-        int x = 0;
-        int y = 0;
-        int w = 0;
-        int h = 0;
-        if( !host->engine.role_rect(host->engine.user, part, &x, &y, &w, &h) )
-            return 0;
-        out->x = x;
-        out->y = y;
-        out->w = w;
-        out->h = h;
-        out->source = TORIRS_PLUGIN_CHROME_SOURCE_LANE;
-        return 1;
-    }
-}
-
-/**
- * A part as it is RIGHT NOW: the base with every held scope overlaid by its
- * holder's declaration. Canvas coordinates. Art handles are lent to
- * `borrower` on the way out when it is not -1.
- *
- * `out_hit` is the plugin whose region serves the click, or -1 when the
- * HITBOX is nobody's -- the lane's own, or an arranger's imperative region.
- * `out_ops` is that holder's row, or NULL.
- */
-static int
-plugin_chrome_resolve(
-    struct ToriRS_PluginHost* host,
-    char const* part,
-    int borrower,
-    struct ToriRS_LegacyChromePart* out,
-    int* out_state,
-    struct PluginChromeClaim const** out_ops)
-{
-    struct ToriRS_LegacyChromePart found;
-    struct PluginChromeClaim const* holder;
-    int state;
-    int source;
-
-    assert(host);
-    assert(part);
-    assert(out);
-
-    if( !plugin_chrome_base(host, part, &found, &state) )
-        return 0;
-    source = found.source;
-
-    /*
-     * The composition, and the whole of what a scope MEANS: each holder's
-     * declaration replaces exactly its own fields. The introducer of an added
-     * part is skipped -- its declaration IS the base -- so that a second
-     * plugin holding one scope of an orb overrides that one scope of it.
-     */
-    holder = plugin_chrome_holder(host, part, TORIRS_PLUGIN_CHROME_SCOPE_POSITION);
-    if( holder && holder->declared && !holder->added && holder->art.w > 0 && holder->art.h > 0 )
-    {
-        if( source == TORIRS_PLUGIN_CHROME_SOURCE_ADDED )
-        {
-            /* Relative to the same anchor the introducer used. */
-            struct PluginChromeClaim const* added = plugin_chrome_added_row(host, part);
-            int ax = 0;
-            int ay = 0;
-            int aw = 0;
-            int ah = 0;
-            assert(added);
-            (void)host->engine.role_rect(host->engine.user, added->anchor, &ax, &ay, &aw, &ah);
-            found.x = ax + holder->art.x;
-            found.y = ay + holder->art.y;
-        }
-        else
-        {
-            found.x = holder->art.x;
-            found.y = holder->art.y;
-        }
-        found.w = holder->art.w;
-        found.h = holder->art.h;
-    }
-
-    holder = plugin_chrome_holder(host, part, TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE);
-    if( holder && holder->declared && !holder->added )
-    {
-        memcpy(found.art, holder->art.art, sizeof(found.art));
-        found.label_x = holder->art.label_x;
-        found.label_y = holder->art.label_y;
-        state = holder->state;
-    }
-
-    holder = plugin_chrome_holder(host, part, TORIRS_PLUGIN_CHROME_SCOPE_HITBOX);
-    if( out_ops )
-        *out_ops = holder && holder->has_ops ? holder : NULL;
-
-    if( borrower >= 0 )
-        for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
-            if( found.art[i] >= 0 )
-                found.art[i] = plugin_chrome_borrow(host, borrower, found.art[i]);
-
-    found.source = source;
-    *out = found;
-    if( out_state )
-        *out_state = state;
-    return 1;
-}
-
-/** Mark every claimant's declaration stale, so the next chrome tick re-asks.
- *  Called wherever a box could have moved under one. */
-static void
-plugin_chrome_invalidate(struct ToriRS_PluginHost* host)
-{
-    assert(host);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-        if( host->chrome_claims[i].plugin >= 0 )
-            host->chrome_claims[i].needs_declare = 1;
-}
-
-/**
- * Take, restate or drop scopes on one part. The engine half of chrome_claim
- * and chrome_add both land here; `anchor` non-NULL introduces the part.
- *
- * @return the mask of `scopes` this plugin now holds, or -1 for a refusal
- * that is not about ownership (a bad name, a re-entrant call, a full table).
- */
-static int
-plugin_chrome_claim_set(
+static struct PluginEntityClaim*
+plugin_entity_claim(
     struct ToriRS_PluginCtx* ctx,
     char const* part,
-    char const* anchor,
-    int scopes,
-    int enabled)
+    int scope)
 {
-    struct ToriRS_PluginHost* host = ctx->host;
-    struct PluginChromeClaim* row;
+    struct PluginEntityClaim* own;
+    struct PluginEntityClaim const* holder;
     int free_row = -1;
-    int taken;
-    int granted;
 
     assert(ctx);
     assert(part);
-
-    scopes &= TORIRS_PLUGIN_CHROME_SCOPE_ALL;
-    if( part[0] == '\0' || strlen(part) >= TORIRS_PLUGIN_ROLE_NAME_MAX )
-        return -1;
-    /*
-     * Refused rather than asserted while the table is being walked. A plugin
-     * legitimately learns mid-pass that it wants a part; what it must not do
-     * is add a row to the array somebody is iterating. It takes the claim from
-     * its tick instead and has it on the next pass.
-     */
-    if( host->chrome_iterating )
+    if( !plugin_entity_parse(part, NULL, NULL, NULL, NULL) )
+        return NULL;
+    own = plugin_entity_row(ctx->host, ctx->index, part);
+    if( own )
     {
-        TORIRS_LOG("plugin: %s tried to claim '%s' from inside a chrome pass\n", ctx->name, part);
-        return -1;
+        own->scopes |= scope;
+        return own;
     }
-
-    row = plugin_chrome_row(host, ctx->index, part);
-    if( !enabled )
-    {
-        if( !row )
-            return 0;
-        row->scopes &= ~scopes;
-        /* An introducer releasing everything REMOVES the part: unlike a native
-         * one there is nothing underneath to fall back to. */
-        if( row->scopes == 0 || (row->added && !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_ALL)) )
-        {
-            if( row->lane_replaced )
-                (void)host->engine.role_replace(host->engine.user, ctx->index, part, 0);
-            memset(row, 0, sizeof(*row));
-            row->plugin = -1;
-        }
-        PluginHost_LayoutChanged(host);
-        return 0;
-    }
-
-    taken = plugin_chrome_held(host, part, scopes, ctx->index);
-    granted = scopes & ~taken;
-    if( row )
-    {
-        /* Idempotent restatement, widened by whatever is still free. An added
-         * part keeps the anchor it was introduced with: re-anchoring is a
-         * different part, not the same one said again. */
-        row->scopes |= granted;
-        row->needs_declare = 1;
-        return row->scopes & scopes;
-    }
-    if( !granted )
-        return 0;
-
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-        if( host->chrome_claims[i].plugin < 0 )
+    holder = plugin_entity_holder(ctx->host, part, scope);
+    if( holder )
+        return NULL;
+    for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
+        if( ctx->host->entity_claims[i].plugin < 0 )
         {
             free_row = i;
             break;
         }
     if( free_row < 0 )
-    {
-        TORIRS_LOG(
-            "plugin: %s could not claim '%s'; the claim table is full (%d)\n",
-            ctx->name,
-            part,
-            TORIRS_PLUGIN_CHROME_CLAIMS_MAX);
-        return -1;
-    }
-
-    row = &host->chrome_claims[free_row];
-    memset(row, 0, sizeof(*row));
-    row->plugin = ctx->index;
-    row->scopes = granted;
-    snprintf(row->part, sizeof(row->part), "%s", part);
-    row->entity = plugin_entity_parse(part, NULL, NULL, NULL, NULL) != 0;
-    row->element_id = -1;
-    if( anchor )
-    {
-        snprintf(row->anchor, sizeof(row->anchor), "%s", anchor);
-        row->added = 1;
-    }
-    row->needs_declare = 1;
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
-        row->art.art[i] = -1;
-    PluginHost_LayoutChanged(host);
-    return granted;
-}
-
-static int
-api_chrome_claim(
-    struct ToriRS_PluginCtx* ctx,
-    char const* part,
-    int scopes,
-    int enabled)
-{
-    struct ToriRS_LegacyChromePart probe;
-    int state;
-    int result;
-
-    assert(ctx);
-    assert(part);
-
-    if( !enabled )
-        return plugin_chrome_claim_set(ctx, part, NULL, scopes, 0);
-
-    /*
-     * An ENTITY part skips the existence probe: the thing it names comes and
-     * goes with the scene, and a claim on a slot that has not spawned yet is
-     * the ordinary way to claim it. POSITION is the server's and is refused
-     * out loud. A malformed entity name is -1, as any part nothing has is.
-     */
-    if( strchr(part, ':') )
-    {
-        if( !plugin_entity_parse(part, NULL, NULL, NULL, NULL) )
-            return -1;
-        if( scopes & TORIRS_PLUGIN_CHROME_SCOPE_POSITION )
-        {
-            TORIRS_LOG(
-                "plugin: %s asked to move '%s'; where an entity is is the server's\n",
-                ctx->name,
-                part);
-            scopes &= ~TORIRS_PLUGIN_CHROME_SCOPE_POSITION;
-        }
-        result = plugin_chrome_claim_set(ctx, part, NULL, scopes, 1);
-        return result < 0 ? 0 : result;
-    }
-
-    /*
-     * "Does anything provide this" is asked BEFORE the table, so a part no
-     * revision has answers -1 without leaving a row behind. A claim on
-     * nothing would stand for ever, be reported as held, and stop the plugin
-     * that later adds one for real.
-     *
-     * A part somebody else CLAIMED counts as provided even when the frame
-     * cannot resolve it this instant -- the gameframe is between rebuilds,
-     * the anchor is off screen -- which is what keeps ownership from flapping.
-     */
-    if( plugin_chrome_held(ctx->host, part, TORIRS_PLUGIN_CHROME_SCOPE_ALL, -1) == 0 &&
-        !plugin_chrome_base(ctx->host, part, &probe, &state) )
-        return -1;
-
-    /*
-     * POSITION on a LANE part is refused out loud. This tier can hide a
-     * native node and draw over it; it cannot MOVE one, and a claim that said
-     * yes and moved nothing would be exactly the silent no-op the contract
-     * forbids. Asked of the base and not the composed part, because what
-     * matters is what is underneath.
-     */
-    if( (scopes & TORIRS_PLUGIN_CHROME_SCOPE_POSITION) &&
-        plugin_chrome_base(ctx->host, part, &probe, &state) &&
-        probe.source == TORIRS_PLUGIN_CHROME_SOURCE_LANE )
-    {
-        TORIRS_LOG(
-            "plugin: %s asked to move '%s', which this lane draws itself; position refused\n",
-            ctx->name,
-            part);
-        scopes &= ~TORIRS_PLUGIN_CHROME_SCOPE_POSITION;
-    }
-
-    result = plugin_chrome_claim_set(ctx, part, NULL, scopes, 1);
-    return result < 0 ? 0 : result;
-}
-
-static int
-api_chrome_add(
-    struct ToriRS_PluginCtx* ctx,
-    char const* part,
-    char const* anchor,
-    int place,
-    struct ToriRS_LegacyChromePart const* initial)
-{
-    struct ToriRS_PluginHost* host = ctx->host;
-    struct ToriRS_LegacyChromePart probe;
-    int state;
-    int x = 0;
-    int y = 0;
-    int w = 0;
-    int h = 0;
-    int result;
-
-    assert(ctx);
-    assert(part);
-    assert(anchor);
-
-    if( anchor[0] == '\0' || strlen(anchor) >= TORIRS_PLUGIN_ROLE_NAME_MAX )
-        return -1;
-    /*
-     * A name this revision already HAS is not a name to add: it is one to
-     * claim. Adding would shadow a real node with a plugin's own picture and
-     * leave the node underneath still drawing -- and it is the migration path
-     * that matters here, because the day a profile binds `orb_hitpoints` to
-     * interface 160 this call has to start meaning "claim it" without the
-     * plugin changing a line. @see chrome_add.
-     */
-    if( plugin_chrome_held(host, part, TORIRS_PLUGIN_CHROME_SCOPE_ALL, -1) ||
-        plugin_chrome_base(host, part, &probe, &state) )
-        return api_chrome_claim(ctx, part, TORIRS_PLUGIN_CHROME_SCOPE_ALL, 1);
-    /* An anchor with no box is nowhere to hang anything. */
-    if( !host->engine.role_rect(host->engine.user, anchor, &x, &y, &w, &h) )
-        return -1;
-
-    result = plugin_chrome_claim_set(ctx, part, anchor, TORIRS_PLUGIN_CHROME_SCOPE_ALL, 1);
-    if( result > 0 )
-    {
-        struct PluginChromeClaim* row = plugin_chrome_row(host, ctx->index, part);
-        assert(row);
-        row->place = place == TORIRS_PLUGIN_ANCHOR_BEFORE ? TORIRS_PLUGIN_ANCHOR_BEFORE
-                                                          : TORIRS_PLUGIN_ANCHOR_AFTER;
-    }
-    if( result > 0 && initial )
-    {
-        struct PluginChromeClaim* row = plugin_chrome_row(host, ctx->index, part);
-        assert(row);
-        if( initial->w > 0 && initial->h > 0 )
-        {
-            row->art = *initial;
-            row->declared = 1;
-        }
-    }
-    return result < 0 ? -1 : result;
-}
-
-static char const*
-api_chrome_owner(
-    struct ToriRS_PluginCtx* ctx,
-    char const* part,
-    int scope)
-{
-    struct PluginChromeClaim const* row;
-
-    assert(ctx);
-    assert(part);
-    row = plugin_chrome_holder(ctx->host, part, scope);
-    if( !row )
         return NULL;
-    /* The TITLE and not the name: this is the half of a report a person reads,
-     * and "OSRS Gameframe" is what they switched on. */
-    return ctx->host->plugins[row->plugin].title;
+    own = &ctx->host->entity_claims[free_row];
+    memset(own, 0, sizeof(*own));
+    own->plugin = ctx->index;
+    own->scopes = scope;
+    own->element_id = -1;
+    snprintf(own->part, sizeof(own->part), "%s", part);
+    return own;
 }
 
-static int
-api_chrome_claimed(
-    struct ToriRS_PluginCtx* ctx,
-    char const* part,
-    int scopes)
-{
-    assert(ctx);
-    assert(part);
-    return plugin_chrome_held(ctx->host, part, scopes, ctx->index);
-}
-
-static int
-api_chrome_part(
-    struct ToriRS_PluginCtx* ctx,
-    char const* part,
-    struct ToriRS_LegacyChromePart* out)
-{
-    struct ToriRS_LegacyChromePart found;
-
-    assert(ctx);
-    assert(part);
-    assert(out);
-
-    if( !plugin_chrome_resolve(ctx->host, part, ctx->index, &found, NULL, NULL) )
-        return 0;
-    *out = found;
-    return 1;
-}
-
-static int
-api_chrome_paint(
-    struct ToriRS_PluginCtx* ctx,
-    char const* part,
-    struct ToriRS_LegacyChromePart const* art)
-{
-    struct PluginChromeClaim* row;
-
-    assert(ctx);
-    assert(part);
-    assert(art);
-    assert(
-        ctx->host->chrome_declaring && ctx->host->chrome_declarer == ctx->index &&
-        "chrome_paint is legal only inside EV_CHROME");
-
-    row = plugin_chrome_row(ctx->host, ctx->index, part);
-    if( !row )
-        return 0;
-    /*
-     * A non-positive box from a POSITION holder is refused and said out loud,
-     * because it is arithmetic gone wrong rather than a small part. The lesson
-     * is next door: a layout declared against a zero canvas does not produce a
-     * small frame, it produces one at negative coordinates, drawn and
-     * invisible. A holder of the other scopes has no box to give.
-     */
-    if( (row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_POSITION) && (art->w <= 0 || art->h <= 0) )
-    {
-        TORIRS_LOG(
-            "plugin: %s painted '%s' at %dx%d; nothing that size is drawn\n",
-            ctx->name,
-            part,
-            art->w,
-            art->h);
-        return 0;
-    }
-
-    /* A POSITION that moved wants a layout pass behind it, because on a FRAME
-     * part the host re-places the member there and the arranger's other
-     * regions have to hear about it. @see PluginHost_Layout. */
-    if( (row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_POSITION) &&
-        (row->art.x != art->x || row->art.y != art->y || row->art.w != art->w ||
-         row->art.h != art->h) )
-        row->moved = 1;
-
-    row->art = *art;
-    row->declared = 1;
-    return 1;
-}
-
-static int
-api_chrome_ops(
-    struct ToriRS_PluginCtx* ctx,
-    char const* part,
-    char const* const* ops,
-    int op_count,
-    uint32_t tag)
-{
-    struct PluginChromeClaim* row;
-
-    assert(ctx);
-    assert(part);
-    assert(
-        ctx->host->chrome_declaring && ctx->host->chrome_declarer == ctx->index &&
-        "chrome_ops is legal only inside EV_CHROME");
-
-    row = plugin_chrome_row(ctx->host, ctx->index, part);
-    if( !row || !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_HITBOX) )
-        return 0;
-
-    if( op_count < 0 )
-        op_count = 0;
-    if( op_count > TORIRS_PLUGIN_REGION_OPS_MAX )
-        op_count = TORIRS_PLUGIN_REGION_OPS_MAX;
-    row->op_count = 0;
-    for( int i = 0; i < op_count; i++ )
-    {
-        /* Empty rows are skipped rather than kept, so a caller with a
-         * fixed-size table need not compact it -- hit_region's own rule. */
-        if( !ops || !ops[i] || ops[i][0] == '\0' )
-            continue;
-        snprintf(row->ops[row->op_count], sizeof(row->ops[0]), "%s", ops[i]);
-        row->op_count++;
-    }
-    row->tag = tag;
-    row->has_ops = 1;
-    return 1;
-}
-
-static int
-api_chrome_state(
-    struct ToriRS_PluginCtx* ctx,
-    char const* part,
-    int state)
-{
-    struct PluginChromeClaim* row;
-
-    assert(ctx);
-    assert(part);
-
-    if( state < 0 || state >= TORIRS_PLUGIN_CHROME_STATE_COUNT )
-        return 0;
-    row = plugin_chrome_row(ctx->host, ctx->index, part);
-    if( !row || !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE) )
-        return 0;
-    row->state = (uint8_t)state;
-    return 1;
-}
-
-static int
-api_layout_slot_art(
-    struct ToriRS_PluginCtx* ctx,
-    int slot,
-    int member,
-    struct ToriRS_LegacyChromePart const* part)
-{
-    struct ToriRS_PluginHost* host = ctx->host;
-    struct PluginSlotArt* row;
-    struct PluginSlotArt const* committed;
-
-    assert(ctx);
-    assert(host->layout_declaring && "layout_slot_art is legal only inside EV_LAYOUT");
-    assert(host->layout_declarer == ctx->index);
-
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return 0;
-
-    row = plugin_slot_art_find_in(host->slot_art_candidate, slot, member);
-    if( !part )
-    {
-        if( row )
-            memset(row, 0, sizeof(*row));
-        return 0;
-    }
-    for( int state = 0; state < TORIRS_PLUGIN_CHROME_STATE_COUNT; state++ )
-        if( part->art[state] >= 0 )
-        {
-            struct PluginImage const* image = plugin_image_owned(ctx, part->art[state]);
-            if( !image || !image->published )
-            {
-                plugin_layout_candidate_fail(
-                    host, "The frame used foreign or unready part artwork.");
-                return 0;
-            }
-        }
-    if( part->w <= 0 || part->h <= 0 )
-    {
-        plugin_layout_candidate_fail(host, "The frame declared invalid part artwork bounds.");
-        TORIRS_LOG(
-            "plugin: %s declared slot %d member %d art at %dx%d; not drawn\n",
-            ctx->name,
-            slot,
-            member,
-            part->w,
-            part->h);
-        return 0;
-    }
-
-    if( !row )
-        for( int i = 0; i < TORIRS_PLUGIN_SLOT_ART_MAX; i++ )
-            if( !host->slot_art_candidate[i].used )
-            {
-                row = &host->slot_art_candidate[i];
-                break;
-            }
-    if( !row )
-    {
-        plugin_layout_candidate_fail(host, "The frame declared too many artwork parts.");
-        TORIRS_LOG(
-            "plugin: %s declared more than %d parts; the rest are not drawn\n",
-            ctx->name,
-            TORIRS_PLUGIN_SLOT_ART_MAX);
-        return 0;
-    }
-
-    /* The state SURVIVES the re-declaration: it was set by layout_slot_state
-     * at some earlier tick and the arranger has not been asked to say it
-     * again, any more than a claimant is. */
-    {
-        committed = plugin_slot_art_find(host, slot, member);
-        uint8_t const state = committed ? committed->state
-                                        : (uint8_t)TORIRS_PLUGIN_CHROME_IDLE;
-        row->used = 1;
-        row->slot = (uint8_t)slot;
-        row->member = member;
-        row->art = *part;
-        row->state = state;
-    }
-
-    /* The same "does this frame have one" answer layout_slot_at gives, asked
-     * the same way, so an arranger can place and dress in one breath and get
-     * one truth back from both. */
-    {
-        int x = 0;
-        int y = 0;
-        int w = 0;
-        int h = 0;
-        return member < 0
-                   ? host->engine.slot_rect(host->engine.user, slot, &x, &y, &w, &h)
-                   : host->engine.slot_member_rect(host->engine.user, slot, member, &x, &y, &w, &h);
-    }
-}
-
-/**
- * The role name this revision gives a member, or NULL when it has none.
- *
- * A linear pass over the claims, because the only reverse lookup that MATTERS
- * is "does some claim name this member" -- a member with no name has no claim
- * and needs none.
- */
-static char const*
-plugin_chrome_slot_name(
-    struct ToriRS_PluginHost* host,
-    int slot,
-    int member)
-{
-    assert(host);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim const* row = &host->chrome_claims[i];
-        int row_slot = -1;
-        int row_member = -1;
-
-        if( row->plugin < 0 || row->added )
-            continue;
-        if( !host->engine.role_slot(host->engine.user, row->part, &row_slot, &row_member) )
-            continue;
-        if( row_slot == slot && row_member == member )
-            return row->part;
-    }
-    return NULL;
-}
-
-static int
-api_layout_slot_claimed(
-    struct ToriRS_PluginCtx* ctx,
-    int slot,
-    int member,
-    int scopes)
-{
-    char const* name;
-
-    assert(ctx);
-    assert(plugin_frame_owner(ctx->host) == ctx->index);
-    name = plugin_chrome_slot_name(ctx->host, slot, member);
-    return name ? plugin_chrome_held(ctx->host, name, scopes, ctx->index) : 0;
-}
-
-static int
-api_layout_slot_state(
-    struct ToriRS_PluginCtx* ctx,
-    int slot,
-    int member,
-    int state)
-{
-    struct PluginSlotArt* row;
-
-    assert(ctx);
-    assert(plugin_frame_owner(ctx->host) == ctx->index);
-    if( state < 0 || state >= TORIRS_PLUGIN_CHROME_STATE_COUNT )
-        return 0;
-    row = plugin_slot_art_find(ctx->host, slot, member);
-    if( !row )
-        return 0;
-    row->state = (uint8_t)state;
-    return 1;
-}
-
-/** Drop everything one plugin holds in this tier. @see plugin_teardown. */
 static void
-plugin_chrome_drop_plugin(
+plugin_entity_drop_plugin(
     struct ToriRS_PluginHost* host,
     int plugin)
 {
-    int dropped = 0;
-
     assert(host);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim* row = &host->chrome_claims[i];
-        if( row->plugin != plugin )
-            continue;
-        if( row->lane_replaced )
-            (void)host->engine.role_replace(host->engine.user, plugin, row->part, 0);
-        memset(row, 0, sizeof(*row));
-        row->plugin = -1;
-        dropped = 1;
-    }
-    plugin_chrome_borrows_drop_plugin(host, plugin);
-    if( dropped )
-        PluginHost_LayoutChanged(host);
+    for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
+        if( host->entity_claims[i].plugin == plugin )
+        {
+            memset(&host->entity_claims[i], 0, sizeof(host->entity_claims[i]));
+            host->entity_claims[i].plugin = -1;
+        }
 }
 
-/**
- * Which picture a part is wearing right now.
- *
- * The two halves of the choice come from different places and neither can
- * derive the other's: the holder said whether the part is SELECTED
- * (chrome_state / layout_slot_state), and the host knows whether the pointer
- * is on it. A state whose handle is -1 falls back to IDLE, so a part with one
- * picture never has to think about any of this.
- */
-static int
-plugin_chrome_pick_art(
-    struct ToriRS_LegacyChromePart const* part,
-    int state,
-    int hovered)
-{
-    int wanted;
-
-    assert(part);
-    if( state == TORIRS_PLUGIN_CHROME_ACTIVE || state == TORIRS_PLUGIN_CHROME_ACTIVE_HOVER )
-        wanted = hovered ? TORIRS_PLUGIN_CHROME_ACTIVE_HOVER : TORIRS_PLUGIN_CHROME_ACTIVE;
-    else if( state == TORIRS_PLUGIN_CHROME_DISABLED )
-        wanted = TORIRS_PLUGIN_CHROME_DISABLED;
-    else
-        wanted = hovered ? TORIRS_PLUGIN_CHROME_HOVER : TORIRS_PLUGIN_CHROME_IDLE;
-
-    if( part->art[wanted] >= 0 )
-        return part->art[wanted];
-    /* One step back before IDLE, so a part with ACTIVE but no ACTIVE_HOVER
-     * stays selected under the pointer instead of appearing to deselect. */
-    if( wanted == TORIRS_PLUGIN_CHROME_ACTIVE_HOVER && part->art[TORIRS_PLUGIN_CHROME_ACTIVE] >= 0 )
-        return part->art[TORIRS_PLUGIN_CHROME_ACTIVE];
-    return part->art[TORIRS_PLUGIN_CHROME_IDLE];
-}
-
-/** Blit one resolved part and, when a HITBOX holder declared verbs, claim the
- *  rectangle for them. `ops` may be NULL for a part whose click is not a
- *  plugin's. */
-static void
-plugin_chrome_paint_one(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_LegacyChromePart const* part,
-    int state,
-    int have_mouse,
-    int mx,
-    int my,
-    struct PluginChromeClaim const* ops)
-{
-    struct PluginImage const* slot;
-    int hovered;
-    int image;
-
-    assert(host);
-    assert(part);
-
-    hovered = have_mouse && mx >= part->x && mx < part->x + part->w && my >= part->y &&
-              my < part->y + part->h;
-    image = plugin_chrome_pick_art(part, state, hovered);
-
-    if( image >= 0 && image < TORIRS_PLUGIN_IMAGES_MAX )
-    {
-        slot = &host->images[image];
-        /* Pending art draws nothing and is not an error: the part keeps its
-         * box, the region below is still claimed, and the picture appears on
-         * the frame after the read lands. */
-        if( slot->plugin >= 0 && slot->published )
-            (void)host->engine.draw_image(
-                host->engine.user,
-                image,
-                part->x,
-                part->y,
-                slot->width,
-                slot->height,
-                part->x,
-                part->y,
-                part->w,
-                part->h,
-                0);
-    }
-
-    if( ops && ops->has_ops )
-    {
-        char const* verbs[TORIRS_PLUGIN_REGION_OPS_MAX];
-        for( int i = 0; i < ops->op_count; i++ )
-            verbs[i] = ops->ops[i];
-        (void)host->engine.hit_region(
-            host->engine.user,
-            ops->plugin,
-            part->x,
-            part->y,
-            part->w,
-            part->h,
-            ops->op_count ? verbs : NULL,
-            ops->op_count,
-            ops->tag);
-    }
-}
-
-/* ----------------------------------------------------------------- entities */
-
-/*
- * The entity half of the tier. @see the "Entities" section of the contract.
- *
- * Same table, same rows, same arbitration; what is different is RESOLUTION.
- * A chrome part resolves to a box through the role table; an entity part
- * resolves to a scene ELEMENT through the snapshot walks, once per world
- * frame, and the element is what draw_hull and the pick set speak in.
- */
-
-/** Parse `<kind>:<a>[,<b>,<c>,<d>]`. @return the kind, or 0 for a name that
- *  is not an entity's -- which is every chrome part's, and is not an error. */
 static int
 plugin_entity_parse(
     char const* part,
@@ -7273,10 +5266,10 @@ static void
 plugin_entity_resolve_all(struct ToriRS_PluginHost* host)
 {
     assert(host);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
+    for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
     {
-        struct PluginChromeClaim* row = &host->chrome_claims[i];
-        if( row->plugin < 0 || !row->entity )
+        struct PluginEntityClaim* row = &host->entity_claims[i];
+        if( row->plugin < 0 )
             continue;
         row->element_id = plugin_entity_element(host, row->part);
     }
@@ -7298,12 +5291,12 @@ plugin_entity_hull_allowed(
     assert(host);
     if( element_id < 0 )
         return 1;
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
+    for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
     {
-        struct PluginChromeClaim const* row = &host->chrome_claims[i];
-        if( row->plugin < 0 || !row->entity || row->element_id != element_id )
+        struct PluginEntityClaim const* row = &host->entity_claims[i];
+        if( row->plugin < 0 || row->element_id != element_id )
             continue;
-        if( (row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE) && row->plugin != plugin )
+        if( (row->scopes & PLUGIN_ENTITY_APPEARANCE) && row->plugin != plugin )
             return 0;
     }
     return 1;
@@ -7315,12 +5308,12 @@ static void
 plugin_entity_paint_looks(struct ToriRS_PluginHost* host)
 {
     assert(host);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
+    for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
     {
-        struct PluginChromeClaim const* row = &host->chrome_claims[i];
-        if( row->plugin < 0 || !row->entity || row->element_id < 0 )
+        struct PluginEntityClaim const* row = &host->entity_claims[i];
+        if( row->plugin < 0 || row->element_id < 0 )
             continue;
-        if( !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE) || !row->look.hull )
+        if( !(row->scopes & PLUGIN_ENTITY_APPEARANCE) || !row->look.hull )
             continue;
         if( !(host->plugins[row->plugin].enabled && host->plugins[row->plugin].running) )
             continue;
@@ -7339,15 +5332,15 @@ api_entity_look(
     char const* part,
     struct ToriRS_EntityAppearance const* look)
 {
-    struct PluginChromeClaim* row;
+    struct PluginEntityClaim* row;
 
     assert(ctx);
     assert(part);
     assert(look);
     assert(look->shape == TORIRS_HULL_BOUNDS || look->shape == TORIRS_HULL_MESH);
 
-    row = plugin_chrome_row(ctx->host, ctx->index, part);
-    if( !row || !row->entity || !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE) )
+    row = plugin_entity_claim(ctx, part, PLUGIN_ENTITY_APPEARANCE);
+    if( !row )
         return 0;
     row->look = *look;
     return 1;
@@ -7362,15 +5355,15 @@ api_entity_ops(
     int op_count,
     uint32_t tag)
 {
-    struct PluginChromeClaim* row;
+    struct PluginEntityClaim* row;
 
     assert(ctx);
     assert(part);
 
     if( mode < TORIRS_ENTITY_OPS_APPEND || mode > TORIRS_ENTITY_OPS_NONE )
         return 0;
-    row = plugin_chrome_row(ctx->host, ctx->index, part);
-    if( !row || !row->entity || !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_HITBOX) )
+    row = plugin_entity_claim(ctx, part, PLUGIN_ENTITY_HITBOX);
+    if( !row )
         return 0;
 
     if( op_count < 0 )
@@ -7398,7 +5391,7 @@ api_entity_ops(
  * or a ground item the tile comes from what is under the pointer, because a
  * menu is only ever built about the thing under the pointer.
  */
-static struct PluginChromeClaim const*
+static struct PluginEntityClaim const*
 plugin_entity_row_holder(
     struct ToriRS_PluginHost* host,
     struct ToriRS_MenuRow const* row,
@@ -7406,18 +5399,18 @@ plugin_entity_row_holder(
 {
     assert(host);
     assert(row);
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
+    for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
     {
-        struct PluginChromeClaim const* claim = &host->chrome_claims[i];
+        struct PluginEntityClaim const* claim = &host->entity_claims[i];
         int a;
         int b;
         int c;
         int d;
         int kind;
 
-        if( claim->plugin < 0 || !claim->entity || !claim->has_ops )
+        if( claim->plugin < 0 || !claim->has_ops )
             continue;
-        if( !(claim->scopes & TORIRS_PLUGIN_CHROME_SCOPE_HITBOX) )
+        if( !(claim->scopes & PLUGIN_ENTITY_HITBOX) )
             continue;
         if( !(host->plugins[claim->plugin].enabled && host->plugins[claim->plugin].running) )
             continue;
@@ -7465,7 +5458,7 @@ plugin_entity_apply_ops(
 {
     struct ToriRS_HoverTarget hover;
     int have_hover;
-    struct PluginChromeClaim const* holders[TORIRS_PLUGIN_MENU_ROWS_MAX];
+    struct PluginEntityClaim const* holders[TORIRS_PLUGIN_MENU_ROWS_MAX];
     int holder_count = 0;
 
     assert(host);
@@ -7477,7 +5470,7 @@ plugin_entity_apply_ops(
     /* Highest index first, so each drop leaves every lower index true. */
     for( int i = menu->row_count - 1; i >= 0; i-- )
     {
-        struct PluginChromeClaim const* holder =
+        struct PluginEntityClaim const* holder =
             plugin_entity_row_holder(host, &menu->rows[i], have_hover ? &hover : NULL);
         int seen = 0;
 
@@ -7494,7 +5487,7 @@ plugin_entity_apply_ops(
 
     for( int h = 0; h < holder_count; h++ )
     {
-        struct PluginChromeClaim const* holder = holders[h];
+        struct PluginEntityClaim const* holder = holders[h];
         if( holder->ops_mode == TORIRS_ENTITY_OPS_NONE )
             continue;
         /* Last op first: rows draw bottom-to-top, so adding in reverse puts
@@ -7892,8 +5885,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->role_id);
     assert(engine->role_slot);
     assert(engine->menu_drop);
-    assert(engine->role_replace);
-    assert(engine->role_anchor);
+    assert(engine->ui_boundary);
     assert(engine->stat);
     assert(engine->stat_xp);
     assert(engine->skill_name);
@@ -7951,16 +5943,11 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         host->placement_reservations[i].plugin = -1;
         host->placement_resolved_reservations[i].plugin = -1;
     }
-    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
-        host->role_replacements[i].plugin = -1;
     /* Same reasoning again for the chrome tier's two tables. */
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-        host->chrome_claims[i].plugin = -1;
-    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) / sizeof(host->chrome_borrows[0])); i++ )
-        host->chrome_borrows[i].borrower = -1;
+    for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
+        host->entity_claims[i].plugin = -1;
     host->layout_declarer = -1;
     host->layout_candidate_entry = -1;
-    host->chrome_declarer = -1;
     /* -1 is the free marker and 0 is plugin index zero, so the calloc above
      * would have handed every image slot to the first plugin registered. */
     for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
@@ -8008,7 +5995,6 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
         host->dispatching = -1;
         host->dispatch_event = -1;
         plugin_v2_shutdown(ctx);
-        role_replacements_drop_plugin(host, i);
         ctx->running = false;
         plugin_objects_destroy_all(host, ctx);
         plugin_meshes_destroy_all(host, ctx);
@@ -9029,18 +7015,6 @@ plugin_v2_memory_bytes(
                : 0;
 }
 
-static char const*
-plugin_v2_plugin_id(
-    void* user,
-    struct ToriRS_PluginCtx* context)
-{
-    struct ToriRS_PluginHost* host = user;
-    assert(host);
-    assert(context);
-    assert(context->host == host);
-    return context->name;
-}
-
 static uint64_t
 plugin_v2_loot_revision(
     void* user,
@@ -9422,9 +7396,11 @@ plugin_v2_event(
     }
     case PLUGIN_CALLBACK_DRAW_CANVAS:
     {
+        struct PluginCanvasDispatch const* canvas = event;
         struct PluginV2DrawScope scope;
         struct ToriRS_DrawBuilder builder;
-        plugin_v2_runtime_DrawBegin(&v2->runtime, event, &scope, &builder);
+        plugin_v2_runtime_DrawBegin(&v2->runtime, canvas->surface, &scope, &builder);
+        plugin_v2_runtime_DrawRegion(&scope, canvas->bounds);
         v2->definition->callbacks.on_draw_canvas(api, state, &builder);
         plugin_v2_runtime_DrawEnd(&scope, &builder);
         break;
@@ -9445,7 +7421,7 @@ plugin_v2_event(
     {
         struct PluginV2DrawScope scope;
         struct ToriRS_DrawBuilder builder;
-        struct ToriRS_PanelDrawEvent const* draw = event;
+        struct PluginPanelDraw const* draw = event;
         plugin_v2_runtime_DrawBegin(&v2->runtime, draw->surface, &scope, &builder);
         plugin_v2_runtime_DrawRegion(
             &scope,
@@ -9963,14 +7939,13 @@ plugin_teardown(
      * and the readouts beside it widen on the next frame. */
     plugin_placement_reservations_drop_plugin(host, plugin_index);
     plugin_models_drop_plugin(host, plugin_index);
-    role_replacements_drop_plugin(host, plugin_index);
     /* And the chrome tier, in both directions: the parts this plugin was
      * dressing go back to whatever provides them underneath, and every borrow
      * to or from it goes with the images it pointed at. A plugin that degraded
      * because this one held a part does NOT silently reacquire it -- it
      * claimed nothing, so there is nothing to reinstate, and picking up parts
      * at a moment nobody can see is worse than a gap. */
-    plugin_chrome_drop_plugin(host, plugin_index);
+    plugin_entity_drop_plugin(host, plugin_index);
     if( ctx->ui_contributions_registered )
     {
         ui_changed = ToriRS_UiRegistry_RemovePlugin(&host->ui_registry, ctx->name) > 0;
@@ -10003,13 +7978,6 @@ plugin_teardown(
             PluginFrameCatalog_At(&host->frame_catalog, host->frame_target_entry);
         if( target && target->plugin == plugin_index )
             plugin_frame_target_set(host, -1);
-    }
-    plugin_win_drop(host, plugin_index);
-    if( host->win_tab[plugin_index] )
-    {
-        host->win_tab[plugin_index] = false;
-        host->win_tab_title[plugin_index][0] = '\0';
-        host->win_revision++;
     }
     ctx->tearing_down = false;
     if( ui_changed )
@@ -11489,7 +9457,7 @@ plugin_ui_present_anchor(
     assert(row);
     if( !row->boundary_role[0] )
         return true;
-    if( host->engine.role_anchor(
+    if( host->engine.ui_boundary(
             host->engine.user,
             plugin,
             row->boundary_role,
@@ -11510,7 +9478,7 @@ plugin_ui_present_anchor_reset(
     int plugin)
 {
     if( row->boundary_role[0] )
-        (void)host->engine.role_anchor(host->engine.user, plugin, NULL, 0, 0);
+        (void)host->engine.ui_boundary(host->engine.user, plugin, NULL, 0, 0);
 }
 
 static struct ToriRS_ImageRef
@@ -11914,6 +9882,8 @@ PluginHost_DrawCanvas(
     int width,
     int height)
 {
+    struct PluginCanvasDispatch canvas;
+
     if( !host )
         return;
 
@@ -11926,337 +9896,26 @@ PluginHost_DrawCanvas(
     host->draw_surface = host;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_CANVAS;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_CANVAS);
-    /* The lane and added parts FIRST, so a holder's own per-tick drawing --
-     * an orb's fill over the plate the host put down -- lands on top. */
-    plugin_chrome_paint_all(host, 1);
+    canvas.surface = host->draw_surface;
+    canvas.bounds = (struct ToriRS_Rect){ 0, 0, width, height };
     /* Retained v2 contributions are a compact presenter list rebuilt only at
      * named-registry revisions. Legacy chrome above remains the migration
      * path; only v2 facet winners enter this pass, so an orb cannot draw twice. */
     plugin_ui_present_draw(host, host->draw_surface);
     if( host->callback_count[PLUGIN_CALLBACK_DRAW_CANVAS] > 0 )
-        plugin_dispatch(host, PLUGIN_CALLBACK_DRAW_CANVAS, host->draw_surface);
+        plugin_dispatch(host, PLUGIN_CALLBACK_DRAW_CANVAS, &canvas);
     host->draw_surface = NULL;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
 }
 
 void
-PluginHost_ReconcileRoleReplacements(struct ToriRS_PluginHost* host)
+PluginHost_ReconcileUi(struct ToriRS_PluginHost* host)
 {
     if( !host )
         return;
-    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
-    {
-        struct PluginRoleReplacement const* claim = &host->role_replacements[i];
-        if( claim->plugin < 0 )
-            continue;
-        (void)host->engine.role_replace(
-            host->engine.user, claim->plugin, claim->role, /*enabled=*/1);
-    }
     plugin_ui_present_reconcile(host);
 }
-
-/**
- * The chrome pass: reconcile who is suppressing what, then ask every claimant
- * whose declaration went stale to state it again.
- *
- * Driven per frame rather than only from the layout pass, and that is what
- * makes one edge case go away: an image crosses the IO queue and lands with no
- * layout in flight, so a dresser that skipped a pass because its borrowed
- * plate had no pixels yet would never be asked again. Here it is asked on the
- * frame after the pixels arrive.
- *
- * Called AFTER PluginHost_Layout in the same frame, which is the whole of the
- * ordering promise between the tiers: the arranger has already stated the
- * frame, so every box a dresser reads is this pass's.
- */
-void
-PluginHost_ChromeTick(
-    struct ToriRS_PluginHost* host,
-    int width,
-    int height)
-{
-    struct ToriRS_LayoutEvent ev;
-    int moved = 0;
-
-    if( !host )
-        return;
-
-    ev.width = width;
-    ev.height = height;
-    ev.canvas = host->layout_canvas;
-
-    host->chrome_iterating = 1;
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim* row = &host->chrome_claims[i];
-        struct ToriRS_LegacyChromePart base;
-        int state;
-        int lane;
-
-        if( row->plugin < 0 )
-            continue;
-        if( !host->plugins[row->plugin].running )
-            continue;
-
-        /*
-         * The suppression is RECONCILED and not merely taken at claim time,
-         * and it follows the APPEARANCE scope alone: hiding a native subtree
-         * takes its pixels and its click together, which is right for a
-         * plugin replacing the picture and wrong for one that only wants the
-         * click -- that one lays its region OVER the native one, and paint
-         * order gives it precedence.
-         *
-         * A part that was the cache's own becomes a plugin arranger's when a
-         * plugin frame is committed, and a replacement left
-         * standing over it would prune the very node the arranger is now
-         * placing -- a button that vanishes when a frame offer is switched
-         * on, with nothing in either plugin to explain it.
-         */
-        lane = (row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE) &&
-               plugin_chrome_base(host, row->part, &base, &state) &&
-               base.source == TORIRS_PLUGIN_CHROME_SOURCE_LANE;
-        if( lane && !row->lane_replaced )
-        {
-            if( host->engine.role_replace(host->engine.user, row->plugin, row->part, 1) )
-                row->lane_replaced = 1;
-        }
-        else if( !lane && row->lane_replaced )
-        {
-            (void)host->engine.role_replace(host->engine.user, row->plugin, row->part, 0);
-            row->lane_replaced = 0;
-        }
-        else if( lane )
-        {
-            /* Restating is the per-frame rebind: the engine's claim is fenced
-             * to an exact node incarnation, and a CS2 subtree rebuild moves
-             * it. @see app_plugin_role_replace. */
-            (void)host->engine.role_replace(host->engine.user, row->plugin, row->part, 1);
-        }
-    }
-    host->chrome_iterating = 0;
-
-    if( host->callback_count[PLUGIN_CALLBACK_CHROME] == 0 )
-        return;
-
-    /*
-     * In CLAIM ORDER, which is table order because the table is never
-     * compacted or sorted. Two claimants never contend for one scope -- claims
-     * are unique per (part, scope) -- so the order is not arbitration, it is
-     * only determinism.
-     */
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim* row = &host->chrome_claims[i];
-        int plugin;
-
-        if( row->plugin < 0 || !row->needs_declare )
-            continue;
-        plugin = row->plugin;
-        if( !host->plugins[plugin].enabled || !host->plugins[plugin].running )
-            continue;
-
-        /*
-         * Emptied before and applied after, exactly as EV_LAYOUT is: the
-         * dispatch IS the declaration, so a part the handler does not paint
-         * this time is a part the plugin no longer draws. Only the parts
-         * belonging to THIS plugin are cleared -- one claimant's silence is
-         * not another's -- and an introducer's initial art is kept, because
-         * chrome_add already said it.
-         */
-        host->chrome_iterating = 1;
-        for( int j = 0; j < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; j++ )
-            if( host->chrome_claims[j].plugin == plugin )
-            {
-                if( !host->chrome_claims[j].added )
-                    host->chrome_claims[j].declared = 0;
-                host->chrome_claims[j].has_ops = 0;
-                host->chrome_claims[j].op_count = 0;
-                host->chrome_claims[j].needs_declare = 0;
-            }
-
-        host->chrome_declaring = 1;
-        host->chrome_declarer = plugin;
-        plugin_dispatch_one(host, plugin, PLUGIN_CALLBACK_CHROME, &ev);
-        host->chrome_declaring = 0;
-        host->chrome_declarer = -1;
-        host->chrome_iterating = 0;
-    }
-
-    /* A POSITION holder that moved a FRAME part wants the member re-placed
-     * under it, which only a layout pass can do. One nudge, coalesced. */
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-        if( host->chrome_claims[i].plugin >= 0 && host->chrome_claims[i].moved )
-        {
-            host->chrome_claims[i].moved = 0;
-            moved = 1;
-        }
-    if( moved && plugin_frame_owner(host) >= 0 )
-        plugin_layout_publish(host);
-}
-
-/**
- * Paint every declared part, over whatever the arranger drew for a backdrop.
- *
- * The host does this rather than the plugins, and that is the mechanism the
- * whole tier rests on: because the picture is a DECLARATION, a claimed scope
- * simply stops being painted from the arranger's declaration and starts being
- * painted from the claimant's. Neither plugin is told, neither has a
- * "did somebody replace me" branch, and there is no frame on which both draw.
- *
- * Ordered after the owner's own EV_DRAW_FRAME because a plate goes ON the
- * surround it sits in, never under it.
- */
-/**
- * Which SURFACE a part is painted on follows where the thing it replaces
- * lives, because a plate has to land where the pointer expects it and under
- * what should cover it:
- *
- *   FRAME   an arranger's part sits on the arranger's own surface, under the
- *           interfaces, beside the stones it declared -- PluginHost_DrawFrame.
- *   LANE    a cache widget's replacement paints at that widget's TOMBSTONE,
- *           in the canvas pass, anchored to the role with the replacement
- *           flag -- exactly where role_anchor puts a plugin's own drawing
- *           over a role it replaced. Painted on the frame surface it would
- *           be under the cache's own panels.
- *   ADDED   an introduced part hangs off its anchor and paints inside the
- *           anchor's subtree, in the canvas pass, so it inherits the anchor's
- *           clip and fate. An orb column drawn under the interfaces would be
- *           behind the map's housing on every fixed frame.
- */
-static void
-plugin_chrome_paint_all(
-    struct ToriRS_PluginHost* host,
-    int canvas_pass)
-{
-    uint8_t painted[TORIRS_PLUGIN_SLOT_ART_MAX];
-    int frame_owner;
-    int mx = 0;
-    int my = 0;
-    int have_mouse;
-
-    assert(host);
-    frame_owner = plugin_frame_owner(host);
-    have_mouse = host->engine.mouse_pos(host->engine.user, &mx, &my);
-    memset(painted, 0, sizeof(painted));
-
-    host->chrome_iterating = 1;
-
-    /*
-     * Every NAMED part once, composed. A part with two claimants -- one on
-     * the box, one on the picture -- has two rows here and one painting, so
-     * the first row to reach it paints and the rest find it done.
-     */
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim const* row = &host->chrome_claims[i];
-        struct ToriRS_LegacyChromePart resolved;
-        struct PluginChromeClaim const* ops = NULL;
-        int state;
-        int slot = -1;
-        int member = -1;
-        int dup = 0;
-
-        if( row->plugin < 0 )
-            continue;
-        for( int j = 0; j < i; j++ )
-            if( host->chrome_claims[j].plugin >= 0 &&
-                strcmp(host->chrome_claims[j].part, row->part) == 0 )
-            {
-                dup = 1;
-                break;
-            }
-        if( dup )
-            continue;
-
-        if( !plugin_chrome_resolve(host, row->part, -1, &resolved, &state, &ops) )
-            continue;
-        if( (resolved.source == TORIRS_PLUGIN_CHROME_SOURCE_FRAME) == (canvas_pass != 0) )
-            continue;
-        if( ops && !(host->plugins[ops->plugin].enabled && host->plugins[ops->plugin].running) )
-            ops = NULL;
-        /* Nothing to draw and nothing to click is a part hidden by its
-         * holders, which is a sentence the API lets them say. */
-        if( resolved.art[TORIRS_PLUGIN_CHROME_IDLE] < 0 && !ops )
-        {
-            int all_absent = 1;
-            for( int k = 0; k < TORIRS_PLUGIN_CHROME_STATE_COUNT; k++ )
-                if( resolved.art[k] >= 0 )
-                    all_absent = 0;
-            if( all_absent )
-            {
-                if( !row->added &&
-                    host->engine.role_slot(host->engine.user, row->part, &slot, &member) )
-                {
-                    struct PluginSlotArt const* art = plugin_slot_art_find(host, slot, member);
-                    if( art )
-                        painted[art - host->slot_art] = 1;
-                }
-                continue;
-            }
-        }
-        if( canvas_pass )
-        {
-            /* Anchored for the draw and released after it, exactly as a
-             * plugin's own role_anchor lasts until its handler returns. The
-             * holder whose region is installed is the one the anchor is
-             * attributed to. */
-            struct PluginChromeClaim const* added = plugin_chrome_added_row(host, row->part);
-            int const who = ops ? ops->plugin : row->plugin;
-            /* An added part hung off a role somebody REPLACED paints at that
-             * replacement's tombstone, exactly as api_role_anchor routes a
-             * plugin's own drawing: the anchor is the object, and the object
-             * is wherever its provider paints it. */
-            /* A replacement's own appearance is the object itself -- SELF --
-             * so a part hung BEFORE it paints under and one hung AFTER paints
-             * over, whichever claimed first. */
-            int anchored =
-                added ? host->engine.role_anchor(
-                            host->engine.user,
-                            who,
-                            added->anchor,
-                            role_replaced_by(host, added->anchor) >= 0,
-                            added->place)
-                      : host->engine.role_anchor(
-                            host->engine.user, who, row->part, 1, PLUGIN_ANCHOR_PLACE_SELF);
-            if( anchored )
-                plugin_chrome_paint_one(host, &resolved, state, have_mouse, mx, my, ops);
-            (void)host->engine.role_anchor(host->engine.user, who, NULL, 0, 0);
-        }
-        else
-            plugin_chrome_paint_one(host, &resolved, state, have_mouse, mx, my, ops);
-
-        if( !row->added && host->engine.role_slot(host->engine.user, row->part, &slot, &member) )
-        {
-            struct PluginSlotArt const* art = plugin_slot_art_find(host, slot, member);
-            if( art )
-                painted[art - host->slot_art] = 1;
-        }
-    }
-
-    /* The arranger's remaining parts: the ones no claim named. */
-    for( int i = 0; i < TORIRS_PLUGIN_SLOT_ART_MAX && !canvas_pass; i++ )
-    {
-        struct PluginSlotArt const* row = &host->slot_art[i];
-        int x = 0;
-        int y = 0;
-        int w = 0;
-        int h = 0;
-
-        if( !row->used || painted[i] || frame_owner < 0 )
-            continue;
-        if( !(host->plugins[frame_owner].enabled && host->plugins[frame_owner].running) )
-            continue;
-        if( !(row->member < 0 ? host->engine.slot_rect(host->engine.user, row->slot, &x, &y, &w, &h)
-                              : host->engine.slot_member_rect(
-                                    host->engine.user, row->slot, row->member, &x, &y, &w, &h)) )
-            continue;
-        plugin_chrome_paint_one(host, &row->art, row->state, have_mouse, mx, my, NULL);
-    }
-
-    host->chrome_iterating = 0;
-}
-
 static struct ToriRS_FrameOffer const*
 plugin_v2_frame_offer(
     struct ToriRS_PluginCtx* ctx,
@@ -12282,7 +9941,7 @@ PluginHost_DrawFrame(
     int width,
     int height)
 {
-    struct ToriRS_CanvasDrawEvent ev;
+    struct PluginCanvasDispatch canvas;
     struct ToriRS_FrameOffer const* v2_offer;
     int owner;
 
@@ -12301,9 +9960,8 @@ PluginHost_DrawFrame(
      * event's surface. */
     host->draw_surface = &host->engine;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_FRAME;
-    ev.surface = &host->engine;
-    ev.width = width;
-    ev.height = height;
+    canvas.surface = &host->engine;
+    canvas.bounds = (struct ToriRS_Rect){ 0, 0, width, height };
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_FRAME);
     /* The owner and nobody else. Chrome drawn under the interfaces of a frame
      * somebody else is arranging is chrome in the wrong place. */
@@ -12319,7 +9977,8 @@ PluginHost_DrawFrame(
 
             host->dispatching = owner;
             host->dispatch_event = PLUGIN_CALLBACK_DRAW_FRAME;
-            plugin_v2_runtime_DrawBegin(&v2->runtime, ev.surface, &scope, &builder);
+            plugin_v2_runtime_DrawBegin(&v2->runtime, canvas.surface, &scope, &builder);
+            plugin_v2_runtime_DrawRegion(&scope, canvas.bounds);
             v2_offer->draw(&v2->runtime.api, v2->state, &builder);
             plugin_v2_runtime_DrawEnd(&scope, &builder);
             host->dispatching = previous_dispatching;
@@ -12328,9 +9987,6 @@ PluginHost_DrawFrame(
     }
     else
         plugin_dispatch_one(host, owner, PLUGIN_CALLBACK_DRAW_FRAME, &ev);
-    /* Over the backdrop the owner just drew, because a plate goes ON its
-     * surround and never under it. @see plugin_chrome_paint_all. */
-    plugin_chrome_paint_all(host, 0);
     host->draw_surface = NULL;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
@@ -12422,11 +10078,6 @@ PluginHost_LayoutChanged(struct ToriRS_PluginHost* host)
      * correct either way.
      */
     host->layout_revision++;
-    /* Every claimant measured its parts against boxes that have just moved, so
-     * all of them are re-asked on the next chrome tick. Cheap: the flag is a
-     * byte, and a plugin whose parts did not really change simply declares the
-     * same numbers again. */
-    plugin_chrome_invalidate(host);
     if( host->layout_notifying )
     {
         host->layout_notify_pending = 1;
@@ -12638,22 +10289,6 @@ plugin_layout_candidate_apply(struct ToriRS_PluginHost* host)
             candidate->scrollbar_count ? candidate->scrollbar : NULL,
             candidate->scrollbar_count);
 
-    /* Persistent POSITION holders are part of the same engine transaction. */
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-    {
-        struct PluginChromeClaim const* row = &host->chrome_claims[i];
-        int slot = -1;
-        int member = -1;
-
-        if( row->plugin < 0 || row->added || !row->declared ||
-            !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_POSITION) ||
-            row->art.w <= 0 || row->art.h <= 0 )
-            continue;
-        if( !host->engine.role_slot(host->engine.user, row->part, &slot, &member) )
-            continue;
-        (void)host->engine.layout_slot(
-            host->engine.user, slot, member, row->art.x, row->art.y, row->art.w, row->art.h);
-    }
     host->engine.layout_end(host->engine.user);
 }
 
@@ -12663,7 +10298,7 @@ PluginHost_Layout(
     int width,
     int height)
 {
-    struct ToriRS_LayoutEvent ev;
+    struct PluginFrameLayout ev;
     struct PluginFrameCatalogEntry const* entry;
     struct ToriRS_FrameOffer const* v2_offer;
     enum ToriRS_FrameBuildResult v2_result = TORIRS_FRAME_READY;
@@ -12734,7 +10369,6 @@ PluginHost_Layout(
         host->frame_layout_requested = 0;
     selection_epoch = host->frame_selection_epoch;
     memset(&host->layout_candidate, 0, sizeof(host->layout_candidate));
-    memset(host->slot_art_candidate, 0, sizeof(host->slot_art_candidate));
     host->layout_candidate_entry = build_entry;
     host->layout_declaring = 1;
     host->layout_declarer = owner;
@@ -12866,7 +10500,6 @@ PluginHost_Layout(
         int const old_owner = plugin_frame_owner(host);
 
         plugin_frame_engine_activate(host, build_entry);
-        memcpy(host->slot_art, host->slot_art_candidate, sizeof(host->slot_art));
         if( v2_offer )
         {
             struct PluginV2Instance* v2 = host->plugins[owner].v2;
@@ -13375,165 +11008,6 @@ plugin_dispatch_one(
     (void)plugin_v2_event(ctx, payload, (void*)(intptr_t)(ev + 1));
     host->dispatching = prev_dispatching;
     host->dispatch_event = prev_event;
-}
-
-bool
-PluginHost_WinHasTab(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index)
-{
-    assert(host);
-    if( plugin_index < 0 || plugin_index >= host->plugin_count )
-        return false;
-    return host->win_tab[plugin_index];
-}
-
-char const*
-PluginHost_WinTabTitle(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index)
-{
-    assert(host);
-    if( plugin_index < 0 || plugin_index >= host->plugin_count )
-        return "";
-    return host->win_tab_title[plugin_index];
-}
-
-int
-PluginHost_WinWidgetCount(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index)
-{
-    assert(host);
-    if( plugin_index < 0 || plugin_index >= host->plugin_count )
-        return 0;
-    return plugin_win_count_owned(host, plugin_index);
-}
-
-struct ToriRS_PanelWidget const*
-PluginHost_WinWidgetAt(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index,
-    int widget_index)
-{
-    int n = 0;
-
-    assert(host);
-    if( plugin_index < 0 || plugin_index >= host->plugin_count || widget_index < 0 )
-        return NULL;
-    for( int i = 0; i < host->win_widget_count; i++ )
-    {
-        if( host->win_owner[i] != plugin_index )
-            continue;
-        if( n == widget_index )
-            return &host->win_widgets[i];
-        n++;
-    }
-    return NULL;
-}
-
-void
-PluginHost_WinBuild(
-    struct ToriRS_PluginHost* host,
-    int plugin_index)
-{
-    struct ToriRS_LegacyPanelEvent ev;
-
-    assert(host);
-    if( plugin_index < 0 || plugin_index >= host->plugin_count )
-        return;
-    /* Only when the tab is empty: a plugin that keeps live state in its
-     * controls -- a running count, a last-seen value -- must not have them
-     * reset every time something else opens the window. */
-    if( plugin_win_count_owned(host, plugin_index) > 0 )
-        return;
-
-    memset(&ev, 0, sizeof(ev));
-    ev.widget_id = NULL;
-    ev.action = -1;
-    ev.value = -1;
-    ev.text = "";
-    host->win_building = true;
-    plugin_dispatch_one(host, plugin_index, PLUGIN_CALLBACK_UI_BUILD, &ev);
-    host->win_building = false;
-}
-
-int
-PluginHost_WinDispatch(
-    struct ToriRS_PluginHost* host,
-    int plugin_index,
-    char const* widget_id,
-    int action,
-    int value,
-    char const* text)
-{
-    struct ToriRS_LegacyPanelEvent ev;
-    struct ToriRS_PanelWidget* w;
-    int slot;
-
-    assert(host);
-    assert(widget_id);
-
-    slot = plugin_win_find(host, plugin_index, widget_id);
-    if( slot < 0 )
-        return 0;
-    w = &host->win_widgets[slot];
-
-    /*
-     * The host's copy is updated BEFORE the plugin hears about it, so a handler
-     * that reads its own control back sees the value the user just set rather
-     * than the one it replaced. Without this a plugin's only way to know its
-     * own state would be to shadow every control itself.
-     */
-    switch( action )
-    {
-    case TORIRS_PANEL_ACTION_TOGGLE:
-        w->checked = value ? 1 : 0;
-        w->value = w->checked;
-        break;
-    case TORIRS_PANEL_ACTION_TEXT:
-        plugin_copy_str(w->text, sizeof(w->text), text);
-        break;
-    case TORIRS_PANEL_ACTION_PICK:
-        w->selected = value;
-        w->value = value;
-        plugin_copy_str(w->text, sizeof(w->text), text);
-        break;
-    default:
-        break;
-    }
-
-    memset(&ev, 0, sizeof(ev));
-    ev.widget_id = w->id;
-    ev.action = action;
-    ev.value = value;
-    ev.text = text ? text : w->text;
-    plugin_dispatch_one(host, plugin_index, PLUGIN_CALLBACK_UI, &ev);
-    return 1;
-}
-
-void
-PluginHost_WinClearPlugin(
-    struct ToriRS_PluginHost* host,
-    int plugin_index)
-{
-    assert(host);
-    if( plugin_index < 0 || plugin_index >= host->plugin_count )
-        return;
-    plugin_win_drop(host, plugin_index);
-    if( host->win_tab[plugin_index] )
-    {
-        host->win_tab[plugin_index] = false;
-        host->win_tab_title[plugin_index][0] = '\0';
-        host->win_revision++;
-    }
-}
-
-int
-PluginHost_WinRevision(struct ToriRS_PluginHost const* host)
-{
-    assert(host);
-    return host->win_revision;
 }
 
 bool
@@ -14072,7 +11546,7 @@ PluginHost_PanelDraw(
     int width,
     int height)
 {
-    struct ToriRS_PanelDrawEvent ev;
+    struct PluginPanelDraw ev;
     char id[TORIRS_PLUGIN_WIDGET_ID_MAX];
     int plugin;
     int slot;

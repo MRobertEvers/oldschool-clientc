@@ -13,8 +13,8 @@
  * dlopen lane can be added on native later without any plugin changing, but
  * until something needs it, a table is the whole mechanism.
  *
- * Scripted plugins do not appear here. The Lua adapter is one entry below and
- * registers a further plugin per script it loads.
+ * Scripted plugins do not appear here. The Lua runtime host is one entry below
+ * and registers a further V2 plugin per script it loads.
  */
 
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS;
@@ -48,8 +48,7 @@ static struct ToriRS_PluginDefV2 const* const PLUGIN_TABLE[] = {
      * FIRST, and their position is load-bearing: the roster lists plugins in
      * registration order and these two are where the CLIENT's own knobs live,
      * so they belong at the top of the list rather than sorted in among the
-     * extras. Both are `.essential`, so neither has a switch -- see
-     * ToriRS_PluginDef::essential.
+     * extras. Both carry TORIRS_PLUGIN_V2_ESSENTIAL, so neither has a switch.
      *
      * Display settings first because that is the order a person reads them in:
      * how the client LOOKS, then how it BEHAVES. The order of START is settled

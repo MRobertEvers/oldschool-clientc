@@ -12,9 +12,6 @@
 
 struct ToriRS_PluginHost;
 
-/** Hand the runtime its host before any script is added. */
-void PluginLua_Bind(struct ToriRS_PluginHost* host);
-
 /** Compile `source` and register it with the host as a plugin in its own
  *  right. Returns the host plugin index, or -1 when the script would not load
  *  (the reason is logged). `name` is the manifest identity and must match the
@@ -35,5 +32,10 @@ extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LUA;
 
 /** Resolve a key name ("shift", "ctrl", ...) to a code, or -1. */
 int PluginLua_KeyCodeFromName(char const* name);
+
+#if defined(TORIRS_PLUGIN_LUA_TESTING)
+/** Test-only source replacement used to exercise the host reload seam. */
+bool PluginLua_TestReplaceSource(int plugin_index, char const* source, int source_len);
+#endif
 
 #endif /* TORIRS_PLUGIN_LUA_H */

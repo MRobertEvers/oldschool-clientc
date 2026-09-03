@@ -213,12 +213,12 @@ struct LootTrackerState
     bool page_built;
     bool page_visible;
 
-    struct PluginDraw_AtlasV2 bold;
+    struct PluginDraw_Atlas bold;
     struct ToriRS_ImageRef img_over;
     uint32_t* over_px;
     int over_w;
     int over_h;
-    struct PluginDraw_AtlasV2 text;
+    struct PluginDraw_Atlas text;
     struct ToriRS_ImageRef img_spine;
     uint32_t* spine_px;
     int spine_w;
@@ -611,9 +611,9 @@ static int
 lt_art_ready(struct LootTrackerRuntime* rt)
 {
     assert(rt);
-    if( !PluginDraw_AtlasLoadV2(g_api, &g_bold, "bold") )
+    if( !PluginDraw_AtlasLoad(g_api, &g_bold, "bold") )
         return 0;
-    (void)PluginDraw_ImageLoadV2(
+    (void)PluginDraw_ImageLoad(
         g_api, "panel_icon.png", &g_img_over, &g_over_px, &g_over_w, &g_over_h);
     /*
      * The band's four controls, cut from the cache: graphic_4915/4916 are the
@@ -621,26 +621,26 @@ lt_art_ready(struct LootTrackerRuntime* rt)
      * 4913 the ignore list. Wanted but not REQUIRED -- a band with a gap where
      * a button belongs still reads, and a page that refuses to draw does not.
      */
-    (void)PluginDraw_ImageLoadV2(
+    (void)PluginDraw_ImageLoad(
         g_api, "btn_dropview.png", &g_img_view, &g_view_px, &g_view_w, &g_view_h);
-    (void)PluginDraw_ImageLoadV2(
+    (void)PluginDraw_ImageLoad(
         g_api, "btn_sourceview.png", &g_img_view2, &g_view2_px, &g_view2_w,
         &g_view2_h);
-    (void)PluginDraw_ImageLoadV2(
+    (void)PluginDraw_ImageLoad(
         g_api, "btn_alch.png", &g_img_alch, &g_alch_px, &g_alch_w, &g_alch_h);
-    (void)PluginDraw_ImageLoadV2(
+    (void)PluginDraw_ImageLoad(
         g_api, "btn_collapse.png", &g_img_collapse, &g_collapse_px, &g_collapse_w,
         &g_collapse_h);
-    (void)PluginDraw_ImageLoadV2(
+    (void)PluginDraw_ImageLoad(
         g_api, "btn_ignored.png", &g_img_ignored, &g_ignored_px, &g_ignored_w,
         &g_ignored_h);
-    if( !PluginDraw_AtlasLoadV2(g_api, &g_text, "text") )
+    if( !PluginDraw_AtlasLoad(g_api, &g_text, "text") )
         return 0;
-    if( !PluginDraw_ImageLoadV2(
+    if( !PluginDraw_ImageLoad(
             g_api, "cat_spine.png", &g_img_spine, &g_spine_px, &g_spine_w,
             &g_spine_h) )
         return 0;
-    return PluginDraw_ImageLoadV2(
+    return PluginDraw_ImageLoad(
         g_api, "cell.png", &g_img_cell, &g_cell_px, &g_cell_w, &g_cell_h);
 }
 
@@ -746,16 +746,16 @@ lt_draw_totals(struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h)
      * the band's other three controls. An icon here as well sat on top of it.
      */
 
-    PluginDraw_TextV2(
+    PluginDraw_Text(
         buf, w, h, LT_TOTALS_KEY_X, 8, &g_text, "Total count:", LT_INK_VALUE);
-    PluginDraw_TextV2(
+    PluginDraw_Text(
         buf, w, h, LT_TOTALS_KEY_X, 22, &g_text, "Total value:", LT_INK_VALUE);
 
     lt_kmb(g_session_kills, text, sizeof(text));
-    PluginDraw_TextV2(buf, w, h, LT_TOTALS_VAL_X, 8, &g_text, text, LT_INK_VALUE);
+    PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 8, &g_text, text, LT_INK_VALUE);
     lt_kmb(g_session_value, text, sizeof(text));
     snprintf(text + strlen(text), sizeof(text) - strlen(text), " gp");
-    PluginDraw_TextV2(buf, w, h, LT_TOTALS_VAL_X, 22, &g_text, text, LT_INK_VALUE);
+    PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 22, &g_text, text, LT_INK_VALUE);
 
     /*
      * The band's four controls, at the offsets interface 650 places them.
@@ -889,11 +889,11 @@ lt_draw_source(
     /* "Goblin x 2" on the left and its value on the right, both in the bold
      * face at the interfaces' orange, as script2907 sets them. */
     snprintf(text, sizeof(text), "%s x %d", src->name, src->kills);
-    PluginDraw_TextV2(buf, w, h, 8, top + 9, &g_bold, text, LT_INK_HEAD);
+    PluginDraw_Text(buf, w, h, 8, top + 9, &g_bold, text, LT_INK_HEAD);
 
     lt_kmb(lt_source_value(rt, src), amount, sizeof(amount));
     snprintf(text, sizeof(text), "%s gp", amount);
-    PluginDraw_TextRightV2(buf, w, h, w - 8, top + 9, &g_bold, text, LT_INK_HEAD);
+    PluginDraw_TextRight(buf, w, h, w - 8, top + 9, &g_bold, text, LT_INK_HEAD);
 
     if( !g_expanded[index] || src->item_count == 0 )
         return;
@@ -1018,7 +1018,7 @@ lt_compose(struct LootTrackerRuntime* rt, int width)
     top = LT_TOTALS_H + LT_HEAD_GAP;
 
     if( g_source_count == 0 )
-        PluginDraw_TextV2(
+        PluginDraw_Text(
             g_compose, width, height, 4, top + 3, &g_text, "No loot to display.",
             LT_INK_HEAD);
     else if( g_drop_view )
@@ -1300,7 +1300,7 @@ lt_panel_build(
  * Every icon is asked for again, on every pass, and that is the contract
  * rather than an oversight: `obj_image` hands back a handle out of a
  * host-owned evicting cache, and a plugin that remembered one across frames
- * would eventually draw nothing. @see ToriRS_PluginApi::obj_image.
+ * would eventually draw nothing. @see ToriRS_GameApiV2::item_image.
  */
 static void
 lt_panel_draw(
@@ -1556,16 +1556,16 @@ lt_stop(struct ToriRS_ApiV2* api, void* state_ptr)
     g_compose_w = 0;
     g_compose_h = 0;
     if( g_strip_image.value ) g_api->assets.image_release(g_api, g_strip_image);
-    PluginDraw_AtlasFreeV2(g_api, &g_bold);
-    PluginDraw_AtlasFreeV2(g_api, &g_text);
-    PluginDraw_ImageFreeV2(g_api, &g_over_px, &g_img_over);
-    PluginDraw_ImageFreeV2(g_api, &g_spine_px, &g_img_spine);
-    PluginDraw_ImageFreeV2(g_api, &g_cell_px, &g_img_cell);
-    PluginDraw_ImageFreeV2(g_api, &g_view_px, &g_img_view);
-    PluginDraw_ImageFreeV2(g_api, &g_view2_px, &g_img_view2);
-    PluginDraw_ImageFreeV2(g_api, &g_alch_px, &g_img_alch);
-    PluginDraw_ImageFreeV2(g_api, &g_collapse_px, &g_img_collapse);
-    PluginDraw_ImageFreeV2(g_api, &g_ignored_px, &g_img_ignored);
+    PluginDraw_AtlasFree(g_api, &g_bold);
+    PluginDraw_AtlasFree(g_api, &g_text);
+    PluginDraw_ImageFree(g_api, &g_over_px, &g_img_over);
+    PluginDraw_ImageFree(g_api, &g_spine_px, &g_img_spine);
+    PluginDraw_ImageFree(g_api, &g_cell_px, &g_img_cell);
+    PluginDraw_ImageFree(g_api, &g_view_px, &g_img_view);
+    PluginDraw_ImageFree(g_api, &g_view2_px, &g_img_view2);
+    PluginDraw_ImageFree(g_api, &g_alch_px, &g_img_alch);
+    PluginDraw_ImageFree(g_api, &g_collapse_px, &g_img_collapse);
+    PluginDraw_ImageFree(g_api, &g_ignored_px, &g_img_ignored);
 }
 
 static void

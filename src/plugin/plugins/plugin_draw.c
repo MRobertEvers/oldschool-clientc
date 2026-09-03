@@ -141,170 +141,6 @@ PluginDraw_Tile(
 
 int
 PluginDraw_ImageLoad(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api,
-    char const* name,
-    int* handle,
-    uint32_t** px,
-    int* w,
-    int* h)
-{
-    assert(ctx);
-    assert(api);
-    assert(name);
-    assert(handle);
-    assert(px);
-    assert(w);
-    assert(h);
-
-    if( *px )
-        return 1;
-    if( *handle < 0 )
-        *handle = api->image_load(ctx, name);
-    if( *handle < 0 )
-        return 0;
-    if( !api->image_size(ctx, *handle, w, h) || *w <= 0 || *h <= 0 )
-        return 0;
-    *px = malloc((size_t)*w * (size_t)*h * sizeof(**px));
-    assert(*px);
-    if( !api->image_pixels(ctx, *handle, *px, *w * *h) )
-    {
-        free(*px);
-        *px = NULL;
-        return 0;
-    }
-    return 1;
-}
-
-void
-PluginDraw_ImageFree(uint32_t** px, int* handle)
-{
-    assert(px);
-    assert(handle);
-    free(*px);
-    *px = NULL;
-    /* The HANDLE is the host's -- it drops every image a plugin owns at
-     * teardown -- so this only forgets it, which is what stops a restart from
-     * drawing with a slot the host has already reclaimed. */
-    *handle = -1;
-}
-
-/**
- * Read `<name>.ini` into `atlas`.
- *
- * A glyph line is one whose SECOND byte is '=', which is what lets the space
- * glyph -- a line beginning with a space -- be read by the same rule as every
- * other one and keeps it apart from the header keys and the comments.
- */
-static int
-plugin_draw_read_ini(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api,
-    struct PluginDraw_Atlas* atlas,
-    char const* name)
-{
-    char file[TORIRS_PLUGIN_ASSET_NAME_MAX];
-    char const* at;
-    int size = 0;
-
-    /*
-     * The sheet's handle starts UNLOADED, and saying so here is the whole of
-     * it: an atlas is an ordinary zeroed static in every plugin that owns one,
-     * so its `image` arrives as 0 -- which is a perfectly good slot number.
-     * PluginDraw_ImageLoad only calls api->image_load when the handle is
-     * negative, so a zeroed atlas would skip the load entirely and measure
-     * whichever picture slot 0 happens to hold. That is another plugin's art
-     * on a good day and nothing at all on an ordinary one, and either way the
-     * caption face never arrives and the page draws blank with nothing said.
-     */
-    atlas->image = -1;
-
-    snprintf(file, sizeof(file), "%s.ini", name);
-    if( !api->asset_load(ctx, file) )
-        return 0;
-    at = (char const*)api->asset_data(ctx, file, &size);
-    if( !at || size <= 0 )
-        return 0;
-
-    for( char const* end = at + size; at < end; )
-    {
-        /* The asset is a byte RANGE and not a C string, so every line is
-         * copied out before it is parsed: sscanf runs to a NUL, and on the
-         * last line that NUL is past the end of the allocation. */
-        char line[128];
-        char const* start = at;
-        char const* stop = start;
-        size_t len;
-
-        while( stop < end && *stop != '\n' )
-            stop++;
-        at = stop < end ? stop + 1 : end;
-        if( stop > start && stop[-1] == '\r' )
-            stop--;
-        len = (size_t)(stop - start);
-        if( len >= sizeof(line) )
-            len = sizeof(line) - 1;
-        memcpy(line, start, len);
-        line[len] = '\0';
-
-        if( len > 12 && strncmp(line, "line_height=", 12) == 0 )
-        {
-            atlas->line_h = atoi(line + 12);
-            continue;
-        }
-        if( len < 3 || line[1] != '=' )
-            continue;
-        {
-            int const index = (unsigned char)line[0] - PLUGIN_DRAW_GLYPH_FIRST;
-            struct PluginDraw_Glyph* g;
-
-            if( index < 0 || index >= PLUGIN_DRAW_GLYPH_COUNT )
-                continue;
-            g = &atlas->glyph[index];
-            if( sscanf(
-                    line + 2, "%d %d %d %d %d %d %d", &g->x, &g->y, &g->w, &g->h,
-                    &g->off_x, &g->off_y, &g->advance) == 7 )
-                atlas->ready = 1;
-        }
-    }
-    return atlas->ready;
-}
-
-int
-PluginDraw_AtlasLoad(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api,
-    struct PluginDraw_Atlas* atlas,
-    char const* name)
-{
-    char file[TORIRS_PLUGIN_ASSET_NAME_MAX];
-
-    assert(ctx);
-    assert(api);
-    assert(atlas);
-    assert(name);
-
-    if( atlas->ready && atlas->px )
-        return 1;
-    if( !atlas->ready && !plugin_draw_read_ini(ctx, api, atlas, name) )
-        return 0;
-    snprintf(file, sizeof(file), "%s.png", name);
-    return PluginDraw_ImageLoad(
-        ctx, api, file, &atlas->image, &atlas->px, &atlas->w, &atlas->h);
-}
-
-void
-PluginDraw_AtlasFree(struct PluginDraw_Atlas* atlas)
-{
-    assert(atlas);
-    PluginDraw_ImageFree(&atlas->px, &atlas->image);
-    atlas->ready = 0;
-    atlas->w = 0;
-    atlas->h = 0;
-}
-
-int
-PluginDraw_ImageLoadV2(
     struct ToriRS_ApiV2* api,
     char const* name,
     struct ToriRS_ImageRef* handle,
@@ -348,7 +184,7 @@ PluginDraw_ImageLoadV2(
 }
 
 void
-PluginDraw_ImageFreeV2(
+PluginDraw_ImageFree(
     struct ToriRS_ApiV2* api,
     uint32_t** px,
     struct ToriRS_ImageRef* handle)
@@ -363,9 +199,9 @@ PluginDraw_ImageFreeV2(
 }
 
 static int
-plugin_draw_read_ini_v2(
+plugin_draw_read_ini(
     struct ToriRS_ApiV2* api,
-    struct PluginDraw_AtlasV2* atlas,
+    struct PluginDraw_Atlas* atlas,
     char const* name)
 {
     char file[TORIRS_PLUGIN_ASSET_NAME_MAX];
@@ -412,9 +248,9 @@ plugin_draw_read_ini_v2(
 }
 
 int
-PluginDraw_AtlasLoadV2(
+PluginDraw_AtlasLoad(
     struct ToriRS_ApiV2* api,
-    struct PluginDraw_AtlasV2* atlas,
+    struct PluginDraw_Atlas* atlas,
     char const* name)
 {
     char file[TORIRS_PLUGIN_ASSET_NAME_MAX];
@@ -422,20 +258,20 @@ PluginDraw_AtlasLoadV2(
     assert(atlas);
     assert(name);
     if( atlas->ready && atlas->px ) return 1;
-    if( !atlas->ready && !plugin_draw_read_ini_v2(api, atlas, name) ) return 0;
+    if( !atlas->ready && !plugin_draw_read_ini(api, atlas, name) ) return 0;
     snprintf(file, sizeof(file), "%s.png", name);
-    return PluginDraw_ImageLoadV2(
+    return PluginDraw_ImageLoad(
         api, file, &atlas->image, &atlas->px, &atlas->w, &atlas->h);
 }
 
 void
-PluginDraw_AtlasFreeV2(
+PluginDraw_AtlasFree(
     struct ToriRS_ApiV2* api,
-    struct PluginDraw_AtlasV2* atlas)
+    struct PluginDraw_Atlas* atlas)
 {
     assert(api);
     assert(atlas);
-    PluginDraw_ImageFreeV2(api, &atlas->px, &atlas->image);
+    PluginDraw_ImageFree(api, &atlas->px, &atlas->image);
     atlas->ready = 0;
     atlas->w = 0;
     atlas->h = 0;
@@ -447,7 +283,6 @@ int
 PluginDraw_TextWidth(struct PluginDraw_Atlas const* atlas, char const* text)
 {
     int width = 0;
-
     assert(atlas);
     assert(text);
     for( char const* p = text; *p; p++ )
@@ -471,88 +306,6 @@ PluginDraw_Text(
     uint32_t tint)
 {
     int pen = x;
-
-    assert(buf);
-    assert(atlas);
-    assert(text);
-    if( !atlas->ready || !atlas->px )
-        return;
-
-    for( char const* p = text; *p; p++ )
-    {
-        int const index = (unsigned char)*p - PLUGIN_DRAW_GLYPH_FIRST;
-        struct PluginDraw_Glyph const* g;
-
-        if( index < 0 || index >= PLUGIN_DRAW_GLYPH_COUNT )
-            continue;
-        g = &atlas->glyph[index];
-        if( g->w > 0 && g->h > 0 )
-            PluginDraw_Blit(
-                buf, w, h, pen + g->off_x, top + g->off_y, atlas->px, atlas->w,
-                atlas->h, g->x, g->y, g->w, g->h, tint);
-        pen += g->advance;
-    }
-}
-
-void
-PluginDraw_TextRight(
-    uint32_t* buf,
-    int w,
-    int h,
-    int right,
-    int top,
-    struct PluginDraw_Atlas const* atlas,
-    char const* text,
-    uint32_t tint)
-{
-    PluginDraw_Text(
-        buf, w, h, right - PluginDraw_TextWidth(atlas, text), top, atlas, text, tint);
-}
-
-void
-PluginDraw_TextCenter(
-    uint32_t* buf,
-    int w,
-    int h,
-    int x,
-    int width,
-    int top,
-    struct PluginDraw_Atlas const* atlas,
-    char const* text,
-    uint32_t tint)
-{
-    PluginDraw_Text(
-        buf, w, h, x + (width - PluginDraw_TextWidth(atlas, text)) / 2, top, atlas,
-        text, tint);
-}
-
-int
-PluginDraw_TextWidthV2(struct PluginDraw_AtlasV2 const* atlas, char const* text)
-{
-    int width = 0;
-    assert(atlas);
-    assert(text);
-    for( char const* p = text; *p; p++ )
-    {
-        int const index = (unsigned char)*p - PLUGIN_DRAW_GLYPH_FIRST;
-        if( index >= 0 && index < PLUGIN_DRAW_GLYPH_COUNT )
-            width += atlas->glyph[index].advance;
-    }
-    return width;
-}
-
-void
-PluginDraw_TextV2(
-    uint32_t* buf,
-    int w,
-    int h,
-    int x,
-    int top,
-    struct PluginDraw_AtlasV2 const* atlas,
-    char const* text,
-    uint32_t tint)
-{
-    int pen = x;
     assert(buf);
     assert(atlas);
     assert(text);
@@ -572,20 +325,20 @@ PluginDraw_TextV2(
 }
 
 void
-PluginDraw_TextRightV2(
+PluginDraw_TextRight(
     uint32_t* buf, int w, int h, int right, int top,
-    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint)
+    struct PluginDraw_Atlas const* atlas, char const* text, uint32_t tint)
 {
-    PluginDraw_TextV2(buf, w, h,
-        right - PluginDraw_TextWidthV2(atlas, text), top, atlas, text, tint);
+    PluginDraw_Text(buf, w, h,
+        right - PluginDraw_TextWidth(atlas, text), top, atlas, text, tint);
 }
 
 void
-PluginDraw_TextCenterV2(
+PluginDraw_TextCenter(
     uint32_t* buf, int w, int h, int x, int width, int top,
-    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint)
+    struct PluginDraw_Atlas const* atlas, char const* text, uint32_t tint)
 {
-    PluginDraw_TextV2(buf, w, h,
-        x + (width - PluginDraw_TextWidthV2(atlas, text)) / 2,
+    PluginDraw_Text(buf, w, h,
+        x + (width - PluginDraw_TextWidth(atlas, text)) / 2,
         top, atlas, text, tint);
 }

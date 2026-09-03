@@ -538,50 +538,8 @@ struct ToriRS_ScreenChangedEvent
     int previous;
 };
 
-struct ToriRS_NpcEvent
-{
-    struct ToriRS_NpcSnapshot npc;
-};
 
-struct ToriRS_PacketInEvent
-{
-    /** enum GameProtoPktName. Compare against api->packet_name(). */
-    int name;
-    /** Wire size of the payload, or -1 when the revision does not report it. */
-    int size;
-    /** Set true to drop the packet: it is freed instead of executed, and no
-     *  further subscriber sees it.
-     *
-     *  This is a live wire. PLAYER_INFO/NPC_INFO extended-info blocks are
-     *  indexed by list position, so dropping one desyncs entity bookkeeping
-     *  for the rest of the session, and the server-tick fence may never be
-     *  dropped at all (the host asserts). */
-    bool drop;
-};
 
-struct ToriRS_PacketOutEvent
-{
-    /**
-     * The builder that is about to run, by name: "net_out_opnpc",
-     * "net_out_move_gameclick", and so on.
-     *
-     * A string rather than the enum the inbound side uses, because outbound
-     * genuinely has no id at the call site -- every send is a direct call to a
-     * net_out_* builder that returns a byte count, and there is no packet-name
-     * argument anywhere in the path. Deriving the name from the call itself is
-     * what makes all sixty send sites observable without a hand-written
-     * builder-to-enum table that could label any one of them wrong.
-     */
-    char const* builder;
-    /** Set true to veto the send.
-     *
-     *  Fires BEFORE the builder, because every net_out_* builder encrypts its
-     *  opcode by advancing the outbound ISAAC stream: a packet built and then
-     *  discarded desyncs the cipher and the server misreads every opcode
-     *  after it. There is deliberately no payload here for the same reason --
-     *  it does not exist yet. */
-    bool drop;
-};
 
 struct ToriRS_KeyEvent
 {
@@ -639,35 +597,8 @@ struct ToriRS_MenuSelectEvent
     int click_y;
 };
 
-struct ToriRS_DrawEvent
-{
-    /** Opaque surface token; hand back to the draw api. */
-    void* surface;
-};
 
-struct ToriRS_CanvasActionEvent
-{
-    /** The `tag` the region was declared with. */
-    uint32_t tag;
-    /** Which of the region's ops was chosen, indexing the array it was
-     *  declared with. A left click is always op 0 -- the first verb is the
-     *  default one, the same rule the reference's own op 1 follows. */
-    int op;
-    /** Where the pointer was, in canvas coordinates. */
-    int x;
-    int y;
-};
 
-struct ToriRS_CanvasDrawEvent
-{
-    /** Opaque surface token; hand back to the draw api. Never the same token
-     *  as EV_DRAW_WORLD's, so a handler that kept one from the wrong event is
-     *  caught rather than drawing into the other list. */
-    void* surface;
-    /** The canvas, in the coordinates every draw call on this surface uses. */
-    int width;
-    int height;
-};
 
 /**
  * The canvas the frame is being declared against. @see EV_LAYOUT.
@@ -676,25 +607,8 @@ struct ToriRS_CanvasDrawEvent
  * the plugin's own arithmetic: where the sidebar goes at 1440x900 is a
  * statement the plugin makes, not one the host can be asked for.
  */
-struct ToriRS_LayoutEvent
-{
-    int width;
-    int height;
-    /** enum ToriRS_EngineFrameCanvas, as the claim asked for it. A plugin
-     *  that claimed FIXED reads its own pinned size back here rather than the
-     *  window's, so one handler serves both kinds. */
-    int canvas;
-};
 
-struct ToriRS_ConfigChangedEvent
-{
-    char const* key;
-};
 
-struct ToriRS_GroundItemEvent
-{
-    struct ToriRS_GroundItemSnapshot obj;
-};
 
 struct ToriRS_ChatMessageEvent
 {
@@ -744,11 +658,6 @@ struct ToriRS_GameEvent
  * (a dropdown, a slider) and -1 where it does not (a toggle, whose hub is
  * handed the id alone, and a button, which has no value at all).
  */
-struct ToriRS_SettingEvent
-{
-    int setting_id;
-    int value;
-};
 
 /** What the pointer is over. @see ToriRS_PluginApi::hover_entity. */
 enum ToriRS_HoverKind
@@ -793,31 +702,6 @@ struct ToriRS_HoverTarget
  * richer would be a control one of them has to fake, and a faked control is
  * how a "native" window stops looking native.
  */
-enum ToriRS_PanelWidgetKind
-{
-    TORIRS_PANEL_WIDGET_LABEL = 0,
-    TORIRS_PANEL_WIDGET_CHECKBOX,
-    TORIRS_PANEL_WIDGET_INPUT,
-    TORIRS_PANEL_WIDGET_DROPDOWN,
-    TORIRS_PANEL_WIDGET_BUTTON,
-    TORIRS_PANEL_WIDGET_SEPARATOR,
-
-    /* ABI 21 semantic page controls. The first six deliberately retain their
-     * numbers: win_* and panel_* share this vocabulary, so every existing
-     * window presenter is also the compatibility presenter for those rows. */
-    TORIRS_PANEL_WIDGET_SECTION,
-    TORIRS_PANEL_WIDGET_PARAGRAPH,
-    TORIRS_PANEL_WIDGET_KEY_VALUE,
-    TORIRS_PANEL_WIDGET_TOGGLE,
-    TORIRS_PANEL_WIDGET_TEXTAREA,
-    TORIRS_PANEL_WIDGET_LIST_ROW,
-    TORIRS_PANEL_WIDGET_IMAGE,
-    TORIRS_PANEL_WIDGET_PROGRESS,
-    TORIRS_PANEL_WIDGET_ERROR,
-    TORIRS_PANEL_WIDGET_CUSTOM,
-
-    TORIRS_PANEL_WIDGET_COUNT
-};
 
 /** What happened to a control. */
 enum ToriRS_PanelActionKind
@@ -839,19 +723,6 @@ enum ToriRS_PanelActionKind
     TORIRS_PANEL_ACTION_KEY,
 };
 
-struct ToriRS_LegacyPanelEvent
-{
-    /** The id the plugin gave the control in api->win_widget. NULL on
-     *  EV_UI_BUILD, which is about the tab rather than about a control. */
-    char const* widget_id;
-    /** enum ToriRS_PanelActionKind. */
-    int action;
-    /** Index or flag, per the action; -1 when the action carries none. */
-    int value;
-    /** The control's text after the change. Never NULL; "" when it has none.
-     *  Valid for this dispatch only. */
-    char const* text;
-};
 
 /* ------------------------------------------------------------------------ */
 /* Application plugin panel (ABI 21)                                        */
@@ -926,21 +797,6 @@ enum ToriRS_PanelView
 };
 
 /** The page model was cleared for this exact selection and must be declared. */
-struct ToriRS_PanelBuildEvent
-{
-    uint32_t selection_generation;
-    /**
-     * enum ToriRS_PanelView -- which face is being asked for.
-     *
-     * ONE event and not two, because the alternative is a plugin having to
-     * subscribe twice to say "I have nothing extra for the settings", and
-     * because everything else about a build -- the generation fence, the
-     * cleared model, the rule that only the selected plugin may declare -- is
-     * identical for both. A handler that ignores this field declares the same
-     * page for both faces, which is the behaviour that existed before it did.
-     */
-    int view;
-};
 
 /** One result-state intent from the shared shell. */
 struct ToriRS_PanelActionEvent
@@ -982,20 +838,6 @@ struct ToriRS_PanelLayoutEvent
 };
 
 /** A scoped draw pass for one custom semantic node. */
-struct ToriRS_PanelDrawEvent
-{
-    char const* id;
-    /** Opaque token accepted by the ordinary portable draw_* verbs. */
-    void* surface;
-    /** Local logical dirty rectangle. */
-    int x;
-    int y;
-    int width;
-    int height;
-    int scale_milli;
-    uint32_t selection_generation;
-    uint32_t widget_serial;
-};
 
 struct ToriRS_AssetEvent
 {
@@ -1264,29 +1106,6 @@ struct ToriRS_FeatureInfo
  * colours are indices into the palette the running cache defines. A plugin
  * ships DATA as an asset and names GEOMETRY by id.
  */
-enum ToriRS_EngineModelSource
-{
-    /** A model id from the cache's model table, lit as an actor and drawn as
-     *  it decodes. */
-    TORIRS_PLUGIN_MODEL_CACHE = 0,
-    /** A spotanimtype id: its model with that type's own recolours, retextures,
-     *  resize, angle and lighting -- the graphic exactly as the server would
-     *  draw it -- and its `seq` bound unless the plugin names another. */
-    TORIRS_PLUGIN_MODEL_SPOTANIM,
-    /** A mesh handle from mesh_create: geometry the PLUGIN authored, triangle
-     *  by triangle. Nothing about it is read from the cache, which is the
-     *  whole point -- a cache id names a model that exists in one revision and
-     *  is something else, or nothing, in the next, so a plugin that draws its
-     *  own furniture by id works on the cache it was written against and
-     *  silently draws a rock on the rest. An authored mesh is the same shape
-     *  on every revision this client boots. */
-    TORIRS_PLUGIN_MODEL_MESH,
-    /** A handle from model_load: a model FILE the plugin ships, in its own
-     *  asset folder. Portable for the same reason an authored mesh is -- the
-     *  geometry travels with the plugin -- and the way to ship real art rather
-     *  than something computed from trigonometry. */
-    TORIRS_PLUGIN_MODEL_ASSET
-};
 
 /**
  * What draw_hull wraps.
@@ -1311,408 +1130,6 @@ enum ToriRS_HullShape
     TORIRS_HULL_BOUNDS = 0,
     /** The model's own posed geometry: tight, and linear in the mesh. */
     TORIRS_HULL_MESH = 1
-};
-
-/* ------------------------------------------------------------------------ */
-/* Owning the gameframe                                                      */
-/* ------------------------------------------------------------------------ */
-
-/**
- * The live surfaces a layout arranges.
- *
- * A layout plugin brings its own ART -- the stones, the panels, the tab strip
- * -- and it cannot bring these. The 3D scene, the minimap, the chat log, the
- * open sidebar interface and the modal region are the CLIENT's, wired to the
- * cache, the server and the world, and a plugin that tried to reproduce one
- * would be writing a second client. So the frame is split in two: the plugin
- * draws the picture and states where each of these belongs inside it, and the
- * host puts them there.
- *
- * Which node each slot is on this lane is the HOST's problem, and it is a real
- * one: on a 2004 dat1 frame they are revconfig builtins, and on an OldSchool
- * cache they are components of interface 548/161/164 carrying a clientCode.
- * Naming them by role rather than by id is what lets one layout serve both.
- *
- * A slot the gameframe does not have is not an error. A frame with no compass
- * answers the placement with 0 and the plugin draws no compass housing.
- */
-enum ToriRS_EngineSurfaceSlot
-{
-    /** The 3D scene. Every gameframe has one. */
-    TORIRS_PLUGIN_SLOT_VIEWPORT = 0,
-    /** The map square itself, not the stone ring around it -- the box a click
-     *  hit-tests against, and the box the map was drawn with rather than the
-     *  one the layout asked for. The two agree almost always. */
-    TORIRS_PLUGIN_SLOT_MINIMAP,
-    TORIRS_PLUGIN_SLOT_COMPASS,
-    /** The chat log and its input line. */
-    TORIRS_PLUGIN_SLOT_CHAT,
-    /** Whichever sidebar interface is open -- the inventory, the spellbook,
-     *  the stats page. One slot and not fourteen: only one is up at a time,
-     *  and a layout that had to place each would be stating the same rectangle
-     *  fourteen times. */
-    TORIRS_PLUGIN_SLOT_SIDEBAR,
-    /** Where a bank, a level-up or a dialogue opens. */
-    TORIRS_PLUGIN_SLOT_MAIN_MODAL,
-    /**
-     * The chat filter buttons -- public, private, trade, report abuse.
-     *
-     * A role rather than art, and the distinction is the whole reason it is
-     * here: they wear the same stone as the surround and sit in the same
-     * strip, so a layout replacing the frame's decoration takes them with it
-     * -- and they are four working CONTROLS. Suppressed, the player loses the
-     * privacy toggles and gets four empty plates where they were.
-     *
-     * The only role with four members at four DIFFERENT boxes, which is what
-     * layout_slot_at exists for. Their member numbers are the filters
-     * themselves: 0 public, 1 private, 2 trade, 3 report.
-     */
-    TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
-    /**
-     * The minimap's orb column -- hitpoints, prayer, run, special -- as ONE
-     * block beside the map.
-     *
-     * A cache gameframe mounts these as a pack (interface 160 on OldSchool)
-     * inside a layer the toplevel positions next to its map housing, and
-     * every orb in it is laid out relative to that layer. A frame that moves
-     * the map and leaves the layer where the lane put it strands the orbs
-     * over the world; so a layout places the block, at the offset from its
-     * own housing that the lane's toplevel uses. A 2004 frame has no such
-     * block and answers 0 -- the minimap-orbs plugin adds them there.
-     */
-    TORIRS_PLUGIN_SLOT_ORBS,
-
-    /**
-     * Where the roles a layout may PLACE stop.
-     *
-     * Everything below this line is DERIVED: the host works it out from the
-     * frame and from what plugins have reserved, and layout_slot refuses it.
-     * The two kinds are in one enum because they are read through one verb and
-     * name boxes on one screen -- and they have to be told apart, because
-     * "place the canvas somewhere" is not a sentence.
-     */
-    TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT,
-
-    /**
-     * The whole client window.
-     *
-     * The denominator, and the one region that can never fail to answer, which
-     * makes it the bottom of every fallback chain.
-     */
-    TORIRS_PLUGIN_SLOT_CANVAS = TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT,
-
-    /** Temporary V1 pseudo-area; V2 code uses placement.area(OVERLAY_SAFE).
-     *
-     * The largest part of the canvas no chrome is sitting on.
-     *
-     * The region a readout actually wants, and the reason this enum grew a
-     * derived half. "Where is the middle of the screen" has no single answer a
-     * frame can state: on a fixed frame it is the viewport, because the chrome
-     * is outside it; on a resizable one the viewport is the whole window and
-     * the minimap, the chatbox and the sidebar float on top of it, so the same
-     * question has a much smaller answer.
-     *
-     * DERIVED rather than declared, and that is the value of it: it is
-     * computed from what is actually claimed, so it stays right when a plugin
-     * adds a dock nobody anticipated. A declared safe region is only ever as
-     * current as the last person who remembered to update it.
-     *
-     * GAMECHROME names the occluder: this is the canvas minus the CLIENT's
-     * own furniture. What the OPERATING SYSTEM covers (the soft keyboard) is
-     * a different question with a different answer -- @see
-     * ToriRS_PluginApi::safe_os.
-     *
-     * V2 exposes the exact, possibly fragmented answer through placement.
-     */
-    TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME,
-
-    /** Temporary V1 pseudo-area; V2 frame builders receive FRAME_BUILD.
-     *
-     * The canvas minus lane furniture a selected plugin frame may not replace.
-     *
-     * The region a LAYOUT declares into, and the one thing a frame plugin
-     * cannot work out from the canvas: a cache gameframe carries chrome that
-     * is not one of the placeable roles above and is not the toplevel's own
-     * decoration either -- the CS2 side-tab rail is a mounted interface of its
-     * own (`popout`, 728 on OldSchool), pinned to the right edge for the whole
-     * height of the window. Frame selection neither moves nor suppresses it:
-     * it is a working control with its own ops, and it is `noclickthrough`, so a
-     * layout that pinned its own rail to `canvas_w` put seven tab stones under
-     * a click-blocker and drew them where nothing could press them.
-     *
-     * LANECHROME names the occluder, the same way GAMECHROME does above, and
-     * the two are different questions: that one is the canvas minus what the
-     * frame ITSELF put on screen, and is what a readout wants; this one is the
-     * canvas minus what the frame is not allowed to move, and is what the
-     * frame wants. A dat1 lane has no such furniture and answers the whole
-     * canvas, which is why a layout can read this unconditionally.
-     *
-     * DERIVED from the profile's `lane_chrome_<n>` roles: the engine resolves
-     * each against the live toplevel and the host cuts every one that is on
-     * screen out of the canvas. A revision that names none answers CANVAS.
-     */
-    TORIRS_PLUGIN_SLOT_SAFE_LANECHROME,
-
-    TORIRS_PLUGIN_SLOT_COUNT
-};
-
-/**
- * Lane-chrome pieces one revision may name -- `lane_chrome_0` upwards.
- *
- * The rails, docks and strips a cache gameframe mounts that a plugin frame has
- * to lay out AROUND. OldSchool has exactly one; the ceiling is here so the
- * derivation is a bounded loop over role names rather than an open scan, and
- * a profile that names more says so by adding a role and nothing else.
- */
-#define TORIRS_PLUGIN_LANECHROME_MAX 8
-
-/** What the client canvas does under a published frame offer. */
-enum ToriRS_EngineFrameCanvas
-{
-    /**
-     * The canvas is the window: the layout is re-declared at whatever size the
-     * user drags it to.
-     *
-     * EV_LAYOUT then fires on every resize, and the plugin's arithmetic has to
-     * be in terms of the box it was handed rather than in constants.
-     */
-    TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW = 0,
-    /**
-     * The canvas is pinned to the size the claim named, and the window
-     * letterboxes it.
-     *
-     * The 765x503 frames want this and not "resizable at 765x503": the two
-     * differ the moment the window is not that size, and the difference is
-     * whether the art is magnified into the window or stranded in a corner of
-     * it.
-     */
-    TORIRS_PLUGIN_CANVAS_FIXED = 1
-};
-
-/** Exact derived placement regions. These are not live layout surfaces. */
-enum ToriRS_EnginePlacementArea
-{
-    TORIRS_PLUGIN_AREA_PLATFORM_SAFE = 0,
-    TORIRS_PLUGIN_AREA_FRAME_BUILD,
-    TORIRS_PLUGIN_AREA_OVERLAY_SAFE,
-    TORIRS_PLUGIN_AREA_RAW_VIEWPORT,
-    TORIRS_PLUGIN_AREA_COUNT,
-};
-
-#define TORIRS_PLUGIN_PLACEMENT_RESERVATION_NAME_MAX 64
-
-enum ToriRS_EnginePlacementEdge
-{
-    TORIRS_PLUGIN_PLACEMENT_EDGE_TOP = 0,
-    TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT,
-    TORIRS_PLUGIN_PLACEMENT_EDGE_BOTTOM,
-    TORIRS_PLUGIN_PLACEMENT_EDGE_LEFT,
-    TORIRS_PLUGIN_PLACEMENT_EDGE_COUNT,
-};
-
-/* ------------------------------------------------------------------------ */
-/* Published gameframes                                                     */
-/* ------------------------------------------------------------------------ */
-
-/**
- * One selectable gameframe supplied by a plugin.
- *
- * This is static catalogue data, read when the plugin definition is
- * registered. `id` is local to the plugin; the host exposes and persists the
- * canonical `<plugin id>/<offer id>` spelling. `title` is presentation only.
- *
- * `width`/`height` are the pinned logical canvas for CANVAS_FIXED and the
- * minimum logical canvas for CANVAS_FOLLOW_WINDOW. They are constraints on
- * this offer, never conditions that cause the resolver to select another one.
- * A NULL id terminates the array.
- */
-struct ToriRS_EngineFrameOffer
-{
-    char const* id;
-    char const* title;
-    int canvas;
-    int width;
-    int height;
-};
-
-enum ToriRS_EngineFrameStatus
-{
-    TORIRS_PLUGIN_FRAME_NATIVE = 0,
-    TORIRS_PLUGIN_FRAME_ACTIVE,
-    TORIRS_PLUGIN_FRAME_LOADING,
-    TORIRS_PLUGIN_FRAME_FALLBACK,
-};
-
-/** One row of the host-owned frame catalogue. */
-struct ToriRS_EngineFrameInfo
-{
-    char id[TORIRS_PLUGIN_FRAME_ID_MAX];
-    char title[TORIRS_PLUGIN_TITLE_MAX];
-    char provider[TORIRS_PLUGIN_NAME_MAX];
-    int canvas;
-    int width;
-    int height;
-    int available;
-};
-
-/** Requested and resolved frame state for settings and diagnostics. */
-struct ToriRS_EngineFrameSelection
-{
-    /** `auto` or a canonical catalogue id. */
-    char requested[TORIRS_PLUGIN_FRAME_ID_MAX];
-    /** `core/native` or the canonical active offer. */
-    char active[TORIRS_PLUGIN_FRAME_ID_MAX];
-    int status;
-    char reason[160];
-    uint32_t revision;
-};
-
-/* ------------------------------------------------------------------------ */
-/* Chrome: dressing one PART of a frame somebody else arranged               */
-/* ------------------------------------------------------------------------ */
-
-/*
- * The second tier of the frame.
- *
- * Arranging is exclusive per FRAME -- one host-selected offer, the whole
- * gameframe. Dressing is exclusive per PART: the report button, one orb, a
- * single control, claimed by any plugin without owning the frame around it.
- *
- * The two are ordered by construction. EV_LAYOUT declares the frame and
- * EV_CHROME dresses it, in that order, in one pass -- so a plugin replacing a
- * button always reads the box THIS pass put it in.
- *
- * A part is addressed by ROLE NAME, the same namespace role_replace and
- * role_anchor use, because a name is the only address that survives changing
- * lanes: the report button is a chat_buttons member on a 2004 frame and cache
- * component 162:31 on OldSchool, and the profile for each revision says which.
- * A plugin says "report_button" and stops caring.
- */
-
-/** Which picture a part wears. -1 in `art` is a state the part has not got. */
-enum ToriRS_LegacyChromeState
-{
-    TORIRS_PLUGIN_CHROME_IDLE = 0,
-    TORIRS_PLUGIN_CHROME_HOVER,
-    /** Selected -- the chat filter this box is showing. */
-    TORIRS_PLUGIN_CHROME_ACTIVE,
-    TORIRS_PLUGIN_CHROME_ACTIVE_HOVER,
-    TORIRS_PLUGIN_CHROME_DISABLED,
-
-    TORIRS_PLUGIN_CHROME_STATE_COUNT
-};
-
-/**
- * Where an anchored thing goes relative to the object it is anchored to.
- *
- * An anchor is a NAME, and the name may be provided by the lane, by a plugin
- * that replaced it, or by a plugin that introduced it; wherever the object
- * paints, what is hung off it paints in this order:
- *
- *   BEFORE  the anchored drawing, then the object
- *   AFTER   the object, then the anchored drawing
- *
- * Which is the whole difference between a readout that sits on a housing and
- * one the housing covers. Arrival order used to decide it, and arrival order
- * is which plugin happened to claim first.
- */
-enum ToriRS_LegacyAnchorPlace
-{
-    TORIRS_PLUGIN_ANCHOR_AFTER = 0,
-    TORIRS_PLUGIN_ANCHOR_BEFORE = 1,
-};
-
-/** Which authority a part came from. @see chrome_part. */
-enum ToriRS_LegacyChromeSource
-{
-    /** Nothing is there. */
-    TORIRS_PLUGIN_CHROME_SOURCE_NONE = 0,
-    /**
-     * The cache's or the revconfig's own.
-     *
-     * A real box and no art: the picture belongs to a cache this plugin
-     * cannot decode and would be a different picture on the next revision. A
-     * dresser on this lane ships its own.
-     */
-    TORIRS_PLUGIN_CHROME_SOURCE_LANE,
-    /** A frame arranger declared it in EV_LAYOUT. Art handles are real. */
-    TORIRS_PLUGIN_CHROME_SOURCE_FRAME,
-    /** A plugin INTRODUCED it: this revision has no node for it at all.
-     *  Art handles are real. @see chrome_add. */
-    TORIRS_PLUGIN_CHROME_SOURCE_ADDED
-};
-
-/**
- * The SCOPES of a part: which of its aspects a claim takes.
- *
- * A part is not one thing to own. Where it is, what it looks like and what a
- * click on it does are three questions with three different natural owners
- * -- a layout plugin moves the report button, a skin plugin recolours it, an
- * accessibility plugin makes it bigger to hit -- and a claim that took all
- * three at once would make any two of those plugins mutually exclusive for no
- * reason either could name.
- *
- * So a claim is on (part, scope), exclusive per pair, and three plugins may
- * hold the three scopes of one part. Bits, so a plugin that wants two asks
- * once.
- */
-enum ToriRS_LegacyChromeScope
-{
-    /** The box: x, y, w, h of chrome_paint. */
-    TORIRS_PLUGIN_CHROME_SCOPE_POSITION = 1 << 0,
-    /** The pictures: art[], label_x, label_y, and chrome_state. */
-    TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE = 1 << 1,
-    /** The click: chrome_ops, and the region it is served from. */
-    TORIRS_PLUGIN_CHROME_SCOPE_HITBOX = 1 << 2,
-
-    TORIRS_PLUGIN_CHROME_SCOPE_ALL = (1 << 3) - 1
-};
-
-/**
- * One dressable part: where its picture is, and what that picture is.
- *
- * The box is the ART's, which is NOT the role's box, and that difference is
- * the whole reason this struct exists. role_rect answers where the LABEL
- * mounts -- 100x25 for a 2004 chat button -- while the plate composed for it
- * is 100x23 sitting three rows lower. A plugin painting the role's rectangle
- * overhangs the plate it meant to replace.
- */
-struct ToriRS_LegacyChromePart
-{
-    /*
-     * Canvas coordinates on the way OUT of chrome_part, always.
-     *
-     * On the way IN they are relative to the part's anchor, which for
-     * everything except an added part IS the canvas -- so the two spellings
-     * coincide for a native or arranger-declared part and differ only where
-     * the difference is the point. @see chrome_add.
-     */
-    int x;
-    int y;
-    int w;
-    int h;
-
-    /**
-     * One handle per enum ToriRS_LegacyChromeState, -1 for a state this part
-     * has not got.
-     *
-     * -1 at ACTIVE is an ANSWER and not an omission: it says the button does
-     * not select anything, it opens something. Report abuse is that button on
-     * every frame in this tree.
-     *
-     * A state with no art of its own falls back to IDLE, so the common part --
-     * one picture, no hover -- states one handle and leaves the rest -1.
-     */
-    int art[TORIRS_PLUGIN_CHROME_STATE_COUNT];
-
-    /** Where a caption or an icon centres inside the art, for a replacement
-     *  that keeps the plate and changes only what is on it. */
-    int label_x;
-    int label_y;
-
-    /** enum ToriRS_LegacyChromeSource. Written by chrome_part; ignored on
-     *  every call that DECLARES a part. */
-    int source;
 };
 
 /* ------------------------------------------------------------------------ */

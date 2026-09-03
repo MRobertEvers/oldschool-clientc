@@ -137,8 +137,8 @@ struct ToriRS_PluginEngine
     int (*screen)(void* user);
 
     /** Canvas minus what the OS is covering (the soft keyboard).
-     *  @see ToriRS_PluginApi::safe_os. */
-    int (*safe_os)(
+     *  @see ToriRS_PluginApi::platform_safe_rect. */
+    int (*platform_safe_rect)(
         void* user,
         int* out_x,
         int* out_y,
@@ -146,7 +146,7 @@ struct ToriRS_PluginEngine
         int* out_h);
     /**
      * Exact platform-safe fragments. Pass -1 to start; returns the fragment
-     * index or -1 when finished. Optional: the host adapts safe_os as one
+     * index or -1 when finished. Optional: the host adapts platform_safe_rect as one
      * fragment when absent.
      */
     int (*platform_safe_next)(
@@ -326,12 +326,6 @@ struct ToriRS_PluginEngine
         char const* role,
         int* out_slot,
         int* out_member);
-    /** Reconcile one persistent owner-scoped replacement declaration. */
-    int (*role_replace)(
-        void* user,
-        int plugin,
-        char const* role,
-        int enabled);
     /** Suppress only a live role node's native paint and/or own input. Its
      * children remain live. Idempotent and re-resolved across tree rebuilds. */
     int (*role_suppress_facets)(
@@ -345,7 +339,7 @@ struct ToriRS_PluginEngine
     /** `place` is enum ToriRS_LegacyAnchorPlace, or PLUGIN_ANCHOR_PLACE_SELF
      *  for the replacement owner's own appearance -- the object itself, which
      *  everything BEFORE paints under and everything AFTER paints over. */
-    int (*role_anchor)(
+    int (*ui_boundary)(
         void* user,
         int plugin,
         char const* role,
@@ -1131,32 +1125,13 @@ PluginHost_DrawCanvas(
 /** Re-resolve all standing role replacement claims. Called before interaction
  * so a reclaimed/rebuilt target can never retain or inherit suppression. */
 void
-PluginHost_ReconcileRoleReplacements(struct ToriRS_PluginHost* host);
+PluginHost_ReconcileUi(struct ToriRS_PluginHost* host);
 
 /** The same again, for EV_DRAW_FRAME -- the chrome surface, under the
  *  interfaces. Raised for the frame's owner alone, and not at all when nobody
  *  holds it, so a client with no layout plugin pays one branch. */
 void
 PluginHost_DrawFrame(
-    struct ToriRS_PluginHost* host,
-    int width,
-    int height);
-
-/**
- * The chrome pass: reconcile the suppressions, then re-ask every claimant
- * whose declaration went stale. @see ToriRS_PluginApi::chrome_claim.
- *
- * Call once a frame, AFTER PluginHost_Layout. That order is the whole of the
- * promise between the two tiers -- the frame's arranger has already stated
- * where everything is, so every box a dresser reads is this pass's rather than
- * the last one's.
- *
- * Per frame rather than per layout because a borrowed image lands off the IO
- * queue with no layout in flight, and a dresser that skipped a pass waiting
- * for pixels has to be asked again once they arrive.
- */
-void
-PluginHost_ChromeTick(
     struct ToriRS_PluginHost* host,
     int width,
     int height);
@@ -1297,25 +1272,9 @@ PluginHost_ConfigItem(
     int plugin_index,
     int item_index);
 
-/* ---- temporary V1 plugin-window compatibility ----------------------------
- *
- * The host owns this legacy MODEL -- which plugin registered a tab,
- * what controls are on it, what they say -- and owns nothing about how it is
- * presented. Whoever draws it (the settings panel, and through it whichever
- * WEB/BROWSER executor is bound) reads this registry and mirrors it.
- *
- * Kept here rather than in the panel because a plugin's controls have to
- * outlive any particular presentation of them: the window can be closed,
- * reopened or moved between the internal canvas and shared browser page, and the
- * plugin must not have to rebuild its tab for any of that.
- */
+/* ---- retained application plugin panel model ---------------------------- */
 
-/** Window controls across ALL plugins. A shared budget on top of the
- *  per-plugin TORIRS_PLUGIN_WIDGETS_MAX, so sixteen greedy plugins cannot
- *  between them exhaust a fixed-size host. */
-#define TORIRS_PLUGIN_WIN_WIDGETS_MAX 256
-
-/** Structured select rows retained for the one active semantic page. */
+/** Structured select rows retained for the one active page. */
 #define TORIRS_PLUGIN_SELECT_OPTIONS_MAX 128
 #define TORIRS_PLUGIN_SELECT_VALUE_MAX TORIRS_PLUGIN_CONFIG_VALUE_MAX
 #define TORIRS_PLUGIN_SELECT_LABEL_MAX TORIRS_PLUGIN_CONFIG_VALUE_MAX
@@ -1329,7 +1288,7 @@ struct ToriRS_PluginSelectOption
     bool enabled;
 };
 
-/** One control on a plugin's tab, as the host holds it. */
+/** One control in the active plugin page, as the host holds it. */
 struct ToriRS_PanelWidget
 {
     /** enum ToriRS_PanelWidgetKind. */
@@ -1343,15 +1302,13 @@ struct ToriRS_PanelWidget
     char choices[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
     /**
      * Lossless V2 select state. `select_options` points into host-owned copied
-     * storage and remains valid for this panel selection generation. Legacy
-     * dropdowns leave `structured_select` false and continue using choices.
+     * storage and remains valid for this panel selection generation.
      */
     bool structured_select;
     struct ToriRS_PluginSelectOption* select_options;
     int select_option_count;
     char selected_value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
-    /** Generic result state for the ABI-21 semantic kinds. Legacy checkbox
-     *  and dropdown adapters keep this in step with checked/selected. */
+    /** Generic result state for toggle, select, progress, and list rows. */
     int value;
     /** CUSTOM only: preferred logical content height. */
     int preferred_height;
@@ -1359,74 +1316,6 @@ struct ToriRS_PanelWidget
      *  a removed node from a later declaration with the same string id. */
     uint32_t serial;
 };
-
-/** Has this plugin claimed a tab? */
-bool
-PluginHost_WinHasTab(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index);
-/** Its tab's title; "" when it has none. Never NULL. */
-char const*
-PluginHost_WinTabTitle(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index);
-
-int
-PluginHost_WinWidgetCount(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index);
-struct ToriRS_PanelWidget const*
-PluginHost_WinWidgetAt(
-    struct ToriRS_PluginHost const* host,
-    int plugin_index,
-    int widget_index);
-
-/**
- * Ask a plugin to declare its controls, if its tab is empty.
- *
- * Raises EV_UI_BUILD. Called by whoever presents the window when it opens, and
- * by the host itself after a reload -- the plugin declares its tab in one
- * place and never has to know which of those happened.
- */
-void
-PluginHost_WinBuild(
-    struct ToriRS_PluginHost* host,
-    int plugin_index);
-
-/**
- * Deliver a control's use to the plugin that owns it, updating the host's copy
- * of the control first so a plugin reading its own tab back sees the new value.
- *
- * @param action enum ToriRS_PanelActionKind.
- * @return 1 when the widget was found and the event dispatched.
- */
-int
-PluginHost_WinDispatch(
-    struct ToriRS_PluginHost* host,
-    int plugin_index,
-    char const* widget_id,
-    int action,
-    int value,
-    char const* text);
-
-/** Drop a plugin's tab and every control on it. Used by disable and reload. */
-void
-PluginHost_WinClearPlugin(
-    struct ToriRS_PluginHost* host,
-    int plugin_index);
-
-/**
- * Bumped whenever the registry's SHAPE changes -- a tab claimed or dropped, a
- * control added or removed. A presentation compares it against what it last
- * built and rebuilds only when it differs, which is what keeps a window that
- * nothing has touched from being torn down and reassembled every frame.
- *
- * Value changes (a checkbox toggled, a field edited) do NOT bump it: those are
- * mirrored onto the existing controls, which is the whole reason the chrome
- * has compare-then-set mutators.
- */
-int
-PluginHost_WinRevision(struct ToriRS_PluginHost const* host);
 
 /* ---- the shared application plugin panel --------------------------------
  *

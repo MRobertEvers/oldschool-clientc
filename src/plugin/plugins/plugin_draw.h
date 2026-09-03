@@ -15,11 +15,11 @@
  * the third and fourth plugin to need it -- which is what makes it a kit
  * rather than a fourth copy.
  *
- * It is deliberately NOT part of the plugin ABI. Everything here is arithmetic
- * over a caller's own buffer plus two api verbs (asset_load / image_*), so it
- * compiles into whichever plugins want it and costs nothing to the ones that
- * do not. A plugin outside this tree writes its own; the contract it is held
- * to is the api, not this file.
+ * It is deliberately NOT part of the public plugin API. Everything here is
+ * arithmetic over a caller's own buffer plus `api->assets`, so it compiles
+ * into whichever bundled plugins want it and costs nothing to the others. A
+ * plugin outside this tree writes its own; the contract it is held to is the
+ * V2 API, not this file.
  */
 
 #include "plugin/torirs_plugin_types.h"
@@ -58,18 +58,6 @@ struct PluginDraw_Atlas
     /** The line box, which is what a caption's height is measured in. */
     int line_h;
     /** The decoded sheet, owned here and freed by PluginDraw_AtlasFree. */
-    int image;
-    uint32_t* px;
-    int w;
-    int h;
-};
-
-/** Native-v2 atlas: identical retained pixels, with a typed image token. */
-struct PluginDraw_AtlasV2
-{
-    struct PluginDraw_Glyph glyph[PLUGIN_DRAW_GLYPH_COUNT];
-    int ready;
-    int line_h;
     struct ToriRS_ImageRef image;
     uint32_t* px;
     int w;
@@ -137,42 +125,26 @@ void PluginDraw_Tile(
  * again", not "failed".
  */
 int PluginDraw_ImageLoad(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api,
-    char const* name,
-    int* handle,
-    uint32_t** px,
-    int* w,
-    int* h);
-/** Give one back. Idempotent. */
-void PluginDraw_ImageFree(uint32_t** px, int* handle);
-
-/** Load `<name>.ini` and `<name>.png` into `atlas`. Same 0/1 contract. */
-int PluginDraw_AtlasLoad(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api,
-    struct PluginDraw_Atlas* atlas,
-    char const* name);
-void PluginDraw_AtlasFree(struct PluginDraw_Atlas* atlas);
-
-int PluginDraw_ImageLoadV2(
     struct ToriRS_ApiV2* api,
     char const* name,
     struct ToriRS_ImageRef* handle,
     uint32_t** px,
     int* w,
     int* h);
-void PluginDraw_ImageFreeV2(
+/** Give one back. Idempotent. */
+void PluginDraw_ImageFree(
     struct ToriRS_ApiV2* api,
     uint32_t** px,
     struct ToriRS_ImageRef* handle);
-int PluginDraw_AtlasLoadV2(
+
+/** Load `<name>.ini` and `<name>.png` into `atlas`. Same 0/1 contract. */
+int PluginDraw_AtlasLoad(
     struct ToriRS_ApiV2* api,
-    struct PluginDraw_AtlasV2* atlas,
+    struct PluginDraw_Atlas* atlas,
     char const* name);
-void PluginDraw_AtlasFreeV2(
+void PluginDraw_AtlasFree(
     struct ToriRS_ApiV2* api,
-    struct PluginDraw_AtlasV2* atlas);
+    struct PluginDraw_Atlas* atlas);
 
 /* ---- text ---------------------------------------------------------------- */
 
@@ -209,16 +181,5 @@ void PluginDraw_TextCenter(
     struct PluginDraw_Atlas const* atlas,
     char const* text,
     uint32_t tint);
-
-int PluginDraw_TextWidthV2(struct PluginDraw_AtlasV2 const* atlas, char const* text);
-void PluginDraw_TextV2(
-    uint32_t* buf, int w, int h, int x, int top,
-    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint);
-void PluginDraw_TextRightV2(
-    uint32_t* buf, int w, int h, int right, int top,
-    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint);
-void PluginDraw_TextCenterV2(
-    uint32_t* buf, int w, int h, int x, int width, int top,
-    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint);
 
 #endif /* TORIRS_PLUGIN_DRAW_H */

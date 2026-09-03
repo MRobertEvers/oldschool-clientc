@@ -17,6 +17,7 @@ static void (*g_reload[PLUGIN_LUA_TEST_MAX])(struct ToriRS_PluginHost*, int, voi
 static void* g_reload_user[PLUGIN_LUA_TEST_MAX];
 static int g_registered;
 static int g_failures;
+static int g_reported_errors;
 static int g_logs;
 static int g_enabled_calls;
 static int g_ui_enabled;
@@ -25,6 +26,7 @@ static int g_draws;
 static int g_headings;
 static int g_surfaces;
 static int g_reasons;
+static int g_disabled_self;
 
 #define CHECK(condition, message)                                                       \
     do                                                                                  \
@@ -63,7 +65,7 @@ PluginHost_SetReloadHandler(
 void PluginHost_SetError(struct ToriRS_PluginHost* host, int index, char const* text)
 {
     (void)host; (void)index; (void)text;
-    g_failures++;
+    g_reported_errors++;
 }
 void PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int index, bool enabled)
 {
@@ -126,6 +128,12 @@ static void fake_frame_selection(struct ToriRS_ApiV2* api, struct ToriRS_FrameSe
     snprintf(out->active_id, sizeof(out->active_id), "%s",
         instance->active_frame ? instance->active_frame : "");
 }
+static void fake_disable_self(struct ToriRS_ApiV2* api, char const* reason)
+{
+    (void)api;
+    CHECK(reason && reason[0], "disable_self receives an actionable reload reason");
+    g_disabled_self++;
+}
 static void fake_draw_rect(
     struct ToriRS_DrawBuilder* draw,
     struct ToriRS_Rect rect,
@@ -179,6 +187,11 @@ fake_api(struct FakeInstance* instance)
     api.ui.set_enabled = fake_ui_set_enabled;
     api.frame.struct_size = sizeof(api.frame);
     api.frame.selection = fake_frame_selection;
+    static struct ToriRS_ClientApiV2 client;
+    memset(&client, 0, sizeof(client));
+    client.struct_size = sizeof(client);
+    client.disable_self = fake_disable_self;
+    api.client = &client;
     return api;
 }
 
@@ -221,6 +234,12 @@ static void
 test_runtime(struct ToriRS_PluginHost* host)
 {
     static char const LEGACY_SOURCE[] = "return { name='legacy' }";
+    static char const INVALID_ENUM_SOURCE[] =
+        "return {id='invalid-enum',on_start=function(api) api.placement.area(99) end}";
+    static char const DRIFT_SOURCE[] =
+        "return {id='lua-v2-test',title='Lua V2 Test',version='2',"
+        "frames={{id='changed',title='Changed',canvas='fixed',width=765,height=503,"
+        "build=function() return 'ready' end}}}";
     static char const SOURCE[] =
         "return { id='lua-v2-test', title='Lua V2 Test', version='2',"
         " config={{key='answer',type='int',default='42'}},"
@@ -237,10 +256,15 @@ test_runtime(struct ToriRS_PluginHost* host)
         "  {id='waiting',title='Waiting',canvas='window',min_width=640,min_height=480,"
         "   build=function() return 'pending' end},"
         "  {id='failure',title='Failure',canvas='fixed',width=765,height=503,"
-        "   build=function() return 'error' end}"
+        "   build=function() return 'error' end},"
+        "  {id='invalid-surface',title='Invalid Surface',canvas='fixed',width=765,height=503,"
+        "   build=function(api,frame)"
+        "    frame.surface(99,{x=0,y=0,width=1,height=1});return 'ready' end}"
         " },"
         " on_start=function(api)"
         "  assert(api.log==nil and api.role==nil and api.window==nil and api.layout==nil)"
+        "  assert(api.chrome==nil and api.entity==nil and api.object_create==nil)"
+        "  assert(api.local_player==nil and api.image_load==nil and api.cfg_set==nil)"
         "  assert(api.core.plugin_id()=='lua-v2-test' and api.config.answer==42)"
         "  local node=api.ui.ref('frame.chat.button.report')"
         "  assert(api.ui.set_enabled(node,true))"
@@ -309,13 +333,16 @@ test_runtime(struct ToriRS_PluginHost* host)
     context.canvas = TORIRS_FRAME_CANVAS_FIXED;
     CHECK(g_defs[0]->frames[2].build(&api, NULL, &frame, &context) == TORIRS_FRAME_ERROR,
         "Lua frame build returns ERROR");
+    context.offer_id = "invalid-surface";
+    CHECK(g_defs[0]->frames[3].build(&api, NULL, &frame, &context) == TORIRS_FRAME_ERROR,
+        "invalid integer surface becomes a caught Lua frame error");
+    CHECK(g_disabled_self == 1 && g_reported_errors == 0 && g_enabled_calls == 0,
+        "invalid frame enum refuses the provider through the V2 lifecycle");
     g_defs[0]->frames[0].draw(&api, NULL, &draw);
     CHECK(g_logs == 1 && g_ui_enabled == 1 && g_ui_updates == 1,
         "canonical API calls reached V2 functions");
     CHECK(g_draws == 2 && g_headings == 1, "scoped draw/panel builders reached V2 functions");
     CHECK(g_surfaces == 1 && g_reasons == 1, "scoped frame builder reached V2 functions");
-    CHECK(g_enabled_calls == 0, "runtime script did not fault");
-
     CHECK(g_reload[0] != NULL, "source reload handler installed");
     g_reload[0](host, 0, g_reload_user[0]);
     g_defs[0]->callbacks.on_start(&api, NULL);
@@ -323,6 +350,25 @@ test_runtime(struct ToriRS_PluginHost* host)
     context.offer_id = "ready";
     CHECK(g_defs[0]->frames[0].build(&api, NULL, &frame, &context) == TORIRS_FRAME_READY,
         "reload rebuilt the frame-offer function");
+
+    CHECK(PluginLua_TestReplaceSource(0, DRIFT_SOURCE, (int)strlen(DRIFT_SOURCE)),
+        "test source replacement reached retained reload bytes");
+    g_reload[0](host, 0, g_reload_user[0]);
+    CHECK(strcmp(g_defs[0]->frames[0].id, "ready") == 0 &&
+            strcmp(g_defs[0]->frames[3].id, "invalid-surface") == 0,
+        "rejected reload restores catalogue-backed offer strings");
+    g_defs[0]->callbacks.on_start(&api, NULL);
+    CHECK(g_disabled_self == 2,
+        "changed static frame descriptor is refused on restart");
+
+    CHECK(PluginLua_AddScript(host, "invalid-enum", INVALID_ENUM_SOURCE,
+              (int)strlen(INVALID_ENUM_SOURCE)) == 1,
+        "enum misuse probe registered");
+    struct FakeInstance invalid_instance = { "invalid-enum", NULL };
+    struct ToriRS_ApiV2 invalid_api = fake_api(&invalid_instance);
+    g_defs[1]->callbacks.on_start(&invalid_api, NULL);
+    CHECK(g_disabled_self == 3 && g_reported_errors == 0 && g_enabled_calls == 0,
+        "out-of-range integer enum becomes a caught V2 lifecycle fault");
 }
 
 static void

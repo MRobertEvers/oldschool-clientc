@@ -293,7 +293,7 @@ struct AppPluginObject
 {
     int in_use;
     /* -- what the plugin asked for -- */
-    int source; /* enum ToriRS_EngineModelSource */
+    int source; /* enum ToriRS_HostModelSource */
     int model_id;
     int seq_id;
     int loop;
@@ -1220,15 +1220,15 @@ struct App
      * first Canvas dispatch rather than consuming plugin draw budget twice. */
     int plugin_overlay_batch_started;
     int plugin_canvas_overlay_prepared;
-    int plugin_role_anchor_seen;
+    int plugin_ui_boundary_seen;
     /** Current canvas subscriber's explicit anchor. `active && !valid` is a
      * missing target and therefore DROPS draws instead of making them global. */
-    int plugin_role_anchor_active;
-    int plugin_role_anchor_valid;
-    int32_t plugin_role_anchor_node;
-    uint32_t plugin_role_anchor_incarnation;
-    uint8_t plugin_role_anchor_replace;
-    uint8_t plugin_role_anchor_place;
+    int plugin_ui_boundary_active;
+    int plugin_ui_boundary_valid;
+    int32_t plugin_ui_boundary_node;
+    uint32_t plugin_ui_boundary_incarnation;
+    uint8_t plugin_ui_boundary_replace;
+    uint8_t plugin_ui_boundary_place;
     /*
      * The plugin FRAME overlay: chrome, over the 3D scene and under the
      * interfaces (UITREE_HOST_GET_FRAME_OVERLAYS).
@@ -1296,11 +1296,11 @@ struct App
         /** enum AppPluginSurface. Declaration order is the z-order within a
          * global surface; anchored Canvas regions use role_paint_order below. */
         uint8_t surface;
-        uint8_t role_anchored;
-        uint8_t role_replace;
-        uint8_t role_place;
-        int32_t role_node;
-        uint32_t role_incarnation;
+        uint8_t ui_bounded;
+        uint8_t ui_boundary_replace;
+        uint8_t ui_boundary_place;
+        int32_t ui_boundary_node;
+        uint32_t ui_boundary_incarnation;
         int role_clip_x;
         int role_clip_y;
         int role_clip_w;
@@ -1327,11 +1327,11 @@ struct App
         int plugin;
         uint32_t tag;
         uint8_t surface;
-        uint8_t role_anchored;
-        uint8_t role_replace;
-        uint8_t role_place;
-        int32_t role_node;
-        uint32_t role_incarnation;
+        uint8_t ui_bounded;
+        uint8_t ui_boundary_replace;
+        uint8_t ui_boundary_place;
+        int32_t ui_boundary_node;
+        uint32_t ui_boundary_incarnation;
     } plugin_pointer_capture;
 
     /** Engine-side incarnation fence for the host's persistent replacement
@@ -1343,7 +1343,7 @@ struct App
         char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
         int32_t node_index;
         uint32_t node_incarnation;
-    } plugin_role_replacements[64];
+    } plugin_ui_boundary_replacements[64];
     /** Named-UI facet suppression, separate from legacy whole-subtree role
      * replacement so appearance and actions remain independently composable. */
     struct AppPluginRoleFacetSuppression
@@ -2643,7 +2643,7 @@ struct App
 
     /** CANVAS rows the OS soft keyboard covers at the bottom, 0 when it is
      *  away (TORIRS_CMD_KEYBOARD_INSET; only touch platforms ever push it).
-     *  What api->safe_os subtracts from the canvas, and what the layout
+     *  What api->platform_safe_rect subtracts from the canvas, and what the layout
      *  subtracts for every row whose profile declared `safe_area=os:bottom` --
      *  the login box, on the profiles that say so. */
     int keyboard_inset;
