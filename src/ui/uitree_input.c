@@ -376,13 +376,15 @@ hit_test_interactive_recursive(
             (int)UITree_ComponentHitTestVisibleHost(component, -1, host));
 
     int32_t hit = -1;
-    if( point_in_self && !UITree_ComponentIsPassThrough(component, host) &&
+    if( !component->replacement_input_hidden && point_in_self &&
+        !UITree_ComponentIsPassThrough(component, host) &&
         UITree_ComponentHitTestVisibleHost(component, -1, host) )
         hit = node_index;
 
     /* A no_click_through node covering the point blocks click-through to nodes
      * rendered underneath it (even if the node itself is a passthrough container). */
-    int blocks = (point_in_self && component->no_click_through) ? 1 : 0;
+    int blocks = (!component->replacement_input_hidden && point_in_self &&
+                  component->no_click_through) ? 1 : 0;
     int blocks_world = blocks;
 
     int child_scroll_x = scroll_off_x;
@@ -515,7 +517,7 @@ UITree_HitTestRecursive(
     int32_t hit = -1;
     /* Layers are containers only — do not claim the hit themselves. Empty overlay
      * layers otherwise steal clicks from hooked widgets underneath. */
-    if( component->type != UIELEM_RS_LAYER &&
+    if( !component->replacement_input_hidden && component->type != UIELEM_RS_LAYER &&
         UITree_PointInComponent(&component->position, px, py) )
         hit = node_index;
 
@@ -620,7 +622,8 @@ collect_nodes_recursive(
 
     /* A blocking panel discards everything rendered under it — including
      * entries already collected — but keeps itself and its subtree. */
-    if( point_in_self && component->no_click_through && ctx->count > ctx->barrier )
+    if( !component->replacement_input_hidden && point_in_self &&
+        component->no_click_through && ctx->count > ctx->barrier )
         ctx->barrier = ctx->count;
 
     /* An RS_INV grid's clickable area is the union of its slot rects, not its
@@ -629,7 +632,8 @@ collect_nodes_recursive(
     bool const inv_slot_hit =
         collect_inv_grid_slot_hit(component, bx, by, px, py, scroll_off_x, scroll_off_y);
 
-    if( (point_in_self || inv_slot_hit) && UITree_ComponentHitTestVisibleHost(component, -1, host) )
+    if( !component->replacement_input_hidden && (point_in_self || inv_slot_hit) &&
+        UITree_ComponentHitTestVisibleHost(component, -1, host) )
     {
         bool const inv_grid =
             component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT;
@@ -796,6 +800,7 @@ struct role_boundary_order
     int32_t anchor;
     uint32_t anchor_incarnation;
     bool replace;
+    int place;
     uint64_t sequence;
     uint64_t candidate_sequence;
     uint64_t boundary_sequence;
@@ -820,7 +825,7 @@ role_boundary_mark_node(
     bool inv_slot_hit)
 {
     order->sequence++;
-    if( node == order->candidate )
+    if( node == order->candidate && !component->replacement_paint_hidden )
     {
         order->candidate_sequence = order->sequence;
         order->candidate_seen = true;
@@ -845,7 +850,7 @@ role_boundary_mark_node(
      * drops the game's rows wholesale, so the inventory answered with a
      * Cancel-only menu and no left click at all.
      */
-    if( order->point_query &&
+    if( order->point_query && !component->replacement_input_hidden &&
         ((point_in_self &&
           (component->no_click_through ||
            (!UITree_ComponentIsPassThrough(component, order->host) &&
@@ -995,11 +1000,20 @@ role_boundary_walk_node(
         return;
     }
 
+    if( !order->replace && order->place == UITREE_ROLE_PLACE_BEFORE &&
+        node == order->anchor &&
+        component->incarnation == order->anchor_incarnation )
+        role_boundary_mark_anchor(order);
+
     /* A node's own native descriptors precede its children. Treat even a
      * visually empty interactive container as occupying that structural paint
      * position; that is the conservative input answer when it covers a plugin
      * region. */
     role_boundary_mark_node(order, node, component, point_in_self, inv_slot_hit);
+    if( !order->replace && order->place == UITREE_ROLE_PLACE_SELF &&
+        node == order->anchor &&
+        component->incarnation == order->anchor_incarnation )
+        role_boundary_mark_anchor(order);
 
     child_scroll_x = scroll_off_x;
     child_scroll_y = scroll_off_y;
@@ -1067,9 +1081,11 @@ role_boundary_walk_node(
         }
     }
 
-    if( !order->replace && node == order->anchor &&
+    if( !order->replace && order->place == UITREE_ROLE_PLACE_AFTER &&
+        node == order->anchor &&
         component->incarnation == order->anchor_incarnation )
         role_boundary_mark_anchor(order);
+
 }
 
 static void
@@ -1103,13 +1119,14 @@ role_boundary_walk_tree(struct role_boundary_order* order)
 }
 
 bool
-UITree_NodePaintsAfterRoleBoundary(
+UITree_NodePaintsAfterRolePlacement(
     struct UITree const* tree,
     struct UITreeHost const* host,
     int32_t candidate_node,
     int32_t anchor_node,
     uint32_t anchor_incarnation,
-    bool replace)
+    bool replace,
+    int place)
 {
     struct role_boundary_order order;
 
@@ -1129,6 +1146,7 @@ UITree_NodePaintsAfterRoleBoundary(
     order.anchor = anchor_node;
     order.anchor_incarnation = anchor_incarnation;
     order.replace = replace;
+    order.place = place;
 
     role_boundary_walk_tree(&order);
 
@@ -1137,14 +1155,34 @@ UITree_NodePaintsAfterRoleBoundary(
 }
 
 bool
-UITree_PointInputCoverPaintsAfterRoleBoundary(
+UITree_NodePaintsAfterRoleBoundary(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t candidate_node,
+    int32_t anchor_node,
+    uint32_t anchor_incarnation,
+    bool replace)
+{
+    return UITree_NodePaintsAfterRolePlacement(
+        tree,
+        host,
+        candidate_node,
+        anchor_node,
+        anchor_incarnation,
+        replace,
+        UITREE_ROLE_PLACE_AFTER);
+}
+
+bool
+UITree_PointInputCoverPaintsAfterRolePlacement(
     struct UITree const* tree,
     struct UITreeHost const* host,
     int px,
     int py,
     int32_t anchor_node,
     uint32_t anchor_incarnation,
-    bool replace)
+    bool replace,
+    int place)
 {
     struct role_boundary_order order;
 
@@ -1161,12 +1199,34 @@ UITree_PointInputCoverPaintsAfterRoleBoundary(
     order.anchor = anchor_node;
     order.anchor_incarnation = anchor_incarnation;
     order.replace = replace;
+    order.place = place;
     order.point_query = 1;
     order.point_x = px;
     order.point_y = py;
     role_boundary_walk_tree(&order);
     return order.cover_seen && order.boundary_seen &&
            order.cover_sequence > order.boundary_sequence;
+}
+
+bool
+UITree_PointInputCoverPaintsAfterRoleBoundary(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    int32_t anchor_node,
+    uint32_t anchor_incarnation,
+    bool replace)
+{
+    return UITree_PointInputCoverPaintsAfterRolePlacement(
+        tree,
+        host,
+        px,
+        py,
+        anchor_node,
+        anchor_incarnation,
+        replace,
+        UITREE_ROLE_PLACE_AFTER);
 }
 
 bool
@@ -1233,6 +1293,8 @@ input_gesture_target_display_hidden(
             return 1;
         if( UITree_NodeOrAncestorDisplayHidden(tree, state->pressed) )
             return 1;
+        if( tree->components[state->pressed].replacement_input_hidden )
+            return 1;
     }
     /* UIInputState predates an explicit initializer, so callers which only
      * initialize hovered/pressed leave this scalar at C's zero default. A
@@ -1249,7 +1311,8 @@ input_gesture_target_display_hidden(
             state->drag_source_incarnation ||
         tree->components[state->drag_source_idx].component_id != state->drag_source_id )
         return 1;
-    return UITree_NodeOrAncestorDisplayHidden(tree, state->drag_source_idx);
+    return tree->components[state->drag_source_idx].replacement_input_hidden ||
+           UITree_NodeOrAncestorDisplayHidden(tree, state->drag_source_idx);
 }
 
 static void

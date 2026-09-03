@@ -18,6 +18,43 @@
 
 struct ToriRS_PluginV2Adapter;
 
+/*
+ * A public resource ref is a positive, incarnation-fenced token, never the
+ * legacy engine slot itself.  These are deliberately fixed-capacity: token
+ * lookup is a decode plus one indexed comparison on every retained draw,
+ * while allocation remains bounded by the host's existing per-plugin/global
+ * resource ceilings.
+ *
+ * Eight low bits encode token-slot + 1, two bits encode the resource kind,
+ * and five bits identify one of the host's 32 plugin instances.  The remaining
+ * positive-int bits are the incarnation.  A slot is retired at the maximum
+ * incarnation instead of wrapping and making its oldest token live again.
+ */
+#define TORIRS_PLUGIN_V2_RESOURCE_SLOT_BITS 8u
+#define TORIRS_PLUGIN_V2_RESOURCE_KIND_BITS 2u
+#define TORIRS_PLUGIN_V2_RESOURCE_NAMESPACE_BITS 5u
+#define TORIRS_PLUGIN_V2_RESOURCE_NAMESPACE_SHIFT                                    \
+    (TORIRS_PLUGIN_V2_RESOURCE_SLOT_BITS + TORIRS_PLUGIN_V2_RESOURCE_KIND_BITS)
+#define TORIRS_PLUGIN_V2_RESOURCE_INCAR_SHIFT                                          \
+    (TORIRS_PLUGIN_V2_RESOURCE_NAMESPACE_SHIFT +                                      \
+     TORIRS_PLUGIN_V2_RESOURCE_NAMESPACE_BITS)
+#define TORIRS_PLUGIN_V2_RESOURCE_INCAR_MAX                                            \
+    ((uint32_t)INT32_MAX >> TORIRS_PLUGIN_V2_RESOURCE_INCAR_SHIFT)
+
+#define TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX 192
+#define TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX 32
+#define TORIRS_PLUGIN_V2_MESH_TOKENS_MAX 8
+#define TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX 64
+#define TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX 32
+
+struct ToriRS_PluginV2ResourceToken
+{
+    int legacy;
+    uint32_t incarnation;
+    bool active;
+    bool retired;
+};
+
 struct ToriRS_PluginV2AdapterHooks
 {
     uint32_t struct_size;
@@ -67,6 +104,14 @@ struct ToriRS_PluginV2AdapterHooks
         struct ToriRS_PluginCtx* context,
         char const* reason);
 
+    /* Host-aware release keeps retained frame/UI state from observing a
+     * recycled legacy slot.  The token is still live for the duration of this
+     * hook and is invalidated by the adapter immediately after it returns. */
+    void (*image_release)(
+        void* user,
+        struct ToriRS_PluginCtx* context,
+        struct ToriRS_ImageRef image);
+
     /* The v1 table tears shipped models down with the plugin but has no
      * individual release verb. */
     void (*model_release)(
@@ -103,6 +148,10 @@ struct ToriRS_PluginV2AdapterHooks
         struct ToriRS_PluginCtx* context,
         char const* name,
         int* out_model);
+
+    /* Stable for this adapter lifetime and unique among the host's live
+     * plugin instances.  Five encoded bits cover TORIRS_PLUGIN_MAX == 32. */
+    uint32_t resource_namespace;
 };
 
 struct ToriRS_PluginV2Adapter
@@ -111,6 +160,11 @@ struct ToriRS_PluginV2Adapter
     struct ToriRS_PluginApi const* legacy;
     struct ToriRS_PluginCtx* context;
     struct ToriRS_PluginV2AdapterHooks hooks;
+    struct ToriRS_PluginV2ResourceToken image_tokens[TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX];
+    struct ToriRS_PluginV2ResourceToken model_tokens[TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX];
+    struct ToriRS_PluginV2ResourceToken mesh_tokens[TORIRS_PLUGIN_V2_MESH_TOKENS_MAX];
+    struct ToriRS_PluginV2ResourceToken
+        instance_tokens[TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX];
 };
 
 struct ToriRS_PluginV2DrawScope
@@ -134,6 +188,8 @@ struct ToriRS_PluginV2FrameScope
         int member;
     } members[64];
     int member_count;
+    struct ToriRS_ImageRef image_refs[TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX];
+    int image_ref_count;
     char reason[TORIRS_FRAME_REASON_MAX];
 };
 
@@ -155,13 +211,17 @@ ToriRS_PluginV2Adapter_Init(
 struct ToriRS_ApiV2*
 ToriRS_PluginV2Adapter_Api(struct ToriRS_PluginV2Adapter* adapter);
 
-/* Internal bridge helpers. Public v2 refs are zero-invalid/1-based; legacy
- * host resource tables use zero-valid/-1-invalid indices. */
+/* Internal bridge helpers.  Resolution validates type, token slot, liveness,
+ * and incarnation before returning the zero-based legacy handle. */
 int
-ToriRS_PluginV2Adapter_ImageUnbox(struct ToriRS_ImageRef image);
+ToriRS_PluginV2Adapter_ImageUnbox(
+    struct ToriRS_PluginV2Adapter const* adapter,
+    struct ToriRS_ImageRef image);
 
 int
-ToriRS_PluginV2Adapter_ModelUnbox(struct ToriRS_ModelRef model);
+ToriRS_PluginV2Adapter_ModelUnbox(
+    struct ToriRS_PluginV2Adapter const* adapter,
+    struct ToriRS_ModelRef model);
 
 void
 ToriRS_PluginV2Adapter_DrawBegin(

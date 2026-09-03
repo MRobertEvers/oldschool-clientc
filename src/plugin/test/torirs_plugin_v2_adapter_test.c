@@ -42,6 +42,15 @@ struct Fake
     int hook_asset_state;
     int hook_image_state;
     int hook_model_state;
+    int image_handle;
+    int model_handle;
+    int mesh_handle;
+    int instance_handle;
+    int image_releases;
+    int model_releases;
+    int mesh_destroys;
+    int instance_destroys;
+    int image_draws;
     unsigned char bytes[4];
 
     int panel_count;
@@ -499,7 +508,9 @@ fake_image_load(
     struct ToriRS_PluginCtx* context,
     char const* name)
 {
-    return state(context)->last_a = (int)strlen(name), strcmp(name, "full.png") == 0 ? -1 : 14;
+    struct Fake* f = state(context);
+    f->last_a = (int)strlen(name);
+    return strcmp(name, "full.png") == 0 ? -1 : f->image_handle;
 }
 
 static int
@@ -523,14 +534,18 @@ fake_image_release(
     struct ToriRS_PluginCtx* context,
     int image)
 {
-    state(context)->last_a = image;
+    struct Fake* f = state(context);
+    f->last_a = image;
+    f->image_releases++;
 }
 static int
 fake_model_load(
     struct ToriRS_PluginCtx* context,
     char const* name)
 {
-    return state(context)->last_a = (int)strlen(name), strcmp(name, "full.model") == 0 ? -1 : 18;
+    struct Fake* f = state(context);
+    f->last_a = (int)strlen(name);
+    return strcmp(name, "full.model") == 0 ? -1 : f->model_handle;
 }
 
 static int
@@ -550,14 +565,17 @@ fake_screenshot(
 static int
 fake_mesh_create(struct ToriRS_PluginCtx* context)
 {
-    return state(context)->last_a == -1 ? -1 : 21;
+    struct Fake* f = state(context);
+    return f->last_a == -1 ? -1 : f->mesh_handle;
 }
 static void
 fake_mesh_destroy(
     struct ToriRS_PluginCtx* context,
     int mesh)
 {
-    state(context)->last_a = mesh;
+    struct Fake* f = state(context);
+    f->last_a = mesh;
+    f->mesh_destroys++;
 }
 static int
 fake_mesh_vertex(
@@ -596,14 +614,17 @@ fake_mesh_face(
 static int
 fake_object_create(struct ToriRS_PluginCtx* context)
 {
-    return state(context)->last_a == -1 ? -1 : 31;
+    struct Fake* f = state(context);
+    return f->last_a == -1 ? -1 : f->instance_handle;
 }
 static void
 fake_object_destroy(
     struct ToriRS_PluginCtx* context,
     int object)
 {
-    state(context)->last_a = object;
+    struct Fake* f = state(context);
+    f->last_a = object;
+    f->instance_destroys++;
 }
 
 static void
@@ -840,6 +861,7 @@ fake_draw_image(
 {
     struct Fake* f = state(context);
     CHECK(surface == f, "image surface");
+    f->image_draws++;
     f->last_a = image;
     f->last_b = x;
     f->last_c = y;
@@ -1029,7 +1051,8 @@ hook_image_request(
                   ? TORIRS_ASSET_BUDGET
                   : f->image_ready ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
     (void)state(context);
-    *out_image = result == TORIRS_ASSET_READY || result == TORIRS_ASSET_PENDING ? 14 : -1;
+    *out_image =
+        result == TORIRS_ASSET_READY || result == TORIRS_ASSET_PENDING ? f->image_handle : -1;
     return result;
 }
 static enum ToriRS_AssetState
@@ -1047,7 +1070,8 @@ hook_model_request(
                   ? TORIRS_ASSET_BUDGET
                   : f->asset_resident ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
     (void)state(context);
-    *out_model = result == TORIRS_ASSET_READY || result == TORIRS_ASSET_PENDING ? 18 : -1;
+    *out_model =
+        result == TORIRS_ASSET_READY || result == TORIRS_ASSET_PENDING ? f->model_handle : -1;
     return result;
 }
 static struct ToriRS_UiNodeRef
@@ -1168,6 +1192,7 @@ hook_model_release(
     (void)state(context);
     f->hook_calls++;
     f->last_a = model.value;
+    f->model_releases++;
 }
 static void
 hook_panel_select(
@@ -1294,6 +1319,7 @@ hooks(void)
         .frame_reason = hook_frame_reason,
         .model_release = hook_model_release,
         .panel_select = hook_panel_select,
+        .resource_namespace = 3,
     };
 }
 
@@ -1548,8 +1574,11 @@ test_placement_and_frame(struct ToriRS_ApiV2* api)
 static void
 test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
 {
+    struct ToriRS_PluginV2Adapter* adapter = api->instance;
     struct ToriRS_ImageRef image;
+    struct ToriRS_ImageRef live_image;
     struct ToriRS_ModelRef model;
+    struct ToriRS_ModelRef live_model;
     struct ToriRS_MeshRef mesh;
     struct ToriRS_SceneInstanceRef instance;
     struct ToriRS_Rect rect;
@@ -1602,13 +1631,15 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
 
     fake.image_ready = 0;
     CHECK(
-        api->assets.image(api, "orb.png", &image) == TORIRS_ASSET_PENDING && image.value == 15,
+        api->assets.image(api, "orb.png", &image) == TORIRS_ASSET_PENDING && image.value > 0 &&
+            ToriRS_PluginV2Adapter_ImageUnbox(adapter, image) == 14,
         "image handle is usable while pixels remain pending");
     fake.image_ready = 1;
     CHECK(
         api->assets.image(api, "orb.png", &image) == TORIRS_ASSET_READY &&
             api->assets.image_size(api, image, &width, &height) && width == 32 && height == 24,
         "resident image state and dimensions translate");
+    live_image = image;
     CHECK(
         api->assets.image(api, "full.png", &image) == TORIRS_ASSET_BUDGET,
         "negative legacy image handle translates to budget");
@@ -1624,18 +1655,19 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
             image.value == 0,
         "image decode error is not advertised as pending");
     fake.hook_image_state = -1;
-    image.value = 15;
-    api->assets.image_release(api, image);
+    api->assets.image_release(api, live_image);
     CHECK(fake.last_a == 14, "image release forwards typed handle");
 
     fake.asset_resident = 0;
     CHECK(
-        api->assets.model(api, "beam.model", &model) == TORIRS_ASSET_PENDING && model.value == 19,
+        api->assets.model(api, "beam.model", &model) == TORIRS_ASSET_PENDING && model.value > 0 &&
+            ToriRS_PluginV2Adapter_ModelUnbox(adapter, model) == 18,
         "model with pending source bytes is pending");
     fake.asset_resident = 1;
     CHECK(
         api->assets.model(api, "beam.model", &model) == TORIRS_ASSET_READY,
         "resident model is ready");
+    live_model = model;
     fake.hook_model_state = TORIRS_ASSET_BUDGET;
     model.value = 88;
     CHECK(
@@ -1643,9 +1675,13 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
             model.value == 0,
         "model budget exhaustion is terminal and returns no typed handle");
     fake.hook_model_state = -1;
-    model.value = 19;
-    api->assets.model_release(api, model);
-    CHECK(fake.last_a == 19, "model release hook receives the zero-safe typed handle");
+    {
+        int const released_token = live_model.value;
+        api->assets.model_release(api, live_model);
+        CHECK(
+            fake.last_a == released_token,
+            "model release hook receives the incarnation-fenced typed handle");
+    }
     CHECK(
         api->assets.screenshot(api, "shots", "now.png", path, sizeof(path)) == TORIRS_RESULT_OK &&
             strcmp(path, "shots/now.png") == 0 && fake.last_a == (int)sizeof(path),
@@ -1653,7 +1689,7 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
 
     fake.last_a = 0;
     CHECK(
-        api->scene.mesh_create(api, &mesh) == TORIRS_RESULT_OK && mesh.value == 22,
+        api->scene.mesh_create(api, &mesh) == TORIRS_RESULT_OK && mesh.value > 0,
         "mesh allocation returns typed handle");
     CHECK(
         api->scene.mesh_vertex(api, mesh, 1, 2, 3) == TORIRS_RESULT_OK && fake.last_a == 21 &&
@@ -1671,9 +1707,11 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
 
     fake.last_a = 0;
     CHECK(
-        api->scene.instance_create(api, &instance) == TORIRS_RESULT_OK && instance.value == 32,
+        api->scene.instance_create(api, &instance) == TORIRS_RESULT_OK && instance.value > 0,
         "scene instance allocation returns typed handle");
-    model.value = 19;
+    CHECK(
+        api->assets.model(api, "beam.model", &model) == TORIRS_ASSET_READY && model.value > 0,
+        "released model can be reacquired with a fresh token");
     CHECK(
         api->scene.instance_model(api, instance, model) == TORIRS_RESULT_OK &&
             fake.last_b == TORIRS_PLUGIN_MODEL_ASSET && fake.last_c == 18,
@@ -1923,6 +1961,10 @@ main(void)
     fake.hook_asset_state = -1;
     fake.hook_image_state = -1;
     fake.hook_model_state = -1;
+    fake.image_handle = 14;
+    fake.model_handle = 18;
+    fake.mesh_handle = 21;
+    fake.instance_handle = 31;
     fake.bytes[0] = 1;
     test_construction_and_basic_modules(&adapter, &legacy, &adapter_hooks);
     test_placement_and_frame(&adapter.api);

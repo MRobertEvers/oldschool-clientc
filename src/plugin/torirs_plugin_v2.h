@@ -242,7 +242,8 @@ struct ToriRS_UiNode
 #define TORIRS_UI_NODE_LEGACY_SIZE ((uint32_t)offsetof(struct ToriRS_UiNode, clip))
 
 /* Set struct_size to the caller's capacity before ui.info(). The host writes
- * no more than that prefix and reports its current full size in the result. */
+ * no more than that prefix and preserves the accepted capacity so the same
+ * older buffer is safe to reuse. */
 struct ToriRS_UiNodeInfo
 {
     uint32_t struct_size;

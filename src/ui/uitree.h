@@ -796,6 +796,13 @@ struct UITreeComponent
      * frame_hidden so either declaration may release without revealing a
      * subtree the other still owns. Cache scripts never write this flag. */
     uint8_t replacement_hidden;
+    /** Suppress only this node's native descriptors. Children and input stay
+     * live so an APPEARANCE facet can replace a plate without disabling the
+     * working control or mounted subtree it decorates. */
+    uint8_t replacement_paint_hidden;
+    /** Suppress only this node's native hit/menu/hover behavior. Paint and
+     * children stay live for an ACTIONS-only facet replacement. */
+    uint8_t replacement_input_hidden;
     /** Camera projection temporarily rejected this scripted entity-overlay
      * layer (for example, its subject crossed behind the near plane). Kept
      * separate from `behavior.hide`, which remains script-owned. */
@@ -2733,6 +2740,21 @@ UITree_NodeOrAncestorDisplayHiddenEx(
  * for an idempotent write), 0 for a missing or recycled slot. */
 int
 UITree_SetReplacementHidden(
+    struct UITree* tree,
+    int32_t node_index,
+    uint32_t incarnation,
+    int hidden);
+
+/** Facet-specific variants used by the named-UI presenter. Neither prunes the
+ * target's children; legacy SetReplacementHidden retains whole-subtree rules. */
+int
+UITree_SetReplacementPaintHidden(
+    struct UITree* tree,
+    int32_t node_index,
+    uint32_t incarnation,
+    int hidden);
+int
+UITree_SetReplacementInputHidden(
     struct UITree* tree,
     int32_t node_index,
     uint32_t incarnation,

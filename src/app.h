@@ -1345,6 +1345,16 @@ struct App
         int32_t node_index;
         uint32_t node_incarnation;
     } plugin_role_replacements[64];
+    /** Named-UI facet suppression, separate from legacy whole-subtree role
+     * replacement so appearance and actions remain independently composable. */
+    struct AppPluginRoleFacetSuppression
+    {
+        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+        int32_t node_index;
+        uint32_t node_incarnation;
+        uint8_t paint;
+        uint8_t input;
+    } plugin_role_facet_suppressions[64];
 
     /*
      * Internal engine mirror of the host's committed plugin gameframe.

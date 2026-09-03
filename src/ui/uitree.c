@@ -1734,6 +1734,51 @@ UITree_SetReplacementHidden(
     return 1;
 }
 
+int
+UITree_SetReplacementPaintHidden(
+    struct UITree* tree,
+    int32_t node_index,
+    uint32_t incarnation,
+    int hidden)
+{
+    struct UITreeComponent* component;
+
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 0;
+    component = &tree->components[node_index];
+    if( component->freed || incarnation == 0 || component->incarnation != incarnation )
+        return 0;
+    hidden = hidden ? 1 : 0;
+    if( component->replacement_paint_hidden != hidden )
+    {
+        component->replacement_paint_hidden = (uint8_t)hidden;
+        /* Paint-only: the node remains reachable so its children and input do
+         * not need a topology rebuild. */
+        UITree_MarkNodeDirty(tree, node_index);
+    }
+    return 1;
+}
+
+int
+UITree_SetReplacementInputHidden(
+    struct UITree* tree,
+    int32_t node_index,
+    uint32_t incarnation,
+    int hidden)
+{
+    struct UITreeComponent* component;
+
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 0;
+    component = &tree->components[node_index];
+    if( component->freed || incarnation == 0 || component->incarnation != incarnation )
+        return 0;
+    component->replacement_input_hidden = hidden ? 1u : 0u;
+    return 1;
+}
+
 void
 UITree_ClearNodeDirty(
     struct UITree* tree,
@@ -5644,7 +5689,8 @@ drop_target_pick_in_subtree(
         }
     }
 
-    if( hit && UITree_ComponentIsDropTarget(c) && depth >= *best_depth )
+    if( !c->replacement_input_hidden && hit && UITree_ComponentIsDropTarget(c) &&
+        depth >= *best_depth )
     {
         *best_depth = depth;
         *best_id = c->component_id;

@@ -11,6 +11,7 @@
 
 #include "plugin/torirs_plugin_host.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -3500,6 +3501,64 @@ static struct ToriRS_PluginDefV2 const V2_PLACEMENT_PROBE = {
     },
 };
 
+struct V2TeardownState
+{
+    uint32_t canary;
+};
+
+static int g_v2_teardown_stop_alive;
+static int g_v2_teardown_placement_calls;
+static int g_v2_teardown_after_shutdown;
+
+static void
+v2_teardown_start(struct ToriRS_ApiV2* api, void* state_ptr)
+{
+    struct V2TeardownState* state = state_ptr;
+
+    state->canary = 0x7e4d0a11u;
+    CHECK(
+        api->placement.reserve(
+            api, "teardown-strip", TORIRS_AREA_OVERLAY_SAFE, TORIRS_EDGE_LEFT, 2) ==
+            TORIRS_RESERVE_OK,
+        "teardown fixture owns a named reservation");
+}
+
+static void
+v2_teardown_stop(struct ToriRS_ApiV2* api, void* state_ptr)
+{
+    struct V2TeardownState* state = state_ptr;
+
+    g_v2_teardown_stop_alive = state && state->canary == 0x7e4d0a11u &&
+                               api->core.screen(api) == TORIRS_PLUGIN_SCREEN_GAME;
+}
+
+static void
+v2_teardown_placement(struct ToriRS_ApiV2* api, void* state_ptr, uint32_t revision)
+{
+    struct V2TeardownState* state = state_ptr;
+
+    (void)api;
+    (void)revision;
+    if( !state || state->canary != 0x7e4d0a11u )
+        g_v2_teardown_after_shutdown++;
+    else
+        g_v2_teardown_placement_calls++;
+}
+
+static struct ToriRS_PluginDefV2 const V2_TEARDOWN_PROBE = {
+    .struct_size = sizeof(V2_TEARDOWN_PROBE),
+    .id = "v2-teardown-probe",
+    .title = "V2 Teardown Probe",
+    .version = "2.0.0",
+    .state_size = sizeof(struct V2TeardownState),
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = v2_teardown_start,
+        .on_stop = v2_teardown_stop,
+        .on_placement_changed = v2_teardown_placement,
+    },
+};
+
 /* ------------------------------------------------ retained v2 presenter */
 
 static int g_present_draws;
@@ -5232,6 +5291,8 @@ main(void)
         g_frame_mobile_starts = 0;
         g_frame_mobile_stops = 0;
         g_frame_mobile_layouts = 0;
+        g_v2_transition_callback_alive = 0;
+        g_v2_transition_stops = 0;
 
         hf = PluginHost_New(&engine);
         desktop = PluginHost_Register(hf, &FRAME_DESKTOP_PROVIDER);
@@ -5741,6 +5802,33 @@ main(void)
                     strcmp(info.label, "committed") == 0,
                 "an invalid candidate publishes neither partial geometry nor named state");
         }
+        CHECK(
+            api->frame_select(
+                PluginHost_Ctx(ht, candidate_provider), "v2-transition/candidate"),
+            "the committed offer can be selected again after invalid-candidate tests");
+        PluginHost_FrameStart(ht, 3, 0);
+        g_v2_transition_mode = V2_TRANSITION_SELECT_AUTO;
+        api->frame_invalidate(PluginHost_Ctx(ht, candidate_provider));
+        {
+            int const begins = g_engine.layout_begins;
+            int const ends = g_engine.layout_ends;
+            int const stops = g_v2_transition_stops;
+
+            PluginHost_Layout(ht, 900, 600);
+            api->frame_selection(PluginHost_Ctx(ht, candidate_provider), &selection);
+            CHECK(
+                g_v2_transition_callback_alive && g_v2_transition_stops == stops &&
+                    strcmp(selection.requested, "auto") == 0 &&
+                    strcmp(selection.active, "v2-transition/candidate") == 0 &&
+                    g_engine.layout_begins == begins && g_engine.layout_ends == ends,
+                "frame selection inside build keeps state alive and fences that candidate");
+        }
+        PluginHost_FrameStart(ht, 4, 0);
+        api->frame_selection(PluginHost_Ctx(ht, candidate_provider), &selection);
+        CHECK(
+            g_v2_transition_stops == 1 && strcmp(selection.active, "core/native") == 0 &&
+                selection.status == TORIRS_PLUGIN_FRAME_NATIVE,
+            "the next safe frame boundary resolves selection and only then stops the provider");
         PluginHost_Free(ht);
     }
 
@@ -5864,6 +5952,14 @@ main(void)
 
         baseline = api->placement_revision(ctx);
         CHECK(baseline != 0, "the first complete placement snapshot has a revision");
+        {
+            struct ToriRS_PluginFrameInfo offer;
+            CHECK(
+                api->placement_rect_next(
+                    ctx, TORIRS_PLUGIN_AREA_OVERLAY_SAFE, INT_MAX, &rect) == -1 &&
+                    api->frame_offer_next(ctx, INT_MAX, &offer) == -1,
+                "public iterators reject INT_MAX without signed overflow");
+        }
         CHECK(
             !api->placement_contains(ctx, TORIRS_PLUGIN_AREA_PLATFORM_SAFE, &notch) &&
                 !api->placement_contains(
@@ -5928,6 +6024,43 @@ main(void)
         PluginHost_Free(hp);
         g_platform_safe_count = 0;
         g_lane_rail_visible = 0;
+    }
+
+    /* ---- teardown cannot notify freed v2 state ----------------------- */
+    {
+        struct ToriRS_PluginHost* teardown_host;
+        struct ToriRS_PluginEngine teardown_engine;
+        int calls_before;
+        int probe;
+
+        memset(&g_engine, 0, sizeof(g_engine));
+        memset(g_slot_x, 0, sizeof(g_slot_x));
+        memset(g_slot_y, 0, sizeof(g_slot_y));
+        memset(g_slot_w, 0, sizeof(g_slot_w));
+        memset(g_slot_h, 0, sizeof(g_slot_h));
+        g_slot_w[TORIRS_PLUGIN_SLOT_CANVAS] = 100;
+        g_slot_h[TORIRS_PLUGIN_SLOT_CANVAS] = 100;
+        g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT] = 100;
+        g_slot_h[TORIRS_PLUGIN_SLOT_VIEWPORT] = 100;
+        g_role_name = NULL;
+        g_role_visible = 0;
+        g_platform_safe_count = 0;
+        g_v2_teardown_stop_alive = 0;
+        g_v2_teardown_placement_calls = 0;
+        g_v2_teardown_after_shutdown = 0;
+        teardown_engine = fake_engine();
+        teardown_host = PluginHost_New(&teardown_engine);
+        probe = PluginHost_RegisterV2(teardown_host, &V2_TEARDOWN_PROBE);
+        PluginHost_Start(teardown_host);
+        CHECK(probe == 0 && g_v2_teardown_placement_calls > 0,
+            "teardown fixture starts with live state and an assigned reservation");
+        calls_before = g_v2_teardown_placement_calls;
+        PluginHost_SetEnabled(teardown_host, probe, false);
+        CHECK(
+            g_v2_teardown_stop_alive && g_v2_teardown_after_shutdown == 0 &&
+                g_v2_teardown_placement_calls == calls_before,
+            "reservation cleanup dispatches nothing after v2 shutdown while on_stop stays live");
+        PluginHost_Free(teardown_host);
     }
 
     /* ---- retained named-UI presenter -------------------------------- */

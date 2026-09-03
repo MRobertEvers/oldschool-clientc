@@ -90,7 +90,8 @@ scrollbar_capture_live(
     if( tree->components[hit->layer_index].freed || hit->layer_incarnation == 0 ||
         tree->components[hit->layer_index].incarnation != hit->layer_incarnation )
         return 0;
-    return !UITree_NodeOrAncestorDisplayHidden(tree, hit->layer_index);
+    return !tree->components[hit->layer_index].replacement_input_hidden &&
+           !UITree_NodeOrAncestorDisplayHidden(tree, hit->layer_index);
 }
 
 void
@@ -1301,7 +1302,8 @@ interact_hold(
         return;
     if( st->pressed < 0 || (uint32_t)st->pressed >= tree->component_count )
         return;
-    if( UITree_NodeOrAncestorDisplayHidden(tree, st->pressed) )
+    if( tree->components[st->pressed].replacement_input_hidden ||
+        UITree_NodeOrAncestorDisplayHidden(tree, st->pressed) )
         return;
 
     {

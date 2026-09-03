@@ -139,6 +139,19 @@ UITree_NodePaintsAfterRoleBoundary(
     uint32_t anchor_incarnation,
     bool replace);
 
+/** Placement-aware form used by the retained role presenter. `place` is one
+ * of UITREE_ROLE_PLACE_{BEFORE,SELF,AFTER}; SELF is the target's own native
+ * descriptor boundary and therefore precedes independently retained children. */
+bool
+UITree_NodePaintsAfterRolePlacement(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t candidate_node,
+    int32_t anchor_node,
+    uint32_t anchor_incarnation,
+    bool replace,
+    int place);
+
 /** True when an interactive native node or input-blocking native boundary at
  * (px,py) is painted after the exact semantic overlay boundary. Unlike a plain
  * interactive hit, this also observes blank `noClickThrough` layers and modal
@@ -153,6 +166,18 @@ UITree_PointInputCoverPaintsAfterRoleBoundary(
     int32_t anchor_node,
     uint32_t anchor_incarnation,
     bool replace);
+
+/** Placement-aware form of UITree_PointInputCoverPaintsAfterRoleBoundary. */
+bool
+UITree_PointInputCoverPaintsAfterRolePlacement(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    int32_t anchor_node,
+    uint32_t anchor_incarnation,
+    bool replace,
+    int place);
 
 /** Does any visible native interface input surface cover (px,py)? Decorative
  * world/entity-overlay nodes remain pass-through; interactive widgets,

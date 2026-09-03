@@ -477,8 +477,10 @@ find_scrollbar_recursive(
         int const hit_bx = bx - scroll_off_x;
         int const hit_by = by - scroll_off_y;
 
-        enum UITreeScrollbarHitKind vhit = hit_vertical_scrollbar(
-            component, hit_bx, hit_by, bw, bh, px, py);
+        enum UITreeScrollbarHitKind vhit = component->replacement_input_hidden
+                                               ? UITREE_SCROLLBAR_NONE
+                                               : hit_vertical_scrollbar(
+                                                     component, hit_bx, hit_by, bw, bh, px, py);
         if( vhit != UITREE_SCROLLBAR_NONE )
         {
             out->kind = vhit;
@@ -493,8 +495,10 @@ find_scrollbar_recursive(
             return true;
         }
 
-        enum UITreeScrollbarHitKind hhit = hit_horizontal_scrollbar(
-            component, hit_bx, hit_by, bw, bh, px, py);
+        enum UITreeScrollbarHitKind hhit = component->replacement_input_hidden
+                                               ? UITREE_SCROLLBAR_NONE
+                                               : hit_horizontal_scrollbar(
+                                                     component, hit_bx, hit_by, bw, bh, px, py);
         if( hhit != UITREE_SCROLLBAR_NONE )
         {
             out->kind = hhit;

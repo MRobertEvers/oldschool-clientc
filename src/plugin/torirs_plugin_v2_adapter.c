@@ -9,16 +9,141 @@
 
 #define V2_PANEL_CHOICES_MAX 192
 
-static int
-v2_resource_box(int legacy)
+enum V2ResourceKind
 {
-    return legacy >= 0 && legacy < INT_MAX ? legacy + 1 : 0;
+    V2_RESOURCE_IMAGE = 0,
+    V2_RESOURCE_MODEL,
+    V2_RESOURCE_MESH,
+    V2_RESOURCE_INSTANCE,
+};
+
+#define V2_RESOURCE_SLOT_MASK ((1u << TORIRS_PLUGIN_V2_RESOURCE_SLOT_BITS) - 1u)
+#define V2_RESOURCE_KIND_MASK ((1u << TORIRS_PLUGIN_V2_RESOURCE_KIND_BITS) - 1u)
+#define V2_RESOURCE_NAMESPACE_MASK                                                     \
+    ((1u << TORIRS_PLUGIN_V2_RESOURCE_NAMESPACE_BITS) - 1u)
+
+_Static_assert(
+    TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX <= V2_RESOURCE_SLOT_MASK,
+    "image tokens fit encoded slot");
+_Static_assert(
+    TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX <= V2_RESOURCE_SLOT_MASK,
+    "model tokens fit encoded slot");
+_Static_assert(
+    TORIRS_PLUGIN_V2_MESH_TOKENS_MAX <= V2_RESOURCE_SLOT_MASK,
+    "mesh tokens fit encoded slot");
+_Static_assert(
+    TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX <= V2_RESOURCE_SLOT_MASK,
+    "scene-instance tokens fit encoded slot");
+_Static_assert(V2_RESOURCE_INSTANCE <= V2_RESOURCE_KIND_MASK, "resource kinds fit token");
+
+static int
+v2_resource_encode(
+    int slot,
+    uint32_t incarnation,
+    enum V2ResourceKind kind,
+    uint32_t resource_namespace)
+{
+    uint32_t const value =
+        (incarnation << TORIRS_PLUGIN_V2_RESOURCE_INCAR_SHIFT) |
+        (resource_namespace << TORIRS_PLUGIN_V2_RESOURCE_NAMESPACE_SHIFT) |
+        ((uint32_t)kind << TORIRS_PLUGIN_V2_RESOURCE_SLOT_BITS) |
+        (uint32_t)(slot + 1);
+
+    assert(slot >= 0 && slot < (int)V2_RESOURCE_SLOT_MASK);
+    assert(incarnation <= TORIRS_PLUGIN_V2_RESOURCE_INCAR_MAX);
+    assert(resource_namespace <= V2_RESOURCE_NAMESPACE_MASK);
+    assert(value > 0 && value <= INT_MAX);
+    return (int)value;
+}
+
+/* Allocation is deliberately off the retained hot path.  Resolution below
+ * is O(1); acquiring scans one small, fixed table so it can both preserve the
+ * token for a repeated request and reuse a retired legacy handle safely. */
+static int
+v2_resource_acquire(
+    struct ToriRS_PluginV2ResourceToken* entries,
+    int count,
+    enum V2ResourceKind kind,
+    uint32_t resource_namespace,
+    int legacy)
+{
+    int free_slot = -1;
+
+    assert(entries);
+    if( legacy < 0 )
+        return 0;
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRS_PluginV2ResourceToken* entry = &entries[i];
+        if( entry->active && entry->legacy == legacy )
+            return v2_resource_encode(i, entry->incarnation, kind, resource_namespace);
+        if( !entry->active && !entry->retired && free_slot < 0 )
+            free_slot = i;
+    }
+    if( free_slot < 0 )
+        return 0;
+    entries[free_slot].legacy = legacy;
+    entries[free_slot].active = true;
+    return v2_resource_encode(
+        free_slot, entries[free_slot].incarnation, kind, resource_namespace);
 }
 
 static int
-v2_resource_unbox(int value)
+v2_resource_resolve(
+    struct ToriRS_PluginV2ResourceToken const* entries,
+    int count,
+    enum V2ResourceKind kind,
+    uint32_t resource_namespace,
+    int value)
 {
-    return value > 0 ? value - 1 : -1;
+    struct ToriRS_PluginV2ResourceToken const* entry;
+    uint32_t encoded;
+    uint32_t incarnation;
+    uint32_t encoded_kind;
+    uint32_t encoded_namespace;
+    int slot;
+
+    assert(entries);
+    if( value <= 0 )
+        return -1;
+    encoded = (uint32_t)value;
+    slot = (int)(encoded & V2_RESOURCE_SLOT_MASK) - 1;
+    encoded_kind =
+        (encoded >> TORIRS_PLUGIN_V2_RESOURCE_SLOT_BITS) & V2_RESOURCE_KIND_MASK;
+    encoded_namespace =
+        (encoded >> TORIRS_PLUGIN_V2_RESOURCE_NAMESPACE_SHIFT) &
+        V2_RESOURCE_NAMESPACE_MASK;
+    incarnation = encoded >> TORIRS_PLUGIN_V2_RESOURCE_INCAR_SHIFT;
+    if( slot < 0 || slot >= count || encoded_kind != (uint32_t)kind ||
+        encoded_namespace != resource_namespace )
+        return -1;
+    entry = &entries[slot];
+    if( !entry->active || entry->retired || entry->incarnation != incarnation )
+        return -1;
+    return entry->legacy;
+}
+
+static void
+v2_resource_invalidate(
+    struct ToriRS_PluginV2ResourceToken* entries,
+    int count,
+    enum V2ResourceKind kind,
+    uint32_t resource_namespace,
+    int value)
+{
+    uint32_t const encoded = value > 0 ? (uint32_t)value : 0;
+    int const slot = (int)(encoded & V2_RESOURCE_SLOT_MASK) - 1;
+
+    assert(entries);
+    if( v2_resource_resolve(entries, count, kind, resource_namespace, value) < 0 )
+        return;
+    assert(slot >= 0 && slot < count);
+    entries[slot].active = false;
+    entries[slot].legacy = -1;
+    if( entries[slot].incarnation == TORIRS_PLUGIN_V2_RESOURCE_INCAR_MAX )
+        entries[slot].retired = true;
+    else
+        entries[slot].incarnation++;
 }
 
 static bool
@@ -37,15 +162,31 @@ v2_output_copy(
 }
 
 int
-ToriRS_PluginV2Adapter_ImageUnbox(struct ToriRS_ImageRef image)
+ToriRS_PluginV2Adapter_ImageUnbox(
+    struct ToriRS_PluginV2Adapter const* adapter,
+    struct ToriRS_ImageRef image)
 {
-    return v2_resource_unbox(image.value);
+    assert(adapter);
+    return v2_resource_resolve(
+        adapter->image_tokens,
+        TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
+        V2_RESOURCE_IMAGE,
+        adapter->hooks.resource_namespace,
+        image.value);
 }
 
 int
-ToriRS_PluginV2Adapter_ModelUnbox(struct ToriRS_ModelRef model)
+ToriRS_PluginV2Adapter_ModelUnbox(
+    struct ToriRS_PluginV2Adapter const* adapter,
+    struct ToriRS_ModelRef model)
 {
-    return v2_resource_unbox(model.value);
+    assert(adapter);
+    return v2_resource_resolve(
+        adapter->model_tokens,
+        TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX,
+        V2_RESOURCE_MODEL,
+        adapter->hooks.resource_namespace,
+        model.value);
 }
 
 _Static_assert(
@@ -468,6 +609,32 @@ v2_ui_contribution_info(
                adapter->hooks.user, adapter->context, node, facets, out);
 }
 
+static bool
+v2_ui_node_images_valid(
+    struct ToriRS_PluginV2Adapter const* adapter,
+    struct ToriRS_UiNode const* value)
+{
+    size_t const size = value->struct_size ? value->struct_size : TORIRS_UI_NODE_LEGACY_SIZE;
+
+    assert(adapter);
+    assert(value);
+    if( size >= offsetof(struct ToriRS_UiNode, image) + sizeof(value->image) &&
+        value->image.value != 0 && ToriRS_PluginV2Adapter_ImageUnbox(adapter, value->image) < 0 )
+        return false;
+    if( size < offsetof(struct ToriRS_UiNode, state_image_mask) +
+                   sizeof(value->state_image_mask) ||
+        value->state_image_mask == 0 )
+        return true;
+    if( size < offsetof(struct ToriRS_UiNode, state_images) + sizeof(value->state_images) )
+        return false;
+    for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
+        if( (value->state_image_mask & (1u << state)) != 0 &&
+            value->state_images[state].value != 0 &&
+            ToriRS_PluginV2Adapter_ImageUnbox(adapter, value->state_images[state]) < 0 )
+            return false;
+    return true;
+}
+
 static enum ToriRS_Result
 v2_ui_update(
     struct ToriRS_ApiV2* api,
@@ -478,6 +645,9 @@ v2_ui_update(
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
 
     assert(value);
+    if( (facets & TORIRS_UI_FACET_APPEARANCE) != 0 &&
+        !v2_ui_node_images_valid(adapter, value) )
+        return TORIRS_RESULT_INVALID;
     return adapter->hooks.ui_update
                ? adapter->hooks.ui_update(
                      adapter->hooks.user, adapter->context, node, facets, value)
@@ -1002,9 +1172,17 @@ v2_assets_image(
         state = v2_asset_state_checked(adapter->hooks.image_request(
             adapter->hooks.user, adapter->context, name, &image));
         if( (state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY) && image >= 0 )
-            out->value = v2_resource_box(image);
+            out->value = v2_resource_acquire(
+                adapter->image_tokens,
+                TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
+                V2_RESOURCE_IMAGE,
+                adapter->hooks.resource_namespace,
+                image);
         else if( state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY )
             return TORIRS_ASSET_ERROR;
+        if( (state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY) &&
+            out->value == 0 )
+            return TORIRS_ASSET_BUDGET;
         return state;
     }
     if( !adapter->legacy->image_load )
@@ -1012,7 +1190,14 @@ v2_assets_image(
     image = adapter->legacy->image_load(adapter->context, name);
     if( image < 0 )
         return TORIRS_ASSET_BUDGET;
-    out->value = v2_resource_box(image);
+    out->value = v2_resource_acquire(
+        adapter->image_tokens,
+        TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
+        V2_RESOURCE_IMAGE,
+        adapter->hooks.resource_namespace,
+        image);
+    if( out->value == 0 )
+        return TORIRS_ASSET_BUDGET;
     if( adapter->legacy->image_size &&
         adapter->legacy->image_size(adapter->context, image, &width, &height) )
         return TORIRS_ASSET_READY;
@@ -1030,7 +1215,7 @@ v2_assets_image_size(
 
     assert(out_width);
     assert(out_height);
-    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(image);
+    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(adapter, image);
     if( legacy_image < 0 || !adapter->legacy->image_size )
         return false;
     return adapter->legacy->image_size(adapter->context, legacy_image, out_width, out_height) != 0;
@@ -1042,9 +1227,19 @@ v2_assets_image_release(
     struct ToriRS_ImageRef image)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(image);
-    if( legacy_image >= 0 && adapter->legacy->image_release )
+    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(adapter, image);
+    if( legacy_image < 0 )
+        return;
+    if( adapter->hooks.image_release )
+        adapter->hooks.image_release(adapter->hooks.user, adapter->context, image);
+    else if( adapter->legacy->image_release )
         adapter->legacy->image_release(adapter->context, legacy_image);
+    v2_resource_invalidate(
+        adapter->image_tokens,
+        TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
+        V2_RESOURCE_IMAGE,
+        adapter->hooks.resource_namespace,
+        image.value);
 }
 
 static enum ToriRS_AssetState
@@ -1067,9 +1262,17 @@ v2_assets_model(
         state = v2_asset_state_checked(adapter->hooks.model_request(
             adapter->hooks.user, adapter->context, name, &model));
         if( (state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY) && model >= 0 )
-            out->value = v2_resource_box(model);
+            out->value = v2_resource_acquire(
+                adapter->model_tokens,
+                TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX,
+                V2_RESOURCE_MODEL,
+                adapter->hooks.resource_namespace,
+                model);
         else if( state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY )
             return TORIRS_ASSET_ERROR;
+        if( (state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY) &&
+            out->value == 0 )
+            return TORIRS_ASSET_BUDGET;
         return state;
     }
     if( !adapter->legacy->model_load )
@@ -1077,7 +1280,14 @@ v2_assets_model(
     model = adapter->legacy->model_load(adapter->context, name);
     if( model < 0 )
         return TORIRS_ASSET_BUDGET;
-    out->value = v2_resource_box(model);
+    out->value = v2_resource_acquire(
+        adapter->model_tokens,
+        TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX,
+        V2_RESOURCE_MODEL,
+        adapter->hooks.resource_namespace,
+        model);
+    if( out->value == 0 )
+        return TORIRS_ASSET_BUDGET;
     /* The old API has no model-ready query.  Resident source bytes are the
      * strongest state it can prove; otherwise the handle is still pending. */
     if( adapter->legacy->asset_data && adapter->legacy->asset_data(adapter->context, name, NULL) )
@@ -1091,8 +1301,16 @@ v2_assets_model_release(
     struct ToriRS_ModelRef model)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    if( ToriRS_PluginV2Adapter_ModelUnbox(model) >= 0 && adapter->hooks.model_release )
+    if( ToriRS_PluginV2Adapter_ModelUnbox(adapter, model) < 0 )
+        return;
+    if( adapter->hooks.model_release )
         adapter->hooks.model_release(adapter->hooks.user, adapter->context, model);
+    v2_resource_invalidate(
+        adapter->model_tokens,
+        TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX,
+        V2_RESOURCE_MODEL,
+        adapter->hooks.resource_namespace,
+        model.value);
 }
 
 static enum ToriRS_Result
@@ -1132,7 +1350,18 @@ v2_scene_mesh_create(
     mesh = adapter->legacy->mesh_create(adapter->context);
     if( mesh < 0 )
         return TORIRS_RESULT_BUDGET;
-    out->value = v2_resource_box(mesh);
+    out->value = v2_resource_acquire(
+        adapter->mesh_tokens,
+        TORIRS_PLUGIN_V2_MESH_TOKENS_MAX,
+        V2_RESOURCE_MESH,
+        adapter->hooks.resource_namespace,
+        mesh);
+    if( out->value == 0 )
+    {
+        if( adapter->legacy->mesh_destroy )
+            adapter->legacy->mesh_destroy(adapter->context, mesh);
+        return TORIRS_RESULT_BUDGET;
+    }
     return TORIRS_RESULT_OK;
 }
 
@@ -1142,9 +1371,22 @@ v2_scene_mesh_destroy(
     struct ToriRS_MeshRef mesh)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    int const legacy_mesh = v2_resource_unbox(mesh.value);
-    if( legacy_mesh >= 0 && adapter->legacy->mesh_destroy )
+    int const legacy_mesh = v2_resource_resolve(
+        adapter->mesh_tokens,
+        TORIRS_PLUGIN_V2_MESH_TOKENS_MAX,
+        V2_RESOURCE_MESH,
+        adapter->hooks.resource_namespace,
+        mesh.value);
+    if( legacy_mesh < 0 )
+        return;
+    if( adapter->legacy->mesh_destroy )
         adapter->legacy->mesh_destroy(adapter->context, legacy_mesh);
+    v2_resource_invalidate(
+        adapter->mesh_tokens,
+        TORIRS_PLUGIN_V2_MESH_TOKENS_MAX,
+        V2_RESOURCE_MESH,
+        adapter->hooks.resource_namespace,
+        mesh.value);
 }
 
 static enum ToriRS_Result
@@ -1157,7 +1399,12 @@ v2_scene_mesh_vertex(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
 
-    int const legacy_mesh = v2_resource_unbox(mesh.value);
+    int const legacy_mesh = v2_resource_resolve(
+        adapter->mesh_tokens,
+        TORIRS_PLUGIN_V2_MESH_TOKENS_MAX,
+        V2_RESOURCE_MESH,
+        adapter->hooks.resource_namespace,
+        mesh.value);
     if( legacy_mesh < 0 )
         return TORIRS_RESULT_INVALID;
     if( !adapter->legacy->mesh_vertex )
@@ -1179,7 +1426,12 @@ v2_scene_mesh_face(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
 
-    int const legacy_mesh = v2_resource_unbox(mesh.value);
+    int const legacy_mesh = v2_resource_resolve(
+        adapter->mesh_tokens,
+        TORIRS_PLUGIN_V2_MESH_TOKENS_MAX,
+        V2_RESOURCE_MESH,
+        adapter->hooks.resource_namespace,
+        mesh.value);
     if( legacy_mesh < 0 || a < 0 || b < 0 || c < 0 || alpha < 0 ||
         alpha > TORIRS_PLUGIN_MESH_ALPHA_MAX )
         return TORIRS_RESULT_INVALID;
@@ -1205,7 +1457,18 @@ v2_scene_instance_create(
     instance = adapter->legacy->object_create(adapter->context);
     if( instance < 0 )
         return TORIRS_RESULT_BUDGET;
-    out->value = v2_resource_box(instance);
+    out->value = v2_resource_acquire(
+        adapter->instance_tokens,
+        TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE,
+        adapter->hooks.resource_namespace,
+        instance);
+    if( out->value == 0 )
+    {
+        if( adapter->legacy->object_destroy )
+            adapter->legacy->object_destroy(adapter->context, instance);
+        return TORIRS_RESULT_BUDGET;
+    }
     return TORIRS_RESULT_OK;
 }
 
@@ -1215,9 +1478,22 @@ v2_scene_instance_destroy(
     struct ToriRS_SceneInstanceRef instance)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    int const legacy_instance = v2_resource_unbox(instance.value);
-    if( legacy_instance >= 0 && adapter->legacy->object_destroy )
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens,
+        TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE,
+        adapter->hooks.resource_namespace,
+        instance.value);
+    if( legacy_instance < 0 )
+        return;
+    if( adapter->legacy->object_destroy )
         adapter->legacy->object_destroy(adapter->context, legacy_instance);
+    v2_resource_invalidate(
+        adapter->instance_tokens,
+        TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE,
+        adapter->hooks.resource_namespace,
+        instance.value);
 }
 
 static enum ToriRS_Result
@@ -1228,8 +1504,13 @@ v2_scene_instance_model(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
 
-    int const legacy_instance = v2_resource_unbox(instance.value);
-    int const legacy_model = ToriRS_PluginV2Adapter_ModelUnbox(model);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens,
+        TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE,
+        adapter->hooks.resource_namespace,
+        instance.value);
+    int const legacy_model = ToriRS_PluginV2Adapter_ModelUnbox(adapter, model);
     if( legacy_instance < 0 || legacy_model < 0 )
         return TORIRS_RESULT_INVALID;
     if( !adapter->legacy->object_set_model )
@@ -1251,7 +1532,12 @@ v2_scene_instance_position(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
 
-    int const legacy_instance = v2_resource_unbox(instance.value);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens,
+        TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE,
+        adapter->hooks.resource_namespace,
+        instance.value);
     if( legacy_instance < 0 || level < 0 || yaw < 0 || yaw > 2047 )
         return TORIRS_RESULT_INVALID;
     if( !adapter->legacy->object_set_position )
@@ -1268,7 +1554,12 @@ v2_scene_instance_active(
     bool active)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    int const legacy_instance = v2_resource_unbox(instance.value);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens,
+        TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE,
+        adapter->hooks.resource_namespace,
+        instance.value);
     if( legacy_instance >= 0 && adapter->legacy->object_set_active )
         adapter->legacy->object_set_active(adapter->context, legacy_instance, active ? 1 : 0);
 }
@@ -1546,7 +1837,7 @@ v2_builder_image(
     struct ToriRS_PluginV2DrawScope* scope = v2_draw_scope(draw);
     struct ToriRS_PluginApi const* legacy = scope->adapter->legacy;
     int const opaque_alpha = v2_alpha(alpha);
-    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(image);
+    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(scope->adapter, image);
 
     if( legacy_image < 0 || opaque_alpha == 0 || !legacy->draw_image )
         return;
@@ -1753,6 +2044,65 @@ v2_frame_rect_valid(struct ToriRS_Rect const* rect)
     return right >= INT_MIN && right <= INT_MAX && bottom >= INT_MIN && bottom <= INT_MAX;
 }
 
+static bool
+v2_frame_image(
+    struct ToriRS_PluginV2FrameScope* scope,
+    struct ToriRS_ImageRef ref,
+    int* out_legacy)
+{
+    int legacy = -1;
+
+    assert(scope);
+    assert(out_legacy);
+    if( ref.value != 0 )
+    {
+        legacy = ToriRS_PluginV2Adapter_ImageUnbox(scope->adapter, ref);
+        if( legacy < 0 )
+        {
+            scope->invalid = true;
+            return false;
+        }
+        for( int i = 0; i < scope->image_ref_count; i++ )
+            if( scope->image_refs[i].value == ref.value )
+            {
+                *out_legacy = legacy;
+                return true;
+            }
+        if( scope->image_ref_count >= TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX )
+        {
+            scope->invalid = true;
+            return false;
+        }
+        scope->image_refs[scope->image_ref_count++] = ref;
+    }
+    *out_legacy = legacy;
+    return true;
+}
+
+static bool
+v2_frame_ui_node_images(
+    struct ToriRS_PluginV2FrameScope* scope,
+    struct ToriRS_UiNode const* node)
+{
+    size_t const size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_LEGACY_SIZE;
+    int legacy;
+
+    assert(scope);
+    assert(node);
+    if( !v2_ui_node_images_valid(scope->adapter, node) )
+        return false;
+    if( size >= offsetof(struct ToriRS_UiNode, image) + sizeof(node->image) &&
+        node->image.value != 0 && !v2_frame_image(scope, node->image, &legacy) )
+        return false;
+    if( size >= offsetof(struct ToriRS_UiNode, state_images) + sizeof(node->state_images) )
+        for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
+            if( (node->state_image_mask & (1u << state)) != 0 &&
+                node->state_images[state].value != 0 &&
+                !v2_frame_image(scope, node->state_images[state], &legacy) )
+                return false;
+    return true;
+}
+
 static void
 v2_builder_surface(
     struct ToriRS_FrameBuilder* frame,
@@ -1818,8 +2168,8 @@ v2_builder_skin(
 {
     struct ToriRS_PluginV2FrameScope* scope = v2_frame_scope(frame);
     int const legacy_surface = v2_surface_to_legacy(surface);
-    int const image = skin ? ToriRS_PluginV2Adapter_ImageUnbox(skin->image) : -1;
-    int const mask = skin ? ToriRS_PluginV2Adapter_ImageUnbox(skin->mask) : -1;
+    int image = -1;
+    int mask = -1;
 
     if( !skin || legacy_surface < 0 ||
         (skin->struct_size != 0 && skin->struct_size < sizeof(*skin)) )
@@ -1827,6 +2177,9 @@ v2_builder_skin(
         scope->invalid = true;
         return;
     }
+    if( !v2_frame_image(scope, skin->image, &image) ||
+        !v2_frame_image(scope, skin->mask, &mask) )
+        return;
     if( scope->adapter->legacy->layout_slot_skin )
         (void)scope->adapter->legacy->layout_slot_skin(
             scope->adapter->context, legacy_surface, image, mask);
@@ -1840,16 +2193,18 @@ v2_builder_surface_overlay(
 {
     struct ToriRS_PluginV2FrameScope* scope = v2_frame_scope(frame);
     int const legacy_surface = v2_surface_to_legacy(surface);
-    int const image = overlay ? ToriRS_PluginV2Adapter_ImageUnbox(overlay->image) : -1;
+    int image = -1;
 
     if( !overlay || legacy_surface < 0 ||
         (scope->surface_mask & (1u << surface)) == 0 ||
         (overlay->struct_size != 0 && overlay->struct_size < sizeof(*overlay)) ||
-        image < 0 || overlay->alpha < 0 || overlay->alpha > 255 )
+        overlay->image.value == 0 || overlay->alpha < 0 || overlay->alpha > 255 )
     {
         scope->invalid = true;
         return;
     }
+    if( !v2_frame_image(scope, overlay->image, &image) )
+        return;
     if( scope->adapter->legacy->layout_slot_overlay )
         (void)scope->adapter->legacy->layout_slot_overlay(
             scope->adapter->context,
@@ -1870,6 +2225,11 @@ v2_builder_ui_node(
 
     assert(name);
     assert(node);
+    if( !v2_frame_ui_node_images(scope, node) )
+    {
+        scope->invalid = true;
+        return;
+    }
     if( scope->adapter->hooks.frame_ui_node )
         scope->adapter->hooks.frame_ui_node(
             scope->adapter->hooks.user, scope->adapter->context, name, node);
@@ -1881,6 +2241,8 @@ v2_builder_scrollbar(
     struct ToriRS_FrameScrollbar const* skin)
 {
     struct ToriRS_PluginV2FrameScope* scope = v2_frame_scope(frame);
+    struct ToriRS_ImageRef refs[6];
+    int images[6];
     int top;
     int middle;
     int bottom;
@@ -1891,24 +2253,33 @@ v2_builder_scrollbar(
         scope->invalid = true;
         return;
     }
-    top = ToriRS_PluginV2Adapter_ImageUnbox(skin->thumb);
-    middle = top;
-    bottom = top;
+    refs[0] = skin->track;
+    refs[1] = skin->thumb;
+    refs[2] = skin->thumb;
+    refs[3] = skin->thumb;
+    refs[4] = skin->up;
+    refs[5] = skin->down;
     if( skin->struct_size >= sizeof(*skin) && skin->split_thumb )
     {
-        top = ToriRS_PluginV2Adapter_ImageUnbox(skin->thumb_top);
-        middle = ToriRS_PluginV2Adapter_ImageUnbox(skin->thumb_middle);
-        bottom = ToriRS_PluginV2Adapter_ImageUnbox(skin->thumb_bottom);
+        refs[1] = skin->thumb_top;
+        refs[2] = skin->thumb_middle;
+        refs[3] = skin->thumb_bottom;
     }
+    for( int i = 0; i < 6; i++ )
+        if( !v2_frame_image(scope, refs[i], &images[i]) )
+            return;
+    top = images[1];
+    middle = images[2];
+    bottom = images[3];
     if( scope->adapter->legacy->layout_scrollbar )
         (void)scope->adapter->legacy->layout_scrollbar(
             scope->adapter->context,
-            ToriRS_PluginV2Adapter_ImageUnbox(skin->track),
+            images[0],
             top,
             middle,
             bottom,
-            ToriRS_PluginV2Adapter_ImageUnbox(skin->up),
-            ToriRS_PluginV2Adapter_ImageUnbox(skin->down));
+            images[4],
+            images[5]);
 }
 
 static void
@@ -1974,8 +2345,12 @@ bool
 ToriRS_PluginV2Adapter_FrameValid(struct ToriRS_PluginV2FrameScope const* scope)
 {
     assert(scope);
-    return !scope->invalid &&
-           (scope->surface_mask & (1u << TORIRS_SURFACE_VIEWPORT)) != 0;
+    if( scope->invalid || (scope->surface_mask & (1u << TORIRS_SURFACE_VIEWPORT)) == 0 )
+        return false;
+    for( int i = 0; i < scope->image_ref_count; i++ )
+        if( ToriRS_PluginV2Adapter_ImageUnbox(scope->adapter, scope->image_refs[i]) < 0 )
+            return false;
+    return true;
 }
 
 static struct ToriRS_PluginV2PanelScope*
@@ -2235,6 +2610,11 @@ ToriRS_PluginV2Adapter_Init(
     adapter->context = context;
     if( hooks )
         memcpy(&adapter->hooks, hooks, hook_size);
+    if( adapter->hooks.resource_namespace > V2_RESOURCE_NAMESPACE_MASK )
+    {
+        memset(adapter, 0, sizeof(*adapter));
+        return false;
+    }
 
     adapter->api = (struct ToriRS_ApiV2){
         .struct_size = sizeof(adapter->api),

@@ -330,6 +330,13 @@ struct ToriRS_PluginEngine
         int plugin,
         char const* role,
         int enabled);
+    /** Suppress only a live role node's native paint and/or own input. Its
+     * children remain live. Idempotent and re-resolved across tree rebuilds. */
+    int (*role_suppress_facets)(
+        void* user,
+        char const* role,
+        int paint,
+        int input);
     /** Select/reset the role anchor for the open canvas subscriber. A NULL
      * role resets it; a non-NULL empty role selects active-invalid/drop state;
      * `replace` says the caller owns the replacement claim. */

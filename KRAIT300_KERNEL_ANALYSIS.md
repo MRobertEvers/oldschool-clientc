@@ -35,10 +35,10 @@ Yes. The findings do three things for this tree:
 
 | # | change | kernel | est. gain | conf. | grounded in |
 |---|---|---|---|---|---|
-| 1 | Do the textured block-end divide (`RECIP`/`UQUOT`/`WRAPQ`) as one NEON vector instead of six ARM↔VFP round trips with VFP/NEON register mixing | tex asm | −40..60 cycles per 8-px block (~30 %) | high | §1.3 |
+| 1 | Do the textured block-end divide (`RECIP`/`UQUOT`/`WRAPQ`) as one NEON vector instead of five ARM↔VFP crossings with VFP/NEON register mixing and two serial scalar chains | tex asm | −25..35 cycles per 8-px block (~20 %) | high | §1.3 |
 | 2 | `ldm`/`stm` the textured row advance and row head (7 load-add-store triples → 4 `ldm` + 3 `stm`) | tex asm | −12..15 cycles/row | high | §4.1 |
 | 3 | Keep `shift` in r7 (fold `have_cur` into control flow) — removes 3 frame reloads from the head of every block's dependency chain | tex asm | −6..9 cycles/block | high | §3.1, §1.3 |
-| 4 | Stagger the six scene SoA arrays so they do not share L0/L1 sets (they are power-of-two ×4 bytes each, almost certainly page-aligned by jemalloc) | scene alloc | +3 cycles per conflicting load removed; ~30–50 µs/frame | med (verify alignment first) | §3.1–3.2 |
+| 4 | Stagger the six scene SoA arrays so they do not share L0/L1 sets (they are power-of-two ×4 bytes each, so jemalloc almost certainly returns them congruent mod 4 KB) | scene alloc | +3 cycles per conflicting load removed; ~30–50 µs/frame | med (verify alignment first) | §3.1–3.2 |
 | 5 | `vmlaq_s32`/`vmlsq_s32` for the six rotation mul+add pairs if clang did not fuse them | projection | −6 NEON ops of ~45 per block; shortens the chain by ~9 cycles | med (check disasm; measure `vmla.i32` on Krait) | §1.1 |
 | 6 | Sort prefetch distance: `+32` faces is exactly one line ahead; move to 2–4 lines and issue once per line, not per block | sort | L2-resident: 28.5 → 25.2 cyc/line; DRAM: 168 → 45–66 | high | §4.4 |
 | 7 | Drop the two `mov`s from the flat/gouraud row loop's critical path (`mov` is 2 cycles and not eliminated) | flat/gouraud asm | −2..4 cycles/row | high | §1.4, §5 |
@@ -156,7 +156,7 @@ from the source:
 | resource | ops | floor (cycles) |
 |---|---|---|
 | NEON ALU: 3 `vmovl` + 8 model-yaw + 3 position adds + 8 camera-yaw + 8 pitch + 4 cot + 11 zdiv (+4 bound min/max in the loop form) | 45–49 | **45–49** (1/cycle) |
-| loads: 3 `vld1` vertices + 10 point-of-use constant `vld1q` | 13 | 13 |
+| loads: 3 `vld1` vertices + up to 19 point-of-use constant `vld1q` (each macro use reloads; the output stores may alias the block, so clang cannot CSE them) | ≤ 22 | ≤ 22 |
 | stores: 6 (tex) or 3 (notex); tile4 adds 4 bound stores | 6–10 | 6–10 |
 | dependency chain x → rotations → z_final → reciprocal → x/z → store | — | **≈ 65** (§1.3/§5 latencies: `vmul` 4, `vadd`/`vshr` 3, `vrecpe` 4, `vrecps` 8, `vcvt` assumed 3) |
 
@@ -173,8 +173,9 @@ This confirms the plan's re-aim ("the entry block is the per-model fixed cost") 
 the ceiling: no edit inside the block can move the client by more than ~0.05 ms.
 
 The point-of-use constant loads (`TORIDRAW_PROJ_PREP_POINT_OF_USE`) are the right call
-by these numbers: they cost 10 slots on the load port, which has ~35 spare per block,
-and zero on the NEON pipe, which is the binding resource.
+by these numbers: they cost up to 19 slots on the load port, which still has ~25 spare
+per block against the NEON pipe's ~45, and zero on the NEON pipe, which is the binding
+resource. (This assumes `vld1` and a NEON ALU op can issue in the same cycle — §8.)
 
 ### 3.2 Levers
 
@@ -270,10 +271,11 @@ bench with a cold-L2 fixture (the current fixtures are hot).
 L0 is 4 KB **direct-mapped**, indexed by VA[11:6]; L1 is 4-way on the same index.
 `toridraw.c:411` allocates `screen_vertices_{x,y,z}` and `orthographic_vertices_{x,y,z}`
 as six separate `malloc(max_vertices * 4)`; every profile's `max_vertices` is a power of
-two ≥ 2048, so each array is 8/16/32/64 KB. Android 5.1's jemalloc serves those sizes
-page-aligned (8 KB is a two-page small class in a page-aligned run; ≥ 16 KB is a large
-class). If so, `screen_x[i]`, `screen_y[i]`, `screen_z[i]` and the three ortho arrays all
-map to **one L0 set and one L1 set**. Readers that touch the three screen arrays at the
+two ≥ 2048, so each array is 8/16/32/64 KB. Under Android 5.1's jemalloc, six requests of
+one such size come back at the **same offset modulo 4 KB**: ≥ 16 KB is a large class and
+page-aligned; 8 KB is a small class whose regions sit at a fixed header offset plus
+multiples of 8 KB inside page-aligned runs. Either way `screen_x[i]`, `screen_y[i]`,
+`screen_z[i]` and the three ortho arrays all map to **one L0 set and one L1 set**. Readers that touch the three screen arrays at the
 same index — the sort's interleave pass (3 loads per 4 vertices), the K16 rebuild, the
 tile leaf (8 corner reads × 3), `toridraw_projected_bound` — then miss L0 on every access
 (+3 cycles each, L1 hit) and, where the ortho arrays are read too, spill the 4-way L1 set
@@ -326,9 +328,13 @@ UQUOT:  vmov s2, r ; vcvt ; vmul.f32 s2,s2,s0   ; VFP scalar
 WRAPQ:  vmov s2, r ; vcvt ; vmul.f32 ; vcvt ; vmov r, s2   ; two crossings
 ```
 
-That is **≥ 6 ARM↔VFP crossings (~21 cycles) and 2–3 VFP→NEON same-register penalties
-(~10–15 cycles) per block**, all on the dependency chain that gates `FITS` and `LERP8`,
-inside a block whose vector body is ~50 NEON ops. Estimated 40–60 cycles of ~150 per block.
+In steady state (`have_cur` set) one end is computed per block: **5 ARM↔VFP crossings
+(~17 cycles), 2–3 same-register VFP/NEON penalties (~10–15; the NEON→VFP direction in
+`UQUOT`'s final `vcvt` is unmeasured but the same mechanism), and two scalar chains run
+serially (`UQUOT` ≈ 17 cycles, `WRAPQ` ≈ 11) where one vector op would do both** — all on
+the dependency chain that gates `FITS` and `LERP8`, inside a block whose vector body is ~50
+NEON ops. Estimated 45–60 cycles of a ~130–160-cycle block; the vector form below removes
+~25–35 of them.
 
 The fix keeps everything in one domain: `vmov d0, r4, r5` and `vmov d1, r6, rZ` (two
 paired ARM→NEON moves = the whole `{au, bv, cw, 0}`), `vcvt.f32.s32 q0, q0`, `vdup.32 q1,
@@ -381,8 +387,8 @@ texture is L2-resident.
 
 `DIVEXACT64` twice per affine row = 2 × 31 latency on a 30-throughput divider = **~62
 cycles serialised per row**, plus four crossings. Every textured terrain tile is affine
-now. The comment's argument that `n * (1.0/w)` is inexact holds in double too (`6 *
-fl(1/3)` truncates to 1), so a shared reciprocal is out. An exact alternative is `sdiv`
+now. The comment's argument that `n * (1.0/w)` is inexact holds in double too (`49 *
+fl(1/49)` is `0.99999999999999989` and truncates to 0), so a shared reciprocal is out. An exact alternative is `sdiv`
 (~24 cycles on a 24-bit dividend, §5.1, and no crossings) behind `HWCAP_IDIVA` — a fork
 of the shipping asm for ~40 cycles/row. Recorded; not recommended unless the affine lane
 shows up in a profile.
@@ -399,17 +405,21 @@ asr  r9, r9, #16     ; depends on the mov: 2 + 2
 asr  r10, r10, #16
 ```
 
-- **R6:** `cmp r0, r1; beq; asr r9, r0, #16; asr r10, r1, #16; add r0, r0, r2; add r1,
-  r1, r3` — same semantics, two fewer instructions, two `mov`s (4 cycles) off the row's
-  critical path. The chain is then `asr (2) → cmp (1.7) → sub → add-shifted (3) → store`.
+- **R6:** `cmp r0, r1; asr r9, r0, #16; asr r10, r1, #16; add r0, r0, r2; add r1, r1,
+  r3; beq 64f` — the `cmp` sets the flags, the non-S `asr`/`add`s leave them alone, and
+  the edges are still stepped on a skipped row exactly as today. Same semantics, two
+  fewer instructions, two `mov`s (4 cycles) off the row's critical path. The chain is then
+  `asr (2) → cmp (1.7) → sub → add-shifted (3) → store`.
   For the 59.5 % of spans under four pixels the row overhead *is* the cost, so this is
   worth ~10–15 % of a narrow row. Same edit in the gouraud `SEGMENT`.
 - **R7:** `FILLOPAQUE` has two data-dependent width branches (`< 4`, `< 8`). Widths across
   a triangle's rows are monotone-ish, so the global predictor (§2.2–2.3) learns them and
   misses at the threshold crossings: ~2 mispredicts (27 cycles) per branch per triangle.
   The `< 8` split exists only because for 4..7 pixels `end-32` lies before the span; clamp
-  it (`cmp r9, r12_start; movlo r9, r12_start`) and the 4..7 case falls out of the ≥ 8 path
-  with the pair loop running zero trips. One branch fewer per row. The `< 4` split stays
+  it before r12 is advanced (`sub r9, lr, #16; cmp r9, r12; movlo r9, r12`) and the 4..7
+  case falls out of the ≥ 8 path: the pair loop runs zero trips (`r12` aligned up is ≥ `r9
+  = start`) and the two closing stores at `r9 = start` and `end-16` stay inside the span
+  for any n ≥ 4. One branch fewer per row. The `< 4` split stays
   (the three-store tail has no overlap-safe alternative).
 - The `[r12:128]` alignment dance in the pair loop is validated by §4.3: aligned 16-byte
   stores never cross a 64 B line; unaligned ones do 23 % of the time at +1 each. Keep.

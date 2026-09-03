@@ -2933,7 +2933,7 @@ emit_walk_node(
             UITREE_ROLE_PLACE_BEFORE);
     subtree_emit_start = out->count;
 
-    if( !if1_bar && c->type == UIELEM_RS_INV )
+    if( !c->replacement_paint_hidden && !if1_bar && c->type == UIELEM_RS_INV )
     {
         emit_rs_inv_slots(
             host,
@@ -2950,31 +2950,37 @@ emit_walk_node(
             in_deferred,
             parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_BUILTIN_MINIMENU )
+    else if( !c->replacement_paint_hidden && !if1_bar &&
+             c->type == UIELEM_BUILTIN_MINIMENU )
     {
         /* Screen-anchored popup chrome: multi-desc expansion, never scrolled
          * or dragged (same shape as the RS_INV slot expansion above). */
         emit_minimenu(host, out, c, idx, parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_BUILTIN_HOVERTEXT )
+    else if( !c->replacement_paint_hidden && !if1_bar &&
+             c->type == UIELEM_BUILTIN_HOVERTEXT )
     {
         emit_hovertext(host, out, c, idx, parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_BUILTIN_CHAT_BUTTON )
+    else if( !c->replacement_paint_hidden && !if1_bar &&
+             c->type == UIELEM_BUILTIN_CHAT_BUTTON )
     {
         /* Fixed chrome: multi-desc expansion, never scrolled or dragged. */
         emit_chat_button(host, out, c, idx, parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_BUILTIN_CHAT )
+    else if( !c->replacement_paint_hidden && !if1_bar &&
+             c->type == UIELEM_BUILTIN_CHAT )
     {
         emit_chat(host, out, c, idx, parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_RS_INV_TEXT )
+    else if( !c->replacement_paint_hidden && !if1_bar &&
+             c->type == UIELEM_RS_INV_TEXT )
     {
         emit_rs_inv_text_slots(
             host, out, c, idx, x, y, scroll_off_x, scroll_off_y, parent_clip);
     }
-    else if( !if1_bar && UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
+    else if( !c->replacement_paint_hidden && !if1_bar &&
+             UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
     {
         /* World/minimap/compass are screen-anchored chrome: they still emit,
          * but never take the scroll/drag translation. */
@@ -3100,6 +3106,15 @@ emit_walk_node(
         emit_obj_stack_count(host, out, c, idx, &desc, parent_clip);
     }
 
+    /* SELF occupies the target's own descriptor position: after its native
+     * paint (or exactly where that paint was suppressed), before its children.
+     * This is what lets an appearance replacement keep working child controls
+     * above the replacement instead of painting an opaque patch over them. */
+    if( !drag_pass )
+        emit_role_overlay_groups(
+            tree, host, out, idx, parent_clip, role_groups, role_group_count,
+            /*replace=*/0, UITREE_ROLE_PLACE_SELF);
+
     /* Sweep 0 draws the container's own children, sweep 1 the InterfaceParent
      * mounts — reference widgets-gl renders mounted interface roots LAST, on top
      * of the container's own children. Mounts are ordinary children here
@@ -3146,19 +3161,14 @@ emit_walk_node(
         }
     }
 
-    if( if1_bar && !drag_pass )
+    if( if1_bar && !drag_pass && !c->replacement_paint_hidden )
     {
         emit_append_layer_scrollbars(
             host, out, c, idx, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h);
     }
 
-    emit_frame_slot_overlay(tree, out, idx, parent_clip, subtree_emit_start);
-    /* SELF has no meaning on a node the lane still draws; it is emitted here
-     * anyway so a declaration made against a role whose replacement was just
-     * released does not vanish for the frame the release takes. */
-    emit_role_overlay_groups(
-        tree, host, out, idx, parent_clip, role_groups, role_group_count,
-        /*replace=*/0, UITREE_ROLE_PLACE_SELF);
+    if( !c->replacement_paint_hidden )
+        emit_frame_slot_overlay(tree, out, idx, parent_clip, subtree_emit_start);
     emit_role_overlay_groups(
         tree, host, out, idx, parent_clip, role_groups, role_group_count,
         /*replace=*/0, UITREE_ROLE_PLACE_AFTER);

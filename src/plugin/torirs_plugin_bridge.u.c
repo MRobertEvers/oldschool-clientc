@@ -3240,14 +3240,15 @@ app_plugin_role_region_occluded(
     assert(region);
     if( !region->role_anchored || !app->tree )
         return 0;
-    return UITree_PointInputCoverPaintsAfterRoleBoundary(
+    return UITree_PointInputCoverPaintsAfterRolePlacement(
         app->tree,
         &app->ui_host,
         x,
         y,
         region->role_node,
         region->role_incarnation,
-        region->role_replace != 0);
+        region->role_replace != 0,
+        region->role_place);
 }
 
 static int
@@ -4185,6 +4186,120 @@ app_plugin_role_replacement_node_claimed(
             return 1;
     }
     return 0;
+}
+
+static int
+app_plugin_role_facet_find(struct App const* app, char const* role)
+{
+    assert(app);
+    assert(role);
+    for( int i = 0; i < (int)(sizeof(app->plugin_role_facet_suppressions) /
+                              sizeof(app->plugin_role_facet_suppressions[0])); i++ )
+        if( app->plugin_role_facet_suppressions[i].role[0] &&
+            strcmp(app->plugin_role_facet_suppressions[i].role, role) == 0 )
+            return i;
+    return -1;
+}
+
+static int
+app_plugin_role_facet_free(struct App const* app)
+{
+    assert(app);
+    for( int i = 0; i < (int)(sizeof(app->plugin_role_facet_suppressions) /
+                              sizeof(app->plugin_role_facet_suppressions[0])); i++ )
+        if( !app->plugin_role_facet_suppressions[i].role[0] )
+            return i;
+    return -1;
+}
+
+static void
+app_plugin_role_facet_refresh_node(
+    struct App* app,
+    int32_t node,
+    uint32_t incarnation)
+{
+    int paint = 0;
+    int input = 0;
+
+    if( !app->tree || node < 0 || incarnation == 0 )
+        return;
+    for( int i = 0; i < (int)(sizeof(app->plugin_role_facet_suppressions) /
+                              sizeof(app->plugin_role_facet_suppressions[0])); i++ )
+    {
+        struct AppPluginRoleFacetSuppression const* row =
+            &app->plugin_role_facet_suppressions[i];
+        if( !row->role[0] || row->node_index != node ||
+            row->node_incarnation != incarnation )
+            continue;
+        paint |= row->paint != 0;
+        input |= row->input != 0;
+    }
+    (void)UITree_SetReplacementPaintHidden(app->tree, node, incarnation, paint);
+    (void)UITree_SetReplacementInputHidden(app->tree, node, incarnation, input);
+}
+
+static int
+app_plugin_role_suppress_facets(
+    void* user,
+    char const* role,
+    int paint,
+    int input)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginRoleFacetSuppression* row;
+    int at;
+    int32_t old_node = -1;
+    uint32_t old_incarnation = 0;
+    int32_t next_node = -1;
+    uint32_t next_incarnation = 0;
+
+    assert(app);
+    assert(role);
+    paint = paint ? 1 : 0;
+    input = input ? 1 : 0;
+    at = app_plugin_role_facet_find(app, role);
+    if( at >= 0 )
+    {
+        old_node = app->plugin_role_facet_suppressions[at].node_index;
+        old_incarnation = app->plugin_role_facet_suppressions[at].node_incarnation;
+    }
+    if( !paint && !input )
+    {
+        if( at < 0 )
+            return 1;
+        memset(&app->plugin_role_facet_suppressions[at], 0,
+               sizeof(app->plugin_role_facet_suppressions[at]));
+        app_plugin_role_facet_refresh_node(app, old_node, old_incarnation);
+        return 1;
+    }
+    if( at < 0 )
+    {
+        at = app_plugin_role_facet_free(app);
+        if( at < 0 )
+            return 0;
+        row = &app->plugin_role_facet_suppressions[at];
+        memset(row, 0, sizeof(*row));
+        row->node_index = -1;
+        (void)snprintf(row->role, sizeof(row->role), "%s", role);
+    }
+    row = &app->plugin_role_facet_suppressions[at];
+    if( app->tree )
+    {
+        next_node = app_plugin_role_node(app, role);
+        if( next_node >= 0 && (uint32_t)next_node < app->tree->component_count &&
+            !app->tree->components[next_node].freed )
+            next_incarnation = app->tree->components[next_node].incarnation;
+        else
+            next_node = -1;
+    }
+    row->paint = (uint8_t)paint;
+    row->input = (uint8_t)input;
+    row->node_index = next_node;
+    row->node_incarnation = next_incarnation;
+    if( old_node != next_node || old_incarnation != next_incarnation )
+        app_plugin_role_facet_refresh_node(app, old_node, old_incarnation);
+    app_plugin_role_facet_refresh_node(app, next_node, next_incarnation);
+    return next_node >= 0;
 }
 
 /* Engine half of the standing claim. The host owns arbitration; the App owns
@@ -5199,6 +5314,7 @@ app_plugin_engine(struct App* app)
     engine.role_click = app_plugin_role_click;
     engine.role_id = app_plugin_role_id;
     engine.role_replace = app_plugin_role_replace;
+    engine.role_suppress_facets = app_plugin_role_suppress_facets;
     engine.role_anchor = app_plugin_role_anchor;
     engine.role_slot = app_plugin_role_frame_slot;
     engine.menu_drop = app_plugin_menu_drop;

@@ -38,6 +38,15 @@ static void
 plugin_ui_refresh_base(struct ToriRS_PluginHost* host);
 static void
 plugin_layout_notifications_run(struct ToriRS_PluginHost* host);
+struct PluginUiPresentation;
+static void
+plugin_ui_present_suppressions(
+    struct ToriRS_PluginHost* host,
+    struct PluginUiPresentation const* rows,
+    int count,
+    bool enabled);
+static void
+plugin_ui_present_reconcile(struct ToriRS_PluginHost* host);
 
 struct PluginSub
 {
@@ -127,6 +136,20 @@ struct ToriRS_PluginCtx
 
 #define PLUGIN_V2_FRAME_UI_MAX 16
 
+_Static_assert(
+    TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX >= TORIRS_PLUGIN_IMAGES_MAX,
+    "v2 image tokens cover the host image table");
+_Static_assert(
+    TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX >= TORIRS_PLUGIN_MODELS_MAX,
+    "v2 model tokens cover the host model table");
+_Static_assert(
+    TORIRS_PLUGIN_V2_MESH_TOKENS_MAX >= TORIRS_PLUGIN_MESH_BUDGET,
+    "v2 mesh tokens cover the per-plugin mesh budget");
+_Static_assert(
+    TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX >= TORIRS_PLUGIN_OBJECT_BUDGET,
+    "v2 instance tokens cover the per-plugin object budget");
+_Static_assert(TORIRS_PLUGIN_MAX <= 32, "v2 resource namespace covers every plugin index");
+
 struct PluginV2Instance
 {
     struct PluginV2FrameNode
@@ -151,6 +174,10 @@ struct PluginV2Instance
     int frame_ui_count;
     int frame_ui_candidate_count;
     bool frame_ui_candidate_invalid;
+    struct ToriRS_ImageRef frame_images[TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX];
+    struct ToriRS_ImageRef frame_images_candidate[TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX];
+    int frame_image_count;
+    int frame_image_candidate_count;
 };
 
 struct PluginMenuRoute
@@ -166,10 +193,14 @@ struct PluginUiPresentation
     struct ToriRS_UiStoredNode value;
     int appearance_plugin;
     int actions_plugin;
+    uint32_t action_token;
     int boundary_place;
     bool clip_active;
     struct ToriRS_Rect clip;
     char boundary_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    /** Non-empty only when this semantic node itself resolves to a live lane
+     * role. Facet suppression applies here, never to a fallback ancestor. */
+    char target_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
 };
 
 /*
@@ -456,6 +487,7 @@ struct ToriRS_PluginHost
     int ui_presentation_count;
     uint32_t ui_presentation_revision;
     uint32_t ui_presentation_rebuilds;
+    uint32_t ui_action_token;
 
     /** enum ToriRS_PluginLayoutCanvas, and the pinned size for FIXED. */
     int layout_canvas;
@@ -7991,6 +8023,9 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
     if( !host )
         return;
 
+    plugin_ui_present_suppressions(
+        host, host->ui_presentations, host->ui_presentation_count, false);
+
     /* Keep the same lifecycle ordering as runtime disable: the selected page
      * becomes invisible while its handler is still subscribed. */
     (void)plugin_panel_deactivate(host);
@@ -8510,12 +8545,16 @@ plugin_v2_ui_update_image_ready(
     struct ToriRS_PluginCtx* context,
     struct ToriRS_ImageRef image)
 {
-    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(image);
+    int legacy_image;
     struct PluginImage const* owned;
 
     assert(context);
-    if( legacy_image < 0 )
+    assert(context->v2);
+    if( image.value == 0 )
         return TORIRS_RESULT_OK;
+    legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(&context->v2->adapter, image);
+    if( legacy_image < 0 )
+        return TORIRS_RESULT_INVALID;
     owned = plugin_image_owned(context, legacy_image);
     if( !owned )
         return TORIRS_RESULT_INVALID;
@@ -8736,17 +8775,64 @@ plugin_v2_frame_ui_node(
 }
 
 static void
+plugin_v2_image_release(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_ImageRef image)
+{
+    struct ToriRS_PluginHost* host = user;
+    struct PluginV2Instance* v2;
+    int legacy_image;
+    bool retained_by_frame = false;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    v2 = context->v2;
+    assert(v2);
+    legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(&v2->adapter, image);
+    if( legacy_image < 0 )
+        return;
+    for( int i = 0; i < v2->frame_image_count; i++ )
+        if( v2->frame_images[i].value == image.value )
+        {
+            retained_by_frame = true;
+            break;
+        }
+
+    /* The engine's committed layout consumes legacy image slots.  Take a
+     * frame that retained this exact token off-screen before freeing the slot;
+     * otherwise a subsequent allocation in the same slot would repaint the
+     * old frame with unrelated art before its next layout transaction. */
+    if( retained_by_frame && plugin_frame_owner(host) == context->index )
+    {
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(
+            host,
+            "core/native",
+            TORIRS_PLUGIN_FRAME_FALLBACK,
+            "The selected gameframe released artwork it retained.");
+        host->frame_selection_dirty = 1;
+        v2->frame_image_count = 0;
+    }
+    api_image_release(context, legacy_image);
+}
+
+static void
 plugin_v2_model_release(
     void* user,
     struct ToriRS_PluginCtx* context,
     struct ToriRS_ModelRef model)
 {
     struct ToriRS_PluginHost* host = user;
-    int const legacy_model = ToriRS_PluginV2Adapter_ModelUnbox(model);
+    int legacy_model;
 
     assert(host);
     assert(context);
     assert(context->host == host);
+    assert(context->v2);
+    legacy_model =
+        ToriRS_PluginV2Adapter_ModelUnbox(&context->v2->adapter, model);
     if( legacy_model < 0 || legacy_model >= TORIRS_PLUGIN_MODELS_MAX ||
         host->models[legacy_model].plugin != context->index )
         return;
@@ -9001,8 +9087,12 @@ plugin_v2_model_request(
 }
 
 static struct ToriRS_PluginV2AdapterHooks
-plugin_v2_adapter_hooks(struct ToriRS_PluginHost* host)
+plugin_v2_adapter_hooks(struct ToriRS_PluginCtx* context)
 {
+    struct ToriRS_PluginHost* host;
+
+    assert(context);
+    host = context->host;
     return (struct ToriRS_PluginV2AdapterHooks){
         .struct_size = sizeof(struct ToriRS_PluginV2AdapterHooks),
         .user = host,
@@ -9016,8 +9106,10 @@ plugin_v2_adapter_hooks(struct ToriRS_PluginHost* host)
         .ui_contribution_info = plugin_v2_ui_contribution_info_hook,
         .ui_update = plugin_v2_ui_update_hook,
         .frame_ui_node = plugin_v2_frame_ui_node,
+        .image_release = plugin_v2_image_release,
         .model_release = plugin_v2_model_release,
         .panel_select = plugin_v2_panel_select,
+        .resource_namespace = (uint32_t)context->index,
     };
 }
 
@@ -9253,7 +9345,7 @@ plugin_v2_init(
         v2->state = calloc(1, v2->definition->state_size);
         assert(v2->state);
     }
-    hooks = plugin_v2_adapter_hooks(ctx->host);
+    hooks = plugin_v2_adapter_hooks(ctx);
     initialized = ToriRS_PluginV2Adapter_Init(&v2->adapter, legacy, ctx, &hooks);
     assert(initialized);
     if( !initialized )
@@ -9278,6 +9370,10 @@ plugin_v2_shutdown(struct ToriRS_PluginCtx* ctx)
     v2->frame_ui_count = 0;
     v2->frame_ui_candidate_count = 0;
     v2->frame_ui_candidate_invalid = false;
+    memset(v2->frame_images, 0, sizeof(v2->frame_images));
+    memset(v2->frame_images_candidate, 0, sizeof(v2->frame_images_candidate));
+    v2->frame_image_count = 0;
+    v2->frame_image_candidate_count = 0;
 }
 
 static int
@@ -9785,6 +9881,8 @@ plugin_teardown(
         ctx->ui_contribution_count = 0;
         host->placement_cache_valid = 0;
     }
+    if( ui_changed )
+        plugin_ui_present_reconcile(host);
     /* The tab goes with them: a stopped plugin's controls would otherwise sit
      * in the window still taking clicks, dispatching to a plugin that is not
      * running and silently doing nothing. */
@@ -10418,6 +10516,25 @@ plugin_ui_present_find(
     return -1;
 }
 
+static bool
+plugin_ui_present_live_role(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    char* out,
+    size_t out_size)
+{
+    char dynamic[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    char const* name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
+    char const* role = name ? plugin_ui_present_role(name, dynamic, sizeof(dynamic)) : NULL;
+    int x, y, w, h;
+
+    if( !role || !host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h) ||
+        !host->engine.role_visible(host->engine.user, role) )
+        return false;
+    (void)snprintf(out, out_size, "%s", role);
+    return true;
+}
+
 static void
 plugin_ui_present_boundary(
     struct ToriRS_PluginHost* host,
@@ -10429,17 +10546,21 @@ plugin_ui_present_boundary(
     int root = index;
 
     assert(host);
-    {
-        char dynamic[TORIRS_PLUGIN_ROLE_NAME_MAX];
-        char const* name = ToriRS_UiRegistry_Name(&host->ui_registry, rows[index].node);
-        char const* role = name ? plugin_ui_present_role(name, dynamic, sizeof(dynamic)) : NULL;
-        int x, y, w, h;
+    (void)plugin_ui_present_live_role(
+        host, rows[index].node, rows[index].target_role,
+        sizeof(rows[index].target_role));
 
-        /* A modifier of a live base object presents at that object's own tree
-         * boundary. A provider for an absent object falls through to its
-         * nearest live semantic parent instead. */
-        if( role && host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h) &&
-            host->engine.role_visible(host->engine.user, role) )
+    /* The closest live node inside the presented semantic ancestry is the
+     * subtree boundary. Every provided descendant below it shares SELF, and
+     * the recursive ordering pass supplies before/parent/after within that
+     * one contiguous insertion point. */
+    for( int current = index;; )
+    {
+        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+        int const parent = plugin_ui_present_find(
+            rows, count, rows[current].value.parent);
+
+        if( plugin_ui_present_live_role(host, rows[current].node, role, sizeof(role)) )
         {
             (void)snprintf(
                 rows[index].boundary_role,
@@ -10449,14 +10570,12 @@ plugin_ui_present_boundary(
             rows[index].boundary_place = PLUGIN_ANCHOR_PLACE_SELF;
             return;
         }
-    }
-    while( rows[root].value.parent.value != 0 )
-    {
-        int const parent = plugin_ui_present_find(rows, count, rows[root].value.parent);
         if( parent < 0 )
             break;
         root = parent;
+        current = parent;
     }
+
     rows[index].boundary_place =
         rows[root].value.paint_order == TORIRS_UI_PAINT_BEFORE_PARENT
             ? TORIRS_PLUGIN_ANCHOR_BEFORE
@@ -10465,23 +10584,12 @@ plugin_ui_present_boundary(
     for( int depth = 0; boundary.value != 0 && depth < TORIRS_UI_REGISTRY_NODES_MAX; depth++ )
     {
         struct ToriRS_UiResolvedNode parent;
-        char dynamic[TORIRS_PLUGIN_ROLE_NAME_MAX];
-        char const* name = ToriRS_UiRegistry_Name(&host->ui_registry, boundary);
-        char const* role = name ? plugin_ui_present_role(name, dynamic, sizeof(dynamic)) : NULL;
-
-        {
-            int x, y, w, h;
-            if( role && host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h) &&
-                host->engine.role_visible(host->engine.user, role) )
-            {
-                (void)snprintf(
-                    rows[index].boundary_role,
-                    sizeof(rows[index].boundary_role),
-                    "%s",
-                    role);
-                return;
-            }
-        }
+        if( plugin_ui_present_live_role(
+                host,
+                boundary,
+                rows[index].boundary_role,
+                sizeof(rows[index].boundary_role)) )
+            return;
         if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, boundary, &parent) )
             return;
         boundary = parent.value.parent;
@@ -10514,6 +10622,53 @@ plugin_ui_present_order_visit(
 }
 
 static void
+plugin_ui_present_suppressions(
+    struct ToriRS_PluginHost* host,
+    struct PluginUiPresentation const* rows,
+    int count,
+    bool enabled)
+{
+    if( !host->engine.role_suppress_facets )
+        return;
+    for( int i = 0; i < count; i++ )
+    {
+        int paint = 0;
+        int input = 0;
+
+        if( !rows[i].target_role[0] )
+            continue;
+        for( int prior = 0; prior < i; prior++ )
+            if( strcmp(rows[prior].target_role, rows[i].target_role) == 0 )
+                goto already_handled;
+        if( enabled )
+            for( int j = i; j < count; j++ )
+                if( strcmp(rows[j].target_role, rows[i].target_role) == 0 )
+                {
+                    paint |= rows[j].appearance_plugin >= 0;
+                    input |= rows[j].actions_plugin >= 0;
+                }
+        (void)host->engine.role_suppress_facets(
+            host->engine.user, rows[i].target_role, paint, input);
+already_handled:
+        ;
+    }
+}
+
+static bool
+plugin_ui_present_actions_equal(
+    struct PluginUiPresentation const* old,
+    struct PluginUiPresentation const* candidate)
+{
+    if( !old || old->actions_plugin != candidate->actions_plugin ||
+        old->value.action_count != candidate->value.action_count )
+        return false;
+    for( uint32_t i = 0; i < candidate->value.action_count; i++ )
+        if( strcmp(old->value.actions[i], candidate->value.actions[i]) != 0 )
+            return false;
+    return true;
+}
+
+static void
 plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
 {
     struct PluginUiPresentation* candidate;
@@ -10525,6 +10680,8 @@ plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
     assert(host);
     if( host->ui_presentation_revision == revision )
         return;
+    plugin_ui_present_suppressions(
+        host, host->ui_presentations, host->ui_presentation_count, false);
     candidate = calloc(PLUGIN_UI_PRESENTATIONS_MAX, sizeof(*candidate));
     assert(candidate);
     for( int i = 0; i < ToriRS_UiRegistry_NodeCount(&host->ui_registry); i++ )
@@ -10549,6 +10706,24 @@ plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
         candidate[candidate_count].value = resolved.value;
         candidate[candidate_count].appearance_plugin = appearance;
         candidate[candidate_count].actions_plugin = actions;
+        if( actions >= 0 && resolved.value.action_count > 0 )
+        {
+            int const old = plugin_ui_present_find(
+                host->ui_presentations, host->ui_presentation_count, node);
+            if( old >= 0 && plugin_ui_present_actions_equal(
+                               &host->ui_presentations[old],
+                               &candidate[candidate_count]) )
+                candidate[candidate_count].action_token =
+                    host->ui_presentations[old].action_token;
+            else
+            {
+                host->ui_action_token = (host->ui_action_token + 1u) &
+                                        ~PLUGIN_UI_PRESENT_TAG_BIT;
+                if( host->ui_action_token == 0 )
+                    host->ui_action_token = 1;
+                candidate[candidate_count].action_token = host->ui_action_token;
+            }
+        }
         if( plugin_ui_present_tree_state(
                 host,
                 node,
@@ -10577,6 +10752,8 @@ plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
             &ordered_count);
     free(candidate);
     host->ui_presentation_count = ordered_count;
+    plugin_ui_present_suppressions(
+        host, host->ui_presentations, host->ui_presentation_count, true);
     host->ui_presentation_revision = revision;
     host->ui_presentation_rebuilds++;
 }
@@ -10672,7 +10849,8 @@ plugin_ui_present_draw(
                 ToriRS_PluginV2Adapter_DrawClip(&scope, row->clip);
             if( image.value != 0 )
             {
-                int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(image);
+                int const legacy_image =
+                    ToriRS_PluginV2Adapter_ImageUnbox(&v2->adapter, image);
                 struct PluginImage const* owned = plugin_image_owned(context, legacy_image);
                 if( owned && owned->published )
                     builder.image(
@@ -10718,7 +10896,7 @@ plugin_ui_present_draw(
                     hit.height,
                     actions,
                     count,
-                    PLUGIN_UI_PRESENT_TAG_BIT | row->node.value);
+                    PLUGIN_UI_PRESENT_TAG_BIT | row->action_token);
         }
         plugin_ui_present_anchor_reset(host, row, row->actions_plugin);
     }
@@ -11098,6 +11276,9 @@ PluginHost_ReconcileRoleReplacements(struct ToriRS_PluginHost* host)
         (void)host->engine.role_replace(
             host->engine.user, claim->plugin, claim->role, /*enabled=*/1);
     }
+    plugin_ui_present_reconcile(host);
+    plugin_ui_present_suppressions(
+        host, host->ui_presentations, host->ui_presentation_count, true);
 }
 
 /**
@@ -11630,13 +11811,19 @@ plugin_frame_surface_flags(int slot)
 static int
 plugin_frame_ui_image_ready(
     struct ToriRS_PluginCtx* ctx,
-    int image)
+    struct ToriRS_ImageRef image)
 {
     struct PluginImage const* owned;
+    int legacy_image;
 
-    if( image < 0 )
+    assert(ctx);
+    assert(ctx->v2);
+    if( image.value == 0 )
         return 1;
-    owned = plugin_image_owned(ctx, image);
+    legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(&ctx->v2->adapter, image);
+    if( legacy_image < 0 )
+        return 0;
+    owned = plugin_image_owned(ctx, legacy_image);
     return owned && owned->published;
 }
 
@@ -11686,9 +11873,7 @@ plugin_frame_candidate_ui_valid(
             struct PluginV2FrameNode* node = &v2->frame_ui_candidate[i];
             int destination = -1;
 
-            if( !plugin_frame_ui_image_ready(owner >= 0 ? &host->plugins[owner] : NULL,
-                                             ToriRS_PluginV2Adapter_ImageUnbox(
-                                                 node->value.image)) )
+            if( !plugin_frame_ui_image_ready(&host->plugins[owner], node->value.image) )
             {
                 snprintf(reason, reason_size, "%s", "The frame used foreign or unready named artwork.");
                 return 0;
@@ -11696,9 +11881,7 @@ plugin_frame_candidate_ui_valid(
             for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
                 if( (node->value.state_image_mask & (1u << state)) != 0 &&
                     !plugin_frame_ui_image_ready(
-                        &host->plugins[owner],
-                        ToriRS_PluginV2Adapter_ImageUnbox(
-                            node->value.state_images[state])) )
+                        &host->plugins[owner], node->value.state_images[state]) )
                 {
                     snprintf(
                         reason,
@@ -11898,6 +12081,8 @@ PluginHost_Layout(
         memset(v2->frame_ui_candidate, 0, sizeof(v2->frame_ui_candidate));
         v2->frame_ui_candidate_count = 0;
         v2->frame_ui_candidate_invalid = false;
+        memset(v2->frame_images_candidate, 0, sizeof(v2->frame_images_candidate));
+        v2->frame_image_candidate_count = 0;
         memset(&context, 0, sizeof(context));
         context.struct_size = sizeof(context);
         context.offer_id = v2_offer->id;
@@ -11916,6 +12101,11 @@ PluginHost_Layout(
         if( v2_result == TORIRS_FRAME_READY &&
             !ToriRS_PluginV2Adapter_FrameValid(&scope) )
             v2->frame_ui_candidate_invalid = true;
+        v2->frame_image_candidate_count = scope.image_ref_count;
+        memcpy(
+            v2->frame_images_candidate,
+            scope.image_refs,
+            (size_t)scope.image_ref_count * sizeof(scope.image_refs[0]));
         (void)snprintf(
             v2_reason, sizeof(v2_reason), "%s", ToriRS_PluginV2Adapter_FrameReason(&scope));
         ToriRS_PluginV2Adapter_FrameEnd(&scope, &builder);
@@ -11945,6 +12135,22 @@ PluginHost_Layout(
 
     if( !host->layout_candidate.viewport_declared )
         plugin_layout_candidate_fail(host, "The frame did not declare its required viewport.");
+    for( int slot = 0; slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT; slot++ )
+        if( host->layout_candidate.skins[slot].declared )
+        {
+            int surface_declared = 0;
+            for( int i = 0; i < host->layout_candidate.rect_count; i++ )
+                if( host->layout_candidate.rects[i].slot == slot &&
+                    host->layout_candidate.rects[i].member == -1 )
+                {
+                    surface_declared = 1;
+                    break;
+                }
+            if( !surface_declared )
+                plugin_layout_candidate_fail(
+                    host,
+                    "The frame skinned a surface it did not declare in this candidate.");
+        }
     if( v2_offer && host->plugins[owner].v2->frame_ui_candidate_invalid )
         plugin_layout_candidate_fail(
             host, "The frame's named UI declaration is invalid or over budget.");
@@ -11997,6 +12203,11 @@ PluginHost_Layout(
             struct PluginV2Instance* v2 = host->plugins[owner].v2;
             memcpy(v2->frame_ui, v2->frame_ui_candidate, sizeof(v2->frame_ui));
             v2->frame_ui_count = v2->frame_ui_candidate_count;
+            memcpy(
+                v2->frame_images,
+                v2->frame_images_candidate,
+                sizeof(v2->frame_images));
+            v2->frame_image_count = v2->frame_image_candidate_count;
             for( int i = 0; i < v2->frame_ui_count; i++ )
                 plugin_v2_frame_node_repoint(&v2->frame_ui[i]);
         }
@@ -12042,16 +12253,16 @@ PluginHost_CanvasClick(
 
     if( ctx->v2 && (tag & PLUGIN_UI_PRESENT_TAG_BIT) != 0 )
     {
-        struct ToriRS_UiNodeRef const node = { tag & ~PLUGIN_UI_PRESENT_TAG_BIT };
+        uint32_t const action_token = tag & ~PLUGIN_UI_PRESENT_TAG_BIT;
 
         plugin_ui_present_reconcile(host);
         for( int i = 0; i < host->ui_presentation_count; i++ )
         {
             struct PluginUiPresentation const* row = &host->ui_presentations[i];
-            if( row->node.value != node.value || row->actions_plugin != plugin_index || op < 0 ||
+            if( row->action_token != action_token || row->actions_plugin != plugin_index || op < 0 ||
                 op >= (int)row->value.action_count )
                 continue;
-            (void)PluginHost_UiInvoke(host, node, row->value.actions[op]);
+            (void)PluginHost_UiInvoke(host, row->node, row->value.actions[op]);
             return;
         }
         return;
