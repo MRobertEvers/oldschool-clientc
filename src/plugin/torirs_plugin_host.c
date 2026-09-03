@@ -6416,6 +6416,7 @@ plugin_v2_ui_ref(
     assert(host);
     assert(context);
     assert(context->host == host);
+    (void)context;
     return PluginHost_UiRef(host, context->index, name);
 }
 
@@ -7010,6 +7011,7 @@ plugin_v2_memory_bytes(
     assert(host);
     assert(context);
     assert(context->host == host);
+    (void)context;
     return host->engine.memory_bytes
                ? host->engine.memory_bytes(host->engine.user)
                : 0;
@@ -7023,6 +7025,7 @@ plugin_v2_loot_revision(
     struct ToriRS_PluginHost* host = user;
     assert(host);
     assert(context && context->host == host);
+    (void)context;
     return host->engine.loot_revision
                ? host->engine.loot_revision(host->engine.user)
                : 0;
@@ -7037,6 +7040,7 @@ plugin_v2_loot_source_clear(
     struct ToriRS_PluginHost* host = user;
     assert(host);
     assert(context && context->host == host);
+    (void)context;
     return host->engine.loot_source_clear &&
            host->engine.loot_source_clear(host->engine.user, source_id) != 0;
 }
@@ -8789,7 +8793,7 @@ plugin_ui_present_boundary(
                     sizeof(rows[index].boundary_role),
                     "%s",
                     role);
-                rows[index].boundary_place = PLUGIN_ANCHOR_PLACE_SELF;
+                rows[index].boundary_place = PLUGIN_UI_BOUNDARY_SELF;
                 return;
             }
             if( !rows[index].pending_boundary_role[0] )
@@ -8807,8 +8811,8 @@ plugin_ui_present_boundary(
 
     rows[index].boundary_place =
         rows[root].value.paint_order == TORIRS_UI_PAINT_BEFORE_PARENT
-            ? TORIRS_PLUGIN_ANCHOR_BEFORE
-            : TORIRS_PLUGIN_ANCHOR_AFTER;
+            ? PLUGIN_UI_BOUNDARY_BEFORE
+            : PLUGIN_UI_BOUNDARY_AFTER;
     boundary = rows[root].value.parent;
     for( int depth = 0; boundary.value != 0 && depth < TORIRS_UI_REGISTRY_NODES_MAX; depth++ )
     {
@@ -9985,8 +9989,6 @@ PluginHost_DrawFrame(
             host->dispatch_event = previous_event;
         }
     }
-    else
-        plugin_dispatch_one(host, owner, PLUGIN_CALLBACK_DRAW_FRAME, &ev);
     host->draw_surface = NULL;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
@@ -11570,9 +11572,6 @@ PluginHost_PanelDraw(
     ev.y = y;
     ev.width = width;
     ev.height = height;
-    ev.scale_milli = host->panel_scale_milli;
-    ev.selection_generation = selection_generation;
-    ev.widget_serial = widget_serial;
 
     assert(!host->draw_surface && "panel draw cannot nest another plugin draw pass");
     host->draw_surface = surface;

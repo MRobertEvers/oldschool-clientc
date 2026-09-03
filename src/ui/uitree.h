@@ -56,7 +56,7 @@
  * WHICH safe area a node keeps clear of, and which of its edges.
  *
  * There is more than one box that deserves the name, and they answer to
- * different occluders -- the difference ToriRS_PluginApi::safe_os spells out.
+ * different occluders; V2 exposes the result through the placement module.
  * The OS one is the canvas minus what the PLATFORM put on top of the whole
  * window (today a soft keyboard, a band off the bottom while it is up); the
  * game-chrome one, when the layout learns to resolve it, is the canvas minus

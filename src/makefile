@@ -2235,7 +2235,7 @@ test-nxt-plugins: $(OBJ_DIR) \
 # with plugin_api.meta.lua, so neither a missing completion nor a documented
 # nil function can ship unnoticed.
 .PHONY: test-plugin-lua-api-inventory
-test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c \
+test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c plugin/torirs_plugin_v2.h \
 		plugin/test/plugin_lua_api_inventory_test.py \
 		$(REPO_ROOT)/script/plugins/plugin_api.meta.lua
 	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_lua_api_inventory_test.py
@@ -2243,15 +2243,20 @@ test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c \
 # Native-V2 Lua runtime smoke test. Its fake host captures the dynamic
 # definitions, runs scoped callbacks, exercises source reload, and compiles all
 # bundled scripts inside the real sandboxed Lua VM.
+PLUGIN_LUA_TEST_ENV =
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+PLUGIN_LUA_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
 .PHONY: test-plugin-lua
 test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
 		plugin/torirs_plugin_lua.c \
-		plugin/test/torirs_plugin_lua_v2_test.c test-plugin-lua-api-inventory
+		plugin/test/torirs_plugin_lua_v2_test.c test-plugin-lua-api-inventory \
+		$(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -DTORIRS_PLUGIN_LUA_TESTING=1 -I$(LUA_DIR) \
 		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
 		plugin/torirs_plugin_lua.c plugin/test/torirs_plugin_lua_v2_test.c \
 		$(OBJ_DIR)/lua_unity.o $(LDFLAGS)
-	./$(OBJ_DIR)/torirs_plugin_lua_v2_test
+	$(PLUGIN_LUA_TEST_ENV) ./$(OBJ_DIR)/torirs_plugin_lua_v2_test
 
 # The item-stats tooltip, against a hand-built api table rather than the host:
 # the whole plugin is "given a hovered item and a set of levels, what does the

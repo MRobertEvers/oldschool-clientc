@@ -31,7 +31,6 @@
  */
 
 #include "engine/png_decode.h"
-#include "plugin/torirs_plugin.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_v2.h"
 
@@ -98,8 +97,8 @@ static struct
         int y;
         int w;
         int h;
-    } slot[TORIRS_PLUGIN_SLOT_COUNT];
-    struct FakeRect member[TORIRS_PLUGIN_SLOT_COUNT][FAKE_SLOT_MEMBERS];
+    } slot[TORIRS_HOST_SURFACE_COUNT];
+    struct FakeRect member[TORIRS_HOST_SURFACE_COUNT][FAKE_SLOT_MEMBERS];
     int begin_calls;
     int end_calls;
 
@@ -119,7 +118,7 @@ static struct
         int placed;
         int art;
         int mask;
-    } skin[TORIRS_PLUGIN_SLOT_COUNT];
+    } skin[TORIRS_HOST_SURFACE_COUNT];
     struct
     {
         int placed;
@@ -127,7 +126,7 @@ static struct
         int x;
         int y;
         int trans;
-    } overlay[TORIRS_PLUGIN_SLOT_COUNT];
+    } overlay[TORIRS_HOST_SURFACE_COUNT];
     int scrollbar_pieces;
     /** A sidebar tab this fake gameframe does NOT have, or -1. */
     int missing_tab;
@@ -141,7 +140,7 @@ static struct
 static int
 fake_has_slot(int slot)
 {
-    return slot != TORIRS_PLUGIN_SLOT_COMPASS;
+    return slot != TORIRS_HOST_SURFACE_COMPASS;
 }
 
 static void
@@ -178,12 +177,12 @@ static int
 fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
 {
     (void)u;
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_COUNT);
     if( member >= FAKE_SLOT_MEMBERS )
         return 0;
     /* A lane whose sidebar is missing one panel -- rs289lc has no clan chat --
      * answers "no such member" for it, and the layout has to cope. */
-    if( slot == TORIRS_PLUGIN_SLOT_SIDEBAR && member >= 0 && member == g_frame.missing_tab )
+    if( slot == TORIRS_HOST_SURFACE_SIDEBAR && member >= 0 && member == g_frame.missing_tab )
         return 0;
     if( member < 0 )
     {
@@ -210,7 +209,7 @@ fake_layout_slot_exists(void* u, int slot, int member)
     (void)u;
     if( member >= FAKE_SLOT_MEMBERS )
         return 0;
-    if( slot == TORIRS_PLUGIN_SLOT_SIDEBAR && member >= 0 &&
+    if( slot == TORIRS_HOST_SURFACE_SIDEBAR && member >= 0 &&
         member == g_frame.missing_tab )
         return 0;
     return fake_has_slot(slot);
@@ -222,7 +221,7 @@ static int
 fake_layout_slot_skin(void* u, int slot, int art, int mask)
 {
     (void)u;
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_COUNT);
     g_frame.skin[slot].placed = 1;
     g_frame.skin[slot].art = art;
     g_frame.skin[slot].mask = mask;
@@ -233,7 +232,7 @@ static int
 fake_layout_slot_overlay(void* u, int slot, int image, int x, int y, int trans)
 {
     (void)u;
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_COUNT);
     g_frame.overlay[slot].placed = 1;
     g_frame.overlay[slot].image = image;
     g_frame.overlay[slot].x = x;
@@ -451,7 +450,7 @@ fake_asset_read(void* u, char const* plugin, char const* name)
 
 /* In game: these harnesses exercise behaviour that is gated on it. Mutable so
  * the enabled-at-the-title scenario can move it; everything else leaves it be.
- * @see ToriRS_PluginApi::screen. */
+ * @see ToriRS_CoreApiV2::screen. */
 static int g_screen_now = TORIRS_SCREEN_GAME;
 static int fake_plugin_screen(void* u) { (void)u; return g_screen_now; }
 static char g_frame_preference[TORIRS_PLUGIN_FRAME_ID_MAX] =
@@ -557,7 +556,7 @@ static int
 fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
 {
     (void)u;
-    if( slot != TORIRS_PLUGIN_SLOT_CANVAS || !g_canvas_answered )
+    if( slot != TORIRS_HOST_SURFACE_CANVAS || !g_canvas_answered )
         return 0;
     if( x ) *x = 0;
     if( y ) *y = 0;
@@ -574,7 +573,7 @@ static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, 
  * container, while a chatbox sized as a proportion of its parent has no native
  * size at all and the frame has to choose one. 0x0 is the default here so that
  * every test written before this verb existed still exercises the fallback.
- * @see ToriRS_PluginApi::slot_native_size.
+ * @see ToriRS_FrameApiV2::surface_native_size.
  */
 static int g_chat_native_w;
 static int g_chat_native_h;
@@ -582,7 +581,7 @@ static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
     (void)u;
-    if( slot != TORIRS_PLUGIN_SLOT_CHAT )
+    if( slot != TORIRS_HOST_SURFACE_CHAT )
         return 0;
     if( g_chat_native_w <= 0 || g_chat_native_h <= 0 )
         return 0;
@@ -659,8 +658,6 @@ fake_role_visible(void* u, char const* r)
     return strcmp(r, "lane_chrome_0") == 0 && g_lane_rail_w > 0;
 }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
-/* A part exists for the chrome tier exactly when the profile binds a node to
- * its name, which on this fake is the same set fake_role_rect answers for. */
 static int
 fake_role_id(void* u, char const* r)
 {
@@ -669,50 +666,19 @@ fake_role_id(void* u, char const* r)
 }
 static int fake_role_slot(void* u, char const* r, int* s, int* m)
 { (void)u; (void)r; (void)s; (void)m; return 0; }
-/*
- * What the host last told the lane about each named part.
- *
- * Recorded because a plate this frame paints NOTHING into is proved gone by
- * two facts and not one: no picture of the plugin's at its corner, AND the
- * lane's own node hidden underneath. Without the second the pack would still
- * be drawing its OldSchool plate and the test would read as a pass.
- */
-#define M_REPLACED_MAX 16
-static char g_replaced_part[M_REPLACED_MAX][32];
-static int g_replaced_on[M_REPLACED_MAX];
-static int g_replaced_count;
 static int
-fake_role_replace(void* u, int p, char const* r, int e)
+fake_role_suppress_facets(void* u, char const* r, int paint, int input)
 {
     (void)u;
-    (void)p;
-    for( int i = 0; i < g_replaced_count; i++ )
-        if( strcmp(g_replaced_part[i], r) == 0 )
-        {
-            g_replaced_on[i] = e;
-            return 1;
-        }
-    if( g_replaced_count < M_REPLACED_MAX )
-    {
-        snprintf(g_replaced_part[g_replaced_count], sizeof(g_replaced_part[0]), "%s", r);
-        g_replaced_on[g_replaced_count] = e;
-        g_replaced_count++;
-    }
+    (void)r;
+    (void)paint;
+    (void)input;
     return 1;
 }
-/** Is the lane's own node for `r` hidden by a claimant right now? */
-static int
-role_is_replaced(char const* r)
-{
-    for( int i = 0; i < g_replaced_count; i++ )
-        if( strcmp(g_replaced_part[i], r) == 0 )
-            return g_replaced_on[i];
-    return 0;
-}
-/* Anchoring succeeds for a role this fake frame HAS, which is the same set
+/* A UI boundary succeeds for a role this fake frame HAS, the same set
  * fake_role_rect answers for; a NULL role is the release and always works. */
 static int
-fake_role_anchor(void* u, int p, char const* r, int replace, int place)
+fake_ui_boundary(void* u, int p, char const* r, int replace, int place)
 {
     int x = 0;
     (void)p; (void)replace; (void)place;
@@ -904,33 +870,35 @@ click(uint32_t tag)
     }
 }
 
-static struct ToriRS_PluginCtx* g_frame_settings_ctx;
-static struct ToriRS_PluginApi const* g_frame_settings_api;
+static struct ToriRS_ApiV2* g_frame_settings_api;
 
 static void
-frame_settings_init(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api)
+frame_settings_start(struct ToriRS_ApiV2* api, void* state)
 {
-    g_frame_settings_ctx = ctx;
+    (void)state;
     g_frame_settings_api = api;
 }
 
-static struct ToriRS_PluginDef const FRAME_SETTINGS = {
-    .name = "mobile-frame-test-settings",
+static struct ToriRS_PluginDefV2 const FRAME_SETTINGS = {
+    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+    .id = "mobile-frame-test-settings",
     .title = "Mobile Frame Test Settings",
     .version = "1.0.0",
-    .hidden = true,
-    .init = frame_settings_init,
+    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = frame_settings_start,
+    },
 };
 
 static void
 select_frame(char const* id, uint64_t now_ms)
 {
-    CHECK(g_frame_settings_ctx && g_frame_settings_api, "the frame selector is available");
-    if( g_frame_settings_ctx && g_frame_settings_api )
+    CHECK(g_frame_settings_api != NULL, "the frame selector is available");
+    if( g_frame_settings_api )
         CHECK(
-            g_frame_settings_api->frame_select(g_frame_settings_ctx, id),
+            g_frame_settings_api->frame.select(g_frame_settings_api, id) ==
+                TORIRS_RESULT_OK,
             "the canonical frame selection is accepted");
     PluginHost_FrameStart(g_host, now_ms, 0);
 }
@@ -985,8 +953,8 @@ main(void)
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
     e.role_slot = fake_role_slot;
-    e.role_replace = fake_role_replace;
-    e.role_anchor = fake_role_anchor;
+    e.role_suppress_facets = fake_role_suppress_facets;
+    e.ui_boundary = fake_ui_boundary;
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
@@ -1060,7 +1028,7 @@ main(void)
     g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
     CHECK(
-        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
+        PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
         "the frame settings client registers");
     CHECK(g_frame.owned == 0, "nothing owns the frame before selection is resolved");
 
@@ -1073,7 +1041,7 @@ main(void)
     declare(M_W, M_H);
     CHECK(g_frame.owned == 1, "the validated Stone Drawer offer owns the frame");
     CHECK(
-        g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
+        g_frame.canvas == TORIRS_FRAME_CANVAS_WINDOW,
         "a phone frame follows the window rather than pinning a canvas");
     /*
      * The floor travels WITH the claim, and that is the whole point of it: the
@@ -1096,11 +1064,11 @@ main(void)
     declare(M_W, M_H);
 
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, M_W, M_H),
+        slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 0, 0, M_W, M_H),
         "the scene is the whole canvas -- everything else floats on it");
     CHECK(
         slot_is(
-            TORIRS_PLUGIN_SLOT_MINIMAP,
+            TORIRS_HOST_SURFACE_MINIMAP,
             M_W - M_MARGIN - M_MAP_W + M_MAP_HOLE_X,
             M_MARGIN + M_MAP_HOLE_Y,
             146,
@@ -1115,7 +1083,7 @@ main(void)
      */
     CHECK(
         slot_is(
-            TORIRS_PLUGIN_SLOT_COMPASS, M_W - M_MARGIN - M_MAP_W + 17, M_MARGIN + 3, 33, 33),
+            TORIRS_HOST_SURFACE_COMPASS, M_W - M_MARGIN - M_MAP_W + 17, M_MARGIN + 3, 33, 33),
         "and the compass in its small one");
     CHECK(
         named_node_is(
@@ -1127,7 +1095,7 @@ main(void)
         "the map housing is one retained named minimap child");
     CHECK(
         slot_is(
-            TORIRS_PLUGIN_SLOT_MAIN_MODAL,
+            TORIRS_HOST_SURFACE_MODAL,
             (M_W - M_MODAL_W) / 2,
             (M_H - M_MODAL_H) / 2,
             M_MODAL_W,
@@ -1143,12 +1111,12 @@ main(void)
      * with no way to put it away.
      */
     CHECK(
-        !g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].placed,
+        !g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].placed,
         "the drawer starts shut, and a shut drawer is not placed at all");
     {
         int any_member = 0;
         for( int i = 0; i < 14; i++ )
-            if( g_frame.member[TORIRS_PLUGIN_SLOT_SIDEBAR][i].placed )
+            if( g_frame.member[TORIRS_HOST_SURFACE_SIDEBAR][i].placed )
                 any_member = 1;
         CHECK(!any_member, "and neither are its fourteen mounts");
     }
@@ -1157,7 +1125,7 @@ main(void)
      * cannot be reached by tapping the world. */
     CHECK(
         slot_is(
-            TORIRS_PLUGIN_SLOT_CHAT,
+            TORIRS_HOST_SURFACE_CHAT,
             M_CHAT_FRINGE,
             M_CHAT_Y(M_H),
             M_CHAT_W,
@@ -1165,7 +1133,7 @@ main(void)
         "the chat sheet is pinned to the bottom-left corner, inset by its fringe");
     for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
         CHECK(
-            g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].placed,
+            g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i].placed,
             "every filter button is placed -- they stay the lane's own controls");
 
     /* ---- 3. the rail, and the tap that opens the drawer ----------------- */
@@ -1260,7 +1228,7 @@ main(void)
     declare(M_W, M_H);
     CHECK(
         slot_is(
-            TORIRS_PLUGIN_SLOT_SIDEBAR,
+            TORIRS_HOST_SURFACE_SIDEBAR,
             M_W - M_MARGIN - M_RAIL_W - M_PANEL_W,
             M_H - M_MARGIN - M_PANEL_H,
             M_PANEL_W,
@@ -1279,7 +1247,7 @@ main(void)
     click(M_TAG_TAB | 3u);
     declare(M_W, M_H);
     CHECK(
-        !g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].placed,
+        !g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].placed,
         "tapping the open tab again shuts the drawer");
     CHECK(g_frame.select_calls == 0, "and does not re-select the tab it is closing");
 
@@ -1287,7 +1255,7 @@ main(void)
     click(M_TAG_TAB | 5u);
     declare(M_W, M_H);
     CHECK(g_frame.selected_tab == 5, "a different stone switches panels");
-    CHECK(g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].placed, "and leaves the drawer open");
+    CHECK(g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].placed, "and leaves the drawer open");
 
     /* ---- 4. resize ----------------------------------------------------- */
 
@@ -1303,10 +1271,10 @@ main(void)
         int const h = 720;
 
         declare(w, h);
-        CHECK(slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, w, h), "the scene follows the canvas");
+        CHECK(slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 0, 0, w, h), "the scene follows the canvas");
         CHECK(
             slot_is(
-                TORIRS_PLUGIN_SLOT_SIDEBAR,
+                TORIRS_HOST_SURFACE_SIDEBAR,
                 w - M_MARGIN - M_RAIL_W - M_PANEL_W,
                 h - M_MARGIN - M_PANEL_H,
                 M_PANEL_W,
@@ -1314,7 +1282,7 @@ main(void)
             "the drawer stays in the bottom-right corner");
         CHECK(
             slot_is(
-                TORIRS_PLUGIN_SLOT_MINIMAP,
+                TORIRS_HOST_SURFACE_MINIMAP,
                 w - M_MARGIN - M_MAP_W + M_MAP_HOLE_X,
                 M_MARGIN + M_MAP_HOLE_Y,
                 146,
@@ -1322,7 +1290,7 @@ main(void)
             "the map stays in the top-right corner");
         CHECK(
             slot_is(
-                TORIRS_PLUGIN_SLOT_CHAT,
+                TORIRS_HOST_SURFACE_CHAT,
                 M_CHAT_FRINGE,
                 M_CHAT_Y(h),
                 M_CHAT_W,
@@ -1330,7 +1298,7 @@ main(void)
             "the sheet stays in the bottom-left corner");
         CHECK(
             slot_is(
-                TORIRS_PLUGIN_SLOT_MAIN_MODAL,
+                TORIRS_HOST_SURFACE_MODAL,
                 (w - M_MODAL_W) / 2,
                 (h - M_MODAL_H) / 2,
                 M_MODAL_W,
@@ -1354,38 +1322,38 @@ main(void)
             "the case is only meaningful on a canvas the two would overlap on");
         declare(narrow, M_MIN_H);
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].placed,
+            g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].placed,
             "with the drawer open on a narrow canvas the drawer stays");
         CHECK(
-            !g_frame.slot[TORIRS_PLUGIN_SLOT_CHAT].placed,
+            !g_frame.slot[TORIRS_HOST_SURFACE_CHAT].placed,
             "and the sheet gives way rather than being painted through");
 
         g_frame.active_tab = 5;
         click(M_TAG_TAB | 5u);
         declare(narrow, M_MIN_H);
-        CHECK(!g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].placed, "shutting the drawer");
+        CHECK(!g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].placed, "shutting the drawer");
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_CHAT].placed,
+            g_frame.slot[TORIRS_HOST_SURFACE_CHAT].placed,
             "brings the sheet back -- the switch was never flipped");
     }
 
     /* ---- 6. the chat switch -------------------------------------------- */
 
     declare(M_W, M_H);
-    CHECK(g_frame.slot[TORIRS_PLUGIN_SLOT_CHAT].placed, "the sheet is up");
+    CHECK(g_frame.slot[TORIRS_HOST_SURFACE_CHAT].placed, "the sheet is up");
     click(M_TAG_CHAT);
     declare(M_W, M_H);
-    CHECK(!g_frame.slot[TORIRS_PLUGIN_SLOT_CHAT].placed, "the switch puts the sheet away");
+    CHECK(!g_frame.slot[TORIRS_HOST_SURFACE_CHAT].placed, "the switch puts the sheet away");
     {
         int any = 0;
         for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
-            if( g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].placed )
+            if( g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i].placed )
                 any = 1;
         CHECK(!any, "and its filter buttons with it");
     }
     click(M_TAG_CHAT);
     declare(M_W, M_H);
-    CHECK(g_frame.slot[TORIRS_PLUGIN_SLOT_CHAT].placed, "and brings it back");
+    CHECK(g_frame.slot[TORIRS_HOST_SURFACE_CHAT].placed, "and brings it back");
 
     /* ---- 7. a tab this cache does not have ------------------------------ */
 
@@ -1446,12 +1414,12 @@ main(void)
     g_frame.active_tab = 5;
     click(M_TAG_TAB | 5u); /* a tab that IS given, and the open one: shuts it */
     declare(M_W, M_H);
-    CHECK(!g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].placed, "the drawer is shut");
+    CHECK(!g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].placed, "the drawer is shut");
     g_frame.select_calls = 0;
     click(M_TAG_TAB | 3u);
     declare(M_W, M_H);
     CHECK(
-        !g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].placed,
+        !g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].placed,
         "a tap on a rock the server has not filled leaves the drawer shut");
     CHECK(g_frame.select_calls == 0, "and selects nothing");
     g_frame.ungiven_tab = -1;
@@ -1488,7 +1456,7 @@ main(void)
     declare(M_W, M_H);
     CHECK(g_frame.owned == 1, "the login-time candidate activates after validation");
     CHECK(
-        g_frame.slot[TORIRS_PLUGIN_SLOT_VIEWPORT].placed,
+        g_frame.slot[TORIRS_HOST_SURFACE_VIEWPORT].placed,
         "and the next layout pass declares it");
 
     /* ---- 10. the OldSchool lane ---------------------------------------- */
@@ -1513,7 +1481,6 @@ main(void)
         "mobile-gameframe/stone-drawer");
     g_frame_preference_present = 1;
     g_frame_preference_migration = 1;
-    g_frame_settings_ctx = NULL;
     g_frame_settings_api = NULL;
     g_host = PluginHost_New(&e);
     e.user = g_host;
@@ -1521,7 +1488,7 @@ main(void)
     g_host = PluginHost_New(&e);
     g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
     CHECK(
-        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
+        PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
         "the frame settings client registers on OldSchool");
     PluginHost_Start(g_host);
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the drawer on");
@@ -1536,10 +1503,10 @@ main(void)
         int const c_rail_y = M_H - M_MARGIN - M_RAIL_H;
 
         CHECK(
-            slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, M_H - 165, 519, 165),
+            slot_is(TORIRS_HOST_SURFACE_CHAT, 0, M_H - 165, 519, 165),
             "the chat PACK's 519x165 container is placed whole, flush with the corner");
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_ORBS].placed,
+            g_frame.slot[TORIRS_HOST_SURFACE_ORBS].placed,
             "the orb block is placed beside the map");
         CHECK(
             named_node_is(
@@ -1550,14 +1517,14 @@ main(void)
                 M_MAP_H),
             "Auto keeps the 2004 lizard housing on an OldSchool lane");
         CHECK(
-            g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
-                g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].art >= 0,
+            g_frame.skin[TORIRS_HOST_SURFACE_COMPASS].placed &&
+                g_frame.skin[TORIRS_HOST_SURFACE_COMPASS].art >= 0,
             "and brings the 2004 compass rose, since the cache's is OldSchool's");
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_ORBS].x ==
-                    g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].x - 53 &&
-                g_frame.slot[TORIRS_PLUGIN_SLOT_ORBS].y ==
-                    g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].y + 2,
+            g_frame.slot[TORIRS_HOST_SURFACE_ORBS].x ==
+                    g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].x - 53 &&
+                g_frame.slot[TORIRS_HOST_SURFACE_ORBS].y ==
+                    g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].y + 2,
             "at the offset from the map window the resizable toplevels use");
 
         draw(M_W, M_H);
@@ -1583,40 +1550,6 @@ main(void)
             "no parchment is blitted under the pack's own backing");
     }
 
-    /*
-     * The chat pack's DECORATION, claimed and re-dressed.
-     *
-     * The pack draws its own backing, bar and eight filter plates, and the
-     * frame layer places a pack whole -- so without this the Stone Drawer
-     * stands around an OldSchool chatbox. The pieces are claimed by name
-     * (the profile binds them) and painted at the box the pack gives them.
-     */
-    {
-        /* The host paints a claimant's declaration on the CANVAS pass, at the
-         * part's own box -- so the proof is a blit at each piece's corner,
-         * which is where the pack's own art was. */
-        int plates = 0;
-        int hidden = 0;
-
-        PluginHost_ChromeTick(g_host, M_W, M_H);
-        g_frame.blits = 0;
-        PluginHost_DrawCanvas(g_host, M_W, M_H);
-        CHECK(!blitted_at(0, M_H - 165), "the lane's chat-pack backing remains authoritative");
-        CHECK(!blitted_at(0, M_H - 23), "the lane's chat-pack bar remains authoritative");
-        for( int n = 0; n < 8; n++ )
-        {
-            char part[16];
-            snprintf(part, sizeof(part), "chat_plate_%d", n);
-            plates += blitted_at(3 + n * 62, M_H - 22) ? 1 : 0;
-            hidden += role_is_replaced(part) ? 1 : 0;
-        }
-        /* A 2004 filter is a label on the stone, so the plate is claimed to be
-         * taken AWAY: nothing of the plugin's is painted at its corner and the
-         * pack's own is hidden under it. @see MOBILE_CHAT_PIECE. */
-        CHECK(plates == 0, "no plate is painted under the eight filter labels");
-        CHECK(hidden == 0, "and no native plate is suppressed by a legacy claim");
-    }
-
     /* The other family, asked for: OldSchool Mobile's own rail. */
     PluginHost_ConfigSet(g_host, g_plugin, "art", "OldSchool");
     PluginHost_FrameStart(g_host, 3100, 0);
@@ -1632,7 +1565,7 @@ main(void)
                 "frame.sidebar.tab.3", rail_x + 3, rail_y + 3, 40, 40),
             "that rail carries the named combat tab");
         CHECK(
-            slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, M_H - 165, 519, 165),
+            slot_is(TORIRS_HOST_SURFACE_CHAT, 0, M_H - 165, 519, 165),
             "while the chat stays the lane's pack: the art is a family, the chat a lane");
     }
 
@@ -1662,7 +1595,7 @@ main(void)
         draw(M_W, M_H);
 
         CHECK(
-            slot_is(TORIRS_PLUGIN_SLOT_CHAT, M_CHAT_FRINGE, chat_y, chat_w, chat_h),
+            slot_is(TORIRS_HOST_SURFACE_CHAT, M_CHAT_FRINGE, chat_y, chat_w, chat_h),
             "the chat surface is the size the LANE states, not the plugin's 479x96");
         /*
          * And the paper is composed AROUND it rather than scaled to it. The
@@ -1682,8 +1615,8 @@ main(void)
             int const cell = chat_w / 4;
             int spread = 0;
             for( int i = 0; i < 4; i++ )
-                spread += g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].placed &&
-                                  g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].x ==
+                spread += g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i].placed &&
+                                  g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i].x ==
                                       i * cell + ((cell - 100) / 2) + M_CHAT_FRINGE
                               ? 1
                               : 0;
@@ -1698,7 +1631,7 @@ main(void)
         declare(M_W, M_H);
         CHECK(
             slot_is(
-                TORIRS_PLUGIN_SLOT_CHAT, M_CHAT_FRINGE, M_CHAT_Y(M_H), M_CHAT_W, M_CHAT_H),
+                TORIRS_HOST_SURFACE_CHAT, M_CHAT_FRINGE, M_CHAT_Y(M_H), M_CHAT_W, M_CHAT_H),
             "a lane with no size to state falls back to the builtin's 479x96");
     }
 
@@ -1736,7 +1669,7 @@ main(void)
 
         CHECK(
             slot_is(
-                TORIRS_PLUGIN_SLOT_MINIMAP,
+                TORIRS_HOST_SURFACE_MINIMAP,
                 map_x + M_MAP_HOLE_X,
                 M_MARGIN + M_MAP_HOLE_Y,
                 146,
@@ -1759,7 +1692,7 @@ main(void)
          * what tells "laid out in the free box" apart from "handed a narrower
          * canvas". */
         CHECK(
-            slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, M_W, M_H),
+            slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 0, 0, M_W, M_H),
             "the scene still fills the whole window -- the rail floats on it");
         CHECK(
             named_node_is("chat-toggle", M_MARGIN, M_H - 165 - M_MARGIN - 25, 36, 25),
@@ -1778,7 +1711,7 @@ main(void)
         declare(M_W, M_H);
         CHECK(
             slot_is(
-                TORIRS_PLUGIN_SLOT_MINIMAP,
+                TORIRS_HOST_SURFACE_MINIMAP,
                 M_W - M_MARGIN - M_MAP_W + M_MAP_HOLE_X,
                 M_MARGIN + M_MAP_HOLE_Y,
                 146,

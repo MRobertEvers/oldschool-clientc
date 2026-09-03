@@ -53,18 +53,20 @@
 #define GLES2_DUALCORE_FEED_SPINS_BEFORE_YIELD 4096u
 
 /* How far ahead of dispatch the draw translates inside a world pass, in
- * commands; 0 is the whole pass. The lead that matters is in TIME, not
- * slots: a tile whose stage the worker already did costs the draw ~3 us, so
- * 16 slots of tiles is ~50 us of lead, less than one big model's stage
- * (200+ us), and the draw caught the worker mid-model 93 times a frame at
- * 16 and 11 times at 128 (kr7, kr9). The whole pass looked free (the same
- * translation, done before the dispatch instead of interleaved with it) but
- * measured worse on both sides -- stalls 21/frame against 11, and the worker
- * 0.8 ms/frame slower (kr10): a command translated a whole pass before it is
- * staged has fallen out of L1 for both threads, where at 128 the draw's
- * translation and the worker's stage touch the same few KB within tens of
- * microseconds of each other. TORIRS_GLES2_DUALCORE_LOOKAHEAD overrides. */
-#define GLES2_DUALCORE_LOOKAHEAD_DEFAULT 128u
+ * commands; 0 is the whole pass, which is the default. The lead that
+ * matters is in TIME, not slots: a tile whose stage the worker already did
+ * costs the draw ~3 us, so 16 slots of tiles is ~50 us of lead, less than
+ * one big model's stage (200+ us). Measured in-launch, arms alternating
+ * every 300 frames (TORIRS_GLES2_DUALCORE_LOOKAHEAD_AB=0,128, kr13): whole
+ * pass 15.27 ms/frame draw CPU and 6.55 worker against 15.48 and 7.05 at
+ * 128, over eight alternations; the earlier verdict the other way (kr10)
+ * was two launches compared, and a launch varies by more than that. The
+ * whole pass costs the draw nothing it did not already pay -- the same
+ * translation, before the dispatch instead of interleaved with it -- and
+ * the stall that remains (§ draw-stall) is the worker's time through the
+ * big models at the end of the pass, which no lookahead changes.
+ * TORIRS_GLES2_DUALCORE_LOOKAHEAD overrides. */
+#define GLES2_DUALCORE_LOOKAHEAD_DEFAULT 0u
 
 /* The debug line's model classes: below this many faces a model is "small". */
 #define GLES2_DUALCORE_SMALL_FACES 64
@@ -186,12 +188,15 @@ struct ToriRS_GLES2DualCore
     uint64_t draw_cpu_ns_last;
     uint64_t worker_cpu_ns_last;
 
-    /* TORIRS_GLES2_DUALCORE_LOOKAHEAD_AB=a,b: alternate the lookahead
-     * between the two values every debug period, so the two arms are
-     * measured in the same scene of the same launch (a launch lands in a
-     * scene state that varies the draw by more than a millisecond). */
-    bool ab;
-    uint32_t ab_lookahead[2];
+    /* TORIRS_GLES2_DUALCORE_LOOKAHEAD_AB=a,b / TORIRS_GLES2_DUALCORE_LEAD_AB=a,b:
+     * alternate the knob between the two values every debug period, so the
+     * two arms are measured in the same scene of the same launch (a launch
+     * lands in a scene state that varies the draw by more than a
+     * millisecond, kr12). */
+    bool ab_lookahead;
+    bool ab_lead;
+    uint32_t ab_lookahead_arms[2];
+    uint32_t ab_lead_arms[2];
     unsigned ab_arm;
 };
 
@@ -382,11 +387,11 @@ done:
 
 /* TORIRS_GLES2_DUALCORE_PIN: 0 leaves placement to the scheduler; 1 pins
  * the worker to cpu1; 2 pins the worker to cpu1 AND the draw to cpu0; 3 the
- * other way round. Sampling /proc's `processor` field on the phone (kr13,
- * 2026-09-03) found the two threads on the SAME core in over half the
- * samples with the worker runnable: the scheduler wakes the worker on the
- * waker's core each frame and the balancer takes milliseconds to move it,
- * during which every draw stall is a wait on a thread that cannot run. */
+ * other way round. On the XT1060 (Motorola 3.4 kernel) none of it takes:
+ * sched_setaffinity returns 0 and the mask read back is still 0-1, every
+ * frame (kr13, 2026-09-03) -- the vendor kernel ignores affinity from
+ * unprivileged threads, presumably for its hotplug governor's sake. Kept
+ * for kernels that honour it; the lane must not depend on it. */
 static void
 dualcore_pin_to_cpu(struct ToriRS_GLES2DualCore* lane, int cpu, char const* who)
 {
@@ -424,12 +429,10 @@ dualcore_worker_pin(struct ToriRS_GLES2DualCore* lane)
         dualcore_pin_to_cpu(lane, 0, "worker");
 }
 
-/* Re-applied every frame, not once: this phone's hotplug governor takes
- * cpu1 offline whenever the load dips (the login screen, a menu), and a
- * thread pinned to a CPU that goes offline has its mask reset to all CPUs
- * by the kernel -- the first pin=2 run (kr13) ended with both masks at 0-1
- * and the threads on the wrong cores. One sched_setaffinity a frame is a
- * microsecond. */
+/* Re-applied every frame, not once: a hotplug governor that takes cpu1
+ * offline when the load dips (the login screen, a menu) leaves any thread
+ * pinned to it with its mask reset to all CPUs. One sched_setaffinity a
+ * frame is a microsecond. */
 static void
 dualcore_draw_pin(struct ToriRS_GLES2DualCore* lane)
 {
@@ -870,7 +873,7 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
     if( lane->worker_cpu_clock_ok && clock_gettime(lane->worker_cpu_clock, &ts) == 0 )
         worker_cpu_ns = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
     TORIRS_ERR(
-        "gles2-dualcore: lookahead %u draw-cpu %.2f worker-cpu %.2f ms/frame | "
+        "gles2-dualcore: lookahead %u lead %u draw-cpu %.2f worker-cpu %.2f ms/frame | "
         "frames %llu dual %llu taken %llu claimed-by-draw %llu (worker saw %llu) "
         "inline %llu stalls %llu (spins %llu) [tile %llu/%llu small %llu/%llu large %llu/%llu] "
         "lead-hist [0 %llu, 1-7 %llu, 8-63 %llu, 64-511 %llu, 512+ %llu] "
@@ -878,6 +881,7 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         "feed-waits %llu (spins %llu) feed-overflow-frames %u reprojected %u "
         "worker %.2f ms/frame (feed-wait %.2f) draw-stall %.2f ms/frame join %.3f ms/frame\n",
         lane->lookahead,
+        lane->lead,
         (double)(draw_cpu_ns - lane->draw_cpu_ns_last) / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
         (double)(worker_cpu_ns - lane->worker_cpu_ns_last) / 1.0e6 /
             (double)GLES2_DUALCORE_DEBUG_PERIOD,
@@ -941,10 +945,13 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
     lane->stall_ns_window = 0u;
     lane->draw_cpu_ns_last = draw_cpu_ns;
     lane->worker_cpu_ns_last = worker_cpu_ns;
-    if( lane->ab )
+    if( lane->ab_lookahead || lane->ab_lead )
     {
         lane->ab_arm ^= 1u;
-        lane->lookahead = lane->ab_lookahead[lane->ab_arm];
+        if( lane->ab_lookahead )
+            lane->lookahead = lane->ab_lookahead_arms[lane->ab_arm];
+        if( lane->ab_lead )
+            lane->lead = lane->ab_lead_arms[lane->ab_arm];
     }
 }
 
@@ -1023,15 +1030,23 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
     }
     lane->debug = dualcore_env_long("TORIRS_GLES2_DUALCORE_DEBUG", 0) != 0;
     {
-        char const* ab = getenv("TORIRS_GLES2_DUALCORE_LOOKAHEAD_AB");
-        unsigned a;
-        unsigned b;
-        if( ab && sscanf(ab, "%u,%u", &a, &b) == 2 )
+        char const* arms = getenv("TORIRS_GLES2_DUALCORE_LOOKAHEAD_AB");
+        unsigned first;
+        unsigned second;
+        if( arms && sscanf(arms, "%u,%u", &first, &second) == 2 )
         {
-            lane->ab = true;
-            lane->ab_lookahead[0] = a;
-            lane->ab_lookahead[1] = b;
-            lane->lookahead = a;
+            lane->ab_lookahead = true;
+            lane->ab_lookahead_arms[0] = first;
+            lane->ab_lookahead_arms[1] = second;
+            lane->lookahead = first;
+        }
+        arms = getenv("TORIRS_GLES2_DUALCORE_LEAD_AB");
+        if( arms && sscanf(arms, "%u,%u", &first, &second) == 2 )
+        {
+            lane->ab_lead = true;
+            lane->ab_lead_arms[0] = first;
+            lane->ab_lead_arms[1] = second;
+            lane->lead = first;
         }
     }
 
@@ -1058,8 +1073,10 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
         else
         {
             lane->thread_started = true;
+#if defined(__linux__)
             lane->worker_cpu_clock_ok =
                 pthread_getcpuclockid(lane->thread, &lane->worker_cpu_clock) == 0;
+#endif
         }
         pthread_attr_destroy(&attributes);
     }

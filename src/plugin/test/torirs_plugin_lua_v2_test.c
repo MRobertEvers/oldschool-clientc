@@ -27,6 +27,7 @@ static int g_headings;
 static int g_surfaces;
 static int g_reasons;
 static int g_disabled_self;
+static int g_config_dispatches;
 
 #define CHECK(condition, message)                                                       \
     do                                                                                  \
@@ -90,6 +91,21 @@ static bool fake_config_get_int(struct ToriRS_ApiV2* api, char const* key, int* 
     if( strcmp(key, "answer") != 0 ) return false;
     *out = 42;
     return true;
+}
+static enum ToriRS_Result
+fake_config_set(struct ToriRS_ApiV2* api, char const* key, char const* value)
+{
+    char const* id = ((struct FakeInstance*)api->instance)->id;
+    (void)value;
+    for( int i = 0; i < g_registered; i++ )
+    {
+        if( strcmp(g_defs[i]->id, id) != 0 ) continue;
+        if( g_defs[i]->callbacks.on_config_changed )
+            g_defs[i]->callbacks.on_config_changed(api, NULL, key);
+        g_config_dispatches++;
+        return TORIRS_RESULT_OK;
+    }
+    return TORIRS_RESULT_NOT_FOUND;
 }
 static struct ToriRS_UiNodeRef fake_ui_ref(struct ToriRS_ApiV2* api, char const* name)
 {
@@ -181,6 +197,7 @@ fake_api(struct FakeInstance* instance)
     api.core.plugin_id = fake_plugin_id;
     api.config.struct_size = sizeof(api.config);
     api.config.get_int = fake_config_get_int;
+    api.config.set = fake_config_set;
     api.ui.struct_size = sizeof(api.ui);
     api.ui.ref = fake_ui_ref;
     api.ui.update = fake_ui_update;
@@ -235,7 +252,8 @@ test_runtime(struct ToriRS_PluginHost* host)
 {
     static char const LEGACY_SOURCE[] = "return { name='legacy' }";
     static char const INVALID_ENUM_SOURCE[] =
-        "return {id='invalid-enum',on_start=function(api) api.placement.area(99) end}";
+        /* Deliberately collides with lua-v2-test in the 32-slot id table. */
+        "return {id='invalid-enum-59',on_start=function(api) api.placement.area(99) end}";
     static char const DRIFT_SOURCE[] =
         "return {id='lua-v2-test',title='Lua V2 Test',version='2',"
         "frames={{id='changed',title='Changed',canvas='fixed',width=765,height=503,"
@@ -272,7 +290,13 @@ test_runtime(struct ToriRS_PluginHost* host)
         "   {flags=3,label='Camera',action='capture',actions={'capture'}}))"
         "  api.core.log('started')"
         " end,"
-        " on_draw_canvas=function(api,draw) draw.rect(1,2,3,4,0xffffff,255) end,"
+        " on_config_changed=function(api,key)"
+        "  assert(key=='answer' and api.core.plugin_id()=='lua-v2-test')"
+        "  api.core.log('changed')"
+        " end,"
+        " on_draw_canvas=function(api,draw)"
+        "  assert(api.config.set('answer',43));draw.rect(1,2,3,4,0xffffff,255)"
+        " end,"
         " on_ui_build=function(api,panel,view) assert(view=='page');panel.heading('Native V2') end"
         "}";
     struct FakeInstance instance = { "lua-v2-test", "lua-v2-test/ready" };
@@ -339,14 +363,16 @@ test_runtime(struct ToriRS_PluginHost* host)
     CHECK(g_disabled_self == 1 && g_reported_errors == 0 && g_enabled_calls == 0,
         "invalid frame enum refuses the provider through the V2 lifecycle");
     g_defs[0]->frames[0].draw(&api, NULL, &draw);
-    CHECK(g_logs == 1 && g_ui_enabled == 1 && g_ui_updates == 1,
-        "canonical API calls reached V2 functions");
+    CHECK(g_logs == 2 && g_ui_enabled == 1 && g_ui_updates == 1,
+        "canonical and synchronously reentrant API calls reached V2 functions");
     CHECK(g_draws == 2 && g_headings == 1, "scoped draw/panel builders reached V2 functions");
     CHECK(g_surfaces == 1 && g_reasons == 1, "scoped frame builder reached V2 functions");
+    CHECK(g_config_dispatches == 1,
+        "config.set synchronously dispatched on_config_changed once");
     CHECK(g_reload[0] != NULL, "source reload handler installed");
     g_reload[0](host, 0, g_reload_user[0]);
     g_defs[0]->callbacks.on_start(&api, NULL);
-    CHECK(g_logs == 2 && g_ui_updates == 2, "reload rebuilt and restarted the VM");
+    CHECK(g_logs == 3 && g_ui_updates == 2, "reload rebuilt and restarted the VM");
     context.offer_id = "ready";
     CHECK(g_defs[0]->frames[0].build(&api, NULL, &frame, &context) == TORIRS_FRAME_READY,
         "reload rebuilt the frame-offer function");
@@ -361,10 +387,10 @@ test_runtime(struct ToriRS_PluginHost* host)
     CHECK(g_disabled_self == 2,
         "changed static frame descriptor is refused on restart");
 
-    CHECK(PluginLua_AddScript(host, "invalid-enum", INVALID_ENUM_SOURCE,
+    CHECK(PluginLua_AddScript(host, "invalid-enum-59", INVALID_ENUM_SOURCE,
               (int)strlen(INVALID_ENUM_SOURCE)) == 1,
         "enum misuse probe registered");
-    struct FakeInstance invalid_instance = { "invalid-enum", NULL };
+    struct FakeInstance invalid_instance = { "invalid-enum-59", NULL };
     struct ToriRS_ApiV2 invalid_api = fake_api(&invalid_instance);
     g_defs[1]->callbacks.on_start(&invalid_api, NULL);
     CHECK(g_disabled_self == 3 && g_reported_errors == 0 && g_enabled_calls == 0,

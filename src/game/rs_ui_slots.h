@@ -102,7 +102,7 @@ RS_UISlots_TabEnabled(
  * hidden, and a frame that drew no icons at all is a worse wrong than one that
  * drew every icon.
  *
- * @see ToriRS_PluginApi::tab_enabled, which is this verb reaching a plugin.
+ * @see ToriRS_CacheApiV2::tab_enabled, which is this verb reaching a plugin.
  */
 int
 RS_UISlots_TabGiven(struct App* app, int tabno);

@@ -4,7 +4,9 @@
 /** The object's own appearance: the host-only third placement. Numerically
  *  what ui/uitree_host.h calls UITREE_ROLE_PLACE_SELF; the two headers do not
  *  include each other, so the number is stated on both sides. */
-#define PLUGIN_ANCHOR_PLACE_SELF 2
+#define PLUGIN_UI_BOUNDARY_AFTER 0
+#define PLUGIN_UI_BOUNDARY_BEFORE 1
+#define PLUGIN_UI_BOUNDARY_SELF 2
 
 /*
  * The host: the bus, the api implementation, the config store, and the entry
@@ -336,8 +338,8 @@ struct ToriRS_PluginEngine
     /** Select/reset the role anchor for the open canvas subscriber. A NULL
      * role resets it; a non-NULL empty role selects active-invalid/drop state;
      * `replace` says the caller owns the replacement claim. */
-    /** `place` is enum ToriRS_LegacyAnchorPlace, or PLUGIN_ANCHOR_PLACE_SELF
-     *  for the replacement owner's own appearance -- the object itself, which
+    /** `place` is one of PLUGIN_UI_BOUNDARY_*. SELF means
+     *  the provider's own appearance -- the object itself, which
      *  everything BEFORE paints under and everything AFTER paints over. */
     int (*ui_boundary)(
         void* user,

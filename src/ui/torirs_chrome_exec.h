@@ -59,7 +59,7 @@
  * switch on for one widget kind.
  *
  * LOCKED is the roster's essential row: it has no second state, so it has no
- * switch at all and its name takes the column (@see ToriRS_PluginDef::essential
+ * switch at all and its name takes the column (@see ToriRS_PluginDefV2 flags
  * and ToriRSChrome_ListRowLocked). Executors that never heard it drew the
  * switch anyway, unchecked -- a red cross beside Client Settings and Feature
  * Flags, which reads as two disabled plugins rather than as two that cannot be

@@ -2101,7 +2101,7 @@ frame_on_layout(
      * there is no frame to dress. Applying an empty retained declaration there
      * would hide title furniture behind a frame for a screen nobody is on yet.
      *
-     * @see ToriRS_PluginApi::screen. Declared here rather than left to the
+     * @see ToriRS_CoreApiV2::screen. Declared here rather than left to the
      * host because only the plugin knows that its effect is a GAME effect;
      * the host cannot tell a frame dresser from an overlay that belongs
      * everywhere.
@@ -2247,7 +2247,7 @@ frame_on_draw(
          * frame that recorded the answer at its first EV_LAYOUT would still be
          * drawing a new character's empty rail an hour later. The client's own
          * chrome gates the same two pictures on the same fact.
-         * @see ToriRS_PluginApi::tab_enabled.
+         * @see ToriRS_CacheApiV2::tab_enabled.
          */
         bool const given = g_api->cache.tab_enabled(g_api, t->tabno);
         /* Against the tab NUMBER, not the box index: on 548 they differ, and

@@ -2368,7 +2368,7 @@ done:
  * Both numbers used to be constants here. That is a plugin asserting the shape
  * of every cache it will ever be loaded against, and it was already wrong on
  * two of the four OldSchool toplevels -- which is why the API grew a verb to
- * ask with. @see ToriRS_PluginApi::slot_native_size.
+ * ask with. @see ToriRS_FrameApiV2::surface_native_size.
  *
  * The fallback is the lane's own default and not an error path: a frame whose
  * chat is sized as a proportion of its parent has no native size to report,
@@ -3291,7 +3291,7 @@ mobile_on_draw(
          * a time and a new character starts with almost none of them, so an
          * answer recorded at declaration would draw the whole rail for someone
          * who has been given one panel. Hence the ask here, in the draw pass.
-         * @see ToriRS_PluginApi::tab_enabled.
+         * @see ToriRS_CacheApiV2::tab_enabled.
          */
         bool const given = g_api->cache.tab_enabled(g_api, t->tabno);
         int iw = 0;

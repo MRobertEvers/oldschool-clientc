@@ -25,7 +25,6 @@
  */
 
 #include "engine/png_decode.h"
-#include "plugin/torirs_plugin.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_v2.h"
 
@@ -108,8 +107,8 @@ static struct
         int y;
         int w;
         int h;
-    } slot[TORIRS_PLUGIN_SLOT_COUNT];
-    struct FakeRect member[TORIRS_PLUGIN_SLOT_COUNT][FAKE_SLOT_MEMBERS];
+    } slot[TORIRS_HOST_SURFACE_COUNT];
+    struct FakeRect member[TORIRS_HOST_SURFACE_COUNT][FAKE_SLOT_MEMBERS];
     int begin_calls;
     int end_calls;
 
@@ -131,7 +130,7 @@ static struct
         int placed;
         int art;
         int mask;
-    } skin[TORIRS_PLUGIN_SLOT_COUNT];
+    } skin[TORIRS_HOST_SURFACE_COUNT];
     struct
     {
         int placed;
@@ -139,7 +138,7 @@ static struct
         int x;
         int y;
         int trans;
-    } overlay[TORIRS_PLUGIN_SLOT_COUNT];
+    } overlay[TORIRS_HOST_SURFACE_COUNT];
     int scrollbar_pieces;
     /** A sidebar tab this fake gameframe does NOT have, or -1. */
     int missing_tab;
@@ -153,7 +152,7 @@ static struct
 static int
 fake_has_slot(int slot)
 {
-    return slot != TORIRS_PLUGIN_SLOT_COMPASS;
+    return slot != TORIRS_HOST_SURFACE_COMPASS;
 }
 
 static void
@@ -190,12 +189,12 @@ static int
 fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
 {
     (void)u;
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_COUNT);
     if( member >= FAKE_SLOT_MEMBERS )
         return 0;
     /* A lane whose sidebar is missing one panel -- rs289lc has no clan chat --
      * answers "no such member" for it, and the layout has to cope. */
-    if( slot == TORIRS_PLUGIN_SLOT_SIDEBAR && member >= 0 && member == g_frame.missing_tab )
+    if( slot == TORIRS_HOST_SURFACE_SIDEBAR && member >= 0 && member == g_frame.missing_tab )
         return 0;
     if( member < 0 )
     {
@@ -222,7 +221,7 @@ fake_layout_slot_exists(void* u, int slot, int member)
     (void)u;
     if( member >= FAKE_SLOT_MEMBERS )
         return 0;
-    if( slot == TORIRS_PLUGIN_SLOT_SIDEBAR && member >= 0 &&
+    if( slot == TORIRS_HOST_SURFACE_SIDEBAR && member >= 0 &&
         member == g_frame.missing_tab )
         return 0;
     return fake_has_slot(slot);
@@ -234,7 +233,7 @@ static int
 fake_layout_slot_skin(void* u, int slot, int art, int mask)
 {
     (void)u;
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_COUNT);
     g_frame.skin[slot].placed = 1;
     g_frame.skin[slot].art = art;
     g_frame.skin[slot].mask = mask;
@@ -245,7 +244,7 @@ static int
 fake_layout_slot_overlay(void* u, int slot, int image, int x, int y, int trans)
 {
     (void)u;
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_COUNT);
     g_frame.overlay[slot].placed = 1;
     g_frame.overlay[slot].image = image;
     g_frame.overlay[slot].x = x;
@@ -473,7 +472,7 @@ fake_asset_read(void* u, char const* plugin, char const* name)
 /* -- everything the plugin does not use, answered flatly -- */
 
 /* In game: these harnesses exercise behaviour that is gated on it.
- * @see ToriRS_PluginApi::screen. */
+ * @see ToriRS_CoreApiV2::screen. */
 /* Mutable so the enabled-at-the-title scenario can move it; everything else
  * leaves it be. */
 static int g_screen_now = TORIRS_SCREEN_GAME;
@@ -583,7 +582,7 @@ static int
 fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h)
 {
     (void)u;
-    if( a < 0 || a >= TORIRS_PLUGIN_SLOT_COUNT || !g_frame.slot[a].placed )
+    if( a < 0 || a >= TORIRS_HOST_SURFACE_COUNT || !g_frame.slot[a].placed )
         return 0;
     if( x ) *x = g_frame.slot[a].x;
     if( y ) *y = g_frame.slot[a].y;
@@ -593,7 +592,7 @@ fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h)
 }
 
 /** The lane states no size for any surface, so a caller falls back to its own.
- *  @see ToriRS_PluginApi::slot_native_size. */
+ *  @see ToriRS_FrameApiV2::surface_native_size. */
 static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
@@ -608,7 +607,7 @@ static int
 fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h)
 {
     (void)u;
-    if( a < 0 || a >= TORIRS_PLUGIN_SLOT_COUNT || m < 0 || m >= FAKE_SLOT_MEMBERS )
+    if( a < 0 || a >= TORIRS_HOST_SURFACE_COUNT || m < 0 || m >= FAKE_SLOT_MEMBERS )
         return 0;
     if( !g_frame.member[a][m].placed )
         return 0;
@@ -641,9 +640,9 @@ static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (
 static int fake_role_id(void* u, char const* r) { (void)u; (void)r; return -1; }
 static int fake_role_slot(void* u, char const* r, int* s, int* m)
 { (void)u; (void)r; (void)s; (void)m; return 0; }
-static int fake_role_replace(void* u, int p, char const* r, int e)
-{ (void)u; (void)p; (void)r; (void)e; return 1; }
-static int fake_role_anchor(void* u, int p, char const* r, int replace, int place)
+static int fake_role_suppress_facets(void* u, char const* r, int paint, int input)
+{ (void)u; (void)r; (void)paint; (void)input; return 1; }
+static int fake_ui_boundary(void* u, int p, char const* r, int replace, int place)
 { (void)place; (void)u; (void)p; (void)replace; return r ? 0 : 1; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
@@ -697,28 +696,29 @@ static uint32_t fake_hsl_to_rgb(void* u, int h) { (void)u; (void)h; return 0; }
 
 static struct ToriRS_PluginHost* g_host;
 static int g_plugin;
-static struct ToriRS_PluginCtx* g_frame_settings_ctx;
-static struct ToriRS_PluginApi const* g_frame_settings_api;
+static struct ToriRS_ApiV2* g_frame_settings_api;
 
 /* A settings-panel-shaped client of the public API. The frame provider must
  * not choose itself, and the host deliberately exposes no test-only selector,
  * so this ordinary hidden plugin captures the same frame_select entry point a
  * real settings surface uses. */
 static void
-frame_settings_init(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api)
+frame_settings_start(struct ToriRS_ApiV2* api, void* state)
 {
-    g_frame_settings_ctx = ctx;
+    (void)state;
     g_frame_settings_api = api;
 }
 
-static struct ToriRS_PluginDef const FRAME_SETTINGS = {
-    .name = "gameframe-test-settings",
+static struct ToriRS_PluginDefV2 const FRAME_SETTINGS = {
+    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+    .id = "gameframe-test-settings",
     .title = "Gameframe Test Settings",
     .version = "1.0.0",
-    .hidden = true,
-    .init = frame_settings_init,
+    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = frame_settings_start,
+    },
 };
 
 /** Select one stable catalogue id and let the host resolve it at the frame
@@ -727,23 +727,23 @@ static void
 select_frame(char const* id, uint64_t now_ms)
 {
     CHECK(g_frame_settings_api != NULL, "the settings client received the plugin API");
-    CHECK(g_frame_settings_ctx != NULL, "the settings client received its context");
-    if( g_frame_settings_api && g_frame_settings_ctx )
+    if( g_frame_settings_api )
         CHECK(
-            g_frame_settings_api->frame_select(g_frame_settings_ctx, id) == 1,
+            g_frame_settings_api->frame.select(g_frame_settings_api, id) ==
+                TORIRS_RESULT_OK,
             "the host accepts the stable frame id");
     PluginHost_FrameStart(g_host, now_ms, 0);
 }
 
-static struct ToriRS_EngineFrameSelection
+static struct ToriRS_FrameSelection
 selected_frame(void)
 {
-    struct ToriRS_EngineFrameSelection selected;
+    struct ToriRS_FrameSelection selected;
 
     memset(&selected, 0, sizeof(selected));
+    selected.struct_size = sizeof(selected);
     assert(g_frame_settings_api);
-    assert(g_frame_settings_ctx);
-    g_frame_settings_api->frame_selection(g_frame_settings_ctx, &selected);
+    g_frame_settings_api->frame.selection(g_frame_settings_api, &selected);
     return selected;
 }
 
@@ -864,8 +864,8 @@ main(void)
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
     e.role_slot = fake_role_slot;
-    e.role_replace = fake_role_replace;
-    e.role_anchor = fake_role_anchor;
+    e.role_suppress_facets = fake_role_suppress_facets;
+    e.ui_boundary = fake_ui_boundary;
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
@@ -935,7 +935,7 @@ main(void)
     g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
     CHECK(
-        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
+        PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
         "the settings client registers");
     CHECK(g_frame.owned == 0, "nothing owns the frame before selection is resolved");
 
@@ -944,13 +944,13 @@ main(void)
     /* ---- 1. host-owned selection -------------------------------------- */
 
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.requested, "auto") == 0,
+            strcmp(selected.requested_id, "auto") == 0,
             "the engine's Auto preference is the host's requested frame");
         CHECK(
-            strcmp(selected.active, "core/native") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_NATIVE,
+            strcmp(selected.active_id, "core/native") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_NATIVE,
             "Auto resolves to the client's native frame");
         CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto does not run a frame provider");
         CHECK(g_frame.owned == 0, "the native frame remains owned by the client");
@@ -959,11 +959,11 @@ main(void)
     select_frame("gameframe-layout/classic-fixed", 100);
 
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.requested, "gameframe-layout/classic-fixed") == 0 &&
-                strcmp(selected.active, "core/native") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            strcmp(selected.requested_id, "gameframe-layout/classic-fixed") == 0 &&
+                strcmp(selected.active_id, "core/native") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_LOADING,
             "the host prepares classic-fixed without replacing native yet");
     }
     CHECK(
@@ -989,25 +989,25 @@ main(void)
 
     declare(765, 503);
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            strcmp(selected.active_id, "gameframe-layout/classic-fixed") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_ACTIVE,
             "a valid classic declaration becomes the active offer");
     }
     CHECK(g_frame.owned == 1, "the validated provider owns the frame");
-    CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "classic-fixed pins the canvas");
+    CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED, "classic-fixed pins the canvas");
     CHECK(g_frame.fixed_w == 765 && g_frame.fixed_h == 503, "pinned at the classic frame");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334),
+        slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 4, 4, 512, 334),
         "classic viewport is the dat1 frame's 512x334 at 4,4");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_MINIMAP, 575, 9, 146, 151),
+        slot_is(TORIRS_HOST_SURFACE_MINIMAP, 575, 9, 146, 151),
         "classic minimap is the dat1 frame's");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_CHAT, 17, 357, 479, 96), "classic chat is the dat1 frame's");
+        slot_is(TORIRS_HOST_SURFACE_CHAT, 17, 357, 479, 96), "classic chat is the dat1 frame's");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 553, 205, 190, 261),
+        slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 553, 205, 190, 261),
         "classic sidebar is the dat1 frame's");
     /*
      * The COMPASS slot, not the minimap's.
@@ -1020,8 +1020,8 @@ main(void)
      * with its own hole painted behind it.
      */
     CHECK(
-        !g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
-            !g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].placed,
+        !g_frame.overlay[TORIRS_HOST_SURFACE_MINIMAP].placed &&
+            !g_frame.overlay[TORIRS_HOST_SURFACE_COMPASS].placed,
         "classic housing uses one named appearance, not a duplicate slot overlay");
     CHECK(
         named_node_is("frame.minimap.housing", 550, 4, 172, 156),
@@ -1041,7 +1041,7 @@ main(void)
         "the classic housing is published under its canonical V2 name");
     g_fake_minimap_edge = 0;
     CHECK(
-        g_frame.slot[TORIRS_PLUGIN_SLOT_MAIN_MODAL].placed,
+        g_frame.slot[TORIRS_HOST_SURFACE_MODAL].placed,
         "the modal region is placed, not left to the lane");
     /*
      * The compass is placed even though this fake frame has none.
@@ -1052,7 +1052,7 @@ main(void)
      * the frames that have it too.
      */
     CHECK(
-        g_frame.slot[TORIRS_PLUGIN_SLOT_COMPASS].placed,
+        g_frame.slot[TORIRS_HOST_SURFACE_COMPASS].placed,
         "a role the frame lacks is still declared");
 
     {
@@ -1068,22 +1068,22 @@ main(void)
          */
         int distinct = 1;
         for( int i = 1; i < 4; i++ )
-            if( g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].x <=
-                g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i - 1].x )
+            if( g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i].x <=
+                g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i - 1].x )
                 distinct = 0;
         for( int i = 0; i < 4; i++ )
             CHECK(
-                g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].placed,
+                g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i].placed,
                 "every chat filter button is placed, not suppressed");
         CHECK(distinct, "and each at its own box, left to right");
         CHECK(
-            !g_frame.slot[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS].placed,
+            !g_frame.slot[TORIRS_HOST_SURFACE_CHAT_BUTTONS].placed,
             "the role as a whole is not placed -- one box would stack them");
         /* The reference's own x for Report abuse: centred at 458, so a
          * 100-wide box starts at 408. */
         CHECK(
-            g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][3].x == 408 &&
-                g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][3].y == 467,
+            g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][3].x == 408 &&
+                g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][3].y == 467,
             "classic places Report abuse where the 2004 frame does");
     }
 
@@ -1148,29 +1148,29 @@ main(void)
 
     select_frame("gameframe-layout/modern-fixed", 200);
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            strcmp(selected.active_id, "gameframe-layout/classic-fixed") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_LOADING,
             "modern-fixed is a candidate over the committed classic frame");
     }
     declare(765, 503);
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.active, "gameframe-layout/modern-fixed") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            strcmp(selected.active_id, "gameframe-layout/modern-fixed") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_ACTIVE,
             "the stable modern-fixed id commits after validation");
     }
-    CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "modern-fixed pins the canvas too");
+    CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED, "modern-fixed pins the canvas too");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334),
+        slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 4, 4, 512, 334),
         "548's viewport is the same 512x334");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_MINIMAP, 570, 9, 145, 151),
+        slot_is(TORIRS_HOST_SURFACE_MINIMAP, 570, 9, 145, 151),
         "548's minimap sits five pixels left of the dat1 frame's");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 547, 205, 190, 261), "548's sidebar panel");
+        slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 547, 205, 190, 261), "548's sidebar panel");
     CHECK(
         named_node_is("frame.minimap.housing", 545, 4, 172, 156),
         "548 publishes its housing at the semantic minimap boundary");
@@ -1197,32 +1197,32 @@ main(void)
 
     select_frame("gameframe-layout/modern-resizable", 300);
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.active, "gameframe-layout/modern-fixed") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            strcmp(selected.active_id, "gameframe-layout/modern-fixed") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_LOADING,
             "modern-resizable waits behind the committed fixed frame");
     }
 
     declare(1024, 768);
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.active, "gameframe-layout/modern-resizable") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            strcmp(selected.active_id, "gameframe-layout/modern-resizable") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_ACTIVE,
             "the stable modern-resizable id commits after validation");
     }
     CHECK(
-        g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
+        g_frame.canvas == TORIRS_FRAME_CANVAS_WINDOW,
         "the resizable offer follows the window");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, 1024, 768),
+        slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 0, 0, 1024, 768),
         "the resizable scene is the whole window");
     {
         int const map_x = 1024 - 182;
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x + 24 &&
-                g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].y == 8,
+            g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].x == map_x + 24 &&
+                g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].y == 8,
             "the minimap is pinned to the top-right corner");
         CHECK(
             named_node_is("frame.minimap.housing", map_x, 0, 182, 166),
@@ -1238,19 +1238,19 @@ main(void)
          * every rectangle assertion above.
          */
         CHECK(
-            g_frame.skin[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
-                g_frame.skin[TORIRS_PLUGIN_SLOT_MINIMAP].mask >= 0,
+            g_frame.skin[TORIRS_HOST_SURFACE_MINIMAP].placed &&
+                g_frame.skin[TORIRS_HOST_SURFACE_MINIMAP].mask >= 0,
             "and masked to the ring's window");
         CHECK(
-            g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
-                g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].art >= 0,
+            g_frame.skin[TORIRS_HOST_SURFACE_COMPASS].placed &&
+                g_frame.skin[TORIRS_HOST_SURFACE_COMPASS].art >= 0,
             "the compass is drawn from the OldSchool rose, not the lane's");
         /* All six pieces or none: a bar drawn from five of them has a hole in
          * it, which is a worse frame than one drawn the 2004 way. */
         CHECK(g_frame.scrollbar_pieces == 6, "and the scrollbars wear all six of their pieces");
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].x + 190 < 1024 &&
-                g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].x + 190 > 1024 - 60,
+            g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].x + 190 < 1024 &&
+                g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].x + 190 > 1024 - 60,
             "and the sidebar to the bottom-right");
     }
 
@@ -1261,21 +1261,21 @@ main(void)
          * canvas sizes is one built out of constants, which is the whole
          * failure this case exists to catch.
          */
-        int const small_map_x = g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].x;
-        int const small_side_y = g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].y;
+        int const small_map_x = g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].x;
+        int const small_side_y = g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].y;
 
         declare(1440, 900);
         CHECK(
-            slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, 1440, 900),
+            slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 0, 0, 1440, 900),
             "the scene follows the window");
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].x == small_map_x + (1440 - 1024),
+            g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].x == small_map_x + (1440 - 1024),
             "the minimap moves with the right edge, exactly");
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].y == small_side_y + (900 - 768),
+            g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].y == small_side_y + (900 - 768),
             "the sidebar moves with the bottom edge, exactly");
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_CHAT].x < 200,
+            g_frame.slot[TORIRS_HOST_SURFACE_CHAT].x < 200,
             "and the chat stays pinned to the left");
     }
 
@@ -1406,11 +1406,11 @@ main(void)
 
     select_frame("auto", 400);
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.requested, "auto") == 0 &&
-                strcmp(selected.active, "core/native") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_NATIVE,
+            strcmp(selected.requested_id, "auto") == 0 &&
+                strcmp(selected.active_id, "core/native") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_NATIVE,
             "Auto explicitly resolves to the native frame");
     }
     CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto stops the frame provider");
@@ -1440,21 +1440,21 @@ main(void)
         g_frame.owned == 0,
         "selecting at the title leaves the native frame in charge");
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.requested, "gameframe-layout/classic-fixed") == 0 &&
-                strcmp(selected.active, "core/native") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            strcmp(selected.requested_id, "gameframe-layout/classic-fixed") == 0 &&
+                strcmp(selected.active_id, "core/native") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_LOADING,
             "the title reports the concrete request as loading over native");
     }
     g_screen_now = TORIRS_SCREEN_GAME;
     PluginHost_FrameStart(g_host, 1000, 0);
     CHECK(g_frame.owned == 0, "login schedules the candidate without a restart");
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.active, "core/native") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            strcmp(selected.active_id, "core/native") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_LOADING,
             "the title-screen selection remains loading until layout validates");
     }
     {
@@ -1488,7 +1488,6 @@ main(void)
     g_frame_preference_present = 1;
     g_frame_preference_migration = 1;
     g_frame_preference_set_calls = 0;
-    g_frame_settings_ctx = NULL;
     g_frame_settings_api = NULL;
     g_host = PluginHost_New(&e);
     e.user = g_host;
@@ -1496,7 +1495,7 @@ main(void)
     g_host = PluginHost_New(&e);
     g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(
-        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
+        PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
         "the settings client registers on the OldSchool host");
 
     PluginHost_Start(g_host);
@@ -1506,27 +1505,27 @@ main(void)
     declare(1024, 768);
     CHECK(g_frame.owned == 1, "the validated provider owns the OldSchool frame too");
     {
-        struct ToriRS_EngineFrameSelection const selected = selected_frame();
+        struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.active, "gameframe-layout/modern-resizable") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            strcmp(selected.active_id, "gameframe-layout/modern-resizable") == 0 &&
+                selected.status == TORIRS_FRAME_STATUS_ACTIVE,
             "a persisted modern-resizable id is restored on OldSchool");
     }
     CHECK(
-        g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
+        g_frame.canvas == TORIRS_FRAME_CANVAS_WINDOW,
         "the selected modern-resizable offer follows the window");
 
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 768 - 165, 519, 165),
+        slot_is(TORIRS_HOST_SURFACE_CHAT, 0, 768 - 165, 519, 165),
         "the chat PACK's 519x165 container is placed whole, bottom-left");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_ORBS, 1024 - 182 - 29, 10, 207, 197),
+        slot_is(TORIRS_HOST_SURFACE_ORBS, 1024 - 182 - 29, 10, 207, 197),
         "the orb block sits beside the map ring where 161 keeps it");
     CHECK(
-        !g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][0].placed,
+        !g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][0].placed,
         "no chat plates are placed: the pack carries its own filter buttons");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 1024 - 4 - 241 + 25, 768 - 4 - 37 - 261, 190, 261),
+        slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 1024 - 4 - 241 + 25, 768 - 4 - 37 - 261, 190, 261),
         "the side panels are placed where the resizable frame keeps them");
     draw(1024, 768);
     CHECK(named_tabs_present(), "the OldSchool frame publishes fourteen semantic tabs");
@@ -1541,13 +1540,13 @@ main(void)
     select_frame("gameframe-layout/modern-fixed", 1200);
     declare(765, 503);
     CHECK(
-        g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED,
+        g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED,
         "the explicit modern-fixed offer pins the canvas");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 338, 519, 165),
+        slot_is(TORIRS_HOST_SURFACE_CHAT, 0, 338, 519, 165),
         "the chat pack lands at 548's own (0, 338)");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_ORBS, 516, 4, 236, 163),
+        slot_is(TORIRS_HOST_SURFACE_ORBS, 516, 4, 236, 163),
         "and the orb block at 548's map container");
     draw(765, 503);
     CHECK(!blitted_at(0, 338), "the fixed frame blits no chat backing either");
@@ -1557,10 +1556,10 @@ main(void)
     select_frame("gameframe-layout/classic-fixed", 1300);
     declare(765, 503);
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 338, 519, 165),
+        slot_is(TORIRS_HOST_SURFACE_CHAT, 0, 338, 519, 165),
         "Classic Fixed on OldSchool places the chat pack whole");
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 553, 205, 190, 261),
+        slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 553, 205, 190, 261),
         "with the 2004 sidebar box");
     draw(765, 503);
     CHECK(!blitted_at(17, 357), "and without the 2004 chat parchment under the pack");

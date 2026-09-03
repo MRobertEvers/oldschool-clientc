@@ -387,9 +387,9 @@ layout_compute_node(
              * the latter offsets deep roles whenever a native shell moves.
              *
              * No safe-area shift here, and that is not an omission: a frame
-             * that owns a node's position computed this box in EV_LAYOUT with
-             * api->safe_os in hand. Dodging the keyboard a second time on its
-             * behalf would move the box twice. */
+             * that owns a node's position computed this box in its frame-build
+             * callback with the platform-safe placement area in hand. Dodging
+             * the keyboard again on its behalf would move the box twice. */
             pos->abs_x = override.x;
             pos->abs_y = override.y;
             pos->abs_w = override.width;
