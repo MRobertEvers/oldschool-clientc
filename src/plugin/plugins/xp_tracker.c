@@ -145,6 +145,24 @@ static struct ToriRS_PluginApi const* g_api;
 /** The stat grid's line box. */
 #define XT_LINE_H 12
 #define XT_PAD 4
+/**
+ * The grid's own inset and top, as script5366 states them: `$int7 = 2 * 2` is
+ * the right-edge inset every column is anchored from, and `$y8 = row*50 + 4`
+ * puts the first line four down from the box.
+ */
+#define XT_GRID_PAD 4
+#define XT_GRID_Y 4
+
+/* ---- the OVERVIEW box (torirs_xptracker_total_labels, script 5367) --------
+ *
+ * The same 48-tall box as a skill's, with no bar and no icon strip: the key
+ * column starts at 31 (which is what leaves the tracker's own 25px icon its
+ * margins) and both lines are CENTRED in the box rather than topped, which is
+ * the one place this list's vertical rhythm differs from a skill row's.
+ */
+#define XT_OVER_KEY_X 31
+#define XT_OVER_ICON 25
+#define XT_OVER_ICON_X 3
 
 /** The box: a half-transparent black wash under a black border. */
 #define XT_BOX_FILL 0x000000u
@@ -173,6 +191,12 @@ static struct ToriRS_PluginApi const* g_api;
 /** The face every label is set in, and the 25x25 icon strip. */
 static struct PluginDraw_Atlas g_font;
 static int g_img_skills = -1;
+/** The overview box's icon -- the plugin's own stone, standing for every
+ *  skill at once. @see xt_draw_overview. */
+static int g_img_over = -1;
+static uint32_t* g_over_px;
+static int g_over_w;
+static int g_over_h;
 static uint32_t* g_skill_px;
 static int g_skill_w;
 static int g_skill_h;
@@ -277,18 +301,32 @@ xt_commas(long long value, char* out, size_t out_size)
     out[at] = '\0';
 }
 
+
 /**
- * "12.3K" / "4.5M" -- the reference's quantityToRSDecimalStack, which is what
- * a row wide enough for a skill name and a rate can actually hold.
+ * A number the way the tracker's own `~torirs_text_format_compact_int`
+ * (script 5377) writes one, branch for branch.
  *
- * One decimal place and only below 100 of a unit, so "9.9K" and "45K" are both
- * four characters and a column of them lines up.
+ * Not "close enough to k/M": the script's cuts are on the DIGIT COUNT of the
+ * decimal spelling, which is why 393,120 becomes "393.12k" with two decimals
+ * and 3,145,400 becomes "3,145.4k" with one and a comma. A formatter that
+ * picked a unit by magnitude and a fixed precision agrees with it at almost no
+ * value, and the difference is legible in a column of them.
+ *
+ *   6 digits   spacer(d[0..3)) "." d[3..5) "k"
+ *   7 digits   spacer(d[0..4)) "." d[4..5) "k"
+ *   8 digits   spacer(d[0..2)) "." d[2..5) "M"
+ *   more       "99.999M", flat
+ *   fewer      spacer(n), which is where the thousands comma comes from
+ *
+ * Negative is "0" and not "-N": the script says so, and every caller here is a
+ * total that cannot legitimately be one.
  */
 static void
-xt_short(long long value, char* out, size_t out_size)
+xt_compact(long long value, char* out, size_t out_size)
 {
-    long long unit = 1;
-    char suffix = '\0';
+    char digits[24];
+    char head[24];
+    int len;
 
     assert(out);
     assert(out_size > 0);
@@ -298,35 +336,36 @@ xt_short(long long value, char* out, size_t out_size)
         snprintf(out, out_size, "0");
         return;
     }
-    if( value >= 1000000000LL )
+    len = snprintf(digits, sizeof(digits), "%lld", value);
+    if( len == 6 || len == 7 )
     {
-        unit = 1000000000LL;
-        suffix = 'B';
-    }
-    else if( value >= 1000000LL )
-    {
-        unit = 1000000LL;
-        suffix = 'M';
-    }
-    else if( value >= 1000LL )
-    {
-        unit = 1000LL;
-        suffix = 'K';
-    }
-
-    if( !suffix )
-    {
-        snprintf(out, out_size, "%lld", value);
+        int const whole = len == 6 ? 3 : 4;
+        int const frac = len == 6 ? 2 : 1;
+        char tail[8];
+        digits[whole + frac] = '\0';
+        memcpy(tail, digits + whole, (size_t)frac);
+        tail[frac] = '\0';
+        digits[whole] = '\0';
+        xt_commas(atoll(digits), head, sizeof(head));
+        snprintf(out, out_size, "%s.%sk", head, tail);
         return;
     }
-    if( value / unit < 100 )
+    if( len == 8 )
     {
-        long long const whole = value / unit;
-        long long const tenth = (value % unit) * 10 / unit;
-        snprintf(out, out_size, "%lld.%lld%c", whole, tenth, suffix);
+        char tail[8];
+        memcpy(tail, digits + 2, 3);
+        tail[3] = '\0';
+        digits[2] = '\0';
+        xt_commas(atoll(digits), head, sizeof(head));
+        snprintf(out, out_size, "%s.%sM", head, tail);
+        return;
     }
-    else
-        snprintf(out, out_size, "%lld%c", value / unit, suffix);
+    if( len > 8 )
+    {
+        snprintf(out, out_size, "99.999M");
+        return;
+    }
+    xt_commas(value, out, out_size);
 }
 
 /** "1:02:03" past an hour, "02:03" below it. A duration, never a clock time. */
@@ -714,8 +753,15 @@ xt_art_ready(struct ToriRS_PluginCtx* ctx)
     assert(ctx);
     if( !PluginDraw_AtlasLoad(ctx, g_api, &g_font, "text") )
         return 0;
-    return PluginDraw_ImageLoad(
-        ctx, g_api, "skills.png", &g_img_skills, &g_skill_px, &g_skill_w, &g_skill_h);
+    if( !PluginDraw_ImageLoad(
+            ctx, g_api, "skills.png", &g_img_skills, &g_skill_px, &g_skill_w, &g_skill_h) )
+        return 0;
+    /* The overview icon is wanted but not REQUIRED: the box is two lines of
+     * text and a picture, and a missing picture is a box with a gap in it
+     * rather than a page that refuses to draw. */
+    (void)PluginDraw_ImageLoad(
+        ctx, g_api, "panel_icon.png", &g_img_over, &g_over_px, &g_over_w, &g_over_h);
+    return 1;
 }
 
 /** Which of RuneLite's XpPanelLabel values a stat slot is showing. */
@@ -736,8 +782,20 @@ enum XtLabel
 static char const* const XT_LABEL_CHOICES =
     "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL";
 static char const* const XT_LABEL_KEY[XT_LABEL_COUNT] = {
-    "XP Gained: ", "XP/Hr: ", "XP>Lvl: ", "Actions: ", "Acts/Hr: ", "Acts>Lvl: ", "TTL: "
+    "XP Gained: ", "XP/Hr: ", "XP>Lvl: ", "Actions: ", "Acts/Hr: ", "Kills>Lvl: ", "TTL: "
 };
+
+/*
+ * The RIGHT column's keys carry two leading spaces and the left column's do
+ * not, and that is not a typo: it is the gutter, and the cache authors it
+ * exactly this way. `xptracker_build_components_5366` measures its two key
+ * columns with `parawidth("XP>Goal: ")` and `parawidth("  XP Gained: ")`, so
+ * the space between the left pair's value and the right pair's key IS those
+ * two spaces inside the right key's own width. Laying the columns out from
+ * measured widths without them butts the two pairs together, which is what the
+ * first pass did.
+ */
+#define XT_GUTTER "  "
 
 /** Read a label slot out of the config, by its choice text. */
 static int
@@ -784,25 +842,25 @@ xt_label_value(
     switch( which )
     {
     case XT_LABEL_XP_HOUR:
-        xt_short(xt_hourly(s, s->gained_since_reset), out, out_size);
+        xt_compact(xt_hourly(s, s->gained_since_reset), out, out_size);
         break;
     case XT_LABEL_XP_LEFT:
         if( next_xp > 0 )
-            xt_short(remaining, out, out_size);
+            xt_compact(remaining, out, out_size);
         else
             snprintf(out, out_size, "-");
         break;
     case XT_LABEL_ACTIONS_DONE:
-        xt_short(s->actions, out, out_size);
+        xt_compact(s->actions, out, out_size);
         break;
     case XT_LABEL_ACTIONS_HOUR:
-        xt_short(xt_hourly(s, s->actions_since_reset), out, out_size);
+        xt_compact(xt_hourly(s, s->actions_since_reset), out, out_size);
         break;
     case XT_LABEL_ACTIONS_LEFT:
         /* Unknown until ten actions have been seen -- @see xt_mean_action_xp,
          * where refusing to answer is the point. */
         if( mean > 0 && next_xp > 0 )
-            xt_short((remaining + mean - 1) / mean, out, out_size);
+            xt_compact((remaining + mean - 1) / mean, out, out_size);
         else
             snprintf(out, out_size, "-");
         break;
@@ -818,7 +876,7 @@ xt_label_value(
         break;
     case XT_LABEL_XP_GAINED:
     default:
-        xt_short(xt_gained(s), out, out_size);
+        xt_compact(xt_gained(s), out, out_size);
         break;
     }
 }
@@ -871,28 +929,51 @@ xt_draw_box(
      * script5366 anchors it (`cc_setposition(..., 2, 0)` is right-relative).
      * One key column width for both rows, so the two values line up.
      */
-    for( int i = 0; i < 4; i++ )
+    /*
+     * Four columns, every one anchored to the box's RIGHT edge, which is what
+     * `cc_setposition(..., ^setpos_abs_right, ...)` means and the only way the
+     * two value columns line up down a list of different-length keys.
+     *
+     * The offsets are the script's own, right to left:
+     *   right value  at 4
+     *   right key    at 4 + val_w
+     *   left value   at 4 + val_w + rkey_w
+     *   left key     at 4 + val_w + rkey_w + val_w
+     * with each key measured at its WIDEST spelling, so switching between
+     * ">Lvl" and ">Goal" does not shuffle the columns sideways.
+     */
     {
-        int const kw = PluginDraw_TextWidth(&g_font, XT_LABEL_KEY[slot[i]]);
-        if( kw > key_w )
-            key_w = kw;
-    }
-    val_w = PluginDraw_TextWidth(&g_font, "88.888M");
+        int const val_r = PluginDraw_TextWidth(&g_font, "88.888M");
+        int const key_l = PluginDraw_TextWidth(&g_font, "XP>Goal: ");
+        int const key_r = PluginDraw_TextWidth(&g_font, XT_GUTTER "Kills>Goal: ");
+        int const edge = XT_GRID_PAD;
 
-    for( int row = 0; row < 2; row++ )
-    {
-        int const y = top + XT_PAD + row * XT_LINE_H;
-        for( int col = 0; col < 2; col++ )
+        val_w = val_r;
+        key_w = key_l;
+        for( int row = 0; row < 2; row++ )
         {
-            int const which = slot[row * 2 + col];
-            /* Two pairs, the right-hand one hard against the edge. */
-            int const right = w - XT_PAD - (1 - col) * (key_w + val_w);
+            int const y = top + XT_GRID_Y + row * XT_LINE_H;
+            int const lhs = slot[row * 2 + 0];
+            int const rhs = slot[row * 2 + 1];
+            char key[48];
 
-            xt_label_value(ctx, skill, which, value, sizeof(value));
-            PLUGIN_DRAW_TEXT(buf, w, h, right - key_w - val_w, y, XT_LABEL_KEY[which], XT_INK_KEY);
-            PLUGIN_DRAW_TEXT_RIGHT(buf, w, h, right, y, value, XT_INK_VALUE);
+            /* left pair */
+            snprintf(key, sizeof(key), "%s", XT_LABEL_KEY[lhs]);
+            xt_label_value(ctx, skill, lhs, value, sizeof(value));
+            PLUGIN_DRAW_TEXT(
+                buf, w, h, w - edge - val_r - key_r - val_r - key_l, y, key, XT_INK_KEY);
+            PLUGIN_DRAW_TEXT_RIGHT(
+                buf, w, h, w - edge - val_r - key_r, y, value, XT_INK_VALUE);
+
+            /* right pair, whose key carries the gutter */
+            snprintf(key, sizeof(key), XT_GUTTER "%s", XT_LABEL_KEY[rhs]);
+            xt_label_value(ctx, skill, rhs, value, sizeof(value));
+            PLUGIN_DRAW_TEXT(buf, w, h, w - edge - val_r - key_r, y, key, XT_INK_KEY);
+            PLUGIN_DRAW_TEXT_RIGHT(buf, w, h, w - edge, y, value, XT_INK_VALUE);
         }
     }
+    (void)key_w;
+    (void)val_w;
 
     /* The bar. */
     g_api->stat_xp(ctx, skill, &xp, &level_xp, &next_xp);
@@ -914,12 +995,17 @@ xt_draw_box(
     PluginDraw_Fill(
         buf, w, h, 0, bar_y, fill_w, XT_BAR_H, done ? XT_BAR_DONE : XT_BAR_FILL, 255);
 
-    /* Its three labels: the level at each end, the percentage in the middle. */
-    snprintf(text, sizeof(text), "%d", level);
+    /*
+     * Its three labels: the level at each end, the percentage in the middle.
+     * "Lvl. " is the cache's own prefix (torirs_xptracker_stat_level_label) --
+     * a bare number at the end of a bar reads as a quantity, which is what the
+     * number in the middle already is.
+     */
+    snprintf(text, sizeof(text), "Lvl. %d", level);
     PLUGIN_DRAW_TEXT(buf, w, h, XT_PAD, bar_y + 2, text, XT_INK_KEY);
     if( !done )
     {
-        snprintf(text, sizeof(text), "%d", level + 1);
+        snprintf(text, sizeof(text), "Lvl. %d", level + 1);
         PLUGIN_DRAW_TEXT_RIGHT(buf, w, h, w - XT_PAD, bar_y + 2, text, XT_INK_KEY);
     }
 
@@ -929,14 +1015,82 @@ xt_draw_box(
         snprintf(text, sizeof(text), "Done!");
     else
     {
-        /* Two decimals, as script5371 sets it. */
+        /*
+         * The percentage, exactly as script5371 spells one: the permyriad is
+         * padded with SPACES to five characters and then cut 3/2, so 6949
+         * becomes " 69.49%" and 949 becomes "  9.49%". The padding is not
+         * decoration -- it is what keeps the decimal point in the same column
+         * down a list of boxes, which a centred "%.2f" does not.
+         */
         long long const permyriad =
             ((long long)(xp - level_xp) * 10000) / (next_xp - level_xp);
-        snprintf(
-            text, sizeof(text), "%lld.%02lld%%", permyriad / 100, permyriad % 100);
+        char pad[16];
+        int n = snprintf(pad, sizeof(pad), "%lld", permyriad);
+        char spaced[16];
+        int at = 0;
+        for( int i = n; i < 5; i++ )
+            spaced[at++] = ' ';
+        memcpy(spaced + at, pad, (size_t)n);
+        at += n;
+        spaced[at] = '\0';
+        snprintf(text, sizeof(text), "%.3s.%.2s%%", spaced, spaced + 3);
     }
     PLUGIN_DRAW_TEXT(
         buf, w, h, (w - PluginDraw_TextWidth(&g_font, text)) / 2, bar_y + 2, text, XT_INK_VALUE);
+}
+
+/**
+ * The OVERVIEW box: the session's two totals, over the whole list.
+ *
+ * `torirs_xptracker_total_labels` (script 5367) is the whole recipe, and it is
+ * a different shape from a skill's box rather than a special case of one: two
+ * lines CENTRED in the 48, no bar, no progress, and a key column that starts
+ * at 31 instead of hard against a 25px icon. The icon is the tracker's own --
+ * the same picture its rail stone wears -- because the box is about every
+ * skill and no single skill's icon can stand for that.
+ */
+static void
+xt_draw_overview(struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h, int top)
+{
+    long long gained = 0;
+    long long rate = 0;
+    char value[32];
+    int const key_w = PluginDraw_TextWidth(&g_font, "Total XP Gained: ");
+    int const val_w = PluginDraw_TextWidth(&g_font, "88.888M");
+    /* Centred in the 48, which is what `^settextalign_centre` with a 12 line
+     * box does to two lines: 48/2 - 12 above the pair. */
+    int const y0 = top + (XT_BOX_H - 2 * XT_LINE_H) / 2;
+
+    assert(ctx);
+    assert(buf);
+
+    for( int i = 0; i < g_skill_count; i++ )
+    {
+        gained += xt_gained(&g_skill[i]);
+        if( !g_skill[i].paused )
+            rate += xt_hourly(&g_skill[i], g_skill[i].gained_since_reset);
+    }
+
+    PluginDraw_Fill(buf, w, h, 0, top, w, XT_BOX_H, XT_BOX_FILL, XT_BOX_FILL_ALPHA);
+    PluginDraw_Frame(buf, w, h, 0, top, w, XT_BOX_H, XT_BOX_BORDER);
+
+    if( g_over_px )
+        PluginDraw_Blit(
+            buf, w, h, XT_OVER_ICON_X, top + (XT_BOX_H - XT_OVER_ICON) / 2, g_over_px,
+            g_over_w, g_over_h, 0, 0,
+            g_over_w < XT_OVER_ICON ? g_over_w : XT_OVER_ICON,
+            g_over_h < XT_OVER_ICON ? g_over_h : XT_OVER_ICON, 0);
+
+    PLUGIN_DRAW_TEXT(buf, w, h, XT_OVER_KEY_X, y0, "Total XP/Hr: ", XT_INK_KEY);
+    PLUGIN_DRAW_TEXT(
+        buf, w, h, XT_OVER_KEY_X, y0 + XT_LINE_H, "Total XP Gained: ", XT_INK_KEY);
+
+    xt_compact(rate, value, sizeof(value));
+    PLUGIN_DRAW_TEXT_RIGHT(
+        buf, w, h, XT_OVER_KEY_X + key_w + val_w, y0, value, XT_INK_VALUE);
+    xt_compact(gained, value, sizeof(value));
+    PLUGIN_DRAW_TEXT_RIGHT(
+        buf, w, h, XT_OVER_KEY_X + key_w + val_w, y0 + XT_LINE_H, value, XT_INK_VALUE);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -968,17 +1122,26 @@ static void
 xt_slots(struct ToriRS_PluginCtx* ctx, int out[4])
 {
     assert(ctx);
-    out[0] = xt_label_slot(ctx, "label_top_left", XT_LABEL_XP_GAINED);
-    out[1] = xt_label_slot(ctx, "label_top_right", XT_LABEL_XP_HOUR);
-    out[2] = xt_label_slot(ctx, "label_bottom_left", XT_LABEL_ACTIONS_LEFT);
-    out[3] = xt_label_slot(ctx, "label_bottom_right", XT_LABEL_XP_LEFT);
+    /*
+     * The cache's own pairing, and the ORDER is the half that was wrong:
+     * script5366 puts "XP/Hr: <br>XP>Lvl: " in the LEFT column and
+     * "  XP Gained: <br>  Acts>Lvl: " in the right one. Defaulting the left
+     * slots to gained/actions swapped every box against the tracker it copies.
+     */
+    out[0] = xt_label_slot(ctx, "label_top_left", XT_LABEL_XP_HOUR);
+    out[1] = xt_label_slot(ctx, "label_top_right", XT_LABEL_XP_GAINED);
+    out[2] = xt_label_slot(ctx, "label_bottom_left", XT_LABEL_XP_LEFT);
+    out[3] = xt_label_slot(ctx, "label_bottom_right", XT_LABEL_ACTIONS_LEFT);
 }
 
 /** The well's height for the boxes it has to hold. */
 static int
 xt_well_h(void)
 {
-    return g_box_count > 0 ? g_box_count * XT_BOX_PITCH : XT_BOX_PITCH;
+    /* The overview box is always there -- it is the session's answer and it
+     * has one whether or not a skill has been trained -- so the strip is one
+     * box taller than the list. */
+    return (g_box_count + 1) * XT_BOX_PITCH;
 }
 
 /**
@@ -988,16 +1151,78 @@ xt_well_h(void)
  * expensive half of this plugin and the panel blits one picture either way,
  * so composing per box would pay for the same pixels with more calls.
  */
+/**
+ * Everything the strip's picture depends on, in one number.
+ *
+ * @see the loot tracker's lt_compose_key, which exists for the same reason:
+ * the draw event fires whenever the well is dirty, and composing on every one
+ * of them republishes the scene sprite the overlay item is about to reference.
+ *
+ * The hash covers the drawn VALUES rather than the state behind them, because
+ * several of them move on their own -- a rate ticks with the clock whether or
+ * not any xp arrived -- and a key that missed those would leave a stale
+ * picture on screen looking like a frozen tracker.
+ */
+static uint64_t
+xt_compose_key(struct ToriRS_PluginCtx* ctx, int width, int const slot[4])
+{
+    uint64_t k = 1469598103934665603ull;
+
+#define XT_MIX(v)                                                                        \
+    do                                                                                   \
+    {                                                                                    \
+        k ^= (uint64_t)(v);                                                              \
+        k *= 1099511628211ull;                                                           \
+    } while( 0 )
+
+    assert(ctx);
+    XT_MIX(width);
+    XT_MIX(g_box_count);
+    XT_MIX(g_detail);
+    for( int i = 0; i < 4; i++ )
+        XT_MIX(slot[i]);
+    for( int i = 0; i < g_box_count; i++ )
+    {
+        int const which = g_box_skill[i];
+        struct XtSkill const* sk = &g_skill[which];
+        int xp = 0;
+        int level = 0;
+
+        g_api->stat_xp(ctx, which, &xp, NULL, NULL);
+        g_api->stat(ctx, which, NULL, &level);
+        XT_MIX(which);
+        XT_MIX(xp);
+        XT_MIX(level);
+        XT_MIX(xt_gained(sk));
+        XT_MIX(sk->actions);
+        XT_MIX(sk->paused ? 1 : 0);
+        XT_MIX(xt_hourly(sk, sk->gained_since_reset));
+        XT_MIX(xt_hourly(sk, sk->actions_since_reset));
+    }
+#undef XT_MIX
+    return k;
+}
+
+/** The key the published strip was composed from; 0 is "nothing published". */
+static uint64_t g_compose_key;
+
 static void
 xt_compose(struct ToriRS_PluginCtx* ctx, int width)
 {
     int slot[4];
     int const height = xt_well_h();
     size_t const pixels = (size_t)width * (size_t)height;
+    uint64_t key;
 
     assert(ctx);
     if( width <= 0 || height <= 0 )
         return;
+    xt_slots(ctx, slot);
+    key = xt_compose_key(ctx, width, slot);
+    if( key == g_compose_key && g_compose && g_compose_w == width &&
+        g_compose_h == height )
+        return;
+    g_compose_key = key;
 
     if( !g_compose || g_compose_w != width || g_compose_h != height )
     {
@@ -1011,14 +1236,14 @@ xt_compose(struct ToriRS_PluginCtx* ctx, int width)
      * as the interface's does between the CS2 rows. */
     memset(g_compose, 0, pixels * sizeof(*g_compose));
 
-    xt_slots(ctx, slot);
+    xt_draw_overview(ctx, g_compose, width, height, 0);
     for( int i = 0; i < g_box_count; i++ )
         xt_draw_box(
             ctx,
             g_compose,
             width,
             height,
-            i * XT_BOX_PITCH,
+            (i + 1) * XT_BOX_PITCH,
             g_box_skill[i],
             slot,
             g_box_skill[i] == g_detail);
@@ -1046,12 +1271,20 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
             total_rate += xt_hourly(&g_skill[i], g_skill[i].gained_since_reset);
     }
 
-    xt_commas(total_gained, text, sizeof(text));
-    g_api->panel_set_text(ctx, "total_xp", text);
-    xt_commas(total_rate, text, sizeof(text));
-    g_api->panel_set_text(ctx, "total_hr", text);
-    xt_duration((long long)((now - g_session_start_ms) / 1000u), text, sizeof(text));
-    g_api->panel_set_text(ctx, "total_time", text);
+    /*
+     * The session's totals go to the RAIL BADGE, not to rows on the page.
+     *
+     * The page states them already -- the overview box at the top of the strip
+     * is exactly `torirs_xptracker_total_labels` -- and a second copy in a
+     * different type treatment six rows down was the page saying everything
+     * twice. The badge is the one place the figure is worth repeating, because
+     * it is legible without opening the panel at all, which is what the loot
+     * tracker's own badge is for.
+     */
+    xt_compact(total_gained, text, sizeof(text));
+    g_api->panel_set_badge(ctx, total_gained > 0 ? text : "");
+    (void)total_rate;
+    (void)now;
 
     if( g_detail >= 0 && g_detail < g_skill_count )
     {
@@ -1139,15 +1372,21 @@ xt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
     xt_collect_boxes(ctx);
 
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_SECTION, "sec_session", "Session");
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_xp", "XP gained");
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_hr", "XP/hr");
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_time", "Session time");
-
-    if( g_box_count == 0 )
-        g_api->panel_widget(
-            ctx, TORIRS_PLUGIN_W_PARAGRAPH, "empty", "No XP gained yet this session.");
-    else if( g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CUSTOM, "boxes", "Skills") )
+    /*
+     * The strip and nothing above it.
+     *
+     * There were three KEY_VALUE rows here reading "XP gained / XP/hr /
+     * Session time", and they were the same three numbers the OVERVIEW BOX at
+     * the top of the strip already states -- the cache's own
+     * `torirs_xptracker_total_labels`. Two readouts of one figure, six rows
+     * apart, in two different type treatments: the page said everything twice
+     * and looked nothing like the tracker it is a port of.
+     *
+     * The custom well carries no caption for the same reason. Its label is
+     * drawn as a section header, and "Skills" over a list of skill boxes is a
+     * heading that tells the reader what they can already see.
+     */
+    if( g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CUSTOM, "boxes", " ") )
         g_api->panel_set_height(ctx, "boxes", xt_well_h());
 
     /*
@@ -1357,6 +1596,7 @@ xt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     g_built_detail = -1;
     g_page_built = false;
     g_page_visible = false;
+    g_compose_key = 0;
     g_state_applied = false;
     g_logged_in = false;
     g_session_start_ms = g_api->frame_ms(ctx);
@@ -1542,10 +1782,10 @@ static struct ToriRS_PluginConfigItem const XT_CONFIG[] = {
      * choice list for them (XpPanelLabel). The DEFAULTS are its defaults --
      * gained, rate, actions left, xp left -- which is also the pairing the
      * cache's own tracker hard-codes. @see enum XtLabel. */
-    { "label_top_left",     TORIRS_PLUGIN_CFG_ENUM, "Top-left stat",     "XP Gained", 0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
-    { "label_top_right",    TORIRS_PLUGIN_CFG_ENUM, "Top-right stat",    "XP/hr",     0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
-    { "label_bottom_left",  TORIRS_PLUGIN_CFG_ENUM, "Bottom-left stat",  "Actions",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
-    { "label_bottom_right", TORIRS_PLUGIN_CFG_ENUM, "Bottom-right stat", "XP Left",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_top_left",     TORIRS_PLUGIN_CFG_ENUM, "Top-left stat",     "XP/hr",     0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_top_right",    TORIRS_PLUGIN_CFG_ENUM, "Top-right stat",    "XP Gained", 0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_bottom_left",  TORIRS_PLUGIN_CFG_ENUM, "Bottom-left stat",  "XP Left",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_bottom_right", TORIRS_PLUGIN_CFG_ENUM, "Bottom-right stat", "Actions",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
     { NULL,                TORIRS_PLUGIN_CFG_BOOL, NULL,                           NULL, 0, 0, NULL, 0 },
 };
 
@@ -1585,6 +1825,7 @@ xt_shutdown(struct ToriRS_PluginCtx* ctx)
     g_compose_w = 0;
     g_compose_h = 0;
     PluginDraw_AtlasFree(&g_font);
+    PluginDraw_ImageFree(&g_over_px, &g_img_over);
     PluginDraw_ImageFree(&g_skill_px, &g_img_skills);
 }
 

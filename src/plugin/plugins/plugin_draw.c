@@ -207,6 +207,18 @@ plugin_draw_read_ini(
     char const* at;
     int size = 0;
 
+    /*
+     * The sheet's handle starts UNLOADED, and saying so here is the whole of
+     * it: an atlas is an ordinary zeroed static in every plugin that owns one,
+     * so its `image` arrives as 0 -- which is a perfectly good slot number.
+     * PluginDraw_ImageLoad only calls api->image_load when the handle is
+     * negative, so a zeroed atlas would skip the load entirely and measure
+     * whichever picture slot 0 happens to hold. That is another plugin's art
+     * on a good day and nothing at all on an ordinary one, and either way the
+     * caption face never arrives and the page draws blank with nothing said.
+     */
+    atlas->image = -1;
+
     snprintf(file, sizeof(file), "%s.ini", name);
     if( !api->asset_load(ctx, file) )
         return 0;

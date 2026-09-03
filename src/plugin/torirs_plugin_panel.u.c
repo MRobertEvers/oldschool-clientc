@@ -98,9 +98,6 @@ enum AppPluginPageView
 static int g_plugin_page_view = APP_PLUGIN_VIEW_SETTINGS;
 /** The view the widgets on screen were built for; a mismatch rebuilds. */
 static int g_plugin_page_view_built = -1;
-/** Handle of the "Settings" button a semantic page carries when the plugin
- *  also has a settings form, or -1. Shell-owned, like Back. */
-static int g_plugin_settings_widget = -1;
 
 /* Defined beside the custom presenter below; panel sync may run before a host
  * exists and must still retire any retained pixels from the prior host. */
@@ -316,24 +313,6 @@ app_plugin_choice_index(char const* const* choices, int count, char const* value
  * offering a page that turns out to be empty is worse than one that offers
  * nothing.
  */
-/**
- * Does the bound executor PRESENT a rail?
- *
- * The in-canvas (buffer) executor does not -- it has no `rail_sync` at all --
- * and on that lane the roster is the only navigation there is. That changes
- * what a roster row has to mean: where a rail exists the row is the settings
- * destination and the plugin's own stone is the page, and where none exists
- * the row is the only way to either and must land on the page, with the
- * page's own Settings button for the rest. A row that opened the settings on
- * a lane with no stone would make every plugin page unreachable.
- */
-static int
-app_plugin_rail_present(struct App const* app)
-{
-    assert(app);
-    return app->plugin_exec.live && app->plugin_exec.exec.rail_sync != NULL;
-}
-
 static int
 app_plugin_has_page(struct App* app, int plugin)
 {
@@ -1276,7 +1255,6 @@ app_plugin_panel_sync(struct App* app)
             PluginHost_WinWidgetCount(app->plugins, p) > 0;
         int has_settings = 0;
 
-        g_plugin_settings_widget = -1;
         if( getenv("TORIRS_CHROME_DEBUG") )
             fprintf(
                 stderr, "chrome: page build p=%d on_page=%d g_view=%d active=%d host_view=%d panel_count=%d cfg=%d\n",
@@ -1312,20 +1290,16 @@ app_plugin_panel_sync(struct App* app)
         }
 
         /*
-         * The way to the other face, and the only thing on a plugin's page
-         * that is not the plugin's own: without it the settings of a plugin
-         * you reached by its stone would be findable only by knowing that the
-         * wrench stone lists them too.
+         * NO settings door on the page.
          *
-         * Shell-owned like Back, so it costs the plugin nothing out of its
-         * control budget and cannot collide with an id it declared.
+         * A plugin's page is what it has to say; its settings are a
+         * destination of their own, reached from the roster where every
+         * plugin's settings are. A button here made the page carry a control
+         * that is not about the page, and it read as part of the plugin's own
+         * chrome when it belongs to neither.
+         * @see enum AppPluginPageView.
          */
-        if( on_page && has_settings_face )
-        {
-            ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
-            g_plugin_settings_widget =
-                ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "Settings");
-        }
+        (void)has_settings_face;
 
         /* On the SETTINGS face, whatever the plugin declared sits above the
          * generated form under a rule, so the two groups read as two: its own
@@ -1784,14 +1758,6 @@ app_plugin_panel_apply(struct App* app, int widget)
         return;
     }
 
-    /* Nor does the Settings button, which is the page's way to the plugin's
-     * other face. @see enum AppPluginPageView. */
-    if( widget >= 0 && widget == g_plugin_settings_widget && g_plugin_page >= 0 )
-    {
-        app_plugin_page_select(app, g_plugin_page, APP_PLUGIN_VIEW_SETTINGS);
-        return;
-    }
-
     /* Nor does the size toggle. Flipping the flag is the whole of it: the
      * rebuild gate above notices the change and app_plugin_panel_sync re-applies
      * the geometry and re-labels this row on the next frame, so there is one
@@ -1823,22 +1789,10 @@ app_plugin_panel_apply(struct App* app, int widget)
              */
             if( ToriRSChrome_ActivationWasAction(&app->plugin_ui) )
             {
-                /*
-                 * The ROSTER is a list of settings pages, so its row opens the
+                /* The ROSTER is a list of settings pages, so its row opens the
                  * settings -- not the plugin's own screen, which is what its
-                 * rail stone is for. @see enum AppPluginPageView.
-                 *
-                 * Unless there IS no stone: on an executor with no rail the
-                 * row is the only way in, and it opens the page.
-                 * @see app_plugin_rail_present.
-                 */
-                app_plugin_page_select(
-                    app,
-                    row->plugin,
-                    !app_plugin_rail_present(app) &&
-                            PluginHost_PanelHasPage(app->plugins, row->plugin)
-                        ? APP_PLUGIN_VIEW_PAGE
-                        : APP_PLUGIN_VIEW_SETTINGS);
+                 * rail stone is for. @see enum AppPluginPageView. */
+                app_plugin_page_select(app, row->plugin, APP_PLUGIN_VIEW_SETTINGS);
                 return;
             }
             /* Cleared BEFORE the start and not after: whatever it said was

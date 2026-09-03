@@ -426,18 +426,18 @@ button { font-weight: 700; }
 .tpc-menu { width: 104px; max-width: 100%; text-align: left; }
 /* A roster row, as the retained chrome draws one: the name in its own column,
  * clipped at the furniture; the settings well (three dots in field chrome,
- * 14px, 5px before the switch); and the tick/cross right-aligned in its 24px
+ * 16px, 5px before the switch); and the tick/cross right-aligned in its 24px
  * hit box. See torirs_chrome_metrics.h ROW_ICON / ROW_ICON_GAP / TOGGLE_W. */
 .tpc-list-table { width: 100%; height: 18px; border-collapse: collapse; table-layout: fixed; }
 .tpc-list-table td { height: 18px; padding: 0; vertical-align: middle; }
 .tpc-name-cell { overflow: hidden; padding-right: 4px; white-space: nowrap; text-overflow: ellipsis; color: #fff; color: var(--tpc-text); cursor: pointer; }
 .tpc-name-cell:hover .tpc-row-name { color: #ffff00; color: var(--tpc-accent); }
-.tpc-well-cell { width: 19px; }
+.tpc-well-cell { width: 21px; }
 .tpc-row-well {
   position: relative;
   display: block;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: 1px solid #0e0e0c;
   border-color: var(--tpc-deep);
@@ -450,10 +450,16 @@ button { font-weight: 700; }
   image-rendering: pixelated;
 }
 .tpc-row-well:hover { border-color: #ffff00; border-color: var(--tpc-accent); }
-.tpc-dot { position: absolute; top: 5px; width: 2px; height: 2px; background: #b3a893; }
-.tpc-dot-0 { left: 3px; }
+/* The dots are the FIELD's ink, and follow the outline to the accent on hover
+ * -- @see the LISTROW case in uitree_debug_overlay.c for why they are not the
+ * panel's label orange. Offsets are the metrics' DOT_INSET/DOT_PITCH less one:
+ * an absolutely-positioned child is placed against the PADDING box, which the
+ * 1px border has already moved in by a pixel. */
+.tpc-dot { position: absolute; top: 6px; width: 2px; height: 2px; background: #fff; background: var(--tpc-text); }
+.tpc-dot-0 { left: 2px; }
 .tpc-dot-1 { left: 6px; }
-.tpc-dot-2 { left: 9px; }
+.tpc-dot-2 { left: 10px; }
+.tpc-row-well:hover .tpc-dot { background: #ffff00; background: var(--tpc-accent); }
 .tpc-toggle-cell { width: 24px; text-align: right; }
 .tpc-toggle-cell .tpc-check { display: block; margin: 0 0 0 auto; }
 .tpc-model { width: 100%; min-height: 100px; border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22; color: #ff981f; color: var(--tpc-label); text-align: center; }

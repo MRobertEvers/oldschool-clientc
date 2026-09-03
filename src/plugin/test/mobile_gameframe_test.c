@@ -546,8 +546,46 @@ fake_role_id(void* u, char const* r)
 }
 static int fake_role_slot(void* u, char const* r, int* s, int* m)
 { (void)u; (void)r; (void)s; (void)m; return 0; }
-static int fake_role_replace(void* u, int p, char const* r, int e)
-{ (void)u; (void)p; (void)r; (void)e; return 1; }
+/*
+ * What the host last told the lane about each named part.
+ *
+ * Recorded because a plate this frame paints NOTHING into is proved gone by
+ * two facts and not one: no picture of the plugin's at its corner, AND the
+ * lane's own node hidden underneath. Without the second the pack would still
+ * be drawing its OldSchool plate and the test would read as a pass.
+ */
+#define M_REPLACED_MAX 16
+static char g_replaced_part[M_REPLACED_MAX][32];
+static int g_replaced_on[M_REPLACED_MAX];
+static int g_replaced_count;
+static int
+fake_role_replace(void* u, int p, char const* r, int e)
+{
+    (void)u;
+    (void)p;
+    for( int i = 0; i < g_replaced_count; i++ )
+        if( strcmp(g_replaced_part[i], r) == 0 )
+        {
+            g_replaced_on[i] = e;
+            return 1;
+        }
+    if( g_replaced_count < M_REPLACED_MAX )
+    {
+        snprintf(g_replaced_part[g_replaced_count], sizeof(g_replaced_part[0]), "%s", r);
+        g_replaced_on[g_replaced_count] = e;
+        g_replaced_count++;
+    }
+    return 1;
+}
+/** Is the lane's own node for `r` hidden by a claimant right now? */
+static int
+role_is_replaced(char const* r)
+{
+    for( int i = 0; i < g_replaced_count; i++ )
+        if( strcmp(g_replaced_part[i], r) == 0 )
+            return g_replaced_on[i];
+    return 0;
+}
 /* Anchoring succeeds for a role this fake frame HAS, which is the same set
  * fake_role_rect answers for; a NULL role is the release and always works. */
 static int
@@ -1347,6 +1385,7 @@ main(void)
          * part's own box -- so the proof is a blit at each piece's corner,
          * which is where the pack's own art was. */
         int plates = 0;
+        int hidden = 0;
 
         PluginHost_ChromeTick(g_host, M_W, M_H);
         g_frame.blits = 0;
@@ -1354,8 +1393,17 @@ main(void)
         CHECK(blitted_at(0, M_H - 165), "the pack's backing wears the plugin's parchment");
         CHECK(blitted_at(0, M_H - 23), "and its stone bar the 2004 strip");
         for( int n = 0; n < 8; n++ )
+        {
+            char part[16];
+            snprintf(part, sizeof(part), "chat_plate_%d", n);
             plates += blitted_at(3 + n * 62, M_H - 22) ? 1 : 0;
-        CHECK(plates == 8, "and all eight filter plates the 2004 button, scaled to them");
+            hidden += role_is_replaced(part) ? 1 : 0;
+        }
+        /* A 2004 filter is a label on the stone, so the plate is claimed to be
+         * taken AWAY: nothing of the plugin's is painted at its corner and the
+         * pack's own is hidden under it. @see MOBILE_CHAT_PIECE. */
+        CHECK(plates == 0, "no plate is painted under the eight filter labels");
+        CHECK(hidden == 8, "and all eight of the pack's own are hidden by the claim");
     }
 
     /* The other family, asked for: OldSchool Mobile's own rail. */

@@ -1921,7 +1921,13 @@ chrome_gdi_draw_color_popup(struct ChromeGdi* s, HDC dc)
     }
 }
 
-/** A roster row's settings affordance: three dots in a field-chrome well. */
+/**
+ * A roster row's settings affordance: three dots in a field-chrome well.
+ *
+ * The dots are C_TEXT, the ink of the box they are inside, and follow the
+ * outline to the accent when the well is hot -- @see the long note on the
+ * LISTROW case in uitree_debug_overlay.c, which this draws by other means.
+ */
 static void
 chrome_gdi_draw_dots(struct ChromeGdi* s, HDC dc, RECT box, int hot)
 {
@@ -1938,7 +1944,7 @@ chrome_gdi_draw_dots(struct ChromeGdi* s, HDC dc, RECT box, int hot)
             box.top + h / 2 - CHROME_GDI_RULE,
             CHROME_GDI_DOT,
             CHROME_GDI_DOT,
-            TORIRS_CHROME_C_LABEL);
+            hot ? TORIRS_CHROME_C_ACCENT : TORIRS_CHROME_C_TEXT);
 }
 
 /** A pressable box: the settings field with a caption centred in it, which is

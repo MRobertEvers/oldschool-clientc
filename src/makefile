@@ -2241,6 +2241,20 @@ test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/test/item_stats_t
 # answers, what does the page say", and the page is what the fake keeps. The
 # arithmetic each is a port of -- xp/hr over TRAINING time, and attributing a
 # drop to the despawn it landed on -- is what the cases pin.
+# What the two trackers LOOK like: the real strips composed out of the real
+# shipped art, written to PNGs. The layout is the half no assertion holds, so
+# this pins the few numbers a regression moves (strip height, box pitch) and
+# leaves the rest to the picture.
+test-tracker-render: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
+		plugin/plugins/plugin_draw.c plugin/test/tracker_render_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_render_test \
+		plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
+		plugin/plugins/plugin_draw.c engine/png_decode.c \
+		$(REPO_ROOT)/3rd/miniz/miniz.c plugin/test/tracker_render_test.c $(LDFLAGS)
+	TRACKER_RENDER_XP_PNG=$(OBJ_DIR)/xp_strip.png \
+		TRACKER_RENDER_LOOT_PNG=$(OBJ_DIR)/loot_strip.png \
+		./$(OBJ_DIR)/tracker_render_test
+
 test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
 		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_test \
@@ -2987,6 +3001,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c \
 		platform/platform_sdl2_renderer_soft3d.c \
+		perf/torirs_perf.c \
 		$(BMP_DIR)/bmp.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o -lm

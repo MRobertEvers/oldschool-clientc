@@ -826,7 +826,13 @@ static int
 box_count(void)
 {
     struct FakeWidget const* w = fake_widget_find("boxes");
-    return w ? w->height / TEST_BOX_PITCH : 0;
+    /*
+     * The SKILL boxes, which is one fewer than the strip holds: the overview
+     * box is always drawn -- it is the session's own answer and it has one
+     * whether or not a skill has been trained -- so the strip is the list plus
+     * that one. @see xt_draw_overview.
+     */
+    return w && w->height >= TEST_BOX_PITCH ? w->height / TEST_BOX_PITCH - 1 : 0;
 }
 
 /** The skill whose detail block is open, or NULL. */
@@ -890,11 +896,14 @@ test_xp_first_reading_seeds(void)
     /* Every stat arrives at once on login and none of it is a gain. */
     tick(20);
     TEST_ASSERT(
-        row_text("total_xp") && strcmp(row_text("total_xp"), "0") == 0,
-        "the first sight of a stat table seeds rather than reporting a gain (got '%s')",
-        row_text("total_xp") ? row_text("total_xp") : "(none)");
+        g_client.badge && g_client.badge[0] == '\0',
+        "the first sight of a stat table seeds rather than reporting a gain, so the "
+        "rail carries no badge at all (got '%s')",
+        g_client.badge ? g_client.badge : "(none)");
     TEST_ASSERT(box_count() == 0, "and no skill has a box until it has been trained");
-    TEST_ASSERT(fake_widget_find("empty"), "the empty page says so");
+    TEST_ASSERT(
+        fake_widget_find("boxes") != NULL,
+        "the strip is still declared -- its overview box states the empty session");
 }
 
 static void
@@ -910,9 +919,9 @@ test_xp_gain_makes_a_row(void)
 
     TEST_ASSERT(box_count() == 1, "a trained skill gets a box (got %d)", box_count());
     TEST_ASSERT(
-        row_text("total_xp") && strcmp(row_text("total_xp"), "100") == 0,
+        g_client.badge && strcmp(g_client.badge, "100") == 0,
         "the session total is the gain (got '%s')",
-        row_text("total_xp") ? row_text("total_xp") : "(none)");
+        g_client.badge ? g_client.badge : "(none)");
     TEST_ASSERT(!fake_widget_find("empty"), "and the empty note is gone");
 }
 
@@ -932,10 +941,13 @@ test_xp_rate_is_over_training_time(void)
         g_client.xp[SKILL_WOODCUTTING] += 10;
         tick(1000);
     }
+    /* The RATE is the box's and the detail block's; the badge carries the
+     * session's gained xp, which is the figure worth reading off the rail. */
+    press_box(0);
     TEST_ASSERT(
-        row_text("total_hr") && strcmp(row_text("total_hr"), "36,000") == 0,
+        row_text("d_hr") && strcmp(row_text("d_hr"), "36,000") == 0,
         "a minute of 10xp/second reads as 36,000/hr (got '%s')",
-        row_text("total_hr") ? row_text("total_hr") : "(none)");
+        row_text("d_hr") ? row_text("d_hr") : "(none)");
 
     /*
      * Idling DILUTES, and that is the reference's behaviour rather than a
@@ -947,23 +959,22 @@ test_xp_rate_is_over_training_time(void)
     for( int i = 0; i < 600; i++ )
         tick(1000);
     TEST_ASSERT(
-        row_text("total_hr") && strcmp(row_text("total_hr"), "3,272") == 0,
+        row_text("d_hr") && strcmp(row_text("d_hr"), "3,272") == 0,
         "ten idle minutes dilute the rate over the longer span (got '%s')",
-        row_text("total_hr") ? row_text("total_hr") : "(none)");
+        row_text("d_hr") ? row_text("d_hr") : "(none)");
 
     /*
      * PAUSING is what stops the clock, and this is the assertion that says so:
      * ten further idle minutes past a pause move the number not at all.
      */
-    press_box(0);
     press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
     for( int i = 0; i < 600; i++ )
         tick(1000);
     press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
     TEST_ASSERT(
-        row_text("total_hr") && strcmp(row_text("total_hr"), "3,272") == 0,
+        row_text("d_hr") && strcmp(row_text("d_hr"), "3,272") == 0,
         "but a paused skill's clock does not run (got '%s')",
-        row_text("total_hr") ? row_text("total_hr") : "(none)");
+        row_text("d_hr") ? row_text("d_hr") : "(none)");
 }
 
 static void
@@ -1104,10 +1115,18 @@ test_xp_pause(void)
         row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
         "pressing it pauses the skill and offers the way back (got '%s')",
         row_text("d_pause") ? row_text("d_pause") : "(none)");
+    /*
+     * A pause stops the CLOCK, not the record: the xp you earned is still
+     * earned, so the badge keeps it and the per-skill rate keeps its last
+     * measurement. That the clock stops is pinned by
+     * test_xp_rate_is_over_training_time, which is the assertion that can
+     * actually see it; what belongs here is that pausing does not quietly
+     * throw the session away.
+     */
     TEST_ASSERT(
-        row_text("total_hr") && strcmp(row_text("total_hr"), "0") == 0,
-        "and a paused skill contributes no rate (got '%s')",
-        row_text("total_hr") ? row_text("total_hr") : "(none)");
+        g_client.badge && strcmp(g_client.badge, "600") == 0,
+        "and pausing keeps the xp already earned (got '%s')",
+        g_client.badge ? g_client.badge : "(none)");
 
     press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
     TEST_ASSERT(
@@ -1159,9 +1178,9 @@ test_xp_logout_pauses_and_keeps_state(void)
     g_client.logged_in = false;
     tick(1000);
     TEST_ASSERT(
-        row_text("total_xp") && strcmp(row_text("total_xp"), "600") == 0,
+        g_client.badge && strcmp(g_client.badge, "600") == 0,
         "logging out KEEPS the session -- a hop is not a new one (got '%s')",
-        row_text("total_xp") ? row_text("total_xp") : "(none)");
+        g_client.badge ? g_client.badge : "(none)");
     press_box(0);
     TEST_ASSERT(
         row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
@@ -1183,15 +1202,16 @@ test_xp_reset(void)
     press("reset_all", TORIRS_PLUGIN_UI_ACTIVATE, -1);
     TEST_ASSERT(box_count() == 0, "reset all takes the boxes with it");
     TEST_ASSERT(
-        row_text("total_xp") && strcmp(row_text("total_xp"), "0") == 0,
-        "and zeroes the session");
+        g_client.badge && g_client.badge[0] == '\0',
+        "and zeroes the session, which takes the rail badge with it (got '%s')",
+        g_client.badge ? g_client.badge : "(none)");
 
     /* And it re-seeds rather than counting the current xp as a gain. */
     tick(1000);
     TEST_ASSERT(
-        row_text("total_xp") && strcmp(row_text("total_xp"), "0") == 0,
+        g_client.badge && g_client.badge[0] == '\0',
         "the reset re-seeds from the client's xp (got '%s')",
-        row_text("total_xp") ? row_text("total_xp") : "(none)");
+        g_client.badge ? g_client.badge : "(none)");
 }
 
 static void
@@ -1223,9 +1243,9 @@ test_xp_offline_gains_are_not_the_session(void)
     panel_build();
     tick(20);
     TEST_ASSERT(
-        row_text("total_xp") && strcmp(row_text("total_xp"), "600") == 0,
+        g_client.badge && strcmp(g_client.badge, "600") == 0,
         "the saved session comes back and the offline million does not (got '%s')",
-        row_text("total_xp") ? row_text("total_xp") : "(none)");
+        g_client.badge ? g_client.badge : "(none)");
 }
 
 /* ====================================================================== */
@@ -1413,18 +1433,23 @@ test_loot_expand_collapse(void)
 
     loot_add("Goblin", 526, 1, 100, 1);
     settle();
-    collapsed = fake_widget_find("strip")->height;
-
-    press_strip(TEST_TOTALS_H + 4);
+    /*
+     * A band arrives OPEN, the way the game's own tracker draws one: the drops
+     * under a name are what the panel was opened to see. So the gesture under
+     * test is closing it and opening it again, not the other way round.
+     */
     expanded = fake_widget_find("strip")->height;
+
+    press_strip(TEST_TOTALS_H + 4);
+    collapsed = fake_widget_find("strip")->height;
     TEST_ASSERT(
-        expanded > collapsed,
-        "opening a band makes room for its drops (%d -> %d)", collapsed, expanded);
+        collapsed < expanded,
+        "closing a band gives its drops' room back (%d -> %d)", expanded, collapsed);
 
     press_strip(TEST_TOTALS_H + 4);
     TEST_ASSERT(
-        fake_widget_find("strip")->height == collapsed,
-        "and closing it gives the room back");
+        fake_widget_find("strip")->height == expanded,
+        "and opening it again makes room for them");
 }
 
 static void

@@ -145,13 +145,16 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-list-table td { height: 18px; padding: 0; vertical-align: middle; }
 .tpc-name-cell { overflow: hidden; padding-right: 4px; white-space: nowrap; text-overflow: ellipsis; color: #ffffff; cursor: hand; }
 .tpc-name-cell:hover .tpc-row-name { color: #ffff00; }
-.tpc-well-cell { width: 19px; }
-.tpc-row-well { position: relative; display: block; width: 14px; height: 14px; padding: 0; overflow: hidden; border: 1px solid #0e0e0c; background: #000000 url("skin/DropdownBody.png"); cursor: hand; }
+.tpc-well-cell { width: 21px; }
+.tpc-row-well { position: relative; display: block; width: 16px; height: 16px; padding: 0; overflow: hidden; border: 1px solid #0e0e0c; background: #000000 url("skin/DropdownBody.png"); cursor: hand; box-sizing: border-box; }
 .tpc-row-well:hover { border-color: #ffff00; }
-.tpc-dot { position: absolute; top: 5px; width: 2px; height: 2px; overflow: hidden; font-size: 0; line-height: 0; background: #b3a893; }
-.tpc-dot-0 { left: 3px; }
+/* Dots at DOT_INSET/DOT_PITCH less the pixel the border already moved the
+ * padding box in by, in the field's own ink. @see modern.css. */
+.tpc-dot { position: absolute; top: 6px; width: 2px; height: 2px; overflow: hidden; font-size: 0; line-height: 0; background: #ffffff; }
+.tpc-dot-0 { left: 2px; }
 .tpc-dot-1 { left: 6px; }
-.tpc-dot-2 { left: 9px; }
+.tpc-dot-2 { left: 10px; }
+.tpc-row-well:hover .tpc-dot { background: #ffff00; }
 .tpc-color { white-space: nowrap; }
 .tpc-color .tpc-color-swatch { width: 42px; margin-right: 5px; padding: 0 2px; }
 .tpc-color .tpc-color-text { width: 96px; }

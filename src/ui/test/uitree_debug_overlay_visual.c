@@ -143,7 +143,8 @@ World_PickSetAdd(
     enum World_PickType type,
     int tile_x,
     int tile_z,
-    int tile_level)
+    int tile_level,
+    int view_id)
 {
     (void)pickset;
     (void)element_id;
@@ -151,6 +152,7 @@ World_PickSetAdd(
     (void)tile_x;
     (void)tile_z;
     (void)tile_level;
+    (void)view_id;
 }
 
 /* ------------------------------------------------------------------------- */

@@ -80,15 +80,38 @@
 /** A roster row's switch: the hit box the tick/cross is right-aligned inside. */
 #define TORIRS_CHROME_M_TOGGLE_W 24
 #define TORIRS_CHROME_M_TOGGLE_H 12
-/** A roster row's settings affordance -- the three-dot well. */
-#define TORIRS_CHROME_M_ROW_ICON 14
+/**
+ * A roster row's settings affordance -- the three-dot well.
+ *
+ * 16, not the 14 this was. A settings field is TWO rules deep (the near-black
+ * outline over the grey inset, @see TORIRS_CHROME_C_FRAME/FRAME_INSET), so a
+ * 14px well is 4px of frame around a 10px hole -- and with the dots' own ink
+ * 8 of that 10, the frame is the loudest thing in the control and the three
+ * dots read as grit caught inside it. At 16 the same two rules leave 12, which
+ * is the first size the dots have air on both sides of them.
+ *
+ * It is also within a pixel of the 17x17 tick/cross beside it
+ * (TORIRS_CHROME_M_BOX), which is what stops the row's two controls reading as
+ * a big one and a small one.
+ */
+#define TORIRS_CHROME_M_ROW_ICON 16
 /** Gap between that well and the switch to its right. */
 #define TORIRS_CHROME_M_ROW_ICON_GAP 5
 /** Gap between a roster row's name and whatever furniture follows it. */
 #define TORIRS_CHROME_M_ROW_NAME_GAP 4
-/** The three dots: their size, their pitch, and the well's left inset. */
+/**
+ * The three dots: their size, their pitch, and the well's left inset.
+ *
+ * The pitch is the dot plus a gap of its OWN size. At the 3 it was, the gap
+ * was a single pixel and the row of them closed up into one dashed bar at
+ * every scale -- three dots have to be three things, and the only way a 2px
+ * square says "dot" rather than "block" is the space around it.
+ *
+ * INSET centres the run: 3 + 2*4 + 2 = 13 of 16, so the ink sits 3 in from
+ * both edges and one clear pixel inside the grey rule.
+ */
 #define TORIRS_CHROME_M_DOT 2
-#define TORIRS_CHROME_M_DOT_PITCH 3
+#define TORIRS_CHROME_M_DOT_PITCH 4
 #define TORIRS_CHROME_M_DOT_INSET 3
 
 /* ---- the scrollbar, as ~script31 assembles one --------------------------- */

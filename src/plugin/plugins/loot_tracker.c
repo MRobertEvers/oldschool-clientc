@@ -154,6 +154,23 @@
  * both in fontmetrics_494.
  */
 #define LT_TOTALS_H 42
+/* ---- the totals band's own controls, as interface 650 places them --------
+ *
+ * Four 30x30 buttons in a 244-wide band at y+6: the VIEW toggle hard against
+ * the left at x=4, and the other three anchored to the RIGHT at 4, 35 and 66
+ * in from that edge (the cache authors them at x=651/682/713 in a band that
+ * starts at 503 and runs 244 wide). Anchoring the right-hand three from the
+ * right is what keeps them in place when the panel is not the cache's width.
+ */
+#define LT_BTN 30
+#define LT_BTN_Y 6
+#define LT_BTN_LEFT_X 4
+#define LT_BTN_R0 4
+#define LT_BTN_R1 35
+#define LT_BTN_R2 66
+
+#define LT_TOTALS_ICON 24
+#define LT_TOTALS_ICON_X 6
 #define LT_TOTALS_KEY_X 36
 #define LT_TOTALS_VAL_X 97
 
@@ -204,6 +221,11 @@ static bool g_page_visible;
 
 /** The two faces script2907 and script3043 set their text in. */
 static struct PluginDraw_Atlas g_bold;
+/** The panel's own stone, drawn at the left of the totals band. */
+static int g_img_over = -1;
+static uint32_t* g_over_px;
+static int g_over_w;
+static int g_over_h;
 static struct PluginDraw_Atlas g_text;
 /** The header spine and the cell plate, in both their states. */
 static int g_img_spine = -1;
@@ -218,6 +240,39 @@ static int g_cell_h;
 /** Which sources are EXPANDED. The CS2 header's first op is Collapse/Expand,
  *  so a record is a band with its grid under it or a band on its own. */
 static bool g_expanded[LT_SOURCES_MAX];
+/**
+ * Which of the two views the strip is drawing -- the cache's `%varbit9607`.
+ *
+ * 0 SOURCE: a band per kill with its drops under it, which is what the panel
+ *   opens on. 1 DROP: every drop the log holds in one grid, summed across the
+ *   sources, which is the answer to "what did I actually get" rather than
+ *   "what dropped it". The button that swaps them wears graphic_4915 in one
+ *   state and graphic_4916 in the other, and its op names the view it is
+ *   about to move TO -- @see torirs_loot_tracker_view_mode.
+ */
+static bool g_drop_view;
+
+/** The control art, in the order the band lays it out. */
+static int g_img_view = -1;
+static uint32_t* g_view_px;
+static int g_view_w;
+static int g_view_h;
+static int g_img_view2 = -1;
+static uint32_t* g_view2_px;
+static int g_view2_w;
+static int g_view2_h;
+static int g_img_alch = -1;
+static uint32_t* g_alch_px;
+static int g_alch_w;
+static int g_alch_h;
+static int g_img_collapse = -1;
+static uint32_t* g_collapse_px;
+static int g_collapse_w;
+static int g_collapse_h;
+static int g_img_ignored = -1;
+static uint32_t* g_ignored_px;
+static int g_ignored_w;
+static int g_ignored_h;
 /** The composed strip, and the size it was composed at. */
 static uint32_t* g_compose;
 static int g_compose_w;
@@ -301,6 +356,62 @@ lt_short(long long value, char* out, size_t out_size)
             out, out_size, "%lld.%lld%c", value / unit, (value % unit) * 10 / unit, suffix);
     else
         snprintf(out, out_size, "%lld%c", value / unit, suffix);
+}
+
+/**
+ * A value the way the tracker's own `~torirs_fmt_kmb` (script 7122) writes
+ * one: `fmt_kmb(v, ".", 1)`, which is how `torirs_loot_totals` and every band
+ * in interface 650 sets its gp.
+ *
+ * One decimal, and the decimal is DROPPED when the remainder does not reach
+ * it -- 37,100 is "37.1K" and 37,000 is "37K", not "37.0K". Under a thousand
+ * there is no unit at all, which is why the reference reads "124 gp" and
+ * "0 gp" rather than "0.1K".
+ */
+static void
+lt_kmb(long long value, char* out, size_t out_size)
+{
+    long long unit;
+    char suffix;
+    long long whole;
+    long long rem;
+    long long step;
+
+    assert(out);
+    assert(out_size > 0);
+
+    if( value >= 2147483647LL )
+    {
+        snprintf(out, out_size, "Lots");
+        return;
+    }
+    if( value < 1000 )
+    {
+        snprintf(out, out_size, "%lld", value < 0 ? 0 : value);
+        return;
+    }
+    if( value >= 1000000000LL )
+    {
+        unit = 1000000000LL;
+        suffix = 'B';
+    }
+    else if( value >= 1000000LL )
+    {
+        unit = 1000000LL;
+        suffix = 'M';
+    }
+    else
+    {
+        unit = 1000LL;
+        suffix = 'K';
+    }
+    step = unit / 10;
+    whole = value / unit;
+    rem = value - whole * unit;
+    if( rem >= step )
+        snprintf(out, out_size, "%lld.%lld%c", whole, rem / step, suffix);
+    else
+        snprintf(out, out_size, "%lld%c", whole, suffix);
 }
 
 /**
@@ -481,6 +592,27 @@ lt_art_ready(struct ToriRS_PluginCtx* ctx)
     assert(ctx);
     if( !PluginDraw_AtlasLoad(ctx, g_api, &g_bold, "bold") )
         return 0;
+    (void)PluginDraw_ImageLoad(
+        ctx, g_api, "panel_icon.png", &g_img_over, &g_over_px, &g_over_w, &g_over_h);
+    /*
+     * The band's four controls, cut from the cache: graphic_4915/4916 are the
+     * two faces of the view toggle, 4912 the value basis, 4917 collapse-all,
+     * 4913 the ignore list. Wanted but not REQUIRED -- a band with a gap where
+     * a button belongs still reads, and a page that refuses to draw does not.
+     */
+    (void)PluginDraw_ImageLoad(
+        ctx, g_api, "btn_dropview.png", &g_img_view, &g_view_px, &g_view_w, &g_view_h);
+    (void)PluginDraw_ImageLoad(
+        ctx, g_api, "btn_sourceview.png", &g_img_view2, &g_view2_px, &g_view2_w,
+        &g_view2_h);
+    (void)PluginDraw_ImageLoad(
+        ctx, g_api, "btn_alch.png", &g_img_alch, &g_alch_px, &g_alch_w, &g_alch_h);
+    (void)PluginDraw_ImageLoad(
+        ctx, g_api, "btn_collapse.png", &g_img_collapse, &g_collapse_px, &g_collapse_w,
+        &g_collapse_h);
+    (void)PluginDraw_ImageLoad(
+        ctx, g_api, "btn_ignored.png", &g_img_ignored, &g_ignored_px, &g_ignored_w,
+        &g_ignored_h);
     if( !PluginDraw_AtlasLoad(ctx, g_api, &g_text, "text") )
         return 0;
     if( !PluginDraw_ImageLoad(
@@ -511,10 +643,62 @@ lt_source_h(int index)
 }
 
 /** The whole strip's height: the totals band, then every category. */
+/**
+ * Every drop in the log, summed across the sources.
+ *
+ * The DROP view's whole content: interface 650 hides its band container and
+ * shows a flat one, because "what did I get" and "what dropped it" are two
+ * questions and a list grouped by killer answers only the second. Items are
+ * merged by obj id, so twenty goblins' worth of bones is one cell.
+ */
+static int
+lt_collect_drops(struct LtItem* out, int max)
+{
+    int n = 0;
+
+    assert(out);
+    for( int i = 0; i < g_source_count; i++ )
+        for( int j = 0; j < g_source[i].item_count; j++ )
+        {
+            struct LtItem const* row = &g_source[i].items[j];
+            int at = -1;
+            for( int k = 0; k < n; k++ )
+                if( out[k].obj_id == row->obj_id )
+                {
+                    at = k;
+                    break;
+                }
+            if( at >= 0 )
+            {
+                out[at].quantity += row->quantity;
+                continue;
+            }
+            if( n >= max )
+                continue;
+            out[n++] = *row;
+        }
+    return n;
+}
+
+/** Rows the drop grid needs for `n` cells. */
+static int
+lt_drop_rows(int n)
+{
+    return (n + LT_GRID_COLS - 1) / LT_GRID_COLS;
+}
+
 static int
 lt_strip_h(void)
 {
     int total = LT_TOTALS_H + LT_HEAD_GAP;
+
+    if( g_drop_view )
+    {
+        struct LtItem drops[LT_SOURCES_MAX * 4];
+        int const n = lt_collect_drops(
+            drops, (int)(sizeof(drops) / sizeof(drops[0])));
+        return total + (n > 0 ? lt_drop_rows(n) * LT_CELL_H + 6 : LT_HEAD_H);
+    }
 
     for( int i = 0; i < g_source_count; i++ )
         total += lt_source_h(i);
@@ -536,16 +720,51 @@ lt_draw_totals(struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h)
             buf, w, h, LT_PLATE_INSET, LT_PLATE_INSET, w - LT_PLATE_INSET * 2,
             LT_TOTALS_H - LT_PLATE_INSET * 2, g_spine_px, g_spine_w, g_spine_h, 0);
 
+    /*
+     * No panel stone at the left of the band: the thing the cache puts there
+     * is the VIEW TOGGLE (interface 650:62 at x=4), and it is drawn below with
+     * the band's other three controls. An icon here as well sat on top of it.
+     */
+
     PluginDraw_Text(
         buf, w, h, LT_TOTALS_KEY_X, 8, &g_text, "Total count:", LT_INK_VALUE);
     PluginDraw_Text(
         buf, w, h, LT_TOTALS_KEY_X, 22, &g_text, "Total value:", LT_INK_VALUE);
 
-    lt_commas(g_session_kills, text, sizeof(text));
+    lt_kmb(g_session_kills, text, sizeof(text));
     PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 8, &g_text, text, LT_INK_VALUE);
-    lt_commas(g_session_value, text, sizeof(text));
+    lt_kmb(g_session_value, text, sizeof(text));
     snprintf(text + strlen(text), sizeof(text) - strlen(text), " gp");
     PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 22, &g_text, text, LT_INK_VALUE);
+
+    /*
+     * The band's four controls, at the offsets interface 650 places them.
+     *
+     * The view toggle wears the face of the view it will move TO -- 4915 while
+     * the source bands are up, 4916 while the flat drop grid is -- which is
+     * why the two sprites read as each other's opposite rather than as an
+     * on/off pair.
+     */
+    if( g_drop_view ? g_view2_px != NULL : g_view_px != NULL )
+    {
+        uint32_t const* px = g_drop_view ? g_view2_px : g_view_px;
+        int const pw = g_drop_view ? g_view2_w : g_view_w;
+        int const ph = g_drop_view ? g_view2_h : g_view_h;
+        PluginDraw_Blit(
+            buf, w, h, LT_BTN_LEFT_X, LT_BTN_Y, px, pw, ph, 0, 0, pw, ph, 0);
+    }
+    if( g_ignored_px )
+        PluginDraw_Blit(
+            buf, w, h, w - LT_BTN_R0 - LT_BTN, LT_BTN_Y, g_ignored_px, g_ignored_w,
+            g_ignored_h, 0, 0, g_ignored_w, g_ignored_h, 0);
+    if( g_collapse_px )
+        PluginDraw_Blit(
+            buf, w, h, w - LT_BTN_R1 - LT_BTN, LT_BTN_Y, g_collapse_px, g_collapse_w,
+            g_collapse_h, 0, 0, g_collapse_w, g_collapse_h, 0);
+    if( g_alch_px )
+        PluginDraw_Blit(
+            buf, w, h, w - LT_BTN_R2 - LT_BTN, LT_BTN_Y, g_alch_px, g_alch_w,
+            g_alch_h, 0, 0, g_alch_w, g_alch_h, 0);
 }
 
 /** The source a click at `y` landed on, and how far into it. -1 for neither. */
@@ -574,6 +793,49 @@ lt_source_at(int y, int* out_local_y)
  * Every measurement is script2907's and script3042's; @see the block comment
  * above LT_HEAD_H.
  */
+/**
+ * One item cell: the plate, then the client's own icon at +2,+2.
+ *
+ * Shared by both views, which is the point of pulling it out -- the source
+ * bands and the flat drop grid draw the same cell, and two copies of a blit
+ * that has to line an icon up inside a plate is two chances to line it up
+ * differently.
+ *
+ * The BORDERED variant is what `cc_setoutline(1)` bakes, and the quantity is
+ * part of the picture rather than drawn over it: the client stamps the stack
+ * digits into the sprite, so the icon is asked for AT the quantity and blitted
+ * as one thing.
+ */
+static void
+lt_draw_cell(
+    struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h, int x, int y,
+    struct LtItem const* item)
+{
+    int image;
+    int iw = 0;
+    int ih = 0;
+
+    assert(ctx);
+    assert(buf);
+    assert(item);
+
+    if( g_cell_px )
+        PluginDraw_Blit(
+            buf, w, h, x, y, g_cell_px, g_cell_w, g_cell_h, 0, 0, g_cell_w, g_cell_h, 0);
+
+    image = g_api->obj_image(
+        ctx, item->obj_id, item->quantity, TORIRS_PLUGIN_OBJ_ICON_BORDERED);
+    if( image < 0 || !g_api->image_size(ctx, image, &iw, &ih) )
+        return;
+    {
+        uint32_t* px = malloc((size_t)iw * (size_t)ih * sizeof(*px));
+        assert(px);
+        if( g_api->image_pixels(ctx, image, px, iw * ih) )
+            PluginDraw_Blit(buf, w, h, x + 2, y + 2, px, iw, ih, 0, 0, iw, ih, 0);
+        free(px);
+    }
+}
+
 static void
 lt_draw_source(
     struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h, int top, int index)
@@ -598,7 +860,7 @@ lt_draw_source(
     snprintf(text, sizeof(text), "%s x %d", src->name, src->kills);
     PluginDraw_Text(buf, w, h, 8, top + 9, &g_bold, text, LT_INK_HEAD);
 
-    lt_short(lt_source_value(ctx, src), amount, sizeof(amount));
+    lt_kmb(lt_source_value(ctx, src), amount, sizeof(amount));
     snprintf(text, sizeof(text), "%s gp", amount);
     PluginDraw_TextRight(buf, w, h, w - 8, top + 9, &g_bold, text, LT_INK_HEAD);
 
@@ -623,44 +885,94 @@ lt_draw_source(
         int iw = 0;
         int ih = 0;
 
-        if( g_cell_px )
-            PluginDraw_Blit(
-                buf, w, h, x, y, g_cell_px, g_cell_w, g_cell_h, 0, 0, g_cell_w,
-                g_cell_h, 0);
-
-        /*
-         * The obj at +2,+2 in the BORDERED variant, which is what
-         * cc_setoutline(1) bakes. The quantity is part of the picture -- the
-         * client stamps the stack digits into the sprite -- so it is asked for
-         * at the quantity and drawn as one thing.
-         */
-        image = g_api->obj_image(
-            ctx, src->items[i].obj_id, src->items[i].quantity,
-            TORIRS_PLUGIN_OBJ_ICON_BORDERED);
-        if( image < 0 || !g_api->image_size(ctx, image, &iw, &ih) )
-            continue;
-        {
-            uint32_t* px = malloc((size_t)iw * (size_t)ih * sizeof(*px));
-            assert(px);
-            if( g_api->image_pixels(ctx, image, px, iw * ih) )
-                PluginDraw_Blit(
-                    buf, w, h, x + 2, y + 2, px, iw, ih, 0, 0, iw, ih, 0);
-            free(px);
-        }
+        lt_draw_cell(ctx, buf, w, h, x, y, &src->items[i]);
+        (void)image;
+        (void)iw;
+        (void)ih;
     }
 }
 
 /** Rasterise every band and publish the strip. */
+/**
+ * Everything the strip's picture depends on, in one number.
+ *
+ * The compose is the expensive half of this plugin -- a plate and a text pass
+ * per band, and an icon read back per cell -- and the draw event fires
+ * whenever the well is dirty, which is every frame the panel is up. Composing
+ * unconditionally therefore re-rasterised and RE-PUBLISHED the same picture
+ * sixty times a second; the republish replaces the scene sprite the overlay
+ * item is about to reference, and the frames that landed between the two are
+ * what the loot list was flickering with.
+ *
+ * So the picture is hashed on its inputs and only rebuilt when one moves. The
+ * hash has to cover everything a reader can SEE -- the view, the width, the
+ * price basis, every band's name, count and value, and every cell's obj and
+ * quantity -- because anything left out is a change that will not redraw.
+ */
+static uint64_t
+lt_compose_key(struct ToriRS_PluginCtx* ctx, int width)
+{
+    uint64_t k = 1469598103934665603ull;
+    char const* price = g_api->cfg_str(ctx, "price_source");
+
+#define LT_MIX(v)                                                                        \
+    do                                                                                   \
+    {                                                                                    \
+        k ^= (uint64_t)(v);                                                              \
+        k *= 1099511628211ull;                                                           \
+    } while( 0 )
+
+    assert(ctx);
+    LT_MIX(width);
+    LT_MIX(g_drop_view ? 1 : 0);
+    LT_MIX(g_source_count);
+    LT_MIX(g_session_kills);
+    LT_MIX(g_session_value);
+    for( char const* at = price ? price : ""; *at; at++ )
+        LT_MIX((unsigned char)*at);
+    for( int i = 0; i < g_source_count; i++ )
+    {
+        struct LtSource const* src = &g_source[i];
+        LT_MIX(src->kills);
+        LT_MIX(src->item_count);
+        LT_MIX(g_expanded[i] ? 1 : 0);
+        for( char const* at = src->name; *at; at++ )
+            LT_MIX((unsigned char)*at);
+        for( int j = 0; j < src->item_count; j++ )
+        {
+            LT_MIX(src->items[j].obj_id);
+            LT_MIX(src->items[j].quantity);
+            LT_MIX(src->items[j].cost);
+        }
+    }
+#undef LT_MIX
+    return k;
+}
+
+/** The key the published strip was composed from; 0 is "nothing published". */
+static uint64_t g_compose_key;
+
 static void
 lt_compose(struct ToriRS_PluginCtx* ctx, int width)
 {
     int const height = lt_strip_h();
     size_t const pixels = (size_t)width * (size_t)height;
+    uint64_t const key = lt_compose_key(ctx, width);
     int top = 0;
 
     assert(ctx);
     if( width <= 0 || height <= 0 )
         return;
+    /*
+     * Nothing moved, so the published picture is still the right one. An icon
+     * that was not resident when it was composed is the one thing this would
+     * miss, and lt_art_ready gates the whole draw on the art rather than on
+     * any one cell, so a late icon arrives with the next real change.
+     */
+    if( key == g_compose_key && g_compose && g_compose_w == width &&
+        g_compose_h == height )
+        return;
+    g_compose_key = key;
 
     if( !g_compose || g_compose_w != width || g_compose_h != height )
     {
@@ -681,12 +993,25 @@ lt_compose(struct ToriRS_PluginCtx* ctx, int width)
         PluginDraw_Text(
             g_compose, width, height, 4, top + 3, &g_text, "No loot to display.",
             LT_INK_HEAD);
-
-    for( int i = 0; i < g_source_count; i++ )
+    else if( g_drop_view )
     {
-        lt_draw_source(ctx, g_compose, width, height, top, i);
-        top += lt_source_h(i);
+        struct LtItem drops[LT_SOURCES_MAX * 4];
+        int const n = lt_collect_drops(
+            drops, (int)(sizeof(drops) / sizeof(drops[0])));
+        int const x0 = (width - LT_GRID_COLS * LT_CELL_W) / 2;
+
+        for( int i = 0; i < n; i++ )
+            lt_draw_cell(
+                ctx, g_compose, width, height,
+                (x0 < 0 ? 0 : x0) + (i % LT_GRID_COLS) * LT_CELL_W,
+                top + (i / LT_GRID_COLS) * LT_CELL_H, &drops[i]);
     }
+    else
+        for( int i = 0; i < g_source_count; i++ )
+        {
+            lt_draw_source(ctx, g_compose, width, height, top, i);
+            top += lt_source_h(i);
+        }
 
     g_api->image_compose(ctx, "strip", width, height, g_compose);
 }
@@ -976,8 +1301,59 @@ lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     if( strcmp(ev->id, "strip") == 0 )
     {
         int local_y = 0;
-        int const source = lt_source_at(ev->y, &local_y);
+        int source;
 
+        /*
+         * The TOTALS band's own four controls first, because they sit above
+         * every source and a click there is not a click on a band.
+         *
+         * Same four the cache offers, in the same places: the view toggle at
+         * the left, then value-basis, collapse-all and the ignore list at the
+         * right. `g_well_w` is the width the strip was last composed at, which
+         * is what the right-anchored three were placed against.
+         */
+        if( ev->y < LT_TOTALS_H )
+        {
+            int const w = g_well_w;
+            if( ev->x >= LT_BTN_LEFT_X && ev->x < LT_BTN_LEFT_X + LT_BTN )
+                g_drop_view = !g_drop_view;
+            else if( ev->x >= w - LT_BTN_R0 - LT_BTN && ev->x < w - LT_BTN_R0 )
+            {
+                /* The ignore list: the settings form edits the same key, so
+                 * the panel's shortcut and the typed list are one thing. */
+                g_detail = -1;
+            }
+            else if( ev->x >= w - LT_BTN_R1 - LT_BTN && ev->x < w - LT_BTN_R1 )
+            {
+                /* Collapse all -- or expand all when everything is already
+                 * shut, which is what makes one button enough. */
+                bool any = false;
+                for( int i = 0; i < g_source_count; i++ )
+                    any = any || g_expanded[i];
+                for( int i = 0; i < g_source_count; i++ )
+                    g_expanded[i] = !any;
+            }
+            else if( ev->x >= w - LT_BTN_R2 - LT_BTN && ev->x < w - LT_BTN_R2 )
+            {
+                /* The value basis, which is the same config key the settings
+                 * form offers as a dropdown. */
+                char const* now = g_api->cfg_str(ctx, "price_source");
+                g_api->cfg_set(
+                    ctx, "price_source",
+                    now && lt_name_eq(now, "High alchemy") ? "Cache value"
+                                                           : "High alchemy");
+            }
+            else
+                return TORIRS_PLUGIN_PASS;
+            g_api->panel_clear(ctx);
+            return TORIRS_PLUGIN_PASS;
+        }
+
+        /* The flat drop grid has no bands to open. */
+        if( g_drop_view )
+            return TORIRS_PLUGIN_PASS;
+
+        source = lt_source_at(ev->y, &local_y);
         if( source < 0 )
             return TORIRS_PLUGIN_PASS;
         if( local_y < LT_HEAD_H )
@@ -1010,7 +1386,15 @@ lt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     g_page_visible = false;
     g_next_panel_ms = 0;
     g_dirty = false;
-    memset(g_expanded, 0, sizeof(g_expanded));
+    /*
+     * OPEN by default, which is what the game's own tracker does: a band with
+     * its drops under it is the thing a person opened the panel to see, and a
+     * list of closed bands is a list of names. The row click still collapses
+     * one, so a long trip can be tidied.
+     */
+    for( size_t i = 0; i < sizeof(g_expanded) / sizeof(g_expanded[0]); i++ )
+        g_expanded[i] = true;
+    g_compose_key = 0;
 
     memset(&desc, 0, sizeof(desc));
     desc.title = "Loot Tracker";

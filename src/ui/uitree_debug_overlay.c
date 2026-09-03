@@ -4165,7 +4165,17 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
              * pressable thing in this chrome wears, not a flat rect with a
              * border. It used to be the latter, and a black box edged in brown
              * beside a column of tiled, twice-framed fields is the one piece
-             * on the row that did not read as part of the interface. */
+             * on the row that did not read as part of the interface.
+             *
+             * The dots are the FIELD's ink (input_text), not the panel's dim
+             * label colour. They used to be text_dim, which in the reference
+             * theme is script_3850's 0xff981f -- the colour of a row LABEL, on
+             * a body tile a shade off the panel's own brown. Orange on brown
+             * inside an orange-lit frame is three colours that all sit within
+             * a few steps of each other, and the control came out as a smudge.
+             * Ink belongs to the box it is inside; the well is a field, so its
+             * dots are what a field writes with, and the hover moves them with
+             * the outline rather than leaving them behind. */
             if( w->row_action )
             {
                 struct ToriRSChromeRect well;
@@ -4184,7 +4194,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                         icon_y + DBG_ROW_ICON / 2 - DBG_RULE,
                         DBG_DOT,
                         DBG_DOT,
-                        th->text_dim,
+                        hovered ? th->accent : th->input_text,
                         1,
                         clip);
             }

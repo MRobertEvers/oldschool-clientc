@@ -1779,17 +1779,25 @@ mobile_chat_visible(int canvas_w, int rail_w, int chat_w)
  * -1, which is "no such part here" and is the right answer.
  *
  * The pictures are composed at the piece's box: the parchment scaled to the
- * backing, the stone strip tiled to the bar, the 2004 button scaled to each
- * of the eight plates -- eight, where the 2004 bar had four, so the plates
- * are smaller and the old button is scaled down to fit. A box is read back
- * from chrome_part in EV_CHROME, so a piece the pack has not built yet
- * (the backing is script-created) is painted the pass after it appears.
+ * backing and the stone strip tiled to the bar. A box is read back from
+ * chrome_part in EV_CHROME, so a piece the pack has not built yet (the
+ * backing is script-created) is painted the pass after it appears.
+ *
+ * The eight PLATES are claimed to be taken away rather than re-dressed, and
+ * that is the whole difference between this frame and the one it replaces:
+ * a 2004 chat filter is a LABEL on the stone -- `Public` over its mode, drawn
+ * straight onto the surround -- and it never stood on a button. Dressing the
+ * pack's eight plates in 2004 art put a slab back under every label, which is
+ * OldSchool's shape wearing this frame's texture and is worse than either.
+ * A claim with no picture in it is the API's way to say "hidden by its
+ * holder", so the plate goes and the pack's own text stays where it was.
  */
 enum MobileChatPieceKind
 {
     CHAT_PIECE_PAPER = 0,
     CHAT_PIECE_BAR,
-    CHAT_PIECE_PLATE
+    /** Claimed and painted with NOTHING: the label sits on the bare bar. */
+    CHAT_PIECE_BARE
 };
 
 static struct
@@ -1799,14 +1807,14 @@ static struct
 } const MOBILE_CHAT_PIECE[] = {
     { "chat_backing", CHAT_PIECE_PAPER },
     { "chat_bar", CHAT_PIECE_BAR },
-    { "chat_plate_0", CHAT_PIECE_PLATE },
-    { "chat_plate_1", CHAT_PIECE_PLATE },
-    { "chat_plate_2", CHAT_PIECE_PLATE },
-    { "chat_plate_3", CHAT_PIECE_PLATE },
-    { "chat_plate_4", CHAT_PIECE_PLATE },
-    { "chat_plate_5", CHAT_PIECE_PLATE },
-    { "chat_plate_6", CHAT_PIECE_PLATE },
-    { "chat_plate_7", CHAT_PIECE_PLATE },
+    { "chat_plate_0", CHAT_PIECE_BARE },
+    { "chat_plate_1", CHAT_PIECE_BARE },
+    { "chat_plate_2", CHAT_PIECE_BARE },
+    { "chat_plate_3", CHAT_PIECE_BARE },
+    { "chat_plate_4", CHAT_PIECE_BARE },
+    { "chat_plate_5", CHAT_PIECE_BARE },
+    { "chat_plate_6", CHAT_PIECE_BARE },
+    { "chat_plate_7", CHAT_PIECE_BARE },
 };
 #define MOBILE_CHAT_PIECE_COUNT \
     ((int)(sizeof(MOBILE_CHAT_PIECE) / sizeof(MOBILE_CHAT_PIECE[0])))
@@ -1951,37 +1959,44 @@ mobile_on_chrome(
 
         if( !g_chat_piece[i].held )
             continue;
-        if( !g_api->chrome_part(ctx, MOBILE_CHAT_PIECE[i].part, &part) || part.w <= 0 ||
-            part.h <= 0 )
-            continue;
-        if( g_chat_piece[i].art < 0 || part.w != g_chat_piece[i].w ||
-            part.h != g_chat_piece[i].h )
+        /*
+         * A BARE piece asks its box for nothing, because nothing is drawn in
+         * it: the declaration below carries no picture in any state and the
+         * host reads that as "hidden by its holder". Composing at a box that
+         * may not exist yet would only be a picture nobody paints.
+         */
+        if( MOBILE_CHAT_PIECE[i].kind != CHAT_PIECE_BARE )
         {
-            int art;
-
-            /* The size is in the name so a re-composition at a new box is a
-             * new picture rather than a rewrite of one the host may still be
-             * painting; the old handle is dropped first. */
-            snprintf(name, sizeof(name), "%s_%dx%d.png", MOBILE_CHAT_PIECE[i].part, part.w, part.h);
-            switch( MOBILE_CHAT_PIECE[i].kind )
-            {
-            case CHAT_PIECE_PAPER:
-                art = mobile_compose_scaled(ctx, name, g_image[IMG_CHATBACK], part.w, part.h);
-                break;
-            case CHAT_PIECE_BAR:
-                art = mobile_compose_tiled(ctx, name, g_image[IMG_STONE], part.w, part.h);
-                break;
-            default:
-                art = mobile_compose_scaled(ctx, name, g_image[IMG_CHAT_BUTTON], part.w, part.h);
-                break;
-            }
-            if( art < 0 )
+            if( !g_api->chrome_part(ctx, MOBILE_CHAT_PIECE[i].part, &part) || part.w <= 0 ||
+                part.h <= 0 )
                 continue;
-            if( g_chat_piece[i].art >= 0 )
-                g_api->image_release(ctx, g_chat_piece[i].art);
-            g_chat_piece[i].art = art;
-            g_chat_piece[i].w = part.w;
-            g_chat_piece[i].h = part.h;
+            if( g_chat_piece[i].art < 0 || part.w != g_chat_piece[i].w ||
+                part.h != g_chat_piece[i].h )
+            {
+                int art;
+
+                /* The size is in the name so a re-composition at a new box is
+                 * a new picture rather than a rewrite of one the host may
+                 * still be painting; the old handle is dropped first. */
+                snprintf(
+                    name, sizeof(name), "%s_%dx%d.png", MOBILE_CHAT_PIECE[i].part, part.w, part.h);
+                switch( MOBILE_CHAT_PIECE[i].kind )
+                {
+                case CHAT_PIECE_PAPER:
+                    art = mobile_compose_scaled(ctx, name, g_image[IMG_CHATBACK], part.w, part.h);
+                    break;
+                default:
+                    art = mobile_compose_tiled(ctx, name, g_image[IMG_STONE], part.w, part.h);
+                    break;
+                }
+                if( art < 0 )
+                    continue;
+                if( g_chat_piece[i].art >= 0 )
+                    g_api->image_release(ctx, g_chat_piece[i].art);
+                g_chat_piece[i].art = art;
+                g_chat_piece[i].w = part.w;
+                g_chat_piece[i].h = part.h;
+            }
         }
         memset(&part, 0, sizeof(part));
         for( int st = 0; st < TORIRS_PLUGIN_CHROME_STATE_COUNT; st++ )

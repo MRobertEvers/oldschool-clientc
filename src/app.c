@@ -33012,6 +33012,44 @@ App_RunOnce(
          * the next frame conservatively rebuild despite a settled result. */
         UITree_EmitRetainGateCapture(
             app->tree, &app->emit, app->hover_com_id, &app->emit_gate);
+        /* TEMPORARY DIAGNOSTIC -- remove. */
+        {
+            static int dump = -1;
+            static int done = 0;
+            if( dump < 0 )
+                dump = getenv("TORIRS_EMIT_DUMP") ? 1 : 0;
+            {
+                extern long g_torirs_frame_no;
+                if( g_torirs_frame_no < 600 )
+                    dump = dump ? 1 : 0;
+                else if( dump )
+                    dump = 2;
+            }
+            if( dump == 2 && !done && app->emit.count > 0 )
+            {
+                char const* e = getenv("TORIRS_EMIT_DUMP");
+                int x0 = 0, y0 = 0, x1 = 4096, y1 = 4096;
+                if( e )
+                    sscanf(e, "%d,%d,%d,%d", &x0, &y0, &x1, &y1);
+                for( int i = 0; i < app->emit.count; i++ )
+                {
+                    struct UITreeEmitDesc const* d = &app->emit.cmds[i];
+                    if( d->x + d->w < x0 || d->x > x1 || d->y + d->h < y0 || d->y > y1 )
+                        continue;
+                    TORIRS_LOG("[emitdump] %3d kind=%d node=%d com=%d(%d:%d) "
+                        "box=%d,%d %dx%d clip=%d,%d %dx%d scene=%d atlas=%d color=%06X "
+                        "mask=%d/%d keep=%d rot=%d anchor=%d,%d\n",
+                        i, (int)d->kind, (int)d->node_index, d->component_id,
+                        (d->component_id >> 16) & 0xffff, d->component_id & 0xffff,
+                        d->x, d->y, d->w, d->h,
+                        d->clip.x, d->clip.y, d->clip.w, d->clip.h,
+                        d->scene_id, d->atlas_index, d->color,
+                        d->mask_scene_id, d->mask_atlas_index, d->mask_keep_opaque,
+                        d->rotation_r2pi2048, d->src_anchor_x, d->src_anchor_y);
+                }
+                done = 1;
+            }
+        }
         /* DIAGNOSTIC (Opt 11 scoping, temporary): retaining the emit list only
          * pays if the list repeats, so measure the repeat rate before building
          * anything that could retain it. Every desc is memset before fill, so
