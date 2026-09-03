@@ -219,9 +219,62 @@ int main(void)
           strstr(sent[6], "\"k\":4") == NULL &&
           strstr(sent[6], "\"commands\":[,") == NULL);
 
+    /*
+     * A page boundary the RAIL never mentioned.
+     *
+     * This is the second face of one plugin -- its settings, reached from a
+     * button on its own page -- so the rail entry, the selected entry and the
+     * expanded state are all unchanged and no rail.snapshot is sent at all.
+     * The only thing that says the page was replaced is the flag on
+     * SYNC_BEGIN, and the whole point of putting it there is that the close
+     * and the snapshot then land in one transaction, in order, on whatever
+     * frame the model happened to move.
+     *
+     * Without it this is the blank pane: the restatement goes out as a delta
+     * against a DOM that is about to be thrown away, and the throw-away
+     * arrives afterwards with nothing following it.
+     */
+    {
+        int const before = sent_count;
+        cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
+        cmd.value = 1; /* restates a new page */
+        exec.apply(exec.user, &cmd);
+        cmd = command(TORIRS_CHROME_CMD_PANEL_OPEN, 4, -1);
+        snprintf(cmd.text, sizeof(cmd.text), "Ground Markers settings");
+        exec.apply(exec.user, &cmd);
+        cmd = command(TORIRS_CHROME_CMD_WIDGET_ADD, 4, 11);
+        cmd.value = TORIRS_CHROME_W_CHECKBOX;
+        cmd.serial = 483;
+        snprintf(cmd.text, sizeof(cmd.text), "Show markers");
+        exec.apply(exec.user, &cmd);
+        cmd = command(TORIRS_CHROME_CMD_SYNC_END, -1, -1);
+        exec.apply(exec.user, &cmd);
+
+        CHECK(sent_count == before + 2);
+        CHECK(strstr(sent[before], "\"type\":\"page.close\"") != NULL);
+        CHECK(strstr(sent[before + 1], "\"type\":\"page.snapshot\"") != NULL);
+        CHECK(strstr(sent[before + 1], "\"panel\":4") != NULL);
+        CHECK(strstr(sent[before + 1], "\"s\":483") != NULL);
+    }
+
+    /* And an ordinary edit after it is a PATCH again, or every keystroke in a
+     * settings field would tear the page down and rebuild it. */
+    {
+        int const before = sent_count;
+        cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
+        cmd.value = 0;
+        exec.apply(exec.user, &cmd);
+        cmd = command(TORIRS_CHROME_CMD_WIDGET_TEXT, 4, 11);
+        snprintf(cmd.text, sizeof(cmd.text), "Show markers ");
+        exec.apply(exec.user, &cmd);
+        cmd = command(TORIRS_CHROME_CMD_SYNC_END, -1, -1);
+        exec.apply(exec.user, &cmd);
+        CHECK(sent_count == before + 1);
+        CHECK(strstr(sent[before], "\"type\":\"page.delta\"") != NULL);
+    }
+
     exec.end(exec.user);
-    CHECK(collapsed == 1 && strstr(sent[sent_count - 1], "page.close") != NULL &&
-          strstr(sent[sent_count - 1], "\"pageGeneration\":12") != NULL);
+    CHECK(collapsed == 1 && strstr(sent[sent_count - 1], "page.close") != NULL);
     puts("browser chrome executor: ok");
     return 0;
 }

@@ -108,6 +108,19 @@ struct UITreeRuntimeHooks
     struct UITreeRuntimeScriptHook on_dialog_abort;
     struct UITreeRuntimeScriptHook on_resize;
     struct UITreeRuntimeScriptHook on_sub_change;
+    /* An IF3 text-entry field's three lifecycle events (CC/IF_INPUT_SETON*).
+     * They belong to component type 12, the editable field CC_CREATE builds —
+     * see `rs_text.input` in uitree.h. SUBMIT is Enter, UPDATE is every
+     * accepted keystroke, and FOCUSCHANGED fires on both taking and losing the
+     * caret. The hiscores search box registers submit and focuschanged and does
+     * its lookup from the latter (`torirs_hiscores_from_text`, script 7527).
+     *
+     * `cc_input_setonabort` has no slot because nothing in cache.osrs239
+     * registers one; it stays an unmodeled event in rs_cs2_host.c rather than
+     * carrying 40 bytes per hooked component for a handler no script sets. */
+    struct UITreeRuntimeScriptHook on_input_submit;
+    struct UITreeRuntimeScriptHook on_input_update;
+    struct UITreeRuntimeScriptHook on_input_focus_changed;
 };
 
 /* ------------------------------------------------------------------ */

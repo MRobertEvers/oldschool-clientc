@@ -78,6 +78,30 @@ enum ToriRSChromeCmdKind
 {
     /** A frame's worth of deltas begins. Carries nothing; an executor that
      *  batches (a DOM layout pass, a BeginDeferWindowPos) opens here. */
+    /**
+     * A transaction opens. `value` is 1 when this one RESTATES A NEW PAGE and
+     * 0 when it patches the page already up.
+     *
+     * That flag is the whole of how a page BOUNDARY reaches an executor, and
+     * it travels here -- on the page stream, immediately ahead of the
+     * commands that replace the page -- rather than being inferred from a
+     * selection generation arriving on the rail channel.
+     *
+     * The distinction is not cosmetic, and getting it from the rail was a bug
+     * factory. The application's shadow of what an executor holds and the
+     * executor's own retained page are two caches of one thing; if they are
+     * reset by two different signals then they are reset on two different
+     * frames, and every ordering of those frames is a separate failure. Reset
+     * first and the following restatement is emitted as a patch to a page that
+     * is already gone; restate first and the reset that follows wipes it, with
+     * the shadow now claiming the executor has a page it threw away -- so the
+     * next transaction is empty and the pane stays blank until something
+     * unrelated dirties the model.
+     *
+     * One signal, in the stream, in order. An executor that retains a page
+     * drops it here and treats what follows as a complete image; one that does
+     * not retain anything ignores the flag and is correct either way.
+     */
     TORIRS_CHROME_CMD_SYNC_BEGIN = 1,
     /** ...and ends. An executor that batches commits here. */
     TORIRS_CHROME_CMD_SYNC_END,
@@ -534,6 +558,15 @@ struct ToriRSChromeSync
     int live;
     /** Sync has never run against this executor, so everything is new. */
     int primed;
+    /**
+     * The next transaction restates a NEW page, so its SYNC_BEGIN says so.
+     *
+     * Set by Invalidate and cleared by the Run that reports it, which is what
+     * makes the announcement survive an invalidation on a frame where nothing
+     * else moved -- the flag waits for a transaction rather than needing one
+     * to exist at the moment the page changed.
+     */
+    int restate;
     /**
      * The checkbox style this executor was last told about.
      *

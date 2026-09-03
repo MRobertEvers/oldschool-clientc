@@ -4171,82 +4171,122 @@ app_plugin_slot_member_rect(
  *
  * A revconfig frame spells its regions in the tree; an OldSchool toplevel
  * spells only the three the client already reads by clientCode (world,
- * minimap, compass). Its chat container, fourteen side panels, side-modal
- * box, main modal and orb column are ordinary layers, and every one of the
- * four toplevels (fixed 548, resizable 161/164, mobile 601) numbers them
- * differently. The profile names them per toplevel as `[role:frame_*]`
- * chains, and this stamps the resolved node with the slot tag and member the
- * frame layer reads (frame_node_is_slot / UITree_FrameSlotIndex).
+ * minimap, compass). Its chat container, side panels, modal box and orb
+ * column are ordinary layers, numbered differently on each of its toplevels.
  *
- * Called by the tree before every frame collection and by the layout tick
- * every READY frame. Cheap: role resolution is memoised per generation.
+ * The engine states no name and no number for any of them. The RULE is the
+ * whole of what it states: a profile role called `frame_<slot>` names the
+ * node that IS that frame slot, and `frame_<slot>_<member>` names one member
+ * of it, where `<slot>` is the slot vocabulary's own spelling (uitree_role.c:
+ * `chat`, `sidebar`, `main_modal`, `chat_buttons`, `orbs`) and the member is
+ * the role's own numbering. Which nodes those are is the profile's, one rung
+ * per toplevel (`[role:frame_sidebar_3] match=id(if(161, 79))`), and a lane
+ * whose profile names none pays a table lookup per name and stamps nothing.
  *
- * A node stamped on the last pass that this pass does not stamp again loses
- * its tag, so a role that re-resolves after a CS2 rebuild does not leave two
- * nodes claiming to be `side3`.
+ * Stamps `slot_tag` and `frame_member_plus1`, which is what the frame layer
+ * reads (frame_node_is_slot / UITree_FrameSlotIndex). Called by the tree
+ * before every frame collection and by the layout tick every READY frame;
+ * role resolution is memoised per generation, so it is cheap. A node stamped
+ * on the last pass that this pass does not name again loses its stamp, so a
+ * role that re-resolves after a CS2 rebuild does not leave two nodes both
+ * claiming to be `side3`.
  */
-#define APP_FRAME_STAMP_MAX 32
+#define APP_FRAME_STAMP_MAX 64
+
+/** The tag a profile-named node of `slot` is stamped with, or NONE for a slot
+ *  the tree recognises by widget type alone (world, minimap, compass). */
+static uint8_t
+app_plugin_frame_slot_tag(int slot)
+{
+    switch( slot )
+    {
+    case UITREE_FRAME_SLOT_CHAT:
+        return UITREE_SLOT_CHAT;
+    case UITREE_FRAME_SLOT_SIDEBAR:
+        return UITREE_SLOT_SIDE_MODAL;
+    case UITREE_FRAME_SLOT_MAIN_MODAL:
+        return UITREE_SLOT_MAIN_MODAL;
+    case UITREE_FRAME_SLOT_CHAT_BUTTONS:
+        return UITREE_SLOT_CHAT_BUTTON;
+    case UITREE_FRAME_SLOT_ORBS:
+        return UITREE_SLOT_ORBS;
+    default:
+        return UITREE_SLOT_NONE;
+    }
+}
+
+/** Does this role's numbering have members a profile may name one by one? */
+static int
+app_plugin_frame_slot_has_members(int slot)
+{
+    return slot == UITREE_FRAME_SLOT_SIDEBAR || slot == UITREE_FRAME_SLOT_CHAT_BUTTONS;
+}
+
+/* One name resolved and stamped, or nothing. */
+static void
+app_plugin_frame_stamp_role(
+    struct App* app,
+    struct UITree* tree,
+    char const* role,
+    uint8_t tag,
+    int member,
+    int32_t* next,
+    int* next_count)
+{
+    uint16_t const role_id = UITree_RoleFind(&app->ui_roles, role);
+    int32_t node;
+    struct UITreeComponent* c;
+
+    assert(app);
+    assert(tree);
+    assert(role);
+    assert(next);
+    assert(next_count);
+    if( role_id == 0 || *next_count >= APP_FRAME_STAMP_MAX )
+        return;
+    node = UITree_RoleNode(tree, &app->ui_roles, role_id);
+    if( node < 0 || (uint32_t)node >= tree->component_count )
+        return;
+    c = &tree->components[node];
+    if( c->freed )
+        return;
+    c->slot_tag = tag;
+    c->frame_member_plus1 = (uint8_t)(member + 1);
+    next[(*next_count)++] = node;
+}
 
 static void
 app_plugin_frame_bind(struct UITree* tree, void* user)
 {
     struct App* app = (struct App*)user;
-    static struct
-    {
-        char const* role;
-        uint8_t tag;
-        int8_t member;
-    } const ROLE[] = {
-        { "frame_chat", UITREE_SLOT_CHAT, -1 },
-        { "frame_main_modal", UITREE_SLOT_MAIN_MODAL, -1 },
-        { "frame_orbs", UITREE_SLOT_ORBS, -1 },
-        { "frame_sidebar", UITREE_SLOT_SIDE_MODAL, -1 },
-        { "frame_sidebar_0", UITREE_SLOT_SIDE_MODAL, 0 },
-        { "frame_sidebar_1", UITREE_SLOT_SIDE_MODAL, 1 },
-        { "frame_sidebar_2", UITREE_SLOT_SIDE_MODAL, 2 },
-        { "frame_sidebar_3", UITREE_SLOT_SIDE_MODAL, 3 },
-        { "frame_sidebar_4", UITREE_SLOT_SIDE_MODAL, 4 },
-        { "frame_sidebar_5", UITREE_SLOT_SIDE_MODAL, 5 },
-        { "frame_sidebar_6", UITREE_SLOT_SIDE_MODAL, 6 },
-        { "frame_sidebar_7", UITREE_SLOT_SIDE_MODAL, 7 },
-        { "frame_sidebar_8", UITREE_SLOT_SIDE_MODAL, 8 },
-        { "frame_sidebar_9", UITREE_SLOT_SIDE_MODAL, 9 },
-        { "frame_sidebar_10", UITREE_SLOT_SIDE_MODAL, 10 },
-        { "frame_sidebar_11", UITREE_SLOT_SIDE_MODAL, 11 },
-        { "frame_sidebar_12", UITREE_SLOT_SIDE_MODAL, 12 },
-        { "frame_sidebar_13", UITREE_SLOT_SIDE_MODAL, 13 },
-    };
     int32_t next[APP_FRAME_STAMP_MAX];
     int next_count = 0;
 
     assert(tree);
     assert(app);
-    _Static_assert(
-        sizeof(ROLE) / sizeof(ROLE[0]) <= APP_FRAME_STAMP_MAX,
-        "every frame role needs a stamp slot");
 
     /* A revconfig frame authors its own regions; stamping over them would
      * hand a builtin's job to whatever a stray role happened to match. */
     if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
         return;
 
-    for( size_t i = 0; i < sizeof(ROLE) / sizeof(ROLE[0]); i++ )
+    for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
     {
-        uint16_t const role_id = UITree_RoleFind(&app->ui_roles, ROLE[i].role);
-        int32_t node;
-        struct UITreeComponent* c;
+        uint8_t const tag = app_plugin_frame_slot_tag(slot);
+        char const* name = UITree_RoleSlotName(slot);
+        char role[UITREE_ROLE_NAME_MAX];
 
-        if( role_id == 0 )
+        if( tag == UITREE_SLOT_NONE || !name )
             continue;
-        node = UITree_RoleNode(tree, &app->ui_roles, role_id);
-        if( node < 0 || (uint32_t)node >= tree->component_count )
+        snprintf(role, sizeof(role), "frame_%s", name);
+        app_plugin_frame_stamp_role(app, tree, role, tag, -1, next, &next_count);
+        if( !app_plugin_frame_slot_has_members(slot) )
             continue;
-        c = &tree->components[node];
-        if( c->freed )
-            continue;
-        c->slot_tag = ROLE[i].tag;
-        c->frame_member_plus1 = (uint8_t)(ROLE[i].member + 1);
-        next[next_count++] = node;
+        for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
+        {
+            snprintf(role, sizeof(role), "frame_%s_%d", name, member);
+            app_plugin_frame_stamp_role(app, tree, role, tag, member, next, &next_count);
+        }
     }
 
     /* Take back the stamps of last pass's nodes that are still alive and were

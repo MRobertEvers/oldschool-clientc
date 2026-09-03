@@ -1419,6 +1419,65 @@ test_chrome_exec_invalidate_restates_the_page(void)
         "the frame after a restatement is quiet again");
 }
 
+/*
+ * The boundary is ANNOUNCED, on the stream that carries the page.
+ *
+ * An executor that retains a page has to drop it, and the only orderings that
+ * work are the ones where the drop and the replacement are the same
+ * transaction. Inferring the boundary from a selection generation arriving on
+ * the rail channel put the two on different frames and produced a blank pane
+ * whichever way they fell -- reset first and the restatement is a patch to a
+ * page that is gone, restate first and the reset wipes it while the shadow
+ * claims it is still there, so the next transaction is empty.
+ */
+static void
+test_chrome_exec_restate_is_announced(void)
+{
+    int panel;
+    struct ToriRSChromeCmd const* begin;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 320, "A");
+    ToriRSChrome_Label(&g_ui, panel, "row");
+    ToriRSChrome_Build(&g_ui);
+
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "the first page is stated");
+    begin = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_SYNC_BEGIN, -1);
+    TEST_ASSERT(begin != NULL, "and it is bracketed");
+    TEST_ASSERT(
+        begin->value == 1,
+        "the FIRST transaction on a binding is itself a restatement -- the "
+        "executor holds nothing and everything about to arrive is new");
+    g_rec.count = 0;
+
+    ToriRSChrome_Label(&g_ui, panel, "another row");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "an ordinary change says something");
+    begin = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_SYNC_BEGIN, -1);
+    TEST_ASSERT(
+        begin && begin->value == 0,
+        "but an ordinary change is a PATCH and says so, or every edit would "
+        "tear the page down and rebuild it");
+    g_rec.count = 0;
+
+    /*
+     * The case that was blank: the boundary is declared on a frame where the
+     * MODEL does not otherwise move, and the transaction announcing it is the
+     * next one to happen -- not the next frame. A flag that needed a
+     * transaction to already exist would be dropped exactly here.
+     */
+    ToriRSChromeSync_Invalidate(&g_sync);
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) > 0,
+        "an invalidation produces a transaction even with a clean model");
+    begin = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_SYNC_BEGIN, -1);
+    TEST_ASSERT(begin && begin->value == 1, "and that transaction is marked a restatement");
+    g_rec.count = 0;
+
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0, "then it settles");
+}
+
 static void
 test_chrome_exec_retained_rail(void)
 {
@@ -1536,4 +1595,5 @@ test_chrome_exec(void)
     test_chrome_exec_external_intent_serial();
     test_chrome_exec_retained_rail();
     test_chrome_exec_invalidate_restates_the_page();
+    test_chrome_exec_restate_is_announced();
 }

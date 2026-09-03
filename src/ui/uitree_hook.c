@@ -27,7 +27,8 @@ static char const* const k_slot_names[] = {
     "on_inv_transmit",    "on_misc_transmit",
     "on_friend_transmit", "on_chat_transmit",
     "on_dialog_abort",    "on_resize",
-    "on_sub_change",
+    "on_sub_change",      "on_input_submit",
+    "on_input_update",    "on_input_focus_changed",
 };
 
 #define UITREE_HOOK_SLOT_COUNT ((int)(sizeof(k_slot_names) / sizeof(k_slot_names[0])))

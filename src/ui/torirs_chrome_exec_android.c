@@ -146,6 +146,27 @@ android_chrome_commit_identities(struct AndroidChrome* chrome)
     pthread_mutex_unlock(&chrome->intent_lock);
 }
 
+/**
+ * Forget the mounted page's retained tables. `intent_lock` must be held.
+ *
+ * Local only -- nothing is sent, and the next transaction is a full image
+ * either way -- which is what makes it safe to call from both the page stream
+ * and the rail without either needing to know the other ran.
+ */
+static void
+android_chrome_drop_page(struct AndroidChrome* chrome)
+{
+    chrome->active_panel = -1;
+    chrome->intent_count = 0;
+    chrome->intent_overflow = 0;
+    memset(chrome->widget_generation, 0, sizeof(chrome->widget_generation));
+    memset(chrome->widget_serial, 0, sizeof(chrome->widget_serial));
+    memset(chrome->custom_width, 0, sizeof(chrome->custom_width));
+    memset(chrome->custom_height, 0, sizeof(chrome->custom_height));
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+        chrome->widget_panel[i] = -1;
+}
+
 static void
 android_chrome_apply(void* user, struct ToriRSChromeCmd const* command)
 {
@@ -153,6 +174,25 @@ android_chrome_apply(void* user, struct ToriRSChromeCmd const* command)
 
     if( command->kind == TORIRS_CHROME_CMD_SYNC_BEGIN )
     {
+        /*
+         * A PAGE BOUNDARY, stated by the stream that replaces the page.
+         * @see TORIRS_CHROME_CMD_SYNC_BEGIN.
+         *
+         * The rail path below reaches the same conclusion from the selection
+         * generation, but on whichever frame the rail happens to be published
+         * -- which is not the frame the model moved on when the boundary came
+         * from a control on the page itself, such as a plugin's own Settings
+         * button. Dropping here puts the discard and its replacement in one
+         * transaction. Idempotent with the rail path: this clears local
+         * tables and sends nothing, so doing it twice discards what is already
+         * discarded.
+         */
+        if( command->value )
+        {
+            pthread_mutex_lock(&chrome->intent_lock);
+            android_chrome_drop_page(chrome);
+            pthread_mutex_unlock(&chrome->intent_lock);
+        }
         chrome->command_count = 0;
         chrome->command_overflow = 0;
         chrome->collecting = 1;
@@ -459,15 +499,7 @@ android_chrome_rail_sync(
     if( chrome->rail_page_generation != snapshot->page_generation )
     {
         chrome->rail_page_generation = snapshot->page_generation;
-        chrome->active_panel = -1;
-        chrome->intent_count = 0;
-        chrome->intent_overflow = 0;
-        memset(chrome->widget_generation, 0, sizeof(chrome->widget_generation));
-        memset(chrome->widget_serial, 0, sizeof(chrome->widget_serial));
-        memset(chrome->custom_width, 0, sizeof(chrome->custom_width));
-        memset(chrome->custom_height, 0, sizeof(chrome->custom_height));
-        for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
-            chrome->widget_panel[i] = -1;
+        android_chrome_drop_page(chrome);
     }
     pthread_mutex_unlock(&chrome->intent_lock);
     PlatformAndroidJni_ApplyChromeRail(snapshot);

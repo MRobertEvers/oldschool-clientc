@@ -109,6 +109,10 @@ ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync)
     memset(sync->panels, 0, sizeof(sync->panels));
     memset(sync->widgets, 0, sizeof(sync->widgets));
     sync->primed = 0;
+    /* Announced to the executor by the next transaction's SYNC_BEGIN, so the
+     * drop and the replacement are one ordered pair rather than two events on
+     * two frames. @see TORIRS_CHROME_CMD_SYNC_BEGIN. */
+    sync->restate = 1;
     sync->synced_build_serial = -1;
     sync->presented_build_serial = -1;
     sync->published_drag_build_serial = -1;
@@ -133,6 +137,14 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
     /* Not a style any model can hold, so the first Run states the real one --
      * @see ToriRSChromeSync::check_style. */
     sync->check_style = -1;
+    /*
+     * A fresh binding is the same fact as an invalidated one -- the executor
+     * holds nothing -- so the first transaction says so too. That keeps the
+     * flag's meaning one sentence: SYNC_BEGIN carries 1 exactly when what
+     * follows is the whole page rather than a patch to one, and an executor
+     * never has to ask whether "first" and "new" are different cases.
+     */
+    sync->restate = 1;
     /* No begin at all is a valid executor -- the buffer one has nothing to
      * bring up -- and counts as having come up. */
     if( sync->exec.begin && !sync->exec.begin(sync->exec.user) )
@@ -202,6 +214,12 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
         return 0;
 
     cmd_init(&cmd, TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
+    /* The page boundary, announced on the stream that carries the page.
+     * @see TORIRS_CHROME_CMD_SYNC_BEGIN. Consumed here so one invalidation
+     * announces itself exactly once, however many frames pass before a
+     * transaction actually has something to say. */
+    cmd.value = sync->restate ? 1 : 0;
+    sync->restate = 0;
     sync_emit(sync, &cmd);
 
     /*

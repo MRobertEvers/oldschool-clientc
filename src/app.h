@@ -1390,7 +1390,7 @@ struct App
     {
         int32_t node;
         uint32_t incarnation;
-    } plugin_frame_stamp[32];
+    } plugin_frame_stamp[64];
     int plugin_frame_stamp_count;
     /** Set when the tree was rebuilt or the canvas resized under a claim:
      *  the next layout pass re-raises EV_LAYOUT before it applies anything. */

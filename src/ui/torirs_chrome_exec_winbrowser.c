@@ -395,6 +395,25 @@ static void browser_apply(void* user, struct ToriRSChromeCmd const* cmd)
     if( !s || !cmd || !s->open ) return;
     if( cmd->kind == TORIRS_CHROME_CMD_SYNC_BEGIN )
     {
+        /*
+         * A PAGE BOUNDARY, stated by the stream that is about to replace the
+         * page. @see TORIRS_CHROME_CMD_SYNC_BEGIN.
+         *
+         * Dropping the mounted page HERE is what makes the close and the
+         * snapshot one ordered pair: `first_batch` is set by the reset, so the
+         * commands collected between this and SYNC_END go out as a complete
+         * image rather than as a patch to a DOM that is no longer there.
+         *
+         * Guarded on `first_batch` so this is idempotent with the rail path
+         * below, which reaches the same conclusion from the selection
+         * generation a moment earlier. Whichever notices first does the work;
+         * the other finds it already done and does not send a second close.
+         */
+        if( cmd->value && !s->first_batch )
+        {
+            send_page_close_generation(s, effective_page_generation(s));
+            reset_mounted_page(s);
+        }
         s->collecting = 1;
         s->command_count = 0;
         s->command_overflow = 0;

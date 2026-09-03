@@ -594,6 +594,22 @@ chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
     if( !s->open )
         return;
 
+    /*
+     * A PAGE BOUNDARY, stated by the stream that replaces the page.
+     * @see TORIRS_CHROME_CMD_SYNC_BEGIN.
+     *
+     * The rail path reaches the same conclusion from the selection generation,
+     * but on whichever frame the rail is published -- which is not the frame
+     * the model moved on when the boundary came from a control on the page
+     * itself. Dropping here puts the discard and its replacement in one
+     * transaction. Local only, and therefore idempotent with the rail path.
+     */
+    if( cmd->kind == TORIRS_CHROME_CMD_SYNC_BEGIN && cmd->value )
+    {
+        s->active_panel = -1;
+        memset(s->widget_serial, 0, sizeof(s->widget_serial));
+    }
+
     /* The mirror first, so the page's command and this executor's idea of what
      * exists cannot disagree about a handle that was just recycled. */
     ToriRSChromeMirror_Apply(&s->mirror, cmd);

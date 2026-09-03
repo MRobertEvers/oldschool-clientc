@@ -225,6 +225,11 @@ UITree_RoleTableFree(struct UITreeRoleTable* table);
 int
 UITree_RoleSlotFromName(char const* name);
 
+/** The other direction: the role spelling of one enum UITreeFrameSlot, or
+ *  NULL out of range. What the frame binder builds `frame_<slot>` from. */
+char const*
+UITree_RoleSlotName(int slot);
+
 /**
  * The member number a slot's member NAME means, or -1.
  *

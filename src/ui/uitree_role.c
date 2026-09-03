@@ -46,6 +46,14 @@ UITree_RoleSlotFromName(char const* name)
     return -1;
 }
 
+char const*
+UITree_RoleSlotName(int slot)
+{
+    if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT )
+        return NULL;
+    return ROLE_SLOT_NAME[slot];
+}
+
 int
 UITree_RoleSlotMemberFromName(int slot, char const* name)
 {

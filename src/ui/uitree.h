@@ -253,6 +253,9 @@ enum UITreeSlotTag
      * by the frame binder, @see UITree_FrameSetBinder.
      */
     UITREE_SLOT_ORBS,
+    /** One chat filter button of a cache chatbox, bound by the binder the
+     *  same way; a 2004 frame's are builtins and carry no tag. */
+    UITREE_SLOT_CHAT_BUTTON,
 };
 
 enum UITreeElemPositionKind

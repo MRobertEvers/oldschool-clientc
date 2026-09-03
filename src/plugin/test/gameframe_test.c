@@ -465,7 +465,26 @@ static int fake_display_setting(void* u, int s, int* v, int* mn, int* mx) { (voi
 static int fake_display_setting_set(void* u, int s, int v) { (void)u; (void)s; (void)v; return 0; }
 static int fake_varbit(void* u, int i) { (void)u; (void)i; return 0; }
 static int fake_varp(void* u, int i) { (void)u; (void)i; return 0; }
-static int fake_cache_id(void* u, char const* k, char const* n) { (void)u; (void)k; (void)n; return -1; }
+/* The OldSchool toplevels, as the osrs239 profile names them. Ids are that
+ * cache's; the plugin never sees a number, only the answer to a name. */
+static int fake_cache_id(void* u, char const* k, char const* n)
+{
+    (void)u;
+    if( strcmp(k, "iface") != 0 )
+        return -1;
+    if( strcmp(n, "toplevel_fixed") == 0 )
+        return 548;
+    if( strcmp(n, "toplevel_resizable_classic") == 0 )
+        return 161;
+    if( strcmp(n, "toplevel_resizable_modern") == 0 )
+        return 164;
+    if( strcmp(n, "toplevel_mobile") == 0 )
+        return 601;
+    return -1;
+}
+/** The live gameframe root on a cache lane, or -1: what the server opened. */
+static int g_frame_root = -1;
+static int fake_frame_root(void* u) { (void)u; return g_frame_root; }
 /* The lane every test below runs on. UNKNOWN by default, which is what a boot
  * that has not identified its cache yet answers -- and the plugin runs on it,
  * because standing down over a question nobody has answered would take the
@@ -667,6 +686,7 @@ main(void)
     e.varp = fake_varp;
     e.cache_id = fake_cache_id;
     e.lane = fake_lane;
+    e.frame_root = fake_frame_root;
     e.project = fake_project;
     e.draw_tile = fake_draw_tile;
     e.draw_hull = fake_draw_hull;
@@ -1194,18 +1214,20 @@ main(void)
     }
     PluginHost_SetEnabled(g_host, g_plugin, false);
 
-    /* ---- 7. the lane that brings its own ------------------------------- */
+    /* ---- 7. the OldSchool lane ----------------------------------------- */
 
     /*
-     * An OldSchool cache authors all three of these frames itself, so the
-     * plugin has nothing to add and stands down before it subscribes.
+     * An OldSchool cache authors its own gameframe as a CS2 toplevel, and the
+     * plugin used to stand down there. It arranges over it now: the chat and
+     * the orbs are the cache's PACKS and are placed whole rather than dressed,
+     * and Auto reproduces whichever toplevel the server opened.
      *
      * A fresh host rather than a lane switched under the running one: a lane
-     * is stated at boot and never changes inside a process, and a test that
-     * changed one would be testing a transition the client cannot make.
+     * is stated at boot and never changes inside a process.
      */
     PluginHost_Free(g_host);
     g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+    g_frame_root = 161; /* resizable classic */
     g_host = PluginHost_New(&e);
     e.user = g_host;
     PluginHost_Free(g_host);
@@ -1213,34 +1235,72 @@ main(void)
     g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
 
     PluginHost_SetEnabled(g_host, g_plugin, true);
+    PluginHost_ConfigSet(g_host, g_plugin, "layout", "Auto");
     PluginHost_Start(g_host);
 
-    CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane switches the frame off");
+    CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the plugin on");
+    CHECK(g_frame.owned == 1, "and it claims the frame there too");
     CHECK(
-        PluginHost_Error(g_host, g_plugin) != NULL,
-        "and says why, where the roster draws the row");
-    CHECK(g_frame.owned == 0, "a plugin that stood down never claims the frame");
+        g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
+        "Auto over a resizable toplevel follows the window");
+
+    declare(1024, 768);
+    CHECK(
+        slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 768 - 165, 519, 165),
+        "the chat PACK's 519x165 container is placed whole, bottom-left");
+    CHECK(
+        slot_is(TORIRS_PLUGIN_SLOT_ORBS, 1024 - 182 - 29, 10, 207, 197),
+        "the orb block sits beside the map ring where 161 keeps it");
+    CHECK(
+        !g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][0].placed,
+        "no chat plates are placed: the pack carries its own filter buttons");
+    CHECK(
+        slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 1024 - 4 - 241 + 25, 768 - 4 - 37 - 261, 190, 261),
+        "the side panels are placed where the resizable frame keeps them");
+    draw(1024, 768);
+    CHECK(g_frame.regions == 14, "fourteen tab stones and nothing else claims a click");
+    CHECK(
+        !blitted_at(0, 768 - 165),
+        "and no chat backing is blitted under the pack's own");
+
+    /*
+     * The Display panel's switch: the server opens the fixed toplevel. Auto
+     * now means Modern Fixed, whose canvas is pinned -- a different claim
+     * from the one standing, so the layout pass restates it and declares
+     * on the retry.
+     */
+    g_frame_root = 548;
+    declare(1024, 768);
+    CHECK(
+        g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED,
+        "Auto over the fixed toplevel re-claims a pinned canvas");
+    declare(765, 503);
+    CHECK(
+        slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 338, 519, 165),
+        "the chat pack lands at 548's own (0, 338)");
+    CHECK(
+        slot_is(TORIRS_PLUGIN_SLOT_ORBS, 516, 4, 236, 163),
+        "and the orb block at 548's map container");
+    draw(765, 503);
+    CHECK(!blitted_at(0, 338), "the fixed frame blits no chat backing either");
+
+    /* A concrete choice still wins over the lane: the 2004 frame around
+     * OldSchool packs, with the pack at the OldSchool fixed chat's place. */
+    PluginHost_ConfigSet(g_host, g_plugin, "layout", "Classic Fixed");
+    declare(765, 503);
+    CHECK(
+        slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 338, 519, 165),
+        "Classic Fixed on OldSchool places the chat pack whole");
+    CHECK(
+        slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 553, 205, 190, 261),
+        "with the 2004 sidebar box");
+    draw(765, 503);
+    CHECK(!blitted_at(17, 357), "and without the 2004 chat parchment under the pack");
+    CHECK(g_frame.regions == 14, "the 2004 stones still take clicks");
 
     {
-        /* Not merely unclaimed: no handler of this plugin's was registered at
-         * all, so nothing of it is reached by a layout or a draw pass. */
-        int const before = g_frame.end_calls;
-        declare(765, 503);
-        draw(765, 503);
-        draw_over(765, 503);
-        CHECK(g_frame.end_calls == before, "and declares nothing");
-        CHECK(g_frame.blits == 0, "and draws nothing");
-    }
-
-    {
-        /*
-         * And the switch the user set is still in the file.
-         *
-         * The whole reason the refusal is not a plain disable: this client
-         * boots several lanes, `enabled=1` was stated once for all of them,
-         * and an OldSchool boot that cleared it would take the frame away from
-         * the 2004 world it was chosen on.
-         */
+        /* The switch the user set is still in the file: this client boots
+         * several lanes and `enabled=1` was stated once for all of them. */
         void* data = NULL;
         int size = 0;
         CHECK(PluginHost_ConfigEncode(g_host, &data, &size) == 1, "the settings encode");

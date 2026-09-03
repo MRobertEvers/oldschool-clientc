@@ -27,31 +27,40 @@
  * -- so it declares where each of those goes and the host puts them there.
  * @see ToriRS_PluginLayoutSlot.
  *
- * ## The lane it stands down on
+ * ## The OldSchool lane, where the frame is a CS2 toplevel
  *
- * An OldSchool cache is the one lane with no gap to fill. Its own CS2 content
- * authors all three of these frames, drives them from the Display panel, and
- * goes on rearranging them at runtime -- so the plugin's copy would not be a
- * choice added, it would be a second, frozen gameframe SUPPRESSING the live
- * one, and the Display panel would go on offering layouts that no longer
- * changed anything.
+ * An OldSchool cache authors all three of these frames itself and the server
+ * opens one per session -- the fixed 548, the resizable 161 (Classic) or 164
+ * (Modern), the mobile 601 -- driven by the Display panel and rearranged at
+ * runtime by its own scripts. This plugin used to stand down there. It now
+ * arranges over whichever toplevel is live, which is what makes one saved
+ * choice mean the same thing on every world: "Modern Resizable" is Modern
+ * Resizable on rs289lc and on osrs239, whatever the server opened.
  *
- * So the plugin asks which lane it booted on (api->lane) and, on an OldSchool
- * one, switches itself off before it subscribes to anything. That check is
- * made here rather than by the manifests because it is a fact about the
- * CACHE: there are nine OldSchool manifests in this tree and nothing stops a
- * tenth, and a per-manifest `enabled=0` would be nine copies of one statement
- * with the next one missing it.
+ * Three things are different on that lane, and each is asked of the host
+ * rather than assumed from the revision (api->lane, api->frame_root):
  *
- * The LINEAGE and not the era table. `manifest_osrs233xrsps.ini` states
+ *   The CHAT is a pack. Interface 162 mounts into the toplevel's 519x165
+ *   `chat_container` and draws its own backing, its own filter buttons and
+ *   its own scrollbar. The layout places the container and dresses none of
+ *   it -- no chatback, no stone bar, no plates, no switch; the pack has all
+ *   four. The 2004 lanes keep the client's own 479x96 chat builtin and the
+ *   plugin's furniture around it.
+ *
+ *   The ORBS are a pack too -- interface 160, laid out inside a block the
+ *   toplevel sets beside its map. The layout places that block at the same
+ *   offset from its own housing that the toplevel used, or the orbs stay
+ *   where the old map was. @see TORIRS_PLUGIN_SLOT_ORBS.
+ *
+ *   The SIDEBAR and the tab state are the cache's. The fourteen `sideN`
+ *   panels and the side-modal box are named per toplevel by the profile
+ *   (`[role:frame_sidebar_N]`), the host reads the open one back as the
+ *   active tab, and a stone's click runs the cache's own switch script. The
+ *   plugin's stones, icons and highlight are the same on both lanes.
+ *
+ * The lineage and not the era table: `manifest_osrs233xrsps.ini` states
  * `era=server_routed` and is still an OldSchool cache with the whole
- * gameframe in it, and `manifest_rs634void.ini` resolves to the LOSTCITY era
- * off a dat2 RS2 cache that has none of it -- so era is the wrong axis in
- * both directions. @see ToriRS_PluginGame.
- *
- * The user's saved choice is NOT touched by this: disable_self leaves the ini
- * alone, so a client that boots an OldSchool world and then a 2004 one has
- * the frame it was told to have on the second.
+ * gameframe in it. @see ToriRS_PluginGame.
  *
  * ## The art is the plugin's, not the cache's
  *
@@ -99,13 +108,58 @@ enum FrameLayout
 {
     FRAME_CLASSIC_FIXED = 0,
     FRAME_MODERN_FIXED = 1,
-    FRAME_MODERN_RESIZABLE = 2
+    FRAME_MODERN_RESIZABLE = 2,
+    /**
+     * The frame this lane would have drawn, reproduced.
+     *
+     * On a 2004 lane that is Classic Fixed. On an OldSchool one it follows
+     * the toplevel the server opened: the fixed 548 is Modern Fixed, and the
+     * resizable and mobile ones are Modern Resizable. So the plugin can be
+     * switched on anywhere and change nothing until a layout is chosen --
+     * which is the same promise Classic Fixed alone made on a dat1 world.
+     *
+     * Last in the enum, and the default: the three concrete layouts keep the
+     * numbers they were saved under in plugin_prefs.ini.
+     */
+    FRAME_AUTO = 3
 };
+#define FRAME_LAYOUT_COUNT 4
 
 /** Both fixed frames are authored for this canvas, and neither can be
  *  anything else: every number below is measured against it. */
 #define FRAME_FIXED_W 765
 #define FRAME_FIXED_H 503
+
+/*
+ * The OldSchool chatbox PACK's container, on every OldSchool toplevel.
+ *
+ * Interface 162 mounts into a 519x165 layer -- `chat_container` on all four
+ * -- and lays itself out to it: the stone bar along its bottom 23 rows, the
+ * log above. On this lane the layout places the container and nothing else;
+ * @see the file comment. The fixed toplevel puts it at (0, 338), which is
+ * where this plugin's own fixed chatback goes too, so the two agree.
+ */
+#define FRAME_O_CHAT_PACK_W 519
+#define FRAME_O_CHAT_PACK_H 165
+
+/*
+ * The OldSchool orb pack's block, relative to the map housing.
+ *
+ * Interface 160 lays its four orbs out inside a layer the toplevel positions
+ * beside the map, and the offset from the housing differs per toplevel: 548
+ * keeps the block at its map container's origin (29 columns left of the
+ * housing, level with it), 161/164 ten rows down. The block's size is the
+ * toplevel's own too. Copied from the .if files rather than derived, for the
+ * reason every other number in this file is.
+ */
+#define FRAME_O_ORBS_FIXED_DX (-29)
+#define FRAME_O_ORBS_FIXED_DY 0
+#define FRAME_O_ORBS_FIXED_W 236
+#define FRAME_O_ORBS_FIXED_H 163
+#define FRAME_O_ORBS_R_DX (-29)
+#define FRAME_O_ORBS_R_DY 10
+#define FRAME_O_ORBS_R_W 207
+#define FRAME_O_ORBS_R_H 197
 
 /** Sidebar tabs, in the order every revision since 2001 numbers them. */
 #define FRAME_TAB_COUNT 14
@@ -386,6 +440,54 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
 
 static struct ToriRS_PluginApi const* g_api;
 static int g_image[FRAME_IMG_COUNT];
+
+/*
+ * Is this an OldSchool lane -- one whose chat, orbs and sidebar are packs
+ * of the cache's own toplevel? @see the file comment.
+ *
+ * Asked of the host each time rather than latched at init: the plugin is
+ * registered in App_Init, before the cache profile has been read, and a
+ * lane latched then reads UNKNOWN for the life of the process.
+ */
+static int
+frame_lane_oldschool(struct ToriRS_PluginCtx* ctx)
+{
+    struct ToriRS_PluginLane lane;
+
+    assert(ctx);
+    if( !g_api->lane(ctx, &lane) )
+        return 0;
+    return lane.game == TORIRS_PLUGIN_GAME_OLDSCHOOL;
+}
+
+/*
+ * The chat surface's box on this lane, and whether the layout dresses it.
+ *
+ * On a 2004 lane the chat builtin is 479x96 and everything around it -- the
+ * backing, the stone bar, the filter buttons -- is the frame's. On an
+ * OldSchool lane the chat is a 519x165 pack that brings all of that itself,
+ * so the layout places the pack's container at the housing's origin and
+ * blits nothing for it. One helper so the three layouts cannot disagree.
+ *
+ * `x`/`y` are the OldSchool housing's origin (where the 519x142 backing
+ * would go); the 2004 surface is centred in it. @see FRAME_O_CHAT_INNER_X.
+ */
+static void
+frame_place_chat(struct ToriRS_PluginCtx* ctx, int x, int y)
+{
+    assert(ctx);
+    if( frame_lane_oldschool(ctx) )
+        g_api->layout_slot(
+            ctx, TORIRS_PLUGIN_SLOT_CHAT, x, y, FRAME_O_CHAT_PACK_W, FRAME_O_CHAT_PACK_H);
+    else
+        g_api->layout_slot(
+            ctx,
+            TORIRS_PLUGIN_SLOT_CHAT,
+            x + FRAME_O_CHAT_INNER_X,
+            y + FRAME_O_CHAT_INNER_Y,
+            FRAME_O_CHAT_INNER_W,
+            FRAME_O_CHAT_INNER_H);
+}
 
 /*
  * The 2004 redstone, flipped.
@@ -1031,6 +1133,7 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
         { { 725, 466, 34, 36 }, 728, 471, 0, REDSTONE_FLIP_HV},
     };
     static int const REDSTONE_BASE[3] = { IMG_C_REDSTONE1, IMG_C_REDSTONE2, IMG_C_REDSTONE3 };
+    int const oldschool = frame_lane_oldschool(ctx);
 
     assert(ctx);
 
@@ -1062,7 +1165,11 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_C_BACKRIGHT2], 743, 205);
     frame_blit(g_image[IMG_C_BACKHMID2], 0, 338);
     frame_blit(g_image[IMG_C_BACKLEFT2], 0, 357);
-    frame_blit(g_image[IMG_C_CHATBACK], 17, 357);
+    /* The 2004 chat backing only where the chat is the 2004 builtin: an
+     * OldSchool chat pack brings its own and is a different size, so the
+     * classic parchment under it would show at two edges. */
+    if( !oldschool )
+        frame_blit(g_image[IMG_C_CHATBACK], 17, 357);
     frame_blit(g_image[IMG_C_BACKVMID3], 496, 357);
     frame_blit(g_image[IMG_C_BACKBASE1], 0, 453);
     frame_blit(g_image[IMG_C_BACKBASE2], 496, 466);
@@ -1093,9 +1200,30 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, 575, 9, 146, 151);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_COMPASS, 550, 4, 33, 33);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 17, 357, 479, 96);
+    /*
+     * The 2004 chat at the 2004 place. An OldSchool chat pack is 519x165 and
+     * the classic frame has a 496x96 hole; it goes in at the OldSchool
+     * fixed frame's own (0, 338), where its backing covers the classic
+     * parchment and its bar covers the classic strip -- a frame from one era
+     * around a chatbox from another, which is what asking for Classic Fixed
+     * on that lane means.
+     */
+    if( oldschool )
+        frame_place_chat(ctx, 0, 338);
+    else
+        g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 17, 357, 479, 96);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, 553, 205, 190, 261);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, 4, 4, 512, 334);
+    /* The orb block where the OldSchool fixed frame keeps it, beside a map
+     * housing that on this frame stands five columns further right. A lane
+     * with no such block answers 0 and nothing moves. */
+    g_api->layout_slot(
+        ctx,
+        TORIRS_PLUGIN_SLOT_ORBS,
+        550 + FRAME_O_ORBS_FIXED_DX,
+        4 + FRAME_O_ORBS_FIXED_DY,
+        FRAME_O_ORBS_FIXED_W,
+        FRAME_O_ORBS_FIXED_H);
     /*
      * The four filter buttons at the reference's own x, which is not an even
      * spacing and cannot be computed: 6, 135, 273, 408. `Report abuse` is
@@ -1103,6 +1231,7 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
      * starts at 408 -- and 412 pushed the final `e` against the backbase2
      * corner, which is why the number is copied rather than derived.
      */
+    if( !oldschool )
     {
         static int const X[FRAME_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
         for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
@@ -1158,6 +1287,8 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
         { 692, 466, 33, IMG_O_STONE_MID},
         { 725, 466, 38, IMG_O_STONE_BR },
     };
+    int const oldschool = frame_lane_oldschool(ctx);
+
     assert(ctx);
 
     frame_blit(g_image[IMG_O_BACKTOP1], 0, 0);
@@ -1175,8 +1306,13 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_O_BACKVMID2], 516, 205);
     frame_blit(g_image[IMG_O_SIDE_PANEL], 547, 205);
     frame_blit(g_image[IMG_O_BACKRIGHT1], 737, 205);
-    frame_blit(g_image[IMG_O_CHATBACK], 0, 338);
-    frame_blit(g_image[IMG_O_CHAT_STONES], 0, 338 + FRAME_O_CHAT_H);
+    /* The chat backing and its stone bar belong to the chat PACK on an
+     * OldSchool lane, which draws both itself. @see frame_place_chat. */
+    if( !oldschool )
+    {
+        frame_blit(g_image[IMG_O_CHATBACK], 0, 338);
+        frame_blit(g_image[IMG_O_CHAT_STONES], 0, 338 + FRAME_O_CHAT_H);
+    }
     frame_blit(g_image[IMG_O_BACKLEFT2], 519, 338);
     frame_blit(g_image[IMG_O_TABS_BOTTOM], 519, 466);
 
@@ -1213,24 +1349,29 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_COMPASS, 545, 4, 32, 33);
     frame_skin_map(ctx, IMG_O_MINIMAP_MASK, IMG_O_COMPASS_MASK);
     frame_skin_scrollbar(ctx);
-    g_api->layout_slot(
-        ctx,
-        TORIRS_PLUGIN_SLOT_CHAT,
-        FRAME_O_CHAT_INNER_X,
-        338 + FRAME_O_CHAT_INNER_Y,
-        FRAME_O_CHAT_INNER_W,
-        FRAME_O_CHAT_INNER_H);
+    frame_place_chat(ctx, 0, 338);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, 547, 205, 190, 261);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, 4, 4, 512, 334);
-    /* On the stone bar under the chatbox, spread across its width. */
-    frame_chat_buttons_across(
+    /* 548's own orb block: its map container's origin, level with the
+     * housing at 545. */
+    g_api->layout_slot(
         ctx,
-        0,
-        338 + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
-        FRAME_O_CHAT_W,
-        FRAME_O_CHAT_BUTTON_H,
-        /*plate=*/1,
-        /*selectable=*/0);
+        TORIRS_PLUGIN_SLOT_ORBS,
+        545 + FRAME_O_ORBS_FIXED_DX,
+        4 + FRAME_O_ORBS_FIXED_DY,
+        FRAME_O_ORBS_FIXED_W,
+        FRAME_O_ORBS_FIXED_H);
+    /* On the stone bar under the chatbox, spread across its width -- for a
+     * 2004 chat. The OldSchool pack carries its own seven. */
+    if( !oldschool )
+        frame_chat_buttons_across(
+            ctx,
+            0,
+            338 + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
+            FRAME_O_CHAT_W,
+            FRAME_O_CHAT_BUTTON_H,
+            /*plate=*/1,
+            /*selectable=*/0);
 }
 
 /* ------------------------------------------------------ modern resizable */
@@ -1328,6 +1469,11 @@ frame_layout_modern_resizable(
     int const panel_x = row_x + (FRAME_R_ROW_W - FRAME_R_PANEL_W) / 2;
     int const map_x = canvas_w - FRAME_R_MAP_W;
     int const chat_y = canvas_h - FRAME_R_CHAT_H;
+    int const oldschool = frame_lane_oldschool(ctx);
+    /* The OldSchool chat pack has a switch of its own (its active tab puts
+     * it away), so the plugin's switch is a 2004-lane thing and on this lane
+     * the pack is simply placed. */
+    int const chat_open = oldschool || g_chat_open;
 
     assert(ctx);
 
@@ -1368,9 +1514,12 @@ frame_layout_modern_resizable(
      * what the filter buttons stand on, and putting it away with the chat
      * would leave the switch that reopens it floating on the scene.
      */
-    if( g_chat_open )
-        frame_blit(g_image[IMG_O_CHATBACK], 0, chat_y);
-    frame_blit(g_image[IMG_O_CHAT_STONES], 0, chat_y + FRAME_O_CHAT_H);
+    if( !oldschool )
+    {
+        if( g_chat_open )
+            frame_blit(g_image[IMG_O_CHATBACK], 0, chat_y);
+        frame_blit(g_image[IMG_O_CHAT_STONES], 0, chat_y + FRAME_O_CHAT_H);
+    }
 
     /*
      * The fourteen boxes, exactly as interface 164 states them.
@@ -1472,16 +1621,19 @@ frame_layout_modern_resizable(
      * the whole mechanism behind the switch: closing the chatbox is not a flag
      * the chat widget reads, it is a frame that stops having a chatbox in it.
      */
-    if( g_chat_open )
-        g_api->layout_slot(
-            ctx,
-            TORIRS_PLUGIN_SLOT_CHAT,
-            FRAME_O_CHAT_INNER_X,
-            chat_y + FRAME_O_CHAT_INNER_Y,
-            FRAME_O_CHAT_INNER_W,
-            FRAME_O_CHAT_INNER_H);
+    if( chat_open )
+        frame_place_chat(ctx, 0, chat_y);
     g_api->layout_slot(
         ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, panel_x, panel_y, FRAME_R_PANEL_W, FRAME_R_PANEL_H);
+    /* The orb block as 161/164 keep it: the map container's origin, 29
+     * columns left of the ring and ten rows down from the top. */
+    g_api->layout_slot(
+        ctx,
+        TORIRS_PLUGIN_SLOT_ORBS,
+        map_x + FRAME_O_ORBS_R_DX,
+        0 + FRAME_O_ORBS_R_DY,
+        FRAME_O_ORBS_R_W,
+        FRAME_O_ORBS_R_H);
     /*
      * The modal is CENTRED, not pinned.
      *
@@ -1492,14 +1644,15 @@ frame_layout_modern_resizable(
      */
     g_api->layout_slot(
         ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, (canvas_w - 512) / 2, (canvas_h - 334) / 2, 512, 334);
-    frame_chat_buttons_across(
-        ctx,
-        0,
-        chat_y + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
-        FRAME_O_CHAT_W,
-        FRAME_O_CHAT_BUTTON_H,
-        /*plate=*/1,
-        /*selectable=*/1);
+    if( !oldschool )
+        frame_chat_buttons_across(
+            ctx,
+            0,
+            chat_y + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
+            FRAME_O_CHAT_W,
+            FRAME_O_CHAT_BUTTON_H,
+            /*plate=*/1,
+            /*selectable=*/1);
 }
 
 /* -------------------------------------------------------------- the events */
@@ -1741,6 +1894,7 @@ static char const* const FRAME_LAYOUT_NAME[] = {
     "Classic Fixed",
     "Modern Fixed",
     "Modern Resizable",
+    "Auto",
 };
 
 /*
@@ -1765,25 +1919,60 @@ frame_layout_from_config(struct ToriRS_PluginCtx* ctx)
 
     assert(ctx);
     if( !value || !value[0] )
-        return FRAME_CLASSIC_FIXED;
+        return FRAME_AUTO;
 
     if( value[0] >= '0' && value[0] <= '9' )
     {
         int const index = atoi(value);
-        if( index >= FRAME_CLASSIC_FIXED && index <= FRAME_MODERN_RESIZABLE )
+        if( index >= 0 && index < FRAME_LAYOUT_COUNT )
             return index;
-        return FRAME_CLASSIC_FIXED;
+        return FRAME_AUTO;
     }
 
-    for( int i = 0; i <= FRAME_MODERN_RESIZABLE; i++ )
+    for( int i = 0; i < FRAME_LAYOUT_COUNT; i++ )
         if( strcmp(value, FRAME_LAYOUT_NAME[i]) == 0 )
             return i;
     /* A label this build does not have -- a prefs file from a version that
      * offered a layout this one dropped, or a typo. The frame it falls back to
      * is a frame, which is the one thing it must be. */
-    g_api->log(ctx, "unknown layout '%s'; using %s", value, FRAME_LAYOUT_NAME[0]);
-    return FRAME_CLASSIC_FIXED;
+    g_api->log(ctx, "unknown layout '%s'; using %s", value, FRAME_LAYOUT_NAME[FRAME_AUTO]);
+    return FRAME_AUTO;
 }
+
+/*
+ * The CONCRETE layout the setting means right now.
+ *
+ * Auto is a rule and not a frame, and the rule reads the lane and the live
+ * toplevel: an OldSchool fixed toplevel is Modern Fixed, any other OldSchool
+ * one -- the two resizables and the mobile frame -- is Modern Resizable, and
+ * everything else is the 2004 frame. The toplevel is named by the profile
+ * (`[iface:toplevel_fixed]`), so the rule holds a name and not a number.
+ *
+ * A boot that has not said which toplevel is live yet (frame_root -1 on an
+ * OldSchool lane: the tree is still baking) reads as resizable, which is the
+ * mode that costs nothing to be wrong about for a frame -- the next EV_LAYOUT
+ * re-resolves it, and a canvas policy that changed re-claims.
+ * @see frame_on_layout.
+ */
+static int
+frame_layout_resolve(struct ToriRS_PluginCtx* ctx)
+{
+    int const chosen = frame_layout_from_config(ctx);
+
+    assert(ctx);
+    if( chosen != FRAME_AUTO )
+        return chosen;
+    if( !frame_lane_oldschool(ctx) )
+        return FRAME_CLASSIC_FIXED;
+    {
+        int const root = g_api->frame_root(ctx);
+        int const fixed = g_api->cache_id(ctx, "iface", "toplevel_fixed");
+        return root > 0 && root == fixed ? FRAME_MODERN_FIXED : FRAME_MODERN_RESIZABLE;
+    }
+}
+
+static void
+frame_claim(struct ToriRS_PluginCtx* ctx);
 
 static enum ToriRS_PluginVerdict
 frame_on_layout(
@@ -1817,7 +2006,26 @@ frame_on_layout(
     frame_build_redstones(ctx);
     frame_build_chat_plates(ctx);
 
-    g_frame.layout = frame_layout_from_config(ctx);
+    g_frame.layout = frame_layout_resolve(ctx);
+    /*
+     * Auto can change its mind under a standing claim.
+     *
+     * The claim carries a canvas policy -- pinned for the fixed layouts,
+     * following the window for the resizable one -- and Auto picks the
+     * layout off the live toplevel, which the server swaps on an IF_OPENTOP
+     * (the Display panel's own switch). A fixed layout declared against a
+     * claim that follows the window puts a 765x503 frame in the corner of
+     * whatever the window is. So when the policy the layout wants is not
+     * the one the claim holds, the claim is restated and this declaration
+     * abandoned: the re-claim marks the frame dirty, the host retries the
+     * layout pass once, and that pass declares against the right canvas.
+     */
+    if( (g_frame.layout != FRAME_MODERN_RESIZABLE) !=
+        (ev->canvas == TORIRS_PLUGIN_CANVAS_FIXED) )
+    {
+        frame_claim(ctx);
+        return TORIRS_PLUGIN_PASS;
+    }
     g_frame.canvas_w = ev->width;
     g_frame.canvas_h = ev->height;
     g_frame.blit_count = 0;
@@ -1850,12 +2058,14 @@ frame_on_layout(
      */
     g_api->log(
         ctx,
-        "layout %s at %dx%d: %d chrome pieces, %d tabs",
+        "layout %s%s at %dx%d: %d chrome pieces, %d tabs%s",
         FRAME_LAYOUT_NAME[g_frame.layout],
+        frame_layout_from_config(ctx) == FRAME_AUTO ? " (auto)" : "",
         ev->width,
         ev->height,
         g_frame.blit_count + g_frame.anchored_count,
-        g_frame.tab_count);
+        g_frame.tab_count,
+        frame_lane_oldschool(ctx) ? ", OldSchool packs placed" : "");
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -2114,7 +2324,7 @@ frame_on_click(
 static void
 frame_claim(struct ToriRS_PluginCtx* ctx)
 {
-    int const layout = frame_layout_from_config(ctx);
+    int const layout = frame_layout_resolve(ctx);
     int const fixed = layout != FRAME_MODERN_RESIZABLE;
 
     assert(ctx);
@@ -2270,30 +2480,6 @@ frame_on_config(
     return TORIRS_PLUGIN_PASS;
 }
 
-/**
- * Does the cache this client booted already carry a gameframe of its own?
- *
- * Only OldSchool does. Both dat1 lineages and the later dat2 RS2 revisions
- * have the 2004 frame and nothing to switch it for, which is the gap this
- * plugin fills; an unidentified lane is not yet an answer and is treated as
- * "no", because refusing to run on a boot that has simply not said yet would
- * be the plugin switching itself off over a question nobody asked.
- */
-static int
-frame_lane_has_own_gameframe(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api)
-{
-    struct ToriRS_PluginLane lane;
-
-    assert(ctx);
-    assert(api);
-
-    if( !api->lane(ctx, &lane) )
-        return 0;
-    return lane.game == TORIRS_PLUGIN_GAME_OLDSCHOOL;
-}
-
 static void
 frame_init(
     struct ToriRS_PluginCtx* ctx,
@@ -2304,16 +2490,6 @@ frame_init(
     assert(api->abi_version == TORIRS_PLUGIN_ABI);
 
     g_api = api;
-    /*
-     * Before the subscriptions, so a lane that has its own frame never gets a
-     * handler of this plugin's registered at all -- no claim to lose, no draw
-     * pass to walk, no EV_STOP to unwind.
-     */
-    if( frame_lane_has_own_gameframe(ctx, api) )
-    {
-        api->disable_self(ctx, "this cache brings its own gameframe");
-        return;
-    }
     api->subscribe(ctx, TORIRS_PLUGIN_EV_START, frame_on_start, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, frame_on_stop, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT, frame_on_layout, NULL);
@@ -2334,16 +2510,16 @@ static struct ToriRS_PluginConfigItem const FRAME_CONFIG[] = {
     { "layout",
      TORIRS_PLUGIN_CFG_ENUM,
      "Layout",
-     "Classic Fixed",
+     "Auto",
      0,
-     2,
-     "Classic Fixed|Modern Fixed|Modern Resizable",
+     3,
+     "Classic Fixed|Modern Fixed|Modern Resizable|Auto",
      0 },
     { NULL, TORIRS_PLUGIN_CFG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
 };
 
 _Static_assert(
-    sizeof(FRAME_LAYOUT_NAME) / sizeof(FRAME_LAYOUT_NAME[0]) == FRAME_MODERN_RESIZABLE + 1,
+    sizeof(FRAME_LAYOUT_NAME) / sizeof(FRAME_LAYOUT_NAME[0]) == FRAME_LAYOUT_COUNT,
     "the name table and the layout enum must agree; the schema's choices= is the same list");
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME = {
@@ -2367,9 +2543,11 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME = {
      *
      * Every other plugin in this tree adds something to the screen. This one
      * REPLACES the screen: switching it on suppresses the lane's own gameframe
-     * and puts the plugin's in its place. A client that did that on first
-     * launch, unasked, would look to its owner like a client that had lost its
-     * interface.
+     * and puts the plugin's in its place. Auto makes that replacement look
+     * like the lane's own frame, but it is still a replacement -- the
+     * cache's Display panel stops changing anything while it stands -- and
+     * a client that did that on first launch, unasked, would look to its
+     * owner like a client that had lost its interface.
      */
     .disabled_by_default = true,
     .init = frame_init,

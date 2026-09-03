@@ -78,3 +78,33 @@ DUMP=tools/dump_sprites/dump_sprites
   drawer=invback.dat \
   map_housing=mapback.dat \
   sideicon=sideicons.dat:0-12
+
+# The OldSchool family, from cache.osrs239's sprite table: what the drawer
+# wears on an OldSchool lane (or when the `art` setting asks for it). These
+# are the mobile client's OWN pieces -- interface 601 `toplevel_osm` is built
+# from exactly these ids -- so on that lane the frame is assembled from the art
+# the cache's mobile frame uses, not from a desktop frame's cut down.
+#
+#   osrs_stone / _hover / _lit  tli_button01_square_40x40 0/1/2: the 40x40 tab
+#                                stone idle, under the pointer, and selected (red).
+#   osrs_border_0..8             9slice_dark01_3x3 0..8: the dark 3x3 border
+#                                601 draws around each tab column, corners,
+#                                edges and middle in reading order.
+#   osrs_map_ring                border_map_compass (5832): the thin ring 601
+#                                puts around the map and the compass. Its two
+#                                windows are read off the picture like the
+#                                other housings'.
+#   osrs_drawer                  the fixed frame's 190x261 side panel plate.
+#   osrs_sideicon_*              the resizable frame's fourteen tab icons, in
+#                                tab order, with 601's own door (side_icons_39)
+#                                for the logout tab.
+"$DUMP" --dat2 --rev osrs239 cache.osrs239 --out "$OUT" \
+  osrs_stone=5767 osrs_stone_hover=5768 osrs_stone_lit=5769 \
+  osrs_border_0=5814 osrs_border_1=5815 osrs_border_2=5816 \
+  osrs_border_3=5817 osrs_border_4=5818 osrs_border_5=5819 \
+  osrs_border_6=5820 osrs_border_7=5821 osrs_border_8=5822 \
+  osrs_map_ring=5832 osrs_drawer=1031 \
+  osrs_sideicon_0=168 osrs_sideicon_1=898 osrs_sideicon_2=899 osrs_sideicon_3=900 \
+  osrs_sideicon_4=901 osrs_sideicon_5=902 osrs_sideicon_6=903 osrs_sideicon_7=904 \
+  osrs_sideicon_8=1709 osrs_sideicon_9=905 osrs_sideicon_10=3560 osrs_sideicon_11=908 \
+  osrs_sideicon_12=909 osrs_sideicon_13=910

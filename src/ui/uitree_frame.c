@@ -191,7 +191,7 @@ frame_node_is_slot(
     case UITREE_FRAME_SLOT_MAIN_MODAL:
         return c->slot_tag == UITREE_SLOT_MAIN_MODAL;
     case UITREE_FRAME_SLOT_CHAT_BUTTONS:
-        return c->type == UIELEM_BUILTIN_CHAT_BUTTON;
+        return c->type == UIELEM_BUILTIN_CHAT_BUTTON || c->slot_tag == UITREE_SLOT_CHAT_BUTTON;
     case UITREE_FRAME_SLOT_ORBS:
         /* Only ever a binder's stamp: no revconfig frame authors one. */
         return c->slot_tag == UITREE_SLOT_ORBS;
@@ -209,9 +209,9 @@ UITree_FrameSlotIndex(
     switch( slot )
     {
     case UITREE_FRAME_SLOT_CHAT_BUTTONS:
-        return node->type == UIELEM_BUILTIN_CHAT_BUTTON
-                   ? (int)UITree_ChatButton(node)->filter
-                   : -1;
+        if( node->type == UIELEM_BUILTIN_CHAT_BUTTON )
+            return (int)UITree_ChatButton(node)->filter;
+        return (int)node->frame_member_plus1 - 1;
     case UITREE_FRAME_SLOT_SIDEBAR:
         if( node->type == UIELEM_BUILTIN_SIDEBAR )
             return node->u.sidebar.tabno;
