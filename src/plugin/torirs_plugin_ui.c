@@ -463,7 +463,7 @@ ui_value_shape_valid(
     struct ToriRS_UiNode const* value)
 {
     assert(value);
-    if( value->struct_size != 0 && value->struct_size < TORIRS_UI_NODE_LEGACY_SIZE )
+    if( value->struct_size != 0 && value->struct_size < TORIRS_UI_NODE_V2_0_SIZE )
         return false;
     if( value->flags & ~(uint32_t)(TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED |
                                    TORIRS_UI_NODE_BLOCKS_FRAME | TORIRS_UI_NODE_BLOCKS_OVERLAY |
@@ -1238,7 +1238,7 @@ ToriRS_UiRegistry_AddContribution(
     if( !declaration->node || !ui_plugin_id_valid(plugin) ||
         (declaration->struct_size != 0 &&
          declaration->struct_size <
-             offsetof(struct ToriRS_UiContribution, value) + TORIRS_UI_NODE_LEGACY_SIZE) ||
+             offsetof(struct ToriRS_UiContribution, value) + TORIRS_UI_NODE_V2_0_SIZE) ||
         !ui_contribution_mode_valid(declaration->mode) || !ui_facets_valid(declaration->facets) ||
         !ui_value_shape_valid(declaration->facets, &declaration->value) )
         return TORIRS_UI_REGISTRY_INVALID;

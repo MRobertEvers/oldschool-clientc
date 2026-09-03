@@ -4204,9 +4204,9 @@ app_plugin_role_suppress_facets(
     return next_node >= 0;
 }
 
-/* Engine half of the standing claim. The host owns arbitration; the App owns
- * this exact-incarnation fence because only it can resolve a semantic role to
- * a tree node. Repeating enabled=1 is the per-frame reconciliation path. */
+/* Engine half of a named-UI presentation boundary. The App owns this
+ * exact-incarnation fence because only it can resolve a semantic role to a
+ * live tree node. */
 static int
 app_plugin_ui_boundary(
     void* user,
@@ -4457,12 +4457,12 @@ app_plugin_layout_root_group(struct App const* app)
 }
 
 static void
-app_plugin_layout_set(void* user, int owned, int canvas, int fixed_w, int fixed_h)
+app_plugin_frame_activate(void* user, int active, int canvas, int fixed_w, int fixed_h)
 {
     struct App* app = (struct App*)user;
 
     assert(app);
-    app->plugin_layout_owned = owned ? 1 : 0;
+    app->plugin_frame_active = active ? 1 : 0;
     app->plugin_layout_canvas = canvas;
     app->plugin_layout_fixed_w = fixed_w;
     app->plugin_layout_fixed_h = fixed_h;
@@ -4470,7 +4470,7 @@ app_plugin_layout_set(void* user, int owned, int canvas, int fixed_w, int fixed_
      * restores the lane's chrome, while a plugin offer supplies its complete
      * validated declaration. */
     app->plugin_layout_dirty = 1;
-    if( !app->plugin_layout_owned && app->tree )
+    if( !app->plugin_frame_active && app->tree )
         UITree_FrameRelease(app->tree);
     App_SyncPluginLayoutCanvas(app);
 }
@@ -4482,7 +4482,7 @@ app_plugin_layout_begin(void* user)
 
     assert(app);
     memset(app->plugin_layout_slots, 0, sizeof(app->plugin_layout_slots));
-    /* EV_LAYOUT is a whole declaration. A skin omitted by this declaration is
+    /* A frame build is a whole declaration. A skin omitted by this declaration is
      * native again; it must not inherit six scene ids from the prior owner or
      * prior layout variant. */
     memset(app->plugin_layout_scrollbar, 0, sizeof(app->plugin_layout_scrollbar));
@@ -4626,10 +4626,10 @@ app_plugin_layout_end(void* user)
     assert(app);
     if( !app->tree )
         return;
-    /* The owner may release from inside EV_LAYOUT. Its partial declaration is
-     * then abandoned; applying it after layout_set released the frame would
+    /* Selection may change during a frame build. Its partial declaration is
+     * then abandoned; applying it after frame_activate released the frame would
      * suppress native chrome under an ownerless empty frame. */
-    if( !app->plugin_layout_owned )
+    if( !app->plugin_frame_active )
     {
         UITree_FrameRelease(app->tree);
         return;
@@ -5134,7 +5134,7 @@ app_plugin_engine(struct App* app)
     engine.role_suppress_facets = app_plugin_role_suppress_facets;
     engine.ui_boundary = app_plugin_ui_boundary;
     engine.menu_drop = app_plugin_menu_drop;
-    engine.layout_set = app_plugin_layout_set;
+    engine.frame_activate = app_plugin_frame_activate;
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;
     engine.layout_slot = app_plugin_layout_slot;

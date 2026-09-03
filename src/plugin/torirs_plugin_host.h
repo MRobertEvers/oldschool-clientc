@@ -224,11 +224,10 @@ struct ToriRS_PluginEngine
      * One PLACEABLE region's box, plus CANVAS. @see
      * slot_rect.
      *
-     * The two SAFE regions are deliberately not here: SAFE_GAMECHROME is
-     * derived from these plus the host's own reservation table, and the host
-     * is the only thing that holds both; SAFE_LANECHROME is CANVAS minus the
-     * `lane_chrome_<n>` roles, and is derived beside it so there is one
-     * subtraction rule rather than two.
+     * Safe areas are deliberately not slots. The placement service derives
+     * OVERLAY_SAFE from these regions plus retained reservations and derives
+     * FRAME_BUILD from CANVAS minus the `lane_chrome_<n>` roles. Keeping both
+     * in the placement service gives them one exact subtraction rule.
      */
     int (*slot_rect)(
         void* user,
@@ -310,12 +309,9 @@ struct ToriRS_PluginEngine
         char const* role,
         int paint,
         int input);
-    /** Select/reset the role anchor for the open canvas subscriber. A NULL
-     * role resets it; a non-NULL empty role selects active-invalid/drop state;
-     * `replace` says the caller owns the replacement claim. */
-    /** `place` is one of PLUGIN_UI_BOUNDARY_*. SELF means
-     *  the provider's own appearance -- the object itself, which
-     *  everything BEFORE paints under and everything AFTER paints over. */
+    /** Select or reset the named-UI insertion boundary for the open canvas
+     * pass. NULL resets it. `place` is one of PLUGIN_UI_BOUNDARY_*; SELF is
+     * the resolved node's own appearance, between BEFORE and AFTER children. */
     int (*ui_boundary)(
         void* user,
         char const* role,
@@ -325,16 +321,16 @@ struct ToriRS_PluginEngine
      * engine owns what activation does -- suppressing native chrome, pinning
      * the canvas, and moving the live surfaces. */
 
-    /** The claim changed (or was restated). `owned` is 1 while a plugin holds
-     *  the frame; `canvas` is enum ToriRS_FrameCanvas and `fixed_w/h`
-     *  the pinned canvas, 0 when it follows the window. */
-    void (*layout_set)(
+    /** Publish the committed frame state. `active` is 1 for a selected plugin
+     * frame and 0 for the lane-native frame; `canvas` is enum
+     * ToriRS_FrameCanvas and `fixed_w/h` is its pinned or minimum size. */
+    void (*frame_activate)(
         void* user,
-        int owned,
+        int active,
         int canvas,
         int fixed_w,
         int fixed_h);
-    /** Empty the slot table, before an EV_LAYOUT declaration. */
+    /** Empty the slot table before a selected frame's build declaration. */
     void (*layout_begin)(void* user);
     /** Apply what the declaration left behind, and hide every surface it did
      *  not place. */
@@ -693,7 +689,7 @@ struct ToriRS_PluginEngine
         int action_id);
     /**
      * Remove one row from the menu being built, by the index it had in the
-     * EV_MENU_BUILD payload. Rows above it shift down, so a caller dropping
+     * on_menu_build payload. Rows above it shift down, so a caller dropping
      * several walks from the highest index to the lowest.
      *
      * For the entity tier: a HITBOX holder that REPLACES the game's rows for
@@ -715,9 +711,8 @@ struct ToriRS_PluginEngine
         void* user,
         char const* plugin,
         char const* name);
-    /** Queue a write. `data` is COPIED by the engine: the host's resident copy
-     *  is replaced the moment asset_save returns and cannot be borrowed for
-     *  the lifetime of an async write. */
+    /** Queue a write. `data` is COPIED by the engine; the host may replace its
+     * resident copy as soon as the call returns. */
     int (*asset_write)(
         void* user,
         char const* plugin,
@@ -1060,7 +1055,7 @@ PluginHost_ObjDespawn(
 
 /** An engine-side asset read finished. `data` is HANDED OVER on success (the
  *  host frees it); NULL means the read failed, and the plugin is told so. Both
- *  outcomes raise EV_ASSET, so a plugin never has to time a load out. */
+ *  outcomes raise on_asset, so a plugin never has to time a load out. */
 void
 PluginHost_AssetDeliver(
     struct ToriRS_PluginHost* host,
@@ -1077,11 +1072,11 @@ PluginHost_Key(
     int ch,
     bool down);
 
-/** Opens the draw window, dispatches EV_DRAW_WORLD, closes it. */
+/** Opens the draw window, dispatches on_draw_world, closes it. */
 void
 PluginHost_DrawWorld(struct ToriRS_PluginHost* host);
 
-/** The same, for EV_DRAW_CANVAS: a different surface token, a different
+/** The same, for on_draw_canvas: a different surface token, a different
  *  overlay list, and the canvas rather than the world viewport as the clip. */
 void
 PluginHost_DrawCanvas(
@@ -1089,14 +1084,13 @@ PluginHost_DrawCanvas(
     int width,
     int height);
 
-/** Re-resolve all standing role replacement claims. Called before interaction
- * so a reclaimed/rebuilt target can never retain or inherit suppression. */
+/** Reconcile retained named-UI boundaries and facet suppressions before
+ * interaction, including targets rebuilt into new component incarnations. */
 void
 PluginHost_ReconcileUi(struct ToriRS_PluginHost* host);
 
-/** The same again, for EV_DRAW_FRAME -- the chrome surface, under the
- *  interfaces. Raised for the frame's owner alone, and not at all when nobody
- *  holds it, so a client with no layout plugin pays one branch. */
+/** The same again for FrameOffer.draw: the chrome surface under interfaces.
+ * Called only for the selected provider. */
 void
 PluginHost_DrawFrame(
     struct ToriRS_PluginHost* host,
@@ -1142,7 +1136,7 @@ void
 PluginHost_LayoutChanged(struct ToriRS_PluginHost* host);
 
 /**
- * Deliver a canvas hit region's use, raising EV_CANVAS_CLICK on the plugin
+ * Deliver a canvas hit region's use, raising on_canvas_action on the plugin
  * that declared it and on no other.
  *
  * `plugin_index` is what the engine recorded beside the region, so a plugin
@@ -1157,7 +1151,7 @@ PluginHost_CanvasClick(
     int x,
     int y);
 
-/** Dispatches EV_MENU_BUILD. `cursor` is handed to engine->menu_add. */
+/** Dispatches on_menu_build. `cursor` is handed to engine->menu_add. */
 void
 PluginHost_MenuBuild(
     struct ToriRS_PluginHost* host,
@@ -1171,7 +1165,7 @@ PluginHost_OwnsMenuAction(
     struct ToriRS_PluginHost const* host,
     int action);
 
-/** Dispatches EV_MENU_SELECT. Returns 1 when the engine's own dispatch should
+/** Dispatches on_menu_select. Returns 1 when the engine's own dispatch should
  *  be suppressed -- always so for a plugin-owned row, and for a native row a
  *  subscriber consumed. */
 int
@@ -1222,7 +1216,8 @@ PluginHost_ConfigGet(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
     char const* key);
-void
+/** Returns false when the key or single-line value cannot be persisted. */
+bool
 PluginHost_ConfigSet(
     struct ToriRS_PluginHost* host,
     int plugin_index,
@@ -1293,7 +1288,7 @@ struct ToriRS_PanelWidget
  */
 
 /** Rail metadata. Entries exist only for running plugins which called
- *  panel_request from EV_START. */
+ *  panel_request from on_start. */
 bool
 PluginHost_PanelHasPage(
     struct ToriRS_PluginHost const* host,

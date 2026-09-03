@@ -2746,7 +2746,7 @@ UITree_SetReplacementHidden(
     int hidden);
 
 /** Facet-specific variants used by the named-UI presenter. Neither prunes the
- * target's children; legacy SetReplacementHidden retains whole-subtree rules. */
+ * target's children; SetReplacementHidden is the whole-subtree operation. */
 int
 UITree_SetReplacementPaintHidden(
     struct UITree* tree,

@@ -372,8 +372,8 @@ UITree_FrameBind(struct UITree* tree);
  * resolves to the node it did.
  *
  * The question the layout tick asks on a tree-generation change before it
- * re-raises EV_LAYOUT. Generation is a coarse signal: on an OldSchool lane a
- * cache timer script deletes and recreates its overlay nodes every logic
+ * schedules another frame build. Generation is a coarse signal: on an
+ * OldSchool lane a cache timer script deletes and recreates its overlay nodes every logic
  * tick, so "the generation moved" is true on every frame and, read as "the
  * frame moved", re-declared the whole layout at that rate. One walk of the
  * tree per generation change, and no chrome collection -- the emit fence's

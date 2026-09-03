@@ -129,9 +129,9 @@ app_plugin_page_select(struct App* app, int page, int view)
     /* The roster is also the portable rail until a platform exposes distinct
      * icons. Selecting a registered entry goes through the host transaction:
      * that is the boundary which unmounts the previous model before building
-     * this one. Legacy settings-only pages still use the same detail view, but
-     * do not fabricate an ABI-21 selection for a plugin that never registered
-     * one. */
+     * this one. Host-generated schema-only pages still use the same detail
+     * view without fabricating a panel selection for a plugin that did not
+     * register one. */
     if( app->plugins )
     {
         if( page >= 0 && PluginHost_PanelHasPage(app->plugins, page) )
@@ -140,7 +140,7 @@ app_plugin_page_select(struct App* app, int page, int view)
              * BOTH faces are mountings, so both go through the host -- the
              * settings face is not "no selection". A plugin that wants to add
              * its own controls to its settings form declares them from the
-             * same EV_PANEL_BUILD, told which face it is answering.
+             * same on_ui_build, told which face it is answering.
              * @see enum ToriRS_PanelView.
              */
             int const want = view == APP_PLUGIN_VIEW_PAGE
@@ -622,7 +622,7 @@ app_plugin_panel_select_inputs(
  * plugin ignorant of the platform presenting it. Kinds without a dedicated
  * primitive keep a clear, accessible OSRS-styled readout. CUSTOM is the one
  * bounded drawing well; its pixels are supplied after layout by the selected
- * generation's EV_PANEL_DRAW pass.
+ * generation's on_ui_draw pass.
  */
 static int
 app_plugin_panel_add_semantic(
@@ -1101,7 +1101,7 @@ app_plugin_panel_sync(struct App* app)
     count = PluginHost_Count(app->plugins);
     panel_active = PluginHost_PanelActive(app->plugins);
     panel_generation = PluginHost_PanelSelectionGeneration(app->plugins);
-    /* panel_clear outside EV_PANEL_BUILD marks the selected model for one
+    /* panel_clear outside on_ui_build marks the selected model for one
      * rebuild. This call is cheap when it is already retained and, crucially,
      * can only invoke the currently selected plugin. */
     if( panel_active >= 0 && panel_active == g_plugin_page )
@@ -1722,7 +1722,7 @@ app_plugin_panel_dispatch_row(
  * synthesizing an activation, and a canvas textarea has no Enter-to-commit
  * edge. Compare only semantic rows against their authoritative records after
  * input, dispatching any result that the activation path did not already
- * commit. Legacy staged settings intentionally do not participate.
+ * commit. Host-generated schema settings intentionally do not participate.
  */
 static int
 app_plugin_panel_reconcile_semantic(struct App* app)
@@ -2671,7 +2671,7 @@ app_plugin_window_set_open(struct App* app, int open)
     if( app->plugin_panel_visible )
     {
         /* Reopening a semantic detail page rebuilds only the remembered
-         * plugin. Manage/legacy pages do not wake any panel plugin. */
+         * plugin. Management and schema-only pages wake no panel plugin. */
         if( app->plugins && g_plugin_page >= 0 &&
             PluginHost_PanelHasPage(app->plugins, g_plugin_page) )
         {
@@ -3136,7 +3136,7 @@ app_plugin_panel_overlay_remove(struct App* app, uint32_t serial)
  *
  * A pass that staged NOTHING is a decline, not an erasure. A plugin whose art
  * has not landed yet -- the atlases and sprites cross the IO queue, and the
- * obj icons come out of an evicting cache -- returns from EV_PANEL_DRAW
+ * obj icons come out of an evicting cache -- returns from on_ui_draw
  * without drawing, and the host cannot tell that apart from a deliberate
  * clear. Committing it would swap the last complete picture for an empty run
  * and blank the well until the plugin's next tick invalidates it again,

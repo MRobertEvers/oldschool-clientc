@@ -455,8 +455,8 @@ v2_config_set(
 
     assert(key);
     assert(value);
-    api_cfg_set(runtime->context, key, value);
-    return TORIRS_RESULT_OK;
+    return api_cfg_set(runtime->context, key, value) ? TORIRS_RESULT_OK
+                                                     : TORIRS_RESULT_INVALID;
 }
 
 static bool
@@ -653,7 +653,7 @@ v2_ui_node_images_valid(
     struct PluginV2Runtime const* runtime,
     struct ToriRS_UiNode const* value)
 {
-    size_t const size = value->struct_size ? value->struct_size : TORIRS_UI_NODE_LEGACY_SIZE;
+    size_t const size = value->struct_size ? value->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
 
     assert(runtime);
     assert(value);
@@ -2802,7 +2802,7 @@ v2_frame_ui_node_images(
     struct PluginV2FrameScope* scope,
     struct ToriRS_UiNode const* node)
 {
-    size_t const size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_LEGACY_SIZE;
+    size_t const size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
     int image_slot;
 
     assert(scope);
@@ -2964,7 +2964,7 @@ v2_builder_scrollbar(
     int bottom;
 
     if( !skin ||
-        (skin->struct_size != 0 && skin->struct_size < TORIRS_FRAME_SCROLLBAR_LEGACY_SIZE) )
+        (skin->struct_size != 0 && skin->struct_size < TORIRS_FRAME_SCROLLBAR_V2_0_SIZE) )
     {
         scope->invalid = true;
         return;

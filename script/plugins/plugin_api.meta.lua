@@ -592,7 +592,7 @@ warn = nil
 ---@field id string Stable plugin id.
 ---@field title? string
 ---@field version? string
----@field event_priority? integer Lower values receive ordinary events first.
+---@field event_priority? integer Higher values receive ordinary events first.
 ---@field draw_order? integer Lower values draw first within a draw pass.
 ---@field config? torirs.ConfigItem[]
 ---@field ui_contributions? torirs.UiContribution[]

@@ -1674,7 +1674,7 @@ xt_start(struct ToriRS_ApiV2* api, void* plugin_state)
     (void)api->panel.request(api, &desc);
 
     /* Queued, not read: the file crosses the IO queue like every other asset,
-     * and the answer arrives at EV_ASSET. A load that is already resident
+     * and the answer arrives at on_asset. A load that is already resident
      * answers 1 and no event follows, so the apply has to happen here too. */
     /* Requested here and applied by the sizer: the file crosses the IO queue
      * and the stat table does not exist yet either. */
@@ -1723,7 +1723,7 @@ xt_stop(struct ToriRS_ApiV2* api, void* plugin_state)
 /**
  * Size the skill table, the first time the client can answer.
  *
- * NOT at EV_START, and that is the whole point: a plugin starts when the
+ * NOT at on_start, and that is the whole point: a plugin starts when the
  * client boots, and the stat table does not exist until a session has one --
  * so `skill_name` answers NULL for every index and a table sized there is
  * sized to ZERO, permanently, for a plugin whose every loop runs to

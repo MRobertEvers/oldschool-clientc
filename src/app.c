@@ -10907,7 +10907,7 @@ App_Shutdown(struct App* app)
 {
     assert(app);
     app_prefs_flush(app);
-    /* Plugins first: EV_STOP handlers may still read world state and the
+    /* Plugins first: on_stop callbacks may still read world state and the
      * config store, and both are torn down below. */
     PluginHost_Free(app->plugins);
     app->plugins = NULL;
@@ -16846,7 +16846,7 @@ app_logic_tick(struct App* app)
     /* Before the packet pump, so a handler that samples world state sees the
      * cycle it was told about rather than one already half-advanced by this
      * tick's packets. The 600ms server cadence is a different event
-     * (EV_SERVER_TICK, raised at the tick fence). */
+     * (on_server_tick, raised at the tick fence). */
     PluginHost_LogicTick(app->plugins, (int)app->logic_cycle);
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
@@ -30203,7 +30203,7 @@ App_SyncPluginLayoutCanvas(struct App* app)
      * plugin wanted. A committed frame states its mode; native restates the
      * lane's default.
      */
-    want = !app->plugin_layout_owned
+    want = !app->plugin_frame_active
                ? app->host.default_window_mode
                : app->plugin_layout_canvas == TORIRS_FRAME_CANVAS_FIXED
                      ? CS2VM_WINDOW_MODE_FIXED
@@ -30233,7 +30233,7 @@ int
 App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h)
 {
     assert(app);
-    if( !app->plugin_layout_owned )
+    if( !app->plugin_frame_active )
         return 0;
     if( app->plugin_layout_canvas != TORIRS_FRAME_CANVAS_FIXED )
         return 0;
@@ -30250,7 +30250,7 @@ int
 App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h)
 {
     assert(app);
-    if( !app->plugin_layout_owned )
+    if( !app->plugin_frame_active )
         return 0;
     if( app->plugin_layout_canvas != TORIRS_FRAME_CANVAS_WINDOW )
         return 0;
@@ -30275,15 +30275,14 @@ App_PluginLayoutTick(struct App* app)
 
     if( !app->plugins )
         return;
-    /* Semantic replacement claims are independent of gameframe ownership.
-     * Resolve them at the same pre-interaction publication fence so a role
+    /* Named-UI contributions are independent of frame selection. Reconcile
+     * them at the same pre-interaction publication fence so a role
      * rebuilt into a recycled component-array slot cannot leak one native
      * frame or inherit another target's suppression. */
     PluginHost_ReconcileUi(app->plugins);
     /*
-     * Name the cache gameframe's regions before anyone asks for them: the
-     * dressers' slot queries in the chrome tick, the owner's declaration, and
-     * the reassert at the emit fence all read the stamps this leaves. The
+     * Name the cache gameframe's regions before providers and placement code
+     * query them. Frame builds and the emit-fence rebind read these stamps. The
      * tree keeps the binder so the fence can re-run it after a rebuild.
      */
     if( app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0 )
@@ -30292,7 +30291,7 @@ App_PluginLayoutTick(struct App* app)
         UITree_FrameBind(app->tree);
     }
     frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
-    if( !app->plugin_layout_owned )
+    if( !app->plugin_frame_active )
     {
         /* A plugin frame that ended while the tree was up: give the chrome back once,
          * then stop paying for the check. UITree_FrameRelease is idempotent,
@@ -30302,8 +30301,8 @@ App_PluginLayoutTick(struct App* app)
             UITree_FrameRelease(app->tree);
             UITree_EnsureLayout(app->tree);
             app->plugin_layout_dirty = 0;
-            /* Clear before notifying: a callback may select or invalidate a frame
-             * inside EV_LAYOUT_CHANGED, and its new dirty declaration must
+            /* Clear before notifying: on_placement_changed may select or
+             * invalidate a frame, and its new dirty declaration must
              * survive this release transaction. */
             PluginHost_LayoutChanged(app->plugins);
         }
@@ -30313,8 +30312,8 @@ App_PluginLayoutTick(struct App* app)
         frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
         if( frame_candidate )
             goto candidate_layout;
-        /* app_plugin_layout_set already restored the lane's default on the
-         * ownership transition. Do not restate it on every ownerless tick:
+        /* app_plugin_frame_activate already restored the lane's default on the
+         * selection transition. Do not restate it on every native-frame tick:
          * ordinary CS2/user window-mode changes own this state again now. */
         return;
     }
@@ -30347,8 +30346,8 @@ candidate_layout:
      * Its provider may remain running across logout, but its retained gameframe
      * declaration must not be applied while the title tree bakes.
      *
-     * What the owner declares into it is NOTHING -- every arranger gates its
-     * own declaration on being in game, which is correct and is not enough.
+     * A provider correctly declines to build outside the game, but applying an
+     * empty candidate here would still be destructive.
      *
      * An empty declaration is not "leave it alone". It is a complete one that
      * happens to place no slots, and UITree_FrameApply answers it exactly as
@@ -30367,9 +30366,9 @@ candidate_layout:
         return;
     }
 
-    /* The canvas the claim asked for, restated. @see the body: it has other
+    /* Restate the selected offer's canvas policy. It has other
      * writers, and the last one to speak wins. */
-    if( app->plugin_layout_owned )
+    if( app->plugin_frame_active )
         App_SyncPluginLayoutCanvas(app);
 
     /*
@@ -30385,7 +30384,7 @@ candidate_layout:
     /*
      * A generation move is only a reason when it moved a ROLE. The fence's
      * reassert already re-collects the chrome on every generation change;
-     * what a fresh EV_LAYOUT adds is the plugin re-placing its slots and the
+     * what a fresh frame build adds is the provider re-placing its surfaces and the
      * answers it reads back ("does this frame have tab 7"), which change only
      * when a role's node did. On an OldSchool lane a cache timer recreates
      * its overlay nodes every logic tick, so without this gate the whole
@@ -30404,15 +30403,15 @@ candidate_layout:
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        /* A handler may change selection from inside EV_LAYOUT.
+        /* A provider may change selection from inside its build callback.
          * The host correctly abandons that transaction (its selection epoch moved),
          * which leaves dirty set and the effective frame released. Give the
          * replacement selection one bounded, sequential attempt now so native
          * chrome cannot leak into interaction between this tick and the final
          * publication tick. Resolve first because the replacement handler may
-         * read role_rect while composing its declaration. A handler that keeps
-         * changing ownership cannot spin us: it gets at most this one retry. */
-        if( app->plugin_layout_owned && app->plugin_layout_dirty )
+         * read named UI while composing its declaration. A provider that keeps
+         * changing selection cannot spin us: it gets at most this one retry. */
+        if( app->plugin_frame_active && app->plugin_layout_dirty )
         {
             UITree_EnsureLayout(app->tree);
             PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -30420,19 +30419,19 @@ candidate_layout:
         /* FrameApply installs an effective geometry layer and invalidates the
          * resolved boxes. Publish that layer before anybody hears that regions
          * moved: layout-changed subscribers are allowed to read role_rect from
-         * inside their handler, and interaction follows this tick immediately. */
+         * inside their callback, and interaction follows this tick immediately. */
         UITree_EnsureLayout(app->tree);
         /*
          * And tell EVERY plugin, not just the frame's owner.
          *
          * The conditions above are exactly the ones that move a region -- a
-         * resize, a rebuild, a fresh claim -- so a readout holding a picture
+         * resize, a tree rebuild, or a new frame build -- so a readout holding a picture
          * measured against one of them has to hear about it here or nowhere.
          * PluginHost_Layout is the owner's news; this is everybody else's.
          */
         PluginHost_LayoutChanged(app->plugins);
-        /* A subscriber may release (or replace) the claim synchronously. Its
-         * layout_set callback drops the effective frame immediately, so close
+        /* A callback may change frame selection synchronously. frame_activate
+         * drops the old effective frame immediately, so close
          * that invalidation before interaction consumes the resolved boxes. */
         UITree_EnsureLayout(app->tree);
     }
@@ -30614,8 +30613,8 @@ App_DrainCommands(
                      * so a plugin's chrome and a profile's panel cannot
                      * disagree about where the keyboard starts. */
                     UITree_LayoutSetSafeBottomInset(app->keyboard_inset);
-                    /* A layout event, exactly like a resize: the mobile frame
-                     * reads the new platform_safe_rect box in EV_LAYOUT and slides its
+                    /* A frame-build invalidation, exactly like a resize: the mobile frame
+                     * reads the new platform-safe area and slides its
                      * chatbox above (or back under) the keyboard. */
                     app->plugin_layout_dirty = 1;
                     if( app->tree )
@@ -34890,7 +34889,7 @@ App_BuildFrame(
          * asked for, which is all zero when no plugin holds the frame or the
          * one that does brought no scrollbar art. */
         ToriRS_FrameSetScrollbarSkin(
-            frame, app->plugin_layout_owned ? app->plugin_layout_scrollbar : NULL);
+            frame, app->plugin_frame_active ? app->plugin_layout_scrollbar : NULL);
 
         /* World pass: paint the visibility-ordered command list for the current
          * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */

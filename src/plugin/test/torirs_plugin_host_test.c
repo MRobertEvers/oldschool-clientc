@@ -84,7 +84,7 @@ struct FakeEngine
     int layout_begins;
     int layout_ends;
     int layout_sets;
-    int layout_owned;
+    int frame_active;
     int layout_canvas;
     int layout_fixed_w;
     int layout_fixed_h;
@@ -96,7 +96,7 @@ struct FakeEngine
 static struct FakeEngine g_engine;
 
 /* In game: these harnesses exercise behaviour that is gated on it. Mutable so
- * the EV_SCREEN_CHANGE test can move it; everything else leaves it alone.
+ * the on_screen_changed test can move it; everything else leaves it alone.
  * @see api->core.screen. */
 static int g_screen_now = TORIRS_SCREEN_GAME;
 
@@ -881,16 +881,16 @@ fake_mouse_pos(
  * contract defines.
  */
 static void
-fake_layout_set(
+fake_frame_activate(
     void* u,
-    int owned,
+    int active,
     int canvas,
     int fixed_w,
     int fixed_h)
 {
     struct FakeEngine* e = u;
     e->layout_sets++;
-    e->layout_owned = owned;
+    e->frame_active = active;
     e->layout_canvas = canvas;
     e->layout_fixed_w = fixed_w;
     e->layout_fixed_h = fixed_h;
@@ -1688,7 +1688,7 @@ fake_engine(void)
     e.role_click = fake_role_click;
     e.role_suppress_facets = fake_role_suppress_facets;
     e.ui_boundary = fake_ui_boundary;
-    e.layout_set = fake_layout_set;
+    e.frame_activate = fake_frame_activate;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
     e.layout_slot_overlay = fake_layout_slot_overlay;
@@ -2088,6 +2088,58 @@ static struct ToriRS_ConfigSchema const V2_CONFIG_B = { .struct_size = sizeof(V2
                                                         .items = V2_CONFIG_B_ITEMS };
 static struct ToriRS_ConfigSchema const V2_CONFIG_FRAME = { .struct_size = sizeof(V2_CONFIG_FRAME),
                                                             .items = V2_CONFIG_FRAME_ITEMS };
+
+static struct ToriRS_ConfigItem const V2_CONFIG_BAD_KEY_ITEMS[] = {
+    { .key = "bad-key", .type = TORIRS_CONFIG_STRING, .default_value = "safe" },
+    { 0 },
+};
+static struct ToriRS_ConfigItem const V2_CONFIG_DUPLICATE_ITEMS[] = {
+    { .key = "same", .type = TORIRS_CONFIG_STRING, .default_value = "one" },
+    { .key = "same", .type = TORIRS_CONFIG_STRING, .default_value = "two" },
+    { 0 },
+};
+static struct ToriRS_ConfigItem const V2_CONFIG_MULTILINE_DEFAULT_ITEMS[] = {
+    { .key = "safe", .type = TORIRS_CONFIG_STRING,
+      .default_value = "value\n[plugin:other]\nenabled=0" },
+    { 0 },
+};
+static struct ToriRS_ConfigSchema const V2_CONFIG_BAD_KEY = {
+    .struct_size = sizeof(V2_CONFIG_BAD_KEY),
+    .items = V2_CONFIG_BAD_KEY_ITEMS,
+};
+static struct ToriRS_ConfigSchema const V2_CONFIG_DUPLICATE = {
+    .struct_size = sizeof(V2_CONFIG_DUPLICATE),
+    .items = V2_CONFIG_DUPLICATE_ITEMS,
+};
+static struct ToriRS_ConfigSchema const V2_CONFIG_MULTILINE_DEFAULT = {
+    .struct_size = sizeof(V2_CONFIG_MULTILINE_DEFAULT),
+    .items = V2_CONFIG_MULTILINE_DEFAULT_ITEMS,
+};
+
+static struct ToriRS_PluginDefV2 const V2_BAD_CONFIG_KEY = {
+    .struct_size = sizeof(V2_BAD_CONFIG_KEY),
+    .id = "v2-bad-config-key",
+    .title = "Bad Config Key",
+    .version = "2.0.0",
+    .config = &V2_CONFIG_BAD_KEY,
+    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+};
+static struct ToriRS_PluginDefV2 const V2_DUPLICATE_CONFIG_KEY = {
+    .struct_size = sizeof(V2_DUPLICATE_CONFIG_KEY),
+    .id = "v2-duplicate-config-key",
+    .title = "Duplicate Config Key",
+    .version = "2.0.0",
+    .config = &V2_CONFIG_DUPLICATE,
+    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+};
+static struct ToriRS_PluginDefV2 const V2_MULTILINE_CONFIG_DEFAULT = {
+    .struct_size = sizeof(V2_MULTILINE_CONFIG_DEFAULT),
+    .id = "v2-multiline-config-default",
+    .title = "Multiline Config Default",
+    .version = "2.0.0",
+    .config = &V2_CONFIG_MULTILINE_DEFAULT,
+    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+};
 
 static struct ToriRS_UiContribution const V2_UI_A[] = {
     {
@@ -3109,6 +3161,19 @@ main(void)
         engine = fake_engine();
         hv2 = PluginHost_New(&engine);
 
+        CHECK(
+            PluginHost_RegisterV2(hv2, &V2_BAD_CONFIG_KEY) < 0,
+            "v2 registration rejects config keys outside [a-z0-9_]");
+        CHECK(
+            PluginHost_RegisterV2(hv2, &V2_DUPLICATE_CONFIG_KEY) < 0,
+            "v2 registration rejects duplicate config keys");
+        CHECK(
+            PluginHost_RegisterV2(hv2, &V2_MULTILINE_CONFIG_DEFAULT) < 0,
+            "v2 registration rejects defaults that cannot occupy one INI line");
+        CHECK(
+            PluginHost_Count(hv2) == 0,
+            "rejected config schemas consume no host registration slots");
+
         a2 = PluginHost_RegisterV2(hv2, &V2_PROBE_A);
         b2 = PluginHost_RegisterV2(hv2, &V2_PROBE_B);
         frame2 = PluginHost_RegisterV2(hv2, &V2_FRAME_PROVIDER);
@@ -3137,6 +3202,30 @@ main(void)
             g_v2_zeroed_starts == 3 && g_v2_first_state[1] != g_v2_first_state[2] &&
                 g_v2_first_state[2] != g_v2_first_state[3],
             "each v2 registration receives isolated zeroed state");
+        PluginHost_ConfigClearDirty(hv2);
+        CHECK(
+            g_v2_api[1]->config.set(
+                g_v2_api[1],
+                "marker",
+                "1\n[plugin:v2-probe-b]\nmarker=99") == TORIRS_RESULT_INVALID &&
+                strcmp(PluginHost_ConfigGet(hv2, a2, "marker"), "1") == 0 &&
+                !PluginHost_ConfigDirty(hv2),
+            "config.set rejects newline section injection without changing stored state");
+        CHECK(
+            g_v2_api[1]->config.set(g_v2_api[1], "marker", "1\renabled=0") ==
+                    TORIRS_RESULT_INVALID &&
+                g_v2_api[1]->config.set(g_v2_api[1], "bad-key", "value") ==
+                    TORIRS_RESULT_INVALID,
+            "config.set rejects carriage returns and invalid key spellings");
+        {
+            void* encoded = NULL;
+            int encoded_size = 0;
+            CHECK(
+                PluginHost_ConfigEncode(hv2, &encoded, &encoded_size) && encoded &&
+                    encoded_size > 0 && !strstr((char const*)encoded, "[plugin:v2-probe-b]"),
+                "rejected config text cannot create another plugin section when encoded");
+            free(encoded);
+        }
         CHECK(
             g_v2_typed_calls == 3 && g_engine.objects_live == 3,
             "typed module calls execute for every live instance");
@@ -3145,7 +3234,7 @@ main(void)
         g_v2_api[1]->frame.selection(g_v2_api[1], &selection);        CHECK(
             strcmp(selection.active_id, "core/native") == 0 &&
                 selection.status == TORIRS_FRAME_STATUS_LOADING &&
-                PluginHost_FrameNeedsLayout(hv2) && g_engine.layout_owned == 0,
+                PluginHost_FrameNeedsLayout(hv2) && g_engine.frame_active == 0,
             "v2 offer conversion prepares a candidate without changing native policy");
 
         PluginHost_LogicTick(hv2, 7);
@@ -3186,7 +3275,7 @@ main(void)
         selection.struct_size = sizeof(selection);
         g_v2_api[1]->frame.selection(g_v2_api[1], &selection);        CHECK(
             strcmp(selection.active_id, "v2-frame/test") == 0 &&
-                selection.status == TORIRS_FRAME_STATUS_ACTIVE && g_engine.layout_owned == 1 &&
+                selection.status == TORIRS_FRAME_STATUS_ACTIVE && g_engine.frame_active == 1 &&
                 g_engine.layout_canvas == TORIRS_FRAME_CANVAS_WINDOW &&
                 g_engine.layout_fixed_w == 640 && g_engine.layout_fixed_h == 480,
             "READY v2 geometry and its canvas policy publish together");
@@ -3324,17 +3413,17 @@ main(void)
             unsigned char* bytes = (unsigned char*)&prefix_info;
 
             memset(&prefix_info, 0xa5, sizeof(prefix_info));
-            prefix_info.struct_size = TORIRS_UI_NODE_INFO_LEGACY_SIZE;
+            prefix_info.struct_size = TORIRS_UI_NODE_INFO_V2_0_SIZE;
             CHECK(
                 PluginHost_UiInfo(hv2, private_ref, &prefix_info) &&
-                    prefix_info.struct_size == TORIRS_UI_NODE_INFO_LEGACY_SIZE &&
+                    prefix_info.struct_size == TORIRS_UI_NODE_INFO_V2_0_SIZE &&
                     prefix_info.bounds.width == 20 &&
-                    bytes[TORIRS_UI_NODE_INFO_LEGACY_SIZE] == 0xa5,
-                "ui.info honors an older caller's output capacity without touching its tail");
+                    bytes[TORIRS_UI_NODE_INFO_V2_0_SIZE] == 0xa5,
+                "ui.info honors a V2.0 caller's output capacity without touching its tail");
             CHECK(
                 PluginHost_UiInfo(hv2, private_ref, &prefix_info) &&
-                    prefix_info.struct_size == TORIRS_UI_NODE_INFO_LEGACY_SIZE &&
-                    bytes[TORIRS_UI_NODE_INFO_LEGACY_SIZE] == 0xa5,
+                    prefix_info.struct_size == TORIRS_UI_NODE_INFO_V2_0_SIZE &&
+                    bytes[TORIRS_UI_NODE_INFO_V2_0_SIZE] == 0xa5,
                 "a reused ui.info prefix remains safely bounded");
         }
         CHECK(

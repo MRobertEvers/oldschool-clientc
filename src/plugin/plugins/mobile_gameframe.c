@@ -1026,8 +1026,7 @@ struct MobileRuntime
     int anchored_count;
     struct MobileTab tab[MOBILE_TAB_COUNT];
     int tab_count;
-    /** The chat switch's own box, so the draw pass claims the rectangle the
-     *  layout pass put the stone at rather than one of its own. */
+    /** The chat switch's box, reused by the draw pass and action region. */
     int toggle_x;
     int toggle_y;
     /** Where the keyboard switch went. @see MOBILE_TAG_KEYS. */
@@ -1037,13 +1036,13 @@ struct MobileRuntime
     struct ToriRS_ImageRef toggle_art;
     int toggle_w;
     int toggle_h;
-    /** Where the drawer went, so the draw pass can claim its rectangle. */
+    /** Where the drawer went, so the draw pass can register its action region. */
     int panel_x;
     int panel_y;
     /** Whether the sheet was actually placed this declaration -- which is the
      *  intent AND the room for it. @see mobile_chat_visible. */
     int chat_placed;
-    /** Where the sheet's top ended up, so the draw pass claims the rectangle
+    /** Where the sheet's top ended up, so the draw pass registers the rectangle
      *  the layout placed -- which is above the keyboard when one is up, and
      *  not a recomputation from the canvas edge that would put the tap target
      *  back under it. */
@@ -2512,56 +2511,14 @@ mobile_lane_area(struct MobileCall* ctx, int canvas_w, int canvas_h)
 
 /* ----------------------------------------------------------- the layout */
 
-/* -------------------------------------------- the chat pack, re-dressed */
+/* ---------------------------------------------------------- the chat pack */
 
 /*
- * On an OldSchool lane the chat is the cache's own PACK (interface 162), and
- * a pack is content: the frame layer places it whole and hides none of it.
- * Its decoration -- the backing its script creates, the stone bar under it,
- * the eight filter-button plates -- is therefore still OldSchool's when the
- * Stone Drawer stands, and that is a 2004 frame around an OldSchool chatbox.
- *
- * So the decoration is CLAIMED, piece by piece, through the chrome tier: the
- * profile names each piece (`[role:chat_backing]`, `[role:chat_bar]`,
- * `[role:chat_plate_N]` in the osrs239 profile), this plugin holds its
- * APPEARANCE, and the host paints this plugin's picture at the piece's own
- * box in place of the cache's. The text, the ops and the scrollbar are the
- * pack's and stay. A 2004 lane names none of these and every claim answers
- * -1, which is "no such part here" and is the right answer.
- *
- * The pictures are composed at the piece's box: the parchment scaled to the
- * backing and the stone strip tiled to the bar. A box is read back from
- * chrome_part in EV_CHROME, so a piece the pack has not built yet (the
- * backing is script-created) is painted the pass after it appears.
- *
- * The eight PLATES are claimed to be taken away rather than re-dressed, and
- * that is the whole difference between this frame and the one it replaces:
- * a 2004 chat filter is a LABEL on the stone -- `Public` over its mode, drawn
- * straight onto the surround -- and it never stood on a button. Dressing the
- * pack's eight plates in 2004 art put a slab back under every label, which is
- * OldSchool's shape wearing this frame's texture and is worse than either.
- * A claim with no picture in it is the API's way to say "hidden by its
- * holder", so the plate goes and the pack's own text stays where it was.
- */
-/*
- * Claim every piece this frame does not already hold.
- *
- * RETRIED, and that is the whole subtlety. The chrome tier's advice is to
- * claim at EV_START, and for a part the cache authors into its gameframe
- * that is right -- the claim stands until the part appears. The chatbox is
- * not one of those: it is a pack the SERVER mounts at login, so at start
- * none of these names resolves to anything and every claim answers -1, "no
- * revision has this part", which is a final answer and not a wait. Asking
- * again once the pack is up is the only way to hold a piece of it.
- *
- * Cheap enough to ask from the frame handler: a claim on a part already held
- * is a table lookup, and role resolution is memoised per tree generation.
- */
-/*
- * A piece's box moved since it was painted -- the pack rebuilt, the chatbox
- * was resized, the backing was created after the claim. Re-claiming what is
- * already held is the ask for a fresh EV_CHROME. @see minimap_orbs.c, whose
- * orbs_restate makes the same move for the same reason.
+ * An OldSchool chatbox is a cache-owned pack, so the frame places it whole
+ * and leaves its backing, controls, operations, and scrollbar lane-owned.
+ * A dat1 chat surface instead receives this frame's parchment and publishes
+ * each filter plate as a retained named UI node. Other plugins can then
+ * contribute individual facets without either frame knowing their load order.
  */
 /*
  * The 2004 rail: the two turned tab rows. @see MOBILE_ROCK, MOBILE_TAB_STONE.
@@ -3019,17 +2976,16 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
      * anywhere else puts the chrome back where it belongs -- on the four
      * controls -- without laying a slab across the corner behind them.
      */
-    /* The plates are DECLARED below rather than blitted here: a plate in the
-     * blit list would be painted under a claimant's replacement, and a
-     * replacement wider than the original would show its edges. The host
-     * paints the declaration, or the claimant's, never both. */
+    /* The plates are named UI nodes rather than ordinary blits. The registry
+     * resolves one appearance provider per plate, so a wider replacement does
+     * not expose this frame's art at its edges. */
 
     /*
      * The four filter buttons stay the LANE's.
      *
-     * They are placed and never claimed: on a 2004 frame each one cycles its
-     * filter through On/Friends/Off, and a plugin that took the click to use as
-     * a show/hide switch would have replaced three working controls with one.
+     * Their actions remain lane-owned: on a 2004 frame each one cycles its
+     * filter through On/Friends/Off, and replacing that action with a
+     * show/hide switch would remove three working states.
      * The sheet gets its own switch instead -- @see g_frame.toggle_x -- which
      * is a button this frame added rather than one it took over.
      */
@@ -3057,14 +3013,10 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
             bounds.width,
             bounds.height);
 
-        /*
-         * And the plate under it DECLARED as a part, beside the blit above
-         * that still draws it for this frame's own look. Declared so that a
-         * plugin replacing the report button finds one here to replace:
-         * the host answers chrome_part with this box and this art, and paints
-         * the claimant's instead when one holds it. One picture for all
-         * four, no hover -- this strip has none -- so IDLE alone is stated.
-         */
+        /* Publish the plate as a retained named node. The UI registry chooses
+         * one provider per facet and the host paints only the resolved winner,
+         * so a report-button contribution composes without double drawing.
+         * One picture serves all four buttons; this strip has no hover art. */
         mobile_ui_node(
             ctx,
             NAME[i],
@@ -3126,11 +3078,8 @@ mobile_on_layout(
     call.build = build;
 
     /*
-     * Nothing before the gameframe exists -- @see gameframe.c's frame_on_layout
-     * for the whole reason. The short of it: the slots are claimed whether or
-     * not there is a frame to dress, and on the title screen that takes the
-     * background, the logo and the login box away and puts nothing in their
-     * place.
+     * A frame offer is meaningful only on the game screen. Returning PENDING
+     * keeps the lane-native title tree intact until live game surfaces exist.
      */
     if( g_api->core.screen(g_api) != TORIRS_SCREEN_GAME )
     {
@@ -3234,8 +3183,8 @@ mobile_on_draw(
      *
      * The scene is the WHOLE canvas on this frame, so every pixel of chrome has
      * world underneath it: a tap that misses a chat line or an inventory cell
-     * used to fall straight through and walk the player somewhere. These claim
-     * the rectangle and offer NO ops, which is the api's own way of saying
+     * used to fall straight through and walk the player somewhere. These
+     * register the rectangle with no operations, which means
      * "swallow it" -- and they are declared in the FRAME pass, under the live
      * widgets, so the chat's scrollbar and the panel's items still take their
      * own clicks first.
@@ -3345,15 +3294,15 @@ mobile_on_draw(
  * Wait for the art, then invalidate the retained frame once.
  *
  * A SKIN is part of the declaration, not something drawn each frame: it is
- * stated in EV_LAYOUT and stands until the next one. And the windows this frame
- * masks with are read off a PNG that crosses the IO queue, so the first
- * declaration almost always happens before there is anything to state -- after
- * which nothing asks again, because a declaration only follows a claim, a resize
- * or a rebuild. That is why the compass stayed square: the mask was correct, and
- * it was correct one frame too late for anyone to have asked for it.
+ * stated by a frame build and stands until the next one. The windows this frame
+ * masks with are read from a PNG that crosses the IO queue, so the first build
+ * almost always happens before there is anything to state. Without explicit
+ * invalidation, selection and resize may be the only later build triggers.
+ * That is why the compass stayed square: the mask became ready one frame too
+ * late for the first declaration.
  *
  * So the moment the picture lands and the windows are known, explicitly mark
- * the selected declaration stale. This changes no ownership or canvas policy.
+ * the selected declaration stale. This changes no selection or canvas policy.
  * Once only -- the flags latch, so this costs one image_size call per frame
  * until the read completes and nothing after it.
  */
@@ -3374,9 +3323,8 @@ mobile_on_frame(
     call.api = api;
     call.state = state;
 
-    /* The chat pack arrives at login and can be rebuilt at any time, so the
-     * pieces are claimed until they are held and then watched for a box that
-     * moved. Ten role lookups a frame, memoised, and no drawing. */
+    /* Compose masks and frame art incrementally as their source images arrive.
+     * Once both sets are ready, invalidate the retained frame exactly once. */
     if( g_art_built && g_masks_ready )
         return;
     if( !g_masks_ready )
@@ -3537,13 +3485,7 @@ mobile_on_screen(
     call.state = state;
 
     if( event->screen != TORIRS_SCREEN_GAME )
-    {
         memset(&g_frame, 0, sizeof(g_frame));
-        /* The chat pack goes with the session. Releasing rather than merely
-         * forgetting: a claim on a part that no longer exists would still be
-         * held against the NEXT session's pack, and re-claiming is how a
-         * fresh declaration is asked for. */
-    }
 }
 
 static void

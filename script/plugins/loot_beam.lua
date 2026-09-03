@@ -431,13 +431,13 @@ function plugin.on_world_loaded(api, ev)
     dirty = true
 end
 
--- EV_LOGIC_TICK and not EV_SERVER_TICK: the tick fence (PKT_NAME_SERVER_TICK_END)
+-- on_logic_tick and not on_server_tick: the tick fence (PKT_NAME_SERVER_TICK_END)
 -- is only on the wire for osrs230, osrs239 and the rsprot bridge -- every
 -- xp_tracker.c/loot_tracker.c tracker in this tree already made this switch for
 -- the same reason. On lc245_2, lc254, lc289 and xrsps233 the fence never fires
 -- at all, so `dirty` was set correctly by every obj event but `rebuild` -- the
 -- ONLY place a beam is created or destroyed -- never ran: a beam that existed
--- never came down, and a despawned item's tile never got the memo. LOGIC_TICK
+-- never came down, and a despawned item's tile never got the memo. on_logic_tick
 -- is the client's own 20ms cycle and exists on every lane; the `dirty` gate
 -- below is what keeps this cheap when nothing changed.
 function plugin.on_logic_tick(api, ev)

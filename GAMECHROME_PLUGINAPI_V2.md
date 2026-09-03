@@ -801,6 +801,45 @@ global rectangle. The host invokes `build` for the requested candidate at a
 safe layout fence, keeps the last committed frame visible until validation
 succeeds, and owns cleanup/fallback.
 
+### Lua plugins use the same contract
+
+Lua plugins remain supported. Each script returns one V2 definition table;
+its `id` must match the manifest id. Lua uses the same static frame offers,
+named UI contributions, module names, callback lifetimes, and typed outcomes
+as C. For example, a Lua frame provider can be this small:
+
+```lua
+return {
+    id = "simple-frame",
+    title = "Simple Frame",
+    version = "1.0.0",
+    frames = {
+        {
+            id = "window",
+            title = "Simple Window",
+            canvas = "window",
+            min_width = 640,
+            min_height = 480,
+            build = function(api, frame, context)
+                local usable = api.placement.primary(context.available)
+                if not usable then
+                    frame.reason("No usable frame area")
+                    return "unsupported"
+                end
+                frame.surface("viewport", usable)
+                return "ready"
+            end,
+        },
+    },
+}
+```
+
+The Lua runtime translates that table directly into a native
+`ToriRS_PluginDefV2`; it does not reconstruct the removed flat API. Builders
+are valid only during their callback, and invalid Lua values produce a script
+error instead of reaching native assertions. The complete LuaLS surface is in
+[`script/plugins/plugin_api.meta.lua`](script/plugins/plugin_api.meta.lua).
+
 ## Retained chrome execution
 
 The retained model must not discover changes by walking every panel, widget,

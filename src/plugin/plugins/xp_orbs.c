@@ -82,16 +82,16 @@
  * event and a poll cannot miss a gain the way a subscription to the wrong
  * packet could.
  *
- * It polls on EV_LOGIC_TICK and not on EV_SERVER_TICK, and that is the whole
+ * It polls in on_logic_tick and not in on_server_tick, and that is the whole
  * difference between this working on one lane and on all of them.
- * EV_SERVER_TICK is raised from PKT_NAME_SERVER_TICK_END, and only osrs230,
+ * on_server_tick is raised from PKT_NAME_SERVER_TICK_END, and only osrs230,
  * osrs239 and the rsprot bridge carry that packet: the 2004-era protocols --
  * lc245_2, lc254, lc289, xrsps233 -- have no tick fence on the wire at all, so
  * on those worlds the event simply never fires and a plugin waiting for it sits
- * there doing nothing while the player gains xp. EV_LOGIC_TICK is the client's
+ * there doing nothing while the player gains xp. on_logic_tick is the client's
  * own 20ms cycle and is raised on every lane.
  *
- * Nothing is given up by moving. EV_SERVER_TICK's promise is a COHERENT
+ * Nothing is given up by moving. on_server_tick's promise is a COHERENT
  * snapshot -- every packet of the tick applied, so a reader does not see a
  * half-updated world -- and a per-skill xp counter has no such invariant to
  * violate: UPDATE_STAT carries one skill, and two skills advancing one 20ms
@@ -566,8 +566,8 @@ orb_blit_scaled(
              * source pixel wide so an upscale still samples something. */
             int const u0 = x * src_w / dst_w;
             int const v0 = y * src_h / dst_h;
-            int u1 = (x + 1) * src_w / dst_w;
-            int v1 = (y + 1) * src_h / dst_h;
+            int u_end = (x + 1) * src_w / dst_w;
+            int v_end = (y + 1) * src_h / dst_h;
             uint32_t a = 0;
             uint32_t r = 0;
             uint32_t g = 0;
@@ -576,14 +576,14 @@ orb_blit_scaled(
 
             if( tx < 0 || tx >= w )
                 continue;
-            if( u1 <= u0 )
-                u1 = u0 + 1;
-            if( v1 <= v0 )
-                v1 = v0 + 1;
+            if( u_end <= u0 )
+                u_end = u0 + 1;
+            if( v_end <= v0 )
+                v_end = v0 + 1;
 
-            for( int v = v0; v < v1 && v < src_h; v++ )
+            for( int v = v0; v < v_end && v < src_h; v++ )
             {
-                for( int u = u0; u < u1 && u < src_w; u++ )
+                for( int u = u0; u < u_end && u < src_w; u++ )
                 {
                     uint32_t const p = src[(src_y + v) * src_stride + src_x + u];
                     uint32_t const pa = p >> 24;

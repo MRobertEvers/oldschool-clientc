@@ -986,7 +986,7 @@ fake_display_setting_set(
     return 0;
 }
 static void
-fake_layout_set(
+fake_frame_activate(
     void* u,
     int o,
     int c,
@@ -1279,7 +1279,7 @@ fake_engine(void)
     e.draw_rect = fake_draw_rect;
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
-    e.layout_set = fake_layout_set;
+    e.frame_activate = fake_frame_activate;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;

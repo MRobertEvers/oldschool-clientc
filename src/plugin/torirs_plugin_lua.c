@@ -498,6 +498,16 @@ lua_string_fits(char const* text, size_t capacity)
     return !text || strlen(text) < capacity;
 }
 
+static bool
+lua_config_key_valid(char const* key)
+{
+    if( !key || !key[0] ) return false;
+    for( ; *key; key++ )
+        if( (*key < 'a' || *key > 'z') && (*key < '0' || *key > '9') && *key != '_' )
+            return false;
+    return true;
+}
+
 static struct ToriRS_Rect
 lua_check_rect(lua_State* L, int index)
 {
@@ -883,7 +893,7 @@ lua_ui_node_arg(lua_State* L, int index, struct ToriRS_UiNode* node)
     node->clip=lua_table_int(L,index,"clip",TORIRS_UI_CLIP_NONE);node->label_x=lua_table_int(L,index,"label_x",0);node->label_y=lua_table_int(L,index,"label_y",0);
     lua_raw_getfield(L,index,"hit_rect");if(lua_istable(L,-1)){node->hit_rect=lua_check_rect(L,-1);node->hit_rect_mode=TORIRS_UI_HIT_RECT_CUSTOM;}lua_pop(L,1);
     lua_raw_getfield(L,index,"state_images");if(lua_istable(L,-1))for(int i=0;i<TORIRS_UI_VISUAL_STATE_COUNT;i++){lua_raw_getfield(L,-1,IMAGE_KEYS[i]);if(lua_isinteger(L,-1)){node->state_images[i].value=(int)lua_tointeger(L,-1);node->state_image_mask|=1u<<i;}lua_pop(L,1);}lua_pop(L,1);
-    lua_raw_getfield(L,index,"actions");if(lua_istable(L,-1)){uint32_t n=(uint32_t)lua_rawlen(L,-1);if(n>TORIRS_UI_NAMED_ACTIONS_MAX)luaL_error(L,"UI node has too many actions");node->action_count=n;for(uint32_t i=0;i<n;i++){lua_rawgeti(L,-1,(lua_Integer)i+1);node->actions[i]=luaL_checkstring(L,-1);lua_pop(L,1);}}lua_pop(L,1);
+    lua_raw_getfield(L,index,"actions");if(lua_istable(L,-1)){uint32_t n=(uint32_t)lua_rawlen(L,-1);if(n>TORIRS_UI_NAMED_ACTIONS_MAX)luaL_error(L,"UI node has too many actions");node->action_count=n;for(uint32_t i=0;i<n;i++){lua_rawgeti(L,-1,(lua_Integer)i+1);if(lua_type(L,-1)!=LUA_TSTRING)luaL_error(L,"UI node action %d must be a string",(int)i+1);node->actions[i]=lua_tostring(L,-1);lua_pop(L,1);}}lua_pop(L,1);
 }
 
 static int lua_ui_update(lua_State* L) { struct ToriRS_ApiV2* a=lua_current_api(L);struct ToriRS_UiNode v;lua_ui_node_arg(L,3,&v);lua_push_result(L,a->ui.update(a,lua_ui_ref_arg(L,1),lua_facets_from_arg(L,2),&v));return 2; }
@@ -1487,6 +1497,10 @@ lua_build_api_table(struct LuaScript* script)
 static void
 lua_open_sandbox_libs(lua_State* L)
 {
+    /* Scripts are trusted local extensions. The instruction hook bounds Lua
+     * bytecode, but cannot preempt one long-running C string-pattern call;
+     * changing that trust model needs constrained wrappers or a native
+     * watchdog rather than pretending the VM hook covers native library work. */
     static luaL_Reg const LIBS[]={
         {LUA_GNAME,luaopen_base},{LUA_TABLIBNAME,luaopen_table},
         {LUA_STRLIBNAME,luaopen_string},{LUA_MATHLIBNAME,luaopen_math},{LUA_UTF8LIBNAME,luaopen_utf8},{NULL,NULL}
@@ -1494,7 +1508,7 @@ lua_open_sandbox_libs(lua_State* L)
     for(luaL_Reg const* lib=LIBS;lib->name;lib++){luaL_requiref(L,lib->name,lib->func,1);lua_pop(L,1);}
     static char const* const REMOVE[]={
         "dofile", "loadfile", "load", "require", "print", "warn",
-        /* A hook error must cross the adapter's outer pcall; script-level
+        /* A hook error must cross the runtime bridge's outer pcall; script-level
          * protected calls could otherwise catch and repeatedly reset it. */
         "pcall", "xpcall",
         /* User-created __gc table finalizers run from lua_close, outside any
@@ -1510,7 +1524,7 @@ lua_open_sandbox_libs(lua_State* L)
 static bool
 lua_call_begin(struct LuaScript* script, struct ToriRS_ApiV2* api, enum LuaHandler handler)
 {
-    if(!script||!script->alive||script->handler_ref[handler]==LUA_NOREF)return false;
+    if(!script||!script->alive||script->pending_disable[0]||script->handler_ref[handler]==LUA_NOREF)return false;
     if( !lua_callback_scope_push(script, api) )
     {
         TORIRS_ERR("plugin: Lua callback nesting limit reached in '%s'\n", script->name);
@@ -1536,7 +1550,8 @@ lua_call_end(struct LuaScript* script, enum LuaHandler handler, int argument_cou
         else if(lua_type(L,-1)==LUA_TSTRING&&strcmp(lua_tostring(L,-1),"consume")==0)result=TORIRS_CALLBACK_CONSUME;
         lua_pop(L,1);
     }
-    (void)lua_script_flush_disable(script,api);
+    if( lua_script_flush_disable(script,api) )
+        result = TORIRS_CALLBACK_CONTINUE;
     return result;
 }
 
@@ -1684,7 +1699,8 @@ lua_frame_offer_build(
     int status;
     enum ToriRS_FrameBuildResult result;
     (void)state;
-    if( !script || !context ) return TORIRS_FRAME_ERROR;
+    if( !script || !script->alive || script->reload_failed || !context )
+        return TORIRS_FRAME_ERROR;
     offer = lua_frame_offer_index(script, context->offer_id);
     if( offer < 0 || script->frame_build_ref[offer] == LUA_NOREF )
         return TORIRS_FRAME_ERROR;
@@ -1739,7 +1755,7 @@ lua_frame_offer_draw(
     int offer;
     int status;
     (void)state;
-    if( !script ) return;
+    if( !script || !script->alive || script->reload_failed ) return;
     offer = lua_selected_frame_index(script, api);
     if( offer < 0 || script->frame_draw_ref[offer] == LUA_NOREF ) return;
     if( !lua_callback_scope_push(script, api) )
@@ -1797,7 +1813,8 @@ lua_read_config_item(struct LuaScript* script, lua_State* L, int table, int slot
         lua_pop(L, 1);
         return false;
     }
-    if( !lua_string_fits(lua_tostring(L, -1), PLUGIN_LUA_STR_MAX) )
+    if( !lua_string_fits(lua_tostring(L, -1), PLUGIN_LUA_STR_MAX) ||
+        !lua_config_key_valid(lua_tostring(L, -1)) )
     {
         lua_pop(L, 1);
         return false;
@@ -1875,7 +1892,8 @@ lua_ui_mode_from_value(lua_State* L, int index)
 {
     char const* mode;
     if( lua_isinteger(L, index) )
-        return (int)lua_tointeger(L, index);
+        return lua_enum_integer(L, index, TORIRS_UI_MODIFY, TORIRS_UI_REPLACE_OR_PROVIDE,
+            "UI contribution mode");
     mode = luaL_checkstring(L, index);
     if( strcmp(mode, "modify") == 0 ) return TORIRS_UI_MODIFY;
     if( strcmp(mode, "provide_if_missing") == 0 ) return TORIRS_UI_PROVIDE_IF_MISSING;
@@ -2010,6 +2028,11 @@ lua_read_frame_offer(struct LuaScript* script, lua_State* L, int table, int slot
     lua_raw_getfield(L, table, "draw");
     if( lua_isfunction(L, -1) )
         script->frame_draw_ref[slot] = luaL_ref(L, LUA_REGISTRYINDEX);
+    else if( !lua_isnil(L, -1) )
+    {
+        lua_pop(L, 1);
+        return false;
+    }
     else
         lua_pop(L, 1);
     offer->build = lua_frame_offer_build;
@@ -2058,7 +2081,7 @@ lua_definition_callbacks(struct ToriRS_PluginCallbacks* callbacks)
 }
 
 /* Runs only through lua_pcall. Descriptor tables are inert data (all reads
- * below are raw), but conversion errors and the adapter's own registry/table
+ * below are raw), but conversion errors and the runtime's own registry/table
  * allocations still need the same protected memory boundary as user code. */
 static int
 lua_parse_definition(lua_State* L)
@@ -2162,6 +2185,8 @@ lua_parse_definition(lua_State* L)
         lua_raw_getfield(L, 1, LUA_HANDLER_NAMES[i]);
         if( lua_isfunction(L, -1) )
             script->handler_ref[i] = luaL_ref(L, LUA_REGISTRYINDEX);
+        else if( !lua_isnil(L, -1) )
+            return luaL_error(L, "%s must be a function", LUA_HANDLER_NAMES[i]);
         else
             lua_pop(L, 1);
     }
@@ -2375,6 +2400,10 @@ lua_script_reload(struct ToriRS_PluginHost* host, int plugin_index, void* userda
     if( !lua_script_build(script, stable_name, script->source, script->source_len) )
     {
         lua_frame_signatures_restore(script, frames_before, frame_count_before);
+        memset(script->config, 0, sizeof(script->config));
+        memset(script->contributions, 0, sizeof(script->contributions));
+        script->config_count = 0;
+        script->contribution_count = 0;
         script->reload_failed = true;
         return;
     }

@@ -91,7 +91,7 @@ td_arena_layout(
     TD_FIELD(sm_depth_cursor, int, depth_levels);
     TD_FIELD(sm_faces_by_depth, faceint_t, mf);
     TD_FIELD(sm_prio_offset, int, 13);
-    TD_FIELD(sm_prio_faces, faceint_t, (size_t)13 * (size_t)mf);
+    TD_FIELD(sm_prio_faces, faceint_t, toridraw_prio_slices_len(mf));
     TD_FIELD(sm_flex_prio11_face_to_depth, int, mf);
     TD_FIELD(sm_flex_prio12_face_to_depth, int, mf);
 

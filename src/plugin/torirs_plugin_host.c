@@ -396,7 +396,7 @@ enum PluginDrawSurface
 {
     PLUGIN_DRAW_SURFACE_WORLD = 0,
     PLUGIN_DRAW_SURFACE_CANVAS = 1,
-    /** Over the scene, under the interfaces. @see EV_DRAW_FRAME. */
+    /** Over the scene, under the interfaces. @see FrameOffer.draw. */
     PLUGIN_DRAW_SURFACE_FRAME = 2,
     /** Panel-local custom region prepared by the application shell. */
     PLUGIN_DRAW_SURFACE_PANEL = TORIRS_PLUGIN_ENGINE_DRAW_PANEL
@@ -425,7 +425,7 @@ struct ToriRS_PluginHost
      * serving without every call carrying it separately. */
     int dispatching;
     /** enum PluginCallbackKind for that callback, or -1 outside one. Needed by
-     *  panel_request's EV_START-only registration rule. */
+     *  panel_request's on_start-only registration rule. */
     int dispatch_event;
     /** engine.screen's answer at the last frame boundary, so the boundary can
      *  tell a change from a steady state. @see PLUGIN_CALLBACK_SCREEN_CHANGE. */
@@ -497,10 +497,10 @@ struct ToriRS_PluginHost
     int layout_fixed_w;
     int layout_fixed_h;
     /** Advances across every resolved offer transition. Fences an in-flight
-     * EV_LAYOUT scratch declaration from committing after selection moved. */
+     * frame-build candidate from committing after selection moved. */
     uint32_t frame_selection_epoch;
-    /** Non-zero only inside an EV_LAYOUT dispatch: layout_slot is legal then
-     *  and at no other time, for the same reason hit_region is. */
+    /** Non-zero only inside a frame-build callback: surface declarations are
+     * legal then and at no other time, for the same reason hit regions are. */
     int layout_declaring;
     int layout_declarer;
     int layout_candidate_entry;
@@ -531,13 +531,13 @@ struct ToriRS_PluginHost
 
     /** Moves whenever anything about the layout does. @see layout_revision. */
     int layout_revision;
-    /** Set while EV_LAYOUT_CHANGED is being delivered. @see
+    /** Set while on_placement_changed is being delivered. @see
      *  PluginHost_LayoutChanged. */
     int layout_notifying;
     /** A layout source changed from inside a notification.  It is folded into
      * the current transaction when possible, otherwise drained next frame. */
     int layout_notify_pending;
-    /* Non-NULL only during an EV_MENU_BUILD dispatch. */
+    /* Non-NULL only during an on_menu_build dispatch. */
     void* menu_cursor;
 
     struct PluginAsset assets[TORIRS_PLUGIN_ASSETS_MAX];
@@ -758,6 +758,101 @@ plugin_schema_index(
     return -1;
 }
 
+/** Config keys are written verbatim to an INI line, so the documented key
+ *  alphabet is also the persistence boundary. */
+static bool
+plugin_config_key_valid(char const* key)
+{
+    size_t length;
+
+    if( !key )
+        return false;
+    length = strlen(key);
+    if( length == 0 || length >= sizeof(((struct PluginConfigSlot*)0)->key) )
+        return false;
+    for( size_t i = 0; i < length; i++ )
+    {
+        unsigned char const c = (unsigned char)key[i];
+        if( (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' )
+            return false;
+    }
+    return true;
+}
+
+/** Values are one physical INI line. Refusing rather than escaping CR/LF
+ *  keeps decode and encode exact inverses and prevents a value from creating
+ *  another key or plugin section on the next launch. */
+static bool
+plugin_config_value_valid(char const* value)
+{
+    return value && strlen(value) < TORIRS_PLUGIN_CONFIG_VALUE_MAX &&
+           !strchr(value, '\r') && !strchr(value, '\n');
+}
+
+enum PluginConfigSchemaResult
+{
+    PLUGIN_CONFIG_SCHEMA_OK = 0,
+    PLUGIN_CONFIG_SCHEMA_TOO_LARGE,
+    PLUGIN_CONFIG_SCHEMA_INVALID_KEY,
+    PLUGIN_CONFIG_SCHEMA_DUPLICATE_KEY,
+    PLUGIN_CONFIG_SCHEMA_INVALID_DEFAULT,
+    PLUGIN_CONFIG_SCHEMA_INVALID_TYPE,
+};
+
+static char const*
+plugin_config_schema_result_text(enum PluginConfigSchemaResult result)
+{
+    switch( result )
+    {
+        case PLUGIN_CONFIG_SCHEMA_OK: return "valid";
+        case PLUGIN_CONFIG_SCHEMA_TOO_LARGE: return "too many items";
+        case PLUGIN_CONFIG_SCHEMA_INVALID_KEY: return "an invalid key";
+        case PLUGIN_CONFIG_SCHEMA_DUPLICATE_KEY: return "a duplicate key";
+        case PLUGIN_CONFIG_SCHEMA_INVALID_DEFAULT: return "an invalid default value";
+        case PLUGIN_CONFIG_SCHEMA_INVALID_TYPE: return "an invalid item type";
+    }
+    return "an unknown error";
+}
+
+static enum PluginConfigSchemaResult
+plugin_config_schema_validate(
+    struct ToriRS_ConfigItem const* schema,
+    int* out_count,
+    int* out_row)
+{
+    assert(out_count);
+    assert(out_row);
+
+    *out_count = 0;
+    *out_row = -1;
+    if( !schema )
+        return PLUGIN_CONFIG_SCHEMA_OK;
+
+    for( int i = 0; i <= TORIRS_PLUGIN_CONFIG_MAX; i++ )
+    {
+        struct ToriRS_ConfigItem const* item = &schema[i];
+        if( !item->key )
+        {
+            *out_count = i;
+            return PLUGIN_CONFIG_SCHEMA_OK;
+        }
+        *out_row = i;
+        if( i == TORIRS_PLUGIN_CONFIG_MAX )
+            return PLUGIN_CONFIG_SCHEMA_TOO_LARGE;
+        if( !plugin_config_key_valid(item->key) )
+            return PLUGIN_CONFIG_SCHEMA_INVALID_KEY;
+        if( item->default_value && !plugin_config_value_valid(item->default_value) )
+            return PLUGIN_CONFIG_SCHEMA_INVALID_DEFAULT;
+        if( item->type < TORIRS_CONFIG_BOOL || item->type > TORIRS_CONFIG_TEXT )
+            return PLUGIN_CONFIG_SCHEMA_INVALID_TYPE;
+        for( int previous = 0; previous < i; previous++ )
+            if( strcmp(schema[previous].key, item->key) == 0 )
+                return PLUGIN_CONFIG_SCHEMA_DUPLICATE_KEY;
+    }
+
+    return PLUGIN_CONFIG_SCHEMA_TOO_LARGE;
+}
+
 static struct PluginConfigSlot*
 plugin_config_slot(
     struct PluginContext* ctx,
@@ -766,6 +861,9 @@ plugin_config_slot(
 {
     assert(ctx);
     assert(key);
+
+    if( !plugin_config_key_valid(key) )
+        return NULL;
 
     for( int i = 0; i < ctx->config_count; i++ )
     {
@@ -829,19 +927,21 @@ plugin_copy_str_would_change(
 /* Seed the store from the schema. Called at registration so a plugin can read
  * its config before any ini has been applied. */
 static void
-plugin_config_seed(struct PluginContext* ctx)
+plugin_config_seed(
+    struct PluginContext* ctx,
+    int schema_count)
 {
     assert(ctx);
+    assert(schema_count >= 0 && schema_count <= TORIRS_PLUGIN_CONFIG_MAX);
 
-    ctx->schema_count = 0;
+    ctx->schema_count = schema_count;
     struct ToriRS_ConfigItem const* schema = plugin_schema(ctx);
     if( !schema )
         return;
-    for( int i = 0; schema[i].key; i++ )
+    for( int i = 0; i < schema_count; i++ )
     {
         struct ToriRS_ConfigItem const* item = &schema[i];
         struct PluginConfigSlot* slot = plugin_config_slot(ctx, item->key, true);
-        ctx->schema_count++;
         if( !slot )
             continue;
         snprintf(
@@ -872,8 +972,7 @@ plugin_dispatch_one(
     void* payload);
 static int plugin_ev_is_draw(enum PluginCallbackKind ev);
 
-/* The entity half of the chrome tier, used by the claim and draw verbs that
- * are defined before it. @see the entities section below. */
+/* Retained entity appearance/action helpers used by the V2 game module. */
 static int
 plugin_entity_parse(
     char const* part,
@@ -1288,15 +1387,15 @@ api_frame_invalidate(struct PluginContext* ctx)
  * own chrome off (or back on) and pin or unpin the canvas.
  *
  * Called on every transition and on no-ops besides, because the engine's copy
- * of this is what the layout pass reads and a claim the engine never heard
- * about is a plugin drawing stones over a frame that is still drawing its own.
+ * of this is what the layout pass reads. Publishing it atomically prevents a
+ * plugin frame from drawing over a lane frame the engine still considers live.
  */
 static void
 plugin_layout_publish(struct ToriRS_PluginHost* host)
 {
     assert(host);
     host->placement_cache_valid = 0;
-    host->engine.layout_set(
+    host->engine.frame_activate(
         host->engine.user,
         plugin_frame_owner(host) >= 0 ? 1 : 0,
         host->layout_canvas,
@@ -1354,7 +1453,7 @@ host_frame_surface_member(
      * exists to prevent. */
     host = ctx->host;
     candidate = &host->layout_candidate;
-    assert(host->layout_declaring && "layout_slot is legal only inside EV_LAYOUT");
+    assert(host->layout_declaring && "frame surfaces are legal only during frame build");
     assert(host->layout_declarer == ctx->index);
     /* A number a plugin computed, so out of range is input. */
     if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
@@ -2397,11 +2496,11 @@ plugin_ui_tab_state_poll(struct ToriRS_PluginHost* host)
  * slot, by component id -- answers "no such thing" when it does not, rather
  * than resolving the name against whatever tree happens to be up.
  *
- * The title screen has a tree, and it has components, and some of them answer
- * to the names a frame dresser asks for. A plugin that asks for a rectangle by
+ * The title screen has a tree and components, some with names also used by a
+ * gameframe. A plugin that asks for a rectangle by
  * name and is handed one has no way to tell that it belongs to the login box
- * rather than to the chat frame, so it dresses it -- and the login screen loses
- * its art to furniture drawn for a screen nobody is on. "Ask for things by
+ * rather than to the chat frame, so the login screen could receive furniture
+ * for a screen nobody is on. "Ask for things by
  * name" is only safe while the names mean what the asker thinks they mean, and
  * off the gameframe they do not.
  *
@@ -2679,7 +2778,7 @@ api_cfg_color(
     return (uint32_t)plugin_cfg_number(api_cfg_str(ctx, key), 0) & 0xffffffu;
 }
 
-void
+bool
 PluginHost_ConfigSet(
     struct ToriRS_PluginHost* host,
     int plugin_index,
@@ -2691,11 +2790,13 @@ PluginHost_ConfigSet(
     assert(value);
 
     struct PluginContext* ctx = plugin_at(host, plugin_index);
+    if( !plugin_config_key_valid(key) || !plugin_config_value_valid(value) )
+        return false;
     struct PluginConfigSlot* slot = plugin_config_slot(ctx, key, true);
     if( !slot )
-        return;
+        return false;
     if( strcmp(slot->value, value) == 0 )
-        return;
+        return true;
 
     snprintf(slot->value, sizeof(slot->value), "%s", value);
     host->config_dirty = true;
@@ -2705,9 +2806,10 @@ PluginHost_ConfigSet(
         plugin_dispatch_one(
             host, plugin_index, PLUGIN_CALLBACK_CONFIG_CHANGED, slot->key);
     }
+    return true;
 }
 
-static void
+static bool
 api_cfg_set(
     struct PluginContext* ctx,
     char const* key,
@@ -2716,7 +2818,7 @@ api_cfg_set(
     assert(ctx);
     assert(key);
     assert(value);
-    PluginHost_ConfigSet(ctx->host, ctx->index, key, value);
+    return PluginHost_ConfigSet(ctx->host, ctx->index, key, value);
 }
 
 /* -- the client's own variables -- */
@@ -4233,7 +4335,7 @@ api_panel_request(
 
     /* Registration is a lifecycle declaration, not a way for an arbitrary
      * game event to steal a rail slot or open UI. A plugin gets one precise
-     * moment to make it: its EV_START callback. */
+     * moment to make it: its on_start callback. */
     if( host->dispatching != ctx->index || host->dispatch_event != PLUGIN_CALLBACK_START || !desc )
         return false;
 
@@ -4600,7 +4702,7 @@ plugin_draw_allow(
     void* surface)
 {
     assert(ctx);
-    /* Drawing outside EV_DRAW_WORLD would push into a list the emit walk has
+    /* Drawing outside on_draw_world would push into a list the emit walk has
      * already read. */
     assert(ctx->host->draw_surface);
     assert(surface == ctx->host->draw_surface);
@@ -4672,10 +4774,8 @@ api_draw_hull(
     plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
         return;
-    /* An entity whose APPEARANCE another plugin holds is that plugin's to
-     * outline. Silent, like a stale borrow: the caller's correct response is
-     * to draw nothing, and it already does that for an element that is not
-     * on screen. @see plugin_entity_hull_allowed. */
+    /* An entity whose APPEARANCE facet another plugin owns is that plugin's to
+     * outline. Refusal is silent, like an element that is not on screen. */
     if( !plugin_entity_hull_allowed(ctx->host, ctx->index, element_id) )
         return;
     ctx->draw_used +=
@@ -4929,18 +5029,9 @@ api_image_pixels(
     uint32_t* out,
     int max)
 {
-    /*
-     * READABLE and not owned, so a BORROWED handle can be read back.
-     *
-     * That is what makes "keep the frame's plate and put my icon on it"
-     * expressible: read the lender's pixels, compose them with the plugin's
-     * own art under a name in its OWN namespace, declare the result. Without
-     * it a dresser could only blit a borrowed picture whole, and every
-     * composite would need a PNG decoder inside the plugin.
-     *
-     * It stays a read. image_compose names a slot this plugin owns, so nothing
-     * here opens a path to writing into somebody else's.
-     */
+    /* Reads obey the same per-plugin ownership and incarnation rules as draw
+     * and release. A plugin may compose its own images, never another
+     * provider's retained resource. */
     struct PluginImage const* slot = plugin_image_readable(ctx, image);
 
     assert(out);
@@ -4961,9 +5052,8 @@ api_image_size(
     int* out_w,
     int* out_h)
 {
-    /* A borrowed handle measures like an owned one, and a STALE borrow
-     * measures like a pending image: 0x0 and a 0 return. A caller laying out
-     * against it has nothing to do differently for the two. */
+    /* A stale or foreign handle reads like an unavailable image: 0x0 and a
+     * false return. */
     struct PluginImage const* slot = plugin_image_readable(ctx, image);
 
     if( out_w )
@@ -4978,9 +5068,7 @@ api_image_release(
     struct PluginContext* ctx,
     int image)
 {
-    /* OWNED, deliberately: a borrower releasing a handle it was lent would
-     * free the lender's picture out from under the frame. The refusal needs no
-     * special case -- a borrowed slot's `plugin` is the lender's index. */
+    /* Only the owning plugin may release a handle. */
     if( !plugin_image_owned(ctx, image) )
         return;
     /*
@@ -5425,7 +5513,7 @@ plugin_entity_row_holder(
 /**
  * Apply every HITBOX holder's declaration to the menu just built: drop the
  * game's rows a REPLACE or NONE holder does not want, then add each holder's
- * own. Runs AFTER the plugins' EV_MENU_BUILD, so a dropped row's text was
+ * own. Runs AFTER the plugins' on_menu_build, so a dropped row's text was
  * never handed to anybody stale.
  */
 static void
@@ -5500,7 +5588,7 @@ host_frame_surface_skin(
 
     assert(ctx);
     host = ctx->host;
-    assert(host->layout_declaring && "layout_slot_skin is legal only inside EV_LAYOUT");
+    assert(host->layout_declaring && "frame skins are legal only during frame build");
     assert(host->layout_declarer == ctx->index);
     if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
     {
@@ -5572,7 +5660,7 @@ host_frame_surface_overlay(
 
     assert(ctx);
     host = ctx->host;
-    assert(host->layout_declaring && "layout_slot_overlay is legal only inside EV_LAYOUT");
+    assert(host->layout_declaring && "frame overlays are legal only during frame build");
     assert(host->layout_declarer == ctx->index);
     if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
     {
@@ -5587,7 +5675,7 @@ host_frame_surface_overlay(
 
     /* Unlike a skin, this is an ordinary sprite scene. Its natural dimensions
      * are read by the renderer after publication, so retaining a valid pending
-     * handle is both safe and necessary: otherwise a startup EV_LAYOUT would
+     * handle is both safe and necessary: otherwise an initial frame build would
      * discard the declaration and the housing would not appear until resize. */
     owned = plugin_image_owned(ctx, image);
     if( !owned || !owned->published )
@@ -5625,7 +5713,7 @@ host_frame_scrollbar(
 
     assert(ctx);
     host = ctx->host;
-    assert(host->layout_declaring && "layout_scrollbar is legal only inside EV_LAYOUT");
+    assert(host->layout_declaring && "frame scrollbars are legal only during frame build");
     assert(host->layout_declarer == ctx->index);
 
     if( host->layout_candidate.scrollbar_declared )
@@ -5687,10 +5775,8 @@ api_draw_image(
 
     if( !plugin_draw_allow(ctx, surface) )
         return;
-    /* Not resident yet is the ORDINARY state for the first frames after a
-     * load, so it draws nothing rather than asserting. A handle this plugin
-     * neither owns nor has borrowed is the other thing plugin_image_readable
-     * answers with NULL. */
+    /* Not resident yet is ordinary during loading, so it draws nothing rather
+     * than asserting. Foreign and stale handles also resolve to NULL. */
     if( !slot || !slot->published )
         return;
     ctx->draw_used += ctx->host->engine.draw_image(
@@ -5728,7 +5814,7 @@ api_hit_region(
     assert(ctx->host->draw_surface);
     assert(surface == ctx->host->draw_surface);
     /* Legal on both screen surfaces and not on the world one. A layout draws
-     * its tab stones through EV_DRAW_FRAME and they have to be clickable, so
+     * its tab stones through FrameOffer.draw and they have to be clickable, so
      * the test is "not the world" rather than "the canvas": the world surface
      * is cut to the viewport and its coordinates are the scene's, which is
      * what a region cannot be expressed in. */
@@ -5794,7 +5880,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->world_cycle);
     assert(engine->frame_ms);
     assert(engine->frame_work_us);
-    assert(engine->layout_set);
+    assert(engine->frame_activate);
     assert(engine->layout_begin);
     assert(engine->layout_end);
     assert(engine->layout_slot);
@@ -6473,7 +6559,7 @@ plugin_v2_ui_update_hook(
     if( (facets & TORIRS_UI_FACET_APPEARANCE) != 0 )
     {
         size_t const node_size =
-            value->struct_size ? value->struct_size : TORIRS_UI_NODE_LEGACY_SIZE;
+            value->struct_size ? value->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
         enum ToriRS_Result image_result =
             plugin_v2_ui_update_image_ready(context, value->image);
         if( image_result != TORIRS_RESULT_OK )
@@ -6577,8 +6663,8 @@ plugin_v2_copy_frame_node(
     assert(out);
     assert(name);
     assert(node);
-    copy_size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_LEGACY_SIZE;
-    if( copy_size < TORIRS_UI_NODE_LEGACY_SIZE )
+    copy_size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
+    if( copy_size < TORIRS_UI_NODE_V2_0_SIZE )
         return 0;
     memset(out, 0, sizeof(*out));
     written = snprintf(out->name, sizeof(out->name), "%s", name);
@@ -6652,8 +6738,8 @@ plugin_v2_frame_ui_node(
         v2->frame_ui_candidate_invalid = true;
         return;
     }
-    node_size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_LEGACY_SIZE;
-    if( node_size < TORIRS_UI_NODE_LEGACY_SIZE )
+    node_size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
+    if( node_size < TORIRS_UI_NODE_V2_0_SIZE )
     {
         v2->frame_ui_candidate_invalid = true;
         return;
@@ -7540,6 +7626,7 @@ PluginHost_RegisterV2(
     int event_priority = 0;
     int draw_order = 0;
     int frame_count = 0;
+    int schema_count = 0;
     int index;
 
     assert(host);
@@ -7578,6 +7665,20 @@ PluginHost_RegisterV2(
     {
         TORIRS_ERR("plugin: v2 plugin '%s' has an invalid config schema\n", def->id);
         return -1;
+    }
+    {
+        int schema_row;
+        enum PluginConfigSchemaResult const schema_result = plugin_config_schema_validate(
+            def->config ? def->config->items : NULL, &schema_count, &schema_row);
+        if( schema_result != PLUGIN_CONFIG_SCHEMA_OK )
+        {
+            TORIRS_ERR(
+                "plugin: v2 plugin '%s' config schema has %s at item %d\n",
+                def->id,
+                plugin_config_schema_result_text(schema_result),
+                schema_row + 1);
+            return -1;
+        }
     }
 
     v2 = calloc(1, sizeof(*v2));
@@ -7662,25 +7763,6 @@ PluginHost_RegisterV2(
         free(v2);
         return -1;
     }
-    {
-        int schema_count = 0;
-        struct ToriRS_ConfigItem const* schema =
-            v2->definition->config ? v2->definition->config->items : NULL;
-        if( schema )
-            while( schema[schema_count].key )
-                schema_count++;
-        if( schema_count > TORIRS_PLUGIN_CONFIG_MAX )
-        {
-            TORIRS_ERR(
-                "plugin: '%s' declares %d config items; the store holds %d\n",
-                def->id,
-                schema_count,
-                TORIRS_PLUGIN_CONFIG_MAX);
-            free(v2);
-            return -1;
-        }
-    }
-
     index = host->plugin_count;
     if( frame_count > 0 )
     {
@@ -7753,7 +7835,7 @@ PluginHost_RegisterV2(
         ctx->enabled = (flags & TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT) == 0;
         snprintf(ctx->name, sizeof(ctx->name), "%s", def->id);
         plugin_title_refresh(ctx);
-        plugin_config_seed(ctx);
+        plugin_config_seed(ctx, schema_count);
     }
     plugin_v2_order_insert(host, index);
     host->plugin_count++;
@@ -7854,8 +7936,7 @@ plugin_teardown(
         ctx->running = false;
         plugin_v2_shutdown(ctx);
     }
-    /* Geometry and bytes go out with the subscriptions, and for the same
-     * reason: nothing is left running that could remove them later. */
+    /* Geometry and bytes leave with the stopped instance. */
     plugin_objects_destroy_all(host, ctx);
     plugin_meshes_destroy_all(host, ctx);
     plugin_assets_drop_plugin(host, plugin_index);
@@ -7866,12 +7947,7 @@ plugin_teardown(
      * and the readouts beside it widen on the next frame. */
     plugin_placement_reservations_drop_plugin(host, plugin_index);
     plugin_models_drop_plugin(host, plugin_index);
-    /* And the chrome tier, in both directions: the parts this plugin was
-     * dressing go back to whatever provides them underneath, and every borrow
-     * to or from it goes with the images it pointed at. A plugin that degraded
-     * because this one held a part does NOT silently reacquire it -- it
-     * claimed nothing, so there is nothing to reinstate, and picking up parts
-     * at a moment nobody can see is worse than a gap. */
+    /* Drop its retained entity appearance/action declarations. */
     plugin_entity_drop_plugin(host, plugin_index);
     if( ctx->ui_contributions_registered )
     {
@@ -7982,6 +8058,7 @@ PluginHost_Reload(
 {
     struct PluginContext* ctx;
     bool panel_was_selected;
+    int schema_count;
 
     assert(host);
     ctx = plugin_at(host, plugin_index);
@@ -8006,6 +8083,32 @@ PluginHost_Reload(
     /* Reread through the new def, for the same reason as the schema below. */
     plugin_title_refresh(ctx);
 
+    {
+        int schema_row;
+        enum PluginConfigSchemaResult const schema_result = plugin_config_schema_validate(
+            plugin_schema(ctx), &schema_count, &schema_row);
+        if( schema_result != PLUGIN_CONFIG_SCHEMA_OK )
+        {
+            char error[160];
+            snprintf(
+                error,
+                sizeof(error),
+                "Its config schema has %s at item %d.",
+                plugin_config_schema_result_text(schema_result),
+                schema_row + 1);
+            TORIRS_ERR("plugin: '%s' reload refused: %s\n", ctx->name, error);
+            ctx->schema_count = 0;
+            PluginHost_SetError(host, plugin_index, error);
+            ctx->refused = true;
+            if( plugin_provides_frames(ctx) )
+            {
+                PluginFrameCatalog_SetAvailable(&host->frame_catalog, plugin_index, 0);
+                host->frame_selection_dirty = 1;
+            }
+            return;
+        }
+    }
+
     /*
      * Re-seed the schema, PRESERVING values that already have one.
      *
@@ -8016,18 +8119,17 @@ PluginHost_Reload(
      * defaults for keys the reloaded source declares and the store has never
      * seen, so a script that gained a setting comes back with it populated.
      */
-    ctx->schema_count = 0;
+    ctx->schema_count = schema_count;
     if( plugin_schema(ctx) )
     {
         struct ToriRS_ConfigItem const* schema = plugin_schema(ctx);
-        for( int i = 0; schema[i].key; i++ )
+        for( int i = 0; i < schema_count; i++ )
         {
             struct ToriRS_ConfigItem const* item = &schema[i];
             struct PluginConfigSlot* slot;
             bool const existed = plugin_config_slot(ctx, item->key, false) != NULL;
 
             slot = plugin_config_slot(ctx, item->key, true);
-            ctx->schema_count++;
             if( !slot )
                 continue;
             /* Re-point the slot at its item in the NEW schema: the old index
@@ -8213,7 +8315,7 @@ PluginHost_UiInfo(
     assert(host);
     assert(out);
     capacity = out->struct_size;
-    if( capacity < TORIRS_UI_NODE_INFO_LEGACY_SIZE )
+    if( capacity < TORIRS_UI_NODE_INFO_V2_0_SIZE )
         return false;
     memset(&snapshot, 0, sizeof(snapshot));
     snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
@@ -9580,8 +9682,8 @@ PluginHost_FrameStart(
     /* The screen poll. Here rather than at the transitions themselves because
      * the app changes screens from half a dozen places (login, logout, a
      * disconnect, the title's own tabs) and a seam per place is how one gets
-     * missed; the boundary sees them all. Before EV_FRAME_START, so a frame
-     * handler polling api->screen never contradicts an EV_SCREEN_CHANGE it has
+     * missed; the boundary sees them all. Before on_frame_start, so a frame
+     * handler polling api->screen never contradicts an on_screen_changed it has
      * not received yet. The baseline advances whether or not anyone listens --
      * a subscriber must never be handed a change that predates it. */
     {
@@ -9821,9 +9923,9 @@ PluginHost_DrawCanvas(
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_CANVAS);
     canvas.surface = host->draw_surface;
     canvas.bounds = (struct ToriRS_Rect){ 0, 0, width, height };
-    /* Retained v2 contributions are a compact presenter list rebuilt only at
-     * named-registry revisions. Legacy chrome above remains the migration
-     * path; only v2 facet winners enter this pass, so an orb cannot draw twice. */
+    /* Retained contributions are a compact presenter list rebuilt only at
+     * named-registry revisions. Only facet winners enter this pass, so two
+     * providers cannot draw the same semantic node. */
     plugin_ui_present_draw(host, host->draw_surface);
     if( host->callback_count[PLUGIN_CALLBACK_DRAW_CANVAS] > 0 )
         plugin_dispatch(host, PLUGIN_CALLBACK_DRAW_CANVAS, &canvas);
@@ -10268,7 +10370,7 @@ PluginHost_Layout(
      *
      * The alternative -- handing over whatever the platform last set -- makes
      * the plugin's arithmetic depend on when in the boot it was asked, because
-     * the canvas is not pinned until the engine has acted on the claim. A
+     * the canvas is not pinned until the engine has applied the selection. A
      * layout that asked for 765x503 is entitled to be told 765x503 the first
      * time it is asked, and every time after.
      */
@@ -10646,6 +10748,9 @@ PluginHost_ConfigApply(
     assert(key);
     assert(value);
 
+    if( !plugin_config_key_valid(key) || !plugin_config_value_valid(value) )
+        return;
+
     int const index = PluginHost_IndexOf(host, plugin_name);
     if( index < 0 )
         return;
@@ -10699,6 +10804,9 @@ PluginHost_ConfigDecode(
         if( p < end )
             p++;
 
+        if( memchr(line, '\0', (size_t)(line_end - line)) )
+            continue;
+
         while( line < line_end && (*line == ' ' || *line == '\t' || *line == '\r') )
             line++;
         while( line_end > line &&
@@ -10725,10 +10833,11 @@ PluginHost_ConfigDecode(
                 }
             }
             int len = (int)(close - name);
-            if( len < 0 )
-                len = 0;
             if( len >= (int)sizeof(section) )
-                len = (int)sizeof(section) - 1;
+            {
+                section[0] = '\0';
+                continue;
+            }
             memcpy(section, name, (size_t)len);
             section[len] = '\0';
             continue;
@@ -10749,8 +10858,8 @@ PluginHost_ConfigDecode(
         while( key_end > line && (key_end[-1] == ' ' || key_end[-1] == '\t') )
             key_end--;
         int klen = (int)(key_end - line);
-        if( klen >= (int)sizeof(key) )
-            klen = (int)sizeof(key) - 1;
+        if( klen <= 0 || klen >= (int)sizeof(key) )
+            continue;
         memcpy(key, line, (size_t)klen);
         key[klen] = '\0';
 
@@ -10758,15 +10867,12 @@ PluginHost_ConfigDecode(
         while( val < line_end && (*val == ' ' || *val == '\t') )
             val++;
         int vlen = (int)(line_end - val);
-        if( vlen < 0 )
-            vlen = 0;
         if( vlen >= (int)sizeof(value) )
-            vlen = (int)sizeof(value) - 1;
+            continue;
         memcpy(value, val, (size_t)vlen);
         value[vlen] = '\0';
 
-        if( key[0] )
-            PluginHost_ConfigApply(host, section, key, value);
+        PluginHost_ConfigApply(host, section, key, value);
     }
 }
 
@@ -10827,6 +10933,11 @@ PluginHost_ConfigEncode(
         for( int c = 0; c < ctx->config_count; c++ )
         {
             struct PluginConfigSlot const* slot = &ctx->config[c];
+            /* Defense in depth for corrupt in-process state: never serialize
+             * a record that could escape its line. */
+            if( !plugin_config_key_valid(slot->key) ||
+                !plugin_config_value_valid(slot->value) )
+                continue;
             if( slot->schema_index >= 0 )
             {
                 char const* def = plugin_schema(ctx)[slot->schema_index].default_value;

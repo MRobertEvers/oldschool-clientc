@@ -684,7 +684,7 @@ orbs_draw_one(
 /* Each orb is a canonical named node. Static retained facets own its plate,
  * hover art, bounds and action; on_ui_node_draw adds only the live meter, icon
  * and number. That keeps arbitration, paint order and input on one semantic
- * tree without any legacy chrome claim or role lookup. */
+ * tree without a separate ownership claim or role lookup. */
 
 static struct
 {

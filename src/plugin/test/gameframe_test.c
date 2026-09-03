@@ -91,10 +91,10 @@ static struct
  * role's OWN numbering, so the table has to be as wide as the widest role. */
 #define FAKE_SLOT_MEMBERS 16
 
-/** What the frame declared: the claim, the slots, and the drawing. */
+/** What the selected frame declared: activation, surfaces, and drawing. */
 static struct
 {
-    int owned;
+    int active;
     int canvas;
     int fixed_w;
     int fixed_h;
@@ -156,10 +156,10 @@ fake_has_slot(int slot)
 }
 
 static void
-fake_layout_set(void* u, int owned, int canvas, int fixed_w, int fixed_h)
+fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
 {
     (void)u;
-    g_frame.owned = owned;
+    g_frame.active = active;
     g_frame.canvas = canvas;
     g_frame.fixed_w = fixed_w;
     g_frame.fixed_h = fixed_h;
@@ -637,9 +637,6 @@ fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h)
 }
 static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
-static int fake_role_id(void* u, char const* r) { (void)u; (void)r; return -1; }
-static int fake_role_slot(void* u, char const* r, int* s, int* m)
-{ (void)u; (void)r; (void)s; (void)m; return 0; }
 static int fake_role_suppress_facets(void* u, char const* r, int paint, int input)
 { (void)u; (void)r; (void)paint; (void)input; return 1; }
 static int fake_ui_boundary(void* u, char const* r, int place)
@@ -676,7 +673,6 @@ static int fake_inv_slot(void* u, int inv, int slot, int* id, int* n) { (void)u;
 static int fake_inv_size(void* u, int inv) { (void)u; (void)inv; return 0; }
 static int fake_mesh_create(void* u) { (void)u; return -1; }
 static void fake_mesh_destroy(void* u, int m) { (void)u; (void)m; }
-static void fake_mesh_clear(void* u, int m) { (void)u; (void)m; }
 static int fake_mesh_vertex(void* u, int m, int x, int y, int z) { (void)u; (void)m; (void)x; (void)y; (void)z; return -1; }
 static int fake_mesh_face(void* u, int m, int a, int b, int c, int h, int t) { (void)u; (void)m; (void)a; (void)b; (void)c; (void)h; (void)t; return -1; }
 static int fake_object_create(void* u) { (void)u; return -1; }
@@ -864,7 +860,7 @@ main(void)
     e.role_click = fake_role_click;
     e.role_suppress_facets = fake_role_suppress_facets;
     e.ui_boundary = fake_ui_boundary;
-    e.layout_set = fake_layout_set;
+    e.frame_activate = fake_frame_activate;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
@@ -934,7 +930,7 @@ main(void)
     CHECK(
         PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
         "the settings client registers");
-    CHECK(g_frame.owned == 0, "nothing owns the frame before selection is resolved");
+    CHECK(g_frame.active == 0, "nothing owns the frame before selection is resolved");
 
     PluginHost_Start(g_host);
 
@@ -950,7 +946,7 @@ main(void)
                 selected.status == TORIRS_FRAME_STATUS_NATIVE,
             "Auto resolves to the client's native frame");
         CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto does not run a frame provider");
-        CHECK(g_frame.owned == 0, "the native frame remains owned by the client");
+        CHECK(g_frame.active == 0, "the native frame remains owned by the client");
     }
 
     select_frame("gameframe-layout/classic-fixed", 100);
@@ -968,15 +964,13 @@ main(void)
             g_frame_preference_set_calls == 1,
         "frame_select persists the canonical id through the engine");
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "selection starts the frame provider");
-    CHECK(g_frame.owned == 0, "native stays live before the candidate declaration");
+    CHECK(g_frame.active == 0, "native stays live before the candidate declaration");
     /*
      * Selection does NOT declare on the spot, and that is deliberate.
      *
-     * The host has no window, so declaring from inside the claim meant passing
-     * a 0x0 canvas -- under which every edge-anchored piece of a resizable
-     * layout lands at a negative coordinate, and the frame is declared, drawn
-     * and entirely off-screen. The engine is the only thing that knows a
-     * canvas, so the engine is what declares.
+     * The host has no logical canvas at selection time, so building there
+     * would pass a 0x0 canvas and put every edge-anchored piece off-screen.
+     * The build therefore runs at the engine's safe layout fence.
      */
     CHECK(
         g_frame.end_calls == 0,
@@ -992,7 +986,7 @@ main(void)
                 selected.status == TORIRS_FRAME_STATUS_ACTIVE,
             "a valid classic declaration becomes the active offer");
     }
-    CHECK(g_frame.owned == 1, "the validated provider owns the frame");
+    CHECK(g_frame.active == 1, "the validated provider owns the frame");
     CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED, "classic-fixed pins the canvas");
     CHECK(g_frame.fixed_w == 765 && g_frame.fixed_h == 503, "pinned at the classic frame");
     CHECK(
@@ -1024,12 +1018,9 @@ main(void)
         named_node_is("frame.minimap.housing", 550, 4, 172, 156),
         "classic housing is retained above the minimap under one canonical name");
     /*
-     * That overlay is the FALLBACK, for a lane with no housing to claim. On a
-     * lane that names its housing `minimap_edge`, the classic layout PROVIDES
-     * the object under that name instead -- claims it, and paints its plate
-     * as the object's appearance -- so that anything hung off the name (the
-     * minimap-orbs column) keeps resolving to the plate that is actually on
-     * screen. No overlay is declared then: the object is the plate.
+     * The housing is a named node on every lane. When a lane also maps
+     * `minimap_edge`, both resolve to the same canonical identity, so the
+     * minimap-orbs column follows the plate actually on screen.
      */
     g_fake_minimap_edge = 1;
     declare(765, 503);
@@ -1304,17 +1295,17 @@ main(void)
          *
          * The buttons are the resizable frame's alone: its chatbox is a panel
          * you can put away, so a click on one of them selects a filter or
-         * closes the box, and the region is what carries that. The fixed
-         * frames claim no such thing -- there the click belongs to the lane's
+         * closes the box, and the region is what carries that. Fixed frames
+         * publish no replacement action; there the click belongs to the lane's
          * own button, which cycles the filter's mode, and stealing it would
          * trade a working control for a decorative one.
          */
         /*
          * Fourteen tabs and the three filter buttons that SELECT something.
          *
-         * Report abuse claims none: it is not a view of the chat, it opens a
-         * report, so the click stays the lane's. That asymmetry is the whole
-         * reason to count regions rather than buttons -- claiming all four
+         * Report abuse publishes no plugin action: it opens a report rather
+         * than a chat view, so the click stays the lane's. That asymmetry is the whole
+         * reason to count regions rather than buttons -- registering all four
          * would take the report button away from the client that implements
          * it and give it to a plugin that does not.
          */
@@ -1367,7 +1358,7 @@ main(void)
          * Redrawn and NOT re-declared, unlike the missing tab above: which
          * tabs the CACHE has is settled at declaration, but which of them the
          * player has been given changes on a packet -- no resize, no rebuild
-         * and no claim -- so a layout that recorded it would draw a new
+         * and no frame invalidation -- so a build that recorded it would draw a new
          * character's first minute for the rest of the session.
          */
         g_frame.ungiven_tab = 7;
@@ -1389,14 +1380,14 @@ main(void)
         }
         g_frame.active_tab = -1;
 
-        /* The map housing is no longer a global canvas draw. Legacy canvas
-         * drawing remains global by contract; moving this one there covered
+        /* The map housing is not a global canvas overlay. An on_draw_canvas
+         * callback remains global by contract; moving this one there covered
          * unrelated later chrome as well as the minimap it was meant for. */
         g_frame.blits = 0;
         g_frame.regions = 0;
         PluginHost_DrawCanvas(g_host, 1440, 900);
         CHECK(g_frame.blits == 0, "the map housing is not redrawn over the whole canvas");
-        CHECK(g_frame.regions == 0, "and no obsolete over-pass claims input regions");
+        CHECK(g_frame.regions == 0, "and no obsolete over-pass registers input regions");
     }
 
     /* ---- 6. Auto/native ------------------------------------------------ */
@@ -1411,7 +1402,7 @@ main(void)
             "Auto explicitly resolves to the native frame");
     }
     CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto stops the frame provider");
-    CHECK(g_frame.owned == 0, "Auto gives the frame back to the client");
+    CHECK(g_frame.active == 0, "Auto gives the frame back to the client");
 
     {
         /* And nothing is declared or drawn afterwards: the lane's own chrome
@@ -1434,7 +1425,7 @@ main(void)
     g_screen_now = TORIRS_SCREEN_TITLE;
     select_frame("gameframe-layout/classic-fixed", 950);
     CHECK(
-        g_frame.owned == 0,
+        g_frame.active == 0,
         "selecting at the title leaves the native frame in charge");
     {
         struct ToriRS_FrameSelection const selected = selected_frame();
@@ -1446,7 +1437,7 @@ main(void)
     }
     g_screen_now = TORIRS_SCREEN_GAME;
     PluginHost_FrameStart(g_host, 1000, 0);
-    CHECK(g_frame.owned == 0, "login schedules the candidate without a restart");
+    CHECK(g_frame.active == 0, "login schedules the candidate without a restart");
     {
         struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(
@@ -1459,7 +1450,7 @@ main(void)
         declare(765, 503);
         CHECK(g_frame.end_calls == before + 1, "and the next layout pass declares");
     }
-    CHECK(g_frame.owned == 1, "the valid login-time candidate becomes active");
+    CHECK(g_frame.active == 1, "the valid login-time candidate becomes active");
     select_frame("auto", 1100);
 
     /* ---- 7. the OldSchool lane ----------------------------------------- */
@@ -1498,9 +1489,9 @@ main(void)
     PluginHost_Start(g_host);
 
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the plugin on");
-    CHECK(g_frame.owned == 0, "native remains live while the OldSchool candidate prepares");
+    CHECK(g_frame.active == 0, "native remains live while the OldSchool candidate prepares");
     declare(1024, 768);
-    CHECK(g_frame.owned == 1, "the validated provider owns the OldSchool frame too");
+    CHECK(g_frame.active == 1, "the validated provider owns the OldSchool frame too");
     {
         struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(

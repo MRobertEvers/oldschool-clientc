@@ -362,4 +362,14 @@ extern int g_toridraw_radix_two_pass_models;
 extern int g_toridraw_prio_uniform_models;
 extern int g_toridraw_prio_varied_models;
 
+/*
+ * The kernel A/B arm: 0 runs the current shape of every kernel that has a
+ * control arm, 1 runs the previous shape. Flipped between frames by a
+ * harness that alternates arms in one launch (the gles2 dual-core lane's
+ * TORIRS_GLES2_DUALCORE_KERNEL_AB=1) so a kernel change is measured against
+ * itself rather than against another launch. Read at the top of each sort,
+ * so a flip mid-frame is safe; the arms must be bit-exact with each other.
+ */
+extern int g_toridraw_kernel_ab_arm;
+
 #endif

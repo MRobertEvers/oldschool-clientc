@@ -8,9 +8,9 @@
  *
  * The cases are the five things that can silently go wrong:
  *
- *   1. The CLAIM. This frame follows the window and carries its own floor --
+ *   1. The OFFER. This frame follows the window and carries its own floor --
  *      the whole reason the client's 765x503 minimum had to become the frame's
- *      rather than the app's. A claim that pinned instead would letterbox a
+ *      rather than the app's. A fixed-canvas offer would letterbox a
  *      phone layout into a desktop canvas.
  *   2. The DRAWER. Shut is not "placed somewhere harmless", it is NOT PLACED --
  *      the host hides a role a declaration stops mentioning, and that is the
@@ -81,10 +81,10 @@ static struct
  * role's OWN numbering, so the table has to be as wide as the widest role. */
 #define FAKE_SLOT_MEMBERS 16
 
-/** What the frame declared: the claim, the slots, and the drawing. */
+/** What the selected frame declared: activation, surfaces, and drawing. */
 static struct
 {
-    int owned;
+    int active;
     int canvas;
     int fixed_w;
     int fixed_h;
@@ -144,10 +144,10 @@ fake_has_slot(int slot)
 }
 
 static void
-fake_layout_set(void* u, int owned, int canvas, int fixed_w, int fixed_h)
+fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
 {
     (void)u;
-    g_frame.owned = owned;
+    g_frame.active = active;
     g_frame.canvas = canvas;
     g_frame.fixed_w = fixed_w;
     g_frame.fixed_h = fixed_h;
@@ -535,17 +535,17 @@ static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; 
  * The lane's own side-tab rail: 42 columns down the right edge, full height.
  *
  * The OldSchool pop-out panel's collapsed state, which is a mounted interface
- * of its own and survives a frame claim. Zero for the lanes that have none,
+ * of its own and remains outside a selected plugin frame. Zero for lanes with none,
  * which is every dat1 one and the mobile toplevel.
  */
 static int g_lane_rail_w = 0;
 /*
  * CANVAS, and nothing else.
  *
- * The one region the engine answers here, because it is the one the host
- * derives SAFE_LANECHROME from -- and answering the placeable roles as well
- * would be this fake telling the plugin where it just put things. 0 for every
- * other slot leaves each test's expectations resting on the declaration.
+ * The one region the engine answers here, because FRAME_BUILD begins with the
+ * canvas before subtracting lane furniture. Answering placeable surfaces too
+ * would be this fake telling the plugin where it just put things. Returning 0
+ * for every other slot leaves each expectation resting on the declaration.
  *
  * Off by default so that every test written before the region existed still
  * exercises the "this lane occludes nothing" fallback: with no canvas to
@@ -659,14 +659,6 @@ fake_role_visible(void* u, char const* r)
 }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
 static int
-fake_role_id(void* u, char const* r)
-{
-    int x = 0;
-    return fake_role_rect(u, r, &x, NULL, NULL, NULL) ? 1000 + (int)strlen(r) : -1;
-}
-static int fake_role_slot(void* u, char const* r, int* s, int* m)
-{ (void)u; (void)r; (void)s; (void)m; return 0; }
-static int
 fake_role_suppress_facets(void* u, char const* r, int paint, int input)
 {
     (void)u;
@@ -718,7 +710,6 @@ static int fake_inv_slot(void* u, int inv, int slot, int* id, int* n) { (void)u;
 static int fake_inv_size(void* u, int inv) { (void)u; (void)inv; return 0; }
 static int fake_mesh_create(void* u) { (void)u; return -1; }
 static void fake_mesh_destroy(void* u, int m) { (void)u; (void)m; }
-static void fake_mesh_clear(void* u, int m) { (void)u; (void)m; }
 static int fake_mesh_vertex(void* u, int m, int x, int y, int z) { (void)u; (void)m; (void)x; (void)y; (void)z; return -1; }
 static int fake_mesh_face(void* u, int m, int a, int b, int c, int h, int t) { (void)u; (void)m; (void)a; (void)b; (void)c; (void)h; (void)t; return -1; }
 static int fake_object_create(void* u) { (void)u; return -1; }
@@ -818,7 +809,7 @@ slot_is(int slot, int x, int y, int w, int h)
 #define M_PANEL_H 261
 #define M_MAP_W 233
 #define M_MAP_H 168
-/** The claim floor allows for the TALLER of the two housings, not the default
+/** The offer floor allows for the TALLER of the two housings, not the default
  *  one, so either can be worn without the canvas floor moving. */
 #define M_MAP_FLOOR_H 168
 #define M_MAP_HOLE_X 42
@@ -953,7 +944,7 @@ main(void)
     e.role_click = fake_role_click;
     e.role_suppress_facets = fake_role_suppress_facets;
     e.ui_boundary = fake_ui_boundary;
-    e.layout_set = fake_layout_set;
+    e.frame_activate = fake_frame_activate;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
@@ -1027,23 +1018,23 @@ main(void)
     CHECK(
         PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
         "the frame settings client registers");
-    CHECK(g_frame.owned == 0, "nothing owns the frame before selection is resolved");
+    CHECK(g_frame.active == 0, "nothing owns the frame before selection is resolved");
 
     PluginHost_Start(g_host);
 
     /* ---- 1. host-owned selection -------------------------------------- */
 
-    CHECK(g_frame.owned == 0, "native stays live while Stone Drawer prepares");
+    CHECK(g_frame.active == 0, "native stays live while Stone Drawer prepares");
     CHECK(PluginHost_FrameNeedsLayout(g_host), "Stone Drawer requests one safe build attempt");
     declare(M_W, M_H);
-    CHECK(g_frame.owned == 1, "the validated Stone Drawer offer owns the frame");
+    CHECK(g_frame.active == 1, "the validated Stone Drawer offer owns the frame");
     CHECK(
         g_frame.canvas == TORIRS_FRAME_CANVAS_WINDOW,
         "a phone frame follows the window rather than pinning a canvas");
     /*
-     * The floor travels WITH the claim, and that is the whole point of it: the
+     * The floor belongs to the offer, and that is the whole point: the
      * client's own minimum is the classic frame's 765x503, which this layout is
-     * both narrower and shorter than by design. A claim carrying no floor would
+     * both narrower and shorter than by design. An offer with no floor would
      * be clamped back up to a desktop canvas and letterboxed into the phone.
      */
     CHECK(
@@ -1390,8 +1381,8 @@ main(void)
         g_frame.ungiven_tab = 3;
         /*
          * Redrawn and NOT re-declared, which is the point of asking in the
-         * draw pass: a tab handed over mid-tutorial is not a resize, a rebuild
-         * or a claim, so nothing would ever re-run the layout to notice it.
+         * draw pass: a tab handed over mid-tutorial is not a resize, frame
+         * switch, or invalidation, so nothing would rebuild to notice it.
          */
         draw(M_W, M_H);
         CHECK(
@@ -1424,34 +1415,29 @@ main(void)
     /* ---- 8. Auto/native ------------------------------------------------ */
 
     select_frame("auto", 900);
-    CHECK(g_frame.owned == 0, "Auto hands the lane's native gameframe back");
+    CHECK(g_frame.active == 0, "Auto hands the lane's native gameframe back");
 
     /* ---- 9. selected at the title screen ------------------------------- */
 
     /*
-     * The restart-shaped bug. The host refuses a layout claim while the title
-     * is up -- there is no frame to claim before there is a frame -- so a
-     * plugin switched on at the title owned nothing; and with no claim there
-     * is no EV_LAYOUT, so nothing asked it to declare after login either. The
-     * drawer only appeared if the plugin was toggled off and on while already
-     * in game. EV_SCREEN_CHANGE is the missing rung: entering the game
-     * re-claims, and the next layout pass declares.
-    */
+     * The restart-shaped bug. A selected provider cannot build game chrome
+     * while the title screen is active, but that must not strand its saved
+     * selection after login. on_screen_changed schedules resolution again;
+     * the next validated build activates the drawer without a plugin toggle.
+     */
     g_screen_now = TORIRS_SCREEN_TITLE;
     select_frame("mobile-gameframe/stone-drawer", 950);
-    /* The title's frames tick too: this is where the art finishes composing
-     * and the latched retry in mobile_on_frame makes its one claim -- refused,
-     * because the title is still up. Without it the harness never reproduces
-     * the stuck state: the first frame the plugin saw would already be in
-     * game, and the art retry would claim by accident. */
+    /* Title frames tick too, so the art can finish composing before a game
+     * frame is eligible. The harness preserves that ordering to reproduce the
+     * former stuck-selection case. */
     CHECK(
-        g_frame.owned == 0,
+        g_frame.active == 0,
         "selecting at the title leaves the native frame in charge");
     g_screen_now = TORIRS_SCREEN_GAME;
     PluginHost_FrameStart(g_host, 1000, 0);
-    CHECK(g_frame.owned == 0, "logging in schedules the selected frame without a restart");
+    CHECK(g_frame.active == 0, "logging in schedules the selected frame without a restart");
     declare(M_W, M_H);
-    CHECK(g_frame.owned == 1, "the login-time candidate activates after validation");
+    CHECK(g_frame.active == 1, "the login-time candidate activates after validation");
     CHECK(
         g_frame.slot[TORIRS_HOST_SURFACE_VIEWPORT].placed,
         "and the next layout pass declares it");
@@ -1489,7 +1475,7 @@ main(void)
         "the frame settings client registers on OldSchool");
     PluginHost_Start(g_host);
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the drawer on");
-    CHECK(g_frame.owned == 0, "native remains live until the V2 candidate validates");
+    CHECK(g_frame.active == 0, "native remains live until the V2 candidate validates");
     /* The art lands and the masks are read off the OldSchool ring on the
      * frame ticks, exactly as on the 2004 lane. */
     PluginHost_FrameStart(g_host, 3000, 0);
@@ -1636,8 +1622,9 @@ main(void)
      * A lane that keeps a side-tab rail down the right edge.
      *
      * The OldSchool pop-out panel: 42 columns, full height, a mounted
-     * interface of its own so a frame claim neither owns it nor hides it, and
-     * `noclickthrough` so anything drawn under it cannot be pressed either.
+     * interface of its own, excluded from FRAME_BUILD so a selected frame
+     * neither owns nor hides it. It is also `noclickthrough`, so anything
+     * drawn under it cannot be pressed.
      * The frame used to pin its rail to `canvas_w` and put seven of the
      * fourteen stones behind it -- drawn where nothing could reach them, and
      * the map housing lost its right-hand arc to the same strip.

@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <assert.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef int16_t faceint_t;
@@ -15,6 +16,46 @@ typedef int16_t vertexint_t;
 typedef uint16_t hsl16_t;
 typedef uint8_t alphaint_t;
 typedef uint16_t boneint_t;
+
+/*
+ * The priority partition's thirteen band slices (ToriDraw_Scene::sm_prio_faces):
+ * where band `prio` begins, in faces. Every reader and writer of the slices
+ * goes through this, so the layout has one owner.
+ *
+ * The pad is a measured null. Without it the slices sit max_faces * 2 bytes
+ * apart -- 16 KB at the 8192-face profile, a multiple of the L1's 4 KB way
+ * (Krait 300: 16 KB, 4-way, 64 B lines, sets by VA[11:6]) -- so every band's
+ * write cursor shares one L1 set, and a model with faces in five or more
+ * bands would evict a cursor line on each band change. Staggering the slices
+ * by three lines (pad 96) against no pad, arms alternating in one launch on
+ * the phone (TORIRS_GLES2_DUALCORE_PRIO_PAD_AB=96,0, kr14, 2026-09-03):
+ * draw CPU 14.35..15.09 against 14.49..14.90 ms/frame, worker 6.36..6.48
+ * against 6.15..6.66, five pairs, no direction. The varied-priority models
+ * (226 a frame) evidently occupy too few bands at once for the 4-way set to
+ * matter. Left at 0; the allocation is sized for the full pad so the A/B
+ * stays runnable.
+ */
+#define TORIDRAW_PRIO_SLICE_PAD 96
+#define TORIDRAW_PRIO_SLICE_PAD_DEFAULT 0
+#define TORIDRAW_PRIO_SLICES 13
+
+/* The pad in effect: TORIDRAW_PRIO_SLICE_PAD_DEFAULT unless an A/B has set
+ * it, at most TORIDRAW_PRIO_SLICE_PAD (what the allocation is sized for).
+ * Between frames only. */
+extern int g_toridraw_prio_slice_pad;
+
+static inline int
+toridraw_prio_slice_base(int max_faces, int prio)
+{
+    return prio * (max_faces + g_toridraw_prio_slice_pad);
+}
+
+/* Faces to allocate for all thirteen slices. */
+static inline size_t
+toridraw_prio_slices_len(int max_faces)
+{
+    return (size_t)TORIDRAW_PRIO_SLICES * (size_t)(max_faces + TORIDRAW_PRIO_SLICE_PAD);
+}
 
 /** Map dat2 raw per-face texture coord to renderer form (-1 = none, else PNM index). */
 static inline faceint_t
@@ -1057,6 +1098,8 @@ struct ToriDraw_Scene
     faceint_t* sm_faces_by_depth;
     int sm_prio_count[13];
     int* sm_prio_offset;
+    /* Thirteen slices, one per priority band, laid out by
+     * toridraw_prio_slice_base -- never `prio * max_faces`. */
     faceint_t* sm_prio_faces;
     int* sm_flex_prio11_face_to_depth;
     int* sm_flex_prio12_face_to_depth;

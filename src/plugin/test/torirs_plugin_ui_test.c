@@ -239,7 +239,7 @@ test_rich_facet_payloads(void)
     struct ToriRS_UiNode bounds;
     struct ToriRS_UiNode appearance;
     struct ToriRS_UiNode actions;
-    struct ToriRS_UiNode legacy;
+    struct ToriRS_UiNode v2_0;
     struct ToriRS_UiResolvedNode resolved;
     struct ToriRS_UiNodeRef report;
     char label[] = "Report abuse";
@@ -318,13 +318,13 @@ test_rich_facet_payloads(void)
         "actions copies an independent hit rectangle and bounded named set");
 
     ToriRS_UiRegistry_Init(&registry_b);
-    legacy = node_value(1, 2, 3, 4, TORIRS_UI_NODE_VISIBLE, 21, "legacy", "activate");
-    legacy.struct_size = TORIRS_UI_NODE_LEGACY_SIZE;
-    legacy.clip = 999;
-    legacy.action_count = TORIRS_UI_NAMED_ACTIONS_MAX + 1;
+    v2_0 = node_value(1, 2, 3, 4, TORIRS_UI_NODE_VISIBLE, 21, "v2.0", "activate");
+    v2_0.struct_size = TORIRS_UI_NODE_V2_0_SIZE;
+    v2_0.clip = 999;
+    v2_0.action_count = TORIRS_UI_NAMED_ACTIONS_MAX + 1;
     CHECK(
         ToriRS_UiRegistry_AddBase(
-            &registry_b, "old-plugin", "frame.orb.run", TORIRS_UI_FACET_ALL, &legacy) ==
+            &registry_b, "old-plugin", "frame.orb.run", TORIRS_UI_FACET_ALL, &v2_0) ==
             TORIRS_UI_REGISTRY_OK,
         "the original descriptor prefix remains source compatible");
     CHECK(
@@ -332,7 +332,7 @@ test_rich_facet_payloads(void)
             &registry_b, ToriRS_UiRegistry_Ref(&registry_b, "frame.orb.run"), &resolved) &&
             resolved.value.clip == TORIRS_UI_CLIP_NONE && resolved.value.action_count == 1 &&
             rect_is(&resolved.value.hit_rect, 1, 2, 3, 4),
-        "legacy shorthands normalize to complete retained facets");
+        "V2.0 shorthands normalize to complete retained facets");
 
     actions.action_count = TORIRS_UI_NAMED_ACTIONS_MAX + 1;
     CHECK(

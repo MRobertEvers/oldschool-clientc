@@ -195,8 +195,16 @@ struct ToriRS_GLES2DualCore
      * millisecond, kr12). */
     bool ab_lookahead;
     bool ab_lead;
+    /* TORIRS_GLES2_DUALCORE_PRIO_PAD_AB=a,b: the sort's band-slice pad
+     * (g_toridraw_prio_slice_pad), the same way; a kernel A/B in the same
+     * harness. */
+    bool ab_prio_pad;
+    /* TORIRS_GLES2_DUALCORE_KERNEL_AB=1: flip g_toridraw_kernel_ab_arm each
+     * period (see toridraw.h). */
+    bool ab_kernel;
     uint32_t ab_lookahead_arms[2];
     uint32_t ab_lead_arms[2];
+    uint32_t ab_prio_pad_arms[2];
     unsigned ab_arm;
 };
 
@@ -873,7 +881,7 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
     if( lane->worker_cpu_clock_ok && clock_gettime(lane->worker_cpu_clock, &ts) == 0 )
         worker_cpu_ns = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
     TORIRS_ERR(
-        "gles2-dualcore: lookahead %u lead %u draw-cpu %.2f worker-cpu %.2f ms/frame | "
+        "gles2-dualcore: lookahead %u lead %u pad %d kernel-arm %d draw-cpu %.2f worker-cpu %.2f ms/frame | "
         "frames %llu dual %llu taken %llu claimed-by-draw %llu (worker saw %llu) "
         "inline %llu stalls %llu (spins %llu) [tile %llu/%llu small %llu/%llu large %llu/%llu] "
         "lead-hist [0 %llu, 1-7 %llu, 8-63 %llu, 64-511 %llu, 512+ %llu] "
@@ -882,6 +890,8 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         "worker %.2f ms/frame (feed-wait %.2f) draw-stall %.2f ms/frame join %.3f ms/frame\n",
         lane->lookahead,
         lane->lead,
+        g_toridraw_prio_slice_pad,
+        g_toridraw_kernel_ab_arm,
         (double)(draw_cpu_ns - lane->draw_cpu_ns_last) / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
         (double)(worker_cpu_ns - lane->worker_cpu_ns_last) / 1.0e6 /
             (double)GLES2_DUALCORE_DEBUG_PERIOD,
@@ -945,13 +955,17 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
     lane->stall_ns_window = 0u;
     lane->draw_cpu_ns_last = draw_cpu_ns;
     lane->worker_cpu_ns_last = worker_cpu_ns;
-    if( lane->ab_lookahead || lane->ab_lead )
+    if( lane->ab_lookahead || lane->ab_lead || lane->ab_prio_pad || lane->ab_kernel )
     {
         lane->ab_arm ^= 1u;
+        if( lane->ab_kernel )
+            g_toridraw_kernel_ab_arm = (int)lane->ab_arm;
         if( lane->ab_lookahead )
             lane->lookahead = lane->ab_lookahead_arms[lane->ab_arm];
         if( lane->ab_lead )
             lane->lead = lane->ab_lead_arms[lane->ab_arm];
+        if( lane->ab_prio_pad )
+            g_toridraw_prio_slice_pad = (int)lane->ab_prio_pad_arms[lane->ab_arm];
     }
 }
 
@@ -1047,6 +1061,18 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
             lane->ab_lead_arms[0] = first;
             lane->ab_lead_arms[1] = second;
             lane->lead = first;
+        }
+        arms = getenv("TORIRS_GLES2_DUALCORE_KERNEL_AB");
+        if( arms && arms[0] == '1' )
+            lane->ab_kernel = true;
+        arms = getenv("TORIRS_GLES2_DUALCORE_PRIO_PAD_AB");
+        if( arms && sscanf(arms, "%u,%u", &first, &second) == 2 &&
+            first <= TORIDRAW_PRIO_SLICE_PAD && second <= TORIDRAW_PRIO_SLICE_PAD )
+        {
+            lane->ab_prio_pad = true;
+            lane->ab_prio_pad_arms[0] = first;
+            lane->ab_prio_pad_arms[1] = second;
+            g_toridraw_prio_slice_pad = (int)first;
         }
     }
 

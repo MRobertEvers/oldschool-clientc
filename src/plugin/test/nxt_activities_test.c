@@ -490,10 +490,10 @@ fake_inv_size(void* u, int inv)
     return 0;
 }
 static void
-fake_layout_set(void* u, int owned, int canvas, int fixed_w, int fixed_h)
+fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
 {
     (void)u;
-    (void)owned;
+    (void)active;
     (void)canvas;
     (void)fixed_w;
     (void)fixed_h;
@@ -1110,7 +1110,7 @@ fake_engine(void)
     e.obj_info = fake_obj_info;
     e.inv_slot = fake_inv_slot;
     e.inv_size = fake_inv_size;
-    e.layout_set = fake_layout_set;
+    e.frame_activate = fake_frame_activate;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.role_rect = fake_role_rect;

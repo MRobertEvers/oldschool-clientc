@@ -1334,11 +1334,9 @@ struct App
         uint32_t ui_boundary_incarnation;
     } plugin_pointer_capture;
 
-    /** Engine-side incarnation fence for the host's persistent replacement
-     * claims. The host arbitrates ownership; these rows remember only which
-     * exact component-array occupant was suppressed by each accepted claim. */
-    /** Named-UI facet suppression, separate from legacy whole-subtree role
-     * replacement so appearance and actions remain independently composable. */
+    /** Engine-side incarnation fences for named-UI facet suppression. The
+     * host arbitrates ownership; these rows remember the exact component-array
+     * occupant while appearance and actions remain independently composable. */
     struct AppPluginRoleFacetSuppression
     {
         char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
@@ -1351,12 +1349,12 @@ struct App
     /*
      * Internal engine mirror of the host's committed plugin gameframe.
      *
-     * `plugin_layout_owned` is a compatibility field name, not public
-     * arbitration: nonzero means the host has already selected, validated, and
-     * committed a plugin frame. While zero, the lane's own frame remains live.
+     * `plugin_frame_active` is derived from the host's committed selection:
+     * nonzero means a validated plugin frame is active. While zero, the lane's
+     * own frame remains live.
      *
-     * The slots are a DECLARATION and not a running total: EV_LAYOUT empties
-     * the table, the handler fills it, and app_plugin_layout_end applies the
+     * The slots are a declaration, not a running total: each frame build empties
+     * the table, the provider fills it, and app_plugin_layout_end applies the
      * result and hides every role the handler did not mention. That is why
      * `placed` is on each rectangle rather than being implied by a non-empty
      * one -- a slot at 0,0 0x0 and a slot nobody asked for are different
@@ -1367,7 +1365,7 @@ struct App
      * shape here would be a second thing to keep in step for no reader's
      * benefit.
      */
-    int plugin_layout_owned;
+    int plugin_frame_active;
     /** enum ToriRS_FrameCanvas. */
     int plugin_layout_canvas;
     int plugin_layout_fixed_w;
@@ -1380,7 +1378,7 @@ struct App
      * all zero for the client's own painted bar.
      *
      * Beside the slots and emptied with them, because it is part of the same
-     * declaration: a layout states its whole frame each EV_LAYOUT, and a
+     * declaration: a provider states its whole frame in each build, and a
      * scrollbar skin that survived a declaration which stopped asking for one
      * would be the one piece of the old frame still on screen.
      */
@@ -1403,17 +1401,16 @@ struct App
         uint32_t incarnation;
     } plugin_frame_stamp[64];
     int plugin_frame_stamp_count;
-    /** Set when the tree was rebuilt or the canvas resized under a claim:
-     *  the next layout pass re-raises EV_LAYOUT before it applies anything. */
+    /** Set when the tree is rebuilt or the canvas changes under an active
+     * frame; the next safe layout pass rebuilds before applying anything. */
     uint8_t plugin_layout_dirty;
     /**
      * Tree generation the standing declaration was made against.
      *
      * A gameframe REBUILD -- the Display panel's remount, a server IF_OPENTOP
      * -- clears the tree and bumps this, and every node the declaration named
-     * stops existing with it. Comparing it is what re-raises EV_LAYOUT against
-     * the new frame instead of leaving the layout holding indices into the old
-     * one.
+     * stops existing with it. Comparing it schedules a frame build against the
+     * new tree instead of retaining indices into the old one.
      */
     uint32_t plugin_layout_generation;
     /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request

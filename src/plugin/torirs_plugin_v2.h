@@ -257,9 +257,9 @@ struct ToriRS_UiNode
     uintptr_t reserved_v2[TORIRS_DESCRIPTOR_V2_RESERVED_WORDS];
 };
 
-/* The prefix accepted from the first v2 draft. New readers must never access
+/* The prefix accepted by V2.0. New readers must never access
  * fields at or after `clip` unless struct_size proves that they exist. */
-#define TORIRS_UI_NODE_LEGACY_SIZE ((uint32_t)offsetof(struct ToriRS_UiNode, clip))
+#define TORIRS_UI_NODE_V2_0_SIZE ((uint32_t)offsetof(struct ToriRS_UiNode, clip))
 
 /* Set struct_size to the caller's capacity before ui.info(). The host writes
  * no more than that prefix and preserves the accepted capacity so the same
@@ -287,7 +287,7 @@ struct ToriRS_UiNodeInfo
     char actions[TORIRS_UI_NAMED_ACTIONS_MAX][TORIRS_UI_ACTION_MAX];
 };
 
-#define TORIRS_UI_NODE_INFO_LEGACY_SIZE ((uint32_t)offsetof(struct ToriRS_UiNodeInfo, parent))
+#define TORIRS_UI_NODE_INFO_V2_0_SIZE ((uint32_t)offsetof(struct ToriRS_UiNodeInfo, parent))
 
 /* A NULL node name terminates a static contribution array. */
 struct ToriRS_UiContribution
@@ -411,7 +411,7 @@ struct ToriRS_FrameScrollbar
     struct ToriRS_ImageRef thumb_bottom;
 };
 
-#define TORIRS_FRAME_SCROLLBAR_LEGACY_SIZE                                                \
+#define TORIRS_FRAME_SCROLLBAR_V2_0_SIZE                                                  \
     ((uint32_t)offsetof(struct ToriRS_FrameScrollbar, split_thumb))
 
 /* One retained decoration tied to a live surface. Coordinates are canvas

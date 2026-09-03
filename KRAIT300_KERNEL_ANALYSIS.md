@@ -686,11 +686,12 @@ forwarding question above still decides how much of the remaining 7.5 % goes wit
 its mispredicts`). Per sorted key: `ldrb` the packed 4-bit priority, `ldr/add/str` on
 `count[prio]`, `ldr/add/str` on `depth_sum[prio]`, `strh` the face into its bucket, and a
 `bhi` on `prio > 9`. Two read-modify-write chains on tables indexed by a data-dependent
-byte are `§4.2`'s 2-cycle forward when consecutive keys share a priority (the common
-case: most models are all-priority-0) and a 6-cycle L1 round trip when they do not. Cheap
-shapes: keep the ten counters in registers for models whose priority set is a single value
-(known from the model's priority table before the loop), and make the `> 9` test a
-`cmp; movhi` on the accumulate rather than a branch.
+byte are `§4.2`'s 2-cycle forward when consecutive keys share a priority and a 6-cycle L1
+round trip when they do not. *Correction from the census (step 2 below): "most models are
+all-priority-0" was wrong — on this content no priced model is uniform (0 of 226 a frame),
+so the single-value shortcut, which already exists, never fires; the chains run on every
+face of every priced model.* The `> 9` test as a `cmp; movhi` on the accumulate rather
+than a branch still stands.
 
 **S5 — Things the findings say to leave alone.** The compaction pass (branch-free, 1
 load + 1 store per key — at the port limit already; *measured: ~9 % of the sort's
@@ -985,6 +986,77 @@ ms/frame above `/proc`'s jiffies on the same thread; the ledger below is in `/pr
 
 Order is by measured share × confidence in the fix; each is bit-exact and has a
 `TORIDRAW_*` toggle in the tree's A/B style.
+
+**Census first (2026-09-03, `TORIRS_GLES2_DEBUG=1` — the line step 0 asked for; it was
+this env, not `TORIRS_FRAME_DEBUG`).** Per frame, Lumbridge still: 1063 models sorted —
+tile2 485, ≤16 faces 114, ≤64 241, ≤256 185, larger 38; faces in 56 900, out 28 259 (half
+back-face culled); radix shallow 121, two-pass 4 (the rest bitonic); K16 469, declined 44.
+And **priorities: uniform 0.0, varied 225.8.** The premise under S6/2a — "most models are
+all-priority-0" — is false on this content: every priced model varies, so the existing
+uniform fast path (`toridraw_face_priorities_uniform`) fires on **no model**, and 2a's
+first half is already built and worth nothing here. The 226 varied models are the ones
+with faces (the tile2 and ≤16 classes are the other 600), i.e. the partition runs on
+essentially every face the worker sorts, and on exactly the big models the draw stalls
+behind (§M.5b).
+
+**2a, second half, tried and nulled:** the twelve band slices of `sm_prio_faces` sit
+`max_faces × 2` bytes = 16 KB apart, a multiple of the L1's 4 KB way, so all twelve write
+cursors alias into one 4-way set. Staggering them by three lines
+(`toridraw_prio_slice_base`, `TORIRS_GLES2_DUALCORE_PRIO_PAD_AB=96,0`): **no direction**
+over five in-launch pairs on either thread. The models must occupy too few bands at a time
+for a 4-way set to thrash. The layout now has one owner and the pad is left at 0; the A/B
+stays runnable.
+
+**The sort body, bucketed by address on the worker (kr14: 20 s cpu-clock at 4 kHz,
+lead 12, lookahead 0, plugins off; 6 668 samples in
+`toridraw_compute_projected_face_order_small_general` = 1.67 ms/frame, plus
+`sort_face_draw_order_small` 0.12 ms as its own symbol; the draw's copy is another
+0.60 ms).** Windows of the 16 KB body, worker only:
+
+| region (offset in body) | share | ms/frame | what the instructions are |
+|---|---|---|---|
+| +0x2600..+0x2900 | 30 % | 0.49 | **K16 gather + cull**: per 8 faces, 24 `ldrsh` index loads each feeding an `add r7, r11, r4, lsl #3` and a `vld1.16 {d}` of the interleaved xyz16; then `vuzp`, `vmull.s16`/`vmlsl.s16` winding, `vcgt`, `vbsl`, two `vst1.32` of keys. The samples sit on the `add` after each `ldrsh` and on the gathers — the chain `ldrsh (3) → add (1) → vld1 (L1 hit, 6)` per gather, 24 chains a trip, more than the OoO window overlaps. ≈ 28 cycles/face over the 28k accepted faces. Not refills: a 1000-vertex model's xyz16 is 8 KB and L1-resident after the interleave; it is L0-missing (2 KB direct-mapped) and latency-bound. |
+| +0x3200 (8 instr) | 10.8 % | 0.18 | **compaction**: `ldr; str [r10, r11, lsl #2]; cmn #-1; addne r11; subs; bne` — 592 of 717 samples on the `addne`, the write-cursor chain S5 named. |
+| +0x3500 (3 loops) | 10.6 % | 0.18 | **shallow radix**: histogram (`ldrh; sub; ldr; add; str`) 229, **the fixed 256-entry prefix 181**, scatter 266. The prefix cost as much as the histogram for models a few dozen levels deep. |
+| +0x3b00 (20 instr) | 14.6 % | 0.24 | **priority partition**: `ldr key; uxth; and; ldrb prio; and; cmp #9; ldr base[prio]; ldr counts[prio]; add; add; strh face; mvn; lsr; bhi; ldr depth_sum[prio]; add; str; b; str counts[prio]`. 251 samples on the `counts[]` store, 173 + 122 on the `depth_sum[]` RMW, 92 on the back-branch. ≈ 20 cycles/face on the ~20k faces of priced models: issue-bound on 20 instructions with two memory RMW chains under it. |
+| `sort_face_draw_order_small` | (own symbol) | 0.12 | the merge copy of the twelve bands into `tmp_face_order`. |
+| the rest (+0x2300..2500, +0x3d00..3e00, tails) | 19 % | 0.32 | model setup, the interleave pass, the bitonic network, the emit. |
+
+So partition + merge is 0.37 ms/frame on the worker — 22 % of its sort, the same fifth
+the first profile gave it — and it is 20 cycles/face of straight-line work, not 46; the
+two forwarding chains are real but they are under an issue-bound loop. The K16 gather
+is the largest single region and it is a *latency* story (index → address → gather), which
+neither S1's `pld` nor S2's interleave changes address; software-pipelining the 24 index
+loads one trip ahead does.
+
+**2a, done in this pass (bit-exact, parity PASS on the phone's neon32 lane — the test now
+runs there: build `toridraw_unity.o` for the ABI, link
+`toridraw_face_sort_bitonic_radix_test.c` against it with `-pie`, push to
+`/data/local/tmp`):** the shallow radix clears and prefix-sums `depth_hi - depth_lo + 1`
+entries instead of 256 (the bound is off the model's vertex z range and a face depth is a
+mean of three, so every digit lands inside it). Upper bound of the win is the 181 samples
+= 0.045 ms/frame on the worker, under the in-launch method's ~0.1 ms floor, so it is kept
+on the profile's evidence rather than an A/B.
+
+**2a, still to build, in the order the buckets rank them:**
+1. **K16 index software-pipelining** (0.49 ms region): load the next trip's 24 face
+   indices before this trip's gathers so the `ldrsh → add → vld1` chain is overlapped
+   across trips; 24 scalar registers are not available on A32, so hold them as three
+   `int16x8` and extract, or gather the *next* trip's addresses into a small stack ring.
+   Bit-exact by construction; `TORIDRAW_K16_UZP`-style toggle.
+2. **Partition as one cursor per band** (0.24 ms region): replace `base[prio]` +
+   `counts[prio]` (two loads, two adds) with a `faceint_t* cursor[12]`
+   (`ldr; strh face, [cursor], #2; str`), and `depth_sum` as the only other chain; drops
+   ~5 of 20 instructions. Then (ii) below removes the merge.
+3. **Partition scatters into `tmp_face_order` directly** (the 0.12 ms merge): a band
+   histogram taken in the radix histogram pass (one more `ldrb; ldr; add; str` there)
+   gives the output bases before the scatter; the flex (10/11) faces still take the
+   threshold walk.
+4. **Compaction folded into the radix histogram** (0.18 ms): S5/2c as written.
+
+The bitonic-lane (≤64 faces) variant — band in the key's top nibble so the network sorts
+by (band, depth) — is sound but the faces are mostly in radix models (~100 varied models
+under 64 faces against ~125 over), so it is fourth.
 
 | # | change | measured basis (§M.3) | expected | notes |
 |---|---|---|---|---|

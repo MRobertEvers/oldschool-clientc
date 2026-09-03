@@ -44,7 +44,7 @@ extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_ORBS;
  * A do-nothing second plugin.
  *
  * The reservation cases need TWO plugins, because a plugin re-stating its own
- * width replaces its own row -- that is the point of keeping a claim keyed on
+ * width replaces its own row -- that is the point of keying a reservation on
  * its owner -- and "these two stack" cannot be said with one.
  */
 static int g_second;
@@ -555,27 +555,6 @@ fake_role_click(void* u, char const* role, int op)
 }
 
 static int
-fake_role_id(void* u, char const* role)
-{
-    (void)u;
-    (void)role;
-    return -1;
-}
-
-/* No role in these fakes binds to a frame slot: the tests that care about
- * chrome parts drive them through the slot verbs directly. */
-static int
-fake_role_slot(void* user, char const* role, int* out_slot, int* out_member)
-{
-    (void)user;
-    (void)role;
-    (void)out_slot;
-    (void)out_member;
-    return 0;
-}
-
-
-static int
 fake_role_suppress_facets(void* u, char const* role, int paint, int input)
 {
     (void)u; (void)role; (void)paint; (void)input;
@@ -917,10 +896,10 @@ fake_inv_size(void* u, int inv)
     return 0;
 }
 static void
-fake_layout_set(void* u, int owned, int canvas, int fixed_w, int fixed_h)
+fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
 {
     (void)u;
-    (void)owned;
+    (void)active;
     (void)canvas;
     (void)fixed_w;
     (void)fixed_h;
@@ -1036,12 +1015,6 @@ fake_mesh_create(void* u)
 }
 static void
 fake_mesh_destroy(void* u, int m)
-{
-    (void)u;
-    (void)m;
-}
-static void
-fake_mesh_clear(void* u, int m)
 {
     (void)u;
     (void)m;
@@ -1417,7 +1390,7 @@ main(void)
     e.obj_info = fake_obj_info;
     e.inv_slot = fake_inv_slot;
     e.inv_size = fake_inv_size;
-    e.layout_set = fake_layout_set;
+    e.frame_activate = fake_frame_activate;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
@@ -1534,7 +1507,7 @@ main(void)
     tick();
     draw();
     CHECK(g_blit_count == 1, "a gain puts one globe on screen");
-    CHECK(g_region_count == 1, "and claims the box it drew in");
+    CHECK(g_region_count == 1, "and registers the box it drew in");
     CHECK(g_region_tag == 1u, "with the Flip tag");
     CHECK(
         g_blit_count == 1 && g_blit[0].w == g_blit[0].h,
@@ -1732,10 +1705,9 @@ main(void)
                 "the named reservation reports the exact box it consumed");
         }
 
-        /* A second claim on the SAME edge STACKS rather than replacing: this
-         * is the whole reason `reserve` exists beside `layout_slot`. Made by a
-         * different plugin, because one plugin re-stating its own width
-        * replaces its own row. */
+        /* A second reservation on the same edge stacks rather than replacing.
+         * It is made by a different plugin, because re-stating one plugin's width
+         * replaces its own row. */
         {
             CHECK(
                 g_other_api->placement.reserve(
@@ -1789,7 +1761,7 @@ main(void)
      *
      * Checked as a POSITION over time rather than as a pixel: what makes this
      * read as "into the orb" is that the label starts below the disc and ends
-     * inside it, and that is a claim about two frames, not about one.
+     * inside it, and that relationship requires two frames to verify.
      */
     {
         int first_y = 0;

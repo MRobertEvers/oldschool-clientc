@@ -138,6 +138,14 @@ function plugin.on_ui_node_draw(api, node, draw)
     local info = api.ui.info(node)
     if not info then return end
     local box = info.bounds
+    local mouse_x, mouse_y = api.input.pointer()
+    local hovered = mouse_x and mouse_x >= box.x and mouse_x < box.x + box.width and
+        mouse_y >= box.y and mouse_y < box.y + box.height
+    local plate = hovered and 0x873838 or 0x5C1D1C
+    draw.rect(box.x, box.y, box.width, box.height, 0x2A1412, 255)
+    if box.width > 2 and box.height > 2 then
+        draw.rect(box.x + 1, box.y + 1, box.width - 2, box.height - 2, plate, 255)
+    end
     draw.image(icon_small,
         box.x + (box.width - icon_small_width) // 2,
         box.y + (box.height - icon_small_height) // 2,

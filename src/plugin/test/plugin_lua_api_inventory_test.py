@@ -217,6 +217,7 @@ def main() -> int:
         'mode = "replace_or_provide"',
         "api.ui.set_enabled",
         "api.ui.update",
+        "on_ui_node_draw",
         "on_ui_node_action",
     ):
         if required not in screenshot:

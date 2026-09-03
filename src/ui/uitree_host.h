@@ -339,7 +339,7 @@ enum UITreeHostRequestKind
     UITREE_HOST_SET_ROLE_OVERLAY_CLIP,
     /** The plugin FRAME overlay: a layout plugin's own chrome, cut to the
      *  canvas like GET_CANVAS_OVERLAYS and emitted in a different place --
-     *  over the 3D scene, under the interfaces. @see EV_DRAW_FRAME. */
+     *  over the 3D scene, under the interfaces. @see FrameOffer.draw. */
     UITREE_HOST_GET_FRAME_OVERLAYS,
     /**
      * Writes the host-owned world map tile array (the baked regions covering

@@ -500,7 +500,7 @@ partition_and_accumulate_faces_by_priority_small(
              * next priority's faces where no sanitizer can see it. */
             assert(n >= 0 && n < max_faces);
 
-            scene->sm_prio_faces[prio * max_faces + n] = face_idx;
+            scene->sm_prio_faces[toridraw_prio_slice_base(max_faces, prio) + n] = face_idx;
 
             if( prio < 10 )
             {
@@ -570,7 +570,7 @@ sort_face_draw_order_small(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] = scene->sm_prio_faces[prio * max_faces + i];
+            face_draw_order[order_index++] = scene->sm_prio_faces[toridraw_prio_slice_base(max_faces, prio) + i];
         }
     }
 
@@ -586,7 +586,7 @@ sort_face_draw_order_small(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] = scene->sm_prio_faces[prio * max_faces + i];
+            face_draw_order[order_index++] = scene->sm_prio_faces[toridraw_prio_slice_base(max_faces, prio) + i];
         }
     }
 
@@ -602,7 +602,7 @@ sort_face_draw_order_small(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] = scene->sm_prio_faces[prio * max_faces + i];
+            face_draw_order[order_index++] = scene->sm_prio_faces[toridraw_prio_slice_base(max_faces, prio) + i];
         }
     }
 

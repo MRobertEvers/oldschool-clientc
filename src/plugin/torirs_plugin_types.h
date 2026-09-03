@@ -19,8 +19,7 @@
  * different value is refused rather than run against a struct it disagrees
  * about. */
 #define TORIRS_PLUGIN_NAME_MAX 48
-/** Semantic role spelling, terminator included. Kept in the public contract
- * because replacement claims retain the name for their whole lifetime. */
+/** Semantic role spelling, terminator included. */
 #define TORIRS_PLUGIN_ROLE_NAME_MAX 64
 /** Stable canonical frame id (`plugin-id/local-id`), terminator included. */
 #define TORIRS_PLUGIN_FRAME_ID_MAX 128
@@ -77,7 +76,7 @@
  * Key codes for api->key_held, mirroring enum LibToriRS_KeyCode.
  *
  * Restated here rather than including the input header, so that anything built
- * on this contract -- a C plugin, the Lua adapter, whatever comes after it --
+ * on this contract -- a C plugin, the Lua runtime, whatever comes after it --
  * stays free of engine headers. The static asserts in
  * torirs_plugin_bridge.u.c are what keep the two in step: if the enum ever
  * moves, the client stops compiling rather than silently gating on the wrong
@@ -596,20 +595,6 @@ struct ToriRS_MenuSelectEvent
     int click_x;
     int click_y;
 };
-
-
-
-
-/**
- * The canvas the frame is being declared against. @see EV_LAYOUT.
- *
- * Carries the size and nothing else, because everything else a layout needs is
- * the plugin's own arithmetic: where the sidebar goes at 1440x900 is a
- * statement the plugin makes, not one the host can be asked for.
- */
-
-
-
 struct ToriRS_ChatMessageEvent
 {
     /** enum RS_ChatMessageType, as it arrived on the wire: 0 game, 2 public,
@@ -737,7 +722,7 @@ enum ToriRS_PanelActionKind
 #define TORIRS_PANEL_CUSTOM_HEIGHT_MIN 48
 #define TORIRS_PANEL_CUSTOM_HEIGHT_MAX 512
 
-/** Inert rail metadata copied by panel_request during EV_START. */
+/** Inert rail metadata copied by panel_request during on_start. */
 struct ToriRS_PanelDescriptor
 {
     /**
@@ -1133,7 +1118,7 @@ enum ToriRS_HullShape
 };
 
 /* ------------------------------------------------------------------------ */
-/* Entities: claiming a thing in the WORLD                                   */
+/* Retained facets for named entities in the world                           */
 /* ------------------------------------------------------------------------ */
 
 /*
@@ -1150,20 +1135,20 @@ enum ToriRS_HullShape
  *               entity_ops. APPEND keeps the game's own rows and adds these;
  *               REPLACE drops the game's rows for this thing and offers only
  *               these; NONE drops them and offers nothing -- the thing is
- *               unclickable for as long as the claim stands.
+ *               unclickable while that retained declaration is active.
  *   POSITION    refused. Where an entity is is the server's sentence, and a
- *               claim that said yes and moved nothing would be the silent
- *               no-op this contract exists to prevent.
+ *               position override that moved nothing would be a misleading
+ *               no-op.
  *
  * A name is `<kind>:<ids>`, spelled by entity_part so no plugin formats one by
  * hand: `npc:<server_slot>`, `player:<pid>`, `loc:<x>,<z>,<level>,<id>`,
  * `obj:<x>,<z>,<level>,<id>` -- the identities that survive a scene rebuild,
  * never a scene element, which does not.
  *
- * A claim on a thing that is not there yet is ordinary and stands: an npc
- * slot is claimed at EV_START and binds to whatever spawns into it. That is
- * also the caveat -- a slot is reused, so a plugin that means "this goblin"
- * and not "whatever is in slot 12" watches base_npc_id and releases.
+ * A declaration for a thing that is not there yet is ordinary and stands: an
+ * NPC slot named at on_start binds when that slot spawns. A slot is reused, so
+ * a plugin that means "this goblin" rather than "whatever is in slot 12"
+ * watches base_npc_id and clears its declaration when the identity changes.
  */
 
 enum ToriRS_EntityKind
@@ -1188,8 +1173,7 @@ enum ToriRS_EntityOpsMode
 /** An APPEARANCE holder's standing declaration for an entity. */
 struct ToriRS_EntityAppearance
 {
-    /** Draw a hull at all. 0 is "claimed and invisible", which is how a
-     *  plugin that only wants the click keeps another's outline off it. */
+    /** Draw a hull at all. Zero retains the appearance facet without ink. */
     int hull;
     /** 0xRRGGBB. */
     uint32_t rgb;

@@ -291,7 +291,7 @@ static size_t
 small_sort_buffer_bytes(const struct ToriDraw_SceneCaps* caps)
 {
     size_t bytes = 0;
-    bytes += 13 * (size_t)caps->max_faces * sizeof(faceint_t);
+    bytes += toridraw_prio_slices_len(caps->max_faces) * sizeof(faceint_t);
     bytes += (size_t)(caps->depth_levels + 1) * sizeof(int);
     bytes += (size_t)caps->depth_levels * sizeof(int);
     bytes += (size_t)caps->max_faces * sizeof(faceint_t);
@@ -488,7 +488,7 @@ scene_alloc_csr_sort(
     scene->sm_depth_cursor = malloc((size_t)caps->depth_levels * sizeof(int));
     scene->sm_faces_by_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
     scene->sm_prio_offset = malloc(13 * sizeof(int));
-    scene->sm_prio_faces = malloc(13 * (size_t)caps->max_faces * sizeof(faceint_t));
+    scene->sm_prio_faces = malloc(toridraw_prio_slices_len(caps->max_faces) * sizeof(faceint_t));
     scene->sm_flex_prio11_face_to_depth = malloc((size_t)caps->flex_prio11 * sizeof(int));
     scene->sm_flex_prio12_face_to_depth = malloc((size_t)caps->flex_prio12 * sizeof(int));
 

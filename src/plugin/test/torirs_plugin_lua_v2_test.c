@@ -29,7 +29,6 @@ static int g_reasons;
 static int g_disabled_self;
 static int g_config_dispatches;
 static char g_disable_reason[192];
-static int g_log_disable_snapshot;
 
 #define CHECK(condition, message)                                                       \
     do                                                                                  \
@@ -85,7 +84,6 @@ static char const* fake_plugin_id(struct ToriRS_ApiV2* api)
 static void fake_log(struct ToriRS_ApiV2* api, char const* format, ...)
 {
     (void)api; (void)format;
-    g_log_disable_snapshot = g_disabled_self;
     g_logs++;
 }
 static bool fake_config_get_int(struct ToriRS_ApiV2* api, char const* key, int* out)
@@ -99,7 +97,8 @@ static enum ToriRS_Result
 fake_config_set(struct ToriRS_ApiV2* api, char const* key, char const* value)
 {
     char const* id = ((struct FakeInstance*)api->instance)->id;
-    (void)value;
+    if( strchr(value, '\n') || strchr(value, '\r') || strchr(key, '-') )
+        return TORIRS_RESULT_INVALID;
     for( int i = 0; i < g_registered; i++ )
     {
         if( strcmp(g_defs[i]->id, id) != 0 ) continue;
@@ -269,14 +268,15 @@ test_runtime(struct ToriRS_PluginHost* host)
         "return {id='invalid-enum-59',on_start=function(api) api.placement.area(99) end}";
     static char const BUDGET_SOURCE[] =
         "return {id='budget-after-reentry',config={{key='answer',type='int',default='42'}},"
-        "on_config_changed=function() end,on_start=function(api)"
-        " assert(api.config.set('answer',43));local n=0;"
-        " for i=1,10000000 do n=n+i end;api.core.log(n) end}";
+        "on_config_changed=function() local n=0;"
+        " for i=1,10000000 do n=n+i end end,on_start=function(api)"
+        " api.config.set('answer',43);api.core.log('must not run') end}";
     static char const NESTED_FAULT_SOURCE[] =
         "return {id='nested-fault',config={{key='answer',type='int',default='42'}},"
         "on_config_changed=function() error('inner boom') end,"
         "on_start=function(api) assert(api.config.set('answer',43));"
-        "api.core.log('outer remained safe') end}";
+        "api.core.log('outer remained safe') end,"
+        "on_key=function(api) assert(api.config.set('answer',43));return 'consume' end}";
     static char const DISABLE_SOURCE[] =
         "return {id='explicit-disable',on_start=function(api)"
         "api.client.disable_self('requested stop');api.core.log('must not run') end}";
@@ -315,6 +315,10 @@ test_runtime(struct ToriRS_PluginHost* host)
         "  assert(pcall==nil and xpcall==nil and setmetatable==nil and getmetatable==nil)"
         "  assert(warn==nil)"
         "  assert(api.core.plugin_id()=='lua-v2-test' and api.config.answer==42)"
+        "  local ok,status=api.config.set('answer','bad\\nvalue')"
+        "  assert(not ok and status=='invalid')"
+        "  ok,status=api.config.set('bad-key','1')"
+        "  assert(not ok and status=='invalid')"
         "  local node=api.ui.ref('frame.chat.button.report')"
         "  assert(api.ui.set_enabled(node,true))"
         "  assert(api.ui.update(node,{'appearance','actions'},"
@@ -458,12 +462,16 @@ test_runtime(struct ToriRS_PluginHost* host)
     struct FakeInstance nested_instance = { "nested-fault", NULL };
     struct ToriRS_ApiV2 nested_api = fake_api(&nested_instance);
     g_defs[3]->callbacks.on_start(&nested_api, NULL);
-    CHECK(g_logs == logs_before_nested_fault + 1 &&
-            g_log_disable_snapshot == disables_before_nested_fault,
-        "inner fault leaves the outer API live until it unwinds");
+    CHECK(g_logs == logs_before_nested_fault + 1,
+        "inner fault keeps native state alive until the outer Lua callback returns");
     CHECK(g_disabled_self == disables_before_nested_fault + 1 &&
             strstr(g_disable_reason, "inner boom") != NULL,
         "inner fault is disabled at the outer callback boundary");
+    struct ToriRS_KeyEvent nested_key = { 0 };
+    int const disables_before_key = g_disabled_self;
+    CHECK(g_defs[3]->callbacks.on_key(&nested_api, NULL, &nested_key) ==
+            TORIRS_CALLBACK_CONTINUE && g_disabled_self == disables_before_key + 1,
+        "deferred nested fault cannot consume the triggering input");
 
     int const logs_before_disable = g_logs;
     CHECK(PluginLua_AddScript(host, "explicit-disable", DISABLE_SOURCE,

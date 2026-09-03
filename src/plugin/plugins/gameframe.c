@@ -94,12 +94,13 @@
  *
  * ## What one layout costs at runtime
  *
- * EV_LAYOUT builds the whole frame -- slot rectangles, the backdrop blit list
- * and the map housing attached to the minimap -- and runs at a claim, a resize
- * and a rebuild, and at no other time. EV_DRAW_FRAME then walks the backdrop
- * list, which is a few dozen entries and no arithmetic. The tab stones are the
- * exception: which one is pressed changes per frame, so those are placed in
- * the layout pass and drawn in the draw one.
+ * The selected offer's build callback declares the whole frame: surface
+ * rectangles, the backdrop blit list, and the map housing attached to the
+ * minimap. It runs when the offer is selected, the logical canvas changes, or
+ * the provider invalidates its retained declaration. FrameOffer.draw then
+ * walks the backdrop list, which is a few dozen entries and no arithmetic.
+ * The tab stones are the exception: which one is pressed changes per frame,
+ * so those are placed in the build pass and drawn in the draw pass.
  */
 
 /* ------------------------------------------------------------------ layouts */
@@ -681,9 +682,8 @@ struct FrameRuntime
          * -1 on two kinds of button and they mean the same thing here: one on
          * a frame whose chatbox cannot be put away, and Report abuse, which is
          * not a view of the chat but a verb the LANE implements. Neither is
-         * the frame's, so neither claims a region -- @see frame_on_draw, where
-         * a claimed rectangle would put this plugin's one op over the client's
-         * own report button and take it away.
+         * the frame's action, so no action region is registered over the
+         * client's own report button.
          */
         struct ToriRS_ImageRef active;
         struct ToriRS_ImageRef active_hover;
@@ -815,7 +815,7 @@ frame_blit_tiled(
 /**
  * Chrome immediately over one live semantic surface.
  *
- * The map ring used to be an EV_DRAW_CANVAS blit, which put it over the whole
+ * The map ring used to be an on_draw_canvas blit, which put it over the whole
  * chrome rather than merely over the minimap. An explicit declaration keeps
  * ordinary frame/canvas draws global and gives this one local paint order.
  */
@@ -945,12 +945,10 @@ frame_chat_buttons_across(
         /*
          * And DECLARED, not merely remembered for the draw pass.
          *
-         * The plate is the same four handles it always was; what changes is
-         * who blits it. Stated to the host, it is a PART -- something another
-         * plugin can find by name, measure, borrow the art of, or claim
-         * outright -- and when one does, the host simply stops painting this
-         * declaration and starts painting theirs. Nothing in this file has to
-         * ask "did somebody replace the report button" before drawing it.
+         * The plate is published as a named node with independently resolved
+         * bounds, appearance, and actions. A contribution can replace one
+         * facet, and the host paints only the resolved winner. This frame does
+         * not need to query whether another plugin changed the report button.
          *
          * The box is the PLATE's, lifted FRAME_O_CHAT_BUTTON_LIFT rows and
          * two rows shorter than the mount the label sits in. That difference
@@ -1169,17 +1167,10 @@ frame_skin_scrollbar(struct FrameCall* ctx)
  * suppressed: the orbs resolved `minimap_edge`, found a box, anchored to it,
  * and painted into a subtree that emits nothing.
  *
- * So the housing is CLAIMED. Holding APPEARANCE on `minimap_edge` replaces
- * the lane's plate with this frame's: the host hides the node, paints this
- * declaration at its tombstone -- which is after the map and the compass,
- * because that is where the lane put its plate -- and routes every other
- * plugin that anchors to the name to the same tombstone. The name keeps its
- * meaning; only who draws it changed.
- *
- * A lane with no `minimap_edge` to claim gets the plate the old way, hung
- * off the compass slot so it still paints after both holes. That is the
- * fallback and not the design: nothing can anchor to a plate that has no
- * name.
+ * The frame therefore provides `frame.minimap.housing` as a named node after
+ * the live minimap. The host maps the lane's role to the same semantic name,
+ * resolves one appearance provider, and keeps child plugins attached to that
+ * identity across frame and cache rebuilds.
  */
 static void
 frame_housing_node(
@@ -1422,9 +1413,7 @@ frame_layout_modern_fixed(struct FrameCall* ctx)
     frame_blit(ctx, g_image[IMG_O_BACKTOP_RIGHT], 717, 0);
     frame_blit(ctx, g_image[IMG_O_BACKLEFT1], 0, 4);
     frame_blit(ctx, g_image[IMG_O_BACKVMID1], 516, 4);
-    /* This frame's housing is its own picture inside the map's boundary, not
-     * the lane's `minimap_edge`; a claim left over from the 2004 layout would
-     * paint a 2004 plate over it. */
+    /* This frame publishes its own housing picture inside the map boundary. */
     frame_housing_node(
         ctx, g_image[IMG_O_MAPBACK], (struct ToriRS_Rect){ 545, 4, 172, 156 });
     frame_blit(ctx, g_image[IMG_O_BACKRIGHT_TOP], 717, 4);
@@ -2243,8 +2232,8 @@ frame_on_draw(
          *
          * Asked every frame rather than at declaration time, because this is
          * the one thing about a tab that changes without a resize, a rebuild
-         * or a claim: the tutorial gives the fourteen out one at a time, and a
-         * frame that recorded the answer at its first EV_LAYOUT would still be
+         * or frame invalidation: the tutorial gives the fourteen out one at a time, and a
+         * frame that recorded the answer at its first build would still be
          * drawing a new character's empty rail an hour later. The client's own
          * chrome gates the same two pictures on the same fact.
          * @see ToriRS_CacheApiV2::tab_enabled.

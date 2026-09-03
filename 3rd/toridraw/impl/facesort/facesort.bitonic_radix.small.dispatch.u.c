@@ -743,19 +743,29 @@ toridraw_radix_sort_depth(
 
     if( depth_hi != INT_MAX && depth_hi - depth_lo < 256 )
     {
-        /* Shallow: rebase to depth_hi and one pass over the low byte. */
+        /* Shallow: rebase to depth_hi and one pass over the low byte. The
+         * digit runs over [0, span): every accepted depth lies in
+         * [depth_lo, depth_hi] (the bound is off the model's vertex z range,
+         * and a face depth is a mean of three of them), so the histogram is
+         * cleared and prefix-summed over span entries, not 256. On the phone
+         * (kr14) the fixed 256-entry prefix was 27 % of the radix's samples
+         * -- as much as the histogram pass itself -- for models a few dozen
+         * levels deep. */
         int const base = 0xFFFF - depth_hi;
+        int const span = depth_hi - depth_lo + 1;
         int sum = 0;
+        assert(span >= 1);
+        assert(span <= 256);
         g_toridraw_radix_shallow_models++;
-        memset(count0, 0, sizeof(count0));
+        memset(count0, 0, (size_t)span * sizeof(count0[0]));
         for( i = 0; i < n; i++ )
         {
             int const d = (int)(keys[i] >> 16) - base;
             assert(d >= 0);
-            assert(d < 256);
+            assert(d < span);
             count0[d]++;
         }
-        for( i = 0; i < 256; i++ )
+        for( i = 0; i < span; i++ )
         {
             int const c = count0[i];
             count0[i] = sum;
@@ -989,6 +999,12 @@ toridraw_face_sort_bitonic_radix(
 int g_toridraw_prio_uniform_models = 0;
 int g_toridraw_prio_varied_models = 0;
 
+/* See toridraw_prio_slice_base. */
+int g_toridraw_prio_slice_pad = TORIDRAW_PRIO_SLICE_PAD_DEFAULT;
+
+/* See toridraw.h. */
+int g_toridraw_kernel_ab_arm = 0;
+
 /*
  * True when every one of the model's `face_count` priorities is the same
  * value. THE DEGENERATE CASE OF THE PRIORITY PARTITION: with one band
@@ -1041,9 +1057,19 @@ toridraw_face_priorities_uniform(
  * are computed once, not `prio * max_faces` per key; the nibble comes out
  * with a shift by (index & 1) * 4 rather than a branch; and
  * scene->sm_prio_count, which nothing reads back, is not stored per key.
+ *
+ * Then trimmed again against its own bucketed profile (kr14: 20 cycles a
+ * face, issue-bound on twenty instructions with the counts[] and
+ * depth_sum[] read-modify-write chains under them): the band's write
+ * position is ONE cursor pointer, not base[prio] + counts[prio] -- one load
+ * and one store on the chain instead of two loads, two adds and a store --
+ * and counts[] is recovered from the cursors after the loop. The flex bands
+ * (10, 11), which also need the index within the band, take a subtract on
+ * their rare branch. TORIDRAW_KERNEL_AB / g_toridraw_kernel_ab_arm=1 runs the
+ * previous shape as the control arm.
  */
 static inline void
-partition_and_accumulate_faces_by_priority_keys(
+partition_and_accumulate_faces_by_priority_keys_base_counts(
     struct ToriDraw_Scene* scene,
     const uint32_t* keys,
     int n,
@@ -1058,15 +1084,8 @@ partition_and_accumulate_faces_by_priority_keys(
     int base[12];
     int i;
 
-    assert(scene);
-    assert(keys);
-    assert(priority_depths);
-    assert(counts);
-    assert(face_priorities);
-
     for( i = 0; i < 12; i++ )
-        base[i] = i * max_faces;
-    memset(scene->sm_prio_count, 0, sizeof(scene->sm_prio_count));
+        base[i] = toridraw_prio_slice_base(max_faces, i);
 
     for( i = 0; i < n; i++ )
     {
@@ -1099,6 +1118,81 @@ partition_and_accumulate_faces_by_priority_keys(
 
         counts[prio] = nn + 1;
     }
+}
+
+static inline void
+partition_and_accumulate_faces_by_priority_keys(
+    struct ToriDraw_Scene* scene,
+    const uint32_t* keys,
+    int n,
+    int* priority_depths,
+    int* counts,
+    const uint8_t* face_priorities)
+{
+    const int max_faces = scene->max_faces;
+    faceint_t* const prio_faces = scene->sm_prio_faces;
+    int* const flex11 = scene->sm_flex_prio11_face_to_depth;
+    int* const flex12 = scene->sm_flex_prio12_face_to_depth;
+    faceint_t* start[12];
+    faceint_t* cursor[12];
+    int i;
+
+    assert(scene);
+    assert(keys);
+    assert(priority_depths);
+    assert(counts);
+    assert(face_priorities);
+
+    memset(scene->sm_prio_count, 0, sizeof(scene->sm_prio_count));
+
+    if( g_toridraw_kernel_ab_arm )
+    {
+        partition_and_accumulate_faces_by_priority_keys_base_counts(
+            scene, keys, n, priority_depths, counts, face_priorities);
+        return;
+    }
+
+    for( i = 0; i < 12; i++ )
+    {
+        start[i] = prio_faces + toridraw_prio_slice_base(max_faces, i);
+        cursor[i] = start[i];
+    }
+
+    for( i = 0; i < n; i++ )
+    {
+        uint32_t const k = keys[i];
+        int const face_idx = (int)(k & 0xFFFF);
+        int const depth = 0xFFFF - (int)(k >> 16);
+        int const prio =
+            (face_priorities[face_idx >> 1] >> ((face_idx & 1) << 2)) & 0x0F;
+        faceint_t* c;
+
+        assert(face_idx >= 0 && face_idx < max_faces);
+        assert(prio >= 0 && prio < 12 && "face priority indexes counts[12]");
+
+        c = cursor[prio];
+        /* One allocation, thirteen slices: an overrun here rewrites the
+         * next priority's faces where no sanitizer can see it. */
+        assert(c < start[prio] + max_faces);
+        *c = (faceint_t)face_idx;
+        cursor[prio] = c + 1;
+
+        if( prio < 10 )
+            priority_depths[prio] += depth;
+        else
+        {
+            int const nn = (int)(c - start[prio]);
+            assert(depth >= 0 && depth <= 0xFFFF);
+            assert(nn < scene->flex_prio_capacity);
+            if( prio == 10 )
+                flex11[nn] = depth | (face_idx << 16);
+            else
+                flex12[nn] = depth | (face_idx << 16);
+        }
+    }
+
+    for( i = 0; i < 12; i++ )
+        counts[i] = (int)(cursor[i] - start[i]);
 }
 
 #endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_U_C */
