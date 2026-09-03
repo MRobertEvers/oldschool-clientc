@@ -327,6 +327,22 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
 #define MOBILE_PAPER_FRINGE_T 17
 #define MOBILE_PAPER_FRINGE_R 21
 #define MOBILE_PAPER_FRINGE_B 17
+
+/**
+ * How many real, distinct pieces back one repeating edge, at most.
+ *
+ * A ceiling and not a promise: tools/cut_chat_sheet_tiles.py answers with
+ * however many wraps its source actually supports below its quality gate,
+ * which for this sheet is 3 for the top edge, 2 for the bottom, and 1 for the
+ * left and right -- the left edge's tear only repeats well in one place, and
+ * a second "variant" there would have been a worse seam than drawing the
+ * single tile twice. Slots the cutter did not fill are NULL in
+ * MOBILE_IMAGE_FILE, exactly like MOBILE_TAB_COUNT's missing tab-7 icon.
+ */
+#define MOBILE_PAPER_EDGE_VARIANTS_MAX 3
+/** The middle tile is grain, not a shape, so it does not share the edges'
+ *  scarcity: three disjoint low-blotch patches fit the source every time. */
+#define MOBILE_PAPER_FILL_VARIANTS 3
 /**
  * Inked rows below the surface's last, and the reason the block sits higher
  * than the surface alone would.
@@ -487,13 +503,16 @@ enum MobileImage
     IMG_MAPBACK_RING,
     IMG_INVBACK,
     /**
-     * The parchment, as NINE pieces in reading order: top-left, top, top-right,
-     * left, middle, right, bottom-left, bottom, bottom-right.
+     * The parchment. FOUR corners cut once, then a variant SET at each
+     * repeating position -- up to MOBILE_PAPER_EDGE_VARIANTS_MAX real, distinct
+     * strips for each edge and MOBILE_PAPER_FILL_VARIANTS for the middle,
+     * picked between per repeat by a position hash so the pattern does not
+     * read as one stamp walked across the sheet. @see mobile_compose_paper.
      *
      * Not one picture, because one picture can only reach a bigger chatbox by
-     * being scaled, and a scaled tear stops being a tear. The corners are cut
-     * once and drawn at their own size; the four edges repeat along their own
-     * axis; the middle repeats both ways. @see mobile_compose_paper.
+     * being scaled, and a scaled tear stops being a tear -- and not a SINGLE
+     * repeating tile either, because one tile laid end to end is still a
+     * stamp; the eye catches the interval before it catches anything else.
      *
      * The corner box is not a constant here -- it is whatever the top-left
      * piece measures -- so a recut at a different corner size needs nothing
@@ -501,7 +520,12 @@ enum MobileImage
      * cutter can print off its own output. @see MOBILE_PAPER_FRINGE_L.
      */
     IMG_PAPER_0,
-    IMG_STONE = IMG_PAPER_0 + 9,
+    IMG_PAPER_TOP_0 = IMG_PAPER_0 + 4,
+    IMG_PAPER_BOTTOM_0 = IMG_PAPER_TOP_0 + MOBILE_PAPER_EDGE_VARIANTS_MAX,
+    IMG_PAPER_LEFT_0 = IMG_PAPER_BOTTOM_0 + MOBILE_PAPER_EDGE_VARIANTS_MAX,
+    IMG_PAPER_RIGHT_0 = IMG_PAPER_LEFT_0 + MOBILE_PAPER_EDGE_VARIANTS_MAX,
+    IMG_PAPER_FILL_0 = IMG_PAPER_RIGHT_0 + MOBILE_PAPER_EDGE_VARIANTS_MAX,
+    IMG_STONE = IMG_PAPER_FILL_0 + MOBILE_PAPER_FILL_VARIANTS,
     /** The plate under a classic tab row, cleaned up. Both columns are this
      *  one picture, the second mirrored. @see MOBILE_RAIL_COL_W. */
     IMG_PLATE,
@@ -648,14 +672,34 @@ static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
      * documented, and why it is not `chatback.dat`, the cache's flat
      * rectangle. @see IMG_PAPER_0, mobile_compose_paper. */
     [IMG_PAPER_0 + 0] = "chat_paper_tl.png",
-    [IMG_PAPER_0 + 1] = "chat_paper_top.png",
-    [IMG_PAPER_0 + 2] = "chat_paper_tr.png",
-    [IMG_PAPER_0 + 3] = "chat_paper_left.png",
-    [IMG_PAPER_0 + 4] = "chat_paper_fill.png",
-    [IMG_PAPER_0 + 5] = "chat_paper_right.png",
-    [IMG_PAPER_0 + 6] = "chat_paper_bl.png",
-    [IMG_PAPER_0 + 7] = "chat_paper_bottom.png",
-    [IMG_PAPER_0 + 8] = "chat_paper_br.png",
+    [IMG_PAPER_0 + 1] = "chat_paper_tr.png",
+    [IMG_PAPER_0 + 2] = "chat_paper_bl.png",
+    [IMG_PAPER_0 + 3] = "chat_paper_br.png",
+    /* Three real wraps -- the widest room of any edge, so the cutter's
+     * quality gate let the most through. */
+    [IMG_PAPER_TOP_0 + 0] = "chat_paper_top_1.png",
+    [IMG_PAPER_TOP_0 + 1] = "chat_paper_top_2.png",
+    [IMG_PAPER_TOP_0 + 2] = "chat_paper_top_3.png",
+    /* Two: the bottom tear only wraps well in two places in this sheet. */
+    [IMG_PAPER_BOTTOM_0 + 0] = "chat_paper_bottom_1.png",
+    [IMG_PAPER_BOTTOM_0 + 1] = "chat_paper_bottom_2.png",
+    [IMG_PAPER_BOTTOM_0 + 2] = NULL,
+    /* One: the left tear's only good wrap. A second slot here would have
+     * been the next-best candidate at twenty times the seam cost -- worse
+     * than repeating the one real piece, so the cutter left it out rather
+     * than ship it. @see MOBILE_PAPER_EDGE_VARIANTS_MAX. */
+    [IMG_PAPER_LEFT_0 + 0] = "chat_paper_left_1.png",
+    [IMG_PAPER_LEFT_0 + 1] = NULL,
+    [IMG_PAPER_LEFT_0 + 2] = NULL,
+    /* The left variant(s) mirrored -- the right edge's own tear drifts and
+     * will not wrap at all. @see tools/cut_chat_sheet_tiles.py. */
+    [IMG_PAPER_RIGHT_0 + 0] = "chat_paper_right_1.png",
+    [IMG_PAPER_RIGHT_0 + 1] = NULL,
+    [IMG_PAPER_RIGHT_0 + 2] = NULL,
+    /* Grain, not a shape -- always finds three. */
+    [IMG_PAPER_FILL_0 + 0] = "chat_paper_fill_1.png",
+    [IMG_PAPER_FILL_0 + 1] = "chat_paper_fill_2.png",
+    [IMG_PAPER_FILL_0 + 2] = "chat_paper_fill_3.png",
     [IMG_STONE] = "stone.png",
     [IMG_PLATE] = "rail_back_top_cleaned.png",
     [IMG_SWITCH] = "switch.png",
@@ -1819,9 +1863,10 @@ mobile_blit(int image, int x, int y)
 /*
  * One piece of the parchment, read out of its image once.
  *
- * Nine of these are wanted at a time and the composition walks all nine, so
- * they are fetched together and freed together: fetching per destination row
- * would re-read the same picture a hundred times.
+ * Several of these are wanted at a time -- a corner, plus whichever variants
+ * loaded for each repeating position -- and the composition walks all of
+ * them, so they are fetched together and freed together: fetching per
+ * destination row would re-read the same picture a hundred times.
  */
 struct MobilePaperPiece
 {
@@ -1859,55 +1904,197 @@ mobile_paper_fetch(
 }
 
 /*
- * Repeat one piece over a box, clipping whichever copy runs off the end.
+ * Read every real variant at one repeating position, compacted to the front.
  *
- * The clip is where a tiled nine-patch could show a seam, and it is worth
- * saying why this one does not: the edge pieces were cut at a period their own
- * tear happens to repeat at (tools/cut_chat_sheet_tiles.py searches for it), so
- * a whole copy butting the next is continuous, and the clipped last copy butts
- * a CORNER, which is a hard cut in the sheet's own art either way. Measured
- * against the source, every join this makes is smaller than the steps the tear
- * takes on its own.
+ * `image_ids` is MOBILE_PAPER_EDGE_VARIANTS_MAX (or FILL_VARIANTS) slots, some
+ * of which are -1 -- the cutter did not ship a piece there because its source
+ * had nowhere good enough left to cut one from. @see MOBILE_IMAGE_FILE. A
+ * missing slot is skipped rather than counted, so `out[0..count)` is always
+ * the pieces that DID load with no gap in the middle for a caller to trip on,
+ * and `out[count..max_count)` is left zeroed by the caller's own memset --
+ * `free(NULL)` on those in teardown is the ordinary idiom.
+ */
+static int
+mobile_paper_fetch_set(
+    struct ToriRS_PluginCtx* ctx,
+    int const* image_ids,
+    int max_count,
+    struct MobilePaperPiece* out)
+{
+    int count = 0;
+
+    assert(ctx);
+    assert(image_ids);
+    assert(out);
+    assert(max_count > 0);
+    for( int i = 0; i < max_count; i++ )
+        if( mobile_paper_fetch(ctx, image_ids[i], &out[count]) )
+            count++;
+    return count;
+}
+
+/*
+ * Which variant lands in one repeat cell -- deterministic, not random.
+ *
+ * The sheet must not shimmer between two draws of the same box, so this is a
+ * pure function of the cell's position and cannot reach for a real RNG; a
+ * cheap integer hash gets the look random asks for (no fixed cycle to notice)
+ * without needing a seed anyone has to carry across frames. `salt` keeps the
+ * four edges and the fill from choosing in lockstep -- without it, cell 0 of
+ * every repeating position would always pick variant 0.
+ */
+static unsigned
+mobile_paper_variant_hash(int cell, int salt)
+{
+    unsigned h = (unsigned)cell * 2654435761u + (unsigned)salt * 40503u;
+    h ^= h >> 15;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13;
+    return h;
+}
+
+/*
+ * Repeat along x, picking a variant per cell -- the top and bottom edges.
+ *
+ * Steps by the CHOSEN piece's own width and not a shared constant: two
+ * variants of one edge are not the same period any more (the source only
+ * wraps cleanly at a few exact spacings, so forcing one on every variant left
+ * one of them a visibly bad seam -- @see tools/cut_chat_sheet_tiles.py,
+ * wrap_variants), so the walk has to ask each piece its size as it goes.
+ *
+ * The clip on the last copy is where a tiled strip could show a seam, and it
+ * does not: every variant was cut where its own tear happens to repeat, so a
+ * whole copy butting the next is continuous, and the clipped last copy butts
+ * a CORNER, which is a hard cut in the sheet's own art either way.
  */
 static void
-mobile_paper_tile(
+mobile_paper_tile_edge_h(
     uint32_t* dst,
     int dst_w,
-    struct MobilePaperPiece const* piece,
+    struct MobilePaperPiece const* variant,
+    int variant_count,
+    int salt,
     int x0,
     int y0,
     int x1,
     int y1)
 {
+    int cell = 0;
+
     assert(dst);
-    assert(piece);
-    assert(piece->px);
-    for( int y = y0; y < y1; y += piece->h )
+    assert(variant);
+    assert(variant_count > 0);
+    for( int x = x0; x < x1; cell++ )
     {
-        int const rows = (y1 - y) < piece->h ? (y1 - y) : piece->h;
+        struct MobilePaperPiece const* p =
+            &variant[mobile_paper_variant_hash(cell, salt) % (unsigned)variant_count];
+        int const cols = (x1 - x) < p->w ? (x1 - x) : p->w;
+        int const rows = (y1 - y0) < p->h ? (y1 - y0) : p->h;
 
-        for( int x = x0; x < x1; x += piece->w )
-        {
-            int const cols = (x1 - x) < piece->w ? (x1 - x) : piece->w;
+        for( int r = 0; r < rows; r++ )
+            memcpy(
+                &dst[(size_t)(y0 + r) * (size_t)dst_w + (size_t)x],
+                &p->px[(size_t)r * (size_t)p->w],
+                (size_t)cols * sizeof(*dst));
+        x += p->w;
+    }
+}
 
-            for( int r = 0; r < rows; r++ )
-                memcpy(
-                    &dst[(size_t)(y + r) * (size_t)dst_w + (size_t)x],
-                    &piece->px[(size_t)r * (size_t)piece->w],
-                    (size_t)cols * sizeof(*dst));
-        }
+/** Exactly mobile_paper_tile_edge_h, along y -- the left and right edges. */
+static void
+mobile_paper_tile_edge_v(
+    uint32_t* dst,
+    int dst_w,
+    struct MobilePaperPiece const* variant,
+    int variant_count,
+    int salt,
+    int x0,
+    int y0,
+    int x1,
+    int y1)
+{
+    int cell = 0;
+
+    assert(dst);
+    assert(variant);
+    assert(variant_count > 0);
+    for( int y = y0; y < y1; cell++ )
+    {
+        struct MobilePaperPiece const* p =
+            &variant[mobile_paper_variant_hash(cell, salt) % (unsigned)variant_count];
+        int const rows = (y1 - y) < p->h ? (y1 - y) : p->h;
+        int const cols = (x1 - x0) < p->w ? (x1 - x0) : p->w;
+
+        for( int r = 0; r < rows; r++ )
+            memcpy(
+                &dst[(size_t)(y + r) * (size_t)dst_w + (size_t)x0],
+                &p->px[(size_t)r * (size_t)p->w],
+                (size_t)cols * sizeof(*dst));
+        y += p->h;
     }
 }
 
 /*
- * The parchment at any size: a nine-patch whose edges and middle are TILED.
+ * The middle: repeats along BOTH axes, a variant picked per (row, column).
+ *
+ * Its own walk and not two passes of the edge tilers, because the middle is
+ * the one piece that has to choose independently in two directions at once --
+ * an edge only ever advances along its own line. `92821` is an arbitrary odd
+ * multiplier with no meaning beyond spreading a row index away from a column
+ * index before they fold into one hash; any prime-ish constant does the job.
+ */
+static void
+mobile_paper_tile_fill(
+    uint32_t* dst,
+    int dst_w,
+    struct MobilePaperPiece const* variant,
+    int variant_count,
+    int x0,
+    int y0,
+    int x1,
+    int y1)
+{
+    int row = 0;
+
+    assert(dst);
+    assert(variant);
+    assert(variant_count > 0);
+    for( int y = y0; y < y1; row++ )
+    {
+        int col = 0;
+        int step_h = 0;
+
+        for( int x = x0; x < x1; col++ )
+        {
+            struct MobilePaperPiece const* p =
+                &variant[mobile_paper_variant_hash(row * 92821 + col, 0) % (unsigned)variant_count];
+            int const cols = (x1 - x) < p->w ? (x1 - x) : p->w;
+            int const rows = (y1 - y) < p->h ? (y1 - y) : p->h;
+
+            for( int r = 0; r < rows; r++ )
+                memcpy(
+                    &dst[(size_t)(y + r) * (size_t)dst_w + (size_t)x],
+                    &p->px[(size_t)r * (size_t)p->w],
+                    (size_t)cols * sizeof(*dst));
+            step_h = p->h;
+            x += p->w;
+        }
+        y += step_h;
+    }
+}
+
+/*
+ * The parchment at any size: a nine-patch whose edges and middle are TILED --
+ * and, at each repeating position, chosen from several real variants rather
+ * than one tile stamped end to end.
  *
  * Tiled and not stretched, which is the whole reason the sheet stopped being
  * one picture. A torn edge has a grain -- the tears are a few pixels across
  * and a couple of dozen apart -- and a resampler that has to reach 900 columns
  * from 517 does not make more tears, it makes the same tears half as sharp and
  * twice as wide. Repeating the strip makes more of them, at the size they were
- * drawn.
+ * drawn -- and repeating ONE strip is still a stamp, which is what the several
+ * variants at each position are for. @see tools/cut_chat_sheet_tiles.py.
  *
  * The corner box is read off the top-left piece rather than named here, so the
  * art can be recut at a different corner size without this function knowing.
@@ -1923,7 +2110,13 @@ mobile_compose_paper(
     int width,
     int height)
 {
-    struct MobilePaperPiece piece[9];
+    struct MobilePaperPiece corner[4];
+    struct MobilePaperPiece top[MOBILE_PAPER_EDGE_VARIANTS_MAX];
+    struct MobilePaperPiece bottom[MOBILE_PAPER_EDGE_VARIANTS_MAX];
+    struct MobilePaperPiece left[MOBILE_PAPER_EDGE_VARIANTS_MAX];
+    struct MobilePaperPiece right[MOBILE_PAPER_EDGE_VARIANTS_MAX];
+    struct MobilePaperPiece fill[MOBILE_PAPER_FILL_VARIANTS];
+    int top_count, bottom_count, left_count, right_count, fill_count;
     uint32_t* out;
     int corner_w = 0;
     int corner_h = 0;
@@ -1934,14 +2127,34 @@ mobile_compose_paper(
     assert(width > 0);
     assert(height > 0);
 
-    /* Cleared first so the teardown below can free all nine however far the
-     * fetch loop got. */
-    memset(piece, 0, sizeof(piece));
-    for( int i = 0; i < 9; i++ )
-        if( !mobile_paper_fetch(ctx, g_image[IMG_PAPER_0 + i], &piece[i]) )
+    /* Cleared first so the teardown below can free every slot -- fetched or
+     * not, compacted or trailing -- however far each fetch got. */
+    memset(corner, 0, sizeof(corner));
+    memset(top, 0, sizeof(top));
+    memset(bottom, 0, sizeof(bottom));
+    memset(left, 0, sizeof(left));
+    memset(right, 0, sizeof(right));
+    memset(fill, 0, sizeof(fill));
+
+    for( int i = 0; i < 4; i++ )
+        if( !mobile_paper_fetch(ctx, g_image[IMG_PAPER_0 + i], &corner[i]) )
             goto done;
-    corner_w = piece[0].w;
-    corner_h = piece[0].h;
+    top_count =
+        mobile_paper_fetch_set(ctx, &g_image[IMG_PAPER_TOP_0], MOBILE_PAPER_EDGE_VARIANTS_MAX, top);
+    bottom_count = mobile_paper_fetch_set(
+        ctx, &g_image[IMG_PAPER_BOTTOM_0], MOBILE_PAPER_EDGE_VARIANTS_MAX, bottom);
+    left_count = mobile_paper_fetch_set(
+        ctx, &g_image[IMG_PAPER_LEFT_0], MOBILE_PAPER_EDGE_VARIANTS_MAX, left);
+    right_count = mobile_paper_fetch_set(
+        ctx, &g_image[IMG_PAPER_RIGHT_0], MOBILE_PAPER_EDGE_VARIANTS_MAX, right);
+    fill_count =
+        mobile_paper_fetch_set(ctx, &g_image[IMG_PAPER_FILL_0], MOBILE_PAPER_FILL_VARIANTS, fill);
+    if( top_count <= 0 || bottom_count <= 0 || left_count <= 0 || right_count <= 0 ||
+        fill_count <= 0 )
+        goto done;
+
+    corner_w = corner[0].w;
+    corner_h = corner[0].h;
     if( width < 2 * corner_w || height < 2 * corner_h )
         goto done;
 
@@ -1950,28 +2163,41 @@ mobile_compose_paper(
     out = calloc((size_t)width * (size_t)height, sizeof(*out));
     assert(out);
 
-    mobile_paper_tile(
-        out, width, &piece[4], corner_w, corner_h, width - corner_w, height - corner_h);
-    mobile_paper_tile(out, width, &piece[1], corner_w, 0, width - corner_w, corner_h);
-    mobile_paper_tile(
-        out, width, &piece[7], corner_w, height - corner_h, width - corner_w, height);
-    mobile_paper_tile(out, width, &piece[3], 0, corner_h, corner_w, height - corner_h);
-    mobile_paper_tile(
-        out, width, &piece[5], width - corner_w, corner_h, width, height - corner_h);
+    mobile_paper_tile_fill(
+        out, width, fill, fill_count, corner_w, corner_h, width - corner_w, height - corner_h);
+    mobile_paper_tile_edge_h(
+        out, width, top, top_count, 1, corner_w, 0, width - corner_w, corner_h);
+    mobile_paper_tile_edge_h(
+        out, width, bottom, bottom_count, 2, corner_w, height - corner_h, width - corner_w, height);
+    mobile_paper_tile_edge_v(
+        out, width, left, left_count, 3, 0, corner_h, corner_w, height - corner_h);
+    mobile_paper_tile_edge_v(
+        out, width, right, right_count, 4, width - corner_w, corner_h, width, height - corner_h);
     /* The corners last: each overwrites the two strips that ran up to it, so
      * the strips may be laid without knowing where they stop. */
-    mobile_paper_tile(out, width, &piece[0], 0, 0, corner_w, corner_h);
-    mobile_paper_tile(out, width, &piece[2], width - corner_w, 0, width, corner_h);
-    mobile_paper_tile(out, width, &piece[6], 0, height - corner_h, corner_w, height);
-    mobile_paper_tile(
-        out, width, &piece[8], width - corner_w, height - corner_h, width, height);
+    mobile_paper_tile_edge_h(out, width, &corner[0], 1, 0, 0, 0, corner_w, corner_h);
+    mobile_paper_tile_edge_h(
+        out, width, &corner[1], 1, 0, width - corner_w, 0, width, corner_h);
+    mobile_paper_tile_edge_h(
+        out, width, &corner[2], 1, 0, 0, height - corner_h, corner_w, height);
+    mobile_paper_tile_edge_h(
+        out, width, &corner[3], 1, 0, width - corner_w, height - corner_h, width, height);
 
     handle = g_api->image_compose(ctx, name, width, height, out);
     free(out);
 
 done:
-    for( int i = 0; i < 9; i++ )
-        free(piece[i].px);
+    for( int i = 0; i < 4; i++ )
+        free(corner[i].px);
+    for( int i = 0; i < MOBILE_PAPER_EDGE_VARIANTS_MAX; i++ )
+    {
+        free(top[i].px);
+        free(bottom[i].px);
+        free(left[i].px);
+        free(right[i].px);
+    }
+    for( int i = 0; i < MOBILE_PAPER_FILL_VARIANTS; i++ )
+        free(fill[i].px);
     return handle;
 }
 

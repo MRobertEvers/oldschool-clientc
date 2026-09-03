@@ -67,24 +67,52 @@
 # this script rewrites the whole set: a hand-authored file under a name the
 # dump owns is one that vanishes the next time anyone runs this.
 #
-# The nine chat_paper_*.png beside it are neither cut nor hand-drawn: they are
-# that sheet CUT UP, by tools/cut_chat_sheet_tiles.py, and that script is their
+# The chat_paper_*.png beside it are neither cut nor hand-drawn: they are that
+# sheet CUT UP, by tools/cut_chat_sheet_tiles.py, and that script is their
 # provenance the way this one is everything else's.
 #
 #   python3 tools/cut_chat_sheet_tiles.py
 #
-# The sheet itself is no longer loaded at runtime -- it is the source the nine
-# come from, and it stays here because a cut with no original is one nobody can
-# redo. What the frame draws is a nine-patch composed out of the pieces at
-# whatever size the chatbox actually is, because one 517x130 picture can only
-# reach a bigger box by being scaled, and a scaled tear stops looking like a
-# tear. @see mobile_compose_paper, and the cutter's own header, which explains
-# where each cut lands and why the right edge is the left edge mirrored.
+# The sheet itself is no longer loaded at runtime -- it is the source the
+# pieces come from, and it stays here because a cut with no original is one
+# nobody can redo. What the frame draws is a nine-patch composed out of them
+# at whatever size the chatbox actually is, because one 517x130 picture can
+# only reach a bigger box by being scaled, and a scaled tear stops looking
+# like a tear. @see mobile_compose_paper, and the cutter's own header, which
+# explains where each cut lands and why the right edge is the left edge
+# mirrored.
+#
+# FOUR corners (tl, tr, bl, br) are cut once each -- a corner is the one piece
+# that is not repeated, so there is nothing for a second copy to break up.
+# Every REPEATING position -- top, bottom, left, right, and the middle fill --
+# instead gets as many real, DISTINCT variants as its own source supports,
+# because one tile laid end to end is still a stamp: the eye catches the
+# interval before it catches anything else about the paper. The plugin picks
+# between a position's variants with a deterministic hash of the repeat cell,
+# so the sheet does not shimmer between two draws of the same box and does not
+# fall into one fixed A-B-C cycle either.
+#
+# How many variants exist per position is NOT a constant the cutter aims for;
+# it is the count that clears its quality gate (an alpha-weighted seam cost
+# under 6.0), and the sheet's own tear decides that count: 3 for the top edge,
+# 2 for the bottom, 1 for the left and right -- the left tear only wraps
+# cleanly in one place in this source, and a forced second variant there
+# measured twenty times the seam cost of the one real piece. The gap in the
+# numbering (chat_paper_bottom_3.png does not exist) is that limit, not a
+# missing file; mobile_gameframe.c's MOBILE_IMAGE_FILE says NULL for it rather
+# than a name that would fail to load. The fill has no such scarcity -- it is
+# grain rather than a shape, so it tolerates blending and always finds three
+# disjoint low-blotch patches to cut from.
 #
 # Recutting them means re-checking MOBILE_PAPER_FRINGE_* in
 # src/plugin/plugins/mobile_gameframe.c, which the cutter can measure off its
 # own output: `--proof <dir>` composes sheets at four sizes and prints the
 # fringe it finds in each. It is the same 17/17/21/17 the single sheet had.
+# The variant COUNTS are printed too, on every run, whether or not `--proof`
+# is given -- a recut that changes how many pieces exist at a position needs
+# no code change (MOBILE_PAPER_EDGE_VARIANTS_MAX is a ceiling, not a count
+# either), but it does mean re-checking that printed line against this
+# comment's 3/2/1/1/3 if the numbers ever seem to matter again.
 set -e
 cd "$(dirname "$0")/../../../.."
 OUT=script/plugins/assets/mobile-gameframe

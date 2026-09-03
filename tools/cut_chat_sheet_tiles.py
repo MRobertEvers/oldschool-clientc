@@ -25,11 +25,15 @@ because they fail differently:
   EDGE variants (top, bottom, left -- right is the left variants mirrored) are
   a SHAPE, the tear's silhouette, and a shape survives no blending -- so each
   variant is a distinct wrapping (start, period) pair, found by the same
-  alpha-weighted search as the original single tile, but with the period
-  FIXED to the best one found and only the start position varying. Fixing the
-  period is what keeps every variant of one edge the same size, which is what
-  lets the tiling loop step by a constant regardless of which variant lands in
-  a given cell.
+  alpha-weighted search as the original single tile. An earlier version of
+  this cutter fixed the period to the single best one found and only varied
+  the start, on the theory that a shared size makes the tiling loop simpler.
+  It does, but the theory about the ART was wrong: on this sheet the tear only
+  wraps cleanly at one exact spacing per neighbourhood, so holding the period
+  fixed and hunting for other starts at that SAME spacing found nothing decent
+  nearby and one outright bad seam far away. Each variant now picks its own
+  best period, and the tiling loop steps by whichever piece actually landed in
+  a cell rather than a size shared in advance. @see wrap_variants.
 
   The FILL variant is grain and has no shape to lose, so it is built the way
   the original single fill was: a low-blotch patch, detrended (a heavy blur
@@ -43,6 +47,16 @@ is not repeated, so there is no stamping to break up, and there is only one
 real top-left tear in the source to cut it from -- a second "variant" would
 have to be invented rather than found, which is the one thing this cutter does
 not do to art it did not draw.
+
+The COUNT at each repeating position is not a target this cutter aims for; it
+is the number of real wraps that clear a quality ceiling
+(EDGE_QUALITY_CEILING), and the source decides it: on this sheet that comes
+out to 3 for the top edge, 2 for the bottom, and 1 apiece for the left and
+right -- the left tear only wraps well in exactly one place, and its next-best
+candidate elsewhere in the band cost about twenty times as much, which is a
+worse seam than simply repeating the one real piece. A cutter that padded up
+to a fixed count regardless would have shipped that seam; this one ships fewer
+pieces instead.
 
 `--proof <dir>` composes a sheet at a few sizes with a fixed deterministic
 selection (so the output is reproducible) and prints the fringe it measures
@@ -330,11 +344,38 @@ def _tile_variants(dst, pieces, salt, x0, y0, x1, y1, axis):
             y += p.shape[0]
 
 
+def _tile_variants_2d(dst, pieces, salt, x0, y0, x1, y1):
+    """The fill: repeats along BOTH axes, picking a variant per grid cell.
+
+    Separate from `_tile_variants` because the fill is the one piece that
+    repeats in two directions at once -- an edge strip only ever needs to
+    walk along its own axis, at the strip's fixed thickness, but the middle
+    has to walk rows of columns, and a cell's variant has to be chosen once
+    per (row, column) pair rather than once per step along a single line.
+    """
+    row = 0
+    y = y0
+    while y < y1:
+        col = 0
+        x = x0
+        step_h = 0
+        while x < x1:
+            p = pieces[_variant_hash(row * 92821 + col, salt) % len(pieces)]
+            w = min(p.shape[1], x1 - x)
+            h = min(p.shape[0], y1 - y)
+            dst[y : y + h, x : x + w] = p[:h, :w]
+            step_h = p.shape[0]
+            col += 1
+            x += p.shape[1]
+        row += 1
+        y += step_h if step_h else pieces[0].shape[0]
+
+
 def compose(width, height, pieces):
     assert width >= 2 * CORNER_W
     assert height >= 2 * CORNER_H
     out = np.zeros((height, width, 4), np.int32)
-    _tile_variants(out, pieces["fill"], 0, CORNER_W, CORNER_H, width - CORNER_W, height - CORNER_H, "x")
+    _tile_variants_2d(out, pieces["fill"], 0, CORNER_W, CORNER_H, width - CORNER_W, height - CORNER_H)
     _tile_variants(out, pieces["top"], 1, CORNER_W, 0, width - CORNER_W, CORNER_H, "x")
     _tile_variants(
         out, pieces["bottom"], 2, CORNER_W, height - CORNER_H, width - CORNER_W, height, "x"
