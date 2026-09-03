@@ -82,6 +82,7 @@
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSString*>* bitmapFiles;
 @property(nonatomic, assign) BOOL ready;
 @property(nonatomic, assign) BOOL failed;
+@property(nonatomic, assign) BOOL sendFailed;
 @end
 
 static ToriRSMacPluginBrowser* g_mac_browser;
@@ -255,24 +256,33 @@ mac_url_is_below(NSURL* url, NSURL* root)
     [self.hostWindow setFrame:screen display:YES];
 }
 
-- (void)evaluateEnvelope:(NSString*)json
+- (BOOL)evaluateEnvelope:(NSString*)json
 {
     if( !json || json.length == 0 || json.length > MAC_BROWSER_JSON_MAX )
-        return;
+        return NO;
     if( !self.ready )
     {
         if( self.outbound.count >= MAC_BROWSER_QUEUE_MAX )
-            [self.outbound removeObjectAtIndex:0];
-        [self.outbound addObject:[json copy]];
-        return;
+            return NO;
+        NSString* copy = [json copy];
+        if( !copy )
+            return NO;
+        [self.outbound addObject:copy];
+        return YES;
     }
     NSString* argument = mac_javascript_argument(json);
     if( !argument )
-        return;
+        return NO;
     NSString* script = [NSString stringWithFormat:
         @"window.ToriRSPluginChrome&&window.ToriRSPluginChrome.receive((%@)[0]);",
         argument];
-    [self.view evaluateJavaScript:script completionHandler:nil];
+    if( !script || !self.view )
+        return NO;
+    [self.view evaluateJavaScript:script completionHandler:^(id result, NSError* error) {
+        if( error || ([result respondsToSelector:@selector(boolValue)] && ![result boolValue]) )
+            self.sendFailed = YES;
+    }];
+    return YES;
 }
 
 - (void)userContentController:(WKUserContentController*)controller
@@ -303,7 +313,8 @@ mac_url_is_below(NSURL* url, NSURL* root)
     NSArray<NSString*>* queued = [self.outbound copy];
     [self.outbound removeAllObjects];
     for( NSString* json in queued )
-        [self evaluateEnvelope:json];
+        if( ![self evaluateEnvelope:json] )
+            self.sendFailed = YES;
 }
 
 - (void)webView:(WKWebView*)webView
@@ -457,15 +468,30 @@ PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* platform)
                          g_mac_browser.failed);
 }
 
-void
+bool
 PlatformWindow_PluginBrowserSend(
     struct PlatformWindow* platform, char const* json)
 {
+    NSString* value;
     if( !json || strlen(json) > MAC_BROWSER_JSON_MAX ||
         !PlatformWindow_PluginBrowserEnsure(platform) )
-        return;
+        return false;
+    value = [NSString stringWithUTF8String:json];
+    if( !value )
+        return false;
     [g_mac_browser syncFrame];
-    [g_mac_browser evaluateEnvelope:[NSString stringWithUTF8String:json]];
+    return [g_mac_browser evaluateEnvelope:value] ? true : false;
+}
+
+bool
+PlatformWindow_PluginBrowserTakeSendFailure(struct PlatformWindow* platform)
+{
+    BOOL failed;
+    if( !g_mac_browser || g_mac_browser.platform != platform )
+        return false;
+    failed = g_mac_browser.sendFailed;
+    g_mac_browser.sendFailed = NO;
+    return failed ? true : false;
 }
 
 int

@@ -1332,6 +1332,7 @@ test_construction_and_basic_modules(
     struct ToriRS_PluginV2Adapter rejected;
     struct ToriRS_PluginApi wrong = *legacy;
     struct ToriRS_PluginV2AdapterHooks short_hooks = { .struct_size = 1 };
+    struct ToriRS_PluginV2AdapterHooks bad_namespace = *adapter_hooks;
     struct ToriRS_ApiV2* api;
     struct ToriRS_PluginLane lane;
     struct ToriRS_PluginPlayerSnap player;
@@ -1365,6 +1366,11 @@ test_construction_and_basic_modules(
         !ToriRS_PluginV2Adapter_Init(
             &rejected, legacy, (struct ToriRS_PluginCtx*)&context_storage, &short_hooks),
         "a truncated hook header is rejected");
+    bad_namespace.resource_namespace = 32;
+    CHECK(
+        !ToriRS_PluginV2Adapter_Init(
+            &rejected, legacy, (struct ToriRS_PluginCtx*)&context_storage, &bad_namespace),
+        "a plugin namespace outside the encoded five bits is rejected");
     CHECK(
         ToriRS_PluginV2Adapter_Init(
             adapter, legacy, (struct ToriRS_PluginCtx*)&context_storage, adapter_hooks),
@@ -1632,8 +1638,9 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
     fake.image_ready = 0;
     CHECK(
         api->assets.image(api, "orb.png", &image) == TORIRS_ASSET_PENDING && image.value > 0 &&
+            image.value != 15 &&
             ToriRS_PluginV2Adapter_ImageUnbox(adapter, image) == 14,
-        "image handle is usable while pixels remain pending");
+        "pending image uses an opaque token rather than legacy slot + 1");
     fake.image_ready = 1;
     CHECK(
         api->assets.image(api, "orb.png", &image) == TORIRS_ASSET_READY &&
@@ -1736,6 +1743,21 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
 }
 
 static void
+test_image_ref(
+    struct ToriRS_ApiV2* api,
+    char const* name,
+    int legacy,
+    struct ToriRS_ImageRef* out)
+{
+    fake.image_handle = legacy;
+    fake.image_ready = 1;
+    CHECK(
+        api->assets.image(api, name, out) == TORIRS_ASSET_READY && out->value > 0 &&
+            ToriRS_PluginV2Adapter_ImageUnbox(api->instance, *out) == legacy,
+        "test image acquires an incarnation-fenced token");
+}
+
+static void
 test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
 {
     struct ToriRS_ApiV2* api = &adapter->api;
@@ -1745,21 +1767,14 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     struct ToriRS_DrawBuilder draw;
     struct ToriRS_FrameBuilder frame;
     struct ToriRS_PanelBuilder panel;
-    struct ToriRS_FrameSkin skin = { .struct_size = sizeof(skin), .image = { 8 }, .mask = { 9 } };
+    struct ToriRS_ImageRef draw_image;
+    struct ToriRS_FrameSkin skin = { .struct_size = sizeof(skin) };
     struct ToriRS_FrameScrollbar scrollbar = {
         .struct_size = sizeof(scrollbar),
-        .up = { 2 },
-        .down = { 3 },
-        .track = { 4 },
-        .thumb = { 5 },
         .split_thumb = true,
-        .thumb_top = { 15 },
-        .thumb_middle = { 16 },
-        .thumb_bottom = { 17 },
     };
     struct ToriRS_FrameSurfaceOverlay overlay = {
         .struct_size = sizeof(overlay),
-        .image = { 20 },
         .x = 20,
         .y = 21,
         .alpha = 200,
@@ -1769,7 +1784,6 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
         .bounds = { 6, 7, 8, 9 },
         .clip = TORIRS_UI_CLIP_PARENT,
         .state_image_mask = 1u << TORIRS_UI_VISUAL_HOVER,
-        .state_images = { [TORIRS_UI_VISUAL_HOVER] = { 23 } },
         .label = "Node",
         .label_x = 4,
         .hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM,
@@ -1789,6 +1803,23 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     };
     int hook_calls;
 
+    test_image_ref(api, "draw.png", 14, &draw_image);
+    test_image_ref(api, "skin.png", 7, &skin.image);
+    test_image_ref(api, "mask.png", 8, &skin.mask);
+    test_image_ref(api, "scroll-up.png", 1, &scrollbar.up);
+    test_image_ref(api, "scroll-down.png", 2, &scrollbar.down);
+    test_image_ref(api, "scroll-track.png", 3, &scrollbar.track);
+    test_image_ref(api, "scroll-thumb.png", 4, &scrollbar.thumb);
+    test_image_ref(api, "scroll-top.png", 14, &scrollbar.thumb_top);
+    test_image_ref(api, "scroll-middle.png", 15, &scrollbar.thumb_middle);
+    test_image_ref(api, "scroll-bottom.png", 16, &scrollbar.thumb_bottom);
+    test_image_ref(api, "overlay.png", 19, &overlay.image);
+    test_image_ref(
+        api,
+        "node-hover.png",
+        22,
+        &node.state_images[TORIRS_UI_VISUAL_HOVER]);
+
     ToriRS_PluginV2Adapter_DrawBegin(adapter, &fake, &draw_scope, &draw);
     CHECK(draw.struct_size == sizeof(draw), "draw builder publishes its size");
     draw.rect(&draw, (struct ToriRS_Rect){ 1, 2, 3, 4 }, 0x112233, 77);
@@ -1797,7 +1828,7 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     CHECK(fake.last_a == 5 && fake.last_d == 8, "line builder forwards");
     draw.text(&draw, 9, 10, "text", 0x778899);
     CHECK(strcmp(fake.notification, "text") == 0 && fake.last_a == 9, "text builder forwards");
-    draw.image(&draw, (struct ToriRS_ImageRef){ 15 }, 11, 12, 200);
+    draw.image(&draw, draw_image, 11, 12, 200);
     CHECK(
         fake.last_a == 14 && fake.last_b == 11 && fake.last_e == 55,
         "image alpha becomes legacy transparency");
@@ -1858,7 +1889,8 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     frame.ui_node(&frame, "frame.minimap.housing", &node);
     CHECK(
         fake.hook_calls == hook_calls + 1 && strcmp(fake.hook_name, "frame.minimap.housing") == 0 &&
-            fake.last_a == 6 && fake.last_b == TORIRS_UI_CLIP_PARENT && fake.last_c == 23 &&
+            fake.last_a == 6 && fake.last_b == TORIRS_UI_CLIP_PARENT &&
+            fake.last_c == node.state_images[TORIRS_UI_VISUAL_HOVER].value &&
             fake.last_d == 4 && fake.last_e == 10 && fake.last_f == 2,
         "canonical frame nodes pass the complete rich descriptor to the host hook");
     frame.reason(&frame, "assets pending");
@@ -1950,6 +1982,252 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     CHECK(fake.last_a == 1, "panel attention bool forwards");
 }
 
+static void
+test_resource_ref_incarnations(struct ToriRS_PluginV2Adapter* adapter)
+{
+    struct ToriRS_ApiV2* api = &adapter->api;
+    struct ToriRS_ImageRef image_old = { 0 };
+    struct ToriRS_ImageRef image_same = { 0 };
+    struct ToriRS_ImageRef image_new = { 0 };
+    struct ToriRS_ModelRef model_old = { 0 };
+    struct ToriRS_ModelRef model_same = { 0 };
+    struct ToriRS_ModelRef model_new = { 0 };
+    struct ToriRS_MeshRef mesh_old = { 0 };
+    struct ToriRS_MeshRef mesh_new = { 0 };
+    struct ToriRS_SceneInstanceRef instance_old = { 0 };
+    struct ToriRS_SceneInstanceRef instance_new = { 0 };
+    struct ToriRS_PluginV2DrawScope draw_scope;
+    struct ToriRS_PluginV2FrameScope frame_scope;
+    struct ToriRS_DrawBuilder draw;
+    struct ToriRS_FrameBuilder frame;
+    struct ToriRS_UiNode retained = {
+        .struct_size = sizeof(retained),
+        .flags = TORIRS_UI_NODE_VISIBLE,
+    };
+    struct ToriRS_FrameSkin stale_skin = { .struct_size = sizeof(stale_skin) };
+    int before;
+    int width = 0;
+    int height = 0;
+
+    fake.image_handle = 40;
+    fake.image_ready = 1;
+    CHECK(
+        api->assets.image(api, "aba-image-a.png", &image_old) == TORIRS_ASSET_READY &&
+            api->assets.image(api, "aba-image-b.png", &image_same) == TORIRS_ASSET_READY &&
+            image_old.value == image_same.value,
+        "repeating one live legacy image returns the same current token");
+    retained.image = image_old;
+    CHECK(
+        api->ui.update(
+            api,
+            (struct ToriRS_UiNodeRef){ 91 },
+            TORIRS_UI_FACET_APPEARANCE,
+            &retained) == TORIRS_RESULT_OK,
+        "a live image token is accepted by retained ui.update");
+    before = fake.image_releases;
+    api->assets.image_release(api, image_old);
+    CHECK(
+        fake.image_releases == before + 1 &&
+            ToriRS_PluginV2Adapter_ImageUnbox(adapter, image_old) < 0,
+        "image release invalidates its exact incarnation");
+    CHECK(
+        api->assets.image(api, "aba-image-c.png", &image_new) == TORIRS_ASSET_READY &&
+            image_new.value != image_old.value &&
+            ToriRS_PluginV2Adapter_ImageUnbox(adapter, image_new) == 40,
+        "a recycled image slot receives a fresh token");
+    fake.last_a = 777;
+    CHECK(
+        !api->assets.image_size(api, image_old, &width, &height) && fake.last_a == 777,
+        "a stale image cannot measure the replacement in its legacy slot");
+    before = fake.image_draws;
+    ToriRS_PluginV2Adapter_DrawBegin(adapter, &fake, &draw_scope, &draw);
+    draw.image(&draw, image_old, 1, 2, 255);
+    CHECK(fake.image_draws == before, "a stale image cannot draw the replacement slot");
+    draw.image(&draw, image_new, 1, 2, 255);
+    CHECK(fake.image_draws == before + 1, "the replacement image's current token still draws");
+    ToriRS_PluginV2Adapter_DrawEnd(&draw_scope, &draw);
+    before = fake.hook_calls;
+    CHECK(
+        api->ui.update(
+            api,
+            (struct ToriRS_UiNodeRef){ 91 },
+            TORIRS_UI_FACET_APPEARANCE,
+            &retained) == TORIRS_RESULT_INVALID &&
+            fake.hook_calls == before,
+        "retained ui.update rejects an image incarnation after slot reuse");
+    stale_skin.image = image_old;
+    ToriRS_PluginV2Adapter_FrameBegin(adapter, &frame_scope, &frame);
+    frame.surface(&frame, TORIRS_SURFACE_VIEWPORT, (struct ToriRS_Rect){ 0, 0, 10, 10 });
+    frame.skin(&frame, TORIRS_SURFACE_COMPASS, &stale_skin);
+    CHECK(
+        !ToriRS_PluginV2Adapter_FrameValid(&frame_scope),
+        "retained frame art rejects an image incarnation after slot reuse");
+    ToriRS_PluginV2Adapter_FrameEnd(&frame_scope, &frame);
+    before = fake.image_releases;
+    api->assets.image_release(api, image_old);
+    CHECK(
+        fake.image_releases == before,
+        "releasing a stale image cannot release the replacement resource");
+
+    fake.model_handle = 41;
+    fake.asset_resident = 1;
+    CHECK(
+        api->assets.model(api, "aba-model-a.bin", &model_old) == TORIRS_ASSET_READY &&
+            api->assets.model(api, "aba-model-b.bin", &model_same) == TORIRS_ASSET_READY &&
+            model_old.value == model_same.value,
+        "repeating one live legacy model returns the same current token");
+    api->assets.model_release(api, model_old);
+    CHECK(
+        ToriRS_PluginV2Adapter_ModelUnbox(adapter, model_old) < 0,
+        "model release invalidates its exact incarnation");
+    CHECK(
+        api->assets.model(api, "aba-model-c.bin", &model_new) == TORIRS_ASSET_READY &&
+            model_new.value != model_old.value &&
+            ToriRS_PluginV2Adapter_ModelUnbox(adapter, model_new) == 41,
+        "a recycled model slot receives a fresh token");
+    before = fake.model_releases;
+    api->assets.model_release(api, model_old);
+    CHECK(
+        fake.model_releases == before,
+        "releasing a stale model cannot release the replacement resource");
+
+    fake.mesh_handle = 42;
+    fake.last_a = 0;
+    CHECK(
+        api->scene.mesh_create(api, &mesh_old) == TORIRS_RESULT_OK,
+        "mesh ABA fixture allocates its first token");
+    api->scene.mesh_destroy(api, mesh_old);
+    CHECK(
+        api->scene.mesh_create(api, &mesh_new) == TORIRS_RESULT_OK &&
+            mesh_new.value != mesh_old.value,
+        "a recycled mesh handle receives a fresh token");
+    before = fake.mesh_destroys;
+    CHECK(
+        api->scene.mesh_vertex(api, mesh_old, 1, 2, 3) == TORIRS_RESULT_INVALID,
+        "a stale mesh cannot mutate the replacement");
+    api->scene.mesh_destroy(api, mesh_old);
+    CHECK(
+        fake.mesh_destroys == before,
+        "destroying a stale mesh cannot destroy the replacement");
+
+    fake.instance_handle = 43;
+    fake.last_a = 0;
+    CHECK(
+        api->scene.instance_create(api, &instance_old) == TORIRS_RESULT_OK,
+        "scene-instance ABA fixture allocates its first token");
+    api->scene.instance_destroy(api, instance_old);
+    CHECK(
+        api->scene.instance_create(api, &instance_new) == TORIRS_RESULT_OK &&
+            instance_new.value != instance_old.value,
+        "a recycled scene-instance handle receives a fresh token");
+    CHECK(
+        api->scene.instance_position(api, instance_old, 1, 2, 0, 0, 0) ==
+                TORIRS_RESULT_INVALID &&
+            api->scene.instance_model(api, instance_new, model_old) == TORIRS_RESULT_INVALID &&
+            api->scene.instance_model(api, instance_new, model_new) == TORIRS_RESULT_OK,
+        "stale instance/model tokens cannot retarget live scene resources");
+    before = fake.instance_destroys;
+    api->scene.instance_active(api, instance_old, true);
+    api->scene.instance_destroy(api, instance_old);
+    CHECK(
+        fake.instance_destroys == before,
+        "stale instance void operations cannot affect its replacement");
+}
+
+static void
+test_resource_namespaces_and_wrap(
+    struct ToriRS_PluginApi* legacy,
+    struct ToriRS_PluginV2AdapterHooks const* base_hooks)
+{
+    struct ToriRS_PluginV2Adapter a;
+    struct ToriRS_PluginV2Adapter b;
+    struct ToriRS_PluginV2Adapter wrap;
+    struct ToriRS_PluginV2AdapterHooks a_hooks = *base_hooks;
+    struct ToriRS_PluginV2AdapterHooks b_hooks = *base_hooks;
+    struct ToriRS_PluginV2AdapterHooks wrap_hooks = *base_hooks;
+    struct ToriRS_ImageRef a_image = { 0 }, b_image = { 0 };
+    struct ToriRS_ModelRef a_model = { 0 }, b_model = { 0 };
+    struct ToriRS_MeshRef a_mesh = { 0 }, b_mesh = { 0 };
+    struct ToriRS_SceneInstanceRef a_instance = { 0 }, b_instance = { 0 };
+    struct ToriRS_ImageRef last = { 0 }, after_wrap = { 0 };
+    int width = 0;
+    int height = 0;
+
+    a_hooks.resource_namespace = 4;
+    b_hooks.resource_namespace = 5;
+    wrap_hooks.resource_namespace = 6;
+    CHECK(
+        ToriRS_PluginV2Adapter_Init(
+            &a, legacy, (struct ToriRS_PluginCtx*)&context_storage, &a_hooks) &&
+            ToriRS_PluginV2Adapter_Init(
+                &b, legacy, (struct ToriRS_PluginCtx*)&context_storage, &b_hooks),
+        "two adapter namespaces initialize independently");
+    fake.image_handle = 60;
+    fake.model_handle = 61;
+    fake.mesh_handle = 62;
+    fake.instance_handle = 63;
+    fake.image_ready = 1;
+    fake.asset_resident = 1;
+    CHECK(
+        a.api.assets.image(&a.api, "cross-a.png", &a_image) == TORIRS_ASSET_READY &&
+            b.api.assets.image(&b.api, "cross-b.png", &b_image) == TORIRS_ASSET_READY &&
+            a_image.value != b_image.value &&
+            !a.api.assets.image_size(&a.api, b_image, &width, &height),
+        "same-slot image refs from another plugin namespace are rejected");
+    {
+        int const releases = fake.image_releases;
+        a.api.assets.image_release(&a.api, b_image);
+        CHECK(
+            fake.image_releases == releases,
+            "a foreign same-slot image token cannot release its owner's resource");
+    }
+    CHECK(
+        a.api.assets.model(&a.api, "cross-a.model", &a_model) == TORIRS_ASSET_READY &&
+            b.api.assets.model(&b.api, "cross-b.model", &b_model) == TORIRS_ASSET_READY &&
+            a_model.value != b_model.value,
+        "same-slot model refs carry distinct plugin namespaces");
+    CHECK(
+        a.api.scene.mesh_create(&a.api, &a_mesh) == TORIRS_RESULT_OK &&
+            b.api.scene.mesh_create(&b.api, &b_mesh) == TORIRS_RESULT_OK &&
+            a_mesh.value != b_mesh.value &&
+            a.api.scene.mesh_vertex(&a.api, b_mesh, 1, 2, 3) == TORIRS_RESULT_INVALID,
+        "same-slot mesh refs from another plugin namespace are rejected");
+    CHECK(
+        a.api.scene.instance_create(&a.api, &a_instance) == TORIRS_RESULT_OK &&
+            b.api.scene.instance_create(&b.api, &b_instance) == TORIRS_RESULT_OK &&
+            a_instance.value != b_instance.value &&
+            a.api.scene.instance_position(&a.api, b_instance, 1, 2, 0, 0, 0) ==
+                TORIRS_RESULT_INVALID &&
+            a.api.scene.instance_model(&a.api, a_instance, b_model) == TORIRS_RESULT_INVALID,
+        "same-slot instance/model refs from another plugin namespace are rejected");
+    CHECK(
+        !a.api.assets.image_size(
+            &a.api, (struct ToriRS_ImageRef){ a_model.value }, &width, &height) &&
+            a.api.scene.mesh_vertex(
+                &a.api, (struct ToriRS_MeshRef){ a_instance.value }, 1, 2, 3) ==
+                TORIRS_RESULT_INVALID,
+        "resource-kind bits reject copied values even inside one plugin namespace");
+
+    CHECK(
+        ToriRS_PluginV2Adapter_Init(
+            &wrap, legacy, (struct ToriRS_PluginCtx*)&context_storage, &wrap_hooks),
+        "generation-wrap adapter initializes");
+    wrap.image_tokens[0].incarnation = TORIRS_PLUGIN_V2_RESOURCE_INCAR_MAX;
+    fake.image_handle = 70;
+    CHECK(
+        wrap.api.assets.image(&wrap.api, "wrap-last.png", &last) == TORIRS_ASSET_READY &&
+            last.value > 0,
+        "the last representable incarnation remains usable");
+    wrap.api.assets.image_release(&wrap.api, last);
+    CHECK(
+        wrap.image_tokens[0].retired &&
+            wrap.api.assets.image(&wrap.api, "wrap-next.png", &after_wrap) ==
+                TORIRS_ASSET_READY &&
+            after_wrap.value != last.value &&
+            ToriRS_PluginV2Adapter_ImageUnbox(&wrap, last) < 0,
+        "generation exhaustion retires a token slot instead of wrapping to an old ref");
+}
+
 int
 main(void)
 {
@@ -1970,6 +2248,8 @@ main(void)
     test_placement_and_frame(&adapter.api);
     test_assets_scene_and_cache(&adapter.api);
     test_callback_scoped_builders(&adapter);
+    test_resource_ref_incarnations(&adapter);
+    test_resource_namespaces_and_wrap(&legacy, &adapter_hooks);
 
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

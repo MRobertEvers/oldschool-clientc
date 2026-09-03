@@ -322,6 +322,15 @@ role_emit_overlay_index(
     return -1;
 }
 
+static int
+role_nodes_contain(int32_t const* nodes, int count, int32_t wanted)
+{
+    for( int i = 0; i < count; i++ )
+        if( nodes[i] == wanted )
+            return 1;
+    return 0;
+}
+
 static void
 test_role_replacement_overlay(void)
 {
@@ -500,6 +509,133 @@ test_role_replacement_overlay(void)
 }
 
 static void
+test_role_facet_suppression(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeHost host;
+    struct TestHostState state;
+    struct UITreeEmitBuffer emit;
+    struct UITreeEntityOverlay item;
+    struct UITreeRoleOverlayGroup group;
+    int32_t hits[8];
+    int32_t root, target, child, sibling;
+    uint32_t incarnation;
+    int target_x, target_y, target_w, target_h;
+    int child_x, child_y, child_w, child_h;
+    int n;
+
+    TEST_ASSERT(tree != NULL, "facet suppression tree");
+    UITree_TestHostInit(&host, &state);
+    UITree_EmitBufferInit(&emit);
+    root = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, (505 << 16), 0, 0, 180, 120);
+    target = UITree_TestPushXy(
+        tree, root, UIELEM_RS_RECT, (505 << 16) | 1, 10, 10, 100, 80);
+    child = UITree_TestPushXy(
+        tree, target, UIELEM_RS_RECT, (505 << 16) | 2, 30, 25, 30, 25);
+    sibling = UITree_TestPushXy(
+        tree, root, UIELEM_RS_RECT, (505 << 16) | 3, 130, 10, 30, 30);
+    TEST_ASSERT(root >= 0 && target >= 0 && child >= 0 && sibling >= 0,
+                "facet suppression fixture builds");
+    tree->components[target].behavior.button_type = 1;
+    tree->components[child].behavior.button_type = 1;
+    UITree_TestResolve(tree);
+    incarnation = tree->components[target].incarnation;
+    UITree_LayoutGetBounds(
+        &tree->components[target].position,
+        &target_x,
+        &target_y,
+        &target_w,
+        &target_h);
+    UITree_LayoutGetBounds(
+        &tree->components[child].position,
+        &child_x,
+        &child_y,
+        &child_w,
+        &child_h);
+    TEST_ASSERT(target_w > 2 && target_h > 2 && child_w > 2 && child_h > 2,
+                "facet suppression fixture has live boxes");
+
+    memset(&item, 0, sizeof(item));
+    item.kind = UITREE_ENTITY_OVERLAY_RECT;
+    item.w = 20;
+    item.h = 20;
+    memset(&group, 0, sizeof(group));
+    group.node_index = target;
+    group.node_incarnation = incarnation;
+    group.place = UITREE_ROLE_PLACE_SELF;
+    group.items = &item;
+    group.item_count = 1;
+    state.role_overlay_groups = &group;
+    state.role_overlay_group_count = 1;
+    state.role_anchor_seen = 1;
+
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    TEST_ASSERT(
+        role_emit_node_index(&emit, target) >= 0 &&
+            role_emit_overlay_index(&emit, &item) > role_emit_node_index(&emit, target) &&
+            role_emit_overlay_index(&emit, &item) < role_emit_node_index(&emit, child),
+        "SELF is the target's own descriptor boundary, before retained children");
+    TEST_ASSERT(
+        UITree_NodePaintsAfterRolePlacement(
+            tree, &host, child, target, incarnation, false, UITREE_ROLE_PLACE_SELF) &&
+            !UITree_NodePaintsAfterRoleBoundary(
+                tree, &host, child, target, incarnation, false),
+        "placement-aware input order distinguishes SELF from legacy additive AFTER");
+
+    TEST_ASSERT(
+        UITree_SetReplacementPaintHidden(tree, target, incarnation, 1),
+        "appearance provider suppresses only the exact target's native paint");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    TEST_ASSERT(
+        role_emit_node_index(&emit, target) < 0 &&
+            role_emit_overlay_index(&emit, &item) >= 0 &&
+            role_emit_overlay_index(&emit, &item) < role_emit_node_index(&emit, child) &&
+            role_emit_node_index(&emit, sibling) > role_emit_node_index(&emit, child),
+        "appearance-only suppression replaces base paint at SELF without pruning children");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) == target,
+        "appearance-only suppression leaves the target's native input live");
+
+    TEST_ASSERT(
+        UITree_SetReplacementInputHidden(tree, target, incarnation, 1),
+        "actions provider suppresses only the exact target's native input");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) < 0 &&
+            UITree_HitTestInteractive(tree, &host, child_x + 1, child_y + 1) == child,
+        "combined facets suppress target input but retain child input");
+    n = UITree_CollectNodesAt(
+        tree, &host, child_x + 1, child_y + 1, hits,
+        (int)(sizeof(hits) / sizeof(hits[0])));
+    TEST_ASSERT(
+        role_nodes_contain(hits, n, child) && !role_nodes_contain(hits, n, target),
+        "actions suppression removes only the target's native menu rows");
+
+    TEST_ASSERT(
+        UITree_SetReplacementPaintHidden(tree, target, incarnation, 0),
+        "appearance release restores the base paint independently");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    TEST_ASSERT(
+        role_emit_node_index(&emit, target) >= 0 &&
+            UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) < 0,
+        "actions-only suppression leaves base paint while keeping native input hidden");
+    TEST_ASSERT(
+        UITree_SetReplacementInputHidden(tree, target, incarnation, 0) &&
+            UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) == target,
+        "releasing actions suppression restores native input");
+    TEST_ASSERT(
+        !UITree_SetReplacementPaintHidden(tree, target, incarnation + 1, 1) &&
+            !UITree_SetReplacementInputHidden(tree, target, incarnation + 1, 1),
+        "stale incarnations cannot suppress recycled targets");
+
+    UITree_EmitBufferFree(&emit);
+    UITree_Free(tree);
+}
+
+static void
 test_role_boundary_deferred_drag(void)
 {
     struct UITree* tree = UITree_New(4);
@@ -673,6 +809,29 @@ test_role_boundary_input_covers(void)
                 false),
             "blank type-0 modal boundary occludes an earlier local overlay");
 
+        TEST_ASSERT(
+            UITree_SetReplacementInputHidden(
+                modal,
+                host_node,
+                modal->components[host_node].incarnation,
+                1) &&
+                UITree_PointInputCoverPaintsAfterRoleBoundary(
+                    modal,
+                    &host,
+                    100,
+                    60,
+                    ordinary_anchor,
+                    modal->components[ordinary_anchor].incarnation,
+                    false),
+            "suppressing a host's own input does not remove its mounted modal barrier");
+        TEST_ASSERT(
+            UITree_SetReplacementInputHidden(
+                modal,
+                host_node,
+                modal->components[host_node].incarnation,
+                0),
+            "modal host input suppression releases cleanly");
+
         (void)UITree_InterfaceParentSet(modal, host_uid, 603, 1);
         TEST_ASSERT(
             !UITree_PointInputCoverPaintsAfterRoleBoundary(
@@ -743,6 +902,7 @@ test_roles(void)
     test_role_dynamic_rebuild();
     test_role_slot_delegation();
     test_role_replacement_overlay();
+    test_role_facet_suppression();
     test_role_boundary_deferred_drag();
     test_role_boundary_input_covers();
     test_role_drawn_bounds_follow_scroll_and_drag();

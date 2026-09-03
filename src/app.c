@@ -28642,6 +28642,12 @@ app_minimenu_ui_pick_live(
         if( idx < 0 )
             return 0;
     }
+    /* A winning named ACTIONS facet retires the target's native rows without
+     * pruning independent descendants. An already-open native menu therefore
+     * has to revalidate this exact node against the same facet fence used by
+     * hit collection; otherwise it can fire after the provider took over. */
+    if( app->tree->components[idx].replacement_input_hidden )
+        return 0;
     if( pick->kind == UI_MINIMENU_PICK_INV_SLOT &&
         app->tree->components[idx].type == UIELEM_RS_INV )
     {
@@ -28663,7 +28669,8 @@ app_minimenu_ui_pick_live(
         int obj = 0;
         if( !UITree_ObjCellDynamicAtSlot(
                 app->tree, pick->id, pick->secondary_id, &cell, &obj, NULL) ||
-            obj <= 0 || UITree_NodeOrAncestorDisplayHidden(app->tree, cell) )
+            obj <= 0 || UITree_NodeOrAncestorDisplayHidden(app->tree, cell) ||
+            app->tree->components[cell].replacement_input_hidden )
             return 0;
         if( pick->has_node_identity && pick->node_index != cell )
             return 0;

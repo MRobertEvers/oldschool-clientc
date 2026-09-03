@@ -1866,12 +1866,19 @@ PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* p)
                   PlatformWin32Browser_Failed(p->chrome_browser));
 }
 
-void
+bool
 PlatformWindow_PluginBrowserSend(struct PlatformWindow* p, char const* json)
 {
     if( !p || !json || !PlatformWindow_PluginBrowserEnsure(p) )
-        return;
-    PlatformWin32Browser_Send(p->chrome_browser, json);
+        return false;
+    return PlatformWin32Browser_Send(p->chrome_browser, json) != 0;
+}
+
+bool
+PlatformWindow_PluginBrowserTakeSendFailure(struct PlatformWindow* p)
+{
+    return p && p->chrome_browser &&
+           PlatformWin32Browser_TakeSendFailure(p->chrome_browser) != 0;
 }
 
 int

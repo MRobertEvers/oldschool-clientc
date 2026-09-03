@@ -76,6 +76,10 @@ void
 ToriRSChromeMirror_PushIntent(
     struct ToriRSChromeMirror* mirror, struct ToriRSChromeIntent const* intent);
 
+/** Consume the one-shot indication that at least one intent did not fit. */
+int
+ToriRSChromeMirror_TakeIntentOverflow(struct ToriRSChromeMirror* mirror);
+
 /** Convenience: the three shapes an executor almost always pushes. */
 void
 ToriRSChromeMirror_PushActivate(struct ToriRSChromeMirror* mirror, int panel, int widget);

@@ -82,6 +82,10 @@ v2_resource_acquire(
     }
     if( free_slot < 0 )
         return 0;
+    /* Incarnation zero is reserved so even plugin namespace zero's first
+     * token can never be mistaken for the historical legacy-slot + 1 box. */
+    if( entries[free_slot].incarnation == 0 )
+        entries[free_slot].incarnation = 1;
     entries[free_slot].legacy = legacy;
     entries[free_slot].active = true;
     return v2_resource_encode(

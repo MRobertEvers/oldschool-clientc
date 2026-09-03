@@ -55,7 +55,8 @@
  */
 EM_JS(int, web_chrome_available, (void), {
     return (typeof window.torirsChromeOpen === 'function' &&
-            typeof window.torirsChromeApplyBatch === 'function') ? 1 : 0;
+            typeof window.torirsChromeApplyBatch === 'function' &&
+            typeof window.torirsChromeTakeDeliveryLoss === 'function') ? 1 : 0;
 });
 
 EM_JS(int, web_chrome_open, (void), {
@@ -111,15 +112,29 @@ EM_JS(void, web_chrome_rail_icon,
  * the DOM consumes. A quiet frame calls neither this nor any compatibility
  * hook, and a one-property patch crosses once.
  */
-EM_JS(void, web_chrome_apply_batch, (char const* json), {
+EM_JS(int, web_chrome_apply_batch, (char const* json), {
     try
     {
-        window.torirsChromeApplyBatch(JSON.parse(UTF8ToString(json)));
+        if( typeof window.torirsChromeApplyBatch !== 'function' )
+            return 0;
+        return window.torirsChromeApplyBatch(
+            JSON.parse(UTF8ToString(json))) === true ? 1 : 0;
     }
     catch( e )
     {
         console.warn('[torirs] chrome apply failed', e);
+        return 0;
     }
+});
+
+/* A queued transaction can be accepted before the iframe is ready and later
+ * rejected when that runtime attaches. Poll the host's one-shot loss latch so
+ * even an otherwise idle model replaces the missing transaction. */
+EM_JS(int, web_chrome_take_delivery_loss, (void), {
+    if( typeof window.torirsChromeTakeDeliveryLoss !== 'function' )
+        return 0;
+    try { return window.torirsChromeTakeDeliveryLoss() ? 1 : 0; }
+    catch( e ) { return 1; }
 });
 
 /* A dirty custom well. The hook consumes and converts the call-scoped HEAPU32
@@ -550,6 +565,11 @@ chrome_web_batch_command(
 
     if( !s->collecting || s->batch_failed )
         return;
+    if( s->batch_commands >= TORIRS_CHROME_PROTOCOL_COMMAND_MAX )
+    {
+        s->batch_failed = 1;
+        return;
+    }
     chrome_web_escape(label, (int)sizeof(label), cmd->label);
     chrome_web_escape(text, (int)sizeof(text), cmd->text);
     chrome_web_escape(detail, (int)sizeof(detail), cmd->detail);
@@ -586,14 +606,20 @@ chrome_web_batch_command(
 static void
 chrome_web_batch_end(struct ChromeWeb* s)
 {
+    int delivered = 0;
+
     if( !s->collecting )
         return;
     if( !s->batch_failed && chrome_web_batch_append(s, "]", 1) )
-        web_chrome_apply_batch(s->batch_json);
-    else
+        delivered = web_chrome_apply_batch(s->batch_json);
+    if( !delivered )
     {
         s->snapshot_needed = 1;
-        fprintf(stderr, "chrome: web transaction allocation failed; batch dropped\n");
+        /* Commands were folded into the local lifecycle mirror while the
+         * transaction was assembled. They are no more delivered than Sync's
+         * shadow is, so invalidate returned intents until the retry snapshot. */
+        chrome_web_reset_mounted(s);
+        fprintf(stderr, "chrome: web transaction rejected; requesting snapshot\n");
     }
     s->collecting = 0;
     s->batch_len = 0;
@@ -898,11 +924,19 @@ static int
 chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
 {
     struct ChromeWeb* s = user;
+    int queued;
 
     assert(s);
     assert(out);
-    if( !s->open )
+    if( !s->open || max <= 0 )
         return 0;
+
+    /* Empty an earlier partial drain before importing another browser burst;
+     * otherwise two individually bounded pulls can overflow their shared
+     * queue between the host's 16-intent Pump calls. */
+    queued = ToriRSChromeMirror_Poll(&s->mirror, out, max);
+    if( queued > 0 )
+        return queued;
 
     /* Drain the page into the mirror's queue, then hand that out: the mirror
      * already owns the shuffle-the-tail-down behaviour a partial drain needs,
@@ -974,11 +1008,12 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
              intent.y >= s->custom_height[intent.widget]) )
             continue;
         ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+    }
 
-        /* A toggle is also an activation, so the host's TakeActivated drain
-         * runs -- the same pairing the mirror's PushToggle makes. */
-        if( intent.kind == TORIRS_CHROME_INTENT_TOGGLE )
-            ToriRSChromeMirror_PushActivate(&s->mirror, intent.panel, intent.widget);
+    if( ToriRSChromeMirror_TakeIntentOverflow(&s->mirror) )
+    {
+        s->snapshot_needed = 1;
+        fprintf(stderr, "chrome: web intent queue overflow; requesting snapshot\n");
     }
 
     return ToriRSChromeMirror_Poll(&s->mirror, out, max);
@@ -1025,7 +1060,10 @@ static int
 chrome_web_take_snapshot_request(void* user)
 {
     struct ChromeWeb* s = user;
-    int const requested = s ? s->snapshot_needed : 0;
+    int requested = s ? s->snapshot_needed : 0;
+
+    if( s && web_chrome_take_delivery_loss() )
+        requested = 1;
 
     if( s )
         s->snapshot_needed = 0;

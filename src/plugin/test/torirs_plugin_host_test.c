@@ -74,6 +74,7 @@ struct FakeEngine
      * plugin's meshes go with it. */
     int model_publishes;
     int model_releases;
+    int image_releases;
     int last_model_size;
     int meshes_live;
     int mesh_creates;
@@ -1224,12 +1225,17 @@ static int g_role_replace_calls;
 static int g_role_replace_plugin = -1;
 static int g_role_replace_enabled = -1;
 static char g_role_replace_name[TORIRS_PLUGIN_ROLE_NAME_MAX];
+static int g_role_suppress_calls;
+static int g_role_suppress_paint;
+static int g_role_suppress_input;
+static char g_role_suppress_name[TORIRS_PLUGIN_ROLE_NAME_MAX];
 static int g_role_anchor_calls;
 static int g_role_anchor_resets;
 static int g_role_anchor_invalids;
 static int g_role_anchor_current_plugin = -1;
 static int g_role_anchor_replace = -1;
 static int g_role_anchor_last_replace = -1;
+static int g_role_anchor_last_place = -1;
 static int g_lane_rail_box[4];
 static int g_lane_rail_visible;
 
@@ -1340,6 +1346,25 @@ fake_role_replace(
 }
 
 static int
+fake_role_suppress_facets(
+    void* u,
+    char const* role,
+    int paint,
+    int input)
+{
+    (void)u;
+    g_role_suppress_calls++;
+    g_role_suppress_paint = paint;
+    g_role_suppress_input = input;
+    (void)snprintf(
+        g_role_suppress_name,
+        sizeof(g_role_suppress_name),
+        "%s",
+        role ? role : "");
+    return role && role_is(role);
+}
+
+static int
 fake_role_anchor(
     void* u,
     int plugin,
@@ -1347,7 +1372,6 @@ fake_role_anchor(
     int replace,
     int place)
 {
-    (void)place;
     (void)u;
     if( !role )
     {
@@ -1367,6 +1391,7 @@ fake_role_anchor(
     g_role_anchor_current_plugin = plugin;
     g_role_anchor_replace = replace;
     g_role_anchor_last_replace = replace;
+    g_role_anchor_last_place = place;
     return role_is(role);
 }
 
@@ -1530,8 +1555,9 @@ fake_image_release(
     void* u,
     int slot)
 {
-    (void)u;
+    struct FakeEngine* e = u;
     (void)slot;
+    e->image_releases++;
 }
 
 /* The icon cache's engine end. A fake objtype has no inventory model, so the
@@ -1730,6 +1756,7 @@ fake_engine(void)
     e.role_id = fake_role_id;
     e.role_slot = fake_role_slot;
     e.role_replace = fake_role_replace;
+    e.role_suppress_facets = fake_role_suppress_facets;
     e.role_anchor = fake_role_anchor;
     e.layout_set = fake_layout_set;
     e.layout_slot = fake_layout_slot;
@@ -3200,6 +3227,7 @@ enum V2TransitionMode
     V2_TRANSITION_CYCLE,
     V2_TRANSITION_FOREIGN_IMAGE,
     V2_TRANSITION_UNREADY_IMAGE,
+    V2_TRANSITION_ORPHAN_SKIN,
     V2_TRANSITION_SELECT_AUTO,
 };
 
@@ -3305,6 +3333,11 @@ v2_transition_build(
         skin.image = pending;
         frame->surface(
             frame, TORIRS_SURFACE_COMPASS, (struct ToriRS_Rect){ 600, 0, 32, 32 });
+        frame->skin(frame, TORIRS_SURFACE_COMPASS, &skin);
+    }
+    if( g_v2_transition_mode == V2_TRANSITION_ORPHAN_SKIN )
+    {
+        struct ToriRS_FrameSkin skin = { .struct_size = sizeof(skin) };
         frame->skin(frame, TORIRS_SURFACE_COMPASS, &skin);
     }
     if( g_v2_transition_mode == V2_TRANSITION_SELECT_AUTO )
@@ -3443,6 +3476,213 @@ static struct ToriRS_PluginDefV2 const V2_SEAM_PROBE = {
     },
 };
 
+/* ------------------------------------------------ resource-token ABA probe */
+
+struct V2AbaState
+{
+    struct ToriRS_ImageRef image;
+    struct ToriRS_ModelRef model;
+    struct ToriRS_MeshRef mesh;
+    struct ToriRS_SceneInstanceRef instance;
+    int phase;
+};
+
+struct V2AbaResults
+{
+    struct ToriRS_ImageRef image_old;
+    struct ToriRS_ImageRef image_new;
+    struct ToriRS_ModelRef model_old;
+    struct ToriRS_ModelRef model_new;
+    struct ToriRS_MeshRef mesh_old;
+    struct ToriRS_MeshRef mesh_new;
+    struct ToriRS_SceneInstanceRef instance_old;
+    struct ToriRS_SceneInstanceRef instance_new;
+    enum ToriRS_Result ui_install;
+    enum ToriRS_Result ui_stale;
+    enum ToriRS_Result mesh_stale;
+    enum ToriRS_Result instance_stale;
+    enum ToriRS_Result model_stale;
+    int image_stale_size;
+    int image_new_size;
+    int new_mesh_ok;
+    int new_instance_ok;
+    int new_model_ok;
+};
+
+static struct V2AbaResults g_v2_aba;
+
+static void
+v2_aba_start(struct ToriRS_ApiV2* api, void* state_ptr)
+{
+    struct V2AbaState* state = state_ptr;
+
+    (void)api->assets.image(api, "aba-old.png", &state->image);
+    (void)api->assets.model(api, "aba-old.model", &state->model);
+    (void)api->scene.mesh_create(api, &state->mesh);
+    (void)api->scene.instance_create(api, &state->instance);
+}
+
+static void
+v2_aba_logic(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_PluginEvTick const* event)
+{
+    struct V2AbaState* state = state_ptr;
+    struct ToriRS_UiNode appearance = {
+        .struct_size = sizeof(appearance),
+        .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
+    };
+    struct ToriRS_UiNodeRef const badge = api->ui.ref(api, "badge");
+    int width = 0;
+    int height = 0;
+
+    (void)event;
+    if( state->phase == 0 )
+    {
+        struct ToriRS_ImageRef same_image = { 0 };
+        struct ToriRS_ModelRef same_model = { 0 };
+
+        (void)api->assets.image(api, "aba-old.png", &same_image);
+        (void)api->assets.model(api, "aba-old.model", &same_model);
+        CHECK(
+            same_image.value == state->image.value && same_model.value == state->model.value,
+            "host requests for the same live resources preserve their current tokens");
+        appearance.image = state->image;
+        g_v2_aba.ui_install =
+            api->ui.update(api, badge, TORIRS_UI_FACET_APPEARANCE, &appearance);
+        state->phase = 1;
+        return;
+    }
+    if( state->phase == 1 )
+    {
+        g_v2_aba.image_old = state->image;
+        g_v2_aba.model_old = state->model;
+        g_v2_aba.mesh_old = state->mesh;
+        g_v2_aba.instance_old = state->instance;
+
+        api->assets.image_release(api, state->image);
+        api->assets.model_release(api, state->model);
+        api->scene.mesh_destroy(api, state->mesh);
+        api->scene.instance_destroy(api, state->instance);
+
+        (void)api->assets.image(api, "aba-new.png", &state->image);
+        (void)api->assets.model(api, "aba-new.model", &state->model);
+        (void)api->scene.mesh_create(api, &state->mesh);
+        (void)api->scene.instance_create(api, &state->instance);
+        g_v2_aba.image_new = state->image;
+        g_v2_aba.model_new = state->model;
+        g_v2_aba.mesh_new = state->mesh;
+        g_v2_aba.instance_new = state->instance;
+
+        appearance.image = g_v2_aba.image_old;
+        g_v2_aba.ui_stale =
+            api->ui.update(api, badge, TORIRS_UI_FACET_APPEARANCE, &appearance);
+        g_v2_aba.image_stale_size = api->assets.image_size(
+            api, g_v2_aba.image_old, &width, &height);
+        g_v2_aba.mesh_stale =
+            api->scene.mesh_vertex(api, g_v2_aba.mesh_old, 1, 2, 3);
+        g_v2_aba.instance_stale = api->scene.instance_position(
+            api, g_v2_aba.instance_old, 3200, 3201, 0, 0, 0);
+        g_v2_aba.model_stale = api->scene.instance_model(
+            api, g_v2_aba.instance_new, g_v2_aba.model_old);
+
+        /* Void stale operations must be no-ops too. In particular they must
+         * not destroy/release the just-reallocated same legacy slots. */
+        api->assets.image_release(api, g_v2_aba.image_old);
+        api->assets.model_release(api, g_v2_aba.model_old);
+        api->scene.mesh_destroy(api, g_v2_aba.mesh_old);
+        api->scene.instance_active(api, g_v2_aba.instance_old, true);
+        api->scene.instance_destroy(api, g_v2_aba.instance_old);
+        state->phase = 2;
+        return;
+    }
+
+    g_v2_aba.image_new_size =
+        api->assets.image_size(api, state->image, &width, &height);
+    g_v2_aba.new_mesh_ok =
+        api->scene.mesh_vertex(api, state->mesh, 4, 5, 6) == TORIRS_RESULT_OK;
+    g_v2_aba.new_instance_ok =
+        api->scene.instance_position(api, state->instance, 3202, 3203, 0, 0, 0) ==
+        TORIRS_RESULT_OK;
+    g_v2_aba.new_model_ok =
+        api->scene.instance_model(api, state->instance, state->model) == TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_FrameBuildResult
+v2_aba_frame(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_FrameBuilder* frame,
+    struct ToriRS_FrameBuildContext const* context)
+{
+    struct V2AbaState* state = state_ptr;
+    struct ToriRS_FrameSkin skin = {
+        .struct_size = sizeof(skin),
+        .image = state->image,
+    };
+    struct ToriRS_UiNode named = {
+        .struct_size = sizeof(named),
+        .bounds = { 600, 0, 32, 32 },
+        .parent = "frame.viewport",
+        .flags = TORIRS_UI_NODE_VISIBLE,
+        .image = state->image,
+    };
+
+    (void)api;
+    (void)context;
+    frame->surface(frame, TORIRS_SURFACE_VIEWPORT, (struct ToriRS_Rect){ 0, 0, 640, 480 });
+    frame->surface(frame, TORIRS_SURFACE_COMPASS, (struct ToriRS_Rect){ 600, 0, 32, 32 });
+    frame->skin(frame, TORIRS_SURFACE_COMPASS, &skin);
+    frame->ui_node(frame, "aba-art", &named);
+    return TORIRS_FRAME_READY;
+}
+
+static struct ToriRS_UiContribution const V2_ABA_UI[] = {
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "badge",
+        .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+        .facets = TORIRS_UI_FACET_ALL,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .bounds = { 10, 10, 26, 26 },
+            .parent = "frame.viewport",
+            .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
+        },
+    },
+    { .struct_size = sizeof(struct ToriRS_UiContribution) },
+};
+
+static struct ToriRS_FrameOffer const V2_ABA_FRAMES[] = {
+    {
+        .struct_size = sizeof(struct ToriRS_FrameOffer),
+        .id = "frame",
+        .title = "ABA frame",
+        .canvas = TORIRS_FRAME_CANVAS_WINDOW,
+        .min_width = 640,
+        .min_height = 480,
+        .build = v2_aba_frame,
+    },
+    { .struct_size = sizeof(struct ToriRS_FrameOffer) },
+};
+
+static struct ToriRS_PluginDefV2 const V2_ABA_PROBE = {
+    .struct_size = sizeof(V2_ABA_PROBE),
+    .id = "v2-aba",
+    .title = "V2 ABA Probe",
+    .version = "2.0.0",
+    .state_size = sizeof(struct V2AbaState),
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = v2_aba_start,
+        .on_logic_tick = v2_aba_logic,
+    },
+    .frames = V2_ABA_FRAMES,
+    .ui_contributions = V2_ABA_UI,
+    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+};
+
 /* A definition ending inside its final callback table exercises append-only
  * minor-version reads without granting access to any callback tail. */
 static struct ToriRS_PluginDefV2 const V2_PREFIX_ONLY = {
@@ -3568,6 +3808,10 @@ static enum ToriRS_Result g_present_appearance_update;
 static enum ToriRS_Result g_present_actions_update;
 static char g_present_last_action[TORIRS_UI_ACTION_MAX];
 static uint32_t g_present_v1_tag;
+static int g_present_order_count;
+static char g_present_order[8][TORIRS_UI_LABEL_MAX];
+static int g_present_reorder_requested;
+static enum ToriRS_Result g_present_reorder_result;
 
 static enum ToriRS_PluginVerdict
 present_v1_click(
@@ -3638,6 +3882,12 @@ v2_present_draw(
     (void)state;
     CHECK(api->ui.info(api, node, &info), "presenter callback receives a live semantic ref");
     draw->rect(draw, info.bounds, 0x336699u, 255);
+    if( g_present_order_count < (int)(sizeof(g_present_order) / sizeof(g_present_order[0])) )
+        (void)snprintf(
+            g_present_order[g_present_order_count++],
+            sizeof(g_present_order[0]),
+            "%s",
+            info.label);
     g_present_draws++;
 }
 
@@ -3719,6 +3969,166 @@ static struct ToriRS_PluginDefV2 const V2_PRESENT_B = {
     .version = "2.0.0",
     .ui_contributions = V2_PRESENT_B_UI,
     .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+};
+
+static void
+v2_present_reorder_logic(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_PluginEvTick const* event)
+{
+    struct ToriRS_UiNode actions = {
+        .struct_size = sizeof(actions),
+        .flags = TORIRS_UI_NODE_ENABLED,
+        .hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM,
+        .hit_rect = { 65, 18, 20, 20 },
+        .action_count = 2,
+        .actions = { "second", "first" },
+    };
+
+    (void)state;
+    (void)event;
+    if( !g_present_reorder_requested )
+        return;
+    g_present_reorder_requested = 0;
+    g_present_reorder_result = api->ui.update(
+        api,
+        api->ui.ref(api, "frame.orb.run"),
+        TORIRS_UI_FACET_ACTIONS,
+        &actions);
+}
+
+static struct ToriRS_UiContribution const V2_PRESENT_APPEARANCE_UI[] = {
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "frame.orb.run",
+        .mode = TORIRS_UI_MODIFY,
+        .facets = TORIRS_UI_FACET_APPEARANCE,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .flags = TORIRS_UI_NODE_VISIBLE,
+            .label = "appearance-only",
+        },
+    },
+    { .struct_size = sizeof(struct ToriRS_UiContribution) },
+};
+
+static struct ToriRS_UiContribution const V2_PRESENT_ACTIONS_UI[] = {
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "frame.orb.run",
+        .mode = TORIRS_UI_MODIFY,
+        .facets = TORIRS_UI_FACET_ACTIONS,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .flags = TORIRS_UI_NODE_ENABLED,
+            .hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM,
+            .hit_rect = { 65, 18, 20, 20 },
+            .action_count = 2,
+            .actions = { "first", "second" },
+        },
+    },
+    { .struct_size = sizeof(struct ToriRS_UiContribution) },
+};
+
+static struct ToriRS_PluginDefV2 const V2_PRESENT_APPEARANCE = {
+    .struct_size = sizeof(V2_PRESENT_APPEARANCE),
+    .id = "v2-present-appearance",
+    .title = "V2 Present Appearance",
+    .version = "2.0.0",
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_ui_node_draw = v2_present_draw,
+    },
+    .ui_contributions = V2_PRESENT_APPEARANCE_UI,
+    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+};
+
+static struct ToriRS_PluginDefV2 const V2_PRESENT_ACTIONS = {
+    .struct_size = sizeof(V2_PRESENT_ACTIONS),
+    .id = "v2-present-actions",
+    .title = "V2 Present Actions",
+    .version = "2.0.0",
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_logic_tick = v2_present_reorder_logic,
+        .on_ui_node_action = v2_present_action,
+    },
+    .ui_contributions = V2_PRESENT_ACTIONS_UI,
+    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+};
+
+static struct ToriRS_UiContribution const V2_PRESENT_NESTED_UI[] = {
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "frame.orb.run",
+        .mode = TORIRS_UI_MODIFY,
+        .facets = TORIRS_UI_FACET_APPEARANCE,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .flags = TORIRS_UI_NODE_VISIBLE,
+            .label = "target",
+        },
+    },
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "present.before",
+        .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+        .facets = TORIRS_UI_FACET_BOUNDS | TORIRS_UI_FACET_APPEARANCE,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .bounds = { 0, 0, 4, 4 },
+            .parent = "frame.orb.run",
+            .anchor = TORIRS_ANCHOR_TOP_LEFT,
+            .paint_order = TORIRS_UI_PAINT_BEFORE_PARENT,
+            .flags = TORIRS_UI_NODE_VISIBLE,
+            .label = "before",
+        },
+    },
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "present.before.grandchild",
+        .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+        .facets = TORIRS_UI_FACET_BOUNDS | TORIRS_UI_FACET_APPEARANCE,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .bounds = { 1, 1, 2, 2 },
+            .parent = "present.before",
+            .anchor = TORIRS_ANCHOR_TOP_LEFT,
+            .paint_order = TORIRS_UI_PAINT_BEFORE_PARENT,
+            .flags = TORIRS_UI_NODE_VISIBLE,
+            .label = "grand-before",
+        },
+    },
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "present.after",
+        .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+        .facets = TORIRS_UI_FACET_BOUNDS | TORIRS_UI_FACET_APPEARANCE,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .bounds = { 2, 2, 4, 4 },
+            .parent = "frame.orb.run",
+            .anchor = TORIRS_ANCHOR_TOP_LEFT,
+            .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,
+            .flags = TORIRS_UI_NODE_VISIBLE,
+            .label = "after",
+        },
+    },
+    { .struct_size = sizeof(struct ToriRS_UiContribution) },
+};
+
+static struct ToriRS_PluginDefV2 const V2_PRESENT_NESTED = {
+    .struct_size = sizeof(V2_PRESENT_NESTED),
+    .id = "v2-present-nested",
+    .title = "V2 Present Nested",
+    .version = "2.0.0",
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_ui_node_draw = v2_present_draw,
+    },
+    .ui_contributions = V2_PRESENT_NESTED_UI,
+    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
 };
 
 /* ------------------------------------------------------------------ tests */
@@ -5706,6 +6116,7 @@ main(void)
             V2_TRANSITION_CYCLE,
             V2_TRANSITION_FOREIGN_IMAGE,
             V2_TRANSITION_UNREADY_IMAGE,
+            V2_TRANSITION_ORPHAN_SKIN,
         };
         struct ToriRS_PluginHost* ht;
         struct ToriRS_PluginApi const* api;
@@ -5893,6 +6304,107 @@ main(void)
         PluginHost_Free(seam_host);
     }
 
+    /* ---- incarnation-fenced V2 resources survive legacy slot reuse ----- */
+    {
+        struct ToriRS_PluginHost* aba_host;
+        struct ToriRS_PluginApi const* api;
+        struct ToriRS_PluginFrameSelection selection;
+        struct ToriRS_UiNodeInfo badge_info = { .struct_size = sizeof(badge_info) };
+        struct ToriRS_UiNodeRef badge;
+        unsigned char* data;
+        int draw_before;
+
+        memset(&g_engine, 0, sizeof(g_engine));
+        memset(&g_v2_aba, 0, sizeof(g_v2_aba));
+        g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+        snprintf(
+            g_engine.frame_preference,
+            sizeof(g_engine.frame_preference),
+            "%s",
+            "v2-aba/frame");
+        g_engine.frame_preference_present = 1;
+        g_engine.frame_migration_version = 1;
+        engine = fake_engine();
+        aba_host = PluginHost_New(&engine);
+        CHECK(
+            PluginHost_RegisterV2(aba_host, &V2_ABA_PROBE) == 0,
+            "the V2 resource-incarnation probe registers");
+        PluginHost_Start(aba_host);
+
+        data = malloc(3);
+        memcpy(data, "IMG", 3);
+        PluginHost_AssetDeliver(aba_host, "v2-aba", "aba-old.png", data, 3);
+        data = malloc(5);
+        memcpy(data, "MODEL", 5);
+        PluginHost_AssetDeliver(aba_host, "v2-aba", "aba-old.model", data, 5);
+        PluginHost_FrameStart(aba_host, 1, 0);
+        PluginHost_LogicTick(aba_host, 1);
+        CHECK(
+            g_v2_aba.ui_install == TORIRS_RESULT_OK && PluginHost_FrameNeedsLayout(aba_host),
+            "live image tokens install into retained UI and frame candidates");
+        PluginHost_Layout(aba_host, 640, 480);
+        api = PluginHost_Api(aba_host);
+        api->frame_selection(PluginHost_Ctx(aba_host, 0), &selection);
+        CHECK(
+            strcmp(selection.active, "v2-aba/frame") == 0 &&
+                selection.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            "the resource probe commits image-backed frame art");
+        badge = PluginHost_UiRef(aba_host, 0, "badge");
+        CHECK(
+            PluginHost_UiInfo(aba_host, badge, &badge_info) &&
+                badge_info.state_images[TORIRS_UI_VISUAL_IDLE].value != 0,
+            "ui.update retains the first live image token");
+
+        PluginHost_LogicTick(aba_host, 2);
+        api->frame_selection(PluginHost_Ctx(aba_host, 0), &selection);
+        CHECK(
+            g_v2_aba.image_old.value != 0 &&
+                g_v2_aba.image_new.value != g_v2_aba.image_old.value &&
+                g_v2_aba.model_new.value != g_v2_aba.model_old.value &&
+                g_v2_aba.mesh_new.value != g_v2_aba.mesh_old.value &&
+                g_v2_aba.instance_new.value != g_v2_aba.instance_old.value,
+            "reallocated image/model/mesh/instance slots receive new typed tokens");
+        CHECK(
+            g_v2_aba.ui_stale == TORIRS_RESULT_INVALID && !g_v2_aba.image_stale_size &&
+                g_v2_aba.mesh_stale == TORIRS_RESULT_INVALID &&
+                g_v2_aba.instance_stale == TORIRS_RESULT_INVALID &&
+                g_v2_aba.model_stale == TORIRS_RESULT_INVALID,
+            "every stale typed resource operation fails before reaching a reused legacy slot");
+        CHECK(
+            g_engine.image_releases == 1 && g_engine.model_releases == 1 &&
+                g_engine.meshes_live == 1 && g_engine.objects_live == 1,
+            "repeated stale release/destroy calls leave all four replacements live");
+        CHECK(
+            strcmp(selection.active, "core/native") == 0 &&
+                selection.status == TORIRS_PLUGIN_FRAME_FALLBACK,
+            "releasing retained frame artwork removes the frame before its slot is reusable");
+        memset(&badge_info, 0, sizeof(badge_info));
+        badge_info.struct_size = sizeof(badge_info);
+        CHECK(
+            PluginHost_UiInfo(aba_host, badge, &badge_info) &&
+                badge_info.state_images[TORIRS_UI_VISUAL_IDLE].value ==
+                    g_v2_aba.image_old.value,
+            "the retained UI model still holds the old token, never the replacement by slot");
+
+        data = malloc(3);
+        memcpy(data, "NEW", 3);
+        PluginHost_AssetDeliver(aba_host, "v2-aba", "aba-new.png", data, 3);
+        data = malloc(5);
+        memcpy(data, "MODEL", 5);
+        PluginHost_AssetDeliver(aba_host, "v2-aba", "aba-new.model", data, 5);
+        draw_before = g_engine.draw_items;
+        PluginHost_DrawCanvas(aba_host, 640, 480);
+        CHECK(
+            g_engine.draw_items == draw_before,
+            "a retained stale UI image never draws newly published pixels from the reused slot");
+        PluginHost_LogicTick(aba_host, 3);
+        CHECK(
+            g_v2_aba.image_new_size && g_v2_aba.new_mesh_ok &&
+                g_v2_aba.new_instance_ok && g_v2_aba.new_model_ok,
+            "current replacement tokens remain usable after every stale operation");
+        PluginHost_Free(aba_host);
+    }
+
     /* ---- resolved placement revision and composed fragmented safe area -- */
     {
         struct ToriRS_PluginHost* hp;
@@ -6063,6 +6575,138 @@ main(void)
         PluginHost_Free(teardown_host);
     }
 
+    /* ---- independent named-UI facets and semantic placement --------- */
+    {
+        struct ToriRS_PluginHost* facet_host;
+        struct ToriRS_PluginEngine facet_engine;
+        uint32_t old_tag;
+        int old_actions;
+        int appearance;
+        int actions;
+        int nested;
+
+        memset(&g_engine, 0, sizeof(g_engine));
+        memset(g_slot_x, 0, sizeof(g_slot_x));
+        memset(g_slot_y, 0, sizeof(g_slot_y));
+        memset(g_slot_w, 0, sizeof(g_slot_w));
+        memset(g_slot_h, 0, sizeof(g_slot_h));
+        g_slot_w[TORIRS_PLUGIN_SLOT_CANVAS] = 100;
+        g_slot_h[TORIRS_PLUGIN_SLOT_CANVAS] = 100;
+        g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT] = 100;
+        g_slot_h[TORIRS_PLUGIN_SLOT_VIEWPORT] = 100;
+        g_slot_x[TORIRS_PLUGIN_SLOT_ORBS] = 70;
+        g_slot_y[TORIRS_PLUGIN_SLOT_ORBS] = 5;
+        g_slot_w[TORIRS_PLUGIN_SLOT_ORBS] = 25;
+        g_slot_h[TORIRS_PLUGIN_SLOT_ORBS] = 80;
+        g_role_name = "orb_run";
+        g_role_visible = 1;
+        g_role_box[0] = 72;
+        g_role_box[1] = 35;
+        g_role_box[2] = 20;
+        g_role_box[3] = 20;
+        g_role_suppress_calls = 0;
+        g_role_suppress_paint = -1;
+        g_role_suppress_input = -1;
+        g_role_suppress_name[0] = '\0';
+        g_present_draws = 0;
+        g_present_actions = 0;
+        g_present_order_count = 0;
+        g_present_reorder_requested = 0;
+        g_present_reorder_result = TORIRS_RESULT_ERROR;
+        g_hit_region_calls = 0;
+        facet_engine = fake_engine();
+        facet_host = PluginHost_New(&facet_engine);
+        appearance = PluginHost_RegisterV2(facet_host, &V2_PRESENT_APPEARANCE);
+        actions = PluginHost_RegisterV2(facet_host, &V2_PRESENT_ACTIONS);
+        nested = PluginHost_RegisterV2(facet_host, &V2_PRESENT_NESTED);
+        CHECK(
+            appearance == 0 && actions == 1 && nested == 2,
+            "independent facet presenter fixtures register");
+        PluginHost_Start(facet_host);
+        PluginHost_LayoutChanged(facet_host);
+
+        PluginHost_SetEnabled(facet_host, appearance, true);
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(facet_host) == 1 &&
+                g_role_suppress_paint == 1 && g_role_suppress_input == 0 &&
+                strcmp(g_role_suppress_name, "orb_run") == 0 &&
+                g_present_draws == 1 && g_hit_region_calls == 0,
+            "an APPEARANCE winner suppresses only native paint and presents no action surface");
+
+        PluginHost_SetEnabled(facet_host, actions, true);
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(facet_host) == 1 &&
+                g_role_suppress_paint == 1 && g_role_suppress_input == 1 &&
+                g_present_draws == 2 && g_hit_region_calls == 1,
+            "independent APPEARANCE and ACTIONS winners suppress both matching native facets");
+        old_tag = g_hit_region_tag;
+        old_actions = g_present_actions;
+        g_present_reorder_requested = 1;
+        PluginHost_LogicTick(facet_host, 1);
+        PluginHost_CanvasClick(
+            facet_host,
+            actions,
+            old_tag,
+            0,
+            g_hit_region_box[0],
+            g_hit_region_box[1]);
+        CHECK(
+            g_present_reorder_result == TORIRS_RESULT_OK &&
+                g_present_actions == old_actions,
+            "a menu row retained before ui.update cannot invoke a reordered action");
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            g_hit_region_tag != old_tag && strcmp(g_hit_region_ops[0], "second") == 0,
+            "action-content changes mint a new operation identity");
+        PluginHost_CanvasClick(
+            facet_host,
+            actions,
+            g_hit_region_tag,
+            0,
+            g_hit_region_box[0],
+            g_hit_region_box[1]);
+        CHECK(
+            g_present_actions == old_actions + 1 &&
+                strcmp(g_present_last_action, "second") == 0,
+            "the newly declared operation identity invokes its matching reordered action");
+
+        PluginHost_SetEnabled(facet_host, appearance, false);
+        old_actions = g_present_draws;
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(facet_host) == 1 &&
+                g_role_suppress_paint == 0 && g_role_suppress_input == 1 &&
+                g_present_draws == old_actions,
+            "an ACTIONS-only winner leaves native paint live");
+        PluginHost_SetEnabled(facet_host, actions, false);
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(facet_host) == 0 &&
+                g_role_suppress_paint == 0 && g_role_suppress_input == 0,
+            "provider teardown releases each native facet independently");
+
+        g_present_order_count = 0;
+        PluginHost_SetEnabled(facet_host, nested, true);
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(facet_host) == 4 &&
+                g_present_order_count == 4 &&
+                strcmp(g_present_order[0], "grand-before") == 0 &&
+                strcmp(g_present_order[1], "before") == 0 &&
+                strcmp(g_present_order[2], "target") == 0 &&
+                strcmp(g_present_order[3], "after") == 0 &&
+                g_role_anchor_last_place == PLUGIN_ANCHOR_PLACE_SELF,
+            "nested before/after presentation stays contiguous at the live target's SELF boundary");
+        PluginHost_SetEnabled(facet_host, nested, false);
+        CHECK(
+            g_role_suppress_paint == 0 && g_role_suppress_input == 0,
+            "nested provider teardown restores the target's native appearance");
+        PluginHost_Free(facet_host);
+        g_role_name = NULL;
+    }
+
     /* ---- retained named-UI presenter -------------------------------- */
     {
         struct ToriRS_PluginHost* present_host;
@@ -6098,6 +6742,9 @@ main(void)
         g_hit_region_calls = 0;
         g_hit_region_plugin = -1;
         g_hit_region_tag = 0;
+        g_role_suppress_calls = 0;
+        g_role_suppress_paint = -1;
+        g_role_suppress_input = -1;
         g_present_draws = 0;
         g_present_actions = 0;
         g_present_foreign_update = TORIRS_RESULT_ERROR;
@@ -6124,8 +6771,9 @@ main(void)
         PluginHost_DrawCanvas(present_host, 100, 100);
         CHECK(
             PluginHost_UiPresentationCount(present_host) == 0 &&
-                g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls,
-            "two conflicting providers leave the base result and neither draws nor acts");
+                g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls &&
+                g_role_suppress_paint != 1 && g_role_suppress_input != 1,
+            "two conflicting providers leave base paint/input and neither draws nor acts");
         rebuilds = PluginHost_UiPresentationRebuilds(present_host);
         PluginHost_DrawCanvas(present_host, 100, 100);
         CHECK(
@@ -6149,7 +6797,8 @@ main(void)
                 g_hit_region_box[0] == 70 && g_hit_region_box[1] == 18 &&
                 g_hit_region_box[2] == 15 && g_hit_region_box[3] == 20 &&
                 g_hit_region_op_count == 2 &&
-                strcmp(g_hit_region_ops[0], "inspect") == 0,
+                strcmp(g_hit_region_ops[0], "inspect") == 0 &&
+                g_role_suppress_paint == 1 && g_role_suppress_input == 1,
             "one winning provider yields exactly one visual callback, label, and hit region");
         CHECK(
             (g_hit_region_tag & 0x80000000u) != 0,
@@ -6185,12 +6834,14 @@ main(void)
         PluginHost_DrawCanvas(present_host, 100, 100);
         CHECK(
             PluginHost_UiPresentationCount(present_host) == 0 &&
-                g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls,
-            "restoring the contender deterministically returns to conflict without double paint");
+                g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls &&
+                g_role_suppress_paint == 0 && g_role_suppress_input == 0,
+            "restoring the contender returns to conflict and restores base facets");
         PluginHost_SetEnabled(present_host, present_b, false);
         PluginHost_DrawCanvas(present_host, 100, 100);
         CHECK(
-            PluginHost_UiPresentationCount(present_host) == 1 && g_present_draws == 4,
+            PluginHost_UiPresentationCount(present_host) == 1 && g_present_draws == 4 &&
+                g_role_suppress_paint == 1 && g_role_suppress_input == 1,
             "tearing the contender down restores the sole winner exactly once");
         PluginHost_SetEnabled(present_host, present_a, false);
         draw_items = g_engine.draw_items;
@@ -6198,8 +6849,9 @@ main(void)
         PluginHost_DrawCanvas(present_host, 100, 100);
         CHECK(
             PluginHost_UiPresentationCount(present_host) == 0 &&
-                g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls,
-            "winner teardown removes retained visuals and actions together");
+                g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls &&
+                g_role_suppress_paint == 0 && g_role_suppress_input == 0,
+            "winner teardown removes retained visuals/actions and restores base facets");
         PluginHost_Free(present_host);
         g_role_name = NULL;
     }

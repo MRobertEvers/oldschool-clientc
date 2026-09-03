@@ -1393,6 +1393,70 @@ dbg_options_hash(char const* const* options, int option_count)
     return hash;
 }
 
+/** The one option-list bound shared by the retained model and wire runtime. */
+static int
+dbg_option_count(char const* const* options, int option_count)
+{
+    if( !options || option_count <= 0 )
+        return 0;
+    return option_count > TORIRS_CHROME_OPTION_MAX
+               ? TORIRS_CHROME_OPTION_MAX
+               : option_count;
+}
+
+/** Clamp one borrowed list against both its own and the page-wide budget. */
+static int
+dbg_legacy_option_count(
+    struct ToriRSChrome const* ui,
+    int widget,
+    char const* const* options,
+    int option_count)
+{
+    int old_count = 0;
+    int used;
+    int available;
+    int count = dbg_option_count(options, option_count);
+
+    assert(ui);
+    if( dbg_valid_widget(ui, widget) && !ui->widgets[widget].structured_options )
+        old_count = ui->widgets[widget].option_count;
+    used = ui->legacy_option_count - old_count;
+    if( used < 0 )
+        used = 0;
+    available = TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX - used;
+    if( available < 0 )
+        available = 0;
+    return count < available ? count : available;
+}
+
+/** Account an atomically replaced borrowed list after its new count is known. */
+static void
+dbg_legacy_options_commit(struct ToriRSChrome* ui, int widget, int count)
+{
+    int old_count = 0;
+
+    assert(ui);
+    assert(count >= 0 && count <= TORIRS_CHROME_OPTION_MAX);
+    if( dbg_valid_widget(ui, widget) && !ui->widgets[widget].structured_options )
+        old_count = ui->widgets[widget].option_count;
+    ui->legacy_option_count -= old_count;
+    if( ui->legacy_option_count < 0 )
+        ui->legacy_option_count = 0;
+    ui->legacy_option_count += count;
+    assert(ui->legacy_option_count <= TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX);
+}
+
+static void
+dbg_legacy_options_release(struct ToriRSChrome* ui, int widget)
+{
+    if( dbg_valid_widget(ui, widget) && !ui->widgets[widget].structured_options )
+    {
+        ui->legacy_option_count -= ui->widgets[widget].option_count;
+        if( ui->legacy_option_count < 0 )
+            ui->legacy_option_count = 0;
+    }
+}
+
 static void
 dbg_hash_text(uint64_t* hash, char const* text, int limit)
 {
@@ -1683,6 +1747,7 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->colorpick_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
     ui->widget_count = 0;
     ui->select_option_count = 0;
+    ui->legacy_option_count = 0;
     /* The whole array is gone, so the free list that indexed into it is too --
      * leaving it would hand out slots above the new high-water mark. */
     ui->free_widget = -1;
@@ -2097,6 +2162,7 @@ ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget)
         return;
     p = &ui->panels[ui->widgets[widget].panel];
     dbg_change_widget_remove(ui, widget);
+    dbg_legacy_options_release(ui, widget);
     if( ui->widgets[widget].structured_options )
         (void)dbg_structured_options_replace(ui, widget, NULL, 0);
 
@@ -2149,6 +2215,7 @@ ToriRSChrome_PanelClearWidgets(struct ToriRSChrome* ui, int panel)
         int const next = ui->widgets[widget].next;
         dbg_change_widget_remove(ui, widget);
         dbg_widget_forget(ui, widget);
+        dbg_legacy_options_release(ui, widget);
         if( ui->widgets[widget].structured_options )
             (void)dbg_structured_options_replace(ui, widget, NULL, 0);
         memset(&ui->widgets[widget], 0, sizeof(ui->widgets[widget]));
@@ -2727,11 +2794,14 @@ ToriRSChrome_Dropdown(
     int selected)
 {
     int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_DROPDOWN);
+    int count;
     if( h < 0 )
         return -1;
+    count = dbg_legacy_option_count(ui, h, options, option_count);
+    dbg_legacy_options_commit(ui, h, count);
     dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
     ui->widgets[h].options = options;
-    ui->widgets[h].option_count = options && option_count > 0 ? option_count : 0;
+    ui->widgets[h].option_count = count;
     ui->widgets[h].options_hash =
         dbg_options_hash(options, ui->widgets[h].option_count);
     ui->widgets[h].selected = selected;
@@ -2760,7 +2830,7 @@ ToriRSChrome_DropdownSetOptions(
     if( !dbg_valid_widget(ui, widget) )
         return;
     w = &ui->widgets[widget];
-    count = options && option_count > 0 ? option_count : 0;
+    count = dbg_legacy_option_count(ui, widget, options, option_count);
     options_hash = dbg_options_hash(options, count);
     if( selected >= count )
         selected = count - 1;
@@ -2777,6 +2847,7 @@ ToriRSChrome_DropdownSetOptions(
      * one stable palette to another may retire the old storage immediately. */
     if( w->structured_options )
         (void)dbg_structured_options_replace(ui, widget, NULL, 0);
+    dbg_legacy_options_commit(ui, widget, count);
     w->structured_options = 0;
     w->structured_option_first = -1;
     w->selected_value[0] = '\0';
@@ -2881,6 +2952,7 @@ ToriRSChrome_DropdownSetStructuredOptions(
         return;
     if( !dbg_structured_options_replace(ui, widget, options, option_count) )
         return;
+    dbg_legacy_options_release(ui, widget);
     dropdown->structured_options = 1;
     dropdown->options = NULL;
     dropdown->option_count = option_count;
@@ -3022,19 +3094,22 @@ ToriRSChrome_Tabs(
     int selected)
 {
     int h;
+    int count;
 
     assert(ui);
     assert(titles || title_count == 0);
     h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_TABSTRIP);
     if( h < 0 )
         return -1;
+    count = dbg_legacy_option_count(ui, h, titles, title_count);
+    dbg_legacy_options_commit(ui, h, count);
     ui->widgets[h].options = titles;
-    ui->widgets[h].option_count = title_count;
-    ui->widgets[h].options_hash = dbg_options_hash(titles, title_count);
+    ui->widgets[h].option_count = count;
+    ui->widgets[h].options_hash = dbg_options_hash(titles, count);
     /* The strip belongs to no tab: one that stamped itself with tab 0 would
      * vanish the moment tab 1 was chosen, taking the only way back with it. */
     ui->widgets[h].tab = -1;
-    if( selected < 0 || selected >= title_count )
+    if( selected < 0 || selected >= count )
         selected = 0;
     ui->widgets[h].selected = selected;
     ui->panels[panel].active_tab = selected;
@@ -3055,6 +3130,7 @@ ToriRSChrome_TabsSetTitles(
     struct ToriRSChromeWidget* w;
     uint64_t options_hash;
     uint32_t flags = 0;
+    int count;
     int old_selected;
 
     assert(ui);
@@ -3062,17 +3138,19 @@ ToriRSChrome_TabsSetTitles(
     if( !dbg_valid_widget(ui, widget) )
         return;
     w = &ui->widgets[widget];
-    options_hash = dbg_options_hash(titles, title_count);
+    count = dbg_legacy_option_count(ui, widget, titles, title_count);
+    options_hash = dbg_options_hash(titles, count);
     old_selected = w->selected;
-    if( w->option_count != title_count || w->options_hash != options_hash )
+    if( w->option_count != count || w->options_hash != options_hash )
         flags |= TORIRS_CHROME_CHANGE_WIDGET_OPTIONS;
     w->options = titles;
     if( flags == 0 )
         return;
-    w->option_count = title_count;
+    dbg_legacy_options_commit(ui, widget, count);
+    w->option_count = count;
     w->options_hash = options_hash;
-    if( w->selected >= title_count )
-        w->selected = title_count > 0 ? title_count - 1 : 0;
+    if( w->selected >= count )
+        w->selected = count > 0 ? count - 1 : 0;
     if( old_selected != w->selected )
         flags |= TORIRS_CHROME_CHANGE_WIDGET_SELECTED;
     ui->panels[w->panel].active_tab = w->selected;

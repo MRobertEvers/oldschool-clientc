@@ -5,12 +5,16 @@ Targets: the three armv7 kernel families under `3rd/toridraw/`:
 
 | family | files | in the Moto X client frame? |
 |---|---|---|
-| projection | `impl/projection/projection.perspective.prepared.neon32.impl.h`, `zdiv/projection.zdiv.neon32.u.c`, `projection.bound.neon32.u.c` | yes — kernel 0.86 + cull 0.37 + shell 0.34 ms |
-| face sort + cull | `impl/facesort/facesort.bitonic_radix.small.neon32.u.c`, `…dispatch.u.c` (radix, tile leaf, compaction) | yes — ~2.0 ms |
+| projection | `impl/projection/projection.perspective.prepared.neon32.impl.h`, `zdiv/projection.zdiv.neon32.u.c`, `projection.bound.neon32.u.c` | yes — **1.68 ms/frame** of CPU across both threads (kr1, §M) |
+| face sort + cull | `impl/facesort/facesort.bitonic_radix.small.neon32.u.c`, `…dispatch.u.c` (radix, tile leaf, compaction) | yes — **2.88 ms/frame** across both threads (kr1, §M) |
 | raster | `impl/raster/asm/tri.{flat,gouraudhsllightness,tex}.aarch32.S`, `graphics/raster/edge_slopes_aarch32.inc` | **no** — the client renders through GLES2; these run only on the soft3d lane and in `toridraw_presorted_neon_test` |
 
-Frame numbers are from `FRAME_BUDGET_PLAN.md` (p3a, 13.7 ms/frame). 1 ms = 1.728 M cycles.
-Every estimate below is labelled as such; nothing here has been measured on the phone yet.
+1 ms = 1.728 M cycles. Sections 1–10 were written from `FINDINGS.md` and the source
+before anything was measured; **§M (below §0) is the 2026-09-03 phone profile** of the
+current `--gles2-dualcore` client, with PMU counters, and each later section carries a
+`Measured:` note where the profile confirms, sizes, or retires its estimate. Where the
+two disagree, §M wins. Older frame numbers quoted in §§3–4 are from `FRAME_BUDGET_PLAN.md`
+(p3a, single-threaded, 13.7 ms/frame) and are labelled as such.
 
 ---
 

@@ -68,9 +68,10 @@ struct ToriRS_PlacementAreaRef
     uint32_t value;
 };
 
-/* Resource references are uniformly zero-invalid and 1-based. A zeroed state
- * or descriptor therefore owns no accidental legacy handle. Boxing is an
- * adapter/host detail and never leaks into plugin code. */
+/* Resource references are uniformly zero-invalid, positive opaque tokens. A
+ * zeroed state or descriptor therefore owns no accidental resource. Slot,
+ * plugin-instance and incarnation encoding is an adapter/host detail and
+ * never leaks into plugin code. */
 struct ToriRS_ImageRef
 {
     int value;

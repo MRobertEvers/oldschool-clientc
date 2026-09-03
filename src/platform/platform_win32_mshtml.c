@@ -70,6 +70,7 @@ struct PlatformWin32Browser
     int com_initialized;
     int ready;
     int failed;
+    int send_failed;
     int ready_probe_count;
     int width;
     int height;
@@ -508,14 +509,18 @@ static int navigation_allowed(
            local_page_url(s, uri);
 }
 
-static void browser_exec(struct PlatformWin32Browser* s, char const* json);
+static int browser_exec(struct PlatformWin32Browser* s, char const* json);
 
 static void inject_bridge(struct PlatformWin32Browser* s)
 {
     static char const script[] =
         "window.torirsPluginChromePostMessage=function(s){"
         "try{return window.external.postMessage(String(s));}catch(e){return false;}};";
-    browser_exec(s, script);
+    if( !browser_exec(s, script) )
+    {
+        s->failed = 1;
+        return;
+    }
     s->ready = 1;
     for( int i = 0; i < s->inbound_count; i++ )
     {
@@ -527,9 +532,12 @@ static void inject_bridge(struct PlatformWin32Browser* s)
             snprintf(call, size,
                 "window.ToriRSPluginChrome&&window.ToriRSPluginChrome.receive(%s);",
                 message);
-            browser_exec(s, call);
+            if( !browser_exec(s, call) )
+                s->send_failed = 1;
             free(call);
         }
+        else
+            s->send_failed = 1;
         free(message);
         s->inbound[i] = NULL;
     }
@@ -673,26 +681,28 @@ static IHTMLWindow2* document_window(struct PlatformWin32Browser* s)
     return window;
 }
 
-static void browser_exec(struct PlatformWin32Browser* s, char const* script)
+static int browser_exec(struct PlatformWin32Browser* s, char const* script)
 {
     WCHAR* wide = wide_from_utf8(script);
     IHTMLWindow2* window;
     BSTR code;
     BSTR language;
     VARIANT result;
-    if( !wide ) return;
+    HRESULT hr = E_FAIL;
+    if( !wide ) return 0;
     window = document_window(s);
-    if( !window ) { free(wide); return; }
+    if( !window ) { free(wide); return 0; }
     code = SysAllocString(wide);
     language = SysAllocString(L"javascript");
     VariantInit(&result);
     if( code && language )
-        IHTMLWindow2_execScript(window, code, language, &result);
+        hr = IHTMLWindow2_execScript(window, code, language, &result);
     VariantClear(&result);
     SysFreeString(language);
     SysFreeString(code);
     IHTMLWindow2_Release(window);
     free(wide);
+    return SUCCEEDED(hr);
 }
 
 static HRESULT browser_navigate(struct PlatformWin32Browser* s)
@@ -832,30 +842,41 @@ PlatformWin32Browser_Resize(struct PlatformWin32Browser* s, int width, int heigh
     }
 }
 
-void
+int
 PlatformWin32Browser_Send(struct PlatformWin32Browser* s, char const* json)
 {
     size_t size;
     char* call;
     char* copy;
-    if( !s || !json || !json[0] || strlen(json) > MSHTML_JSON_MAX ) return;
+    if( !s || !json || !json[0] || strlen(json) > MSHTML_JSON_MAX ) return 0;
     browser_try_ready(s);
     if( !s->ready )
     {
-        if( s->inbound_count >= MSHTML_INBOUND_MAX ) return;
+        if( s->inbound_count >= MSHTML_INBOUND_MAX ) return 0;
         copy = (char*)malloc(strlen(json) + 1);
-        if( !copy ) return;
+        if( !copy ) return 0;
         strcpy(copy, json);
         s->inbound[s->inbound_count++] = copy;
-        return;
+        return 1;
     }
     size = strlen(json) + 96;
     call = (char*)malloc(size);
-    if( !call ) return;
+    if( !call ) return 0;
     snprintf(call, size,
         "window.ToriRSPluginChrome&&window.ToriRSPluginChrome.receive(%s);", json);
-    browser_exec(s, call);
-    free(call);
+    {
+        int const sent = browser_exec(s, call);
+        free(call);
+        return sent;
+    }
+}
+
+int
+PlatformWin32Browser_TakeSendFailure(struct PlatformWin32Browser* s)
+{
+    int failed = s ? s->send_failed : 0;
+    if( s ) s->send_failed = 0;
+    return failed;
 }
 
 static char* browser_pull(struct PlatformWin32Browser* s)

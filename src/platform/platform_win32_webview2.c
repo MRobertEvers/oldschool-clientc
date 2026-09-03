@@ -43,6 +43,7 @@ struct PlatformWin32Browser
     int com_initialized;
     int ready;
     int failed;
+    int send_failed;
     int closing;
     int loading_page;
     int width;
@@ -222,28 +223,31 @@ static void outbound_push(struct PlatformWin32Browser* s, WCHAR const* message)
     s->outbound[s->outbound_count++] = copy;
 }
 
-static void execute_json(struct PlatformWin32Browser* s, char const* json)
+static int execute_json(struct PlatformWin32Browser* s, char const* json)
 {
     size_t size;
     char* script;
     WCHAR* wide;
-    if( !s->core || !json ) return;
+    HRESULT hr = E_FAIL;
+    if( !s->core || !json ) return 0;
     size = strlen(json) + 96;
     script = (char*)malloc(size);
-    if( !script ) return;
+    if( !script ) return 0;
     snprintf(script, size,
         "window.ToriRSPluginChrome&&window.ToriRSPluginChrome.receive(%s);", json);
     wide = wide_from_utf8(script);
-    if( wide ) ICoreWebView2_ExecuteScript(s->core, wide, NULL);
+    if( wide ) hr = ICoreWebView2_ExecuteScript(s->core, wide, NULL);
     free(wide);
     free(script);
+    return SUCCEEDED(hr);
 }
 
 static void flush_inbound(struct PlatformWin32Browser* s)
 {
     for( int i = 0; i < s->inbound_count; i++ )
     {
-        execute_json(s, s->inbound[i]);
+        if( !execute_json(s, s->inbound[i]) )
+            s->send_failed = 1;
         free(s->inbound[i]);
         s->inbound[i] = NULL;
     }
@@ -687,17 +691,26 @@ PlatformWin32Browser_Resize(struct PlatformWin32Browser* s, int width, int heigh
     set_bounds(s);
 }
 
-void
+int
 PlatformWin32Browser_Send(struct PlatformWin32Browser* s, char const* json)
 {
     char* copy;
-    if( !s || !json || !json[0] || strlen(json) > WV2_JSON_MAX ) return;
-    if( s->ready ) { execute_json(s, json); return; }
-    if( s->inbound_count >= WV2_INBOUND_MAX ) return;
+    if( !s || !json || !json[0] || strlen(json) > WV2_JSON_MAX ) return 0;
+    if( s->ready ) return execute_json(s, json);
+    if( s->inbound_count >= WV2_INBOUND_MAX ) return 0;
     copy = (char*)malloc(strlen(json) + 1);
-    if( !copy ) return;
+    if( !copy ) return 0;
     strcpy(copy, json);
     s->inbound[s->inbound_count++] = copy;
+    return 1;
+}
+
+int
+PlatformWin32Browser_TakeSendFailure(struct PlatformWin32Browser* s)
+{
+    int failed = s ? s->send_failed : 0;
+    if( s ) s->send_failed = 0;
+    return failed;
 }
 
 int
@@ -777,8 +790,10 @@ void PlatformWin32Browser_Free(struct PlatformWin32Browser* browser)
 { free(browser); }
 void PlatformWin32Browser_Resize(struct PlatformWin32Browser* b, int w, int h)
 { (void)b; (void)w; (void)h; }
-void PlatformWin32Browser_Send(struct PlatformWin32Browser* b, char const* json)
-{ (void)b; (void)json; }
+int PlatformWin32Browser_Send(struct PlatformWin32Browser* b, char const* json)
+{ (void)b; (void)json; return 0; }
+int PlatformWin32Browser_TakeSendFailure(struct PlatformWin32Browser* b)
+{ (void)b; return 0; }
 int PlatformWin32Browser_Poll(struct PlatformWin32Browser* b, char* out, int cap)
 { (void)b; (void)out; (void)cap; return 0; }
 int PlatformWin32Browser_Ready(struct PlatformWin32Browser const* b)

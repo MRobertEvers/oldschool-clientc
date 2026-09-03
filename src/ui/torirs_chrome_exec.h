@@ -46,6 +46,9 @@
 /** Bytes of one command's string payload, terminator included. */
 #define TORIRS_CHROME_TEXT_MAX TORIRS_CHROME_INPUT_MAX
 
+/** Complete atomic transaction capacity shared by WEB and BROWSER. */
+#define TORIRS_CHROME_PROTOCOL_COMMAND_MAX 8192
+
 /**
  * A LISTROW's SHAPE, carried in TORIRS_CHROME_CMD_WIDGET_ADD's `w`.
  *

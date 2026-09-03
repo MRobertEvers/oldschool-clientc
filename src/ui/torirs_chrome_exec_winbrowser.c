@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WINBROWSER_COMMAND_MAX 8192
+#define WINBROWSER_COMMAND_MAX TORIRS_CHROME_PROTOCOL_COMMAND_MAX
 #define WINBROWSER_RAW_MAX (8 * 1024 * 1024)
 #define WINBROWSER_RAIL_INTENT_MAX 32
 
@@ -158,33 +158,37 @@ static uint32_t effective_page_generation(struct WinBrowserExec const* s)
     return s->page_generation ? s->page_generation : s->shell_generation;
 }
 
-static void send_json(struct WinBrowserExec* s, struct WinBrowserJson* json)
+static int send_json(struct WinBrowserExec* s, struct WinBrowserJson* json)
 {
+    int sent = 0;
     if( !json->failed && json->data && json->size )
-        PlatformWindow_PluginBrowserSend(s->platform, json->data);
+        sent = PlatformWindow_PluginBrowserSend(s->platform, json->data) ? 1 : 0;
     json_free(json);
+    return sent;
 }
 
-static void send_page_json(struct WinBrowserExec* s, struct WinBrowserJson* json)
+static int send_page_json(struct WinBrowserExec* s, struct WinBrowserJson* json)
 {
+    int sent = 0;
     if( !json->failed && json->data && json->size )
-        PlatformWindow_PluginBrowserSend(s->platform, json->data);
+        sent = PlatformWindow_PluginBrowserSend(s->platform, json->data) ? 1 : 0;
     /* Keep the grown allocation for the next retained delta. Ownership stays
      * with the one process-global browser executor. */
     s->page_json = json->data;
     s->page_json_capacity = json->capacity;
     memset(json, 0, sizeof(*json));
+    return sent;
 }
 
-static void send_page_close_generation(
+static int send_page_close_generation(
     struct WinBrowserExec* s, uint32_t generation)
 {
     struct WinBrowserJson json = { 0 };
-    if( !generation ) return;
+    if( !generation ) return 1;
     json_appendf(&json,
         "{\"protocol\":1,\"type\":\"page.close\",\"pageGeneration\":%u}",
         (unsigned)generation);
-    send_json(s, &json);
+    return send_json(s, &json);
 }
 
 static void reset_mounted_page(struct WinBrowserExec* s)
@@ -234,8 +238,10 @@ static void send_theme(struct WinBrowserExec* s)
         "\"frameBottom\":\"skin/FrameBottom.png\","
         "\"frameBottomRight\":\"skin/FrameBottomRight.png\"}}";
     if( s->theme_sent ) return;
-    PlatformWindow_PluginBrowserSend(s->platform, theme);
-    s->theme_sent = 1;
+    if( PlatformWindow_PluginBrowserSend(s->platform, theme) )
+        s->theme_sent = 1;
+    else
+        s->snapshot_needed = 1;
 }
 
 static int selected_width(
@@ -311,7 +317,8 @@ static void browser_rail_sync(
         json_appendf(&json, ",\"attention\":%s}", entry->attention ? "true" : "false");
     }
     json_append(&json, "]}");
-    send_json(s, &json);
+    if( !send_json(s, &json) )
+        s->snapshot_needed = 1;
 }
 
 static void browser_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon)
@@ -336,7 +343,8 @@ static void browser_rail_icon(void* user, struct ToriRSChromeRailIcon const* ico
         icon->plugin_index, (unsigned)icon->revision, icon->width, icon->height);
     json_string(&json, url);
     json_append(&json, "}");
-    send_json(s, &json);
+    if( !send_json(s, &json) )
+        s->snapshot_needed = 1;
 }
 
 static int browser_begin(void* user)
@@ -371,7 +379,7 @@ static void append_command(
     json_appendf(json, ",\"s\":%u}", (unsigned)cmd->serial);
 }
 
-static void send_batch(struct WinBrowserExec* s)
+static int send_batch(struct WinBrowserExec* s)
 {
     struct WinBrowserJson json = {
         .data = s->page_json,
@@ -382,13 +390,15 @@ static void send_batch(struct WinBrowserExec* s)
     if( s->command_overflow )
     {
         s->snapshot_needed = 1;
-        return;
+        reset_mounted_page(s);
+        return 0;
     }
-    if( s->command_count <= 0 ) return;
+    if( s->command_count <= 0 ) return 1;
     if( !generation )
     {
         s->snapshot_needed = 1;
-        return;
+        reset_mounted_page(s);
+        return 0;
     }
     if( s->first_batch )
     {
@@ -415,9 +425,16 @@ static void send_batch(struct WinBrowserExec* s)
         append_command(&json, &s->commands[i]);
     }
     json_append(&json, "]}");
-    if( !json.failed ) s->first_batch = 0;
-    else s->snapshot_needed = 1;
-    send_page_json(s, &json);
+    if( send_page_json(s, &json) )
+    {
+        s->first_batch = 0;
+        return 1;
+    }
+    s->snapshot_needed = 1;
+    /* The page kept its previous transaction, so reject every identity folded
+     * into this speculative local mirror until a full snapshot succeeds. */
+    reset_mounted_page(s);
+    return 0;
 }
 
 static void browser_apply(void* user, struct ToriRSChromeCmd const* cmd)
@@ -463,7 +480,7 @@ static void browser_apply(void* user, struct ToriRSChromeCmd const* cmd)
     }
     if( cmd->kind == TORIRS_CHROME_CMD_SYNC_END )
     {
-        if( s->collecting ) send_batch(s);
+        if( s->collecting ) (void)send_batch(s);
         s->collecting = 0;
         s->command_count = 0;
         return;
@@ -630,6 +647,11 @@ static void drain_messages(struct WinBrowserExec* s)
 {
     for( int guard = 0; guard < 64; guard++ )
     {
+        /* Leave unread platform messages queued while widget intents await
+         * the host. The next Pump drains these before importing another
+         * burst, so normal traffic cannot overflow the bounded mirror. */
+        if( s->mirror.intent_count >= TORIRS_CHROME_MIRROR_INTENTS )
+            break;
         int const length = PlatformWindow_PluginBrowserPoll(
             s->platform, s->raw, (int)sizeof(s->raw));
         if( length <= 0 ) break;
@@ -706,16 +728,22 @@ static void drain_messages(struct WinBrowserExec* s)
                  intent.y >= s->custom_height[intent.widget]) )
                 continue;
             ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
-            if( intent.kind == TORIRS_CHROME_INTENT_TOGGLE )
-                ToriRSChromeMirror_PushActivate(&s->mirror, intent.panel, intent.widget);
         }
+    }
+    if( ToriRSChromeMirror_TakeIntentOverflow(&s->mirror) )
+    {
+        s->snapshot_needed = 1;
+        fprintf(stderr, "chrome: browser intent queue overflow; requesting snapshot\n");
     }
 }
 
 static int browser_poll(void* user, struct ToriRSChromeIntent* out, int max)
 {
     struct WinBrowserExec* s = user;
+    int queued;
     if( !s || !out || max <= 0 ) return 0;
+    queued = ToriRSChromeMirror_Poll(&s->mirror, out, max);
+    if( queued > 0 ) return queued;
     drain_messages(s);
     return ToriRSChromeMirror_Poll(&s->mirror, out, max);
 }
@@ -775,13 +803,16 @@ static void browser_custom_present(
         frame->width, frame->height);
     json_string(&json, url);
     json_append(&json, "}");
-    send_json(s, &json);
+    if( !send_json(s, &json) )
+        s->snapshot_needed = 1;
 }
 
 static int browser_take_snapshot_request(void* user)
 {
     struct WinBrowserExec* s = user;
-    int const requested = s ? s->snapshot_needed : 0;
+    int requested = s ? s->snapshot_needed : 0;
+    if( s && PlatformWindow_PluginBrowserTakeSendFailure(s->platform) )
+        requested = 1;
     if( s ) s->snapshot_needed = 0;
     return requested;
 }

@@ -93,12 +93,20 @@ PlatformWin32Browser_Resize(
             SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
-void
+int
 PlatformWin32Browser_Send(
     struct PlatformWin32Browser* browser, char const* json)
 {
     (void)browser;
     (void)json;
+    return 1;
+}
+
+int
+PlatformWin32Browser_TakeSendFailure(struct PlatformWin32Browser* browser)
+{
+    (void)browser;
+    return 0;
 }
 
 int

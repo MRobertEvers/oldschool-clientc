@@ -110,6 +110,25 @@
  */
 #define TORIRS_CHROME_INPUT_MAX 192
 
+/**
+ * Maximum entries in any option-bearing chrome widget.
+ *
+ * This is the protocol limit too: native, WEB and BROWSER all accept exactly
+ * this many entries, so a model cannot describe a list one presenter silently
+ * truncates. Legacy borrowed lists clamp to this prefix at construction and
+ * update time. The lossless structured pool below is deliberately smaller and
+ * shared by the complete selected page.
+ */
+#define TORIRS_CHROME_OPTION_MAX 512
+
+/**
+ * Borrowed option entries retained across the complete chrome instance.
+ * Replacement/removal returns its old entries to this budget. Together with
+ * the fixed panel/widget commands and the structured pool, this ceiling keeps
+ * every legal full snapshot below the web protocol's atomic batch limit.
+ */
+#define TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX 4096
+
 /** Lossless semantic options are bounded across the one selected page. */
 #define TORIRS_CHROME_SELECT_OPTIONS_MAX 128
 #define TORIRS_CHROME_SELECT_VALUE_MAX TORIRS_CHROME_INPUT_MAX
@@ -1124,6 +1143,8 @@ struct ToriRSChrome
     struct ToriRSChromeSelectOption
         select_options[TORIRS_CHROME_SELECT_OPTIONS_MAX];
     int select_option_count;
+    /** Sum of option_count for every live non-structured option widget. */
+    int legacy_option_count;
     /** High-water mark of the widget array, NOT the number of live widgets:
      *  removed slots below it are on the free list. */
     int widget_count;
@@ -1609,7 +1630,10 @@ ToriRSChrome_WrapText(
 /**
  * A dropdown over `options`, which is BORROWED and must outlive the widget.
  *
- * @param selected index into `options`, or -1 for none.
+ * `option_count` is clamped to TORIRS_CHROME_OPTION_MAX; the retained widget
+ * borrows only that prefix.
+ *
+ * @param selected index into the retained prefix, or -1 for none.
  * @return widget handle, or -1 when full / panel invalid.
  */
 int
@@ -1621,10 +1645,12 @@ ToriRSChrome_Dropdown(
     int option_count,
     int selected);
 
-/** Point a dropdown at a list. Clamps the selection and closes the list if its
- *  bounded text changed. Contents are hashed, so refilling the same borrowed
- *  pointer array/buffers is detected; equal text/count/selection is a retained
- *  no-op even when the borrow moves to another array. */
+/** Point a dropdown at a list. `option_count` is clamped to
+ *  TORIRS_CHROME_OPTION_MAX and only that borrowed prefix is retained. Clamps
+ *  the selection and closes the list if its bounded text changed. Contents are
+ *  hashed, so refilling the same borrowed pointer array/buffers is detected;
+ *  equal text/count/selection is a retained no-op even when the borrow moves
+ *  to another array. */
 void
 ToriRSChrome_DropdownSetOptions(
     struct ToriRSChrome* ui,

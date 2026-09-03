@@ -13,6 +13,7 @@
   const PROTOCOL = 1;
   const MAX_PENDING = 128;
   const MAX_PENDING_BYTES = 8 * 1024 * 1024;
+  const MAX_BATCH_COMMANDS = 8192;
   const MAX_CUSTOM_PIXELS = 1200000;
   const MAX_INTENTS = 64;
   /* The rail's allocation, in CSS pixels: the shared bundle lays the rail out
@@ -110,6 +111,7 @@
       this.batch = [];
       this.collecting = false;
       this.batchOverflow = false;
+      this.deliveryLost = false;
       this.executorOpen = false;
       this.pageOpen = false;
       this.pagePanel = -1;
@@ -162,14 +164,16 @@
       if (!runtime || typeof runtime.receive !== 'function') return false;
       this.runtime = runtime;
       if (child) child.torirsPluginChromePostMessage = json => { this.fromRuntime(json); };
-      runtime.receive(copy(THEME));
+      let accepted = runtime.receive(copy(THEME)) !== false;
       const queued = this.pending;
       this.pending = [];
       this.pendingBytes = 0;
       /* A replaced iframe starts its outbound sequence at one again. */
       this.lastOutboundSequence = 0;
-      for (let i = 0; i < queued.length; i++) runtime.receive(queued[i].message);
-      return true;
+      for (let i = 0; i < queued.length; i++)
+        if (runtime.receive(queued[i].message) === false) accepted = false;
+      if (!accepted) this.deliveryLost = true;
+      return accepted;
     }
 
     installResize() {
@@ -179,7 +183,10 @@
 
     send(envelope) {
       const message = copy(envelope);
-      if (this.runtime) return this.runtime.receive(message) !== false;
+      if (this.runtime) {
+        try { return this.runtime.receive(message) !== false; }
+        catch (error) { return false; }
+      }
       const bytes = JSON.stringify(message).length;
       if (bytes > MAX_PENDING_BYTES) return false;
       let key = '';
@@ -190,34 +197,33 @@
       else if (message.type === 'page.snapshot' || message.type === 'page.close') key = 'page';
       else key = `ordered:${++this.pendingSerial}`;
 
-      /* Snapshots/closes supersede every queued page mutation; revisioned
-       * images and rail state coalesce by identity while the iframe starts. */
-      for (let i = this.pending.length - 1; i >= 0; i--) {
-        const pending = this.pending[i];
+      /* Build the candidate queue off to the side. A rejected send must leave
+       * every previously accepted ordered delta intact; otherwise returning
+       * false would still have damaged the only copy waiting for the iframe. */
+      const next = this.pending.slice();
+      let nextBytes = this.pendingBytes;
+      for (let i = next.length - 1; i >= 0; i--) {
+        const pending = next[i];
         const replace = key && pending.key === key;
         const supersededPage = key === 'page' &&
           (pending.message.type === 'page.delta' || pending.key === 'page');
         if (replace || supersededPage) {
-          this.pendingBytes -= pending.bytes;
-          this.pending.splice(i, 1);
+          nextBytes -= pending.bytes;
+          next.splice(i, 1);
         }
       }
-      while (this.pending.length &&
-             (this.pending.length >= MAX_PENDING || this.pendingBytes + bytes > MAX_PENDING_BYTES)) {
-        /* Prefer dropping coalescible pixels/old deltas before authoritative
-         * theme, rail, or page snapshots. The total remains hard-bounded even
-         * when every remaining item is authoritative. */
-        let victim = this.pending.findIndex(item =>
-          item.message.type === 'custom.bitmap' || item.message.type === 'page.delta' ||
-          item.message.type === 'rail.icon');
-        if (victim < 0) victim = 0;
-        this.pendingBytes -= this.pending[victim].bytes;
-        this.pending.splice(victim, 1);
-      }
-      if (this.pendingBytes + bytes > MAX_PENDING_BYTES) return false;
-      this.pending.push({ message, bytes, key });
-      this.pendingBytes += bytes;
+      if (next.length >= MAX_PENDING || nextBytes + bytes > MAX_PENDING_BYTES)
+        return false;
+      next.push({ message, bytes, key });
+      this.pending = next;
+      this.pendingBytes = nextBytes + bytes;
       return true;
+    }
+
+    takeDeliveryLoss() {
+      const lost = this.deliveryLost;
+      this.deliveryLost = false;
+      return lost;
     }
 
     normalizeRail(snapshot) {
@@ -283,6 +289,7 @@
         const generation = unsigned(message.pageGeneration);
         const panel = integer(message.panel, -1);
         if (!generation || panel < 0) return false;
+        if (!this.send(message)) return false;
         this.pageOpen = true;
         this.pageGeneration = generation;
         this.pagePanel = panel;
@@ -293,10 +300,10 @@
         if (generation && this.pageGeneration && generation !== this.pageGeneration)
           return this.send(message);
         const sent = this.send(message);
-        this.resetPage();
+        if (sent) this.resetPage();
         return sent;
       }
-      return this.send(message);
+      return message.type === 'page.snapshot' ? true : this.send(message);
     }
 
     railIcon(pluginIndex, revision, width, height, rgbaBase64) {
@@ -396,37 +403,42 @@
         this.collecting = true;
         this.batch = [];
         this.batchOverflow = false;
-        return;
+        return true;
       }
       if (command.k === CMD.SYNC_END) {
-        if (this.collecting && !this.batchOverflow) this.commit(this.batch);
+        const delivered = this.collecting && !this.batchOverflow
+          ? this.commit(this.batch) : false;
         this.collecting = false;
         this.batch = [];
         this.batchOverflow = false;
-        return;
+        return delivered;
       }
       if (this.collecting) {
-        if (!this.batchOverflow && this.batch.length < 8192) this.batch.push(command);
+        if (!this.batchOverflow && this.batch.length < MAX_BATCH_COMMANDS - 2) {
+          this.batch.push(command);
+          return true;
+        }
         else {
           this.batch = [];
           this.batchOverflow = true;
+          return false;
         }
-        return;
       }
-      this.commit([command]);
+      return this.commit([command]);
     }
 
     commit(commands) {
-      if (!commands || !commands.length) return;
+      if (!commands || !commands.length) return false;
       const generation = this.effectivePageGeneration();
-      if (!generation) return;
+      if (!generation) return false;
       let containsOpen = false;
       let containsClose = false;
       let panel = this.pagePanel;
       let title = this.title;
+      let checkStyle = this.checkStyle;
       for (let i = 0; i < commands.length; i++) {
         const command = commands[i];
-        if (command.k === CMD.CHECK_STYLE) this.checkStyle = command.v;
+        if (command.k === CMD.CHECK_STYLE) checkStyle = command.v;
         else if (command.k === CMD.PANEL_OPEN) {
           containsOpen = true;
           panel = command.p;
@@ -441,40 +453,45 @@
       const snapshot = containsOpen || !this.pageOpen ||
         generation !== this.pageGeneration || panel !== this.pagePanel;
       if (snapshot) {
-        if (panel < 0) return;
+        if (panel < 0) return false;
         const initial = [];
         for (let i = 0; i < commands.length; i++)
           if (commands[i].k !== CMD.PANEL_CLOSE) initial.push(commands[i]);
-        this.updateWidgetIdentities(initial, generation, true);
-        this.send({
+        if (!this.send({
           protocol: PROTOCOL,
           type: 'page.snapshot',
           pageGeneration: generation,
           panel,
           title: title || 'Plugins',
-          checkStyle: this.checkStyle,
+          checkStyle,
           commands: initial
-        });
+        })) return false;
+        this.updateWidgetIdentities(initial, generation, true);
         this.pageOpen = true;
         this.pagePanel = panel;
         this.pageGeneration = generation;
         this.title = title || 'Plugins';
-        return;
+        this.checkStyle = checkStyle;
+        return true;
       }
 
       if (containsClose) {
-        this.send({ protocol: PROTOCOL, type: 'page.close', pageGeneration: generation });
+        if (!this.send({ protocol: PROTOCOL, type: 'page.close', pageGeneration: generation }))
+          return false;
         this.resetPage();
-        return;
+        this.checkStyle = checkStyle;
+        return true;
       }
-      this.updateWidgetIdentities(commands, generation, false);
-      this.send({
+      if (!this.send({
         protocol: PROTOCOL,
         type: 'page.delta',
         pageGeneration: generation,
         commands
-      });
+      })) return false;
+      this.updateWidgetIdentities(commands, generation, false);
       this.title = title;
+      this.checkStyle = checkStyle;
+      return true;
     }
 
     argbToRgbaBase64(argb, width, height) {
@@ -697,9 +714,13 @@
      * crossing and one JSON parse for the complete delta. */
     global.torirsChromeApplyBatch = commands => {
       if (!Array.isArray(commands)) return false;
-      for (let i = 0; i < commands.length; i++) host.apply(commands[i]);
-      return true;
+      if (host.takeDeliveryLoss()) return false;
+      let accepted = true;
+      for (let i = 0; i < commands.length; i++)
+        if (host.apply(commands[i]) === false) accepted = false;
+      return accepted;
     };
+    global.torirsChromeTakeDeliveryLoss = () => host.takeDeliveryLoss();
     global.torirsChromeTakeIntent = () => host.takeIntent();
     global.torirsChromeRailSync = snapshot => { host.railSync(snapshot); };
     global.torirsChromeRailIcon = (plugin, revision, width, height, rgbaBase64) =>

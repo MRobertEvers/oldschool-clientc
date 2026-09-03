@@ -13,8 +13,9 @@ PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root);
 void PlatformWin32Browser_Free(struct PlatformWin32Browser* browser);
 void PlatformWin32Browser_Resize(
     struct PlatformWin32Browser* browser, int width, int height);
-void PlatformWin32Browser_Send(
+int PlatformWin32Browser_Send(
     struct PlatformWin32Browser* browser, char const* json);
+int PlatformWin32Browser_TakeSendFailure(struct PlatformWin32Browser* browser);
 int PlatformWin32Browser_Poll(
     struct PlatformWin32Browser* browser, char* out_json, int capacity);
 int PlatformWin32Browser_Ready(struct PlatformWin32Browser const* browser);

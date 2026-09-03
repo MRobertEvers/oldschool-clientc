@@ -285,8 +285,10 @@ PlatformWindow_ChromeTakeInput(
 bool PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* platform);
 bool PlatformWindow_PluginBrowserReady(struct PlatformWindow const* platform);
 bool PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* platform);
-void PlatformWindow_PluginBrowserSend(
+bool PlatformWindow_PluginBrowserSend(
     struct PlatformWindow* platform, char const* json);
+/** Consume a send accepted into an asynchronous backend queue but lost later. */
+bool PlatformWindow_PluginBrowserTakeSendFailure(struct PlatformWindow* platform);
 int PlatformWindow_PluginBrowserPoll(
     struct PlatformWindow* platform, char* out_json, int capacity);
 bool PlatformWindow_PluginBrowserBitmapUrl(

@@ -116,6 +116,17 @@ ToriRSChromeMirror_PushIntent(
     mirror->intents[mirror->intent_count++] = *intent;
 }
 
+int
+ToriRSChromeMirror_TakeIntentOverflow(struct ToriRSChromeMirror* mirror)
+{
+    int overflow;
+
+    assert(mirror);
+    overflow = mirror->intent_overflow;
+    mirror->intent_overflow = 0;
+    return overflow;
+}
+
 void
 ToriRSChromeMirror_PushActivate(struct ToriRSChromeMirror* mirror, int panel, int widget)
 {
@@ -137,11 +148,9 @@ ToriRSChromeMirror_PushToggle(struct ToriRSChromeMirror* mirror, int panel, int 
     intent.widget = widget;
     intent.value = on ? 1 : 0;
     ToriRSChromeMirror_PushIntent(mirror, &intent);
-    /* A toggled checkbox is also an activation: the host's TakeActivated drain
-     * is what turns a plugin's switch into PluginHost_SetEnabled, and an
-     * executor that sent only the new state would set the value without ever
-     * running the thing that reacts to it. */
-    ToriRSChromeMirror_PushActivate(mirror, panel, widget);
+    /* ToriRSChromeIntent_Apply turns this result-state gesture into the model's
+     * ordinary activation latch. A second ACTIVATE intent would run the same
+     * user gesture twice and needlessly consume another bounded queue slot. */
 }
 
 void

@@ -6,6 +6,19 @@
 #include <stdint.h>
 #include <string.h>
 
+/* A full restatement emits one global style command, three commands per
+ * panel, six fixed commands per widget, then one command per retained option.
+ * Include BEGIN/END because WEB's atomic-array ceiling counts its markers too.
+ * Keeping this proof beside the serializer makes a future model-cap increase
+ * fail the build instead of creating a snapshot that can never recover. */
+_Static_assert(
+    2 + 1 + 3 * TORIRS_CHROME_MAX_PANELS +
+            6 * TORIRS_CHROME_MAX_WIDGETS +
+            TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX +
+            TORIRS_CHROME_SELECT_OPTIONS_MAX <=
+        TORIRS_CHROME_PROTOCOL_COMMAND_MAX,
+    "chrome: a legal full model exceeds the atomic web transaction cap");
+
 /* ---- the client-chrome group ---------------------------------------------
  *
  * Here rather than beside the one control that uses it: the group is a fact
@@ -96,6 +109,16 @@ sync_transaction_end(struct ToriRSChromeSync* sync, int before)
     cmd_init(&end, TORIRS_CHROME_CMD_SYNC_END, -1, -1);
     sync_emit_raw(sync, &end);
     sync->transaction_open = 0;
+    if( sync->exec.take_snapshot_request &&
+        sync->exec.take_snapshot_request(sync->exec.user) )
+    {
+        /* END is the executor's atomic commit point. If it could not publish
+         * the complete transaction, none of the speculative shadow writes
+         * above describe delivered state. Forget them and keep the model's
+         * journal pending; the next Run restates one authoritative snapshot. */
+        ToriRSChromeSync_Invalidate(sync, sync->page_epoch);
+        return -1;
+    }
     return payload;
 }
 
@@ -850,12 +873,9 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
         return 0;
     if( sync->exec.take_snapshot_request &&
         sync->exec.take_snapshot_request(sync->exec.user) )
-    {
         /* The executor retained an incomplete/failed transaction. Treat that
          * exactly like a reconnect: replace its page once before any delta. */
-        sync->primed = 0;
-        sync->restate = 1;
-    }
+        ToriRSChromeSync_Invalidate(sync, sync->page_epoch);
     /* BUFFER is not an external executor. Its authoritative retained model is
      * drawn directly in-canvas, so acknowledge queued semantic events without
      * building commands or shadows that nobody can consume. A later WEB/
@@ -877,6 +897,8 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
         memset(sync->widgets, 0, sizeof(sync->widgets));
         sync->check_style = -1;
         payload = sync_snapshot(sync, ui);
+        if( payload < 0 )
+            return 0;
         sync->restate = 0;
         ToriRSChrome_ChangeJournalAcknowledge(ui);
         return payload;
@@ -961,8 +983,11 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
                 ui->changes[i].serial,
                 ui->changes[i].flags);
     }
+    payload = sync_transaction_end(sync, before);
+    if( payload < 0 )
+        return 0;
     ToriRSChrome_ChangeJournalAcknowledge(ui);
-    return sync_transaction_end(sync, before);
+    return payload;
 }
 
 /* ---- intents ------------------------------------------------------------- */

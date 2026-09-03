@@ -195,6 +195,7 @@ struct PluginUiPresentation
     int actions_plugin;
     uint32_t action_token;
     int boundary_place;
+    bool presentable;
     bool clip_active;
     struct ToriRS_Rect clip;
     char boundary_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
@@ -10632,6 +10633,7 @@ plugin_ui_present_suppressions(
         return;
     for( int i = 0; i < count; i++ )
     {
+        bool already_handled = false;
         int paint = 0;
         int input = 0;
 
@@ -10639,7 +10641,9 @@ plugin_ui_present_suppressions(
             continue;
         for( int prior = 0; prior < i; prior++ )
             if( strcmp(rows[prior].target_role, rows[i].target_role) == 0 )
-                goto already_handled;
+                already_handled = true;
+        if( already_handled )
+            continue;
         if( enabled )
             for( int j = i; j < count; j++ )
                 if( strcmp(rows[j].target_role, rows[i].target_role) == 0 )
@@ -10649,8 +10653,6 @@ plugin_ui_present_suppressions(
                 }
         (void)host->engine.role_suppress_facets(
             host->engine.user, rows[i].target_role, paint, input);
-already_handled:
-        ;
     }
 }
 
@@ -10724,12 +10726,12 @@ plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
                 candidate[candidate_count].action_token = host->ui_action_token;
             }
         }
-        if( plugin_ui_present_tree_state(
-                host,
-                node,
-                &candidate[candidate_count].clip_active,
-                &candidate[candidate_count].clip) )
-            candidate_count++;
+        candidate[candidate_count].presentable = plugin_ui_present_tree_state(
+            host,
+            node,
+            &candidate[candidate_count].clip_active,
+            &candidate[candidate_count].clip);
+        candidate_count++;
     }
     for( int i = 0; i < candidate_count; i++ )
         plugin_ui_present_boundary(host, candidate, candidate_count, i);
@@ -10830,6 +10832,9 @@ plugin_ui_present_draw(
                              mouse_x < row->value.hit_rect.x + row->value.hit_rect.width &&
                              mouse_y >= row->value.hit_rect.y &&
                              mouse_y < row->value.hit_rect.y + row->value.hit_rect.height;
+
+        if( !row->presentable )
+            continue;
 
         if( row->appearance_plugin >= 0 && (row->value.flags & TORIRS_UI_NODE_VISIBLE) &&
             plugin_ui_present_anchor(host, row, row->appearance_plugin) )
