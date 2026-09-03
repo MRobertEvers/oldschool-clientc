@@ -69,6 +69,9 @@ assert.match(legacyCss,
 assert.match(legacyCss,
     /font-family:\s*"ToriRS Chrome";\s*src:\s*url\("font\/ToriRSMenu\.eot"\)/,
     "XP has a direct local-file EOT Menu source");
+assert.match(legacyCss,
+    /font-family:\s*"ToriRS Chrome Small";\s*src:\s*url\("font\/ToriRSSmall\.eot"\)/,
+    "XP has a direct local-file EOT Small source");
 assert.doesNotMatch(legacyCss, /\.eot\?#iefix/i,
     "XP EOT URLs preserve their file:/// root string");
 assert.match(legacyCss, /tpc-android-fonts[\s\S]*ToriRS Chrome Android/,

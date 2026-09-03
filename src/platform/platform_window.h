@@ -578,6 +578,21 @@ PlatformWindow_SetPresentDamageRects(
 void
 PlatformWindow_Present(struct PlatformWindow* platform);
 
+/**
+ * Is there somewhere to put a frame right now?
+ *
+ * False while the platform has no surface for the game -- Android takes the
+ * Surface back when the plugin chrome goes exclusive on a phone-width layout,
+ * and again while the activity is stopped. The frame loop then keeps the world
+ * and the network ticking but skips the draw: the picture would be rendered
+ * in full and thrown away, which on the phone was ~0.6 of a core spent
+ * painting a scene nobody could see. Desktop windows always answer true; a
+ * hidden or minimised window there is the compositor's business, and its
+ * present is cheap.
+ */
+bool
+PlatformWindow_CanPresent(struct PlatformWindow const* platform);
+
 /** Swap the GL backbuffer. Only valid after InitForOpenGL3. */
 void
 PlatformWindow_PresentGL(struct PlatformWindow* platform);

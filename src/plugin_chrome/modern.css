@@ -53,7 +53,7 @@ button { font-weight: 700; }
   display: -webkit-flex;
   display: flex;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px;
+  grid-template-columns: minmax(0, 1fr) 42px;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -64,22 +64,36 @@ button { font-weight: 700; }
   contain: layout paint style;
 }
 
-.tpc-shell.tpc-collapsed { grid-template-columns: 0 48px; }
+.tpc-shell.tpc-collapsed { grid-template-columns: 0 42px; }
 .tpc-shell.tpc-collapsed .tpc-pane { display: none !important; }
 .tpc-pane[hidden], .tpc-tabs[hidden] { display: none !important; }
 
+/* The rail is the game's own stone side-tab column: the tiled panel body
+ * inside the interfaces' nine-slice frame, and the icons sitting straight on
+ * that surface -- no plate, no well, no black box.
+ *
+ * 42 wide including the frame, and 6 of that is the frame's rail on each side,
+ * because that is the gameframe popout strip standing beside it
+ * (TORIRS_CHROME_M_RAIL_W / TORIRS_CHROME_M_FRAME). The 6px border is what
+ * reserves the frame's room; the art is painted over it by .tpc-frame, exactly
+ * as the page's own panel does. */
 .tpc-rail {
+  position: relative;
   -webkit-box-flex: 0;
-  -webkit-flex: 0 0 48px;
-  flex: 0 0 48px;
-  width: 48px;
+  -webkit-flex: 0 0 42px;
+  flex: 0 0 42px;
+  width: 42px;
   margin-left: auto;
   grid-column: 2;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-left: 1px solid #0e0e0c;
-  border-left-color: var(--tpc-deep);
+  /* PADDING, not a border, and that is the whole reason the frame is visible:
+   * `overflow: hidden` clips this box's own children to its PADDING box, so a
+   * frame laid over a border (which is what .tpc-pane does, hanging its pieces
+   * outside itself) would be cut away here. The padding is the frame's room
+   * and the pieces are laid inside it. */
+  padding: 6px;
   background-color: #5d5447;
   background-color: var(--tpc-body);
   background-image: none;
@@ -87,10 +101,15 @@ button { font-weight: 700; }
   image-rendering: pixelated;
 }
 
+/* The rail's frame is flush with its box; the panel's hangs outside its own. */
+.tpc-rail > .tpc-frame { left: 0; right: 0; top: 0; bottom: 0; inset: 0; }
+
 .tpc-rail-list {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
-  padding: 3px;
+  padding: 0;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-color: var(--tpc-inset) var(--tpc-deep);
@@ -99,33 +118,34 @@ button { font-weight: 700; }
 .tpc-rail-entry {
   position: relative;
   display: block;
-  width: 40px;
-  height: 40px;
-  margin: 0 0 3px;
-  padding: 4px;
+  width: 30px;
+  height: 32px;
+  margin: 0 0 4px;
+  padding: 2px 0;
   overflow: hidden;
-  border: 1px solid #474745;
-  border-color: var(--tpc-inset);
+  border: 1px solid transparent;
   border-radius: 0;
   outline: 0;
-  background: #0e0e0c;
-  background: var(--tpc-deep);
+  background: transparent;
   color: #ff981f;
   color: var(--tpc-label);
   cursor: pointer;
   image-rendering: pixelated;
 }
 
-.tpc-rail-entry:hover { border-color: #ff981f; border-color: var(--tpc-label); filter: brightness(1.16); }
+.tpc-rail-entry:hover { border-color: #ff981f; border-color: var(--tpc-label); }
 .tpc-rail-entry:focus-visible { outline: 1px solid var(--tpc-accent); outline-offset: -3px; }
-.tpc-rail-entry[aria-selected="true"] { border-color: var(--tpc-accent); }
+/* The open tab: the pressed stone, darker under the icon, as the gameframe's
+ * own selected side tab reads. */
+.tpc-rail-entry[aria-selected="true"] { border-color: #0e0e0c; border-color: var(--tpc-deep); background: rgba(0, 0, 0, 0.22); box-shadow: inset 0 0 0 1px #3a3329; }
+.tpc-rail-entry[aria-selected="true"]:hover { border-color: #ff981f; border-color: var(--tpc-label); }
 .tpc-rail-entry.tpc-attention { box-shadow: inset 3px 0 var(--tpc-accent); }
 
 .tpc-rail-icon {
   display: block;
   width: 26px;
   height: 26px;
-  margin: 2px auto 0;
+  margin: 0 auto;
   object-fit: contain;
   image-rendering: pixelated;
 }
@@ -134,7 +154,7 @@ button { font-weight: 700; }
   display: block;
   width: 26px;
   height: 26px;
-  margin: 2px auto 0;
+  margin: 0 auto;
   line-height: 26px;
   text-align: center;
   color: var(--tpc-label);
@@ -264,7 +284,7 @@ button { font-weight: 700; }
 .tpc-tall-row { -webkit-box-orient: vertical; -webkit-flex-direction: column; flex-direction: column; align-items: stretch; }
 .tpc-tall-row > * + * { margin-left: 0; }
 .tpc-tall-row > .tpc-label { -webkit-flex: 0 0 18px; flex: 0 0 18px; width: auto; }
-.tpc-row textarea { height: auto; min-height: 72px; padding: 3px 4px; resize: vertical; }
+.tpc-row textarea { height: auto; min-height: 72px; padding: 3px 4px; resize: none; }
 .tpc-check {
   -webkit-appearance: none;
   appearance: none;
@@ -292,9 +312,38 @@ button { font-weight: 700; }
 .tpc-button:hover, .tpc-menu:hover, .tpc-row-action:hover { border-color: var(--tpc-label); color: var(--tpc-text); }
 .tpc-button { width: 104px; max-width: 100%; }
 .tpc-menu { width: 104px; max-width: 100%; text-align: left; }
-.tpc-list-row { display: -webkit-box; display: -webkit-flex; display: flex; display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%; }
-.tpc-list-row > * + * { margin-left: 8px; }
-.tpc-list-row .tpc-row-action { text-align: left; }
+/* A roster row, as the retained chrome draws one: the name in its own column,
+ * clipped at the furniture; the settings well (three dots in field chrome,
+ * 14px, 5px before the switch); and the tick/cross right-aligned in its 24px
+ * hit box. See torirs_chrome_metrics.h ROW_ICON / ROW_ICON_GAP / TOGGLE_W. */
+.tpc-list-table { width: 100%; height: 18px; border-collapse: collapse; table-layout: fixed; }
+.tpc-list-table td { height: 18px; padding: 0; vertical-align: middle; }
+.tpc-name-cell { overflow: hidden; padding-right: 4px; white-space: nowrap; text-overflow: ellipsis; color: #fff; color: var(--tpc-text); cursor: pointer; }
+.tpc-name-cell:hover .tpc-row-name { color: #ffff00; color: var(--tpc-accent); }
+.tpc-well-cell { width: 19px; }
+.tpc-row-well {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid #0e0e0c;
+  border-color: var(--tpc-deep);
+  border-radius: 0;
+  outline: 0;
+  box-shadow: inset 0 0 0 1px #474745;
+  box-shadow: inset 0 0 0 1px var(--tpc-inset);
+  background: #000 url("skin/DropdownBody.png");
+  cursor: pointer;
+  image-rendering: pixelated;
+}
+.tpc-row-well:hover { border-color: #ffff00; border-color: var(--tpc-accent); }
+.tpc-dot { position: absolute; top: 5px; width: 2px; height: 2px; background: #b3a893; }
+.tpc-dot-0 { left: 3px; }
+.tpc-dot-1 { left: 6px; }
+.tpc-dot-2 { left: 9px; }
+.tpc-toggle-cell { width: 24px; text-align: right; }
+.tpc-toggle-cell .tpc-check { display: block; margin: 0 0 0 auto; }
 .tpc-model { width: 100%; min-height: 100px; border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22; color: #ff981f; color: var(--tpc-label); text-align: center; }
 .tpc-custom { position: relative; display: block; width: 100%; min-height: 48px; border: 1px solid var(--tpc-inset); background: #372e22; overflow: hidden; touch-action: none; }
 .tpc-custom img, .tpc-custom canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }

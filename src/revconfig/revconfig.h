@@ -293,6 +293,8 @@ enum RevConfigFieldKind
     RCFIELD_CAMERA_PITCH_FLATTEST,
     RCFIELD_CAMERA_PITCH_STEEPEST,
     RCFIELD_CAMERA_CONTROLS,
+    RCFIELD_FRAME_CAP_FPS,
+    RCFIELD_FRAME_CAP_SOURCE,
     RCFIELD_CHROME_PLUGIN_IFACE,
     RCFIELD_CHROME_PLUGIN_BUTTON_PARENT,
     RCFIELD_CHROME_PLUGIN_BUTTON_X,
@@ -333,6 +335,7 @@ enum RevConfigItemKind
     RCITEM_CACHE_REF,
     RCITEM_FEATURES,
     RCITEM_CAMERA,
+    RCITEM_FRAME,
     RCITEM_CHROME,
     RCITEM_ROLE,
     RCITEM_STRING,
@@ -1586,6 +1589,36 @@ struct RevConfigCameraItem
     uint8_t has_controls;
 };
 
+/** `cap_source=` -- who owns the screen's frame cap on this revision. */
+enum RevConfigFrameCapSource
+{
+    /** The profile's own `cap_fps=` is the cap, and the only one. What every
+     *  revision before the All Settings "Limit framerate" row gets. */
+    REVCONFIG_FRAME_CAP_REVCONFIG = 0,
+    /** The cache's clientscripts own it: CS2 device option 5, the row the
+     *  player picks in All Settings, persisted with the other device options.
+     *  `cap_fps=` is then the value used while that option is unset. */
+    REVCONFIG_FRAME_CAP_CS2,
+};
+
+/*
+ * `[frame]` -- how the SCREEN is paced. The world ticks at the pacer's period
+ * regardless (the 50 Hz every revision shares); this is only how often a frame
+ * is drawn, and it goes through the one draw budget the pacer already owns
+ * (ToriRS_Pacer_SetCapFps), the same lever its adaptive step-down uses. There
+ * is deliberately no second cap path.
+ */
+struct RevConfigFrameItem
+{
+    /** INI: cap_fps= -- frames drawn per second at most; 0 = the pacer's own
+     *  rate. */
+    int cap_fps;
+    /** INI: cap_source= -- revconfig | cs2. @see enum RevConfigFrameCapSource */
+    int cap_source;
+    uint8_t has_cap_fps;
+    uint8_t has_cap_source;
+};
+
 /** Longest `[chrome]` name or op text. One field value is 64 bytes, so nothing
  *  longer than that can reach here anyway. */
 #define REVCONFIG_CHROME_NAME_LEN 64
@@ -1692,6 +1725,7 @@ struct RevConfigItem
         struct RevConfigCacheRefItem cacheref;
         struct RevConfigFeaturesItem features;
         struct RevConfigCameraItem camera;
+        struct RevConfigFrameItem frame;
         struct RevConfigChromeItem chrome;
         struct RevConfigRoleItem role;
         struct RevConfigStringItem string;

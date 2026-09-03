@@ -150,8 +150,25 @@ int main(void)
     CHECK(intent.kind == TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE &&
           intent.selection_generation == 11 && intent.widget_serial == 481);
 
+    /* User text is before x/y/g/s in the canonical object. Escaped field-like
+     * text must neither spoof an invalid tail nor make a valid tail look stale. */
     snprintf(inbound, sizeof(inbound),
-        "{\"protocol\":1,\"type\":\"rail.select\",\"sequence\":3,"
+        "{\"protocol\":1,\"type\":\"widget.intent\",\"sequence\":3,"
+        "\"intent\":{\"k\":8,\"p\":2,\"w\":9,\"v\":0,"
+        "\"text\":\"spoof \\\"g\\\":11,\\\"s\\\":481\","
+        "\"x\":1,\"y\":1,\"g\":10,\"s\":999}}");
+    CHECK(exec.poll(exec.user, &intent, 1) == 0);
+    snprintf(inbound, sizeof(inbound),
+        "{\"protocol\":1,\"type\":\"widget.intent\",\"sequence\":4,"
+        "\"intent\":{\"k\":8,\"p\":2,\"w\":9,\"v\":0,"
+        "\"text\":\"not fields: \\\"g\\\":0,\\\"s\\\":0\","
+        "\"x\":1,\"y\":1,\"g\":11,\"s\":481}}");
+    CHECK(exec.poll(exec.user, &intent, 1) == 1);
+    CHECK(intent.selection_generation == 11 && intent.widget_serial == 481 &&
+          strstr(intent.text, "\"g\":0") != NULL);
+
+    snprintf(inbound, sizeof(inbound),
+        "{\"protocol\":1,\"type\":\"rail.select\",\"sequence\":5,"
         "\"pluginIndex\":-2,\"selectionGeneration\":7}");
     CHECK(exec.rail_poll(exec.user, &rail_intent, 1) == 1);
     CHECK(rail_intent.kind == TORIRS_CHROME_RAIL_INTENT_SELECT &&
@@ -159,7 +176,7 @@ int main(void)
     /* XP's push bridge and pull fallback can expose the same copied envelope;
      * replaying a runtime sequence must never select the plugin twice. */
     snprintf(inbound, sizeof(inbound),
-        "{\"protocol\":1,\"type\":\"rail.select\",\"sequence\":3,"
+        "{\"protocol\":1,\"type\":\"rail.select\",\"sequence\":5,"
         "\"pluginIndex\":-2,\"selectionGeneration\":7}");
     CHECK(exec.rail_poll(exec.user, &rail_intent, 1) == 0);
 

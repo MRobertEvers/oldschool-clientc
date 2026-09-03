@@ -275,8 +275,24 @@ Both pages render from the shared skin in
 [`res/plugin_chrome/skin`](../res/plugin_chrome/skin). Host-owned frame corners,
 edges, panel body, buttons, checks, dropdown, scroll furniture, close mark, and
 fallback wrench are composed as retained DOM elements. Plugin-authored icons
-occupy only the icon well; the rail plate, hover, selected state, badge,
-attention treatment, tooltip, and accessible label remain host-owned.
+occupy only the icon well; hover, selected state, badge, attention treatment,
+tooltip, and accessible label remain host-owned.
+
+The rail is the gameframe's own stone side-tab column, not a toolbar: the
+tiled `PanelBody` between two dark edge lines with a bevel inside them, and the
+icons drawn straight on that surface. An entry has no plate, well, or black
+box behind its icon; the selected entry reads as the pressed stone (darker
+under the icon), hover outlines it in the label orange.
+
+The Manage Plugins roster and a plugin's generated settings page are the
+retained chrome's own rows, presented as the in-canvas chrome draws them
+(`torirs_chrome_metrics.h`): a roster row is the name in its own column, the
+14px three-dot settings well in field chrome when the row opens a page, and
+the tick/cross switch right-aligned in its 24px hit box. Everything left of
+the switch opens the row; the switch toggles it; a locked row is all action.
+The settings page keeps its staged form and `Save` / `Revert`, and carries a
+`< Plugins` button back to the roster on every executor; while such a page is
+up the rail keeps Manage Plugins pressed, since the page is reached from it.
 
 The authored 1x metrics are shared with
 [`torirs_chrome_metrics.h`](../src/ui/torirs_chrome_metrics.h): 18px rows, 3px

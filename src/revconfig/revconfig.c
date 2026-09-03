@@ -973,6 +973,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CAMERA_REST";
     case RCFIELD_CAMERA_CONTROLS:
         return "RCFIELD_CAMERA_CONTROLS";
+    case RCFIELD_FRAME_CAP_FPS:
+        return "RCFIELD_FRAME_CAP_FPS";
+    case RCFIELD_FRAME_CAP_SOURCE:
+        return "RCFIELD_FRAME_CAP_SOURCE";
     case RCFIELD_CAMERA_WHEEL_STEP:
         return "RCFIELD_CAMERA_WHEEL_STEP";
     case RCFIELD_CAMERA_ZOOM_CLOSEST:
@@ -1260,6 +1264,12 @@ revconfig_item_begin(
          * `controls=` cannot silently reset `zoom=` back to a default the
          * earlier source had deliberately moved. RevConfigProfile owns the
          * defaults, once, for the whole boot. */
+    }
+    else if( strcmp(type_value, "frame") == 0 )
+    {
+        item->kind = RCITEM_FRAME;
+        /* As with the camera: the item carries only what the section said;
+         * RevConfigProfile owns the defaults. */
     }
     else if( strcmp(type_value, "chrome") == 0 )
     {
@@ -2005,6 +2015,50 @@ camera_parse_bool(char const* value)
 }
 
 static void
+revconfig_item_apply_frame_field(
+    struct RevConfigFrameItem* frame,
+    enum RevConfigFieldKind kind,
+    const char* value)
+{
+    assert(frame);
+    assert(value);
+
+    switch( kind )
+    {
+    case RCFIELD_FRAME_CAP_FPS:
+    {
+        int fps;
+        if( camera_parse_number(value, &fps) && fps >= 0 && fps <= 1000 )
+        {
+            frame->cap_fps = fps;
+            frame->has_cap_fps = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [frame] cap_fps must be 0 (none) or a rate up to "
+                "1000, got '%s'\n", value);
+        break;
+    }
+    case RCFIELD_FRAME_CAP_SOURCE:
+        if( strcmp(value, "revconfig") == 0 )
+        {
+            frame->cap_source = REVCONFIG_FRAME_CAP_REVCONFIG;
+            frame->has_cap_source = 1;
+        }
+        else if( strcmp(value, "cs2") == 0 )
+        {
+            frame->cap_source = REVCONFIG_FRAME_CAP_CS2;
+            frame->has_cap_source = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [frame] cap_source must be revconfig or cs2, "
+                "got '%s'\n", value);
+        break;
+    default:
+        break;
+    }
+}
+
+static void
 revconfig_item_apply_camera_field(
     struct RevConfigCameraItem* camera,
     enum RevConfigFieldKind kind,
@@ -2390,6 +2444,9 @@ revconfig_item_apply_field(
         break;
     case RCITEM_CAMERA:
         revconfig_item_apply_camera_field(&item->u.camera, kind, value);
+        break;
+    case RCITEM_FRAME:
+        revconfig_item_apply_frame_field(&item->u.frame, kind, value);
         break;
     case RCITEM_CHROME:
         revconfig_item_apply_chrome_field(&item->u.chrome, kind, value);

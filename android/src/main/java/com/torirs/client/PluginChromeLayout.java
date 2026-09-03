@@ -15,7 +15,11 @@ public final class PluginChromeLayout extends ViewGroup
     }
 
     /** Matches legacy-ie8.css, the explicit Chrome-39/API22 bundle. */
-    private static final int RAIL_DP = 46;
+    /* The rail's allocation in dp: the page lays the rail out in CSS pixels at
+     * the same number (TORIRS_CHROME_M_RAIL_W = 42, the gameframe popout
+     * strip's width), so reserving more shows a band of pane background beside
+     * the frame the page drew. */
+    private static final int RAIL_DP = 42;
     private static final int PANEL_DP = 320;
     private static final int PANEL_MIN_DP = 280;
     private static final int PANEL_MAX_DP = 480;

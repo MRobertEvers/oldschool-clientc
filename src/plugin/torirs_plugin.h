@@ -661,6 +661,13 @@ struct ToriRS_PluginHighlightItem
 struct ToriRS_PluginEvFrame
 {
     uint64_t now_ms;
+    /**
+     * Frames the client has RENDERED so far, cumulative. on_frame itself fires
+     * once per loop iteration -- the 50 Hz pacer -- whether or not that
+     * iteration drew, so counting calls measures the pacer. A frame-rate
+     * readout that means the screen differences this instead.
+     */
+    uint64_t drawn_frames;
 };
 
 struct ToriRS_PluginEvTick

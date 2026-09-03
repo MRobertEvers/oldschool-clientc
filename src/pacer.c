@@ -28,6 +28,7 @@ ToriRS_Pacer_Init(
                    atoi(getenv("TORIRS_PACER_TRACE")) != 0;
 
     pacer->draw_period_ms = period_ms;
+    pacer->cap_period_ms = 0;
     pacer->adapt = !(getenv("TORIRS_PACER_ADAPT") &&
                      atoi(getenv("TORIRS_PACER_ADAPT")) == 0);
     pacer->adapt_behind = 0;
@@ -37,8 +38,22 @@ ToriRS_Pacer_Init(
 int
 ToriRS_Pacer_DrawPeriodMs(struct ToriRS_Pacer const* pacer)
 {
+    int period;
+
     assert(pacer);
-    return pacer->draw_period_ms > 0 ? pacer->draw_period_ms : pacer->period_ms;
+    period = pacer->draw_period_ms > 0 ? pacer->draw_period_ms : pacer->period_ms;
+    /* The configured cap and the adaptive budget are the same lever: the
+     * screen draws at whichever asks for the longer gap. */
+    if( pacer->cap_period_ms > period )
+        period = pacer->cap_period_ms;
+    return period;
+}
+
+void
+ToriRS_Pacer_SetCapFps(struct ToriRS_Pacer* pacer, int fps)
+{
+    assert(pacer);
+    pacer->cap_period_ms = fps > 0 ? 1000 / fps : 0;
 }
 
 /*

@@ -1281,6 +1281,16 @@ PlatformWindow_SetPresentDamageRects(struct PlatformWindow* p, int const (*rects
 
 /* ---- present ------------------------------------------------------------- */
 
+bool
+PlatformWindow_CanPresent(struct PlatformWindow const* p)
+{
+    assert(p);
+    /* Both lanes draw into the ANativeWindow -- the software canvas copies
+     * into it and EGL's surface is made from it -- so its absence is the one
+     * answer for either. */
+    return PlatformAndroid_Window() != NULL;
+}
+
 void
 PlatformWindow_Present(struct PlatformWindow* p)
 {

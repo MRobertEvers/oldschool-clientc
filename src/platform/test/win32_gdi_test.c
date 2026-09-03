@@ -104,11 +104,9 @@ main(void)
      * requested client size is not silently widened during CreateWindow. */
     int const logical_w = 160;
     int const logical_h = 80;
-#if defined(_WIN64)
-    int const rail_w = 48;
-#else
-    int const rail_w = 46;
-#endif
+    /* The one authored rail width, the same number the page lays the rail out
+     * in (TORIRS_CHROME_M_RAIL_W). */
+    int const rail_w = 42;
     uint32_t const sentinel = UINT32_C(0x00234567);
     struct PlatformWindow* platform;
     HWND hwnd;
@@ -120,6 +118,7 @@ main(void)
     HWND chrome;
     HWND rail;
     HWND browser_child;
+    HANDLE locked_bitmap;
     int game_w;
     int game_h;
     uint32_t icon_pixels[4] = {
@@ -127,6 +126,7 @@ main(void)
         UINT32_C(0xffff981f), UINT32_C(0xff372e22)
     };
     char bitmap_url[128];
+    char bitmap_key[32];
 
     SetEnvironmentVariableA("TORIRS_WIN32_HIDDEN", "1");
     platform = PlatformWindow_New();
@@ -252,6 +252,70 @@ main(void)
             bitmap_url, (int)sizeof(bitmap_url)) ||
         strcmp(bitmap_url, "bitmap/rail-4-r9.bmp") != 0 )
         fail("browser bitmap cache did not publish a relative revision URL");
+    if( PlatformWindow_Win32TestBitmapFileCount(platform) != 1 ||
+        !PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 9) )
+        fail("browser bitmap cache did not retain its first revision");
+    if( PlatformWindow_PluginBrowserBitmapUrl(
+            platform, "rail-4", 10, icon_pixels, 2, 2,
+            bitmap_url, 8) ||
+        PlatformWindow_Win32TestBitmapFileCount(platform) != 1 ||
+        !PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 9) ||
+        PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 10) )
+        fail("short bitmap URL output mutated the retained revision");
+    if( !PlatformWindow_PluginBrowserBitmapUrl(
+            platform, "rail-4", 10, icon_pixels, 2, 2,
+            bitmap_url, (int)sizeof(bitmap_url)) ||
+        PlatformWindow_Win32TestBitmapFileCount(platform) != 1 ||
+        PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 9) ||
+        !PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 10) )
+        fail("new bitmap revision did not atomically retire the previous file");
+    if( !PlatformWindow_PluginBrowserBitmapUrl(
+            platform, "rail-4", 10, icon_pixels, 2, 2,
+            bitmap_url, (int)sizeof(bitmap_url)) ||
+        PlatformWindow_Win32TestBitmapFileCount(platform) != 1 )
+        fail("same bitmap revision was not an idempotent cache hit");
+    if( PlatformWindow_PluginBrowserBitmapUrl(
+            platform, "rail-4", 9, icon_pixels, 2, 2,
+            bitmap_url, (int)sizeof(bitmap_url)) ||
+        PlatformWindow_Win32TestBitmapFileCount(platform) != 1 ||
+        !PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 10) )
+        fail("stale bitmap revision replaced the retained revision");
+    locked_bitmap = (HANDLE)PlatformWindow_Win32TestBitmapLock(
+        platform, "rail-4", 10);
+    if( !locked_bitmap )
+        fail("could not lock retained bitmap for rollback test");
+    if( PlatformWindow_PluginBrowserBitmapUrl(
+            platform, "rail-4", 11, icon_pixels, 2, 2,
+            bitmap_url, (int)sizeof(bitmap_url)) ||
+        PlatformWindow_Win32TestBitmapFileCount(platform) != 1 ||
+        !PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 10) ||
+        PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 11) )
+        fail("locked previous revision escaped transactional rollback");
+    CloseHandle(locked_bitmap);
+    if( !PlatformWindow_PluginBrowserBitmapUrl(
+            platform, "rail-4", 11, icon_pixels, 2, 2,
+            bitmap_url, (int)sizeof(bitmap_url)) ||
+        PlatformWindow_Win32TestBitmapFileCount(platform) != 1 ||
+        PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 10) ||
+        !PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 11) )
+        fail("replacement did not recover after old revision unlocked");
+    if( PlatformWindow_PluginBrowserBitmapUrl(
+            platform, "too-large", 1, icon_pixels, 4096, 1025,
+            bitmap_url, (int)sizeof(bitmap_url)) ||
+        PlatformWindow_Win32TestBitmapFileCount(platform) != 1 )
+        fail("bitmap cache accepted more than 4,194,304 pixels");
+
+    for( int i = 0; i < 140; i++ )
+    {
+        snprintf(bitmap_key, sizeof(bitmap_key), "stress-%03d", i);
+        if( !PlatformWindow_PluginBrowserBitmapUrl(
+                platform, bitmap_key, 1, icon_pixels, 1, 1,
+                bitmap_url, (int)sizeof(bitmap_url)) )
+            fail("bounded bitmap cache refused a valid stress entry");
+    }
+    if( PlatformWindow_Win32TestBitmapFileCount(platform) != 128 ||
+        PlatformWindow_Win32TestBitmapRevisionExists(platform, "rail-4", 11) )
+        fail("bitmap cache did not hold a strict 128-file eviction bound");
     if( PlatformWindow_PluginBrowserBitmapUrl(
             platform, "../escape", 9, icon_pixels, 2, 2,
             bitmap_url, (int)sizeof(bitmap_url)) )

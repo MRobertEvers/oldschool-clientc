@@ -28536,6 +28536,8 @@ app_minimenu_run_option(
      */
     if( opt.action == RS_MINIMENU_ACTION_PLUGIN_PANEL )
     {
+        if( getenv("TORIRS_CHROME_DEBUG") )
+            fprintf(stderr, "chrome: Manage Plugins minimenu action\n");
         app_plugin_window_set_open(app, !app->plugin_panel_visible);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
@@ -30474,7 +30476,7 @@ App_RunOnce(
      * run first: a plugin panel's toggle has to latch during a boot, and
      * anything it changes has to be visible to this frame's emit rebuild. */
     app->plugin_overlay_batch_started = 0;
-    PluginHost_FrameStart(app->plugins, now_ms);
+    PluginHost_FrameStart(app->plugins, now_ms, app->frames_rendered);
     /* After the frame handlers, not before: a plugin that re-authors its
      * geometry from on_frame gets it on screen this frame rather than next. */
     app_plugin_geometry_settle(app);
@@ -32488,6 +32490,24 @@ App_RunOnce(
         return 1;
     }
     return 0;
+}
+
+int
+App_FrameCapFps(struct App const* app)
+{
+    struct RevConfigFrameItem const* frame;
+
+    assert(app);
+    frame = &app->revconfig_profile.frame;
+    if( frame->cap_source == REVCONFIG_FRAME_CAP_CS2 )
+    {
+        /* The cache's Limit Framerate row, when the player has picked one;
+         * the profile's own number until then. */
+        int const chosen = RS_CS2Host_FrameRateCapFps(&app->host);
+        if( chosen > 0 )
+            return chosen;
+    }
+    return frame->cap_fps > 0 ? frame->cap_fps : 0;
 }
 
 int
@@ -34764,6 +34784,8 @@ App_Render(
     assert(app);
     assert(pixels);
     assert(app->soft);
+
+    app->frames_rendered++;
 
     if( !App_BuildFrame(app, &frame, width, height) )
     {

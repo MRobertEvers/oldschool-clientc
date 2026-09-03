@@ -173,6 +173,8 @@ EM_JS(char*, web_chrome_take_intent, (void), {
 struct ChromeWeb
 {
     int open;
+    int active_panel;
+    uint32_t page_generation;
     struct ToriRSChromeMirror mirror;
     /** One command's JSON, reused. Sized for the longest command: a label and
      *  a value, each of which can double under escaping, plus the fixed fields
@@ -183,6 +185,10 @@ struct ChromeWeb
     uint32_t custom_serial[TORIRS_CHROME_MAX_WIDGETS];
     int custom_width[TORIRS_CHROME_MAX_WIDGETS];
     int custom_height[TORIRS_CHROME_MAX_WIDGETS];
+    /** Identity of every semantic widget, not only CUSTOM. A handle can be
+     * recycled immediately after page replacement, so existence in the mirror
+     * alone is not a sufficient stale-intent fence. */
+    uint32_t widget_serial[TORIRS_CHROME_MAX_WIDGETS];
 };
 
 static struct ChromeWeb g_chrome_web;
@@ -370,6 +376,8 @@ chrome_web_begin(void* user)
     if( !web_chrome_open() )
         return 0;
     ToriRSChromeMirror_Init(&s->mirror);
+    s->active_panel = -1;
+    memset(s->widget_serial, 0, sizeof(s->widget_serial));
     s->open = 1;
     return 1;
 }
@@ -384,6 +392,8 @@ chrome_web_end(void* user)
         return;
     web_chrome_close();
     s->open = 0;
+    s->active_panel = -1;
+    memset(s->widget_serial, 0, sizeof(s->widget_serial));
 }
 
 /**
@@ -444,6 +454,7 @@ static void
 chrome_web_rail_sync(
     void* user, struct ToriRSChromeRailSnapshot const* snapshot)
 {
+    struct ChromeWeb* s = user;
     /* Manage plus all 32 plugin entries, with every byte doubled by JSON
      * escaping, fit below 16 KiB.
      * Keep extra headroom so a future scalar does not turn a complete snapshot
@@ -452,9 +463,14 @@ chrome_web_rail_sync(
     int at;
     int count;
 
-    (void)user;
-    if( !snapshot )
+    if( !s || !snapshot )
         return;
+    if( s->page_generation != snapshot->page_generation )
+    {
+        s->active_panel = -1;
+        memset(s->widget_serial, 0, sizeof(s->widget_serial));
+    }
+    s->page_generation = snapshot->page_generation;
     count = snapshot->entry_count;
     if( count < 0 )
         count = 0;
@@ -582,6 +598,21 @@ chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
      * exists cannot disagree about a handle that was just recycled. */
     ToriRSChromeMirror_Apply(&s->mirror, cmd);
 
+    if( cmd->kind == TORIRS_CHROME_CMD_PANEL_OPEN )
+        s->active_panel = cmd->panel;
+    else if( cmd->kind == TORIRS_CHROME_CMD_PANEL_CLOSE &&
+             cmd->panel == s->active_panel )
+    {
+        s->active_panel = -1;
+        memset(s->widget_serial, 0, sizeof(s->widget_serial));
+    }
+    else if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_ADD &&
+             cmd->widget >= 0 && cmd->widget < TORIRS_CHROME_MAX_WIDGETS )
+        s->widget_serial[cmd->widget] = cmd->serial;
+    else if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_REMOVE &&
+             cmd->widget >= 0 && cmd->widget < TORIRS_CHROME_MAX_WIDGETS )
+        s->widget_serial[cmd->widget] = 0;
+
     if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_ADD ||
         cmd->kind == TORIRS_CHROME_CMD_WIDGET_REMOVE )
     {
@@ -704,6 +735,34 @@ chrome_web_str(char const* json, char const* key, char* out, int cap)
     out[o] = '\0';
 }
 
+/* The canonical intent orders its user-controlled text before x/y/g/s. Find
+ * the real end of that JSON string (rather than `strstr`ing through its
+ * contents) and parse the identity fields only from the structural suffix. */
+static char const*
+chrome_web_after_string(char const* json, char const* key)
+{
+    char pattern[16];
+    char const* at;
+
+    snprintf(pattern, sizeof(pattern), "\"%s\":\"", key);
+    at = strstr(json, pattern);
+    if( !at )
+        return NULL;
+    at += strlen(pattern);
+    while( *at )
+    {
+        if( *at == '\\' && at[1] )
+        {
+            at += 2;
+            continue;
+        }
+        if( *at == '"' )
+            return at + 1;
+        at++;
+    }
+    return NULL;
+}
+
 static int
 chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
 {
@@ -721,6 +780,7 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
     {
         char* json = web_chrome_take_intent();
         struct ToriRSChromeIntent intent;
+        char const* tail;
 
         if( !json )
             break;
@@ -735,24 +795,47 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
         intent.panel = chrome_web_int(json, "p", -1);
         intent.widget = chrome_web_int(json, "w", -1);
         intent.value = chrome_web_int(json, "v", 0);
-        intent.x = chrome_web_int(json, "x", 0);
-        intent.y = chrome_web_int(json, "y", 0);
-        intent.selection_generation =
-            (uint32_t)chrome_web_int(json, "g", 0);
-        intent.widget_serial = (uint32_t)chrome_web_int(json, "s", 0);
         chrome_web_str(json, "text", intent.text, (int)sizeof(intent.text));
+        tail = chrome_web_after_string(json, "text");
+        if( !tail )
+        {
+            free(json);
+            continue;
+        }
+        intent.x = chrome_web_int(tail, "x", 0);
+        intent.y = chrome_web_int(tail, "y", 0);
+        intent.selection_generation =
+            (uint32_t)chrome_web_int(tail, "g", 0);
+        intent.widget_serial = (uint32_t)chrome_web_int(tail, "s", 0);
         free(json);
 
-        /* A widget the mirror does not know is a message from a stale page --
-         * one that kept a node after a REMOVE. Dropped rather than forwarded:
-         * applying it would mutate whatever recycled that handle. */
-        if( intent.kind <= 0 )
+        /* Validate the complete identity again on the wasm side. The outer
+         * document already fences these values, but a queued page-A event can
+         * otherwise arrive after page B has recycled the same widget handle. */
+        if( intent.kind < TORIRS_CHROME_INTENT_ACTIVATE ||
+            intent.kind > TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE ||
+            intent.selection_generation == 0 ||
+            intent.selection_generation != s->page_generation ||
+            intent.panel != s->active_panel )
             continue;
-        if( intent.widget >= 0 && !ToriRSChromeMirror_Widget(&s->mirror, intent.widget) )
-            continue;
+        if( intent.kind == TORIRS_CHROME_INTENT_CLOSE )
+        {
+            if( intent.widget != -1 )
+                continue;
+        }
+        else
+        {
+            struct ToriRSChromeMirrorWidget const* widget;
+
+            if( intent.widget < 0 || intent.widget >= TORIRS_CHROME_MAX_WIDGETS )
+                continue;
+            widget = ToriRSChromeMirror_Widget(&s->mirror, intent.widget);
+            if( !widget || widget->panel != intent.panel ||
+                s->widget_serial[intent.widget] != intent.widget_serial )
+                continue;
+        }
         if( intent.kind == TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE &&
-            (intent.widget < 0 || intent.widget >= TORIRS_CHROME_MAX_WIDGETS ||
-             s->custom_panel[intent.widget] != intent.panel ||
+            (s->custom_panel[intent.widget] != intent.panel ||
              s->custom_generation[intent.widget] != intent.selection_generation ||
              s->custom_serial[intent.widget] != intent.widget_serial ||
              intent.x < 0 || intent.y < 0 ||
@@ -814,6 +897,7 @@ ToriRSChromeExec_Web(void)
 
     memset(&exec, 0, sizeof(exec));
     memset(&g_chrome_web, 0, sizeof(g_chrome_web));
+    g_chrome_web.active_panel = -1;
     for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
         g_chrome_web.custom_panel[i] = -1;
 

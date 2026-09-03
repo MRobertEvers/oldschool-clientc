@@ -70,6 +70,9 @@
   const tabs = document.getElementById('tpc-tabs');
   const content = document.getElementById('tpc-content');
   const rail = document.getElementById('tpc-rail-list');
+  /* The rail's own framed box, which the list lives inside. Only the legacy
+   * page hands the two an explicit height; on the modern page the grid does. */
+  const railBox = document.getElementById('tpc-rail') || (rail && rail.parentNode);
   const status = document.getElementById('tpc-status');
   if (!shell || !pane || !title || !close || !tabs || !content || !rail) return null;
   const legacy = shell.getAttribute && shell.getAttribute('data-tpc-legacy') === '1';
@@ -201,6 +204,25 @@
     }
   }
 
+  /* The interfaces' own tick/cross (or the square well) at its baked side,
+   * shared by a checkbox row and a roster row's switch. */
+  function skinCheck(control, checked) {
+    if (!control) return;
+    control.checked = checked;
+    if (legacyPixels) return;
+    const square = state.checkStyle === 1;
+    const on = safeUrl(square ? state.theme.checkBoxOn : state.theme.checkOn) ||
+      (square ? 'skin/CheckBoxOn.png' : 'skin/CheckOn.png');
+    const off = safeUrl(square ? state.theme.checkBoxOff : state.theme.checkOff) ||
+      (square ? 'skin/CheckBoxOff.png' : 'skin/CheckOff.png');
+    const side = square ? 18 : 17;
+    control.style.width = `${side}px`;
+    control.style.height = `${side}px`;
+    control.style.minWidth = `${side}px`;
+    control.style.backgroundSize = `${side}px ${side}px`;
+    control.style.backgroundImage = cssUrl(checked ? on : off);
+  }
+
   function skinField(control) {
     if (!control || legacyPixels) return;
     const body = safeUrl(state.theme.dropdownBody) || 'skin/DropdownBody.png';
@@ -230,7 +252,10 @@
     if (height > 0) {
       shell.style.height = `${height}px`;
       pane.style.height = `${height}px`;
-      rail.style.height = `${height}px`;
+      /* The BOX gets the viewport height, and the list fills what is left
+       * inside its frame. Sizing the list itself to the viewport hangs its
+       * last entries under the bottom frame piece, where they are clipped. */
+      if (railBox && railBox.style) railBox.style.height = `${height}px`;
     }
   }
 
@@ -395,6 +420,9 @@
     button.setAttribute('aria-selected', selected ? 'true' : 'false');
     button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     toggleClass(button, 'tpc-attention', entry.attention);
+    /* Old MSHTML has no attribute selectors, so the selected stone also carries
+     * a className the legacy stylesheet can reach. */
+    toggleClass(button, 'tpc-rail-entry-selected', selected);
     clear(button);
 
     if (iconUrl) {
@@ -523,9 +551,15 @@
     const frameIds = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'];
     const frameAssets = ['frameTopLeft', 'frameTop', 'frameTopRight', 'frameLeft',
       'frameRight', 'frameBottomLeft', 'frameBottom', 'frameBottomRight'];
-    for (let i = 0; i < frameIds.length; i++) {
-      const node = document.getElementById(`tpc-frame-${frameIds[i]}`);
-      if (node) node.style.backgroundImage = cssUrl(next[frameAssets[i]]);
+    /* Two frames wear the same nine pieces: the page's panel, and the rail --
+     * which is the gameframe popout strip's own 42px strip and has to read as
+     * one of them, not as a flat column beside one. */
+    const framePrefixes = ['tpc-frame-', 'tpc-railframe-'];
+    for (let p = 0; p < framePrefixes.length; p++) {
+      for (let i = 0; i < frameIds.length; i++) {
+        const node = document.getElementById(framePrefixes[p] + frameIds[i]);
+        if (node) node.style.backgroundImage = cssUrl(next[frameAssets[i]]);
+      }
     }
     updateRailNodes();
     state.widgets.each(renderWidget);
@@ -663,24 +697,66 @@
         record.control = tabs;
         break;
       case W.LISTROW: {
-        const holder = document.createElement('div');
-        holder.className = 'tpc-list-row';
-        const action = document.createElement('button');
-        action.type = 'button';
-        action.className = 'tpc-row-action';
-        bind(action, 'click', () => postWidget(record,
-          (record.shape & ROW_ACTION) ? INTENT.ACTION : INTENT.ACTIVATE));
-        holder.appendChild(action);
-        record.caption = action;
-        if (!(record.shape & ROW_LOCKED)) {
+        /* The retained chrome's roster row: the name, then a settings well
+         * (three dots in field chrome) when the row opens something, then the
+         * tick/cross switch pinned at the right edge. A table rather than a
+         * flex row so XP MSHTML lays the same three zones out. */
+        const locked = !!(record.shape & ROW_LOCKED);
+        const action = !!(record.shape & ROW_ACTION);
+        const holder = document.createElement('table');
+        holder.className = 'tpc-list-table';
+        holder.setAttribute('role', 'presentation');
+        holder.setAttribute('cellspacing', '0');
+        holder.setAttribute('cellpadding', '0');
+        const body = document.createElement('tbody');
+        const line = document.createElement('tr');
+        const nameCell = document.createElement('td');
+        nameCell.className = 'tpc-name-cell';
+        const name = document.createElement('span');
+        name.className = 'tpc-row-name';
+        /* Same zones as the native chrome: everything left of the switch opens
+         * the row when it has an action (a locked row is all action zone), and
+         * a row with no action toggles from its name so no zone is inert. */
+        bind(nameCell, 'click', () => {
+          if (locked || action) postWidget(record, INTENT.ACTION);
+          else if (record.toggle) {
+            record.toggle.checked = !record.toggle.checked;
+            postWidget(record, INTENT.TOGGLE, record.toggle.checked ? 1 : 0);
+          }
+        });
+        nameCell.appendChild(name);
+        line.appendChild(nameCell);
+        if (action) {
+          const wellCell = document.createElement('td');
+          wellCell.className = 'tpc-well-cell';
+          const well = document.createElement('button');
+          well.type = 'button';
+          well.className = 'tpc-row-well';
+          for (let dot = 0; dot < 3; dot++) {
+            const mark = document.createElement('i');
+            mark.className = `tpc-dot tpc-dot-${dot}`;
+            well.appendChild(mark);
+          }
+          bind(well, 'click', () => postWidget(record, INTENT.ACTION));
+          wellCell.appendChild(well);
+          line.appendChild(wellCell);
+          record.well = well;
+        }
+        if (!locked) {
+          const toggleCell = document.createElement('td');
+          toggleCell.className = 'tpc-toggle-cell';
           const toggle = document.createElement('input');
           toggle.type = 'checkbox';
           toggle.className = 'tpc-check';
           bind(toggle, 'change', () => postWidget(record, INTENT.TOGGLE, toggle.checked ? 1 : 0));
-          holder.appendChild(toggle);
+          toggleCell.appendChild(toggle);
+          line.appendChild(toggleCell);
           record.toggle = toggle;
         }
+        body.appendChild(line);
+        holder.appendChild(body);
         row.appendChild(holder);
+        record.caption = name;
         record.control = holder;
         break;
       }
@@ -688,7 +764,8 @@
         const holder = document.createElement('span');
         holder.className = 'tpc-color';
         const swatch = document.createElement('input');
-        swatch.type = legacy ? 'text' : 'color';
+        /* Only MSHTML lacks the colour input; Android's Chrome 39 has it. */
+        swatch.type = legacyPixels ? 'text' : 'color';
         swatch.className = 'tpc-field tpc-color-swatch';
         const hex = document.createElement('input');
         hex.type = 'text';
@@ -797,21 +874,7 @@
         }
         break;
       case W.CHECKBOX:
-        record.control.checked = !!record.checked;
-        if (!legacyPixels) {
-          const square = state.checkStyle === 1;
-          const on = safeUrl(square ? state.theme.checkBoxOn : state.theme.checkOn) ||
-            (square ? 'skin/CheckBoxOn.png' : 'skin/CheckOn.png');
-          const off = safeUrl(square ? state.theme.checkBoxOff : state.theme.checkOff) ||
-            (square ? 'skin/CheckBoxOff.png' : 'skin/CheckOff.png');
-          const side = square ? 18 : 17;
-          record.control.style.width = `${side}px`;
-          record.control.style.height = `${side}px`;
-          record.control.style.minWidth = `${side}px`;
-          record.control.style.backgroundSize = `${side}px ${side}px`;
-          record.control.style.backgroundImage = cssUrl(
-            record.checked ? on : off);
-        }
+        skinCheck(record.control, !!record.checked);
         setText(record.caption, record.label || record.text);
         break;
       case W.TEXTINPUT:
@@ -835,9 +898,9 @@
         setText(record.control, record.label || record.text || 'Model preview');
         break;
       case W.LISTROW:
-        skinButton(record.caption);
         setText(record.caption, record.label || record.text);
-        if (record.toggle) record.toggle.checked = !!record.checked;
+        if (record.well) record.well.title = text(record.label || record.text, 63);
+        if (record.toggle) skinCheck(record.toggle, !!record.checked);
         break;
       case W.COLORPICK: {
         const value = /^#[0-9a-f]{6}$/i.test(record.text) ? record.text : '#000000';

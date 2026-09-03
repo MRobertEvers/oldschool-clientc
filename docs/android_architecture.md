@@ -474,3 +474,26 @@ cd android && ./gradlew installDebug                              # the APK
 tools/android_push_data.sh cache.osrs239                          # the data
 adb logcat -s torirs                                              # stdout/stderr
 ```
+
+## Plugin chrome cost (measured 2026-09-02, XT1060 / API 22)
+
+Whole-process `simpleperf` windows of 10 s in Lumbridge, `--gles2-dualcore`,
+one Lua plugin (Panel Demo) loaded, three arms: the WebView present with the
+rail collapsed, the WebView expanded on the Manage Plugins roster, and no
+WebView at all (`no_plugin_chrome` file in the data root).
+
+| Arm | Samples (1 kHz) | WebView threads in sample | Frame | PSS |
+|---|---:|---|---:|---:|
+| no WebView | 10481 | none (21 threads) | 21.5 ms | 526 MB |
+| WebView, rail collapsed | 9764 | none (49 threads) | 22.0 ms | 560 MB |
+| WebView, roster open, before the gate | 6360 | none; frame thread 90% painting a destroyed surface | 23.0 ms | 586 MB |
+| WebView, roster open, with the gate | 3901 | none; frame thread at the logic floor | 20.5 ms | 417 MB |
+
+The browser costs memory and threads, not CPU: in steady state its threads
+never appear. The one real waste was the game's own frame thread: a
+phone-width page is exclusive, the SurfaceView is hidden and its surface
+destroyed, and the client kept rendering the world into nothing at about 0.6
+of a core. `PlatformWindow_CanPresent` now answers false without a surface and
+the frame loop skips the draw while the world and network keep ticking. The
+WebView itself holds 60 fps (requestAnimationFrame mean 16.5 ms) with the rail
+alone and while scrolling the open roster.

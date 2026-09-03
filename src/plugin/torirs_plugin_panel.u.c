@@ -1158,8 +1158,14 @@ app_plugin_panel_sync(struct App* app)
 
         /* Back first, so the way out is the first thing on the page and in the
          * same place on every page. Its handle is remembered rather than
-         * tracked as a row: it belongs to no plugin. */
-        if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER )
+         * tracked as a row: it belongs to no plugin.
+         *
+         * On every executor, not only the in-canvas one: a plugin's generated
+         * settings page is a sub-page of the roster, and the browser rail's
+         * only other way back is knowing that the pressed Manage stone reopens
+         * the roster. A registered semantic page is its own destination and
+         * does not get one -- its stone is the way in and out. */
+        if( panel_active != p )
         {
             g_plugin_back_widget =
                 ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "< Plugins");
@@ -2619,6 +2625,12 @@ app_plugin_rail_snapshot(
     snapshot->last_selected_plugin =
         PluginHost_PanelLastSelected(app->plugins);
     snapshot->selected_entry = app->plugin_shell.active_plugin;
+    /* A plugin's generated settings page has no stone of its own: it is
+     * reached from the roster, so the rail keeps Manage Plugins pressed while
+     * it is up, and pressing Manage again is the way back to the roster. */
+    if( snapshot->selected_entry >= 0 &&
+        !PluginHost_PanelHasPage(app->plugins, snapshot->selected_entry) )
+        snapshot->selected_entry = TORIRS_CHROME_SHELL_PAGE_MANAGE;
     snapshot->expanded = app->plugin_shell.expanded ? 1 : 0;
 
     /* Permanent application destination, in the same retained rail and the
@@ -2731,6 +2743,11 @@ app_plugin_rail_drain(struct App* app)
         latest_select.selection_generation != app->plugin_shell.selection_generation )
         return;
 
+    if( getenv("TORIRS_CHROME_DEBUG") )
+        fprintf(
+            stderr, "chrome: rail select plugin=%d seq=%llu gen=%u tick=%d\n",
+            latest_select.plugin_index, (unsigned long long)latest_select.sequence,
+            (unsigned)latest_select.selection_generation, g_plugin_panel_ticks);
     if( latest_select.plugin_index == TORIRS_CHROME_SHELL_PAGE_MANAGE )
     {
         if( app->plugin_panel_visible &&
@@ -2766,6 +2783,8 @@ app_plugin_button_click(struct App* app, int component_id)
 {
     if( component_id != TORIRS_CHROME_PLUGIN_BUTTON_ID )
         return 0;
+    if( getenv("TORIRS_CHROME_DEBUG") )
+        fprintf(stderr, "chrome: Manage Plugins plate click tick=%d\n", g_plugin_panel_ticks);
     app_plugin_window_set_open(app, !app->plugin_panel_visible);
     return 1;
 }
@@ -3395,6 +3414,8 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
             /* The same path the button takes. Two entry points that opened
              * the window two different ways is how one of them ends up doing
              * only half of it. */
+            if( getenv("TORIRS_CHROME_DEBUG") )
+                fprintf(stderr, "chrome: hotkey toggle tick=%d\n", g_plugin_panel_ticks);
             app_plugin_window_set_open(app, !app->plugin_panel_visible);
         }
         toggle_was_down = down;

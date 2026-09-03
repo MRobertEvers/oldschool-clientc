@@ -513,6 +513,33 @@ static void json_text(char const* json, char const* key, char* out, int capacity
     out[used] = 0;
 }
 
+/* Return the suffix after one JSON string value, respecting escapes. Widget
+ * text precedes x/y/g/s in the canonical intent shape; parsing those numeric
+ * fields only from this suffix prevents escaped user text such as `"g":0`
+ * from being mistaken for protocol structure by the deliberately tiny parser. */
+static char const* json_after_string(char const* json, char const* key)
+{
+    char pattern[64];
+    char const* at;
+
+    snprintf(pattern, sizeof(pattern), "\"%s\":\"", key);
+    at = strstr(json, pattern);
+    if( !at ) return NULL;
+    at += strlen(pattern);
+    while( *at )
+    {
+        if( *at == '\\' && at[1] )
+        {
+            at += 2;
+            continue;
+        }
+        if( *at == '"' )
+            return at + 1;
+        at++;
+    }
+    return NULL;
+}
+
 static int json_type(char const* json, char const* expected)
 {
     char type[64];
@@ -583,17 +610,20 @@ static void drain_messages(struct WinBrowserExec* s)
         {
             struct ToriRSChromeIntent intent;
             struct ToriRSChromeMirrorWidget* widget;
+            char const* tail;
             if( !accept_sequence(s, s->raw) ) continue;
             memset(&intent, 0, sizeof(intent));
             intent.kind = json_int(s->raw, "k", 0);
             intent.panel = json_int(s->raw, "p", -1);
             intent.widget = json_int(s->raw, "w", -1);
             intent.value = json_int(s->raw, "v", 0);
-            intent.x = json_int(s->raw, "x", 0);
-            intent.y = json_int(s->raw, "y", 0);
-            intent.selection_generation = json_u32(s->raw, "g", 0);
-            intent.widget_serial = json_u32(s->raw, "s", 0);
             json_text(s->raw, "text", intent.text, (int)sizeof(intent.text));
+            tail = json_after_string(s->raw, "text");
+            if( !tail ) continue;
+            intent.x = json_int(tail, "x", 0);
+            intent.y = json_int(tail, "y", 0);
+            intent.selection_generation = json_u32(tail, "g", 0);
+            intent.widget_serial = json_u32(tail, "s", 0);
             if( !s->open || intent.kind < TORIRS_CHROME_INTENT_ACTIVATE ||
                 intent.kind > TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE ||
                 intent.selection_generation != effective_page_generation(s) )

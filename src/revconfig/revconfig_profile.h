@@ -37,6 +37,10 @@ struct RevConfigProfile
      *  band end is still derived from `rest`) and mean nothing to a reader. */
     struct RevConfigCameraItem camera;
 
+    /** `[frame]`, fully resolved: no cap and revconfig as its owner until a
+     *  profile says otherwise. @see struct RevConfigFrameItem */
+    struct RevConfigFrameItem frame;
+
     /** `[chrome]` — where this revision mounts the client's own plugin button.
      *  Unlike the camera there are NO defaults: every number keeps its -1 and
      *  every name its empty string until a profile states it, because a strip

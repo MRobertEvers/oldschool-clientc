@@ -149,6 +149,26 @@
  *  wears overlapping corners -- which is what the 42px-wide strip itself does. */
 #define TORIRS_CHROME_M_FRAME_CORNER 32
 
+/* ---- the rail ------------------------------------------------------------ */
+
+/**
+ * Width of the plugin rail -- the icon column -- INCLUDING its frame.
+ *
+ * The gameframe's own popout strip (interface 728) is 42 wide and wears the
+ * nine-slice above, so the rail beside it is 42 too: two stone columns of
+ * different widths standing next to each other read as one of them being
+ * wrong, and the one the player has seen for twenty years is not the one
+ * that is. 42 = 6 rail + 30 content + 6 rail, which is what leaves a 26px
+ * icon its own margins.
+ *
+ * Every presentation of the rail is sized from this: the mac child window,
+ * the Win32 rail window, the Android pane, and the CSS the page lays the rail
+ * out with (`.tpc-rail` in modern.css / legacy-ie8.css). A host that reserves
+ * a different allocation from the one the page draws in leaves a band of
+ * window background down the seam.
+ */
+#define TORIRS_CHROME_M_RAIL_W 42
+
 /* ---- the tab strip ------------------------------------------------------- */
 
 /** Height of a tab, and the padding either side of its caption. */

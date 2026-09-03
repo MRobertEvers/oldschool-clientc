@@ -39,10 +39,10 @@ assert.match(adapter, /this\.frame\s*\|\|[\s\S]*return !!this\.frame/,
   'ensureFrame retains the original iframe');
 assert.match(adapter, /entries\.slice\(0, 33\)/,
   'one rail can retain Manage plus all 32 plugins');
-assert.match(adapter, /const RAIL_WIDTH = 48;/,
+assert.match(adapter, /const RAIL_WIDTH = 42;/,
   'the outer allocation reserves the modern rail width');
-assert.match(canonicalCss, /grid-template-columns:\s*minmax\(0, 1fr\) 48px/,
-  'the canonical modern document consumes the same 48px rail width');
+assert.match(canonicalCss, /grid-template-columns:\s*minmax\(0, 1fr\) 42px/,
+  'the canonical modern document consumes the same 42px rail width');
 assert.match(adapter, /GAME_MIN \+ RAIL_WIDTH \+ PANEL_MIN/,
   'split/exclusive mode is derived from available width');
 assert.match(adapter, /game\.hidden\s*=\s*mode\s*===\s*['"]exclusive['"]/,

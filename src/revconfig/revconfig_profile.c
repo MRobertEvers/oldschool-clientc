@@ -33,6 +33,12 @@ RevConfigProfile_Init(struct RevConfigProfile* profile)
     /* One default per key, spelled the same way the INI spells it. The has_
      * flags stay 0: nothing has been STATED yet, which is what lets the band
      * ends stay derived from a rest a later source may still move. */
+    /* No screen cap, owned by the profile: the pacer's own rate is the draw
+     * rate until a `[frame]` section says otherwise. */
+    profile->frame.cap_fps = 0;
+    profile->frame.cap_source = REVCONFIG_FRAME_CAP_REVCONFIG;
+    profile->frame.has_cap_fps = 0;
+    profile->frame.has_cap_source = 0;
     profile->camera.rest = REVCONFIG_CAMERA_REST_DEFAULT;
     profile->camera.zoom_closest = REVCONFIG_CAMERA_ZOOM_CLOSEST_DEFAULT;
     profile->camera.zoom_furthest = REVCONFIG_CAMERA_ZOOM_FURTHEST_DEFAULT;
@@ -276,6 +282,19 @@ RevConfigProfile_AddItems(
             profile_merge_features(&profile->features, &item->u.features);
         else if( item->kind == RCITEM_CAMERA )
             profile_merge_camera(&profile->camera, &item->u.camera);
+        else if( item->kind == RCITEM_FRAME )
+        {
+            if( item->u.frame.has_cap_fps )
+            {
+                profile->frame.cap_fps = item->u.frame.cap_fps;
+                profile->frame.has_cap_fps = 1;
+            }
+            if( item->u.frame.has_cap_source )
+            {
+                profile->frame.cap_source = item->u.frame.cap_source;
+                profile->frame.has_cap_source = 1;
+            }
+        }
         else if( item->kind == RCITEM_CHROME )
             profile_merge_chrome(&profile->chrome, &item->u.chrome);
     }

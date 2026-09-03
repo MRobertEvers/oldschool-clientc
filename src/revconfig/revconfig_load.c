@@ -271,6 +271,18 @@ push_field_from_ini_kv(
             push_field(vec, kind, value);
         return;
     }
+    if( strcmp(s_ini_item_type, "frame") == 0 )
+    {
+        if( strcmp(key, "cap_fps") == 0 )
+            kind = RCFIELD_FRAME_CAP_FPS;
+        else if( strcmp(key, "cap_source") == 0 )
+            kind = RCFIELD_FRAME_CAP_SOURCE;
+        else
+            TORIRS_ERR("revconfig: [frame] has no key '%s'\n", key);
+        if( kind != RCFIELD_NONE )
+            push_field(vec, kind, value);
+        return;
+    }
     if( strcmp(s_ini_item_type, "chrome") == 0 )
     {
         if( strcmp(key, "plugin_button_iface") == 0 )

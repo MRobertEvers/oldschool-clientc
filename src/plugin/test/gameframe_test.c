@@ -1163,12 +1163,12 @@ main(void)
     PluginHost_SetEnabled(g_host, g_plugin, true);
     /* The title's frames tick too -- and one has to, for the frame boundary
      * to see the title at all before login moves the screen again. */
-    PluginHost_FrameStart(g_host, 950);
+    PluginHost_FrameStart(g_host, 950, 0);
     CHECK(
         g_frame.owned == 0,
         "enabling at the title claims nothing -- the host refuses the frame");
     g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
-    PluginHost_FrameStart(g_host, 1000);
+    PluginHost_FrameStart(g_host, 1000, 0);
     CHECK(g_frame.owned == 1, "logging in claims the frame without a restart");
     {
         int const before = g_frame.end_calls;

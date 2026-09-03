@@ -6666,7 +6666,8 @@ PluginHost_CtxIndex(struct ToriRS_PluginCtx const* ctx)
 /* ------------------------------------------------------------------ seams */
 
 void
-PluginHost_FrameStart(struct ToriRS_PluginHost* host, uint64_t now_ms)
+PluginHost_FrameStart(
+    struct ToriRS_PluginHost* host, uint64_t now_ms, uint64_t drawn_frames)
 {
     if( !host )
         return;
@@ -6698,7 +6699,7 @@ PluginHost_FrameStart(struct ToriRS_PluginHost* host, uint64_t now_ms)
     if( host->sub_count[TORIRS_PLUGIN_EV_FRAME_START] == 0 )
         return;
 
-    struct ToriRS_PluginEvFrame ev = { now_ms };
+    struct ToriRS_PluginEvFrame ev = { now_ms, drawn_frames };
     plugin_dispatch(host, TORIRS_PLUGIN_EV_FRAME_START, &ev);
 }
 

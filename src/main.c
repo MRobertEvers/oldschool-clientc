@@ -2326,7 +2326,18 @@ frame_loop_step(void)
          */
         {
             static int keyhold_done = 0;
-            if( !keyhold_done && frame_count >= 1 )
+            static long keyhold_frame = -1;
+            /* TORIRS_SIM_KEYHOLD_FRAME=N delays the press to loop iteration N:
+             * a key pressed on frame 1 lands on the title screen, and a held
+             * arrow there rotates no camera. */
+            if( keyhold_frame < 0 )
+            {
+                char const* at = getenv("TORIRS_SIM_KEYHOLD_FRAME");
+                keyhold_frame = at ? strtol(at, NULL, 0) : 1;
+                if( keyhold_frame < 1 )
+                    keyhold_frame = 1;
+            }
+            if( !keyhold_done && frame_count >= keyhold_frame )
             {
                 char const* spec = getenv("TORIRS_SIM_KEYHOLD");
                 keyhold_done = 1;
@@ -2643,10 +2654,15 @@ frame_loop_step(void)
          * plays at the same speed and simply draws less. That is the whole
          * point of the row on a phone, where the draw is the battery.
          */
-        int draw_period_ms = ToriRS_Pacer_DrawPeriodMs(&frame_pacer);
-        int const cap_fps = RS_CS2Host_FrameRateCapFps(&app.host);
-        if( cap_fps > 0 && 1000 / cap_fps > draw_period_ms )
-            draw_period_ms = 1000 / cap_fps;
+        /* ONE lever. The configured cap -- revconfig's, or the cache's Limit
+         * Framerate row where the profile hands it to CS2 -- is restated on
+         * the pacer every frame and folded into the same draw budget its
+         * adaptive step-down uses. There is no second cap path here any more:
+         * the one there was gated the screen at 15 fps while the pacer, its
+         * trace and the FPS readout all reported 50. */
+        int draw_period_ms;
+        ToriRS_Pacer_SetCapFps(&frame_pacer, App_FrameCapFps(&app));
+        draw_period_ms = ToriRS_Pacer_DrawPeriodMs(&frame_pacer);
         if( app_redraw && !uncapped && !replay
             && (App_AsyncPending(&app) || draw_period_ms > frame_pacer.period_ms) )
         {
@@ -2680,8 +2696,47 @@ frame_loop_step(void)
     if( PlatformWindow_ChromeIsDirty(platform) )
         app_redraw = 1;
 #endif
+    /*
+     * Nowhere to draw: no draw. The world and the network have already ticked
+     * above; what is skipped is App_Render and the present, the whole of the
+     * frame's cost on a phone. This is the state a phone-width plugin page
+     * puts the client in -- the chrome takes the surface and the game is
+     * hidden until it collapses -- and, measured, the client went on painting
+     * the hidden world at ~0.6 of a core for as long as the page was up.
+     * Retained presents are skipped for the same reason: there is no
+     * retained frame to show and no surface to show it on.
+     */
+    if( !PlatformWindow_CanPresent(platform) )
+        app_redraw = 0;
     input_frame_pending =
         app.app_state == APP_STATE_READY && !App_InputFrameConsumed(&app);
+    /* TORIRS_SWAP_DEBUG=1: how many of the last 300 loop iterations actually
+     * re-rendered, beside the present cadence the platform prints. A screen
+     * that updates less often than the loop runs is one of these two numbers
+     * being low, and they name different culprits. */
+    {
+        static int debug_draw = -1;
+        static int debug_frames = 0;
+        static int debug_rendered = 0;
+        if( debug_draw < 0 )
+            debug_draw = getenv("TORIRS_SWAP_DEBUG") != NULL;
+        if( debug_draw )
+        {
+            debug_rendered += app_redraw ? 1 : 0;
+            if( ++debug_frames == 300 )
+            {
+                fprintf(stderr,
+                    "draw: %d of %d loop iterations re-rendered "
+                    "(cap %d fps, draw period %d ms, async %d)\n",
+                    debug_rendered, debug_frames,
+                    App_FrameCapFps(&app),
+                    ToriRS_Pacer_DrawPeriodMs(&frame_pacer),
+                    App_AsyncPending(&app) ? 1 : 0);
+                debug_frames = 0;
+                debug_rendered = 0;
+            }
+        }
+    }
     if( app_redraw )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)

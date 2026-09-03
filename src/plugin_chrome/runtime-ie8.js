@@ -72,6 +72,9 @@
     var tabs = document.getElementById('tpc-tabs');
     var content = document.getElementById('tpc-content');
     var rail = document.getElementById('tpc-rail-list');
+    /* The rail's own framed box, which the list lives inside. Only the legacy
+     * page hands the two an explicit height; on the modern page the grid does. */
+    var railBox = document.getElementById('tpc-rail') || (rail && rail.parentNode);
     var status = document.getElementById('tpc-status');
     if (!shell || !pane || !title || !close || !tabs || !content || !rail)
         return null;
@@ -198,6 +201,26 @@
             button.style.backgroundSize = '10px 18px';
         }
     }
+    /* The interfaces' own tick/cross (or the square well) at its baked side,
+     * shared by a checkbox row and a roster row's switch. */
+    function skinCheck(control, checked) {
+        if (!control)
+            return;
+        control.checked = checked;
+        if (legacyPixels)
+            return;
+        var square = state.checkStyle === 1;
+        var on = safeUrl(square ? state.theme.checkBoxOn : state.theme.checkOn) ||
+            (square ? 'skin/CheckBoxOn.png' : 'skin/CheckOn.png');
+        var off = safeUrl(square ? state.theme.checkBoxOff : state.theme.checkOff) ||
+            (square ? 'skin/CheckBoxOff.png' : 'skin/CheckOff.png');
+        var side = square ? 18 : 17;
+        control.style.width = "".concat(side, "px");
+        control.style.height = "".concat(side, "px");
+        control.style.minWidth = "".concat(side, "px");
+        control.style.backgroundSize = "".concat(side, "px ").concat(side, "px");
+        control.style.backgroundImage = cssUrl(checked ? on : off);
+    }
     function skinField(control) {
         if (!control || legacyPixels)
             return;
@@ -228,7 +251,11 @@
         if (height > 0) {
             shell.style.height = "".concat(height, "px");
             pane.style.height = "".concat(height, "px");
-            rail.style.height = "".concat(height, "px");
+            /* The BOX gets the viewport height, and the list fills what is left
+             * inside its frame. Sizing the list itself to the viewport hangs its
+             * last entries under the bottom frame piece, where they are clipped. */
+            if (railBox && railBox.style)
+                railBox.style.height = "".concat(height, "px");
         }
     }
     function normalizeIntent(input) {
@@ -405,6 +432,9 @@
         button.setAttribute('aria-selected', selected ? 'true' : 'false');
         button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
         toggleClass(button, 'tpc-attention', entry.attention);
+        /* Old MSHTML has no attribute selectors, so the selected stone also carries
+         * a className the legacy stylesheet can reach. */
+        toggleClass(button, 'tpc-rail-entry-selected', selected);
         clear(button);
         if (iconUrl) {
             appendImage(button, iconUrl, 'tpc-rail-icon', '');
@@ -544,10 +574,16 @@
         var frameIds = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'];
         var frameAssets = ['frameTopLeft', 'frameTop', 'frameTopRight', 'frameLeft',
             'frameRight', 'frameBottomLeft', 'frameBottom', 'frameBottomRight'];
-        for (var i = 0; i < frameIds.length; i++) {
-            var node = document.getElementById("tpc-frame-".concat(frameIds[i]));
-            if (node)
-                node.style.backgroundImage = cssUrl(next[frameAssets[i]]);
+        /* Two frames wear the same nine pieces: the page's panel, and the rail --
+         * which is the gameframe popout strip's own 42px strip and has to read as
+         * one of them, not as a flat column beside one. */
+        var framePrefixes = ['tpc-frame-', 'tpc-railframe-'];
+        for (var p = 0; p < framePrefixes.length; p++) {
+            for (var i = 0; i < frameIds.length; i++) {
+                var node = document.getElementById(framePrefixes[p] + frameIds[i]);
+                if (node)
+                    node.style.backgroundImage = cssUrl(next[frameAssets[i]]);
+            }
         }
         updateRailNodes();
         state.widgets.each(renderWidget);
@@ -683,23 +719,67 @@
                 record.control = tabs;
                 break;
             case W.LISTROW: {
-                var holder = document.createElement('div');
-                holder.className = 'tpc-list-row';
-                var action = document.createElement('button');
-                action.type = 'button';
-                action.className = 'tpc-row-action';
-                bind(action, 'click', function () { return postWidget(record, (record.shape & ROW_ACTION) ? INTENT.ACTION : INTENT.ACTIVATE); });
-                holder.appendChild(action);
-                record.caption = action;
-                if (!(record.shape & ROW_LOCKED)) {
+                /* The retained chrome's roster row: the name, then a settings well
+                 * (three dots in field chrome) when the row opens something, then the
+                 * tick/cross switch pinned at the right edge. A table rather than a
+                 * flex row so XP MSHTML lays the same three zones out. */
+                var locked_1 = !!(record.shape & ROW_LOCKED);
+                var action_1 = !!(record.shape & ROW_ACTION);
+                var holder = document.createElement('table');
+                holder.className = 'tpc-list-table';
+                holder.setAttribute('role', 'presentation');
+                holder.setAttribute('cellspacing', '0');
+                holder.setAttribute('cellpadding', '0');
+                var body = document.createElement('tbody');
+                var line = document.createElement('tr');
+                var nameCell = document.createElement('td');
+                nameCell.className = 'tpc-name-cell';
+                var name_2 = document.createElement('span');
+                name_2.className = 'tpc-row-name';
+                /* Same zones as the native chrome: everything left of the switch opens
+                 * the row when it has an action (a locked row is all action zone), and
+                 * a row with no action toggles from its name so no zone is inert. */
+                bind(nameCell, 'click', function () {
+                    if (locked_1 || action_1)
+                        postWidget(record, INTENT.ACTION);
+                    else if (record.toggle) {
+                        record.toggle.checked = !record.toggle.checked;
+                        postWidget(record, INTENT.TOGGLE, record.toggle.checked ? 1 : 0);
+                    }
+                });
+                nameCell.appendChild(name_2);
+                line.appendChild(nameCell);
+                if (action_1) {
+                    var wellCell = document.createElement('td');
+                    wellCell.className = 'tpc-well-cell';
+                    var well = document.createElement('button');
+                    well.type = 'button';
+                    well.className = 'tpc-row-well';
+                    for (var dot = 0; dot < 3; dot++) {
+                        var mark = document.createElement('i');
+                        mark.className = "tpc-dot tpc-dot-".concat(dot);
+                        well.appendChild(mark);
+                    }
+                    bind(well, 'click', function () { return postWidget(record, INTENT.ACTION); });
+                    wellCell.appendChild(well);
+                    line.appendChild(wellCell);
+                    record.well = well;
+                }
+                if (!locked_1) {
+                    var toggleCell = document.createElement('td');
+                    toggleCell.className = 'tpc-toggle-cell';
                     var toggle_1 = document.createElement('input');
                     toggle_1.type = 'checkbox';
                     toggle_1.className = 'tpc-check';
                     bind(toggle_1, 'change', function () { return postWidget(record, INTENT.TOGGLE, toggle_1.checked ? 1 : 0); });
-                    holder.appendChild(toggle_1);
+                    toggleCell.appendChild(toggle_1);
+                    line.appendChild(toggleCell);
                     record.toggle = toggle_1;
                 }
+                body.appendChild(line);
+                holder.appendChild(body);
                 row.appendChild(holder);
+                record.caption = name_2;
                 record.control = holder;
                 break;
             }
@@ -707,7 +787,8 @@
                 var holder = document.createElement('span');
                 holder.className = 'tpc-color';
                 var swatch_1 = document.createElement('input');
-                swatch_1.type = legacy ? 'text' : 'color';
+                /* Only MSHTML lacks the colour input; Android's Chrome 39 has it. */
+                swatch_1.type = legacyPixels ? 'text' : 'color';
                 swatch_1.className = 'tpc-field tpc-color-swatch';
                 var hex_1 = document.createElement('input');
                 hex_1.type = 'text';
@@ -822,20 +903,7 @@
                 }
                 break;
             case W.CHECKBOX:
-                record.control.checked = !!record.checked;
-                if (!legacyPixels) {
-                    var square = state.checkStyle === 1;
-                    var on = safeUrl(square ? state.theme.checkBoxOn : state.theme.checkOn) ||
-                        (square ? 'skin/CheckBoxOn.png' : 'skin/CheckOn.png');
-                    var off = safeUrl(square ? state.theme.checkBoxOff : state.theme.checkOff) ||
-                        (square ? 'skin/CheckBoxOff.png' : 'skin/CheckOff.png');
-                    var side = square ? 18 : 17;
-                    record.control.style.width = "".concat(side, "px");
-                    record.control.style.height = "".concat(side, "px");
-                    record.control.style.minWidth = "".concat(side, "px");
-                    record.control.style.backgroundSize = "".concat(side, "px ").concat(side, "px");
-                    record.control.style.backgroundImage = cssUrl(record.checked ? on : off);
-                }
+                skinCheck(record.control, !!record.checked);
                 setText(record.caption, record.label || record.text);
                 break;
             case W.TEXTINPUT:
@@ -860,10 +928,11 @@
                 setText(record.control, record.label || record.text || 'Model preview');
                 break;
             case W.LISTROW:
-                skinButton(record.caption);
                 setText(record.caption, record.label || record.text);
+                if (record.well)
+                    record.well.title = text(record.label || record.text, 63);
                 if (record.toggle)
-                    record.toggle.checked = !!record.checked;
+                    skinCheck(record.toggle, !!record.checked);
                 break;
             case W.COLORPICK: {
                 var value = /^#[0-9a-f]{6}$/i.test(record.text) ? record.text : '#000000';

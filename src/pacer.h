@@ -75,6 +75,17 @@ struct ToriRS_Pacer
      * the picture.
      */
     int draw_period_ms;
+    /*
+     * The CONFIGURED screen cap, in ms per drawn frame; 0 is none. Where the
+     * adaptive budget above is what the machine can do, this is what the
+     * profile or the player asked for -- revconfig's `[frame] cap_fps`, or the
+     * cache's own Limit Framerate row when that profile hands the cap to CS2.
+     * One number feeds both: ToriRS_Pacer_DrawPeriodMs answers the longer of
+     * the two, and every draw decision reads that. A second cap path beside
+     * the pacer is how the screen ended up gated at 15 fps while the loop,
+     * the pacer trace and the FPS readout all said 50.
+     */
+    int cap_period_ms;
     /* TORIRS_PACER_ADAPT=0 pins the draw budget to period_ms. */
     int adapt;
     int adapt_behind; /* consecutive frames that did not fit */
@@ -155,6 +166,14 @@ int ToriRS_Pacer_LastLogicTicks(struct ToriRS_Pacer const* pacer);
  * unless the machine could not hold that rate; see draw_period_ms.
  */
 int ToriRS_Pacer_DrawPeriodMs(struct ToriRS_Pacer const* pacer);
+
+/**
+ * State the configured screen cap: `fps` frames drawn per second at most, 0
+ * for none. Idempotent and cheap, so the loop restates it every frame from
+ * whatever owns the number (App_FrameCapFps). The world's tick rate is not
+ * touched: a capped screen still simulates at period_ms.
+ */
+void ToriRS_Pacer_SetCapFps(struct ToriRS_Pacer* pacer, int fps);
 
 /*
  * Close one iteration for the trace: `now_us` is the clock after the wait, and

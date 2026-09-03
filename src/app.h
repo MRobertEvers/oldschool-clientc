@@ -2078,6 +2078,10 @@ struct App
     int dbg_panel;
     int dbg_frame_row;
     int dbg_visible;
+    /** Frames App_Render has produced, cumulative. What a frame-rate readout
+     *  differences: the loop runs at the pacer's rate whether or not a frame
+     *  is drawn, so counting iterations measures the pacer, not the screen. */
+    uint64_t frames_rendered;
     /** Frame durations in microseconds, newest written at dbg_frame_head. */
     uint32_t dbg_frame_us[APP_DEBUG_FRAME_SAMPLES];
     int dbg_frame_head;
@@ -3768,6 +3772,19 @@ App_RunOnce(
  * calling App_Render against a partially-applied CS2/server transaction. */
 int
 App_FrameSettled(struct App const* app);
+
+/**
+ * The screen's frame cap, in frames per second; 0 is none.
+ *
+ * ONE answer for the loop, wherever the number comes from: revconfig's
+ * `[frame] cap_fps` on every revision, or -- where that profile says
+ * `cap_source=cs2` -- the cache's own Limit Framerate device option, with the
+ * profile's number as the value while the option is unset. The loop hands it
+ * to the pacer (ToriRS_Pacer_SetCapFps), which is the same draw budget its
+ * adaptive step-down uses; nothing else may gate a draw.
+ */
+int
+App_FrameCapFps(struct App const* app);
 
 /** Whether the most recent App_RunOnce reached interaction. A shell retains
  * one-shot input while false so an async CS2/tick wait cannot eat a mouse-up or

@@ -38,6 +38,7 @@
 #include "input/torirs_keymap.h"
 #include "input/torirs_touch.h"
 #include "perf/torirs_perf.h"
+#include "ui/torirs_chrome_metrics.h"
 #include <windows.h>
 #include <objbase.h>
 
@@ -133,12 +134,23 @@ static const char RPD_WNDCLASS[] = "TorirsWin32GdiWindow";
 static const char RPD_CHROME_RAIL_WNDCLASS[] = "TorirsWin32ChromeRail";
 
 /* One logical, persistent modern-OSRS strip. Win32 uses device pixels here.
- * The ES3 legacy bundle is authored at 46px; modern WebView2 is 48px. */
-#if defined(_WIN64)
-#  define WIN32_CHROME_RAIL_W 48
-#else
-#  define WIN32_CHROME_RAIL_W 46
-#endif
+ * Both bundles lay the rail out at the shared authored width, so the window
+ * reserves exactly that: the two spellings this carried before (48 on WebView2,
+ * 46 on the ES3 page) each left a band of window background beside a page that
+ * had drawn its own edge. */
+#define WIN32_CHROME_RAIL_W TORIRS_CHROME_M_RAIL_W
+
+/* Rail icons plus one selected page's custom regions fit comfortably here.
+ * The ring also bounds historical page/serial keys over a long session. */
+#define WIN32_BROWSER_BITMAP_CACHE_MAX 128
+#define WIN32_BROWSER_BITMAP_PIXELS_MAX (4096u * 1024u)
+
+struct Win32BrowserBitmapEntry
+{
+    char key[96];
+    WCHAR path[MAX_PATH];
+    uint32_t revision;
+};
 
 struct PlatformWindow
 {
@@ -186,6 +198,10 @@ struct PlatformWindow
     struct PlatformWin32Browser* chrome_browser;
     WCHAR   chrome_browser_asset_dir[MAX_PATH];
     WCHAR   chrome_browser_asset_url[MAX_PATH * 3];
+    struct Win32BrowserBitmapEntry
+        chrome_browser_bitmaps[WIN32_BROWSER_BITMAP_CACHE_MAX];
+    int     chrome_browser_bitmap_count;
+    int     chrome_browser_bitmap_evict;
     int     chrome_width;
     int     chrome_height;
     int     chrome_requested_w;
@@ -1935,6 +1951,7 @@ PlatformWindow_PluginBrowserBitmapUrl(
 {
     WCHAR path[MAX_PATH];
     WCHAR temporary[MAX_PATH];
+    WCHAR previous[MAX_PATH];
     WCHAR name[128];
     BITMAPFILEHEADER file;
     BITMAPINFOHEADER info;
@@ -1942,11 +1959,18 @@ PlatformWindow_PluginBrowserBitmapUrl(
     uint32_t* row;
     DWORD wrote;
     int key_length;
+    int cache_slot = -1;
+    int cache_existing = 0;
+    int cache_append = 0;
+    int cache_evict = 0;
+    int path_length;
     int url_length;
+    char relative_url[128];
 
     if( !p || !cache_key || !cache_key[0] || !argb || !out_url || capacity <= 0 ||
         revision == 0 || width <= 0 || height <= 0 || width > 4096 || height > 4096 ||
-        (size_t)width > SIZE_MAX / (size_t)height )
+        (size_t)width > SIZE_MAX / (size_t)height ||
+        (size_t)width * (size_t)height > WIN32_BROWSER_BITMAP_PIXELS_MAX )
         return false;
     key_length = (int)strlen(cache_key);
     if( key_length <= 0 || key_length >= 96 )
@@ -1961,11 +1985,61 @@ PlatformWindow_PluginBrowserBitmapUrl(
         return false;
     if( !MultiByteToWideChar(CP_ACP, 0, cache_key, -1, name, 128) )
         return false;
-    if( _snwprintf(
-            path, MAX_PATH, L"%s\\bitmap\\%s-r%lu.bmp",
-            p->chrome_browser_asset_dir, name, (unsigned long)revision) <= 0 ||
-        _snwprintf(temporary, MAX_PATH, L"%s.tmp", path) <= 0 )
+    url_length = snprintf(
+        relative_url,
+        sizeof(relative_url),
+        "bitmap/%s-r%lu.bmp",
+        cache_key,
+        (unsigned long)revision);
+    /* Output failure is decided before touching the retained cache or disk. */
+    if( url_length <= 0 || url_length >= (int)sizeof(relative_url) ||
+        url_length >= capacity )
         return false;
+    path_length = _snwprintf(
+        path, MAX_PATH, L"%s\\bitmap\\%s-r%lu.bmp",
+        p->chrome_browser_asset_dir, name, (unsigned long)revision);
+    if( path_length <= 0 || path_length >= MAX_PATH ||
+        (path_length = _snwprintf(temporary, MAX_PATH, L"%s.tmp", path)) <= 0 ||
+        path_length >= MAX_PATH )
+        return false;
+
+    previous[0] = 0;
+    for( int i = 0; i < p->chrome_browser_bitmap_count; i++ )
+        if( strcmp(p->chrome_browser_bitmaps[i].key, cache_key) == 0 )
+        {
+            cache_slot = i;
+            cache_existing = 1;
+            break;
+        }
+    if( cache_slot < 0 )
+    {
+        if( p->chrome_browser_bitmap_count < WIN32_BROWSER_BITMAP_CACHE_MAX )
+        {
+            cache_slot = p->chrome_browser_bitmap_count;
+            cache_append = 1;
+        }
+        else
+        {
+            cache_slot = p->chrome_browser_bitmap_evict;
+            cache_evict = 1;
+        }
+    }
+    if( p->chrome_browser_bitmaps[cache_slot].path[0] )
+        lstrcpynW(previous, p->chrome_browser_bitmaps[cache_slot].path, MAX_PATH);
+    if( cache_existing && p->chrome_browser_bitmaps[cache_slot].revision )
+    {
+        int32_t const revision_delta =
+            (int32_t)(revision - p->chrome_browser_bitmaps[cache_slot].revision);
+        if( revision_delta < 0 )
+            return false;
+        if( revision_delta == 0 &&
+            previous[0] && _wcsicmp(previous, path) == 0 &&
+            GetFileAttributesW(previous) != INVALID_FILE_ATTRIBUTES )
+        {
+            memcpy(out_url, relative_url, (size_t)url_length + 1);
+            return true;
+        }
+    }
 
     memset(&file, 0, sizeof(file));
     memset(&info, 0, sizeof(info));
@@ -2031,13 +2105,33 @@ PlatformWindow_PluginBrowserBitmapUrl(
         DeleteFileW(temporary);
         return false;
     }
-    url_length = snprintf(
-        out_url,
-        (size_t)capacity,
-        "bitmap/%s-r%lu.bmp",
-        cache_key,
-        (unsigned long)revision);
-    return url_length > 0 && url_length < capacity;
+    if( previous[0] && _wcsicmp(previous, path) != 0 &&
+        !DeleteFileW(previous) && GetLastError() != ERROR_FILE_NOT_FOUND &&
+        GetLastError() != ERROR_PATH_NOT_FOUND )
+    {
+        /* Never forget an undeletable entry and thereby exceed the bound.
+         * The new file has not been published to the DOM, so it is safe to
+         * roll it back and leave the prior revision authoritative. */
+        DeleteFileW(path);
+        return false;
+    }
+    snprintf(
+        p->chrome_browser_bitmaps[cache_slot].key,
+        sizeof(p->chrome_browser_bitmaps[cache_slot].key),
+        "%s",
+        cache_key);
+    lstrcpynW(p->chrome_browser_bitmaps[cache_slot].path, path, MAX_PATH);
+    p->chrome_browser_bitmaps[cache_slot].revision = revision;
+    if( cache_append )
+        p->chrome_browser_bitmap_count++;
+    if( cache_evict )
+    {
+        p->chrome_browser_bitmap_evict++;
+        if( p->chrome_browser_bitmap_evict >= WIN32_BROWSER_BITMAP_CACHE_MAX )
+            p->chrome_browser_bitmap_evict = 0;
+    }
+    memcpy(out_url, relative_url, (size_t)url_length + 1);
+    return true;
 }
 
 bool
@@ -2095,6 +2189,69 @@ void*
 PlatformWindow_Win32TestRailHandle(struct PlatformWindow* p)
 {
     return p ? (void*)p->chrome_rail_hwnd : NULL;
+}
+
+int
+PlatformWindow_Win32TestBitmapFileCount(struct PlatformWindow* p)
+{
+    WCHAR pattern[MAX_PATH];
+    WIN32_FIND_DATAW found;
+    HANDLE search;
+    int count = 0;
+
+    if( !p || !p->chrome_browser_asset_dir[0] ||
+        _snwprintf(
+            pattern, MAX_PATH, L"%s\\bitmap\\*.bmp",
+            p->chrome_browser_asset_dir) <= 0 )
+        return -1;
+    search = FindFirstFileW(pattern, &found);
+    if( search == INVALID_HANDLE_VALUE )
+        return GetLastError() == ERROR_FILE_NOT_FOUND ? 0 : -1;
+    do
+    {
+        if( !(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
+            count++;
+    } while( FindNextFileW(search, &found) );
+    FindClose(search);
+    return count;
+}
+
+bool
+PlatformWindow_Win32TestBitmapRevisionExists(
+    struct PlatformWindow* p, char const* key, uint32_t revision)
+{
+    WCHAR wide_key[128];
+    WCHAR path[MAX_PATH];
+
+    if( !p || !p->chrome_browser_asset_dir[0] || !key || !key[0] ||
+        !MultiByteToWideChar(CP_ACP, 0, key, -1, wide_key, 128) ||
+        _snwprintf(
+            path, MAX_PATH, L"%s\\bitmap\\%s-r%lu.bmp",
+            p->chrome_browser_asset_dir, wide_key,
+            (unsigned long)revision) <= 0 )
+        return false;
+    return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
+}
+
+void*
+PlatformWindow_Win32TestBitmapLock(
+    struct PlatformWindow* p, char const* key, uint32_t revision)
+{
+    WCHAR wide_key[128];
+    WCHAR path[MAX_PATH];
+    HANDLE handle;
+
+    if( !p || !p->chrome_browser_asset_dir[0] || !key || !key[0] ||
+        !MultiByteToWideChar(CP_ACP, 0, key, -1, wide_key, 128) ||
+        _snwprintf(
+            path, MAX_PATH, L"%s\\bitmap\\%s-r%lu.bmp",
+            p->chrome_browser_asset_dir, wide_key,
+            (unsigned long)revision) <= 0 )
+        return NULL;
+    handle = CreateFileW(
+        path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, NULL);
+    return handle != INVALID_HANDLE_VALUE ? (void*)handle : NULL;
 }
 #endif
 
@@ -2398,6 +2555,13 @@ PlatformWindow_SetPresentDamageRects(
         p->present_dmg_rects[i][3] = rects[i][3];
     }
     p->present_dmg_rect_count = count;
+}
+
+bool
+PlatformWindow_CanPresent(struct PlatformWindow const* p)
+{
+    assert(p);
+    return p->hwnd != NULL;
 }
 
 void

@@ -12,8 +12,13 @@
 
   const PROTOCOL = 1;
   const MAX_PENDING = 128;
+  const MAX_PENDING_BYTES = 8 * 1024 * 1024;
+  const MAX_CUSTOM_PIXELS = 1200000;
   const MAX_INTENTS = 64;
-  const RAIL_WIDTH = 48;
+  /* The rail's allocation, in CSS pixels: the shared bundle lays the rail out
+   * at TORIRS_CHROME_M_RAIL_W (42, the gameframe popout strip's own width,
+   * frame included), and the dock must reserve exactly that. */
+  const RAIL_WIDTH = 42;
   const PANEL_MIN = 280;
   const PANEL_MAX = 640;
   const PANEL_DEFAULT = 360;
@@ -99,6 +104,8 @@
       this.frame = null;
       this.runtime = null;
       this.pending = [];
+      this.pendingBytes = 0;
+      this.pendingSerial = 0;
       this.intents = [];
       this.batch = [];
       this.collecting = false;
@@ -113,6 +120,7 @@
       this.lastLayoutKey = '';
       this.layoutMode = 'closed';
       this.customRevisions = {};
+      this.widgetSerials = {};
       this.rail = {
         protocol: PROTOCOL, type: 'rail.snapshot', registryRevision: 0,
         selectionGeneration: 0, pageGeneration: 0, activePlugin: -1,
@@ -157,7 +165,10 @@
       runtime.receive(copy(THEME));
       const queued = this.pending;
       this.pending = [];
-      for (let i = 0; i < queued.length; i++) runtime.receive(queued[i]);
+      this.pendingBytes = 0;
+      /* A replaced iframe starts its outbound sequence at one again. */
+      this.lastOutboundSequence = 0;
+      for (let i = 0; i < queued.length; i++) runtime.receive(queued[i].message);
       return true;
     }
 
@@ -169,12 +180,43 @@
     send(envelope) {
       const message = copy(envelope);
       if (this.runtime) return this.runtime.receive(message) !== false;
-      if (this.pending.length >= MAX_PENDING) {
-        /* Initial page transactions are already batched into one envelope.
-         * Prefer current retained truth if a browser never finishes loading. */
-        this.pending.shift();
+      const bytes = JSON.stringify(message).length;
+      if (bytes > MAX_PENDING_BYTES) return false;
+      let key = '';
+      if (message.type === 'theme' || message.type === 'rail.snapshot') key = message.type;
+      else if (message.type === 'rail.icon') key = `rail.icon:${message.pluginIndex}`;
+      else if (message.type === 'custom.bitmap')
+        key = `custom:${message.pageGeneration}:${message.widget}:${message.widgetSerial}`;
+      else if (message.type === 'page.snapshot' || message.type === 'page.close') key = 'page';
+      else key = `ordered:${++this.pendingSerial}`;
+
+      /* Snapshots/closes supersede every queued page mutation; revisioned
+       * images and rail state coalesce by identity while the iframe starts. */
+      for (let i = this.pending.length - 1; i >= 0; i--) {
+        const pending = this.pending[i];
+        const replace = key && pending.key === key;
+        const supersededPage = key === 'page' &&
+          (pending.message.type === 'page.delta' || pending.key === 'page');
+        if (replace || supersededPage) {
+          this.pendingBytes -= pending.bytes;
+          this.pending.splice(i, 1);
+        }
       }
-      this.pending.push(message);
+      while (this.pending.length &&
+             (this.pending.length >= MAX_PENDING || this.pendingBytes + bytes > MAX_PENDING_BYTES)) {
+        /* Prefer dropping coalescible pixels/old deltas before authoritative
+         * theme, rail, or page snapshots. The total remains hard-bounded even
+         * when every remaining item is authoritative. */
+        let victim = this.pending.findIndex(item =>
+          item.message.type === 'custom.bitmap' || item.message.type === 'page.delta' ||
+          item.message.type === 'rail.icon');
+        if (victim < 0) victim = 0;
+        this.pendingBytes -= this.pending[victim].bytes;
+        this.pending.splice(victim, 1);
+      }
+      if (this.pendingBytes + bytes > MAX_PENDING_BYTES) return false;
+      this.pending.push({ message, bytes, key });
+      this.pendingBytes += bytes;
       return true;
     }
 
@@ -293,6 +335,29 @@
       this.pageGeneration = 0;
       this.title = 'Plugins';
       this.customRevisions = {};
+      this.widgetSerials = {};
+      /* Intents belong to the page generation that authored them. Keeping a
+       * queued result across replacement lets a recycled handle in the next
+       * page receive it before the C-side fence gets a chance to object. */
+      this.intents = [];
+    }
+
+    updateWidgetIdentities(commands, generation, reset) {
+      if (reset) this.widgetSerials = {};
+      for (let i = 0; i < commands.length; i++) {
+        const command = commands[i];
+        if (command.w < 0) continue;
+        const key = String(command.w);
+        if (command.k === CMD.WIDGET_ADD) {
+          this.widgetSerials[key] = {
+            panel: command.p,
+            generation: unsigned(generation),
+            serial: unsigned(command.s)
+          };
+        } else if (command.k === CMD.WIDGET_REMOVE) {
+          delete this.widgetSerials[key];
+        }
+      }
     }
 
     end() {
@@ -379,6 +444,7 @@
         const initial = [];
         for (let i = 0; i < commands.length; i++)
           if (commands[i].k !== CMD.PANEL_CLOSE) initial.push(commands[i]);
+        this.updateWidgetIdentities(initial, generation, true);
         this.send({
           protocol: PROTOCOL,
           type: 'page.snapshot',
@@ -400,6 +466,7 @@
         this.resetPage();
         return;
       }
+      this.updateWidgetIdentities(commands, generation, false);
       this.send({
         protocol: PROTOCOL,
         type: 'page.delta',
@@ -439,7 +506,7 @@
       scaleMilli = integer(scaleMilli, 0);
       if (panel < 0 || widget < 0 || !generation || !serial || scaleMilli <= 0 ||
           width <= 0 || height <= 0 || width > 4096 || height > 4096 ||
-          width * height > 4194304) return false;
+          width * height > MAX_CUSTOM_PIXELS) return false;
       const rgbaBase64 = this.argbToRgbaBase64(argb, width, height);
       if (!rgbaBase64) return false;
       const key = `${generation}:${serial}`;
@@ -479,13 +546,26 @@
       if (!message || message.protocol !== PROTOCOL || !this.acceptSequence(message)) return false;
       if (message.type === 'widget.intent') {
         const intent = message.intent || {};
-        if (this.intents.length >= MAX_INTENTS) this.intents.shift();
-        this.intents.push({
+        const normalized = {
           k: integer(intent.k, 0), p: integer(intent.p, -1),
           w: integer(intent.w, -1), v: integer(intent.v, 0),
           text: boundedText(intent.text, 191), x: integer(intent.x, 0),
           y: integer(intent.y, 0), g: unsigned(intent.g), s: unsigned(intent.s)
-        });
+        };
+        if (!this.pageOpen || normalized.k < INTENT.ACTIVATE ||
+            normalized.k > INTENT.CUSTOM_ACTIVATE ||
+            normalized.g !== this.pageGeneration || normalized.p !== this.pagePanel)
+          return false;
+        if (normalized.k === INTENT.CLOSE) {
+          if (normalized.w !== -1) return false;
+        } else {
+          const expected = normalized.w >= 0 && this.widgetSerials[String(normalized.w)];
+          if (!expected || expected.panel !== normalized.p ||
+              expected.generation !== normalized.g || expected.serial !== normalized.s)
+            return false;
+        }
+        if (this.intents.length >= MAX_INTENTS) this.intents.shift();
+        this.intents.push(normalized);
         return true;
       }
       if (message.type === 'rail.select') {

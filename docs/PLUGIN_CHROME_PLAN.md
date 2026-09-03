@@ -324,10 +324,17 @@ replaces the active page state inside it.
 ### macOS
 
 [`platform_macos_webview.m`](../src/platform/platform_macos_webview.m) obtains
-SDL's Cocoa `NSWindow` and adds one `WKWebView` to its content view. The WebView
-is aligned to the trailing allocation while SDL continues to own window/events
-and the game renderer. The game viewport excludes that allocation. No second
-window or second GL context is created.
+SDL's Cocoa `NSWindow` and hosts one `WKWebView` in a borderless child
+`NSWindow` attached to it (`addChildWindow:ordered:`), aligned to the trailing
+allocation. It is deliberately not a subview of SDL's content view: a
+layer-backed WKWebView inside that view makes the whole window share one layer
+tree and one CATransaction commit, and SDL's present becomes coupled to
+WebKit's commits. A child window moves with its parent and reads as attached,
+but the WindowServer composites it as its own surface, so the game's present
+cadence stays its own. SDL continues to own the main window, its events and
+the game renderer; the game viewport excludes the chrome allocation; no second
+GL context is created. `TORIRS_SWAP_DEBUG=1` prints the present cadence over
+300 presents on this lane, the same readout Android's EGL path prints.
 
 The host uses a nonpersistent website data store, a local copied bundle,
 navigation/UI delegates that refuse external and new-window requests, a
@@ -385,6 +392,12 @@ accelerators so focus, caret movement, and IME editing remain usable.
 - Never make the game/render thread wait on a browser/UI thread.
 - Pause page-visible plugin work when compact exclusive mode reports that the
   game is not visible.
+- When exclusive mode takes the game's surface, the client stops drawing:
+  `PlatformWindow_CanPresent` answers false without a surface and the frame
+  loop skips `App_Render` and the present while the world and network keep
+  ticking. Measured on the API 22 phone before this gate, the frame thread
+  went on painting the hidden world at ~0.6 of a core for as long as a page
+  was up (see `docs/android_architecture.md`, plugin chrome cost).
 
 One browser has a higher fixed cost than the retired immediate/native
 prototype, but that cost is paid once for all plugins. Retained deltas, no

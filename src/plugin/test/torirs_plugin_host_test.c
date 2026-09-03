@@ -2161,19 +2161,19 @@ main(void)
      * first frame of a session raises nothing.
      */
     {
-        PluginHost_FrameStart(host, 100);
+        PluginHost_FrameStart(host, 100, 0);
         CHECK(g_screen_changes == 0, "a steady screen raises nothing");
         g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
-        PluginHost_FrameStart(host, 200);
+        PluginHost_FrameStart(host, 200, 0);
         CHECK(g_screen_changes == 1, "a moved screen raises once");
         CHECK(g_screen_change_to == TORIRS_PLUGIN_SCREEN_TITLE,
               "carrying the new answer");
         CHECK(g_screen_change_from == TORIRS_PLUGIN_SCREEN_GAME,
               "and the one it replaced");
-        PluginHost_FrameStart(host, 300);
+        PluginHost_FrameStart(host, 300, 0);
         CHECK(g_screen_changes == 1, "and not again while it holds");
         g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
-        PluginHost_FrameStart(host, 400);
+        PluginHost_FrameStart(host, 400, 0);
         CHECK(g_screen_changes == 2, "moving back is a change of its own");
         CHECK(g_screen_change_to == TORIRS_PLUGIN_SCREEN_GAME,
               "the login every gameframe gate waits for");
@@ -2516,7 +2516,7 @@ main(void)
      * has to stop rather than flood the shared overlay pool. */
     {
         g_engine.draw_items = 0;
-        PluginHost_FrameStart(host, 1);
+        PluginHost_FrameStart(host, 1, 0);
         PluginHost_DrawWorld(host);
         CHECK(g_engine.draw_items > 0, "draw calls reach the engine");
         CHECK(
@@ -2529,7 +2529,7 @@ main(void)
         /* And the budget resets, or a plugin would get one frame of drawing
          * per session. */
         int const first = g_engine.draw_items;
-        PluginHost_FrameStart(host, 2);
+        PluginHost_FrameStart(host, 2, 0);
         PluginHost_DrawWorld(host);
         CHECK(g_engine.draw_items > first, "the budget resets each frame");
     }

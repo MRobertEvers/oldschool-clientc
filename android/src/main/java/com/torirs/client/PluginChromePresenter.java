@@ -15,6 +15,9 @@ import android.webkit.WebViewClient;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.Charset;
 import java.util.ArrayDeque;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.json.JSONException;
@@ -61,6 +64,9 @@ public final class PluginChromePresenter
     private static final int RAIL_ENTRY_BYTES =
             RAIL_TITLE_BYTES + RAIL_ICON_BYTES + RAIL_BADGE_BYTES;
     private static final int SCRIPT_QUEUE_MAX = 128;
+    private static final int SCRIPT_QUEUE_CHARS_MAX = 8 * 1024 * 1024;
+    private static final int CUSTOM_PIXELS_MAX = 1_200_000;
+    private static final int CUSTOM_PENDING_COUNT_MAX = 8;
     private static final int CUSTOM_ACTIVATE = 8;
 
     private final PluginChromeLayout layout;
@@ -68,6 +74,10 @@ public final class PluginChromePresenter
     private final ShellSink shellSink;
     private final WebView webView;
     private final ArrayDeque<String> pendingScripts = new ArrayDeque<>();
+    private int pendingScriptChars;
+    private final LinkedHashMap<Integer, PendingCustomFrame> pendingCustomFrames =
+            new LinkedHashMap<>();
+    private int pendingCustomPixels;
     private final ConcurrentHashMap<Integer, Integer> widgetSerials =
             new ConcurrentHashMap<>();
     private boolean ready;
@@ -80,6 +90,34 @@ public final class PluginChromePresenter
     private int customRevision;
     private String pageTitle = "Plugins";
     private int currentCheckStyle;
+
+    private static final class PendingCustomFrame
+    {
+        final int panel;
+        final int widget;
+        final int generation;
+        final int serial;
+        final int scaleMilli;
+        final int width;
+        final int height;
+        final int[] argb;
+
+        PendingCustomFrame(
+                int panel, int widget, int generation, int serial,
+                int scaleMilli, int width, int height, int[] argb)
+        {
+            this.panel = panel;
+            this.widget = widget;
+            this.generation = generation;
+            this.serial = serial;
+            this.scaleMilli = scaleMilli;
+            this.width = width;
+            this.height = height;
+            this.argb = argb;
+        }
+
+        int pixels() { return width * height; }
+    }
 
     @SuppressLint({ "SetJavaScriptEnabled", "JavascriptInterface" })
     public PluginChromePresenter(
@@ -176,9 +214,15 @@ public final class PluginChromePresenter
                 pageTitle = title;
             }
             if( kind == 8 && words[at + 2] >= 0 )
+            {
+                removePendingCustom(words[at + 2]);
                 widgetSerials.put(words[at + 2], words[at + 10]);
+            }
             else if( kind == 9 )
+            {
+                removePendingCustom(words[at + 2]);
                 widgetSerials.remove(words[at + 2]);
+            }
             if( i > 0 )
                 commands.append(',');
             commands.append("{\"k\":").append(kind)
@@ -237,10 +281,19 @@ public final class PluginChromePresenter
                 strings.length != count * RAIL_ENTRY_BYTES )
             return;
         railSelectionGeneration = words[1];
-        if( railPageGeneration != words[2] )
+        int priorPageGeneration = railPageGeneration;
+        if( priorPageGeneration != words[2] )
         {
+            /* A selection is authoritative before the new page batch arrives.
+             * Clear A immediately so a dropped B snapshot cannot leave A
+             * rendered under B's selected rail entry. */
+            if( priorPageGeneration != 0 && activePanel >= 0 )
+                receive("{\"protocol\":1,\"type\":\"page.close\",\"pageGeneration\":" +
+                        (priorPageGeneration & 0xffffffffL) + "}");
+            activePanel = -1;
             widgetSerials.clear();
             presentedPageGeneration = 0;
+            clearPendingCustom();
         }
         railPageGeneration = words[2];
         expanded = words[6] != 0;
@@ -249,6 +302,7 @@ public final class PluginChromePresenter
             activePanel = -1;
             presentedPageGeneration = 0;
             widgetSerials.clear();
+            clearPendingCustom();
         }
         for( int i = 0; i < count; i++ )
         {
@@ -314,11 +368,18 @@ public final class PluginChromePresenter
     {
         if( destroyed || selectionGeneration == 0 || widgetSerial == 0 ||
                 scaleMilli <= 0 || width <= 0 || height <= 0 || width > 4096 ||
-                height > 4096 || (long)width * height > 2_000_000L ||
+                height > 4096 || (long)width * height > CUSTOM_PIXELS_MAX ||
                 argb == null || argb.length != width * height ||
                 selectionGeneration != railPageGeneration || panel != activePanel ||
                 !serialMatches(widget, widgetSerial) )
             return;
+        if( !ready )
+        {
+            enqueuePendingCustom(new PendingCustomFrame(
+                    panel, widget, selectionGeneration, widgetSerial,
+                    scaleMilli, width, height, argb));
+            return;
+        }
         String json = "{\"protocol\":1,\"type\":\"custom.bitmap\",\"pageGeneration\":" +
                 (selectionGeneration & 0xffffffffL) + ",\"panel\":" + panel +
                 ",\"widget\":" + widget + ",\"widgetSerial\":" +
@@ -337,6 +398,7 @@ public final class PluginChromePresenter
         activePanel = -1;
         presentedPageGeneration = 0;
         widgetSerials.clear();
+        clearPendingCustom();
         layout.setChromeOpen(false);
         receive("{\"protocol\":1,\"type\":\"page.close\",\"pageGeneration\":" +
                 (railPageGeneration & 0xffffffffL) + "}");
@@ -358,6 +420,8 @@ public final class PluginChromePresenter
             return;
         destroyed = true;
         pendingScripts.clear();
+        pendingScriptChars = 0;
+        clearPendingCustom();
         webView.removeJavascriptInterface("ToriRSAndroid");
         webView.stopLoading();
         webView.loadUrl("about:blank");
@@ -370,9 +434,14 @@ public final class PluginChromePresenter
             return;
         if( !ready )
         {
-            if( pendingScripts.size() >= SCRIPT_QUEUE_MAX )
-                pendingScripts.removeFirst();
+            if( script.length() > SCRIPT_QUEUE_CHARS_MAX )
+                return;
+            while( !pendingScripts.isEmpty() &&
+                    (pendingScripts.size() >= SCRIPT_QUEUE_MAX ||
+                     pendingScriptChars + script.length() > SCRIPT_QUEUE_CHARS_MAX) )
+                pendingScriptChars -= pendingScripts.removeFirst().length();
             pendingScripts.addLast(script);
+            pendingScriptChars += script.length();
             return;
         }
         webView.evaluateJavascript(script, null);
@@ -381,6 +450,47 @@ public final class PluginChromePresenter
     private void receive(String json)
     {
         postScript("window.ToriRSPluginChrome&&window.ToriRSPluginChrome.receive(" + json + ");");
+    }
+
+    private void removePendingCustom(int widget)
+    {
+        PendingCustomFrame old = pendingCustomFrames.remove(widget);
+        if( old != null )
+            pendingCustomPixels -= old.pixels();
+    }
+
+    private void clearPendingCustom()
+    {
+        pendingCustomFrames.clear();
+        pendingCustomPixels = 0;
+    }
+
+    private void enqueuePendingCustom(PendingCustomFrame frame)
+    {
+        removePendingCustom(frame.widget);
+        while( !pendingCustomFrames.isEmpty() &&
+                (pendingCustomFrames.size() >= CUSTOM_PENDING_COUNT_MAX ||
+                 pendingCustomPixels + frame.pixels() > CUSTOM_PIXELS_MAX) )
+        {
+            Iterator<Map.Entry<Integer, PendingCustomFrame>> it =
+                    pendingCustomFrames.entrySet().iterator();
+            Map.Entry<Integer, PendingCustomFrame> oldest = it.next();
+            pendingCustomPixels -= oldest.getValue().pixels();
+            it.remove();
+        }
+        pendingCustomFrames.put(frame.widget, frame);
+        pendingCustomPixels += frame.pixels();
+    }
+
+    private void flushPendingCustom()
+    {
+        PendingCustomFrame[] frames = pendingCustomFrames.values().toArray(
+                new PendingCustomFrame[pendingCustomFrames.size()]);
+        clearPendingCustom();
+        for( PendingCustomFrame frame : frames )
+            applyCustomFrame(
+                    frame.panel, frame.widget, frame.generation, frame.serial,
+                    frame.scaleMilli, frame.width, frame.height, frame.argb);
     }
 
     private void sendTheme()
@@ -612,7 +722,13 @@ public final class PluginChromePresenter
             ready = true;
             sendTheme();
             while( !pendingScripts.isEmpty() )
-                view.evaluateJavascript(pendingScripts.removeFirst(), null);
+            {
+                String script = pendingScripts.removeFirst();
+                pendingScriptChars -= script.length();
+                view.evaluateJavascript(script, null);
+            }
+            pendingScriptChars = 0;
+            flushPendingCustom();
         }
     }
 }

@@ -2961,9 +2961,11 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
     case TORIRS_PLUGIN_EV_FRAME_START:
     {
         struct ToriRS_PluginEvFrame const* ev = payload;
-        lua_createtable(L, 0, 1);
+        lua_createtable(L, 0, 2);
         lua_pushinteger(L, (lua_Integer)ev->now_ms);
         lua_setfield(L, -2, "now_ms");
+        lua_pushinteger(L, (lua_Integer)ev->drawn_frames);
+        lua_setfield(L, -2, "drawn_frames");
         return 1;
     }
     case TORIRS_PLUGIN_EV_LOGIC_TICK:

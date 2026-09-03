@@ -1123,12 +1123,12 @@ main(void)
      * because the title is still up. Without it the harness never reproduces
      * the stuck state: the first frame the plugin saw would already be in
      * game, and the art retry would claim by accident. */
-    PluginHost_FrameStart(g_host, 950);
+    PluginHost_FrameStart(g_host, 950, 0);
     CHECK(
         g_frame.owned == 0,
         "enabling at the title claims nothing -- the host refuses the frame");
     g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
-    PluginHost_FrameStart(g_host, 1000);
+    PluginHost_FrameStart(g_host, 1000, 0);
     CHECK(g_frame.owned == 1, "logging in claims the frame without a restart");
     declare(M_W, M_H);
     CHECK(

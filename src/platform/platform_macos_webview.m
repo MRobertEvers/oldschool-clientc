@@ -13,13 +13,20 @@
 #include "platform_macos_webview.h"
 #include "platform_window.h"
 
+/* Macros and comments only -- it includes nothing, so a platform file can read
+ * the chrome's authored geometry without linking ui/ behind it. */
+#include "../ui/torirs_chrome_metrics.h"
+
 #include <ctype.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#define MAC_BROWSER_RAIL_POINTS 48
+/* The rail's allocation, in window POINTS: the page lays the rail out in CSS
+ * pixels at the same number, and a host that reserves more leaves a band of
+ * child-window background down the seam. */
+#define MAC_BROWSER_RAIL_POINTS TORIRS_CHROME_M_RAIL_W
 #define MAC_BROWSER_QUEUE_MAX 64
 #define MAC_BROWSER_JSON_MAX (8u * 1024u * 1024u)
 #define MAC_BROWSER_PIXELS_MAX (4u * 1024u * 1024u)
@@ -35,10 +42,39 @@
 }
 @end
 
+/*
+ * The browser lives in a borderless CHILD WINDOW attached to SDL's NSWindow,
+ * not in a subview of its content view.
+ *
+ * A WKWebView added as a subview makes SDL's whole window layer-backed: the
+ * GL surface and the web view then share one layer tree and one CATransaction
+ * commit, and SDL's swap is coupled to WebKit's commits -- the game's redraw
+ * rate follows the browser's. A child window moves with its parent and reads
+ * as attached, but the WindowServer composites it as a separate surface, so
+ * the game's swap cadence is its own again.
+ */
+@interface ToriRSPluginChromeWindow : NSWindow
+@end
+
+@implementation ToriRSPluginChromeWindow
+/* Borderless windows refuse key status by default; the page's text fields
+ * need it to receive typing. */
+- (BOOL)canBecomeKeyWindow
+{
+    return YES;
+}
+- (BOOL)canBecomeMainWindow
+{
+    return NO;
+}
+@end
+
 @interface ToriRSMacPluginBrowser : NSObject
     <WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate>
 @property(nonatomic, assign) struct PlatformWindow* platform;
 @property(nonatomic, strong) ToriRSPluginWebView* view;
+@property(nonatomic, strong) ToriRSPluginChromeWindow* hostWindow;
+@property(nonatomic, assign) NSRect lastScreenFrame;
 @property(nonatomic, strong) NSURL* rootURL;
 @property(nonatomic, strong) NSURL* documentURL;
 @property(nonatomic, strong) NSMutableArray<NSString*>* inbound;
@@ -199,11 +235,24 @@ mac_url_is_below(NSURL* url, NSURL* root)
         width = MAC_BROWSER_RAIL_POINTS;
     if( width > NSWidth(content.bounds) )
         width = NSWidth(content.bounds);
-    self.view.frame = NSMakeRect(
+    NSRect local = NSMakeRect(
         NSMaxX(content.bounds) - width,
         NSMinY(content.bounds),
         width,
         NSHeight(content.bounds));
+    if( !self.hostWindow )
+    {
+        self.view.frame = local;
+        return;
+    }
+    /* The child window's frame is in screen space. Only move it when the
+     * allocation actually changed: this runs every poll, and a setFrame: per
+     * frame is a layout pass per frame. */
+    NSRect screen = [window convertRectToScreen:[content convertRect:local toView:nil]];
+    if( NSEqualRects(screen, self.lastScreenFrame) )
+        return;
+    self.lastScreenFrame = screen;
+    [self.hostWindow setFrame:screen display:YES];
 }
 
 - (void)evaluateEnvelope:(NSString*)json
@@ -354,11 +403,29 @@ PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* platform)
     view.UIDelegate = state;
     view.allowsBackForwardNavigationGestures = NO;
     view.allowsMagnification = NO;
-    view.autoresizingMask = NSViewMinXMargin | NSViewHeightSizable;
-    [window.contentView addSubview:view positioned:NSWindowAbove relativeTo:nil];
+    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     state.view = view;
+
+    ToriRSPluginChromeWindow* host = [[ToriRSPluginChromeWindow alloc]
+        initWithContentRect:NSMakeRect(0, 0, MAC_BROWSER_RAIL_POINTS, 100)
+                  styleMask:NSWindowStyleMaskBorderless
+                    backing:NSBackingStoreBuffered
+                      defer:NO];
+    host.opaque = YES;
+    host.hasShadow = NO;
+    host.releasedWhenClosed = NO;
+    host.backgroundColor = [NSColor colorWithCalibratedRed:14.0 / 255.0
+                                                     green:14.0 / 255.0
+                                                      blue:12.0 / 255.0
+                                                     alpha:1.0];
+    view.frame = host.contentView.bounds;
+    host.contentView = view;
+    [window addChildWindow:host ordered:NSWindowAbove];
+    state.hostWindow = host;
+    state.lastScreenFrame = NSZeroRect;
     g_mac_browser = state;
     [state syncFrame];
+    [host orderFront:nil];
     [view loadFileURL:state.documentURL allowingReadAccessToURL:state.rootURL];
     return true;
 }
@@ -509,6 +576,15 @@ PlatformMacPluginBrowser_Destroy(struct PlatformWindow* platform)
     g_mac_browser.view.navigationDelegate = nil;
     g_mac_browser.view.UIDelegate = nil;
     [g_mac_browser.view stopLoading];
+    if( g_mac_browser.hostWindow )
+    {
+        NSWindow* parent = g_mac_browser.hostWindow.parentWindow;
+        if( parent )
+            [parent removeChildWindow:g_mac_browser.hostWindow];
+        [g_mac_browser.hostWindow orderOut:nil];
+        g_mac_browser.hostWindow.contentView = nil;
+        g_mac_browser.hostWindow = nil;
+    }
     [g_mac_browser.view removeFromSuperview];
     [[NSFileManager defaultManager] removeItemAtURL:g_mac_browser.rootURL error:nil];
     g_mac_browser = nil;

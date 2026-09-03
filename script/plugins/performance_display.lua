@@ -59,6 +59,7 @@ local FRAME_WINDOW = 10
 
 local sample_started_ms = nil
 local sample_frames = 0
+local sample_drawn_at_start = 0
 local sampled_fps = 0
 local sampled_memory = 0
 
@@ -108,11 +109,15 @@ function plugin.on_frame(api, ev)
 
     if not sample_started_ms then
         sample_started_ms = ev.now_ms
+        sample_drawn_at_start = ev.drawn_frames
         sampled_memory = api.memory_bytes()
         return
     end
 
-    sample_frames = sample_frames + 1
+    -- Frames DRAWN, not on_frame calls: the loop runs at the pacer's rate
+    -- whether or not it draws, so counting calls reads 50 while the screen
+    -- is capped at 15.
+    sample_frames = ev.drawn_frames - sample_drawn_at_start
     local elapsed = ev.now_ms - sample_started_ms
     if elapsed < api.config.refresh_ms then return end
 
@@ -120,6 +125,7 @@ function plugin.on_frame(api, ev)
     sampled_memory = api.memory_bytes()
     sample_frames = 0
     sample_started_ms = ev.now_ms
+    sample_drawn_at_start = ev.drawn_frames
 end
 
 function plugin.on_draw_world(api, draw)

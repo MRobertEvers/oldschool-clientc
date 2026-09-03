@@ -368,6 +368,7 @@ dofile = nil
 
 ---@class torirs.EvFrame
 ---@field now_ms integer
+---@field drawn_frames integer Frames the client has RENDERED so far, cumulative. on_frame fires once per loop iteration (the 50 Hz pacer) whether or not that iteration drew, so a frame-rate readout differences this rather than counting calls.
 
 ---@class torirs.EvTick
 ---@field cycle integer

@@ -2957,6 +2957,79 @@ PlatformWindow_SetPresentDamageRects(
     (void)count;
 }
 
+bool
+PlatformWindow_CanPresent(struct PlatformWindow const* platform)
+{
+    assert(platform);
+    (void)platform;
+    /* A desktop window is always presentable from the client's side; a hidden
+     * or minimised one is the compositor's to discard, and the swap is cheap. */
+    return true;
+}
+
+/*
+ * TORIRS_SWAP_DEBUG=1: how long a present blocks, averaged over 300 presents.
+ * With vsync on, a healthy present settles near the display period; one that
+ * returns in far less is not blocking and the compositor is dropping frames
+ * -- which is what a layer-backed WebView inside this window did to the swap.
+ * Same readout the Android EGL path prints, so the two lanes compare.
+ */
+static int g_sdl_swap_debug = -1;
+
+static uint64_t
+sdl_swap_debug_begin(void)
+{
+    if( g_sdl_swap_debug < 0 )
+        g_sdl_swap_debug = getenv("TORIRS_SWAP_DEBUG") != NULL;
+    return g_sdl_swap_debug ? SDL_GetPerformanceCounter() : 0;
+}
+
+static void
+sdl_swap_debug_end(uint64_t before)
+{
+    static uint64_t accumulated_us = 0;
+    static uint64_t worst_us = 0;
+    static uint64_t window_start_ms = 0;
+    static int swaps = 0;
+    uint64_t elapsed_us;
+
+    if( !g_sdl_swap_debug )
+        return;
+    if( swaps == 0 )
+        window_start_ms = SDL_GetTicks64();
+    elapsed_us = (SDL_GetPerformanceCounter() - before) * 1000000ull /
+                 SDL_GetPerformanceFrequency();
+    accumulated_us += elapsed_us;
+    if( elapsed_us > worst_us )
+        worst_us = elapsed_us;
+    if( ++swaps == 300 )
+    {
+        uint64_t const window_ms = SDL_GetTicks64() - window_start_ms;
+        /* The window's wall time gives presents per second: the number to
+         * hold against what a screen-capture counter sees reaching the
+         * display. */
+        fprintf(
+            stderr,
+            "swap: mean %.2f ms, worst %.2f ms over %d swaps in %llu ms (%.1f/s)\n",
+            (double)accumulated_us / 1000.0 / swaps,
+            (double)worst_us / 1000.0,
+            swaps,
+            (unsigned long long)window_ms,
+            window_ms ? 300000.0 / (double)window_ms : 0.0);
+        accumulated_us = 0;
+        worst_us = 0;
+        swaps = 0;
+    }
+}
+
+static void
+sdl_present_timed(struct PlatformWindow* platform)
+{
+    uint64_t const before = sdl_swap_debug_begin();
+    SDL_RenderPresent(platform->renderer);
+    sdl_swap_debug_end(before);
+}
+
 void
 PlatformWindow_Present(struct PlatformWindow* platform)
 {
@@ -3042,7 +3115,7 @@ PlatformWindow_Present(struct PlatformWindow* platform)
 #else
     (void)chrome_dst;
 #endif
-    SDL_RenderPresent(platform->renderer);
+    sdl_present_timed(platform);
     /* Software already uploaded and composited the retained chrome texture in
      * this present. GL clears the same latch through ChromeTakeDirty. */
     platform->chrome_dirty = false;
@@ -3054,7 +3127,11 @@ PlatformWindow_PresentGL(struct PlatformWindow* platform)
     assert(platform);
     assert(platform->use_opengl);
     assert(platform->window);
-    SDL_GL_SwapWindow(platform->window);
+    {
+        uint64_t const before = sdl_swap_debug_begin();
+        SDL_GL_SwapWindow(platform->window);
+        sdl_swap_debug_end(before);
+    }
 }
 
 uint64_t

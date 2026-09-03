@@ -51,6 +51,12 @@ int PlatformWindow_Win32ChromeRailPoll(
 #if defined(TORIRS_WIN32_GDI_TEST_API)
 void*
 PlatformWindow_Win32TestRailHandle(struct PlatformWindow* platform);
+int PlatformWindow_Win32TestBitmapFileCount(
+    struct PlatformWindow* platform);
+bool PlatformWindow_Win32TestBitmapRevisionExists(
+    struct PlatformWindow* platform, char const* key, uint32_t revision);
+void* PlatformWindow_Win32TestBitmapLock(
+    struct PlatformWindow* platform, char const* key, uint32_t revision);
 #endif
 
 #if defined(TORIRS_WIN32_BROWSER_CAPTURE_API)

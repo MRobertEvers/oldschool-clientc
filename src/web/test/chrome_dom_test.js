@@ -208,33 +208,48 @@ assert.deepStrictEqual(JSON.parse(global_.torirsChromeTakeIntent()),
   { k: 3, p: 3, w: 5, v: 0, text: '', x: 0, y: 0, g: 20, s: 501 });
 assert.strictEqual(global_.torirsChromeTakeIntent(), '');
 frame.contentWindow.torirsPluginChromePostMessage(JSON.stringify({
-  protocol: 1, type: 'layout', sequence: 3, selectionGeneration: 7,
+  protocol: 1, type: 'widget.intent', sequence: 3,
+  intent: { k: 3, p: 3, w: 5, v: 1, text: '', x: 0, y: 0, g: 20, s: 500 }
+}));
+frame.contentWindow.torirsPluginChromePostMessage(JSON.stringify({
+  protocol: 1, type: 'widget.intent', sequence: 4,
+  intent: { k: 3, p: 3, w: 5, v: 1, text: '', x: 0, y: 0, g: 19, s: 501 }
+}));
+assert.strictEqual(global_.torirsChromeTakeIntent(), '',
+  'ordinary stale-generation and recycled-serial intents are rejected');
+frame.contentWindow.torirsPluginChromePostMessage(JSON.stringify({
+  protocol: 1, type: 'layout', sequence: 5, selectionGeneration: 7,
   pageGeneration: 20, width: 400, height: 500, scaleMilli: 2000,
   sizeClass: 1, visible: true, gameVisible: true
 }));
 assert.deepStrictEqual(layouts[0], [7, 400, 500, 2000, 1, 1, 0],
   'outer presenter corrects gameVisible for exclusive mode');
 frame.contentWindow.torirsPluginChromePostMessage(JSON.stringify({
-  protocol: 1, type: 'editor.focus', sequence: 4, focused: true, pageGeneration: 20
+  protocol: 1, type: 'editor.focus', sequence: 6, focused: true, pageGeneration: 20
 }));
 assert.deepStrictEqual(focused, [{ value: true, generation: 20 }]);
 
 /* Same sequence and stale rail generation are rejected at the outer boundary. */
 frame.contentWindow.torirsPluginChromePostMessage(JSON.stringify({
-  protocol: 1, type: 'rail.select', sequence: 4,
+  protocol: 1, type: 'rail.select', sequence: 6,
   pluginIndex: 31, selectionGeneration: 7
 }));
 frame.contentWindow.torirsPluginChromePostMessage(JSON.stringify({
-  protocol: 1, type: 'rail.select', sequence: 5,
+  protocol: 1, type: 'rail.select', sequence: 7,
   pluginIndex: 31, selectionGeneration: 6
 }));
 assert.strictEqual(selects.length, 1);
+
+frame.contentWindow.torirsPluginChromePostMessage(JSON.stringify({
+  protocol: 1, type: 'widget.intent', sequence: 8,
+  intent: { k: 3, p: 3, w: 5, v: 0, text: '', x: 0, y: 0, g: 20, s: 501 }
+}));
 
 global_.torirsChromeRailSync({
   r: 4, g: 8, pg: 20, a: 31, l: 31, s: 31, x: 0, entries
 });
 assert.strictEqual(host.layoutMode, 'collapsed');
-assert.strictEqual(built.mount.style.width, '48px');
+assert.strictEqual(built.mount.style.width, '42px');
 assert.strictEqual(built.game.hidden, false);
 assert.strictEqual(built.mount.children.length, 1);
 assert.strictEqual(built.mount.children[0], frame, 'collapse retains the one document');
@@ -242,6 +257,8 @@ assert.strictEqual(built.mount.children[0], frame, 'collapse retains the one doc
 global_.torirsChromeRailSync({
   r: 4, g: 9, pg: 21, a: 2, l: 2, s: 2, x: 1, entries
 });
+assert.strictEqual(global_.torirsChromeTakeIntent(), '',
+  'page replacement discards intents queued by the prior generation');
 global_.torirsChromeOpen();
 global_.torirsChromeApply({ k: exported.CMD.SYNC_BEGIN });
 global_.torirsChromeApply({ k: exported.CMD.PANEL_OPEN, p: 3, text: 'Plugin 2' });

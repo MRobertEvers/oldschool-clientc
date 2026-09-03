@@ -243,7 +243,17 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
             }
         });
         rootLayout = new PluginChromeLayout(this, surfaceView, hideKeyboardButton);
-        pluginChrome = new PluginChromePresenter(
+        /*
+         * A measurement switch, not a feature: a `no_plugin_chrome` file beside
+         * env.txt runs this Activity with no WebView at all, so the one
+         * browser's whole cost -- its threads, its layer, its slice of the
+         * surface -- can be profiled against the game alone. Every use of the
+         * presenter already tolerates null, and the layout gives the game the
+         * full width when no chrome is attached.
+         */
+        boolean chromeDisabled =
+                new File(BootProfile.dataRoot(this), "no_plugin_chrome").isFile();
+        pluginChrome = chromeDisabled ? null : new PluginChromePresenter(
                 this,
                 rootLayout,
                 new PluginChromePresenter.IntentSink()

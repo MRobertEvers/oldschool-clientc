@@ -590,7 +590,10 @@ int PluginHost_CtxIndex(struct ToriRS_PluginCtx const* ctx);
 /* Seam entry points. Each is a no-op when nothing subscribed.               */
 /* ------------------------------------------------------------------------ */
 
-void PluginHost_FrameStart(struct ToriRS_PluginHost* host, uint64_t now_ms);
+/** `drawn_frames` is the client's cumulative rendered-frame count; see
+ *  ToriRS_PluginEvFrame. */
+void PluginHost_FrameStart(
+    struct ToriRS_PluginHost* host, uint64_t now_ms, uint64_t drawn_frames);
 void PluginHost_LogicTick(struct ToriRS_PluginHost* host, int logic_cycle);
 void PluginHost_ServerTick(struct ToriRS_PluginHost* host, int world_cycle);
 void PluginHost_WorldLoaded(struct ToriRS_PluginHost* host, int base_tile_x, int base_tile_z);
