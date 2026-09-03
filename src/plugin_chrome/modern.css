@@ -514,15 +514,25 @@ button { font-weight: 700; }
   bottom: 0;
   z-index: 40;
 }
+/*
+ * Not a bordered box: emit_minimenu_popup fills the WHOLE rect body-brown
+ * first, then paints the header black one pixel inset from the top/left/
+ * right (so those three edges stay a brown sliver, not black), and only
+ * draws an actual black border -- left, right, bottom -- around the ROWS
+ * beneath the separator. This padding is that brown sliver, on all four
+ * sides (the fourth being the blank row the bottom border line leaves
+ * below it), and .tpc-minimenu-list carries the only real border.
+ */
 .tpc-minimenu {
   position: absolute;
   left: 0;
   top: 0;
   max-width: 100%;
   overflow: hidden;
-  border: 1px solid #000;
+  padding: 1px;
   background: #5d5447;
   background: var(--tpc-body);
+  font-family: "ToriRS Chrome", "Lucida Console", Menlo, Consolas, monospace;
 }
 .tpc-minimenu-title {
   height: 16px;
@@ -535,19 +545,25 @@ button { font-weight: 700; }
   white-space: nowrap;
   overflow: hidden;
 }
-/* The rule under the title bar, and the same black down both sides of the
- * rows and along the bottom -- emit_minimenu's four border strips. */
-.tpc-minimenu-list {
+/* The rule under the title bar, one brown row below the header. */
+.tpc-minimenu-separator {
+  height: 1px;
   margin-top: 1px;
-  border: 1px solid #000;
-  border-top: 1px solid #000;
+  background: #000;
+}
+/* The rows' own black border -- left, right and bottom only; the header
+ * above owns no border of its own. */
+.tpc-minimenu-list {
+  border-left: 1px solid #000;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
 }
 .tpc-minimenu-option {
   display: block;
   width: 100%;
   height: 15px;
   margin: 0;
-  padding: 0 2px;
+  padding: 0 3px;
   border: 0;
   background: transparent;
   color: #fff;

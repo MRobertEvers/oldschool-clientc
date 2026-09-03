@@ -1446,10 +1446,17 @@
         back.className = 'tpc-minimenu-backdrop';
         var box = document.createElement('div');
         box.className = 'tpc-minimenu';
+        /* The popup is a body-level overlay, outside .tpc-shell, so it does not
+         * inherit the shell's own android-font toggle through the cascade; it
+         * needs the same marker directly to pick the Android alias. */
+        toggleClass(box, 'tpc-android-fonts', legacy && !legacyPixels);
         var heading = document.createElement('div');
         heading.className = 'tpc-minimenu-title';
         setText(heading, 'Choose Option');
         box.appendChild(heading);
+        var separator = document.createElement('div');
+        separator.className = 'tpc-minimenu-separator';
+        box.appendChild(separator);
         var list = document.createElement('div');
         list.className = 'tpc-minimenu-list';
         var _loop_3 = function (i) {

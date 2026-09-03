@@ -1862,26 +1862,54 @@ ToriRSChrome_TextArea(
     return h;
 }
 
-int
-ToriRSChrome_Custom(struct ToriRSChrome* ui, int panel, char const* label, int height)
+/** The one clamp, so adding a well and resizing one cannot disagree. */
+static int
+dbg_custom_height(struct ToriRSChrome const* ui, int height)
 {
-    int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_CUSTOM);
-    int min_h;
-    int max_h;
+    int const min_h = DBG_PX(TORIRS_CHROME_M_CUSTOM_H_MIN);
+    int const max_h = DBG_PX(TORIRS_CHROME_M_CUSTOM_H_MAX);
 
-    if( h < 0 )
-        return -1;
-    dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
-    min_h = DBG_PX(TORIRS_CHROME_M_CUSTOM_H_MIN);
-    max_h = DBG_PX(TORIRS_CHROME_M_CUSTOM_H_MAX);
     if( height <= 0 )
         height = DBG_PX(TORIRS_CHROME_M_CUSTOM_H);
     if( height < min_h )
         height = min_h;
     if( height > max_h )
         height = max_h;
-    ui->widgets[h].view_h = height;
+    return height;
+}
+
+int
+ToriRSChrome_Custom(struct ToriRSChrome* ui, int panel, char const* label, int height)
+{
+    int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_CUSTOM);
+
+    if( h < 0 )
+        return -1;
+    dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
+    ui->widgets[h].view_h = dbg_custom_height(ui, height);
     return h;
+}
+
+void
+ToriRSChrome_SetCustomHeight(struct ToriRSChrome* ui, int widget, int height)
+{
+    struct ToriRSChromeWidget* w;
+
+    if( !dbg_valid_widget(ui, widget) )
+        return;
+    w = &ui->widgets[widget];
+    if( w->kind != TORIRS_CHROME_W_CUSTOM )
+        return;
+    height = dbg_custom_height(ui, height);
+    /* Compare-then-set, as everywhere else in retained mode: a page that
+     * restates the same height every refresh does no work. */
+    if( w->view_h == height )
+        return;
+    w->view_h = height;
+    /* A structural dirty, not a paint one: everything below this well moves.
+     * That is a RELAYOUT of a page whose widgets all survive -- which is the
+     * whole reason this exists instead of the page being declared again. */
+    dbg_dirty_widget(ui, widget);
 }
 
 int

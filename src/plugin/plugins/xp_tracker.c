@@ -1296,6 +1296,15 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
     if( !g_page_built )
         return;
 
+    /*
+     * A skill earning its first box makes the well TALLER. That is a property
+     * of a widget the page already has, so the retained page states it in
+     * place -- the same call the build makes. This used to be a panel_clear,
+     * and re-declaring the whole page the first time each skill was trained is
+     * what the strip flashed on.
+     */
+    g_api->panel_set_height(ctx, "boxes", xt_well_h());
+
     for( int i = 0; i < g_skill_count; i++ )
     {
         total_gained += xt_gained(&g_skill[i]);
@@ -1467,18 +1476,20 @@ xt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 static bool
 xt_page_stale(struct ToriRS_PluginCtx* ctx)
 {
-    int before;
-
     assert(ctx);
     if( !g_page_built )
         return false;
     if( g_built_detail != g_detail )
         return true;
-    before = g_box_count;
+    /*
+     * The boxes are reconciled here whether or not anything moved, because the
+     * strip is drawn from them. A box appearing or disappearing changes the
+     * WELL's height and nothing else -- not which widgets the page has -- and
+     * xt_page_refresh states that height in place. Only the detail block
+     * coming or going is a different page.
+     */
     xt_collect_boxes(ctx);
-    /* A box appearing or disappearing changes the WELL's height, which only a
-     * rebuild can state; the numbers inside one are a redraw. */
-    return before != g_box_count;
+    return false;
 }
 
 /** The shell moved, showed or hid this page. */

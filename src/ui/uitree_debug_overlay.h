@@ -1435,6 +1435,19 @@ int
 ToriRSChrome_Custom(struct ToriRSChrome* ui, int panel, char const* label, int height);
 
 /**
+ * Resize an existing custom well in place.
+ *
+ * A well's height is a VALUE of a widget that already exists, not a change of
+ * page: a list that grows a row restates its height and everything below it
+ * relayouts, with every widget, native control and caret surviving. Declaring
+ * the page again to say the same thing tears down the retained tree and the
+ * executor's mounted page with it, which is what a growing list showed as a
+ * flash. Same clamps as ToriRSChrome_Custom; a height it already has is free.
+ */
+void
+ToriRSChrome_SetCustomHeight(struct ToriRSChrome* ui, int widget, int height);
+
+/**
  * Resolve a custom well after Build.
  *
  * `out_region` is the complete inner drawing rectangle. `out_clip` is its

@@ -1092,6 +1092,16 @@ lt_page_refresh(struct ToriRS_PluginCtx* ctx)
     if( !g_page_built )
         return;
 
+    /*
+     * A band arriving, or a drop grid growing a row, makes the well TALLER.
+     * That is a property of a widget the page already has, so the retained
+     * page states it in place -- the same call the build makes. This used to
+     * be a panel_clear, and re-declaring the whole page every time a kill
+     * landed is what the list flashed on.
+     */
+    g_built_rows = lt_strip_h();
+    g_api->panel_set_height(ctx, "strip", g_built_rows);
+
     /* The bands are pixels and redraw themselves. */
     lt_strip_invalidate(ctx);
 
@@ -1432,19 +1442,20 @@ lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     if( lt_sync_store(ctx) )
         g_dirty = true;
 
-    /* A record added or removed changes the row SET, which only a rebuild can
-     * state; anything else is a number a refresh rewrites in place. Neither is
-     * worth doing for a page nobody is looking at -- the rebuild happens when
-     * it is selected again. */
+    /*
+     * Opening or closing the detail block changes WHICH widgets the page has,
+     * and that is the only thing a rebuild is for. Everything else a kill can
+     * do -- a new band, a taller drop grid, a bigger number -- the refresh
+     * states on the page that is already there. Neither is worth doing for a
+     * page nobody is looking at; the rebuild happens when it is selected
+     * again.
+     */
     if( g_page_visible )
     {
-        if( g_page_built &&
-            (g_built_rows != lt_strip_h() || g_built_detail != g_detail) )
+        if( g_page_built && g_built_detail != g_detail )
             g_api->panel_clear(ctx);
         else
-        {
             lt_page_refresh(ctx);
-        }
     }
 
     return TORIRS_PLUGIN_PASS;

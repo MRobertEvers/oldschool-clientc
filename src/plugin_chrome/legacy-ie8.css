@@ -194,9 +194,14 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 /* The "Choose Option" popup, in the desktop minimenu layout for a 16px line
  * box. @see modern.css. Fixed positioning is IE8 standards mode, which the
  * legacy page asks for. */
+/* Not a bordered box -- @see modern.css: the whole rect is body-brown, the
+ * header is black inset one pixel from top/left/right (a brown sliver stays
+ * on those three edges), and only the rows below the separator carry a real
+ * black border. The padding here is that brown sliver on all four sides. */
 .tpc-minimenu-backdrop { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 40; }
-.tpc-minimenu { position: absolute; left: 0; top: 0; max-width: 100%; overflow: hidden; border: 1px solid #000000; background: #5d5447; }
+.tpc-minimenu { position: absolute; left: 0; top: 0; max-width: 100%; overflow: hidden; padding: 1px; background: #5d5447; font-family: "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-minimenu-title { height: 16px; padding: 0 3px; overflow: hidden; background: #000000; color: #5d5447; font-weight: 700; line-height: 16px; white-space: nowrap; }
-.tpc-minimenu-list { margin-top: 1px; border: 1px solid #000000; }
-.tpc-minimenu-option { display: block; width: 100%; height: 15px; margin: 0; padding: 0 2px; overflow: hidden; border: 0; background: transparent; color: #ffffff; font-weight: 400; line-height: 15px; text-align: left; text-shadow: 1px 1px #000000; white-space: nowrap; text-overflow: ellipsis; cursor: hand; }
+.tpc-minimenu-separator { height: 1px; margin-top: 1px; background: #000000; font-size: 0; line-height: 0; }
+.tpc-minimenu-list { border-left: 1px solid #000000; border-right: 1px solid #000000; border-bottom: 1px solid #000000; }
+.tpc-minimenu-option { display: block; width: 100%; height: 15px; margin: 0; padding: 0 3px; overflow: hidden; border: 0; background: transparent; color: #ffffff; font-weight: 400; line-height: 15px; text-align: left; text-shadow: 1px 1px #000000; white-space: nowrap; text-overflow: ellipsis; cursor: hand; }
 .tpc-minimenu-option:hover { color: #ffff00; }

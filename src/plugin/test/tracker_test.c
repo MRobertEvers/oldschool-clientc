@@ -1544,6 +1544,78 @@ test_loot_attention(void)
  * and -- worse -- would go on asking for rebuilds of a model nobody is
  * showing. The state still advances; only the page stops.
  */
+/*
+ * A list that GREW is not a different page.
+ *
+ * A band arriving makes the well taller, and a height is a property of a
+ * widget the page already has. Answering it with a rebuild re-declared every
+ * widget, which the shell shows as a flash on the one thing the tracker exists
+ * to do -- accumulate. The height goes out with panel_set_height and the page
+ * stands. @see app_plugin_panel_patch_semantic for the other half.
+ */
+static void
+test_loot_growth_does_not_rebuild(void)
+{
+    int builds;
+    int height;
+
+    client_reset();
+    loot_start();
+    loot_add("Goblin", 1319, 1, 100, 1);
+    settle();
+    builds = g_client.builds;
+    height = fake_widget_find("strip")->height;
+    TEST_ASSERT(builds > 0, "the page was declared once to begin with");
+
+    loot_add("Cerberus", 1319, 1, 500, 2);
+    settle();
+    loot_add("Guard", 1319, 2, 50, 3);
+    settle();
+    loot_add("Imp", 1319, 1, 10, 4);
+    settle();
+
+    TEST_ASSERT(
+        fake_widget_find("strip")->height > height,
+        "three more sources make the strip taller (%d -> %d)", height,
+        fake_widget_find("strip")->height);
+    TEST_ASSERT(
+        g_client.builds == builds,
+        "and not one of them re-declares the page (%d rebuilds)",
+        g_client.builds - builds);
+}
+
+/** The same for a skill earning its first box. */
+static void
+test_xp_growth_does_not_rebuild(void)
+{
+    int builds;
+    int height;
+
+    client_reset();
+    g_client.xp[SKILL_WOODCUTTING] = 50000;
+    g_client.xp[SKILL_ATTACK] = 50000;
+    xp_start();
+    tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    builds = g_client.builds;
+    height = fake_widget_find("boxes")->height;
+    TEST_ASSERT(box_count() == 1, "one skill trained, one box");
+
+    g_client.xp[SKILL_ATTACK] += 100;
+    tick(1000);
+
+    TEST_ASSERT(box_count() == 2, "a second skill trained gets a second box");
+    TEST_ASSERT(
+        fake_widget_find("boxes")->height > height,
+        "which makes the strip taller (%d -> %d)", height,
+        fake_widget_find("boxes")->height);
+    TEST_ASSERT(
+        g_client.builds == builds,
+        "and does not re-declare the page (%d rebuilds)",
+        g_client.builds - builds);
+}
+
 static void
 test_hidden_page_does_no_work(void)
 {
@@ -1628,6 +1700,8 @@ main(void)
     test_loot_attention();
 
     test_settings_face_is_the_generated_form();
+    test_loot_growth_does_not_rebuild();
+    test_xp_growth_does_not_rebuild();
     test_hidden_page_does_no_work();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);

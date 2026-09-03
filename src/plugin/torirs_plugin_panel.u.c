@@ -776,6 +776,30 @@ app_plugin_panel_options_match(
     return index == widget->option_count;
 }
 
+/**
+ * Restate a dropdown's option list on the retained page.
+ *
+ * Compare-then-set, and the comparison is not an optimisation: the chrome
+ * keeps POINTERS into an app-owned arena that is only reset by a build, so
+ * re-adding an unchanged list on every refresh would fill it. A list that
+ * really did change is worth one arena entry.
+ */
+static void
+app_plugin_panel_set_options(struct App* app, int widget, char const* choices)
+{
+    char const* const* options;
+    int count = 0;
+
+    assert(app);
+    if( app_plugin_panel_options_match(&app->plugin_ui.widgets[widget], choices) )
+        return;
+    options = app_plugin_choices_add(app, choices, &count);
+    if( options )
+        ToriRSChrome_DropdownSetOptions(
+            &app->plugin_ui, widget, options, count,
+            ToriRSChrome_DropdownSelected(&app->plugin_ui, widget));
+}
+
 /** Chrome primitive kind used for one semantic model kind. */
 static int
 app_plugin_panel_semantic_chrome_kind(struct ToriRS_PluginWinWidget const* model)
@@ -814,9 +838,25 @@ app_plugin_panel_semantic_chrome_kind(struct ToriRS_PluginWinWidget const* model
 }
 
 /**
- * Apply a value-only PanelModelRevision without destroying native controls or
- * the caret in a field being edited. A serial/kind/count/options change is a
- * structural rebuild and returns false before touching anything.
+ * Reconcile the retained page with the model, without destroying native
+ * controls or the caret in a field being edited.
+ *
+ * THE VALIDATE LOOP ASKS EXACTLY ONE QUESTION: has the keyed widget SEQUENCE
+ * changed -- a different serial, kind, id, or count? That is identity, and it
+ * is the only thing a structural rebuild is for. Everything else the model
+ * carries is a PROPERTY of a widget that already exists, and the apply loop
+ * writes every one of them unconditionally from the model.
+ *
+ * Do not add a property comparison to the validate loop. Three separate
+ * flicker bugs came from doing exactly that: a custom well's height and a
+ * dropdown's option list were both checked there and answered with a full
+ * rebuild, throwing away the retained tree, the native controls and the
+ * executor's mounted page in order to restate a number the chrome could
+ * already set in place. A property the chrome cannot yet set in place is a
+ * missing setter on ToriRSChrome, not a reason to declare the page again.
+ *
+ * The writes are all compare-then-set at the chrome, so restating an
+ * unchanged page every refresh does no work.
  */
 static int
 app_plugin_panel_patch_semantic(
@@ -850,13 +890,6 @@ app_plugin_panel_patch_semantic(
             return 0;
         widget = &app->plugin_ui.widgets[row->widget];
         if( widget->kind != app_plugin_panel_semantic_chrome_kind(model) )
-            return 0;
-        if( model->kind == TORIRS_PLUGIN_W_CUSTOM &&
-            widget->view_h !=
-                model->preferred_height * ToriRSChrome_Scale(&app->plugin_ui) )
-            return 0;
-        if( model->kind == TORIRS_PLUGIN_W_DROPDOWN && model->choices[0] &&
-            !app_plugin_panel_options_match(widget, model->choices) )
             return 0;
     }
     if( row_count != model_count )
@@ -907,8 +940,21 @@ app_plugin_panel_patch_semantic(
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, text);
             break;
         case TORIRS_PLUGIN_W_CUSTOM:
-            /* Its content is a retained draw list, not widget text. The
-             * invalidate flag and resolved geometry drive it below. */
+            /*
+             * Its content is a retained draw list, not widget text: the
+             * invalidate flag and resolved geometry drive it below.
+             *
+             * Its HEIGHT is applied here, and used to be a reason to refuse
+             * the patch. That refusal is what made a growing list flash: a
+             * loot band arriving or a skill earning its first box changes
+             * nothing about WHICH widgets the page has, only how tall one of
+             * them is -- and answering that with a structural rebuild threw
+             * away the retained tree, the native controls and the executor's
+             * mounted page to restate a number. A height is a value.
+             */
+            ToriRSChrome_SetCustomHeight(
+                &app->plugin_ui, row->widget,
+                model->preferred_height * ToriRSChrome_Scale(&app->plugin_ui));
             break;
         case TORIRS_PLUGIN_W_CHECKBOX:
         case TORIRS_PLUGIN_W_TOGGLE:
@@ -931,8 +977,14 @@ app_plugin_panel_patch_semantic(
                 &app->plugin_ui, row->widget,
                 model->label[0] ? model->label : model->id);
             if( model->choices[0] )
+            {
+                /* The option LIST is a property too. It used to be compared in
+                 * the validate loop above and answered with a rebuild, though
+                 * the chrome has always been able to set it in place. */
+                app_plugin_panel_set_options(app, row->widget, model->choices);
                 ToriRSChrome_DropdownSetSelected(
                     &app->plugin_ui, row->widget, model->selected);
+            }
             else
                 ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
             break;
