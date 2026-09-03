@@ -40,7 +40,6 @@ static int app_plugin_model_publish(void* user, int model, void const* data, int
 static void app_plugin_model_release(void* user, int model);
 static int app_plugin_mesh_create(void* user);
 static void app_plugin_mesh_destroy(void* user, int mesh);
-static void app_plugin_mesh_clear(void* user, int mesh);
 static int app_plugin_mesh_vertex(void* user, int mesh, int x, int y, int z);
 static int app_plugin_mesh_face(void* user, int mesh, int a, int b, int c, int hsl, int alpha);
 static int app_plugin_object_create(void* user);
@@ -2834,7 +2833,7 @@ emit:
 
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     /* The wash is the caller's fill colour, which is not always the outline's
-     * -- see draw_tile in torirs_plugin.h. */
+     * -- see draw_tile in torirs_plugin_v2.h. */
     if( fill_alpha > 0 )
         app_overlay_push_polygon_filled(
             app,
@@ -4014,53 +4013,6 @@ app_plugin_role_rect(
  * the gameframe is between rebuilds.
  */
 static int
-app_plugin_role_frame_slot(void* user, char const* role, int* out_slot, int* out_member)
-{
-    struct App* app = (struct App*)user;
-    uint16_t role_id;
-    struct UITreeRoleEntry const* entry;
-
-    assert(app);
-    assert(role);
-    if( !app->tree )
-        return 0;
-
-    {
-        /* Through the same name->region helper the rect verbs use, so a
-         * region cannot be spelled one way here and another way there. CANVAS
-         * and SAFE fall out: they are derived rectangles with no node, and a
-         * part cannot be a member of one. */
-        int const slot = app_plugin_role_slot(role);
-        if( slot >= 0 && slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        {
-            if( out_slot )
-                *out_slot = slot;
-            if( out_member )
-                *out_member = -1;
-            return 1;
-        }
-        if( slot >= 0 )
-            return 0;
-    }
-
-    role_id = UITree_RoleFind(&app->ui_roles, role);
-    if( !role_id )
-        return 0;
-    entry = &app->ui_roles.entries[role_id - 1];
-    for( int i = 0; i < entry->matcher_count; i++ )
-    {
-        if( entry->matchers[i].kind != UITREE_ROLE_MATCH_SLOT )
-            continue;
-        if( out_slot )
-            *out_slot = entry->matchers[i].slot;
-        if( out_member )
-            *out_member = entry->matchers[i].member;
-        return 1;
-    }
-    return 0;
-}
-
-static int
 app_plugin_role_visible(void* user, char const* role)
 {
     struct App* app = (struct App*)user;
@@ -4136,26 +4088,6 @@ app_plugin_role_click(void* user, char const* role, int op)
     if( node < 0 )
         return 0;
     return app_plugin_click_node(app, node, op);
-}
-
-static int
-app_plugin_role_id(void* user, char const* role)
-{
-    struct App* app = (struct App*)user;
-    int32_t node;
-
-    assert(app);
-    assert(role);
-    if( !app->tree )
-        return -1;
-
-    node = app_plugin_ui_boundary_node(app, role);
-    if( node < 0 )
-        return -1;
-    /* A node with no id of its own answers -1 too: an authored control that
-     * never earned a synthetic id has nothing to hand back, and inventing one
-     * would be handing out a number no other verb can use. */
-    return app->tree->components[node].component_id;
 }
 
 static int

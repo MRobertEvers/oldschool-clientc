@@ -433,11 +433,15 @@ warn = nil
 ---@class torirs.Feature
 ---@field key string
 ---@field label string
+---@field section string
 ---@field kind integer
 ---@field value integer
 ---@field min integer
 ---@field max integer
 ---@field choices string
+---@field values integer[] Numeric value corresponding to each choice label.
+---@field value_count integer
+---@field is_default boolean True when the current value comes from the revision default.
 
 ---@class torirs.Skill
 ---@field index integer
@@ -527,7 +531,16 @@ warn = nil
 ---@field custom fun(id: string, preferred_height?: integer)
 ---@field label fun(id: string, text: string)
 ---@field key_value fun(id: string, label: string, value: string)
----@field node fun(node: table): boolean, torirs.ResultName
+---@field node fun(node: torirs.PanelNode): boolean, torirs.ResultName
+
+---@class torirs.PanelNode
+---@field kind integer
+---@field id string
+---@field label? string
+---@field text? string
+---@field value? integer
+---@field preferred_height? integer
+---@field options? torirs.SelectOption[]
 
 ---@class torirs.DrawContext
 ---@field bounds torirs.Rect
@@ -579,6 +592,8 @@ warn = nil
 ---@field id string Stable plugin id.
 ---@field title? string
 ---@field version? string
+---@field event_priority? integer Lower values receive ordinary events first.
+---@field draw_order? integer Lower values draw first within a draw pass.
 ---@field config? torirs.ConfigItem[]
 ---@field ui_contributions? torirs.UiContribution[]
 ---@field frames? torirs.FrameOffer[] Static offers published before startup.

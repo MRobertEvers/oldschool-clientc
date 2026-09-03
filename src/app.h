@@ -1368,7 +1368,7 @@ struct App
      * benefit.
      */
     int plugin_layout_owned;
-    /** enum ToriRS_EngineFrameCanvas. */
+    /** enum ToriRS_FrameCanvas. */
     int plugin_layout_canvas;
     int plugin_layout_fixed_w;
     int plugin_layout_fixed_h;

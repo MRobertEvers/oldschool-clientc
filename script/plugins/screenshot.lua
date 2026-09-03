@@ -37,7 +37,6 @@ local plugin = {
             facets = { "appearance", "actions" },
             value = {
                 flags = 3, -- VISIBLE | ENABLED
-                label = "Screenshot",
                 action = "capture",
                 actions = { "capture" },
             },
@@ -50,6 +49,8 @@ local ACTION_CAPTURE = 1
 local MARGIN = 6
 local icon
 local icon_small
+local icon_small_width
+local icon_small_height
 local report_ref
 local pending = {}
 
@@ -120,15 +121,27 @@ local function update_report(api)
     api.ui.set_enabled(report_ref, enabled)
     if not enabled then return end
 
-    local image = nil
-    if icon_small and api.assets.image_size(icon_small) then image = icon_small end
+    if icon_small then
+        icon_small_width, icon_small_height = api.assets.image_size(icon_small)
+    end
+
     api.ui.update(report_ref, { "appearance", "actions" }, {
         flags = 3,
-        image = image,
-        label = "Screenshot",
         action = "capture",
         actions = { "capture" },
     })
+end
+
+function plugin.on_ui_node_draw(api, node, draw)
+    if node ~= report_ref or api.config.camera ~= "report-button" or
+        not icon_small or not icon_small_width then return end
+    local info = api.ui.info(node)
+    if not info then return end
+    local box = info.bounds
+    draw.image(icon_small,
+        box.x + (box.width - icon_small_width) // 2,
+        box.y + (box.height - icon_small_height) // 2,
+        255)
 end
 
 function plugin.on_start(api)
@@ -210,7 +223,7 @@ function plugin.on_stop(api)
     if report_ref then api.ui.set_enabled(report_ref, false) end
     if icon then api.assets.image_release(icon) end
     if icon_small then api.assets.image_release(icon_small) end
-    icon, icon_small, report_ref = nil, nil, nil
+    icon, icon_small, icon_small_width, icon_small_height, report_ref = nil, nil, nil, nil, nil
 end
 
 return plugin

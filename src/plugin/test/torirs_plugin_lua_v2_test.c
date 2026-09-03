@@ -255,6 +255,15 @@ static void
 test_runtime(struct ToriRS_PluginHost* host)
 {
     static char const LEGACY_SOURCE[] = "return { name='legacy' }";
+    static char const BAD_MODE_SOURCE[] =
+        "return {id='bad-mode',ui_contributions={{node='frame.viewport',"
+        "mode='bogus',value={}}}}";
+    static char const CYCLIC_FACETS_SOURCE[] =
+        "local f={};f[1]=f;return {id='cyclic-facets',ui_contributions={{"
+        "node='frame.viewport',facets=f,value={}}}}";
+    static char const BAD_ACTION_SOURCE[] =
+        "return {id='bad-action',ui_contributions={{node='frame.viewport',"
+        "facets={'actions'},value={actions={{}}}}}}";
     static char const INVALID_ENUM_SOURCE[] =
         /* Deliberately collides with lua-v2-test in the 32-slot id table. */
         "return {id='invalid-enum-59',on_start=function(api) api.placement.area(99) end}";
@@ -329,9 +338,20 @@ test_runtime(struct ToriRS_PluginHost* host)
     struct ToriRS_FrameBuildContext context;
     int index;
 
+    CHECK(PluginLua_AddScript(host, "empty", "", 0) < 0,
+        "empty source is refused without a debug assertion");
     CHECK(PluginLua_AddScript(host, "legacy", LEGACY_SOURCE,
               (int)strlen(LEGACY_SOURCE)) < 0,
         "legacy name field is not accepted as a V2 id");
+    CHECK(PluginLua_AddScript(host, "bad-mode", BAD_MODE_SOURCE,
+              (int)strlen(BAD_MODE_SOURCE)) < 0,
+        "malformed contribution mode is a protected load failure");
+    CHECK(PluginLua_AddScript(host, "cyclic-facets", CYCLIC_FACETS_SOURCE,
+              (int)strlen(CYCLIC_FACETS_SOURCE)) < 0,
+        "cyclic facet tables cannot recurse in native code");
+    CHECK(PluginLua_AddScript(host, "bad-action", BAD_ACTION_SOURCE,
+              (int)strlen(BAD_ACTION_SOURCE)) < 0,
+        "malformed contribution action is a protected load failure");
     index = PluginLua_AddScript(host, "lua-v2-test", SOURCE, (int)strlen(SOURCE));
 
     CHECK(index == 0, "runtime script registered through V2");

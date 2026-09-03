@@ -951,8 +951,6 @@ main(void)
     e.role_rect = fake_role_rect;
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
-    e.role_id = fake_role_id;
-    e.role_slot = fake_role_slot;
     e.role_suppress_facets = fake_role_suppress_facets;
     e.ui_boundary = fake_ui_boundary;
     e.layout_set = fake_layout_set;
@@ -992,7 +990,6 @@ main(void)
     e.inv_size = fake_inv_size;
     e.mesh_create = fake_mesh_create;
     e.mesh_destroy = fake_mesh_destroy;
-    e.mesh_clear = fake_mesh_clear;
     e.mesh_vertex = fake_mesh_vertex;
     e.mesh_face = fake_mesh_face;
     e.object_create = fake_object_create;

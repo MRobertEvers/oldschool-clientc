@@ -2311,9 +2311,11 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_fr
 # header regression is reported directly; runtime registration and behavior
 # are covered by test-plugin-host and the bundled-plugin suites.
 .PHONY: test-plugin-api-v2
-test-plugin-api-v2: plugin/torirs_plugin_v2.h plugin/test/torirs_plugin_v2_compile_test.c
+test-plugin-api-v2: plugin/torirs_plugin_v2.h plugin/test/torirs_plugin_v2_compile_test.c \
+		plugin/test/plugin_api_single_version_test.py
 	$(CC) -std=c11 -fsyntax-only -Wall -Wextra -Werror=incompatible-pointer-types \
 		-I$(SRC_DIR) plugin/test/torirs_plugin_v2_compile_test.c
+	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_api_single_version_test.py
 	@echo "test-plugin-api-v2: ok"
 
 # First bundled v2 consumer. The fake modules pin the old tile indicator's

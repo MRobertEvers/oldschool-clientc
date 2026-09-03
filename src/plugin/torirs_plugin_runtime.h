@@ -72,7 +72,7 @@ struct PluginV2Runtime
     struct ToriRS_ApiV2 api;
     struct ToriRS_ClientApiV2 client_api;
     struct ToriRS_GameApiV2 game_api;
-    struct ToriRS_PluginCtx* context;
+    struct PluginContext* context;
     struct PluginV2ResourceToken image_tokens[TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX];
     struct PluginV2ResourceToken model_tokens[TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX];
     struct PluginV2ResourceToken mesh_tokens[TORIRS_PLUGIN_V2_MESH_TOKENS_MAX];
@@ -120,88 +120,88 @@ struct PluginV2PanelScope
 
 /** False only for a malformed host-hook header. */
 bool
-plugin_v2_runtime_Init(
+plugin_v2_runtime_init(
     struct PluginV2Runtime* runtime,
-    struct ToriRS_PluginCtx* context);
+    struct PluginContext* context);
 
 /** Reconstruct the API/modules while preserving the retired/incarnation
  * resource ledger left by Reset. Used for the same plugin instance after a
  * disable/reload; never for uninitialized storage. */
 bool
-plugin_v2_runtime_Reinit(
+plugin_v2_runtime_reinit(
     struct PluginV2Runtime* runtime,
-    struct ToriRS_PluginCtx* context);
+    struct PluginContext* context);
 
 /** Invalidate every live resource token, advancing or retiring each token
  * slot, then clear callable runtime state without clearing that ledger. */
 void
-plugin_v2_runtime_Reset(struct PluginV2Runtime* runtime);
+plugin_v2_runtime_reset(struct PluginV2Runtime* runtime);
 
 /* Internal bridge helpers.  Resolution validates type, token slot, liveness,
  * and incarnation before returning the zero-based engine slot. */
 int
-plugin_v2_runtime_ImageUnbox(
+plugin_v2_runtime_image_slot(
     struct PluginV2Runtime const* runtime,
     struct ToriRS_ImageRef image);
 
 int
-plugin_v2_runtime_ModelUnbox(
+plugin_v2_runtime_model_slot(
     struct PluginV2Runtime const* runtime,
     struct ToriRS_ModelRef model);
 
 void
-plugin_v2_runtime_DrawBegin(
+plugin_v2_runtime_draw_begin(
     struct PluginV2Runtime* runtime,
     void* surface_token,
     struct PluginV2DrawScope* scope,
     struct ToriRS_DrawBuilder* out);
 
 void
-plugin_v2_runtime_DrawEnd(
+plugin_v2_runtime_draw_end(
     struct PluginV2DrawScope* scope,
     struct ToriRS_DrawBuilder* builder);
 
 /** Restrict this callback-scoped builder to an already resolved semantic
  * tree clip. The setting dies with the scope. */
 void
-plugin_v2_runtime_DrawClip(
+plugin_v2_runtime_draw_clip(
     struct PluginV2DrawScope* scope,
     struct ToriRS_Rect clip);
 
 /** Set a callback-local drawing region; subsequent builder coordinates are
  * translated by its origin and clipped to it. */
 void
-plugin_v2_runtime_DrawRegion(
+plugin_v2_runtime_draw_region(
     struct PluginV2DrawScope* scope,
     struct ToriRS_Rect region);
 
 void
-plugin_v2_runtime_FrameBegin(
+plugin_v2_runtime_frame_begin(
     struct PluginV2Runtime* runtime,
     struct PluginV2FrameScope* scope,
     struct ToriRS_FrameBuilder* out);
 
 void
-plugin_v2_runtime_FrameEnd(
+plugin_v2_runtime_frame_end(
     struct PluginV2FrameScope* scope,
     struct ToriRS_FrameBuilder* builder);
 
 char const*
-plugin_v2_runtime_FrameReason(struct PluginV2FrameScope const* scope);
+plugin_v2_runtime_frame_reason(struct PluginV2FrameScope const* scope);
 
 /** True when the transaction used valid, non-duplicate declarations and
  * declared the required viewport surface. */
 bool
-plugin_v2_runtime_FrameValid(struct PluginV2FrameScope const* scope);
+plugin_v2_runtime_frame_valid(struct PluginV2FrameScope const* scope);
 
 void
-plugin_v2_runtime_PanelBegin(
+plugin_v2_runtime_panel_begin(
     struct PluginV2Runtime* runtime,
     struct PluginV2PanelScope* scope,
     struct ToriRS_PanelBuilder* out);
 
 void
-plugin_v2_runtime_PanelEnd(
+plugin_v2_runtime_panel_end(
     struct PluginV2PanelScope* scope,
     struct ToriRS_PanelBuilder* builder);
 

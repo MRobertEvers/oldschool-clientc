@@ -177,6 +177,20 @@ def main() -> int:
         if token in c_source:
             errors.append(f"Lua runtime still contains {label}: {token}")
 
+    remove_match = re.search(
+        r"static\s+char\s+const\*\s+const\s+REMOVE\[\]\s*=\s*\{(.*?)\n\s*\};",
+        c_source,
+        re.S,
+    )
+    removed_globals = (
+        set(re.findall(r'"([a-z_]+)"', remove_match.group(1)))
+        if remove_match else set()
+    )
+    documented_nil = set(
+        re.findall(r"---@type\s+nil\s*\n([a-z_]+)\s*=\s*nil", meta_source)
+    )
+    errors += difference("removed sandbox globals", removed_globals, documented_nil)
+
     canonical_modules = set(modules)
     legacy_callbacks = {
         "on_frame", "on_obj_spawn", "on_obj_count", "on_obj_despawn",

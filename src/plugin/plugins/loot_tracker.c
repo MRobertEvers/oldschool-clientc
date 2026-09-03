@@ -100,7 +100,7 @@
  *
  * The host's ceiling is TORIRS_PLUGIN_CONFIG_VALUE_MAX, but that lives in the
  * host header and a plugin has no business including one -- the whole contract
- * is torirs_plugin.h. A shorter buffer here is not a disagreement, only a
+ * is torirs_plugin_v2.h. A shorter buffer here is not a disagreement, only a
  * shorter ignore list than the store would have held.
  */
 #define LT_CONFIG_VALUE_MAX 192

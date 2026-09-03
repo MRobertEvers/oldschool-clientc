@@ -290,10 +290,13 @@ GLES2DualCoreStageArena_BeginFrame(
  * 2 against 6, arms alternating in one launch (TORIRS_GLES2_DUALCORE_LEAD_AB,
  * kr13): 6 won all five pairs -- draw CPU 15.06 against 15.46 ms/frame,
  * the draw's wait on the producer 1.0 against 1.6 ms, stalls a quarter as
- * many. Under 6 the producer keeps slots it will finish only microseconds
- * before the consumer wants them, and the consumer pays for each one twice:
- * the wait, and the cache line the result comes back on. */
-#define GLES2_DUALCORE_STAGE_LEAD_DEFAULT 6u
+ * many. Then 6 against 12: 15.13 against 14.98, the wait 1.0 against 0.87,
+ * four pairs of five -- smaller, and the consumer stages 50 more models a
+ * frame itself for it, so this is where it stops. Under the lead the
+ * producer keeps slots it will finish only microseconds before the consumer
+ * wants them, and the consumer pays for each one twice: the wait, and the
+ * cache line the result comes back on. */
+#define GLES2_DUALCORE_STAGE_LEAD_DEFAULT 12u
 
 /**
  * Producer: claim the next model (the one result_count names) for itself,

@@ -32,7 +32,7 @@
  * The live surfaces a layout arranges.
  *
  * Deliberately the same order and the same count as enum
- * ToriRS_EngineSurfaceSlot; the static asserts in uitree_frame.c are what keep
+ * ToriRS_HostSurfaceSlot; the static asserts in uitree_frame.c are what keep
  * the two from drifting. Restated rather than included because the tree is not
  * allowed to depend on the plugin contract -- a headless uitree test links
  * neither the host nor a plugin.

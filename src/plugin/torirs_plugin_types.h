@@ -1137,17 +1137,9 @@ enum ToriRS_HullShape
 /* ------------------------------------------------------------------------ */
 
 /*
- * The same tier, pointed at the scene instead of the frame.
- *
- * An npc, a player, a ground item or a loc is a PART like the report button
- * is: it has a picture, a click and a place, three plugins may want one each,
- * and two plugins that both outline the same npc every frame are two plugins
- * disagreeing about one thing with nothing to arbitrate. So an entity is
- * claimed through chrome_claim under a name of its own, with the same scopes,
- * the same three answers and the same teardown -- one exclusion set, not two.
- *
- * What differs is what each scope can DO, because a server entity is not a
- * plugin's to move and its model is not a plugin's to repaint:
+ * Named scene entities can carry retained appearance and menu declarations.
+ * What each declaration can do is deliberately narrow because a server
+ * entity is not a plugin's to move and its model is not a plugin's to repaint:
  *
  *   APPEARANCE  the hull: outline and fill, as draw_hull draws it, declared
  *               once with entity_look and painted by the host every world

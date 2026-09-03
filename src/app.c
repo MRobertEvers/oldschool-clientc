@@ -25254,25 +25254,6 @@ app_plugin_mesh_destroy(void* user, int handle)
     app->need_redraw = 1;
 }
 
-static void
-app_plugin_mesh_clear(void* user, int handle)
-{
-    struct App* app = (struct App*)user;
-    struct AppPluginMesh* mesh;
-
-    assert(app);
-    mesh = app_plugin_mesh_at(app, handle);
-    if( !mesh )
-        return;
-    /* The capacity stays: clear-then-rebuild is how a mesh is re-authored, and
-     * handing the buffers back only to ask for the same size again next frame
-     * is the allocation this is trying not to make. */
-    mesh->vertex_count = 0;
-    mesh->face_count = 0;
-    mesh->revision++;
-    app->plugin_geometry_dirty = 1;
-}
-
 static int
 app_plugin_mesh_vertex(void* user, int handle, int x, int y, int z)
 {

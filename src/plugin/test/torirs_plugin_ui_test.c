@@ -81,7 +81,7 @@ rect_is(
 }
 
 static void
-test_names_and_aliases(void)
+test_canonical_names(void)
 {
     struct ToriRS_UiNodeRef canonical;
     struct ToriRS_UiNodeRef alias;
@@ -92,21 +92,18 @@ test_names_and_aliases(void)
     canonical = ToriRS_UiRegistry_Ref(&registry_a, "frame.chat.button.report");
     alias = ToriRS_UiRegistry_Ref(&registry_a, "report_button");
     CHECK(canonical.value != 0, "the core frame vocabulary is registered at init");
-    CHECK(alias.value == canonical.value, "a legacy role aliases the canonical node");
+    CHECK(alias.value == 0, "non-canonical role spelling is rejected");
     CHECK(
-        ToriRS_UiRegistry_Ref(&registry_a, "minimap_edge").value ==
-            ToriRS_UiRegistry_Ref(&registry_a, "frame.minimap.housing").value,
-        "the legacy minimap housing aliases its canonical node");
+        ToriRS_UiRegistry_Ref(&registry_a, "minimap_edge").value == 0,
+        "the minimap housing requires its canonical name");
     CHECK(
-        ToriRS_UiRegistry_Ref(&registry_a, "orb_run").value ==
-            ToriRS_UiRegistry_Ref(&registry_a, "frame.orb.run").value,
-        "the legacy orb name aliases its canonical node");
+        ToriRS_UiRegistry_Ref(&registry_a, "orb_run").value == 0,
+        "the run orb requires its canonical name");
     CHECK(
-        ToriRS_UiRegistry_Ref(&registry_a, "xp_drops").value ==
-            ToriRS_UiRegistry_Ref(&registry_a, "frame.xp.drops").value,
-        "the legacy XP name aliases its canonical node");
+        ToriRS_UiRegistry_Ref(&registry_a, "xp_drops").value == 0,
+        "the XP node requires its canonical name");
     CHECK(
-        strcmp(ToriRS_UiRegistry_Name(&registry_a, alias), "frame.chat.button.report") == 0,
+        strcmp(ToriRS_UiRegistry_Name(&registry_a, canonical), "frame.chat.button.report") == 0,
         "name lookup always returns canonical spelling");
     CHECK(
         ToriRS_UiRegistry_NodeAt(&registry_a, 0).value != 0 &&
@@ -121,7 +118,7 @@ test_names_and_aliases(void)
     CHECK(!ToriRS_UiRegistry_NameIsValid("frame"), "a canonical name is dotted");
     CHECK(!ToriRS_UiRegistry_NameIsValid("frame..chat"), "an empty path segment is invalid");
     CHECK(!ToriRS_UiRegistry_NameIsValid("frame.Chat"), "canonical names are lowercase");
-    CHECK(!ToriRS_UiRegistry_NameIsValid("frame.chat_button"), "underscores are legacy only");
+    CHECK(!ToriRS_UiRegistry_NameIsValid("frame.chat_button"), "underscores are invalid");
     CHECK(
         ToriRS_UiRegistry_Ref(&registry_a, "frame.typo").value == 0,
         "plugins cannot mint unknown core vocabulary names");
@@ -163,7 +160,7 @@ test_base_facets_and_generations(void)
 
     CHECK(
         ToriRS_UiRegistry_AddBase(
-            &registry_a, "lane", "report_button", TORIRS_UI_FACET_BOUNDS, &bounds) ==
+            &registry_a, "lane", "frame.chat.button.report", TORIRS_UI_FACET_BOUNDS, &bounds) ==
             TORIRS_UI_REGISTRY_OK,
         "a lane supplies the base bounds facet");
     CHECK(
@@ -218,7 +215,7 @@ test_base_facets_and_generations(void)
         "a tree rebuild advances the base generation");
     CHECK(!ToriRS_UiRegistry_Resolve(&registry_a, report, &resolved), "cleared base is absent");
     CHECK(
-        ToriRS_UiRegistry_Ref(&registry_a, "report_button").value == report.value,
+        ToriRS_UiRegistry_Ref(&registry_a, "frame.chat.button.report").value == report.value,
         "the cached semantic reference survives the rebuild");
 
     bounds.bounds = (struct ToriRS_Rect){ 100, 40, 90, 28 };
@@ -382,7 +379,7 @@ test_modes_and_private_teardown(void)
     xp = ToriRS_UiRegistry_Ref(&registry_a, "frame.xp.drops");
     value = node_value(1, 2, 30, 40, 0, 0, NULL, NULL);
     modify = add_contribution(
-        &registry_a, "modifier", "xp_drops", TORIRS_UI_MODIFY, TORIRS_UI_FACET_BOUNDS, value);
+        &registry_a, "modifier", "frame.xp.drops", TORIRS_UI_MODIFY, TORIRS_UI_FACET_BOUNDS, value);
     value.bounds = (struct ToriRS_Rect){ 5, 6, 70, 80 };
     fallback = add_contribution(
         &registry_a,
@@ -567,7 +564,7 @@ populate_conflict(
         struct ToriRS_UiNode value =
             node_value(0, 0, 0, 0, TORIRS_UI_NODE_VISIBLE, 20 + i, order[i], NULL);
         (void)add_contribution(
-            registry, order[i], "orb_run", TORIRS_UI_MODIFY, TORIRS_UI_FACET_APPEARANCE, value);
+            registry, order[i], "frame.orb.run", TORIRS_UI_MODIFY, TORIRS_UI_FACET_APPEARANCE, value);
     }
     {
         struct ToriRS_UiNode value =
@@ -681,7 +678,7 @@ test_base_presence_modes_and_duplicates(void)
             status.state == TORIRS_UI_CONTRIBUTION_INACTIVE,
         "PROVIDE_IF_MISSING is inactive against a base node");
 
-    duplicate = contribution("minimap", TORIRS_UI_MODIFY, TORIRS_UI_FACET_ACTIONS, replacement);
+    duplicate = contribution("frame.minimap", TORIRS_UI_MODIFY, TORIRS_UI_FACET_ACTIONS, replacement);
     CHECK(
         ToriRS_UiRegistry_AddContribution(&registry_a, "modifier", &duplicate, NULL) ==
             TORIRS_UI_REGISTRY_DUPLICATE,
@@ -739,7 +736,7 @@ test_change_journal(void)
     (void)add_contribution(
         &registry_a,
         "actions",
-        "orb_run",
+        "frame.orb.run",
         TORIRS_UI_REPLACE_OR_PROVIDE,
         TORIRS_UI_FACET_ACTIONS,
         actions);
@@ -824,7 +821,7 @@ test_atomic_base_replace(void)
     ToriRS_UiRegistry_Init(&registry_a);
     initial[0] = (struct ToriRS_UiBaseDeclaration){
         .provider = "old-frame",
-        .node = "report_button",
+        .node = "frame.chat.button.report",
         .facets = TORIRS_UI_FACET_ALL,
         .value = node_value(
             1, 2, 30, 40, TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED, 7, "old", "activate"),
@@ -851,7 +848,7 @@ test_atomic_base_replace(void)
     duplicate[1].facets = TORIRS_UI_FACET_BOUNDS;
     CHECK(
         ToriRS_UiRegistry_ReplaceBase(&registry_a, duplicate, 2) == TORIRS_UI_REGISTRY_DUPLICATE,
-        "alias-equivalent duplicate facets reject the whole candidate");
+        "exact duplicate facets reject the whole candidate");
     CHECK(
         ToriRS_UiRegistry_BaseGeneration(&registry_a) == generation &&
             ToriRS_UiRegistry_Revision(&registry_a) == revision &&
@@ -1017,7 +1014,7 @@ test_rejected_additions_and_teardown_transaction(void)
 int
 main(void)
 {
-    test_names_and_aliases();
+    test_canonical_names();
     test_base_facets_and_generations();
     test_rich_facet_payloads();
     test_modes_and_private_teardown();

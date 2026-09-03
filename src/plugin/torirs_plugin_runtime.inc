@@ -241,7 +241,7 @@ v2_output_copy(
 }
 
 int
-plugin_v2_runtime_ImageUnbox(
+plugin_v2_runtime_image_slot(
     struct PluginV2Runtime const* runtime,
     struct ToriRS_ImageRef image)
 {
@@ -255,7 +255,7 @@ plugin_v2_runtime_ImageUnbox(
 }
 
 int
-plugin_v2_runtime_ModelUnbox(
+plugin_v2_runtime_model_slot(
     struct PluginV2Runtime const* runtime,
     struct ToriRS_ModelRef model)
 {
@@ -658,7 +658,7 @@ v2_ui_node_images_valid(
     assert(runtime);
     assert(value);
     if( size >= offsetof(struct ToriRS_UiNode, image) + sizeof(value->image) &&
-        value->image.value != 0 && plugin_v2_runtime_ImageUnbox(runtime, value->image) < 0 )
+        value->image.value != 0 && plugin_v2_runtime_image_slot(runtime, value->image) < 0 )
         return false;
     if( size < offsetof(struct ToriRS_UiNode, state_image_mask) +
                    sizeof(value->state_image_mask) ||
@@ -669,7 +669,7 @@ v2_ui_node_images_valid(
     for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
         if( (value->state_image_mask & (1u << state)) != 0 &&
             value->state_images[state].value != 0 &&
-            plugin_v2_runtime_ImageUnbox(runtime, value->state_images[state]) < 0 )
+            plugin_v2_runtime_image_slot(runtime, value->state_images[state]) < 0 )
             return false;
     return true;
 }
@@ -1203,7 +1203,7 @@ v2_assets_image_size(
 
     assert(out_width);
     assert(out_height);
-    int const image_slot = plugin_v2_runtime_ImageUnbox(runtime, image);
+    int const image_slot = plugin_v2_runtime_image_slot(runtime, image);
     if( image_slot < 0 )
         return false;
     return api_image_size(runtime->context, image_slot, out_width, out_height) != 0;
@@ -1215,7 +1215,7 @@ v2_assets_image_release(
     struct ToriRS_ImageRef image)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
-    int const image_slot = plugin_v2_runtime_ImageUnbox(runtime, image);
+    int const image_slot = plugin_v2_runtime_image_slot(runtime, image);
     if( image_slot < 0 )
         return;
     plugin_v2_image_release(
@@ -1266,7 +1266,7 @@ v2_assets_model_release(
     struct ToriRS_ModelRef model)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
-    if( plugin_v2_runtime_ModelUnbox(runtime, model) < 0 )
+    if( plugin_v2_runtime_model_slot(runtime, model) < 0 )
         return;
     plugin_v2_model_release(
         runtime->context->host, runtime->context, model);
@@ -1307,7 +1307,7 @@ v2_assets_image_pixels(
     size_t* out_count)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
-    int const image_slot = plugin_v2_runtime_ImageUnbox(runtime, image);
+    int const image_slot = plugin_v2_runtime_image_slot(runtime, image);
     int width = 0;
     int height = 0;
     size_t required;
@@ -1524,7 +1524,7 @@ v2_scene_instance_model(
         V2_RESOURCE_INSTANCE,
         ((uint32_t)runtime->context->index),
         instance.value);
-    int const model_slot = plugin_v2_runtime_ModelUnbox(runtime, model);
+    int const model_slot = plugin_v2_runtime_model_slot(runtime, model);
     if( instance_slot < 0 || model_slot < 0 )
         return TORIRS_RESULT_INVALID;
     api_object_set_model(
@@ -2455,7 +2455,7 @@ v2_builder_image(
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
     int const opaque_alpha = v2_alpha(alpha);
-    int const image_slot = plugin_v2_runtime_ImageUnbox(scope->runtime, image);
+    int const image_slot = plugin_v2_runtime_image_slot(scope->runtime, image);
 
     if( image_slot < 0 || opaque_alpha == 0 ||
         (int64_t)x + scope->origin_x < INT_MIN ||
@@ -2489,7 +2489,7 @@ v2_builder_image_clip(
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
     int const opaque_alpha = v2_alpha(alpha);
-    int const image_slot = plugin_v2_runtime_ImageUnbox(scope->runtime, image);
+    int const image_slot = plugin_v2_runtime_image_slot(scope->runtime, image);
 
     if( image_slot < 0 || opaque_alpha == 0 ||
         (int64_t)x + scope->origin_x < INT_MIN ||
@@ -2644,7 +2644,7 @@ v2_builder_context(
 }
 
 void
-plugin_v2_runtime_DrawBegin(
+plugin_v2_runtime_draw_begin(
     struct PluginV2Runtime* runtime,
     void* surface_token,
     struct PluginV2DrawScope* scope,
@@ -2675,7 +2675,7 @@ plugin_v2_runtime_DrawBegin(
 }
 
 void
-plugin_v2_runtime_DrawEnd(
+plugin_v2_runtime_draw_end(
     struct PluginV2DrawScope* scope,
     struct ToriRS_DrawBuilder* builder)
 {
@@ -2688,7 +2688,7 @@ plugin_v2_runtime_DrawEnd(
 }
 
 void
-plugin_v2_runtime_DrawClip(
+plugin_v2_runtime_draw_clip(
     struct PluginV2DrawScope* scope,
     struct ToriRS_Rect clip)
 {
@@ -2699,7 +2699,7 @@ plugin_v2_runtime_DrawClip(
 }
 
 void
-plugin_v2_runtime_DrawRegion(
+plugin_v2_runtime_draw_region(
     struct PluginV2DrawScope* scope,
     struct ToriRS_Rect region)
 {
@@ -2774,7 +2774,7 @@ v2_frame_image(
     assert(out_slot);
     if( ref.value != 0 )
     {
-        image_slot = plugin_v2_runtime_ImageUnbox(scope->runtime, ref);
+        image_slot = plugin_v2_runtime_image_slot(scope->runtime, ref);
         if( image_slot < 0 )
         {
             scope->invalid = true;
@@ -3009,7 +3009,7 @@ v2_builder_reason(
 }
 
 void
-plugin_v2_runtime_FrameBegin(
+plugin_v2_runtime_frame_begin(
     struct PluginV2Runtime* runtime,
     struct PluginV2FrameScope* scope,
     struct ToriRS_FrameBuilder* out)
@@ -3034,7 +3034,7 @@ plugin_v2_runtime_FrameBegin(
 }
 
 void
-plugin_v2_runtime_FrameEnd(
+plugin_v2_runtime_frame_end(
     struct PluginV2FrameScope* scope,
     struct ToriRS_FrameBuilder* builder)
 {
@@ -3047,20 +3047,20 @@ plugin_v2_runtime_FrameEnd(
 }
 
 char const*
-plugin_v2_runtime_FrameReason(struct PluginV2FrameScope const* scope)
+plugin_v2_runtime_frame_reason(struct PluginV2FrameScope const* scope)
 {
     assert(scope);
     return scope->reason;
 }
 
 bool
-plugin_v2_runtime_FrameValid(struct PluginV2FrameScope const* scope)
+plugin_v2_runtime_frame_valid(struct PluginV2FrameScope const* scope)
 {
     assert(scope);
     if( scope->invalid || (scope->surface_mask & (1u << TORIRS_SURFACE_VIEWPORT)) == 0 )
         return false;
     for( int i = 0; i < scope->image_ref_count; i++ )
-        if( plugin_v2_runtime_ImageUnbox(scope->runtime, scope->image_refs[i]) < 0 )
+        if( plugin_v2_runtime_image_slot(scope->runtime, scope->image_refs[i]) < 0 )
             return false;
     return true;
 }
@@ -3310,7 +3310,7 @@ v2_builder_node(
 }
 
 void
-plugin_v2_runtime_PanelBegin(
+plugin_v2_runtime_panel_begin(
     struct PluginV2Runtime* runtime,
     struct PluginV2PanelScope* scope,
     struct ToriRS_PanelBuilder* out)
@@ -3337,7 +3337,7 @@ plugin_v2_runtime_PanelBegin(
 }
 
 void
-plugin_v2_runtime_PanelEnd(
+plugin_v2_runtime_panel_end(
     struct PluginV2PanelScope* scope,
     struct ToriRS_PanelBuilder* builder)
 {
@@ -3352,7 +3352,7 @@ plugin_v2_runtime_PanelEnd(
 static bool
 v2_runtime_init(
     struct PluginV2Runtime* runtime,
-    struct ToriRS_PluginCtx* context,
+    struct PluginContext* context,
     bool preserve_resources)
 {
     assert(runtime);
@@ -3551,23 +3551,23 @@ v2_runtime_init(
 }
 
 bool
-plugin_v2_runtime_Init(
+plugin_v2_runtime_init(
     struct PluginV2Runtime* runtime,
-    struct ToriRS_PluginCtx* context)
+    struct PluginContext* context)
 {
     return v2_runtime_init(runtime, context, false);
 }
 
 bool
-plugin_v2_runtime_Reinit(
+plugin_v2_runtime_reinit(
     struct PluginV2Runtime* runtime,
-    struct ToriRS_PluginCtx* context)
+    struct PluginContext* context)
 {
     return v2_runtime_init(runtime, context, true);
 }
 
 void
-plugin_v2_runtime_Reset(struct PluginV2Runtime* runtime)
+plugin_v2_runtime_reset(struct PluginV2Runtime* runtime)
 {
     assert(runtime);
     v2_resource_reset(runtime->image_tokens, TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX);

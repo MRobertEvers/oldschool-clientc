@@ -643,16 +643,6 @@ fake_mesh_destroy(
     e->meshes_live--;
 }
 
-static void
-fake_mesh_clear(
-    void* u,
-    int mesh)
-{
-    struct FakeEngine* e = u;
-    (void)mesh;
-    e->mesh_clears++;
-}
-
 static int
 fake_mesh_vertex(
     void* u,
@@ -1218,7 +1208,6 @@ fake_component_rect(
 static char const* g_role_name;
 static int g_role_box[4];
 static int g_role_visible;
-static int g_role_component_id = -1;
 static int g_role_clicked_op = -1;
 static char const* g_role_clicked;
 static int g_role_suppress_calls;
@@ -1228,9 +1217,6 @@ static char g_role_suppress_name[TORIRS_PLUGIN_ROLE_NAME_MAX];
 static int g_ui_boundary_calls;
 static int g_ui_boundary_resets;
 static int g_ui_boundary_invalids;
-static int g_ui_boundary_current_plugin = -1;
-static int g_ui_boundary_replace = -1;
-static int g_ui_boundary_last_replace = -1;
 static int g_ui_boundary_last_place = -1;
 static int g_lane_rail_box[4];
 static int g_lane_rail_visible;
@@ -1302,31 +1288,6 @@ fake_role_click(
 }
 
 static int
-fake_role_id(
-    void* u,
-    char const* role)
-{
-    (void)u;
-    return role_is(role) ? g_role_component_id : -1;
-}
-
-/* No role in these fakes binds to a frame slot: the tests that care about
- * chrome parts drive them through the slot verbs directly. */
-static int
-fake_role_slot(
-    void* user,
-    char const* role,
-    int* out_slot,
-    int* out_member)
-{
-    (void)user;
-    (void)role;
-    (void)out_slot;
-    (void)out_member;
-    return 0;
-}
-
-static int
 fake_role_suppress_facets(
     void* u,
     char const* role,
@@ -1348,30 +1309,21 @@ fake_role_suppress_facets(
 static int
 fake_ui_boundary(
     void* u,
-    int plugin,
     char const* role,
-    int replace,
     int place)
 {
     (void)u;
     if( !role )
     {
         g_ui_boundary_resets++;
-        g_ui_boundary_current_plugin = -1;
-        g_ui_boundary_replace = -1;
         return 1;
     }
     if( role[0] == '\0' )
     {
         g_ui_boundary_invalids++;
-        g_ui_boundary_current_plugin = plugin;
-        g_ui_boundary_replace = -2;
         return 0;
     }
     g_ui_boundary_calls++;
-    g_ui_boundary_current_plugin = plugin;
-    g_ui_boundary_replace = replace;
-    g_ui_boundary_last_replace = replace;
     g_ui_boundary_last_place = place;
     return role_is(role);
 }
@@ -1734,8 +1686,6 @@ fake_engine(void)
     e.role_rect = fake_role_rect;
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
-    e.role_id = fake_role_id;
-    e.role_slot = fake_role_slot;
     e.role_suppress_facets = fake_role_suppress_facets;
     e.ui_boundary = fake_ui_boundary;
     e.layout_set = fake_layout_set;
@@ -1780,7 +1730,6 @@ fake_engine(void)
     e.model_release = fake_model_release;
     e.mesh_create = fake_mesh_create;
     e.mesh_destroy = fake_mesh_destroy;
-    e.mesh_clear = fake_mesh_clear;
     e.mesh_vertex = fake_mesh_vertex;
     e.mesh_face = fake_mesh_face;
     e.object_create = fake_object_create;

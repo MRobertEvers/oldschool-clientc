@@ -326,7 +326,7 @@ struct ToriRS_PluginEngine
      * the canvas, and moving the live surfaces. */
 
     /** The claim changed (or was restated). `owned` is 1 while a plugin holds
-     *  the frame; `canvas` is enum ToriRS_EngineFrameCanvas and `fixed_w/h`
+     *  the frame; `canvas` is enum ToriRS_FrameCanvas and `fixed_w/h`
      *  the pinned canvas, 0 when it follows the window. */
     void (*layout_set)(
         void* user,
@@ -449,9 +449,8 @@ struct ToriRS_PluginEngine
 
     /**
      * The device-local requested gameframe. Returns 1 when the preference was
-     * explicitly present, 0 for a fresh/legacy file (and still writes `auto`).
-     * `out_migration_version` lets the host perform the one-time conversion
-     * from the two legacy plugin enable switches.
+     * explicitly present and 0 for a fresh file. The format version is owned
+     * by the preferences store; the host currently needs only the selected id.
      *
      * Optional for focused harnesses; an absent callback means `auto` without
      * persistence.
@@ -460,7 +459,7 @@ struct ToriRS_PluginEngine
         void* user,
         char* out,
         int out_size,
-        int* out_migration_version);
+        int* out_format_version);
     int (*frame_preference_set)(
         void* user,
         char const* id,
@@ -1134,9 +1133,8 @@ PluginHost_Layout(
  * Announce that a layout input may have moved.
  *
  * Called by the client when something it owns moved a region -- a resize, a
- * gameframe rebuild -- and by the host itself when a plugin reserves. Legacy
- * EV_LAYOUT_CHANGED remains the broad compatibility notification. V2
- * on_placement_changed is raised separately, only after the canonical area
+ * gameframe rebuild -- and by the host itself when a plugin reserves.
+ * on_placement_changed is raised only after the canonical area
  * sets and assigned reservation boxes differ from their last complete state.
  * Callback-side changes are coalesced into a later, non-recursive transaction.
  */

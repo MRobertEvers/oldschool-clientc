@@ -232,6 +232,96 @@ worker. The structural facts the kernels now live inside:
    ran on the draw thread because the draw reached those models first. Any kernel A/B on
    this binary must sum both threads (as §M.2 does), or the split moves and the A/B lies.
 
+### M.5b The dual-core lane after step 1 (kr7–kr13, 2026-09-03 afternoon)
+
+Items 1 and 2 above were built (the **command feed**: the draw translates the world pass
+into a ring of `ToriRS_RenderCommand` the worker consumes, so the bus runs once; and the
+**barrier-free poll**), then measured, and the measurements rewrote the model of where the
+draw's time goes. In order:
+
+**The measuring instrument came first, because the first two instruments lied.**
+`simpleperf` sample counts moved ±1 ms between 10 s windows of the same binary. `/proc`
+jiffy accounting over 60 s windows (`utime`/`stime` per thread) was stable *within* a
+launch — and then two launches of the same binary differed by 1.2 ms/frame on the draw
+(13.55 vs 15.16, `kr12`): a launch lands in a scene state (NPC positions, camera) that
+varies the frame by more than any change under test. The instrument that works is
+**in-launch alternation**: the lane reads `CLOCK_THREAD_CPUTIME_ID` for the draw and
+`pthread_getcpuclockid` for the worker at every 300-frame debug line, and
+`TORIRS_GLES2_DUALCORE_{LOOKAHEAD,LEAD}_AB=a,b` flips the knob every line. Five to eight
+pairs in one launch resolve 0.15 ms; everything below is measured that way unless noted.
+
+**What the feed did, and did not, do.**
+
+| | pre-feed (`kr11` baseline, `/proc`) | feed + `wfe`/`sev` (`kr12`, `/proc`) |
+|---|---:|---:|
+| draw utime + stime | 12.46 + 1.50 / 13.04 + 0.72 | 13.05 + 0.51 / 13.36 + 0.95 |
+| worker utime + stime | 5.66 + 0.08 / 6.01 + 0.02 | 6.21 + 0.09 / 6.97 + 0.06 |
+
+The worker's *work* fell by the bus replay (~1.3 ms) — but its accounted CPU did not,
+because it now spends **0.7–1.5 ms/frame waiting on the feed** (measured with
+`clock_gettime` around the wait, debug builds only), and a core parked in `wfe` is
+charged as running. The draw did not get faster either, for the reason under the next
+heading. The draw's *kernel* time halved (1.50 → 0.51) — that part is real, see `sched_yield`.
+
+**`sched_yield` in a spin loop is a tax on the other thread.** The worker's first feed
+wait yielded after 65536 empty polls; it reached that inside every wait and then yielded
+on every poll. Cost: 1.7 ms/frame of worker `stime` — and the draw's own `stime` rose
+with it, because both threads were contending for the same kernel lock (the runqueue
+lock behind `sched_yield` and behind the GL driver's syscalls). Removing the yield
+dropped the worker to 0.09 ms `stime` and the draw by ~1 ms. The replacement is the ARM
+pair `wfe`/`sev` (`GLES2DualCore_SpinWait`/`SpinSignal` in the stage header): the
+waiter parks the core until an event, the publisher follows every release store with
+`sev` (a hint instruction), the event register makes check-then-wait race-free, and any
+interrupt bounds a missed event. The yield remains as a starvation fallback after 4096
+*parked* polls, which in a genuine wait is milliseconds, not the 100 µs it was.
+
+**Where the draw's remaining wait is — the stall anatomy.** With the poll cost gone, the
+draw still waits **~1.0 ms/frame** in `dualcore_source_take`. The debug line now
+histograms every stall by duration, by slot in the pass, and (for stalls ≥200 µs) by the
+waited-on model's face count. In a 300-frame window (whole pass, lead 6):
+
+| duration | <20 µs | <50 | <100 | <200 | <500 | 500+ |
+|---|---:|---:|---:|---:|---:|---:|
+| stalls / 300 frames | 3900 | 1300 | 630 | 300 | 280 | 90 |
+| ≈ ms/frame | 0.13 | 0.15 | 0.16 | 0.15 | 0.33 | 0.20 |
+
+Slot: 1 / 10 / 1400 / 5000 for <64 / <256 / <1024 / 1024+. Faces on ≥200 µs stalls:
+110 under 500 faces, 40 under 2000, 210 over 2000. Read together: the stalls are at the
+**end of the pass, on the big models**, and they are the worker's *stage time* on those
+models, not synchronisation. The painter emits the large models (players, NPCs, big
+locs) last; the worker stages a 2000+-face model in 200–500 µs while the draw dispatches
+it in ~30; through that region the draw is throughput-bound on the worker. No lookahead
+changes this (the worker has already caught up to the draw's translation frontier and
+idled 1 ms before the region begins — that is the feed-wait above), and nothing but a
+faster stage on big models or an out-of-order worker will. The ~30 % of long stalls on
+models under 500 faces (0.3/frame, ~0.1 ms) are the worker not running: preempted, or
+sharing the core.
+
+**Knobs settled by in-launch A/B** (draw CPU, `CLOCK_THREAD_CPUTIME_ID`, ms/frame):
+
+| knob | arms | result | default now |
+|---|---|---|---|
+| lookahead (translate-ahead depth) | whole pass vs 128 | 15.27 vs 15.48 draw, 6.55 vs 7.05 worker, 8 pairs | **whole pass** (the `kr10` verdict for 128 was two launches compared) |
+| lead (hand-off distance) | 2 vs 6 | 15.46 vs 15.06 draw, wait 1.56 vs 1.02, stalls ¼ — 5/5 pairs | |
+| lead | 6 vs 12 | 15.13 vs 14.98, wait 1.01 vs 0.87 — 4/5 pairs | **12** |
+
+**Two things this phone will not do.** `sched_setaffinity` returns 0 and changes
+nothing: the mask read back is `0-1` every frame (`TORIRS_GLES2_DUALCORE_PIN=2`, both
+threads, re-applied per frame). The vendor kernel ignores affinity from unprivileged
+threads; the lane must not lean on pinning. And the hotplug governor takes cpu1 down
+whenever load dips (`dmesg`: "CPU1: shutdown" during login) — a further reason a
+one-time pin would not survive even on a kernel that honoured it. Sampling `/proc`'s
+`processor` field found the two threads on the same core in over half the samples with
+the worker runnable — but the sampler itself is a third busy process on a two-core
+phone, so that number is an upper bound, not a measurement.
+
+**Net for step 1:** the worker's bus replay is gone, the kernel-contention tax is gone,
+and the lane now reports where its time goes. The draw's critical path did not shorten
+measurably, because its wait was never the poll — it is the worker's stage time on the
+last third of the pass. That hands the ball to step 2 (the sort on big models is the
+stall) with a number to hit: every 100 µs off a 2000-face model's stage is ~0.3 ms off
+the draw's frame.
+
 ### M.6 HEAD crashed at login on this phone — root-caused and fixed
 
 Every build of HEAD after `449eea745` ("improve world rebuild", 09-03 06:54) — OPT=1 and
@@ -845,10 +935,13 @@ frame is paced at 49 fps by the pacer, not by the CPU, so "faster" here means CP
 headroom (for the moving-camera frame, for plugins, for a lower clock) and a lower
 p99, not a higher fps until the pacer is changed.
 
-**Rule for every step:** one binary, one env toggle, alternate arms, 10 s each, `ms/frame
-= samples / frames-in-window`, **both threads summed** (§M.5 item 4 — under the dual-core
-lane a change can move work between threads without removing it). Symbolise with the
-`+0x112000` correction from §M.6 until the tooling does it.
+**Rule for every step:** one binary, one env toggle, arms alternating **inside one launch**
+(§M.5b: two launches of the same binary differ by more than a millisecond), read from the
+lane's own per-thread CPU clocks at each 300-frame debug line, five pairs minimum, **both
+threads reported** (§M.5 item 4 — under the dual-core lane a change can move work between
+threads without removing it). `TORIRS_GLES2_DUALCORE_{LOOKAHEAD,LEAD}_AB=a,b` is the
+pattern; a kernel toggle gets the same treatment. `simpleperf` is for *where*, not *how
+much*; symbolise with the `+0x112000` correction from §M.6 until the tooling does it.
 
 ### Step 0 — Measurement hygiene (½ day, done in part)
 
@@ -867,7 +960,26 @@ lane a change can move work between threads without removing it). Symbolise with
 | 1b | **Barrier-free poll** in `dualcore_source_take`: plain volatile load in the loop, one `dmb ish` after the publish counter is seen to advance (same acquire); back off to `futex`/`sched_yield` after ~64 polls rather than 4096 | 2 × `dmb` per poll (§4.5: 50–80 cycles each) | draw-thread CPU only: whatever wait remains costs ~3 cycles per poll instead of ~120. Small once 1a lands; do it anyway | poll-loop samples vs kernel `futex` samples |
 | 1c | **Rebalance after 1a.** With the worker at ~4.7 ms against the draw's ~13 ms, hand it more per-model work that touches no GL: `ToriDraw_AnimApplyTransform` is already there (0.47); the pose bake (`gles2_bake_pose_vertices` 0.24) and `trspk_toridraw_bake_face` (0.30) are candidates if their outputs can be published like the projection's | §M.2 tables | **draw −0.3..0.5 ms**, worker +0.5 | both-thread sum unchanged; draw down |
 
-After step 1: draw **≈ 13.3–13.8 ms**, worker ≈ 5 ms.
+**Status (2026-09-03, §M.5b):** 1a and 1b are **built** — as a command feed the draw fills
+and the worker consumes (`platform_renderer_gles2_dualcore_stage.{h,c}`,
+`GLES2DualCoreStageArena_Feed*`), with `wfe`/`sev` waits. The predicted draw gain did **not**
+materialise, and the reason is now measured: the 1.45 ms in `dualcore_source_take` was the
+worker's stage time on the pass's big models, not the poll. What did land: worker bus
+replay gone; 1.7 ms/frame of `sched_yield` kernel contention gone (it was also taxing the
+draw); lead 2 → 12 (−0.4 ms draw); whole-pass translation (−0.2). Remaining draw wait
+**~0.9 ms/frame**, all of it the worker on 2000+-face models at the end of the pass.
+
+**1c is re-scoped.** More per-model work on the worker would *lengthen* the stalls, since
+the worker is the bottleneck exactly where the draw waits. The rebalance that helps is the
+inverse: (i) step 2 on the worker's sort (each 100 µs off a big model's stage is ~0.3 ms
+off the draw), and (ii) an **out-of-order worker** that stages big models first while the
+draw is still dispatching tiles — the claim protocol already permits it (per-slot CAS),
+but results are published as an in-order count, so it needs per-slot ready flags. Expected
+−0.5..0.9 ms draw; do after 2a/2b so the stall it hides is first made smaller.
+
+After step 1 as built: draw **≈ 15.0 ms** by `CLOCK_THREAD_CPUTIME_ID` (this clock runs ~1.5
+ms/frame above `/proc`'s jiffies on the same thread; the ledger below is in `/proc` terms,
+≈ 13.5), worker ≈ 6.3 of which ~1 is parked in `wfe`.
 
 ### Step 2 — Face sort (2.88 ms/frame both threads; the profile's largest kernel)
 
@@ -917,7 +1029,8 @@ Then the §8 arch_fuzz kernels, which gate R4 and the forwarding half of S4.
 | | draw ms | worker ms | both |
 |---|---:|---:|---:|
 | zero (`kr4`) | 15.3 | 6.0 | 21.3 |
-| after step 1 | 13.3–13.8 | ~5.0 | ~18.5 |
+| after step 1, predicted | 13.3–13.8 | ~5.0 | ~18.5 |
+| **after step 1, measured** (`kr13`, `/proc` terms; ~0.9 of the draw is waiting on the worker's big models) | **~13.5** | ~6.3 (≈5.3 work + 1 parked) | ~19.8 |
 | after step 2 | 13.1–13.6 | ~4.2 | ~17.5 |
 | after step 4 | 13.0–13.5 | ~4.0 | ~17.2 |
 | step 3 (not sized here) | the remaining ~13 ms is painter + emit + GL, i.e. `FRAME_BUDGET_PLAN.md`'s ground | | |
