@@ -1393,6 +1393,166 @@ dbg_options_hash(char const* const* options, int option_count)
     return hash;
 }
 
+static void
+dbg_hash_text(uint64_t* hash, char const* text, int limit)
+{
+    uint32_t len = 0;
+
+    assert(hash);
+    if( text )
+        while( len < (uint32_t)(limit - 1) && text[len] )
+            len++;
+    for( int byte = 0; byte < 4; byte++ )
+    {
+        *hash ^= (len >> (byte * 8)) & 0xffu;
+        *hash *= 1099511628211ULL;
+    }
+    for( uint32_t byte = 0; byte < len; byte++ )
+    {
+        *hash ^= (unsigned char)text[byte];
+        *hash *= 1099511628211ULL;
+    }
+}
+
+static uint64_t
+dbg_structured_options_hash(
+    struct ToriRSChromeSelectOptionInput const* options,
+    int option_count)
+{
+    uint64_t hash = 1099511628211ULL; /* Distinct from a legacy label list. */
+
+    if( !options || option_count <= 0 )
+        return hash;
+    for( int i = 0; i < option_count; i++ )
+    {
+        dbg_hash_text(&hash, options[i].value, TORIRS_CHROME_SELECT_VALUE_MAX);
+        dbg_hash_text(&hash, options[i].label, TORIRS_CHROME_LABEL_MAX);
+        dbg_hash_text(&hash, options[i].detail, TORIRS_CHROME_SELECT_DETAIL_MAX);
+        hash ^= options[i].enabled ? 1u : 0u;
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
+static struct ToriRSChromeSelectOption const*
+dbg_structured_option(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromeWidget const* widget,
+    int index)
+{
+    int at;
+
+    assert(ui);
+    assert(widget);
+    if( !widget->structured_options || index < 0 || index >= widget->option_count )
+        return NULL;
+    at = widget->structured_option_first + index;
+    if( widget->structured_option_first < 0 || at < 0 ||
+        at >= ui->select_option_count )
+        return NULL;
+    return &ui->select_options[at];
+}
+
+static char const*
+dbg_option_label(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromeWidget const* widget,
+    int index)
+{
+    struct ToriRSChromeSelectOption const* option =
+        dbg_structured_option(ui, widget, index);
+
+    if( option )
+        return option->label;
+    if( widget->options && index >= 0 && index < widget->option_count )
+        return widget->options[index] ? widget->options[index] : "";
+    return "";
+}
+
+static int
+dbg_option_enabled(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromeWidget const* widget,
+    int index)
+{
+    struct ToriRSChromeSelectOption const* option =
+        dbg_structured_option(ui, widget, index);
+    return option ? option->enabled : index >= 0 && index < widget->option_count;
+}
+
+/** Copy/repack the bounded structured pool atomically. */
+static int
+dbg_structured_options_replace(
+    struct ToriRSChrome* ui,
+    int widget,
+    struct ToriRSChromeSelectOptionInput const* options,
+    int option_count)
+{
+    struct ToriRSChromeSelectOption next[TORIRS_CHROME_SELECT_OPTIONS_MAX];
+    int next_first[TORIRS_CHROME_MAX_WIDGETS];
+    int count = 0;
+
+    assert(ui);
+    if( option_count < 0 || option_count > TORIRS_CHROME_SELECT_OPTIONS_MAX ||
+        (option_count > 0 && !options) )
+        return 0;
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+        next_first[i] = -1;
+    for( int i = 0; i < ui->widget_count; i++ )
+    {
+        struct ToriRSChromeWidget const* other = &ui->widgets[i];
+
+        if( i == widget || other->kind == TORIRS_CHROME_W_FREE ||
+            !other->structured_options || other->option_count <= 0 )
+            continue;
+        if( other->structured_option_first < 0 ||
+            other->structured_option_first + other->option_count > ui->select_option_count ||
+            count + other->option_count > TORIRS_CHROME_SELECT_OPTIONS_MAX )
+            return 0;
+        next_first[i] = count;
+        memcpy(
+            &next[count],
+            &ui->select_options[other->structured_option_first],
+            (size_t)other->option_count * sizeof(next[0]));
+        count += other->option_count;
+    }
+    if( count + option_count > TORIRS_CHROME_SELECT_OPTIONS_MAX )
+        return 0;
+    next_first[widget] = option_count > 0 ? count : -1;
+    for( int i = 0; i < option_count; i++ )
+    {
+        struct ToriRSChromeSelectOption* destination = &next[count + i];
+
+        if( !options[i].value || !options[i].label )
+            return 0;
+        memset(destination, 0, sizeof(*destination));
+        dbg_copy(
+            destination->value,
+            TORIRS_CHROME_SELECT_VALUE_MAX,
+            options[i].value);
+        dbg_copy(destination->label, TORIRS_CHROME_LABEL_MAX, options[i].label);
+        dbg_copy(
+            destination->detail,
+            TORIRS_CHROME_SELECT_DETAIL_MAX,
+            options[i].detail);
+        destination->enabled = options[i].enabled ? 1 : 0;
+    }
+    count += option_count;
+    memcpy(ui->select_options, next, (size_t)count * sizeof(next[0]));
+    if( count < ui->select_option_count )
+        memset(
+            &ui->select_options[count],
+            0,
+            (size_t)(ui->select_option_count - count) * sizeof(next[0]));
+    ui->select_option_count = count;
+    for( int i = 0; i < ui->widget_count; i++ )
+        if( i != widget && ui->widgets[i].kind != TORIRS_CHROME_W_FREE &&
+            ui->widgets[i].structured_options )
+            ui->widgets[i].structured_option_first = next_first[i];
+    ui->widgets[widget].structured_option_first = next_first[widget];
+    return 1;
+}
+
 /** Mark a panel for relayout. Also flags the model so Build stops being a no-op. */
 static void
 dbg_dirty_panel(struct ToriRSChrome* ui, int panel)
@@ -1522,6 +1682,7 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->colorpick_open = -1;
     ui->colorpick_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
     ui->widget_count = 0;
+    ui->select_option_count = 0;
     /* The whole array is gone, so the free list that indexed into it is too --
      * leaving it would hand out slots above the new high-water mark. */
     ui->free_widget = -1;
@@ -1879,6 +2040,7 @@ dbg_widget_add(struct ToriRSChrome* ui, int panel, int kind)
     w->kind = kind;
     w->panel = panel;
     w->next = -1;
+    w->structured_option_first = -1;
     w->tab = ui->panels[panel].build_tab;
     /* Distinct for the life of the instance -- see ToriRSChromeWidget::serial. */
     w->serial = ++ui->next_serial;
@@ -1935,6 +2097,8 @@ ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget)
         return;
     p = &ui->panels[ui->widgets[widget].panel];
     dbg_change_widget_remove(ui, widget);
+    if( ui->widgets[widget].structured_options )
+        (void)dbg_structured_options_replace(ui, widget, NULL, 0);
 
     /* Unlink from the panel's singly-linked row list. A walk rather than a back
      * pointer: rebuilds clear whole panels at a time (which never walks), and a
@@ -1985,6 +2149,8 @@ ToriRSChrome_PanelClearWidgets(struct ToriRSChrome* ui, int panel)
         int const next = ui->widgets[widget].next;
         dbg_change_widget_remove(ui, widget);
         dbg_widget_forget(ui, widget);
+        if( ui->widgets[widget].structured_options )
+            (void)dbg_structured_options_replace(ui, widget, NULL, 0);
         memset(&ui->widgets[widget], 0, sizeof(ui->widgets[widget]));
         ui->widgets[widget].kind = TORIRS_CHROME_W_FREE;
         ui->widgets[widget].next = ui->free_widget;
@@ -2601,13 +2767,19 @@ ToriRSChrome_DropdownSetOptions(
     if( selected < -1 )
         selected = -1;
     old_selected = w->selected;
-    if( w->option_count != count || w->options_hash != options_hash )
+    if( w->structured_options || w->option_count != count ||
+        w->options_hash != options_hash )
         flags |= TORIRS_CHROME_CHANGE_WIDGET_OPTIONS;
     if( old_selected != selected )
         flags |= TORIRS_CHROME_CHANGE_WIDGET_SELECTED;
 
     /* Even equal contents replace the borrow: a caller handing ownership from
      * one stable palette to another may retire the old storage immediately. */
+    if( w->structured_options )
+        (void)dbg_structured_options_replace(ui, widget, NULL, 0);
+    w->structured_options = 0;
+    w->structured_option_first = -1;
+    w->selected_value[0] = '\0';
     w->options = options;
     if( flags == 0 )
         return;

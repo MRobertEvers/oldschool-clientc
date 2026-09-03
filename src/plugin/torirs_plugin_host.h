@@ -1172,6 +1172,14 @@ PluginHost_ChromeTick(
     int height);
 
 /**
+ * A requested offer has finished its non-layout preparation and needs one
+ * safe candidate-build attempt. This is independent of committed ownership:
+ * native or the previous plugin frame remains live until that attempt commits.
+ */
+bool
+PluginHost_FrameNeedsLayout(struct ToriRS_PluginHost const* host);
+
+/**
  * Ask the frame's owner to declare it, against a canvas of `width` x `height`.
  *
  * The engine calls this at the three moments the last declaration stopped
@@ -1315,6 +1323,20 @@ PluginHost_ConfigItem(
  *  between them exhaust a fixed-size host. */
 #define TORIRS_PLUGIN_WIN_WIDGETS_MAX 256
 
+/** Structured select rows retained for the one active semantic page. */
+#define TORIRS_PLUGIN_SELECT_OPTIONS_MAX 128
+#define TORIRS_PLUGIN_SELECT_VALUE_MAX TORIRS_PLUGIN_CONFIG_VALUE_MAX
+#define TORIRS_PLUGIN_SELECT_LABEL_MAX TORIRS_PLUGIN_CONFIG_VALUE_MAX
+#define TORIRS_PLUGIN_SELECT_DETAIL_MAX TORIRS_PLUGIN_CONFIG_VALUE_MAX
+
+struct ToriRS_PluginSelectOption
+{
+    char value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
+    char label[TORIRS_PLUGIN_SELECT_LABEL_MAX];
+    char detail[TORIRS_PLUGIN_SELECT_DETAIL_MAX];
+    bool enabled;
+};
+
 /** One control on a plugin's tab, as the host holds it. */
 struct ToriRS_PluginWinWidget
 {
@@ -1327,6 +1349,15 @@ struct ToriRS_PluginWinWidget
     int selected;
     /** "a|b|c" for a dropdown; empty otherwise. */
     char choices[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+    /**
+     * Lossless V2 select state. `select_options` points into host-owned copied
+     * storage and remains valid for this panel selection generation. Legacy
+     * dropdowns leave `structured_select` false and continue using choices.
+     */
+    bool structured_select;
+    struct ToriRS_PluginSelectOption const* select_options;
+    int select_option_count;
+    char selected_value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
     /** Generic result state for the ABI-21 semantic kinds. Legacy checkbox
      *  and dropdown adapters keep this in step with checked/selected. */
     int value;

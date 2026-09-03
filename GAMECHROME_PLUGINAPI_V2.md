@@ -193,6 +193,7 @@ Illustrative C shape:
 ```c
 static struct ToriRS_FrameOffer const FRAME_OFFERS[] = {
     {
+        .struct_size = sizeof(struct ToriRS_FrameOffer),
         .id = "classic-fixed",
         .title = "Classic Fixed",
         .canvas = TORIRS_FRAME_CANVAS_FIXED,
@@ -202,6 +203,7 @@ static struct ToriRS_FrameOffer const FRAME_OFFERS[] = {
         .draw = frame_draw_classic,
     },
     {
+        .struct_size = sizeof(struct ToriRS_FrameOffer),
         .id = "modern-resizable",
         .title = "Modern Resizable",
         .canvas = TORIRS_FRAME_CANVAS_WINDOW,
@@ -220,6 +222,9 @@ struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_GAMEFRAME = {
     .version = "2.0.0",
     .state_size = sizeof(struct FrameState),
     .frames = FRAME_OFFERS,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+    },
 };
 ```
 

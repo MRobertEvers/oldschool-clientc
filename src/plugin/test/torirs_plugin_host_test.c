@@ -2612,7 +2612,12 @@ frame_desktop_event(
     else if( which == TORIRS_PLUGIN_EV_STOP )
         g_frame_desktop_stops++;
     else
+    {
+        struct ToriRS_PluginEvLayout const* layout = event;
+        (void)g_api->layout_slot(
+            ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, layout->width, layout->height);
         g_frame_desktop_layouts++;
+    }
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -2630,7 +2635,12 @@ frame_mobile_event(
     else if( which == TORIRS_PLUGIN_EV_STOP )
         g_frame_mobile_stops++;
     else
+    {
+        struct ToriRS_PluginEvLayout const* layout = event;
+        (void)g_api->layout_slot(
+            ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, layout->width, layout->height);
         g_frame_mobile_layouts++;
+    }
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -2639,6 +2649,7 @@ frame_desktop_init(
     struct ToriRS_PluginCtx* ctx,
     struct ToriRS_PluginApi const* api)
 {
+    g_api = api;
     api->subscribe(
         ctx, TORIRS_PLUGIN_EV_START, frame_desktop_event, (void*)(intptr_t)TORIRS_PLUGIN_EV_START);
     api->subscribe(
@@ -2655,6 +2666,7 @@ frame_mobile_init(
     struct ToriRS_PluginCtx* ctx,
     struct ToriRS_PluginApi const* api)
 {
+    g_api = api;
     api->subscribe(
         ctx, TORIRS_PLUGIN_EV_START, frame_mobile_event, (void*)(intptr_t)TORIRS_PLUGIN_EV_START);
     api->subscribe(
@@ -2914,7 +2926,7 @@ v2_probe_frame_build(
         .image = { -1 },
         .clip = TORIRS_UI_CLIP_PARENT,
         .state_image_mask = 1u << TORIRS_UI_VISUAL_HOVER,
-        .state_images = { [TORIRS_UI_VISUAL_HOVER] = { 73 } },
+        .state_images = { [TORIRS_UI_VISUAL_HOVER] = { -1 } },
         .label = "Map",
         .label_x = 4,
         .label_y = 5,
@@ -4725,34 +4737,44 @@ main(void)
 
         CHECK(
             strcmp(selected.requested, "frame-mobile/phone") == 0 &&
-                strcmp(selected.active, "frame-mobile/phone") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
-            "the exact saved mobile id selects the mobile offer");
+                strcmp(selected.active, "core/native") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_LOADING &&
+                PluginHost_FrameNeedsLayout(hf),
+            "the exact saved mobile id prepares a candidate over native");
         CHECK(
             g_frame_mobile_starts == 1 && g_frame_desktop_starts == 0,
             "only the selected provider starts");
+        CHECK(g_engine.layout_owned == 0, "native remains committed before validation");
+        PluginHost_Layout(hf, 900, 600);
+        api->frame_selection(PluginHost_Ctx(hf, desktop), &selected);
         CHECK(
-            g_engine.layout_owned == 1 &&
+            g_frame_mobile_layouts == 1 && g_frame_desktop_layouts == 0 &&
+                strcmp(selected.active, "frame-mobile/phone") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE && g_engine.layout_owned == 1 &&
                 g_engine.layout_canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW &&
                 g_engine.layout_fixed_w == 320 && g_engine.layout_fixed_h == 240,
-            "the selected offer alone supplies canvas policy and its floor");
-        PluginHost_Layout(hf, 900, 600);
-        CHECK(
-            g_frame_mobile_layouts == 1 && g_frame_desktop_layouts == 0,
-            "layout dispatch is structural: only the selected provider receives it");
+            "only a complete mobile declaration atomically becomes active");
 
         CHECK(
             api->frame_select(PluginHost_Ctx(hf, mobile), "frame-desktop/fixed"),
             "a canonical id switches providers");
         api->frame_selection(PluginHost_Ctx(hf, desktop), &selected);
         CHECK(
-            strcmp(selected.active, "frame-desktop/fixed") == 0 && g_frame_mobile_stops == 1 &&
-                g_frame_desktop_starts == 1,
-            "switching stops the old provider and starts exactly the new one");
+            strcmp(selected.active, "frame-mobile/phone") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_LOADING && g_frame_mobile_stops == 0 &&
+                g_frame_desktop_starts == 1 && PluginHost_FrameNeedsLayout(hf),
+            "switching starts the candidate while the committed provider stays live");
         CHECK(
-            g_engine.layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED &&
+            g_engine.layout_canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
+            "the candidate cannot change live canvas policy before validation");
+        PluginHost_Layout(hf, 900, 600);
+        api->frame_selection(PluginHost_Ctx(hf, desktop), &selected);
+        CHECK(
+            strcmp(selected.active, "frame-desktop/fixed") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE && g_frame_mobile_stops == 1 &&
+                g_engine.layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED &&
                 g_engine.layout_fixed_w == 765 && g_engine.layout_fixed_h == 503,
-            "the new offer atomically replaces the canvas policy");
+            "READY commits the new canvas policy before stopping the old provider");
 
         CHECK(
             api->frame_select(PluginHost_Ctx(hf, desktop), "missing-provider/frame"),
@@ -4760,9 +4782,9 @@ main(void)
         api->frame_selection(PluginHost_Ctx(hf, desktop), &selected);
         CHECK(
             strcmp(selected.requested, "missing-provider/frame") == 0 &&
-                strcmp(selected.active, "core/native") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_FALLBACK && g_engine.layout_owned == 0,
-            "a missing provider falls back to native without rewriting the request");
+                strcmp(selected.active, "frame-desktop/fixed") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_FALLBACK && g_engine.layout_owned == 1,
+            "a missing request reports fallback without discarding the last valid frame");
 
         CHECK(
             api->frame_select(PluginHost_Ctx(hf, desktop), "auto"),
@@ -4790,6 +4812,8 @@ main(void)
         desktop = PluginHost_Register(hf, &FRAME_DESKTOP_PROVIDER);
         PluginHost_Start(hf);
         api = PluginHost_Api(hf);
+        CHECK(PluginHost_FrameNeedsLayout(hf), "the reverse-order selection awaits validation");
+        PluginHost_Layout(hf, 900, 600);
         api->frame_selection(PluginHost_Ctx(hf, mobile), &selected);
         CHECK(
             strcmp(selected.active, "frame-desktop/fixed") == 0 && g_frame_desktop_starts == 1 &&
@@ -4897,11 +4921,10 @@ main(void)
         memset(&selection, 0, sizeof(selection));
         PluginHost_Api(hv2)->frame_selection(PluginHost_Ctx(hv2, a2), &selection);
         CHECK(
-            strcmp(selection.active, "v2-frame/test") == 0 &&
-                selection.status == TORIRS_PLUGIN_FRAME_ACTIVE &&
-                g_engine.layout_canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW &&
-                g_engine.layout_fixed_w == 640 && g_engine.layout_fixed_h == 480,
-            "v2 offer conversion drives the selected canvas policy");
+            strcmp(selection.active, "core/native") == 0 &&
+                selection.status == TORIRS_PLUGIN_FRAME_LOADING &&
+                PluginHost_FrameNeedsLayout(hv2) && g_engine.layout_owned == 0,
+            "v2 offer conversion prepares a candidate without changing native policy");
 
         PluginHost_LogicTick(hv2, 7);
         CHECK(
@@ -4922,12 +4945,19 @@ main(void)
                 g_v2_frame_canvas == TORIRS_FRAME_CANVAS_WINDOW && g_engine.layout_begins == 1 &&
                 g_engine.layout_ends == 1,
             "selected v2 offer builds once and atomically commits READY geometry");
+        PluginHost_Api(hv2)->frame_selection(PluginHost_Ctx(hv2, a2), &selection);
+        CHECK(
+            strcmp(selection.active, "v2-frame/test") == 0 &&
+                selection.status == TORIRS_PLUGIN_FRAME_ACTIVE && g_engine.layout_owned == 1 &&
+                g_engine.layout_canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW &&
+                g_engine.layout_fixed_w == 640 && g_engine.layout_fixed_h == 480,
+            "READY v2 geometry and its canvas policy publish together");
         PluginHost_LayoutChanged(hv2);
         housing_ref = PluginHost_UiRef(hv2, frame2, "frame.minimap.housing");
         CHECK(
             PluginHost_UiInfo(hv2, housing_ref, &ui_info) && ui_info.bounds.x == 610 &&
                 ui_info.bounds.width == 170 && ui_info.clip == TORIRS_UI_CLIP_PARENT &&
-                ui_info.state_images[TORIRS_UI_VISUAL_HOVER].value == 73 &&
+                ui_info.state_images[TORIRS_UI_VISUAL_HOVER].value == -1 &&
                 strcmp(ui_info.label, "Map") == 0 && ui_info.label_x == 4 &&
                 ui_info.label_y == 5 && ui_info.action_count == 2 &&
                 strcmp(ui_info.actions[1], "inspect") == 0 &&

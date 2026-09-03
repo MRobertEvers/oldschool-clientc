@@ -663,6 +663,9 @@ struct ToriRS_PluginHost
      * before the new plugin is called, so hidden plugins retain no native/DOM
      * model and cannot consume the shared widget budget. */
     struct ToriRS_PluginWinWidget panel_widgets[TORIRS_PLUGIN_WIDGETS_MAX];
+    struct ToriRS_PluginSelectOption
+        panel_select_options[TORIRS_PLUGIN_SELECT_OPTIONS_MAX];
+    int panel_select_option_count;
     bool panel_invalidated[TORIRS_PLUGIN_WIDGETS_MAX];
     int panel_widget_count;
     uint32_t next_widget_serial;
@@ -5066,10 +5069,15 @@ plugin_panel_clear_model(struct ToriRS_PluginHost* host)
 {
     assert(host);
     if( host->panel_widget_count == 0 )
+    {
+        host->panel_select_option_count = 0;
         return;
+    }
     memset(host->panel_widgets, 0, sizeof(host->panel_widgets));
+    memset(host->panel_select_options, 0, sizeof(host->panel_select_options));
     memset(host->panel_invalidated, 0, sizeof(host->panel_invalidated));
     host->panel_widget_count = 0;
+    host->panel_select_option_count = 0;
     plugin_panel_bump(&host->panel_model_revision);
 }
 
@@ -8160,6 +8168,30 @@ plugin_frame_provider_assets(
     return 1;
 }
 
+static char const*
+plugin_frame_committed_id(struct ToriRS_PluginHost const* host)
+{
+    struct PluginFrameCatalogEntry const* entry;
+
+    assert(host);
+    entry = PluginFrameCatalog_At(&host->frame_catalog, host->frame_active_entry);
+    return entry ? entry->id : "core/native";
+}
+
+static void
+plugin_frame_target_set(
+    struct ToriRS_PluginHost* host,
+    int entry_index)
+{
+    assert(host);
+    if( host->frame_target_entry == entry_index )
+        return;
+    host->frame_target_entry = entry_index;
+    host->frame_layout_requested = 0;
+    /* Fence a builder that changed the request from inside its own callback. */
+    host->frame_selection_epoch++;
+}
+
 /**
  * Resolve the complete catalogue as one transaction. Registration order never
  * participates: the exact persisted id names the provider, or native does.
@@ -8170,8 +8202,10 @@ plugin_frame_resolve(struct ToriRS_PluginHost* host)
     struct PluginFrameCatalogEntry const* target = NULL;
     int target_index = -1;
     int wanted_plugin = -1;
+    int committed_plugin;
     int asset_state = 1;
     char asset_reason[160];
+    char const* committed_id;
 
     assert(host);
     if( host->frame_resolving )
@@ -8194,12 +8228,47 @@ plugin_frame_resolve(struct ToriRS_PluginHost* host)
             wanted_plugin = target->plugin;
     }
 
-    /* Provider enablement is derived from selection. It is runtime state, not
-     * the old independently persisted checkbox. */
+    /* Native is a complete candidate of its own. It can commit immediately;
+     * no plugin callback or asset can make it partial. Off the game screen it
+     * is also the only safe committed frame, while the requested provider may
+     * stay warm for the next login. */
+    if( strcmp(host->frame_selection.requested, "auto") == 0 )
+    {
+        plugin_frame_target_set(host, -1);
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(host, "core/native", TORIRS_PLUGIN_FRAME_NATIVE, "");
+        wanted_plugin = -1;
+    }
+    else if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+    {
+        plugin_frame_target_set(host, target && target->available ? target_index : -1);
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(
+            host,
+            "core/native",
+            TORIRS_PLUGIN_FRAME_LOADING,
+            "The requested gameframe will activate after login.");
+    }
+    else if( !target || !target->available ||
+             (target->plugin >= 0 && host->plugins[target->plugin].refused) )
+    {
+        if( target && target->plugin >= 0 && host->plugins[target->plugin].refused )
+            wanted_plugin = -1;
+        plugin_frame_target_set(host, -1);
+    }
+    else
+        plugin_frame_target_set(host, target_index);
+
+    committed_plugin = plugin_frame_owner(host);
+
+    /* Provider enablement is derived from selection. During a transition both
+     * ends remain alive: the committed provider keeps rendering while the
+     * requested provider starts and prepares a candidate. */
     for( int i = 0; i < host->plugin_count; i++ )
     {
         struct ToriRS_PluginCtx* ctx = &host->plugins[i];
-        int const wanted = ctx->def->frames && i == wanted_plugin;
+        int const wanted = ctx->def->frames &&
+                           (i == wanted_plugin || i == committed_plugin);
 
         if( !ctx->def->frames )
             continue;
@@ -8212,26 +8281,29 @@ plugin_frame_resolve(struct ToriRS_PluginHost* host)
         asset_state =
             plugin_frame_provider_assets(host, target->plugin, asset_reason, sizeof(asset_reason));
 
+    committed_id = plugin_frame_committed_id(host);
+    host->frame_layout_requested = 0;
     if( strcmp(host->frame_selection.requested, "auto") == 0 )
     {
-        plugin_frame_engine_activate(host, -1);
-        plugin_frame_selection_active(host, "core/native", TORIRS_PLUGIN_FRAME_NATIVE, "");
+        /* Already committed above. */
+    }
+    else if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+    {
+        /* Native was committed above; keep the target provider warm. */
     }
     else if( !target )
     {
-        plugin_frame_engine_activate(host, -1);
         plugin_frame_selection_active(
             host,
-            "core/native",
+            committed_id,
             TORIRS_PLUGIN_FRAME_FALLBACK,
             "The requested gameframe is not installed in this build.");
     }
     else if( !target->available || host->plugins[target->plugin].refused )
     {
-        plugin_frame_engine_activate(host, -1);
         plugin_frame_selection_active(
             host,
-            "core/native",
+            committed_id,
             TORIRS_PLUGIN_FRAME_FALLBACK,
             host->plugins[target->plugin].error[0]
                 ? host->plugins[target->plugin].error
@@ -8239,38 +8311,35 @@ plugin_frame_resolve(struct ToriRS_PluginHost* host)
     }
     else if( !host->plugins[target->plugin].running )
     {
-        plugin_frame_engine_activate(host, -1);
         plugin_frame_selection_active(
             host,
-            "core/native",
+            committed_id,
             TORIRS_PLUGIN_FRAME_LOADING,
             "Starting the requested gameframe provider.");
     }
     else if( asset_state < 0 )
     {
-        plugin_frame_engine_activate(host, -1);
         plugin_frame_selection_active(
-            host, "core/native", TORIRS_PLUGIN_FRAME_FALLBACK, asset_reason);
+            host, committed_id, TORIRS_PLUGIN_FRAME_FALLBACK, asset_reason);
     }
     else if( asset_state == 0 )
     {
-        plugin_frame_engine_activate(host, -1);
         plugin_frame_selection_active(
-            host, "core/native", TORIRS_PLUGIN_FRAME_LOADING, asset_reason);
+            host, committed_id, TORIRS_PLUGIN_FRAME_LOADING, asset_reason);
     }
-    else if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
-    {
-        plugin_frame_engine_activate(host, -1);
-        plugin_frame_selection_active(
-            host,
-            "core/native",
-            TORIRS_PLUGIN_FRAME_LOADING,
-            "The requested gameframe will activate after login.");
-    }
+    else if( host->frame_active_entry == target_index )
+        plugin_frame_selection_active(host, target->id, TORIRS_PLUGIN_FRAME_ACTIVE, "");
     else
     {
-        plugin_frame_engine_activate(host, target_index);
-        plugin_frame_selection_active(host, target->id, TORIRS_PLUGIN_FRAME_ACTIVE, "");
+        /* Ready to TRY, not ready to publish. PluginHost_Layout consumes this
+         * request and commits only after the complete scratch declaration and
+         * named tree validate. */
+        host->frame_layout_requested = 1;
+        plugin_frame_selection_active(
+            host,
+            committed_id,
+            TORIRS_PLUGIN_FRAME_LOADING,
+            "Validating the requested gameframe.");
     }
 
     host->frame_selection_dirty = 0;
@@ -8507,6 +8576,79 @@ plugin_v2_model_release(
     plugin_model_drop(host, model.value);
 }
 
+static void
+plugin_v2_panel_select(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* id,
+    char const* label,
+    char const* value,
+    struct ToriRS_SelectOption const* options,
+    int option_count)
+{
+    struct ToriRS_PluginHost* host = user;
+    struct ToriRS_PluginWinWidget* widget;
+    int first;
+    int slot;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    assert(id);
+    assert(value);
+    if( option_count < 0 || option_count > TORIRS_PLUGIN_SELECT_OPTIONS_MAX ||
+        (option_count > 0 && !options) ||
+        strlen(value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX ||
+        host->panel_select_option_count + option_count > TORIRS_PLUGIN_SELECT_OPTIONS_MAX )
+    {
+        PluginHost_SetError(host, context->index, "structured select option budget exceeded");
+        return;
+    }
+    for( int i = 0; i < option_count; i++ )
+        if( options[i].struct_size < TORIRS_SELECT_OPTION_REQUIRED_SIZE ||
+            !options[i].value || !options[i].value[0] || !options[i].label ||
+            strlen(options[i].value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX )
+        {
+            PluginHost_SetError(host, context->index, "structured select option is invalid");
+            return;
+        }
+    if( plugin_panel_find(host, id) >= 0 )
+    {
+        PluginHost_SetError(host, context->index, "structured select id is duplicated");
+        return;
+    }
+    if( !api_panel_widget(context, TORIRS_PLUGIN_W_DROPDOWN, id, label) )
+        return;
+    slot = plugin_panel_find(host, id);
+    assert(slot >= 0);
+    widget = &host->panel_widgets[slot];
+    first = host->panel_select_option_count;
+    for( int i = 0; i < option_count; i++ )
+    {
+        struct ToriRS_PluginSelectOption* destination =
+            &host->panel_select_options[first + i];
+
+        memset(destination, 0, sizeof(*destination));
+        plugin_copy_str(destination->value, sizeof(destination->value), options[i].value);
+        plugin_copy_str(destination->label, sizeof(destination->label), options[i].label);
+        plugin_copy_str(
+            destination->detail,
+            sizeof(destination->detail),
+            options[i].detail ? options[i].detail : "");
+        destination->enabled = options[i].enabled;
+        if( strcmp(options[i].value, value) == 0 )
+            widget->selected = i;
+    }
+    host->panel_select_option_count += option_count;
+    widget->structured_select = true;
+    widget->select_options = &host->panel_select_options[first];
+    widget->select_option_count = option_count;
+    widget->value = widget->selected;
+    plugin_copy_str(widget->selected_value, sizeof(widget->selected_value), value);
+    plugin_copy_str(widget->text, sizeof(widget->text), value);
+    plugin_panel_bump(&host->panel_model_revision);
+}
+
 static struct ToriRS_PluginV2AdapterHooks
 plugin_v2_adapter_hooks(struct ToriRS_PluginHost* host)
 {
@@ -8519,6 +8661,7 @@ plugin_v2_adapter_hooks(struct ToriRS_PluginHost* host)
         .ui_contribution_info = plugin_v2_ui_contribution_info_hook,
         .frame_ui_node = plugin_v2_frame_ui_node,
         .model_release = plugin_v2_model_release,
+        .panel_select = plugin_v2_panel_select,
     };
 }
 
@@ -9290,12 +9433,19 @@ plugin_teardown(
      * it. */
     if( plugin_frame_owner(host) == plugin_index )
     {
-        host->frame_selection_epoch++;
-        host->frame_active_entry = -1;
-        host->layout_canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
-        host->layout_fixed_w = 0;
-        host->layout_fixed_h = 0;
-        plugin_layout_publish(host);
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(
+            host,
+            "core/native",
+            TORIRS_PLUGIN_FRAME_FALLBACK,
+            "The committed gameframe provider stopped.");
+    }
+    if( host->frame_target_entry >= 0 )
+    {
+        struct PluginFrameCatalogEntry const* target =
+            PluginFrameCatalog_At(&host->frame_catalog, host->frame_target_entry);
+        if( target && target->plugin == plugin_index )
+            plugin_frame_target_set(host, -1);
     }
     plugin_win_drop(host, plugin_index);
     if( host->win_tab[plugin_index] )
@@ -10578,6 +10728,223 @@ PluginHost_LayoutChanged(struct ToriRS_PluginHost* host)
     plugin_layout_notifications_run(host);
 }
 
+bool
+PluginHost_FrameNeedsLayout(struct ToriRS_PluginHost const* host)
+{
+    return host && host->frame_layout_requested;
+}
+
+static char const*
+plugin_frame_surface_name(int slot)
+{
+    static char const* const NAMES[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT] = {
+        [TORIRS_PLUGIN_SLOT_VIEWPORT] = "frame.viewport",
+        [TORIRS_PLUGIN_SLOT_MINIMAP] = "frame.minimap",
+        [TORIRS_PLUGIN_SLOT_COMPASS] = "frame.compass",
+        [TORIRS_PLUGIN_SLOT_CHAT] = "frame.chat",
+        [TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = "frame.chat.buttons",
+        [TORIRS_PLUGIN_SLOT_SIDEBAR] = "frame.sidebar",
+        [TORIRS_PLUGIN_SLOT_MAIN_MODAL] = "frame.modal",
+        [TORIRS_PLUGIN_SLOT_ORBS] = "frame.orbs",
+    };
+
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return NULL;
+    return NAMES[slot];
+}
+
+static uint32_t
+plugin_frame_surface_flags(int slot)
+{
+    switch( slot )
+    {
+    case TORIRS_PLUGIN_SLOT_MINIMAP:
+    case TORIRS_PLUGIN_SLOT_COMPASS:
+    case TORIRS_PLUGIN_SLOT_CHAT:
+    case TORIRS_PLUGIN_SLOT_CHAT_BUTTONS:
+    case TORIRS_PLUGIN_SLOT_SIDEBAR:
+    case TORIRS_PLUGIN_SLOT_ORBS:
+        return TORIRS_UI_NODE_BLOCKS_OVERLAY;
+    default:
+        return 0;
+    }
+}
+
+static int
+plugin_frame_ui_image_ready(
+    struct ToriRS_PluginCtx* ctx,
+    int image)
+{
+    struct PluginImage const* owned;
+
+    if( image < 0 )
+        return 1;
+    owned = plugin_image_owned(ctx, image);
+    return owned && owned->published;
+}
+
+/** Validate the named half on a private registry copy before geometry moves. */
+static int
+plugin_frame_candidate_ui_valid(
+    struct ToriRS_PluginHost* host,
+    int owner,
+    char* reason,
+    size_t reason_size)
+{
+    struct ToriRS_UiBaseDeclaration declarations[48];
+    struct PluginV2Instance* v2 = host->plugins[owner].v2;
+    struct PluginFrameCatalogEntry const* target =
+        PluginFrameCatalog_At(&host->frame_catalog, host->layout_candidate_entry);
+    struct ToriRS_UiRegistry* validation;
+    char const* provider = target ? target->id : host->plugins[owner].name;
+    int count = 0;
+
+    memset(declarations, 0, sizeof(declarations));
+    for( int i = 0; i < host->layout_candidate.rect_count; i++ )
+    {
+        struct PluginLayoutRect const* rect = &host->layout_candidate.rects[i];
+        char const* name;
+
+        if( rect->member != -1 )
+            continue;
+        name = plugin_frame_surface_name(rect->slot);
+        if( !name )
+            continue;
+        count = plugin_ui_base_add_rect(
+            declarations,
+            count,
+            (int)(sizeof(declarations) / sizeof(declarations[0])),
+            provider,
+            name,
+            rect->x,
+            rect->y,
+            rect->w,
+            rect->h,
+            plugin_frame_surface_flags(rect->slot));
+    }
+
+    if( v2 )
+        for( int i = 0; i < v2->frame_ui_candidate_count; i++ )
+        {
+            struct PluginV2FrameNode* node = &v2->frame_ui_candidate[i];
+            int destination = -1;
+
+            if( !plugin_frame_ui_image_ready(owner >= 0 ? &host->plugins[owner] : NULL,
+                                             node->value.image.value) )
+            {
+                snprintf(reason, reason_size, "%s", "The frame used foreign or unready named artwork.");
+                return 0;
+            }
+            for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
+                if( (node->value.state_image_mask & (1u << state)) != 0 &&
+                    !plugin_frame_ui_image_ready(
+                        &host->plugins[owner], node->value.state_images[state].value) )
+                {
+                    snprintf(
+                        reason,
+                        reason_size,
+                        "%s",
+                        "The frame used foreign or unready named state artwork.");
+                    return 0;
+                }
+            for( int j = 0; j < count; j++ )
+                if( strcmp(declarations[j].node, node->name) == 0 )
+                {
+                    destination = j;
+                    break;
+                }
+            if( destination < 0 )
+            {
+                if( count >= (int)(sizeof(declarations) / sizeof(declarations[0])) )
+                {
+                    snprintf(reason, reason_size, "%s", "The frame declared too many named nodes.");
+                    return 0;
+                }
+                destination = count++;
+            }
+            declarations[destination] = (struct ToriRS_UiBaseDeclaration){
+                .provider = provider,
+                .node = node->name,
+                .facets = TORIRS_UI_FACET_ALL,
+                .value = node->value,
+            };
+        }
+
+    validation = malloc(sizeof(*validation));
+    assert(validation);
+    *validation = host->ui_registry;
+    if( ToriRS_UiRegistry_ReplaceBase(validation, declarations, count) !=
+        TORIRS_UI_REGISTRY_OK )
+    {
+        free(validation);
+        snprintf(reason, reason_size, "%s", "The frame's named UI tree is invalid or cyclic.");
+        return 0;
+    }
+    free(validation);
+    return 1;
+}
+
+static void
+plugin_layout_candidate_apply(struct ToriRS_PluginHost* host)
+{
+    struct PluginLayoutCandidate const* candidate = &host->layout_candidate;
+
+    assert(host);
+    host->engine.layout_begin(host->engine.user);
+    for( int i = 0; i < candidate->rect_count; i++ )
+    {
+        struct PluginLayoutRect const* rect = &candidate->rects[i];
+        (void)host->engine.layout_slot(
+            host->engine.user,
+            rect->slot,
+            rect->member,
+            rect->x,
+            rect->y,
+            rect->w,
+            rect->h);
+    }
+    for( int slot = 0; slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT; slot++ )
+    {
+        if( candidate->skins[slot].declared )
+            (void)host->engine.layout_slot_skin(
+                host->engine.user,
+                slot,
+                candidate->skins[slot].art,
+                candidate->skins[slot].mask);
+        if( candidate->overlays[slot].declared )
+            (void)host->engine.layout_slot_overlay(
+                host->engine.user,
+                slot,
+                candidate->overlays[slot].image,
+                candidate->overlays[slot].x,
+                candidate->overlays[slot].y,
+                candidate->overlays[slot].trans);
+    }
+    if( candidate->scrollbar_declared )
+        (void)host->engine.layout_scrollbar(
+            host->engine.user,
+            candidate->scrollbar_count ? candidate->scrollbar : NULL,
+            candidate->scrollbar_count);
+
+    /* Persistent POSITION holders are part of the same engine transaction. */
+    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
+    {
+        struct PluginChromeClaim const* row = &host->chrome_claims[i];
+        int slot = -1;
+        int member = -1;
+
+        if( row->plugin < 0 || row->added || !row->declared ||
+            !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_POSITION) ||
+            row->art.w <= 0 || row->art.h <= 0 )
+            continue;
+        if( !host->engine.role_slot(host->engine.user, row->part, &slot, &member) )
+            continue;
+        (void)host->engine.layout_slot(
+            host->engine.user, slot, member, row->art.x, row->art.y, row->art.w, row->art.h);
+    }
+    host->engine.layout_end(host->engine.user);
+}
+
 void
 PluginHost_Layout(
     struct ToriRS_PluginHost* host,
@@ -10585,18 +10952,28 @@ PluginHost_Layout(
     int height)
 {
     struct ToriRS_PluginEvLayout ev;
+    struct PluginFrameCatalogEntry const* entry;
     struct ToriRS_FrameOffer const* v2_offer;
     enum ToriRS_FrameBuildResult v2_result = TORIRS_FRAME_READY;
     char v2_reason[TORIRS_FRAME_REASON_MAX] = { 0 };
+    char validation_reason[TORIRS_FRAME_REASON_MAX] = { 0 };
+    int build_entry;
+    int transitioning;
     int owner;
     uint32_t claim_epoch;
 
     if( !host )
         return;
-    owner = plugin_frame_owner(host);
-    if( owner < 0 )
+    transitioning = host->frame_layout_requested && host->frame_target_entry >= 0 &&
+                    host->frame_target_entry != host->frame_active_entry;
+    build_entry = transitioning ? host->frame_target_entry : host->frame_active_entry;
+    entry = PluginFrameCatalog_At(&host->frame_catalog, build_entry);
+    if( !entry )
         return;
-    v2_offer = plugin_v2_selected_frame_offer(&host->plugins[owner]);
+    owner = entry->plugin;
+    if( owner < 0 || owner >= host->plugin_count || !host->plugins[owner].running )
+        return;
+    v2_offer = plugin_v2_frame_offer(&host->plugins[owner], build_entry);
     host->placement_cache_valid = 0;
     /*
      * A canvas of nothing is refused rather than laid out against.
@@ -10607,7 +10984,7 @@ PluginHost_Layout(
      * difference between a caller that fixes its call and one that spends an
      * afternoon looking at the plugin.
      */
-    if( host->layout_canvas != TORIRS_PLUGIN_CANVAS_FIXED && (width <= 0 || height <= 0) )
+    if( entry->canvas != TORIRS_PLUGIN_CANVAS_FIXED && (width <= 0 || height <= 0) )
     {
         TORIRS_LOG(
             "plugin: %s asked to lay out against a %dx%d canvas; nothing declared\n",
@@ -10626,28 +11003,29 @@ PluginHost_Layout(
      * layout that asked for 765x503 is entitled to be told 765x503 the first
      * time it is asked, and every time after.
      */
-    if( host->layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED )
+    if( entry->canvas == TORIRS_PLUGIN_CANVAS_FIXED )
     {
-        ev.width = host->layout_fixed_w;
-        ev.height = host->layout_fixed_h;
+        ev.width = entry->width;
+        ev.height = entry->height;
     }
     else
     {
         ev.width = width;
         ev.height = height;
     }
-    ev.canvas = host->layout_canvas;
+    ev.canvas = entry->canvas;
 
-    /* Empty first, apply after: the dispatch is the whole declaration, so a
-     * slot the handler does not mention this time is one the frame no longer
-     * has. @see EV_LAYOUT. */
+    /* Consume only the attempt we are about to make. A callback that changes
+     * selection or invalidates again raises a fresh request and the epoch
+     * fence below preserves it. */
+    if( transitioning )
+        host->frame_layout_requested = 0;
     claim_epoch = host->frame_selection_epoch;
-    /* The part table goes with the slot table, for the same reason: the
-     * dispatch is the whole declaration, so a part the arranger does not
-     * declare this time is a part the frame no longer has. */
-    memset(host->slot_art, 0, sizeof(host->slot_art));
-    host->engine.layout_begin(host->engine.user);
+    memset(&host->layout_candidate, 0, sizeof(host->layout_candidate));
+    memset(host->slot_art_candidate, 0, sizeof(host->slot_art_candidate));
+    host->layout_candidate_entry = build_entry;
     host->layout_declaring = 1;
+    host->layout_declarer = owner;
     if( v2_offer )
     {
         struct PluginV2Instance* v2 = host->plugins[owner].v2;
@@ -10663,7 +11041,7 @@ PluginHost_Layout(
         memset(&context, 0, sizeof(context));
         context.struct_size = sizeof(context);
         context.offer_id = v2_offer->id;
-        context.canvas = host->layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED
+        context.canvas = entry->canvas == TORIRS_PLUGIN_CANVAS_FIXED
                              ? TORIRS_FRAME_CANVAS_FIXED
                              : TORIRS_FRAME_CANVAS_WINDOW;
         context.logical_canvas = (struct ToriRS_Rect){ 0, 0, ev.width, ev.height };
@@ -10698,6 +11076,19 @@ PluginHost_Layout(
     else
         plugin_dispatch_one(host, owner, TORIRS_PLUGIN_EV_LAYOUT, &ev);
     host->layout_declaring = 0;
+    host->layout_declarer = -1;
+
+    if( host->frame_selection_epoch != claim_epoch ||
+        (transitioning && host->frame_target_entry != build_entry) ||
+        (!transitioning && host->frame_active_entry != build_entry) )
+        return;
+
+    if( !host->layout_candidate.viewport_declared )
+        plugin_layout_candidate_fail(host, "The frame did not declare its required viewport.");
+    if( v2_offer && host->plugins[owner].v2->frame_ui_candidate_invalid )
+        plugin_layout_candidate_fail(
+            host, "The frame's named UI declaration is invalid or over budget.");
+
     if( v2_offer && v2_result != TORIRS_FRAME_READY )
     {
         int const status = v2_result == TORIRS_FRAME_PENDING ? TORIRS_PLUGIN_FRAME_LOADING
@@ -10708,13 +11099,39 @@ PluginHost_Layout(
             : v2_result == TORIRS_FRAME_UNSUPPORTED ? "The selected gameframe is unsupported here."
                                                     : "The selected gameframe could not be built.";
 
-        host->plugins[owner].v2->frame_ui_count = 0;
-        plugin_frame_engine_activate(host, -1);
-        plugin_frame_selection_active(host, "core/native", status, reason);
+        plugin_frame_selection_active(host, plugin_frame_committed_id(host), status, reason);
         return;
     }
-    if( plugin_frame_owner(host) == owner && host->frame_selection_epoch == claim_epoch )
+
+    if( host->layout_candidate.invalid )
     {
+        plugin_frame_selection_active(
+            host,
+            plugin_frame_committed_id(host),
+            TORIRS_PLUGIN_FRAME_FALLBACK,
+            host->layout_candidate.reason[0]
+                ? host->layout_candidate.reason
+                : "The requested gameframe declaration is invalid.");
+        return;
+    }
+    if( !plugin_frame_candidate_ui_valid(
+            host, owner, validation_reason, sizeof(validation_reason)) )
+    {
+        plugin_frame_selection_active(
+            host,
+            plugin_frame_committed_id(host),
+            TORIRS_PLUGIN_FRAME_FALLBACK,
+            validation_reason);
+        return;
+    }
+
+    /* The only publication point. Geometry, frame art and named nodes were
+     * all validated above while the old frame was untouched. */
+    {
+        int const old_owner = plugin_frame_owner(host);
+
+        plugin_frame_engine_activate(host, build_entry);
+        memcpy(host->slot_art, host->slot_art_candidate, sizeof(host->slot_art));
         if( v2_offer )
         {
             struct PluginV2Instance* v2 = host->plugins[owner].v2;
@@ -10723,38 +11140,18 @@ PluginHost_Layout(
             for( int i = 0; i < v2->frame_ui_count; i++ )
                 plugin_v2_frame_node_repoint(&v2->frame_ui[i]);
         }
-        /*
-         * POSITION holders, applied over the arranger's placement and before
-         * the declaration is committed.
-         *
-         * A plugin that moved the report button has to move the MEMBER -- the
-         * node the label mounts on -- and not just where the plate is
-         * painted, or the two come apart. Only a layout pass can place a
-         * node, so the standing declaration is re-applied here, on every
-         * pass, after the arranger has said where it wanted things. It is
-         * the last writer, which is the whole of what holding POSITION means.
-         *
-         * A holder whose box is anchor-relative (an added part) has no member
-         * to move and is skipped; its box is composed at paint time instead.
-         */
-        for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
-        {
-            struct PluginChromeClaim const* row = &host->chrome_claims[i];
-            int slot = -1;
-            int member = -1;
+        plugin_layout_candidate_apply(host);
+        plugin_frame_selection_active(host, entry->id, TORIRS_PLUGIN_FRAME_ACTIVE, "");
+        plugin_ui_refresh_base(host);
+        host->placement_cache_valid = 0;
 
-            if( row->plugin < 0 || row->added || !row->declared )
-                continue;
-            if( !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_POSITION) )
-                continue;
-            if( row->art.w <= 0 || row->art.h <= 0 )
-                continue;
-            if( !host->engine.role_slot(host->engine.user, row->part, &slot, &member) )
-                continue;
-            (void)host->engine.layout_slot(
-                host->engine.user, slot, member, row->art.x, row->art.y, row->art.w, row->art.h);
+        /* Teardown follows publication, so no frame exists where neither end
+         * owns the live geometry or rendering surface. */
+        if( old_owner >= 0 && old_owner != owner )
+        {
+            host->plugins[old_owner].enabled = false;
+            plugin_teardown(host, old_owner);
         }
-        host->engine.layout_end(host->engine.user);
     }
 }
 
@@ -11721,8 +12118,29 @@ PluginHost_PanelDispatch(
     if( action >= TORIRS_PLUGIN_UI_DRAG && widget->kind != TORIRS_PLUGIN_W_CUSTOM )
         return 0;
 
+    /* A structured selection is identified by its stable value as well as its
+     * index. Requiring both rejects a queued pick authored against an older
+     * option list whose index has since been reused. Disabled rows may remain
+     * selected for display, but no input path may choose one. */
+    if( action == TORIRS_PLUGIN_UI_PICK && widget->structured_select )
+    {
+        struct ToriRS_PluginSelectOption const* option;
+
+        if( value < 0 || value >= widget->select_option_count ||
+            !widget->select_options || !text )
+            return 0;
+        option = &widget->select_options[value];
+        if( !option->enabled || strcmp(text, option->value) != 0 )
+            return 0;
+    }
+
     plugin_copy_str(event_id, sizeof(event_id), widget->id);
     plugin_copy_str(event_text, sizeof(event_text), text ? text : widget->text);
+    if( action == TORIRS_PLUGIN_UI_PICK && widget->structured_select )
+        plugin_copy_str(
+            event_text,
+            sizeof(event_text),
+            widget->select_options[value].value);
 
     /* Result state is committed before dispatch, matching win_* compatibility
      * and making the model authoritative for native controls. */
@@ -11739,10 +12157,17 @@ PluginHost_PanelDispatch(
         break;
     case TORIRS_PLUGIN_UI_PICK:
         changed = widget->selected != value || widget->value != value ||
-                  strcmp(widget->text, event_text) != 0;
+                  strcmp(widget->text, event_text) != 0 ||
+                  (widget->structured_select &&
+                   strcmp(widget->selected_value, event_text) != 0);
         widget->selected = value;
         widget->value = value;
         plugin_copy_str(widget->text, sizeof(widget->text), event_text);
+        if( widget->structured_select )
+            plugin_copy_str(
+                widget->selected_value,
+                sizeof(widget->selected_value),
+                event_text);
         break;
     default:
         break;

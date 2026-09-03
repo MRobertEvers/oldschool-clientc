@@ -479,6 +479,73 @@ test_modes_and_private_teardown(void)
 }
 
 static void
+test_contribution_restatement(void)
+{
+    struct ToriRS_UiNode initial = node_value(
+        1,
+        2,
+        30,
+        40,
+        TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
+        7,
+        "old",
+        "activate");
+    struct ToriRS_UiNode update = node_value(
+        99, 98, 97, 96, TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ACTIVE, 8, "new", NULL);
+    struct ToriRS_UiContribution declaration = contribution(
+        "badge", TORIRS_UI_REPLACE_OR_PROVIDE, TORIRS_UI_FACET_ALL, initial);
+    struct ToriRS_UiContributionRef contribution_ref;
+    struct ToriRS_UiResolvedNode resolved;
+    struct ToriRS_UiChange change;
+    struct ToriRS_UiNodeRef node;
+    uint32_t revision;
+    char label[] = "updated";
+
+    ToriRS_UiRegistry_Init(&registry_a);
+    CHECK(
+        ToriRS_UiRegistry_AddContribution(
+            &registry_a, "owner", &declaration, &contribution_ref) == TORIRS_UI_REGISTRY_OK,
+        "restatable contribution registers");
+    while( ToriRS_UiRegistry_ChangeNext(&registry_a, &change) )
+        ;
+    revision = ToriRS_UiRegistry_Revision(&registry_a);
+    CHECK(
+        ToriRS_UiRegistry_UpdateContribution(
+            &registry_a, contribution_ref, TORIRS_UI_FACET_APPEARANCE, &initial) ==
+                TORIRS_UI_REGISTRY_OK &&
+            ToriRS_UiRegistry_Revision(&registry_a) == revision &&
+            ToriRS_UiRegistry_ChangeCount(&registry_a) == 0,
+        "identical facet restatement records no retained mutation");
+
+    update.label = label;
+    update.state_image_mask = 1u << TORIRS_UI_VISUAL_ACTIVE;
+    update.state_images[TORIRS_UI_VISUAL_ACTIVE].value = 18;
+    CHECK(
+        ToriRS_UiRegistry_UpdateContribution(
+            &registry_a, contribution_ref, TORIRS_UI_FACET_APPEARANCE, &update) ==
+            TORIRS_UI_REGISTRY_OK,
+        "one declared facet can be restated atomically");
+    label[0] = 'X';
+    node = ToriRS_UiRegistry_PrivateRef(&registry_a, "owner", "badge");
+    CHECK(
+        ToriRS_UiRegistry_Resolve(&registry_a, node, &resolved) &&
+            rect_is(&resolved.value.bounds, 1, 2, 30, 40) &&
+            strcmp(resolved.value.label, "updated") == 0 && resolved.value.image.value == 8 &&
+            resolved.value.state_images[TORIRS_UI_VISUAL_ACTIVE].value == 18 &&
+            strcmp(resolved.value.action, "activate") == 0,
+        "restatement copies strings and preserves facets it did not own in the call");
+    CHECK(
+        ToriRS_UiRegistry_ChangeCount(&registry_a) == 1 &&
+            ToriRS_UiRegistry_ChangeNext(&registry_a, &change) &&
+            change.node.value == node.value && change.facets == TORIRS_UI_FACET_APPEARANCE,
+        "restatement journals only the facet that actually changed");
+    CHECK(
+        ToriRS_UiRegistry_UpdateContribution(
+            &registry_a, contribution_ref, 1u << 7, &update) == TORIRS_UI_REGISTRY_INVALID,
+        "restatement rejects undeclared or unknown facets");
+}
+
+static void
 populate_conflict(
     struct ToriRS_UiRegistry* registry,
     bool reverse)
@@ -933,6 +1000,7 @@ main(void)
     test_base_facets_and_generations();
     test_rich_facet_payloads();
     test_modes_and_private_teardown();
+    test_contribution_restatement();
     test_conflict_order_independence();
     test_base_presence_modes_and_duplicates();
     test_change_journal();

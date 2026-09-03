@@ -110,6 +110,29 @@
  */
 #define TORIRS_CHROME_INPUT_MAX 192
 
+/** Lossless semantic options are bounded across the one selected page. */
+#define TORIRS_CHROME_SELECT_OPTIONS_MAX 128
+#define TORIRS_CHROME_SELECT_VALUE_MAX TORIRS_CHROME_INPUT_MAX
+#define TORIRS_CHROME_SELECT_DETAIL_MAX TORIRS_CHROME_INPUT_MAX
+
+/** Call-scoped input copied by DropdownStructured/SetStructuredOptions. */
+struct ToriRSChromeSelectOptionInput
+{
+    char const* value;
+    char const* label;
+    int enabled;
+    char const* detail;
+};
+
+/** Pointer-free retained form owned by ToriRSChrome. */
+struct ToriRSChromeSelectOption
+{
+    char value[TORIRS_CHROME_SELECT_VALUE_MAX];
+    char label[TORIRS_CHROME_LABEL_MAX];
+    char detail[TORIRS_CHROME_SELECT_DETAIL_MAX];
+    int enabled;
+};
+
 /**
  * Which baked font a primitive draws in. The overlay never names a font id:
  * whoever draws the display list maps these two slots onto whatever scene ids
@@ -829,6 +852,10 @@ struct ToriRSChromeWidget
      */
     char const* const* options;
     int option_count;
+    /** Non-zero selects the copied structured-option pool instead of options. */
+    int structured_options;
+    int structured_option_first;
+    char selected_value[TORIRS_CHROME_SELECT_VALUE_MAX];
     /**
      * Hash of the bounded option text last presented through a list setter.
      *
@@ -1094,6 +1121,9 @@ struct ToriRSChrome
     struct ToriRSChromePanel panels[TORIRS_CHROME_MAX_PANELS];
     int panel_count;
     struct ToriRSChromeWidget widgets[TORIRS_CHROME_MAX_WIDGETS];
+    struct ToriRSChromeSelectOption
+        select_options[TORIRS_CHROME_SELECT_OPTIONS_MAX];
+    int select_option_count;
     /** High-water mark of the widget array, NOT the number of live widgets:
      *  removed slots below it are on the free list. */
     int widget_count;
@@ -1603,9 +1633,36 @@ ToriRSChrome_DropdownSetOptions(
     int option_count,
     int selected);
 
+/**
+ * Lossless V2 dropdown. Values, labels, enabled state, and detail are copied;
+ * duplicate or delimiter-containing labels have no identity role.
+ * `selected_value` may name a disabled row so an unavailable saved choice can
+ * remain visible, but user input cannot select a disabled row.
+ */
+int
+ToriRSChrome_DropdownStructured(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    struct ToriRSChromeSelectOptionInput const* options,
+    int option_count,
+    char const* selected_value);
+
+void
+ToriRSChrome_DropdownSetStructuredOptions(
+    struct ToriRSChrome* ui,
+    int widget,
+    struct ToriRSChromeSelectOptionInput const* options,
+    int option_count,
+    char const* selected_value);
+
 /** Selected index, or -1. */
 int
 ToriRSChrome_DropdownSelected(struct ToriRSChrome const* ui, int widget);
+
+/** Stable value for a structured dropdown; legacy dropdowns return its label. */
+char const*
+ToriRSChrome_DropdownSelectedValue(struct ToriRSChrome const* ui, int widget);
 
 void
 ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int selected);

@@ -1237,6 +1237,11 @@ ui_contribution_slot(struct ToriRS_UiRegistry const* registry)
     return -1;
 }
 
+static struct ToriRS_UiRegistryContribution*
+ui_contribution_by_ref(
+    struct ToriRS_UiRegistry* registry,
+    struct ToriRS_UiContributionRef ref);
+
 static int
 ui_contribution_find(
     struct ToriRS_UiRegistry const* registry,
@@ -1330,6 +1335,60 @@ ToriRS_UiRegistry_AddContribution(
     registry->_revision = ui_revision_next(registry->_revision);
     if( out_ref )
         out_ref->value = contribution->serial;
+    return TORIRS_UI_REGISTRY_OK;
+}
+
+enum ToriRS_UiRegistryResult
+ToriRS_UiRegistry_UpdateContribution(
+    struct ToriRS_UiRegistry* registry,
+    struct ToriRS_UiContributionRef contribution_ref,
+    uint32_t facets,
+    struct ToriRS_UiNode const* value)
+{
+    struct ToriRS_UiRegistryContribution* contribution;
+    struct ToriRS_UiStoredNode stored;
+    struct ToriRS_UiStoredNode candidate;
+    struct ToriRS_UiNodeRef node;
+    int names_before;
+
+    assert(registry);
+    assert(value);
+    contribution = ui_contribution_by_ref(registry, contribution_ref);
+    if( !contribution || !ui_facets_valid(facets) || (facets & ~contribution->facets) != 0 ||
+        !ui_value_shape_valid(facets, value) )
+        return TORIRS_UI_REGISTRY_INVALID;
+
+    names_before = registry->_node_count;
+    node.value = (uint32_t)contribution->node + 1u;
+    if( !ui_copy_contribution_value(
+            registry, contribution->plugin, node, facets, value, &stored) )
+    {
+        enum ToriRS_UiRegistryResult const result =
+            registry->_node_count >= TORIRS_UI_REGISTRY_NODES_MAX ? TORIRS_UI_REGISTRY_FULL
+                                                                  : TORIRS_UI_REGISTRY_INVALID;
+        ui_names_rollback(registry, names_before);
+        return result;
+    }
+    if( (facets & TORIRS_UI_FACET_BOUNDS) != 0 &&
+        ui_parent_would_cycle(registry, node, stored.parent) )
+    {
+        ui_names_rollback(registry, names_before);
+        return TORIRS_UI_REGISTRY_INVALID;
+    }
+
+    candidate = contribution->value;
+    for( uint32_t facet = TORIRS_UI_FACET_BOUNDS; facet <= TORIRS_UI_FACET_ACTIONS; facet <<= 1u )
+        if( (facets & facet) != 0 )
+            ui_apply_facet(&candidate, &stored, facet);
+    if( memcmp(&candidate, &contribution->value, sizeof(candidate)) == 0 )
+    {
+        ui_names_rollback(registry, names_before);
+        return TORIRS_UI_REGISTRY_OK;
+    }
+
+    contribution->value = candidate;
+    ui_queue_change(registry, contribution->node, facets);
+    registry->_revision = ui_revision_next(registry->_revision);
     return TORIRS_UI_REGISTRY_OK;
 }
 

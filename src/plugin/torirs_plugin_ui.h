@@ -259,6 +259,16 @@ ToriRS_UiRegistry_AddContribution(
     struct ToriRS_UiContribution const* contribution,
     struct ToriRS_UiContributionRef* out_ref);
 
+/** Atomically restate a subset of an existing contribution's declared
+ * facets. Strings are copied again. An identical restatement advances neither
+ * the revision nor the change journal. */
+enum ToriRS_UiRegistryResult
+ToriRS_UiRegistry_UpdateContribution(
+    struct ToriRS_UiRegistry* registry,
+    struct ToriRS_UiContributionRef contribution,
+    uint32_t facets,
+    struct ToriRS_UiNode const* value);
+
 /** Remove all base facets and contributions belonging to a plugin. */
 int
 ToriRS_UiRegistry_RemovePlugin(

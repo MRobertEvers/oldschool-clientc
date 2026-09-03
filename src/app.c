@@ -30313,6 +30313,8 @@ App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h)
 void
 App_PluginLayoutTick(struct App* app)
 {
+    int frame_candidate;
+
     assert(app);
 
     if( !app->plugins )
@@ -30333,6 +30335,7 @@ App_PluginLayoutTick(struct App* app)
         UITree_FrameSetBinder(app->tree, app_plugin_frame_bind, app);
         UITree_FrameBind(app->tree);
     }
+    frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
     if( !app->plugin_layout_owned )
     {
         /* A claim that ended while the tree was up: give the chrome back once,
@@ -30348,6 +30351,12 @@ App_PluginLayoutTick(struct App* app)
              * survive this release transaction. */
             PluginHost_LayoutChanged(app->plugins);
         }
+        /* A candidate build is independent of committed ownership. Native is
+         * deliberately still live here; fall through to the safe layout fence
+         * only for the one attempt the host requested. */
+        frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
+        if( frame_candidate )
+            goto candidate_layout;
         /*
          * The CHROME tier still runs, and it has to: it is not the frame.
          *
@@ -30376,6 +30385,7 @@ App_PluginLayoutTick(struct App* app)
          * ordinary CS2/user window-mode changes own this state again now. */
         return;
     }
+candidate_layout:
     if( !app->tree || app->tree->root_index < 0 )
         return;
     /*
@@ -30430,7 +30440,8 @@ App_PluginLayoutTick(struct App* app)
 
     /* The canvas the claim asked for, restated. @see the body: it has other
      * writers, and the last one to speak wins. */
-    App_SyncPluginLayoutCanvas(app);
+    if( app->plugin_layout_owned )
+        App_SyncPluginLayoutCanvas(app);
 
     /*
      * Re-declare only when the last answer stopped being true.
@@ -30458,7 +30469,7 @@ App_PluginLayoutTick(struct App* app)
         !UITree_FrameSlotsStale(app->tree) )
         app->plugin_layout_generation = app->tree->generation;
 
-    if( app->plugin_layout_dirty || !UITree_FrameActive(app->tree) ||
+    if( frame_candidate || app->plugin_layout_dirty || !UITree_FrameActive(app->tree) ||
         app->plugin_layout_generation != app->tree->generation ||
         app->plugin_layout_w != UITREE_LAYOUT_ROOT_W ||
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
