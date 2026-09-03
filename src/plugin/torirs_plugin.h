@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 22
+#define TORIRS_PLUGIN_ABI 23
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -1075,10 +1075,49 @@ enum ToriRS_PluginPanelSizeClass
     TORIRS_PLUGIN_PANEL_EXPANDED,
 };
 
+/**
+ * WHICH of a plugin's two faces a page build is for.
+ *
+ * A plugin with a panel has two things a person might have come to it for, and
+ * they are not the same thing: what it is SAYING right now -- the loot it has
+ * recorded, the xp it has watched -- and how it is CONFIGURED. Stacking both
+ * on one page made the second arrive by scrolling past the first, and made the
+ * plugin's own rail stone and its row in the settings roster lead to identical
+ * screens, so neither destination meant anything.
+ *
+ * So the ENTRY POINT chooses, and the build is told which one it is answering.
+ * The stone opens the page; the roster opens the settings.
+ *
+ * A plugin that declares nothing for SETTINGS is not broken and needs no
+ * handler for it: the host presents the form generated from its config schema,
+ * which is exactly what every plugin had before this existed. Declaring there
+ * ADDS to that form rather than replacing it -- the schema's rows are staged
+ * and committed by the page's own Save, which a plugin cannot reimplement and
+ * should not have to.
+ */
+enum ToriRS_PluginPanelView
+{
+    /** The plugin's ACTIVE screen. Opened from its own rail entry. */
+    TORIRS_PLUGIN_PANEL_VIEW_PAGE = 0,
+    /** Its SETTINGS. Opened from the Manage Plugins roster. */
+    TORIRS_PLUGIN_PANEL_VIEW_SETTINGS
+};
+
 /** The page model was cleared for this exact selection and must be declared. */
 struct ToriRS_PluginEvPanelBuild
 {
     uint32_t selection_generation;
+    /**
+     * enum ToriRS_PluginPanelView -- which face is being asked for.
+     *
+     * ONE event and not two, because the alternative is a plugin having to
+     * subscribe twice to say "I have nothing extra for the settings", and
+     * because everything else about a build -- the generation fence, the
+     * cleared model, the rule that only the selected plugin may declare -- is
+     * identical for both. A handler that ignores this field declares the same
+     * page for both faces, which is the behaviour that existed before it did.
+     */
+    int view;
 };
 
 /** One result-state intent from the shared shell. */
@@ -3868,6 +3907,12 @@ struct ToriRS_PluginApi
     /**
      * Register or update this plugin's inert rail entry. Legal only from
      * EV_START; registration does not select, open, or build the page.
+     *
+     * Registering is what gives the plugin a stone of its own, and therefore
+     * what gives it a PAGE face distinct from its settings face. A plugin that
+     * never calls this has one face -- its settings -- reached from the
+     * roster, which is every plugin written before ABI 21.
+     * @see enum ToriRS_PluginPanelView.
      */
     bool (*panel_request)(
         struct ToriRS_PluginCtx* ctx,

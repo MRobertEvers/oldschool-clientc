@@ -3075,9 +3075,17 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
     case TORIRS_PLUGIN_EV_PANEL_BUILD:
     {
         struct ToriRS_PluginEvPanelBuild const* ev = payload;
-        lua_createtable(L, 0, 1);
+        lua_createtable(L, 0, 2);
         lua_pushinteger(L, (lua_Integer)ev->selection_generation);
         lua_setfield(L, -2, "generation");
+        /* The FACE, as a word rather than a number: a script comparing
+         * `ev.view == "settings"` cannot get it silently backwards the way a
+         * script comparing against 0 or 1 can. @see enum
+         * ToriRS_PluginPanelView. */
+        lua_pushstring(
+            L,
+            ev->view == TORIRS_PLUGIN_PANEL_VIEW_SETTINGS ? "settings" : "page");
+        lua_setfield(L, -2, "view");
         return 1;
     }
     case TORIRS_PLUGIN_EV_PANEL_ACTION:

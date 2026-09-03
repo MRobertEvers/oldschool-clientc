@@ -3258,6 +3258,8 @@ PlatformWindow_PollCommands(
      * grow as well, this merely restates the event's answer. */
     if( platform->chrome_relayout_pending )
     {
+        if( getenv("TORIRS_RESIZE_DEBUG") )
+            fprintf(stderr, "PROBE relayout_pending follows=%d\n", platform->canvas_follows_window ? 1 : 0);
         platform->chrome_relayout_pending = false;
         if( platform->canvas_follows_window )
         {
@@ -3270,7 +3272,11 @@ PlatformWindow_PollCommands(
         }
     }
     if( pending_resize_w > 0 && pending_resize_h > 0 )
+    {
+        if( getenv("TORIRS_RESIZE_DEBUG") )
+            fprintf(stderr, "PROBE push resize %dx%d\n", pending_resize_w, pending_resize_h);
         CmdBus_PushWindowResize(bus, pending_resize_w, pending_resize_h);
+    }
     /* A finger held perfectly still generates no events at all, so the long
      * press has to be given a chance to become a right click from out here. */
     ToriRS_TouchTick(&platform->touch, bus, (uint64_t)SDL_GetTicks());

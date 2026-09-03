@@ -10475,7 +10475,7 @@ static void
 app_prefs_flush(struct App* app)
 {
     struct ToriRS_Task* task;
-    struct ToriRS_IO io;
+    struct ToriRS_IO* io;
     int guard = 0;
 
     if( !app->prefs_path )
@@ -10484,11 +10484,16 @@ app_prefs_flush(struct App* app)
         return; /* everything the player chose is already on disk */
     app->prefs_dirty_cycle = 0;
 
-    memset(&io, 0, sizeof(io));
+    /* A real IO list, not a zeroed struct on the stack: the slot table is
+     * heap-grown (ToriRS_IO_SlotReserve), so a zeroed one has no slots and
+     * the task's first queue is a write through NULL -- a crash on the way
+     * out, on exactly the exit where the player had changed a setting. */
+    io = ToriRS_IO_New();
     task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
-    while( task_run(task, &io) == PT_YIELDED && guard++ < 8 )
-        Platform_IO_Process(app->runner.px, &io);
+    while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
+        Platform_IO_Process(app->runner.px, io);
     task_free(task);
+    ToriRS_IO_Free(io);
 }
 
 void
@@ -29595,7 +29600,7 @@ App_SetCanvasSize(
 
     app->need_redraw = 1;
     if( getenv("TORIRS_RESIZE_DEBUG") )
-        TORIRS_LOG("canvas: %dx%d\n", width, height);
+        fprintf(stderr, "PROBE canvas: %dx%d\n", width, height);
     return 1;
 }
 
@@ -30187,6 +30192,8 @@ App_DrainCommands(
                  * a later scale change has to be recomputed from. Both fixed
                  * and resizable pushes are latched — leaving fixed restores
                  * the real window size through the same command. */
+                if( getenv("TORIRS_RESIZE_DEBUG") )
+                    fprintf(stderr, "PROBE cmd window resize %dx%d\n", (int)cmd->width, (int)cmd->height);
                 app->window_w = cmd->width;
                 app->window_h = cmd->height;
                 app->host.ui_scale_dirty = false;

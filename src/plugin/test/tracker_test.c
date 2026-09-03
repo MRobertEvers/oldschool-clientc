@@ -545,14 +545,16 @@ dispatch(enum ToriRS_PluginEvent event, void* payload)
         g_handler[event](CTX, payload, NULL);
 }
 
-/** Run one EV_PANEL_BUILD, with the model emptied as the host empties it. */
+/** Run one EV_PANEL_BUILD for one face, with the model emptied as the host
+ *  empties it. @see enum ToriRS_PluginPanelView. */
 static void
-panel_build(void)
+panel_build_view(int view)
 {
     struct ToriRS_PluginEvPanelBuild ev;
 
     memset(&ev, 0, sizeof(ev));
     ev.selection_generation = 1;
+    ev.view = view;
     g_client.widget_count = 0;
     memset(g_client.widget, 0, sizeof(g_client.widget));
     g_client.rebuild_wanted = false;
@@ -560,6 +562,30 @@ panel_build(void)
     g_client.builds++;
     dispatch(TORIRS_PLUGIN_EV_PANEL_BUILD, &ev);
     g_client.building = false;
+
+    /* The shell then states the allocation, and that is what tells a plugin
+     * its page is on SCREEN -- both trackers do no per-tick page work until it
+     * arrives, so a harness that skipped it would be testing a hidden page. */
+    {
+        struct ToriRS_PluginEvPanelLayout layout;
+
+        memset(&layout, 0, sizeof(layout));
+        layout.width = 320;
+        layout.height = 500;
+        layout.scale_milli = 1000;
+        layout.size_class = TORIRS_PLUGIN_PANEL_MEDIUM;
+        layout.visible = true;
+        layout.game_visible = true;
+        layout.selection_generation = 1;
+        dispatch(TORIRS_PLUGIN_EV_PANEL_LAYOUT, &layout);
+    }
+}
+
+/** The plugin's own screen, which is what the rail entry opens. */
+static void
+panel_build(void)
+{
+    panel_build_view(TORIRS_PLUGIN_PANEL_VIEW_PAGE);
 }
 
 /** Advance the clock and run one logic tick, rebuilding the page if the tick
@@ -1184,8 +1210,17 @@ test_loot_row_switch_ignores_the_source(void)
     settle();
     TEST_ASSERT(fake_widget_find("src0"), "recorded");
 
+    TEST_ASSERT(
+        fake_widget_find("src0")->value == 1,
+        "the row's switch reads as TRACKED, so it is drawn on");
+
+    /* Turning it back ON is the switch returning to where it already was, and
+     * must not be read as a second instruction. */
+    press("src0", TORIRS_PLUGIN_UI_TOGGLE, 1);
+    TEST_ASSERT(fake_widget_find("src0"), "switching it on again changes nothing");
+
     press("src0", TORIRS_PLUGIN_UI_TOGGLE, 0);
-    TEST_ASSERT(!fake_widget_find("src0"), "the row's switch drops the record");
+    TEST_ASSERT(!fake_widget_find("src0"), "and switching it off drops the record");
     TEST_ASSERT(
         strstr(fake_cfg_str(CTX, "ignored_sources"), "Goblin") != NULL,
         "and writes it to the ignore list the user can also type into (got '%s')",
@@ -1437,6 +1472,81 @@ test_loot_clear(void)
         "and the session totals");
 }
 
+/*
+ * Both trackers keep every knob they have in their config schema, so their
+ * SETTINGS face is the host's generated form and they must declare nothing
+ * for it. A plugin that declared its readouts for both faces would put its
+ * loot table above the settings of anyone who opened it from the roster --
+ * which is the state this split exists to end.
+ */
+/*
+ * A page the shell has HIDDEN does no per-tick work.
+ *
+ * Not an optimisation: a plugin that went on rewriting a collapsed page would
+ * be formatting two dozen readouts twice a second for a window that is shut,
+ * and -- worse -- would go on asking for rebuilds of a model nobody is
+ * showing. The state still advances; only the page stops.
+ */
+static void
+test_hidden_page_does_no_work(void)
+{
+    struct ToriRS_PluginEvPanelLayout hidden;
+
+    client_reset();
+    loot_start();
+
+    memset(&hidden, 0, sizeof(hidden));
+    hidden.selection_generation = 1;
+    hidden.visible = false;
+    dispatch(TORIRS_PLUGIN_EV_PANEL_LAYOUT, &hidden);
+
+    npc_despawn("Goblin", 3200, 3200, 1);
+    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    settle();
+    TEST_ASSERT(
+        row_text("total_kills") && strcmp(row_text("total_kills"), "0") == 0,
+        "a hidden page is not rewritten (got '%s')",
+        row_text("total_kills") ? row_text("total_kills") : "(none)");
+
+    /* The KILL was still recorded -- only the drawing stopped. */
+    panel_build();
+    TEST_ASSERT(
+        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
+        "and showing it again states everything that happened meanwhile (got '%s')",
+        row_text("total_kills") ? row_text("total_kills") : "(none)");
+}
+
+static void
+test_settings_face_is_the_generated_form(void)
+{
+    client_reset();
+    loot_start();
+
+    npc_despawn("Goblin", 3200, 3200, 1);
+    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    settle();
+    TEST_ASSERT(fake_widget_find("src0"), "the PAGE face carries the records");
+
+    panel_build_view(TORIRS_PLUGIN_PANEL_VIEW_SETTINGS);
+    TEST_ASSERT(
+        g_client.widget_count == 0,
+        "the SETTINGS face declares nothing, leaving the generated form (got %d)",
+        g_client.widget_count);
+
+    /* And going back is a rebuild, not a resurrection: the model was cleared
+     * for the other face, so the page has to state itself again. */
+    panel_build();
+    TEST_ASSERT(fake_widget_find("src0"), "and the page comes back whole");
+
+    client_reset();
+    xp_start();
+    tick(20);
+    panel_build_view(TORIRS_PLUGIN_PANEL_VIEW_SETTINGS);
+    TEST_ASSERT(
+        g_client.widget_count == 0, "the xp tracker answers the same way (got %d)",
+        g_client.widget_count);
+}
+
 int
 main(void)
 {
@@ -1473,6 +1583,9 @@ main(void)
     test_loot_persists();
     test_loot_badge_and_attention();
     test_loot_clear();
+
+    test_settings_face_is_the_generated_form();
+    test_hidden_page_does_no_work();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

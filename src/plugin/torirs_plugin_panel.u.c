@@ -72,6 +72,36 @@ static int g_plugin_page_built = -1;
  *  plugin, so it is remembered here rather than tracked as a row. */
 static int g_plugin_back_widget = -1;
 
+/*
+ * WHICH of a plugin's two faces the page is showing.
+ *
+ * A plugin that registers a panel has two things a person might have come for
+ * and they are not the same thing: what it is SAYING right now -- the loot it
+ * has recorded, the xp it has watched -- and how it is CONFIGURED. Showing
+ * both stacked on one page made the second answer arrive by scrolling past the
+ * first, and made the roster's row and the rail's icon lead to identical
+ * screens, so neither destination meant anything.
+ *
+ * So the ENTRY POINT chooses, because the entry point is where the intent
+ * already is: the rail is the plugin's own stone and opens what it has to say;
+ * the roster is a list of settings pages and opens the settings. A plugin
+ * with no panel of its own has only the second face and gets it either way.
+ */
+enum AppPluginPageView
+{
+    /** The plugin's declared semantic page -- its active screen. */
+    APP_PLUGIN_VIEW_PAGE = 0,
+    /** The generated settings form plus any win_* controls. */
+    APP_PLUGIN_VIEW_SETTINGS
+};
+
+static int g_plugin_page_view = APP_PLUGIN_VIEW_SETTINGS;
+/** The view the widgets on screen were built for; a mismatch rebuilds. */
+static int g_plugin_page_view_built = -1;
+/** Handle of the "Settings" button a semantic page carries when the plugin
+ *  also has a settings form, or -1. Shell-owned, like Back. */
+static int g_plugin_settings_widget = -1;
+
 /* Defined beside the custom presenter below; panel sync may run before a host
  * exists and must still retire any retained pixels from the prior host. */
 static void
@@ -85,9 +115,19 @@ app_plugin_rail_publish(struct App* app);
 /* Change the ONE page selection and its generation together. A platform event
  * queued by the page being left is stale from this statement onward. */
 static void
-app_plugin_page_select(struct App* app, int page)
+app_plugin_page_select(struct App* app, int page, int view)
 {
     assert(app);
+
+    /*
+     * The SETTINGS view of a plugin that has a panel is still a page with no
+     * panel selection: the host builds a model only for the selected plugin,
+     * so asking for the settings must not also run its page build. Closing is
+     * what keeps "opened from the roster" free of the page's per-frame work.
+     */
+    if( page < 0 )
+        view = APP_PLUGIN_VIEW_SETTINGS;
+    g_plugin_page_view = view;
 
     /* The roster is also the portable rail until a platform exposes distinct
      * icons. Selecting a registered entry goes through the host transaction:
@@ -99,8 +139,19 @@ app_plugin_page_select(struct App* app, int page)
     {
         if( page >= 0 && PluginHost_PanelHasPage(app->plugins, page) )
         {
-            if( PluginHost_PanelActive(app->plugins) != page )
-                (void)PluginHost_PanelSelect(app->plugins, page);
+            /*
+             * BOTH faces are mountings, so both go through the host -- the
+             * settings face is not "no selection". A plugin that wants to add
+             * its own controls to its settings form declares them from the
+             * same EV_PANEL_BUILD, told which face it is answering.
+             * @see enum ToriRS_PluginPanelView.
+             */
+            int const want = view == APP_PLUGIN_VIEW_PAGE
+                                 ? TORIRS_PLUGIN_PANEL_VIEW_PAGE
+                                 : TORIRS_PLUGIN_PANEL_VIEW_SETTINGS;
+            if( PluginHost_PanelActive(app->plugins) != page ||
+                PluginHost_PanelView(app->plugins) != want )
+                (void)PluginHost_PanelSelectView(app->plugins, page, want);
             ToriRSChromeShell_SetPanelWidth(
                 &app->plugin_shell,
                 PluginHost_PanelPreferredWidth(app->plugins, page),
@@ -925,6 +976,7 @@ app_plugin_panel_sync(struct App* app)
          app->plugin_panel_built_registry_rev ==
              PluginHost_PanelRegistryRevision(app->plugins)) &&
         g_plugin_page_built == g_plugin_page &&
+        g_plugin_page_view_built == g_plugin_page_view &&
         g_plugin_fullscreen_built == g_plugin_fullscreen )
     {
         if( app->plugin_panel_built_model_rev == panel_model_rev )
@@ -993,7 +1045,7 @@ app_plugin_panel_sync(struct App* app)
      * to build; the roster is the honest answer to that. */
     if( g_plugin_page >= count )
     {
-        app_plugin_page_select(app, -1);
+        app_plugin_page_select(app, -1, APP_PLUGIN_VIEW_SETTINGS);
         panel_active = PluginHost_PanelActive(app->plugins);
         panel_generation = PluginHost_PanelSelectionGeneration(app->plugins);
         panel_model_rev = PluginHost_PanelModelRevision(app->plugins);
@@ -1153,13 +1205,30 @@ app_plugin_panel_sync(struct App* app)
     else
     {
         int const p = g_plugin_page;
-        int const cfg_count = PluginHost_ConfigCount(app->plugins, p);
-        int const win_count = PluginHost_WinWidgetCount(app->plugins, p);
+        /*
+         * ONE face at a time, chosen by the entry point. @see enum
+         * AppPluginPageView -- the rail opens the plugin's page, the roster
+         * opens its settings, and a plugin with no page has only the settings
+         * whichever way it was reached.
+         */
+        int const on_page =
+            g_plugin_page_view == APP_PLUGIN_VIEW_PAGE && panel_active == p &&
+            PluginHost_PanelView(app->plugins) == TORIRS_PLUGIN_PANEL_VIEW_PAGE;
+        int const cfg_count = on_page ? 0 : PluginHost_ConfigCount(app->plugins, p);
+        int const win_count = on_page ? 0 : PluginHost_WinWidgetCount(app->plugins, p);
+        /* The declared model belongs to whichever face is mounted: the page's
+         * own readouts, or the extra controls a plugin put on its settings. */
         int const panel_count =
             panel_active == p
                 ? PluginHost_PanelWidgetCount(app->plugins, panel_generation)
                 : 0;
+        /* Whether the OTHER face exists, so the page can offer a way to it. */
+        int const has_settings_face =
+            PluginHost_ConfigCount(app->plugins, p) > 0 ||
+            PluginHost_WinWidgetCount(app->plugins, p) > 0;
         int has_settings = 0;
+
+        g_plugin_settings_widget = -1;
 
         /* Back first, so the way out is the first thing on the page and in the
          * same place on every page. Its handle is remembered rather than
@@ -1170,7 +1239,7 @@ app_plugin_panel_sync(struct App* app)
          * only other way back is knowing that the pressed Manage stone reopens
          * the roster. A registered semantic page is its own destination and
          * does not get one -- its stone is the way in and out. */
-        if( panel_active != p )
+        if( !on_page )
         {
             g_plugin_back_widget =
                 ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "< Plugins");
@@ -1189,10 +1258,26 @@ app_plugin_panel_sync(struct App* app)
             app_plugin_panel_add_semantic(app, p, model);
         }
 
-        /* The old generated settings and win_* page remains reachable below
-         * the semantic page during migration. It is one detail page, not a
-         * second shell or a second simultaneously active plugin. */
-        if( panel_count > 0 && (cfg_count > 0 || win_count > 0) )
+        /*
+         * The way to the other face, and the only thing on a plugin's page
+         * that is not the plugin's own: without it the settings of a plugin
+         * you reached by its stone would be findable only by knowing that the
+         * wrench stone lists them too.
+         *
+         * Shell-owned like Back, so it costs the plugin nothing out of its
+         * control budget and cannot collide with an id it declared.
+         */
+        if( on_page && has_settings_face )
+        {
+            ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+            g_plugin_settings_widget =
+                ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "Settings");
+        }
+
+        /* On the SETTINGS face, whatever the plugin declared sits above the
+         * generated form under a rule, so the two groups read as two: its own
+         * controls, then the schema's staged rows and their Save. */
+        if( !on_page && panel_count > 0 && (cfg_count > 0 || win_count > 0) )
         {
             ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
             ToriRSChrome_LabelColored(
@@ -1416,6 +1501,7 @@ app_plugin_panel_sync(struct App* app)
     app->plugin_panel_built_registry_rev =
         PluginHost_PanelRegistryRevision(app->plugins);
     g_plugin_page_built = g_plugin_page;
+    g_plugin_page_view_built = g_plugin_page_view;
     g_plugin_fullscreen_built = g_plugin_fullscreen;
 }
 
@@ -1641,7 +1727,15 @@ app_plugin_panel_apply(struct App* app, int widget)
      * in the row table the loop below walks. */
     if( widget >= 0 && widget == g_plugin_back_widget )
     {
-        app_plugin_page_select(app, -1);
+        app_plugin_page_select(app, -1, APP_PLUGIN_VIEW_SETTINGS);
+        return;
+    }
+
+    /* Nor does the Settings button, which is the page's way to the plugin's
+     * other face. @see enum AppPluginPageView. */
+    if( widget >= 0 && widget == g_plugin_settings_widget && g_plugin_page >= 0 )
+    {
+        app_plugin_page_select(app, g_plugin_page, APP_PLUGIN_VIEW_SETTINGS);
         return;
     }
 
@@ -1676,7 +1770,10 @@ app_plugin_panel_apply(struct App* app, int widget)
              */
             if( ToriRSChrome_ActivationWasAction(&app->plugin_ui) )
             {
-                app_plugin_page_select(app, row->plugin);
+                /* The ROSTER is a list of settings pages, so its row opens
+                 * the settings -- not the plugin's own screen, which is what
+                 * its rail stone is for. @see enum AppPluginPageView. */
+                app_plugin_page_select(app, row->plugin, APP_PLUGIN_VIEW_SETTINGS);
                 return;
             }
             /* Cleared BEFORE the start and not after: whatever it said was
@@ -2568,7 +2665,15 @@ app_plugin_window_set_open(struct App* app, int open)
         if( app->plugins && g_plugin_page >= 0 &&
             PluginHost_PanelHasPage(app->plugins, g_plugin_page) &&
             PluginHost_PanelActive(app->plugins) != g_plugin_page )
-            (void)PluginHost_PanelSelect(app->plugins, g_plugin_page);
+            /* Back to the FACE it was closed on, not to the page: reopening a
+             * settings form on the plugin's readout would be the window
+             * changing the subject. @see enum ToriRS_PluginPanelView. */
+            (void)PluginHost_PanelSelectView(
+                app->plugins,
+                g_plugin_page,
+                g_plugin_page_view == APP_PLUGIN_VIEW_PAGE
+                    ? TORIRS_PLUGIN_PANEL_VIEW_PAGE
+                    : TORIRS_PLUGIN_PANEL_VIEW_SETTINGS);
         ToriRSChromeShell_Select(
             &app->plugin_shell,
             g_plugin_page >= 0 ? g_plugin_page : TORIRS_CHROME_SHELL_PAGE_MANAGE);
@@ -2768,7 +2873,7 @@ app_plugin_rail_drain(struct App* app)
             app_plugin_window_set_open(app, 0);
         else
         {
-            app_plugin_page_select(app, -1);
+            app_plugin_page_select(app, -1, APP_PLUGIN_VIEW_SETTINGS);
             if( !app->plugin_panel_visible )
                 app_plugin_window_set_open(app, 1);
         }
@@ -2786,7 +2891,9 @@ app_plugin_rail_drain(struct App* app)
         return;
     }
 
-    app_plugin_page_select(app, latest_select.plugin_index);
+    /* The plugin's OWN stone, so it opens what the plugin has to say.
+     * @see enum AppPluginPageView. */
+    app_plugin_page_select(app, latest_select.plugin_index, APP_PLUGIN_VIEW_PAGE);
     if( !app->plugin_panel_visible )
         app_plugin_window_set_open(app, 1);
 }

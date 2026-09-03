@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #define TEST_CHECK(cond)                                                                           \
@@ -47,6 +48,19 @@
 #define FILE_COUNT 6
 #define ABSENT_FILE 4
 #define CHUNK 500
+
+static double
+now_ms(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec * 1000.0 + (double)tv.tv_usec / 1000.0;
+}
+
+/* The fake server sits on every request for this long before answering, so
+ * a wire that waited for each answer before sending the next request would
+ * cost FILE_COUNT of these and a pipelined one costs one. */
+#define ANSWER_DELAY_MS 100
 
 /* The corpus: file i is (i + 1) * 333 bytes of a per-file pattern, so a
  * chunk filed under the wrong file or offset is visible. File ABSENT_FILE
@@ -149,7 +163,7 @@ fake_server_main(void* arg)
          * server answers as it drains its queue; this one is arranged to be
          * the worst case for a reassembler that assumed order.
          */
-        usleep(100 * 1000);
+        usleep(ANSWER_DELAY_MS * 1000);
         for( ;; )
         {
             unsigned char req[4];
@@ -335,7 +349,14 @@ test_pipelined_interleaved_fetch(void)
     for( int i = 0; i < FILE_COUNT; i++ )
         TEST_CHECK(PlatformXIOOnDemand_FetchPending(od, table, i));
 
-    pump_until_taken(od, table, files, FILE_COUNT, data, sizes);
+    {
+        double const t0 = now_ms();
+        pump_until_taken(od, table, files, FILE_COUNT, data, sizes);
+        /* One answer delay for the lot, not one per file: the whole point.
+         * The bound leaves room for the pump's own sleeps and a slow box;
+         * a serial wire would take FILE_COUNT delays, well past it. */
+        TEST_CHECK(now_ms() - t0 < ANSWER_DELAY_MS * 3);
+    }
 
     /* Every request was on the wire before the server answered any. */
     TEST_CHECK(server.requests_before_first_answer[0] == FILE_COUNT);

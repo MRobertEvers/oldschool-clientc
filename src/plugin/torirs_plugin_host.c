@@ -522,6 +522,18 @@ struct ToriRS_PluginHost
     char panel_badge[TORIRS_PLUGIN_MAX][TORIRS_PLUGIN_PANEL_BADGE_MAX];
     bool panel_attention[TORIRS_PLUGIN_MAX];
     int panel_active;
+    /**
+     * Which FACE the active selection is showing.
+     * @see enum ToriRS_PluginPanelView.
+     *
+     * Part of the SELECTION and not of the plugin, which is why it lives
+     * beside panel_active rather than in a per-plugin array: one plugin's page
+     * and its settings are two mountings of the same registration, and moving
+     * between them tears the model down exactly as moving between two plugins
+     * does. A per-plugin "current face" would be a second thing to keep in
+     * step with a generation that already says everything.
+     */
+    int panel_view;
     /** Retained through collapse; cleared only when that entry is removed. */
     int panel_last_selected;
     uint32_t panel_selection_generation;
@@ -4124,6 +4136,7 @@ plugin_panel_build_active(
     host->panel_building = true;
     memset(&ev, 0, sizeof(ev));
     ev.selection_generation = selection_generation;
+    ev.view = host->panel_view;
     plugin_dispatch_one(host, plugin, TORIRS_PLUGIN_EV_PANEL_BUILD, &ev);
     host->panel_building = false;
 
@@ -8416,13 +8429,38 @@ PluginHost_PanelSelectionGeneration(struct ToriRS_PluginHost const* host)
 int
 PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index)
 {
+    return PluginHost_PanelSelectView(
+        host, plugin_index, TORIRS_PLUGIN_PANEL_VIEW_PAGE);
+}
+
+int
+PluginHost_PanelView(struct ToriRS_PluginHost const* host)
+{
     assert(host);
+    return host->panel_active >= 0 ? host->panel_view
+                                   : TORIRS_PLUGIN_PANEL_VIEW_PAGE;
+}
+
+int
+PluginHost_PanelSelectView(struct ToriRS_PluginHost* host, int plugin_index, int view)
+{
+    assert(host);
+    if( view < TORIRS_PLUGIN_PANEL_VIEW_PAGE ||
+        view > TORIRS_PLUGIN_PANEL_VIEW_SETTINGS )
+        return 0;
     if( plugin_index < 0 || plugin_index >= host->plugin_count ||
         !host->panel_registered[plugin_index] || !host->plugins[plugin_index].enabled ||
         !host->plugins[plugin_index].running )
         return 0;
 
-    if( host->panel_active == plugin_index )
+    /*
+     * Selecting what is already mounted COLLAPSES it -- the stone is its own
+     * off switch. Asking for the OTHER face of the same plugin is not that: it
+     * is a different destination that happens to share a registration, so it
+     * takes the replacement path below and gets a fresh generation like any
+     * other move.
+     */
+    if( host->panel_active == plugin_index && host->panel_view == view )
         return plugin_panel_deactivate(host);
 
     (void)plugin_panel_deactivate(host);
@@ -8433,6 +8471,7 @@ PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index)
 
     plugin_panel_generation_next(host);
     host->panel_active = plugin_index;
+    host->panel_view = view;
     host->panel_last_selected = plugin_index;
     host->panel_needs_build = true;
     host->panel_has_layout = false;

@@ -155,6 +155,9 @@ static int g_detail = -1;
 static int g_built_detail = -1;
 static int g_built_rows;
 static bool g_page_built;
+/** Whether the page is on screen, as distinct from declared. @see the xp
+ *  tracker's g_page_visible -- a collapsed shell keeps the model. */
+static bool g_page_visible;
 static uint64_t g_next_panel_ms;
 /** Session totals, kept beside the records because a source dropped for room
  *  should not make the session look smaller than it was. */
@@ -658,6 +661,10 @@ lt_state_save(struct ToriRS_PluginCtx* ctx)
     int at = 0;
 
     assert(ctx);
+    /* Cleared either way. With the setting off there is nothing to write and
+     * nothing to keep asking about -- a flag left standing would have the tick
+     * calling this twice a second for the rest of the session. */
+    g_dirty = false;
     if( !g_api->cfg_bool(ctx, "remember_loot") )
         return;
 
@@ -682,7 +689,6 @@ lt_state_save(struct ToriRS_PluginCtx* ctx)
         }
     }
     g_api->asset_save(ctx, LT_STATE_ASSET, buf, at);
-    g_dirty = false;
 }
 
 /** Read the saved session back over an empty table. */
@@ -793,6 +799,13 @@ lt_page_refresh(struct ToriRS_PluginCtx* ctx)
         lt_short(lt_source_value(ctx, &g_source[i]), amount, sizeof(amount));
         snprintf(text, sizeof(text), "x%d  ·  %s gp", g_source[i].kills, amount);
         g_api->panel_set_text(ctx, id, text);
+        /*
+         * The switch reads as TRACKED, so turning it off is what stops
+         * tracking -- the direction every other switch on the page runs in. A
+         * row left unchecked would mean the opposite in the same column, and
+         * the only way to find out which was to press it.
+         */
+        g_api->panel_set_value(ctx, id, 1);
     }
 
     if( g_detail >= 0 && g_detail < g_source_count )
@@ -814,10 +827,20 @@ lt_page_refresh(struct ToriRS_PluginCtx* ctx)
 static enum ToriRS_PluginVerdict
 lt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
-    (void)event;
     (void)userdata;
 
+    struct ToriRS_PluginEvPanelBuild const* ev = event;
+
     assert(ctx);
+    assert(ev);
+
+    /* The SETTINGS face is the generated form and nothing else -- every knob
+     * here is a config key. @see enum ToriRS_PluginPanelView. */
+    if( ev->view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
+    {
+        g_page_built = false;
+        return TORIRS_PLUGIN_PASS;
+    }
 
     g_built_rows = 0;
 
@@ -939,6 +962,26 @@ lt_panel_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 }
 
 static enum ToriRS_PluginVerdict
+lt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    (void)userdata;
+
+    struct ToriRS_PluginEvPanelLayout const* ev = event;
+
+    assert(ctx);
+    assert(ev);
+
+    g_page_visible = ev->visible;
+    if( g_page_visible )
+    {
+        lt_page_refresh(ctx);
+        if( g_detail >= 0 )
+            g_api->panel_invalidate(ctx, "d_items");
+    }
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
 lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
     (void)userdata;
@@ -993,6 +1036,11 @@ lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     if( ev->action == TORIRS_PLUGIN_UI_TOGGLE )
     {
         char list[LT_CONFIG_VALUE_MAX];
+
+        /* Only turning it OFF means anything: the row is drawn checked, so a
+         * value of 1 is the switch coming back to where it already was. */
+        if( ev->value != 0 )
+            return TORIRS_PLUGIN_PASS;
         char const* existing = g_api->cfg_str(ctx, "ignored_sources");
 
         snprintf(
@@ -1035,6 +1083,7 @@ lt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     g_built_detail = -1;
     g_built_rows = 0;
     g_page_built = false;
+    g_page_visible = false;
     g_next_panel_ms = 0;
     g_dirty = false;
 
@@ -1106,17 +1155,22 @@ lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     g_api->panel_set_badge(ctx, g_session_value > 0 ? badge : "");
 
     /* A record added or removed changes the row SET, which only a rebuild can
-     * state; anything else is a number a refresh rewrites in place. */
-    if( g_page_built && (g_built_rows != (g_source_count < LT_ROWS_MAX
-                                              ? g_source_count
-                                              : LT_ROWS_MAX) ||
-                         g_built_detail != g_detail) )
-        g_api->panel_clear(ctx);
-    else
+     * state; anything else is a number a refresh rewrites in place. Neither is
+     * worth doing for a page nobody is looking at -- the rebuild happens when
+     * it is selected again. */
+    if( g_page_visible )
     {
-        lt_page_refresh(ctx);
-        if( g_detail >= 0 )
-            g_api->panel_invalidate(ctx, "d_items");
+        if( g_page_built && (g_built_rows != (g_source_count < LT_ROWS_MAX
+                                                  ? g_source_count
+                                                  : LT_ROWS_MAX) ||
+                             g_built_detail != g_detail) )
+            g_api->panel_clear(ctx);
+        else
+        {
+            lt_page_refresh(ctx);
+            if( g_detail >= 0 )
+                g_api->panel_invalidate(ctx, "d_items");
+        }
     }
 
     if( g_dirty )
@@ -1154,6 +1208,7 @@ lt_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LOGIC_TICK, lt_tick, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_BUILD, lt_panel_build, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_ACTION, lt_panel_action, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_LAYOUT, lt_panel_layout, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_DRAW, lt_panel_draw, NULL);
 }
 

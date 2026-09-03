@@ -576,11 +576,31 @@ od_tx_append(
  * `shutter` says the wire timed out rather than closed: nothing is retried,
  * and the endpoint is left alone for a while. @see OD_ENDPOINT_SHUTTER_SEC.
  */
+static long g_od_drops;
+static long g_od_requeued;
+static long g_od_failed;
+
 static void
 od_wire_drop(
     struct PlatformXIOOnDemand* od,
     int shutter)
 {
+    int inflight = 0;
+
+    for( int i = 0; i < od->fetch_count; i++ )
+        if( od->fetches[i].state == OD_FETCH_INFLIGHT || od->fetches[i].state == OD_FETCH_QUEUED )
+            inflight++;
+    g_od_drops++;
+    /* TORIRS_OD_STATS=1 says when the wire went and what it cost: a hang-up
+     * with a burst in flight is a whole burst re-sent, and one that repeats
+     * is the server refusing the burst rather than idling out. */
+    if( getenv("TORIRS_OD_STATS") )
+        TORIRS_ERR("ondemand: wire %s with %d in flight (tx %d/%d bytes pending)\n",
+            shutter ? "shuttered" : "dropped",
+            inflight,
+            od->tx_len - od->tx_pos,
+            od->tx_len);
+
     if( od->files )
     {
         sockstream_close(od->files);
@@ -604,6 +624,10 @@ od_wire_drop(
         fetch->total = -1;
         fetch->received = 0;
         fetch->state = (!shutter && fetch->attempts < 2) ? OD_FETCH_QUEUED : OD_FETCH_FAILED;
+        if( fetch->state == OD_FETCH_QUEUED )
+            g_od_requeued++;
+        else
+            g_od_failed++;
     }
 }
 
@@ -1209,6 +1233,9 @@ od_tally_report(void)
             "bytes=%ld refetch_bytes=%ld\n",
             g_od_fetches, g_od_tally_used, g_od_refetches,
             g_od_bytes, g_od_refetch_bytes);
+    fprintf(stderr,
+            "od_stats: wire drops=%ld requeued=%ld failed=%ld\n",
+            g_od_drops, g_od_requeued, g_od_failed);
     if( g_od_tally_used > 0 )
     {
         int worst = 0;

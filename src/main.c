@@ -2304,7 +2304,9 @@ frame_loop_step(void)
                     memcpy(text, body, len);
                     text[len] = '\0';
                     App_SendCommand(&app, text);
-                    TORIRS_LOG("sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
+                    /* REPORT, not LOG: a harness that set TORIRS_SIM_CMD wants
+                     * to see its commands go out, in the optimized build too. */
+                    TORIRS_REPORT("sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
                 }
                 cmd_cursor = body[len] == ';' ? body + len + 1 : NULL;
             }

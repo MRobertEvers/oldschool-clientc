@@ -121,6 +121,16 @@ static int g_detail = -1;
 static char g_built_rows[XT_SKILLS_MAX];
 static int g_built_detail = -1;
 static bool g_page_built;
+/**
+ * Whether the page is actually on screen.
+ *
+ * Separate from `g_page_built`, and the distinction is what stops a tick from
+ * working on a page nobody is looking at: BUILT says a model was declared,
+ * VISIBLE says the shell is showing it. A collapsed shell keeps the model, so
+ * built alone would go on formatting two dozen readouts twice a second for a
+ * window that is shut.
+ */
+static bool g_page_visible;
 
 /** Wall clock of the last per-second tick, and of the session's start. */
 static uint64_t g_last_second_ms;
@@ -748,12 +758,28 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
 static enum ToriRS_PluginVerdict
 xt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
-    (void)event;
     (void)userdata;
 
+    struct ToriRS_PluginEvPanelBuild const* ev = event;
     int rows = 0;
 
     assert(ctx);
+    assert(ev);
+
+    /*
+     * The SETTINGS face is the generated form and nothing else.
+     *
+     * Every knob this plugin has is a config key, so the host's staged form
+     * already states them, already validates them and already commits them
+     * with a Save that reloads the plugin -- none of which a hand-built page
+     * here could do as well. Declaring nothing is the whole answer.
+     * @see enum ToriRS_PluginPanelView.
+     */
+    if( ev->view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
+    {
+        g_page_built = false;
+        return TORIRS_PLUGIN_PASS;
+    }
 
     memset(g_built_rows, 0, sizeof(g_built_rows));
 
@@ -827,6 +853,23 @@ xt_page_stale(struct ToriRS_PluginCtx* ctx)
         if( (g_built_rows[i] != 0) != xt_row_wanted(ctx, i) )
             return true;
     return false;
+}
+
+/** The shell moved, showed or hid this page. */
+static enum ToriRS_PluginVerdict
+xt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    (void)userdata;
+
+    struct ToriRS_PluginEvPanelLayout const* ev = event;
+
+    assert(ctx);
+    assert(ev);
+
+    g_page_visible = ev->visible;
+    if( g_page_visible )
+        xt_page_refresh(ctx);
+    return TORIRS_PLUGIN_PASS;
 }
 
 static enum ToriRS_PluginVerdict
@@ -919,6 +962,7 @@ xt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     g_detail = -1;
     g_built_detail = -1;
     g_page_built = false;
+    g_page_visible = false;
     g_logged_in = false;
     g_session_start_ms = g_api->frame_ms(ctx);
     g_last_second_ms = g_session_start_ms;
@@ -1029,7 +1073,7 @@ xt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         }
     }
 
-    if( now >= g_next_panel_ms )
+    if( g_page_visible && now >= g_next_panel_ms )
     {
         g_next_panel_ms = now + XT_PANEL_REFRESH_MS;
         if( xt_page_stale(ctx) )
@@ -1070,6 +1114,7 @@ xt_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LOGIC_TICK, xt_tick, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_BUILD, xt_panel_build, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_ACTION, xt_panel_action, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_LAYOUT, xt_panel_layout, NULL);
 }
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER = {

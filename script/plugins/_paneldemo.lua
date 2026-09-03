@@ -13,7 +13,16 @@ function M.on_start(api)
   })
 end
 
-function M.on_panel_build(api)
+function M.on_panel_build(api, ev)
+  -- The SETTINGS face is a different page from the plugin's own screen: the
+  -- rail stone opens what the plugin has to say, the roster row opens how it
+  -- is configured. A script that ignores ev.view declares the same page for
+  -- both, which is what every plugin did before the field existed.
+  if ev and ev.view == "settings" then
+    api.panel.widget("paragraph", "cfg_note",
+      "Panel Demo has no settings of its own.")
+    return
+  end
   api.panel.widget("section", "summary", "ToriRSChrome panel")
   api.panel.widget("paragraph", "description", "One shared page; only this selection renders.")
   api.panel.widget("key_value", "count", "Button presses")

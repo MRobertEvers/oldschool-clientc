@@ -1651,6 +1651,7 @@ static int g_panel_a_draws;
 static int g_panel_b_draws;
 static int g_panel_draw_surface_mode;
 static uint32_t g_panel_last_generation;
+static int g_panel_last_view;
 static uint64_t g_panel_last_sequence;
 static char g_panel_last_id[64];
 
@@ -1693,10 +1694,15 @@ panel_build(struct ToriRS_PluginCtx* ctx, void* payload, void* ud)
     (void)ud;
 
     g_panel_last_generation = ev->selection_generation;
+    g_panel_last_view = ev->view;
     if( index == g_panel_a_index )
         g_panel_a_builds++;
     else
         g_panel_b_builds++;
+    /* The SETTINGS face of these probes declares nothing, exactly as a plugin
+     * whose knobs are all config keys does. @see enum ToriRS_PluginPanelView. */
+    if( ev->view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
+        return TORIRS_PLUGIN_PASS;
     CHECK(
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CHECKBOX, "shared", "Enabled"),
         "the selected build may declare a semantic control");
@@ -3191,6 +3197,59 @@ main(void)
             PluginHost_PanelWidgetCount(hp, gen_a) == 0 &&
                 !PluginHost_PanelEnsureBuilt(hp, gen_a),
             "a collapsed shell mounts and builds no page model");
+
+        /* ---- the two faces --------------------------------------------- */
+        {
+            uint32_t gen_page;
+            uint32_t gen_settings;
+
+            CHECK(
+                PluginHost_PanelSelectView(
+                    hp, g_panel_a_index, TORIRS_PLUGIN_PANEL_VIEW_PAGE) &&
+                    PluginHost_PanelView(hp) == TORIRS_PLUGIN_PANEL_VIEW_PAGE &&
+                    g_panel_last_view == TORIRS_PLUGIN_PANEL_VIEW_PAGE,
+                "the rail entry mounts the PAGE face and the build is told so");
+            gen_page = PluginHost_PanelSelectionGeneration(hp);
+            CHECK(
+                PluginHost_PanelWidgetCount(hp, gen_page) == 2,
+                "which is the face carrying the plugin's own controls");
+
+            /*
+             * The OTHER face of the SAME plugin is a REPLACEMENT, not a
+             * collapse: a page and its settings are two models and nothing may
+             * survive between them, so it advances the generation exactly as
+             * moving to another plugin does.
+             */
+            CHECK(
+                PluginHost_PanelSelectView(
+                    hp, g_panel_a_index, TORIRS_PLUGIN_PANEL_VIEW_SETTINGS) &&
+                    PluginHost_PanelActive(hp) == g_panel_a_index,
+                "asking for the other face of the mounted plugin does not collapse it");
+            gen_settings = PluginHost_PanelSelectionGeneration(hp);
+            CHECK(
+                gen_settings != gen_page &&
+                    PluginHost_PanelView(hp) == TORIRS_PLUGIN_PANEL_VIEW_SETTINGS,
+                "it advances the selection generation and records the new face");
+            CHECK(
+                g_panel_last_view == TORIRS_PLUGIN_PANEL_VIEW_SETTINGS &&
+                    PluginHost_PanelWidgetCount(hp, gen_settings) == 0,
+                "and a plugin that declares nothing for it mounts an empty model");
+            CHECK(
+                PluginHost_PanelWidgetCount(hp, gen_page) == 0,
+                "the page face's generation no longer names a mounted model");
+
+            /* Reselecting the face already mounted is still the collapse the
+             * rail's own stone performs. */
+            CHECK(
+                PluginHost_PanelSelectView(
+                    hp, g_panel_a_index, TORIRS_PLUGIN_PANEL_VIEW_SETTINGS) &&
+                    PluginHost_PanelActive(hp) == -1,
+                "reselecting the mounted face collapses");
+            gen_a = PluginHost_PanelSelectionGeneration(hp);
+            /* Re-baselined: the face cases above ran builds of their own, and
+             * the expand-again check below counts from here. */
+            builds_before = g_panel_a_builds;
+        }
         CHECK(
             !PluginHost_PanelLayout(
                 hp, gen_a, 320, 500, 2000, TORIRS_PLUGIN_PANEL_MEDIUM, true, true),

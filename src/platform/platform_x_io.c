@@ -786,7 +786,16 @@ cache_source_for(
 static int
 cache_source_parks(enum CacheSource source)
 {
-    return source == CACHE_SOURCE_JS5 || source == CACHE_SOURCE_ON_DEMAND;
+    /* TORIRS_OD_BLOCKING=1 puts the on-demand wire back to one blocking read
+     * per file inside LoadItem. The A/B the parked wire was measured with,
+     * and the first thing to try if a dat1 world ever misbehaves only when
+     * streamed. */
+    static int od_blocking = -1;
+    if( od_blocking < 0 )
+        od_blocking = getenv("TORIRS_OD_BLOCKING") != NULL;
+    if( source == CACHE_SOURCE_ON_DEMAND )
+        return !od_blocking;
+    return source == CACHE_SOURCE_JS5;
 }
 #endif
 

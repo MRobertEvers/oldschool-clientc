@@ -966,6 +966,19 @@ uint32_t PluginHost_PanelSelectionGeneration(
  * accepted and 0 for an absent/stopped entry.
  */
 int PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index);
+/**
+ * PanelSelect naming which FACE to mount. `view` is enum
+ * ToriRS_PluginPanelView; PanelSelect is this with VIEW_PAGE.
+ *
+ * Asking for the face already mounted collapses, exactly as reselecting the
+ * entry does. Asking for the OTHER face of the mounted plugin is a
+ * REPLACEMENT and advances the selection generation, because the two faces are
+ * two page models and nothing may survive between them.
+ */
+int PluginHost_PanelSelectView(
+    struct ToriRS_PluginHost* host, int plugin_index, int view);
+/** Which face the mounted page is showing, VIEW_PAGE when nothing is. */
+int PluginHost_PanelView(struct ToriRS_PluginHost const* host);
 /** Collapse the page, notifying the old plugin that it became invisible and
  *  retaining PanelLastSelected. Returns 1 when a page was closed. */
 int PluginHost_PanelClose(struct ToriRS_PluginHost* host);
