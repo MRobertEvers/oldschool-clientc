@@ -199,6 +199,20 @@ sync_widget_relevant(struct ToriRSChrome const* ui, int widget)
     return ui->panels[w->panel].visible;
 }
 
+/**
+ * A CUSTOM well's height in the LOGICAL units a command carries.
+ *
+ * One formula, used by the ADD that first states it and by the comparison that
+ * notices it moved -- two spellings of this rounded differently at some scales
+ * and would resend the height every frame, or never.
+ */
+static int
+sync_custom_logical_h(
+    struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    return w->view_h / (ui->scale > 0 ? ui->scale : 1);
+}
+
 int
 ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
 {
@@ -380,7 +394,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
              * its model height in scaled pixels, but foreign presenters lay
              * out in logical chrome units and apply their own density. */
             cmd.h = w->kind == TORIRS_CHROME_W_CUSTOM
-                        ? w->view_h / (ui->scale > 0 ? ui->scale : 1)
+                        ? sync_custom_logical_h(ui, w)
                         : w->rows;
             cmd.serial = w->intent_serial ? w->intent_serial : (uint32_t)w->serial;
             chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
@@ -405,9 +419,20 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sw->option_count = -1;
             sw->options = NULL;
             sw->focused = -1;
+            /* The ADD *did* carry this one, so the shadow starts from what the
+             * executor was told rather than from an impossible value. */
+            sw->view_h = cmd.h;
         }
         else
         {
+            if( w->kind == TORIRS_CHROME_W_CUSTOM &&
+                sw->view_h != sync_custom_logical_h(ui, w) )
+            {
+                cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_HEIGHT, w->panel, i);
+                cmd.h = sync_custom_logical_h(ui, w);
+                sync_emit(sync, &cmd);
+                sw->view_h = cmd.h;
+            }
             if( strcmp(sw->label, w->label) != 0 )
             {
                 cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_LABEL, w->panel, i);

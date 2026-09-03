@@ -1222,6 +1222,57 @@ test_chrome_exec_retained_present(void)
         "a new build serial presents one dirty frame");
 }
 
+/*
+ * A well that resized states its new height, and nothing else.
+ *
+ * The height used to ride WIDGET_ADD alone, classified as the widget's SHAPE
+ * on the reasoning that shape never changes after an add. Making a well
+ * resizable in place -- which a growing list needs, or every new row is a page
+ * re-declaration and a visible flash -- quietly falsified that: a native-widget
+ * executor went on drawing the height the well was born with. This is the
+ * assertion that the classification is no longer load-bearing.
+ */
+static void
+test_chrome_exec_custom_resizes_in_place(void)
+{
+    struct ToriRSChromeCmd const* height;
+    int panel;
+    int custom;
+
+    exec_reset();
+    ToriRSChrome_SetScale(&g_ui, 2);
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 400, "Custom");
+    custom = ToriRSChrome_Custom(
+        &g_ui, panel, "Chart", 150 * ToriRSChrome_Scale(&g_ui));
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    ToriRSChrome_SetCustomHeight(&g_ui, custom, 220 * ToriRSChrome_Scale(&g_ui));
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "the resize says something");
+
+    height = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_HEIGHT, custom);
+    TEST_ASSERT(height != NULL, "a resized well states its height");
+    TEST_ASSERT(
+        height && height->h == 220,
+        "in the same logical units the add used");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_REMOVE) == 0 &&
+            ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 0,
+        "and is NOT re-declared -- no remove, no add");
+
+    exec_settle();
+    ToriRSChrome_SetCustomHeight(&g_ui, custom, 220 * ToriRSChrome_Scale(&g_ui));
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_HEIGHT) == 0,
+        "restating the height it already has says nothing");
+}
+
+
 static void
 test_chrome_exec_custom_shape(void)
 {
@@ -1592,6 +1643,7 @@ test_chrome_exec(void)
     test_chrome_exec_textarea();
     test_chrome_exec_retained_present();
     test_chrome_exec_custom_shape();
+    test_chrome_exec_custom_resizes_in_place();
     test_chrome_exec_external_intent_serial();
     test_chrome_exec_retained_rail();
     test_chrome_exec_invalidate_restates_the_page();

@@ -629,6 +629,20 @@ chrome_gdi_textarea_h(struct ChromeGdi const* s, int widget)
            2 * CHROME_GDI_RULE;
 }
 
+/** One clamp for a custom well's logical height, so the ADD and a later
+ *  WIDGET_HEIGHT cannot disagree about what the same number means. */
+static int
+chrome_gdi_custom_h(int h)
+{
+    if( h <= 0 )
+        h = TORIRS_CHROME_M_CUSTOM_H;
+    if( h < TORIRS_CHROME_M_CUSTOM_H_MIN )
+        h = TORIRS_CHROME_M_CUSTOM_H_MIN;
+    if( h > TORIRS_CHROME_M_CUSTOM_H_MAX )
+        h = TORIRS_CHROME_M_CUSTOM_H_MAX;
+    return h;
+}
+
 /** Total height of one row. CHROME_GDI_ROW_H for every kind but one -- and the
  *  fit is why this exists: the placement and the advance have to agree. */
 static int
@@ -3166,14 +3180,7 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
                                    : TORIRS_CHROME_M_TEXTAREA_ROWS_MAX)
                             : TORIRS_CHROME_M_TEXTAREA_ROWS);
     if( cmd->value == TORIRS_CHROME_W_CUSTOM )
-    {
-        int height = cmd->h > 0 ? cmd->h : TORIRS_CHROME_M_CUSTOM_H;
-        if( height < TORIRS_CHROME_M_CUSTOM_H_MIN )
-            height = TORIRS_CHROME_M_CUSTOM_H_MIN;
-        if( height > TORIRS_CHROME_M_CUSTOM_H_MAX )
-            height = TORIRS_CHROME_M_CUSTOM_H_MAX;
-        s->custom[cmd->widget].logical_h = height;
-    }
+        s->custom[cmd->widget].logical_h = chrome_gdi_custom_h(cmd->h);
 
     switch( cmd->value )
     {
@@ -3537,6 +3544,18 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         if( s->check_style != cmd->value )
         {
             s->check_style = cmd->value;
+            chrome_gdi_request_layout(s);
+        }
+        return;
+
+    case TORIRS_CHROME_CMD_WIDGET_HEIGHT:
+        /* A well resized in place. Its own child window is moved by the layout
+         * pass along with every row under it, which is the whole point of the
+         * command: nothing is destroyed and nothing below it is re-created. */
+        if( cmd->widget >= 0 && cmd->widget < TORIRS_CHROME_MAX_WIDGETS &&
+            s->custom[cmd->widget].logical_h != chrome_gdi_custom_h(cmd->h) )
+        {
+            s->custom[cmd->widget].logical_h = chrome_gdi_custom_h(cmd->h);
             chrome_gdi_request_layout(s);
         }
         return;

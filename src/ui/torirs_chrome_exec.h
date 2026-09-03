@@ -220,6 +220,24 @@ enum ToriRSChromeCmdKind
      * places its own controls has to re-place them when this arrives.
      */
     TORIRS_CHROME_CMD_CHECK_STYLE,
+
+    /**
+     * A CUSTOM well is now this many logical chrome pixels tall: `h`.
+     *
+     * The height rides WIDGET_ADD too, and used to ride only it, on the
+     * reasoning that it was the widget's SHAPE and shape never changes after
+     * an add. That stopped being true the moment a well could be resized in
+     * place -- which it must be, because a list that grows a row is not a
+     * different page and re-declaring one to say so is a visible flash. A
+     * classification of "shape" against "state" is exactly the kind of thing
+     * that silently stops holding; a resize with no command to carry it left
+     * every native-widget executor drawing the height the well was born with,
+     * with the strip clipped or floating in dead space.
+     *
+     * Sent for CUSTOM only, and only on a change. An executor that lays out
+     * from the display list never sees it and does not need to.
+     */
+    TORIRS_CHROME_CMD_WIDGET_HEIGHT,
 };
 
 /**
@@ -524,6 +542,10 @@ struct ToriRSChromeShadowWidget
     /** Does the model's focus rest here? Shadowed like any other property so
      *  a focus change is one command rather than a re-declaration. */
     int focused;
+    /** A CUSTOM well's height in the LOGICAL units the command carries, so the
+     *  comparison is against what the executor was actually told rather than
+     *  against a scaled value that rounds differently. */
+    int view_h;
     uint32_t color;
     char label[TORIRS_CHROME_LABEL_MAX];
     char text[TORIRS_CHROME_INPUT_MAX];

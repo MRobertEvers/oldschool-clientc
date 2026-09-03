@@ -170,7 +170,11 @@ assert.match(legacyRuntime, /type:\s*['"]editor\.focus['"]/,
     "editor focus ownership is part of the downlevel runtime");
 assert.match(legacyRuntime, /ScrollDown\.png[\s\S]*backgroundSize = ['"]14px 14px,auto['"]/,
     "runtime theme application preserves the skinned dropdown arrow");
-assert.match(legacyRuntime, /style\.height = [^;]*Math\.max\(48, Math\.min\(512,/,
-    "custom region height is bounded and driven by the semantic command");
+assert.match(legacyRuntime, /function customHeightPx[\s\S]{0,200}Math\.max\(48, Math\.min\(512,/,
+    "custom region height is bounded by one shared clamp");
+assert.match(legacyRuntime, /style\.height = customHeightPx\(/,
+    "...which is what both the add and the resize place the region with");
+assert.match(legacyRuntime, /case CMD\.WIDGET_HEIGHT[\s\S]{0,800}style\.height = customHeightPx\(/,
+    "a well that resized is restated in place rather than re-added");
 
 console.log("plugin chrome compatibility gates: ok");

@@ -25,7 +25,7 @@
         WIDGET_ADD: 8, WIDGET_REMOVE: 9, WIDGET_LABEL: 10, WIDGET_TEXT: 11,
         WIDGET_CHECKED: 12, WIDGET_HIDDEN: 13, WIDGET_COLOR: 14,
         WIDGET_SELECTED: 15, WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17,
-        WIDGET_OPTION: 18, CHECK_STYLE: 19
+        WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20
     };
     var W = {
         LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
@@ -860,7 +860,7 @@
                 row.className += ' tpc-tall-row';
                 var custom_1 = document.createElement('div');
                 custom_1.className = 'tpc-custom';
-                custom_1.style.height = "".concat(Math.max(48, Math.min(512, record.rows || 120)), "px");
+                custom_1.style.height = customHeightPx(record.rows);
                 custom_1.tabIndex = 0;
                 bind(custom_1, 'mousedown', function (event) {
                     record.pointer = { x: event.clientX, y: event.clientY };
@@ -1008,6 +1008,11 @@
             return;
         state.widgets.each(renderWidget);
     }
+    /* One clamp for a custom well's height, so the ADD that first states it
+     * and the WIDGET_HEIGHT that moves it cannot disagree. */
+    function customHeightPx(rows) {
+        return "".concat(Math.max(48, Math.min(512, rows || 120)), "px");
+    }
     function applyCommand(raw) {
         var command = normalizeCommand(raw);
         if (command.k === CMD.CHECK_STYLE) {
@@ -1061,6 +1066,16 @@
                 if (record) {
                     record.checked = !!command.v;
                     renderWidget(record);
+                }
+                break;
+            case CMD.WIDGET_HEIGHT:
+                /* Resized in place, deliberately without renderWidget: the well holds
+                 * drawn content a rebuilt element would lose, and a list growing a
+                 * row is the ordinary case rather than the exceptional one. */
+                if (record && record.kind === W.CUSTOM) {
+                    record.rows = command.ch;
+                    if (record.control)
+                        record.control.style.height = customHeightPx(record.rows);
                 }
                 break;
             case CMD.WIDGET_HIDDEN:
