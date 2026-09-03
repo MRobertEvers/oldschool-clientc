@@ -1585,15 +1585,6 @@ lua_panel_set_options(lua_State* L)
 }
 
 static int
-lua_panel_set_badge(lua_State* L)
-{
-    struct LuaScript* script = lua_upvalue_script(L);
-    char const* text = luaL_optstring(L, 1, "");
-    lua_pushboolean(L, g_api->panel_set_badge(script->cur_ctx, text));
-    return 1;
-}
-
-static int
 lua_panel_set_attention(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
@@ -2759,7 +2750,6 @@ lua_build_api_table(struct LuaScript* script)
             { "set_value", lua_panel_set_value },
             { "set_height", lua_panel_set_height },
             { "set_options", lua_panel_set_options },
-            { "set_badge", lua_panel_set_badge },
             { "set_attention", lua_panel_set_attention },
             { "clear", lua_panel_clear },
             { "invalidate", lua_panel_invalidate },

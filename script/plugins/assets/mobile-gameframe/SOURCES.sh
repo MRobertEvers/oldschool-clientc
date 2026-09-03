@@ -59,14 +59,32 @@
 # one, and it read as a beige box lying on the grass. So the sheet is 517x130:
 # that same 479x96 surface at offset (17,17), inside a torn fringe.
 #
-# Recutting it means remeasuring MOBILE_CHAT_FRINGE_X/Y in
-# src/plugin/plugins/mobile_gameframe.c off the new file's opaque core -- the
-# whole block is placed from those two, and a wrong pair draws the chatbox
-# slightly off its own backing with nothing to say so.
+# Recutting it means re-running the cutter below and re-checking the fringe it
+# reports -- the whole block is placed from those numbers, and a wrong set draws
+# the chatbox slightly off its own backing with nothing to say so.
 #
 # It is named apart from chat_sheet rather than replacing it precisely because
 # this script rewrites the whole set: a hand-authored file under a name the
 # dump owns is one that vanishes the next time anyone runs this.
+#
+# The nine chat_paper_*.png beside it are neither cut nor hand-drawn: they are
+# that sheet CUT UP, by tools/cut_chat_sheet_tiles.py, and that script is their
+# provenance the way this one is everything else's.
+#
+#   python3 tools/cut_chat_sheet_tiles.py
+#
+# The sheet itself is no longer loaded at runtime -- it is the source the nine
+# come from, and it stays here because a cut with no original is one nobody can
+# redo. What the frame draws is a nine-patch composed out of the pieces at
+# whatever size the chatbox actually is, because one 517x130 picture can only
+# reach a bigger box by being scaled, and a scaled tear stops looking like a
+# tear. @see mobile_compose_paper, and the cutter's own header, which explains
+# where each cut lands and why the right edge is the left edge mirrored.
+#
+# Recutting them means re-checking MOBILE_PAPER_FRINGE_* in
+# src/plugin/plugins/mobile_gameframe.c, which the cutter can measure off its
+# own output: `--proof <dir>` composes sheets at four sizes and prints the
+# fringe it finds in each. It is the same 17/17/21/17 the single sheet had.
 set -e
 cd "$(dirname "$0")/../../../.."
 OUT=script/plugins/assets/mobile-gameframe

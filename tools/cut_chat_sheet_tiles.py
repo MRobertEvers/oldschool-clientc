@@ -193,6 +193,90 @@ def save(name, pixels):
     return path
 
 
+# ---------------------------------------------------------------------------
+# The composition, as `mobile_paper_compose` in mobile_gameframe.c performs it.
+# Kept here so the cut can be PROVEN rather than argued: `--proof <dir>` writes
+# sheets at four sizes, and the fringe it measures back off them is the number
+# the plugin's MOBILE_PAPER_FRINGE_* have to be.
+# ---------------------------------------------------------------------------
+
+
+def _tile(dst, src, x0, y0, x1, y1):
+    """Repeat `src` over [x0,x1) x [y0,y1), clipping the last of each run."""
+    y = y0
+    while y < y1:
+        rows = min(src.shape[0], y1 - y)
+        x = x0
+        while x < x1:
+            cols = min(src.shape[1], x1 - x)
+            dst[y : y + rows, x : x + cols] = src[:rows, :cols]
+            x += src.shape[1]
+        y += src.shape[0]
+
+
+def compose(width, height, pieces=None):
+    """The nine-patch, tiled rather than stretched."""
+    assert width >= 2 * CORNER_W
+    assert height >= 2 * CORNER_H
+    p = pieces if pieces is not None else _load_pieces()
+    out = np.zeros((height, width, 4), np.int32)
+    _tile(out, p["fill"], CORNER_W, CORNER_H, width - CORNER_W, height - CORNER_H)
+    _tile(out, p["top"], CORNER_W, 0, width - CORNER_W, CORNER_H)
+    _tile(out, p["bottom"], CORNER_W, height - CORNER_H, width - CORNER_W, height)
+    _tile(out, p["left"], 0, CORNER_H, CORNER_W, height - CORNER_H)
+    _tile(out, p["right"], width - CORNER_W, CORNER_H, width, height - CORNER_H)
+    out[0:CORNER_H, 0:CORNER_W] = p["tl"]
+    out[0:CORNER_H, width - CORNER_W :] = p["tr"]
+    out[height - CORNER_H :, 0:CORNER_W] = p["bl"]
+    out[height - CORNER_H :, width - CORNER_W :] = p["br"]
+    return out
+
+
+def _load_pieces():
+    names = ("tl", "tr", "bl", "br", "top", "bottom", "left", "right", "fill")
+    return {
+        n: np.array(
+            Image.open(os.path.join(OUT, "chat_paper_%s.png" % n)).convert("RGBA")
+        ).astype(np.int32)
+        for n in names
+    }
+
+
+def opaque_inset(sheet):
+    """The fringe: how far in from each edge the paper is solid at every size.
+
+    A nine-patch's insets do not move when it grows -- the corners are the same
+    pixels and the strips repeat -- so this is a property of the CUT and not of
+    a size, and it is the pair of numbers the chat surface is placed by.
+    """
+    solid = sheet[:, :, 3] == 255
+    h, w = solid.shape
+    best = None
+    for left in range(CORNER_W):
+        for right in range(CORNER_W):
+            if w - right <= left:
+                continue
+            rows = solid[:, left : w - right].all(1)
+            run = top = 0
+            span = (0, 0, 0)
+            for y in range(h + 1):
+                if y < h and rows[y]:
+                    if run == 0:
+                        top = y
+                    run += 1
+                else:
+                    if run > span[0]:
+                        span = (run, top, y)
+                    run = 0
+            if span[0] <= 0:
+                continue
+            cand = (span[1] + h - span[2], left + right, left, span[1], right, h - span[2])
+            if best is None or cand < best:
+                best = cand
+    assert best is not None, "the sheet has no solid rectangle in it"
+    return best[2], best[3], best[4], best[5]
+
+
 def main():
     im = np.array(Image.open(SRC).convert("RGBA")).astype(np.int32)
     h, w, _ = im.shape
@@ -267,8 +351,25 @@ def main():
     save("chat_paper_fill.png", fill)
 
     print(
-        "\nmobile_gameframe.c must agree: corner %dx%d" % (CORNER_W, CORNER_H)
+        "\ncorner %dx%d -- mobile_gameframe.c reads this off the top-left piece"
+        % (CORNER_W, CORNER_H)
     )
+    print("MOBILE_PAPER_FRINGE_* must agree with the --proof measurement below.")
+
+    if "--proof" in sys.argv:
+        out = sys.argv[sys.argv.index("--proof") + 1]
+        os.makedirs(out, exist_ok=True)
+        print("proof sheets ->", out)
+        for pw, ph in ((517, 130), (900, 260), (1200, 180), (300, 120)):
+            sheet = compose(pw, ph)
+            l, t, r, b = opaque_inset(sheet)
+            print(
+                "  %4dx%-4d  fringe l%-2d t%-2d r%-2d b%-2d  surface %dx%d"
+                % (pw, ph, l, t, r, b, pw - l - r, ph - t - b)
+            )
+            Image.fromarray(sheet.astype(np.uint8), "RGBA").save(
+                os.path.join(out, "sheet_%dx%d.png" % (pw, ph))
+            )
     return 0
 
 

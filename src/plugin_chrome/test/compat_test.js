@@ -78,6 +78,20 @@ assert.match(legacyCss, /tpc-android-fonts[\s\S]*ToriRS Chrome Android/,
     "Chrome39 selects a distinct WOFF/TTF alias without overriding XP EOT");
 assert.match(legacyRuntime, /tpc-android-fonts/,
     "the trusted bridge selects the Android font alias without user-agent guessing");
+
+/* The host view's own context menu is the hazard the popup replaces: its
+ * Reload re-runs the bundle, and the host keeps addressing generations the
+ * reloaded page never saw. Both pages must cancel it and answer themselves. */
+[modernRuntime, legacyRuntime].forEach(function (runtime) {
+    assert.match(runtime, /bind\(document, ['"]contextmenu['"]/,
+        "the page takes the right click before the host view's menu can open");
+    assert.match(runtime, /tpc-minimenu-option/,
+        "and answers it with the chrome's own Choose Option popup");
+});
+[modernCss, legacyCss].forEach(function (css) {
+    assert.match(css, /\.tpc-minimenu-backdrop\b/, "each page skins the popup's dismiss layer");
+    assert.match(css, /\.tpc-minimenu-option\b/, "each page skins the popup's rows");
+});
 ["ToriRSBody", "ToriRSMenu", "ToriRSSmall"].forEach(function (stem) {
     ["eot", "woff", "ttf"].forEach(function (extension) {
         assert(fs.existsSync(path.join(fontRoot, stem + "." + extension)),

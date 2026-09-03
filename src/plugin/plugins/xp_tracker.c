@@ -481,15 +481,6 @@ xt_reset_skill(struct ToriRS_PluginCtx* ctx, int index)
     }
 }
 
-static void
-xt_reset_all(struct ToriRS_PluginCtx* ctx)
-{
-    assert(ctx);
-    for( int i = 0; i < g_skill_count; i++ )
-        xt_reset_skill(ctx, i);
-    g_session_start_ms = g_api->frame_ms(ctx);
-    g_detail = -1;
-}
 
 /** Is this skill worth a row? Trained at all, and not hidden by hide_maxed. */
 static bool
@@ -740,6 +731,26 @@ xt_state_apply(struct ToriRS_PluginCtx* ctx)
         g_skill[index].skill_time_ms = time_ms;
         g_skill[index].last_change_ms = g_api->frame_ms(ctx);
     }
+}
+
+/**
+ * True once the server has stated ANY skill.
+ *
+ * Sizing the table and having readings to put in it are two different moments:
+ * the names come out of the cache and answer as soon as the client boots,
+ * while the xp arrives with the login burst. In between, stat_xp answers "no
+ * reading" for every skill -- which is what makes this the moment the saved
+ * session can be reconciled, and the moment before which seeding one would be
+ * seeding it from a fresh account's defaults.
+ */
+static bool
+xt_stats_live(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    for( int i = 0; i < g_skill_count; i++ )
+        if( g_api->stat_xp(ctx, i, NULL, NULL, NULL) )
+            return true;
+    return false;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1050,7 +1061,7 @@ xt_draw_box(
  * skill and no single skill's icon can stand for that.
  */
 static void
-xt_draw_overview(struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h, int top)
+xt_draw_overview(uint32_t* buf, int w, int h, int top)
 {
     long long gained = 0;
     long long rate = 0;
@@ -1236,7 +1247,7 @@ xt_compose(struct ToriRS_PluginCtx* ctx, int width)
      * as the interface's does between the CS2 rows. */
     memset(g_compose, 0, pixels * sizeof(*g_compose));
 
-    xt_draw_overview(ctx, g_compose, width, height, 0);
+    xt_draw_overview(g_compose, width, height, 0);
     for( int i = 0; i < g_box_count; i++ )
         xt_draw_box(
             ctx,
@@ -1249,6 +1260,27 @@ xt_compose(struct ToriRS_PluginCtx* ctx, int width)
             g_box_skill[i] == g_detail);
 
     g_api->image_compose(ctx, "boxes", width, height, g_compose);
+}
+
+/**
+ * Ask for a redraw of the strip only when the picture would differ.
+ *
+ * The refresh runs on a timer, and an unconditional invalidate would put the
+ * well through a full draw pass twice a second for a picture that is already
+ * on screen -- every one of those passes a chance to catch the art or an obj
+ * icon mid-flight and publish a frame that is missing one. Composing is keyed
+ * on the drawn values; so is asking for the pass at all.
+ */
+static void
+xt_strip_invalidate(struct ToriRS_PluginCtx* ctx)
+{
+    int slot[4];
+
+    assert(ctx);
+    xt_slots(ctx, slot);
+    if( g_compose && xt_compose_key(ctx, g_well_w, slot) == g_compose_key )
+        return;
+    g_api->panel_invalidate(ctx, "boxes");
 }
 
 /** Rewrite the session readouts. The boxes are pixels and redraw themselves. */
@@ -1272,17 +1304,15 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
     }
 
     /*
-     * The session's totals go to the RAIL BADGE, not to rows on the page.
+     * The session's totals are the OVERVIEW BOX's, and nowhere else.
      *
-     * The page states them already -- the overview box at the top of the strip
-     * is exactly `torirs_xptracker_total_labels` -- and a second copy in a
-     * different type treatment six rows down was the page saying everything
-     * twice. The badge is the one place the figure is worth repeating, because
-     * it is legible without opening the panel at all, which is what the loot
-     * tracker's own badge is for.
+     * They were rows on the page and then a rail badge, and both were the same
+     * mistake in different places: the strip's first box is exactly
+     * `torirs_xptracker_total_labels` and already states them, so anything
+     * else that does is a second copy to keep in step -- and the rail is a
+     * column of icons with no room for a number anyway.
      */
-    xt_compact(total_gained, text, sizeof(text));
-    g_api->panel_set_badge(ctx, total_gained > 0 ? text : "");
+    (void)total_gained;
     (void)total_rate;
     (void)now;
 
@@ -1337,8 +1367,8 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
         g_api->panel_set_text(ctx, "d_ttl", text);
     }
 
-    /* The strip is a picture of numbers that just moved. */
-    g_api->panel_invalidate(ctx, "boxes");
+    /* The strip is a picture of numbers that may just have moved. */
+    xt_strip_invalidate(ctx);
 }
 
 /**
@@ -1427,7 +1457,6 @@ xt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     else
         g_built_detail = -1;
 
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "reset_all", "Reset all");
 
     g_page_built = true;
     xt_page_refresh(ctx);
@@ -1534,13 +1563,6 @@ xt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         return TORIRS_PLUGIN_PASS;
     }
 
-    if( strcmp(ev->id, "reset_all") == 0 )
-    {
-        xt_reset_all(ctx);
-        g_api->panel_clear(ctx);
-        return TORIRS_PLUGIN_PASS;
-    }
-
     if( g_detail < 0 || g_detail >= g_skill_count )
         return TORIRS_PLUGIN_PASS;
 
@@ -1604,7 +1626,6 @@ xt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     g_next_panel_ms = 0;
 
     memset(&desc, 0, sizeof(desc));
-    desc.title = "XP Tracker";
     /* RuneLite's own, so a person who has used the plugin there recognises
      * the row here. @see script/plugins/assets/xp-tracker/panel_icon.txt. */
     desc.icon_asset = "panel_icon.png";
@@ -1632,10 +1653,10 @@ xt_asset(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     assert(ctx);
     assert(ev);
 
-    /* Only once a table exists to reconcile onto; otherwise the sizer does it
-     * when one does. */
+    /* Only once there are READINGS to reconcile onto; otherwise the tick does
+     * it the moment there are. @see xt_stats_live. */
     if( ev->ok && ev->name && strcmp(ev->name, XT_STATE_ASSET) == 0 &&
-        g_skill_count > 0 && !g_state_applied )
+        !g_state_applied && g_skill_count > 0 && xt_stats_live(ctx) )
     {
         g_state_applied = true;
         xt_state_apply(ctx);
@@ -1689,16 +1710,6 @@ xt_size_table(struct ToriRS_PluginCtx* ctx)
         g_skill[i].start_xp = -1;
     }
     g_session_start_ms = g_api->frame_ms(ctx);
-
-    /* The saved session can only be reconciled once there is a table to
-     * reconcile it ONTO -- xt_state_apply reads a skill by name and asks the
-     * client for its xp, and both need the stat table that has just arrived. */
-    if( !g_state_applied )
-    {
-        g_state_applied = true;
-        xt_state_apply(ctx);
-        g_api->panel_clear(ctx);
-    }
 }
 
 static enum ToriRS_PluginVerdict
@@ -1746,6 +1757,15 @@ xt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     else
     {
         g_logged_in = true;
+
+        /* BEFORE the poll: the saved session's start_xp is the one this
+         * session runs on, and a seed taken first would be the one it kept. */
+        if( !g_state_applied && xt_stats_live(ctx) )
+        {
+            g_state_applied = true;
+            xt_state_apply(ctx);
+            g_api->panel_clear(ctx);
+        }
 
         for( int i = 0; i < g_skill_count; i++ )
         {

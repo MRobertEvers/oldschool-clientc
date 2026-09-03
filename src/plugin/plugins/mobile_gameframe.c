@@ -210,9 +210,13 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
  * The OldSchool chat PACK's container: interface 162 mounts into a 519x165
  * layer and draws its own backing, buttons and bar. On that lane the sheet,
  * the strip and the plates are not placed at all. @see mobile_layout.
+ *
+ * The DEFAULT and not the answer -- the four OldSchool toplevels each name
+ * their own container and a resizable one need not be the fixed frame's size.
+ * @see mobile_chat_native.
  */
-#define MOBILE_O_CHAT_W 519
-#define MOBILE_O_CHAT_H 165
+#define MOBILE_O_CHAT_W_DEFAULT 519
+#define MOBILE_O_CHAT_H_DEFAULT 165
 
 /*
  * The OldSchool orb pack's block, relative to the map WINDOW.
@@ -254,8 +258,8 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
 #define MOBILE_COMPASS_W 35
 
 /*
- * The chat block: `chat_sheet` with a stone bar under it, and ONE rectangle
- * between them.
+ * The chat block: the sheet, a stone bar under it, and ONE rectangle between
+ * them.
  *
  * The bar used to be `backbase1`, the 2004 frame's bottom-left base plate, and
  * it is the wrong shape for a floating sheet twice over: it is 496 wide against
@@ -264,20 +268,23 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
  * on the scene with nothing to mate with, those two facts read as one: a chat
  * box with a notch out of its side and a ragged seam across it.
  *
- * So the bar is the plain stone strip tiled to the sheet's own width. Both
- * pieces are 479 wide and stacked flush, which makes the whole block one clean
- * rectangle -- the shape a floating panel has to be, because it has no frame
- * around it to explain any other one.
+ * So the bar is the plain stone strip tiled to the sheet's own width, and the
+ * two are stacked flush.
  *
- * That last sentence is the one this frame went back on. A clean rectangle is
- * what a floating panel needs while its EDGE is a cut; the sheet now brings its
- * own torn one, which explains itself and needs no frame to do it. The two
- * numbers below are still the surface's, and the picture is bigger than them.
- * @see MOBILE_CHAT_FRINGE_X.
+ * SIZED BY THE LANE, and the two numbers below are only what to fall back on.
+ * How wide the chat surface is, is a fact about the revision and not about
+ * this frame: a 2004 revconfig authors `chat_region` at 479x96 and the chat
+ * renderer's own geometry agrees with it -- a 463-wide message column, the
+ * scrollbar at x+463, the rule at y+77 -- while an OldSchool cache mounts
+ * interface 162 into a 519x165 layer whose pack is built against those. Both
+ * were constants here, which made this frame a claim about every revision it
+ * would ever be loaded on; it now asks. @see mobile_chat_native.
+ *
+ * The fallbacks are the 2004 pair, because a lane that will not answer is one
+ * whose chat is the builtin, and the builtin is 479x96 by construction.
  */
-#define MOBILE_CHAT_W 479
-#define MOBILE_CHAT_H 96
-#define MOBILE_STRIP_W MOBILE_CHAT_W
+#define MOBILE_CHAT_W_DEFAULT 479
+#define MOBILE_CHAT_H_DEFAULT 96
 #define MOBILE_STRIP_H 36
 
 /*
@@ -288,45 +295,58 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
  * frame can wear, because a surround explains it, and the one shape a FLOATING
  * sheet cannot: on the scene those corners read as a beige box someone dropped
  * on the grass. The parchment is the same 479x96 surface inside a torn fringe,
- * 517x130 all told, and the fringe is the whole point of it.
+ * and the fringe is the whole point of it.
  *
- * That makes the picture bigger than the surface it backs, and the surface is
- * the one thing that cannot absorb the difference: the chat builtin's geometry
- * is the 2004 client's and every number in it is fixed -- a 463-wide message
- * column, the scrollbar at x+463, the input line at y+77 -- so it draws 479x96
- * whatever box it is handed. @see the sheet's own comment above.
+ * It is no longer ONE picture, and that is what these numbers are now about.
+ * A single 517x130 sheet has to be scaled to reach a bigger chatbox, and a
+ * scaled tear is the one thing a tear must not be: the fringe's whole job is
+ * to look like paper that was pulled apart, and pulling it further apart in
+ * the resampler turns the tears into long smeared fingers along whichever edge
+ * grew. So the sheet is cut into nine pieces -- four corners that are never
+ * resized, four edges that REPEAT along their own axis, and a middle that
+ * repeats both ways -- and composed at whatever size the chat surface needs.
+ * @see mobile_compose_paper, and tools/cut_chat_sheet_tiles.py, which cuts
+ * them and can prove the numbers below off its own output (`--proof`).
  *
- * So the SURFACE moves instead of the art. The block is still pinned flush to
- * the bottom-left, but it is the parchment that is flush now; the chat, the
- * filter buttons and the tap-blocker are all inset by the fringe so the core
- * lands where they meet it.
+ * The FRINGE is what survives the change unaltered, and that is the property
+ * that makes a nine-patch the right shape for this: the corners are the same
+ * pixels at every size and the edges repeat, so how far in from each edge the
+ * paper is solid does not depend on how big the sheet is. Measured off the
+ * composition at four sizes, it is 17 columns to the left, 21 to the right and
+ * 17 rows top and bottom -- the same numbers the single sheet had, so a
+ * composition at 517x130 reproduces the old picture's geometry exactly.
  *
- * MEASURED off the file, not chosen: (17,17)-(495,112) is the maximal
- * fully-opaque rectangle in it and is exactly 479x96. A recut sheet has to
- * have these remeasured with it, and there is nothing that would say so -- a
- * wrong fringe is a chatbox drawn slightly off its backing.
- *
- * The BOTTOM one is a separate number and is the reason the block sits higher
- * than the surface alone would. The sheet used to be pinned by its surface --
- * chat_y = strip_y - MOBILE_CHAT_H -- which put the surface's last row on the
- * strip and left fourteen rows of torn edge hanging BELOW it, under the filter
- * buttons, which then drew over the paper. So the block is pinned by the ART's
- * last inked row instead. @see MOBILE_CHAT_Y.
- *
- * Ink and not the file: the picture has empty rows past its bottom edge, and
- * pinning the file would leave a visible gap where the art has nothing.
+ * The surface moves, not the art. The chat builtin's geometry is the 2004
+ * client's and every number in it is fixed -- a 463-wide message column, the
+ * scrollbar at x+463, the input line at y+77 -- so the block is pinned flush
+ * to the bottom-left by the PARCHMENT, and the chat, the filter buttons and
+ * the tap-blocker are all inset by the fringe so the core lands where they
+ * meet it.
  */
-#define MOBILE_CHAT_ART_W 517
-#define MOBILE_CHAT_ART_H 130
-#define MOBILE_CHAT_FRINGE_X 17
-#define MOBILE_CHAT_FRINGE_Y 17
-/** Inked rows below the surface's last: the art's row 126 against its 112. */
-#define MOBILE_CHAT_FRINGE_B 14
+#define MOBILE_PAPER_FRINGE_L 17
+#define MOBILE_PAPER_FRINGE_T 17
+#define MOBILE_PAPER_FRINGE_R 21
+#define MOBILE_PAPER_FRINGE_B 17
+/**
+ * Inked rows below the surface's last, and the reason the block sits higher
+ * than the surface alone would.
+ *
+ * The sheet used to be pinned by its surface -- chat_y = strip_y - chat_h --
+ * which put the surface's last row on the strip and left the torn edge hanging
+ * BELOW it, under the filter buttons, which then drew over the paper. So the
+ * block is pinned by the ART's last inked row instead.
+ *
+ * Ink and not the piece: the bottom corners have empty rows past their last
+ * tear, and pinning those would leave a visible gap where the art has nothing.
+ * MOBILE_PAPER_FRINGE_B is 17 rows of fringe and 5 of them are empty, so 12
+ * rows of it are drawn.
+ */
+#define MOBILE_PAPER_INK_B 12
 /**
  * Extra clear air between the torn edge and the button row, on top of that.
  *
  * Zero, and that is the wanted value rather than a disabled feature: the paper
- * belongs directly above the buttons, and MOBILE_CHAT_FRINGE_B alone already
+ * belongs directly above the buttons, and MOBILE_PAPER_INK_B alone already
  * puts it there. Pinning the art's last inked row to the row above the strip
  * leaves the two rows the button lift adds, which is the whole clearance the
  * frame wants -- the sheet reads as sitting ON the row rather than floating
@@ -335,36 +355,34 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
  * It stays a named number because it is the one knob here that is taste rather
  * than measurement, and because a positive value is the only way to say "hold
  * them further apart" without disturbing the fringe, which is not free to
- * move. @see MOBILE_CHAT_FRINGE_B.
+ * move. @see MOBILE_PAPER_INK_B.
  */
 #define MOBILE_CHAT_STRIP_GAP 0
+
+/** The art that backs a chat surface of `w` by `h`: the fringe is added to it
+ *  on all four sides. @see MOBILE_PAPER_FRINGE_L. */
+#define MOBILE_PAPER_ART_W(w) ((w) + MOBILE_PAPER_FRINGE_L + MOBILE_PAPER_FRINGE_R)
+#define MOBILE_PAPER_ART_H(h) ((h) + MOBILE_PAPER_FRINGE_T + MOBILE_PAPER_FRINGE_B)
 
 /**
  * The chat surface's top row, and with it the whole block's.
  *
  * A macro because the layout pass and the tap-blocker both spelled it out
  * separately once; that is exactly the pair that drifts when the sheet art
- * changes shape, and the blocker landing fourteen rows off the sheet is a
+ * changes shape, and the blocker landing seventeen rows off the sheet is a
  * frame that swallows taps on the world and passes taps on the chat. Only the
  * layout evaluates it now -- the blocker reads the answer back out of
  * g_frame.chat_y, which is the same number and is also the only one that
  * survives a soft keyboard.
  *
  * The bottom is a PARAMETER and is not the canvas's: with a keyboard up the
- * block hangs from the safe bottom instead. @see mobile_layout.
+ * block hangs from the safe bottom instead. @see mobile_layout. So is the
+ * surface's height, which is the LANE's rather than this frame's.
+ * @see mobile_chat_native.
  */
-#define MOBILE_CHAT_Y(bottom)                                                  \
-    ((bottom) -MOBILE_STRIP_H - MOBILE_CHAT_H - MOBILE_CHAT_FRINGE_B -          \
-     MOBILE_CHAT_STRIP_GAP)
+#define MOBILE_CHAT_Y(bottom, chat_h)                                                  \
+    ((bottom) -MOBILE_STRIP_H - (chat_h) -MOBILE_PAPER_INK_B - MOBILE_CHAT_STRIP_GAP)
 
-/* The fringe is not symmetric -- seventeen columns of file to the surface's
- * left against twenty-one to its right -- so the art size is its own pair of
- * numbers rather than the surface plus twice an inset, and "does the sheet
- * fit" has to ask the picture. */
-_Static_assert(
-    MOBILE_CHAT_FRINGE_X + MOBILE_CHAT_W <= MOBILE_CHAT_ART_W &&
-        MOBILE_CHAT_FRINGE_Y + MOBILE_CHAT_H + MOBILE_CHAT_FRINGE_B <= MOBILE_CHAT_ART_H,
-    "the chat surface and its fringe must sit inside the sheet art that backs it");
 /*
  * The four filter buttons, spread evenly across the bar.
  *
@@ -376,15 +394,32 @@ _Static_assert(
 #define MOBILE_CHAT_BUTTON_COUNT 4
 #define MOBILE_CHAT_BUTTON_W 100
 #define MOBILE_CHAT_BUTTON_H 32
-#define MOBILE_CHAT_BUTTON_CELL (MOBILE_STRIP_W / MOBILE_CHAT_BUTTON_COUNT)
-/** Spread across the sheet's own width and then moved with it: the fringe is
- *  in here so the two call sites cannot drift apart over it. */
-#define MOBILE_CHAT_BUTTON_X(i)                                                       \
-    ((i) * MOBILE_CHAT_BUTTON_CELL + ((MOBILE_CHAT_BUTTON_CELL - MOBILE_CHAT_BUTTON_W) / 2) + \
-     MOBILE_CHAT_FRINGE_X)
-/** Centred in the bar's own height rather than dropped fourteen rows down a
- *  50-tall plate that no longer exists. */
 #define MOBILE_CHAT_BUTTON_LIFT ((MOBILE_STRIP_H - MOBILE_CHAT_BUTTON_H) / 2)
+
+/**
+ * Where filter button `i` starts, across a bar as wide as the chat surface.
+ *
+ * A function of the width and no longer of a constant, because the width is
+ * the lane's: a bar spread across a hard-coded 479 under a 519-wide OldSchool
+ * chatbox puts the last button forty columns short of the corner.
+ *
+ * Evenly, and not at the classic frame's own 6/135/273/408: those are measured
+ * against a 496-wide plate and the last of them ends at 508, so on a 479-wide
+ * bar the Report button would hang off the end. An even spread is a LAYOUT
+ * decision the moment the bar stops being the one the numbers came from.
+ *
+ * The fringe is in here so the two call sites cannot drift apart over it.
+ */
+static int
+mobile_chat_button_x(int i, int strip_w)
+{
+    int const cell = strip_w / MOBILE_CHAT_BUTTON_COUNT;
+
+    assert(i >= 0);
+    assert(i < MOBILE_CHAT_BUTTON_COUNT);
+    assert(strip_w > 0);
+    return i * cell + ((cell - MOBILE_CHAT_BUTTON_W) / 2) + MOBILE_PAPER_FRINGE_L;
+}
 
 /*
  * The chat switch: the grey interface button, at its own size.
@@ -451,8 +486,22 @@ enum MobileImage
     IMG_MAPBACK = 0,
     IMG_MAPBACK_RING,
     IMG_INVBACK,
-    IMG_CHATBACK,
-    IMG_STONE,
+    /**
+     * The parchment, as NINE pieces in reading order: top-left, top, top-right,
+     * left, middle, right, bottom-left, bottom, bottom-right.
+     *
+     * Not one picture, because one picture can only reach a bigger chatbox by
+     * being scaled, and a scaled tear stops being a tear. The corners are cut
+     * once and drawn at their own size; the four edges repeat along their own
+     * axis; the middle repeats both ways. @see mobile_compose_paper.
+     *
+     * The corner box is not a constant here -- it is whatever the top-left
+     * piece measures -- so a recut at a different corner size needs nothing
+     * changed on this side. What DOES have to agree is the fringe, which the
+     * cutter can print off its own output. @see MOBILE_PAPER_FRINGE_L.
+     */
+    IMG_PAPER_0,
+    IMG_STONE = IMG_PAPER_0 + 9,
     /** The plate under a classic tab row, cleaned up. Both columns are this
      *  one picture, the second mirrored. @see MOBILE_RAIL_COL_W. */
     IMG_PLATE,
@@ -594,9 +643,19 @@ static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
     [IMG_MAPBACK] = "map_housing.png",
     [IMG_MAPBACK_RING] = "map_housing_ring.png",
     [IMG_INVBACK] = "drawer.png",
-    /* Not `chat_sheet.png`, the cache's flat rectangle.
-     * @see MOBILE_CHAT_FRINGE_X. */
-    [IMG_CHATBACK] = "chat_sheet_rs289.png",
+    /* The parchment's nine pieces, cut from `chat_sheet_rs289.png` by
+     * tools/cut_chat_sheet_tiles.py -- which is also where the sheet itself is
+     * documented, and why it is not `chatback.dat`, the cache's flat
+     * rectangle. @see IMG_PAPER_0, mobile_compose_paper. */
+    [IMG_PAPER_0 + 0] = "chat_paper_tl.png",
+    [IMG_PAPER_0 + 1] = "chat_paper_top.png",
+    [IMG_PAPER_0 + 2] = "chat_paper_tr.png",
+    [IMG_PAPER_0 + 3] = "chat_paper_left.png",
+    [IMG_PAPER_0 + 4] = "chat_paper_fill.png",
+    [IMG_PAPER_0 + 5] = "chat_paper_right.png",
+    [IMG_PAPER_0 + 6] = "chat_paper_bl.png",
+    [IMG_PAPER_0 + 7] = "chat_paper_bottom.png",
+    [IMG_PAPER_0 + 8] = "chat_paper_br.png",
     [IMG_STONE] = "stone.png",
     [IMG_PLATE] = "rail_back_top_cleaned.png",
     [IMG_SWITCH] = "switch.png",
@@ -949,8 +1008,33 @@ static struct
     /** The chat placed this declaration is the OldSchool PACK, 519 wide from
      *  the corner, rather than the 2004 surface inside its fringe. */
     int chat_pack;
+    /**
+     * The chat surface's size this declaration was built around -- the lane's
+     * own, or the fallback when it will not say. @see mobile_chat_native.
+     *
+     * Carried rather than re-asked, because everything downstream of the
+     * layout has to agree with it: the tap-blocker covers this box, the strip
+     * is this wide and the parchment was composed for exactly this. Asking
+     * again in the draw pass would be asking a question that can change
+     * between two passes of one frame.
+     */
+    int chat_w;
+    int chat_h;
     int declared;
 } g_frame;
+
+/**
+ * The parchment as composed, and the size it was composed for.
+ *
+ * Held across declarations because composing it is a megabyte of pixels and
+ * the size changes about as often as the window does. @see mobile_paper_art.
+ */
+static struct
+{
+    int art;
+    int w;
+    int h;
+} g_paper = { -1, 0, 0 };
 
 /* -------------------------------------------------------- composing the art */
 
@@ -1730,6 +1814,241 @@ mobile_blit(int image, int x, int y)
     mobile_blit_into(image, x, y);
 }
 
+/* ------------------------------------------------------- the torn sheet */
+
+/*
+ * One piece of the parchment, read out of its image once.
+ *
+ * Nine of these are wanted at a time and the composition walks all nine, so
+ * they are fetched together and freed together: fetching per destination row
+ * would re-read the same picture a hundred times.
+ */
+struct MobilePaperPiece
+{
+    uint32_t* px;
+    int w;
+    int h;
+};
+
+/** 1 when the piece was read. A missing asset is a runtime state -- a half
+ *  installed plugin folder -- and not a contract violation. */
+static int
+mobile_paper_fetch(
+    struct ToriRS_PluginCtx* ctx,
+    int image,
+    struct MobilePaperPiece* out)
+{
+    assert(ctx);
+    assert(out);
+    out->px = NULL;
+    out->w = 0;
+    out->h = 0;
+    if( image < 0 )
+        return 0;
+    if( !g_api->image_size(ctx, image, &out->w, &out->h) || out->w <= 0 || out->h <= 0 )
+        return 0;
+    out->px = malloc((size_t)out->w * (size_t)out->h * sizeof(*out->px));
+    assert(out->px);
+    if( g_api->image_pixels(ctx, image, out->px, out->w * out->h) != out->w * out->h )
+    {
+        free(out->px);
+        out->px = NULL;
+        return 0;
+    }
+    return 1;
+}
+
+/*
+ * Repeat one piece over a box, clipping whichever copy runs off the end.
+ *
+ * The clip is where a tiled nine-patch could show a seam, and it is worth
+ * saying why this one does not: the edge pieces were cut at a period their own
+ * tear happens to repeat at (tools/cut_chat_sheet_tiles.py searches for it), so
+ * a whole copy butting the next is continuous, and the clipped last copy butts
+ * a CORNER, which is a hard cut in the sheet's own art either way. Measured
+ * against the source, every join this makes is smaller than the steps the tear
+ * takes on its own.
+ */
+static void
+mobile_paper_tile(
+    uint32_t* dst,
+    int dst_w,
+    struct MobilePaperPiece const* piece,
+    int x0,
+    int y0,
+    int x1,
+    int y1)
+{
+    assert(dst);
+    assert(piece);
+    assert(piece->px);
+    for( int y = y0; y < y1; y += piece->h )
+    {
+        int const rows = (y1 - y) < piece->h ? (y1 - y) : piece->h;
+
+        for( int x = x0; x < x1; x += piece->w )
+        {
+            int const cols = (x1 - x) < piece->w ? (x1 - x) : piece->w;
+
+            for( int r = 0; r < rows; r++ )
+                memcpy(
+                    &dst[(size_t)(y + r) * (size_t)dst_w + (size_t)x],
+                    &piece->px[(size_t)r * (size_t)piece->w],
+                    (size_t)cols * sizeof(*dst));
+        }
+    }
+}
+
+/*
+ * The parchment at any size: a nine-patch whose edges and middle are TILED.
+ *
+ * Tiled and not stretched, which is the whole reason the sheet stopped being
+ * one picture. A torn edge has a grain -- the tears are a few pixels across
+ * and a couple of dozen apart -- and a resampler that has to reach 900 columns
+ * from 517 does not make more tears, it makes the same tears half as sharp and
+ * twice as wide. Repeating the strip makes more of them, at the size they were
+ * drawn.
+ *
+ * The corner box is read off the top-left piece rather than named here, so the
+ * art can be recut at a different corner size without this function knowing.
+ * What it cannot absorb is a sheet SMALLER than two corners each way, which is
+ * a box no chatbox has ever asked for -- 96x52 against a 2004 chat's 517x130 --
+ * and is refused rather than clamped: silently composing something other than
+ * the size asked for is how a backing ends up not under its chat.
+ */
+static int
+mobile_compose_paper(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    int width,
+    int height)
+{
+    struct MobilePaperPiece piece[9];
+    uint32_t* out;
+    int corner_w = 0;
+    int corner_h = 0;
+    int handle = -1;
+
+    assert(ctx);
+    assert(name);
+    assert(width > 0);
+    assert(height > 0);
+
+    /* Cleared first so the teardown below can free all nine however far the
+     * fetch loop got. */
+    memset(piece, 0, sizeof(piece));
+    for( int i = 0; i < 9; i++ )
+        if( !mobile_paper_fetch(ctx, g_image[IMG_PAPER_0 + i], &piece[i]) )
+            goto done;
+    corner_w = piece[0].w;
+    corner_h = piece[0].h;
+    if( width < 2 * corner_w || height < 2 * corner_h )
+        goto done;
+
+    /* Zeroed, because the corners are the only pieces that cover their box
+     * exactly and a tear leaves transparent pixels behind it. */
+    out = calloc((size_t)width * (size_t)height, sizeof(*out));
+    assert(out);
+
+    mobile_paper_tile(
+        out, width, &piece[4], corner_w, corner_h, width - corner_w, height - corner_h);
+    mobile_paper_tile(out, width, &piece[1], corner_w, 0, width - corner_w, corner_h);
+    mobile_paper_tile(
+        out, width, &piece[7], corner_w, height - corner_h, width - corner_w, height);
+    mobile_paper_tile(out, width, &piece[3], 0, corner_h, corner_w, height - corner_h);
+    mobile_paper_tile(
+        out, width, &piece[5], width - corner_w, corner_h, width, height - corner_h);
+    /* The corners last: each overwrites the two strips that ran up to it, so
+     * the strips may be laid without knowing where they stop. */
+    mobile_paper_tile(out, width, &piece[0], 0, 0, corner_w, corner_h);
+    mobile_paper_tile(out, width, &piece[2], width - corner_w, 0, width, corner_h);
+    mobile_paper_tile(out, width, &piece[6], 0, height - corner_h, corner_w, height);
+    mobile_paper_tile(
+        out, width, &piece[8], width - corner_w, height - corner_h, width, height);
+
+    handle = g_api->image_compose(ctx, name, width, height, out);
+    free(out);
+
+done:
+    for( int i = 0; i < 9; i++ )
+        free(piece[i].px);
+    return handle;
+}
+
+/*
+ * How big the chat surface wants to be, on THIS lane.
+ *
+ * The one measurement in this frame that is not the frame's to make. Every
+ * other box here is the plugin's art at a size the plugin chose; the chatbox
+ * is a live surface with a fixed interior -- a message column, a scrollbar
+ * beside it, an input line under a rule -- and how wide that interior is, is a
+ * fact about the revision. A 2004 revconfig authors it at 479x96 and the chat
+ * renderer agrees (clip to 463, scrollbar at x+463, rule at y+77); an
+ * OldSchool cache mounts interface 162 into a 519x165 layer.
+ *
+ * Both numbers used to be constants here. That is a plugin asserting the shape
+ * of every cache it will ever be loaded against, and it was already wrong on
+ * two of the four OldSchool toplevels -- which is why the API grew a verb to
+ * ask with. @see ToriRS_PluginApi::slot_native_size.
+ *
+ * The fallback is the lane's own default and not an error path: a frame whose
+ * chat is sized as a proportion of its parent has no native size to report,
+ * and 0 there means "you choose", not "something went wrong".
+ */
+static void
+mobile_chat_native(
+    struct ToriRS_PluginCtx* ctx,
+    int oldschool,
+    int* out_w,
+    int* out_h)
+{
+    int w = oldschool ? MOBILE_O_CHAT_W_DEFAULT : MOBILE_CHAT_W_DEFAULT;
+    int h = oldschool ? MOBILE_O_CHAT_H_DEFAULT : MOBILE_CHAT_H_DEFAULT;
+
+    assert(ctx);
+    assert(out_w);
+    assert(out_h);
+    (void)g_api->slot_native_size(ctx, TORIRS_PLUGIN_SLOT_CHAT, &w, &h);
+    *out_w = w;
+    *out_h = h;
+}
+
+/*
+ * The parchment at the size this declaration needs, composed once.
+ *
+ * The handle outlives the declaration that asked for it, because the size it
+ * was composed for outlives it too: a canvas that is not being dragged asks
+ * for the same sheet every layout pass, and re-tiling a 517x130 picture on
+ * each of them would be the frame's whole cost.
+ *
+ * The size is in the NAME as well as in the cache, so a re-composition at a
+ * new box is a new picture rather than a rewrite of one the host may still be
+ * painting; the old handle is released after the new one exists.
+ */
+static int
+mobile_paper_art(struct ToriRS_PluginCtx* ctx, int width, int height)
+{
+    char name[48];
+    int art;
+
+    assert(ctx);
+    assert(width > 0);
+    assert(height > 0);
+    if( g_paper.art >= 0 && g_paper.w == width && g_paper.h == height )
+        return g_paper.art;
+
+    snprintf(name, sizeof(name), "chat_paper_%dx%d.png", width, height);
+    art = mobile_compose_paper(ctx, name, width, height);
+    if( art < 0 )
+        return g_paper.art;
+    if( g_paper.art >= 0 )
+        g_api->image_release(ctx, g_paper.art);
+    g_paper.art = art;
+    g_paper.w = width;
+    g_paper.h = height;
+    return art;
+}
+
 /*
  * Is there room for the sheet AND the drawer, or does one have to give way?
  *
@@ -1754,7 +2073,7 @@ mobile_chat_visible(int canvas_w, int rail_w, int chat_w)
         return 1;
     /* The ART's width and not the surface's: the sheet's torn fringe overhangs
      * it on the right too, so a canvas that fits 479 but not 517 would slide
-     * the parchment under the drawer. @see MOBILE_CHAT_ART_W. On an OldSchool
+     * the parchment under the drawer. @see MOBILE_PAPER_ART_W. On an OldSchool
      * lane the chat pack is its own 519. */
     return canvas_w - MOBILE_MARGIN - rail_w - MOBILE_PANEL_W >= chat_w;
 }
@@ -1983,7 +2302,12 @@ mobile_on_chrome(
                 switch( MOBILE_CHAT_PIECE[i].kind )
                 {
                 case CHAT_PIECE_PAPER:
-                    art = mobile_compose_scaled(ctx, name, g_image[IMG_CHATBACK], part.w, part.h);
+                    /* The nine-patch and not a scale, for the reason the sheet
+                     * was cut up at all: this box is the OldSchool chatbox's
+                     * backing, which is 519 wide against the parchment's 517
+                     * on a phone and much wider than either on a desktop
+                     * canvas. @see mobile_compose_paper. */
+                    art = mobile_compose_paper(ctx, name, part.w, part.h);
                     break;
                 default:
                     art = mobile_compose_tiled(ctx, name, g_image[IMG_STONE], part.w, part.h);
@@ -2168,11 +2492,22 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     int safe_bottom;
     int strip_y;
     int chat_y;
-    /* On an OldSchool lane the chat is the cache's pack and its own size. */
-    int const chat_visible =
-        mobile_chat_visible(canvas_w, rail_w, oldschool ? MOBILE_O_CHAT_W : MOBILE_CHAT_ART_W);
+    /* The surface's size is the LANE's, asked for once and then used
+     * everywhere: the sheet is composed for it, the strip is that wide, the
+     * four filter buttons are spread across it and the tap-blocker covers it.
+     * @see mobile_chat_native. */
+    int chat_w = 0;
+    int chat_h = 0;
+    int chat_visible;
 
     assert(ctx);
+    mobile_chat_native(ctx, oldschool, &chat_w, &chat_h);
+    /* The ART's width on a 2004 lane and the pack's own on an OldSchool one:
+     * the parchment's torn fringe overhangs the surface on both sides, so a
+     * canvas that fits the surface but not the sheet would slide the paper
+     * under the drawer. @see MOBILE_PAPER_ART_W. */
+    chat_visible = mobile_chat_visible(
+        canvas_w, rail_w, oldschool ? chat_w : MOBILE_PAPER_ART_W(chat_w));
 
     /*
      * The chat block hangs from the SAFE bottom, not the canvas's.
@@ -2193,12 +2528,12 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     if( safe_bottom > canvas_h )
         safe_bottom = canvas_h;
     strip_y = safe_bottom - MOBILE_STRIP_H;
-    /* Through the macro rather than `strip_y - MOBILE_CHAT_H`, so the block is
+    /* Through the macro rather than `strip_y - chat_h`, so the block is
      * still pinned by the ART's last inked row and not by the surface's -- the
      * safe bottom moved which edge it hangs from, not what hangs there.
      * @see MOBILE_CHAT_Y. The OldSchool pack is one 519x165 block flush with
      * the safe bottom, its own stone bar included. */
-    chat_y = oldschool ? safe_bottom - MOBILE_O_CHAT_H : MOBILE_CHAT_Y(safe_bottom);
+    chat_y = oldschool ? safe_bottom - chat_h : MOBILE_CHAT_Y(safe_bottom, chat_h);
 
     /*
      * The scene is the WHOLE canvas, chrome included.
@@ -2287,7 +2622,10 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      * own backing over the box it is placed in.
      */
     if( chat_visible && !oldschool )
-        mobile_blit(g_image[IMG_CHATBACK], 0, chat_y - MOBILE_CHAT_FRINGE_Y);
+        mobile_blit(
+            mobile_paper_art(ctx, MOBILE_PAPER_ART_W(chat_w), MOBILE_PAPER_ART_H(chat_h)),
+            0,
+            chat_y - MOBILE_PAPER_FRINGE_T);
 
     /* The switch sits directly above whatever is in that corner: the sheet when
      * it is up, the safe bottom margin when it is not. Pinned to the thing it
@@ -2298,7 +2636,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     g_frame.toggle_h = family == FAMILY_OLDSCHOOL ? MOBILE_O_TOGGLE_H : MOBILE_TOGGLE_H;
     g_frame.toggle_x = MOBILE_MARGIN;
     g_frame.toggle_y =
-        (chat_visible ? (oldschool ? chat_y : chat_y - MOBILE_CHAT_FRINGE_Y) : safe_bottom) -
+        (chat_visible ? (oldschool ? chat_y : chat_y - MOBILE_PAPER_FRINGE_T) : safe_bottom) -
         MOBILE_MARGIN - g_frame.toggle_h;
     mobile_blit(g_frame.toggle_art, g_frame.toggle_x, g_frame.toggle_y);
     /*
@@ -2354,19 +2692,21 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     g_frame.chat_placed = chat_visible;
     g_frame.chat_y = chat_y;
     g_frame.chat_pack = oldschool;
+    g_frame.chat_w = chat_w;
+    g_frame.chat_h = chat_h;
     if( !chat_visible )
         return;
 
     /* The OldSchool chat pack: placed whole, at its own size, flush with the
      * corner, and dressed with nothing -- it brings its backing, its seven
-     * filter buttons and its scrollbar. @see MOBILE_O_CHAT_W. */
+     * filter buttons and its scrollbar. @see MOBILE_O_CHAT_W_DEFAULT. */
     if( oldschool )
     {
-        g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 0, chat_y, MOBILE_O_CHAT_W, MOBILE_O_CHAT_H);
+        g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 0, chat_y, chat_w, chat_h);
         return;
     }
     g_api->layout_slot(
-        ctx, TORIRS_PLUGIN_SLOT_CHAT, MOBILE_CHAT_FRINGE_X, chat_y, MOBILE_CHAT_W, MOBILE_CHAT_H);
+        ctx, TORIRS_PLUGIN_SLOT_CHAT, MOBILE_PAPER_FRINGE_L, chat_y, chat_w, chat_h);
     /*
      * A button UNDER each label, and nothing behind the row.
      *
@@ -2398,7 +2738,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
             ctx,
             TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
             i,
-            MOBILE_CHAT_BUTTON_X(i),
+            mobile_chat_button_x(i, chat_w),
             strip_y + MOBILE_CHAT_BUTTON_LIFT,
             MOBILE_CHAT_BUTTON_W,
             MOBILE_CHAT_BUTTON_H);
@@ -2414,7 +2754,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
         memset(&part, 0, sizeof(part));
         for( int st = 0; st < TORIRS_PLUGIN_CHROME_STATE_COUNT; st++ )
             part.art[st] = -1;
-        part.x = MOBILE_CHAT_BUTTON_X(i);
+        part.x = mobile_chat_button_x(i, chat_w);
         part.y = strip_y + MOBILE_CHAT_BUTTON_LIFT;
         part.w = MOBILE_CHAT_BUTTON_W;
         part.h = MOBILE_CHAT_BUTTON_H;
@@ -2630,9 +2970,9 @@ mobile_on_draw(
         g_api->hit_region(
             ctx,
             ev->surface,
-            g_frame.chat_pack ? 0 : MOBILE_CHAT_FRINGE_X,
+            g_frame.chat_pack ? 0 : MOBILE_PAPER_FRINGE_L,
             g_frame.chat_y,
-            g_frame.chat_pack ? MOBILE_O_CHAT_W : MOBILE_CHAT_W,
+            g_frame.chat_w,
             ev->height - g_frame.chat_y,
             TYPE_OP,
             1,
@@ -2974,6 +3314,9 @@ mobile_on_start(
     assert(ctx);
 
     memset(&g_frame, 0, sizeof(g_frame));
+    g_paper.art = -1;
+    g_paper.w = 0;
+    g_paper.h = 0;
     g_drawer_open = 0;
     g_chat_open = 1;
     g_keyboard_on = 0;
@@ -3045,6 +3388,14 @@ mobile_on_stop(
             g_api->image_release(ctx, g_art[i]);
         g_art[i] = -1;
     }
+    /* The sheet outlives a declaration and so has to be dropped here with the
+     * rest: it is one composed picture and not an entry in g_art, because its
+     * size is the chatbox's rather than a constant this plugin chose. */
+    if( g_paper.art >= 0 )
+        g_api->image_release(ctx, g_paper.art);
+    g_paper.art = -1;
+    g_paper.w = 0;
+    g_paper.h = 0;
     g_art_built = 0;
     g_masks_ready = 0;
     g_frame.declared = 0;

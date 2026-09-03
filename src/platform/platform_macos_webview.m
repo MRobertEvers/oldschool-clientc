@@ -333,7 +333,20 @@ mac_url_is_below(NSURL* url, NSURL* root)
     (void)webView;
     BOOL local = mac_url_is_below(action.request.URL, self.rootURL);
     BOOL sameFrame = action.targetFrame != nil;
-    decisionHandler(local && sameFrame ?
+    /*
+     * A RELOAD is refused, and it is refused here rather than only by hiding
+     * whatever offers it.
+     *
+     * The page is not a document that can be fetched again: it is the far end
+     * of a retained conversation. A reloaded page comes up with no rail, no
+     * theme and no widgets, while this side still holds every generation and
+     * handle it has handed out and goes on addressing them. The bundle now
+     * answers the right click itself (src/plugin_chrome), which takes the
+     * view's own menu out of the picture; the key equivalent is still there,
+     * and one keystroke must not be able to strand the host.
+     */
+    BOOL reload = action.navigationType == WKNavigationTypeReload;
+    decisionHandler(local && sameFrame && !reload ?
         WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel);
 }
 

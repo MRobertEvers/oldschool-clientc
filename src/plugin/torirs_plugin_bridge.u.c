@@ -3679,6 +3679,29 @@ app_plugin_slot_node_rect(
     return app_plugin_node_rect(app, node, out_x, out_y, out_w, out_h);
 }
 
+/*
+ * The size the LANE gave a surface, before this frame moved it.
+ * @see ToriRS_PluginApi::slot_native_size.
+ *
+ * Only the placeable roles, and not because the derived ones are hard: CANVAS
+ * and SAFE are computed from the window and from what plugins have reserved,
+ * so "the size it would be if nobody placed it" is not a question about them.
+ * A layout plugin that asks anyway gets 0 and has lost nothing -- it already
+ * knows the canvas, it was handed it.
+ */
+static int
+app_plugin_slot_native_size(void* user, int slot, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( !app->tree )
+        return 0;
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
+    return UITree_FrameSlotNativeSize(app->tree, slot, out_w, out_h);
+}
+
 static int
 app_plugin_slot_rect(
     void* user, int slot, int* out_x, int* out_y, int* out_w, int* out_h)
@@ -4710,6 +4733,17 @@ app_plugin_stat_xp(
     assert(app);
     if( skill < 0 || skill >= RS_PLAYER_STATS_SKILL_COUNT )
         return 0;
+    /*
+     * A skill the server has not stated yet has no reading, and saying so is
+     * the whole contract: RS_PlayerStats_Init seeds a FRESH ACCOUNT (level 1,
+     * 10 hitpoints) so that CS1 value scripts evaluate before a sync exists,
+     * which means the pre-login table is not empty -- it is someone else's.
+     * A tracker that seeded its session from it would take the login burst,
+     * where all 25 skills arrive at once, as one enormous gain. That is what
+     * last_seen_level exists to tell apart. @see struct RS_PlayerStats.
+     */
+    if( app->stats.last_seen_level[skill] == 0 )
+        return 0;
     if( out_xp )
         *out_xp = app->stats.xp[skill];
 
@@ -5047,6 +5081,7 @@ app_plugin_engine(struct App* app)
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.slot_rect = app_plugin_slot_rect;
     engine.slot_member_rect = app_plugin_slot_member_rect;
+    engine.slot_native_size = app_plugin_slot_native_size;
     engine.component_rect = app_plugin_component_rect;
     engine.role_rect = app_plugin_role_rect;
     engine.role_visible = app_plugin_role_visible;

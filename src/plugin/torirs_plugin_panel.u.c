@@ -1181,21 +1181,19 @@ app_plugin_panel_sync(struct App* app)
                  * atoms itself. Nothing keys off the spelling; the row carries
                  * the plugin index. */
                 if( PluginHost_PanelHasPage(app->plugins, p) )
-                {
-                    char const* const title = PluginHost_PanelTitle(app->plugins, p);
-                    char const* const badge = PluginHost_PanelBadge(app->plugins, p);
-                    if( badge[0] )
-                        snprintf(
-                            label, sizeof(label), "%s%s [%s]",
-                            PluginHost_PanelWantsAttention(app->plugins, p) ? "! " : "",
-                            title,
-                            badge);
-                    else
-                        snprintf(
-                            label, sizeof(label), "%s%s",
-                            PluginHost_PanelWantsAttention(app->plugins, p) ? "! " : "",
-                            title);
-                }
+                    /*
+                     * The plugin's NAME, and nothing appended to it.
+                     *
+                     * A badge and an attention mark used to be spliced in here
+                     * -- "XP Tracker [99.999M]" -- which made a roster row read
+                     * as a readout and let a page write text into a strip that
+                     * is a column of icons. What a row is for is finding the
+                     * plugin and switching it; what it says is what the plugin
+                     * is called.
+                     */
+                    snprintf(
+                        label, sizeof(label), "%s",
+                        PluginHost_PanelTitle(app->plugins, p));
                 else
                     snprintf(
                         label, sizeof(label), "%s", PluginHost_Title(app->plugins, p));
@@ -2791,7 +2789,7 @@ app_plugin_rail_snapshot(
             PluginHost_PanelTitle(app->plugins, plugin),
             PluginHost_PanelIconAsset(app->plugins, plugin),
             PluginHost_PanelPreferredWidth(app->plugins, plugin),
-            PluginHost_PanelBadge(app->plugins, plugin),
+            "",
             PluginHost_PanelWantsAttention(app->plugins, plugin));
     }
 }
@@ -3117,7 +3115,19 @@ app_plugin_panel_overlay_remove(struct App* app, uint32_t serial)
     return 1;
 }
 
-/** Atomically replace one custom region's retained primitive run. */
+/**
+ * Atomically replace one custom region's retained primitive run.
+ *
+ * A pass that staged NOTHING is a decline, not an erasure. A plugin whose art
+ * has not landed yet -- the atlases and sprites cross the IO queue, and the
+ * obj icons come out of an evicting cache -- returns from EV_PANEL_DRAW
+ * without drawing, and the host cannot tell that apart from a deliberate
+ * clear. Committing it would swap the last complete picture for an empty run
+ * and blank the well until the plugin's next tick invalidates it again,
+ * which is precisely the flicker a list shows while its icons churn. Keeping
+ * the retained run costs a stale frame at worst; committing costs a blank one.
+ * A well with genuinely nothing to show has a zero height, not an empty run.
+ */
 static int
 app_plugin_panel_overlay_commit(
     struct App* app,
@@ -3130,7 +3140,7 @@ app_plugin_panel_overlay_commit(
     assert(app);
     if( generation == 0 || serial == 0 ||
         generation != app->panel_overlay_generation ||
-        app->panel_overlay_stage_overflow )
+        app->panel_overlay_stage_overflow || app->panel_overlay_stage_count == 0 )
         return 0;
 
     for( int i = 0; i < app->panel_overlay_count; i++ )

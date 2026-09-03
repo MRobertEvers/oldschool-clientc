@@ -489,6 +489,32 @@ static void fake_draw_select_canvas(void* u, int c) { (void)u; (void)c; }
 static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; return 0; }
 static int fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)m; (void)x; (void)y; (void)w; (void)h; return 0; }
+/*
+ * What the LANE says its chat surface is, or 0x0 for a lane that will not say.
+ *
+ * Both are real answers and the frame has to tell them apart: a 2004 revconfig
+ * states `chat_region` at 479x96 and an OldSchool toplevel mounts a 519x165
+ * container, while a chatbox sized as a proportion of its parent has no native
+ * size at all and the frame has to choose one. 0x0 is the default here so that
+ * every test written before this verb existed still exercises the fallback.
+ * @see ToriRS_PluginApi::slot_native_size.
+ */
+static int g_chat_native_w;
+static int g_chat_native_h;
+static int
+fake_slot_native_size(void* u, int slot, int* w, int* h)
+{
+    (void)u;
+    if( slot != TORIRS_PLUGIN_SLOT_CHAT )
+        return 0;
+    if( g_chat_native_w <= 0 || g_chat_native_h <= 0 )
+        return 0;
+    if( w )
+        *w = g_chat_native_w;
+    if( h )
+        *h = g_chat_native_h;
+    return 1;
+}
 static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
 /*
  * The chatbox pack's decoration, as an OldSchool lane's profile binds it:
@@ -707,13 +733,13 @@ slot_is(int slot, int x, int y, int w, int h)
 #define M_MAP_HOLE_Y 8
 #define M_CHAT_W 479
 #define M_CHAT_H 96
-/** The sheet art's torn fringe. The picture is 517x130 and the 479x96 surface
- *  sits at (17,17) inside it, so the whole block is inset by this.
- *  @see MOBILE_CHAT_FRINGE_X. */
+/** The sheet art's torn fringe. The sheet is a nine-patch composed around the
+ *  surface, and its corners are the same pixels at every size, so the surface
+ *  sits this far in whatever size it is. @see MOBILE_PAPER_FRINGE_L. */
 #define M_CHAT_FRINGE 17
 /** And the inked rows BELOW the surface, which is what lifts the block clear of
- *  the filter buttons. @see MOBILE_CHAT_FRINGE_B. */
-#define M_CHAT_FRINGE_B 14
+ *  the filter buttons. @see MOBILE_PAPER_INK_B. */
+#define M_CHAT_FRINGE_B 12
 /** Plus the clear air held between the torn edge and the button row.
  *  @see MOBILE_CHAT_STRIP_GAP. */
 #define M_CHAT_GAP 0
@@ -780,6 +806,7 @@ main(void)
     e.mouse_pos = fake_mouse_pos;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
+    e.slot_native_size = fake_slot_native_size;
     e.component_rect = fake_component_rect;
     e.role_rect = fake_role_rect;
     e.role_visible = fake_role_visible;
@@ -1429,6 +1456,72 @@ main(void)
         CHECK(
             slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, M_H - 165, 519, 165),
             "while the chat stays the lane's pack: the art is a family, the chat a lane");
+    }
+
+    /*
+     * A lane that STATES its chat size, which is the case both families were
+     * hard-coded for.
+     *
+     * 519x165 and 479x96 were constants in the plugin, so the frame drew its
+     * backing to one of two shapes whatever the cache actually mounted -- and
+     * two of the four OldSchool toplevels mount neither. What follows is the
+     * whole point of slot_native_size: the same declaration, against a lane
+     * that answers something else, has to move every part of the block with
+     * it -- the surface, the parchment under it, and the four filter buttons
+     * spread across its width.
+     */
+    {
+        int const chat_w = 700;
+        int const chat_h = 160;
+        int const chat_y = M_H - M_STRIP_H - chat_h - M_CHAT_FRINGE_B - M_CHAT_GAP;
+
+        g_lane_game = TORIRS_PLUGIN_GAME_RS2;
+        g_chat_native_w = chat_w;
+        g_chat_native_h = chat_h;
+        PluginHost_ConfigSet(g_host, g_plugin, "art", "Auto");
+        PluginHost_FrameStart(g_host, 3200, 0);
+        declare(M_W, M_H);
+        draw(M_W, M_H);
+
+        CHECK(
+            slot_is(TORIRS_PLUGIN_SLOT_CHAT, M_CHAT_FRINGE, chat_y, chat_w, chat_h),
+            "the chat surface is the size the LANE states, not the plugin's 479x96");
+        /*
+         * And the paper is composed AROUND it rather than scaled to it. The
+         * blit lands one fringe above and one fringe left of the surface at
+         * every size, because a nine-patch's corners are the same pixels
+         * whatever it grew to. @see MOBILE_PAPER_FRINGE_L.
+         */
+        CHECK(
+            blitted_at(0, chat_y - M_CHAT_FRINGE),
+            "and the parchment is composed around it, still one fringe above");
+        /*
+         * The filter buttons spread across the bar's real width. Hard-coded to
+         * 479, the fourth of them stopped 55 columns short of a 700-wide
+         * chatbox's corner. @see mobile_chat_button_x.
+         */
+        {
+            int const cell = chat_w / 4;
+            int spread = 0;
+            for( int i = 0; i < 4; i++ )
+                spread += g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].placed &&
+                                  g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].x ==
+                                      i * cell + ((cell - 100) / 2) + M_CHAT_FRINGE
+                              ? 1
+                              : 0;
+            CHECK(spread == 4, "and the four filter buttons spread across the wider bar");
+        }
+
+        /* Back to a lane that will not say, which must still be the 2004
+         * builtin's own numbers and not the last answer given. */
+        g_chat_native_w = 0;
+        g_chat_native_h = 0;
+        PluginHost_FrameStart(g_host, 3300, 0);
+        declare(M_W, M_H);
+        CHECK(
+            slot_is(
+                TORIRS_PLUGIN_SLOT_CHAT, M_CHAT_FRINGE, M_CHAT_Y(M_H), M_CHAT_W, M_CHAT_H),
+            "a lane with no size to state falls back to the builtin's 479x96");
     }
 
     PluginHost_Free(g_host);

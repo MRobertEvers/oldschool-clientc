@@ -319,45 +319,6 @@ lt_commas(long long value, char* out, size_t out_size)
     out[at] = '\0';
 }
 
-/** "12.3K" / "4.5M", the reference's quantityToRSDecimalStack. */
-static void
-lt_short(long long value, char* out, size_t out_size)
-{
-    long long unit = 1;
-    char suffix = '\0';
-
-    assert(out);
-    assert(out_size > 0);
-
-    if( value < 0 )
-        value = 0;
-    if( value >= 1000000000LL )
-    {
-        unit = 1000000000LL;
-        suffix = 'B';
-    }
-    else if( value >= 1000000LL )
-    {
-        unit = 1000000LL;
-        suffix = 'M';
-    }
-    else if( value >= 1000LL )
-    {
-        unit = 1000LL;
-        suffix = 'K';
-    }
-    if( !suffix )
-    {
-        snprintf(out, out_size, "%lld", value);
-        return;
-    }
-    if( value / unit < 100 )
-        snprintf(
-            out, out_size, "%lld.%lld%c", value / unit, (value % unit) * 10 / unit, suffix);
-    else
-        snprintf(out, out_size, "%lld%c", value / unit, suffix);
-}
-
 /**
  * A value the way the tracker's own `~torirs_fmt_kmb` (script 7122) writes
  * one: `fmt_kmb(v, ".", 1)`, which is how `torirs_loot_totals` and every band
@@ -708,7 +669,7 @@ lt_strip_h(void)
 
 /** The totals band, which the game's tracker puts above the categories. */
 static void
-lt_draw_totals(struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h)
+lt_draw_totals(uint32_t* buf, int w, int h)
 {
     char text[64];
 
@@ -986,7 +947,7 @@ lt_compose(struct ToriRS_PluginCtx* ctx, int width)
      * interface's does behind its bands. */
     memset(g_compose, 0, pixels * sizeof(*g_compose));
 
-    lt_draw_totals(ctx, g_compose, width, height);
+    lt_draw_totals(g_compose, width, height);
     top = LT_TOTALS_H + LT_HEAD_GAP;
 
     if( g_source_count == 0 )
@@ -1014,6 +975,24 @@ lt_compose(struct ToriRS_PluginCtx* ctx, int width)
         }
 
     g_api->image_compose(ctx, "strip", width, height, g_compose);
+}
+
+/**
+ * Ask for a redraw of the strip only when the picture would differ.
+ *
+ * The refresh runs on a timer, and an unconditional invalidate would put the
+ * well through a full draw pass twice a second for a picture that is already
+ * on screen -- every one of those passes a chance to catch the art or an obj
+ * icon mid-flight and publish a frame that is missing one. Composing is keyed
+ * on the drawn values; so is asking for the pass at all.
+ */
+static void
+lt_strip_invalidate(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    if( g_compose && lt_compose_key(ctx, g_well_w) == g_compose_key )
+        return;
+    g_api->panel_invalidate(ctx, "strip");
 }
 
 /**
@@ -1114,7 +1093,7 @@ lt_page_refresh(struct ToriRS_PluginCtx* ctx)
         return;
 
     /* The bands are pixels and redraw themselves. */
-    g_api->panel_invalidate(ctx, "strip");
+    lt_strip_invalidate(ctx);
 
     if( g_detail >= 0 && g_detail < g_source_count )
     {
@@ -1397,7 +1376,6 @@ lt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     g_compose_key = 0;
 
     memset(&desc, 0, sizeof(desc));
-    desc.title = "Loot Tracker";
     /* RuneLite's own, so a person who has used the plugin there recognises
      * the row. @see script/plugins/assets/loot-tracker/panel_icon.txt. */
     desc.icon_asset = "panel_icon.png";
@@ -1431,6 +1409,7 @@ lt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 static enum ToriRS_PluginVerdict
 lt_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
+    (void)ctx; /* only asserted, so NDEBUG would leave it unread */
     (void)event;
     (void)userdata;
 
@@ -1447,7 +1426,6 @@ lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     (void)userdata;
 
     uint64_t const now = g_api->frame_ms(ctx);
-    char badge[TORIRS_PLUGIN_PANEL_BADGE_MAX];
 
     assert(ctx);
 
@@ -1458,11 +1436,6 @@ lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     /* The client's own record, which is what the game's tracker shows. */
     if( lt_sync_store(ctx) )
         g_dirty = true;
-
-    /* The rail entry carries the session's value, so the number a player opens
-     * this for is legible without opening it. */
-    lt_short(g_session_value, badge, sizeof(badge));
-    g_api->panel_set_badge(ctx, g_session_value > 0 ? badge : "");
 
     /* A record added or removed changes the row SET, which only a rebuild can
      * state; anything else is a number a refresh rewrites in place. Neither is
@@ -1476,8 +1449,6 @@ lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         else
         {
             lt_page_refresh(ctx);
-            if( g_detail >= 0 )
-                g_api->panel_invalidate(ctx, "d_items");
         }
     }
 

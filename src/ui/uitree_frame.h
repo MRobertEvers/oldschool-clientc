@@ -184,6 +184,36 @@ UITree_FrameSlotMemberNode(
     int member);
 
 /**
+ * The size the LANE authored for `slot`'s surface, before any declaration.
+ *
+ * The one thing a layout plugin cannot work out for itself and cannot be told
+ * by its own art: the chatbox has a fixed interior -- a 463-wide message
+ * column, a scrollbar beside it, an input line under a rule at y+77 -- and how
+ * wide that interior is, is a fact about the revision. A 2004 frame authors
+ * `chat_region` at 479x96; an OldSchool toplevel mounts interface 162 into a
+ * 519x165 layer. A frame that assumes either is wrong on the other lane.
+ *
+ * The AUTHORED numbers and not the resolved ones, because the resolved ones
+ * are the declaration's own: while a frame claim stands, this node's effective
+ * box is whatever the plugin last placed it at, and a plugin reading that to
+ * decide what to place is reading its own answer back.
+ * UITree_FramePositionOverride leaves `position.width/height` alone for
+ * exactly this reason -- @see its comment, "the native position remains on the
+ * component".
+ *
+ * @return 1 when the frame has the surface and its size is stated in pixels; 0
+ * when it has no such surface, and 0 for a node sized as a PROPORTION of its
+ * parent, whose authored `width` is a percentage and would report 40 for a
+ * node that is 40% wide. The caller then knows only that it has to choose.
+ */
+int
+UITree_FrameSlotNativeSize(
+    struct UITree const* tree,
+    int slot,
+    int* out_w,
+    int* out_h);
+
+/**
  * Apply a whole declaration.
  *
  * `slots` is UITREE_FRAME_SLOT_COUNT entries. Every role is answered: a placed

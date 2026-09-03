@@ -494,3 +494,75 @@ button { font-weight: 700; }
   background-repeat: repeat-x, repeat-x, repeat;
 }
 .tpc-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/*
+ * The right-click popup: the client's own "Choose Option" menu, spelled in
+ * CSS the way the rest of this page spells the chrome.
+ *
+ * The numbers are UIMinimenu_LayoutFromLineBoxStyled's desktop layout for the
+ * 16px line box these faces are baked at: a 16px title bar one pixel inside
+ * the border, one row of body under it before the black rule, a 15px row
+ * stride (box - 1) and text three pixels in. The title is drawn in the BODY
+ * colour on the black bar -- that is what emit_minimenu passes, not white --
+ * and rows carry the chrome's drop shadow while the title does not.
+ */
+.tpc-minimenu-backdrop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+}
+.tpc-minimenu {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid #000;
+  background: #5d5447;
+  background: var(--tpc-body);
+}
+.tpc-minimenu-title {
+  height: 16px;
+  padding: 0 3px;
+  background: #000;
+  color: #5d5447;
+  color: var(--tpc-body);
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* The rule under the title bar, and the same black down both sides of the
+ * rows and along the bottom -- emit_minimenu's four border strips. */
+.tpc-minimenu-list {
+  margin-top: 1px;
+  border: 1px solid #000;
+  border-top: 1px solid #000;
+}
+.tpc-minimenu-option {
+  display: block;
+  width: 100%;
+  height: 15px;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  color: var(--tpc-text);
+  font-weight: 400;
+  line-height: 15px;
+  text-align: left;
+  text-shadow: 1px 1px #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.tpc-minimenu-option:hover, .tpc-minimenu-option:focus {
+  color: #ffff00;
+  color: var(--tpc-accent);
+  outline: 0;
+}

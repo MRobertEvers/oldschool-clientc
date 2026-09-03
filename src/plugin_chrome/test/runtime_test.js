@@ -361,5 +361,69 @@ runtime.receive({
 assert(runtime.inspect().widgetCount > 0,
   'the rail catching up leaves the mounted page alone');
 
+/*
+ * The right-click popup.
+ *
+ * The page must never let the host view's own context menu open: its Reload
+ * re-runs the bundle, and the host goes on addressing generations the
+ * reloaded page has never heard of. Every right click is therefore cancelled,
+ * and answered with the client's "Choose Option" popup built out of the same
+ * intents the left-click controls post.
+ */
+function rightClick(target, x, y) {
+  let prevented = false;
+  const event = {
+    target, clientX: x || 0, clientY: y || 0,
+    preventDefault() { prevented = true; }
+  };
+  const result = document.oncontextmenu(event);
+  assert.strictEqual(result, false, 'the native menu is cancelled');
+  assert(prevented, 'and cancelled through preventDefault, not only the return');
+  assert.strictEqual(event.returnValue, false, 'MSHTML is cancelled by returnValue');
+  return event;
+}
+
+function popupRows() {
+  return ids['tpc-shell'].getElementsByClassName('tpc-minimenu-option');
+}
+
+function popupLabels() {
+  return popupRows().map(row => row.innerText);
+}
+
+const railEntry = ids['tpc-rail-list'].children[1];
+rightClick(railEntry, 30, 200);
+assert.deepStrictEqual(popupLabels(), ['Hide', 'Cancel'],
+  'the open plugin\'s stone offers the verb that closes it, and Cancel');
+popupRows()[0].fire('click');
+assert.deepStrictEqual(posted[posted.length - 1], {
+  protocol: 1, type: 'rail.select', sequence: posted[posted.length - 1].sequence,
+  pluginIndex: 0, selectionGeneration: 10
+}, 'a popup row posts the intent the left click posts, and nothing else');
+assert.strictEqual(popupRows().length, 0, 'choosing a row dismisses the popup');
+
+let checkRow = null;
+for (const row of ids['tpc-content'].children) if (row._tpcRecord) checkRow = row;
+assert(checkRow && checkRow._tpcRecord.handle === 5, 'the page mounted its checkbox row');
+rightClick(checkRow._tpcRecord.control, 120, 60);
+assert.deepStrictEqual(popupLabels(), ['Turn on', 'Close', 'Cancel'],
+  'a control offers its own verb, then the page close, then Cancel');
+popupRows()[0].fire('click');
+assert.deepStrictEqual(typed[typed.length - 1], {
+  k: 3, p: 4, w: 5, v: 1, text: '', x: 0, y: 0, g: 31, s: 302
+}, 'the toggle row carries the widget identity the change handler carries');
+
+rightClick(ids['tpc-content'], 120, 60);
+assert.deepStrictEqual(popupLabels(), ['Close', 'Cancel'],
+  'bare page chrome offers only what the page itself can do');
+document.onkeydown({ keyCode: 27 });
+assert.strictEqual(popupRows().length, 0, 'Escape dismisses the popup');
+
+rightClick(railEntry, 30, 200);
+assert.strictEqual(popupRows().length, 2, 'the popup reopens on the next right click');
+runtime.receive({ protocol: 1, type: 'page.close', pageGeneration: 31 });
+assert.strictEqual(popupRows().length, 0,
+  'a page torn down under the popup takes the popup with it');
+
 assert.strictEqual(runtime.receive('{bad json'), false, 'malformed host input is ignored');
 console.log('modern plugin chrome runtime: ok');

@@ -177,6 +177,14 @@ struct ToriRS_PluginEngine
      */
     int (*slot_member_rect)(
         void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h);
+    /**
+     * The size the LANE authored for a placeable region's surface. @see
+     * ToriRS_PluginApi::slot_native_size.
+     *
+     * The engine's to answer because it is a fact about the tree and about
+     * nothing else: no reservation, no claim and no plugin state is in it.
+     */
+    int (*slot_native_size)(void* user, int slot, int* out_w, int* out_h);
     /** One component's box, by id. @see ToriRS_PluginApi::component_rect. */
     int (*component_rect)(
         void* user, int component_id, int* out_x, int* out_y, int* out_w, int* out_h);
@@ -937,7 +945,8 @@ char const* PluginHost_PanelIconAsset(
 int PluginHost_PanelPreferredWidth(
     struct ToriRS_PluginHost const* host,
     int plugin_index);
-char const* PluginHost_PanelBadge(struct ToriRS_PluginHost const* host, int plugin_index);
+/** Whether the entry has asked to be noticed. A flag, never a caption -- the
+ *  rail is a column of icons. @see ToriRS_PluginApi::panel_set_attention. */
 bool PluginHost_PanelWantsAttention(
     struct ToriRS_PluginHost const* host,
     int plugin_index);

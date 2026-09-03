@@ -508,6 +508,18 @@ fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
  * "this gameframe has no such member" -- @see
  * ToriRS_PluginApi::slot_member_rect, where that is an answer and not a
  * fault. */
+/** The lane states no size for any surface, so a caller falls back to its own.
+ *  @see ToriRS_PluginApi::slot_native_size. */
+static int
+fake_slot_native_size(void* u, int slot, int* w, int* h)
+{
+    (void)u;
+    (void)slot;
+    (void)w;
+    (void)h;
+    return 0;
+}
+
 static int
 fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int* h)
 {
@@ -1279,6 +1291,7 @@ fake_engine(void)
     e.tab_enabled = fake_tab_enabled;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
+    e.slot_native_size = fake_slot_native_size;
     e.component_rect = fake_component_rect;
     e.role_rect = fake_role_rect;
     e.role_visible = fake_role_visible;

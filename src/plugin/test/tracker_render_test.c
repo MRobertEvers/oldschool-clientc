@@ -558,7 +558,6 @@ static bool fake_panel_set_value(struct ToriRS_PluginCtx* c, char const* i, int 
 { (void)c; (void)v; return w_find(i) != NULL; }
 static bool fake_panel_set_options(struct ToriRS_PluginCtx* c, char const* i, char const* o, int s)
 { (void)c; (void)o; (void)s; return w_find(i) != NULL; }
-static bool fake_panel_set_badge(struct ToriRS_PluginCtx* c, char const* t) { (void)c; (void)t; return true; }
 static bool fake_panel_set_attention(struct ToriRS_PluginCtx* c, bool o) { (void)c; (void)o; return true; }
 static void fake_panel_clear(struct ToriRS_PluginCtx* c) { (void)c; g_w_count = 0; }
 static void fake_panel_invalidate(struct ToriRS_PluginCtx* c, char const* i) { (void)c; (void)i; }
@@ -614,7 +613,6 @@ api_init(void)
     g_api.panel_set_text = fake_panel_set_text;
     g_api.panel_set_value = fake_panel_set_value;
     g_api.panel_set_options = fake_panel_set_options;
-    g_api.panel_set_badge = fake_panel_set_badge;
     g_api.panel_set_attention = fake_panel_set_attention;
     g_api.panel_clear = fake_panel_clear;
     g_api.panel_invalidate = fake_panel_invalidate;

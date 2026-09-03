@@ -519,7 +519,6 @@ struct ToriRS_PluginHost
     int panel_icon_image[TORIRS_PLUGIN_MAX];
     uint32_t panel_icon_revision[TORIRS_PLUGIN_MAX];
     int panel_preferred_width[TORIRS_PLUGIN_MAX];
-    char panel_badge[TORIRS_PLUGIN_MAX][TORIRS_PLUGIN_PANEL_BADGE_MAX];
     bool panel_attention[TORIRS_PLUGIN_MAX];
     int panel_active;
     /**
@@ -1803,6 +1802,36 @@ api_slot_member_rect(
         *out_x = x;
     if( out_y )
         *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
+/*
+ * The size a surface came with. @see ToriRS_PluginApi::slot_native_size.
+ *
+ * Gated on host_frame_exists like every other frame query: on the title screen
+ * there is no gameframe, so there is no chatbox and no size it was authored
+ * at, and a frame plugin asking early has to hear that rather than a stale
+ * number from the last session.
+ */
+static int
+api_slot_native_size(struct ToriRS_PluginCtx* ctx, int slot, int* out_w, int* out_h)
+{
+    int w = 0, h = 0;
+
+    if( !host_frame_exists(ctx) )
+        return 0; /* @see host_frame_exists */
+
+    assert(ctx);
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
+    if( !ctx->host->engine.slot_native_size(ctx->host->engine.user, slot, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
     if( out_w )
         *out_w = w;
     if( out_h )
@@ -3788,7 +3817,9 @@ api_panel_request(
         host->dispatch_event != TORIRS_PLUGIN_EV_START || !desc )
         return false;
 
-    title = desc->title && desc->title[0] ? desc->title : ctx->title;
+    /* The plugin's OWN title, always: a page cannot rename the plugin it
+     * belongs to. @see struct ToriRS_PluginPanelDesc. */
+    title = ctx->title;
     icon = desc->icon_asset ? desc->icon_asset : "";
     if( icon[0] && !plugin_asset_name_ok(ctx, icon) )
         return false;
@@ -4005,27 +4036,6 @@ api_panel_set_options(
 }
 
 static bool
-api_panel_set_badge(struct ToriRS_PluginCtx* ctx, char const* text)
-{
-    char const* next = text ? text : "";
-
-    assert(ctx);
-    if( !ctx->host->panel_registered[ctx->index] || !ctx->running )
-        return false;
-    if( !plugin_copy_str_would_change(
-            ctx->host->panel_badge[ctx->index],
-            sizeof(ctx->host->panel_badge[ctx->index]),
-            next) )
-        return true;
-    plugin_copy_str(
-        ctx->host->panel_badge[ctx->index],
-        sizeof(ctx->host->panel_badge[ctx->index]),
-        next);
-    plugin_panel_bump(&ctx->host->panel_registry_revision);
-    return true;
-}
-
-static bool
 api_panel_set_attention(struct ToriRS_PluginCtx* ctx, bool attention)
 {
     assert(ctx);
@@ -4138,7 +4148,6 @@ plugin_panel_unregister(struct ToriRS_PluginHost* host, int plugin_index)
     host->panel_icon_image[plugin_index] = -1;
     plugin_panel_bump(&host->panel_icon_revision[plugin_index]);
     host->panel_preferred_width[plugin_index] = 0;
-    host->panel_badge[plugin_index][0] = '\0';
     host->panel_attention[plugin_index] = false;
     if( host->panel_last_selected == plugin_index )
         host->panel_last_selected = -1;
@@ -6189,6 +6198,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->mouse_pos);
     assert(engine->slot_rect);
     assert(engine->slot_member_rect);
+    assert(engine->slot_native_size);
     assert(engine->component_rect);
     assert(engine->role_rect);
     assert(engine->role_visible);
@@ -6292,6 +6302,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .mouse_pos = api_mouse_pos,
         .slot_rect = api_slot_rect,
         .slot_member_rect = api_slot_member_rect,
+        .slot_native_size = api_slot_native_size,
         .component_rect = api_component_rect,
         .role_rect = api_role_rect,
         .role_visible = api_role_visible,
@@ -6404,7 +6415,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .panel_set_value = api_panel_set_value,
         .panel_set_height = api_panel_set_height,
         .panel_set_options = api_panel_set_options,
-        .panel_set_badge = api_panel_set_badge,
         .panel_set_attention = api_panel_set_attention,
         .panel_clear = api_panel_clear,
         .panel_invalidate = api_panel_invalidate,
@@ -8352,16 +8362,6 @@ PluginHost_PanelPreferredWidth(struct ToriRS_PluginHost const* host, int plugin_
         !host->panel_registered[plugin_index] )
         return 0;
     return host->panel_preferred_width[plugin_index];
-}
-
-char const*
-PluginHost_PanelBadge(struct ToriRS_PluginHost const* host, int plugin_index)
-{
-    assert(host);
-    if( plugin_index < 0 || plugin_index >= host->plugin_count ||
-        !host->panel_registered[plugin_index] )
-        return "";
-    return host->panel_badge[plugin_index];
 }
 
 bool

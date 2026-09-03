@@ -548,6 +548,18 @@ fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h)
     return 1;
 }
 
+/** The lane states no size for any surface, so a caller falls back to its own.
+ *  @see ToriRS_PluginApi::slot_native_size. */
+static int
+fake_slot_native_size(void* u, int slot, int* w, int* h)
+{
+    (void)u;
+    (void)slot;
+    (void)w;
+    (void)h;
+    return 0;
+}
+
 static int
 fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h)
 {
@@ -718,6 +730,7 @@ main(void)
     e.mouse_pos = fake_mouse_pos;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
+    e.slot_native_size = fake_slot_native_size;
     e.component_rect = fake_component_rect;
     e.role_rect = fake_role_rect;
     e.role_visible = fake_role_visible;

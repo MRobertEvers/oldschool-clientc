@@ -1689,19 +1689,16 @@ panel_start(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
     memset(&desc, 0, sizeof(desc));
     if( index == g_panel_a_index )
     {
-        desc.title = "Alpha tools";
         desc.icon_asset = "alpha.png";
         desc.preferred_width = 100; /* proves the common lower clamp */
     }
     else
     {
-        desc.title = "Beta tools";
         desc.preferred_width = 900; /* and the upper clamp */
     }
     CHECK(g_api->panel_request(ctx, &desc), "EV_START may register panel metadata");
     if( index == g_panel_b_index )
     {
-        CHECK(g_api->panel_set_badge(ctx, "3"), "an inactive rail entry accepts a badge");
         CHECK(
             g_api->panel_set_attention(ctx, true),
             "an inactive rail entry may request attention");
@@ -3047,7 +3044,7 @@ main(void)
     /* ---- one shared application plugin panel ----------------------------- */
     {
         struct ToriRS_PluginHost* hp = PluginHost_New(&engine);
-        struct ToriRS_PluginPanelDesc outside = { "Too late", NULL, 320 };
+        struct ToriRS_PluginPanelDesc outside = { "too-late.png", 320 };
         struct ToriRS_PluginWinWidget const* widget;
         uint32_t gen_a;
         uint32_t gen_b;
@@ -3089,9 +3086,12 @@ main(void)
                 PluginHost_PanelHasPage(hp, g_panel_b_index),
             "both plugins can register entries in the one rail");
         CHECK(
-            strcmp(PluginHost_PanelTitle(hp, g_panel_a_index), "Alpha tools") == 0 &&
-                strcmp(PluginHost_PanelIconAsset(hp, g_panel_a_index), "alpha.png") == 0,
+            strcmp(PluginHost_PanelIconAsset(hp, g_panel_a_index), "alpha.png") == 0,
             "registration metadata is copied into the host");
+        CHECK(
+            strcmp(PluginHost_PanelTitle(hp, g_panel_a_index), "Panel Alpha") == 0,
+            "and the rail entry is named by the PLUGIN, which its page cannot "
+            "rename: the registration carries no title of its own");
         CHECK(
             strcmp(g_engine.last_asset_plugin, "panel-alpha") == 0 &&
                 strcmp(g_engine.last_asset_name, "alpha.png") == 0,
@@ -3166,9 +3166,8 @@ main(void)
                     TORIRS_PLUGIN_PANEL_WIDTH_MAX,
             "preferred width hints are clamped identically for every presenter");
         CHECK(
-            strcmp(PluginHost_PanelBadge(hp, g_panel_b_index), "3") == 0 &&
-                PluginHost_PanelWantsAttention(hp, g_panel_b_index),
-            "badge and attention are retained without opening the page");
+            PluginHost_PanelWantsAttention(hp, g_panel_b_index),
+            "attention is retained without opening the page");
         CHECK(
             PluginHost_PanelActive(hp) == -1 && g_panel_a_builds == 0 &&
                 g_panel_b_builds == 0,

@@ -611,6 +611,10 @@
   }
 
   function clearPage(report = true) {
+    /* Every row the popup holds addresses a widget of the page being torn
+     * down. postWidget would drop them, but a menu left standing over a
+     * cleared pane is a menu about nothing. */
+    popupHide();
     postEditorFocus(false);
     state.widgets.clear();
     clear(content);
@@ -1155,7 +1159,7 @@
     return state.intents.length ? Codec.stringify(state.intents.shift()) : '';
   }
 
-  bind(close, 'click', () => {
+  function postPanelClose() {
     if (state.panel < 0 || !state.pageGeneration) return;
     const intent = normalizeIntent({
       k: INTENT.CLOSE, p: state.panel, w: -1,
@@ -1164,6 +1168,235 @@
     queueEnvelope({
       protocol: PROTOCOL, type: 'widget.intent', sequence: nextSequence(), intent
     }, intent);
+  }
+
+  bind(close, 'click', postPanelClose);
+
+  /* ---- the right-click popup ----------------------------------------------
+   *
+   * The hazard is the HOST VIEW's own context menu, not a gap in this page.
+   * Its Reload entry re-runs the bundle, and the page that comes back has no
+   * rail, no theme and no widgets while the host still believes every
+   * generation and handle it has handed out is live -- the next command it
+   * sends is addressed to a page that cannot answer for it, which is where
+   * the plugin API goes down. So the page cancels the native menu on every
+   * engine and answers the click itself.
+   *
+   * What it answers with is the client's own "Choose Option" popup
+   * (uitree_minimenu.c / emit_minimenu), in CSS: a 16px title bar set in the
+   * BODY colour on black, 15px rows in white that go accent-yellow under the
+   * cursor, and Cancel at the bottom. Rows post the intents the left-click
+   * controls already post -- a right click is another way to press the thing
+   * under it, never a second protocol, so nothing about the host contract
+   * changes.
+   *
+   * The popup is clipped by the host's allocation like every other pixel this
+   * page draws, and the rail's allocation is 42 wide: rail rows are therefore
+   * the reference's own bare verbs, which fit it.
+   */
+
+  /* Desktop layout's click_y_bias (line box 16 - 5): the click lands on the
+   * title bar, as it does in the canvas. */
+  const MINIMENU_CLICK_BIAS = 11;
+  const popup = { back: null, box: null, keydown: null };
+
+  function insideNode(node, ancestor) {
+    for (let at = node; at; at = at.parentNode) if (at === ancestor) return true;
+    return false;
+  }
+
+  function popupHost() {
+    return document.body || shell.parentNode || shell;
+  }
+
+  function popupHide() {
+    const back = popup.back;
+    if (!back) return;
+    popup.back = null;
+    popup.box = null;
+    if (back.parentNode) back.parentNode.removeChild(back);
+    document.onkeydown = popup.keydown || null;
+    popup.keydown = null;
+  }
+
+  function popupKeyDown(event) {
+    event = event || global.event || {};
+    if ((event.keyCode || event.which || 0) !== 27) {
+      if (typeof popup.keydown === 'function') return popup.keydown(event);
+      return undefined;
+    }
+    popupHide();
+    return false;
+  }
+
+  function addRow(rows, label, run) {
+    rows.push({ label: text(label, 63), run });
+  }
+
+  function cancelEvent(event) {
+    if (event.preventDefault) event.preventDefault();
+    event.returnValue = false;
+    return false;
+  }
+
+  /* The editable control a click landed in, or null. A SELECT is editable to
+   * the focus reporter and not to this menu: its own list is the popup. */
+  function fieldOf(node) {
+    if (!node || !node.tagName) return null;
+    const tag = String(node.tagName).toUpperCase();
+    if (tag === 'TEXTAREA') return node;
+    if (tag === 'INPUT' && node.type !== 'checkbox' && node.type !== 'color') return node;
+    return null;
+  }
+
+  function railRows(rows, button) {
+    const pluginIndex = integer(button._tpcPluginIndex, -1);
+    const open = pluginIndex === state.rail.selectedEntry && state.rail.expanded;
+    addRow(rows, open ? 'Hide' : 'Open', () => postRailSelect(button));
+  }
+
+  function toggleRow(rows, record, box) {
+    addRow(rows, record.checked ? 'Turn off' : 'Turn on', () => {
+      box.checked = !record.checked;
+      postWidget(record, INTENT.TOGGLE, box.checked ? 1 : 0);
+    });
+  }
+
+  function recordRows(rows, record) {
+    const caption = trimmed(record.text || record.label);
+    switch (record.kind) {
+      case W.MENUITEM:
+      case W.BUTTON:
+        addRow(rows, caption || 'Select', () => postWidget(record, INTENT.ACTIVATE));
+        break;
+      case W.CHECKBOX:
+        toggleRow(rows, record, record.control);
+        break;
+      case W.LISTROW:
+        if (record.shape & (ROW_ACTION | ROW_LOCKED))
+          addRow(rows, 'Settings', () => postWidget(record, INTENT.ACTION));
+        if (record.toggle) toggleRow(rows, record, record.toggle);
+        break;
+      case W.CUSTOM:
+        addRow(rows, caption || 'Select', () => postWidget(record, INTENT.CUSTOM_ACTIVATE));
+        break;
+      default:
+        break;
+    }
+  }
+
+  /* Cut and copy act on the selection the click left standing, and are left
+   * out when there is none -- which is the greying-out the native menu does.
+   * Paste is not offered because no engine here permits a scripted one; the
+   * keyboard still pastes. */
+  function fieldRows(rows, field) {
+    const selection = typeof field.selectionStart === 'number' &&
+      typeof field.selectionEnd === 'number'
+      ? field.selectionEnd > field.selectionStart : true;
+    const command = name => {
+      if (field.focus) field.focus();
+      try { document.execCommand(name); }
+      catch (error) { /* An engine that refuses the edit leaves the field alone. */ }
+    };
+    if (selection) {
+      addRow(rows, 'Copy', () => command('copy'));
+      addRow(rows, 'Cut', () => command('cut'));
+    }
+    addRow(rows, 'Select all', () => {
+      if (field.focus) field.focus();
+      if (field.select) field.select();
+    });
+  }
+
+  function popupRowsFor(target) {
+    const rows = [];
+    const host = popupHost();
+    let record = null;
+    let railButton = null;
+    let field = null;
+    for (let node = target; node && node !== host; node = node.parentNode) {
+      if (!field) field = fieldOf(node);
+      if (!record && node._tpcRecord) record = node._tpcRecord;
+      if (!railButton && integer(node._tpcPluginIndex, -1) !== -1) railButton = node;
+    }
+    if (railButton) railRows(rows, railButton);
+    else if (record) recordRows(rows, record);
+    if (field) fieldRows(rows, field);
+    if (!railButton && state.panel >= 0 && state.pageGeneration)
+      addRow(rows, 'Close', postPanelClose);
+    addRow(rows, 'Cancel', popupHide);
+    return rows;
+  }
+
+  function popupPlace(x, y) {
+    const doc = document.documentElement || {};
+    const viewWidth = integer(doc.clientWidth, 0) || integer(global.innerWidth, 0);
+    const viewHeight = integer(doc.clientHeight, 0) || integer(global.innerHeight, 0);
+    const width = integer(popup.box.offsetWidth, 0);
+    const height = integer(popup.box.offsetHeight, 0);
+    let left = x - Math.floor(width / 2);
+    let top = y - MINIMENU_CLICK_BIAS;
+    if (width && viewWidth && left + width > viewWidth) left = viewWidth - width;
+    if (height && viewHeight && top + height > viewHeight) top = viewHeight - height;
+    if (left < 0) left = 0;
+    if (top < 0) top = 0;
+    popup.box.style.left = `${left}px`;
+    popup.box.style.top = `${top}px`;
+  }
+
+  function popupShow(rows, x, y) {
+    popupHide();
+    if (!rows.length) return;
+    const back = document.createElement('div');
+    back.className = 'tpc-minimenu-backdrop';
+    const box = document.createElement('div');
+    box.className = 'tpc-minimenu';
+    const heading = document.createElement('div');
+    heading.className = 'tpc-minimenu-title';
+    setText(heading, 'Choose Option');
+    box.appendChild(heading);
+    const list = document.createElement('div');
+    list.className = 'tpc-minimenu-list';
+    for (let i = 0; i < rows.length; i++) {
+      const entry = rows[i];
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'tpc-minimenu-option';
+      option.title = entry.label;
+      setText(option, entry.label);
+      bind(option, 'click', () => {
+        popupHide();
+        entry.run();
+      });
+      list.appendChild(option);
+    }
+    box.appendChild(list);
+    back.appendChild(box);
+    /* The backdrop is what dismisses the popup, so no document-wide mouse
+     * handler has to exist for it -- a press on the popup itself is the row's
+     * own, and every other press closes. */
+    bind(back, 'mousedown', event => {
+      event = event || global.event || {};
+      if (insideNode(event.target || event.srcElement, box)) return undefined;
+      popupHide();
+      return cancelEvent(event);
+    });
+    popupHost().appendChild(back);
+    popup.back = back;
+    popup.box = box;
+    popup.keydown = document.onkeydown;
+    document.onkeydown = popupKeyDown;
+    popupPlace(x, y);
+  }
+
+  bind(document, 'contextmenu', event => {
+    event = event || global.event || {};
+    const target = event.target || event.srcElement || null;
+    const repeat = popup.box && insideNode(target, popup.box);
+    popupHide();
+    if (!repeat)
+      popupShow(popupRowsFor(target), integer(event.clientX, 0), integer(event.clientY, 0));
+    return cancelEvent(event);
   });
 
   bind(content, 'focusin', event => {
@@ -1186,7 +1419,12 @@
     else settle();
   });
 
-  global.onresize = reportLayout;
+  /* A resize moves everything the popup was pointing at, and the host resizes
+   * this view whenever a page opens or closes. */
+  global.onresize = () => {
+    popupHide();
+    reportLayout();
+  };
   sizeLegacyViewport();
 
   return {

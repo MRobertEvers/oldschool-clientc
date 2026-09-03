@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 25
+#define TORIRS_PLUGIN_ABI 26
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -1101,9 +1101,6 @@ struct ToriRS_PluginEvUi
 /* Application plugin panel (ABI 21)                                        */
 /* ------------------------------------------------------------------------ */
 
-/** Bytes retained for a rail badge, terminator included. Badges are short
- *  status hints, not a second page title. */
-#define TORIRS_PLUGIN_PANEL_BADGE_MAX 24
 /** The default and bounded width hints used by every shell presenter. */
 #define TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT 320
 #define TORIRS_PLUGIN_PANEL_WIDTH_MIN 280
@@ -1116,8 +1113,18 @@ struct ToriRS_PluginEvUi
 /** Inert rail metadata copied by panel_request during EV_START. */
 struct ToriRS_PluginPanelDesc
 {
-    /** Human-facing page title. NULL or empty uses the plugin's title. */
-    char const* title;
+    /**
+     * There is no title here, and that absence is the point.
+     *
+     * A plugin's name is `ToriRS_PluginDef::title` -- the one a person sees in
+     * the roster, beside its switch, and against its saved settings. Letting
+     * `panel_request` supply a second one made the name a thing a plugin could
+     * change at runtime: two plugins could claim one spelling, a row could
+     * stop matching the settings section it opens, and the name in the roster
+     * could differ from the name in the manifest with nothing to say which was
+     * real. The def's title is the identity, and identity is not the page's to
+     * edit.
+     */
     /** Optional sandboxed PNG asset name. The host loads it automatically;
      * malformed, over-budget, or larger-than-64x64 art uses the baked wrench.
      * NULL or empty asks for that fallback directly. */
@@ -4032,8 +4039,16 @@ struct ToriRS_PluginApi
         char const* choices,
         int selected);
 
-    /** Update rail state without selecting the page. */
-    bool (*panel_set_badge)(struct ToriRS_PluginCtx* ctx, char const* text);
+    /**
+     * Ask for the rail entry to be marked as wanting attention.
+     *
+     * A FLAG and not a caption, and there is deliberately no verb next to it
+     * that takes a string. The rail is a strip of icons: text there is either
+     * unreadable at icon size or it grows the strip to fit, and a plugin that
+     * can write into it can write anything -- a second name, a number, a
+     * sentence. What a plugin may say from the rail is "look at me", and how
+     * that is shown is the presenter's.
+     */
     bool (*panel_set_attention)(struct ToriRS_PluginCtx* ctx, bool attention);
 
     /** Clear the selected page's semantic nodes. Outside its build event this
@@ -4133,6 +4148,48 @@ struct ToriRS_PluginApi
         int source_id,
         int iter,
         struct ToriRS_PluginLootRow* out);
+
+    /* -- ABI 26 append: what size a live surface wants to be -------------- */
+
+    /**
+     * The size the lane AUTHORED for a live surface, before any layout placed
+     * it. Either output may be NULL.
+     *
+     * The question a frame has to ask about the chatbox and cannot ask about
+     * anything else it draws. Every other piece of a layout is the plugin's
+     * own art at whatever size the plugin chose; the chat is a surface with a
+     * fixed interior -- a message column, a scrollbar beside it, an input line
+     * under a rule -- and that interior is the LANE's. A 2004 revconfig frame
+     * spells it 479x96 (`[component:chat_region]`, w=479 h=96, and the chat
+     * renderer clips its messages to 463 and rules its input line at y+77 to
+     * match); an OldSchool cache mounts interface 162 into a 519x165 layer and
+     * the pack inside it is built against those. Neither number is derivable
+     * from the other, and a frame that guesses draws its backing to the wrong
+     * shape on whichever lane it guessed against.
+     *
+     * Both of those numbers were constants in mobile_gameframe.c before this
+     * verb existed, which is the shape of the bug it removes: a plugin cannot
+     * read a cache, so a hard-coded 479x96 is a claim about every revision the
+     * frame will ever be loaded on -- and it is already false on two of them.
+     *
+     * NOT the box the surface currently occupies: that is slot_rect, and while
+     * a layout plugin is running it is whatever that plugin last declared, so
+     * reading it to decide what to declare is a plugin asking itself. This is
+     * the other number -- the one the surface came with.
+     *
+     * @return 1 when this gameframe has that surface AND the lane gave it a
+     * size in pixels. 0 when the frame has no such surface, and 0 when its
+     * size is a proportion of something else -- an IF3 component sized as a
+     * fraction of its parent has no native size to report, and answering with
+     * the raw authored number would report "40" for a node that is 40% wide.
+     * A caller that gets 0 sizes the surface itself, exactly as it did before
+     * it could ask.
+     */
+    int (*slot_native_size)(
+        struct ToriRS_PluginCtx* ctx,
+        int slot,
+        int* out_w,
+        int* out_h);
 };
 
 /* ------------------------------------------------------------------------ */

@@ -109,8 +109,6 @@ static struct
     struct FakeConfig config[FAKE_CONFIG];
     int config_count;
 
-    char panel_title[64];
-    char badge[TORIRS_PLUGIN_PANEL_BADGE_MAX];
     bool attention;
 
     char notify[200];
@@ -333,10 +331,10 @@ static bool
 fake_panel_request(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginPanelDesc const* desc)
 {
     (void)ctx;
+    (void)desc;
     assert(desc);
-    snprintf(
-        g_client.panel_title, sizeof(g_client.panel_title), "%s",
-        desc->title ? desc->title : "");
+    /* The registration carries icon and width only: the entry is named by the
+     * plugin, so there is nothing here for the fake to record. */
     return true;
 }
 
@@ -398,14 +396,6 @@ fake_panel_set_height(struct ToriRS_PluginCtx* ctx, char const* id, int height)
     if( !w )
         return false;
     w->height = height;
-    return true;
-}
-
-static bool
-fake_panel_set_badge(struct ToriRS_PluginCtx* ctx, char const* text)
-{
-    (void)ctx;
-    snprintf(g_client.badge, sizeof(g_client.badge), "%s", text ? text : "");
     return true;
 }
 
@@ -644,7 +634,6 @@ api_init(void)
     g_api.panel_set_text = fake_panel_set_text;
     g_api.panel_set_value = fake_panel_set_value;
     g_api.panel_set_height = fake_panel_set_height;
-    g_api.panel_set_badge = fake_panel_set_badge;
     g_api.panel_set_attention = fake_panel_set_attention;
     g_api.panel_clear = fake_panel_clear;
     g_api.panel_invalidate = fake_panel_invalidate;
@@ -896,11 +885,10 @@ test_xp_first_reading_seeds(void)
     /* Every stat arrives at once on login and none of it is a gain. */
     tick(20);
     TEST_ASSERT(
-        g_client.badge && g_client.badge[0] == '\0',
-        "the first sight of a stat table seeds rather than reporting a gain, so the "
-        "rail carries no badge at all (got '%s')",
-        g_client.badge ? g_client.badge : "(none)");
-    TEST_ASSERT(box_count() == 0, "and no skill has a box until it has been trained");
+        box_count() == 0,
+        "the first sight of a stat table seeds rather than reporting a gain, so no "
+        "skill has a box until it has been trained (got %d)",
+        box_count());
     TEST_ASSERT(
         fake_widget_find("boxes") != NULL,
         "the strip is still declared -- its overview box states the empty session");
@@ -918,11 +906,13 @@ test_xp_gain_makes_a_row(void)
     tick(600);
 
     TEST_ASSERT(box_count() == 1, "a trained skill gets a box (got %d)", box_count());
-    TEST_ASSERT(
-        g_client.badge && strcmp(g_client.badge, "100") == 0,
-        "the session total is the gain (got '%s')",
-        g_client.badge ? g_client.badge : "(none)");
     TEST_ASSERT(!fake_widget_find("empty"), "and the empty note is gone");
+
+    press_box(0);
+    TEST_ASSERT(
+        row_text("d_gained") && strcmp(row_text("d_gained"), "100") == 0,
+        "and the box reads the gain back (got %s)",
+        row_text("d_gained") ? row_text("d_gained") : "(none)");
 }
 
 static void
@@ -941,8 +931,8 @@ test_xp_rate_is_over_training_time(void)
         g_client.xp[SKILL_WOODCUTTING] += 10;
         tick(1000);
     }
-    /* The RATE is the box's and the detail block's; the badge carries the
-     * session's gained xp, which is the figure worth reading off the rail. */
+    /* The rate is the box's and the detail block's -- the strip has no room
+     * to state it, so the detail block is where it can be read at all. */
     press_box(0);
     TEST_ASSERT(
         row_text("d_hr") && strcmp(row_text("d_hr"), "36,000") == 0,
@@ -1117,16 +1107,16 @@ test_xp_pause(void)
         row_text("d_pause") ? row_text("d_pause") : "(none)");
     /*
      * A pause stops the CLOCK, not the record: the xp you earned is still
-     * earned, so the badge keeps it and the per-skill rate keeps its last
+     * earned, so the record keeps it and the per-skill rate keeps its last
      * measurement. That the clock stops is pinned by
      * test_xp_rate_is_over_training_time, which is the assertion that can
      * actually see it; what belongs here is that pausing does not quietly
      * throw the session away.
      */
     TEST_ASSERT(
-        g_client.badge && strcmp(g_client.badge, "600") == 0,
-        "and pausing keeps the xp already earned (got '%s')",
-        g_client.badge ? g_client.badge : "(none)");
+        row_text("d_gained") && strcmp(row_text("d_gained"), "600") == 0,
+        "and pausing keeps the xp already earned (got %s)",
+        row_text("d_gained") ? row_text("d_gained") : "(none)");
 
     press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
     TEST_ASSERT(
@@ -1177,11 +1167,11 @@ test_xp_logout_pauses_and_keeps_state(void)
 
     g_client.logged_in = false;
     tick(1000);
-    TEST_ASSERT(
-        g_client.badge && strcmp(g_client.badge, "600") == 0,
-        "logging out KEEPS the session -- a hop is not a new one (got '%s')",
-        g_client.badge ? g_client.badge : "(none)");
     press_box(0);
+    TEST_ASSERT(
+        row_text("d_gained") && strcmp(row_text("d_gained"), "600") == 0,
+        "logging out KEEPS the session -- a hop is not a new one (got %s)",
+        row_text("d_gained") ? row_text("d_gained") : "(none)");
     TEST_ASSERT(
         row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
         "and pauses every skill when pause_on_logout is set (got '%s')",
@@ -1199,19 +1189,25 @@ test_xp_reset(void)
     tick(1000);
     TEST_ASSERT(box_count() == 1, "trained, so it has a box");
 
-    press("reset_all", TORIRS_PLUGIN_UI_ACTIVATE, -1);
-    TEST_ASSERT(box_count() == 0, "reset all takes the boxes with it");
+    /*
+     * Per SKILL, through the box's own detail block, which is where the reset
+     * lives now: the page carries no "Reset all" row, because the tracker this
+     * is a port of has no such control -- its resets are ops on a row.
+     */
+    press_box(0);
+    press("d_reset", TORIRS_PLUGIN_UI_ACTIVATE, -1);
     TEST_ASSERT(
-        g_client.badge && g_client.badge[0] == '\0',
-        "and zeroes the session, which takes the rail badge with it (got '%s')",
-        g_client.badge ? g_client.badge : "(none)");
+        box_count() == 0,
+        "resetting the skill zeroes the session and takes its box with it (got %d)",
+        box_count());
 
     /* And it re-seeds rather than counting the current xp as a gain. */
     tick(1000);
     TEST_ASSERT(
-        g_client.badge && g_client.badge[0] == '\0',
-        "the reset re-seeds from the client's xp (got '%s')",
-        g_client.badge ? g_client.badge : "(none)");
+        box_count() == 0,
+        "the reset re-seeds from the client's xp rather than banking it as a gain "
+        "(got %d)",
+        box_count());
 }
 
 static void
@@ -1242,10 +1238,11 @@ test_xp_offline_gains_are_not_the_session(void)
     dispatch(TORIRS_PLUGIN_EV_START, NULL);
     panel_build();
     tick(20);
+    press_box(0);
     TEST_ASSERT(
-        g_client.badge && strcmp(g_client.badge, "600") == 0,
-        "the saved session comes back and the offline million does not (got '%s')",
-        g_client.badge ? g_client.badge : "(none)");
+        row_text("d_gained") && strcmp(row_text("d_gained"), "600") == 0,
+        "the saved session comes back and the offline million does not (got %s)",
+        row_text("d_gained") ? row_text("d_gained") : "(none)");
 }
 
 /* ====================================================================== */
@@ -1453,7 +1450,7 @@ test_loot_expand_collapse(void)
 }
 
 static void
-test_loot_badge_and_attention(void)
+test_loot_attention(void)
 {
     struct ToriRS_PluginEvGameEvent ev;
 
@@ -1462,9 +1459,6 @@ test_loot_badge_and_attention(void)
 
     loot_add("Goblin", 1319, 1, 100000, 1);
     settle();
-    TEST_ASSERT(
-        strcmp(g_client.badge, "100K") == 0,
-        "the rail badge carries the session's value (got '%s')", g_client.badge);
 
     memset(&ev, 0, sizeof(ev));
     ev.kind = "valuable_drop";
@@ -1572,7 +1566,7 @@ main(void)
     test_loot_ignored_source();
     test_loot_ignore_button();
     test_loot_expand_collapse();
-    test_loot_badge_and_attention();
+    test_loot_attention();
 
     test_settings_face_is_the_generated_form();
     test_hidden_page_does_no_work();

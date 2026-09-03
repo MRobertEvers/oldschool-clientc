@@ -201,6 +201,37 @@ frame_node_is_slot(
 }
 
 int
+UITree_FrameSlotNativeSize(
+    struct UITree const* tree,
+    int slot,
+    int* out_w,
+    int* out_h)
+{
+    struct UITreeComponent const* c;
+    int32_t node;
+
+    assert(tree);
+    node = UITree_FrameSlotNode(tree, slot);
+    if( node < 0 )
+        return 0;
+    c = &tree->components[node];
+    /* A relative node's box is its parent's arithmetic and has no size of its
+     * own to report; a moded one's `width` is a percentage or a delta, and
+     * handing that number back as pixels is worse than answering nothing. */
+    if( c->position.kind != UIPOS_XY )
+        return 0;
+    if( c->position.width_mode > 0 || c->position.height_mode > 0 )
+        return 0;
+    if( c->position.width <= 0 || c->position.height <= 0 )
+        return 0;
+    if( out_w )
+        *out_w = c->position.width;
+    if( out_h )
+        *out_h = c->position.height;
+    return 1;
+}
+
+int
 UITree_FrameSlotIndex(
     struct UITreeComponent const* node,
     int slot)
