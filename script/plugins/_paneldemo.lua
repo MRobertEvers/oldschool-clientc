@@ -6,8 +6,9 @@ local presses = 0
 local visible = false
 
 function M.on_start(api)
+  -- No title: the rail entry is named by M.title above, and a page cannot
+  -- rename the plugin it belongs to.
   api.panel.request({
-    title = "Panel Demo",
     icon_asset = "panel_icon.png",
     preferred_width = 320
   })

@@ -164,8 +164,11 @@ struct ToriRS_PluginEngine
      * One PLACEABLE region's box, plus CANVAS. @see
      * ToriRS_PluginApi::slot_rect.
      *
-     * SAFE_GAMECHROME is deliberately not here: it is derived from these plus the host's
-     * own reservation table, and the host is the only thing that holds both.
+     * The two SAFE regions are deliberately not here: SAFE_GAMECHROME is
+     * derived from these plus the host's own reservation table, and the host
+     * is the only thing that holds both; SAFE_LANECHROME is CANVAS minus the
+     * `lane_chrome_<n>` roles, and is derived beside it so there is one
+     * subtraction rule rather than two.
      */
     int (*slot_rect)(
         void* user, int slot, int* out_x, int* out_y, int* out_w, int* out_h);
@@ -196,9 +199,12 @@ struct ToriRS_PluginEngine
      * answer has to be taken and used in one step: a role bound to a
      * script-built component is only true until that subtree is next rebuilt.
      *
-     * `safe_gamechrome` is the exception the engine cannot answer, for the same reason it
-     * cannot answer SLOT_SAFE_GAMECHROME: it is derived from the reservation table, which
-     * is the host's. The host intercepts that one name before it gets here. */
+     * `safe_gamechrome` and `safe_lanechrome` are the exceptions the engine
+     * cannot answer, for the same reason it cannot answer their slots: both are
+     * derived, one from the reservation table and one from the canvas, and both
+     * are derived in the host. It intercepts those two names before they get
+     * here. The `lane_chrome_<n>` roles the second is built from are ordinary
+     * profile roles and DO come here. */
 
     /** Where a role's element is. @see ToriRS_PluginApi::role_rect. */
     int (*role_rect)(

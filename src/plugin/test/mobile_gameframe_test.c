@@ -487,7 +487,46 @@ static int fake_draw_text(void* u, int x, int y, char const* t, uint32_t r) { (v
 static int fake_draw_rect(void* u, int x, int y, int w, int h, uint32_t c, int a) { (void)u; (void)x; (void)y; (void)w; (void)h; (void)c; (void)a; return 0; }
 static void fake_draw_select_canvas(void* u, int c) { (void)u; (void)c; }
 static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; return 0; }
-static int fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)x; (void)y; (void)w; (void)h; return 0; }
+
+/* The canvas every test below declares against. Above the fakes because
+ * fake_slot_rect and fake_role_rect both answer boxes measured from its
+ * edges. */
+#define M_W 1020
+#define M_H 460
+
+/*
+ * The lane's own side-tab rail: 42 columns down the right edge, full height.
+ *
+ * The OldSchool pop-out panel's collapsed state, which is a mounted interface
+ * of its own and survives a frame claim. Zero for the lanes that have none,
+ * which is every dat1 one and the mobile toplevel.
+ */
+static int g_lane_rail_w = 0;
+/*
+ * CANVAS, and nothing else.
+ *
+ * The one region the engine answers here, because it is the one the host
+ * derives SAFE_LANECHROME from -- and answering the placeable roles as well
+ * would be this fake telling the plugin where it just put things. 0 for every
+ * other slot leaves each test's expectations resting on the declaration.
+ *
+ * Off by default so that every test written before the region existed still
+ * exercises the "this lane occludes nothing" fallback: with no canvas to
+ * subtract from, the derivation fails and the frame lays out on the window.
+ */
+static int g_canvas_answered = 0;
+static int
+fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( slot != TORIRS_PLUGIN_SLOT_CANVAS || !g_canvas_answered )
+        return 0;
+    if( x ) *x = 0;
+    if( y ) *y = 0;
+    if( w ) *w = M_W;
+    if( h ) *h = M_H;
+    return 1;
+}
 static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)m; (void)x; (void)y; (void)w; (void)h; return 0; }
 /*
  * What the LANE says its chat surface is, or 0x0 for a lane that will not say.
@@ -523,11 +562,6 @@ static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) {
  * and the same fake answers 0 for every name, which is what makes "this
  * revision has no such part" the tested case too.
  */
-/* The canvas every test below declares against. Above the fakes because
- * fake_role_rect answers boxes measured from its bottom edge. */
-#define M_W 1020
-#define M_H 460
-
 static int g_chat_pieces_exist = 0;
 static int
 fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h)
@@ -535,6 +569,18 @@ fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h)
     int bx = 0, by = 0, bw = 0, bh = 0;
 
     (void)u;
+    /* Named before the chat gate below: the rail is a fact about the LANE and
+     * is there whether or not the chat pack has been mounted. */
+    if( strcmp(r, "lane_chrome_0") == 0 )
+    {
+        if( g_lane_rail_w <= 0 )
+            return 0;
+        if( x ) *x = M_W - g_lane_rail_w;
+        if( y ) *y = 0;
+        if( w ) *w = g_lane_rail_w;
+        if( h ) *h = M_H;
+        return 1;
+    }
     if( !g_chat_pieces_exist )
         return 0;
     if( strcmp(r, "chat_backing") == 0 )
@@ -560,7 +606,20 @@ fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h)
     if( h ) *h = bh;
     return 1;
 }
-static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
+/*
+ * Only the rail, and only while the lane has one.
+ *
+ * The derivation asks this as well as role_rect because a piece that resolves
+ * and is HIDDEN is not an occluder -- the mobile toplevel mounts the pop-out
+ * panel and keeps it away, and a hidden rail that still ate its columns would
+ * move a phone frame's furniture in from an edge nothing is standing on.
+ */
+static int
+fake_role_visible(void* u, char const* r)
+{
+    (void)u;
+    return strcmp(r, "lane_chrome_0") == 0 && g_lane_rail_w > 0;
+}
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
 /* A part exists for the chrome tier exactly when the profile binds a node to
  * its name, which on this fake is the same set fake_role_rect answers for. */
@@ -1522,6 +1581,100 @@ main(void)
             slot_is(
                 TORIRS_PLUGIN_SLOT_CHAT, M_CHAT_FRINGE, M_CHAT_Y(M_H), M_CHAT_W, M_CHAT_H),
             "a lane with no size to state falls back to the builtin's 479x96");
+    }
+
+    /*
+     * A lane that keeps a side-tab rail down the right edge.
+     *
+     * The OldSchool pop-out panel: 42 columns, full height, a mounted
+     * interface of its own so a frame claim neither owns it nor hides it, and
+     * `noclickthrough` so anything drawn under it cannot be pressed either.
+     * The frame used to pin its rail to `canvas_w` and put seven of the
+     * fourteen stones behind it -- drawn where nothing could reach them, and
+     * the map housing lost its right-hand arc to the same strip.
+     *
+     * So every right-pinned piece moves in by the rail's width, and the proof
+     * is that it moves by EXACTLY that: a frame that had simply been given a
+     * narrower canvas would also have moved the chat and the switches, which
+     * are pinned to the left and must not budge.
+     */
+    {
+        int const rail = 42;
+        int const free_w = M_W - rail;
+        int const rail_x = free_w - M_MARGIN - M_RAIL_W;
+        int const map_x = free_w - M_MARGIN - M_MAP_W;
+
+        g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+        g_chat_native_w = 0;
+        g_chat_native_h = 0;
+        g_chat_pieces_exist = 0;
+        g_canvas_answered = 1;
+        g_lane_rail_w = rail;
+        PluginHost_ConfigSet(g_host, g_plugin, "art", "Classic");
+        PluginHost_FrameStart(g_host, 3400, 0);
+        declare(M_W, M_H);
+        draw(M_W, M_H);
+
+        CHECK(
+            slot_is(
+                TORIRS_PLUGIN_SLOT_MINIMAP,
+                map_x + M_MAP_HOLE_X,
+                M_MARGIN + M_MAP_HOLE_Y,
+                146,
+                151),
+            "the map moves in by the rail's width, not the window's edge");
+        CHECK(
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x,
+            "and its housing with it, so the ring keeps its right-hand arc");
+        /*
+         * The rail's far column ends where the lane's rail begins, with the
+         * frame's own margin between them: 90 columns of stone that used to
+         * run under 42 columns of someone else's.
+         */
+        CHECK(
+            rail_x + M_RAIL_W == M_W - rail - M_MARGIN,
+            "and the fourteen-tab rail stops clear of the lane's own");
+        {
+            int seen = 0;
+            for( int i = 0; i < g_frame.regions && i < 64; i++ )
+                if( (g_frame.region_tag[i] & ~0xffffu) == M_TAG_TAB )
+                    seen += g_frame.region_x[i] >= M_W - rail ? -64 : 1;
+            CHECK(seen == 14, "with all fourteen tap targets clear of the rail");
+        }
+        /* Pinned to the LEFT, so the cut must not have reached them: this is
+         * what tells "laid out in the free box" apart from "handed a narrower
+         * canvas". */
+        CHECK(
+            slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, M_W, M_H),
+            "the scene still fills the whole window -- the rail floats on it");
+        {
+            int left = 0;
+            for( int i = 0; i < g_frame.regions && i < 64; i++ )
+                if( g_frame.region_tag[i] == M_TAG_CHAT )
+                    left = g_frame.region_x[i] == M_MARGIN;
+            CHECK(left, "and the chat switch stays on the window's left edge");
+        }
+
+        /*
+         * A rail that resolves and is HIDDEN occludes nothing.
+         *
+         * The mobile toplevel mounts the same interface and keeps it away, so
+         * a derivation that counted every piece it could resolve would move a
+         * phone frame's furniture in from an edge nothing is standing on.
+         */
+        g_lane_rail_w = 0;
+        PluginHost_FrameStart(g_host, 3500, 0);
+        declare(M_W, M_H);
+        CHECK(
+            slot_is(
+                TORIRS_PLUGIN_SLOT_MINIMAP,
+                M_W - M_MARGIN - M_MAP_W + M_MAP_HOLE_X,
+                M_MARGIN + M_MAP_HOLE_Y,
+                146,
+                151),
+            "a lane with no rail on screen puts the map back on the window's edge");
+        g_canvas_answered = 0;
     }
 
     PluginHost_Free(g_host);

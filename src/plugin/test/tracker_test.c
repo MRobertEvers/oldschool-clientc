@@ -96,6 +96,11 @@ static struct
     bool logged_in;
     struct ToriRS_PluginPlayerSnap me;
     int xp[FAKE_SKILLS];
+    /* Whether the SERVER has stated this skill. The client seeds a fresh
+     * account's defaults so its value scripts evaluate before a session
+     * exists, so "no reading" is a state the engine reports rather than a
+     * zero in the table.  app_plugin_stat_xp. */
+    bool xp_stated[FAKE_SKILLS];
     int level[FAKE_SKILLS];
 
     struct FakeWidget widget[FAKE_WIDGETS];
@@ -207,6 +212,8 @@ fake_stat_xp(
 {
     (void)ctx;
     if( skill < 0 || skill >= FAKE_SKILLS )
+        return 0;
+    if( !g_client.xp_stated[skill] )
         return 0;
     if( out_xp )
         *out_xp = g_client.xp[skill];
@@ -852,7 +859,12 @@ client_reset(void)
     g_client.me.true_z = 3200;
     g_client.me.level = 0;
     for( int i = 0; i < FAKE_SKILLS; i++ )
+    {
         g_client.level[i] = 1;
+        /* The ordinary case is a logged-in client whose stats have arrived; the
+         * one test about the moment before that clears this itself. */
+        g_client.xp_stated[i] = true;
+    }
 }
 
 /* ====================================================================== */
@@ -892,6 +904,52 @@ test_xp_first_reading_seeds(void)
     TEST_ASSERT(
         fake_widget_find("boxes") != NULL,
         "the strip is still declared -- its overview box states the empty session");
+}
+
+/*
+ * A stat table nobody has stated yet is not a reading of zero.
+ *
+ * The client seeds RS_PlayerStats with what a FRESH ACCOUNT has, so that its
+ * CS1 value scripts evaluate before any session exists -- which means the
+ * pre-login table is not empty, it is somebody else's. stat_xp answers "no
+ * reading" for a skill the server has not stated, and a tracker that seeded
+ * from one anyway takes the login burst, where the whole account arrives at
+ * once, as one enormous gain. That is what the panel showed: a session that
+ * snapped to the character's total the moment it appeared.
+ */
+static void
+test_xp_untransmitted_table_is_not_a_reading(void)
+{
+    client_reset();
+    for( int i = 0; i < FAKE_SKILLS; i++ )
+        g_client.xp_stated[i] = false;
+    xp_start();
+    tick(20);
+    tick(1000);
+    TEST_ASSERT(
+        box_count() == 0,
+        "a table the server has not stated trains nothing (got %d)", box_count());
+
+    /* The login burst: a levelled account, every skill at once. */
+    for( int i = 0; i < FAKE_SKILLS; i++ )
+        g_client.xp_stated[i] = true;
+    g_client.xp[SKILL_WOODCUTTING] = 13034431;
+    g_client.level[SKILL_WOODCUTTING] = 99;
+    tick(1000);
+    TEST_ASSERT(
+        box_count() == 0,
+        "and arriving is a SEED, not thirteen million xp of gain (got %d)",
+        box_count());
+
+    /* Only what is cut afterwards belongs to the session. */
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    TEST_ASSERT(box_count() == 1, "the first real gain opens the box");
+    press_box(0);
+    TEST_ASSERT(
+        row_text("d_gained") && strcmp(row_text("d_gained"), "100") == 0,
+        "and the session is that gain alone (got %s)",
+        row_text("d_gained") ? row_text("d_gained") : "(none)");
 }
 
 static void
@@ -1547,6 +1605,7 @@ main(void)
     api_init();
 
     test_xp_first_reading_seeds();
+    test_xp_untransmitted_table_is_not_a_reading();
     test_xp_gain_makes_a_row();
     test_xp_rate_is_over_training_time();
     test_xp_detail_and_time_to_level();

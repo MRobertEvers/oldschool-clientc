@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 26
+#define TORIRS_PLUGIN_ABI 27
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -1668,8 +1668,44 @@ enum ToriRS_PluginLayoutSlot
      */
     TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME,
 
+    /**
+     * The canvas minus the lane furniture a frame claim does NOT take over.
+     *
+     * The region a LAYOUT declares into, and the one thing a frame plugin
+     * cannot work out from the canvas: a cache gameframe carries chrome that
+     * is not one of the placeable roles above and is not the toplevel's own
+     * decoration either -- the CS2 side-tab rail is a mounted interface of its
+     * own (`popout`, 728 on OldSchool), pinned to the right edge for the whole
+     * height of the window. A claim neither owns it nor suppresses it: it is a
+     * working control with its own ops, and it is `noclickthrough`, so a
+     * layout that pinned its own rail to `canvas_w` put seven tab stones under
+     * a click-blocker and drew them where nothing could press them.
+     *
+     * LANECHROME names the occluder, the same way GAMECHROME does above, and
+     * the two are different questions: that one is the canvas minus what the
+     * frame ITSELF put on screen, and is what a readout wants; this one is the
+     * canvas minus what the frame is not allowed to move, and is what the
+     * frame wants. A dat1 lane has no such furniture and answers the whole
+     * canvas, which is why a layout can read this unconditionally.
+     *
+     * DERIVED from the profile's `lane_chrome_<n>` roles: the engine resolves
+     * each against the live toplevel and the host cuts every one that is on
+     * screen out of the canvas. A revision that names none answers CANVAS.
+     */
+    TORIRS_PLUGIN_SLOT_SAFE_LANECHROME,
+
     TORIRS_PLUGIN_SLOT_COUNT
 };
+
+/**
+ * Lane-chrome pieces one revision may name -- `lane_chrome_0` upwards.
+ *
+ * The rails, docks and strips a cache gameframe mounts that a plugin frame has
+ * to lay out AROUND. OldSchool has exactly one; the ceiling is here so the
+ * derivation is a bounded loop over role names rather than an open scan, and
+ * a profile that names more says so by adding a role and nothing else.
+ */
+#define TORIRS_PLUGIN_LANECHROME_MAX 8
 
 /** Which side of a region a reservation eats. @see layout_reserve. */
 enum ToriRS_PluginEdge
@@ -3055,7 +3091,8 @@ struct ToriRS_PluginApi
      *
      * `role` is the profile's own spelling, and the well-known ones are the
      * regions (`viewport`, `minimap`, `compass`, `chat`, `sidebar`,
-     * `main_modal`, `chat_buttons`, `canvas`, `safe_gamechrome`) plus whatever elements
+     * `main_modal`, `chat_buttons`, `canvas`, `safe_gamechrome`,
+     * `safe_lanechrome`) plus whatever elements
      * a profile has named. The vocabulary is OPEN: a role nobody declared is
      * not an error, it is a role this revision does not have.
      *

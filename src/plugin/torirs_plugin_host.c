@@ -1422,6 +1422,54 @@ plugin_safe_gamechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* o
 }
 
 /**
+ * SAFE_LANECHROME: the canvas with the lane's own immovable furniture taken out.
+ *
+ * The `lane_chrome_<n>` roles, resolved by the engine against whichever
+ * toplevel is live and cut out of the CANVAS one at a time with the same
+ * subtraction the region above uses. Starts from CANVAS and not from VIEWPORT,
+ * which is the opposite of SAFE_GAMECHROME and deliberate: this is the box a
+ * layout DECLARES into, and the viewport is one of the things it declares, so
+ * deriving it from the viewport would be reading the answer back.
+ *
+ * A piece that is off screen is not an occluder -- role_visible, not merely
+ * role_rect: the OldSchool side-tab rail is mounted on the mobile toplevel too
+ * and hidden there, and a hidden rail that still ate 42 columns would move a
+ * phone frame's furniture in from an edge nothing is standing on.
+ *
+ * Numbered rather than enumerated because a role is resolved LIVE by name and
+ * the host holds no role table; the loop stops at the first name the profile
+ * has not declared, so a revision with none costs one failed lookup.
+ */
+static int
+plugin_safe_lanechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* out)
+{
+    struct PluginRect box;
+
+    assert(host);
+    assert(out);
+
+    if( !plugin_engine_rect(host, TORIRS_PLUGIN_SLOT_CANVAS, &box) )
+        return 0;
+
+    for( int i = 0; i < TORIRS_PLUGIN_LANECHROME_MAX; i++ )
+    {
+        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+        struct PluginRect cut;
+
+        snprintf(role, sizeof(role), "lane_chrome_%d", i);
+        if( !host->engine.role_rect(
+                host->engine.user, role, &cut.x, &cut.y, &cut.w, &cut.h) )
+            break;
+        if( !host->engine.role_visible(host->engine.user, role) )
+            continue;
+        box = plugin_rect_subtract(box, cut);
+    }
+
+    *out = box;
+    return box.w > 0 && box.h > 0;
+}
+
+/**
  * Does the GAMEFRAME exist right now?
  *
  * Every verb below that answers a question about the frame -- by role name, by
@@ -1469,8 +1517,12 @@ api_slot_rect(
     if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
         return 0;
 
-    got = slot == TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME ? plugin_safe_gamechrome_rect(ctx->host, &box)
-                                          : plugin_engine_rect(ctx->host, slot, &box);
+    if( slot == TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME )
+        got = plugin_safe_gamechrome_rect(ctx->host, &box);
+    else if( slot == TORIRS_PLUGIN_SLOT_SAFE_LANECHROME )
+        got = plugin_safe_lanechrome_rect(ctx->host, &box);
+    else
+        got = plugin_engine_rect(ctx->host, slot, &box);
     if( !got || box.w <= 0 || box.h <= 0 )
         return 0;
 
@@ -1494,7 +1546,8 @@ api_slot_rect(
  * SLOT_SAFE_GAMECHROME does not: it is the placeable regions minus every plugin's edge
  * reservation, and the reservation table is the host's. Routing it through
  * api_slot_rect rather than re-deriving it is what keeps the name and the
- * region enum answering with one rectangle.
+ * region enum answering with one rectangle. `safe_lanechrome` is routed the
+ * same way and for the same reason -- it is derived here too.
  */
 static int
 api_role_rect(
@@ -1518,6 +1571,8 @@ api_role_rect(
 
     if( strcmp(role, "safe_gamechrome") == 0 )
         return api_slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, out_x, out_y, out_w, out_h);
+    if( strcmp(role, "safe_lanechrome") == 0 )
+        return api_slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_LANECHROME, out_x, out_y, out_w, out_h);
 
     if( !ctx->host->engine.role_rect(ctx->host->engine.user, role, &x, &y, &w, &h) )
         return 0;

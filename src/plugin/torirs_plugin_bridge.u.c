@@ -3724,7 +3724,8 @@ app_plugin_slot_rect(
             *out_h = UITREE_LAYOUT_ROOT_H;
         return 1;
     }
-    /* SAFE is the host's: it needs the reservation table, which lives there. */
+    /* Both SAFE regions are the host's: one needs the reservation table, which
+     * lives there, and the other is derived beside it. */
     if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
         return 0;
 
@@ -3829,6 +3830,8 @@ app_plugin_role_slot(char const* role)
         return TORIRS_PLUGIN_SLOT_CANVAS;
     if( strcmp(role, "safe_gamechrome") == 0 )
         return TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME;
+    if( strcmp(role, "safe_lanechrome") == 0 )
+        return TORIRS_PLUGIN_SLOT_SAFE_LANECHROME;
     return UITree_RoleSlotFromName(role);
 }
 
@@ -3872,12 +3875,16 @@ app_plugin_role_rect(
      * desc, and that a dat2 modal has no declared region at all.
      */
     slot = app_plugin_role_slot(role);
-    if( slot >= 0 && slot != TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME )
-        return app_plugin_slot_rect(user, slot, out_x, out_y, out_w, out_h);
-    if( slot == TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME )
-        /* Derived from the others plus the reservation table, both of which
-         * live in the host; it reaches this verb only through slot_rect. */
+    if( slot == TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME ||
+        slot == TORIRS_PLUGIN_SLOT_SAFE_LANECHROME )
+        /* Both are DERIVED in the host -- one from the placeable regions plus
+         * the reservation table, one from the canvas minus the profile's
+         * `lane_chrome_<n>` roles. Neither reaches this verb except through
+         * slot_rect, and answering here would be a second derivation that
+         * could disagree with the first. */
         return 0;
+    if( slot >= 0 )
+        return app_plugin_slot_rect(user, slot, out_x, out_y, out_w, out_h);
 
     return app_plugin_node_rect(
         app, app_plugin_role_node(app, role), out_x, out_y, out_w, out_h);

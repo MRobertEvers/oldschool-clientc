@@ -1166,7 +1166,12 @@ lt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     else
         g_built_detail = -1;
 
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "reset_all", "Clear all loot");
+    /*
+     * No "clear all" row. The tracker this is a port of has no such control:
+     * its clears are ops on a BAND -- the detail block's own Clear data, one
+     * source at a time -- and a page-wide button was this port's invention.
+     * @see the same note on the xp tracker's page.
+     */
 
     g_page_built = true;
     lt_page_refresh(ctx);
@@ -1222,16 +1227,6 @@ lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
     g_api->panel_set_attention(ctx, false);
 
-    if( strcmp(ev->id, "reset_all") == 0 )
-    {
-        g_source_count = 0;
-            g_session_value = 0;
-        g_session_kills = 0;
-        g_detail = -1;
-        g_dirty = true;
-        g_api->panel_clear(ctx);
-        return TORIRS_PLUGIN_PASS;
-    }
     if( strcmp(ev->id, "d_close") == 0 )
     {
         g_detail = -1;

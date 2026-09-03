@@ -2078,6 +2078,58 @@ mobile_chat_visible(int canvas_w, int rail_w, int chat_w)
     return canvas_w - MOBILE_MARGIN - rail_w - MOBILE_PANEL_W >= chat_w;
 }
 
+/*
+ * The box this frame may lay itself out in, which is not always the window.
+ *
+ * A cache gameframe carries furniture that a claim neither owns nor
+ * suppresses: on both OldSchool resizable toplevels the pop-out panel's rail
+ * is 42 columns down the right edge for the full height of the window, it is
+ * a mounted interface of its own rather than the toplevel's decoration, and
+ * its frame is `noclickthrough`. Pinning the tab rail to `canvas_w` therefore
+ * put seven of the fourteen stones behind a strip of someone else's stone AND
+ * under a click-blocker: they were drawn where nothing could press them, and
+ * the map housing lost its right-hand arc to the same strip.
+ *
+ * SLOT_SAFE_LANECHROME is that question answered by the host -- the canvas
+ * minus whatever the profile named `lane_chrome_<n>` and the lane has on
+ * screen -- so the arithmetic below stays "pin to the edge" and the edge is
+ * the right one on every lane. A revision with no such furniture answers the
+ * whole canvas, which is why this is read unconditionally rather than behind a
+ * lane test.
+ *
+ * The VIEWPORT is deliberately not inset by it. The scene fills the window on
+ * this frame, chrome included, and the rail floats on the world exactly as it
+ * does over the frame the lane would have drawn.
+ */
+struct MobileArea
+{
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
+static struct MobileArea
+mobile_lane_area(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
+{
+    struct MobileArea area = { 0, 0, canvas_w, canvas_h };
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+
+    assert(ctx);
+    if( g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_LANECHROME, &x, &y, &w, &h) && w > 0 &&
+        h > 0 )
+    {
+        area.x = x;
+        area.y = y;
+        area.w = w;
+        area.h = h;
+    }
+    return area;
+}
+
 /* ----------------------------------------------------------- the layout */
 
 /* -------------------------------------------- the chat pack, re-dressed */
@@ -2477,16 +2529,25 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     int const oldschool = mobile_lane_oldschool(ctx);
     int const rail_w = family == FAMILY_OLDSCHOOL ? MOBILE_O_RAIL_W : MOBILE_RAIL_W;
     int const rail_h = family == FAMILY_OLDSCHOOL ? MOBILE_O_RAIL_H : MOBILE_RAIL_H;
-    int const rail_x = canvas_w - MOBILE_MARGIN - rail_w;
-    int const rail_y = canvas_h - MOBILE_MARGIN - rail_h;
+    /* The RIGHT and BOTTOM edges below are this box's rather than the window's
+     * -- which is every edge the frame's own furniture is pinned to that any
+     * lane in this tree occludes. The chat block stays on the window's left
+     * edge because `area.x` is 0 on all of them; the day a revision docks
+     * something down the left, that is the line to change, and this is where
+     * the number to change it to comes from. @see mobile_lane_area. */
+    struct MobileArea const area = mobile_lane_area(ctx, canvas_w, canvas_h);
+    int const area_right = area.x + area.w;
+    int const area_bottom = area.y + area.h;
+    int const rail_x = area_right - MOBILE_MARGIN - rail_w;
+    int const rail_y = area_bottom - MOBILE_MARGIN - rail_h;
     /* The drawer hangs off the rail's inner edge and shares its bottom margin,
      * so the two read as one assembly rather than two things that happen to be
      * in the same corner. */
     int const panel_x = rail_x - MOBILE_PANEL_W;
-    int const panel_y = canvas_h - MOBILE_MARGIN - MOBILE_PANEL_H;
+    int const panel_y = area_bottom - MOBILE_MARGIN - MOBILE_PANEL_H;
     struct MobileHousing const* housing = mobile_housing(ctx);
-    int const map_x = canvas_w - MOBILE_MARGIN - g_map_w;
-    int const map_y = MOBILE_MARGIN;
+    int const map_x = area_right - MOBILE_MARGIN - g_map_w;
+    int const map_y = area.y + MOBILE_MARGIN;
     int safe_y = 0;
     int safe_h = canvas_h;
     int safe_bottom;
@@ -2507,7 +2568,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      * canvas that fits the surface but not the sheet would slide the paper
      * under the drawer. @see MOBILE_PAPER_ART_W. */
     chat_visible = mobile_chat_visible(
-        canvas_w, rail_w, oldschool ? chat_w : MOBILE_PAPER_ART_W(chat_w));
+        area.w, rail_w, oldschool ? chat_w : MOBILE_PAPER_ART_W(chat_w));
 
     /*
      * The chat block hangs from the SAFE bottom, not the canvas's.
@@ -2525,8 +2586,11 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      */
     g_api->safe_os(ctx, NULL, &safe_y, NULL, &safe_h);
     safe_bottom = safe_y + safe_h;
-    if( safe_bottom > canvas_h )
-        safe_bottom = canvas_h;
+    /* Clamped to the FREE box and not to the window: the two occluders stack
+     * -- an OS keyboard over a lane that also docks a strip along the bottom
+     * would otherwise put the sheet under whichever of them the clamp forgot. */
+    if( safe_bottom > area_bottom )
+        safe_bottom = area_bottom;
     strip_y = safe_bottom - MOBILE_STRIP_H;
     /* Through the macro rather than `strip_y - chat_h`, so the block is
      * still pinned by the ART's last inked row and not by the surface's -- the
@@ -2684,8 +2748,8 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     g_api->layout_slot(
         ctx,
         TORIRS_PLUGIN_SLOT_MAIN_MODAL,
-        (canvas_w - MOBILE_MODAL_W) / 2,
-        (canvas_h - MOBILE_MODAL_H) / 2,
+        area.x + (area.w - MOBILE_MODAL_W) / 2,
+        area.y + (area.h - MOBILE_MODAL_H) / 2,
         MOBILE_MODAL_W,
         MOBILE_MODAL_H);
 

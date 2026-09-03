@@ -1487,18 +1487,12 @@ lua_panel_request(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
     struct ToriRS_PluginPanelDesc desc;
-    char title[TORIRS_PLUGIN_TITLE_MAX];
     char icon[TORIRS_PLUGIN_ASSET_NAME_MAX];
 
     memset(&desc, 0, sizeof(desc));
-    title[0] = '\0';
     icon[0] = '\0';
     if( lua_istable(L, 1) )
     {
-        lua_getfield(L, 1, "title");
-        if( lua_type(L, -1) == LUA_TSTRING )
-            snprintf(title, sizeof(title), "%s", lua_tostring(L, -1));
-        lua_pop(L, 1);
         lua_getfield(L, 1, "icon");
         if( lua_type(L, -1) == LUA_TSTRING )
             snprintf(icon, sizeof(icon), "%s", lua_tostring(L, -1));
@@ -1513,9 +1507,18 @@ lua_panel_request(lua_State* L)
         lua_pop(L, 1);
     }
     else if( !lua_isnoneornil(L, 1) )
-        snprintf(title, sizeof(title), "%s", luaL_checkstring(L, 1));
+        /*
+         * The bare-string form only ever meant a TITLE, and a page has none:
+         * the rail entry is named by the plugin's own manifest title, which no
+         * page it registers can rename. Reading the string as anything else
+         * would quietly give an old script a different registration than the
+         * one it wrote. @see struct ToriRS_PluginPanelDesc.
+         */
+        return luaL_error(
+            L,
+            "panel.request: pass a table -- a page carries no title of its own, "
+            "so the string form has no meaning");
 
-    desc.title = title[0] ? title : NULL;
     desc.icon_asset = icon[0] ? icon : NULL;
     lua_pushboolean(L, g_api->panel_request(script->cur_ctx, &desc));
     return 1;
@@ -2653,6 +2656,7 @@ lua_build_api_table(struct LuaScript* script)
             { "orbs", TORIRS_PLUGIN_SLOT_ORBS },
             { "canvas", TORIRS_PLUGIN_SLOT_CANVAS },
             { "safe_gamechrome", TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME },
+            { "safe_lanechrome", TORIRS_PLUGIN_SLOT_SAFE_LANECHROME },
         };
         static const struct
         {
