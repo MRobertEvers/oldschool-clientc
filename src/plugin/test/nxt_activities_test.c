@@ -1152,9 +1152,9 @@ fake_engine(void)
 
 /* ------------------------------------------------------------ the plugins */
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_HIGHLIGHT;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_BIRD_NEST;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
 static void
 draw_reset(void)
@@ -1181,9 +1181,9 @@ main(void)
     g_engine.hover_x = 3210;
     g_engine.hover_z = 3220;
 
-    p_hl = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
-    p_nest = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
-    p_cannon = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_CANNON_AMMO);
+    p_hl = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
+    p_nest = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
+    p_cannon = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_NXT_CANNON_AMMO);
     CHECK(
         p_hl >= 0 && p_nest >= 0 && p_cannon >= 0,
         "all three register");

@@ -765,6 +765,110 @@ case_concurrent_sort(struct Fixture* f)
     ToriDraw_SceneScratchViewFree(view);
 }
 
+/*
+ * The command feed: what the consumer pushes is what the producer takes, in
+ * order and in full; an open feed with nothing new says PENDING; a closed
+ * one says ENDED only after the last entry; an overflowed one says OVERFLOW
+ * only after the last entry it did take, the pushes after it are refused,
+ * and the next frame's feed is bigger.
+ */
+static void
+case_feed(struct Fixture* f)
+{
+    struct GLES2DualCoreStageArena arena;
+    const struct GLES2DualCoreFeedEntry* entry = NULL;
+    struct ToriRS_RenderCommand_Begin3D begin;
+    uint32_t capacity;
+    uint32_t i;
+
+    memset(&begin, 0, sizeof(begin));
+    begin.camera = f->camera;
+    begin.view_port.width = VIEW_W;
+    begin.view_port.height = VIEW_H;
+
+    GLES2DualCoreStageArena_Init(&arena);
+    GLES2DualCoreStageArena_BeginFrame(&arena, (uint32_t)MODEL_COUNT);
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 0u, &entry) == GLES2_DUALCORE_FEED_PENDING,
+        "feed: an empty open feed must be pending");
+
+    /* A pass: BEGIN_3D, every model, END_3D; the producer reads it back
+     * entry for entry. */
+    CHECK(GLES2DualCoreStageArena_FeedPushBegin3D(&arena, &begin), "feed: push BEGIN_3D");
+    for( i = 0; i < (uint32_t)MODEL_COUNT; i++ )
+        CHECK(GLES2DualCoreStageArena_FeedPushModel(&arena, &f->commands[i]),
+            "feed: push model %u", i);
+    CHECK(GLES2DualCoreStageArena_FeedPushEnd3D(&arena), "feed: push END_3D");
+
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 0u, &entry) == GLES2_DUALCORE_FEED_READY &&
+              entry->kind == GLES2_DUALCORE_FEED_BEGIN_3D,
+        "feed: entry 0 is not the BEGIN_3D");
+    CHECK(memcmp(&entry->u.begin_3d, &begin, sizeof(begin)) == 0, "feed: BEGIN_3D not copied");
+    for( i = 0; i < (uint32_t)MODEL_COUNT; i++ )
+    {
+        CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 1u + i, &entry) == GLES2_DUALCORE_FEED_READY &&
+                  entry->kind == GLES2_DUALCORE_FEED_MODEL,
+            "feed: entry %u is not a model", 1u + i);
+        CHECK(memcmp(&entry->u.model, &f->commands[i], sizeof(f->commands[i])) == 0,
+            "feed: model %u not copied", i);
+    }
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 1u + MODEL_COUNT, &entry) ==
+                  GLES2_DUALCORE_FEED_READY &&
+              entry->kind == GLES2_DUALCORE_FEED_END_3D,
+        "feed: last entry is not the END_3D");
+    /* Past the end while open: pending, not ended. */
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 2u + MODEL_COUNT, &entry) ==
+              GLES2_DUALCORE_FEED_PENDING,
+        "feed: past the end of an open feed must be pending");
+    GLES2DualCoreStageArena_FeedClose(&arena);
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 2u + MODEL_COUNT, &entry) ==
+              GLES2_DUALCORE_FEED_ENDED,
+        "feed: past the end of a closed feed must be ended");
+    /* Closing does not take back what was published. */
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 5u, &entry) == GLES2_DUALCORE_FEED_READY,
+        "feed: a closed feed still serves its entries");
+
+    /* Overflow: fill the feed to capacity, then one more. */
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_BeginFrame(&arena, (uint32_t)MODEL_COUNT);
+    capacity = arena.feed_capacity;
+    CHECK(capacity >= (uint32_t)MODEL_COUNT + 2u, "feed: capacity %u for %d models", capacity,
+        MODEL_COUNT);
+    for( i = 0; i < capacity; i++ )
+        CHECK(GLES2DualCoreStageArena_FeedPushModel(&arena, &f->commands[i % MODEL_COUNT]),
+            "feed: push %u of %u refused", i, capacity);
+    CHECK(!GLES2DualCoreStageArena_FeedPushModel(&arena, &f->commands[0]),
+        "feed: push past capacity accepted");
+    CHECK(atomic_load(&arena.feed_state) == GLES2_DUALCORE_FEED_OVERFLOWED,
+        "feed: overflow not recorded");
+    CHECK(atomic_load(&arena.feed_published) == capacity, "feed: overflow changed the count");
+    /* Everything published is still served, in order; then OVERFLOW. */
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, capacity - 1u, &entry) ==
+              GLES2_DUALCORE_FEED_READY,
+        "feed: last published entry not served after overflow");
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, capacity, &entry) ==
+              GLES2_DUALCORE_FEED_OVERFLOW,
+        "feed: past the end of an overflowed feed must say overflow");
+    /* A close after an overflow does not soften the verdict. */
+    GLES2DualCoreStageArena_FeedClose(&arena);
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, capacity, &entry) ==
+              GLES2_DUALCORE_FEED_OVERFLOW,
+        "feed: close overrode overflow");
+
+    /* The next frame grows it and opens it. */
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_BeginFrame(&arena, (uint32_t)MODEL_COUNT);
+    CHECK(arena.feed_capacity >= capacity * 2u, "feed: did not grow after overflow (%u -> %u)",
+        capacity, arena.feed_capacity);
+    CHECK(arena.feed_overflow_frames == 1u, "feed: overflow frames %u", arena.feed_overflow_frames);
+    CHECK(atomic_load(&arena.feed_state) == GLES2_DUALCORE_FEED_OPEN, "feed: not reopened");
+    CHECK(atomic_load(&arena.feed_published) == 0u, "feed: count not reset");
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 0u, &entry) == GLES2_DUALCORE_FEED_PENDING,
+        "feed: reopened feed must be pending");
+
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_Free(&arena);
+}
+
 static void
 run_tier(char const* name, uint32_t flags)
 {
@@ -778,6 +882,7 @@ run_tier(char const* name, uint32_t flags)
     case_blended_gate(&fixture);
     case_exhaustion(&fixture);
     case_claims(&fixture);
+    case_feed(&fixture);
     case_sync(&fixture);
     case_concurrent_sort(&fixture);
     fixture_free(&fixture);

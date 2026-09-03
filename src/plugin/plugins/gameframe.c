@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -425,8 +425,17 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
 
 /* ------------------------------------------------------------------- state */
 
-static struct ToriRS_PluginApi const* g_api;
-static int g_image[FRAME_IMG_COUNT];
+struct FrameState;
+
+/** Callback-scoped native V2 services threaded through layout helpers. */
+struct FrameCall
+{
+    struct ToriRS_ApiV2* api;
+    struct FrameState* state;
+    struct ToriRS_FrameBuilder* builder;
+    struct ToriRS_DrawBuilder* draw;
+    struct ToriRS_FrameBuildContext const* build;
+};
 
 /*
  * Is this an OldSchool lane -- one whose chat, orbs and sidebar are packs
@@ -437,12 +446,12 @@ static int g_image[FRAME_IMG_COUNT];
  * lane latched then reads UNKNOWN for the life of the process.
  */
 static int
-frame_lane_oldschool(struct ToriRS_PluginCtx* ctx)
+frame_lane_oldschool(struct FrameCall* ctx)
 {
     struct ToriRS_PluginLane lane;
 
     assert(ctx);
-    if( !g_api->lane(ctx, &lane) )
+    if( !g_api->core.lane(g_api, &lane) )
         return 0;
     return lane.game == TORIRS_PLUGIN_GAME_OLDSCHOOL;
 }
@@ -460,20 +469,23 @@ frame_lane_oldschool(struct ToriRS_PluginCtx* ctx)
  * would go); the 2004 surface is centred in it. @see FRAME_O_CHAT_INNER_X.
  */
 static void
-frame_place_chat(struct ToriRS_PluginCtx* ctx, int x, int y)
+frame_place_chat(struct FrameCall* ctx, int x, int y)
 {
     assert(ctx);
     if( frame_lane_oldschool(ctx) )
-        g_api->layout_slot(
-            ctx, TORIRS_PLUGIN_SLOT_CHAT, x, y, FRAME_O_CHAT_PACK_W, FRAME_O_CHAT_PACK_H);
+        ctx->builder->surface(
+            ctx->builder,
+            TORIRS_SURFACE_CHAT,
+            (struct ToriRS_Rect){ x, y, FRAME_O_CHAT_PACK_W, FRAME_O_CHAT_PACK_H });
     else
-        g_api->layout_slot(
-            ctx,
-            TORIRS_PLUGIN_SLOT_CHAT,
-            x + FRAME_O_CHAT_INNER_X,
-            y + FRAME_O_CHAT_INNER_Y,
-            FRAME_O_CHAT_INNER_W,
-            FRAME_O_CHAT_INNER_H);
+        ctx->builder->surface(
+            ctx->builder,
+            TORIRS_SURFACE_CHAT,
+            (struct ToriRS_Rect){
+                x + FRAME_O_CHAT_INNER_X,
+                y + FRAME_O_CHAT_INNER_Y,
+                FRAME_O_CHAT_INNER_W,
+                FRAME_O_CHAT_INNER_H });
 }
 
 /*
@@ -493,8 +505,6 @@ enum
     REDSTONE_FLIP_HV,
     REDSTONE_FLIP_COUNT
 };
-static int g_redstone_flip[3][REDSTONE_FLIP_COUNT];
-static int g_redstone_flipped;
 
 /*
  * The six plates a filter button can wear, composed to the size this lane's
@@ -517,8 +527,6 @@ enum FrameChatPlate
     CHAT_PLATE_COUNT
 };
 
-static int g_chat_plate[CHAT_PLATE_COUNT];
-static int g_chat_plates_built;
 
 /*
  * The chatbox's own switch, and which filter it is showing.
@@ -533,13 +541,11 @@ static int g_chat_plates_built;
  * THIS frame: a layout with no chatbox to put away should not inherit a "the
  * chat is closed" flag from one that had.
  */
-static int g_chat_open = 1;
-static int g_chat_filter;
 
 /** One picture to blit, in canvas coordinates. Built by the layout pass. */
 struct FrameBlit
 {
-    int image;
+    struct ToriRS_ImageRef image;
     int x;
     int y;
     /**
@@ -614,16 +620,16 @@ struct FrameTab
      * actually open, and a click on a stone opening the panel it shows.
      */
     int tabno;
-    int stone;
-    int stone_pressed;
-    int icon;
+    struct ToriRS_ImageRef stone;
+    struct ToriRS_ImageRef stone_pressed;
+    struct ToriRS_ImageRef icon;
 };
 
 /* Chrome blits one layout may declare. The OldSchool fixed frame is the
  * largest at fourteen surround pieces plus two tab strips. */
 #define FRAME_BLIT_MAX 32
 
-static struct
+struct FrameRuntime
 {
     int layout;
     int canvas_w;
@@ -664,8 +670,8 @@ static struct
          * because that is what frame_on_click compares against.
          */
         int filter;
-        int idle;
-        int hover;
+        struct ToriRS_ImageRef idle;
+        struct ToriRS_ImageRef hover;
         /**
          * The SELECTED plates, and the one thing that says this button is the
          * frame's to click.
@@ -677,22 +683,61 @@ static struct
          * a claimed rectangle would put this plugin's one op over the client's
          * own report button and take it away.
          */
-        int active;
-        int active_hover;
+        struct ToriRS_ImageRef active;
+        struct ToriRS_ImageRef active_hover;
     } chat_button[FRAME_CHAT_BUTTON_COUNT];
     int chat_button_count;
     /** Set once the layout has been declared at least once, so the draw pass
      *  can tell "nothing to draw yet" from "a frame with no chrome". */
     int declared;
-} g_frame;
+};
+
+/** All mutable state belongs to one host-managed plugin instance. */
+struct FrameState
+{
+    struct ToriRS_ImageRef image[FRAME_IMG_COUNT];
+    struct ToriRS_ImageRef redstone_flip[3][REDSTONE_FLIP_COUNT];
+    struct ToriRS_ImageRef chat_plate[CHAT_PLATE_COUNT];
+    bool image_ready[FRAME_IMG_COUNT];
+    bool redstone_flipped;
+    bool chat_plates_built;
+    bool chat_open;
+    int chat_filter;
+    struct FrameRuntime frame;
+};
+
+#define g_image (ctx->state->image)
+#define g_redstone_flip (ctx->state->redstone_flip)
+#define g_redstone_flipped (ctx->state->redstone_flipped)
+#define g_chat_plate (ctx->state->chat_plate)
+#define g_chat_plates_built (ctx->state->chat_plates_built)
+#define g_chat_open (ctx->state->chat_open)
+#define g_chat_filter (ctx->state->chat_filter)
+#define g_frame (ctx->state->frame)
+#define g_api (ctx->api)
 
 /* ------------------------------------------------------------------ helpers */
 
 static void
+frame_surface(
+    struct FrameCall* ctx,
+    int surface,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    assert(ctx);
+    ctx->builder->surface(
+        ctx->builder, surface, (struct ToriRS_Rect){ x, y, width, height });
+}
+
+static void
 frame_blit_into(
+    struct FrameCall* ctx,
     struct FrameBlit* list,
     int* count,
-    int image,
+    struct ToriRS_ImageRef image,
     int x,
     int y,
     int tile_w,
@@ -701,13 +746,16 @@ frame_blit_into(
 {
     assert(list);
     assert(count);
-    if( image < 0 )
+    if( image.value == 0 )
         return;
     if( *count >= FRAME_BLIT_MAX )
     {
         /* Said rather than silently dropped: a frame missing one stone reads
          * as a rendering bug, and this is the one thing that could cause it. */
-        g_api->log(NULL, "frame: more than %d chrome blits; the rest are dropped", FRAME_BLIT_MAX);
+        g_api->core.log(
+            g_api,
+            "frame: more than %d chrome blits; the rest are dropped",
+            FRAME_BLIT_MAX);
         return;
     }
     list[*count].image = image;
@@ -721,16 +769,23 @@ frame_blit_into(
 
 /** Chrome behind the live surfaces. */
 static void
-frame_blit(int image, int x, int y)
+frame_blit(struct FrameCall* ctx, struct ToriRS_ImageRef image, int x, int y)
 {
-    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, 0, 0, 0);
+    frame_blit_into(ctx, g_frame.blit, &g_frame.blit_count, image, x, y, 0, 0, 0);
 }
 
 /** Chrome behind them, REPEATED over a box. @see FrameBlit::tile_w. */
 static void
-frame_blit_tiled(int image, int x, int y, int w, int h, int trans)
+frame_blit_tiled(
+    struct FrameCall* ctx,
+    struct ToriRS_ImageRef image,
+    int x,
+    int y,
+    int w,
+    int h,
+    int trans)
 {
-    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, w, h, trans);
+    frame_blit_into(ctx, g_frame.blit, &g_frame.blit_count, image, x, y, w, h, trans);
 }
 
 /**
@@ -742,30 +797,41 @@ frame_blit_tiled(int image, int x, int y, int w, int h, int trans)
  */
 static void
 frame_slot_overlay(
-    struct ToriRS_PluginCtx* ctx,
-    int slot,
-    int image,
+    struct FrameCall* ctx,
+    int surface,
+    struct ToriRS_ImageRef image,
     int x,
     int y)
 {
+    struct ToriRS_FrameSurfaceOverlay overlay;
+
     assert(ctx);
-    if( image < 0 )
+    if( image.value == 0 )
         return;
-    g_api->layout_slot_overlay(ctx, slot, image, x, y, /*trans=*/0);
+    memset(&overlay, 0, sizeof(overlay));
+    overlay.struct_size = sizeof(overlay);
+    overlay.image = image;
+    overlay.x = x;
+    overlay.y = y;
+    overlay.alpha = 255;
+    ctx->builder->surface_overlay(ctx->builder, surface, &overlay);
     g_frame.anchored_count++;
 }
 
 static void
 frame_tab(
+    struct FrameCall* ctx,
     int tabno,
     struct FrameBox box,
     int icon_x,
     int icon_y,
-    int stone,
-    int stone_pressed,
-    int icon)
+    struct ToriRS_ImageRef stone,
+    struct ToriRS_ImageRef stone_pressed,
+    struct ToriRS_ImageRef icon)
 {
     struct FrameTab* t;
+    struct ToriRS_UiNode node;
+    char name[TORIRS_UI_NAME_MAX];
 
     if( g_frame.tab_count >= FRAME_TAB_COUNT )
         return;
@@ -777,6 +843,22 @@ frame_tab(
     t->stone = stone;
     t->stone_pressed = stone_pressed;
     t->icon = icon;
+
+    memset(&node, 0, sizeof(node));
+    node.struct_size = sizeof(node);
+    node.bounds = (struct ToriRS_Rect){ box.x, box.y, box.w, box.h };
+    node.parent = "frame.sidebar";
+    node.anchor = TORIRS_ANCHOR_TOP_LEFT;
+    node.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
+    node.clip = TORIRS_UI_CLIP_NONE;
+    node.flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED |
+                 TORIRS_UI_NODE_BLOCKS_OVERLAY;
+    if( g_api->cache.tab_active(g_api) == tabno )
+        node.flags |= TORIRS_UI_NODE_ACTIVE;
+    node.action_count = 1;
+    node.actions[0] = "activate";
+    (void)snprintf(name, sizeof(name), "frame.sidebar.tab.%d", tabno);
+    ctx->builder->ui_node(ctx->builder, name, &node);
 }
 
 /*
@@ -790,7 +872,7 @@ frame_tab(
  */
 static void
 frame_chat_buttons_across(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     int x,
     int y,
     int width,
@@ -798,6 +880,12 @@ frame_chat_buttons_across(
     int plate,
     int selectable)
 {
+    static char const* const NAME[FRAME_CHAT_BUTTON_COUNT] = {
+        "frame.chat.button.public",
+        "frame.chat.button.private",
+        "frame.chat.button.trade",
+        "frame.chat.button.report",
+    };
     int const cell = width / FRAME_CHAT_BUTTON_COUNT;
 
     assert(ctx);
@@ -834,12 +922,19 @@ frame_chat_buttons_across(
              * view of the chat, it opens a report. It still hovers, which is
              * the whole of what a momentary button has to say.
              */
-            b->active = selectable && !report ? g_chat_plate[CHAT_PLATE_ACTIVE] : -1;
+            b->active = selectable && !report
+                            ? g_chat_plate[CHAT_PLATE_ACTIVE]
+                            : (struct ToriRS_ImageRef){ 0 };
             b->active_hover =
-                selectable && !report ? g_chat_plate[CHAT_PLATE_ACTIVE_HOVER] : -1;
+                selectable && !report
+                    ? g_chat_plate[CHAT_PLATE_ACTIVE_HOVER]
+                    : (struct ToriRS_ImageRef){ 0 };
         }
-        g_api->layout_slot_at(
-            ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, bx, y, FRAME_CHAT_BUTTON_W, height);
+        ctx->builder->surface_member(
+            ctx->builder,
+            TORIRS_SURFACE_CHAT_BUTTONS,
+            i,
+            (struct ToriRS_Rect){ bx, y, FRAME_CHAT_BUTTON_W, height });
 
         /*
          * And DECLARED, not merely remembered for the draw pass.
@@ -862,23 +957,54 @@ frame_chat_buttons_across(
         {
             struct FrameChatButton const* b =
                 &g_frame.chat_button[g_frame.chat_button_count - 1];
-            struct ToriRS_PluginChromePart part;
+            struct ToriRS_UiNode part;
             int pw = 0;
             int ph = 0;
 
             memset(&part, 0, sizeof(part));
-            part.x = b->x;
-            part.y = b->y;
-            part.w = b->w;
-            part.h = g_api->image_size(ctx, b->idle, &pw, &ph) ? ph : height;
-            part.art[TORIRS_PLUGIN_CHROME_IDLE] = b->idle;
-            part.art[TORIRS_PLUGIN_CHROME_HOVER] = b->hover;
-            part.art[TORIRS_PLUGIN_CHROME_ACTIVE] = b->active;
-            part.art[TORIRS_PLUGIN_CHROME_ACTIVE_HOVER] = b->active_hover;
-            part.art[TORIRS_PLUGIN_CHROME_DISABLED] = -1;
+            part.struct_size = sizeof(part);
+            part.bounds = (struct ToriRS_Rect){
+                b->x,
+                b->y,
+                b->w,
+                g_api->assets.image_size(g_api, b->idle, &pw, &ph) ? ph : height };
+            part.parent = "frame.chat.buttons";
+            part.anchor = TORIRS_ANCHOR_TOP_LEFT;
+            part.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
+            part.clip = TORIRS_UI_CLIP_PARENT;
+            part.flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED |
+                         TORIRS_UI_NODE_BLOCKS_OVERLAY;
+            if( selectable && !report && g_chat_open && g_chat_filter == i )
+                part.flags |= TORIRS_UI_NODE_ACTIVE;
+            part.image = b->idle;
+            part.state_image_mask = (1u << TORIRS_UI_VISUAL_HOVER) |
+                                    (1u << TORIRS_UI_VISUAL_ACTIVE) |
+                                    (1u << TORIRS_UI_VISUAL_ACTIVE_HOVER);
+            part.state_images[TORIRS_UI_VISUAL_HOVER] = b->hover;
+            part.state_images[TORIRS_UI_VISUAL_ACTIVE] = b->active;
+            part.state_images[TORIRS_UI_VISUAL_ACTIVE_HOVER] = b->active_hover;
             part.label_x = b->w / 2;
-            part.label_y = part.h / 2;
-            g_api->layout_slot_art(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, &part);
+            part.label_y = part.bounds.height / 2;
+            part.action_count = 1;
+            part.actions[0] = "activate";
+            ctx->builder->ui_node(ctx->builder, NAME[i], &part);
+        }
+        else
+        {
+            struct ToriRS_UiNode part;
+
+            memset(&part, 0, sizeof(part));
+            part.struct_size = sizeof(part);
+            part.bounds = (struct ToriRS_Rect){ bx, y, FRAME_CHAT_BUTTON_W, height };
+            part.parent = "frame.chat.buttons";
+            part.anchor = TORIRS_ANCHOR_TOP_LEFT;
+            part.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
+            part.clip = TORIRS_UI_CLIP_PARENT;
+            part.flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED |
+                         TORIRS_UI_NODE_BLOCKS_OVERLAY;
+            part.action_count = 1;
+            part.actions[0] = "activate";
+            ctx->builder->ui_node(ctx->builder, NAME[i], &part);
         }
     }
 }
@@ -898,9 +1024,9 @@ frame_chat_buttons_across(
  */
 static void
 frame_tab_centre(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     struct FrameBox box,
-    int icon,
+    struct ToriRS_ImageRef icon,
     int* out_x,
     int* out_y)
 {
@@ -911,7 +1037,7 @@ frame_tab_centre(
     assert(out_x);
     assert(out_y);
 
-    if( icon < 0 || !g_api->image_size(ctx, icon, &iw, &ih) )
+    if( icon.value == 0 || !g_api->assets.image_size(g_api, icon, &iw, &ih) )
         return;
     *out_x = box.x + (box.w - iw) / 2;
     *out_y = box.y + (box.h - ih) / 2;
@@ -932,19 +1058,23 @@ frame_tab_centre(
  * rectangle -- and it is the only call that can tell "this frame has no such
  * tab" from "this frame has it somewhere else".
  */
-static int
+static struct ToriRS_ImageRef
 frame_tab_icon(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     int tabno,
-    int icon,
+    struct ToriRS_ImageRef icon,
     int x,
     int y,
     int w,
     int h)
 {
     assert(ctx);
-    return g_api->layout_slot_at(ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, tabno, x, y, w, h) ? icon
-                                                                                     : -1;
+    ctx->builder->surface_member(
+        ctx->builder,
+        TORIRS_SURFACE_SIDEBAR,
+        tabno,
+        (struct ToriRS_Rect){ x, y, w, h });
+    return icon;
 }
 
 /*
@@ -962,14 +1092,25 @@ frame_tab_icon(
  */
 static void
 frame_skin_map(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     int map_mask,
     int compass_mask)
 {
+    struct ToriRS_FrameSkin minimap;
+    struct ToriRS_FrameSkin compass;
+
     assert(ctx);
-    g_api->layout_slot_skin(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, -1, g_image[map_mask]);
-    g_api->layout_slot_skin(
-        ctx, TORIRS_PLUGIN_SLOT_COMPASS, g_image[IMG_O_COMPASS], g_image[compass_mask]);
+    minimap = (struct ToriRS_FrameSkin){
+        .struct_size = sizeof(minimap),
+        .mask = g_image[map_mask],
+    };
+    compass = (struct ToriRS_FrameSkin){
+        .struct_size = sizeof(compass),
+        .image = g_image[IMG_O_COMPASS],
+        .mask = g_image[compass_mask],
+    };
+    ctx->builder->skin(ctx->builder, TORIRS_SURFACE_MINIMAP, &minimap);
+    ctx->builder->skin(ctx->builder, TORIRS_SURFACE_COMPASS, &compass);
 }
 
 /*
@@ -981,17 +1122,22 @@ frame_skin_map(
  * `~scrollbar_vertical_repaint`'s six graphics, in its order.
  */
 static void
-frame_skin_scrollbar(struct ToriRS_PluginCtx* ctx)
+frame_skin_scrollbar(struct FrameCall* ctx)
 {
+    struct ToriRS_FrameScrollbar scrollbar;
+
     assert(ctx);
-    g_api->layout_scrollbar(
-        ctx,
-        g_image[IMG_O_SB_TROUGH],
-        g_image[IMG_O_SB_DRAGGER_TOP],
-        g_image[IMG_O_SB_DRAGGER_MID],
-        g_image[IMG_O_SB_DRAGGER_BOTTOM],
-        g_image[IMG_O_SB_ARROW_UP],
-        g_image[IMG_O_SB_ARROW_DOWN]);
+    scrollbar = (struct ToriRS_FrameScrollbar){
+        .struct_size = sizeof(scrollbar),
+        .up = g_image[IMG_O_SB_ARROW_UP],
+        .down = g_image[IMG_O_SB_ARROW_DOWN],
+        .track = g_image[IMG_O_SB_TROUGH],
+        .split_thumb = true,
+        .thumb_top = g_image[IMG_O_SB_DRAGGER_TOP],
+        .thumb_middle = g_image[IMG_O_SB_DRAGGER_MID],
+        .thumb_bottom = g_image[IMG_O_SB_DRAGGER_BOTTOM],
+    };
+    ctx->builder->scrollbar(ctx->builder, &scrollbar);
 }
 
 /* -------------------------------------------------------- the housing */
@@ -1019,52 +1165,26 @@ frame_skin_scrollbar(struct ToriRS_PluginCtx* ctx)
  * fallback and not the design: nothing can anchor to a plate that has no
  * name.
  */
-static int
-frame_housing_claim(struct ToriRS_PluginCtx* ctx, int want)
+static void
+frame_housing_node(
+    struct FrameCall* ctx,
+    struct ToriRS_ImageRef image,
+    struct ToriRS_Rect bounds)
 {
+    struct ToriRS_UiNode node;
+
     assert(ctx);
-    if( want && !g_frame.housing_claimed )
-    {
-        int const got = g_api->chrome_claim(
-            ctx, "minimap_edge", TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE, 1);
-        g_frame.housing_claimed = got > 0;
-    }
-    else if( !want && g_frame.housing_claimed )
-    {
-        (void)g_api->chrome_claim(
-            ctx, "minimap_edge", TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE, 0);
-        g_frame.housing_claimed = 0;
-    }
-    return g_frame.housing_claimed;
-}
-
-/**
- * EV_CHROME: the housing's picture, for the name this frame holds.
- *
- * The box is the object's own -- this frame holds the picture and not the
- * position, because the lane draws the object and only the lane can say
- * where -- and it is passed anyway so the declaration reads as the whole
- * part it is.
- */
-static enum ToriRS_PluginVerdict
-frame_on_chrome(struct ToriRS_PluginCtx* ctx, void* payload, void* userdata)
-{
-    struct ToriRS_PluginChromePart part;
-
-    (void)payload;
-    (void)userdata;
-    assert(ctx);
-
-    if( !g_frame.housing_claimed )
-        return TORIRS_PLUGIN_PASS;
-
-    memset(&part, 0, sizeof(part));
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
-        part.art[i] = -1;
-    (void)g_api->role_rect(ctx, "minimap_edge", &part.x, &part.y, &part.w, &part.h);
-    part.art[TORIRS_PLUGIN_CHROME_IDLE] = g_image[IMG_C_MAPBACK];
-    g_api->chrome_paint(ctx, "minimap_edge", &part);
-    return TORIRS_PLUGIN_PASS;
+    memset(&node, 0, sizeof(node));
+    node.struct_size = sizeof(node);
+    node.bounds = bounds;
+    node.parent = "frame.minimap";
+    node.anchor = TORIRS_ANCHOR_TOP_LEFT;
+    node.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
+    node.clip = TORIRS_UI_CLIP_NONE;
+    node.flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED |
+                 TORIRS_UI_NODE_BLOCKS_OVERLAY;
+    node.image = image;
+    ctx->builder->ui_node(ctx->builder, "frame.minimap.housing", &node);
 }
 
 /* --------------------------------------------------------- classic fixed */
@@ -1080,7 +1200,7 @@ frame_on_chrome(struct ToriRS_PluginCtx* ctx, void* payload, void* userdata)
  * bug in the machinery rather than a difference of opinion about the frame.
  */
 static void
-frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
+frame_layout_classic_fixed(struct FrameCall* ctx)
 {
     /*
      * The redstone plate, then where the icon's top-left pixel goes.
@@ -1126,9 +1246,9 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
 
     /* Declared in paint order, back to front: the surround, then the panels
      * that sit in it. */
-    frame_blit(g_image[IMG_C_BACKTOP1], 0, 0);
-    frame_blit(g_image[IMG_C_BACKLEFT1], 0, 4);
-    frame_blit(g_image[IMG_C_BACKVMID1], 516, 4);
+    frame_blit(ctx, g_image[IMG_C_BACKTOP1], 0, 0);
+    frame_blit(ctx, g_image[IMG_C_BACKLEFT1], 0, 4);
+    frame_blit(ctx, g_image[IMG_C_BACKVMID1], 516, 4);
     /*
      * The housing: PROVIDED under its name where the lane has one, and only
      * otherwise blitted. @see frame_housing_claim.
@@ -1143,50 +1263,52 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
      * to the map, the plate went down between the two and the compass came
      * out drawn on top of the frame as a bare square.
      */
-    if( !frame_housing_claim(ctx, 1) )
-        frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_COMPASS, g_image[IMG_C_MAPBACK], 550, 4);
-    frame_blit(g_image[IMG_C_BACKRIGHT1], 722, 4);
-    frame_blit(g_image[IMG_C_BACKHMID1], 516, 160);
-    frame_blit(g_image[IMG_C_BACKVMID2], 516, 205);
-    frame_blit(g_image[IMG_C_INVBACK], 553, 205);
-    frame_blit(g_image[IMG_C_BACKRIGHT2], 743, 205);
-    frame_blit(g_image[IMG_C_BACKHMID2], 0, 338);
-    frame_blit(g_image[IMG_C_BACKLEFT2], 0, 357);
+    frame_housing_node(
+        ctx, g_image[IMG_C_MAPBACK], (struct ToriRS_Rect){ 550, 4, 172, 156 });
+    frame_slot_overlay(ctx, TORIRS_SURFACE_COMPASS, g_image[IMG_C_MAPBACK], 550, 4);
+    frame_blit(ctx, g_image[IMG_C_BACKRIGHT1], 722, 4);
+    frame_blit(ctx, g_image[IMG_C_BACKHMID1], 516, 160);
+    frame_blit(ctx, g_image[IMG_C_BACKVMID2], 516, 205);
+    frame_blit(ctx, g_image[IMG_C_INVBACK], 553, 205);
+    frame_blit(ctx, g_image[IMG_C_BACKRIGHT2], 743, 205);
+    frame_blit(ctx, g_image[IMG_C_BACKHMID2], 0, 338);
+    frame_blit(ctx, g_image[IMG_C_BACKLEFT2], 0, 357);
     /* The 2004 chat backing only where the chat is the 2004 builtin: an
      * OldSchool chat pack brings its own and is a different size, so the
      * classic parchment under it would show at two edges. */
     if( !oldschool )
-        frame_blit(g_image[IMG_C_CHATBACK], 17, 357);
-    frame_blit(g_image[IMG_C_BACKVMID3], 496, 357);
-    frame_blit(g_image[IMG_C_BACKBASE1], 0, 453);
-    frame_blit(g_image[IMG_C_BACKBASE2], 496, 466);
+        frame_blit(ctx, g_image[IMG_C_CHATBACK], 17, 357);
+    frame_blit(ctx, g_image[IMG_C_BACKVMID3], 496, 357);
+    frame_blit(ctx, g_image[IMG_C_BACKBASE1], 0, 453);
+    frame_blit(ctx, g_image[IMG_C_BACKBASE2], 496, 466);
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
         int const base = REDSTONE_BASE[TAB[i].stone];
-        int const pressed =
+        struct ToriRS_ImageRef const pressed =
             TAB[i].flip < 0 ? g_image[base] : g_redstone_flip[TAB[i].stone][TAB[i].flip];
         /* By the TAB, which is what FRAME_IMAGE_FILE is keyed on: it already
          * spends the thirteen frames of `sideicons.dat` over the fourteen tab
          * slots, giving the unused seventh no art at all. */
-        int const art = g_image[IMG_C_SIDEICON_0 + i];
+        struct ToriRS_ImageRef const art = g_image[IMG_C_SIDEICON_0 + i];
         /* The 2004 frame's boxes ARE in tab order, so the box index is the
          * tab; it is passed anyway rather than left implied, because the frame
          * below is the one where they differ and one loop that reads the index
          * and one that reads a field is how that divergence hides. */
         frame_tab(
+            ctx,
             i,
             TAB[i].box,
             TAB[i].icon_x,
             TAB[i].icon_y,
-            /*stone=*/-1,
+            /*stone=*/(struct ToriRS_ImageRef){ 0 },
             pressed,
             frame_tab_icon(ctx, i, art, 553, 205, 190, 261));
     }
 
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, 575, 9, 146, 151);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_COMPASS, 550, 4, 33, 33);
+    frame_surface(ctx, TORIRS_SURFACE_VIEWPORT, 4, 4, 512, 334);
+    frame_surface(ctx, TORIRS_SURFACE_MINIMAP, 575, 9, 146, 151);
+    frame_surface(ctx, TORIRS_SURFACE_COMPASS, 550, 4, 33, 33);
     /*
      * The 2004 chat at the 2004 place. An OldSchool chat pack is 519x165 and
      * the classic frame has a 496x96 hole; it goes in at the OldSchool
@@ -1198,15 +1320,15 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
     if( oldschool )
         frame_place_chat(ctx, 0, 338);
     else
-        g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 17, 357, 479, 96);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, 553, 205, 190, 261);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, 4, 4, 512, 334);
+        frame_surface(ctx, TORIRS_SURFACE_CHAT, 17, 357, 479, 96);
+    frame_surface(ctx, TORIRS_SURFACE_SIDEBAR, 553, 205, 190, 261);
+    frame_surface(ctx, TORIRS_SURFACE_MODAL, 4, 4, 512, 334);
     /* The orb block where the OldSchool fixed frame keeps it, beside a map
      * housing that on this frame stands five columns further right. A lane
      * with no such block answers 0 and nothing moves. */
-    g_api->layout_slot(
+    frame_surface(
         ctx,
-        TORIRS_PLUGIN_SLOT_ORBS,
+        TORIRS_SURFACE_ORBS,
         550 + FRAME_O_ORBS_FIXED_DX,
         4 + FRAME_O_ORBS_FIXED_DY,
         FRAME_O_ORBS_FIXED_W,
@@ -1222,14 +1344,12 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
     {
         static int const X[FRAME_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
         for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
-            g_api->layout_slot_at(
-                ctx,
-                TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+            ctx->builder->surface_member(
+                ctx->builder,
+                TORIRS_SURFACE_CHAT_BUTTONS,
                 i,
-                X[i],
-                467,
-                FRAME_CHAT_BUTTON_W,
-                FRAME_CHAT_BUTTON_H);
+                (struct ToriRS_Rect){
+                    X[i], 467, FRAME_CHAT_BUTTON_W, FRAME_CHAT_BUTTON_H });
     }
 }
 
@@ -1249,7 +1369,7 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
  * and only the pressed stone is per-tab.
  */
 static void
-frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
+frame_layout_modern_fixed(struct FrameCall* ctx)
 {
     /* The seven columns of each row, and which corner stone the ends wear. */
     static struct
@@ -1278,35 +1398,36 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
 
     assert(ctx);
 
-    frame_blit(g_image[IMG_O_BACKTOP1], 0, 0);
-    frame_blit(g_image[IMG_O_BACKTOP_RIGHT], 717, 0);
-    frame_blit(g_image[IMG_O_BACKLEFT1], 0, 4);
-    frame_blit(g_image[IMG_O_BACKVMID1], 516, 4);
+    frame_blit(ctx, g_image[IMG_O_BACKTOP1], 0, 0);
+    frame_blit(ctx, g_image[IMG_O_BACKTOP_RIGHT], 717, 0);
+    frame_blit(ctx, g_image[IMG_O_BACKLEFT1], 0, 4);
+    frame_blit(ctx, g_image[IMG_O_BACKVMID1], 516, 4);
     /* This frame's housing is its own picture inside the map's boundary, not
      * the lane's `minimap_edge`; a claim left over from the 2004 layout would
      * paint a 2004 plate over it. */
-    (void)frame_housing_claim(ctx, 0);
-    frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, g_image[IMG_O_MAPBACK], 545, 4);
-    frame_blit(g_image[IMG_O_BACKRIGHT_TOP], 717, 4);
-    frame_blit(g_image[IMG_O_BACKHMID1], 516, 160);
-    frame_blit(g_image[IMG_O_TABS_TOP], 516, 167);
-    frame_blit(g_image[IMG_O_BACKVMID2], 516, 205);
-    frame_blit(g_image[IMG_O_SIDE_PANEL], 547, 205);
-    frame_blit(g_image[IMG_O_BACKRIGHT1], 737, 205);
+    frame_housing_node(
+        ctx, g_image[IMG_O_MAPBACK], (struct ToriRS_Rect){ 545, 4, 172, 156 });
+    frame_slot_overlay(ctx, TORIRS_SURFACE_MINIMAP, g_image[IMG_O_MAPBACK], 545, 4);
+    frame_blit(ctx, g_image[IMG_O_BACKRIGHT_TOP], 717, 4);
+    frame_blit(ctx, g_image[IMG_O_BACKHMID1], 516, 160);
+    frame_blit(ctx, g_image[IMG_O_TABS_TOP], 516, 167);
+    frame_blit(ctx, g_image[IMG_O_BACKVMID2], 516, 205);
+    frame_blit(ctx, g_image[IMG_O_SIDE_PANEL], 547, 205);
+    frame_blit(ctx, g_image[IMG_O_BACKRIGHT1], 737, 205);
     /* The chat backing and its stone bar belong to the chat PACK on an
      * OldSchool lane, which draws both itself. @see frame_place_chat. */
     if( !oldschool )
     {
-        frame_blit(g_image[IMG_O_CHATBACK], 0, 338);
-        frame_blit(g_image[IMG_O_CHAT_STONES], 0, 338 + FRAME_O_CHAT_H);
+        frame_blit(ctx, g_image[IMG_O_CHATBACK], 0, 338);
+        frame_blit(ctx, g_image[IMG_O_CHAT_STONES], 0, 338 + FRAME_O_CHAT_H);
     }
-    frame_blit(g_image[IMG_O_BACKLEFT2], 519, 338);
-    frame_blit(g_image[IMG_O_TABS_BOTTOM], 519, 466);
+    frame_blit(ctx, g_image[IMG_O_BACKLEFT2], 519, 338);
+    frame_blit(ctx, g_image[IMG_O_TABS_BOTTOM], 519, 466);
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
-        int const art = g_image[IMG_O_SIDEICON_0 + tab];
+        struct ToriRS_ImageRef const art = g_image[IMG_O_SIDEICON_0 + tab];
         /* The icon centres on the stone it sits on, which is what a uniform
          * grid of stones means -- and this frame's icons carry no offset to
          * honour, so the centre IS the answer. @see FrameTab::icon_x. */
@@ -1316,34 +1437,35 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
 
         frame_tab_centre(ctx, box, art, &icon_x, &icon_y);
         frame_tab(
+            ctx,
             tab,
             box,
             icon_x,
             icon_y,
-            /*stone=*/-1,
+            /*stone=*/(struct ToriRS_ImageRef){ 0 },
             g_image[TAB[i].stone],
             frame_tab_icon(ctx, tab, art, 547, 205, 190, 261));
     }
 
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334);
+    frame_surface(ctx, TORIRS_SURFACE_VIEWPORT, 4, 4, 512, 334);
     /*
      * The two holes in `osrs_mapback`, at the housing's own offsets: the map
      * at 25,5 (145x151) and the compass at 0,0 (32x33). Measured off the art
      * rather than chosen, which is what makes the two masks below line up with
      * it pixel for pixel.
      */
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, 570, 9, 145, 151);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_COMPASS, 545, 4, 32, 33);
+    frame_surface(ctx, TORIRS_SURFACE_MINIMAP, 570, 9, 145, 151);
+    frame_surface(ctx, TORIRS_SURFACE_COMPASS, 545, 4, 32, 33);
     frame_skin_map(ctx, IMG_O_MINIMAP_MASK, IMG_O_COMPASS_MASK);
     frame_skin_scrollbar(ctx);
     frame_place_chat(ctx, 0, 338);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, 547, 205, 190, 261);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, 4, 4, 512, 334);
+    frame_surface(ctx, TORIRS_SURFACE_SIDEBAR, 547, 205, 190, 261);
+    frame_surface(ctx, TORIRS_SURFACE_MODAL, 4, 4, 512, 334);
     /* 548's own orb block: its map container's origin, level with the
      * housing at 545. */
-    g_api->layout_slot(
+    frame_surface(
         ctx,
-        TORIRS_PLUGIN_SLOT_ORBS,
+        TORIRS_SURFACE_ORBS,
         545 + FRAME_O_ORBS_FIXED_DX,
         4 + FRAME_O_ORBS_FIXED_DY,
         FRAME_O_ORBS_FIXED_W,
@@ -1442,7 +1564,7 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
  */
 static void
 frame_layout_modern_resizable(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     int canvas_w,
     int canvas_h)
 {
@@ -1464,8 +1586,11 @@ frame_layout_modern_resizable(
 
     assert(ctx);
 
-    (void)frame_housing_claim(ctx, 0);
-    frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, g_image[IMG_O_MAPBACK_R], map_x, 0);
+    frame_housing_node(
+        ctx,
+        g_image[IMG_O_MAPBACK_R],
+        (struct ToriRS_Rect){ map_x, 0, FRAME_R_MAP_W, FRAME_R_MAP_H });
+    frame_slot_overlay(ctx, TORIRS_SURFACE_MINIMAP, g_image[IMG_O_MAPBACK_R], map_x, 0);
     /*
      * The panel backing FIRST, and larger than the panel.
      *
@@ -1483,19 +1608,20 @@ frame_layout_modern_resizable(
      * same reason.
      */
     frame_blit_tiled(
+        ctx,
         g_image[IMG_O_SIDE_PANEL_R],
         panel_x - FRAME_R_PANEL_BLEED_X,
         panel_y - FRAME_R_PANEL_BLEED_Y,
         FRAME_R_PANEL_W + 2 * FRAME_R_PANEL_BLEED_X,
         FRAME_R_PANEL_H + 2 * FRAME_R_PANEL_BLEED_Y,
         FRAME_R_PANEL_TRANS);
-    frame_blit(g_image[IMG_O_TABS_TOP_R], row_x, top_row_y);
+    frame_blit(ctx, g_image[IMG_O_TABS_TOP_R], row_x, top_row_y);
     /* The pillars either side of the panel, which the fixed frame gets from
      * its surround (`backvmid2`/`backright1`) and this one has nothing to get
      * them from -- a floating panel has no surround, only its own edges. */
-    frame_blit(g_image[IMG_O_SIDE_COLUMN_L], panel_x - FRAME_R_COL_W, panel_y);
-    frame_blit(g_image[IMG_O_SIDE_COLUMN_R], panel_x + FRAME_R_PANEL_W, panel_y);
-    frame_blit(g_image[IMG_O_TABS_BOTTOM_R], row_x, bottom_row_y);
+    frame_blit(ctx, g_image[IMG_O_SIDE_COLUMN_L], panel_x - FRAME_R_COL_W, panel_y);
+    frame_blit(ctx, g_image[IMG_O_SIDE_COLUMN_R], panel_x + FRAME_R_PANEL_W, panel_y);
+    frame_blit(ctx, g_image[IMG_O_TABS_BOTTOM_R], row_x, bottom_row_y);
     /*
      * The backing only when the chatbox is up. The stone BAR always: it is
      * what the filter buttons stand on, and putting it away with the chat
@@ -1504,8 +1630,8 @@ frame_layout_modern_resizable(
     if( !oldschool )
     {
         if( g_chat_open )
-            frame_blit(g_image[IMG_O_CHATBACK], 0, chat_y);
-        frame_blit(g_image[IMG_O_CHAT_STONES], 0, chat_y + FRAME_O_CHAT_H);
+            frame_blit(ctx, g_image[IMG_O_CHATBACK], 0, chat_y);
+        frame_blit(ctx, g_image[IMG_O_CHAT_STONES], 0, chat_y + FRAME_O_CHAT_H);
     }
 
     /*
@@ -1555,7 +1681,7 @@ frame_layout_modern_resizable(
          * where friends belongs. @see FRAME_TAB_SCREEN_ORDER.
          */
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
-        int const art = g_image[IMG_O_SIDEICON_0 + tab];
+        struct ToriRS_ImageRef const art = g_image[IMG_O_SIDEICON_0 + tab];
         /* Centred on the stone, as on the fixed OldSchool frame and for the
          * same reason. @see FrameTab::icon_x. */
         struct FrameBox const box = { row_x + TAB[i].x,
@@ -1567,11 +1693,12 @@ frame_layout_modern_resizable(
 
         frame_tab_centre(ctx, box, art, &icon_x, &icon_y);
         frame_tab(
+            ctx,
             tab,
             box,
             icon_x,
             icon_y,
-            /*stone=*/-1,
+            /*stone=*/(struct ToriRS_ImageRef){ 0 },
             g_image[TAB[i].stone],
             frame_tab_icon(
                 ctx,
@@ -1586,17 +1713,17 @@ frame_layout_modern_resizable(
     /* The scene is the WHOLE window, chrome included -- that is what
      * "resizable" means here, and it is why the chat and the sidebar are drawn
      * over it rather than beside it. */
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, canvas_w, canvas_h);
-    g_api->layout_slot(
+    frame_surface(ctx, TORIRS_SURFACE_VIEWPORT, 0, 0, canvas_w, canvas_h);
+    frame_surface(
         ctx,
-        TORIRS_PLUGIN_SLOT_MINIMAP,
+        TORIRS_SURFACE_MINIMAP,
         map_x + FRAME_R_MAP_HOLE_X,
         FRAME_R_MAP_HOLE_Y,
         FRAME_R_MAP_HOLE_W,
         FRAME_R_MAP_HOLE_W);
-    g_api->layout_slot(
+    frame_surface(
         ctx,
-        TORIRS_PLUGIN_SLOT_COMPASS,
+        TORIRS_SURFACE_COMPASS,
         map_x + FRAME_R_COMPASS_X,
         FRAME_R_COMPASS_Y,
         FRAME_R_COMPASS_W,
@@ -1610,13 +1737,13 @@ frame_layout_modern_resizable(
      */
     if( chat_open )
         frame_place_chat(ctx, 0, chat_y);
-    g_api->layout_slot(
-        ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, panel_x, panel_y, FRAME_R_PANEL_W, FRAME_R_PANEL_H);
+    frame_surface(
+        ctx, TORIRS_SURFACE_SIDEBAR, panel_x, panel_y, FRAME_R_PANEL_W, FRAME_R_PANEL_H);
     /* The orb block as 161/164 keep it: the map container's origin, 29
      * columns left of the ring and ten rows down from the top. */
-    g_api->layout_slot(
+    frame_surface(
         ctx,
-        TORIRS_PLUGIN_SLOT_ORBS,
+        TORIRS_SURFACE_ORBS,
         map_x + FRAME_O_ORBS_R_DX,
         0 + FRAME_O_ORBS_R_DY,
         FRAME_O_ORBS_R_W,
@@ -1629,8 +1756,13 @@ frame_layout_modern_resizable(
      * is that place. Pinning it to a corner the way the chrome is pinned would
      * open a bank in the corner of a 1440x900 window.
      */
-    g_api->layout_slot(
-        ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, (canvas_w - 512) / 2, (canvas_h - 334) / 2, 512, 334);
+    frame_surface(
+        ctx,
+        TORIRS_SURFACE_MODAL,
+        (canvas_w - 512) / 2,
+        (canvas_h - 334) / 2,
+        512,
+        334);
     if( !oldschool )
         frame_chat_buttons_across(
             ctx,
@@ -1651,11 +1783,11 @@ frame_layout_modern_resizable(
  * image api meeting, which is what lets a plugin build art out of art it
  * shipped without carrying a decoder.
  */
-static int
+static struct ToriRS_ImageRef
 frame_compose_flip(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     char const* name,
-    int src,
+    struct ToriRS_ImageRef src,
     int flip_h,
     int flip_v)
 {
@@ -1663,19 +1795,22 @@ frame_compose_flip(
     uint32_t* out;
     int w = 0;
     int h = 0;
-    int handle;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
 
     assert(ctx);
     assert(name);
-    if( src < 0 || !g_api->image_size(ctx, src, &w, &h) || w <= 0 || h <= 0 )
-        return -1;
+    if( src.value == 0 || !g_api->assets.image_size(g_api, src, &w, &h) || w <= 0 || h <= 0 )
+        return handle;
 
     px = malloc((size_t)w * (size_t)h * sizeof(*px));
     assert(px);
-    if( g_api->image_pixels(ctx, src, px, w * h) != w * h )
+    if( !g_api->assets.image_pixels(
+            g_api, src, px, (size_t)w * (size_t)h, &copied) ||
+        copied != (size_t)w * (size_t)h )
     {
         free(px);
-        return -1;
+        return handle;
     }
     out = malloc((size_t)w * (size_t)h * sizeof(*out));
     assert(out);
@@ -1688,7 +1823,7 @@ frame_compose_flip(
             out[y * w + x] = px[sy * w + sx];
         }
     }
-    handle = g_api->image_compose(ctx, name, w, h, out);
+    (void)g_api->assets.image_compose(g_api, name, w, h, out, &handle);
     free(px);
     free(out);
     return handle;
@@ -1724,37 +1859,40 @@ frame_compose_flip(
 #define FRAME_CHAT_BRIGHT_NUM 3
 #define FRAME_CHAT_BRIGHT_DEN 2
 
-static int
+static struct ToriRS_ImageRef
 frame_compose_plate(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     char const* name,
-    int src,
+    struct ToriRS_ImageRef src,
     int bright)
 {
     uint32_t* px;
     uint32_t* out;
     int w = 0;
     int h = 0;
-    int handle;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
     int const out_w = FRAME_CHAT_BUTTON_W;
     int const out_h = FRAME_O_CHAT_PLATE_H;
     int const cap = FRAME_O_CHAT_BUTTON_CAP;
 
     assert(ctx);
     assert(name);
-    if( src < 0 || !g_api->image_size(ctx, src, &w, &h) || w <= 0 || h <= 0 )
-        return -1;
+    if( src.value == 0 || !g_api->assets.image_size(g_api, src, &w, &h) || w <= 0 || h <= 0 )
+        return handle;
     /* Both ways round: a plate wider than the button, or a source too narrow
      * to have a body between its caps, has no three-slice to make. */
     if( h > out_h || w > out_w || w <= 2 * cap || out_w <= 2 * cap )
-        return -1;
+        return handle;
 
     px = malloc((size_t)w * (size_t)h * sizeof(*px));
     assert(px);
-    if( g_api->image_pixels(ctx, src, px, w * h) != w * h )
+    if( !g_api->assets.image_pixels(
+            g_api, src, px, (size_t)w * (size_t)h, &copied) ||
+        copied != (size_t)w * (size_t)h )
     {
         free(px);
-        return -1;
+        return handle;
     }
     out = malloc((size_t)out_w * (size_t)out_h * sizeof(*out));
     assert(out);
@@ -1798,14 +1936,14 @@ frame_compose_plate(
             out[y * out_w + x] = v;
         }
     }
-    handle = g_api->image_compose(ctx, name, out_w, out_h, out);
+    (void)g_api->assets.image_compose(g_api, name, out_w, out_h, out, &handle);
     free(px);
     free(out);
     return handle;
 }
 
 static void
-frame_build_chat_plates(struct ToriRS_PluginCtx* ctx)
+frame_build_chat_plates(struct FrameCall* ctx)
 {
     static struct
     {
@@ -1829,7 +1967,7 @@ frame_build_chat_plates(struct ToriRS_PluginCtx* ctx)
      * built from whichever had landed would be half the frame at the wrong
      * height for the rest of the session. */
     for( int i = 0; i < CHAT_PLATE_COUNT; i++ )
-        if( !g_api->image_size(ctx, g_image[PLATE[i].src], NULL, NULL) )
+        if( !g_api->assets.image_size(g_api, g_image[PLATE[i].src], NULL, NULL) )
             return;
 
     for( int i = 0; i < CHAT_PLATE_COUNT; i++ )
@@ -1848,7 +1986,7 @@ frame_build_chat_plates(struct ToriRS_PluginCtx* ctx)
  * on the frames before the art lands and nothing after.
  */
 static void
-frame_build_redstones(struct ToriRS_PluginCtx* ctx)
+frame_build_redstones(struct FrameCall* ctx)
 {
     static char const* const NAME[3][REDSTONE_FLIP_COUNT] = {
         { "redstone1_h.png", "redstone1_v.png", "redstone1_hv.png" },
@@ -1861,7 +1999,7 @@ frame_build_redstones(struct ToriRS_PluginCtx* ctx)
     if( g_redstone_flipped )
         return;
     for( int i = 0; i < 3; i++ )
-        if( !g_api->image_size(ctx, g_image[SRC[i]], NULL, NULL) )
+        if( !g_api->assets.image_size(g_api, g_image[SRC[i]], NULL, NULL) )
             return;
 
     for( int i = 0; i < 3; i++ )
@@ -1889,7 +2027,7 @@ static char const* const FRAME_LAYOUT_NAME[] = {
  * it and registration order cannot affect the result.
  */
 static int
-frame_layout_resolve(struct ToriRS_PluginCtx* ctx)
+frame_layout_resolve(struct FrameCall* ctx)
 {
     struct ToriRS_PluginFrameSelection selected;
 
@@ -1904,7 +2042,7 @@ frame_layout_resolve(struct ToriRS_PluginCtx* ctx)
 
 static enum ToriRS_PluginVerdict
 frame_on_layout(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     void* payload,
     void* userdata)
 {
@@ -1983,7 +2121,7 @@ frame_on_layout(
 
 static enum ToriRS_PluginVerdict
 frame_on_draw(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     void* payload,
     void* userdata)
 {
@@ -2172,7 +2310,7 @@ frame_on_draw(
 
 static enum ToriRS_PluginVerdict
 frame_on_click(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     void* payload,
     void* userdata)
 {
@@ -2213,7 +2351,7 @@ frame_on_click(
 
 static enum ToriRS_PluginVerdict
 frame_on_start(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     void* payload,
     void* userdata)
 {
@@ -2248,7 +2386,7 @@ frame_on_start(
 
 static enum ToriRS_PluginVerdict
 frame_on_stop(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     void* payload,
     void* userdata)
 {
@@ -2279,7 +2417,7 @@ frame_on_stop(
 
 static void
 frame_init(
-    struct ToriRS_PluginCtx* ctx,
+    struct FrameCall* ctx,
     struct ToriRS_PluginApi const* api)
 {
     assert(ctx);

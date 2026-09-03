@@ -1,4 +1,3 @@
-#include "plugin/torirs_plugin.h"
 #include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
@@ -143,8 +142,6 @@ static const struct
 /** `^sa_max_energy`: the special attack bar is 0..1000, not 0..100. */
 #define ORB_SPEC_MAX 1000
 
-static struct ToriRS_PluginApi const* g_api;
-
 /** The plugin's art, by the order it is loaded in. */
 enum OrbImage
 {
@@ -167,14 +164,69 @@ enum OrbImage
     ORB_IMG_COUNT
 };
 
+enum OrbIndex
+{
+    ORB_HP = 0,
+    ORB_PRAYER,
+    ORB_RUN,
+    ORB_SPEC,
+    ORB_COUNT
+};
+
 static char const* const ORB_IMAGE_FILE[ORB_IMG_COUNT] = {
     "frame.png",       "frame_over.png", "fill_empty.png",    "fill_red.png",    "fill_grey.png",
     "fill_gold.png",   "fill_cyan.png",  "fill_cyan_lit.png", "fill_prayer.png", "icon_hp.png",
     "icon_prayer.png", "icon_walk.png",  "icon_run.png",      "icon_spec.png",   "digits.png",
 };
 
-/** Handles from api->image_load, or -1 while a load has not been asked for. */
-static int g_image[ORB_IMG_COUNT];
+struct OrbGlyph
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    int off_x;
+    int off_y;
+    int advance;
+};
+
+/** All mutable data belongs to one registered V2 instance. */
+struct OrbsState
+{
+    struct ToriRS_ImageRef image[ORB_IMG_COUNT];
+    struct OrbGlyph digit[10];
+    int digits_ready;
+    int digit_steps;
+    int digit_row_h;
+    int digit_line_height;
+    int digit_max_ascent;
+    int digit_max_descent;
+    struct ToriRS_UiNodeRef node[ORB_COUNT];
+};
+
+static bool
+orbs_cfg_bool(struct ToriRS_ApiV2* api, char const* key)
+{
+    bool value = false;
+    (void)api->config.get_bool(api, key, &value);
+    return value;
+}
+
+static int
+orbs_cfg_int(struct ToriRS_ApiV2* api, char const* key)
+{
+    int value = 0;
+    (void)api->config.get_int(api, key, &value);
+    return value;
+}
+
+static char const*
+orbs_cfg_string(struct ToriRS_ApiV2* api, char const* key)
+{
+    char const* value = "";
+    (void)api->config.get_string(api, key, &value);
+    return value ? value : "";
+}
 
 /** What a click on each orb means. Handed to api->hit_region and read back in
  *  EV_CANVAS_CLICK; the host does not look at these. */
@@ -254,7 +306,7 @@ orbs_parse_button(
  */
 static int
 orbs_button(
-    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_ApiV2* api,
     char const* key,
     char const* name,
     int* out_component,
@@ -262,11 +314,10 @@ orbs_button(
 {
     int declared;
 
-    if( orbs_parse_button(g_api->cfg_str(ctx, key), out_component, out_op) )
+    if( orbs_parse_button(orbs_cfg_string(api, key), out_component, out_op) )
         return 1;
 
-    declared = g_api->cache_id(ctx, "iface", name);
-    if( declared < 0 )
+    if( !api->cache.named_id(api, "iface", name, &declared) )
         return 0;
     *out_component = declared;
     *out_op = 0;
@@ -285,32 +336,14 @@ orbs_button(
  *
  * @return how many were written.
  */
-static int
-orbs_ops(
-    struct ToriRS_PluginCtx* ctx,
-    char const* key,
-    char const* name,
-    char const* verb,
-    char const** out)
-{
-    int component;
-    int op;
-
-    assert(out);
-    if( !orbs_button(ctx, key, name, &component, &op) )
-        return 0;
-    out[0] = verb;
-    return 1;
-}
-
 static void
-orbs_load_images(struct ToriRS_PluginCtx* ctx)
+orbs_load_images(struct ToriRS_ApiV2* api, struct OrbsState* state)
 {
     for( int i = 0; i < ORB_IMG_COUNT; i++ )
     {
-        if( g_image[i] >= 0 )
+        if( state->image[i].value != 0 )
             continue;
-        g_image[i] = g_api->image_load(ctx, ORB_IMAGE_FILE[i]);
+        (void)api->assets.image(api, ORB_IMAGE_FILE[i], &state->image[i]);
     }
 }
 
@@ -330,12 +363,12 @@ orbs_load_images(struct ToriRS_PluginCtx* ctx)
  */
 static int
 orbs_varp(
-    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_ApiV2* api,
     char const* key,
     char const* name,
     int fallback)
 {
-    int const override = g_api->cfg_int(ctx, key);
+    int const override = orbs_cfg_int(api, key);
     int declared;
 
     if( override > 0 )
@@ -345,8 +378,7 @@ orbs_varp(
     if( override == 0 )
         return -1;
 
-    declared = g_api->cache_id(ctx, "varp", name);
-    if( declared >= 0 )
+    if( api->cache.named_id(api, "varp", name, &declared) )
         return declared;
     return fallback;
 }
@@ -367,31 +399,6 @@ orbs_varp(
  * picture on a lane whose cache has no such font at all, which is the whole
  * reason this plugin brings its own art.
  */
-struct OrbGlyph
-{
-    /** Where in the atlas, and how big. */
-    int x;
-    int y;
-    int w;
-    int h;
-    /** Where inside the line box, and how far the pen moves after it. */
-    int off_x;
-    int off_y;
-    int advance;
-};
-
-static struct OrbGlyph g_digit[10];
-static int g_digits_ready;
-/** Colour steps in the atlas, and how far apart their rows are. @see
- *  tools/fontbake_atlas.py `ramp:N`. 1 step is a single-colour atlas. */
-static int g_digit_steps = 1;
-static int g_digit_row_h;
-/** The face's vertical metrics, as ToriDraw2D_DrawStringBox reads them. @see
- *  orbs_text_origin. */
-static int g_digit_line_height;
-static int g_digit_max_ascent;
-static int g_digit_max_descent;
-
 /**
  * Read `digits.ini` into the table above.
  *
@@ -402,17 +409,18 @@ static int g_digit_max_descent;
  * the caller on its fallback.
  */
 static int
-orbs_load_digits(struct ToriRS_PluginCtx* ctx)
+orbs_load_digits(struct ToriRS_ApiV2* api, struct OrbsState* state)
 {
     char const* at;
-    int size = 0;
+    size_t size = 0;
 
-    if( g_digits_ready )
+    if( state->digits_ready )
         return 1;
 
-    if( !g_api->asset_load(ctx, "digits.ini") )
+    if( api->assets.request(api, "digits.ini") != TORIRS_ASSET_READY )
         return 0;
-    at = (char const*)g_api->asset_data(ctx, "digits.ini", &size);
+    if( !api->assets.bytes(api, "digits.ini", (void const**)&at, &size) )
+        return 0;
     if( !at || size <= 0 )
         return 0;
 
@@ -448,35 +456,35 @@ orbs_load_digits(struct ToriRS_PluginCtx* ctx)
          */
         if( len > 12 && strncmp(line, "line_height=", 12) == 0 )
         {
-            g_digit_line_height = atoi(line + 12);
+            state->digit_line_height = atoi(line + 12);
             continue;
         }
         if( len > 11 && strncmp(line, "max_ascent=", 11) == 0 )
         {
-            g_digit_max_ascent = atoi(line + 11);
+            state->digit_max_ascent = atoi(line + 11);
             continue;
         }
         if( len > 12 && strncmp(line, "max_descent=", 12) == 0 )
         {
-            g_digit_max_descent = atoi(line + 12);
+            state->digit_max_descent = atoi(line + 12);
             continue;
         }
         /* `<digit>=x y w h ox oy advance`. Anything else -- the header
          * comments, the `ascent=` line -- is skipped by the same test. */
         if( len > 6 && strncmp(line, "steps=", 6) == 0 )
         {
-            g_digit_steps = atoi(line + 6);
+            state->digit_steps = atoi(line + 6);
             continue;
         }
         if( len > 11 && strncmp(line, "row_height=", 11) == 0 )
         {
-            g_digit_row_h = atoi(line + 11);
+            state->digit_row_h = atoi(line + 11);
             continue;
         }
         if( len < 3 || line[0] < '0' || line[0] > '9' || line[1] != '=' )
             continue;
         {
-            struct OrbGlyph* g = &g_digit[line[0] - '0'];
+            struct OrbGlyph* g = &state->digit[line[0] - '0'];
             if( sscanf(
                     line + 2,
                     "%d %d %d %d %d %d %d",
@@ -487,10 +495,10 @@ orbs_load_digits(struct ToriRS_PluginCtx* ctx)
                     &g->off_x,
                     &g->off_y,
                     &g->advance) == 7 )
-                g_digits_ready = 1;
+                state->digits_ready = 1;
         }
     }
-    return g_digits_ready;
+    return state->digits_ready;
 }
 
 /**
@@ -511,10 +519,11 @@ orbs_load_digits(struct ToriRS_PluginCtx* ctx)
  */
 static int
 orbs_text_origin(
+    struct OrbsState const* state,
     int y,
     int h)
 {
-    int const space = h - g_digit_max_ascent - g_digit_max_descent;
+    int const space = h - state->digit_max_ascent - state->digit_max_descent;
 
     /*
      * Metrics that never arrived would put the number several pixels down the
@@ -523,9 +532,9 @@ orbs_text_origin(
      * fills its line box -- which is every face an orb is set in -- so it is
      * the honest fallback as well as the common case.
      */
-    if( g_digit_line_height <= 0 || g_digit_max_ascent <= 0 )
+    if( state->digit_line_height <= 0 || state->digit_max_ascent <= 0 )
         return y;
-    return y + g_digit_max_ascent + space / 2 - g_digit_line_height;
+    return y + state->digit_max_ascent + space / 2 - state->digit_line_height;
 }
 
 /**
@@ -538,8 +547,8 @@ orbs_text_origin(
  */
 static void
 orbs_draw_number(
-    struct ToriRS_PluginCtx* ctx,
-    void* surface,
+    struct OrbsState const* state,
+    struct ToriRS_DrawBuilder* draw,
     int cx,
     int top,
     int value,
@@ -558,29 +567,34 @@ orbs_draw_number(
      * at the colour says as much as reading the digits. The atlas carries that
      * ramp as rows (see tools/fontbake_atlas.py); this picks the row.
      */
-    if( g_digit_steps > 1 && total > 0 )
+    if( state->digit_steps > 1 && total > 0 )
     {
         int const clamped = filled < 0 ? 0 : (filled > total ? total : filled);
-        row = clamped * (g_digit_steps - 1) / total;
+        row = clamped * (state->digit_steps - 1) / total;
     }
 
     snprintf(text, sizeof(text), "%d", value);
     len = (int)strlen(text);
 
     for( int i = 0; i < len; i++ )
-        width += g_digit[text[i] - '0'].advance;
+        width += state->digit[text[i] - '0'].advance;
     pen = cx - width / 2;
 
     for( int i = 0; i < len; i++ )
     {
-        struct OrbGlyph const* g = &g_digit[text[i] - '0'];
+        struct OrbGlyph const* g = &state->digit[text[i] - '0'];
         int const dx = pen + g->off_x;
         int const dy = top + g->off_y;
 
-        int const src_y = g->y + row * g_digit_row_h;
+        int const src_y = g->y + row * state->digit_row_h;
 
-        g_api->draw_image(
-            ctx, surface, g_image[ORB_IMG_DIGITS], dx - g->x, dy - src_y, dx, dy, g->w, g->h, 0);
+        draw->image_clip(
+            draw,
+            state->image[ORB_IMG_DIGITS],
+            dx - g->x,
+            dy - src_y,
+            (struct ToriRS_Rect){ dx, dy, g->w, g->h },
+            255);
         pen += g->advance;
     }
 }
@@ -595,8 +609,8 @@ orbs_draw_number(
  */
 static void
 orbs_draw_one(
-    struct ToriRS_PluginCtx* ctx,
-    void* surface,
+    struct OrbsState const* state,
+    struct ToriRS_DrawBuilder* draw,
     int x,
     int y,
     int fill_image,
@@ -613,7 +627,7 @@ orbs_draw_one(
     int hidden;
     int trans;
 
-    if( g_image[ORB_IMG_FRAME] < 0 )
+    if( state->image[ORB_IMG_FRAME].value == 0 )
         return;
 
     /*
@@ -645,8 +659,12 @@ orbs_draw_one(
         filled = total;
     }
 
-    g_api->draw_image(
-        ctx, surface, g_image[fill_image], x + ORB_DISC_X, y + ORB_DISC_Y, 0, 0, 0, 0, trans);
+    draw->image(
+        draw,
+        state->image[fill_image],
+        x + ORB_DISC_X,
+        y + ORB_DISC_Y,
+        255 - trans);
 
     /*
      * The dark disc over the unfilled part, clipped to the rows above the
@@ -663,28 +681,24 @@ orbs_draw_one(
     if( hidden > ORB_DISC )
         hidden = ORB_DISC;
     if( hidden > 0 )
-        g_api->draw_image(
-            ctx,
-            surface,
-            g_image[ORB_IMG_FILL_EMPTY],
+        draw->image_clip(
+            draw,
+            state->image[ORB_IMG_FILL_EMPTY],
             x + ORB_DISC_X,
             y + ORB_DISC_Y,
-            x + ORB_DISC_X,
-            y + ORB_DISC_Y,
-            ORB_DISC,
-            hidden,
-            0);
+            (struct ToriRS_Rect){ x + ORB_DISC_X, y + ORB_DISC_Y, ORB_DISC, hidden },
+            255);
 
-    g_api->draw_image(
-        ctx, surface, g_image[icon_image], x + ORB_DISC_X, y + ORB_DISC_Y, 0, 0, 0, 0, 0);
+    draw->image(
+        draw, state->image[icon_image], x + ORB_DISC_X, y + ORB_DISC_Y, 255);
 
-    if( g_digits_ready && g_image[ORB_IMG_DIGITS] >= 0 )
+    if( state->digits_ready && state->image[ORB_IMG_DIGITS].value != 0 )
     {
         orbs_draw_number(
-            ctx,
-            surface,
+            state,
+            draw,
             x + ORB_TEXT_CX,
-            y + orbs_text_origin(ORB_TEXT_Y, ORB_TEXT_H),
+            y + orbs_text_origin(state, ORB_TEXT_Y, ORB_TEXT_H),
             value,
             filled,
             total);
@@ -695,7 +709,7 @@ orbs_draw_one(
      * overlay face is the wrong one for an orb, but a number in the wrong face
      * beats an orb with no number in it. */
     snprintf(text, sizeof(text), "%d", value);
-    g_api->draw_text(ctx, surface, x + ORB_TEXT_CX, y + ORB_TEXT_BASELINE, text, ORB_TEXT_RGB);
+    draw->text(draw, x + ORB_TEXT_CX, y + ORB_TEXT_BASELINE, text, ORB_TEXT_RGB);
 }
 
 /*
@@ -719,1112 +733,335 @@ orbs_draw_one(
  * box and picks the lit plate itself.
  */
 
-enum OrbIndex
-{
-    ORB_HP = 0,
-    ORB_PRAYER,
-    ORB_RUN,
-    ORB_SPEC,
-    ORB_COUNT
-};
-
 static struct
 {
-    char const* part;
     char const* node;
-    char const* label;
-    uint32_t tag;
+    char const* show_key;
+    char const* button_key;
+    char const* button_name;
+    char const* action;
 } const ORB_PART[ORB_COUNT] = {
-    { "orb_hitpoints", "frame.orb.hitpoints", "the hitpoints orb", ORB_TAG_HP },
-    { "orb_prayer", "frame.orb.prayer", "the prayer orb", ORB_TAG_PRAYER },
-    { "orb_run", "frame.orb.run", "the run orb", ORB_TAG_RUN },
-    { "orb_spec", "frame.orb.special", "the special attack orb", ORB_TAG_SPEC },
+    { "frame.orb.hitpoints", "show_hp", "hp_button", "orb_hp_button", "Cure" },
+    { "frame.orb.prayer", "show_prayer", "prayer_button", "orb_prayer_button", "Quick-prayers" },
+    { "frame.orb.run", "show_run", "run_button", "orb_run_on", "Toggle Run" },
+    { "frame.orb.special", "show_spec", "spec_button", "orb_spec_button", "Use Special Attack" },
 };
 
+#define ORB_CONTRIBUTION(name_)                                                    \
+    { .struct_size = sizeof(struct ToriRS_UiContribution),                        \
+      .node = (name_),                                                             \
+      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,                                        \
+      .facets = TORIRS_UI_FACET_ALL,                                               \
+      .value = { .struct_size = sizeof(struct ToriRS_UiNode),                      \
+                 .parent = "frame.minimap",                                        \
+                 .anchor = TORIRS_ANCHOR_TOP_LEFT,                                 \
+                 .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,                      \
+                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,         \
+                 .hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM } }
+
 static struct ToriRS_UiContribution const ORB_CONTRIBUTIONS[] = {
-    { .struct_size = sizeof(struct ToriRS_UiContribution),
-      .node = "frame.orb.hitpoints",
-      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
-      .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
-      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
-                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
-    { .struct_size = sizeof(struct ToriRS_UiContribution),
-      .node = "frame.orb.prayer",
-      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
-      .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
-      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
-                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
-    { .struct_size = sizeof(struct ToriRS_UiContribution),
-      .node = "frame.orb.run",
-      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
-      .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
-      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
-                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
-    { .struct_size = sizeof(struct ToriRS_UiContribution),
-      .node = "frame.orb.special",
-      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
-      .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
-      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
-                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
+    ORB_CONTRIBUTION("frame.orb.hitpoints"),
+    ORB_CONTRIBUTION("frame.orb.prayer"),
+    ORB_CONTRIBUTION("frame.orb.run"),
+    ORB_CONTRIBUTION("frame.orb.special"),
     { .node = NULL },
 };
 
-/** Per-orb claim state. */
-static struct
-{
-    /** Scopes this plugin holds, 0 for an orb it does not draw. */
-    int held;
-    /** The claim has been tried against a frame that had somewhere to put
-     *  it: an add that failed because the anchor was not there yet is
-     *  retried, one that failed for good is not. */
-    int settled;
-    /** Everything the last DECLARATION was made of -- the verbs and the art --
-     *  so an answer that changes after it re-declares. @see orbs_restate. */
-    char decl_sig[160];
-    /** The role this orb was ADDED under, empty for one that was claimed
-     *  rather than introduced. A claimed part is the lane's node and its
-     *  parent is not ours to move; an added one is ours. @see orbs_reanchor. */
-    char anchor[TORIRS_PLUGIN_ROLE_NAME_MAX];
-} g_orb[ORB_COUNT];
-
-/** Every claim has been tried once against a frame that could answer. */
-static int g_orbs_reported;
-
-/** The names the user reads, joined for the one line the chatbox gets. */
-static void
-orbs_append(char* buf, size_t cap, char const* what)
-{
-    size_t const len = strlen(buf);
-    if( len == 0 )
-        snprintf(buf, cap, "%s", what);
-    else
-        snprintf(buf + len, cap - len, ", %s", what);
-}
-
-/*
- * Which node the column hangs off, and what that costs in arithmetic.
- *
- * The plate and the disc are drawn by two different halves of this file -- the
- * HOST paints the plate from the chrome part, this plugin draws the disc in
- * EV_DRAW_CANVAS -- and each is placed by naming a role. chrome_add emits the
- * part after its anchor's own subtree; role_anchor emits the primitives after
- * the anchored role's own subtree. It is the same rule, so the two halves land
- * together only while they name the SAME role.
- *
- * They did not. The part was added to `minimap` while the draw anchored to
- * `minimap_edge`, and on any frame that has both -- the 2004 assembly, where
- * the housing is a plate with the map's hole cut out of it and therefore has
- * to paint AFTER the map -- that put the plate between the map and its
- * housing and the disc on top of the housing. Which is exactly what the
- * player sees: orbs whose backs are missing, hidden behind the map's edge.
- *
- * So the role is resolved ONCE, here, and every site uses this one answer.
- *
- * The column's arithmetic stays in the MAP's terms -- `offset_x` is documented
- * to the user as "offset from minimap left", and the y is a share of the map's
- * height -- so what the anchor changes is only the origin those numbers are
- * measured from. dx/dy carry that difference. They are zero when the anchor IS
- * the map, so the fallback needs no path of its own.
- */
-struct OrbAnchor
-{
-    /** The role the plate hangs off AND the draw anchors to. Never NULL. */
-    char const* role;
-    /** Added to a map-relative box to make it anchor-relative. */
-    int dx;
-    int dy;
-    /** The map square's height; the column's y is a share of it. */
-    int map_h;
-    /** The housing resolved, so this is the role the column WANTS. 0 means
-     *  the map square is standing in for it. @see orbs_reanchor. */
-    int preferred;
-};
-
-/** The anchor for this pass, or 0 when the frame has no minimap right now. */
 static int
-orbs_anchor(struct ToriRS_PluginCtx* ctx, struct OrbAnchor* out)
+orbs_node_index(struct OrbsState const* state, struct ToriRS_UiNodeRef node)
 {
-    int mx = 0;
-    int my = 0;
-    int mw = 0;
-    int mh = 0;
-    int ex = 0;
-    int ey = 0;
-
-    assert(ctx);
-    assert(out);
-
-    /* No map means nothing to hang off, on either half. A state, not a fault:
-     * the login screen and a cutscene that took the map away both land here. */
-    if( !g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, &mx, &my, &mw, &mh) )
-        return 0;
-
-    out->map_h = mh;
-
-    /*
-     * `minimap_edge` is the LAST piece of the map assembly -- the housing --
-     * and a readout drawn beside the map has to sit on top of it. A frame that
-     * has no such thing, because a gameframe plugin declared its housing with
-     * layout_slot_overlay and so paints it inside the map's own boundary,
-     * answers 0 here, and there the map itself is already the right answer.
-     *
-     * Asked whether it is ON SCREEN and not only where it is. The lane's own
-     * plate keeps its box after a gameframe layout suppresses it, so a box
-     * alone would hang the column off a node that paints nothing and the
-     * column would paint nothing with it. role_visible says whether the
-     * object is provided -- by the lane, or by a plugin that replaced it and
-     * paints it at the tombstone -- which is the question this is asking.
-     */
-    if( g_api->role_visible(ctx, "minimap_edge") &&
-        g_api->role_rect(ctx, "minimap_edge", &ex, &ey, NULL, NULL) )
-    {
-        out->role = "minimap_edge";
-        out->dx = mx - ex;
-        out->dy = my - ey;
-        out->preferred = 1;
-    }
-    else
-    {
-        out->role = "minimap";
-        out->dx = 0;
-        out->dy = 0;
-        out->preferred = 0;
-    }
-    return 1;
+    for( int i = 0; i < ORB_COUNT; i++ )
+        if( state->node[i].value == node.value )
+            return i;
+    return -1;
 }
 
-/**
- * Where one orb's plate goes, relative to the anchor.
- *
- * One copy of the sum, because the claim states this box once and EV_CHROME
- * restates it on every pass: two spellings of it is a column that walks
- * whenever only one of them is edited.
- */
-static void
-orbs_box(
-    struct ToriRS_PluginCtx* ctx,
-    struct OrbAnchor const* anchor,
+static int
+orbs_bounds(
+    struct ToriRS_ApiV2* api,
     int orb,
-    int* out_x,
-    int* out_y)
+    struct ToriRS_Rect* out)
 {
-    assert(ctx);
-    assert(anchor);
-    assert(out_x);
-    assert(out_y);
+    struct ToriRS_UiNodeInfo map;
+    struct ToriRS_UiNodeRef const ref = api->ui.ref(api, "frame.minimap");
 
-    *out_x = g_api->cfg_int(ctx, "offset_x") - ORB_W + ORB_SLOT[orb].dx + anchor->dx;
-    *out_y = anchor->map_h / 4 + g_api->cfg_int(ctx, "offset_y") - ORB_SLOT[0].dy +
-             ORB_SLOT[orb].dy + anchor->dy;
-}
-
-/**
- * Try every claim. Called at start and again after each layout pass until
- * every orb is settled -- an ADD needs an anchor with a box, and the first
- * layout may not have given the minimap one yet.
- */
-static void
-orbs_claim_all(struct ToriRS_PluginCtx* ctx)
-{
-    struct ToriRS_PluginChromePart initial;
-    char missing[192] = "";
-    int provided = 0;
-    int pending = 0;
-
-    assert(ctx);
-
-    /*
-     * Introduced WITH its picture, not with a placeholder to be filled in
-     * later.
-     *
-     * The plate used to be stated only from EV_CHROME, and an introduced part
-     * carries whatever `initial` said until that event actually arrives. It
-     * need not: the host dispatches EV_CHROME to a claimant whose declaration
-     * has gone stale, and a part introduced and never disturbed again is not
-     * stale -- so on a lane where nothing rebuilds the frame, the orbs kept
-     * the -1 they were added with for the whole session. The host then found
-     * a part with no art and no verbs, read that as "hidden by its holders",
-     * and painted nothing. What the player sees is the fill, the icon and the
-     * number drawn straight onto the frame art with no stone plate under
-     * them: the halves this plugin draws itself land every frame, and only
-     * the half the HOST paints from the declaration is missing.
-     *
-     * `initial` is the declaration, so it states the whole part. orbs_chrome
-     * restates it whenever the host does ask, and the two now agree on the
-     * first frame instead of the first rebuild.
-     */
-    orbs_load_images(ctx);
-    memset(&initial, 0, sizeof(initial));
-    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
-        initial.art[i] = -1;
-    initial.art[TORIRS_PLUGIN_CHROME_IDLE] = g_image[ORB_IMG_FRAME];
-    initial.art[TORIRS_PLUGIN_CHROME_HOVER] = g_image[ORB_IMG_FRAME_OVER];
-    initial.w = ORB_W;
-    initial.h = ORB_H;
-
-    for( int i = 0; i < ORB_COUNT; i++ )
-    {
-        int got;
-        int conflicts = 0;
-        int const active = g_api->ui_contribution_facets(
-            ctx, ORB_PART[i].node, &conflicts);
-
-        if( g_orb[i].settled )
-        {
-            if( g_orb[i].held )
-                provided++;
-            continue;
-        }
-
-        if( !(active & TORIRS_UI_FACET_APPEARANCE) )
-        {
-            if( conflicts )
-                g_api->log(
-                    ctx,
-                    "named UI conflict on '%s'; keeping the frame's orb",
-                    ORB_PART[i].node);
-            g_orb[i].held = 0;
-            g_orb[i].settled = 1;
-            continue;
-        }
-
-        got = g_api->chrome_claim(ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_ALL, 1);
-        if( got > 0 )
-        {
-            g_orb[i].held = got;
-            g_orb[i].settled = 1;
-            provided++;
-            continue;
-        }
-        if( got == 0 )
-        {
-            /* Somebody else draws it. The player's screen is right; the log
-             * is where this belongs and the chatbox is not. */
-            char const* who = g_api->chrome_owner(
-                ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE);
-            g_api->log(ctx, "'%s' is provided by '%s'; not drawing one",
-                ORB_PART[i].part, who ? who : "another plugin");
-            g_orb[i].settled = 1;
-            continue;
-        }
-
-        /* Nothing on this revision has it: introduce one, hung off the map
-         * assembly. On the SAME role the draw anchors to -- name a different
-         * one and the plate and the disc come out on opposite sides of the
-         * housing. @see orbs_anchor. */
-        {
-            struct OrbAnchor anchor;
-
-            if( !orbs_anchor(ctx, &anchor) )
-            {
-                /* No map yet: not a refusal, just not now. */
-                pending++;
-                continue;
-            }
-            orbs_box(ctx, &anchor, i, &initial.x, &initial.y);
-            got = g_api->chrome_add(
-                ctx, ORB_PART[i].part, anchor.role, TORIRS_PLUGIN_ANCHOR_AFTER, &initial);
-            if( got > 0 )
-                snprintf(g_orb[i].anchor, sizeof(g_orb[i].anchor), "%s", anchor.role);
-        }
-        if( got > 0 )
-        {
-            g_orb[i].held = got;
-            g_orb[i].settled = 1;
-            provided++;
-        }
-        else if( got == 0 )
-        {
-            char const* who = g_api->chrome_owner(
-                ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE);
-            g_api->log(ctx, "'%s' is provided by '%s'; not drawing one",
-                ORB_PART[i].part, who ? who : "another plugin");
-            g_orb[i].settled = 1;
-        }
-        else
-        {
-            orbs_append(missing, sizeof(missing), ORB_PART[i].label);
-            g_orb[i].settled = 1;
-        }
-    }
-
-    if( pending || g_orbs_reported )
-        return;
-    g_orbs_reported = 1;
-
-    if( !provided )
-    {
-        g_api->disable_self(ctx, "this gameframe has no minimap to hang orbs off");
-        return;
-    }
-    if( missing[0] )
-    {
-        /* A part NOBODY ends up providing is the one thing the player is
-         * told about: they switched a feature on and cannot see it. */
-        char msg[256];
-        snprintf(msg, sizeof(msg), "Minimap orbs: no room on this gameframe for %s.", missing);
-        g_api->notify(ctx, msg);
-        g_api->log(ctx, "%s", msg);
-    }
-}
-
-/*
- * Move an added orb when the anchor it should hang off has changed.
- *
- * The plate's parent is chosen ONCE, at chrome_add, and the host is explicit
- * that it stays: "an added part keeps the anchor it was introduced with;
- * re-anchoring is a different part, not the same one said again". So the only
- * way to correct one is to release it -- which, for an added part, removes it
- * -- and add it again.
- *
- * That is needed because the two roles do not become available together. The
- * map square carries its size in the layout (`w=146 h=151`) and so has a box
- * from the first pass; the housing is a SPRITE, and it has no box until its
- * pixels arrive -- which on a lane that streams its cache over on-demand can
- * be a good while after the map is placed. An orb added in that window went
- * under `minimap`, settled there for good, and spent the session painted into
- * the gap between the map and its housing while the discs drew on top of it.
- * The picture that report describes: orbs with no backs.
- *
- * So it is re-asked instead of assumed. Only parts this plugin ADDED are
- * touched: a claimed one is the lane's own node, and where the lane puts it is
- * not this plugin's business.
- */
-static void
-orbs_reanchor(struct ToriRS_PluginCtx* ctx, struct OrbAnchor const* anchor)
-{
-    assert(ctx);
-    assert(anchor);
-
-    /*
-     * UPWARDS only: onto the housing, never back down off it.
-     *
-     * The move is worth making once, when the housing's pixels finally give it
-     * a box. Making it in both directions would let a frame that briefly loses
-     * that box -- a rebuild, a re-decode -- drag every plate down onto the map
-     * and back again, and each leg is a release, an add and a layout
-     * notification. An orb that has really lost its housing loses it along
-     * with the anchor it hangs off, and is rebuilt with the frame.
-     */
-    if( !anchor->preferred )
-        return;
-
-    for( int i = 0; i < ORB_COUNT; i++ )
-    {
-        if( !g_orb[i].held || g_orb[i].anchor[0] == '\0' )
-            continue;
-        if( strcmp(g_orb[i].anchor, anchor->role) == 0 )
-            continue;
-
-        g_api->log(ctx, "'%s' moves from '%s' to '%s'",
-            ORB_PART[i].part, g_orb[i].anchor, anchor->role);
-        /* Releasing every scope of an ADDED part removes it, which is what
-         * makes the add below a fresh introduction under the new role. */
-        (void)g_api->chrome_claim(ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_ALL, 0);
-        g_orb[i].held = 0;
-        g_orb[i].settled = 0;
-        g_orb[i].anchor[0] = '\0';
-        g_orb[i].decl_sig[0] = '\0';
-    }
-}
-
-/** Any orb whose claim has not yet been tried against a frame that could
- *  answer it. @see orbs_draw, which is where the retry actually happens. */
-static int
-orbs_unsettled(void)
-{
-    for( int i = 0; i < ORB_COUNT; i++ )
-        if( !g_orb[i].settled )
-            return 1;
-    return 0;
-}
-
-static enum ToriRS_PluginVerdict
-orbs_layout_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
-{
-    (void)event;
-    (void)userdata;
-    for( int i = 0; i < ORB_COUNT; i++ )
-    {
-        int conflicts = 0;
-        int const active = g_api->ui_contribution_facets(
-            ctx, ORB_PART[i].node, &conflicts);
-        int const should_hold = (active & TORIRS_UI_FACET_APPEARANCE) != 0;
-        (void)conflicts;
-        if( should_hold == (g_orb[i].held != 0) )
-            continue;
-        if( g_orb[i].held )
-            (void)g_api->chrome_claim(
-                ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_ALL, 0);
-        g_orb[i].held = 0;
-        g_orb[i].settled = 0;
-        g_orb[i].decl_sig[0] = '\0';
-    }
-    orbs_claim_all(ctx);
-    return TORIRS_PLUGIN_PASS;
-}
-
-/**
- * The verbs one orb offers right now, and a signature of them so a change
- * (the run orb flips between "Turn run on" and "Turn run off") re-declares.
- */
-static int
-orbs_ops_for(
-    struct ToriRS_PluginCtx* ctx, int orb, char const** ops, char* sig, size_t sig_cap)
-{
-    int n = 0;
-
-    switch( orb )
-    {
-    case ORB_HP:
-        n = orbs_ops(ctx, "hp_button", "orb_hp_button", "Cure", ops);
-        break;
-    case ORB_PRAYER:
-        n = orbs_ops(ctx, "prayer_button", "orb_prayer_button", "Quick-prayers", ops);
-        break;
-    case ORB_RUN:
-        n = orbs_ops(ctx, "run_button", "orb_run_on", "Toggle Run", ops);
-        break;
-    case ORB_SPEC:
-        n = orbs_ops(ctx, "spec_button", "orb_spec_button", "Use Special Attack", ops);
-        break;
-    default:
-        break;
-    }
-    sig[0] = '\0';
-    for( int i = 0; i < n; i++ )
-    {
-        size_t const len = strlen(sig);
-        snprintf(sig + len, sig_cap - len, "%s|", ops[i]);
-    }
-    return n;
-}
-
-/**
- * One orb's declaration as a string: the verbs it offers and the art it wears.
- *
- * Both halves, because both are declared in the same pass and either one can
- * arrive late. @see orbs_restate.
- */
-static void
-orbs_decl_sig(char const* ops_sig, char* out, size_t cap)
-{
-    assert(ops_sig);
-    assert(out);
-    snprintf(out, cap, "%s#%d,%d", ops_sig, g_image[ORB_IMG_FRAME], g_image[ORB_IMG_FRAME_OVER]);
-}
-
-/*
- * Re-ask for EV_CHROME on any orb whose declaration has stopped being true.
- *
- * The chrome tier raises EV_CHROME only for a claim that is MARKED, and the
- * only thing that marks one is a claim or a layout change. An orb is claimed
- * once, on the frame the map first has a box, so without this the plate and
- * the verbs it happened to have on that single frame are the ones it wears
- * for the rest of the session -- and neither is settled by then:
- *
- *   * the art is read through the asset queue, so `image_load` answers -1
- *     until the PNG lands, and an orb that declared no plate never gets one;
- *   * a verb is a config key or a profile `[iface:...]` binding, and a lane
- *     that resolves one later declares no op and so installs a region with
- *     nothing in the menu -- a click that lands on the orb and stops there.
- *
- * That is the report this exists for: orbs that draw, and do nothing, until
- * the player opens a panel and dirties the layout by hand -- which marks every
- * claim and finally asks for the declaration that was owed.
- *
- * The RUN orb had a private version of this (its verb follows the run state);
- * it was the only orb that could ever recover, and it recovered for the wrong
- * reason. One rule for all four instead.
- *
- * Restated with the scopes this plugin actually HOLDS, never SCOPE_ALL: a lane
- * orb is a node this tier may not move, and asking again for the position it
- * was already refused would log that refusal every frame.
- */
-static void
-orbs_restate(struct ToriRS_PluginCtx* ctx)
-{
-    assert(ctx);
-
-    for( int i = 0; i < ORB_COUNT; i++ )
-    {
-        char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
-        char ops_sig[128];
-        char sig[160];
-
-        if( !g_orb[i].held )
-            continue;
-        (void)orbs_ops_for(ctx, i, ops, ops_sig, sizeof(ops_sig));
-        orbs_decl_sig(ops_sig, sig, sizeof(sig));
-        if( strcmp(sig, g_orb[i].decl_sig) == 0 )
-            continue;
-        (void)g_api->chrome_claim(ctx, ORB_PART[i].part, g_orb[i].held, 1);
-    }
-}
-
-/**
- * EV_CHROME: state the plate and the click for every orb this plugin holds.
- * The box is only read for a part this plugin holds the POSITION of (an added
- * one); on a cache orb the box is the cache's.
- */
-static enum ToriRS_PluginVerdict
-orbs_chrome(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
-{
-    (void)event;
-    (void)userdata;
-
-    orbs_load_images(ctx);
-
-    for( int i = 0; i < ORB_COUNT; i++ )
-    {
-        struct ToriRS_PluginChromePart part;
-        char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
-        char ops_sig[128];
-        int n;
-
-        if( !g_orb[i].held )
-            continue;
-
-        memset(&part, 0, sizeof(part));
-        for( int s = 0; s < TORIRS_PLUGIN_CHROME_STATE_COUNT; s++ )
-            part.art[s] = -1;
-        part.art[TORIRS_PLUGIN_CHROME_IDLE] = g_image[ORB_IMG_FRAME];
-        part.art[TORIRS_PLUGIN_CHROME_HOVER] = g_image[ORB_IMG_FRAME_OVER];
-        part.w = ORB_W;
-        part.h = ORB_H;
-        if( g_orb[i].held & TORIRS_PLUGIN_CHROME_SCOPE_POSITION )
-        {
-            struct OrbAnchor anchor;
-
-            /* A pass with no map restates no box: the part keeps the one it
-             * has rather than being moved to the origin for a frame. */
-            if( orbs_anchor(ctx, &anchor) )
-                orbs_box(ctx, &anchor, i, &part.x, &part.y);
-        }
-        g_api->chrome_paint(ctx, ORB_PART[i].part, &part);
-
-        /* Claimed even with no verbs: the region's other job is to stop the
-         * click falling through to the map tile under the orb. */
-        n = orbs_ops_for(ctx, i, ops, ops_sig, sizeof(ops_sig));
-        g_api->chrome_ops(ctx, ORB_PART[i].part, ops, n, ORB_PART[i].tag);
-        /* What this declaration was made of, so the next pass can tell whether
-         * it still holds. @see orbs_restate. */
-        orbs_decl_sig(ops_sig, g_orb[i].decl_sig, sizeof(g_orb[i].decl_sig));
-    }
-    return TORIRS_PLUGIN_PASS;
-}
-
-/**
- * Point the emit stream at where THIS orb's plate is.
- *
- * The plate and the disc are two halves placed by naming a role (@see
- * orbs_anchor), and for an ADDED part that role is the one the whole column
- * hangs off -- the same answer for all four, which is what the shared anchor
- * is. A CLAIMED part is not ours to hang: it IS the lane's own node, and the
- * host paints its plate at that node, wherever the cache's own interface puts
- * it. On osrs239 that is interface 160, which paints AFTER the minimap -- so a
- * disc anchored to the map has the whole map subtree and then the plate drawn
- * over it, and every orb reads as the black hole in frame.png with no level,
- * no icon and no number in it.
- *
- * Naming the part itself is the same rule the shared anchor already follows,
- * asked per orb: hang the disc off the object whose plate it goes on top of.
- *
- * @return 0 when the role did not resolve, which is the caller's cue to draw
- *         nothing for this orb -- every declaration after a failed retarget is
- *         dropped by the host anyway.
- */
-static int
-orbs_anchor_orb(struct ToriRS_PluginCtx* ctx, int orb, struct OrbAnchor const* anchor)
-{
-    assert(ctx);
-    assert(anchor);
-    assert(orb >= 0);
-    assert(orb < ORB_COUNT);
-
-    /* `anchor[0]` is the role an ADDED orb was introduced under; a claimed one
-     * carries none, and is the case this exists for. @see g_orb. */
-    return g_api->role_anchor(
-        ctx,
-        g_orb[orb].anchor[0] ? anchor->role : ORB_PART[orb].part,
-        TORIRS_PLUGIN_ANCHOR_AFTER);
-}
-
-/** Where an orb this plugin holds is, or 0 for one it does not hold or one
- *  the frame has nowhere for right now. */
-static int
-orbs_part_box(struct ToriRS_PluginCtx* ctx, int orb, int* out_x, int* out_y)
-{
-    struct ToriRS_PluginChromePart part;
-
-    if( !g_orb[orb].held )
+    memset(&map, 0, sizeof(map));
+    map.struct_size = sizeof(map);
+    if( ref.value == 0 || !api->ui.info(api, ref, &map) || !map.visible ||
+        map.bounds.width <= 0 || map.bounds.height <= 0 )
         return 0;
-    if( !g_api->chrome_part(ctx, ORB_PART[orb].part, &part) )
-        return 0;
-    *out_x = part.x;
-    *out_y = part.y;
+    out->x = map.bounds.x + orbs_cfg_int(api, "offset_x") - ORB_W + ORB_SLOT[orb].dx;
+    out->y = map.bounds.y + map.bounds.height / 4 + orbs_cfg_int(api, "offset_y") -
+             ORB_SLOT[0].dy + ORB_SLOT[orb].dy;
+    out->width = ORB_W;
+    out->height = ORB_H;
     return 1;
 }
 
-static enum ToriRS_PluginVerdict
-orbs_draw(
-    struct ToriRS_PluginCtx* ctx,
-    void* event,
-    void* userdata)
+static int
+orbs_has_action(struct ToriRS_ApiV2* api, int orb)
 {
-    (void)userdata;
+    int component;
+    int operation;
 
-    struct ToriRS_PluginEvDrawCanvas* ev = (struct ToriRS_PluginEvDrawCanvas*)event;
-    struct OrbAnchor anchor;
+    if( orb == ORB_RUN )
+    {
+        int const run_varp =
+            orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
+        if( run_varp >= 0 && api->cache.varp(api, run_varp) != 0 &&
+            orbs_button(api, "run_button_off", "orb_run_off", &component, &operation) )
+            return 1;
+    }
+    return orbs_button(
+        api,
+        ORB_PART[orb].button_key,
+        ORB_PART[orb].button_name,
+        &component,
+        &operation);
+}
+
+static void
+orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
+{
+    orbs_load_images(api, state);
+    (void)orbs_load_digits(api, state);
+    for( int i = 0; i < ORB_COUNT; i++ )
+    {
+        struct ToriRS_UiNode value;
+        int const have_bounds = orbs_bounds(api, i, &value.bounds);
+
+        memset(&value, 0, sizeof(value));
+        value.struct_size = sizeof(value);
+        value.parent = "frame.minimap";
+        value.anchor = TORIRS_ANCHOR_TOP_LEFT;
+        value.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
+        value.clip = TORIRS_UI_CLIP_NONE;
+        value.flags = TORIRS_UI_NODE_ENABLED;
+        if( have_bounds && orbs_cfg_bool(api, ORB_PART[i].show_key) )
+            value.flags |= TORIRS_UI_NODE_VISIBLE;
+        if( have_bounds )
+            (void)orbs_bounds(api, i, &value.bounds);
+        value.hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM;
+        value.hit_rect = value.bounds;
+        value.state_image_mask =
+            (1u << TORIRS_UI_VISUAL_IDLE) | (1u << TORIRS_UI_VISUAL_HOVER);
+        value.state_images[TORIRS_UI_VISUAL_IDLE] = state->image[ORB_IMG_FRAME];
+        value.state_images[TORIRS_UI_VISUAL_HOVER] = state->image[ORB_IMG_FRAME_OVER];
+        if( orbs_has_action(api, i) )
+        {
+            value.action_count = 1;
+            value.actions[0] = ORB_PART[i].action;
+        }
+        if( state->node[i].value != 0 )
+            (void)api->ui.update(api, state->node[i], TORIRS_UI_FACET_ALL, &value);
+    }
+}
+
+static void
+orbs_draw_node(
+    struct ToriRS_ApiV2* api,
+    void* plugin_state,
+    struct ToriRS_UiNodeRef node,
+    struct ToriRS_DrawBuilder* draw)
+{
+    struct OrbsState* state = plugin_state;
+    struct ToriRS_UiNodeInfo info;
+    int const orb = orbs_node_index(state, node);
     int x;
     int y;
 
-    assert(ctx);
-    assert(ev);
+    if( orb < 0 )
+        return;
+    memset(&info, 0, sizeof(info));
+    info.struct_size = sizeof(info);
+    if( !api->ui.info(api, node, &info) || !info.visible )
+        return;
+    x = info.bounds.x;
+    y = info.bounds.y;
 
-    /*
-     * Nothing to anchor to means nothing to draw. A gameframe with no minimap
-     * -- the login screen, a cutscene that took it away -- is a state, not a
-     * fault, and the orbs simply are not there for it.
-     *
-     * Asked for by ROLE, which is the only way left to ask and was always the
-     * right one: a plugin that reads where the map is and a layout that PLACES
-     * it are then naming one thing rather than two that happen to agree.
-     */
-    if( !orbs_anchor(ctx, &anchor) )
-        return TORIRS_PLUGIN_PASS;
-
-    /*
-     * The claim, retried HERE and not only from EV_LAYOUT_CHANGED.
-     *
-     * An ADD needs the map to have a box, and at EV_START it usually has none,
-     * so the first attempt fails and the orb waits to be told the layout
-     * moved. That telling is not guaranteed to come after the map is placed.
-     * On a lane where no plugin owns the gameframe, app.c announces the layout
-     * once -- on the first tree it sees -- and then not again until something
-     * marks it dirty; a boot whose map was not placed on that one pass was
-     * left with four unclaimed orbs, no plate, no hit region and no verbs,
-     * until the player opened a panel and dirtied the layout by hand. Which is
-     * exactly the report: the orbs do not work until you open the settings
-     * menu.
-     *
-     * EV_CHROME cannot be the retry either. The host dispatches it only to a
-     * plugin that already HOLDS a claim, so a plugin whose every claim failed
-     * is never asked again -- the one state that needs the retry is the one
-     * state that cannot receive it. The draw is the only event that arrives
-     * every frame regardless of what this plugin holds, which is the same
-     * reason the image loads below are retried from here.
-     *
-     * Reaching this line means the map HAS a box, which is the condition the
-     * add was waiting on; and orbs_claim_all is a no-op once every orb has
-     * settled, so the steady state costs a four-iteration loop.
-     */
-    orbs_reanchor(ctx, &anchor);
-    if( orbs_unsettled() )
-        orbs_claim_all(ctx);
-    /* And the same rule for the DECLARATION as for the claim: an answer that
-     * was not knowable on the frame the orb was claimed is asked for again
-     * here, because the draw is the only event that arrives every frame.
-     * @see orbs_restate. */
-    orbs_restate(ctx);
-
-    /*
-     * And drawn AS PART OF the minimap, not merely beside it.
-     *
-     * Reading the map's rectangle answers where to put the orbs; it says
-     * nothing about what they ARE, and without this declaration they are a
-     * global canvas overlay -- the topmost surface the client has, painted and
-     * hit-tested above every interface in the tree. That is wrong in the two
-     * places it shows: a modal or a sidebar panel drawn over the minimap gets
-     * four orbs floating on top of it, and a click meant for that panel lands
-     * on an orb instead. Neither is visible on a plain gameframe, which is why
-     * a column that reads its position from the map can look correct for a
-     * long time while belonging to nothing.
-     *
-     * Anchored to a role, so the picture and the position cannot disagree: the
-     * orbs emit immediately after that role's own subtree, under its PARENT
-     * clip -- which is what lets the column hang off the map's left edge and
-     * past its bottom while still being cut by the panel that houses the map
-     * -- and they inherit its fate. A gameframe that hides, moves or rebuilds
-     * the thing they hang off hides, moves and rebuilds these.
-     *
-     * WHICH role that is was settled by orbs_anchor, and this is the same
-     * answer the plate was hung off -- which is the whole point of resolving
-     * it in one place. The map surface and the chrome that wraps it are two
-     * different nodes, and on every frame that has both the wrapper is painted
-     * AFTER the surface, because it is a plate with a hole in it. Naming one
-     * role here and the other at chrome_add is what put the discs on top of
-     * the housing and their plates underneath it.
-     *
-     * Zero means the role did not resolve for this pass. Every declaration
-     * after it would be dropped by the host anyway; returning here says so
-     * once instead of drawing nine images into a discard.
-     */
-    /* AFTER the housing: the whole point of hanging off `minimap_edge` is
-     * to sit on top of it. */
-    if( !g_api->role_anchor(ctx, anchor.role, TORIRS_PLUGIN_ANCHOR_AFTER) )
-        return TORIRS_PLUGIN_PASS;
-
-    /* Asked for every frame, not only at start: an image that failed its read
-     * on the first attempt is retried, and a plugin re-enabled after a reload
-     * has no handles at all. Both are answered by the same line, and a handle
-     * it already has costs a table scan. */
-    orbs_load_images(ctx);
-    orbs_load_digits(ctx);
-
-    /*
-     * Where each orb IS is answered by its part, not computed here: an added
-     * part's box was stated relative to the map in orbs_chrome and the host
-     * has already made it absolute; a cache orb's box is the cache's own. An
-     * orb this plugin does not hold is simply not drawn, and the ones it does
-     * hold keep the places they were given -- which is what lets a column of
-     * two coexist with somebody else's two without stacking on them.
-     */
-    x = 0;
-    y = 0;
-
-    if( g_api->cfg_bool(ctx, "show_hp") && orbs_part_box(ctx, ORB_HP, &x, &y) &&
-        orbs_anchor_orb(ctx, ORB_HP, &anchor) )
+    if( orb == ORB_HP || orb == ORB_PRAYER )
     {
-        int current = 0;
-        int base = 0;
-        g_api->stat(ctx, ORB_STAT_HITPOINTS, &current, &base);
-        /* A client that has not been told its stats yet reads 0/0, and a
-         * hitpoints orb showing zero out of zero looks like a death. */
-        if( base > 0 )
-        {
-            char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
-            int const n = orbs_ops(ctx, "hp_button", "orb_hp_button", "Cure", ops);
+        struct ToriRS_SkillSnapshot skill;
+        int const index = orb == ORB_HP ? ORB_STAT_HITPOINTS : ORB_STAT_PRAYER;
+
+        memset(&skill, 0, sizeof(skill));
+        skill.struct_size = sizeof(skill);
+        if( api->game && api->game->skill(api, index, &skill) && skill.base_level > 0 )
             orbs_draw_one(
-                ctx,
-                ev->surface,
+                state,
+                draw,
                 x,
                 y,
-                ORB_IMG_FILL_RED,
-                ORB_IMG_ICON_HP,
-                current,
-                current,
-                base,
-                ORB_TAG_HP,
-                ops,
-                n,
+                orb == ORB_HP ? ORB_IMG_FILL_RED : ORB_IMG_FILL_PRAYER,
+                orb == ORB_HP ? ORB_IMG_ICON_HP : ORB_IMG_ICON_PRAYER,
+                skill.current_level,
+                skill.current_level,
+                skill.base_level,
+                0,
+                NULL,
+                0,
                 0);
-        }
+        return;
     }
 
-    if( g_api->cfg_bool(ctx, "show_prayer") && orbs_part_box(ctx, ORB_PRAYER, &x, &y) &&
-        orbs_anchor_orb(ctx, ORB_PRAYER, &anchor) )
+    if( orb == ORB_RUN )
     {
-        int current = 0;
-        int base = 0;
-        g_api->stat(ctx, ORB_STAT_PRAYER, &current, &base);
-        if( base > 0 )
-        {
-            char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
-            /* The reference's own verb: `prayerbutton` carries `op1=*` over
-             * the name "Quick-prayers", which reads as one row. */
-            int const n = orbs_ops(ctx, "prayer_button", "orb_prayer_button", "Quick-prayers", ops);
-            orbs_draw_one(
-                ctx,
-                ev->surface,
-                x,
-                y,
-                ORB_IMG_FILL_PRAYER,
-                ORB_IMG_ICON_PRAYER,
-                current,
-                current,
-                base,
-                ORB_TAG_PRAYER,
-                ops,
-                n,
-                0);
-        }
+        int const energy = api->game ? api->game->run_energy(api) : 0;
+        int const run_varp =
+            orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
+        int const running = run_varp >= 0 && api->cache.varp(api, run_varp) != 0;
+
+        orbs_draw_one(
+            state,
+            draw,
+            x,
+            y,
+            ORB_IMG_FILL_GOLD,
+            running ? ORB_IMG_ICON_RUN : ORB_IMG_ICON_WALK,
+            energy,
+            energy,
+            100,
+            0,
+            NULL,
+            0,
+            !running);
+        return;
     }
 
-    if( g_api->cfg_bool(ctx, "show_run") && orbs_part_box(ctx, ORB_RUN, &x, &y) &&
-        orbs_anchor_orb(ctx, ORB_RUN, &anchor) )
-    {
-        char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
-        /* Scratch: what the region carries is declared in EV_CHROME and kept
-         * true by orbs_restate, which watches all four orbs. This asks only
-         * for the verbs the drawing itself hands to orbs_draw_one. */
-        char ops_sig[128];
-        int const n = orbs_ops_for(ctx, ORB_RUN, ops, ops_sig, sizeof(ops_sig));
-        int const energy = g_api->run_energy(ctx);
-        int const run_varp = orbs_varp(ctx, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
-        /* Run ON is the gold disc and the running boot; walking is the grey
-         * disc and the standing one -- the same pair the reference swaps. A
-         * lane with no run var reads as walking rather than as an error. */
-        int const running = run_varp >= 0 && g_api->varp(ctx, run_varp) != 0;
-        {
-            orbs_draw_one(
-                ctx,
-                ev->surface,
-                x,
-                y,
-                ORB_IMG_FILL_GOLD,
-                running ? ORB_IMG_ICON_RUN : ORB_IMG_ICON_WALK,
-                energy,
-                energy,
-                100,
-                ORB_TAG_RUN,
-                ops,
-                n,
-                /* Walking is the run orb's OFF state, and it wears the same
-                 * grey the spec orb wears when nothing can spend it: the disc
-                 * says whether running is on, and the number beside it still
-                 * says how much energy there is. The gold disc and the running
-                 * boot are the on state. */
-                !running);
-        }
-    }
-
-    if( g_api->cfg_bool(ctx, "show_spec") && orbs_part_box(ctx, ORB_SPEC, &x, &y) &&
-        orbs_anchor_orb(ctx, ORB_SPEC, &anchor) )
+    if( orb == ORB_SPEC )
     {
         int const spec_varp =
-            orbs_varp(ctx, "spec_varp", "special_attack_energy", ORB_VARP_SPEC_FALLBACK);
-        int const spec_max = g_api->cfg_int(ctx, "spec_max");
+            orbs_varp(api, "spec_varp", "special_attack_energy", ORB_VARP_SPEC_FALLBACK);
+        int const spec_max = orbs_cfg_int(api, "spec_max");
         if( spec_varp >= 0 && spec_max > 0 )
         {
-            char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
-            int const n =
-                orbs_ops(ctx, "spec_button", "orb_spec_button", "Use Special Attack", ops);
-            /*
-             * INACTIVE when nothing can spend it.
-             *
-             * The reference asks whether the weapon in the worn slot has a
-             * special attack at all (clientscript 2792 reads its cost out of
-             * enum 906) and greys the orb out when it does not. This client's
-             * plugin layer cannot see equipment or read an enum, so it asks
-             * the nearest question it CAN: whether this world has named a
-             * button for the orb to press. On a world with no special attack
-             * anywhere -- every LostCity one -- that is the same answer for
-             * the same reason, and it is permanently right rather than
-             * momentarily wrong.
-             *
-             * The per-weapon half is still missing, and looks like this: an
-             * orb that stays lit while holding a rune scimitar. Closing it
-             * needs the worn obj and an enum lookup in the api.
-             */
-            int const inactive = n == 0;
-            int energy = g_api->varp(ctx, spec_varp);
-            int const armed = g_api->varp(ctx, spec_varp + 1) > 0;
+            int energy = api->cache.varp(api, spec_varp);
+            int const armed = api->cache.varp(api, spec_varp + 1) > 0;
+            int const inactive = !orbs_has_action(api, ORB_SPEC);
 
             if( energy < 0 )
                 energy = 0;
             if( energy > spec_max )
                 energy = spec_max;
             orbs_draw_one(
-                ctx,
-                ev->surface,
+                state,
+                draw,
                 x,
                 y,
-                /* The lit disc while the special is ARMED, the plain one
-                 * otherwise -- graphic 1608 beside 1607, as 2792 picks them. */
                 armed ? ORB_IMG_FILL_CYAN_LIT : ORB_IMG_FILL_CYAN,
                 ORB_IMG_ICON_SPEC,
-                /* The panel reads a PERCENT, as the reference's does; the bar
-                 * itself is in thousandths and only the fill uses them. */
                 energy * 100 / spec_max,
                 energy,
                 spec_max,
-                ORB_TAG_SPEC,
-                ops,
-                n,
+                0,
+                NULL,
+                0,
                 inactive);
         }
     }
-
-    return TORIRS_PLUGIN_PASS;
 }
 
-/*
- * An orb was used: press the button its config names.
- *
- * One handler for all three, because what differs between them is a config key
- * and nothing else -- there is no orb-specific behaviour here, only a
- * different button on the same interface.
- */
-static enum ToriRS_PluginVerdict
-orbs_click(
-    struct ToriRS_PluginCtx* ctx,
-    void* event,
-    void* userdata)
+static enum ToriRS_CallbackResult
+orbs_action(
+    struct ToriRS_ApiV2* api,
+    void* plugin_state,
+    struct ToriRS_UiNodeRef node,
+    char const* action)
 {
-    (void)userdata;
+    struct OrbsState* state = plugin_state;
+    int const orb = orbs_node_index(state, node);
+    char const* key;
+    char const* name;
+    int component;
+    int operation;
 
-    struct ToriRS_PluginEvCanvasClick* ev = (struct ToriRS_PluginEvCanvasClick*)event;
-    char const* key = NULL;
-    char const* name = NULL;
-    int component = -1;
-    int op = 0;
-
-    assert(ctx);
-    assert(ev);
-
-    switch( ev->tag )
+    if( orb < 0 || strcmp(action, ORB_PART[orb].action) != 0 )
+        return TORIRS_CALLBACK_CONTINUE;
+    key = ORB_PART[orb].button_key;
+    name = ORB_PART[orb].button_name;
+    if( orb == ORB_RUN )
     {
-    case ORB_TAG_HP:
-        key = "hp_button";
-        name = "orb_hp_button";
-        break;
-    case ORB_TAG_PRAYER:
-        key = "prayer_button";
-        name = "orb_prayer_button";
-        break;
-    case ORB_TAG_RUN:
-        /*
-         * The run toggle is TWO buttons wherever the gameframe states run as a
-         * choice rather than as a switch: LostCity's controls tab carries a
-         * walk button and a run button, each `buttontype=select` on the same
-         * varp, and pressing the one that is already selected does nothing.
-         * So the orb presses the OTHER one -- and a lane that names only the
-         * first has a single toggle, which is the rev-239 shape.
-         */
-        {
-            int const run_varp = orbs_varp(ctx, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
-            int const running = run_varp >= 0 && g_api->varp(ctx, run_varp) != 0;
-            char const* off_key = "run_button_off";
-            char const* off_name = "orb_run_off";
-
-            if( running && orbs_button(ctx, off_key, off_name, &component, &op) )
-            {
-                key = off_key;
-                break;
-            }
-            key = "run_button";
-            name = "orb_run_on";
-        }
-        break;
-    case ORB_TAG_SPEC:
-        key = "spec_button";
-        name = "orb_spec_button";
-        break;
-    default:
-        return TORIRS_PLUGIN_PASS;
+        int const run_varp =
+            orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
+        if( run_varp >= 0 && api->cache.varp(api, run_varp) != 0 &&
+            orbs_button(
+                api, "run_button_off", "orb_run_off", &component, &operation) )
+            goto invoke;
     }
+    if( !orbs_button(api, key, name, &component, &operation) )
+        return TORIRS_CALLBACK_CONSUME;
 
-    /* No button named is the ordinary state on a lane nobody has told this
-     * plugin about, and the region offered no verb for it -- so the click that
-     * got here is a click on an orb that says it does nothing, and it does
-     * nothing. */
-    if( component < 0 && !orbs_button(ctx, key, name, &component, &op) )
-        return TORIRS_PLUGIN_PASS;
-
-    if( !g_api->if_click(ctx, component, op) )
+invoke:
+    if( !api->cache.invoke(api, component, operation) )
     {
-        char msg[128];
-
-        /*
-         * Said to the PLAYER, not only to the log.
-         *
-         * "The orb does nothing" is the least debuggable report a control can
-         * produce, and the cause is always the same one thing: the component
-         * this world was told to press is not in the interface tree -- the
-         * gameframe puts that button somewhere else, or does not have it at
-         * all. Naming the id turns a dead button into a line someone can act
-         * on, and it is a client-owned control, so the client is entitled to
-         * explain itself.
-         */
+        char message[160];
         snprintf(
-            msg,
-            sizeof(msg),
+            message,
+            sizeof(message),
             "Minimap orbs: this world has no interface component %d for '%s'.",
             component,
             key);
-        g_api->notify(ctx, msg);
-        g_api->log(ctx, "%s", msg);
+        api->core.notify(api, message);
+        api->core.log(api, "%s", message);
     }
-    return TORIRS_PLUGIN_PASS;
-}
-
-static enum ToriRS_PluginVerdict
-orbs_start(
-    struct ToriRS_PluginCtx* ctx,
-    void* event,
-    void* userdata)
-{
-    (void)event;
-    (void)userdata;
-
-    /* The handles are file-static and this plugin can be stopped and started
-     * again, which drops every image the host held for it. Forgetting them
-     * here is what makes the next start ask for them afresh instead of drawing
-     * with handles the host has since handed to someone else. */
-    for( int i = 0; i < ORB_IMG_COUNT; i++ )
-        g_image[i] = -1;
-    g_digits_ready = 0;
-    orbs_load_images(ctx);
-    orbs_load_digits(ctx);
-
-    /* Every claim, NOW -- before a pixel is drawn -- so the arbitration
-     * happens at the moment the user flipped the switch. Adds that need a map
-     * the frame has not laid out yet are retried from EV_LAYOUT_CHANGED. */
-    memset(g_orb, 0, sizeof(g_orb));
-    g_orbs_reported = 0;
-    orbs_claim_all(ctx);
-    return TORIRS_PLUGIN_PASS;
-}
-
-static enum ToriRS_PluginVerdict
-orbs_stop(
-    struct ToriRS_PluginCtx* ctx,
-    void* event,
-    void* userdata)
-{
-    (void)ctx;
-    (void)event;
-    (void)userdata;
-
-    for( int i = 0; i < ORB_IMG_COUNT; i++ )
-        g_image[i] = -1;
-    g_digits_ready = 0;
-
-    /*
-     * And the claims, which the HOST has just released for us.
-     *
-     * `held` is this plugin's memory of scopes the host no longer records, and
-     * `settled` is its promise not to ask for them again. Kept across a stop,
-     * the two combine into a plugin that comes back from a re-enable believing
-     * it owns four parts it does not: orbs_claim_all skips every one as
-     * settled, so nothing is ever re-added, and orbs_chrome paints and states
-     * verbs for parts the host will not accept them for. The orbs simply never
-     * reappear -- switched off and on again in the settings panel, they are
-     * gone for the rest of the session.
-     *
-     * A stop is the end of everything this plugin knew, so it ends here rather
-     * than being repaired later.
-     */
-    memset(g_orb, 0, sizeof(g_orb));
-    g_orbs_reported = 0;
-    return TORIRS_PLUGIN_PASS;
+    return TORIRS_CALLBACK_CONSUME;
 }
 
 static void
-orbs_init(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api)
+orbs_start(struct ToriRS_ApiV2* api, void* plugin_state)
 {
-    assert(ctx);
-    assert(api);
-    assert(api->abi_version == TORIRS_PLUGIN_ABI);
+    struct OrbsState* state = plugin_state;
 
-    g_api = api;
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_START, orbs_start, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, orbs_stop, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, orbs_draw, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, orbs_click, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_CHROME, orbs_chrome, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT_CHANGED, orbs_layout_changed, NULL);
+    memset(state, 0, sizeof(*state));
+    state->digit_steps = 1;
+    for( int i = 0; i < ORB_COUNT; i++ )
+        state->node[i] = api->ui.ref(api, ORB_PART[i].node);
+    orbs_update(api, state);
 }
 
-/*
- * `-1` on the two varp keys means "work it out", which is the answer for every
- * lane in this tree; a number is the override a private server needs. They are
- * shown in the panel rather than hidden because the whole point of them is
- * that someone whose orb reads wrong can fix it without a rebuild.
- */
+static void
+orbs_stop(struct ToriRS_ApiV2* api, void* plugin_state)
+{
+    struct OrbsState* state = plugin_state;
+
+    for( int i = 0; i < ORB_IMG_COUNT; i++ )
+        if( state->image[i].value != 0 )
+            api->assets.image_release(api, state->image[i]);
+    api->assets.release(api, "digits.ini");
+    memset(state, 0, sizeof(*state));
+}
+
+static void
+orbs_changed(
+    struct ToriRS_ApiV2* api,
+    void* plugin_state,
+    char const* key)
+{
+    (void)key;
+    orbs_update(api, plugin_state);
+}
+
+static void
+orbs_asset(
+    struct ToriRS_ApiV2* api,
+    void* plugin_state,
+    struct ToriRS_PluginEvAsset const* event)
+{
+    (void)event;
+    orbs_update(api, plugin_state);
+}
+
+static void
+orbs_placement(
+    struct ToriRS_ApiV2* api,
+    void* plugin_state,
+    uint32_t revision)
+{
+    (void)revision;
+    orbs_update(api, plugin_state);
+}
+
+/* Per-world overrides remain ordinary V2 config schema entries. */
 static struct ToriRS_PluginConfigItem const ORBS_CONFIG[] = {
     { "show_hp",        TORIRS_PLUGIN_CFG_BOOL,   "Hitpoints orb",                  "1",    0,    0,      NULL, 0 },
     { "show_prayer",    TORIRS_PLUGIN_CFG_BOOL,   "Prayer orb",                     "1",    0,    0,      NULL, 0 },
@@ -1864,23 +1101,27 @@ _Static_assert(
     ORB_SPEC_MAX == 1000,
     "the spec_max default above states this number too");
 
-struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS = {
-    .name = "minimap-orbs",
+static struct ToriRS_ConfigSchema const ORBS_SCHEMA = {
+    .struct_size = sizeof(struct ToriRS_ConfigSchema),
+    .items = ORBS_CONFIG,
+};
+
+struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MINIMAP_ORBS = {
+    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+    .id = "minimap-orbs",
     .title = "Minimap Orbs",
     .version = "1.0.0",
-    .priority = 0,
-    .config = ORBS_CONFIG,
-    /*
-     * ON by default now. It used to be off because on a rev-239 cache the
-     * gameframe draws these orbs ITSELF, from interface 160, and a plugin
-     * drawing a second set over them was two of everything. The four orb
-     * names now bind to interface 160's own roots on that lane, so the claim
-     * this plugin takes at start HIDES the cache's orb and draws this one in
-     * its place -- exactly one set, on every lane, with nothing for the user
-     * to know.
-     */
-    .disabled_by_default = false,
+    .state_size = sizeof(struct OrbsState),
+    .config = &ORBS_SCHEMA,
     .ui_contributions = ORB_CONTRIBUTIONS,
-    .init = orbs_init,
-    .shutdown = NULL,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = orbs_start,
+        .on_stop = orbs_stop,
+        .on_config_changed = orbs_changed,
+        .on_asset = orbs_asset,
+        .on_placement_changed = orbs_placement,
+        .on_ui_node_draw = orbs_draw_node,
+        .on_ui_node_action = orbs_action,
+    },
 };

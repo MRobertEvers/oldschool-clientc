@@ -5,6 +5,7 @@
 
 #include "log/torirs_log.h"
 #include "painters/painters.h"
+#include "platform/platform_renderer_gles2.h"
 #include "platform/platform_renderer_gles2_core.h"
 #include "platform/platform_renderer_gles2_dualcore_stage.h"
 #include "render/torirs_frame.h"
@@ -32,12 +33,30 @@
 /* Spins on the ready counter before the wait starts yielding the core. On
  * two cores the worker is on the other one, so spinning costs it nothing;
  * yielding is for the case where it is not (a hot-plugged core, a pin the
- * kernel overrode). */
-#define GLES2_DUALCORE_SPINS_BEFORE_YIELD 4096u
+ * kernel overrode). A spin is now one relaxed load (~3 cycles), so this is
+ * ~100 us of spinning; at 4096 the draw reached sched_yield inside every
+ * ordinary stall and spent 0.8 ms/frame in the kernel doing it (kr7). */
+#define GLES2_DUALCORE_SPINS_BEFORE_YIELD 65536u
 
 /* The worker's stack: 16 MB, the size class of a main thread rather than of
  * a helper. See the note at the create. */
 #define GLES2_DUALCORE_WORKER_STACK_BYTES (16u * 1024u * 1024u)
+
+/* The worker's poll of the feed: it is waiting on the draw's translation of
+ * the next command, which is microseconds away unless the draw is inside a
+ * long GL call; yield after this many empty polls (~100 us) so a same-core
+ * worker does not starve the draw it is waiting on. */
+#define GLES2_DUALCORE_FEED_SPINS_BEFORE_YIELD 65536u
+
+/* The draw's ring of translated-but-not-yet-dispatched commands. A power of
+ * two; the lookahead is capped one below it so the ring never fills past
+ * its slots. The lead that matters is in TIME, not slots: a tile whose
+ * stage the worker already did costs the draw ~3 us, so 16 slots of tiles
+ * is ~50 us of lead, less than one big model's stage (200+ us) -- and the
+ * draw caught the worker mid-model 93 times a frame at 16 (kr7). 256 slots
+ * at ~100 bytes is 25 KB the draw writes once and reads once per frame. */
+#define GLES2_DUALCORE_RING 256u
+#define GLES2_DUALCORE_LOOKAHEAD_DEFAULT 128u
 
 struct ToriRS_GLES2DualCore
 {
@@ -50,9 +69,22 @@ struct ToriRS_GLES2DualCore
     struct GLES2DualCoreStageArena arena;
     struct GLES2DualCoreStageContext context;
     struct GLES2ModelStageSource source;
-    /* The worker's own iterator over the frame's buffers (a copy of the
-     * draw's frame, begun world-only). */
-    struct ToriRS_Frame worker_frame;
+
+    /* --- the ring (draw thread only) ------------------------------------ */
+    /* Commands the frame bus has translated that the draw has not dispatched
+     * yet. Filled `lookahead` deep inside a world pass; one deep otherwise.
+     * The dispatch reads a slot in place, so a slot is live until the next
+     * pull that lands on it. */
+    struct ToriRS_RenderCommand ring[GLES2_DUALCORE_RING];
+    uint32_t ring_head;
+    uint32_t ring_count;
+    /* The bus has nothing more this frame. */
+    bool bus_done;
+    /* Between a dispatched BEGIN_3D and the pull of its END_3D: the only
+     * stretch the ring runs ahead in. */
+    bool in_pass;
+    /* The feed overflowed this frame; nothing more is published. */
+    bool feed_full;
 
     /* --- the thread ------------------------------------------------------- */
     pthread_t thread;
@@ -78,6 +110,7 @@ struct ToriRS_GLES2DualCore
     bool enabled;
     uint32_t warmup_frames;
     uint32_t lead;
+    uint32_t lookahead;
     bool pin;
     bool debug;
 
@@ -100,6 +133,10 @@ struct ToriRS_GLES2DualCore
     uint64_t stalls;
     uint64_t stall_spins;
     uint64_t desyncs;
+    /* Empty polls of the feed on the worker: the worker waiting on the
+     * draw's translation. */
+    uint64_t feed_waits;
+    uint64_t feed_wait_spins;
     uint64_t worker_ns;
     uint64_t join_ns;
     uint64_t worker_ns_window;
@@ -211,28 +248,52 @@ dualcore_env_long(char const* name, long fallback)
 static void
 dualcore_worker_pass(struct ToriRS_GLES2DualCore* lane)
 {
-    struct ToriRS_RenderCommand command;
+    struct GLES2DualCoreStageArena* arena = &lane->arena;
+    const struct GLES2DualCoreFeedEntry* entry;
+    uint32_t index = 0u;
+    uint32_t spins = 0u;
     bool stopped = false;
 
-    while( !stopped && ToriRS_FrameNextCommand(&lane->worker_frame, &command) )
+    while( !stopped )
     {
-        switch( command.kind )
+        switch( GLES2DualCoreStageArena_FeedTake(arena, index, &entry) )
         {
-        case TORIRSRC_BEGIN_3D:
-            GLES2DualCoreStage_BeginPass(&lane->context, &command.u.begin_3d);
+        case GLES2_DUALCORE_FEED_PENDING:
+            /* The draw has not translated this far yet. */
+            if( spins == 0u )
+                lane->feed_waits++;
+            spins++;
+            if( spins > GLES2_DUALCORE_FEED_SPINS_BEFORE_YIELD )
+                sched_yield();
+            continue;
+        case GLES2_DUALCORE_FEED_ENDED:
+            goto done;
+        case GLES2_DUALCORE_FEED_OVERFLOW:
+            stopped = true;
+            goto done;
+        case GLES2_DUALCORE_FEED_READY:
             break;
-        case TORIRSRC_DRAW_MODEL:
-            switch( GLES2DualCoreStageArena_ClaimNextForProducer(&lane->arena) )
+        }
+        lane->feed_wait_spins += spins;
+        spins = 0u;
+        index++;
+
+        switch( entry->kind )
+        {
+        case GLES2_DUALCORE_FEED_BEGIN_3D:
+            GLES2DualCoreStage_BeginPass(&lane->context, &entry->u.begin_3d);
+            break;
+        case GLES2_DUALCORE_FEED_MODEL:
+            switch( GLES2DualCoreStageArena_ClaimNextForProducer(arena) )
             {
             case GLES2_DUALCORE_CLAIMED:
-                if( !GLES2DualCoreStage_ComputeModel(
-                        &lane->context, &lane->arena, &command.u.model) )
+                if( !GLES2DualCoreStage_ComputeModel(&lane->context, arena, &entry->u.model) )
                     stopped = true;
                 break;
             case GLES2_DUALCORE_CLAIM_TAKEN_BY_DRAW:
                 /* The draw got to this one first and is computing it on the
                  * scene's own bench; keep the count paired and move on. */
-                GLES2DualCoreStageArena_PublishTakenByDraw(&lane->arena);
+                GLES2DualCoreStageArena_PublishTakenByDraw(arena);
                 lane->models_stage_draw_seen++;
                 break;
             case GLES2_DUALCORE_CLAIM_EXHAUSTED:
@@ -240,18 +301,16 @@ dualcore_worker_pass(struct ToriRS_GLES2DualCore* lane)
                 break;
             }
             break;
-        case TORIRSRC_END_3D:
+        case GLES2_DUALCORE_FEED_END_3D:
             GLES2DualCoreStage_EndPass(&lane->context);
             break;
         default:
-            /* A world-only frame yields nothing else; if it ever does, it is
-             * not the stage's to act on. */
+            assert(!"feed entry of unknown kind");
             break;
         }
     }
+done:
     GLES2DualCoreStage_EndPass(&lane->context);
-    /* The worker's iterator is a copy; the scene's frame is ended once, by
-     * the draw (ToriRS_FrameBeginWorldOnly's contract). */
     atomic_store_explicit(
         &lane->arena.finished,
         stopped ? GLES2_DUALCORE_STAGE_EXHAUSTED : GLES2_DUALCORE_STAGE_DONE,
@@ -327,9 +386,14 @@ static void
 dualcore_source_begin_3d(void* user, const struct ToriRS_RenderCommand_Begin3D* command)
 {
     struct ToriRS_GLES2DualCore* lane = (struct ToriRS_GLES2DualCore*)user;
-    (void)command;
     assert(lane);
+    assert(command);
     assert(lane->armed);
+    /* The pass opens on the worker too, and the ring may run ahead from
+     * here to the pass's END_3D. */
+    if( !lane->feed_full && !GLES2DualCoreStageArena_FeedPushBegin3D(&lane->arena, command) )
+        lane->feed_full = true;
+    lane->in_pass = true;
     if( lane->kicked )
         return;
     lane->kicked = true;
@@ -379,11 +443,23 @@ dualcore_source_take(
         lane->models_claimed_by_draw++;
         return false;
     }
+    /*
+     * The poll is RELAXED loads, with one acquire fence once the word has
+     * moved. An acquire load on ARMv7 is a load and a `dmb ish`; the
+     * previous shape (two acquire loads per iteration) was two barriers per
+     * poll, ~100-160 cycles on Krait, for up to 4096 polls per stall -- and
+     * measured at 8.7% of the draw thread's samples (kr4, 2026-09-03).
+     * Nothing is read behind the words until the fence, so the ordering is
+     * the same; only the spinning is cheaper.
+     */
     for( ;; )
     {
-        ready = atomic_load_explicit(&arena->ready, memory_order_acquire);
+        ready = atomic_load_explicit(&arena->ready, memory_order_relaxed);
         if( index < ready )
+        {
+            atomic_thread_fence(memory_order_acquire);
             break;
+        }
         /* Not published. If nobody has started it, it is ours: computing it
          * here on the scene's own bench beats waiting for a worker that is
          * behind, and it is what keeps the two halves of the frame level.
@@ -400,11 +476,12 @@ dualcore_source_take(
                 return false;
             }
         }
-        if( atomic_load_explicit(&arena->finished, memory_order_acquire) !=
+        if( atomic_load_explicit(&arena->finished, memory_order_relaxed) !=
             GLES2_DUALCORE_STAGE_RUNNING )
         {
             /* The producer is done; everything it published is visible now. */
-            ready = atomic_load_explicit(&arena->ready, memory_order_acquire);
+            atomic_thread_fence(memory_order_acquire);
+            ready = atomic_load_explicit(&arena->ready, memory_order_relaxed);
             if( index < ready )
                 break;
             /* Exhausted: the tail of the frame is the draw's to compute. A
@@ -506,15 +583,123 @@ dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
     lane->context.pick_mouse_y = renderer->pick_mouse_y;
     lane->context.zbuffer = renderer->zbuffer != NULL;
 
-    lane->worker_frame = *frame;
-    lane->worker_frame.scene = lane->view;
-    ToriRS_FrameBeginWorldOnly(&lane->worker_frame);
+    lane->ring_head = 0u;
+    lane->ring_count = 0u;
+    lane->bus_done = false;
+    lane->in_pass = false;
+    lane->feed_full = false;
 
     lane->take_index = 0u;
     lane->kicked = false;
     lane->armed = true;
     renderer->model_stage_source = &lane->source;
     return true;
+}
+
+/* ---- the ring (draw thread) ------------------------------------------------------ */
+
+/*
+ * Pull one command from the bus into the ring's tail slot, and publish it
+ * to the worker if it is a world command. False when the bus is finished.
+ */
+static bool
+dualcore_ring_pull(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
+{
+    struct ToriRS_RenderCommand* slot;
+
+    assert(lane->ring_count < GLES2_DUALCORE_RING);
+    if( lane->bus_done )
+        return false;
+    slot = &lane->ring[(lane->ring_head + lane->ring_count) & (GLES2_DUALCORE_RING - 1u)];
+    if( !ToriRS_FrameNextCommand(frame, slot) )
+    {
+        lane->bus_done = true;
+        return false;
+    }
+    lane->ring_count++;
+
+    if( !lane->in_pass )
+        return true;
+    switch( slot->kind )
+    {
+    case TORIRSRC_DRAW_MODEL:
+        if( !lane->feed_full &&
+            !GLES2DualCoreStageArena_FeedPushModel(&lane->arena, &slot->u.model) )
+            lane->feed_full = true;
+        break;
+    case TORIRSRC_END_3D:
+        if( !lane->feed_full && !GLES2DualCoreStageArena_FeedPushEnd3D(&lane->arena) )
+            lane->feed_full = true;
+        lane->in_pass = false;
+        break;
+    default:
+        /* The bus emits nothing else between a BEGIN_3D and its END_3D. If
+         * it ever does, the safe reading is that the pass is over: stop
+         * running ahead until the next BEGIN_3D is dispatched. */
+        assert(!"non-world command inside a world pass");
+        lane->in_pass = false;
+        break;
+    }
+    return true;
+}
+
+/*
+ * The next command to dispatch, or NULL at the end of the frame. Inside a
+ * world pass the ring is kept `lookahead` deep so the worker sees each
+ * command that far ahead of the draw needing its stage; outside one it is
+ * one deep, i.e. the plain bus. The pointer is into the ring and is live
+ * until the next call.
+ */
+static const struct ToriRS_RenderCommand*
+dualcore_ring_next(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
+{
+    const struct ToriRS_RenderCommand* command;
+
+    if( lane->in_pass )
+    {
+        while( lane->ring_count < lane->lookahead + 1u && dualcore_ring_pull(lane, frame) )
+            ;
+    }
+    else if( lane->ring_count == 0u )
+        (void)dualcore_ring_pull(lane, frame);
+
+    if( lane->ring_count == 0u )
+        return NULL;
+    command = &lane->ring[lane->ring_head];
+    lane->ring_head = (lane->ring_head + 1u) & (GLES2_DUALCORE_RING - 1u);
+    lane->ring_count--;
+    return command;
+}
+
+/* The element id of the DRAW_MODEL `ahead` slots past the ring's head, or
+ * -1: the input the renderer's prefetch pipeline wants. */
+static int
+dualcore_ring_element_id(const struct ToriRS_GLES2DualCore* lane, uint32_t ahead)
+{
+    const struct ToriRS_RenderCommand* command;
+    if( ahead >= lane->ring_count )
+        return -1;
+    command = &lane->ring[(lane->ring_head + ahead) & (GLES2_DUALCORE_RING - 1u)];
+    return command->kind == TORIRSRC_DRAW_MODEL ? command->u.model.element_id : -1;
+}
+
+static void
+dualcore_render_frame_commands(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
+{
+    struct ToriRS_GLES2* renderer = lane->renderer;
+    const struct ToriRS_RenderCommand* command;
+
+    while( (command = dualcore_ring_next(lane, frame)) != NULL )
+    {
+        /* After the pop: slot 0 is the command after this one. */
+        gles2_prefetch_ahead_ids(
+            renderer,
+            dualcore_ring_element_id(lane, 0u),
+            dualcore_ring_element_id(lane, 1u),
+            dualcore_ring_element_id(lane, 2u));
+        ToriRS_GLES2_Execute(renderer, command);
+    }
+    GLES2DualCoreStageArena_FeedClose(&lane->arena);
 }
 
 static void
@@ -524,7 +709,8 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         return;
     TORIRS_ERR(
         "gles2-dualcore: frames %llu dual %llu taken %llu claimed-by-draw %llu (worker saw %llu) "
-        "inline %llu stalls %llu (spins %llu) desyncs %llu exhausted-frames %u reprojected %u "
+        "inline %llu stalls %llu (spins %llu) desyncs %llu exhausted-frames %u "
+        "feed-waits %llu (spins %llu) feed-overflow-frames %u reprojected %u "
         "worker %.2f ms/frame join %.3f ms/frame\n",
         (unsigned long long)lane->frames,
         (unsigned long long)lane->frames_dual,
@@ -536,6 +722,9 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         (unsigned long long)lane->stall_spins,
         (unsigned long long)lane->desyncs,
         lane->arena.exhausted_frames,
+        (unsigned long long)lane->feed_waits,
+        (unsigned long long)lane->feed_wait_spins,
+        lane->arena.feed_overflow_frames,
         lane->renderer->stage_reprojected_models,
         (double)lane->worker_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
         (double)lane->join_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD);
@@ -560,14 +749,23 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
         return;
     ToriRS_FrameBegin(frame);
     if( dualcore_arm(lane, frame) )
+    {
         lane->frames_dual++;
-    gles2_render_frame_commands(renderer, frame);
+        dualcore_render_frame_commands(lane, frame);
+    }
+    else
+        gles2_render_frame_commands(renderer, frame);
     if( lane->armed )
     {
         /* Before the frame ends: ToriRS_FrameEnd frees the scene's pending
          * poses, and the worker must be past every model by then. */
         if( lane->kicked )
             dualcore_join_worker(lane);
+        else
+            /* Armed, but the frame never opened a pass: the worker did not
+             * run, so it is this thread that closes the arena's frame. */
+            atomic_store_explicit(
+                &lane->arena.finished, GLES2_DUALCORE_STAGE_DONE, memory_order_relaxed);
         renderer->model_stage_source = NULL;
         lane->armed = false;
     }
@@ -603,6 +801,15 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
             "TORIRS_GLES2_DUALCORE_LEAD", (long)GLES2_DUALCORE_STAGE_LEAD_DEFAULT);
         lane->lead = lead >= 0 ? (uint32_t)lead : GLES2_DUALCORE_STAGE_LEAD_DEFAULT;
     }
+    {
+        long lookahead = dualcore_env_long(
+            "TORIRS_GLES2_DUALCORE_LOOKAHEAD", (long)GLES2_DUALCORE_LOOKAHEAD_DEFAULT);
+        if( lookahead < 1 )
+            lookahead = 1;
+        if( lookahead > (long)GLES2_DUALCORE_RING - 1 )
+            lookahead = (long)GLES2_DUALCORE_RING - 1;
+        lane->lookahead = (uint32_t)lookahead;
+    }
     lane->debug = dualcore_env_long("TORIRS_GLES2_DUALCORE_DEBUG", 0) != 0;
 
     pthread_mutex_init(&lane->lock, NULL);
@@ -631,10 +838,11 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
     }
     if( lane->debug )
         TORIRS_ERR(
-            "gles2-dualcore: %s (warmup %u frames, lead %u, pin %d)\n",
+            "gles2-dualcore: %s (warmup %u frames, lead %u, lookahead %u, pin %d)\n",
             lane->enabled ? "worker started" : "disabled, single-threaded",
             lane->warmup_frames,
             lane->lead,
+            lane->lookahead,
             lane->pin ? 1 : 0);
     return lane;
 }

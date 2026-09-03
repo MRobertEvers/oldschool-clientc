@@ -30,6 +30,8 @@ GLES2DualCoreStageArena_Init(struct GLES2DualCoreStageArena* arena)
     memset(arena, 0, sizeof(*arena));
     atomic_init(&arena->ready, 0u);
     atomic_init(&arena->finished, GLES2_DUALCORE_STAGE_DONE);
+    atomic_init(&arena->feed_published, 0u);
+    atomic_init(&arena->feed_state, GLES2_DUALCORE_FEED_CLOSED);
     arena->lead = GLES2_DUALCORE_STAGE_LEAD_DEFAULT;
 }
 
@@ -41,6 +43,7 @@ GLES2DualCoreStageArena_Free(struct GLES2DualCoreStageArena* arena)
     free(arena->results);
     free(arena->claims);
     free(arena->orders);
+    free(arena->feed);
     memset(arena, 0, sizeof(*arena));
 }
 
@@ -96,6 +99,148 @@ GLES2DualCoreStageArena_BeginFrame(
     atomic_store_explicit(&arena->ready, 0u, memory_order_relaxed);
     atomic_store_explicit(&arena->consumer_index, 0u, memory_order_relaxed);
     atomic_store_explicit(&arena->finished, GLES2_DUALCORE_STAGE_RUNNING, memory_order_relaxed);
+
+    /* The feed: one entry per model plus the pass brackets. A frame that
+     * overflowed it last time sizes this one. */
+    {
+        uint32_t want = arena->result_capacity + 64u;
+        if( atomic_load_explicit(&arena->feed_state, memory_order_relaxed) ==
+            GLES2_DUALCORE_FEED_OVERFLOWED )
+        {
+            arena->feed_overflow_frames++;
+            if( want < arena->feed_capacity * 2u )
+                want = arena->feed_capacity * 2u;
+        }
+        if( want > arena->feed_capacity )
+        {
+            struct GLES2DualCoreFeedEntry* grown = (struct GLES2DualCoreFeedEntry*)realloc(
+                arena->feed, (size_t)want * sizeof(*grown));
+            assert(grown);
+            arena->feed = grown;
+            arena->feed_capacity = want;
+        }
+    }
+    arena->feed_count = 0u;
+    atomic_store_explicit(&arena->feed_published, 0u, memory_order_relaxed);
+    atomic_store_explicit(&arena->feed_state, GLES2_DUALCORE_FEED_OPEN, memory_order_relaxed);
+}
+
+/* ---- the command feed ------------------------------------------------------- */
+
+static struct GLES2DualCoreFeedEntry*
+feed_reserve(struct GLES2DualCoreStageArena* arena, uint32_t kind)
+{
+    struct GLES2DualCoreFeedEntry* entry;
+
+    assert(arena);
+    assert(atomic_load_explicit(&arena->feed_state, memory_order_relaxed) ==
+           GLES2_DUALCORE_FEED_OPEN);
+    if( arena->feed_count >= arena->feed_capacity )
+    {
+        atomic_store_explicit(
+            &arena->feed_state, GLES2_DUALCORE_FEED_OVERFLOWED, memory_order_release);
+        return NULL;
+    }
+    entry = &arena->feed[arena->feed_count];
+    entry->kind = kind;
+    return entry;
+}
+
+static void
+feed_publish(struct GLES2DualCoreStageArena* arena)
+{
+    arena->feed_count++;
+    atomic_store_explicit(&arena->feed_published, arena->feed_count, memory_order_release);
+}
+
+bool
+GLES2DualCoreStageArena_FeedPushModel(
+    struct GLES2DualCoreStageArena* arena,
+    const struct ToriRS_RenderCommand_Model* model)
+{
+    struct GLES2DualCoreFeedEntry* entry;
+
+    assert(model);
+    entry = feed_reserve(arena, GLES2_DUALCORE_FEED_MODEL);
+    if( !entry )
+        return false;
+    entry->u.model = *model;
+    feed_publish(arena);
+    return true;
+}
+
+bool
+GLES2DualCoreStageArena_FeedPushBegin3D(
+    struct GLES2DualCoreStageArena* arena,
+    const struct ToriRS_RenderCommand_Begin3D* begin_3d)
+{
+    struct GLES2DualCoreFeedEntry* entry;
+
+    assert(begin_3d);
+    entry = feed_reserve(arena, GLES2_DUALCORE_FEED_BEGIN_3D);
+    if( !entry )
+        return false;
+    entry->u.begin_3d = *begin_3d;
+    feed_publish(arena);
+    return true;
+}
+
+bool
+GLES2DualCoreStageArena_FeedPushEnd3D(struct GLES2DualCoreStageArena* arena)
+{
+    struct GLES2DualCoreFeedEntry* entry = feed_reserve(arena, GLES2_DUALCORE_FEED_END_3D);
+    if( !entry )
+        return false;
+    feed_publish(arena);
+    return true;
+}
+
+void
+GLES2DualCoreStageArena_FeedClose(struct GLES2DualCoreStageArena* arena)
+{
+    unsigned expected = GLES2_DUALCORE_FEED_OPEN;
+    assert(arena);
+    /* Only an open feed closes; an overflowed one keeps its verdict. */
+    (void)atomic_compare_exchange_strong_explicit(
+        &arena->feed_state,
+        &expected,
+        GLES2_DUALCORE_FEED_CLOSED,
+        memory_order_release,
+        memory_order_relaxed);
+}
+
+enum GLES2DualCoreFeedTake
+GLES2DualCoreStageArena_FeedTake(
+    struct GLES2DualCoreStageArena* arena,
+    uint32_t index,
+    const struct GLES2DualCoreFeedEntry** entry)
+{
+    unsigned state;
+
+    assert(arena);
+    assert(entry);
+    /* Relaxed polls, one acquire fence once a word has moved: this is a
+     * spin loop's body, and an acquire load is a barrier per poll on ARMv7. */
+    if( index < atomic_load_explicit(&arena->feed_published, memory_order_relaxed) )
+    {
+        atomic_thread_fence(memory_order_acquire);
+        *entry = &arena->feed[index];
+        return GLES2_DUALCORE_FEED_READY;
+    }
+    state = atomic_load_explicit(&arena->feed_state, memory_order_relaxed);
+    if( state == GLES2_DUALCORE_FEED_OPEN )
+        return GLES2_DUALCORE_FEED_PENDING;
+    atomic_thread_fence(memory_order_acquire);
+    /* The state changed after the count was read: an entry may have landed
+     * between the two loads. It was published before the close (the close
+     * is a release, the fence above an acquire), so it is visible now. */
+    if( index < atomic_load_explicit(&arena->feed_published, memory_order_relaxed) )
+    {
+        *entry = &arena->feed[index];
+        return GLES2_DUALCORE_FEED_READY;
+    }
+    return state == GLES2_DUALCORE_FEED_CLOSED ? GLES2_DUALCORE_FEED_ENDED
+                                               : GLES2_DUALCORE_FEED_OVERFLOW;
 }
 
 enum GLES2DualCoreStageClaimResult

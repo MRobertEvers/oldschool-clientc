@@ -279,6 +279,16 @@ v2_adapter(struct ToriRS_ApiV2* api)
     return adapter;
 }
 
+static int v2_surface_to_legacy(int surface);
+static bool v2_panel_options_valid(
+    struct ToriRS_SelectOption const* options,
+    int option_count);
+static bool v2_panel_legacy_choices(
+    struct ToriRS_SelectOption const* options,
+    int option_count,
+    char* out,
+    size_t out_size);
+
 static void
 v2_core_log(
     struct ToriRS_ApiV2* api,
@@ -586,6 +596,16 @@ v2_input_text_input(
         adapter->legacy->text_input(adapter->context, enabled ? 1 : 0);
 }
 
+static void
+v2_input_chat_focus(
+    struct ToriRS_ApiV2* api,
+    bool focused)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    if( adapter->legacy->chat_focus )
+        adapter->legacy->chat_focus(adapter->context, focused ? 1 : 0);
+}
+
 static struct ToriRS_UiNodeRef
 v2_ui_ref(
     struct ToriRS_ApiV2* api,
@@ -685,6 +705,22 @@ v2_ui_update(
                ? adapter->hooks.ui_update(
                      adapter->hooks.user, adapter->context, node, facets, value)
                : TORIRS_RESULT_UNSUPPORTED;
+}
+
+static bool
+v2_ui_menu_add(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_PluginEvMenuBuild* menu,
+    char const* text,
+    uint32_t action_id)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+
+    assert(menu);
+    assert(text);
+    return adapter->legacy->menu_add &&
+           adapter->legacy->menu_add(
+               adapter->context, menu, text, action_id) != 0;
 }
 
 static bool
@@ -1018,6 +1054,22 @@ v2_frame_invalidate(struct ToriRS_ApiV2* api)
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
     if( adapter->legacy->frame_invalidate )
         adapter->legacy->frame_invalidate(adapter->context);
+}
+
+static bool
+v2_frame_surface_native_size(
+    struct ToriRS_ApiV2* api,
+    int surface,
+    int* out_width,
+    int* out_height)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int const legacy_surface = v2_surface_to_legacy(surface);
+
+    if( legacy_surface < 0 || !adapter->legacy->slot_native_size )
+        return false;
+    return adapter->legacy->slot_native_size(
+               adapter->context, legacy_surface, out_width, out_height) != 0;
 }
 
 static bool
@@ -1368,6 +1420,72 @@ v2_assets_screenshot(
                : TORIRS_RESULT_ERROR;
 }
 
+static bool
+v2_assets_image_pixels(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_ImageRef image,
+    uint32_t* out_argb,
+    size_t capacity,
+    size_t* out_count)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(adapter, image);
+    int width = 0;
+    int height = 0;
+    size_t required;
+    int copied;
+
+    assert(out_count);
+    *out_count = 0;
+    if( legacy_image < 0 || !out_argb || !adapter->legacy->image_size ||
+        !adapter->legacy->image_pixels ||
+        !adapter->legacy->image_size(adapter->context, legacy_image, &width, &height) ||
+        width <= 0 || height <= 0 ||
+        (size_t)width > SIZE_MAX / (size_t)height )
+        return false;
+    required = (size_t)width * (size_t)height;
+    if( required > capacity || required > INT_MAX )
+        return false;
+    copied = adapter->legacy->image_pixels(
+        adapter->context, legacy_image, out_argb, (int)capacity);
+    if( copied < 0 || (size_t)copied != required )
+        return false;
+    *out_count = required;
+    return true;
+}
+
+static enum ToriRS_AssetState
+v2_assets_image_compose(
+    struct ToriRS_ApiV2* api,
+    char const* name,
+    int width,
+    int height,
+    uint32_t const* argb,
+    struct ToriRS_ImageRef* out)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int image;
+
+    assert(name);
+    assert(out);
+    out->value = 0;
+    if( !v2_asset_name_valid(name) || !argb || width <= 0 || height <= 0 )
+        return TORIRS_ASSET_INVALID;
+    if( !adapter->legacy->image_compose )
+        return TORIRS_ASSET_ERROR;
+    image = adapter->legacy->image_compose(
+        adapter->context, name, width, height, argb);
+    if( image < 0 )
+        return TORIRS_ASSET_BUDGET;
+    out->value = v2_resource_acquire(
+        adapter->image_tokens,
+        TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
+        V2_RESOURCE_IMAGE,
+        adapter->hooks.resource_namespace,
+        image);
+    return out->value ? TORIRS_ASSET_READY : TORIRS_ASSET_BUDGET;
+}
+
 static enum ToriRS_Result
 v2_scene_mesh_create(
     struct ToriRS_ApiV2* api,
@@ -1598,6 +1716,138 @@ v2_scene_instance_active(
 }
 
 static enum ToriRS_Result
+v2_scene_instance_mesh(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_SceneInstanceRef instance,
+    struct ToriRS_MeshRef mesh)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, adapter->hooks.resource_namespace, instance.value);
+    int const legacy_mesh = v2_resource_resolve(
+        adapter->mesh_tokens, TORIRS_PLUGIN_V2_MESH_TOKENS_MAX,
+        V2_RESOURCE_MESH, adapter->hooks.resource_namespace, mesh.value);
+
+    if( legacy_instance < 0 || legacy_mesh < 0 )
+        return TORIRS_RESULT_INVALID;
+    if( !adapter->legacy->object_set_model )
+        return TORIRS_RESULT_UNSUPPORTED;
+    adapter->legacy->object_set_model(
+        adapter->context, legacy_instance, TORIRS_PLUGIN_MODEL_MESH, legacy_mesh);
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
+v2_scene_instance_cache_model(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_SceneInstanceRef instance,
+    int kind,
+    int id)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, adapter->hooks.resource_namespace, instance.value);
+    int source;
+
+    if( legacy_instance < 0 || id < 0 ||
+        (kind != TORIRS_SCENE_MODEL_CACHE && kind != TORIRS_SCENE_MODEL_SPOTANIM) )
+        return TORIRS_RESULT_INVALID;
+    if( !adapter->legacy->object_set_model )
+        return TORIRS_RESULT_UNSUPPORTED;
+    source = kind == TORIRS_SCENE_MODEL_CACHE ? TORIRS_PLUGIN_MODEL_CACHE
+                                              : TORIRS_PLUGIN_MODEL_SPOTANIM;
+    adapter->legacy->object_set_model(adapter->context, legacy_instance, source, id);
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
+v2_scene_instance_recolor(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_SceneInstanceRef instance,
+    int from_hsl,
+    int to_hsl)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, adapter->hooks.resource_namespace, instance.value);
+    if( legacy_instance < 0 )
+        return TORIRS_RESULT_INVALID;
+    if( !adapter->legacy->object_recolor )
+        return TORIRS_RESULT_UNSUPPORTED;
+    adapter->legacy->object_recolor(adapter->context, legacy_instance, from_hsl, to_hsl);
+    return TORIRS_RESULT_OK;
+}
+
+static void
+v2_scene_instance_clear_recolors(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_SceneInstanceRef instance)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, adapter->hooks.resource_namespace, instance.value);
+    if( legacy_instance >= 0 && adapter->legacy->object_clear_recolors )
+        adapter->legacy->object_clear_recolors(adapter->context, legacy_instance);
+}
+
+static enum ToriRS_Result
+v2_scene_instance_animation(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_SceneInstanceRef instance,
+    int sequence_id,
+    bool loop)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, adapter->hooks.resource_namespace, instance.value);
+    if( legacy_instance < 0 || sequence_id < -1 )
+        return TORIRS_RESULT_INVALID;
+    if( !adapter->legacy->object_set_anim )
+        return TORIRS_RESULT_UNSUPPORTED;
+    adapter->legacy->object_set_anim(
+        adapter->context, legacy_instance, sequence_id, loop ? 1 : 0);
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
+v2_scene_instance_light(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_SceneInstanceRef instance,
+    int ambient,
+    int contrast)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, adapter->hooks.resource_namespace, instance.value);
+    if( legacy_instance < 0 )
+        return TORIRS_RESULT_INVALID;
+    if( !adapter->legacy->object_set_light )
+        return TORIRS_RESULT_UNSUPPORTED;
+    adapter->legacy->object_set_light(
+        adapter->context, legacy_instance, ambient, contrast);
+    return TORIRS_RESULT_OK;
+}
+
+static bool
+v2_scene_instance_ready(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_SceneInstanceRef instance)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int const legacy_instance = v2_resource_resolve(
+        adapter->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
+        V2_RESOURCE_INSTANCE, adapter->hooks.resource_namespace, instance.value);
+    return legacy_instance >= 0 && adapter->legacy->object_ready &&
+           adapter->legacy->object_ready(adapter->context, legacy_instance) != 0;
+}
+
+static enum ToriRS_Result
 v2_panel_request(
     struct ToriRS_ApiV2* api,
     struct ToriRS_PluginPanelDesc const* description)
@@ -1627,6 +1877,105 @@ v2_panel_attention(
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
     if( adapter->legacy->panel_set_attention )
         (void)adapter->legacy->panel_set_attention(adapter->context, wanted);
+}
+
+static enum ToriRS_Result
+v2_panel_set_text(
+    struct ToriRS_ApiV2* api,
+    char const* id,
+    char const* text)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(id);
+    assert(text);
+    if( !adapter->legacy->panel_set_text )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return adapter->legacy->panel_set_text(adapter->context, id, text)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
+static enum ToriRS_Result
+v2_panel_set_value(
+    struct ToriRS_ApiV2* api,
+    char const* id,
+    int value)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(id);
+    if( !adapter->legacy->panel_set_value )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return adapter->legacy->panel_set_value(adapter->context, id, value)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
+static enum ToriRS_Result
+v2_panel_set_height(
+    struct ToriRS_ApiV2* api,
+    char const* id,
+    int preferred_height)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(id);
+    if( !adapter->legacy->panel_set_height )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return adapter->legacy->panel_set_height(
+               adapter->context, id, preferred_height)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
+static enum ToriRS_Result
+v2_panel_set_options(
+    struct ToriRS_ApiV2* api,
+    char const* id,
+    char const* value,
+    struct ToriRS_SelectOption const* options,
+    int option_count)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    char choices[V2_PANEL_CHOICES_MAX];
+    int selected = -1;
+
+    assert(id);
+    assert(value);
+    if( !v2_panel_options_valid(options, option_count) )
+        return TORIRS_RESULT_INVALID;
+    if( adapter->hooks.panel_set_options )
+        return adapter->hooks.panel_set_options(
+            adapter->hooks.user,
+            adapter->context,
+            id,
+            value,
+            options,
+            option_count);
+    if( !adapter->legacy->panel_set_options ||
+        !v2_panel_legacy_choices(options, option_count, choices, sizeof(choices)) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    for( int i = 0; i < option_count; i++ )
+    {
+        if( !options[i].enabled || (options[i].detail && options[i].detail[0]) ||
+            strcmp(options[i].value, options[i].label) != 0 )
+            return TORIRS_RESULT_UNSUPPORTED;
+        if( strcmp(options[i].value, value) == 0 )
+            selected = i;
+    }
+    return adapter->legacy->panel_set_options(
+               adapter->context, id, choices, selected)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
+static void
+v2_panel_redraw(
+    struct ToriRS_ApiV2* api,
+    char const* id)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(id);
+    if( adapter->legacy->panel_invalidate )
+        adapter->legacy->panel_invalidate(adapter->context, id);
 }
 
 static int
@@ -1684,6 +2033,398 @@ v2_cache_invoke(
     if( component_id < 0 || op < 0 || op > 10 || !adapter->legacy->if_click )
         return false;
     return adapter->legacy->if_click(adapter->context, component_id, op) != 0;
+}
+
+static bool
+v2_cache_named_id(
+    struct ToriRS_ApiV2* api,
+    char const* kind,
+    char const* name,
+    int* out_id)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int id;
+
+    assert(kind);
+    assert(name);
+    assert(out_id);
+    if( !adapter->legacy->cache_id )
+        return false;
+    id = adapter->legacy->cache_id(adapter->context, kind, name);
+    if( id < 0 )
+        return false;
+    *out_id = id;
+    return true;
+}
+
+static int
+v2_cache_tab_active(struct ToriRS_ApiV2* api)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->legacy->tab_active
+               ? adapter->legacy->tab_active(adapter->context)
+               : -1;
+}
+
+static bool
+v2_cache_tab_enabled(struct ToriRS_ApiV2* api, int tab)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->legacy->tab_enabled &&
+           adapter->legacy->tab_enabled(adapter->context, tab) != 0;
+}
+
+static bool
+v2_cache_tab_select(struct ToriRS_ApiV2* api, int tab)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->legacy->tab_select &&
+           adapter->legacy->tab_select(adapter->context, tab);
+}
+
+static bool
+v2_client_display_get(
+    struct ToriRS_ApiV2* api,
+    int setting,
+    int* out_value,
+    int* out_min,
+    int* out_max)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->legacy->display_setting &&
+           adapter->legacy->display_setting(
+               adapter->context, setting, out_value, out_min, out_max) != 0;
+}
+
+static enum ToriRS_Result
+v2_client_display_set(
+    struct ToriRS_ApiV2* api,
+    int setting,
+    int value)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    if( !adapter->legacy->display_setting_set )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return adapter->legacy->display_setting_set(adapter->context, setting, value)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
+static int
+v2_client_feature_next(
+    struct ToriRS_ApiV2* api,
+    int iterator,
+    struct ToriRS_PluginFeature* out)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(out);
+    return adapter->legacy->feature_next
+               ? adapter->legacy->feature_next(adapter->context, iterator, out)
+               : -1;
+}
+
+static bool
+v2_client_feature_get(
+    struct ToriRS_ApiV2* api,
+    char const* key,
+    int* out_value)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int value;
+    assert(key);
+    assert(out_value);
+    if( !adapter->legacy->feature_get )
+        return false;
+    value = adapter->legacy->feature_get(adapter->context, key);
+    if( value == TORIRS_PLUGIN_FEATURE_UNSET )
+        return false;
+    *out_value = value;
+    return true;
+}
+
+static enum ToriRS_Result
+v2_client_feature_set(
+    struct ToriRS_ApiV2* api,
+    char const* key,
+    int value)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(key);
+    if( !adapter->legacy->feature_set )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return adapter->legacy->feature_set(adapter->context, key, value)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_INVALID;
+}
+
+static int
+v2_client_world_cycle(struct ToriRS_ApiV2* api)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->legacy->world_cycle
+               ? adapter->legacy->world_cycle(adapter->context)
+               : 0;
+}
+
+static bool
+v2_client_datestamp(
+    struct ToriRS_ApiV2* api,
+    char* out,
+    size_t out_size)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(out);
+    if( out_size == 0 || out_size > INT_MAX || !adapter->legacy->datestamp )
+        return false;
+    return adapter->legacy->datestamp(
+               adapter->context, out, (int)out_size) != 0;
+}
+
+static uint32_t
+v2_client_setting_color(
+    struct ToriRS_ApiV2* api,
+    int varp_id,
+    uint32_t fallback)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->legacy->setting_color
+               ? adapter->legacy->setting_color(adapter->context, varp_id, fallback)
+               : fallback;
+}
+
+static size_t
+v2_client_memory_bytes(struct ToriRS_ApiV2* api)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->hooks.memory_bytes
+               ? adapter->hooks.memory_bytes(adapter->hooks.user, adapter->context)
+               : 0;
+}
+
+static void
+v2_client_disable_self(
+    struct ToriRS_ApiV2* api,
+    char const* reason)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(reason);
+    if( adapter->legacy->disable_self )
+        adapter->legacy->disable_self(adapter->context, reason);
+}
+
+static bool
+v2_game_skill(
+    struct ToriRS_ApiV2* api,
+    int index,
+    struct ToriRS_SkillSnapshot* out)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    struct ToriRS_SkillSnapshot snapshot;
+    char const* name;
+    uint32_t capacity;
+
+    assert(out);
+    capacity = out->struct_size;
+    if( capacity < TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE || index < 0 ||
+        !adapter->legacy->skill_name || !adapter->legacy->stat ||
+        !adapter->legacy->stat_xp )
+        return false;
+    name = adapter->legacy->skill_name(adapter->context, index);
+    if( !name )
+        return false;
+    memset(&snapshot, 0, sizeof(snapshot));
+    snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
+    snapshot.index = index;
+    (void)snprintf(snapshot.name, sizeof(snapshot.name), "%s", name);
+    if( !adapter->legacy->stat(
+            adapter->context, index, &snapshot.current_level, &snapshot.base_level) ||
+        !adapter->legacy->stat_xp(
+            adapter->context,
+            index,
+            &snapshot.xp,
+            &snapshot.level_xp,
+            &snapshot.next_level_xp) )
+        return false;
+    return v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
+}
+
+static int
+v2_game_run_energy(struct ToriRS_ApiV2* api)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->legacy->run_energy
+               ? adapter->legacy->run_energy(adapter->context)
+               : 0;
+}
+
+static int
+v2_game_inventory_size(struct ToriRS_ApiV2* api, int inventory)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->legacy->inv_size
+               ? adapter->legacy->inv_size(adapter->context, inventory)
+               : 0;
+}
+
+static bool
+v2_game_inventory_slot(
+    struct ToriRS_ApiV2* api,
+    int inventory,
+    int slot,
+    int* out_obj_id,
+    int* out_count)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    return adapter->legacy->inv_slot &&
+           adapter->legacy->inv_slot(
+               adapter->context, inventory, slot, out_obj_id, out_count) != 0;
+}
+
+static bool
+v2_game_item_info(
+    struct ToriRS_ApiV2* api,
+    int obj_id,
+    struct ToriRS_PluginObjInfo* out)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(out);
+    return adapter->legacy->obj_info &&
+           adapter->legacy->obj_info(adapter->context, obj_id, out) != 0;
+}
+
+static enum ToriRS_AssetState
+v2_game_item_image(
+    struct ToriRS_ApiV2* api,
+    int obj_id,
+    int count,
+    int style,
+    struct ToriRS_ImageRef* out)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    int image;
+    int width = 0;
+    int height = 0;
+
+    assert(out);
+    out->value = 0;
+    if( !adapter->legacy->obj_image )
+        return TORIRS_ASSET_ERROR;
+    image = adapter->legacy->obj_image(adapter->context, obj_id, count, style);
+    if( image < 0 )
+        return TORIRS_ASSET_BUDGET;
+    out->value = v2_resource_acquire(
+        adapter->image_tokens,
+        TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
+        V2_RESOURCE_IMAGE,
+        adapter->hooks.resource_namespace,
+        image);
+    if( !out->value )
+        return TORIRS_ASSET_BUDGET;
+    return adapter->legacy->image_size &&
+                   adapter->legacy->image_size(
+                       adapter->context, image, &width, &height)
+               ? TORIRS_ASSET_READY
+               : TORIRS_ASSET_PENDING;
+}
+
+static int
+v2_game_highlight_next(
+    struct ToriRS_ApiV2* api,
+    int iterator,
+    struct ToriRS_PluginHighlightItem* out)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(out);
+    return adapter->legacy->highlight_next
+               ? adapter->legacy->highlight_next(adapter->context, iterator, out)
+               : -1;
+}
+
+static int
+v2_game_loot_source_next(
+    struct ToriRS_ApiV2* api,
+    int iterator,
+    struct ToriRS_PluginLootSource* out)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(out);
+    return adapter->legacy->loot_source_next
+               ? adapter->legacy->loot_source_next(adapter->context, iterator, out)
+               : -1;
+}
+
+static int
+v2_game_loot_row_next(
+    struct ToriRS_ApiV2* api,
+    int source_id,
+    int iterator,
+    struct ToriRS_PluginLootRow* out)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(out);
+    return adapter->legacy->loot_row_next
+               ? adapter->legacy->loot_row_next(
+                     adapter->context, source_id, iterator, out)
+               : -1;
+}
+
+static char const*
+v2_game_entity_part(
+    struct ToriRS_ApiV2* api,
+    int kind,
+    int a,
+    int b,
+    int c,
+    int d,
+    char* buffer,
+    size_t capacity)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    if( !buffer || capacity == 0 || capacity > INT_MAX ||
+        !adapter->legacy->entity_part )
+        return NULL;
+    return adapter->legacy->entity_part(
+        adapter->context, kind, a, b, c, d, buffer, (int)capacity);
+}
+
+static enum ToriRS_Result
+v2_game_entity_look(
+    struct ToriRS_ApiV2* api,
+    char const* part,
+    struct ToriRS_PluginEntityLook const* look)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(part);
+    assert(look);
+    if( !adapter->legacy->entity_look )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return adapter->legacy->entity_look(adapter->context, part, look)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
+static enum ToriRS_Result
+v2_game_entity_ops(
+    struct ToriRS_ApiV2* api,
+    char const* part,
+    int mode,
+    char const* const* operations,
+    int operation_count,
+    uint32_t action_id)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+    assert(part);
+    if( !adapter->legacy->entity_ops )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return adapter->legacy->entity_ops(
+               adapter->context,
+               part,
+               mode,
+               operations,
+               operation_count,
+               action_id)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
 }
 
 static struct ToriRS_PluginV2DrawScope*
@@ -1887,6 +2628,36 @@ v2_builder_image(
         255 - opaque_alpha);
 }
 
+static void
+v2_builder_image_clip(
+    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_ImageRef image,
+    int x,
+    int y,
+    struct ToriRS_Rect clip,
+    int alpha)
+{
+    struct ToriRS_PluginV2DrawScope* scope = v2_draw_scope(draw);
+    struct ToriRS_PluginApi const* legacy = scope->adapter->legacy;
+    int const opaque_alpha = v2_alpha(alpha);
+    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(scope->adapter, image);
+
+    if( legacy_image < 0 || opaque_alpha == 0 || !legacy->draw_image ||
+        !v2_clip_rect(scope, &clip) )
+        return;
+    legacy->draw_image(
+        scope->adapter->context,
+        scope->legacy_surface,
+        legacy_image,
+        x,
+        y,
+        clip.x,
+        clip.y,
+        clip.width,
+        clip.height,
+        255 - opaque_alpha);
+}
+
 static enum ToriRS_Result
 v2_builder_world_tile(
     struct ToriRS_DrawBuilder* draw,
@@ -1979,6 +2750,38 @@ v2_builder_action_region(
                : TORIRS_RESULT_BUDGET;
 }
 
+static enum ToriRS_Result
+v2_builder_action_region_id(
+    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Rect rect,
+    char const* action,
+    uint32_t action_id)
+{
+    struct ToriRS_PluginV2DrawScope* scope = v2_draw_scope(draw);
+    struct ToriRS_PluginApi const* legacy = scope->adapter->legacy;
+    char const* operations[1];
+
+    assert(action);
+    if( !action_id || (action_id & 0x80000000u) != 0 || !action[0] ||
+        strlen(action) >= TORIRS_UI_ACTION_MAX || !v2_clip_rect(scope, &rect) )
+        return TORIRS_RESULT_INVALID;
+    if( !legacy->hit_region )
+        return TORIRS_RESULT_UNSUPPORTED;
+    operations[0] = action;
+    return legacy->hit_region(
+               scope->adapter->context,
+               scope->legacy_surface,
+               rect.x,
+               rect.y,
+               rect.width,
+               rect.height,
+               operations,
+               1,
+               action_id)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_BUDGET;
+}
+
 void
 ToriRS_PluginV2Adapter_DrawBegin(
     struct ToriRS_PluginV2Adapter* adapter,
@@ -2004,6 +2807,8 @@ ToriRS_PluginV2Adapter_DrawBegin(
         .world_tile = v2_builder_world_tile,
         .world_hull = v2_builder_world_hull,
         .action_region = v2_builder_action_region,
+        .image_clip = v2_builder_image_clip,
+        .action_region_id = v2_builder_action_region_id,
     };
 }
 
@@ -2578,6 +3383,113 @@ v2_builder_custom(
             scope->adapter->context, id, preferred_height);
 }
 
+static void
+v2_builder_label(
+    struct ToriRS_PanelBuilder* panel,
+    char const* id,
+    char const* text)
+{
+    struct ToriRS_PluginV2PanelScope* scope = v2_panel_scope(panel);
+
+    assert(id);
+    assert(text);
+    if( scope->adapter->legacy->panel_widget &&
+        scope->adapter->legacy->panel_widget(
+            scope->adapter->context, TORIRS_PLUGIN_W_LABEL, id, NULL) &&
+        scope->adapter->legacy->panel_set_text )
+        (void)scope->adapter->legacy->panel_set_text(
+            scope->adapter->context, id, text);
+}
+
+static void
+v2_builder_key_value(
+    struct ToriRS_PanelBuilder* panel,
+    char const* id,
+    char const* label,
+    char const* value)
+{
+    struct ToriRS_PluginV2PanelScope* scope = v2_panel_scope(panel);
+
+    assert(id);
+    assert(label);
+    assert(value);
+    if( scope->adapter->legacy->panel_widget &&
+        scope->adapter->legacy->panel_widget(
+            scope->adapter->context, TORIRS_PLUGIN_W_KEY_VALUE, id, label) &&
+        scope->adapter->legacy->panel_set_text )
+        (void)scope->adapter->legacy->panel_set_text(
+            scope->adapter->context, id, value);
+}
+
+static enum ToriRS_Result
+v2_builder_node(
+    struct ToriRS_PanelBuilder* panel,
+    struct ToriRS_PanelNode const* node)
+{
+    struct ToriRS_PluginV2PanelScope* scope = v2_panel_scope(panel);
+    struct ToriRS_PluginApi const* legacy = scope->adapter->legacy;
+    int kind = -1;
+
+    assert(node);
+    if( node->struct_size < TORIRS_PANEL_NODE_REQUIRED_SIZE || !node->id ||
+        !node->id[0] || node->kind < TORIRS_PANEL_HEADING ||
+        node->kind > TORIRS_PANEL_CUSTOM )
+        return TORIRS_RESULT_INVALID;
+    switch( node->kind )
+    {
+    case TORIRS_PANEL_HEADING: kind = TORIRS_PLUGIN_W_SECTION; break;
+    case TORIRS_PANEL_PARAGRAPH: kind = TORIRS_PLUGIN_W_PARAGRAPH; break;
+    case TORIRS_PANEL_LABEL: kind = TORIRS_PLUGIN_W_LABEL; break;
+    case TORIRS_PANEL_KEY_VALUE: kind = TORIRS_PLUGIN_W_KEY_VALUE; break;
+    case TORIRS_PANEL_TOGGLE: kind = TORIRS_PLUGIN_W_TOGGLE; break;
+    case TORIRS_PANEL_INPUT: kind = TORIRS_PLUGIN_W_INPUT; break;
+    case TORIRS_PANEL_TEXTAREA: kind = TORIRS_PLUGIN_W_TEXTAREA; break;
+    case TORIRS_PANEL_SELECT: kind = TORIRS_PLUGIN_W_DROPDOWN; break;
+    case TORIRS_PANEL_BUTTON: kind = TORIRS_PLUGIN_W_BUTTON; break;
+    case TORIRS_PANEL_SEPARATOR: kind = TORIRS_PLUGIN_W_SEPARATOR; break;
+    case TORIRS_PANEL_PROGRESS: kind = TORIRS_PLUGIN_W_PROGRESS; break;
+    case TORIRS_PANEL_ERROR: kind = TORIRS_PLUGIN_W_ERROR; break;
+    case TORIRS_PANEL_LIST_ROW: kind = TORIRS_PLUGIN_W_LIST_ROW; break;
+    case TORIRS_PANEL_CUSTOM: kind = TORIRS_PLUGIN_W_CUSTOM; break;
+    default: return TORIRS_RESULT_INVALID;
+    }
+    if( node->kind == TORIRS_PANEL_SELECT )
+    {
+        if( !node->text || !v2_panel_options_valid(node->options, node->option_count) )
+            return TORIRS_RESULT_INVALID;
+        if( !scope->adapter->hooks.panel_select )
+            return TORIRS_RESULT_UNSUPPORTED;
+        scope->adapter->hooks.panel_select(
+            scope->adapter->hooks.user,
+            scope->adapter->context,
+            node->id,
+            node->label,
+            node->text,
+            node->options,
+            node->option_count);
+        return TORIRS_RESULT_OK;
+    }
+    if( !legacy->panel_widget ||
+        !legacy->panel_widget(scope->adapter->context, kind, node->id, node->label) )
+        return TORIRS_RESULT_BUDGET;
+    {
+        if( node->text && legacy->panel_set_text )
+            (void)legacy->panel_set_text(
+                scope->adapter->context, node->id, node->text);
+        if( (node->kind == TORIRS_PANEL_TOGGLE ||
+             node->kind == TORIRS_PANEL_PROGRESS ||
+             node->kind == TORIRS_PANEL_LIST_ROW ||
+             node->kind == TORIRS_PANEL_BUTTON) && legacy->panel_set_value )
+            (void)legacy->panel_set_value(
+                scope->adapter->context, node->id, node->value);
+        if( (node->kind == TORIRS_PANEL_CUSTOM ||
+             node->kind == TORIRS_PANEL_TEXTAREA) && legacy->panel_set_height )
+            (void)legacy->panel_set_height(
+                scope->adapter->context, node->id, node->preferred_height);
+    }
+    return TORIRS_RESULT_OK;
+}
+
 void
 ToriRS_PluginV2Adapter_PanelBegin(
     struct ToriRS_PluginV2Adapter* adapter,
@@ -2599,6 +3511,9 @@ ToriRS_PluginV2Adapter_PanelBegin(
         .select = v2_builder_select,
         .button = v2_builder_button,
         .custom = v2_builder_custom,
+        .label = v2_builder_label,
+        .key_value = v2_builder_key_value,
+        .node = v2_builder_node,
     };
 }
 
@@ -2642,6 +3557,8 @@ v2_adapter_init(
     if( preserve_resources )
     {
         memset(&adapter->api, 0, sizeof(adapter->api));
+        memset(&adapter->client_api, 0, sizeof(adapter->client_api));
+        memset(&adapter->game_api, 0, sizeof(adapter->game_api));
         adapter->legacy = NULL;
         adapter->context = NULL;
         memset(&adapter->hooks, 0, sizeof(adapter->hooks));
@@ -2655,11 +3572,42 @@ v2_adapter_init(
     if( adapter->hooks.resource_namespace > V2_RESOURCE_NAMESPACE_MASK )
     {
         memset(&adapter->api, 0, sizeof(adapter->api));
+        memset(&adapter->client_api, 0, sizeof(adapter->client_api));
+        memset(&adapter->game_api, 0, sizeof(adapter->game_api));
         adapter->legacy = NULL;
         adapter->context = NULL;
         memset(&adapter->hooks, 0, sizeof(adapter->hooks));
         return false;
     }
+
+    adapter->client_api = (struct ToriRS_ClientApiV2){
+        .struct_size = sizeof(adapter->client_api),
+        .display_get = v2_client_display_get,
+        .display_set = v2_client_display_set,
+        .feature_next = v2_client_feature_next,
+        .feature_get = v2_client_feature_get,
+        .feature_set = v2_client_feature_set,
+        .world_cycle = v2_client_world_cycle,
+        .datestamp = v2_client_datestamp,
+        .setting_color = v2_client_setting_color,
+        .memory_bytes = v2_client_memory_bytes,
+        .disable_self = v2_client_disable_self,
+    };
+    adapter->game_api = (struct ToriRS_GameApiV2){
+        .struct_size = sizeof(adapter->game_api),
+        .skill = v2_game_skill,
+        .run_energy = v2_game_run_energy,
+        .inventory_size = v2_game_inventory_size,
+        .inventory_slot = v2_game_inventory_slot,
+        .item_info = v2_game_item_info,
+        .item_image = v2_game_item_image,
+        .highlight_next = v2_game_highlight_next,
+        .loot_source_next = v2_game_loot_source_next,
+        .loot_row_next = v2_game_loot_row_next,
+        .entity_part = v2_game_entity_part,
+        .entity_look = v2_game_entity_look,
+        .entity_ops = v2_game_entity_ops,
+    };
 
     adapter->api = (struct ToriRS_ApiV2){
         .struct_size = sizeof(adapter->api),
@@ -2701,6 +3649,7 @@ v2_adapter_init(
             .hover_tile = v2_input_hover_tile,
             .hover_entity = v2_input_hover_entity,
             .text_input = v2_input_text_input,
+            .chat_focus = v2_input_chat_focus,
         },
         .ui = {
             .struct_size = sizeof(adapter->api.ui),
@@ -2709,6 +3658,7 @@ v2_adapter_init(
             .invoke = v2_ui_invoke,
             .contribution_info = v2_ui_contribution_info,
             .update = v2_ui_update,
+            .menu_add = v2_ui_menu_add,
         },
         .placement = {
             .struct_size = sizeof(adapter->api.placement),
@@ -2727,6 +3677,7 @@ v2_adapter_init(
             .selection = v2_frame_selection,
             .select = v2_frame_select,
             .invalidate = v2_frame_invalidate,
+            .surface_native_size = v2_frame_surface_native_size,
         },
         .draw = {
             .struct_size = sizeof(adapter->api.draw),
@@ -2747,6 +3698,8 @@ v2_adapter_init(
             .model = v2_assets_model,
             .model_release = v2_assets_model_release,
             .screenshot = v2_assets_screenshot,
+            .image_pixels = v2_assets_image_pixels,
+            .image_compose = v2_assets_image_compose,
         },
         .scene = {
             .struct_size = sizeof(adapter->api.scene),
@@ -2759,12 +3712,24 @@ v2_adapter_init(
             .instance_model = v2_scene_instance_model,
             .instance_position = v2_scene_instance_position,
             .instance_active = v2_scene_instance_active,
+            .instance_mesh = v2_scene_instance_mesh,
+            .instance_cache_model = v2_scene_instance_cache_model,
+            .instance_recolor = v2_scene_instance_recolor,
+            .instance_clear_recolors = v2_scene_instance_clear_recolors,
+            .instance_animation = v2_scene_instance_animation,
+            .instance_light = v2_scene_instance_light,
+            .instance_ready = v2_scene_instance_ready,
         },
         .panel = {
             .struct_size = sizeof(adapter->api.panel),
             .request = v2_panel_request,
             .invalidate = v2_panel_invalidate,
             .attention = v2_panel_attention,
+            .set_text = v2_panel_set_text,
+            .set_value = v2_panel_set_value,
+            .set_height = v2_panel_set_height,
+            .set_options = v2_panel_set_options,
+            .redraw = v2_panel_redraw,
         },
         .cache = {
             .struct_size = sizeof(adapter->api.cache),
@@ -2773,7 +3738,13 @@ v2_adapter_init(
             .varp = v2_cache_varp,
             .component_rect = v2_cache_component_rect,
             .invoke = v2_cache_invoke,
+            .named_id = v2_cache_named_id,
+            .tab_active = v2_cache_tab_active,
+            .tab_enabled = v2_cache_tab_enabled,
+            .tab_select = v2_cache_tab_select,
         },
+        .client = &adapter->client_api,
+        .game = &adapter->game_api,
     };
     return true;
 }
@@ -2807,6 +3778,8 @@ ToriRS_PluginV2Adapter_Reset(struct ToriRS_PluginV2Adapter* adapter)
     v2_resource_reset(adapter->mesh_tokens, TORIRS_PLUGIN_V2_MESH_TOKENS_MAX);
     v2_resource_reset(adapter->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX);
     memset(&adapter->api, 0, sizeof(adapter->api));
+    memset(&adapter->client_api, 0, sizeof(adapter->client_api));
+    memset(&adapter->game_api, 0, sizeof(adapter->game_api));
     adapter->legacy = NULL;
     adapter->context = NULL;
     memset(&adapter->hooks, 0, sizeof(adapter->hooks));

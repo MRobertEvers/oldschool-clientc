@@ -46,7 +46,24 @@
  *     loses a claim publishes a placeholder (`taken_by_draw`) so the count
  *     stays paired. Neither thread ever waits on the other for a model
  *     nobody has started, which is what keeps two unequal halves of a frame
- *     from serialising on the slower one.
+ *     from serialising on the slower one;
+ *   - the COMMAND FEED: the consumer owns the frame bus (it dispatches every
+ *     command, world or not), and it publishes each world command it
+ *     translates -- BEGIN_3D, DRAW_MODEL, END_3D -- into `feed` before
+ *     dispatching it, a few commands ahead (see the lane's ring). The producer
+ *     stages from the feed and never runs the bus. Measured before the feed
+ *     (2026-09-03, XT1060, Lumbridge): the producer's replay of the bus was
+ *     1.26 ms of its 6.0 ms frame -- 20% of its D-cache refills and its
+ *     I-cache misses -- and it was what kept the producer from staying ahead
+ *     on terrain runs, so the consumer waited 1.45 ms a frame on it. Entries
+ *     are published by bumping `feed_published` (release); the producer reads
+ *     entry i once it is above i (acquire). `feed_state` closes the feed:
+ *     CLOSED after the consumer's last publish of the frame, OVERFLOWED when
+ *     the consumer had a command and no slot for it -- the producer then stops
+ *     after what was published, as EXHAUSTED, and the consumer computes the
+ *     rest. The result slots are still numbered by DRAW_MODEL ordinal, exactly
+ *     as before: a model entry at feed index j is result slot (number of model
+ *     entries before j), which both sides count as they go.
  */
 
 #include "render/torirs_render.h"
@@ -104,6 +121,48 @@ enum GLES2DualCoreStageFinished
     GLES2_DUALCORE_STAGE_EXHAUSTED = 2,
 };
 
+/* ---- the command feed ------------------------------------------------------- */
+
+enum GLES2DualCoreFeedKind
+{
+    GLES2_DUALCORE_FEED_BEGIN_3D = 1,
+    GLES2_DUALCORE_FEED_MODEL = 2,
+    GLES2_DUALCORE_FEED_END_3D = 3,
+};
+
+struct GLES2DualCoreFeedEntry
+{
+    uint32_t kind;
+    union
+    {
+        struct ToriRS_RenderCommand_Begin3D begin_3d;
+        struct ToriRS_RenderCommand_Model model;
+    } u;
+};
+
+enum GLES2DualCoreFeedState
+{
+    GLES2_DUALCORE_FEED_OPEN = 0,
+    /** The consumer published its last entry of the frame. */
+    GLES2_DUALCORE_FEED_CLOSED = 1,
+    /** The consumer had a command and no slot: the frame's tail is not in
+     *  the feed. */
+    GLES2_DUALCORE_FEED_OVERFLOWED = 2,
+};
+
+/** What FeedTake answers. */
+enum GLES2DualCoreFeedTake
+{
+    /** `*entry` is entry `index`. */
+    GLES2_DUALCORE_FEED_READY,
+    /** Not published yet and the feed is open: ask again. */
+    GLES2_DUALCORE_FEED_PENDING,
+    /** Every entry has been taken and the feed is closed: the frame is done. */
+    GLES2_DUALCORE_FEED_ENDED,
+    /** Every entry has been taken and the feed overflowed: stop, exhausted. */
+    GLES2_DUALCORE_FEED_OVERFLOW,
+};
+
 struct GLES2DualCoreStageArena
 {
     struct GLES2DualCoreStageResult* results;
@@ -135,7 +194,50 @@ struct GLES2DualCoreStageArena
     bool exhausted;
     /** How many frames ended exhausted. */
     uint32_t exhausted_frames;
+
+    /* The command feed (see the header comment). `feed_count` is the
+     * consumer's private write position; the two atomics are what the
+     * producer polls, each on its own line. */
+    struct GLES2DualCoreFeedEntry* feed;
+    uint32_t feed_capacity;
+    uint32_t feed_count;
+    /** Feeds that ran out of slots; BeginFrame grows the feed after one. */
+    uint32_t feed_overflow_frames;
+    _Alignas(64) atomic_uint feed_published;
+    _Alignas(64) atomic_uint feed_state;
 };
+
+/**
+ * Consumer: append a world command to the feed and publish it. False when
+ * the feed is full -- nothing was appended, the feed is marked OVERFLOWED,
+ * and the consumer must not push again this frame (the producer stops after
+ * what it has). `model` / `begin_3d` are copied.
+ */
+bool
+GLES2DualCoreStageArena_FeedPushModel(
+    struct GLES2DualCoreStageArena* arena,
+    const struct ToriRS_RenderCommand_Model* model);
+bool
+GLES2DualCoreStageArena_FeedPushBegin3D(
+    struct GLES2DualCoreStageArena* arena,
+    const struct ToriRS_RenderCommand_Begin3D* begin_3d);
+bool
+GLES2DualCoreStageArena_FeedPushEnd3D(struct GLES2DualCoreStageArena* arena);
+
+/** Consumer: no more entries this frame. A no-op on an overflowed feed. */
+void
+GLES2DualCoreStageArena_FeedClose(struct GLES2DualCoreStageArena* arena);
+
+/**
+ * Producer: entry `index`, if published. PENDING asks the caller to poll
+ * again (the consumer is still translating); ENDED and OVERFLOW are final
+ * and only ever answered once every published entry has been handed out.
+ */
+enum GLES2DualCoreFeedTake
+GLES2DualCoreStageArena_FeedTake(
+    struct GLES2DualCoreStageArena* arena,
+    uint32_t index,
+    const struct GLES2DualCoreFeedEntry** entry);
 
 void
 GLES2DualCoreStageArena_Init(struct GLES2DualCoreStageArena* arena);

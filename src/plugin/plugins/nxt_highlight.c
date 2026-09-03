@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -47,8 +47,6 @@
 #define NXT_HL_MODEL_FILL 4
 #define NXT_HL_TILE_FILL 8
 
-static struct ToriRS_PluginApi const* g_api;
-
 /*
  * The reference's rules, not this file's guesses.
  *
@@ -74,16 +72,18 @@ nxt_hl_fill(struct ToriRS_PluginHighlightItem const* item, int flag)
     return (item->flags & flag) != 0 && item->opacity != 0;
 }
 
-static enum ToriRS_PluginVerdict
-nxt_highlight_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+nxt_highlight_draw(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_DrawBuilder* draw)
 {
-    (void)userdata;
-
-    struct ToriRS_PluginEvDraw* ev = (struct ToriRS_PluginEvDraw*)event;
     int iter = -1;
 
-    assert(ctx);
-    assert(ev);
+    (void)state;
+    assert(api);
+    assert(api->game);
+    assert(draw);
 
     for( ;; )
     {
@@ -93,7 +93,7 @@ nxt_highlight_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         bool tile_outline;
         bool tile_fill;
 
-        iter = g_api->highlight_next(ctx, iter, &item);
+        iter = api->game->highlight_next(api, iter, &item);
         if( iter < 0 )
             break;
 
@@ -111,9 +111,8 @@ nxt_highlight_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
          * carry the model bits and still resolve to a bare tile.
          */
         if( item.element_id >= 0 && (model_outline || model_fill) )
-            g_api->draw_hull(
-                ctx,
-                ev->surface,
+            (void)draw->world_hull(
+                draw,
                 item.element_id,
                 item.rgb,
                 model_fill ? item.opacity : 0,
@@ -128,9 +127,8 @@ nxt_highlight_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
              * a slope. */
             for( int dz = 0; dz < item.size_z; dz++ )
                 for( int dx = 0; dx < item.size_x; dx++ )
-                    g_api->draw_tile(
-                        ctx,
-                        ev->surface,
+                    (void)draw->world_tile(
+                        draw,
                         item.tile_x + dx,
                         item.tile_z + dz,
                         item.level,
@@ -139,27 +137,18 @@ nxt_highlight_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
                         tile_fill ? item.opacity : 0);
         }
     }
-    return TORIRS_PLUGIN_PASS;
 }
 
-static void
-nxt_highlight_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
-{
-    assert(ctx);
-    assert(api);
-    assert(api->abi_version == TORIRS_PLUGIN_ABI);
-
-    g_api = api;
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_WORLD, nxt_highlight_draw, NULL);
-}
-
-struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
-    .name = "nxt-highlight",
+struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
+    .struct_size = sizeof(TORIRS_PLUGIN_NXT_HIGHLIGHT),
+    .id = "nxt-highlight",
     .title = "Cache highlights (All Settings)",
     .version = "1.0.0",
-    .priority = 0,
+    .state_size = 0,
     .config = NULL,
-    .hidden = true,
-    .init = nxt_highlight_init,
-    .shutdown = NULL,
+    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_draw_world = nxt_highlight_draw,
+    },
 };

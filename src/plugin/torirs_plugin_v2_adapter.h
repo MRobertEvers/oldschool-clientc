@@ -142,7 +142,6 @@ struct ToriRS_PluginV2AdapterHooks
         char const* value,
         struct ToriRS_SelectOption const* options,
         int option_count);
-
     /* Append-only authoritative host requests. The legacy table cannot
      * distinguish a queued read from a cached miss or decode failure.
      * Image/model callbacks write a zero-based legacy handle only for
@@ -162,6 +161,17 @@ struct ToriRS_PluginV2AdapterHooks
         char const* name,
         int* out_model);
 
+    size_t (*memory_bytes)(
+        void* user,
+        struct ToriRS_PluginCtx* context);
+    enum ToriRS_Result (*panel_set_options)(
+        void* user,
+        struct ToriRS_PluginCtx* context,
+        char const* id,
+        char const* value,
+        struct ToriRS_SelectOption const* options,
+        int option_count);
+
     /* Stable for this adapter lifetime and unique among the host's live
      * plugin instances.  Five encoded bits cover TORIRS_PLUGIN_MAX == 32. */
     uint32_t resource_namespace;
@@ -170,6 +180,8 @@ struct ToriRS_PluginV2AdapterHooks
 struct ToriRS_PluginV2Adapter
 {
     struct ToriRS_ApiV2 api;
+    struct ToriRS_ClientApiV2 client_api;
+    struct ToriRS_GameApiV2 game_api;
     struct ToriRS_PluginApi const* legacy;
     struct ToriRS_PluginCtx* context;
     struct ToriRS_PluginV2AdapterHooks hooks;

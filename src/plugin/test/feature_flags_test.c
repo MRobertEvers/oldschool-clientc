@@ -34,7 +34,7 @@ static int g_checks;
         }                                                                                          \
     } while( 0 )
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_FEATURE_FLAGS;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_FEATURE_FLAGS;
 
 /* ------------------------------------------------------------ fake engine */
 
@@ -1366,9 +1366,12 @@ widget_named(
     int p,
     char const* id)
 {
-    for( int i = 0; i < PluginHost_WinWidgetCount(host, p); i++ )
+    uint32_t const generation = PluginHost_PanelSelectionGeneration(host);
+    (void)p;
+    for( int i = 0; i < PluginHost_PanelWidgetCount(host, generation); i++ )
     {
-        struct ToriRS_PluginWinWidget const* w = PluginHost_WinWidgetAt(host, p, i);
+        struct ToriRS_PluginWinWidget const* w =
+            PluginHost_PanelWidgetAt(host, generation, i);
         if( w && strcmp(w->id, id) == 0 )
             return w;
     }
@@ -1381,6 +1384,14 @@ choice_index(
     struct ToriRS_PluginWinWidget const* w,
     char const* text)
 {
+    if( w->structured_select )
+    {
+        for( int i = 0; i < w->select_option_count; i++ )
+            if( strcmp(w->select_options[i].label, text) == 0 ||
+                strcmp(w->select_options[i].value, text) == 0 )
+                return i;
+        return -1;
+    }
     char const* at = w->choices;
     int i = 0;
 
@@ -1404,12 +1415,22 @@ pick(
     char const* id,
     char const* text)
 {
+    static uint64_t sequence;
     struct ToriRS_PluginWinWidget const* w = widget_named(host, p, id);
     int const index = w ? choice_index(w, text) : -1;
 
     CHECK(index >= 0, text);
     if( index >= 0 )
-        PluginHost_WinDispatch(host, p, id, TORIRS_PLUGIN_UI_PICK, index, text);
+    {
+        uint32_t const generation = PluginHost_PanelSelectionGeneration(host);
+        char const* value = w->structured_select
+                                ? w->select_options[index].value
+                                : text;
+        (void)PluginHost_PanelDispatch(
+            host, generation, w->serial, ++sequence, id,
+            TORIRS_PLUGIN_UI_PICK, index, value, 0, 0);
+        (void)PluginHost_PanelEnsureBuilt(host, generation);
+    }
 }
 
 int
@@ -1417,7 +1438,7 @@ main(void)
 {
     struct ToriRS_PluginEngine engine = fake_engine();
     struct ToriRS_PluginHost* host = PluginHost_New(&engine);
-    int const p = PluginHost_Register(host, &TORIRS_PLUGIN_FEATURE_FLAGS);
+    int const p = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_FEATURE_FLAGS);
 
     flags_reset();
 
@@ -1434,7 +1455,12 @@ main(void)
         g_flags[0].value == 25 && g_flags[1].value == 0 && g_flags[2].value == 0x10,
         "a start with no saved overrides leaves every flag at its boot value");
 
-    PluginHost_WinBuild(host, p);
+    CHECK(PluginHost_PanelSelect(host, p), "the feature page selects");
+    CHECK(
+        PluginHost_PanelLayout(
+            host, PluginHost_PanelSelectionGeneration(host),
+            320, 480, 1000, TORIRS_PLUGIN_PANEL_MEDIUM, true, true),
+        "the selected page receives a live layout");
 
     /*
      * NOT ONE TEXT FIELD.
@@ -1444,25 +1470,30 @@ main(void)
      * nobody has checked, in a caption that did not fit beside it. A control
      * of any other kind here is the regression.
      */
-    for( int i = 0; i < PluginHost_WinWidgetCount(host, p); i++ )
+    for( int i = 0;
+         i < PluginHost_PanelWidgetCount(
+                 host, PluginHost_PanelSelectionGeneration(host));
+         i++ )
     {
-        struct ToriRS_PluginWinWidget const* w = PluginHost_WinWidgetAt(host, p, i);
+        struct ToriRS_PluginWinWidget const* w = PluginHost_PanelWidgetAt(
+            host, PluginHost_PanelSelectionGeneration(host), i);
         CHECK(w && w->kind != TORIRS_PLUGIN_W_INPUT, "no row on the page is a text field");
     }
 
-    /* Two sections, so two headings and the one rule between them, plus a row
-     * per flag. */
+    /* Two sections and one row per flag. */
     CHECK(
-        PluginHost_WinWidgetCount(host, p) == FLAG_COUNT + 3,
-        "the page carries a row per flag, a heading per section and a rule between");
+        PluginHost_PanelWidgetCount(
+            host, PluginHost_PanelSelectionGeneration(host)) == FLAG_COUNT + 2,
+        "the page carries a row per flag and a heading per section");
     {
-        struct ToriRS_PluginWinWidget const* w = PluginHost_WinWidgetAt(host, p, 0);
+        struct ToriRS_PluginWinWidget const* w = PluginHost_PanelWidgetAt(
+            host, PluginHost_PanelSelectionGeneration(host), 0);
         CHECK(
-            w && w->kind == TORIRS_PLUGIN_W_LABEL && strcmp(w->label, "Scene") == 0,
+            w && w->kind == TORIRS_PLUGIN_W_SECTION && strcmp(w->label, "Scene") == 0,
             "the first section's heading comes before its rows");
         CHECK(
-            widget_named(host, p, "head_2") != NULL && widget_named(host, p, "rule_2") != NULL,
-            "and the second section gets a heading with a rule above it");
+            widget_named(host, p, "_v2_heading_1") != NULL,
+            "and the second section gets its own heading");
     }
 
     {
@@ -1476,14 +1507,18 @@ main(void)
          * it to answer.
          */
         CHECK(
-            w && strncmp(w->choices, "Revision default (25 tiles)|", 28) == 0,
+            w && w->structured_select && w->select_option_count == 5 &&
+                strcmp(w->select_options[0].label,
+                       "Revision default (25 tiles)") == 0,
             "and its default entry carries the value in force");
         CHECK(w && w->selected == 0, "opening on it when nothing is stored");
     }
     {
         struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "camera_zoom");
         CHECK(
-            w && strcmp(w->choices, "Revision default (Adjustable)|Adjustable|Fixed") == 0,
+            w && w->structured_select && w->select_option_count == 3 &&
+                strcmp(w->select_options[0].label,
+                       "Revision default (Adjustable)") == 0,
             "an enum's default entry names its value the same way");
     }
 
@@ -1498,7 +1533,7 @@ main(void)
         struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "camera_zoom");
         CHECK(w && w->selected == 2, "the row comes back showing what was chosen");
         CHECK(
-            w && strcmp(w->choices, "Revision default|Adjustable|Fixed") == 0,
+            w && strcmp(w->select_options[0].label, "Revision default") == 0,
             "and the default entry drops the value it no longer names");
     }
 
@@ -1525,7 +1560,7 @@ main(void)
     {
         struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "draw_distance");
         CHECK(
-            w && strncmp(w->choices, "Revision default|", 17) == 0,
+            w && strcmp(w->select_options[0].label, "Revision default") == 0,
             "an overridden row's default entry names nothing");
     }
     pick(host, p, "draw_distance", "Revision default");
@@ -1536,7 +1571,7 @@ main(void)
     {
         struct ToriRS_PluginEngine e2 = fake_engine();
         struct ToriRS_PluginHost* host2 = PluginHost_New(&e2);
-        int const p2 = PluginHost_Register(host2, &TORIRS_PLUGIN_FEATURE_FLAGS);
+        int const p2 = PluginHost_RegisterV2(host2, &TORIRS_PLUGIN_FEATURE_FLAGS);
 
         flags_reset();
         PluginHost_ConfigApply(host2, "feature-flags", "camera_zoom", "Fixed");
@@ -1562,7 +1597,7 @@ main(void)
     {
         struct ToriRS_PluginEngine e3 = fake_engine();
         struct ToriRS_PluginHost* host3 = PluginHost_New(&e3);
-        int const p3 = PluginHost_Register(host3, &TORIRS_PLUGIN_FEATURE_FLAGS);
+        int const p3 = PluginHost_RegisterV2(host3, &TORIRS_PLUGIN_FEATURE_FLAGS);
         struct ToriRS_PluginWinWidget const* w;
 
         flags_reset();
@@ -1570,7 +1605,7 @@ main(void)
         PluginHost_Start(host3);
         CHECK(g_flags[0].value == 63, "an ini value the list does not name still applies");
 
-        PluginHost_WinBuild(host3, p3);
+        CHECK(PluginHost_PanelSelect(host3, p3), "the custom-value page selects");
         w = widget_named(host3, p3, "draw_distance");
         CHECK(w && choice_index(w, "63") == 5, "and is appended after the named ones");
         CHECK(w && w->selected == 5, "with the row showing it");

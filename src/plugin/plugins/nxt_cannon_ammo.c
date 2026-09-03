@@ -1,9 +1,10 @@
 #include "plugin/plugins/nxt_activities.h"
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 /*
  * All Settings > Activities > Combat, the three cannon ammunition rows:
@@ -35,8 +36,6 @@
  * precisely so the number is the user's.
  */
 
-static struct ToriRS_PluginApi const* g_api;
-
 /**
  * The count as of the previous server tick.
  *
@@ -44,24 +43,47 @@ static struct ToriRS_PluginApi const* g_api;
  * count is already 0 when the plugin starts must not fire an out-of-ammo line
  * for a state it merely arrived in. Every notification below is an EDGE.
  */
-static int g_last_ammo = -1;
-static int g_had_cannon;
-
-static enum ToriRS_PluginVerdict
-nxt_cannon_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+struct NxtCannonState
 {
-    (void)event;
-    (void)userdata;
+    int last_ammo;
+    int had_cannon;
+};
+
+static int
+nxt_cannon_named(
+    struct ToriRS_ApiV2* api,
+    char const* kind,
+    char const* name,
+    int absent)
+{
+    int id = -1;
+    if( !api->cache.named_id(api, kind, name, &id) )
+        return absent;
+    return strcmp(kind, "varbit") == 0 ? api->cache.varbit(api, id)
+                                        : api->cache.varp(api, id);
+}
+
+static void
+nxt_cannon_tick(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_PluginEvTick const* event)
+{
+    struct NxtCannonState* state = state_ptr;
 
     /* Absent on this cache reads as "no cannon", which is the state in which
      * this builtin does nothing at all -- the right answer for a revision that
      * has no cannon varps to read. */
-    int const has_cannon = nxt_varp(g_api, ctx, NXT_VARP_CANNON_COORD, 0) != 0;
-    int const ammo = nxt_varp(g_api, ctx, NXT_VARP_CANNON_AMMO, 0);
-    int const threshold = nxt_varbit(g_api, ctx, NXT_VARBIT_CANNON_LOW_AMOUNT, 0);
-    int const previous = g_last_ammo;
+    int const has_cannon =
+        nxt_cannon_named(api, "varp", NXT_VARP_CANNON_COORD, 0) != 0;
+    int const ammo = nxt_cannon_named(api, "varp", NXT_VARP_CANNON_AMMO, 0);
+    int const threshold =
+        nxt_cannon_named(api, "varbit", NXT_VARBIT_CANNON_LOW_AMOUNT, 0);
+    int const previous = state->last_ammo;
 
-    assert(ctx);
+    (void)event;
+    assert(api);
+    assert(state);
 
     /*
      * No cannon: forget the count rather than remembering it.
@@ -72,21 +94,21 @@ nxt_cannon_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      */
     if( !has_cannon )
     {
-        g_last_ammo = -1;
-        g_had_cannon = 0;
-        return TORIRS_PLUGIN_PASS;
+        state->last_ammo = -1;
+        state->had_cannon = 0;
+        return;
     }
 
-    g_last_ammo = ammo;
-    if( !g_had_cannon || previous < 0 )
+    state->last_ammo = ammo;
+    if( !state->had_cannon || previous < 0 )
     {
         /* First tick with this cannon. Whatever it is loaded with is a state,
          * not an event. */
-        g_had_cannon = 1;
-        return TORIRS_PLUGIN_PASS;
+        state->had_cannon = 1;
+        return;
     }
     if( ammo >= previous )
-        return TORIRS_PLUGIN_PASS; /* loading it is not news. */
+        return; /* loading it is not news. */
 
     /*
      * Out of ammo wins over low on ammo.
@@ -97,15 +119,16 @@ nxt_cannon_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      */
     if( ammo == 0 )
     {
-        if( NXT_ON(g_api, ctx, NXT_VARBIT_CANNON_NO_AMMO_NOTIFY) )
-            g_api->notify(ctx, "Your cannon has run out of cannonballs.");
-        return TORIRS_PLUGIN_PASS;
+        if( nxt_cannon_named(
+                api, "varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY, 0) != 0 )
+            api->core.notify(api, "Your cannon has run out of cannonballs.");
+        return;
     }
 
     /* Crossing the threshold, not merely being under it: firing every tick
      * below the line would bury the chatbox. */
     if( threshold > 0 && ammo <= threshold && previous > threshold &&
-        NXT_ON(g_api, ctx, NXT_VARBIT_CANNON_LOW_NOTIFY) )
+        nxt_cannon_named(api, "varbit", NXT_VARBIT_CANNON_LOW_NOTIFY, 0) != 0 )
     {
         char line[96];
         snprintf(
@@ -113,44 +136,32 @@ nxt_cannon_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
             sizeof(line),
             "Your cannon is running low on cannonballs: %d left.",
             ammo);
-        g_api->notify(ctx, line);
+        api->core.notify(api, line);
     }
-    return TORIRS_PLUGIN_PASS;
-}
-
-static enum ToriRS_PluginVerdict
-nxt_cannon_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
-{
-    (void)ctx;
-    (void)event;
-    (void)userdata;
-    g_last_ammo = -1;
-    g_had_cannon = 0;
-    return TORIRS_PLUGIN_PASS;
 }
 
 static void
-nxt_cannon_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+nxt_cannon_start(struct ToriRS_ApiV2* api, void* state_ptr)
 {
-    assert(ctx);
-    assert(api);
-    assert(api->abi_version == TORIRS_PLUGIN_ABI);
-
-    g_api = api;
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_START, nxt_cannon_start, NULL);
-    /* The SERVER tick, not the frame: the count only ever changes because the
-     * server said so, and sampling it per frame would compare a value against
-     * itself sixty times for every one time it moved. */
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_SERVER_TICK, nxt_cannon_tick, NULL);
+    struct NxtCannonState* state = state_ptr;
+    (void)api;
+    assert(state);
+    state->last_ammo = -1;
+    state->had_cannon = 0;
 }
 
-struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO = {
-    .name = "nxt-cannon-ammo",
+struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_CANNON_AMMO = {
+    .struct_size = sizeof(TORIRS_PLUGIN_NXT_CANNON_AMMO),
+    .id = "nxt-cannon-ammo",
     .title = "Cannon ammo notifications (All Settings)",
     .version = "1.0.0",
-    .priority = 0,
+    .state_size = sizeof(struct NxtCannonState),
     .config = NULL,
-    .hidden = true,
-    .init = nxt_cannon_init,
-    .shutdown = NULL,
+    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = nxt_cannon_start,
+        /* Server tick, not render frame: cannon ammo is server state. */
+        .on_server_tick = nxt_cannon_tick,
+    },
 };

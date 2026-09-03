@@ -373,6 +373,7 @@ app_plugin_panel_track_semantic(
     struct ToriRS_PluginWinWidget const* model)
 {
     struct AppPluginPanelRow* row;
+    int row_index;
 
     assert(app);
     if( widget < 0 || !model || model->serial == 0 || model_index < 0 ||
@@ -380,8 +381,9 @@ app_plugin_panel_track_semantic(
         app->plugin_panel_row_count >= APP_PLUGIN_PANEL_ROWS_MAX )
         return;
 
-    app->plugin_panel_model_rows[model_index] = app->plugin_panel_row_count + 1;
-    row = &app->plugin_panel_rows[app->plugin_panel_row_count++];
+    row_index = app->plugin_panel_row_count++;
+    app->plugin_panel_model_rows[model_index] = row_index + 1;
+    row = &app->plugin_panel_rows[row_index];
     memset(row, 0, sizeof(*row));
     row->widget = widget;
     row->plugin = plugin;
@@ -391,6 +393,10 @@ app_plugin_panel_track_semantic(
     row->widget_serial = model->serial;
     row->widget_kind = model->kind;
     snprintf(row->widget_id, sizeof(row->widget_id), "%s", model->id);
+    if( model->kind == TORIRS_PLUGIN_W_CUSTOM &&
+        app->plugin_panel_custom_row_count < TORIRS_PLUGIN_WIDGETS_MAX )
+        app->plugin_panel_custom_rows[app->plugin_panel_custom_row_count++] =
+            row_index;
 }
 
 /** Put one config key's stored value into the widget showing it. */
@@ -978,8 +984,7 @@ app_plugin_panel_patch_row(
     case TORIRS_PLUGIN_W_DROPDOWN:
         if( model->structured_select )
         {
-            if( change->flags & (TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS |
-                                 TORIRS_PLUGIN_PANEL_CHANGE_VALUE) )
+            if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS )
             {
                 struct ToriRSChromeSelectOptionInput
                     options[TORIRS_CHROME_SELECT_OPTIONS_MAX];
@@ -994,6 +999,9 @@ app_plugin_panel_patch_row(
                     count,
                     model->selected_value);
             }
+            else if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_VALUE )
+                ToriRSChrome_DropdownSetSelected(
+                    &app->plugin_ui, row->widget, model->selected);
         }
         else if( model->choices[0] )
         {
@@ -1197,6 +1205,12 @@ app_plugin_panel_sync(struct App* app)
                   ? PluginHost_PanelTitle(app->plugins, g_plugin_page)
                   : PluginHost_Title(app->plugins, g_plugin_page));
 
+    /* A structural redeclaration can keep the same selection generation
+     * (`panel.clear()` followed by EnsureBuilt). Retained custom runs are keyed
+     * by widget serial, so retire the old serials here rather than waiting for
+     * the generation-only reset in the draw pass. */
+    app_plugin_panel_overlay_reset(
+        app, panel_active >= 0 ? panel_generation : 0);
     ToriRSChrome_PanelClearWidgets(&app->plugin_ui, app->plugin_panel);
     g_plugin_back_widget = -1;
     g_plugin_fullscreen_widget = -1;
@@ -1224,6 +1238,8 @@ app_plugin_panel_sync(struct App* app)
     }
 
     app->plugin_panel_row_count = 0;
+    app->plugin_panel_custom_row_count = 0;
+    app->plugin_panel_custom_pending_count = 0;
     memset(
         app->plugin_panel_model_rows,
         0,
@@ -3147,35 +3163,38 @@ app_plugin_panel_overlay_visible(
         app->panel_overlay_generation == 0 )
         return 0;
     *out = app->panel_overlays[index];
-    for( int i = 0; i < app->plugin_panel_row_count; i++ )
     {
-        struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
+        int const row_index = app->panel_overlay_row[index];
+        struct AppPluginPanelRow const* row;
+
+        if( row_index < 0 || row_index >= app->plugin_panel_row_count )
+            return 0;
+        row = &app->plugin_panel_rows[row_index];
         if( row->widget_serial != app->panel_overlay_owner[index] ||
             row->widget_kind != TORIRS_PLUGIN_W_CUSTOM ||
             !row->custom_layout_valid )
-            continue;
-        clip = row->custom_clip;
-        right = clip.x + clip.w;
-        bottom = clip.y + clip.h;
-        if( out->clip_x > clip.x )
-            clip.x = out->clip_x;
-        if( out->clip_y > clip.y )
-            clip.y = out->clip_y;
-        if( out->clip_x + out->clip_w < right )
-            right = out->clip_x + out->clip_w;
-        if( out->clip_y + out->clip_h < bottom )
-            bottom = out->clip_y + out->clip_h;
-        clip.w = right - clip.x;
-        clip.h = bottom - clip.y;
-        if( clip.w <= 0 || clip.h <= 0 )
             return 0;
-        out->clip_x = clip.x;
-        out->clip_y = clip.y;
-        out->clip_w = clip.w;
-        out->clip_h = clip.h;
-        return 1;
+        clip = row->custom_clip;
     }
-    return 0;
+    right = clip.x + clip.w;
+    bottom = clip.y + clip.h;
+    if( out->clip_x > clip.x )
+        clip.x = out->clip_x;
+    if( out->clip_y > clip.y )
+        clip.y = out->clip_y;
+    if( out->clip_x + out->clip_w < right )
+        right = out->clip_x + out->clip_w;
+    if( out->clip_y + out->clip_h < bottom )
+        bottom = out->clip_y + out->clip_h;
+    clip.w = right - clip.x;
+    clip.h = bottom - clip.y;
+    if( clip.w <= 0 || clip.h <= 0 )
+        return 0;
+    out->clip_x = clip.x;
+    out->clip_y = clip.y;
+    out->clip_w = clip.w;
+    out->clip_h = clip.h;
+    return 1;
 }
 
 static void
@@ -3184,6 +3203,24 @@ app_plugin_panel_overlay_bump(struct App* app)
     app->panel_overlay_revision++;
     if( app->panel_overlay_revision == 0 )
         app->panel_overlay_revision++;
+}
+
+static void
+app_plugin_panel_custom_pending_set(
+    struct App* app,
+    struct AppPluginPanelRow* row,
+    int pending)
+{
+    assert(app);
+    assert(row);
+    pending = pending ? 1 : 0;
+    if( row->custom_present_pending == pending )
+        return;
+    row->custom_present_pending = pending;
+    app->plugin_panel_custom_pending_count += pending ? 1 : -1;
+    assert(app->plugin_panel_custom_pending_count >= 0);
+    assert(app->plugin_panel_custom_pending_count <=
+           app->plugin_panel_custom_row_count);
 }
 
 /** Drop every retained custom primitive when the selected page changes. */
@@ -3200,8 +3237,12 @@ app_plugin_panel_overlay_reset(struct App* app, uint32_t generation)
     app->panel_overlay_generation = generation;
     app->panel_custom_last_draw_cycle = 0;
     app->panel_custom_has_draw_cycle = 0;
-    for( int i = 0; i < app->plugin_panel_row_count; i++ )
-        app->plugin_panel_rows[i].custom_present_pending = 0;
+    for( int i = 0; i < app->plugin_panel_custom_row_count; i++ )
+    {
+        int const row = app->plugin_panel_custom_rows[i];
+        app->plugin_panel_rows[row].custom_present_pending = 0;
+    }
+    app->plugin_panel_custom_pending_count = 0;
 }
 
 /** Remove one semantic serial's retained run. */
@@ -3219,6 +3260,7 @@ app_plugin_panel_overlay_remove(struct App* app, uint32_t serial)
         {
             app->panel_overlays[out] = app->panel_overlays[i];
             app->panel_overlay_owner[out] = app->panel_overlay_owner[i];
+            app->panel_overlay_row[out] = app->panel_overlay_row[i];
         }
         out++;
     }
@@ -3246,13 +3288,16 @@ static int
 app_plugin_panel_overlay_commit(
     struct App* app,
     uint32_t generation,
-    uint32_t serial)
+    uint32_t serial,
+    int row_index)
 {
     int other = 0;
     int out = 0;
 
     assert(app);
-    if( generation == 0 || serial == 0 ||
+    if( generation == 0 || serial == 0 || row_index < 0 ||
+        row_index >= app->plugin_panel_row_count ||
+        app->plugin_panel_rows[row_index].widget_serial != serial ||
         generation != app->panel_overlay_generation ||
         app->panel_overlay_stage_overflow || app->panel_overlay_stage_count == 0 )
         return 0;
@@ -3273,6 +3318,7 @@ app_plugin_panel_overlay_commit(
         {
             app->panel_overlays[out] = app->panel_overlays[i];
             app->panel_overlay_owner[out] = app->panel_overlay_owner[i];
+            app->panel_overlay_row[out] = app->panel_overlay_row[i];
         }
         out++;
     }
@@ -3280,6 +3326,7 @@ app_plugin_panel_overlay_commit(
     {
         app->panel_overlays[out] = app->panel_overlay_stage[i];
         app->panel_overlay_owner[out] = serial;
+        app->panel_overlay_row[out] = row_index;
         out++;
     }
     app->panel_overlay_count = out;
@@ -3315,9 +3362,10 @@ app_plugin_panel_draw_custom(struct App* app)
     if( app->panel_overlay_generation != generation )
         app_plugin_panel_overlay_reset(app, generation);
 
-    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    for( int custom = 0; custom < app->plugin_panel_custom_row_count; custom++ )
     {
-        struct AppPluginPanelRow* row = &app->plugin_panel_rows[i];
+        int const row_index = app->plugin_panel_custom_rows[custom];
+        struct AppPluginPanelRow* row = &app->plugin_panel_rows[row_index];
         struct ToriRSChromeRect region;
         struct ToriRSChromeRect clip;
         int geometry_changed;
@@ -3325,13 +3373,14 @@ app_plugin_panel_draw_custom(struct App* app)
         int logical_w;
         int logical_h;
 
-        if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET ||
-            row->widget_kind != TORIRS_PLUGIN_W_CUSTOM || row->widget_serial == 0 )
-            continue;
+        assert(row->kind == APP_PLUGIN_ROW_PANEL_WIDGET);
+        assert(row->widget_kind == TORIRS_PLUGIN_W_CUSTOM);
+        assert(row->widget_serial != 0);
 
         if( !ToriRSChrome_CustomRegion(
                 &app->plugin_ui, row->widget, &region, &clip) )
         {
+            app_plugin_panel_custom_pending_set(app, row, 0);
             if( row->custom_layout_valid )
             {
                 row->custom_layout_valid = 0;
@@ -3389,10 +3438,11 @@ app_plugin_panel_draw_custom(struct App* app)
                 logical_h) &&
             PluginHost_PanelActive(app->plugins) == active &&
             PluginHost_PanelSelectionGeneration(app->plugins) == generation &&
-            app_plugin_panel_overlay_commit(app, generation, row->widget_serial) )
+            app_plugin_panel_overlay_commit(
+                app, generation, row->widget_serial, row_index) )
         {
             ToriRSChrome_WidgetInvalidate(&app->plugin_ui, row->widget);
-            row->custom_present_pending = 1;
+            app_plugin_panel_custom_pending_set(app, row, 1);
             changed++;
             drew_this_pass = 1;
         }
@@ -3516,10 +3566,16 @@ app_plugin_panel_present_custom(struct App* app)
     int active;
 
     assert(app);
+    if( app->plugin_panel_custom_pending_count == 0 )
+        return;
     if( !app->plugin_exec.exec.custom_present )
     {
-        for( int i = 0; i < app->plugin_panel_row_count; i++ )
-            app->plugin_panel_rows[i].custom_present_pending = 0;
+        for( int i = 0; i < app->plugin_panel_custom_row_count; i++ )
+        {
+            int const row = app->plugin_panel_custom_rows[i];
+            app->plugin_panel_rows[row].custom_present_pending = 0;
+        }
+        app->plugin_panel_custom_pending_count = 0;
         return;
     }
     generation = PluginHost_PanelSelectionGeneration(app->plugins);
@@ -3528,19 +3584,25 @@ app_plugin_panel_present_custom(struct App* app)
         active < 0 || active != g_plugin_page )
         return;
 
-    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    for( int custom = 0; custom < app->plugin_panel_custom_row_count; custom++ )
     {
-        struct AppPluginPanelRow* row = &app->plugin_panel_rows[i];
+        int const row_index = app->plugin_panel_custom_rows[custom];
+        struct AppPluginPanelRow* row = &app->plugin_panel_rows[row_index];
         struct ToriRSChromeCustomFrame frame;
 
-        if( !row->custom_present_pending || !row->custom_layout_valid ||
-            row->widget_kind != TORIRS_PLUGIN_W_CUSTOM )
+        if( !row->custom_present_pending )
             continue;
+        if( !row->custom_layout_valid ||
+            row->widget_kind != TORIRS_PLUGIN_W_CUSTOM )
+        {
+            app_plugin_panel_custom_pending_set(app, row, 0);
+            continue;
+        }
         if( !app_plugin_panel_raster_custom(app, row, &frame) )
             continue;
         if( app->plugin_exec.exec.custom_present(
                 app->plugin_exec.exec.user, &frame) )
-            row->custom_present_pending = 0;
+            app_plugin_panel_custom_pending_set(app, row, 0);
     }
 }
 
@@ -3897,10 +3959,13 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      */
     ToriRSChromeSync_Run(&app->plugin_exec, &app->plugin_ui);
     if( app->plugin_exec.last_run_restate )
-        for( int i = 0; i < app->plugin_panel_row_count; i++ )
-            if( app->plugin_panel_rows[i].custom_layout_valid &&
-                app->plugin_panel_rows[i].widget_kind == TORIRS_PLUGIN_W_CUSTOM )
-                app->plugin_panel_rows[i].custom_present_pending = 1;
+        for( int i = 0; i < app->plugin_panel_custom_row_count; i++ )
+        {
+            struct AppPluginPanelRow* row =
+                &app->plugin_panel_rows[app->plugin_panel_custom_rows[i]];
+            if( row->custom_layout_valid )
+                app_plugin_panel_custom_pending_set(app, row, 1);
+        }
 
     /* Web custom canvases are created by the sync above. Publish the
      * pixels afterwards so an asynchronous UI queue cannot receive a frame

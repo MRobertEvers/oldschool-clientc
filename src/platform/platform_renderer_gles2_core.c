@@ -168,27 +168,28 @@ gles2_bind_texture0(struct ToriRS_GLES2* renderer, GLuint texture)
  * renderer's half of the same pipeline. Measured before it existed: the
  * batch entry read alone was 39% of gles2_dispatch.
  */
-static void
-gles2_prefetch_ahead(
+void
+gles2_prefetch_ahead_ids(
     struct ToriRS_GLES2* renderer,
-    const struct ToriRS_Frame* frame)
+    int id_plus1,
+    int id_plus2,
+    int id_plus3)
 {
     const struct TRSPK_PoseTable* table = &renderer->batch_poses;
     int id;
 
     assert(renderer);
-    assert(frame);
     if( !table->elements || !renderer->has_3d )
         return;
 
-    id = ToriRS_FrameLookaheadElementId(frame, 3);
+    id = id_plus3;
     if( id >= 0 )
     {
         uint32_t const index = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
         if( index < table->element_count )
             __builtin_prefetch(&table->elements[index], 0, 1);
     }
-    id = ToriRS_FrameLookaheadElementId(frame, 2);
+    id = id_plus2;
     if( id >= 0 )
     {
         uint32_t const index = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
@@ -199,7 +200,7 @@ gles2_prefetch_ahead(
                 __builtin_prefetch(track->vertex_base, 0, 1);
         }
     }
-    id = ToriRS_FrameLookaheadElementId(frame, 1);
+    id = id_plus1;
     if( id >= 0 )
     {
         uint32_t const index = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
@@ -228,6 +229,22 @@ gles2_prefetch_ahead(
             }
         }
     }
+}
+
+static void
+gles2_prefetch_ahead(
+    struct ToriRS_GLES2* renderer,
+    const struct ToriRS_Frame* frame)
+{
+    assert(renderer);
+    assert(frame);
+    if( !renderer->batch_poses.elements || !renderer->has_3d )
+        return;
+    gles2_prefetch_ahead_ids(
+        renderer,
+        ToriRS_FrameLookaheadElementId(frame, 1),
+        ToriRS_FrameLookaheadElementId(frame, 2),
+        ToriRS_FrameLookaheadElementId(frame, 3));
 }
 
 void

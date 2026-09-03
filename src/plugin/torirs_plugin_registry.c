@@ -17,8 +17,8 @@
  * registers a further plugin per script it loads.
  */
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_FEATURE_FLAGS;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_FEATURE_FLAGS;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_TILEIND;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
@@ -39,9 +39,9 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
  * a builtin written against the same contract is proof the contract is wide
  * enough to write the client's own features in, rather than only the extras.
  */
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_HIGHLIGHT;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_BIRD_NEST;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
 enum PluginRegistryApi
 {
@@ -70,8 +70,8 @@ static struct PluginRegistryEntry const PLUGIN_TABLE[] = {
      * a flag has to be in force before anything that reads one has run, and
      * nothing reads a display setting at START at all.
      */
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_CLIENT_SETTINGS, NULL },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_FEATURE_FLAGS, NULL },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_CLIENT_SETTINGS },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_FEATURE_FLAGS },
     { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_TILEIND },
     { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_MINIMAP_ORBS, NULL },
     { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_XP_ORBS, NULL },
@@ -87,9 +87,9 @@ static struct PluginRegistryEntry const PLUGIN_TABLE[] = {
      * opens the panel and asks. */
     { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_XP_TRACKER, NULL },
     { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_LOOT_TRACKER, NULL },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_NXT_HIGHLIGHT, NULL },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_NXT_BIRD_NEST, NULL },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_NXT_CANNON_AMMO, NULL },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_NXT_HIGHLIGHT },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_NXT_BIRD_NEST },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_NXT_CANNON_AMMO },
     { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_LUA, NULL },
 };
 

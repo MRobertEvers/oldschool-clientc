@@ -1,5 +1,5 @@
 #include "plugin/plugins/nxt_activities.h"
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -58,8 +58,6 @@ static int const NXT_BIRD_NESTS[] = {
     22800, /* bird_nest_decentseeds_jan2019 */
 };
 
-static struct ToriRS_PluginApi const* g_api;
-
 static bool
 nxt_is_bird_nest(int obj_id)
 {
@@ -69,24 +67,37 @@ nxt_is_bird_nest(int obj_id)
     return false;
 }
 
-static enum ToriRS_PluginVerdict
-nxt_bird_nest_spawn(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static int
+nxt_bird_nest_varbit(
+    struct ToriRS_ApiV2* api,
+    char const* name,
+    int absent)
 {
-    (void)userdata;
+    int id = -1;
+    return !api->cache.named_id(api, "varbit", name, &id)
+               ? absent
+               : api->cache.varbit(api, id);
+}
 
-    struct ToriRS_PluginEvObj* ev = (struct ToriRS_PluginEvObj*)event;
+static void
+nxt_bird_nest_spawn(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_PluginObjSnap const* item)
+{
     struct ToriRS_PluginPlayerSnap me;
 
-    assert(ctx);
-    assert(ev);
+    (void)state;
+    assert(api);
+    assert(item);
 
     /* INVERTED (`param_1084` on struct_3737): the feature is on at 0. */
-    if( !NXT_ON_INVERTED(g_api, ctx, NXT_VARBIT_BIRD_NEST) )
-        return TORIRS_PLUGIN_PASS;
-    if( !nxt_is_bird_nest(ev->obj.obj_id) )
-        return TORIRS_PLUGIN_PASS;
-    if( !g_api->local_player(ctx, &me) )
-        return TORIRS_PLUGIN_PASS;
+    if( nxt_bird_nest_varbit(api, NXT_VARBIT_BIRD_NEST, 1) != 0 )
+        return;
+    if( !nxt_is_bird_nest(item->obj_id) )
+        return;
+    if( !api->world.local_player(api, &me) )
+        return;
 
     /*
      * The player's TRUE tile, not the drawn one.
@@ -95,32 +106,23 @@ nxt_bird_nest_spawn(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * server ticks the draw position is somewhere between two tiles -- so
      * comparing against it would miss the drop for most of every step.
      */
-    if( ev->obj.level != me.level || ev->obj.tile_x != me.true_x ||
-        ev->obj.tile_z != me.true_z )
-        return TORIRS_PLUGIN_PASS;
+    if( item->level != me.level || item->tile_x != me.true_x ||
+        item->tile_z != me.true_z )
+        return;
 
-    g_api->notify(ctx, "A bird's nest falls out of the tree.");
-    return TORIRS_PLUGIN_PASS;
+    api->core.notify(api, "A bird's nest falls out of the tree.");
 }
 
-static void
-nxt_bird_nest_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
-{
-    assert(ctx);
-    assert(api);
-    assert(api->abi_version == TORIRS_PLUGIN_ABI);
-
-    g_api = api;
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_OBJ_SPAWN, nxt_bird_nest_spawn, NULL);
-}
-
-struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST = {
-    .name = "nxt-bird-nest",
+struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_BIRD_NEST = {
+    .struct_size = sizeof(TORIRS_PLUGIN_NXT_BIRD_NEST),
+    .id = "nxt-bird-nest",
     .title = "Bird nest notification (All Settings)",
     .version = "1.0.0",
-    .priority = 0,
+    .state_size = 0,
     .config = NULL,
-    .hidden = true,
-    .init = nxt_bird_nest_init,
-    .shutdown = NULL,
+    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_item_spawn = nxt_bird_nest_spawn,
+    },
 };

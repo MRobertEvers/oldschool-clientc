@@ -498,7 +498,11 @@ struct ToriRS_PluginHost
     uint32_t ui_presentation_change_visits;
     uint32_t ui_presentation_registry_visits;
     uint32_t ui_presentation_role_probe_visits;
-    int ui_presentation_pending_roles;
+    int ui_pending_role_nodes[TORIRS_UI_REGISTRY_NODES_MAX];
+    int ui_pending_role_index[TORIRS_UI_REGISTRY_NODES_MAX];
+    int ui_pending_role_count;
+    /** 0 unknown, 1 absent, 2 non-blocking, 3 hidden. */
+    uint8_t ui_node_visibility_state[TORIRS_UI_REGISTRY_NODES_MAX];
     bool ui_presentation_roles_dirty;
     /** Diagnostic copy of consumed registry mutations; never drives state. */
     uint32_t ui_observed_change_facets[TORIRS_UI_REGISTRY_NODES_MAX];
@@ -11087,6 +11091,43 @@ plugin_ui_present_suppression_one(
             enabled && row->actions_plugin >= 0);
 }
 
+/** Maintain an exact compact list of rows with a not-yet-live role boundary. */
+static void
+plugin_ui_present_pending_set(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    bool pending)
+{
+    int at;
+
+    assert(host);
+    assert(node.value > 0 && node.value <= TORIRS_UI_REGISTRY_NODES_MAX);
+    at = host->ui_pending_role_index[node.value - 1u] - 1;
+    if( pending )
+    {
+        if( at >= 0 )
+            return;
+        assert(host->ui_pending_role_count < TORIRS_UI_REGISTRY_NODES_MAX);
+        at = host->ui_pending_role_count++;
+        host->ui_pending_role_nodes[at] = (int)node.value;
+        host->ui_pending_role_index[node.value - 1u] = at + 1;
+        return;
+    }
+    if( at < 0 )
+        return;
+    {
+        int const last = --host->ui_pending_role_count;
+        int const moved = host->ui_pending_role_nodes[last];
+        host->ui_pending_role_index[node.value - 1u] = 0;
+        if( at != last )
+        {
+            host->ui_pending_role_nodes[at] = moved;
+            host->ui_pending_role_index[moved - 1] = at + 1;
+        }
+        host->ui_pending_role_nodes[last] = 0;
+    }
+}
+
 /** Re-resolve ancestry/boundary state for one already-indexed row. */
 static void
 plugin_ui_present_finish_row(
@@ -11096,7 +11137,6 @@ plugin_ui_present_finish_row(
 {
     struct PluginUiPresentation* row;
     bool tree_presentable;
-    int const old_pending = old && old->pending_boundary_role[0] ? 1 : 0;
 
     assert(host);
     assert(index >= 0 && index < host->ui_presentation_count);
@@ -11118,9 +11158,8 @@ plugin_ui_present_finish_row(
                 : plugin_ui_present_action_token_next(host);
     else
         row->action_token = 0;
-    host->ui_presentation_pending_roles +=
-        (row->pending_boundary_role[0] ? 1 : 0) - old_pending;
-    assert(host->ui_presentation_pending_roles >= 0);
+    plugin_ui_present_pending_set(
+        host, row->node, row->pending_boundary_role[0] != '\0');
     plugin_ui_present_suppression_one(host, row, true);
 }
 
@@ -11135,8 +11174,7 @@ plugin_ui_present_remove(struct ToriRS_PluginHost* host, int index)
     assert(index >= 0 && index <= last);
     old = host->ui_presentations[index];
     plugin_ui_present_suppression_one(host, &old, false);
-    if( old.pending_boundary_role[0] )
-        host->ui_presentation_pending_roles--;
+    plugin_ui_present_pending_set(host, old.node, false);
     host->ui_presentation_by_node[old.node.value - 1u] = 0;
     if( index != last )
     {
@@ -11237,29 +11275,78 @@ plugin_ui_present_refresh_roles(struct ToriRS_PluginHost* host)
 
     assert(host);
     if( !host->ui_presentation_roles_dirty &&
-        host->ui_presentation_pending_roles == 0 )
+        host->ui_pending_role_count == 0 )
         return false;
-    for( int i = 0; i < host->ui_presentation_count; i++ )
+    if( host->ui_presentation_roles_dirty )
     {
-        struct PluginUiPresentation* row = &host->ui_presentations[i];
-        bool refresh = host->ui_presentation_roles_dirty;
-        if( !refresh && row->pending_boundary_role[0] )
+        for( int i = 0; i < host->ui_presentation_count; i++ )
         {
+            struct PluginUiPresentation old = host->ui_presentations[i];
             host->ui_presentation_role_probe_visits++;
-            refresh = plugin_ui_present_role_live(
-                host, row->pending_boundary_role);
-        }
-        if( refresh )
-        {
-            struct PluginUiPresentation old = *row;
-            if( host->ui_presentation_roles_dirty )
-                host->ui_presentation_role_probe_visits++;
             plugin_ui_present_finish_row(host, i, &old);
-            changed = true;
+        }
+        changed = true;
+    }
+    else
+    {
+        for( int pending = 0; pending < host->ui_pending_role_count; )
+        {
+            struct ToriRS_UiNodeRef const node = {
+                (uint32_t)host->ui_pending_role_nodes[pending]
+            };
+            int const index = plugin_ui_present_index(host, node);
+            int const count_before = host->ui_pending_role_count;
+
+            if( index < 0 ||
+                !host->ui_presentations[index].pending_boundary_role[0] )
+            {
+                plugin_ui_present_pending_set(host, node, false);
+                continue;
+            }
+            host->ui_presentation_role_probe_visits++;
+            if( plugin_ui_present_role_live(
+                    host,
+                    host->ui_presentations[index].pending_boundary_role) )
+            {
+                struct PluginUiPresentation old = host->ui_presentations[index];
+                plugin_ui_present_finish_row(host, index, &old);
+                changed = true;
+            }
+            if( host->ui_pending_role_count == count_before )
+                pending++;
         }
     }
     host->ui_presentation_roles_dirty = false;
     return changed;
+}
+
+/**
+ * Did this node's appearance change whether descendants may be presented?
+ * Label/image/active-state updates stay local; only absence or VISIBLE moves
+ * through semantic ancestry.
+ */
+static bool
+plugin_ui_present_visibility_changed(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node)
+{
+    struct ToriRS_UiResolvedNode resolved;
+    uint8_t next;
+    uint8_t old;
+
+    assert(host);
+    if( node.value == 0 || node.value > TORIRS_UI_REGISTRY_NODES_MAX )
+        return true;
+    if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &resolved) )
+        next = 1; /* absent: an ancestry walk stops here */
+    else if( (resolved.available_facets & TORIRS_UI_FACET_APPEARANCE) != 0 &&
+             (resolved.value.flags & TORIRS_UI_NODE_VISIBLE) == 0 )
+        next = 3;
+    else
+        next = 2;
+    old = host->ui_node_visibility_state[node.value - 1u];
+    host->ui_node_visibility_state[node.value - 1u] = next;
+    return old == 0 || old != next;
 }
 
 /** Recovery-only complete rebuild; ordinary revisions use ChangeNext below. */
@@ -11275,8 +11362,14 @@ plugin_ui_present_rebuild_all(struct ToriRS_PluginHost* host)
         host->ui_presentation_by_node,
         0,
         sizeof(host->ui_presentation_by_node));
+    memset(host->ui_pending_role_nodes, 0, sizeof(host->ui_pending_role_nodes));
+    memset(host->ui_pending_role_index, 0, sizeof(host->ui_pending_role_index));
+    memset(
+        host->ui_node_visibility_state,
+        0,
+        sizeof(host->ui_node_visibility_state));
     host->ui_presentation_count = 0;
-    host->ui_presentation_pending_roles = 0;
+    host->ui_pending_role_count = 0;
     for( int i = 0; i < nodes; i++ )
     {
         struct ToriRS_UiNodeRef const node =
@@ -11285,6 +11378,7 @@ plugin_ui_present_rebuild_all(struct ToriRS_PluginHost* host)
         int index;
 
         host->ui_presentation_registry_visits++;
+        (void)plugin_ui_present_visibility_changed(host, node);
         if( !plugin_ui_present_candidate(host, node, &candidate) ||
             host->ui_presentation_count >= PLUGIN_UI_PRESENTATIONS_MAX )
             continue;
@@ -11316,8 +11410,9 @@ plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
         if( change.node.value > 0 &&
             change.node.value <= TORIRS_UI_REGISTRY_NODES_MAX )
             directly_changed[change.node.value - 1u] = true;
-        if( change.facets & (TORIRS_UI_FACET_BOUNDS |
-                             TORIRS_UI_FACET_APPEARANCE) )
+        if( (change.facets & TORIRS_UI_FACET_BOUNDS) != 0 ||
+            ((change.facets & TORIRS_UI_FACET_APPEARANCE) != 0 &&
+             plugin_ui_present_visibility_changed(host, change.node)) )
             ancestor_dirty = true;
         plugin_ui_present_apply_change(host, &change, &order_dirty);
         any_change = true;

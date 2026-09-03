@@ -6841,6 +6841,37 @@ main(void)
                 g_present_draws == 1 && g_hit_region_calls == 0,
             "an APPEARANCE winner suppresses only native paint and presents no action surface");
 
+        /* A resolved boundary is not polled speculatively. Its failed anchor is
+         * the exact event that schedules one role refresh; while absent it is
+         * then the only dependency probed for a later appearance. */
+        late_rebuilds = PluginHost_UiPresentationRebuilds(facet_host);
+        role_probe_visits = PluginHost_UiPresentationRoleProbeVisits(facet_host);
+        old_draws = g_present_draws;
+        g_role_name = NULL;
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            g_present_draws == old_draws &&
+                PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds,
+            "a failed live-boundary anchor schedules recovery without a global pre-scan");
+        PluginHost_ReconcileRoleReplacements(facet_host);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds + 1 &&
+                PluginHost_UiPresentationRoleProbeVisits(facet_host) > role_probe_visits,
+            "the scheduled refresh retires a disappeared live boundary once");
+        late_rebuilds = PluginHost_UiPresentationRebuilds(facet_host);
+        role_probe_visits = PluginHost_UiPresentationRoleProbeVisits(facet_host);
+        PluginHost_ReconcileRoleReplacements(facet_host);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds &&
+                PluginHost_UiPresentationRoleProbeVisits(facet_host) ==
+                    role_probe_visits + 1,
+            "only the unresolved boundary is probed while it remains absent");
+        g_role_name = "orb_run";
+        PluginHost_ReconcileRoleReplacements(facet_host);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds + 1,
+            "the unresolved boundary becoming live restores the retained row once");
+
         PluginHost_SetEnabled(facet_host, actions, true);
         PluginHost_DrawCanvas(facet_host, 100, 100);
         CHECK(

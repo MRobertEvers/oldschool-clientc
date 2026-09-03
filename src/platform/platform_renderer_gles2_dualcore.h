@@ -27,26 +27,44 @@
  *   ------------------------------------     ---------------------------------
  *   gles2_render_frame_begin
  *   ToriRS_FrameBegin(frame)
- *   sync the scratch view; copy the frame
+ *   sync the scratch view
  *   install the stage source
- *   gles2_render_frame_commands:
+ *   the lane's dispatch loop:
  *     scene events (loads, unloads)
- *     BEGIN_3D -> source->begin_3d ------->  wake: replay the world pass
- *     DRAW_MODEL -> source->take(i)          (world-only frame, on the view)
- *       waits until ready > i <-----------   pose/cull/project/pick/sort
- *       gathers, bakes, emits                publish result i
+ *     BEGIN_3D -> source->begin_3d           wake
+ *       feed <- BEGIN_3D ------------------> begin the pass on the view
+ *     pull the next LOOKAHEAD commands
+ *       feed <- DRAW_MODEL j ... ----------> stage j: pose/cull/project/
+ *     DRAW_MODEL -> source->take(i)          pick/sort; publish result i
+ *       waits until ready > i <-----------
+ *       gathers, bakes, emits
  *     ...                                    ...
- *     END_3D, interface, ...                 END_3D: finished
+ *     END_3D -> feed <- END_3D               end the pass
+ *     interface, ...
+ *   close the feed -----------------------> finished
  *   join the worker <---------------------
  *   remove the stage source
  *   ToriRS_FrameEnd(frame)
  *   gles2_render_frame_end
  *
+ * The draw runs the frame bus ONCE, for both threads: inside a world pass
+ * it translates commands a few ahead of dispatching them (a ring of
+ * TORIRS_GLES2_DUALCORE_LOOKAHEAD, default 16) and publishes each into the
+ * arena's feed as it is translated, so the worker stages from translated
+ * commands and never walks the painter list itself. Until 2026-09-03 the
+ * worker replayed the bus world-only on its own copy of the frame: 1.26 ms
+ * of its 6.0 ms frame and, on terrain runs (a tile's stage is cheaper than
+ * its translation), the reason it could not stay ahead of the draw -- which
+ * waited 1.45 ms a frame on it.
+ *
  * Why the worker starts at BEGIN_3D and not at frame begin: the frame's
  * scene events -- model loads that bake, animation loads that pose every
  * frame of a sequence into the model -- run on the draw thread before its
  * first world command, and they write the models the worker would be
- * reading. BEGIN_3D is the first instant after the last of them.
+ * reading. BEGIN_3D is the first instant after the last of them. It is
+ * also why the lookahead runs only INSIDE a pass: every command pulled
+ * ahead there is a world command, with no scene event queued behind it that
+ * its staging could depend on.
  *
  * Why the worker finishes before ToriRS_FrameEnd: that is where the scene
  * frees the poses it was asked to drop this frame, and the worker may still
@@ -68,6 +86,10 @@
  *                                  and the kernels are settled by one
  *                                  thread (default 1)
  *   TORIRS_GLES2_DUALCORE_PIN=1    pin the worker to the second CPU
+ *   TORIRS_GLES2_DUALCORE_LOOKAHEAD=N
+ *                                  commands the draw translates ahead of
+ *                                  dispatching them inside a world pass
+ *                                  (default 16, max 31)
  *   TORIRS_GLES2_DUALCORE_DEBUG=1  a stats line every 300 frames on stderr
  */
 

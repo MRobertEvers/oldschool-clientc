@@ -1255,6 +1255,8 @@ struct App
      */
     struct UITreeEntityOverlay panel_overlays[APP_PLUGIN_PANEL_OVERLAYS_MAX];
     uint32_t panel_overlay_owner[APP_PLUGIN_PANEL_OVERLAYS_MAX];
+    /** Direct owner row for O(1) clip lookup while replaying retained items. */
+    int panel_overlay_row[APP_PLUGIN_PANEL_OVERLAYS_MAX];
     int panel_overlay_count;
     struct UITreeEntityOverlay panel_overlay_stage[APP_PLUGIN_PANEL_OVERLAYS_MAX];
     int panel_overlay_stage_count;
@@ -1990,6 +1992,10 @@ struct App
     int plugin_panel_row_count;
     /** Active panel-model slot -> plugin_panel_rows index + 1 (zero absent). */
     int plugin_panel_model_rows[TORIRS_PLUGIN_WIDGETS_MAX];
+    /** Compact indexes of the active page's CUSTOM rows. */
+    int plugin_panel_custom_rows[TORIRS_PLUGIN_WIDGETS_MAX];
+    int plugin_panel_custom_row_count;
+    int plugin_panel_custom_pending_count;
     /**
      * This frame's input, parked for the plugin api's key_held.
      *

@@ -939,6 +939,21 @@ gles2_render_frame_commands(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* 
 void
 gles2_render_frame_end(struct ToriRS_GLES2* renderer);
 
+/*
+ * The dispatch loop's per-command prefetch, for a lane that runs its own
+ * loop: the element ids of the next three DRAW_MODEL commands (or -1),
+ * nearest first. gles2_render_frame_commands feeds it the frame's own
+ * lookahead; the dual-core lane feeds it the commands sitting in its ring.
+ * One line class per distance: the pose table's element row at +3, its
+ * track's vertex-base array at +2, the static batch's entry at +1.
+ */
+void
+gles2_prefetch_ahead_ids(
+    struct ToriRS_GLES2* renderer,
+    int id_plus1,
+    int id_plus2,
+    int id_plus3);
+
 /* Depth-only entry points; the core calls them under a ::zbuffer test. */
 bool
 gles2_zbuffer_create(struct ToriRS_GLES2* renderer);

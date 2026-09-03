@@ -1,4 +1,3 @@
-#include "plugin/torirs_plugin.h"
 #include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
@@ -138,12 +137,6 @@
 _Static_assert(ORB_BUF_MAX <= ORB_SCRATCH_W, "a globe has to fit the scratch");
 _Static_assert(ORB_BUF_MAX <= ORB_SCRATCH_H, "a globe has to fit the scratch");
 
-static struct ToriRS_PluginApi const* g_api;
-/** Scopes of the `xp_drops` part this plugin holds; 0 draws nothing. */
-static int g_xp_drops_held;
-/** The claim has been answered by a frame that could; until then it is retried. */
-static int g_xp_drops_settled;
-
 /* ------------------------------------------------------------- skill colour */
 
 /**
@@ -217,14 +210,9 @@ struct OrbGlyph
 /** Indexed by `ch - 32`, so the printable ASCII range and nothing else. */
 #define ORB_GLYPH_FIRST 32
 #define ORB_GLYPH_COUNT 96
-static struct OrbGlyph g_glyph[ORB_GLYPH_COUNT];
-static int g_glyph_ready;
 /** Colour rows in the atlas and how far apart they are. Row 0 is white and
  *  row 1 orange, in the order the bake was asked for them. */
-static int g_glyph_rows = 1;
-static int g_glyph_row_h;
 /** The line box, which is what a caption's height is measured in. */
-static int g_glyph_line_h = 12;
 
 #define ORB_TEXT_WHITE 0
 #define ORB_TEXT_LABEL 1
@@ -261,8 +249,6 @@ struct XpGlobe
     int image;
 };
 
-static struct XpGlobe g_globe[ORB_MAX_SHOWN];
-static int g_globe_count;
 
 /**
  * One "+N" floating up into its orb.
@@ -292,26 +278,10 @@ struct XpDrop
 };
 
 #define ORB_DROP_MAX 8
-static struct XpDrop g_drop[ORB_DROP_MAX];
 
 /** Per skill: the xp this plugin last saw, or -1 for one it has never seen.
  *  -1 is what makes the login burst -- every skill arriving at once -- seed
  *  the table instead of putting a globe on screen for all 25. */
-static int* g_seen_xp;
-static struct XpTrack* g_track;
-static int g_skill_count;
-
-/** The art, and its pixels once they have been read back. */
-static int g_img_skills = -1;
-static int g_img_text = -1;
-static uint32_t* g_skills_px;
-static int g_skills_w;
-static int g_skills_h;
-static uint32_t* g_text_px;
-static int g_text_w;
-static int g_text_h;
-
-static uint32_t g_scratch[ORB_SCRATCH_W * ORB_SCRATCH_H];
 
 /**
  * How often the tooltip's numbers are allowed to move.
@@ -329,11 +299,61 @@ static uint32_t g_scratch[ORB_SCRATCH_W * ORB_SCRATCH_H];
 #define ORB_TIP_REFRESH_MS 5000
 
 /** The composed tooltip, and what it is a picture of. @see orb_draw_tooltip. */
-static int g_tip_image = -1;
-static int g_tip_h;
-static int g_tip_skill = -1;
-static int g_tip_xp = -1;
-static uint64_t g_tip_ms;
+struct XpOrbState
+{
+    struct OrbGlyph glyph[ORB_GLYPH_COUNT];
+    int glyph_ready;
+    int glyph_rows;
+    int glyph_row_h;
+    int glyph_line_h;
+    struct XpGlobe globe[ORB_MAX_SHOWN];
+    int globe_count;
+    struct XpDrop drop[ORB_DROP_MAX];
+    int* seen_xp;
+    struct XpTrack* track;
+    int skill_count;
+    int img_skills;
+    int img_text;
+    uint32_t* skills_px;
+    int skills_w;
+    int skills_h;
+    uint32_t* text_px;
+    int text_w;
+    int text_h;
+    uint32_t scratch[ORB_SCRATCH_W * ORB_SCRATCH_H];
+    int tip_image;
+    int tip_h;
+    int tip_skill;
+    int tip_xp;
+    uint64_t tip_ms;
+    struct ToriRS_UiNodeRef node;
+};
+
+#define g_glyph (state->glyph)
+#define g_glyph_ready (state->glyph_ready)
+#define g_glyph_rows (state->glyph_rows)
+#define g_glyph_row_h (state->glyph_row_h)
+#define g_glyph_line_h (state->glyph_line_h)
+#define g_globe (state->globe)
+#define g_globe_count (state->globe_count)
+#define g_drop (state->drop)
+#define g_seen_xp (state->seen_xp)
+#define g_track (state->track)
+#define g_skill_count (state->skill_count)
+#define g_img_skills (state->img_skills)
+#define g_img_text (state->img_text)
+#define g_skills_px (state->skills_px)
+#define g_skills_w (state->skills_w)
+#define g_skills_h (state->skills_h)
+#define g_text_px (state->text_px)
+#define g_text_w (state->text_w)
+#define g_text_h (state->text_h)
+#define g_scratch (state->scratch)
+#define g_tip_image (state->tip_image)
+#define g_tip_h (state->tip_h)
+#define g_tip_skill (state->tip_skill)
+#define g_tip_xp (state->tip_xp)
+#define g_tip_ms (state->tip_ms)
 
 /** The one verb a globe offers, and the reference's own: it flips the column
  *  between across and down. */
