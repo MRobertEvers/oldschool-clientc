@@ -192,15 +192,32 @@
     if (left && middle && right) {
       button.style.backgroundImage = `${cssUrl(left)},${cssUrl(right)},${cssUrl(middle)}`;
       button.style.backgroundRepeat = 'no-repeat,no-repeat,repeat-x';
-      button.style.backgroundPosition = 'left center,right center,center';
+      button.style.backgroundPosition = 'left center,right center,left center';
       /* The source art is the 2x (36px-high) bake. Chrome geometry is in the
        * authored 1x units; DPR=2 displays these pixels one-for-one. */
       button.style.backgroundSize = '18px 18px,18px 18px,10px 18px';
+      /* The middle stops UNDER the caps. A cap's art carries a transparent
+       * bleed margin and two notched corners, so a middle tiled across the
+       * whole width shows through both -- the tile running past the ends of
+       * the end caps. The inset is the caps' opaque width (16), not their 18px
+       * cell, so the middle tucks under them rather than stopping short and
+       * leaving a seam; it is clipped to the content box that padding leaves.
+       * Set here as well as in the stylesheet because the downlevel page
+       * styles only the middle: its caps arrive from this theme, and so must
+       * their inset. */
+      button.style.backgroundClip = 'border-box,border-box,content-box';
+      button.style.paddingLeft = '16px';
+      button.style.paddingRight = '16px';
+      button.style.overflow = 'hidden';
     } else if (middle) {
       button.style.backgroundImage = cssUrl(middle);
       button.style.backgroundRepeat = 'repeat-x';
-      button.style.backgroundPosition = 'center';
+      button.style.backgroundPosition = 'left center';
       button.style.backgroundSize = '10px 18px';
+      /* No caps: the tile is the whole button and needs no inset. */
+      button.style.backgroundClip = 'border-box';
+      button.style.paddingLeft = '6px';
+      button.style.paddingRight = '6px';
     }
   }
 

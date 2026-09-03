@@ -52,7 +52,9 @@ struct SdlHitState
  * beside it.
  */
 #define SDL_BORDERLESS_RESIZE 6
-/** The collapsed RuneLite-like rail retained after the pane closes. */
+/** The collapsed RuneLite-like rail retained after the pane closes -- the
+ *  FALLBACK width, used only before an executor has opened the rail at its
+ *  own; see sdl_chrome_rail_points. */
 #define SDL_CHROME_RAIL_POINTS 48
 
 struct PlatformWindow
@@ -136,11 +138,20 @@ struct PlatformWindow
     int chrome_width;  /* drawable pixels */
     int chrome_height;
     int chrome_point_w;
-    int chrome_saved_point_w;
-    int chrome_saved_point_h;
+    /* The rail's points, as the executor that opened it asked (each executor
+     * has its own number). The constant above is only the fallback. */
+    int chrome_rail_point_w;
+    /* Points the window was widened by FOR THE PAGE, 0..page width. Close
+     * gives back exactly this. A page carved out of the game area instead --
+     * the frame belonged to the window manager, or the display had no room
+     * to the right -- has nothing to give back. See sdl_window_growth_fits. */
+    int chrome_page_grow_w;
+    /* The pane's allocation changed without the window changing size, so no
+     * SIZE_CHANGED will arrive to relayout the canvas: PollCommands pushes the
+     * game area itself. */
+    bool chrome_relayout_pending;
     bool chrome_open;
     bool chrome_rail_visible;
-    bool chrome_grew;
     bool chrome_focused;
     bool chrome_pointer_down;
     bool chrome_rail_focused;
@@ -647,6 +658,24 @@ PlatformWindow_Init(
      * the touch device is opened.
      */
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+
+    /*
+     * The click that gives the window focus is a click.
+     *
+     * SDL drops it by default -- SDL_hints.h states it plainly: "By default
+     * SDL will ignore mouse clicks that activate a window" -- which is the
+     * AppKit convention for a document window, where the activating click
+     * should only raise it. A game client is buttons all the way across, so
+     * there the same rule is a dead click every single time the player comes
+     * back from another window: the first press on the login button, on a
+     * sidebar tab, on an inventory slot does nothing and has to be repeated.
+     *
+     * And it cannot be recovered anywhere downstream, because the client is
+     * never told: the platform swallows the press AND its release, so the
+     * input layer sees no button edge at all and the frame looks exactly like
+     * one where nobody clicked.
+     */
+    SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -754,6 +783,24 @@ PlatformWindow_InitForOpenGL3(
      * the touch device is opened.
      */
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+
+    /*
+     * The click that gives the window focus is a click.
+     *
+     * SDL drops it by default -- SDL_hints.h states it plainly: "By default
+     * SDL will ignore mouse clicks that activate a window" -- which is the
+     * AppKit convention for a document window, where the activating click
+     * should only raise it. A game client is buttons all the way across, so
+     * there the same rule is a dead click every single time the player comes
+     * back from another window: the first press on the login button, on a
+     * sidebar tab, on an inventory slot does nothing and has to be repeated.
+     *
+     * And it cannot be recovered anywhere downstream, because the client is
+     * never told: the platform swallows the press AND its release, so the
+     * input layer sees no button edge at all and the frame looks exactly like
+     * one where nobody clicked.
+     */
+    SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -1489,6 +1536,18 @@ chrome_drawable_size(struct PlatformWindow* platform, int* out_w, int* out_h)
         *out_h = drawable_h;
 }
 
+/* The rail's points: what RailOpen was asked for, or the fallback before
+ * any rail was opened. Three executors, three numbers (the SDL surface
+ * executor's 40, the browser's TORIRS_CHROME_M_RAIL_W); a constant here left
+ * the pane wider than the rail after every Close. */
+static int
+sdl_chrome_rail_points(struct PlatformWindow const* platform)
+{
+    assert(platform);
+    return platform->chrome_rail_point_w > 0 ? platform->chrome_rail_point_w
+                                             : SDL_CHROME_RAIL_POINTS;
+}
+
 static int
 chrome_rail_pixel_width(struct PlatformWindow const* platform)
 {
@@ -1498,13 +1557,23 @@ chrome_rail_pixel_width(struct PlatformWindow const* platform)
     if( !platform->chrome_rail_visible || platform->chrome_width <= 0 ||
         platform->chrome_point_w <= 0 )
         return 0;
-    rail = SDL_CHROME_RAIL_POINTS * platform->chrome_width /
+    rail = sdl_chrome_rail_points(platform) * platform->chrome_width /
            platform->chrome_point_w;
     if( rail < 1 )
         rail = 1;
     if( rail > platform->chrome_width )
         rail = platform->chrome_width;
     return rail;
+}
+
+/* Window points the pane occupies at the trailing edge; 0 with no pane. */
+static int
+sdl_chrome_pane_points(struct PlatformWindow const* platform)
+{
+    assert(platform);
+    if( !platform->chrome_open && !platform->chrome_rail_visible )
+        return 0;
+    return platform->chrome_point_w > 0 ? platform->chrome_point_w : 0;
 }
 
 static void
@@ -1534,6 +1603,99 @@ sdl_chrome_sync_drawable(struct PlatformWindow* platform)
     }
 }
 
+/*
+ * Whether the window manager owns the frame right now: maximised (which on
+ * Cocoa is "zoomed", and SDL reports it as MAXIMIZED) or fullscreen. A
+ * programmatic SDL_SetWindowSize on such a window does not fail -- it
+ * un-maximises it, which is the frame jumping to a new size and place the
+ * user never asked for. Nothing here changes the window's size while this is
+ * true; the pane is carved out of the game area instead.
+ */
+static bool
+sdl_window_frame_locked(struct PlatformWindow const* platform)
+{
+    Uint32 flags;
+
+    assert(platform);
+    if( !platform->window )
+        return true;
+    flags = SDL_GetWindowFlags(platform->window);
+    return (flags & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN |
+                     SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
+}
+
+/*
+ * Whether widening the window by grow_w and heightening it by grow_h, at its
+ * current position, keeps the whole frame inside its display's usable area.
+ *
+ * SDL_SetWindowSize keeps the top-left corner, so growth goes right and down;
+ * a window near the display's edge grown for a 360-point page hangs that page
+ * off the screen (Cocoa lets a window overhang the right edge and shoves one
+ * back from the bottom), which is the "jerk" this policy exists to avoid.
+ * Refused growth is not a failure: the pane opens inside the current frame
+ * and the game area gives up the width.
+ *
+ * Unknown bounds (a driver with no display geometry) allow the growth: the
+ * one thing this must never do is refuse a window a real desk has room for.
+ */
+static bool
+sdl_window_growth_fits(struct PlatformWindow const* platform, int grow_w, int grow_h)
+{
+    SDL_Rect usable;
+    int display;
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    int border_top = 0;
+    int border_left = 0;
+    int border_bottom = 0;
+    int border_right = 0;
+
+    assert(platform);
+    if( grow_w <= 0 && grow_h <= 0 )
+        return true;
+    if( sdl_window_frame_locked(platform) )
+        return false;
+    display = SDL_GetWindowDisplayIndex(platform->window);
+    if( display < 0 || SDL_GetDisplayUsableBounds(display, &usable) != 0 ||
+        usable.w <= 0 || usable.h <= 0 )
+        return true;
+    SDL_GetWindowPosition(platform->window, &x, &y);
+    SDL_GetWindowSize(platform->window, &w, &h);
+    /* Fails on drivers without decorations; the sizes are zeroed then. */
+    (void)SDL_GetWindowBordersSize(
+        platform->window, &border_top, &border_left, &border_bottom, &border_right);
+    (void)border_top;
+    (void)border_left;
+    if( grow_w > 0 && x + w + grow_w + border_right > usable.x + usable.w )
+        return false;
+    if( grow_h > 0 && y + h + grow_h + border_bottom > usable.y + usable.h )
+        return false;
+    return true;
+}
+
+/* Under TORIRS_RESIZE_DEBUG, the decision the pane just made about the
+ * window, with its reason: the one line that tells a "the window jumped" or
+ * "the game shrank" report apart from a bug. Per open/close, not per frame. */
+static void
+sdl_chrome_report(
+    struct PlatformWindow const* platform, char const* what, int asked_w, int window_delta_w)
+{
+    assert(platform);
+    assert(what);
+    if( !getenv("TORIRS_RESIZE_DEBUG") )
+        return;
+    if( window_delta_w != 0 )
+        fprintf(stderr, "chrome pane: %s %d points -> window %+d\n", what, asked_w, window_delta_w);
+    else if( sdl_window_frame_locked(platform) )
+        fprintf(stderr, "chrome pane: %s %d points -> window unchanged (maximised or fullscreen)\n",
+            what, asked_w);
+    else
+        fprintf(stderr, "chrome pane: %s %d points -> window unchanged (no room on the display)\n",
+            what, asked_w);
+}
+
 bool
 PlatformWindow_ChromeRailOpen(
     struct PlatformWindow* platform, int width, char const* title)
@@ -1542,6 +1704,7 @@ PlatformWindow_ChromeRailOpen(
     int point_h = 0;
     int pixel_w = 0;
     int pixel_h = 0;
+    int grow_w;
 
     (void)title;
     assert(platform);
@@ -1552,12 +1715,14 @@ PlatformWindow_ChromeRailOpen(
     SDL_GetWindowSize(platform->window, &point_w, &point_h);
     if( point_w <= 0 || point_h <= 0 )
         return false;
-    platform->chrome_saved_point_w = point_w;
-    platform->chrome_saved_point_h = point_h;
+    /* The rail is never given back (Close keeps it), so its growth is not
+     * remembered -- only whether the window can take it right now. */
+    grow_w = sdl_window_growth_fits(platform, width, 0) ? width : 0;
+    platform->chrome_rail_point_w = width;
     platform->chrome_point_w = width;
+    platform->chrome_page_grow_w = 0;
     platform->chrome_rail_visible = true;
     platform->chrome_open = false;
-    platform->chrome_grew = true;
     platform->chrome_focused = false;
     platform->chrome_pointer_down = false;
     platform->chrome_rail_focused = false;
@@ -1567,16 +1732,19 @@ PlatformWindow_ChromeRailOpen(
     memset(&platform->chrome_rail_input, 0, sizeof(platform->chrome_rail_input));
     platform->chrome_rail_input.mouse_x = -1;
     platform->chrome_rail_input.mouse_y = -1;
-    SDL_SetWindowSize(platform->window, point_w + width, point_h);
+    if( grow_w > 0 )
+        SDL_SetWindowSize(platform->window, point_w + grow_w, point_h);
     chrome_drawable_size(platform, &pixel_w, &pixel_h);
     if( !chrome_make_surface(platform, pixel_w, pixel_h) )
     {
         platform->chrome_rail_visible = false;
-        platform->chrome_grew = false;
         platform->chrome_point_w = 0;
-        SDL_SetWindowSize(platform->window, point_w, point_h);
+        if( grow_w > 0 )
+            SDL_SetWindowSize(platform->window, point_w, point_h);
         return false;
     }
+    platform->chrome_relayout_pending = true;
+    sdl_chrome_report(platform, "rail", width, grow_w);
     return true;
 }
 
@@ -1605,17 +1773,26 @@ PlatformWindow_ChromeOpen(
         return false;
     had_rail = platform->chrome_rail_visible ? 1 : 0;
     old_chrome_w = had_rail ? platform->chrome_point_w : 0;
-    next_chrome_w = width + SDL_CHROME_RAIL_POINTS;
+    next_chrome_w = width + sdl_chrome_rail_points(platform);
     {
-        int const grow_w = next_chrome_w > old_chrome_w ?
+        /* Attached-grow adds only the page width not already occupied by the
+         * persistent collapsed rail -- and only where the frame is the user's
+         * and the display has the room; otherwise the page opens inside the
+         * current frame and the game area gives up the width. Both axes are
+         * decided together: a window that may not widen does not heighten. */
+        int const want_w = next_chrome_w > old_chrome_w ?
             next_chrome_w - old_chrome_w : 0;
+        int const want_h = height > point_h ? height - point_h : 0;
+        int const fits = sdl_window_growth_fits(platform, want_w, want_h);
+        int const grow_w = fits ? want_w : 0;
+        int const grow_h = fits ? want_h : 0;
 
-        platform->chrome_saved_point_w = point_w - old_chrome_w;
-        platform->chrome_saved_point_h = point_h;
         platform->chrome_point_w = next_chrome_w;
+        platform->chrome_page_grow_w = had_rail ? grow_w : grow_w - sdl_chrome_rail_points(platform);
+        if( platform->chrome_page_grow_w < 0 )
+            platform->chrome_page_grow_w = 0;
         platform->chrome_open = true;
         platform->chrome_rail_visible = true;
-        platform->chrome_grew = grow_w > 0;
         platform->chrome_focused = false;
         platform->chrome_pointer_down = false;
         platform->chrome_rail_focused = false;
@@ -1628,23 +1805,21 @@ PlatformWindow_ChromeOpen(
         platform->chrome_rail_input.mouse_y = -1;
         platform->chrome_rail_have_input = false;
 
-        /* Attached-grow adds only the page width not already occupied by the
-         * persistent collapsed rail. */
-        SDL_SetWindowSize(
-            platform->window,
-            point_w + grow_w,
-            height > point_h ? height : point_h);
+        if( grow_w > 0 || grow_h > 0 )
+            SDL_SetWindowSize(platform->window, point_w + grow_w, point_h + grow_h);
     }
     chrome_drawable_size(platform, &pixel_w, &pixel_h);
     if( !chrome_make_surface(platform, pixel_w, pixel_h) )
     {
         platform->chrome_open = false;
-        platform->chrome_grew = false;
+        platform->chrome_page_grow_w = 0;
         platform->chrome_point_w = old_chrome_w;
         platform->chrome_rail_visible = had_rail != 0;
         SDL_SetWindowSize(platform->window, point_w, point_h);
         return false;
     }
+    platform->chrome_relayout_pending = true;
+    sdl_chrome_report(platform, "page open", width, platform->chrome_page_grow_w);
     return true;
 }
 
@@ -1657,28 +1832,58 @@ PlatformWindow_ChromeSetPageWidth(
     int pixel_w = 0;
     int pixel_h = 0;
     int const old_chrome_w = platform ? platform->chrome_point_w : 0;
+    int const old_grow_w = platform ? platform->chrome_page_grow_w : 0;
     int next_chrome_w;
+    int next_grow_w;
+    int window_delta;
 
     assert(platform);
     if( page_width <= 0 || page_width > 4096 )
         return false;
-    next_chrome_w = page_width + SDL_CHROME_RAIL_POINTS;
+    next_chrome_w = page_width + sdl_chrome_rail_points(platform);
     if( !platform->chrome_open || !platform->window || next_chrome_w == old_chrome_w )
         return next_chrome_w == old_chrome_w && platform->chrome_open;
     SDL_GetWindowSize(platform->window, &point_w, &point_h);
     if( point_w <= 0 || point_h <= 0 )
         return false;
+
+    /* Keep the game area where it is: the window follows the page width by
+     * the same amount it followed it before, never widened past the page
+     * itself and never widened where Open would not have been. A page that
+     * was carved out of the game area stays carved out until it shrinks
+     * below what was grown, which is the moment there is something to give
+     * back. A frame the window manager took over meanwhile is left alone and
+     * its growth forgotten -- Close will have nothing to give back either. */
+    if( sdl_window_frame_locked(platform) )
+        next_grow_w = 0;
+    else
+    {
+        next_grow_w = old_grow_w + next_chrome_w - old_chrome_w;
+        if( next_grow_w < 0 )
+            next_grow_w = 0;
+        if( next_grow_w > page_width )
+            next_grow_w = page_width;
+        if( next_grow_w > old_grow_w &&
+            !sdl_window_growth_fits(platform, next_grow_w - old_grow_w, 0) )
+            next_grow_w = old_grow_w;
+    }
+    window_delta = sdl_window_frame_locked(platform) ? 0 : next_grow_w - old_grow_w;
+
     platform->chrome_point_w = next_chrome_w;
-    SDL_SetWindowSize(
-        platform->window, point_w + next_chrome_w - old_chrome_w, point_h);
+    platform->chrome_page_grow_w = next_grow_w;
+    if( window_delta != 0 )
+        SDL_SetWindowSize(platform->window, point_w + window_delta, point_h);
     chrome_drawable_size(platform, &pixel_w, &pixel_h);
     if( !chrome_make_surface(platform, pixel_w, pixel_h) )
     {
         platform->chrome_point_w = old_chrome_w;
-        SDL_SetWindowSize(platform->window, point_w, point_h);
+        platform->chrome_page_grow_w = old_grow_w;
+        if( window_delta != 0 )
+            SDL_SetWindowSize(platform->window, point_w, point_h);
         return false;
     }
-    platform->chrome_grew = true;
+    platform->chrome_relayout_pending = true;
+    sdl_chrome_report(platform, "page width", page_width, window_delta);
     platform->chrome_input.resized = 1;
     platform->chrome_input.width = PlatformWindow_ChromePageWidth(platform);
     platform->chrome_input.height = pixel_h;
@@ -1695,15 +1900,26 @@ PlatformWindow_ChromeClose(struct PlatformWindow* platform)
 {
     int point_w = 0;
     int point_h = 0;
+    int min_w = 0;
+    int min_h = 0;
+    int give_back_w;
     int restore_w;
 
     assert(platform);
     if( !platform->chrome_open )
         return;
     SDL_GetWindowSize(platform->window, &point_w, &point_h);
-    restore_w = point_w - platform->chrome_point_w + SDL_CHROME_RAIL_POINTS;
-    if( restore_w < platform->chrome_saved_point_w + SDL_CHROME_RAIL_POINTS )
-        restore_w = platform->chrome_saved_point_w + SDL_CHROME_RAIL_POINTS;
+    /* Give back exactly what Open/SetPageWidth grew, and nothing while the
+     * window manager owns the frame (shrinking a maximised window un-maximises
+     * it). The user may have narrowed the window meanwhile: never shrink it
+     * below the canvas floor plus the rail that stays. */
+    give_back_w = sdl_window_frame_locked(platform) ? 0 : platform->chrome_page_grow_w;
+    restore_w = point_w - give_back_w;
+    SDL_GetWindowMinimumSize(platform->window, &min_w, &min_h);
+    if( min_w > 0 && restore_w < min_w + sdl_chrome_rail_points(platform) )
+        restore_w = min_w + sdl_chrome_rail_points(platform);
+    if( restore_w > point_w )
+        restore_w = point_w;
 
     platform->chrome_open = false;
     platform->chrome_focused = false;
@@ -1715,16 +1931,18 @@ PlatformWindow_ChromeClose(struct PlatformWindow* platform)
     platform->chrome_rail_have_input = false;
     platform->chrome_dirty = false;
     platform->chrome_rail_visible = true;
-    platform->chrome_point_w = SDL_CHROME_RAIL_POINTS;
-    if( platform->chrome_grew && platform->window )
+    platform->chrome_point_w = sdl_chrome_rail_points(platform);
+    platform->chrome_page_grow_w = 0;
+    sdl_chrome_report(platform, "page close, giving back", give_back_w, restore_w - point_w);
+    if( restore_w != point_w && platform->window )
         SDL_SetWindowSize(platform->window, restore_w, point_h);
-    platform->chrome_grew = false;
     {
         int rail_w = 0;
         int rail_h = 0;
         chrome_drawable_size(platform, &rail_w, &rail_h);
         (void)chrome_make_surface(platform, rail_w, rail_h);
     }
+    platform->chrome_relayout_pending = true;
 }
 
 bool
@@ -2209,8 +2427,25 @@ PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on)
     /* Asked every time rather than tracked: SDL already tracks it, and a second
      * copy here could only disagree. Both calls are idempotent. */
     if( on )
+    {
         SDL_StartTextInput();
-    else
+        return;
+    }
+    /*
+     * "Off" is a request to PUT A KEYBOARD AWAY, and only a backend that has
+     * one to put away may act on it. On a desktop the same switch means
+     * something else entirely -- whether SDL_TEXTINPUT events arrive at all --
+     * so honouring the off silently killed every printable character in the
+     * client from the moment the login form stopped being the focus: no chat
+     * line, no bank search, no chrome field, on a machine whose keyboard never
+     * went anywhere. It showed up worst at a cache revision, where the client
+     * owns no chat focus and so never asks for text input again after login.
+     *
+     * SDL answers "is there a keyboard to put away" itself, which is the same
+     * question every backend here is being asked -- Android and iOS say yes, a
+     * desktop says no.
+     */
+    if( SDL_HasScreenKeyboardSupport() )
         SDL_StopTextInput();
 }
 
@@ -2265,8 +2500,13 @@ PlatformWindow_SetCanvasFollowsWindow(
             platform->resizable_w = window_w;
             platform->resizable_h = window_h;
         }
-        if( min_w > 0 && min_h > 0 )
-            SDL_SetWindowSize(platform->window, min_w, min_h);
+        /* The snap is the game area's size: the plugin pane beside it keeps
+         * its own points, or the letterbox would scale the fixed frame down
+         * by the pane's width. A maximised or fullscreen window is not
+         * snapped at all -- SDL_SetWindowSize would un-maximise it -- and
+         * letterboxes the fixed frame where it is. */
+        if( min_w > 0 && min_h > 0 && !sdl_window_frame_locked(platform) )
+            SDL_SetWindowSize(platform->window, min_w + sdl_chrome_pane_points(platform), min_h);
         return;
     }
 
@@ -2276,8 +2516,9 @@ PlatformWindow_SetCanvasFollowsWindow(
      * no-ops on an unchanged size) but harmless. */
     if( !was_following && platform->resizable_w > 0 && platform->resizable_h > 0 )
     {
-        SDL_SetWindowSize(
-            platform->window, platform->resizable_w, platform->resizable_h);
+        if( !sdl_window_frame_locked(platform) )
+            SDL_SetWindowSize(
+                platform->window, platform->resizable_w, platform->resizable_h);
         platform->resizable_w = 0;
         platform->resizable_h = 0;
     }
@@ -2285,9 +2526,16 @@ PlatformWindow_SetCanvasFollowsWindow(
     /* Drawable pixels, not window points: the canvas the client lays out at is
      * the buffer it rasterises into, and on a HighDPI window those differ by
      * the density. Pushing points here is what leaves a Retina window drawing
-     * a quarter-resolution canvas that the present then stretches back up. */
+     * a quarter-resolution canvas that the present then stretches back up.
+     * Less the plugin pane, which is the window's but not the canvas's. */
     sdl_refresh_pixel_density(platform);
     sdl_drawable_size(platform, &window_w, &window_h);
+    if( platform->chrome_open || platform->chrome_rail_visible )
+    {
+        int pane_w = 0;
+        chrome_drawable_size(platform, &pane_w, NULL);
+        window_w -= pane_w;
+    }
     if( bus && window_w > 0 && window_h > 0 )
         CmdBus_PushWindowResize(bus, window_w, window_h);
 }
@@ -2301,7 +2549,14 @@ PlatformWindow_SetWindowSize(
     assert(platform);
     if( !platform->window || width <= 0 || height <= 0 )
         return;
-    SDL_SetWindowSize(platform->window, width, height);
+    /* `width` is the game area: the plugin pane beside it is the platform's
+     * own allocation, invisible to the caller, and keeps its points. Never
+     * while the window manager owns the frame -- the fixed-mode strip inset
+     * lands here every time the plugin strip opens, and on a maximised
+     * window each of those was a frame jumping out of maximised. */
+    if( sdl_window_frame_locked(platform) )
+        return;
+    SDL_SetWindowSize(platform->window, width + sdl_chrome_pane_points(platform), height);
 }
 
 void
@@ -2403,9 +2658,9 @@ sdl_chrome_event(struct PlatformWindow* platform, SDL_Event const* event)
     SDL_GetWindowSize(platform->window, &point_w, &point_h);
     (void)point_h;
     pane_x = point_w - platform->chrome_point_w;
-    rail_point_w = platform->chrome_point_w < SDL_CHROME_RAIL_POINTS
+    rail_point_w = platform->chrome_point_w < sdl_chrome_rail_points(platform)
                        ? platform->chrome_point_w
-                       : SDL_CHROME_RAIL_POINTS;
+                       : sdl_chrome_rail_points(platform);
     page_point_w = platform->chrome_point_w - rail_point_w;
     rail_x = point_w - rail_point_w;
     rail_pixel_w = chrome_rail_pixel_width(platform);
@@ -2919,6 +3174,23 @@ PlatformWindow_PollCommands(
      * after draining. Resizing to the raw window size here would put the
      * backbuffer below the canvas whenever the user drags past the floor, and
      * App_Render would write off the end of it. */
+    /* A pane that opened, closed or changed width INSIDE the frame moved the
+     * game area's edge without moving the window's, so no SIZE_CHANGED says
+     * so. Same numbers a SIZE_CHANGED would have carried; when the window did
+     * grow as well, this merely restates the event's answer. */
+    if( platform->chrome_relayout_pending )
+    {
+        platform->chrome_relayout_pending = false;
+        if( platform->canvas_follows_window )
+        {
+            int pane_w = 0;
+            sdl_refresh_pixel_density(platform);
+            sdl_drawable_size(platform, &pending_resize_w, &pending_resize_h);
+            if( platform->chrome_open || platform->chrome_rail_visible )
+                chrome_drawable_size(platform, &pane_w, NULL);
+            pending_resize_w -= pane_w;
+        }
+    }
     if( pending_resize_w > 0 && pending_resize_h > 0 )
         CmdBus_PushWindowResize(bus, pending_resize_w, pending_resize_h);
     /* A finger held perfectly still generates no events at all, so the long

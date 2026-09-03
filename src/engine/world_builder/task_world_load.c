@@ -63,15 +63,6 @@ idset_add(
     s->count++;
 }
 
-/*
- * How many scheduler passes the rebuild waits for its fanned-out models.
- *
- * See the wait itself: residency is a condition a failed load never reaches,
- * so the wait needs a floor under it. Passes rather than frames, because that
- * is the unit the waiter counts.
- */
-#define WORLD_LOAD_ASSET_WAIT_PASSES 600
-
 struct Task_WorldLoad
 {
     struct ToriRS_Task task;
@@ -81,10 +72,10 @@ struct Task_WorldLoad
     struct WorldBuilder* builder;
     /*
      * Where this task puts work it wants done ALONGSIDE it rather than inside
-     * it -- the region's loc models (step 4b). It is the queue this task is
-     * itself on; a sibling is a task, not a subtask, which is the whole point:
-     * the runner can have several of them in flight at once, and their reads go
-     * out together instead of nose to tail.
+     * it -- every load below. It is the queue this task is itself on; a
+     * sibling is a task, not a subtask, which is the whole point: the runner
+     * can have several of them in flight at once, and their reads go out
+     * together instead of nose to tail.
      */
     struct ToriRS_TaskQueue* queue;
     int chunks_xz[WORLD_LOAD_MAX_CHUNKS * 2];
@@ -118,15 +109,31 @@ struct Task_WorldLoad
     int i;
     int pass;
     int added;
-    /** Passes spent waiting for the fanned-out loc models. */
-    int wait_passes;
+    /*
+     * Siblings queued and not yet ended. Every stage fans its loads out
+     * against this and then joins on it (PT_TASK_JOIN), so a stage ends when
+     * its loaders END -- a loader that exits on a record the cache cannot
+     * serve counts the same as one that landed. The wait this replaced was on
+     * RESIDENCY with a 600-pass budget, and a single unservable id spent the
+     * whole budget, two passes a frame: six seconds per rebuild on a local
+     * disk, with nothing on the wire.
+     */
+    int pending;
+
+    /* TORIRS_REBUILD_TIMING=1: when the task first ran, when its assets were
+     * all resident, and how many times the runner resumed it in between --
+     * the three numbers that say whether a slow load was the wire, the decode
+     * or the rebuild. */
+    double t_start_ms;
+    double t_assets_ms;
+    int resumes;
 };
 
 /*
  * A residency test and a loader factory, both shaped (provider, id).
  *
  * Every stage of the load below is the same three steps over a different kind
- * of record -- ask what is missing, queue it, wait for it -- so the stages say
+ * of record -- ask what is missing, queue it, join it -- so the stages say
  * which kind and share the rest.
  */
 typedef bool (*WorldLoadHasFn)(struct CacheProvider*, int);
@@ -138,7 +145,8 @@ typedef struct ToriRS_Task* (*WorldLoadMakeFn)(struct CacheProvider*, int);
  * Queued as SIBLINGS of this task rather than awaited inside it, which is the
  * whole point: they are independent reads, so the runner can have them all on
  * the wire at once instead of one per round trip. Nothing downstream of a
- * cache read cares which of them lands first.
+ * cache read cares which of them lands first. Each is counted on
+ * `self->pending`, which is what the stage then joins on.
  */
 static void
 world_load_fanout(
@@ -152,67 +160,11 @@ world_load_fanout(
     assert(ids);
     for( int i = 0; i < ids->count; i++ )
     {
-        struct ToriRS_Task* load;
-
         if( has(self->provider, ids->items[i]) )
             continue;
-        load = make(self->provider, ids->items[i]);
-        if( load )
-            ToriRS_TaskQueue_Add(self->queue, load);
+        ToriRS_TaskQueue_AddJoined(self->queue, make(self->provider, ids->items[i]), &self->pending);
     }
 }
-
-/** Is every square this load names resident, terrain and scenery both? */
-static int
-world_load_maps_resident(struct Task_WorldLoad* self)
-{
-    assert(self);
-    for( int c = 0; c < self->chunk_count; c++ )
-    {
-        int const map_id =
-            CacheProvider_MapId(self->chunks_xz[c * 2], self->chunks_xz[c * 2 + 1]);
-        if( !CacheProvider_MapTerrainHas(self->provider, map_id) ||
-            !CacheProvider_MapSceneryHas(self->provider, map_id) )
-            return 0;
-    }
-    return 1;
-}
-
-/** Is every id in the set resident? The fan-out's wait condition. */
-static int
-world_load_set_resident(
-    struct CacheProvider* provider,
-    struct WorldLoadIdSet const* ids,
-    WorldLoadHasFn has)
-{
-    assert(ids);
-    for( int i = 0; i < ids->count; i++ )
-    {
-        if( !has(provider, ids->items[i]) )
-            return 0;
-    }
-    return 1;
-}
-
-/*
- * Wait for a fanned-out set, bounded.
- *
- * A macro because it suspends, and the bound is not optional: this waits on
- * RESIDENCY, and a record the cache cannot serve never becomes resident.
- * Awaiting a task ended when the task ended, however it ended; an unbounded
- * residency wait would strand a whole rebuild on one bad id, so the budget is
- * set far above any healthy load and reaching it drops exactly what a
- * per-record await would have failed to produce.
- */
-#define WORLD_LOAD_AWAIT_SET(ids_, has_)                                                           \
-    for( self->wait_passes = 0;                                                                    \
-         self->wait_passes < WORLD_LOAD_ASSET_WAIT_PASSES &&                                       \
-         !world_load_set_resident(p, (ids_), (has_));                                              \
-         self->wait_passes++ )                                                                     \
-    {                                                                                              \
-        self->task.blocked = 1;                                                                    \
-        PT_YIELD(&self->pt);                                                                       \
-    }
 
 /*
  * Pull every varbit/varp morph target into `locs`.
@@ -320,6 +272,14 @@ Task_WorldLoad_Run(
     struct Task_WorldLoad* self = (struct Task_WorldLoad*)task_base;
     struct CacheProvider* p = self->provider;
 
+    /* Every read this task wants is a sibling's, so its own slot goes unused. */
+    (void)io;
+
+    /* Before PT_BEGIN, so it counts every resume rather than the first. */
+    self->resumes++;
+    if( WorldBuilder_TimingOn() && self->t_start_ms == 0.0 )
+        self->t_start_ms = WorldBuilder_TimingNowMs();
+
     PT_BEGIN(&self->pt);
 
     /*
@@ -359,28 +319,17 @@ Task_WorldLoad_Run(
         int const map_x = self->chunks_xz[self->c * 2];
         int const map_z = self->chunks_xz[self->c * 2 + 1];
         int const map_id = CacheProvider_MapId(map_x, map_z);
-        struct ToriRS_Task* load;
 
         if( !CacheProvider_MapTerrainHas(p, map_id) )
-        {
-            load = CreateTask_MapTerrainLoad(p, map_x, map_z);
-            if( load )
-                ToriRS_TaskQueue_Add(self->queue, load);
-        }
+            ToriRS_TaskQueue_AddJoined(
+                self->queue, CreateTask_MapTerrainLoad(p, map_x, map_z), &self->pending);
         if( !CacheProvider_MapSceneryHas(p, map_id) )
-        {
-            load = CreateTask_MapSceneryLoad(p, map_x, map_z);
-            if( load )
-                ToriRS_TaskQueue_Add(self->queue, load);
-        }
+            ToriRS_TaskQueue_AddJoined(
+                self->queue, CreateTask_MapSceneryLoad(p, map_x, map_z), &self->pending);
     }
-    for( self->wait_passes = 0;
-         self->wait_passes < WORLD_LOAD_ASSET_WAIT_PASSES && !world_load_maps_resident(self);
-         self->wait_passes++ )
-    {
-        self->task.blocked = 1;
-        PT_YIELD(&self->pt);
-    }
+    PT_TASK_JOIN(pending);
+    /* Its loader has ended, so a square still absent is one the cache does
+     * not hold -- the loader said why on its own line. */
     for( self->c = 0; self->c < self->chunk_count; self->c++ )
     {
         if( !CacheProvider_MapTerrainHas(
@@ -392,15 +341,27 @@ Task_WorldLoad_Run(
                 self->chunks_xz[self->c * 2 + 1]);
     }
 
-    /* 2. Scan loaded chunks for referenced config ids (CPU only). */
+    /*
+     * 2. Everything the squares name directly, ALL AT ONCE.
+     *
+     * Underlays, overlay flotypes and locs are three independent config
+     * lookups off the same scan, so they are one fan-out and one join. They
+     * used to be two stages -- floors, then locs -- which put a whole round
+     * trip of the loc group behind the floor records for no dependency at all.
+     */
     world_load_scan_chunk_refs(self);
-
     world_load_fanout(self, &self->underlays, CacheProvider_UnderlayHas, CreateTask_UnderlayLoad);
     world_load_fanout(self, &self->overlays, CacheProvider_FlotypeHas, CreateTask_FlotypeLoad);
-    WORLD_LOAD_AWAIT_SET(&self->underlays, CacheProvider_UnderlayHas);
-    WORLD_LOAD_AWAIT_SET(&self->overlays, CacheProvider_FlotypeHas);
+    world_load_fanout(self, &self->locs, CacheProvider_LocationHas, CreateTask_LocLoad);
+    PT_TASK_JOIN(pending);
 
-    /* 3. Textures referenced by loaded overlay flotypes. */
+    /*
+     * 3. Overlay textures, alongside the loc morph closure.
+     *
+     * The textures depend only on the flotypes, which just landed, so they go
+     * out now and ride under the closure's joins rather than getting a round
+     * trip of their own.
+     */
     for( self->i = 0; self->i < self->overlays.count; self->i++ )
     {
         struct ToriRS_Flotype* flo = CacheProvider_FlotypeGet(p, self->overlays.items[self->i]);
@@ -408,13 +369,8 @@ Task_WorldLoad_Run(
             idset_add(&self->textures, flo->texture);
     }
     world_load_fanout(self, &self->textures, CacheProvider_TextureHas, CreateTask_TextureLoad);
-    WORLD_LOAD_AWAIT_SET(&self->textures, CacheProvider_TextureHas);
 
-    /* 4. Scenery locs, then their models. */
-    world_load_fanout(self, &self->locs, CacheProvider_LocationHas, CreateTask_LocLoad);
-    WORLD_LOAD_AWAIT_SET(&self->locs, CacheProvider_LocationHas);
-
-    /* 4b. Morph closure: a loc the map names may resolve to a transform target at rebuild time,
+    /* 3b. Morph closure: a loc the map names may resolve to a transform target at rebuild time,
      * and that target can morph again. Collect (CPU only) then load, until nothing new appears.
      * The bound is a guard against a self-referential transform table in a bad cache. */
     for( self->pass = 0; self->pass < 4; self->pass++ )
@@ -424,8 +380,9 @@ Task_WorldLoad_Run(
             break;
 
         world_load_fanout(self, &self->locs, CacheProvider_LocationHas, CreateTask_LocLoad);
-        WORLD_LOAD_AWAIT_SET(&self->locs, CacheProvider_LocationHas);
+        PT_TASK_JOIN(pending);
     }
+    PT_TASK_JOIN(pending);
 
     for( self->i = 0; self->i < self->locs.count; self->i++ )
     {
@@ -437,18 +394,33 @@ Task_WorldLoad_Run(
                 dbg ? dbg->shapes_and_model_count : -1,
                 (dbg && dbg->shapes) ? "yes" : "no",
                 (dbg && dbg->models) ? "yes" : "no");
-        world_load_collect_loc_models(dbg, &self->models);
+        /* A loc the cache could not serve has no models to collect; its
+         * loader already said so. */
+        if( dbg )
+            world_load_collect_loc_models(dbg, &self->models);
+        if( dbg && dbg->seq_id >= 0 )
+            idset_add(&self->seqs, dbg->seq_id);
     }
 
     /*
-     * Every loc model the region needs, ALL AT ONCE.
+     * 4. Every loc model the region needs, and every animated loc's sequence,
+     * ALL AT ONCE.
      *
      * This is the big one: a region names hundreds of models, and awaiting
      * them one at a time cost a network round trip each, in a line, on a cache
-     * being streamed.
+     * being streamed. The sequences are registered in the scene animation
+     * registry so scenery_load_animation can bind them during the rebuild;
+     * CreateTask_SequenceLoad answers NULL for one already registered. They
+     * used to be awaited one after another AFTER the models, each several
+     * reads deep -- a chain of round trips behind the biggest stage.
      */
     world_load_fanout(self, &self->models, CacheProvider_ModelHas, CreateTask_ModelLoad);
-    WORLD_LOAD_AWAIT_SET(&self->models, CacheProvider_ModelHas);
+    for( self->i = 0; self->i < self->seqs.count; self->i++ )
+        ToriRS_TaskQueue_AddJoined(
+            self->queue,
+            CreateTask_SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]),
+            &self->pending);
+    PT_TASK_JOIN(pending);
 
     /* 4c. Textures referenced by the loaded loc models (face texture ids) and
      * by loc retextures — preload so scenery is textured at rebuild (v1
@@ -478,20 +450,7 @@ Task_WorldLoad_Run(
                 idset_add(&self->textures, loc->retextures_to[r]);
     }
     world_load_fanout(self, &self->textures, CacheProvider_TextureHas, CreateTask_TextureLoad);
-    WORLD_LOAD_AWAIT_SET(&self->textures, CacheProvider_TextureHas);
-
-    /* 4d. Sequences for animated locs — registered in the scene animation
-     * registry so scenery_load_animation can bind them during the rebuild.
-     * CreateTask_SequenceLoad no-ops (NULL) when already registered. */
-    for( self->i = 0; self->i < self->locs.count; self->i++ )
-    {
-        struct ToriRS_Location* loc = CacheProvider_LocationGet(p, self->locs.items[self->i]);
-        if( loc && loc->seq_id >= 0 )
-            idset_add(&self->seqs, loc->seq_id);
-    }
-    for( self->i = 0; self->i < self->seqs.count; self->i++ )
-        PT_TASK_AWAITSELF_IF(
-            CreateTask_SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]));
+    PT_TASK_JOIN(pending);
 
     TORIRS_LOG("world_load: %d chunks, %d underlays, %d overlays, %d textures, %d locs, %d models, "
         "%d seqs\n",
@@ -502,6 +461,9 @@ Task_WorldLoad_Run(
         self->locs.count,
         self->models.count,
         self->seqs.count);
+
+    if( WorldBuilder_TimingOn() )
+        self->t_assets_ms = WorldBuilder_TimingNowMs();
 
     /* 5. Synchronous rebuild: world + scene elements from the loaded assets.
      * REBUILD_NORMAL passes the zone centre so the scene base is (zone-6)*8
@@ -516,6 +478,22 @@ Task_WorldLoad_Run(
     else
         WorldBuilder_RebuildChunklist(self->builder, self->chunks_xz, self->chunk_count);
     World_SetLoadComplete(self->builder->world, true);
+
+    if( WorldBuilder_TimingOn() )
+    {
+        double const t_end = WorldBuilder_TimingNowMs();
+        TORIRS_REPORT("world_load_timing: total=%.1fms assets=%.1fms rebuild=%.1fms resumes=%d "
+            "chunks=%d locs=%d models=%d textures=%d seqs=%d\n",
+            t_end - self->t_start_ms,
+            self->t_assets_ms - self->t_start_ms,
+            t_end - self->t_assets_ms,
+            self->resumes,
+            self->chunk_count,
+            self->locs.count,
+            self->models.count,
+            self->textures.count,
+            self->seqs.count);
+    }
 
     /* 6. "The load landed" hook — runs here, in the same synchronous span as the
      * rebuild, so callers get completion without polling a flag. NULL for callers

@@ -446,6 +446,46 @@ struct ToriRS_PluginHost
     } models[TORIRS_PLUGIN_MODELS_MAX];
 
     /*
+     * The item-icon cache: rasterised inventory icons, shared across plugins,
+     * least-recently-asked-for evicted.
+     *
+     * A CACHE and not an ownership table, which is the difference from
+     * `images` above and the whole reason it is separate. An image handle a
+     * plugin made is a thing that plugin owns until it releases it; an icon is
+     * a picture of a game item that any number of plugins may want and none of
+     * them authored, so what the host owes is the picture and not the slot. A
+     * plugin never releases one and never should: it asks again.
+     *
+     * Keyed on the whole triple because all three change the pixels -- the
+     * stack digits are baked in, and the border variants are separate renders.
+     * Linear, because it is 48 entries scanned by a page build and not by a
+     * per-pixel loop, and because a hash over three ints that has to handle
+     * eviction is more machinery than the scan costs.
+     */
+    struct PluginObjIcon
+    {
+        /** -1 for a free entry. */
+        int obj_id;
+        int count;
+        /** enum ToriRS_PluginObjIconStyle. */
+        int style;
+        /** Which plugin's image slot holds the pixels. An icon is per-plugin
+         *  in the image table even though the picture is not, because
+         *  draw_image resolves a slot against the plugin that owns it. */
+        int plugin;
+        /** The `images` slot, which is also the handle handed out. */
+        int image;
+        /**
+         * The value of `icon_clock` when this was last asked for. A COUNTER
+         * and not frame_ms: two icons fetched in the same millisecond by one
+         * page build must still order against each other, or eviction picks
+         * between them arbitrarily and can drop the one being drawn.
+         */
+        uint64_t used;
+    } obj_icons[TORIRS_PLUGIN_OBJ_ICONS_MAX];
+    uint64_t icon_clock;
+
+    /*
      * The shared plugin window.
      *
      * One flat pool of controls, each stamped with its owning plugin, rather
@@ -2658,6 +2698,167 @@ plugin_images_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
             plugin_image_drop(host, i);
 }
 
+/* ---------------------------------------------------------- the icon cache */
+
+/** Forget one cached icon and free the image slot behind it. Idempotent. */
+static void
+plugin_obj_icon_drop(struct ToriRS_PluginHost* host, int entry)
+{
+    struct PluginObjIcon* row;
+
+    assert(host);
+    assert(entry >= 0);
+    assert(entry < TORIRS_PLUGIN_OBJ_ICONS_MAX);
+
+    row = &host->obj_icons[entry];
+    if( row->image >= 0 )
+        plugin_image_drop(host, row->image);
+    memset(row, 0, sizeof(*row));
+    row->obj_id = -1;
+    row->plugin = -1;
+    row->image = -1;
+}
+
+/**
+ * Every icon a plugin was holding, dropped with it.
+ *
+ * The picture is shared but the SLOT is not -- draw_image resolves a handle
+ * against the plugin that owns the slot -- so a stopped plugin's entries have
+ * to go, or the image table leaks a quarter of itself per reload.
+ */
+static void
+plugin_obj_icons_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_OBJ_ICONS_MAX; i++ )
+        if( host->obj_icons[i].plugin == plugin )
+            plugin_obj_icon_drop(host, i);
+}
+
+/** Is this handle one of the icon cache's, rather than the plugin's own? */
+static bool
+plugin_obj_icon_owns(struct ToriRS_PluginHost const* host, int image)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_OBJ_ICONS_MAX; i++ )
+        if( host->obj_icons[i].plugin >= 0 && host->obj_icons[i].image == image )
+            return true;
+    return false;
+}
+
+/**
+ * The client's inventory icon for one item, cached.
+ *
+ * Three outcomes, and the middle one is the ordinary state rather than an
+ * error: a HIT is touched and handed back, a MISS that the engine can build is
+ * rasterised into a fresh (or evicted) slot, and a miss the engine cannot
+ * build yet -- the objtype or its inventory model is still coming off the
+ * cache -- answers -1 so the caller asks again next frame. That is obj_info's
+ * contract, and for obj_info's reason: an api verb inside a frame must not
+ * start IO and stall it.
+ */
+static int
+api_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
+{
+    struct ToriRS_PluginHost* host;
+    int free_entry = -1;
+    int victim = -1;
+    int free_image = -1;
+    int w = 0;
+    int h = 0;
+
+    assert(ctx);
+
+    host = ctx->host;
+    /* An id and a count are NUMBERS the plugin computed -- off a drop table,
+     * out of a container -- so a silly one is bad input rather than a bug in
+     * the caller's frame, and the honest answer is "there is no such icon". */
+    if( obj_id < 0 || count < 0 || style < 0 ||
+        style > TORIRS_PLUGIN_OBJ_ICON_SELECTED )
+        return -1;
+    if( count == 0 )
+        count = 1;
+
+    host->icon_clock++;
+
+    for( int i = 0; i < TORIRS_PLUGIN_OBJ_ICONS_MAX; i++ )
+    {
+        struct PluginObjIcon* row = &host->obj_icons[i];
+
+        if( row->plugin < 0 )
+        {
+            if( free_entry < 0 )
+                free_entry = i;
+            continue;
+        }
+        if( row->plugin == ctx->index && row->obj_id == obj_id &&
+            row->count == count && row->style == style )
+        {
+            row->used = host->icon_clock;
+            return row->image;
+        }
+        if( victim < 0 || row->used < host->obj_icons[victim].used )
+            victim = i;
+    }
+
+    /*
+     * A slot to render into. The cache prefers a free image slot, and takes
+     * its own least-recently-used entry's when there is none -- which is what
+     * makes the ceiling a cache size rather than a wall a plugin hits and
+     * stops drawing at.
+     */
+    if( free_entry < 0 )
+    {
+        assert(victim >= 0);
+        plugin_obj_icon_drop(host, victim);
+        free_entry = victim;
+    }
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+        if( host->images[i].plugin < 0 )
+        {
+            free_image = i;
+            break;
+        }
+    if( free_image < 0 )
+    {
+        /* The resident image table is full of pictures nothing here owns, so
+         * there is nothing to evict that would help. Said out loud once per
+         * call is too often; this is the same shape as the compose path's
+         * message and is rare enough to be worth seeing at all. */
+        TORIRS_LOG("plugin: %s obj icon %d not built, the resident image table is full "
+            "(%d)\n",
+            ctx->name,
+            obj_id,
+            TORIRS_PLUGIN_IMAGES_MAX);
+        return -1;
+    }
+
+    if( !host->engine.obj_image(
+            host->engine.user, free_image, obj_id, count, style, &w, &h) )
+        return -1;
+
+    host->images[free_image].plugin = ctx->index;
+    /*
+     * A synthetic name no asset_load could produce -- the sandbox refuses a
+     * ':' -- so the (plugin, name) search image_load and image_compose do can
+     * never match a cached icon and hand a plugin's own art this slot.
+     */
+    snprintf(
+        host->images[free_image].asset, sizeof(host->images[free_image].asset),
+        "obj:%d:%d:%d", obj_id, count, style);
+    host->images[free_image].width = w;
+    host->images[free_image].height = h;
+    host->images[free_image].published = true;
+
+    host->obj_icons[free_entry].obj_id = obj_id;
+    host->obj_icons[free_entry].count = count;
+    host->obj_icons[free_entry].style = style;
+    host->obj_icons[free_entry].plugin = ctx->index;
+    host->obj_icons[free_entry].image = free_image;
+    host->obj_icons[free_entry].used = host->icon_clock;
+    return free_image;
+}
+
 /**
  * Hand a slot's bytes to the engine to decode and publish.
  *
@@ -4311,6 +4512,15 @@ api_image_release(struct ToriRS_PluginCtx* ctx, int image)
      * special case -- a borrowed slot's `plugin` is the lender's index. */
     if( !plugin_image_owned(ctx, image) )
         return;
+    /*
+     * A CACHED ITEM ICON is owned by this plugin's slot and still is not the
+     * plugin's to free: the entry pointing at it would go on handing the
+     * handle out, and the next caller would draw whatever landed in the
+     * recycled slot. The cache decides when an icon goes.
+     * @see ToriRS_PluginApi::obj_image.
+     */
+    if( plugin_obj_icon_owns(ctx->host, image) )
+        return;
     plugin_image_drop(ctx->host, image);
 }
 
@@ -5950,6 +6160,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->image_publish_argb);
     assert(engine->image_read);
     assert(engine->image_release);
+    assert(engine->obj_image);
     assert(engine->draw_image);
     assert(engine->hit_region);
     assert(engine->if_click);
@@ -5998,6 +6209,15 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         host->panel_icon_image[i] = -1;
     for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
         host->models[i].plugin = -1;
+    /* And the icon cache, whose free marker is the same -1 in two fields: an
+     * entry is free when nobody owns it, and its image slot is free when it
+     * points at none. */
+    for( int i = 0; i < TORIRS_PLUGIN_OBJ_ICONS_MAX; i++ )
+    {
+        host->obj_icons[i].obj_id = -1;
+        host->obj_icons[i].plugin = -1;
+        host->obj_icons[i].image = -1;
+    }
 
     struct ToriRS_PluginApi api = {
         .abi_version = TORIRS_PLUGIN_ABI,
@@ -6138,6 +6358,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .panel_set_attention = api_panel_set_attention,
         .panel_clear = api_panel_clear,
         .panel_invalidate = api_panel_invalidate,
+        .obj_image = api_obj_image,
     };
     host->api = api;
     return host;
@@ -6386,6 +6607,7 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
     plugin_objects_destroy_all(host, ctx);
     plugin_meshes_destroy_all(host, ctx);
     plugin_assets_drop_plugin(host, plugin_index);
+    plugin_obj_icons_drop_plugin(host, plugin_index);
     plugin_images_drop_plugin(host, plugin_index);
     /* Reservations go too, and that is what makes `reserve` safe to use: a
      * dock that is switched off gives its edge back without anybody asking,

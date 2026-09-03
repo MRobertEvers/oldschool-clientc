@@ -115,7 +115,7 @@ assert.match(modernCss, /display:\s*-webkit-box;[\s\S]*display:\s*flex;[\s\S]*di
 assert.doesNotMatch(modernCss, /\bgap\s*:/, "Chrome39 layout does not depend on flex gap");
 assert.match(modernCss, /background:\s*#0e0e0c;\s*background:\s*var\(--tpc-deep\)/,
     "literal palette fallback precedes CSS variables");
-assert.match(modernCss, /left:\s*-6px;\s*right:\s*-6px;\s*top:\s*-6px;\s*bottom:\s*-6px;\s*inset:/,
+assert.match(modernCss, /left:\s*0;\s*right:\s*0;\s*top:\s*0;\s*bottom:\s*0;\s*inset:/,
     "edge geometry precedes the unsupported inset shorthand");
 assert.match(modernCss, /\.tpc-content\s*\{[^}]*padding\s*:\s*6px/i,
     "browser content uses the shared authored panel padding");

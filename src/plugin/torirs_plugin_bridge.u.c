@@ -2924,6 +2924,81 @@ app_plugin_image_release(void* user, int slot)
     UITreeSceneBridge_ReleasePluginImage(&app->bridge, slot);
 }
 
+/*
+ * The client's own inventory icon for one item, copied into a plugin slot.
+ *
+ * Two caches sit on top of each other here and both earn their place. The
+ * SCENE bridge already keeps every icon it has rasterised (obj_icon_map), so
+ * the render itself is paid once per (obj, count, style) whoever asks; the
+ * plugin host keeps a bounded, evicting set of the ones a plugin is drawing,
+ * so the copy below is paid once per icon a plugin holds rather than per
+ * frame. Neither is redundant: the first is about not re-rendering a model,
+ * the second is about not filling the resident image table with pictures of
+ * every item that has ever dropped.
+ *
+ * A COPY and not a second reference to the bridge's sprite, because a plugin
+ * image handle IS a slot number -- draw_image resolves it as
+ * UITREE_SCENE_PLUGIN_IMAGE_BASE + slot -- so lending the icon's own scene id
+ * would mean teaching the whole image path a second kind of handle. The pixels
+ * are 36x32; the copy is not what this costs.
+ */
+static int
+app_plugin_obj_image(
+    void* user,
+    int slot,
+    int obj_id,
+    int count,
+    int style,
+    int* out_w,
+    int* out_h)
+{
+    struct App* app = (struct App*)user;
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite const* sprite;
+    int scene_id;
+    int found = 0;
+
+    assert(app);
+    assert(out_w);
+    assert(out_h);
+
+    switch( style )
+    {
+    case TORIRS_PLUGIN_OBJ_ICON_PLAIN:
+        scene_id = UITreeSceneBridge_EnsureObjIconPlain(&app->bridge, obj_id, count);
+        break;
+    case TORIRS_PLUGIN_OBJ_ICON_SELECTED:
+        scene_id = UITreeSceneBridge_EnsureObjIconSelected(&app->bridge, obj_id, count);
+        break;
+    default:
+        scene_id = UITreeSceneBridge_EnsureObjIconBordered(&app->bridge, obj_id, count);
+        break;
+    }
+    /*
+     * -1 is the ORDINARY answer while the objtype or its inventory model is
+     * still coming off the cache, and the bridge has already asked for both.
+     * Nothing to report: the caller asks again next frame, exactly as the
+     * client's own inventory reconcile does.
+     */
+    if( scene_id < 0 )
+        return 0;
+
+    sprites = ToriDraw_SceneSpriteGet(app->scene, scene_id, &found);
+    if( !sprites || found <= 0 )
+        return 0;
+    sprite = sprites[0];
+    if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return 0;
+
+    if( UITreeSceneBridge_PublishPluginImage(
+            &app->bridge, slot, sprite->width, sprite->height, sprite->pixels_argb) < 0 )
+        return 0;
+
+    *out_w = sprite->width;
+    *out_h = sprite->height;
+    return 1;
+}
+
 static int
 app_plugin_draw_image(
     void* user,
@@ -4654,6 +4729,7 @@ app_plugin_engine(struct App* app)
     engine.image_publish_argb = app_plugin_image_publish_argb;
     engine.image_read = app_plugin_image_read;
     engine.image_release = app_plugin_image_release;
+    engine.obj_image = app_plugin_obj_image;
     engine.draw_image = app_plugin_draw_image;
     engine.hit_region = app_plugin_hit_region;
     engine.if_click = app_plugin_if_click;

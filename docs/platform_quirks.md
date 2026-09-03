@@ -91,6 +91,36 @@ one lane only.
   resize every frame; steady `surface_sync` p95 should be effectively zero.
 - **Sources:** [`src/app.c`](../src/app.c), [`src/main.c`](../src/main.c)
 
+### COMMON-WINDOW-003 - The plugin pane grows the window only where it can
+
+- **Status:** Contract
+- **Applies to:** SDL (macOS, Linux) and Win32 attached plugin chrome
+- **Behavior:** Opening the rail or a page reserves its points at the window's
+  trailing edge. The window is widened by that amount only when the frame is
+  the user's (not maximised, zoomed, or fullscreen) and the display it sits on
+  has that much room to its right; otherwise the pane opens inside the current
+  frame and the game area gives up the width. Close gives back exactly what
+  was grown, never below the canvas floor plus the rail, and nothing while the
+  frame is maximised. A pane that changed inside the frame relayouts the canvas
+  itself (the SDL pump pushes `TORIRS_CMD_WINDOW_RESIZE` with the game area,
+  since no `SIZE_CHANGED` arrives). `PlatformWindow_SetWindowSize` and the
+  fixed-mode snap size the game area and keep the pane's points beside it, and
+  neither touches a maximised window.
+- **Failure mode:** The SDL backend grew the window unconditionally: a
+  maximised window on macOS jumped out of maximised every time the plugin tab
+  or the fixed-mode plugin strip opened (Cocoa treats a programmatic resize of
+  a zoomed window as un-zooming it), and a windowed client near the screen's
+  right edge hung its 360-point page off the display. The backend also reset
+  the pane to a hardcoded 48-point rail on Close while the executors open the
+  rail at 40 or 42, leaving a band of window background beside the rail.
+- **Verification:** `make -C src test-sdl-chrome-geometry` stages both "no
+  room" and "room" with the dummy driver; `TORIRS_RESIZE_DEBUG=1` prints one
+  `chrome pane:` line per decision with its reason on a real window.
+- **Sources:** [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
+  [`src/platform/platform_window.h`](../src/platform/platform_window.h),
+  [`src/platform/test/sdl_chrome_geometry_test.c`](../src/platform/test/sdl_chrome_geometry_test.c),
+  [`src/platform/platform_win32gdi.c`](../src/platform/platform_win32gdi.c)
+
 ### COMMON-CHROME-001 - Every plugin shares one persistent browser
 
 - **Status:** Contract

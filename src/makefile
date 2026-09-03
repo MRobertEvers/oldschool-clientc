@@ -2795,8 +2795,9 @@ test-uitree: $(OBJ_DIR)
 .PHONY: test-sdl-chrome
 ifneq ($(filter $(PLATFORM),macos linux),)
 test-sdl-chrome: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_chrome_test \
+	$(CC) $(CFLAGS) -DTORIRS_CHROME_EXEC_SDL_AVAILABLE=1 -o $(OBJ_DIR)/sdl_chrome_test \
 		platform/test/sdl_chrome_test.c platform/platform_sdl2.c \
+		$(PLATFORM_OBJC_SRCS) \
 		ui/torirs_chrome_exec_sdl.c ui/torirs_chrome_rail.c \
 		engine/torirs_chrome_skin_baked.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
@@ -2817,6 +2818,47 @@ test-sdl-chrome:
 
 capture-sdl-chrome:
 	@echo "capture-sdl-chrome requires PLATFORM=macos or PLATFORM=linux"
+	@false
+endif
+
+# The attached plugin pane's WINDOW-SIZE policy alone (grow only where the
+# display has room, never while maximised, Close gives back what was grown,
+# the pump relayouts a pane that changed inside the frame). No executor and
+# no pixels, so unlike test-sdl-chrome it also passes on macOS, where the
+# pane's pixels belong to the WKWebView.
+.PHONY: test-sdl-chrome-geometry
+ifneq ($(filter $(PLATFORM),macos linux),)
+test-sdl-chrome-geometry: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_chrome_geometry_test \
+		platform/test/sdl_chrome_geometry_test.c platform/platform_sdl2.c \
+		$(PLATFORM_OBJC_SRCS) \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_chrome_geometry_test
+else
+test-sdl-chrome-geometry:
+	@echo "test-sdl-chrome-geometry requires PLATFORM=macos or PLATFORM=linux"
+	@false
+endif
+
+# What PlatformWindow_SetTextInput(off) may do on a backend with no on-screen
+# keyboard: nothing. Its own target rather than a case in test-sdl-chrome above,
+# because that harness needs the SDL surface executor and this needs only the
+# window.
+.PHONY: test-sdl-text-input
+ifneq ($(filter $(PLATFORM),macos linux),)
+test-sdl-text-input: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_text_input_test \
+		platform/test/sdl_text_input_test.c platform/platform_sdl2.c \
+		$(PLATFORM_OBJC_SRCS) \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_text_input_test
+else
+test-sdl-text-input:
+	@echo "test-sdl-text-input requires PLATFORM=macos or PLATFORM=linux"
 	@false
 endif
 

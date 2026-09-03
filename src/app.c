@@ -7462,8 +7462,8 @@ struct Task_NpcMultiLoad
     int resolved_npc_id;
     int model_i;
     int seq_i;
-    /** Passes spent waiting for the body parts; see the fan-out below. */
-    int wait_passes;
+    /** Body parts and movement sequences queued and not yet ended. */
+    int pending;
 };
 
 static int
@@ -7485,13 +7485,20 @@ Task_NpcMultiLoad_Run(
          * The terminal config was loaded by the walk above. Load its complete
          * body and movement set before the caller mounts/replaces the model.
          *
-         * The body parts go out TOGETHER. Awaiting them one at a time is one
-         * network round trip per part on a cache being streamed, and an npc
-         * body is commonly four -- for a roster of a thousand that is the
-         * difference between a world that populates and one that trickles.
-         * They are independent reads with a common consumer, which is exactly
-         * the shape the runner can now overlap: queued as siblings, each gets
-         * its own IO slot and they are all on the wire at once.
+         * The body parts AND the five movement sequences go out TOGETHER.
+         * Awaiting them one at a time is one network round trip per part on a
+         * cache being streamed, and an npc body is commonly four models and
+         * five sequences each several reads deep -- for a roster of a thousand
+         * that is the difference between a world that populates and one that
+         * trickles. They are independent reads with a common consumer, which
+         * is exactly the shape the runner can overlap: queued as siblings,
+         * each gets its own IO slot and they are all on the wire at once.
+         *
+         * Then joined, not waited on for residency: a part the cache cannot
+         * serve never becomes resident, and the residency wait this replaced
+         * spent its whole budget on one -- while a loader that fails still
+         * ENDS, which is what the join counts. The npc then spawns missing the
+         * part, exactly as the old per-part await did.
          */
         {
             struct ToriRS_Npctype* npctype =
@@ -7499,49 +7506,30 @@ Task_NpcMultiLoad_Run(
             for( self->model_i = 0; npctype && self->model_i < npctype->models_count;
                  self->model_i++ )
             {
-                struct ToriRS_Task* part = npctype->models[self->model_i] >= 0
-                                               ? CreateTask_ModelLoad(
-                                                     app->provider, npctype->models[self->model_i])
-                                               : NULL;
-                if( part )
-                    ToriRS_TaskQueue_Add(app->runner.queue, part);
+                if( npctype->models[self->model_i] >= 0 )
+                    ToriRS_TaskQueue_AddJoined(
+                        app->runner.queue,
+                        CreateTask_ModelLoad(app->provider, npctype->models[self->model_i]),
+                        &self->pending);
             }
-        }
-        /*
-         * Then wait for them, but not forever.
-         *
-         * Awaiting a task ends when the task ends, however it ended. Waiting on
-         * RESIDENCY does not: a part the cache cannot serve never becomes
-         * resident, and an unbounded wait would strand this npc -- and whoever
-         * awaits it -- for the rest of the session. The budget is generous
-         * enough that no healthy load reaches it and short enough that a broken
-         * one still spawns, missing a part, which is what the old per-part
-         * await did too.
-         */
-        for( self->wait_passes = 0; self->wait_passes < APP_ASSET_WAIT_PASSES;
-             self->wait_passes++ )
-        {
-            if( app_npc_models_resident(app, self->resolved_npc_id) )
-                break;
-            self->task.blocked = 1;
-            PT_YIELD(&self->pt);
-        }
-        for( self->seq_i = 0; self->seq_i < 5; self->seq_i++ )
-        {
-            int seq_id = -1;
-            struct ToriRS_Npctype* npctype =
-                CacheProvider_NpctypeGet(app->provider, self->resolved_npc_id);
             if( npctype )
             {
-                int seqs[5] = {
+                int const seqs[5] = {
                     npctype->readyanim,  npctype->walkanim,   npctype->walkanim_b,
                     npctype->walkanim_r, npctype->walkanim_l,
                 };
-                seq_id = seqs[self->seq_i];
+                for( self->seq_i = 0; self->seq_i < 5; self->seq_i++ )
+                {
+                    if( seqs[self->seq_i] >= 0 )
+                        ToriRS_TaskQueue_AddJoined(
+                            app->runner.queue,
+                            CreateTask_SequenceLoad(
+                                app->provider, app->scene, seqs[self->seq_i]),
+                            &self->pending);
+                }
             }
-            if( seq_id >= 0 )
-                PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, seq_id));
         }
+        PT_TASK_JOIN(pending);
     }
 
     *self->out_npc_id = self->resolved_npc_id;
@@ -9749,6 +9737,10 @@ App_Init(
         app->dat2_bc = dat2_buildcache_new();
         app->provider = dat2_buildcache_as_provider(app->dat2_bc);
     }
+    /* Every loader that fans out needs somewhere to put its siblings, and the
+     * parallel asset queue is that place -- see CacheProvider::asset_queue. */
+    if( app->provider )
+        CacheProvider_SetAssetQueue(app->provider, app->runner.queue);
     app_provider_set_cache_profile(app, cfg);
     if( !TorirsModelInstCache_Init(&app->model_inst_cache) )
         assert(0 && "model_inst_cache init");
@@ -16068,7 +16060,7 @@ app_pump_net_packets(struct App* app)
             {
                 uint64_t dt = PlatformWindow_TicksUs() - t0;
                 if( dt >= (uint64_t)slow_ms * 1000u )
-                    TORIRS_LOG("pkt_slow: type=%d %.2f ms cycle=%llu\n",
+                    TORIRS_REPORT("pkt_slow: type=%d %.2f ms cycle=%llu\n",
                         last_exec_packet_type,
                         dt / 1000.0,
                         (unsigned long long)app->logic_cycle);
@@ -16099,6 +16091,19 @@ app_pump_net_packets(struct App* app)
         {
             enum TaskRunnerStat assets = TaskRunner_SettleFrame(&app->runner);
 
+            if( getenv("TORIRS_FRAME_LATCH") )
+            {
+                int n = 0;
+                for( struct ToriRS_Task* t = app->runner.queue->head; t; t = t->next )
+                    n++;
+                TORIRS_REPORT("frame_latch: blocked exec -> assets stat=%d progressed=%d queued=%d "
+                    "io_pending=%d cycle=%d\n",
+                    (int)assets,
+                    app->runner.progressed,
+                    n,
+                    Platform_IO_Pending(app->runner.px, app->runner.io),
+                    (int)app->logic_cycle);
+            }
             if( assets != TASK_RUNNER_RENDER && app->runner.progressed )
                 continue;
         }

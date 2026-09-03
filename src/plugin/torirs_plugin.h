@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 21
+#define TORIRS_PLUGIN_ABI 22
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -582,6 +582,38 @@ struct ToriRS_PluginObjInfo
      * number on the equipment screen and no record states both.
      */
     int ranged_strength;
+};
+
+/**
+ * Which of the client's three inventory-icon variants to rasterise.
+ *
+ * The same three the interface emitter already asks the scene bridge for, and
+ * not a fourth: an icon is baked art, so every variant here is one the client
+ * builds anyway for its own inventory and is therefore free to hand over.
+ * @see ToriRS_PluginApi::obj_image.
+ */
+enum ToriRS_PluginObjIconStyle
+{
+    /**
+     * No baked outline and no drop shadow -- the reference's
+     * `ObjType.getSprite(outlineRgb = -1)`.
+     *
+     * For a caller that intends to draw the icon on art of its own and apply
+     * its own edge, because stacking an outline pass on a shadow-baked icon
+     * doubles the shadow.
+     */
+    TORIRS_PLUGIN_OBJ_ICON_PLAIN = 0,
+    /**
+     * A black border baked into the pixels, and the one to reach for.
+     *
+     * It is what the client's own dense item grids use, and the reason is
+     * legibility rather than taste: an unbordered icon on a dark panel loses
+     * its silhouette, and a grid of them reads as a smear.
+     */
+    TORIRS_PLUGIN_OBJ_ICON_BORDERED,
+    /** The white outline the client puts on the item armed for "Use"
+     *  (`outlineRgb = 0xFFFFFF`). For marking one entry of a set. */
+    TORIRS_PLUGIN_OBJ_ICON_SELECTED
 };
 
 /** What a highlight item is attached to. @see ToriRS_PluginHighlightItem. */
@@ -3880,6 +3912,52 @@ struct ToriRS_PluginApi
         struct ToriRS_PluginCtx* ctx,
         char const* custom_view_id,
         int preferred_height);
+
+    /* -- ABI 22 append: the client's own item art ------------------------- */
+
+    /**
+     * The inventory icon the client draws for `obj_id` at `count`, as an image
+     * handle the ordinary draw_image / image_size / image_pixels verbs accept.
+     *
+     * @param style enum ToriRS_PluginObjIconStyle.
+     * @return an image handle, or -1 when the objtype or its inventory model
+     * is not resident yet -- ask again next frame.
+     *
+     * ## Why the client has to answer this
+     *
+     * An item's icon is not a file: it is a lit, recoloured, angled render of
+     * the objtype's inventory MODEL with the stack number stamped on it, built
+     * by the same rasteriser the inventory tab uses. A plugin cannot build one
+     * -- it has no model, no lighting rig and no font -- and shipping a folder
+     * of PNGs instead means a picture per item per revision that goes stale
+     * the moment a cache is swapped. So the client hands over the one it
+     * already made.
+     *
+     * `count` is part of the picture, not a decoration on it: the client bakes
+     * the stack digits into the sprite exactly as the inventory shows them, so
+     * a caller drawing "Bones x37" asks for the icon at 37 and draws one
+     * thing. Pass 1 for the bare item.
+     *
+     * ## THE HANDLE IS THE CACHE'S, AND IT IS NOT YOURS TO KEEP
+     *
+     * These live in a bounded, host-owned, least-recently-used cache -- a
+     * plugin never releases one, and image_release refuses a handle it did not
+     * make. The cache exists because the alternatives are both bad: a plugin
+     * holding an icon per item it has ever seen would exhaust the resident
+     * image table in one boss trip, and one re-rasterising per frame would pay
+     * for a model render sixty times a second to draw a picture that has not
+     * changed.
+     *
+     * The rule that follows is the whole of the contract: ASK AGAIN EVERY TIME
+     * YOU DRAW. A call is a hash of three ints and a hit, so the cost of doing
+     * so is nothing; a handle REMEMBERED across frames may have been evicted
+     * to make room for another icon, and an evicted handle measures 0x0 and
+     * draws nothing -- silently, and only for the plugin unlucky enough to
+     * have gone quiet for a while, which is the worst shape a bug can have.
+     * Every call touches the entry, so an icon a plugin is actually drawing is
+     * never the one evicted.
+     */
+    int (*obj_image)(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style);
 };
 
 /* ------------------------------------------------------------------------ */

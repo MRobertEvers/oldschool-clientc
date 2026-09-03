@@ -94,6 +94,21 @@
  * is bounded by what is reasonable to draw rather than by what it costs.
  */
 #define TORIRS_PLUGIN_IMAGES_MAX 192
+/**
+ * Item icons the host keeps rasterised, across every plugin.
+ *
+ * A CACHE and not a budget: nothing refuses past this, the least recently
+ * asked-for entry is dropped instead. @see ToriRS_PluginApi::obj_image.
+ *
+ * Sized against what a page of them costs rather than against a plugin's
+ * appetite, because the appetite is unbounded -- a loot tracker's history
+ * names every item it has ever seen, and a bank's is the whole game. Each
+ * entry occupies one of the IMAGES_MAX slots above and about 4.6 KB of scene
+ * sprite (36x32 ARGB), so 48 is a quarter of the image table and ~220 KB, and
+ * it comfortably holds every distinct icon on one visible page with room for
+ * the one being scrolled towards.
+ */
+#define TORIRS_PLUGIN_OBJ_ICONS_MAX 48
 /** Live reservations across every plugin. One per (plugin, region, edge), and
  *  four edges of one region each is already an unusual plugin. */
 #define TORIRS_PLUGIN_RESERVES_MAX 32
@@ -360,6 +375,30 @@ struct ToriRS_PluginEngine
     int (*image_read)(void* user, int slot, uint32_t* out, int max);
     /** Drop a published image. Idempotent. */
     void (*image_release)(void* user, int slot);
+
+    /**
+     * Rasterise the client's inventory icon for `obj_id` at `count` and
+     * publish it at plugin image `slot`.
+     *
+     * `style` is enum ToriRS_PluginObjIconStyle. Returns 1 when the slot now
+     * holds the icon, 0 when the objtype or its inventory model is not
+     * resident yet -- which is an ordinary state and not a failure, so the
+     * host answers -1 and the plugin asks again.
+     *
+     * The engine end owns the build because an icon is a scene render: the
+     * interface emitter already asks the scene bridge for exactly these three
+     * variants and the bridge already caches them, so this reuses that work
+     * and copies the finished pixels into the plugin's slot.
+     * @see ToriRS_PluginApi::obj_image.
+     */
+    int (*obj_image)(
+        void* user,
+        int slot,
+        int obj_id,
+        int count,
+        int style,
+        int* out_w,
+        int* out_h);
     /**
      * Record a hit region for the plugin currently drawing.
      * @see ToriRS_PluginApi::hit_region. Returns 1 when it was kept.

@@ -2876,6 +2876,16 @@ CacheProvider_TextureGet(
     return entry->texture;
 }
 
+void
+CacheProvider_SetAssetQueue(
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue)
+{
+    assert(provider);
+    assert(queue);
+    provider->asset_queue = queue;
+}
+
 bool
 CacheProvider_TextureHas(
     struct CacheProvider* provider,

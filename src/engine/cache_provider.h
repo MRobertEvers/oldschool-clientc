@@ -108,7 +108,29 @@ struct CacheProvider
      * decoding as the wrong branch.
      */
     struct RSCache profile;
+
+    /**
+     * Where a loader puts the loads it fans out, or NULL.
+     *
+     * The parallel asset queue (App's `runner`). A task that needs several
+     * independent records -- an interface's sprites and fonts, an npc's body
+     * parts, a region's models -- queues one loader per record here and joins
+     * on the set (ToriRS_TaskQueue_AddJoined / PT_TASK_JOIN), so the runner
+     * has every read on the wire at once instead of one per round trip.
+     *
+     * NULL on a provider whose owner runs a single serial queue -- the offline
+     * tools and the unit harnesses -- and every loader that fans out falls back
+     * to awaiting its records one at a time. A legitimate configuration, not a
+     * missing one: those harnesses have no second queue to give.
+     */
+    struct ToriRS_TaskQueue* asset_queue;
 };
+
+/** Name the queue loaders fan their siblings out on. See `asset_queue`. */
+void
+CacheProvider_SetAssetQueue(
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue);
 
 /** Record which cache this provider reads. Call once, before any load task runs. */
 void

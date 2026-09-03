@@ -2708,8 +2708,31 @@ frame_loop_step(void)
      */
     if( !PlatformWindow_CanPresent(platform) )
         app_redraw = 0;
+    /*
+     * An input frame App_RunOnce did not consume is held over to the next
+     * iteration (LibToriRS_Input_Continue) instead of being started fresh, so a
+     * settlement wait cannot swallow the click that arrived during it.
+     *
+     * BOOTING is deliberately outside that: it returns before interaction too,
+     * but it is a loading screen, and a click aimed at a screen that is gone by
+     * the time the client can act on it is better dropped than replayed.
+     *
+     * A press whose release has not happened yet is not that. It is a gesture
+     * still in progress -- the finger or the button is down NOW -- and dropping
+     * its press edge does not drop the click, it splits it: `mouse_button_held`
+     * survives Begin(), so the release still arrives as a click, only with
+     * nothing pressed under it. The tree answers `clicked=-1` and the release
+     * falls through to the world as a walk-here. Measured on the boot: the same
+     * press-and-release on the same login toggle resolves to the component when
+     * the press lands after READY and to nothing when it lands one frame
+     * earlier.
+     */
     input_frame_pending =
-        app.app_state == APP_STATE_READY && !App_InputFrameConsumed(&app);
+        !App_InputFrameConsumed(&app) &&
+        (app.app_state == APP_STATE_READY ||
+            LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) ||
+            LibToriRS_Input_IsMouseHeld(input, TORIRSM_MIDDLE) ||
+            LibToriRS_Input_IsMouseHeld(input, TORIRSM_RIGHT));
     /* TORIRS_SWAP_DEBUG=1: how many of the last 300 loop iterations actually
      * re-rendered, beside the present cadence the platform prints. A screen
      * that updates less often than the loop runs is one of these two numbers

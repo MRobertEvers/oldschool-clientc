@@ -342,6 +342,25 @@ struct ToriRS_Task
      */
     int io_slot;
 
+    /*
+     * The fan-out this task belongs to, or NULL.
+     *
+     * A task queued as a SIBLING on another task's behalf (ToriRS_TaskQueue_AddJoined)
+     * carries a pointer to that task's outstanding count, and the queue
+     * decrements it when this task ends -- however it ends. That is what lets
+     * the parent wait for "every load I queued has finished" (PT_TASK_JOIN)
+     * rather than for "every record I asked for is resident", which a record
+     * the cache cannot serve never satisfies: a world load waiting on residency
+     * spent its whole 600-pass budget, two passes a frame, on one texture id
+     * the model decoder had left at its sentinel -- six seconds per rebuild on
+     * a local disk, with the queue empty and nothing to wait for.
+     *
+     * The count lives in the parent, and the parent must outlive its siblings.
+     * It does by construction: it is parked on the count reaching zero, and a
+     * queue freed whole (ToriRS_TaskQueue_Free) frees without decrementing.
+     */
+    int* join;
+
     struct ToriRS_Task* next;
     struct ToriRS_Task* prev;
 };
@@ -658,6 +677,33 @@ ToriRS_TaskQueue_Add(
     return 0;
 }
 
+/**
+ * Queue `task` as one of a fan-out that `join` counts.
+ *
+ * `task` may be NULL -- every CreateTask_*Load returns NULL for a record that
+ * is already resident, and a fan-out over a list of ids has no reason to test
+ * each one before calling this. A NULL is simply not counted.
+ *
+ * `*join` is the number of siblings still running; the queue decrements it as
+ * each one ends. The parent waits on it with PT_TASK_JOIN. Returns how many
+ * tasks were actually queued (0 or 1), so a caller can tally a fan-out.
+ */
+static inline int
+ToriRS_TaskQueue_AddJoined(
+    struct ToriRS_TaskQueue* queue,
+    struct ToriRS_Task* task,
+    int* join)
+{
+    assert(queue != NULL);
+    assert(join != NULL);
+    if( !task )
+        return 0;
+    task->join = join;
+    (*join)++;
+    ToriRS_TaskQueue_Add(queue, task);
+    return 1;
+}
+
 static inline void
 ToriRS_TaskQueue_Remove(
     struct ToriRS_TaskQueue* queue,
@@ -674,6 +720,15 @@ ToriRS_TaskQueue_Remove(
         queue->head = task->next;
     if( queue->tail == task )
         queue->tail = task->prev;
+
+    /* One fewer sibling outstanding, whichever way this one ended -- a load
+     * that exited early on a bad record counts exactly like one that landed,
+     * because what the parent is waiting for is the END, not the record. */
+    if( task->join )
+    {
+        assert(*task->join > 0);
+        (*task->join)--;
+    }
 
     task_free(task);
 }
@@ -934,5 +989,29 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
  * point whenever the expression is non-NULL -- see above.
  */
 #define PT_TASK_AWAITSELF_IF(expr) TASK_AWAITEX_IF(&(self->task), &(self->pt), io, expr)
+
+/**
+ * Wait until every sibling counted by `join_field` (an int on `self`, filled
+ * by ToriRS_TaskQueue_AddJoined) has ended.
+ *
+ * The siblings run on their own queue -- the parallel asset queue, where the
+ * runner puts all their reads on the wire together -- so this is a wait on
+ * state THIS queue does not own, and it says so (`blocked`, see
+ * TASK_AWAIT_STATE): the settle loop ends, the asset queue gets its turn, and
+ * the parent is resumed once per pass rather than spun. Unlike a residency
+ * wait it needs no budget: a task always ends, so the count always reaches
+ * zero.
+ *
+ * A PT_ suspension point; see PT_TASK_AWAITSELF for what that costs you.
+ */
+#define PT_TASK_JOIN(join_field)                                                                   \
+    do                                                                                             \
+    {                                                                                              \
+        while( (self)->join_field > 0 )                                                            \
+        {                                                                                          \
+            (self)->task.blocked = 1;                                                              \
+            PT_YIELD(&(self)->pt);                                                                 \
+        }                                                                                          \
+    } while( 0 )
 
 #endif // ASYNCIO_H

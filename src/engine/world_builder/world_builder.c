@@ -50,6 +50,20 @@ wb_timing_on(void)
     return v;
 }
 
+/* The same two, for the load task that wraps a rebuild: its span starts at
+ * the first map read and ends here, and the two readings belong on one line. */
+double
+WorldBuilder_TimingNowMs(void)
+{
+    return wb_now_ms();
+}
+
+int
+WorldBuilder_TimingOn(void)
+{
+    return wb_timing_on();
+}
+
 /* Scenery model-build accumulators (reset in Begin, reported at End). */
 static double g_wb_t_model_convert_ms; /* ModelFromToriRS + merge */
 static double g_wb_t_model_transform_ms; /* apply_transforms + SD strip + bounds */
@@ -736,7 +750,7 @@ WorldBuilder_RebuildInstance(
     world_builder_batch_end(builder);
 
     if( wb_timing_on() )
-        TORIRS_LOG("rebuild_timing: instance total=%.1fms\n", wb_now_ms() - t0);
+        TORIRS_REPORT("rebuild_timing: instance total=%.1fms\n", wb_now_ms() - t0);
 }
 
 /* Minimap sibling to the geometry push-down in RebuildCenterzoneEnd: for each
@@ -1007,7 +1021,7 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     if( wb_timing_on() )
     {
         double te1 = wb_now_ms();
-        TORIRS_LOG("rebuild_timing: end=%.1fms collision=%.1f contour=%.1f minimap_bridge=%.1f "
+        TORIRS_REPORT("rebuild_timing: end=%.1fms collision=%.1f contour=%.1f minimap_bridge=%.1f "
             "terrain_mesh=%.1f lighting=%.1f occluders_free=%.1f | scenery models: n=%d "
             "srcs=%d convert=%.1fms transform=%.1fms\n",
             te1 - te0,
@@ -1093,7 +1107,7 @@ WorldBuilder_RebuildCenterzone(
     if( wb_timing_on() )
     {
         double t_batch = wb_now_ms();
-        TORIRS_LOG("rebuild_timing: total=%.1fms begin=%.1f terrain=%.1f scenery=%.1f end=%.1f "
+        TORIRS_REPORT("rebuild_timing: total=%.1fms begin=%.1f terrain=%.1f scenery=%.1f end=%.1f "
             "batch_flush=%.1f\n",
             t_batch - t0,
             t_begin - t0,

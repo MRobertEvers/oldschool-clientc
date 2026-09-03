@@ -200,6 +200,13 @@ PlatformWindow_AuxTakeCloseRequest(struct PlatformWindow* platform);
  * that cannot compose an attached region returns false; the host then uses
  * its exclusive in-window browser fallback, never an in-game overlay.
  *
+ * Growth is a courtesy, not a contract. The window is never resized while
+ * it is maximised or fullscreen (a programmatic resize would un-maximise it),
+ * nor widened past the edge of the display it sits on (the page would hang
+ * off the screen); in both cases the pane opens inside the current frame and
+ * the game area gives up the width. Close gives back exactly what was grown,
+ * so a pane that never grew the window never shrinks it either.
+ *
  * Sizes and input are in the attached pane's DRAWABLE pixels. `width` passed
  * to Open is in window points, matching AuxOpen and making it a physical desk
  * size on HighDPI displays.
@@ -441,8 +448,10 @@ PlatformWindow_SetTitle(
  * SDL's text-input mode is the same switch on every backend that HAS a soft
  * keyboard: starting it raises the keyboard on Android, iOS and emscripten, and
  * stopping it puts it away. On a desktop backend it governs only whether
- * SDL_TEXTINPUT events arrive, which is why the shell starts it at boot and
- * nothing ever turned it off -- there was nothing to put away.
+ * SDL_TEXTINPUT events arrive, and there is nothing to put away -- so an OFF is
+ * the backend's to ignore, and it does. Honouring it there costs the client
+ * every printable character it will ever be sent: the login form is the last
+ * thing to want text input, so the first off after it lands is permanent.
  */
 void
 PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on);

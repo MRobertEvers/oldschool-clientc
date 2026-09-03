@@ -206,11 +206,16 @@ main(void)
         SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
     platform = PlatformWindow_New();
     CHECK(platform != NULL, "platform allocated");
-    CHECK(PlatformWindow_Init(platform, 765, 503, "chrome-test"), "SDL window opened");
+    /* 560 wide at the display's origin: the dummy display is 1024 wide, and
+     * attached grow only widens a window the display has room for (see
+     * sdl_chrome_geometry_test.c). 765 centred would refuse the page. */
+    CHECK(PlatformWindow_Init(platform, 560, 503, "chrome-test"), "SDL window opened");
     if( !platform )
         return 1;
     window = (SDL_Window*)PlatformWindow_GLWindow(platform);
     CHECK(window != NULL, "the existing top-level window is exposed");
+    if( window )
+        SDL_SetWindowPosition(window, 0, 0);
     SDL_GetWindowSize(window, &before_w, &before_h);
     CmdBus_Init(&bus);
 

@@ -139,7 +139,8 @@ architecture.
 
 [`PluginChromeLayout`](../android/src/main/java/com/torirs/client/PluginChromeLayout.java)
 owns the game surface, overlay, and one persistent WebView. Collapsed mode
-allocates only the 46dp rail. Expanded wide mode partitions the Activity as
+allocates only the 42dp rail (the shared authored width). Expanded wide mode
+partitions the Activity as
 `game | browser`. Compact expanded mode hides the game and gives the same
 browser the Activity content area. No selection or collapse path calls
 `WebView.destroy()`.
@@ -186,6 +187,13 @@ The macOS host uses the shared browser executor in
 the filename reflects its first use, not Windows-only semantics. The platform
 backend supplies the browser transport while the executor supplies the common
 retained protocol projection.
+
+The SDL window under it grows for the rail and the page only where it can:
+never while zoomed or fullscreen, and never past the right edge of the display
+it sits on. Otherwise the pane opens inside the current frame and the game area
+gives up the width, and Close gives back only what was grown
+(`COMMON-WINDOW-003` in [`platform_quirks.md`](platform_quirks.md)).
+`TORIRS_RESIZE_DEBUG=1` prints each decision with its reason.
 
 ### Modern Windows
 
@@ -279,10 +287,48 @@ occupy only the icon well; hover, selected state, badge, attention treatment,
 tooltip, and accessible label remain host-owned.
 
 The rail is the gameframe's own stone side-tab column, not a toolbar: the
-tiled `PanelBody` between two dark edge lines with a bevel inside them, and the
-icons drawn straight on that surface. An entry has no plate, well, or black
-box behind its icon; the selected entry reads as the pressed stone (darker
-under the icon), hover outlines it in the label orange.
+tiled `PanelBody` inside the interfaces' nine-slice frame, and the icons drawn
+straight on that surface. An entry has no plate, well, or black box behind its
+icon; the selected entry reads as the pressed stone (darker under the icon),
+hover outlines it in the label orange.
+
+It is `TORIRS_CHROME_M_RAIL_W` = 42 wide INCLUDING that frame, which is the
+width of the gameframe's own popout strip (interface 728) standing beside it --
+6 of frame rail, 30 of content, 6 of frame rail. Every host reserves the same
+42 (mac points, Win32 device pixels, Android dp, the web dock's CSS pixels): a
+host that reserves more shows a band of its own window background beside the
+edge the page drew. The frame is laid INSIDE the rail's box, over its padding
+rather than over a border, because the rail clips its own children to its
+padding box; the page's panel, which has nothing clipping it, hangs the same
+nine pieces outside itself instead.
+
+The page and the rail share ONE border. Both reserve a 6px frame rail, so
+placed side by side they draw two of them with a groove between; the pane
+overlaps the rail's track by exactly that 6px so the two coincide and the rail,
+being later in the document, paints the single visible edge.
+
+A button is the interfaces' own three-piece red plate: the notched left cap,
+the notched right cap and the tiled middle, at the authored 18px row height,
+with a white caption that turns red under the cursor and shifts a pixel down
+and right while pressed. It carries no border of the chrome's own — the art
+has its own black outline and notched corners, and a border both squares the
+ends off and (because a background is positioned against the padding box)
+pushes the 18px art into the 16px space a 1px border leaves, clipping the
+caps. The middle tile stops UNDER the caps rather than running the full width:
+every one of these sprites is baked with a transparent bleed margin and the
+caps have notched corners, so a tile that spans the whole button shows through
+both and reads as tiling past the ends. The inset is the caps' measured opaque
+width (16px), not their 18px cell, so the tile tucks beneath each cap instead
+of stopping short of it and leaving a seam. Every piece of chrome text carries the reference's black drop shadow,
+one pixel down and right: the game theme this page projects sets
+`text_shadowed = 1`.
+
+The page pane wears the same nine-slice stone frame as the rail beside it
+(both reserve the 6px frame as padding, not a border, because `overflow:
+hidden` clips to the padding box and a frame hung over a border is cut away),
+and names itself the way a side panel does: the title in the settings orange
+straight on the stone with a rule under it, the baked close mark in the
+frame's corner, no black title bar.
 
 The Manage Plugins roster and a plugin's generated settings page are the
 retained chrome's own rows, presented as the in-canvas chrome draws them

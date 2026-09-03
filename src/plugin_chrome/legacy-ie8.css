@@ -61,6 +61,11 @@ html, body {
 table { border-collapse: collapse; }
 input, select, textarea { font: 400 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
+/* The reference's drop shadow, on every piece of chrome text: the game theme
+ * this page projects sets text_shadowed = 1 (uitree_debug_overlay.c), one black
+ * pixel down and right. Old MSHTML ignores the property and loses only the
+ * shadow; Chrome 39 honours it. */
+.tpc-shell, .tpc-shell button, .tpc-shell input, .tpc-shell select, .tpc-shell textarea { text-shadow: 1px 1px #000000; }
 .tpc-android-fonts { font-family: "ToriRS Chrome Android", "Lucida Console", monospace; }
 .tpc-android-fonts input, .tpc-android-fonts select, .tpc-android-fonts textarea { font-family: "ToriRS Chrome Android", "Lucida Console", monospace; }
 .tpc-android-fonts button { font-family: "ToriRS Chrome Android", "Lucida Console", monospace; }
@@ -98,28 +103,35 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-android-fonts .tpc-badge { font-family: "ToriRS Chrome Small Android", "Lucida Console", monospace; }
 .tpc-attention-dot { position: absolute; right: 2px; top: 2px; width: 5px; height: 5px; overflow: hidden; background: #ffff00; }
 
-.tpc-pane { position: absolute; position: fixed; left: 0; top: 0; right: 42px; bottom: 0; width: auto; height: auto; overflow: hidden; background: #5d5447; border: 6px solid #0e0e0c; box-sizing: border-box; }
+/* PADDING, not a border, like the rail: overflow:hidden clips to the padding box, so the
+ * frame pieces have to be laid inside it to show. Same stone edge as the side-tab column. */
+/* right:36, not 42 -- the pane overlaps the rail's track by one 6px frame rail so
+ * the seam between them is a single border rather than two with a groove between.
+ * The rail comes later in the document and paints over the shared column. */
+.tpc-pane { position: absolute; position: fixed; left: 0; top: 0; right: 36px; bottom: 0; width: auto; height: auto; overflow: hidden; background: #5d5447 url("skin/PanelBody.png"); padding: 6px; box-sizing: border-box; }
 .tpc-frame { position: absolute; z-index: 1; overflow: hidden; font-size: 1px; line-height: 1px; }
 .tpc-frame-tl, .tpc-frame-tr, .tpc-frame-bl, .tpc-frame-br { width: 32px; height: 32px; background-repeat: no-repeat; }
-.tpc-frame-tl { left: -6px; top: -6px; }
-.tpc-frame-t { left: 26px; right: 26px; top: -6px; height: 6px; background-repeat: repeat-x; }
-.tpc-frame-tr { right: -6px; top: -6px; }
-.tpc-frame-l { left: -6px; top: 26px; bottom: 26px; width: 6px; background-repeat: repeat-y; }
-.tpc-frame-r { right: -6px; top: 26px; bottom: 26px; width: 6px; background-repeat: repeat-y; }
-.tpc-frame-bl { left: -6px; bottom: -6px; }
-.tpc-frame-b { left: 26px; right: 26px; bottom: -6px; height: 6px; background-repeat: repeat-x; }
-.tpc-frame-br { right: -6px; bottom: -6px; }
+.tpc-frame-tl { left: 0; top: 0; }
+.tpc-frame-t { left: 32px; right: 32px; top: 0; height: 6px; background-repeat: repeat-x; }
+.tpc-frame-tr { right: 0; top: 0; }
+.tpc-frame-l { left: 0; top: 32px; bottom: 32px; width: 6px; background-repeat: repeat-y; }
+.tpc-frame-r { right: 0; top: 32px; bottom: 32px; width: 6px; background-repeat: repeat-y; }
+.tpc-frame-bl { left: 0; bottom: 0; }
+.tpc-frame-b { left: 32px; right: 32px; bottom: 0; height: 6px; background-repeat: repeat-x; }
+.tpc-frame-br { right: 0; bottom: 0; }
 
-.tpc-header { position: relative; z-index: 2; width: 100%; height: 18px; table-layout: fixed; border-bottom: 1px solid #0e0e0c; background: #000000; }
+/* The page's title as a side panel names itself: the settings orange on the stone with a rule under it. */
+.tpc-header { position: relative; z-index: 2; width: 100%; height: 22px; table-layout: fixed; border-bottom: 1px solid #0e0e0c; background: transparent; }
 .tpc-header td { vertical-align: middle; }
-.tpc-header h1 { margin: 0; padding: 0 4px; overflow: hidden; color: #5d5447; font-size: 12px; font-weight: 700; line-height: 16px; white-space: nowrap; }
+.tpc-header h1 { margin: 0; padding: 0 4px; overflow: hidden; color: #ff981f; font-size: 12px; font-weight: 700; line-height: 16px; white-space: nowrap; }
 .tpc-close-cell { width: 19px; }
-#tpc-close { width: 16px; height: 16px; margin-right: 3px; padding: 0; overflow: hidden; border: 0; background-color: #000000; background-position: center; background-repeat: no-repeat; color: #000000; font-size: 0; cursor: hand; }
+#tpc-close { width: 16px; height: 16px; margin-right: 3px; padding: 0; overflow: hidden; border: 0; background-color: transparent; background-image: url("skin/CloseButton.png"); background-position: center; background-repeat: no-repeat; color: #000000; font-size: 0; cursor: hand; }
+#tpc-close:hover { background-image: url("skin/CloseButtonOver.png"); }
 .tpc-tabs { position: relative; z-index: 2; height: 20px; margin: 6px 6px 3px; overflow: hidden; border-bottom: 1px solid #0e0e0c; white-space: nowrap; }
 .tpc-tabs button { height: 20px; min-width: 12px; padding: 0 5px; border: 0; border-right: 1px solid #474745; background: #0e0e0c; color: #ff981f; cursor: hand; }
 .tpc-tabs .tpc-tab-selected { color: #ffffff; border-bottom: 2px solid #ffff00; }
-.tpc-content { position: absolute; z-index: 2; left: 6px; right: 6px; top: 41px; bottom: 6px; overflow: auto; padding: 6px; }
-.tpc-no-tabs .tpc-content { top: 18px; }
+.tpc-content { position: absolute; z-index: 2; left: 12px; right: 12px; top: 63px; bottom: 12px; overflow: auto; padding: 6px; }
+.tpc-no-tabs .tpc-content { top: 32px; }
 .tpc-row { width: 100%; min-height: 18px; margin: 0 0 3px; color: #ffffff; line-height: 16px; }
 .tpc-row .tpc-label { display: inline-block; zoom: 1; width: 104px; margin-right: 6px; color: #ff981f; vertical-align: middle; }
 .tpc-field { height: 18px; border: 1px solid #474745; background: #000000; color: #ffffff; padding: 0 4px; line-height: 16px; vertical-align: middle; box-sizing: border-box; }
@@ -150,10 +162,19 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-control-cell textarea { height: 84px; overflow: auto; }
 .tpc-separator { position: relative; width: 100%; height: 18px; min-height: 18px; overflow: hidden; background: transparent; }
 .tpc-separator-line { position: absolute; left: 0; right: 0; top: 9px; height: 1px; overflow: hidden; background: #0e0e0c; }
-.tpc-button, .tpc-menu, .tpc-row-action { height: 18px; min-height: 18px; padding: 0 4px; border: 1px solid #474745; background: #0e0e0c; color: #ff981f; line-height: 16px; cursor: hand; }
-.tpc-button, .tpc-menu, .tpc-row-action { background-image: url("skin/ButtonMid.png"); background-repeat: repeat-x; background-position: center; background-size: 10px 18px; }
+/* The interfaces' three-piece button. NO border of the chrome's own: the art
+ * carries its own black outline and notched corners, and a box drawn around it
+ * squares the ends off. Old MSHTML can draw only the middle tile (one
+ * background, no background-size), so it gets the tile's own black top and
+ * bottom with flat ends; Android's Chrome 39 is handed the two notched caps
+ * inline by the runtime's skinButton. */
+/* White on the red plate, red under the cursor: the pair the interfaces give
+ * their own red buttons. */
+.tpc-button, .tpc-menu { height: 18px; min-height: 18px; padding: 0 6px; border: 0; background-color: transparent; color: #ffffff; line-height: 18px; cursor: hand; }
+.tpc-button, .tpc-menu { background-image: url("skin/ButtonMid.png"); background-repeat: repeat-x; background-position: left center; background-size: 10px 18px; }
+.tpc-button:hover, .tpc-menu:hover { color: #ff0000; }
 .tpc-button, .tpc-menu { width: 104px; }
-.tpc-menu, .tpc-row-action { text-align: left; }
+.tpc-menu { text-align: left; }
 .tpc-toggle-cell { width: 24px; text-align: right; }
 .tpc-toggle-cell .tpc-check { margin: 0; vertical-align: middle; }
 .tpc-model, .tpc-custom { position: relative; width: 98%; overflow: hidden; border: 1px solid #474745; background: #372e22; color: #ff981f; text-align: center; box-sizing: border-box; }

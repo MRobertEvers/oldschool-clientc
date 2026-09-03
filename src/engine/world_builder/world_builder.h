@@ -145,6 +145,17 @@ WorldBuilder_SetSceneView(
     struct WorldBuilder* builder,
     int view_id);
 
+/*
+ * TORIRS_REBUILD_TIMING=1 -- the rebuild's own wall clock, shared with the
+ * load task that wraps it (task_world_load.c) so one env var times both the
+ * asset span and the synchronous rebuild it ends in.
+ */
+int
+WorldBuilder_TimingOn(void);
+
+double
+WorldBuilder_TimingNowMs(void);
+
 void
 WorldBuilder_RebuildCenterzone(
     struct WorldBuilder* builder,
