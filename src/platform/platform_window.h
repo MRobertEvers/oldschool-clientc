@@ -203,9 +203,13 @@ PlatformWindow_AuxTakeCloseRequest(struct PlatformWindow* platform);
  * Growth is a courtesy, not a contract. The window is never resized while
  * it is maximised or fullscreen (a programmatic resize would un-maximise it),
  * nor widened past the edge of the display it sits on (the page would hang
- * off the screen); in both cases the pane opens inside the current frame and
- * the game area gives up the width. Close gives back exactly what was grown,
- * so a pane that never grew the window never shrinks it either.
+ * off the screen) -- though a frame that would overhang by less than the
+ * room on its left slides left by exactly that much and grows. Otherwise
+ * the pane opens inside the current frame and the game area gives up the
+ * width; only when that would take the game area below its floor does the
+ * window grow off the display instead. Close gives back exactly what was
+ * grown and never moves the window, so a pane that never grew the window
+ * never shrinks it either.
  *
  * Sizes and input are in the attached pane's DRAWABLE pixels. `width` passed
  * to Open is in window points, matching AuxOpen and making it a physical desk

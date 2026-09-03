@@ -167,6 +167,18 @@ TaskRunner_Step(struct TaskRunner* runner)
             stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
             runner->io->slot_base = 0;
 
+            /*
+             * Re-read the successor of a task that is still here: a task that
+             * fans loads out appends them behind itself (ToriRS_TaskQueue_AddJoined),
+             * and they belong to THIS pass -- their reads are the ones meant
+             * to go out together. With the successor taken before the run, a
+             * fan-out at the tail saw NULL and its siblings waited a whole
+             * pass, which on the frame loop is a whole frame per stage. A task
+             * that ended has been freed, so the successor taken before stands.
+             */
+            if( stat != TORIRS_ASYNCIO_STAT_DONE )
+                next = task->next;
+
             if( stat == TORIRS_ASYNCIO_STAT_DONE )
             {
                 /* A task that ends with a read still queued is a task that

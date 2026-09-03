@@ -127,10 +127,74 @@ struct PlatformXIOOnDemand
      * makes a timeout worth remembering.
      */
     time_t files_shutter;
+
+    /*
+     * The file wire's in-flight table. @see od_pump for the protocol side.
+     *
+     * Every read the executor parks on this source is an entry here from
+     * FetchBegin until FetchTake; the requests go out back to back and the
+     * chunks come back in whatever order the server drains its queue, which
+     * is what makes the whole table one round trip deep instead of one per
+     * file.
+     */
+    struct OdFetch* fetches;
+    int fetch_count;
+    int fetch_cap;
+
+    /* Receive state: the six-byte chunk header being assembled, then the
+     * chunk payload being written straight into its fetch's buffer. */
+    unsigned char rx_header[6];
+    int rx_header_have;
+    int rx_fetch; /* index into fetches, or -1 between chunks */
+    int rx_offset;
+    int rx_count;
+    int rx_got;
+
+    /* Request bytes queued and not yet accepted by the socket. */
+    unsigned char* tx;
+    int tx_len;
+    int tx_pos;
+    int tx_cap;
+
+    /* When the wire last moved a byte either way; the pump's timeout clock. */
+    time_t wire_last_activity;
+};
+
+/* One file in flight on the wire. */
+enum OdFetchState
+{
+    /** Request not yet handed to the socket. */
+    OD_FETCH_QUEUED = 0,
+    /** Request written; chunks may be arriving. */
+    OD_FETCH_INFLIGHT,
+    /** Every byte landed. */
+    OD_FETCH_DONE,
+    /** The server looked and has no such file -- an answer. */
+    OD_FETCH_ABSENT,
+    /** The transport gave up on it. */
+    OD_FETCH_FAILED,
+};
+
+struct OdFetch
+{
+    int archive; /* wire archive, 0..3 */
+    int file;
+    enum OdFetchState state;
+    int total; /* -1 until the first chunk names it */
+    int received;
+    char* data;
+    /* Request writes so far. A dead socket earns exactly one more, for the
+     * same reason the blocking fetch retried once: LostCity hangs up on an
+     * idle client and the first request after a quiet spell always finds a
+     * dead socket. A timeout earns none. */
+    int attempts;
+    /* Callers that will Take this. Two reads of one file share one request,
+     * and the entry lives until the last of them has taken its copy. */
+    int waiters;
 };
 
 /*
- * What a read stopped for -- the question od_fetch_file's retry turns on, and
+ * What a read stopped for -- the question the wire's retry turns on, and
  * the two answers want opposite treatment.
  *
  * DEAD is ROUTINE here. A LostCity server hangs up on an idle client
@@ -150,12 +214,6 @@ enum
     OD_IO_DEAD = -1,
     OD_IO_TIMEOUT = -2,
 };
-
-/* od_fetch_file_once's `*out_size` where there is no file to size: the server
- * looked and has none, or one of the two transport failures above. */
-#define OD_FETCH_ABSENT 0
-#define OD_FETCH_DEAD -1
-#define OD_FETCH_TIMEOUT -2
 
 /* ------------------------------------------------------------------ socket */
 
@@ -410,184 +468,490 @@ od_open_files(struct PlatformXIOOnDemand* od)
     return 0;
 }
 
-/**
- * One attempt at one file. Returns NULL both for "the server does not have it"
- * (a zero-length header, a legitimate answer at the edges of a built world) and
- * for a transport failure; `*out_size` distinguishes them -- OD_FETCH_ABSENT
- * for the former, and for the latter the two failures the retry has to tell
- * apart, OD_FETCH_DEAD and OD_FETCH_TIMEOUT.
+/* ------------------------------------------------------- the file wire */
+
+/*
+ * ## Pipelined, not blocking
+ *
+ * The wire used to be one request at a time: write four bytes, read every
+ * chunk of the answer, return. A region rebuild names hundreds of files and
+ * the executor now hands them over together (TaskRunner_Step walks the whole
+ * queue), so a blocking fetch turned that into hundreds of round trips end to
+ * end -- on the frame thread.
+ *
+ * Now a fetch is an entry in `od->fetches`. FetchBegin queues its request;
+ * od_pump writes every queued request the socket will take and reads every
+ * chunk that has arrived, filing each by the (archive, file) in its header;
+ * FetchTake hands a finished one back. Nothing here waits for the socket:
+ * the executor asks "is it done yet" once a pass, exactly as it asks the JS5
+ * client, and the blocking entry points below (ArchiveLoad, ContainerFetch)
+ * are a pump loop around the same table for the callers that still want to
+ * wait -- io_server's single-container route, and the nine jag archives a
+ * boot reads before anything can be parked.
+ *
+ * The chunk header carries the file the chunk belongs to, so the server is
+ * free to interleave answers and the reassembly does not care what order
+ * they come in. Every chunk of a file lands at `part * 500`, and the file is
+ * done when the byte count reaches the total its first chunk stated.
  */
-static char*
-od_fetch_file_once(
+
+static int
+od_fetch_find(
     struct PlatformXIOOnDemand* od,
     int archive,
-    int file,
-    int* out_size)
+    int file)
 {
-    unsigned char request[4];
-    char* data = NULL;
-    int total = -1;
-    int received = 0;
-    /* Only a read that ran out of time sets this. The other ways out of the
-     * loop below are a misframed stream, which is a dead connection by another
-     * name and is retried like one. */
-    int timed_out = 0;
+    for( int i = 0; i < od->fetch_count; i++ )
+        if( od->fetches[i].archive == archive && od->fetches[i].file == file )
+            return i;
+    return -1;
+}
+
+static int
+od_fetch_add(
+    struct PlatformXIOOnDemand* od,
+    int archive,
+    int file)
+{
+    struct OdFetch* fetch;
+
+    if( od->fetch_count == od->fetch_cap )
+    {
+        od->fetch_cap = od->fetch_cap ? od->fetch_cap * 2 : 64;
+        od->fetches = realloc(od->fetches, (size_t)od->fetch_cap * sizeof(*od->fetches));
+        assert(od->fetches);
+    }
+    fetch = &od->fetches[od->fetch_count];
+    memset(fetch, 0, sizeof(*fetch));
+    fetch->archive = archive;
+    fetch->file = file;
+    fetch->state = OD_FETCH_QUEUED;
+    fetch->total = -1;
+    return od->fetch_count++;
+}
+
+/* Drop entry `index`; the last entry moves into its place. */
+static void
+od_fetch_remove(
+    struct PlatformXIOOnDemand* od,
+    int index)
+{
+    assert(index >= 0);
+    assert(index < od->fetch_count);
+    free(od->fetches[index].data);
+    od->fetch_count--;
+    if( od->rx_fetch == index )
+        od->rx_fetch = -1;
+    if( index != od->fetch_count )
+    {
+        od->fetches[index] = od->fetches[od->fetch_count];
+        if( od->rx_fetch == od->fetch_count )
+            od->rx_fetch = index;
+    }
+}
+
+static void
+od_tx_append(
+    struct PlatformXIOOnDemand* od,
+    const unsigned char* bytes,
+    int count)
+{
+    if( od->tx_len + count > od->tx_cap )
+    {
+        od->tx_cap = od->tx_cap ? od->tx_cap * 2 : 256;
+        while( od->tx_len + count > od->tx_cap )
+            od->tx_cap *= 2;
+        od->tx = realloc(od->tx, (size_t)od->tx_cap);
+        assert(od->tx);
+    }
+    memcpy(od->tx + od->tx_len, bytes, (size_t)count);
+    od->tx_len += count;
+}
+
+/*
+ * The socket is gone. Whatever was in flight goes back to the queue for one
+ * more try, or fails if it has had it; whatever was half-received is
+ * discarded, because a resent request is answered from part 0 again.
+ *
+ * `shutter` says the wire timed out rather than closed: nothing is retried,
+ * and the endpoint is left alone for a while. @see OD_ENDPOINT_SHUTTER_SEC.
+ */
+static void
+od_wire_drop(
+    struct PlatformXIOOnDemand* od,
+    int shutter)
+{
+    if( od->files )
+    {
+        sockstream_close(od->files);
+        sockstream_free(od->files);
+        od->files = NULL;
+    }
+    od->tx_len = 0;
+    od->tx_pos = 0;
+    od->rx_header_have = 0;
+    od->rx_fetch = -1;
+    if( shutter )
+        od->files_shutter = time(NULL) + OD_ENDPOINT_SHUTTER_SEC;
+
+    for( int i = 0; i < od->fetch_count; i++ )
+    {
+        struct OdFetch* fetch = &od->fetches[i];
+        if( fetch->state != OD_FETCH_INFLIGHT && fetch->state != OD_FETCH_QUEUED )
+            continue;
+        free(fetch->data);
+        fetch->data = NULL;
+        fetch->total = -1;
+        fetch->received = 0;
+        fetch->state = (!shutter && fetch->attempts < 2) ? OD_FETCH_QUEUED : OD_FETCH_FAILED;
+    }
+}
+
+/*
+ * One chunk header, complete. Returns -1 when the two ends have lost sync --
+ * a chunk for a file nobody asked for, or a total that changed mid-file --
+ * and the caller drops the connection rather than decode noise.
+ */
+static int
+od_rx_begin_chunk(struct PlatformXIOOnDemand* od)
+{
+    unsigned char const* h = od->rx_header;
+    int const archive = h[0];
+    int const file = (h[1] << 8) | h[2];
+    int const total = (h[3] << 8) | h[4];
+    int const part = h[5];
+    int index = od_fetch_find(od, archive, file);
+    struct OdFetch* fetch;
+    int offset;
+    int count;
+
+    od->rx_header_have = 0;
+    if( index < 0 )
+    {
+        TORIRS_ERR("ondemand: server sent %d/%d, which nothing asked for\n", archive, file);
+        return -1;
+    }
+    fetch = &od->fetches[index];
+    if( fetch->state != OD_FETCH_INFLIGHT )
+    {
+        TORIRS_ERR("ondemand: a chunk of %d/%d arrived while it was not in flight\n",
+            archive,
+            file);
+        return -1;
+    }
+
+    if( total == 0 )
+    {
+        fetch->state = OD_FETCH_ABSENT;
+        return 0;
+    }
+    if( fetch->total < 0 )
+    {
+        fetch->total = total;
+        fetch->data = malloc((size_t)total);
+        assert(fetch->data);
+    }
+    else if( fetch->total != total )
+    {
+        TORIRS_ERR("ondemand: %d/%d changed size mid-file (%d then %d)\n",
+            archive,
+            file,
+            fetch->total,
+            total);
+        return -1;
+    }
+
+    offset = part * OD_CHUNK_PAYLOAD;
+    if( offset < 0 || offset >= total )
+        return -1;
+    count = total - offset;
+    if( count > OD_CHUNK_PAYLOAD )
+        count = OD_CHUNK_PAYLOAD;
+
+    od->rx_fetch = index;
+    od->rx_offset = offset;
+    od->rx_count = count;
+    od->rx_got = 0;
+    return 0;
+}
+
+/* Consume `n` bytes off the wire, whatever the socket happened to hand over. */
+static int
+od_rx_feed(
+    struct PlatformXIOOnDemand* od,
+    const unsigned char* bytes,
+    int n)
+{
+    int at = 0;
+
+    while( at < n )
+    {
+        if( od->rx_fetch < 0 )
+        {
+            int take = 6 - od->rx_header_have;
+            if( take > n - at )
+                take = n - at;
+            memcpy(od->rx_header + od->rx_header_have, bytes + at, (size_t)take);
+            od->rx_header_have += take;
+            at += take;
+            if( od->rx_header_have == 6 && od_rx_begin_chunk(od) != 0 )
+                return -1;
+            continue;
+        }
+
+        {
+            struct OdFetch* fetch = &od->fetches[od->rx_fetch];
+            int take = od->rx_count - od->rx_got;
+            if( take > n - at )
+                take = n - at;
+            memcpy(fetch->data + od->rx_offset + od->rx_got, bytes + at, (size_t)take);
+            od->rx_got += take;
+            at += take;
+            if( od->rx_got == od->rx_count )
+            {
+                fetch->received += od->rx_count;
+                if( fetch->received >= fetch->total )
+                    fetch->state = OD_FETCH_DONE;
+                od->rx_fetch = -1;
+            }
+        }
+    }
+    return 0;
+}
+
+static int
+od_any_fetch_in(
+    struct PlatformXIOOnDemand* od,
+    enum OdFetchState state)
+{
+    for( int i = 0; i < od->fetch_count; i++ )
+        if( od->fetches[i].state == state )
+            return 1;
+    return 0;
+}
+
+/*
+ * Move the wire as far as it will go without waiting: dial if something is
+ * queued and nothing is open, write every queued request, read every chunk
+ * that has arrived, and give up on a wire that has gone quiet.
+ */
+static void
+od_pump(struct PlatformXIOOnDemand* od)
+{
+    unsigned char scratch[8192];
 
     assert(od);
-    assert(archive >= 0);
-    assert(archive <= 3);
-    assert(out_size);
 
-    *out_size = OD_FETCH_DEAD;
-    if( file < 0 || file > 0xFFFF )
-        return NULL;
-    if( od_open_files(od) != 0 )
-        return NULL;
+    if( od_any_fetch_in(od, OD_FETCH_QUEUED) )
+    {
+        if( od_open_files(od) != 0 )
+        {
+            /* Shuttered, or the dial failed: nothing queued can be served.
+             * Fail it now rather than leave callers polling a wire that is
+             * not going to open for them. */
+            for( int i = 0; i < od->fetch_count; i++ )
+                if( od->fetches[i].state == OD_FETCH_QUEUED )
+                    od->fetches[i].state = OD_FETCH_FAILED;
+            return;
+        }
+        for( int i = 0; i < od->fetch_count; i++ )
+        {
+            struct OdFetch* fetch = &od->fetches[i];
+            unsigned char request[4];
+            if( fetch->state != OD_FETCH_QUEUED )
+                continue;
+            request[0] = (unsigned char)fetch->archive;
+            request[1] = (unsigned char)(fetch->file >> 8);
+            request[2] = (unsigned char)fetch->file;
+            request[3] = OD_PRIORITY_URGENT;
+            od_tx_append(od, request, 4);
+            fetch->attempts++;
+            fetch->state = OD_FETCH_INFLIGHT;
+        }
+        od->wire_last_activity = time(NULL);
+    }
 
-    request[0] = (unsigned char)archive;
-    request[1] = (unsigned char)(file >> 8);
-    request[2] = (unsigned char)file;
-    request[3] = OD_PRIORITY_URGENT;
-    if( od_write_all(od->files, request, 4) != 0 )
-        return NULL;
+    if( !od->files )
+        return;
+
+    while( od->tx_pos < od->tx_len )
+    {
+        int sent = sockstream_send(od->files, od->tx + od->tx_pos, od->tx_len - od->tx_pos);
+        if( sent > 0 )
+        {
+            od->tx_pos += sent;
+            od->wire_last_activity = time(NULL);
+            continue;
+        }
+        if( sent == SOCKSTREAM_ERROR_NODATA || sent == SOCKSTREAM_ERROR_WOULDBLOCK )
+            break;
+        od_wire_drop(od, 0);
+        return;
+    }
+    if( od->tx_pos == od->tx_len )
+    {
+        od->tx_pos = 0;
+        od->tx_len = 0;
+    }
 
     for( ;; )
     {
-        unsigned char header[6];
-        int chunk_archive;
-        int chunk_file;
-        int chunk_total;
-        int part;
-        int offset;
-        int count;
-        int io;
-
-        io = od_read_exact(od->files, header, 6);
-        if( io != OD_IO_OK )
-        {
-            timed_out = io == OD_IO_TIMEOUT;
-            goto failed;
-        }
-
-        chunk_archive = header[0];
-        chunk_file = (header[1] << 8) | header[2];
-        chunk_total = (header[3] << 8) | header[4];
-        part = header[5];
-
-        /* One request in flight at a time, so anything else on this socket
-         * means the two ends have lost sync and every later read would be
-         * misframed. Drop the connection rather than decode noise. */
-        if( chunk_archive != archive || chunk_file != file )
-        {
-            TORIRS_ERR("ondemand: expected %d/%d, server sent %d/%d\n",
-                archive,
-                file,
-                chunk_archive,
-                chunk_file);
-            goto failed;
-        }
-
-        if( chunk_total == 0 )
-        {
-            *out_size = 0;
-            free(data);
-            return NULL;
-        }
-
-        if( total < 0 )
-        {
-            total = chunk_total;
-            data = malloc((size_t)total);
-            assert(data);
-        }
-        else if( chunk_total != total )
-        {
-            goto failed;
-        }
-
-        offset = part * OD_CHUNK_PAYLOAD;
-        if( offset < 0 || offset >= total )
-            goto failed;
-        count = total - offset;
-        if( count > OD_CHUNK_PAYLOAD )
-            count = OD_CHUNK_PAYLOAD;
-
-        io = od_read_exact(od->files, data + offset, count);
-        if( io != OD_IO_OK )
-        {
-            timed_out = io == OD_IO_TIMEOUT;
-            goto failed;
-        }
-        received += count;
-        if( received >= total )
+        int got;
+        if( !od_any_fetch_in(od, OD_FETCH_INFLIGHT) )
             break;
+        got = sockstream_recv(od->files, scratch, (int)sizeof(scratch));
+        if( got > 0 )
+        {
+            od->wire_last_activity = time(NULL);
+            if( od_rx_feed(od, scratch, got) != 0 )
+            {
+                od_wire_drop(od, 0);
+                return;
+            }
+            continue;
+        }
+        if( got == SOCKSTREAM_ERROR_NODATA || got == SOCKSTREAM_ERROR_WOULDBLOCK )
+            break;
+        /* Closed or failed. DEAD is routine -- see od_wire_drop -- and costs
+         * nothing, because a closed socket fails at once. */
+        od_wire_drop(od, 0);
+        return;
     }
 
-    *out_size = total;
-    return data;
-
-failed:
-    free(data);
-    sockstream_close(od->files);
-    sockstream_free(od->files);
-    od->files = NULL;
-    /* A server that held the connection open and then said nothing is the one
-     * failure worth remembering: asking again costs another full read timeout,
-     * and the caller above is about to ask for the next of fifty archives.
-     * @see OD_ENDPOINT_SHUTTER_SEC. */
-    if( timed_out )
+    if( od_any_fetch_in(od, OD_FETCH_INFLIGHT) &&
+        time(NULL) - od->wire_last_activity > OD_READ_TIMEOUT_SEC )
     {
-        TORIRS_ERR("ondemand: %s:%d went quiet mid-file (%d/%d); shuttering it for %ds\n",
+        TORIRS_ERR("ondemand: %s:%d went quiet for %ds with reads in flight; shuttering it "
+            "for %ds\n",
             od->host,
             od->game_port,
-            archive,
-            file,
+            OD_READ_TIMEOUT_SEC,
             OD_ENDPOINT_SHUTTER_SEC);
-        *out_size = OD_FETCH_TIMEOUT;
-        od->files_shutter = time(NULL) + OD_ENDPOINT_SHUTTER_SEC;
+        od_wire_drop(od, 1);
     }
-    return NULL;
 }
 
-/**
- * One file off the on-demand wire, still compressed.
- *
- * Retries once through a fresh connection, because the socket dying is a
- * ROUTINE state here rather than an error: LostCity puts a 30-second idle
- * timeout on it (`s.setTimeout(30000)` in TcpServer.ts, and the handler
- * destroys the socket), and a client that has everything it needs for half a
- * minute -- standing still in a loaded scene -- gets hung up on. Nothing tells
- * it: `sockstream_is_connected` still says yes, so od_open_files sees no reason
- * to redial, the request goes into a dead socket, and the read fails.
- *
- * Without the retry that first fetch after any idle spell is simply lost, and
- * nothing above asks again -- the model, map square or animation frame it was
- * for never arrives. That is what "Failed to decode dat1 model 63" was, on
- * bytes the server sends perfectly well.
- *
- * Only a DEAD socket is retried. A read that ran out of time is not the same
- * failure and is not asked again: the connection is up and the server is not
- * answering on it, so a second attempt is a second full timeout spent on the
- * frame thread to hear the same silence. @see OD_ENDPOINT_SHUTTER_SEC.
- *
- * A zero-length answer means the server
- * looked and has no such file; asking a second time would just be a slower way
- * to hear the same thing.
- */
-static char*
-od_fetch_file(
+int
+PlatformXIOOnDemand_FetchBegin(
     struct PlatformXIOOnDemand* od,
-    int archive,
-    int file,
+    int table_id,
+    int archive_id)
+{
+    int index;
+
+    assert(od);
+    assert(table_id > RSCACHE_DAT1_DISK_TABLE_CONFIGS);
+    assert(table_id <= RSCACHE_DAT1_DISK_TABLE_MAPS);
+
+    if( archive_id < 0 || archive_id > 0xFFFF )
+        return -1;
+    /* A shuttered endpoint answers no at once, so a rebuild against a dead
+     * server costs one timeout and not one per file. */
+    if( od->files_shutter != 0 && time(NULL) < od->files_shutter )
+        return -1;
+
+    index = od_fetch_find(od, table_id - 1, archive_id);
+    if( index < 0 )
+        index = od_fetch_add(od, table_id - 1, archive_id);
+    od->fetches[index].waiters++;
+    return 0;
+}
+
+void
+PlatformXIOOnDemand_Pump(struct PlatformXIOOnDemand* od)
+{
+    od_pump(od);
+}
+
+int
+PlatformXIOOnDemand_FetchPending(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id)
+{
+    int index;
+
+    assert(od);
+    index = od_fetch_find(od, table_id - 1, archive_id);
+    if( index < 0 )
+        return 0;
+    return od->fetches[index].state == OD_FETCH_QUEUED ||
+           od->fetches[index].state == OD_FETCH_INFLIGHT;
+}
+
+int
+PlatformXIOOnDemand_FetchTake(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    char** out_data,
     int* out_size)
 {
-    char* data = od_fetch_file_once(od, archive, file, out_size);
+    int index;
+    struct OdFetch* fetch;
 
-    if( data || *out_size != OD_FETCH_DEAD )
-        return data;
+    assert(od);
+    assert(out_data);
+    assert(out_size);
 
-    /* od_fetch_file_once has already dropped the socket, so this reconnects. */
-    return od_fetch_file_once(od, archive, file, out_size);
+    *out_data = NULL;
+    *out_size = 0;
+    index = od_fetch_find(od, table_id - 1, archive_id);
+    /* Nothing by that name: it was never begun, or every waiter has taken
+     * it. Either way there is nothing to wait for. */
+    if( index < 0 )
+        return 1;
+    fetch = &od->fetches[index];
+    if( fetch->state == OD_FETCH_QUEUED || fetch->state == OD_FETCH_INFLIGHT )
+        return 0;
+
+    if( fetch->state == OD_FETCH_DONE )
+    {
+        if( fetch->waiters > 1 )
+        {
+            *out_data = malloc((size_t)fetch->total);
+            assert(*out_data);
+            memcpy(*out_data, fetch->data, (size_t)fetch->total);
+        }
+        else
+        {
+            *out_data = fetch->data;
+            fetch->data = NULL;
+        }
+        *out_size = fetch->total;
+    }
+    if( --fetch->waiters <= 0 )
+        od_fetch_remove(od, index);
+    return 1;
+}
+
+/*
+ * The pump loop the blocking callers share: begin, then pump until the fetch
+ * settles, sleeping on the socket between pumps rather than spinning. The
+ * pump owns every deadline, so a wire that goes quiet resolves as FAILED here
+ * exactly as it does for a parked read.
+ */
+static char*
+od_fetch_file_blocking(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    int* out_size)
+{
+    char* data = NULL;
+
+    assert(out_size);
+    *out_size = 0;
+    if( PlatformXIOOnDemand_FetchBegin(od, table_id, archive_id) != 0 )
+        return NULL;
+    for( ;; )
+    {
+        od_pump(od);
+        if( PlatformXIOOnDemand_FetchTake(od, table_id, archive_id, &data, out_size) )
+            return data;
+        if( od->files )
+            od_wait(od->files, /* for_write */ 0, 1);
+    }
 }
 
 /* ------------------------------------------------------------- jag routes */
@@ -725,6 +1089,7 @@ PlatformXIOOnDemand_New(
     memset(od, 0, sizeof(struct PlatformXIOOnDemand));
 
     snprintf(od->host, sizeof(od->host), "%s", host);
+    od->rx_fetch = -1;
     od->game_port = game_port > 0 ? game_port : OD_DEFAULT_GAME_PORT;
     od->web_port = web_port > 0 ? web_port : OD_DEFAULT_WEB_PORT;
     if( cache_dir && cache_dir[0] )
@@ -795,6 +1160,10 @@ PlatformXIOOnDemand_Free(struct PlatformXIOOnDemand* od)
         sockstream_close(od->files);
         sockstream_free(od->files);
     }
+    for( int i = 0; i < od->fetch_count; i++ )
+        free(od->fetches[i].data);
+    free(od->fetches);
+    free(od->tx);
     RSCache_MapSquaresFree(od->map_squares);
     free(od);
 }
@@ -1155,7 +1524,7 @@ PlatformXIOOnDemand_ContainerFetch(
         return NULL;
 
     {
-        char* data = od_fetch_file(od, table_id - 1, archive_id, out_size);
+        char* data = od_fetch_file_blocking(od, table_id, archive_id, out_size);
         if( !data )
             return NULL;
         od_tally(table_id, archive_id, *out_size);
@@ -1165,6 +1534,171 @@ PlatformXIOOnDemand_ContainerFetch(
         return (uint8_t*)data;
     }
 }
+
+int
+PlatformXIOOnDemand_ContainerFetchMany(
+    struct PlatformXIOOnDemand* od,
+    int count,
+    const int* table_ids,
+    const int* archive_ids,
+    uint8_t** out_data,
+    int* out_sizes,
+    int* out_formats)
+{
+    int served = 0;
+    /* Which entries are on the wire; the rest were answered in line or
+     * refused, and are not waited for. */
+    unsigned char* on_wire;
+
+    assert(od);
+    assert(count >= 0);
+    assert(table_ids);
+    assert(archive_ids);
+    assert(out_data);
+    assert(out_sizes);
+    assert(out_formats);
+
+    on_wire = calloc((size_t)(count > 0 ? count : 1), 1);
+    assert(on_wire);
+
+    /*
+     * Every wire file first, so all of them are on the socket before anything
+     * waits; the jag archives are HTTP and answered in line as they come.
+     */
+    for( int i = 0; i < count; i++ )
+    {
+        out_data[i] = NULL;
+        out_sizes[i] = 0;
+        out_formats[i] = RSCACHE_ARCHIVE_FORMAT_DAT;
+        if( table_ids[i] > RSCACHE_DAT1_DISK_TABLE_CONFIGS &&
+            table_ids[i] <= RSCACHE_DAT1_DISK_TABLE_MAPS )
+            on_wire[i] = PlatformXIOOnDemand_FetchBegin(od, table_ids[i], archive_ids[i]) == 0;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        if( table_ids[i] == RSCACHE_DAT1_DISK_TABLE_CONFIGS )
+        {
+            out_data[i] = PlatformXIOOnDemand_ContainerFetch(
+                od, table_ids[i], archive_ids[i], &out_formats[i], &out_sizes[i]);
+            if( out_data[i] )
+                served++;
+        }
+    }
+    for( ;; )
+    {
+        int waiting = 0;
+
+        od_pump(od);
+        for( int i = 0; i < count; i++ )
+        {
+            char* data = NULL;
+            int size = 0;
+
+            if( !on_wire[i] )
+                continue;
+            if( !PlatformXIOOnDemand_FetchTake(od, table_ids[i], archive_ids[i], &data, &size) )
+            {
+                waiting = 1;
+                continue;
+            }
+            on_wire[i] = 0;
+            if( data )
+            {
+                od_tally(table_ids[i], archive_ids[i], size);
+                out_data[i] = (uint8_t*)data;
+                out_sizes[i] = size;
+                served++;
+            }
+        }
+        if( !waiting )
+            break;
+        if( od->files )
+            od_wait(od->files, /* for_write */ 0, 1);
+    }
+    free(on_wire);
+    return served;
+}
+
+/*
+ * The last step of a wire read: what ArchiveLoad does with the bytes once
+ * they have arrived, shared with the parked path so a blocking read and a
+ * parked one produce the same archive from the same bytes.
+ *
+ * Takes ownership of `data`.
+ */
+static struct RSCache_Dat1DiskArchive*
+od_archive_from_wire(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    char* data,
+    int size)
+{
+    struct RSCache_Dat1DiskArchive* archive;
+    struct RSCache_Dat2DiskArchive raw = { 0 };
+
+    raw.data = data;
+    raw.data_size = size;
+
+    /*
+     * The last two bytes are the file's VERSION, not payload.
+     *
+     * The reference client reads them as a big-endian u16 and CRCs only
+     * what precedes them (jagex2/io/OnDemand.validate: `len - 2`), so the
+     * gzip member is everything before them. Carrying them meant the
+     * member did not end where the buffer did, and ISIZE -- which is read
+     * from the last four bytes OF THE BUFFER -- came back as two bytes of
+     * real length followed by two bytes of version. For any archive under
+     * 64 KiB the real half is zero and that reads as exactly 0x01000000:
+     * 16 MiB, on every file.
+     *
+     * On a 32-bit client that is not merely wasteful. A 16 MiB allocation
+     * per model against a few KB of data exhausts the address space it
+     * fragments; malloc then fails, the decompress answers false, and the
+     * model, loc or sprite is gone for the session -- silently, because
+     * that miss is logged with TORIRS_LOG and OPT=1 compiles it out. It
+     * cost 68 of 351 models on the LostCity lane.
+     *
+     * Dropped before the store as well as before the decompress, so the
+     * copy the local dat1 cache keeps is a clean member too and the disk
+     * read back does not inherit the same mis-read.
+     */
+    if( raw.data_size < 2 )
+    {
+        free(raw.data);
+        return NULL;
+    }
+    raw.data_size -= 2;
+
+    od_tally(table_id, archive_id, raw.data_size);
+
+    /* Stored BEFORE the decompress below: gzipped is the form the disk
+     * layer keeps and the form it decompresses on the way back out. */
+    od_cache_store(od, table_id, archive_id, raw.data, raw.data_size);
+
+    /* Tables 1..4 are stored gzipped and served as stored. The disk layer
+     * decompresses at the same point, so callers above see one shape. */
+    if( !RSCache_ArchiveDecompressDat(&raw, RSCACHE_ARCHIVE_FORMAT_DAT) )
+    {
+        TORIRS_LOG("ondemand: table %d file %d did not decompress (%d bytes)\n",
+            table_id,
+            archive_id,
+            raw.data_size);
+        free(raw.data);
+        return NULL;
+    }
+
+    archive = malloc(sizeof(struct RSCache_Dat1DiskArchive));
+    assert(archive);
+    memset(archive, 0, sizeof(struct RSCache_Dat1DiskArchive));
+    archive->data = raw.data;
+    archive->data_size = raw.data_size;
+    archive->archive_id = archive_id;
+    archive->table_id = table_id;
+    archive->format = RSCACHE_ARCHIVE_FORMAT_DAT;
+    return archive;
+}
+
 
 struct RSCache_Dat1DiskArchive*
 PlatformXIOOnDemand_ArchiveLoad(
@@ -1211,65 +1745,18 @@ PlatformXIOOnDemand_ArchiveLoad(
     else
     {
         int size = 0;
+        char* data;
+
         if( table_id > RSCACHE_DAT1_DISK_TABLE_MAPS )
             return NULL;
-        format = RSCACHE_ARCHIVE_FORMAT_DAT;
         {
             clock_t const t0 = clock();
-            raw.data = od_fetch_file(od, table_id - 1, archive_id, &size);
+            data = od_fetch_file_blocking(od, table_id, archive_id, &size);
             g_od_fetch_ms += (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC;
         }
-        if( !raw.data )
+        if( !data )
             return NULL;
-        raw.data_size = size;
-
-        /*
-         * The last two bytes are the file's VERSION, not payload.
-         *
-         * The reference client reads them as a big-endian u16 and CRCs only
-         * what precedes them (jagex2/io/OnDemand.validate: `len - 2`), so the
-         * gzip member is everything before them. Carrying them meant the
-         * member did not end where the buffer did, and ISIZE -- which is read
-         * from the last four bytes OF THE BUFFER -- came back as two bytes of
-         * real length followed by two bytes of version. For any archive under
-         * 64 KiB the real half is zero and that reads as exactly 0x01000000:
-         * 16 MiB, on every file.
-         *
-         * On a 32-bit client that is not merely wasteful. A 16 MiB allocation
-         * per model against a few KB of data exhausts the address space it
-         * fragments; malloc then fails, the decompress answers false, and the
-         * model, loc or sprite is gone for the session -- silently, because
-         * that miss is logged with TORIRS_LOG and OPT=1 compiles it out. It
-         * cost 68 of 351 models on the LostCity lane.
-         *
-         * Dropped before the store as well as before the decompress, so the
-         * copy the local dat1 cache keeps is a clean member too and the disk
-         * read back does not inherit the same mis-read.
-         */
-        if( raw.data_size < 2 )
-        {
-            free(raw.data);
-            return NULL;
-        }
-        raw.data_size -= 2;
-
-        od_tally(table_id, archive_id, raw.data_size);
-
-        /* Stored BEFORE the decompress below: gzipped is the form the disk
-         * layer keeps and the form it decompresses on the way back out. */
-        od_cache_store(od, table_id, archive_id, raw.data, raw.data_size);
-
-        /* Tables 1..4 are stored gzipped and served as stored. The disk layer
-         * decompresses at the same point, so callers above see one shape. */
-        if( !RSCache_ArchiveDecompressDat(&raw, format) )
-        {
-            TORIRS_LOG("ondemand: table %d file %d did not decompress (%d bytes)\n",
-                table_id,
-                archive_id,
-                raw.data_size);
-            free(raw.data);
-            return NULL;
-        }
+        return od_archive_from_wire(od, table_id, archive_id, data, size);
     }
 
     archive = malloc(sizeof(struct RSCache_Dat1DiskArchive));
@@ -1281,6 +1768,84 @@ PlatformXIOOnDemand_ArchiveLoad(
     archive->table_id = table_id;
     archive->format = format;
     return archive;
+}
+
+int
+PlatformXIOOnDemand_ArchiveLoadBegin(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    struct RSCache_Dat1DiskArchive** out_archive)
+{
+    assert(od);
+    assert(table_id >= 0);
+    assert(archive_id >= 0);
+    assert(out_archive);
+
+    /* The local copy, and the jag archives (HTTP, nine per boot, before
+     * anything can be parked): both answered here and now, exactly as the
+     * blocking load answers them. */
+    *out_archive = od_cache_load(od, table_id, archive_id);
+    if( *out_archive )
+        return 1;
+    if( table_id == RSCACHE_DAT1_DISK_TABLE_CONFIGS )
+    {
+        *out_archive = PlatformXIOOnDemand_ArchiveLoad(od, table_id, archive_id);
+        return 1;
+    }
+    if( table_id > RSCACHE_DAT1_DISK_TABLE_MAPS )
+        return 1;
+    if( PlatformXIOOnDemand_FetchBegin(od, table_id, archive_id) != 0 )
+        return 1;
+    return 0;
+}
+
+int
+PlatformXIOOnDemand_ArchiveLoadPoll(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    struct RSCache_Dat1DiskArchive** out_archive)
+{
+    char* data = NULL;
+    int size = 0;
+
+    assert(od);
+    assert(out_archive);
+
+    *out_archive = NULL;
+    if( !PlatformXIOOnDemand_FetchTake(od, table_id, archive_id, &data, &size) )
+        return 0;
+    if( data )
+        *out_archive = od_archive_from_wire(od, table_id, archive_id, data, size);
+    return 1;
+}
+
+struct PlatformXIOOnDemand*
+PlatformXIOOnDemand_NewWireOnly(
+    const char* host,
+    int game_port)
+{
+    struct PlatformXIOOnDemand* od;
+
+    assert(host);
+    if( sockstream_init() != 0 )
+        return NULL;
+
+    od = malloc(sizeof(struct PlatformXIOOnDemand));
+    assert(od);
+    memset(od, 0, sizeof(struct PlatformXIOOnDemand));
+    snprintf(od->host, sizeof(od->host), "%s", host);
+    od->rx_fetch = -1;
+    od->game_port = game_port > 0 ? game_port : OD_DEFAULT_GAME_PORT;
+    od->web_port = OD_DEFAULT_WEB_PORT;
+
+    if( od_open_files(od) != 0 )
+    {
+        free(od);
+        return NULL;
+    }
+    return od;
 }
 
 int

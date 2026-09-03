@@ -15,6 +15,8 @@
  *   GET  /boot/<path>  a manifest or RevConfig INI, under --boot-root
  *   GET  /cache/dat1/<table>/<archive>[?flags=N][&manifest=<path>]
  *                     one raw dat1 container, proxied off a LostCity server
+ *   POST /cache/dat1/batch[?manifest=<path>]
+ *                     several of those in one request, pipelined on the socket
  *   GET  /status      what this process is serving, as a page
  *   GET  /stats       the same counters, one line, for scripts
  *   GET  /...          a file under --root (default build-web/), "/" -> index.html
@@ -1054,6 +1056,156 @@ handle_ondemand_container(
     res->owns_body = 1;
 }
 
+/*
+ * POST /cache/dat1/batch -- several raw dat1 containers in one round trip.
+ *
+ * The single route above answers one file per HTTP request, and a browser's
+ * fan-out then meets two lines: its own six-connections-per-host limit, and
+ * this server's one-request-at-a-time loop, each request a blocking read of
+ * the LostCity socket. A region rebuild is hundreds of files, so the page
+ * gathers what its executor queued in one pass (torirs_ondemand.js) and
+ * sends it here, and every file goes onto the socket before any is waited
+ * for (PlatformXIO_Dat1OnDemandContainerFetchMany).
+ *
+ * Wire, both ways little-endian:
+ *   request   u32 count, then count x (u32 table, u32 archive, u32 flags)
+ *   response  u32 count, then count x (u32 size, size bytes)
+ * A size of 0 is the answer "the server does not have it", which is what a
+ * 404 says on the single route. The whole batch is 503 when no on-demand
+ * source is configured, exactly as one file would be.
+ */
+#define IO_SERVER_DAT1_BATCH_MAX 4096
+
+static uint32_t
+read_u32le(uint8_t const* p)
+{
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
+           ((uint32_t)p[3] << 24);
+}
+
+static void
+write_u32le(
+    uint8_t* p,
+    uint32_t v)
+{
+    p[0] = (uint8_t)v;
+    p[1] = (uint8_t)(v >> 8);
+    p[2] = (uint8_t)(v >> 16);
+    p[3] = (uint8_t)(v >> 24);
+}
+
+static void
+handle_ondemand_batch(
+    struct IoServer* server,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    uint8_t const* body = (uint8_t const*)req->body;
+    uint32_t count;
+    int* table_ids;
+    int* archive_ids;
+    int* flags;
+    uint8_t** out_data;
+    int* out_sizes;
+    int* out_formats;
+    struct OnDemandSource* source;
+    char manifest_path[HTTP_MAX_PATH];
+    char const* query;
+    size_t total;
+    uint8_t* out;
+    size_t at;
+
+    assert(server);
+    assert(req);
+    assert(res);
+
+    if( req->body_len < 4 )
+    {
+        res->status = 400;
+        return;
+    }
+    count = read_u32le(body);
+    if( count > IO_SERVER_DAT1_BATCH_MAX || (size_t)req->body_len < 4 + (size_t)count * 12 )
+    {
+        res->status = 400;
+        return;
+    }
+
+    /* Which server to ask -- the same rule as the single route. */
+    query = strchr(req->path, '?');
+    if( query && query_param(query, "manifest", manifest_path, (int)sizeof(manifest_path)) )
+        source = io_server_ondemand_for_manifest(server, manifest_path);
+    else if( server->ondemand_count == 1 )
+        source = server->ondemand[0].failed_open ? NULL : &server->ondemand[0];
+    else
+        source = NULL;
+    if( !source )
+    {
+        res->status = 503;
+        return;
+    }
+
+    table_ids = calloc(count ? count : 1, sizeof(int));
+    archive_ids = calloc(count ? count : 1, sizeof(int));
+    flags = calloc(count ? count : 1, sizeof(int));
+    out_data = calloc(count ? count : 1, sizeof(uint8_t*));
+    out_sizes = calloc(count ? count : 1, sizeof(int));
+    out_formats = calloc(count ? count : 1, sizeof(int));
+    assert(table_ids);
+    assert(archive_ids);
+    assert(flags);
+    assert(out_data);
+    assert(out_sizes);
+    assert(out_formats);
+
+    for( uint32_t i = 0; i < count; i++ )
+    {
+        uint8_t const* rec = body + 4 + (size_t)i * 12;
+        table_ids[i] = (int)read_u32le(rec);
+        archive_ids[i] = (int)read_u32le(rec + 4);
+        flags[i] = (int)read_u32le(rec + 8);
+    }
+
+    PlatformXIO_Dat1OnDemandContainerFetchMany(
+        source->px, (int)count, table_ids, archive_ids, flags, out_data, out_sizes, out_formats);
+
+    total = 4;
+    for( uint32_t i = 0; i < count; i++ )
+        total += 4 + (size_t)(out_data[i] ? out_sizes[i] : 0);
+    out = malloc(total);
+    assert(out);
+    write_u32le(out, count);
+    at = 4;
+    for( uint32_t i = 0; i < count; i++ )
+    {
+        int const size = out_data[i] ? out_sizes[i] : 0;
+        write_u32le(out + at, (uint32_t)size);
+        at += 4;
+        if( size > 0 )
+            memcpy(out + at, out_data[i], (size_t)size);
+        at += (size_t)size;
+        if( out_data[i] )
+            server->served++;
+        else
+            server->failed++;
+        free(out_data[i]);
+    }
+    server->bytes_out += (long)total;
+
+    free(table_ids);
+    free(archive_ids);
+    free(flags);
+    free(out_data);
+    free(out_sizes);
+    free(out_formats);
+
+    res->status = 200;
+    snprintf(res->content_type, sizeof(res->content_type), "application/octet-stream");
+    res->body = out;
+    res->body_len = (int)total;
+    res->owns_body = 1;
+}
+
 /* --------------------------------------------------------------- /status */
 
 /*
@@ -1333,6 +1485,8 @@ handle_status(
         "<tr><th>GET /boot/&lt;path&gt;</th><td>a manifest or RevConfig INI</td></tr>\n"
         "<tr><th>GET /cache/dat1/&lt;table&gt;/&lt;archive&gt;</th>"
         "<td>one raw container off the LostCity server</td></tr>\n"
+        "<tr><th>POST /cache/dat1/batch</th>"
+        "<td>several raw containers, pipelined on the LostCity socket</td></tr>\n"
         "<tr><th>POST /io</th><td>an IOWire request batch</td></tr>\n"
         "</table>\n"
         "</body></html>\n");
@@ -1394,7 +1548,8 @@ render_error_page(
         { 400, "The server could not parse that request." },
         { 404, "No such path on this server." },
         { 405, "That method is not allowed on this path. This server answers "
-               "GET, HEAD and OPTIONS everywhere, and POST at /io." },
+               "GET, HEAD and OPTIONS everywhere, and POST at /io and "
+               "/cache/dat1/batch." },
         { 500, "The server failed while answering that." },
         { 503, "This server has no LostCity connection, so cache reads that "
                "need one cannot be answered." },
@@ -1501,6 +1656,11 @@ io_server_route(
     if( strcmp(req->method, "POST") == 0 && strncmp(req->path, "/io", 3) == 0 )
     {
         handle_io_batch(server, req, res);
+        return;
+    }
+    if( strcmp(req->method, "POST") == 0 && strncmp(req->path, "/cache/dat1/batch", 17) == 0 )
+    {
+        handle_ondemand_batch(server, req, res);
         return;
     }
     if( strcmp(req->method, "GET") == 0 || strcmp(req->method, "HEAD") == 0 )

@@ -77,6 +77,11 @@ static int g_plugin_back_widget = -1;
 static void
 app_plugin_panel_overlay_reset(struct App* app, uint32_t generation);
 
+/* Defined beside the rail below; opening the window publishes the rail before
+ * the executor comes up, so begin() sizes the page for the entry being shown. */
+static void
+app_plugin_rail_publish(struct App* app);
+
 /* Change the ONE page selection and its generation together. A platform event
  * queued by the page being left is stale from this statement onward. */
 static void
@@ -2580,7 +2585,15 @@ app_plugin_window_set_open(struct App* app, int open)
      * opens a second OS window.
      */
     if( app->plugin_panel_visible )
+    {
+        /* The rail first, so the executor's begin() reads the width of the
+         * page about to be shown. Bound first, it opened the pane at the
+         * LAST selection's width and the tick's publish corrected it a frame
+         * later: two window resizes per open, +360 then -40, which reads as
+         * the window flinching. */
+        app_plugin_rail_publish(app);
         app_plugin_exec_bind(app);
+    }
     else
         /*
          * The other half of that bind, and the reason it can be lazy.

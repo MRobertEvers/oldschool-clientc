@@ -33,16 +33,22 @@
  * 2 = midi, 3 = maps. That is `RSCache_Dat1DiskTable - 1`, and the conversion
  * is done here rather than at the call sites so table ids stay one namespace.
  *
- * ## Blocking, on purpose
+ * ## Parked, not blocking
  *
- * Every read blocks until its archive is complete. The dat1 half of
- * PlatformX_IO is synchronous -- `load_cache_item_dat1` returns the archive it
- * was asked for, and `PlatformX_IO_Pending` reports nothing outstanding -- and
- * a backend that yielded would need the whole async pending path the dat2/JS5
- * side carries. Against a server on this machine a fetch is well under a
- * millisecond; against a remote one this will stutter, which is the honest
- * symptom of a synchronous cache read over a network and not something to hide
- * behind a partial answer.
+ * The socket is a pipeline. The executor begins a fetch for every file it is
+ * handed in a pass (FetchBegin), the pump writes all of those requests and
+ * reads whatever chunks have arrived (Pump), and each read is answered when
+ * its file is complete (ArchiveLoadPoll) -- the same shape as the dat2 side's
+ * JS5 client, and for the same reason: a region rebuild names hundreds of
+ * files, and a wire that answered them one at a time made that hundreds of
+ * round trips in a line, on the frame thread. The chunk header names the file
+ * each chunk belongs to, so the server may answer in any order and the
+ * reassembly does not care.
+ *
+ * The blocking entry points (ArchiveLoad, ContainerFetch) remain for callers
+ * that have nowhere to park -- io_server's single-container route, and the
+ * nine jag archives a boot reads over HTTP before anything can be parked --
+ * and are a pump loop around the same table.
  */
 
 #include <stdint.h>
@@ -145,6 +151,24 @@ PlatformXIO_Dat1OnDemandContainerFetch(
     int* out_size);
 
 /**
+ * ContainerFetch over a list, resolved the same way and answered as one
+ * pipeline on the LostCity socket. Every out array holds `count` entries;
+ * an entry the server does not have (or a square the world does not ship)
+ * comes back NULL with size 0. Returns how many were served. NULL-safe in
+ * the same way as ContainerFetch: no on-demand source means nothing served.
+ */
+int
+PlatformXIO_Dat1OnDemandContainerFetchMany(
+    struct PlatformX_IO* px,
+    int count,
+    const int* table_ids,
+    const int* archive_ids,
+    const int* flags,
+    uint8_t** out_data,
+    int* out_sizes,
+    int* out_formats);
+
+/**
  * Open both wires and decode the versionlist's map_index.
  *
  * `web_port` of 0 means 80, `game_port` of 0 means 43594 -- the LostCity
@@ -167,9 +191,10 @@ PlatformXIOOnDemand_Free(struct PlatformXIOOnDemand* od);
 
 /**
  * Region -> map archive table, from the `map_index` file of the versionlist
- * archive. Borrowed; valid until Free. Never NULL on a live handle -- a
+ * archive. Borrowed; valid until Free. Never NULL on a handle from New -- a
  * versionlist that carried no map_index fails construction instead, because
- * every map square would silently resolve to "not shipped".
+ * every map square would silently resolve to "not shipped". NULL on a handle
+ * from NewWireOnly, which never read one.
  */
 struct RSCache_MapSquares*
 PlatformXIOOnDemand_MapSquares(struct PlatformXIOOnDemand* od);
@@ -207,6 +232,96 @@ PlatformXIOOnDemand_ContainerFetch(
     int table_id,
     int archive_id,
     int* out_format,
+    int* out_size);
+
+/**
+ * The file wire alone: no HTTP, no versionlist, no map index.
+ *
+ * For the loopback test and for a tool that only speaks the on-demand socket.
+ * A handle from here answers MapSquares with NULL, so a map read resolved
+ * through it is refused as "not shipped"; every other read works as on a full
+ * handle. Returns NULL when the game port cannot be reached.
+ */
+struct PlatformXIOOnDemand*
+PlatformXIOOnDemand_NewWireOnly(
+    const char* host,
+    int game_port);
+
+/**
+ * Several raw containers at once: ContainerFetch over a list, with every wire
+ * file requested before any is waited for. For io_server's batch route, so a
+ * browser's fan-out crosses the LostCity socket as one pipeline rather than
+ * as one blocking read per file. Each `out_data[i]` is malloc'd (caller
+ * frees) or NULL when the server does not have it. Returns how many were
+ * served.
+ */
+int
+PlatformXIOOnDemand_ContainerFetchMany(
+    struct PlatformXIOOnDemand* od,
+    int count,
+    const int* table_ids,
+    const int* archive_ids,
+    uint8_t** out_data,
+    int* out_sizes,
+    int* out_formats);
+
+/*
+ * ## The parked read
+ *
+ * What the executor uses. Begin answers at once whatever can be answered at
+ * once -- a hydration-cache hit, a jag archive, a refusal -- and otherwise
+ * puts the file on the wire and returns 0; Poll then answers 1 when the
+ * file has settled, with the archive or NULL for one the server does not
+ * have. Pump is what moves the wire between the two, called by the executor
+ * once per pass.
+ */
+
+/** 1 with `*out_archive` set (possibly NULL) when answered now; 0 when parked. */
+int
+PlatformXIOOnDemand_ArchiveLoadBegin(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    struct RSCache_Dat1DiskArchive** out_archive);
+
+/** 1 with `*out_archive` set (NULL for absent or failed) once settled; 0 while parked. */
+int
+PlatformXIOOnDemand_ArchiveLoadPoll(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    struct RSCache_Dat1DiskArchive** out_archive);
+
+/** Move the wire without waiting on it. */
+void
+PlatformXIOOnDemand_Pump(struct PlatformXIOOnDemand* od);
+
+/*
+ * The raw layer under the two above, for tables 1..4 only (the wire tables).
+ * FetchBegin queues the request (0) or refuses it (-1: bad id, or an endpoint
+ * shuttered after a timeout); FetchPending says whether it is still on the
+ * wire; FetchTake hands back the bytes AS SERVED -- version trailer and all,
+ * still gzipped -- once, per waiter, or NULL for a file the server does not
+ * have or the wire gave up on. Two Begins of one file share one request.
+ */
+int
+PlatformXIOOnDemand_FetchBegin(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id);
+
+int
+PlatformXIOOnDemand_FetchPending(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id);
+
+int
+PlatformXIOOnDemand_FetchTake(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    char** out_data,
     int* out_size);
 
 /**

@@ -1,0 +1,15 @@
+panel_icon.png -- where it came from.
+
+The Loot Tracker's rail icon is RuneLite's own, taken unmodified from
+
+    runelite-client/src/main/resources/net/runelite/client/plugins/
+        loottracker/panel_icon.png
+
+(20x20 RGBA, 892 bytes). RuneLite is BSD 2-Clause; the copyright is theirs and
+the licence text is reproduced at 3rd/RUNELITE_LICENSE for the assets this tree
+carries from it.
+
+Taken rather than redrawn because this plugin is a port of theirs and the icon
+is how a person who has used RuneLite recognises it. Nothing in the OSRS cache
+is a coin-pile-in-a-bag; the alternative was inventing a symbol for a feature
+that already has one people know.

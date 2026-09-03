@@ -8195,13 +8195,12 @@ ToriRSServer_ScriptCommand(
     /*
      * if_closesub(component) — the inverse of if_opensub, naming the slot.
      *
-     * Distinct from SS_OP_IF_CLOSE below, which is the reference's `if_close`
-     * and is specialised here to the chatbox modal because that is what every
-     * `[if_close]` caller in the tree means by it. A panel that mounted itself
-     * into `toplevel_osrs_stretch:mainmodal` has to name that component again
-     * to come out, and the note-the-mount bookkeeping the X and Escape read is
-     * done inside the encoder, so a close through here keeps CLOSE_MODAL right
-     * for free.
+     * Distinct from SS_OP_IF_CLOSE below, which closes every slot the player
+     * has. This one names ONE slot, which is what a panel that mounted itself
+     * with `if_opensub` uses to take that slot back without disturbing the
+     * others; the note-the-mount bookkeeping the X and Escape read is done
+     * inside the encoder, so a close through here keeps CLOSE_MODAL right for
+     * free.
      */
     case SS_OP_IF_CLOSESUB:
     {
@@ -8235,12 +8234,33 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /*
+     * if_close — the reference's `Player.closeModal()`: EVERY slot the player
+     * has open, main and side as well as the chatbox dialogue.
+     *
+     * This used to send one IF_CLOSESUB naming `chatbox:chatmodal` and nothing
+     * else, on the reasoning that a dialogue is what every `[if_close]` in the
+     * tree meant. That stopped being true the moment content grew panels of its
+     * own that close themselves: `[if_button,player_design:confirm]` is a bare
+     * `if_close`, and so is the line after `p_pausebutton` in
+     * `[queue,tutorial_ask_experience]`. Both mount into the gameframe's
+     * MAINMODAL slot, so both asked to close a slot this opcode never touched —
+     * the character creator's Confirm button did nothing at all, and because
+     * the panel stayed mounted the `[if_close,player_design]` notification
+     * never ran either, so the tutorial never advanced past it.
+     *
+     * Nothing about the dialogue case regresses: `WorldCloseModal` closes the
+     * chatbox modal and releases the parked script first, which is the whole of
+     * what this did before, and the main/side unmount below it is a no-op on a
+     * player who has neither.
+     *
+     * The resume buttons go first, not last: closing the main slot runs the
+     * interface's `[if_close]`, and that script may legitimately open the next
+     * dialogue and arm buttons of its own.
+     */
     case SS_OP_IF_CLOSE:
-        /* Unmounting is the whole message: the same on_sub_change hook that
-         * hid `chatbox:chatdisplay` on the way in brings it back when the
-         * modal has no sub again (script908's else branch). */
-        ToriRSServer_SendIfClosesub(srv->active_player, ToriRSServer_Ids()->com_chatbox_modal);
         player->resume_button_count = 0;
+        ToriRSServer_WorldCloseModal(srv);
         return 1;
 
     /*

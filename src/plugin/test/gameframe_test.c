@@ -387,6 +387,22 @@ fake_image_release(void* u, int slot)
     g_image[slot].h = 0;
 }
 
+/* The icon cache's engine end. A fake objtype has no inventory model, so the
+ * honest answer here is the same one a real client gives before one is
+ * resident: not yet. Tests that want an icon override this. */
+static int
+fake_obj_image(void* u, int slot, int obj_id, int count, int style, int* out_w, int* out_h)
+{
+    (void)u;
+    (void)slot;
+    (void)obj_id;
+    (void)count;
+    (void)style;
+    (void)out_w;
+    (void)out_h;
+    return 0;
+}
+
 static int
 fake_asset_read(void* u, char const* plugin, char const* name)
 {
@@ -689,6 +705,7 @@ main(void)
     e.image_publish_argb = fake_image_publish_argb;
     e.image_read = fake_image_read;
     e.image_release = fake_image_release;
+    e.obj_image = fake_obj_image;
     e.draw_image = fake_draw_image;
     e.hit_region = fake_hit_region;
     e.if_click = fake_if_click;

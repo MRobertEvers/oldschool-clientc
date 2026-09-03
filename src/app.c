@@ -221,17 +221,6 @@ enum
      */
     APP_ASYNC_STEP_LIMIT = 5000,
     /*
-     * How many scheduler passes a task will wait for assets it fanned out.
-     *
-     * A fan-out waits on RESIDENCY rather than on a child task, and residency
-     * is a condition a failed load never reaches (see Task_NpcMultiLoad). The
-     * bound is what turns "this part cannot be served" from a task parked for
-     * the rest of the session into one that carries on without it. Passes, not
-     * frames or milliseconds: it is the unit the waiter is actually counting,
-     * and a slow network spends them no faster than a fast one.
-     */
-    APP_ASSET_WAIT_PASSES = 600,
-    /*
      * Connection-loss thresholds. See the `net_lost` block in app.h.
      *
      * APP_NET_TIMEOUT_MS is the reference's own: Client-TS gives up 15s after
@@ -7416,33 +7405,6 @@ CreateTask_NpcMultiResolve(
     task->out_npc_id = out_npc_id;
     PT_INIT(&task->pt);
     return &task->task;
-}
-
-/*
- * Is every part of this npc's body resident?
- *
- * The wait condition for the fan-out below. A part id the config does not
- * carry, and a config that is not resident at all, are both "nothing to wait
- * for" rather than "not yet": the caller has already resolved the terminal
- * config, and a body with no parts is a legitimate record.
- */
-static int
-app_npc_models_resident(
-    struct App* app,
-    int npc_id)
-{
-    struct ToriRS_Npctype* npctype;
-
-    assert(app);
-    npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
-    if( !npctype )
-        return 1;
-    for( int i = 0; i < npctype->models_count; i++ )
-    {
-        if( npctype->models[i] >= 0 && !CacheProvider_ModelHas(app->provider, npctype->models[i]) )
-            return 0;
-    }
-    return 1;
 }
 
 /*

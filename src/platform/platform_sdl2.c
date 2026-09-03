@@ -1625,54 +1625,118 @@ sdl_window_frame_locked(struct PlatformWindow const* platform)
 }
 
 /*
- * Whether widening the window by grow_w and heightening it by grow_h, at its
- * current position, keeps the whole frame inside its display's usable area.
+ * Whether widening the window by grow_w and heightening it by grow_h keeps
+ * the whole frame inside its display's usable area -- in place, or after
+ * moving it left by *out_shift_x points (0 when it fits where it is).
  *
  * SDL_SetWindowSize keeps the top-left corner, so growth goes right and down;
  * a window near the display's edge grown for a 360-point page hangs that page
  * off the screen (Cocoa lets a window overhang the right edge and shoves one
- * back from the bottom), which is the "jerk" this policy exists to avoid.
- * Refused growth is not a failure: the pane opens inside the current frame
- * and the game area gives up the width.
- *
- * Unknown bounds (a driver with no display geometry) allow the growth: the
+ * back from the bottom), which is the "jerk" this policy exists to avoid. A
+ * frame that overhangs by less than the room on its LEFT slides left by
+ * exactly that much instead, so the whole window stays on the desk; growth
+ * downward is never traded for a move upward (the title bar is what a user
+ * reaches for). Unknown bounds (a driver with no display geometry) fit: the
  * one thing this must never do is refuse a window a real desk has room for.
  */
 static bool
-sdl_window_growth_fits(struct PlatformWindow const* platform, int grow_w, int grow_h)
+sdl_window_growth_fits(
+    struct PlatformWindow const* platform, int grow_w, int grow_h, int* out_shift_x)
 {
     SDL_Rect usable;
     int display;
-    int x = 0;
-    int y = 0;
-    int w = 0;
-    int h = 0;
+    int window_x = 0;
+    int window_y = 0;
+    int window_w = 0;
+    int window_h = 0;
     int border_top = 0;
     int border_left = 0;
     int border_bottom = 0;
     int border_right = 0;
+    int overflow_x;
 
     assert(platform);
+    assert(out_shift_x);
+    *out_shift_x = 0;
     if( grow_w <= 0 && grow_h <= 0 )
         return true;
-    if( sdl_window_frame_locked(platform) )
-        return false;
     display = SDL_GetWindowDisplayIndex(platform->window);
     if( display < 0 || SDL_GetDisplayUsableBounds(display, &usable) != 0 ||
         usable.w <= 0 || usable.h <= 0 )
         return true;
-    SDL_GetWindowPosition(platform->window, &x, &y);
-    SDL_GetWindowSize(platform->window, &w, &h);
+    SDL_GetWindowPosition(platform->window, &window_x, &window_y);
+    SDL_GetWindowSize(platform->window, &window_w, &window_h);
     /* Fails on drivers without decorations; the sizes are zeroed then. */
     (void)SDL_GetWindowBordersSize(
         platform->window, &border_top, &border_left, &border_bottom, &border_right);
     (void)border_top;
-    (void)border_left;
-    if( grow_w > 0 && x + w + grow_w + border_right > usable.x + usable.w )
+    if( grow_h > 0 &&
+        window_y + window_h + grow_h + border_bottom > usable.y + usable.h )
         return false;
-    if( grow_h > 0 && y + h + grow_h + border_bottom > usable.y + usable.h )
+    if( grow_w <= 0 )
+        return true;
+    overflow_x = window_x + window_w + grow_w + border_right - (usable.x + usable.w);
+    if( overflow_x <= 0 )
+        return true;
+    if( window_x - border_left - overflow_x < usable.x )
         return false;
+    *out_shift_x = overflow_x;
     return true;
+}
+
+/*
+ * The decision for one growth of the pane: grow the window by grow_w x grow_h
+ * (after sliding it left by *out_shift_x), or carve the pane out of the game
+ * area instead, leaving `game_w_if_refused` points of it.
+ *
+ * Refused when the window manager owns the frame or the display has no room
+ * -- unless the carve would take the game area below its floor (the window's
+ * minimum size, which is the canvas minimum). A game scaled down to fit
+ * beside its own plugin page is the worse outcome than a page hanging off
+ * the edge of the desk, where it can at least be dragged back; the floor is
+ * a floor.
+ */
+static bool
+sdl_chrome_growth_decide(
+    struct PlatformWindow const* platform,
+    int grow_w,
+    int grow_h,
+    int game_w_if_refused,
+    int* out_shift_x)
+{
+    int min_w = 0;
+    int min_h = 0;
+
+    assert(platform);
+    assert(out_shift_x);
+    *out_shift_x = 0;
+    if( grow_w <= 0 && grow_h <= 0 )
+        return false;
+    if( sdl_window_frame_locked(platform) )
+        return false;
+    if( sdl_window_growth_fits(platform, grow_w, grow_h, out_shift_x) )
+        return true;
+    *out_shift_x = 0;
+    SDL_GetWindowMinimumSize(platform->window, &min_w, &min_h);
+    return min_w > 0 && game_w_if_refused < min_w;
+}
+
+/* Apply a decided growth: the slide first, so the SIZE_CHANGED the resize
+ * raises reads a frame that is already where it will stay. */
+static void
+sdl_window_grow(struct PlatformWindow* platform, int grow_w, int grow_h, int shift_x)
+{
+    int window_x = 0;
+    int window_y = 0;
+    int window_w = 0;
+    int window_h = 0;
+
+    assert(platform);
+    SDL_GetWindowPosition(platform->window, &window_x, &window_y);
+    SDL_GetWindowSize(platform->window, &window_w, &window_h);
+    if( shift_x > 0 )
+        SDL_SetWindowPosition(platform->window, window_x - shift_x, window_y);
+    SDL_SetWindowSize(platform->window, window_w + grow_w, window_h + grow_h);
 }
 
 /* Under TORIRS_RESIZE_DEBUG, the decision the pane just made about the
@@ -1680,13 +1744,20 @@ sdl_window_growth_fits(struct PlatformWindow const* platform, int grow_w, int gr
  * "the game shrank" report apart from a bug. Per open/close, not per frame. */
 static void
 sdl_chrome_report(
-    struct PlatformWindow const* platform, char const* what, int asked_w, int window_delta_w)
+    struct PlatformWindow const* platform,
+    char const* what,
+    int asked_w,
+    int window_delta_w,
+    int shift_x)
 {
     assert(platform);
     assert(what);
     if( !getenv("TORIRS_RESIZE_DEBUG") )
         return;
-    if( window_delta_w != 0 )
+    if( window_delta_w != 0 && shift_x > 0 )
+        fprintf(stderr, "chrome pane: %s %d points -> window %+d, slid left %d to stay on the display\n",
+            what, asked_w, window_delta_w, shift_x);
+    else if( window_delta_w != 0 )
         fprintf(stderr, "chrome pane: %s %d points -> window %+d\n", what, asked_w, window_delta_w);
     else if( sdl_window_frame_locked(platform) )
         fprintf(stderr, "chrome pane: %s %d points -> window unchanged (maximised or fullscreen)\n",
@@ -1705,6 +1776,7 @@ PlatformWindow_ChromeRailOpen(
     int pixel_w = 0;
     int pixel_h = 0;
     int grow_w;
+    int shift_x = 0;
 
     (void)title;
     assert(platform);
@@ -1717,7 +1789,7 @@ PlatformWindow_ChromeRailOpen(
         return false;
     /* The rail is never given back (Close keeps it), so its growth is not
      * remembered -- only whether the window can take it right now. */
-    grow_w = sdl_window_growth_fits(platform, width, 0) ? width : 0;
+    grow_w = sdl_chrome_growth_decide(platform, width, 0, point_w - width, &shift_x) ? width : 0;
     platform->chrome_rail_point_w = width;
     platform->chrome_point_w = width;
     platform->chrome_page_grow_w = 0;
@@ -1733,7 +1805,7 @@ PlatformWindow_ChromeRailOpen(
     platform->chrome_rail_input.mouse_x = -1;
     platform->chrome_rail_input.mouse_y = -1;
     if( grow_w > 0 )
-        SDL_SetWindowSize(platform->window, point_w + grow_w, point_h);
+        sdl_window_grow(platform, grow_w, 0, shift_x);
     chrome_drawable_size(platform, &pixel_w, &pixel_h);
     if( !chrome_make_surface(platform, pixel_w, pixel_h) )
     {
@@ -1744,7 +1816,7 @@ PlatformWindow_ChromeRailOpen(
         return false;
     }
     platform->chrome_relayout_pending = true;
-    sdl_chrome_report(platform, "rail", width, grow_w);
+    sdl_chrome_report(platform, "rail", width, grow_w, shift_x);
     return true;
 }
 
@@ -1759,6 +1831,7 @@ PlatformWindow_ChromeOpen(
     int old_chrome_w;
     int next_chrome_w;
     int had_rail;
+    int shift_x = 0;
 
     (void)title; /* The pane shares the main window's title. */
     assert(platform);
@@ -1783,7 +1856,8 @@ PlatformWindow_ChromeOpen(
         int const want_w = next_chrome_w > old_chrome_w ?
             next_chrome_w - old_chrome_w : 0;
         int const want_h = height > point_h ? height - point_h : 0;
-        int const fits = sdl_window_growth_fits(platform, want_w, want_h);
+        int const fits = sdl_chrome_growth_decide(
+            platform, want_w, want_h, point_w - next_chrome_w, &shift_x);
         int const grow_w = fits ? want_w : 0;
         int const grow_h = fits ? want_h : 0;
 
@@ -1806,7 +1880,7 @@ PlatformWindow_ChromeOpen(
         platform->chrome_rail_have_input = false;
 
         if( grow_w > 0 || grow_h > 0 )
-            SDL_SetWindowSize(platform->window, point_w + grow_w, point_h + grow_h);
+            sdl_window_grow(platform, grow_w, grow_h, shift_x);
     }
     chrome_drawable_size(platform, &pixel_w, &pixel_h);
     if( !chrome_make_surface(platform, pixel_w, pixel_h) )
@@ -1819,7 +1893,7 @@ PlatformWindow_ChromeOpen(
         return false;
     }
     platform->chrome_relayout_pending = true;
-    sdl_chrome_report(platform, "page open", width, platform->chrome_page_grow_w);
+    sdl_chrome_report(platform, "page open", width, platform->chrome_page_grow_w, shift_x);
     return true;
 }
 
@@ -1836,6 +1910,7 @@ PlatformWindow_ChromeSetPageWidth(
     int next_chrome_w;
     int next_grow_w;
     int window_delta;
+    int shift_x = 0;
 
     assert(platform);
     if( page_width <= 0 || page_width > 4096 )
@@ -1864,14 +1939,17 @@ PlatformWindow_ChromeSetPageWidth(
         if( next_grow_w > page_width )
             next_grow_w = page_width;
         if( next_grow_w > old_grow_w &&
-            !sdl_window_growth_fits(platform, next_grow_w - old_grow_w, 0) )
+            !sdl_chrome_growth_decide(
+                platform, next_grow_w - old_grow_w, 0, point_w - next_chrome_w, &shift_x) )
             next_grow_w = old_grow_w;
     }
     window_delta = sdl_window_frame_locked(platform) ? 0 : next_grow_w - old_grow_w;
 
     platform->chrome_point_w = next_chrome_w;
     platform->chrome_page_grow_w = next_grow_w;
-    if( window_delta != 0 )
+    if( window_delta > 0 )
+        sdl_window_grow(platform, window_delta, 0, shift_x);
+    else if( window_delta < 0 )
         SDL_SetWindowSize(platform->window, point_w + window_delta, point_h);
     chrome_drawable_size(platform, &pixel_w, &pixel_h);
     if( !chrome_make_surface(platform, pixel_w, pixel_h) )
@@ -1883,7 +1961,7 @@ PlatformWindow_ChromeSetPageWidth(
         return false;
     }
     platform->chrome_relayout_pending = true;
-    sdl_chrome_report(platform, "page width", page_width, window_delta);
+    sdl_chrome_report(platform, "page width", page_width, window_delta, shift_x);
     platform->chrome_input.resized = 1;
     platform->chrome_input.width = PlatformWindow_ChromePageWidth(platform);
     platform->chrome_input.height = pixel_h;
@@ -1933,7 +2011,7 @@ PlatformWindow_ChromeClose(struct PlatformWindow* platform)
     platform->chrome_rail_visible = true;
     platform->chrome_point_w = sdl_chrome_rail_points(platform);
     platform->chrome_page_grow_w = 0;
-    sdl_chrome_report(platform, "page close, giving back", give_back_w, restore_w - point_w);
+    sdl_chrome_report(platform, "page close, giving back", give_back_w, restore_w - point_w, 0);
     if( restore_w != point_w && platform->window )
         SDL_SetWindowSize(platform->window, restore_w, point_h);
     {

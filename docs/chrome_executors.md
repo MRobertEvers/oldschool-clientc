@@ -190,8 +190,10 @@ retained protocol projection.
 
 The SDL window under it grows for the rail and the page only where it can:
 never while zoomed or fullscreen, and never past the right edge of the display
-it sits on. Otherwise the pane opens inside the current frame and the game area
-gives up the width, and Close gives back only what was grown
+it sits on (a frame with room on its left slides left by the overhang and
+grows). Otherwise the pane opens inside the current frame and the game area
+gives up the width, unless that would breach the game's floor; Close gives back
+only what was grown and never moves the window
 (`COMMON-WINDOW-003` in [`platform_quirks.md`](platform_quirks.md)).
 `TORIRS_RESIZE_DEBUG=1` prints each decision with its reason.
 

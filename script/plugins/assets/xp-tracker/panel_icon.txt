@@ -1,0 +1,16 @@
+panel_icon.png -- where it came from.
+
+The XP Tracker's rail icon is the one RuneLite's own XpTrackerPlugin builds its
+navigation button from, taken unmodified from
+
+    runelite-client/src/main/resources/skill_icons/overall.png
+
+(23x22 RGBA, 409 bytes) -- the "Overall" skill icon, which is what
+`XpTrackerPlugin.startUp` loads. RuneLite is BSD 2-Clause; the copyright is
+theirs and the licence text is reproduced at 3rd/RUNELITE_LICENSE for the
+assets this tree carries from it.
+
+Note that this is a RESOURCE of RuneLite's rather than a cache sprite: the
+client's own stats-tab skill icons live at sprite ids 197..222 (see
+script/plugins/assets/xp-drop-orbs/skills.png), and there is no "overall" among
+them -- the stats tab draws that panel's total as text.

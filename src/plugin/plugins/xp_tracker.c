@@ -367,12 +367,11 @@ xt_row_wanted(struct ToriRS_PluginCtx* ctx, int index)
  * which is the number the mean is built from.
  */
 static void
-xt_observe(struct ToriRS_PluginCtx* ctx, int index, int xp, uint64_t now)
+xt_observe(int index, int xp, uint64_t now)
 {
     struct XtSkill* skill;
     int gain;
 
-    assert(ctx);
     assert(index >= 0);
     assert(index < g_skill_count);
 
@@ -620,13 +619,12 @@ xt_row_index(char const* id)
 
 /** The one-line summary a skill's list row carries. */
 static void
-xt_row_text(struct ToriRS_PluginCtx* ctx, int index, char* out, size_t out_size)
+xt_row_text(int index, char* out, size_t out_size)
 {
     struct XtSkill const* skill = &g_skill[index];
     char gained[24];
     char rate[24];
 
-    assert(ctx);
     assert(out);
 
     xt_short(xt_gained(skill), gained, sizeof(gained));
@@ -673,7 +671,7 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
         if( !g_built_rows[i] )
             continue;
         xt_row_id(i, id, sizeof(id));
-        xt_row_text(ctx, i, text, sizeof(text));
+        xt_row_text(i, text, sizeof(text));
         g_api->panel_set_text(ctx, id, text);
         g_api->panel_set_value(ctx, id, g_skill[i].paused ? 0 : 1);
     }
@@ -928,6 +926,9 @@ xt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
     memset(&desc, 0, sizeof(desc));
     desc.title = "XP Tracker";
+    /* RuneLite's own, so a person who has used the plugin there recognises
+     * the row here. @see script/plugins/assets/xp-tracker/panel_icon.txt. */
+    desc.icon_asset = "panel_icon.png";
     desc.preferred_width = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
     g_api->panel_request(ctx, &desc);
 
@@ -991,6 +992,11 @@ xt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
          * hop is not a new session, and the saved-state reconciliation on the
          * way back in is what decides whether the xp that appeared meanwhile
          * was yours.
+         *
+         * The poll and the per-second half are skipped -- there is no stat
+         * table to read -- but the page REFRESH below is not, or the rows
+         * would go on saying "training" for as long as the panel stayed open
+         * on a logged-out client.
          */
         if( g_logged_in )
         {
@@ -998,24 +1004,29 @@ xt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
                 for( int i = 0; i < g_skill_count; i++ )
                     g_skill[i].paused = true;
             xt_state_save(ctx);
+            /* On the EDGE, not on the throttle: the moment the state changed
+             * is the moment the page has to stop disagreeing with it. */
+            g_next_panel_ms = 0;
         }
         g_logged_in = false;
         g_last_second_ms = now;
-        return TORIRS_PLUGIN_PASS;
     }
-    g_logged_in = true;
-
-    for( int i = 0; i < g_skill_count; i++ )
+    else
     {
-        int xp = 0;
-        if( g_api->stat_xp(ctx, i, &xp, NULL, NULL) )
-            xt_observe(ctx, i, xp, now);
-    }
+        g_logged_in = true;
 
-    if( now >= g_last_second_ms + XT_SECOND_MS )
-    {
-        xt_tick_second(ctx, now, now - g_last_second_ms);
-        g_last_second_ms = now;
+        for( int i = 0; i < g_skill_count; i++ )
+        {
+            int xp = 0;
+            if( g_api->stat_xp(ctx, i, &xp, NULL, NULL) )
+                xt_observe(i, xp, now);
+        }
+
+        if( now >= g_last_second_ms + XT_SECOND_MS )
+        {
+            xt_tick_second(ctx, now, now - g_last_second_ms);
+            g_last_second_ms = now;
+        }
     }
 
     if( now >= g_next_panel_ms )

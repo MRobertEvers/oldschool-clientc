@@ -4,20 +4,23 @@
  * belong to a WKWebView and whose sdl_chrome_test therefore cannot pass).
  *
  * The policy under test (platform_window.h, "Growth is a courtesy"):
- *   - the rail and the page grow the window only where the display has room
- *     to the right; otherwise the pane is carved out of the game area;
+ *   - the rail and the page grow the window only where the display has room:
+ *     in place, or after sliding the window left by the overhang when there
+ *     is room on that side; otherwise the pane is carved out of the game
+ *     area -- unless that would take the game area below its floor, where
+ *     the window grows off the edge of the display instead;
  *   - Close gives back exactly what was grown, floored at the canvas minimum
- *     plus the rail that stays;
+ *     plus the rail that stays, and never moves the window back;
  *   - a pane that changed inside the frame still relayouts the canvas: the
  *     pump pushes TORIRS_CMD_WINDOW_RESIZE with the game area, since no
  *     SIZE_CHANGED will;
  *   - PlatformWindow_SetWindowSize and the fixed-mode snap size the GAME AREA
  *     and keep the pane's points beside it.
  *
- * The dummy driver centres an undefined position on a 1024x768 display and
- * honours SDL_SetWindowPosition, which is what lets "no room" and "room" both
- * be staged; the maximised/fullscreen lock cannot be (the dummy driver never
- * sets those flags), so that arm is a code-reading guarantee only.
+ * The dummy driver has a 1024x768 display and honours SDL_SetWindowPosition
+ * and SDL_SetWindowSize, which is what lets every case be staged; the
+ * maximised/fullscreen lock cannot be (the dummy driver never sets those
+ * flags), so that arm is a code-reading guarantee only.
  */
 #include "platform/platform_window.h"
 
@@ -82,6 +85,15 @@ window_height(SDL_Window* window)
     return height;
 }
 
+static int
+window_x(SDL_Window* window)
+{
+    int x_position = 0;
+    int y_position = 0;
+    SDL_GetWindowPosition(window, &x_position, &y_position);
+    return x_position;
+}
+
 /* The LAST resize the pump pushed this poll, or -1 when it pushed none. */
 static int
 take_resize_width(struct ToriRS_CmdBus* bus)
@@ -107,6 +119,21 @@ poll_resize_width(struct PlatformWindow* platform, struct ToriRS_CmdBus* bus)
     return take_resize_width(bus);
 }
 
+/* Stage a window of `width` points with its left edge at `x_position`, and
+ * settle the pump so the next poll reports only what the pane does. */
+static void
+stage_window(
+    struct PlatformWindow* platform,
+    struct ToriRS_CmdBus* bus,
+    SDL_Window* window,
+    int x_position,
+    int width)
+{
+    SDL_SetWindowSize(window, width, INIT_H);
+    SDL_SetWindowPosition(window, x_position, 0);
+    (void)poll_resize_width(platform, bus);
+}
+
 int
 main(void)
 {
@@ -114,8 +141,7 @@ main(void)
     struct ToriRS_CmdBus bus;
     SDL_Window* window;
     SDL_Rect usable;
-    int right_edge_x;
-    int game_w;
+    int display_w;
 
     SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
     platform = PlatformWindow_New();
@@ -135,75 +161,114 @@ main(void)
         return 1;
     }
     printf("display usable %dx%d at %d,%d\n", usable.w, usable.h, usable.x, usable.y);
-    CHECK(usable.w >= 900 && usable.w < 500 + RAIL_POINTS + 360 + 360,
-        "the harness needs a display that fits one page but not two");
-    right_edge_x = usable.x + usable.w - window_width(window);
+    CHECK(usable.x == 0 && usable.y == 0 && usable.w >= 1000 && usable.w <= 1400,
+        "the harness is staged for the dummy driver's display");
+    display_w = usable.w;
 
-    /* ---- no room to the right: everything opens inside the frame -------- */
-    SDL_SetWindowPosition(window, right_edge_x, usable.y);
-    CHECK_EQ(window_width(window), 500, "the window sits flush with the display's right edge");
-    (void)poll_resize_width(platform, &bus);
+    /* ---- A. no room anywhere: the window spans the display ------------- */
+    stage_window(platform, &bus, window, 0, display_w);
 
     CHECK(PlatformWindow_ChromeRailOpen(platform, RAIL_POINTS, "Plugins"), "rail opens");
-    CHECK_EQ(window_width(window), 500, "a rail with no room to the right does not widen the window");
+    CHECK_EQ(window_width(window), display_w, "a rail with no room does not widen the window");
+    CHECK_EQ(window_x(window), 0, "nor move it");
     CHECK_EQ(PlatformWindow_ChromeWidth(platform), RAIL_POINTS, "the rail still gets its full allocation");
-    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS,
+    CHECK_EQ(poll_resize_width(platform, &bus), display_w - RAIL_POINTS,
         "the pump relayouts the canvas to the game area the rail left");
 
     CHECK(PlatformWindow_ChromeOpen(platform, 360, 480, "Plugins"), "page opens");
-    CHECK_EQ(window_width(window), 500, "a page with no room to the right does not widen the window");
+    CHECK_EQ(window_width(window), display_w, "a page with no room does not widen the window");
     CHECK_EQ(window_height(window), INIT_H, "nor heighten it: both axes are decided together");
     CHECK_EQ(PlatformWindow_ChromePageWidth(platform), 360, "the page still gets its full allocation");
-    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS - 360,
+    CHECK_EQ(poll_resize_width(platform, &bus), display_w - RAIL_POINTS - 360,
         "the pump relayouts the canvas to the game area the page left");
 
     CHECK(PlatformWindow_ChromeSetPageWidth(platform, 320), "page narrows");
-    CHECK_EQ(window_width(window), 500, "narrowing an unfunded page does not move the window");
-    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS - 320,
+    CHECK_EQ(window_width(window), display_w, "narrowing an unfunded page does not move the window");
+    CHECK_EQ(poll_resize_width(platform, &bus), display_w - RAIL_POINTS - 320,
         "the game area takes the width the page gave up");
 
     PlatformWindow_ChromeClose(platform);
-    CHECK_EQ(window_width(window), 500, "closing a page that never grew the window never shrinks it");
+    CHECK_EQ(window_width(window), display_w, "closing a page that never grew the window never shrinks it");
     CHECK(!PlatformWindow_ChromeIsOpen(platform), "the page is closed");
     CHECK_EQ(PlatformWindow_ChromeWidth(platform), RAIL_POINTS, "the rail stays");
-    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS,
+    CHECK_EQ(poll_resize_width(platform, &bus), display_w - RAIL_POINTS,
         "the game area gets the page's width back");
 
-    /* ---- room to the right: attached grow, and Close gives it back ------ */
-    SDL_SetWindowPosition(window, usable.x, usable.y);
-    (void)poll_resize_width(platform, &bus);
-    game_w = 500 - RAIL_POINTS;
+    /* ---- B. room in place: attached grow, and Close gives it back ------- */
+    stage_window(platform, &bus, window, 0, 500);
 
     CHECK(PlatformWindow_ChromeOpen(platform, 360, 480, "Plugins"), "page opens with room");
     CHECK_EQ(window_width(window), 500 + 360, "a page with room widens the window by the page");
+    CHECK_EQ(window_x(window), 0, "and leaves it where it was");
     CHECK_EQ(window_height(window), 480, "and heightens it to the page's request");
-    CHECK_EQ(poll_resize_width(platform, &bus), game_w, "the game area is untouched by a funded page");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS, "the game area is untouched by a funded page");
 
     CHECK(PlatformWindow_ChromeSetPageWidth(platform, 320), "funded page narrows");
     CHECK_EQ(window_width(window), 500 + 320, "the window follows a funded page narrower");
-    CHECK_EQ(poll_resize_width(platform, &bus), game_w, "the game area is still untouched");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS, "the game area is still untouched");
     CHECK(PlatformWindow_ChromeSetPageWidth(platform, 360), "funded page widens");
     CHECK_EQ(window_width(window), 500 + 360, "and wider, while there is room");
-    CHECK_EQ(poll_resize_width(platform, &bus), game_w, "the game area is still untouched");
-
-    /* The window was moved (or the display shrank) under an open page: the
-     * next widening has no room, so the page takes it from the game; the
-     * next narrowing keeps the game where it is and gives the window back. */
-    SDL_SetWindowPosition(window, usable.x + usable.w - window_width(window), usable.y);
-    CHECK(PlatformWindow_ChromeSetPageWidth(platform, 400), "page widens with no room");
-    CHECK_EQ(window_width(window), 500 + 360, "a widening with no room leaves the window alone");
-    CHECK_EQ(PlatformWindow_ChromePageWidth(platform), 400, "and the page still gets its allocation");
-    CHECK_EQ(poll_resize_width(platform, &bus), game_w - 40, "the game area pays the difference");
-    CHECK(PlatformWindow_ChromeSetPageWidth(platform, 300), "page narrows after an unfunded widening");
-    CHECK_EQ(window_width(window), 500 + 260, "the window gives back only what it grew");
-    CHECK_EQ(poll_resize_width(platform, &bus), game_w - 40, "and the game area stays where it was");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS, "the game area is still untouched");
 
     PlatformWindow_ChromeClose(platform);
     CHECK_EQ(window_width(window), 500, "Close gives back exactly what was grown");
-    CHECK_EQ(poll_resize_width(platform, &bus), game_w, "and the game area is where it started");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS, "and the game area is where it started");
 
-    /* ---- the user narrowed the window while a funded page was open ------ */
-    SDL_SetWindowPosition(window, usable.x, usable.y);
+    /* ---- C. room only after a slide: the frame moves left by the overhang */
+    stage_window(platform, &bus, window, display_w - 600, 500);
+
+    CHECK(PlatformWindow_ChromeOpen(platform, 360, 480, "Plugins"), "page opens near the right edge");
+    CHECK_EQ(window_width(window), 500 + 360, "the page is funded in full");
+    CHECK_EQ(window_x(window), display_w - 860, "by sliding the window left exactly the overhang");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS, "the game area is untouched");
+
+    CHECK(PlatformWindow_ChromeSetPageWidth(platform, 400), "funded page widens at the edge");
+    CHECK_EQ(window_width(window), 500 + 400, "the widening is funded too");
+    CHECK_EQ(window_x(window), display_w - 900, "with another slide of exactly its overhang");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS, "the game area is still untouched");
+
+    CHECK(PlatformWindow_ChromeSetPageWidth(platform, 300), "funded page narrows at the edge");
+    CHECK_EQ(window_width(window), 500 + 300, "the window gives back the difference");
+    CHECK_EQ(window_x(window), display_w - 900, "and stays where the slides put it");
+
+    PlatformWindow_ChromeClose(platform);
+    CHECK_EQ(window_width(window), 500, "Close gives back what was grown");
+    CHECK_EQ(window_x(window), display_w - 900, "and never slides the window back");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS, "the game area is where it started");
+
+    /* ---- D. no room on either side, game area above its floor: it pays -- */
+    stage_window(platform, &bus, window, 0, display_w - 100);
+
+    CHECK(PlatformWindow_ChromeOpen(platform, 360, 480, "Plugins"), "page opens with no room on either side");
+    CHECK_EQ(window_width(window), display_w - 100, "the window is left alone");
+    CHECK_EQ(window_x(window), 0, "and not moved");
+    CHECK_EQ(poll_resize_width(platform, &bus), display_w - 100 - RAIL_POINTS - 360,
+        "the game area pays for the page");
+    CHECK(PlatformWindow_ChromeSetPageWidth(platform, 300), "an unfunded page narrows");
+    CHECK_EQ(window_width(window), display_w - 100, "nothing to give back: the window is left alone");
+    CHECK_EQ(poll_resize_width(platform, &bus), display_w - 100 - RAIL_POINTS - 300,
+        "the game area takes the width back");
+    PlatformWindow_ChromeClose(platform);
+    CHECK_EQ(window_width(window), display_w - 100, "Close has nothing to give back");
+    CHECK_EQ(poll_resize_width(platform, &bus), display_w - 100 - RAIL_POINTS,
+        "the game area has the page's width back");
+
+    /* ---- E. no room, and the carve would breach the floor: grow anyway -- */
+    PlatformWindow_SetCanvasFollowsWindow(platform, &bus, true, display_w - 100 - RAIL_POINTS - 200, MIN_H);
+    (void)take_resize_width(&bus);
+    CHECK(PlatformWindow_ChromeOpen(platform, 360, 480, "Plugins"), "page opens against the floor");
+    CHECK_EQ(window_width(window), display_w - 100 + 360,
+        "a carve below the floor grows the window off the display instead");
+    CHECK_EQ(window_x(window), 0, "without moving it");
+    CHECK_EQ(poll_resize_width(platform, &bus), display_w - 100 - RAIL_POINTS,
+        "the game area keeps its width");
+    PlatformWindow_ChromeClose(platform);
+    CHECK_EQ(window_width(window), display_w - 100, "Close gives the overhang back");
+    PlatformWindow_SetCanvasFollowsWindow(platform, &bus, true, MIN_W, MIN_H);
+    (void)take_resize_width(&bus);
+
+    /* ---- F. the user narrowed the window while a funded page was open --- */
+    stage_window(platform, &bus, window, 0, 500);
     CHECK(PlatformWindow_ChromeOpen(platform, 360, 480, "Plugins"), "page opens again");
     CHECK_EQ(window_width(window), 500 + 360, "funded again");
     SDL_SetWindowSize(window, 520, INIT_H);
@@ -213,7 +278,7 @@ main(void)
         "Close never shrinks below the canvas floor plus the rail that stays");
     (void)poll_resize_width(platform, &bus);
 
-    /* ---- explicit sizes are the GAME AREA; the pane keeps its points ---- */
+    /* ---- G. explicit sizes are the GAME AREA; the pane keeps its points - */
     PlatformWindow_SetWindowSize(platform, 600, INIT_H);
     CHECK_EQ(window_width(window), 600 + RAIL_POINTS, "SetWindowSize sizes the game area beside the rail");
     CHECK_EQ(poll_resize_width(platform, &bus), 600, "and the canvas is that game area");

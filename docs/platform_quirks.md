@@ -98,14 +98,19 @@ one lane only.
 - **Behavior:** Opening the rail or a page reserves its points at the window's
   trailing edge. The window is widened by that amount only when the frame is
   the user's (not maximised, zoomed, or fullscreen) and the display it sits on
-  has that much room to its right; otherwise the pane opens inside the current
-  frame and the game area gives up the width. Close gives back exactly what
-  was grown, never below the canvas floor plus the rail, and nothing while the
-  frame is maximised. A pane that changed inside the frame relayouts the canvas
-  itself (the SDL pump pushes `TORIRS_CMD_WINDOW_RESIZE` with the game area,
-  since no `SIZE_CHANGED` arrives). `PlatformWindow_SetWindowSize` and the
-  fixed-mode snap size the game area and keep the pane's points beside it, and
-  neither touches a maximised window.
+  has the room: in place, or after sliding the window left by exactly the
+  overhang when there is room on that side. Otherwise the pane opens inside
+  the current frame and the game area gives up the width -- unless that would
+  take the game area below its floor (the window minimum), where the window
+  grows off the display instead, since a game scaled down beside its own
+  plugin page is the worse outcome. Close gives back exactly what was grown,
+  never below the canvas floor plus the rail, never moves the window back, and
+  does nothing while the frame is maximised. A pane that changed inside the
+  frame relayouts the canvas itself (the SDL pump pushes
+  `TORIRS_CMD_WINDOW_RESIZE` with the game area, since no `SIZE_CHANGED`
+  arrives). `PlatformWindow_SetWindowSize` and the fixed-mode snap size the
+  game area and keep the pane's points beside it, and neither touches a
+  maximised window.
 - **Failure mode:** The SDL backend grew the window unconditionally: a
   maximised window on macOS jumped out of maximised every time the plugin tab
   or the fixed-mode plugin strip opened (Cocoa treats a programmatic resize of
