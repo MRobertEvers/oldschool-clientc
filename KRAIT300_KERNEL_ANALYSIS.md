@@ -32,26 +32,237 @@ Yes. The findings do three things for this tree:
    cannot pay. The projection block is latency-bound (≈65-cycle chain vs ≈45 NEON issue
    slots) and for a four-vertex tile the vector body is ~12 % of the measured per-model
    time — the remaining ~500 cycles per tile are shell. The K16 sort block is at its
-   load-port floor (48 loads per 8 faces ≈ 6 cycles/face) and is ~15–20 % of the sort.
-   Sections 3–4.
+   load-port floor (48 loads per 8 faces ≈ 6 cycles/face); **measured at 29 % of the
+   sort's cycles and 39 % of its D-cache refills** (§M.3), more than the 15–20 %
+   estimated. Sections 3–4.
 3. **They name specific, cheap, bit-exact edits** with a cycle number attached. The
-   ranked list:
+   ranked list, re-ordered by what the profile says is actually there:
 
 | # | change | kernel | est. gain | conf. | grounded in |
 |---|---|---|---|---|---|
-| 1 | Do the textured block-end divide (`RECIP`/`UQUOT`/`WRAPQ`) as one NEON vector instead of five ARM↔VFP crossings with VFP/NEON register mixing and two serial scalar chains | tex asm | −25..35 cycles per 8-px block (~20 %) | high | §1.3 |
-| 2 | `ldm`/`stm` the textured row advance and row head (7 load-add-store triples → 4 `ldm` + 3 `stm`) | tex asm | −12..15 cycles/row | high | §4.1 |
-| 3 | Keep `shift` in r7 (fold `have_cur` into control flow) — removes 3 frame reloads from the head of every block's dependency chain | tex asm | −6..9 cycles/block | high | §3.1, §1.3 |
-| 4 | Stagger the six scene SoA arrays so they do not share L0/L1 sets (they are power-of-two ×4 bytes each, so jemalloc almost certainly returns them congruent mod 4 KB) | scene alloc | +3 cycles per conflicting load removed; ~30–50 µs/frame | med (verify alignment first) | §3.1–3.2 |
-| 5 | `vmlaq_s32`/`vmlsq_s32` for the six rotation mul+add pairs if clang did not fuse them | projection | −6 NEON ops of ~45 per block; shortens the chain by ~9 cycles | med (check disasm; measure `vmla.i32` on Krait) | §1.1 |
-| 6 | Sort prefetch distance: `+32` faces is exactly one line ahead; move to 2–4 lines and issue once per line, not per block | sort | L2-resident: 28.5 → 25.2 cyc/line; DRAM: 168 → 45–66 | high | §4.4 |
-| 7 | Drop the two `mov`s from the flat/gouraud row loop's critical path (`mov` is 2 cycles and not eliminated) | flat/gouraud asm | −2..4 cycles/row | high | §1.4, §5 |
-| 8 | Make the flat opaque fill's 4..7 / ≥8 split branchless (clamp the pair-loop stop) | flat asm | −1 mispredict (13 cycles) per width-threshold crossing per triangle | med | §2.1 |
-| 9 | Prefetch the next textured block's first texel and the next row's framebuffer line | tex/alpha asm | hides one L2 miss (32) per block; one DRAM miss (355) per RMW row | med | §4.4, §3.1 |
-| 10 | Two tiles per projection call (two independent 4-vertex chains in one window) | projection shell | halves the ~500-cycle shell per tile and overlaps two 65-cycle chains | med, structural | §1.5, §1.2 |
-| 11 | Replace the scalar tail's `__aeabi_idiv` with an exact reciprocal-plus-correction | projection | ~35 µs/frame | high, small | §5.1 |
+| 1 | Run `ToriRS_FrameNextCommand` once, not once per thread: the worker replays the frame bus to find its models (2.32 ms/frame of CPU across both threads, 20 % of the worker's D-refills and I-misses). Publish the translated command with the worker's result, as `platform_quirks.md` already proposes | dual-core lane | −1.0..1.3 ms/frame of worker CPU; shortens the draw's wait (1.45 ms/frame) by the same | high | §M.1, §M.2 |
+| 2 | Take the two `dmb ish` out of the draw thread's poll loop in `dualcore_source_take` (each poll = 2 barriers ≈ 100–160 cycles; ≤ 4096 polls before it yields). Poll with a plain load, barrier once on success | dual-core lane | draw-thread cycles only; the wall-clock wait is the worker's to fix (item 1) | high | §4.5, §M.5 |
+| 3 | Priority partition + bitonic network: 27 % of the sort's cycles and **56 % of its branch mispredicts** (short data-dependent inner loops; ~4.7 K mispredicts/frame on the worker alone). Fixed-N network bodies and a branch-free bucket write | sort | −0.2..0.3 ms/frame | high (measured), med (fix) | §M.3, §2.1 |
+| 4 | Stagger the scene SoA arrays (or accept a write-through L1 and prefetch): the sort's interleave pass reading `screen_{x,y,z}` is **23 % of the sort's D-refills** on its own | scene alloc / sort | one L2 hit (32) per 4 vertices ≈ 0.1 ms/frame | med — mechanism still to be split (§M.3) | §3.1–3.2, §3.5 |
+| 5 | Sort prefetch distance: `+32` faces is exactly one line ahead; move to 2–4 lines and issue once per line, not per block. The K16 gather now measured at 39 % of the sort's refills | sort | L2-resident: 28.5 → 25.2 cyc/line; DRAM: 168 → 45–66 | high | §4.4, §M.3 |
+| 6 | Do the textured block-end divide (`RECIP`/`UQUOT`/`WRAPQ`) as one NEON vector instead of five ARM↔VFP crossings with VFP/NEON register mixing and two serial scalar chains | tex asm | −25..35 cycles per 8-px block (~20 %) | high | §1.3 |
+| 7 | `ldm`/`stm` the textured row advance and row head (7 load-add-store triples → 4 `ldm` + 3 `stm`) | tex asm | −12..15 cycles/row | high | §4.1 |
+| 8 | Keep `shift` in r7 (fold `have_cur` into control flow) — removes 3 frame reloads from the head of every block's dependency chain | tex asm | −6..9 cycles/block | high | §3.1, §1.3 |
+| 9 | Drop the two `mov`s from the flat/gouraud row loop's critical path (`mov` is 2 cycles and not eliminated) | flat/gouraud asm | −2..4 cycles/row | high | §1.4, §5 |
+| 10 | Make the flat opaque fill's 4..7 / ≥8 split branchless (clamp the pair-loop stop) | flat asm | −1 mispredict (13 cycles) per width-threshold crossing per triangle | med | §2.1 |
+| 11 | Prefetch the next textured block's first texel and the next row's framebuffer line | tex/alpha asm | hides one L2 miss (32) per block; one DRAM miss (355) per RMW row | med | §4.4, §3.1 |
+| 12 | Two tiles per projection call (two independent 4-vertex chains in one window) | projection shell | shell (`ToriDraw_ProjectWithVTable`, 0.51 ms/frame) is now measured at 42 % of the projection family's time | med, structural | §1.5, §1.2, §M.4 |
+| — | ~~`vmlaq_s32`/`vmlsq_s32` for the rotation pairs~~ | projection | **retired**: the shipped kernel already has `vmla.i32`/`vmls.i32` — clang fused them (§M.4) | — | — |
+| — | ~~Exact tail without `__aeabi_idiv`~~ | projection | **demoted**: the scalar tail is ~6 % of the kernel's samples; `__divsi3`+`__udivsi3`+`__aeabi_idiv` total 0.11 ms/frame process-wide and the tail is only part of that | low | §M.4 |
 
-Items 1–3 and 7–9 are on the soft3d lane only. Items 4–6, 10–11 touch the client frame.
+Items 6–11 are on the soft3d lane only. Items 1–5 and 12 touch the client frame; items
+1–3 did not exist as estimates before the profile.
+
+---
+
+## M. Measured on the phone, 2026-09-03
+
+### M.1 Method
+
+- Device: XT1060, Android 5.1, both Krait cores online at 1.728 GHz for the whole run
+  (`/sys/devices/system/cpu/online` = `0-1`; cpu1 came up when the client started).
+- Binary: the OPT=1 `libtorirs.so` in `android/src/main/jniLibs/armeabi-v7a` (built
+  2026-09-03 00:18, `.symtab` present, no frame pointers — flat histograms only). The
+  PROFILE=1 build of HEAD **does not boot on this phone** — see §M.6.
+- Scene: `manifest_osrs239_phone.ini` against the local `torirsserver`, account `testc`,
+  Lumbridge, camera still, no input. **Plugins off** (`TORIRS_PLUGINS=0`) and the saved
+  15 fps "Limit Framerate" option (`preferences.ini` `5=15`) cleared so the loop runs at
+  the pacer's 20 ms as in every earlier profile (49.06 fps by the `swap:` cadence, 300
+  swaps per 6.115 s → **490 frames per 10 s window**). `--gles2-dualcore` on, as shipped.
+- Recorder: `simpleperf` via `run-as`, whole process, 10 s each, ≤ 2 PMU events per run:
+  `kr1` cpu-clock 1 kHz (10,145 samples, 0 lost); `kr2` `L1-dcache-load-misses` +
+  `branch-misses`; `kr3` `L1-icache-load-misses` + `cpu-cycles`; four `stat --per-thread`
+  passes for the totals below. Note the Krait event `L1-dcache-load-misses` counts the
+  same thing as `L1-dcache-store-misses` (61.5 M vs 60.9 M over 10 s): it is
+  `L1D_CACHE_REFILL`, total refills, not load misses.
+- ms/frame = samples / 490 at 1 kHz.
+
+### M.2 The frame
+
+The process used 1.01 cores (10,145 samples in 10 s). Two threads matter:
+
+| thread | samples | **CPU ms/frame** | cycles/frame | instr/frame | **IPC** |
+|---|---:|---:|---:|---:|---:|
+| draw (`Thread-8296`) | 6,805 | **13.9** | 22.35 M (12.9 ms @1.728) | 10.50 M | **0.47** |
+| worker (`gles2-stage`) | 3,023 | **6.2** | 8.42 M (4.9 ms) | 5.35 M | **0.64** |
+| AudioTrack | 297 | 0.6 | | | |
+
+Against `FINDINGS §1.1`'s 2.55 sustained IPC, the draw thread issues at 18 % of the
+core's rate and the worker at 25 %. The PMU says where the rest went:
+
+| per frame | draw | worker | cost model (FINDINGS) | draw cycles | worker cycles |
+|---|---:|---:|---|---:|---:|
+| instructions at 2.5 IPC | 10.50 M | 5.35 M | §1.1 | 4.2 M | 2.1 M |
+| branches / mispredicts | 843 K / **72.3 K (8.6 %)** | 367 K / **25.8 K (7.0 %)** | 13.4 each (§2.1) | 0.97 M | 0.35 M |
+| L1D loads / refills | 4.66 M / **125.6 K (2.7 %)** | 2.08 M / **44.6 K (2.1 %)** | 32 if L2 hit (§3.2) | ≥ 4.0 M | ≥ 1.4 M |
+| L1I misses | 54.6 K | 30.2 K | 32 if L2 hit (§3.9) | 1.7 M | 1.0 M |
+| **explained** | | | | **10.9 M of 22.35 M** | **4.9 M of 8.42 M** |
+
+The unexplained half is (a) refills that go to DRAM at 355 rather than L2 at 32 — 10 K of
+the worker's 44.6 K would close its gap alone — and (b) on the draw thread, the poll loop
+in §M.5 (2.5 M cycles). I-miss rate is 0.005 per instruction on both threads, well under
+the 0.03 where `§3.9` says fetch becomes the limiter: **the frame is data-miss and
+branch-miss bound, not fetch bound.** `stalled-cycles-frontend/backend` read 0 on this
+PMU; they are not implemented.
+
+**Draw thread, top of the flat histogram (ms/frame):**
+
+| symbol | ms | note |
+|---|---:|---|
+| `bucket_paint_world` | 1.89 | 18 % of the draw's branch mispredicts on its own |
+| `dualcore_source_take` | **1.45** | the draw waiting for / claiming the worker's results — §M.5 |
+| `ToriRS_FrameNextCommand` | 1.06 | 11.5 % of the draw's I-misses |
+| `World_CycleRegisterPainterDynamics` | 0.74 | 9.7 % of D-refills |
+| `emit_walk_node` | 0.72 | 7.5 % of D-refills |
+| face sort family (draw-side share) | 0.65 | models the draw claimed because the worker was behind |
+| `gles2_dispatch` + `gles2_render_frame_commands` | 0.83 | 12 % of the draw's I-misses |
+| projection family (draw-side share) | 0.47 | |
+| `__memcpy_base` | 0.37 | **15 % of the draw's D-refills** — the largest single refill source |
+| `gles2_bake_pose_vertices` + `trspk_toridraw_bake_face` + `gles2_painter_push_resident` | 0.78 | |
+| kernel | 0.64 | futex / scheduler |
+| `libGLESv2_adreno` | 0.62 | |
+| `__findenv` | 0.035 | but 3.5 % of the draw's branch mispredicts: something `getenv`s every frame |
+
+**Worker, top of the histogram (ms/frame):**
+
+| symbol | ms | note |
+|---|---:|---|
+| face sort + cull family | **2.23** | `…small_general` alone 2.01; 41 % of the worker's D-refills, 33 % of its mispredicts, 26 % of its I-misses |
+| `ToriRS_FrameNextCommand` | **1.26** | the worker replays the frame bus; 20 % of its D-refills, 15 % of mispredicts, 19 % of I-misses |
+| projection family | **1.21** | kernel 0.52 (`notex_noyaw_noclip`), shell `ToriDraw_ProjectWithVTable` 0.35, tile4 0.09, clip 0.09, rest 0.16 |
+| `GLES2DualCoreStage_ComputeModel` | 0.49 | |
+| `ToriDraw_AnimApplyTransform` (+ animate) | 0.47 | 13 % of the worker's mispredicts |
+| `__udivsi3` + `__aeabi_idiv` | 0.07 | |
+
+**Kernel families, both threads together:** sort + cull **2.88 ms/frame** (13.9 % of all
+samples; the 09-01 single-thread figure was 12.3 %), projection **1.68 ms/frame**
+(kernel 0.70, shell 0.51, tile4 0.13, clip 0.13, rest 0.21). `ToriRS_FrameNextCommand`
+**2.32 ms/frame** — run once per thread, it is now the largest single line item in the
+process.
+
+### M.3 Inside the sort (`toridraw_compute_projected_face_order_small_general`, 16.4 KB)
+
+No line tables in this build, so the function was bucketed by address and each hot range
+read back from the disassembly (`kr3` cycles; `kr2` refills and mispredicts; shares are
+of the function's own samples):
+
+| phase | address range (in `.so`) | cycles | D-refills | branch-miss | what the disassembly shows |
+|---|---|---:|---:|---:|---|
+| K16 gather + winding block | `4e36f0–4e3aef` | **29 %** | **39 %** | 7 % | 24 `ldrsh` + 24 `vld1.16 {d}` gathers, `vuzp`, `vmull/vmlsl.s16`, `vcgt/vbsl`, 2 `vst1` — the block of §4.1, as counted |
+| interleave + bound pass (and K16 rebuild) | `4e32f0–4e36ef` | 9 % | **23 %** | 5 % | `vld1 ×3` from `screen_{x,y,z}` → `vsub`, `vmovn`, `vst4.16`, `vmin/vmax`; the three loads take 13 % of the whole function's refills |
+| compaction + radix (count, prefix, scatter) | `4e42f0–4e46ef` | 21 % | 19 % | 14 % | compaction loop `ldr/str/cmn/addne/subs/bne` ≈ 9 % of cycles by itself (hottest single instruction in the function); radix `ldr/add/str count[]` chains |
+| priority partition | `4e48f0–4e4cef` | **20 %** | 6.5 % | **21 %** | per key: `ldrb` packed priority, two `ldr/add/str` read-modify-writes on `count[]`/`depth_sum[]`, `strh`, one data-dependent `bhi` |
+| bitonic network (N ≤ 64) | `4e4cf0–4e4eef` | 7.5 % | 1.5 % | **35 %** | per-layer `vld1/vmin/vmax/vbit/vst1` in memory; inner loops of 1–4 trips whose counts change with every model |
+| per-model setup, dispatch, emit | rest | ~14 % | ~11 % | ~18 % | includes the `getenv`-cached static checks (settled, cold) |
+
+What this changes:
+
+- **The block is bigger than estimated** (29 % vs 15–20 %) and its cost is refills, not
+  issue slots: 39 % of the function's refills land on the 24 `vld1.16` gathers from
+  `sm_vertex_xyz16` (`r10 + idx*8`). S1 (prefetch distance) and the index-load halving
+  (S3) are both still right, but S1 is the one that touches the measured cost.
+- **The interleave pass is the S2 evidence** — 13 % of the sort's refills are its three
+  `screen_{x,y,z}` loads, reading what the projection wrote microseconds earlier. Two
+  mechanisms fit: the L0/L1 set conflict of §4.2-S2, or a write-through, no-allocate L1
+  (`FINDINGS §3.5`'s inference) under which a just-written array is *never* in L1 for its
+  first reader regardless of alignment. They are told apart by one experiment: pad the
+  three allocations by `k*64` and re-record `kr2`; if the interleave's refills do not
+  move, it is write-no-allocate and the fix is a `pld` two lines ahead in the interleave
+  loop (or having the projection kernel write the interleaved form directly).
+- **Two phases the estimates ignored carry 27 % of the cycles and 56 % of the
+  mispredicts:** the priority partition and the bitonic network. At 13.4 cycles each
+  (`§2.1`), the sort's 32.5 % share of the worker's 25.8 K mispredicts is 8.4 K
+  mispredicts/frame ≈ 112 K cycles ≈ 0.065 ms — small in cycles, but they sit on the
+  per-model critical path of a function that runs ~1,300 times a frame. The bitonic's
+  inner loops (`blo`/`blt` on 1–4 trips) are the textbook case `§2.2` describes: the
+  8-deep global history cannot learn trip counts that change every model. Fixed-N
+  straight-line network bodies for N ∈ {8, 16, 32, 64} remove the loops entirely.
+- **Compaction is not free** (S5 said leave it alone): ~9 % of the function on a 6-instruction
+  loop with a serial `r11` chain. At ~3 cycles per key it is at the `§1.2` dependent-add
+  rate, not the port limit. Folding the compaction into the radix count pass (count only
+  non-sentinel keys; scatter skips them) removes one full pass over the keys.
+
+### M.4 Inside the projection kernel (`…prepared_neon32_notex_noyaw_noclip`, 199 instructions)
+
+- **Clang already emits `vmla.i32`/`vmls.i32`** for the rotation pairs (2 + 2 in the
+  vector loop), so P3 is retired without a measurement.
+- The vector loop (`4f023c–4f0314`) is 55 instructions: 3 `vld1.16` vertex loads, 5
+  `vld1.64 [:128]` constant loads, 3 `vld1.32 {d[],d[]}` broadcasts, 3 `vst1.32`, ~30
+  NEON ALU — consistent with the §3.1 count. It takes ~93 % of the kernel's samples;
+  the scalar tail (`__divsi3` twice per vertex) ~6 %, so **P4 is demoted**.
+- Where the samples sit inside the loop: ~25 % on the consumers of the vertex/constant
+  loads (`vaddw` right after the first `vld1.16` is the hottest instruction — the input
+  arrays are not in L1), ~33 % on the `vcvt → vrecpe → vrecps → vmul → vcvt → vst1`
+  chain, ~23 % on the rotation `vmul/vmla/vshr` chain. That is the latency-bound picture
+  §3.1 predicted, with a memory component on top that the source count could not show.
+- **The shell is 42 % of the family** (`ToriDraw_ProjectWithVTable` 0.51 of 1.68 ms) and
+  carries 10.6 % of the worker's I-misses — the ~500-cycle-per-tile shell of §3.1 is real
+  and P1's decomposition (I-misses first) is confirmed as the right next measurement.
+
+### M.5 The dual-core lane, as it runs today
+
+`platform_quirks.md` ANDROID-GLES2-002 measured 12.26 → 11.66 ms/frame on the draw thread;
+this profile has the draw thread at 13.9 ms of CPU per 20.4 ms frame plus a 6.2 ms
+worker. The structural facts the kernels now live inside:
+
+1. **The worker re-runs the frame bus.** `ToriRS_FrameNextCommand` costs 1.26 ms on the
+   worker and 1.06 on the draw; the quirks entry names publishing the translated command
+   as the next lever, and the profile says it is worth ~1.2 ms of worker time and
+   most of the draw's wait.
+2. **The draw waits 1.45 ms/frame in `dualcore_source_take`**, and the wait loop pays
+   `FINDINGS §4.5` twice per poll: `ldr; dmb ish; cmp` on the publish counter and again
+   on the abort flag, up to 4096 polls before a syscall. At 50–80 cycles per `dmb` that is
+   ~100–160 cycles per poll, so the loop polls the counter roughly every 100 cycles
+   instead of every 3, and each barrier drains the draw core's own store buffer
+   (`§4.5`: +3 cycles per pending store) for nothing. Whether the barrier traffic also
+   slows the worker's publishing stores is not measured (`§3.10`'s false-sharing result
+   was inconclusive). Poll with a plain load and issue one `dmb` after the value is seen;
+   the result is the same acquire. The wall-clock wait itself is the worker's per-model
+   cost (item 1), not the poll.
+3. **cpu1 residency was fine here** — both cores online throughout, worker at 1.33 GHz
+   effective (`cycles / runtime`; it was scheduled at reduced frequency part of the time,
+   the draw at 1.62). §7's warning stands for low-load scenes.
+4. **Result ownership is split at runtime:** 0.65 ms of sort and 0.47 ms of projection
+   ran on the draw thread because the draw reached those models first. Any kernel A/B on
+   this binary must sum both threads (as §M.2 does), or the split moves and the A/B lies.
+
+### M.6 The PROFILE=1 build does not boot on this phone
+
+`make PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 PROFILE=1` of HEAD (28e7cd51c) dies
+deterministically during login on a worker thread:
+
+```
+signal 7 (SIGBUS), code 1 (BUS_ADRALN)
+#00 pc 003efb0c  libtorirs.so  RSCache_Dat2SkeletalBaseBakePalette (dat2_skeletalbase.c)
+```
+
+`/proc/cpu/alignment` on this device reads `User faults: 4 (signal)` — the kernel
+delivers SIGBUS for any user-mode alignment trap rather than fixing it up. The faulting
+loop is the NEON matrix multiply (`vld1.32 {dN[],dN[]}, [rX:32]!` broadcasts with an
+explicit `:32` alignment qualifier; `vst1.32`), and the crash site's registers are all
+4-byte aligned, so the exact trapping instruction is not yet identified. The OPT=1 build
+of the same tree boots and was used for §M. Until this is understood, profiles are flat
+histograms only (no frame-pointer call graphs), and any A/B that needs stacks needs the
+crash fixed first. Not chased here; recorded so the next person does not lose an hour
+to it.
+
+### M.7 What is still unmeasured
+
+- The sort and projection **micro-benches** (`face_sort_bench`, `presorted_neon_*`)
+  were not re-run; the binaries on the phone are from 09-01. Their per-face and per-tile
+  numbers in §§3–4 are the last known.
+- Per-frame **model and face counts** (the `gles2 …/frame` logcat lines) did not print
+  on this build with `TORIRS_FRAME_DEBUG=1`, so cycles-per-face for the sort is not
+  derivable from this run. The 09-01 bench figure (38–43 cycles/face all-in) is the
+  reference.
+- **S2's alignment log** (the six pointers `& 4095`) — the `kr2` interleave refills are
+  the symptom; the log is the diagnosis and takes one `fprintf`.
+- Raster: nothing new; not in this frame.
 
 ---
 
@@ -176,6 +387,14 @@ is larger still.
 This confirms the plan's re-aim ("the entry block is the per-model fixed cost") and adds
 the ceiling: no edit inside the block can move the client by more than ~0.05 ms.
 
+*Measured (§M.4):* the family is 1.68 ms/frame across both threads, of which the
+`notex_noyaw_noclip` kernel is 0.70 and the `ToriDraw_ProjectWithVTable` shell 0.51. Inside
+the kernel ~93 % of samples are in the vector loop and ~6 % in the scalar tail; inside
+the loop a quarter of the samples sit on the first consumers of the vertex and constant
+loads, so the loop has a memory component the source count above does not show (the
+int16 vertex arrays are not L1-resident when the kernel reaches them). The
+`vmla.i32`/`vmls.i32` fusion below (P3) is already in the shipped code.
+
 The point-of-use constant loads (`TORIDRAW_PROJ_PREP_POINT_OF_USE`) are the right call
 by these numbers: they cost up to 19 slots on the load port, which still has ~25 spare
 per block against the NEON pipe's ~45, and zero on the NEON pipe, which is the binding
@@ -194,6 +413,14 @@ drops to 1.6 IPC; `ToriRS_FrameNextCommand` alone is 18 KB and runs between ever
 Which of the four dominates decides whether the fix is fewer switches, a predictable
 dispatch order, more prefetch, or code layout — they are different work.
 
+*Measured (§M.2, §M.4), process-level rather than per-shell:* `ToriDraw_ProjectWithVTable`
+carries 10.6 % of the worker's I-misses against 3.3 % for the kernel it calls, and 5 %
+of its mispredicts; `ToriRS_FrameNextCommand`, which runs between every model on both
+threads, is the largest I-miss source on either. The whole-thread I-miss rate (0.005 per
+instruction) is below the fetch-bound threshold, so the shell's cost is more likely the
+per-model D-refills and mispredicts than fetch — but the per-shell bench pass above is
+still the way to split it.
+
 **P2 — Two tiles per call** (`est. −0.1..0.2 ms`, structural). §1.5 and §1.2: two
 independent 65-cycle chains in one ~80-instruction window run in ~75 cycles, not 130, and
 one shell serves two models. 57 % of projected models are 4-vertex tiles sharing one
@@ -202,8 +429,12 @@ rows, two output offsets). Register budget for two blocks: ~12 live Q each at pe
 16 — so interleave at the *stage* level (both rotations, then both zdivs), which keeps peak
 live vectors near 14 with point-of-use constants. Bit-identical by construction.
 
-**P3 — `vmla`/`vmls` for the six rotation pairs** (`est. −6 NEON ops/block, −9 cycles
-of chain`, check first). Each `(x*c + z*s) >> 16` is `vmul, vmul, vadd, vshr`; `vmul,
+**P3 — `vmla`/`vmls` for the six rotation pairs** — **retired.** *Measured (§M.4):* the
+shipped `notex_noyaw_noclip` loop already contains 2 `vmla.i32` + 2 `vmls.i32` (the
+`noyaw` variant has four pairs, not six); clang fused them for the generic `armv7-a`
+target. Kept for the record of why it was expected to matter:
+(`est. −6 NEON ops/block, −9 cycles
+of chain`). Each `(x*c + z*s) >> 16` is `vmul, vmul, vadd, vshr`; `vmul,
 vmla, vshr` is bit-identical (wrapping int32). Clang fuses `vmulq_s32`+`vaddq_s32` into
 `vmla.i32` only when the subtarget says the VMLA accumulator forwarding is not hazardous
 (it is disabled for Cortex-A8/A9; unknown for the `-march=armv7-a` generic target). Read
@@ -212,7 +443,11 @@ measure `vmla.i32 q` latency/throughput and the `vmul → vmla` accumulator forw
 Krait (§8) — if the accumulator path is late-forwarded like ARM `mla` (2 cycles, §5), this
 is a clean 12 % cut of the block's NEON ops.
 
-**P4 — Exact tail without `__aeabi_idiv`** (`est. −35 µs/frame`). 264 models a frame
+**P4 — Exact tail without `__aeabi_idiv`** (`est. −35 µs/frame`; *measured (§M.4):
+demoted* — the tail is ~6 % of the kernel's samples ≈ 0.04 ms/frame, and all software
+divides in the process (`__divsi3`/`__udivsi3`/`__aeabi_idiv`) sum to 0.11 ms/frame, of
+which the projection tail is a part; the estimate below is about the right size but the
+item is no longer worth its own change). 264 models a frame
 have a 1..3-vertex tail; two software divides each ≈ 1.6 K divides × ~60 cycles ≈ 55 µs.
 The plan's "run the last block at n−4" is ruled out (reciprocal ≠ exact). An exact
 alternative that needs no ISA extension: `q = trunc(x * (1/z))` in VFP single, then one
@@ -262,6 +497,15 @@ load-increment-store on `count[]`, a 2-cycle forward when consecutive keys share
 bitonic for N ≤ 64 ~10–15 (2 `vld1q` + `vmin` + `vmax` + 2 `vst1q` per vector per layer,
 21 layers at N=64), priority partition + merge, emit ~1.
 
+*Measured (§M.3), shares of the function's own cycles in the client, both threads:* K16
+block **29 %** (estimate above: 15–20 %), compaction + radix 21 %, **priority partition
+20 %**, interleave/bound pass 9 %, bitonic 7.5 %, per-model rest ~14 %. The refills are
+in the block (39 %) and the interleave pass (23 %); the mispredicts are in the bitonic
+(35 %) and the partition (21 %). The per-face bench number above is not reproducible from
+this run (no face count printed); the client's mix is ~1,300 models of mostly small N,
+so the per-model phases (partition, network, setup) weigh more here than in a
+1,000–2,000-face bench fixture, which is where the estimate's under-count came from.
+
 ### 4.2 Levers
 
 **S1 — Prefetch distance** (`free`). `+32` faces of int16 is +64 B: one line ahead. §4.4
@@ -288,6 +532,15 @@ tile leaf (8 corner reads × 3), `toridraw_projected_bound` — then miss L0 on 
 `k * 64`. Same check for `sm_sort_keys`/`sm_sort_tmp` (equal sizes; the radix's read
 stream and scatter target).
 
+*Measured (§M.3):* the interleave pass's three `vld1` from `screen_{x,y,z}` are 13 % of
+the sort's D-refills (23 % with the rest of that range), which is the symptom this lever
+predicts — but a write-through, no-allocate L1 (`§3.5`'s inference) produces the same
+symptom without any set conflict, because the projection's stores would never have put
+those lines in L1 in the first place. The `& 4095` log plus one padded re-record of `kr2`
+separates them; if it is write-no-allocate, the fix is a `pld` in the interleave loop or
+having the projection kernel emit the interleaved `xyz16` directly (the sort's K16 rebuild
+then disappears too).
+
 **S3 — Halve the index loads** (`est. −1.5 cycles/face in the block, ~4 % of the sort`).
 Indices are int16 in three arrays; `ldr` fetches two per load, `uxth`/`lsr` split them
 (`uxth` is on the 1/cycle DSP unit, `lsr` 2 cycles on an ALU — both have slack). 24 → 12
@@ -301,8 +554,28 @@ Whether that forwards (NEON→NEON, exact size) is not in FINDINGS — if it doe
 cycles the win is the 4 memory ops per vector per layer (issue slots); if it does not, each
 layer also eats a 6-cycle L1 latency and the win is larger. Measure first (§8).
 
+*Measured (§M.3):* the network is 7.5 % of the sort's cycles but **35 % of its branch
+mispredicts** — the per-layer inner loops run 1–4 trips and the trip count changes with
+every model's N, which is exactly what an 8-deep global history cannot learn (`§2.2`).
+That makes the register-resident form worth more than the issue-slot count says: a
+straight-line body per N ∈ {8, 16, 32, 64} has no inner-loop branches at all. The
+forwarding question above still decides how much of the remaining 7.5 % goes with it.
+
+**S6 — Priority partition** (*new from the profile*, `20 % of the sort's cycles, 21 % of
+its mispredicts`). Per sorted key: `ldrb` the packed 4-bit priority, `ldr/add/str` on
+`count[prio]`, `ldr/add/str` on `depth_sum[prio]`, `strh` the face into its bucket, and a
+`bhi` on `prio > 9`. Two read-modify-write chains on tables indexed by a data-dependent
+byte are `§4.2`'s 2-cycle forward when consecutive keys share a priority (the common
+case: most models are all-priority-0) and a 6-cycle L1 round trip when they do not. Cheap
+shapes: keep the ten counters in registers for models whose priority set is a single value
+(known from the model's priority table before the loop), and make the `> 9` test a
+`cmp; movhi` on the accumulate rather than a branch.
+
 **S5 — Things the findings say to leave alone.** The compaction pass (branch-free, 1
-load + 1 store per key — at the port limit already). The sentinel-store design (§2.3). The
+load + 1 store per key — at the port limit already; *measured: ~9 % of the sort's
+cycles on a 6-instruction loop, ≈ 3 cycles/key, i.e. at the `§1.2` dependent-add rate
+on the `r11` write-cursor chain rather than the port limit — folding it into the radix
+count pass would remove the pass, see §M.3*). The sentinel-store design (§2.3). The
 `vst4q`/`vst4_s16` interleave (once per vertex per frame; `vld4` costs 2 vs 1 and the
 store is likely similar — ~0.5 cycle/vertex). The winding's `vmull.s32` (4-ish cycles; no
 faster exact form exists on A32). The K16 tail and tile leaf (already at their per-model
@@ -467,16 +740,21 @@ changing the reference. Recorded so it is not re-derived.
 
 ---
 
-## 7. Phase 3 (second core) — what the findings say before it starts
+## 7. Phase 3 (second core) — what the findings say about it
 
-`FRAME_BUDGET_PLAN.md` promotes the second Krait core to a planned step. Three findings bear
-on it directly:
+`FRAME_BUDGET_PLAN.md` promoted the second Krait core to a planned step; it has since
+shipped as `--gles2-dualcore` (`platform_quirks.md` ANDROID-GLES2-002) and §M.5 is how it
+runs today: draw thread 13.9 ms CPU/frame, worker 6.2, the draw waiting 1.45 ms/frame in a
+poll loop that pays two `dmb`s per iteration, and the frame bus run once on each thread.
+Three findings bear on it directly, and item 1 is no longer hypothetical:
 
 1. **Barriers cost 50–80 cycles plus ~3 per pending store; `ldrex/strex` ~60 uncontended
    (§4.5).** The world→GL handoff must be one release/acquire pair per frame per direction.
    A per-model or per-run publish (a `dmb` per sort result, say) would cost ~1,300 × 80 ≈
    0.06 ms — small, but a per-face one would not be. No fine-grained locks anywhere in the
-   pipeline.
+   pipeline. *Measured:* the lane publishes per model (a CAS per slot, release/acquire
+   per result) — that side is within the 0.06 ms — but the *consumer's* poll loop
+   (`dualcore_source_take`) issues two barriers per poll for up to 4096 polls; see §M.5.
 2. **cpu1 is hot-unplugged under low load and `sched_setaffinity` to an offline CPU fails
    with `EINVAL`, leaving the thread on cpu0 (§3.10).** A worker "pinned" to cpu1 may be
    silently running on cpu0 and *serialising* with the main thread. The design needs a
@@ -501,7 +779,7 @@ shapes these kernels lean on. Each of these decides one item above:
 | `str` ×4 → `vld1q` covering them (4 small stores, one big load) | closes the EDGE_STAGE_IN post-mortem |
 | `vmov dN, rA, rB` and `vmov rA, rB, dN`: one crossing or two? throughput | §2.6 edge ladder (9 → 6 crossings); R1; R4 |
 | back-to-back independent `vmov.32 r, dN[i]`: throughput | R4: are eight lane moves 28 cycles or 8 |
-| `vmla.i32 q` latency, throughput, and `vmul → vmla` accumulator forward | P3 |
+| `vmla.i32 q` latency, throughput, and `vmul → vmla` accumulator forward | the projection chain estimate in §3.1 (the shipped loop already uses `vmla`/`vmls`, §M.4 — this now sizes the chain rather than deciding a change) |
 | `vmull.s32`, `vmlsl.s32`, `vaddl.s16`, `vuzp.16`, `vtrn.32`, `vext`, `vst4.32`, `vcvt.f32.s32 q`: latency/throughput | sort block and projection chain estimates above (currently assumed 3–4) |
 | does `vld1q` dual-issue with a NEON ALU op in the same cycle? | whether point-of-use constant loads are truly free (P-section assumes yes) |
 | `pld` into L0 vs L1: does a prefetched line land in the 4 KB L0? | whether S1/R8 give 3- or 6-cycle hits |
@@ -528,13 +806,21 @@ shapes these kernels lean on. Each of these decides one item above:
 
 ---
 
-## 10. Suggested order
+## 10. Suggested order (revised after §M)
 
-1. **P1** (PMU decomposition of the projection shell) and **S2's alignment check** — both
-   are measurements, half a day, and they decide the shape of the next month of work.
-2. **S1, S3, P3-check, P4** — small, bit-exact, each A/B-able on the bench in an hour.
-3. **R1, R2, R3, R6, R7** on the soft lane — the tex block-end rewrite is the one that
-   moves a whole door by a double-digit percentage; the rest are single-digit each.
-4. Add the §8 kernels to arch_fuzz; **R4** and **S4** wait on them.
-5. **P2** (tile pairs) once P1 has shown how much of the 500 cycles is shell that pairing
-   would amortise.
+1. **Fix the PROFILE=1 boot crash (§M.6)** so call-graph profiles are possible again;
+   then **S2's alignment log + padded re-record** (half a day together). Both are
+   prerequisites for measuring anything else properly.
+2. **Dual-core lane: publish the translated command with the worker's result** (ranked
+   #1; the quirks entry's own next lever) and **drop the barriers from the poll loop**
+   (#2). These are the largest measured items in the process and are not kernel work.
+3. **Sort: S6 (priority partition), S4 as fixed-N straight-line bodies, compaction folded
+   into the radix count, S1 (prefetch distance)** — in that order, each A/B'd on the
+   client with both threads summed (§M.5 item 4), since the bench mix under-weights the
+   per-model phases that the profile put at the top.
+4. **P1** on the projection shell with the per-shell counters; **P2** (tile pairs) once P1
+   says how much of the shell pairing would amortise. P3 is done by the compiler; P4 is
+   not worth a change.
+5. **R1, R2, R3, R6, R7** on the soft lane — unchanged: the tex block-end rewrite is the
+   one that moves a whole door by a double-digit percentage; the rest are single-digit each.
+6. Add the §8 kernels to arch_fuzz; **R4** and the forwarding half of **S4** wait on them.

@@ -76,31 +76,34 @@ EM_JS(void, web_chrome_close, (void), {
         window.torirsChromeClose();
 });
 
-EM_JS(void, web_chrome_rail_sync, (char const* json), {
+EM_JS(int, web_chrome_rail_sync, (char const* json), {
     if( typeof window.torirsChromeRailSync !== 'function' )
-        return;
+        return 0;
     try
     {
-        window.torirsChromeRailSync(JSON.parse(UTF8ToString(json)));
+        return window.torirsChromeRailSync(
+            JSON.parse(UTF8ToString(json))) === true ? 1 : 0;
     }
     catch( e )
     {
         console.warn('[torirs] plugin rail sync failed', e);
+        return 0;
     }
 });
 
-EM_JS(void, web_chrome_rail_icon,
+EM_JS(int, web_chrome_rail_icon,
       (int plugin, unsigned revision, int w, int h, char const* b64), {
     if( typeof window.torirsChromeRailIcon !== 'function' )
-        return;
+        return 0;
     try
     {
-        window.torirsChromeRailIcon(
-            plugin, revision, w, h, b64 ? UTF8ToString(b64) : "");
+        return window.torirsChromeRailIcon(
+            plugin, revision, w, h, b64 ? UTF8ToString(b64) : "") === true ? 1 : 0;
     }
     catch( e )
     {
         console.warn('[torirs] plugin rail icon failed', e);
+        return 0;
     }
 });
 
@@ -201,6 +204,7 @@ struct ChromeWeb
     int batch_failed;
     int collecting;
     int snapshot_needed;
+    int rail_snapshot_needed;
     int custom_panel[TORIRS_CHROME_MAX_WIDGETS];
     uint32_t custom_generation[TORIRS_CHROME_MAX_WIDGETS];
     uint32_t custom_serial[TORIRS_CHROME_MAX_WIDGETS];
@@ -627,7 +631,7 @@ chrome_web_batch_end(struct ChromeWeb* s)
     s->batch_failed = 0;
 }
 
-static void
+static int
 chrome_web_rail_sync(
     void* user, struct ToriRSChromeRailSnapshot const* snapshot)
 {
@@ -641,10 +645,7 @@ chrome_web_rail_sync(
     int count;
 
     if( !s || !snapshot )
-        return;
-    if( s->page_generation != snapshot->page_generation )
-        chrome_web_reset_mounted(s);
-    s->page_generation = snapshot->page_generation;
+        return 0;
     count = snapshot->entry_count;
     if( count < 0 )
         count = 0;
@@ -666,7 +667,7 @@ chrome_web_rail_sync(
         snapshot->selected_entry,
         snapshot->expanded ? "true" : "false");
     if( at < 0 || at >= (int)sizeof(json) )
-        return;
+        return 0;
     for( int i = 0; i < count; i++ )
     {
         struct ToriRSChromeRailEntry const* entry = &snapshot->entries[i];
@@ -693,25 +694,30 @@ chrome_web_rail_sync(
             icon,
             badge);
         if( n < 0 || n >= (int)(sizeof(json) - (size_t)at) )
-            return;
+            return 0;
         at += n;
     }
     if( at + 3 > (int)sizeof(json) )
-        return;
+        return 0;
     json[at++] = ']';
     json[at++] = '}';
     json[at] = '\0';
-    web_chrome_rail_sync(json);
+    if( !web_chrome_rail_sync(json) )
+        return 0;
+    if( s->page_generation != snapshot->page_generation )
+        chrome_web_reset_mounted(s);
+    s->page_generation = snapshot->page_generation;
+    return 1;
 }
 
-static void
+static int
 chrome_web_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon)
 {
     char* b64 = NULL;
 
     (void)user;
     if( !icon )
-        return;
+        return 0;
     if( icon->width > 0 && icon->height > 0 )
     {
         struct ToriRSChromeSkin_Sprite sprite;
@@ -719,14 +725,19 @@ chrome_web_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon)
         sprite.h = icon->height;
         sprite.argb = icon->argb;
         b64 = chrome_web_sprite_b64(&sprite);
+        if( !b64 )
+            return 0;
     }
-    web_chrome_rail_icon(
+    {
+        int const sent = web_chrome_rail_icon(
         icon->plugin_index,
         (unsigned)icon->revision,
         icon->width,
         icon->height,
         b64 ? b64 : "");
-    free(b64);
+        free(b64);
+        return sent;
+    }
 }
 
 static int
@@ -1057,16 +1068,39 @@ chrome_web_custom_present(
 }
 
 static int
+chrome_web_collect_delivery_loss(struct ChromeWeb* s)
+{
+    if( s && web_chrome_take_delivery_loss() )
+    {
+        s->snapshot_needed = 1;
+        s->rail_snapshot_needed = 1;
+    }
+    return s != NULL;
+}
+
+static int
 chrome_web_take_snapshot_request(void* user)
 {
     struct ChromeWeb* s = user;
-    int requested = s ? s->snapshot_needed : 0;
+    int requested;
 
-    if( s && web_chrome_take_delivery_loss() )
-        requested = 1;
+    if( !s ) return 0;
+    (void)chrome_web_collect_delivery_loss(s);
+    requested = s->snapshot_needed;
+    s->snapshot_needed = 0;
+    return requested;
+}
 
-    if( s )
-        s->snapshot_needed = 0;
+static int
+chrome_web_take_rail_snapshot_request(void* user)
+{
+    struct ChromeWeb* s = user;
+    int requested;
+
+    if( !s ) return 0;
+    (void)chrome_web_collect_delivery_loss(s);
+    requested = s->rail_snapshot_needed;
+    s->rail_snapshot_needed = 0;
     return requested;
 }
 
@@ -1092,6 +1126,7 @@ ToriRSChromeExec_Web(void)
     exec.rail_poll = chrome_web_rail_poll;
     exec.custom_present = chrome_web_custom_present;
     exec.take_snapshot_request = chrome_web_take_snapshot_request;
+    exec.take_rail_snapshot_request = chrome_web_take_rail_snapshot_request;
     /* The DOM holds the widgets; BUFFER alone uses the in-canvas prim list. */
     return exec;
 }

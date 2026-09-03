@@ -334,11 +334,18 @@ assert.strictEqual(posted[posted.length - 1].type, 'editor.focus');
 assert.strictEqual(posted[posted.length - 1].focused, false,
   'settled editor blur returns keyboard ownership');
 
-runtime.receive({
+assert.strictEqual(runtime.receive({
   protocol: 1, type: 'page.delta', pageGeneration: 20,
   commands: [command(11, { w: 1, text: 'stale' })]
-});
+}), false, 'a stale-generation delta is reported as rejected to its host');
 assert.strictEqual(runtime.inspect().pageGeneration, 21, 'old-generation delta is ignored');
+
+assert.strictEqual(runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 21,
+  commands: [command(17, { w: 1, v: 513 })]
+}), false, 'an option list above the shared 512-entry protocol cap is rejected atomically');
+assert.strictEqual(runtime.inspect().widgetCount, 1,
+  'oversized option rejection leaves the retained page unchanged');
 
 runtime.receive({
   protocol: 1, type: 'rail.snapshot', registryRevision: 1,

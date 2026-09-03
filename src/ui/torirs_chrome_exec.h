@@ -409,9 +409,9 @@ struct ToriRSChromeExec
      * select a plugin and expand the one shared shell. Snapshots and returned
      * intents are fixed-size copies; no plugin-owned pointer crosses here.
      */
-    void (*rail_sync)(
+    int (*rail_sync)(
         void* user, struct ToriRSChromeRailSnapshot const* snapshot);
-    void (*rail_icon)(void* user, struct ToriRSChromeRailIcon const* icon);
+    int (*rail_icon)(void* user, struct ToriRSChromeRailIcon const* icon);
     int (*rail_poll)(void* user, struct ToriRSChromeRailIntent* out, int max);
 
     /** Optional web-canvas sink for a complete dirty custom-region frame.
@@ -427,6 +427,9 @@ struct ToriRSChromeExec
      * full snapshot, rather than applying later deltas to a stale DOM.
      */
     int (*take_snapshot_request)(void* user);
+
+    /** Same loss contract for the independently retained rail and icons. */
+    int (*take_rail_snapshot_request)(void* user);
 };
 
 /**

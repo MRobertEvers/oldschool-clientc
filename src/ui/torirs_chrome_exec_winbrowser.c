@@ -35,6 +35,7 @@ struct WinBrowserExec
     int collecting;
     int command_overflow;
     int snapshot_needed;
+    int rail_snapshot_needed;
     int open;
     int first_batch;
     int panel;
@@ -208,7 +209,7 @@ static void reset_mounted_page(struct WinBrowserExec* s)
     s->title[0] = 0;
 }
 
-static void send_theme(struct WinBrowserExec* s)
+static int send_theme(struct WinBrowserExec* s)
 {
     static char const theme[] =
         "{\"protocol\":1,\"type\":\"theme\",\"revision\":1,\"assets\":{"
@@ -237,11 +238,17 @@ static void send_theme(struct WinBrowserExec* s)
         "\"frameBottomLeft\":\"skin/FrameBottomLeft.png\","
         "\"frameBottom\":\"skin/FrameBottom.png\","
         "\"frameBottomRight\":\"skin/FrameBottomRight.png\"}}";
-    if( s->theme_sent ) return;
+    if( s->theme_sent ) return 1;
     if( PlatformWindow_PluginBrowserSend(s->platform, theme) )
+    {
         s->theme_sent = 1;
+        return 1;
+    }
     else
+    {
         s->snapshot_needed = 1;
+        return 0;
+    }
 }
 
 static int selected_width(
@@ -260,7 +267,7 @@ static int selected_width(
     return width;
 }
 
-static void browser_rail_sync(
+static int browser_rail_sync(
     void* user, struct ToriRSChromeRailSnapshot const* snapshot)
 {
     struct WinBrowserExec* s = user;
@@ -268,7 +275,7 @@ static void browser_rail_sync(
     uint32_t old_page_generation;
     uint32_t new_page_generation;
     int count;
-    if( !s || !snapshot || !PlatformWindow_PluginBrowserEnsure(s->platform) ) return;
+    if( !s || !snapshot || !PlatformWindow_PluginBrowserEnsure(s->platform) ) return 0;
     old_page_generation = effective_page_generation(s);
     new_page_generation = snapshot->page_generation
                               ? snapshot->page_generation
@@ -287,7 +294,8 @@ static void browser_rail_sync(
     s->preferred_width = selected_width(snapshot);
     if( s->open && snapshot->expanded )
         PlatformWindow_ChromeOpen(s->platform, s->preferred_width, 480, "Plugins");
-    send_theme(s);
+    if( !send_theme(s) )
+        return 0;
     count = snapshot->entry_count;
     if( count < 0 ) count = 0;
     if( count > TORIRS_CHROME_RAIL_ENTRY_MAX ) count = TORIRS_CHROME_RAIL_ENTRY_MAX;
@@ -318,10 +326,14 @@ static void browser_rail_sync(
     }
     json_append(&json, "]}");
     if( !send_json(s, &json) )
+    {
         s->snapshot_needed = 1;
+        return 0;
+    }
+    return 1;
 }
 
-static void browser_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon)
+static int browser_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon)
 {
     struct WinBrowserExec* s = user;
     struct WinBrowserJson json = { 0 };
@@ -329,7 +341,7 @@ static void browser_rail_icon(void* user, struct ToriRSChromeRailIcon const* ico
     char url[256] = "";
     if( !s || !icon || icon->plugin_index < 0 || icon->revision == 0 ||
         icon->width < 0 || icon->height < 0 || icon->width > 64 || icon->height > 64 )
-        return;
+        return 0;
     if( icon->width > 0 && icon->height > 0 )
     {
         snprintf(key, sizeof(key), "rail-%d", icon->plugin_index);
@@ -344,7 +356,11 @@ static void browser_rail_icon(void* user, struct ToriRSChromeRailIcon const* ico
     json_string(&json, url);
     json_append(&json, "}");
     if( !send_json(s, &json) )
+    {
         s->snapshot_needed = 1;
+        return 0;
+    }
+    return 1;
 }
 
 static int browser_begin(void* user)
@@ -656,7 +672,12 @@ static void drain_messages(struct WinBrowserExec* s)
             s->platform, s->raw, (int)sizeof(s->raw));
         if( length <= 0 ) break;
         if( json_int(s->raw, "protocol", 0) != 1 ) continue;
-        if( json_type(s->raw, "rail.select") )
+        if( json_type(s->raw, "transport.loss") )
+        {
+            s->snapshot_needed = 1;
+            s->rail_snapshot_needed = 1;
+        }
+        else if( json_type(s->raw, "rail.select") )
         {
             struct ToriRSChromeRailIntent intent;
             if( !accept_sequence(s, s->raw) ) continue;
@@ -807,13 +828,34 @@ static void browser_custom_present(
         s->snapshot_needed = 1;
 }
 
+static void browser_collect_transport_loss(struct WinBrowserExec* s)
+{
+    if( s && PlatformWindow_PluginBrowserTakeSendFailure(s->platform) )
+    {
+        s->snapshot_needed = 1;
+        s->rail_snapshot_needed = 1;
+    }
+}
+
 static int browser_take_snapshot_request(void* user)
 {
     struct WinBrowserExec* s = user;
-    int requested = s ? s->snapshot_needed : 0;
-    if( s && PlatformWindow_PluginBrowserTakeSendFailure(s->platform) )
-        requested = 1;
-    if( s ) s->snapshot_needed = 0;
+    int requested;
+    if( !s ) return 0;
+    browser_collect_transport_loss(s);
+    requested = s->snapshot_needed;
+    s->snapshot_needed = 0;
+    return requested;
+}
+
+static int browser_take_rail_snapshot_request(void* user)
+{
+    struct WinBrowserExec* s = user;
+    int requested;
+    if( !s ) return 0;
+    browser_collect_transport_loss(s);
+    requested = s->rail_snapshot_needed;
+    s->rail_snapshot_needed = 0;
     return requested;
 }
 
@@ -839,5 +881,6 @@ ToriRSChromeExec_Browser(void* platform)
     exec.rail_poll = browser_rail_poll;
     exec.custom_present = browser_custom_present;
     exec.take_snapshot_request = browser_take_snapshot_request;
+    exec.take_rail_snapshot_request = browser_take_rail_snapshot_request;
     return exec;
 }

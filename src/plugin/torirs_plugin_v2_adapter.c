@@ -35,6 +35,9 @@ _Static_assert(
     TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX <= V2_RESOURCE_SLOT_MASK,
     "scene-instance tokens fit encoded slot");
 _Static_assert(V2_RESOURCE_INSTANCE <= V2_RESOURCE_KIND_MASK, "resource kinds fit token");
+_Static_assert(
+    TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX <= TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
+    "one legal frame dependency set fits the adapter image-token table");
 
 static int
 v2_resource_encode(
@@ -148,6 +151,26 @@ v2_resource_invalidate(
         entries[slot].retired = true;
     else
         entries[slot].incarnation++;
+}
+
+static void
+v2_resource_reset(
+    struct ToriRS_PluginV2ResourceToken* entries,
+    int count)
+{
+    assert(entries);
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRS_PluginV2ResourceToken* entry = &entries[i];
+        if( !entry->active )
+            continue;
+        entry->active = false;
+        entry->legacy = -1;
+        if( entry->incarnation == TORIRS_PLUGIN_V2_RESOURCE_INCAR_MAX )
+            entry->retired = true;
+        else
+            entry->incarnation++;
+    }
 }
 
 static bool
@@ -2586,12 +2609,13 @@ ToriRS_PluginV2Adapter_PanelEnd(
     builder->implementation = NULL;
 }
 
-bool
-ToriRS_PluginV2Adapter_Init(
+static bool
+v2_adapter_init(
     struct ToriRS_PluginV2Adapter* adapter,
     struct ToriRS_PluginApi const* legacy,
     struct ToriRS_PluginCtx* context,
-    struct ToriRS_PluginV2AdapterHooks const* hooks)
+    struct ToriRS_PluginV2AdapterHooks const* hooks,
+    bool preserve_resources)
 {
     size_t hook_size = 0;
 
@@ -2609,14 +2633,25 @@ ToriRS_PluginV2Adapter_Init(
         hook_size = hooks->struct_size < sizeof(*hooks) ? hooks->struct_size : sizeof(*hooks);
     }
 
-    memset(adapter, 0, sizeof(*adapter));
+    if( preserve_resources )
+    {
+        memset(&adapter->api, 0, sizeof(adapter->api));
+        adapter->legacy = NULL;
+        adapter->context = NULL;
+        memset(&adapter->hooks, 0, sizeof(adapter->hooks));
+    }
+    else
+        memset(adapter, 0, sizeof(*adapter));
     adapter->legacy = legacy;
     adapter->context = context;
     if( hooks )
         memcpy(&adapter->hooks, hooks, hook_size);
     if( adapter->hooks.resource_namespace > V2_RESOURCE_NAMESPACE_MASK )
     {
-        memset(adapter, 0, sizeof(*adapter));
+        memset(&adapter->api, 0, sizeof(adapter->api));
+        adapter->legacy = NULL;
+        adapter->context = NULL;
+        memset(&adapter->hooks, 0, sizeof(adapter->hooks));
         return false;
     }
 
@@ -2735,6 +2770,40 @@ ToriRS_PluginV2Adapter_Init(
         },
     };
     return true;
+}
+
+bool
+ToriRS_PluginV2Adapter_Init(
+    struct ToriRS_PluginV2Adapter* adapter,
+    struct ToriRS_PluginApi const* legacy,
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_PluginV2AdapterHooks const* hooks)
+{
+    return v2_adapter_init(adapter, legacy, context, hooks, false);
+}
+
+bool
+ToriRS_PluginV2Adapter_Reinit(
+    struct ToriRS_PluginV2Adapter* adapter,
+    struct ToriRS_PluginApi const* legacy,
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_PluginV2AdapterHooks const* hooks)
+{
+    return v2_adapter_init(adapter, legacy, context, hooks, true);
+}
+
+void
+ToriRS_PluginV2Adapter_Reset(struct ToriRS_PluginV2Adapter* adapter)
+{
+    assert(adapter);
+    v2_resource_reset(adapter->image_tokens, TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX);
+    v2_resource_reset(adapter->model_tokens, TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX);
+    v2_resource_reset(adapter->mesh_tokens, TORIRS_PLUGIN_V2_MESH_TOKENS_MAX);
+    v2_resource_reset(adapter->instance_tokens, TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX);
+    memset(&adapter->api, 0, sizeof(adapter->api));
+    adapter->legacy = NULL;
+    adapter->context = NULL;
+    memset(&adapter->hooks, 0, sizeof(adapter->hooks));
 }
 
 struct ToriRS_ApiV2*

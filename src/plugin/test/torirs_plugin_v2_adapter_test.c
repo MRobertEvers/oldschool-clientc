@@ -2228,6 +2228,149 @@ test_resource_namespaces_and_wrap(
         "generation exhaustion retires a token slot instead of wrapping to an old ref");
 }
 
+static void
+test_resource_refs_across_reinit(
+    struct ToriRS_PluginApi* legacy,
+    struct ToriRS_PluginV2AdapterHooks const* base_hooks)
+{
+    struct ToriRS_PluginV2Adapter adapter;
+    struct ToriRS_PluginV2AdapterHooks adapter_hooks = *base_hooks;
+    struct ToriRS_ImageRef old_image = { 0 }, new_image = { 0 };
+    struct ToriRS_ModelRef old_model = { 0 }, new_model = { 0 };
+    struct ToriRS_MeshRef old_mesh = { 0 }, new_mesh = { 0 };
+    struct ToriRS_SceneInstanceRef old_instance = { 0 }, new_instance = { 0 };
+    int image_releases;
+    int model_releases;
+    int mesh_destroys;
+    int instance_destroys;
+    int width = 0;
+    int height = 0;
+
+    adapter_hooks.resource_namespace = 7;
+    fake.image_handle = 80;
+    fake.model_handle = 81;
+    fake.mesh_handle = 82;
+    fake.instance_handle = 83;
+    fake.image_ready = 1;
+    fake.asset_resident = 1;
+    fake.last_a = 0;
+    CHECK(
+        ToriRS_PluginV2Adapter_Init(
+            &adapter,
+            legacy,
+            (struct ToriRS_PluginCtx*)&context_storage,
+            &adapter_hooks) &&
+            adapter.api.assets.image(&adapter.api, "reload-old.png", &old_image) ==
+                TORIRS_ASSET_READY &&
+            adapter.api.assets.model(&adapter.api, "reload-old.model", &old_model) ==
+                TORIRS_ASSET_READY &&
+            adapter.api.scene.mesh_create(&adapter.api, &old_mesh) == TORIRS_RESULT_OK &&
+            adapter.api.scene.instance_create(&adapter.api, &old_instance) ==
+                TORIRS_RESULT_OK,
+        "reload fixture acquires every typed resource in its first adapter run");
+
+    ToriRS_PluginV2Adapter_Reset(&adapter);
+    CHECK(
+        ToriRS_PluginV2Adapter_Reinit(
+            &adapter,
+            legacy,
+            (struct ToriRS_PluginCtx*)&context_storage,
+            &adapter_hooks) &&
+            adapter.api.assets.image(&adapter.api, "reload-new.png", &new_image) ==
+                TORIRS_ASSET_READY &&
+            adapter.api.assets.model(&adapter.api, "reload-new.model", &new_model) ==
+                TORIRS_ASSET_READY &&
+            adapter.api.scene.mesh_create(&adapter.api, &new_mesh) == TORIRS_RESULT_OK &&
+            adapter.api.scene.instance_create(&adapter.api, &new_instance) ==
+                TORIRS_RESULT_OK,
+        "adapter reinitialization reacquires the same four legacy handles");
+    CHECK(
+        new_image.value != old_image.value && new_model.value != old_model.value &&
+            new_mesh.value != old_mesh.value && new_instance.value != old_instance.value,
+        "no typed token resurrects on the first same-slot allocation after reinit");
+    CHECK(
+        !adapter.api.assets.image_size(&adapter.api, old_image, &width, &height) &&
+            adapter.api.scene.mesh_vertex(&adapter.api, old_mesh, 1, 2, 3) ==
+                TORIRS_RESULT_INVALID &&
+            adapter.api.scene.instance_position(
+                &adapter.api, old_instance, 1, 2, 0, 0, 0) == TORIRS_RESULT_INVALID &&
+            adapter.api.scene.instance_model(&adapter.api, new_instance, old_model) ==
+                TORIRS_RESULT_INVALID,
+        "pre-reinit refs cannot operate on post-reinit same-slot resources");
+
+    image_releases = fake.image_releases;
+    model_releases = fake.model_releases;
+    mesh_destroys = fake.mesh_destroys;
+    instance_destroys = fake.instance_destroys;
+    adapter.api.assets.image_release(&adapter.api, old_image);
+    adapter.api.assets.model_release(&adapter.api, old_model);
+    adapter.api.scene.mesh_destroy(&adapter.api, old_mesh);
+    adapter.api.scene.instance_active(&adapter.api, old_instance, true);
+    adapter.api.scene.instance_destroy(&adapter.api, old_instance);
+    CHECK(
+        fake.image_releases == image_releases && fake.model_releases == model_releases &&
+            fake.mesh_destroys == mesh_destroys &&
+            fake.instance_destroys == instance_destroys &&
+            adapter.api.assets.image_size(&adapter.api, new_image, &width, &height) &&
+            adapter.api.scene.mesh_vertex(&adapter.api, new_mesh, 1, 2, 3) ==
+                TORIRS_RESULT_OK &&
+            adapter.api.scene.instance_model(&adapter.api, new_instance, new_model) ==
+                TORIRS_RESULT_OK,
+        "stale pre-reinit void operations leave every replacement usable");
+}
+
+static void
+test_frame_dependency_capacity(struct ToriRS_PluginV2Adapter* adapter)
+{
+    enum
+    {
+        NODE_COUNT = 6,
+        REFS_PER_NODE = 1 + TORIRS_UI_VISUAL_STATE_COUNT,
+        REF_COUNT = NODE_COUNT * REFS_PER_NODE,
+    };
+    struct ToriRS_ImageRef refs[REF_COUNT];
+    struct ToriRS_PluginV2FrameScope scope;
+    struct ToriRS_FrameBuilder frame;
+    char asset_names[REF_COUNT][32];
+    char node_names[NODE_COUNT][32];
+
+    _Static_assert(REF_COUNT > 32, "dependency regression must cross the old accidental cap");
+    fake.image_ready = 1;
+    for( int i = 0; i < REF_COUNT; i++ )
+    {
+        fake.image_handle = 100 + i;
+        (void)snprintf(asset_names[i], sizeof(asset_names[i]), "frame-ref-%d.png", i);
+        CHECK(
+            adapter->api.assets.image(&adapter->api, asset_names[i], &refs[i]) ==
+                TORIRS_ASSET_READY,
+            "large frame fixture acquires one distinct image token");
+    }
+
+    ToriRS_PluginV2Adapter_FrameBegin(adapter, &scope, &frame);
+    frame.surface(&frame, TORIRS_SURFACE_VIEWPORT, (struct ToriRS_Rect){ 0, 0, 640, 480 });
+    for( int node_index = 0; node_index < NODE_COUNT; node_index++ )
+    {
+        int const first = node_index * REFS_PER_NODE;
+        struct ToriRS_UiNode node = {
+            .struct_size = sizeof(node),
+            .bounds = { node_index, node_index, 8, 8 },
+            .flags = TORIRS_UI_NODE_VISIBLE,
+            .image = refs[first],
+            .state_image_mask = (1u << TORIRS_UI_VISUAL_STATE_COUNT) - 1u,
+        };
+
+        for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
+            node.state_images[state] = refs[first + 1 + state];
+        (void)snprintf(node_names[node_index], sizeof(node_names[node_index]), "many.%d", node_index);
+        frame.ui_node(&frame, node_names[node_index], &node);
+    }
+    CHECK(
+        scope.image_ref_count == REF_COUNT && REF_COUNT <= TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX &&
+            ToriRS_PluginV2Adapter_FrameValid(&scope),
+        "a legal frame with more than 32 distinct retained images remains valid");
+    ToriRS_PluginV2Adapter_FrameEnd(&scope, &frame);
+}
+
 int
 main(void)
 {
@@ -2250,6 +2393,8 @@ main(void)
     test_callback_scoped_builders(&adapter);
     test_resource_ref_incarnations(&adapter);
     test_resource_namespaces_and_wrap(&legacy, &adapter_hooks);
+    test_resource_refs_across_reinit(&legacy, &adapter_hooks);
+    test_frame_dependency_capacity(&adapter);
 
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

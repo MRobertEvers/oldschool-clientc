@@ -3507,9 +3507,25 @@ struct V2AbaResults
     int new_mesh_ok;
     int new_instance_ok;
     int new_model_ok;
+    struct ToriRS_ImageRef reload_image_old;
+    struct ToriRS_ImageRef reload_image_new;
+    struct ToriRS_ModelRef reload_model_old;
+    struct ToriRS_ModelRef reload_model_new;
+    struct ToriRS_MeshRef reload_mesh_old;
+    struct ToriRS_MeshRef reload_mesh_new;
+    struct ToriRS_SceneInstanceRef reload_instance_old;
+    struct ToriRS_SceneInstanceRef reload_instance_new;
+    enum ToriRS_Result reload_mesh_stale;
+    enum ToriRS_Result reload_instance_stale;
+    enum ToriRS_Result reload_model_stale;
+    int reload_image_stale_size;
+    int reload_new_mesh_ok;
+    int reload_new_instance_ok;
+    int reload_new_model_ok;
 };
 
 static struct V2AbaResults g_v2_aba;
+static int g_v2_aba_starts;
 
 static void
 v2_aba_start(struct ToriRS_ApiV2* api, void* state_ptr)
@@ -3520,6 +3536,38 @@ v2_aba_start(struct ToriRS_ApiV2* api, void* state_ptr)
     (void)api->assets.model(api, "aba-old.model", &state->model);
     (void)api->scene.mesh_create(api, &state->mesh);
     (void)api->scene.instance_create(api, &state->instance);
+    g_v2_aba_starts++;
+    if( g_v2_aba_starts > 1 )
+    {
+        int width = 0;
+        int height = 0;
+
+        g_v2_aba.reload_image_new = state->image;
+        g_v2_aba.reload_model_new = state->model;
+        g_v2_aba.reload_mesh_new = state->mesh;
+        g_v2_aba.reload_instance_new = state->instance;
+        g_v2_aba.reload_image_stale_size = api->assets.image_size(
+            api, g_v2_aba.reload_image_old, &width, &height);
+        g_v2_aba.reload_mesh_stale =
+            api->scene.mesh_vertex(api, g_v2_aba.reload_mesh_old, 1, 2, 3);
+        g_v2_aba.reload_instance_stale = api->scene.instance_position(
+            api, g_v2_aba.reload_instance_old, 3200, 3201, 0, 0, 0);
+        g_v2_aba.reload_model_stale = api->scene.instance_model(
+            api, state->instance, g_v2_aba.reload_model_old);
+
+        api->assets.image_release(api, g_v2_aba.reload_image_old);
+        api->assets.model_release(api, g_v2_aba.reload_model_old);
+        api->scene.mesh_destroy(api, g_v2_aba.reload_mesh_old);
+        api->scene.instance_active(api, g_v2_aba.reload_instance_old, true);
+        api->scene.instance_destroy(api, g_v2_aba.reload_instance_old);
+        g_v2_aba.reload_new_mesh_ok =
+            api->scene.mesh_vertex(api, state->mesh, 4, 5, 6) == TORIRS_RESULT_OK;
+        g_v2_aba.reload_new_instance_ok =
+            api->scene.instance_position(api, state->instance, 3202, 3203, 0, 0, 0) ==
+            TORIRS_RESULT_OK;
+        g_v2_aba.reload_new_model_ok =
+            api->scene.instance_model(api, state->instance, state->model) == TORIRS_RESULT_OK;
+    }
 }
 
 static void
@@ -6316,6 +6364,7 @@ main(void)
 
         memset(&g_engine, 0, sizeof(g_engine));
         memset(&g_v2_aba, 0, sizeof(g_v2_aba));
+        g_v2_aba_starts = 0;
         g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
         snprintf(
             g_engine.frame_preference,
@@ -6402,6 +6451,37 @@ main(void)
             g_v2_aba.image_new_size && g_v2_aba.new_mesh_ok &&
                 g_v2_aba.new_instance_ok && g_v2_aba.new_model_ok,
             "current replacement tokens remain usable after every stale operation");
+
+        g_v2_aba.reload_image_old = g_v2_aba.image_new;
+        g_v2_aba.reload_model_old = g_v2_aba.model_new;
+        g_v2_aba.reload_mesh_old = g_v2_aba.mesh_new;
+        g_v2_aba.reload_instance_old = g_v2_aba.instance_new;
+        {
+            int const image_releases = g_engine.image_releases;
+            int const model_releases = g_engine.model_releases;
+
+            PluginHost_Reload(aba_host, 0);
+            CHECK(
+                g_v2_aba_starts == 2 &&
+                    g_v2_aba.reload_image_new.value != g_v2_aba.reload_image_old.value &&
+                    g_v2_aba.reload_model_new.value != g_v2_aba.reload_model_old.value &&
+                    g_v2_aba.reload_mesh_new.value != g_v2_aba.reload_mesh_old.value &&
+                    g_v2_aba.reload_instance_new.value != g_v2_aba.reload_instance_old.value,
+                "host reload cannot resurrect any pre-reload typed resource token");
+            CHECK(
+                !g_v2_aba.reload_image_stale_size &&
+                    g_v2_aba.reload_mesh_stale == TORIRS_RESULT_INVALID &&
+                    g_v2_aba.reload_instance_stale == TORIRS_RESULT_INVALID &&
+                    g_v2_aba.reload_model_stale == TORIRS_RESULT_INVALID,
+                "all four pre-reload refs reject post-reload same-slot operations");
+            CHECK(
+                g_engine.image_releases == image_releases + 1 &&
+                    g_engine.model_releases == model_releases + 1 &&
+                    g_engine.meshes_live == 1 && g_engine.objects_live == 1 &&
+                    g_v2_aba.reload_new_mesh_ok && g_v2_aba.reload_new_instance_ok &&
+                    g_v2_aba.reload_new_model_ok,
+                "pre-reload stale release/destroy calls leave every new resource live");
+        }
         PluginHost_Free(aba_host);
     }
 

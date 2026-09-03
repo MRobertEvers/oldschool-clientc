@@ -15,12 +15,15 @@
 #include "test_harness.h"
 
 #include "torirs_chrome_exec.h"
+#include "torirs_chrome_mirror.h"
 #include "uitree_debug_overlay.h"
 
 static struct ToriRSChrome g_ui;
 static struct ToriRSChromeSync g_sync;
 static struct ToriRSChromeRecorder g_rec;
 static int g_snapshot_request;
+static int g_fail_on_end;
+static void (*g_forward_apply)(void*, struct ToriRSChromeCmd const*);
 
 static int
 exec_take_snapshot_request(void* user)
@@ -29,6 +32,17 @@ exec_take_snapshot_request(void* user)
     (void)user;
     g_snapshot_request = 0;
     return requested;
+}
+
+static void
+exec_apply_with_injected_loss(void* user, struct ToriRSChromeCmd const* cmd)
+{
+    g_forward_apply(user, cmd);
+    if( g_fail_on_end && cmd->kind == TORIRS_CHROME_CMD_SYNC_END )
+    {
+        g_fail_on_end = 0;
+        g_snapshot_request = 1;
+    }
 }
 
 /** Bind a fresh recorder to a fresh model and catch it up to the model's state. */
@@ -416,6 +430,43 @@ test_chrome_exec_delivery_loss_snapshots_once(void)
     TEST_ASSERT(
         ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 && g_rec.count == 0,
         "the consumed delivery-loss request does not snapshot again");
+}
+
+static void
+test_chrome_exec_commit_failure_retains_journal(void)
+{
+    struct ToriRSChromeExec exec;
+    struct ToriRSChromeCmd const* begin;
+    int panel;
+
+    g_snapshot_request = 0;
+    g_fail_on_end = 0;
+    ToriRSChrome_Init(&g_ui);
+    ToriRSChromeRecorder_Init(&g_rec);
+    exec = ToriRSChromeExec_Recorder(&g_rec);
+    g_forward_apply = exec.apply;
+    exec.apply = exec_apply_with_injected_loss;
+    exec.take_snapshot_request = exec_take_snapshot_request;
+    TEST_ASSERT(ToriRSChromeSync_Init(&g_sync, &exec) == 1, "loss fixture starts");
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 8, 160, "Atomic loss");
+    ToriRSChrome_Label(&g_ui, panel, "must retry");
+    ToriRSChrome_Build(&g_ui);
+
+    g_fail_on_end = 1;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 &&
+            g_ui.change_count > 0 && !g_sync.primed && g_sync.restate,
+        "a failed END neither acknowledges the journal nor advances the shadow");
+
+    g_rec.count = 0;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) > 0 &&
+            g_ui.change_count == 0 && g_sync.primed,
+        "the retained journal retries as one successful snapshot");
+    begin = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_SYNC_BEGIN, -1);
+    TEST_ASSERT(begin && begin->value == 1,
+        "the retry is explicitly an authoritative restatement");
 }
 
 static void
@@ -975,6 +1026,31 @@ test_chrome_exec_intents(void)
     ToriRSChromeIntent_Apply(&g_ui, &intent);
     ToriRSChromeIntent_Apply(&g_ui, &intent);
     TEST_ASSERT(ToriRSChrome_Checked(&g_ui, check) == 1, "a duplicated intent is idempotent");
+}
+
+static void
+test_chrome_exec_intent_burst_is_explicit(void)
+{
+    struct ToriRSChromeMirror mirror;
+    struct ToriRSChromeIntent intents[TORIRS_CHROME_MIRROR_INTENTS];
+
+    ToriRSChromeMirror_Init(&mirror);
+    ToriRSChromeMirror_PushToggle(&mirror, 1, 2, 1);
+    TEST_ASSERT(
+        mirror.intent_count == 1 && mirror.intents[0].kind == TORIRS_CHROME_INTENT_TOGGLE,
+        "one checkbox gesture occupies one intent and carries activation itself");
+    while( mirror.intent_count < TORIRS_CHROME_MIRROR_INTENTS )
+        ToriRSChromeMirror_PushActivate(&mirror, 1, 2);
+    ToriRSChromeMirror_PushActivate(&mirror, 1, 2);
+    TEST_ASSERT(
+        ToriRSChromeMirror_TakeIntentOverflow(&mirror) == 1 &&
+            ToriRSChromeMirror_TakeIntentOverflow(&mirror) == 0,
+        "a full intent queue exposes one explicit loss indication");
+    TEST_ASSERT(
+        ToriRSChromeMirror_Poll(
+            &mirror, intents, TORIRS_CHROME_MIRROR_INTENTS) ==
+            TORIRS_CHROME_MIRROR_INTENTS,
+        "the accepted prefix remains drainable after an overflow report");
 }
 
 /*
@@ -1595,26 +1671,40 @@ struct RailExecFixture
 {
     int snapshots;
     int icons;
+    int fail_snapshot;
+    int fail_icon;
     struct ToriRSChromeRailSnapshot snapshot;
     struct ToriRSChromeRailIcon icon;
     struct ToriRSChromeRailIntent intents[4];
     int intent_count;
 };
 
-static void
+static int
 rail_fixture_sync(void* user, struct ToriRSChromeRailSnapshot const* snapshot)
 {
     struct RailExecFixture* fixture = user;
+    if( fixture->fail_snapshot )
+    {
+        fixture->fail_snapshot = 0;
+        return 0;
+    }
     fixture->snapshots++;
     fixture->snapshot = *snapshot;
+    return 1;
 }
 
-static void
+static int
 rail_fixture_icon(void* user, struct ToriRSChromeRailIcon const* icon)
 {
     struct RailExecFixture* fixture = user;
+    if( fixture->fail_icon )
+    {
+        fixture->fail_icon = 0;
+        return 0;
+    }
     fixture->icons++;
     fixture->icon = *icon;
+    return 1;
 }
 
 static int
@@ -1790,6 +1880,19 @@ test_chrome_exec_retained_rail(void)
         ToriRSChromeRailSnapshot_Add(
             &snapshot, 3, "Ground Items", "ground.png", 360, "12", 1),
         "a plugin destination is copied into the shared snapshot");
+    fixture.fail_snapshot = 1;
+    TEST_ASSERT(
+        ToriRSChromeRailSync_Run(&sync, &exec, &snapshot) == 0 &&
+            fixture.snapshots == 0,
+        "a rejected rail snapshot does not advance its retained shadow");
+    memset(&icon, 0, sizeof(icon));
+    icon.plugin_index = 3;
+    icon.revision = 5;
+    icon.width = 2;
+    icon.height = 1;
+    TEST_ASSERT(
+        ToriRSChromeRailSync_Icon(&sync, &exec, &icon) == 0 && fixture.icons == 0,
+        "icons wait until their owning rail snapshot is accepted");
     TEST_ASSERT(
         ToriRSChromeRailSync_Run(&sync, &exec, &snapshot) == 1 &&
             fixture.snapshots == 1 && fixture.snapshot.entry_count == 2 &&
@@ -1863,6 +1966,7 @@ test_chrome_exec(void)
     test_chrome_exec_records_dependent_properties();
     test_chrome_exec_queue_loss_snapshots_once();
     test_chrome_exec_delivery_loss_snapshots_once();
+    test_chrome_exec_commit_failure_retains_journal();
     test_chrome_exec_retains_focused_node();
     test_chrome_exec_maximum_clean_fast_path();
     test_chrome_exec_remove();
@@ -1872,6 +1976,7 @@ test_chrome_exec(void)
     test_chrome_exec_options();
     test_chrome_exec_structured_options();
     test_chrome_exec_intents();
+    test_chrome_exec_intent_burst_is_explicit();
     test_chrome_exec_close_reported();
     test_chrome_exec_refused();
     test_chrome_exec_row_order();

@@ -410,9 +410,9 @@ static WCHAR* wide_from_utf8(char const* input)
 static void outbound_push(struct PlatformWin32Browser* s, WCHAR const* message)
 {
     char* copy = utf8_from_wide(message);
-    if( !copy ) return;
+    if( !copy ) { s->send_failed = 1; return; }
     if( s->outbound_count >= MSHTML_OUTBOUND_MAX )
-    { free(copy); return; }
+    { free(copy); s->send_failed = 1; return; }
     s->outbound[s->outbound_count++] = copy;
 }
 
@@ -525,12 +525,15 @@ static void inject_bridge(struct PlatformWin32Browser* s)
     for( int i = 0; i < s->inbound_count; i++ )
     {
         char* message = s->inbound[i];
-        size_t size = strlen(message) + 96;
+        size_t size = strlen(message) + 320;
         char* call = (char*)malloc(size);
         if( call )
         {
             snprintf(call, size,
-                "window.ToriRSPluginChrome&&window.ToriRSPluginChrome.receive(%s);",
+                "(function(){var ok=false;try{ok=!!(window.ToriRSPluginChrome&&"
+                "window.ToriRSPluginChrome.receive(%s)!==false);}catch(e){}"
+                "if(!ok){try{window.external.postMessage(" 
+                "'{\"protocol\":1,\"type\":\"transport.loss\"}');}catch(e){}}})();",
                 message);
             if( !browser_exec(s, call) )
                 s->send_failed = 1;
@@ -859,11 +862,14 @@ PlatformWin32Browser_Send(struct PlatformWin32Browser* s, char const* json)
         s->inbound[s->inbound_count++] = copy;
         return 1;
     }
-    size = strlen(json) + 96;
+    size = strlen(json) + 320;
     call = (char*)malloc(size);
     if( !call ) return 0;
     snprintf(call, size,
-        "window.ToriRSPluginChrome&&window.ToriRSPluginChrome.receive(%s);", json);
+        "(function(){var ok=false;try{ok=!!(window.ToriRSPluginChrome&&"
+        "window.ToriRSPluginChrome.receive(%s)!==false);}catch(e){}"
+        "if(!ok){try{window.external.postMessage(" 
+        "'{\"protocol\":1,\"type\":\"transport.loss\"}');}catch(e){}}})();", json);
     {
         int const sent = browser_exec(s, call);
         free(call);

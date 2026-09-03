@@ -14,7 +14,10 @@
     var PROTOCOL = 1;
     var MAX_MESSAGES = 64;
     var MAX_ENTRIES = 33;
-    var MAX_OPTIONS = 4096;
+    /* Must equal TORIRS_CHROME_OPTION_MAX: the model and both browser runtimes
+     * accept the same bounded list rather than truncating at presentation. */
+    var MAX_OPTIONS = 512;
+    var MAX_PAGE_COMMANDS = 8190; /* 8192 including SYNC_BEGIN/SYNC_END. */
     var MAX_TEXT = 191;
     var Codec = global.ToriRSPluginChromeCodec;
     if (!Codec)
@@ -1145,11 +1148,27 @@
                 break;
         }
     }
+    function pageCommands(message) {
+        var commands = array(message.commands) ? message.commands : [];
+        if (commands.length > MAX_PAGE_COMMANDS)
+            return null;
+        for (var i = 0; i < commands.length; i++) {
+            var command = commands[i] || {};
+            var kind = integer(command.k, 0);
+            var value = integer(command.v, 0);
+            if (kind === CMD.WIDGET_OPTIONS && (value < 0 || value > MAX_OPTIONS))
+                return null;
+            if (kind === CMD.WIDGET_OPTION && (value < 0 || value >= MAX_OPTIONS))
+                return null;
+        }
+        return commands;
+    }
     function applyPageSnapshot(message) {
         var generation = unsigned(message.pageGeneration);
         var panel = integer(message.panel, -1);
-        if (!generation || panel < 0)
-            return;
+        var commands = pageCommands(message);
+        if (!generation || panel < 0 || !commands)
+            return false;
         clearPage(false);
         state.pageGeneration = generation;
         state.panel = panel;
@@ -1158,7 +1177,6 @@
         setText(title, message.title || 'Plugins');
         hidden(pane, false);
         toggleClass(shell, 'tpc-collapsed', false);
-        var commands = array(message.commands) ? message.commands : [];
         state.applying = true;
         try {
             for (var i = 0; i < commands.length; i++)
@@ -1169,11 +1187,13 @@
         }
         reconcileTabsAndVisibility();
         reportLayout();
+        return true;
     }
     function applyPageDelta(message) {
-        if (!state.pageGeneration || unsigned(message.pageGeneration) !== state.pageGeneration)
-            return;
-        var commands = array(message.commands) ? message.commands : [];
+        var commands = pageCommands(message);
+        if (!state.pageGeneration || unsigned(message.pageGeneration) !== state.pageGeneration ||
+            !commands)
+            return false;
         state.applying = true;
         try {
             for (var i = 0; i < commands.length; i++)
@@ -1183,6 +1203,7 @@
             state.applying = false;
         }
         reconcileTabsAndVisibility();
+        return true;
     }
     function applyCustomBitmap(message) {
         var generation = unsigned(message.pageGeneration);
@@ -1257,12 +1278,8 @@
             case 'theme':
                 applyTheme(message);
                 break;
-            case 'page.snapshot':
-                applyPageSnapshot(message);
-                break;
-            case 'page.delta':
-                applyPageDelta(message);
-                break;
+            case 'page.snapshot': return applyPageSnapshot(message);
+            case 'page.delta': return applyPageDelta(message);
             case 'page.close':
                 if (!message.pageGeneration || unsigned(message.pageGeneration) === state.pageGeneration)
                     clearPage();

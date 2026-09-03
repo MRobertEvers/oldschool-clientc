@@ -13,7 +13,10 @@
   const PROTOCOL = 1;
   const MAX_MESSAGES = 64;
   const MAX_ENTRIES = 33;
-  const MAX_OPTIONS = 4096;
+  /* Must equal TORIRS_CHROME_OPTION_MAX: the model and both browser runtimes
+   * accept the same bounded list rather than truncating at presentation. */
+  const MAX_OPTIONS = 512;
+  const MAX_PAGE_COMMANDS = 8190; /* 8192 including SYNC_BEGIN/SYNC_END. */
   const MAX_TEXT = 191;
   const Codec = global.ToriRSPluginChromeCodec;
   if (!Codec) return null;
@@ -1076,10 +1079,24 @@
     }
   }
 
+  function pageCommands(message) {
+    const commands = array(message.commands) ? message.commands : [];
+    if (commands.length > MAX_PAGE_COMMANDS) return null;
+    for (let i = 0; i < commands.length; i++) {
+      const command = commands[i] || {};
+      const kind = integer(command.k, 0);
+      const value = integer(command.v, 0);
+      if (kind === CMD.WIDGET_OPTIONS && (value < 0 || value > MAX_OPTIONS)) return null;
+      if (kind === CMD.WIDGET_OPTION && (value < 0 || value >= MAX_OPTIONS)) return null;
+    }
+    return commands;
+  }
+
   function applyPageSnapshot(message) {
     const generation = unsigned(message.pageGeneration);
     const panel = integer(message.panel, -1);
-    if (!generation || panel < 0) return;
+    const commands = pageCommands(message);
+    if (!generation || panel < 0 || !commands) return false;
     clearPage(false);
     state.pageGeneration = generation;
     state.panel = panel;
@@ -1088,21 +1105,23 @@
     setText(title, message.title || 'Plugins');
     hidden(pane, false);
     toggleClass(shell, 'tpc-collapsed', false);
-    const commands = array(message.commands) ? message.commands : [];
     state.applying = true;
     try { for (let i = 0; i < commands.length; i++) applyCommand(commands[i]); }
     finally { state.applying = false; }
     reconcileTabsAndVisibility();
     reportLayout();
+    return true;
   }
 
   function applyPageDelta(message) {
-    if (!state.pageGeneration || unsigned(message.pageGeneration) !== state.pageGeneration) return;
-    const commands = array(message.commands) ? message.commands : [];
+    const commands = pageCommands(message);
+    if (!state.pageGeneration || unsigned(message.pageGeneration) !== state.pageGeneration ||
+        !commands) return false;
     state.applying = true;
     try { for (let i = 0; i < commands.length; i++) applyCommand(commands[i]); }
     finally { state.applying = false; }
     reconcileTabsAndVisibility();
+    return true;
   }
 
   function applyCustomBitmap(message) {
@@ -1166,8 +1185,8 @@
       case 'rail.snapshot': applyRailSnapshot(message); break;
       case 'rail.icon': applyRailIcon(message); break;
       case 'theme': applyTheme(message); break;
-      case 'page.snapshot': applyPageSnapshot(message); break;
-      case 'page.delta': applyPageDelta(message); break;
+      case 'page.snapshot': return applyPageSnapshot(message);
+      case 'page.delta': return applyPageDelta(message);
       case 'page.close':
         if (!message.pageGeneration || unsigned(message.pageGeneration) === state.pageGeneration)
           clearPage();

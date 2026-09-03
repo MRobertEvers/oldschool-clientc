@@ -108,8 +108,16 @@ assert.strictEqual(frame.src, 'plugin_chrome/modern.html');
 assert.strictEqual(frame.getAttribute('sandbox'), 'allow-scripts allow-same-origin');
 
 const received = [];
+let rejectPage = false;
 const runtime = {
-  receive(message) { received.push(JSON.parse(JSON.stringify(message))); return true; }
+  receive(message) {
+    if (rejectPage && /^page\./.test(message.type)) {
+      rejectPage = false;
+      return false;
+    }
+    received.push(JSON.parse(JSON.stringify(message)));
+    return true;
+  }
 };
 assert(host.attachRuntime(runtime, frame.contentWindow));
 assert.strictEqual(received[0].type, 'theme', 'theme reaches runtime before retained state');
@@ -183,11 +191,14 @@ assert.deepStrictEqual({
 }, 'the web adapter preserves every structured option field independently');
 
 const beforeOverflow = received.length;
-global_.torirsChromeApply({ k: exported.CMD.SYNC_BEGIN });
+assert.strictEqual(global_.torirsChromeApply({ k: exported.CMD.SYNC_BEGIN }), true);
+let overflowRejected = false;
 for (let i = 0; i < 8193; i++) global_.torirsChromeApply({
   k: exported.CMD.WIDGET_LABEL, p: 3, w: 5, label: `overflow ${i}`
-});
-global_.torirsChromeApply({ k: exported.CMD.SYNC_END });
+}) === false && (overflowRejected = true);
+assert.strictEqual(global_.torirsChromeApply({ k: exported.CMD.SYNC_END }), false);
+assert.strictEqual(overflowRejected, true,
+  'the Wasm-facing hook reports command-cap rejection to the C executor');
 assert.strictEqual(received.length, beforeOverflow,
   'an oversized transaction drops atomically instead of committing its tail');
 global_.torirsChromeApply({ k: exported.CMD.SYNC_BEGIN });
@@ -195,6 +206,15 @@ global_.torirsChromeApply({ k: exported.CMD.WIDGET_LABEL, p: 3, w: 5, label: 'Re
 global_.torirsChromeApply({ k: exported.CMD.SYNC_END });
 assert.strictEqual(received.length, beforeOverflow + 1,
   'the overflow latch resets at the next transaction');
+
+rejectPage = true;
+assert.strictEqual(global_.torirsChromeApplyBatch([
+  { k: exported.CMD.SYNC_BEGIN },
+  { k: exported.CMD.WIDGET_LABEL, p: 3, w: 5, label: 'Rejected by runtime' },
+  { k: exported.CMD.SYNC_END }
+]), false, 'runtime rejection propagates synchronously to the C batch commit');
+assert.strictEqual(received.length, beforeOverflow + 1,
+  'a rejected runtime transaction advances neither the recording nor host shadow');
 
 global_.torirsChromeRailIcon(31, 3, 1, 1, 'ESIz/w==');
 message = received[received.length - 1];

@@ -45,7 +45,20 @@ struct ToriRS_PluginV2Adapter;
 #define TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX 32
 #define TORIRS_PLUGIN_V2_MESH_TOKENS_MAX 8
 #define TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX 64
-#define TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX 32
+
+/* A valid frame may retain one base plus every visual-state image for each
+ * named node, two images for each of the two skinnable surfaces, one overlay
+ * per surface, and all six scrollbar pieces. Keep the dependency ledger at
+ * that real API/host maximum instead of imposing a smaller accidental cap. */
+#define TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX 16
+#define TORIRS_PLUGIN_V2_FRAME_SKIN_SURFACES_MAX 2
+#define TORIRS_PLUGIN_V2_FRAME_SKIN_REFS_PER_SURFACE 2
+#define TORIRS_PLUGIN_V2_FRAME_SCROLLBAR_REFS_MAX 6
+#define TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX                                      \
+    (TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX * (1 + TORIRS_UI_VISUAL_STATE_COUNT) + \
+     TORIRS_PLUGIN_V2_FRAME_SKIN_SURFACES_MAX *                                    \
+         TORIRS_PLUGIN_V2_FRAME_SKIN_REFS_PER_SURFACE +                            \
+     TORIRS_SURFACE_COUNT + TORIRS_PLUGIN_V2_FRAME_SCROLLBAR_REFS_MAX)
 
 struct ToriRS_PluginV2ResourceToken
 {
@@ -207,6 +220,21 @@ ToriRS_PluginV2Adapter_Init(
     struct ToriRS_PluginApi const* legacy,
     struct ToriRS_PluginCtx* context,
     struct ToriRS_PluginV2AdapterHooks const* hooks);
+
+/** Reconstruct the API/modules while preserving the retired/incarnation
+ * resource ledger left by Reset. Used for the same plugin instance after a
+ * disable/reload; never for uninitialized storage. */
+bool
+ToriRS_PluginV2Adapter_Reinit(
+    struct ToriRS_PluginV2Adapter* adapter,
+    struct ToriRS_PluginApi const* legacy,
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_PluginV2AdapterHooks const* hooks);
+
+/** Invalidate every live resource token, advancing or retiring each token
+ * slot, then clear callable adapter state without clearing that ledger. */
+void
+ToriRS_PluginV2Adapter_Reset(struct ToriRS_PluginV2Adapter* adapter);
 
 struct ToriRS_ApiV2*
 ToriRS_PluginV2Adapter_Api(struct ToriRS_PluginV2Adapter* adapter);

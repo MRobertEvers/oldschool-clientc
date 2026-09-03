@@ -106,6 +106,12 @@ ToriRSChromeRailSync_Run(
     assert(snapshot);
     if( !exec->rail_sync )
         return 0;
+    if( exec->take_rail_snapshot_request &&
+        exec->take_rail_snapshot_request(exec->user) )
+    {
+        sync->primed = 0;
+        memset(sync->icon_known, 0, sizeof(sync->icon_known));
+    }
     if( sync->primed && sync->presented_user == exec->user &&
         sync->presented_apply == exec->rail_sync &&
         rail_snapshot_same(&sync->presented, snapshot) )
@@ -117,7 +123,14 @@ ToriRSChromeRailSync_Run(
         sync->icon_user = NULL;
         sync->icon_apply = NULL;
     }
-    exec->rail_sync(exec->user, snapshot);
+    if( !exec->rail_sync(exec->user, snapshot) )
+    {
+        sync->primed = 0;
+        memset(sync->icon_known, 0, sizeof(sync->icon_known));
+        sync->icon_user = NULL;
+        sync->icon_apply = NULL;
+        return 0;
+    }
     sync->presented = *snapshot;
     sync->presented_user = exec->user;
     sync->presented_apply = exec->rail_sync;
@@ -138,6 +151,17 @@ ToriRSChromeRailSync_Icon(
     assert(icon);
     if( !exec->rail_icon )
         return 0;
+    if( exec->take_rail_snapshot_request &&
+        exec->take_rail_snapshot_request(exec->user) )
+    {
+        sync->primed = 0;
+        memset(sync->icon_known, 0, sizeof(sync->icon_known));
+    }
+    /* Icons belong to a concrete rail snapshot. If that snapshot was rejected,
+     * do not let a successful icon call advance its own shadow first. */
+    if( !sync->primed || sync->presented_user != exec->user ||
+        sync->presented_apply != exec->rail_sync )
+        return 0;
     plugin = icon->plugin_index;
     if( plugin < 0 || plugin >= TORIRS_CHROME_RAIL_ENTRY_MAX || icon->revision == 0 ||
         icon->width < 0 || icon->height < 0 ||
@@ -153,7 +177,8 @@ ToriRSChromeRailSync_Icon(
     if( sync->icon_known[plugin] &&
         sync->icon_revision[plugin] == icon->revision )
         return 0;
-    exec->rail_icon(exec->user, icon);
+    if( !exec->rail_icon(exec->user, icon) )
+        return 0;
     sync->icon_revision[plugin] = icon->revision;
     sync->icon_known[plugin] = 1;
     return 1;

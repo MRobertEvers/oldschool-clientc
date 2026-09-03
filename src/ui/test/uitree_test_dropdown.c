@@ -219,6 +219,45 @@ main(void)
             "WantsWheel declines open ground");
     }
 
+    /* One semantic limit is enforced before the model reaches either web
+     * runtime, and a shared page budget makes every legal snapshot deliverable. */
+    {
+        char const* oversized[TORIRS_CHROME_OPTION_MAX + 1];
+        int lists[TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX /
+                  TORIRS_CHROME_OPTION_MAX];
+        int exhausted;
+
+        for( int i = 0; i < TORIRS_CHROME_OPTION_MAX + 1; i++ )
+            oversized[i] = "entry";
+        ToriRSChrome_Reset(&ui);
+        panel = ToriRSChrome_PanelAdd(
+            &ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 0, "Bounded");
+        for( int i = 0; i < (int)(sizeof(lists) / sizeof(lists[0])); i++ )
+            lists[i] = ToriRSChrome_Dropdown(
+                &ui, panel, "Many", oversized,
+                TORIRS_CHROME_OPTION_MAX + 1, TORIRS_CHROME_OPTION_MAX);
+        check(
+            ui.widgets[lists[0]].option_count == TORIRS_CHROME_OPTION_MAX &&
+                ui.widgets[lists[0]].selected == TORIRS_CHROME_OPTION_MAX - 1,
+            "an oversized borrowed list clamps to the shared protocol maximum");
+        check(
+            ui.legacy_option_count == TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX,
+            "legacy option lists consume one explicit page-wide budget");
+        exhausted = ToriRSChrome_Dropdown(
+            &ui, panel, "No room", oversized,
+            TORIRS_CHROME_OPTION_MAX, 0);
+        check(
+            exhausted >= 0 && ui.widgets[exhausted].option_count == 0,
+            "a list beyond the page budget retains an explicit empty prefix");
+        ToriRSChrome_WidgetRemove(&ui, lists[0]);
+        ToriRSChrome_DropdownSetOptions(
+            &ui, exhausted, oversized, TORIRS_CHROME_OPTION_MAX + 1, 0);
+        check(
+            ui.widgets[exhausted].option_count == TORIRS_CHROME_OPTION_MAX &&
+                ui.legacy_option_count == TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX,
+            "removal returns its entries and replacement atomically reuses them");
+    }
+
     printf("uitree_test_dropdown: %d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

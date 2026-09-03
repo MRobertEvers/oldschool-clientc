@@ -269,6 +269,7 @@
 
     railSync(snapshot) {
       const next = this.normalizeRail(snapshot);
+      const previous = this.rail;
       const oldGeneration = this.effectivePageGeneration();
       const nextGeneration = next.pageGeneration || next.selectionGeneration;
       if (this.pageOpen && oldGeneration && nextGeneration && oldGeneration !== nextGeneration) {
@@ -277,8 +278,10 @@
       }
       this.rail = next;
       this.updateLayout();
-      this.send(next);
-      return true;
+      if (this.send(next)) return true;
+      this.rail = previous;
+      this.updateLayout();
+      return false;
     }
 
     receiveProtocol(message) {
@@ -722,7 +725,7 @@
     };
     global.torirsChromeTakeDeliveryLoss = () => host.takeDeliveryLoss();
     global.torirsChromeTakeIntent = () => host.takeIntent();
-    global.torirsChromeRailSync = snapshot => { host.railSync(snapshot); };
+    global.torirsChromeRailSync = snapshot => host.railSync(snapshot);
     global.torirsChromeRailIcon = (plugin, revision, width, height, rgbaBase64) =>
       host.railIcon(plugin, revision, width, height, rgbaBase64);
     global.torirsChromeCustom = (panel, widget, generation, serial, scaleMilli,

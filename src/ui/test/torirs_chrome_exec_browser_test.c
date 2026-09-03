@@ -9,12 +9,14 @@
 
 struct PlatformWindow { int unused; };
 static struct PlatformWindow platform;
-static char sent[16][32768];
+static char sent[32][32768];
 static int sent_count;
 static char inbound[2048];
 static int opened;
 static int collapsed;
 static int page_width;
+static int send_enabled = 1;
+static int asynchronous_send_failure;
 
 bool PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* p)
 { return p == &platform; }
@@ -22,10 +24,20 @@ bool PlatformWindow_PluginBrowserReady(struct PlatformWindow const* p)
 { return p == &platform; }
 bool PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* p)
 { return p != &platform; }
-void PlatformWindow_PluginBrowserSend(struct PlatformWindow* p, char const* json)
+bool PlatformWindow_PluginBrowserSend(struct PlatformWindow* p, char const* json)
 {
-    CHECK(p == &platform && json && sent_count < 16);
+    CHECK(p == &platform && json);
+    if( !send_enabled ) return false;
+    CHECK(sent_count < 32);
     snprintf(sent[sent_count++], sizeof(sent[0]), "%s", json);
+    return true;
+}
+bool PlatformWindow_PluginBrowserTakeSendFailure(struct PlatformWindow* p)
+{
+    int const failed = asynchronous_send_failure;
+    CHECK(p == &platform);
+    asynchronous_send_failure = 0;
+    return failed != 0;
 }
 int PlatformWindow_PluginBrowserPoll(struct PlatformWindow* p, char* out, int cap)
 {
@@ -157,6 +169,21 @@ int main(void)
           strstr(sent[2], "\"detail\":\"Provider is not installed\"") != NULL);
     CHECK(exec.take_snapshot_request(exec.user) == 0);
 
+    /* Admission failure is synchronous: no envelope is recorded and the
+     * executor asks Sync for an authoritative replacement exactly once. */
+    send_enabled = 0;
+    cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_WIDGET_LABEL, 2, 9);
+    snprintf(cmd.label, sizeof(cmd.label), "not delivered");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_SYNC_END, -1, -1);
+    exec.apply(exec.user, &cmd);
+    CHECK(sent_count == 3);
+    CHECK(exec.take_snapshot_request(exec.user) == 1);
+    CHECK(exec.take_snapshot_request(exec.user) == 0);
+    send_enabled = 1;
+
     /* A bounded transport never commits a transaction prefix. It reports the
      * loss once so Sync can replace the retained page with one full snapshot. */
     cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
@@ -172,6 +199,31 @@ int main(void)
     CHECK(exec.take_snapshot_request(exec.user) == 1);
     CHECK(exec.take_snapshot_request(exec.user) == 0);
 
+    /* A backend can accept asynchronous script work and report its eventual
+     * rejection later; that loss is also consumed once by the executor. */
+    asynchronous_send_failure = 1;
+    CHECK(exec.take_snapshot_request(exec.user) == 1);
+    CHECK(exec.take_snapshot_request(exec.user) == 0);
+
+    /* Both failures invalidate local widget identity. One full retry restores
+     * the semantic page before intents or custom frames are accepted again. */
+    cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
+    cmd.value = 1;
+    cmd.serial = 11;
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_PANEL_OPEN, 2, -1);
+    snprintf(cmd.text, sizeof(cmd.text), "Loot Tracker");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_WIDGET_ADD, 2, 9);
+    cmd.value = TORIRS_CHROME_W_CUSTOM;
+    cmd.serial = 481;
+    cmd.h = 48;
+    snprintf(cmd.label, sizeof(cmd.label), "Chart");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_SYNC_END, -1, -1);
+    exec.apply(exec.user, &cmd);
+    CHECK(sent_count == 4 && strstr(sent[3], "\"type\":\"page.snapshot\"") != NULL);
+
     memset(&frame, 0, sizeof(frame));
     frame.panel = 2;
     frame.widget = 9;
@@ -181,9 +233,9 @@ int main(void)
     frame.width = frame.height = frame.stride = 2;
     frame.argb = pixels;
     exec.custom_present(exec.user, &frame);
-    CHECK(sent_count == 4);
-    CHECK(strstr(sent[3], "\"type\":\"custom.bitmap\"") != NULL);
-    CHECK(strstr(sent[3], "bitmap/custom-11-481-r1.bmp") != NULL);
+    CHECK(sent_count == 5);
+    CHECK(strstr(sent[4], "\"type\":\"custom.bitmap\"") != NULL);
+    CHECK(strstr(sent[4], "bitmap/custom-11-481-r1.bmp") != NULL);
 
     snprintf(inbound, sizeof(inbound),
         "{\"protocol\":1,\"type\":\"widget.intent\",\"sequence\":1,"
@@ -239,11 +291,11 @@ int main(void)
     rail.entries[1].plugin_index = 7;
     snprintf(rail.entries[1].title, sizeof(rail.entries[1].title), "Ground Markers");
     exec.rail_sync(exec.user, &rail);
-    CHECK(sent_count == 6);
-    CHECK(strstr(sent[4], "\"type\":\"page.close\"") != NULL &&
-          strstr(sent[4], "\"pageGeneration\":11") != NULL);
-    CHECK(strstr(sent[5], "\"type\":\"rail.snapshot\"") != NULL &&
-          strstr(sent[5], "\"pageGeneration\":12") != NULL);
+    CHECK(sent_count == 7);
+    CHECK(strstr(sent[5], "\"type\":\"page.close\"") != NULL &&
+          strstr(sent[5], "\"pageGeneration\":11") != NULL);
+    CHECK(strstr(sent[6], "\"type\":\"rail.snapshot\"") != NULL &&
+          strstr(sent[6], "\"pageGeneration\":12") != NULL);
 
     cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
     exec.apply(exec.user, &cmd);
@@ -259,13 +311,13 @@ int main(void)
     exec.apply(exec.user, &cmd);
     cmd = command(TORIRS_CHROME_CMD_SYNC_END, -1, -1);
     exec.apply(exec.user, &cmd);
-    CHECK(sent_count == 7);
-    CHECK(strstr(sent[6], "\"type\":\"page.snapshot\"") != NULL &&
-          strstr(sent[6], "\"pageGeneration\":12") != NULL &&
-          strstr(sent[6], "\"panel\":3") != NULL &&
-          strstr(sent[6], "\"s\":482") != NULL &&
-          strstr(sent[6], "\"k\":4") == NULL &&
-          strstr(sent[6], "\"commands\":[,") == NULL);
+    CHECK(sent_count == 8);
+    CHECK(strstr(sent[7], "\"type\":\"page.snapshot\"") != NULL &&
+          strstr(sent[7], "\"pageGeneration\":12") != NULL &&
+          strstr(sent[7], "\"panel\":3") != NULL &&
+          strstr(sent[7], "\"s\":482") != NULL &&
+          strstr(sent[7], "\"k\":4") == NULL &&
+          strstr(sent[7], "\"commands\":[,") == NULL);
 
     /*
      * A page boundary the RAIL never mentioned.

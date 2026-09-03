@@ -74,6 +74,7 @@ struct PlatformWin32Browser
     ICoreWebView2WebMessageReceivedEventHandler web_message_handler;
     ICoreWebView2WebResourceRequestedEventHandler resource_handler;
     ICoreWebView2DownloadStartingEventHandler download_handler;
+    ICoreWebView2ExecuteScriptCompletedHandler execute_handler;
 #if defined(TORIRS_WIN32_BROWSER_CAPTURE_API)
     ICoreWebView2CapturePreviewCompletedHandler capture_handler;
     IStream* capture_stream;
@@ -157,6 +158,8 @@ WV2_HANDLER_IUNKNOWN(resource, ICoreWebView2WebResourceRequestedEventHandler,
     resource_handler, IID_ICoreWebView2WebResourceRequestedEventHandler)
 WV2_HANDLER_IUNKNOWN(download, ICoreWebView2DownloadStartingEventHandler,
     download_handler, IID_ICoreWebView2DownloadStartingEventHandler)
+WV2_HANDLER_IUNKNOWN(execute, ICoreWebView2ExecuteScriptCompletedHandler,
+    execute_handler, IID_ICoreWebView2ExecuteScriptCompletedHandler)
 #if defined(TORIRS_WIN32_BROWSER_CAPTURE_API)
 WV2_HANDLER_IUNKNOWN(capture, ICoreWebView2CapturePreviewCompletedHandler,
     capture_handler, IID_ICoreWebView2CapturePreviewCompletedHandler)
@@ -217,9 +220,9 @@ static int allowed_navigation_uri(
 static void outbound_push(struct PlatformWin32Browser* s, WCHAR const* message)
 {
     char* copy = utf8_from_wide(message);
-    if( !copy ) return;
+    if( !copy ) { s->send_failed = 1; return; }
     if( s->outbound_count >= WV2_OUTBOUND_MAX )
-    { free(copy); return; }
+    { free(copy); s->send_failed = 1; return; }
     s->outbound[s->outbound_count++] = copy;
 }
 
@@ -230,13 +233,16 @@ static int execute_json(struct PlatformWin32Browser* s, char const* json)
     WCHAR* wide;
     HRESULT hr = E_FAIL;
     if( !s->core || !json ) return 0;
-    size = strlen(json) + 96;
+    size = strlen(json) + 192;
     script = (char*)malloc(size);
     if( !script ) return 0;
     snprintf(script, size,
-        "window.ToriRSPluginChrome&&window.ToriRSPluginChrome.receive(%s);", json);
+        "(function(){try{return !!(window.ToriRSPluginChrome&&"
+        "window.ToriRSPluginChrome.receive(%s)!==false);}" 
+        "catch(e){return false;}})();", json);
     wide = wide_from_utf8(script);
-    if( wide ) hr = ICoreWebView2_ExecuteScript(s->core, wide, NULL);
+    if( wide )
+        hr = ICoreWebView2_ExecuteScript(s->core, wide, &s->execute_handler);
     free(wide);
     free(script);
     return SUCCEEDED(hr);
@@ -378,6 +384,20 @@ static HRESULT STDMETHODCALLTYPE download_invoke(
     return S_OK;
 }
 
+static HRESULT STDMETHODCALLTYPE execute_invoke(
+    ICoreWebView2ExecuteScriptCompletedHandler* self,
+    HRESULT error,
+    LPCWSTR result_json)
+{
+    struct PlatformWin32Browser* s = WV2_FROM(execute_handler, self);
+    /* ExecuteScript's immediate S_OK means only that work was queued. The
+     * boolean result proves the runtime existed and accepted the envelope. */
+    if( !s->closing &&
+        (FAILED(error) || !result_json || wcscmp(result_json, L"true") != 0) )
+        s->send_failed = 1;
+    return S_OK;
+}
+
 static ICoreWebView2NavigationStartingEventHandlerVtbl NAV_START_VTBL = {
     nav_start_qi, nav_start_addref, nav_start_release, nav_start_invoke
 };
@@ -398,6 +418,9 @@ static ICoreWebView2WebResourceRequestedEventHandlerVtbl RESOURCE_VTBL = {
 };
 static ICoreWebView2DownloadStartingEventHandlerVtbl DOWNLOAD_VTBL = {
     download_qi, download_addref, download_release, download_invoke
+};
+static ICoreWebView2ExecuteScriptCompletedHandlerVtbl EXECUTE_VTBL = {
+    execute_qi, execute_addref, execute_release, execute_invoke
 };
 
 #if defined(TORIRS_WIN32_BROWSER_CAPTURE_API)
@@ -619,6 +642,7 @@ PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
     s->web_message_handler.lpVtbl = &WEB_MESSAGE_VTBL;
     s->resource_handler.lpVtbl = &RESOURCE_VTBL;
     s->download_handler.lpVtbl = &DOWNLOAD_VTBL;
+    s->execute_handler.lpVtbl = &EXECUTE_VTBL;
 #if defined(TORIRS_WIN32_BROWSER_CAPTURE_API)
     s->capture_handler.lpVtbl = &CAPTURE_VTBL;
 #endif

@@ -106,10 +106,10 @@ struct ToriRSChromeRailSync
 {
     struct ToriRSChromeRailSnapshot presented;
     void* presented_user;
-    void (*presented_apply)(
+    int (*presented_apply)(
         void* user, struct ToriRSChromeRailSnapshot const* snapshot);
     void* icon_user;
-    void (*icon_apply)(void* user, struct ToriRSChromeRailIcon const* icon);
+    int (*icon_apply)(void* user, struct ToriRSChromeRailIcon const* icon);
     uint32_t icon_revision[TORIRS_CHROME_RAIL_ENTRY_MAX];
     unsigned char icon_known[TORIRS_CHROME_RAIL_ENTRY_MAX];
     int primed;

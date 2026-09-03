@@ -134,7 +134,7 @@ struct ToriRS_PluginCtx
     struct PluginV2Instance* v2;
 };
 
-#define PLUGIN_V2_FRAME_UI_MAX 16
+#define PLUGIN_V2_FRAME_UI_MAX TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX
 
 _Static_assert(
     TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX >= TORIRS_PLUGIN_IMAGES_MAX,
@@ -170,6 +170,7 @@ struct PluginV2Instance
     struct ToriRS_PluginFrameOffer frames[TORIRS_PLUGIN_FRAME_OFFERS_MAX + 1];
     int frame_count;
     struct ToriRS_PluginV2Adapter adapter;
+    bool adapter_initialized_once;
     void* state;
     int frame_ui_count;
     int frame_ui_candidate_count;
@@ -9347,10 +9348,13 @@ plugin_v2_init(
         assert(v2->state);
     }
     hooks = plugin_v2_adapter_hooks(ctx);
-    initialized = ToriRS_PluginV2Adapter_Init(&v2->adapter, legacy, ctx, &hooks);
+    initialized = v2->adapter_initialized_once
+                      ? ToriRS_PluginV2Adapter_Reinit(&v2->adapter, legacy, ctx, &hooks)
+                      : ToriRS_PluginV2Adapter_Init(&v2->adapter, legacy, ctx, &hooks);
     assert(initialized);
     if( !initialized )
         return;
+    v2->adapter_initialized_once = true;
     for( int event = 0; event < TORIRS_PLUGIN_EV_COUNT; event++ )
         if( plugin_v2_has_event_callback(v2->definition, (enum ToriRS_PluginEvent)event) )
             legacy->subscribe(
@@ -9367,7 +9371,7 @@ plugin_v2_shutdown(struct ToriRS_PluginCtx* ctx)
     assert(v2);
     free(v2->state);
     v2->state = NULL;
-    memset(&v2->adapter, 0, sizeof(v2->adapter));
+    ToriRS_PluginV2Adapter_Reset(&v2->adapter);
     v2->frame_ui_count = 0;
     v2->frame_ui_candidate_count = 0;
     v2->frame_ui_candidate_invalid = false;
