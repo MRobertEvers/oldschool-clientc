@@ -215,7 +215,7 @@ static void
 cs_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 {
     struct ClientSettingsState* state = state_ptr;
-    struct ToriRS_PluginPanelDesc panel = { NULL, TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT };
+    struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT };
     assert(api);
     assert(state);
     assert(api->client);
@@ -288,7 +288,7 @@ static void
 cs_on_ui_action(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvPanelAction const* event)
+    struct ToriRS_PanelActionEvent const* event)
 {
     struct ClientSettingsState* state = state_ptr;
     int min = 0;
@@ -332,7 +332,7 @@ static void
 cs_on_frame_start(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvFrame const* event)
+    struct ToriRS_FrameEvent const* event)
 {
     struct ClientSettingsState* state = state_ptr;
     struct ToriRS_FrameSelection selection = { .struct_size = sizeof(selection) };

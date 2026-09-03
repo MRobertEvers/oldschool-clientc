@@ -25,7 +25,7 @@
  * pinned to no revision. What it cannot bring is the LIVE surfaces -- the
  * scene, the minimap, the chat log, the sidebar interface, the modal region
  * -- so it declares where each of those goes and the host puts them there.
- * @see ToriRS_PluginLayoutSlot.
+ * @see ToriRS_EngineSurfaceSlot.
  *
  * ## The OldSchool lane, where the frame is a CS2 toplevel
  *
@@ -60,7 +60,7 @@
  *
  * The lineage and not the era table: `manifest_osrs233xrsps.ini` states
  * `era=server_routed` and is still an OldSchool cache with the whole
- * gameframe in it. @see ToriRS_PluginGame.
+ * gameframe in it. @see ToriRS_GameVariant.
  *
  * ## The art is the plugin's, not the cache's
  *
@@ -174,7 +174,7 @@ static int const FRAME_TAB_SCREEN_ORDER[FRAME_TAB_COUNT] = {
  */
 #define FRAME_CHAT_BUTTON_COUNT 4
 /** Which of the four is Report abuse. A filter number and not a position:
- *  @see ToriRS_PluginLayoutSlot's chat-button member numbering. */
+ *  @see ToriRS_EngineSurfaceSlot's chat-button member numbering. */
 #define FRAME_CHAT_BUTTON_REPORT 3
 /** The 2004 frame's own: a 100x32 box each, on the 50-tall backbase1 strip. */
 #define FRAME_CHAT_BUTTON_W 100
@@ -450,7 +450,7 @@ struct FrameCall
 static int
 frame_lane_oldschool(struct FrameCall* ctx)
 {
-    struct ToriRS_PluginLane lane;
+    struct ToriRS_LaneInfo lane;
 
     assert(ctx);
     if( !ctx->api->core.lane(ctx->api, &lane) )
@@ -2346,7 +2346,7 @@ static void
 frame_on_asset(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvAsset const* event)
+    struct ToriRS_AssetEvent const* event)
 {
     struct FrameState* state = state_ptr;
 

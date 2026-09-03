@@ -39,7 +39,7 @@
  * The flag bits, as read off clientscript 4624 and confirmed against 5198.
  * Restated here rather than included from rs_highlight.h: this plugin is
  * written against the contract like any other, and the contract's own
- * documentation of ToriRS_PluginHighlightItem::flags is where they are stated
+ * documentation of ToriRS_HighlightItem::flags is where they are stated
  * for a plugin author.
  */
 #define NXT_HL_MODEL_OUTLINE 1
@@ -61,13 +61,13 @@
  * wash in the game 2.55x too opaque.
  */
 static bool
-nxt_hl_outline(struct ToriRS_PluginHighlightItem const* item, int flag)
+nxt_hl_outline(struct ToriRS_HighlightItem const* item, int flag)
 {
     return (item->flags & flag) != 0 && item->outline_width != 0;
 }
 
 static bool
-nxt_hl_fill(struct ToriRS_PluginHighlightItem const* item, int flag)
+nxt_hl_fill(struct ToriRS_HighlightItem const* item, int flag)
 {
     return (item->flags & flag) != 0 && item->opacity != 0;
 }
@@ -87,7 +87,7 @@ nxt_highlight_draw(
 
     for( ;; )
     {
-        struct ToriRS_PluginHighlightItem item;
+        struct ToriRS_HighlightItem item;
         bool model_outline;
         bool model_fill;
         bool tile_outline;

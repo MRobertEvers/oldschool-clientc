@@ -199,7 +199,7 @@ fake_frame_work_us(void* u)
     return 4000;
 }
 static int
-fake_local_player(void* u, struct ToriRS_PluginPlayerSnap* out)
+fake_local_player(void* u, struct ToriRS_PlayerSnapshot* out)
 {
     (void)u;
     if( out )
@@ -207,7 +207,7 @@ fake_local_player(void* u, struct ToriRS_PluginPlayerSnap* out)
     return 1;
 }
 static int
-fake_npc_next(void* u, int iter, struct ToriRS_PluginNpcSnap* out)
+fake_npc_next(void* u, int iter, struct ToriRS_NpcSnapshot* out)
 {
     (void)u;
     (void)iter;
@@ -215,7 +215,7 @@ fake_npc_next(void* u, int iter, struct ToriRS_PluginNpcSnap* out)
     return -1;
 }
 static int
-fake_npc_by_slot(void* u, int slot, struct ToriRS_PluginNpcSnap* out)
+fake_npc_by_slot(void* u, int slot, struct ToriRS_NpcSnapshot* out)
 {
     (void)u;
     (void)slot;
@@ -223,7 +223,7 @@ fake_npc_by_slot(void* u, int slot, struct ToriRS_PluginNpcSnap* out)
     return 0;
 }
 static int
-fake_player_next(void* u, int iter, struct ToriRS_PluginPlayerSnap* out)
+fake_player_next(void* u, int iter, struct ToriRS_PlayerSnapshot* out)
 {
     (void)u;
     (void)iter;
@@ -231,7 +231,7 @@ fake_player_next(void* u, int iter, struct ToriRS_PluginPlayerSnap* out)
     return -1;
 }
 static int
-fake_obj_next(void* u, int iter, struct ToriRS_PluginObjSnap* out)
+fake_obj_next(void* u, int iter, struct ToriRS_GroundItemSnapshot* out)
 {
     (void)u;
     (void)iter;
@@ -239,7 +239,7 @@ fake_obj_next(void* u, int iter, struct ToriRS_PluginObjSnap* out)
     return -1;
 }
 static int
-fake_loc_next(void* u, int iter, struct ToriRS_PluginLocSnap* out)
+fake_loc_next(void* u, int iter, struct ToriRS_ScenerySnapshot* out)
 {
     (void)u;
     (void)iter;
@@ -247,7 +247,7 @@ fake_loc_next(void* u, int iter, struct ToriRS_PluginLocSnap* out)
     return -1;
 }
 static int
-fake_highlight_next(void* u, int iter, struct ToriRS_PluginHighlightItem* out)
+fake_highlight_next(void* u, int iter, struct ToriRS_HighlightItem* out)
 {
     (void)u;
     (void)iter;
@@ -277,7 +277,7 @@ fake_hover_tile(void* u, int* x, int* z, int* l)
     return 0;
 }
 static int
-fake_hover_entity(void* u, struct ToriRS_PluginHoverEntity* out)
+fake_hover_entity(void* u, struct ToriRS_HoverTarget* out)
 {
     (void)u;
     (void)out;
@@ -291,7 +291,7 @@ fake_element_height(void* u, int element)
     return 200;
 }
 static int
-fake_feature_next(void* u, int i, struct ToriRS_PluginFeature* o)
+fake_feature_next(void* u, int i, struct ToriRS_FeatureInfo* o)
 {
     (void)u;
     (void)i;
@@ -723,7 +723,7 @@ fake_obj_image(void* u, int slot, int obj_id, int count, int style, int* out_w, 
 /* The client's own loot record. A fake engine records nothing, which is the
  * ordinary answer on a lane whose server has no kill hook. */
 static int
-fake_loot_source_next(void* u, int iter, struct ToriRS_PluginLootSource* out)
+fake_loot_source_next(void* u, int iter, struct ToriRS_LootSource* out)
 {
     (void)u;
     (void)iter;
@@ -732,7 +732,7 @@ fake_loot_source_next(void* u, int iter, struct ToriRS_PluginLootSource* out)
 }
 static int
 fake_loot_row_next(
-    void* u, int source_id, int iter, struct ToriRS_PluginLootRow* out)
+    void* u, int source_id, int iter, struct ToriRS_LootRow* out)
 {
     (void)u;
     (void)source_id;
@@ -871,7 +871,7 @@ fake_screenshot(
  * defines.
  */
 static int
-fake_obj_info(void* u, int obj_id, struct ToriRS_PluginObjInfo* out)
+fake_obj_info(void* u, int obj_id, struct ToriRS_ItemInfo* out)
 {
     (void)u;
     (void)obj_id;

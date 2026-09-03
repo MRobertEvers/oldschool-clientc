@@ -1,7 +1,7 @@
 #ifndef TORIRS_PLUGIN_NXT_ACTIVITIES_H
 #define TORIRS_PLUGIN_NXT_ACTIVITIES_H
 
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_types.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -133,7 +133,7 @@ nxt_setting_color(
 #define NXT_VARP_TILE_MARKER_COLOR "tile_marker_color"
 #define NXT_COL_TILE_MARKER 0x00FF00u
 /** "Clear your highlighted tiles" -- a BUTTON row, so it has no var at all.
- *  Seen through EV_SETTING; see ToriRS_PluginEvSetting. */
+ *  Seen through EV_SETTING; see ToriRS_SettingEvent. */
 #define NXT_SETTING_CLEAR_TILE_MARKERS "clear_tile_markers"
 
 /** "Highlight entities on mouse-over". PLAIN. No cache script drives it. */

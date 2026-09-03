@@ -81,7 +81,7 @@ static void
 app_plugin_fill_player(
     struct App* app,
     struct WorldEntity_Player const* player,
-    struct ToriRS_PluginPlayerSnap* out)
+    struct ToriRS_PlayerSnapshot* out)
 {
     int base_x = app->world->_base_tile_x;
     int base_z = app->world->_base_tile_z;
@@ -167,7 +167,7 @@ static void
 app_plugin_fill_npc(
     struct App* app,
     struct WorldEntity_NPC const* npc,
-    struct ToriRS_PluginNpcSnap* out)
+    struct ToriRS_NpcSnapshot* out)
 {
     int const base_x = app->world->_base_tile_x;
     int const base_z = app->world->_base_tile_z;
@@ -237,7 +237,7 @@ static void
 app_plugin_fill_obj(
     struct App* app,
     struct WorldEntity_ObjStack const* stack,
-    struct ToriRS_PluginObjSnap* out)
+    struct ToriRS_GroundItemSnapshot* out)
 {
     assert(app);
     assert(stack);
@@ -269,7 +269,7 @@ app_plugin_fill_obj(
 }
 
 static int
-app_plugin_obj_next(void* user, int iter, struct ToriRS_PluginObjSnap* out)
+app_plugin_obj_next(void* user, int iter, struct ToriRS_GroundItemSnapshot* out)
 {
     struct App* app = (struct App*)user;
     struct World_EntityPool* pool;
@@ -300,7 +300,7 @@ static void
 app_plugin_fill_loc(
     struct App* app,
     struct WorldEntity_Scenery const* scenery,
-    struct ToriRS_PluginLocSnap* out)
+    struct ToriRS_ScenerySnapshot* out)
 {
     assert(app);
     assert(scenery);
@@ -338,7 +338,7 @@ app_plugin_fill_loc(
  * that wants to remember one remembers that.
  */
 static int
-app_plugin_loc_next(void* user, int iter, struct ToriRS_PluginLocSnap* out)
+app_plugin_loc_next(void* user, int iter, struct ToriRS_ScenerySnapshot* out)
 {
     struct App* app = (struct App*)user;
     struct World_EntityPool* pool;
@@ -387,7 +387,7 @@ app_plugin_highlight_begin(
     struct App* app,
     enum RS_HighlightKind kind,
     int group,
-    struct ToriRS_PluginHighlightItem* proto)
+    struct ToriRS_HighlightItem* proto)
 {
     struct RS_HighlightStyle const* style;
 
@@ -406,10 +406,10 @@ app_plugin_highlight_begin(
     return true;
 }
 
-static struct ToriRS_PluginHighlightItem*
-app_plugin_highlight_push(struct App* app, struct ToriRS_PluginHighlightItem const* proto)
+static struct ToriRS_HighlightItem*
+app_plugin_highlight_push(struct App* app, struct ToriRS_HighlightItem const* proto)
 {
-    struct ToriRS_PluginHighlightItem* item;
+    struct ToriRS_HighlightItem* item;
 
     if( app->plugin_highlight_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
         return NULL;
@@ -552,12 +552,12 @@ app_plugin_highlight_loc_cache_needs_full(struct App const* app)
 
 /* Push one resolved loc into the cache. Bounded by the same cap as the live
  * list, so a cache that fills cannot outrun what the list could hold. */
-static struct ToriRS_PluginHighlightItem*
+static struct ToriRS_HighlightItem*
 app_plugin_highlight_loc_cache_push(
     struct App* app,
-    struct ToriRS_PluginHighlightItem const* proto)
+    struct ToriRS_HighlightItem const* proto)
 {
-    struct ToriRS_PluginHighlightItem* item;
+    struct ToriRS_HighlightItem* item;
 
     if( app->plugin_highlight_loc_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
         return NULL;
@@ -579,7 +579,7 @@ app_plugin_highlight_loc_resolve_one(
     struct WorldEntity_Scenery* loc)
 {
     struct RS_HighlightState const* hl = &app->host.highlight;
-    struct ToriRS_PluginHighlightItem proto;
+    struct ToriRS_HighlightItem proto;
     /* Asked once per entity here rather than once per pool walk, because an
      * incremental update has no pool walk to hoist it out of. It is a scan of
      * a list that is empty in every ordinary session. */
@@ -810,7 +810,7 @@ app_plugin_highlights_rebuild_pools(
     bool const want[APP_PLUGIN_HL_POOL_COUNT])
 {
     struct RS_HighlightState const* hl;
-    struct ToriRS_PluginHighlightItem proto;
+    struct ToriRS_HighlightItem proto;
 
     assert(app);
     assert(want);
@@ -998,7 +998,7 @@ app_plugin_highlights_rebuild_pools(
         app->world->scenery_changed_overflow = false;
         for( int i = 0; i < app->plugin_highlight_loc_count; i++ )
         {
-            struct ToriRS_PluginHighlightItem* out =
+            struct ToriRS_HighlightItem* out =
                 app_plugin_highlight_push(app, &app->plugin_highlight_loc[i]);
             if( !out )
                 return;
@@ -1212,7 +1212,7 @@ app_plugin_highlights_report(struct App* app)
 }
 
 static int
-app_plugin_highlight_next(void* user, int iter, struct ToriRS_PluginHighlightItem* out)
+app_plugin_highlight_next(void* user, int iter, struct ToriRS_HighlightItem* out)
 {
     struct App* app = (struct App*)user;
     int next;
@@ -1317,7 +1317,7 @@ app_plugin_capability(void* user, char const* name)
 }
 
 static int
-app_plugin_local_player(void* user, struct ToriRS_PluginPlayerSnap* out)
+app_plugin_local_player(void* user, struct ToriRS_PlayerSnapshot* out)
 {
     struct App* app = (struct App*)user;
     struct WorldEntity_Player* player;
@@ -1336,7 +1336,7 @@ app_plugin_local_player(void* user, struct ToriRS_PluginPlayerSnap* out)
 }
 
 static int
-app_plugin_npc_next(void* user, int iter, struct ToriRS_PluginNpcSnap* out)
+app_plugin_npc_next(void* user, int iter, struct ToriRS_NpcSnapshot* out)
 {
     struct App* app = (struct App*)user;
     struct World_EntityPool* pool;
@@ -1366,7 +1366,7 @@ app_plugin_npc_next(void* user, int iter, struct ToriRS_PluginNpcSnap* out)
 }
 
 static int
-app_plugin_npc_by_slot(void* user, int server_slot, struct ToriRS_PluginNpcSnap* out)
+app_plugin_npc_by_slot(void* user, int server_slot, struct ToriRS_NpcSnapshot* out)
 {
     struct App* app = (struct App*)user;
     struct WorldEntity_NPC* npc;
@@ -1385,7 +1385,7 @@ app_plugin_npc_by_slot(void* user, int server_slot, struct ToriRS_PluginNpcSnap*
 }
 
 static int
-app_plugin_player_next(void* user, int iter, struct ToriRS_PluginPlayerSnap* out)
+app_plugin_player_next(void* user, int iter, struct ToriRS_PlayerSnapshot* out)
 {
     struct App* app = (struct App*)user;
     struct World_EntityPool* pool;
@@ -1519,7 +1519,7 @@ app_plugin_hover_tile(void* user, int* out_tile_x, int* out_tile_z, int* out_lev
  * flying at.
  */
 static int
-app_plugin_hover_entity(void* user, struct ToriRS_PluginHoverEntity* out)
+app_plugin_hover_entity(void* user, struct ToriRS_HoverTarget* out)
 {
     struct App* app = (struct App*)user;
 
@@ -1799,7 +1799,7 @@ struct AppPluginFeatureDesc
     enum AppPluginFeatureSlot slot;
     /** Byte offset into the owning struct, or the bit mask for a CAMERA_BIT. */
     size_t offset;
-    /** enum ToriRS_PluginFeatureKind. */
+    /** enum ToriRS_FeatureKind. */
     int kind;
     /** FEATURE_INT: the real range. A value outside `values` is still legal;
      *  a settings file may carry one and the panel shows it. */
@@ -2183,7 +2183,7 @@ app_plugin_feature_repush(struct App* app)
 }
 
 static int
-app_plugin_feature_next(void* user, int iter, struct ToriRS_PluginFeature* out)
+app_plugin_feature_next(void* user, int iter, struct ToriRS_FeatureInfo* out)
 {
     struct App* app = (struct App*)user;
 
@@ -2501,7 +2501,7 @@ app_plugin_cache_id(void* user, char const* kind, char const* name)
  * process answers the same way.
  */
 static int
-app_plugin_lane(void* user, struct ToriRS_PluginLane* out)
+app_plugin_lane(void* user, struct ToriRS_LaneInfo* out)
 {
     struct App* app = (struct App*)user;
     struct RSCache const* profile;
@@ -2561,7 +2561,7 @@ app_plugin_lane(void* user, struct ToriRS_PluginLane* out)
  * wild dereference and not a wrong number: those are skipped by kind.
  */
 static int
-app_plugin_obj_info(void* user, int obj_id, struct ToriRS_PluginObjInfo* out)
+app_plugin_obj_info(void* user, int obj_id, struct ToriRS_ItemInfo* out)
 {
     struct App* app = (struct App*)user;
     struct ToriRS_Objtype* type;
@@ -3064,7 +3064,7 @@ app_plugin_image_release(void* user, int slot)
  */
 static int
 app_plugin_loot_source_next(
-    void* user, int iter, struct ToriRS_PluginLootSource* out)
+    void* user, int iter, struct ToriRS_LootSource* out)
 {
     struct App* app = (struct App*)user;
     int const next = iter + 1;
@@ -3087,7 +3087,7 @@ app_plugin_loot_source_next(
 
 static int
 app_plugin_loot_row_next(
-    void* user, int source_id, int iter, struct ToriRS_PluginLootRow* out)
+    void* user, int source_id, int iter, struct ToriRS_LootRow* out)
 {
     struct App* app = (struct App*)user;
     int const next = iter + 1;
@@ -3415,7 +3415,7 @@ app_plugin_hit_region(
     /* Empty entries are dropped rather than kept as blank rows, so a caller
      * with a fixed-size table can hand the whole thing over. The INDEX a click
      * reports is into what was kept, which is what the plugin then switches
-     * on -- see ToriRS_PluginEvCanvasClick::op. */
+     * on -- see ToriRS_CanvasActionEvent::op. */
     for( int i = 0; i < op_count; i++ )
     {
         if( !ops[i] || !ops[i][0] )
@@ -5125,7 +5125,7 @@ static void
 app_plugin_menu_build(
     struct App* app, struct UIMinimenu* menu, int click_x, int click_y, int hover_pass)
 {
-    struct ToriRS_PluginEvMenuBuild ev;
+    struct ToriRS_MenuBuildEvent ev;
 
     assert(app);
     assert(menu);
@@ -5220,7 +5220,7 @@ app_plugin_menu_build(
     for( int i = 0; i < ev.row_count; i++ )
     {
         struct UIMinimenuOption const* opt = &menu->options[i];
-        struct ToriRS_PluginMenuRow* row = &ev.rows[i];
+        struct ToriRS_MenuRow* row = &ev.rows[i];
 
         row->text = opt->text;
         row->action = UIMinimenu_ActionNormalize(opt->action);

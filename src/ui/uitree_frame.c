@@ -1,6 +1,6 @@
 #include "uitree_frame.h"
 
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_types.h"
 #include "uitree_layout.h"
 
 #include <assert.h>

@@ -1032,24 +1032,13 @@ app_entity_spotanim_detach(
  * The builder writes into a scratch buffer using the game out-cipher; the
  * bytes then queue to the socket via the subsystem's SEND_DATA ring.
  *
- * The plugin veto sits BEFORE the builder runs, and that ordering is the whole
- * point of putting it here rather than around ToriRS_Network_SendRaw. Every
- * net_out_* builder encrypts its opcode by advancing the outbound ISAAC
- * stream, so a packet that is built and then discarded leaves the cipher one
- * step ahead of the server's and every opcode after it decrypts to garbage. A
- * veto that never lets the builder run costs the stream nothing.
- *
- * The packet is identified to plugins by the stringified builder call, trimmed
- * to its leading identifier by the host. That is what lets one macro make all
- * sixty send sites observable: there is no packet-name argument anywhere on
- * this path to pass instead, and a hand-written builder-to-enum table would be
- * sixty more chances to label a send wrong.
+ * Building and queueing remain one operation so the outbound ISAAC stream
+ * cannot advance without the corresponding packet being sent.
  */
 #define APP_NET_SEND(app, builder_call)                                                            \
     do                                                                                             \
     {                                                                                              \
-        if( (app)->net && (app)->net->state == TORIRS_NET_GAME &&                                  \
-            !PluginHost_PacketOutVeto((app)->plugins, #builder_call) )                             \
+        if( (app)->net && (app)->net->state == TORIRS_NET_GAME )                                  \
         {                                                                                          \
             uint8_t _nsbuf[512];                                                                   \
             int _nslen = builder_call;                                                             \
@@ -16534,23 +16523,6 @@ app_pump_net_packets(struct App* app)
             if( !app->net_first_recv_ms )
                 app->net_first_recv_ms = app->last_frame_ms;
 
-            /*
-             * Decoded, and not yet applied to anything.
-             *
-             * A plugin may drop the packet here. That is a live wire and is
-             * meant to be: PLAYER_INFO and NPC_INFO carry extended-info blocks
-             * indexed by list position, so dropping one desyncs entity
-             * bookkeeping for the rest of the session. The fence is the one
-             * packet that may never be dropped -- without it the clientscript
-             * gate never closes and the UI stops updating -- so that is an
-             * assert rather than a silently honoured request.
-             */
-            if( app->plugins && PluginHost_PacketIn(app->plugins, (int)packet.packet_type, -1) )
-            {
-                assert(packet.packet_type != PKT_NAME_SERVER_TICK_END);
-                gameproto_free(&packet);
-                continue;
-            }
             /* Once a revision has demonstrated explicit tick fences,
              * retain only packets that participate in an atomic UI/CS2
              * transaction. World feedback is valid between those ticks.
@@ -22224,7 +22196,7 @@ app_world_spawn_npc_now(
         struct WorldEntity_NPC* spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
         if( spawned )
         {
-            struct ToriRS_PluginNpcSnap snap;
+            struct ToriRS_NpcSnapshot snap;
             app_plugin_fill_npc(app, spawned, &snap);
             PluginHost_NpcSpawn(app->plugins, &snap);
         }
@@ -26738,7 +26710,7 @@ App_WorldDrainEntityRemovedFor(
             {
                 struct WorldEntity_NPC* going =
                     World_NpcGetByElementId(world, ev->element_id, NULL);
-                struct ToriRS_PluginNpcSnap snap;
+                struct ToriRS_NpcSnapshot snap;
                 if( going )
                     app_plugin_fill_npc(app, going, &snap);
                 else
@@ -28812,7 +28784,7 @@ app_minimenu_run_option(
      */
     if( app->plugins )
     {
-        struct ToriRS_PluginMenuRow row;
+        struct ToriRS_MenuRow row;
         memset(&row, 0, sizeof(row));
         row.text = opt.text;
         row.action = opt.action;
@@ -30257,7 +30229,7 @@ App_SyncPluginLayoutCanvas(struct App* app)
      */
     want = !app->plugin_layout_owned
                ? app->host.default_window_mode
-               : app->plugin_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED
+               : app->plugin_layout_canvas == TORIRS_FRAME_CANVAS_FIXED
                      ? CS2VM_WINDOW_MODE_FIXED
                      : CS2VM_WINDOW_MODE_RESIZABLE;
     if( app->host.window_mode == want )
@@ -30287,7 +30259,7 @@ App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h)
     assert(app);
     if( !app->plugin_layout_owned )
         return 0;
-    if( app->plugin_layout_canvas != TORIRS_PLUGIN_CANVAS_FIXED )
+    if( app->plugin_layout_canvas != TORIRS_FRAME_CANVAS_FIXED )
         return 0;
     if( app->plugin_layout_fixed_w <= 0 || app->plugin_layout_fixed_h <= 0 )
         return 0;
@@ -30304,7 +30276,7 @@ App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h)
     assert(app);
     if( !app->plugin_layout_owned )
         return 0;
-    if( app->plugin_layout_canvas != TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW )
+    if( app->plugin_layout_canvas != TORIRS_FRAME_CANVAS_WINDOW )
         return 0;
     /* A claim that named no minimum gets the client's, rather than a floor of
      * zero: "I did not say" and "any size at all" are different statements, and
@@ -30968,7 +30940,6 @@ App_RunOnce(
             else if( clear_npcs >= 0 && setting_id == clear_npcs )
                 RS_HighlightClear(
                     &app->host.highlight, RS_HIGHLIGHT_NPC, RS_HIGHLIGHT_GROUP_NPC_TAGS);
-            PluginHost_Setting(app->plugins, setting_id, setting_value);
         }
     }
 
@@ -33881,11 +33852,21 @@ App_NpctypeResolveMultiId(
  * all three edges so the snapshot is filled the same way every time -- and so
  * a despawn can be announced BEFORE the entity is released, while there is
  * still something whole to describe. */
+enum AppPluginGroundItemChange
+{
+    APP_PLUGIN_ITEM_SPAWN,
+    APP_PLUGIN_ITEM_CHANGE,
+    APP_PLUGIN_ITEM_DESPAWN
+};
+
 static void
-app_plugin_obj_notify(struct App* app, int idx, enum ToriRS_PluginEvent which)
+app_plugin_obj_notify(
+    struct App* app,
+    int idx,
+    enum AppPluginGroundItemChange which)
 {
     struct WorldEntity_ObjStack* stack;
-    struct ToriRS_PluginObjSnap snap;
+    struct ToriRS_GroundItemSnapshot snap;
 
     assert(app);
     if( !app->plugins || !app->world || idx < 0 )
@@ -33897,10 +33878,10 @@ app_plugin_obj_notify(struct App* app, int idx, enum ToriRS_PluginEvent which)
     app_plugin_fill_obj(app, stack, &snap);
     switch( which )
     {
-    case TORIRS_PLUGIN_EV_OBJ_SPAWN:
+    case APP_PLUGIN_ITEM_SPAWN:
         PluginHost_ObjSpawn(app->plugins, &snap);
         break;
-    case TORIRS_PLUGIN_EV_OBJ_COUNT:
+    case APP_PLUGIN_ITEM_CHANGE:
         PluginHost_ObjCount(app->plugins, &snap);
         break;
     default:
@@ -34008,7 +33989,7 @@ App_WorldObjStackAdd(
     {
         app_obj_stack_refresh_model(app, world, existing, count);
         World_ObjStackSetCount(world, existing, count);
-        app_plugin_obj_notify(app, existing, TORIRS_PLUGIN_EV_OBJ_COUNT);
+        app_plugin_obj_notify(app, existing, APP_PLUGIN_ITEM_CHANGE);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
         app->need_redraw = 1;
         return existing;
@@ -34049,7 +34030,7 @@ App_WorldObjStackAdd(
             snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
         int const idx = World_ObjStackAdd(
             world, element_id, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
-        app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_SPAWN);
+        app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_SPAWN);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
         return idx;
     }
@@ -34125,7 +34106,7 @@ App_WorldRebuildShift(
             {
                 /* Off the new scene: the client stops tracking it, and a
                  * plugin drawing against it has to hear so. */
-                app_plugin_obj_notify(app, i, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
+                app_plugin_obj_notify(app, i, APP_PLUGIN_ITEM_DESPAWN);
                 World_ObjStackDel(world, i);
             }
             else if( stack->element_id >= 0 )
@@ -34448,7 +34429,7 @@ App_WorldObjStackDel(
     {
         /* Ahead of the release, so a plugin's last look at the stack is a
          * whole one -- the same ordering the npc despawn path uses. */
-        app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
+        app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_DESPAWN);
         World_ObjStackDel(world, idx);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
         app->need_redraw = 1;
@@ -34473,7 +34454,7 @@ App_WorldObjStackSetCount(
         return;
     app_obj_stack_refresh_model(app, world, idx, count);
     World_ObjStackSetCount(world, idx, count);
-    app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_COUNT);
+    app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_CHANGE);
     app_ground_items_mark(app, world, scene_x, scene_z, level);
     app->need_redraw = 1;
 }
@@ -34492,7 +34473,7 @@ App_WorldObjStackClearTile(
     /* obj_id -1 = any, so this drains the tile one stack at a time. */
     while( (idx = World_ObjStackFind(world, scene_x, scene_z, level, -1)) >= 0 )
     {
-        app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
+        app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_DESPAWN);
         World_ObjStackDel(world, idx);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
         app->need_redraw = 1;
@@ -34766,7 +34747,7 @@ App_WorldApplyNpcType(
              * tagging an npc has to be keyed, keeps its tag across this. */
             if( app->plugins )
             {
-                struct ToriRS_PluginNpcSnap retyped;
+                struct ToriRS_NpcSnapshot retyped;
                 app_plugin_fill_npc(app, npc, &retyped);
                 PluginHost_NpcRetype(app->plugins, &retyped);
             }

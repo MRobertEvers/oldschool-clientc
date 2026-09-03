@@ -67,7 +67,7 @@ static void
 nxt_cannon_tick(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct NxtCannonState* state = state_ptr;
 

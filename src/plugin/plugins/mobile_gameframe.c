@@ -880,7 +880,7 @@ static char const* const MOBILE_HOUSING_NAME[] = { "Lizards", "Ring", "OldSchool
 static int
 mobile_lane_oldschool(struct MobileCall* ctx)
 {
-    struct ToriRS_PluginLane lane;
+    struct ToriRS_LaneInfo lane;
 
     assert(ctx);
     if( !ctx->api->core.lane(ctx->api, &lane) )
@@ -3361,7 +3361,7 @@ static void
 mobile_on_frame(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvFrame const* event)
+    struct ToriRS_FrameEvent const* event)
 {
     struct MobileState* state = state_ptr;
     struct MobileCall call;
@@ -3523,7 +3523,7 @@ static void
 mobile_on_screen(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvScreen const* event)
+    struct ToriRS_ScreenChangedEvent const* event)
 {
     struct MobileState* state = state_ptr;
     struct MobileCall call;
@@ -3600,7 +3600,7 @@ static void
 mobile_on_asset(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvAsset const* event)
+    struct ToriRS_AssetEvent const* event)
 {
     struct MobileState* state = state_ptr;
 
@@ -3694,7 +3694,7 @@ mobile_on_config(
  * the same shape as the value the settings panel writes back. Two spellings of
  * one choice in a file is how a reader ends up believing one is special.
  */
-static struct ToriRS_PluginConfigItem const MOBILE_CONFIG[] = {
+static struct ToriRS_ConfigItem const MOBILE_CONFIG[] = {
     /* Auto is the 2004 pieces on every lane; OldSchool Mobile's own are a
      * choice. @see mobile_family. */
     { "art",

@@ -83,9 +83,9 @@ static void
 nxt_bird_nest_spawn(
     struct ToriRS_ApiV2* api,
     void* state,
-    struct ToriRS_PluginObjSnap const* item)
+    struct ToriRS_GroundItemSnapshot const* item)
 {
-    struct ToriRS_PluginPlayerSnap me;
+    struct ToriRS_PlayerSnapshot me;
 
     (void)state;
     assert(api);

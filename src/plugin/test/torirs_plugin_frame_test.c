@@ -17,14 +17,14 @@ static int failures;
         }                                                                         \
     } while( 0 )
 
-static struct ToriRS_PluginFrameOffer const DESKTOP[] = {
+static struct ToriRS_EngineFrameOffer const DESKTOP[] = {
     { "classic-fixed", "Classic Fixed", TORIRS_PLUGIN_CANVAS_FIXED, 765, 503 },
     { "modern-resizable", "Modern Resizable", TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
       765, 503 },
     { NULL, NULL, 0, 0, 0 },
 };
 
-static struct ToriRS_PluginFrameOffer const MOBILE[] = {
+static struct ToriRS_EngineFrameOffer const MOBILE[] = {
     { "stone-drawer", "Stone Drawer", TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW, 640, 480 },
     { NULL, NULL, 0, 0, 0 },
 };
@@ -35,7 +35,7 @@ main(void)
     struct PluginFrameCatalog a;
     struct PluginFrameCatalog b;
     struct PluginFrameCatalogEntry const* row;
-    struct ToriRS_PluginFrameOffer invalid[] = {
+    struct ToriRS_EngineFrameOffer invalid[] = {
         { "Bad/Id", "Bad", TORIRS_PLUGIN_CANVAS_FIXED, 765, 503 },
         { NULL, NULL, 0, 0, 0 },
     };

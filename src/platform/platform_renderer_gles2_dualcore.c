@@ -30,13 +30,17 @@
  * can be read side by side in logcat. */
 #define GLES2_DUALCORE_DEBUG_PERIOD 300u
 
-/* Spins on the ready counter before the wait starts yielding the core. On
- * two cores the worker is on the other one, so spinning costs it nothing;
+/* Empty polls of a counter before the wait starts yielding the core. On two
+ * cores the other thread is on the other one, so waiting costs it nothing;
  * yielding is for the case where it is not (a hot-plugged core, a pin the
- * kernel overrode). A spin is now one relaxed load (~3 cycles), so this is
- * ~100 us of spinning; at 4096 the draw reached sched_yield inside every
- * ordinary stall and spent 0.8 ms/frame in the kernel doing it (kr7). */
-#define GLES2_DUALCORE_SPINS_BEFORE_YIELD 65536u
+ * kernel overrode). Each poll parks in `wfe` until the publisher's `sev` or
+ * an interrupt, so in a genuine wait this many polls is milliseconds, not
+ * microseconds: the yield is a starvation escape, never the ordinary stall.
+ * (At 4096 cheap spins the draw reached sched_yield inside every ordinary
+ * stall and spent 0.8 ms/frame in the kernel doing it, kr7; the worker's
+ * 65536 reached it too and cost 1.7 ms/frame of kernel lock contention that
+ * also slowed the draw, kr10.) */
+#define GLES2_DUALCORE_SPINS_BEFORE_YIELD 4096u
 
 /* The worker's stack: 16 MB, the size class of a main thread rather than of
  * a helper. See the note at the create. */
@@ -44,21 +48,22 @@
 
 /* The worker's poll of the feed: it is waiting on the draw's translation of
  * the next command, which is microseconds away unless the draw is inside a
- * long GL call; yield after this many empty polls (~100 us) so a same-core
- * worker does not starve the draw it is waiting on. */
-#define GLES2_DUALCORE_FEED_SPINS_BEFORE_YIELD 65536u
+ * long GL call. Same `wfe` poll and same reasoning as above. */
+#define GLES2_DUALCORE_FEED_SPINS_BEFORE_YIELD 4096u
 
 /* How far ahead of dispatch the draw translates inside a world pass, in
- * commands; 0 is the whole pass, which is the default. The lead that
- * matters is in TIME, not slots: a tile whose stage the worker already did
- * costs the draw ~3 us, so 16 slots of tiles is ~50 us of lead, less than
- * one big model's stage (200+ us), and the draw caught the worker mid-model
- * 93 times a frame at 16 and 11 times at 128 (kr7, kr9) -- every cluster of
- * large models. The whole pass costs the draw nothing it did not already pay
- * (the same translation, done before the dispatch instead of interleaved
- * with it) and hands the worker the frame in one piece. Bounded values are
- * the A/B arm (TORIRS_GLES2_DUALCORE_LOOKAHEAD). */
-#define GLES2_DUALCORE_LOOKAHEAD_DEFAULT 0u
+ * commands; 0 is the whole pass. The lead that matters is in TIME, not
+ * slots: a tile whose stage the worker already did costs the draw ~3 us, so
+ * 16 slots of tiles is ~50 us of lead, less than one big model's stage
+ * (200+ us), and the draw caught the worker mid-model 93 times a frame at
+ * 16 and 11 times at 128 (kr7, kr9). The whole pass looked free (the same
+ * translation, done before the dispatch instead of interleaved with it) but
+ * measured worse on both sides -- stalls 21/frame against 11, and the worker
+ * 0.8 ms/frame slower (kr10): a command translated a whole pass before it is
+ * staged has fallen out of L1 for both threads, where at 128 the draw's
+ * translation and the worker's stage touch the same few KB within tens of
+ * microseconds of each other. TORIRS_GLES2_DUALCORE_LOOKAHEAD overrides. */
+#define GLES2_DUALCORE_LOOKAHEAD_DEFAULT 128u
 
 /* The debug line's model classes: below this many faces a model is "small". */
 #define GLES2_DUALCORE_SMALL_FACES 64
@@ -142,6 +147,21 @@ struct ToriRS_GLES2DualCore
      * tile runs or on the big models. */
     uint64_t stalls_by_class[3];
     uint64_t stall_spins_by_class[3];
+    /* Wall time the draw spent inside stalls, and the worker inside feed
+     * waits (debug line only; both are clock_gettime syscalls on this
+     * kernel, so only paid when the line is on). A poll count says nothing
+     * about time once a poll parks in `wfe`: this is what does. */
+    uint64_t stall_ns_window;
+    uint64_t feed_wait_ns_window;
+    /* Stalls by duration (<20 us, <50, <100, <200, <500, 500+) and by where
+     * in the frame's take order they hit (slot <64, <256, <1024, 1024+):
+     * whether the worker loses at the start, before any lead exists, or at
+     * clusters of big models mid-pass. Debug line only. */
+    uint64_t stall_ns_hist[6];
+    uint64_t stall_slot_hist[4];
+    /* BEGIN_3D commands seen: the world pass plus every model preview the
+     * UI draws through its own pass. */
+    uint64_t passes;
     /* The worker's lead over the draw in slots, sampled at every take
      * (debug line only): <=0, 1..7, 8..63, 64..511, 512+. */
     uint64_t lead_hist[5];
@@ -154,6 +174,21 @@ struct ToriRS_GLES2DualCore
     uint64_t join_ns;
     uint64_t worker_ns_window;
     uint64_t join_ns_window;
+
+    /* Per-thread CPU clocks read at each debug line: the draw's own and the
+     * worker's, so the line carries CPU ms/frame for both without /proc. */
+    clockid_t worker_cpu_clock;
+    bool worker_cpu_clock_ok;
+    uint64_t draw_cpu_ns_last;
+    uint64_t worker_cpu_ns_last;
+
+    /* TORIRS_GLES2_DUALCORE_LOOKAHEAD_AB=a,b: alternate the lookahead
+     * between the two values every debug period, so the two arms are
+     * measured in the same scene of the same launch (a launch lands in a
+     * scene state that varies the draw by more than a millisecond). */
+    bool ab;
+    uint32_t ab_lookahead[2];
+    unsigned ab_arm;
 };
 
 /* ---- crash breadcrumbs (TORIRS_GLES2_DUALCORE_DEBUG) --------------------------
@@ -265,6 +300,7 @@ dualcore_worker_pass(struct ToriRS_GLES2DualCore* lane)
     const struct ToriRS_RenderCommand* entry;
     uint32_t index = 0u;
     uint32_t spins = 0u;
+    uint64_t wait_began = 0u;
     bool stopped = false;
 
     while( !stopped )
@@ -274,10 +310,16 @@ dualcore_worker_pass(struct ToriRS_GLES2DualCore* lane)
         case GLES2_DUALCORE_FEED_PENDING:
             /* The draw has not translated this far yet. */
             if( spins == 0u )
+            {
                 lane->feed_waits++;
+                if( lane->debug )
+                    wait_began = dualcore_now_ns();
+            }
             spins++;
             if( spins > GLES2_DUALCORE_FEED_SPINS_BEFORE_YIELD )
                 sched_yield();
+            else
+                GLES2DualCore_SpinWait();
             continue;
         case GLES2_DUALCORE_FEED_ENDED:
             goto done;
@@ -288,6 +330,8 @@ dualcore_worker_pass(struct ToriRS_GLES2DualCore* lane)
             break;
         }
         lane->feed_wait_spins += spins;
+        if( spins != 0u && lane->debug )
+            lane->feed_wait_ns_window += dualcore_now_ns() - wait_began;
         spins = 0u;
         index++;
 
@@ -329,6 +373,7 @@ done:
         &lane->arena.finished,
         stopped ? GLES2_DUALCORE_STAGE_EXHAUSTED : GLES2_DUALCORE_STAGE_DONE,
         memory_order_release);
+    GLES2DualCore_SpinSignal();
 }
 
 static void
@@ -427,6 +472,7 @@ dualcore_source_begin_3d(void* user, const struct ToriRS_RenderCommand_Begin3D* 
         }
     }
     lane->in_pass = true;
+    lane->passes++;
     if( lane->kicked )
         return;
     lane->kicked = true;
@@ -448,6 +494,7 @@ dualcore_source_take(
     uint32_t index;
     uint32_t ready;
     uint32_t spins = 0u;
+    uint64_t stall_began = 0u;
 
     assert(lane);
     assert(command);
@@ -533,15 +580,26 @@ dualcore_source_take(
             return false;
         }
         if( spins == 0u )
+        {
             lane->stalls++;
+            if( lane->debug )
+                stall_began = dualcore_now_ns();
+        }
         spins++;
         if( spins > GLES2_DUALCORE_SPINS_BEFORE_YIELD )
             sched_yield();
+        else
+            GLES2DualCore_SpinWait();
     }
     lane->stall_spins += spins;
     if( spins != 0u && lane->debug )
     {
         int class = 0;
+        uint64_t const ns = dualcore_now_ns() - stall_began;
+        lane->stall_ns_window += ns;
+        lane->stall_ns_hist[ns < 20000u ? 0 : ns < 50000u ? 1 : ns < 100000u ? 2
+                             : ns < 200000u ? 3 : ns < 500000u ? 4 : 5]++;
+        lane->stall_slot_hist[index < 64u ? 0 : index < 256u ? 1 : index < 1024u ? 2 : 3]++;
         if( ToriDraw_ModelKindIsFull(command->model.kind) )
             class = ToriDraw_ModelRead(command->model)->face_count < GLES2_DUALCORE_SMALL_FACES ? 1 : 2;
         lane->stalls_by_class[class]++;
@@ -578,7 +636,13 @@ dualcore_join_worker(struct ToriRS_GLES2DualCore* lane)
     uint64_t const began = dualcore_now_ns();
     pthread_mutex_lock(&lane->lock);
     while( lane->finished_serial != lane->handed_serial )
+    {
+        /* A worker parked in `wfe` on the feed whose close event the kernel
+         * consumed (it uses the event register too) would otherwise sleep to
+         * the next interrupt; this wakes it to see the close. */
+        GLES2DualCore_SpinSignal();
         pthread_cond_wait(&lane->done, &lane->lock);
+    }
     pthread_mutex_unlock(&lane->lock);
     lane->join_ns_window += dualcore_now_ns() - began;
 }
@@ -742,15 +806,30 @@ dualcore_render_frame_commands(struct ToriRS_GLES2DualCore* lane, struct ToriRS_
 static void
 dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
 {
+    struct timespec ts;
+    uint64_t draw_cpu_ns = 0u;
+    uint64_t worker_cpu_ns = 0u;
+
     if( !lane->debug || lane->frames == 0u || (lane->frames % GLES2_DUALCORE_DEBUG_PERIOD) != 0u )
         return;
+    if( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0 )
+        draw_cpu_ns = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+    if( lane->worker_cpu_clock_ok && clock_gettime(lane->worker_cpu_clock, &ts) == 0 )
+        worker_cpu_ns = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
     TORIRS_ERR(
-        "gles2-dualcore: frames %llu dual %llu taken %llu claimed-by-draw %llu (worker saw %llu) "
+        "gles2-dualcore: lookahead %u draw-cpu %.2f worker-cpu %.2f ms/frame | "
+        "frames %llu dual %llu taken %llu claimed-by-draw %llu (worker saw %llu) "
         "inline %llu stalls %llu (spins %llu) [tile %llu/%llu small %llu/%llu large %llu/%llu] "
         "lead-hist [0 %llu, 1-7 %llu, 8-63 %llu, 64-511 %llu, 512+ %llu] "
         "desyncs %llu exhausted-frames %u "
         "feed-waits %llu (spins %llu) feed-overflow-frames %u reprojected %u "
-        "worker %.2f ms/frame join %.3f ms/frame\n",
+        "worker %.2f ms/frame (feed-wait %.2f) draw-stall %.2f ms/frame join %.3f ms/frame "
+        "stall-us [<20 %llu, <50 %llu, <100 %llu, <200 %llu, <500 %llu, 500+ %llu] "
+        "stall-slot [<64 %llu, <256 %llu, <1024 %llu, 1024+ %llu] passes %llu\n",
+        lane->lookahead,
+        (double)(draw_cpu_ns - lane->draw_cpu_ns_last) / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
+        (double)(worker_cpu_ns - lane->worker_cpu_ns_last) / 1.0e6 /
+            (double)GLES2_DUALCORE_DEBUG_PERIOD,
         (unsigned long long)lane->frames,
         (unsigned long long)lane->frames_dual,
         (unsigned long long)lane->models_taken,
@@ -777,11 +856,33 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         lane->arena.feed_overflow_frames,
         lane->renderer->stage_reprojected_models,
         (double)lane->worker_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
-        (double)lane->join_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD);
+        (double)lane->feed_wait_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
+        (double)lane->stall_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
+        (double)lane->join_ns_window / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
+        (unsigned long long)lane->stall_ns_hist[0],
+        (unsigned long long)lane->stall_ns_hist[1],
+        (unsigned long long)lane->stall_ns_hist[2],
+        (unsigned long long)lane->stall_ns_hist[3],
+        (unsigned long long)lane->stall_ns_hist[4],
+        (unsigned long long)lane->stall_ns_hist[5],
+        (unsigned long long)lane->stall_slot_hist[0],
+        (unsigned long long)lane->stall_slot_hist[1],
+        (unsigned long long)lane->stall_slot_hist[2],
+        (unsigned long long)lane->stall_slot_hist[3],
+        (unsigned long long)lane->passes);
     lane->worker_ns += lane->worker_ns_window;
     lane->join_ns += lane->join_ns_window;
     lane->worker_ns_window = 0u;
     lane->join_ns_window = 0u;
+    lane->feed_wait_ns_window = 0u;
+    lane->stall_ns_window = 0u;
+    lane->draw_cpu_ns_last = draw_cpu_ns;
+    lane->worker_cpu_ns_last = worker_cpu_ns;
+    if( lane->ab )
+    {
+        lane->ab_arm ^= 1u;
+        lane->lookahead = lane->ab_lookahead[lane->ab_arm];
+    }
 }
 
 void
@@ -857,6 +958,18 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
         lane->lookahead = lookahead > 0 ? (uint32_t)lookahead : 0u;
     }
     lane->debug = dualcore_env_long("TORIRS_GLES2_DUALCORE_DEBUG", 0) != 0;
+    {
+        char const* ab = getenv("TORIRS_GLES2_DUALCORE_LOOKAHEAD_AB");
+        unsigned a;
+        unsigned b;
+        if( ab && sscanf(ab, "%u,%u", &a, &b) == 2 )
+        {
+            lane->ab = true;
+            lane->ab_lookahead[0] = a;
+            lane->ab_lookahead[1] = b;
+            lane->lookahead = a;
+        }
+    }
 
     pthread_mutex_init(&lane->lock, NULL);
     pthread_cond_init(&lane->wake, NULL);
@@ -879,7 +992,11 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
             lane->enabled = false;
         }
         else
+        {
             lane->thread_started = true;
+            lane->worker_cpu_clock_ok =
+                pthread_getcpuclockid(lane->thread, &lane->worker_cpu_clock) == 0;
+        }
         pthread_attr_destroy(&attributes);
     }
     if( lane->debug )

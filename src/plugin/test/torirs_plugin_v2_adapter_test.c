@@ -115,10 +115,10 @@ fake_frame_work_us(struct ToriRS_PluginCtx* context)
 static int
 fake_lane(
     struct ToriRS_PluginCtx* context,
-    struct ToriRS_PluginLane* out)
+    struct ToriRS_LaneInfo* out)
 {
     (void)state(context);
-    *out = (struct ToriRS_PluginLane){ TORIRS_PLUGIN_GAME_RS2, TORIRS_PLUGIN_EPOCH_DAT1, 245 };
+    *out = (struct ToriRS_LaneInfo){ TORIRS_PLUGIN_GAME_RS2, TORIRS_PLUGIN_EPOCH_DAT1, 245 };
     return 1;
 }
 
@@ -179,14 +179,14 @@ fake_cfg_set(
 
 FAKE_QUERY(
     fake_local_player,
-    struct ToriRS_PluginPlayerSnap,
+    struct ToriRS_PlayerSnapshot,
     1)
 
 static int
 fake_npc_next(
     struct ToriRS_PluginCtx* context,
     int iterator,
-    struct ToriRS_PluginNpcSnap* out)
+    struct ToriRS_NpcSnapshot* out)
 {
     (void)out;
     return state(context)->calls++, iterator < 0 ? 4 : -1;
@@ -196,7 +196,7 @@ static int
 fake_npc_by_slot(
     struct ToriRS_PluginCtx* context,
     int slot,
-    struct ToriRS_PluginNpcSnap* out)
+    struct ToriRS_NpcSnapshot* out)
 {
     (void)out;
     return state(context)->last_a = slot, slot == 7;
@@ -206,7 +206,7 @@ static int
 fake_player_next(
     struct ToriRS_PluginCtx* context,
     int iterator,
-    struct ToriRS_PluginPlayerSnap* out)
+    struct ToriRS_PlayerSnapshot* out)
 {
     (void)out;
     return state(context)->calls++, iterator < 0 ? 5 : -1;
@@ -216,7 +216,7 @@ static int
 fake_obj_next(
     struct ToriRS_PluginCtx* context,
     int iterator,
-    struct ToriRS_PluginObjSnap* out)
+    struct ToriRS_GroundItemSnapshot* out)
 {
     (void)out;
     return state(context)->calls++, iterator < 0 ? 6 : -1;
@@ -226,7 +226,7 @@ static int
 fake_loc_next(
     struct ToriRS_PluginCtx* context,
     int iterator,
-    struct ToriRS_PluginLocSnap* out)
+    struct ToriRS_ScenerySnapshot* out)
 {
     (void)out;
     return state(context)->calls++, iterator < 0 ? 8 : -1;
@@ -269,7 +269,7 @@ fake_hover_tile(
 static int
 fake_hover_entity(
     struct ToriRS_PluginCtx* context,
-    struct ToriRS_PluginHoverEntity* out)
+    struct ToriRS_HoverTarget* out)
 {
     (void)state(context);
     out->element_id = 99;
@@ -376,7 +376,7 @@ static int
 fake_frame_offer_next(
     struct ToriRS_PluginCtx* context,
     int iterator,
-    struct ToriRS_PluginFrameInfo* out)
+    struct ToriRS_EngineFrameInfo* out)
 {
     (void)state(context);
     if( iterator >= 0 )
@@ -395,7 +395,7 @@ fake_frame_offer_next(
 static void
 fake_frame_selection(
     struct ToriRS_PluginCtx* context,
-    struct ToriRS_PluginFrameSelection* out)
+    struct ToriRS_EngineFrameSelection* out)
 {
     (void)state(context);
     memset(out, 0, sizeof(*out));
@@ -631,7 +631,7 @@ static void
 fake_object_model(
     struct ToriRS_PluginCtx* context,
     int object,
-    enum ToriRS_PluginModelSource source,
+    enum ToriRS_EngineModelSource source,
     int id)
 {
     struct Fake* f = state(context);
@@ -723,7 +723,7 @@ fake_if_click(
 static bool
 fake_panel_request(
     struct ToriRS_PluginCtx* context,
-    struct ToriRS_PluginPanelDesc const* desc)
+    struct ToriRS_PanelDescriptor const* desc)
 {
     return state(context)->last_a = desc->preferred_width, true;
 }
@@ -1334,12 +1334,12 @@ test_construction_and_basic_modules(
     struct ToriRS_PluginV2AdapterHooks short_hooks = { .struct_size = 1 };
     struct ToriRS_PluginV2AdapterHooks bad_namespace = *adapter_hooks;
     struct ToriRS_ApiV2* api;
-    struct ToriRS_PluginLane lane;
-    struct ToriRS_PluginPlayerSnap player;
-    struct ToriRS_PluginNpcSnap npc;
-    struct ToriRS_PluginObjSnap item;
-    struct ToriRS_PluginLocSnap scenery;
-    struct ToriRS_PluginHoverEntity hover;
+    struct ToriRS_LaneInfo lane;
+    struct ToriRS_PlayerSnapshot player;
+    struct ToriRS_NpcSnapshot npc;
+    struct ToriRS_GroundItemSnapshot item;
+    struct ToriRS_ScenerySnapshot scenery;
+    struct ToriRS_HoverTarget hover;
     struct ToriRS_UiNodeInfo ui_info = { .struct_size = sizeof(ui_info) };
     struct ToriRS_UiContributionInfo contribution_info = {
         .struct_size = sizeof(contribution_info),
@@ -1971,7 +1971,7 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     CHECK(
         api->panel.request(
             api,
-            &(struct ToriRS_PluginPanelDesc){ .icon_asset = "icon.png", .preferred_width = 333 }) ==
+            &(struct ToriRS_PanelDescriptor){ .icon_asset = "icon.png", .preferred_width = 333 }) ==
                 TORIRS_RESULT_OK &&
             fake.last_a == 333,
         "panel registration forwards through module");

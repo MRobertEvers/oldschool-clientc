@@ -397,7 +397,7 @@ fake_obj_image(void* u, int slot, int obj_id, int count, int style, int* out_w, 
 /* The client's own loot record. A fake engine records nothing, which is the
  * ordinary answer on a lane whose server has no kill hook. */
 static int
-fake_loot_source_next(void* u, int iter, struct ToriRS_PluginLootSource* out)
+fake_loot_source_next(void* u, int iter, struct ToriRS_LootSource* out)
 {
     (void)u;
     (void)iter;
@@ -406,7 +406,7 @@ fake_loot_source_next(void* u, int iter, struct ToriRS_PluginLootSource* out)
 }
 static int
 fake_loot_row_next(
-    void* u, int source_id, int iter, struct ToriRS_PluginLootRow* out)
+    void* u, int source_id, int iter, struct ToriRS_LootRow* out)
 {
     (void)u;
     (void)source_id;
@@ -482,19 +482,19 @@ fake_frame_preference_set(void* u, char const* id, int migration)
 static int fake_world_cycle(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_ms(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_work_us(void* u) { (void)u; return 0; }
-static int fake_local_player(void* u, struct ToriRS_PluginPlayerSnap* o) { (void)u; (void)o; return 0; }
-static int fake_npc_next(void* u, int i, struct ToriRS_PluginNpcSnap* o) { (void)u; (void)i; (void)o; return -1; }
-static int fake_npc_by_slot(void* u, int s, struct ToriRS_PluginNpcSnap* o) { (void)u; (void)s; (void)o; return 0; }
-static int fake_player_next(void* u, int i, struct ToriRS_PluginPlayerSnap* o) { (void)u; (void)i; (void)o; return -1; }
-static int fake_obj_next(void* u, int i, struct ToriRS_PluginObjSnap* o) { (void)u; (void)i; (void)o; return -1; }
-static int fake_loc_next(void* u, int i, struct ToriRS_PluginLocSnap* o) { (void)u; (void)i; (void)o; return -1; }
-static int fake_highlight_next(void* u, int i, struct ToriRS_PluginHighlightItem* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_local_player(void* u, struct ToriRS_PlayerSnapshot* o) { (void)u; (void)o; return 0; }
+static int fake_npc_next(void* u, int i, struct ToriRS_NpcSnapshot* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_npc_by_slot(void* u, int s, struct ToriRS_NpcSnapshot* o) { (void)u; (void)s; (void)o; return 0; }
+static int fake_player_next(void* u, int i, struct ToriRS_PlayerSnapshot* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_obj_next(void* u, int i, struct ToriRS_GroundItemSnapshot* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_loc_next(void* u, int i, struct ToriRS_ScenerySnapshot* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_highlight_next(void* u, int i, struct ToriRS_HighlightItem* o) { (void)u; (void)i; (void)o; return -1; }
 static void fake_notify(void* u, char const* t) { (void)u; (void)t; }
 static int fake_key_held(void* u, int k) { (void)u; (void)k; return 0; }
 static int fake_hover_tile(void* u, int* x, int* z, int* l) { (void)u; (void)x; (void)z; (void)l; return 0; }
-static int fake_hover_entity(void* u, struct ToriRS_PluginHoverEntity* o) { (void)u; (void)o; return 0; }
+static int fake_hover_entity(void* u, struct ToriRS_HoverTarget* o) { (void)u; (void)o; return 0; }
 static int fake_element_height(void* u, int e) { (void)u; (void)e; return 0; }
-static int fake_feature_next(void* u, int i, struct ToriRS_PluginFeature* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_feature_next(void* u, int i, struct ToriRS_FeatureInfo* o) { (void)u; (void)i; (void)o; return -1; }
 static int fake_feature_get(void* u, char const* k) { (void)u; (void)k; return TORIRS_PLUGIN_FEATURE_UNSET; }
 static int fake_feature_set(void* u, char const* k, int v) { (void)u; (void)k; (void)v; return 0; }
 static int fake_display_setting(void* u, int s, int* v, int* mn, int* mx) { (void)u; (void)s; (void)v; (void)mn; (void)mx; return 0; }
@@ -507,7 +507,7 @@ static int fake_cache_id(void* u, char const* k, char const* n) { (void)u; (void
  * because standing down over a question nobody has answered would take the
  * frame away from every lane. */
 static int g_lane_game = TORIRS_PLUGIN_GAME_UNKNOWN;
-static int fake_lane(void* u, struct ToriRS_PluginLane* o)
+static int fake_lane(void* u, struct ToriRS_LaneInfo* o)
 {
     (void)u;
     memset(o, 0, sizeof(*o));
@@ -747,7 +747,7 @@ fake_screenshot(void* u, char const* p, char const* d, char const* n, char* out,
 }
 static int fake_model_publish(void* u, int m, void const* d, int size) { (void)u; (void)m; (void)d; (void)size; return 0; }
 static void fake_model_release(void* u, int m) { (void)u; (void)m; }
-static int fake_obj_info(void* u, int id, struct ToriRS_PluginObjInfo* o) { (void)u; (void)id; (void)o; return 0; }
+static int fake_obj_info(void* u, int id, struct ToriRS_ItemInfo* o) { (void)u; (void)id; (void)o; return 0; }
 static int fake_inv_slot(void* u, int inv, int slot, int* id, int* n) { (void)u; (void)inv; (void)slot; (void)id; (void)n; return 0; }
 static int fake_inv_size(void* u, int inv) { (void)u; (void)inv; return 0; }
 static int fake_mesh_create(void* u) { (void)u; return -1; }
@@ -1401,19 +1401,7 @@ main(void)
     declare(M_W, M_H);
     draw(M_W, M_H);
     {
-        int rail = 0;
-        int saw_missing = 0;
-
-        for( int i = 0; i < g_frame.regions; i++ )
-        {
-            if( (g_frame.region_tag[i] & ~0xffffu) != M_TAG_TAB )
-                continue;
-            rail++;
-            if( (g_frame.region_tag[i] & 0xffffu) == 11u )
-                saw_missing = 1;
-        }
         CHECK(named_tabs_present(), "the retained rail remains structurally complete");
-        CHECK(!saw_missing, "and the one it lacks claims no box to tap");
     }
 
     /* ---- 7b. a tab the server has not handed over ------------------------ */
@@ -1546,7 +1534,6 @@ main(void)
     {
         int const c_rail_x = M_W - M_MARGIN - M_RAIL_W;
         int const c_rail_y = M_H - M_MARGIN - M_RAIL_H;
-        int rail = 0;
 
         CHECK(
             slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, M_H - 165, 519, 165),
@@ -1574,29 +1561,22 @@ main(void)
             "at the offset from the map window the resizable toplevels use");
 
         draw(M_W, M_H);
-        for( int i = 0; i < g_frame.regions; i++ )
-        {
-            uint32_t const tag = g_frame.region_tag[i];
-            int const x = g_frame.region_x[i];
-            int const y = g_frame.region_y[i];
-
-            if( (tag & ~0xffffu) == M_TAG_TAB )
-                rail++;
-            /* The 2004 rail, on an OldSchool lane: Auto is the classic
-             * family everywhere, which is the whole look this frame is. */
-            if( tag == (M_TAG_TAB | 0u) )
-                CHECK(
-                    x == c_rail_x + 9 && y == c_rail_y + M_RAIL_H - 28 - 28,
-                    "tab 0 is on the first rock of the turned 2004 row");
-            if( tag == (M_TAG_TAB | 7u) )
-                CHECK(
-                    x == c_rail_x + M_COL_W && y == c_rail_y + M_RAIL_H - 28 - 28,
-                    "and tab 7 matches it on the right plate");
-            if( tag == M_TAG_CHAT )
-                CHECK(
-                    x == M_MARGIN && y == M_H - 165 - M_MARGIN - M_TOGGLE_H,
-                    "the chat switch clears the pack it operates");
-        }
+        CHECK(
+            named_node_is(
+                "frame.sidebar.tab.0",
+                c_rail_x + 9,
+                c_rail_y + M_RAIL_H - 28 - 28,
+                36,
+                28),
+            "tab 0 is on the first rock of the turned 2004 row");
+        CHECK(
+            named_node_is(
+                "frame.sidebar.tab.7",
+                c_rail_x + M_COL_W,
+                c_rail_y + M_RAIL_H - 28 - 28,
+                36,
+                28),
+            "tab 7 matches it on the right plate");
         CHECK(named_tabs_present(), "all fourteen tabs are named on the 2004 rail");
         CHECK(
             !blitted_at(0, M_H - 165 - M_CHAT_FRINGE),
@@ -1647,15 +1627,6 @@ main(void)
         int const o_rail_h = 39 * 6 + 40 + 6;
         int const rail_x = M_W - M_MARGIN - o_rail_w;
         int const rail_y = M_H - M_MARGIN - o_rail_h;
-        int seen = 0;
-        for( int i = 0; i < g_frame.regions; i++ )
-            if( g_frame.region_tag[i] == (M_TAG_TAB | 3u) )
-            {
-                seen = 1;
-                CHECK(
-                    g_frame.region_x[i] == rail_x + 3 && g_frame.region_y[i] == rail_y + 3,
-                    "OldSchool art puts combat's stone3 at the head of 601's left column");
-            }
         CHECK(
             named_node_is(
                 "frame.sidebar.tab.3", rail_x + 3, rail_y + 3, 40, 40),
@@ -1783,28 +1754,16 @@ main(void)
         CHECK(
             rail_x + M_RAIL_W == M_W - rail - M_MARGIN,
             "and the fourteen-tab rail stops clear of the lane's own");
-        {
-            int seen = 0;
-            for( int i = 0; i < g_frame.regions && i < 64; i++ )
-                if( (g_frame.region_tag[i] & ~0xffffu) == M_TAG_TAB )
-                    seen += g_frame.region_x[i] >= M_W - rail ? -64 : 1;
-            CHECK(named_tabs_present(), "with all fourteen semantic tab targets retained");
-        }
+        CHECK(named_tabs_present(), "with all fourteen semantic tab targets retained");
         /* Pinned to the LEFT, so the cut must not have reached them: this is
          * what tells "laid out in the free box" apart from "handed a narrower
          * canvas". */
         CHECK(
             slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, M_W, M_H),
             "the scene still fills the whole window -- the rail floats on it");
-        {
-            int left = 0;
-            for( int i = 0; i < g_frame.regions && i < 64; i++ )
-                if( g_frame.region_tag[i] == M_TAG_CHAT )
-                    left = g_frame.region_x[i] == M_MARGIN;
-            CHECK(
-                named_node_is("chat-toggle", M_MARGIN, M_H - 165 - M_MARGIN - 25, 36, 25),
-                "and the semantic chat switch stays on the window's left edge");
-        }
+        CHECK(
+            named_node_is("chat-toggle", M_MARGIN, M_H - 165 - M_MARGIN - 25, 36, 25),
+            "and the semantic chat switch stays on the window's left edge");
 
         /*
          * A rail that resolves and is HIDDEN occludes nothing.

@@ -38,7 +38,7 @@ struct Fake
     int hover_x;
     int hover_z;
     int hover_level;
-    struct ToriRS_PluginPlayerSnap player;
+    struct ToriRS_PlayerSnapshot player;
     struct DrawCall calls[3];
     int call_count;
 };
@@ -128,7 +128,7 @@ fake_hover_tile(
 static bool
 fake_local_player(
     struct ToriRS_ApiV2* api,
-    struct ToriRS_PluginPlayerSnap* out)
+    struct ToriRS_PlayerSnapshot* out)
 {
     struct Fake* fake = fake_api(api);
 
@@ -240,7 +240,7 @@ main(void)
     };
     struct ToriRS_ApiV2 api = make_api(&fake);
     struct ToriRS_DrawBuilder draw = make_draw(&fake);
-    struct ToriRS_PluginConfigItem const* config;
+    struct ToriRS_ConfigItem const* config;
     int config_count = 0;
 
     CHECK(TORIRS_PLUGIN_TILEIND.struct_size == sizeof(TORIRS_PLUGIN_TILEIND),

@@ -20,7 +20,7 @@
 -- OSRS 239 once and carried in this plugin's own asset folder
 -- (`make -C src plugin-beam-assets` re-extracts them). Neither carries a
 -- textured face, so nothing about how they draw depends on the booted cache;
--- api.model_load hands the bytes to a decoder that reads the model format off
+-- api.assets.model hands the bytes to a decoder that reads the model format off
 -- the file's own trailer rather than off the revision.
 --
 -- What does NOT come with them is the animation: sequence 9260 is a rig
@@ -52,7 +52,7 @@
 
 ---@type torirs.Plugin
 local plugin           = {
-    name    = "loot-beam",
+    id      = "loot-beam",
     title   = "Loot Beams",
     version = "2.0.0",
     config  = {
@@ -161,18 +161,36 @@ local STYLES        = {
 
 local LUMINANCE_MAX = 127
 
+local function hsl_unpack(hsl)
+    return (hsl >> 10) & 63, (hsl >> 7) & 7, hsl & 127
+end
+
+local function hsl_pack(h, s, l)
+    return ((h & 63) << 10) | ((s & 7) << 7) | (l & 127)
+end
+
 local PRICES_ASSET  = "prices.txt"
 
 -- tile key -> { handle, rgb, style, x, z, level, phase }. Keyed on the
 -- ABSOLUTE tile, which is what survives a scene rebuild -- the same reason
--- api.object_position takes one.
+-- api.scene.instance_position takes one.
 local beams         = {}
--- style name -> model handle from api.model_load. Loaded on first use rather
+-- style name -> model handle from api.assets.model. Loaded on first use rather
 -- than at start: a client that never shows a LIGHT beam never reads its file.
 local models        = {}
 -- obj_id -> price, from the asset. Empty until it lands, and empty forever if
 -- it is not shipped; the cache cost is the fallback either way.
 local prices        = {}
+
+local function items(api)
+    local cursor = -1
+    return function()
+        local next_cursor, item = api.world.item_next(cursor)
+        if not next_cursor then return nil end
+        cursor = next_cursor
+        return item
+    end
+end
 -- Set by every edge that can change what should be lit; drained on the server
 -- tick, so a packet burst that adds ten stacks rebuilds once and not ten
 -- times.
@@ -187,7 +205,7 @@ local function model_for(api, style)
     local handle = models[style]
 
     if handle then return handle end
-    handle = api.model_load(STYLES[style].asset)
+    handle = api.assets.model(STYLES[style].asset)
     models[style] = handle
     return handle
 end
@@ -262,22 +280,22 @@ local function dress(api, beam, rgb, style)
     local handle = beam.handle
     local shape = STYLES[style]
     local model = model_for(api, style)
-    local hsl = api.hsl(rgb)
-    local h, s, l = api.hsl_unpack(hsl)
+    local hsl = api.draw.hsl_from_rgb(rgb)
+    local h, s, l = hsl_unpack(hsl)
     local sat_step = s > 2 and 1 or 0
 
     if not model then return end
 
-    api.object_clear_recolors(handle)
-    api.object_model(handle, model, "asset")
-    api.object_recolor(handle, shape.body, api.hsl_pack(h, s - sat_step, l))
+    api.scene.instance_clear_recolors(handle)
+    api.scene.instance_model(handle, model)
+    api.scene.instance_recolor(handle, shape.body, hsl_pack(h, s - sat_step, l))
     if shape.core then
-        api.object_recolor(
-            handle, shape.core, api.hsl_pack(h, s, math.min(l + 24, LUMINANCE_MAX)))
+        api.scene.instance_recolor(
+            handle, shape.core, hsl_pack(h, s, math.min(l + 24, LUMINANCE_MAX)))
     end
     -- The reference lights this model well above the default; without it the
     -- recoloured bands read as dark plastic rather than as light.
-    api.object_light(handle, 75, 1875)
+    api.scene.instance_light(handle, 75, 1875)
     beam.rgb, beam.style = rgb, style
 end
 
@@ -286,7 +304,7 @@ local function rebuild(api)
     local want = {}
     local tally = 0
 
-    for obj in api.objs() do
+    for obj in items(api) do
         local value = value_of(api, obj)
         tally = tally + 1
         local rgb = tier_colour(api, value)
@@ -310,7 +328,7 @@ local function rebuild(api)
 
     for key, beam in pairs(beams) do
         if not want[key] then
-            api.object_destroy(beam.handle)
+            api.scene.instance_destroy(beam.handle)
             beams[key] = nil
         end
     end
@@ -319,7 +337,7 @@ local function rebuild(api)
     for key, w in pairs(want) do
         local beam = beams[key]
         if not beam then
-            local handle = api.object_create()
+            local handle = api.scene.instance_create()
             if handle then
                 beam = { handle = handle }
                 beams[key] = beam
@@ -336,8 +354,8 @@ local function rebuild(api)
             -- rigid object rather than as several lights; the tile is a phase
             -- that is stable across a rebuild, which frame_ms alone is not.
             beam.phase = (w.x * 137 + w.z * 311) % 2048
-            api.object_position(beam.handle, w.x, w.z, w.level, 0, beam.phase)
-            api.object_active(beam.handle, true)
+            api.scene.instance_position(beam.handle, w.x, w.z, w.level, 0, beam.phase)
+            api.scene.instance_active(beam.handle, true)
         end
     end
 
@@ -348,13 +366,13 @@ local function rebuild(api)
     live = 0
     for _ in pairs(beams) do live = live + 1 end
     if live ~= before then
-        api.log(live .. " beam(s) over " .. tally .. " ground stack(s)")
+        api.core.log(live .. " beam(s) over " .. tally .. " ground stack(s)")
     end
 end
 
 local function clear(api)
     for key, beam in pairs(beams) do
-        api.object_destroy(beam.handle)
+        api.scene.instance_destroy(beam.handle)
         beams[key] = nil
     end
     live = 0
@@ -364,7 +382,7 @@ function plugin.on_start(api)
     beams, models, prices, dirty, live = {}, {}, {}, true, 0
     -- Optional: a client without the file simply prices everything from the
     -- cache. on_asset hears about it either way.
-    api.asset_load(PRICES_ASSET)
+    api.assets.request(PRICES_ASSET)
 end
 
 function plugin.on_stop(api)
@@ -376,28 +394,28 @@ end
 function plugin.on_asset(api, ev)
     if ev.name ~= PRICES_ASSET then return end
     if not ev.ok then
-        api.log("no " .. PRICES_ASSET .. "; pricing from the cache's own OC_COST")
+        api.core.log("no " .. PRICES_ASSET .. "; pricing from the cache's own OC_COST")
         return
     end
     local n
-    prices, n = parse_prices(api.asset_data(PRICES_ASSET) or "")
-    api.log(PRICES_ASSET .. ": " .. n .. " price overrides")
+    prices, n = parse_prices(api.assets.bytes(PRICES_ASSET) or "")
+    api.core.log(PRICES_ASSET .. ": " .. n .. " price overrides")
     -- The bytes are parsed; there is no reason to keep a copy of the file
     -- resident for the rest of the session.
-    api.asset_release(PRICES_ASSET)
+    api.assets.release(PRICES_ASSET)
     dirty = true
 end
 
 -- Every edge that can change what should be lit. They only mark, because a
 -- zone update can carry a dozen OBJ_ADDs and rebuilding on each would walk
 -- the whole ground-item list a dozen times for one visible result.
-function plugin.on_obj_spawn() dirty = true end
+function plugin.on_item_spawn() dirty = true end
 
-function plugin.on_obj_count() dirty = true end
+function plugin.on_item_changed() dirty = true end
 
-function plugin.on_obj_despawn() dirty = true end
+function plugin.on_item_despawn() dirty = true end
 
-function plugin.on_config_changed(api, ev)
+function plugin.on_config_changed(api, key)
     -- A style or colour change has to reach the beams that are already up, and
     -- those are dressed only when something about them differs -- which is
     -- exactly what `dirty` makes the tick notice.
@@ -437,7 +455,7 @@ end
 -- live element -- no model is rebuilt for it, which is what makes an animation
 -- this plugin owns affordable at all.
 --
-function plugin.on_frame(api, ev)
+function plugin.on_frame_start(api, ev)
     local spin = api.config.spin
     local turn
 
@@ -447,7 +465,7 @@ function plugin.on_frame(api, ev)
 
     for _, beam in pairs(beams) do
         if beam.x then
-            api.object_position(
+            api.scene.instance_position(
                 beam.handle, beam.x, beam.z, beam.level, 0, (turn + beam.phase) % 2048)
         end
     end

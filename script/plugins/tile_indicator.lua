@@ -12,7 +12,7 @@
 -- and until you can see it you are guessing.
 --
 -- Boat-aware for free: aboard a vessel the api hands back deck tiles as
--- STAGING-ABSOLUTE addresses (the boat instance's own tiles), and draw.tile
+-- STAGING-ABSOLUTE addresses (the boat instance's own tiles), and draw.world_tile
 -- recognises that band and draws the marker through the hull's live
 -- transform -- position, yaw and bob -- so every marker rides the boat.
 -- Nothing in this file has to know any of that.
@@ -27,7 +27,7 @@
 
 ---@type torirs.Plugin
 local plugin = {
-  name    = "tile-indicator-lua",
+  id      = "tile-indicator-lua",
   title   = "Tile Indicator (Lua)",
   version = "1.0.0",
   config  = {
@@ -114,11 +114,11 @@ local plugin = {
 }
 
 local function plugin_draw_player(api, draw)
-  local me = api.local_player()
+  local me = api.world.local_player()
   if not me then return end
 
-  draw.tile(me.true_x, me.true_z, me.level,
-    api.config.true_color, api.config.true_fill_color, api.config.true_fill_alpha)
+  draw.world_tile(me.true_x, me.true_z, me.level,
+    api.config.true_fill_color, api.config.true_color, api.config.true_fill_alpha)
 
   if not api.config.show_dest then return end
 
@@ -132,8 +132,8 @@ local function plugin_draw_player(api, draw)
   -- is set from the routed destination and cleared on arrival, which is
   -- exactly as long as a destination marker should live.
   if me.dest_x ~= me.true_x or me.dest_z ~= me.true_z then
-    draw.tile(me.dest_x, me.dest_z, me.level,
-      api.config.dest_color, api.config.dest_fill_color, api.config.dest_fill_alpha)
+    draw.world_tile(me.dest_x, me.dest_z, me.level,
+      api.config.dest_fill_color, api.config.dest_color, api.config.dest_fill_alpha)
   end
 end
 
@@ -151,11 +151,11 @@ function plugin.on_draw_world(api, draw)
   -- level would put the marker on the ground below. The api hands back the
   -- WALKED level, so a bridge deck's marker sits on the deck rather than a
   -- storey above it.
-  local hx, hz, hlevel = api.hover_tile()
+  local hx, hz, hlevel = api.input.hover_tile()
   if not hx then return end
 
-  draw.tile(hx, hz, hlevel,
-    api.config.hover_color, api.config.hover_fill_color, api.config.hover_fill_alpha)
+  draw.world_tile(hx, hz, hlevel,
+    api.config.hover_fill_color, api.config.hover_color, api.config.hover_fill_alpha)
 end
 
 return plugin

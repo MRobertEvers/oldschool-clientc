@@ -134,7 +134,7 @@ struct UITreeEntityOverlay
  * before/native-self/after boundary for a live target. */
 /* Where a role overlay group paints relative to its target. Stated as numbers
  * on both sides of the plugin/ui boundary (plugin/torirs_plugin.h's
- * ToriRS_PluginAnchorPlace and torirs_plugin_host.h's SELF), which do not
+ * ToriRS_LegacyAnchorPlace and torirs_plugin_host.h's SELF), which do not
  * include each other. */
 #define UITREE_ROLE_PLACE_AFTER 0
 #define UITREE_ROLE_PLACE_BEFORE 1

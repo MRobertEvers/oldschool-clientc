@@ -27,7 +27,7 @@ extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_ITEM_STATS;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_TRACKER;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LOOT_TRACKER;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LUA;
 
 /*
  * The BUILTINS: the Activities category of the cache's All Settings panel,
@@ -43,20 +43,7 @@ extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_HIGHLIGHT;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_BIRD_NEST;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
-enum PluginRegistryApi
-{
-    PLUGIN_REGISTRY_V1 = 1,
-    PLUGIN_REGISTRY_V2 = 2,
-};
-
-struct PluginRegistryEntry
-{
-    enum PluginRegistryApi api;
-    struct ToriRS_PluginDef const* v1;
-    struct ToriRS_PluginDefV2 const* v2;
-};
-
-static struct PluginRegistryEntry const PLUGIN_TABLE[] = {
+static struct ToriRS_PluginDefV2 const* const PLUGIN_TABLE[] = {
     /*
      * FIRST, and their position is load-bearing: the roster lists plugins in
      * registration order and these two are where the CLIENT's own knobs live,
@@ -70,27 +57,27 @@ static struct PluginRegistryEntry const PLUGIN_TABLE[] = {
      * a flag has to be in force before anything that reads one has run, and
      * nothing reads a display setting at START at all.
      */
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_CLIENT_SETTINGS },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_FEATURE_FLAGS },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_TILEIND },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_MINIMAP_ORBS },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_XP_ORBS },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_GAMEFRAME },
+    &TORIRS_PLUGIN_CLIENT_SETTINGS,
+    &TORIRS_PLUGIN_FEATURE_FLAGS,
+    &TORIRS_PLUGIN_TILEIND,
+    &TORIRS_PLUGIN_MINIMAP_ORBS,
+    &TORIRS_PLUGIN_XP_ORBS,
+    &TORIRS_PLUGIN_GAMEFRAME,
     /* Beside the desktop provider for presentation only. Both publish their
      * offers before startup; the one saved canonical id selects is the only
      * provider the host runs, independent of this table order. */
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_MOBILE_GAMEFRAME },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_ITEM_STATS },
+    &TORIRS_PLUGIN_MOBILE_GAMEFRAME,
+    &TORIRS_PLUGIN_ITEM_STATS,
     /* The two trackers, beside the other readouts. Both are PAGES and neither
      * draws on the canvas, which is why they are on by default where
      * xp-drop-orbs is not: nothing appears on a fresh install until the player
      * opens the panel and asks. */
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_XP_TRACKER },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_LOOT_TRACKER },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_NXT_HIGHLIGHT },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_NXT_BIRD_NEST },
-    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_NXT_CANNON_AMMO },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_LUA, NULL },
+    &TORIRS_PLUGIN_XP_TRACKER,
+    &TORIRS_PLUGIN_LOOT_TRACKER,
+    &TORIRS_PLUGIN_NXT_HIGHLIGHT,
+    &TORIRS_PLUGIN_NXT_BIRD_NEST,
+    &TORIRS_PLUGIN_NXT_CANNON_AMMO,
+    &TORIRS_PLUGIN_LUA,
 };
 
 void
@@ -100,10 +87,6 @@ PluginRegistry_RegisterAll(struct ToriRS_PluginHost* host)
 
     for( size_t i = 0; i < sizeof(PLUGIN_TABLE) / sizeof(PLUGIN_TABLE[0]); i++ )
     {
-        struct PluginRegistryEntry const* entry = &PLUGIN_TABLE[i];
-        if( entry->api == PLUGIN_REGISTRY_V2 )
-            (void)PluginHost_RegisterV2(host, entry->v2);
-        else
-            (void)PluginHost_Register(host, entry->v1);
+        (void)PluginHost_RegisterV2(host, PLUGIN_TABLE[i]);
     }
 }

@@ -45,7 +45,7 @@ PluginFrameCatalog_Add(
     struct PluginFrameCatalog* catalog,
     int plugin,
     char const* provider,
-    struct ToriRS_PluginFrameOffer const* offers)
+    struct ToriRS_FrameOffer const* offers)
 {
     struct PluginFrameCatalog candidate;
 
@@ -59,7 +59,7 @@ PluginFrameCatalog_Add(
     candidate = *catalog;
     for( int i = 0; offers[i].id; i++ )
     {
-        struct ToriRS_PluginFrameOffer const* offer = &offers[i];
+        struct ToriRS_FrameOffer const* offer = &offers[i];
         struct PluginFrameCatalogEntry* entry;
         int n;
 
@@ -67,10 +67,13 @@ PluginFrameCatalog_Add(
             return PLUGIN_FRAME_CATALOG_INVALID;
         if( !offer->title || !offer->title[0] )
             return PLUGIN_FRAME_CATALOG_INVALID;
-        if( offer->canvas != TORIRS_PLUGIN_CANVAS_FIXED &&
-            offer->canvas != TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW )
+        if( offer->canvas != TORIRS_FRAME_CANVAS_FIXED &&
+            offer->canvas != TORIRS_FRAME_CANVAS_WINDOW )
             return PLUGIN_FRAME_CATALOG_INVALID;
-        if( offer->width <= 0 || offer->height <= 0 )
+        if( (offer->canvas == TORIRS_FRAME_CANVAS_FIXED &&
+             (offer->width <= 0 || offer->height <= 0)) ||
+            (offer->canvas == TORIRS_FRAME_CANVAS_WINDOW &&
+             (offer->min_width <= 0 || offer->min_height <= 0)) )
             return PLUGIN_FRAME_CATALOG_INVALID;
         if( candidate.count >= TORIRS_PLUGIN_FRAME_OFFERS_MAX )
             return PLUGIN_FRAME_CATALOG_FULL;
@@ -95,8 +98,12 @@ PluginFrameCatalog_Add(
 
         entry->plugin = plugin;
         entry->canvas = offer->canvas;
-        entry->width = offer->width;
-        entry->height = offer->height;
+        entry->width = offer->canvas == TORIRS_FRAME_CANVAS_FIXED
+                           ? offer->width
+                           : offer->min_width;
+        entry->height = offer->canvas == TORIRS_FRAME_CANVAS_FIXED
+                            ? offer->height
+                            : offer->min_height;
         entry->available = 1;
         candidate.count++;
     }

@@ -80,6 +80,35 @@
 struct ToriDraw_Scene;
 struct ToriDraw_Kernel;
 
+/*
+ * The spin-wait pair. Every wait in this lane is on a word the other core
+ * is about to write, microseconds away; a waiter that yields to the kernel
+ * instead was measured (kr10/kr11, 2026-09-03) spending 1.7 ms/frame in a
+ * contended kernel spinlock behind sched_yield -- and slowing the DRAW's own
+ * syscalls through the same lock. On ARM the waiter parks the core in `wfe`
+ * (wait for event) and the publisher follows each release store with `sev`
+ * (send event): a hint instruction each, the event register makes
+ * check-then-wait race-free, and any interrupt ends the wait, so a missed
+ * event costs at most a tick. Elsewhere it is a plain pause.
+ */
+static inline void
+GLES2DualCore_SpinWait(void)
+{
+#if defined(__arm__) || defined(__aarch64__)
+    __asm__ volatile("wfe" ::: "memory");
+#elif defined(__x86_64__) || defined(__i386__)
+    __builtin_ia32_pause();
+#endif
+}
+
+static inline void
+GLES2DualCore_SpinSignal(void)
+{
+#if defined(__arm__) || defined(__aarch64__)
+    __asm__ volatile("sev" ::: "memory");
+#endif
+}
+
 struct GLES2DualCoreStageResult
 {
     /** TORIDRAW_CULL_VISIBLE or the rejection. Nothing else below is

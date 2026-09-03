@@ -141,7 +141,7 @@ app_plugin_page_select(struct App* app, int page, int view)
              * settings face is not "no selection". A plugin that wants to add
              * its own controls to its settings form declares them from the
              * same EV_PANEL_BUILD, told which face it is answering.
-             * @see enum ToriRS_PluginPanelView.
+             * @see enum ToriRS_PanelView.
              */
             int const want = view == APP_PLUGIN_VIEW_PAGE
                                  ? TORIRS_PLUGIN_PANEL_VIEW_PAGE
@@ -324,7 +324,7 @@ app_plugin_has_page(struct App* app, int plugin)
         return 1;
     for( int c = 0; c < cfg_count; c++ )
     {
-        struct ToriRS_PluginConfigItem const* item =
+        struct ToriRS_ConfigItem const* item =
             PluginHost_ConfigItem(app->plugins, plugin, c);
         if( item && item->label )
             return 1;
@@ -431,7 +431,7 @@ app_plugin_color_hsl(char const* text)
 static void
 app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
 {
-    struct ToriRS_PluginConfigItem const* item;
+    struct ToriRS_ConfigItem const* item;
 
     if( row->kind != APP_PLUGIN_ROW_CONFIG )
         return;
@@ -1289,7 +1289,7 @@ app_plugin_panel_sync(struct App* app)
                  * switched-off adapter has to have a switch or it can never come
                  * back on.
                  */
-                if( PluginHost_IsAdapter(app->plugins, p) && !err &&
+                if( PluginHost_IsRuntimeHost(app->plugins, p) && !err &&
                     PluginHost_IsEnabled(app->plugins, p) )
                     continue;
 
@@ -1440,7 +1440,7 @@ app_plugin_panel_sync(struct App* app)
 
         for( int c = 0; c < cfg_count; c++ )
         {
-            struct ToriRS_PluginConfigItem const* item =
+            struct ToriRS_ConfigItem const* item =
                 PluginHost_ConfigItem(app->plugins, p, c);
             int widget = -1;
 
@@ -1677,7 +1677,7 @@ app_plugin_panel_save(struct App* app, int plugin)
     for( int i = 0; i < app->plugin_panel_row_count; i++ )
     {
         struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
-        struct ToriRS_PluginConfigItem const* item;
+        struct ToriRS_ConfigItem const* item;
 
         if( row->plugin != plugin || row->kind != APP_PLUGIN_ROW_CONFIG )
             continue;
@@ -2817,7 +2817,7 @@ app_plugin_window_set_open(struct App* app, int open)
         {
             /* Back to the FACE it was closed on, not to the page: reopening a
              * settings form on the plugin's readout would be the window
-             * changing the subject. @see enum ToriRS_PluginPanelView. */
+             * changing the subject. @see enum ToriRS_PanelView. */
             int const want = g_plugin_page_view == APP_PLUGIN_VIEW_PAGE
                                  ? TORIRS_PLUGIN_PANEL_VIEW_PAGE
                                  : TORIRS_PLUGIN_PANEL_VIEW_SETTINGS;

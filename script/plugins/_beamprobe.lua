@@ -24,7 +24,7 @@
 
 ---@type torirs.Plugin
 local plugin = {
-    name    = "beam-probe",
+    id      = "beam-probe",
     version = "2.0.0",
     config  = {
         { key = "colour", type = "color", default = "#FF9600", label = "Beam colour" },
@@ -57,17 +57,19 @@ local function build(api)
     local hi = {}
     local corners = { { -r, -r }, { r, -r }, { r, r }, { -r, r } }
 
-    mesh = api.mesh_create()
+    mesh = api.scene.mesh_create()
     if not mesh then return end
 
     for i = 1, 4 do
-        lo[i] = api.mesh_vertex(mesh, corners[i][1], 0, corners[i][2])
-        hi[i] = api.mesh_vertex(mesh, corners[i][1], -h, corners[i][2])
+        lo[i] = (i - 1) * 2
+        hi[i] = lo[i] + 1
+        api.scene.mesh_vertex(mesh, corners[i][1], 0, corners[i][2])
+        api.scene.mesh_vertex(mesh, corners[i][1], -h, corners[i][2])
     end
     for i = 1, 4 do
         local n = i % 4 + 1
-        api.mesh_face(mesh, lo[i], hi[i], hi[n], KEY, 96)
-        api.mesh_face(mesh, lo[i], hi[n], lo[n], KEY, 96)
+        api.scene.mesh_face(mesh, lo[i], hi[i], hi[n], KEY, 96)
+        api.scene.mesh_face(mesh, lo[i], hi[n], lo[n], KEY, 96)
     end
 end
 
@@ -76,8 +78,8 @@ function plugin.on_start(api)
 end
 
 function plugin.on_stop(api)
-    if beam then api.object_destroy(beam) end
-    if mesh then api.mesh_destroy(mesh) end
+    if beam then api.scene.instance_destroy(beam) end
+    if mesh then api.scene.mesh_destroy(mesh) end
     beam, mesh = nil, nil
 end
 
@@ -88,33 +90,33 @@ function plugin.on_world_loaded(api)
 end
 
 function plugin.on_server_tick(api)
-    local me = api.local_player()
+    local me = api.world.local_player()
     if not me then return end
 
     if not mesh then build(api) end
     if not mesh then return end
 
     if not beam then
-        beam = api.object_create()
+        beam = api.scene.instance_create()
         if not beam then return end
-        api.object_model(beam, mesh, "mesh")
-        api.object_recolor(beam, KEY, api.hsl(api.config.colour))
-        api.object_light(beam, 75, 1875)
-        api.object_active(beam, true)
+        api.scene.instance_mesh(beam, mesh)
+        api.scene.instance_recolor(beam, KEY, api.draw.hsl_from_rgb(api.config.colour))
+        api.scene.instance_light(beam, 75, 1875)
+        api.scene.instance_active(beam, true)
     end
 
     local key = me.level .. ":" .. me.true_x .. ":" .. me.true_z
     if key ~= placed_at then
         placed_at = key
         at_x, at_z, at_level = me.true_x, me.true_z, me.level
-        api.object_position(beam, at_x, at_z, at_level)
-        api.log("beam at " .. key .. " ready=" .. tostring(api.object_ready(beam)))
+        api.scene.instance_position(beam, at_x, at_z, at_level)
+        api.core.log("beam at " .. key .. " ready=" .. tostring(api.scene.instance_ready(beam)))
     end
 end
 
-function plugin.on_frame(api, ev)
+function plugin.on_frame_start(api, ev)
     if not beam or not placed_at or api.config.spin == 0 then return end
-    api.object_position(
+    api.scene.instance_position(
         beam, at_x, at_z, at_level, 0,
         (ev.now_ms * api.config.spin * 2048) // 360000 % 2048)
 end

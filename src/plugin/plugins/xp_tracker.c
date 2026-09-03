@@ -1531,7 +1531,7 @@ static void
 xt_panel_layout(
     struct ToriRS_ApiV2* api,
     void* plugin_state,
-    struct ToriRS_PluginEvPanelLayout const* ev)
+    struct ToriRS_PanelLayoutEvent const* ev)
 {
     struct XtState* state = plugin_state;
     assert(ev);
@@ -1583,7 +1583,7 @@ static void
 xt_panel_action(
     struct ToriRS_ApiV2* api,
     void* plugin_state,
-    struct ToriRS_PluginEvPanelAction const* ev)
+    struct ToriRS_PanelActionEvent const* ev)
 {
     struct XtState* state = plugin_state;
     assert(ev);
@@ -1647,7 +1647,7 @@ static void
 xt_start(struct ToriRS_ApiV2* api, void* plugin_state)
 {
     struct XtState* state = plugin_state;
-    struct ToriRS_PluginPanelDesc desc;
+    struct ToriRS_PanelDescriptor desc;
 
     memset(state, 0, sizeof(*state));
     g_detail = -1;
@@ -1686,7 +1686,7 @@ static void
 xt_asset(
     struct ToriRS_ApiV2* api,
     void* plugin_state,
-    struct ToriRS_PluginEvAsset const* ev)
+    struct ToriRS_AssetEvent const* ev)
 {
     struct XtState* state = plugin_state;
     assert(ev);
@@ -1759,12 +1759,12 @@ static void
 xt_tick(
     struct ToriRS_ApiV2* api,
     void* plugin_state,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct XtState* state = plugin_state;
     (void)event;
 
-    struct ToriRS_PluginPlayerSnap me;
+    struct ToriRS_PlayerSnapshot me;
     uint64_t const now = api->core.frame_ms(api);
     bool const logged_in = api->world.local_player(api, &me);
 
@@ -1836,7 +1836,7 @@ xt_tick(
     }
 }
 
-static struct ToriRS_PluginConfigItem const XT_CONFIG[] = {
+static struct ToriRS_ConfigItem const XT_CONFIG[] = {
     { "save_state",        TORIRS_PLUGIN_CFG_BOOL, "Save between sessions",        "1", 0, 0,  NULL, 0 },
     { "hide_maxed",        TORIRS_PLUGIN_CFG_BOOL, "Hide maxed skills",            "0", 0, 0,  NULL, 0 },
     { "pause_on_logout",   TORIRS_PLUGIN_CFG_BOOL, "Pause on logout",              "1", 0, 0,  NULL, 0 },

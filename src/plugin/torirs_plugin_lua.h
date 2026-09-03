@@ -2,7 +2,7 @@
 #define TORIRS_PLUGIN_LUA_H
 
 /*
- * The Lua adapter's engine-facing surface.
+ * The Lua runtime host's engine-facing surface.
  *
  * Scripts arrive as BYTES, never as paths: the boot task reads them through
  * the IO queue (PlatformX_IO / TORIRS_IOK_SCRIPT) exactly like every other
@@ -12,27 +12,26 @@
 
 struct ToriRS_PluginHost;
 
-/** Hand the adapter the host before any script is added. */
+/** Hand the runtime its host before any script is added. */
 void PluginLua_Bind(struct ToriRS_PluginHost* host);
 
 /** Compile `source` and register it with the host as a plugin in its own
  *  right. Returns the host plugin index, or -1 when the script would not load
- *  (the reason is logged). `name` is the fallback identity; a script may name
- *  itself in its returned table. The bytes are not retained. */
+ *  (the reason is logged). `name` is the manifest identity and must match the
+ *  returned V2 table's `id`. The source bytes are retained for reload. */
 int PluginLua_AddScript(
     struct ToriRS_PluginHost* host,
     char const* name,
     char const* source,
     int source_len);
 
-/** Closes every script state. Called from the adapter's own shutdown. */
+/** Closes every script state. Called from the runtime host's own shutdown. */
 void PluginLua_Shutdown(void);
 
-/* The key codes moved to torirs_plugin.h (TORIRS_PLUGIN_KEY_*) when the first
- * C plugin needed one. They are part of the contract, not of this adapter --
- * the comment they carried always said so -- and a C plugin including the Lua
- * adapter's header to ask what shift is would have been the wrong shape. */
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
+
+/** The scripting runtime host is an ordinary native V2 plugin. */
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LUA;
 
 /** Resolve a key name ("shift", "ctrl", ...) to a code, or -1. */
 int PluginLua_KeyCodeFromName(char const* name);

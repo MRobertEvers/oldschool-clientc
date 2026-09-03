@@ -137,6 +137,7 @@ GLES2DualCoreStageArena_FeedReserve(struct GLES2DualCoreStageArena* arena)
     {
         atomic_store_explicit(
             &arena->feed_state, GLES2_DUALCORE_FEED_OVERFLOWED, memory_order_release);
+        GLES2DualCore_SpinSignal();
         return NULL;
     }
     return &arena->feed[arena->feed_count];
@@ -149,6 +150,7 @@ GLES2DualCoreStageArena_FeedPublish(struct GLES2DualCoreStageArena* arena)
     assert(arena->feed_count < arena->feed_capacity);
     arena->feed_count++;
     atomic_store_explicit(&arena->feed_published, arena->feed_count, memory_order_release);
+    GLES2DualCore_SpinSignal();
 }
 
 bool
@@ -179,6 +181,7 @@ GLES2DualCoreStageArena_FeedClose(struct GLES2DualCoreStageArena* arena)
         GLES2_DUALCORE_FEED_CLOSED,
         memory_order_release,
         memory_order_relaxed);
+    GLES2DualCore_SpinSignal();
 }
 
 enum GLES2DualCoreFeedTake
@@ -267,6 +270,7 @@ GLES2DualCoreStageArena_PublishTakenByDraw(struct GLES2DualCoreStageArena* arena
     result.taken_by_draw = 1u;
     arena->results[arena->result_count++] = result;
     atomic_store_explicit(&arena->ready, arena->result_count, memory_order_release);
+    GLES2DualCore_SpinSignal();
 }
 
 bool
@@ -452,6 +456,7 @@ publish:
     CRUMB(GLES2_DUALCORE_STEP_PUBLISH);
     arena->results[arena->result_count++] = result;
     atomic_store_explicit(&arena->ready, arena->result_count, memory_order_release);
+    GLES2DualCore_SpinSignal();
     CRUMB(GLES2_DUALCORE_STEP_IDLE);
     return true;
 }

@@ -22,7 +22,7 @@
  * to is the api, not this file.
  */
 
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_types.h"
 #include "plugin/torirs_plugin_v2.h"
 
 #include <stdint.h>

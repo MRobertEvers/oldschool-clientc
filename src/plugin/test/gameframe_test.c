@@ -420,7 +420,7 @@ fake_obj_image(void* u, int slot, int obj_id, int count, int style, int* out_w, 
 /* The client's own loot record. A fake engine records nothing, which is the
  * ordinary answer on a lane whose server has no kill hook. */
 static int
-fake_loot_source_next(void* u, int iter, struct ToriRS_PluginLootSource* out)
+fake_loot_source_next(void* u, int iter, struct ToriRS_LootSource* out)
 {
     (void)u;
     (void)iter;
@@ -429,7 +429,7 @@ fake_loot_source_next(void* u, int iter, struct ToriRS_PluginLootSource* out)
 }
 static int
 fake_loot_row_next(
-    void* u, int source_id, int iter, struct ToriRS_PluginLootRow* out)
+    void* u, int source_id, int iter, struct ToriRS_LootRow* out)
 {
     (void)u;
     (void)source_id;
@@ -511,19 +511,19 @@ fake_frame_preference_set(void* u, char const* id, int migration)
 static int fake_world_cycle(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_ms(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_work_us(void* u) { (void)u; return 0; }
-static int fake_local_player(void* u, struct ToriRS_PluginPlayerSnap* o) { (void)u; (void)o; return 0; }
-static int fake_npc_next(void* u, int i, struct ToriRS_PluginNpcSnap* o) { (void)u; (void)i; (void)o; return -1; }
-static int fake_npc_by_slot(void* u, int s, struct ToriRS_PluginNpcSnap* o) { (void)u; (void)s; (void)o; return 0; }
-static int fake_player_next(void* u, int i, struct ToriRS_PluginPlayerSnap* o) { (void)u; (void)i; (void)o; return -1; }
-static int fake_obj_next(void* u, int i, struct ToriRS_PluginObjSnap* o) { (void)u; (void)i; (void)o; return -1; }
-static int fake_loc_next(void* u, int i, struct ToriRS_PluginLocSnap* o) { (void)u; (void)i; (void)o; return -1; }
-static int fake_highlight_next(void* u, int i, struct ToriRS_PluginHighlightItem* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_local_player(void* u, struct ToriRS_PlayerSnapshot* o) { (void)u; (void)o; return 0; }
+static int fake_npc_next(void* u, int i, struct ToriRS_NpcSnapshot* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_npc_by_slot(void* u, int s, struct ToriRS_NpcSnapshot* o) { (void)u; (void)s; (void)o; return 0; }
+static int fake_player_next(void* u, int i, struct ToriRS_PlayerSnapshot* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_obj_next(void* u, int i, struct ToriRS_GroundItemSnapshot* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_loc_next(void* u, int i, struct ToriRS_ScenerySnapshot* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_highlight_next(void* u, int i, struct ToriRS_HighlightItem* o) { (void)u; (void)i; (void)o; return -1; }
 static void fake_notify(void* u, char const* t) { (void)u; (void)t; }
 static int fake_key_held(void* u, int k) { (void)u; (void)k; return 0; }
 static int fake_hover_tile(void* u, int* x, int* z, int* l) { (void)u; (void)x; (void)z; (void)l; return 0; }
-static int fake_hover_entity(void* u, struct ToriRS_PluginHoverEntity* o) { (void)u; (void)o; return 0; }
+static int fake_hover_entity(void* u, struct ToriRS_HoverTarget* o) { (void)u; (void)o; return 0; }
 static int fake_element_height(void* u, int e) { (void)u; (void)e; return 0; }
-static int fake_feature_next(void* u, int i, struct ToriRS_PluginFeature* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_feature_next(void* u, int i, struct ToriRS_FeatureInfo* o) { (void)u; (void)i; (void)o; return -1; }
 static int fake_feature_get(void* u, char const* k) { (void)u; (void)k; return TORIRS_PLUGIN_FEATURE_UNSET; }
 static int fake_feature_set(void* u, char const* k, int v) { (void)u; (void)k; (void)v; return 0; }
 static int fake_display_setting(void* u, int s, int* v, int* mn, int* mx) { (void)u; (void)s; (void)v; (void)mn; (void)mx; return 0; }
@@ -555,7 +555,7 @@ static int fake_frame_root(void* u) { (void)u; return g_frame_root; }
  * because standing down over a question nobody has answered would take the
  * frame away from every lane. */
 static int g_lane_game = TORIRS_PLUGIN_GAME_UNKNOWN;
-static int fake_lane(void* u, struct ToriRS_PluginLane* o)
+static int fake_lane(void* u, struct ToriRS_LaneInfo* o)
 {
     (void)u;
     memset(o, 0, sizeof(*o));
@@ -672,7 +672,7 @@ fake_screenshot(void* u, char const* p, char const* d, char const* n, char* out,
 }
 static int fake_model_publish(void* u, int m, void const* d, int size) { (void)u; (void)m; (void)d; (void)size; return 0; }
 static void fake_model_release(void* u, int m) { (void)u; (void)m; }
-static int fake_obj_info(void* u, int id, struct ToriRS_PluginObjInfo* o) { (void)u; (void)id; (void)o; return 0; }
+static int fake_obj_info(void* u, int id, struct ToriRS_ItemInfo* o) { (void)u; (void)id; (void)o; return 0; }
 static int fake_inv_slot(void* u, int inv, int slot, int* id, int* n) { (void)u; (void)inv; (void)slot; (void)id; (void)n; return 0; }
 static int fake_inv_size(void* u, int inv) { (void)u; (void)inv; return 0; }
 static int fake_mesh_create(void* u) { (void)u; return -1; }
@@ -735,10 +735,10 @@ select_frame(char const* id, uint64_t now_ms)
     PluginHost_FrameStart(g_host, now_ms, 0);
 }
 
-static struct ToriRS_PluginFrameSelection
+static struct ToriRS_EngineFrameSelection
 selected_frame(void)
 {
-    struct ToriRS_PluginFrameSelection selected;
+    struct ToriRS_EngineFrameSelection selected;
 
     memset(&selected, 0, sizeof(selected));
     assert(g_frame_settings_api);
@@ -762,17 +762,6 @@ draw(int w, int h)
     g_frame.regions = 0;
     PluginHost_FrameStart(g_host, now_ms++, 0);
     PluginHost_DrawFrame(g_host, w, h);
-    PluginHost_DrawCanvas(g_host, w, h);
-}
-
-/* The CANVAS surface, over the interfaces, as distinct from draw()'s frame
- * surface under them. A plugin that draws on neither has to be checked on
- * both, or "it draws nothing" is only half tested. */
-static void
-draw_over(int w, int h)
-{
-    g_frame.blits = 0;
-    g_frame.regions = 0;
     PluginHost_DrawCanvas(g_host, w, h);
 }
 
@@ -955,7 +944,7 @@ main(void)
     /* ---- 1. host-owned selection -------------------------------------- */
 
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.requested, "auto") == 0,
             "the engine's Auto preference is the host's requested frame");
@@ -970,7 +959,7 @@ main(void)
     select_frame("gameframe-layout/classic-fixed", 100);
 
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.requested, "gameframe-layout/classic-fixed") == 0 &&
                 strcmp(selected.active, "core/native") == 0 &&
@@ -1000,7 +989,7 @@ main(void)
 
     declare(765, 503);
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
                 selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
@@ -1159,7 +1148,7 @@ main(void)
 
     select_frame("gameframe-layout/modern-fixed", 200);
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
                 selected.status == TORIRS_PLUGIN_FRAME_LOADING,
@@ -1167,7 +1156,7 @@ main(void)
     }
     declare(765, 503);
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.active, "gameframe-layout/modern-fixed") == 0 &&
                 selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
@@ -1208,7 +1197,7 @@ main(void)
 
     select_frame("gameframe-layout/modern-resizable", 300);
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.active, "gameframe-layout/modern-fixed") == 0 &&
                 selected.status == TORIRS_PLUGIN_FRAME_LOADING,
@@ -1217,7 +1206,7 @@ main(void)
 
     declare(1024, 768);
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.active, "gameframe-layout/modern-resizable") == 0 &&
                 selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
@@ -1417,7 +1406,7 @@ main(void)
 
     select_frame("auto", 400);
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.requested, "auto") == 0 &&
                 strcmp(selected.active, "core/native") == 0 &&
@@ -1451,7 +1440,7 @@ main(void)
         g_frame.owned == 0,
         "selecting at the title leaves the native frame in charge");
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.requested, "gameframe-layout/classic-fixed") == 0 &&
                 strcmp(selected.active, "core/native") == 0 &&
@@ -1462,7 +1451,7 @@ main(void)
     PluginHost_FrameStart(g_host, 1000, 0);
     CHECK(g_frame.owned == 0, "login schedules the candidate without a restart");
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.active, "core/native") == 0 &&
                 selected.status == TORIRS_PLUGIN_FRAME_LOADING,
@@ -1517,7 +1506,7 @@ main(void)
     declare(1024, 768);
     CHECK(g_frame.owned == 1, "the validated provider owns the OldSchool frame too");
     {
-        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        struct ToriRS_EngineFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.active, "gameframe-layout/modern-resizable") == 0 &&
                 selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,

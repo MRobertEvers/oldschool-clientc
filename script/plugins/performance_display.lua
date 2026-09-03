@@ -8,14 +8,14 @@
 -- There are two frame rates here and they mean different things.
 --
 -- "FPS" is frames counted over the refresh window: what the client actually
--- delivered, which under a frame cap is the cap. "Frame" is api.frame_work_us
+-- delivered, which under a frame cap is the cap. "Frame" is api.core.frame_work_us
 -- -- the time the frame's WORK took, measured by the shell and closed before
 -- the pacing sleep -- averaged over the last FRAME_WINDOW frames, and
 -- "Effective FPS" is a second divided by it: the rate the client could hold if
 -- nothing were holding it back.
 --
 -- The distinction is the entire reason the second pair is worth drawing. The
--- frame time can NOT be had by subtracting two api.frame_ms stamps: that gap
+-- frame time can NOT be had by subtracting two api.core.frame_ms stamps: that gap
 -- is wall clock, sleep included, so it reads back the cap and effective FPS
 -- would be a second copy of FPS. 4 ms of work in a 20 ms budget and 19 ms of
 -- work in the same budget are both 50 FPS by the first number and 250 against
@@ -30,7 +30,7 @@
 
 ---@type torirs.Plugin
 local plugin = {
-    name = "performance-display",
+    id = "performance-display",
     title = "FPS and Memory",
     version = "1.1.0",
     config = {
@@ -98,11 +98,11 @@ local function format_memory(bytes)
     return string.format("%.0f KiB", bytes / 1024)
 end
 
-function plugin.on_frame(api, ev)
+function plugin.on_frame_start(api, ev)
     -- 0 means the host measured no frame -- a headless run reports nothing, and
     -- so does the first frame. Recording it would drag the mean toward a work
     -- time no frame took.
-    local work_us = api.frame_work_us()
+    local work_us = api.core.frame_work_us()
     if work_us > 0 then
         recent_push(work_us)
     end
@@ -110,11 +110,11 @@ function plugin.on_frame(api, ev)
     if not sample_started_ms then
         sample_started_ms = ev.now_ms
         sample_drawn_at_start = ev.drawn_frames
-        sampled_memory = api.memory_bytes()
+        sampled_memory = api.client.memory_bytes()
         return
     end
 
-    -- Frames DRAWN, not on_frame calls: the loop runs at the pacer's rate
+    -- Frames DRAWN, not on_frame_start calls: the loop runs at the pacer's rate
     -- whether or not it draws, so counting calls reads 50 while the screen
     -- is capped at 15.
     sample_frames = ev.drawn_frames - sample_drawn_at_start
@@ -122,7 +122,7 @@ function plugin.on_frame(api, ev)
     if elapsed < api.config.refresh_ms then return end
 
     sampled_fps = sample_frames * 1000 / elapsed
-    sampled_memory = api.memory_bytes()
+    sampled_memory = api.client.memory_bytes()
     sample_frames = 0
     sample_started_ms = ev.now_ms
     sample_drawn_at_start = ev.drawn_frames

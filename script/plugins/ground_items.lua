@@ -47,12 +47,12 @@
 --
 --   doubleTapDelay, collapseEntries, sortByGEPrice. The first needs a
 --   double-tap this client cannot see; the other two describe a list this
---   plugin does not keep -- api.objs() already yields one snapshot per
+--   plugin does not keep -- api.world.item_next() already yields one snapshot per
 --   (tile, obj) pair with its own count, so a stack arrives collapsed.
 --
 -- THE SCENE ORIGIN
 --
--- Snapshots speak in ABSOLUTE tiles and api.project() speaks in scene-local
+-- Snapshots speak in ABSOLUTE tiles and api.draw.project() speaks in scene-local
 -- fine units, so this plugin has to know where the scene starts. That is what
 -- on_world_loaded carries, and every rebuild raises it -- but a plugin switched
 -- on from the settings panel mid-session has missed the last one, so
@@ -63,7 +63,7 @@
 
 ---@type torirs.Plugin
 local plugin = {
-    name    = "ground-items",
+    id      = "ground-items",
     title   = "Ground Items",
     version = "1.0.0",
     config  = {
@@ -268,6 +268,16 @@ local PATTERN_MAGIC = "([%^%$%(%)%%%.%[%]%+%-%?])"
 -- obj_id -> price, from the asset. Empty until it lands, and empty forever if
 -- it is not shipped; the cache cost is the fallback either way.
 local prices = {}
+
+local function items(api)
+    local cursor = -1
+    return function()
+        local next_cursor, item = api.world.item_next(cursor)
+        if not next_cursor then return nil end
+        cursor = next_cursor
+        return item
+    end
+end
 -- The two name lists, compiled to anchored Lua patterns once per edit rather
 -- than once per item per frame.
 local highlight_pats = {}
@@ -382,7 +392,7 @@ end
 local function reveal_held(api)
     local key = api.config.reveal_key
     if key == "off" then return false end
-    return api.key_held(key)
+    return api.input.key_held(key)
 end
 
 -- Reference GroundItemsOverlay's item string: name, then the count, then
@@ -439,7 +449,7 @@ end
 -- consecutive server ticks is only possible standing still.
 --
 local function derive_base(api)
-    local me = api.local_player()
+    local me = api.world.local_player()
     if not me or (me.dest_x ~= me.true_x or me.dest_z ~= me.true_z)
         or me.fine_x % 128 ~= 64 or me.fine_z % 128 ~= 64 then
         base_settle = nil
@@ -475,25 +485,25 @@ function plugin.on_start(api)
     load_lists(api)
     -- Optional: a client without the file simply prices everything from the
     -- cache. on_asset hears about it either way.
-    api.asset_load(PRICES_ASSET)
+    api.assets.request(PRICES_ASSET)
 end
 
 function plugin.on_asset(api, ev)
     if ev.name ~= PRICES_ASSET then return end
     if not ev.ok then
-        api.log("no " .. PRICES_ASSET .. "; pricing from the cache's own OC_COST")
+        api.core.log("no " .. PRICES_ASSET .. "; pricing from the cache's own OC_COST")
         return
     end
     local n
-    prices, n = parse_prices(api.asset_data(PRICES_ASSET) or "")
-    api.log(PRICES_ASSET .. ": " .. n .. " price overrides")
+    prices, n = parse_prices(api.assets.bytes(PRICES_ASSET) or "")
+    api.core.log(PRICES_ASSET .. ": " .. n .. " price overrides")
     -- The bytes are parsed; there is no reason to keep a copy of the file
     -- resident for the rest of the session.
-    api.asset_release(PRICES_ASSET)
+    api.assets.release(PRICES_ASSET)
 end
 
-function plugin.on_config_changed(api, ev)
-    if ev.key == "highlighted_items" or ev.key == "hidden_items" then
+function plugin.on_config_changed(api, key)
+    if key == "highlighted_items" or key == "hidden_items" then
         load_lists(api)
     end
 end
@@ -510,22 +520,22 @@ end
 -- Reference GroundItemsPlugin.notifyHighlightedItem, as one log line: the api
 -- has no notifier, and the log is what a plugin can say.
 --
-function plugin.on_obj_spawn(api, obj)
+function plugin.on_item_spawn(api, obj)
     local exchange, alch = prices_of(obj)
 
     if api.config.notify_highlighted and matches(highlight_pats, obj.name) then
-        api.log("highlighted drop: " .. label_for(api, obj, exchange, alch))
+        api.core.log("highlighted drop: " .. label_for(api, obj, exchange, alch))
         return
     end
 
     local floor = tier_rank(api.config.notify_tier)
     if floor > 0 and tier_of(api, value_by_mode(api, exchange, alch)) >= floor then
-        api.log("drop: " .. label_for(api, obj, exchange, alch))
+        api.core.log("drop: " .. label_for(api, obj, exchange, alch))
     end
 end
 
 function plugin.on_draw_world(api, draw)
-    local me = api.local_player()
+    local me = api.world.local_player()
     if not me then return end
     if not base_x then
         -- Absolute tiles cannot be projected without the scene origin, so
@@ -533,7 +543,7 @@ function plugin.on_draw_world(api, draw)
         -- the next rebuild, or on the next tick the player stands still.
         if not warned_base then
             warned_base = true
-            api.log("no scene origin yet; nothing is drawn until a world load "
+            api.core.log("no scene origin yet; nothing is drawn until a world load "
                 .. "or the player stands still for a tick")
         end
         return
@@ -544,8 +554,8 @@ function plugin.on_draw_world(api, draw)
     local tiles = {}
     local order = {}
 
-    for obj in api.objs() do
-        -- Ground items are per-plane, and api.project() samples ground height
+    for obj in items(api) do
+        -- Ground items are per-plane, and api.draw.project() samples ground height
         -- at the LOCAL PLAYER's level -- an upper-floor stack projected here
         -- would land on the ground below it.
         if obj.level == me.level then
@@ -598,7 +608,7 @@ function plugin.on_draw_world(api, draw)
         -- about when an unrelated item under it despawns.
         table.sort(tile.items, function(a, b) return a.value > b.value end)
 
-        local sx, sy = api.project(
+        local sx, sy = api.draw.project(
             (tile.x - base_x) * 128 + 64, (tile.z - base_z) * 128 + 64, height)
         if sx then
             for i, item in ipairs(tile.items) do
@@ -608,7 +618,7 @@ function plugin.on_draw_world(api, draw)
 
         if fill_tiles then
             -- Reference: the tile takes the colour of the item on it.
-            draw.tile(tile.x, tile.z, me.level,
+            draw.world_tile(tile.x, tile.z, me.level,
               tile.items[1].colour, tile.items[1].colour, tile_fill)
         end
     end
@@ -627,7 +637,7 @@ end
 local function tag_of(obj_id, hide) return obj_id * 2 + (hide and 1 or 0) end
 
 local function name_of_obj(api, obj_id)
-    for obj in api.objs() do
+    for obj in items(api) do
         if obj.obj_id == obj_id and obj.name ~= "" then return obj.name end
     end
     return nil
@@ -648,8 +658,8 @@ function plugin.on_menu_build(api, menu)
             if name then
                 local hl = matches(highlight_pats, name) and "Unhighlight" or "Highlight"
                 local hd = matches(hidden_pats, name) and "Unhide" or "Hide"
-                if not menu.add(hl .. " @yel@" .. name, tag_of(id, false)) then break end
-                if not menu.add(hd .. " @yel@" .. name, tag_of(id, true)) then break end
+                if not api.ui.menu_add(hl .. " @yel@" .. name, tag_of(id, false)) then break end
+                if not api.ui.menu_add(hd .. " @yel@" .. name, tag_of(id, true)) then break end
             end
         end
     end
@@ -679,11 +689,11 @@ local function list_toggle(api, key, name)
 
     local joined = table.concat(entries, ", ")
     if #joined >= CONFIG_VALUE_MAX then
-        api.log(key .. " is full (" .. CONFIG_VALUE_MAX .. " bytes); "
+        api.core.log(key .. " is full (" .. CONFIG_VALUE_MAX .. " bytes); "
             .. name .. " not added")
         return nil
     end
-    api.cfg_set(key, joined)
+    api.config.set(key, joined)
     return not removed
 end
 
@@ -696,7 +706,7 @@ function plugin.on_menu_select(api, sel)
         local key = hide and "hidden_items" or "highlighted_items"
         local added = list_toggle(api, key, name)
         if added ~= nil then
-            api.log((added and "added " or "removed ") .. name
+            api.core.log((added and "added " or "removed ") .. name
                 .. (added and " to " or " from ") .. key)
         end
     end

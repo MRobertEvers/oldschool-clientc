@@ -723,11 +723,13 @@ test_change_journal(void)
         node_value(0, 0, 0, 0, TORIRS_UI_NODE_ENABLED, 0, NULL, "toggle-run");
     struct ToriRS_UiNodeRef run;
     struct ToriRS_UiChange change;
+    struct ToriRS_UiContributionRef skin;
+    struct ToriRS_UiContributionStatus status;
 
     ToriRS_UiRegistry_Init(&registry_a);
     CHECK(ToriRS_UiRegistry_ChangeCount(&registry_a) == 0, "initial vocabulary emits no UI work");
     run = ToriRS_UiRegistry_Ref(&registry_a, "frame.orb.run");
-    (void)add_contribution(
+    skin = add_contribution(
         &registry_a,
         "skin",
         "frame.orb.run",
@@ -752,6 +754,25 @@ test_change_journal(void)
     CHECK(
         !ToriRS_UiRegistry_ChangeNext(&registry_a, &change),
         "draining changes requires no scan for an empty tail");
+
+    CHECK(
+        ToriRS_UiRegistry_SetContributionEnabled(&registry_a, skin, false) ==
+                TORIRS_UI_REGISTRY_OK &&
+            ToriRS_UiRegistry_ContributionStatus(&registry_a, skin, &status) &&
+            status.state == TORIRS_UI_CONTRIBUTION_INACTIVE,
+        "a retained contribution can stand down without losing its stable ref");
+    CHECK(
+        ToriRS_UiRegistry_ChangeNext(&registry_a, &change) &&
+            change.node.value == run.value &&
+            change.facets == TORIRS_UI_FACET_APPEARANCE,
+        "activation changes enqueue the exact declared facets");
+    CHECK(
+        ToriRS_UiRegistry_SetContributionEnabled(&registry_a, skin, true) ==
+                TORIRS_UI_REGISTRY_OK &&
+            ToriRS_UiRegistry_ContributionStatus(&registry_a, skin, &status) &&
+            status.state == TORIRS_UI_CONTRIBUTION_ACTIVE,
+        "the same contribution ref can be re-enabled");
+    drain_changes(&registry_a);
 
     CHECK(ToriRS_UiRegistry_RemovePlugin(&registry_a, "skin") == 1, "one provider is removed");
     CHECK(

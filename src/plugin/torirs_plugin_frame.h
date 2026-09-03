@@ -1,7 +1,7 @@
 #ifndef TORIRS_PLUGIN_FRAME_H
 #define TORIRS_PLUGIN_FRAME_H
 
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #define TORIRS_PLUGIN_FRAME_OFFERS_MAX 32
 
@@ -39,7 +39,7 @@ enum PluginFrameCatalogResult PluginFrameCatalog_Add(
     struct PluginFrameCatalog* catalog,
     int plugin,
     char const* provider,
-    struct ToriRS_PluginFrameOffer const* offers);
+    struct ToriRS_FrameOffer const* offers);
 
 int PluginFrameCatalog_Count(struct PluginFrameCatalog const* catalog);
 

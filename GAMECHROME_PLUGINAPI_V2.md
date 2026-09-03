@@ -1,6 +1,6 @@
 # Game chrome and plugin API v2
 
-Status: core architecture implemented; bundled-plugin and Lua migration remains
+Status: implemented
 
 This document replaces the ownership proposal in the pasted “Publish, Don't
 Claim” note. It keeps the useful parts of the current implementation—retained
@@ -13,20 +13,19 @@ and gives plugin authors a much smaller API to learn.
 | Phase | Status | What that means now |
 | --- | --- | --- |
 | 0. Behavior tests | Complete | Frame geometry, lifecycle, retained execution, and safe-placement behavior have focused regressions. |
-| 1. V2 shell | Core complete | The typed V2 contract, host registration, per-instance state, callback dispatch, and V1 adapter are live. One bundled C plugin is native V2; broad migration is Phase 6. |
-| 2. Frame catalogue | Core complete | Preferences, stable offers, host selection, last-valid retention, atomic candidate validation, and Client Settings are live. The two bundled frame implementations still enter through the temporary V1 compatibility adapter rather than direct V2 builders. |
-| 3. Named UI | Core implemented; migration incomplete | Interned names, facets, deterministic conflicts, retained changes, frame nodes, and action routing exist. RevConfig metadata and remaining chrome-part users still need conversion. |
-| 4. Placement | Core implemented; migration incomplete | Exact rectangle sets, named reservations, stable ordering, and resolved revisions exist. Legacy pseudo-slot aliases and some profile conventions remain compatibility-only. |
+| 1. V2 shell | Complete | The typed V2 contract, host registration, per-instance state, callback dispatch, and namespaced modules are the sole bundled plugin API. |
+| 2. Frame catalogue | Complete | Preferences, stable offers, host selection, last-valid retention, atomic candidate validation, Client Settings, and native V2 frame providers are live. |
+| 3. Named UI | Complete | Interned names, facets, deterministic conflicts, retained changes, frame nodes, action routing, and RevConfig bindings are live. |
+| 4. Placement | Complete | Exact rectangle sets, named reservations, stable ordering, and resolved revisions replace public pseudo-slots. |
 | 5. Retained web execution | Complete | Setters record an O(1)-coalesced mutation journal; idle drain is O(1). `web` and `browser` are the only external executors; BUFFER is internal recovery/fallback presentation. |
-| 6. API migration/removal | Remaining | Migrate the remaining bundled C plugins and Lua surface, then delete V1 declarations, aliases, and compatibility storage. |
+| 6. API migration/removal | Complete | Bundled C and Lua plugins use native V2. The V1 flat API, subscription surface, adapter, aliases, and pseudo-slots are removed. |
 
-The phase sections below remain the implementation record and acceptance plan;
-the table above is the current truth when a historical work item is already
-complete or deliberately deferred.
+The phase sections below are a historical implementation record. They explain
+why the system was built in that order; they are not outstanding work.
 
 ## The short version
 
-The finished system should obey five rules:
+The system obeys five rules:
 
 1. A frame plugin **offers** one or more frames. It never claims the screen.
 2. The host is the only code that chooses the active frame. `Auto` means “use
@@ -47,9 +46,8 @@ frame providers do not have independent enable switches.
 ## Why v2 was needed
 
 The pre-v2 public surface had good machinery but exposed too much of that
-machinery as the programming model. The items below describe that legacy
-starting point; remaining symbols are temporary in-tree compatibility, not the
-API new plugins should learn.
+machinery as the programming model. The items below describe the removed
+legacy starting point, not APIs that remain available.
 
 - `ToriRS_PluginApi` is a flat table of roughly one hundred operations in a
   header over four thousand lines long. Related operations are far apart and C
@@ -154,7 +152,7 @@ from which the host selects the second layer.
 | placement area | A possibly fragmented set of rectangles in which a class of content may be placed. |
 | reservation | A named, retained request for a dock or overlay to consume space. |
 
-The public API should stop using *arranger*, *dresser*, *part*, and generic
+The public API does not use *arranger*, *dresser*, *part*, and generic
 *object* as overlapping terms. In this repository “obj” already means a ground
 item and `object_*` currently means a plugin-owned 3D model. V2 uses **UI node**
 for named interface elements and **scene instance** for plugin-owned 3D models.
@@ -319,10 +317,8 @@ struct PluginFrameSelection {
 `active_provider` and `active_offer` are the only answer to “who draws the
 frame?” Engine suppression, canvas policy, callbacks, settings status, and
 debug output derive from this record. A transient target/candidate staging
-record is allowed, but it is never a second active frame. The remaining
-`plugin_layout_owned` engine mirror is compatibility storage and must disappear
-with V1; do not reintroduce public `layout_owner`, per-plugin “claimed” flags,
-or copied active names.
+record is allowed, but it is never a second active frame. There is no public
+layout owner, per-plugin claimed flag, or second copied active name.
 
 The server's live root id remains an engine fact used by `core/native` and the
 RevConfig binder. It is not another active-frame id.
@@ -472,7 +468,7 @@ Ordinary actions are semantic too:
 api->ui.invoke(api, report, "activate");
 ```
 
-RevConfig maps `activate` to the correct legacy op where necessary. Raw
+RevConfig maps `activate` to the correct lane-native operation internally. Raw
 component ids and numeric ops remain available only under an explicitly
 lane-specific `api->cache` escape hatch.
 
@@ -510,8 +506,8 @@ a winner from registration order. The plugin settings page surfaces the
 conflict so a person can resolve it. If there is no base facet, that facet stays
 absent until the conflict is resolved.
 
-`ui.debug_provider(ref, facet)` may exist for diagnostics, but normal plugin
-behavior must not depend on it.
+Provider diagnostics are observational; normal plugin behavior never depends
+on which implementation currently supplies a facet.
 
 Dynamic retained state is a restatement, not an imperative draw side channel:
 
@@ -552,9 +548,10 @@ states the active `frame.minimap.housing` node and its render position directly.
 
 ### Safe areas are not surfaces
 
-`ToriRS_PluginLayoutSlot` should contain only placeable live surfaces. Remove
-`CANVAS`, `SAFE_GAMECHROME`, and `SAFE_LANECHROME` from its placeable/derived
-mixture. Canvas is build context; safe results belong to the placement module.
+V2 exposes placeable live surfaces only through `ToriRS_Surface`. Canvas is
+build context, and safe results belong to the placement module. The former
+`CANVAS`, `SAFE_GAMECHROME`, and `SAFE_LANECHROME` pseudo-slots are not public
+API.
 
 V2 defines these read-only area kinds:
 
@@ -637,18 +634,17 @@ coalesced `on_placement_changed` callback with a revision number.
 ### Source inputs remain inspectable
 
 Specialized code may query `PLATFORM_SAFE`, `FRAME_BUILD`, or the resolved UI
-nodes directly. Keeping those facts available is useful; forcing every common
-overlay to combine them is not. The old `safe_os()` behavior becomes the
-compatibility implementation of `PLATFORM_SAFE` during migration.
+nodes directly. Platform adapters feed OS exclusions into `PLATFORM_SAFE`
+internally; plugins do not call a separate platform-safe function.
 
 ## A smaller, consistent plugin API
 
 ### Definition and instance state
 
-V2 plugin definitions contain callback tables instead of requiring every
-plugin to subscribe manually during `init`. The host allocates zeroed
-per-instance state using `state_size` and passes it to every callback. Bundled
-plugins should no longer store `g_api` or mutable plugin state in file globals.
+V2 plugin definitions contain callback tables rather than manual subscription.
+The host allocates zeroed per-instance state using `state_size` and passes it
+to every callback. Bundled plugins store neither `g_api` nor mutable plugin
+state in file globals.
 
 Illustrative shape:
 
@@ -669,8 +665,7 @@ struct ToriRS_PluginDefV2 {
 };
 ```
 
-There can still be an advanced event-bus module later, but bundled plugins
-should use named callbacks such as `on_start`, `on_server_tick`,
+Plugins use named callbacks such as `on_start`, `on_server_tick`,
 `on_draw_world`, `on_draw_canvas`, `on_ui_build`, and
 `on_placement_changed`. Draw/frame builders are callback parameters, so a
 plugin cannot retain or use them on the wrong drawing surface.
@@ -693,11 +688,12 @@ tables, giving C calls the same hierarchy Lua uses:
 | `assets` | Bytes, images, models, screenshots, and async state. |
 | `scene` | Meshes and plugin-owned 3D scene instances. |
 | `panel` | The plugin's application-chrome page and controls. |
-| `cache` | Explicitly lane-specific ids, raw components, varps, and legacy ops. |
+| `cache` | Explicitly lane-specific ids, raw components, varps, and native component operations. |
 
-C and Lua expose the same names. For example, `api->placement.place(...)` in C
-is `api.placement.place(...)` in Lua. Do not keep a flat C spelling and invent a
-different Lua hierarchy.
+C and Lua are first-class native V2 surfaces with the same modules, callbacks,
+builders, value semantics, and ownership rules. For example,
+`api->placement.place(...)` in C is `api.placement.place(...)` in Lua. Lua is
+not a compatibility wrapper around the removed flat API.
 
 `core.capability` is host-backed, not a plugin-side platform guess. The stable
 names are `touch` (current touch UI/input policy), `web` (Emscripten lane), and
@@ -861,7 +857,7 @@ Overflow never drops an arbitrary suffix of changes. It sets a `needs_snapshot`
 flag, clears the unusable incremental journal, and sends one complete snapshot
 on the next drain.
 
-At present the only external plugin-chrome executors are:
+The only external plugin-chrome executors are:
 
 - `web`: the Emscripten/DOM executor;
 - `browser`: the embedded web-engine executor used by native shells.
@@ -887,12 +883,14 @@ Executor tests must prove:
 - normal builds contain no SDL/GDI/Android executor symbol or availability
   define.
 
-## Implementation plan
+## Completed implementation record
 
-The phases below are deliberately incremental. Each phase leaves the client
-usable and has an explicit exit condition.
+The project used the phases below to keep the client usable throughout the
+change. Every phase and exit condition listed here is complete. Imperative
+wording records what was done; references to V1 describe temporary scaffolding
+that has since been deleted.
 
-### Phase 0 — Pin the current behavior
+### Phase 0 — Pin the current behavior (complete)
 
 Goal: make the migration distinguish intended visual behavior from accidental
 ownership behavior.
@@ -920,7 +918,7 @@ Exit condition: intended current geometry and lifecycle behavior are covered,
 and the ownership race is isolated in a test that phase 2 can replace with the
 new invariant.
 
-### Phase 1 — Introduce the v2 shell
+### Phase 1 — Introduce the V2 shell (complete)
 
 Goal: make the public contract understandable without changing frame behavior.
 
@@ -946,10 +944,11 @@ Files:
 - one small plugin, such as `src/plugin/plugins/item_stats.c`
 - `src/makefile`
 
-Exit condition: v1 and v2 plugins run together, the migrated plugin has no
-global `g_api`, and its behavior/tests are unchanged.
+Intermediate exit condition at the time: V1 and V2 plugins could run together,
+the first migrated plugin had no global `g_api`, and behavior stayed covered.
+That coexistence scaffold was removed in Phase 6.
 
-### Phase 2 — Build the frame catalogue and resolver
+### Phase 2 — Build the frame catalogue and resolver (complete)
 
 Goal: remove first-caller ownership and provide one Gameframe setting.
 
@@ -970,10 +969,9 @@ Work:
 8. Make provider definitions non-toggleable in the ordinary plugin roster.
 9. Route canvas policy, frame drawing, and lane-chrome suppression from the
    selection record.
-10. Keep the removed `layout_claim`, `layout_release`, and
-   `PluginHost_LayoutOwner` out of the public path. Once both bundled providers
-   use direct V2 builders, delete the remaining internal `layout_owned`-named
-   engine adapter storage.
+10. Kept `layout_claim`, `layout_release`, and `PluginHost_LayoutOwner` out of
+    the public path, then deleted the internal `layout_owned` adapter storage
+    after both bundled providers used direct V2 builders.
 
 Files:
 
@@ -992,7 +990,7 @@ Exit condition: both providers can be installed and catalogued simultaneously;
 changing registration/start order has no effect; only the selected callback
 runs; invalid or pending builds never blank the frame; `auto` follows native.
 
-### Phase 3 — Introduce the named UI node registry
+### Phase 3 — Introduce the named UI node registry (complete)
 
 Goal: make one name work for lookup, replacement, anchoring, drawing, and
 input.
@@ -1036,7 +1034,7 @@ Exit condition: a cached `UiNodeRef` follows a frame switch and CS2 rebuild;
 the orb plate/dynamic drawing/input share one node relationship; two conflicting
 facet contributions show a stable conflict and never double-draw or double-act.
 
-### Phase 4 — Replace pseudo-slots with placement areas
+### Phase 4 — Replace pseudo-slots with placement areas (complete)
 
 Goal: give frame builders and overlays one correct answer for usable space.
 
@@ -1071,7 +1069,7 @@ correct without plugin-side intersection; a fragmented area can place at more
 than one anchor; hidden occluders consume no space; reservation order does not
 depend on callback order.
 
-### Phase 5 — Make retained execution event-driven and web-only
+### Phase 5 — Make retained execution event-driven and web-only (complete)
 
 Goal: make executor work proportional to actual mutations and remove dormant
 non-web external executor paths.
@@ -1115,44 +1113,41 @@ Exit condition: an idle executor tick does no model scan or transaction; work
 after a mutation is bounded by queued changes; clean builds expose only the two
 web executors and the internal canvas fallback.
 
-### Phase 6 — Finish the API migration
+### Phase 6 — Finish the API migration (complete)
 
-Goal: leave one public API and one vocabulary.
+Goal achieved: one public API and one vocabulary remain.
 
 Work:
 
-1. Migrate the remaining C plugins module by module. Mechanical renaming should
-   be separate from behavior changes.
-2. Rename v1 world `object_*` operations to v2 `scene.instance_*`; keep ground
-   items under `world.items`.
-3. Rebuild the Lua adapter so its table exactly mirrors the v2 modules and
-   callback names.
-4. Update `script/plugins/plugin_api.meta.lua` from the same API inventory used
-   by the binding, or add a test that compares every runtime field with the
-   meta file.
-5. Migrate bundled Lua scripts and remove their compatibility aliases.
-6. Update `PLUGIN_CHROME.md` to point to this design and retain only historical
-   notes that are still useful.
-7. Delete `torirs_plugin.h` v1 declarations, the v1 adapter, dead host fields,
-   and old terminology after repository-wide search finds no users.
-8. Bump the plugin major ABI once at the final cut, not once per phase.
+1. Migrated every bundled C plugin to namespaced V2 modules and callbacks.
+2. Moved plugin-owned 3D objects to `scene.instance_*`; ground items remain
+   world snapshots.
+3. Made Lua expose the same native V2 modules, callbacks, builders, and values
+   as C.
+4. Kept `script/plugins/plugin_api.meta.lua` aligned with the runtime API
+   inventory.
+5. Migrated bundled Lua scripts and removed compatibility aliases.
+6. Reduced `PLUGIN_CHROME.md` to the current operational model.
+7. Deleted the V1 declarations, flat API, subscription adapter, pseudo-slots,
+   dead host fields, and old public terminology.
+8. Kept the versioned, append-only V2 ABI rules described above.
 
 Files:
 
-- all remaining `src/plugin/plugins/*.c`
+- bundled `src/plugin/plugins/*.c`
 - `src/plugin/torirs_plugin_lua.c`
 - `script/plugins/*.lua`
 - `script/plugins/plugin_api.meta.lua`
-- `src/plugin/torirs_plugin.h` and the temporary v1 adapter
+- the removed V1 header surface and temporary adapter
 - `PLUGIN_CHROME.md`
 
-Exit condition: C and Lua expose the same module tree; no bundled plugin calls
-`layout_claim`, `chrome_claim`, `role_anchor`, `safe_os`, or a derived safe
-slot; no old-name alias is used by a bundled profile or plugin.
+Exit condition met: C and Lua expose the same module tree; bundled plugins do
+not call `layout_claim`, `chrome_claim`, `role_anchor`, `safe_os`, or a derived
+safe slot, and bundled profiles/plugins use canonical names.
 
 ## Test and acceptance checklist
 
-Run at least these existing suites throughout the migration:
+The implementation is verified by the existing focused suites:
 
 ```sh
 make -C src test-plugin-host
@@ -1174,7 +1169,7 @@ test-plugin-placement
 test-plugin-api-v2
 ```
 
-The work is complete only when all of the following are true:
+The completed implementation maintains these invariants:
 
 - Registering any number of frame providers cannot change the active frame;
   only the saved Gameframe preference can.
@@ -1199,7 +1194,7 @@ The work is complete only when all of the following are true:
   named node's provider per facet, and the occluders that produced a placement
   result.
 
-## Current-to-v2 migration map
+## Removed V1 to V2 reference
 
 | Current API/concept | V2 replacement |
 | --- | --- |
@@ -1219,10 +1214,10 @@ The work is complete only when all of the following are true:
 | `layout_reserve` | Named `placement.reserve` plus `reservation_rect`. |
 | Flat `object_*` world model calls | `scene.instance_*`. |
 
-## Recommended first vertical slice
+## Historical first vertical slice (complete)
 
-Do not begin by renaming all one hundred API functions. The smallest slice that
-proves the architecture is:
+The migration deliberately began with this small vertical slice rather than a
+bulk rename:
 
 1. Add `preferred_frame` and the catalogue/resolver.
 2. Register `core/native` and one `gameframe-layout/classic-fixed` offer.
@@ -1233,5 +1228,5 @@ proves the architecture is:
 6. Convert one drawer/chat state change from re-claiming to
    `frame.invalidate()`.
 
-That slice removes the dangerous ownership race and validates the saved-choice
-model before the broader named-node and placement migrations begin.
+That slice removed the dangerous ownership race and validated the saved-choice
+model before the broader named-node and placement migrations were completed.

@@ -493,7 +493,7 @@ is_has_holy_wrench(struct ItemStatsRuntime* rt)
         "holy wrench", "prayer cape", "max cape", "ring of the gods"
     };
     int const worn[] = { 1 /* cape */, 12 /* ring */ };
-    struct ToriRS_PluginObjInfo info;
+    struct ToriRS_ItemInfo info;
 
     for( int i = 0; i < (int)(sizeof(worn) / sizeof(worn[0])); i++ )
     {
@@ -546,7 +546,7 @@ is_has_holy_wrench(struct ItemStatsRuntime* rt)
 static int
 is_worn_named(struct ItemStatsRuntime* rt, int slot, char const* prefix)
 {
-    struct ToriRS_PluginObjInfo info;
+    struct ToriRS_ItemInfo info;
     char lowered[64];
     int obj_id = -1;
 
@@ -2349,7 +2349,7 @@ enum
 };
 
 static void
-is_equip_from_info(struct ToriRS_PluginObjInfo const* info, struct is_equip* out);
+is_equip_from_info(struct ToriRS_ItemInfo const* info, struct is_equip* out);
 
 /*
  * What this item does to a combat roll, from whichever source knows.
@@ -2366,7 +2366,7 @@ is_equip_from_info(struct ToriRS_PluginObjInfo const* info, struct is_equip* out
 static int
 is_equip_resolve(
     struct ItemStatsRuntime* rt,
-    struct ToriRS_PluginObjInfo const* info,
+    struct ToriRS_ItemInfo const* info,
     struct is_equip* out)
 {
     struct is_bonus_row const* row;
@@ -2396,7 +2396,7 @@ is_equip_resolve(
 }
 
 static void
-is_equip_from_info(struct ToriRS_PluginObjInfo const* info, struct is_equip* out)
+is_equip_from_info(struct ToriRS_ItemInfo const* info, struct is_equip* out)
 {
     assert(info);
     assert(out);
@@ -2449,7 +2449,7 @@ is_equip_subtract(struct is_equip* self, struct is_equip const* other)
 static int
 is_worn_equip(struct ItemStatsRuntime* rt, int slot, struct is_equip* out)
 {
-    struct ToriRS_PluginObjInfo info;
+    struct ToriRS_ItemInfo info;
     int obj_id = -1;
 
     assert(out);
@@ -2527,7 +2527,7 @@ is_bonus_row(
 static void
 is_build_equipment(
     struct ItemStatsRuntime* rt,
-    struct ToriRS_PluginObjInfo const* info)
+    struct ToriRS_ItemInfo const* info)
 {
     struct is_equip self;
     struct is_equip diff;
@@ -2650,7 +2650,7 @@ static enum ToriRS_CallbackResult
 is_on_menu_build(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvMenuBuild* ev)
+    struct ToriRS_MenuBuildEvent* ev)
 {
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;
@@ -2669,7 +2669,7 @@ is_on_menu_build(
     g_hover.slot = -1;
     for( int i = 0; i < ev->row_count; i++ )
     {
-        struct ToriRS_PluginMenuRow const* row = &ev->rows[i];
+        struct ToriRS_MenuRow const* row = &ev->rows[i];
         if( row->pick_kind != 2 /* UI_MINIMENU_PICK_INV_SLOT */ || row->target_id < 0 )
             continue;
         g_hover.obj_id = row->target_id;
@@ -2685,7 +2685,7 @@ static void
 is_on_frame(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvFrame const* event)
+    struct ToriRS_FrameEvent const* event)
 {
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;
@@ -2718,7 +2718,7 @@ is_on_draw_canvas(
 {
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;
-    struct ToriRS_PluginObjInfo info;
+    struct ToriRS_ItemInfo info;
     struct is_player player;
     struct ToriRS_Rect canvas = { 0 };
     int mouse_x = 0;
@@ -2900,7 +2900,7 @@ is_stop(struct ToriRS_ApiV2* api, void* state_ptr)
  * RuneLite's, defaults included -- including the three number rows, whose
  * combination is the whole question of what a stat tooltip is for.
  */
-static struct ToriRS_PluginConfigItem const ITEM_STATS_CONFIG[] = {
+static struct ToriRS_ConfigItem const ITEM_STATS_CONFIG[] = {
     { "consumable_stats", TORIRS_PLUGIN_CFG_BOOL, "Show food and potion effects", "1", 0, 0, NULL, 0 },
     { "equipment_stats", TORIRS_PLUGIN_CFG_BOOL, "Show equipment bonuses", "1", 0, 0, NULL, 0 },
     { "show_relative", TORIRS_PLUGIN_CFG_BOOL, "Show what you would gain", "1", 0, 0, NULL, 0 },

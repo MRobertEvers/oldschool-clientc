@@ -56,7 +56,7 @@ static struct
     /** obj id per worn slot, or -1. */
     int worn[FAKE_WORN_SLOTS];
     /** The one hovered item's record. */
-    struct ToriRS_PluginObjInfo objs[8];
+    struct ToriRS_ItemInfo objs[8];
     int obj_count;
 
     /* what the plugin did */
@@ -74,7 +74,7 @@ static char const* const FAKE_SKILL_NAME[FAKE_SKILLS] = {
     "Runecraft", "Hunter", "Construction", "Sailing", "Summoning"
 };
 
-static struct ToriRS_PluginObjInfo const*
+static struct ToriRS_ItemInfo const*
 fake_obj_find(int obj_id)
 {
     for( int i = 0; i < g_client.obj_count; i++ )
@@ -84,9 +84,9 @@ fake_obj_find(int obj_id)
 }
 
 static int
-fake_obj_info(int obj_id, struct ToriRS_PluginObjInfo* out)
+fake_obj_info(int obj_id, struct ToriRS_ItemInfo* out)
 {
-    struct ToriRS_PluginObjInfo const* found = fake_obj_find(obj_id);
+    struct ToriRS_ItemInfo const* found = fake_obj_find(obj_id);
     if( !found )
         return 0;
     *out = *found;
@@ -360,7 +360,7 @@ static bool v2_inv_slot(
     struct ToriRS_ApiV2* api, int inv, int slot, int* obj, int* count)
 { (void)api; return fake_inv_slot(inv, slot, obj, count) != 0; }
 static bool v2_item_info(
-    struct ToriRS_ApiV2* api, int obj, struct ToriRS_PluginObjInfo* out)
+    struct ToriRS_ApiV2* api, int obj, struct ToriRS_ItemInfo* out)
 { (void)api; return fake_obj_info(obj, out) != 0; }
 static bool v2_pointer(struct ToriRS_ApiV2* api, int* x, int* y)
 { (void)api; return fake_mouse_pos(x, y) != 0; }
@@ -469,8 +469,8 @@ tip_rows(void)
 static void
 frame(int hovered_obj_id)
 {
-    struct ToriRS_PluginEvMenuBuild menu;
-    struct ToriRS_PluginEvFrame frame_ev;
+    struct ToriRS_MenuBuildEvent menu;
+    struct ToriRS_FrameEvent frame_ev;
     struct ToriRS_DrawBuilder draw;
 
     memset(&frame_ev, 0, sizeof(frame_ev));
@@ -501,10 +501,10 @@ frame(int hovered_obj_id)
 }
 
 /** Register an objtype the fake client can answer for. */
-static struct ToriRS_PluginObjInfo*
+static struct ToriRS_ItemInfo*
 obj_add(int obj_id, char const* name)
 {
-    struct ToriRS_PluginObjInfo* out;
+    struct ToriRS_ItemInfo* out;
     assert(g_client.obj_count < (int)(sizeof(g_client.objs) / sizeof(g_client.objs[0])));
     out = &g_client.objs[g_client.obj_count++];
     memset(out, 0, sizeof(*out));
@@ -649,7 +649,7 @@ test_mature_ale_is_its_own_drink(void)
 static void
 test_noted_item_reads_the_base(void)
 {
-    struct ToriRS_PluginObjInfo* note;
+    struct ToriRS_ItemInfo* note;
 
     client_reset();
     obj_add(385, "Shark");
@@ -664,7 +664,7 @@ test_noted_item_reads_the_base(void)
 static void
 test_equipment_against_nothing(void)
 {
-    struct ToriRS_PluginObjInfo* whip;
+    struct ToriRS_ItemInfo* whip;
 
     client_reset();
     whip = obj_add(4151, "Abyssal whip");
@@ -684,7 +684,7 @@ test_equipment_against_nothing(void)
 static void
 test_equipment_against_the_same_item(void)
 {
-    struct ToriRS_PluginObjInfo* whip;
+    struct ToriRS_ItemInfo* whip;
 
     client_reset();
     whip = obj_add(4151, "Abyssal whip");
@@ -705,8 +705,8 @@ test_equipment_against_the_same_item(void)
 static void
 test_two_handed_takes_the_shield_off(void)
 {
-    struct ToriRS_PluginObjInfo* bow;
-    struct ToriRS_PluginObjInfo* shield;
+    struct ToriRS_ItemInfo* bow;
+    struct ToriRS_ItemInfo* shield;
     int with_shield;
     int without_shield;
 
@@ -753,7 +753,7 @@ test_two_handed_takes_the_shield_off(void)
 static void
 test_dat1_falls_back_to_the_shipped_table(void)
 {
-    struct ToriRS_PluginObjInfo* scimitar;
+    struct ToriRS_ItemInfo* scimitar;
 
     client_reset();
     scimitar = obj_add(1333, "Rune scimitar");
@@ -783,7 +783,7 @@ test_dat1_falls_back_to_the_shipped_table(void)
 static void
 test_cache_params_beat_the_table(void)
 {
-    struct ToriRS_PluginObjInfo* scimitar;
+    struct ToriRS_ItemInfo* scimitar;
 
     client_reset();
     scimitar = obj_add(1333, "Rune scimitar");

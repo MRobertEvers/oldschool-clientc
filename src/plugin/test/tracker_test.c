@@ -95,7 +95,7 @@ static struct
 {
     uint64_t now_ms;
     bool logged_in;
-    struct ToriRS_PluginPlayerSnap me;
+    struct ToriRS_PlayerSnapshot me;
     int xp[FAKE_SKILLS];
     /* Whether the SERVER has stated this skill. The client seeds a fresh
      * account's defaults so its value scripts evaluate before a session
@@ -156,7 +156,7 @@ fake_frame_ms(struct ToriRS_PluginCtx* ctx)
 }
 
 static int
-fake_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginPlayerSnap* out)
+fake_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PlayerSnapshot* out)
 {
     (void)ctx;
     if( !g_client.logged_in )
@@ -298,7 +298,7 @@ fake_widget_find(char const* id)
 }
 
 static bool
-fake_panel_request(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginPanelDesc const* desc)
+fake_panel_request(struct ToriRS_PluginCtx* ctx, struct ToriRS_PanelDescriptor const* desc)
 {
     (void)ctx;
     (void)desc;
@@ -433,7 +433,7 @@ static struct
         char name[64];
         int kill_count;
         int last_event;
-        struct ToriRS_PluginLootRow rows[FAKE_LOOT_ROWS];
+        struct ToriRS_LootRow rows[FAKE_LOOT_ROWS];
         int row_count;
     } source[FAKE_LOOT_SOURCES];
     int count;
@@ -479,7 +479,7 @@ loot_add(char const* name, int obj_id, int qty, int value, int event_id)
         }
     assert(g_store.source[index].row_count < FAKE_LOOT_ROWS);
     {
-        struct ToriRS_PluginLootRow* row =
+        struct ToriRS_LootRow* row =
             &g_store.source[index].rows[g_store.source[index].row_count++];
         row->obj_id = obj_id;
         row->quantity = qty;
@@ -489,7 +489,7 @@ loot_add(char const* name, int obj_id, int qty, int value, int event_id)
 
 static int
 fake_loot_source_next(
-    struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLootSource* out)
+    struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_LootSource* out)
 {
     int const next = iter + 1;
     (void)ctx;
@@ -508,7 +508,7 @@ fake_loot_row_next(
     struct ToriRS_PluginCtx* ctx,
     int source_id,
     int iter,
-    struct ToriRS_PluginLootRow* out)
+    struct ToriRS_LootRow* out)
 {
     int const next = iter + 1;
     (void)ctx;
@@ -526,7 +526,7 @@ fake_loot_row_next(
 
 static int
 fake_obj_info(
-    struct ToriRS_PluginCtx* ctx, int obj_id, struct ToriRS_PluginObjInfo* out)
+    struct ToriRS_PluginCtx* ctx, int obj_id, struct ToriRS_ItemInfo* out)
 {
     (void)ctx;
     memset(out, 0, sizeof(*out));
@@ -556,7 +556,7 @@ static void v2_notify(struct ToriRS_ApiV2* api, char const* text)
 static uint64_t v2_frame_ms(struct ToriRS_ApiV2* api)
 { (void)api; return fake_frame_ms(NULL); }
 static bool v2_local_player(
-    struct ToriRS_ApiV2* api, struct ToriRS_PluginPlayerSnap* out)
+    struct ToriRS_ApiV2* api, struct ToriRS_PlayerSnapshot* out)
 { (void)api; return fake_local_player(NULL, out) != 0; }
 static bool v2_config_has(struct ToriRS_ApiV2* api, char const* key)
 { (void)api; return fake_config_find(key) != NULL; }
@@ -623,7 +623,7 @@ static bool v2_skill(
     return true;
 }
 static bool v2_item_info(
-    struct ToriRS_ApiV2* api, int obj, struct ToriRS_PluginObjInfo* out)
+    struct ToriRS_ApiV2* api, int obj, struct ToriRS_ItemInfo* out)
 { (void)api; return fake_obj_info(NULL, obj, out) != 0; }
 static enum ToriRS_AssetState v2_item_image(
     struct ToriRS_ApiV2* api, int obj, int count, int style,
@@ -635,10 +635,10 @@ static enum ToriRS_AssetState v2_item_image(
     return image >= 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
 }
 static int v2_loot_source_next(
-    struct ToriRS_ApiV2* api, int iter, struct ToriRS_PluginLootSource* out)
+    struct ToriRS_ApiV2* api, int iter, struct ToriRS_LootSource* out)
 { (void)api; g_client.loot_source_visits++; return fake_loot_source_next(NULL, iter, out); }
 static int v2_loot_row_next(
-    struct ToriRS_ApiV2* api, int source, int iter, struct ToriRS_PluginLootRow* out)
+    struct ToriRS_ApiV2* api, int source, int iter, struct ToriRS_LootRow* out)
 { (void)api; return fake_loot_row_next(NULL, source, iter, out); }
 static uint64_t v2_loot_revision(struct ToriRS_ApiV2* api)
 { (void)api; return g_store.revision; }
@@ -658,7 +658,7 @@ static bool v2_loot_source_clear(struct ToriRS_ApiV2* api, int source_id)
     return false;
 }
 static enum ToriRS_Result v2_panel_request(
-    struct ToriRS_ApiV2* api, struct ToriRS_PluginPanelDesc const* desc)
+    struct ToriRS_ApiV2* api, struct ToriRS_PanelDescriptor const* desc)
 { (void)api; return fake_panel_request(NULL, desc) ? TORIRS_RESULT_OK : TORIRS_RESULT_ERROR; }
 static void v2_panel_invalidate(struct ToriRS_ApiV2* api)
 { (void)api; fake_panel_clear(NULL); }
@@ -832,7 +832,7 @@ dispatch(enum ToriRS_PluginEvent event, void* payload)
 }
 
 /** Run one EV_PANEL_BUILD for one face, with the model emptied as the host
- *  empties it. @see enum ToriRS_PluginPanelView. */
+ *  empties it. @see enum ToriRS_PanelView. */
 static void
 panel_build_view(int view)
 {
@@ -863,7 +863,7 @@ panel_build_view(int view)
      * its page is on SCREEN -- both trackers do no per-tick page work until it
      * arrives, so a harness that skipped it would be testing a hidden page. */
     {
-        struct ToriRS_PluginEvPanelLayout layout;
+        struct ToriRS_PanelLayoutEvent layout;
 
         memset(&layout, 0, sizeof(layout));
         layout.width = 320;
@@ -889,7 +889,7 @@ panel_build(void)
 static void
 tick(uint64_t advance_ms)
 {
-    struct ToriRS_PluginEvTick ev;
+    struct ToriRS_TickEvent ev;
 
     memset(&ev, 0, sizeof(ev));
     g_client.now_ms += advance_ms;
@@ -912,7 +912,7 @@ press_box(int row);
 static void
 press(char const* id, int action, int value)
 {
-    struct ToriRS_PluginEvPanelAction ev;
+    struct ToriRS_PanelActionEvent ev;
 
     memset(&ev, 0, sizeof(ev));
     ev.id = id;
@@ -928,7 +928,7 @@ press(char const* id, int action, int value)
 static void
 press_box(int row)
 {
-    struct ToriRS_PluginEvPanelAction ev;
+    struct ToriRS_PanelActionEvent ev;
 
     memset(&ev, 0, sizeof(ev));
     ev.id = "boxes";
@@ -957,7 +957,7 @@ press_box(int row)
 static void
 press_strip(int y)
 {
-    struct ToriRS_PluginEvPanelAction ev;
+    struct ToriRS_PanelActionEvent ev;
 
     memset(&ev, 0, sizeof(ev));
     ev.id = "strip";
@@ -1682,7 +1682,7 @@ test_loot_expand_collapse(void)
 static void
 test_loot_attention(void)
 {
-    struct ToriRS_PluginEvGameEvent ev;
+    struct ToriRS_GameEvent ev;
 
     client_reset();
     loot_start();
@@ -1820,7 +1820,7 @@ test_xp_growth_does_not_rebuild(void)
 static void
 test_hidden_page_does_no_work(void)
 {
-    struct ToriRS_PluginEvPanelLayout hidden;
+    struct ToriRS_PanelLayoutEvent hidden;
     int visits;
 
     client_reset();

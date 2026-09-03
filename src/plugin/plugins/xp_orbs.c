@@ -1042,12 +1042,12 @@ static void
 orb_tick(
     struct ToriRS_ApiV2* api,
     void* plugin_state,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct XpOrbState* state = plugin_state;
     (void)event;
 
-    struct ToriRS_PluginPlayerSnap me;
+    struct ToriRS_PlayerSnapshot me;
     uint64_t const now = api->core.frame_ms(api);
     int const hide_maxed = orb_cfg_bool(api, "hide_maxed");
     int const virtual_level = orb_cfg_bool(api, "show_virtual_level");
@@ -1879,7 +1879,7 @@ static void
 orb_asset(
     struct ToriRS_ApiV2* api,
     void* plugin_state,
-    struct ToriRS_PluginEvAsset const* event)
+    struct ToriRS_AssetEvent const* event)
 {
     (void)event;
     orb_load_art(api, plugin_state);
@@ -1914,7 +1914,7 @@ orb_config_changed(
  * client's plugin surface has no drag, so where the column sits is stated
  * rather than pointed at. Zero is the reference's own TOP_CENTER.
  */
-static struct ToriRS_PluginConfigItem const ORB_CONFIG[] = {
+static struct ToriRS_ConfigItem const ORB_CONFIG[] = {
     { "enable_tooltips",   TORIRS_PLUGIN_CFG_BOOL,  "Enable tooltips",              "1", 0, 0, NULL, 0 },
     { "show_xp_left",      TORIRS_PLUGIN_CFG_BOOL,  "Show XP left",                 "1", 0, 0, NULL, 0 },
     { "show_actions_left", TORIRS_PLUGIN_CFG_BOOL,  "Show actions left",            "1", 0, 0, NULL, 0 },

@@ -55,7 +55,7 @@ static enum ToriRS_Result fake_select(struct ToriRS_ApiV2* api, char const* id)
     return TORIRS_RESULT_OK;
 }
 static enum ToriRS_Result fake_panel_request(
-    struct ToriRS_ApiV2* api, struct ToriRS_PluginPanelDesc const* desc)
+    struct ToriRS_ApiV2* api, struct ToriRS_PanelDescriptor const* desc)
 { (void)api; (void)desc; fake.requests++; return TORIRS_RESULT_OK; }
 static void fake_panel_invalidate(struct ToriRS_ApiV2* api)
 { (void)api; fake.invalidates++; }
@@ -154,7 +154,7 @@ int main(void)
         .custom = fake_custom, .label = fake_label,
         .key_value = fake_key_value, .node = fake_node,
     };
-    struct ToriRS_PluginEvPanelAction action = {
+    struct ToriRS_PanelActionEvent action = {
         .id = "gameframe", .action = TORIRS_PLUGIN_UI_PICK,
     };
     void* state;

@@ -25,7 +25,7 @@
  * do not die at zero (the gargoyle family, which is finished with an item, and
  * the bosses that transform).
  *
- * Both halves of that are portable here. `ToriRS_PluginNpcSnap` carries
+ * Both halves of that are portable here. `ToriRS_NpcSnapshot` carries
  * `health_ratio`, which is the same number off the same HEADBAR block, so a
  * despawn with a bar at zero is a CONFIRMED kill and is counted whether or not
  * anything dropped. A despawn with hitpoints left -- the gargoyle case, and
@@ -584,7 +584,7 @@ static void
 lt_game_event(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvGameEvent const* ev)
+    struct ToriRS_GameEvent const* ev)
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
@@ -1079,7 +1079,7 @@ lt_strip_invalidate(struct LootTrackerRuntime* rt)
 static bool
 lt_sync_store(struct LootTrackerRuntime* rt)
 {
-    struct ToriRS_PluginLootSource src;
+    struct ToriRS_LootSource src;
     char const* ignored;
     int before = g_source_count;
     int count = 0;
@@ -1096,7 +1096,7 @@ lt_sync_store(struct LootTrackerRuntime* rt)
     {
         struct LtSource* dst;
         struct LtSource previous;
-        struct ToriRS_PluginLootRow row;
+        struct ToriRS_LootRow row;
         char name[64];
 
         lt_clean_name(src.name, name, sizeof(name));
@@ -1115,7 +1115,7 @@ lt_sync_store(struct LootTrackerRuntime* rt)
         for( int r = g_api->game->loot_row_next(g_api, src.id, -1, &row); r >= 0;
              r = g_api->game->loot_row_next(g_api, src.id, r, &row) )
         {
-            struct ToriRS_PluginObjInfo info;
+            struct ToriRS_ItemInfo info;
             struct LtItem item;
 
             if( dst->item_count >= LT_ITEMS_MAX )
@@ -1226,7 +1226,7 @@ lt_panel_build(
     assert(panel);
 
     /* The SETTINGS face is the generated form and nothing else -- every knob
-     * here is a config key. @see enum ToriRS_PluginPanelView. */
+     * here is a config key. @see enum ToriRS_PanelView. */
     if( view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
     {
         g_page_built = false;
@@ -1340,7 +1340,7 @@ static void
 lt_panel_action(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvPanelAction const* ev)
+    struct ToriRS_PanelActionEvent const* ev)
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
@@ -1482,7 +1482,7 @@ lt_start(struct ToriRS_ApiV2* api, void* state_ptr)
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
-    struct ToriRS_PluginPanelDesc desc;
+    struct ToriRS_PanelDescriptor desc;
 
     assert(api);
 
@@ -1523,7 +1523,7 @@ static void
 lt_panel_layout(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvPanelLayout const* ev)
+    struct ToriRS_PanelLayoutEvent const* ev)
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
@@ -1572,7 +1572,7 @@ static void
 lt_tick(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
@@ -1611,7 +1611,7 @@ lt_tick(
     }
 }
 
-static struct ToriRS_PluginConfigItem const LT_CONFIG[] = {
+static struct ToriRS_ConfigItem const LT_CONFIG[] = {
     { "price_source",      TORIRS_PLUGIN_CFG_ENUM, "Value items by",                 "Cache value", 0, 0, "Cache value|High alchemy", 0 },
     { "kill_chat_message", TORIRS_PLUGIN_CFG_BOOL, "Announce loot in chat",          "0", 0, 0, NULL, 0 },
     { "chat_value_threshold", TORIRS_PLUGIN_CFG_INT, "Announce only above (gp)",     "0", 0, 100000000, NULL, 0 },

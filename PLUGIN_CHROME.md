@@ -5,8 +5,8 @@ client surfaces, named controls, plugin panels, and overlays. The public model
 is deliberately small: plugins publish what they provide, the host selects and
 composes it, and executors receive only recorded mutations.
 
-For the detailed rationale, API shapes, migration notes, and phased
-implementation plan, see [GAMECHROME_PLUGINAPI_V2.md](GAMECHROME_PLUGINAPI_V2.md).
+For the detailed rationale, API shapes, and completed implementation record,
+see [GAMECHROME_PLUGINAPI_V2.md](GAMECHROME_PLUGINAPI_V2.md).
 
 ## Mental model
 
@@ -62,8 +62,7 @@ changes call frame invalidation; they do not re-claim ownership.
 Anything another plugin may inspect, alter, or invoke has one semantic dotted
 name. Shared chrome uses the core `frame.*` vocabulary; plugin-private nodes
 are automatically namespaced as `plugin.<plugin-id>.*`. RevConfig translates
-lane-specific component layouts to those names, and documented legacy aliases
-canonicalize to the same interned reference.
+lane-specific component layouts directly to canonical names.
 
 A named node is split into independently composable facets:
 
@@ -171,8 +170,15 @@ manifests, profiles, or normal source lists.
 - Let the host tear down contributions, reservations, assets, and instances
   owned by a stopped plugin.
 
-The former `layout_claim` entry points are gone from the public API. The
-remaining V1 chrome-part, role, and pseudo-slot surface is temporary internal
-compatibility for bundled plugins, not the plugin API design. New code should
-use the V2 catalogue, named UI, placement, and callback-scoped builder APIs described in
+## C and Lua are the same V2 API
+
+Bundled C and Lua plugins are native V2 peers. Both use the same module tree,
+callback names, typed values, retained descriptors, and callback-scoped
+builders. Lua is not routed through a compatibility copy of the former flat C
+API, and neither language has a privileged ownership or chrome path.
+
+The V1 flat API, manual subscription model, chrome claims, role operations,
+pseudo-slots, aliases, and adapter are removed. The supported plugin surface is
+the V2 catalogue, named UI, placement service, namespaced modules, and scoped
+builders described in
 [GAMECHROME_PLUGINAPI_V2.md](GAMECHROME_PLUGINAPI_V2.md).

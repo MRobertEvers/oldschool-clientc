@@ -11,7 +11,7 @@
 
 struct FeatureFlagsState
 {
-    struct ToriRS_PluginFeature flags[FF_MAX];
+    struct ToriRS_FeatureInfo flags[FF_MAX];
     int flag_count;
 };
 
@@ -36,7 +36,7 @@ ff_choice_at(char const* choices, int index, char* out, size_t out_size)
 }
 
 static int
-ff_enum_value(struct ToriRS_PluginFeature const* flag, char const* text)
+ff_enum_value(struct ToriRS_FeatureInfo const* flag, char const* text)
 {
     for( int i = 0; i < flag->value_count; i++ )
     {
@@ -48,7 +48,7 @@ ff_enum_value(struct ToriRS_PluginFeature const* flag, char const* text)
 }
 
 static int
-ff_value_index(struct ToriRS_PluginFeature const* flag, int value)
+ff_value_index(struct ToriRS_FeatureInfo const* flag, int value)
 {
     for( int i = 0; i < flag->value_count; i++ )
         if( flag->values[i] == value ) return i;
@@ -56,7 +56,7 @@ ff_value_index(struct ToriRS_PluginFeature const* flag, int value)
 }
 
 static char const*
-ff_stored(struct ToriRS_ApiV2* api, struct ToriRS_PluginFeature const* flag)
+ff_stored(struct ToriRS_ApiV2* api, struct ToriRS_FeatureInfo const* flag)
 {
     char const* value = "";
     if( !api->config.has(api, flag->key) ||
@@ -73,7 +73,7 @@ ff_is_default(char const* stored)
 
 static int
 ff_stored_value(
-    struct ToriRS_PluginFeature const* flag,
+    struct ToriRS_FeatureInfo const* flag,
     char const* stored)
 {
     if( ff_is_default(stored) ) return TORIRS_PLUGIN_FEATURE_UNSET;
@@ -85,7 +85,7 @@ ff_stored_value(
 static void
 ff_refresh(struct ToriRS_ApiV2* api, struct FeatureFlagsState* state)
 {
-    struct ToriRS_PluginFeature flag;
+    struct ToriRS_FeatureInfo flag;
     int iter = -1;
     state->flag_count = 0;
     while( (iter = api->client->feature_next(api, iter, &flag)) >= 0 )
@@ -104,7 +104,7 @@ ff_apply_all(struct ToriRS_ApiV2* api, struct FeatureFlagsState* state)
 {
     for( int i = 0; i < state->flag_count; i++ )
     {
-        struct ToriRS_PluginFeature const* flag = &state->flags[i];
+        struct ToriRS_FeatureInfo const* flag = &state->flags[i];
         char const* stored = ff_stored(api, flag);
         if( api->client->feature_set(
                 api, flag->key, ff_stored_value(flag, stored)) != TORIRS_RESULT_OK )
@@ -116,7 +116,7 @@ ff_apply_all(struct ToriRS_ApiV2* api, struct FeatureFlagsState* state)
 static int
 ff_options(
     struct ToriRS_ApiV2* api,
-    struct ToriRS_PluginFeature const* flag,
+    struct ToriRS_FeatureInfo const* flag,
     struct ToriRS_SelectOption* options,
     char values[FF_OPTION_MAX][32],
     char labels[FF_OPTION_MAX][TORIRS_PLUGIN_FEATURE_CHOICES_MAX],
@@ -179,7 +179,7 @@ ff_options(
 static void
 ff_publish_option(
     struct ToriRS_ApiV2* api,
-    struct ToriRS_PluginFeature* flag)
+    struct ToriRS_FeatureInfo* flag)
 {
     struct ToriRS_SelectOption options[FF_OPTION_MAX];
     char values[FF_OPTION_MAX][32];
@@ -201,7 +201,7 @@ static void
 ff_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 {
     struct FeatureFlagsState* state = state_ptr;
-    struct ToriRS_PluginPanelDesc panel = { NULL, TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT };
+    struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT };
     assert(api->client);
     ff_refresh(api, state);
     ff_apply_all(api, state);
@@ -221,7 +221,7 @@ ff_on_ui_build(
     ff_refresh(api, state);
     for( int i = 0; i < state->flag_count; i++ )
     {
-        struct ToriRS_PluginFeature const* flag = &state->flags[i];
+        struct ToriRS_FeatureInfo const* flag = &state->flags[i];
         struct ToriRS_SelectOption options[FF_OPTION_MAX];
         char values[FF_OPTION_MAX][32];
         char labels[FF_OPTION_MAX][TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
@@ -243,14 +243,14 @@ static void
 ff_on_ui_action(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvPanelAction const* event)
+    struct ToriRS_PanelActionEvent const* event)
 {
     struct FeatureFlagsState* state = state_ptr;
     if( !event || event->action != TORIRS_PLUGIN_UI_PICK || !event->id || !event->text )
         return;
     for( int i = 0; i < state->flag_count; i++ )
     {
-        struct ToriRS_PluginFeature const* flag = &state->flags[i];
+        struct ToriRS_FeatureInfo const* flag = &state->flags[i];
         char const* stored = event->text;
         int value;
         if( strcmp(flag->key, event->id) != 0 ) continue;

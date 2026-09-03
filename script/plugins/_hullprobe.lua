@@ -1,7 +1,7 @@
 --
 -- Hull probe (development)
 --
--- Draws BOTH draw.hull() shapes over the local player at once: the bounds
+-- Draws BOTH draw.world_hull() shapes over the local player at once: the bounds
 -- cylinder in cyan, the mesh silhouette in magenta.
 --
 -- One image answers the only question worth asking about the two -- is the
@@ -18,13 +18,13 @@
 --
 
 ---@type torirs.Plugin
-local plugin = { name = "hull-probe", version = "1.0.0", config = {} }
+local plugin = { id = "hull-probe", version = "1.0.0", config = {} }
 
 function plugin.on_draw_world(api, draw)
-    local me = api.local_player()
+    local me = api.world.local_player()
     if not me then return end
-    draw.hull(me.element_id, "#00FFFF", 0, "bounds")
-    draw.hull(me.element_id, "#FF00FF", 0, "mesh")
+    draw.world_hull(me.element_id, "#00FFFF", 0, "bounds")
+    draw.world_hull(me.element_id, "#FF00FF", 0, "mesh")
 end
 
 return plugin

@@ -14,7 +14,7 @@
 
 ---@type torirs.Plugin
 local plugin = {
-    name    = "entity-highlighter",
+    id      = "entity-highlighter",
     title   = "Entity Highlighter",
     version = "1.0.0",
     config  = {
@@ -48,6 +48,16 @@ local plugin = {
 -- ini and the live set cannot disagree.
 local tagged = {}
 
+local function npcs(api)
+    local cursor = -1
+    return function()
+        local next_cursor, npc = api.world.npc_next(cursor)
+        if not next_cursor then return nil end
+        cursor = next_cursor
+        return npc
+    end
+end
+
 local function load_tags(api)
     tagged = {}
     for id in string.gmatch(api.config.tags, "%d+") do
@@ -59,16 +69,16 @@ local function save_tags(api)
     local ids = {}
     for id in pairs(tagged) do ids[#ids + 1] = id end
     table.sort(ids)
-    api.cfg_set("tags", table.concat(ids, ","))
+    api.config.set("tags", table.concat(ids, ","))
 end
 
 function plugin.on_start(api)
     load_tags(api)
 end
 
-function plugin.on_config_changed(api, ev)
+function plugin.on_config_changed(api, key)
     -- Covers the panel, a hand-edited ini, and our own save alike.
-    if ev.key == "tags" then load_tags(api) end
+    if key == "tags" then load_tags(api) end
 end
 
 function plugin.on_draw_world(api, draw)
@@ -77,9 +87,9 @@ function plugin.on_draw_world(api, draw)
     -- a projection per vertex buys an outline that follows the npc instead of
     -- the box around it. Switch to "bounds" when tagging a whole species.
     local shape = api.config.shape
-    for npc in api.npcs() do
+    for npc in npcs(api) do
         if tagged[npc.base_npc_id] then
-            draw.hull(npc.element_id, colour, fill, shape)
+            draw.world_hull(npc.element_id, colour, fill, shape)
         end
     end
 end
@@ -89,19 +99,19 @@ function plugin.on_menu_build(api, menu)
     -- under the cursor. Rows added there would never be seen, so the cheapest
     -- possible thing to do is leave immediately.
     if menu.hover_pass then return end
-    if not api.key_held("shift") then return end
+    if not api.input.key_held("shift") then return end
 
     local seen = {}
     for _, row in ipairs(menu.rows) do
         local slot = row.npc_slot
         if slot >= 0 and not seen[slot] then
             seen[slot] = true
-            local npc = api.npc_by_slot(slot)
+            local npc = api.world.npc_by_slot(slot)
             if npc then
                 local verb = tagged[npc.base_npc_id] and "Untag" or "Tag"
                 -- The tag rides as the server slot, which is all the select
                 -- handler needs to find the npc again.
-                menu.add(verb .. " @yel@" .. npc.name, slot)
+                api.ui.menu_add(verb .. " @yel@" .. npc.name, slot)
             end
         end
     end
@@ -110,7 +120,7 @@ end
 function plugin.on_menu_select(api, sel)
     if not sel.owned then return end
 
-    local npc = api.npc_by_slot(sel.tag)
+    local npc = api.world.npc_by_slot(sel.tag)
     if npc then
         -- `or nil` rather than `= false`: leaving false behind would make the
         -- saved list grow with every untag.

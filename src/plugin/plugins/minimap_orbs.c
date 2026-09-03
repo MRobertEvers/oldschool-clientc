@@ -989,7 +989,7 @@ static void
 orbs_asset(
     struct ToriRS_ApiV2* api,
     void* plugin_state,
-    struct ToriRS_PluginEvAsset const* event)
+    struct ToriRS_AssetEvent const* event)
 {
     (void)event;
     orbs_update(api, plugin_state);
@@ -1006,7 +1006,7 @@ orbs_placement(
 }
 
 /* Per-world overrides remain ordinary V2 config schema entries. */
-static struct ToriRS_PluginConfigItem const ORBS_CONFIG[] = {
+static struct ToriRS_ConfigItem const ORBS_CONFIG[] = {
     { "show_hp",        TORIRS_PLUGIN_CFG_BOOL,   "Hitpoints orb",                  "1",    0,    0,      NULL, 0 },
     { "show_prayer",    TORIRS_PLUGIN_CFG_BOOL,   "Prayer orb",                     "1",    0,    0,      NULL, 0 },
     { "show_run",       TORIRS_PLUGIN_CFG_BOOL,   "Run energy orb",                 "1",    0,    0,      NULL, 0 },

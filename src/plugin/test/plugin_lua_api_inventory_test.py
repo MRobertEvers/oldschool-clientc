@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep the runtime Lua tables and LuaLS declarations exactly in step."""
+"""Prove the Lua runtime, LuaLS declaration, and bundled scripts are V2 peers."""
 
 from __future__ import annotations
 
@@ -7,191 +7,165 @@ import re
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[3]
 C_SOURCE = ROOT / "src/plugin/torirs_plugin_lua.c"
 META_SOURCE = ROOT / "script/plugins/plugin_api.meta.lua"
+SCRIPT_DIR = ROOT / "script/plugins"
 
 
-def c_arrays(source: str) -> dict[str, list[list[str]]]:
-    arrays: dict[str, list[list[str]]] = {}
-    pattern = re.compile(
-        r"\}\s+([A-Z][A-Z0-9_]*)\[\]\s*=\s*\{(.*?)\n\s*\};",
+def lua_fn_arrays(source: str) -> dict[str, set[str]]:
+    arrays: dict[str, set[str]] = {}
+    for name, body in re.findall(
+        r"static\s+struct\s+LuaFn\s+const\s+(LUA_[A-Z_]+_FNS)\[\]\s*=\s*\{(.*?)\n\};",
+        source,
         re.S,
-    )
-    for name, body in pattern.findall(source):
-        entries = re.findall(r'\{\s*"([^"]+)"\s*,', body)
-        arrays.setdefault(name, []).append(entries)
+    ):
+        arrays[name] = set(re.findall(r'\{\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,', body))
     return arrays
 
 
-def c_function_array_names(source: str) -> set[str]:
-    names: set[str] = set()
-    pattern = re.compile(
-        r"\}\s+([A-Z][A-Z0-9_]*)\[\]\s*=\s*\{(.*?)\n\s*\};",
+def runtime_modules(source: str) -> dict[str, str]:
+    match = re.search(
+        r"static\s+struct\s+LuaModuleRegistration\s+const\s+LUA_API_MODULES\[\]\s*=\s*\{(.*?)\n\};",
+        source,
         re.S,
     )
-    for name, body in pattern.findall(source):
-        entries = re.findall(r'\{\s*"[^"]+"\s*,\s*([A-Za-z_][A-Za-z0-9_]*)', body)
-        if entries and all(entry.startswith("lua_") for entry in entries):
-            names.add(name)
-    return names
+    if not match:
+        return {}
+    return dict(re.findall(r'\{\s*"([a-z_]+)"\s*,\s*(LUA_[A-Z_]+_FNS)\s*\}', match.group(1)))
 
 
-def meta_classes(source: str) -> tuple[dict[str, dict[str, str]], set[str]]:
+def meta_classes(source: str) -> dict[str, dict[str, str]]:
     classes: dict[str, dict[str, str]] = {}
-    callable_aliases: set[str] = set()
     current: str | None = None
     for line in source.splitlines():
-        alias = re.match(r"---@alias\s+(torirs\.[A-Za-z0-9_]+)\s+(.+)", line)
-        if alias and re.search(r"\bfun\s*\(", alias.group(2)):
-            callable_aliases.add(alias.group(1))
         declared = re.match(r"---@class\s+(torirs\.[A-Za-z0-9_]+)", line)
         if declared:
             current = declared.group(1)
             classes.setdefault(current, {})
             continue
-        field = re.match(r"---@field\s+([A-Za-z0-9_]+)\??\s+([^\s].*)", line)
+        field = re.match(r"---@field\s+([A-Za-z_][A-Za-z0-9_]*)\??\s+(.+)", line)
         if field and current:
             classes[current][field.group(1)] = field.group(2)
-    return classes, callable_aliases
+    return classes
 
 
-def callable_fields(
-    classes: dict[str, dict[str, str]], callable_aliases: set[str], name: str
-) -> set[str]:
-    fields = classes.get(name, {})
-    return {
-        field
-        for field, annotation in fields.items()
-        if re.search(r"\bfun\s*\(", annotation)
-        or annotation.split()[0] in callable_aliases
-    }
+def callable_fields(fields: dict[str, str]) -> set[str]:
+    return {name for name, annotation in fields.items() if re.search(r"\bfun\s*\(", annotation)}
 
 
-def fail_differences(label: str, runtime: set[str], documented: set[str]) -> list[str]:
+def difference(label: str, runtime: set[str], meta: set[str]) -> list[str]:
     errors: list[str] = []
-    missing = sorted(runtime - documented)
-    phantom = sorted(documented - runtime)
-    if missing:
-        errors.append(f"{label}: runtime callable(s) missing from meta: {', '.join(missing)}")
-    if phantom:
-        errors.append(f"{label}: meta callable(s) missing from runtime: {', '.join(phantom)}")
+    if runtime - meta:
+        errors.append(f"{label}: runtime-only: {', '.join(sorted(runtime - meta))}")
+    if meta - runtime:
+        errors.append(f"{label}: meta-only: {', '.join(sorted(meta - runtime))}")
     return errors
+
+
+def strip_line_comments(source: str) -> str:
+    return "\n".join(line.split("--", 1)[0] for line in source.splitlines())
 
 
 def main() -> int:
     c_source = C_SOURCE.read_text(encoding="utf-8")
     meta_source = META_SOURCE.read_text(encoding="utf-8")
-    arrays = c_arrays(c_source)
-    classes, callable_aliases = meta_classes(meta_source)
+    arrays = lua_fn_arrays(c_source)
+    modules = runtime_modules(c_source)
+    classes = meta_classes(meta_source)
     errors: list[str] = []
 
-    expected_arrays = {
-        "FNS": "torirs.Api",
-        "CHROME": "torirs.ChromeApi",
-        "ENTITY": "torirs.EntityApi",
-        "PLACEMENT": "torirs.Placement",
-        "WIN": "torirs.WindowApi",
-        "PANEL": "torirs.PanelApi",
-        "DRAW": "torirs.Draw",
-        "TOP": "torirs.LayoutTopLevel",
+    expected_array_names = set(modules.values()) | {
+        "LUA_DRAW_BUILDER_FNS",
+        "LUA_PANEL_BUILDER_FNS",
+        "LUA_FRAME_BUILDER_FNS",
     }
-    actual_function_arrays = c_function_array_names(c_source)
-    expected_function_arrays = set(expected_arrays) | {"VERBS"}
-    if actual_function_arrays != expected_function_arrays:
-        errors.append(
-            "C inventory: registration-table set changed: runtime="
-            + ",".join(sorted(actual_function_arrays))
-            + " expected="
-            + ",".join(sorted(expected_function_arrays))
-        )
-    for array, meta_class in expected_arrays.items():
-        rows = arrays.get(array, [])
-        if len(rows) != 1:
-            errors.append(f"C inventory: expected one {array} registration table, found {len(rows)}")
+    errors += difference("registration arrays", set(arrays), expected_array_names)
+
+    api_fields = classes.get("torirs.Api", {})
+    errors += difference("api modules", set(modules), set(api_fields))
+    for module, array in sorted(modules.items()):
+        annotation = api_fields.get(module, "")
+        class_match = re.match(r"(torirs\.[A-Za-z0-9_]+)", annotation)
+        if not class_match:
+            errors.append(f"api.{module}: missing module class in meta")
             continue
-        documented = callable_fields(classes, callable_aliases, meta_class)
-        if meta_class == "torirs.Api":
-            documented -= {"role"}
-        errors.extend(
-            fail_differences(
-                meta_class,
-                set(rows[0]),
-                documented,
-            )
+        errors += difference(
+            f"api.{module}", arrays.get(array, set()),
+            callable_fields(classes.get(class_match.group(1), {})),
         )
 
-    verbs = arrays.get("VERBS", [])
-    if len(verbs) != 2:
-        errors.append(f"C inventory: expected Role and LayoutRegion VERBS tables, found {len(verbs)}")
-    else:
-        errors.extend(
-            fail_differences(
-                "torirs.Role",
-                set(verbs[0]),
-                callable_fields(classes, callable_aliases, "torirs.Role"),
-            )
-        )
-        errors.extend(
-            fail_differences(
-                "torirs.LayoutRegion",
-                set(verbs[1]),
-                callable_fields(classes, callable_aliases, "torirs.LayoutRegion"),
-            )
+    for array, class_name in (
+        ("LUA_DRAW_BUILDER_FNS", "torirs.DrawBuilder"),
+        ("LUA_PANEL_BUILDER_FNS", "torirs.PanelBuilder"),
+        ("LUA_FRAME_BUILDER_FNS", "torirs.FrameBuilder"),
+    ):
+        errors += difference(
+            class_name,
+            arrays.get(array, set()),
+            callable_fields(classes.get(class_name, {})),
         )
 
-    # These callables are installed explicitly because they need unusual
-    # upvalues rather than the ordinary registration-table loop.
-    explicit = {
-        "torirs.Api": {"role"},
-        "torirs.Layout": {"revision"},
-        "torirs.EvMenuBuild": {"add"},
+    handler_match = re.search(
+        r"LUA_HANDLER_NAMES\[LUA_HANDLER_COUNT\]\s*=\s*\{(.*?)\n\};",
+        c_source,
+        re.S,
+    )
+    handlers = set(re.findall(r'"(on_[a-z_]+)"', handler_match.group(1))) if handler_match else set()
+    errors += difference(
+        "plugin callbacks", handlers,
+        {name for name in classes.get("torirs.Plugin", {}) if name.startswith("on_")},
+    )
+
+    forbidden_c = {
+        "ToriRS_PluginApi": "legacy API type",
+        "ToriRS_PluginDef const": "legacy plugin definition",
+        "PluginHost_Register(host": "legacy registration",
+        "->subscribe": "legacy subscription bus",
     }
-    explicit_c = {
-        ("torirs.Api", "role"): r'lua_pushcclosure\(L,\s*lua_api_role,\s*2\);\s*lua_setfield\(L,\s*-2,\s*"role"\);',
-        ("torirs.Layout", "revision"): r'lua_pushcclosure\(L,\s*lua_layout_revision,\s*1\);\s*lua_setfield\(L,\s*-2,\s*"revision"\);',
-        ("torirs.EvMenuBuild", "add"): r'lua_pushcclosure\(L,\s*lua_menu_add,\s*1\);\s*lua_setfield\(L,\s*-2,\s*"add"\);',
+    for token, label in forbidden_c.items():
+        if token in c_source:
+            errors.append(f"C adapter still contains {label}: {token}")
+
+    canonical_modules = set(modules)
+    legacy_callbacks = {
+        "on_frame", "on_obj_spawn", "on_obj_count", "on_obj_despawn",
+        "on_layout_changed", "on_screen_change", "on_panel_build",
+        "on_panel_action", "on_panel_layout", "on_panel_draw",
+        "on_canvas_click", "on_ui",
     }
-    for meta_class, runtime in explicit.items():
-        documented = callable_fields(classes, callable_aliases, meta_class)
-        if meta_class == "torirs.Api":
-            documented -= set(arrays.get("FNS", [[]])[0])
-        errors.extend(fail_differences(meta_class + " explicit", runtime, documented))
-        for field in runtime:
-            pattern = explicit_c[(meta_class, field)]
-            if not re.search(pattern, c_source, re.S):
-                errors.append(f"C inventory: {meta_class}.{field} is not actually mounted")
+    for path in sorted(SCRIPT_DIR.glob("*.lua")):
+        if path == META_SOURCE:
+            continue
+        source = strip_line_comments(path.read_text(encoding="utf-8"))
+        for top in re.findall(r"\bapi\.([A-Za-z_][A-Za-z0-9_]*)", source):
+            if top not in canonical_modules:
+                errors.append(f"{path.name}: noncanonical api.{top}")
+        for callback in re.findall(r"\bfunction\s+[A-Za-z_][A-Za-z0-9_]*\.(on_[a-z_]+)", source):
+            if callback not in handlers:
+                errors.append(f"{path.name}: unsupported callback {callback}")
+            if callback in legacy_callbacks:
+                errors.append(f"{path.name}: legacy callback {callback}")
 
-    regions = arrays.get("REGIONS", [])
-    runtime_layout_tables = set(regions[0]) | {"top_level"} if len(regions) == 1 else set()
-    documented_layout = set(classes.get("torirs.Layout", {})) - callable_fields(
-        classes, callable_aliases, "torirs.Layout"
-    )
-    errors.extend(
-        fail_differences("torirs.Layout tables", runtime_layout_tables, documented_layout)
-    )
-
-    runtime_api_tables = {"chrome", "entity", "layout", "placement", "window", "panel", "config"}
-    documented_api_tables = set(classes.get("torirs.Api", {})) - callable_fields(
-        classes, callable_aliases, "torirs.Api"
-    )
-    errors.extend(fail_differences("torirs.Api tables", runtime_api_tables, documented_api_tables))
-
-    # Prove that the source still mounts each table the inventory inferred.
-    for table in sorted(runtime_api_tables):
-        if not re.search(rf'lua_setfield\(L,\s*-2,\s*"{re.escape(table)}"\);', c_source):
-            errors.append(f"C inventory: api.{table} is inventoried but never mounted")
+    screenshot = (SCRIPT_DIR / "screenshot.lua").read_text(encoding="utf-8")
+    for required in (
+        'node = "frame.chat.button.report"',
+        'mode = "replace_or_provide"',
+        "api.ui.set_enabled",
+        "api.ui.update",
+        "on_ui_node_action",
+    ):
+        if required not in screenshot:
+            errors.append(f"screenshot.lua: missing retained named-UI behavior: {required}")
 
     if errors:
         for error in errors:
-            print(f"lua api inventory: {error}", file=sys.stderr)
+            print(f"lua v2 inventory: {error}", file=sys.stderr)
         return 1
-    callable_count = sum(len(rows[0]) for name, rows in arrays.items() if name in expected_arrays)
-    callable_count += sum(len(v) for v in verbs) + sum(len(v) for v in explicit.values())
+    callable_count = sum(len(arrays[name]) for name in expected_array_names)
     print(
-        f"lua api inventory: {callable_count} callable registrations and "
-        f"{len(runtime_api_tables) + len(runtime_layout_tables)} tables match meta"
+        f"lua v2 inventory: {len(modules)} modules, {callable_count} callables, "
+        f"{len(handlers)} callbacks, and bundled scripts match"
     )
     return 0
 

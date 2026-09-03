@@ -1,706 +1,216 @@
---
--- Screenshot
---
--- Takes a picture when something worth keeping happens, after RuneLite's
--- Screenshot plugin (net.runelite.client.plugins.screenshot). The moments are
--- the same ones, the folders are laid out the same way, and the filenames
--- carry the same timestamp -- see ImageCapture.saveScreenshot for the layout
--- this mirrors:
---
---      <destination>/<Player>/<Category>/<what>_<when>.png
---
--- (RuneLite separates the two halves with a space and brackets the number:
--- "Fishing(42) 2026-08-21_10-14-44.png". Neither character is in the set the
--- host holds a filename to, so a dash and an underscore carry the same
--- meaning; everything else about the layout is theirs.)
---
--- What is NOT here is the pattern matching. RuneLite recognises each moment by
--- re-reading the chatbox itself, which is why its Screenshot plugin carries a
--- dozen regexes -- and why every other plugin wanting the same moments has to
--- carry them again. Here the client recognises them once
--- (src/game/rs_game_events.c, tested against RuneLite's own corpus) and this
--- plugin only decides which are worth a picture. The config below is a list of
--- switches rather than a list of patterns, and the next plugin to want "on
--- boss kill" gets it for free.
---
--- Three things are worth knowing about the capture itself:
---
---   * It is DELAYED. A game event is recognised while the packet carrying it
---     is being executed, which is before the interface announcing it has been
---     laid out. RuneLite has the same problem and solves it the same way --
---     its widget handler only sets a flag, and the shot is taken on the next
---     GameTick. `delay_ticks` is that wait, made adjustable because our
---     server may take a tick longer to put the box up than Jagex's does.
---   * `destination` is a DIRECTORY. Absolute means exactly where you said;
---     anything else (including the empty default) lands under the client's own
---     plugin folder, which is the only place the browser lane can write. The
---     Player/Category structure is built either way, so a browser run's
---     captures are organised exactly like a desktop one's.
---   * Everything is switchable, and two things are off by default: `on_death`
---     and `on_duel_end`. RuneLite defaults those on; a client that
---     photographs your death without being asked is a different judgement
---     call, and this one errs the other way.
---
--- ## The camera button
---
--- RuneLite's manual screenshot is a hotkey and a toolbar button. The hotkey is
--- below; the button is `camera`, and it is off by default because a client
--- that puts a control on screen without being asked is the same judgement call
--- as the one above.
---
--- Where it goes is the whole of the setting, and the two families of answer
--- are different in kind:
---
---   * A CORNER selected from overlay_safe -- viewport, platform insets,
---     resolved chrome and named reservations already composed. That means
---     "somewhere the player is not trying to look" on both a fixed and a
---     resizable frame. It sits there mostly transparent and comes up solid
---     under the pointer, the way the reference's own orbs light up: a control
---     over the world has to be findable without being something you look past
---     the whole session.
---   * The REPORT ABUSE button. Not "beside it" -- in its place: the region is
---     resolved by role, the native control is suppressed, and this plugin's
---     draw declarations are attached directly to that same paint boundary.
---     The click that was Report abuse is Take Screenshot instead. Solid,
---     because a chat button is chrome and a half-transparent one would read
---     as disabled, and wearing what the button it stands in for wears ON THIS
---     FRAME -- which is two different answers. An OldSchool chatbox's Report
---     carries its own red plate, so suppressing the button takes the plate
---     with it and this plugin puts one back (@see PLATE_RAMP). A 2004 privacy
---     bar's buttons are lines of text over `backbase1`, which the frame drew
---     and which is still there afterwards: the camera goes straight onto the
---     bar it always had, and a plate painted there would be an OldSchool
---     control dropped into a frame that has none of them (@see plate_wanted).
---
--- The art is `camera.png` and `camera_small.png`, both shipped in this
--- plugin's asset folder and hand-authored in the options_icons palette --
--- @see script/plugins/assets/screenshot/camera.txt and camera_small.txt,
--- which are where to edit them. Two sizes because the two placements are two
--- different boxes: a
--- corner of the scene has room for the 28x26 icon and a chat button, at 22
--- rows, does not -- and a picture the client cannot scale is either the right
--- size or sheared off by the clip.
---
-
+-- Screenshot capture, including a canonical named-UI replacement for the
+-- report button. The contribution is static; configuration only activates it
+-- and updates its retained appearance.
 ---@type torirs.Plugin
 local plugin = {
-    name    = "screenshot",
-    title   = "Screenshots",
-    version = "1.0.0",
-    config  = {
+    id = "screenshot",
+    title = "Screenshots",
+    version = "2.0.0",
+    config = {
+        { key = "destination", type = "string", default = "",
+          label = "Save folder (empty = client plugin folder)" },
+        { key = "delay_ticks", type = "int", default = "2", min = 0, max = 20,
+          label = "Ticks to wait before capturing" },
+        { key = "on_level_up", type = "bool", default = true, label = "Level up" },
+        { key = "on_quest_complete", type = "bool", default = true, label = "Quest complete" },
+        { key = "on_boss_kill", type = "bool", default = true, label = "Boss kill" },
+        { key = "on_pet", type = "bool", default = true, label = "Pet drop" },
+        { key = "on_collection_log", type = "bool", default = true, label = "Collection log" },
+        { key = "on_combat_achievement", type = "bool", default = true, label = "Combat achievement" },
+        { key = "on_treasure_trail", type = "bool", default = true, label = "Clue casket" },
+        { key = "on_valuable_drop", type = "bool", default = true, label = "Valuable drop" },
+        { key = "on_untradeable_drop", type = "bool", default = false, label = "Untradeable drop" },
+        { key = "on_death", type = "bool", default = false, label = "Death" },
+        { key = "on_duel_end", type = "bool", default = false, label = "Duel end" },
+        { key = "min_drop_value", type = "int", default = "100000", min = 0,
+          max = 2000000000, label = "Valuable drop threshold" },
+        { key = "hotkey", type = "int", default = "0", min = 0, max = 512,
+          label = "Manual screenshot key (0 = off)" },
+        { key = "camera", type = "enum",
+          choices = "off|top-left|top-right|bottom-left|bottom-right|report-button",
+          default = "off", label = "Camera button" },
+    },
+    ui_contributions = {
         {
-            key = "destination",
-            type = "string",
-            default = "",
-            label = "Save folder (empty = client plugin folder)"
+            node = "frame.chat.button.report",
+            mode = "replace_or_provide",
+            facets = { "appearance", "actions" },
+            value = {
+                flags = 3, -- VISIBLE | ENABLED
+                label = "Screenshot",
+                action = "capture",
+                actions = { "capture" },
+            },
         },
-        {
-            key = "delay_ticks",
-            type = "int",
-            default = "2",
-            min = 0,
-            max = 20,
-            label = "Ticks to wait before capturing"
-        },
-
-        { key = "on_level_up",           type = "bool", default = true,  label = "Level up" },
-        { key = "on_quest_complete",     type = "bool", default = true,  label = "Quest complete" },
-        { key = "on_boss_kill",          type = "bool", default = true,  label = "Boss kill" },
-        { key = "on_pet",                type = "bool", default = true,  label = "Pet drop" },
-        { key = "on_collection_log",     type = "bool", default = true,  label = "Collection log" },
-        { key = "on_combat_achievement", type = "bool", default = true,  label = "Combat achievement" },
-        { key = "on_treasure_trail",     type = "bool", default = true,  label = "Clue casket" },
-        { key = "on_valuable_drop",      type = "bool", default = true,  label = "Valuable drop" },
-        { key = "on_untradeable_drop",   type = "bool", default = false, label = "Untradeable drop" },
-        -- Off by default, both of them, for the same reason: they fire on the
-        -- worst moment of the session and on every single duel, and a client
-        -- that photographs your death unasked is not a feature.
-        { key = "on_death",              type = "bool", default = false, label = "Death" },
-        { key = "on_duel_end",           type = "bool", default = false, label = "Duel end" },
-
-        {
-            key = "min_drop_value",
-            type = "int",
-            default = "100000",
-            min = 0,
-            max = 2000000000,
-            label = "Valuable drop threshold"
-        },
-
-        -- RuneLite's manual screenshot: its `hotkey` config, and its toolbar
-        -- button below. 0 means unbound.
-        {
-            key = "hotkey",
-            type = "int",
-            default = "0",
-            min = 0,
-            max = 512,
-            label = "Manual screenshot key (LibToriRS_KeyCode, 0 = off)"
-        },
-
-        -- One key and not two (a switch plus a position), because "off" IS a
-        -- position in the same sense the others are: every value answers the
-        -- one question the button raises, and a pair would let a player set
-        -- where a button they turned off would have gone.
-        {
-            key = "camera",
-            type = "enum",
-            choices = "off|top-left|top-right|bottom-left|bottom-right|report-button",
-            default = "off",
-            label = "Camera button"
-        },
-
     },
 }
 
------------------------------------------------------------------- the button
-
---- The report button, wherever this revision keeps it.
----
---- This used to be a config key holding `<interface>:<component>`, parsed by
---- hand and shifted into a uid, defaulting to the OldSchool chat bar's
---- `162:31` -- which is a correct id on exactly one cache and covers whatever
---- component 31 of interface 162 happens to be on every other. The profile is
---- where that answer belongs, and a role is how it gets asked for.
----
---- Bound once, resolved on every call: on a 2004 frame this is a client
---- builtin with no component id at all, and on an OldSchool one it is
---- interface 162's component 31. Neither fact reaches this file.
-local report_button
-
---- Handed to hit_region and read back in on_canvas_click. One region, so one
---- tag; it is the plugin's own number and the host does not look at it.
-local TAG_CAPTURE = 1
-
---- What the mouseover line says and what the right-click menu offers. First op
---- is also the left click, which is the whole of the interaction.
-local CAPTURE_OPS = { "Take Screenshot" }
-
---- How far a corner button sits inside its selected safe fragment.
+local REPORT = "frame.chat.button.report"
+local ACTION_CAPTURE = 1
 local MARGIN = 6
-
---- The report button's number in the chat_buttons role -- 0 public, 1 private,
---- 2 trade, 3 report. The role's OWN numbering and not a position in a list.
-local CHAT_BUTTON_REPORT = 3
-
---- The report button's own red, one entry per row from its top to its bottom.
----
---- The plate is the visual half of replacing the button. role.replace removes
---- the native paint and interaction, so nothing underneath can flicker back or
---- leak its label around the camera; this rebuilds the red control at the
---- frame's own measured size. This used to be a flat dark rect with a light
---- outline: a grey square with corners, in a row of rounded plates, where a red
---- button was. It read as a hole cut in the frame.
----
---- Only on the frames whose button OWNS its plate, which is not all of them
---- -- @see plate_wanted.
----
---- MEASURED off the button it stands in for rather than chosen, on both of the
---- frames that draw one: the OldSchool chatbox's own `Report` (interface 162's
---- component 31, 79x22) and the plate the gameframe composes for a 2004 lane's
---- `Report abuse` (100x23, three-sliced out of `osrs_chat_button_report`). The
---- two ramps agree to within a couple of units a channel -- they are the same
---- sprite family -- so one of them serves both, and this is the taller.
----
---- Drawn rather than shipped as a picture because the BOX is the frame's: 79
---- wide here, 100 there, 33 rows on a dat1 profile's own privacy bar. A
---- picture is one size and the client's blit does not scale, so a plate cut
---- for one frame would be short on the next; a ramp indexed by row fits
---- whatever box the role reports.
----
---- What the ramp does NOT carry is the source sprite's other axis: the real
---- plate also falls into shadow over its last dozen columns, and a rectangle
---- holds one colour, so reproducing that means a rect per column per row.
---- Fifteen columns times twenty-three rows is most of a plugin's frame draw
---- budget (512 items) spent on one button, and in bands wide enough to be
---- affordable it reads as stripes -- which is worse than the flat end it
---- replaces. The vertical ramp is the half that carries the shape.
-local PLATE_RAMP = {
-    0x872928, 0x722323, 0x722323, 0x722323, 0x722323, 0x722323,
-    0x722323, 0x6B2020, 0x6B2020, 0x631F1D, 0x631F1D, 0x631F1D,
-    0x631F1D, 0x5C1D1C, 0x531B1A, 0x531B1A, 0x4B1917, 0x4B1917,
-    0x431715, 0x431715, 0x3A1614, 0x3A1614, 0x2A1412,
-}
-
---- How far each end row is pulled in, top row first, mirrored at the bottom.
---- The rounded cap the chat plate is cut with, read off the same button: four
---- columns on the corner row, then two, then one, then one.
-local PLATE_CAP = { 4, 2, 1, 1 }
-
---- Hover, in the frame's own arithmetic: a lit chat button is the same plate
---- with every channel half again as bright, which is how `redraw_chat_buttons`
---- gets its hovered art from its idle art (@see FRAME_CHAT_BRIGHT_NUM in
---- src/plugin/plugins/gameframe.c).
-local PLATE_LIT_NUM = 3
-local PLATE_LIT_DEN = 2
-
---- Transparency in the reference's sense: 0 is solid, 255 is invisible. The
---- resting value is a judgement -- far enough back that it is not competing
---- with the scene, near enough that it is visibly THERE, which a control the
---- player has to remember is not.
-local TRANS_RESTING = 170
-local TRANS_HOVER = 0
-
---- The handles from api.image_load, or nil until on_start has asked for them.
---- Asynchronous: image_size answers nil for the first frames, and the button
---- simply is not drawn until it does.
-local icon = nil
-local icon_small = nil
-
--- kind -> { config key that switches it on, folder it files under }.
---
--- A kind the client learns to recognise later and this table does not know is
--- IGNORED rather than photographed: a new moment appearing in someone's
--- screenshots folder unannounced is the wrong way round.
---
--- The folder names are RuneLite's own (its SD_* constants), with its spaces
--- turned into dashes because the host holds a filename to
--- [A-Za-z0-9._-]. Keeping the names means a folder of RuneLite screenshots
--- and a folder of these ones sort the same and merge cleanly.
-local KINDS = {
-    level_up           = { "on_level_up",           "Levels" },
-    quest_complete     = { "on_quest_complete",     "Quests" },
-    valuable_drop      = { "on_valuable_drop",      "Valuable-Drops" },
-    untradeable_drop   = { "on_untradeable_drop",   "Untradeable-Drops" },
-    boss_kill          = { "on_boss_kill",          "Boss-Kills" },
-    pet                = { "on_pet",                "Pets" },
-    collection_log     = { "on_collection_log",     "Collection-Log" },
-    combat_achievement = { "on_combat_achievement", "Combat-Achievements" },
-    death              = { "on_death",              "Deaths" },
-    treasure_trail     = { "on_treasure_trail",     "Clue-Scroll-Rewards" },
-    duel_end           = { "on_duel_end",           "Duels" },
-}
-
--- Captures waiting out their delay: { ticks_left, name, dir }.
+local icon
+local icon_small
+local report_ref
 local pending = {}
 
--- The host only accepts a bare filename of [A-Za-z0-9._-], which is not a
--- limitation to work around -- it is what stops a plugin writing outside the
--- folder it was given. Every other character becomes a dash, and a run of them
--- collapses, so "Chambers of Xeric" is "Chambers-of-Xeric" and not
--- "Chambers---of---Xeric".
+local KINDS = {
+    level_up = { "on_level_up", "Levels" },
+    quest_complete = { "on_quest_complete", "Quests" },
+    valuable_drop = { "on_valuable_drop", "Valuable-Drops" },
+    untradeable_drop = { "on_untradeable_drop", "Untradeable-Drops" },
+    boss_kill = { "on_boss_kill", "Boss-Kills" },
+    pet = { "on_pet", "Pets" },
+    collection_log = { "on_collection_log", "Collection-Log" },
+    combat_achievement = { "on_combat_achievement", "Combat-Achievements" },
+    death = { "on_death", "Deaths" },
+    treasure_trail = { "on_treasure_trail", "Clue-Scroll-Rewards" },
+    duel_end = { "on_duel_end", "Duels" },
+}
+
 local function slug(text)
     if not text or text == "" then return "" end
-    local out = string.gsub(text, "[^A-Za-z0-9]+", "-")
-    out = string.gsub(out, "^%-+", "")
-    out = string.gsub(out, "%-+$", "")
-    if #out > 40 then out = string.sub(out, 1, 40) end
-    return out
+    local out = text:gsub("[^A-Za-z0-9]+", "-"):gsub("^%-+", ""):gsub("%-+$", "")
+    return #out > 40 and out:sub(1, 40) or out
 end
 
--- <destination>/<Player>/<Category>, RuneLite's layout.
---
--- The player folder is theirs too, and for the reason they have it: two
--- accounts played from one install would otherwise drop their screenshots into
--- the same pile. An unknown player (not logged in yet) simply leaves that
--- level out rather than inventing a name.
 local function folder(api, category)
     local out = api.config.destination
-    local player = api.local_player()
-
+    local player = api.world.local_player()
     if player and player.name ~= "" then
         local who = slug(player.name)
-        if who ~= "" then
-            out = (out ~= "" and (out .. "/") or "") .. who
-        end
+        if who ~= "" then out = (out ~= "" and out .. "/" or "") .. who end
     end
-    if category then
-        out = (out ~= "" and (out .. "/") or "") .. category
-    end
+    if category then out = (out ~= "" and out .. "/" or "") .. category end
     return out
 end
 
--- "<what> <when>", RuneLite's naming, with its space as an underscore.
---
--- The timestamp rather than a counter, and that is worth being deliberate
--- about: a counter has to be persisted, and a persisted counter that resets --
--- a fresh install, a cleared config -- starts overwriting the screenshots it
--- already took. A wall-clock stamp cannot collide with the past no matter what
--- state is lost. api.datestamp() exists because the plugin sandbox does not
--- link `os`, so there is no other clock a script can read.
 local function filename(api, ev)
     local name = slug(ev.subject)
-
-    if name == "" then
-        name = ev.kind
-    end
-    -- The level or the kill count, when the moment has one. RuneLite writes
-    -- these as "Fishing(42)"; brackets are not in the host's character set, so
-    -- the dash carries the same meaning.
-    if ev.value and ev.value >= 0 then
-        name = name .. "-" .. tostring(ev.value)
-    end
-    return name .. "_" .. (api.datestamp() or "unknown") .. ".png"
+    if name == "" then name = ev.kind end
+    if ev.value and ev.value >= 0 then name = name .. "-" .. ev.value end
+    return name .. "_" .. (api.client.datestamp() or "unknown") .. ".png"
 end
 
--- Is this moment one we were asked for? Returns the folder when it is.
+local function capture(api, name, directory)
+    local ok, path = api.assets.screenshot(directory, name)
+    if not ok then
+        api.core.log("screenshot failed:", path)
+        return
+    end
+    api.core.log("captured", path)
+    api.core.notify("Screenshot saved: " .. path)
+end
+
+local function capture_now(api)
+    capture(api, "screenshot_" .. (api.client.datestamp() or "unknown") .. ".png",
+        folder(api, nil))
+end
+
 local function wanted(api, ev)
     local kind = KINDS[ev.kind]
-
-    if not kind then return nil end
-    if not api.config[kind[1]] then return nil end
-
-    -- The one kind with a threshold as well as a switch, exactly as RuneLite
-    -- pairs screenshotValuableDrop with valuableDropThreshold. A boss that
-    -- drops five stackable things per kill would otherwise fill the folder.
+    if not kind or not api.config[kind[1]] then return nil end
     if ev.kind == "valuable_drop" and ev.value >= 0 and
-        ev.value < api.config.min_drop_value then
-        return nil
-    end
+        ev.value < api.config.min_drop_value then return nil end
     return kind[2]
 end
 
--- Take the picture and say so, in the chatbox.
---
--- The message is the whole reason api.screenshot answers with a path: a
--- capture is silent by nature -- the file appears somewhere the player is not
--- looking, under a folder layout they configured once and have since
--- forgotten -- and "a screenshot happened" without a destination is only half
--- an answer. The path is the engine's own, resolved, so the browser lane's
--- saved-asset folder and a desktop user's absolute destination both read as
--- the place the file actually is.
---
--- A game message rather than a log line, and both rather than either: the log
--- is for whoever is reading stderr, the chatbox is for whoever is playing.
-local function capture(api, name, dir)
-    local ok, path = api.screenshot(name, dir)
+local function update_report(api)
+    if not report_ref then return end
+    local enabled = api.config.camera == "report-button"
+    api.ui.set_enabled(report_ref, enabled)
+    if not enabled then return end
 
-    if not ok then return end
-    api.log("captured " .. path)
-    api.notify("Screenshot saved: " .. path)
+    local image = nil
+    if icon_small and api.assets.image_size(icon_small) then image = icon_small end
+    api.ui.update(report_ref, { "appearance", "actions" }, {
+        flags = 3,
+        image = image,
+        label = "Screenshot",
+        action = "capture",
+        actions = { "capture" },
+    })
+end
+
+function plugin.on_start(api)
+    report_ref = api.ui.ref(REPORT)
+    icon = api.assets.image("camera.png")
+    icon_small = api.assets.image("camera_small.png")
+    update_report(api)
+end
+
+function plugin.on_asset(api, ev)
+    if ev.name == "camera.png" or ev.name == "camera_small.png" then
+        update_report(api)
+    end
+end
+
+function plugin.on_config_changed(api, key)
+    if key == "camera" then update_report(api) end
 end
 
 function plugin.on_game_event(api, ev)
     local category = wanted(api, ev)
-
     if not category then return end
-
-    local shot = { ticks_left = api.config.delay_ticks,
-                   name = filename(api, ev),
-                   dir = folder(api, category) }
-
-    -- Zero delay means this frame, and the frame is still the one BEFORE the
-    -- event landed on screen -- so it is honoured rather than special-cased,
-    -- and anyone who sets it gets what they asked for.
+    local shot = {
+        ticks_left = api.config.delay_ticks,
+        name = filename(api, ev),
+        directory = folder(api, category),
+    }
     if shot.ticks_left <= 0 then
-        capture(api, shot.name, shot.dir)
-        return
+        capture(api, shot.name, shot.directory)
+    else
+        pending[#pending + 1] = shot
     end
-    pending[#pending + 1] = shot
 end
 
--- Counted in SERVER ticks rather than frames, because what is being waited for
--- is the server's own doing: the level-up box and the quest scroll arrive in a
--- later packet, not a later frame. RuneLite counts GameTicks here for the same
--- reason. A frame count would mean something different on every machine.
-function plugin.on_server_tick(api, ev)
-    if #pending == 0 then return end
-
+function plugin.on_server_tick(api)
     local keep = {}
-    for i = 1, #pending do
-        local shot = pending[i]
+    for _, shot in ipairs(pending) do
         shot.ticks_left = shot.ticks_left - 1
-        if shot.ticks_left <= 0 then
-            capture(api, shot.name, shot.dir)
-        else
-            keep[#keep + 1] = shot
-        end
+        if shot.ticks_left <= 0 then capture(api, shot.name, shot.directory)
+        else keep[#keep + 1] = shot end
     end
     pending = keep
 end
 
--- RuneLite's manual screenshot: no category, no delay, no waiting for anything
--- to settle. Whatever is on screen is what was asked for.
-local function capture_now(api)
-    capture(api,
-        "screenshot_" .. (api.datestamp() or "unknown") .. ".png",
-        folder(api, nil))
-end
-
 function plugin.on_key(api, ev)
-    local key = api.config.hotkey
-
-    if key == 0 or not ev.down or ev.key ~= key then return end
-    capture_now(api)
+    local hotkey = api.config.hotkey
+    if hotkey ~= 0 and ev.down and ev.key == hotkey then capture_now(api) end
 end
 
---- Does replacing this frame's report button take a plate away with it?
----
---- role.replace hides the role's own subtree and nothing else, and the two
---- frames put the plate on opposite sides of that line. An OldSchool chatbox's
---- Report abuse IS the plate: interface 162's component 31 holds the graphic
---- (32) and the label (33) that make it, so suppressing the button leaves a
---- gap in the chat strip and something has to be drawn back. A 2004 privacy
---- bar's Report abuse is centred text over `backbase1` -- the bar is the
---- FRAME's chrome, drawn under the tree and untouched by the suppression -- so
---- what is left once the label goes is the button with its label off, which is
---- the thing to put a camera on rather than something to cover up.
----
---- Asked as "does this frame number its own chat buttons?", which is that same
---- question one level up rather than a proxy for it: the four filters are
---- members of the chat_buttons role exactly where they are the frame's own
---- builtins -- the 2004 privacy bar, on whatever lane draws one -- and where
---- they are cache widgets instead the role has no members to number and this
---- answers nil. Neither spelling is here, for the reason none of the rest of
---- the button's geometry is.
----
---- Member 3 and not the role as a whole: the question is about the button this
---- plugin is standing in, and a frame that numbered the other three and not
---- that one would be answering about a different control.
-local function plate_wanted(api)
-    return api.layout.chat_buttons.rect(CHAT_BUTTON_REPORT) == nil
-end
-
--- The box the button lives in this frame, and whether that box is a BUTTON --
--- the report placement -- or a region to sit in a corner of.
---
--- Measured EVERY frame and never cached, because every input is: overlay_safe
--- moves when a window is resized or another plugin reserves an edge, and the
--- report button moves when the gameframe is rebuilt. A cached box is a button
--- that answers clicks where it used to be.
---
--- Returns nil when there is nowhere to put it -- the setting is off, the frame
--- has no report button, no region answered -- which the caller draws nothing
--- for rather than guessing a corner.
-local function button_box(api)
-    local where = api.config.camera
-
-    if where == "off" then return nil, nil end
-
-    if where == "report-button" then
-        -- One question, asked once. Which node answers it is the profile's
-        -- business: a chat-button member on a 2004 frame, interface 162's
-        -- component 31 on an OldSchool one, and neither spelling is here.
-        --
-        -- A revision whose profile has not named it is an answer, not a fault:
-        -- the button is simply not offered rather than landing somewhere
-        -- arbitrary, which is what the nil the role hands back becomes.
-        return report_button.rect(), true
-    end
-
-    -- Corner placement is resolved after the image size is known. nil here is
-    -- not absence: `plated=false` distinguishes it from the Off case above.
-    return nil, false
-end
-
--- The largest icon that fits `box` with a row of plate showing above and
--- below it, or nil while neither read has landed.
---
--- A height and not a preference, because the box is not this plugin's to
--- choose: 22 rows on an OldSchool chat strip, 23 on a composed plate, 33 on a
--- 2004 profile's privacy bar. The big icon is 26 tall, so on the first two it
--- is the small one that fits and on the last it is not.
---
--- `box` is nil for a corner placement, which is the scene and always has room.
-local function icon_that_fits(api, box)
-    if icon then
-        local w, h = api.image_size(icon)
-        if w and (not box or h + 2 <= box.h) then return icon end
-    end
-    if icon_small and api.image_size(icon_small) then return icon_small end
-    return nil
-end
-
--- The plate the report placement wears: the button it replaces, repainted.
---
--- One filled rect a row, which is what a gradient is when the only primitive
--- is a rectangle -- 23 of them for a chat button, and the ramp is indexed by
--- the row's position in the box so a taller button stretches it rather than
--- running off the end of it.
-local function lit(rgb)
-    local out = 0
-
-    for shift = 0, 16, 8 do
-        local c = ((rgb >> shift) & 0xFF) * PLATE_LIT_NUM // PLATE_LIT_DEN
-        if c > 255 then c = 255 end
-        out = out | (c << shift)
-    end
-    return out
-end
-
-local function draw_plate(draw, box, hovered)
-    local rows = #PLATE_RAMP
-
-    for row = 0, box.h - 1 do
-        local rgb = PLATE_RAMP[row * rows // box.h + 1]
-        -- The rounded ends, top row first and mirrored at the bottom. A box
-        -- too short for both caps keeps the top one, and one too narrow for a
-        -- cap at all keeps its corners -- neither can be drawn as a negative
-        -- width.
-        local cap = PLATE_CAP[row + 1] or PLATE_CAP[box.h - row] or 0
-
-        if cap * 2 >= box.w then cap = 0 end
-        draw.rect(
-            box.x + cap,
-            box.y + row,
-            box.w - cap * 2,
-            1,
-            hovered and lit(rgb) or rgb,
-            255)
-    end
-end
-
---- The camera button: claimed, then drawn.
----
---- The claim comes first for the reason minimap_orbs claims before it blits --
---- later regions win where two overlap, so a region declared after the drawing
---- would be fighting whatever the next handler declares rather than sitting
---- under its own art.
 function plugin.on_draw_canvas(api, draw)
-    -- Before login there is no session to photograph and no frame to hang a
-    -- button off; the login screen is not where this belongs.
-    if not api.local_player() then return end
-
-    local box, plated = button_box(api)
-    if plated == nil then return end
-    if plated and not box then return end
-
-    -- Whether the plate is this plugin's to draw, which is a fact about the
-    -- frame rather than about the placement.
-    local plate = plated and plate_wanted(api)
-
-    -- The read has not landed. Ordinary for the first frames after a start.
-    -- A corner has nothing useful to draw yet; a report-button replacement
-    -- draws its plate where the plate is ours, and stays clickable either way,
-    -- so display:none never leaves a transient hole in the chrome while the
-    -- camera art is loading.
-    local art = icon_that_fits(api, plated and box or nil)
-    if not art and not plated then return end
-
-    local x, y, rx, ry, rw, rh
-    if art then
-        local w, h = api.image_size(art)
-        if not w then
-            if not plated then return end
-            art = nil
-        else
-            if plated then
-                x = box.x + (box.w - w) // 2
-                y = box.y + (box.h - h) // 2
-            else
-                box = api.placement.place(
-                    "overlay_safe", api.config.camera, w, h, MARGIN)
-                if not box then return end
-                x, y = box.x, box.y
-            end
-
-            -- What is actually ON SCREEN, which is the art cut to the box it
-            -- was placed in: a frame whose report button is smaller than the
-            -- picture shows the middle of the camera rather than spilling it
-            -- over the chat. A corner button's area never cuts it.
-            rx = math.max(x, box.x)
-            ry = math.max(y, box.y)
-            rw = math.min(x + w, box.x + box.w) - rx
-            rh = math.min(y + h, box.y + box.h) - ry
-        end
-    end
-    if not art then
-        rx, ry, rw, rh = box.x, box.y, box.w, box.h
-    end
-
-    if rw <= 0 or rh <= 0 then return end
-
-    -- Only the report replacement changes local z-order. Its hit region and
-    -- every piece of its plate/art are emitted at the report role's own paint
-    -- boundary, immediately over the suppressed native subtree and under the
-    -- rest of the chrome. Corner buttons intentionally remain ordinary global
-    -- canvas overlays.
-    if plated and not report_button.anchor() then return end
-
-    -- What answers the click. In the report button's place that is the whole
-    -- BUTTON and not the camera on it -- a chat button is clickable across its
-    -- plate, and a region cut to the icon would leave the ends of a control
-    -- that plainly is one doing nothing. A corner button has no plate, so
-    -- there the region is the art, clipped: a region reaching past what a
-    -- player can see is a click that lands on nothing visible.
-    local hover_x, hover_y, hover_w, hover_h = rx, ry, rw, rh
-    if plated then
-        hover_x, hover_y, hover_w, hover_h = box.x, box.y, box.w, box.h
-    end
-    api.hit_region(hover_x, hover_y, hover_w, hover_h, CAPTURE_OPS, TAG_CAPTURE)
-
-    local mx, my = api.mouse_pos()
-    local hovered = mx ~= nil
-        and mx >= hover_x and mx < hover_x + hover_w
-        and my >= hover_y and my < hover_y + hover_h
-
-    -- In the report button's place it is chrome, and chrome is solid: a
-    -- half-transparent chat button reads as a disabled one. A plate we drew
-    -- lights under the pointer the way the button it replaces does -- the
-    -- plate brightens, not the camera, which is what a chat button does and
-    -- what an orb does not. On the frame that kept its own bar there is
-    -- nothing of ours to brighten, and nothing is the right answer: a 2004
-    -- privacy button does not light under the pointer either.
-    local trans = TRANS_RESTING
-    if plated then
-        trans = TRANS_HOVER
-        if plate then
-            draw_plate(draw, box, hovered)
-        end
-    elseif hovered then
-        trans = TRANS_HOVER
-    end
-
-    if art then
-        draw.image(art, x, y, trans, rx, ry, rw, rh)
-    end
+    local where = api.config.camera
+    if where == "off" or where == "report-button" or not api.world.local_player() then return end
+    if not icon then return end
+    local width, height = api.assets.image_size(icon)
+    if not width then return end
+    local box = api.placement.place("overlay_safe", where, width, height, MARGIN)
+    if not box then return end
+    draw.action_region_id(box, "capture", ACTION_CAPTURE)
+    local x, y = api.input.pointer()
+    local hovered = x and x >= box.x and x < box.x + box.width and
+        y >= box.y and y < box.y + box.height
+    draw.image(icon, box.x, box.y, hovered and 255 or 85)
 end
 
---- The click, and the menu row, arriving as the one thing they are.
-function plugin.on_canvas_click(api, ev)
-    if ev.tag ~= TAG_CAPTURE then return end
+function plugin.on_canvas_action(api, ev)
+    if ev.id ~= ACTION_CAPTURE then return end
     capture_now(api)
+    return "consume"
 end
 
---- Asked for once, at start, and not on the first frame that wants it: the
---- read is asynchronous either way, and a load issued from the draw handler
---- would be issued again on every frame until it landed.
-function plugin.on_start(api)
-    icon = api.image_load("camera.png")
-    if not icon then
-        api.log("camera.png did not load; the camera button is unavailable")
-    end
-    -- Both, and at start rather than when a short box first asks for one: a
-    -- load issued from the draw handler is issued again on every frame until
-    -- it lands, and the button that needs this one is the one a player sees
-    -- most.
-    icon_small = api.image_load("camera_small.png")
-    if not icon_small then
-        api.log("camera_small.png did not load; the chat-button camera is unavailable")
-    end
-    -- Bound here and resolved later. on_start runs before the gameframe is
-    -- built, so geometry asked now would answer "not here" on every lane. A
-    -- replacement claim is keyed by the semantic name, though, and survives
-    -- the later build; it is state reconciled at config transitions rather
-    -- than a command repeated in every draw handler.
-    report_button = api.role("report_button")
-    report_button.replace(api.config.camera == "report-button")
-end
-
-function plugin.on_config_changed(api, ev)
-    if ev.key == "camera" then
-        report_button.replace(api.config.camera == "report-button")
-    end
+function plugin.on_ui_node_action(api, node, action)
+    if node ~= report_ref or action ~= "capture" then return end
+    capture_now(api)
+    return "consume"
 end
 
 function plugin.on_stop(api)
-    -- Anything still waiting belongs to a session that is over. Dropped rather
-    -- than taken on the way out: the frame it was waiting for never came.
     pending = {}
-    if report_button then
-        -- Teardown releases it too; doing it here makes the script's ownership
-        -- explicit and keeps a direct stop/restart transition whole.
-        report_button.replace(false)
-        report_button = nil
-    end
-    if icon then
-        api.image_release(icon)
-        icon = nil
-    end
-    if icon_small then
-        api.image_release(icon_small)
-        icon_small = nil
-    end
+    if report_ref then api.ui.set_enabled(report_ref, false) end
+    if icon then api.assets.image_release(icon) end
+    if icon_small then api.assets.image_release(icon_small) end
+    icon, icon_small, report_ref = nil, nil, nil
 end
 
 return plugin

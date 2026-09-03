@@ -71,7 +71,7 @@ tileind_draw(
     void* state,
     struct ToriRS_DrawBuilder* draw)
 {
-    struct ToriRS_PluginPlayerSnap me;
+    struct ToriRS_PlayerSnapshot me;
     int hover_x;
     int hover_z;
     int hover_level;
@@ -149,7 +149,7 @@ tileind_draw(
  * player, nothing under the destination or the pointer -- so the new pickers
  * are an offer rather than a change of appearance.
  */
-static struct ToriRS_PluginConfigItem const TILEIND_CONFIG[] = {
+static struct ToriRS_ConfigItem const TILEIND_CONFIG[] = {
     { "true_color",       TORIRS_PLUGIN_CFG_COLOR, "True tile colour",         "#00FFFF", 0, 0,   NULL, 0 },
     { "true_fill_color",  TORIRS_PLUGIN_CFG_COLOR, "True tile fill",           "#00FFFF", 0, 0,   NULL, 0 },
     { "true_fill_alpha",  TORIRS_PLUGIN_CFG_INT,   "True tile fill opacity",   "40",      0, 255, NULL, 0 },

@@ -745,7 +745,6 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 	plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-	plugin/torirs_plugin_v2_adapter.c \
 	plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/client_settings.c \
@@ -2220,12 +2219,11 @@ test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 # plugins with no roster row and no config page, so a broken one draws nothing
 # and looks exactly like a setting somebody left switched off -- which is what
 # the whole category looked like before they existed. This is where that shows.
-test-nxt-plugins: $(OBJ_DIR) plugin/torirs_plugin_v2_adapter.c \
+test-nxt-plugins: $(OBJ_DIR) \
 		plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
@@ -2241,6 +2239,17 @@ test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c \
 		plugin/test/plugin_lua_api_inventory_test.py \
 		$(REPO_ROOT)/script/plugins/plugin_api.meta.lua
 	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_lua_api_inventory_test.py
+
+# Native-V2 Lua runtime smoke test. Its fake host captures the dynamic
+# definitions, runs scoped callbacks, exercises source reload, and compiles all
+# bundled scripts inside the real sandboxed Lua VM.
+.PHONY: test-plugin-lua
+test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
+		plugin/test/torirs_plugin_lua_v2_test.c test-plugin-lua-api-inventory
+	$(CC) $(CFLAGS) -I$(LUA_DIR) -o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
+		plugin/test/torirs_plugin_lua_v2_test.c \
+		$(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_plugin_lua_v2_test
 
 # The item-stats tooltip, against a hand-built api table rather than the host:
 # the whole plugin is "given a hovered item and a set of levels, what does the
@@ -2282,20 +2291,18 @@ test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracke
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c \
 		plugin/torirs_plugin_ui.c \
-		plugin/torirs_plugin_v2_adapter.c \
 		plugin/test/torirs_plugin_host_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c \
 		plugin/torirs_plugin_ui.c \
-		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_host_test
 
 # Public v2 source contract. This target stays parse/type-check only so an API
 # header regression is reported directly; runtime registration and behavior
-# are covered by test-plugin-host, test-plugin-v2-adapter, and test-tileind-v2.
+# are covered by test-plugin-host and the bundled-plugin suites.
 .PHONY: test-plugin-api-v2
 test-plugin-api-v2: plugin/torirs_plugin_v2.h plugin/test/torirs_plugin_v2_compile_test.c
 	$(CC) -std=c11 -fsyntax-only -Wall -Wextra -Werror=incompatible-pointer-types \
@@ -2310,18 +2317,6 @@ test-tileind-v2: $(OBJ_DIR) plugin/plugins/tileind.c plugin/test/tileind_v2_test
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tileind_v2_test \
 		plugin/plugins/tileind.c plugin/test/tileind_v2_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/tileind_v2_test
-
-# Translation from the existing language-neutral API to the smaller v2
-# modules. This links neither the host nor an engine: a fake legacy table pins
-# every field/result conversion and the callback-scoped builders.
-.PHONY: test-plugin-v2-adapter
-test-plugin-v2-adapter: $(OBJ_DIR) plugin/torirs_plugin_v2_adapter.c \
-		plugin/torirs_plugin_v2_adapter.h plugin/torirs_plugin_v2.h \
-		plugin/test/torirs_plugin_v2_adapter_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_v2_adapter_test \
-		plugin/torirs_plugin_v2_adapter.c plugin/test/torirs_plugin_v2_adapter_test.c \
-		$(LDFLAGS)
-	./$(OBJ_DIR)/plugin_v2_adapter_test
 
 .PHONY: test-plugin-frame
 test-plugin-frame: $(OBJ_DIR) plugin/torirs_plugin_frame.c \
@@ -2369,13 +2364,12 @@ test-client-settings: $(OBJ_DIR) plugin/plugins/client_settings.c \
 # about what is client-only, and a test restating it would only compare two
 # hand-typed lists.
 .PHONY: test-feature-flags
-test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_v2_adapter.c \
+test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c $(LDFLAGS)
@@ -2391,13 +2385,12 @@ test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_
 # pixels it loaded, so an image table that answered nothing would exercise none
 # of it. Run from src/, where the shipped assets resolve.
 .PHONY: test-gameframe
-test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_v2_adapter.c \
+test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
@@ -2416,12 +2409,10 @@ test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
 	./$(OBJ_DIR)/torirs_touch_test
 
 test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
-		plugin/torirs_plugin_v2_adapter.c \
 		plugin/plugins/mobile_gameframe.c plugin/test/mobile_gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
 		plugin/plugins/mobile_gameframe.c \
@@ -2435,13 +2426,12 @@ test-minimap-orbs-v2: $(OBJ_DIR) plugin/plugins/minimap_orbs.c \
 		plugin/plugins/minimap_orbs.c plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/minimap_orbs_v2_test
 
-test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_v2_adapter.c \
+test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c $(LDFLAGS)

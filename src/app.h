@@ -296,7 +296,7 @@ struct AppPluginObject
 {
     int in_use;
     /* -- what the plugin asked for -- */
-    int source; /* enum ToriRS_PluginModelSource */
+    int source; /* enum ToriRS_EngineModelSource */
     int model_id;
     int seq_id;
     int loop;
@@ -1378,7 +1378,7 @@ struct App
      * benefit.
      */
     int plugin_layout_owned;
-    /** enum ToriRS_PluginLayoutCanvas. */
+    /** enum ToriRS_EngineFrameCanvas. */
     int plugin_layout_canvas;
     int plugin_layout_fixed_w;
     int plugin_layout_fixed_h;
@@ -2084,7 +2084,7 @@ struct App
      */
     int client_trigger_refire_pending;
 
-    struct ToriRS_PluginHighlightItem plugin_highlights[APP_PLUGIN_HIGHLIGHTS_MAX];
+    struct ToriRS_HighlightItem plugin_highlights[APP_PLUGIN_HIGHLIGHTS_MAX];
     int plugin_highlight_count;
     /* Resolved LOC highlights, kept across frames.
      *
@@ -2095,7 +2095,7 @@ struct App
      * grid_position, so the answer only changes when the highlight state
      * changes or when the set of scenery does. Those are exactly the two
      * keys below. See app_plugin_highlights_rebuild_pools. */
-    struct ToriRS_PluginHighlightItem plugin_highlight_loc[APP_PLUGIN_HIGHLIGHTS_MAX];
+    struct ToriRS_HighlightItem plugin_highlight_loc[APP_PLUGIN_HIGHLIGHTS_MAX];
     int plugin_highlight_loc_count;
     int plugin_highlight_loc_revision;
     bool plugin_highlight_loc_valid;

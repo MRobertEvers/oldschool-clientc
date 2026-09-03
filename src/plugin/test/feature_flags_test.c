@@ -109,7 +109,7 @@ static int
 fake_feature_next(
     void* u,
     int i,
-    struct ToriRS_PluginFeature* o)
+    struct ToriRS_FeatureInfo* o)
 {
     (void)u;
 
@@ -208,7 +208,7 @@ fake_frame_work_us(void* u)
 static int
 fake_local_player(
     void* u,
-    struct ToriRS_PluginPlayerSnap* o)
+    struct ToriRS_PlayerSnapshot* o)
 {
     (void)u;
     (void)o;
@@ -218,7 +218,7 @@ static int
 fake_npc_next(
     void* u,
     int i,
-    struct ToriRS_PluginNpcSnap* o)
+    struct ToriRS_NpcSnapshot* o)
 {
     (void)u;
     (void)i;
@@ -229,7 +229,7 @@ static int
 fake_npc_by_slot(
     void* u,
     int s,
-    struct ToriRS_PluginNpcSnap* o)
+    struct ToriRS_NpcSnapshot* o)
 {
     (void)u;
     (void)s;
@@ -240,7 +240,7 @@ static int
 fake_player_next(
     void* u,
     int i,
-    struct ToriRS_PluginPlayerSnap* o)
+    struct ToriRS_PlayerSnapshot* o)
 {
     (void)u;
     (void)i;
@@ -251,7 +251,7 @@ static int
 fake_obj_next(
     void* u,
     int i,
-    struct ToriRS_PluginObjSnap* o)
+    struct ToriRS_GroundItemSnapshot* o)
 {
     (void)u;
     (void)i;
@@ -262,7 +262,7 @@ static int
 fake_loc_next(
     void* u,
     int i,
-    struct ToriRS_PluginLocSnap* o)
+    struct ToriRS_ScenerySnapshot* o)
 {
     (void)u;
     (void)i;
@@ -273,7 +273,7 @@ static int
 fake_highlight_next(
     void* u,
     int i,
-    struct ToriRS_PluginHighlightItem* o)
+    struct ToriRS_HighlightItem* o)
 {
     (void)u;
     (void)i;
@@ -313,7 +313,7 @@ fake_hover_tile(
 static int
 fake_hover_entity(
     void* u,
-    struct ToriRS_PluginHoverEntity* o)
+    struct ToriRS_HoverTarget* o)
 {
     (void)u;
     (void)o;
@@ -744,7 +744,7 @@ static int
 fake_obj_info(
     void* u,
     int id,
-    struct ToriRS_PluginObjInfo* o)
+    struct ToriRS_ItemInfo* o)
 {
     (void)u;
     (void)id;
@@ -1178,7 +1178,7 @@ fake_obj_image(void* u, int slot, int obj_id, int count, int style, int* out_w, 
 /* The client's own loot record. A fake engine records nothing, which is the
  * ordinary answer on a lane whose server has no kill hook. */
 static int
-fake_loot_source_next(void* u, int iter, struct ToriRS_PluginLootSource* out)
+fake_loot_source_next(void* u, int iter, struct ToriRS_LootSource* out)
 {
     (void)u;
     (void)iter;
@@ -1187,7 +1187,7 @@ fake_loot_source_next(void* u, int iter, struct ToriRS_PluginLootSource* out)
 }
 static int
 fake_loot_row_next(
-    void* u, int source_id, int iter, struct ToriRS_PluginLootRow* out)
+    void* u, int source_id, int iter, struct ToriRS_LootRow* out)
 {
     (void)u;
     (void)source_id;

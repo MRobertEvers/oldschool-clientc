@@ -143,7 +143,7 @@ fake_capability(void* u, char const* name)
 static int
 fake_local_player(
     void* u,
-    struct ToriRS_PluginPlayerSnap* out)
+    struct ToriRS_PlayerSnapshot* out)
 {
     (void)u;
     memset(out, 0, sizeof(*out));
@@ -155,7 +155,7 @@ static int
 fake_npc_next(
     void* u,
     int iter,
-    struct ToriRS_PluginNpcSnap* out)
+    struct ToriRS_NpcSnapshot* out)
 {
     (void)u;
     if( iter >= 1 )
@@ -169,7 +169,7 @@ static int
 fake_npc_by_slot(
     void* u,
     int slot,
-    struct ToriRS_PluginNpcSnap* out)
+    struct ToriRS_NpcSnapshot* out)
 {
     (void)u;
     memset(out, 0, sizeof(*out));
@@ -180,7 +180,7 @@ static int
 fake_player_next(
     void* u,
     int iter,
-    struct ToriRS_PluginPlayerSnap* out)
+    struct ToriRS_PlayerSnapshot* out)
 {
     (void)u;
     (void)iter;
@@ -191,7 +191,7 @@ static int
 fake_loc_next(
     void* u,
     int iter,
-    struct ToriRS_PluginLocSnap* out)
+    struct ToriRS_ScenerySnapshot* out)
 {
     (void)u;
     (void)iter;
@@ -202,7 +202,7 @@ static int
 fake_highlight_next(
     void* u,
     int iter,
-    struct ToriRS_PluginHighlightItem* out)
+    struct ToriRS_HighlightItem* out)
 {
     (void)u;
     (void)iter;
@@ -242,7 +242,7 @@ fake_hover_tile(
 static int
 fake_hover_entity(
     void* u,
-    struct ToriRS_PluginHoverEntity* out)
+    struct ToriRS_HoverTarget* out)
 {
     (void)u;
     out->kind = TORIRS_PLUGIN_HOVER_NPC;
@@ -316,7 +316,7 @@ static int
 fake_feature_next(
     void* u,
     int i,
-    struct ToriRS_PluginFeature* o)
+    struct ToriRS_FeatureInfo* o)
 {
     (void)u;
 
@@ -512,7 +512,7 @@ static int
 fake_obj_next(
     void* u,
     int iter,
-    struct ToriRS_PluginObjSnap* out)
+    struct ToriRS_GroundItemSnapshot* out)
 {
     (void)u;
     /* Exactly one stack: enough to prove the iterator both yields and ends. */
@@ -1058,7 +1058,7 @@ static int
 fake_obj_info(
     void* u,
     int obj_id,
-    struct ToriRS_PluginObjInfo* out)
+    struct ToriRS_ItemInfo* out)
 {
     (void)u;
     (void)obj_id;
@@ -1589,7 +1589,7 @@ static int
 fake_loot_source_next(
     void* u,
     int iter,
-    struct ToriRS_PluginLootSource* out)
+    struct ToriRS_LootSource* out)
 {
     (void)u;
     (void)iter;
@@ -1601,7 +1601,7 @@ fake_loot_row_next(
     void* u,
     int source_id,
     int iter,
-    struct ToriRS_PluginLootRow* out)
+    struct ToriRS_LootRow* out)
 {
     (void)u;
     (void)source_id;
@@ -1695,7 +1695,7 @@ static int g_lane_game = TORIRS_PLUGIN_GAME_UNKNOWN;
 static int
 fake_lane(
     void* u,
-    struct ToriRS_PluginLane* o)
+    struct ToriRS_LaneInfo* o)
 {
     (void)u;
     memset(o, 0, sizeof(*o));
@@ -1852,7 +1852,7 @@ alpha_screen(
 {
     (void)ctx;
     (void)ud;
-    struct ToriRS_PluginEvScreen const* screen_ev = ev;
+    struct ToriRS_ScreenChangedEvent const* screen_ev = ev;
     g_screen_changes++;
     g_screen_change_to = screen_ev->screen;
     g_screen_change_from = screen_ev->previous;
@@ -1868,7 +1868,7 @@ alpha_menu_add(
     void* ud)
 {
     (void)ud;
-    g_api->menu_add(ctx, (struct ToriRS_PluginEvMenuBuild*)ev, "Tag Goblin", 7u);
+    g_api->menu_add(ctx, (struct ToriRS_MenuBuildEvent*)ev, "Tag Goblin", 7u);
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -1880,7 +1880,7 @@ alpha_select(
 {
     (void)ctx;
     (void)ud;
-    struct ToriRS_PluginEvMenuSelect* sel = ev;
+    struct ToriRS_MenuSelectEvent* sel = ev;
     g_select_calls++;
     g_last_tag = sel->plugin_tag;
     return TORIRS_PLUGIN_PASS;
@@ -1894,7 +1894,7 @@ alpha_packet_in(
 {
     (void)ctx;
     (void)ud;
-    struct ToriRS_PluginEvPacketIn* p = ev;
+    struct ToriRS_PacketInEvent* p = ev;
     if( p->name == 99 )
         p->drop = true;
     return TORIRS_PLUGIN_PASS;
@@ -1907,7 +1907,7 @@ alpha_draw(
     void* ud)
 {
     (void)ud;
-    struct ToriRS_PluginEvDraw* d = ev;
+    struct ToriRS_DrawEvent* d = ev;
     g_api->draw_hull(ctx, d->surface, 3, 0xff0000u, 0, TORIRS_PLUGIN_HULL_MESH);
     /* Well past the budget, to prove the host stops handing calls through. */
     for( int i = 0; i < 400; i++ )
@@ -1958,7 +1958,7 @@ alpha_init(
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, alpha_canvas_after_anchor, NULL);
 }
 
-static struct ToriRS_PluginConfigItem const ALPHA_CONFIG[] = {
+static struct ToriRS_ConfigItem const ALPHA_CONFIG[] = {
     { "colour", TORIRS_PLUGIN_CFG_COLOR,  "Colour", "#00FF00", 0, 0,  NULL, 0 },
     { "level",  TORIRS_PLUGIN_CFG_INT,    "Level",  "3",       0, 10, NULL, 0 },
     { "on",     TORIRS_PLUGIN_CFG_BOOL,   "On",     "1",       0, 0,  NULL, 0 },
@@ -2002,7 +2002,7 @@ gamma_chat(
 {
     (void)ctx;
     (void)ud;
-    struct ToriRS_PluginEvChat* c = ev;
+    struct ToriRS_ChatMessageEvent* c = ev;
     g_gamma_chats++;
     snprintf(g_gamma_chat_text, sizeof(g_gamma_chat_text), "%s", c->text);
     return TORIRS_PLUGIN_PASS;
@@ -2016,7 +2016,7 @@ gamma_game_event(
 {
     (void)ctx;
     (void)ud;
-    struct ToriRS_PluginEvGameEvent* g = ev;
+    struct ToriRS_GameEvent* g = ev;
     g_gamma_game_events++;
     snprintf(g_gamma_event_kind, sizeof(g_gamma_event_kind), "%s", g->kind ? g->kind : "");
     snprintf(g_gamma_event_subject, sizeof(g_gamma_event_subject), "%s", g->subject);
@@ -2032,7 +2032,7 @@ gamma_asset(
 {
     (void)ctx;
     (void)ud;
-    struct ToriRS_PluginEvAsset* a = ev;
+    struct ToriRS_AssetEvent* a = ev;
     g_gamma_assets++;
     g_gamma_asset_ok = a->ok;
     return TORIRS_PLUGIN_PASS;
@@ -2128,7 +2128,7 @@ win_ui(
     void* ev,
     void* ud)
 {
-    struct ToriRS_PluginEvUi const* e = ev;
+    struct ToriRS_LegacyPanelEvent const* e = ev;
     (void)ctx;
     (void)ud;
     g_win_events++;
@@ -2182,7 +2182,7 @@ panel_start(
     void* ev,
     void* ud)
 {
-    struct ToriRS_PluginPanelDesc desc;
+    struct ToriRS_PanelDescriptor desc;
     int const index = PluginHost_CtxIndex(ctx);
     (void)ev;
     (void)ud;
@@ -2212,7 +2212,7 @@ panel_build(
     void* payload,
     void* ud)
 {
-    struct ToriRS_PluginEvPanelBuild const* ev = payload;
+    struct ToriRS_PanelBuildEvent const* ev = payload;
     int const index = PluginHost_CtxIndex(ctx);
     (void)ud;
 
@@ -2223,7 +2223,7 @@ panel_build(
     else
         g_panel_b_builds++;
     /* The SETTINGS face of these probes declares nothing, exactly as a plugin
-     * whose knobs are all config keys does. @see enum ToriRS_PluginPanelView. */
+     * whose knobs are all config keys does. @see enum ToriRS_PanelView. */
     if( ev->view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
         return TORIRS_PLUGIN_PASS;
     CHECK(
@@ -2242,7 +2242,7 @@ panel_action(
     void* payload,
     void* ud)
 {
-    struct ToriRS_PluginEvPanelAction const* ev = payload;
+    struct ToriRS_PanelActionEvent const* ev = payload;
     (void)ud;
     if( PluginHost_CtxIndex(ctx) == g_panel_a_index )
         g_panel_a_actions++;
@@ -2260,7 +2260,7 @@ panel_layout(
     void* payload,
     void* ud)
 {
-    struct ToriRS_PluginEvPanelLayout const* ev = payload;
+    struct ToriRS_PanelLayoutEvent const* ev = payload;
     (void)ud;
     if( PluginHost_CtxIndex(ctx) == g_panel_a_index )
     {
@@ -2284,7 +2284,7 @@ panel_draw(
     void* payload,
     void* ud)
 {
-    struct ToriRS_PluginEvPanelDraw const* ev = payload;
+    struct ToriRS_PanelDrawEvent const* ev = payload;
     (void)ud;
     if( PluginHost_CtxIndex(ctx) == g_panel_a_index )
         g_panel_a_draws++;
@@ -2362,7 +2362,7 @@ reloader_stop(
     return TORIRS_PLUGIN_PASS;
 }
 
-static struct ToriRS_PluginConfigItem const RELOADER_CFG[] = {
+static struct ToriRS_ConfigItem const RELOADER_CFG[] = {
     { .key = "colour",
      .label = "colour",
      .type = TORIRS_PLUGIN_CFG_STRING,
@@ -2434,7 +2434,7 @@ beta_canvas_competing_anchor(
     void* ev,
     void* ud)
 {
-    struct ToriRS_PluginEvDraw* draw = ev;
+    struct ToriRS_DrawEvent* draw = ev;
 
     (void)ud;
     if( !g_beta_anchor_attempt )
@@ -2529,7 +2529,7 @@ standoff_init(
     struct ToriRS_PluginCtx* ctx,
     struct ToriRS_PluginApi const* api)
 {
-    struct ToriRS_PluginLane lane;
+    struct ToriRS_LaneInfo lane;
 
     g_api = api;
     g_standoff_inits++;
@@ -2593,7 +2593,7 @@ latecomer_start(
     return TORIRS_PLUGIN_PASS;
 }
 
-static struct ToriRS_PluginConfigItem const LATECOMER_CFG[] = {
+static struct ToriRS_ConfigItem const LATECOMER_CFG[] = {
     { .key = "colour",
      .label = "colour",
      .type = TORIRS_PLUGIN_CFG_STRING,
@@ -2668,7 +2668,7 @@ frame_desktop_event(
         g_frame_desktop_stops++;
     else
     {
-        struct ToriRS_PluginEvLayout const* layout = event;
+        struct ToriRS_LayoutEvent const* layout = event;
         (void)g_api->layout_slot(
             ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, layout->width, layout->height);
         g_frame_desktop_layouts++;
@@ -2691,7 +2691,7 @@ frame_mobile_event(
         g_frame_mobile_stops++;
     else
     {
-        struct ToriRS_PluginEvLayout const* layout = event;
+        struct ToriRS_LayoutEvent const* layout = event;
         (void)g_api->layout_slot(
             ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, layout->width, layout->height);
         g_frame_mobile_layouts++;
@@ -2730,12 +2730,12 @@ frame_mobile_init(
         ctx, TORIRS_PLUGIN_EV_LAYOUT, frame_mobile_event, (void*)(intptr_t)TORIRS_PLUGIN_EV_LAYOUT);
 }
 
-static struct ToriRS_PluginFrameOffer const FRAME_DESKTOP_OFFERS[] = {
+static struct ToriRS_EngineFrameOffer const FRAME_DESKTOP_OFFERS[] = {
     { "fixed", "Fixed Test Frame", TORIRS_PLUGIN_CANVAS_FIXED, 765, 503 },
     { NULL,    NULL,               0,                          0,   0   },
 };
 
-static struct ToriRS_PluginFrameOffer const FRAME_MOBILE_OFFERS[] = {
+static struct ToriRS_EngineFrameOffer const FRAME_MOBILE_OFFERS[] = {
     { "phone", "Phone Test Frame", TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW, 320, 240 },
     { NULL,    NULL,               0,                                  0,   0   },
 };
@@ -2813,7 +2813,7 @@ v2_probe_start(
     void* state_ptr)
 {
     struct V2ProbeState* state = state_ptr;
-    struct ToriRS_PluginPlayerSnap player;
+    struct ToriRS_PlayerSnapshot player;
     struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
     struct ToriRS_UiContributionInfo contribution = {
         .struct_size = sizeof(contribution),
@@ -2821,7 +2821,7 @@ v2_probe_start(
     struct ToriRS_Rect placed;
     struct ToriRS_UiNodeRef own;
     struct ToriRS_UiNodeRef shared;
-    struct ToriRS_PluginPanelDesc panel = {
+    struct ToriRS_PanelDescriptor panel = {
         .preferred_width = 320,
     };
     int marker = 0;
@@ -2907,7 +2907,7 @@ static void
 v2_probe_logic(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct V2ProbeState* state = state_ptr;
     (void)api;
@@ -2967,7 +2967,7 @@ static void
 v2_probe_ui_action(
     struct ToriRS_ApiV2* api,
     void* state,
-    struct ToriRS_PluginEvPanelAction const* event)
+    struct ToriRS_PanelActionEvent const* event)
 {
     (void)api;
     (void)state;
@@ -3076,15 +3076,15 @@ v2_probe_frame_draw(
     g_v2_frame_draws++;
 }
 
-static struct ToriRS_PluginConfigItem const V2_CONFIG_A_ITEMS[] = {
+static struct ToriRS_ConfigItem const V2_CONFIG_A_ITEMS[] = {
     { .key = "marker", .label = "Marker", .type = TORIRS_PLUGIN_CFG_INT, .default_value = "1" },
     { 0 },
 };
-static struct ToriRS_PluginConfigItem const V2_CONFIG_B_ITEMS[] = {
+static struct ToriRS_ConfigItem const V2_CONFIG_B_ITEMS[] = {
     { .key = "marker", .label = "Marker", .type = TORIRS_PLUGIN_CFG_INT, .default_value = "2" },
     { 0 },
 };
-static struct ToriRS_PluginConfigItem const V2_CONFIG_FRAME_ITEMS[] = {
+static struct ToriRS_ConfigItem const V2_CONFIG_FRAME_ITEMS[] = {
     { .key = "marker", .label = "Marker", .type = TORIRS_PLUGIN_CFG_INT, .default_value = "3" },
     { 0 },
 };
@@ -3196,7 +3196,7 @@ static struct ToriRS_PluginDefV2 const V2_PROBE_B = {
         .on_placement_changed = v2_probe_placement,
     },
     .ui_contributions = V2_UI_B,
-    .flags = TORIRS_PLUGIN_V2_ADAPTER,
+    .flags = TORIRS_PLUGIN_V2_RUNTIME_HOST,
 };
 
 static struct ToriRS_PluginDefV2 const V2_FRAME_PROVIDER = {
@@ -3436,7 +3436,7 @@ static void
 v2_seam_logic(
     struct ToriRS_ApiV2* api,
     void* state,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct ToriRS_ImageRef image = { 0 };
     struct ToriRS_ModelRef model = { 0 };
@@ -3574,7 +3574,7 @@ static void
 v2_aba_logic(
     struct ToriRS_ApiV2* api,
     void* state_ptr,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct V2AbaState* state = state_ptr;
     struct ToriRS_UiNode appearance = {
@@ -3873,7 +3873,7 @@ present_v1_click(
 {
     (void)context;
     (void)userdata;
-    g_present_v1_tag = ((struct ToriRS_PluginEvCanvasClick const*)event)->tag;
+    g_present_v1_tag = ((struct ToriRS_CanvasActionEvent const*)event)->tag;
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -4027,7 +4027,7 @@ static void
 v2_present_reorder_logic(
     struct ToriRS_ApiV2* api,
     void* state,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct ToriRS_UiNode actions = {
         .struct_size = sizeof(actions),
@@ -4054,7 +4054,7 @@ static void
 v2_present_visibility_logic(
     struct ToriRS_ApiV2* api,
     void* state,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct ToriRS_UiNode appearance = {
         .struct_size = sizeof(appearance),
@@ -4079,7 +4079,7 @@ static void
 v2_present_ancestor_visibility_logic(
     struct ToriRS_ApiV2* api,
     void* state,
-    struct ToriRS_PluginEvTick const* event)
+    struct ToriRS_TickEvent const* event)
 {
     struct ToriRS_UiNode appearance = {
         .struct_size = sizeof(appearance),
@@ -4349,7 +4349,7 @@ main(void)
     {
         struct ToriRS_PluginApi const* api = PluginHost_Api(host);
         struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(host, a);
-        struct ToriRS_PluginFeature flag;
+        struct ToriRS_FeatureInfo flag;
         int seen = 0;
         int iter = -1;
 
@@ -4679,8 +4679,8 @@ main(void)
     /* Menu: a plugin row is added, gets a client action id, and routes back to
      * its owner carrying the tag it was added with. */
     {
-        struct ToriRS_PluginEvMenuBuild menu;
-        struct ToriRS_PluginMenuRow row;
+        struct ToriRS_MenuBuildEvent menu;
+        struct ToriRS_MenuRow row;
         int cursor = 0;
 
         memset(&menu, 0, sizeof(menu));
@@ -4864,7 +4864,7 @@ main(void)
 
         /* Ground items reach a plugin. */
         {
-            struct ToriRS_PluginObjSnap snap;
+            struct ToriRS_GroundItemSnapshot snap;
             int const iter = g_api->obj_next(ctx, -1, &snap);
             CHECK(iter >= 0, "obj_next yields the stack");
             CHECK(snap.obj_id == 4151 && snap.cost == 120000, "with its id and its cost");
@@ -5194,7 +5194,7 @@ main(void)
     /* ---- one shared application plugin panel ----------------------------- */
     {
         struct ToriRS_PluginHost* hp = PluginHost_New(&engine);
-        struct ToriRS_PluginPanelDesc outside = { "too-late.png", 320 };
+        struct ToriRS_PanelDescriptor outside = { "too-late.png", 320 };
         struct ToriRS_PluginWinWidget const* widget;
         uint32_t gen_a;
         uint32_t gen_b;
@@ -5809,7 +5809,7 @@ main(void)
     {
         struct ToriRS_PluginHost* hf;
         struct ToriRS_PluginApi const* api;
-        struct ToriRS_PluginFrameSelection selected;
+        struct ToriRS_EngineFrameSelection selected;
         int desktop;
         int mobile;
 
@@ -5937,7 +5937,7 @@ main(void)
         struct ToriRS_UiNodeInfo ui_info = { .struct_size = sizeof(ui_info) };
         struct ToriRS_UiNodeRef private_ref;
         struct ToriRS_UiNodeRef housing_ref;
-        struct ToriRS_PluginFrameSelection selection;
+        struct ToriRS_EngineFrameSelection selection;
         struct ToriRS_PluginWinWidget const* widget;
         uint32_t generation;
         uint32_t presentation_rebuilds;
@@ -6000,7 +6000,7 @@ main(void)
                 strcmp(PluginHost_Title(hv2, a2), "V2 Probe A") == 0 &&
                 PluginHost_ConfigCount(hv2, a2) == 1,
             "v2 identity, title, and config schema normalize into host metadata");
-        CHECK(PluginHost_IsAdapter(hv2, b2), "v2 adapter flag normalizes");
+        CHECK(PluginHost_IsRuntimeHost(hv2, b2), "v2 runtime-host flag normalizes");
         CHECK(
             PluginHost_IsEssential(hv2, frame2),
             "a v2 frame provider has host-controlled lifetime and no switch");
@@ -6266,7 +6266,7 @@ main(void)
         };
         struct ToriRS_PluginHost* ht;
         struct ToriRS_PluginApi const* api;
-        struct ToriRS_PluginFrameSelection selection;
+        struct ToriRS_EngineFrameSelection selection;
         struct ToriRS_UiNodeInfo info;
         struct ToriRS_UiNodeRef marker;
         int old_provider;
@@ -6454,7 +6454,7 @@ main(void)
     {
         struct ToriRS_PluginHost* aba_host;
         struct ToriRS_PluginApi const* api;
-        struct ToriRS_PluginFrameSelection selection;
+        struct ToriRS_EngineFrameSelection selection;
         struct ToriRS_UiNodeInfo badge_info = { .struct_size = sizeof(badge_info) };
         struct ToriRS_UiNodeRef badge;
         unsigned char* data;
@@ -6643,7 +6643,7 @@ main(void)
         baseline = api->placement_revision(ctx);
         CHECK(baseline != 0, "the first complete placement snapshot has a revision");
         {
-            struct ToriRS_PluginFrameInfo offer;
+            struct ToriRS_EngineFrameInfo offer;
             CHECK(
                 api->placement_rect_next(
                     ctx, TORIRS_PLUGIN_AREA_OVERLAY_SAFE, INT_MAX, &rect) == -1 &&
