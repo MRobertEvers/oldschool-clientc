@@ -1003,9 +1003,15 @@ loot_start(void)
     panel_build();
 }
 
-/** An npc leaves the scene at a tile. */
+/**
+ * An npc leaves the scene at a tile, with its health bar where `ratio` says.
+ *
+ * -1 is "no bar was ever sent", which is the ordinary state of an npc that has
+ * not been in combat; 0 is the bar reaching empty, which is the reference's
+ * isDying. The two must not be confused, and this is where a test says so.
+ */
 static void
-npc_despawn(char const* name, int x, int z, int size)
+npc_despawn_health(char const* name, int x, int z, int size, int ratio)
 {
     struct ToriRS_PluginEvNpc ev;
 
@@ -1018,7 +1024,16 @@ npc_despawn(char const* name, int x, int z, int size)
     ev.npc.level = 0;
     ev.npc.size = size;
     ev.npc.element_id = 7;
+    ev.npc.health_ratio = ratio;
+    ev.npc.health_scale = ratio >= 0 ? 30 : -1;
     dispatch(TORIRS_PLUGIN_EV_NPC_DESPAWN, &ev);
+}
+
+/** A DEATH: the bar reached empty. The ordinary case. */
+static void
+npc_despawn(char const* name, int x, int z, int size)
+{
+    npc_despawn_health(name, x, z, size, 0);
 }
 
 /** A ground stack appears on a tile. */
@@ -1069,20 +1084,74 @@ test_loot_kill_becomes_a_record(void)
         row_text("total_value") ? row_text("total_value") : "(none)");
 }
 
+/*
+ * A despawn with hitpoints LEFT has to earn its record by dropping something.
+ *
+ * That covers both the npc that simply walked out of view and the gargoyle
+ * family, which despawns alive and is finished with an item. The reference
+ * separates those with a hand-written id table; this does not carry one, so
+ * the loot is the only evidence either way.
+ */
 static void
-test_loot_dry_despawn_is_not_a_kill(void)
+test_unconfirmed_dry_despawn_is_not_a_kill(void)
 {
     client_reset();
     loot_start();
 
-    /* An npc that walked away, which is indistinguishable from a kill that
-     * dropped nothing -- so neither is counted. This is the trade the header
-     * comment names, and it is the assertion that pins it. */
-    npc_despawn("Goblin", 3200, 3200, 1);
+    /* -1: no bar was ever sent. An npc that was never in combat. */
+    npc_despawn_health("Goblin", 3200, 3200, 1, -1);
     settle();
+    TEST_ASSERT(!fake_widget_find("src0"), "an npc that walked away is not a kill");
 
-    TEST_ASSERT(!fake_widget_find("src0"), "a despawn with no loot is not a kill");
-    TEST_ASSERT(fake_widget_find("empty"), "and the page still says it is empty");
+    /* A bar with hitpoints left on it -- alive when it went. */
+    npc_despawn_health("Goblin", 3200, 3200, 1, 12);
+    settle();
+    TEST_ASSERT(!fake_widget_find("src0"), "and neither is one that despawned alive");
+    TEST_ASSERT(fake_widget_find("empty"), "the page still says it is empty");
+
+    /* But it IS a record once loot lands on it, which is the gargoyle path. */
+    npc_despawn_health("Goblin", 3200, 3200, 1, 12);
+    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    settle();
+    TEST_ASSERT(
+        fake_widget_find("src0"),
+        "a despawn that dropped something is a kill however it left");
+}
+
+/*
+ * A DEATH is counted whether or not it dropped anything.
+ *
+ * This is what the health bar buys, and it is the whole difference from
+ * attributing by coincident loot alone: a dry kill is a real event, and a kill
+ * count that skipped them would drift low all trip.
+ */
+static void
+test_confirmed_death_counts_without_loot(void)
+{
+    client_reset();
+    loot_start();
+
+    npc_despawn_health("Goblin", 3200, 3200, 1, 0);
+    settle();
+    TEST_ASSERT(fake_widget_find("src0"), "a bar at empty is a kill on its own");
+    TEST_ASSERT(
+        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
+        "and it is counted (got '%s')",
+        row_text("total_kills") ? row_text("total_kills") : "(none)");
+    TEST_ASSERT(
+        row_text("total_value") && strcmp(row_text("total_value"), "0") == 0,
+        "with nothing in it");
+
+    npc_despawn_health("Goblin", 3200, 3200, 1, 0);
+    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    settle();
+    TEST_ASSERT(
+        row_text("total_kills") && strcmp(row_text("total_kills"), "2") == 0,
+        "the next one counts too (got '%s')",
+        row_text("total_kills") ? row_text("total_kills") : "(none)");
+    TEST_ASSERT(
+        row_text("total_value") && strcmp(row_text("total_value"), "100") == 0,
+        "and carries its drop");
 }
 
 static void
@@ -1096,7 +1165,16 @@ test_loot_off_footprint_is_not_attributed(void)
      * with this. A 1x1 npc's footprint is one tile. */
     obj_spawn(526, "Bones", 1, 100, 3202, 3200);
     settle();
-    TEST_ASSERT(!fake_widget_find("src0"), "loot off the footprint belongs to nobody");
+    /* The KILL is still a kill -- the bar reached empty and that is not in
+     * doubt. What must not happen is the stray stack being attributed to it. */
+    TEST_ASSERT(
+        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
+        "the death is recorded (got '%s')",
+        row_text("total_kills") ? row_text("total_kills") : "(none)");
+    TEST_ASSERT(
+        row_text("total_value") && strcmp(row_text("total_value"), "0") == 0,
+        "but loot off the footprint belongs to nobody (got '%s')",
+        row_text("total_value") ? row_text("total_value") : "(none)");
 }
 
 static void
@@ -1181,9 +1259,13 @@ test_loot_ignored_item(void)
     obj_spawn(526, "Bones", 1, 100, 3200, 3200);
     settle();
     TEST_ASSERT(
-        !fake_widget_find("src0"),
-        "an ignore list entry is matched trimmed and without case, and a kill "
-        "whose only drop was ignored is not a kill");
+        row_text("total_value") && strcmp(row_text("total_value"), "0") == 0,
+        "an ignore list entry is matched trimmed and without case, so the "
+        "drop is not recorded (got '%s')",
+        row_text("total_value") ? row_text("total_value") : "(none)");
+    TEST_ASSERT(
+        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
+        "and ignoring an ITEM does not stop the kill being one");
 }
 
 static void
@@ -1566,7 +1648,8 @@ main(void)
     test_xp_offline_gains_are_not_the_session();
 
     test_loot_kill_becomes_a_record();
-    test_loot_dry_despawn_is_not_a_kill();
+    test_unconfirmed_dry_despawn_is_not_a_kill();
+    test_confirmed_death_counts_without_loot();
     test_loot_off_footprint_is_not_attributed();
     test_loot_big_monster_footprint();
     test_loot_two_kills_merge_and_sum();

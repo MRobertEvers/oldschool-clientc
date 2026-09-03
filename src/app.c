@@ -26325,6 +26325,12 @@ App_WorldDrainEntityRemovedFor(
                     snap.npc_id = -1;
                     snap.base_npc_id = -1;
                     snap.element_id = ev->element_id;
+                    /* Explicitly, because a zeroed health_ratio is the value
+                     * that means DEAD and this snapshot knows nothing at all.
+                     * A loot tracker reading it as a kill would open a record
+                     * for every entity the render side cleaned up late. */
+                    snap.health_ratio = -1;
+                    snap.health_scale = -1;
                 }
                 PluginHost_NpcDespawn(app->plugins, &snap);
             }
@@ -29599,8 +29605,11 @@ App_SetCanvasSize(
     }
 
     app->need_redraw = 1;
+    /* TORIRS_REPORT, not TORIRS_LOG: the shipping lane compiles -DNDEBUG,
+     * which strips TORIRS_LOG -- and this is the one line that says whether a
+     * resize arrived at all, in the build every report comes from. */
     if( getenv("TORIRS_RESIZE_DEBUG") )
-        fprintf(stderr, "PROBE canvas: %dx%d\n", width, height);
+        TORIRS_REPORT("canvas: %dx%d\n", width, height);
     return 1;
 }
 
@@ -29891,6 +29900,17 @@ App_PluginLayoutTick(struct App* app)
      * rebuilt into a recycled component-array slot cannot leak one native
      * frame or inherit another target's suppression. */
     PluginHost_ReconcileRoleReplacements(app->plugins);
+    /*
+     * Name the cache gameframe's regions before anyone asks for them: the
+     * dressers' slot queries in the chrome tick, the owner's declaration, and
+     * the reassert at the emit fence all read the stamps this leaves. The
+     * tree keeps the binder so the fence can re-run it after a rebuild.
+     */
+    if( app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0 )
+    {
+        UITree_FrameSetBinder(app->tree, app_plugin_frame_bind, app);
+        UITree_FrameBind(app->tree);
+    }
     if( !app->plugin_layout_owned )
     {
         /* A claim that ended while the tree was up: give the chrome back once,
@@ -30193,7 +30213,8 @@ App_DrainCommands(
                  * and resizable pushes are latched — leaving fixed restores
                  * the real window size through the same command. */
                 if( getenv("TORIRS_RESIZE_DEBUG") )
-                    fprintf(stderr, "PROBE cmd window resize %dx%d\n", (int)cmd->width, (int)cmd->height);
+                    TORIRS_REPORT(
+                        "resize: game area %dx%d\n", (int)cmd->width, (int)cmd->height);
                 app->window_w = cmd->width;
                 app->window_h = cmd->height;
                 app->host.ui_scale_dirty = false;

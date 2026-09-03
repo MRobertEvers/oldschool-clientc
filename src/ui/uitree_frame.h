@@ -46,6 +46,9 @@ enum UITreeFrameSlot
     UITREE_FRAME_SLOT_SIDEBAR,
     UITREE_FRAME_SLOT_MAIN_MODAL,
     UITREE_FRAME_SLOT_CHAT_BUTTONS,
+    /** The minimap's orb column, a cache lane's pack beside the map. A 2004
+     *  frame has none and answers "no such surface". */
+    UITREE_FRAME_SLOT_ORBS,
 
     UITREE_FRAME_SLOT_COUNT
 };
@@ -299,5 +302,37 @@ UITree_FrameOverlayOverride(
  *  indices in it name nodes that are about to stop existing. */
 void
 UITree_FrameForget(struct UITree* tree);
+
+/**
+ * Who stamps the roles a cache gameframe does not declare for itself.
+ *
+ * A revconfig frame spells its regions in the tree -- `type=chat`, a
+ * `slot=side_modal` tag, a builtin per sidebar tab -- and a cache gameframe
+ * spells only three of them, through the clientCodes the client already reads
+ * (world, minimap, compass). The chat container, the fourteen side panels, the
+ * modal box and the orb column are ordinary layers whose only name is the
+ * profile's `[role:frame_*]` chain, and this tree cannot resolve a role: it
+ * has no role table.
+ *
+ * So the app hands the tree a binder, and the tree calls it before every
+ * collection -- UITree_FrameApply and the reassert at the emit fence -- so a
+ * declaration never lands on a rebuilt gameframe whose panels have not been
+ * named yet. The binder stamps `slot_tag` and `frame_member_plus1` on the
+ * nodes it resolves; a lane whose profile names no frame roles pays a table
+ * lookup per role and stamps nothing.
+ *
+ * Idempotent and cheap: role resolution is memoised per tree generation.
+ */
+void
+UITree_FrameSetBinder(
+    struct UITree* tree,
+    void (*binder)(struct UITree* tree, void* user),
+    void* user);
+
+/** Run the binder now, if one is set. What UITree_FrameApply does first; also
+ *  the app's per-tick hook so a slot query that arrives with no declaration in
+ *  flight still finds stamped nodes. */
+void
+UITree_FrameBind(struct UITree* tree);
 
 #endif /* SRC_UITREE_FRAME_H */

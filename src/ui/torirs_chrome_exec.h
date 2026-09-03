@@ -583,6 +583,29 @@ int
 ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui);
 
 /**
+ * Forget the shadow WITHOUT taking the executor down, so the next Run restates
+ * the whole model instead of the difference from a page that no longer exists.
+ *
+ * The one thing a diff cannot express is "what you are holding is not what I
+ * am describing any more". A page-retaining executor drops its DOM when the
+ * shared shell's selection moves -- it has to, because a delta authored for
+ * one page cannot patch another's -- and at that moment the shadow here still
+ * describes the page that was just discarded. The next Run then emits only the
+ * difference between the two pages, and where they are structurally alike (two
+ * readouts with the same rows in the same order, which is the ordinary case
+ * for a family of plugin pages) that difference carries no WIDGET_ADD at all:
+ * the executor is handed a snapshot of a few label changes and mounts a page
+ * with nothing on it.
+ *
+ * So this is called by whoever CHANGES the selection, not by the executor that
+ * reacted to it -- the shadow is the application's, and the executor cannot
+ * reach it. Cheap and idempotent: it clears a shadow, it does not talk to the
+ * executor.
+ */
+void
+ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync);
+
+/**
  * Drain the executor's intents and apply them to `ui`.
  * @return how many were applied.
  */

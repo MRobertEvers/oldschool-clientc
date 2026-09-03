@@ -2659,6 +2659,7 @@ lua_build_api_table(struct LuaScript* script)
              * question asked by people who learned it from different ends. */
             { "modal_viewport", TORIRS_PLUGIN_SLOT_MAIN_MODAL },
             { "chat_buttons", TORIRS_PLUGIN_SLOT_CHAT_BUTTONS },
+            { "orbs", TORIRS_PLUGIN_SLOT_ORBS },
             { "canvas", TORIRS_PLUGIN_SLOT_CANVAS },
             { "safe_gamechrome", TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME },
         };

@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 23
+#define TORIRS_PLUGIN_ABI 25
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -414,6 +414,32 @@ struct ToriRS_PluginNpcSnap
     int element_id;
     /** Bit i set = op i is offered on this npc. */
     uint8_t visible_ops;
+    /**
+     * The overhead health bar's FILL, as the server last sent it, and the
+     * denominator it is a fraction of. Both -1 when no bar has ever been sent
+     * for this entity.
+     *
+     * The reference's `Actor.getHealthRatio()` / `getHealthScale()`, and the
+     * primitive rather than the conclusion: "is it dying" is one question a
+     * caller can ask of these, and "is it below a third" is another. A HEADBAR
+     * block carries no hitpoints at all -- only this fraction -- so this is
+     * the whole of what the wire says about an npc's health, and a plugin
+     * cannot get real hitpoints out of it however it is scaled.
+     *
+     * A `health_ratio` of 0 with a scale that exists is what RuneLite's
+     * `NpcUtil.isDying` is built on: the bar reached empty, which for almost
+     * every monster in the game is the moment it died. The exceptions there
+     * are a hand-written table -- gargoyles and the other "finish it with an
+     * item" slayer monsters despawn with hitpoints left, and a few bosses
+     * transform rather than die -- and a caller that cares about them keeps
+     * its own list, because this cannot know which is which.
+     *
+     * -1 and not 0 for "never sent", because 0 is the most meaningful value
+     * this field takes and a caller that could not tell the two apart would
+     * read every npc that has never been in combat as a corpse.
+     */
+    int health_ratio;
+    int health_scale;
 };
 
 /**
@@ -1545,6 +1571,19 @@ enum ToriRS_PluginLayoutSlot
      * themselves: 0 public, 1 private, 2 trade, 3 report.
      */
     TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+    /**
+     * The minimap's orb column -- hitpoints, prayer, run, special -- as ONE
+     * block beside the map.
+     *
+     * A cache gameframe mounts these as a pack (interface 160 on OldSchool)
+     * inside a layer the toplevel positions next to its map housing, and
+     * every orb in it is laid out relative to that layer. A frame that moves
+     * the map and leaves the layer where the lane put it strands the orbs
+     * over the world; so a layout places the block, at the offset from its
+     * own housing that the lane's toplevel uses. A 2004 frame has no such
+     * block and answers 0 -- the minimap-orbs plugin adds them there.
+     */
+    TORIRS_PLUGIN_SLOT_ORBS,
 
     /**
      * Where the roles a layout may PLACE stop.
@@ -2650,6 +2689,24 @@ struct ToriRS_PluginApi
      * before it would otherwise read the absence as an answer.
      */
     int (*lane)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginLane* out);
+    /**
+     * The interface group the LIVE gameframe is rooted to, or -1 on a lane
+     * whose frame is revconfig builtins (every dat1 lane).
+     *
+     * The runtime companion to `lane`. A lane is a fact about the cache and
+     * never moves; which of the cache's toplevels is on screen is the
+     * SERVER's choice per session -- OldSchool 239 opens its fixed frame, one
+     * of two resizable ones or the mobile one depending on the saved Display
+     * mode and whether the login said it was a phone -- and it changes on an
+     * IF_OPENTOP mid-session. A layout plugin that wants to reproduce "the
+     * frame the lane would have drawn" asks this and compares against the
+     * ids the profile names: `cache_id("iface", "toplevel_fixed")` and its
+     * siblings, so nothing here is a number.
+     *
+     * Changes are announced the way every rebuild is: the new root bakes, the
+     * tree generation moves, and EV_LAYOUT is raised again.
+     */
+    int (*frame_root)(struct ToriRS_PluginCtx* ctx);
     /**
      * A colour-row setting, as 0xRRGGBB.
      *

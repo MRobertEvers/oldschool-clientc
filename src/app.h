@@ -1379,6 +1379,19 @@ struct App
      *  rendered again. */
     int plugin_layout_w;
     int plugin_layout_h;
+    /**
+     * The cache-gameframe nodes the frame binder stamped with a slot tag on
+     * its last pass, so a role that moves to a different node (a CS2 rebuild
+     * that recycles an index) has its old stamp taken back. Node + incarnation,
+     * the tree's own identity for "still the same node".
+     * @see app_plugin_frame_bind.
+     */
+    struct
+    {
+        int32_t node;
+        uint32_t incarnation;
+    } plugin_frame_stamp[32];
+    int plugin_frame_stamp_count;
     /** Set when the tree was rebuilt or the canvas resized under a claim:
      *  the next layout pass re-raises EV_LAYOUT before it applies anything. */
     uint8_t plugin_layout_dirty;

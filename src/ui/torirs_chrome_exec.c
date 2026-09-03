@@ -97,6 +97,27 @@ sync_emit_options(
 
 /* ---- sync ---------------------------------------------------------------- */
 
+void
+ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync)
+{
+    assert(sync);
+
+    /* The shadow and the flags derived from it, and nothing else: `exec` and
+     * `live` describe the BINDING, which has not changed -- this is a page
+     * boundary, not a rebind, and taking the executor down and up again here
+     * would close and reopen the window. */
+    memset(sync->panels, 0, sizeof(sync->panels));
+    memset(sync->widgets, 0, sizeof(sync->widgets));
+    sync->primed = 0;
+    sync->synced_build_serial = -1;
+    sync->presented_build_serial = -1;
+    sync->published_drag_build_serial = -1;
+    sync->published_drag_panel = -1;
+    /* @see ToriRSChromeSync::check_style -- an executor that was re-mounted
+     * has not been told the style either. */
+    sync->check_style = -1;
+}
+
 int
 ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec const* exec)
 {

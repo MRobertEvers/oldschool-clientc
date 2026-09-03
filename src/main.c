@@ -1333,7 +1333,12 @@ frame_loop_step(void)
     uint64_t frame_start_ms;
 #endif
 
-    if( max_frames > 0 && frame_count++ >= max_frames )
+    /* Counted whether or not a cap is set: the TORIRS_SIM_* harness knobs
+     * address frames by this number, and an uncapped run -- the only one
+     * whose logic ticks are wall-clock, so the only one that behaves like a
+     * player's -- used to leave it at zero and never fire them. */
+    frame_count++;
+    if( max_frames > 0 && frame_count > max_frames )
     {
         ToriDraw_EipSampleStop("frames");
         ToriDraw_FrameAbDump("frames");

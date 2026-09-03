@@ -246,6 +246,13 @@ enum UITreeSlotTag
     UITREE_SLOT_SIDE_MODAL,
     UITREE_SLOT_CHAT,
     UITREE_SLOT_TUT,
+    /**
+     * The minimap's HUD block: the orb column a cache gameframe mounts beside
+     * the map (interface 160 on OldSchool). Never authored by a revconfig
+     * profile -- a 2004 frame has no such thing -- it is stamped at runtime
+     * by the frame binder, @see UITree_FrameSetBinder.
+     */
+    UITREE_SLOT_ORBS,
 };
 
 enum UITreeElemPositionKind
@@ -792,6 +799,17 @@ struct UITreeComponent
     uint8_t projection_hidden;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
+    /**
+     * Which MEMBER of its slot's role this node answers to, plus one; 0 is
+     * "the whole role" (or no numbering).
+     *
+     * The runtime twin of `u.sidebar.tabno`. A 2004 sidebar mount is a builtin
+     * that carries its tab number in its own union; a cache gameframe's
+     * `side3` is an ordinary layer with nothing to carry it in, so the frame
+     * binder stamps it here when it stamps the slot tag. Read only through
+     * UITree_FrameSlotIndex. @see UITree_FrameSetBinder.
+     */
+    uint8_t frame_member_plus1;
     /**
      * Semantic role this node was AUTHORED with (ui/uitree_role.h), interned
      * against the tree's role table. 0 = none.
@@ -1451,6 +1469,13 @@ struct UITree
     /** A plugin layout's hold on this frame (ui/uitree_frame.h), or NULL --
      *  which it is on every lane until a layout plugin claims one. */
     struct UITreeFrameLayout* frame_layout;
+    /**
+     * Stamps the frame roles a cache gameframe does not declare for itself,
+     * before any declaration is collected. NULL on a tree nobody has bound.
+     * @see UITree_FrameSetBinder.
+     */
+    void (*frame_binder)(struct UITree* tree, void* user);
+    void* frame_binder_user;
 };
 
 struct UITreeNodeSpec

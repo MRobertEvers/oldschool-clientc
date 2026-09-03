@@ -311,6 +311,10 @@ struct ToriRS_PluginEngine
      *  plugin UNKNOWN, which is the one answer nothing decides on.
      *  @see ToriRS_PluginApi::lane. */
     int (*lane)(void* user, struct ToriRS_PluginLane* out);
+    /** The live gameframe's root interface group, or -1 on a revconfig frame.
+     *  Optional like `lane`: a harness with no notion of a cache gameframe
+     *  leaves it NULL and every plugin reads -1. */
+    int (*frame_root)(void* user);
 
     /** One objtype, resident-only. @see ToriRS_PluginApi::obj_info. */
     int (*obj_info)(void* user, int obj_id, struct ToriRS_PluginObjInfo* out);

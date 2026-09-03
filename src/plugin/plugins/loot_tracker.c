@@ -15,31 +15,34 @@
  * with a value on each. The page lists the sources, drills into one, and draws
  * that one's drops as the client's own item icons.
  *
- * ---- how a drop is attributed, and why it is not the reference's way ----
+ * ---- how a drop is attributed ----
  *
- * RuneLite's LootManager watches for an npc that is DYING -- a death animation
- * out of a table, or `isDying()` on a health ratio of zero -- and collects
- * every item that spawns inside that npc's tiles on the same tick.
+ * The reference's LootManager watches for an npc that is DYING and collects
+ * every item that spawns inside that npc's tiles on the same tick. Its
+ * `NpcUtil.isDying` is built on `Actor.getHealthRatio() == 0` -- the overhead
+ * health bar reaching empty -- plus a hand-written table for the monsters that
+ * do not die at zero (the gargoyle family, which is finished with an item, and
+ * the bosses that transform).
  *
- * This client's plugin bus has no dying signal at all: EV_NPC_DESPAWN is
- * raised from the world's EntityRemoved event and the snapshot it carries says
- * where the npc was and what it was called, not how it left. So the port keeps
- * the SECOND half of the reference's mechanism, which is the half that does
- * not need one -- and it is not a fallback invented here, it is the path
- * RuneLite itself uses for the npcs that despawn with hitpoints left (the
- * gargoyle family): a despawn is remembered as a CANDIDATE, and it becomes a
- * kill only if loot lands on its footprint within the window.
+ * Both halves of that are portable here. `ToriRS_PluginNpcSnap` carries
+ * `health_ratio`, which is the same number off the same HEADBAR block, so a
+ * despawn with a bar at zero is a CONFIRMED kill and is counted whether or not
+ * anything dropped. A despawn with hitpoints left -- the gargoyle case, and
+ * every npc that simply walked out of view -- is only a CANDIDATE, and becomes
+ * a kill if loot lands on its footprint within the window. That is the same
+ * two-path shape the reference has, and for the same reason.
  *
- * What that trades away is stated plainly rather than papered over:
+ * What is still traded away, stated plainly:
  *
- *   - A kill that drops NOTHING is not counted. There is no signal that
- *     separates it from an npc walking out of view, and a kill count that
- *     ticked up every time something wandered off would be worse than one
- *     that undercounts a dry kill.
- *   - A drop you cannot SEE is not counted either, but that is the server's
- *     doing and not this plugin's: ground items are only sent for tiles near
- *     you, and an item somebody else's kill dropped across the room never
- *     reaches the client at all.
+ *   - A drop you cannot SEE is not counted, but that is the server's doing
+ *     and not this plugin's: ground items are only sent for tiles near you,
+ *     and an item somebody else's kill dropped across the room never reaches
+ *     the client at all.
+ *   - A gargoyle killed with no drop is not counted, because at zero-with-
+ *     hitpoints-left this cannot tell a kill from a monster wandering off.
+ *     The reference answers that with a per-npc table; this does not carry
+ *     one, because a table of ids is a thing that rots per revision and this
+ *     client boots several.
  *   - Two of the same monster dying on adjacent tiles in one tick can hand
  *     one's drop to the other. They are the same record, so the totals are
  *     right and only the per-kill split is not -- and this plugin does not
@@ -140,9 +143,17 @@ struct LtPending
     /** Footprint in tiles; loot lands anywhere inside it. */
     int size;
     uint64_t at_ms;
-    /** Items collected so far. A candidate with none is not a kill. */
+    /** Items collected so far. */
     struct LtItem items[LT_ITEMS_MAX];
     int item_count;
+    /**
+     * The health bar was at zero when it went: this IS a kill, and it is
+     * recorded whether or not anything dropped.
+     *
+     * False is not "alive" -- it is "the wire never said" -- so it means only
+     * that this despawn has to earn its record by producing loot.
+     */
+    bool confirmed;
 };
 
 static struct LtSource g_source[LT_SOURCES_MAX];
@@ -448,7 +459,7 @@ lt_pending_settle(struct ToriRS_PluginCtx* ctx, int index)
     assert(index < g_pending_count);
 
     pending = &g_pending[index];
-    if( pending->item_count > 0 )
+    if( pending->confirmed || pending->item_count > 0 )
     {
         source = lt_source_find(ctx, pending->name, true);
         assert(source >= 0);
@@ -548,6 +559,13 @@ lt_npc_despawn(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * reference's WorldArea, restated in the two numbers this bus carries. */
     pending->size = ev->npc.size > 0 ? ev->npc.size : 1;
     pending->at_ms = g_api->frame_ms(ctx);
+    /*
+     * The reference's isDying, as far as this client can state it: a bar that
+     * exists and has reached empty. `health_ratio < 0` is "no bar was ever
+     * sent", which is every npc that has not been in combat and is emphatically
+     * not a corpse -- @see ToriRS_PluginNpcSnap::health_ratio.
+     */
+    pending->confirmed = ev->npc.health_ratio == 0 && ev->npc.health_scale > 0;
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -597,9 +615,9 @@ lt_obj_spawn(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     if( lt_listed(g_api->cfg_str(ctx, "ignored_items"), item.name) )
         return TORIRS_PLUGIN_PASS;
 
-    /* Straight onto the CANDIDATE and not onto the record: a candidate with
-     * nothing on it is not a kill, and that test is what stands in for the
-     * death signal this bus does not raise. */
+    /* Straight onto the CANDIDATE and not onto the record: an UNCONFIRMED
+     * despawn earns its record by producing loot, and settling is where the
+     * two paths meet. */
     for( int i = 0; i < g_pending[best].item_count; i++ )
         if( g_pending[best].items[i].obj_id == item.obj_id )
         {

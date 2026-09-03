@@ -37,6 +37,9 @@ _Static_assert(
 _Static_assert(
     (int)UITREE_FRAME_SLOT_CHAT_BUTTONS == (int)TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
     "frame slot order must match the plugin contract");
+_Static_assert(
+    (int)UITREE_FRAME_SLOT_ORBS == (int)TORIRS_PLUGIN_SLOT_ORBS,
+    "frame slot order must match the plugin contract");
 /* The PLACEABLE half, and only that half: the plugin contract grew derived
  * regions -- CANVAS and SAFE -- which are read through the same enum and are
  * not nodes in this tree, so its own count is the placeable one. */
@@ -189,6 +192,9 @@ frame_node_is_slot(
         return c->slot_tag == UITREE_SLOT_MAIN_MODAL;
     case UITREE_FRAME_SLOT_CHAT_BUTTONS:
         return c->type == UIELEM_BUILTIN_CHAT_BUTTON;
+    case UITREE_FRAME_SLOT_ORBS:
+        /* Only ever a binder's stamp: no revconfig frame authors one. */
+        return c->slot_tag == UITREE_SLOT_ORBS;
     default:
         return 0;
     }
@@ -207,7 +213,12 @@ UITree_FrameSlotIndex(
                    ? (int)UITree_ChatButton(node)->filter
                    : -1;
     case UITREE_FRAME_SLOT_SIDEBAR:
-        return node->type == UIELEM_BUILTIN_SIDEBAR ? node->u.sidebar.tabno : -1;
+        if( node->type == UIELEM_BUILTIN_SIDEBAR )
+            return node->u.sidebar.tabno;
+        /* A cache gameframe's `sideN`, numbered by the binder. Its side-modal
+         * region -- the one node a 2004 frame tags -- carries no number and
+         * answers -1 here on both kinds of frame. */
+        return (int)node->frame_member_plus1 - 1;
     default:
         /* One surface, nothing to number. */
         return -1;
@@ -386,6 +397,33 @@ frame_is_lane_chrome(
     case UIELEM_RS_RECT:
     case UIELEM_RS_LINE:
         break;
+    case UIELEM_RS_LAYER:
+        /*
+         * A layer of the toplevel's own is chrome only when it is a CONTROL
+         * or a click-blocker: the stone a tab icon sits on, the mobile
+         * frame's "Start chatting" plate, the `map_noclick` sheet over the
+         * map ring. Those carry an op or `noclickthrough`, and left standing
+         * they take clicks over a frame that no longer draws them -- an
+         * invisible chat switch in the corner, a dead band over the world
+         * where the old map was.
+         *
+         * Every other root-group layer is a CONTAINER -- the chat mount, the
+         * side panels' shell, the HUD layers the login burst mounts packs
+         * into -- and is left alone; hiding one would hide the content in it.
+         * The caller still excludes a slot node and everything above it, so a
+         * control that happens to be an ancestor of a placed surface is kept.
+         */
+        if( c->no_click_through )
+            break;
+        if( c->menu_options )
+        {
+            int any = 0;
+            for( int i = 0; i < UITREE_MENU_OPTION_SLOTS && !any; i++ )
+                any = c->menu_options->ops[i][0] != '\0';
+            if( any )
+                break;
+        }
+        return 0;
     default:
         return 0;
     }
@@ -580,25 +618,45 @@ frame_collect_chrome(
     struct UITreeFrameLayout* fl,
     int root_group)
 {
+    uint8_t* keep;
+
     assert(tree);
     assert(fl);
+
+    /*
+     * Every slot node and every ancestor of one is off limits, marked once.
+     *
+     * The ancestors matter since layers became hideable (frame_is_lane_chrome):
+     * a cache toplevel's chat container may itself carry an op, and hiding
+     * it would hide the chat log the declaration just placed inside it.
+     */
+    keep = calloc(tree->component_count ? tree->component_count : 1, sizeof(*keep));
+    assert(keep);
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+    {
+        for( int n = 0; n < fl->slot_node_count[s]; n++ )
+        {
+            for( int32_t p = fl->slot_node[s][n]; p >= 0 && !keep[p];
+                 p = tree->components[p].parent )
+            {
+                if( !frame_node_alive(tree, p) )
+                    break;
+                keep[p] = 1;
+            }
+        }
+    }
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
-        int is_slot = 0;
 
-        if( c->freed )
-            continue;
-        for( int s = 0; s < UITREE_FRAME_SLOT_COUNT && !is_slot; s++ )
-            for( int n = 0; n < fl->slot_node_count[s] && !is_slot; n++ )
-                is_slot = fl->slot_node[s][n] == (int32_t)i;
-        if( is_slot )
+        if( c->freed || keep[i] )
             continue;
         if( !frame_is_lane_chrome(c, root_group) )
             continue;
         frame_record_hidden(tree, fl, (int32_t)i);
     }
+    free(keep);
 }
 
 static int
@@ -646,6 +704,11 @@ UITree_FrameApply(
     /* Build the new binding off to the side. The old declaration stays fully
      * effective until the diff below commits this one, so a re-declaration can
      * never expose the lane's frame as an intermediate state. */
+    /* Name the roles a cache gameframe leaves unnamed BEFORE looking for
+     * them, or a declaration made against a freshly rebuilt toplevel finds
+     * no side panels and hides the sidebar for a frame. */
+    UITree_FrameBind(tree);
+
     memset(&next, 0, sizeof(next));
     memcpy(next.slot_rect, slots, sizeof(next.slot_rect));
     next.root_group = root_group;
@@ -950,4 +1013,23 @@ UITree_FrameForget(struct UITree* tree)
         return;
     free(tree->frame_layout);
     tree->frame_layout = NULL;
+}
+
+void
+UITree_FrameSetBinder(
+    struct UITree* tree,
+    void (*binder)(struct UITree* tree, void* user),
+    void* user)
+{
+    assert(tree);
+    tree->frame_binder = binder;
+    tree->frame_binder_user = user;
+}
+
+void
+UITree_FrameBind(struct UITree* tree)
+{
+    assert(tree);
+    if( tree->frame_binder )
+        tree->frame_binder(tree, tree->frame_binder_user);
 }

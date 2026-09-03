@@ -1362,6 +1362,7 @@ plugin_safe_gamechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* o
         TORIRS_PLUGIN_SLOT_CHAT,
         TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
         TORIRS_PLUGIN_SLOT_SIDEBAR,
+        TORIRS_PLUGIN_SLOT_ORBS,
     };
     struct PluginRect box;
 
@@ -2236,6 +2237,17 @@ api_lane(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginLane* out)
     if( !ctx->host->engine.lane )
         return 0;
     return ctx->host->engine.lane(ctx->host->engine.user, out);
+}
+
+static int
+api_frame_root(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    /* Same shape as lane: a harness that has no gameframe answers "not a
+     * cache frame" rather than refusing the call. */
+    if( !ctx->host->engine.frame_root )
+        return -1;
+    return ctx->host->engine.frame_root(ctx->host->engine.user);
 }
 
 /*
@@ -6307,6 +6319,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .varp = api_varp,
         .cache_id = api_cache_id,
         .lane = api_lane,
+        .frame_root = api_frame_root,
         .disable_self = api_disable_self,
         .obj_info = api_obj_info,
         .inv_slot = api_inv_slot,

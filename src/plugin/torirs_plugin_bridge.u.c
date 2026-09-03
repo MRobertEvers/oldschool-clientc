@@ -189,6 +189,35 @@ app_plugin_fill_npc(
     out->size = npc->size > 0 ? npc->size : 1;
     out->element_id = npc->element_id;
     out->visible_ops = npc->visible_ops;
+
+    /*
+     * The health bar, if the server has ever sent one.
+     *
+     * `healthbar_end_fill` and not `start_fill`: the pair describe a fill
+     * ANIMATING from one value to another, and the end is where the server
+     * said it is going -- which is the value the reference's getHealthRatio
+     * reports and the one that reads 0 on the tick something dies. Reporting
+     * the start would say "still half full" for the whole of the bar's travel
+     * down to empty.
+     *
+     * The scale is the TYPE's width, which is a denominator and not a pixel
+     * count (see src/game/rs_healthbar.h -- conflating the two is what made
+     * boss bars screen-wide). TypeFor never returns NULL, so a cache with no
+     * healthbar group still answers with the reference's own defaults.
+     */
+    if( npc->combat.healthbar_type >= 0 )
+    {
+        struct RS_HealthbarType const* type =
+            RS_Healthbars_TypeFor(&app->healthbars, npc->combat.healthbar_type);
+        out->health_ratio = npc->combat.healthbar_end_fill;
+        out->health_scale = type->width > 0 ? type->width : RS_HEALTHBAR_DEFAULT_WIDTH;
+    }
+    else
+    {
+        out->health_ratio = -1;
+        out->health_scale = -1;
+    }
+
     /* The name was copied onto the entity at spawn/retype; there is no cache
      * fetch here, the same way the minimenu builder does not do one. */
     snprintf(out->name, sizeof(out->name), "%s", npc->name);
@@ -4138,6 +4167,132 @@ app_plugin_slot_member_rect(
 }
 
 /*
+ * Name the frame roles a cache gameframe leaves unnamed.
+ *
+ * A revconfig frame spells its regions in the tree; an OldSchool toplevel
+ * spells only the three the client already reads by clientCode (world,
+ * minimap, compass). Its chat container, fourteen side panels, side-modal
+ * box, main modal and orb column are ordinary layers, and every one of the
+ * four toplevels (fixed 548, resizable 161/164, mobile 601) numbers them
+ * differently. The profile names them per toplevel as `[role:frame_*]`
+ * chains, and this stamps the resolved node with the slot tag and member the
+ * frame layer reads (frame_node_is_slot / UITree_FrameSlotIndex).
+ *
+ * Called by the tree before every frame collection and by the layout tick
+ * every READY frame. Cheap: role resolution is memoised per generation.
+ *
+ * A node stamped on the last pass that this pass does not stamp again loses
+ * its tag, so a role that re-resolves after a CS2 rebuild does not leave two
+ * nodes claiming to be `side3`.
+ */
+#define APP_FRAME_STAMP_MAX 32
+
+static void
+app_plugin_frame_bind(struct UITree* tree, void* user)
+{
+    struct App* app = (struct App*)user;
+    static struct
+    {
+        char const* role;
+        uint8_t tag;
+        int8_t member;
+    } const ROLE[] = {
+        { "frame_chat", UITREE_SLOT_CHAT, -1 },
+        { "frame_main_modal", UITREE_SLOT_MAIN_MODAL, -1 },
+        { "frame_orbs", UITREE_SLOT_ORBS, -1 },
+        { "frame_sidebar", UITREE_SLOT_SIDE_MODAL, -1 },
+        { "frame_sidebar_0", UITREE_SLOT_SIDE_MODAL, 0 },
+        { "frame_sidebar_1", UITREE_SLOT_SIDE_MODAL, 1 },
+        { "frame_sidebar_2", UITREE_SLOT_SIDE_MODAL, 2 },
+        { "frame_sidebar_3", UITREE_SLOT_SIDE_MODAL, 3 },
+        { "frame_sidebar_4", UITREE_SLOT_SIDE_MODAL, 4 },
+        { "frame_sidebar_5", UITREE_SLOT_SIDE_MODAL, 5 },
+        { "frame_sidebar_6", UITREE_SLOT_SIDE_MODAL, 6 },
+        { "frame_sidebar_7", UITREE_SLOT_SIDE_MODAL, 7 },
+        { "frame_sidebar_8", UITREE_SLOT_SIDE_MODAL, 8 },
+        { "frame_sidebar_9", UITREE_SLOT_SIDE_MODAL, 9 },
+        { "frame_sidebar_10", UITREE_SLOT_SIDE_MODAL, 10 },
+        { "frame_sidebar_11", UITREE_SLOT_SIDE_MODAL, 11 },
+        { "frame_sidebar_12", UITREE_SLOT_SIDE_MODAL, 12 },
+        { "frame_sidebar_13", UITREE_SLOT_SIDE_MODAL, 13 },
+    };
+    int32_t next[APP_FRAME_STAMP_MAX];
+    int next_count = 0;
+
+    assert(tree);
+    assert(app);
+    _Static_assert(
+        sizeof(ROLE) / sizeof(ROLE[0]) <= APP_FRAME_STAMP_MAX,
+        "every frame role needs a stamp slot");
+
+    /* A revconfig frame authors its own regions; stamping over them would
+     * hand a builtin's job to whatever a stray role happened to match. */
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return;
+
+    for( size_t i = 0; i < sizeof(ROLE) / sizeof(ROLE[0]); i++ )
+    {
+        uint16_t const role_id = UITree_RoleFind(&app->ui_roles, ROLE[i].role);
+        int32_t node;
+        struct UITreeComponent* c;
+
+        if( role_id == 0 )
+            continue;
+        node = UITree_RoleNode(tree, &app->ui_roles, role_id);
+        if( node < 0 || (uint32_t)node >= tree->component_count )
+            continue;
+        c = &tree->components[node];
+        if( c->freed )
+            continue;
+        c->slot_tag = ROLE[i].tag;
+        c->frame_member_plus1 = (uint8_t)(ROLE[i].member + 1);
+        next[next_count++] = node;
+    }
+
+    /* Take back the stamps of last pass's nodes that are still alive and were
+     * not named again. By incarnation: a recycled index is a different node. */
+    for( int i = 0; i < app->plugin_frame_stamp_count; i++ )
+    {
+        int32_t const idx = app->plugin_frame_stamp[i].node;
+        struct UITreeComponent* c;
+        int again = 0;
+
+        if( idx < 0 || (uint32_t)idx >= tree->component_count )
+            continue;
+        c = &tree->components[idx];
+        if( c->freed || c->incarnation != app->plugin_frame_stamp[i].incarnation )
+            continue;
+        for( int n = 0; n < next_count && !again; n++ )
+            again = next[n] == idx;
+        if( again )
+            continue;
+        c->slot_tag = UITREE_SLOT_NONE;
+        c->frame_member_plus1 = 0;
+    }
+    for( int n = 0; n < next_count; n++ )
+    {
+        app->plugin_frame_stamp[n].node = next[n];
+        app->plugin_frame_stamp[n].incarnation = tree->components[next[n]].incarnation;
+    }
+    app->plugin_frame_stamp_count = next_count;
+}
+
+/**
+ * The live gameframe's root interface group, or -1 on a revconfig frame.
+ * @see ToriRS_PluginApi::frame_root.
+ */
+static int
+app_plugin_frame_root(void* user)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return -1;
+    return app->host.top_interface_id > 0 ? app->host.top_interface_id : -1;
+}
+
+/*
  * The interface group the gameframe was rooted to, or -1 on a lane whose frame
  * is revconfig builtins.
  *
@@ -4336,6 +4491,31 @@ app_plugin_tab_active(void* user)
     struct App* app = (struct App*)user;
 
     assert(app);
+    /*
+     * On a cache gameframe the selection is the cache's: its tab script
+     * (`toplevel_sidebutton_switch`) hides every side panel but the chosen
+     * one and writes a varc this client does not read. The panel that is
+     * NOT hidden is therefore the answer, read off the sidebar members the
+     * frame binder named. A frame with no named panels -- the roles are the
+     * profile's, and a boot before the tree exists has none -- falls through
+     * to the 2004 client's own selection.
+     */
+    if( App_UiLogic(app) == APP_UI_LOGIC_CS2 && app->tree )
+    {
+        int named = 0;
+        for( int tab = 0; tab < RS_UI_SLOTS_TAB_MAX; tab++ )
+        {
+            int32_t const node =
+                UITree_FrameSlotMemberNode(app->tree, TORIRS_PLUGIN_SLOT_SIDEBAR, tab);
+            if( node < 0 )
+                continue;
+            named = 1;
+            if( !app->tree->components[node].behavior.hide )
+                return tab;
+        }
+        if( named )
+            return -1;
+    }
     return app->slots.side_tab;
 }
 
@@ -4352,6 +4532,35 @@ app_plugin_tab_select(void* user, int tabno)
      * blanking the sidebar when it is pressed. */
     if( tabno < 0 || tabno >= RS_UI_SLOTS_TAB_MAX )
         return 0;
+    /*
+     * A cache gameframe switches tabs by SCRIPT: the stone's op runs the
+     * cache's own switch, which unhides the panel, lights the stone and
+     * records the choice in a varc the rest of its scripts read. Running that
+     * script with the tab number is what a click on the stone would have
+     * done, and it is the only way the cache's own state agrees with the
+     * frame afterwards. The profile names the script; a lane whose profile
+     * does not is a lane where a plugin stone cannot switch tabs, said once.
+     */
+    if( App_UiLogic(app) == APP_UI_LOGIC_CS2 )
+    {
+        int const script = RevConfigRefs_Get(&app->revconfig_refs, "script", "sidebar_switch");
+        int args[1];
+
+        if( !RS_UISlots_TabGiven(app, tabno) )
+            return 0;
+        if( script <= 0 )
+        {
+            static int said;
+            if( !said++ )
+                TORIRS_LOG("plugin: no [script:sidebar_switch] in this profile; "
+                           "a plugin frame cannot switch sidebar tabs\n");
+            return 0;
+        }
+        args[0] = tabno;
+        RS_CS2_RunScript(&app->host, &app->runner, script, args, 1, 0, NULL, 0);
+        app->need_redraw = 1;
+        return 1;
+    }
     if( !RS_UISlots_TabEnabled(&app->slots, tabno) )
         return 0;
     RS_UISlots_SetSideTab(app, tabno);
@@ -4715,6 +4924,7 @@ app_plugin_engine(struct App* app)
     engine.varp = app_plugin_varp;
     engine.cache_id = app_plugin_cache_id;
     engine.lane = app_plugin_lane;
+    engine.frame_root = app_plugin_frame_root;
     engine.obj_info = app_plugin_obj_info;
     engine.inv_slot = app_plugin_inv_slot;
     engine.inv_size = app_plugin_inv_size;

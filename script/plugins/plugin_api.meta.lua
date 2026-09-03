@@ -278,6 +278,7 @@ dofile = nil
 ---@field compass torirs.LayoutRegion
 ---@field chat torirs.LayoutRegion The chat log and its input line.
 ---@field chat_buttons torirs.LayoutRegion The four filter buttons.
+---@field orbs torirs.LayoutRegion The minimap's orb column, as one block. A cache lane mounts it as a pack beside the map; a 2004 frame has none.
 ---@field sidebar torirs.LayoutRegion Whichever sidebar interface is open.
 ---@field main_modal torirs.LayoutRegion Where a bank, a level-up or a dialogue opens.
 ---@field modal_viewport torirs.LayoutRegion The same region as `main_modal`, under the other name people know it by.

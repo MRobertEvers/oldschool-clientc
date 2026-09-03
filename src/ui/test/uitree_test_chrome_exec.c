@@ -1347,6 +1347,78 @@ rail_fixture_poll(void* user, struct ToriRSChromeRailIntent* out, int max)
     return count;
 }
 
+/*
+ * A page BOUNDARY has to restate the whole page, not the difference from the
+ * page that was just discarded.
+ *
+ * The shared plugin shell mounts one page at a time, and a page-retaining
+ * executor drops its DOM when the selection moves -- it must, because a delta
+ * authored for one page cannot patch another's. The shadow here still
+ * describes the discarded page at that moment, so a plain Run emits only the
+ * DIFFERENCE between the two.
+ *
+ * Where the two pages are structurally alike -- the same rows in the same
+ * order, which is the ordinary case for a family of plugin readouts -- that
+ * difference carries no WIDGET_ADD at all. The executor is handed what it
+ * treats as a fresh image of the page, containing three label changes and no
+ * controls, and mounts an EMPTY pane. Switching straight from one plugin's
+ * page to another's is exactly the gesture that produces it, which is why the
+ * two pages below differ only in their text.
+ */
+static void
+test_chrome_exec_invalidate_restates_the_page(void)
+{
+    int panel;
+    int label;
+    int button;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 320, "XP Tracker");
+    label = ToriRSChrome_Label(&g_ui, panel, "XP gained: 0");
+    button = ToriRSChrome_Button(&g_ui, panel, "Reset all");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(exec_settle() > 0, "the first page is stated in full");
+
+    /* The SECOND plugin's page: same panel, same two rows, same kinds, and
+     * only the words differ. */
+    ToriRSChrome_SetText(&g_ui, label, "Kills: 0");
+    ToriRSChrome_SetText(&g_ui, button, "Clear all loot");
+    ToriRSChrome_PanelSetTitle(&g_ui, panel, "Loot Tracker");
+    ToriRSChrome_Build(&g_ui);
+
+    /* Without the invalidate this is a handful of text patches and nothing
+     * else -- which is the bug, stated as an assertion so the fix below is
+     * measuring something real rather than restating the obvious. */
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "a text-only change still says something");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 0,
+        "and it carries no control at all, because none of them moved");
+    g_rec.count = 0;
+
+    /* Now the page boundary, announced. Nothing about the BINDING changed --
+     * the window stays open -- so the next Run must restate the page over an
+     * executor that has thrown its copy away. */
+    ToriRSChromeSync_Invalidate(&g_sync);
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "an invalidated shadow restates");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_PANEL_OPEN) == 1,
+        "the panel is opened again");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, label) != NULL &&
+            ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, button) != NULL,
+        "and EVERY control is added, not only the ones whose text moved");
+    g_rec.count = 0;
+
+    /* And it is a one-shot: the frame after a restatement is quiet again, so
+     * a page boundary costs one transaction rather than turning the whole
+     * pane into a per-frame rebuild. */
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0,
+        "the frame after a restatement is quiet again");
+}
+
 static void
 test_chrome_exec_retained_rail(void)
 {
@@ -1463,4 +1535,5 @@ test_chrome_exec(void)
     test_chrome_exec_custom_shape();
     test_chrome_exec_external_intent_serial();
     test_chrome_exec_retained_rail();
+    test_chrome_exec_invalidate_restates_the_page();
 }

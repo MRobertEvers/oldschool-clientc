@@ -18,7 +18,7 @@
  * sized array that no longer matches, which the static assert below catches.
  */
 static char const* const ROLE_SLOT_NAME[UITREE_FRAME_SLOT_COUNT] = {
-    "viewport", "minimap", "compass", "chat", "sidebar", "main_modal", "chat_buttons",
+    "viewport", "minimap", "compass", "chat", "sidebar", "main_modal", "chat_buttons", "orbs",
 };
 
 _Static_assert(

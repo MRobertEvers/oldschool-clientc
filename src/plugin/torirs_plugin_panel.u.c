@@ -161,6 +161,28 @@ app_plugin_page_select(struct App* app, int page, int view)
         else if( PluginHost_PanelActive(app->plugins) >= 0 )
             (void)PluginHost_PanelClose(app->plugins);
     }
+    /*
+     * The page IDENTITY moved, so whatever the executor is holding is about to
+     * be discarded and the shadow that describes it is now a description of
+     * nothing.
+     *
+     * A page-retaining executor drops its DOM when it sees the new generation
+     * -- it must, because a delta authored for one page cannot patch another's
+     * -- and without this the next Run would emit only the DIFFERENCE between
+     * the old page and the new one. Two plugin pages built from the same
+     * vocabulary are routinely alike row for row, and that difference then
+     * carries no WIDGET_ADD at all: the executor mounts a "snapshot" of three
+     * label changes and shows an empty pane. Switching straight from one
+     * plugin's page to another's is exactly the gesture that produces it.
+     *
+     * Unconditional, because every exit from this function is a page boundary
+     * -- roster to page, page to roster, one plugin to another, and one face
+     * of a plugin to its other one. Restating a page costs one transaction on
+     * a gesture a person just made.
+     */
+    if( app->plugin_exec.live )
+        ToriRSChromeSync_Invalidate(&app->plugin_exec);
+
     g_plugin_page = page;
     ToriRSChromeShell_Select(
         &app->plugin_shell,
@@ -286,6 +308,24 @@ app_plugin_choice_index(char const* const* choices, int count, char const* value
  * offering a page that turns out to be empty is worse than one that offers
  * nothing.
  */
+/**
+ * Does the bound executor PRESENT a rail?
+ *
+ * The in-canvas (buffer) executor does not -- it has no `rail_sync` at all --
+ * and on that lane the roster is the only navigation there is. That changes
+ * what a roster row has to mean: where a rail exists the row is the settings
+ * destination and the plugin's own stone is the page, and where none exists
+ * the row is the only way to either and must land on the page, with the
+ * page's own Settings button for the rest. A row that opened the settings on
+ * a lane with no stone would make every plugin page unreachable.
+ */
+static int
+app_plugin_rail_present(struct App const* app)
+{
+    assert(app);
+    return app->plugin_exec.live && app->plugin_exec.exec.rail_sync != NULL;
+}
+
 static int
 app_plugin_has_page(struct App* app, int plugin)
 {
@@ -1770,10 +1810,22 @@ app_plugin_panel_apply(struct App* app, int widget)
              */
             if( ToriRSChrome_ActivationWasAction(&app->plugin_ui) )
             {
-                /* The ROSTER is a list of settings pages, so its row opens
-                 * the settings -- not the plugin's own screen, which is what
-                 * its rail stone is for. @see enum AppPluginPageView. */
-                app_plugin_page_select(app, row->plugin, APP_PLUGIN_VIEW_SETTINGS);
+                /*
+                 * The ROSTER is a list of settings pages, so its row opens the
+                 * settings -- not the plugin's own screen, which is what its
+                 * rail stone is for. @see enum AppPluginPageView.
+                 *
+                 * Unless there IS no stone: on an executor with no rail the
+                 * row is the only way in, and it opens the page.
+                 * @see app_plugin_rail_present.
+                 */
+                app_plugin_page_select(
+                    app,
+                    row->plugin,
+                    !app_plugin_rail_present(app) &&
+                            PluginHost_PanelHasPage(app->plugins, row->plugin)
+                        ? APP_PLUGIN_VIEW_PAGE
+                        : APP_PLUGIN_VIEW_SETTINGS);
                 return;
             }
             /* Cleared BEFORE the start and not after: whatever it said was
@@ -2663,17 +2715,22 @@ app_plugin_window_set_open(struct App* app, int open)
         /* Reopening a semantic detail page rebuilds only the remembered
          * plugin. Manage/legacy pages do not wake any panel plugin. */
         if( app->plugins && g_plugin_page >= 0 &&
-            PluginHost_PanelHasPage(app->plugins, g_plugin_page) &&
-            PluginHost_PanelActive(app->plugins) != g_plugin_page )
+            PluginHost_PanelHasPage(app->plugins, g_plugin_page) )
+        {
             /* Back to the FACE it was closed on, not to the page: reopening a
              * settings form on the plugin's readout would be the window
              * changing the subject. @see enum ToriRS_PluginPanelView. */
-            (void)PluginHost_PanelSelectView(
-                app->plugins,
-                g_plugin_page,
-                g_plugin_page_view == APP_PLUGIN_VIEW_PAGE
-                    ? TORIRS_PLUGIN_PANEL_VIEW_PAGE
-                    : TORIRS_PLUGIN_PANEL_VIEW_SETTINGS);
+            int const want = g_plugin_page_view == APP_PLUGIN_VIEW_PAGE
+                                 ? TORIRS_PLUGIN_PANEL_VIEW_PAGE
+                                 : TORIRS_PLUGIN_PANEL_VIEW_SETTINGS;
+            /* The VIEW is half the test, not an afterthought: the plugin can
+             * already be the mounted one while the host holds its other face,
+             * and a guard that compared only the plugin would leave the page
+             * showing whichever face was up last. */
+            if( PluginHost_PanelActive(app->plugins) != g_plugin_page ||
+                PluginHost_PanelView(app->plugins) != want )
+                (void)PluginHost_PanelSelectView(app->plugins, g_plugin_page, want);
+        }
         ToriRSChromeShell_Select(
             &app->plugin_shell,
             g_plugin_page >= 0 ? g_plugin_page : TORIRS_CHROME_SHELL_PAGE_MANAGE);
@@ -2882,10 +2939,19 @@ app_plugin_rail_drain(struct App* app)
     if( !PluginHost_PanelHasPage(app->plugins, latest_select.plugin_index) )
         return;
 
-    /* The selected expanded entry is a collapse affordance. Every other
-     * registered entry selects/replaces the sole page and expands the shell. */
+    /*
+     * The selected expanded entry is a collapse affordance. Every other
+     * registered entry selects/replaces the sole page and expands the shell.
+     *
+     * The stone means "show me this plugin's PAGE", so it is only its own off
+     * switch while the page is what is showing. Pressing it while the SETTINGS
+     * face of the same plugin is up goes back to the page instead -- otherwise
+     * the stone becomes a toggle between closed and the settings, and a plugin
+     * whose settings you once opened can never be looked at again.
+     */
     if( app->plugin_panel_visible &&
-        app->plugin_shell.active_plugin == latest_select.plugin_index )
+        app->plugin_shell.active_plugin == latest_select.plugin_index &&
+        g_plugin_page_view == APP_PLUGIN_VIEW_PAGE )
     {
         app_plugin_window_set_open(app, 0);
         return;
