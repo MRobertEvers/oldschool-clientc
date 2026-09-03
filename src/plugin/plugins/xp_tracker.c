@@ -231,6 +231,8 @@ static bool g_page_built;
  * window that is shut.
  */
 static bool g_page_visible;
+/** The saved session has been reconciled onto a sized table, once. */
+static bool g_state_applied;
 
 /** Wall clock of the last per-second tick, and of the session's start. */
 static uint64_t g_last_second_ms;
@@ -1350,20 +1352,12 @@ xt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     assert(ctx);
 
     g_skill_count = 0;
-    while( g_skill_count < XT_SKILLS_MAX && g_api->skill_name(ctx, g_skill_count) )
-        g_skill_count++;
-    assert(g_skill_count > 0);
-
-    for( int i = 0; i < g_skill_count; i++ )
-    {
-        memset(&g_skill[i], 0, sizeof(g_skill[i]));
-        g_skill[i].start_xp = -1;
-    }
     memset(g_built_rows, 0, sizeof(g_built_rows));
     g_detail = -1;
     g_built_detail = -1;
     g_page_built = false;
     g_page_visible = false;
+    g_state_applied = false;
     g_logged_in = false;
     g_session_start_ms = g_api->frame_ms(ctx);
     g_last_second_ms = g_session_start_ms;
@@ -1380,9 +1374,10 @@ xt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     /* Queued, not read: the file crosses the IO queue like every other asset,
      * and the answer arrives at EV_ASSET. A load that is already resident
      * answers 1 and no event follows, so the apply has to happen here too. */
-    if( g_api->cfg_bool(ctx, "save_state") &&
-        g_api->asset_load(ctx, XT_STATE_ASSET) == 1 )
-        xt_state_apply(ctx);
+    /* Requested here and applied by the sizer: the file crosses the IO queue
+     * and the stat table does not exist yet either. */
+    if( g_api->cfg_bool(ctx, "save_state") )
+        (void)g_api->asset_load(ctx, XT_STATE_ASSET);
 
     return TORIRS_PLUGIN_PASS;
 }
@@ -1397,8 +1392,12 @@ xt_asset(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     assert(ctx);
     assert(ev);
 
-    if( ev->ok && ev->name && strcmp(ev->name, XT_STATE_ASSET) == 0 )
+    /* Only once a table exists to reconcile onto; otherwise the sizer does it
+     * when one does. */
+    if( ev->ok && ev->name && strcmp(ev->name, XT_STATE_ASSET) == 0 &&
+        g_skill_count > 0 && !g_state_applied )
     {
+        g_state_applied = true;
         xt_state_apply(ctx);
         g_api->panel_clear(ctx);
     }
@@ -1417,6 +1416,51 @@ xt_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     return TORIRS_PLUGIN_PASS;
 }
 
+/**
+ * Size the skill table, the first time the client can answer.
+ *
+ * NOT at EV_START, and that is the whole point: a plugin starts when the
+ * client boots, and the stat table does not exist until a session has one --
+ * so `skill_name` answers NULL for every index and a table sized there is
+ * sized to ZERO, permanently, for a plugin whose every loop runs to
+ * g_skill_count. The assert that was supposed to catch it is compiled out of a
+ * release build, so the symptom is not a crash: it is a tracker that quietly
+ * never tracks anything for the whole session.
+ *
+ * Lazy and idempotent, which is how xp-drop-orbs sizes the same table.
+ */
+static void
+xt_size_table(struct ToriRS_PluginCtx* ctx)
+{
+    int count = 0;
+
+    assert(ctx);
+    if( g_skill_count > 0 )
+        return;
+    while( count < XT_SKILLS_MAX && g_api->skill_name(ctx, count) )
+        count++;
+    if( count == 0 )
+        return; /* no session yet; ask again next tick */
+
+    g_skill_count = count;
+    for( int i = 0; i < g_skill_count; i++ )
+    {
+        memset(&g_skill[i], 0, sizeof(g_skill[i]));
+        g_skill[i].start_xp = -1;
+    }
+    g_session_start_ms = g_api->frame_ms(ctx);
+
+    /* The saved session can only be reconciled once there is a table to
+     * reconcile it ONTO -- xt_state_apply reads a skill by name and asks the
+     * client for its xp, and both need the stat table that has just arrived. */
+    if( !g_state_applied )
+    {
+        g_state_applied = true;
+        xt_state_apply(ctx);
+        g_api->panel_clear(ctx);
+    }
+}
+
 static enum ToriRS_PluginVerdict
 xt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
@@ -1428,6 +1472,9 @@ xt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     bool const logged_in = g_api->local_player(ctx, &me) != 0;
 
     assert(ctx);
+    xt_size_table(ctx);
+    if( g_skill_count == 0 )
+        return TORIRS_PLUGIN_PASS;
 
     if( !logged_in )
     {

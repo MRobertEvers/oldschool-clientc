@@ -697,6 +697,27 @@ fake_obj_image(void* u, int slot, int obj_id, int count, int style, int* out_w, 
     return 0;
 }
 
+/* The client's own loot record. A fake engine records nothing, which is the
+ * ordinary answer on a lane whose server has no kill hook. */
+static int
+fake_loot_source_next(void* u, int iter, struct ToriRS_PluginLootSource* out)
+{
+    (void)u;
+    (void)iter;
+    (void)out;
+    return -1;
+}
+static int
+fake_loot_row_next(
+    void* u, int source_id, int iter, struct ToriRS_PluginLootRow* out)
+{
+    (void)u;
+    (void)source_id;
+    (void)iter;
+    (void)out;
+    return -1;
+}
+
 static int
 fake_draw_image(
     void* u, int slot, int x, int y, int w, int h, int cx, int cy, int cw, int ch, int trans)
@@ -1342,6 +1363,8 @@ main(void)
     e.image_read = fake_image_read;
     e.image_release = fake_image_release;
     e.obj_image = fake_obj_image;
+    e.loot_source_next = fake_loot_source_next;
+    e.loot_row_next = fake_loot_row_next;
     e.draw_image = fake_draw_image;
     e.hit_region = fake_hit_region;
     e.if_click = fake_if_click;

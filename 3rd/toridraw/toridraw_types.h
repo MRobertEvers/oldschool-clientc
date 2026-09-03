@@ -283,6 +283,26 @@ struct ToriDraw_Model
     uint8_t* texture_render_types;
     faceint_t* face_texture_coords;
 
+    /*
+     * One block holding every array below the geometry line, or NULL.
+     *
+     * A world tile is four vertices and two faces -- about a hundred bytes of
+     * real data spread over thirteen arrays. Allocating them one at a time cost
+     * thirteen mallocs and thirteen frees per tile, and a scene is eleven
+     * thousand tiles, so the allocator saw a hundred and forty thousand calls
+     * per rebuild to move a megabyte. Carving them out of a single block makes
+     * that one call, and the free path one more.
+     *
+     * Set ONLY by a producer that carved every one of those arrays out of it
+     * (world_decode_tile is the one), and it is all-or-nothing: with this set,
+     * ToriDraw_ModelFree_arrays frees the block INSTEAD of the individual
+     * arrays it covers, so a model carrying it must never have one of them
+     * replaced or grown. The fields it does not cover -- normals, bones,
+     * animaya, the original_* bind pose -- are freed the ordinary way whether
+     * this is set or not.
+     */
+    void* arrays_block;
+
     struct ToriDraw_Normals* normals;
     struct ToriDraw_Normals* merged_normals;
     struct ToriDraw_Bones* vertex_bones;

@@ -2971,6 +2971,63 @@ app_plugin_image_release(void* user, int slot)
  * would mean teaching the whole image path a second kind of handle. The pixels
  * are 36x32; the copy is not what this costs.
  */
+/*
+ * The client's own loot record, walked.
+ *
+ * A COPY per step rather than a pointer into the store, for the reason every
+ * other snapshot in this seam is a copy: the store grows on demand and a
+ * plugin holding a row pointer across a drop would be holding freed memory.
+ */
+static int
+app_plugin_loot_source_next(
+    void* user, int iter, struct ToriRS_PluginLootSource* out)
+{
+    struct App* app = (struct App*)user;
+    int const next = iter + 1;
+
+    assert(app);
+    assert(out);
+
+    if( next < 0 || next >= LootStore_SourceCount(&app->loot) )
+        return -1;
+    memset(out, 0, sizeof(*out));
+    {
+        struct LootSource const* src = &app->loot.sources[next];
+        out->id = src->id;
+        snprintf(out->name, sizeof(out->name), "%s", src->name ? src->name : "");
+        out->row_count = src->row_count;
+        out->kill_count = src->kill_count;
+    }
+    return next;
+}
+
+static int
+app_plugin_loot_row_next(
+    void* user, int source_id, int iter, struct ToriRS_PluginLootRow* out)
+{
+    struct App* app = (struct App*)user;
+    int const next = iter + 1;
+
+    assert(app);
+    assert(out);
+
+    for( int i = 0; i < app->loot.source_count; i++ )
+    {
+        struct LootSource const* src = &app->loot.sources[i];
+
+        if( src->id != source_id )
+            continue;
+        if( next < 0 || next >= src->row_count )
+            return -1;
+        memset(out, 0, sizeof(*out));
+        out->obj_id = src->rows[next].obj_id;
+        out->quantity = src->rows[next].qty;
+        out->value = src->rows[next].value;
+        return next;
+    }
+    return -1;
+}
+
 static int
 app_plugin_obj_image(
     void* user,
@@ -4980,6 +5037,8 @@ app_plugin_engine(struct App* app)
     engine.image_read = app_plugin_image_read;
     engine.image_release = app_plugin_image_release;
     engine.obj_image = app_plugin_obj_image;
+    engine.loot_source_next = app_plugin_loot_source_next;
+    engine.loot_row_next = app_plugin_loot_row_next;
     engine.draw_image = app_plugin_draw_image;
     engine.hit_region = app_plugin_hit_region;
     engine.if_click = app_plugin_if_click;

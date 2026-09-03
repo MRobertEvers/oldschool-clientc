@@ -139,6 +139,24 @@ ToriDraw_SharedFacesStoreBorrow(
     struct ToriDraw_ModelHandle owned);
 
 /**
+ * A placement of `key` built from the set's own template, or a NONE handle
+ * when there is no set for that key (or its first lender carried something the
+ * template does not describe).
+ *
+ * The saving the loan could not make. ToriDraw_SharedFacesStoreBorrow dedups
+ * the face arrays AFTER every placement has built its own; this reproduces the
+ * placement without building it -- seven array copies against a convert of
+ * every source model, a merge, and the recolour/retexture/mirror/resize pass.
+ * What comes back is the same TORIDRAWMK_MODEL_LENT_FACES a Borrow returns and
+ * is byte-identical to what the build would have produced, which is what the
+ * world builder's lighting checksum holds it to.
+ */
+struct ToriDraw_ModelHandle
+ToriDraw_SharedFacesStoreClone(
+    struct ToriDraw_SharedFacesStore* store,
+    int64_t key);
+
+/**
  * Drop one lender of a buffer set, freeing it at the last.
  *
  * Callers reach this through ToriDraw_ModelFree, which routes any model

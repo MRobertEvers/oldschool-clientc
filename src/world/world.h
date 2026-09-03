@@ -275,12 +275,48 @@ struct World_LocChange
  * replace it -- and unlike a table it hands back a pointer that stays valid
  * for the life of the world, which is the whole point.
  */
+/* How many buckets index the interned scenery infos. Fixed and generous: a
+ * scene interns a few hundred distinct (name, actions) sets, and the table is
+ * one per World. */
+#define WORLD_SCENERY_INFO_BUCKETS 1024
+
 struct World_SceneryInfoTable
 {
     struct WorldEntity_SceneryInfo** entries;
     uint32_t* hashes;
+    /*
+     * Entry index by hash bucket, and the chain that walks them.
+     *
+     * The intern used to be a linear scan of every entry already in the table,
+     * once per PLACEMENT: a settled Lumbridge scene interns a few hundred
+     * distinct sets across eight thousand placements, so the scan compared a
+     * few million hashes per rebuild and cost more than the model conversion
+     * it sat next to. Same table, same entries, same dedup -- reached through
+     * a bucket instead of from the front.
+     */
+    int* buckets; /* [WORLD_SCENERY_INFO_BUCKETS], entry index or -1 */
+    int* chain;   /* [capacity], next entry index in the same bucket, or -1 */
     int count;
     int capacity;
+
+    /*
+     * loc id -> the info interned for it, for the length of one build.
+     *
+     * The name and the five menu actions are the LOC CONFIG's, so every
+     * placement of a loc interns the identical two hundred bytes. Doing that
+     * per placement meant assembling the probe (a memset, a name copy and five
+     * action copies) and hashing all of it eight thousand times a rebuild, to
+     * arrive at one of a few hundred answers. Asking once per loc leaves the
+     * dedup exactly where it was and skips the arithmetic that led to it.
+     *
+     * Keyed by loc id and CLEARED PER BUILD (World_SceneryInfoMemoClear, from
+     * WorldBuilder_RebuildCenterzoneBegin): a loc config can be reloaded or
+     * morph between rebuilds, and a memo that outlived the build would hand
+     * out the previous config's name.
+     */
+    int* memo_loc_ids;
+    struct WorldEntity_SceneryInfo const** memo_infos;
+    int memo_capacity;
 };
 
 struct World
@@ -918,6 +954,10 @@ World_PluginObjectClear(struct World* world);
  * filling it -- entries are compared byte for byte, so trailing garbage past a
  * short name would split one label into two.
  */
+/** Drop the per-build loc-id memo. @see World_SceneryInfoTable::memo_loc_ids. */
+void
+World_SceneryInfoMemoClear(struct World* world);
+
 struct WorldEntity_SceneryInfo const*
 World_SceneryInfoIntern(
     struct World* world,

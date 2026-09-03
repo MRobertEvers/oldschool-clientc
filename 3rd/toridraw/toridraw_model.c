@@ -468,24 +468,33 @@ ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
 void
 ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
 {
-    free(m->vertices_x);
-    free(m->vertices_y);
-    free(m->vertices_z);
-    free(m->face_colors_a);
-    free(m->face_colors_b);
-    free(m->face_colors_c);
+    /* One block, or thirteen arrays. @see ToriDraw_Model::arrays_block. */
+    if( m->arrays_block )
+    {
+        free(m->arrays_block);
+    }
+    else
+    {
+        free(m->vertices_x);
+        free(m->vertices_y);
+        free(m->vertices_z);
+        free(m->face_colors_a);
+        free(m->face_colors_b);
+        free(m->face_colors_c);
+
+        /* Every array is this model's -- that is what the type means now. A
+         * placement borrowing its faces is a ToriDraw_ModelLentFaces, which
+         * NULLs the twelve aliases before calling this and then drops its
+         * share of the loan; see ToriDraw_ModelLentFacesFree. */
+#define TORIDRAW_FACE_FREE(field) free(m->field);
+        TORIDRAW_MODEL_FACE_FIELDS(TORIDRAW_FACE_FREE)
+#undef TORIDRAW_FACE_FREE
+    }
+
     free(m->original_vertices_x);
     free(m->original_vertices_y);
     free(m->original_vertices_z);
     free(m->original_face_alphas);
-
-    /* Every array is this model's -- that is what the type means now. A
-     * placement borrowing its faces is a ToriDraw_ModelLentFaces, which NULLs
-     * the twelve aliases before calling this and then drops its share of the
-     * loan; see ToriDraw_ModelLentFacesFree. */
-#define TORIDRAW_FACE_FREE(field) free(m->field);
-    TORIDRAW_MODEL_FACE_FIELDS(TORIDRAW_FACE_FREE)
-#undef TORIDRAW_FACE_FREE
     ToriDraw_NormalsFree(m->normals);
     ToriDraw_NormalsFree(m->merged_normals);
     ToriDraw_BonesFree(m->vertex_bones);

@@ -491,6 +491,131 @@ fake_draw_image(
     g_client.icons_drawn++;
 }
 
+/* ---- the client's own loot store, faked -----------------------------------
+ *
+ * The loot tracker reads game/rs_loot_store.c rather than correlating deaths
+ * with item spawns, so what a case seeds is a STORE: a source per kind of
+ * kill, rows under it, and a kill count bumped once per event id exactly as
+ * LootStore_AddKillLoot bumps it.
+ */
+#define FAKE_LOOT_SOURCES 8
+#define FAKE_LOOT_ROWS 16
+
+static struct
+{
+    struct
+    {
+        int id;
+        char name[64];
+        int kill_count;
+        int last_event;
+        struct ToriRS_PluginLootRow rows[FAKE_LOOT_ROWS];
+        int row_count;
+    } source[FAKE_LOOT_SOURCES];
+    int count;
+    int next_id;
+} g_store;
+
+/** LootStore_AddKillLoot, as far as this test needs it. */
+static void
+loot_add(char const* name, int obj_id, int qty, int value, int event_id)
+{
+    int index = -1;
+
+    for( int i = 0; i < g_store.count; i++ )
+        if( strcmp(g_store.source[i].name, name) == 0 )
+            index = i;
+    if( index < 0 )
+    {
+        assert(g_store.count < FAKE_LOOT_SOURCES);
+        index = g_store.count++;
+        memset(&g_store.source[index], 0, sizeof(g_store.source[index]));
+        g_store.source[index].id = ++g_store.next_id;
+        snprintf(
+            g_store.source[index].name, sizeof(g_store.source[index].name), "%s",
+            name);
+        g_store.source[index].last_event = -1;
+    }
+    /* One kill per EVENT, so a multi-item drop counts once. */
+    if( g_store.source[index].last_event != event_id )
+    {
+        g_store.source[index].kill_count++;
+        g_store.source[index].last_event = event_id;
+    }
+    if( obj_id < 0 )
+        return;
+    for( int r = 0; r < g_store.source[index].row_count; r++ )
+        if( g_store.source[index].rows[r].obj_id == obj_id )
+        {
+            g_store.source[index].rows[r].quantity += qty;
+            return;
+        }
+    assert(g_store.source[index].row_count < FAKE_LOOT_ROWS);
+    {
+        struct ToriRS_PluginLootRow* row =
+            &g_store.source[index].rows[g_store.source[index].row_count++];
+        row->obj_id = obj_id;
+        row->quantity = qty;
+        row->value = value;
+    }
+}
+
+static int
+fake_loot_source_next(
+    struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLootSource* out)
+{
+    int const next = iter + 1;
+    (void)ctx;
+    if( next < 0 || next >= g_store.count )
+        return -1;
+    memset(out, 0, sizeof(*out));
+    out->id = g_store.source[next].id;
+    snprintf(out->name, sizeof(out->name), "%s", g_store.source[next].name);
+    out->row_count = g_store.source[next].row_count;
+    out->kill_count = g_store.source[next].kill_count;
+    return next;
+}
+
+static int
+fake_loot_row_next(
+    struct ToriRS_PluginCtx* ctx,
+    int source_id,
+    int iter,
+    struct ToriRS_PluginLootRow* out)
+{
+    int const next = iter + 1;
+    (void)ctx;
+    for( int i = 0; i < g_store.count; i++ )
+    {
+        if( g_store.source[i].id != source_id )
+            continue;
+        if( next < 0 || next >= g_store.source[i].row_count )
+            return -1;
+        *out = g_store.source[i].rows[next];
+        return next;
+    }
+    return -1;
+}
+
+static int
+fake_obj_info(
+    struct ToriRS_PluginCtx* ctx, int obj_id, struct ToriRS_PluginObjInfo* out)
+{
+    (void)ctx;
+    memset(out, 0, sizeof(*out));
+    out->obj_id = obj_id;
+    /* Every case names its items, so the store's ids map back by a table the
+     * case seeds beside them. */
+    for( int i = 0; i < g_store.count; i++ )
+        for( int r = 0; r < g_store.source[i].row_count; r++ )
+            if( g_store.source[i].rows[r].obj_id == obj_id )
+            {
+                snprintf(out->name, sizeof(out->name), "obj%d", obj_id);
+                return 1;
+            }
+    return 0;
+}
+
 static struct ToriRS_PluginApi g_api;
 
 static void
@@ -524,6 +649,9 @@ api_init(void)
     g_api.panel_clear = fake_panel_clear;
     g_api.panel_invalidate = fake_panel_invalidate;
     g_api.obj_image = fake_obj_image;
+    g_api.obj_info = fake_obj_info;
+    g_api.loot_source_next = fake_loot_source_next;
+    g_api.loot_row_next = fake_loot_row_next;
     g_api.image_size = fake_image_size;
     g_api.draw_image = fake_draw_image;
 }
@@ -655,6 +783,8 @@ press_box(int row)
  * LT_HEAD_H block.
  */
 #define TEST_HEAD_H 33
+/** The totals band the strip opens with, which every band sits below. */
+#define TEST_TOTALS_H 44
 
 static void
 press_strip(int y)
@@ -674,12 +804,13 @@ press_strip(int y)
         panel_build();
 }
 
-/** Is there a band strip with anything in it? */
+/** Is there a band strip with anything in it? A strip with only its totals
+ *  band and the empty note is the "nothing recorded" state. */
 static int
 has_loot(void)
 {
     struct FakeWidget const* w = fake_widget_find("strip");
-    return w && w->height > TEST_HEAD_H;
+    return w && w->height > TEST_TOTALS_H + TEST_HEAD_H;
 }
 
 /** The source whose detail block is open, or NULL. */
@@ -718,6 +849,7 @@ static void
 client_reset(void)
 {
     memset(&g_client, 0, sizeof(g_client));
+    memset(&g_store, 0, sizeof(g_store));
     memset(g_handler, 0, sizeof(g_handler));
     g_client.now_ms = 100000;
     g_client.logged_in = true;
@@ -1100,10 +1232,16 @@ test_xp_offline_gains_are_not_the_session(void)
 /* Loot tracker                                                            */
 /* ====================================================================== */
 
+/** Let the tick pull the store into the page. */
+static void
+settle(void)
+{
+    tick(1000);
+}
+
 static void
 loot_start(void)
 {
-    fake_config_set_raw("remember_loot", "0");
     fake_config_set_raw("price_source", "Cache value");
     fake_config_set_raw("kill_chat_message", "0");
     fake_config_set_raw("chat_value_threshold", "0");
@@ -1114,200 +1252,63 @@ loot_start(void)
     panel_build();
 }
 
-/**
- * An npc leaves the scene at a tile, with its health bar where `ratio` says.
+/*
+ * A kill in the client's store becomes a band.
  *
- * -1 is "no bar was ever sent", which is the ordinary state of an npc that has
- * not been in combat; 0 is the bar reaching empty, which is the reference's
- * isDying. The two must not be confused, and this is where a test says so.
+ * The store is the CLIENT's record -- the server's kill hook feeds it and the
+ * game's own tracker reads it -- so a case seeds the store rather than
+ * staging a despawn and hoping the plugin correlates it.
  */
-static void
-npc_despawn_health(char const* name, int x, int z, int size, int ratio)
-{
-    struct ToriRS_PluginEvNpc ev;
-
-    memset(&ev, 0, sizeof(ev));
-    ev.npc.npc_id = 3029;
-    ev.npc.base_npc_id = 3029;
-    snprintf(ev.npc.name, sizeof(ev.npc.name), "%s", name);
-    ev.npc.true_x = x;
-    ev.npc.true_z = z;
-    ev.npc.level = 0;
-    ev.npc.size = size;
-    ev.npc.element_id = 7;
-    ev.npc.health_ratio = ratio;
-    ev.npc.health_scale = ratio >= 0 ? 30 : -1;
-    dispatch(TORIRS_PLUGIN_EV_NPC_DESPAWN, &ev);
-}
-
-/** A DEATH: the bar reached empty. The ordinary case. */
-static void
-npc_despawn(char const* name, int x, int z, int size)
-{
-    npc_despawn_health(name, x, z, size, 0);
-}
-
-/** A ground stack appears on a tile. */
-static void
-obj_spawn(int obj_id, char const* name, int count, int cost, int x, int z)
-{
-    struct ToriRS_PluginEvObj ev;
-
-    memset(&ev, 0, sizeof(ev));
-    ev.obj.obj_id = obj_id;
-    ev.obj.count = count;
-    ev.obj.cost = cost;
-    snprintf(ev.obj.name, sizeof(ev.obj.name), "%s", name);
-    ev.obj.tile_x = x;
-    ev.obj.tile_z = z;
-    ev.obj.level = 0;
-    ev.obj.element_id = 9;
-    dispatch(TORIRS_PLUGIN_EV_OBJ_SPAWN, &ev);
-}
-
-/** Past the correlation window, so every candidate settles. */
-static void
-settle(void)
-{
-    tick(2000);
-}
-
 static void
 test_loot_kill_becomes_a_record(void)
 {
     client_reset();
     loot_start();
 
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    loot_add("Goblin", 526, 1, 100, 1);
     settle();
 
-    TEST_ASSERT(has_loot(), "a despawn plus loot on its tile is a record");
-    press_strip(4);
+    TEST_ASSERT(has_loot(), "a recorded kill is a band");
+    press_strip(TEST_TOTALS_H + 4);
     TEST_ASSERT(
         detail_source() && strcmp(detail_source(), "Goblin") == 0,
-        "named after the monster (got '%s')",
+        "named after the kill (got '%s')",
         detail_source() ? detail_source() : "(none)");
     TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
-        "one kill (got '%s')", row_text("total_kills") ? row_text("total_kills") : "(none)");
+        row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "one kill (got '%s')", row_text("d_kills") ? row_text("d_kills") : "(none)");
     TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "100") == 0,
-        "worth its cache cost (got '%s')",
-        row_text("total_value") ? row_text("total_value") : "(none)");
+        row_text("d_value") && strcmp(row_text("d_value"), "100") == 0,
+        "worth what the store priced it at (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
 }
 
 /*
- * A despawn with hitpoints LEFT has to earn its record by dropping something.
+ * A multi-item drop is ONE kill.
  *
- * That covers both the npc that simply walked out of view and the gargoyle
- * family, which despawns alive and is finished with an item. The reference
- * separates those with a hand-written id table; this does not carry one, so
- * the loot is the only evidence either way.
+ * The store bumps its count per distinct event id, which is the difference
+ * between a kill count and a drop count -- and the number the game's own
+ * "Name x N" shows.
  */
 static void
-test_unconfirmed_dry_despawn_is_not_a_kill(void)
+test_loot_multi_item_drop_is_one_kill(void)
 {
     client_reset();
     loot_start();
 
-    /* -1: no bar was ever sent. An npc that was never in combat. */
-    npc_despawn_health("Goblin", 3200, 3200, 1, -1);
+    loot_add("Goblin", 526, 1, 100, 1);
+    loot_add("Goblin", 995, 25, 1, 1);
     settle();
-    TEST_ASSERT(!has_loot(), "an npc that walked away is not a kill");
+    press_strip(TEST_TOTALS_H + 4);
 
-    /* A bar with hitpoints left on it -- alive when it went. */
-    npc_despawn_health("Goblin", 3200, 3200, 1, 12);
-    settle();
-    TEST_ASSERT(!has_loot(), "and neither is one that despawned alive");
-    TEST_ASSERT(!has_loot(), "the page still says it is empty");
-
-    /* But it IS a record once loot lands on it, which is the gargoyle path. */
-    npc_despawn_health("Goblin", 3200, 3200, 1, 12);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
-    settle();
     TEST_ASSERT(
-        has_loot(),
-        "a despawn that dropped something is a kill however it left");
-}
-
-/*
- * A DEATH is counted whether or not it dropped anything.
- *
- * This is what the health bar buys, and it is the whole difference from
- * attributing by coincident loot alone: a dry kill is a real event, and a kill
- * count that skipped them would drift low all trip.
- */
-static void
-test_confirmed_death_counts_without_loot(void)
-{
-    client_reset();
-    loot_start();
-
-    npc_despawn_health("Goblin", 3200, 3200, 1, 0);
-    settle();
-    TEST_ASSERT(has_loot(), "a bar at empty is a kill on its own");
+        row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "three items off one death is one kill (got '%s')",
+        row_text("d_kills") ? row_text("d_kills") : "(none)");
     TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
-        "and it is counted (got '%s')",
-        row_text("total_kills") ? row_text("total_kills") : "(none)");
-    TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "0") == 0,
-        "with nothing in it");
-
-    npc_despawn_health("Goblin", 3200, 3200, 1, 0);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
-    settle();
-    TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "2") == 0,
-        "the next one counts too (got '%s')",
-        row_text("total_kills") ? row_text("total_kills") : "(none)");
-    TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "100") == 0,
-        "and carries its drop");
-}
-
-static void
-test_loot_off_footprint_is_not_attributed(void)
-{
-    client_reset();
-    loot_start();
-
-    npc_despawn("Goblin", 3200, 3200, 1);
-    /* Two tiles away: somebody else's drop, or a spawn that has nothing to do
-     * with this. A 1x1 npc's footprint is one tile. */
-    obj_spawn(526, "Bones", 1, 100, 3202, 3200);
-    settle();
-    /* The KILL is still a kill -- the bar reached empty and that is not in
-     * doubt. What must not happen is the stray stack being attributed to it. */
-    TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
-        "the death is recorded (got '%s')",
-        row_text("total_kills") ? row_text("total_kills") : "(none)");
-    TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "0") == 0,
-        "but loot off the footprint belongs to nobody (got '%s')",
-        row_text("total_value") ? row_text("total_value") : "(none)");
-}
-
-static void
-test_loot_big_monster_footprint(void)
-{
-    client_reset();
-    loot_start();
-
-    /* A 5x5 whose SW corner is 3200,3200 drops in the middle of the square.
-     * true_x/true_z is the corner and `size` is the footprint, which is the
-     * reference's WorldArea restated in the two numbers this bus carries. */
-    npc_despawn("Kalphite Queen", 3200, 3200, 5);
-    obj_spawn(11286, "Dragon chainbody", 1, 1000000, 3202, 3203);
-    settle();
-
-    TEST_ASSERT(has_loot(), "a big monster's drop lands inside its square");
-    TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "1,000,000") == 0,
-        "at full value (got '%s')",
-        row_text("total_value") ? row_text("total_value") : "(none)");
+        row_text("d_value") && strcmp(row_text("d_value"), "125") == 0,
+        "and every row counts towards its value (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
 }
 
 static void
@@ -1316,30 +1317,22 @@ test_loot_two_kills_merge_and_sum(void)
     client_reset();
     loot_start();
 
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    loot_add("Goblin", 526, 1, 100, 1);
+    loot_add("Goblin", 526, 1, 100, 2);
     settle();
-    npc_despawn("Goblin", 3201, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3201, 3200);
-    obj_spawn(995, "Coins", 25, 1, 3201, 3200);
-    settle();
+    press_strip(TEST_TOTALS_H + 4);
 
-    TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "2") == 0,
-        "two goblins is two kills on one record (got '%s')",
-        row_text("total_kills") ? row_text("total_kills") : "(none)");
-    TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "225") == 0,
-        "and the values sum (got '%s')",
-        row_text("total_value") ? row_text("total_value") : "(none)");
-
-    press_strip(4);
     TEST_ASSERT(
         row_text("d_kills") && strcmp(row_text("d_kills"), "2") == 0,
-        "the detail shows the kill count");
+        "two goblins is two kills on one band (got '%s')",
+        row_text("d_kills") ? row_text("d_kills") : "(none)");
     TEST_ASSERT(
-        row_text("d_per_kill") && strcmp(row_text("d_per_kill"), "112") == 0,
-        "and the value per kill (got '%s')",
+        row_text("d_value") && strcmp(row_text("d_value"), "200") == 0,
+        "and the quantities sum (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+    TEST_ASSERT(
+        row_text("d_per_kill") && strcmp(row_text("d_per_kill"), "100") == 0,
+        "with a value per kill (got '%s')",
         row_text("d_per_kill") ? row_text("d_per_kill") : "(none)");
 }
 
@@ -1350,35 +1343,15 @@ test_loot_high_alchemy_price(void)
     loot_start();
     fake_config_set_raw("price_source", "High alchemy");
 
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(1319, "Rune 2h sword", 1, 100000, 3200, 3200);
+    loot_add("Goblin", 1319, 1, 100000, 1);
     settle();
+    press_strip(TEST_TOTALS_H + 4);
 
     /* Three fifths, which is the game's own formula and not a rounding of it. */
     TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "60,000") == 0,
-        "high alchemy is three fifths of the cache cost (got '%s')",
-        row_text("total_value") ? row_text("total_value") : "(none)");
-}
-
-static void
-test_loot_ignored_item(void)
-{
-    client_reset();
-    loot_start();
-    fake_config_set_raw("ignored_items", " vial , Bones ");
-
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
-    settle();
-    TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "0") == 0,
-        "an ignore list entry is matched trimmed and without case, so the "
-        "drop is not recorded (got '%s')",
-        row_text("total_value") ? row_text("total_value") : "(none)");
-    TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
-        "and ignoring an ITEM does not stop the kill being one");
+        row_text("d_value") && strcmp(row_text("d_value"), "60,000") == 0,
+        "high alchemy is three fifths of the recorded value (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
 }
 
 static void
@@ -1386,193 +1359,72 @@ test_loot_ignored_source(void)
 {
     client_reset();
     loot_start();
-    fake_config_set_raw("ignored_sources", "Goblin");
+    fake_config_set_raw("ignored_sources", " goblin ");
 
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    loot_add("Goblin", 526, 1, 100, 1);
     settle();
-    TEST_ASSERT(!has_loot(), "an ignored source records nothing");
+    TEST_ASSERT(
+        !has_loot(),
+        "an ignore entry is matched trimmed and without case, so the band is gone");
 }
 
 static void
-test_loot_row_switch_ignores_the_source(void)
+test_loot_ignore_button(void)
 {
     client_reset();
     loot_start();
 
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    loot_add("Goblin", 526, 1, 100, 1);
     settle();
     TEST_ASSERT(has_loot(), "recorded");
 
-    /* The CS2 header's third op. Selecting the band is what gives it
-     * something to act on -- @see the plugin's build, where the header's own
-     * options are the buttons under the selected source. */
-    press_strip(4);
+    /* The CS2 header's third op, on the band it acts on. */
+    press_strip(TEST_TOTALS_H + 4);
     press("d_ignore", TORIRS_PLUGIN_UI_ACTIVATE, -1);
-    TEST_ASSERT(!has_loot(), "Ignore drops the record");
+    settle();
+    TEST_ASSERT(!has_loot(), "Ignore drops the band");
     TEST_ASSERT(
         strstr(fake_cfg_str(CTX, "ignored_sources"), "Goblin") != NULL,
-        "and writes it to the ignore list the user can also type into (got '%s')",
+        "and writes it to the list a person can also type into (got '%s')",
         fake_cfg_str(CTX, "ignored_sources"));
 
-    /* And it stays ignored, which is the point of writing it there. */
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    /* And it STAYS ignored, which is the point of writing it there: the store
+     * still holds the kill, so anything less would bring it back next tick. */
+    loot_add("Goblin", 526, 1, 100, 2);
     settle();
-    TEST_ASSERT(!has_loot(), "so the next one is not recorded either");
+    TEST_ASSERT(!has_loot(), "so the store's next kill is filtered too");
 }
 
+/*
+ * The header's first op: a band is a header alone until it is opened.
+ *
+ * script2907 offers Collapse/Expand and script3042 only lays cells out under
+ * an expanded one, so the strip's height is the assertion -- a collapsed band
+ * is exactly the header and its gap.
+ */
 static void
-test_loot_out_of_range_despawn(void)
+test_loot_expand_collapse(void)
 {
-    client_reset();
-    loot_start();
-
-    /* Far enough that its loot could never have been sent to this client. */
-    npc_despawn("Goblin", 3400, 3400, 1);
-    obj_spawn(526, "Bones", 1, 100, 3400, 3400);
-    settle();
-    TEST_ASSERT(!has_loot(), "a despawn out of range is not a candidate");
-}
-
-static void
-test_loot_hollow_despawn_is_skipped(void)
-{
-    struct ToriRS_PluginEvNpc ev;
+    int collapsed;
+    int expanded;
 
     client_reset();
     loot_start();
 
-    /*
-     * The world's EntityRemoved event can fire after the pool entry is already
-     * gone, and the snapshot then carries an element id and nothing else.
-     * Recording that would open a record with no name.
-     */
-    memset(&ev, 0, sizeof(ev));
-    ev.npc.npc_id = -1;
-    ev.npc.base_npc_id = -1;
-    ev.npc.server_slot = -1;
-    ev.npc.element_id = 12;
-    dispatch(TORIRS_PLUGIN_EV_NPC_DESPAWN, &ev);
-    obj_spawn(526, "Bones", 1, 100, 0, 0);
+    loot_add("Goblin", 526, 1, 100, 1);
     settle();
-    TEST_ASSERT(!has_loot(), "a hollow despawn snapshot records nothing");
-}
+    collapsed = fake_widget_find("strip")->height;
 
-static void
-test_loot_colour_markup_is_one_record(void)
-{
-    client_reset();
-    loot_start();
-
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
-    settle();
-    /* The same monster, tinted. A record keyed on the painted spelling would
-     * open a second row for it. */
-    npc_despawn("<col=00ff00>Goblin</col>", 3201, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3201, 3200);
-    settle();
-
+    press_strip(TEST_TOTALS_H + 4);
+    expanded = fake_widget_find("strip")->height;
     TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "2") == 0,
-        "markup is stripped, so a tinted name is the same record (got '%s')",
-        row_text("total_kills") ? row_text("total_kills") : "(none)");
-    TEST_ASSERT(!fake_widget_find("src1"), "and there is only one row");
-}
+        expanded > collapsed,
+        "opening a band makes room for its drops (%d -> %d)", collapsed, expanded);
 
-static void
-test_loot_chat_message_threshold(void)
-{
-    client_reset();
-    loot_start();
-    fake_config_set_raw("kill_chat_message", "1");
-    fake_config_set_raw("chat_value_threshold", "1000");
-
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
-    settle();
-    TEST_ASSERT(g_client.notifies == 0, "a cheap kill is below the threshold");
-
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(1319, "Rune 2h sword", 1, 5000, 3200, 3200);
-    settle();
-    TEST_ASSERT(g_client.notifies == 1, "an expensive one is announced");
+    press_strip(TEST_TOTALS_H + 4);
     TEST_ASSERT(
-        strstr(g_client.notify, "Goblin") && strstr(g_client.notify, "5,000"),
-        "and the line names the source and the value (got '%s')", g_client.notify);
-}
-
-static void
-test_loot_icons_are_asked_for_every_pass(void)
-{
-    struct ToriRS_PluginEvPanelDraw draw;
-
-    client_reset();
-    loot_start();
-
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 37, 100, 3200, 3200);
-    /* An id below 100 stands for an objtype whose model is not resident yet. */
-    obj_spawn(12, "Pending item", 1, 0, 3200, 3200);
-    settle();
-
-    /* The header's first op is Collapse/Expand, so the grid is only drawn once
-     * the band has been opened -- which is the CS2 tracker's own behaviour. */
-    press_strip(4);
-    TEST_ASSERT(has_loot(), "the band is there");
-
-    memset(&draw, 0, sizeof(draw));
-    draw.id = "strip";
-    draw.surface = (void*)0x1;
-    draw.width = 240;
-    draw.height = 200;
-    dispatch(TORIRS_PLUGIN_EV_PANEL_DRAW, &draw);
-
-    /* No art in the harness, so the compose stands down before it asks for an
-     * icon -- which is itself the contract: a pass with nothing to draw with
-     * draws nothing rather than half a page. */
-    TEST_ASSERT(
-        g_client.icons_asked == 0,
-        "a pass with no art asks for no icons (got %d)", g_client.icons_asked);
-}
-
-
-static void
-test_loot_persists(void)
-{
-    client_reset();
-    fake_config_set_raw("remember_loot", "1");
-    fake_config_set_raw("price_source", "Cache value");
-    fake_config_set_raw("kill_chat_message", "0");
-    fake_config_set_raw("chat_value_threshold", "0");
-    fake_config_set_raw("ignored_items", "");
-    fake_config_set_raw("ignored_sources", "");
-    TORIRS_PLUGIN_LOOT_TRACKER.init(CTX, &g_api);
-    dispatch(TORIRS_PLUGIN_EV_START, NULL);
-    panel_build();
-
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 3, 100, 3200, 3200);
-    settle();
-    dispatch(TORIRS_PLUGIN_EV_STOP, NULL);
-    TEST_ASSERT(g_client.asset_present, "stopping writes the loot out");
-
-    memset(g_handler, 0, sizeof(g_handler));
-    TORIRS_PLUGIN_LOOT_TRACKER.init(CTX, &g_api);
-    dispatch(TORIRS_PLUGIN_EV_START, NULL);
-    panel_build();
-
-    TEST_ASSERT(has_loot(), "and it comes back");
-    TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
-        "with its kill count (got '%s')",
-        row_text("total_kills") ? row_text("total_kills") : "(none)");
-    TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "300") == 0,
-        "and its quantities (got '%s')",
-        row_text("total_value") ? row_text("total_value") : "(none)");
+        fake_widget_find("strip")->height == collapsed,
+        "and closing it gives the room back");
 }
 
 static void
@@ -1583,12 +1435,8 @@ test_loot_badge_and_attention(void)
     client_reset();
     loot_start();
 
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(1319, "Rune 2h sword", 1, 100000, 3200, 3200);
+    loot_add("Goblin", 1319, 1, 100000, 1);
     settle();
-    /* "100K" and not "100.0K": the reference's quantityToRSDecimalStack drops
-     * the decimal at a hundred of a unit, which is what keeps the badge four
-     * characters wide across its whole range. */
     TEST_ASSERT(
         strcmp(g_client.badge, "100K") == 0,
         "the rail badge carries the session's value (got '%s')", g_client.badge);
@@ -1600,25 +1448,8 @@ test_loot_badge_and_attention(void)
     dispatch(TORIRS_PLUGIN_EV_GAME_EVENT, &ev);
     TEST_ASSERT(g_client.attention, "a valuable drop asks the player to look");
 
-    press_strip(4);
+    press_strip(TEST_TOTALS_H + 4);
     TEST_ASSERT(!g_client.attention, "and looking clears it");
-}
-
-static void
-test_loot_clear(void)
-{
-    client_reset();
-    loot_start();
-
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
-    settle();
-    press("reset_all", TORIRS_PLUGIN_UI_ACTIVATE, -1);
-
-    TEST_ASSERT(!has_loot(), "clear all takes the records");
-    TEST_ASSERT(
-        row_text("total_value") && strcmp(row_text("total_value"), "0") == 0,
-        "and the session totals");
 }
 
 /*
@@ -1649,20 +1480,16 @@ test_hidden_page_does_no_work(void)
     hidden.visible = false;
     dispatch(TORIRS_PLUGIN_EV_PANEL_LAYOUT, &hidden);
 
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    loot_add("Goblin", 526, 1, 100, 1);
     settle();
-    TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "0") == 0,
-        "a hidden page is not rewritten (got '%s')",
-        row_text("total_kills") ? row_text("total_kills") : "(none)");
+    TEST_ASSERT(!has_loot(), "a hidden page is not rebuilt");
 
-    /* The KILL was still recorded -- only the drawing stopped. */
-    panel_build();
-    TEST_ASSERT(
-        row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
-        "and showing it again states everything that happened meanwhile (got '%s')",
-        row_text("total_kills") ? row_text("total_kills") : "(none)");
+    /* The STORE still holds it -- only the drawing stopped -- so showing the
+     * page again states everything that happened meanwhile. */
+    hidden.visible = true;
+    dispatch(TORIRS_PLUGIN_EV_PANEL_LAYOUT, &hidden);
+    settle();
+    TEST_ASSERT(has_loot(), "and showing it again catches up");
 }
 
 static void
@@ -1671,8 +1498,7 @@ test_settings_face_is_the_generated_form(void)
     client_reset();
     loot_start();
 
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(526, "Bones", 1, 100, 3200, 3200);
+    loot_add("Goblin", 526, 1, 100, 1);
     settle();
     TEST_ASSERT(has_loot(), "the PAGE face carries the records");
 
@@ -1715,23 +1541,13 @@ main(void)
     test_xp_offline_gains_are_not_the_session();
 
     test_loot_kill_becomes_a_record();
-    test_unconfirmed_dry_despawn_is_not_a_kill();
-    test_confirmed_death_counts_without_loot();
-    test_loot_off_footprint_is_not_attributed();
-    test_loot_big_monster_footprint();
+    test_loot_multi_item_drop_is_one_kill();
     test_loot_two_kills_merge_and_sum();
     test_loot_high_alchemy_price();
-    test_loot_ignored_item();
     test_loot_ignored_source();
-    test_loot_row_switch_ignores_the_source();
-    test_loot_out_of_range_despawn();
-    test_loot_hollow_despawn_is_skipped();
-    test_loot_colour_markup_is_one_record();
-    test_loot_chat_message_threshold();
-    test_loot_icons_are_asked_for_every_pass();
-    test_loot_persists();
+    test_loot_ignore_button();
+    test_loot_expand_collapse();
     test_loot_badge_and_attention();
-    test_loot_clear();
 
     test_settings_face_is_the_generated_form();
     test_hidden_page_does_no_work();

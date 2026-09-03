@@ -61,6 +61,10 @@ World_Free(struct World* world)
         free(world->scenery_info.entries[i]);
     free(world->scenery_info.entries);
     free(world->scenery_info.hashes);
+    free(world->scenery_info.buckets);
+    free(world->scenery_info.chain);
+    free(world->scenery_info.memo_loc_ids);
+    free(world->scenery_info.memo_infos);
     free(world);
 }
 
@@ -1358,6 +1362,84 @@ world_scenery_info_hash(struct WorldEntity_SceneryInfo const* info)
     return hash;
 }
 
+static void
+World_CopyMenuActions(
+    struct WorldEntityFacet_Action dest[5],
+    char const src[5][32]);
+
+void
+World_SceneryInfoMemoClear(struct World* world)
+{
+    assert(world);
+    for( int i = 0; i < world->scenery_info.memo_capacity; i++ )
+        world->scenery_info.memo_loc_ids[i] = -1;
+}
+
+/*
+ * The interned info for `loc_id`, assembling and hashing the probe only on the
+ * first placement of that loc in this build.
+ *
+ * A direct-mapped memo, not a hash: loc ids are dense enough that the id is
+ * its own index, and a collision (two locs sharing a slot) simply re-interns,
+ * which is what every placement used to do.
+ */
+static struct WorldEntity_SceneryInfo const*
+world_scenery_info_for_loc(
+    struct World* world,
+    int loc_id,
+    char const* name,
+    char const actions[5][32])
+{
+    struct World_SceneryInfoTable* table = &world->scenery_info;
+    struct WorldEntity_SceneryInfo probe;
+    int slot;
+
+    /* TORIRS_NO_SCENERY_MEMO=1 interns per placement again -- the A/B this
+     * memo was measured with. */
+    static int memo_off = -1;
+    if( memo_off < 0 )
+        memo_off = getenv("TORIRS_NO_SCENERY_MEMO") != NULL;
+
+    if( loc_id >= 0 && !memo_off )
+    {
+        if( table->memo_capacity == 0 )
+        {
+            table->memo_capacity = 4096;
+            table->memo_loc_ids =
+                malloc((size_t)table->memo_capacity * sizeof(*table->memo_loc_ids));
+            table->memo_infos =
+                malloc((size_t)table->memo_capacity * sizeof(*table->memo_infos));
+            assert(table->memo_loc_ids);
+            assert(table->memo_infos);
+            for( int i = 0; i < table->memo_capacity; i++ )
+                table->memo_loc_ids[i] = -1;
+        }
+        slot = loc_id % table->memo_capacity;
+        if( table->memo_loc_ids[slot] == loc_id )
+            return table->memo_infos[slot];
+    }
+    else
+        slot = -1;
+
+    memset(&probe, 0, sizeof(probe));
+    if( name )
+    {
+        strncpy(probe.name, name, sizeof(probe.name) - 1);
+        probe.name[sizeof(probe.name) - 1] = '\0';
+    }
+    World_CopyMenuActions(probe.actions, actions);
+
+    {
+        struct WorldEntity_SceneryInfo const* info = World_SceneryInfoIntern(world, &probe);
+        if( slot >= 0 )
+        {
+            table->memo_loc_ids[slot] = loc_id;
+            table->memo_infos[slot] = info;
+        }
+        return info;
+    }
+}
+
 struct WorldEntity_SceneryInfo const*
 World_SceneryInfoIntern(
     struct World* world,
@@ -1366,13 +1448,24 @@ World_SceneryInfoIntern(
     struct World_SceneryInfoTable* table;
     struct WorldEntity_SceneryInfo* entry;
     uint32_t hash;
+    int bucket;
 
     assert(world);
     assert(probe);
 
     table = &world->scenery_info;
     hash = world_scenery_info_hash(probe);
-    for( int i = 0; i < table->count; i++ )
+    bucket = (int)(hash % WORLD_SCENERY_INFO_BUCKETS);
+
+    if( !table->buckets )
+    {
+        table->buckets = malloc(sizeof(*table->buckets) * WORLD_SCENERY_INFO_BUCKETS);
+        assert(table->buckets);
+        for( int i = 0; i < WORLD_SCENERY_INFO_BUCKETS; i++ )
+            table->buckets[i] = -1;
+    }
+
+    for( int i = table->buckets[bucket]; i >= 0; i = table->chain[i] )
     {
         if( table->hashes[i] != hash )
             continue;
@@ -1386,10 +1479,13 @@ World_SceneryInfoIntern(
         struct WorldEntity_SceneryInfo** entries =
             realloc(table->entries, (size_t)capacity * sizeof(*entries));
         uint32_t* hashes = realloc(table->hashes, (size_t)capacity * sizeof(*hashes));
+        int* chain = realloc(table->chain, (size_t)capacity * sizeof(*chain));
         assert(entries);
         assert(hashes);
+        assert(chain);
         table->entries = entries;
         table->hashes = hashes;
+        table->chain = chain;
         table->capacity = capacity;
     }
 
@@ -1398,6 +1494,8 @@ World_SceneryInfoIntern(
     memcpy(entry, probe, sizeof(*entry));
     table->hashes[table->count] = hash;
     table->entries[table->count] = entry;
+    table->chain[table->count] = table->buckets[bucket];
+    table->buckets[bucket] = table->count;
     table->count++;
     return entry;
 }
@@ -1492,18 +1590,7 @@ World_SceneryRegister(
     scenery->shape = shape;
     scenery->angle = angle;
     scenery->force_approach = force_approach & 0xf;
-    {
-        struct WorldEntity_SceneryInfo probe;
-
-        memset(&probe, 0, sizeof(probe));
-        if( name )
-        {
-            strncpy(probe.name, name, sizeof(probe.name) - 1);
-            probe.name[sizeof(probe.name) - 1] = '\0';
-        }
-        World_CopyMenuActions(probe.actions, actions);
-        scenery->info = World_SceneryInfoIntern(world, &probe);
-    }
+    scenery->info = world_scenery_info_for_loc(world, loc_id, name, actions);
     scenery->interactive = interactive ? 1 : 0;
     scenery->painter_wall_ab = -1;
     scenery->painter_ground_decor = 0;

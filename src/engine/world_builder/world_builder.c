@@ -64,6 +64,13 @@ WorldBuilder_TimingOn(void)
     return wb_timing_on();
 }
 
+extern int g_wb_share_hit;
+extern int g_wb_share_clone;
+extern int g_wb_share_proto;
+extern int g_wb_share_no_contour;
+extern int g_wb_share_no_sharelight;
+extern int g_wb_share_no_seq;
+
 /* Scenery model-build accumulators (reset in Begin, reported at End). */
 static double g_wb_t_model_convert_ms; /* ModelFromToriRS + merge */
 static double g_wb_t_model_transform_ms; /* apply_transforms + SD strip + bounds */
@@ -115,9 +122,15 @@ wb_env_on(
 
 static int g_wb_env_scenery_dbg = -1;
 static int g_wb_env_strip_tex = -1;
+static int g_wb_env_no_face_clone = -1;
 
 #define WB_ENV_SCENERY_DEBUG() wb_env_on("TORIRS_SCENERY_DEBUG", &g_wb_env_scenery_dbg)
 #define WB_ENV_STRIP_TEXTURES() wb_env_on("TORIRS_STRIP_TEXTURES", &g_wb_env_strip_tex)
+/* TORIRS_NO_FACE_CLONE=1 puts every half-shared placement back to building its
+ * own model before handing the faces over. The A/B the clone was measured
+ * with, and the first thing to try if a scene ever looks wrong only when
+ * placements repeat. */
+#define WB_ENV_NO_FACE_CLONE() wb_env_on("TORIRS_NO_FACE_CLONE", &g_wb_env_no_face_clone)
 
 // clang-format off
 #include "world_terrain.u.c"
@@ -434,6 +447,16 @@ WorldBuilder_RebuildCenterzoneBegin(
     g_wb_t_model_transform_ms = 0.0;
     g_wb_n_model_builds = 0;
     g_wb_n_model_srcs = 0;
+    /* The loc-id memo describes THIS build's configs; a morph or a reload
+     * between rebuilds changes what a loc is called. */
+    World_SceneryInfoMemoClear(world);
+
+    g_wb_share_hit = 0;
+    g_wb_share_clone = 0;
+    g_wb_share_proto = 0;
+    g_wb_share_no_contour = 0;
+    g_wb_share_no_sharelight = 0;
+    g_wb_share_no_seq = 0;
     g_wb_census_proto_n = 0;
     g_wb_census_proto_b = 0;
     g_wb_census_dup_n = 0;
@@ -1040,7 +1063,15 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     if( wb_census_on() )
     {
         size_t const kept = g_wb_census_proto_b + g_wb_census_unique_b;
-        TORIRS_LOG("scenery_census: total=%.2fMB kept=%.2fMB dup=%.2fMB | protos n=%d %.2fMB "
+        TORIRS_REPORT("scenery_share: cache_hit=%d clone=%d proto_built=%d | not shareable: "
+            "contour=%d sharelight=%d seq=%d\n",
+            g_wb_share_hit,
+            g_wb_share_clone,
+            g_wb_share_proto,
+            g_wb_share_no_contour,
+            g_wb_share_no_sharelight,
+            g_wb_share_no_seq);
+        TORIRS_REPORT("scenery_census: total=%.2fMB kept=%.2fMB dup=%.2fMB | protos n=%d %.2fMB "
             "| dup_placements n=%d %.2fMB | unique n=%d %.2fMB\n",
             (double)(kept + g_wb_census_dup_b) / (1024.0 * 1024.0),
             (double)kept / (1024.0 * 1024.0),

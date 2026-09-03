@@ -130,17 +130,35 @@
 /** The header band, and the gap the next one leaves above it. */
 #define LT_HEAD_H 33
 #define LT_HEAD_GAP 2
-/** The spine: 4 wide, inset 2, and 4 shorter than the band. */
-#define LT_SPINE_W 4
-#define LT_SPINE_X 2
-#define LT_SPINE_INSET 2
+/*
+ * The band PLATE, inset 2 all round.
+ *
+ * `cc_setsize(4, 33 - 4, 1, 0)` in script2907 is width mode 1, which is PARENT
+ * MINUS the value -- not a 4-pixel-wide spine, which is how it reads at a
+ * glance and how this was drawn at first. The same sprite is used untiled at
+ * 244x42 for the totals band (interface 650:58), so it is a plate that takes
+ * whatever size it is given, and it is what puts a border around every band in
+ * the game's own tracker.
+ */
+#define LT_PLATE_INSET 2
 /** One item cell, and the five-to-a-row grid script3042 lays out. */
 #define LT_CELL_W 40
 #define LT_CELL_H 36
 #define LT_GRID_COLS 5
 /** The first cell row sits `33 + 5` below the header's top. */
 #define LT_GRID_TOP (LT_HEAD_H + 5)
-/** The interfaces' own orange, which is what every label here is set in. */
+/*
+ * The TOTALS band, which the game's tracker puts above the categories
+ * (interface 650:57..64): a 42-tall plate carrying two lines --
+ * "Total count:" and "Total value:" as keys at x=36, their values at x=97,
+ * both in fontmetrics_494.
+ */
+#define LT_TOTALS_H 42
+#define LT_TOTALS_KEY_X 36
+#define LT_TOTALS_VAL_X 97
+
+/** The interfaces' own orange, which every heading is set in, and the white
+ *  the totals' values are. */
 #define LT_INK_HEAD 0xFF981Fu
 #define LT_INK_VALUE 0xFFFFFFu
 
@@ -160,6 +178,8 @@ struct LtItem
 /** One source: everything one kind of monster has ever given up this session. */
 struct LtSource
 {
+    /** The store's own id, which addresses its rows. */
+    int id;
     char name[64];
     int kills;
     struct LtItem items[LT_ITEMS_MAX];
@@ -168,33 +188,8 @@ struct LtSource
     uint64_t last_ms;
 };
 
-/** A despawn that has not yet been shown to be a kill. */
-struct LtPending
-{
-    char name[64];
-    int tile_x;
-    int tile_z;
-    int level;
-    /** Footprint in tiles; loot lands anywhere inside it. */
-    int size;
-    uint64_t at_ms;
-    /** Items collected so far. */
-    struct LtItem items[LT_ITEMS_MAX];
-    int item_count;
-    /**
-     * The health bar was at zero when it went: this IS a kill, and it is
-     * recorded whether or not anything dropped.
-     *
-     * False is not "alive" -- it is "the wire never said" -- so it means only
-     * that this despawn has to earn its record by producing loot.
-     */
-    bool confirmed;
-};
-
 static struct LtSource g_source[LT_SOURCES_MAX];
 static int g_source_count;
-static struct LtPending g_pending[LT_PENDING_MAX];
-static int g_pending_count;
 
 /** Which source's detail is open, or -1 for the list alone. */
 static int g_detail = -1;
@@ -440,253 +435,11 @@ lt_source_value(struct ToriRS_PluginCtx* ctx, struct LtSource const* src)
 /* The records                                                               */
 /* ------------------------------------------------------------------------ */
 
-/** The source called `name`, added if the table has room. -1 when it has not. */
-static int
-lt_source_find(struct ToriRS_PluginCtx* ctx, char const* name, bool create)
-{
-    int poorest = -1;
 
-    assert(ctx);
-    assert(name);
 
-    for( int i = 0; i < g_source_count; i++ )
-        if( lt_name_eq(g_source[i].name, name) )
-            return i;
-    if( !create )
-        return -1;
-    if( g_source_count < LT_SOURCES_MAX )
-    {
-        int const index = g_source_count++;
-        memset(&g_source[index], 0, sizeof(g_source[index]));
-        snprintf(g_source[index].name, sizeof(g_source[index].name), "%s", name);
-        return index;
-    }
 
-    /*
-     * Full. Drop the least VALUABLE record rather than the oldest or the
-     * newest: the table is a session's history and the thing a player came to
-     * it for is the big drop, which is exactly what an oldest-out policy
-     * throws away first on a long trip.
-     */
-    for( int i = 0; i < g_source_count; i++ )
-        if( poorest < 0 ||
-            lt_source_value(ctx, &g_source[i]) < lt_source_value(ctx, &g_source[poorest]) )
-            poorest = i;
-    assert(poorest >= 0);
-    memset(&g_source[poorest], 0, sizeof(g_source[poorest]));
-    snprintf(g_source[poorest].name, sizeof(g_source[poorest].name), "%s", name);
-    if( g_detail == poorest )
-        g_detail = -1;
-    return poorest;
-}
 
-/** Add `item` into `src`, merging with a stack of the same obj already there. */
-static void
-lt_source_add_item(struct LtSource* src, struct LtItem const* item)
-{
-    assert(src);
-    assert(item);
 
-    for( int i = 0; i < src->item_count; i++ )
-        if( src->items[i].obj_id == item->obj_id )
-        {
-            src->items[i].quantity += item->quantity;
-            return;
-        }
-    if( src->item_count >= LT_ITEMS_MAX )
-        return;
-    src->items[src->item_count++] = *item;
-}
-
-/**
- * A candidate's window has closed: make it a record, or forget it.
- *
- * The refusal is the load-bearing half. A despawn with no loot on it is an npc
- * that walked away, and the whole reason this plugin can work without a death
- * signal is that it declines to guess about those.
- */
-static void
-lt_pending_settle(struct ToriRS_PluginCtx* ctx, int index)
-{
-    struct LtPending* pending;
-    struct LtSource* src;
-    int source;
-    long long value = 0;
-
-    assert(ctx);
-    assert(index >= 0);
-    assert(index < g_pending_count);
-
-    pending = &g_pending[index];
-    if( pending->confirmed || pending->item_count > 0 )
-    {
-        source = lt_source_find(ctx, pending->name, true);
-        assert(source >= 0);
-        src = &g_source[source];
-        src->kills++;
-        src->last_ms = pending->at_ms;
-        g_session_kills++;
-        for( int i = 0; i < pending->item_count; i++ )
-        {
-            lt_source_add_item(src, &pending->items[i]);
-            value += lt_unit_value(ctx, &pending->items[i]) * pending->items[i].quantity;
-        }
-        g_session_value += value;
-        g_dirty = true;
-
-        if( g_api->cfg_bool(ctx, "kill_chat_message") &&
-            value >= g_api->cfg_int(ctx, "chat_value_threshold") )
-        {
-            char line[200];
-            char amount[32];
-
-            lt_commas(value, amount, sizeof(amount));
-            snprintf(
-                line, sizeof(line), "%s x%d loot: %s gp", src->name, src->kills, amount);
-            g_api->notify(ctx, line);
-        }
-    }
-
-    g_pending[index] = g_pending[--g_pending_count];
-}
-
-/** Drop every candidate whose window has closed. */
-static void
-lt_pending_expire(struct ToriRS_PluginCtx* ctx, uint64_t now)
-{
-    assert(ctx);
-    for( int i = g_pending_count - 1; i >= 0; i-- )
-        if( now >= g_pending[i].at_ms + LT_PENDING_MS )
-            lt_pending_settle(ctx, i);
-}
-
-/**
- * An npc left the scene. Remember it as a candidate kill.
- *
- * The snapshot may be a HOLLOW one -- the world event exists to clean up the
- * render side after the world side let go, so the pool entry can already be
- * gone and the snapshot then carries an element id and nothing else. Those are
- * skipped rather than recorded under an empty name.
- */
-static enum ToriRS_PluginVerdict
-lt_npc_despawn(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
-{
-    (void)userdata;
-
-    struct ToriRS_PluginEvNpc const* ev = event;
-    struct ToriRS_PluginPlayerSnap me;
-    struct LtPending* pending;
-    char name[64];
-
-    assert(ctx);
-    assert(ev);
-
-    if( ev->npc.npc_id < 0 || !ev->npc.name[0] )
-        return TORIRS_PLUGIN_PASS;
-    lt_clean_name(ev->npc.name, name, sizeof(name));
-    if( !name[0] )
-        return TORIRS_PLUGIN_PASS;
-    if( lt_listed(g_api->cfg_str(ctx, "ignored_sources"), name) )
-        return TORIRS_PLUGIN_PASS;
-
-    /* Yours to have seen. The server only sends ground items near you, so a
-     * despawn across the map could never collect anything anyway -- but a
-     * candidate that cannot collect is still a slot the crowd around you
-     * needs. */
-    if( !g_api->local_player(ctx, &me) )
-        return TORIRS_PLUGIN_PASS;
-    if( me.level != ev->npc.level )
-        return TORIRS_PLUGIN_PASS;
-    if( abs(me.true_x - ev->npc.true_x) > LT_PENDING_RANGE ||
-        abs(me.true_z - ev->npc.true_z) > LT_PENDING_RANGE )
-        return TORIRS_PLUGIN_PASS;
-
-    /* Full: settle the oldest early rather than lose this one. A candidate
-     * that has already collected becomes its record a fraction of a second
-     * sooner, which nothing on the page can tell apart. */
-    if( g_pending_count >= LT_PENDING_MAX )
-        lt_pending_settle(ctx, 0);
-
-    pending = &g_pending[g_pending_count++];
-    memset(pending, 0, sizeof(*pending));
-    snprintf(pending->name, sizeof(pending->name), "%s", name);
-    pending->tile_x = ev->npc.true_x;
-    pending->tile_z = ev->npc.true_z;
-    pending->level = ev->npc.level;
-    /* true_x/true_z is the SW corner and `size` is the footprint, so a big
-     * monster's drop lands anywhere in the square it occupied -- which is the
-     * reference's WorldArea, restated in the two numbers this bus carries. */
-    pending->size = ev->npc.size > 0 ? ev->npc.size : 1;
-    pending->at_ms = g_api->frame_ms(ctx);
-    /*
-     * The reference's isDying, as far as this client can state it: a bar that
-     * exists and has reached empty. `health_ratio < 0` is "no bar was ever
-     * sent", which is every npc that has not been in combat and is emphatically
-     * not a corpse -- @see ToriRS_PluginNpcSnap::health_ratio.
-     */
-    pending->confirmed = ev->npc.health_ratio == 0 && ev->npc.health_scale > 0;
-    return TORIRS_PLUGIN_PASS;
-}
-
-/**
- * A ground-item stack appeared. Hand it to the newest candidate it fits.
- *
- * NEWEST and not nearest: when two kills overlap, the one that just happened
- * is overwhelmingly the one that dropped this, and a distance tiebreak between
- * two npcs standing on each other answers arbitrarily anyway.
- */
-static enum ToriRS_PluginVerdict
-lt_obj_spawn(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
-{
-    (void)userdata;
-
-    struct ToriRS_PluginEvObj const* ev = event;
-    struct LtItem item;
-    int best = -1;
-
-    assert(ctx);
-    assert(ev);
-
-    for( int i = 0; i < g_pending_count; i++ )
-    {
-        struct LtPending const* pending = &g_pending[i];
-
-        if( pending->level != ev->obj.level )
-            continue;
-        if( ev->obj.tile_x < pending->tile_x ||
-            ev->obj.tile_x >= pending->tile_x + pending->size )
-            continue;
-        if( ev->obj.tile_z < pending->tile_z ||
-            ev->obj.tile_z >= pending->tile_z + pending->size )
-            continue;
-        if( best < 0 || pending->at_ms > g_pending[best].at_ms )
-            best = i;
-    }
-    if( best < 0 )
-        return TORIRS_PLUGIN_PASS;
-
-    memset(&item, 0, sizeof(item));
-    item.obj_id = ev->obj.obj_id;
-    item.quantity = ev->obj.count > 0 ? ev->obj.count : 1;
-    item.cost = ev->obj.cost;
-    lt_clean_name(ev->obj.name, item.name, sizeof(item.name));
-
-    if( lt_listed(g_api->cfg_str(ctx, "ignored_items"), item.name) )
-        return TORIRS_PLUGIN_PASS;
-
-    /* Straight onto the CANDIDATE and not onto the record: an UNCONFIRMED
-     * despawn earns its record by producing loot, and settling is where the
-     * two paths meet. */
-    for( int i = 0; i < g_pending[best].item_count; i++ )
-        if( g_pending[best].items[i].obj_id == item.obj_id )
-        {
-            g_pending[best].items[i].quantity += item.quantity;
-            return TORIRS_PLUGIN_PASS;
-        }
-    if( g_pending[best].item_count < LT_ITEMS_MAX )
-        g_pending[best].items[g_pending[best].item_count++] = item;
-    return TORIRS_PLUGIN_PASS;
-}
 
 /**
  * A moment the client recognised.
@@ -715,121 +468,6 @@ lt_game_event(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
 /* ------------------------------------------------------------------------ */
 /* Persistence                                                               */
-/* ------------------------------------------------------------------------ */
-
-#define LT_STATE_ASSET "loot.txt"
-#define LT_STATE_MAX 16384
-
-/**
- * Write the session out.
- *
- * Line based, `S <kills> <name>` followed by one `I <obj> <qty> <cost> <name>`
- * per drop, because the alternative -- a packed struct -- is a file that
- * silently means something else the day a field is added. The item NAME is
- * stored beside its id for the same reason the item-stats table is keyed by
- * one: an id means a different item on a different revision, and a row that
- * came back reading "Rune scimitar" as something else would be worse than one
- * that came back unpriced.
- */
-static void
-lt_state_save(struct ToriRS_PluginCtx* ctx)
-{
-    char buf[LT_STATE_MAX];
-    int at = 0;
-
-    assert(ctx);
-    /* Cleared either way. With the setting off there is nothing to write and
-     * nothing to keep asking about -- a flag left standing would have the tick
-     * calling this twice a second for the rest of the session. */
-    g_dirty = false;
-    if( !g_api->cfg_bool(ctx, "remember_loot") )
-        return;
-
-    for( int i = 0; i < g_source_count && at < (int)sizeof(buf); i++ )
-    {
-        struct LtSource const* src = &g_source[i];
-        int written = snprintf(
-            buf + at, sizeof(buf) - (size_t)at, "S %d %s\n", src->kills, src->name);
-
-        if( written <= 0 || written >= (int)sizeof(buf) - at )
-            break;
-        at += written;
-        for( int j = 0; j < src->item_count && at < (int)sizeof(buf); j++ )
-        {
-            written = snprintf(
-                buf + at, sizeof(buf) - (size_t)at, "I %d %d %d %s\n",
-                src->items[j].obj_id, src->items[j].quantity, src->items[j].cost,
-                src->items[j].name);
-            if( written <= 0 || written >= (int)sizeof(buf) - at )
-                break;
-            at += written;
-        }
-    }
-    g_api->asset_save(ctx, LT_STATE_ASSET, buf, at);
-}
-
-/** Read the saved session back over an empty table. */
-static void
-lt_state_apply(struct ToriRS_PluginCtx* ctx)
-{
-    void const* data;
-    int size = 0;
-    char const* at;
-    char const* end;
-    int source = -1;
-
-    assert(ctx);
-    if( !g_api->cfg_bool(ctx, "remember_loot") )
-        return;
-
-    data = g_api->asset_data(ctx, LT_STATE_ASSET, &size);
-    if( !data || size <= 0 )
-        return;
-
-    at = (char const*)data;
-    end = at + size;
-    while( at < end )
-    {
-        char const* line_end = memchr(at, '\n', (size_t)(end - at));
-        char line[192];
-        size_t len = line_end ? (size_t)(line_end - at) : (size_t)(end - at);
-
-        if( len >= sizeof(line) )
-            len = sizeof(line) - 1;
-        memcpy(line, at, len);
-        line[len] = '\0';
-        at = line_end ? line_end + 1 : end;
-
-        if( line[0] == 'S' )
-        {
-            int kills = 0;
-            char name[64];
-
-            if( sscanf(line, "S %d %63[^\n]", &kills, name) != 2 )
-                continue;
-            source = lt_source_find(ctx, name, true);
-            if( source < 0 )
-                continue;
-            g_source[source].kills = kills;
-            g_session_kills += kills;
-        }
-        else if( line[0] == 'I' && source >= 0 )
-        {
-            struct LtItem item;
-
-            memset(&item, 0, sizeof(item));
-            if( sscanf(
-                    line, "I %d %d %d %63[^\n]", &item.obj_id, &item.quantity,
-                    &item.cost, item.name) != 4 )
-                continue;
-            lt_source_add_item(&g_source[source], &item);
-            g_session_value += lt_unit_value(ctx, &item) * item.quantity;
-        }
-    }
-}
-
-/* ------------------------------------------------------------------------ */
-/* The page                                                                  */
 /* ------------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------------ */
@@ -872,23 +510,49 @@ lt_source_h(int index)
     return LT_GRID_TOP + lt_grid_rows(&g_source[index]) * LT_CELL_H + LT_HEAD_GAP;
 }
 
-/** The whole strip's height. */
+/** The whole strip's height: the totals band, then every category. */
 static int
 lt_strip_h(void)
 {
-    int total = 0;
+    int total = LT_TOTALS_H + LT_HEAD_GAP;
 
     for( int i = 0; i < g_source_count; i++ )
         total += lt_source_h(i);
     /* The empty note still needs a line to sit on. */
-    return total > 0 ? total : LT_HEAD_H;
+    return g_source_count > 0 ? total : total + LT_HEAD_H;
+}
+
+/** The totals band, which the game's tracker puts above the categories. */
+static void
+lt_draw_totals(struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h)
+{
+    char text[64];
+
+    assert(ctx);
+    assert(buf);
+
+    if( g_spine_px )
+        PluginDraw_Tile(
+            buf, w, h, LT_PLATE_INSET, LT_PLATE_INSET, w - LT_PLATE_INSET * 2,
+            LT_TOTALS_H - LT_PLATE_INSET * 2, g_spine_px, g_spine_w, g_spine_h, 0);
+
+    PluginDraw_Text(
+        buf, w, h, LT_TOTALS_KEY_X, 8, &g_text, "Total count:", LT_INK_VALUE);
+    PluginDraw_Text(
+        buf, w, h, LT_TOTALS_KEY_X, 22, &g_text, "Total value:", LT_INK_VALUE);
+
+    lt_commas(g_session_kills, text, sizeof(text));
+    PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 8, &g_text, text, LT_INK_VALUE);
+    lt_commas(g_session_value, text, sizeof(text));
+    snprintf(text + strlen(text), sizeof(text) - strlen(text), " gp");
+    PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 22, &g_text, text, LT_INK_VALUE);
 }
 
 /** The source a click at `y` landed on, and how far into it. -1 for neither. */
 static int
 lt_source_at(int y, int* out_local_y)
 {
-    int top = 0;
+    int top = LT_TOTALS_H + LT_HEAD_GAP;
 
     for( int i = 0; i < g_source_count; i++ )
     {
@@ -922,20 +586,21 @@ lt_draw_source(
     assert(ctx);
     assert(buf);
 
-    /* The spine, tiled down the band's height as cc_settiling does. */
+    /* The plate, inset 2 all round -- @see LT_PLATE_INSET. */
     if( g_spine_px )
         PluginDraw_Tile(
-            buf, w, h, LT_SPINE_X, top + LT_SPINE_INSET, LT_SPINE_W,
-            LT_HEAD_H - LT_SPINE_INSET * 2, g_spine_px, g_spine_w, g_spine_h, 0);
+            buf, w, h, LT_PLATE_INSET, top + LT_PLATE_INSET,
+            w - LT_PLATE_INSET * 2, LT_HEAD_H - LT_PLATE_INSET * 2, g_spine_px,
+            g_spine_w, g_spine_h, 0);
 
-    /* The name on the left and the kill count on the right, both in the bold
-     * face at the interfaces' orange. */
-    snprintf(text, sizeof(text), "%s", src->name);
-    PluginDraw_Text(buf, w, h, 6, top + 4, &g_bold, text, LT_INK_HEAD);
+    /* "Goblin x 2" on the left and its value on the right, both in the bold
+     * face at the interfaces' orange, as script2907 sets them. */
+    snprintf(text, sizeof(text), "%s x %d", src->name, src->kills);
+    PluginDraw_Text(buf, w, h, 8, top + 9, &g_bold, text, LT_INK_HEAD);
 
     lt_short(lt_source_value(ctx, src), amount, sizeof(amount));
-    snprintf(text, sizeof(text), "x%d  %s gp", src->kills, amount);
-    PluginDraw_TextRight(buf, w, h, w - 6, top + 4, &g_bold, text, LT_INK_HEAD);
+    snprintf(text, sizeof(text), "%s gp", amount);
+    PluginDraw_TextRight(buf, w, h, w - 8, top + 9, &g_bold, text, LT_INK_HEAD);
 
     if( !g_expanded[index] || src->item_count == 0 )
         return;
@@ -1009,9 +674,12 @@ lt_compose(struct ToriRS_PluginCtx* ctx, int width)
      * interface's does behind its bands. */
     memset(g_compose, 0, pixels * sizeof(*g_compose));
 
+    lt_draw_totals(ctx, g_compose, width, height);
+    top = LT_TOTALS_H + LT_HEAD_GAP;
+
     if( g_source_count == 0 )
         PluginDraw_Text(
-            g_compose, width, height, 4, 3, &g_text, "No loot to display.",
+            g_compose, width, height, 4, top + 3, &g_text, "No loot to display.",
             LT_INK_HEAD);
 
     for( int i = 0; i < g_source_count; i++ )
@@ -1023,6 +691,93 @@ lt_compose(struct ToriRS_PluginCtx* ctx, int width)
     g_api->image_compose(ctx, "strip", width, height, g_compose);
 }
 
+/**
+ * Pull the client's own loot record into the page's tables.
+ *
+ * THE STORE IS THE TRUTH, and this is the whole of how a record gets here now.
+ * The loot tracker is a client-side feature of the game: no packet carries it,
+ * the server's kill hook feeds game/rs_loot_store.c directly, and the cache's
+ * own tracker interface reads that store. Correlating despawns with item
+ * spawns -- which is what this plugin did before the store was reachable, and
+ * what RuneLite has to do because its client exposes no such thing -- cannot
+ * see a kill that dropped nothing and cannot tell two of a monster dying on
+ * one tile apart. Reading the store gets the game's answer instead of an
+ * approximation of it.
+ *
+ * @return true when anything changed, which is what decides a rebuild.
+ */
+static bool
+lt_sync_store(struct ToriRS_PluginCtx* ctx)
+{
+    struct ToriRS_PluginLootSource src;
+    char const* ignored;
+    int before = g_source_count;
+    int count = 0;
+    bool changed = false;
+
+    assert(ctx);
+
+    ignored = g_api->cfg_str(ctx, "ignored_sources");
+    g_session_kills = 0;
+    g_session_value = 0;
+
+    for( int it = g_api->loot_source_next(ctx, -1, &src); it >= 0;
+         it = g_api->loot_source_next(ctx, it, &src) )
+    {
+        struct LtSource* dst;
+        struct ToriRS_PluginLootRow row;
+        char name[64];
+
+        lt_clean_name(src.name, name, sizeof(name));
+        if( !name[0] || lt_listed(ignored, name) )
+            continue;
+        if( count >= LT_SOURCES_MAX )
+            break;
+
+        dst = &g_source[count];
+        if( strcmp(dst->name, name) != 0 || dst->kills != src.kill_count ||
+            dst->item_count != src.row_count )
+            changed = true;
+        memset(dst, 0, sizeof(*dst));
+        snprintf(dst->name, sizeof(dst->name), "%s", name);
+        dst->kills = src.kill_count;
+        dst->id = src.id;
+
+        for( int r = g_api->loot_row_next(ctx, src.id, -1, &row); r >= 0;
+             r = g_api->loot_row_next(ctx, src.id, r, &row) )
+        {
+            struct ToriRS_PluginObjInfo info;
+            struct LtItem item;
+
+            if( dst->item_count >= LT_ITEMS_MAX )
+                break;
+            memset(&item, 0, sizeof(item));
+            item.obj_id = row.obj_id;
+            item.quantity = row.quantity;
+            /* The store priced it when it landed; a name still has to be
+             * asked for, and an objtype that is not resident yet simply has
+             * none this pass. */
+            item.cost = row.value;
+            if( g_api->obj_info(ctx, row.obj_id, &info) )
+                lt_clean_name(info.name, item.name, sizeof(item.name));
+            if( lt_listed(g_api->cfg_str(ctx, "ignored_items"), item.name) )
+                continue;
+            dst->items[dst->item_count++] = item;
+        }
+
+        g_session_kills += dst->kills;
+        g_session_value += lt_source_value(ctx, dst);
+        count++;
+    }
+
+    g_source_count = count;
+    if( before != count )
+        changed = true;
+    if( g_detail >= g_source_count )
+        g_detail = -1;
+    return changed;
+}
+
 /** Rewrite every readout on the built page. */
 static void
 lt_page_refresh(struct ToriRS_PluginCtx* ctx)
@@ -1032,11 +787,6 @@ lt_page_refresh(struct ToriRS_PluginCtx* ctx)
     assert(ctx);
     if( !g_page_built )
         return;
-
-    lt_commas(g_session_kills, text, sizeof(text));
-    g_api->panel_set_text(ctx, "total_kills", text);
-    lt_commas(g_session_value, text, sizeof(text));
-    g_api->panel_set_text(ctx, "total_value", text);
 
     /* The bands are pixels and redraw themselves. */
     g_api->panel_invalidate(ctx, "strip");
@@ -1077,9 +827,9 @@ lt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
     g_built_rows = lt_strip_h();
 
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_SECTION, "sec_session", "Session");
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_kills", "Kills");
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_value", "Total value");
+    /* No Session rows: the strip's own totals band carries them, exactly as
+     * the game's tracker does, and two readouts of one number that round
+     * differently is how they come to disagree. */
 
     /*
      * ONE drawing well for every band, which is what the CS2 tracker is: a
@@ -1171,8 +921,7 @@ lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     if( strcmp(ev->id, "reset_all") == 0 )
     {
         g_source_count = 0;
-        g_pending_count = 0;
-        g_session_value = 0;
+            g_session_value = 0;
         g_session_kills = 0;
         g_detail = -1;
         g_dirty = true;
@@ -1240,6 +989,39 @@ lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     return TORIRS_PLUGIN_PASS;
 }
 
+
+static enum ToriRS_PluginVerdict
+lt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    (void)event;
+    (void)userdata;
+
+    struct ToriRS_PluginPanelDesc desc;
+
+    assert(ctx);
+
+    g_source_count = 0;
+    g_session_value = 0;
+    g_session_kills = 0;
+    g_detail = -1;
+    g_built_detail = -1;
+    g_built_rows = 0;
+    g_page_built = false;
+    g_page_visible = false;
+    g_next_panel_ms = 0;
+    g_dirty = false;
+    memset(g_expanded, 0, sizeof(g_expanded));
+
+    memset(&desc, 0, sizeof(desc));
+    desc.title = "Loot Tracker";
+    /* RuneLite's own, so a person who has used the plugin there recognises
+     * the row. @see script/plugins/assets/loot-tracker/panel_icon.txt. */
+    desc.icon_asset = "panel_icon.png";
+    desc.preferred_width = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+    g_api->panel_request(ctx, &desc);
+    return TORIRS_PLUGIN_PASS;
+}
+
 /** The shell moved, showed or hid this page. */
 static enum ToriRS_PluginVerdict
 lt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
@@ -1262,65 +1044,6 @@ lt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     return TORIRS_PLUGIN_PASS;
 }
 
-/* ------------------------------------------------------------------------ */
-/* Lifecycle                                                                 */
-/* ------------------------------------------------------------------------ */
-
-static enum ToriRS_PluginVerdict
-lt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
-{
-    (void)event;
-    (void)userdata;
-
-    struct ToriRS_PluginPanelDesc desc;
-
-    assert(ctx);
-
-    g_source_count = 0;
-    g_pending_count = 0;
-    g_session_value = 0;
-    g_session_kills = 0;
-    g_detail = -1;
-    g_built_detail = -1;
-    g_built_rows = 0;
-    g_page_built = false;
-    g_page_visible = false;
-    g_next_panel_ms = 0;
-    g_dirty = false;
-
-    memset(&desc, 0, sizeof(desc));
-    desc.title = "Loot Tracker";
-    /* RuneLite's own, so a person who has used the plugin there recognises
-     * the row here. @see script/plugins/assets/loot-tracker/panel_icon.txt. */
-    desc.icon_asset = "panel_icon.png";
-    desc.preferred_width = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
-    g_api->panel_request(ctx, &desc);
-
-    if( g_api->cfg_bool(ctx, "remember_loot") &&
-        g_api->asset_load(ctx, LT_STATE_ASSET) == 1 )
-        lt_state_apply(ctx);
-
-    return TORIRS_PLUGIN_PASS;
-}
-
-static enum ToriRS_PluginVerdict
-lt_asset(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
-{
-    (void)userdata;
-
-    struct ToriRS_PluginEvAsset const* ev = event;
-
-    assert(ctx);
-    assert(ev);
-
-    if( ev->ok && ev->name && strcmp(ev->name, LT_STATE_ASSET) == 0 )
-    {
-        lt_state_apply(ctx);
-        g_api->panel_clear(ctx);
-    }
-    return TORIRS_PLUGIN_PASS;
-}
-
 static enum ToriRS_PluginVerdict
 lt_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
@@ -1328,7 +1051,6 @@ lt_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     (void)userdata;
 
     assert(ctx);
-    lt_state_save(ctx);
     g_page_built = false;
     g_page_visible = false;
     return TORIRS_PLUGIN_PASS;
@@ -1345,11 +1067,13 @@ lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
     assert(ctx);
 
-    lt_pending_expire(ctx, now);
-
     if( now < g_next_panel_ms )
         return TORIRS_PLUGIN_PASS;
     g_next_panel_ms = now + LT_PANEL_REFRESH_MS;
+
+    /* The client's own record, which is what the game's tracker shows. */
+    if( lt_sync_store(ctx) )
+        g_dirty = true;
 
     /* The rail entry carries the session's value, so the number a player opens
      * this for is legible without opening it. */
@@ -1373,13 +1097,10 @@ lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         }
     }
 
-    if( g_dirty )
-        lt_state_save(ctx);
     return TORIRS_PLUGIN_PASS;
 }
 
 static struct ToriRS_PluginConfigItem const LT_CONFIG[] = {
-    { "remember_loot",     TORIRS_PLUGIN_CFG_BOOL, "Remember loot between sessions", "1", 0, 0, NULL, 0 },
     { "price_source",      TORIRS_PLUGIN_CFG_ENUM, "Value items by",                 "Cache value", 0, 0, "Cache value|High alchemy", 0 },
     { "kill_chat_message", TORIRS_PLUGIN_CFG_BOOL, "Announce loot in chat",          "0", 0, 0, NULL, 0 },
     { "chat_value_threshold", TORIRS_PLUGIN_CFG_INT, "Announce only above (gp)",     "0", 0, 100000000, NULL, 0 },
@@ -1398,9 +1119,6 @@ lt_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     g_api = api;
     api->subscribe(ctx, TORIRS_PLUGIN_EV_START, lt_start, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, lt_stop, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_ASSET, lt_asset, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_NPC_DESPAWN, lt_npc_despawn, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_OBJ_SPAWN, lt_obj_spawn, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_GAME_EVENT, lt_game_event, NULL);
     /* EV_LOGIC_TICK and not EV_SERVER_TICK: the tick fence is only on the wire
      * for osrs230, osrs239 and the rsprot bridge, and a candidate that never

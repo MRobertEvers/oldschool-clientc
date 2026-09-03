@@ -177,6 +177,41 @@ struct ToriDraw_SharedFaces
     int face_count;
     int textured_face_count;
 
+    /*
+     * The first lender's PRIVATE half, kept so later placements can be cloned
+     * instead of rebuilt.
+     *
+     * The loan above saves memory and nothing else: every placement still ran
+     * the whole build -- convert each source model, merge, recolour, retexture,
+     * mirror, resize -- and then freed the twelve arrays it had just produced
+     * in favour of these. The build was redundant by construction, because the
+     * key IS the config and the rotation, so everything the build decides is
+     * the same at every placement of it.
+     *
+     * What differs per placement is the half the loan does not cover: the
+     * vertices (contouring deforms them), the per-corner colours (lighting
+     * writes them) and face_infos (the neighbour merge writes it). Snapshotting
+     * those three here, from the model as BUILT -- before contouring, before
+     * lighting, which is the state every later placement starts from -- lets
+     * ToriDraw_SharedFacesStoreClone produce a byte-identical placement with
+     * seven array copies and no build at all.
+     *
+     * `template_model` carries the scalars (counts, priority, post-transform,
+     * bounds); its pointers are not owned and are never read. `has_template` is
+     * false for a first lender carrying anything this snapshot does not cover
+     * -- bones, an animaya skin, a captured bind pose, normals -- so those locs
+     * keep rebuilding per placement rather than being cloned wrongly.
+     */
+    struct ToriDraw_Model template_model;
+    vertexint_t* template_vertices_x;
+    vertexint_t* template_vertices_y;
+    vertexint_t* template_vertices_z;
+    hsl16_t* template_face_colors_a;
+    hsl16_t* template_face_colors_b;
+    hsl16_t* template_face_colors_c;
+    int* template_face_infos;
+    bool has_template;
+
     /* Bookkeeping. The store this set belongs to, so a release can unlink
      * itself without every call site passing a store it has no other reason to
      * know about; and the lenders, which the store is not one of. */
@@ -231,6 +266,23 @@ ToriDraw_SharedFacesStoreCount(const struct ToriDraw_SharedFacesStore* store)
 {
     assert(store);
     return store->count;
+}
+
+/* An owned copy of an optional array, or NULL when there was none. */
+static void*
+shared_faces_dup(
+    const void* src,
+    int count,
+    size_t elem_size)
+{
+    void* dst;
+
+    if( !src || count <= 0 )
+        return NULL;
+    dst = malloc((size_t)count * elem_size);
+    assert(dst);
+    memcpy(dst, src, (size_t)count * elem_size);
+    return dst;
 }
 
 static struct ToriDraw_SharedFaces*
@@ -301,6 +353,39 @@ ToriDraw_SharedFacesStoreBorrow(
     TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_TAKE)
 #undef TORIDRAW_SHARED_FACES_TAKE
 
+    /*
+     * Snapshot the private half for the clone path, unless this model carries
+     * something the snapshot does not describe. Refusing is always safe: the
+     * placement falls back to the build it would have done anyway.
+     */
+    if( !lent->base.original_vertices_x && !lent->base.original_vertices_y &&
+        !lent->base.original_vertices_z && !lent->base.original_face_alphas &&
+        !lent->base.normals && !lent->base.merged_normals && !lent->base.vertex_bones &&
+        !lent->base.face_bones && lent->base.animaya_vertex_count == 0 &&
+        lent->base.vertex_count > 0 && lent->base.face_count > 0 )
+    {
+        faces->template_model = lent->base;
+        faces->template_vertices_x =
+            shared_faces_dup(lent->base.vertices_x, lent->base.vertex_count, sizeof(vertexint_t));
+        faces->template_vertices_y =
+            shared_faces_dup(lent->base.vertices_y, lent->base.vertex_count, sizeof(vertexint_t));
+        faces->template_vertices_z =
+            shared_faces_dup(lent->base.vertices_z, lent->base.vertex_count, sizeof(vertexint_t));
+        faces->template_face_colors_a =
+            shared_faces_dup(lent->base.face_colors_a, lent->base.face_count, sizeof(hsl16_t));
+        faces->template_face_colors_b =
+            shared_faces_dup(lent->base.face_colors_b, lent->base.face_count, sizeof(hsl16_t));
+        faces->template_face_colors_c =
+            shared_faces_dup(lent->base.face_colors_c, lent->base.face_count, sizeof(hsl16_t));
+        faces->template_face_infos =
+            shared_faces_dup(lent->base.face_infos, lent->base.face_count, sizeof(int));
+        /* Every array the clone must produce has to be present, or a clone
+         * would hand out a model with a hole a fresh build would have filled. */
+        faces->has_template = faces->template_vertices_x && faces->template_vertices_y &&
+                              faces->template_vertices_z && faces->template_face_colors_a &&
+                              faces->template_face_colors_b && faces->template_face_colors_c;
+    }
+
     bucket = shared_model_bucket(key);
     faces->store = store;
     faces->key = key;
@@ -309,6 +394,66 @@ ToriDraw_SharedFacesStoreBorrow(
     store->buckets[bucket] = faces;
     store->count++;
 
+    lent->faces = faces;
+    return ToriDraw_ModelHandleLentFaces(lent);
+}
+
+struct ToriDraw_ModelHandle
+ToriDraw_SharedFacesStoreClone(
+    struct ToriDraw_SharedFacesStore* store,
+    int64_t key)
+{
+    struct ToriDraw_SharedFaces* faces;
+    struct ToriDraw_ModelLentFaces* lent;
+    struct ToriDraw_ModelHandle none = { 0 };
+
+    assert(store);
+
+    faces = shared_faces_find(store, key);
+    if( !faces || !faces->has_template )
+        return none;
+
+    lent = calloc(1, sizeof(*lent));
+    assert(lent);
+
+    /* Scalars first, then every pointer is replaced: the template's own
+     * pointers belong to the first lender and must not survive this copy. */
+    lent->base = faces->template_model;
+
+    lent->base.vertices_x = shared_faces_dup(
+        faces->template_vertices_x, faces->template_model.vertex_count, sizeof(vertexint_t));
+    lent->base.vertices_y = shared_faces_dup(
+        faces->template_vertices_y, faces->template_model.vertex_count, sizeof(vertexint_t));
+    lent->base.vertices_z = shared_faces_dup(
+        faces->template_vertices_z, faces->template_model.vertex_count, sizeof(vertexint_t));
+    lent->base.face_colors_a = shared_faces_dup(
+        faces->template_face_colors_a, faces->template_model.face_count, sizeof(hsl16_t));
+    lent->base.face_colors_b = shared_faces_dup(
+        faces->template_face_colors_b, faces->template_model.face_count, sizeof(hsl16_t));
+    lent->base.face_colors_c = shared_faces_dup(
+        faces->template_face_colors_c, faces->template_model.face_count, sizeof(hsl16_t));
+    lent->base.face_infos = shared_faces_dup(
+        faces->template_face_infos, faces->template_model.face_count, sizeof(int));
+
+    lent->base.original_vertices_x = NULL;
+    lent->base.original_vertices_y = NULL;
+    lent->base.original_vertices_z = NULL;
+    lent->base.original_face_alphas = NULL;
+    lent->base.normals = NULL;
+    lent->base.merged_normals = NULL;
+    lent->base.vertex_bones = NULL;
+    lent->base.face_bones = NULL;
+    lent->base.animaya_vertex_count = 0;
+    lent->base.animaya_group_counts = NULL;
+    lent->base.animaya_groups = NULL;
+    lent->base.animaya_scales = NULL;
+
+    /* The lent half: aliases, exactly as an adopting Borrow leaves them. */
+#define TORIDRAW_SHARED_FACES_ALIAS(field) lent->base.field = faces->field;
+    TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_ALIAS)
+#undef TORIDRAW_SHARED_FACES_ALIAS
+
+    faces->lenders++;
     lent->faces = faces;
     return ToriDraw_ModelHandleLentFaces(lent);
 }
@@ -355,6 +500,14 @@ ToriDraw_SharedFacesRelease(struct ToriDraw_SharedFaces* faces)
     assert(*link == faces);
     *link = faces->next;
     store->count--;
+
+    free(faces->template_vertices_x);
+    free(faces->template_vertices_y);
+    free(faces->template_vertices_z);
+    free(faces->template_face_colors_a);
+    free(faces->template_face_colors_b);
+    free(faces->template_face_colors_c);
+    free(faces->template_face_infos);
 
 #define TORIDRAW_SHARED_FACES_FREE(field) free(faces->field);
     TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_FREE)

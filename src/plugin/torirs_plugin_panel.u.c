@@ -188,6 +188,13 @@ app_plugin_page_select(struct App* app, int page, int view)
     ToriRSChromeShell_Select(
         &app->plugin_shell,
         page >= 0 ? page : TORIRS_CHROME_SHELL_PAGE_MANAGE);
+    if( getenv("TORIRS_CHROME_DEBUG") )
+        fprintf(
+            stderr, "chrome: page_select page=%d view=%s -> host active=%d view=%d has_page=%d\n",
+            page, view == APP_PLUGIN_VIEW_PAGE ? "page" : "settings",
+            app->plugins ? PluginHost_PanelActive(app->plugins) : -2,
+            app->plugins ? PluginHost_PanelView(app->plugins) : -2,
+            app->plugins && page >= 0 ? (int)PluginHost_PanelHasPage(app->plugins, page) : -2);
 }
 
 /*
@@ -1270,6 +1277,11 @@ app_plugin_panel_sync(struct App* app)
         int has_settings = 0;
 
         g_plugin_settings_widget = -1;
+        if( getenv("TORIRS_CHROME_DEBUG") )
+            fprintf(
+                stderr, "chrome: page build p=%d on_page=%d g_view=%d active=%d host_view=%d panel_count=%d cfg=%d\n",
+                p, on_page, g_plugin_page_view, panel_active,
+                PluginHost_PanelView(app->plugins), panel_count, cfg_count);
 
         /* Back first, so the way out is the first thing on the page and in the
          * same place on every page. Its handle is remembered rather than

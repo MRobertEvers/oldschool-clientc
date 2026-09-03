@@ -78,6 +78,19 @@ static int g_tile_shape_face_counts[15] = {
     8, 8, 8, 12, 12, 12, 12, 16, 16, 16, 24, 24, 24,
 };
 
+/* The shape tables above bound both: six vertices and six faces. Scratch
+ * arrays of this size live on the stack rather than costing a malloc a tile. */
+#define TILE_MAX_VERTICES 8
+#define TILE_MAX_FACES 8
+
+/* Every array the tile block carves is two bytes wide, which is what lets the
+ * slices sit end to end with no padding. A width change breaks this build
+ * rather than the alignment. */
+#define TORIDRAW_TILE_ARRAYS_ARE_ALL_2_BYTES_CHECK                                                 \
+    _Static_assert(                                                                                \
+        sizeof(vertexint_t) == 2 && sizeof(faceint_t) == 2 && sizeof(hsl16_t) == 2,                \
+        "the tile array block assumes 2-byte vertex, face and colour elements")
+
 #define TILE_SIZE 128
 #define LEVEL_HEIGHT 240
 #define INVALID_HSL_COLOR 12345678
@@ -273,13 +286,59 @@ decode_tile(
 
     int* vertex_indices = g_tile_shape_vertex_types[shape];
     int vertex_count = g_tile_shape_vertex_types_lengths[shape];
+    int face_count = g_tile_shape_face_counts[shape] / 4;
 
-    vertexint_t* vertices_x = (vertexint_t*)malloc((size_t)vertex_count * sizeof(vertexint_t));
-    vertexint_t* vertices_y = (vertexint_t*)malloc((size_t)vertex_count * sizeof(vertexint_t));
-    vertexint_t* vertices_z = (vertexint_t*)malloc((size_t)vertex_count * sizeof(vertexint_t));
+    /*
+     * Every array this tile's model will own, carved out of ONE allocation.
+     *
+     * A tile is four to six vertices and two to six faces -- a hundred-odd
+     * bytes -- and it used to arrive as thirteen mallocs. A scene is eleven
+     * thousand tiles, so the allocator was called a hundred and forty thousand
+     * times per rebuild, and again as many times to free them, to move about a
+     * megabyte. The model carries the block and frees it in one call; see
+     * ToriDraw_Model::arrays_block, which is also what forbids replacing or
+     * growing any of these arrays afterwards.
+     *
+     * Every element type here is two bytes wide, so consecutive slices stay
+     * aligned without padding. The static assert is what keeps that true if
+     * one of them ever changes width.
+     */
+    TORIDRAW_TILE_ARRAYS_ARE_ALL_2_BYTES_CHECK;
+    int const textured = texture_id != -1;
+    size_t const tile_block_shorts =
+        (size_t)vertex_count * 3 +                      /* vertices x, y, z */
+        (size_t)face_count * 3 +                        /* face indices a, b, c */
+        (size_t)face_count * 3 +                        /* face colours a, b, c */
+        (textured ? (size_t)face_count * 2 + 3 : 0);    /* textures, coords, p/m/n */
+    /* TORIRS_NO_TILE_BLOCK=1 goes back to one malloc per array -- the A/B the
+     * block was measured with. */
+    static int tile_block_off = -1;
+    if( tile_block_off < 0 )
+        tile_block_off = getenv("TORIRS_NO_TILE_BLOCK") != NULL;
 
-    int* underlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
-    int* overlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
+    int16_t* tile_block =
+        tile_block_off ? NULL : (int16_t*)malloc(tile_block_shorts * sizeof(int16_t));
+    size_t tile_block_at = 0;
+    assert(tile_block || tile_block_off);
+
+#define TILE_BLOCK_TAKE(type, n)                                                                   \
+    (tile_block ? (type*)(tile_block + tile_block_at)                                              \
+                : (type*)malloc((size_t)(n) * sizeof(type)));                                      \
+    tile_block_at += (size_t)(n)
+
+    vertexint_t* vertices_x = TILE_BLOCK_TAKE(vertexint_t, vertex_count);
+    vertexint_t* vertices_y = TILE_BLOCK_TAKE(vertexint_t, vertex_count);
+    vertexint_t* vertices_z = TILE_BLOCK_TAKE(vertexint_t, vertex_count);
+
+    /*
+     * Scratch, and it stays scratch: these three never reach the model, and a
+     * tile's counts are bounded by the shape tables above (six of each), so
+     * they cost nothing on the stack and three mallocs on the heap.
+     */
+    int underlay_colors_hsl[TILE_MAX_VERTICES];
+    int overlay_colors_hsl[TILE_MAX_VERTICES];
+    assert(vertex_count <= TILE_MAX_VERTICES);
+    assert(face_count <= TILE_MAX_FACES);
 
     int underlay_hsl_sw = terrain_multiply_lightness(underlay_hsl16, light_sw);
     int underlay_hsl_se = terrain_multiply_lightness(underlay_hsl16, light_se);
@@ -476,17 +535,16 @@ decode_tile(
     }
 
     int* face_indices = g_tile_shape_faces[shape];
-    int face_count = g_tile_shape_face_counts[shape] / 4;
 
-    faceint_t* faces_a = (faceint_t*)malloc(face_count * sizeof(faceint_t));
-    faceint_t* faces_b = (faceint_t*)malloc(face_count * sizeof(faceint_t));
-    faceint_t* faces_c = (faceint_t*)malloc(face_count * sizeof(faceint_t));
+    faceint_t* faces_a = TILE_BLOCK_TAKE(faceint_t, face_count);
+    faceint_t* faces_b = TILE_BLOCK_TAKE(faceint_t, face_count);
+    faceint_t* faces_c = TILE_BLOCK_TAKE(faceint_t, face_count);
 
-    int* valid_faces = (int*)malloc(face_count * sizeof(int));
+    int valid_faces[TILE_MAX_FACES];
 
-    hsl16_t* face_colors_hsl_a = (hsl16_t*)malloc(face_count * sizeof(hsl16_t));
-    hsl16_t* face_colors_hsl_b = (hsl16_t*)malloc(face_count * sizeof(hsl16_t));
-    hsl16_t* face_colors_hsl_c = (hsl16_t*)malloc(face_count * sizeof(hsl16_t));
+    hsl16_t* face_colors_hsl_a = TILE_BLOCK_TAKE(hsl16_t, face_count);
+    hsl16_t* face_colors_hsl_b = TILE_BLOCK_TAKE(hsl16_t, face_count);
+    hsl16_t* face_colors_hsl_c = TILE_BLOCK_TAKE(hsl16_t, face_count);
 
     int* face_texture_ids = NULL;
     // int* face_texture_u_a = NULL;
@@ -594,11 +652,10 @@ decode_tile(
         // }
     }
 
-    free(underlay_colors_hsl);
-    free(overlay_colors_hsl);
-
     struct ToriDraw_Model* td = calloc(1, sizeof(struct ToriDraw_Model));
     assert(td);
+
+    td->arrays_block = tile_block;
 
     td->vertex_count = vertex_count;
     td->vertices_x = vertices_x;
@@ -622,21 +679,18 @@ decode_tile(
 
     if( face_texture_ids )
     {
-        td->face_textures = (faceint_t*)calloc(face_count, sizeof(faceint_t));
+        td->face_textures = TILE_BLOCK_TAKE(faceint_t, face_count);
         for( int i = 0; i < face_count; i++ )
-            td->face_textures[i] = face_texture_ids[i];
-        free(face_texture_ids);
+            td->face_textures[i] = (faceint_t)face_texture_ids[i];
 
         /* Tile overlay UVs use SW/SE/NW corners (vertices 0,1,3), not per-face corners. */
         td->textured_face_count = 1;
-        td->textured_p_coordinate = (faceint_t*)malloc(sizeof(faceint_t));
-        td->textured_m_coordinate = (faceint_t*)malloc(sizeof(faceint_t));
-        td->textured_n_coordinate = (faceint_t*)malloc(sizeof(faceint_t));
-        td->face_texture_coords = (faceint_t*)calloc((size_t)face_count, sizeof(faceint_t));
-        assert(td->textured_p_coordinate);
-        assert(td->textured_m_coordinate);
-        assert(td->textured_n_coordinate);
-        assert(td->face_texture_coords);
+        td->textured_p_coordinate = TILE_BLOCK_TAKE(faceint_t, 1);
+        td->textured_m_coordinate = TILE_BLOCK_TAKE(faceint_t, 1);
+        td->textured_n_coordinate = TILE_BLOCK_TAKE(faceint_t, 1);
+        td->face_texture_coords = TILE_BLOCK_TAKE(faceint_t, face_count);
+        for( int i = 0; i < face_count; i++ )
+            td->face_texture_coords[i] = 0;
         td->textured_p_coordinate[0] = 0;
         td->textured_m_coordinate[0] = 1;
         td->textured_n_coordinate[0] = 3;
@@ -684,7 +738,10 @@ decode_tile(
         &td->bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
     td->has_bounds_cylinder = true;
 
-    free(valid_faces);
+    /* The block is exactly the slices that were taken from it. */
+    assert(tile_block_at == tile_block_shorts);
+    (void)tile_block_shorts;
+#undef TILE_BLOCK_TAKE
 
     ToriDraw_ModelAssertPnmTextureInvariant(td);
     return td;

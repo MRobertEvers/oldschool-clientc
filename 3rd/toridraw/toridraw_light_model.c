@@ -1,4 +1,5 @@
 #include "toridraw_light_model.h"
+#include <stdbool.h>
 
 #include "toridraw_lighting.h"
 #include "toridraw_model.h"
@@ -71,19 +72,35 @@ ToriDraw_LightModelParams(
         (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
     int attenuation = (light_attenuation * light_magnitude) >> 8;
 
+    /*
+     * A set this call allocated arrives zeroed already (ToriDraw_NormalsNew
+     * clears exactly the range this model uses, on the pooled path as well as
+     * the fresh one), so clearing it again is a second pass over the same
+     * bytes. Only a model that ALREADY had normals needs it -- that is the
+     * re-lighting case the clear exists for, since CalculateVertexNormals
+     * accumulates into the vertex normals.
+     *
+     * It is not a small saving at scene scale: a rebuild default-lights
+     * several thousand scenery models, and the two arrays are ten bytes a
+     * vertex and ten a face.
+     */
+    bool const normals_were_fresh = model->normals == NULL;
+
     ToriDraw_ModelAllocNormals(model);
     struct ToriDraw_Normals* nm = model->normals;
     assert(nm);
 
-    /* CalculateVertexNormals accumulates; clear so re-lighting is idempotent. */
-    if( model->vertex_count > 0 && nm->vertex_normals )
-        memset(
-            nm->vertex_normals,
-            0,
-            (size_t)model->vertex_count * sizeof(struct ToriDraw_Normal));
-    if( model->face_count > 0 && nm->face_normals )
-        memset(
-            nm->face_normals, 0, (size_t)model->face_count * sizeof(struct ToriDraw_Normal));
+    if( !normals_were_fresh )
+    {
+        if( model->vertex_count > 0 && nm->vertex_normals )
+            memset(
+                nm->vertex_normals,
+                0,
+                (size_t)model->vertex_count * sizeof(struct ToriDraw_Normal));
+        if( model->face_count > 0 && nm->face_normals )
+            memset(
+                nm->face_normals, 0, (size_t)model->face_count * sizeof(struct ToriDraw_Normal));
+    }
 
     ToriDraw_CalculateVertexNormals(
         nm->vertex_normals,

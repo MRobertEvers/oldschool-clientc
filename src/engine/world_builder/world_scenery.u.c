@@ -390,6 +390,14 @@ scenery_minimap_wall_flags(
  * key off this one predicate; if they ever disagree a model is lit twice or
  * not at all.
  */
+/* Why a placement had to build its own model (TORIRS_SCENERY_CENSUS=1). */
+int g_wb_share_hit;
+int g_wb_share_clone;
+int g_wb_share_proto;
+int g_wb_share_no_contour;
+int g_wb_share_no_sharelight;
+int g_wb_share_no_seq;
+
 static bool
 scenery_loc_model_shareable(const struct ToriRS_Location* loc)
 {
@@ -1029,6 +1037,48 @@ scenery_load_model(
         proto_key = scenery_model_key(config_loc->id, shape_select, rotation);
         hnd = ToriDraw_SharedModelStoreAcquire(
             ToriDraw_SceneSharedModels(builder->scene), proto_key);
+    }
+    else
+    {
+        if( config_loc->contour_ground_type != 0 )
+            g_wb_share_no_contour++;
+        else if( config_loc->sharelight != 0 )
+            g_wb_share_no_sharelight++;
+        else
+            g_wb_share_no_seq++;
+    }
+    if( hnd.kind != TORIDRAWMK_NONE )
+        g_wb_share_hit++;
+    else if( proto_shareable )
+        g_wb_share_proto++;
+
+    /*
+     * Not shareable whole, but the faces (and everything else the build
+     * decides) are the same at every placement of this key -- so if a previous
+     * placement has already published a set, clone from its template instead
+     * of running the build to produce arrays this placement would immediately
+     * hand back. @see ToriDraw_SharedFacesStoreClone.
+     *
+     * Animated locs are excluded here for the same reason they are excluded
+     * from the loan below: an alpha transform rewrites face_alphas in place
+     * every frame, which a shared set cannot carry.
+     */
+    if( hnd.kind == TORIDRAWMK_NONE && !proto_shareable && config_loc->seq_id == -1 &&
+        !WB_ENV_NO_FACE_CLONE() )
+    {
+        hnd = ToriDraw_SharedFacesStoreClone(
+            ToriDraw_SceneSharedFaces(builder->scene),
+            scenery_model_key(config_loc->id, shape_select, rotation));
+        if( hnd.kind != TORIDRAWMK_NONE )
+        {
+            /* The build this replaced ended with a wants report off its final
+             * face_textures; the registry outlives any one model, so the clone
+             * reports in its place -- the same rule the whole-model cache hit
+             * below follows. */
+            ToriDraw_ModelNoteTextureWants(ToriDraw_ModelRead(hnd));
+            builder->scenery_deferred_angle = 0;
+            g_wb_share_clone++;
+        }
     }
 
     if( hnd.kind != TORIDRAWMK_NONE )
