@@ -287,6 +287,8 @@ struct ToriRS_UiContributionInfo
     char conflict_plugin[TORIRS_PLUGIN_NAME_MAX];
 };
 
+#define TORIRS_UI_CONTRIBUTION_INFO_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
+
 /* ------------------------------------------------------------------------ */
 /* Placement                                                                */
 /* ------------------------------------------------------------------------ */
@@ -544,6 +546,8 @@ struct ToriRS_FrameOfferInfo
     char detail[TORIRS_FRAME_REASON_MAX];
 };
 
+#define TORIRS_FRAME_OFFER_INFO_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
+
 struct ToriRS_FrameSelection
 {
     uint32_t struct_size;
@@ -553,6 +557,8 @@ struct ToriRS_FrameSelection
     char reason[TORIRS_FRAME_REASON_MAX];
     uint32_t revision;
 };
+
+#define TORIRS_FRAME_SELECTION_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
 
 /* ------------------------------------------------------------------------ */
 /* Panel builder                                                            */
@@ -612,6 +618,16 @@ struct ToriRS_CoreApiV2
     bool (*lane)(
         struct ToriRS_ApiV2* api,
         struct ToriRS_PluginLane* out);
+    /**
+     * Query a host/platform fact by stable name. Defined names are:
+     *
+     * - `touch`: the application is currently using touch UI/input policy;
+     * - `web`: this is the Emscripten web lane;
+     * - `browser`: this build supports the embedded BROWSER chrome transport.
+     *
+     * Unknown names and unavailable capabilities return false. Plugins do not
+     * infer these answers from platform preprocessor symbols.
+     */
     bool (*capability)(
         struct ToriRS_ApiV2* api,
         char const* name);
@@ -809,6 +825,16 @@ struct ToriRS_DrawApiV2
     TORIRS_API_V2_MODULE_RESERVED;
 };
 
+/**
+ * Authoritative state of one host-owned asynchronous request.
+ *
+ * PENDING means a later on_asset callback may change the answer. READY means
+ * bytes or the decoded resource are usable now. MISSING and ERROR are cached
+ * terminal results (file absent versus bytes present but IO/decode failed).
+ * INVALID rejects the name before IO; BUDGET means the relevant bounded host
+ * table has no slot. Only PENDING/READY image/model results return a nonzero
+ * typed reference.
+ */
 enum ToriRS_AssetState
 {
     TORIRS_ASSET_PENDING = 0,
@@ -822,6 +848,7 @@ enum ToriRS_AssetState
 struct ToriRS_AssetsApiV2
 {
     uint32_t struct_size;
+    /** Start or join a byte request and return its current authoritative state. */
     enum ToriRS_AssetState (*request)(
         struct ToriRS_ApiV2* api,
         char const* name);
@@ -838,6 +865,7 @@ struct ToriRS_AssetsApiV2
     void (*release)(
         struct ToriRS_ApiV2* api,
         char const* name);
+    /** Start/join and decode an image. `out` is zero on terminal failure. */
     enum ToriRS_AssetState (*image)(
         struct ToriRS_ApiV2* api,
         char const* name,
@@ -850,6 +878,7 @@ struct ToriRS_AssetsApiV2
     void (*image_release)(
         struct ToriRS_ApiV2* api,
         struct ToriRS_ImageRef image);
+    /** Start/join and decode a model. `out` is zero on terminal failure. */
     enum ToriRS_AssetState (*model)(
         struct ToriRS_ApiV2* api,
         char const* name,

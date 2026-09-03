@@ -84,6 +84,25 @@ struct ToriRS_PluginV2AdapterHooks
         char const* value,
         struct ToriRS_SelectOption const* options,
         int option_count);
+
+    /* Append-only authoritative host requests. The legacy table cannot
+     * distinguish a queued read from a cached miss or decode failure.
+     * Image/model callbacks write a zero-based legacy handle only for
+     * PENDING/READY. */
+    enum ToriRS_AssetState (*asset_request)(
+        void* user,
+        struct ToriRS_PluginCtx* context,
+        char const* name);
+    enum ToriRS_AssetState (*image_request)(
+        void* user,
+        struct ToriRS_PluginCtx* context,
+        char const* name,
+        int* out_image);
+    enum ToriRS_AssetState (*model_request)(
+        void* user,
+        struct ToriRS_PluginCtx* context,
+        char const* name,
+        int* out_model);
 };
 
 struct ToriRS_PluginV2Adapter

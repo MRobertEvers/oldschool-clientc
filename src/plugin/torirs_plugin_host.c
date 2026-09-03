@@ -8,6 +8,7 @@
 #include "ui/uitree_minimenu.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -188,6 +189,8 @@ struct PluginAsset
      * second asset_load of the same name joins the first rather than queuing
      * a duplicate read. */
     bool pending;
+    /** A completed byte value, including a legitimate zero-byte asset. */
+    bool ready;
     /*
      * The read completed and the file was not there.
      *
@@ -1266,6 +1269,8 @@ api_frame_offer_next(
 
     assert(ctx);
     assert(out);
+    if( iter == INT_MAX )
+        return -1;
     next = iter + 1;
     entry = PluginFrameCatalog_At(&ctx->host->frame_catalog, next);
     if( !entry )
@@ -1353,11 +1358,14 @@ api_frame_select(
 
     snprintf(host->frame_selection.requested, sizeof(host->frame_selection.requested), "%s", id);
     host->frame_selection.revision++;
+    /* Invalidate an in-flight frame candidate immediately, without resolving
+     * lifecycle until the safe boundary below. */
+    host->frame_selection_epoch++;
     host->frame_selection_dirty = 1;
-    /* Selection is a user action, so make its status and provider lifetime
-     * visible to the rebuilding settings page immediately. Layout itself is
-     * still deferred to the engine's next safe layout pass. */
-    PluginHost_Start(host);
+    /* Never resolve lifecycle from inside a plugin callback. The next host
+     * frame boundary consumes frame_selection_dirty before dispatching its
+     * frame callbacks, so the current callback keeps its state/API alive
+     * through return and layout remains separately fenced. */
     return 1;
 }
 
@@ -2134,6 +2142,8 @@ api_placement_rect_next(
     if( area < 0 || area >= TORIRS_PLUGIN_AREA_COUNT )
         return -1;
     if( !plugin_placement_refresh(ctx->host) )
+        return -1;
+    if( iter == INT_MAX )
         return -1;
     next = iter + 1;
     if( next < 0 || next >= ToriRS_PlacementRegion_RectCount(&ctx->host->placement[area]) )
@@ -4225,7 +4235,7 @@ api_asset_load(
         return 0;
 
     struct PluginAsset* slot = plugin_asset_find(host, ctx->index, name);
-    if( slot && slot->data )
+    if( slot && slot->ready )
         return 1;
     /* A second load of an in-flight name joins the first: one read, one event,
      * and both callers see the bytes. */
@@ -4250,6 +4260,8 @@ api_asset_load(
     }
 
     slot->pending = true;
+    slot->ready = false;
+    slot->missing = false;
     if( !host->engine.asset_read(host->engine.user, ctx->name, name) )
     {
         slot->pending = false;
@@ -4316,6 +4328,8 @@ api_asset_save(
     slot->data = copy;
     slot->size = size;
     slot->pending = false;
+    slot->ready = true;
+    slot->missing = false;
 
     return host->engine.asset_write(host->engine.user, ctx->name, name, data, size);
 }
@@ -4475,6 +4489,7 @@ PluginHost_AssetDeliver(
      * that leaves data NULL and pending false is otherwise identical to a
      * slot nobody has read yet. */
     slot->missing = (data == NULL);
+    slot->ready = (data != NULL);
     if( data )
     {
         free(slot->data);
@@ -8462,22 +8477,31 @@ plugin_v2_ui_contribution_info_hook(
     struct ToriRS_UiContributionInfo* out)
 {
     struct ToriRS_UiContributionStatus status;
+    struct ToriRS_UiContributionInfo snapshot;
     struct ToriRS_PluginHost* host = user;
+    uint32_t capacity;
 
     assert(host);
     assert(context);
     assert(context->host == host);
     assert(out);
     (void)host;
-    memset(out, 0, sizeof(*out));
-    out->struct_size = sizeof(*out);
+    capacity = out->struct_size;
+    if( capacity < TORIRS_UI_CONTRIBUTION_INFO_REQUIRED_SIZE )
+        return false;
+    memset(&snapshot, 0, sizeof(snapshot));
+    snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
     if( facets == 0 || (facets & ~TORIRS_UI_FACET_ALL) != 0 ||
         !plugin_ui_contribution_status(context, node, &status) )
         return false;
-    out->state = status.state;
-    out->active_facets = status.active_facets & facets;
+    snapshot.state = status.state;
+    snapshot.active_facets = status.active_facets & facets;
     (void)snprintf(
-        out->conflict_plugin, sizeof(out->conflict_plugin), "%s", status.conflict_plugin);
+        snapshot.conflict_plugin,
+        sizeof(snapshot.conflict_plugin),
+        "%s",
+        status.conflict_plugin);
+    memcpy(out, &snapshot, capacity < sizeof(snapshot) ? capacity : sizeof(snapshot));
     return true;
 }
 
@@ -8813,12 +8837,179 @@ plugin_v2_panel_select(
     plugin_panel_bump(&host->panel_model_revision);
 }
 
+static bool
+plugin_v2_capability(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* name)
+{
+    struct ToriRS_PluginHost* host = user;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    assert(name);
+    (void)context;
+    return host->engine.capability &&
+           host->engine.capability(host->engine.user, name) != 0;
+}
+
+static enum ToriRS_AssetState
+plugin_v2_asset_slot_state(struct PluginAsset const* asset)
+{
+    if( !asset )
+        return TORIRS_ASSET_ERROR;
+    if( asset->ready )
+        return TORIRS_ASSET_READY;
+    if( asset->pending )
+        return TORIRS_ASSET_PENDING;
+    if( asset->missing )
+        return TORIRS_ASSET_MISSING;
+    return TORIRS_ASSET_ERROR;
+}
+
+static enum ToriRS_AssetState
+plugin_v2_asset_request(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* name)
+{
+    struct ToriRS_PluginHost* host = user;
+    struct PluginAsset* asset;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    if( !plugin_asset_name_ok(context, name) )
+        return TORIRS_ASSET_INVALID;
+    asset = plugin_asset_find(host, context->index, name);
+    if( asset )
+        return plugin_v2_asset_slot_state(asset);
+    if( host->asset_count >= TORIRS_PLUGIN_ASSETS_MAX )
+        return TORIRS_ASSET_BUDGET;
+    (void)api_asset_load(context, name);
+    return plugin_v2_asset_slot_state(
+        plugin_asset_find(host, context->index, name));
+}
+
+static enum ToriRS_AssetState
+plugin_v2_image_request(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* name,
+    int* out_image)
+{
+    struct ToriRS_PluginHost* host = user;
+    struct PluginAsset* asset;
+    enum ToriRS_AssetState state;
+    int image = -1;
+    int free_image = -1;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    assert(out_image);
+    *out_image = -1;
+    if( !plugin_asset_name_ok(context, name) )
+        return TORIRS_ASSET_INVALID;
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+    {
+        if( host->images[i].plugin == context->index &&
+            strcmp(host->images[i].asset, name) == 0 )
+        {
+            image = i;
+            break;
+        }
+        if( host->images[i].plugin < 0 && free_image < 0 )
+            free_image = i;
+    }
+    asset = plugin_asset_find(host, context->index, name);
+    if( image < 0 )
+    {
+        if( free_image < 0 || (!asset && host->asset_count >= TORIRS_PLUGIN_ASSETS_MAX) )
+            return TORIRS_ASSET_BUDGET;
+        image = api_image_load(context, name);
+        if( image < 0 )
+            return TORIRS_ASSET_BUDGET;
+        asset = plugin_asset_find(host, context->index, name);
+    }
+    if( host->images[image].published )
+        state = TORIRS_ASSET_READY;
+    else
+    {
+        state = plugin_v2_asset_slot_state(asset);
+        if( state == TORIRS_ASSET_READY )
+            state = TORIRS_ASSET_ERROR; /* bytes landed, decode did not */
+    }
+    if( state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY )
+        *out_image = image;
+    return state;
+}
+
+static enum ToriRS_AssetState
+plugin_v2_model_request(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* name,
+    int* out_model)
+{
+    struct ToriRS_PluginHost* host = user;
+    struct PluginAsset* asset;
+    enum ToriRS_AssetState state;
+    int model = -1;
+    int free_model = -1;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    assert(out_model);
+    *out_model = -1;
+    if( !plugin_asset_name_ok(context, name) )
+        return TORIRS_ASSET_INVALID;
+    for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
+    {
+        if( host->models[i].plugin == context->index &&
+            strcmp(host->models[i].asset, name) == 0 )
+        {
+            model = i;
+            break;
+        }
+        if( host->models[i].plugin < 0 && free_model < 0 )
+            free_model = i;
+    }
+    asset = plugin_asset_find(host, context->index, name);
+    if( model < 0 )
+    {
+        if( free_model < 0 || (!asset && host->asset_count >= TORIRS_PLUGIN_ASSETS_MAX) )
+            return TORIRS_ASSET_BUDGET;
+        model = api_model_load(context, name);
+        if( model < 0 )
+            return TORIRS_ASSET_BUDGET;
+        asset = plugin_asset_find(host, context->index, name);
+    }
+    if( host->models[model].published )
+        state = TORIRS_ASSET_READY;
+    else
+    {
+        state = plugin_v2_asset_slot_state(asset);
+        if( state == TORIRS_ASSET_READY )
+            state = TORIRS_ASSET_ERROR;
+    }
+    if( state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY )
+        *out_model = model;
+    return state;
+}
+
 static struct ToriRS_PluginV2AdapterHooks
 plugin_v2_adapter_hooks(struct ToriRS_PluginHost* host)
 {
     return (struct ToriRS_PluginV2AdapterHooks){
         .struct_size = sizeof(struct ToriRS_PluginV2AdapterHooks),
         .user = host,
+        .capability = plugin_v2_capability,
+        .asset_request = plugin_v2_asset_request,
+        .image_request = plugin_v2_image_request,
+        .model_request = plugin_v2_model_request,
         .ui_ref = plugin_v2_ui_ref,
         .ui_info = plugin_v2_ui_info,
         .ui_invoke = plugin_v2_ui_invoke,
@@ -9557,6 +9748,11 @@ plugin_teardown(
                 sub->handler(ctx, &ev, sub->userdata);
         }
         host->dispatching = -1;
+        /* on_stop observes the plugin as live. From this point onward no
+         * direct retained-state notifier may target it: v2 shutdown frees
+         * state and clears the adapter before reservation/UI cleanup can
+         * publish placement changes. */
+        ctx->running = false;
         if( ctx->def->shutdown )
             ctx->def->shutdown(ctx);
     }
@@ -9619,7 +9815,6 @@ plugin_teardown(
         host->win_tab_title[plugin_index][0] = '\0';
         host->win_revision++;
     }
-    ctx->running = false;
     ctx->tearing_down = false;
     if( ui_changed )
         PluginHost_LayoutChanged(host);
@@ -9934,7 +10129,7 @@ PluginHost_UiInfo(
     if( capacity < TORIRS_UI_NODE_INFO_LEGACY_SIZE )
         return false;
     memset(&snapshot, 0, sizeof(snapshot));
-    snapshot.struct_size = sizeof(snapshot);
+    snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
     if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &resolved) )
         return false;
     snapshot.bounds = resolved.value.bounds;
@@ -10197,7 +10392,7 @@ plugin_ui_present_role(
     if( strcmp(name, "frame.modal") == 0 )
         return "main_modal";
     if( strcmp(name, "frame.orbs") == 0 )
-        return "frame_orbs";
+        return "orbs";
     if( strcmp(name, "frame.orb.hitpoints") == 0 )
         return "orb_hitpoints";
     if( strcmp(name, "frame.orb.prayer") == 0 )
@@ -10274,14 +10469,18 @@ plugin_ui_present_boundary(
         char const* name = ToriRS_UiRegistry_Name(&host->ui_registry, boundary);
         char const* role = name ? plugin_ui_present_role(name, dynamic, sizeof(dynamic)) : NULL;
 
-        if( role )
         {
-            (void)snprintf(
-                rows[index].boundary_role,
-                sizeof(rows[index].boundary_role),
-                "%s",
-                role);
-            return;
+            int x, y, w, h;
+            if( role && host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h) &&
+                host->engine.role_visible(host->engine.user, role) )
+            {
+                (void)snprintf(
+                    rows[index].boundary_role,
+                    sizeof(rows[index].boundary_role),
+                    "%s",
+                    role);
+                return;
+            }
         }
         if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, boundary, &parent) )
             return;
@@ -11307,7 +11506,7 @@ plugin_placement_notify_v2(struct ToriRS_PluginHost* host)
         struct ToriRS_PluginCtx* ctx = &host->plugins[i];
         struct PluginV2Instance* v2 = ctx->v2;
 
-        if( !ctx->enabled || !ctx->running || !v2 ||
+        if( !ctx->enabled || !ctx->running || ctx->tearing_down || !v2 ||
             !v2->definition->callbacks.on_placement_changed )
             continue;
         host->dispatching = i;

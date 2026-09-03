@@ -25,6 +25,19 @@ def c_arrays(source: str) -> dict[str, list[list[str]]]:
     return arrays
 
 
+def c_function_array_names(source: str) -> set[str]:
+    names: set[str] = set()
+    pattern = re.compile(
+        r"\}\s+([A-Z][A-Z0-9_]*)\[\]\s*=\s*\{(.*?)\n\s*\};",
+        re.S,
+    )
+    for name, body in pattern.findall(source):
+        entries = re.findall(r'\{\s*"[^"]+"\s*,\s*([A-Za-z_][A-Za-z0-9_]*)', body)
+        if entries and all(entry.startswith("lua_") for entry in entries):
+            names.add(name)
+    return names
+
+
 def meta_classes(source: str) -> tuple[dict[str, dict[str, str]], set[str]]:
     classes: dict[str, dict[str, str]] = {}
     callable_aliases: set[str] = set()
@@ -84,16 +97,28 @@ def main() -> int:
         "DRAW": "torirs.Draw",
         "TOP": "torirs.LayoutTopLevel",
     }
+    actual_function_arrays = c_function_array_names(c_source)
+    expected_function_arrays = set(expected_arrays) | {"VERBS"}
+    if actual_function_arrays != expected_function_arrays:
+        errors.append(
+            "C inventory: registration-table set changed: runtime="
+            + ",".join(sorted(actual_function_arrays))
+            + " expected="
+            + ",".join(sorted(expected_function_arrays))
+        )
     for array, meta_class in expected_arrays.items():
         rows = arrays.get(array, [])
         if len(rows) != 1:
             errors.append(f"C inventory: expected one {array} registration table, found {len(rows)}")
             continue
+        documented = callable_fields(classes, callable_aliases, meta_class)
+        if meta_class == "torirs.Api":
+            documented -= {"role"}
         errors.extend(
             fail_differences(
                 meta_class,
                 set(rows[0]),
-                callable_fields(classes, callable_aliases, meta_class),
+                documented,
             )
         )
 
@@ -123,11 +148,20 @@ def main() -> int:
         "torirs.Layout": {"revision"},
         "torirs.EvMenuBuild": {"add"},
     }
+    explicit_c = {
+        ("torirs.Api", "role"): r'lua_pushcclosure\(L,\s*lua_api_role,\s*2\);\s*lua_setfield\(L,\s*-2,\s*"role"\);',
+        ("torirs.Layout", "revision"): r'lua_pushcclosure\(L,\s*lua_layout_revision,\s*1\);\s*lua_setfield\(L,\s*-2,\s*"revision"\);',
+        ("torirs.EvMenuBuild", "add"): r'lua_pushcclosure\(L,\s*lua_menu_add,\s*1\);\s*lua_setfield\(L,\s*-2,\s*"add"\);',
+    }
     for meta_class, runtime in explicit.items():
         documented = callable_fields(classes, callable_aliases, meta_class)
         if meta_class == "torirs.Api":
             documented -= set(arrays.get("FNS", [[]])[0])
         errors.extend(fail_differences(meta_class + " explicit", runtime, documented))
+        for field in runtime:
+            pattern = explicit_c[(meta_class, field)]
+            if not re.search(pattern, c_source, re.S):
+                errors.append(f"C inventory: {meta_class}.{field} is not actually mounted")
 
     regions = arrays.get("REGIONS", [])
     runtime_layout_tables = set(regions[0]) | {"top_level"} if len(regions) == 1 else set()

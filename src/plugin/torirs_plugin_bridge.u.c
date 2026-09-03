@@ -1279,6 +1279,34 @@ app_plugin_frame_work_us(void* user)
 }
 
 static int
+app_plugin_capability(void* user, char const* name)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(name);
+    if( strcmp(name, "touch") == 0 )
+        return app->touch_ui != 0;
+    if( strcmp(name, "web") == 0 )
+    {
+#if defined(TORIRS_PLATFORM_WEB)
+        return 1;
+#else
+        return 0;
+#endif
+    }
+    if( strcmp(name, "browser") == 0 )
+    {
+#if defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
+        return 1;
+#else
+        return 0;
+#endif
+    }
+    return 0;
+}
+
+static int
 app_plugin_local_player(void* user, struct ToriRS_PluginPlayerSnap* out)
 {
     struct App* app = (struct App*)user;
@@ -5114,6 +5142,7 @@ app_plugin_engine(struct App* app)
     engine.world_cycle = app_plugin_world_cycle;
     engine.frame_ms = app_plugin_frame_ms;
     engine.frame_work_us = app_plugin_frame_work_us;
+    engine.capability = app_plugin_capability;
     engine.local_player = app_plugin_local_player;
     engine.npc_next = app_plugin_npc_next;
     engine.npc_by_slot = app_plugin_npc_by_slot;

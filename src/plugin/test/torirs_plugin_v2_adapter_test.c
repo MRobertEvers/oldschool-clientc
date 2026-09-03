@@ -39,6 +39,9 @@ struct Fake
 
     int asset_resident;
     int image_ready;
+    int hook_asset_state;
+    int hook_image_state;
+    int hook_model_state;
     unsigned char bytes[4];
 
     int panel_count;
@@ -998,6 +1001,55 @@ hook_capability(
     (void)state(context);
     return strcmp(name, "touch") == 0;
 }
+static enum ToriRS_AssetState
+hook_asset_request(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* name)
+{
+    struct Fake* f = user;
+    (void)state(context);
+    (void)name;
+    return f->hook_asset_state >= 0
+               ? (enum ToriRS_AssetState)f->hook_asset_state
+               : f->asset_resident ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
+}
+static enum ToriRS_AssetState
+hook_image_request(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* name,
+    int* out_image)
+{
+    struct Fake* f = user;
+    enum ToriRS_AssetState const result =
+        f->hook_image_state >= 0
+            ? (enum ToriRS_AssetState)f->hook_image_state
+            : strcmp(name, "full.png") == 0
+                  ? TORIRS_ASSET_BUDGET
+                  : f->image_ready ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
+    (void)state(context);
+    *out_image = result == TORIRS_ASSET_READY || result == TORIRS_ASSET_PENDING ? 14 : -1;
+    return result;
+}
+static enum ToriRS_AssetState
+hook_model_request(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* name,
+    int* out_model)
+{
+    struct Fake* f = user;
+    enum ToriRS_AssetState const result =
+        f->hook_model_state >= 0
+            ? (enum ToriRS_AssetState)f->hook_model_state
+            : strcmp(name, "full.model") == 0
+                  ? TORIRS_ASSET_BUDGET
+                  : f->asset_resident ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
+    (void)state(context);
+    *out_model = result == TORIRS_ASSET_READY || result == TORIRS_ASSET_PENDING ? 18 : -1;
+    return result;
+}
 static struct ToriRS_UiNodeRef
 hook_ui_ref(
     void* user,
@@ -1230,6 +1282,9 @@ hooks(void)
         .struct_size = sizeof(struct ToriRS_PluginV2AdapterHooks),
         .user = &fake,
         .capability = hook_capability,
+        .asset_request = hook_asset_request,
+        .image_request = hook_image_request,
+        .model_request = hook_model_request,
         .ui_ref = hook_ui_ref,
         .ui_info = hook_ui_info,
         .ui_invoke = hook_ui_invoke,
@@ -1259,7 +1314,9 @@ test_construction_and_basic_modules(
     struct ToriRS_PluginLocSnap scenery;
     struct ToriRS_PluginHoverEntity hover;
     struct ToriRS_UiNodeInfo ui_info = { .struct_size = sizeof(ui_info) };
-    struct ToriRS_UiContributionInfo contribution_info;
+    struct ToriRS_UiContributionInfo contribution_info = {
+        .struct_size = sizeof(contribution_info),
+    };
     struct ToriRS_UiNodeRef ref;
     struct ToriRS_UiNode ui_update = {
         .struct_size = sizeof(ui_update),
@@ -1391,8 +1448,8 @@ test_placement_and_frame(struct ToriRS_ApiV2* api)
 {
     struct ToriRS_PlacementAreaRef area;
     struct ToriRS_Rect rect;
-    struct ToriRS_FrameOfferInfo offer;
-    struct ToriRS_FrameSelection selection;
+    struct ToriRS_FrameOfferInfo offer = { .struct_size = sizeof(offer) };
+    struct ToriRS_FrameSelection selection = { .struct_size = sizeof(selection) };
     int calls;
 
     CHECK(api->placement.revision(api) == 77, "placement revision is forwarded");
@@ -1445,6 +1502,41 @@ test_placement_and_frame(struct ToriRS_ApiV2* api)
             strcmp(selection.active_id, "core/native") == 0 &&
             selection.status == TORIRS_FRAME_STATUS_FALLBACK && selection.revision == 12,
         "frame selection field names and status translate");
+    {
+        struct ToriRS_FrameOfferInfo prefix_offer;
+        struct ToriRS_FrameSelection prefix_selection;
+        unsigned char* offer_bytes = (unsigned char*)&prefix_offer;
+        unsigned char* selection_bytes = (unsigned char*)&prefix_selection;
+        uint32_t const offer_capacity = offsetof(struct ToriRS_FrameOfferInfo, title);
+        uint32_t const selection_capacity = offsetof(struct ToriRS_FrameSelection, active_id);
+
+        memset(&prefix_offer, 0xa5, sizeof(prefix_offer));
+        prefix_offer.struct_size = offer_capacity;
+        CHECK(
+            api->frame.offer_next(api, -1, &prefix_offer) == 0 &&
+                prefix_offer.struct_size == offer_capacity &&
+                strcmp(prefix_offer.id, "frames/window") == 0 &&
+                offer_bytes[offer_capacity] == 0xa5,
+            "frame offer output honors an older caller's exact capacity");
+        CHECK(
+            api->frame.offer_next(api, -1, &prefix_offer) == 0 &&
+                prefix_offer.struct_size == offer_capacity &&
+                offer_bytes[offer_capacity] == 0xa5,
+            "a reused older frame-offer buffer cannot acquire a false larger capacity");
+        memset(&prefix_selection, 0xa5, sizeof(prefix_selection));
+        prefix_selection.struct_size = selection_capacity;
+        api->frame.selection(api, &prefix_selection);
+        CHECK(
+            prefix_selection.struct_size == selection_capacity &&
+                strcmp(prefix_selection.requested_id, "frames/window") == 0 &&
+                selection_bytes[selection_capacity] == 0xa5,
+            "frame selection output honors an older caller's exact capacity");
+        api->frame.selection(api, &prefix_selection);
+        CHECK(
+            prefix_selection.struct_size == selection_capacity &&
+                selection_bytes[selection_capacity] == 0xa5,
+            "a reused older frame-selection buffer remains safely bounded");
+    }
     CHECK(api->frame.select(api, "frames/window") == TORIRS_RESULT_OK, "valid frame select is OK");
     CHECK(
         api->frame.select(api, "bad") == TORIRS_RESULT_INVALID, "refused frame select is invalid");
@@ -1467,6 +1559,16 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
     int width;
     int height;
 
+    image.value = 0;
+    model.value = 0;
+    mesh.value = 0;
+    instance.value = 0;
+    CHECK(
+        !api->assets.image_size(api, image, &width, &height) &&
+            api->scene.mesh_vertex(api, mesh, 1, 2, 3) == TORIRS_RESULT_INVALID &&
+            api->scene.instance_model(api, instance, model) == TORIRS_RESULT_INVALID,
+        "zero-initialized typed resource refs are uniformly invalid");
+
     fake.asset_resident = 0;
     CHECK(
         api->assets.request(api, "data.bin") == TORIRS_ASSET_PENDING,
@@ -1474,6 +1576,15 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
     CHECK(
         api->assets.request(api, "../data") == TORIRS_ASSET_INVALID,
         "an invalid asset name is reported distinctly");
+    fake.hook_asset_state = TORIRS_ASSET_MISSING;
+    CHECK(
+        api->assets.request(api, "missing.bin") == TORIRS_ASSET_MISSING,
+        "the adapter preserves an authoritative terminal missing state");
+    fake.hook_asset_state = 99;
+    CHECK(
+        api->assets.request(api, "bad-state.bin") == TORIRS_ASSET_ERROR,
+        "an invalid host state fails closed as error");
+    fake.hook_asset_state = -1;
     fake.asset_resident = 1;
     CHECK(api->assets.request(api, "data.bin") == TORIRS_ASSET_READY, "resident bytes are ready");
     CHECK(
@@ -1501,6 +1612,18 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
     CHECK(
         api->assets.image(api, "full.png", &image) == TORIRS_ASSET_BUDGET,
         "negative legacy image handle translates to budget");
+    fake.hook_image_state = TORIRS_ASSET_MISSING;
+    image.value = 77;
+    CHECK(
+        api->assets.image(api, "gone.png", &image) == TORIRS_ASSET_MISSING &&
+            image.value == 0,
+        "terminal image failure clears the typed handle and remains distinct");
+    fake.hook_image_state = TORIRS_ASSET_ERROR;
+    CHECK(
+        api->assets.image(api, "broken.png", &image) == TORIRS_ASSET_ERROR &&
+            image.value == 0,
+        "image decode error is not advertised as pending");
+    fake.hook_image_state = -1;
     image.value = 15;
     api->assets.image_release(api, image);
     CHECK(fake.last_a == 14, "image release forwards typed handle");
@@ -1513,6 +1636,14 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
     CHECK(
         api->assets.model(api, "beam.model", &model) == TORIRS_ASSET_READY,
         "resident model is ready");
+    fake.hook_model_state = TORIRS_ASSET_BUDGET;
+    model.value = 88;
+    CHECK(
+        api->assets.model(api, "full.model", &model) == TORIRS_ASSET_BUDGET &&
+            model.value == 0,
+        "model budget exhaustion is terminal and returns no typed handle");
+    fake.hook_model_state = -1;
+    model.value = 19;
     api->assets.model_release(api, model);
     CHECK(fake.last_a == 19, "model release hook receives the zero-safe typed handle");
     CHECK(
@@ -1789,6 +1920,9 @@ main(void)
     struct ToriRS_PluginV2AdapterHooks adapter_hooks = hooks();
 
     memset(&fake, 0, sizeof(fake));
+    fake.hook_asset_state = -1;
+    fake.hook_image_state = -1;
+    fake.hook_model_state = -1;
     fake.bytes[0] = 1;
     test_construction_and_basic_modules(&adapter, &legacy, &adapter_hooks);
     test_placement_and_frame(&adapter.api);

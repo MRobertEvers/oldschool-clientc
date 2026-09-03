@@ -8,11 +8,12 @@
 -- server (LuaLS / the "Lua" extension, sumneko.lua) can complete `api.` and
 -- `draw.`, and flag a handler that was given the wrong arguments.
 --
--- It is a hand-written mirror of src/plugin/torirs_plugin_lua.c -- the tables
+-- It is a checked mirror of src/plugin/torirs_plugin_lua.c -- the tables
 -- built in lua_build_api_table() and the payloads pushed by
 -- lua_push_event_arg(). A field added there and not here is invisible to the
 -- editor; a field here and not there completes and then reads nil. Change
--- them together.
+-- them together; `make -C src test-plugin-lua-api-inventory` enforces the
+-- callable/table inventory in both directions.
 --
 
 ---------------------------------------------------------------- sandboxing --
@@ -136,6 +137,37 @@ dofile = nil
 ---| '"section"'|'"paragraph"'|'"key_value"'|'"toggle"'|'"textarea"'
 ---| '"list_row"'|'"image"'|'"progress"'|'"error"'|'"custom"'
 
+--- Compatibility chrome-facet API. New code should prefer canonical named UI.
+---@class torirs.ChromeApi
+---@field claim fun(part: string, scopes?: string|string[]): table? Returns held scopes, or nil when the part is absent.
+---@field release fun(part: string, scopes?: string|string[])
+---@field add fun(part: string, anchor: string, initial?: table, place?: '"before"'|'"after"'): table?
+---@field owner fun(part: string, scope?: string): string?
+---@field claimed fun(part: string, scopes?: string|string[]): table
+---@field part fun(part: string): table?
+---@field paint fun(part: string, appearance: table): boolean Legal only in on_chrome.
+---@field ops fun(part: string, ops?: string|string[], tag?: integer): boolean Legal only in on_chrome.
+---@field state fun(part: string, state: '"idle"'|'"hover"'|'"active"'|'"active_hover"'|'"disabled"'): boolean
+
+--- Compatibility entity-facet API. Entity names are produced by `part`.
+---@class torirs.EntityApi
+---@field part fun(kind: '"npc"'|'"player"'|'"loc"'|'"obj"', a: integer, b?: integer, c?: integer, d?: integer): string?
+---@field look fun(part: string, look: table): boolean
+---@field ops fun(part: string, mode: '"append"'|'"replace"'|'"none"', ops?: string|string[], tag?: integer): boolean
+---@field claim fun(part: string, scopes?: string|string[]): table?
+---@field release fun(part: string, scopes?: string|string[])
+---@field owner fun(part: string, scope?: string): string?
+---@field claimed fun(part: string, scopes?: string|string[]): table
+
+--- Legacy plugin tab retained for compatibility beside the shared panel API.
+---@class torirs.WindowApi
+---@field request fun(title?: string): boolean
+---@field widget fun(kind: torirs.PanelWidgetKind, id: string, label?: string): boolean
+---@field set_text fun(id: string, value: any): boolean
+---@field set_checked fun(id: string, value: boolean): boolean
+---@field set_options fun(id: string, choices: string, selected?: integer): boolean
+---@field clear fun()
+
 --- The one shared application-chrome page. `request` registers inert rail
 --- metadata from on_start; widgets may be declared only when this plugin is
 --- the selected page's on_panel_build handler.
@@ -146,7 +178,6 @@ dofile = nil
 ---@field set_value fun(id: string, value: integer|boolean): boolean
 ---@field set_height fun(custom_id: string, preferred_height: integer): boolean Sets a custom region's logical content height; 0 uses 120, otherwise clamped to 48..512.
 ---@field set_options fun(id: string, choices: string, selected?: integer): boolean `choices` is `a|b|c`; selected is 1-based, 0/nil means none.
----@field set_badge fun(text?: string): boolean Short rail status text.
 ---@field set_attention fun(attention: boolean): boolean Requests a host-owned rail treatment; never opens the page.
 ---@field clear fun() Clears the selected model and schedules one fresh on_panel_build.
 ---@field invalidate fun(custom_id: string) Marks one visible custom region for on_panel_draw.
@@ -156,6 +187,7 @@ dofile = nil
 ---@field log fun(...: any) Writes to stderr, prefixed with the plugin name. Values are stringified with __tostring.
 ---@field world_cycle fun(): integer
 ---@field frame_ms fun(): integer
+---@field frame_work_us fun(): integer CPU work spent on the most recently completed frame, in microseconds.
 ---@field memory_bytes fun(): integer Current client memory footprint in bytes (resident process memory on desktop; the live WebAssembly heap in a browser). Returns 0 when unavailable.
 ---@field local_player fun(): torirs.PlayerSnap? nil before login and while the world is rebuilding.
 ---@field npcs fun(): fun(): torirs.NpcSnap? Generic-for iterator: `for npc in api.npcs() do`. One value per step, not ipairs' pair.
@@ -167,6 +199,7 @@ dofile = nil
 ---@field hover_tile fun(): integer?, integer?, integer? Absolute tile under the mouse pointer, as x, z, level. nil when the pointer is outside the world viewport or over no terrain. One frame stale at most -- it comes from the pick that rides the render.
 ---@field hover_entity fun(): torirs.HoverEntity? The nearest ENTITY under the pointer -- the one a left click would act on. nil over open ground, which hover_tile still answers for.
 ---@field element_height fun(element_id: integer): integer Where an overhead hangs above an element, in the projector's units -- the anchor the client's own health bars and chat heads use. Feed it to project() as `height`. 200 for an element whose model is not built yet, 0 for one not in the scene.
+---@field notify fun(text: string) Show a player-facing client notification.
 ---@field varbit fun(varbit_id: integer): integer The client's live varbit. READ ONLY -- a varp is the server's, and writing one would tell the client something the server never said. 0 for an id this revision does not define.
 ---@field varp fun(varp_id: integer): integer
 ---@field setting_color fun(varp_id: integer, fallback?: integer): integer An All Settings colour row, as 0xRRGGBB. Those rows store `colour + 1` so that zero can mean "never chosen"; this drops the offset and answers `fallback` for the unset case.
@@ -207,8 +240,11 @@ dofile = nil
 ---@field rgb fun(hsl: integer): integer The inverse, through the palette the rasteriser uses.
 ---@field hsl_pack fun(hue: integer, saturation: integer, luminance: integer): integer Hue 0-63, saturation 0-7, luminance 0-127.
 ---@field hsl_unpack fun(hsl: integer): integer, integer, integer
+---@field chrome torirs.ChromeApi Compatibility retained chrome facets.
+---@field entity torirs.EntityApi Compatibility entity facets.
 ---@field layout torirs.Layout The gameframe's regions: where the scene, the chat, the sidebar and the modal area are, and how to take a bite out of the space beside them.
 ---@field placement torirs.Placement Exact composed safe placement; prefer this over manually intersecting layout rectangles.
+---@field window torirs.WindowApi Compatibility plugin tab.
 ---@field panel torirs.PanelApi The one shared application-chrome page. No platform/window handle is exposed.
 
 --- The names key_held() understands. Any other key is passed as its

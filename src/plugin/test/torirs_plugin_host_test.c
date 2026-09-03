@@ -123,6 +123,21 @@ fake_frame_work_us(void* u)
     (void)u;
     return 4000;
 }
+static int g_capability_touch;
+static int g_capability_browser;
+static int g_capability_web;
+static int
+fake_capability(void* u, char const* name)
+{
+    (void)u;
+    if( strcmp(name, "touch") == 0 )
+        return g_capability_touch;
+    if( strcmp(name, "browser") == 0 )
+        return g_capability_browser;
+    if( strcmp(name, "web") == 0 )
+        return g_capability_web;
+    return 0;
+}
 static int
 fake_local_player(
     void* u,
@@ -1677,6 +1692,7 @@ fake_engine(void)
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;
+    e.capability = fake_capability;
     e.local_player = fake_local_player;
     e.npc_next = fake_npc_next;
     e.npc_by_slot = fake_npc_by_slot;
@@ -2771,7 +2787,9 @@ v2_probe_start(
     struct V2ProbeState* state = state_ptr;
     struct ToriRS_PluginPlayerSnap player;
     struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
-    struct ToriRS_UiContributionInfo contribution;
+    struct ToriRS_UiContributionInfo contribution = {
+        .struct_size = sizeof(contribution),
+    };
     struct ToriRS_Rect placed;
     struct ToriRS_UiNodeRef own;
     struct ToriRS_UiNodeRef shared;
@@ -2818,6 +2836,27 @@ v2_probe_start(
             api->ui.contribution_info(api, "status", TORIRS_UI_FACET_ALL, &contribution) &&
                 contribution.state == TORIRS_UI_CONTRIBUTION_ACTIVE,
             "v2 contribution status resolves from the retained handle");
+        {
+            struct ToriRS_UiContributionInfo prefix;
+            unsigned char* bytes = (unsigned char*)&prefix;
+            uint32_t const capacity =
+                offsetof(struct ToriRS_UiContributionInfo, conflict_plugin);
+
+            memset(&prefix, 0xa5, sizeof(prefix));
+            prefix.struct_size = capacity;
+            CHECK(
+                api->ui.contribution_info(
+                    api, "status", TORIRS_UI_FACET_ALL, &prefix) &&
+                    prefix.struct_size == capacity &&
+                    prefix.state == TORIRS_UI_CONTRIBUTION_ACTIVE &&
+                    bytes[capacity] == 0xa5,
+                "contribution-info output never overruns an older caller's capacity");
+            CHECK(
+                api->ui.contribution_info(
+                    api, "status", TORIRS_UI_FACET_ALL, &prefix) &&
+                    prefix.struct_size == capacity && bytes[capacity] == 0xa5,
+                "a reused contribution-info prefix retains its safe capacity");
+        }
         CHECK(
             api->panel.request(api, &panel) == TORIRS_RESULT_OK,
             "v2 on_start can register a panel through the typed module");
@@ -3160,9 +3199,34 @@ enum V2TransitionMode
     V2_TRANSITION_CYCLE,
     V2_TRANSITION_FOREIGN_IMAGE,
     V2_TRANSITION_UNREADY_IMAGE,
+    V2_TRANSITION_SELECT_AUTO,
 };
 
 static int g_v2_transition_mode;
+static int g_v2_transition_callback_alive;
+static int g_v2_transition_stops;
+
+struct V2TransitionState
+{
+    uint32_t canary;
+};
+
+static void
+v2_transition_start(struct ToriRS_ApiV2* api, void* state_ptr)
+{
+    struct V2TransitionState* state = state_ptr;
+    (void)api;
+    state->canary = 0x51a7e123u;
+}
+
+static void
+v2_transition_stop(struct ToriRS_ApiV2* api, void* state_ptr)
+{
+    struct V2TransitionState* state = state_ptr;
+    (void)api;
+    CHECK(state && state->canary == 0x51a7e123u, "frame provider state is live through on_stop");
+    g_v2_transition_stops++;
+}
 
 static enum ToriRS_FrameBuildResult
 v2_transition_build(
@@ -3171,6 +3235,7 @@ v2_transition_build(
     struct ToriRS_FrameBuilder* frame,
     struct ToriRS_FrameBuildContext const* context)
 {
+    struct V2TransitionState* transition_state = state;
     struct ToriRS_UiNode marker = {
         .struct_size = sizeof(marker),
         .bounds = { 2, 3, 20, 10 },
@@ -3179,7 +3244,6 @@ v2_transition_build(
         .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,
         .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
     };
-    (void)state;
     (void)context;
 
     if( g_v2_transition_mode == V2_TRANSITION_PENDING )
@@ -3242,6 +3306,15 @@ v2_transition_build(
             frame, TORIRS_SURFACE_COMPASS, (struct ToriRS_Rect){ 600, 0, 32, 32 });
         frame->skin(frame, TORIRS_SURFACE_COMPASS, &skin);
     }
+    if( g_v2_transition_mode == V2_TRANSITION_SELECT_AUTO )
+    {
+        int const stops = g_v2_transition_stops;
+        enum ToriRS_Result const selected = api->frame.select(api, "auto");
+        g_v2_transition_callback_alive =
+            selected == TORIRS_RESULT_OK && transition_state &&
+            transition_state->canary == 0x51a7e123u && g_v2_transition_stops == stops &&
+            api->core.screen(api) == TORIRS_PLUGIN_SCREEN_GAME;
+    }
     return TORIRS_FRAME_READY;
 }
 
@@ -3272,9 +3345,101 @@ static struct ToriRS_PluginDefV2 const V2_TRANSITION_PROVIDER = {
     .id = "v2-transition",
     .title = "V2 Transition",
     .version = "2.0.0",
-    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+    .state_size = sizeof(struct V2TransitionState),
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = v2_transition_start,
+        .on_stop = v2_transition_stop,
+    },
     .frames = V2_TRANSITION_OFFERS,
     .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+};
+
+struct V2SeamResults
+{
+    int touch;
+    int browser;
+    int web;
+    int unknown;
+    enum ToriRS_AssetState raw_initial;
+    enum ToriRS_AssetState image_initial;
+    enum ToriRS_AssetState model_initial;
+    enum ToriRS_AssetState missing_initial;
+    enum ToriRS_AssetState bad_image_initial;
+    enum ToriRS_AssetState invalid;
+    enum ToriRS_AssetState raw_final;
+    enum ToriRS_AssetState image_final;
+    enum ToriRS_AssetState model_final;
+    enum ToriRS_AssetState missing_final;
+    enum ToriRS_AssetState bad_image_final;
+    enum ToriRS_AssetState model_budget;
+    struct ToriRS_ImageRef image;
+    struct ToriRS_ModelRef model;
+    int bytes_ready;
+};
+
+static struct V2SeamResults g_v2_seam;
+
+static void
+v2_seam_start(struct ToriRS_ApiV2* api, void* state)
+{
+    struct ToriRS_ImageRef bad_image = { 0 };
+    (void)state;
+    g_v2_seam.touch = api->core.capability(api, "touch");
+    g_v2_seam.browser = api->core.capability(api, "browser");
+    g_v2_seam.web = api->core.capability(api, "web");
+    g_v2_seam.unknown = api->core.capability(api, "telepathy");
+    g_v2_seam.raw_initial = api->assets.request(api, "raw.bin");
+    g_v2_seam.image_initial = api->assets.image(api, "image.bin", &g_v2_seam.image);
+    g_v2_seam.model_initial = api->assets.model(api, "model.bin", &g_v2_seam.model);
+    g_v2_seam.missing_initial = api->assets.request(api, "missing.bin");
+    g_v2_seam.bad_image_initial =
+        api->assets.image(api, "bad-image.bin", &bad_image);
+    g_v2_seam.invalid = api->assets.request(api, "../invalid");
+}
+
+static void
+v2_seam_logic(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_PluginEvTick const* event)
+{
+    struct ToriRS_ImageRef image = { 0 };
+    struct ToriRS_ModelRef model = { 0 };
+    void const* bytes = NULL;
+    size_t size = 0;
+    (void)state;
+    (void)event;
+    g_v2_seam.raw_final = api->assets.request(api, "raw.bin");
+    g_v2_seam.image_final = api->assets.image(api, "image.bin", &image);
+    g_v2_seam.model_final = api->assets.model(api, "model.bin", &model);
+    g_v2_seam.missing_final = api->assets.request(api, "missing.bin");
+    g_v2_seam.bad_image_final =
+        api->assets.image(api, "bad-image.bin", &image);
+    g_v2_seam.bytes_ready =
+        api->assets.bytes(api, "raw.bin", &bytes, &size) && bytes && size == 4;
+
+    g_v2_seam.model_budget = TORIRS_ASSET_PENDING;
+    for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
+    {
+        char name[32];
+        snprintf(name, sizeof(name), "budget-%d.model", i);
+        g_v2_seam.model_budget = api->assets.model(api, name, &model);
+        if( g_v2_seam.model_budget == TORIRS_ASSET_BUDGET )
+            break;
+    }
+}
+
+static struct ToriRS_PluginDefV2 const V2_SEAM_PROBE = {
+    .struct_size = sizeof(V2_SEAM_PROBE),
+    .id = "v2-seam-probe",
+    .title = "V2 Seam Probe",
+    .version = "2.0.0",
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = v2_seam_start,
+        .on_logic_tick = v2_seam_logic,
+    },
 };
 
 /* A definition ending inside its final callback table exercises append-only
@@ -5099,6 +5264,7 @@ main(void)
         CHECK(
             api->frame_select(PluginHost_Ctx(hf, mobile), "frame-desktop/fixed"),
             "a canonical id switches providers");
+        PluginHost_FrameStart(hf, 1, 0);
         api->frame_selection(PluginHost_Ctx(hf, desktop), &selected);
         CHECK(
             strcmp(selected.active, "frame-mobile/phone") == 0 &&
@@ -5120,6 +5286,7 @@ main(void)
         CHECK(
             api->frame_select(PluginHost_Ctx(hf, desktop), "missing-provider/frame"),
             "a temporarily missing saved id is retained");
+        PluginHost_FrameStart(hf, 2, 0);
         api->frame_selection(PluginHost_Ctx(hf, desktop), &selected);
         CHECK(
             strcmp(selected.requested, "missing-provider/frame") == 0 &&
@@ -5130,6 +5297,7 @@ main(void)
         CHECK(
             api->frame_select(PluginHost_Ctx(hf, desktop), "auto"),
             "Auto is an explicit accepted preference");
+        PluginHost_FrameStart(hf, 3, 0);
         api->frame_selection(PluginHost_Ctx(hf, desktop), &selected);
         CHECK(
             strcmp(selected.requested, "auto") == 0 &&
@@ -5277,10 +5445,10 @@ main(void)
         draw_before = g_engine.draw_items;
         PluginHost_DrawCanvas(hv2, 900, 600);
         CHECK(
-            g_engine.draw_items == draw_before + 2 &&
+            g_engine.draw_items == draw_before + 3 &&
                 ((struct V2ProbeState*)g_v2_latest_state[1])->canvas_draws == 1 &&
                 ((struct V2ProbeState*)g_v2_latest_state[2])->canvas_draws == 1,
-            "v2 canvas callbacks receive callback-scoped draw builders");
+            "v2 canvas callbacks and one retained named label use scoped builders");
 
         PluginHost_Layout(hv2, 900, 600);
         CHECK(
@@ -5432,10 +5600,15 @@ main(void)
             prefix_info.struct_size = TORIRS_UI_NODE_INFO_LEGACY_SIZE;
             CHECK(
                 PluginHost_UiInfo(hv2, private_ref, &prefix_info) &&
-                    prefix_info.struct_size == sizeof(struct ToriRS_UiNodeInfo) &&
+                    prefix_info.struct_size == TORIRS_UI_NODE_INFO_LEGACY_SIZE &&
                     prefix_info.bounds.width == 20 &&
                     bytes[TORIRS_UI_NODE_INFO_LEGACY_SIZE] == 0xa5,
                 "ui.info honors an older caller's output capacity without touching its tail");
+            CHECK(
+                PluginHost_UiInfo(hv2, private_ref, &prefix_info) &&
+                    prefix_info.struct_size == TORIRS_UI_NODE_INFO_LEGACY_SIZE &&
+                    bytes[TORIRS_UI_NODE_INFO_LEGACY_SIZE] == 0xa5,
+                "a reused ui.info prefix remains safely bounded");
         }
         CHECK(
             PluginHost_UiInvoke(hv2, private_ref, "inspect") && g_v2_node_actions == 1,
@@ -5510,6 +5683,7 @@ main(void)
             api->frame_select(
                 PluginHost_Ctx(ht, old_provider), "v2-transition/candidate"),
             "a second provider can become the requested candidate");
+        PluginHost_FrameStart(ht, 1, 0);
         {
             int const begins = g_engine.layout_begins;
             int const ends = g_engine.layout_ends;
@@ -5544,6 +5718,7 @@ main(void)
             api->frame_select(
                 PluginHost_Ctx(ht, candidate_provider), "v2-transition/invalid"),
             "the invalid offer becomes a candidate, not an active frame");
+        PluginHost_FrameStart(ht, 2, 0);
         for( int i = 0; i < (int)(sizeof(INVALID_MODE) / sizeof(INVALID_MODE[0])); i++ )
         {
             int const begins = g_engine.layout_begins;
@@ -5567,6 +5742,67 @@ main(void)
                 "an invalid candidate publishes neither partial geometry nor named state");
         }
         PluginHost_Free(ht);
+    }
+
+    /* ---- authoritative V2 capabilities and asset states --------------- */
+    {
+        struct ToriRS_PluginHost* seam_host;
+        unsigned char* data;
+
+        memset(&g_engine, 0, sizeof(g_engine));
+        memset(&g_v2_seam, 0, sizeof(g_v2_seam));
+        g_capability_touch = 1;
+        g_capability_browser = 1;
+        g_capability_web = 0;
+        engine = fake_engine();
+        seam_host = PluginHost_New(&engine);
+        CHECK(
+            PluginHost_RegisterV2(seam_host, &V2_SEAM_PROBE) == 0,
+            "the V2 capability/asset seam probe registers");
+        PluginHost_Start(seam_host);
+        CHECK(
+            g_v2_seam.touch && g_v2_seam.browser && !g_v2_seam.web &&
+                !g_v2_seam.unknown,
+            "core.capability forwards the engine bridge's named truth and rejects unknowns");
+        CHECK(
+            g_v2_seam.raw_initial == TORIRS_ASSET_PENDING &&
+                g_v2_seam.image_initial == TORIRS_ASSET_PENDING &&
+                g_v2_seam.model_initial == TORIRS_ASSET_PENDING &&
+                g_v2_seam.missing_initial == TORIRS_ASSET_PENDING &&
+                g_v2_seam.bad_image_initial == TORIRS_ASSET_PENDING &&
+                g_v2_seam.image.value != 0 && g_v2_seam.model.value != 0,
+            "new byte/image/model requests report pending with zero-safe live handles");
+        CHECK(
+            g_v2_seam.invalid == TORIRS_ASSET_INVALID,
+            "invalid names are rejected before the host starts IO");
+
+        data = malloc(4);
+        memcpy(data, "DATA", 4);
+        PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "raw.bin", data, 4);
+        data = malloc(3);
+        memcpy(data, "IMG", 3);
+        PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "image.bin", data, 3);
+        data = malloc(5);
+        memcpy(data, "MODEL", 5);
+        PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "model.bin", data, 5);
+        PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "missing.bin", NULL, 0);
+        data = malloc(4);
+        memcpy(data, "FAIL", 4);
+        PluginHost_AssetDeliver(seam_host, "v2-seam-probe", "bad-image.bin", data, 4);
+        PluginHost_LogicTick(seam_host, 1);
+        CHECK(
+            g_v2_seam.raw_final == TORIRS_ASSET_READY && g_v2_seam.bytes_ready &&
+                g_v2_seam.image_final == TORIRS_ASSET_READY &&
+                g_v2_seam.model_final == TORIRS_ASSET_READY,
+            "delivered bytes and decoded resources report ready from host state");
+        CHECK(
+            g_v2_seam.missing_final == TORIRS_ASSET_MISSING &&
+                g_v2_seam.bad_image_final == TORIRS_ASSET_ERROR,
+            "cached miss and decode failure are terminal states, never perpetual pending");
+        CHECK(
+            g_v2_seam.model_budget == TORIRS_ASSET_BUDGET,
+            "the host reports its real model-table budget through V2");
+        PluginHost_Free(seam_host);
     }
 
     /* ---- resolved placement revision and composed fragmented safe area -- */

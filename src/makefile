@@ -2232,6 +2232,16 @@ test-nxt-plugins: $(OBJ_DIR) plugin/torirs_plugin_v2_adapter.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/nxt_activities_test
 
+# The LuaLS declarations are a public API too. Derive the callable/table
+# inventory from the real registration arrays and compare it bidirectionally
+# with plugin_api.meta.lua, so neither a missing completion nor a documented
+# nil function can ship unnoticed.
+.PHONY: test-plugin-lua-api-inventory
+test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c \
+		plugin/test/plugin_lua_api_inventory_test.py \
+		$(REPO_ROOT)/script/plugins/plugin_api.meta.lua
+	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_lua_api_inventory_test.py
+
 # The item-stats tooltip, against a hand-built api table rather than the host:
 # the whole plugin is "given a hovered item and a set of levels, what does the
 # panel say", and every input to that is an api verb. It reads the real

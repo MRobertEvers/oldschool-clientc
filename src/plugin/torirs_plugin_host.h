@@ -159,6 +159,9 @@ struct ToriRS_PluginEngine
     int (*world_cycle)(void* user);
     uint64_t (*frame_ms)(void* user);
     uint64_t (*frame_work_us)(void* user);
+    /** Named runtime/platform capability. Unknown names return zero. Optional
+     * for focused harnesses; absence means no advertised capabilities. */
+    int (*capability)(void* user, char const* name);
 
     int (*local_player)(
         void* user,

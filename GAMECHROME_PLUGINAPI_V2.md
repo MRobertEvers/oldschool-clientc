@@ -513,6 +513,26 @@ absent until the conflict is resolved.
 `ui.debug_provider(ref, facet)` may exist for diagnostics, but normal plugin
 behavior must not depend on it.
 
+Dynamic retained state is a restatement, not an imperative draw side channel:
+
+```c
+api->ui.update(api, node, TORIRS_UI_FACET_APPEARANCE, &appearance);
+```
+
+The call may change only facets declared by that plugin's static contribution.
+The host validates and copies the complete replacement first, rejects foreign
+or unready resource handles, and journals only a real change. Identical
+restatements are silent. Resource references are zero-invalid and 1-based, so
+a zero-initialized descriptor never aliases legacy image slot zero.
+
+The presenter rebuilds its compact winning-provider list only when the named
+UI registry revision changes. Ordinary frames walk only that active list. An
+appearance winner gets its static state art/label and optional scoped
+`on_ui_node_draw`; an actions winner installs the resolved, clipped hit region
+and routes its named operation through `ui.invoke`/`on_ui_node_action`.
+Conflicted facets create no presentation entry, so neither contender paints or
+acts and the base remains authoritative.
+
 ### Tree relationships replace manual anchoring
 
 A contributed node states its parent, placement relative to that parent, clip
@@ -678,6 +698,17 @@ tables, giving C calls the same hierarchy Lua uses:
 C and Lua expose the same names. For example, `api->placement.place(...)` in C
 is `api.placement.place(...)` in Lua. Do not keep a flat C spelling and invent a
 different Lua hierarchy.
+
+`core.capability` is host-backed, not a plugin-side platform guess. The stable
+names are `touch` (current touch UI/input policy), `web` (Emscripten lane), and
+`browser` (embedded BROWSER transport supported by this build); unknown names
+return false.
+
+Asset requests report the host's retained state. `PENDING` is the only state
+that asks a plugin to wait for `on_asset`; `READY` is usable now, while
+`MISSING`, `INVALID`, `BUDGET`, and `ERROR` are distinct terminal answers.
+Image/model references are zero-invalid and are returned only for `PENDING` or
+`READY`, so zero-initialized plugin state never aliases resource slot zero.
 
 Every top-level and module struct carries `struct_size`; the API has a major
 and minor version. Because modules are embedded, every module has a fixed

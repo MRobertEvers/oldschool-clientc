@@ -21,6 +21,21 @@ v2_resource_unbox(int value)
     return value > 0 ? value - 1 : -1;
 }
 
+static bool
+v2_output_copy(
+    void* output,
+    uint32_t capacity,
+    void const* snapshot,
+    size_t snapshot_size)
+{
+    assert(output);
+    assert(snapshot);
+    if( capacity < sizeof(uint32_t) )
+        return false;
+    memcpy(output, snapshot, capacity < snapshot_size ? capacity : snapshot_size);
+    return true;
+}
+
 int
 ToriRS_PluginV2Adapter_ImageUnbox(struct ToriRS_ImageRef image)
 {
@@ -714,32 +729,37 @@ v2_frame_offer_next(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
     struct ToriRS_PluginFrameInfo legacy;
+    struct ToriRS_FrameOfferInfo snapshot;
+    uint32_t const capacity = out ? out->struct_size : 0;
     int next;
 
     assert(out);
+    if( capacity < TORIRS_FRAME_OFFER_INFO_REQUIRED_SIZE )
+        return -1;
     if( !adapter->legacy->frame_offer_next )
         return -1;
     next = adapter->legacy->frame_offer_next(adapter->context, iterator, &legacy);
     if( next < 0 )
         return -1;
 
-    memset(out, 0, sizeof(*out));
-    out->struct_size = sizeof(*out);
-    (void)snprintf(out->id, sizeof(out->id), "%s", legacy.id);
-    (void)snprintf(out->title, sizeof(out->title), "%s", legacy.title);
-    (void)snprintf(out->provider, sizeof(out->provider), "%s", legacy.provider);
-    out->canvas = v2_canvas_from_legacy(legacy.canvas);
-    if( out->canvas == TORIRS_FRAME_CANVAS_FIXED )
+    memset(&snapshot, 0, sizeof(snapshot));
+    snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
+    (void)snprintf(snapshot.id, sizeof(snapshot.id), "%s", legacy.id);
+    (void)snprintf(snapshot.title, sizeof(snapshot.title), "%s", legacy.title);
+    (void)snprintf(snapshot.provider, sizeof(snapshot.provider), "%s", legacy.provider);
+    snapshot.canvas = v2_canvas_from_legacy(legacy.canvas);
+    if( snapshot.canvas == TORIRS_FRAME_CANVAS_FIXED )
     {
-        out->width = legacy.width;
-        out->height = legacy.height;
+        snapshot.width = legacy.width;
+        snapshot.height = legacy.height;
     }
-    else if( out->canvas == TORIRS_FRAME_CANVAS_WINDOW )
+    else if( snapshot.canvas == TORIRS_FRAME_CANVAS_WINDOW )
     {
-        out->min_width = legacy.width;
-        out->min_height = legacy.height;
+        snapshot.min_width = legacy.width;
+        snapshot.min_height = legacy.height;
     }
-    out->available = legacy.available != 0;
+    snapshot.available = legacy.available != 0;
+    (void)v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
     return next;
 }
 
@@ -750,22 +770,29 @@ v2_frame_selection(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
     struct ToriRS_PluginFrameSelection legacy;
+    struct ToriRS_FrameSelection snapshot;
+    uint32_t const capacity = out ? out->struct_size : 0;
 
     assert(out);
-    memset(out, 0, sizeof(*out));
-    out->struct_size = sizeof(*out);
+    if( capacity < TORIRS_FRAME_SELECTION_REQUIRED_SIZE )
+        return;
+    memset(&snapshot, 0, sizeof(snapshot));
+    snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
     if( !adapter->legacy->frame_selection )
     {
-        out->status = TORIRS_FRAME_STATUS_NATIVE;
+        snapshot.status = TORIRS_FRAME_STATUS_NATIVE;
+        (void)v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
         return;
     }
     memset(&legacy, 0, sizeof(legacy));
     adapter->legacy->frame_selection(adapter->context, &legacy);
-    (void)snprintf(out->requested_id, sizeof(out->requested_id), "%s", legacy.requested);
-    (void)snprintf(out->active_id, sizeof(out->active_id), "%s", legacy.active);
-    out->status = legacy.status;
-    (void)snprintf(out->reason, sizeof(out->reason), "%s", legacy.reason);
-    out->revision = legacy.revision;
+    (void)snprintf(
+        snapshot.requested_id, sizeof(snapshot.requested_id), "%s", legacy.requested);
+    (void)snprintf(snapshot.active_id, sizeof(snapshot.active_id), "%s", legacy.active);
+    snapshot.status = legacy.status;
+    (void)snprintf(snapshot.reason, sizeof(snapshot.reason), "%s", legacy.reason);
+    snapshot.revision = legacy.revision;
+    (void)v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
 }
 
 static enum ToriRS_Result
@@ -857,6 +884,14 @@ v2_asset_name_valid(char const* name)
 }
 
 static enum ToriRS_AssetState
+v2_asset_state_checked(enum ToriRS_AssetState state)
+{
+    return state >= TORIRS_ASSET_PENDING && state <= TORIRS_ASSET_ERROR
+               ? state
+               : TORIRS_ASSET_ERROR;
+}
+
+static enum ToriRS_AssetState
 v2_assets_request(
     struct ToriRS_ApiV2* api,
     char const* name)
@@ -867,6 +902,10 @@ v2_assets_request(
     assert(name);
     if( !v2_asset_name_valid(name) )
         return TORIRS_ASSET_INVALID;
+    if( adapter->hooks.asset_request )
+        return v2_asset_state_checked(
+            adapter->hooks.asset_request(
+                adapter->hooks.user, adapter->context, name));
     if( !adapter->legacy->asset_load || !adapter->legacy->asset_data )
         return TORIRS_ASSET_ERROR;
     if( adapter->legacy->asset_data(adapter->context, name, &size) )
@@ -891,10 +930,14 @@ v2_assets_bytes(
     assert(out_size);
     if( !v2_asset_name_valid(name) || !adapter->legacy->asset_data )
         return false;
+    if( adapter->hooks.asset_request &&
+        v2_asset_state_checked(adapter->hooks.asset_request(
+            adapter->hooks.user, adapter->context, name)) != TORIRS_ASSET_READY )
+        return false;
     data = adapter->legacy->asset_data(adapter->context, name, &size);
     if( size < 0 )
         return false;
-    if( !data )
+    if( !data && !adapter->hooks.asset_request )
     {
         if( size != 0 || !adapter->legacy->asset_load ||
             !adapter->legacy->asset_load(adapter->context, name) )
@@ -946,13 +989,24 @@ v2_assets_image(
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
     int width = 0;
     int height = 0;
-    int image;
+    int image = -1;
+    enum ToriRS_AssetState state;
 
     assert(name);
     assert(out);
     out->value = 0;
     if( !v2_asset_name_valid(name) )
         return TORIRS_ASSET_INVALID;
+    if( adapter->hooks.image_request )
+    {
+        state = v2_asset_state_checked(adapter->hooks.image_request(
+            adapter->hooks.user, adapter->context, name, &image));
+        if( (state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY) && image >= 0 )
+            out->value = v2_resource_box(image);
+        else if( state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY )
+            return TORIRS_ASSET_ERROR;
+        return state;
+    }
     if( !adapter->legacy->image_load )
         return TORIRS_ASSET_ERROR;
     image = adapter->legacy->image_load(adapter->context, name);
@@ -1000,13 +1054,24 @@ v2_assets_model(
     struct ToriRS_ModelRef* out)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    int model;
+    int model = -1;
+    enum ToriRS_AssetState state;
 
     assert(name);
     assert(out);
     out->value = 0;
     if( !v2_asset_name_valid(name) )
         return TORIRS_ASSET_INVALID;
+    if( adapter->hooks.model_request )
+    {
+        state = v2_asset_state_checked(adapter->hooks.model_request(
+            adapter->hooks.user, adapter->context, name, &model));
+        if( (state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY) && model >= 0 )
+            out->value = v2_resource_box(model);
+        else if( state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_READY )
+            return TORIRS_ASSET_ERROR;
+        return state;
+    }
     if( !adapter->legacy->model_load )
         return TORIRS_ASSET_ERROR;
     model = adapter->legacy->model_load(adapter->context, name);
