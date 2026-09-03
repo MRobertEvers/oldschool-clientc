@@ -1630,8 +1630,9 @@ ToriRSChrome_WrapText(
 /**
  * A dropdown over `options`, which is BORROWED and must outlive the widget.
  *
- * `option_count` is clamped to TORIRS_CHROME_OPTION_MAX; the retained widget
- * borrows only that prefix.
+ * `option_count` is clamped to TORIRS_CHROME_OPTION_MAX and then to the space
+ * remaining in TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX; the retained widget
+ * borrows only that prefix (possibly empty when the page budget is full).
  *
  * @param selected index into the retained prefix, or -1 for none.
  * @return widget handle, or -1 when full / panel invalid.
@@ -1645,12 +1646,13 @@ ToriRSChrome_Dropdown(
     int option_count,
     int selected);
 
-/** Point a dropdown at a list. `option_count` is clamped to
- *  TORIRS_CHROME_OPTION_MAX and only that borrowed prefix is retained. Clamps
- *  the selection and closes the list if its bounded text changed. Contents are
- *  hashed, so refilling the same borrowed pointer array/buffers is detected;
- *  equal text/count/selection is a retained no-op even when the borrow moves
- *  to another array. */
+/** Point a dropdown at a list. `option_count` is clamped first to
+ *  TORIRS_CHROME_OPTION_MAX and then to the remaining page-wide legacy-option
+ *  budget; only that borrowed prefix is retained. Replacing a list credits its
+ *  old count before applying the clamp. Clamps the selection and closes the
+ *  list if its bounded text changed. Contents are hashed, so refilling the same
+ *  borrowed pointer array/buffers is detected; equal text/count/selection is a
+ *  retained no-op even when the borrow moves to another array. */
 void
 ToriRSChrome_DropdownSetOptions(
     struct ToriRSChrome* ui,
@@ -1867,6 +1869,8 @@ ToriRSChrome_Button(struct ToriRSChrome* ui, int panel, char const* text);
  * One per panel. Selecting a tab shows the widgets stamped with its index and
  * hides the rest; @see ToriRSChrome_PanelBeginTab for how rows get stamped.
  * Activation fires on every change, so a caller can react to the switch.
+ * Titles use the same per-widget and page-wide legacy-option clamps as a
+ * dropdown.
  *
  * @return widget handle, or -1 when full / panel invalid.
  */

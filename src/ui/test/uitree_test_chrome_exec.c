@@ -25,6 +25,16 @@ static int g_snapshot_request;
 static int g_fail_on_end;
 static void (*g_forward_apply)(void*, struct ToriRSChromeCmd const*);
 
+struct CountExecFixture { int commands; };
+
+static void
+count_exec_apply(void* user, struct ToriRSChromeCmd const* cmd)
+{
+    struct CountExecFixture* fixture = user;
+    (void)cmd;
+    fixture->commands++;
+}
+
 static int
 exec_take_snapshot_request(void* user)
 {
@@ -571,6 +581,65 @@ test_chrome_exec_maximum_clean_fast_path(void)
             g_ui.build_serial == build_serial &&
             g_sync.change_visit_count == visits,
         "100 clean maximum-size ticks inspect no node and perform no callback");
+}
+
+static void
+test_chrome_exec_maximum_snapshot_fits_protocol(void)
+{
+    char const* legacy[TORIRS_CHROME_OPTION_MAX];
+    struct ToriRSChromeSelectOptionInput
+        structured[TORIRS_CHROME_SELECT_OPTIONS_MAX];
+    struct CountExecFixture fixture = { 0 };
+    struct ToriRSChromeExec exec;
+    int widget = 0;
+    int payload;
+
+    for( int i = 0; i < TORIRS_CHROME_OPTION_MAX; i++ )
+        legacy[i] = "entry";
+    for( int i = 0; i < TORIRS_CHROME_SELECT_OPTIONS_MAX; i++ )
+    {
+        structured[i].value = "value";
+        structured[i].label = "label";
+        structured[i].enabled = 1;
+        structured[i].detail = "";
+    }
+    ToriRSChrome_Init(&g_ui);
+    for( int p = 0; p < TORIRS_CHROME_MAX_PANELS; p++ )
+    {
+        int const panel = ToriRSChrome_PanelAdd(
+            &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 320, "Full");
+        for( int row = 0;
+             row < TORIRS_CHROME_MAX_WIDGETS / TORIRS_CHROME_MAX_PANELS;
+             row++, widget++ )
+        {
+            if( widget < TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX /
+                             TORIRS_CHROME_OPTION_MAX )
+                TEST_ASSERT(
+                    ToriRSChrome_Dropdown(
+                        &g_ui, panel, "Legacy", legacy,
+                        TORIRS_CHROME_OPTION_MAX, 0) >= 0,
+                    "the worst-case legacy option budget is retained");
+            else if( widget == TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX /
+                                  TORIRS_CHROME_OPTION_MAX )
+                TEST_ASSERT(
+                    ToriRSChrome_DropdownStructured(
+                        &g_ui, panel, "Structured", structured,
+                        TORIRS_CHROME_SELECT_OPTIONS_MAX, "value") >= 0,
+                    "the structured pool coexists with the full legacy budget");
+            else
+                TEST_ASSERT(ToriRSChrome_Label(&g_ui, panel, "row") >= 0,
+                    "the full widget budget is retained");
+        }
+    }
+    memset(&exec, 0, sizeof(exec));
+    exec.user = &fixture;
+    exec.apply = count_exec_apply;
+    TEST_ASSERT(ToriRSChromeSync_Init(&g_sync, &exec), "counting executor starts");
+    payload = ToriRSChromeSync_Run(&g_sync, &g_ui);
+    TEST_ASSERT(
+        payload > 0 && fixture.commands == payload + 2 &&
+            fixture.commands <= TORIRS_CHROME_PROTOCOL_COMMAND_MAX,
+        "the maximum legal full snapshot fits one WEB/BROWSER transaction");
 }
 
 static void
@@ -1969,6 +2038,7 @@ test_chrome_exec(void)
     test_chrome_exec_commit_failure_retains_journal();
     test_chrome_exec_retains_focused_node();
     test_chrome_exec_maximum_clean_fast_path();
+    test_chrome_exec_maximum_snapshot_fits_protocol();
     test_chrome_exec_remove();
     test_chrome_exec_same_tick_recycle_order();
     test_chrome_exec_reset_replacement_order();

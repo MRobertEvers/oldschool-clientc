@@ -109,10 +109,15 @@ assert.strictEqual(frame.getAttribute('sandbox'), 'allow-scripts allow-same-orig
 
 const received = [];
 let rejectPage = false;
+let rejectCustom = false;
 const runtime = {
   receive(message) {
     if (rejectPage && /^page\./.test(message.type)) {
       rejectPage = false;
+      return false;
+    }
+    if (rejectCustom && message.type === 'custom.bitmap') {
+      rejectCustom = false;
       return false;
     }
     received.push(JSON.parse(JSON.stringify(message)));
@@ -223,6 +228,10 @@ assert.deepStrictEqual({
   width: message.width, height: message.height, rgba: message.rgbaBase64
 }, { type: 'rail.icon', plugin: 31, revision: 3, width: 1, height: 1, rgba: 'ESIz/w==' });
 
+rejectCustom = true;
+assert.strictEqual(global_.torirsChromeCustom(3, 7, 20, 7007, 2000, 1, 1,
+  new Uint32Array([0xff112233])), false,
+  'a rejected custom bitmap reports delivery failure to the web executor');
 assert(global_.torirsChromeCustom(3, 7, 20, 7007, 2000, 1, 1,
   new Uint32Array([0xff112233])));
 message = received[received.length - 1];

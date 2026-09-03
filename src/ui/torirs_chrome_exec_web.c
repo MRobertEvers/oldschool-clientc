@@ -142,23 +142,24 @@ EM_JS(int, web_chrome_take_delivery_loss, (void), {
 
 /* A dirty custom well. The hook consumes and converts the call-scoped HEAPU32
  * view synchronously before the App reuses its raster scratch. */
-EM_JS(void, web_chrome_custom_present,
+EM_JS(int, web_chrome_custom_present,
     (int panel, int widget, unsigned generation, unsigned serial,
      int scale_milli, int width, int height, uint32_t const* argb), {
     if( typeof window.torirsChromeCustom !== 'function' ||
         width <= 0 || height <= 0 || scale_milli <= 0 )
-        return;
+        return 0;
     try
     {
         var count = width * height;
         var copy = HEAPU32.subarray(argb >> 2, (argb >> 2) + count);
-        window.torirsChromeCustom(
+        return window.torirsChromeCustom(
             panel, widget, generation >>> 0, serial >>> 0,
-            scale_milli, width, height, copy);
+            scale_milli, width, height, copy) === true ? 1 : 0;
     }
     catch( e )
     {
         console.warn('[torirs] custom chrome frame failed', e);
+        return 0;
     }
 });
 
@@ -1035,6 +1036,8 @@ chrome_web_custom_present(
     void* user, struct ToriRSChromeCustomFrame const* frame)
 {
     struct ChromeWeb* s = user;
+    int logical_width;
+    int logical_height;
 
     if( !s || !s->open || !frame || !frame->argb || frame->width <= 0 ||
         frame->height <= 0 || frame->stride != frame->width ||
@@ -1042,21 +1045,13 @@ chrome_web_custom_present(
         frame->widget_serial == 0 || frame->widget < 0 ||
         frame->widget >= TORIRS_CHROME_MAX_WIDGETS )
         return;
-    s->custom_panel[frame->widget] = frame->panel;
-    s->custom_generation[frame->widget] = frame->selection_generation;
-    s->custom_serial[frame->widget] = frame->widget_serial;
-    s->custom_width[frame->widget] =
+    logical_width =
         (int)((int64_t)frame->width * 1000 / frame->scale_milli);
-    s->custom_height[frame->widget] =
+    logical_height =
         (int)((int64_t)frame->height * 1000 / frame->scale_milli);
-    if( s->custom_width[frame->widget] <= 0 ||
-        s->custom_height[frame->widget] <= 0 )
-    {
-        s->custom_generation[frame->widget] = 0;
-        s->custom_serial[frame->widget] = 0;
+    if( logical_width <= 0 || logical_height <= 0 )
         return;
-    }
-    web_chrome_custom_present(
+    if( !web_chrome_custom_present(
         frame->panel,
         frame->widget,
         frame->selection_generation,
@@ -1064,7 +1059,21 @@ chrome_web_custom_present(
         frame->scale_milli,
         frame->width,
         frame->height,
-        frame->argb);
+        frame->argb) )
+    {
+        s->custom_panel[frame->widget] = -1;
+        s->custom_generation[frame->widget] = 0;
+        s->custom_serial[frame->widget] = 0;
+        s->custom_width[frame->widget] = 0;
+        s->custom_height[frame->widget] = 0;
+        s->snapshot_needed = 1;
+        return;
+    }
+    s->custom_panel[frame->widget] = frame->panel;
+    s->custom_generation[frame->widget] = frame->selection_generation;
+    s->custom_serial[frame->widget] = frame->widget_serial;
+    s->custom_width[frame->widget] = logical_width;
+    s->custom_height[frame->widget] = logical_height;
 }
 
 static int

@@ -87,6 +87,9 @@ struct UIInteraction
     uint32_t ts_incarnation;
     int ts_press_y;
     int ts_start_scroll_y;
+    /** A captured swipe target was suppressed/rebuilt mid-press. Keep owning
+     * the physical gesture through release so it cannot retarget underneath. */
+    int ts_press_cancelled;
 };
 
 #define UI_INTENT_MAX 16

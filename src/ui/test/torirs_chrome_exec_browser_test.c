@@ -93,7 +93,7 @@ int main(void)
 
     CHECK(exec.begin && exec.apply && exec.end && exec.poll &&
           exec.rail_sync && exec.rail_icon && exec.rail_poll && exec.custom_present &&
-          exec.take_snapshot_request);
+          exec.take_snapshot_request && exec.take_rail_snapshot_request);
     memset(&rail, 0, sizeof(rail));
     rail.registry_revision = 3;
     rail.selection_generation = 7;
@@ -204,6 +204,14 @@ int main(void)
     asynchronous_send_failure = 1;
     CHECK(exec.take_snapshot_request(exec.user) == 1);
     CHECK(exec.take_snapshot_request(exec.user) == 0);
+    CHECK(exec.take_rail_snapshot_request(exec.user) == 1);
+    CHECK(exec.take_rail_snapshot_request(exec.user) == 0);
+
+    snprintf(inbound, sizeof(inbound),
+        "{\"protocol\":1,\"type\":\"transport.loss\"}");
+    CHECK(exec.poll(exec.user, &intent, 1) == 0);
+    CHECK(exec.take_snapshot_request(exec.user) == 1);
+    CHECK(exec.take_rail_snapshot_request(exec.user) == 1);
 
     /* Both failures invalidate local widget identity. One full retry restores
      * the semantic page before intents or custom frames are accepted again. */

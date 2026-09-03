@@ -811,6 +811,11 @@ The retained model must not discover changes by walking every panel, widget,
 and property after one value changes. A global `dirty` flag followed by a
 smaller or faster full scan is still the wrong cost model.
 
+There is no tree-diff step in steady state. The code that performs a mutation
+already knows the exact object and property it touched, so that setter records
+the corresponding event immediately. The only comparison is the setter's
+constant-time old-value/new-value check; it is not an executor traversal.
+
 Every model mutation goes through a compare-then-set operation. When the value
 really changes, that operation records the affected handle and property bit in
 a bounded mutation journal. Repeated writes to the same property before the

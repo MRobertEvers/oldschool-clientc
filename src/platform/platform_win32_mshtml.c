@@ -457,7 +457,12 @@ static HRESULT STDMETHODCALLTYPE external_invoke(
     value = &args->rgvarg[0];
     if( value->vt != VT_BSTR || !value->bstrVal )
         return DISP_E_TYPEMISMATCH;
-    outbound_push(s, value->bstrVal);
+    if( wcscmp(
+            value->bstrVal,
+            L"{\"protocol\":1,\"type\":\"transport.loss\"}") == 0 )
+        s->send_failed = 1;
+    else
+        outbound_push(s, value->bstrVal);
     if( result )
     { VariantInit(result); result->vt = VT_BOOL; result->boolVal = VARIANT_TRUE; }
     return S_OK;
@@ -873,7 +878,7 @@ PlatformWin32Browser_Send(struct PlatformWin32Browser* s, char const* json)
     {
         int const sent = browser_exec(s, call);
         free(call);
-        return sent;
+        return sent && !s->send_failed;
     }
 }
 

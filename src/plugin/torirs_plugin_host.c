@@ -195,11 +195,15 @@ struct PluginUiPresentation
     int appearance_plugin;
     int actions_plugin;
     uint32_t action_token;
+    uint64_t state_identity;
     int boundary_place;
     bool presentable;
     bool clip_active;
     struct ToriRS_Rect clip;
     char boundary_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    /** A closer mapped role which is not live yet. Its transition to live is
+     * probed from this compact list and triggers one presenter rebuild. */
+    char pending_boundary_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
     /** Non-empty only when this semantic node itself resolves to a live lane
      * role. Facet suppression applies here, never to a fallback ancestor. */
     char target_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
@@ -10412,23 +10416,42 @@ plugin_ui_present_tree_state(
     struct ToriRS_PluginHost* host,
     struct ToriRS_UiNodeRef node,
     bool* out_clip_active,
-    struct ToriRS_Rect* out_clip)
+    struct ToriRS_Rect* out_clip,
+    uint64_t* out_identity)
 {
     bool clip_active = false;
+    uint64_t identity = UINT64_C(1469598103934665603);
 
     assert(host);
     assert(out_clip_active);
     assert(out_clip);
+    assert(out_identity);
+    *out_clip_active = false;
+    *out_clip = (struct ToriRS_Rect){ 0 };
     for( int depth = 0; node.value != 0 && depth < TORIRS_UI_REGISTRY_NODES_MAX; depth++ )
     {
         struct ToriRS_UiResolvedNode current;
         struct ToriRS_UiResolvedNode parent;
 
         if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &current) )
+        {
+            *out_identity = identity;
             return false;
+        }
+        identity ^= node.value;
+        identity *= UINT64_C(1099511628211);
+        identity ^= current.revision;
+        identity *= UINT64_C(1099511628211);
+        identity ^= current.available_facets;
+        identity *= UINT64_C(1099511628211);
+        identity ^= current.value.flags & TORIRS_UI_NODE_VISIBLE;
+        identity *= UINT64_C(1099511628211);
         if( (current.available_facets & TORIRS_UI_FACET_APPEARANCE) != 0 &&
             (current.value.flags & TORIRS_UI_NODE_VISIBLE) == 0 )
+        {
+            *out_identity = identity;
             return false;
+        }
         if( current.value.clip == TORIRS_UI_CLIP_BOUNDS )
         {
             if( !clip_active )
@@ -10437,27 +10460,40 @@ plugin_ui_present_tree_state(
                 clip_active = true;
             }
             else if( !plugin_ui_rect_intersect(out_clip, &current.value.bounds) )
+            {
+                *out_identity = identity;
                 return false;
+            }
         }
         else if( current.value.clip == TORIRS_UI_CLIP_PARENT &&
                  current.value.parent.value != 0 )
         {
             if( !ToriRS_UiRegistry_Resolve(
                     &host->ui_registry, current.value.parent, &parent) )
+            {
+                *out_identity = identity;
                 return false;
+            }
             if( !clip_active )
             {
                 *out_clip = parent.value.bounds;
                 clip_active = true;
             }
             else if( !plugin_ui_rect_intersect(out_clip, &parent.value.bounds) )
+            {
+                *out_identity = identity;
                 return false;
+            }
         }
         node = current.value.parent;
     }
     if( node.value != 0 )
+    {
+        *out_identity = identity;
         return false;
+    }
     *out_clip_active = clip_active;
+    *out_identity = identity;
     return true;
 }
 
@@ -10522,7 +10558,7 @@ plugin_ui_present_find(
 }
 
 static bool
-plugin_ui_present_live_role(
+plugin_ui_present_mapped_role(
     struct ToriRS_PluginHost* host,
     struct ToriRS_UiNodeRef node,
     char* out,
@@ -10531,13 +10567,24 @@ plugin_ui_present_live_role(
     char dynamic[TORIRS_PLUGIN_ROLE_NAME_MAX];
     char const* name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
     char const* role = name ? plugin_ui_present_role(name, dynamic, sizeof(dynamic)) : NULL;
-    int x, y, w, h;
 
-    if( !role || !host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h) ||
-        !host->engine.role_visible(host->engine.user, role) )
+    if( !role )
         return false;
     (void)snprintf(out, out_size, "%s", role);
     return true;
+}
+
+static bool
+plugin_ui_present_role_live(
+    struct ToriRS_PluginHost* host,
+    char const* role)
+{
+    int x, y, w, h;
+
+    assert(host);
+    return role && role[0] &&
+           host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h) &&
+           host->engine.role_visible(host->engine.user, role);
 }
 
 static void
@@ -10551,7 +10598,10 @@ plugin_ui_present_boundary(
     int root = index;
 
     assert(host);
-    (void)plugin_ui_present_live_role(
+    rows[index].target_role[0] = '\0';
+    rows[index].boundary_role[0] = '\0';
+    rows[index].pending_boundary_role[0] = '\0';
+    (void)plugin_ui_present_mapped_role(
         host, rows[index].node, rows[index].target_role,
         sizeof(rows[index].target_role));
 
@@ -10565,15 +10615,24 @@ plugin_ui_present_boundary(
         int const parent = plugin_ui_present_find(
             rows, count, rows[current].value.parent);
 
-        if( plugin_ui_present_live_role(host, rows[current].node, role, sizeof(role)) )
+        if( plugin_ui_present_mapped_role(host, rows[current].node, role, sizeof(role)) )
         {
-            (void)snprintf(
-                rows[index].boundary_role,
-                sizeof(rows[index].boundary_role),
-                "%s",
-                role);
-            rows[index].boundary_place = PLUGIN_ANCHOR_PLACE_SELF;
-            return;
+            if( plugin_ui_present_role_live(host, role) )
+            {
+                (void)snprintf(
+                    rows[index].boundary_role,
+                    sizeof(rows[index].boundary_role),
+                    "%s",
+                    role);
+                rows[index].boundary_place = PLUGIN_ANCHOR_PLACE_SELF;
+                return;
+            }
+            if( !rows[index].pending_boundary_role[0] )
+                (void)snprintf(
+                    rows[index].pending_boundary_role,
+                    sizeof(rows[index].pending_boundary_role),
+                    "%s",
+                    role);
         }
         if( parent < 0 )
             break;
@@ -10589,12 +10648,25 @@ plugin_ui_present_boundary(
     for( int depth = 0; boundary.value != 0 && depth < TORIRS_UI_REGISTRY_NODES_MAX; depth++ )
     {
         struct ToriRS_UiResolvedNode parent;
-        if( plugin_ui_present_live_role(
-                host,
-                boundary,
-                rows[index].boundary_role,
-                sizeof(rows[index].boundary_role)) )
-            return;
+        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+        if( plugin_ui_present_mapped_role(host, boundary, role, sizeof(role)) )
+        {
+            if( plugin_ui_present_role_live(host, role) )
+            {
+                (void)snprintf(
+                    rows[index].boundary_role,
+                    sizeof(rows[index].boundary_role),
+                    "%s",
+                    role);
+                return;
+            }
+            if( !rows[index].pending_boundary_role[0] )
+                (void)snprintf(
+                    rows[index].pending_boundary_role,
+                    sizeof(rows[index].pending_boundary_role),
+                    "%s",
+                    role);
+        }
         if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, boundary, &parent) )
             return;
         boundary = parent.value.parent;
@@ -10661,17 +10733,95 @@ plugin_ui_present_suppressions(
 }
 
 static bool
+plugin_ui_present_anchor_available(
+    struct ToriRS_PluginHost* host,
+    struct PluginUiPresentation const* row)
+{
+    assert(host);
+    assert(row);
+    if( row->boundary_role[0] )
+        return plugin_ui_present_role_live(host, row->boundary_role);
+    /* A mapped native boundary which has not appeared yet is not permission
+     * to promote the contribution to the global canvas. A genuinely private
+     * root has neither string and remains a valid canvas-local declaration. */
+    return !row->pending_boundary_role[0];
+}
+
+static uint32_t
+plugin_ui_present_action_token_next(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    host->ui_action_token = (host->ui_action_token + 1u) &
+                            ~PLUGIN_UI_PRESENT_TAG_BIT;
+    if( host->ui_action_token == 0 )
+        host->ui_action_token = 1;
+    return host->ui_action_token;
+}
+
+static bool
 plugin_ui_present_actions_equal(
     struct PluginUiPresentation const* old,
     struct PluginUiPresentation const* candidate)
 {
     if( !old || old->actions_plugin != candidate->actions_plugin ||
-        old->value.action_count != candidate->value.action_count )
+        old->value.action_count != candidate->value.action_count ||
+        old->presentable != candidate->presentable ||
+        old->state_identity != candidate->state_identity ||
+        ((old->value.flags ^ candidate->value.flags) &
+         (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED)) != 0 ||
+        old->boundary_place != candidate->boundary_place ||
+        strcmp(old->boundary_role, candidate->boundary_role) != 0 ||
+        strcmp(old->pending_boundary_role, candidate->pending_boundary_role) != 0 )
         return false;
     for( uint32_t i = 0; i < candidate->value.action_count; i++ )
         if( strcmp(old->value.actions[i], candidate->value.actions[i]) != 0 )
             return false;
     return true;
+}
+
+/* Refresh only the compact active presentation list. This catches semantic
+ * ancestor visibility and live-role transitions without walking every named
+ * registry node on steady-state frames. Returns true when a closer boundary
+ * appeared (or the current one disappeared) and structural regrouping is
+ * required once. */
+static bool
+plugin_ui_present_refresh_states(struct ToriRS_PluginHost* host)
+{
+    bool rebuild = false;
+
+    assert(host);
+    for( int i = 0; i < host->ui_presentation_count; i++ )
+    {
+        struct PluginUiPresentation* row = &host->ui_presentations[i];
+        struct ToriRS_Rect clip = { 0 };
+        bool clip_active = false;
+        uint64_t identity = 0;
+        bool presentable;
+
+        if( row->boundary_role[0] &&
+            !plugin_ui_present_role_live(host, row->boundary_role) )
+            rebuild = true;
+        if( row->pending_boundary_role[0] &&
+            plugin_ui_present_role_live(host, row->pending_boundary_role) )
+            rebuild = true;
+        presentable = plugin_ui_present_tree_state(
+                          host,
+                          row->node,
+                          &clip_active,
+                          &clip,
+                          &identity) &&
+                      plugin_ui_present_anchor_available(host, row);
+        if( row->presentable != presentable || row->state_identity != identity )
+        {
+            row->presentable = presentable;
+            row->state_identity = identity;
+            if( row->actions_plugin >= 0 && row->value.action_count > 0 )
+                row->action_token = plugin_ui_present_action_token_next(host);
+        }
+        row->clip_active = clip_active;
+        row->clip = clip;
+    }
+    return rebuild;
 }
 
 static void
@@ -10684,7 +10834,8 @@ plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
     int ordered_count = 0;
 
     assert(host);
-    if( host->ui_presentation_revision == revision )
+    if( host->ui_presentation_revision == revision &&
+        !plugin_ui_present_refresh_states(host) )
         return;
     plugin_ui_present_suppressions(
         host, host->ui_presentations, host->ui_presentation_count, false);
@@ -10712,33 +10863,32 @@ plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
         candidate[candidate_count].value = resolved.value;
         candidate[candidate_count].appearance_plugin = appearance;
         candidate[candidate_count].actions_plugin = actions;
-        if( actions >= 0 && resolved.value.action_count > 0 )
-        {
-            int const old = plugin_ui_present_find(
-                host->ui_presentations, host->ui_presentation_count, node);
-            if( old >= 0 && plugin_ui_present_actions_equal(
-                               &host->ui_presentations[old],
-                               &candidate[candidate_count]) )
-                candidate[candidate_count].action_token =
-                    host->ui_presentations[old].action_token;
-            else
-            {
-                host->ui_action_token = (host->ui_action_token + 1u) &
-                                        ~PLUGIN_UI_PRESENT_TAG_BIT;
-                if( host->ui_action_token == 0 )
-                    host->ui_action_token = 1;
-                candidate[candidate_count].action_token = host->ui_action_token;
-            }
-        }
         candidate[candidate_count].presentable = plugin_ui_present_tree_state(
             host,
             node,
             &candidate[candidate_count].clip_active,
-            &candidate[candidate_count].clip);
+            &candidate[candidate_count].clip,
+            &candidate[candidate_count].state_identity);
         candidate_count++;
     }
     for( int i = 0; i < candidate_count; i++ )
+    {
         plugin_ui_present_boundary(host, candidate, candidate_count, i);
+        candidate[i].presentable = candidate[i].presentable &&
+                                   plugin_ui_present_anchor_available(host, &candidate[i]);
+        if( candidate[i].actions_plugin >= 0 && candidate[i].value.action_count > 0 )
+        {
+            int const old = plugin_ui_present_find(
+                host->ui_presentations,
+                host->ui_presentation_count,
+                candidate[i].node);
+            candidate[i].action_token =
+                old >= 0 && plugin_ui_present_actions_equal(
+                                &host->ui_presentations[old], &candidate[i])
+                    ? host->ui_presentations[old].action_token
+                    : plugin_ui_present_action_token_next(host);
+        }
+    }
     for( int i = 0; i < candidate_count; i++ )
         if( plugin_ui_present_find(candidate, candidate_count, candidate[i].value.parent) < 0 )
             plugin_ui_present_order_visit(
@@ -12268,8 +12418,36 @@ PluginHost_CanvasClick(
         for( int i = 0; i < host->ui_presentation_count; i++ )
         {
             struct PluginUiPresentation const* row = &host->ui_presentations[i];
+            struct ToriRS_UiResolvedNode current;
+            struct ToriRS_Rect clip = { 0 };
+            bool clip_active = false;
+            uint64_t state_identity = 0;
+
             if( row->action_token != action_token || row->actions_plugin != plugin_index || op < 0 ||
-                op >= (int)row->value.action_count )
+                op >= (int)row->value.action_count || !row->presentable ||
+                (row->value.flags &
+                 (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED)) !=
+                    (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED) )
+                continue;
+            if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, row->node, &current) ||
+                plugin_ui_present_provider(
+                    host,
+                    row->node,
+                    current.actions_provider,
+                    TORIRS_UI_FACET_ACTIONS) != plugin_index ||
+                op >= (int)current.value.action_count ||
+                strcmp(current.value.actions[op], row->value.actions[op]) != 0 ||
+                (current.value.flags &
+                 (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED)) !=
+                    (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED) ||
+                !plugin_ui_present_tree_state(
+                    host,
+                    row->node,
+                    &clip_active,
+                    &clip,
+                    &state_identity) ||
+                state_identity != row->state_identity ||
+                !plugin_ui_present_anchor_available(host, row) )
                 continue;
             (void)PluginHost_UiInvoke(host, row->node, row->value.actions[op]);
             return;

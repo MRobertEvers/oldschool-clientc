@@ -205,6 +205,11 @@ resolve_click_hook(
     {
         struct UITreeComponent const* node = &tree->components[idx];
         struct UITreeRuntimeHooks const* hooks = UITree_Hooks(node);
+        /* ACTIONS suppression is exact-node, not inherited display:none: a
+         * child stays live, but it must not borrow the suppressed parent's
+         * onOp/onClick. Continue to an independently live outer ancestor. */
+        if( node->replacement_input_hidden )
+            continue;
         if( hooks->on_op.script_id > 0 )
         {
             *out_component_id = node->component_id;
@@ -257,6 +262,8 @@ find_wheel_scroll_layer(
         c = &tree->components[i];
         if( c->type != UIELEM_RS_LAYER || c->if3 || c->freed || c->component_id < 0 )
             continue;
+        if( c->replacement_input_hidden )
+            continue;
         if( UITree_NodeOrAncestorDisplayHidden(tree, i) )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
@@ -307,6 +314,8 @@ find_wheel_hook_component(
         assert(idx >= 0 && (uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
         if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->replacement_input_hidden )
             continue;
         if( UITree_Hooks(c)->on_scroll_wheel.script_id <= 0 )
             continue;
@@ -605,16 +614,20 @@ touch_scroll_layer_at(
 {
     int32_t best = -1;
     int64_t best_area = 0;
-    uint32_t i;
+    int si;
 
     assert(tree);
-    for( i = 0; i < tree->component_count; i++ )
+    for( si = 0; si < tree->scroll_layers.count; si++ )
     {
-        struct UITreeComponent const* c = &tree->components[i];
+        int32_t const i = tree->scroll_layers.slots[si];
+        struct UITreeComponent const* c;
         int bx = 0, by = 0, bw = 0, bh = 0;
         int64_t area;
 
-        if( c->freed || c->type != UIELEM_RS_LAYER )
+        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        c = &tree->components[i];
+        if( c->freed || c->type != UIELEM_RS_LAYER ||
+            c->replacement_input_hidden )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
             continue;
@@ -636,6 +649,38 @@ touch_scroll_layer_at(
 }
 
 static int
+touch_scroll_capture_live(
+    struct UIInteraction const* interact,
+    struct UITree const* tree)
+{
+    assert(interact);
+    assert(tree);
+    if( interact->ts_layer < 0 ||
+        (uint32_t)interact->ts_layer >= tree->component_count )
+        return 0;
+    return !tree->components[interact->ts_layer].freed &&
+           interact->ts_incarnation != 0 &&
+           tree->components[interact->ts_layer].incarnation ==
+               interact->ts_incarnation &&
+           !tree->components[interact->ts_layer].replacement_input_hidden &&
+           !UITree_NodeOrAncestorDisplayHidden(tree, interact->ts_layer);
+}
+
+static void
+interact_cancel_hidden_touch_capture(
+    struct UIInteraction* interact,
+    struct UITree const* tree)
+{
+    assert(interact);
+    assert(tree);
+    if( interact->ts_layer < 0 || touch_scroll_capture_live(interact, tree) )
+        return;
+    interact->ts_layer = -1;
+    interact->ts_incarnation = 0;
+    interact->ts_press_cancelled = 1;
+}
+
+static int
 interact_touch_scroll(
     struct UIInteraction* interact,
     struct UITree* tree,
@@ -647,6 +692,14 @@ interact_touch_scroll(
 
     if( !interact->touch_scroll )
         return 0;
+    if( interact->ts_press_cancelled )
+    {
+        out->cancelled_pointer_click = 1;
+        if( LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+            return 1;
+        interact->ts_press_cancelled = 0;
+        return 1;
+    }
     /* TORIRS_TOUCH_DEBUG=1: why a swipe did or did not take. The press edge
      * is the only interesting frame -- what was under the finger, and which
      * ancestor (if any) was a layer with somewhere to scroll. */
@@ -681,15 +734,20 @@ interact_touch_scroll(
     if( interact->ts_layer < 0 )
         return 0;
     if( (uint32_t)interact->ts_layer >= tree->component_count ||
-        tree->components[interact->ts_layer].incarnation != interact->ts_incarnation )
+        tree->components[interact->ts_layer].incarnation != interact->ts_incarnation ||
+        !touch_scroll_capture_live(interact, tree) )
     {
         interact->ts_layer = -1;
-        return 0;
+        interact->ts_incarnation = 0;
+        interact->ts_press_cancelled = 1;
+        out->cancelled_pointer_click = 1;
+        return 1;
     }
     if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
     {
         /* The finger lifted: the release is the gesture's, not a click. */
         interact->ts_layer = -1;
+        interact->ts_incarnation = 0;
         out->cancelled_pointer_click = 1;
         return 1;
     }
@@ -1908,6 +1966,9 @@ interact_cancel_external_left_capture(
     interact->sb_dragging = 0;
     interact->sb_arrow_held = 0;
     interact->sb_press_cancelled = 0;
+    interact->ts_layer = -1;
+    interact->ts_incarnation = 0;
+    interact->ts_press_cancelled = 0;
     /* cc_dragpickup is meaningful only for the press whose native hook staged
      * it; an externally owned press cannot inherit an older pending pickup. */
     tree->pending_drag_pickup = 0;
@@ -1946,6 +2007,7 @@ UITree_InteractFrameWithPointerOwner(
      * a replacement after the popup closes. */
     (void)UITree_InputCancelDisplayHidden(&interact->input_state, tree);
     interact_cancel_hidden_scrollbar_capture(interact, tree, input);
+    interact_cancel_hidden_touch_capture(interact, tree);
 
     /* An open minimenu owns the whole pointer: no scrollbars, drags, hover, or
      * clicks reach the tree until it closes (reference choose-option). */

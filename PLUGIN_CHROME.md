@@ -115,8 +115,9 @@ instead of hard-coded slot lists.
 ## Retained execution uses a mutation journal
 
 Executors do **not** scan the complete retained tree to discover changes during
-normal ticks. Every model setter first compares the old and new value. A real change
-records `(handle, property)` in a bounded journal; equal writes record nothing.
+normal ticks. There is no steady-state tree diff. Every model setter first
+compares the old and new value. A real change records `(handle, property)` in a
+bounded journal; equal writes record nothing.
 Repeated writes to the same property coalesce, so the executor receives the
 final retained value once.
 

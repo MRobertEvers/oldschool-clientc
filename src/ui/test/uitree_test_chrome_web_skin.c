@@ -278,6 +278,30 @@ main(void)
         free(batch.batch_json);
     }
 
+    {
+        struct ChromeWeb web;
+        struct ToriRSChromeCustomFrame frame;
+        uint32_t pixel = 0xff112233u;
+
+        memset(&web, 0, sizeof(web));
+        chrome_web_reset_mounted(&web);
+        web.open = 1;
+        memset(&frame, 0, sizeof(frame));
+        frame.panel = 2;
+        frame.widget = 9;
+        frame.selection_generation = 7;
+        frame.widget_serial = 99;
+        frame.scale_milli = 1000;
+        frame.width = frame.height = frame.stride = 1;
+        frame.argb = &pixel;
+        /* Native EM_JS stubs reject the send, giving this test a deterministic
+         * transport-loss injection without a browser. */
+        chrome_web_custom_present(&web, &frame);
+        CHECK(web.snapshot_needed && web.custom_panel[9] == -1 &&
+                  web.custom_serial[9] == 0,
+            "a rejected custom bitmap clears its fence and requests a page snapshot");
+    }
+
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

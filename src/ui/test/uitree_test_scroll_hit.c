@@ -203,16 +203,28 @@ test_wheel_stops_at_interface(void)
     struct UIInteraction interact;
     struct UIInteractOut out;
     int32_t pane;
+    int32_t child;
+    int child_x, child_y, child_w, child_h;
     struct UITreeRuntimeHooks* hooks;
 
     printf("TEST: interface wheel stops propagation to world gestures\n");
     UITree_TestHostInit(&host, &hs);
 
     pane = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, TUID(20), 10, 10, 100, 100);
+    child = UITree_TestPushXy(
+        tree, pane, UIELEM_RS_RECT, TUID(21), 35, 35, 20, 20);
     hooks = UITree_HooksMut(&tree->components[pane]);
     hooks->on_scroll_wheel.script_id = 1234;
+    UITree_HooksMut(&tree->components[child])->on_scroll_wheel.script_id = 1235;
     UITree_SyncHookMembership(tree, pane);
+    UITree_SyncHookMembership(tree, child);
     UITree_TestResolve(tree);
+    UITree_LayoutGetBounds(
+        &tree->components[child].position,
+        &child_x,
+        &child_y,
+        &child_w,
+        &child_h);
 
     input = LibToriRS_Input_Init(&input_storage, 0);
     UIInteraction_Init(&interact);
@@ -227,7 +239,70 @@ test_wheel_stops_at_interface(void)
         "wheel dispatch targets interface under pointer");
     TEST_ASSERT(out.wheel_consumed, "handled interface wheel cannot reach world gesture");
 
+    TEST_ASSERT(
+        UITree_SetReplacementInputHidden(
+            tree, pane, tree->components[pane].incarnation, 1),
+        "wheel fixture suppresses the parent's actions facet");
+    LibToriRS_Input_Begin(input, 1);
+    LibToriRS_Input_PushMouseMove(input, 20, 20);
+    LibToriRS_Input_PushMouseWheel(input, -1);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 1, &out);
+    TEST_ASSERT(
+        out.intent_count == 0 && !out.wheel_consumed,
+        "a suppressed node is absent from the wheel-hook search");
+
+    LibToriRS_Input_Begin(input, 2);
+    LibToriRS_Input_PushMouseMove(input, child_x + 1, child_y + 1);
+    LibToriRS_Input_PushMouseWheel(input, -1);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 2, &out);
+    TEST_ASSERT(
+        out.intent_count == 1 && out.intents[0].component_id == TUID(21) &&
+            out.intents[0].hook->script_id == 1235 && out.wheel_consumed,
+        "a child wheel hook remains independently live under a suppressed parent");
+
     UITree_Free(tree);
+
+    /* The native IF1 wheel search has the same exact-node fence as the hook
+     * search above. It must neither move nor consume while its ACTIONS facet
+     * is provided elsewhere. */
+    {
+        struct UITree* native = UITree_New(2);
+        int32_t layer = UITree_TestPushXy(
+            native, -1, UIELEM_RS_LAYER, TUID(22), 10, 10, 100, 80);
+
+        UITree_TestResolve(native);
+        TEST_ASSERT(
+            UITree_SetScrollSizeAt(native, layer, 100, 300),
+            "native wheel fixture has scrollable content");
+        TEST_ASSERT(
+            UITree_SetReplacementInputHidden(
+                native, layer, native->components[layer].incarnation, 1),
+            "native wheel target is actions-suppressed");
+        input = LibToriRS_Input_Init(&input_storage, 0);
+        UIInteraction_Init(&interact);
+        LibToriRS_Input_PushMouseMove(input, 20, 20);
+        LibToriRS_Input_PushMouseWheel(input, -1);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, native, &host, input, 0, &out);
+        TEST_ASSERT(
+            native->components[layer].scroll_y == 0 && !out.wheel_consumed,
+            "actions suppression removes a native layer from wheel acquisition");
+        TEST_ASSERT(
+            UITree_SetReplacementInputHidden(
+                native, layer, native->components[layer].incarnation, 0),
+            "native wheel suppression releases");
+        LibToriRS_Input_Begin(input, 1);
+        LibToriRS_Input_PushMouseWheel(input, -1);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, native, &host, input, 1, &out);
+        TEST_ASSERT(
+            native->components[layer].scroll_y == UITREE_SCROLLBAR_WHEEL_STEP &&
+                out.wheel_consumed,
+            "released native layer reacquires wheel input");
+        UITree_Free(native);
+    }
 
     /* Mounted native pane under an outer scroller: its screen Y includes the
      * outer scroll, but excludes the mount host's own scroll. A flat abs-box

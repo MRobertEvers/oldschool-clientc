@@ -36,6 +36,12 @@ _Static_assert(
     "scene-instance tokens fit encoded slot");
 _Static_assert(V2_RESOURCE_INSTANCE <= V2_RESOURCE_KIND_MASK, "resource kinds fit token");
 _Static_assert(
+    TORIRS_PLUGIN_V2_FRAME_SKIN_SURFACES_MAX == 2,
+    "frame dependency formula matches minimap and compass skin policy");
+_Static_assert(
+    TORIRS_PLUGIN_V2_FRAME_SCROLLBAR_REFS_MAX == 6,
+    "frame dependency formula matches the six-piece legacy scrollbar");
+_Static_assert(
     TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX <= TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
     "one legal frame dependency set fits the adapter image-token table");
 

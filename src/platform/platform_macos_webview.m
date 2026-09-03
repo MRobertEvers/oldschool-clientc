@@ -274,12 +274,14 @@ mac_url_is_below(NSURL* url, NSURL* root)
     if( !argument )
         return NO;
     NSString* script = [NSString stringWithFormat:
-        @"window.ToriRSPluginChrome&&window.ToriRSPluginChrome.receive((%@)[0]);",
+        @"(function(){try{return !!(window.ToriRSPluginChrome&&"
+         "window.ToriRSPluginChrome.receive((%@)[0])!==false);}"
+         "catch(e){return false;}})();",
         argument];
     if( !script || !self.view )
         return NO;
     [self.view evaluateJavaScript:script completionHandler:^(id result, NSError* error) {
-        if( error || ([result respondsToSelector:@selector(boolValue)] && ![result boolValue]) )
+        if( error || ![result respondsToSelector:@selector(boolValue)] || ![result boolValue] )
             self.sendFailed = YES;
     }];
     return YES;

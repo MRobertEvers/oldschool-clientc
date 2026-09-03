@@ -3860,6 +3860,10 @@ static int g_present_order_count;
 static char g_present_order[8][TORIRS_UI_LABEL_MAX];
 static int g_present_reorder_requested;
 static enum ToriRS_Result g_present_reorder_result;
+static int g_present_visibility_request = -1;
+static enum ToriRS_Result g_present_visibility_result;
+static int g_present_ancestor_visibility_request = -1;
+static enum ToriRS_Result g_present_ancestor_visibility_result;
 
 static enum ToriRS_PluginVerdict
 present_v1_click(
@@ -4046,6 +4050,56 @@ v2_present_reorder_logic(
         &actions);
 }
 
+static void
+v2_present_visibility_logic(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_PluginEvTick const* event)
+{
+    struct ToriRS_UiNode appearance = {
+        .struct_size = sizeof(appearance),
+        .label = "appearance-only",
+    };
+
+    (void)state;
+    (void)event;
+    if( g_present_visibility_request < 0 )
+        return;
+    if( g_present_visibility_request )
+        appearance.flags = TORIRS_UI_NODE_VISIBLE;
+    g_present_visibility_request = -1;
+    g_present_visibility_result = api->ui.update(
+        api,
+        api->ui.ref(api, "frame.orb.run"),
+        TORIRS_UI_FACET_APPEARANCE,
+        &appearance);
+}
+
+static void
+v2_present_ancestor_visibility_logic(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_PluginEvTick const* event)
+{
+    struct ToriRS_UiNode appearance = {
+        .struct_size = sizeof(appearance),
+        .label = "target",
+    };
+
+    (void)state;
+    (void)event;
+    if( g_present_ancestor_visibility_request < 0 )
+        return;
+    if( g_present_ancestor_visibility_request )
+        appearance.flags = TORIRS_UI_NODE_VISIBLE;
+    g_present_ancestor_visibility_request = -1;
+    g_present_ancestor_visibility_result = api->ui.update(
+        api,
+        api->ui.ref(api, "frame.orb.run"),
+        TORIRS_UI_FACET_APPEARANCE,
+        &appearance);
+}
+
 static struct ToriRS_UiContribution const V2_PRESENT_APPEARANCE_UI[] = {
     {
         .struct_size = sizeof(struct ToriRS_UiContribution),
@@ -4086,6 +4140,7 @@ static struct ToriRS_PluginDefV2 const V2_PRESENT_APPEARANCE = {
     .version = "2.0.0",
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_logic_tick = v2_present_visibility_logic,
         .on_ui_node_draw = v2_present_draw,
     },
     .ui_contributions = V2_PRESENT_APPEARANCE_UI,
@@ -4152,15 +4207,19 @@ static struct ToriRS_UiContribution const V2_PRESENT_NESTED_UI[] = {
         .struct_size = sizeof(struct ToriRS_UiContribution),
         .node = "present.after",
         .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
-        .facets = TORIRS_UI_FACET_BOUNDS | TORIRS_UI_FACET_APPEARANCE,
+        .facets = TORIRS_UI_FACET_ALL,
         .value = {
             .struct_size = sizeof(struct ToriRS_UiNode),
             .bounds = { 2, 2, 4, 4 },
             .parent = "frame.orb.run",
             .anchor = TORIRS_ANCHOR_TOP_LEFT,
             .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,
-            .flags = TORIRS_UI_NODE_VISIBLE,
+            .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
             .label = "after",
+            .hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM,
+            .hit_rect = { 74, 37, 4, 4 },
+            .action_count = 1,
+            .actions = { "nested-action" },
         },
     },
     { .struct_size = sizeof(struct ToriRS_UiContribution) },
@@ -4173,7 +4232,9 @@ static struct ToriRS_PluginDefV2 const V2_PRESENT_NESTED = {
     .version = "2.0.0",
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_logic_tick = v2_present_ancestor_visibility_logic,
         .on_ui_node_draw = v2_present_draw,
+        .on_ui_node_action = v2_present_action,
     },
     .ui_contributions = V2_PRESENT_NESTED_UI,
     .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
@@ -5861,6 +5922,7 @@ main(void)
         struct ToriRS_PluginFrameSelection selection;
         struct ToriRS_PluginWinWidget const* widget;
         uint32_t generation;
+        uint32_t presentation_rebuilds;
         int draw_before;
         int placement_before;
         int a2;
@@ -5961,6 +6023,23 @@ main(void)
             ((struct V2ProbeState*)g_v2_latest_state[1])->ticks == 7 &&
                 ((struct V2ProbeState*)g_v2_latest_state[2])->ticks == 7,
             "automatic callback dispatch passes each instance its own state");
+        PluginHost_ReconcileRoleReplacements(hv2);
+        presentation_rebuilds = PluginHost_UiPresentationRebuilds(hv2);
+        g_role_name = "viewport";
+        g_role_visible = 1;
+        g_role_box[0] = 0;
+        g_role_box[1] = 0;
+        g_role_box[2] = 900;
+        g_role_box[3] = 600;
+        PluginHost_ReconcileRoleReplacements(hv2);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(hv2) == presentation_rebuilds + 1,
+            "a previously unresolved native boundary becoming live rebuilds the compact presenter once");
+        presentation_rebuilds = PluginHost_UiPresentationRebuilds(hv2);
+        PluginHost_ReconcileRoleReplacements(hv2);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(hv2) == presentation_rebuilds,
+            "steady late-bound roles do not rescan the full named registry");
         draw_before = g_engine.draw_items;
         PluginHost_DrawCanvas(hv2, 900, 600);
         CHECK(
@@ -6151,6 +6230,7 @@ main(void)
             g_v2_stops[1] == 2 && g_v2_stops[2] == 1 && g_v2_stops[3] == 1 &&
                 g_engine.objects_live == 0,
             "host destruction stops every v2 instance and cleans its resources");
+        g_role_name = NULL;
     }
 
     /* ---- frame candidates retain the last complete commit ------------ */
@@ -6659,8 +6739,11 @@ main(void)
     {
         struct ToriRS_PluginHost* facet_host;
         struct ToriRS_PluginEngine facet_engine;
+        uint32_t late_rebuilds;
         uint32_t old_tag;
         int old_actions;
+        int old_draws;
+        int old_hits;
         int appearance;
         int actions;
         int nested;
@@ -6693,6 +6776,10 @@ main(void)
         g_present_order_count = 0;
         g_present_reorder_requested = 0;
         g_present_reorder_result = TORIRS_RESULT_ERROR;
+        g_present_visibility_request = -1;
+        g_present_visibility_result = TORIRS_RESULT_ERROR;
+        g_present_ancestor_visibility_request = -1;
+        g_present_ancestor_visibility_result = TORIRS_RESULT_ERROR;
         g_hit_region_calls = 0;
         facet_engine = fake_engine();
         facet_host = PluginHost_New(&facet_engine);
@@ -6706,6 +6793,25 @@ main(void)
         PluginHost_LayoutChanged(facet_host);
 
         PluginHost_SetEnabled(facet_host, appearance, true);
+        /* The base snapshot still names the target, but its live tree role is
+         * absent during this reconciliation (the rebuild gap). The presenter
+         * must retain the standing role dependency rather than forgetting it. */
+        g_role_name = NULL;
+        PluginHost_ReconcileRoleReplacements(facet_host);
+        late_rebuilds = PluginHost_UiPresentationRebuilds(facet_host);
+        g_role_suppress_calls = 0;
+        g_role_name = "orb_run";
+        PluginHost_ReconcileRoleReplacements(facet_host);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds + 1 &&
+                g_role_suppress_calls > 0 && g_role_suppress_paint == 1 &&
+                g_role_suppress_input == 0,
+            "a contribution retained through a rebuild gap suppresses its newly live role without a registry change");
+        late_rebuilds = PluginHost_UiPresentationRebuilds(facet_host);
+        PluginHost_ReconcileRoleReplacements(facet_host);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds,
+            "late-role reconciliation returns to compact steady-state work");
         PluginHost_DrawCanvas(facet_host, 100, 100);
         CHECK(
             PluginHost_UiPresentationCount(facet_host) == 1 &&
@@ -6752,6 +6858,37 @@ main(void)
                 strcmp(g_present_last_action, "second") == 0,
             "the newly declared operation identity invokes its matching reordered action");
 
+        old_tag = g_hit_region_tag;
+        old_actions = g_present_actions;
+        old_draws = g_present_draws;
+        old_hits = g_hit_region_calls;
+        g_present_visibility_request = 0;
+        PluginHost_LogicTick(facet_host, 2);
+        PluginHost_CanvasClick(
+            facet_host,
+            actions,
+            old_tag,
+            0,
+            g_hit_region_box[0],
+            g_hit_region_box[1]);
+        CHECK(
+            g_present_visibility_result == TORIRS_RESULT_OK &&
+                g_present_actions == old_actions,
+            "a retained menu action is rejected when its own node becomes hidden");
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            g_present_draws == old_draws && g_hit_region_calls == old_hits &&
+                g_role_suppress_paint == 1 && g_role_suppress_input == 1,
+            "a hidden winner keeps native facets suppressed but publishes no paint or input");
+        g_present_visibility_request = 1;
+        PluginHost_LogicTick(facet_host, 3);
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            g_present_visibility_result == TORIRS_RESULT_OK &&
+                g_hit_region_calls == old_hits + 1 && g_present_draws == old_draws + 1 &&
+                g_hit_region_tag != old_tag,
+            "showing the node again publishes a fresh action identity");
+
         PluginHost_SetEnabled(facet_host, appearance, false);
         old_actions = g_present_draws;
         PluginHost_DrawCanvas(facet_host, 100, 100);
@@ -6779,6 +6916,33 @@ main(void)
                 strcmp(g_present_order[3], "after") == 0 &&
                 g_role_anchor_last_place == PLUGIN_ANCHOR_PLACE_SELF,
             "nested before/after presentation stays contiguous at the live target's SELF boundary");
+        old_tag = g_hit_region_tag;
+        old_actions = g_present_actions;
+        old_draws = g_present_draws;
+        old_hits = g_hit_region_calls;
+        g_present_ancestor_visibility_request = 0;
+        PluginHost_LogicTick(facet_host, 4);
+        PluginHost_CanvasClick(
+            facet_host,
+            nested,
+            old_tag,
+            0,
+            g_hit_region_box[0],
+            g_hit_region_box[1]);
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            g_present_ancestor_visibility_result == TORIRS_RESULT_OK &&
+                g_present_actions == old_actions && g_present_draws == old_draws &&
+                g_hit_region_calls == old_hits,
+            "an ancestor becoming hidden retires a descendant's open menu identity");
+        g_present_ancestor_visibility_request = 1;
+        PluginHost_LogicTick(facet_host, 5);
+        PluginHost_DrawCanvas(facet_host, 100, 100);
+        CHECK(
+            g_present_ancestor_visibility_result == TORIRS_RESULT_OK &&
+                g_present_draws == old_draws + 4 && g_hit_region_calls == old_hits + 1 &&
+                g_hit_region_tag != old_tag,
+            "restoring the ancestor remints and republishes the descendant action");
         PluginHost_SetEnabled(facet_host, nested, false);
         CHECK(
             g_role_suppress_paint == 0 && g_role_suppress_input == 0,

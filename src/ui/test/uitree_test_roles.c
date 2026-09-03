@@ -2,6 +2,7 @@
 
 #include "uitree_role.h"
 #include "uitree_scroll.h"
+#include "uitree_interact.h"
 
 #include <stdlib.h>
 
@@ -522,6 +523,7 @@ test_role_facet_suppression(void)
     uint32_t incarnation;
     int target_x, target_y, target_w, target_h;
     int child_x, child_y, child_w, child_h;
+    int hook_component = -1;
     int n;
 
     TEST_ASSERT(tree != NULL, "facet suppression tree");
@@ -539,6 +541,8 @@ test_role_facet_suppression(void)
                 "facet suppression fixture builds");
     tree->components[target].behavior.button_type = 1;
     tree->components[child].behavior.button_type = 1;
+    UITree_HooksMut(&tree->components[root])->on_click.script_id = 610;
+    UITree_HooksMut(&tree->components[target])->on_op.script_id = 611;
     UITree_TestResolve(tree);
     incarnation = tree->components[target].incarnation;
     UITree_LayoutGetBounds(
@@ -598,6 +602,11 @@ test_role_facet_suppression(void)
     TEST_ASSERT(
         UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) == target,
         "appearance-only suppression leaves the target's native input live");
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, child, &hook_component) ==
+                &UITree_Hooks(&tree->components[target])->on_op &&
+            hook_component == tree->components[target].component_id,
+        "a child normally inherits its nearest parent's operation hook");
 
     TEST_ASSERT(
         UITree_SetReplacementInputHidden(tree, target, incarnation, 1),
@@ -606,6 +615,11 @@ test_role_facet_suppression(void)
         UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) < 0 &&
             UITree_HitTestInteractive(tree, &host, child_x + 1, child_y + 1) == child,
         "combined facets suppress target input but retain child input");
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, child, &hook_component) ==
+                &UITree_Hooks(&tree->components[root])->on_click &&
+            hook_component == tree->components[root].component_id,
+        "a live child skips a suppressed parent's inherited hooks");
     n = UITree_CollectNodesAt(
         tree, &host, child_x + 1, child_y + 1, hits,
         (int)(sizeof(hits) / sizeof(hits[0])));

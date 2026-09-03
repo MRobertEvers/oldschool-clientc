@@ -164,14 +164,18 @@
       if (!runtime || typeof runtime.receive !== 'function') return false;
       this.runtime = runtime;
       if (child) child.torirsPluginChromePostMessage = json => { this.fromRuntime(json); };
-      let accepted = runtime.receive(copy(THEME)) !== false;
+      let accepted = true;
+      try { accepted = runtime.receive(copy(THEME)) !== false; }
+      catch (error) { accepted = false; }
       const queued = this.pending;
       this.pending = [];
       this.pendingBytes = 0;
       /* A replaced iframe starts its outbound sequence at one again. */
       this.lastOutboundSequence = 0;
-      for (let i = 0; i < queued.length; i++)
-        if (runtime.receive(queued[i].message) === false) accepted = false;
+      for (let i = 0; i < queued.length; i++) {
+        try { if (runtime.receive(queued[i].message) === false) accepted = false; }
+        catch (error) { accepted = false; }
+      }
       if (!accepted) this.deliveryLost = true;
       return accepted;
     }
@@ -711,12 +715,12 @@
     global.torirsChromeOpen = () => host.open();
     global.torirsChromeEnd = () => { host.end(); };
     global.torirsChromeClose = () => { host.end(); };
-    global.torirsChromeApply = command => { host.apply(command); };
+    global.torirsChromeApply = command => host.apply(command);
     /* Wasm sends one retained transaction per call. Keeping the legacy single
      * command hook makes fixtures readable, while production pays one bridge
      * crossing and one JSON parse for the complete delta. */
     global.torirsChromeApplyBatch = commands => {
-      if (!Array.isArray(commands)) return false;
+      if (!Array.isArray(commands) || commands.length > MAX_BATCH_COMMANDS) return false;
       if (host.takeDeliveryLoss()) return false;
       let accepted = true;
       for (let i = 0; i < commands.length; i++)
