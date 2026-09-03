@@ -251,6 +251,33 @@ main(void)
             "web allocation returns generation-fenced exclusive visibility");
     }
 
+    {
+        struct ChromeWeb batch;
+        struct ToriRSChromeCmd cmd;
+
+        memset(&batch, 0, sizeof(batch));
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.kind = TORIRS_CHROME_CMD_WIDGET_OPTION;
+        cmd.panel = 2;
+        cmd.widget = 9;
+        cmd.value = 1;
+        cmd.x = 0;
+        snprintf(cmd.text, sizeof(cmd.text), "%s", "missing/frame");
+        snprintf(cmd.label, sizeof(cmd.label), "%s", "Same|label");
+        snprintf(cmd.detail, sizeof(cmd.detail), "%s", "Provider is not installed");
+        chrome_web_batch_begin(&batch);
+        chrome_web_batch_command(&batch, &cmd);
+        CHECK(
+            batch.batch_json && strstr(batch.batch_json, "\"text\":\"missing/frame\"") &&
+                strstr(batch.batch_json, "\"label\":\"Same|label\"") &&
+                strstr(
+                    batch.batch_json,
+                    "\"detail\":\"Provider is not installed\"") &&
+                strstr(batch.batch_json, "\"x\":0"),
+            "the web executor serializes structured option fields separately");
+        free(batch.batch_json);
+    }
+
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

@@ -68,6 +68,9 @@ struct ToriRS_PlacementAreaRef
     uint32_t value;
 };
 
+/* Resource references are uniformly zero-invalid and 1-based. A zeroed state
+ * or descriptor therefore owns no accidental legacy handle. Boxing is an
+ * adapter/host detail and never leaks into plugin code. */
 struct ToriRS_ImageRef
 {
     int value;
@@ -164,6 +167,8 @@ enum ToriRS_UiNodeFlags
     TORIRS_UI_NODE_ENABLED = 1u << 1,
     TORIRS_UI_NODE_BLOCKS_FRAME = 1u << 2,
     TORIRS_UI_NODE_BLOCKS_OVERLAY = 1u << 3,
+    /* Select ACTIVE/ACTIVE_HOVER retained art. Owned by APPEARANCE. */
+    TORIRS_UI_NODE_ACTIVE = 1u << 4,
 };
 
 enum ToriRS_UiPaintOrder
@@ -182,8 +187,8 @@ enum ToriRS_UiClip
     TORIRS_UI_CLIP_BOUNDS,
 };
 
-/* Stable visual states shared by frame art and plugin contributions. Missing
- * state images fall back to IDLE; a missing IDLE image means no image. */
+/* Stable visual states shared by frame art and plugin contributions. A zero
+ * state image falls back to IDLE; a zero IDLE image means no image. */
 enum ToriRS_UiVisualState
 {
     TORIRS_UI_VISUAL_IDLE = 0,
@@ -245,6 +250,7 @@ struct ToriRS_UiNodeInfo
     uint32_t available_facets;
     bool visible;
     bool enabled;
+    bool active;
 
     /* Pointer-free current snapshot of the same three retained facets. */
     struct ToriRS_UiNodeRef parent;
@@ -713,7 +719,12 @@ struct ToriRS_UiApiV2
         char const* node,
         uint32_t facets,
         struct ToriRS_UiContributionInfo* out);
-    TORIRS_API_V2_MODULE_RESERVED;
+    enum ToriRS_Result (*update)(
+        struct ToriRS_ApiV2* api,
+        struct ToriRS_UiNodeRef node,
+        uint32_t facets,
+        struct ToriRS_UiNode const* value);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
 };
 
 struct ToriRS_PlacementApiV2

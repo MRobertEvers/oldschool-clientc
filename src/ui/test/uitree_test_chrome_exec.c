@@ -830,6 +830,81 @@ test_chrome_exec_options(void)
     }
 }
 
+static void
+test_chrome_exec_structured_options(void)
+{
+    static struct ToriRSChromeSelectOptionInput const options[] = {
+        { "auto", "Same|label", 1, "Uses the lane default" },
+        { "missing/frame", "Same|label", 0, "Provider is not installed" },
+        { "ready/frame", "Ready", 1, "Available now" },
+    };
+    struct ToriRSChromeIntent intent;
+    struct ToriRSChromeCmd const* header;
+    struct ToriRSChromeCmd const* missing = NULL;
+    struct ToriRSChromeCmd const* selected;
+    int panel;
+    int drop;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 240, "Structured");
+    drop = ToriRSChrome_DropdownStructured(
+        &g_ui, panel, "Gameframe", options, 3, "missing/frame");
+    TEST_ASSERT(drop >= 0, "a structured dropdown is retained");
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+    header = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_OPTIONS, drop);
+    selected = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_SELECTED, drop);
+    for( int i = 0; i < g_rec.count; i++ )
+        if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_WIDGET_OPTION &&
+            g_rec.cmds[i].widget == drop && g_rec.cmds[i].value == 1 )
+            missing = &g_rec.cmds[i];
+    TEST_ASSERT(
+        header && header->x == 1 && header->value == 3,
+        "the option-list boundary marks the structured representation");
+    TEST_ASSERT(
+        missing && strcmp(missing->text, "missing/frame") == 0 &&
+            strcmp(missing->label, "Same|label") == 0 && !missing->x &&
+            strcmp(missing->detail, "Provider is not installed") == 0,
+        "stable value, duplicate delimiter label, disabled state, and detail cross separately");
+    TEST_ASSERT(
+        selected && selected->value == 1 &&
+            strcmp(selected->text, "missing/frame") == 0 &&
+            strcmp(ToriRSChrome_DropdownSelectedValue(&g_ui, drop), "missing/frame") == 0,
+        "a disabled missing choice may remain the selected retained value");
+
+    exec_settle();
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_PICK;
+    intent.panel = panel;
+    intent.widget = drop;
+    intent.value = 1;
+    snprintf(intent.text, sizeof(intent.text), "%s", "missing/frame");
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    TEST_ASSERT(
+        ToriRSChromeSync_Pump(&g_sync, &g_ui) == 0 &&
+            ToriRSChrome_TakeActivated(&g_ui) < 0,
+        "an executor cannot select a disabled structured option");
+
+    intent.value = 2;
+    snprintf(intent.text, sizeof(intent.text), "%s", "stale/index-value");
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    TEST_ASSERT(
+        ToriRSChromeSync_Pump(&g_sync, &g_ui) == 0,
+        "a stale value cannot retarget a reused option index");
+
+    snprintf(intent.text, sizeof(intent.text), "%s", "ready/frame");
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    TEST_ASSERT(
+        ToriRSChromeSync_Pump(&g_sync, &g_ui) == 1 &&
+            ToriRSChrome_TakeActivated(&g_ui) == drop &&
+            strcmp(ToriRSChrome_DropdownSelectedValue(&g_ui, drop), "ready/frame") == 0,
+        "an enabled pick lands as its stable value rather than its label");
+}
+
 /* Intents land on the model where a click would. */
 static void
 test_chrome_exec_intents(void)
@@ -1795,6 +1870,7 @@ test_chrome_exec(void)
     test_chrome_exec_reset_replacement_order();
     test_chrome_exec_panel_close();
     test_chrome_exec_options();
+    test_chrome_exec_structured_options();
     test_chrome_exec_intents();
     test_chrome_exec_close_reported();
     test_chrome_exec_refused();

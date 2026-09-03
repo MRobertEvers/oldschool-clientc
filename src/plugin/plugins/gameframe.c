@@ -1918,10 +1918,8 @@ frame_on_layout(
      * Nothing before the gameframe exists.
      *
      * A gameframe plugin dresses the game's frame, and on the title screen
-     * there is no frame to dress -- but the slots it declares are claimed all
-     * the same, and a claim the client honours over art this plugin then draws
-     * none of leaves the title screen with its background, its logo and its
-     * login box taken away by furniture for a screen nobody is on yet.
+     * there is no frame to dress. Applying an empty retained declaration there
+     * would hide title furniture behind a frame for a screen nobody is on yet.
      *
      * @see ToriRS_PluginApi::screen. Declared here rather than left to the
      * host because only the plugin knows that its effect is a GAME effect;

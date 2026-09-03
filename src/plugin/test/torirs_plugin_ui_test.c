@@ -251,7 +251,7 @@ test_rich_facet_payloads(void)
 
     ToriRS_UiRegistry_Init(&registry_a);
     report = ToriRS_UiRegistry_Ref(&registry_a, "frame.chat.button.report");
-    bounds = node_value(10, 20, 80, 24, TORIRS_UI_NODE_BLOCKS_OVERLAY, -1, NULL, NULL);
+    bounds = node_value(10, 20, 80, 24, TORIRS_UI_NODE_BLOCKS_OVERLAY, 0, NULL, NULL);
     bounds.parent = "frame.chat";
     bounds.anchor = TORIRS_ANCHOR_BOTTOM_RIGHT;
     bounds.paint_order = TORIRS_UI_PAINT_BEFORE_PARENT;
@@ -263,7 +263,7 @@ test_rich_facet_payloads(void)
     appearance.state_images[TORIRS_UI_VISUAL_DISABLED].value = 13;
     appearance.label_x = 7;
     appearance.label_y = 9;
-    actions = node_value(0, 0, 0, 0, TORIRS_UI_NODE_ENABLED, -1, NULL, NULL);
+    actions = node_value(0, 0, 0, 0, TORIRS_UI_NODE_ENABLED, 0, NULL, NULL);
     actions.hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM;
     actions.hit_rect = (struct ToriRS_Rect){ 8, 18, 86, 30 };
     actions.action_count = 2;
@@ -305,7 +305,7 @@ test_rich_facet_payloads(void)
             resolved.value.state_images[TORIRS_UI_VISUAL_IDLE].value == 11 &&
             resolved.value.state_images[TORIRS_UI_VISUAL_HOVER].value == 12 &&
             resolved.value.state_images[TORIRS_UI_VISUAL_DISABLED].value == 13 &&
-            resolved.value.state_images[TORIRS_UI_VISUAL_ACTIVE].value == -1,
+            resolved.value.state_images[TORIRS_UI_VISUAL_ACTIVE].value == 0,
         "appearance retains independent images for every visual state");
     CHECK(
         strcmp(resolved.value.label, "Report abuse") == 0 && resolved.value.label_x == 7 &&

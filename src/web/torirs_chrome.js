@@ -385,6 +385,7 @@
         x: integer(raw && raw.x, 0), y: integer(raw && raw.y, 0),
         cw: integer(raw && raw.cw, 0), ch: integer(raw && raw.ch, 0),
         label: boundedText(raw && raw.label, 63), text: boundedText(raw && raw.text, 191),
+        detail: boundedText(raw && raw.detail, 191),
         s: unsigned(raw && raw.s)
       };
     }

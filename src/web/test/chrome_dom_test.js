@@ -165,6 +165,23 @@ message = received[received.length - 1];
 assert.strictEqual(message.type, 'page.delta', 'later transaction is a retained delta');
 assert.strictEqual(message.commands.length, 1);
 
+assert.strictEqual(global_.torirsChromeApplyBatch([
+  { k: exported.CMD.SYNC_BEGIN },
+  { k: exported.CMD.WIDGET_OPTION, p: 3, w: 6, v: 1, x: 0,
+    text: 'missing/frame', label: 'Same|label', detail: 'Provider is not installed' },
+  { k: exported.CMD.SYNC_END }
+]), true);
+message = received[received.length - 1];
+assert.deepStrictEqual({
+  value: message.commands[0].text,
+  label: message.commands[0].label,
+  detail: message.commands[0].detail,
+  enabled: message.commands[0].x
+}, {
+  value: 'missing/frame', label: 'Same|label',
+  detail: 'Provider is not installed', enabled: 0
+}, 'the web adapter preserves every structured option field independently');
+
 const beforeOverflow = received.length;
 global_.torirsChromeApply({ k: exported.CMD.SYNC_BEGIN });
 for (let i = 0; i < 8193; i++) global_.torirsChromeApply({

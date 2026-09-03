@@ -203,6 +203,18 @@ fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
     return fake_has_slot(slot);
 }
 
+static int
+fake_layout_slot_exists(void* u, int slot, int member)
+{
+    (void)u;
+    if( member >= FAKE_SLOT_MEMBERS )
+        return 0;
+    if( slot == TORIRS_PLUGIN_SLOT_SIDEBAR && member >= 0 &&
+        member == g_frame.missing_tab )
+        return 0;
+    return fake_has_slot(slot);
+}
+
 /** What the last declaration skinned each role with, so a test can ask whether
  *  the resizable frame reached for its OWN map ring and not the fixed one. */
 static int
@@ -936,6 +948,7 @@ main(void)
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
+    e.layout_slot_exists = fake_layout_slot_exists;
     e.layout_slot_skin = fake_layout_slot_skin;
     e.layout_slot_overlay = fake_layout_slot_overlay;
     e.layout_scrollbar = fake_layout_scrollbar;
@@ -1012,7 +1025,10 @@ main(void)
 
     /* ---- 1. host-owned selection -------------------------------------- */
 
-    CHECK(g_frame.owned == 1, "the requested Stone Drawer offer owns the frame");
+    CHECK(g_frame.owned == 0, "native stays live while Stone Drawer prepares");
+    CHECK(PluginHost_FrameNeedsLayout(g_host), "Stone Drawer requests one safe build attempt");
+    declare(M_W, M_H);
+    CHECK(g_frame.owned == 1, "the validated Stone Drawer offer owns the frame");
     CHECK(
         g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
         "a phone frame follows the window rather than pinning a canvas");
@@ -1029,8 +1045,8 @@ main(void)
         M_MIN_W < 765 && M_MIN_H < 503,
         "a floor no smaller than the client's would not have needed carrying");
     CHECK(
-        g_frame.end_calls == 0,
-        "the claim does not declare against a canvas it cannot know");
+        g_frame.end_calls == 1,
+        "selection itself declared nothing and the explicit candidate committed once");
 
     /* ---- 2. the frame, drawer shut ------------------------------------- */
 
@@ -1433,8 +1449,9 @@ main(void)
         "selecting at the title leaves the native frame in charge");
     g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
     PluginHost_FrameStart(g_host, 1000, 0);
-    CHECK(g_frame.owned == 1, "logging in activates the selected frame without a restart");
+    CHECK(g_frame.owned == 0, "logging in schedules the selected frame without a restart");
     declare(M_W, M_H);
+    CHECK(g_frame.owned == 1, "the login-time candidate activates after validation");
     CHECK(
         g_frame.slot[TORIRS_PLUGIN_SLOT_VIEWPORT].placed,
         "and the next layout pass declares it");

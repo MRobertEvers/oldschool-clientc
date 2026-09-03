@@ -16,12 +16,10 @@
  * check, in one place, and they fire at COMPILE time on the file that made the
  * mistake rather than on a frame months later.
  *
- * This header is also how the two NATIVE-WIDGET executors that own no scene --
- * `web` (DOM) and `gdi` (USER32) -- reach the pixels at all. Chrome the client
- * builds INSIDE the interface tree is handed a scene id by the App instead,
- * because its images have to become a ToriDraw sprite anyway; a browser wants a
- * data: URL and Windows wants a DIB, and neither is anything the App can hand
- * over.
+ * This header is also how the WEB and BROWSER executors, which own no scene,
+ * reach the pixels. Chrome built inside the interface tree is handed a scene
+ * id by the App instead because its images already become ToriDraw sprites;
+ * a web document needs an encoded/staged image URL.
  *
  * Header-only: the accessor is three lines over a function the baked module
  * already exports, and a translation unit of its own would be a makefile entry

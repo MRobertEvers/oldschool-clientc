@@ -366,6 +366,8 @@ static void append_command(
     json_string(json, cmd->label);
     json_append(json, ",\"text\":");
     json_string(json, cmd->text);
+    json_append(json, ",\"detail\":");
+    json_string(json, cmd->detail);
     json_appendf(json, ",\"s\":%u}", (unsigned)cmd->serial);
 }
 

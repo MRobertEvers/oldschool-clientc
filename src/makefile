@@ -2220,10 +2220,12 @@ test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 # plugins with no roster row and no config page, so a broken one draws nothing
 # and looks exactly like a setting somebody left switched off -- which is what
 # the whole category looked like before they existed. This is where that shows.
-test-nxt-plugins: $(OBJ_DIR) plugin/test/nxt_activities_test.c
+test-nxt-plugins: $(OBJ_DIR) plugin/torirs_plugin_v2_adapter.c \
+		plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
@@ -2357,11 +2359,13 @@ test-client-settings: $(OBJ_DIR) plugin/plugins/client_settings.c \
 # about what is client-only, and a test restating it would only compare two
 # hand-typed lists.
 .PHONY: test-feature-flags
-test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/feature_flags.c \
+test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_v2_adapter.c \
+		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c $(LDFLAGS)
@@ -2377,11 +2381,13 @@ test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/featur
 # pixels it loaded, so an image table that answered nothing would exercise none
 # of it. Run from src/, where the shipped assets resolve.
 .PHONY: test-gameframe
-test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/gameframe.c \
+test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_v2_adapter.c \
+		plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
@@ -2400,21 +2406,25 @@ test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
 	./$(OBJ_DIR)/torirs_touch_test
 
 test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
+		plugin/torirs_plugin_v2_adapter.c \
 		plugin/plugins/mobile_gameframe.c plugin/test/mobile_gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
 		plugin/plugins/mobile_gameframe.c \
 		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/mobile_gameframe_test
 
-test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/xp_orbs.c \
+test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_v2_adapter.c \
+		plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		plugin/torirs_plugin_v2_adapter.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c $(LDFLAGS)

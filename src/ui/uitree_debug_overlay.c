@@ -2801,6 +2801,103 @@ ToriRSChrome_DropdownSetOptions(
         flags);
 }
 
+static int
+dbg_structured_selected(
+    struct ToriRSChromeSelectOptionInput const* options,
+    int option_count,
+    char const* selected_value)
+{
+    char const* wanted = selected_value ? selected_value : "";
+
+    for( int i = 0; i < option_count; i++ )
+        if( options[i].value && strcmp(options[i].value, wanted) == 0 )
+            return i;
+    return -1;
+}
+
+int
+ToriRSChrome_DropdownStructured(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    struct ToriRSChromeSelectOptionInput const* options,
+    int option_count,
+    char const* selected_value)
+{
+    int const handle = dbg_widget_add(ui, panel, TORIRS_CHROME_W_DROPDOWN);
+    struct ToriRSChromeWidget* widget;
+
+    if( handle < 0 )
+        return -1;
+    if( !dbg_structured_options_replace(ui, handle, options, option_count) )
+    {
+        ToriRSChrome_WidgetRemove(ui, handle);
+        return -1;
+    }
+    widget = &ui->widgets[handle];
+    dbg_copy(widget->label, TORIRS_CHROME_LABEL_MAX, label);
+    widget->structured_options = 1;
+    widget->options = NULL;
+    widget->option_count = option_count;
+    widget->options_hash = dbg_structured_options_hash(options, option_count);
+    widget->selected = dbg_structured_selected(options, option_count, selected_value);
+    dbg_copy(
+        widget->selected_value,
+        TORIRS_CHROME_SELECT_VALUE_MAX,
+        selected_value);
+    widget->scroll = widget->selected > 0 ? widget->selected : 0;
+    dbg_dropdown_clamp(widget);
+    return handle;
+}
+
+void
+ToriRSChrome_DropdownSetStructuredOptions(
+    struct ToriRSChrome* ui,
+    int widget,
+    struct ToriRSChromeSelectOptionInput const* options,
+    int option_count,
+    char const* selected_value)
+{
+    struct ToriRSChromeWidget* dropdown;
+    uint64_t hash;
+    uint32_t flags = 0;
+    int selected;
+
+    if( !dbg_valid_widget(ui, widget) ||
+        ui->widgets[widget].kind != TORIRS_CHROME_W_DROPDOWN || option_count < 0 ||
+        option_count > TORIRS_CHROME_SELECT_OPTIONS_MAX ||
+        (option_count > 0 && !options) )
+        return;
+    dropdown = &ui->widgets[widget];
+    hash = dbg_structured_options_hash(options, option_count);
+    selected = dbg_structured_selected(options, option_count, selected_value);
+    if( !dropdown->structured_options || dropdown->option_count != option_count ||
+        dropdown->options_hash != hash )
+        flags |= TORIRS_CHROME_CHANGE_WIDGET_OPTIONS;
+    if( dropdown->selected != selected ||
+        strcmp(dropdown->selected_value, selected_value ? selected_value : "") != 0 )
+        flags |= TORIRS_CHROME_CHANGE_WIDGET_SELECTED;
+    if( flags == 0 )
+        return;
+    if( !dbg_structured_options_replace(ui, widget, options, option_count) )
+        return;
+    dropdown->structured_options = 1;
+    dropdown->options = NULL;
+    dropdown->option_count = option_count;
+    dropdown->options_hash = hash;
+    dropdown->selected = selected;
+    dbg_copy(
+        dropdown->selected_value,
+        TORIRS_CHROME_SELECT_VALUE_MAX,
+        selected_value);
+    dropdown->scroll = selected > 0 ? selected : 0;
+    dbg_dropdown_clamp(dropdown);
+    if( ui->dropdown_open == widget )
+        ui->dropdown_open = -1;
+    dbg_dirty_widget(ui, widget);
+    dbg_change_widget_layout(ui, widget, flags);
+}
+
 int
 ToriRSChrome_DropdownSelected(struct ToriRSChrome const* ui, int widget)
 {
@@ -2809,10 +2906,60 @@ ToriRSChrome_DropdownSelected(struct ToriRSChrome const* ui, int widget)
     return ui->widgets[widget].selected;
 }
 
+char const*
+ToriRSChrome_DropdownSelectedValue(
+    struct ToriRSChrome const* ui,
+    int widget)
+{
+    struct ToriRSChromeWidget const* dropdown;
+    struct ToriRSChromeSelectOption const* option;
+
+    if( !dbg_valid_widget(ui, widget) ||
+        ui->widgets[widget].kind != TORIRS_CHROME_W_DROPDOWN )
+        return "";
+    dropdown = &ui->widgets[widget];
+    option = dbg_structured_option(ui, dropdown, dropdown->selected);
+    if( option )
+        return option->value;
+    if( dropdown->structured_options )
+        return dropdown->selected_value;
+    return dbg_option_label(ui, dropdown, dropdown->selected);
+}
+
+int
+ToriRSChrome_DropdownOptionEnabled(
+    struct ToriRSChrome const* ui,
+    int widget,
+    int option)
+{
+    if( !dbg_valid_widget(ui, widget) ||
+        ui->widgets[widget].kind != TORIRS_CHROME_W_DROPDOWN )
+        return 0;
+    return dbg_option_enabled(ui, &ui->widgets[widget], option);
+}
+
+char const*
+ToriRSChrome_DropdownOptionValue(
+    struct ToriRSChrome const* ui,
+    int widget,
+    int option)
+{
+    struct ToriRSChromeWidget const* dropdown;
+    struct ToriRSChromeSelectOption const* structured;
+
+    if( !dbg_valid_widget(ui, widget) ||
+        ui->widgets[widget].kind != TORIRS_CHROME_W_DROPDOWN )
+        return "";
+    dropdown = &ui->widgets[widget];
+    structured = dbg_structured_option(ui, dropdown, option);
+    return structured ? structured->value : dbg_option_label(ui, dropdown, option);
+}
+
 void
 ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int selected)
 {
     struct ToriRSChromeWidget* w;
+    char const* value = "";
 
     if( !dbg_valid_widget(ui, widget) )
         return;
@@ -2821,9 +2968,18 @@ ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int select
         selected = w->option_count - 1;
     if( selected < -1 )
         selected = -1;
-    if( w->selected == selected )
+    if( w->structured_options )
+    {
+        struct ToriRSChromeSelectOption const* option =
+            dbg_structured_option(ui, w, selected);
+        value = option ? option->value : "";
+    }
+    if( w->selected == selected &&
+        (!w->structured_options || strcmp(w->selected_value, value) == 0) )
         return;
     w->selected = selected;
+    if( w->structured_options )
+        dbg_copy(w->selected_value, TORIRS_CHROME_SELECT_VALUE_MAX, value);
     dbg_dropdown_clamp(w);
     dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
     dbg_dirty_widget_paint(ui, widget);
@@ -3208,7 +3364,8 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
          * frame -- dbg_widget_width only runs on a dirty build. */
         for( int i = 0; i < w->option_count; i++ )
         {
-            int const ow = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->options[i]);
+            int const ow = ToriRSChrome_MeasureText(
+                ui->theme.font_row, ui->scale, dbg_option_label(ui, w, i));
             if( ow > box_w )
                 box_w = ow;
         }
@@ -3229,7 +3386,8 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
          * not a width the strip is guaranteed. */
         int total = 0;
         for( int i = 0; i < w->option_count; i++ )
-            total += ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->options[i]) +
+            total += ToriRSChrome_MeasureText(
+                         ui->theme.font_row, ui->scale, dbg_option_label(ui, w, i)) +
                      2 * DBG_TAB_PAD_X;
         return total;
     }
@@ -3725,7 +3883,8 @@ dbg_push_scrollbar(
 static int
 dbg_tab_natural(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w, int index)
 {
-    return ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->options[index]) +
+    return ToriRSChrome_MeasureText(
+               ui->theme.font_row, ui->scale, dbg_option_label(ui, w, index)) +
            2 * DBG_TAB_PAD_X;
 }
 
@@ -3843,13 +4002,14 @@ dbg_push_tabstrip(
         /* Captions are clipped to their own tab so a compressed strip cuts the
          * text at the tab's edge instead of running it under its neighbour. */
         tab_clip = dbg_rect_clip(clip, r);
-        caption_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->options[i]);
+        caption_w = ToriRSChrome_MeasureText(
+            ui->theme.font_row, ui->scale, dbg_option_label(ui, w, i));
         text_x = r.w > caption_w ? r.x + (r.w - caption_w) / 2 : r.x + DBG_RULE;
         dbg_push_text(
             ui,
             text_x,
             text_y,
-            w->options[i],
+            dbg_option_label(ui, w, i),
             on ? th->text : (i == hover_tab ? th->accent : th->text_dim),
             ui->theme.font_row,
             0,
@@ -4835,9 +4995,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             int const box_h = row_h - dbg_row_box_top(ui, w);
             int const box_w = row_x + w->w - box_x;
             int const open = ui->dropdown_open == widget;
-            char const* shown = (w->selected >= 0 && w->selected < w->option_count)
-                                    ? w->options[w->selected]
-                                    : "";
+            char const* shown = dbg_option_label(ui, w, w->selected);
             struct ToriRSChromeRect box;
 
             if( label_w > 0 )
@@ -5506,7 +5664,8 @@ dbg_dropdown_rect(struct ToriRSChrome const* ui)
         int widest = 0;
         for( int i = 0; i < w->option_count; i++ )
         {
-            int const ow = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->options[i]);
+            int const ow = ToriRSChrome_MeasureText(
+                ui->theme.font_row, ui->scale, dbg_option_label(ui, w, i));
             if( ow > widest )
                 widest = ow;
         }
@@ -5656,7 +5815,8 @@ dbg_build_dropdown_list(struct ToriRSChrome* ui)
     {
         int const index = w->scroll + row;
         int const y = rect.y + DBG_DROP_LIST_PAD + row * DBG_DROP_ROW_H;
-        int const hovered = ui->dropdown_hover_row == row;
+        int const enabled = dbg_option_enabled(ui, w, index);
+        int const hovered = enabled && ui->dropdown_hover_row == row;
         int const baseline =
             y + (DBG_DROP_ROW_H - ToriRSChrome_FontLineBox(th->font_row, ui->scale)) / 2 +
             ToriRSChrome_FontLineHeight(th->font_row, ui->scale);
@@ -5673,7 +5833,7 @@ dbg_build_dropdown_list(struct ToriRSChrome* ui)
                 ui,
                 text_x,
                 baseline,
-                w->options[index],
+                dbg_option_label(ui, w, index),
                 hovered ? th->menu_hover_text : th->menu_text,
                 th->font_row,
                 0,
@@ -5689,7 +5849,8 @@ dbg_build_dropdown_list(struct ToriRSChrome* ui)
              */
             int trans = (index & 1) ? th->dropdown_band_trans_alt : th->dropdown_band_trans;
             int const shown_w =
-                ToriRSChrome_MeasureText(th->font_row, ui->scale, w->options[index]);
+                ToriRSChrome_MeasureText(
+                    th->font_row, ui->scale, dbg_option_label(ui, w, index));
 
             if( hovered )
                 trans = th->dropdown_row_trans_hover;
@@ -5714,8 +5875,8 @@ dbg_build_dropdown_list(struct ToriRSChrome* ui)
                 ui,
                 text_x,
                 baseline,
-                w->options[index],
-                th->dropdown_text,
+                dbg_option_label(ui, w, index),
+                enabled ? th->dropdown_text : th->text_dim,
                 th->font_row,
                 0,
                 row_clip);
@@ -6981,7 +7142,23 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
         {
             struct ToriRSChromeWidget* dd = &ui->widgets[ui->dropdown_open];
             int const chosen = ui->dropdown_open;
-            dd->selected = dd->scroll + row;
+            int const selected = dd->scroll + row;
+
+            if( !dbg_option_enabled(ui, dd, selected) )
+            {
+                ui->press = -1;
+                return 1;
+            }
+            dd->selected = selected;
+            if( dd->structured_options )
+            {
+                struct ToriRSChromeSelectOption const* option =
+                    dbg_structured_option(ui, dd, selected);
+                dbg_copy(
+                    dd->selected_value,
+                    TORIRS_CHROME_SELECT_VALUE_MAX,
+                    option ? option->value : "");
+            }
             dbg_change_widget(ui, chosen, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
             dbg_dropdown_close(ui);
             /* Reported like any other activation, so a caller drains choices
@@ -7147,14 +7324,30 @@ ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta)
         {
             struct ToriRSChromeWidget* dd = &ui->widgets[hit];
             int const was = dd->selected;
+            int direction;
             /* Wheel down (negative delta) moves DOWN the list. */
             dd->selected -= delta;
             if( dd->selected < 0 )
                 dd->selected = 0;
             if( dd->selected >= dd->option_count )
                 dd->selected = dd->option_count - 1;
+            direction = dd->selected >= was ? 1 : -1;
+            while( dd->selected >= 0 && dd->selected < dd->option_count &&
+                   !dbg_option_enabled(ui, dd, dd->selected) )
+                dd->selected += direction;
+            if( dd->selected < 0 || dd->selected >= dd->option_count )
+                dd->selected = was;
             if( dd->selected != was )
             {
+                if( dd->structured_options )
+                {
+                    struct ToriRSChromeSelectOption const* option =
+                        dbg_structured_option(ui, dd, dd->selected);
+                    dbg_copy(
+                        dd->selected_value,
+                        TORIRS_CHROME_SELECT_VALUE_MAX,
+                        option ? option->value : "");
+                }
                 /* Reported like a chosen row, so the caller's TakeActivated
                  * loop reacts to a wheel exactly as it would to a click. */
                 ui->activated = hit;

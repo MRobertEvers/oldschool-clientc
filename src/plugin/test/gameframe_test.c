@@ -215,6 +215,18 @@ fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
     return fake_has_slot(slot);
 }
 
+static int
+fake_layout_slot_exists(void* u, int slot, int member)
+{
+    (void)u;
+    if( member >= FAKE_SLOT_MEMBERS )
+        return 0;
+    if( slot == TORIRS_PLUGIN_SLOT_SIDEBAR && member >= 0 &&
+        member == g_frame.missing_tab )
+        return 0;
+    return fake_has_slot(slot);
+}
+
 /** What the last declaration skinned each role with, so a test can ask whether
  *  the resizable frame reached for its OWN map ring and not the fixed one. */
 static int
@@ -825,6 +837,7 @@ main(void)
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
+    e.layout_slot_exists = fake_layout_slot_exists;
     e.layout_slot_skin = fake_layout_slot_skin;
     e.layout_slot_overlay = fake_layout_slot_overlay;
     e.layout_scrollbar = fake_layout_scrollbar;
@@ -916,18 +929,16 @@ main(void)
         struct ToriRS_PluginFrameSelection const selected = selected_frame();
         CHECK(
             strcmp(selected.requested, "gameframe-layout/classic-fixed") == 0 &&
-                strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
-            "the host activates the selected classic-fixed offer");
+                strcmp(selected.active, "core/native") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            "the host prepares classic-fixed without replacing native yet");
     }
     CHECK(
         strcmp(g_frame_preference, "gameframe-layout/classic-fixed") == 0 &&
             g_frame_preference_set_calls == 1,
         "frame_select persists the canonical id through the engine");
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "selection starts the frame provider");
-    CHECK(g_frame.owned == 1, "the selected provider owns the frame");
-    CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "classic-fixed pins the canvas");
-    CHECK(g_frame.fixed_w == 765 && g_frame.fixed_h == 503, "pinned at the classic frame");
+    CHECK(g_frame.owned == 0, "native stays live before the candidate declaration");
     /*
      * Selection does NOT declare on the spot, and that is deliberate.
      *
@@ -944,6 +955,16 @@ main(void)
     /* ---- 2. classic fixed ---------------------------------------------- */
 
     declare(765, 503);
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
+            strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            "a valid classic declaration becomes the active offer");
+    }
+    CHECK(g_frame.owned == 1, "the validated provider owns the frame");
+    CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "classic-fixed pins the canvas");
+    CHECK(g_frame.fixed_w == 765 && g_frame.fixed_h == 503, "pinned at the classic frame");
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334),
         "classic viewport is the dat1 frame's 512x334 at 4,4");
@@ -1095,12 +1116,19 @@ main(void)
     {
         struct ToriRS_PluginFrameSelection const selected = selected_frame();
         CHECK(
+            strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            "modern-fixed is a candidate over the committed classic frame");
+    }
+    declare(765, 503);
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
             strcmp(selected.active, "gameframe-layout/modern-fixed") == 0 &&
                 selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
-            "the stable modern-fixed id selects that offer");
+            "the stable modern-fixed id commits after validation");
     }
     CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "modern-fixed pins the canvas too");
-    declare(765, 503);
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334),
         "548's viewport is the same 512x334");
@@ -1137,15 +1165,22 @@ main(void)
     {
         struct ToriRS_PluginFrameSelection const selected = selected_frame();
         CHECK(
+            strcmp(selected.active, "gameframe-layout/modern-fixed") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            "modern-resizable waits behind the committed fixed frame");
+    }
+
+    declare(1024, 768);
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
             strcmp(selected.active, "gameframe-layout/modern-resizable") == 0 &&
                 selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
-            "the stable modern-resizable id selects that offer");
+            "the stable modern-resizable id commits after validation");
     }
     CHECK(
         g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
         "the resizable offer follows the window");
-
-    declare(1024, 768);
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, 1024, 768),
         "the resizable scene is the whole window");
@@ -1374,19 +1409,20 @@ main(void)
     }
     g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
     PluginHost_FrameStart(g_host, 1000, 0);
-    CHECK(g_frame.owned == 1, "login activates the selected frame without a restart");
+    CHECK(g_frame.owned == 0, "login schedules the candidate without a restart");
     {
         struct ToriRS_PluginFrameSelection const selected = selected_frame();
         CHECK(
-            strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
-                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
-            "the title-screen selection becomes active in game");
+            strcmp(selected.active, "core/native") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            "the title-screen selection remains loading until layout validates");
     }
     {
         int const before = g_frame.end_calls;
         declare(765, 503);
         CHECK(g_frame.end_calls == before + 1, "and the next layout pass declares");
     }
+    CHECK(g_frame.owned == 1, "the valid login-time candidate becomes active");
     select_frame("auto", 1100);
 
     /* ---- 7. the OldSchool lane ----------------------------------------- */
@@ -1426,7 +1462,9 @@ main(void)
     PluginHost_Start(g_host);
 
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the plugin on");
-    CHECK(g_frame.owned == 1, "and the selected provider owns the frame there too");
+    CHECK(g_frame.owned == 0, "native remains live while the OldSchool candidate prepares");
+    declare(1024, 768);
+    CHECK(g_frame.owned == 1, "the validated provider owns the OldSchool frame too");
     {
         struct ToriRS_PluginFrameSelection const selected = selected_frame();
         CHECK(
@@ -1438,7 +1476,6 @@ main(void)
         g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
         "the selected modern-resizable offer follows the window");
 
-    declare(1024, 768);
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 768 - 165, 519, 165),
         "the chat PACK's 519x165 container is placed whole, bottom-left");
@@ -1462,10 +1499,10 @@ main(void)
      * or silently changes the selected offer. */
     g_frame_root = 548;
     select_frame("gameframe-layout/modern-fixed", 1200);
+    declare(765, 503);
     CHECK(
         g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED,
         "the explicit modern-fixed offer pins the canvas");
-    declare(765, 503);
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 338, 519, 165),
         "the chat pack lands at 548's own (0, 338)");

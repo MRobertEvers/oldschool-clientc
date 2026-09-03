@@ -369,6 +369,13 @@ struct ToriRS_PluginEngine
         int y,
         int w,
         int h);
+    /** Pure presence query used while a replacement frame is staged. Unlike
+     * layout_slot, this must not mutate engine declaration state. Optional;
+     * the host falls back to the resolved slot rectangle queries. */
+    int (*layout_slot_exists)(
+        void* user,
+        int slot,
+        int member);
     /** Skin one slot: the picture it draws from and the alpha cut-out it is
      *  clipped to, as plugin image slots (art -1 keeps native; mask -1 clears).
      *  @see ToriRS_PluginApi::layout_slot_skin. */
@@ -1011,6 +1018,10 @@ int
 PluginHost_UiChangeNext(
     struct ToriRS_PluginHost* host,
     struct ToriRS_UiChange* out);
+int
+PluginHost_UiPresentationCount(struct ToriRS_PluginHost const* host);
+uint32_t
+PluginHost_UiPresentationRebuilds(struct ToriRS_PluginHost const* host);
 
 /* ------------------------------------------------------------------------ */
 /* Seam entry points. Each is a no-op when nothing subscribed.               */
@@ -1180,13 +1191,15 @@ bool
 PluginHost_FrameNeedsLayout(struct ToriRS_PluginHost const* host);
 
 /**
- * Ask the frame's owner to declare it, against a canvas of `width` x `height`.
+ * Ask the requested candidate (or committed provider on relayout) to declare
+ * against a canvas of `width` x `height`.
  *
  * The engine calls this at the three moments the last declaration stopped
- * being true: the canvas resized, the gameframe was rebuilt, and (from inside
- * the api) the claim was just made. A no-op when no plugin holds the frame.
+ * being true: the canvas resized, the gameframe was rebuilt, and a selection
+ * or explicit invalidation requested another candidate. A no-op with no
+ * plugin candidate or committed frame.
  *
- * The two dimensions are ignored for a FIXED claim, which reads its own pinned
+ * The two dimensions are ignored for a FIXED offer, which reads its own pinned
  * size back -- see the body.
  */
 void
@@ -1305,16 +1318,16 @@ PluginHost_ConfigItem(
     int plugin_index,
     int item_index);
 
-/* ---- the plugin window ---------------------------------------------------
+/* ---- temporary V1 plugin-window compatibility ----------------------------
  *
- * The host owns the MODEL of the shared window -- which plugin claimed a tab,
+ * The host owns this legacy MODEL -- which plugin registered a tab,
  * what controls are on it, what they say -- and owns nothing about how it is
  * presented. Whoever draws it (the settings panel, and through it whichever
- * chrome executor is bound) reads this registry and mirrors it.
+ * WEB/BROWSER executor is bound) reads this registry and mirrors it.
  *
  * Kept here rather than in the panel because a plugin's controls have to
  * outlive any particular presentation of them: the window can be closed,
- * reopened, moved from the canvas to an OS window or a browser tab, and the
+ * reopened or moved between the internal canvas and shared browser page, and the
  * plugin must not have to rebuild its tab for any of that.
  */
 

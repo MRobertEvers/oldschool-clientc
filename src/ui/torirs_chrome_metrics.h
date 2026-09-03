@@ -2,18 +2,17 @@
  * The chrome's authored geometry and palette, at 1x -- one copy, read by every
  * presentation of it.
  *
- * WHY THIS FILE EXISTS. The plugin window is drawn more than once: by the
- * in-canvas chrome (ui/uitree_debug_overlay.c, which the `buffer` and `sdl`
- * executors both rasterise), by the page (`web`) and by USER32 (`gdi`), each
- * rebuilding the same rows out of its own controls. They implement the
- * SAME picture by different means, and for as long as each carried its own
- * copy of the numbers they slowly stopped agreeing -- a row 20 tall beside one
+ * WHY THIS FILE EXISTS. The plugin window is presented more than once: by the
+ * internal in-canvas chrome (ui/uitree_debug_overlay.c) and by the external
+ * WEB/BROWSER DOM executors. They implement the SAME picture by different
+ * means, and for as long as each carried its own copy of the numbers they
+ * slowly stopped agreeing -- a row 20 tall beside one
  * 18 tall, a 12px settings well beside a 14px one, a toggle at 22x11 beside one
  * at 24x12. None of that is a bug either file can see; it only shows up as
  * "the panel looks different depending on which executor is bound".
  *
  * So the numbers live here and neither file owns them. A change lands in both
- * presentations or in neither, which is the only way two rasterisers of one
+ * presentations or in neither, which is the only way two renderings of one
  * model stay one look.
  *
  * UNITS. Everything below is a 1x CHROME pixel. The in-canvas chrome multiplies

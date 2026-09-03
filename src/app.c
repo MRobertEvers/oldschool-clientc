@@ -8992,9 +8992,9 @@ app_chrome_route_input(
 }
 
 /*
- * The keyboard half of the routing above, on its own because a NATIVE-WIDGET
- * executor needs exactly this half: its clicks arrive as component clicks on
- * the interface tree, but its text fields are the model's, so typing still has
+ * The keyboard half of the routing above, on its own because a browser-backed
+ * presentation needs exactly this half: pointer intents arrive through the
+ * browser bridge, but its text fields are the model's, so typing still has
  * to reach the model. Routing the MOUSE too would hand clicks to the in-canvas
  * window's ghost -- laid out and hit-testable at its floating position even
  * though nothing draws it there.
@@ -30241,10 +30241,10 @@ App_SyncPluginLayoutCanvas(struct App* app)
     /*
      * A RELEASE does not force resizable back on.
      *
-     * The lane had a window mode before any plugin claimed the frame -- a dat1
+     * The lane had a window mode before any plugin frame was committed -- a dat1
      * world is fixed and says so in its manifest -- and a released layout
      * should hand that back rather than leave the client in whatever mode the
-     * plugin wanted. A live claim states its mode; a release restates the
+     * plugin wanted. A committed frame states its mode; native restates the
      * lane's default.
      */
     want = !app->plugin_layout_owned
@@ -30255,11 +30255,11 @@ App_SyncPluginLayoutCanvas(struct App* app)
     if( app->host.window_mode == want )
         return;
     /*
-     * Re-asserted every frame the claim stands, not only when it changes.
+     * Re-asserted every frame the committed plugin frame stands, not only when it changes.
      *
      * The window mode has other writers: a clientscript's setwindowmode, and
      * on login the saved Display-panel layout being applied. Either of those
-     * lands AFTER the claim, and a claim that only spoke once loses to them
+     * lands AFTER frame selection, and a frame that only spoke once loses to them
      * silently -- the plugin goes on laying its frame out at the canvas it
      * asked for while the client uses the window's, which puts a 765x503 frame
      * in the corner of a 1440x900 canvas with the lane's own chrome spread
@@ -30338,7 +30338,7 @@ App_PluginLayoutTick(struct App* app)
     frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
     if( !app->plugin_layout_owned )
     {
-        /* A claim that ended while the tree was up: give the chrome back once,
+        /* A plugin frame that ended while the tree was up: give the chrome back once,
          * then stop paying for the check. UITree_FrameRelease is idempotent,
          * and `plugin_layout_dirty` is what makes this happen exactly once. */
         if( app->plugin_layout_dirty && app->tree )
@@ -30346,7 +30346,7 @@ App_PluginLayoutTick(struct App* app)
             UITree_FrameRelease(app->tree);
             UITree_EnsureLayout(app->tree);
             app->plugin_layout_dirty = 0;
-            /* Clear before notifying: a subscriber may claim the frame from
+            /* Clear before notifying: a callback may select or invalidate a frame
              * inside EV_LAYOUT_CHANGED, and its new dirty declaration must
              * survive this release transaction. */
             PluginHost_LayoutChanged(app->plugins);
@@ -30410,13 +30410,9 @@ candidate_layout:
     /*
      * And nothing is declared against a tree that is not a gameframe at all.
      *
-     * The other end of api_layout_claim's rule, which refuses to hand the frame
-     * over anywhere but the game screen and says there that it is "the one
-     * door". It was, for getting IN. This is the way OUT, and it did not exist
-     * until a logout could put a live session back on the title screen: a claim
-     * belongs to the PLUGIN, not to the session, so it is still held when the
-     * title tree bakes, and the tick would ask the owner to arrange a gameframe
-     * that is not there.
+     * A committed plugin frame belongs to the game screen, not the title tree.
+     * Its provider may remain running across logout, but its retained gameframe
+     * declaration must not be applied while the title tree bakes.
      *
      * What the owner declares into it is NOTHING -- every arranger gates its
      * own declaration on being in game, which is correct and is not enough.
@@ -30448,7 +30444,7 @@ candidate_layout:
      *
      * The cases are the canvas resizing, the gameframe being rebuilt (which
      * bumps the tree generation and drops the whole table with it), the boot
-     * finishing, and the claim itself. Re-declaring every frame would work and
+     * finishing, and the committed selection itself. Re-declaring every frame would work and
      * would cost a whole-tree walk per frame to collect the chrome again -- on
      * a rev-239 toplevel that is thousands of nodes for an answer that has not
      * changed since the window was last dragged.
@@ -30475,10 +30471,10 @@ candidate_layout:
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        /* A handler may release and immediately reclaim from inside EV_LAYOUT.
-         * The host correctly abandons that transaction (its claim epoch moved),
+        /* A handler may change selection from inside EV_LAYOUT.
+         * The host correctly abandons that transaction (its selection epoch moved),
          * which leaves dirty set and the effective frame released. Give the
-         * replacement claim one bounded, sequential attempt now so native
+         * replacement selection one bounded, sequential attempt now so native
          * chrome cannot leak into interaction between this tick and the final
          * publication tick. Resolve first because the replacement handler may
          * read role_rect while composing its declaration. A handler that keeps

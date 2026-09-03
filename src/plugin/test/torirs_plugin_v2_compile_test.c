@@ -57,7 +57,7 @@ MODULE_LAYOUT_IS_FROZEN(ToriRS_CoreApiV2, log, 7);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_ConfigApiV2, has, 6);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_WorldApiV2, local_player, 6);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_InputApiV2, key_held, 5);
-MODULE_LAYOUT_IS_FROZEN(ToriRS_UiApiV2, ref, 4);
+MODULE_LAYOUT_IS_FROZEN(ToriRS_UiApiV2, ref, 5);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_PlacementApiV2, revision, 8);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_FrameApiV2, offer_next, 4);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_DrawApiV2, project, 4);
@@ -242,7 +242,7 @@ static struct ToriRS_UiContribution const EXAMPLE_CONTRIBUTIONS[] = {
         .value = {
             .struct_size = sizeof(struct ToriRS_UiNode),
             .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
-            .image = { .value = -1 },
+            .image = { .value = 0 },
             .clip = TORIRS_UI_CLIP_PARENT,
             .state_image_mask = 1u << TORIRS_UI_VISUAL_HOVER,
             .state_images = { [TORIRS_UI_VISUAL_HOVER] = { .value = 2 } },

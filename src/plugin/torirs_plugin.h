@@ -2,8 +2,11 @@
 #define TORIRS_PLUGIN_H
 
 /*
- * The plugin contract: everything a plugin -- C or scripted -- may see or
- * touch. Nothing in this header includes an engine type, and no engine pointer
+ * Legacy V1 compatibility contract for bundled C plugins and the current Lua
+ * bridge. New plugins use plugin/torirs_plugin_v2.h; this surface remains only
+ * until the Phase 6 migration removes its adapters and aliases.
+ *
+ * Nothing in this header includes an engine type, and no engine pointer
  * ever crosses it: world state arrives as copy-out POD snapshots and the
  * engine is reached only through the api function table.
  *
@@ -81,7 +84,7 @@
  *  "almost gone" and get a black triangle. */
 #define TORIRS_PLUGIN_MESH_ALPHA_MAX 253
 /** Verbs one canvas hit region may offer, matching a component's op1..op5. */
-#define TORIRS_PLUGIN_REGION_OPS_MAX 5
+#define TORIRS_PLUGIN_REGION_OPS_MAX 8
 
 /*
  * Key codes for api->key_held, mirroring enum LibToriRS_KeyCode.
@@ -281,10 +284,9 @@ enum ToriRS_PluginEvent
      * ordered exactly where the reference's own frame art is -- the scene is
      * already down, the interfaces have not been drawn yet.
      *
-     * Open only while a plugin owns the frame, and only for that plugin. A
-     * plugin that has not claimed the layout never sees it, because chrome
-     * drawn under the interfaces of a frame somebody else is arranging is
-     * chrome in the wrong place.
+     * Open only for the host's committed frame provider. Another plugin never
+     * sees it, because chrome drawn under the interfaces of somebody else's
+     * frame is chrome in the wrong place.
      *
      * Same verb set as EV_DRAW_CANVAS: rect, line, text and image, and not
      * draw_tile or draw_hull.
@@ -314,15 +316,14 @@ enum ToriRS_PluginEvent
      * handler acts on the same answer every later poll of api->screen this
      * frame will get.
      *
-     * This event exists because several handlers GATE on the screen -- a
-     * gameframe declares nothing on the title screen, a HUD draws nothing
+     * This compatibility event exists because several V1 handlers GATE on the
+     * screen -- a gameframe declares nothing on the title screen, a HUD draws nothing
      * there -- and a gate needs a moment to reopen. A plugin enabled at the
      * title screen would decline to declare, and nothing would ever ask it
-     * again: EV_LAYOUT re-fires on a claim, a resize or a rebuild, and logging
-     * in is none of the three. Entering the game is the moment such a plugin
-     * re-claims (idempotent for the holder, and it marks the frame as needing
-     * a fresh EV_LAYOUT); leaving it needs no handler at all, because the
-     * per-event gates already answer for every frame drawn on the title.
+     * again: EV_LAYOUT re-fires on selection/invalidation, resize, or rebuild,
+     * and logging in is none of the three. Entering the game is the moment the
+     * host schedules a fresh candidate build; leaving it needs no handler at
+     * all, because per-event gates already answer for title frames.
      */
     TORIRS_PLUGIN_EV_SCREEN_CHANGE,
 
@@ -1202,7 +1203,8 @@ struct ToriRS_PluginEvPanelAction
     int action;
     /** Result value, index, scroll delta, or key according to action. */
     int value;
-    /** Whole result text, never NULL and valid for this dispatch only. */
+    /** Whole result text, never NULL and valid for this dispatch only. For a
+     * V2 structured PICK this is the selected stable value, never its label. */
     char const* text;
     /** Custom-region-local logical coordinates; 0 for ordinary controls. */
     int x;
@@ -1651,7 +1653,8 @@ enum ToriRS_PluginLayoutSlot
      */
     TORIRS_PLUGIN_SLOT_CANVAS = TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT,
 
-    /**
+    /** Temporary V1 pseudo-area; V2 code uses placement.area(OVERLAY_SAFE).
+     *
      * The largest part of the canvas no chrome is sitting on.
      *
      * The region a readout actually wants, and the reason this enum grew a
@@ -1675,16 +1678,17 @@ enum ToriRS_PluginLayoutSlot
      */
     TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME,
 
-    /**
-     * The canvas minus the lane furniture a frame claim does NOT take over.
+    /** Temporary V1 pseudo-area; V2 frame builders receive FRAME_BUILD.
+     *
+     * The canvas minus lane furniture a selected plugin frame may not replace.
      *
      * The region a LAYOUT declares into, and the one thing a frame plugin
      * cannot work out from the canvas: a cache gameframe carries chrome that
      * is not one of the placeable roles above and is not the toplevel's own
      * decoration either -- the CS2 side-tab rail is a mounted interface of its
      * own (`popout`, 728 on OldSchool), pinned to the right edge for the whole
-     * height of the window. A claim neither owns it nor suppresses it: it is a
-     * working control with its own ops, and it is `noclickthrough`, so a
+     * height of the window. Frame selection neither moves nor suppresses it:
+     * it is a working control with its own ops, and it is `noclickthrough`, so a
      * layout that pinned its own rail to `canvas_w` put seven tab stones under
      * a click-blocker and drew them where nothing could press them.
      *

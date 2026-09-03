@@ -502,15 +502,15 @@ the cache to imitate, so the flat box-with-a-mark is the *fallback* and the
 tick/cross pair is the control. Same for a roster row's on/off, which was a
 sliding switch until it was pointed out that this game has no such thing.
 
-### 8.0 One table of metrics, two presentations
+### 8.0 One table of metrics, two presentation families
 
 The geometry and the palette live in `ui/torirs_chrome_metrics.h`, and no one
-presentation owns them. The plugin window is drawn here as prims, in the page as
-DOM nodes (`web`) and in USER32 controls (`gdi`) — and for as long as each
-carried its own numbers they slowly stopped agreeing: a row 20 tall beside one 18 tall, a 12px settings well beside
-a 14px one, a toggle at 22×11 beside one at 24×12. None of that is a bug either
-file can see; it shows up only as "the panel looks different depending on which
-executor is bound".
+presentation owns them. The plugin window is drawn here as primitives and by
+the WEB/BROWSER executors as DOM nodes—and for as long as each carried its own
+numbers they slowly stopped agreeing: a row 20 tall beside one 18 tall, a 12px
+settings well beside a 14px one, a toggle at 22×11 beside one at 24×12. None of
+that is a bug either file can see; it shows up only as "the panel looks
+different depending on which executor is bound".
 
 Everything in that header is a **1x chrome pixel**: this module multiplies by
 `ui->scale` (`DBG_PX`); a presentation whose own surface already scales uses

@@ -620,6 +620,7 @@
       x: integer(input && input.x, 0), y: integer(input && input.y, 0),
       cw: integer(input && input.cw, 0), ch: integer(input && input.ch, 0),
       label: text(input && input.label, 63), text: text(input && input.text),
+      detail: text(input && input.detail),
       s: unsigned(input && input.s)
     };
   }
@@ -647,7 +648,8 @@
       serial: command.s, kind: command.v, tab: command.tab, shape: command.cw,
       rows: command.ch, label: command.label, text: command.text, color: command.c,
       checked: false, selected: -1, hidden: false, focused: false,
-      options: [], optionsRevision: 0, customRevision: 0, customScale: 1000,
+      options: [], structuredOptions: false, optionsRevision: 0,
+      customRevision: 0, customScale: 1000,
       row, control: null
     };
     row._tpcRecord = record;
@@ -713,7 +715,15 @@
       case W.DROPDOWN: {
         const select = document.createElement('select');
         select.className = 'tpc-field tpc-select';
-        bind(select, 'change', () => postWidget(record, INTENT.PICK, select.selectedIndex));
+        bind(select, 'change', () => {
+          const index = select.selectedIndex;
+          const option = index >= 0 && index < record.options.length
+            ? record.options[index] : null;
+          if (record.structuredOptions) {
+            if (!option || !option.enabled) { renderOptions(record); return; }
+            postWidget(record, INTENT.PICK, index, option.value);
+          } else postWidget(record, INTENT.PICK, index);
+        });
         attachLabel(row, record, select);
         record.control = select;
         break;
@@ -876,8 +886,19 @@
       const select = record.control;
       clear(select);
       for (let index = 0; index < record.options.length; index++) {
+        const item = record.options[index];
         const option = document.createElement('option');
-        setText(option, record.options[index]);
+        if (record.structuredOptions) {
+          const detail = item && item.detail ? ` — ${item.detail}` : '';
+          setText(option, `${item ? item.label : ''}${detail}`);
+          option.value = item ? item.value : '';
+          option.disabled = !(item && item.enabled);
+          option.setAttribute('aria-disabled', option.disabled ? 'true' : 'false');
+          if (item && item.detail) {
+            option.title = item.detail;
+            option.setAttribute('aria-label', `${item.label}. ${item.detail}`);
+          }
+        } else setText(option, item);
         select.appendChild(option);
       }
       if (record.selected >= 0 && record.selected < record.options.length)
@@ -1030,15 +1051,22 @@
       case CMD.WIDGET_OPTIONS:
         if (record) {
           const count = Math.max(0, Math.min(MAX_OPTIONS, command.v));
+          record.structuredOptions = !!command.x;
           record.options = new Array(count);
-          for (let i = 0; i < count; i++) record.options[i] = '';
+          for (let i = 0; i < count; i++) record.options[i] =
+            record.structuredOptions
+              ? { value: '', label: '', enabled: false, detail: '' }
+              : '';
           record.optionsRevision++;
           renderWidget(record);
         }
         break;
       case CMD.WIDGET_OPTION:
         if (record && command.v >= 0 && command.v < record.options.length) {
-          record.options[command.v] = command.text;
+          record.options[command.v] = record.structuredOptions
+            ? { value: command.text, label: command.label,
+                enabled: !!command.x, detail: command.detail }
+            : command.text;
           record.optionsRevision++;
           renderWidget(record);
         }

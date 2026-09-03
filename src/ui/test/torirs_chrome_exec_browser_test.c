@@ -118,12 +118,43 @@ int main(void)
     cmd.h = 48;
     snprintf(cmd.label, sizeof(cmd.label), "Chart");
     exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_WIDGET_ADD, 2, 10);
+    cmd.value = TORIRS_CHROME_W_DROPDOWN;
+    cmd.serial = 490;
+    snprintf(cmd.label, sizeof(cmd.label), "Gameframe");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_WIDGET_OPTIONS, 2, 10);
+    cmd.value = 2;
+    cmd.x = 1;
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_WIDGET_OPTION, 2, 10);
+    cmd.value = 0;
+    cmd.x = 0;
+    snprintf(cmd.text, sizeof(cmd.text), "missing/frame");
+    snprintf(cmd.label, sizeof(cmd.label), "Same|label");
+    snprintf(cmd.detail, sizeof(cmd.detail), "Provider is not installed");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_WIDGET_OPTION, 2, 10);
+    cmd.value = 1;
+    cmd.x = 1;
+    snprintf(cmd.text, sizeof(cmd.text), "ready/frame");
+    snprintf(cmd.label, sizeof(cmd.label), "Same|label");
+    snprintf(cmd.detail, sizeof(cmd.detail), "Available now");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_WIDGET_SELECTED, 2, 10);
+    cmd.value = 0;
+    snprintf(cmd.text, sizeof(cmd.text), "missing/frame");
+    exec.apply(exec.user, &cmd);
     cmd = command(TORIRS_CHROME_CMD_SYNC_END, -1, -1);
     exec.apply(exec.user, &cmd);
     CHECK(sent_count == 3);
     CHECK(strstr(sent[2], "\"type\":\"page.snapshot\"") != NULL);
     CHECK(strstr(sent[2], "\"pageGeneration\":11") != NULL);
     CHECK(strstr(sent[2], "\"s\":481") != NULL);
+    CHECK(strstr(sent[2], "\"x\":1") != NULL &&
+          strstr(sent[2], "\"text\":\"ready/frame\"") != NULL &&
+          strstr(sent[2], "\"label\":\"Same|label\"") != NULL &&
+          strstr(sent[2], "\"detail\":\"Provider is not installed\"") != NULL);
     CHECK(exec.take_snapshot_request(exec.user) == 0);
 
     /* A bounded transport never commits a transaction prefix. It reports the

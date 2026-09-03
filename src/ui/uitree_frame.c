@@ -101,8 +101,8 @@ static struct UITreeFrameLayout*
 frame_state(struct UITree* tree)
 {
     assert(tree);
-    /* Allocated on the first claim and not before: a client with no layout
-     * plugin -- which is every lane today until one is switched on -- pays a
+    /* Allocated on the first committed plugin-frame declaration and not
+     * before: a client using its lane-native frame pays a
      * NULL pointer and no bytes. */
     if( !tree->frame_layout )
     {

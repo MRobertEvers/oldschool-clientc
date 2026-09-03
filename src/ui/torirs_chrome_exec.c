@@ -118,18 +118,42 @@ sync_emit_value(struct ToriRSChromeSync* sync, int kind, int panel, int widget, 
  */
 static void
 sync_emit_options(
-    struct ToriRSChromeSync* sync, struct ToriRSChromeWidget const* w, int panel, int widget)
+    struct ToriRSChromeSync* sync,
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromeWidget const* w,
+    int panel,
+    int widget)
 {
     struct ToriRSChromeCmd cmd;
 
-    sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_OPTIONS, panel, widget, w->option_count);
-    if( !w->options )
-        return;
+    cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_OPTIONS, panel, widget);
+    cmd.value = w->option_count;
+    cmd.x = w->structured_options ? 1 : 0;
+    sync_emit(sync, &cmd);
     for( int i = 0; i < w->option_count; i++ )
     {
         cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_OPTION, panel, widget);
         cmd.value = i;
-        chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->options[i]);
+        if( w->structured_options )
+        {
+            int const at = w->structured_option_first + i;
+            struct ToriRSChromeSelectOption const* option;
+
+            if( w->structured_option_first < 0 || at < 0 ||
+                at >= ui->select_option_count )
+                continue;
+            option = &ui->select_options[at];
+            chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, option->value);
+            chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, option->label);
+            chrome_copy(cmd.detail, TORIRS_CHROME_TEXT_MAX, option->detail);
+            cmd.x = option->enabled ? 1 : 0;
+        }
+        else
+        {
+            if( !w->options )
+                continue;
+            chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->options[i]);
+        }
         sync_emit(sync, &cmd);
     }
 }
@@ -487,7 +511,7 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
         if( sw->option_count != w->option_count ||
             sw->options_hash != w->options_hash )
         {
-            sync_emit_options(sync, w, w->panel, i);
+            sync_emit_options(sync, ui, w, w->panel, i);
             sw->option_count = w->option_count;
             sw->options_hash = w->options_hash;
             /* The list changed under it, so the selection must be restated
@@ -512,8 +536,13 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
                  * holding a DOM select may ignore it. */
                 cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_SELECTED, w->panel, i);
                 cmd.value = sel;
-                if( w->options && sel >= 0 && sel < w->option_count )
-                    chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->options[sel]);
+                if( sel >= 0 && sel < w->option_count )
+                    chrome_copy(
+                        cmd.text,
+                        TORIRS_CHROME_TEXT_MAX,
+                        w->structured_options
+                            ? ToriRSChrome_DropdownOptionValue(ui, i, sel)
+                            : (w->options ? w->options[sel] : ""));
                 sync_emit(sync, &cmd);
                 sw->selected = sel;
             }
@@ -763,7 +792,7 @@ sync_refresh_widget(
         (sw->option_count != w->option_count ||
          sw->options_hash != w->options_hash) )
     {
-        sync_emit_options(sync, w, w->panel, widget);
+        sync_emit_options(sync, ui, w, w->panel, widget);
         sw->option_count = w->option_count;
         sw->options_hash = w->options_hash;
         sw->selected = -2;
@@ -777,8 +806,13 @@ sync_refresh_widget(
         {
             cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_SELECTED, w->panel, widget);
             cmd.value = selected;
-            if( w->options && selected >= 0 && selected < w->option_count )
-                chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->options[selected]);
+            if( selected >= 0 && selected < w->option_count )
+                chrome_copy(
+                    cmd.text,
+                    TORIRS_CHROME_TEXT_MAX,
+                    w->structured_options
+                        ? ToriRSChrome_DropdownOptionValue(ui, widget, selected)
+                        : (w->options ? w->options[selected] : ""));
             sync_emit(sync, &cmd);
             sw->selected = selected;
         }
@@ -990,13 +1024,23 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
             ui->activated = intent->widget;
             return 1;
         }
+        if( intent->widget < 0 || intent->widget >= ui->widget_count ||
+            ui->widgets[intent->widget].kind != TORIRS_CHROME_W_DROPDOWN )
+            return 0;
+        if( ui->widgets[intent->widget].structured_options &&
+            (!ToriRSChrome_DropdownOptionEnabled(
+                 ui, intent->widget, intent->value) ||
+             strcmp(
+                 intent->text,
+                 ToriRSChrome_DropdownOptionValue(
+                     ui, intent->widget, intent->value)) != 0) )
+            return 0;
         ToriRSChrome_DropdownSetSelected(ui, intent->widget, intent->value);
         /* Latched as activated too, exactly as choosing a row in the
          * in-canvas list does: a plugin-owned dropdown dispatches to its
          * plugin off that latch, and a pick that skipped it worked for
          * staged settings while silently dropping plugin controls. */
-        if( intent->widget >= 0 && intent->widget < ui->widget_count )
-            ui->activated = intent->widget;
+        ui->activated = intent->widget;
         return 1;
 
     case TORIRS_CHROME_INTENT_TAB:

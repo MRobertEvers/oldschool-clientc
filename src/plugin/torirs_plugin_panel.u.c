@@ -582,11 +582,35 @@ app_plugin_panel_readout(
         snprintf(out, out_size, "%s", empty ? empty : "");
 }
 
+static int
+app_plugin_panel_select_inputs(
+    struct ToriRS_PluginWinWidget const* model,
+    struct ToriRSChromeSelectOptionInput* out,
+    int capacity)
+{
+    int count;
+
+    assert(model);
+    assert(out);
+    count = model->select_option_count;
+    if( !model->structured_select || count < 0 || count > capacity ||
+        (count > 0 && !model->select_options) )
+        return -1;
+    for( int i = 0; i < count; i++ )
+    {
+        out[i].value = model->select_options[i].value;
+        out[i].label = model->select_options[i].label;
+        out[i].enabled = model->select_options[i].enabled ? 1 : 0;
+        out[i].detail = model->select_options[i].detail;
+    }
+    return count;
+}
+
 /**
  * Materialize one ABI-21 semantic node as a styled retained-chrome control.
  *
  * This is deliberately a translation, not a second UI toolkit. Every target
- * kind already crosses the buffer/SDL/native/DOM executor seam, which keeps a
+ * kind already crosses the internal-canvas/WEB/BROWSER presentation seam, which keeps a
  * plugin ignorant of the platform presenting it. Kinds without a dedicated
  * primitive keep a clear, accessible OSRS-styled readout. CUSTOM is the one
  * bounded drawing well; its pixels are supplied after layout by the selected
@@ -656,6 +680,23 @@ app_plugin_panel_add_semantic(
 
     case TORIRS_PLUGIN_W_DROPDOWN:
     {
+        if( model->structured_select )
+        {
+            struct ToriRSChromeSelectOptionInput
+                options[TORIRS_CHROME_SELECT_OPTIONS_MAX];
+            int const count = app_plugin_panel_select_inputs(
+                model, options, TORIRS_CHROME_SELECT_OPTIONS_MAX);
+
+            if( count >= 0 )
+                widget = ToriRSChrome_DropdownStructured(
+                    &app->plugin_ui,
+                    app->plugin_panel,
+                    model->label[0] ? model->label : model->id,
+                    options,
+                    count,
+                    model->selected_value);
+            break;
+        }
         int count = 0;
         char const* const* choices =
             app_plugin_choices_add(app, model->choices, &count);
@@ -824,8 +865,9 @@ app_plugin_panel_semantic_chrome_kind(struct ToriRS_PluginWinWidget const* model
     case TORIRS_PLUGIN_W_TEXTAREA:
         return TORIRS_CHROME_W_TEXTAREA;
     case TORIRS_PLUGIN_W_DROPDOWN:
-        return model->choices[0] ? TORIRS_CHROME_W_DROPDOWN
-                                 : TORIRS_CHROME_W_TEXTINPUT;
+        return model->structured_select || model->choices[0]
+                   ? TORIRS_CHROME_W_DROPDOWN
+                   : TORIRS_CHROME_W_TEXTINPUT;
     case TORIRS_PLUGIN_W_BUTTON:
         return TORIRS_CHROME_W_BUTTON;
     case TORIRS_PLUGIN_W_SEPARATOR:
@@ -976,7 +1018,22 @@ app_plugin_panel_patch_semantic(
             ToriRSChrome_SetLabel(
                 &app->plugin_ui, row->widget,
                 model->label[0] ? model->label : model->id);
-            if( model->choices[0] )
+            if( model->structured_select )
+            {
+                struct ToriRSChromeSelectOptionInput
+                    options[TORIRS_CHROME_SELECT_OPTIONS_MAX];
+                int const count = app_plugin_panel_select_inputs(
+                    model, options, TORIRS_CHROME_SELECT_OPTIONS_MAX);
+
+                if( count >= 0 )
+                    ToriRSChrome_DropdownSetStructuredOptions(
+                        &app->plugin_ui,
+                        row->widget,
+                        options,
+                        count,
+                        model->selected_value);
+            }
+            else if( model->choices[0] )
             {
                 /* The option LIST is a property too. It used to be compared in
                  * the validate loop above and answered with a rebuild, though
@@ -1770,7 +1827,8 @@ app_plugin_panel_reconcile_semantic(struct App* app)
                 app->plugin_ui.widgets[row->widget].kind == TORIRS_CHROME_W_DROPDOWN )
             {
                 value = ToriRSChrome_DropdownSelected(&app->plugin_ui, row->widget);
-                text = app_plugin_dropdown_value(app, row->widget);
+                text = ToriRSChrome_DropdownSelectedValue(
+                    &app->plugin_ui, row->widget);
                 if( value != model->selected )
                     action = TORIRS_PLUGIN_UI_PICK;
             }
@@ -1898,7 +1956,8 @@ app_plugin_panel_apply(struct App* app, int widget)
             case TORIRS_PLUGIN_W_DROPDOWN:
                 action = TORIRS_PLUGIN_UI_PICK;
                 value = ToriRSChrome_DropdownSelected(&app->plugin_ui, widget);
-                text = app_plugin_dropdown_value(app, widget);
+                text = ToriRSChrome_DropdownSelectedValue(
+                    &app->plugin_ui, widget);
                 if( !text )
                     text = "";
                 break;
@@ -2784,10 +2843,9 @@ app_plugin_window_set_open(struct App* app, int open)
          * was exactly the report: Close dismissed the panel and left the
          * plugin window on screen.
          *
-         * So the window closes the way it opened: through the executor's own
-         * end(). Which one is bound decides what that means -- SDL destroys
-         * its aux window, GDI its HWND, the web one calls the page's close
-         * hook -- and the host needs to know none of it. The next open re-binds
+         * So the page closes the way it opened: through the executor's own
+         * end(). WEB/BROWSER close their application-owned page through the
+         * common bridge, and the host needs to know none of it. The next open re-binds
          * from scratch, which is also what makes a window taken down by ITS
          * side (a title-bar X) openable again: `live` is the guard the bind
          * reads.
@@ -3008,8 +3066,7 @@ app_plugin_button_click(struct App* app, int component_id)
 static void
 app_plugin_exec_bind_inner(struct App* app)
 {
-    /* Nothing was handed over: in-canvas, which is also what every lane with
-     * no native executor gets. */
+    /* Nothing was handed over: use the internal in-canvas fallback. */
     if( !app->plugin_exec_pending.begin && !app->plugin_exec_pending.apply )
     {
         struct ToriRSChromeExec buffer = ToriRSChromeExec_Buffer();

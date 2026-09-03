@@ -1,12 +1,28 @@
 # Game chrome and plugin API v2
 
-Status: implementation plan
+Status: core architecture implemented; bundled-plugin and Lua migration remains
 
 This document replaces the ownership proposal in the pasted “Publish, Don't
 Claim” note. It keeps the useful parts of the current implementation—retained
 layout declarations, per-revision role bindings, automatic resource cleanup,
 and the three correct drawing layers—but gives each decision one clear owner
 and gives plugin authors a much smaller API to learn.
+
+## Implementation status
+
+| Phase | Status | What that means now |
+| --- | --- | --- |
+| 0. Behavior tests | Complete | Frame geometry, lifecycle, retained execution, and safe-placement behavior have focused regressions. |
+| 1. V2 shell | Core complete | The typed V2 contract, host registration, per-instance state, callback dispatch, and V1 adapter are live. One bundled C plugin is native V2; broad migration is Phase 6. |
+| 2. Frame catalogue | Core complete | Preferences, stable offers, host selection, last-valid retention, atomic candidate validation, and Client Settings are live. The two bundled frame implementations still enter through the temporary V1 compatibility adapter rather than direct V2 builders. |
+| 3. Named UI | Core implemented; migration incomplete | Interned names, facets, deterministic conflicts, retained changes, frame nodes, and action routing exist. RevConfig metadata and remaining chrome-part users still need conversion. |
+| 4. Placement | Core implemented; migration incomplete | Exact rectangle sets, named reservations, stable ordering, and resolved revisions exist. Legacy pseudo-slot aliases and some profile conventions remain compatibility-only. |
+| 5. Retained web execution | Complete | Setters record an O(1)-coalesced mutation journal; idle drain is O(1). `web` and `browser` are the only external executors; BUFFER is internal recovery/fallback presentation. |
+| 6. API migration/removal | Remaining | Migrate the remaining bundled C plugins and Lua surface, then delete V1 declarations, aliases, and compatibility storage. |
+
+The phase sections below remain the implementation record and acceptance plan;
+the table above is the current truth when a historical work item is already
+complete or deliberately deferred.
 
 ## The short version
 
@@ -28,23 +44,25 @@ The most important user-visible change is that “Gameframe” becomes one clien
 setting. Enabling two frame-provider plugins cannot produce a race because
 frame providers do not have independent enable switches.
 
-## Why v2 is needed
+## Why v2 was needed
 
-The current code has good machinery but exposes too much of that machinery as
-the programming model.
+The pre-v2 public surface had good machinery but exposed too much of that
+machinery as the programming model. The items below describe that legacy
+starting point; remaining symbols are temporary in-tree compatibility, not the
+API new plugins should learn.
 
 - `ToriRS_PluginApi` is a flat table of roughly one hundred operations in a
   header over four thousand lines long. Related operations are far apart and C
   and Lua present different shapes.
-- `layout_claim()` is an anonymous global lock. The first caller wins. Both
+- Legacy `layout_claim()` was an anonymous global lock. The first caller won. Both
   `gameframe.c` and `mobile_gameframe.c` can be enabled together, and registry
   order then becomes policy.
-- `layout_claim()` has three unrelated jobs: acquire the frame, change its
+- Legacy `layout_claim()` had three unrelated jobs: acquire the frame, change its
   canvas policy, and request another layout pass. Code re-claims after a drawer
   click simply to invalidate geometry.
-- A frame choice currently exists partly in a plugin enable flag, partly in a
+- A frame choice existed partly in a plugin enable flag, partly in a
   plugin enum, partly in the server-opened `frame_root`, and partly in the
-  host's `layout_owner`. Those values can disagree.
+  host's `layout_owner`. Those values could disagree.
 - The same UI item can be addressed as a layout slot, a numeric member, a raw
   component id, a RevConfig role, or a chrome-part string. A plugin author has
   to know which identity is valid for which operation.
@@ -64,8 +82,9 @@ plugin host.
 The useful idea in that proposal is “publish choices; let the host select.” V2
 changes several details:
 
-- The two current frame plugins do check a refused `layout_claim()` and log it.
-  The remaining bug is that the winner is still whichever one ran first.
+- The legacy frame plugins did check a refused `layout_claim()` and log it.
+  That did not fix the underlying first-runner-wins policy; the catalogue now
+  replaces it.
 - Offers are static plugin descriptors, not `frame_publish()` calls made during
   `EV_START`. Static descriptors make the entire catalogue available before
   lifecycle callbacks and eliminate another ordering edge.
@@ -78,7 +97,7 @@ changes several details:
 - Safe space is retained as a region set internally. Intersecting three
   already-lossy “largest rectangle” answers would still discard valid space.
 - Named UI facet conflicts are resolved from the full declaration set. They do
-  not keep the current first-claim rule under a different name.
+  not preserve the legacy first-claim rule under a different name.
 
 ## What stays
 
@@ -269,8 +288,9 @@ state, or native toplevel changes.
    tree alone.
 2. If the preference is `auto`, target `core/native`.
 3. Otherwise find the exact saved offer id.
-4. If it is missing or unsupported, use `core/native`, preserve the requested
-   id, and expose one fallback reason to settings and diagnostics.
+4. If it is missing or unsupported, keep the last valid committed frame (or
+   `core/native` when none has committed), preserve the requested id, and
+   expose one fallback reason to settings and diagnostics.
 5. If it is pending, keep the last valid active frame while it loads.
 6. Build into a scratch declaration, validate it, and atomically commit it.
 7. Dispatch layout and frame drawing only to the committed provider.
@@ -298,8 +318,11 @@ struct PluginFrameSelection {
 
 `active_provider` and `active_offer` are the only answer to “who draws the
 frame?” Engine suppression, canvas policy, callbacks, settings status, and
-debug output derive from this record. Do not keep parallel `layout_owned`,
-`layout_owner`, per-plugin “claimed” flags, or a copied active name.
+debug output derive from this record. A transient target/candidate staging
+record is allowed, but it is never a second active frame. The remaining
+`plugin_layout_owned` engine mirror is compatibility storage and must disappear
+with V1; do not reintroduce public `layout_owner`, per-plugin “claimed” flags,
+or copied active names.
 
 The server's live root id remains an engine fact used by `core/native` and the
 RevConfig binder. It is not another active-frame id.
@@ -747,14 +770,15 @@ stone_drawer_toggle(struct ToriRS_ApiV2* api, void* plugin_state)
 ```
 
 There is no claim, owner check, screen gate, manual release, re-claim, or stale
-global rectangle. The host invokes this code only while the offer is the active
-game frame and owns cleanup/fallback.
+global rectangle. The host invokes `build` for the requested candidate at a
+safe layout fence, keeps the last committed frame visible until validation
+succeeds, and owns cleanup/fallback.
 
 ## Retained chrome execution
 
-The retained model must not be diffed by walking every panel, widget, and
-property after one value changes. A global `dirty` flag followed by a smaller
-or faster full scan is still the wrong cost model.
+The retained model must not discover changes by walking every panel, widget,
+and property after one value changes. A global `dirty` flag followed by a
+smaller or faster full scan is still the wrong cost model.
 
 Every model mutation goes through a compare-then-set operation. When the value
 really changes, that operation records the affected handle and property bit in
@@ -830,10 +854,8 @@ ownership behavior.
 
 Work:
 
-1. Add host tests that enable both current frame plugins in both registration
-   orders and document the present first-claim behavior. Add the v2
-   order-independence assertion when the resolver lands; do not commit a
-   deliberately failing test.
+1. Record the legacy first-caller behavior, then replace that fixture with the
+   resolver's permanent registration-order-independence assertion.
 2. Add golden expectations for Classic Fixed, Modern Fixed, Modern Resizable,
    and Stone Drawer geometry before changing their callbacks.
 3. Add tests for title-to-game-to-title transitions, root rebuilds, drawer/chat
@@ -903,9 +925,10 @@ Work:
 8. Make provider definitions non-toggleable in the ordinary plugin roster.
 9. Route canvas policy, frame drawing, and lane-chrome suppression from the
    selection record.
-10. Once both providers are migrated, delete `layout_claim`, `layout_release`,
-   `layout_owned`, `layout_claim_epoch`, and `PluginHost_LayoutOwner` from the
-   public path.
+10. Keep the removed `layout_claim`, `layout_release`, and
+   `PluginHost_LayoutOwner` out of the public path. Once both bundled providers
+   use direct V2 builders, delete the remaining internal `layout_owned`-named
+   engine adapter storage.
 
 Files:
 
@@ -1002,7 +1025,7 @@ depend on callback order.
 ### Phase 5 — Make retained execution event-driven and web-only
 
 Goal: make executor work proportional to actual mutations and remove dormant
-native executor paths.
+non-web external executor paths.
 
 Work:
 
@@ -1012,8 +1035,9 @@ Work:
    structural add/remove/reorder operations at the mutation site.
 3. Change `ToriRSChromeSync_Run` to drain the journal without walking panel or
    widget capacity. Preserve transaction ordering and copied string payloads.
-4. Replace the executor shadow's normal diffing job with acknowledgement and
-   recovery state only.
+4. Keep the executor's delivered-value shadow only for net-zero coalescing,
+   recycled-identity fences, acknowledgement, and recovery; it never discovers
+   changes by scanning the model.
 5. On bind, page replacement, queue overflow, or reported state loss, schedule
    one full retained snapshot and then return to incremental drain.
 6. Keep only `web` and `browser` as external kinds. Remove SDL/GDI/Android and
@@ -1123,8 +1147,8 @@ The work is complete only when all of the following are true:
 
 | Current API/concept | V2 replacement |
 | --- | --- |
-| `layout_claim/release/owned` | Static `FrameOffer` descriptors plus the host resolver. |
-| Re-claim to force layout | `frame.invalidate()`. |
+| Legacy/internal `layout_claim/release/owned` | Static `FrameOffer` descriptors plus the host resolver. |
+| Legacy re-claim to force layout | `frame.invalidate()`. |
 | `EV_LAYOUT` | Selected offer's `build` callback with a scratch `FrameBuilder`. |
 | `EV_DRAW_FRAME` | Selected offer's callback-scoped frame draw builder. |
 | Public `frame_root` inference | `auto -> core/native`; root id remains internal to the native binder. |

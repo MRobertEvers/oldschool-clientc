@@ -15,8 +15,8 @@
  * THE MODEL STAYS AUTHORITATIVE. An executor is a projection of it, never a
  * second copy of the truth: commands flow out, intents flow back, and an intent
  * is applied by mutating the model exactly as a click on the in-canvas chrome
- * would. That is what keeps five presentations of one panel agreeing, and what
- * lets the whole thing be tested with no window at all.
+ * would. That keeps the WEB and BROWSER projections aligned with the internal
+ * in-canvas presenter and lets the whole seam be tested with no window.
  *
  * MUTATION JOURNAL, NO MODEL SCAN. Mutators record the changed node and
  * property in the retained model. Sync drains only those records and compares
@@ -196,8 +196,14 @@ enum ToriRSChromeCmdKind
      * select wants "here is the current list", not inferred insert/delete
      * operations.
      */
+    /** `x` is 1 for lossless structured options, 0 for legacy label lists. */
     TORIRS_CHROME_CMD_WIDGET_OPTIONS,
-    /** One entry of the list just announced: `value` = its index, `text` = it. */
+    /**
+     * One entry of the list just announced: `value` = its index. Legacy rows
+     * use `text` as their label. Structured rows use `text` as the stable
+     * value, `label` as presentation, `x` as enabled, and `detail` as the
+     * human availability explanation.
+     */
     TORIRS_CHROME_CMD_WIDGET_OPTION,
 
     /**
@@ -264,6 +270,7 @@ struct ToriRSChromeCmd
     uint32_t serial;
     char label[TORIRS_CHROME_LABEL_MAX];
     char text[TORIRS_CHROME_TEXT_MAX];
+    char detail[TORIRS_CHROME_TEXT_MAX];
 };
 
 /** What came back from a presentation the user touched. */

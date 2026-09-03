@@ -196,7 +196,16 @@ const commands = [
   command(8, { w: 12, v: 8, s: 112 }),
   command(17, { w: 12, v: 2 }),
   command(18, { w: 12, v: 0, text: 'A' }),
-  command(18, { w: 12, v: 1, text: 'B' })
+  command(18, { w: 12, v: 1, text: 'B' }),
+  command(8, { w: 13, v: 5, label: 'Gameframe', s: 113 }),
+  command(17, { w: 13, v: 3, x: 1 }),
+  command(18, { w: 13, v: 0, x: 1, text: 'auto',
+    label: 'Same|label', detail: 'Uses the lane default' }),
+  command(18, { w: 13, v: 1, x: 0, text: 'missing/frame',
+    label: 'Same|label', detail: 'Provider is not installed' }),
+  command(18, { w: 13, v: 2, x: 1, text: 'ready/frame',
+    label: 'Ready', detail: 'Available now' }),
+  command(15, { w: 13, v: 1, text: 'missing/frame' })
 ];
 runtime.receive({
   protocol: 1, type: 'rail.snapshot', registryRevision: 1,
@@ -207,7 +216,7 @@ runtime.receive({
   protocol: 1, type: 'page.snapshot', pageGeneration: 20,
   panel: 3, title: 'Plugin 0', checkStyle: 0, commands
 });
-assert.strictEqual(runtime.inspect().widgetCount, 12, 'all semantic control kinds are retained');
+assert.strictEqual(runtime.inspect().widgetCount, 13, 'all semantic control kinds are retained');
 assert(!ids['tpc-pane'].hidden, 'one selected page is visible');
 const dropdownRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 3);
 assert.match(dropdownRow._tpcRecord.control.style.backgroundImage,
@@ -215,6 +224,31 @@ assert.match(dropdownRow._tpcRecord.control.style.backgroundImage,
   'the themed select retains both the authored arrow and tiled body');
 assert.strictEqual(dropdownRow._tpcRecord.control.style.backgroundSize, '14px 14px,auto',
   'dropdown arrow uses row height minus the authored two-pixel inset');
+const structuredRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 13);
+const structured = structuredRow._tpcRecord.control;
+assert.strictEqual(structured.children.length, 3);
+assert.strictEqual(structured.children[0].innerText, structured.children[1].innerText
+  .replace('Provider is not installed', 'Uses the lane default'),
+  'duplicate delimiter-containing labels remain presentation, not identity');
+assert.strictEqual(structured.children[1].value, 'missing/frame');
+assert.strictEqual(structured.children[1].disabled, true);
+assert.strictEqual(structured.children[1].getAttribute('aria-disabled'), 'true');
+assert.match(structured.children[1].innerText, /Provider is not installed/,
+  'availability detail is visible in the selected option');
+assert.match(structured.children[1].getAttribute('aria-label'), /Provider is not installed/,
+  'availability detail is exposed to assistive technology');
+assert.strictEqual(structured.selectedIndex, 1,
+  'a missing disabled saved choice remains visibly selected');
+const typedBeforeDisabled = typed.length;
+structured.selectedIndex = 1;
+structured.fire('change');
+assert.strictEqual(typed.length, typedBeforeDisabled,
+  'a disabled structured row cannot emit a pick intent');
+structured.selectedIndex = 2;
+structured.fire('change');
+assert.strictEqual(typed[typed.length - 1].v, 2);
+assert.strictEqual(typed[typed.length - 1].text, 'ready/frame',
+  'an enabled pick returns its stable value rather than its label');
 const buttonRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 4);
 assert.strictEqual(buttonRow._tpcRecord.control.style.backgroundSize,
   '18px 18px,18px 18px,10px 18px', '2x button bake maps to the 1x row grid');
@@ -267,6 +301,10 @@ const typedBefore = typed.length;
 oldCheckbox.fire('change');
 assert.strictEqual(typed.length, typedBefore,
   'listener from prior page cannot retarget a recycled handle');
+structured.selectedIndex = 2;
+structured.fire('change');
+assert.strictEqual(typed.length, typedBefore,
+  'a structured pick from the prior generation is equally stale');
 const newCheckbox = ids['tpc-content'].children[0].children[0];
 newCheckbox.checked = true;
 newCheckbox.fire('change');

@@ -1595,6 +1595,13 @@ fake_draw_image(
     g_engine.draw_items += 1;
     return 1;
 }
+static int g_hit_region_calls;
+static int g_hit_region_plugin;
+static int g_hit_region_box[4];
+static int g_hit_region_op_count;
+static uint32_t g_hit_region_tag;
+static char g_hit_region_ops[TORIRS_PLUGIN_REGION_OPS_MAX][TORIRS_UI_ACTION_MAX];
+
 static int
 fake_hit_region(
     void* u,
@@ -1608,14 +1615,18 @@ fake_hit_region(
     uint32_t tag)
 {
     (void)u;
-    (void)plugin;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    (void)ops;
-    (void)op_count;
-    (void)tag;
+    g_hit_region_calls++;
+    g_hit_region_plugin = plugin;
+    g_hit_region_box[0] = x;
+    g_hit_region_box[1] = y;
+    g_hit_region_box[2] = w;
+    g_hit_region_box[3] = h;
+    g_hit_region_op_count = op_count;
+    g_hit_region_tag = tag;
+    memset(g_hit_region_ops, 0, sizeof(g_hit_region_ops));
+    for( int i = 0; i < op_count && i < TORIRS_PLUGIN_REGION_OPS_MAX; i++ )
+        (void)snprintf(
+            g_hit_region_ops[i], sizeof(g_hit_region_ops[i]), "%s", ops[i]);
     return 1;
 }
 static int
@@ -2721,6 +2732,8 @@ static int g_v2_typed_calls;
 static int g_v2_placement_callbacks;
 static int g_v2_panel_builds;
 static int g_v2_panel_actions;
+static int g_v2_select_actions;
+static char g_v2_select_value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
 static int g_v2_panel_draws;
 static int g_v2_frame_builds;
 static int g_v2_frame_draws;
@@ -2728,6 +2741,27 @@ static int g_v2_frame_width;
 static int g_v2_frame_canvas;
 static int g_v2_node_actions;
 static int g_v2_prefix_starts;
+
+static char g_v2_option_label_a[] = "Same|label";
+static char g_v2_option_label_missing[] = "Same|label";
+static char g_v2_option_detail_missing[] = "Provider is not installed";
+static struct ToriRS_SelectOption const V2_PANEL_OPTIONS[] = {
+    { .struct_size = sizeof(struct ToriRS_SelectOption),
+      .value = "auto",
+      .label = g_v2_option_label_a,
+      .enabled = true,
+      .detail = "Uses the lane default" },
+    { .struct_size = sizeof(struct ToriRS_SelectOption),
+      .value = "missing/frame",
+      .label = g_v2_option_label_missing,
+      .enabled = false,
+      .detail = g_v2_option_detail_missing },
+    { .struct_size = sizeof(struct ToriRS_SelectOption),
+      .value = "ready/frame",
+      .label = "Ready",
+      .enabled = true,
+      .detail = "Available now" },
+};
 
 static void
 v2_probe_start(
@@ -2851,6 +2885,13 @@ v2_probe_ui_build(
         return;
     panel->heading(panel, "V2 probe");
     panel->toggle(panel, "enabled", "Enabled", true);
+    panel->select(
+        panel,
+        "frame",
+        "Gameframe",
+        "missing/frame",
+        V2_PANEL_OPTIONS,
+        (int)(sizeof(V2_PANEL_OPTIONS) / sizeof(V2_PANEL_OPTIONS[0])));
     panel->custom(panel, "chart", 96);
     g_v2_panel_builds++;
 }
@@ -2865,6 +2906,15 @@ v2_probe_ui_action(
     (void)state;
     if( strcmp(event->id, "enabled") == 0 )
         g_v2_panel_actions++;
+    else if( strcmp(event->id, "frame") == 0 )
+    {
+        g_v2_select_actions++;
+        snprintf(
+            g_v2_select_value,
+            sizeof(g_v2_select_value),
+            "%s",
+            event->text ? event->text : "");
+    }
 }
 
 static void
@@ -2923,10 +2973,10 @@ v2_probe_frame_build(
         .anchor = TORIRS_ANCHOR_TOP_LEFT,
         .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,
         .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED | TORIRS_UI_NODE_BLOCKS_OVERLAY,
-        .image = { -1 },
+        .image = { 0 },
         .clip = TORIRS_UI_CLIP_PARENT,
         .state_image_mask = 1u << TORIRS_UI_VISUAL_HOVER,
-        .state_images = { [TORIRS_UI_VISUAL_HOVER] = { -1 } },
+        .state_images = { [TORIRS_UI_VISUAL_HOVER] = { 0 } },
         .label = "Map",
         .label_x = 4,
         .label_y = 5,
@@ -2991,7 +3041,7 @@ static struct ToriRS_UiContribution const V2_UI_A[] = {
             .anchor = TORIRS_ANCHOR_TOP_LEFT,
             .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,
             .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
-            .image = { -1 },
+            .image = { 0 },
             .clip = TORIRS_UI_CLIP_PARENT,
             .state_image_mask = 1u << TORIRS_UI_VISUAL_HOVER,
             .state_images = { [TORIRS_UI_VISUAL_HOVER] = { 72 } },
@@ -3098,6 +3148,135 @@ static struct ToriRS_PluginDefV2 const V2_FRAME_PROVIDER = {
     .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
 };
 
+enum V2TransitionMode
+{
+    V2_TRANSITION_READY = 0,
+    V2_TRANSITION_PENDING,
+    V2_TRANSITION_NO_VIEWPORT,
+    V2_TRANSITION_DUP_SURFACE,
+    V2_TRANSITION_DUP_MEMBER,
+    V2_TRANSITION_BAD_RECT,
+    V2_TRANSITION_TOO_MANY_NODES,
+    V2_TRANSITION_CYCLE,
+    V2_TRANSITION_FOREIGN_IMAGE,
+    V2_TRANSITION_UNREADY_IMAGE,
+};
+
+static int g_v2_transition_mode;
+
+static enum ToriRS_FrameBuildResult
+v2_transition_build(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_FrameBuilder* frame,
+    struct ToriRS_FrameBuildContext const* context)
+{
+    struct ToriRS_UiNode marker = {
+        .struct_size = sizeof(marker),
+        .bounds = { 2, 3, 20, 10 },
+        .parent = "frame.viewport",
+        .anchor = TORIRS_ANCHOR_TOP_LEFT,
+        .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,
+        .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
+    };
+    (void)state;
+    (void)context;
+
+    if( g_v2_transition_mode == V2_TRANSITION_PENDING )
+    {
+        frame->reason(frame, "Waiting for transition test data.");
+        return TORIRS_FRAME_PENDING;
+    }
+    if( g_v2_transition_mode != V2_TRANSITION_NO_VIEWPORT )
+        frame->surface(
+            frame,
+            TORIRS_SURFACE_VIEWPORT,
+            g_v2_transition_mode == V2_TRANSITION_BAD_RECT
+                ? (struct ToriRS_Rect){ 0, 0, 0, 480 }
+                : (struct ToriRS_Rect){ 0, 0, 640, 480 });
+    if( g_v2_transition_mode == V2_TRANSITION_DUP_SURFACE )
+        frame->surface(
+            frame, TORIRS_SURFACE_VIEWPORT, (struct ToriRS_Rect){ 1, 1, 639, 479 });
+    if( g_v2_transition_mode == V2_TRANSITION_DUP_MEMBER )
+    {
+        frame->surface_member(
+            frame, TORIRS_SURFACE_SIDEBAR, 0, (struct ToriRS_Rect){ 500, 100, 120, 200 });
+        frame->surface_member(
+            frame, TORIRS_SURFACE_SIDEBAR, 0, (struct ToriRS_Rect){ 501, 100, 120, 200 });
+    }
+    marker.label = g_v2_transition_mode == V2_TRANSITION_READY ? "committed" : "candidate";
+    frame->ui_node(frame, "marker", &marker);
+    if( g_v2_transition_mode == V2_TRANSITION_TOO_MANY_NODES )
+        for( int i = 0; i < 17; i++ )
+        {
+            char name[24];
+            snprintf(name, sizeof(name), "extra.%d", i);
+            frame->ui_node(frame, name, &marker);
+        }
+    if( g_v2_transition_mode == V2_TRANSITION_CYCLE )
+    {
+        struct ToriRS_UiNode a = marker;
+        struct ToriRS_UiNode b = marker;
+        a.parent = "cycle.b";
+        b.parent = "cycle.a";
+        frame->ui_node(frame, "cycle.a", &a);
+        frame->ui_node(frame, "cycle.b", &b);
+    }
+    if( g_v2_transition_mode == V2_TRANSITION_FOREIGN_IMAGE )
+    {
+        struct ToriRS_FrameSkin skin = {
+            .struct_size = sizeof(skin),
+            .image = { 1000 },
+        };
+        frame->surface(
+            frame, TORIRS_SURFACE_COMPASS, (struct ToriRS_Rect){ 600, 0, 32, 32 });
+        frame->skin(frame, TORIRS_SURFACE_COMPASS, &skin);
+    }
+    if( g_v2_transition_mode == V2_TRANSITION_UNREADY_IMAGE )
+    {
+        struct ToriRS_ImageRef pending = { 0 };
+        struct ToriRS_FrameSkin skin = { .struct_size = sizeof(skin) };
+        (void)api->assets.image(api, "pending-frame.png", &pending);
+        skin.image = pending;
+        frame->surface(
+            frame, TORIRS_SURFACE_COMPASS, (struct ToriRS_Rect){ 600, 0, 32, 32 });
+        frame->skin(frame, TORIRS_SURFACE_COMPASS, &skin);
+    }
+    return TORIRS_FRAME_READY;
+}
+
+static struct ToriRS_FrameOffer const V2_TRANSITION_OFFERS[] = {
+    {
+        .struct_size = sizeof(struct ToriRS_FrameOffer),
+        .id = "candidate",
+        .title = "Candidate",
+        .canvas = TORIRS_FRAME_CANVAS_WINDOW,
+        .min_width = 640,
+        .min_height = 480,
+        .build = v2_transition_build,
+    },
+    {
+        .struct_size = sizeof(struct ToriRS_FrameOffer),
+        .id = "invalid",
+        .title = "Invalid candidate",
+        .canvas = TORIRS_FRAME_CANVAS_WINDOW,
+        .min_width = 640,
+        .min_height = 480,
+        .build = v2_transition_build,
+    },
+    { .struct_size = sizeof(struct ToriRS_FrameOffer) },
+};
+
+static struct ToriRS_PluginDefV2 const V2_TRANSITION_PROVIDER = {
+    .struct_size = sizeof(V2_TRANSITION_PROVIDER),
+    .id = "v2-transition",
+    .title = "V2 Transition",
+    .version = "2.0.0",
+    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+    .frames = V2_TRANSITION_OFFERS,
+    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+};
+
 /* A definition ending inside its final callback table exercises append-only
  * minor-version reads without granting access to any callback tail. */
 static struct ToriRS_PluginDefV2 const V2_PREFIX_ONLY = {
@@ -3154,6 +3333,168 @@ static struct ToriRS_PluginDefV2 const V2_PLACEMENT_PROBE = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_placement_changed = placement_v2_changed,
     },
+};
+
+/* ------------------------------------------------ retained v2 presenter */
+
+static int g_present_draws;
+static int g_present_actions;
+static enum ToriRS_Result g_present_foreign_update;
+static enum ToriRS_Result g_present_appearance_update;
+static enum ToriRS_Result g_present_actions_update;
+static char g_present_last_action[TORIRS_UI_ACTION_MAX];
+static uint32_t g_present_v1_tag;
+
+static enum ToriRS_PluginVerdict
+present_v1_click(
+    struct ToriRS_PluginCtx* context,
+    void* event,
+    void* userdata)
+{
+    (void)context;
+    (void)userdata;
+    g_present_v1_tag = ((struct ToriRS_PluginEvCanvasClick const*)event)->tag;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static void
+present_v1_init(
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_PluginApi const* api)
+{
+    api->subscribe(context, TORIRS_PLUGIN_EV_CANVAS_CLICK, present_v1_click, NULL);
+}
+
+static struct ToriRS_PluginDef const PRESENT_V1 = {
+    .name = "present-v1",
+    .version = "1",
+    .init = present_v1_init,
+};
+
+static void
+v2_present_start(struct ToriRS_ApiV2* api, void* state)
+{
+    struct ToriRS_UiNodeRef const node = api->ui.ref(api, "frame.orb.run");
+    struct ToriRS_UiNode appearance = {
+        .struct_size = sizeof(appearance),
+        .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ACTIVE,
+        .image = { 0 },
+        .label = "Updated winner",
+        .label_x = 2,
+        .label_y = 3,
+    };
+    struct ToriRS_UiNode actions = {
+        .struct_size = sizeof(actions),
+        .flags = TORIRS_UI_NODE_ENABLED,
+        .hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM,
+        .hit_rect = { 65, 18, 20, 20 },
+        .action_count = 2,
+        .actions = { "inspect", "activate" },
+    };
+    struct ToriRS_UiNode foreign_image = appearance;
+
+    (void)state;
+    foreign_image.image.value = 1; /* typed handle 1 -> unowned legacy slot 0 */
+    g_present_foreign_update =
+        api->ui.update(api, node, TORIRS_UI_FACET_APPEARANCE, &foreign_image);
+    g_present_appearance_update =
+        api->ui.update(api, node, TORIRS_UI_FACET_APPEARANCE, &appearance);
+    g_present_actions_update = api->ui.update(api, node, TORIRS_UI_FACET_ACTIONS, &actions);
+}
+
+static void
+v2_present_draw(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_UiNodeRef node,
+    struct ToriRS_DrawBuilder* draw)
+{
+    struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+
+    (void)state;
+    CHECK(api->ui.info(api, node, &info), "presenter callback receives a live semantic ref");
+    draw->rect(draw, info.bounds, 0x336699u, 255);
+    g_present_draws++;
+}
+
+static enum ToriRS_CallbackResult
+v2_present_action(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_UiNodeRef node,
+    char const* action)
+{
+    (void)api;
+    (void)state;
+    (void)node;
+    g_present_actions++;
+    (void)snprintf(g_present_last_action, sizeof(g_present_last_action), "%s", action);
+    return TORIRS_CALLBACK_CONSUME;
+}
+
+static struct ToriRS_UiContribution const V2_PRESENT_A_UI[] = {
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "frame.orb.run",
+        .mode = TORIRS_UI_MODIFY,
+        .facets = TORIRS_UI_FACET_ALL,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .bounds = { 72, 35, 20, 15 },
+            .parent = "frame.orbs",
+            .anchor = TORIRS_ANCHOR_TOP_LEFT,
+            .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,
+            .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
+            .label = "Initial winner",
+            .action = "activate",
+            .clip = TORIRS_UI_CLIP_PARENT,
+        },
+    },
+    { .struct_size = sizeof(struct ToriRS_UiContribution) },
+};
+
+static struct ToriRS_UiContribution const V2_PRESENT_B_UI[] = {
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "frame.orb.run",
+        .mode = TORIRS_UI_MODIFY,
+        .facets = TORIRS_UI_FACET_ALL,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .bounds = { 73, 36, 18, 12 },
+            .parent = "frame.orbs",
+            .anchor = TORIRS_ANCHOR_TOP_LEFT,
+            .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,
+            .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,
+            .label = "Conflicting provider",
+            .action = "activate",
+            .clip = TORIRS_UI_CLIP_PARENT,
+        },
+    },
+    { .struct_size = sizeof(struct ToriRS_UiContribution) },
+};
+
+static struct ToriRS_PluginDefV2 const V2_PRESENT_A = {
+    .struct_size = sizeof(V2_PRESENT_A),
+    .id = "v2-present-a",
+    .title = "V2 Present A",
+    .version = "2.0.0",
+    .ui_contributions = V2_PRESENT_A_UI,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = v2_present_start,
+        .on_ui_node_draw = v2_present_draw,
+        .on_ui_node_action = v2_present_action,
+    },
+};
+
+static struct ToriRS_PluginDefV2 const V2_PRESENT_B = {
+    .struct_size = sizeof(V2_PRESENT_B),
+    .id = "v2-present-b",
+    .title = "V2 Present B",
+    .version = "2.0.0",
+    .ui_contributions = V2_PRESENT_B_UI,
+    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
 };
 
 /* ------------------------------------------------------------------ tests */
@@ -4854,6 +5195,8 @@ main(void)
         g_v2_placement_callbacks = 0;
         g_v2_panel_builds = 0;
         g_v2_panel_actions = 0;
+        g_v2_select_actions = 0;
+        g_v2_select_value[0] = '\0';
         g_v2_panel_draws = 0;
         g_v2_frame_builds = 0;
         g_v2_frame_draws = 0;
@@ -4957,7 +5300,7 @@ main(void)
         CHECK(
             PluginHost_UiInfo(hv2, housing_ref, &ui_info) && ui_info.bounds.x == 610 &&
                 ui_info.bounds.width == 170 && ui_info.clip == TORIRS_UI_CLIP_PARENT &&
-                ui_info.state_images[TORIRS_UI_VISUAL_HOVER].value == -1 &&
+                ui_info.state_images[TORIRS_UI_VISUAL_HOVER].value == 0 &&
                 strcmp(ui_info.label, "Map") == 0 && ui_info.label_x == 4 &&
                 ui_info.label_y == 5 && ui_info.action_count == 2 &&
                 strcmp(ui_info.actions[1], "inspect") == 0 &&
@@ -4973,7 +5316,7 @@ main(void)
         CHECK(PluginHost_PanelSelect(hv2, a2), "v2 panel can be selected");
         generation = PluginHost_PanelSelectionGeneration(hv2);
         CHECK(
-            g_v2_panel_builds == 1 && PluginHost_PanelWidgetCount(hv2, generation) == 3,
+            g_v2_panel_builds == 1 && PluginHost_PanelWidgetCount(hv2, generation) == 4,
             "v2 on_ui_build receives the semantic panel builder");
         CHECK(
             PluginHost_PanelLayout(
@@ -4996,6 +5339,78 @@ main(void)
                 g_v2_panel_actions == 1,
             "v2 panel action dispatch is owner scoped");
         widget = PluginHost_PanelWidgetAt(hv2, generation, 2);
+        CHECK(
+            widget && widget->structured_select && widget->select_option_count == 3 &&
+                widget->selected == 1 &&
+                strcmp(widget->selected_value, "missing/frame") == 0 &&
+                strcmp(widget->select_options[0].label, "Same|label") == 0 &&
+                strcmp(widget->select_options[1].label, "Same|label") == 0 &&
+                !widget->select_options[1].enabled &&
+                strcmp(widget->select_options[1].detail, "Provider is not installed") == 0,
+            "the host retains copied structured values, duplicate delimiter labels, and detail");
+        g_v2_option_label_missing[0] = 'X';
+        g_v2_option_detail_missing[0] = 'X';
+        CHECK(
+            widget && strcmp(widget->select_options[1].label, "Same|label") == 0 &&
+                strcmp(widget->select_options[1].detail, "Provider is not installed") == 0,
+            "structured option strings are copied rather than borrowed from plugin storage");
+        g_v2_option_label_missing[0] = 'S';
+        g_v2_option_detail_missing[0] = 'P';
+        CHECK(
+            widget && !PluginHost_PanelDispatch(
+                          hv2,
+                          generation - 1,
+                          widget->serial,
+                          2,
+                          "frame",
+                          TORIRS_PLUGIN_UI_PICK,
+                          2,
+                          "ready/frame",
+                          0,
+                          0),
+            "a stale page generation cannot select a structured row");
+        CHECK(
+            widget && !PluginHost_PanelDispatch(
+                          hv2,
+                          generation,
+                          widget->serial,
+                          2,
+                          "frame",
+                          TORIRS_PLUGIN_UI_PICK,
+                          1,
+                          "missing/frame",
+                          0,
+                          0),
+            "a disabled selected row remains visible but cannot be chosen");
+        CHECK(
+            widget && !PluginHost_PanelDispatch(
+                          hv2,
+                          generation,
+                          widget->serial,
+                          2,
+                          "frame",
+                          TORIRS_PLUGIN_UI_PICK,
+                          2,
+                          "stale/index-value",
+                          0,
+                          0),
+            "a stale stable value cannot retarget a reused option index");
+        CHECK(
+            widget && PluginHost_PanelDispatch(
+                          hv2,
+                          generation,
+                          widget->serial,
+                          2,
+                          "frame",
+                          TORIRS_PLUGIN_UI_PICK,
+                          2,
+                          "ready/frame",
+                          0,
+                          0) &&
+                g_v2_select_actions == 1 &&
+                strcmp(g_v2_select_value, "ready/frame") == 0,
+            "an enabled selection dispatches its stable value, never its duplicate label");
+        widget = PluginHost_PanelWidgetAt(hv2, generation, 3);
         CHECK(
             widget &&
                 PluginHost_PanelDraw(hv2, generation, widget->serial, &g_engine, 0, 0, 100, 96) &&
@@ -5044,6 +5459,114 @@ main(void)
             g_v2_stops[1] == 2 && g_v2_stops[2] == 1 && g_v2_stops[3] == 1 &&
                 g_engine.objects_live == 0,
             "host destruction stops every v2 instance and cleans its resources");
+    }
+
+    /* ---- frame candidates retain the last complete commit ------------ */
+    {
+        static int const INVALID_MODE[] = {
+            V2_TRANSITION_NO_VIEWPORT,
+            V2_TRANSITION_DUP_SURFACE,
+            V2_TRANSITION_DUP_MEMBER,
+            V2_TRANSITION_BAD_RECT,
+            V2_TRANSITION_TOO_MANY_NODES,
+            V2_TRANSITION_CYCLE,
+            V2_TRANSITION_FOREIGN_IMAGE,
+            V2_TRANSITION_UNREADY_IMAGE,
+        };
+        struct ToriRS_PluginHost* ht;
+        struct ToriRS_PluginApi const* api;
+        struct ToriRS_PluginFrameSelection selection;
+        struct ToriRS_UiNodeInfo info;
+        struct ToriRS_UiNodeRef marker;
+        int old_provider;
+        int candidate_provider;
+
+        memset(&g_engine, 0, sizeof(g_engine));
+        g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+        g_frame_mobile_starts = 0;
+        g_frame_mobile_stops = 0;
+        g_frame_mobile_layouts = 0;
+        snprintf(
+            g_engine.frame_preference,
+            sizeof(g_engine.frame_preference),
+            "%s",
+            "frame-mobile/phone");
+        g_engine.frame_preference_present = 1;
+        g_engine.frame_migration_version = 1;
+        engine = fake_engine();
+        ht = PluginHost_New(&engine);
+        old_provider = PluginHost_Register(ht, &FRAME_MOBILE_PROVIDER);
+        candidate_provider = PluginHost_RegisterV2(ht, &V2_TRANSITION_PROVIDER);
+        PluginHost_Start(ht);
+        PluginHost_Layout(ht, 900, 600);
+        api = PluginHost_Api(ht);
+        api->frame_selection(PluginHost_Ctx(ht, old_provider), &selection);
+        CHECK(
+            strcmp(selection.active, "frame-mobile/phone") == 0,
+            "transition fixture begins with one fully committed frame");
+
+        g_v2_transition_mode = V2_TRANSITION_PENDING;
+        CHECK(
+            api->frame_select(
+                PluginHost_Ctx(ht, old_provider), "v2-transition/candidate"),
+            "a second provider can become the requested candidate");
+        {
+            int const begins = g_engine.layout_begins;
+            int const ends = g_engine.layout_ends;
+            PluginHost_Layout(ht, 900, 600);
+            api->frame_selection(PluginHost_Ctx(ht, old_provider), &selection);
+            CHECK(
+                strcmp(selection.active, "frame-mobile/phone") == 0 &&
+                    selection.status == TORIRS_PLUGIN_FRAME_LOADING &&
+                    g_engine.layout_begins == begins && g_engine.layout_ends == ends &&
+                    g_frame_mobile_stops == 0,
+                "A active -> B PENDING leaves A's provider and geometry untouched");
+        }
+
+        g_v2_transition_mode = V2_TRANSITION_READY;
+        api->frame_invalidate(PluginHost_Ctx(ht, candidate_provider));
+        PluginHost_Start(ht);
+        CHECK(PluginHost_FrameNeedsLayout(ht), "B READY schedules one new candidate attempt");
+        PluginHost_Layout(ht, 900, 600);
+        api->frame_selection(PluginHost_Ctx(ht, old_provider), &selection);
+        CHECK(
+            strcmp(selection.active, "v2-transition/candidate") == 0 &&
+                selection.status == TORIRS_PLUGIN_FRAME_ACTIVE && g_frame_mobile_stops == 1,
+            "B commits before A is torn down");
+        marker = PluginHost_UiRef(ht, candidate_provider, "marker");
+        memset(&info, 0, sizeof(info));
+        info.struct_size = sizeof(info);
+        CHECK(
+            PluginHost_UiInfo(ht, marker, &info) && strcmp(info.label, "committed") == 0,
+            "B's geometry and named-node declaration commit together");
+
+        CHECK(
+            api->frame_select(
+                PluginHost_Ctx(ht, candidate_provider), "v2-transition/invalid"),
+            "the invalid offer becomes a candidate, not an active frame");
+        for( int i = 0; i < (int)(sizeof(INVALID_MODE) / sizeof(INVALID_MODE[0])); i++ )
+        {
+            int const begins = g_engine.layout_begins;
+            int const ends = g_engine.layout_ends;
+            g_v2_transition_mode = INVALID_MODE[i];
+            if( i > 0 )
+            {
+                api->frame_invalidate(PluginHost_Ctx(ht, candidate_provider));
+                PluginHost_Start(ht);
+            }
+            PluginHost_Layout(ht, 900, 600);
+            api->frame_selection(PluginHost_Ctx(ht, candidate_provider), &selection);
+            memset(&info, 0, sizeof(info));
+            info.struct_size = sizeof(info);
+            CHECK(
+                strcmp(selection.active, "v2-transition/candidate") == 0 &&
+                    selection.status == TORIRS_PLUGIN_FRAME_FALLBACK &&
+                    g_engine.layout_begins == begins && g_engine.layout_ends == ends &&
+                    PluginHost_UiInfo(ht, marker, &info) &&
+                    strcmp(info.label, "committed") == 0,
+                "an invalid candidate publishes neither partial geometry nor named state");
+        }
+        PluginHost_Free(ht);
     }
 
     /* ---- resolved placement revision and composed fragmented safe area -- */
@@ -5169,6 +5692,147 @@ main(void)
         PluginHost_Free(hp);
         g_platform_safe_count = 0;
         g_lane_rail_visible = 0;
+    }
+
+    /* ---- retained named-UI presenter -------------------------------- */
+    {
+        struct ToriRS_PluginHost* present_host;
+        struct ToriRS_PluginEngine present_engine;
+        struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+        struct ToriRS_UiNodeRef node;
+        uint32_t rebuilds;
+        int draw_items;
+        int hit_calls;
+        int present_a;
+        int present_b;
+        int present_v1;
+
+        memset(&g_engine, 0, sizeof(g_engine));
+        memset(g_slot_x, 0, sizeof(g_slot_x));
+        memset(g_slot_y, 0, sizeof(g_slot_y));
+        memset(g_slot_w, 0, sizeof(g_slot_w));
+        memset(g_slot_h, 0, sizeof(g_slot_h));
+        g_slot_w[TORIRS_PLUGIN_SLOT_CANVAS] = 100;
+        g_slot_h[TORIRS_PLUGIN_SLOT_CANVAS] = 100;
+        g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT] = 100;
+        g_slot_h[TORIRS_PLUGIN_SLOT_VIEWPORT] = 100;
+        g_slot_x[TORIRS_PLUGIN_SLOT_ORBS] = 70;
+        g_slot_y[TORIRS_PLUGIN_SLOT_ORBS] = 5;
+        g_slot_w[TORIRS_PLUGIN_SLOT_ORBS] = 25;
+        g_slot_h[TORIRS_PLUGIN_SLOT_ORBS] = 80;
+        g_role_name = "orb_run";
+        g_role_visible = 1;
+        g_role_box[0] = 72;
+        g_role_box[1] = 35;
+        g_role_box[2] = 20;
+        g_role_box[3] = 20;
+        g_hit_region_calls = 0;
+        g_hit_region_plugin = -1;
+        g_hit_region_tag = 0;
+        g_present_draws = 0;
+        g_present_actions = 0;
+        g_present_foreign_update = TORIRS_RESULT_ERROR;
+        g_present_appearance_update = TORIRS_RESULT_ERROR;
+        g_present_actions_update = TORIRS_RESULT_ERROR;
+        g_present_last_action[0] = '\0';
+        g_present_v1_tag = 0;
+        present_engine = fake_engine();
+        present_host = PluginHost_New(&present_engine);
+        present_a = PluginHost_RegisterV2(present_host, &V2_PRESENT_A);
+        present_b = PluginHost_RegisterV2(present_host, &V2_PRESENT_B);
+        present_v1 = PluginHost_Register(present_host, &PRESENT_V1);
+        CHECK(present_a == 0 && present_b == 1, "presenter providers register");
+        PluginHost_Start(present_host);
+        PluginHost_LayoutChanged(present_host);
+        CHECK(
+            g_present_foreign_update == TORIRS_RESULT_INVALID &&
+                g_present_appearance_update == TORIRS_RESULT_OK &&
+                g_present_actions_update == TORIRS_RESULT_OK,
+            "ui.update rejects foreign art and atomically restates owned facets");
+
+        draw_items = g_engine.draw_items;
+        hit_calls = g_hit_region_calls;
+        PluginHost_DrawCanvas(present_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(present_host) == 0 &&
+                g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls,
+            "two conflicting providers leave the base result and neither draws nor acts");
+        rebuilds = PluginHost_UiPresentationRebuilds(present_host);
+        PluginHost_DrawCanvas(present_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(present_host) == rebuilds,
+            "an unchanged frame does not rescan the named registry");
+
+        PluginHost_SetEnabled(present_host, present_b, false);
+        node = PluginHost_UiRef(present_host, present_a, "frame.orb.run");
+        CHECK(
+            PluginHost_UiInfo(present_host, node, &info) && info.active &&
+                strcmp(info.label, "Updated winner") == 0 && info.hit_rect.x == 65 &&
+                info.action_count == 2,
+            "teardown reveals the remaining provider's complete restated snapshot");
+        draw_items = g_engine.draw_items;
+        hit_calls = g_hit_region_calls;
+        PluginHost_DrawCanvas(present_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(present_host) == 1 &&
+                g_engine.draw_items == draw_items + 2 && g_present_draws == 1 &&
+                g_hit_region_calls == hit_calls + 1 && g_hit_region_plugin == present_a &&
+                g_hit_region_box[0] == 70 && g_hit_region_box[1] == 18 &&
+                g_hit_region_box[2] == 15 && g_hit_region_box[3] == 20 &&
+                g_hit_region_op_count == 2 &&
+                strcmp(g_hit_region_ops[0], "inspect") == 0,
+            "one winning provider yields exactly one visual callback, label, and hit region");
+        CHECK(
+            (g_hit_region_tag & 0x80000000u) != 0,
+            "retained named actions use the host-reserved route namespace");
+        PluginHost_CanvasClick(present_host, present_v1, 0x80001234u, 0, 0, 0);
+        CHECK(
+            g_present_v1_tag == 0x80001234u,
+            "a legacy plugin keeps the full documented uint32 tag namespace");
+        rebuilds = PluginHost_UiPresentationRebuilds(present_host);
+        draw_items = g_engine.draw_items;
+        PluginHost_DrawCanvas(present_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(present_host) == rebuilds &&
+                g_engine.draw_items == draw_items + 2 && g_present_draws == 2,
+            "steady retained presentation is O(active entries), not O(registry nodes)");
+        PluginHost_CanvasClick(
+            present_host, present_a, g_hit_region_tag, 0, g_hit_region_box[0], g_hit_region_box[1]);
+        CHECK(
+            g_present_actions == 1 && strcmp(g_present_last_action, "inspect") == 0,
+            "left click routes the retained action through UiInvoke to its v2 winner");
+
+        PluginHost_LayoutChanged(present_host);
+        rebuilds = PluginHost_UiPresentationRebuilds(present_host);
+        PluginHost_DrawCanvas(present_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationRebuilds(present_host) == rebuilds + 1 &&
+                PluginHost_UiPresentationCount(present_host) == 1 && g_present_draws == 3,
+            "a base-tree rebuild reconciles once and preserves one visual result");
+
+        PluginHost_SetEnabled(present_host, present_b, true);
+        draw_items = g_engine.draw_items;
+        hit_calls = g_hit_region_calls;
+        PluginHost_DrawCanvas(present_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(present_host) == 0 &&
+                g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls,
+            "restoring the contender deterministically returns to conflict without double paint");
+        PluginHost_SetEnabled(present_host, present_b, false);
+        PluginHost_DrawCanvas(present_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(present_host) == 1 && g_present_draws == 4,
+            "tearing the contender down restores the sole winner exactly once");
+        PluginHost_SetEnabled(present_host, present_a, false);
+        draw_items = g_engine.draw_items;
+        hit_calls = g_hit_region_calls;
+        PluginHost_DrawCanvas(present_host, 100, 100);
+        CHECK(
+            PluginHost_UiPresentationCount(present_host) == 0 &&
+                g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls,
+            "winner teardown removes retained visuals and actions together");
+        PluginHost_Free(present_host);
+        g_role_name = NULL;
     }
 
     printf("%d checks, %d failures\n", g_checks, g_failures);

@@ -409,6 +409,16 @@ lua_api_frame_work_us(lua_State* L)
 }
 
 static int
+lua_api_element_height(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const element_id = (int)luaL_checkinteger(L, 1);
+
+    lua_pushinteger(L, g_api->element_height(script->cur_ctx, element_id));
+    return 1;
+}
+
+static int
 lua_api_memory_bytes(lua_State* L)
 {
     uint64_t bytes = 0;
@@ -2527,6 +2537,7 @@ lua_build_api_table(struct LuaScript* script)
         { "key_held", lua_api_key_held },
         { "hover_tile", lua_api_hover_tile },
         { "hover_entity", lua_api_hover_entity },
+        { "element_height", lua_api_element_height },
         { "notify", lua_api_notify },
         { "varbit", lua_api_varbit },
         { "varp", lua_api_varp },
@@ -2708,16 +2719,22 @@ lua_build_api_table(struct LuaScript* script)
     /* Exact, composed safe placement keeps fragmented space and answers a
      * requested size/anchor instead of exposing lossy pseudo-slots. */
     {
-        lua_createtable(L, 0, 3);
-        lua_pushlightuserdata(L, script);
-        lua_pushcclosure(L, lua_placement_place, 1);
-        lua_setfield(L, -2, "place");
-        lua_pushlightuserdata(L, script);
-        lua_pushcclosure(L, lua_placement_reserve, 1);
-        lua_setfield(L, -2, "reserve");
-        lua_pushlightuserdata(L, script);
-        lua_pushcclosure(L, lua_placement_reservation_rect, 1);
-        lua_setfield(L, -2, "reservation_rect");
+        static const struct
+        {
+            char const* name;
+            lua_CFunction fn;
+        } PLACEMENT[] = {
+            { "place", lua_placement_place },
+            { "reserve", lua_placement_reserve },
+            { "reservation_rect", lua_placement_reservation_rect },
+        };
+        lua_createtable(L, 0, (int)(sizeof(PLACEMENT) / sizeof(PLACEMENT[0])));
+        for( size_t i = 0; i < sizeof(PLACEMENT) / sizeof(PLACEMENT[0]); i++ )
+        {
+            lua_pushlightuserdata(L, script);
+            lua_pushcclosure(L, PLACEMENT[i].fn, 1);
+            lua_setfield(L, -2, PLACEMENT[i].name);
+        }
         lua_setfield(L, -2, "placement");
     }
 

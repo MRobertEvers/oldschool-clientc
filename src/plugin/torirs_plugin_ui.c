@@ -521,7 +521,8 @@ ui_value_shape_valid(
     if( value->struct_size != 0 && value->struct_size < TORIRS_UI_NODE_LEGACY_SIZE )
         return false;
     if( value->flags & ~(uint32_t)(TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED |
-                                   TORIRS_UI_NODE_BLOCKS_FRAME | TORIRS_UI_NODE_BLOCKS_OVERLAY) )
+                                   TORIRS_UI_NODE_BLOCKS_FRAME | TORIRS_UI_NODE_BLOCKS_OVERLAY |
+                                   TORIRS_UI_NODE_ACTIVE) )
         return false;
     if( (facets & TORIRS_UI_FACET_BOUNDS) != 0 )
     {
@@ -539,6 +540,8 @@ ui_value_shape_valid(
     if( (facets & TORIRS_UI_FACET_APPEARANCE) != 0 && value->label &&
         strlen(value->label) >= TORIRS_UI_LABEL_MAX )
         return false;
+    if( (facets & TORIRS_UI_FACET_APPEARANCE) != 0 && value->image.value < 0 )
+        return false;
     if( (facets & TORIRS_UI_FACET_APPEARANCE) != 0 &&
         UI_NODE_FIELD_AVAILABLE(value, state_image_mask) )
     {
@@ -547,6 +550,11 @@ ui_value_shape_valid(
             return false;
         if( value->state_image_mask != 0 && !UI_NODE_FIELD_AVAILABLE(value, state_images) )
             return false;
+        if( UI_NODE_FIELD_AVAILABLE(value, state_images) )
+            for( int i = 0; i < TORIRS_UI_VISUAL_STATE_COUNT; i++ )
+                if( (value->state_image_mask & (1u << i)) != 0 &&
+                    value->state_images[i].value < 0 )
+                    return false;
     }
     if( (facets & TORIRS_UI_FACET_ACTIONS) != 0 && value->action &&
         !ui_action_valid(value->action) )
@@ -590,8 +598,8 @@ ui_copy_nonname_value(
     assert(value);
     memset(out, 0, sizeof(*out));
     for( int i = 0; i < TORIRS_UI_VISUAL_STATE_COUNT; i++ )
-        out->state_images[i].value = -1;
-    out->image.value = -1;
+        out->state_images[i].value = 0;
+    out->image.value = 0;
     if( (facets & TORIRS_UI_FACET_BOUNDS) != 0 )
     {
         out->bounds = value->bounds;
@@ -603,7 +611,7 @@ ui_copy_nonname_value(
     }
     if( (facets & TORIRS_UI_FACET_APPEARANCE) != 0 )
     {
-        out->flags |= value->flags & TORIRS_UI_NODE_VISIBLE;
+        out->flags |= value->flags & (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ACTIVE);
         out->state_images[TORIRS_UI_VISUAL_IDLE] = value->image;
         if( UI_NODE_FIELD_AVAILABLE(value, state_image_mask) &&
             UI_NODE_FIELD_AVAILABLE(value, state_images) )
@@ -671,8 +679,9 @@ ui_apply_facet(
         memcpy(destination->label, source->label, sizeof(destination->label));
         destination->label_x = source->label_x;
         destination->label_y = source->label_y;
-        destination->flags &= ~(uint32_t)TORIRS_UI_NODE_VISIBLE;
-        destination->flags |= source->flags & TORIRS_UI_NODE_VISIBLE;
+        destination->flags &= ~(uint32_t)(TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ACTIVE);
+        destination->flags |=
+            source->flags & (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ACTIVE);
     }
     else
     {

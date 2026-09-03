@@ -183,7 +183,7 @@ Clears only the selected page. The persistent rail remains.
 Command keys intentionally mirror the fixed C POD:
 
 ```js
-{ k, p, w, tab, v, c, x, y, cw, ch, label, text, s }
+{ k, p, w, tab, v, c, x, y, cw, ch, label, text, detail, s }
 ```
 
 `s` is the semantic widget serial copied alongside `WIDGET_ADD`; zero is
@@ -204,6 +204,13 @@ neither bit toggles from anywhere, including its name.
 For a custom widget, `ch` is its bounded preferred height in 1x chrome logical
 pixels; the bitmap is fitted to that retained box and its source aspect ratio
 does not resize the page.
+
+For a structured select, command 17 carries `x=1`. Each following command 18
+carries its index in `v`, stable value in `text`, presentation label in
+`label`, enabled state in `x`, and optional availability explanation in
+`detail`. Labels may be duplicated and may contain `|`; they are never parsed
+as identity. A disabled row may remain selected so an unavailable saved value
+stays visible, but the runtime cannot emit a pick for it.
 
 ### `custom.bitmap`
 
@@ -267,6 +274,9 @@ Intent kinds are 1 activate, 2 list-row action, 3 toggle, 4 text result,
 5 dropdown pick, 6 tab, 7 close, and 8 custom-region activate. `g` is the
 active page generation and `s` the widget serial captured by the listener.
 The host rejects either mismatch before mutating the model or invoking a plugin.
+For a structured dropdown pick, `v` is the row index and `text` is that row's
+stable value. Both must still match the retained enabled row; this additionally
+rejects an intent queued before an option list changed in place.
 
 ### `layout`
 

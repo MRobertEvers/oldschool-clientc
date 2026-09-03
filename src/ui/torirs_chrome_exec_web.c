@@ -1,9 +1,9 @@
 /*
  * The web chrome executor: fixed POD into the canonical retained DOM bundle.
  *
- * A NATIVE-WIDGET executor (see the two kinds in torirs_chrome_exec.h): the
- * chrome's display list is not used at all, because an <input> cannot be
- * reconstructed from rectangles. Commands cross to the application-owned web
+ * One of the two external web executors: the chrome's display list is not used
+ * at all, because an <input> cannot be reconstructed from rectangles.
+ * Commands cross to the application-owned web
  * adapter, which preserves SYNC transactions and publishes protocol-1
  * snapshots/deltas into one persistent canonical iframe.
  *
@@ -177,7 +177,7 @@ struct ChromeWeb
     /** One command's JSON, reused. Sized for the longest command: a label and
      *  a value, each of which can double under escaping, plus the fixed fields
      *  and their punctuation. */
-    char json[2 * (TORIRS_CHROME_LABEL_MAX + TORIRS_CHROME_TEXT_MAX) + 256];
+    char json[2 * (TORIRS_CHROME_LABEL_MAX + 2 * TORIRS_CHROME_TEXT_MAX) + 320];
     /** Reused transaction envelope: grown on demand and retained across opens. */
     char* batch_json;
     size_t batch_len;
@@ -545,18 +545,20 @@ chrome_web_batch_command(
 {
     char label[TORIRS_CHROME_LABEL_MAX * 2 + 1];
     char text[TORIRS_CHROME_TEXT_MAX * 2 + 1];
+    char detail[TORIRS_CHROME_TEXT_MAX * 2 + 1];
     int length;
 
     if( !s->collecting || s->batch_failed )
         return;
     chrome_web_escape(label, (int)sizeof(label), cmd->label);
     chrome_web_escape(text, (int)sizeof(text), cmd->text);
+    chrome_web_escape(detail, (int)sizeof(detail), cmd->detail);
     length = snprintf(
         s->json,
         sizeof(s->json),
         "%s{\"k\":%d,\"p\":%d,\"w\":%d,\"tab\":%d,\"v\":%d,\"c\":%u,"
         "\"x\":%d,\"y\":%d,\"cw\":%d,\"ch\":%d,\"s\":%u,"
-        "\"label\":\"%s\",\"text\":\"%s\"}",
+        "\"label\":\"%s\",\"text\":\"%s\",\"detail\":\"%s\"}",
         s->batch_commands ? "," : "",
         cmd->kind,
         cmd->panel,
@@ -570,7 +572,8 @@ chrome_web_batch_command(
         cmd->h,
         (unsigned)cmd->serial,
         label,
-        text);
+        text,
+        detail);
     if( length < 0 || (size_t)length >= sizeof(s->json) )
     {
         s->batch_failed = 1;

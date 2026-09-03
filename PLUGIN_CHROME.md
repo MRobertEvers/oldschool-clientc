@@ -114,8 +114,8 @@ instead of hard-coded slot lists.
 
 ## Retained execution uses a mutation journal
 
-Executors do **not** scan or diff the complete retained tree during normal
-ticks. Every model setter first compares the old and new value. A real change
+Executors do **not** scan the complete retained tree to discover changes during
+normal ticks. Every model setter first compares the old and new value. A real change
 records `(handle, property)` in a bounded journal; equal writes record nothing.
 Repeated writes to the same property coalesce, so the executor receives the
 final retained value once.
@@ -166,7 +166,8 @@ manifests, profiles, or normal source lists.
 - Let the host tear down contributions, reservations, assets, and instances
   owned by a stopped plugin.
 
-The former `layout_claim` / chrome-part scope system is compatibility machinery,
-not the plugin API design. New code should use the V2 catalogue, named UI,
-placement, and callback-scoped builder APIs described in
+The former `layout_claim` entry points are gone from the public API. The
+remaining V1 chrome-part, role, and pseudo-slot surface is temporary internal
+compatibility for bundled plugins, not the plugin API design. New code should
+use the V2 catalogue, named UI, placement, and callback-scoped builder APIs described in
 [GAMECHROME_PLUGINAPI_V2.md](GAMECHROME_PLUGINAPI_V2.md).

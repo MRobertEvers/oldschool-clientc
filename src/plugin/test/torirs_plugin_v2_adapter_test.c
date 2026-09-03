@@ -1061,6 +1061,22 @@ hook_ui_contribution(
     (void)snprintf(f->hook_name, sizeof(f->hook_name), "%s", node);
     return true;
 }
+static enum ToriRS_Result
+hook_ui_update(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_UiNodeRef node,
+    uint32_t facets,
+    struct ToriRS_UiNode const* value)
+{
+    struct Fake* f = user;
+    (void)state(context);
+    f->hook_calls++;
+    f->last_a = (int)node.value;
+    f->last_b = (int)facets;
+    f->last_c = value->bounds.width;
+    return TORIRS_RESULT_OK;
+}
 static void
 hook_frame_node(
     void* user,
@@ -1218,6 +1234,7 @@ hooks(void)
         .ui_info = hook_ui_info,
         .ui_invoke = hook_ui_invoke,
         .ui_contribution_info = hook_ui_contribution,
+        .ui_update = hook_ui_update,
         .frame_ui_node = hook_frame_node,
         .frame_reason = hook_frame_reason,
         .model_release = hook_model_release,
@@ -1244,6 +1261,10 @@ test_construction_and_basic_modules(
     struct ToriRS_UiNodeInfo ui_info = { .struct_size = sizeof(ui_info) };
     struct ToriRS_UiContributionInfo contribution_info;
     struct ToriRS_UiNodeRef ref;
+    struct ToriRS_UiNode ui_update = {
+        .struct_size = sizeof(ui_update),
+        .bounds = { 1, 2, 33, 4 },
+    };
     char const* string = NULL;
     uint32_t color = 0;
     bool boolean = false;
@@ -1354,6 +1375,10 @@ test_construction_and_basic_modules(
             api, "frame.minimap", TORIRS_UI_FACET_APPEARANCE, &contribution_info) &&
             contribution_info.active_facets == TORIRS_UI_FACET_APPEARANCE,
         "contribution diagnostics use hook");
+    CHECK(
+        api->ui.update(api, ref, TORIRS_UI_FACET_BOUNDS, &ui_update) == TORIRS_RESULT_OK &&
+            fake.last_a == 91 && fake.last_b == TORIRS_UI_FACET_BOUNDS && fake.last_c == 33,
+        "ui.update forwards a typed retained restatement to the host hook");
     adapter->hooks.ui_ref = NULL;
     CHECK(
         api->ui.ref(api, "report_button").value == 0,
@@ -1466,7 +1491,7 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
 
     fake.image_ready = 0;
     CHECK(
-        api->assets.image(api, "orb.png", &image) == TORIRS_ASSET_PENDING && image.value == 14,
+        api->assets.image(api, "orb.png", &image) == TORIRS_ASSET_PENDING && image.value == 15,
         "image handle is usable while pixels remain pending");
     fake.image_ready = 1;
     CHECK(
@@ -1476,20 +1501,20 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
     CHECK(
         api->assets.image(api, "full.png", &image) == TORIRS_ASSET_BUDGET,
         "negative legacy image handle translates to budget");
-    image.value = 14;
+    image.value = 15;
     api->assets.image_release(api, image);
     CHECK(fake.last_a == 14, "image release forwards typed handle");
 
     fake.asset_resident = 0;
     CHECK(
-        api->assets.model(api, "beam.model", &model) == TORIRS_ASSET_PENDING && model.value == 18,
+        api->assets.model(api, "beam.model", &model) == TORIRS_ASSET_PENDING && model.value == 19,
         "model with pending source bytes is pending");
     fake.asset_resident = 1;
     CHECK(
         api->assets.model(api, "beam.model", &model) == TORIRS_ASSET_READY,
         "resident model is ready");
     api->assets.model_release(api, model);
-    CHECK(fake.last_a == 18, "new model release uses explicit host hook");
+    CHECK(fake.last_a == 19, "model release hook receives the zero-safe typed handle");
     CHECK(
         api->assets.screenshot(api, "shots", "now.png", path, sizeof(path)) == TORIRS_RESULT_OK &&
             strcmp(path, "shots/now.png") == 0 && fake.last_a == (int)sizeof(path),
@@ -1497,7 +1522,7 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
 
     fake.last_a = 0;
     CHECK(
-        api->scene.mesh_create(api, &mesh) == TORIRS_RESULT_OK && mesh.value == 21,
+        api->scene.mesh_create(api, &mesh) == TORIRS_RESULT_OK && mesh.value == 22,
         "mesh allocation returns typed handle");
     CHECK(
         api->scene.mesh_vertex(api, mesh, 1, 2, 3) == TORIRS_RESULT_OK && fake.last_a == 21 &&
@@ -1515,9 +1540,9 @@ test_assets_scene_and_cache(struct ToriRS_ApiV2* api)
 
     fake.last_a = 0;
     CHECK(
-        api->scene.instance_create(api, &instance) == TORIRS_RESULT_OK && instance.value == 31,
+        api->scene.instance_create(api, &instance) == TORIRS_RESULT_OK && instance.value == 32,
         "scene instance allocation returns typed handle");
-    model.value = 18;
+    model.value = 19;
     CHECK(
         api->scene.instance_model(api, instance, model) == TORIRS_RESULT_OK &&
             fake.last_b == TORIRS_PLUGIN_MODEL_ASSET && fake.last_c == 18,
@@ -1551,21 +1576,21 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     struct ToriRS_DrawBuilder draw;
     struct ToriRS_FrameBuilder frame;
     struct ToriRS_PanelBuilder panel;
-    struct ToriRS_FrameSkin skin = { .struct_size = sizeof(skin), .image = { 7 }, .mask = { 8 } };
+    struct ToriRS_FrameSkin skin = { .struct_size = sizeof(skin), .image = { 8 }, .mask = { 9 } };
     struct ToriRS_FrameScrollbar scrollbar = {
         .struct_size = sizeof(scrollbar),
-        .up = { 1 },
-        .down = { 2 },
-        .track = { 3 },
-        .thumb = { 4 },
+        .up = { 2 },
+        .down = { 3 },
+        .track = { 4 },
+        .thumb = { 5 },
         .split_thumb = true,
-        .thumb_top = { 14 },
-        .thumb_middle = { 15 },
-        .thumb_bottom = { 16 },
+        .thumb_top = { 15 },
+        .thumb_middle = { 16 },
+        .thumb_bottom = { 17 },
     };
     struct ToriRS_FrameSurfaceOverlay overlay = {
         .struct_size = sizeof(overlay),
-        .image = { 19 },
+        .image = { 20 },
         .x = 20,
         .y = 21,
         .alpha = 200,
@@ -1603,7 +1628,7 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
     CHECK(fake.last_a == 5 && fake.last_d == 8, "line builder forwards");
     draw.text(&draw, 9, 10, "text", 0x778899);
     CHECK(strcmp(fake.notification, "text") == 0 && fake.last_a == 9, "text builder forwards");
-    draw.image(&draw, (struct ToriRS_ImageRef){ 14 }, 11, 12, 200);
+    draw.image(&draw, (struct ToriRS_ImageRef){ 15 }, 11, 12, 200);
     CHECK(
         fake.last_a == 14 && fake.last_b == 11 && fake.last_e == 55,
         "image alpha becomes legacy transparency");
@@ -1710,6 +1735,21 @@ test_callback_scoped_builders(struct ToriRS_PluginV2Adapter* adapter)
         fake.hook_calls == hook_calls + 1 && strcmp(fake.hook_name, "layout=b") == 0 &&
             fake.last_a == 2,
         "structured select uses lossless host hook");
+    hook_calls = fake.hook_calls;
+    options[1].value = "a";
+    panel.select(&panel, "duplicate", "Duplicate", "a", options, 2);
+    CHECK(
+        fake.hook_calls == hook_calls,
+        "duplicate stable option values are rejected before host retention");
+    options[1].value = "b";
+    options[0].label = "Same|label";
+    options[1].label = "Same|label";
+    panel.select(&panel, "labels", "Labels", "b", options, 2);
+    CHECK(
+        fake.hook_calls == hook_calls + 1,
+        "duplicate and delimiter-containing labels remain valid presentation data");
+    options[0].label = "Alpha";
+    options[1].label = "Beta";
     adapter->hooks.panel_select = NULL;
     panel.select(&panel, "legacy", "Legacy", "b", options, 2);
     CHECK(

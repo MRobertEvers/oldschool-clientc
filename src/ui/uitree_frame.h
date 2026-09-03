@@ -161,7 +161,7 @@ UITree_FrameSlotIndex(
  * The node carrying `slot`'s role, or -1 when this gameframe has none.
  *
  * A linear walk, and that is affordable because of WHEN it is called: once per
- * declaration -- a claim, a resize, a rebuild -- and never per frame. The
+ * declaration -- a committed selection, resize, or rebuild -- and never per frame. The
  * per-frame path is UITree_FrameReassert, which walks only what this found.
  */
 int32_t
@@ -194,7 +194,7 @@ UITree_FrameSlotMemberNode(
  * 519x165 layer. A frame that assumes either is wrong on the other lane.
  *
  * The AUTHORED numbers and not the resolved ones, because the resolved ones
- * are the declaration's own: while a frame claim stands, this node's effective
+ * are the declaration's own: while a plugin frame is committed, this node's effective
  * box is whatever the plugin last placed it at, and a plugin reading that to
  * decide what to place is reading its own answer back.
  * UITree_FramePositionOverride leaves `position.width/height` alone for

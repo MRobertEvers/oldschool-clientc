@@ -4507,9 +4507,9 @@ app_plugin_layout_set(void* user, int owned, int canvas, int fixed_w, int fixed_
     app->plugin_layout_canvas = canvas;
     app->plugin_layout_fixed_w = fixed_w;
     app->plugin_layout_fixed_h = fixed_h;
-    /* Whatever the claim just became, the frame on screen is no longer the one
-     * that was declared -- a release has to give the lane's chrome back and a
-     * claim has to take it. */
+    /* A committed selection change invalidates the frame on screen: native
+     * restores the lane's chrome, while a plugin offer supplies its complete
+     * validated declaration. */
     app->plugin_layout_dirty = 1;
     if( !app->plugin_layout_owned && app->tree )
         UITree_FrameRelease(app->tree);
@@ -4557,6 +4557,18 @@ app_plugin_layout_slot(void* user, int slot, int member, int x, int y, int w, in
      * "did that land on anything" so it knows whether to draw the housing for
      * it, and a frame with no compass should get no compass ring. */
     return app->tree && UITree_FrameSlotMemberNode(app->tree, slot, member) >= 0;
+}
+
+static int
+app_plugin_layout_slot_exists(void* user, int slot, int member)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( !app->tree || slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
+    return member < 0 ? UITree_FrameSlotNode(app->tree, slot) >= 0
+                      : UITree_FrameSlotMemberNode(app->tree, slot, member) >= 0;
 }
 
 /*
@@ -5165,6 +5177,7 @@ app_plugin_engine(struct App* app)
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;
     engine.layout_slot = app_plugin_layout_slot;
+    engine.layout_slot_exists = app_plugin_layout_slot_exists;
     engine.layout_slot_skin = app_plugin_layout_slot_skin;
     engine.layout_slot_overlay = app_plugin_layout_slot_overlay;
     engine.layout_scrollbar = app_plugin_layout_scrollbar;

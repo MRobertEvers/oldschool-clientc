@@ -2307,8 +2307,8 @@ mobile_chat_visible(int canvas_w, int rail_w, int chat_w)
 /*
  * The box this frame may lay itself out in, which is not always the window.
  *
- * A cache gameframe carries furniture that a claim neither owns nor
- * suppresses: on both OldSchool resizable toplevels the pop-out panel's rail
+ * A cache gameframe carries furniture that a selected plugin frame neither
+ * moves nor suppresses: on both OldSchool resizable toplevels the pop-out panel's rail
  * is 42 columns down the right edge for the full height of the window, it is
  * a mounted interface of its own rather than the toplevel's decoration, and
  * its frame is `noclickthrough`. Pinning the tab rail to `canvas_w` therefore
@@ -3492,14 +3492,10 @@ mobile_on_click(
  * Leaving the game forgets session-local frame and chat-pack state.
  *
  * The layout handler declines to declare on the title screen -- that gate is
- * mobile_on_layout's opening lines, and it is correct -- but a declaration only
- * follows a claim, a resize or a rebuild, and logging in is none of the three.
- * So a plugin ENABLED at the title screen answered its one EV_LAYOUT with
- * nothing and was never asked again: the drawer worked only if the plugin was
- * switched on while already in game, which read as "needs a restart after
- * login". The re-claim is idempotent for the holder and marks the frame as
- * needing a fresh EV_LAYOUT -- the same call the drawer and the chat switch
- * make.
+ * mobile_on_layout's opening lines, and it is correct. The host now keeps the
+ * requested offer pending across login and schedules a fresh candidate build
+ * at the first safe game-layout fence; drawer/chat changes use
+ * frame_invalidate for the same event-driven retry.
  *
  * Leaving it FORGETS the one it declared. The layout and draw gates already
  * keep that declaration off the title screen, so this is not about what is

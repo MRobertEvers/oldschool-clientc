@@ -9,6 +9,30 @@
 
 #define V2_PANEL_CHOICES_MAX 192
 
+static int
+v2_resource_box(int legacy)
+{
+    return legacy >= 0 && legacy < INT_MAX ? legacy + 1 : 0;
+}
+
+static int
+v2_resource_unbox(int value)
+{
+    return value > 0 ? value - 1 : -1;
+}
+
+int
+ToriRS_PluginV2Adapter_ImageUnbox(struct ToriRS_ImageRef image)
+{
+    return v2_resource_unbox(image.value);
+}
+
+int
+ToriRS_PluginV2Adapter_ModelUnbox(struct ToriRS_ModelRef model)
+{
+    return v2_resource_unbox(model.value);
+}
+
 _Static_assert(
     (int)TORIRS_AREA_PLATFORM_SAFE == (int)TORIRS_PLUGIN_AREA_PLATFORM_SAFE,
     "platform area");
@@ -427,6 +451,22 @@ v2_ui_contribution_info(
     return adapter->hooks.ui_contribution_info &&
            adapter->hooks.ui_contribution_info(
                adapter->hooks.user, adapter->context, node, facets, out);
+}
+
+static enum ToriRS_Result
+v2_ui_update(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_UiNodeRef node,
+    uint32_t facets,
+    struct ToriRS_UiNode const* value)
+{
+    struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
+
+    assert(value);
+    return adapter->hooks.ui_update
+               ? adapter->hooks.ui_update(
+                     adapter->hooks.user, adapter->context, node, facets, value)
+               : TORIRS_RESULT_UNSUPPORTED;
 }
 
 static bool
@@ -910,7 +950,7 @@ v2_assets_image(
 
     assert(name);
     assert(out);
-    out->value = -1;
+    out->value = 0;
     if( !v2_asset_name_valid(name) )
         return TORIRS_ASSET_INVALID;
     if( !adapter->legacy->image_load )
@@ -918,7 +958,7 @@ v2_assets_image(
     image = adapter->legacy->image_load(adapter->context, name);
     if( image < 0 )
         return TORIRS_ASSET_BUDGET;
-    out->value = image;
+    out->value = v2_resource_box(image);
     if( adapter->legacy->image_size &&
         adapter->legacy->image_size(adapter->context, image, &width, &height) )
         return TORIRS_ASSET_READY;
@@ -936,9 +976,10 @@ v2_assets_image_size(
 
     assert(out_width);
     assert(out_height);
-    if( image.value < 0 || !adapter->legacy->image_size )
+    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(image);
+    if( legacy_image < 0 || !adapter->legacy->image_size )
         return false;
-    return adapter->legacy->image_size(adapter->context, image.value, out_width, out_height) != 0;
+    return adapter->legacy->image_size(adapter->context, legacy_image, out_width, out_height) != 0;
 }
 
 static void
@@ -947,8 +988,9 @@ v2_assets_image_release(
     struct ToriRS_ImageRef image)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    if( image.value >= 0 && adapter->legacy->image_release )
-        adapter->legacy->image_release(adapter->context, image.value);
+    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(image);
+    if( legacy_image >= 0 && adapter->legacy->image_release )
+        adapter->legacy->image_release(adapter->context, legacy_image);
 }
 
 static enum ToriRS_AssetState
@@ -962,7 +1004,7 @@ v2_assets_model(
 
     assert(name);
     assert(out);
-    out->value = -1;
+    out->value = 0;
     if( !v2_asset_name_valid(name) )
         return TORIRS_ASSET_INVALID;
     if( !adapter->legacy->model_load )
@@ -970,7 +1012,7 @@ v2_assets_model(
     model = adapter->legacy->model_load(adapter->context, name);
     if( model < 0 )
         return TORIRS_ASSET_BUDGET;
-    out->value = model;
+    out->value = v2_resource_box(model);
     /* The old API has no model-ready query.  Resident source bytes are the
      * strongest state it can prove; otherwise the handle is still pending. */
     if( adapter->legacy->asset_data && adapter->legacy->asset_data(adapter->context, name, NULL) )
@@ -984,7 +1026,7 @@ v2_assets_model_release(
     struct ToriRS_ModelRef model)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    if( adapter->hooks.model_release )
+    if( ToriRS_PluginV2Adapter_ModelUnbox(model) >= 0 && adapter->hooks.model_release )
         adapter->hooks.model_release(adapter->hooks.user, adapter->context, model);
 }
 
@@ -1019,13 +1061,13 @@ v2_scene_mesh_create(
     int mesh;
 
     assert(out);
-    out->value = -1;
+    out->value = 0;
     if( !adapter->legacy->mesh_create )
         return TORIRS_RESULT_UNSUPPORTED;
     mesh = adapter->legacy->mesh_create(adapter->context);
     if( mesh < 0 )
         return TORIRS_RESULT_BUDGET;
-    out->value = mesh;
+    out->value = v2_resource_box(mesh);
     return TORIRS_RESULT_OK;
 }
 
@@ -1035,8 +1077,9 @@ v2_scene_mesh_destroy(
     struct ToriRS_MeshRef mesh)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    if( mesh.value >= 0 && adapter->legacy->mesh_destroy )
-        adapter->legacy->mesh_destroy(adapter->context, mesh.value);
+    int const legacy_mesh = v2_resource_unbox(mesh.value);
+    if( legacy_mesh >= 0 && adapter->legacy->mesh_destroy )
+        adapter->legacy->mesh_destroy(adapter->context, legacy_mesh);
 }
 
 static enum ToriRS_Result
@@ -1049,11 +1092,12 @@ v2_scene_mesh_vertex(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
 
-    if( mesh.value < 0 )
+    int const legacy_mesh = v2_resource_unbox(mesh.value);
+    if( legacy_mesh < 0 )
         return TORIRS_RESULT_INVALID;
     if( !adapter->legacy->mesh_vertex )
         return TORIRS_RESULT_UNSUPPORTED;
-    return adapter->legacy->mesh_vertex(adapter->context, mesh.value, x, y, z) >= 0
+    return adapter->legacy->mesh_vertex(adapter->context, legacy_mesh, x, y, z) >= 0
                ? TORIRS_RESULT_OK
                : TORIRS_RESULT_BUDGET;
 }
@@ -1070,12 +1114,13 @@ v2_scene_mesh_face(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
 
-    if( mesh.value < 0 || a < 0 || b < 0 || c < 0 || alpha < 0 ||
+    int const legacy_mesh = v2_resource_unbox(mesh.value);
+    if( legacy_mesh < 0 || a < 0 || b < 0 || c < 0 || alpha < 0 ||
         alpha > TORIRS_PLUGIN_MESH_ALPHA_MAX )
         return TORIRS_RESULT_INVALID;
     if( !adapter->legacy->mesh_face )
         return TORIRS_RESULT_UNSUPPORTED;
-    return adapter->legacy->mesh_face(adapter->context, mesh.value, a, b, c, hsl, alpha) >= 0
+    return adapter->legacy->mesh_face(adapter->context, legacy_mesh, a, b, c, hsl, alpha) >= 0
                ? TORIRS_RESULT_OK
                : TORIRS_RESULT_BUDGET;
 }
@@ -1089,13 +1134,13 @@ v2_scene_instance_create(
     int instance;
 
     assert(out);
-    out->value = -1;
+    out->value = 0;
     if( !adapter->legacy->object_create )
         return TORIRS_RESULT_UNSUPPORTED;
     instance = adapter->legacy->object_create(adapter->context);
     if( instance < 0 )
         return TORIRS_RESULT_BUDGET;
-    out->value = instance;
+    out->value = v2_resource_box(instance);
     return TORIRS_RESULT_OK;
 }
 
@@ -1105,8 +1150,9 @@ v2_scene_instance_destroy(
     struct ToriRS_SceneInstanceRef instance)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    if( instance.value >= 0 && adapter->legacy->object_destroy )
-        adapter->legacy->object_destroy(adapter->context, instance.value);
+    int const legacy_instance = v2_resource_unbox(instance.value);
+    if( legacy_instance >= 0 && adapter->legacy->object_destroy )
+        adapter->legacy->object_destroy(adapter->context, legacy_instance);
 }
 
 static enum ToriRS_Result
@@ -1117,12 +1163,14 @@ v2_scene_instance_model(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
 
-    if( instance.value < 0 || model.value < 0 )
+    int const legacy_instance = v2_resource_unbox(instance.value);
+    int const legacy_model = ToriRS_PluginV2Adapter_ModelUnbox(model);
+    if( legacy_instance < 0 || legacy_model < 0 )
         return TORIRS_RESULT_INVALID;
     if( !adapter->legacy->object_set_model )
         return TORIRS_RESULT_UNSUPPORTED;
     adapter->legacy->object_set_model(
-        adapter->context, instance.value, TORIRS_PLUGIN_MODEL_ASSET, model.value);
+        adapter->context, legacy_instance, TORIRS_PLUGIN_MODEL_ASSET, legacy_model);
     return TORIRS_RESULT_OK;
 }
 
@@ -1138,12 +1186,13 @@ v2_scene_instance_position(
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
 
-    if( instance.value < 0 || level < 0 || yaw < 0 || yaw > 2047 )
+    int const legacy_instance = v2_resource_unbox(instance.value);
+    if( legacy_instance < 0 || level < 0 || yaw < 0 || yaw > 2047 )
         return TORIRS_RESULT_INVALID;
     if( !adapter->legacy->object_set_position )
         return TORIRS_RESULT_UNSUPPORTED;
     adapter->legacy->object_set_position(
-        adapter->context, instance.value, tile_x, tile_z, level, height, yaw);
+        adapter->context, legacy_instance, tile_x, tile_z, level, height, yaw);
     return TORIRS_RESULT_OK;
 }
 
@@ -1154,8 +1203,9 @@ v2_scene_instance_active(
     bool active)
 {
     struct ToriRS_PluginV2Adapter* adapter = v2_adapter(api);
-    if( instance.value >= 0 && adapter->legacy->object_set_active )
-        adapter->legacy->object_set_active(adapter->context, instance.value, active ? 1 : 0);
+    int const legacy_instance = v2_resource_unbox(instance.value);
+    if( legacy_instance >= 0 && adapter->legacy->object_set_active )
+        adapter->legacy->object_set_active(adapter->context, legacy_instance, active ? 1 : 0);
 }
 
 static enum ToriRS_Result
@@ -1270,6 +1320,94 @@ v2_alpha(int alpha)
     return alpha;
 }
 
+static bool
+v2_clip_rect(
+    struct ToriRS_PluginV2DrawScope const* scope,
+    struct ToriRS_Rect* rect)
+{
+    int64_t left;
+    int64_t top;
+    int64_t right;
+    int64_t bottom;
+
+    assert(scope);
+    assert(rect);
+    if( rect->width <= 0 || rect->height <= 0 )
+        return false;
+    if( !scope->clip_active )
+        return true;
+    left = rect->x > scope->clip.x ? rect->x : scope->clip.x;
+    top = rect->y > scope->clip.y ? rect->y : scope->clip.y;
+    right = (int64_t)rect->x + rect->width;
+    if( right > (int64_t)scope->clip.x + scope->clip.width )
+        right = (int64_t)scope->clip.x + scope->clip.width;
+    bottom = (int64_t)rect->y + rect->height;
+    if( bottom > (int64_t)scope->clip.y + scope->clip.height )
+        bottom = (int64_t)scope->clip.y + scope->clip.height;
+    if( right <= left || bottom <= top )
+        return false;
+    *rect = (struct ToriRS_Rect){ (int)left, (int)top, (int)(right - left), (int)(bottom - top) };
+    return true;
+}
+
+static bool
+v2_clip_line(
+    struct ToriRS_PluginV2DrawScope const* scope,
+    int* x0,
+    int* y0,
+    int* x1,
+    int* y1)
+{
+    double t0 = 0.0;
+    double t1 = 1.0;
+    double const dx = (double)*x1 - *x0;
+    double const dy = (double)*y1 - *y0;
+    double const p[4] = { -dx, dx, -dy, dy };
+    double const q[4] = {
+        (double)*x0 - scope->clip.x,
+        (double)scope->clip.x + scope->clip.width - *x0,
+        (double)*y0 - scope->clip.y,
+        (double)scope->clip.y + scope->clip.height - *y0,
+    };
+    int const original_x = *x0;
+    int const original_y = *y0;
+
+    assert(scope);
+    if( !scope->clip_active )
+        return true;
+    if( scope->clip.width <= 0 || scope->clip.height <= 0 )
+        return false;
+    for( int i = 0; i < 4; i++ )
+    {
+        if( p[i] == 0.0 )
+        {
+            if( q[i] < 0.0 )
+                return false;
+            continue;
+        }
+        double const ratio = q[i] / p[i];
+        if( p[i] < 0.0 )
+        {
+            if( ratio > t1 )
+                return false;
+            if( ratio > t0 )
+                t0 = ratio;
+        }
+        else
+        {
+            if( ratio < t0 )
+                return false;
+            if( ratio < t1 )
+                t1 = ratio;
+        }
+    }
+    *x0 = original_x + (int)(dx * t0);
+    *y0 = original_y + (int)(dy * t0);
+    *x1 = original_x + (int)(dx * t1);
+    *y1 = original_y + (int)(dy * t1);
+    return true;
+}
+
 static void
 v2_builder_rect(
     struct ToriRS_DrawBuilder* draw,
@@ -1280,7 +1418,7 @@ v2_builder_rect(
     struct ToriRS_PluginV2DrawScope* scope = v2_draw_scope(draw);
     struct ToriRS_PluginApi const* legacy = scope->adapter->legacy;
 
-    if( legacy->draw_rect )
+    if( v2_clip_rect(scope, &rect) && legacy->draw_rect )
         legacy->draw_rect(
             scope->adapter->context,
             scope->legacy_surface,
@@ -1307,7 +1445,8 @@ v2_builder_line(
 
     /* v1 has no partially-transparent line.  Fully transparent is still a
      * no-op; every visible alpha uses its exact geometry and colour. */
-    if( v2_alpha(alpha) > 0 && legacy->draw_line )
+    if( v2_alpha(alpha) > 0 && v2_clip_line(scope, &x0, &y0, &x1, &y1) &&
+        legacy->draw_line )
         legacy->draw_line(scope->adapter->context, scope->legacy_surface, x0, y0, x1, y1, rgb);
 }
 
@@ -1323,6 +1462,10 @@ v2_builder_text(
     struct ToriRS_PluginApi const* legacy = scope->adapter->legacy;
 
     assert(text);
+    if( scope->clip_active &&
+        (x < scope->clip.x || y < scope->clip.y ||
+         x >= scope->clip.x + scope->clip.width || y >= scope->clip.y + scope->clip.height) )
+        return;
     if( legacy->draw_text )
         legacy->draw_text(scope->adapter->context, scope->legacy_surface, x, y, text, rgb);
 }
@@ -1338,19 +1481,20 @@ v2_builder_image(
     struct ToriRS_PluginV2DrawScope* scope = v2_draw_scope(draw);
     struct ToriRS_PluginApi const* legacy = scope->adapter->legacy;
     int const opaque_alpha = v2_alpha(alpha);
+    int const legacy_image = ToriRS_PluginV2Adapter_ImageUnbox(image);
 
-    if( image.value < 0 || opaque_alpha == 0 || !legacy->draw_image )
+    if( legacy_image < 0 || opaque_alpha == 0 || !legacy->draw_image )
         return;
     legacy->draw_image(
         scope->adapter->context,
         scope->legacy_surface,
-        image.value,
+        legacy_image,
         x,
         y,
-        0,
-        0,
-        0,
-        0,
+        scope->clip_active ? scope->clip.x : 0,
+        scope->clip_active ? scope->clip.y : 0,
+        scope->clip_active ? scope->clip.width : 0,
+        scope->clip_active ? scope->clip.height : 0,
         255 - opaque_alpha);
 }
 
@@ -1412,6 +1556,7 @@ v2_action_tag(char const* action)
         hash ^= (unsigned char)*action++;
         hash *= 16777619u;
     }
+    hash &= 0x7fffffffu;
     return hash ? hash : 1;
 }
 
@@ -1426,8 +1571,7 @@ v2_builder_action_region(
     char const* operations[1];
 
     assert(action);
-    if( !action[0] || strlen(action) >= TORIRS_UI_ACTION_MAX || rect.width <= 0 ||
-        rect.height <= 0 )
+    if( !action[0] || strlen(action) >= TORIRS_UI_ACTION_MAX || !v2_clip_rect(scope, &rect) )
         return TORIRS_RESULT_INVALID;
     if( !legacy->hit_region )
         return TORIRS_RESULT_UNSUPPORTED;
@@ -1485,6 +1629,17 @@ ToriRS_PluginV2Adapter_DrawEnd(
     assert(builder->implementation == scope);
     scope->active = false;
     builder->implementation = NULL;
+}
+
+void
+ToriRS_PluginV2Adapter_DrawClip(
+    struct ToriRS_PluginV2DrawScope* scope,
+    struct ToriRS_Rect clip)
+{
+    assert(scope);
+    assert(scope->active);
+    scope->clip_active = clip.width > 0 && clip.height > 0;
+    scope->clip = clip;
 }
 
 static struct ToriRS_PluginV2FrameScope*
@@ -1598,6 +1753,8 @@ v2_builder_skin(
 {
     struct ToriRS_PluginV2FrameScope* scope = v2_frame_scope(frame);
     int const legacy_surface = v2_surface_to_legacy(surface);
+    int const image = skin ? ToriRS_PluginV2Adapter_ImageUnbox(skin->image) : -1;
+    int const mask = skin ? ToriRS_PluginV2Adapter_ImageUnbox(skin->mask) : -1;
 
     if( !skin || legacy_surface < 0 ||
         (skin->struct_size != 0 && skin->struct_size < sizeof(*skin)) )
@@ -1607,7 +1764,7 @@ v2_builder_skin(
     }
     if( scope->adapter->legacy->layout_slot_skin )
         (void)scope->adapter->legacy->layout_slot_skin(
-            scope->adapter->context, legacy_surface, skin->image.value, skin->mask.value);
+            scope->adapter->context, legacy_surface, image, mask);
 }
 
 static void
@@ -1618,11 +1775,12 @@ v2_builder_surface_overlay(
 {
     struct ToriRS_PluginV2FrameScope* scope = v2_frame_scope(frame);
     int const legacy_surface = v2_surface_to_legacy(surface);
+    int const image = overlay ? ToriRS_PluginV2Adapter_ImageUnbox(overlay->image) : -1;
 
     if( !overlay || legacy_surface < 0 ||
         (scope->surface_mask & (1u << surface)) == 0 ||
         (overlay->struct_size != 0 && overlay->struct_size < sizeof(*overlay)) ||
-        overlay->image.value < 0 || overlay->alpha < 0 || overlay->alpha > 255 )
+        image < 0 || overlay->alpha < 0 || overlay->alpha > 255 )
     {
         scope->invalid = true;
         return;
@@ -1631,7 +1789,7 @@ v2_builder_surface_overlay(
         (void)scope->adapter->legacy->layout_slot_overlay(
             scope->adapter->context,
             legacy_surface,
-            overlay->image.value,
+            image,
             overlay->x,
             overlay->y,
             255 - overlay->alpha);
@@ -1668,24 +1826,24 @@ v2_builder_scrollbar(
         scope->invalid = true;
         return;
     }
-    top = skin->thumb.value;
-    middle = skin->thumb.value;
-    bottom = skin->thumb.value;
+    top = ToriRS_PluginV2Adapter_ImageUnbox(skin->thumb);
+    middle = top;
+    bottom = top;
     if( skin->struct_size >= sizeof(*skin) && skin->split_thumb )
     {
-        top = skin->thumb_top.value;
-        middle = skin->thumb_middle.value;
-        bottom = skin->thumb_bottom.value;
+        top = ToriRS_PluginV2Adapter_ImageUnbox(skin->thumb_top);
+        middle = ToriRS_PluginV2Adapter_ImageUnbox(skin->thumb_middle);
+        bottom = ToriRS_PluginV2Adapter_ImageUnbox(skin->thumb_bottom);
     }
     if( scope->adapter->legacy->layout_scrollbar )
         (void)scope->adapter->legacy->layout_scrollbar(
             scope->adapter->context,
-            skin->track.value,
+            ToriRS_PluginV2Adapter_ImageUnbox(skin->track),
             top,
             middle,
             bottom,
-            skin->up.value,
-            skin->down.value);
+            ToriRS_PluginV2Adapter_ImageUnbox(skin->up),
+            ToriRS_PluginV2Adapter_ImageUnbox(skin->down));
 }
 
 static void
@@ -2060,6 +2218,7 @@ ToriRS_PluginV2Adapter_Init(
             .info = v2_ui_info,
             .invoke = v2_ui_invoke,
             .contribution_info = v2_ui_contribution_info,
+            .update = v2_ui_update,
         },
         .placement = {
             .struct_size = sizeof(adapter->api.placement),

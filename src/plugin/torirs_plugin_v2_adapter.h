@@ -48,6 +48,12 @@ struct ToriRS_PluginV2AdapterHooks
         char const* node,
         uint32_t facets,
         struct ToriRS_UiContributionInfo* out);
+    enum ToriRS_Result (*ui_update)(
+        void* user,
+        struct ToriRS_PluginCtx* context,
+        struct ToriRS_UiNodeRef node,
+        uint32_t facets,
+        struct ToriRS_UiNode const* value);
 
     /* Frame declarations have no legacy equivalents for canonical UI nodes
      * or non-ready explanations. */
@@ -93,6 +99,8 @@ struct ToriRS_PluginV2DrawScope
     struct ToriRS_PluginV2Adapter* adapter;
     void* legacy_surface;
     bool active;
+    bool clip_active;
+    struct ToriRS_Rect clip;
 };
 
 struct ToriRS_PluginV2FrameScope
@@ -128,6 +136,14 @@ ToriRS_PluginV2Adapter_Init(
 struct ToriRS_ApiV2*
 ToriRS_PluginV2Adapter_Api(struct ToriRS_PluginV2Adapter* adapter);
 
+/* Internal bridge helpers. Public v2 refs are zero-invalid/1-based; legacy
+ * host resource tables use zero-valid/-1-invalid indices. */
+int
+ToriRS_PluginV2Adapter_ImageUnbox(struct ToriRS_ImageRef image);
+
+int
+ToriRS_PluginV2Adapter_ModelUnbox(struct ToriRS_ModelRef model);
+
 void
 ToriRS_PluginV2Adapter_DrawBegin(
     struct ToriRS_PluginV2Adapter* adapter,
@@ -139,6 +155,13 @@ void
 ToriRS_PluginV2Adapter_DrawEnd(
     struct ToriRS_PluginV2DrawScope* scope,
     struct ToriRS_DrawBuilder* builder);
+
+/** Restrict this callback-scoped builder to an already resolved semantic
+ * tree clip. The setting dies with the scope. */
+void
+ToriRS_PluginV2Adapter_DrawClip(
+    struct ToriRS_PluginV2DrawScope* scope,
+    struct ToriRS_Rect clip);
 
 void
 ToriRS_PluginV2Adapter_FrameBegin(

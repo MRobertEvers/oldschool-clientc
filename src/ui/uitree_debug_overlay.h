@@ -1664,6 +1664,16 @@ ToriRSChrome_DropdownSelected(struct ToriRSChrome const* ui, int widget);
 char const*
 ToriRSChrome_DropdownSelectedValue(struct ToriRSChrome const* ui, int widget);
 
+/** False only for an out-of-range or disabled structured row. */
+int
+ToriRSChrome_DropdownOptionEnabled(
+    struct ToriRSChrome const* ui, int widget, int option);
+
+/** Stable value for one structured row, or the legacy label. */
+char const*
+ToriRSChrome_DropdownOptionValue(
+    struct ToriRSChrome const* ui, int widget, int option);
+
 void
 ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int selected);
 

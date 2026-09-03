@@ -1268,7 +1268,7 @@ struct App
     uint32_t panel_overlay_revision;
     uint64_t panel_custom_last_draw_cycle;
     int panel_custom_has_draw_cycle;
-    /** Reused native-widget custom raster; the sink copies before return. */
+    /** Reused custom-region raster; the browser transport copies before return. */
     uint32_t* panel_custom_pixels;
     size_t panel_custom_pixel_capacity;
     /** Which draw list the plugin verbs append to this dispatch -- enum
@@ -1347,12 +1347,11 @@ struct App
     } plugin_role_replacements[64];
 
     /*
-     * The gameframe, when a plugin is arranging it.
+     * Internal engine mirror of the host's committed plugin gameframe.
      *
-     * `plugin_layout_owned` is the switch the whole feature hangs off: while it
-     * is 0 -- which is every session that loads no layout plugin -- nothing
-     * below is read and the frame is the lane's own, exactly as it has always
-     * been.
+     * `plugin_layout_owned` is a compatibility field name, not public
+     * arbitration: nonzero means the host has already selected, validated, and
+     * committed a plugin frame. While zero, the lane's own frame remains live.
      *
      * The slots are a DECLARATION and not a running total: EV_LAYOUT empties
      * the table, the handler fills it, and app_plugin_layout_end applies the
@@ -1847,7 +1846,7 @@ struct App
      * Its own instance because it is the one piece of chrome a PLAYER uses
      * rather than a developer: it has to be able to be open beside the game
      * without the editors' claim on the keyboard, it needs its own capacity for
-     * a tab per plugin, and it is the surface a native executor is bound to
+     * a tab per plugin, and it is the surface a WEB/BROWSER executor binds to
      * while the developer chrome stays on the in-canvas one. The objection this
      * answers -- "a second chrome is a second of all the focus, damage and
      * scale handling" -- stopped applying once input routing became one shared
@@ -2733,8 +2732,8 @@ App_ChromeCheckStyle(struct App const* app);
  * executor: it is brought up the first time the plugin window is opened, so a
  * session that never opens it never opens a second OS window either.
  *
- * Optional. Without it the plugin window draws in the game canvas, which is
- * what every lane with no native executor does anyway.
+ * Optional. Without it the plugin window uses the internal in-canvas
+ * presenter, the fallback on lanes without a web executor.
  */
 void
 App_SetPluginChromeExec(
@@ -2796,7 +2795,7 @@ int
 App_SyncUiScale(struct App* app);
 
 /**
- * Act on a plugin's claim of the frame: pin or unpin the canvas.
+ * Apply the committed frame's canvas policy, or restore the lane policy.
  *
  * Raised through the SAME pending-window-mode flag a clientscript's
  * setwindowmode raises, deliberately. Fixed versus resizable is a statement
@@ -2809,7 +2808,7 @@ void
 App_SyncPluginLayoutCanvas(struct App* app);
 
 /**
- * The canvas a plugin layout pinned, or 0 when none did.
+ * The canvas a committed plugin frame pinned, or 0 when none did.
  *
  * The shell reads this instead of APP_CANVAS_MIN_W/H when it pins a fixed
  * canvas, so a layout authored for something other than the classic 765x503
@@ -2820,18 +2819,17 @@ int
 App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h);
 
 /**
- * The smallest canvas a plugin layout can be declared against, or 0 when no
- * plugin is arranging the frame.
+ * The smallest canvas a committed plugin frame accepts, or 0 for native.
  *
  * The floor App_SetCanvasSize clamps to, when this answers. APP_CANVAS_MIN_W/H
  * is the REVCONFIG gameframe's floor and says so: a rev-230 frame's children
  * are insets off 765x503, so a smaller canvas collapses them. A plugin layout
  * is arithmetic on whatever canvas it is handed, so that reasoning does not
  * reach it, and a frame authored for a phone is narrower than 765 without being
- * broken. The claim carries the number because the plugin computing the frame
+ * broken. The selected offer carries the number because its provider
  * is the only thing that knows how small it still computes.
  *
- * Only for a FOLLOW_WINDOW claim: a FIXED one is not clamped toward a minimum,
+ * Only for a FOLLOW_WINDOW offer: a FIXED one is not clamped toward a minimum,
  * it is pinned outright, and App_PluginLayoutFixedSize is that.
  * Returns 1 when both outs were written.
  */
