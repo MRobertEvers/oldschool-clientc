@@ -6,39 +6,28 @@
  *
  * Split out of torirs_chrome_exec.h because naming an executor is not the same
  * job as being one: a boot manifest, an env var and a CLI flag all have to turn
- * "sdl" into a kind, and none of them has a chrome, a display list or a
+ * "browser" into a kind, and none of them has a chrome, a display list or a
  * platform. Keeping the enum and its two name functions in a unit that includes
  * nothing lets bootmanifest.c -- and the io_server and the manifest test that
  * link it -- resolve a name without linking the whole ui/ layer behind it.
  */
 
 /**
- * Ordered so BUFFER is 0: it is the default, the fallback, and what a zeroed
- * config means, and all three of those should be the same value rather than
- * three places that have to agree on a name.
+ * BUFFER is internal fallback state, not a user-selectable executor. WEB and
+ * BROWSER are the only external presenters: respectively the Emscripten page
+ * DOM and the embedded local web engine used by desktop hosts.
  */
 enum ToriRSChromeExecKind
 {
     TORIRS_CHROME_EXEC_BUFFER = 0,
-    /** ToriRSChrome prims in an attached SDL-owned region of the main window. */
-    TORIRS_CHROME_EXEC_SDL,
     /** Real DOM controls, driven from wasm through the page's channel. */
     TORIRS_CHROME_EXEC_WEB,
     /** Shared DOM bundle in one attached WebView2/MSHTML browser control. */
     TORIRS_CHROME_EXEC_BROWSER,
-    /** One packaged Android WebView in the activity's shared chrome pane. */
-    TORIRS_CHROME_EXEC_ANDROID,
-    /** The native/default presenter compiled for this host. */
-    TORIRS_CHROME_EXEC_PLATFORM,
     TORIRS_CHROME_EXEC_COUNT
 };
 
-/* Old manifests may still spell `gdi`; it resolves to the replacement browser
- * presenter and never revives the retired native-control implementation. */
-#define TORIRS_CHROME_EXEC_GDI TORIRS_CHROME_EXEC_BROWSER
-#define TORIRS_CHROME_EXEC_WINBROWSER TORIRS_CHROME_EXEC_BROWSER
-
-/** The name a config or an env var spells, e.g. "buffer". Never NULL. */
+/** Diagnostic name for a kind, including internal BUFFER. Never NULL. */
 char const*
 ToriRSChromeExec_KindName(int kind);
 

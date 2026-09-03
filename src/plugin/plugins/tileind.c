@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -15,32 +15,70 @@
  * model happens to be sliding across.
  *
  * Boat-aware for free: aboard a vessel the api reports deck tiles as
- * STAGING-ABSOLUTE addresses and draw_tile draws that band through the
+ * STAGING-ABSOLUTE addresses and world_tile draws that band through the
  * hull's live transform, so the markers ride the boat with no code here.
  *
- * The C twin of script/plugins/tile_indicator.lua: same events, same api,
- * same output. Keeping both is what proves the contract is language-agnostic
+ * The C twin of script/plugins/tile_indicator.lua: same inputs and same
+ * output. Keeping both is what proves the contract is language-agnostic
  * rather than Lua-shaped.
  */
 
-static struct ToriRS_PluginApi const* g_api;
-
-static enum ToriRS_PluginVerdict
-tileind_draw(
-    struct ToriRS_PluginCtx* ctx,
-    void* event,
-    void* userdata)
+static bool
+tileind_config_bool(
+    struct ToriRS_ApiV2* api,
+    char const* key,
+    bool fallback)
 {
-    (void)userdata;
+    bool value = fallback;
 
-    struct ToriRS_PluginEvDraw* ev = (struct ToriRS_PluginEvDraw*)event;
+    assert(api);
+    assert(key);
+    (void)api->config.get_bool(api, key, &value);
+    return value;
+}
+
+static int
+tileind_config_int(
+    struct ToriRS_ApiV2* api,
+    char const* key,
+    int fallback)
+{
+    int value = fallback;
+
+    assert(api);
+    assert(key);
+    (void)api->config.get_int(api, key, &value);
+    return value;
+}
+
+static uint32_t
+tileind_config_color(
+    struct ToriRS_ApiV2* api,
+    char const* key,
+    uint32_t fallback)
+{
+    uint32_t value = fallback;
+
+    assert(api);
+    assert(key);
+    (void)api->config.get_color(api, key, &value);
+    return value;
+}
+
+static void
+tileind_draw(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_DrawBuilder* draw)
+{
     struct ToriRS_PluginPlayerSnap me;
     int hover_x;
     int hover_z;
     int hover_level;
 
-    assert(ctx);
-    assert(ev);
+    (void)state;
+    assert(api);
+    assert(draw);
 
     /*
      * The pointer's tile first, because it is the one marker that does not
@@ -49,33 +87,31 @@ tileind_draw(
      * -- on a bridge deck those are different meshes, and using the player's
      * would drop the marker to the ground underneath.
      */
-    if( g_api->cfg_bool(ctx, "show_hover") &&
-        g_api->hover_tile(ctx, &hover_x, &hover_z, &hover_level) )
-        g_api->draw_tile(
-            ctx,
-            ev->surface,
+    if( tileind_config_bool(api, "show_hover", true) &&
+        api->input.hover_tile(api, &hover_x, &hover_z, &hover_level) )
+        (void)draw->world_tile(
+            draw,
             hover_x,
             hover_z,
             hover_level,
-            g_api->cfg_color(ctx, "hover_color"),
-            g_api->cfg_color(ctx, "hover_fill_color"),
-            g_api->cfg_int(ctx, "hover_fill_alpha"));
+            tileind_config_color(api, "hover_fill_color", 0xFFFFFFu),
+            tileind_config_color(api, "hover_color", 0xFFFFFFu),
+            tileind_config_int(api, "hover_fill_alpha", 0));
 
-    if( !g_api->local_player(ctx, &me) )
-        return TORIRS_PLUGIN_PASS;
+    if( !api->world.local_player(api, &me) )
+        return;
 
-    g_api->draw_tile(
-        ctx,
-        ev->surface,
+    (void)draw->world_tile(
+        draw,
         me.true_x,
         me.true_z,
         me.level,
-        g_api->cfg_color(ctx, "true_color"),
-        g_api->cfg_color(ctx, "true_fill_color"),
-        g_api->cfg_int(ctx, "true_fill_alpha"));
+        tileind_config_color(api, "true_fill_color", 0x00FFFFu),
+        tileind_config_color(api, "true_color", 0x00FFFFu),
+        tileind_config_int(api, "true_fill_alpha", 40));
 
-    if( !g_api->cfg_bool(ctx, "show_dest") )
-        return TORIRS_PLUGIN_PASS;
+    if( !tileind_config_bool(api, "show_dest", true) )
+        return;
 
     /*
      * Where the walk ends, which is the map flag and nothing else -- the same
@@ -89,30 +125,14 @@ tileind_draw(
      * which is exactly as long as a destination marker should live.
      */
     if( me.dest_x != me.true_x || me.dest_z != me.true_z )
-        g_api->draw_tile(
-            ctx,
-            ev->surface,
+        (void)draw->world_tile(
+            draw,
             me.dest_x,
             me.dest_z,
             me.level,
-            g_api->cfg_color(ctx, "dest_color"),
-            g_api->cfg_color(ctx, "dest_fill_color"),
-            g_api->cfg_int(ctx, "dest_fill_alpha"));
-
-    return TORIRS_PLUGIN_PASS;
-}
-
-static void
-tileind_init(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginApi const* api)
-{
-    assert(ctx);
-    assert(api);
-    assert(api->abi_version == TORIRS_PLUGIN_ABI);
-
-    g_api = api;
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_WORLD, tileind_draw, NULL);
+            tileind_config_color(api, "dest_fill_color", 0xFFFF00u),
+            tileind_config_color(api, "dest_color", 0xFFFF00u),
+            tileind_config_int(api, "dest_fill_alpha", 0));
 }
 
 /*
@@ -157,17 +177,25 @@ static struct ToriRS_PluginConfigItem const TILEIND_CONFIG[] = {
  * to off: which twin runs is a question about the list, and the list is where
  * it can be answered per lane.
  */
-struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND = {
+static struct ToriRS_ConfigSchema const TILEIND_SCHEMA = {
+    .struct_size = sizeof(struct ToriRS_ConfigSchema),
+    .items = TILEIND_CONFIG,
+};
+
+struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_TILEIND = {
+    .struct_size = sizeof(struct ToriRS_PluginDefV2),
     /* Not "tile-indicator": that name belongs to the Lua script this is the
      * twin of, and a name is what keys the settings section -- two plugins
      * sharing one would overwrite each other's saved colours. */
-    .name = "tile-indicator-c",
+    .id = "tile-indicator-c",
     /* Says which twin this is, because both are in the roster and "Tile
      * Indicator" twice would leave the reader to guess which switch is which. */
     .title = "Tile Indicator (C)",
     .version = "1.0.0",
-    .priority = 0,
-    .config = TILEIND_CONFIG,
-    .init = tileind_init,
-    .shutdown = NULL,
+    .state_size = 0,
+    .config = &TILEIND_SCHEMA,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_draw_world = tileind_draw,
+    },
 };

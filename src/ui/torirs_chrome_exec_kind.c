@@ -4,11 +4,8 @@
 
 static char const* const CHROME_EXEC_NAME[TORIRS_CHROME_EXEC_COUNT] = {
     [TORIRS_CHROME_EXEC_BUFFER] = "buffer",
-    [TORIRS_CHROME_EXEC_SDL] = "sdl",
     [TORIRS_CHROME_EXEC_WEB] = "web",
     [TORIRS_CHROME_EXEC_BROWSER] = "browser",
-    [TORIRS_CHROME_EXEC_ANDROID] = "android",
-    [TORIRS_CHROME_EXEC_PLATFORM] = "platform",
 };
 
 char const*
@@ -24,9 +21,9 @@ ToriRSChromeExec_KindFromName(char const* name)
 {
     if( !name || !name[0] )
         return -1;
-    if( strcmp(name, "gdi") == 0 )
-        return TORIRS_CHROME_EXEC_BROWSER;
-    for( int i = 0; i < TORIRS_CHROME_EXEC_COUNT; i++ )
+    /* BUFFER is deliberately omitted: it is the safe result when no supported
+     * web executor is built or starts, never a public configuration choice. */
+    for( int i = TORIRS_CHROME_EXEC_WEB; i < TORIRS_CHROME_EXEC_COUNT; i++ )
         if( CHROME_EXEC_NAME[i] && strcmp(CHROME_EXEC_NAME[i], name) == 0 )
             return i;
     return -1;

@@ -16,7 +16,7 @@ var fontRoot = path.join(root, "..", "..", "res", "plugin_chrome", "font");
 var forbiddenRuntime = [
     [/=>/, "arrow functions"],
     [/`/, "template literals"],
-    [/\b(?:const|let|class|Map|Promise|ResizeObserver|globalThis)\b/, "post-Chrome39 syntax/global"],
+    [/\b(?:const|let|class|Map|Promise|ResizeObserver|globalThis)\b/, "post-ES5 syntax/global"],
     [/Number\.isInteger|Array\.isArray|Object\.assign/, "newer static helpers"],
     [/\.forEach\s*\(|\.find\s*\(|\.fill\s*\(/, "newer array methods"],
     [/addEventListener|querySelector|querySelectorAll/, "IE8-only/newer DOM event or selector APIs"],
@@ -27,7 +27,7 @@ var forbiddenRuntime = [
 ];
 
 forbiddenRuntime.forEach(function (entry) {
-    assert.doesNotMatch(modernRuntime, entry[0], "Chrome39 runtime must not use " + entry[1]);
+    assert.doesNotMatch(modernRuntime, entry[0], "ES5 runtime must not use " + entry[1]);
     assert.doesNotMatch(legacyRuntime, entry[0], "XP runtime must not use " + entry[1]);
 });
 assert.doesNotMatch(codec, /\bJSON\s*\.|=>|`|\b(?:const|let|class|globalThis)\b/,
@@ -40,8 +40,6 @@ assert.match(legacyHtml, /http-equiv=["']X-UA-Compatible["'][^>]+IE=8/i,
     "XP asks for IE8 standards mode when that engine is installed");
 assert.match(legacyHtml, /data-tpc-legacy=["']1["']/,
     "legacy page selects URL/AlphaImageLoader behavior");
-assert.match(legacyHtml, /name=["']viewport["'][^>]+width=device-width/i,
-    "API22 maps its narrow host view to the same CSS-pixel rail width");
 assert.match(legacyHtml, /codec-es3\.js[\s\S]*runtime-ie8\.js/,
     "legacy codec loads before the runtime");
 assert.match(modernHtml, /codec-es3\.js[\s\S]*runtime\.js/,
@@ -74,10 +72,10 @@ assert.match(legacyCss,
     "XP has a direct local-file EOT Small source");
 assert.doesNotMatch(legacyCss, /\.eot\?#iefix/i,
     "XP EOT URLs preserve their file:/// root string");
-assert.match(legacyCss, /tpc-android-fonts[\s\S]*ToriRS Chrome Android/,
-    "Chrome39 selects a distinct WOFF/TTF alias without overriding XP EOT");
-assert.match(legacyRuntime, /tpc-android-fonts/,
-    "the trusted bridge selects the Android font alias without user-agent guessing");
+assert.doesNotMatch(legacyCss, /tpc-android-fonts|ToriRS Chrome Android/,
+    "the XP stylesheet has no retired Android font branch");
+assert.doesNotMatch(legacyRuntime, /ToriRSAndroid|tpc-android-fonts/,
+    "the shared runtime has no retired Android bridge or font branch");
 
 /* The host view's own context menu is the hazard the popup replaces: its
  * Reload re-runs the bundle, and the host keeps addressing generations the
@@ -108,7 +106,7 @@ assert.match(legacyHtml, /id=["']tpc-shell-body["'][\s\S]*id=["']tpc-shell-row["
 assert.match(legacyCss, /#tpc-shell-body\s*,\s*#tpc-shell-row\s*\{[^}]*height\s*:\s*100%/i,
     "legacy table body and row fill the embedded host height");
 assert.match(legacyCss, /\.tpc-pane\s*\{[^}]*box-sizing\s*:\s*border-box/i,
-    "pane border remains inside the host allocation on Chrome39/IE8");
+    "pane border remains inside the XP host allocation");
 assert.match(legacyCss, /\.tpc-content\s*\{[^}]*position\s*:\s*absolute/i,
     "XP page content uses absolute geometry");
 assert.match(legacyCss, /\.tpc-row\s*\{[^}]*min-height\s*:\s*18px[^}]*margin\s*:\s*0 0 3px/i,
@@ -116,7 +114,7 @@ assert.match(legacyCss, /\.tpc-row\s*\{[^}]*min-height\s*:\s*18px[^}]*margin\s*:
 assert.match(legacyCss, /\.tpc-row \.tpc-label\s*\{[^}]*inline-block[^}]*width\s*:\s*104px/i,
     "legacy labels reserve the authored 104px column");
 assert.match(legacyCss, /\.tpc-row > \.tpc-field\s*\{[^}]*width\s*:\s*55%;\s*width\s*:\s*calc\(/i,
-    "old MSHTML gets a percentage field fallback before Chrome39 fills the remaining width");
+    "old MSHTML gets a percentage field fallback before newer engines evaluate calc");
 assert.match(legacyCss, /#tpc-close\s*\{[^}]*width\s*:\s*16px[^}]*height\s*:\s*16px[^}]*background-repeat\s*:\s*no-repeat/i,
     "the 16px close sprite is centered once instead of tiled");
 assert.match(legacyCss, /\.tpc-separator\s*\{[^}]*height\s*:\s*18px[^}]*background\s*:\s*transparent/i,
@@ -125,8 +123,8 @@ assert.match(legacyCss, /\.tpc-custom img\s*,\s*\.tpc-custom canvas\s*\{[^}]*hei
     "legacy custom pixels fill the host-selected region height");
 
 assert.match(modernCss, /display:\s*-webkit-box;[\s\S]*display:\s*flex;[\s\S]*display:\s*grid;/,
-    "modern CSS supplies Chrome39 flex before optional grid enhancement");
-assert.doesNotMatch(modernCss, /\bgap\s*:/, "Chrome39 layout does not depend on flex gap");
+    "modern CSS supplies prefixed flex before optional grid enhancement");
+assert.doesNotMatch(modernCss, /\bgap\s*:/, "modern layout does not depend on flex gap");
 assert.match(modernCss, /background:\s*#0e0e0c;\s*background:\s*var\(--tpc-deep\)/,
     "literal palette fallback precedes CSS variables");
 assert.match(modernCss, /left:\s*0;\s*right:\s*0;\s*top:\s*0;\s*bottom:\s*0;\s*inset:/,
@@ -164,8 +162,6 @@ assert.match(modernCss, /\.tpc-custom img\s*,\s*\.tpc-custom canvas\s*\{[^}]*hei
     "custom pixels fill the host-selected region height");
 
 assert.match(legacyRuntime, /AlphaImageLoader/, "XP transparent PNG fallback is bundled");
-assert.match(legacyRuntime, /ToriRSAndroid[\s\S]*rgbaBase64/,
-    "the same downlevel runtime retains the API22 typed bridge and optional RGBA path");
 assert.match(legacyRuntime, /type:\s*['"]editor\.focus['"]/,
     "editor focus ownership is part of the downlevel runtime");
 assert.match(legacyRuntime, /ScrollDown\.png[\s\S]*backgroundSize = ['"]14px 14px,auto['"]/,

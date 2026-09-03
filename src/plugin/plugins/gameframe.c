@@ -109,21 +109,8 @@ enum FrameLayout
     FRAME_CLASSIC_FIXED = 0,
     FRAME_MODERN_FIXED = 1,
     FRAME_MODERN_RESIZABLE = 2,
-    /**
-     * The frame this lane would have drawn, reproduced.
-     *
-     * On a 2004 lane that is Classic Fixed. On an OldSchool one it follows
-     * the toplevel the server opened: the fixed 548 is Modern Fixed, and the
-     * resizable and mobile ones are Modern Resizable. So the plugin can be
-     * switched on anywhere and change nothing until a layout is chosen --
-     * which is the same promise Classic Fixed alone made on a dat1 world.
-     *
-     * Last in the enum, and the default: the three concrete layouts keep the
-     * numbers they were saved under in plugin_prefs.ini.
-     */
-    FRAME_AUTO = 3
 };
-#define FRAME_LAYOUT_COUNT 4
+#define FRAME_LAYOUT_COUNT 3
 
 /** Both fixed frames are authored for this canvas, and neither can be
  *  anything else: every number below is measured against it. */
@@ -1894,85 +1881,26 @@ static char const* const FRAME_LAYOUT_NAME[] = {
     "Classic Fixed",
     "Modern Fixed",
     "Modern Resizable",
-    "Auto",
 };
 
 /*
- * Which layout the setting names.
- *
- * Read as a STRING and resolved two ways, because a config enum is stored as
- * its LABEL: the settings panel writes back whichever dropdown row was chosen
- * ("Modern Resizable"), and that is what lands in plugin_prefs.ini. Reading it
- * as a number -- which is what cfg_int does, and what this used to do -- turns
- * every saved choice into atoi("Modern Resizable"), which is 0, so the layout
- * silently reverted to Classic Fixed on the next launch and the panel went on
- * showing the choice that had been thrown away.
- *
- * The index form is still accepted, and not only for the test: plugin_prefs.ini
- * is a file people edit, `layout=2` is the obvious thing to write in it, and a
- * client that ignored it would be answering a reasonable edit with silence.
- */
-static int
-frame_layout_from_config(struct ToriRS_PluginCtx* ctx)
-{
-    char const* value = g_api->cfg_str(ctx, "layout");
-
-    assert(ctx);
-    if( !value || !value[0] )
-        return FRAME_AUTO;
-
-    if( value[0] >= '0' && value[0] <= '9' )
-    {
-        int const index = atoi(value);
-        if( index >= 0 && index < FRAME_LAYOUT_COUNT )
-            return index;
-        return FRAME_AUTO;
-    }
-
-    for( int i = 0; i < FRAME_LAYOUT_COUNT; i++ )
-        if( strcmp(value, FRAME_LAYOUT_NAME[i]) == 0 )
-            return i;
-    /* A label this build does not have -- a prefs file from a version that
-     * offered a layout this one dropped, or a typo. The frame it falls back to
-     * is a frame, which is the one thing it must be. */
-    g_api->log(ctx, "unknown layout '%s'; using %s", value, FRAME_LAYOUT_NAME[FRAME_AUTO]);
-    return FRAME_AUTO;
-}
-
-/*
- * The CONCRETE layout the setting means right now.
- *
- * Auto is a rule and not a frame, and the rule reads the lane and the live
- * toplevel: an OldSchool fixed toplevel is Modern Fixed, any other OldSchool
- * one -- the two resizables and the mobile frame -- is Modern Resizable, and
- * everything else is the 2004 frame. The toplevel is named by the profile
- * (`[iface:toplevel_fixed]`), so the rule holds a name and not a number.
- *
- * A boot that has not said which toplevel is live yet (frame_root -1 on an
- * OldSchool lane: the tree is still baking) reads as resizable, which is the
- * mode that costs nothing to be wrong about for a frame -- the next EV_LAYOUT
- * re-resolves it, and a canvas policy that changed re-claims.
- * @see frame_on_layout.
+ * The host-selected concrete offer. Auto/native is resolved before this
+ * provider is started, so this function has no lane or frame-root policy in
+ * it and registration order cannot affect the result.
  */
 static int
 frame_layout_resolve(struct ToriRS_PluginCtx* ctx)
 {
-    int const chosen = frame_layout_from_config(ctx);
+    struct ToriRS_PluginFrameSelection selected;
 
     assert(ctx);
-    if( chosen != FRAME_AUTO )
-        return chosen;
-    if( !frame_lane_oldschool(ctx) )
-        return FRAME_CLASSIC_FIXED;
-    {
-        int const root = g_api->frame_root(ctx);
-        int const fixed = g_api->cache_id(ctx, "iface", "toplevel_fixed");
-        return root > 0 && root == fixed ? FRAME_MODERN_FIXED : FRAME_MODERN_RESIZABLE;
-    }
+    g_api->frame_selection(ctx, &selected);
+    if( strcmp(selected.active, "gameframe-layout/modern-fixed") == 0 )
+        return FRAME_MODERN_FIXED;
+    if( strcmp(selected.active, "gameframe-layout/modern-resizable") == 0 )
+        return FRAME_MODERN_RESIZABLE;
+    return FRAME_CLASSIC_FIXED;
 }
-
-static void
-frame_claim(struct ToriRS_PluginCtx* ctx);
 
 static enum ToriRS_PluginVerdict
 frame_on_layout(
@@ -2007,25 +1935,9 @@ frame_on_layout(
     frame_build_chat_plates(ctx);
 
     g_frame.layout = frame_layout_resolve(ctx);
-    /*
-     * Auto can change its mind under a standing claim.
-     *
-     * The claim carries a canvas policy -- pinned for the fixed layouts,
-     * following the window for the resizable one -- and Auto picks the
-     * layout off the live toplevel, which the server swaps on an IF_OPENTOP
-     * (the Display panel's own switch). A fixed layout declared against a
-     * claim that follows the window puts a 765x503 frame in the corner of
-     * whatever the window is. So when the policy the layout wants is not
-     * the one the claim holds, the claim is restated and this declaration
-     * abandoned: the re-claim marks the frame dirty, the host retries the
-     * layout pass once, and that pass declares against the right canvas.
-     */
-    if( (g_frame.layout != FRAME_MODERN_RESIZABLE) !=
-        (ev->canvas == TORIRS_PLUGIN_CANVAS_FIXED) )
-    {
-        frame_claim(ctx);
-        return TORIRS_PLUGIN_PASS;
-    }
+    assert(
+        (g_frame.layout == FRAME_MODERN_RESIZABLE) ==
+        (ev->canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW));
     g_frame.canvas_w = ev->width;
     g_frame.canvas_h = ev->height;
     g_frame.blit_count = 0;
@@ -2047,20 +1959,17 @@ frame_on_layout(
     }
     g_frame.declared = 1;
     /*
-     * One line per declaration, and there are only three moments that produce
-     * one -- a claim, a resize, a rebuild -- so it is a record of the frame's
-     * whole history rather than per-frame noise.
+     * One line per declaration: selection, resize, explicit invalidation, or
+     * rebuild. It is a record of the frame's history rather than per-frame
+     * noise.
      *
-     * It names the LAYOUT because that is the question a wrong-looking frame
-     * raises first, and the setting is stored as a label that has to be
-     * resolved: "the dropdown says Modern Resizable and the screen says
-     * Classic Fixed" is a real failure with no other symptom.
+     * It names the concrete offer because that is the first question a
+     * wrong-looking frame raises; the saved preference is its canonical id.
      */
     g_api->log(
         ctx,
-        "layout %s%s at %dx%d: %d chrome pieces, %d tabs%s",
+        "layout %s at %dx%d: %d chrome pieces, %d tabs%s",
         FRAME_LAYOUT_NAME[g_frame.layout],
-        frame_layout_from_config(ctx) == FRAME_AUTO ? " (auto)" : "",
         ev->width,
         ev->height,
         g_frame.blit_count + g_frame.anchored_count,
@@ -2263,9 +2172,6 @@ frame_on_draw(
     return TORIRS_PLUGIN_PASS;
 }
 
-static void
-frame_claim(struct ToriRS_PluginCtx* ctx);
-
 static enum ToriRS_PluginVerdict
 frame_on_click(
     struct ToriRS_PluginCtx* ctx,
@@ -2295,95 +2201,15 @@ frame_on_click(
             g_chat_open = 1;
             g_chat_filter = filter;
         }
-        /*
-         * The chatbox's presence is part of the DECLARATION, so the frame has
-         * to be restated rather than merely redrawn: the host hides a role a
-         * declaration stops mentioning, and that is what puts the chat away.
-         *
-         * A re-CLAIM is how a plugin asks for that -- it is idempotent for the
-         * holder and marks the frame as needing a fresh EV_LAYOUT, which is
-         * the same call the config-changed path makes. */
-        frame_claim(ctx);
+        /* The chatbox's presence is retained layout state, so invalidate the
+         * selected offer without touching selection or canvas policy. */
+        g_api->frame_invalidate(ctx);
         return TORIRS_PLUGIN_PASS;
     }
 
     if( (ev->tag & ~0xffffu) != FRAME_TAG_TAB )
         return TORIRS_PLUGIN_PASS;
     g_api->tab_select(ctx, (int)(ev->tag & 0xffffu));
-    return TORIRS_PLUGIN_PASS;
-}
-
-/*
- * Take the frame, at the canvas the chosen layout is authored for.
- *
- * The two fixed layouts pin 765x503 and the resizable one follows the window.
- * That is a property of the LAYOUT and not a second setting, which is why
- * there is no "fixed?" config key: a modern resizable frame at a pinned
- * 765x503 is not a smaller version of itself, it is the wrong frame.
- */
-static void
-frame_claim(struct ToriRS_PluginCtx* ctx)
-{
-    int const layout = frame_layout_resolve(ctx);
-    int const fixed = layout != FRAME_MODERN_RESIZABLE;
-
-    assert(ctx);
-    if( !g_api->layout_claim(
-            ctx,
-            fixed ? TORIRS_PLUGIN_CANVAS_FIXED : TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
-            FRAME_FIXED_W,
-            FRAME_FIXED_H) )
-    {
-        /* The host also refuses every claim made off the game screen -- there
-         * is no frame to claim before there is a frame -- and that refusal is
-         * a wait, not a loss: frame_on_screen retries it on login. Logging
-         * "someone else owns it" for that case sent the reader hunting for a
-         * plugin that does not exist. */
-        if( g_api->screen(ctx) != TORIRS_PLUGIN_SCREEN_GAME )
-            return;
-        /* Another layout plugin has it. Saying so is the whole response: two
-         * frames drawn at once is worse than one, and the loser drawing
-         * nothing is what makes the winner's frame correct. */
-        g_api->log(ctx, "another plugin owns the gameframe; this one is idle");
-    }
-}
-
-/*
- * Entering the game re-states the frame.
- *
- * frame_on_layout declines to declare on the title screen -- correctly -- but
- * a declaration only follows a claim, a resize or a rebuild, and logging in is
- * none of the three. A plugin enabled at the title therefore answered its one
- * EV_LAYOUT with nothing and was never asked again, which read as "needs a
- * restart after login". The re-claim is idempotent for the holder and marks
- * the frame as needing a fresh EV_LAYOUT -- the same call the layout config
- * key makes.
- *
- * Leaving it FORGETS the one it declared. The layout and draw gates already
- * keep that declaration off the title screen, so this is not about what is
- * drawn there -- it is about what is drawn on the way BACK. The boxes in
- * `g_frame` were measured against a gameframe that no longer exists, and the
- * draw gate opens again the moment the next session reaches the game screen,
- * which is several frames before the new tree has finished baking and a fresh
- * declaration can replace them. Without this the first frames of every session
- * after the first are painted with the previous session's frame.
- */
-static enum ToriRS_PluginVerdict
-frame_on_screen(
-    struct ToriRS_PluginCtx* ctx,
-    void* payload,
-    void* userdata)
-{
-    struct ToriRS_PluginEvScreen const* ev = payload;
-
-    (void)userdata;
-    assert(ctx);
-    assert(ev);
-
-    if( ev->screen == TORIRS_PLUGIN_SCREEN_GAME )
-        frame_claim(ctx);
-    else
-        memset(&g_frame, 0, sizeof(g_frame));
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -2419,8 +2245,6 @@ frame_on_start(
         if( g_image[i] < 0 && FRAME_IMAGE_FILE[i] )
             g_api->log(ctx, "could not load %s", FRAME_IMAGE_FILE[i]);
     }
-
-    frame_claim(ctx);
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -2434,11 +2258,7 @@ frame_on_stop(
     (void)userdata;
     assert(ctx);
 
-    /* Explicitly, rather than leaving it to the teardown: the release is what
-     * hands the lane's own chrome back, and doing it here means it has
-     * happened before the images this frame was drawn from are dropped. */
     (void)frame_housing_claim(ctx, 0);
-    g_api->layout_release(ctx);
     for( int i = 0; i < FRAME_IMG_COUNT; i++ )
     {
         if( g_image[i] >= 0 )
@@ -2459,27 +2279,6 @@ frame_on_stop(
     return TORIRS_PLUGIN_PASS;
 }
 
-static enum ToriRS_PluginVerdict
-frame_on_config(
-    struct ToriRS_PluginCtx* ctx,
-    void* payload,
-    void* userdata)
-{
-    struct ToriRS_PluginEvConfig const* ev = payload;
-
-    (void)userdata;
-    assert(ctx);
-    assert(ev);
-
-    if( !ev->key || strcmp(ev->key, "layout") != 0 )
-        return TORIRS_PLUGIN_PASS;
-    /* Re-claiming is how a canvas policy change is stated: the claim is
-     * idempotent for the plugin that already holds it, and it raises the
-     * layout event that redraws everything. */
-    frame_claim(ctx);
-    return TORIRS_PLUGIN_PASS;
-}
-
 static void
 frame_init(
     struct ToriRS_PluginCtx* ctx,
@@ -2496,31 +2295,21 @@ frame_init(
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_FRAME, frame_on_draw, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CHROME, frame_on_chrome, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, frame_on_click, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_CONFIG_CHANGED, frame_on_config, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_SCREEN_CHANGE, frame_on_screen, NULL);
 }
-
-/*
- * The default is the LABEL and not "0", so that the value this ships with has
- * the same shape as the value the settings panel writes. Two spellings of the
- * same choice in one file is how the reader ends up believing one of them is
- * special.
- */
-static struct ToriRS_PluginConfigItem const FRAME_CONFIG[] = {
-    { "layout",
-     TORIRS_PLUGIN_CFG_ENUM,
-     "Layout",
-     "Auto",
-     0,
-     3,
-     "Classic Fixed|Modern Fixed|Modern Resizable|Auto",
-     0 },
-    { NULL, TORIRS_PLUGIN_CFG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
-};
 
 _Static_assert(
     sizeof(FRAME_LAYOUT_NAME) / sizeof(FRAME_LAYOUT_NAME[0]) == FRAME_LAYOUT_COUNT,
-    "the name table and the layout enum must agree; the schema's choices= is the same list");
+    "the name table and the layout enum must agree");
+
+static struct ToriRS_PluginFrameOffer const FRAME_OFFERS[] = {
+    { "classic-fixed", "Classic Fixed", TORIRS_PLUGIN_CANVAS_FIXED,
+      FRAME_FIXED_W, FRAME_FIXED_H },
+    { "modern-fixed", "Modern Fixed", TORIRS_PLUGIN_CANVAS_FIXED,
+      FRAME_FIXED_W, FRAME_FIXED_H },
+    { "modern-resizable", "Modern Resizable", TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
+      FRAME_FIXED_W, FRAME_FIXED_H },
+    { NULL, NULL, 0, 0, 0 },
+};
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME = {
     .name = "gameframe-layout",
@@ -2537,19 +2326,12 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME = {
      * then the map surround's ring was drawn over them.
      */
     .draw_order = -100,
-    .config = FRAME_CONFIG,
-    /*
-     * OFF until asked for, and this one more emphatically than most.
-     *
-     * Every other plugin in this tree adds something to the screen. This one
-     * REPLACES the screen: switching it on suppresses the lane's own gameframe
-     * and puts the plugin's in its place. Auto makes that replacement look
-     * like the lane's own frame, but it is still a replacement -- the
-     * cache's Display panel stops changing anything while it stands -- and
-     * a client that did that on first launch, unasked, would look to its
-     * owner like a client that had lost its interface.
-     */
+    .config = NULL,
+    /* Retained only as the legacy-migration default. V2 providers have no
+     * independent enable switch; the host starts this one when a FRAME_OFFERS
+     * id is selected. */
     .disabled_by_default = true,
+    .frames = FRAME_OFFERS,
     .init = frame_init,
     .shutdown = NULL,
 };

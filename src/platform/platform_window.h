@@ -325,14 +325,13 @@ bool PlatformWindow_ChromeTakeRailInput(
  * The cost of a draggable region is that it SWALLOWS the press that begins the
  * drag -- the application is never told about a mouse-down there. Whatever
  * draws the handle therefore has to exclude every control inside it, or those
- * controls silently stop being clickable. @see ToriRSChrome_WindowDragRegion,
- * which is the one implementation of that rule in this tree.
+ * controls silently stop being clickable.
  */
 
 /**
  * Does this point drag the window? Asked in the window's own CONTENT
  * coordinates -- canvas pixels for the game window (the letterbox is already
- * undone), surface pixels for the aux one.
+ * undone).
  *
  * @return non-zero to move the window, zero to let the press through.
  */
@@ -595,13 +594,11 @@ PlatformWindow_Present(struct PlatformWindow* platform);
  * Is there somewhere to put a frame right now?
  *
  * False while the platform has no surface for the game -- Android takes the
- * Surface back when the plugin chrome goes exclusive on a phone-width layout,
- * and again while the activity is stopped. The frame loop then keeps the world
- * and the network ticking but skips the draw: the picture would be rendered
- * in full and thrown away, which on the phone was ~0.6 of a core spent
- * painting a scene nobody could see. Desktop windows always answer true; a
- * hidden or minimised window there is the compositor's business, and its
- * present is cheap.
+ * Surface back while the activity is stopped or its view is being recreated.
+ * The frame loop then keeps the world and the network ticking but skips the
+ * draw: the picture would be rendered in full and thrown away. Desktop windows
+ * always answer true; a hidden or minimised window there is the compositor's
+ * business, and its present is cheap.
  */
 bool
 PlatformWindow_CanPresent(struct PlatformWindow const* platform);

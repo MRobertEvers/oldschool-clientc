@@ -1,4 +1,5 @@
 #include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <math.h>
@@ -1427,7 +1428,8 @@ orb_draw_drops(
     int origin_x,
     int origin_y,
     int size,
-    int vertical)
+    int vertical,
+    int gap)
 {
     int const duration = orb_clampi(g_api->cfg_int(ctx, "drop_duration"), 100, 10000);
 
@@ -1499,8 +1501,8 @@ orb_draw_drops(
         {
             int label_w = 0;
             int label_h = 0;
-            int const disc_x = origin_x + (vertical ? 0 : slot * (size + ORB_STEP));
-            int const disc_y = origin_y + (vertical ? slot * (size + ORB_STEP) : 0);
+            int const disc_x = origin_x + (vertical ? 0 : slot * (size + gap));
+            int const disc_y = origin_y + (vertical ? slot * (size + gap) : 0);
 
             int const drop_y = orb_clampi(g_api->cfg_int(ctx, "drop_offset_y"), -128, 128);
             int start_y;
@@ -1559,6 +1561,7 @@ orb_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     int origin_y;
     int hovered_slot = -1;
     int hovered_goal = 0;
+    int gap = ORB_STEP;
 
     assert(ctx);
     assert(ev);
@@ -1608,32 +1611,48 @@ orb_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
          * somewhere between the two -- off to the side of what the player is
          * watching, and under the chrome at the edges.
          *
-         * So it asks for the tightest region first. SAFE is the scene with
-         * the chrome and every plugin's reservation taken out of it: the
-         * answer in both window modes, and the one that keeps working when a
-         * plugin nobody anticipated docks a panel down one side. MAIN_MODAL is
-         * where the frame itself opens a bank or a dialogue, and is the
-         * fallback on a frame whose chrome the host cannot locate; VIEWPORT
-         * below that; CANVAS cannot fail and is what a client with no scene at
-         * all -- the login screen -- lands on.
+         * The placement service composes viewport, platform insets, lane
+         * furniture, active frame chrome, and reservations. It retains every
+         * surviving fragment and chooses the one nearest top-centre that can
+         * hold this complete run; callers no longer reproduce a fallback
+         * chain or accept a rectangle known to be covered.
          */
-        int box_x = 0;
-        int box_y = 0;
-        int box_w = ev->width;
-        int box_h = ev->height;
-        int const run = g_globe_count * size + (g_globe_count - 1) * ORB_STEP;
+        struct ToriRS_PlacementRect placed;
+        int run = g_globe_count * size + (g_globe_count - 1) * gap;
+        int placed_w = vertical ? size : run;
+        int placed_h = vertical ? run : size;
 
-        if( !g_api->slot_rect(
-                ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, &box_x, &box_y, &box_w, &box_h) &&
-            !g_api->slot_rect(
-                ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, &box_x, &box_y, &box_w, &box_h) &&
-            !g_api->slot_rect(
-                ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, &box_x, &box_y, &box_w, &box_h) )
-            g_api->slot_rect(
-                ctx, TORIRS_PLUGIN_SLOT_CANVAS, &box_x, &box_y, &box_w, &box_h);
+        if( !g_api->placement_place(
+                ctx,
+                TORIRS_PLUGIN_AREA_OVERLAY_SAFE,
+                TORIRS_PLACEMENT_ANCHOR_TOP,
+                placed_w,
+                placed_h,
+                0,
+                &placed) )
+        {
+            /* A short but otherwise clear viewport can still show the column
+             * by closing its decorative gaps. Never let the discs overlap,
+             * and never draw a run the placement service could not fit. */
+            if( g_globe_count <= 1 )
+                return TORIRS_PLUGIN_PASS;
+            gap = 0;
+            run = g_globe_count * size;
+            placed_w = vertical ? size : run;
+            placed_h = vertical ? run : size;
+            if( !g_api->placement_place(
+                    ctx,
+                    TORIRS_PLUGIN_AREA_OVERLAY_SAFE,
+                    TORIRS_PLACEMENT_ANCHOR_TOP,
+                    placed_w,
+                    placed_h,
+                    0,
+                    &placed) )
+                return TORIRS_PLUGIN_PASS;
+        }
 
-        origin_x = box_x + (vertical ? (box_w - size) / 2 : (box_w - run) / 2);
-        origin_y = box_y + offset;
+        origin_x = placed.x;
+        origin_y = placed.y + offset;
         origin_x += g_api->cfg_int(ctx, "offset_x");
         origin_y += g_api->cfg_int(ctx, "offset_y");
     }
@@ -1647,15 +1666,15 @@ orb_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * as the gain belonging to that skill. Drawn on top it would just be a
      * number parked over the artwork.
      */
-    orb_draw_drops(ctx, ev->surface, now, origin_x, origin_y, size, vertical);
+    orb_draw_drops(ctx, ev->surface, now, origin_x, origin_y, size, vertical, gap);
 
     for( int i = 0; i < g_globe_count; i++ )
     {
         struct XpGlobe* globe = &g_globe[i];
         /* Where the DISC goes; the buffer's own origin is `offset` above and
          * left of it, which is where the ring's overhang lives. */
-        int const x = origin_x + (vertical ? 0 : i * (size + ORB_STEP));
-        int const y = origin_y + (vertical ? i * (size + ORB_STEP) : 0);
+        int const x = origin_x + (vertical ? 0 : i * (size + gap));
+        int const y = origin_y + (vertical ? i * (size + gap) : 0);
         int level_xp = 0;
         int next_xp = 0;
         int progress;
@@ -1749,10 +1768,26 @@ static enum ToriRS_PluginVerdict
 orb_layout_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
     struct ToriRS_PluginChromePart initial;
+    int conflicts = 0;
+    int const active = g_api->ui_contribution_facets(
+        ctx, "frame.xp.drops", &conflicts);
+    int const should_hold = (active & TORIRS_UI_FACET_APPEARANCE) != 0;
     int got;
 
     (void)event;
     (void)userdata;
+    (void)conflicts;
+    if( !should_hold )
+    {
+        if( g_xp_drops_held )
+            (void)g_api->chrome_claim(
+                ctx, "xp_drops", TORIRS_PLUGIN_CHROME_SCOPE_ALL, 0);
+        g_xp_drops_held = 0;
+        g_xp_drops_settled = 1;
+        return TORIRS_PLUGIN_PASS;
+    }
+    if( g_xp_drops_settled && !g_xp_drops_held )
+        g_xp_drops_settled = 0;
     if( g_xp_drops_settled )
         return TORIRS_PLUGIN_PASS;
     memset(&initial, 0, sizeof(initial));
@@ -1809,15 +1844,30 @@ orb_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      */
     {
         struct ToriRS_PluginChromePart initial;
+        int conflicts = 0;
         int got;
+        int const active = g_api->ui_contribution_facets(
+            ctx, "frame.xp.drops", &conflicts);
         memset(&initial, 0, sizeof(initial));
         for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
             initial.art[i] = -1;
         initial.w = 1;
         initial.h = 1;
-        got = g_api->chrome_claim(ctx, "xp_drops", TORIRS_PLUGIN_CHROME_SCOPE_ALL, 1);
-        if( got < 0 )
-            got = g_api->chrome_add(ctx, "xp_drops", "viewport", TORIRS_PLUGIN_ANCHOR_AFTER, &initial);
+        if( !(active & TORIRS_UI_FACET_APPEARANCE) )
+        {
+            got = 0;
+            if( conflicts )
+                g_api->log(
+                    ctx,
+                    "named UI conflict on 'frame.xp.drops'; keeping the base provider");
+        }
+        else
+        {
+            got = g_api->chrome_claim(ctx, "xp_drops", TORIRS_PLUGIN_CHROME_SCOPE_ALL, 1);
+            if( got < 0 )
+                got = g_api->chrome_add(
+                    ctx, "xp_drops", "viewport", TORIRS_PLUGIN_ANCHOR_AFTER, &initial);
+        }
         /*
          * Three answers. Held: draw. Somebody else's: do not. NOT THERE YET
          * -- the viewport has no box before the first layout -- is neither:
@@ -1958,6 +2008,16 @@ static struct ToriRS_PluginConfigItem const ORB_CONFIG[] = {
     { NULL,                TORIRS_PLUGIN_CFG_BOOL,  NULL,                           NULL, 0, 0, NULL, 0 },
 };
 
+static struct ToriRS_UiContribution const XP_DROP_CONTRIBUTIONS[] = {
+    { .struct_size = sizeof(struct ToriRS_UiContribution),
+      .node = "frame.xp.drops",
+      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+      .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
+      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
+                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
+    { .node = NULL },
+};
+
 struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS = {
     .name = "xp-drop-orbs",
     .title = "XP Drop Orbs",
@@ -1968,6 +2028,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS = {
      * a client that starts marking up the screen without being asked reads as
      * broken, and this one draws over the top of the world viewport. */
     .disabled_by_default = true,
+    .ui_contributions = XP_DROP_CONTRIBUTIONS,
     .init = orb_init,
     .shutdown = orb_shutdown,
 };

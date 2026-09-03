@@ -68,8 +68,10 @@ assert.match(execWebHeader,
 assert.match(execWeb,
   /\\\"protocol\\\":1,\\\"type\\\":\\\"rail\.snapshot\\\"/,
   'C publishes the registry using protocol-1 field names');
-assert.match(execWeb, /brackets[\s\S]*canonical[\s\S]*preserve/i,
-  'C preserves transaction brackets for atomic snapshot/delta translation');
+assert.match(execWeb, /web_chrome_apply_batch[\s\S]*chrome_web_batch_begin[\s\S]*chrome_web_batch_end/,
+  'C crosses Wasm to JS once for each atomic retained transaction');
+assert.match(adapter, /torirsChromeApplyBatch[\s\S]*Array\.isArray[\s\S]*host\.apply/,
+  'the page drains that batch through the canonical retained command path');
 
 assert.match(makefile, /WEB_PLUGIN_CHROME\s*=[\s\S]*plugin_chrome\/modern\.html[\s\S]*plugin_chrome\/runtime\.js/,
   'web staging names the canonical page and runtime');

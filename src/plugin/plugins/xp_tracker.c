@@ -1072,7 +1072,6 @@ xt_draw_overview(uint32_t* buf, int w, int h, int top)
      * box does to two lines: 48/2 - 12 above the pair. */
     int const y0 = top + (XT_BOX_H - 2 * XT_LINE_H) / 2;
 
-    assert(ctx);
     assert(buf);
 
     for( int i = 0; i < g_skill_count; i++ )

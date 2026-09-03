@@ -208,6 +208,7 @@ dofile = nil
 ---@field hsl_pack fun(hue: integer, saturation: integer, luminance: integer): integer Hue 0-63, saturation 0-7, luminance 0-127.
 ---@field hsl_unpack fun(hsl: integer): integer, integer, integer
 ---@field layout torirs.Layout The gameframe's regions: where the scene, the chat, the sidebar and the modal area are, and how to take a bite out of the space beside them.
+---@field placement torirs.Placement Exact composed safe placement; prefer this over manually intersecting layout rectangles.
 ---@field panel torirs.PanelApi The one shared application-chrome page. No platform/window handle is exposed.
 
 --- The names key_held() understands. Any other key is passed as its
@@ -247,22 +248,15 @@ dofile = nil
 ---| '"top"'
 ---| '"bottom"'
 
---- The verbs every region carries. Which of them MEAN anything depends on the
---- region, and the host says no rather than the surface hiding them: `reserve`
---- works on `safe_gamechrome` and nothing else, because a placeable region is whatever
---- the frame says it is; `replace` is legal only for the plugin that owns the
---- frame, and only inside its layout handler.
+--- Read a live region or reserve derived overlay space. Frame geometry is
+--- declared only through a selected provider's scoped frame builder; ordinary
+--- scripts cannot imperatively acquire or patch the gameframe.
 ---@class torirs.LayoutRegion
 ---@field rect fun(member?: integer): torirs.Rect? Where it is now, or nil when this gameframe has no such region. With a `member`, that one member of it -- the role's OWN numbering, so `chat_buttons.rect(3)` is the report abuse button and not the fourth chat button this cache happened to build (0 public, 1 private, 2 trade, 3 report; a sidebar mount's is its tab number). Answered live, so a region another plugin moved reads correctly on the very next call -- there is nothing to invalidate.
----@field reserve fun(edge: torirs.Edge, px: integer): boolean Take `px` off one side, for as long as this plugin runs. Many plugins may reserve and they STACK in the order they asked, so two docks on the same edge sit beside each other rather than on top of each other. `px` of 0 gives this plugin's back.
----@field release fun() Give back every edge this plugin took from this region. Happens automatically when the plugin stops.
----@field replace fun(rect: torirs.Rect): boolean State where the frame puts this region. The EXCLUSIVE verb: only the frame's owner may call it, and only from its layout handler.
 
---- The whole gameframe, as a region with the same three verbs.
+--- The whole gameframe as a read-only region.
 ---@class torirs.LayoutTopLevel
 ---@field rect fun(): torirs.Rect? The canvas.
----@field replace fun(opts?: {w: integer, h: integer}): boolean Own the frame: this plugin now draws the chrome and states where every region goes. With `w`/`h` the canvas is PINNED to that size and the window letterboxes it (what a 765x503 frame wants); without, the canvas follows the window and the layout is re-declared on every resize.
----@field release fun() Hand the frame back; the lane's own chrome returns on the next layout pass.
 
 --- The gameframe's regions, addressed by what they ARE rather than by a
 --- component id -- an id is a fact about one revision, and a role survives the
@@ -283,9 +277,16 @@ dofile = nil
 ---@field main_modal torirs.LayoutRegion Where a bank, a level-up or a dialogue opens.
 ---@field modal_viewport torirs.LayoutRegion The same region as `main_modal`, under the other name people know it by.
 ---@field canvas torirs.LayoutRegion The whole client window. Never fails, which makes it the bottom of every fallback chain.
----@field safe_gamechrome torirs.LayoutRegion The largest part of the canvas no chrome is sitting on -- the scene, minus the minimap, the chatbox, the sidebar, and every reservation. DERIVED, so it stays right when a plugin nobody anticipated docks a panel down one side. This is the region a readout wants.
 ---@field top_level torirs.LayoutTopLevel
 ---@field revision fun(): integer Moves whenever anything about the layout does. Compare it against the value a cached picture was built at.
+
+---@alias torirs.PlacementArea '"platform_safe"'|'"frame_build"'|'"overlay_safe"'|'"raw_viewport"'
+---@alias torirs.PlacementAnchor '"top-left"'|'"top"'|'"top-right"'|'"left"'|'"center"'|'"right"'|'"bottom-left"'|'"bottom"'|'"bottom-right"'
+
+---@class torirs.Placement
+---@field place fun(area: torirs.PlacementArea, anchor: torirs.PlacementAnchor, width: integer, height: integer, margin?: integer): torirs.Rect? Places the complete box in one exact surviving fragment. nil means no safe fragment fits; it never falls back to covered canvas space.
+---@field reserve fun(name: string, area: torirs.PlacementArea, edge: '"top"'|'"right"'|'"bottom"'|'"left"', pixels: integer): boolean Retained named edge reservation. Restating updates it; zero releases it; plugin stop releases it automatically.
+---@field reservation_rect fun(name: string): torirs.Rect? The exact fragment assigned to this plugin's named reservation, or nil when it does not currently fit.
 
 
 -------------------------------------------------------------------- roles --
@@ -321,9 +322,9 @@ dofile = nil
 --- The vocabulary is OPEN -- a profile may name anything -- but these are the
 --- ones the client's own profiles ship, and the ones to reach for first:
 ---
---- REGIONS. Every `api.layout` region name works here too and answers the
---- identical rectangle: `"viewport"`, `"minimap"`, `"compass"`, `"chat"`,
---- `"sidebar"`, `"main_modal"`, `"chat_buttons"`, `"canvas"`, `"safe_gamechrome"`.
+--- REGIONS. Every `api.layout` live-surface name works here too and answers
+--- the identical rectangle: `"viewport"`, `"minimap"`, `"compass"`, `"chat"`,
+--- `"sidebar"`, `"main_modal"`, `"chat_buttons"`, `"canvas"`.
 ---
 --- SIDEBAR. `"tab_<name>"` is the STONE you click; `"panel_<name>"` is the
 --- interface mounted behind it. `<name>` is one of `combat`, `stats`,

@@ -80,7 +80,8 @@ int main(void)
     uint32_t pixels[4] = { 0xff000000u, 0xffffffffu, 0xffff981fu, 0xff372e22u };
 
     CHECK(exec.begin && exec.apply && exec.end && exec.poll &&
-          exec.rail_sync && exec.rail_icon && exec.rail_poll && exec.custom_present);
+          exec.rail_sync && exec.rail_icon && exec.rail_poll && exec.custom_present &&
+          exec.take_snapshot_request);
     memset(&rail, 0, sizeof(rail));
     rail.registry_revision = 3;
     rail.selection_generation = 7;
@@ -123,6 +124,22 @@ int main(void)
     CHECK(strstr(sent[2], "\"type\":\"page.snapshot\"") != NULL);
     CHECK(strstr(sent[2], "\"pageGeneration\":11") != NULL);
     CHECK(strstr(sent[2], "\"s\":481") != NULL);
+    CHECK(exec.take_snapshot_request(exec.user) == 0);
+
+    /* A bounded transport never commits a transaction prefix. It reports the
+     * loss once so Sync can replace the retained page with one full snapshot. */
+    cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
+    exec.apply(exec.user, &cmd);
+    for( int i = 0; i < 8200; i++ )
+    {
+        cmd = command(TORIRS_CHROME_CMD_WIDGET_LABEL, 2, 9);
+        exec.apply(exec.user, &cmd);
+    }
+    cmd = command(TORIRS_CHROME_CMD_SYNC_END, -1, -1);
+    exec.apply(exec.user, &cmd);
+    CHECK(sent_count == 3);
+    CHECK(exec.take_snapshot_request(exec.user) == 1);
+    CHECK(exec.take_snapshot_request(exec.user) == 0);
 
     memset(&frame, 0, sizeof(frame));
     frame.panel = 2;

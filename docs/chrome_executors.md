@@ -85,12 +85,11 @@ The embedded hosts load the application bundle in
 
 - `modern.html`, `modern.css`, and `runtime.js` for WKWebView and WebView2;
 - `legacy-ie8.html`, `legacy-ie8.css`, `runtime-ie8.js`, and `codec-es3.js` for
-  Windows XP MSHTML and the explicit Android API 22 compatibility lane.
+  Windows XP MSHTML.
 
 Both entry points implement the same reducer and the same protocol. The legacy
 page is not a different plugin API. It uses conservative table/absolute layout
-and an ES3-safe DOM subset so old MSHTML can run it, while Android Chrome 39
-still uses its canvas and typed bridge capabilities.
+and an ES3-safe DOM subset so old MSHTML can run it.
 
 The complete protocol is specified in
 [`HOST_BRIDGE.md`](../src/plugin_chrome/HOST_BRIDGE.md). Its important message
@@ -115,7 +114,7 @@ uses the host's copied post-message hook or bounded pull queue.
 
 | Platform | The one browser instance | Page | Attachment |
 |---|---|---|---|
-| Android | `android.webkit.WebView` | `legacy-ie8.html` on the supported API 22/Chrome 39 device | Child of the existing Activity layout beside, or in compact mode instead of, the game `SurfaceView` |
+| Android | Deferred | None claimed | Internal BUFFER fallback until it has the common BROWSER transport |
 | Web | One application-owned persistent iframe in the existing browser tab | `modern.html` | Normal-flow sibling of the game region; no per-plugin iframe or popup |
 | macOS | `WKWebView` | `modern.html` | Child of the SDL window's Cocoa content view |
 | Windows 10+ x64 | WebView2 controller | `modern.html` | Child of the existing main `HWND`'s chrome container |
@@ -131,32 +130,9 @@ and document; it is not one iframe per plugin. No plugin can create or navigate
 it, and the runtime must not create a nested iframe, popup, or second
 plugin-chrome document.
 
-Linux browser integration is intentionally deferred. Documentation and tests
-must not represent the old SDL texture pane as completion of the WebView
-architecture.
-
-### Android
-
-[`PluginChromeLayout`](../android/src/main/java/com/torirs/client/PluginChromeLayout.java)
-owns the game surface, overlay, and one persistent WebView. Collapsed mode
-allocates only the 42dp rail (the shared authored width). Expanded wide mode
-partitions the Activity as
-`game | browser`. Compact expanded mode hides the game and gives the same
-browser the Activity content area. No selection or collapse path calls
-`WebView.destroy()`.
-
-[`PluginChromePresenter`](../android/src/main/java/com/torirs/client/PluginChromePresenter.java)
-loads the packaged legacy entry point explicitly. This is a compatibility
-choice for the physical API 22 device's Chrome 39 WebView, not user-agent
-sniffing and not permission for plugin-authored markup. The presenter disables
-network loads, multiple windows, file-to-network access, DOM storage, and
-external navigation. Its typed JavaScript bridge validates bounded JSON and
-copies intents onto the native queue.
-
-The runtime uses CSS logical pixels. Android density scales the complete
-composition; Java must not independently double rows, icons, or skin pieces.
-Insets are applied to the persistent WebView, and `editor.focus` prevents a
-focused HTML editor from leaking key or inset handling to the game.
+Linux and Android browser integration is intentionally deferred. Documentation
+and tests must not represent the removed SDL surface or Android-specific queue
+as completion of the common BROWSER architecture.
 
 ### Web
 
@@ -261,8 +237,13 @@ The retained model is valuable even though presentation is HTML:
 
 - A clean model performs no build, browser transaction, DOM walk, or bitmap
   upload.
-- A changed model emits one atomic snapshot/delta transaction. Property
-  changes update an existing DOM control instead of recreating the page.
+- Compare-equal setters record nothing. A real setter mutation records the
+  exact panel/widget identity and property bit; repeated writes coalesce.
+- An executor tick drains O(number of recorded changes), never a whole-model
+  shadow scan. Net-zero bursts open no browser transaction.
+- Initial bind, explicit rebind/reconnect, and detected queue loss emit exactly
+  one atomic full snapshot. Ordinary changes emit a delta and update existing
+  DOM controls instead of recreating the page.
 - The selected plugin is the only plugin allowed to build a page or receive
   page input/draw work.
 - The one browser and one document are reused across every plugin selection,
@@ -297,7 +278,7 @@ hover outlines it in the label orange.
 It is `TORIRS_CHROME_M_RAIL_W` = 42 wide INCLUDING that frame, which is the
 width of the gameframe's own popout strip (interface 728) standing beside it --
 6 of frame rail, 30 of content, 6 of frame rail. Every host reserves the same
-42 (mac points, Win32 device pixels, Android dp, the web dock's CSS pixels): a
+42 (mac points, Win32 device pixels, and the web dock's CSS pixels): a
 host that reserves more shows a band of its own window background beside the
 edge the page drew. The frame is laid INSIDE the rail's box, over its padding
 rather than over a border, because the rail clips its own children to its
@@ -354,9 +335,7 @@ Text uses the converted cache bake in
 lookalike. Body/p12 and Menu/b12 retain their authored 12px glyphs, 16px line
 box, and baked advances; Small retains 10px/12px. Modern engines load WOFF with
 TTF fallback. XP's legacy page loads direct EOT Classic files rooted to
-`file:///`; Android's Chrome-39 path selects separate WOFF/TTF aliases so it
-never attempts the EOT face. Text remains normal selectable/accessibility DOM
-text.
+`file:///`. Text remains normal selectable/accessibility DOM text.
 
 The legacy page may use older layout machinery, but it must preserve the same
 silhouette, palette, spacing, skin pieces, and interaction states. Compatibility
@@ -392,31 +371,28 @@ resource ID, SVG, or callback. The host decodes it once, caps it at 64x64 and
 baked fallback wrench.
 
 A `custom` node remains semantic. `EV_PANEL_DRAW` draws through the portable
-draw API into a bounded host-owned retained bitmap. Modern engines and Android
-Chrome 39 can consume copied RGBA; XP receives a revisioned local BMP/GIF URL.
+draw API into a bounded host-owned retained bitmap. Modern engines can consume
+copied RGBA; XP receives a revisioned local BMP/GIF URL.
 Clicks return node-local coordinates with the page generation and widget
 serial. Collapse or replacement stops draw callbacks and invalidates old
 frames.
 
 ## 9. Executor selection
 
-Production manifests use:
+Production manifests normally omit `executor`. The build selects its supported
+web presenter. An explicit diagnostic override may use only:
 
 ```ini
 [chrome]
-executor=platform
+executor=browser
 ```
 
-`platform` selects Android's WebView bridge, the Web persistent-iframe bridge,
-macOS's WKWebView bridge, or the Windows browser bridge. `browser` explicitly
-names the common embedded-browser semantic executor on macOS and Windows;
-`android` and `web` name their platform transports. The old spelling `gdi` is
-accepted only as an alias for `browser` and does not revive the native GDI
-presenter.
-
-`buffer` and `sdl` are developer/legacy executors. They are not the final
-plugin-chrome architecture. Linux currently has no approved browser-backed
-`platform` implementation because that work is deferred.
+`web` names the Emscripten page-DOM executor. `browser` names the common
+embedded-browser executor used by macOS and Windows. `platform`, `android`,
+`sdl`, `gdi`, and `buffer` are rejected by manifest/env parsing. BUFFER still
+exists internally so a missing/refused web engine leaves usable in-canvas
+chrome; it is a fallback result, never an external executor choice. Linux and
+Android currently have no approved BROWSER transport.
 
 ## 10. Verification
 
@@ -425,7 +401,6 @@ plugin-chrome architecture. Linux currently has no approved browser-backed
 | `make -C src test-uitree` | Retained identity, focus, damage, delta ordering, and clean-path behavior |
 | `make -C src test-plugin-host` | Registry, selection generations, selected-only page build/input/draw, reload, and collapse |
 | `make -C src test-web-channel` | Modern and legacy reducer behavior plus downlevel syntax/DOM compatibility and the Web DOM/channel suite |
-| `make -C src test-chrome-android-exec` | Android semantic transactions, serials, bounded queues, rail snapshots, and intents |
 | `make -C src test-chrome-browser-exec` | Shared embedded-browser snapshots/deltas, replacement, collapse, and intent fencing |
 | `make -C src PLATFORM=win64 capture-win32-plugin-chrome` | Real WebView2 child, local bundle, authored icon, semantic page, and capture |
 
@@ -438,8 +413,7 @@ Platform runtime verification must also prove:
 - game/browser rectangles remain disjoint through resize, fullscreen, and
   compact exclusive transitions;
 - the modern OSRS skin remains legible at each supported density; and
-- the Android API 22 and Windows XP compatibility pages execute without modern
-  syntax or DOM APIs.
+- the Windows XP compatibility page executes without modern syntax or DOM APIs.
 
 ## 11. Source map
 
@@ -450,8 +424,6 @@ Platform runtime verification must also prove:
 | [`src/ui/torirs_chrome_exec.{h,c}`](../src/ui/torirs_chrome_exec.h) | Semantic commands, intents, and executor selection |
 | [`src/ui/torirs_chrome_rail.{h,c}`](../src/ui/torirs_chrome_rail.h) | Persistent rail snapshots and revisioned icon publication |
 | [`src/ui/torirs_chrome_exec_winbrowser.c`](../src/ui/torirs_chrome_exec_winbrowser.c) | Common embedded-browser protocol projection |
-| [`android/.../PluginChromeLayout.java`](../android/src/main/java/com/torirs/client/PluginChromeLayout.java) | Android game/browser split and compact exclusive layout |
-| [`android/.../PluginChromePresenter.java`](../android/src/main/java/com/torirs/client/PluginChromePresenter.java) | One locked-down persistent Android WebView and typed bridge |
 | [`src/platform/platform_macos_webview.m`](../src/platform/platform_macos_webview.m) | One attached WKWebView transport |
 | [`src/platform/platform_win32_webview2.c`](../src/platform/platform_win32_webview2.c) | One attached modern Windows WebView2 transport |
 | [`src/platform/platform_win32_mshtml.c`](../src/platform/platform_win32_mshtml.c) | One attached XP IWebBrowser2/MSHTML transport |

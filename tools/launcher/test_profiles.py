@@ -116,7 +116,7 @@ class ResolvedManifestPathTest(unittest.TestCase):
                     "client=native\n"
                     "\n"
                     "[override:chrome]\n"
-                    "executor=gdi\n",
+                    "executor=browser\n",
                     profile_path),
                 root,
                 platform="windows")

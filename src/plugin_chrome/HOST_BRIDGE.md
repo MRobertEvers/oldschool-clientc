@@ -5,11 +5,8 @@ plugin-chrome host. Hosts load exactly one of:
 
 - `modern.html` — current Chromium/WebView2, WKWebView, WebKitGTK, and the real
   web client. Its shipped JavaScript is still downleveled to ES5.
-- `legacy-ie8.html` — Windows XP `IWebBrowser2`/MSHTML and the explicitly
-  selected Android API-22/Chrome-39 fallback. It requests IE8 mode when MSHTML
-  is present but uses an IE6/7-safe ES3 DOM subset and bundled JSON codec.
-  Under Android the same page detects `ToriRSAndroid`, keeps canvas/RGBA, and
-  does not enter the MSHTML-only AlphaImageLoader path.
+- `legacy-ie8.html` — Windows XP `IWebBrowser2`/MSHTML. It requests IE8 mode
+  when present but uses an IE6/7-safe ES3 DOM subset and bundled JSON codec.
 
 Both pages implement the same state machine: one persistent rail, zero or one
 selected page, and no plugin-authored HTML or JavaScript.
@@ -23,8 +20,7 @@ inflate the 18px row, 3px gap, 6px padding, 104px label column, 17/18px checks,
 The local `font/` sibling is part of the bundle, not an optional system-font
 hint. Body/Menu use the cache-derived 12px/16px faces (weights 400/700) and
 badges use Small at 10px/12px. Modern hosts stage WOFF and TTF; XP stages EOT
-with its `file:///` root string. Android's downlevel page selects a separate
-WOFF/TTF alias only when the trusted `ToriRSAndroid` bridge is present.
+with its `file:///` root string.
 
 The real Web host keeps one `plugin_chrome/modern.html` iframe in the stable
 application chrome slot. Its outer adapter translates legacy wasm call points
@@ -65,7 +61,7 @@ window.ToriRSPluginChrome.takeMessage(); // JSON string, or ""
 window.ToriRSPluginChrome.takeIntent();  // legacy raw widget intent, or ""
 ```
 
-Android may install the existing typed fast path. After a widget intent passes
+A host may install the optional typed fast path. After a widget intent passes
 the runtime's current-page checks it receives a new plain object, never a live
 DOM/model object:
 
@@ -229,8 +225,7 @@ Replaces one custom widget's retained bitmap only when all identities match:
 }
 ```
 
-Modern hosts may use `rgbaBase64` instead of `url`. Android's Chrome39 path also
-supports this while loading the downlevel runtime. XP MSHTML uses `IMG` and
+Modern hosts may use `rgbaBase64` instead of `url`. XP MSHTML uses `IMG` and
 requires the URL form; the embedding host may use a private relative BMP/GIF or
 implement the `torirs://bitmap/` resource scheme from its copied POD bitmap cache. A frame from an old page
 generation or recycled widget serial is ignored.

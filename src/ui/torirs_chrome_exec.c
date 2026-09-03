@@ -53,11 +53,50 @@ cmd_init(struct ToriRSChromeCmd* cmd, int kind, int panel, int widget)
 }
 
 static void
-sync_emit(struct ToriRSChromeSync* sync, struct ToriRSChromeCmd const* cmd)
+sync_emit_raw(struct ToriRSChromeSync* sync, struct ToriRSChromeCmd const* cmd)
 {
     sync->cmd_count++;
     if( sync->exec.apply )
         sync->exec.apply(sync->exec.user, cmd);
+}
+
+static void
+sync_transaction_begin(struct ToriRSChromeSync* sync)
+{
+    struct ToriRSChromeCmd begin;
+
+    if( sync->transaction_open )
+        return;
+    cmd_init(&begin, TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
+    begin.value = sync->transaction_restate ? 1 : 0;
+    begin.serial = sync->transaction_restate ? sync->page_epoch : 0;
+    sync_emit_raw(sync, &begin);
+    sync->transaction_open = 1;
+}
+
+/** Open the executor transaction only when a real semantic delta exists. */
+static void
+sync_emit(struct ToriRSChromeSync* sync, struct ToriRSChromeCmd const* cmd)
+{
+    sync_transaction_begin(sync);
+    sync_emit_raw(sync, cmd);
+}
+
+static int
+sync_transaction_end(struct ToriRSChromeSync* sync, int before)
+{
+    struct ToriRSChromeCmd end;
+    int payload;
+
+    if( !sync->transaction_open )
+        return 0;
+    /* Count before END: the transaction currently contains BEGIN plus all
+     * payload commands. Public Run returns payload count, as it always has. */
+    payload = sync->cmd_count - before - 1;
+    cmd_init(&end, TORIRS_CHROME_CMD_SYNC_END, -1, -1);
+    sync_emit_raw(sync, &end);
+    sync->transaction_open = 0;
+    return payload;
 }
 
 /** The commonest shape: a kind, a widget and an int. */
@@ -114,10 +153,6 @@ ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync, uint32_t page_epoch)
      * drop and the replacement are one ordered pair rather than two events on
      * two frames. @see TORIRS_CHROME_CMD_SYNC_BEGIN. */
     sync->restate = 1;
-    sync->synced_build_serial = -1;
-    sync->presented_build_serial = -1;
-    sync->published_drag_build_serial = -1;
-    sync->published_drag_panel = -1;
     /* @see ToriRSChromeSync::check_style -- an executor that was re-mounted
      * has not been told the style either. */
     sync->check_style = -1;
@@ -130,10 +165,6 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
     assert(exec);
 
     memset(sync, 0, sizeof(*sync));
-    sync->synced_build_serial = -1;
-    sync->presented_build_serial = -1;
-    sync->published_drag_build_serial = -1;
-    sync->published_drag_panel = -1;
     sync->exec = *exec;
     /* Not a style any model can hold, so the first Run states the real one --
      * @see ToriRSChromeSync::check_style. */
@@ -156,19 +187,6 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
         return 0;
     }
     sync->live = 1;
-    return 1;
-}
-
-int
-ToriRSChromeSync_TakePresentChange(
-    struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
-{
-    assert(sync);
-    assert(ui);
-    if( !sync->live || !sync->exec.is_surface ||
-        sync->presented_build_serial == ui->build_serial )
-        return 0;
-    sync->presented_build_serial = ui->build_serial;
     return 1;
 }
 
@@ -213,8 +231,9 @@ sync_custom_logical_h(
     return w->view_h / (ui->scale > 0 ? ui->scale : 1);
 }
 
-int
-ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
+/** Full catch-up only: initial bind, explicit rebind, or lost change queue. */
+static int
+sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
 {
     int const before = sync->cmd_count;
     struct ToriRSChromeCmd cmd;
@@ -223,25 +242,9 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
     assert(ui);
     if( !sync->live )
         return 0;
-    /* A settled retained frame has neither unbuilt mutations nor a display-list
-     * generation the executor has not scanned. Do not even bracket a native
-     * transaction in that case: begin/end can trigger UI-thread scheduling and
-     * a max-capacity shadow walk is still work even when it finds no deltas. */
-    if( sync->primed && !ui->dirty && sync->synced_build_serial == ui->build_serial )
-        return 0;
-
-    cmd_init(&cmd, TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
-    /* The page boundary, announced on the stream that carries the page.
-     * @see TORIRS_CHROME_CMD_SYNC_BEGIN. Consumed here so one invalidation
-     * announces itself exactly once, however many frames pass before a
-     * transaction actually has something to say. */
-    cmd.value = sync->restate ? 1 : 0;
-    /* The identity travels WITH the boundary, so an executor never has to
-     * learn which page it is mounting from a different channel arriving on a
-     * different frame. @see ToriRSChromeSync::page_epoch. */
-    cmd.serial = sync->restate ? sync->page_epoch : 0;
-    sync->restate = 0;
-    sync_emit(sync, &cmd);
+    /* A snapshot replaces the executor's retained page as one transaction. */
+    sync->transaction_restate = 1;
+    sync_transaction_begin(sync);
 
     /*
      * The checkbox style, before any panel.
@@ -301,6 +304,9 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, p->title);
             sync_emit(sync, &cmd);
             sp->live = 1;
+            sp->mount = ++sync->next_panel_mount;
+            if( sp->mount == 0 )
+                sp->mount = ++sync->next_panel_mount;
             sp->style = p->style;
             chrome_copy(sp->title, TORIRS_CHROME_LABEL_MAX, p->title);
             /* Force the rect and tab below to be sent for a new panel. */
@@ -406,6 +412,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sw->intent_serial = cmd.serial;
             sw->kind = w->kind;
             sw->panel = w->panel;
+            sw->panel_mount = sync->panels[w->panel].mount;
             sw->tab = w->tab;
             sw->color = w->color;
             chrome_copy(sw->label, TORIRS_CHROME_LABEL_MAX, w->label);
@@ -417,7 +424,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sw->checked = -1;
             sw->selected = -2;
             sw->option_count = -1;
-            sw->options = NULL;
+            sw->options_hash = 0;
             sw->focused = -1;
             /* The ADD *did* carry this one, so the shadow starts from what the
              * executor was told rather than from an impossible value. */
@@ -474,14 +481,15 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
                 sw->focused = focused;
             }
         }
-        /* The list before the selection into it: an executor that resizes a
-         * native combo box on OPTIONS would otherwise clamp a selection it
+        /* The list before the selection into it: an executor that rebuilds a
+         * DOM select on OPTIONS would otherwise clamp a selection it
          * has not been told how to hold. */
-        if( sw->options != w->options || sw->option_count != w->option_count )
+        if( sw->option_count != w->option_count ||
+            sw->options_hash != w->options_hash )
         {
             sync_emit_options(sync, w, w->panel, i);
-            sw->options = w->options;
             sw->option_count = w->option_count;
+            sw->options_hash = w->options_hash;
             /* The list changed under it, so the selection must be restated
              * whether or not its index happens to be the same number. */
             sw->selected = -2;
@@ -501,7 +509,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
                  * that shows the value as TEXT (the in-canvas closed
                  * dropdown) would otherwise need its own copy of the whole
                  * list just to turn the index back into a word. Executors
-                 * holding a native combo box ignore it. */
+                 * holding a DOM select may ignore it. */
                 cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_SELECTED, w->panel, i);
                 cmd.value = sel;
                 if( w->options && sel >= 0 && sel < w->option_count )
@@ -513,14 +521,414 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
     }
     }
 
-    cmd_init(&cmd, TORIRS_CHROME_CMD_SYNC_END, -1, -1);
-    sync_emit(sync, &cmd);
-
     sync->primed = 1;
-    sync->synced_build_serial = ui->build_serial;
-    /* The two markers are not "something moved": a caller asking whether this
-     * frame had any content subtracts them. */
-    return sync->cmd_count - before - 2;
+    return sync_transaction_end(sync, before);
+}
+
+/** Refresh one queued panel only; never discovers work by walking siblings. */
+static void
+sync_refresh_panel(
+    struct ToriRSChromeSync* sync,
+    struct ToriRSChrome const* ui,
+    int panel,
+    uint32_t flags)
+{
+    struct ToriRSChromeShadowPanel* sp;
+    struct ToriRSChromePanel const* p;
+    struct ToriRSChromeCmd cmd;
+    int alive;
+
+    if( panel < 0 || panel >= TORIRS_CHROME_MAX_PANELS )
+        return;
+    sp = &sync->panels[panel];
+    alive = panel < ui->panel_count && ui->panels[panel].visible;
+    if( sp->live &&
+        (((flags & TORIRS_CHROME_CHANGE_PANEL_LIFECYCLE) && !alive) ||
+         (alive && sp->style != ui->panels[panel].style)) )
+    {
+        cmd_init(&cmd, TORIRS_CHROME_CMD_PANEL_CLOSE, panel, -1);
+        sync_emit(sync, &cmd);
+        /* Children are invalidated by this mount changing. No widget-shadow
+         * scan is needed here; a later refresh compares its saved mount. */
+        sp->live = 0;
+    }
+    if( !alive )
+        return;
+
+    p = &ui->panels[panel];
+    if( !sp->live )
+    {
+        uint32_t mount;
+        cmd_init(&cmd, TORIRS_CHROME_CMD_PANEL_OPEN, panel, -1);
+        cmd.value = p->style;
+        chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, p->title);
+        sync_emit(sync, &cmd);
+        mount = ++sync->next_panel_mount;
+        if( mount == 0 )
+            mount = ++sync->next_panel_mount;
+        memset(sp, 0, sizeof(*sp));
+        sp->live = 1;
+        sp->mount = mount;
+        sp->style = p->style;
+        chrome_copy(sp->title, TORIRS_CHROME_LABEL_MAX, p->title);
+        sp->x = sp->y = sp->w = sp->h = -1;
+        sp->active_tab = -1;
+        flags |= TORIRS_CHROME_CHANGE_PANEL_ALL;
+    }
+    else if( (flags & TORIRS_CHROME_CHANGE_PANEL_TITLE) &&
+             strcmp(sp->title, p->title) != 0 )
+    {
+        cmd_init(&cmd, TORIRS_CHROME_CMD_PANEL_TITLE, panel, -1);
+        chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, p->title);
+        sync_emit(sync, &cmd);
+        chrome_copy(sp->title, TORIRS_CHROME_LABEL_MAX, p->title);
+    }
+
+    if( (flags & TORIRS_CHROME_CHANGE_PANEL_RECT) &&
+        (sp->x != p->x || sp->y != p->y || sp->w != p->w || sp->h != p->h) )
+    {
+        cmd_init(&cmd, TORIRS_CHROME_CMD_PANEL_RECT, panel, -1);
+        cmd.x = p->x;
+        cmd.y = p->y;
+        cmd.w = p->w;
+        cmd.h = p->h;
+        sync_emit(sync, &cmd);
+        sp->x = p->x;
+        sp->y = p->y;
+        sp->w = p->w;
+        sp->h = p->h;
+    }
+    if( (flags & TORIRS_CHROME_CHANGE_PANEL_TAB) &&
+        sp->active_tab != p->active_tab )
+    {
+        sync_emit_value(sync, TORIRS_CHROME_CMD_PANEL_TAB, panel, -1, p->active_tab);
+        sp->active_tab = p->active_tab;
+    }
+}
+
+static void
+sync_close_panel(struct ToriRSChromeSync* sync, int panel)
+{
+    struct ToriRSChromeCmd cmd;
+
+    if( panel < 0 || panel >= TORIRS_CHROME_MAX_PANELS || !sync->panels[panel].live )
+        return;
+    cmd_init(&cmd, TORIRS_CHROME_CMD_PANEL_CLOSE, panel, -1);
+    sync_emit(sync, &cmd);
+    /* Keep the mount number. Its inequality is the O(1) invalidation of all
+     * child shadows that belonged to the closed executor subtree. */
+    sync->panels[panel].live = 0;
+}
+
+static uint32_t
+sync_widget_identity(struct ToriRSChromeWidget const* w)
+{
+    return w->intent_serial ? w->intent_serial : (uint32_t)w->serial;
+}
+
+/** Refresh one queued widget only, comparing its constant-size field set. */
+static void
+sync_refresh_widget(
+    struct ToriRSChromeSync* sync,
+    struct ToriRSChrome const* ui,
+    int widget,
+    int serial,
+    uint32_t flags)
+{
+    struct ToriRSChromeWidget const* w;
+    struct ToriRSChromeShadowWidget* sw;
+    struct ToriRSChromeShadowPanel* sp;
+    struct ToriRSChromeCmd cmd;
+    uint32_t identity;
+
+    if( widget < 0 || widget >= ui->widget_count ||
+        ui->widgets[widget].kind == TORIRS_CHROME_W_FREE ||
+        ui->widgets[widget].serial != serial )
+        return;
+    w = &ui->widgets[widget];
+    if( !sync_widget_relevant(ui, widget) )
+        return;
+
+    /* A correctly recorded open precedes its child refresh. Keep this guard so
+     * a recovered/custom producer cannot violate the command-stream contract. */
+    if( !sync->panels[w->panel].live )
+        sync_refresh_panel(sync, ui, w->panel, TORIRS_CHROME_CHANGE_PANEL_ALL);
+    sp = &sync->panels[w->panel];
+    if( !sp->live )
+        return;
+
+    sw = &sync->widgets[widget];
+    if( sw->live && sw->panel_mount != sp->mount )
+        memset(sw, 0, sizeof(*sw));
+
+    identity = sync_widget_identity(w);
+    if( sw->live &&
+        (sw->serial != w->serial || sw->intent_serial != identity ||
+         sw->kind != w->kind || sw->panel != w->panel || sw->tab != w->tab) )
+    {
+        sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_REMOVE, sw->panel, widget, 0);
+        memset(sw, 0, sizeof(*sw));
+    }
+
+    if( !sw->live )
+    {
+        cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_ADD, w->panel, widget);
+        cmd.value = w->kind;
+        cmd.tab = w->tab;
+        cmd.color = w->color;
+        cmd.w = (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
+                (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
+        cmd.h = w->kind == TORIRS_CHROME_W_CUSTOM
+                    ? sync_custom_logical_h(ui, w)
+                    : w->rows;
+        cmd.serial = identity;
+        chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
+        chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->text);
+        sync_emit(sync, &cmd);
+
+        sw->live = 1;
+        sw->serial = w->serial;
+        sw->intent_serial = identity;
+        sw->kind = w->kind;
+        sw->panel = w->panel;
+        sw->panel_mount = sp->mount;
+        sw->tab = w->tab;
+        sw->color = w->color;
+        sw->view_h = cmd.h;
+        chrome_copy(sw->label, TORIRS_CHROME_LABEL_MAX, w->label);
+        chrome_copy(sw->text, TORIRS_CHROME_INPUT_MAX, w->text);
+        sw->hidden = -1;
+        sw->checked = -1;
+        sw->selected = -2;
+        sw->option_count = -1;
+        sw->options_hash = 0;
+        sw->focused = -1;
+        flags |= TORIRS_CHROME_CHANGE_WIDGET_ALL;
+    }
+    else
+    {
+        if( (flags & TORIRS_CHROME_CHANGE_WIDGET_HEIGHT) &&
+            w->kind == TORIRS_CHROME_W_CUSTOM &&
+            sw->view_h != sync_custom_logical_h(ui, w) )
+        {
+            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_HEIGHT, w->panel, widget);
+            cmd.h = sync_custom_logical_h(ui, w);
+            sync_emit(sync, &cmd);
+            sw->view_h = cmd.h;
+        }
+        if( (flags & TORIRS_CHROME_CHANGE_WIDGET_LABEL) &&
+            strcmp(sw->label, w->label) != 0 )
+        {
+            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_LABEL, w->panel, widget);
+            chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
+            sync_emit(sync, &cmd);
+            chrome_copy(sw->label, TORIRS_CHROME_LABEL_MAX, w->label);
+        }
+        if( (flags & TORIRS_CHROME_CHANGE_WIDGET_TEXT) &&
+            strcmp(sw->text, w->text) != 0 )
+        {
+            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_TEXT, w->panel, widget);
+            chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->text);
+            sync_emit(sync, &cmd);
+            chrome_copy(sw->text, TORIRS_CHROME_INPUT_MAX, w->text);
+        }
+        if( (flags & TORIRS_CHROME_CHANGE_WIDGET_COLOR) && sw->color != w->color )
+        {
+            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_COLOR, w->panel, widget);
+            cmd.color = w->color;
+            sync_emit(sync, &cmd);
+            sw->color = w->color;
+        }
+    }
+
+    if( (flags & TORIRS_CHROME_CHANGE_WIDGET_HIDDEN) && sw->hidden != w->hidden )
+    {
+        sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_HIDDEN, w->panel, widget, w->hidden);
+        sw->hidden = w->hidden;
+    }
+    if( (flags & TORIRS_CHROME_CHANGE_WIDGET_CHECKED) && sw->checked != w->checked )
+    {
+        sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_CHECKED, w->panel, widget, w->checked);
+        sw->checked = w->checked;
+    }
+    {
+        int const focused = ui->focus == widget ? 1 : 0;
+        if( (flags & TORIRS_CHROME_CHANGE_WIDGET_FOCUS) && sw->focused != focused )
+        {
+            sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_FOCUS, w->panel, widget, focused);
+            sw->focused = focused;
+        }
+    }
+    if( (flags & TORIRS_CHROME_CHANGE_WIDGET_OPTIONS) &&
+        (sw->option_count != w->option_count ||
+         sw->options_hash != w->options_hash) )
+    {
+        sync_emit_options(sync, w, w->panel, widget);
+        sw->option_count = w->option_count;
+        sw->options_hash = w->options_hash;
+        sw->selected = -2;
+    }
+    {
+        int const selected =
+            w->kind == TORIRS_CHROME_W_TEXTAREA ? w->scroll : w->selected;
+        if( (flags & (TORIRS_CHROME_CHANGE_WIDGET_SELECTED |
+                      TORIRS_CHROME_CHANGE_WIDGET_OPTIONS)) &&
+            sw->selected != selected )
+        {
+            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_SELECTED, w->panel, widget);
+            cmd.value = selected;
+            if( w->options && selected >= 0 && selected < w->option_count )
+                chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->options[selected]);
+            sync_emit(sync, &cmd);
+            sw->selected = selected;
+        }
+    }
+}
+
+static void
+sync_remove_widget(
+    struct ToriRSChromeSync* sync, int panel, int widget, int serial)
+{
+    struct ToriRSChromeShadowWidget* sw;
+
+    if( widget < 0 || widget >= TORIRS_CHROME_MAX_WIDGETS )
+        return;
+    sw = &sync->widgets[widget];
+    if( !sw->live || sw->serial != serial )
+        return;
+    /* A close already removed this subtree at the executor. */
+    if( panel >= 0 && panel < TORIRS_CHROME_MAX_PANELS &&
+        sync->panels[panel].live && sw->panel_mount == sync->panels[panel].mount )
+        sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_REMOVE, panel, widget, 0);
+    memset(sw, 0, sizeof(*sw));
+}
+
+int
+ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
+{
+    int const before = sync ? sync->cmd_count : 0;
+    int payload;
+    int full;
+
+    assert(sync);
+    assert(ui);
+    if( !sync->live )
+        return 0;
+    if( sync->exec.take_snapshot_request &&
+        sync->exec.take_snapshot_request(sync->exec.user) )
+    {
+        /* The executor retained an incomplete/failed transaction. Treat that
+         * exactly like a reconnect: replace its page once before any delta. */
+        sync->primed = 0;
+        sync->restate = 1;
+    }
+    /* BUFFER is not an external executor. Its authoritative retained model is
+     * drawn directly in-canvas, so acknowledge queued semantic events without
+     * building commands or shadows that nobody can consume. A later WEB/
+     * BROWSER bind starts with its mandatory full snapshot. */
+    if( !sync->exec.apply )
+    {
+        ToriRSChrome_ChangeJournalAcknowledge(ui);
+        sync->primed = 1;
+        sync->restate = 0;
+        return 0;
+    }
+
+    full = !sync->primed || sync->restate || ui->change_lost;
+    sync->transaction_open = 0;
+    sync->transaction_restate = full;
+    if( full )
+    {
+        memset(sync->panels, 0, sizeof(sync->panels));
+        memset(sync->widgets, 0, sizeof(sync->widgets));
+        sync->check_style = -1;
+        payload = sync_snapshot(sync, ui);
+        sync->restate = 0;
+        ToriRSChrome_ChangeJournalAcknowledge(ui);
+        return payload;
+    }
+
+    /* The steady-state retained path: one count test, no transaction and no
+     * tree/shadow walk on an idle frame. */
+    if( ui->change_count == 0 )
+        return 0;
+
+    /* Validate once, then drain in protocol order. The five bounded passes are
+     * still O(number of queued changes); unlike the old implementation none
+     * ranges over panel/widget capacity. Removals precede additions even when
+     * a handle was recycled earlier in the same model frame. */
+    for( int i = 0; i < ui->change_count; i++ )
+    {
+        sync->change_visit_count++;
+        if( ui->changes[i].kind == 0 )
+            continue;
+        else if( ui->changes[i].kind < TORIRS_CHROME_CHANGE_PANEL ||
+                 ui->changes[i].kind > TORIRS_CHROME_CHANGE_CHECK_STYLE )
+            ui->change_lost = 1;
+    }
+    if( ui->change_lost )
+    {
+        /* Commit no prefix from a corrupt journal. The next Run performs the
+         * same one-shot full recovery used for an ordinary queue overflow. */
+        ToriRSChrome_ChangeJournalAcknowledge(ui);
+        ui->change_lost = 1;
+        return 0;
+    }
+    for( int i = 0; i < ui->change_count; i++ )
+    {
+        sync->change_visit_count++;
+        if( ui->changes[i].kind == TORIRS_CHROME_CHANGE_CHECK_STYLE &&
+            sync->check_style != ui->check_style )
+        {
+            struct ToriRSChromeCmd cmd;
+            cmd_init(&cmd, TORIRS_CHROME_CMD_CHECK_STYLE, -1, -1);
+            cmd.value = ui->check_style;
+            sync_emit(sync, &cmd);
+            sync->check_style = ui->check_style;
+        }
+    }
+    for( int i = 0; i < ui->change_count; i++ )
+    {
+        sync->change_visit_count++;
+        if( ui->changes[i].kind == TORIRS_CHROME_CHANGE_PANEL_CLOSE )
+            sync_close_panel(sync, ui->changes[i].panel);
+    }
+    for( int i = 0; i < ui->change_count; i++ )
+    {
+        sync->change_visit_count++;
+        if( ui->changes[i].kind == TORIRS_CHROME_CHANGE_PANEL )
+            sync_refresh_panel(
+                sync,
+                ui,
+                ui->changes[i].panel,
+                ui->changes[i].flags);
+    }
+    /* A lifecycle refresh may have closed the whole panel. Do it before child
+     * removals so those removals collapse against the invalidated mount rather
+     * than sending one redundant command per row immediately before CLOSE. */
+    for( int i = 0; i < ui->change_count; i++ )
+    {
+        sync->change_visit_count++;
+        if( ui->changes[i].kind == TORIRS_CHROME_CHANGE_WIDGET_REMOVE )
+            sync_remove_widget(
+                sync,
+                ui->changes[i].panel,
+                ui->changes[i].widget,
+                ui->changes[i].serial);
+    }
+    for( int i = 0; i < ui->change_count; i++ )
+    {
+        sync->change_visit_count++;
+        if( ui->changes[i].kind == TORIRS_CHROME_CHANGE_WIDGET )
+            sync_refresh_widget(
+                sync,
+                ui,
+                ui->changes[i].widget,
+                ui->changes[i].serial,
+                ui->changes[i].flags);
+    }
+    ToriRSChrome_ChangeJournalAcknowledge(ui);
+    return sync_transaction_end(sync, before);
 }
 
 /* ---- intents ------------------------------------------------------------- */
@@ -540,7 +948,7 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         if( ui->widgets[intent->widget].checked == (intent->value ? 1 : 0) )
             return 0;
         ToriRSChrome_SetChecked(ui, intent->widget, intent->value);
-        /* A native checkbox is one gesture carrying its resulting state. The
+        /* A DOM checkbox is one gesture carrying its resulting state. The
          * in-canvas path both changes the value and raises the activation latch;
          * doing only the first here made semantic plugin toggles render yet
          * never reach their active plugin callback. */
@@ -563,7 +971,7 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         /* A colour field's text is a RENDERING of its value, so an edit that
          * arrives from a presentation has to be resolved into one -- and the
          * commit rewrites the field to the palette entry it landed on, which is
-         * how a native executor's un-quantised "#12ff34" comes back snapped to
+         * how a web executor's unquantised "#12ff34" comes back snapped to
          * something the renderer can actually produce. */
         if( intent->widget >= 0 && intent->widget < ui->widget_count &&
             ui->widgets[intent->widget].kind == TORIRS_CHROME_W_COLORPICK )
@@ -603,8 +1011,8 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
     case TORIRS_CHROME_INTENT_ACTIVATE:
         /*
          * Straight into the latch the in-canvas path uses, so a host draining
-         * ToriRSChrome_TakeActivated reacts to a click in a browser tab, a
-         * Win32 button and an in-canvas row through one code path. That
+         * ToriRSChrome_TakeActivated reacts to a click in either web executor
+         * and an in-canvas row through one code path. That
          * shared drain is the whole point of routing intents at the model
          * rather than at the host's own handlers.
          */
@@ -641,7 +1049,7 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
     case TORIRS_CHROME_INTENT_ACTION:
         /* The same latch, with the flag that says which zone fired it -- so a
          * host draining TakeActivated + ActivationWasAction reads a gear click
-         * from a native executor exactly as it reads one from the canvas. */
+         * from a web executor exactly as it reads one from the canvas. */
         if( intent->widget >= 0 && intent->widget < ui->widget_count )
         {
             /* A colour row's second zone is its HEX FIELD, and what a click on
@@ -716,74 +1124,13 @@ ToriRSChromeSync_Pump(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
     return applied;
 }
 
-int
-ToriRSChromeSync_FillSurface(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui, int panel)
-{
-    int w = 0;
-    int h = 0;
-
-    assert(sync);
-    assert(ui);
-    /* Not asserted: an executor with no window of its own is the COMMON case
-     * -- the in-canvas one is every lane's default -- and "there is no window
-     * to fill" is an answer, not a caller's mistake. Same for a window that
-     * has not come up yet, or one the user has since closed. */
-    if( !sync->live || !sync->exec.surface_size )
-        return 0;
-    if( !sync->exec.surface_size(sync->exec.user, &w, &h) )
-        return 0;
-    if( w <= 0 || h <= 0 )
-        return 0;
-    ToriRSChrome_PanelFill(ui, panel, w, h);
-    return 1;
-}
-
-int
-ToriRSChromeSync_PublishDragRegion(
-    struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui, int panel)
-{
-    struct ToriRSChromeDragRegion region;
-
-    assert(sync);
-    assert(ui);
-    /* Not asserted, for FillSurface's reason: an executor whose window keeps
-     * its OS frame has nowhere to put a handle, and that is most of them. */
-    if( !sync->live || !sync->exec.set_drag_region )
-        return 0;
-    if( sync->published_drag_panel == panel &&
-        sync->published_drag_build_serial == ui->build_serial )
-        return 0;
-    /*
-     * Published whether or not there IS a region, which is why the return of
-     * WindowDragRegion is dropped: it clears `region` on the way to answering
-     * 0, and an executor that stopped hearing about handles would go on
-     * offering the last set it was told about -- a band of the window that
-     * eats presses because a tab strip used to be there.
-     */
-    ToriRSChrome_WindowDragRegion(ui, panel, &region);
-    sync->exec.set_drag_region(sync->exec.user, &region);
-    sync->published_drag_panel = panel;
-    sync->published_drag_build_serial = ui->build_serial;
-    return 1;
-}
-
-/* ---- the buffer executor ------------------------------------------------- */
-
-static void
-buffer_apply(void* user, struct ToriRSChromeCmd const* cmd)
-{
-    (void)user;
-    (void)cmd;
-    /* Nothing, and deliberately: the model draws itself through
-     * ToriRSChrome_Build/Prims. See the header note on why this is not a stub. */
-}
+/* ---- the internal buffer fallback --------------------------------------- */
 
 struct ToriRSChromeExec
 ToriRSChromeExec_Buffer(void)
 {
     struct ToriRSChromeExec exec;
     memset(&exec, 0, sizeof(exec));
-    exec.apply = buffer_apply;
     return exec;
 }
 
@@ -791,17 +1138,26 @@ ToriRSChromeExec_Buffer(void)
 
 struct ToriRSChromeExec
 ToriRSChromeExec_ForKind(
-    int kind, void* platform, ToriRSChromeRasteriseFn rasterise, void* rasterise_user,
-    int* out_kind)
+    int kind, void* platform, int* out_kind)
 {
     switch( kind )
-{
-    case TORIRS_CHROME_EXEC_PLATFORM:
-#if defined(TORIRS_CHROME_EXEC_ANDROID_AVAILABLE)
+    {
+#if defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
+    case TORIRS_CHROME_EXEC_WEB:
         if( out_kind )
-            *out_kind = TORIRS_CHROME_EXEC_ANDROID;
-        return ToriRSChromeExec_Android(platform, rasterise, rasterise_user);
-#elif defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
+            *out_kind = TORIRS_CHROME_EXEC_WEB;
+        return ToriRSChromeExec_Web();
+#endif
+#if defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
+    case TORIRS_CHROME_EXEC_BROWSER:
+        if( out_kind )
+            *out_kind = TORIRS_CHROME_EXEC_BROWSER;
+        return ToriRSChromeExec_Browser(platform);
+#endif
+    /* A negative kind means "the supported web executor in this build". It
+     * is intentionally not exposed as a parseable PLATFORM pseudo-executor. */
+    case -1:
+#if defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
         if( out_kind )
             *out_kind = TORIRS_CHROME_EXEC_WEB;
         return ToriRSChromeExec_Web();
@@ -809,54 +1165,13 @@ ToriRSChromeExec_ForKind(
         if( out_kind )
             *out_kind = TORIRS_CHROME_EXEC_BROWSER;
         return ToriRSChromeExec_Browser(platform);
-#elif defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
-        if( out_kind )
-            *out_kind = TORIRS_CHROME_EXEC_SDL;
-        return ToriRSChromeExec_Sdl(platform, rasterise, rasterise_user);
 #else
         break;
-#endif
-#if defined(TORIRS_CHROME_EXEC_ANDROID_AVAILABLE)
-    case TORIRS_CHROME_EXEC_ANDROID:
-    {
-        if( out_kind )
-            *out_kind = TORIRS_CHROME_EXEC_ANDROID;
-        return ToriRSChromeExec_Android(platform, rasterise, rasterise_user);
-    }
-#endif
-#if defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
-    case TORIRS_CHROME_EXEC_BROWSER:
-    {
-        struct ToriRSChromeExec exec = ToriRSChromeExec_Browser(platform);
-        if( out_kind )
-            *out_kind = TORIRS_CHROME_EXEC_BROWSER;
-        return exec;
-    }
-#endif
-#if defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
-    case TORIRS_CHROME_EXEC_WEB:
-    {
-        struct ToriRSChromeExec exec = ToriRSChromeExec_Web();
-        if( out_kind )
-            *out_kind = TORIRS_CHROME_EXEC_WEB;
-        return exec;
-    }
-#endif
-#if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
-    case TORIRS_CHROME_EXEC_SDL:
-    {
-        struct ToriRSChromeExec exec = ToriRSChromeExec_Sdl(platform, rasterise, rasterise_user);
-        if( out_kind )
-            *out_kind = TORIRS_CHROME_EXEC_SDL;
-        return exec;
-    }
 #endif
     default:
         break;
     }
     (void)platform;
-    (void)rasterise;
-    (void)rasterise_user;
     /* Everything else -- not compiled in, not implemented on this platform, or
      * simply not asked for -- lands on the one every build has. */
     if( out_kind )
@@ -916,39 +1231,6 @@ recorder_poll(void* user, struct ToriRSChromeIntent* out, int max)
     return n;
 }
 
-/* A window only when a test asked for one: the recorder stands in for both
- * kinds of surface, and an unset size is the executor that shares somebody
- * else's. */
-static int
-recorder_surface_size(void* user, int* out_w, int* out_h)
-{
-    struct ToriRSChromeRecorder* rec = user;
-
-    assert(rec);
-    assert(out_w);
-    assert(out_h);
-    if( rec->surface_w <= 0 || rec->surface_h <= 0 )
-        return 0;
-    *out_w = rec->surface_w;
-    *out_h = rec->surface_h;
-    return 1;
-}
-
-/* Kept whole rather than diffed: the region is a dozen ints and the count
- * beside it is what a test asserts on to prove an EMPTY one was published too
- * -- which is the case a "publish only when it changed" recorder could not tell
- * apart from never publishing at all. */
-static void
-recorder_set_drag_region(void* user, struct ToriRSChromeDragRegion const* region)
-{
-    struct ToriRSChromeRecorder* rec = user;
-
-    assert(rec);
-    assert(region);
-    rec->drag = *region;
-    rec->drag_publishes++;
-}
-
 void
 ToriRSChromeRecorder_Init(struct ToriRSChromeRecorder* rec)
 {
@@ -967,8 +1249,6 @@ ToriRSChromeExec_Recorder(struct ToriRSChromeRecorder* rec)
     exec.apply = recorder_apply;
     exec.end = recorder_end;
     exec.poll = recorder_poll;
-    exec.surface_size = recorder_surface_size;
-    exec.set_drag_region = recorder_set_drag_region;
     return exec;
 }
 

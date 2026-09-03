@@ -34,6 +34,7 @@ struct WinBrowserExec
     int command_count;
     int collecting;
     int command_overflow;
+    int snapshot_needed;
     int open;
     int first_batch;
     int panel;
@@ -53,6 +54,9 @@ struct WinBrowserExec
     int theme_sent;
     uint32_t outbound_sequence;
     char title[TORIRS_CHROME_TEXT_MAX];
+    /** Reused page envelope storage; steady deltas allocate nothing. */
+    char* page_json;
+    size_t page_json_capacity;
     char raw[WINBROWSER_RAW_MAX];
 };
 
@@ -159,6 +163,17 @@ static void send_json(struct WinBrowserExec* s, struct WinBrowserJson* json)
     if( !json->failed && json->data && json->size )
         PlatformWindow_PluginBrowserSend(s->platform, json->data);
     json_free(json);
+}
+
+static void send_page_json(struct WinBrowserExec* s, struct WinBrowserJson* json)
+{
+    if( !json->failed && json->data && json->size )
+        PlatformWindow_PluginBrowserSend(s->platform, json->data);
+    /* Keep the grown allocation for the next retained delta. Ownership stays
+     * with the one process-global browser executor. */
+    s->page_json = json->data;
+    s->page_json_capacity = json->capacity;
+    memset(json, 0, sizeof(*json));
 }
 
 static void send_page_close_generation(
@@ -356,10 +371,23 @@ static void append_command(
 
 static void send_batch(struct WinBrowserExec* s)
 {
-    struct WinBrowserJson json = { 0 };
+    struct WinBrowserJson json = {
+        .data = s->page_json,
+        .capacity = s->page_json_capacity,
+    };
     uint32_t const generation = effective_page_generation(s);
     int emitted = 0;
-    if( s->command_overflow || s->command_count <= 0 || !generation ) return;
+    if( s->command_overflow )
+    {
+        s->snapshot_needed = 1;
+        return;
+    }
+    if( s->command_count <= 0 ) return;
+    if( !generation )
+    {
+        s->snapshot_needed = 1;
+        return;
+    }
     if( s->first_batch )
     {
         json_appendf(&json,
@@ -386,7 +414,8 @@ static void send_batch(struct WinBrowserExec* s)
     }
     json_append(&json, "]}");
     if( !json.failed ) s->first_batch = 0;
-    send_json(s, &json);
+    else s->snapshot_needed = 1;
+    send_page_json(s, &json);
 }
 
 static void browser_apply(void* user, struct ToriRSChromeCmd const* cmd)
@@ -747,11 +776,20 @@ static void browser_custom_present(
     send_json(s, &json);
 }
 
+static int browser_take_snapshot_request(void* user)
+{
+    struct WinBrowserExec* s = user;
+    int const requested = s ? s->snapshot_needed : 0;
+    if( s ) s->snapshot_needed = 0;
+    return requested;
+}
+
 struct ToriRSChromeExec
 ToriRSChromeExec_Browser(void* platform)
 {
     struct ToriRSChromeExec exec;
     memset(&exec, 0, sizeof(exec));
+    free(g_winbrowser.page_json);
     memset(&g_winbrowser, 0, sizeof(g_winbrowser));
     g_winbrowser.platform = (struct PlatformWindow*)platform;
     g_winbrowser.panel = -1;
@@ -767,5 +805,6 @@ ToriRSChromeExec_Browser(void* platform)
     exec.rail_icon = browser_rail_icon;
     exec.rail_poll = browser_rail_poll;
     exec.custom_present = browser_custom_present;
+    exec.take_snapshot_request = browser_take_snapshot_request;
     return exec;
 }

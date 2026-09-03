@@ -15,7 +15,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.DisplayMetrics;
-import android.util.SparseArray;
+import android.view.Gravity;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -31,6 +31,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.FrameLayout;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -87,32 +88,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
     private SurfaceView surfaceView;
     private Button hideKeyboardButton;
-    private PluginChromeLayout rootLayout;
-    private PluginChromePresenter pluginChrome;
     private boolean started;
-    private boolean destroyed;
-    private int lastImeInset;
-    private int lastChromeInsetLeft;
-    private int lastChromeInsetTop;
-    private int lastChromeInsetRight;
-    private int lastChromeInsetBottom;
-    private boolean chromeBackHeld;
-    private final Object chromeCustomFrameLock = new Object();
-    private final SparseArray<PendingCustomFrame> pendingChromeCustomFrames =
-            new SparseArray<>();
-    private boolean chromeCustomFramePosted;
-
-    private static final class PendingCustomFrame
-    {
-        int panel;
-        int widget;
-        int generation;
-        int serial;
-        int scaleMilli;
-        int width;
-        int height;
-        int[] argb;
-    }
 
     /** Latest battery reading, held so a network change can report both
      *  numbers together. @see #reportDeviceStatus. */
@@ -178,27 +154,6 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private native void nativeKey(int keycode, int down, int unicode);
     private native void nativeKeyboardInset(int bottomPx);
     private native void nativeDeviceStatus(int batteryPercent, int batteryCharging, int networkKind);
-    private native void nativePluginChromeIntent(
-            int kind,
-            int panel,
-            int widget,
-            int value,
-            String text,
-            int x,
-            int y,
-            int selectionGeneration,
-            int widgetSerial);
-    private native void nativePluginChromeSetExpanded(int expanded);
-    private native void nativePluginChromeRailSelect(
-            int pluginIndex, int selectionGeneration);
-    private native void nativePluginChromeRailLayout(
-            int selectionGeneration,
-            int width,
-            int height,
-            int scaleMilli,
-            int sizeClass,
-            int visible,
-            int gameVisible);
     private native void nativeStop();
 
     /* ---- lifecycle ------------------------------------------------------- */
@@ -242,88 +197,17 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 showSoftKeyboard(false);
             }
         });
-        rootLayout = new PluginChromeLayout(this, surfaceView, hideKeyboardButton);
-        /*
-         * A measurement switch, not a feature: a `no_plugin_chrome` file beside
-         * env.txt runs this Activity with no WebView at all, so the one
-         * browser's whole cost -- its threads, its layer, its slice of the
-         * surface -- can be profiled against the game alone. Every use of the
-         * presenter already tolerates null, and the layout gives the game the
-         * full width when no chrome is attached.
-         */
-        boolean chromeDisabled =
-                new File(BootProfile.dataRoot(this), "no_plugin_chrome").isFile();
-        pluginChrome = chromeDisabled ? null : new PluginChromePresenter(
-                this,
-                rootLayout,
-                new PluginChromePresenter.IntentSink()
-                {
-                    @Override
-                    public void send(
-                            int kind,
-                            int panel,
-                            int widget,
-                            int value,
-                            String text,
-                            int x,
-                            int y,
-                            int selectionGeneration,
-                            int widgetSerial)
-                    {
-                        nativePluginChromeIntent(
-                                kind,
-                                panel,
-                                widget,
-                                value,
-                                text,
-                                x,
-                                y,
-                                selectionGeneration,
-                                widgetSerial);
-                    }
-                },
-                new PluginChromePresenter.ShellSink()
-                {
-                    @Override
-                    public void select(int pluginIndex, int selectionGeneration)
-                    {
-                        nativePluginChromeRailSelect(pluginIndex, selectionGeneration);
-                    }
-
-                    @Override
-                    public void layout(
-                            int selectionGeneration,
-                            int width,
-                            int height,
-                            int scaleMilli,
-                            int sizeClass,
-                            boolean visible,
-                            boolean gameVisible)
-                    {
-                        nativePluginChromeRailLayout(
-                                selectionGeneration,
-                                width,
-                                height,
-                                scaleMilli,
-                                sizeClass,
-                                visible ? 1 : 0,
-                                gameVisible ? 1 : 0);
-                    }
-                });
-        rootLayout.setEditorFocusListener(new PluginChromeLayout.EditorFocusListener()
-        {
-            @Override
-            public void onPluginEditorFocusChanged(boolean focused)
-            {
-                /* The native keyboard inset belongs to the game editor. A
-                 * framework EditText lays itself out through the pane's inset
-                 * and must not also squash the game canvas behind it. */
-                nativeKeyboardInset(focused ? 0 : lastImeInset);
-                if( focused && hideKeyboardButton != null )
-                    hideKeyboardButton.setVisibility(View.GONE);
-            }
-        });
-
+        FrameLayout rootLayout = new FrameLayout(this);
+        rootLayout.addView(
+                surfaceView,
+                new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT));
+        FrameLayout.LayoutParams keyboardButtonLayout = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT);
+        keyboardButtonLayout.gravity = Gravity.TOP | Gravity.END;
+        rootLayout.addView(hideKeyboardButton, keyboardButtonLayout);
         setContentView(rootLayout);
         surfaceView.requestFocus();
 
@@ -353,18 +237,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 @Override
                 public WindowInsets onApplyWindowInsets(View v, WindowInsets insets)
                 {
-                    android.graphics.Insets bars =
-                            insets.getInsets(WindowInsets.Type.systemBars());
-                    android.graphics.Insets cutout =
-                            insets.getInsets(WindowInsets.Type.displayCutout());
-                    android.graphics.Insets gestures =
-                            insets.getInsets(WindowInsets.Type.systemGestures());
                     int ime = insets.getInsets(WindowInsets.Type.ime()).bottom;
-                    setChromeInsets(
-                            Math.max(bars.left, Math.max(cutout.left, gestures.left)),
-                            Math.max(bars.top, Math.max(cutout.top, gestures.top)),
-                            Math.max(bars.right, Math.max(cutout.right, gestures.right)),
-                            Math.max(bars.bottom, Math.max(cutout.bottom, gestures.bottom)));
                     reportImeInset(ime);
                     return insets;
                 }
@@ -389,24 +262,6 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                     reportImeInset(covered);
                 }
             });
-
-            /* API 21-29 has no per-type inset query, but its stable system
-             * insets still keep the native rail/page clear of visible bars.
-             * The global-layout listener above supplies the separate IME
-             * estimate and the two are combined by reportImeInset(). */
-            insetRoot.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener()
-            {
-                @Override
-                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets)
-                {
-                    setChromeInsets(
-                            insets.getSystemWindowInsetLeft(),
-                            insets.getSystemWindowInsetTop(),
-                            insets.getSystemWindowInsetRight(),
-                            insets.getSystemWindowInsetBottom());
-                    return insets;
-                }
-            });
         }
 
         nativeSetDensity(displayDensityBucket());
@@ -427,34 +282,9 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         super.onPause();
     }
 
-    private void setChromeInsets(int left, int top, int right, int bottom)
-    {
-        lastChromeInsetLeft = Math.max(0, left);
-        lastChromeInsetTop = Math.max(0, top);
-        lastChromeInsetRight = Math.max(0, right);
-        lastChromeInsetBottom = Math.max(0, bottom);
-        if( rootLayout != null )
-            rootLayout.setChromeInsets(
-                    lastChromeInsetLeft,
-                    lastChromeInsetTop,
-                    lastChromeInsetRight,
-                    Math.max(lastChromeInsetBottom, lastImeInset));
-    }
-
     private void reportImeInset(int bottom)
     {
-        lastImeInset = Math.max(0, bottom);
-        if( rootLayout != null )
-        {
-            rootLayout.setChromeInsets(
-                    lastChromeInsetLeft,
-                    lastChromeInsetTop,
-                    lastChromeInsetRight,
-                    Math.max(lastChromeInsetBottom, lastImeInset));
-            nativeKeyboardInset(rootLayout.isPluginEditorFocused() ? 0 : lastImeInset);
-        }
-        else
-            nativeKeyboardInset(lastImeInset);
+        nativeKeyboardInset(Math.max(0, bottom));
     }
 
     /* ---- battery and network --------------------------------------------- */
@@ -629,7 +459,6 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     @Override
     protected void onDestroy()
     {
-        destroyed = true;
         super.onDestroy();
         stopDeviceStatusReports();
         if( started )
@@ -644,8 +473,6 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
             nativeStop();
             started = false;
         }
-        if( pluginChrome != null )
-            pluginChrome.shutdown();
     }
 
     /* ---- the surface ----------------------------------------------------- */
@@ -902,12 +729,6 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          */
         if( keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN )
             return super.onKeyDown(keyCode, event);
-        if( (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) &&
-                pluginChrome != null && pluginChrome.handleBack() )
-        {
-            chromeBackHeld = true;
-            return true;
-        }
         if( isVirtualModifier(event) )
             return true;
 
@@ -920,12 +741,6 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     {
         if( keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN )
             return super.onKeyUp(keyCode, event);
-        if( chromeBackHeld &&
-                (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) )
-        {
-            chromeBackHeld = false;
-            return true;
-        }
         if( isVirtualModifier(event) )
             return true;
 
@@ -962,140 +777,6 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     }
 
     /**
-     * One complete native chrome transaction. JNI calls this from the frame
-     * thread only after SYNC_END; the single Runnable is the thread boundary,
-     * and PluginChromePresenter applies all mutations under one suppressed
-     * layout pass on Android's UI thread.
-     */
-    @SuppressWarnings("unused") /* invoked by JNI, by name */
-    public void applyPluginChromeBatch(final int[] words, final byte[] strings)
-    {
-        runOnUiThread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                if( !destroyed && pluginChrome != null )
-                    pluginChrome.applyBatch(words, strings);
-            }
-        });
-    }
-
-    /** One complete custom-region bitmap, posted after its WIDGET_ADD batch. */
-    @SuppressWarnings("unused") /* invoked by JNI, by name */
-    public void applyPluginChromeCustom(
-            final int panel,
-            final int widget,
-            final int selectionGeneration,
-            final int widgetSerial,
-            final int scaleMilli,
-            final int width,
-            final int height,
-            final int[] argb)
-    {
-        if( selectionGeneration == 0 || widgetSerial == 0 || scaleMilli <= 0 ||
-                width <= 0 || height <= 0 || width > 4096 || height > 4096 ||
-                (long)width * height > 2_000_000L || argb == null ||
-                argb.length != width * height )
-            return;
-        PendingCustomFrame frame = new PendingCustomFrame();
-        frame.panel = panel;
-        frame.widget = widget;
-        frame.generation = selectionGeneration;
-        frame.serial = widgetSerial;
-        frame.scaleMilli = scaleMilli;
-        frame.width = width;
-        frame.height = height;
-        frame.argb = argb;
-        synchronized( chromeCustomFrameLock )
-        {
-            if( pendingChromeCustomFrames.size() >= 16 &&
-                    pendingChromeCustomFrames.get(widget) == null )
-                pendingChromeCustomFrames.removeAt(0);
-            pendingChromeCustomFrames.put(widget, frame);
-            if( chromeCustomFramePosted )
-                return;
-            chromeCustomFramePosted = true;
-        }
-        runOnUiThread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                SparseArray<PendingCustomFrame> frames = new SparseArray<>();
-                synchronized( chromeCustomFrameLock )
-                {
-                    for( int i = 0; i < pendingChromeCustomFrames.size(); i++ )
-                        frames.put(
-                                pendingChromeCustomFrames.keyAt(i),
-                                pendingChromeCustomFrames.valueAt(i));
-                    pendingChromeCustomFrames.clear();
-                    chromeCustomFramePosted = false;
-                }
-                if( !destroyed && pluginChrome != null )
-                    for( int i = 0; i < frames.size(); i++ )
-                    {
-                        PendingCustomFrame next = frames.valueAt(i);
-                        pluginChrome.applyCustomFrame(
-                                next.panel, next.widget, next.generation, next.serial,
-                                next.scaleMilli, next.width, next.height, next.argb);
-                    }
-            }
-        });
-    }
-
-    /** One copied application-owned rail snapshot. It is independent of the
-     * selected page executor and therefore remains applicable while collapsed. */
-    @SuppressWarnings("unused") /* invoked by JNI, by name */
-    public void applyPluginChromeRail(final int[] words, final byte[] strings)
-    {
-        runOnUiThread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                if( !destroyed && pluginChrome != null )
-                    pluginChrome.applyRailSnapshot(words, strings);
-            }
-        });
-    }
-
-    @SuppressWarnings("unused") /* invoked by JNI, by name */
-    public void applyPluginChromeRailIcon(
-            final int pluginIndex,
-            final int revision,
-            final int width,
-            final int height,
-            final int[] argb)
-    {
-        runOnUiThread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                if( !destroyed && pluginChrome != null )
-                    pluginChrome.applyRailIcon(
-                            pluginIndex, revision, width, height, argb);
-            }
-        });
-    }
-
-    /** Collapse the one persistent application-owned WebView when unbound. */
-    @SuppressWarnings("unused") /* invoked by JNI, by name */
-    public void endPluginChrome()
-    {
-        runOnUiThread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                if( !destroyed && pluginChrome != null )
-                    pluginChrome.collapse();
-            }
-        });
-    }
-
-    /**
      * Called from the native frame thread. @see PlatformWindow_SetTextInput.
      *
      * Posted to the UI thread rather than acted on directly: every
@@ -1116,8 +797,6 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                     return;
                 if( show )
                 {
-                    if( rootLayout != null && rootLayout.isPluginEditorFocused() )
-                        return;
                     /* Focus taken again from scratch, and the input session
                      * restarted: after the person hid the keyboard with the
                      * system's Back, InputMethodManager treats a plain show on

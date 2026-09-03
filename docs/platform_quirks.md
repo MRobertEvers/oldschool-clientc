@@ -129,18 +129,18 @@ one lane only.
 ### COMMON-CHROME-001 - Every plugin shares one persistent browser
 
 - **Status:** Contract
-- **Applies to:** Android, Web, macOS, Win32, and Win64 plugin chrome; Linux is
-  explicitly deferred
-- **Behavior:** One application window/activity owns exactly one plugin-chrome
+- **Applies to:** Web, macOS, Win32, and Win64 plugin chrome; Linux and Android
+  use the internal BUFFER fallback until they have the common browser transport
+- **Behavior:** One application window owns exactly one plugin-chrome
   browser instance, one document, one persistent rail root, and zero or one
   page root. Every plugin registers a rail destination, but only the most
   recently selected plugin may build, render, or receive input for a page.
   Selecting another destination replaces that page in place. Collapse clears
   the page and reduces the browser allocation to the rail; it does not destroy,
-  navigate, or recreate the browser. Only application-window/activity shutdown
+  navigate, or recreate the browser. Only application-window shutdown
   destroys it.
-- **Platform meaning:** Android embeds one `android.webkit.WebView`; macOS one
-  `WKWebView`; Win64 one WebView2 controller; XP one `IWebBrowser2`/MSHTML
+- **Platform meaning:** macOS embeds one `WKWebView`; Win64 one WebView2
+  controller; XP one `IWebBrowser2`/MSHTML
   ActiveX control. The Web lane owns one application iframe in one stable DOM
   mount; that iframe is the sole plugin-chrome browsing context, not one iframe
   per plugin. It must not add a nested iframe or popup. All native controls are
@@ -158,14 +158,12 @@ one lane only.
 - **Verification:** Repeated expand/collapse and cross-plugin selection must
   preserve browser object identity, keep exactly one rail, leave no nonselected
   page in the DOM, and never leak rail/page input into the game. Use
-  `make -C src test-chrome-android-exec`,
-  `make -C src test-chrome-browser-exec`, and the Web DOM/layout tests. Linux's
-  former SDL surface presenter is not accepted as verification of this
+  `make -C src test-chrome-browser-exec` and the Web DOM/layout tests. The
+  internal BUFFER fallback is not accepted as verification of this
   browser-backed contract.
 - **Sources:** [`docs/chrome_executors.md`](chrome_executors.md),
   [`src/ui/torirs_chrome_exec.h`](../src/ui/torirs_chrome_exec.h),
   [`src/ui/torirs_chrome_rail.h`](../src/ui/torirs_chrome_rail.h),
-  [`android/src/main/java/com/torirs/client/PluginChromePresenter.java`](../android/src/main/java/com/torirs/client/PluginChromePresenter.java),
   [`src/platform/platform_macos_webview.m`](../src/platform/platform_macos_webview.m),
   [`src/platform/platform_win32_webview2.c`](../src/platform/platform_win32_webview2.c),
   [`src/platform/platform_win32_mshtml.c`](../src/platform/platform_win32_mshtml.c)
@@ -173,7 +171,7 @@ one lane only.
 ### COMMON-CHROME-002 - Plugin chrome is retained semantic data, not plugin web content
 
 - **Status:** Contract
-- **Applies to:** Every plugin-chrome host
+- **Applies to:** Every browser-backed plugin-chrome host
 - **Behavior:** Plugins publish bounded registration metadata, semantic control
   records, authored icon pixels, and retained custom-region pixels. They never
   publish HTML, JavaScript, CSS, a URL, or navigation policy. The application
@@ -203,28 +201,28 @@ one lane only.
   [`src/plugin/torirs_plugin_host.h`](../src/plugin/torirs_plugin_host.h),
   [`src/ui/torirs_chrome_exec_winbrowser.c`](../src/ui/torirs_chrome_exec_winbrowser.c)
 
-### COMMON-CHROME-003 - Old engines use the same styled page contract
+### COMMON-CHROME-003 - XP uses the same styled page contract
 
 - **Status:** Contract
-- **Applies to:** Android API 22/Chrome 39 and Windows XP MSHTML
-- **Behavior:** Both lanes load `legacy-ie8.html` explicitly; they do not guess
-  from a user agent. Its reducer implements the same protocol and modern OSRS
+- **Applies to:** Windows XP MSHTML
+- **Behavior:** XP loads `legacy-ie8.html` explicitly; it does not guess from a
+  user agent. Its reducer implements the same protocol and modern OSRS
   presentation as the modern page using conservative ES3/ES5 syntax and an
-  IE6/7-safe DOM subset. Android retains canvas/RGBA and its typed Java bridge.
-  XP uses table/absolute layout, the bundled JSON codec, ordinary local `IMG`
-  URLs, and private revisioned BMP/GIF files because canvas, data URLs, CSS
+  IE6/7-safe DOM subset. It uses table/absolute layout, the bundled JSON codec,
+  ordinary local `IMG` URLs, and private revisioned BMP/GIF files because
+  canvas, data URLs, CSS
   Grid, CSS variables, modern events, and native `JSON` cannot be assumed.
 - **Scale rule:** Bundle dimensions are authored 1x logical CSS pixels. Device
   density scales the complete composition; platform code must not independently
   double rows, icons, or skin pieces. The compatibility layout must retain the
   ToriRS silhouette, palette, spacing, skin pieces, and states rather than
   exposing generic white browser controls.
-- **Reason:** A page that parses on current Chromium can still be blank on
-  Chrome 39 or fail before startup in XP MSHTML. A visually unstyled fallback
-  would meet syntax compatibility while failing the actual chrome contract.
+- **Reason:** A page that parses on current Chromium can fail before startup in
+  XP MSHTML. A visually unstyled fallback would meet syntax compatibility
+  while failing the actual chrome contract.
 - **Verification:** `make -C src test-web-channel` covers the modern and legacy
-  reducer and rejects unsupported syntax/DOM APIs. Runtime checks on
-  the physical API 22 device and an XP-compatible MSHTML host remain required.
+  reducer and rejects unsupported syntax/DOM APIs. A runtime check on an
+  XP-compatible MSHTML host remains required.
 - **Sources:** [`src/plugin_chrome/README.md`](../src/plugin_chrome/README.md),
   [`src/plugin_chrome/legacy-ie8.html`](../src/plugin_chrome/legacy-ie8.html),
   [`src/plugin_chrome/legacy-ie8.css`](../src/plugin_chrome/legacy-ie8.css),

@@ -74,6 +74,15 @@
 /** Primitives in the display list. Build stops early and sets `overflow`. */
 #define TORIRS_CHROME_MAX_PRIMS 1536
 /**
+ * Semantic changes retained until the bound chrome executor consumes them.
+ *
+ * One refresh entry is coalesced per live panel/widget identity, so ordinary
+ * setter bursts use at most MAX_PANELS + MAX_WIDGETS entries. The extra room
+ * covers remove/re-add churn before the next executor tick. Exhaustion is not
+ * silent: `change_lost` asks the executor seam for one full catch-up snapshot.
+ */
+#define TORIRS_CHROME_MAX_CHANGES 1024
+/**
  * Bytes of wrapped-line scratch one build may hand out. @see
  * ToriRSChrome::wrap_pool.
  *
@@ -697,8 +706,8 @@ enum ToriRSChromeWidgetKind
      * The value lives in `selected` (packed HSL16) and `text` mirrors it as
      * "#RRGGBB" -- editable, because a hex out of a wiki or another client is
      * how a colour usually arrives, and because the config store this feeds is
-     * textual. `checked` says whether the popup is open, which is what lets a
-     * NATIVE-WIDGET executor draw its own bars without a command of its own.
+     * textual. `checked` says whether the popup is open, which lets a web
+     * executor keep its own DOM bars in step without a separate property.
      */
     TORIRS_CHROME_W_COLORPICK,
     /**
@@ -773,9 +782,8 @@ enum ToriRSChromeKey
      * the two kinds do not need separate key routing.
      *
      * Appended rather than slotted beside LEFT/RIGHT: enum ToriRSChromeAuxKey's
-     * twin in platform/platform_window.h is pinned to this one value for value
-     * (see the _Static_asserts in torirs_chrome_exec_sdl.c), and inserting in
-     * the middle would renumber every key the platform already reports.
+     * twin in platform/platform_window.h is pinned to this one value for value,
+     * and inserting in the middle would renumber every key the platform reports.
      */
     TORIRS_CHROME_KEY_UP,
     TORIRS_CHROME_KEY_DOWN,
@@ -821,9 +829,19 @@ struct ToriRSChromeWidget
      */
     char const* const* options;
     int option_count;
+    /**
+     * Hash of the bounded option text last presented through a list setter.
+     *
+     * The list remains borrowed, but its pointer is not its value: callers
+     * commonly refill a stable pointer array and stable character buffers.
+     * Keeping this small content snapshot lets the setter recognize that
+     * mutation without copying an entire palette into the model.
+     */
+    uint64_t options_hash;
     /** Index into `options`, or -1 for "nothing chosen". COLORPICK: the packed
      *  HSL16 value instead -- a colour IS a selection out of the revision's
-     *  palette, so it rides the field the seam already diffs and announces
+     *  palette, so it rides the field the mutation journal already records
+     *  and announces
      *  (WIDGET_SELECTED / INTENT_PICK) rather than adding a second one. */
     int selected;
     /** MODELVIEW: the box size and the host-rendered scene sprite (0 none). */
@@ -865,19 +883,19 @@ struct ToriRSChromeWidget
      *
      * A HANDLE is not an identity: the free list recycles them, so handle 5
      * removed and handle 5 added are two different widgets wearing one number.
-     * Anything downstream that diffs by handle -- the executor seam's shadow --
-     * then sees "widget 5, still a checkbox, still on panel 0" and concludes
-     * nothing changed, when in fact the row it names was replaced. The visible
-     * symptom is a rebuilt panel whose rows come out in the order they were
-     * FIRST created rather than the order they are in now.
+     * An executor shadow keyed only by handle would then see "widget 5, still
+     * a checkbox, still on panel 0" and retain the old DOM node even though
+     * the row was replaced. The visible symptom is a rebuilt panel whose rows
+     * come out in the order they were FIRST created rather than their current
+     * order.
      *
      * Never reused, never reset by a panel clear: it only ever has to be
      * comparable and distinct.
      */
     int serial;
     /** Identity an external semantic model assigned this presentation node.
-     * Zero uses `serial`; nonzero is emitted on WIDGET_ADD and fenced on every
-     * browser/native intent without replacing the chrome's own allocator id. */
+     * Zero uses `serial`; nonzero is emitted on WIDGET_ADD and fences every
+     * browser intent without replacing the chrome's own allocator id. */
     uint32_t intent_serial;
     /** First visible row while the list is open. */
     int scroll;
@@ -940,20 +958,6 @@ struct ToriRSChromePanel
      * content in from an edge that is not there.
      */
     int framed;
-    /**
-     * The panel IS its surface: origin 0,0, exactly the surface's size.
-     *
-     * For a presentation that owns a WINDOW OF ITS OWN there is nothing behind
-     * the panel for it to float over, so a box parked at (8,72) leaves three
-     * bands of empty background around it and reads as a window inside a
-     * window -- and one that never grows when the OS window is dragged wider.
-     * @see ToriRSChromeSync_FillSurface, which is what sets this.
-     *
-     * Filling takes the drag and the grip away with it. Both write geometry
-     * that the next fill overwrites, so leaving them is an affordance that
-     * lies; the OS window's own frame is what moves and resizes this now.
-     */
-    int filled;
     /**
      * Rows past the bottom scroll into view instead of being dropped.
      *
@@ -1019,6 +1023,60 @@ struct ToriRSChromePanel
     char title[TORIRS_CHROME_LABEL_MAX];
 };
 
+/** Internal retained-model event kinds consumed by ToriRSChromeSync_Run. */
+enum ToriRSChromeChangeKind
+{
+    TORIRS_CHROME_CHANGE_PANEL = 1,
+    TORIRS_CHROME_CHANGE_WIDGET,
+    TORIRS_CHROME_CHANGE_WIDGET_REMOVE,
+    TORIRS_CHROME_CHANGE_PANEL_CLOSE,
+    TORIRS_CHROME_CHANGE_CHECK_STYLE,
+};
+
+/* Property masks recorded with PANEL events. */
+#define TORIRS_CHROME_CHANGE_PANEL_LIFECYCLE (1u << 0)
+#define TORIRS_CHROME_CHANGE_PANEL_TITLE (1u << 1)
+#define TORIRS_CHROME_CHANGE_PANEL_RECT (1u << 2)
+#define TORIRS_CHROME_CHANGE_PANEL_TAB (1u << 3)
+#define TORIRS_CHROME_CHANGE_PANEL_ALL                                            \
+    (TORIRS_CHROME_CHANGE_PANEL_LIFECYCLE | TORIRS_CHROME_CHANGE_PANEL_TITLE |   \
+     TORIRS_CHROME_CHANGE_PANEL_RECT | TORIRS_CHROME_CHANGE_PANEL_TAB)
+
+/* Property masks recorded with WIDGET events. */
+#define TORIRS_CHROME_CHANGE_WIDGET_ADD (1u << 0)
+#define TORIRS_CHROME_CHANGE_WIDGET_LABEL (1u << 1)
+#define TORIRS_CHROME_CHANGE_WIDGET_TEXT (1u << 2)
+#define TORIRS_CHROME_CHANGE_WIDGET_COLOR (1u << 3)
+#define TORIRS_CHROME_CHANGE_WIDGET_CHECKED (1u << 4)
+#define TORIRS_CHROME_CHANGE_WIDGET_HIDDEN (1u << 5)
+#define TORIRS_CHROME_CHANGE_WIDGET_SELECTED (1u << 6)
+#define TORIRS_CHROME_CHANGE_WIDGET_OPTIONS (1u << 7)
+#define TORIRS_CHROME_CHANGE_WIDGET_FOCUS (1u << 8)
+#define TORIRS_CHROME_CHANGE_WIDGET_HEIGHT (1u << 9)
+#define TORIRS_CHROME_CHANGE_WIDGET_IDENTITY (1u << 10)
+#define TORIRS_CHROME_CHANGE_WIDGET_ALL ((1u << 11) - 1u)
+
+/**
+ * One changed retained node, not a rendered command.
+ *
+ * Values are deliberately read from the authoritative model when drained, so
+ * repeated writes coalesce to the final value without copying strings into the
+ * queue. `serial` fences a recycled widget handle; remove events retain the
+ * old panel/identity after the widget slot itself has been cleared.
+ */
+struct ToriRSChromeChange
+{
+    int kind;
+    int panel;
+    int widget;
+    int serial;
+    uint32_t flags;
+    /** Previous journal entry for this panel, stored as index + 1 (zero none).
+     * This makes whole-panel invalidation proportional to that panel's own
+     * pending mutations rather than a scan of the global journal. */
+    int next_panel_change;
+};
+
 struct ToriRSChrome
 {
     struct ToriRSChromeTheme theme;
@@ -1041,6 +1099,28 @@ struct ToriRSChrome
     int widget_count;
     /** Next ToriRSChromeWidget::serial to hand out. */
     int next_serial;
+    /**
+     * Pending semantic mutations for the single bound presentation.
+     *
+     * Mutators append or coalesce here when (and only when) the retained value
+     * really changes. An executor tick therefore costs O(change_count), while
+     * the overwhelmingly common idle tick is one count test. The queue is
+     * cleared only after a successful drain or a full catch-up snapshot.
+     */
+    struct ToriRSChromeChange changes[TORIRS_CHROME_MAX_CHANGES];
+    int change_count;
+    /** Queue capacity was exceeded; the next executor tick must snapshot. */
+    int change_lost;
+    /**
+     * O(1) coalescing indexes. Values are journal indexes plus one; zero means
+     * no pending refresh. A widget entry is additionally fenced by its serial,
+     * so recycling a handle cannot merge two retained identities.
+     */
+    int change_pending_panel[TORIRS_CHROME_MAX_PANELS];
+    int change_pending_widget[TORIRS_CHROME_MAX_WIDGETS];
+    int change_pending_check_style;
+    /** Per-panel journal chains, again as indexes plus one. */
+    int change_panel_head[TORIRS_CHROME_MAX_PANELS];
     /**
      * Head of the removed-slot list, chained through ToriRSChromeWidget::next, or -1.
      *
@@ -1240,6 +1320,16 @@ void
 ToriRSChrome_Init(struct ToriRSChrome* ui);
 
 /**
+ * Executor-only acknowledgement of every queued retained mutation.
+ *
+ * A successful delta drain or authoritative snapshot calls this once. It
+ * clears both the journal and its O(1) coalescing indexes; model callers must
+ * not use it to discard changes that a bound executor has not consumed.
+ */
+void
+ToriRSChrome_ChangeJournalAcknowledge(struct ToriRSChrome* ui);
+
+/**
  * Set the device pixels per chrome pixel: TORIRS_CHROME_SCALE_MIN..TORIRS_CHROME_SCALE_MAX.
  *
  * A relayout, not a transform: every panel is remeasured against the fonts
@@ -1357,20 +1447,6 @@ ToriRSChrome_PanelSetFixedWidth(struct ToriRSChrome* ui, int panel, int width);
 void
 ToriRSChrome_PanelSetFixedHeight(struct ToriRSChrome* ui, int panel, int height);
 
-/**
- * Stretch a panel over a whole surface: origin 0,0, exactly `w` x `h`.
- *
- * @see ToriRSChromePanel::filled for what it costs the panel, and
- * ToriRSChromeSync_FillSurface for the caller that knows the size -- a host
- * asks the executor how big its window is rather than deciding here, because
- * ui/ has no idea what a window is.
- *
- * Idempotent, which is what lets it run every frame: a repeat of the size the
- * panel already fills marks nothing dirty and rebuilds nothing.
- */
-void
-ToriRSChrome_PanelFill(struct ToriRSChrome* ui, int panel, int w, int h);
-
 /** Resolved bounds of a panel as of the last Build. 0 when unknown. */
 struct ToriRSChromeRect
 ToriRSChrome_PanelRect(struct ToriRSChrome const* ui, int panel);
@@ -1439,7 +1515,7 @@ ToriRSChrome_Custom(struct ToriRSChrome* ui, int panel, char const* label, int h
  *
  * A well's height is a VALUE of a widget that already exists, not a change of
  * page: a list that grows a row restates its height and everything below it
- * relayouts, with every widget, native control and caret surviving. Declaring
+ * relayouts, with every widget, DOM control and caret surviving. Declaring
  * the page again to say the same thing tears down the retained tree and the
  * executor's mounted page with it, which is what a growing list showed as a
  * flash. Same clamps as ToriRSChrome_Custom; a height it already has is free.
@@ -1515,8 +1591,10 @@ ToriRSChrome_Dropdown(
     int option_count,
     int selected);
 
-/** Point a dropdown at a different list. Clamps the selection and closes the
- *  list if this widget's was open, since the rows under it just changed. */
+/** Point a dropdown at a list. Clamps the selection and closes the list if its
+ *  bounded text changed. Contents are hashed, so refilling the same borrowed
+ *  pointer array/buffers is detected; equal text/count/selection is a retained
+ *  no-op even when the borrow moves to another array. */
 void
 ToriRSChrome_DropdownSetOptions(
     struct ToriRSChrome* ui,
@@ -1841,67 +1919,6 @@ ToriRSChrome_HasVisiblePanel(struct ToriRSChrome const* ui);
 /** @return widget handle under (x,y), or -1. Only hits visible panels. */
 int
 ToriRSChrome_HitTest(struct ToriRSChrome const* ui, int x, int y);
-
-/* ---- moving the OS window by chrome that is drawn in it ------------------- */
-
-/**
- * Boxes that drag the WINDOW, and boxes inside them that do not.
- *
- * WHY A PUBLISHED REGION AND NOT A QUERY. The point test this feeds runs inside
- * the platform's event pump -- the window manager asks while it is deciding
- * what a mouse press even IS -- and this model is the frame thread's, laid out
- * and mutated there. A callback that walked panels and widgets would be reading
- * a tree the frame it interrupted is halfway through rebuilding. A dozen
- * rectangles copied out once a frame is a snapshot the pump can test against
- * for nothing, and it is also the whole of what the pump needs.
- *
- * WHY HOLES. A draggable region SWALLOWS the press that starts the drag: the
- * application is never told about a mouse-down there. So every control inside a
- * handle has to be punched back out of it, or it silently stops being
- * clickable -- and "the tabs of the tab strip I am dragging the window by" is
- * exactly that case.
- *
- * The tab run is ONE hole rather than one per tab because tabs are laid out
- * contiguously from the strip's left edge: their union is the run, and what is
- * left draggable is the empty tail behind it. A strip whose tabs have been
- * compressed to fill its width therefore offers no handle at all, correctly --
- * there is no pixel of it that is not a tab. The panel's title bar is the
- * handle that is always there.
- */
-#define TORIRS_CHROME_DRAG_HANDLES_MAX 2
-#define TORIRS_CHROME_DRAG_HOLES_MAX 6
-
-struct ToriRSChromeDragRegion
-{
-    struct ToriRSChromeRect handles[TORIRS_CHROME_DRAG_HANDLES_MAX];
-    int handle_count;
-    struct ToriRSChromeRect holes[TORIRS_CHROME_DRAG_HOLES_MAX];
-    int hole_count;
-};
-
-/**
- * This frame's window-move handles for `panel`, in the surface's own pixels.
- * @return 1 when there is a region; 0 -- with `out` cleared -- when there is
- * none, which a caller must still publish rather than skip.
- *
- * Only a FILLED window panel has one. A floating panel is dragged INSIDE the
- * canvas by its own header (dbg_panel_header_at), and moving the OS window from
- * that header would take the game out from under the pointer; a filled panel is
- * the whole of its window, so its title bar and the tail of its tab strip are
- * the only chrome in it with no other job.
- */
-int
-ToriRSChrome_WindowDragRegion(
-    struct ToriRSChrome const* ui, int panel, struct ToriRSChromeDragRegion* out);
-
-/**
- * Is (x,y) on a handle and in no hole?
- *
- * Pure, and takes no model: this is the half that runs in the event pump,
- * against the copy that was published to it.
- */
-int
-ToriRSChromeDragRegion_Contains(struct ToriRSChromeDragRegion const* region, int x, int y);
 
 /** @return 1 when the overlay consumed the event (pointer was over a panel). */
 int

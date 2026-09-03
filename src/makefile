@@ -743,7 +743,10 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	render/torirs_polygon.c render/torirs_arc.c \
 	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
 	game/rs_client_trigger.c \
-	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
+	plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+	plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+	plugin/torirs_plugin_v2_adapter.c \
+	plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/client_settings.c \
 	plugin/plugins/feature_flags.c \
@@ -2219,7 +2222,9 @@ test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 # the whole category looked like before they existed. This is where that shows.
 test-nxt-plugins: $(OBJ_DIR) plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
@@ -2262,11 +2267,87 @@ test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracke
 		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/tracker_test
 
-test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plugin_host_test.c
+test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_placement.c \
+		plugin/torirs_plugin_ui.c \
+		plugin/torirs_plugin_v2_adapter.c \
+		plugin/test/torirs_plugin_host_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_placement.c \
+		plugin/torirs_plugin_ui.c \
+		plugin/torirs_plugin_v2_adapter.c \
+		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_host_test
+
+# Public v2 source contract. This target stays parse/type-check only so an API
+# header regression is reported directly; runtime registration and behavior
+# are covered by test-plugin-host, test-plugin-v2-adapter, and test-tileind-v2.
+.PHONY: test-plugin-api-v2
+test-plugin-api-v2: plugin/torirs_plugin_v2.h plugin/test/torirs_plugin_v2_compile_test.c
+	$(CC) -std=c11 -fsyntax-only -Wall -Wextra -Werror=incompatible-pointer-types \
+		-I$(SRC_DIR) plugin/test/torirs_plugin_v2_compile_test.c
+	@echo "test-plugin-api-v2: ok"
+
+# First bundled v2 consumer. The fake modules pin the old tile indicator's
+# drawing order and colours while proving it needs neither a global API pointer
+# nor per-instance mutable state.
+.PHONY: test-tileind-v2
+test-tileind-v2: $(OBJ_DIR) plugin/plugins/tileind.c plugin/test/tileind_v2_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tileind_v2_test \
+		plugin/plugins/tileind.c plugin/test/tileind_v2_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/tileind_v2_test
+
+# Translation from the existing language-neutral API to the smaller v2
+# modules. This links neither the host nor an engine: a fake legacy table pins
+# every field/result conversion and the callback-scoped builders.
+.PHONY: test-plugin-v2-adapter
+test-plugin-v2-adapter: $(OBJ_DIR) plugin/torirs_plugin_v2_adapter.c \
+		plugin/torirs_plugin_v2_adapter.h plugin/torirs_plugin_v2.h \
+		plugin/test/torirs_plugin_v2_adapter_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_v2_adapter_test \
+		plugin/torirs_plugin_v2_adapter.c plugin/test/torirs_plugin_v2_adapter_test.c \
+		$(LDFLAGS)
+	./$(OBJ_DIR)/plugin_v2_adapter_test
+
+.PHONY: test-plugin-frame
+test-plugin-frame: $(OBJ_DIR) plugin/torirs_plugin_frame.c \
+		plugin/test/torirs_plugin_frame_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_frame_test \
+		plugin/torirs_plugin_frame.c plugin/test/torirs_plugin_frame_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_frame_test
+
+# Exact fragmented safe-area geometry. Pure data: no host, app, cache, or
+# renderer belongs in this link, which keeps the placement arithmetic usable
+# by both frame construction and the public plugin API.
+.PHONY: test-plugin-placement
+test-plugin-placement: $(OBJ_DIR) plugin/torirs_plugin_placement.c \
+		plugin/test/torirs_plugin_placement_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_placement_test \
+		plugin/torirs_plugin_placement.c plugin/test/torirs_plugin_placement_test.c \
+		$(LDFLAGS)
+	./$(OBJ_DIR)/plugin_placement_test
+
+# Canonical named-UI policy.  This target deliberately links no host, UITree,
+# renderer, or cache: references, retained facet resolution, and conflicts are
+# deterministic data operations shared by all eventual executors.
+.PHONY: test-plugin-ui
+test-plugin-ui: $(OBJ_DIR) plugin/torirs_plugin_ui.c \
+		plugin/test/torirs_plugin_ui_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_ui_test \
+		plugin/torirs_plugin_ui.c plugin/test/torirs_plugin_ui_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_ui_test
+
+# The client-owned Gameframe dropdown against the public legacy API. This is a
+# small adapter test: visible titles may change (or even contain the old pipe
+# delimiter), while a click must always send the canonical catalogue id.
+.PHONY: test-client-settings
+test-client-settings: $(OBJ_DIR) plugin/plugins/client_settings.c \
+		plugin/test/client_settings_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/client_settings_test \
+		plugin/plugins/client_settings.c plugin/test/client_settings_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/client_settings_test
 
 # The Feature Flags plugin against a fake engine that publishes three flags,
 # one of each shape. What is under test is the round trip -- the page built
@@ -2279,7 +2360,9 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plug
 test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/feature_flags_test
@@ -2297,7 +2380,9 @@ test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/featur
 test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/gameframe_test
@@ -2317,7 +2402,9 @@ test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
 test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/mobile_gameframe.c plugin/test/mobile_gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
 		plugin/plugins/mobile_gameframe.c \
 		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
@@ -2326,7 +2413,9 @@ test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
+		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c $(LDFLAGS)
 	XP_ORBS_TEST_PNG=$(OBJ_DIR)/xp_orbs_test.png ./$(OBJ_DIR)/xp_orbs_test
@@ -2796,11 +2885,12 @@ test-painters-world-entity: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/painters_test_world_entity
 
-# The model tests link no platform, so they are a build with no NATIVE chrome
-# executor -- a real and supported configuration, and the one every lane falls
-# back to. Undefining the availability flag here says so, rather than leaving
-# the chooser referring to a symbol this binary does not have.
-CHROME_EXEC_TEST_CFLAGS = -UTORIRS_CHROME_EXEC_SDL_AVAILABLE
+# The model tests link no platform, so they deliberately exercise the internal
+# BUFFER fallback. Strip every external executor advertised by the selected
+# platform; otherwise a macOS test compile, for example, selects BROWSER while
+# this focused harness quite correctly links no browser transport or executor.
+CHROME_EXEC_TEST_CFLAGS = -UTORIRS_CHROME_EXEC_WEB_AVAILABLE \
+	-UTORIRS_CHROME_EXEC_BROWSER_AVAILABLE
 
 test-uitree: $(OBJ_DIR)
 	@mkdir -p build
@@ -2837,40 +2927,10 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_scripted_overlay.c render/torirs_arc.c -lm
 	./$(OBJ_DIR)/uitree_test
 
-.PHONY: test-sdl-chrome
-ifneq ($(filter $(PLATFORM),macos linux),)
-test-sdl-chrome: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -DTORIRS_CHROME_EXEC_SDL_AVAILABLE=1 -o $(OBJ_DIR)/sdl_chrome_test \
-		platform/test/sdl_chrome_test.c platform/platform_sdl2.c \
-		$(PLATFORM_OBJC_SRCS) \
-		ui/torirs_chrome_exec_sdl.c ui/torirs_chrome_rail.c \
-		engine/torirs_chrome_skin_baked.c \
-		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
-	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_chrome_test
-
-# Deterministic runtime evidence: the same production PlatformWindow and SDL
-# executor exercised above, presented once into the real main-window renderer
-# and read back as a BMP. Override CAPTURE_PATH to choose the artifact name.
-CAPTURE_PATH ?= plugin_chrome_capture.bmp
-.PHONY: capture-sdl-chrome
-capture-sdl-chrome: test-sdl-chrome
-	TORIRS_PLUGIN_CHROME_CAPTURE="$(CAPTURE_PATH)" ./$(OBJ_DIR)/sdl_chrome_test
-else
-test-sdl-chrome:
-	@echo "test-sdl-chrome requires PLATFORM=macos or PLATFORM=linux"
-	@false
-
-capture-sdl-chrome:
-	@echo "capture-sdl-chrome requires PLATFORM=macos or PLATFORM=linux"
-	@false
-endif
-
 # The attached plugin pane's WINDOW-SIZE policy alone (grow only where the
 # display has room, never while maximised, Close gives back what was grown,
-# the pump relayouts a pane that changed inside the frame). No executor and
-# no pixels, so unlike test-sdl-chrome it also passes on macOS, where the
-# pane's pixels belong to the WKWebView.
+# the pump relayouts a pane that changed inside the frame). This is platform
+# window geometry only; plugin chrome itself is presented by a web executor.
 .PHONY: test-sdl-chrome-geometry
 ifneq ($(filter $(PLATFORM),macos linux),)
 test-sdl-chrome-geometry: $(OBJ_DIR)
@@ -2888,9 +2948,7 @@ test-sdl-chrome-geometry:
 endif
 
 # What PlatformWindow_SetTextInput(off) may do on a backend with no on-screen
-# keyboard: nothing. Its own target rather than a case in test-sdl-chrome above,
-# because that harness needs the SDL surface executor and this needs only the
-# window.
+# keyboard: nothing. This needs only the platform window/input path.
 .PHONY: test-sdl-text-input
 ifneq ($(filter $(PLATFORM),macos linux),)
 test-sdl-text-input: $(OBJ_DIR)
@@ -2925,33 +2983,6 @@ test-font-markup: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 # two World_* symbols on the UITREE_EMIT_WORLD path, which an overlay-only emit
 # buffer never takes, and the test closes the link itself rather than dragging
 # painters/collision/heightmap/minimap into a rectangles-and-text test.
-# The Win32 chrome executor, parsed on a machine with no Windows SDK.
-#
-# It exists because ui/torirs_chrome_exec_gdi.c is code nobody on macOS or
-# Linux compiles: without this it rots silently until someone runs a Windows
-# build, and the first sign is a broken lane rather than a broken file. The
-# stub in ui/test/winstub is a parse-only stand-in -- it proves the C is valid
-# and that our own calls match our own declarations. It does NOT prove the
-# Win32 calls are correct; only a real Windows build does that.
-.PHONY: check-gdi-syntax
-check-gdi-syntax:
-	$(CC) -std=c11 -fsyntax-only -Wall -Wextra \
-		-I$(SRC_DIR)/ui/test/winstub -I$(SRC_DIR) -I$(SRC_DIR)/ui \
-		ui/torirs_chrome_exec_gdi.c
-	@echo "check-gdi-syntax: ok"
-
-# Android's presenter is split at JNI, but its executor/queue half is ordinary
-# pthread C and can be proved on every development host. The bridge functions
-# in this test are recorders: they verify whole-sync delivery and UI -> frame
-# intent ordering without needing an emulator or an Android window.
-.PHONY: test-chrome-android-exec
-test-chrome-android-exec: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -DTORIRS_CHROME_EXEC_ANDROID_AVAILABLE=1 \
-		-o $(OBJ_DIR)/chrome_android_exec_test \
-		ui/test/torirs_chrome_exec_android_test.c ui/torirs_chrome_exec_android.c \
-		-pthread
-	./$(OBJ_DIR)/chrome_android_exec_test
-
 # Shared browser protocol serializer/parser, with a fake PlatformWindow
 # transport. This runs on every host; WebView2/MSHTML engine tests are separate.
 .PHONY: test-chrome-browser-exec

@@ -673,7 +673,6 @@ lt_draw_totals(uint32_t* buf, int w, int h)
 {
     char text[64];
 
-    assert(ctx);
     assert(buf);
 
     if( g_spine_px )

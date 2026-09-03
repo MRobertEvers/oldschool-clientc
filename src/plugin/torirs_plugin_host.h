@@ -18,6 +18,8 @@
  */
 
 #include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_ui.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -109,8 +111,7 @@
  * the one being scrolled towards.
  */
 #define TORIRS_PLUGIN_OBJ_ICONS_MAX 48
-/** Live reservations across every plugin. One per (plugin, region, edge), and
- *  four edges of one region each is already an unusual plugin. */
+/** Live named placement reservations across every plugin. */
 #define TORIRS_PLUGIN_RESERVES_MAX 32
 /** Longest screenshot destination a plugin may name, including separators. */
 #define TORIRS_PLUGIN_SCREENSHOT_DIR_MAX 192
@@ -136,30 +137,82 @@ struct ToriRS_PluginEngine
 
     /** Canvas minus what the OS is covering (the soft keyboard).
      *  @see ToriRS_PluginApi::safe_os. */
-    int (*safe_os)(void* user, int* out_x, int* out_y, int* out_w, int* out_h);
+    int (*safe_os)(
+        void* user,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
+    /**
+     * Exact platform-safe fragments. Pass -1 to start; returns the fragment
+     * index or -1 when finished. Optional: the host adapts safe_os as one
+     * fragment when absent.
+     */
+    int (*platform_safe_next)(
+        void* user,
+        int iter,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
 
     int (*world_cycle)(void* user);
     uint64_t (*frame_ms)(void* user);
     uint64_t (*frame_work_us)(void* user);
 
-    int (*local_player)(void* user, struct ToriRS_PluginPlayerSnap* out);
-    int (*npc_next)(void* user, int iter, struct ToriRS_PluginNpcSnap* out);
-    int (*npc_by_slot)(void* user, int server_slot, struct ToriRS_PluginNpcSnap* out);
-    int (*player_next)(void* user, int iter, struct ToriRS_PluginPlayerSnap* out);
-    int (*obj_next)(void* user, int iter, struct ToriRS_PluginObjSnap* out);
-    int (*loc_next)(void* user, int iter, struct ToriRS_PluginLocSnap* out);
-    int (*highlight_next)(void* user, int iter, struct ToriRS_PluginHighlightItem* out);
+    int (*local_player)(
+        void* user,
+        struct ToriRS_PluginPlayerSnap* out);
+    int (*npc_next)(
+        void* user,
+        int iter,
+        struct ToriRS_PluginNpcSnap* out);
+    int (*npc_by_slot)(
+        void* user,
+        int server_slot,
+        struct ToriRS_PluginNpcSnap* out);
+    int (*player_next)(
+        void* user,
+        int iter,
+        struct ToriRS_PluginPlayerSnap* out);
+    int (*obj_next)(
+        void* user,
+        int iter,
+        struct ToriRS_PluginObjSnap* out);
+    int (*loc_next)(
+        void* user,
+        int iter,
+        struct ToriRS_PluginLocSnap* out);
+    int (*highlight_next)(
+        void* user,
+        int iter,
+        struct ToriRS_PluginHighlightItem* out);
 
     /** One game line into the chatbox. @see ToriRS_PluginApi::notify. */
-    void (*notify)(void* user, char const* text);
+    void (*notify)(
+        void* user,
+        char const* text);
 
-    int (*key_held)(void* user, int keycode);
-    int (*hover_tile)(void* user, int* out_tile_x, int* out_tile_z, int* out_level);
-    int (*hover_entity)(void* user, struct ToriRS_PluginHoverEntity* out);
-    int (*element_height)(void* user, int element_id);
+    int (*key_held)(
+        void* user,
+        int keycode);
+    int (*hover_tile)(
+        void* user,
+        int* out_tile_x,
+        int* out_tile_z,
+        int* out_level);
+    int (*hover_entity)(
+        void* user,
+        struct ToriRS_PluginHoverEntity* out);
+    int (*element_height)(
+        void* user,
+        int element_id);
 
     /** The pointer, in canvas coords. @see ToriRS_PluginApi::mouse_pos. */
-    int (*mouse_pos)(void* user, int* out_x, int* out_y);
+    int (*mouse_pos)(
+        void* user,
+        int* out_x,
+        int* out_y);
     /**
      * One PLACEABLE region's box, plus CANVAS. @see
      * ToriRS_PluginApi::slot_rect.
@@ -171,7 +224,12 @@ struct ToriRS_PluginEngine
      * subtraction rule rather than two.
      */
     int (*slot_rect)(
-        void* user, int slot, int* out_x, int* out_y, int* out_w, int* out_h);
+        void* user,
+        int slot,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
     /**
      * One MEMBER of a placeable region. @see
      * ToriRS_PluginApi::slot_member_rect.
@@ -179,7 +237,13 @@ struct ToriRS_PluginEngine
      * The read half of layout_slot's `member`, so the two use one numbering.
      */
     int (*slot_member_rect)(
-        void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h);
+        void* user,
+        int slot,
+        int member,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
     /**
      * The size the LANE authored for a placeable region's surface. @see
      * ToriRS_PluginApi::slot_native_size.
@@ -187,10 +251,19 @@ struct ToriRS_PluginEngine
      * The engine's to answer because it is a fact about the tree and about
      * nothing else: no reservation, no claim and no plugin state is in it.
      */
-    int (*slot_native_size)(void* user, int slot, int* out_w, int* out_h);
+    int (*slot_native_size)(
+        void* user,
+        int slot,
+        int* out_w,
+        int* out_h);
     /** One component's box, by id. @see ToriRS_PluginApi::component_rect. */
     int (*component_rect)(
-        void* user, int component_id, int* out_x, int* out_y, int* out_w, int* out_h);
+        void* user,
+        int component_id,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
 
     /* The semantic roles. @see ToriRS_PluginApi::role_rect and friends.
      *
@@ -208,13 +281,25 @@ struct ToriRS_PluginEngine
 
     /** Where a role's element is. @see ToriRS_PluginApi::role_rect. */
     int (*role_rect)(
-        void* user, char const* role, int* out_x, int* out_y, int* out_w, int* out_h);
+        void* user,
+        char const* role,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
     /** Whether it is on screen. @see ToriRS_PluginApi::role_visible. */
-    int (*role_visible)(void* user, char const* role);
+    int (*role_visible)(
+        void* user,
+        char const* role);
     /** Press it. @see ToriRS_PluginApi::role_click. */
-    int (*role_click)(void* user, char const* role, int op);
+    int (*role_click)(
+        void* user,
+        char const* role,
+        int op);
     /** Its component id right now, or -1. @see ToriRS_PluginApi::role_id. */
-    int (*role_id)(void* user, char const* role);
+    int (*role_id)(
+        void* user,
+        char const* role);
     /**
      * Does `role` name a FRAME SLOT member on this revision, and which?
      *
@@ -231,28 +316,43 @@ struct ToriRS_PluginEngine
      * @return 1 when the role resolves to a slot, 0 for a cache component, a
      * role this revision has not declared, or no tree.
      */
-    int (*role_slot)(void* user, char const* role, int* out_slot, int* out_member);
+    int (*role_slot)(
+        void* user,
+        char const* role,
+        int* out_slot,
+        int* out_member);
     /** Reconcile one persistent owner-scoped replacement declaration. */
-    int (*role_replace)(void* user, int plugin, char const* role, int enabled);
+    int (*role_replace)(
+        void* user,
+        int plugin,
+        char const* role,
+        int enabled);
     /** Select/reset the role anchor for the open canvas subscriber. A NULL
      * role resets it; a non-NULL empty role selects active-invalid/drop state;
      * `replace` says the caller owns the replacement claim. */
     /** `place` is enum ToriRS_PluginAnchorPlace, or PLUGIN_ANCHOR_PLACE_SELF
      *  for the replacement owner's own appearance -- the object itself, which
      *  everything BEFORE paints under and everything AFTER paints over. */
-    int (*role_anchor)(void* user, int plugin, char const* role, int replace, int place);
+    int (*role_anchor)(
+        void* user,
+        int plugin,
+        char const* role,
+        int replace,
+        int place);
 
-    /* The gameframe claim. @see ToriRS_PluginApi::layout_claim.
-     *
-     * The host owns WHO holds the frame; the engine owns what holding it does
-     * -- suppressing the lane's own chrome, pinning the canvas, moving the
-     * live surfaces. Split there because only the engine can reach a tree
-     * node and only the host can arbitrate between plugins. */
+    /* The resolved gameframe. The host selects one published offer; the
+     * engine owns what activation does -- suppressing native chrome, pinning
+     * the canvas, and moving the live surfaces. */
 
     /** The claim changed (or was restated). `owned` is 1 while a plugin holds
      *  the frame; `canvas` is enum ToriRS_PluginLayoutCanvas and `fixed_w/h`
      *  the pinned canvas, 0 when it follows the window. */
-    void (*layout_set)(void* user, int owned, int canvas, int fixed_w, int fixed_h);
+    void (*layout_set)(
+        void* user,
+        int owned,
+        int canvas,
+        int fixed_w,
+        int fixed_h);
     /** Empty the slot table, before an EV_LAYOUT declaration. */
     void (*layout_begin)(void* user);
     /** Apply what the declaration left behind, and hide every surface it did
@@ -261,29 +361,56 @@ struct ToriRS_PluginEngine
     /** Place one slot, or one MEMBER of it when `member` is not -1.
      *  @see ToriRS_PluginApi::layout_slot_at; the return is the same "does
      *  this frame have one" answer. */
-    int (*layout_slot)(void* user, int slot, int member, int x, int y, int w, int h);
+    int (*layout_slot)(
+        void* user,
+        int slot,
+        int member,
+        int x,
+        int y,
+        int w,
+        int h);
     /** Skin one slot: the picture it draws from and the alpha cut-out it is
      *  clipped to, as plugin image slots (art -1 keeps native; mask -1 clears).
      *  @see ToriRS_PluginApi::layout_slot_skin. */
-    int (*layout_slot_skin)(void* user, int slot, int art, int mask);
+    int (*layout_slot_skin)(
+        void* user,
+        int slot,
+        int art,
+        int mask);
     /** Paint one plugin image immediately after a slot's primary subtree.
      *  The image is a plugin slot and may still be pending; the engine maps
      *  its stable handle to the stable scene id.
      *  @see ToriRS_PluginApi::layout_slot_overlay. */
     int (*layout_slot_overlay)(
-        void* user, int slot, int image, int x, int y, int trans);
+        void* user,
+        int slot,
+        int image,
+        int x,
+        int y,
+        int trans);
     /** Six plugin image slots in UITreeScrollbarSkinPiece order, or NULL to
      *  clear. @see ToriRS_PluginApi::layout_scrollbar. */
-    int (*layout_scrollbar)(void* user, int const* images, int count);
+    int (*layout_scrollbar)(
+        void* user,
+        int const* images,
+        int count);
     /** The selected sidebar tab, or -1. @see ToriRS_PluginApi::tab_active. */
     int (*tab_active)(void* user);
     /** Flip to that tab. @see ToriRS_PluginApi::tab_select. */
-    int (*tab_select)(void* user, int tabno);
+    int (*tab_select)(
+        void* user,
+        int tabno);
     /** Nonzero when that tab has an interface mounted behind it.
      *  @see ToriRS_PluginApi::tab_enabled. */
-    int (*tab_enabled)(void* user, int tabno);
+    int (*tab_enabled)(
+        void* user,
+        int tabno);
     /** One skill's boosted and base level. @see ToriRS_PluginApi::stat. */
-    int (*stat)(void* user, int skill, int* out_current, int* out_base);
+    int (*stat)(
+        void* user,
+        int skill,
+        int* out_current,
+        int* out_base);
     /** One skill's xp and the thresholds either side of it.
      *  @see ToriRS_PluginApi::stat_xp. */
     int (*stat_xp)(
@@ -294,7 +421,9 @@ struct ToriRS_PluginEngine
         int* out_next_xp);
     /** The skill's name, or NULL past the stat table.
      *  @see ToriRS_PluginApi::skill_name. */
-    char const* (*skill_name)(void* user, int skill);
+    char const* (*skill_name)(
+        void* user,
+        int skill);
     /** Run energy, 0..100. */
     int (*run_energy)(void* user);
 
@@ -306,37 +435,90 @@ struct ToriRS_PluginEngine
      * for one, so no plugin can name it and none can be added by a plugin
      * shipping its own idea of the list.
      */
-    int (*feature_next)(void* user, int iter, struct ToriRS_PluginFeature* out);
-    int (*feature_get)(void* user, char const* key);
-    int (*feature_set)(void* user, char const* key, int value);
+    int (*feature_next)(
+        void* user,
+        int iter,
+        struct ToriRS_PluginFeature* out);
+    int (*feature_get)(
+        void* user,
+        char const* key);
+    int (*feature_set)(
+        void* user,
+        char const* key,
+        int value);
     /** One client-wide display preference and its range, and the setter for
      *  it. @see ToriRS_PluginApi::display_setting. */
     int (*display_setting)(
-        void* user, int setting, int* out_value, int* out_min, int* out_max);
-    int (*display_setting_set)(void* user, int setting, int value);
+        void* user,
+        int setting,
+        int* out_value,
+        int* out_min,
+        int* out_max);
+    int (*display_setting_set)(
+        void* user,
+        int setting,
+        int value);
+
+    /**
+     * The device-local requested gameframe. Returns 1 when the preference was
+     * explicitly present, 0 for a fresh/legacy file (and still writes `auto`).
+     * `out_migration_version` lets the host perform the one-time conversion
+     * from the two legacy plugin enable switches.
+     *
+     * Optional for focused harnesses; an absent callback means `auto` without
+     * persistence.
+     */
+    int (*frame_preference)(
+        void* user,
+        char* out,
+        int out_size,
+        int* out_migration_version);
+    int (*frame_preference_set)(
+        void* user,
+        char const* id,
+        int migration_version);
 
     /** The client's live var state, read-only. @see ToriRS_PluginApi::varbit. */
-    int (*varbit)(void* user, int varbit_id);
-    int (*varp)(void* user, int varp_id);
+    int (*varbit)(
+        void* user,
+        int varbit_id);
+    int (*varp)(
+        void* user,
+        int varp_id);
 
     /** The boot profile's `[<kind>:<name>] id=` table. @see ToriRS_PluginApi::cache_id. */
-    int (*cache_id)(void* user, char const* kind, char const* name);
+    int (*cache_id)(
+        void* user,
+        char const* kind,
+        char const* name);
     /** What `[cache:boot]` stated. OPTIONAL -- a NULL here answers every
      *  plugin UNKNOWN, which is the one answer nothing decides on.
      *  @see ToriRS_PluginApi::lane. */
-    int (*lane)(void* user, struct ToriRS_PluginLane* out);
+    int (*lane)(
+        void* user,
+        struct ToriRS_PluginLane* out);
     /** The live gameframe's root interface group, or -1 on a revconfig frame.
      *  Optional like `lane`: a harness with no notion of a cache gameframe
      *  leaves it NULL and every plugin reads -1. */
     int (*frame_root)(void* user);
 
     /** One objtype, resident-only. @see ToriRS_PluginApi::obj_info. */
-    int (*obj_info)(void* user, int obj_id, struct ToriRS_PluginObjInfo* out);
+    int (*obj_info)(
+        void* user,
+        int obj_id,
+        struct ToriRS_PluginObjInfo* out);
     /** One container slot. `inv` is enum ToriRS_PluginInv.
      *  @see ToriRS_PluginApi::inv_slot. */
-    int (*inv_slot)(void* user, int inv, int slot, int* out_obj_id, int* out_count);
+    int (*inv_slot)(
+        void* user,
+        int inv,
+        int slot,
+        int* out_obj_id,
+        int* out_count);
     /** That container's slot count. @see ToriRS_PluginApi::inv_size. */
-    int (*inv_size)(void* user, int inv);
+    int (*inv_size)(
+        void* user,
+        int inv);
 
     int (*project)(
         void* user,
@@ -359,7 +541,9 @@ struct ToriRS_PluginEngine
      * and duplicating five builders to say so would leave five chances for the
      * two to drift apart.
      */
-    void (*draw_select_canvas)(void* user, int canvas);
+    void (*draw_select_canvas)(
+        void* user,
+        int canvas);
 
     /**
      * Decode `data` as an image and publish it at `slot`, returning 1 on
@@ -390,9 +574,15 @@ struct ToriRS_PluginEngine
      * them. @return how many were copied, 0 if it will not fit or the slot
      * holds nothing. @see ToriRS_PluginApi::image_pixels.
      */
-    int (*image_read)(void* user, int slot, uint32_t* out, int max);
+    int (*image_read)(
+        void* user,
+        int slot,
+        uint32_t* out,
+        int max);
     /** Drop a published image. Idempotent. */
-    void (*image_release)(void* user, int slot);
+    void (*image_release)(
+        void* user,
+        int slot);
 
     /**
      * Rasterise the client's inventory icon for `obj_id` at `count` and
@@ -412,9 +602,14 @@ struct ToriRS_PluginEngine
     /** Walk the client's recorded loot. Iterator protocol of npc_next.
      *  @see ToriRS_PluginApi::loot_source_next. */
     int (*loot_source_next)(
-        void* user, int iter, struct ToriRS_PluginLootSource* out);
+        void* user,
+        int iter,
+        struct ToriRS_PluginLootSource* out);
     int (*loot_row_next)(
-        void* user, int source_id, int iter, struct ToriRS_PluginLootRow* out);
+        void* user,
+        int source_id,
+        int iter,
+        struct ToriRS_PluginLootRow* out);
 
     int (*obj_image)(
         void* user,
@@ -439,11 +634,18 @@ struct ToriRS_PluginEngine
         int op_count,
         uint32_t tag);
     /** Press an interface button. @see ToriRS_PluginApi::if_click. */
-    int (*if_click)(void* user, int component_id, int op);
+    int (*if_click)(
+        void* user,
+        int component_id,
+        int op);
     /** @see ToriRS_PluginApi::text_input. */
-    void (*text_input)(void* user, int on);
+    void (*text_input)(
+        void* user,
+        int on);
     /** @see ToriRS_PluginApi::chat_focus. */
-    void (*chat_focus)(void* user, int on);
+    void (*chat_focus)(
+        void* user,
+        int on);
     /** Blit a published image. @see ToriRS_PluginApi::draw_image. */
     int (*draw_image)(
         void* user,
@@ -465,9 +667,25 @@ struct ToriRS_PluginEngine
         uint32_t rgb,
         uint32_t fill_rgb,
         int fill_alpha);
-    int (*draw_hull)(void* user, int element_id, uint32_t rgb, int fill_alpha, int shape);
-    int (*draw_line)(void* user, int x0, int y0, int x1, int y1, uint32_t rgb);
-    int (*draw_text)(void* user, int x, int y, char const* text, uint32_t rgb);
+    int (*draw_hull)(
+        void* user,
+        int element_id,
+        uint32_t rgb,
+        int fill_alpha,
+        int shape);
+    int (*draw_line)(
+        void* user,
+        int x0,
+        int y0,
+        int x1,
+        int y1,
+        uint32_t rgb);
+    int (*draw_text)(
+        void* user,
+        int x,
+        int y,
+        char const* text,
+        uint32_t rgb);
     int (*draw_rect)(
         void* user,
         int x,
@@ -479,7 +697,11 @@ struct ToriRS_PluginEngine
 
     /** Append a row carrying `action_id` to the menu build in progress.
      *  Returns 1 on success, 0 when the menu is full. */
-    int (*menu_add)(void* user, void* cursor, char const* text, int action_id);
+    int (*menu_add)(
+        void* user,
+        void* cursor,
+        char const* text,
+        int action_id);
     /**
      * Remove one row from the menu being built, by the index it had in the
      * EV_MENU_BUILD payload. Rows above it shift down, so a caller dropping
@@ -489,7 +711,10 @@ struct ToriRS_PluginEngine
      * an npc needs the game's rows gone, and appending cannot say that.
      * @see ToriRS_PluginApi::entity_ops.
      */
-    int (*menu_drop)(void* user, void* cursor, int index);
+    int (*menu_drop)(
+        void* user,
+        void* cursor,
+        int index);
 
     /* Assets. The engine owns the paths and the IO queue; the host owns the
      * resident bytes and who is allowed to see them, which is why `plugin` is
@@ -497,11 +722,19 @@ struct ToriRS_PluginEngine
 
     /** Queue a read. The engine calls PluginHost_AssetDeliver when it lands,
      *  with the bytes or with NULL. Returns 1 when the read was queued. */
-    int (*asset_read)(void* user, char const* plugin, char const* name);
+    int (*asset_read)(
+        void* user,
+        char const* plugin,
+        char const* name);
     /** Queue a write. `data` is COPIED by the engine: the host's resident copy
      *  is replaced the moment asset_save returns and cannot be borrowed for
      *  the lifetime of an async write. */
-    int (*asset_write)(void* user, char const* plugin, char const* name, void const* data, int size);
+    int (*asset_write)(
+        void* user,
+        char const* plugin,
+        char const* name,
+        void const* data,
+        int size);
 
     /** Record a deferred frame capture. `dir` is NULL or "" for the plugin's
      *  own saved-asset directory. Returns 1 when the request was accepted; the
@@ -526,22 +759,64 @@ struct ToriRS_PluginEngine
     /** Decode `data` as a model and hold it at slot `model`. Returns 0 when
      *  the bytes are not a model this client reads -- which is an answer, not
      *  an error: the plugin named the file. */
-    int (*model_publish)(void* user, int model, void const* data, int size);
-    void (*model_release)(void* user, int model);
+    int (*model_publish)(
+        void* user,
+        int model,
+        void const* data,
+        int size);
+    void (*model_release)(
+        void* user,
+        int model);
 
     int (*mesh_create)(void* user);
-    void (*mesh_destroy)(void* user, int mesh);
-    void (*mesh_clear)(void* user, int mesh);
-    int (*mesh_vertex)(void* user, int mesh, int x, int y, int z);
-    int (*mesh_face)(void* user, int mesh, int a, int b, int c, int hsl, int alpha);
+    void (*mesh_destroy)(
+        void* user,
+        int mesh);
+    void (*mesh_clear)(
+        void* user,
+        int mesh);
+    int (*mesh_vertex)(
+        void* user,
+        int mesh,
+        int x,
+        int y,
+        int z);
+    int (*mesh_face)(
+        void* user,
+        int mesh,
+        int a,
+        int b,
+        int c,
+        int hsl,
+        int alpha);
 
     int (*object_create)(void* user);
-    void (*object_destroy)(void* user, int object);
-    void (*object_set_model)(void* user, int object, int source, int id);
-    void (*object_recolor)(void* user, int object, int hsl_from, int hsl_to);
-    void (*object_clear_recolors)(void* user, int object);
-    void (*object_set_anim)(void* user, int object, int seq_id, int loop);
-    void (*object_set_light)(void* user, int object, int ambient, int contrast);
+    void (*object_destroy)(
+        void* user,
+        int object);
+    void (*object_set_model)(
+        void* user,
+        int object,
+        int source,
+        int id);
+    void (*object_recolor)(
+        void* user,
+        int object,
+        int hsl_from,
+        int hsl_to);
+    void (*object_clear_recolors)(
+        void* user,
+        int object);
+    void (*object_set_anim)(
+        void* user,
+        int object,
+        int seq_id,
+        int loop);
+    void (*object_set_light)(
+        void* user,
+        int object,
+        int ambient,
+        int contrast);
     void (*object_set_position)(
         void* user,
         int object,
@@ -550,11 +825,20 @@ struct ToriRS_PluginEngine
         int level,
         int height,
         int yaw);
-    void (*object_set_active)(void* user, int object, int active);
-    int (*object_ready)(void* user, int object);
+    void (*object_set_active)(
+        void* user,
+        int object,
+        int active);
+    int (*object_ready)(
+        void* user,
+        int object);
 
-    int (*hsl_from_rgb)(void* user, uint32_t rgb);
-    uint32_t (*hsl_to_rgb)(void* user, int hsl);
+    int (*hsl_from_rgb)(
+        void* user,
+        uint32_t rgb);
+    uint32_t (*hsl_to_rgb)(
+        void* user,
+        int hsl);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -564,25 +848,45 @@ struct ToriRS_PluginEngine
 /** Allocates and registers every statically linked plugin. `engine` is copied.
  *  Plugins are not started here -- PluginHost_Start does that, once the config
  *  store has been loaded. */
-struct ToriRS_PluginHost* PluginHost_New(struct ToriRS_PluginEngine const* engine);
+struct ToriRS_PluginHost*
+PluginHost_New(struct ToriRS_PluginEngine const* engine);
 
 /** Fires EV_STOP on everything still running, in reverse start order. */
-void PluginHost_Free(struct ToriRS_PluginHost* host);
+void
+PluginHost_Free(struct ToriRS_PluginHost* host);
 
 /** Register one plugin. `def` must outlive the host (it is held by pointer,
  *  the way every static plugin def is a file-scope constant). Returns the
  *  plugin index, or -1 when the table is full. */
-int PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef const* def);
+int
+PluginHost_Register(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginDef const* def);
+
+/**
+ * Register one callback-table v2 plugin. The definition and everything it
+ * references must outlive the host. Per-instance state is host-owned, zeroed
+ * before each start, and released after on_stop.
+ */
+int
+PluginHost_RegisterV2(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginDefV2 const* def);
 
 /** Runs `init` and fires EV_START for every enabled plugin that is not yet
  *  running. Idempotent, so a late-registered plugin (a script that finished
  *  loading) is started by calling this again. */
-void PluginHost_Start(struct ToriRS_PluginHost* host);
+void
+PluginHost_Start(struct ToriRS_PluginHost* host);
 
 /** Enable/disable at runtime: the settings-panel checkbox, and how a faulting
  *  script is taken out of the frame. Fires EV_START/EV_STOP and drops the
  *  plugin's subscriptions, menu routes and draw budget. */
-void PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool enabled);
+void
+PluginHost_SetEnabled(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    bool enabled);
 
 /**
  * Stop a plugin, rebuild it from its source, and start it again.
@@ -600,7 +904,10 @@ void PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, boo
  * A disabled plugin is left alone: it is already torn down, and restarting it
  * here would switch it on behind the user's back.
  */
-void PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index);
+void
+PluginHost_Reload(
+    struct ToriRS_PluginHost* host,
+    int plugin_index);
 /**
  * Is this plugin switched on RIGHT NOW -- the user's switch, minus any lane
  * that refused it. What the roster's checkbox and the boot line both want.
@@ -610,12 +917,19 @@ void PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index);
  * box over a plugin that is torn down. The saved line is the config encoder's
  * business and nobody else's. @see ToriRS_PluginApi::disable_self.
  */
-bool PluginHost_IsEnabled(struct ToriRS_PluginHost const* host, int plugin_index);
-int PluginHost_Count(struct ToriRS_PluginHost const* host);
+bool
+PluginHost_IsEnabled(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+int
+PluginHost_Count(struct ToriRS_PluginHost const* host);
 /** The plugin's identity: the ini section, the manifest entry, the key
  *  PluginHost_IndexOf answers to. Never what a person is shown -- use
  *  PluginHost_Title for that. */
-char const* PluginHost_Name(struct ToriRS_PluginHost const* host, int plugin_index);
+char const*
+PluginHost_Name(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
 /**
  * The plugin's human name: "Entity Highlighter", for the roster and the page
  * header.
@@ -625,30 +939,78 @@ char const* PluginHost_Name(struct ToriRS_PluginHost const* host, int plugin_ind
  * can end up printing a slug. It is a LABEL -- nothing may key off it, and it
  * may change between two runs of the same plugin.
  */
-char const* PluginHost_Title(struct ToriRS_PluginHost const* host, int plugin_index);
+char const*
+PluginHost_Title(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
 /** Last error text for a plugin, or NULL. Shown in the settings panel. */
-char const* PluginHost_Error(struct ToriRS_PluginHost const* host, int plugin_index);
+char const*
+PluginHost_Error(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
 /** Does this plugin exist to host others? @see ToriRS_PluginDef::adapter --
  *  the settings roster is the only caller, and it reads it to decide whether
  *  the row is worth showing. */
-bool PluginHost_IsAdapter(struct ToriRS_PluginHost const* host, int plugin_index);
+bool
+PluginHost_IsAdapter(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
 /** Is this a builtin, whose switch lives in the cache's All Settings panel?
  *  @see ToriRS_PluginDef::hidden. The roster is the only caller. */
-bool PluginHost_IsHidden(struct ToriRS_PluginHost const* host, int plugin_index);
+bool
+PluginHost_IsHidden(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
 /** Is this the plugin that cannot be switched off, and sorts to the top of the
  *  roster? @see ToriRS_PluginDef::essential. */
-bool PluginHost_IsEssential(struct ToriRS_PluginHost const* host, int plugin_index);
-void PluginHost_SetError(struct ToriRS_PluginHost* host, int plugin_index, char const* text);
-int PluginHost_IndexOf(struct ToriRS_PluginHost const* host, char const* name);
+bool
+PluginHost_IsEssential(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+void
+PluginHost_SetError(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* text);
+int
+PluginHost_IndexOf(
+    struct ToriRS_PluginHost const* host,
+    char const* name);
 
 /** The api table handed to plugins. Adapters need it to forward calls. */
-struct ToriRS_PluginApi const* PluginHost_Api(struct ToriRS_PluginHost const* host);
+struct ToriRS_PluginApi const*
+PluginHost_Api(struct ToriRS_PluginHost const* host);
 /** The ctx for one plugin, for an adapter that drives a plugin directly. */
-struct ToriRS_PluginCtx* PluginHost_Ctx(struct ToriRS_PluginHost* host, int plugin_index);
+struct ToriRS_PluginCtx*
+PluginHost_Ctx(
+    struct ToriRS_PluginHost* host,
+    int plugin_index);
 /** The plugin index behind a ctx. A language adapter registers one plugin per
  *  script but shares one `init` function between them, so this is how that
  *  init works out which script it was handed. */
-int PluginHost_CtxIndex(struct ToriRS_PluginCtx const* ctx);
+int
+PluginHost_CtxIndex(struct ToriRS_PluginCtx const* ctx);
+
+/* Canonical named UI, used by the v2 adapter and diagnostics. */
+struct ToriRS_UiNodeRef
+PluginHost_UiRef(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* name);
+bool
+PluginHost_UiInfo(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    struct ToriRS_UiNodeInfo* out);
+bool
+PluginHost_UiInvoke(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    char const* action);
+int
+PluginHost_UiChangeNext(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiChange* out);
 
 /* ------------------------------------------------------------------------ */
 /* Seam entry points. Each is a no-op when nothing subscribed.               */
@@ -656,15 +1018,37 @@ int PluginHost_CtxIndex(struct ToriRS_PluginCtx const* ctx);
 
 /** `drawn_frames` is the client's cumulative rendered-frame count; see
  *  ToriRS_PluginEvFrame. */
-void PluginHost_FrameStart(
-    struct ToriRS_PluginHost* host, uint64_t now_ms, uint64_t drawn_frames);
-void PluginHost_LogicTick(struct ToriRS_PluginHost* host, int logic_cycle);
-void PluginHost_ServerTick(struct ToriRS_PluginHost* host, int world_cycle);
-void PluginHost_WorldLoaded(struct ToriRS_PluginHost* host, int base_tile_x, int base_tile_z);
+void
+PluginHost_FrameStart(
+    struct ToriRS_PluginHost* host,
+    uint64_t now_ms,
+    uint64_t drawn_frames);
+void
+PluginHost_LogicTick(
+    struct ToriRS_PluginHost* host,
+    int logic_cycle);
+void
+PluginHost_ServerTick(
+    struct ToriRS_PluginHost* host,
+    int world_cycle);
+void
+PluginHost_WorldLoaded(
+    struct ToriRS_PluginHost* host,
+    int base_tile_x,
+    int base_tile_z);
 
-void PluginHost_NpcSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
-void PluginHost_NpcRetype(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
-void PluginHost_NpcDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
+void
+PluginHost_NpcSpawn(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginNpcSnap const* npc);
+void
+PluginHost_NpcRetype(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginNpcSnap const* npc);
+void
+PluginHost_NpcDespawn(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginNpcSnap const* npc);
 
 /**
  * An All Settings row was used: the panel's apply hub just named `setting_id`.
@@ -672,10 +1056,15 @@ void PluginHost_NpcDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginN
  * `value` is -1 for the rows whose hub carries none -- every toggle, and the
  * buttons this exists for.
  */
-void PluginHost_Setting(struct ToriRS_PluginHost* host, int setting_id, int value);
+void
+PluginHost_Setting(
+    struct ToriRS_PluginHost* host,
+    int setting_id,
+    int value);
 
 /** A chat line landed. `sender` may be NULL for a system message. */
-void PluginHost_ChatMessage(
+void
+PluginHost_ChatMessage(
     struct ToriRS_PluginHost* host,
     int type,
     char const* sender,
@@ -683,21 +1072,32 @@ void PluginHost_ChatMessage(
 
 /** A recognised notable moment. `kind` is the recogniser's stable name and
  *  must not be NULL; `subject` and `text` may be. */
-void PluginHost_GameEvent(
+void
+PluginHost_GameEvent(
     struct ToriRS_PluginHost* host,
     char const* kind,
     char const* subject,
     int value,
     char const* text);
 
-void PluginHost_ObjSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj);
-void PluginHost_ObjCount(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj);
-void PluginHost_ObjDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj);
+void
+PluginHost_ObjSpawn(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginObjSnap const* obj);
+void
+PluginHost_ObjCount(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginObjSnap const* obj);
+void
+PluginHost_ObjDespawn(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginObjSnap const* obj);
 
 /** An engine-side asset read finished. `data` is HANDED OVER on success (the
  *  host frees it); NULL means the read failed, and the plugin is told so. Both
  *  outcomes raise EV_ASSET, so a plugin never has to time a load out. */
-void PluginHost_AssetDeliver(
+void
+PluginHost_AssetDeliver(
     struct ToriRS_PluginHost* host,
     char const* plugin_name,
     char const* asset_name,
@@ -705,30 +1105,52 @@ void PluginHost_AssetDeliver(
     int size);
 
 /** Returns 1 when a plugin asked for the packet to be dropped. */
-int PluginHost_PacketIn(struct ToriRS_PluginHost* host, int packet_name, int size);
+int
+PluginHost_PacketIn(
+    struct ToriRS_PluginHost* host,
+    int packet_name,
+    int size);
 /** Returns 1 when a plugin vetoed the send. Called BEFORE the builder runs, so
  *  a veto never advances the outbound ISAAC stream. `builder_expr` is the
  *  stringified call; the host trims it to the leading identifier. */
-int PluginHost_PacketOutVeto(struct ToriRS_PluginHost* host, char const* builder_expr);
+int
+PluginHost_PacketOutVeto(
+    struct ToriRS_PluginHost* host,
+    char const* builder_expr);
 
 /** Returns 1 when a plugin consumed the key. */
-int PluginHost_Key(struct ToriRS_PluginHost* host, int key, int ch, bool down);
+int
+PluginHost_Key(
+    struct ToriRS_PluginHost* host,
+    int key,
+    int ch,
+    bool down);
 
 /** Opens the draw window, dispatches EV_DRAW_WORLD, closes it. */
-void PluginHost_DrawWorld(struct ToriRS_PluginHost* host);
+void
+PluginHost_DrawWorld(struct ToriRS_PluginHost* host);
 
 /** The same, for EV_DRAW_CANVAS: a different surface token, a different
  *  overlay list, and the canvas rather than the world viewport as the clip. */
-void PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height);
+void
+PluginHost_DrawCanvas(
+    struct ToriRS_PluginHost* host,
+    int width,
+    int height);
 
 /** Re-resolve all standing role replacement claims. Called before interaction
  * so a reclaimed/rebuilt target can never retain or inherit suppression. */
-void PluginHost_ReconcileRoleReplacements(struct ToriRS_PluginHost* host);
+void
+PluginHost_ReconcileRoleReplacements(struct ToriRS_PluginHost* host);
 
 /** The same again, for EV_DRAW_FRAME -- the chrome surface, under the
  *  interfaces. Raised for the frame's owner alone, and not at all when nobody
  *  holds it, so a client with no layout plugin pays one branch. */
-void PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height);
+void
+PluginHost_DrawFrame(
+    struct ToriRS_PluginHost* host,
+    int width,
+    int height);
 
 /**
  * The chrome pass: reconcile the suppressions, then re-ask every claimant
@@ -743,7 +1165,11 @@ void PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height)
  * queue with no layout in flight, and a dresser that skipped a pass waiting
  * for pixels has to be asked again once they arrive.
  */
-void PluginHost_ChromeTick(struct ToriRS_PluginHost* host, int width, int height);
+void
+PluginHost_ChromeTick(
+    struct ToriRS_PluginHost* host,
+    int width,
+    int height);
 
 /**
  * Ask the frame's owner to declare it, against a canvas of `width` x `height`.
@@ -755,20 +1181,24 @@ void PluginHost_ChromeTick(struct ToriRS_PluginHost* host, int width, int height
  * The two dimensions are ignored for a FIXED claim, which reads its own pinned
  * size back -- see the body.
  */
-void PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height);
+void
+PluginHost_Layout(
+    struct ToriRS_PluginHost* host,
+    int width,
+    int height);
 
 /**
- * The frame's geometry moved: bump the revision and raise EV_LAYOUT_CHANGED.
+ * Announce that a layout input may have moved.
  *
  * Called by the client when something it owns moved a region -- a resize, a
- * gameframe rebuild -- and by the host itself when a plugin reserves. Both are
- * the same news to a plugin holding a picture measured against a box.
+ * gameframe rebuild -- and by the host itself when a plugin reserves. Legacy
+ * EV_LAYOUT_CHANGED remains the broad compatibility notification. V2
+ * on_placement_changed is raised separately, only after the canonical area
+ * sets and assigned reservation boxes differ from their last complete state.
+ * Callback-side changes are coalesced into a later, non-recursive transaction.
  */
-void PluginHost_LayoutChanged(struct ToriRS_PluginHost* host);
-
-/** Which plugin holds the frame, or -1. The engine reads it to decide whether
- *  the lane's own chrome is suppressed this layout pass. */
-int PluginHost_LayoutOwner(struct ToriRS_PluginHost const* host);
+void
+PluginHost_LayoutChanged(struct ToriRS_PluginHost* host);
 
 /**
  * Deliver a canvas hit region's use, raising EV_CANVAS_CLICK on the plugin
@@ -777,23 +1207,34 @@ int PluginHost_LayoutOwner(struct ToriRS_PluginHost const* host);
  * `plugin_index` is what the engine recorded beside the region, so a plugin
  * can never be handed another's click even if the two overlap.
  */
-void PluginHost_CanvasClick(
-    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int op, int x, int y);
+void
+PluginHost_CanvasClick(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    uint32_t tag,
+    int op,
+    int x,
+    int y);
 
 /** Dispatches EV_MENU_BUILD. `cursor` is handed to engine->menu_add. */
-void PluginHost_MenuBuild(
+void
+PluginHost_MenuBuild(
     struct ToriRS_PluginHost* host,
     void* cursor,
     struct ToriRS_PluginEvMenuBuild* menu,
     bool hover_pass);
 
 /** True when `action` is a live plugin-owned menu action. */
-bool PluginHost_OwnsMenuAction(struct ToriRS_PluginHost const* host, int action);
+bool
+PluginHost_OwnsMenuAction(
+    struct ToriRS_PluginHost const* host,
+    int action);
 
 /** Dispatches EV_MENU_SELECT. Returns 1 when the engine's own dispatch should
  *  be suppressed -- always so for a plugin-owned row, and for a native row a
  *  subscriber consumed. */
-int PluginHost_MenuSelect(
+int
+PluginHost_MenuSelect(
     struct ToriRS_PluginHost* host,
     struct ToriRS_PluginMenuRow const* row,
     int click_x,
@@ -806,38 +1247,52 @@ int PluginHost_MenuSelect(
 /** Apply one parsed ini entry. Unknown plugins and keys are remembered so a
  *  script that has not finished loading yet still gets its saved values, and
  *  so a round-trip never drops a section it did not understand. */
-void PluginHost_ConfigApply(
+void
+PluginHost_ConfigApply(
     struct ToriRS_PluginHost* host,
     char const* plugin_name,
     char const* key,
     char const* value);
 
 /** Decode a whole plugin_prefs.ini image. */
-void PluginHost_ConfigDecode(struct ToriRS_PluginHost* host, void const* data, int size);
+void
+PluginHost_ConfigDecode(
+    struct ToriRS_PluginHost* host,
+    void const* data,
+    int size);
 
 /** Encode the store. Keys at their declared default are omitted, matching
  *  RS_Prefs. Caller frees *out_data. Returns 1 on success. */
-int PluginHost_ConfigEncode(
+int
+PluginHost_ConfigEncode(
     struct ToriRS_PluginHost const* host,
     void** out_data,
     int* out_size);
 
 /** True when anything has changed since the last encode. */
-bool PluginHost_ConfigDirty(struct ToriRS_PluginHost const* host);
-void PluginHost_ConfigClearDirty(struct ToriRS_PluginHost* host);
+bool
+PluginHost_ConfigDirty(struct ToriRS_PluginHost const* host);
+void
+PluginHost_ConfigClearDirty(struct ToriRS_PluginHost* host);
 
 /* Direct config access, for the settings panel and for adapters. */
-char const* PluginHost_ConfigGet(
+char const*
+PluginHost_ConfigGet(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
     char const* key);
-void PluginHost_ConfigSet(
+void
+PluginHost_ConfigSet(
     struct ToriRS_PluginHost* host,
     int plugin_index,
     char const* key,
     char const* value);
-int PluginHost_ConfigCount(struct ToriRS_PluginHost const* host, int plugin_index);
-struct ToriRS_PluginConfigItem const* PluginHost_ConfigItem(
+int
+PluginHost_ConfigCount(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+struct ToriRS_PluginConfigItem const*
+PluginHost_ConfigItem(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
     int item_index);
@@ -883,12 +1338,22 @@ struct ToriRS_PluginWinWidget
 };
 
 /** Has this plugin claimed a tab? */
-bool PluginHost_WinHasTab(struct ToriRS_PluginHost const* host, int plugin_index);
+bool
+PluginHost_WinHasTab(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
 /** Its tab's title; "" when it has none. Never NULL. */
-char const* PluginHost_WinTabTitle(struct ToriRS_PluginHost const* host, int plugin_index);
+char const*
+PluginHost_WinTabTitle(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
 
-int PluginHost_WinWidgetCount(struct ToriRS_PluginHost const* host, int plugin_index);
-struct ToriRS_PluginWinWidget const* PluginHost_WinWidgetAt(
+int
+PluginHost_WinWidgetCount(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+struct ToriRS_PluginWinWidget const*
+PluginHost_WinWidgetAt(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
     int widget_index);
@@ -900,7 +1365,10 @@ struct ToriRS_PluginWinWidget const* PluginHost_WinWidgetAt(
  * by the host itself after a reload -- the plugin declares its tab in one
  * place and never has to know which of those happened.
  */
-void PluginHost_WinBuild(struct ToriRS_PluginHost* host, int plugin_index);
+void
+PluginHost_WinBuild(
+    struct ToriRS_PluginHost* host,
+    int plugin_index);
 
 /**
  * Deliver a control's use to the plugin that owns it, updating the host's copy
@@ -909,7 +1377,8 @@ void PluginHost_WinBuild(struct ToriRS_PluginHost* host, int plugin_index);
  * @param action enum ToriRS_PluginUiAction.
  * @return 1 when the widget was found and the event dispatched.
  */
-int PluginHost_WinDispatch(
+int
+PluginHost_WinDispatch(
     struct ToriRS_PluginHost* host,
     int plugin_index,
     char const* widget_id,
@@ -918,7 +1387,10 @@ int PluginHost_WinDispatch(
     char const* text);
 
 /** Drop a plugin's tab and every control on it. Used by disable and reload. */
-void PluginHost_WinClearPlugin(struct ToriRS_PluginHost* host, int plugin_index);
+void
+PluginHost_WinClearPlugin(
+    struct ToriRS_PluginHost* host,
+    int plugin_index);
 
 /**
  * Bumped whenever the registry's SHAPE changes -- a tab claimed or dropped, a
@@ -930,7 +1402,8 @@ void PluginHost_WinClearPlugin(struct ToriRS_PluginHost* host, int plugin_index)
  * mirrored onto the existing controls, which is the whole reason the chrome
  * has compare-then-set mutators.
  */
-int PluginHost_WinRevision(struct ToriRS_PluginHost const* host);
+int
+PluginHost_WinRevision(struct ToriRS_PluginHost const* host);
 
 /* ---- the shared application plugin panel --------------------------------
  *
@@ -943,17 +1416,26 @@ int PluginHost_WinRevision(struct ToriRS_PluginHost const* host);
 
 /** Rail metadata. Entries exist only for running plugins which called
  *  panel_request from EV_START. */
-bool PluginHost_PanelHasPage(struct ToriRS_PluginHost const* host, int plugin_index);
-char const* PluginHost_PanelTitle(struct ToriRS_PluginHost const* host, int plugin_index);
-char const* PluginHost_PanelIconAsset(
+bool
+PluginHost_PanelHasPage(
     struct ToriRS_PluginHost const* host,
     int plugin_index);
-int PluginHost_PanelPreferredWidth(
+char const*
+PluginHost_PanelTitle(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+char const*
+PluginHost_PanelIconAsset(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+int
+PluginHost_PanelPreferredWidth(
     struct ToriRS_PluginHost const* host,
     int plugin_index);
 /** Whether the entry has asked to be noticed. A flag, never a caption -- the
  *  rail is a column of icons. @see ToriRS_PluginApi::panel_set_attention. */
-bool PluginHost_PanelWantsAttention(
+bool
+PluginHost_PanelWantsAttention(
     struct ToriRS_PluginHost const* host,
     int plugin_index);
 
@@ -962,9 +1444,12 @@ bool PluginHost_PanelWantsAttention(
  * registration and its automatically loaded image. Source icons are capped
  * at 64x64; 0 means pending, missing, malformed, or intentionally absent and
  * presenters use the baked wrench fallback. */
-uint32_t PluginHost_PanelIconRevision(
-    struct ToriRS_PluginHost const* host, int plugin_index);
-int PluginHost_PanelIconPixels(
+uint32_t
+PluginHost_PanelIconRevision(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index);
+int
+PluginHost_PanelIconPixels(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
     uint32_t* out_argb,
@@ -974,16 +1459,19 @@ int PluginHost_PanelIconPixels(
 
 /** Changes whenever an entry is added, removed, renamed, rebadged, or changes
  *  attention state. Presenters use it to avoid rebuilding an idle rail. */
-uint32_t PluginHost_PanelRegistryRevision(struct ToriRS_PluginHost const* host);
+uint32_t
+PluginHost_PanelRegistryRevision(struct ToriRS_PluginHost const* host);
 
 /** The only plugin whose page is mounted, or -1. */
-int PluginHost_PanelActive(struct ToriRS_PluginHost const* host);
+int
+PluginHost_PanelActive(struct ToriRS_PluginHost const* host);
 /** Most recently selected registered entry. Unlike PanelActive this survives
  *  an ordinary collapse, so the same icon can expand again. */
-int PluginHost_PanelLastSelected(struct ToriRS_PluginHost const* host);
+int
+PluginHost_PanelLastSelected(struct ToriRS_PluginHost const* host);
 /** Nonzero and advanced for every active-selection transition. */
-uint32_t PluginHost_PanelSelectionGeneration(
-    struct ToriRS_PluginHost const* host);
+uint32_t
+PluginHost_PanelSelectionGeneration(struct ToriRS_PluginHost const* host);
 
 /**
  * Handle a rail selection and synchronously build one registered page.
@@ -991,7 +1479,10 @@ uint32_t PluginHost_PanelSelectionGeneration(
  * it; selecting another entry replaces it. Returns 1 when the action was
  * accepted and 0 for an absent/stopped entry.
  */
-int PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index);
+int
+PluginHost_PanelSelect(
+    struct ToriRS_PluginHost* host,
+    int plugin_index);
 /**
  * PanelSelect naming which FACE to mount. `view` is enum
  * ToriRS_PluginPanelView; PanelSelect is this with VIEW_PAGE.
@@ -1001,35 +1492,45 @@ int PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index);
  * REPLACEMENT and advances the selection generation, because the two faces are
  * two page models and nothing may survive between them.
  */
-int PluginHost_PanelSelectView(
-    struct ToriRS_PluginHost* host, int plugin_index, int view);
+int
+PluginHost_PanelSelectView(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    int view);
 /** Which face the mounted page is showing, VIEW_PAGE when nothing is. */
-int PluginHost_PanelView(struct ToriRS_PluginHost const* host);
+int
+PluginHost_PanelView(struct ToriRS_PluginHost const* host);
 /** Collapse the page, notifying the old plugin that it became invisible and
  *  retaining PanelLastSelected. Returns 1 when a page was closed. */
-int PluginHost_PanelClose(struct ToriRS_PluginHost* host);
+int
+PluginHost_PanelClose(struct ToriRS_PluginHost* host);
 
 /** Build the active page if it was explicitly cleared. A presenter resync
  *  must read the retained model instead; it does not call this. */
-int PluginHost_PanelEnsureBuilt(
+int
+PluginHost_PanelEnsureBuilt(
     struct ToriRS_PluginHost* host,
     uint32_t selection_generation);
 
 /** Active model reads are generation checked so a sync cannot accidentally
  *  finish against a page which replaced the one it started reading. */
-int PluginHost_PanelWidgetCount(
+int
+PluginHost_PanelWidgetCount(
     struct ToriRS_PluginHost const* host,
     uint32_t selection_generation);
-struct ToriRS_PluginWinWidget const* PluginHost_PanelWidgetAt(
+struct ToriRS_PluginWinWidget const*
+PluginHost_PanelWidgetAt(
     struct ToriRS_PluginHost const* host,
     uint32_t selection_generation,
     int widget_index);
 /** Changes on every active model mutation, including result-state changes. */
-uint32_t PluginHost_PanelModelRevision(struct ToriRS_PluginHost const* host);
+uint32_t
+PluginHost_PanelModelRevision(struct ToriRS_PluginHost const* host);
 
 /** Publish neutral layout facts for the current selection. Returns 0 for a
  *  stale generation or invalid allocation. */
-int PluginHost_PanelLayout(
+int
+PluginHost_PanelLayout(
     struct ToriRS_PluginHost* host,
     uint32_t selection_generation,
     int width,
@@ -1042,7 +1543,8 @@ int PluginHost_PanelLayout(
 /** Deliver a copied result-state intent. Both generation and serial must name
  *  the active node; duplicate/stale presenter work therefore cannot reach a
  *  newly selected or redeclared page. */
-int PluginHost_PanelDispatch(
+int
+PluginHost_PanelDispatch(
     struct ToriRS_PluginHost* host,
     uint32_t selection_generation,
     uint32_t widget_serial,
@@ -1058,16 +1560,19 @@ int PluginHost_PanelDispatch(
  *  The caller prepares `surface` as a panel-local target before dispatch and
  *  restores its renderer afterwards. Draw returns 0 for hidden, clean, stale,
  *  or non-custom nodes. */
-bool PluginHost_PanelNeedsDraw(
+bool
+PluginHost_PanelNeedsDraw(
     struct ToriRS_PluginHost const* host,
     uint32_t selection_generation,
     uint32_t widget_serial);
 /** Mark an active custom node dirty because presenter geometry changed. */
-int PluginHost_PanelInvalidate(
+int
+PluginHost_PanelInvalidate(
     struct ToriRS_PluginHost* host,
     uint32_t selection_generation,
     uint32_t widget_serial);
-int PluginHost_PanelDraw(
+int
+PluginHost_PanelDraw(
     struct ToriRS_PluginHost* host,
     uint32_t selection_generation,
     uint32_t widget_serial,

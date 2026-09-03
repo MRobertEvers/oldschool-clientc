@@ -38,7 +38,7 @@
     };
     var ROW_ACTION = 0x1;
     var ROW_LOCKED = 0x2;
-    /* Chrome 39 has no dependable keyed-collection implementation on every API-22 image.
+    /* The XP runtime has no dependable keyed-collection implementation.
      * Handles are small integers, so a prefixed own-property store is enough. */
     function Store() {
         this.values = {};
@@ -79,8 +79,6 @@
     if (!shell || !pane || !title || !close || !tabs || !content || !rail)
         return null;
     var legacy = shell.getAttribute && shell.getAttribute('data-tpc-legacy') === '1';
-    var legacyPixels = legacy && !global.ToriRSAndroid;
-    toggleClass(shell, 'tpc-android-fonts', legacy && !legacyPixels);
     var state = {
         rail: {
             registryRevision: 0, selectionGeneration: 0, pageGeneration: 0,
@@ -104,14 +102,6 @@
         editorFocused: false,
         focusToken: 0
     };
-    /* Packaged Android cannot inject inline code under this bundle's CSP. Its
-     * JavascriptInterface is therefore discovered here, in trusted local code. */
-    if (typeof global.torirsChromeIntentPosted !== 'function' &&
-        global.ToriRSAndroid && typeof global.ToriRSAndroid.intent === 'function') {
-        global.torirsChromeIntentPosted = function (copy) {
-            global.ToriRSAndroid.intent(copy.k, copy.p, copy.w, copy.v, copy.text, copy.x, copy.y, copy.g, copy.s);
-        };
-    }
     function integer(value, fallback) {
         return typeof value === 'number' && isFinite(value) && Math.floor(value) === value
             ? value : fallback;
@@ -171,9 +161,9 @@
             return url;
         if (/^https:\/\/torirs\.local(?:\/|$)/i.test(url))
             return url;
-        if (!legacyPixels && /^data:image\/(?:png|gif|bmp|webp);base64,[A-Za-z0-9+/=]+$/i.test(url))
+        if (!legacy && /^data:image\/(?:png|gif|bmp|webp);base64,[A-Za-z0-9+/=]+$/i.test(url))
             return url;
-        if (!legacyPixels && allowBlob && /^blob:/i.test(url))
+        if (!legacy && allowBlob && /^blob:/i.test(url))
             return url;
         return '';
     }
@@ -181,7 +171,7 @@
         return url ? "url(\"".concat(url.replace(/["\\]/g, '\\$&'), "\")") : 'none';
     }
     function skinButton(button) {
-        if (!button || legacyPixels)
+        if (!button || legacy)
             return;
         var left = safeUrl(state.theme.buttonLeft);
         var middle = safeUrl(state.theme.buttonMiddle);
@@ -252,7 +242,7 @@
         if (!control)
             return;
         control.checked = checked;
-        if (legacyPixels)
+        if (legacy)
             return;
         var square = state.checkStyle === 1;
         var on = safeUrl(square ? state.theme.checkBoxOn : state.theme.checkOn) ||
@@ -267,7 +257,7 @@
         control.style.backgroundImage = cssUrl(checked ? on : off);
     }
     function skinField(control) {
-        if (!control || legacyPixels)
+        if (!control || legacy)
             return;
         var body = safeUrl(state.theme.dropdownBody) || 'skin/DropdownBody.png';
         var isSelect = String(control.tagName || '').toLowerCase() === 'select';
@@ -339,10 +329,7 @@
         }
         var encoded = Codec.stringify(copy);
         var post = typeof global.torirsPluginChromePostMessage === 'function'
-            ? global.torirsPluginChromePostMessage
-            : (global.ToriRSAndroid && typeof global.ToriRSAndroid.postMessage === 'function'
-                ? function (value) { return global.ToriRSAndroid.postMessage(value); }
-                : null);
+            ? global.torirsPluginChromePostMessage : null;
         if (post) {
             try {
                 post(encoded);
@@ -405,7 +392,7 @@
     }
     function decodeRgba(width, height, encoded) {
         var pixels = width * height;
-        if (legacyPixels || !global.atob || !global.Uint8ClampedArray || !global.ImageData ||
+        if (legacy || !global.atob || !global.Uint8ClampedArray || !global.ImageData ||
             width <= 0 || height <= 0 || width > 4096 || height > 4096 ||
             pixels > 4194304)
             return '';
@@ -432,7 +419,7 @@
     function appendImage(parent, url, className, alt) {
         if (!url)
             return false;
-        if (legacyPixels && /\.png(?:[?#]|$)/i.test(url)) {
+        if (legacy && /\.png(?:[?#]|$)/i.test(url)) {
             var transparent = document.createElement('span');
             transparent.className = className;
             transparent.title = alt || '';
@@ -836,8 +823,8 @@
                 var holder = document.createElement('span');
                 holder.className = 'tpc-color';
                 var swatch_1 = document.createElement('input');
-                /* Only MSHTML lacks the colour input; Android's Chrome 39 has it. */
-                swatch_1.type = legacyPixels ? 'text' : 'color';
+                /* MSHTML lacks the colour input used by current browser engines. */
+                swatch_1.type = legacy ? 'text' : 'color';
                 swatch_1.className = 'tpc-field tpc-color-swatch';
                 var hex_1 = document.createElement('input');
                 hex_1.type = 'text';
@@ -1461,10 +1448,6 @@
         back.className = 'tpc-minimenu-backdrop';
         var box = document.createElement('div');
         box.className = 'tpc-minimenu';
-        /* The popup is a body-level overlay, outside .tpc-shell, so it does not
-         * inherit the shell's own android-font toggle through the cascade; it
-         * needs the same marker directly to pick the Android alias. */
-        toggleClass(box, 'tpc-android-fonts', legacy && !legacyPixels);
         var heading = document.createElement('div');
         heading.className = 'tpc-minimenu-title';
         setText(heading, 'Choose Option');

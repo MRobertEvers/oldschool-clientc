@@ -147,12 +147,10 @@ adb push /tmp/extra_args.txt /sdcard/Android/data/com.torirs.client/files/
 
 Blank lines and `#` comments are ignored.
 
-A `no_plugin_chrome` file in the same data root is a measurement switch, not a
-setting: `ClientActivity` then builds no plugin-chrome WebView at all, and the
-game keeps the whole surface. It exists so the one browser's cost -- its
-threads, its composited layer, its slice of the surface -- can be profiled
-against the game alone (`adb shell touch .../files/no_plugin_chrome`; delete
-the file to get the chrome back).
+Android currently has no external plugin-chrome executor. Plugin management
+uses the retained in-game `BUFFER` fallback, so the APK creates no WebView and
+packages no browser chrome bundle. The web and embedded-browser executors are
+selected only on platforms that provide their corresponding transport.
 
 ---
 

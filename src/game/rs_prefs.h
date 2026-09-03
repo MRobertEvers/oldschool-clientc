@@ -4,6 +4,24 @@
 #include "asyncio.h"
 #include "game/rs_cs2_host.h"
 
+#include <stdbool.h>
+
+/**
+ * Storage for a canonical frame id, including its terminating NUL.
+ *
+ * A canonical id is currently either `auto` or `<provider>/<offer>`.  Keep the
+ * persistence bound independent of the plugin headers: preferences are loaded
+ * before the plugin catalogue exists, and an unknown (for example temporarily
+ * unavailable) provider id still has to survive a restart unchanged.
+ */
+#define RS_PREFS_FRAME_ID_MAX 128
+
+/** The value used until the player makes, or migration finds, a selection. */
+#define RS_PREFS_FRAME_AUTO "auto"
+
+/** Latest one-time conversion from the old per-plugin frame settings. */
+#define RS_PREFS_FRAME_MIGRATION_VERSION 1
+
 /*
  * Device-local settings that outlive a launch.
  *
@@ -49,6 +67,29 @@ struct RS_Prefs
      * the server-side layout mode, which is an account setting.
      */
     int default_window_mode;
+
+    /**
+     * Requested gameframe, not the active/resolved gameframe.  Unknown ids are
+     * intentional data: the provider may merely be unavailable on this boot,
+     * so the resolver falls back without overwriting this value.
+     */
+    char preferred_frame[RS_PREFS_FRAME_ID_MAX];
+
+    /**
+     * Whether `preferred_frame` occurred in the loaded file or was explicitly
+     * set afterward.  Defaults still put `auto` in the buffer so callers
+     * always have a usable value.  Keeping presence separate lets the v2 boot
+     * path distinguish an old file that still needs migration from a player
+     * who explicitly selected Auto.
+     */
+    bool preferred_frame_present;
+
+    /**
+     * Highest legacy-frame migration this file has completed.  Zero means no
+     * migration has been recorded.  Values newer than this build are retained
+     * so an older binary never repeats a migration completed by a newer one.
+     */
+    int frame_migration_version;
 };
 
 /**
@@ -64,6 +105,16 @@ RS_Prefs_Path(void);
 /** Every option at its fresh-client value. Also the state after a failed load. */
 void
 RS_Prefs_Defaults(struct RS_Prefs* prefs);
+
+/**
+ * Store a requested frame id and mark the preference present.
+ *
+ * `id` must be non-empty and shorter than RS_PREFS_FRAME_ID_MAX.  Unknown ids
+ * are accepted and preserved for the resolver.  Returns 1 when either the
+ * value or its presence changed, 0 when it was already stored or was invalid.
+ */
+int
+RS_Prefs_SetPreferredFrame(struct RS_Prefs* prefs, char const* id);
 
 /**
  * Read a file's bytes over `prefs`.

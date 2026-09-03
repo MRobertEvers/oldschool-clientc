@@ -55,7 +55,7 @@
  */
 EM_JS(int, web_chrome_available, (void), {
     return (typeof window.torirsChromeOpen === 'function' &&
-            typeof window.torirsChromeApply === 'function') ? 1 : 0;
+            typeof window.torirsChromeApplyBatch === 'function') ? 1 : 0;
 });
 
 EM_JS(int, web_chrome_open, (void), {
@@ -104,19 +104,17 @@ EM_JS(void, web_chrome_rail_icon,
 });
 
 /**
- * One command, as JSON.
+ * One complete retained transaction, as a JSON array of commands.
  *
- * JSON rather than the channel's packed CmdBus frames, deliberately. The
- * channel's format exists so a frame produced in the page can be handed
- * straight to the wasm bus; this direction has no such requirement, the volume
- * is a handful of commands when a tab is built and none at all on a quiet
- * frame, and a page that can be debugged by reading its console beats one
- * whose messages have to be unpacked first.
+ * One call rather than one per command: crossing Wasm -> JS and JSON.parse are
+ * fixed overheads, while the retained transaction is already the atomic unit
+ * the DOM consumes. A quiet frame calls neither this nor any compatibility
+ * hook, and a one-property patch crosses once.
  */
-EM_JS(void, web_chrome_apply, (char const* json), {
+EM_JS(void, web_chrome_apply_batch, (char const* json), {
     try
     {
-        window.torirsChromeApply(JSON.parse(UTF8ToString(json)));
+        window.torirsChromeApplyBatch(JSON.parse(UTF8ToString(json)));
     }
     catch( e )
     {
@@ -180,6 +178,14 @@ struct ChromeWeb
      *  a value, each of which can double under escaping, plus the fixed fields
      *  and their punctuation. */
     char json[2 * (TORIRS_CHROME_LABEL_MAX + TORIRS_CHROME_TEXT_MAX) + 256];
+    /** Reused transaction envelope: grown on demand and retained across opens. */
+    char* batch_json;
+    size_t batch_len;
+    size_t batch_cap;
+    int batch_commands;
+    int batch_failed;
+    int collecting;
+    int snapshot_needed;
     int custom_panel[TORIRS_CHROME_MAX_WIDGETS];
     uint32_t custom_generation[TORIRS_CHROME_MAX_WIDGETS];
     uint32_t custom_serial[TORIRS_CHROME_MAX_WIDGETS];
@@ -192,6 +198,8 @@ struct ChromeWeb
 };
 
 static struct ChromeWeb g_chrome_web;
+
+#define WEB_CHROME_BATCH_MAX (8u * 1024u * 1024u)
 
 #define WEB_CHROME_RAIL_INTENT_MAX 32
 static struct ToriRSChromeRailIntent
@@ -209,6 +217,21 @@ static uint64_t g_chrome_web_rail_sequence;
  */
 static int g_chrome_web_open_request;
 static int g_chrome_web_open_request_pending;
+
+static void
+chrome_web_reset_mounted(struct ChromeWeb* s)
+{
+    assert(s);
+    ToriRSChromeMirror_Init(&s->mirror);
+    s->active_panel = -1;
+    memset(s->widget_serial, 0, sizeof(s->widget_serial));
+    memset(s->custom_generation, 0, sizeof(s->custom_generation));
+    memset(s->custom_serial, 0, sizeof(s->custom_serial));
+    memset(s->custom_width, 0, sizeof(s->custom_width));
+    memset(s->custom_height, 0, sizeof(s->custom_height));
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+        s->custom_panel[i] = -1;
+}
 
 #if defined(__EMSCRIPTEN__)
 EMSCRIPTEN_KEEPALIVE
@@ -375,9 +398,7 @@ chrome_web_begin(void* user)
     }
     if( !web_chrome_open() )
         return 0;
-    ToriRSChromeMirror_Init(&s->mirror);
-    s->active_panel = -1;
-    memset(s->widget_serial, 0, sizeof(s->widget_serial));
+    chrome_web_reset_mounted(s);
     s->open = 1;
     return 1;
 }
@@ -392,8 +413,9 @@ chrome_web_end(void* user)
         return;
     web_chrome_close();
     s->open = 0;
-    s->active_panel = -1;
-    memset(s->widget_serial, 0, sizeof(s->widget_serial));
+    s->collecting = 0;
+    s->batch_len = 0;
+    chrome_web_reset_mounted(s);
 }
 
 /**
@@ -450,6 +472,132 @@ chrome_web_escape(char* dst, int cap, char const* src)
     dst[o] = '\0';
 }
 
+static int
+chrome_web_batch_reserve(struct ChromeWeb* s, size_t extra)
+{
+    size_t required;
+    size_t capacity;
+    char* grown;
+
+    if( s->batch_failed || extra > SIZE_MAX - s->batch_len - 1 )
+    {
+        s->batch_failed = 1;
+        return 0;
+    }
+    required = s->batch_len + extra + 1;
+    if( required > WEB_CHROME_BATCH_MAX )
+    {
+        s->batch_failed = 1;
+        return 0;
+    }
+    if( required <= s->batch_cap )
+        return 1;
+    capacity = s->batch_cap ? s->batch_cap : 4096;
+    while( capacity < required )
+    {
+        if( capacity >= WEB_CHROME_BATCH_MAX / 2 )
+        {
+            capacity = WEB_CHROME_BATCH_MAX;
+            break;
+        }
+        capacity *= 2;
+    }
+    if( capacity < required )
+    {
+        s->batch_failed = 1;
+        return 0;
+    }
+    grown = realloc(s->batch_json, capacity);
+    if( !grown )
+    {
+        s->batch_failed = 1;
+        return 0;
+    }
+    s->batch_json = grown;
+    s->batch_cap = capacity;
+    return 1;
+}
+
+static int
+chrome_web_batch_append(struct ChromeWeb* s, char const* text, size_t length)
+{
+    if( !chrome_web_batch_reserve(s, length) )
+        return 0;
+    memcpy(s->batch_json + s->batch_len, text, length);
+    s->batch_len += length;
+    s->batch_json[s->batch_len] = '\0';
+    return 1;
+}
+
+static void
+chrome_web_batch_begin(struct ChromeWeb* s)
+{
+    s->batch_len = 0;
+    s->batch_commands = 0;
+    s->batch_failed = 0;
+    s->collecting = 1;
+    (void)chrome_web_batch_append(s, "[", 1);
+}
+
+static void
+chrome_web_batch_command(
+    struct ChromeWeb* s, struct ToriRSChromeCmd const* cmd)
+{
+    char label[TORIRS_CHROME_LABEL_MAX * 2 + 1];
+    char text[TORIRS_CHROME_TEXT_MAX * 2 + 1];
+    int length;
+
+    if( !s->collecting || s->batch_failed )
+        return;
+    chrome_web_escape(label, (int)sizeof(label), cmd->label);
+    chrome_web_escape(text, (int)sizeof(text), cmd->text);
+    length = snprintf(
+        s->json,
+        sizeof(s->json),
+        "%s{\"k\":%d,\"p\":%d,\"w\":%d,\"tab\":%d,\"v\":%d,\"c\":%u,"
+        "\"x\":%d,\"y\":%d,\"cw\":%d,\"ch\":%d,\"s\":%u,"
+        "\"label\":\"%s\",\"text\":\"%s\"}",
+        s->batch_commands ? "," : "",
+        cmd->kind,
+        cmd->panel,
+        cmd->widget,
+        cmd->tab,
+        cmd->value,
+        (unsigned)cmd->color,
+        cmd->x,
+        cmd->y,
+        cmd->w,
+        cmd->h,
+        (unsigned)cmd->serial,
+        label,
+        text);
+    if( length < 0 || (size_t)length >= sizeof(s->json) )
+    {
+        s->batch_failed = 1;
+        return;
+    }
+    if( chrome_web_batch_append(s, s->json, (size_t)length) )
+        s->batch_commands++;
+}
+
+static void
+chrome_web_batch_end(struct ChromeWeb* s)
+{
+    if( !s->collecting )
+        return;
+    if( !s->batch_failed && chrome_web_batch_append(s, "]", 1) )
+        web_chrome_apply_batch(s->batch_json);
+    else
+    {
+        s->snapshot_needed = 1;
+        fprintf(stderr, "chrome: web transaction allocation failed; batch dropped\n");
+    }
+    s->collecting = 0;
+    s->batch_len = 0;
+    s->batch_commands = 0;
+    s->batch_failed = 0;
+}
+
 static void
 chrome_web_rail_sync(
     void* user, struct ToriRSChromeRailSnapshot const* snapshot)
@@ -466,10 +614,7 @@ chrome_web_rail_sync(
     if( !s || !snapshot )
         return;
     if( s->page_generation != snapshot->page_generation )
-    {
-        s->active_panel = -1;
-        memset(s->widget_serial, 0, sizeof(s->widget_serial));
-    }
+        chrome_web_reset_mounted(s);
     s->page_generation = snapshot->page_generation;
     count = snapshot->entry_count;
     if( count < 0 )
@@ -584,10 +729,6 @@ static void
 chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
 {
     struct ChromeWeb* s = user;
-    /* Every byte can double under escaping, so the room is 2n -- plus the
-     * terminator, which the doubling alone does not leave. */
-    char label[TORIRS_CHROME_LABEL_MAX * 2 + 1];
-    char text[TORIRS_CHROME_TEXT_MAX * 2 + 1];
 
     assert(s);
     assert(cmd);
@@ -606,13 +747,16 @@ chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
      */
     if( cmd->kind == TORIRS_CHROME_CMD_SYNC_BEGIN && cmd->value )
     {
-        s->active_panel = -1;
-        memset(s->widget_serial, 0, sizeof(s->widget_serial));
+        chrome_web_reset_mounted(s);
         /* And the identity, so the rail's later arrival is recognised as the
          * page already mounted rather than as a further change. */
         if( cmd->serial )
             s->page_generation = cmd->serial;
     }
+    if( cmd->kind == TORIRS_CHROME_CMD_SYNC_BEGIN )
+        chrome_web_batch_begin(s);
+    else if( !s->collecting )
+        return;
 
     /* The mirror first, so the page's command and this executor's idea of what
      * exists cannot disagree about a handle that was just recycled. */
@@ -622,10 +766,7 @@ chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
         s->active_panel = cmd->panel;
     else if( cmd->kind == TORIRS_CHROME_CMD_PANEL_CLOSE &&
              cmd->panel == s->active_panel )
-    {
         s->active_panel = -1;
-        memset(s->widget_serial, 0, sizeof(s->widget_serial));
-    }
     else if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_ADD &&
              cmd->widget >= 0 && cmd->widget < TORIRS_CHROME_MAX_WIDGETS )
         s->widget_serial[cmd->widget] = cmd->serial;
@@ -645,46 +786,13 @@ chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
             s->custom_height[cmd->widget] = 0;
         }
     }
-    else if( cmd->kind == TORIRS_CHROME_CMD_PANEL_CLOSE )
-    {
-        for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
-            if( s->custom_panel[i] == cmd->panel )
-            {
-                s->custom_panel[i] = -1;
-                s->custom_generation[i] = 0;
-                s->custom_serial[i] = 0;
-                s->custom_width[i] = 0;
-                s->custom_height[i] = 0;
-            }
-    }
 
-    /* The application page no longer owns a second widget renderer. It uses
-     * these brackets to turn the command transaction into one canonical
-     * page.snapshot/page.delta envelope for the retained bundle, so preserve
-     * them across the wasm boundary. */
-
-    chrome_web_escape(label, (int)sizeof(label), cmd->label);
-    chrome_web_escape(text, (int)sizeof(text), cmd->text);
-    snprintf(
-        s->json,
-        sizeof(s->json),
-        "{\"k\":%d,\"p\":%d,\"w\":%d,\"tab\":%d,\"v\":%d,\"c\":%u,"
-        "\"x\":%d,\"y\":%d,\"cw\":%d,\"ch\":%d,\"s\":%u,"
-        "\"label\":\"%s\",\"text\":\"%s\"}",
-        cmd->kind,
-        cmd->panel,
-        cmd->widget,
-        cmd->tab,
-        cmd->value,
-        (unsigned)cmd->color,
-        cmd->x,
-        cmd->y,
-        cmd->w,
-        cmd->h,
-        (unsigned)cmd->serial,
-        label,
-        text);
-    web_chrome_apply(s->json);
+    /* Preserve the markers in the one array: the page adapter turns them into
+     * one atomic page.snapshot/page.delta envelope without another boundary
+     * crossing or parse per property. */
+    chrome_web_batch_command(s, cmd);
+    if( cmd->kind == TORIRS_CHROME_CMD_SYNC_END )
+        chrome_web_batch_end(s);
 }
 
 /**
@@ -910,12 +1018,24 @@ chrome_web_custom_present(
         frame->argb);
 }
 
+static int
+chrome_web_take_snapshot_request(void* user)
+{
+    struct ChromeWeb* s = user;
+    int const requested = s ? s->snapshot_needed : 0;
+
+    if( s )
+        s->snapshot_needed = 0;
+    return requested;
+}
+
 struct ToriRSChromeExec
 ToriRSChromeExec_Web(void)
 {
     struct ToriRSChromeExec exec;
 
     memset(&exec, 0, sizeof(exec));
+    free(g_chrome_web.batch_json);
     memset(&g_chrome_web, 0, sizeof(g_chrome_web));
     g_chrome_web.active_panel = -1;
     for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
@@ -930,7 +1050,7 @@ ToriRSChromeExec_Web(void)
     exec.rail_icon = chrome_web_rail_icon;
     exec.rail_poll = chrome_web_rail_poll;
     exec.custom_present = chrome_web_custom_present;
-    /* Not a surface executor: no present, no surface_input. The DOM holds the
-     * widgets, so there is no display list to place. */
+    exec.take_snapshot_request = chrome_web_take_snapshot_request;
+    /* The DOM holds the widgets; BUFFER alone uses the in-canvas prim list. */
     return exec;
 }

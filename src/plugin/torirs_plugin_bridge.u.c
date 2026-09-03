@@ -2392,6 +2392,52 @@ app_plugin_display_setting_set(void* user, int setting, int value)
 }
 
 static int
+app_plugin_frame_preference(
+    void* user,
+    char* out,
+    int out_size,
+    int* out_migration_version)
+{
+    struct App* app = (struct App*)user;
+
+    _Static_assert(
+        TORIRS_PLUGIN_FRAME_ID_MAX == RS_PREFS_FRAME_ID_MAX,
+        "plugin frame ids and persistent frame ids must have one bound");
+
+    assert(app);
+    assert(out);
+    assert(out_size > 0);
+    snprintf(out, (size_t)out_size, "%s", app->prefs.preferred_frame);
+    if( out_migration_version )
+        *out_migration_version = app->prefs.frame_migration_version;
+    return app->prefs.preferred_frame_present ? 1 : 0;
+}
+
+static int
+app_plugin_frame_preference_set(
+    void* user,
+    char const* id,
+    int migration_version)
+{
+    struct App* app = (struct App*)user;
+    int changed;
+
+    assert(app);
+    assert(id);
+    changed = RS_Prefs_SetPreferredFrame(&app->prefs, id);
+    if( !app->prefs.preferred_frame_present )
+        return 0;
+    if( migration_version > app->prefs.frame_migration_version )
+    {
+        app->prefs.frame_migration_version = migration_version;
+        changed = 1;
+    }
+    if( changed )
+        app->prefs_dirty_cycle = app->logic_cycle ? app->logic_cycle : 1;
+    return 1;
+}
+
+static int
 app_plugin_cache_id(void* user, char const* kind, char const* name)
 {
     struct App* app = (struct App*)user;
@@ -3509,6 +3555,20 @@ app_plugin_safe_os(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
     if( out_h )
         *out_h = UITree_LayoutSafeBottomEdge();
     return 1;
+}
+
+static int
+app_plugin_platform_safe_next(
+    void* user,
+    int iter,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    if( iter >= 0 )
+        return -1;
+    return app_plugin_safe_os(user, out_x, out_y, out_w, out_h) ? 0 : -1;
 }
 
 static int
@@ -5038,6 +5098,7 @@ app_plugin_engine(struct App* app)
     engine.user = app;
     engine.screen = app_plugin_screen;
     engine.safe_os = app_plugin_safe_os;
+    engine.platform_safe_next = app_plugin_platform_safe_next;
     engine.world_cycle = app_plugin_world_cycle;
     engine.frame_ms = app_plugin_frame_ms;
     engine.frame_work_us = app_plugin_frame_work_us;
@@ -5058,6 +5119,8 @@ app_plugin_engine(struct App* app)
     engine.feature_set = app_plugin_feature_set;
     engine.display_setting = app_plugin_display_setting;
     engine.display_setting_set = app_plugin_display_setting_set;
+    engine.frame_preference = app_plugin_frame_preference;
+    engine.frame_preference_set = app_plugin_frame_preference_set;
     engine.varbit = app_plugin_varbit;
     engine.varp = app_plugin_varp;
     engine.cache_id = app_plugin_cache_id;

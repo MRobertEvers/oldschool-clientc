@@ -691,6 +691,14 @@
     global.torirsChromeEnd = () => { host.end(); };
     global.torirsChromeClose = () => { host.end(); };
     global.torirsChromeApply = command => { host.apply(command); };
+    /* Wasm sends one retained transaction per call. Keeping the legacy single
+     * command hook makes fixtures readable, while production pays one bridge
+     * crossing and one JSON parse for the complete delta. */
+    global.torirsChromeApplyBatch = commands => {
+      if (!Array.isArray(commands)) return false;
+      for (let i = 0; i < commands.length; i++) host.apply(commands[i]);
+      return true;
+    };
     global.torirsChromeTakeIntent = () => host.takeIntent();
     global.torirsChromeRailSync = snapshot => { host.railSync(snapshot); };
     global.torirsChromeRailIcon = (plugin, revision, width, height, rgbaBase64) =>

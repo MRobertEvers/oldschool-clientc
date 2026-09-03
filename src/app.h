@@ -846,10 +846,9 @@ struct App
      * They carry the outline/shadow cache and the blit scratch across frames,
      * which is the whole reason they are not made at each render.
      *
-     * Two of them because the two surfaces are independent: `soft` paints the
-     * game canvas from App_Render, `soft_chrome` paints an out-of-canvas
-     * plugin window from the chrome executor's own paint, and neither is
-     * sequenced against the other.
+     * Two of them because the targets are independent: `soft` paints the game
+     * canvas from App_Render, while `soft_chrome` rasterises retained CUSTOM
+     * widget bitmaps for WEB/BROWSER without disturbing the game renderer.
      */
     struct ToriRS_Soft3D* soft;
     struct ToriRS_Soft3D* soft_chrome;
@@ -2724,26 +2723,6 @@ App_SetChromeCheckStyle(struct App* app, int style);
 /** enum ToriRSChromeCheckStyle, as App_SetChromeCheckStyle left it. */
 int
 App_ChromeCheckStyle(struct App const* app);
-
-/**
- * Draw a chrome display list into a buffer of `width` x `height` ARGB pixels.
- *
- * Public so the shell can lend it to a chrome SURFACE executor -- a second OS
- * window drawing the same widgets. Signature matches ToriRSChromeRasteriseFn;
- * `user` is the struct App*.
- *
- * Not a general "draw this anywhere" entry point: it needs the scene the baked
- * fonts and chrome skin were registered in, which is exactly what this App
- * holds and why the drawing lives here rather than beside the executor.
- */
-void
-App_ChromeRasterise(
-    void* user,
-    int* pixels,
-    int width,
-    int height,
-    struct ToriRSChromePrim const* prims,
-    int count);
 
 /**
  * Give the plugin window a presentation to use.

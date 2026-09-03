@@ -2696,13 +2696,6 @@ frame_loop_step(void)
             }
         }
     }
-#if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
-    /* Rail hover/attention/icon changes are platform-owned retained pixels and
-     * may not mutate App at all. A GL backbuffer cannot safely swap only the
-     * rail quad, so schedule one ordinary full frame when that surface changed. */
-    if( PlatformWindow_ChromeIsDirty(platform) )
-        app_redraw = 1;
-#endif
     /*
      * Nowhere to draw: no draw. The world and the network have already ticked
      * above; what is skipped is App_Render and the present, the whole of the
@@ -5317,8 +5310,7 @@ main(
          * plugin window is opened, so a session that never opens it never opens a
          * second OS window either.
          *
-         * TORIRS_CHROME_EXECUTOR names one
-         * (platform|buffer|sdl|web|browser|android), beside
+         * TORIRS_CHROME_EXECUTOR names one (`web` or `browser`), beside
          * TORIRS_CHROME_THEME which the developer chrome already reads. An unknown
          * name, or one this build has no executor for, lands on the in-canvas
          * chrome -- which is what every lane without a native executor uses anyway.
@@ -5334,28 +5326,12 @@ main(
             int got = TORIRS_CHROME_EXEC_BUFFER;
             struct ToriRSChromeExec chrome_exec;
 
-#if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
-            /*
-             * Whether that window should wear an OS frame, carried across now
-             * rather than acted on: the window is not opened until someone
-             * presses the button, and this is the last place the manifest is
-             * in scope. TORIRS_CHROME_BORDERLESS overrides it at the executor,
-             * beside the env vars above.
-             *
-             * Set whichever executor was asked for. A lane that says
-             * `borderless=1` with `executor=web` is describing the platform window
-             * it does not use, and a wish nobody reads costs an int.
-             */
-            ToriRSChromeExecSdl_SetBorderless(boot_manifest.chrome_borderless);
-#endif
-
             if( want && want[0] )
             {
                 int const from_env = ToriRSChromeExec_KindFromName(want);
                 if( from_env < 0 )
                     TORIRS_LOG("chrome: '%s' is not an executor "
-                        "(platform|buffer|sdl|web|browser|android); "
-                        "using buffer\n",
+                        "(web|browser); using the build default\n",
                         want);
                 else
                 {
@@ -5363,22 +5339,16 @@ main(
                     chosen = 1;
                 }
             }
-            /* No configured choice means the presenter native to this build:
-             * attached SDL, DOM, Win32 or Android. `buffer` is now an explicit
-             * developer comparison only; production must not silently put the
-             * plugin page over the gameframe. */
+            /* No configured choice means the supported web presenter compiled
+             * for this build. A negative request is internal factory syntax,
+             * not a parseable `platform` pseudo-executor. */
             if( !chosen )
-                wanted = TORIRS_CHROME_EXEC_PLATFORM;
+                wanted = -1;
             chrome_exec = ToriRSChromeExec_ForKind(
-                wanted < 0 ? TORIRS_CHROME_EXEC_BUFFER : wanted,
+                wanted,
                 platform,
-                App_ChromeRasterise,
-                &app,
                 &got);
-            if( wanted > TORIRS_CHROME_EXEC_BUFFER &&
-                ((wanted == TORIRS_CHROME_EXEC_PLATFORM &&
-                  got == TORIRS_CHROME_EXEC_BUFFER) ||
-                 (wanted != TORIRS_CHROME_EXEC_PLATFORM && got != wanted)) )
+            if( chosen && got != wanted )
                 TORIRS_LOG("chrome: no '%s' executor in this build; the plugin window stays in the "
                     "canvas\n",
                     ToriRSChromeExec_KindName(wanted));

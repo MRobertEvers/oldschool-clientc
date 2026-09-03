@@ -71,8 +71,11 @@ second_layout_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     if( g_reentrant_ctx == ctx && g_reentrant_left > 0 )
     {
         g_reentrant_left--;
-        g_api->layout_reserve(
-            ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, TORIRS_PLUGIN_EDGE_LEFT,
+        g_api->placement_reserve(
+            ctx,
+            "reentrant",
+            TORIRS_PLUGIN_AREA_OVERLAY_SAFE,
+            TORIRS_PLUGIN_PLACEMENT_EDGE_LEFT,
             10 + g_reentrant_left);
     }
     g_reentrant_depth--;
@@ -1438,6 +1441,10 @@ main(void)
      * with only the canvas is the login-screen state -- no scene, no modal. */
     g_anchor_w[0] = CANVAS_W;
     g_anchor_h[0] = CANVAS_H;
+    g_slot_x[TORIRS_PLUGIN_SLOT_CANVAS] = 0;
+    g_slot_y[TORIRS_PLUGIN_SLOT_CANVAS] = 0;
+    g_slot_w[TORIRS_PLUGIN_SLOT_CANVAS] = CANVAS_W;
+    g_slot_h[TORIRS_PLUGIN_SLOT_CANVAS] = CANVAS_H;
 
     /* Off for the structural cases: a floating label is a second blit per
      * globe and would make every count below say something about two features
@@ -1624,6 +1631,7 @@ main(void)
         g_slot_y[TORIRS_PLUGIN_SLOT_VIEWPORT] = 0;
         g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT] = CANVAS_W;
         g_slot_h[TORIRS_PLUGIN_SLOT_VIEWPORT] = CANVAS_H;
+        PluginHost_LayoutChanged(g_host);
         draw();
         CHECK(
             g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,
@@ -1634,6 +1642,7 @@ main(void)
         g_slot_y[TORIRS_PLUGIN_SLOT_SIDEBAR] = 0;
         g_slot_w[TORIRS_PLUGIN_SLOT_SIDEBAR] = 200;
         g_slot_h[TORIRS_PLUGIN_SLOT_SIDEBAR] = CANVAS_H;
+        PluginHost_LayoutChanged(g_host);
         draw();
         CHECK(
             g_blit_count == 5 && g_blit[0].x == (CANVAS_W - 200 - run) / 2 - 3,
@@ -1643,12 +1652,14 @@ main(void)
          * the login screen, where there is no scene to measure. */
         g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT] = 0;
         g_slot_w[TORIRS_PLUGIN_SLOT_SIDEBAR] = 0;
+        PluginHost_LayoutChanged(g_host);
         draw();
         CHECK(
             g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,
             "and a frame with no regions falls back to the canvas");
         g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT] = CANVAS_W;
         g_slot_h[TORIRS_PLUGIN_SLOT_VIEWPORT] = CANVAS_H;
+        PluginHost_LayoutChanged(g_host);
     }
 
     /*
@@ -1662,19 +1673,31 @@ main(void)
     {
         int const run = 5 * 40 + 4 * 10;
         struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(g_host, index);
-        int const before = g_api->layout_revision(ctx);
+        uint32_t const before = g_api->placement_revision(ctx);
 
         CHECK(
-            g_api->layout_reserve(
-                ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, TORIRS_PLUGIN_EDGE_RIGHT, 180),
-            "a plugin can reserve an edge of the safe region");
+            g_api->placement_reserve(
+                ctx,
+                "xp-test",
+                TORIRS_PLUGIN_AREA_OVERLAY_SAFE,
+                TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT,
+                180),
+            "a plugin can make a named edge reservation");
         CHECK(
-            g_api->layout_revision(ctx) > before,
-            "and the layout revision moves when it does");
+            g_api->placement_revision(ctx) > before,
+            "and the placement revision moves when it does");
         draw();
         CHECK(
             g_blit_count == 5 && g_blit[0].x == (CANVAS_W - 180 - run) / 2 - 3,
             "the orbs re-centre in what is left, knowing nothing about it");
+        {
+            struct ToriRS_PlacementRect reserved;
+            CHECK(
+                g_api->placement_reservation_rect(ctx, "xp-test", &reserved) &&
+                    reserved.x == CANVAS_W - 180 && reserved.y == 0 &&
+                    reserved.w == 180 && reserved.h == CANVAS_H,
+                "the named reservation reports the exact box it consumed");
+        }
 
         /* A second claim on the SAME edge STACKS rather than replacing: this
          * is the whole reason `reserve` exists beside `layout_slot`. Made by a
@@ -1683,14 +1706,18 @@ main(void)
         {
             struct ToriRS_PluginCtx* other = PluginHost_Ctx(g_host, g_second);
             CHECK(
-                g_api->layout_reserve(
-                    other, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, TORIRS_PLUGIN_EDGE_RIGHT, 120),
+                g_api->placement_reserve(
+                    other,
+                    "other-test",
+                    TORIRS_PLUGIN_AREA_OVERLAY_SAFE,
+                    TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT,
+                    120),
                 "a second plugin reserves the same edge");
             draw();
             CHECK(
                 g_blit_count == 5 &&
-                    g_blit[0].x == (CANVAS_W - 300 - run) / 2 - 3,
-                "and the two stack instead of fighting");
+                    g_blit[0].x == (CANVAS_W - 300 - (5 * 40)) / 2 - 3,
+                "and the two stack while the orbs close their gaps to fit");
 
             /* Disabling it hands the edge back with nobody asking. */
             PluginHost_SetEnabled(g_host, g_second, false);
@@ -1704,13 +1731,21 @@ main(void)
         /* Only the derived regions can be reserved from: a placeable role is
          * whatever the frame says it is. */
         CHECK(
-            g_api->layout_reserve(
-                ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, TORIRS_PLUGIN_EDGE_RIGHT, 10) == 0,
-            "a placeable region refuses a reservation");
+            g_api->placement_reserve(
+                ctx,
+                "bad-area",
+                TORIRS_PLUGIN_AREA_RAW_VIEWPORT,
+                TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT,
+                10) == 0,
+            "a raw region refuses a reservation");
 
         /* Zero gives it back. */
-        g_api->layout_reserve(
-            ctx, TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME, TORIRS_PLUGIN_EDGE_RIGHT, 0);
+        g_api->placement_reserve(
+            ctx,
+            "xp-test",
+            TORIRS_PLUGIN_AREA_OVERLAY_SAFE,
+            TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT,
+            0);
         draw();
         CHECK(
             g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,

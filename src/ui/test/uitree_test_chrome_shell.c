@@ -14,10 +14,16 @@ test_chrome_shell(void)
 
     printf("TEST: one plugin-chrome shell selection and attached layout\n");
     TEST_ASSERT(
-        ToriRSChromeExec_KindFromName("platform") == TORIRS_CHROME_EXEC_PLATFORM,
-        "the portable manifest spelling selects this build's native presenter");
-    TEST_ASSERT(strcmp(ToriRSChromeExec_KindName(TORIRS_CHROME_EXEC_PLATFORM), "platform") == 0,
-        "the platform executor name round-trips");
+        ToriRSChromeExec_KindFromName("web") == TORIRS_CHROME_EXEC_WEB &&
+            ToriRSChromeExec_KindFromName("browser") == TORIRS_CHROME_EXEC_BROWSER,
+        "only the two web-backed presenter names resolve");
+    TEST_ASSERT(
+        ToriRSChromeExec_KindFromName("platform") < 0 &&
+            ToriRSChromeExec_KindFromName("buffer") < 0 &&
+            ToriRSChromeExec_KindFromName("sdl") < 0 &&
+            ToriRSChromeExec_KindFromName("gdi") < 0 &&
+            ToriRSChromeExec_KindFromName("android") < 0,
+        "legacy/native and internal fallback names are not selectable");
     ToriRSChromeShell_Init(&shell, 320);
     TEST_ASSERT(shell.active_plugin == TORIRS_CHROME_SHELL_PAGE_NONE,
         "the shell starts with no selected plugin");

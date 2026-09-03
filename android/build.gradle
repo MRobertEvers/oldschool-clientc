@@ -72,10 +72,9 @@ android {
              * `tools/android_push_data.sh` does it; android/README.md explains
              * why the layout has to mirror the repo.
              */
-            /* The only packaged assets are the application-owned canonical
-             * plugin-chrome bundle copied below. Game/cache data remains
-             * external exactly as documented. */
-            assets.srcDirs = [layout.buildDirectory.dir('generated/pluginChromeAssets')]
+            /* Android currently uses the internal retained BUFFER fallback
+             * for plugin chrome. It therefore packages no browser document or
+             * platform-specific chrome runtime either. */
         }
     }
 
@@ -142,40 +141,4 @@ android {
  * does not have.
  */
 dependencies {
-}
-
-tasks.register('syncPluginChromeBundle', Sync) {
-    from('../src/plugin_chrome') {
-        include('legacy-ie8.html', 'legacy-ie8.css', 'codec-es3.js', 'runtime-ie8.js')
-    }
-    from('../res/plugin_chrome/skin') {
-        into('skin')
-    }
-    from('../res/plugin_chrome/font') {
-        into('font')
-    }
-    into(layout.buildDirectory.dir('generated/pluginChromeAssets/plugin_chrome'))
-    doLast {
-        def root = layout.buildDirectory.dir('generated/pluginChromeAssets/plugin_chrome').get().asFile
-        ['legacy-ie8.html', 'legacy-ie8.css', 'codec-es3.js', 'runtime-ie8.js',
-         'skin/PanelBody.png', 'skin/PluginIcon.png',
-         'skin/ButtonLeft.png', 'skin/ButtonMid.png', 'skin/ButtonRight.png',
-         'skin/CheckOn.png', 'skin/CheckOff.png',
-         'skin/CheckBoxOn.png', 'skin/CheckBoxOff.png',
-         'skin/DropdownBody.png', 'skin/CloseButton.png',
-         'skin/ScrollUp.png', 'skin/ScrollDown.png', 'skin/ScrollTrack.png',
-         'skin/ScrollGripTop.png', 'skin/ScrollGripMid.png',
-         'skin/ScrollGripBottom.png',
-         'skin/FrameTopLeft.png', 'skin/FrameTop.png',
-         'skin/FrameTopRight.png', 'skin/FrameLeft.png',
-         'skin/FrameRight.png', 'skin/FrameBottomLeft.png',
-         'skin/FrameBottom.png', 'skin/FrameBottomRight.png'].each { relative ->
-            if (!new File(root, relative).isFile())
-                throw new GradleException("canonical plugin chrome is incomplete: ${relative}")
-        }
-    }
-}
-
-tasks.named('preBuild').configure {
-    dependsOn(tasks.named('syncPluginChromeBundle'))
 }

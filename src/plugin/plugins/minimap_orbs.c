@@ -1,4 +1,5 @@
 #include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -730,13 +731,42 @@ enum OrbIndex
 static struct
 {
     char const* part;
+    char const* node;
     char const* label;
     uint32_t tag;
 } const ORB_PART[ORB_COUNT] = {
-    { "orb_hitpoints", "the hitpoints orb", ORB_TAG_HP },
-    { "orb_prayer", "the prayer orb", ORB_TAG_PRAYER },
-    { "orb_run", "the run orb", ORB_TAG_RUN },
-    { "orb_spec", "the special attack orb", ORB_TAG_SPEC },
+    { "orb_hitpoints", "frame.orb.hitpoints", "the hitpoints orb", ORB_TAG_HP },
+    { "orb_prayer", "frame.orb.prayer", "the prayer orb", ORB_TAG_PRAYER },
+    { "orb_run", "frame.orb.run", "the run orb", ORB_TAG_RUN },
+    { "orb_spec", "frame.orb.special", "the special attack orb", ORB_TAG_SPEC },
+};
+
+static struct ToriRS_UiContribution const ORB_CONTRIBUTIONS[] = {
+    { .struct_size = sizeof(struct ToriRS_UiContribution),
+      .node = "frame.orb.hitpoints",
+      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+      .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
+      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
+                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
+    { .struct_size = sizeof(struct ToriRS_UiContribution),
+      .node = "frame.orb.prayer",
+      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+      .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
+      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
+                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
+    { .struct_size = sizeof(struct ToriRS_UiContribution),
+      .node = "frame.orb.run",
+      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+      .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
+      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
+                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
+    { .struct_size = sizeof(struct ToriRS_UiContribution),
+      .node = "frame.orb.special",
+      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+      .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
+      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
+                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
+    { .node = NULL },
 };
 
 /** Per-orb claim state. */
@@ -935,11 +965,26 @@ orbs_claim_all(struct ToriRS_PluginCtx* ctx)
     for( int i = 0; i < ORB_COUNT; i++ )
     {
         int got;
+        int conflicts = 0;
+        int const active = g_api->ui_contribution_facets(
+            ctx, ORB_PART[i].node, &conflicts);
 
         if( g_orb[i].settled )
         {
             if( g_orb[i].held )
                 provided++;
+            continue;
+        }
+
+        if( !(active & TORIRS_UI_FACET_APPEARANCE) )
+        {
+            if( conflicts )
+                g_api->log(
+                    ctx,
+                    "named UI conflict on '%s'; keeping the frame's orb",
+                    ORB_PART[i].node);
+            g_orb[i].held = 0;
+            g_orb[i].settled = 1;
             continue;
         }
 
@@ -1099,6 +1144,22 @@ orbs_layout_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
     (void)event;
     (void)userdata;
+    for( int i = 0; i < ORB_COUNT; i++ )
+    {
+        int conflicts = 0;
+        int const active = g_api->ui_contribution_facets(
+            ctx, ORB_PART[i].node, &conflicts);
+        int const should_hold = (active & TORIRS_UI_FACET_APPEARANCE) != 0;
+        (void)conflicts;
+        if( should_hold == (g_orb[i].held != 0) )
+            continue;
+        if( g_orb[i].held )
+            (void)g_api->chrome_claim(
+                ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_ALL, 0);
+        g_orb[i].held = 0;
+        g_orb[i].settled = 0;
+        g_orb[i].decl_sig[0] = '\0';
+    }
     orbs_claim_all(ctx);
     return TORIRS_PLUGIN_PASS;
 }
@@ -1819,6 +1880,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS = {
      * to know.
      */
     .disabled_by_default = false,
+    .ui_contributions = ORB_CONTRIBUTIONS,
     .init = orbs_init,
     .shutdown = NULL,
 };

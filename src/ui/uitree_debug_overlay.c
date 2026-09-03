@@ -1122,6 +1122,207 @@ dbg_valid_widget(struct ToriRSChrome const* ui, int widget)
            ui->widgets[widget].kind != TORIRS_CHROME_W_FREE;
 }
 
+/* ---- retained executor change queue ------------------------------------ */
+
+static void
+dbg_change_indexes_clear(struct ToriRSChrome* ui)
+{
+    memset(ui->change_pending_panel, 0, sizeof(ui->change_pending_panel));
+    memset(ui->change_pending_widget, 0, sizeof(ui->change_pending_widget));
+    memset(ui->change_panel_head, 0, sizeof(ui->change_panel_head));
+    ui->change_pending_check_style = 0;
+}
+
+void
+ToriRSChrome_ChangeJournalAcknowledge(struct ToriRSChrome* ui)
+{
+    assert(ui);
+    ui->change_count = 0;
+    ui->change_lost = 0;
+    dbg_change_indexes_clear(ui);
+}
+
+/** Turn an entry into a no-op without moving later structural records. */
+static void
+dbg_change_tombstone(struct ToriRSChrome* ui, int at)
+{
+    struct ToriRSChromeChange* change;
+
+    if( at < 0 || at >= ui->change_count )
+        return;
+    change = &ui->changes[at];
+    if( change->kind == TORIRS_CHROME_CHANGE_PANEL &&
+        change->panel >= 0 && change->panel < TORIRS_CHROME_MAX_PANELS &&
+        ui->change_pending_panel[change->panel] == at + 1 )
+        ui->change_pending_panel[change->panel] = 0;
+    if( change->kind == TORIRS_CHROME_CHANGE_WIDGET &&
+        change->widget >= 0 && change->widget < TORIRS_CHROME_MAX_WIDGETS &&
+        ui->change_pending_widget[change->widget] == at + 1 )
+        ui->change_pending_widget[change->widget] = 0;
+    if( change->kind == TORIRS_CHROME_CHANGE_CHECK_STYLE &&
+        ui->change_pending_check_style == at + 1 )
+        ui->change_pending_check_style = 0;
+    /* Preserve next_panel_change: a panel-chain walk may still need it to
+     * reach older entries after this one was made irrelevant by a remove. */
+    change->kind = 0;
+    change->flags = 0;
+}
+
+/**
+ * Queue one semantic node refresh, coalescing repeated writes to that same
+ * retained identity. Values stay in the authoritative model and are read only
+ * when the executor drains the queue; ten writes before one tick therefore
+ * become one comparison against the executor's last delivered value.
+ *
+ * The pending indexes make the common lookup one bounded array access. This
+ * matters when a settings rebuild touches hundreds of distinct nodes and then
+ * adjusts them again before the browser tick: a backwards journal scan turned
+ * that ordinary burst into quadratic mutation work.
+ */
+static void
+dbg_change_push(
+    struct ToriRSChrome* ui,
+    int kind,
+    int panel,
+    int widget,
+    int serial,
+    uint32_t flags)
+{
+    struct ToriRSChromeChange* change;
+    int* pending = NULL;
+    int at;
+
+    assert(ui);
+    if( ui->change_lost )
+        return;
+    if( kind == TORIRS_CHROME_CHANGE_PANEL &&
+        panel >= 0 && panel < TORIRS_CHROME_MAX_PANELS )
+        pending = &ui->change_pending_panel[panel];
+    else if( kind == TORIRS_CHROME_CHANGE_WIDGET &&
+             widget >= 0 && widget < TORIRS_CHROME_MAX_WIDGETS )
+        pending = &ui->change_pending_widget[widget];
+    else if( kind == TORIRS_CHROME_CHANGE_CHECK_STYLE )
+        pending = &ui->change_pending_check_style;
+
+    if( pending && *pending > 0 && *pending <= ui->change_count )
+    {
+        change = &ui->changes[*pending - 1];
+        if( change->kind == kind && change->panel == panel &&
+            change->widget == widget && change->serial == serial )
+        {
+            change->flags |= flags;
+            return;
+        }
+    }
+    if( ui->change_count >= TORIRS_CHROME_MAX_CHANGES )
+    {
+        /* Losing even one delta makes every later one unsafe to apply. The
+         * next Run answers with one authoritative full snapshot. */
+        ui->change_count = 0;
+        ui->change_lost = 1;
+        dbg_change_indexes_clear(ui);
+        return;
+    }
+    at = ui->change_count++;
+    change = &ui->changes[at];
+    change->kind = kind;
+    change->panel = panel;
+    change->widget = widget;
+    change->serial = serial;
+    change->flags = flags;
+    change->next_panel_change = 0;
+    if( panel >= 0 && panel < TORIRS_CHROME_MAX_PANELS )
+    {
+        change->next_panel_change = ui->change_panel_head[panel];
+        ui->change_panel_head[panel] = at + 1;
+    }
+    if( pending )
+        *pending = at + 1;
+}
+
+static void
+dbg_change_panel(struct ToriRSChrome* ui, int panel, uint32_t flags)
+{
+    dbg_change_push(ui, TORIRS_CHROME_CHANGE_PANEL, panel, -1, 0, flags);
+}
+
+static void
+dbg_change_widget(struct ToriRSChrome* ui, int widget, uint32_t flags)
+{
+    if( !dbg_valid_widget(ui, widget) )
+        return;
+    dbg_change_push(
+        ui,
+        TORIRS_CHROME_CHANGE_WIDGET,
+        ui->widgets[widget].panel,
+        widget,
+        ui->widgets[widget].serial,
+        flags);
+}
+
+static void
+dbg_change_widget_layout(struct ToriRSChrome* ui, int widget, uint32_t flags)
+{
+    if( !dbg_valid_widget(ui, widget) )
+        return;
+    dbg_change_widget(ui, widget, flags);
+    dbg_change_panel(
+        ui,
+        ui->widgets[widget].panel,
+        TORIRS_CHROME_CHANGE_PANEL_RECT);
+}
+
+/**
+ * Forget pending work made irrelevant by closing and replacing a whole panel.
+ * This runs at mutation time, not executor time, and bounds Reset's eventual
+ * drain to one CLOSE plus the nodes that were actually rebuilt afterwards.
+ */
+static void
+dbg_change_discard_panel(struct ToriRSChrome* ui, int panel)
+{
+    int link;
+
+    if( ui->change_lost || panel < 0 || panel >= TORIRS_CHROME_MAX_PANELS )
+        return;
+    link = ui->change_panel_head[panel];
+    while( link > 0 )
+    {
+        int const at = link - 1;
+        link = ui->changes[at].next_panel_change;
+        dbg_change_tombstone(ui, at);
+    }
+    ui->change_panel_head[panel] = 0;
+}
+
+static void
+dbg_change_widget_remove(struct ToriRSChrome* ui, int widget)
+{
+    struct ToriRSChromeWidget const* w;
+    int pending;
+
+    if( !dbg_valid_widget(ui, widget) || ui->change_lost )
+        return;
+    w = &ui->widgets[widget];
+    /* A refresh for an identity removed before presentation can be dropped.
+     * The REMOVE below remains, because the shadow decides in O(1) whether
+     * that identity had ever reached the executor. */
+    pending = ui->change_pending_widget[widget];
+    if( pending > 0 && pending <= ui->change_count )
+    {
+        struct ToriRSChromeChange const* change = &ui->changes[pending - 1];
+        if( change->kind == TORIRS_CHROME_CHANGE_WIDGET &&
+            change->widget == widget && change->serial == w->serial )
+            dbg_change_tombstone(ui, pending - 1);
+    }
+    dbg_change_push(
+        ui,
+        TORIRS_CHROME_CHANGE_WIDGET_REMOVE,
+        w->panel,
+        widget,
+        w->serial,
+        0);
+}
+
 /**
  * Does this row take part in layout, drawing and hit testing?
  *
@@ -1152,6 +1353,44 @@ dbg_copy(char* dst, int cap, char const* src)
         for( ; i < cap - 1 && src[i]; i++ )
             dst[i] = src[i];
     dst[i] = '\0';
+}
+
+/**
+ * Hash exactly the option text an executor can receive.
+ *
+ * Option storage is borrowed, so pointer equality cannot detect a caller that
+ * refilled the same buffers. The command seam copies at most INPUT_MAX - 1
+ * bytes of each string; hashing the same bounded representation both avoids
+ * unbounded reads and treats differences that cannot cross that seam as the
+ * same retained value. Length bytes separate adjacent entries unambiguously.
+ */
+static uint64_t
+dbg_options_hash(char const* const* options, int option_count)
+{
+    uint64_t hash = 14695981039346656037ULL;
+
+    if( !options || option_count <= 0 )
+        return hash;
+    for( int i = 0; i < option_count; i++ )
+    {
+        char const* text = options[i];
+        uint32_t len = 0;
+
+        if( text )
+            while( len < TORIRS_CHROME_INPUT_MAX - 1 && text[len] )
+                len++;
+        for( int byte = 0; byte < 4; byte++ )
+        {
+            hash ^= (len >> (byte * 8)) & 0xffu;
+            hash *= 1099511628211ULL;
+        }
+        for( uint32_t byte = 0; byte < len; byte++ )
+        {
+            hash ^= (unsigned char)text[byte];
+            hash *= 1099511628211ULL;
+        }
+    }
+    return hash;
 }
 
 /** Mark a panel for relayout. Also flags the model so Build stops being a no-op. */
@@ -1269,7 +1508,13 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     assert(ui);
     /* Everything on screen is going away, so all of it is invalid. */
     for( int i = 0; i < ui->panel_count; i++ )
+    {
         dbg_damage_add(ui, ui->panels[i].last_rect);
+        /* PANEL_CLOSE invalidates its executor-side subtree without one remove
+         * per row. Drop earlier queued work for the replaced panel first. */
+        dbg_change_discard_panel(ui, i);
+        dbg_change_push(ui, TORIRS_CHROME_CHANGE_PANEL_CLOSE, i, -1, 0, 0);
+    }
     ui->panel_count = 0;
     ui->dropdown_open = -1;
     ui->dropdown_hover_row = -1;
@@ -1310,7 +1555,18 @@ ToriRSChrome_SetScale(struct ToriRSChrome* ui, int scale)
         dbg_damage_add(ui, ui->panels[i].last_rect);
     ui->scale = scale;
     for( int i = 0; i < ui->panel_count; i++ )
+    {
+        dbg_change_panel(ui, i, TORIRS_CHROME_CHANGE_PANEL_RECT);
         dbg_dirty_panel(ui, i);
+    }
+    /* CUSTOM heights are stored in current chrome pixels but cross the
+     * executor seam in logical units. Changing the scale therefore changes
+     * the value an already-mounted web control must retain even though the
+     * widget's stored view_h did not move. Name those exact widgets here so a
+     * steady-state Run does not have to rediscover them by scanning the tree. */
+    for( int i = 0; i < ui->widget_count; i++ )
+        if( ui->widgets[i].kind == TORIRS_CHROME_W_CUSTOM )
+            dbg_change_widget(ui, i, TORIRS_CHROME_CHANGE_WIDGET_HEIGHT);
     ui->dirty = 1;
 }
 
@@ -1340,8 +1596,12 @@ ToriRSChrome_SetCheckStyle(struct ToriRSChrome* ui, int style)
     for( int i = 0; i < ui->panel_count; i++ )
         dbg_damage_add(ui, ui->panels[i].last_rect);
     ui->check_style = style;
+    dbg_change_push(ui, TORIRS_CHROME_CHANGE_CHECK_STYLE, -1, -1, 0, 0);
     for( int i = 0; i < ui->panel_count; i++ )
+    {
+        dbg_change_panel(ui, i, TORIRS_CHROME_CHANGE_PANEL_RECT);
         dbg_dirty_panel(ui, i);
+    }
     ui->dirty = 1;
 }
 
@@ -1400,6 +1660,7 @@ ToriRSChrome_PanelAdd(
     dbg_copy(p->title, TORIRS_CHROME_LABEL_MAX, title);
     ui->panel_count++;
     ui->dirty = 1;
+    dbg_change_panel(ui, handle, TORIRS_CHROME_CHANGE_PANEL_ALL);
     return handle;
 }
 
@@ -1412,6 +1673,7 @@ ToriRSChrome_PanelMove(struct ToriRSChrome* ui, int panel, int x, int y)
         return;
     ui->panels[panel].x = x;
     ui->panels[panel].y = y;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -1424,7 +1686,16 @@ ToriRSChrome_PanelSetVisible(struct ToriRSChrome* ui, int panel, int visible)
     if( ui->panels[panel].visible == visible )
         return;
     ui->panels[panel].visible = visible;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_LIFECYCLE);
     dbg_dirty_panel(ui, panel);
+    /* Closing a panel makes its executor-side children implicit. Reopening is
+     * therefore an effective add of every retained child, recorded here so
+     * Run need not discover them with a panel/tree scan. */
+    if( visible )
+        for( int widget = ui->panels[panel].first_widget;
+             widget >= 0;
+             widget = ui->widgets[widget].next )
+            dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_ADD);
 }
 
 void
@@ -1436,6 +1707,7 @@ ToriRSChrome_PanelSetFramed(struct ToriRSChrome* ui, int panel, int framed)
     if( ui->panels[panel].framed == (framed ? 1 : 0) )
         return;
     ui->panels[panel].framed = framed ? 1 : 0;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -1450,6 +1722,7 @@ ToriRSChrome_PanelSetResizable(struct ToriRSChrome* ui, int panel, int resizable
     ui->panels[panel].resizable = resizable;
     /* The grip is part of the panel's chrome, so turning it on or off is a
      * relayout of that panel and nothing else. */
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -1463,6 +1736,7 @@ ToriRSChrome_PanelSetClosable(struct ToriRSChrome* ui, int panel, int closable)
     if( ui->panels[panel].closable == closable )
         return;
     ui->panels[panel].closable = closable;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -1548,6 +1822,7 @@ ToriRSChrome_PanelSetFixedWidth(struct ToriRSChrome* ui, int panel, int width)
      * other, so it is stale either way. */
     dbg_damage_add(ui, ui->panels[panel].last_rect);
     ui->panels[panel].fixed_w = width;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -1562,32 +1837,7 @@ ToriRSChrome_PanelSetFixedHeight(struct ToriRSChrome* ui, int panel, int height)
         return;
     dbg_damage_add(ui, ui->panels[panel].last_rect);
     ui->panels[panel].fixed_h = height;
-    dbg_dirty_panel(ui, panel);
-}
-
-void
-ToriRSChrome_PanelFill(struct ToriRSChrome* ui, int panel, int w, int h)
-{
-    struct ToriRSChromePanel* p;
-
-    assert(ui);
-    /* A surface with no size is not a surface: the caller that has one asks
-     * its presentation for it and stays out of here when the answer is no. */
-    assert(w > 0);
-    assert(h > 0);
-    if( !dbg_valid_panel(ui, panel) )
-        return;
-    p = &ui->panels[panel];
-    if( p->filled && p->x == 0 && p->y == 0 && p->fixed_w == w && p->fixed_h == h )
-        return;
-    /* The box it occupies now is vacated on some side or other -- growing
-     * leaves nothing behind, shrinking leaves the old edges. */
-    dbg_damage_add(ui, p->last_rect);
-    p->filled = 1;
-    p->x = 0;
-    p->y = 0;
-    p->fixed_w = w;
-    p->fixed_h = h;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -1639,7 +1889,9 @@ dbg_widget_add(struct ToriRSChrome* ui, int panel, int kind)
         ui->widgets[ui->panels[panel].last_widget].next = handle;
     ui->panels[panel].last_widget = handle;
 
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
+    dbg_change_widget(ui, handle, TORIRS_CHROME_CHANGE_WIDGET_ADD);
     return handle;
 }
 
@@ -1682,6 +1934,7 @@ ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget)
     if( !dbg_valid_widget(ui, widget) )
         return;
     p = &ui->panels[ui->widgets[widget].panel];
+    dbg_change_widget_remove(ui, widget);
 
     /* Unlink from the panel's singly-linked row list. A walk rather than a back
      * pointer: rebuilds clear whole panels at a time (which never walks), and a
@@ -1708,6 +1961,7 @@ ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget)
     }
 
     dbg_widget_forget(ui, widget);
+    dbg_change_panel(ui, ui->widgets[widget].panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, ui->widgets[widget].panel);
 
     memset(&ui->widgets[widget], 0, sizeof(ui->widgets[widget]));
@@ -1729,6 +1983,7 @@ ToriRSChrome_PanelClearWidgets(struct ToriRSChrome* ui, int panel)
     while( widget >= 0 )
     {
         int const next = ui->widgets[widget].next;
+        dbg_change_widget_remove(ui, widget);
         dbg_widget_forget(ui, widget);
         memset(&ui->widgets[widget], 0, sizeof(ui->widgets[widget]));
         ui->widgets[widget].kind = TORIRS_CHROME_W_FREE;
@@ -1742,6 +1997,7 @@ ToriRSChrome_PanelClearWidgets(struct ToriRSChrome* ui, int panel)
      * stamp goes back to "every tab" rather than whatever the last run left. */
     ui->panels[panel].build_tab = -1;
     ui->panels[panel].scroll_y = 0;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -1906,6 +2162,7 @@ ToriRSChrome_SetCustomHeight(struct ToriRSChrome* ui, int widget, int height)
     if( w->view_h == height )
         return;
     w->view_h = height;
+    dbg_change_widget_layout(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_HEIGHT);
     /* A structural dirty, not a paint one: everything below this well moves.
      * That is a RELAYOUT of a page whose widgets all survive -- which is the
      * whole reason this exists instead of the page being declared again. */
@@ -1995,6 +2252,7 @@ ToriRSChrome_WidgetSetIntentSerial(
     if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].intent_serial == serial )
         return;
     ui->widgets[widget].intent_serial = serial;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_IDENTITY);
     dbg_dirty_widget(ui, widget);
 }
 
@@ -2053,6 +2311,11 @@ ToriRSChrome_ColorPickSet(struct ToriRSChrome* ui, int widget, int hsl16)
         return;
     w->selected = hsl16;
     dbg_colorpick_write_text(w);
+    dbg_change_widget(
+        ui,
+        widget,
+        TORIRS_CHROME_CHANGE_WIDGET_TEXT |
+            TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
     dbg_dirty_widget(ui, widget);
 }
 
@@ -2074,6 +2337,7 @@ ToriRSChrome_ColorPickCommitText(struct ToriRSChrome* ui, int widget)
          * swatch beside it showed another -- and the next Save would write the
          * half-typed string into the config. */
         dbg_colorpick_write_text(w);
+        dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_TEXT);
         dbg_dirty_widget(ui, widget);
         return 0;
     }
@@ -2088,11 +2352,17 @@ ToriRSChrome_ColorPickCommitText(struct ToriRSChrome* ui, int widget)
     if( w->selected == hsl )
     {
         dbg_colorpick_write_text(w);
+        dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_TEXT);
         dbg_dirty_widget(ui, widget);
         return 0;
     }
     w->selected = hsl;
     dbg_colorpick_write_text(w);
+    dbg_change_widget(
+        ui,
+        widget,
+        TORIRS_CHROME_CHANGE_WIDGET_TEXT |
+            TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
     dbg_dirty_widget(ui, widget);
     return 1;
 }
@@ -2122,17 +2392,21 @@ ToriRSChrome_ColorPickSetOpen(struct ToriRSChrome* ui, int widget, int open)
         if( ui->colorpick_open >= 0 )
         {
             ui->widgets[ui->colorpick_open].checked = 0;
+            dbg_change_widget(
+                ui,
+                ui->colorpick_open,
+                TORIRS_CHROME_CHANGE_WIDGET_CHECKED);
             dbg_dirty_widget(ui, ui->colorpick_open);
         }
         ui->colorpick_open = widget;
         ui->colorpick_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
         /* Mirrored onto the widget's own `checked` rather than left in the
-         * instance-wide latch alone, because that field is what the executor
-         * seam already diffs and announces (WIDGET_CHECKED). A NATIVE-WIDGET
-         * executor draws its own bars -- the model's popup is prims, and a DOM
-         * or a component tree cannot use those -- so "is this picker open" has
-         * to cross the seam, and this is the crossing that already exists. */
+         * instance-wide latch alone, because that setter records the existing
+         * WIDGET_CHECKED command. A web executor draws its own DOM bars and
+         * cannot use the model's popup primitives, so "is this picker open"
+         * has to cross the seam through that retained property. */
         ui->widgets[widget].checked = 1;
+        dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_CHECKED);
         dbg_dirty_widget(ui, widget);
         return;
     }
@@ -2141,6 +2415,7 @@ ToriRSChrome_ColorPickSetOpen(struct ToriRSChrome* ui, int widget, int open)
     ui->colorpick_open = -1;
     ui->colorpick_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
     ui->widgets[widget].checked = 0;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_CHECKED);
     dbg_dirty_widget(ui, widget);
 }
 
@@ -2174,13 +2449,21 @@ ToriRSChrome_FocusWidget(struct ToriRSChrome* ui, int widget, int caret)
         return 0;
 
     if( old != widget )
+    {
+        dbg_change_widget(ui, old, TORIRS_CHROME_CHANGE_WIDGET_FOCUS);
         dbg_dirty_widget_paint(ui, old);
+    }
     ui->focus = widget;
     if( w )
     {
         w->caret = caret;
         if( w->kind == TORIRS_CHROME_W_TEXTAREA )
             dbg_textarea_scroll_to_caret(ui, w);
+        dbg_change_widget(
+            ui,
+            widget,
+            TORIRS_CHROME_CHANGE_WIDGET_FOCUS |
+                TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
         dbg_dirty_widget_paint(ui, widget);
     }
     return 1;
@@ -2259,7 +2542,8 @@ ToriRSChrome_SetHidden(struct ToriRSChrome* ui, int widget, int hidden)
     if( ui->widgets[widget].hidden == (hidden ? 1 : 0) )
         return;
     ui->widgets[widget].hidden = hidden ? 1 : 0;
-    dbg_dirty_panel(ui, ui->widgets[widget].panel);
+    dbg_change_widget_layout(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_HIDDEN);
+    dbg_dirty_widget(ui, widget);
     /* Hiding the open dropdown takes its popup with it. */
     if( hidden && ui->dropdown_open == widget )
         dbg_dropdown_close(ui);
@@ -2281,7 +2565,9 @@ ToriRSChrome_Dropdown(
         return -1;
     dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
     ui->widgets[h].options = options;
-    ui->widgets[h].option_count = options ? option_count : 0;
+    ui->widgets[h].option_count = options && option_count > 0 ? option_count : 0;
+    ui->widgets[h].options_hash =
+        dbg_options_hash(options, ui->widgets[h].option_count);
     ui->widgets[h].selected = selected;
     dbg_dropdown_clamp(&ui->widgets[h]);
     /* Open on the selection so a palette of hundreds does not open at the top
@@ -2300,12 +2586,33 @@ ToriRSChrome_DropdownSetOptions(
     int selected)
 {
     struct ToriRSChromeWidget* w;
+    uint64_t options_hash;
+    uint32_t flags = 0;
+    int count;
+    int old_selected;
 
     if( !dbg_valid_widget(ui, widget) )
         return;
     w = &ui->widgets[widget];
+    count = options && option_count > 0 ? option_count : 0;
+    options_hash = dbg_options_hash(options, count);
+    if( selected >= count )
+        selected = count - 1;
+    if( selected < -1 )
+        selected = -1;
+    old_selected = w->selected;
+    if( w->option_count != count || w->options_hash != options_hash )
+        flags |= TORIRS_CHROME_CHANGE_WIDGET_OPTIONS;
+    if( old_selected != selected )
+        flags |= TORIRS_CHROME_CHANGE_WIDGET_SELECTED;
+
+    /* Even equal contents replace the borrow: a caller handing ownership from
+     * one stable palette to another may retire the old storage immediately. */
     w->options = options;
-    w->option_count = options ? option_count : 0;
+    if( flags == 0 )
+        return;
+    w->option_count = count;
+    w->options_hash = options_hash;
     w->selected = selected;
     w->scroll = selected > 0 ? selected : 0;
     dbg_dropdown_clamp(w);
@@ -2314,6 +2621,12 @@ ToriRSChrome_DropdownSetOptions(
     if( ui->dropdown_open == widget )
         ui->dropdown_open = -1;
     dbg_dirty_widget(ui, widget);
+    /* The caller is also the invalidation signal for a borrowed list. Its
+     * address and length may legitimately stay fixed while its strings change. */
+    dbg_change_widget_layout(
+        ui,
+        widget,
+        flags);
 }
 
 int
@@ -2332,10 +2645,15 @@ ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int select
     if( !dbg_valid_widget(ui, widget) )
         return;
     w = &ui->widgets[widget];
+    if( selected >= w->option_count )
+        selected = w->option_count - 1;
+    if( selected < -1 )
+        selected = -1;
     if( w->selected == selected )
         return;
     w->selected = selected;
     dbg_dropdown_clamp(w);
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
     dbg_dirty_widget_paint(ui, widget);
 }
 
@@ -2384,6 +2702,7 @@ ToriRSChrome_Tabs(
         return -1;
     ui->widgets[h].options = titles;
     ui->widgets[h].option_count = title_count;
+    ui->widgets[h].options_hash = dbg_options_hash(titles, title_count);
     /* The strip belongs to no tab: one that stamped itself with tab 0 would
      * vanish the moment tab 1 was chosen, taking the only way back with it. */
     ui->widgets[h].tab = -1;
@@ -2391,6 +2710,10 @@ ToriRSChrome_Tabs(
         selected = 0;
     ui->widgets[h].selected = selected;
     ui->panels[panel].active_tab = selected;
+    /* Adding a strip to a panel that is already mounted changes that panel's
+     * active tab. The widget ADD carries the strip's own selection, but it
+     * cannot stand in for the distinct panel-level visibility decision. */
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_TAB);
     return h;
 }
 
@@ -2402,20 +2725,38 @@ ToriRSChrome_TabsSetTitles(
     int title_count)
 {
     struct ToriRSChromeWidget* w;
+    uint64_t options_hash;
+    uint32_t flags = 0;
+    int old_selected;
 
     assert(ui);
     assert(titles || title_count == 0);
     if( !dbg_valid_widget(ui, widget) )
         return;
     w = &ui->widgets[widget];
-    if( w->options == titles && w->option_count == title_count )
-        return;
+    options_hash = dbg_options_hash(titles, title_count);
+    old_selected = w->selected;
+    if( w->option_count != title_count || w->options_hash != options_hash )
+        flags |= TORIRS_CHROME_CHANGE_WIDGET_OPTIONS;
     w->options = titles;
+    if( flags == 0 )
+        return;
     w->option_count = title_count;
+    w->options_hash = options_hash;
     if( w->selected >= title_count )
         w->selected = title_count > 0 ? title_count - 1 : 0;
+    if( old_selected != w->selected )
+        flags |= TORIRS_CHROME_CHANGE_WIDGET_SELECTED;
     ui->panels[w->panel].active_tab = w->selected;
+    dbg_change_panel(
+        ui,
+        w->panel,
+        TORIRS_CHROME_CHANGE_PANEL_TAB | TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_widget(ui, widget);
+    dbg_change_widget_layout(
+        ui,
+        widget,
+        flags);
 }
 
 int
@@ -2437,6 +2778,10 @@ ToriRSChrome_PanelSetActiveTab(struct ToriRSChrome* ui, int panel, int tab)
     if( ui->panels[panel].active_tab == tab )
         return;
     ui->panels[panel].active_tab = tab;
+    dbg_change_panel(
+        ui,
+        panel,
+        TORIRS_CHROME_CHANGE_PANEL_TAB | TORIRS_CHROME_CHANGE_PANEL_RECT);
     /* The rows about to appear are a different set from the ones going away, so
      * a scroll offset measured against the old tab means nothing on the new
      * one -- and a tab that opened already scrolled reads as a broken panel. */
@@ -2454,6 +2799,7 @@ ToriRSChrome_PanelSetActiveTab(struct ToriRSChrome* ui, int panel, int tab)
         if( ui->widgets[w].kind == TORIRS_CHROME_W_TABSTRIP )
         {
             ui->widgets[w].selected = tab;
+            dbg_change_widget(ui, w, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
             break;
         }
     dbg_dirty_panel(ui, panel);
@@ -2478,6 +2824,10 @@ ToriRSChrome_PanelSetTitle(struct ToriRSChrome* ui, int panel, char const* title
     if( strcmp(ui->panels[panel].title, title) == 0 )
         return;
     dbg_copy(ui->panels[panel].title, TORIRS_CHROME_LABEL_MAX, title);
+    dbg_change_panel(
+        ui,
+        panel,
+        TORIRS_CHROME_CHANGE_PANEL_TITLE | TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -2492,6 +2842,7 @@ ToriRSChrome_PanelSetScrollable(struct ToriRSChrome* ui, int panel, int scrollab
     ui->panels[panel].scrollable = scrollable ? 1 : 0;
     if( !ui->panels[panel].scrollable )
         ui->panels[panel].scroll_y = 0;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -2520,13 +2871,23 @@ ToriRSChrome_SetText(struct ToriRSChrome* ui, int widget, char const* text)
      * which draws as an empty field that the user cannot scroll back up. */
     if( w->kind == TORIRS_CHROME_W_TEXTAREA )
         dbg_textarea_scroll_to_caret(ui, w);
+    dbg_change_widget(
+        ui,
+        widget,
+        TORIRS_CHROME_CHANGE_WIDGET_TEXT |
+            (w->kind == TORIRS_CHROME_W_TEXTAREA
+                 ? TORIRS_CHROME_CHANGE_WIDGET_SELECTED
+                 : 0));
     if( (ui->panels[w->panel].style == TORIRS_CHROME_PANEL_WINDOW &&
          ui->panels[w->panel].fixed_w > 0) ||
         w->kind == TORIRS_CHROME_W_TEXTAREA ||
         w->kind == TORIRS_CHROME_W_COLORPICK )
         dbg_dirty_widget_paint(ui, widget);
     else
+    {
+        dbg_change_panel(ui, w->panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
         dbg_dirty_widget(ui, widget);
+    }
 }
 
 void
@@ -2544,11 +2905,15 @@ ToriRSChrome_SetLabel(struct ToriRSChrome* ui, int widget, char const* label)
     {
         int const same_shape = (w->label[0] == '\0') == (buf[0] == '\0');
         memcpy(w->label, buf, sizeof(buf));
+        dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_LABEL);
         if( same_shape && ui->panels[w->panel].style == TORIRS_CHROME_PANEL_WINDOW &&
             ui->panels[w->panel].fixed_w > 0 )
             dbg_dirty_widget_paint(ui, widget);
         else
+        {
+            dbg_change_panel(ui, w->panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
             dbg_dirty_widget(ui, widget);
+        }
     }
 }
 
@@ -2558,6 +2923,7 @@ ToriRSChrome_SetColor(struct ToriRSChrome* ui, int widget, uint32_t color)
     if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].color == color )
         return;
     ui->widgets[widget].color = color;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_COLOR);
     dbg_dirty_widget_paint(ui, widget);
 }
 
@@ -2568,6 +2934,7 @@ ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked)
     if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].checked == checked )
         return;
     ui->widgets[widget].checked = checked;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_CHECKED);
     if( ui->widgets[widget].kind == TORIRS_CHROME_W_COLORPICK )
         dbg_dirty_widget(ui, widget);
     else
@@ -3253,42 +3620,6 @@ dbg_tab_at(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w, in
 }
 
 /**
- * The box the strip's tabs actually occupy. Empty (w 0) for a strip with none.
- *
- * The union rather than a list, and the union is exact rather than
- * conservative: dbg_tab_rect lays the tabs out contiguously from the strip's
- * left edge, so first-through-last covers every tab and nothing else. What is
- * left over is the strip's empty tail, which is the only part of it that is not
- * already a control. @see ToriRSChrome_WindowDragRegion.
- */
-static struct ToriRSChromeRect
-dbg_tab_run_rect(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
-{
-    struct ToriRSChromeRect run = { 0, 0, 0, 0 };
-
-    assert(ui);
-    assert(w);
-    for( int i = 0; i < w->option_count; i++ )
-    {
-        struct ToriRSChromeRect const r = dbg_tab_rect(ui, w, i);
-        int right;
-
-        if( r.w <= 0 )
-            continue;
-        if( run.w == 0 )
-        {
-            run = r;
-            continue;
-        }
-        right = r.x + r.w > run.x + run.w ? r.x + r.w : run.x + run.w;
-        if( r.x < run.x )
-            run.x = r.x;
-        run.w = right - run.x;
-    }
-    return run;
-}
-
-/**
  * The strip: a rule along the bottom, and a raised box per tab.
  *
  * The SELECTED tab has no bottom rule -- that gap is what joins it to the
@@ -3609,18 +3940,12 @@ dbg_push_grip(
 
 /**
  * Does this panel show a resize grip?
- *
- * A FILLED panel does not, however it was declared: its size is the surface's,
- * so a grip drag would be undone by the next fill -- and the corner it reserves
- * would be a strip of empty body at the bottom of a window nobody can resize
- * from the inside. Asked here rather than tested at each of the two sites, so
- * the draw and the hit test cannot answer it differently.
  */
 static int
 dbg_panel_has_grip(struct ToriRSChromePanel const* p)
 {
     assert(p);
-    return p->resizable && !p->filled;
+    return p->resizable;
 }
 
 /*
@@ -4953,6 +5278,13 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
         rect.y = p->y;
         rect.w = p->w;
         rect.h = p->h;
+        /* Layout is itself a retained property producer. Recording the
+         * resolved RECT here guarantees that a caller which drained value
+         * changes before Build still publishes the later geometry change,
+         * without making the executor rediscover it by scanning panels. */
+        if( rect.x != p->last_rect.x || rect.y != p->last_rect.y ||
+            rect.w != p->last_rect.w || rect.h != p->last_rect.h )
+            dbg_change_panel(ui, i, TORIRS_CHROME_CHANGE_PANEL_RECT);
         if( p->dirty )
         {
             if( !p->paint_only_dirty )
@@ -5438,6 +5770,11 @@ dbg_colorpick_apply_at(struct ToriRSChrome* ui, int bar, int x)
         return 0;
     w->selected = next;
     dbg_colorpick_write_text(w);
+    dbg_change_widget(
+        ui,
+        ui->colorpick_open,
+        TORIRS_CHROME_CHANGE_WIDGET_TEXT |
+            TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
     dbg_dirty_widget(ui, ui->colorpick_open);
     /* The popup floats outside its panel's box, so the panel's own damage rect
      * does not cover it -- without this the bars keep the marker they had when
@@ -5632,13 +5969,6 @@ dbg_panel_header_at(struct ToriRSChrome const* ui, int x, int y)
 
         if( !p->visible || p->last_rect.w <= 0 || p->style != TORIRS_CHROME_PANEL_WINDOW )
             continue;
-        /* A filled panel has no position of its own to move: the next fill
-         * puts it back at the origin, so a drag would be a title bar that
-         * takes the cursor and gives nothing back. The window it fills is what
-         * moves instead -- see ToriRSChrome_WindowDragRegion, which claims
-         * this same bar for exactly the panels this skips. */
-        if( p->filled )
-            continue;
         if( dbg_point_in_rect(x, y, dbg_panel_title_rect(ui, p)) )
             return i;
     }
@@ -5699,6 +6029,7 @@ dbg_panel_resize_to(struct ToriRSChrome* ui, int panel, int right, int bottom)
     dbg_damage_add(ui, p->last_rect);
     p->fixed_w = w;
     p->fixed_h = h;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -5716,6 +6047,7 @@ dbg_panel_move_to(struct ToriRSChrome* ui, int panel, int x, int y)
     dbg_damage_add(ui, p->last_rect);
     p->x = x;
     p->y = y;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
     dbg_dirty_panel(ui, panel);
 }
 
@@ -5874,121 +6206,6 @@ ToriRSChrome_HitTest(struct ToriRSChrome const* ui, int x, int y)
             return w;
     }
     return -1;
-}
-
-/**
- * The panel's pinned tab strip, or -1.
- *
- * The FIRST shown one, matching dbg_build_window's own choice of which strip to
- * pin: a panel with two would lay the second out as an ordinary scrolling row,
- * and a handle over a row that scrolls is a handle that moves when the list
- * does.
- */
-static int
-dbg_panel_tabstrip(struct ToriRSChrome const* ui, struct ToriRSChromePanel const* p)
-{
-    assert(ui);
-    assert(p);
-    for( int w = p->first_widget; w >= 0; w = ui->widgets[w].next )
-        if( ui->widgets[w].kind == TORIRS_CHROME_W_TABSTRIP &&
-            dbg_widget_shown(ui, &ui->widgets[w]) )
-            return w;
-    return -1;
-}
-
-int
-ToriRSChrome_WindowDragRegion(
-    struct ToriRSChrome const* ui, int panel, struct ToriRSChromeDragRegion* out)
-{
-    struct ToriRSChromePanel const* p;
-    struct ToriRSChromeRect r;
-    int strip;
-
-    assert(ui);
-    assert(out);
-    memset(out, 0, sizeof(*out));
-
-    if( !dbg_valid_panel(ui, panel) )
-        return 0;
-    p = &ui->panels[panel];
-    /* Never built, hidden, not a window, or floating. The last is the one worth
-     * naming: a floating panel is moved INSIDE the canvas by this same bar, and
-     * a handle that did both would drag the game out from under the pointer. */
-    if( !p->visible || p->last_rect.w <= 0 || p->style != TORIRS_CHROME_PANEL_WINDOW ||
-        !p->filled )
-        return 0;
-
-    r = dbg_panel_title_rect(ui, p);
-    if( r.w > 0 && r.h > 0 )
-        out->handles[out->handle_count++] = r;
-
-    strip = dbg_panel_tabstrip(ui, p);
-    if( strip >= 0 && ui->widgets[strip].w > 0 && ui->widgets[strip].h > 0 )
-    {
-        struct ToriRSChromeWidget const* w = &ui->widgets[strip];
-
-        r.x = w->x;
-        r.y = w->y;
-        r.w = w->w;
-        r.h = w->h;
-        out->handles[out->handle_count++] = r;
-
-        r = dbg_tab_run_rect(ui, w);
-        if( r.w > 0 )
-            out->holes[out->hole_count++] = r;
-    }
-
-    if( out->handle_count == 0 )
-        return 0;
-
-    /*
-     * A closable panel's Close sits IN the title bar.
-     *
-     * Unpunched it is unreachable rather than merely awkward: the press that
-     * would close the window starts a drag of it instead, and the button never
-     * sees a click at all. That is the whole hazard of this feature in one
-     * case -- a handle is not a decoration, it is a region that eats input --
-     * and it lands on the one control a frameless window cannot do without.
-     */
-    r = dbg_panel_close_rect(ui, panel);
-    if( r.w > 0 && out->hole_count < TORIRS_CHROME_DRAG_HOLES_MAX )
-        out->holes[out->hole_count++] = r;
-
-    /*
-     * Popups float OUTSIDE the widget that owns them, so an open list or picker
-     * can cover the strip or the bar. While one is up it owns every press in
-     * its box -- including the ones that dismiss it -- so it must not be a drag
-     * handle for the frames it is open.
-     */
-    if( ui->dropdown_open >= 0 && out->hole_count < TORIRS_CHROME_DRAG_HOLES_MAX )
-    {
-        r = dbg_dropdown_rect(ui);
-        if( r.w > 0 )
-            out->holes[out->hole_count++] = r;
-    }
-    if( ui->colorpick_open >= 0 && out->hole_count < TORIRS_CHROME_DRAG_HOLES_MAX )
-    {
-        r = dbg_colorpick_rect(ui);
-        if( r.w > 0 )
-            out->holes[out->hole_count++] = r;
-    }
-    return 1;
-}
-
-int
-ToriRSChromeDragRegion_Contains(struct ToriRSChromeDragRegion const* region, int x, int y)
-{
-    int on = 0;
-
-    assert(region);
-    for( int i = 0; i < region->handle_count && !on; i++ )
-        on = dbg_point_in_rect(x, y, region->handles[i]);
-    if( !on )
-        return 0;
-    for( int i = 0; i < region->hole_count; i++ )
-        if( dbg_point_in_rect(x, y, region->holes[i]) )
-            return 0;
-    return 1;
 }
 
 /**
@@ -6593,6 +6810,7 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
             struct ToriRSChromeWidget* dd = &ui->widgets[ui->dropdown_open];
             int const chosen = ui->dropdown_open;
             dd->selected = dd->scroll + row;
+            dbg_change_widget(ui, chosen, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
             dbg_dropdown_close(ui);
             /* Reported like any other activation, so a caller drains choices
              * and clicks through one TakeActivated loop. */
@@ -6622,6 +6840,7 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
         else if( w->kind == TORIRS_CHROME_W_CHECKBOX )
         {
             w->checked = !w->checked;
+            dbg_change_widget(ui, hit, TORIRS_CHROME_CHANGE_WIDGET_CHECKED);
             ui->activated = hit;
             dbg_dirty_widget(ui, hit);
         }
@@ -6646,6 +6865,7 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
             else
             {
                 w->checked = !w->checked;
+                dbg_change_widget(ui, hit, TORIRS_CHROME_CHANGE_WIDGET_CHECKED);
                 ui->activated = hit;
                 ui->activated_action = 0;
             }
@@ -6684,7 +6904,10 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
                  * list from highlighting last time's command, and makes
                  * choosing the same row twice two activations. */
                 if( w->menu_mode )
+                {
                     w->selected = -1;
+                    dbg_change_widget(ui, hit, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
+                }
                 ui->dropdown_open = hit;
                 ui->dropdown_hover_row = -1;
                 dbg_dropdown_clamp(w);
@@ -6723,6 +6946,11 @@ ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta)
             {
                 pick->selected = next;
                 dbg_colorpick_write_text(pick);
+                dbg_change_widget(
+                    ui,
+                    ui->colorpick_open,
+                    TORIRS_CHROME_CHANGE_WIDGET_TEXT |
+                        TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
                 dbg_dirty_widget(ui, ui->colorpick_open);
                 dbg_damage_add(ui, dbg_colorpick_rect(ui));
                 ui->activated = ui->colorpick_open;
@@ -6758,6 +6986,7 @@ ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta)
                 /* Reported like a chosen row, so the caller's TakeActivated
                  * loop reacts to a wheel exactly as it would to a click. */
                 ui->activated = hit;
+                dbg_change_widget(ui, hit, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
                 dbg_dirty_widget(ui, hit);
             }
             return 1;
@@ -6873,6 +7102,13 @@ ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch)
     w->caret++;
     if( w->kind == TORIRS_CHROME_W_TEXTAREA )
         dbg_textarea_scroll_to_caret(ui, w);
+    dbg_change_widget_layout(
+        ui,
+        ui->focus,
+        TORIRS_CHROME_CHANGE_WIDGET_TEXT |
+            (w->kind == TORIRS_CHROME_W_TEXTAREA
+                 ? TORIRS_CHROME_CHANGE_WIDGET_SELECTED
+                 : 0));
     dbg_dirty_widget(ui, ui->focus);
     return 1;
 }
@@ -6914,6 +7150,11 @@ dbg_textarea_key(struct ToriRSChrome* ui, struct ToriRSChromeWidget* w, int key,
             w->text[w->caret] = '\n';
             w->caret++;
             dbg_textarea_scroll_to_caret(ui, w);
+            dbg_change_widget_layout(
+                ui,
+                ui->focus,
+                TORIRS_CHROME_CHANGE_WIDGET_TEXT |
+                    TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
             dbg_dirty_widget(ui, ui->focus);
         }
         return 1;
@@ -6943,6 +7184,7 @@ dbg_textarea_key(struct ToriRSChrome* ui, struct ToriRSChromeWidget* w, int key,
         w->caret = starts[target] + col;
     }
     dbg_textarea_scroll_to_caret(ui, w);
+    dbg_change_widget(ui, ui->focus, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
     dbg_dirty_widget(ui, ui->focus);
     return 1;
 }
@@ -6953,6 +7195,7 @@ ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
     struct ToriRSChromeWidget* w;
     int len;
     int area;
+    int text_changed = 0;
 
     assert(ui);
     if( ui->focus < 0 )
@@ -6986,6 +7229,7 @@ ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
         {
             memmove(w->text + w->caret - 1, w->text + w->caret, (size_t)(len - w->caret) + 1);
             w->caret--;
+            text_changed = 1;
             break;
         }
         return 1;
@@ -6993,6 +7237,7 @@ ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
         if( w->caret < len )
         {
             memmove(w->text + w->caret, w->text + w->caret + 1, (size_t)(len - w->caret));
+            text_changed = 1;
             break;
         }
         return 1;
@@ -7038,7 +7283,11 @@ ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
          * is the one difference between the two ways out of an edit, and it is
          * the difference the key is for. */
         if( w->kind == TORIRS_CHROME_W_COLORPICK )
+        {
             dbg_colorpick_write_text(w);
+            dbg_change_widget(ui, ui->focus, TORIRS_CHROME_CHANGE_WIDGET_TEXT);
+        }
+        dbg_change_widget(ui, ui->focus, TORIRS_CHROME_CHANGE_WIDGET_FOCUS);
         dbg_dirty_widget(ui, ui->focus);
         ui->focus = -1;
         return 1;
@@ -7050,6 +7299,14 @@ ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
      * field has to follow its caret; a one-line one scrolls at the draw. */
     if( area )
         dbg_textarea_scroll_to_caret(ui, w);
+    if( text_changed )
+        dbg_change_widget_layout(
+            ui,
+            ui->focus,
+            TORIRS_CHROME_CHANGE_WIDGET_TEXT |
+                (area ? TORIRS_CHROME_CHANGE_WIDGET_SELECTED : 0));
+    else if( area )
+        dbg_change_widget(ui, ui->focus, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
     dbg_dirty_widget(ui, ui->focus);
     return 1;
 }

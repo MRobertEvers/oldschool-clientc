@@ -1,16 +1,16 @@
 /*
  * The executor seam: what Sync emits, and what an intent does when it lands.
  *
- * The properties worth pinning are the ones a native executor would be broken
- * by and a screenshot would never show:
+ * The properties worth pinning are the ones a retained DOM executor would be
+ * broken by and a screenshot would never show:
  *
- *  - a clean frame emits nothing, so a Win32 control is not destroyed and
+ *  - a clean frame emits nothing, so a DOM control is not destroyed and
  *    recreated (losing focus and caret) on a frame where nothing moved;
  *  - a changed field emits ONLY that field;
  *  - removal is announced before the handle can be recycled by an add;
  *  - a closed panel takes its rows with it, without a REMOVE per row;
- *  - an intent lands on the model exactly where a click would, so five
- *    presentations of one panel cannot disagree about what is checked.
+ *  - an intent lands on the model exactly where a click would, so WEB and
+ *    BROWSER cannot disagree about what is checked.
  */
 #include "test_harness.h"
 
@@ -20,6 +20,16 @@
 static struct ToriRSChrome g_ui;
 static struct ToriRSChromeSync g_sync;
 static struct ToriRSChromeRecorder g_rec;
+static int g_snapshot_request;
+
+static int
+exec_take_snapshot_request(void* user)
+{
+    int const requested = g_snapshot_request;
+    (void)user;
+    g_snapshot_request = 0;
+    return requested;
+}
 
 /** Bind a fresh recorder to a fresh model and catch it up to the model's state. */
 static void
@@ -27,6 +37,7 @@ exec_reset(void)
 {
     struct ToriRSChromeExec exec;
 
+    g_snapshot_request = 0;
     ToriRSChrome_Init(&g_ui);
     ToriRSChromeRecorder_Init(&g_rec);
     exec = ToriRSChromeExec_Recorder(&g_rec);
@@ -40,6 +51,26 @@ exec_settle(void)
     int const n = ToriRSChromeSync_Run(&g_sync, &g_ui);
     g_rec.count = 0;
     return n;
+}
+
+static void
+test_chrome_exec_internal_fallback(void)
+{
+    struct ToriRSChromeExec exec;
+    int got = -1;
+
+    /* This platform-free harness deliberately undefines WEB/BROWSER. Asking
+     * for either public kind must produce the non-selectable internal sink. */
+    exec = ToriRSChromeExec_ForKind(TORIRS_CHROME_EXEC_WEB, NULL, &got);
+    TEST_ASSERT(
+        got == TORIRS_CHROME_EXEC_BUFFER && !exec.begin && !exec.apply &&
+            !exec.end && !exec.poll,
+        "an unavailable public web executor becomes the empty BUFFER fallback");
+    got = -1;
+    exec = ToriRSChromeExec_ForKind(-1, NULL, &got);
+    TEST_ASSERT(
+        got == TORIRS_CHROME_EXEC_BUFFER && !exec.apply,
+        "a build with no web backend defaults internally to BUFFER");
 }
 
 static void
@@ -75,8 +106,8 @@ test_chrome_exec_catchup(void)
 }
 
 /*
- * The property the whole shadow exists for. A frame where nothing moved must
- * emit nothing, or every native control is torn down and rebuilt 50 times a
+ * The property the delivered shadow exists for. A frame where nothing moved
+ * must emit nothing, or every DOM control is torn down and rebuilt 50 times a
  * second and no text field can be typed into.
  */
 static void
@@ -85,6 +116,7 @@ test_chrome_exec_quiet_frame(void)
     int panel;
     int input;
     int commands;
+    uint32_t visits;
 
     exec_reset();
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 20, 160, "Settings");
@@ -93,10 +125,13 @@ test_chrome_exec_quiet_frame(void)
     exec_settle();
 
     commands = g_sync.cmd_count;
+    visits = g_sync.change_visit_count;
+    TEST_ASSERT(g_ui.change_count == 0, "the catch-up consumes pre-bind changes");
     TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 0, "a frame with no change says nothing");
     TEST_ASSERT(
-        g_rec.count == 0 && g_sync.cmd_count == commands,
-        "a settled frame starts no executor transaction and scans no deltas");
+        g_rec.count == 0 && g_sync.cmd_count == commands &&
+            g_sync.change_visit_count == visits,
+        "a settled frame starts no executor transaction and visits no node or shadow");
     TEST_ASSERT(
         ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 0,
         "and re-adds nothing");
@@ -104,13 +139,23 @@ test_chrome_exec_quiet_frame(void)
     /* Setting a value to what it already is is not a change, the same way the
      * chrome's own compare-then-set mutators treat it. */
     ToriRSChrome_SetText(&g_ui, input, "#FFCC00");
+    TEST_ASSERT(g_ui.change_count == 0, "a compare-equal setter queues no work");
     TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 0, "a no-op write is still quiet");
-    TEST_ASSERT(g_rec.count == 0, "a compare-equal write reaches no native executor callback");
+    TEST_ASSERT(g_rec.count == 0, "a compare-equal write reaches no web executor callback");
 
     /* A real change emits exactly one thing. */
     g_rec.count = 0;
     ToriRSChrome_SetText(&g_ui, input, "#00FF00");
+    TEST_ASSERT(
+        g_ui.change_count == 1 &&
+            g_ui.changes[0].kind == TORIRS_CHROME_CHANGE_WIDGET &&
+            g_ui.changes[0].widget == input &&
+            g_ui.changes[0].flags == TORIRS_CHROME_CHANGE_WIDGET_TEXT,
+        "one changed node and its exact property are recorded once");
     TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 1, "one change is one command");
+    TEST_ASSERT(
+        g_sync.change_visit_count == visits + 6,
+        "the efficiency counter reports all six fixed-pass journal inspections");
     TEST_ASSERT(
         ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_TEXT) == 1,
         "and it is the text");
@@ -118,6 +163,259 @@ test_chrome_exec_quiet_frame(void)
         strcmp(ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_TEXT, input)->text,
                "#00FF00") == 0,
         "carrying the new value");
+}
+
+static void
+test_chrome_exec_coalesces_setter_burst(void)
+{
+    static char const* const first[] = { "alpha", "beta" };
+    static char const* const second[] = { "one", "two", "three" };
+    int panel;
+    int input;
+    int dropdown;
+    int commands;
+    uint32_t visits;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 20, 180, "Coalesce");
+    input = ToriRSChrome_TextInput(&g_ui, panel, "name", "start");
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    ToriRSChrome_SetText(&g_ui, input, "one");
+    ToriRSChrome_SetText(&g_ui, input, "two");
+    ToriRSChrome_SetText(&g_ui, input, "final");
+    TEST_ASSERT(
+        g_ui.change_count == 1 &&
+            g_ui.changes[0].flags == TORIRS_CHROME_CHANGE_WIDGET_TEXT,
+        "same-field writes coalesce to one exact-property node event");
+    ToriRSChrome_Build(&g_ui);
+    visits = g_sync.change_visit_count;
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 1, "a setter burst emits one delta");
+    TEST_ASSERT(
+        g_sync.change_visit_count == visits + 6 &&
+            ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_TEXT) == 1 &&
+            strcmp(ToriRSChromeRecorder_Find(
+                       &g_rec, TORIRS_CHROME_CMD_WIDGET_TEXT, input)->text,
+                   "final") == 0,
+        "only the final retained value crosses to the executor");
+
+    g_rec.count = 0;
+    commands = g_sync.cmd_count;
+    ToriRSChrome_SetText(&g_ui, input, "temporary");
+    ToriRSChrome_SetText(&g_ui, input, "final");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.change_count == 1, "a net-zero burst remains one queued comparison");
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 && g_rec.count == 0 &&
+            g_sync.cmd_count == commands,
+        "a burst ending at the delivered value opens no executor transaction");
+
+    /* Lists use a bounded content snapshot as their retained value. Returning
+     * the text and selection to what the executor already holds is the list
+     * form of the same net-zero burst and must not rebuild a DOM select. */
+    dropdown = ToriRSChrome_Dropdown(&g_ui, panel, "mode", first, 2, 0);
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+    ToriRSChrome_DropdownSetOptions(&g_ui, dropdown, second, 3, 1);
+    ToriRSChrome_DropdownSetOptions(&g_ui, dropdown, first, 2, 0);
+    ToriRSChrome_Build(&g_ui);
+    g_rec.count = 0;
+    commands = g_sync.cmd_count;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 && g_rec.count == 0 &&
+            g_sync.cmd_count == commands,
+        "an option-list burst ending at the delivered value opens no transaction");
+
+    /* An identity that is born and removed entirely between executor ticks was
+     * never part of the delivered tree. Its queued ADD is discarded by remove,
+     * and its REMOVE compares against no live shadow. */
+    {
+        int const transient = ToriRSChrome_Label(&g_ui, panel, "transient");
+        ToriRSChrome_WidgetRemove(&g_ui, transient);
+    }
+    ToriRSChrome_Build(&g_ui);
+    g_rec.count = 0;
+    commands = g_sync.cmd_count;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 && g_rec.count == 0 &&
+            g_sync.cmd_count == commands,
+        "an add/remove burst for an undelivered node opens no transaction");
+}
+
+static void
+test_chrome_exec_indexed_coalescing(void)
+{
+    enum { WIDGETS = 256 };
+    int widgets[WIDGETS];
+    int panel;
+    uint32_t visits;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 320, "Indexed burst");
+    for( int i = 0; i < WIDGETS; i++ )
+        widgets[i] = ToriRSChrome_TextInput(&g_ui, panel, "field", "initial");
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    /* Touch every field repeatedly before one browser tick. The first pass
+     * allocates one record per identity; every later pass must find that
+     * record through the direct widget index, not scan an ever-growing queue. */
+    for( int pass = 0; pass < 33; pass++ )
+        for( int i = 0; i < WIDGETS; i++ )
+            ToriRSChrome_SetText(&g_ui, widgets[i], (pass & 1) ? "odd" : "even");
+
+    TEST_ASSERT(
+        g_ui.change_count == WIDGETS && !g_ui.change_lost,
+        "a repeated wide burst retains one journal entry per widget");
+    for( int i = 0; i < WIDGETS; i++ )
+    {
+        int const pending = g_ui.change_pending_widget[widgets[i]];
+        TEST_ASSERT(
+            pending > 0 && pending <= g_ui.change_count &&
+                g_ui.changes[pending - 1].kind == TORIRS_CHROME_CHANGE_WIDGET &&
+                g_ui.changes[pending - 1].widget == widgets[i] &&
+                g_ui.changes[pending - 1].serial == g_ui.widgets[widgets[i]].serial,
+            "the O(1) pending index names the widget's exact retained identity");
+    }
+
+    ToriRSChrome_Build(&g_ui);
+    visits = g_sync.change_visit_count;
+    g_rec.count = 0;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == WIDGETS,
+        "the wide burst emits only its final value per widget");
+    TEST_ASSERT(
+        g_sync.change_visit_count == visits + 6 * WIDGETS,
+        "the drain reports every inspection in its fixed number of journal passes");
+    TEST_ASSERT(
+        g_ui.change_count == 0 &&
+            g_ui.change_pending_widget[widgets[WIDGETS - 1]] == 0,
+        "acknowledging a drain clears the journal and its pending indexes");
+}
+
+static void
+test_chrome_exec_records_dependent_properties(void)
+{
+    static char const* const tabs[] = { "One", "Two" };
+    struct ToriRSChromeCmd const* cmd;
+    int panel;
+    int custom;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "Dependencies");
+    custom = ToriRSChrome_Custom(&g_ui, panel, "view", 80);
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    /* The model stores the well in chrome pixels; the web command carries
+     * logical units. A scale change must therefore identify the custom node,
+     * not rely on a capacity walk to notice the derived value. */
+    ToriRSChrome_SetScale(&g_ui, 2);
+    TEST_ASSERT(
+        g_ui.change_count == 2 &&
+            g_ui.changes[0].kind == TORIRS_CHROME_CHANGE_PANEL &&
+            g_ui.changes[0].flags == TORIRS_CHROME_CHANGE_PANEL_RECT &&
+            g_ui.changes[1].kind == TORIRS_CHROME_CHANGE_WIDGET &&
+            g_ui.changes[1].widget == custom &&
+            g_ui.changes[1].flags == TORIRS_CHROME_CHANGE_WIDGET_HEIGHT,
+        "scale names the affected panel and exact custom-height property");
+    ToriRSChrome_Build(&g_ui);
+    g_rec.count = 0;
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    cmd = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_HEIGHT, custom);
+    TEST_ASSERT(cmd && cmd->h == 40, "the derived logical custom height reaches the executor");
+
+    /* A tab strip may be inserted into an already-mounted panel. Its ADD says
+     * which tab owns the strip; PANEL_TAB separately says which tab's rows the
+     * panel should show. */
+    g_rec.count = 0;
+    ToriRSChrome_Tabs(&g_ui, panel, tabs, 2, 1);
+    TEST_ASSERT(
+        g_ui.change_count == 2 &&
+            g_ui.changes[0].kind == TORIRS_CHROME_CHANGE_PANEL &&
+            (g_ui.changes[0].flags & TORIRS_CHROME_CHANGE_PANEL_TAB) &&
+            g_ui.changes[1].kind == TORIRS_CHROME_CHANGE_WIDGET,
+        "dynamic tabs record both the panel selection and new strip node");
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    cmd = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_PANEL_TAB, -1);
+    TEST_ASSERT(cmd && cmd->panel == panel && cmd->value == 1,
+                "dynamic tab selection reaches an already-mounted panel");
+}
+
+static void
+test_chrome_exec_queue_loss_snapshots_once(void)
+{
+    int panel;
+    int widget;
+    struct ToriRSChromeCmd const* begin;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 8, 160, "Loss");
+    widget = ToriRSChrome_Label(&g_ui, panel, "first");
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    for( int i = 0; i < TORIRS_CHROME_MAX_CHANGES + 8; i++ )
+    {
+        ToriRSChrome_WidgetRemove(&g_ui, widget);
+        widget = ToriRSChrome_Label(&g_ui, panel, (i & 1) ? "odd" : "even");
+    }
+    TEST_ASSERT(g_ui.change_lost, "bounded queue overflow is explicit");
+    ToriRSChrome_Build(&g_ui);
+    g_rec.count = 0;
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "loss triggers one full catch-up");
+    begin = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_SYNC_BEGIN, -1);
+    TEST_ASSERT(
+        begin && begin->value == 1 &&
+            ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_PANEL_OPEN) == 1 &&
+            ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 1,
+        "overflow recovery is one marked authoritative snapshot");
+    TEST_ASSERT(!g_ui.change_lost && g_ui.change_count == 0, "snapshot acknowledges the loss");
+    g_rec.count = 0;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 && g_rec.count == 0,
+        "overflow catch-up is exactly once");
+}
+
+static void
+test_chrome_exec_delivery_loss_snapshots_once(void)
+{
+    struct ToriRSChromeCmd const* begin;
+    int panel;
+
+    exec_reset();
+    g_sync.exec.take_snapshot_request = exec_take_snapshot_request;
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 8, 160, "Delivery loss");
+    ToriRSChrome_Label(&g_ui, panel, "retained");
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    /* A bounded web transport reports a failed atomic batch through a one-shot
+     * latch. It must be answered before deltas, as one authoritative page. */
+    g_snapshot_request = 1;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) > 0,
+        "executor-side delivery loss triggers a full catch-up");
+    begin = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_SYNC_BEGIN, -1);
+    TEST_ASSERT(
+        begin && begin->value == 1 &&
+            ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_PANEL_OPEN) == 1 &&
+            ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 1,
+        "delivery recovery is one marked authoritative snapshot");
+
+    g_rec.count = 0;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 && g_rec.count == 0,
+        "the consumed delivery-loss request does not snapshot again");
 }
 
 static void
@@ -147,8 +445,8 @@ test_chrome_exec_retains_focused_node(void)
     ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
     TEST_ASSERT(
         ToriRSChromeSync_Pump(&g_sync, &g_ui) == 1,
-        "native focus changes retained model state once");
-    TEST_ASSERT(g_ui.focus == input && g_ui.dirty, "native focus dirties its surface row");
+        "DOM focus changes retained model state once");
+    TEST_ASSERT(g_ui.focus == input && g_ui.dirty, "DOM focus dirties its surface row");
     caret = g_ui.widgets[input].caret;
     TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 1, "focus receives one retained repaint");
     g_rec.count = 0;
@@ -156,14 +454,14 @@ test_chrome_exec_retains_focused_node(void)
     TEST_ASSERT(
         ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_FOCUS) == 1 &&
             ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 0,
-        "taking focus updates rather than recreates the native control");
+        "taking focus updates rather than recreates the DOM control");
 
     g_rec.count = 0;
     commands = g_sync.cmd_count;
     ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
     TEST_ASSERT(
         ToriRSChromeSync_Pump(&g_sync, &g_ui) == 0,
-        "a duplicate native focus intent is an idempotent no-op");
+        "a duplicate DOM focus intent is an idempotent no-op");
     TEST_ASSERT(
         g_ui.focus == input && g_ui.widgets[input].caret == caret &&
             g_ui.widgets[input].serial == serial && !g_ui.dirty,
@@ -195,6 +493,7 @@ test_chrome_exec_maximum_clean_fast_path(void)
     int panel;
     int commands;
     int build_serial;
+    uint32_t visits;
 
     exec_reset();
     panel = ToriRSChrome_PanelAdd(
@@ -211,14 +510,16 @@ test_chrome_exec_maximum_clean_fast_path(void)
     g_rec.count = 0;
     commands = g_sync.cmd_count;
     build_serial = g_ui.build_serial;
+    visits = g_sync.change_visit_count;
     for( int i = 0; i < 100; i++ )
         TEST_ASSERT(
             ToriRSChromeSync_Run(&g_sync, &g_ui) == 0,
             "a maximum-size clean tree remains quiet");
     TEST_ASSERT(
         g_rec.count == 0 && g_sync.cmd_count == commands &&
-            g_ui.build_serial == build_serial,
-        "100 clean maximum-size ticks perform no build or executor callback");
+            g_ui.build_serial == build_serial &&
+            g_sync.change_visit_count == visits,
+        "100 clean maximum-size ticks inspect no node and perform no callback");
 }
 
 static void
@@ -280,6 +581,94 @@ test_chrome_exec_remove(void)
     }
 }
 
+static void
+test_chrome_exec_same_tick_recycle_order(void)
+{
+    int panel;
+    int old_widget;
+    int new_widget;
+    int old_serial;
+    int remove_at = -1;
+    int add_at = -1;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 160, "Recycle");
+    old_widget = ToriRSChrome_Label(&g_ui, panel, "old");
+    old_serial = g_ui.widgets[old_widget].serial;
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    ToriRSChrome_WidgetRemove(&g_ui, old_widget);
+    new_widget = ToriRSChrome_Checkbox(&g_ui, panel, "new", 1);
+    TEST_ASSERT(new_widget == old_widget, "the replacement reuses the removed handle");
+    TEST_ASSERT(
+        g_ui.widgets[new_widget].serial != old_serial,
+        "the replacement keeps a distinct retained identity");
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+    for( int i = 0; i < g_rec.count; i++ )
+    {
+        if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_WIDGET_REMOVE &&
+            g_rec.cmds[i].widget == old_widget )
+            remove_at = i;
+        if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_WIDGET_ADD &&
+            g_rec.cmds[i].widget == new_widget )
+            add_at = i;
+    }
+    TEST_ASSERT(remove_at >= 0 && add_at >= 0, "same-tick replacement emits both lifecycle ends");
+    TEST_ASSERT(remove_at < add_at, "a recycled handle is removed before it is re-added");
+}
+
+static void
+test_chrome_exec_reset_replacement_order(void)
+{
+    int panel;
+    int widget;
+    int close_at = -1;
+    int open_at = -1;
+    int add_at = -1;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 160, "Old page");
+    widget = ToriRSChrome_Label(&g_ui, panel, "old row");
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    ToriRSChrome_Reset(&g_ui);
+    TEST_ASSERT(
+        ToriRSChrome_PanelAdd(
+            &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 160, "New page") == panel,
+        "the replacement page reuses the panel handle");
+    TEST_ASSERT(
+        ToriRSChrome_Label(&g_ui, panel, "new row") == widget,
+        "the replacement page reuses the widget handle");
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+    for( int i = 0; i < g_rec.count; i++ )
+    {
+        if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_PANEL_CLOSE )
+            close_at = i;
+        if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_PANEL_OPEN )
+            open_at = i;
+        if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_WIDGET_ADD )
+            add_at = i;
+    }
+    TEST_ASSERT(
+        close_at >= 0 && open_at >= 0 && add_at >= 0,
+        "a page replacement emits close, open, and child add");
+    TEST_ASSERT(
+        close_at < open_at && open_at < add_at,
+        "a replaced page closes before its panel and child handles are recycled");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(
+            &g_rec, TORIRS_CHROME_CMD_WIDGET_REMOVE) == 0,
+        "panel close removes the old subtree without redundant child removals");
+}
+
 /* A hidden panel takes its rows with it, and says so once rather than per row. */
 static void
 test_chrome_exec_panel_close(void)
@@ -314,6 +703,20 @@ test_chrome_exec_panel_close(void)
     TEST_ASSERT(
         ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 5,
         "and re-adds every row");
+
+    /* Closing dominates child removals recorded in the same model tick. The
+     * executor drops that subtree on CLOSE, so REMOVE-per-row would be pure
+     * transport and DOM churn. */
+    g_rec.count = 0;
+    ToriRSChrome_PanelSetVisible(&g_ui, panel, 0);
+    ToriRSChrome_WidgetRemove(&g_ui, g_ui.panels[panel].first_widget);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_PANEL_CLOSE) == 1 &&
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_REMOVE) == 0,
+        "same-tick panel close subsumes queued child removal");
 }
 
 /* Borrowed lists are restated in full, as copies. */
@@ -322,8 +725,15 @@ test_chrome_exec_options(void)
 {
     static char const* const first[] = { "alpha", "beta" };
     static char const* const second[] = { "one", "two", "three" };
+    char mutable_first[32] = "red";
+    char mutable_second[32] = "green";
+    char const* mutable_options[] = { mutable_first, mutable_second };
+    char mutable_tab_first[32] = "Overview";
+    char mutable_tab_second[32] = "Details";
+    char const* mutable_tabs[] = { mutable_tab_first, mutable_tab_second };
     int panel;
     int drop;
+    int tabs;
 
     exec_reset();
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "P");
@@ -350,6 +760,74 @@ test_chrome_exec_options(void)
     TEST_ASSERT(
         ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_SELECTED, drop) != NULL,
         "and the selection into it is restated with it");
+
+    g_rec.count = 0;
+    ToriRSChrome_DropdownSetOptions(&g_ui, drop, second, 3, 1);
+    TEST_ASSERT(
+        g_ui.change_count == 0 && ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 &&
+            g_rec.count == 0,
+        "a compare-equal option setter queues and emits nothing");
+
+    /* The array AND its character buffers retain their addresses while the
+     * caller refills one label. Pointer/count/selection comparison alone
+     * misses this and leaves a browser <select> showing stale text. */
+    ToriRSChrome_DropdownSetOptions(&g_ui, drop, mutable_options, 2, 0);
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+    strcpy(mutable_second, "emerald");
+    ToriRSChrome_DropdownSetOptions(&g_ui, drop, mutable_options, 2, 0);
+    {
+        int const pending = g_ui.change_pending_widget[drop];
+        TEST_ASSERT(
+            pending > 0 &&
+                (g_ui.changes[pending - 1].flags &
+                 TORIRS_CHROME_CHANGE_WIDGET_OPTIONS),
+            "same-pointer option text mutation records an OPTIONS refresh");
+    }
+    ToriRSChrome_Build(&g_ui);
+    g_rec.count = 0;
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    {
+        int found = 0;
+        for( int i = 0; i < g_rec.count; i++ )
+            if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_WIDGET_OPTION &&
+                g_rec.cmds[i].widget == drop && g_rec.cmds[i].value == 1 &&
+                strcmp(g_rec.cmds[i].text, "emerald") == 0 )
+                found = 1;
+        TEST_ASSERT(
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_OPTION) == 2 && found,
+            "the executor receives the refilled stable option buffers in full");
+    }
+
+    /* Tab strips borrow title buffers through the same field and therefore
+     * need the same content snapshot, even though their setter has no selected
+     * argument. */
+    tabs = ToriRSChrome_Tabs(&g_ui, panel, mutable_tabs, 2, 0);
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+    strcpy(mutable_tab_first, "Summary");
+    ToriRSChrome_TabsSetTitles(&g_ui, tabs, mutable_tabs, 2);
+    {
+        int const pending = g_ui.change_pending_widget[tabs];
+        TEST_ASSERT(
+            pending > 0 &&
+                (g_ui.changes[pending - 1].flags &
+                 TORIRS_CHROME_CHANGE_WIDGET_OPTIONS),
+            "same-pointer tab-title mutation records an OPTIONS refresh");
+    }
+    ToriRSChrome_Build(&g_ui);
+    g_rec.count = 0;
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    {
+        int found = 0;
+        for( int i = 0; i < g_rec.count; i++ )
+            if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_WIDGET_OPTION &&
+                g_rec.cmds[i].widget == tabs && g_rec.cmds[i].value == 0 &&
+                strcmp(g_rec.cmds[i].text, "Summary") == 0 )
+                found = 1;
+        TEST_ASSERT(found, "the executor receives a refilled stable tab title");
+    }
 }
 
 /* Intents land on the model where a click would. */
@@ -453,9 +931,6 @@ test_chrome_exec_close_reported(void)
     int panel;
 
     exec_reset();
-    /* A window of its own, so this is the case that has one to lose. */
-    g_rec.surface_w = 360;
-    g_rec.surface_h = 420;
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 160, "Plugins");
     ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
     ToriRSChrome_Build(&g_ui);
@@ -489,8 +964,6 @@ test_chrome_exec_close_reported(void)
         ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_REMOVE) == 0,
         "without a REMOVE per row");
 
-    g_rec.surface_w = 0;
-    g_rec.surface_h = 0;
 }
 
 static void
@@ -516,7 +989,9 @@ test_chrome_exec_refused(void)
         struct ToriRSChromeExec buffer = ToriRSChromeExec_Buffer();
         TEST_ASSERT(
             ToriRSChromeSync_Init(&g_sync, &buffer) == 1, "the buffer executor always comes up");
-        TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "and is driven normally");
+        TEST_ASSERT(
+            ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 && g_ui.change_count == 0,
+            "and acknowledges retained changes without an executor transaction");
     }
 }
 
@@ -645,6 +1120,10 @@ test_chrome_exec_lost(void)
                 (add && strcmp(add->text, "#00FF00") == 0),
             "including a change made while no executor was bound");
     }
+    second.count = 0;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 && second.count == 0,
+        "rebind catch-up is exactly one snapshot");
 }
 
 /*
@@ -652,7 +1131,7 @@ test_chrome_exec_lost(void)
  *
  * It carries no command of its own -- the value rides WIDGET_SELECTED, the hex
  * rides WIDGET_TEXT, and "the axis popup is open" rides WIDGET_CHECKED -- so
- * what this pins is that a native executor can rebuild the whole control from
+ * what this pins is that a web executor can rebuild the whole control from
  * commands that already existed, and that the intents it sends back land where
  * a click on the in-canvas row would.
  */
@@ -735,7 +1214,7 @@ test_chrome_exec_colorpick(void)
             ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_CHECKED, pick);
         TEST_ASSERT(
             checked && checked->value == 1,
-            "and says so as WIDGET_CHECKED, which is how a native executor knows to "
+            "and says so as WIDGET_CHECKED, which is how a web executor knows to "
             "draw its own bars");
     }
 
@@ -759,295 +1238,6 @@ test_chrome_exec_colorpick(void)
     }
 }
 
-/*
- * A presentation with a window of its own fills it.
- *
- * The panel's authored geometry -- (8,72), 320 wide -- is a box that floats
- * over the GAME CANVAS. Put the same box in a window that holds nothing else
- * and it is a window inside a window: bands of empty background on three
- * sides, and dragging the frame wider grows the background rather than the
- * settings. Driven through the recorder rather than through SDL so it runs on
- * a machine with no display, which is every machine this suite runs on.
- */
-static void
-test_chrome_exec_fill_surface(void)
-{
-    struct ToriRSChromeExec exec;
-    struct ToriRSChromeRect rect;
-    int panel;
-    int title_h;
-
-    ToriRSChrome_Init(&g_ui);
-    ToriRSChromeRecorder_Init(&g_rec);
-    g_rec.surface_w = 300;
-    g_rec.surface_h = 200;
-    exec = ToriRSChromeExec_Recorder(&g_rec);
-    TEST_ASSERT(ToriRSChromeSync_Init(&g_sync, &exec) == 1, "the windowed recorder comes up");
-
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 160, "Plugins");
-    ToriRSChrome_PanelSetResizable(&g_ui, panel, 1);
-    ToriRSChrome_PanelSetScrollable(&g_ui, panel, 1);
-    ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
-
-    TEST_ASSERT(
-        ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel) == 1,
-        "an executor with a window of its own fills it");
-    ToriRSChrome_Build(&g_ui);
-    rect = ToriRSChrome_PanelRect(&g_ui, panel);
-    TEST_ASSERT(rect.x == 0 && rect.y == 0, "the panel sits at the window's origin");
-    TEST_ASSERT(rect.w == 300 && rect.h == 200, "and is exactly the window's size");
-
-    /* Run every frame, so a repeat has to cost nothing: a rebuild per frame
-     * would re-emit the whole window to a native executor 50 times a second,
-     * which is the one thing the shadow exists to prevent. */
-    exec_settle();
-    TEST_ASSERT(
-        ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel) == 1, "filling again still answers");
-    TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 0, "but rebuilds nothing");
-    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 0, "and tells the executor nothing");
-
-    /* The window grew: the panel grows with it, on the frame the size changed
-     * rather than on the next one. */
-    g_rec.surface_w = 420;
-    g_rec.surface_h = 260;
-    ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel);
-    ToriRSChrome_Build(&g_ui);
-    rect = ToriRSChrome_PanelRect(&g_ui, panel);
-    TEST_ASSERT(rect.w == 420 && rect.h == 260, "a resized window resizes the panel");
-    {
-        struct ToriRSChromeCmd const* r;
-        ToriRSChromeSync_Run(&g_sync, &g_ui);
-        r = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_PANEL_RECT, -1);
-        TEST_ASSERT(
-            r && r->w == 420 && r->h == 260, "and the new box crosses the seam");
-    }
-
-    /*
-     * The drag and the grip are gone with it. Both write geometry the next
-     * fill overwrites, so leaving them is a title bar that takes the cursor
-     * and gives nothing back, and a corner that snaps.
-     */
-    title_h = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ToriRSChrome_Scale(&g_ui));
-    ToriRSChrome_MouseDown(&g_ui, 100, 1 + title_h / 2);
-    ToriRSChrome_MouseMove(&g_ui, 160, 60);
-    ToriRSChrome_MouseUp(&g_ui, 160, 60);
-    ToriRSChrome_Build(&g_ui);
-    rect = ToriRSChrome_PanelRect(&g_ui, panel);
-    TEST_ASSERT(rect.x == 0 && rect.y == 0, "a filled panel cannot be dragged off its origin");
-
-    ToriRSChrome_MouseDown(&g_ui, 420 - 3, 260 - 3);
-    ToriRSChrome_MouseMove(&g_ui, 200, 120);
-    ToriRSChrome_MouseUp(&g_ui, 200, 120);
-    ToriRSChrome_Build(&g_ui);
-    rect = ToriRSChrome_PanelRect(&g_ui, panel);
-    TEST_ASSERT(rect.w == 420 && rect.h == 260, "nor resized from the inside");
-
-    /*
-     * The other half, and the reason this is a property of the EXECUTOR rather
-     * than of the panel: in-canvas chrome floats, because there it has a game
-     * to float over.
-     */
-    ToriRSChrome_Init(&g_ui);
-    ToriRSChromeRecorder_Init(&g_rec);
-    exec = ToriRSChromeExec_Recorder(&g_rec);
-    ToriRSChromeSync_Init(&g_sync, &exec);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 160, "Plugins");
-    ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
-    TEST_ASSERT(
-        ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel) == 0,
-        "an executor with no window of its own does not fill");
-    ToriRSChrome_Build(&g_ui);
-    rect = ToriRSChrome_PanelRect(&g_ui, panel);
-    TEST_ASSERT(rect.x == 8 && rect.y == 72, "and the panel keeps the box it was authored with");
-}
-
-/* Titles borrowed by the strips below; they have to outlive the widget. */
-static char const* const g_drag_tabs[] = { "One", "Two" };
-static char const* const g_drag_many_tabs[] = { "Alpha",   "Bravo", "Charlie",
-                                                "Delta",   "Echo",  "Foxtrot" };
-
-/** Centre of a rect, which is the point a user aims at. */
-static int
-drag_mid_x(struct ToriRSChromeRect r)
-{
-    return r.x + r.w / 2;
-}
-
-static int
-drag_mid_y(struct ToriRSChromeRect r)
-{
-    return r.y + r.h / 2;
-}
-
-/*
- * The handles a frameless window is moved by, and -- the half that actually
- * breaks -- the controls that have to be punched back out of them.
- *
- * A draggable region SWALLOWS the press that begins a drag: the application is
- * never told about a mouse-down inside one. So every one of these assertions is
- * really the same assertion twice over -- this box drags the window, and that
- * box still reaches the control it is drawn on. A screenshot cannot tell the
- * two apart, and neither can the window until someone tries to click a tab.
- *
- * Driven through the recorder, so it runs on a machine with no display.
- */
-static void
-test_chrome_exec_drag_region(void)
-{
-    struct ToriRSChromeExec exec;
-    struct ToriRSChromeDragRegion region;
-    struct ToriRSChromeRect title;
-    struct ToriRSChromeRect strip;
-    int panel;
-    int tabs;
-
-    ToriRSChrome_Init(&g_ui);
-    ToriRSChromeRecorder_Init(&g_rec);
-    g_rec.surface_w = 300;
-    g_rec.surface_h = 220;
-    exec = ToriRSChromeExec_Recorder(&g_rec);
-    TEST_ASSERT(ToriRSChromeSync_Init(&g_sync, &exec) == 1, "the windowed recorder comes up");
-
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 160, "Plugins");
-    tabs = ToriRSChrome_Tabs(&g_ui, panel, g_drag_tabs, 2, 0);
-    ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
-
-    /*
-     * FLOATING first, because this is the case that must NOT have a handle. In
-     * the canvas the same title bar already moves the panel inside the frame,
-     * and a bar that did both would drag the game out from under the pointer.
-     */
-    ToriRSChrome_Build(&g_ui);
-    TEST_ASSERT(
-        ToriRSChrome_WindowDragRegion(&g_ui, panel, &region) == 0,
-        "a floating panel offers the OS window no handle");
-    TEST_ASSERT(region.handle_count == 0, "and the region it cleared is empty");
-
-    /* Filled: the panel IS the window, so its chrome is the window's chrome. */
-    TEST_ASSERT(
-        ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel) == 1, "the window fills with the panel");
-    ToriRSChrome_Build(&g_ui);
-    TEST_ASSERT(
-        ToriRSChrome_WindowDragRegion(&g_ui, panel, &region) == 1,
-        "a filled panel has a drag region");
-    TEST_ASSERT(region.handle_count == 2, "the title bar and the tab strip, both");
-    title = region.handles[0];
-    strip = region.handles[1];
-    TEST_ASSERT(title.w > 0 && title.h > 0, "the title bar is a real box");
-    TEST_ASSERT(strip.y > title.y, "and the strip is below it");
-
-    TEST_ASSERT(
-        ToriRSChromeDragRegion_Contains(&region, drag_mid_x(title), drag_mid_y(title)),
-        "the title bar drags the window");
-    TEST_ASSERT(
-        ToriRSChromeDragRegion_Contains(&region, strip.x + strip.w - 2, drag_mid_y(strip)),
-        "and so does the empty tail of the tab strip");
-
-    /*
-     * The tabs themselves do not -- and the proof that the point tested is a
-     * tab is that pressing it selects one. Asserting "not draggable" against a
-     * coordinate nothing is drawn at would pass on an empty strip.
-     */
-    TEST_ASSERT(
-        !ToriRSChromeDragRegion_Contains(&region, strip.x + 2, drag_mid_y(strip)),
-        "a tab is not a drag handle");
-    ToriRSChrome_MouseDown(&g_ui, strip.x + 2, drag_mid_y(strip));
-    ToriRSChrome_MouseUp(&g_ui, strip.x + 2, drag_mid_y(strip));
-    TEST_ASSERT(ToriRSChrome_PanelActiveTab(&g_ui, panel) == 0, "because the press picks tab 0");
-    TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, strip.x + 2, drag_mid_y(strip)) == tabs,
-                "on the strip the region claims");
-
-    /*
-     * Close lives IN the title bar. Unpunched it would be unreachable rather
-     * than merely awkward: the press that should shut the window would start a
-     * drag of it, and the button would never see a click at all.
-     *
-     * Probed at the HOLE's own centre rather than at a measured offset from the
-     * bar's right edge. The button is placed with padding inside the frame's
-     * rail, and both of those have changed with the art -- a coordinate guessed
-     * from the outside stops landing on the button and the assertion then
-     * passes for the wrong reason.
-     */
-    {
-        int hole = -1;
-
-        ToriRSChrome_PanelSetClosable(&g_ui, panel, 1);
-        ToriRSChrome_Build(&g_ui);
-        ToriRSChrome_WindowDragRegion(&g_ui, panel, &region);
-        title = region.handles[0];
-        TEST_ASSERT(
-            ToriRSChromeDragRegion_Contains(&region, title.x + 2, drag_mid_y(title)),
-            "the left of the title bar still drags");
-        for( int i = 0; i < region.hole_count; i++ )
-        {
-            struct ToriRSChromeRect const h = region.holes[i];
-            if( h.w > 0 && h.y >= title.y && h.y + h.h <= title.y + title.h )
-                hole = i;
-        }
-        TEST_ASSERT(hole >= 0, "and a hole was punched inside it");
-        TEST_ASSERT(
-            !ToriRSChromeDragRegion_Contains(
-                &region, drag_mid_x(region.holes[hole]), drag_mid_y(region.holes[hole])),
-            "which is the Close button, and does not drag");
-    }
-
-    /*
-     * A strip whose tabs have been compressed to fill its width has no tail,
-     * and correctly offers nothing: every pixel of it is a tab. This is why the
-     * title bar is the handle that has to always be there.
-     */
-    ToriRSChrome_Init(&g_ui);
-    ToriRSChromeRecorder_Init(&g_rec);
-    g_rec.surface_w = 120;
-    g_rec.surface_h = 200;
-    exec = ToriRSChromeExec_Recorder(&g_rec);
-    ToriRSChromeSync_Init(&g_sync, &exec);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 120, "Plugins");
-    ToriRSChrome_Tabs(&g_ui, panel, g_drag_many_tabs, 6, 0);
-    ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel);
-    ToriRSChrome_Build(&g_ui);
-    ToriRSChrome_WindowDragRegion(&g_ui, panel, &region);
-    strip = region.handles[region.handle_count - 1];
-    TEST_ASSERT(
-        !ToriRSChromeDragRegion_Contains(&region, strip.x + strip.w - 2, drag_mid_y(strip)),
-        "a strip packed edge to edge with tabs has no tail to grab");
-    TEST_ASSERT(
-        ToriRSChromeDragRegion_Contains(
-            &region, drag_mid_x(region.handles[0]), drag_mid_y(region.handles[0])),
-        "and the title bar is what is left to drag it by");
-
-    /*
-     * Every CHANGED build is published, including one that has no region. An
-     * executor that simply stopped hearing about handles would go on offering
-     * the last set it was told -- a band of the window that eats presses
-     * because a strip used to be there. A clean build is retained afterward.
-     */
-    ToriRSChrome_PanelSetVisible(&g_ui, panel, 0);
-    ToriRSChrome_Build(&g_ui);
-    g_rec.drag_publishes = 0;
-    TEST_ASSERT(
-        ToriRSChromeSync_PublishDragRegion(&g_sync, &g_ui, panel) == 1,
-        "a hidden panel is still published for");
-    TEST_ASSERT(g_rec.drag_publishes == 1, "exactly once");
-    TEST_ASSERT(
-        g_rec.drag.handle_count == 0 && g_rec.drag.hole_count == 0,
-        "and what crosses is an empty region, not a stale one");
-    TEST_ASSERT(
-        ToriRSChromeSync_PublishDragRegion(&g_sync, &g_ui, panel) == 0 &&
-            g_rec.drag_publishes == 1,
-        "an unchanged build performs no drag-region tree walk or boundary call");
-}
-
-/*
- * The checkbox style crosses the seam, once, before anything it applies to.
- *
- * A native executor sizes and places its own controls, so hearing which art a
- * checkbox wears AFTER the rows have been declared means every one of them was
- * laid out against the wrong width -- 17 where the art is 18. And an executor
- * that is never told at all draws the tick pair while the in-canvas chrome
- * beside it draws the well, which is precisely the disagreement this seam
- * exists to prevent.
- */
 static void
 test_chrome_exec_check_style(void)
 {
@@ -1124,7 +1314,7 @@ test_chrome_exec_check_style(void)
 /*
  * A multiline field across the seam.
  *
- * Two things a native executor is broken by and nothing on screen would show:
+ * Two things a web executor is broken by and nothing on screen would show:
  * the line count only ever rides the ADD (so an executor that missed it builds
  * every box one line tall), and a TEXTAREA's "selection" is its scroll offset
  * rather than an option index -- which is how a presentation that draws its own
@@ -1152,8 +1342,8 @@ test_chrome_exec_textarea(void)
             add && strcmp(add->text, "abyssal whip") == 0, "with the value it opens on");
     }
 
-    /* Scrolling the box is a SELECTED, because that is the field the seam
-     * already diffs -- and it must not be mistaken for a dropdown's index. */
+    /* Scrolling the box is a SELECTED mutation, and it must not be mistaken
+     * for a dropdown's selected-option index. */
     exec_settle();
     ToriRSChrome_SetText(&g_ui, area, "a\nb\nc\nd\ne\nf\ng");
     g_ui.widgets[area].caret = (int)strlen(ToriRSChrome_Text(&g_ui, area));
@@ -1199,39 +1389,6 @@ test_chrome_exec_textarea(void)
         "and does not also fire the activation latch");
 }
 
-static void
-test_chrome_exec_retained_present(void)
-{
-    int panel;
-
-    exec_reset();
-    /* The recorder normally models a native command executor. Mark this
-     * binding as a surface to exercise the retained raster/upload gate. */
-    g_sync.exec.is_surface = 1;
-    panel = ToriRSChrome_PanelAdd(
-        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 160, "Retained");
-    ToriRSChrome_Label(&g_ui, panel, "one");
-    ToriRSChrome_Build(&g_ui);
-    TEST_ASSERT(ToriRSChromeSync_TakePresentChange(&g_sync, &g_ui) == 1,
-        "a new surface binding presents its current display list once");
-    TEST_ASSERT(ToriRSChromeSync_TakePresentChange(&g_sync, &g_ui) == 0,
-        "an unchanged retained display list does not reraster or upload");
-    ToriRSChrome_PanelSetTitle(&g_ui, panel, "Changed");
-    ToriRSChrome_Build(&g_ui);
-    TEST_ASSERT(ToriRSChromeSync_TakePresentChange(&g_sync, &g_ui) == 1,
-        "a new build serial presents one dirty frame");
-}
-
-/*
- * A well that resized states its new height, and nothing else.
- *
- * The height used to ride WIDGET_ADD alone, classified as the widget's SHAPE
- * on the reasoning that shape never changes after an add. Making a well
- * resizable in place -- which a growing list needs, or every new row is a page
- * re-declaration and a visible flash -- quietly falsified that: a native-widget
- * executor went on drawing the height the well was born with. This is the
- * assertion that the classification is no longer load-bearing.
- */
 static void
 test_chrome_exec_custom_resizes_in_place(void)
 {
@@ -1399,22 +1556,21 @@ rail_fixture_poll(void* user, struct ToriRSChromeRailIntent* out, int max)
 }
 
 /*
- * A page BOUNDARY has to restate the whole page, not the difference from the
- * page that was just discarded.
+ * A page BOUNDARY has to restate the whole page, not drain property commands
+ * recorded against the page that was just discarded.
  *
  * The shared plugin shell mounts one page at a time, and a page-retaining
- * executor drops its DOM when the selection moves -- it must, because a delta
- * authored for one page cannot patch another's. The shadow here still
- * describes the discarded page at that moment, so a plain Run emits only the
- * DIFFERENCE between the two.
+ * executor drops its DOM when the selection moves -- it must, because a
+ * mutation authored for one page cannot patch another's. The delivered shadow
+ * still describes the discarded page at that moment, so a plain Run sees the
+ * similar roots as already mounted and sends only queued text properties.
  *
  * Where the two pages are structurally alike -- the same rows in the same
  * order, which is the ordinary case for a family of plugin readouts -- that
- * difference carries no WIDGET_ADD at all. The executor is handed what it
- * treats as a fresh image of the page, containing three label changes and no
- * controls, and mounts an EMPTY pane. Switching straight from one plugin's
- * page to another's is exactly the gesture that produces it, which is why the
- * two pages below differ only in their text.
+ * queued journal carries no WIDGET_ADD at all. The executor receives three
+ * label changes and no controls, and mounts an EMPTY pane. Switching straight
+ * from one plugin's page to another's is exactly the gesture that produces it,
+ * which is why the two pages below differ only in their text.
  */
 static void
 test_chrome_exec_invalidate_restates_the_page(void)
@@ -1624,11 +1780,19 @@ test_chrome_exec(void)
 {
     printf("TEST: chrome executor seam (deltas / removal order / intents)\n");
 
+    test_chrome_exec_internal_fallback();
     test_chrome_exec_catchup();
     test_chrome_exec_quiet_frame();
+    test_chrome_exec_coalesces_setter_burst();
+    test_chrome_exec_indexed_coalescing();
+    test_chrome_exec_records_dependent_properties();
+    test_chrome_exec_queue_loss_snapshots_once();
+    test_chrome_exec_delivery_loss_snapshots_once();
     test_chrome_exec_retains_focused_node();
     test_chrome_exec_maximum_clean_fast_path();
     test_chrome_exec_remove();
+    test_chrome_exec_same_tick_recycle_order();
+    test_chrome_exec_reset_replacement_order();
     test_chrome_exec_panel_close();
     test_chrome_exec_options();
     test_chrome_exec_intents();
@@ -1637,11 +1801,8 @@ test_chrome_exec(void)
     test_chrome_exec_row_order();
     test_chrome_exec_lost();
     test_chrome_exec_colorpick();
-    test_chrome_exec_fill_surface();
-    test_chrome_exec_drag_region();
     test_chrome_exec_check_style();
     test_chrome_exec_textarea();
-    test_chrome_exec_retained_present();
     test_chrome_exec_custom_shape();
     test_chrome_exec_custom_resizes_in_place();
     test_chrome_exec_external_intent_serial();

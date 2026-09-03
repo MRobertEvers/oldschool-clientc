@@ -441,6 +441,31 @@ fake_asset_read(void* u, char const* plugin, char const* name)
  * @see ToriRS_PluginApi::screen. */
 static int g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
 static int fake_plugin_screen(void* u) { (void)u; return g_screen_now; }
+static char g_frame_preference[TORIRS_PLUGIN_FRAME_ID_MAX] =
+    "mobile-gameframe/stone-drawer";
+static int g_frame_preference_present = 1;
+static int g_frame_preference_migration = 1;
+
+static int
+fake_frame_preference(void* u, char* out, int out_size, int* migration)
+{
+    (void)u;
+    snprintf(out, (size_t)out_size, "%s", g_frame_preference);
+    if( migration )
+        *migration = g_frame_preference_migration;
+    return g_frame_preference_present;
+}
+
+static int
+fake_frame_preference_set(void* u, char const* id, int migration)
+{
+    (void)u;
+    snprintf(g_frame_preference, sizeof(g_frame_preference), "%s", id);
+    g_frame_preference_present = 1;
+    g_frame_preference_migration = migration;
+    return 1;
+}
+
 static int fake_world_cycle(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_ms(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_work_us(void* u) { (void)u; return 0; }
@@ -824,6 +849,37 @@ click(uint32_t tag)
     PluginHost_CanvasClick(g_host, g_plugin, tag, 0, 0, 0);
 }
 
+static struct ToriRS_PluginCtx* g_frame_settings_ctx;
+static struct ToriRS_PluginApi const* g_frame_settings_api;
+
+static void
+frame_settings_init(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginApi const* api)
+{
+    g_frame_settings_ctx = ctx;
+    g_frame_settings_api = api;
+}
+
+static struct ToriRS_PluginDef const FRAME_SETTINGS = {
+    .name = "mobile-frame-test-settings",
+    .title = "Mobile Frame Test Settings",
+    .version = "1.0.0",
+    .hidden = true,
+    .init = frame_settings_init,
+};
+
+static void
+select_frame(char const* id, uint64_t now_ms)
+{
+    CHECK(g_frame_settings_ctx && g_frame_settings_api, "the frame selector is available");
+    if( g_frame_settings_ctx && g_frame_settings_api )
+        CHECK(
+            g_frame_settings_api->frame_select(g_frame_settings_ctx, id),
+            "the canonical frame selection is accepted");
+    PluginHost_FrameStart(g_host, now_ms, 0);
+}
+
 int
 main(void)
 {
@@ -851,6 +907,8 @@ main(void)
     e.feature_set = fake_feature_set;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
+    e.frame_preference = fake_frame_preference;
+    e.frame_preference_set = fake_frame_preference_set;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.cache_id = fake_cache_id;
@@ -931,6 +989,13 @@ main(void)
     g_frame.missing_tab = -1;
     g_frame.ungiven_tab = -1;
     g_frame.active_tab = -1;
+    snprintf(
+        g_frame_preference,
+        sizeof(g_frame_preference),
+        "%s",
+        "mobile-gameframe/stone-drawer");
+    g_frame_preference_present = 1;
+    g_frame_preference_migration = 1;
     g_host = PluginHost_New(&e);
     e.user = g_host;
     PluginHost_Free(g_host);
@@ -938,14 +1003,16 @@ main(void)
 
     g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
-    CHECK(g_frame.owned == 0, "nothing owns the frame before it is enabled");
+    CHECK(
+        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
+        "the frame settings client registers");
+    CHECK(g_frame.owned == 0, "nothing owns the frame before selection is resolved");
 
-    PluginHost_SetEnabled(g_host, g_plugin, true);
     PluginHost_Start(g_host);
 
-    /* ---- 1. the claim -------------------------------------------------- */
+    /* ---- 1. host-owned selection -------------------------------------- */
 
-    CHECK(g_frame.owned == 1, "starting claims the frame");
+    CHECK(g_frame.owned == 1, "the requested Stone Drawer offer owns the frame");
     CHECK(
         g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
         "a phone frame follows the window rather than pinning a canvas");
@@ -1338,12 +1405,12 @@ main(void)
     CHECK(g_frame.select_calls == 0, "and selects nothing");
     g_frame.ungiven_tab = -1;
 
-    /* ---- 8. release ----------------------------------------------------- */
+    /* ---- 8. Auto/native ------------------------------------------------ */
 
-    PluginHost_SetEnabled(g_host, g_plugin, false);
-    CHECK(g_frame.owned == 0, "switching the plugin off hands the lane's gameframe back");
+    select_frame("auto", 900);
+    CHECK(g_frame.owned == 0, "Auto hands the lane's native gameframe back");
 
-    /* ---- 9. enabled at the title screen ---------------------------------- */
+    /* ---- 9. selected at the title screen ------------------------------- */
 
     /*
      * The restart-shaped bug. The host refuses a layout claim while the title
@@ -1353,21 +1420,20 @@ main(void)
      * drawer only appeared if the plugin was toggled off and on while already
      * in game. EV_SCREEN_CHANGE is the missing rung: entering the game
      * re-claims, and the next layout pass declares.
-     */
+    */
     g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
-    PluginHost_SetEnabled(g_host, g_plugin, true);
+    select_frame("mobile-gameframe/stone-drawer", 950);
     /* The title's frames tick too: this is where the art finishes composing
      * and the latched retry in mobile_on_frame makes its one claim -- refused,
      * because the title is still up. Without it the harness never reproduces
      * the stuck state: the first frame the plugin saw would already be in
      * game, and the art retry would claim by accident. */
-    PluginHost_FrameStart(g_host, 950, 0);
     CHECK(
         g_frame.owned == 0,
-        "enabling at the title claims nothing -- the host refuses the frame");
+        "selecting at the title leaves the native frame in charge");
     g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
     PluginHost_FrameStart(g_host, 1000, 0);
-    CHECK(g_frame.owned == 1, "logging in claims the frame without a restart");
+    CHECK(g_frame.owned == 1, "logging in activates the selected frame without a restart");
     declare(M_W, M_H);
     CHECK(
         g_frame.slot[TORIRS_PLUGIN_SLOT_VIEWPORT].placed,
@@ -1388,12 +1454,23 @@ main(void)
     g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
     g_chat_pieces_exist = 1;
     g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+    snprintf(
+        g_frame_preference,
+        sizeof(g_frame_preference),
+        "%s",
+        "mobile-gameframe/stone-drawer");
+    g_frame_preference_present = 1;
+    g_frame_preference_migration = 1;
+    g_frame_settings_ctx = NULL;
+    g_frame_settings_api = NULL;
     g_host = PluginHost_New(&e);
     e.user = g_host;
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
     g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
-    PluginHost_SetEnabled(g_host, g_plugin, true);
+    CHECK(
+        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
+        "the frame settings client registers on OldSchool");
     PluginHost_Start(g_host);
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the drawer on");
     CHECK(g_frame.owned == 1, "and it claims the frame there too");

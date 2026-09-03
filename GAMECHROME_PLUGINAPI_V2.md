@@ -341,9 +341,12 @@ The builder has task-oriented operations:
 
 ```c
 builder->surface(builder, TORIRS_SURFACE_VIEWPORT, rect);
+builder->surface(builder, TORIRS_SURFACE_COMPASS, compass_rect);
+builder->surface(builder, TORIRS_SURFACE_ORBS, orb_pack_rect);
 builder->surface(builder, TORIRS_SURFACE_CHAT, rect);
 builder->surface_member(builder, TORIRS_SURFACE_CHAT_BUTTONS, 3, rect);
 builder->skin(builder, TORIRS_SURFACE_MINIMAP, skin);
+builder->surface_overlay(builder, TORIRS_SURFACE_COMPASS, &overlay);
 builder->ui_node(builder, "frame.minimap.housing", &node);
 builder->scrollbar(builder, &skin);
 builder->reason(builder, "Waiting for the minimap housing image");
@@ -609,9 +612,12 @@ struct ToriRS_PluginDefV2 {
     char const* version;
     size_t state_size;
     struct ToriRS_ConfigSchema const* config;
-    struct ToriRS_PluginCallbacks callbacks;
     struct ToriRS_FrameOffer const* frames;
     struct ToriRS_UiContribution const* ui_contributions;
+    uint32_t flags;
+    int event_priority;
+    int draw_order;
+    struct ToriRS_PluginCallbacks callbacks; /* always last */
 };
 ```
 
@@ -646,9 +652,15 @@ is `api.placement.place(...)` in Lua. Do not keep a flat C spelling and invent a
 different Lua hierarchy.
 
 Every top-level and module struct carries `struct_size`; the API has a major
-and minor version. Appending an optional operation does not require rejecting
-every older plugin. An incompatible semantic or layout change increments the
-major version.
+and minor version. Because modules are embedded, every module has a fixed
+reserved function-slot tail and the total `ToriRS_ApiV2` size is frozen for
+major version 2. A minor release consumes a reserved slot in place; it never
+grows a module and shifts the modules after it. The independently sized
+callback table is the final definition field, so extending it shifts no other
+definition field. Strided descriptor arrays (`FrameOffer`, `UiContribution`,
+`UiNode`, and `SelectOption`) likewise have frozen sizes with reserved tails.
+An incompatible semantic or exhausted-layout change increments the major
+version.
 
 ### Return and error rules
 
@@ -669,6 +681,7 @@ The panel API needs options with separate values and labels:
 
 ```c
 struct ToriRS_SelectOption {
+    uint32_t struct_size;
     char const* value;   /* stable value saved or returned */
     char const* label;   /* human text */
     bool enabled;
@@ -731,6 +744,74 @@ stone_drawer_toggle(struct ToriRS_ApiV2* api, void* plugin_state)
 There is no claim, owner check, screen gate, manual release, re-claim, or stale
 global rectangle. The host invokes this code only while the offer is the active
 game frame and owns cleanup/fallback.
+
+## Retained chrome execution
+
+The retained model must not be diffed by walking every panel, widget, and
+property after one value changes. A global `dirty` flag followed by a smaller
+or faster full scan is still the wrong cost model.
+
+Every model mutation goes through a compare-then-set operation. When the value
+really changes, that operation records the affected handle and property bit in
+a bounded mutation journal. Repeated writes to the same property before the
+executor runs coalesce to one entry; the executor receives the final retained
+value, not every intermediate edit.
+
+Coalescing is itself constant-time. Each live panel and widget stores the
+index of its pending journal entry (fenced by the widget incarnation), so a
+setter never searches the existing queue. This matters during a page rebuild:
+touching 1,000 controls and then refining them must remain O(changes), not turn
+into an O(changes squared) backward scan of the journal.
+
+```text
+model setter
+  compare equal -> return, record nothing
+  changed       -> store value, enqueue (node, property)
+                                  |
+                                  v
+web executor tick          drain queued changes only
+  no queued changes -> O(1), no transaction and no model scan
+  queued changes    -> BEGIN, commands for those changes, END
+```
+
+Structural mutations record add/remove/reorder commands in the same journal.
+Removal is ordered before reuse of the same handle. A page replacement records
+one boundary followed by the new page's initial commands.
+
+A complete snapshot is generated only when:
+
+- a web executor binds for the first time;
+- it reconnects/rebinds after losing its retained copy;
+- the mutation journal overflows or the executor explicitly reports lost
+  state.
+
+Overflow never drops an arbitrary suffix of changes. It sets a `needs_snapshot`
+flag, clears the unusable incremental journal, and sends one complete snapshot
+on the next drain.
+
+At present the only external plugin-chrome executors are:
+
+- `web`: the Emscripten/DOM executor;
+- `browser`: the embedded web-engine executor used by native shells.
+
+The in-canvas buffer path remains an internal presenter/fallback, not a
+selectable external executor. SDL, GDI, Android-native, and generic `platform`
+executor choices are removed from parsing, factories, normal source lists,
+profiles, and manifests. Keeping dormant selectable names would make the
+supported set ambiguous and allow an untested path to return.
+
+Executor tests must prove:
+
+- 100 idle ticks inspect zero panels/widgets and emit no BEGIN/END pair;
+- compare-equal setters enqueue nothing;
+- several writes to one property emit one command with the final value;
+- reused option/title buffers whose text changed still enqueue the relevant
+  list property, even when their pointer and item count are unchanged;
+- changing one widget does not inspect unrelated widgets;
+- add/remove/reuse ordering is deterministic;
+- bind/rebind/overflow emits exactly one complete snapshot;
+- normal builds contain no SDL/GDI/Android executor symbol or availability
+  define.
 
 ## Implementation plan
 
@@ -913,7 +994,43 @@ correct without plugin-side intersection; a fragmented area can place at more
 than one anchor; hidden occluders consume no space; reservation order does not
 depend on callback order.
 
-### Phase 5 — Finish the API migration
+### Phase 5 — Make retained execution event-driven and web-only
+
+Goal: make executor work proportional to actual mutations and remove dormant
+native executor paths.
+
+Work:
+
+1. Put a bounded, deduplicated `(handle, property)` journal on the retained
+   chrome model, with per-handle pending-entry indices for O(1) coalescing.
+2. Have every compare-then-set mutator append/coalesce its own change; record
+   structural add/remove/reorder operations at the mutation site.
+3. Change `ToriRSChromeSync_Run` to drain the journal without walking panel or
+   widget capacity. Preserve transaction ordering and copied string payloads.
+4. Replace the executor shadow's normal diffing job with acknowledgement and
+   recovery state only.
+5. On bind, page replacement, queue overflow, or reported state loss, schedule
+   one full retained snapshot and then return to incremental drain.
+6. Keep only `web` and `browser` as external kinds. Remove SDL/GDI/Android and
+   generic `platform` selection from parsers, factories, builds, profiles, and
+   manifests. Keep the in-canvas buffer as an internal fallback.
+7. Add instrumentation/tests proving idle O(1), one-widget mutation isolation,
+   coalescing, removal-before-handle-reuse, and one-shot recovery snapshots.
+
+Files:
+
+- `src/ui/uitree_debug_overlay.[ch]`
+- `src/ui/torirs_chrome_exec.[ch]`
+- `src/ui/torirs_chrome_exec_kind.[ch]`
+- `src/ui/torirs_chrome_exec_{web,winbrowser}.c`
+- `src/ui/test/uitree_test_chrome_exec.c`
+- `src/platform/platform*.mk`, `src/makefile`, manifests, and profiles
+
+Exit condition: an idle executor tick does no model scan or transaction; work
+after a mutation is bounded by queued changes; clean builds expose only the two
+web executors and the internal canvas fallback.
+
+### Phase 6 — Finish the API migration
 
 Goal: leave one public API and one vocabulary.
 

@@ -136,6 +136,8 @@ assert.strictEqual(built.game.hidden, true);
 assert.strictEqual(built.mount.children[0], frame, 'rail updates never replace the iframe');
 
 assert.strictEqual(global_.torirsChromeOpen(), true);
+assert.strictEqual(typeof global_.torirsChromeApplyBatch, 'function',
+  'the Wasm executor has one-call retained transaction delivery');
 global_.torirsChromeApply({ k: exported.CMD.SYNC_BEGIN });
 global_.torirsChromeApply({ k: exported.CMD.CHECK_STYLE, p: -1, w: -1, v: 1 });
 global_.torirsChromeApply({
@@ -154,11 +156,11 @@ assert.strictEqual(message.checkStyle, 1);
 assert.strictEqual(message.commands.find(command => command.w === 5).s, 501,
   'widget semantic serial crosses unchanged');
 
-global_.torirsChromeApply({ k: exported.CMD.SYNC_BEGIN });
-global_.torirsChromeApply({
-  k: exported.CMD.WIDGET_LABEL, p: 3, w: 5, label: 'Live'
-});
-global_.torirsChromeApply({ k: exported.CMD.SYNC_END });
+assert.strictEqual(global_.torirsChromeApplyBatch([
+  { k: exported.CMD.SYNC_BEGIN },
+  { k: exported.CMD.WIDGET_LABEL, p: 3, w: 5, label: 'Live' },
+  { k: exported.CMD.SYNC_END }
+]), true);
 message = received[received.length - 1];
 assert.strictEqual(message.type, 'page.delta', 'later transaction is a retained delta');
 assert.strictEqual(message.commands.length, 1);

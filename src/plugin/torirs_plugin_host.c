@@ -1,5 +1,9 @@
 #include "plugin/torirs_plugin_host.h"
 
+#include "log/torirs_log.h"
+#include "plugin/torirs_plugin_frame.h"
+#include "plugin/torirs_plugin_ui.h"
+#include "plugin/torirs_plugin_v2_adapter.h"
 #include "revconfig/revconfig.h"
 #include "ui/uitree_minimenu.h"
 
@@ -8,7 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "log/torirs_log.h"
 
 /*
  * Plugin action ids start well clear of the four the editors already own
@@ -20,7 +23,20 @@
  */
 #define PLUGIN_MENU_ACTION_BASE (UITREE_MINIMENU_ACTION_CLIENT_BASE + 16)
 
-static void plugin_panel_bump(uint32_t* revision);
+static void
+plugin_panel_bump(uint32_t* revision);
+static void
+plugin_teardown(
+    struct ToriRS_PluginHost* host,
+    int plugin_index);
+static void
+plugin_frame_resolve(struct ToriRS_PluginHost* host);
+static void
+plugin_layout_publish(struct ToriRS_PluginHost* host);
+static void
+plugin_ui_refresh_base(struct ToriRS_PluginHost* host);
+static void
+plugin_layout_notifications_run(struct ToriRS_PluginHost* host);
 
 struct PluginSub
 {
@@ -40,6 +56,10 @@ struct PluginConfigSlot
      * file must not delete a section we merely did not understand yet. */
     int schema_index;
 };
+
+#define PLUGIN_UI_CONTRIBUTIONS_MAX 32
+
+struct PluginV2Instance;
 
 struct ToriRS_PluginCtx
 {
@@ -96,6 +116,38 @@ struct ToriRS_PluginCtx
     int meshes[TORIRS_PLUGIN_MESH_BUDGET];
     int mesh_count;
     bool mesh_clipped;
+    bool ui_contributions_registered;
+    struct ToriRS_UiContributionRef ui_contribution_refs[PLUGIN_UI_CONTRIBUTIONS_MAX];
+    int ui_contribution_count;
+    struct PluginV2Instance* v2;
+};
+
+#define PLUGIN_V2_FRAME_UI_MAX 16
+
+struct PluginV2Instance
+{
+    struct PluginV2FrameNode
+    {
+        char name[TORIRS_UI_NAME_MAX];
+        struct ToriRS_UiNode value;
+        char parent[TORIRS_UI_NAME_MAX];
+        char label[TORIRS_UI_LABEL_MAX];
+        char action[TORIRS_UI_ACTION_MAX];
+        char actions[TORIRS_UI_NAMED_ACTIONS_MAX][TORIRS_UI_ACTION_MAX];
+    } frame_ui[PLUGIN_V2_FRAME_UI_MAX], frame_ui_candidate[PLUGIN_V2_FRAME_UI_MAX];
+    struct ToriRS_PluginDefV2 const* definition;
+    struct ToriRS_PluginDefV2 definition_storage;
+    struct ToriRS_PluginCallbacks callbacks_storage;
+    struct ToriRS_ConfigSchema config_storage;
+    struct ToriRS_FrameOffer frame_offers[TORIRS_PLUGIN_FRAME_OFFERS_MAX + 1];
+    struct ToriRS_PluginDef normalized;
+    struct ToriRS_PluginFrameOffer frames[TORIRS_PLUGIN_FRAME_OFFERS_MAX + 1];
+    int frame_count;
+    struct ToriRS_PluginV2Adapter adapter;
+    void* state;
+    int frame_ui_count;
+    int frame_ui_candidate_count;
+    bool frame_ui_candidate_invalid;
 };
 
 struct PluginMenuRoute
@@ -166,6 +218,8 @@ struct PluginRoleReplacement
  * because only the frame's owner may write it.
  */
 #define TORIRS_PLUGIN_SLOT_ART_MAX 32
+/** Whole surfaces plus every V2 member declaration in one candidate. */
+#define TORIRS_PLUGIN_LAYOUT_RECTS_MAX 96
 /** A 64x64 PNG has no reason to approach this; cap pathological compressed
  * input before the automatic rail-icon decode spends work on it. */
 #define TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX (256 * 1024)
@@ -242,6 +296,44 @@ struct PluginSlotArt
 };
 
 /**
+ * Scratch frame declaration. Nothing in this record is visible to the engine
+ * until every geometry, image and named-node invariant has passed.
+ */
+struct PluginLayoutCandidate
+{
+    struct PluginLayoutRect
+    {
+        int slot;
+        int member;
+        int x;
+        int y;
+        int w;
+        int h;
+    } rects[TORIRS_PLUGIN_LAYOUT_RECTS_MAX];
+    int rect_count;
+    struct PluginLayoutSkin
+    {
+        bool declared;
+        int art;
+        int mask;
+    } skins[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT];
+    struct PluginLayoutOverlay
+    {
+        bool declared;
+        int image;
+        int x;
+        int y;
+        int trans;
+    } overlays[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT];
+    bool scrollbar_declared;
+    int scrollbar[6];
+    int scrollbar_count;
+    bool viewport_declared;
+    bool invalid;
+    char reason[TORIRS_FRAME_REASON_MAX];
+};
+
+/**
  * One plugin's permission to draw another's image.
  *
  * The handle IS the lender's slot index -- there is no translation layer --
@@ -311,52 +403,74 @@ struct ToriRS_PluginHost
      * world-only draw verbs, which have nothing to mean on screen/panel. */
     int draw_canvas;
 
-    /*
-     * The gameframe claim.
-     *
-     * -1 when the lane's own chrome is in charge, which is the state every
-     * session starts in and returns to. One index and not a stack: a frame
-     * being arranged by two plugins is not a state worth being able to
-     * represent, so a second claimant is refused rather than queued.
+    /* Static frame offers and the one host-resolved selection. The legacy
+     * layout_* fields below are temporarily the engine adapter for the active
+     * catalogue entry; plugins no longer arbitrate them once migrated. */
+    struct PluginFrameCatalog frame_catalog;
+    struct ToriRS_PluginFrameSelection frame_selection;
+    /** Last completely validated and engine-committed offer. */
+    int frame_active_entry;
+    /** Offer named by the current request, still only a candidate. */
+    int frame_target_entry;
+    /** One-shot request consumed by the app's next safe layout fence. */
+    int frame_layout_requested;
+    int frame_preference_loaded;
+    int frame_resolving;
+    int frame_selection_dirty;
+
+    struct ToriRS_PlacementRegion placement[TORIRS_PLUGIN_AREA_COUNT];
+    /** Layout epoch from which `placement` was last resolved. */
+    int placement_cache_revision;
+    int placement_cache_valid;
+    /**
+     * Public retained-placement state.  Unlike layout_revision, this advances
+     * only when the canonical area sets or a named reservation's assigned box
+     * actually changes.
      */
-    int layout_owner;
+    uint32_t placement_revision;
+    uint32_t placement_notified_revision;
+    int placement_initialized;
+    int placement_notify_pending;
+    struct ToriRS_UiRegistry ui_registry;
+
     /** enum ToriRS_PluginLayoutCanvas, and the pinned size for FIXED. */
     int layout_canvas;
     int layout_fixed_w;
     int layout_fixed_h;
-    /** Advances across every claim/release transaction, even when the same
-     *  owner immediately reacquires. Fences an in-flight EV_LAYOUT scratch
-     *  declaration from committing across that ownership transition. */
-    uint32_t layout_claim_epoch;
+    /** Advances across every resolved offer transition. Fences an in-flight
+     * EV_LAYOUT scratch declaration from committing after selection moved. */
+    uint32_t frame_selection_epoch;
     /** Non-zero only inside an EV_LAYOUT dispatch: layout_slot is legal then
      *  and at no other time, for the same reason hit_region is. */
     int layout_declaring;
+    int layout_declarer;
+    int layout_candidate_entry;
+    struct PluginLayoutCandidate layout_candidate;
 
     /** Exclusive, persistent semantic replacements. The role spelling is
      * retained rather than a node/id: only the engine can re-resolve it after
      * a CS2 subtree rebuild, and reconciliation happens before interaction. */
-    struct PluginRoleReplacement
-        role_replacements[TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX];
+    struct PluginRoleReplacement role_replacements[TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX];
 
-    /*
-     * Reservations: bites taken out of a derived region, one per
-     * (plugin, region, edge).
-     *
-     * A flat table rather than a per-plugin array for the reason the window's
-     * widget pool is flat: almost every plugin reserves nothing, one or two
-     * reserve a single edge, and sizing a slice for the greediest and
-     * multiplying it by thirty-two spends memory on a case that does not
-     * happen. Declaration ORDER is meaningful -- two plugins on the same edge
-     * stack in the order they asked -- so nothing here is compacted or sorted.
-     */
-    struct PluginReserve
+    struct PluginPlacementReservation
     {
-        /** -1 for a free row. */
         int plugin;
-        uint8_t slot;
-        uint8_t edge;
-        int px;
-    } reserves[TORIRS_PLUGIN_RESERVES_MAX];
+        int area;
+        int edge;
+        int pixels;
+        int assigned;
+        char name[TORIRS_PLUGIN_PLACEMENT_RESERVATION_NAME_MAX];
+        struct ToriRS_PlacementRect rect;
+    } placement_reservations[TORIRS_PLUGIN_RESERVES_MAX];
+
+    /** Last successfully resolved named-reservation assignments. */
+    struct PluginPlacementResolvedReservation
+    {
+        int plugin;
+        int assigned;
+        char name[TORIRS_PLUGIN_PLACEMENT_RESERVATION_NAME_MAX];
+        struct ToriRS_PlacementRect rect;
+    } placement_resolved_reservations[TORIRS_PLUGIN_RESERVES_MAX];
 
     /*
      * The chrome tier: parts, and who dresses them.
@@ -371,6 +485,8 @@ struct ToriRS_PluginHost
     struct PluginChromeClaim chrome_claims[TORIRS_PLUGIN_CHROME_CLAIMS_MAX];
     /** The frame owner's part declarations, rebuilt whole each EV_LAYOUT. */
     struct PluginSlotArt slot_art[TORIRS_PLUGIN_SLOT_ART_MAX];
+    /** Candidate part declarations, copied above only on a complete commit. */
+    struct PluginSlotArt slot_art_candidate[TORIRS_PLUGIN_SLOT_ART_MAX];
     /** Read permissions on other plugins' images. @see PluginChromeBorrow. */
     struct PluginChromeBorrow
         chrome_borrows[TORIRS_PLUGIN_CHROME_CLAIMS_MAX * TORIRS_PLUGIN_CHROME_STATE_COUNT];
@@ -389,6 +505,9 @@ struct ToriRS_PluginHost
     /** Set while EV_LAYOUT_CHANGED is being delivered. @see
      *  PluginHost_LayoutChanged. */
     int layout_notifying;
+    /** A layout source changed from inside a notification.  It is folded into
+     * the current transaction when possible, otherwise drained next frame. */
+    int layout_notify_pending;
     /* Non-NULL only during an EV_MENU_BUILD dispatch. */
     void* menu_cursor;
 
@@ -563,10 +682,22 @@ struct ToriRS_PluginHost
     bool config_dirty;
 };
 
+static int
+plugin_frame_owner(struct ToriRS_PluginHost const* host)
+{
+    struct PluginFrameCatalogEntry const* entry;
+
+    assert(host);
+    entry = PluginFrameCatalog_At(&host->frame_catalog, host->frame_active_entry);
+    return entry ? entry->plugin : -1;
+}
+
 /* ---------------------------------------------------------------- helpers */
 
 static struct ToriRS_PluginCtx*
-plugin_at(struct ToriRS_PluginHost* host, int index)
+plugin_at(
+    struct ToriRS_PluginHost* host,
+    int index)
 {
     assert(host);
     assert(index >= 0);
@@ -575,7 +706,9 @@ plugin_at(struct ToriRS_PluginHost* host, int index)
 }
 
 static int
-plugin_schema_index(struct ToriRS_PluginCtx const* ctx, char const* key)
+plugin_schema_index(
+    struct ToriRS_PluginCtx const* ctx,
+    char const* key)
 {
     assert(ctx);
     assert(key);
@@ -591,7 +724,10 @@ plugin_schema_index(struct ToriRS_PluginCtx const* ctx, char const* key)
 }
 
 static struct PluginConfigSlot*
-plugin_config_slot(struct ToriRS_PluginCtx* ctx, char const* key, bool create)
+plugin_config_slot(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key,
+    bool create)
 {
     assert(ctx);
     assert(key);
@@ -610,7 +746,8 @@ plugin_config_slot(struct ToriRS_PluginCtx* ctx, char const* key, bool create)
          * keys than the headroom above the schema, which is a settings file
          * that has outlived several renames. Said out loud because the
          * alternative is a setting that will not stick and no reason given. */
-        TORIRS_LOG("plugin: '%s' config store is full (%d); '%s' is not kept\n",
+        TORIRS_LOG(
+            "plugin: '%s' config store is full (%d); '%s' is not kept\n",
             ctx->name,
             TORIRS_PLUGIN_CONFIG_MAX,
             key);
@@ -626,7 +763,10 @@ plugin_config_slot(struct ToriRS_PluginCtx* ctx, char const* key, bool create)
 
 /** Bounded copy into a fixed buffer; NULL reads as "". */
 static void
-plugin_copy_str(char* dst, size_t cap, char const* src)
+plugin_copy_str(
+    char* dst,
+    size_t cap,
+    char const* src)
 {
     snprintf(dst, cap, "%s", src ? src : "");
 }
@@ -635,7 +775,10 @@ plugin_copy_str(char* dst, size_t cap, char const* src)
  *  Comparing the unbounded source directly makes an already-truncated value
  *  look new forever, which turns one long live label into per-frame deltas. */
 static bool
-plugin_copy_str_would_change(char const* dst, size_t cap, char const* src)
+plugin_copy_str_would_change(
+    char const* dst,
+    size_t cap,
+    char const* src)
 {
     size_t n;
 
@@ -666,15 +809,14 @@ plugin_config_seed(struct ToriRS_PluginCtx* ctx)
         if( !slot )
             continue;
         snprintf(
-            slot->value,
-            sizeof(slot->value),
-            "%s",
-            item->default_value ? item->default_value : "");
+            slot->value, sizeof(slot->value), "%s", item->default_value ? item->default_value : "");
     }
 }
 
 static void
-plugin_drop_subs(struct ToriRS_PluginHost* host, int plugin_index)
+plugin_drop_subs(
+    struct ToriRS_PluginHost* host,
+    int plugin_index)
 {
     assert(host);
 
@@ -703,8 +845,11 @@ plugin_drop_subs(struct ToriRS_PluginHost* host, int plugin_index)
 /* Defined with the lifecycle, far below, because it belongs to it -- the api
  * verb that lets a plugin stand down is the only thing up here that needs it. */
 static void
-plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index);
-static void plugin_dispatch_one(
+plugin_teardown(
+    struct ToriRS_PluginHost* host,
+    int plugin_index);
+static void
+plugin_dispatch_one(
     struct ToriRS_PluginHost* host,
     int plugin_index,
     enum ToriRS_PluginEvent ev,
@@ -713,18 +858,35 @@ static void plugin_dispatch_one(
 /* The entity half of the chrome tier, used by the claim and draw verbs that
  * are defined before it. @see the entities section below. */
 static int
-plugin_entity_parse(char const* part, int* out_a, int* out_b, int* out_c, int* out_d);
+plugin_entity_parse(
+    char const* part,
+    int* out_a,
+    int* out_b,
+    int* out_c,
+    int* out_d);
 static int
-plugin_entity_hull_allowed(struct ToriRS_PluginHost* host, int plugin, int element_id);
+plugin_entity_hull_allowed(
+    struct ToriRS_PluginHost* host,
+    int plugin,
+    int element_id);
 static void
-plugin_chrome_paint_all(struct ToriRS_PluginHost* host, int canvas_pass);
+plugin_chrome_paint_all(
+    struct ToriRS_PluginHost* host,
+    int canvas_pass);
 static int
-role_replacement_find(struct ToriRS_PluginHost const* host, char const* role);
+role_replacement_find(
+    struct ToriRS_PluginHost const* host,
+    char const* role);
 static int
-role_replaced_by(struct ToriRS_PluginHost const* host, char const* role);
+role_replaced_by(
+    struct ToriRS_PluginHost const* host,
+    char const* role);
 
 static enum ToriRS_PluginVerdict
-plugin_dispatch(struct ToriRS_PluginHost* host, enum ToriRS_PluginEvent ev, void* payload)
+plugin_dispatch(
+    struct ToriRS_PluginHost* host,
+    enum ToriRS_PluginEvent ev,
+    void* payload)
 {
     assert(host);
     assert(ev >= 0);
@@ -851,7 +1013,8 @@ api_subscribe(
     {
         /* Loud, not silent: a dropped subscription is a plugin that appears to
          * load and then never fires. */
-        TORIRS_LOG("plugin: %s subscription to event %d dropped, bus slot full (%d)\n",
+        TORIRS_LOG(
+            "plugin: %s subscription to event %d dropped, bus slot full (%d)\n",
             ctx->name,
             (int)ev,
             TORIRS_PLUGIN_SUBS_MAX);
@@ -863,7 +1026,10 @@ api_subscribe(
 }
 
 static void
-api_log(struct ToriRS_PluginCtx* ctx, char const* fmt, ...)
+api_log(
+    struct ToriRS_PluginCtx* ctx,
+    char const* fmt,
+    ...)
 {
     assert(ctx);
     assert(fmt);
@@ -884,39 +1050,24 @@ api_log(struct ToriRS_PluginCtx* ctx, char const* fmt, ...)
 
 /* The plugin header spells enum AppScreen's values again, because a plugin
  * must not include the app's. These are what keep the two from drifting. */
-_Static_assert((int)TORIRS_PLUGIN_SCREEN_BOOT == 0, "plugin screen BOOT");
-_Static_assert((int)TORIRS_PLUGIN_SCREEN_TITLE == 10, "plugin screen TITLE");
-_Static_assert((int)TORIRS_PLUGIN_SCREEN_CONNECTING == 20, "plugin screen CONNECTING");
-_Static_assert((int)TORIRS_PLUGIN_SCREEN_GAME == 30, "plugin screen GAME");
+_Static_assert(
+    (int)TORIRS_PLUGIN_SCREEN_BOOT == 0,
+    "plugin screen BOOT");
+_Static_assert(
+    (int)TORIRS_PLUGIN_SCREEN_TITLE == 10,
+    "plugin screen TITLE");
+_Static_assert(
+    (int)TORIRS_PLUGIN_SCREEN_CONNECTING == 20,
+    "plugin screen CONNECTING");
+_Static_assert(
+    (int)TORIRS_PLUGIN_SCREEN_GAME == 30,
+    "plugin screen GAME");
 
 static int
 api_screen(struct ToriRS_PluginCtx* ctx)
 {
     assert(ctx);
     return ctx->host->engine.screen(ctx->host->engine.user);
-}
-
-/*
- * NOT gated on host_frame_exists, alone among the geometry verbs: the OS
- * covering the window is a fact about the WINDOW, and it is as true on the
- * title screen as in game. An engine with no notion of OS occlusion (a test
- * fake, a desktop that never wired one) answers with the whole canvas, which
- * is the honest answer on a machine with no soft keyboard.
- */
-static int
-api_safe_os(
-    struct ToriRS_PluginCtx* ctx,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    assert(ctx);
-    if( ctx->host->engine.safe_os )
-        return ctx->host->engine.safe_os(
-            ctx->host->engine.user, out_x, out_y, out_w, out_h);
-    return ctx->host->engine.slot_rect(
-        ctx->host->engine.user, TORIRS_PLUGIN_SLOT_CANVAS, out_x, out_y, out_w, out_h);
 }
 
 static int
@@ -941,7 +1092,9 @@ api_frame_work_us(struct ToriRS_PluginCtx* ctx)
 }
 
 static int
-api_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginPlayerSnap* out)
+api_local_player(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginPlayerSnap* out)
 {
     assert(ctx);
     assert(out);
@@ -949,7 +1102,10 @@ api_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginPlayerSnap* o
 }
 
 static int
-api_npc_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginNpcSnap* out)
+api_npc_next(
+    struct ToriRS_PluginCtx* ctx,
+    int iter,
+    struct ToriRS_PluginNpcSnap* out)
 {
     assert(ctx);
     assert(out);
@@ -957,7 +1113,10 @@ api_npc_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginNpcSnap
 }
 
 static int
-api_npc_by_slot(struct ToriRS_PluginCtx* ctx, int slot, struct ToriRS_PluginNpcSnap* out)
+api_npc_by_slot(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    struct ToriRS_PluginNpcSnap* out)
 {
     assert(ctx);
     assert(out);
@@ -965,7 +1124,10 @@ api_npc_by_slot(struct ToriRS_PluginCtx* ctx, int slot, struct ToriRS_PluginNpcS
 }
 
 static int
-api_player_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginPlayerSnap* out)
+api_player_next(
+    struct ToriRS_PluginCtx* ctx,
+    int iter,
+    struct ToriRS_PluginPlayerSnap* out)
 {
     assert(ctx);
     assert(out);
@@ -973,7 +1135,10 @@ api_player_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginPlay
 }
 
 static int
-api_loc_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLocSnap* out)
+api_loc_next(
+    struct ToriRS_PluginCtx* ctx,
+    int iter,
+    struct ToriRS_PluginLocSnap* out)
 {
     assert(ctx);
     assert(out);
@@ -982,7 +1147,9 @@ api_loc_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLocSnap
 
 static int
 api_highlight_next(
-    struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginHighlightItem* out)
+    struct ToriRS_PluginCtx* ctx,
+    int iter,
+    struct ToriRS_PluginHighlightItem* out)
 {
     assert(ctx);
     assert(out);
@@ -990,7 +1157,9 @@ api_highlight_next(
 }
 
 static void
-api_notify(struct ToriRS_PluginCtx* ctx, char const* text)
+api_notify(
+    struct ToriRS_PluginCtx* ctx,
+    char const* text)
 {
     assert(ctx);
     assert(text);
@@ -998,7 +1167,9 @@ api_notify(struct ToriRS_PluginCtx* ctx, char const* text)
 }
 
 static int
-api_key_held(struct ToriRS_PluginCtx* ctx, int keycode)
+api_key_held(
+    struct ToriRS_PluginCtx* ctx,
+    int keycode)
 {
     assert(ctx);
     return ctx->host->engine.key_held(ctx->host->engine.user, keycode);
@@ -1015,12 +1186,13 @@ api_hover_tile(
     assert(out_tile_x);
     assert(out_tile_z);
     assert(out_level);
-    return ctx->host->engine.hover_tile(
-        ctx->host->engine.user, out_tile_x, out_tile_z, out_level);
+    return ctx->host->engine.hover_tile(ctx->host->engine.user, out_tile_x, out_tile_z, out_level);
 }
 
 static int
-api_hover_entity(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginHoverEntity* out)
+api_hover_entity(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginHoverEntity* out)
 {
     assert(ctx);
     assert(out);
@@ -1028,14 +1200,19 @@ api_hover_entity(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginHoverEntity* 
 }
 
 static int
-api_element_height(struct ToriRS_PluginCtx* ctx, int element_id)
+api_element_height(
+    struct ToriRS_PluginCtx* ctx,
+    int element_id)
 {
     assert(ctx);
     return ctx->host->engine.element_height(ctx->host->engine.user, element_id);
 }
 
 static int
-api_mouse_pos(struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y)
+api_mouse_pos(
+    struct ToriRS_PluginCtx* ctx,
+    int* out_x,
+    int* out_y)
 {
     assert(ctx);
     return ctx->host->engine.mouse_pos(ctx->host->engine.user, out_x, out_y);
@@ -1054,9 +1231,128 @@ plugin_dispatch_one(
     enum ToriRS_PluginEvent ev,
     void* payload);
 
+static int
+api_frame_offer_next(
+    struct ToriRS_PluginCtx* ctx,
+    int iter,
+    struct ToriRS_PluginFrameInfo* out)
+{
+    struct PluginFrameCatalogEntry const* entry;
+    int next;
+
+    assert(ctx);
+    assert(out);
+    next = iter + 1;
+    entry = PluginFrameCatalog_At(&ctx->host->frame_catalog, next);
+    if( !entry )
+        return -1;
+
+    memset(out, 0, sizeof(*out));
+    snprintf(out->id, sizeof(out->id), "%s", entry->id);
+    snprintf(out->title, sizeof(out->title), "%s", entry->title);
+    snprintf(out->provider, sizeof(out->provider), "%s", entry->provider);
+    out->canvas = entry->canvas;
+    out->width = entry->width;
+    out->height = entry->height;
+    out->available = entry->available;
+    return next;
+}
+
+static void
+api_frame_selection(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginFrameSelection* out)
+{
+    assert(ctx);
+    assert(out);
+    *out = ctx->host->frame_selection;
+}
+
+static int
+plugin_frame_preference_id_valid(char const* id)
+{
+    int slash = 0;
+
+    assert(id);
+    if( strcmp(id, "auto") == 0 )
+        return 1;
+    if( !id[0] || strlen(id) >= TORIRS_PLUGIN_FRAME_ID_MAX )
+        return 0;
+    for( char const* at = id; *at; at++ )
+    {
+        char const c = *at;
+        if( c == '/' )
+        {
+            slash++;
+            if( at == id || !at[1] )
+                return 0;
+            continue;
+        }
+        if( (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' )
+            continue;
+        return 0;
+    }
+    return slash == 1;
+}
+
+static int
+api_frame_select(
+    struct ToriRS_PluginCtx* ctx,
+    char const* id)
+{
+    struct ToriRS_PluginHost* host;
+
+    assert(ctx);
+    assert(id);
+    host = ctx->host;
+    if( !plugin_frame_preference_id_valid(id) )
+        return 0;
+    if( host->engine.frame_preference_set &&
+        !host->engine.frame_preference_set(host->engine.user, id, 1) )
+        return 0;
+    if( strcmp(host->frame_selection.requested, id) == 0 )
+        return 1;
+
+    snprintf(host->frame_selection.requested, sizeof(host->frame_selection.requested), "%s", id);
+    host->frame_selection.revision++;
+    host->frame_selection_dirty = 1;
+    /* Selection is a user action, so make its status and provider lifetime
+     * visible to the rebuilding settings page immediately. Layout itself is
+     * still deferred to the engine's next safe layout pass. */
+    PluginHost_Start(host);
+    return 1;
+}
+
+static void
+api_frame_invalidate(struct ToriRS_PluginCtx* ctx)
+{
+    struct ToriRS_PluginHost* host;
+    struct PluginFrameCatalogEntry const* active;
+    struct PluginFrameCatalogEntry const* target;
+
+    assert(ctx);
+    host = ctx->host;
+    active = PluginFrameCatalog_At(&host->frame_catalog, host->frame_active_entry);
+    target = PluginFrameCatalog_At(&host->frame_catalog, host->frame_target_entry);
+    if( (!active || active->plugin != ctx->index) &&
+        (!target || target->plugin != ctx->index) )
+        return;
+    if( target && target->plugin == ctx->index &&
+        host->frame_target_entry != host->frame_active_entry )
+    {
+        /* A pending builder is retried only when its provider says its inputs
+         * changed. The app consumes this one-shot request at a safe layout
+         * fence while the committed provider continues to render. */
+        host->frame_selection_dirty = 1;
+        return;
+    }
+    if( active && active->plugin == ctx->index )
+        plugin_layout_publish(host);
+}
+
 /*
- * Tell the engine what the claim is now, so it can switch the lane's own
- * chrome off (or back on) and pin or unpin the canvas.
+ * Tell the engine what the resolved frame is now, so it can switch the lane's
+ * own chrome off (or back on) and pin or unpin the canvas.
  *
  * Called on every transition and on no-ops besides, because the engine's copy
  * of this is what the layout pass reads and a claim the engine never heard
@@ -1066,115 +1362,38 @@ static void
 plugin_layout_publish(struct ToriRS_PluginHost* host)
 {
     assert(host);
+    host->placement_cache_valid = 0;
     host->engine.layout_set(
         host->engine.user,
-        host->layout_owner >= 0 ? 1 : 0,
+        plugin_frame_owner(host) >= 0 ? 1 : 0,
         host->layout_canvas,
         host->layout_fixed_w,
         host->layout_fixed_h);
 }
 
-static bool
-api_layout_claim(
-    struct ToriRS_PluginCtx* ctx,
-    int canvas,
-    int fixed_w,
-    int fixed_h)
-{
-    struct ToriRS_PluginHost* host;
-
-    assert(ctx);
-    host = ctx->host;
-    /* Both arrive from a plugin's own config, so a value out of range is bad
-     * INPUT and not a broken contract: a layout told to pin a canvas of 0x0
-     * should be refused and say so, not abort the client. */
-    if( canvas != TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW && canvas != TORIRS_PLUGIN_CANVAS_FIXED )
-        return false;
-    if( canvas == TORIRS_PLUGIN_CANVAS_FIXED && (fixed_w <= 0 || fixed_h <= 0) )
-        return false;
-    /*
-     * There is no frame to claim before there is a frame.
-     *
-     * A granted claim hands the plugin the canvas and takes the client's own
-     * frame out of the picture; on the title screen that means the background,
-     * the logo and the login box are given away to a plugin which then draws a
-     * gameframe's worth of nothing, because the parts it dresses do not exist
-     * yet. The symptom is a login screen with most of its art missing and no
-     * error anywhere -- every plugin behaved exactly as written.
-     *
-     * Refused HERE and not left to each plugin, even though the frame dressers
-     * gate themselves too (@see gameframe.c frame_on_layout): a plugin asking
-     * for something by name on a tree that has no gameframe gets whatever else
-     * happens to answer to that name, so "ask nicely" is not a property the
-     * host can rely on. This is the one door, so this is where it closes.
-     */
-    if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
-        return false;
-    if( host->layout_owner >= 0 && host->layout_owner != ctx->index )
-        return false;
-
-    host->layout_claim_epoch++;
-    host->layout_owner = ctx->index;
-    host->layout_canvas = canvas;
-    /*
-     * Kept for BOTH modes, and they mean different things in each: the pinned
-     * canvas for FIXED, the smallest canvas the layout can be declared against
-     * for FOLLOW_WINDOW. @see layout_claim.
-     *
-     * They used to be zeroed for FOLLOW_WINDOW, on the reasoning that a frame
-     * following the window has no size of its own to state. It has one: the
-     * size below which its own pieces stop fitting each other. Without it the
-     * engine has nothing to clamp to but the client's 765x503 -- the REVCONFIG
-     * gameframe's floor -- and a layout authored for a phone is clamped up to a
-     * desktop canvas and letterboxed into the shape it was written to avoid.
-     *
-     * A claim that names no minimum still passes zeroes, which the engine reads
-     * as "no opinion" and answers with its own floor.
-     */
-    host->layout_fixed_w = fixed_w > 0 ? fixed_w : 0;
-    host->layout_fixed_h = fixed_h > 0 ? fixed_h : 0;
-    /*
-     * Publishing the claim is the whole of it: the engine marks the frame
-     * needing a declaration and raises EV_LAYOUT on its next layout pass, with
-     * the canvas it actually has.
-     *
-     * This used to declare here as well, passing 0x0 for the canvas because
-     * the host has no window and no way to ask. For a FIXED claim that was
-     * harmless -- it reads its pinned size back -- and for a FOLLOW_WINDOW one
-     * it was silently fatal: every anchor is measured from an edge, so a
-     * canvas of nothing puts the sidebar at x = -245 and the chatbox at
-     * y = -142, and the frame is declared, drawn, and entirely off-screen. The
-     * plugin reports twenty pieces drawn and the screen shows none of them.
-     *
-     * The host cannot invent a canvas. The engine is the only thing that knows
-     * one, so the engine is what declares.
-     */
-    plugin_layout_publish(host);
-    return true;
-}
-
 static void
-api_layout_release(struct ToriRS_PluginCtx* ctx)
+plugin_layout_candidate_fail(
+    struct ToriRS_PluginHost* host,
+    char const* reason)
 {
-    struct ToriRS_PluginHost* host;
-
-    assert(ctx);
-    host = ctx->host;
-    if( host->layout_owner != ctx->index )
-        return;
-    host->layout_claim_epoch++;
-    host->layout_owner = -1;
-    host->layout_canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
-    host->layout_fixed_w = 0;
-    host->layout_fixed_h = 0;
-    plugin_layout_publish(host);
+    assert(host);
+    host->layout_candidate.invalid = true;
+    if( !host->layout_candidate.reason[0] && reason )
+        snprintf(
+            host->layout_candidate.reason,
+            sizeof(host->layout_candidate.reason),
+            "%s",
+            reason);
 }
 
 static int
-api_layout_owned(struct ToriRS_PluginCtx* ctx)
+plugin_layout_rect_valid(int x, int y, int w, int h)
 {
-    assert(ctx);
-    return ctx->host->layout_owner == ctx->index ? 1 : 0;
+    int64_t const right = (int64_t)x + w;
+    int64_t const bottom = (int64_t)y + h;
+
+    return w > 0 && h > 0 && right >= INT32_MIN && right <= INT32_MAX &&
+           bottom >= INT32_MIN && bottom <= INT32_MAX;
 }
 
 static int
@@ -1187,22 +1406,62 @@ api_layout_slot_at(
     int w,
     int h)
 {
+    struct ToriRS_PluginHost* host;
+    struct PluginLayoutCandidate* candidate;
+    int qx = 0;
+    int qy = 0;
+    int qw = 0;
+    int qh = 0;
+
     assert(ctx);
     /* The same window test the draw verbs make. A slot placed outside the
      * declaration would land in a table the engine has already applied, so it
      * would take effect a frame late and survive a declaration that never
      * mentioned it -- which is exactly the drift the rebuilt-from-nothing rule
      * exists to prevent. */
-    assert(
-        ctx->host->layout_declaring &&
-        "layout_slot is legal only inside EV_LAYOUT");
-    assert(ctx->host->layout_owner == ctx->index);
+    host = ctx->host;
+    candidate = &host->layout_candidate;
+    assert(host->layout_declaring && "layout_slot is legal only inside EV_LAYOUT");
+    assert(host->layout_declarer == ctx->index);
     /* A number a plugin computed, so out of range is input. */
     if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    {
+        plugin_layout_candidate_fail(host, "The frame declared an unknown surface.");
         return 0;
-    if( w <= 0 || h <= 0 )
+    }
+    if( member < -1 || !plugin_layout_rect_valid(x, y, w, h) )
+    {
+        plugin_layout_candidate_fail(host, "The frame declared an invalid surface rectangle.");
         return 0;
-    return ctx->host->engine.layout_slot(ctx->host->engine.user, slot, member, x, y, w, h);
+    }
+    for( int i = 0; i < candidate->rect_count; i++ )
+        if( candidate->rects[i].slot == slot && candidate->rects[i].member == member )
+        {
+            plugin_layout_candidate_fail(host, "The frame declared a surface or member twice.");
+            return 0;
+        }
+    if( candidate->rect_count >= TORIRS_PLUGIN_LAYOUT_RECTS_MAX )
+    {
+        plugin_layout_candidate_fail(host, "The frame declared too many surfaces or members.");
+        return 0;
+    }
+    candidate->rects[candidate->rect_count++] = (struct PluginLayoutRect){
+        .slot = slot,
+        .member = member,
+        .x = x,
+        .y = y,
+        .w = w,
+        .h = h,
+    };
+    if( slot == TORIRS_PLUGIN_SLOT_VIEWPORT && member == -1 )
+        candidate->viewport_declared = true;
+
+    /* The return remains the old "does this lane have the target" answer;
+     * recording is host-local until commit and must not mutate the live tree. */
+    return member < 0
+               ? host->engine.slot_rect(host->engine.user, slot, &qx, &qy, &qw, &qh)
+               : host->engine.slot_member_rect(
+                     host->engine.user, slot, member, &qx, &qy, &qw, &qh);
 }
 
 /* The whole role, which is `member` -1. One entry point with a name for the
@@ -1227,7 +1486,9 @@ api_tab_active(struct ToriRS_PluginCtx* ctx)
 }
 
 static bool
-api_tab_select(struct ToriRS_PluginCtx* ctx, int tabno)
+api_tab_select(
+    struct ToriRS_PluginCtx* ctx,
+    int tabno)
 {
     assert(ctx);
     /* A tab number a plugin read off its own stone table. */
@@ -1237,7 +1498,9 @@ api_tab_select(struct ToriRS_PluginCtx* ctx, int tabno)
 }
 
 static int
-api_tab_enabled(struct ToriRS_PluginCtx* ctx, int tabno)
+api_tab_enabled(
+    struct ToriRS_PluginCtx* ctx,
+    int tabno)
 {
     assert(ctx);
     /* A tab number a plugin read off its own stone table, like tab_select's. */
@@ -1245,7 +1508,6 @@ api_tab_enabled(struct ToriRS_PluginCtx* ctx, int tabno)
         return 0;
     return ctx->host->engine.tab_enabled(ctx->host->engine.user, tabno);
 }
-
 
 /* -- layout regions ------------------------------------------------------- */
 
@@ -1273,7 +1535,9 @@ struct PluginRect
  * answer and this gives the least bad one.
  */
 static struct PluginRect
-plugin_rect_subtract(struct PluginRect box, struct PluginRect cut)
+plugin_rect_subtract(
+    struct PluginRect box,
+    struct PluginRect cut)
 {
     struct PluginRect best = box;
     int best_area = -1;
@@ -1309,9 +1573,8 @@ plugin_rect_subtract(struct PluginRect box, struct PluginRect cut)
 
     for( int i = 0; i < 4; i++ )
     {
-        int const area = candidate[i].w > 0 && candidate[i].h > 0
-                             ? candidate[i].w * candidate[i].h
-                             : 0;
+        int const area =
+            candidate[i].w > 0 && candidate[i].h > 0 ? candidate[i].w * candidate[i].h : 0;
         if( area > best_area )
         {
             best_area = area;
@@ -1331,12 +1594,14 @@ plugin_rect_subtract(struct PluginRect box, struct PluginRect cut)
 
 /** Ask the engine for a placeable region, or CANVAS. */
 static int
-plugin_engine_rect(struct ToriRS_PluginHost* host, int slot, struct PluginRect* out)
+plugin_engine_rect(
+    struct ToriRS_PluginHost* host,
+    int slot,
+    struct PluginRect* out)
 {
     assert(host);
     assert(out);
-    return host->engine.slot_rect(
-        host->engine.user, slot, &out->x, &out->y, &out->w, &out->h);
+    return host->engine.slot_rect(host->engine.user, slot, &out->x, &out->y, &out->w, &out->h);
 }
 
 /**
@@ -1353,15 +1618,13 @@ plugin_engine_rect(struct ToriRS_PluginHost* host, int slot, struct PluginRect* 
  * it.
  */
 static int
-plugin_safe_gamechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* out)
+plugin_safe_gamechrome_rect(
+    struct ToriRS_PluginHost* host,
+    struct PluginRect* out)
 {
     static int const OCCLUDER[] = {
-        TORIRS_PLUGIN_SLOT_MINIMAP,
-        TORIRS_PLUGIN_SLOT_COMPASS,
-        TORIRS_PLUGIN_SLOT_CHAT,
-        TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
-        TORIRS_PLUGIN_SLOT_SIDEBAR,
-        TORIRS_PLUGIN_SLOT_ORBS,
+        TORIRS_PLUGIN_SLOT_MINIMAP,      TORIRS_PLUGIN_SLOT_COMPASS, TORIRS_PLUGIN_SLOT_CHAT,
+        TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, TORIRS_PLUGIN_SLOT_SIDEBAR, TORIRS_PLUGIN_SLOT_ORBS,
     };
     struct PluginRect box;
 
@@ -1377,44 +1640,6 @@ plugin_safe_gamechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* o
         struct PluginRect cut;
         if( plugin_engine_rect(host, OCCLUDER[i], &cut) )
             box = plugin_rect_subtract(box, cut);
-    }
-
-    /*
-     * Then the reservations, in DECLARATION order.
-     *
-     * Order is what makes two plugins on the same edge stack instead of fight:
-     * the first one's 180 pixels are gone before the second one's 120 are
-     * measured, so the second gets the 120 next to it rather than the same 120
-     * on top of it.
-     */
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        struct PluginReserve const* r = &host->reserves[i];
-        int px;
-
-        if( r->plugin < 0 || r->slot != TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME || r->px <= 0 )
-            continue;
-        switch( r->edge )
-        {
-        case TORIRS_PLUGIN_EDGE_LEFT:
-            px = r->px > box.w ? box.w : r->px;
-            box.x += px;
-            box.w -= px;
-            break;
-        case TORIRS_PLUGIN_EDGE_RIGHT:
-            px = r->px > box.w ? box.w : r->px;
-            box.w -= px;
-            break;
-        case TORIRS_PLUGIN_EDGE_TOP:
-            px = r->px > box.h ? box.h : r->px;
-            box.y += px;
-            box.h -= px;
-            break;
-        default:
-            px = r->px > box.h ? box.h : r->px;
-            box.h -= px;
-            break;
-        }
     }
 
     *out = box;
@@ -1441,7 +1666,9 @@ plugin_safe_gamechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* o
  * has not declared, so a revision with none costs one failed lookup.
  */
 static int
-plugin_safe_lanechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* out)
+plugin_safe_lanechrome_rect(
+    struct ToriRS_PluginHost* host,
+    struct PluginRect* out)
 {
     struct PluginRect box;
 
@@ -1457,8 +1684,7 @@ plugin_safe_lanechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* o
         struct PluginRect cut;
 
         snprintf(role, sizeof(role), "lane_chrome_%d", i);
-        if( !host->engine.role_rect(
-                host->engine.user, role, &cut.x, &cut.y, &cut.w, &cut.h) )
+        if( !host->engine.role_rect(host->engine.user, role, &cut.x, &cut.y, &cut.w, &cut.h) )
             break;
         if( !host->engine.role_visible(host->engine.user, role) )
             continue;
@@ -1467,6 +1693,840 @@ plugin_safe_lanechrome_rect(struct ToriRS_PluginHost* host, struct PluginRect* o
 
     *out = box;
     return box.w > 0 && box.h > 0;
+}
+
+/* ---------------------------------------------------------------- exact placement */
+
+static int
+plugin_placement_add_named_occluders(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PlacementRegion* cuts,
+    uint32_t flag)
+{
+    assert(host);
+    assert(cuts);
+    for( int i = 0; i < ToriRS_UiRegistry_NodeCount(&host->ui_registry); i++ )
+    {
+        struct ToriRS_UiResolvedNode node;
+        struct ToriRS_PlacementRect rect;
+        struct ToriRS_UiNodeRef const ref = ToriRS_UiRegistry_NodeAt(&host->ui_registry, i);
+
+        if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, ref, &node) )
+            continue;
+        if( !(node.available_facets & TORIRS_UI_FACET_BOUNDS) ||
+            !(node.value.flags & TORIRS_UI_NODE_VISIBLE) || !(node.value.flags & flag) )
+            continue;
+        rect.x = node.value.bounds.x;
+        rect.y = node.value.bounds.y;
+        rect.w = node.value.bounds.width;
+        rect.h = node.value.bounds.height;
+        if( rect.w <= 0 || rect.h <= 0 )
+            continue;
+        if( ToriRS_PlacementRegion_AddRect(cuts, &rect) != TORIRS_PLACEMENT_OK )
+            return 0;
+    }
+    return 1;
+}
+
+static int
+plugin_placement_named_before(
+    struct ToriRS_PluginHost const* host,
+    int lhs,
+    int rhs)
+{
+    struct PluginPlacementReservation const* a;
+    struct PluginPlacementReservation const* b;
+    int cmp;
+
+    assert(host);
+    a = &host->placement_reservations[lhs];
+    b = &host->placement_reservations[rhs];
+    if( a->edge != b->edge )
+        return a->edge < b->edge;
+    cmp = strcmp(host->plugins[a->plugin].name, host->plugins[b->plugin].name);
+    if( cmp != 0 )
+        return cmp < 0;
+    return strcmp(a->name, b->name) < 0;
+}
+
+static int
+plugin_placement_reservation_fragment(
+    struct ToriRS_PlacementRegion const* region,
+    int edge,
+    int pixels,
+    struct ToriRS_PlacementRect* out)
+{
+    int best = -1;
+    int count;
+
+    assert(region);
+    assert(out);
+    count = ToriRS_PlacementRegion_RectCount(region);
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRS_PlacementRect candidate;
+        int better = best < 0;
+        ToriRS_PlacementRegion_RectAt(region, i, &candidate);
+        if( (edge == TORIRS_PLUGIN_PLACEMENT_EDGE_LEFT ||
+             edge == TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT) &&
+            candidate.w < pixels )
+            continue;
+        if( (edge == TORIRS_PLUGIN_PLACEMENT_EDGE_TOP ||
+             edge == TORIRS_PLUGIN_PLACEMENT_EDGE_BOTTOM) &&
+            candidate.h < pixels )
+            continue;
+        if( best >= 0 )
+        {
+            int const candidate_far_x = candidate.x + candidate.w;
+            int const best_far_x = out->x + out->w;
+            int const candidate_far_y = candidate.y + candidate.h;
+            int const best_far_y = out->y + out->h;
+            if( edge == TORIRS_PLUGIN_PLACEMENT_EDGE_LEFT )
+                better = candidate.x < out->x || (candidate.x == out->x && candidate.h > out->h);
+            else if( edge == TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT )
+                better = candidate_far_x > best_far_x ||
+                         (candidate_far_x == best_far_x && candidate.h > out->h);
+            else if( edge == TORIRS_PLUGIN_PLACEMENT_EDGE_TOP )
+                better = candidate.y < out->y || (candidate.y == out->y && candidate.w > out->w);
+            else
+                better = candidate_far_y > best_far_y ||
+                         (candidate_far_y == best_far_y && candidate.w > out->w);
+        }
+        if( better )
+        {
+            best = i;
+            *out = candidate;
+        }
+    }
+    return best >= 0;
+}
+
+static int
+plugin_placement_apply_named_reservations(
+    struct ToriRS_PluginHost* host,
+    int area,
+    struct ToriRS_PlacementRegion* region,
+    struct PluginPlacementResolvedReservation* resolved)
+{
+    int order[TORIRS_PLUGIN_RESERVES_MAX];
+    int count = 0;
+
+    assert(host);
+    assert(region);
+    assert(resolved);
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        struct PluginPlacementReservation const* reservation =
+            &host->placement_reservations[i];
+        memset(&resolved[i], 0, sizeof(resolved[i]));
+        resolved[i].plugin = -1;
+        if( reservation->plugin >= 0 && reservation->area == area && reservation->pixels > 0 )
+            order[count++] = i;
+    }
+    for( int i = 1; i < count; i++ )
+    {
+        int const value = order[i];
+        int at = i;
+        while( at > 0 && plugin_placement_named_before(host, value, order[at - 1]) )
+        {
+            order[at] = order[at - 1];
+            at--;
+        }
+        order[at] = value;
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        int const reservation_index = order[i];
+        struct PluginPlacementReservation const* reservation =
+            &host->placement_reservations[reservation_index];
+        struct ToriRS_PlacementRect rect;
+
+        if( !plugin_placement_reservation_fragment(
+                region, reservation->edge, reservation->pixels, &rect) )
+            continue;
+        if( reservation->edge == TORIRS_PLUGIN_PLACEMENT_EDGE_LEFT )
+            rect.w = reservation->pixels;
+        else if( reservation->edge == TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT )
+        {
+            rect.x += rect.w - reservation->pixels;
+            rect.w = reservation->pixels;
+        }
+        else if( reservation->edge == TORIRS_PLUGIN_PLACEMENT_EDGE_TOP )
+            rect.h = reservation->pixels;
+        else
+        {
+            rect.y += rect.h - reservation->pixels;
+            rect.h = reservation->pixels;
+        }
+        if( ToriRS_PlacementRegion_SubtractRect(region, &rect, region) != TORIRS_PLACEMENT_OK )
+            return 0;
+        resolved[reservation_index].plugin = reservation->plugin;
+        resolved[reservation_index].assigned = 1;
+        resolved[reservation_index].rect = rect;
+        snprintf(
+            resolved[reservation_index].name,
+            sizeof(resolved[reservation_index].name),
+            "%s",
+            reservation->name);
+    }
+    return 1;
+}
+
+static int
+plugin_placement_rect_equal(
+    struct ToriRS_PlacementRect const* a,
+    struct ToriRS_PlacementRect const* b)
+{
+    assert(a);
+    assert(b);
+    return a->x == b->x && a->y == b->y && a->w == b->w && a->h == b->h;
+}
+
+/** Compare the semantic reservation-to-box mapping, not backing-table slots. */
+static int
+plugin_placement_resolved_equal(
+    struct PluginPlacementResolvedReservation const* a,
+    struct PluginPlacementResolvedReservation const* b)
+{
+    int a_count = 0;
+    int b_count = 0;
+
+    assert(a);
+    assert(b);
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        int found = 0;
+
+        if( a[i].assigned )
+            a_count++;
+        if( b[i].assigned )
+            b_count++;
+        if( !a[i].assigned )
+            continue;
+        for( int j = 0; j < TORIRS_PLUGIN_RESERVES_MAX; j++ )
+            if( b[j].assigned && b[j].plugin == a[i].plugin &&
+                strcmp(b[j].name, a[i].name) == 0 &&
+                plugin_placement_rect_equal(&b[j].rect, &a[i].rect) )
+            {
+                found = 1;
+                break;
+            }
+        if( !found )
+            return 0;
+    }
+    return a_count == b_count;
+}
+
+static uint32_t
+plugin_placement_revision_next(uint32_t revision)
+{
+    revision++;
+    return revision ? revision : 1;
+}
+
+static int
+plugin_placement_rebuild(
+    struct ToriRS_PluginHost* host,
+    int announce_initial)
+{
+    struct ToriRS_PlacementRegion canvas;
+    struct ToriRS_PlacementRegion os;
+    struct ToriRS_PlacementRegion cuts;
+    struct ToriRS_PlacementRegion candidate[TORIRS_PLUGIN_AREA_COUNT];
+    struct PluginPlacementResolvedReservation resolved[TORIRS_PLUGIN_RESERVES_MAX];
+    struct ToriRS_PlacementRect rect;
+    int changed;
+
+    assert(host);
+    if( host->placement_cache_valid && host->placement_cache_revision == host->layout_revision )
+        return 1;
+    plugin_ui_refresh_base(host);
+
+    ToriRS_PlacementRegion_Clear(&canvas);
+    ToriRS_PlacementRegion_Clear(&os);
+    ToriRS_PlacementRegion_Clear(&cuts);
+    for( int i = 0; i < TORIRS_PLUGIN_AREA_COUNT; i++ )
+        ToriRS_PlacementRegion_Clear(&candidate[i]);
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        memset(&resolved[i], 0, sizeof(resolved[i]));
+        resolved[i].plugin = -1;
+    }
+
+    if( !host->engine.slot_rect(
+            host->engine.user, TORIRS_PLUGIN_SLOT_CANVAS, &rect.x, &rect.y, &rect.w, &rect.h) ||
+        rect.w <= 0 || rect.h <= 0 )
+        return 0;
+    ToriRS_PlacementRegion_SetRect(&canvas, &rect);
+
+    if( host->engine.platform_safe_next )
+    {
+        int iter = -1;
+        while( (iter = host->engine.platform_safe_next(
+                    host->engine.user, iter, &rect.x, &rect.y, &rect.w, &rect.h)) >= 0 )
+        {
+            if( rect.w <= 0 || rect.h <= 0 )
+                continue;
+            if( ToriRS_PlacementRegion_AddRect(&os, &rect) != TORIRS_PLACEMENT_OK )
+                return 0;
+        }
+    }
+    else if(
+        host->engine.safe_os &&
+        host->engine.safe_os(host->engine.user, &rect.x, &rect.y, &rect.w, &rect.h) && rect.w > 0 &&
+        rect.h > 0 )
+        ToriRS_PlacementRegion_SetRect(&os, &rect);
+    else
+        os = canvas;
+    if( ToriRS_PlacementRegion_Intersect(
+            &canvas, &os, &candidate[TORIRS_PLUGIN_AREA_PLATFORM_SAFE]) !=
+        TORIRS_PLACEMENT_OK )
+        return 0;
+
+    ToriRS_PlacementRegion_Clear(&cuts);
+    if( !plugin_placement_add_named_occluders(host, &cuts, TORIRS_UI_NODE_BLOCKS_FRAME) )
+        return 0;
+    if( ToriRS_PlacementRegion_Subtract(
+            &candidate[TORIRS_PLUGIN_AREA_PLATFORM_SAFE],
+            &cuts,
+            &candidate[TORIRS_PLUGIN_AREA_FRAME_BUILD]) != TORIRS_PLACEMENT_OK )
+        return 0;
+
+    if( host->engine.slot_rect(
+            host->engine.user, TORIRS_PLUGIN_SLOT_VIEWPORT, &rect.x, &rect.y, &rect.w, &rect.h) &&
+        rect.w > 0 && rect.h > 0 )
+        ToriRS_PlacementRegion_SetRect(&candidate[TORIRS_PLUGIN_AREA_RAW_VIEWPORT], &rect);
+    else
+        candidate[TORIRS_PLUGIN_AREA_RAW_VIEWPORT] = canvas;
+
+    if( ToriRS_PlacementRegion_Intersect(
+            &candidate[TORIRS_PLUGIN_AREA_RAW_VIEWPORT],
+            &candidate[TORIRS_PLUGIN_AREA_PLATFORM_SAFE],
+            &candidate[TORIRS_PLUGIN_AREA_OVERLAY_SAFE]) != TORIRS_PLACEMENT_OK )
+        return 0;
+
+    ToriRS_PlacementRegion_Clear(&cuts);
+    if( !plugin_placement_add_named_occluders(host, &cuts, TORIRS_UI_NODE_BLOCKS_OVERLAY) )
+        return 0;
+    if( ToriRS_PlacementRegion_Subtract(
+            &candidate[TORIRS_PLUGIN_AREA_OVERLAY_SAFE],
+            &cuts,
+            &candidate[TORIRS_PLUGIN_AREA_OVERLAY_SAFE]) != TORIRS_PLACEMENT_OK )
+        return 0;
+    if( !plugin_placement_apply_named_reservations(
+            host,
+            TORIRS_PLUGIN_AREA_OVERLAY_SAFE,
+            &candidate[TORIRS_PLUGIN_AREA_OVERLAY_SAFE],
+            resolved) )
+        return 0;
+
+    changed = !host->placement_initialized;
+    if( host->placement_initialized )
+    {
+        for( int i = 0; i < TORIRS_PLUGIN_AREA_COUNT; i++ )
+            if( !ToriRS_PlacementRegion_Equals(&host->placement[i], &candidate[i]) )
+            {
+                changed = 1;
+                break;
+            }
+        if( !changed &&
+            !plugin_placement_resolved_equal(host->placement_resolved_reservations, resolved) )
+            changed = 1;
+    }
+
+    /* The previous complete answer stays live if any operation above fails. */
+    memcpy(host->placement, candidate, sizeof(candidate));
+    memcpy(
+        host->placement_resolved_reservations,
+        resolved,
+        sizeof(host->placement_resolved_reservations));
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        host->placement_reservations[i].assigned = resolved[i].assigned;
+        host->placement_reservations[i].rect = resolved[i].rect;
+    }
+    host->placement_cache_revision = host->layout_revision;
+    host->placement_cache_valid = 1;
+    if( changed )
+    {
+        host->placement_revision = plugin_placement_revision_next(host->placement_revision);
+        if( host->placement_initialized || announce_initial )
+            host->placement_notify_pending = 1;
+        else
+            host->placement_notified_revision = host->placement_revision;
+    }
+    host->placement_initialized = 1;
+    return 1;
+}
+
+static int
+plugin_placement_refresh(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    /* A callback which mutates a reservation schedules another transaction.
+     * Every subscriber in this one continues to observe one frozen retained
+     * placement snapshot and revision. */
+    if( host->layout_notifying && host->placement_initialized )
+        return 1;
+    return plugin_placement_rebuild(host, 0);
+}
+
+static uint32_t
+api_placement_revision(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    (void)plugin_placement_refresh(ctx->host);
+    return ctx->host->placement_revision;
+}
+
+static int
+api_placement_rect_next(
+    struct ToriRS_PluginCtx* ctx,
+    int area,
+    int iter,
+    struct ToriRS_PlacementRect* out)
+{
+    int next;
+
+    assert(ctx);
+    assert(out);
+    if( area < 0 || area >= TORIRS_PLUGIN_AREA_COUNT )
+        return -1;
+    if( !plugin_placement_refresh(ctx->host) )
+        return -1;
+    next = iter + 1;
+    if( next < 0 || next >= ToriRS_PlacementRegion_RectCount(&ctx->host->placement[area]) )
+        return -1;
+    ToriRS_PlacementRegion_RectAt(&ctx->host->placement[area], next, out);
+    return next;
+}
+
+static int
+api_placement_place(
+    struct ToriRS_PluginCtx* ctx,
+    int area,
+    int anchor,
+    int width,
+    int height,
+    int margin,
+    struct ToriRS_PlacementRect* out)
+{
+    assert(ctx);
+    assert(out);
+    if( area < 0 || area >= TORIRS_PLUGIN_AREA_COUNT )
+        return 0;
+    if( anchor < 0 || anchor >= TORIRS_PLACEMENT_ANCHOR_COUNT || width <= 0 || height <= 0 ||
+        margin < 0 )
+        return 0;
+    if( !plugin_placement_refresh(ctx->host) )
+        return 0;
+    return ToriRS_PlacementRegion_Place(
+               &ctx->host->placement[area], anchor, width, height, margin, out)
+               ? 1
+               : 0;
+}
+
+static int
+api_placement_contains(
+    struct ToriRS_PluginCtx* ctx,
+    int area,
+    struct ToriRS_PlacementRect const* rect)
+{
+    assert(ctx);
+    assert(rect);
+    if( area < 0 || area >= TORIRS_PLUGIN_AREA_COUNT )
+        return 0;
+    if( !plugin_placement_refresh(ctx->host) )
+        return 0;
+    return ToriRS_PlacementRegion_ContainsRect(&ctx->host->placement[area], rect) ? 1 : 0;
+}
+
+static int
+plugin_placement_reservation_name_valid(char const* name)
+{
+    size_t length;
+
+    assert(name);
+    length = strlen(name);
+    if( length == 0 || length >= TORIRS_PLUGIN_PLACEMENT_RESERVATION_NAME_MAX )
+        return 0;
+    for( size_t i = 0; i < length; i++ )
+    {
+        char const c = name[i];
+        if( (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' )
+            continue;
+        return 0;
+    }
+    return 1;
+}
+
+static int
+api_placement_reserve(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    int area,
+    int edge,
+    int pixels)
+{
+    struct ToriRS_PluginHost* host;
+    int free_row = -1;
+
+    assert(ctx);
+    assert(name);
+    host = ctx->host;
+    if( !plugin_placement_reservation_name_valid(name) )
+        return 0;
+    if( area != TORIRS_PLUGIN_AREA_OVERLAY_SAFE )
+        return 0;
+    if( edge < 0 || edge >= TORIRS_PLUGIN_PLACEMENT_EDGE_COUNT || pixels < 0 )
+        return 0;
+
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        struct PluginPlacementReservation* reservation = &host->placement_reservations[i];
+        if( reservation->plugin == ctx->index && strcmp(reservation->name, name) == 0 )
+        {
+            if( reservation->area == area && reservation->edge == edge &&
+                reservation->pixels == pixels )
+                return 1;
+            if( pixels == 0 )
+            {
+                memset(reservation, 0, sizeof(*reservation));
+                reservation->plugin = -1;
+            }
+            else
+            {
+                reservation->area = area;
+                reservation->edge = edge;
+                reservation->pixels = pixels;
+                reservation->assigned = 0;
+            }
+            PluginHost_LayoutChanged(host);
+            return 1;
+        }
+        if( reservation->plugin < 0 && free_row < 0 )
+            free_row = i;
+    }
+
+    if( pixels == 0 )
+        return 1;
+    if( free_row < 0 )
+        return 0;
+    host->placement_reservations[free_row].plugin = ctx->index;
+    host->placement_reservations[free_row].area = area;
+    host->placement_reservations[free_row].edge = edge;
+    host->placement_reservations[free_row].pixels = pixels;
+    snprintf(
+        host->placement_reservations[free_row].name,
+        sizeof(host->placement_reservations[free_row].name),
+        "%s",
+        name);
+    PluginHost_LayoutChanged(host);
+    return 1;
+}
+
+static int
+api_placement_reservation_rect(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    struct ToriRS_PlacementRect* out)
+{
+    assert(ctx);
+    assert(name);
+    assert(out);
+    if( !plugin_placement_reservation_name_valid(name) )
+        return 0;
+    if( !plugin_placement_refresh(ctx->host) )
+        return 0;
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        struct PluginPlacementResolvedReservation const* reservation =
+            &ctx->host->placement_resolved_reservations[i];
+        if( reservation->plugin == ctx->index && reservation->assigned &&
+            strcmp(reservation->name, name) == 0 )
+        {
+            *out = reservation->rect;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int
+plugin_ui_contribution_status(
+    struct ToriRS_PluginCtx* ctx,
+    char const* node,
+    struct ToriRS_UiContributionStatus* out)
+{
+    struct ToriRS_UiNodeRef wanted;
+
+    assert(ctx);
+    assert(node);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    if( !ctx->ui_contributions_registered || !ctx->def->ui_contributions )
+        return 0;
+
+    wanted = ToriRS_UiRegistry_PrivateRef(&ctx->host->ui_registry, ctx->name, node);
+    if( wanted.value == 0 )
+        return 0;
+    for( int i = 0; i < ctx->ui_contribution_count; i++ )
+    {
+        struct ToriRS_UiNodeRef const declared = ToriRS_UiRegistry_PrivateRef(
+            &ctx->host->ui_registry, ctx->name, ctx->def->ui_contributions[i].node);
+
+        if( declared.value != wanted.value ||
+            !ToriRS_UiRegistry_ContributionStatus(
+                &ctx->host->ui_registry, ctx->ui_contribution_refs[i], out) )
+            continue;
+        return 1;
+    }
+    return 0;
+}
+
+static int
+api_ui_contribution_facets(
+    struct ToriRS_PluginCtx* ctx,
+    char const* node,
+    int* out_conflict_facets)
+{
+    struct ToriRS_UiContributionStatus status;
+
+    assert(ctx);
+    assert(node);
+    if( out_conflict_facets )
+        *out_conflict_facets = 0;
+    if( !plugin_ui_contribution_status(ctx, node, &status) )
+        return 0;
+    if( out_conflict_facets )
+        *out_conflict_facets = (int)status.conflict_facets;
+    return (int)status.active_facets;
+}
+
+/* --------------------------------------------------------- canonical UI */
+
+static int
+plugin_ui_base_add_rect(
+    struct ToriRS_UiBaseDeclaration* declarations,
+    int count,
+    int capacity,
+    char const* provider,
+    char const* name,
+    int x,
+    int y,
+    int w,
+    int h,
+    uint32_t flags)
+{
+    struct ToriRS_UiBaseDeclaration* declaration;
+
+    assert(declarations);
+    assert(count >= 0);
+    assert(capacity > 0);
+    assert(provider);
+    assert(name);
+    if( w <= 0 || h <= 0 || count >= capacity )
+        return count;
+
+    declaration = &declarations[count++];
+    memset(declaration, 0, sizeof(*declaration));
+    declaration->provider = provider;
+    declaration->node = name;
+    declaration->facets = TORIRS_UI_FACET_ALL;
+    declaration->value.struct_size = sizeof(declaration->value);
+    declaration->value.bounds.x = x;
+    declaration->value.bounds.y = y;
+    declaration->value.bounds.width = w;
+    declaration->value.bounds.height = h;
+    declaration->value.anchor = TORIRS_ANCHOR_TOP_LEFT;
+    declaration->value.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
+    declaration->value.flags = flags | TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED;
+    return count;
+}
+
+static void
+plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
+{
+    static struct
+    {
+        int slot;
+        char const* name;
+        uint32_t flags;
+    } const SURFACE[] = {
+        { TORIRS_PLUGIN_SLOT_VIEWPORT,     "frame.viewport",     0                             },
+        { TORIRS_PLUGIN_SLOT_MINIMAP,      "frame.minimap",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_PLUGIN_SLOT_COMPASS,      "frame.compass",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_PLUGIN_SLOT_CHAT,         "frame.chat",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, "frame.chat.buttons", TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_PLUGIN_SLOT_SIDEBAR,      "frame.sidebar",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { TORIRS_PLUGIN_SLOT_MAIN_MODAL,   "frame.modal",        0                             },
+        { TORIRS_PLUGIN_SLOT_ORBS,         "frame.orbs",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
+    };
+    static char const* const CHAT_BUTTON[] = {
+        "frame.chat.button.public",
+        "frame.chat.button.private",
+        "frame.chat.button.trade",
+        "frame.chat.button.report",
+    };
+    static struct
+    {
+        char const* legacy;
+        char const* canonical;
+        uint32_t flags;
+    } const ROLE[] = {
+        { "minimap_edge",  "frame.minimap.housing", TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "orb_hitpoints", "frame.orb.hitpoints",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "orb_prayer",    "frame.orb.prayer",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "orb_run",       "frame.orb.run",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "orb_spec",      "frame.orb.special",     TORIRS_UI_NODE_BLOCKS_OVERLAY },
+    };
+    struct ToriRS_UiBaseDeclaration declarations[48];
+    char dynamic_names[15][TORIRS_UI_NAME_MAX];
+    char legacy_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    char const* provider;
+    int count = 0;
+
+    assert(host);
+    if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+    {
+        ToriRS_UiRegistry_ClearBase(&host->ui_registry);
+        return;
+    }
+    provider = host->frame_selection.active[0] ? host->frame_selection.active : "core/native";
+
+    for( size_t i = 0; i < sizeof(SURFACE) / sizeof(SURFACE[0]); i++ )
+    {
+        int x, y, w, h;
+        if( host->engine.slot_rect(host->engine.user, SURFACE[i].slot, &x, &y, &w, &h) )
+            count = plugin_ui_base_add_rect(
+                declarations,
+                count,
+                (int)(sizeof(declarations) / sizeof(declarations[0])),
+                provider,
+                SURFACE[i].name,
+                x,
+                y,
+                w,
+                h,
+                SURFACE[i].flags);
+    }
+
+    for( int i = 0; i < (int)(sizeof(CHAT_BUTTON) / sizeof(CHAT_BUTTON[0])); i++ )
+    {
+        int x, y, w, h;
+        if( host->engine.slot_member_rect(
+                host->engine.user, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, &x, &y, &w, &h) )
+            count = plugin_ui_base_add_rect(
+                declarations,
+                count,
+                (int)(sizeof(declarations) / sizeof(declarations[0])),
+                provider,
+                CHAT_BUTTON[i],
+                x,
+                y,
+                w,
+                h,
+                TORIRS_UI_NODE_BLOCKS_OVERLAY);
+    }
+
+    for( size_t i = 0; i < sizeof(ROLE) / sizeof(ROLE[0]); i++ )
+    {
+        int x, y, w, h;
+        if( host->engine.role_rect(host->engine.user, ROLE[i].legacy, &x, &y, &w, &h) &&
+            host->engine.role_visible(host->engine.user, ROLE[i].legacy) )
+            count = plugin_ui_base_add_rect(
+                declarations,
+                count,
+                (int)(sizeof(declarations) / sizeof(declarations[0])),
+                provider,
+                ROLE[i].canonical,
+                x,
+                y,
+                w,
+                h,
+                ROLE[i].flags);
+    }
+
+    /* The lane-owned popout rail is the first frame-blocking node. Additional
+     * RevConfig occluders migrate to named metadata rather than extending a
+     * numbered public API; this compatibility read keeps today's profiles. */
+    {
+        int x, y, w, h;
+        if( host->engine.role_rect(host->engine.user, "lane_chrome_0", &x, &y, &w, &h) &&
+            host->engine.role_visible(host->engine.user, "lane_chrome_0") )
+            count = plugin_ui_base_add_rect(
+                declarations,
+                count,
+                (int)(sizeof(declarations) / sizeof(declarations[0])),
+                "core/native",
+                "frame.sidebar.rail",
+                x,
+                y,
+                w,
+                h,
+                TORIRS_UI_NODE_BLOCKS_FRAME | TORIRS_UI_NODE_BLOCKS_OVERLAY);
+    }
+
+    for( int i = 0; i < 14; i++ )
+    {
+        int x, y, w, h;
+        snprintf(legacy_role, sizeof(legacy_role), "sidetab_%d", i);
+        if( !host->engine.role_rect(host->engine.user, legacy_role, &x, &y, &w, &h) )
+            continue;
+        snprintf(dynamic_names[i], sizeof(dynamic_names[i]), "frame.sidebar.tab.%d", i);
+        count = plugin_ui_base_add_rect(
+            declarations,
+            count,
+            (int)(sizeof(declarations) / sizeof(declarations[0])),
+            provider,
+            dynamic_names[i],
+            x,
+            y,
+            w,
+            h,
+            TORIRS_UI_NODE_BLOCKS_OVERLAY);
+    }
+
+    /* A v2 frame can publish semantic furniture directly. It replaces the
+     * compatibility row inferred from the legacy role/slot when both name the
+     * same object, and otherwise joins the same atomic base transaction. */
+    {
+        int const owner = plugin_frame_owner(host);
+        struct PluginV2Instance* v2 = owner >= 0 ? host->plugins[owner].v2 : NULL;
+        if( v2 )
+            for( int i = 0; i < v2->frame_ui_count; i++ )
+            {
+                struct PluginV2FrameNode* source = &v2->frame_ui[i];
+                int destination = -1;
+
+                for( int j = 0; j < count; j++ )
+                    if( strcmp(declarations[j].node, source->name) == 0 )
+                    {
+                        destination = j;
+                        break;
+                    }
+                if( destination < 0 )
+                {
+                    if( count >= (int)(sizeof(declarations) / sizeof(declarations[0])) )
+                    {
+                        TORIRS_REPORT("plugin: v2 frame named-UI declaration budget exhausted\n");
+                        break;
+                    }
+                    destination = count++;
+                }
+                declarations[destination] = (struct ToriRS_UiBaseDeclaration){
+                    .provider = provider,
+                    .node = source->name,
+                    .facets = TORIRS_UI_FACET_ALL,
+                    .value = source->value,
+                };
+            }
+    }
+
+    if( ToriRS_UiRegistry_ReplaceBase(&host->ui_registry, declarations, count) !=
+        TORIRS_UI_REGISTRY_OK )
+        TORIRS_REPORT("plugin: rejected the resolved named-UI base; keeping the previous tree\n");
 }
 
 /**
@@ -1591,7 +2651,9 @@ api_role_rect(
 }
 
 static int
-api_role_visible(struct ToriRS_PluginCtx* ctx, char const* role)
+api_role_visible(
+    struct ToriRS_PluginCtx* ctx,
+    char const* role)
 {
     assert(ctx);
     if( !role || role[0] == '\0' )
@@ -1619,7 +2681,10 @@ api_role_visible(struct ToriRS_PluginCtx* ctx, char const* role)
 }
 
 static int
-api_role_click(struct ToriRS_PluginCtx* ctx, char const* role, int op)
+api_role_click(
+    struct ToriRS_PluginCtx* ctx,
+    char const* role,
+    int op)
 {
     assert(ctx);
     if( !role || role[0] == '\0' )
@@ -1635,7 +2700,9 @@ api_role_click(struct ToriRS_PluginCtx* ctx, char const* role, int op)
 }
 
 static int
-api_role_id(struct ToriRS_PluginCtx* ctx, char const* role)
+api_role_id(
+    struct ToriRS_PluginCtx* ctx,
+    char const* role)
 {
     assert(ctx);
     if( !role || role[0] == '\0' )
@@ -1646,7 +2713,9 @@ api_role_id(struct ToriRS_PluginCtx* ctx, char const* role)
 }
 
 static int
-role_replacement_find(struct ToriRS_PluginHost const* host, char const* role)
+role_replacement_find(
+    struct ToriRS_PluginHost const* host,
+    char const* role)
 {
     assert(host);
     assert(role);
@@ -1670,7 +2739,9 @@ role_replacement_find(struct ToriRS_PluginHost const* host, char const* role)
  * map instead, and painted under the very plate it meant to sit on.
  */
 static int
-role_replaced_by(struct ToriRS_PluginHost const* host, char const* role)
+role_replaced_by(
+    struct ToriRS_PluginHost const* host,
+    char const* role)
 {
     int at;
 
@@ -1699,7 +2770,9 @@ role_replacement_free(struct ToriRS_PluginHost const* host)
 }
 
 static void
-role_replacements_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+role_replacements_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
 {
     assert(host);
     for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
@@ -1707,8 +2780,7 @@ role_replacements_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
         struct PluginRoleReplacement* claim = &host->role_replacements[i];
         if( claim->plugin != plugin )
             continue;
-        (void)host->engine.role_replace(
-            host->engine.user, plugin, claim->role, /*enabled=*/0);
+        (void)host->engine.role_replace(host->engine.user, plugin, claim->role, /*enabled=*/0);
         claim->plugin = -1;
         claim->role[0] = '\0';
     }
@@ -1766,7 +2838,10 @@ api_role_replace(
 }
 
 static int
-api_role_anchor(struct ToriRS_PluginCtx* ctx, char const* role, int place)
+api_role_anchor(
+    struct ToriRS_PluginCtx* ctx,
+    char const* role,
+    int place)
 {
     struct ToriRS_PluginHost* host;
     int replace = 0;
@@ -1873,7 +2948,11 @@ api_slot_member_rect(
  * number from the last session.
  */
 static int
-api_slot_native_size(struct ToriRS_PluginCtx* ctx, int slot, int* out_w, int* out_h)
+api_slot_native_size(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int* out_w,
+    int* out_h)
 {
     int w = 0, h = 0;
 
@@ -1934,68 +3013,6 @@ api_component_rect(
 }
 
 static int
-api_layout_reserve(struct ToriRS_PluginCtx* ctx, int slot, int edge, int px)
-{
-    struct ToriRS_PluginHost* host;
-    int free_row = -1;
-
-    assert(ctx);
-    host = ctx->host;
-
-    /* Only the derived regions. A placeable role is whatever the frame says it
-     * is, and eating an edge of it here would be arguing with the layout
-     * rather than making room beside it. */
-    if( slot != TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME )
-    {
-        TORIRS_LOG("plugin: %s reserved from region %d; only SAFE can be reserved from\n",
-            ctx->name,
-            slot);
-        return 0;
-    }
-    if( edge < 0 || edge >= TORIRS_PLUGIN_EDGE_COUNT )
-        return 0;
-    if( px < 0 )
-        px = 0;
-
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        struct PluginReserve* r = &host->reserves[i];
-        if( r->plugin == ctx->index && r->slot == slot && r->edge == edge )
-        {
-            /* Replaced IN PLACE, keeping this plugin's position in the
-             * declaration order: one that re-states its width on a config
-             * change must not jump to the back of the queue and swap sides
-             * with a neighbour that has not moved. */
-            if( r->px == px )
-                return 1;
-            r->px = px;
-            if( px == 0 )
-                r->plugin = -1;
-            PluginHost_LayoutChanged(host);
-            return 1;
-        }
-        if( r->plugin < 0 && free_row < 0 )
-            free_row = i;
-    }
-
-    if( px == 0 )
-        return 1; /* nothing of this plugin's to drop */
-    if( free_row < 0 )
-    {
-        TORIRS_LOG("plugin: %s could not reserve; the reservation table is full (%d)\n",
-            ctx->name,
-            TORIRS_PLUGIN_RESERVES_MAX);
-        return 0;
-    }
-    host->reserves[free_row].plugin = ctx->index;
-    host->reserves[free_row].slot = (uint8_t)slot;
-    host->reserves[free_row].edge = (uint8_t)edge;
-    host->reserves[free_row].px = px;
-    PluginHost_LayoutChanged(host);
-    return 1;
-}
-
-static int
 api_layout_revision(struct ToriRS_PluginCtx* ctx)
 {
     assert(ctx);
@@ -2003,17 +3020,20 @@ api_layout_revision(struct ToriRS_PluginCtx* ctx)
 }
 
 static void
-plugin_reserves_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+plugin_placement_reservations_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
 {
     int dropped = 0;
 
     assert(host);
     for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
     {
-        if( host->reserves[i].plugin != plugin )
+        struct PluginPlacementReservation* reservation = &host->placement_reservations[i];
+        if( reservation->plugin != plugin )
             continue;
-        host->reserves[i].plugin = -1;
-        host->reserves[i].px = 0;
+        memset(reservation, 0, sizeof(*reservation));
+        reservation->plugin = -1;
         dropped = 1;
     }
     if( dropped )
@@ -2021,7 +3041,11 @@ plugin_reserves_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
 }
 
 static int
-api_stat(struct ToriRS_PluginCtx* ctx, int skill, int* out_current, int* out_base)
+api_stat(
+    struct ToriRS_PluginCtx* ctx,
+    int skill,
+    int* out_current,
+    int* out_base)
 {
     assert(ctx);
     /* `skill` is a NUMBER a plugin computed or read out of its own config, so
@@ -2046,7 +3070,9 @@ api_stat_xp(
 }
 
 static char const*
-api_skill_name(struct ToriRS_PluginCtx* ctx, int skill)
+api_skill_name(
+    struct ToriRS_PluginCtx* ctx,
+    int skill)
 {
     assert(ctx);
     return ctx->host->engine.skill_name(ctx->host->engine.user, skill);
@@ -2077,7 +3103,10 @@ api_project(
 /* -- config accessors -- */
 
 char const*
-PluginHost_ConfigGet(struct ToriRS_PluginHost const* host, int plugin_index, char const* key)
+PluginHost_ConfigGet(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index,
+    char const* key)
 {
     assert(host);
     assert(key);
@@ -2094,7 +3123,9 @@ PluginHost_ConfigGet(struct ToriRS_PluginHost const* host, int plugin_index, cha
 }
 
 static int
-api_cfg_has(struct ToriRS_PluginCtx* ctx, char const* key)
+api_cfg_has(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key)
 {
     assert(ctx);
     assert(key);
@@ -2102,7 +3133,9 @@ api_cfg_has(struct ToriRS_PluginCtx* ctx, char const* key)
 }
 
 static char const*
-api_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
+api_cfg_str(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key)
 {
     assert(ctx);
     assert(key);
@@ -2129,7 +3162,9 @@ api_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
  * print once per frame forever.
  */
 static int
-plugin_cfg_number(char const* value, int fallback)
+plugin_cfg_number(
+    char const* value,
+    int fallback)
 {
     char const* end = NULL;
     int parsed = 0;
@@ -2147,7 +3182,9 @@ plugin_cfg_number(char const* value, int fallback)
 }
 
 static int
-api_cfg_bool(struct ToriRS_PluginCtx* ctx, char const* key)
+api_cfg_bool(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key)
 {
     char const* value = api_cfg_str(ctx, key);
     if( value[0] == '\0' )
@@ -2158,7 +3195,9 @@ api_cfg_bool(struct ToriRS_PluginCtx* ctx, char const* key)
 }
 
 static int
-api_cfg_int(struct ToriRS_PluginCtx* ctx, char const* key)
+api_cfg_int(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key)
 {
     return plugin_cfg_number(api_cfg_str(ctx, key), 0);
 }
@@ -2172,7 +3211,9 @@ api_cfg_int(struct ToriRS_PluginCtx* ctx, char const* key)
  * wants the packed ARGB word reads the same key with cfg_int.
  */
 static uint32_t
-api_cfg_color(struct ToriRS_PluginCtx* ctx, char const* key)
+api_cfg_color(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key)
 {
     return (uint32_t)plugin_cfg_number(api_cfg_str(ctx, key), 0) & 0xffffffu;
 }
@@ -2218,7 +3259,10 @@ PluginHost_ConfigSet(
 }
 
 static void
-api_cfg_set(struct ToriRS_PluginCtx* ctx, char const* key, char const* value)
+api_cfg_set(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key,
+    char const* value)
 {
     assert(ctx);
     assert(key);
@@ -2229,14 +3273,19 @@ api_cfg_set(struct ToriRS_PluginCtx* ctx, char const* key, char const* value)
 /* -- the client's own variables -- */
 
 static int
-api_varbit(struct ToriRS_PluginCtx* ctx, int varbit_id)
+api_varbit(
+    struct ToriRS_PluginCtx* ctx,
+    int varbit_id)
 {
     assert(ctx);
     return ctx->host->engine.varbit(ctx->host->engine.user, varbit_id);
 }
 
 static int
-api_feature_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginFeature* out)
+api_feature_next(
+    struct ToriRS_PluginCtx* ctx,
+    int iter,
+    struct ToriRS_PluginFeature* out)
 {
     assert(ctx);
     assert(out);
@@ -2244,7 +3293,9 @@ api_feature_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginFea
 }
 
 static int
-api_feature_get(struct ToriRS_PluginCtx* ctx, char const* key)
+api_feature_get(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key)
 {
     assert(ctx);
     assert(key);
@@ -2252,7 +3303,10 @@ api_feature_get(struct ToriRS_PluginCtx* ctx, char const* key)
 }
 
 static bool
-api_feature_set(struct ToriRS_PluginCtx* ctx, char const* key, int value)
+api_feature_set(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key,
+    int value)
 {
     assert(ctx);
     assert(key);
@@ -2291,14 +3345,19 @@ api_display_setting_set(
 }
 
 static int
-api_varp(struct ToriRS_PluginCtx* ctx, int varp_id)
+api_varp(
+    struct ToriRS_PluginCtx* ctx,
+    int varp_id)
 {
     assert(ctx);
     return ctx->host->engine.varp(ctx->host->engine.user, varp_id);
 }
 
 static int
-api_cache_id(struct ToriRS_PluginCtx* ctx, char const* kind, char const* name)
+api_cache_id(
+    struct ToriRS_PluginCtx* ctx,
+    char const* kind,
+    char const* name)
 {
     assert(ctx);
     assert(kind);
@@ -2309,7 +3368,9 @@ api_cache_id(struct ToriRS_PluginCtx* ctx, char const* kind, char const* name)
 }
 
 static int
-api_lane(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginLane* out)
+api_lane(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginLane* out)
 {
     assert(ctx);
     assert(out);
@@ -2342,7 +3403,9 @@ api_frame_root(struct ToriRS_PluginCtx* ctx)
  * user's saved switch survives a lane that cannot run the plugin.
  */
 static void
-api_disable_self(struct ToriRS_PluginCtx* ctx, char const* reason)
+api_disable_self(
+    struct ToriRS_PluginCtx* ctx,
+    char const* reason)
 {
     struct ToriRS_PluginHost* host;
     int prev;
@@ -2373,6 +3436,11 @@ api_disable_self(struct ToriRS_PluginCtx* ctx, char const* reason)
     plugin_teardown(host, ctx->index);
     host->dispatching = prev;
     ctx->refused = true;
+    if( ctx->def->frames )
+    {
+        PluginFrameCatalog_SetAvailable(&host->frame_catalog, ctx->index, 0);
+        host->frame_selection_dirty = 1;
+    }
 }
 
 static int
@@ -2397,19 +3465,23 @@ api_inv_slot(
     int* out_count)
 {
     assert(ctx);
-    return ctx->host->engine.inv_slot(
-        ctx->host->engine.user, inv, slot, out_obj_id, out_count);
+    return ctx->host->engine.inv_slot(ctx->host->engine.user, inv, slot, out_obj_id, out_count);
 }
 
 static int
-api_inv_size(struct ToriRS_PluginCtx* ctx, int inv)
+api_inv_size(
+    struct ToriRS_PluginCtx* ctx,
+    int inv)
 {
     assert(ctx);
     return ctx->host->engine.inv_size(ctx->host->engine.user, inv);
 }
 
 static uint32_t
-api_setting_color(struct ToriRS_PluginCtx* ctx, int varp_id, uint32_t fallback)
+api_setting_color(
+    struct ToriRS_PluginCtx* ctx,
+    int varp_id,
+    uint32_t fallback)
 {
     int stored;
 
@@ -2461,7 +3533,10 @@ api_menu_add(
 /* -- ground items -- */
 
 static int
-api_obj_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginObjSnap* out)
+api_obj_next(
+    struct ToriRS_PluginCtx* ctx,
+    int iter,
+    struct ToriRS_PluginObjSnap* out)
 {
     assert(ctx);
     assert(out);
@@ -2481,7 +3556,9 @@ api_obj_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginObjSnap
  * a missing file has to be reportable anyway.
  */
 static bool
-plugin_asset_name_ok(struct ToriRS_PluginCtx* ctx, char const* name)
+plugin_asset_name_ok(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name)
 {
     assert(ctx);
     assert(name);
@@ -2501,7 +3578,8 @@ plugin_asset_name_ok(struct ToriRS_PluginCtx* ctx, char const* name)
         ok = false;
 
     if( !ok )
-        TORIRS_ERR("plugin: %s asked for asset '%s'; asset names are bare filenames of "
+        TORIRS_ERR(
+            "plugin: %s asked for asset '%s'; asset names are bare filenames of "
             "[A-Za-z0-9._-] with no '..', so that one is refused\n",
             ctx->name,
             name);
@@ -2509,7 +3587,10 @@ plugin_asset_name_ok(struct ToriRS_PluginCtx* ctx, char const* name)
 }
 
 static struct PluginAsset*
-plugin_asset_find(struct ToriRS_PluginHost* host, int plugin, char const* name)
+plugin_asset_find(
+    struct ToriRS_PluginHost* host,
+    int plugin,
+    char const* name)
 {
     assert(host);
     assert(name);
@@ -2523,7 +3604,9 @@ plugin_asset_find(struct ToriRS_PluginHost* host, int plugin, char const* name)
 
 /* Free one slot's bytes and compact the table over it. */
 static void
-plugin_asset_drop(struct ToriRS_PluginHost* host, struct PluginAsset* slot)
+plugin_asset_drop(
+    struct ToriRS_PluginHost* host,
+    struct PluginAsset* slot)
 {
     assert(host);
     assert(slot);
@@ -2537,7 +3620,10 @@ plugin_asset_drop(struct ToriRS_PluginHost* host, struct PluginAsset* slot)
 }
 
 static struct PluginAsset*
-plugin_asset_claim(struct ToriRS_PluginHost* host, int plugin, char const* name)
+plugin_asset_claim(
+    struct ToriRS_PluginHost* host,
+    int plugin,
+    char const* name)
 {
     assert(host);
     assert(name);
@@ -2556,7 +3642,9 @@ plugin_asset_claim(struct ToriRS_PluginHost* host, int plugin, char const* name)
 }
 
 static void
-plugin_assets_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+plugin_assets_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
 {
     assert(host);
     for( int i = host->asset_count - 1; i >= 0; i-- )
@@ -2580,7 +3668,9 @@ plugin_assets_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
  * @return NULL when the handle is out of range or belongs to someone else.
  */
 static struct PluginImage*
-plugin_image_owned(struct ToriRS_PluginCtx* ctx, int image)
+plugin_image_owned(
+    struct ToriRS_PluginCtx* ctx,
+    int image)
 {
     assert(ctx);
 
@@ -2588,9 +3678,7 @@ plugin_image_owned(struct ToriRS_PluginCtx* ctx, int image)
         return NULL;
     if( ctx->host->images[image].plugin != ctx->index )
     {
-        TORIRS_LOG("plugin: %s used image handle %d, which it does not own\n",
-            ctx->name,
-            image);
+        TORIRS_LOG("plugin: %s used image handle %d, which it does not own\n", ctx->name, image);
         return NULL;
     }
     return &ctx->host->images[image];
@@ -2613,7 +3701,9 @@ plugin_image_owned(struct ToriRS_PluginCtx* ctx, int image)
  * image whose pixels have not landed.
  */
 static struct PluginImage const*
-plugin_image_readable(struct ToriRS_PluginCtx* ctx, int image)
+plugin_image_readable(
+    struct ToriRS_PluginCtx* ctx,
+    int image)
 {
     struct ToriRS_PluginHost const* host;
 
@@ -2625,8 +3715,7 @@ plugin_image_readable(struct ToriRS_PluginCtx* ctx, int image)
     if( host->images[image].plugin == ctx->index )
         return &host->images[image];
 
-    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) /
-                              sizeof(host->chrome_borrows[0])); i++ )
+    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) / sizeof(host->chrome_borrows[0])); i++ )
     {
         struct PluginChromeBorrow const* row = &host->chrome_borrows[i];
         if( row->borrower != ctx->index || row->lender_image != image )
@@ -2655,7 +3744,10 @@ plugin_image_readable(struct ToriRS_PluginCtx* ctx, int image)
  * and a dresser that ships its own picture needs nothing else.
  */
 static int
-plugin_chrome_borrow(struct ToriRS_PluginHost* host, int borrower, int lender_image)
+plugin_chrome_borrow(
+    struct ToriRS_PluginHost* host,
+    int borrower,
+    int lender_image)
 {
     int free_row = -1;
 
@@ -2669,8 +3761,7 @@ plugin_chrome_borrow(struct ToriRS_PluginHost* host, int borrower, int lender_im
     if( host->images[lender_image].plugin < 0 )
         return -1;
 
-    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) /
-                              sizeof(host->chrome_borrows[0])); i++ )
+    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) / sizeof(host->chrome_borrows[0])); i++ )
     {
         struct PluginChromeBorrow* row = &host->chrome_borrows[i];
         if( row->borrower < 0 )
@@ -2688,7 +3779,8 @@ plugin_chrome_borrow(struct ToriRS_PluginHost* host, int borrower, int lender_im
 
     if( free_row < 0 )
     {
-        TORIRS_LOG("plugin: %s could not borrow image %d; the borrow table is full\n",
+        TORIRS_LOG(
+            "plugin: %s could not borrow image %d; the borrow table is full\n",
             host->plugins[borrower].name,
             lender_image);
         return -1;
@@ -2702,17 +3794,17 @@ plugin_chrome_borrow(struct ToriRS_PluginHost* host, int borrower, int lender_im
 /** Drop every borrow a plugin holds, and every borrow of ITS images. Both
  *  halves, because a teardown ends the lending in both directions. */
 static void
-plugin_chrome_borrows_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+plugin_chrome_borrows_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
 {
     assert(host);
-    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) /
-                              sizeof(host->chrome_borrows[0])); i++ )
+    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) / sizeof(host->chrome_borrows[0])); i++ )
     {
         struct PluginChromeBorrow* row = &host->chrome_borrows[i];
         if( row->borrower < 0 )
             continue;
-        if( row->borrower == plugin ||
-            host->images[row->lender_image].plugin == plugin )
+        if( row->borrower == plugin || host->images[row->lender_image].plugin == plugin )
         {
             row->borrower = -1;
             row->lender_image = 0;
@@ -2723,7 +3815,9 @@ plugin_chrome_borrows_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
 
 /** Free a slot's scene entry and mark it free. Idempotent. */
 static void
-plugin_image_drop(struct ToriRS_PluginHost* host, int image)
+plugin_image_drop(
+    struct ToriRS_PluginHost* host,
+    int image)
 {
     assert(host);
     assert(image >= 0 && image < TORIRS_PLUGIN_IMAGES_MAX);
@@ -2746,7 +3840,9 @@ plugin_image_drop(struct ToriRS_PluginHost* host, int image)
 }
 
 static void
-plugin_model_drop(struct ToriRS_PluginHost* host, int model)
+plugin_model_drop(
+    struct ToriRS_PluginHost* host,
+    int model)
 {
     assert(host);
     assert(model >= 0 && model < TORIRS_PLUGIN_MODELS_MAX);
@@ -2758,7 +3854,9 @@ plugin_model_drop(struct ToriRS_PluginHost* host, int model)
 }
 
 static void
-plugin_models_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+plugin_models_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
 {
     assert(host);
     for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
@@ -2777,7 +3875,10 @@ plugin_models_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
  */
 static void
 plugin_model_publish(
-    struct ToriRS_PluginHost* host, int model, void const* data, int size)
+    struct ToriRS_PluginHost* host,
+    int model,
+    void const* data,
+    int size)
 {
     struct PluginModel* slot;
 
@@ -2788,7 +3889,8 @@ plugin_model_publish(
     slot = &host->models[model];
     if( !host->engine.model_publish(host->engine.user, model, data, size) )
     {
-        TORIRS_LOG("plugin: %s model '%s' would not decode (%d bytes); it draws nothing\n",
+        TORIRS_LOG(
+            "plugin: %s model '%s' would not decode (%d bytes); it draws nothing\n",
             host->plugins[slot->plugin].name,
             slot->asset,
             size);
@@ -2798,7 +3900,9 @@ plugin_model_publish(
 }
 
 static void
-plugin_images_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+plugin_images_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
 {
     assert(host);
     for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
@@ -2810,7 +3914,9 @@ plugin_images_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
 
 /** Forget one cached icon and free the image slot behind it. Idempotent. */
 static void
-plugin_obj_icon_drop(struct ToriRS_PluginHost* host, int entry)
+plugin_obj_icon_drop(
+    struct ToriRS_PluginHost* host,
+    int entry)
 {
     struct PluginObjIcon* row;
 
@@ -2835,7 +3941,9 @@ plugin_obj_icon_drop(struct ToriRS_PluginHost* host, int entry)
  * to go, or the image table leaks a quarter of itself per reload.
  */
 static void
-plugin_obj_icons_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+plugin_obj_icons_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
 {
     assert(host);
     for( int i = 0; i < TORIRS_PLUGIN_OBJ_ICONS_MAX; i++ )
@@ -2845,7 +3953,9 @@ plugin_obj_icons_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
 
 /** Is this handle one of the icon cache's, rather than the plugin's own? */
 static bool
-plugin_obj_icon_owns(struct ToriRS_PluginHost const* host, int image)
+plugin_obj_icon_owns(
+    struct ToriRS_PluginHost const* host,
+    int image)
 {
     assert(host);
     for( int i = 0; i < TORIRS_PLUGIN_OBJ_ICONS_MAX; i++ )
@@ -2867,7 +3977,9 @@ plugin_obj_icon_owns(struct ToriRS_PluginHost const* host, int image)
  */
 static int
 api_loot_source_next(
-    struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLootSource* out)
+    struct ToriRS_PluginCtx* ctx,
+    int iter,
+    struct ToriRS_PluginLootSource* out)
 {
     assert(ctx);
     assert(out);
@@ -2883,12 +3995,15 @@ api_loot_row_next(
 {
     assert(ctx);
     assert(out);
-    return ctx->host->engine.loot_row_next(
-        ctx->host->engine.user, source_id, iter, out);
+    return ctx->host->engine.loot_row_next(ctx->host->engine.user, source_id, iter, out);
 }
 
 static int
-api_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
+api_obj_image(
+    struct ToriRS_PluginCtx* ctx,
+    int obj_id,
+    int count,
+    int style)
 {
     struct ToriRS_PluginHost* host;
     int free_entry = -1;
@@ -2903,8 +4018,7 @@ api_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
     /* An id and a count are NUMBERS the plugin computed -- off a drop table,
      * out of a container -- so a silly one is bad input rather than a bug in
      * the caller's frame, and the honest answer is "there is no such icon". */
-    if( obj_id < 0 || count < 0 || style < 0 ||
-        style > TORIRS_PLUGIN_OBJ_ICON_SELECTED )
+    if( obj_id < 0 || count < 0 || style < 0 || style > TORIRS_PLUGIN_OBJ_ICON_SELECTED )
         return -1;
     if( count == 0 )
         count = 1;
@@ -2921,8 +4035,8 @@ api_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
                 free_entry = i;
             continue;
         }
-        if( row->plugin == ctx->index && row->obj_id == obj_id &&
-            row->count == count && row->style == style )
+        if( row->plugin == ctx->index && row->obj_id == obj_id && row->count == count &&
+            row->style == style )
         {
             row->used = host->icon_clock;
             return row->image;
@@ -2955,7 +4069,8 @@ api_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
          * there is nothing to evict that would help. Said out loud once per
          * call is too often; this is the same shape as the compose path's
          * message and is rare enough to be worth seeing at all. */
-        TORIRS_LOG("plugin: %s obj icon %d not built, the resident image table is full "
+        TORIRS_LOG(
+            "plugin: %s obj icon %d not built, the resident image table is full "
             "(%d)\n",
             ctx->name,
             obj_id,
@@ -2963,8 +4078,7 @@ api_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
         return -1;
     }
 
-    if( !host->engine.obj_image(
-            host->engine.user, free_image, obj_id, count, style, &w, &h) )
+    if( !host->engine.obj_image(host->engine.user, free_image, obj_id, count, style, &w, &h) )
         return -1;
 
     host->images[free_image].plugin = ctx->index;
@@ -2974,8 +4088,12 @@ api_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
      * never match a cached icon and hand a plugin's own art this slot.
      */
     snprintf(
-        host->images[free_image].asset, sizeof(host->images[free_image].asset),
-        "obj:%d:%d:%d", obj_id, count, style);
+        host->images[free_image].asset,
+        sizeof(host->images[free_image].asset),
+        "obj:%d:%d:%d",
+        obj_id,
+        count,
+        style);
     host->images[free_image].width = w;
     host->images[free_image].height = h;
     host->images[free_image].published = true;
@@ -3001,7 +4119,10 @@ api_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
  */
 static int
 plugin_image_publish(
-    struct ToriRS_PluginHost* host, int image, void const* data, int size)
+    struct ToriRS_PluginHost* host,
+    int image,
+    void const* data,
+    int size)
 {
     struct PluginImage* slot;
     int w = 0;
@@ -3014,7 +4135,8 @@ plugin_image_publish(
     slot = &host->images[image];
     if( !host->engine.image_publish(host->engine.user, image, data, size, &w, &h) )
     {
-        TORIRS_LOG("plugin: %s image '%s' would not decode (%d bytes); it draws nothing\n",
+        TORIRS_LOG(
+            "plugin: %s image '%s' would not decode (%d bytes); it draws nothing\n",
             host->plugins[slot->plugin].name,
             slot->asset,
             size);
@@ -3027,7 +4149,9 @@ plugin_image_publish(
 }
 
 static int
-api_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
+api_asset_load(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name)
 {
     assert(ctx);
     assert(name);
@@ -3053,7 +4177,8 @@ api_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
     slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        TORIRS_LOG("plugin: %s asset '%s' not loaded, the resident asset table is full (%d)\n",
+        TORIRS_LOG(
+            "plugin: %s asset '%s' not loaded, the resident asset table is full (%d)\n",
             ctx->name,
             name,
             TORIRS_PLUGIN_ASSETS_MAX);
@@ -3071,7 +4196,10 @@ api_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
 }
 
 static void const*
-api_asset_data(struct ToriRS_PluginCtx* ctx, char const* name, int* out_size)
+api_asset_data(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    int* out_size)
 {
     assert(ctx);
     assert(name);
@@ -3083,7 +4211,11 @@ api_asset_data(struct ToriRS_PluginCtx* ctx, char const* name, int* out_size)
 }
 
 static int
-api_asset_save(struct ToriRS_PluginCtx* ctx, char const* name, void const* data, int size)
+api_asset_save(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    void const* data,
+    int size)
 {
     assert(ctx);
     assert(name);
@@ -3098,7 +4230,8 @@ api_asset_save(struct ToriRS_PluginCtx* ctx, char const* name, void const* data,
     struct PluginAsset* slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        TORIRS_LOG("plugin: %s asset '%s' not saved, the resident asset table is full (%d)\n",
+        TORIRS_LOG(
+            "plugin: %s asset '%s' not saved, the resident asset table is full (%d)\n",
             ctx->name,
             name,
             TORIRS_PLUGIN_ASSETS_MAX);
@@ -3124,7 +4257,9 @@ api_asset_save(struct ToriRS_PluginCtx* ctx, char const* name, void const* data,
 }
 
 static void
-api_asset_release(struct ToriRS_PluginCtx* ctx, char const* name)
+api_asset_release(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name)
 {
     assert(ctx);
     assert(name);
@@ -3151,7 +4286,9 @@ api_asset_release(struct ToriRS_PluginCtx* ctx, char const* name)
  * from a config field, not from a programmer.
  */
 static bool
-plugin_screenshot_dir_ok(struct ToriRS_PluginCtx* ctx, char const* dir)
+plugin_screenshot_dir_ok(
+    struct ToriRS_PluginCtx* ctx,
+    char const* dir)
 {
     assert(ctx);
     assert(dir);
@@ -3169,7 +4306,8 @@ plugin_screenshot_dir_ok(struct ToriRS_PluginCtx* ctx, char const* dir)
         ok = false;
 
     if( !ok )
-        TORIRS_LOG("plugin: %s asked to write a screenshot to '%s'; a destination is a path of "
+        TORIRS_LOG(
+            "plugin: %s asked to write a screenshot to '%s'; a destination is a path of "
             "[A-Za-z0-9._- /:] with no '..'\n",
             ctx->name,
             dir);
@@ -3213,7 +4351,10 @@ api_screenshot(
  * inconvenient.
  */
 static int
-api_datestamp(struct ToriRS_PluginCtx* ctx, char* out, int out_size)
+api_datestamp(
+    struct ToriRS_PluginCtx* ctx,
+    char* out,
+    int out_size)
 {
     (void)ctx;
     time_t now;
@@ -3285,13 +4426,11 @@ PluginHost_AssetDeliver(
         for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
             if( host->images[i].plugin == plugin &&
                 strcmp(host->images[i].asset, asset_name) == 0 &&
-                !(host->panel_registered[plugin] &&
-                  host->panel_icon_image[plugin] == i &&
+                !(host->panel_registered[plugin] && host->panel_icon_image[plugin] == i &&
                   size > TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX) )
                 plugin_image_publish(host, i, slot->data, slot->size);
         for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
-            if( host->models[i].plugin == plugin &&
-                strcmp(host->models[i].asset, asset_name) == 0 )
+            if( host->models[i].plugin == plugin && strcmp(host->models[i].asset, asset_name) == 0 )
                 plugin_model_publish(host, i, slot->data, slot->size);
     }
 
@@ -3306,6 +4445,8 @@ PluginHost_AssetDeliver(
     }
 
     struct ToriRS_PluginCtx* ctx = &host->plugins[plugin];
+    if( ctx->def->frames )
+        host->frame_selection_dirty = 1;
     if( !ctx->enabled || !ctx->running )
         return;
 
@@ -3330,7 +4471,9 @@ PluginHost_AssetDeliver(
 /* Same rule the object handles are held to: a handle the plugin was never
  * given is a contract violation, and the budget is not. */
 static void
-plugin_mesh_assert_owned(struct ToriRS_PluginCtx* ctx, int mesh)
+plugin_mesh_assert_owned(
+    struct ToriRS_PluginCtx* ctx,
+    int mesh)
 {
     assert(ctx);
     for( int i = 0; i < ctx->mesh_count; i++ )
@@ -3352,7 +4495,8 @@ api_mesh_create(struct ToriRS_PluginCtx* ctx)
         if( !ctx->mesh_clipped )
         {
             ctx->mesh_clipped = true;
-            TORIRS_ERR("plugin: %s is at its %d mesh budget; further mesh_create "
+            TORIRS_ERR(
+                "plugin: %s is at its %d mesh budget; further mesh_create "
                 "calls are refused\n",
                 ctx->name,
                 TORIRS_PLUGIN_MESH_BUDGET);
@@ -3368,7 +4512,9 @@ api_mesh_create(struct ToriRS_PluginCtx* ctx)
 }
 
 static void
-api_mesh_destroy(struct ToriRS_PluginCtx* ctx, int mesh)
+api_mesh_destroy(
+    struct ToriRS_PluginCtx* ctx,
+    int mesh)
 {
     plugin_mesh_assert_owned(ctx, mesh);
 
@@ -3384,21 +4530,35 @@ api_mesh_destroy(struct ToriRS_PluginCtx* ctx, int mesh)
 }
 
 static void
-api_mesh_clear(struct ToriRS_PluginCtx* ctx, int mesh)
+api_mesh_clear(
+    struct ToriRS_PluginCtx* ctx,
+    int mesh)
 {
     plugin_mesh_assert_owned(ctx, mesh);
     ctx->host->engine.mesh_clear(ctx->host->engine.user, mesh);
 }
 
 static int
-api_mesh_vertex(struct ToriRS_PluginCtx* ctx, int mesh, int x, int y, int z)
+api_mesh_vertex(
+    struct ToriRS_PluginCtx* ctx,
+    int mesh,
+    int x,
+    int y,
+    int z)
 {
     plugin_mesh_assert_owned(ctx, mesh);
     return ctx->host->engine.mesh_vertex(ctx->host->engine.user, mesh, x, y, z);
 }
 
 static int
-api_mesh_face(struct ToriRS_PluginCtx* ctx, int mesh, int a, int b, int c, int hsl, int alpha)
+api_mesh_face(
+    struct ToriRS_PluginCtx* ctx,
+    int mesh,
+    int a,
+    int b,
+    int c,
+    int hsl,
+    int alpha)
 {
     plugin_mesh_assert_owned(ctx, mesh);
     /* Vertex indices are checked by the engine against the mesh it holds; the
@@ -3416,7 +4576,9 @@ api_mesh_face(struct ToriRS_PluginCtx* ctx, int mesh, int a, int b, int c, int h
  * thing that is NOT a violation is the budget: create returns -1 there,
  * because how many beams a floor needs is a runtime fact. */
 static void
-plugin_object_assert_owned(struct ToriRS_PluginCtx* ctx, int object)
+plugin_object_assert_owned(
+    struct ToriRS_PluginCtx* ctx,
+    int object)
 {
     assert(ctx);
     for( int i = 0; i < ctx->object_count; i++ )
@@ -3438,7 +4600,8 @@ api_object_create(struct ToriRS_PluginCtx* ctx)
         if( !ctx->object_clipped )
         {
             ctx->object_clipped = true;
-            TORIRS_ERR("plugin: %s is at its %d world-object budget; further "
+            TORIRS_ERR(
+                "plugin: %s is at its %d world-object budget; further "
                 "object_create calls are refused\n",
                 ctx->name,
                 TORIRS_PLUGIN_OBJECT_BUDGET);
@@ -3454,7 +4617,9 @@ api_object_create(struct ToriRS_PluginCtx* ctx)
 }
 
 static void
-api_object_destroy(struct ToriRS_PluginCtx* ctx, int object)
+api_object_destroy(
+    struct ToriRS_PluginCtx* ctx,
+    int object)
 {
     plugin_object_assert_owned(ctx, object);
 
@@ -3470,7 +4635,9 @@ api_object_destroy(struct ToriRS_PluginCtx* ctx, int object)
 }
 
 static void
-plugin_objects_destroy_all(struct ToriRS_PluginHost* host, struct ToriRS_PluginCtx* ctx)
+plugin_objects_destroy_all(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginCtx* ctx)
 {
     assert(host);
     assert(ctx);
@@ -3483,7 +4650,9 @@ plugin_objects_destroy_all(struct ToriRS_PluginHost* host, struct ToriRS_PluginC
 /* After plugin_objects_destroy_all, never before it: the objects are what hold
  * the meshes up. */
 static void
-plugin_meshes_destroy_all(struct ToriRS_PluginHost* host, struct ToriRS_PluginCtx* ctx)
+plugin_meshes_destroy_all(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginCtx* ctx)
 {
     assert(host);
     assert(ctx);
@@ -3505,28 +4674,42 @@ api_object_set_model(
 }
 
 static void
-api_object_recolor(struct ToriRS_PluginCtx* ctx, int object, int hsl_from, int hsl_to)
+api_object_recolor(
+    struct ToriRS_PluginCtx* ctx,
+    int object,
+    int hsl_from,
+    int hsl_to)
 {
     plugin_object_assert_owned(ctx, object);
     ctx->host->engine.object_recolor(ctx->host->engine.user, object, hsl_from, hsl_to);
 }
 
 static void
-api_object_clear_recolors(struct ToriRS_PluginCtx* ctx, int object)
+api_object_clear_recolors(
+    struct ToriRS_PluginCtx* ctx,
+    int object)
 {
     plugin_object_assert_owned(ctx, object);
     ctx->host->engine.object_clear_recolors(ctx->host->engine.user, object);
 }
 
 static void
-api_object_set_anim(struct ToriRS_PluginCtx* ctx, int object, int seq_id, int loop)
+api_object_set_anim(
+    struct ToriRS_PluginCtx* ctx,
+    int object,
+    int seq_id,
+    int loop)
 {
     plugin_object_assert_owned(ctx, object);
     ctx->host->engine.object_set_anim(ctx->host->engine.user, object, seq_id, loop);
 }
 
 static void
-api_object_set_light(struct ToriRS_PluginCtx* ctx, int object, int ambient, int contrast)
+api_object_set_light(
+    struct ToriRS_PluginCtx* ctx,
+    int object,
+    int ambient,
+    int contrast)
 {
     plugin_object_assert_owned(ctx, object);
     ctx->host->engine.object_set_light(ctx->host->engine.user, object, ambient, contrast);
@@ -3548,14 +4731,19 @@ api_object_set_position(
 }
 
 static void
-api_object_set_active(struct ToriRS_PluginCtx* ctx, int object, int active)
+api_object_set_active(
+    struct ToriRS_PluginCtx* ctx,
+    int object,
+    int active)
 {
     plugin_object_assert_owned(ctx, object);
     ctx->host->engine.object_set_active(ctx->host->engine.user, object, active);
 }
 
 static int
-api_object_ready(struct ToriRS_PluginCtx* ctx, int object)
+api_object_ready(
+    struct ToriRS_PluginCtx* ctx,
+    int object)
 {
     plugin_object_assert_owned(ctx, object);
     return ctx->host->engine.object_ready(ctx->host->engine.user, object);
@@ -3564,14 +4752,18 @@ api_object_ready(struct ToriRS_PluginCtx* ctx, int object)
 /* -- colour -- */
 
 static int
-api_hsl_from_rgb(struct ToriRS_PluginCtx* ctx, uint32_t rgb)
+api_hsl_from_rgb(
+    struct ToriRS_PluginCtx* ctx,
+    uint32_t rgb)
 {
     assert(ctx);
     return ctx->host->engine.hsl_from_rgb(ctx->host->engine.user, rgb);
 }
 
 static uint32_t
-api_hsl_to_rgb(struct ToriRS_PluginCtx* ctx, int hsl)
+api_hsl_to_rgb(
+    struct ToriRS_PluginCtx* ctx,
+    int hsl)
 {
     assert(ctx);
     return ctx->host->engine.hsl_to_rgb(ctx->host->engine.user, hsl);
@@ -3587,7 +4779,10 @@ api_hsl_to_rgb(struct ToriRS_PluginCtx* ctx, int hsl)
 
 /** Slot index of `id` within `plugin`'s controls, or -1. */
 static int
-plugin_win_find(struct ToriRS_PluginHost const* host, int plugin_index, char const* id)
+plugin_win_find(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index,
+    char const* id)
 {
     assert(host);
     assert(id);
@@ -3598,7 +4793,9 @@ plugin_win_find(struct ToriRS_PluginHost const* host, int plugin_index, char con
 }
 
 static int
-plugin_win_count_owned(struct ToriRS_PluginHost const* host, int plugin_index)
+plugin_win_count_owned(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     int n = 0;
     for( int i = 0; i < host->win_widget_count; i++ )
@@ -3627,7 +4824,9 @@ plugin_widget_next_serial(struct ToriRS_PluginHost* host)
  * compact array keeps the enumeration the panel does a straight scan.
  */
 static void
-plugin_win_drop(struct ToriRS_PluginHost* host, int plugin_index)
+plugin_win_drop(
+    struct ToriRS_PluginHost* host,
+    int plugin_index)
 {
     int keep = 0;
 
@@ -3648,7 +4847,9 @@ plugin_win_drop(struct ToriRS_PluginHost* host, int plugin_index)
 }
 
 static bool
-api_win_request(struct ToriRS_PluginCtx* ctx, char const* tab_title)
+api_win_request(
+    struct ToriRS_PluginCtx* ctx,
+    char const* tab_title)
 {
     struct ToriRS_PluginHost* host;
 
@@ -3671,7 +4872,11 @@ api_win_request(struct ToriRS_PluginCtx* ctx, char const* tab_title)
 }
 
 static bool
-api_win_widget(struct ToriRS_PluginCtx* ctx, int kind, char const* id, char const* label)
+api_win_widget(
+    struct ToriRS_PluginCtx* ctx,
+    int kind,
+    char const* id,
+    char const* label)
 {
     struct ToriRS_PluginHost* host;
     struct ToriRS_PluginWinWidget* w;
@@ -3713,7 +4918,10 @@ api_win_widget(struct ToriRS_PluginCtx* ctx, int kind, char const* id, char cons
 }
 
 static bool
-api_win_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* text)
+api_win_set_text(
+    struct ToriRS_PluginCtx* ctx,
+    char const* id,
+    char const* text)
 {
     int slot;
 
@@ -3726,13 +4934,17 @@ api_win_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* text)
      * PluginHost_WinRevision. The presentation mirrors it onto the control it
      * already has rather than rebuilding the tab around it. */
     plugin_copy_str(
-        ctx->host->win_widgets[slot].text, sizeof(ctx->host->win_widgets[slot].text),
+        ctx->host->win_widgets[slot].text,
+        sizeof(ctx->host->win_widgets[slot].text),
         text ? text : "");
     return true;
 }
 
 static bool
-api_win_set_checked(struct ToriRS_PluginCtx* ctx, char const* id, bool on)
+api_win_set_checked(
+    struct ToriRS_PluginCtx* ctx,
+    char const* id,
+    bool on)
 {
     int slot;
 
@@ -3748,7 +4960,10 @@ api_win_set_checked(struct ToriRS_PluginCtx* ctx, char const* id, bool on)
 
 static bool
 api_win_set_options(
-    struct ToriRS_PluginCtx* ctx, char const* id, char const* choices, int selected)
+    struct ToriRS_PluginCtx* ctx,
+    char const* id,
+    char const* choices,
+    int selected)
 {
     struct ToriRS_PluginWinWidget* w;
     int slot;
@@ -3786,7 +5001,10 @@ api_win_clear(struct ToriRS_PluginCtx* ctx)
  * presenter has to remember.
  */
 
-static int api_image_load(struct ToriRS_PluginCtx* ctx, char const* name);
+static int
+api_image_load(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name);
 
 static void
 plugin_panel_bump(uint32_t* revision)
@@ -3817,7 +5035,9 @@ plugin_panel_id_ok(char const* id)
 }
 
 static int
-plugin_panel_find(struct ToriRS_PluginHost const* host, char const* id)
+plugin_panel_find(
+    struct ToriRS_PluginHost const* host,
+    char const* id)
 {
     assert(host);
     assert(id);
@@ -3828,7 +5048,9 @@ plugin_panel_find(struct ToriRS_PluginHost const* host, char const* id)
 }
 
 static int
-plugin_panel_find_serial(struct ToriRS_PluginHost const* host, uint32_t serial)
+plugin_panel_find_serial(
+    struct ToriRS_PluginHost const* host,
+    uint32_t serial)
 {
     assert(host);
     if( serial == 0 )
@@ -3868,8 +5090,7 @@ api_panel_request(
     /* Registration is a lifecycle declaration, not a way for an arbitrary
      * game event to steal a rail slot or open UI. A plugin gets one precise
      * moment to make it: its EV_START callback. */
-    if( host->dispatching != ctx->index ||
-        host->dispatch_event != TORIRS_PLUGIN_EV_START || !desc )
+    if( host->dispatching != ctx->index || host->dispatch_event != TORIRS_PLUGIN_EV_START || !desc )
         return false;
 
     /* The plugin's OWN title, always: a page cannot rename the plugin it
@@ -3888,19 +5109,13 @@ api_panel_request(
 
     changed = !host->panel_registered[ctx->index] ||
               plugin_copy_str_would_change(
-                  host->panel_title[ctx->index],
-                  sizeof(host->panel_title[ctx->index]),
-                  title) ||
+                  host->panel_title[ctx->index], sizeof(host->panel_title[ctx->index]), title) ||
               plugin_copy_str_would_change(
-                  host->panel_icon[ctx->index],
-                  sizeof(host->panel_icon[ctx->index]),
-                  icon) ||
+                  host->panel_icon[ctx->index], sizeof(host->panel_icon[ctx->index]), icon) ||
               host->panel_preferred_width[ctx->index] != width;
     host->panel_registered[ctx->index] = true;
-    plugin_copy_str(
-        host->panel_title[ctx->index], sizeof(host->panel_title[ctx->index]), title);
-    plugin_copy_str(
-        host->panel_icon[ctx->index], sizeof(host->panel_icon[ctx->index]), icon);
+    plugin_copy_str(host->panel_title[ctx->index], sizeof(host->panel_title[ctx->index]), title);
+    plugin_copy_str(host->panel_icon[ctx->index], sizeof(host->panel_icon[ctx->index]), icon);
     host->panel_preferred_width[ctx->index] = width;
     if( changed )
     {
@@ -3912,11 +5127,9 @@ api_panel_request(
      * load so a plugin does not need platform-specific setup code. */
     if( icon[0] )
     {
-        struct PluginAsset const* resident =
-            plugin_asset_find(host, ctx->index, icon);
+        struct PluginAsset const* resident = plugin_asset_find(host, ctx->index, icon);
         host->panel_icon_image[ctx->index] =
-            resident && resident->data &&
-                    resident->size > TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX
+            resident && resident->data && resident->size > TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX
                 ? -1
                 : api_image_load(ctx, icon);
     }
@@ -3938,8 +5151,7 @@ api_panel_widget(
     assert(ctx);
     host = ctx->host;
     if( host->panel_active != ctx->index || !host->panel_building ||
-        host->dispatching != ctx->index ||
-        host->dispatch_event != TORIRS_PLUGIN_EV_PANEL_BUILD )
+        host->dispatching != ctx->index || host->dispatch_event != TORIRS_PLUGIN_EV_PANEL_BUILD )
         return false;
     if( kind < 0 || kind >= TORIRS_PLUGIN_W_COUNT || !plugin_panel_id_ok(id) )
         return false;
@@ -3961,8 +5173,7 @@ api_panel_widget(
     widget->serial = plugin_widget_next_serial(host);
     plugin_copy_str(widget->id, sizeof(widget->id), id);
     plugin_copy_str(widget->label, sizeof(widget->label), label);
-    host->panel_invalidated[host->panel_widget_count] =
-        kind == TORIRS_PLUGIN_W_CUSTOM;
+    host->panel_invalidated[host->panel_widget_count] = kind == TORIRS_PLUGIN_W_CUSTOM;
     host->panel_widget_count++;
     plugin_panel_bump(&host->panel_model_revision);
     return true;
@@ -3988,7 +5199,10 @@ plugin_panel_mutable(
 }
 
 static bool
-api_panel_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* text)
+api_panel_set_text(
+    struct ToriRS_PluginCtx* ctx,
+    char const* id,
+    char const* text)
 {
     struct ToriRS_PluginWinWidget* widget;
     char const* next = text ? text : "";
@@ -4006,7 +5220,10 @@ api_panel_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* tex
 }
 
 static bool
-api_panel_set_value(struct ToriRS_PluginCtx* ctx, char const* id, int value)
+api_panel_set_value(
+    struct ToriRS_PluginCtx* ctx,
+    char const* id,
+    int value)
 {
     struct ToriRS_PluginWinWidget* widget;
     int old_checked;
@@ -4022,8 +5239,7 @@ api_panel_set_value(struct ToriRS_PluginCtx* ctx, char const* id, int value)
     old_selected = widget->selected;
     old_value = widget->value;
     widget->value = value;
-    if( widget->kind == TORIRS_PLUGIN_W_CHECKBOX ||
-        widget->kind == TORIRS_PLUGIN_W_TOGGLE ||
+    if( widget->kind == TORIRS_PLUGIN_W_CHECKBOX || widget->kind == TORIRS_PLUGIN_W_TOGGLE ||
         widget->kind == TORIRS_PLUGIN_W_LIST_ROW )
         widget->checked = value ? 1 : 0;
     if( widget->kind == TORIRS_PLUGIN_W_DROPDOWN )
@@ -4079,8 +5295,7 @@ api_panel_set_options(
     if( !plugin_panel_mutable(ctx, id, &slot) )
         return false;
     widget = &ctx->host->panel_widgets[slot];
-    changed = plugin_copy_str_would_change(
-                  widget->choices, sizeof(widget->choices), next) ||
+    changed = plugin_copy_str_would_change(widget->choices, sizeof(widget->choices), next) ||
               widget->selected != selected || widget->value != selected;
     plugin_copy_str(widget->choices, sizeof(widget->choices), next);
     widget->selected = selected;
@@ -4091,7 +5306,9 @@ api_panel_set_options(
 }
 
 static bool
-api_panel_set_attention(struct ToriRS_PluginCtx* ctx, bool attention)
+api_panel_set_attention(
+    struct ToriRS_PluginCtx* ctx,
+    bool attention)
 {
     assert(ctx);
     if( !ctx->host->panel_registered[ctx->index] || !ctx->running )
@@ -4115,7 +5332,9 @@ api_panel_clear(struct ToriRS_PluginCtx* ctx)
 }
 
 static void
-api_panel_invalidate(struct ToriRS_PluginCtx* ctx, char const* custom_view_id)
+api_panel_invalidate(
+    struct ToriRS_PluginCtx* ctx,
+    char const* custom_view_id)
 {
     int slot;
 
@@ -4173,7 +5392,9 @@ plugin_panel_deactivate(struct ToriRS_PluginHost* host)
 }
 
 static void
-plugin_panel_unregister(struct ToriRS_PluginHost* host, int plugin_index)
+plugin_panel_unregister(
+    struct ToriRS_PluginHost* host,
+    int plugin_index)
 {
     bool const registered = host->panel_registered[plugin_index];
 
@@ -4219,12 +5440,11 @@ plugin_panel_build_active(
     int plugin;
 
     assert(host);
-    if( selection_generation == 0 ||
-        selection_generation != host->panel_selection_generation )
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation )
         return 0;
     plugin = host->panel_active;
-    if( plugin < 0 || plugin >= host->plugin_count ||
-        !host->panel_registered[plugin] || !host->plugins[plugin].running )
+    if( plugin < 0 || plugin >= host->plugin_count || !host->panel_registered[plugin] ||
+        !host->plugins[plugin].running )
         return 0;
     if( !host->panel_needs_build )
         return 1;
@@ -4239,8 +5459,7 @@ plugin_panel_build_active(
     host->panel_building = false;
 
     /* A build handler is allowed to fault/disable itself. */
-    return host->panel_active == plugin &&
-                   host->panel_selection_generation == selection_generation
+    return host->panel_active == plugin && host->panel_selection_generation == selection_generation
                ? 1
                : 0;
 }
@@ -4251,7 +5470,9 @@ plugin_panel_build_active(
  * still be inside its per-frame allotment. Clipping is reported once per frame
  * per plugin -- a silent cap reads as "drew everything" when it did not. */
 static bool
-plugin_draw_allow(struct ToriRS_PluginCtx* ctx, void* surface)
+plugin_draw_allow(
+    struct ToriRS_PluginCtx* ctx,
+    void* surface)
 {
     assert(ctx);
     /* Drawing outside EV_DRAW_WORLD would push into a list the emit walk has
@@ -4265,7 +5486,8 @@ plugin_draw_allow(struct ToriRS_PluginCtx* ctx, void* surface)
         if( !ctx->draw_clipped )
         {
             ctx->draw_clipped = true;
-            TORIRS_LOG("plugin: %s hit its %d-item draw budget this frame; "
+            TORIRS_LOG(
+                "plugin: %s hit its %d-item draw budget this frame; "
                 "the rest of its overlay was dropped\n",
                 ctx->name,
                 TORIRS_PLUGIN_DRAW_BUDGET);
@@ -4385,7 +5607,9 @@ api_draw_rect(
 /* -- images -- */
 
 static int
-api_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
+api_image_load(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name)
 {
     assert(ctx);
     assert(name);
@@ -4401,8 +5625,7 @@ api_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
         /* Already asked for. One image per (plugin, file), so a plugin that
          * calls this from on_start and again from a config change gets the
          * handle it already has rather than a second copy in the scene. */
-        if( host->images[i].plugin == ctx->index &&
-            strcmp(host->images[i].asset, name) == 0 )
+        if( host->images[i].plugin == ctx->index && strcmp(host->images[i].asset, name) == 0 )
             return i;
         if( host->images[i].plugin < 0 && free_slot < 0 )
             free_slot = i;
@@ -4410,7 +5633,8 @@ api_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
 
     if( free_slot < 0 )
     {
-        TORIRS_LOG("plugin: %s image '%s' not loaded, the resident image table is full (%d)\n",
+        TORIRS_LOG(
+            "plugin: %s image '%s' not loaded, the resident image table is full (%d)\n",
             ctx->name,
             name,
             TORIRS_PLUGIN_IMAGES_MAX);
@@ -4418,8 +5642,7 @@ api_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
     }
 
     host->images[free_slot].plugin = ctx->index;
-    snprintf(
-        host->images[free_slot].asset, sizeof(host->images[free_slot].asset), "%s", name);
+    snprintf(host->images[free_slot].asset, sizeof(host->images[free_slot].asset), "%s", name);
     host->images[free_slot].width = 0;
     host->images[free_slot].height = 0;
     host->images[free_slot].published = false;
@@ -4453,7 +5676,9 @@ api_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
  * arrival differs.
  */
 static int
-api_model_load(struct ToriRS_PluginCtx* ctx, char const* name)
+api_model_load(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name)
 {
     assert(ctx);
     assert(name);
@@ -4466,8 +5691,7 @@ api_model_load(struct ToriRS_PluginCtx* ctx, char const* name)
 
     for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
     {
-        if( host->models[i].plugin == ctx->index &&
-            strcmp(host->models[i].asset, name) == 0 )
+        if( host->models[i].plugin == ctx->index && strcmp(host->models[i].asset, name) == 0 )
             return i;
         if( host->models[i].plugin < 0 && free_slot < 0 )
             free_slot = i;
@@ -4475,7 +5699,8 @@ api_model_load(struct ToriRS_PluginCtx* ctx, char const* name)
 
     if( free_slot < 0 )
     {
-        TORIRS_LOG("plugin: %s model '%s' not loaded, the resident model table is full (%d)\n",
+        TORIRS_LOG(
+            "plugin: %s model '%s' not loaded, the resident model table is full (%d)\n",
             ctx->name,
             name,
             TORIRS_PLUGIN_MODELS_MAX);
@@ -4483,8 +5708,7 @@ api_model_load(struct ToriRS_PluginCtx* ctx, char const* name)
     }
 
     host->models[free_slot].plugin = ctx->index;
-    snprintf(
-        host->models[free_slot].asset, sizeof(host->models[free_slot].asset), "%s", name);
+    snprintf(host->models[free_slot].asset, sizeof(host->models[free_slot].asset), "%s", name);
     host->models[free_slot].published = false;
 
     if( api_asset_load(ctx, name) )
@@ -4530,7 +5754,8 @@ api_image_compose(
      * keeps a plugin from spending a slot on it. */
     if( w <= 0 || h <= 0 || w > 4096 || h > 4096 )
     {
-        TORIRS_LOG("plugin: %s composed image '%s' is %dx%d, which is not a picture\n",
+        TORIRS_LOG(
+            "plugin: %s composed image '%s' is %dx%d, which is not a picture\n",
             ctx->name,
             name,
             w,
@@ -4540,8 +5765,7 @@ api_image_compose(
 
     for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
     {
-        if( host->images[i].plugin == ctx->index &&
-            strcmp(host->images[i].asset, name) == 0 )
+        if( host->images[i].plugin == ctx->index && strcmp(host->images[i].asset, name) == 0 )
         {
             slot = i;
             break;
@@ -4553,7 +5777,8 @@ api_image_compose(
         slot = free_slot;
     if( slot < 0 )
     {
-        TORIRS_LOG("plugin: %s image '%s' not composed, the resident image table is full "
+        TORIRS_LOG(
+            "plugin: %s image '%s' not composed, the resident image table is full "
             "(%d)\n",
             ctx->name,
             name,
@@ -4573,7 +5798,11 @@ api_image_compose(
 }
 
 static int
-api_image_pixels(struct ToriRS_PluginCtx* ctx, int image, uint32_t* out, int max)
+api_image_pixels(
+    struct ToriRS_PluginCtx* ctx,
+    int image,
+    uint32_t* out,
+    int max)
 {
     /*
      * READABLE and not owned, so a BORROWED handle can be read back.
@@ -4601,7 +5830,11 @@ api_image_pixels(struct ToriRS_PluginCtx* ctx, int image, uint32_t* out, int max
 }
 
 static int
-api_image_size(struct ToriRS_PluginCtx* ctx, int image, int* out_w, int* out_h)
+api_image_size(
+    struct ToriRS_PluginCtx* ctx,
+    int image,
+    int* out_w,
+    int* out_h)
 {
     /* A borrowed handle measures like an owned one, and a STALE borrow
      * measures like a pending image: 0x0 and a 0 return. A caller laying out
@@ -4616,7 +5849,9 @@ api_image_size(struct ToriRS_PluginCtx* ctx, int image, int* out_w, int* out_h)
 }
 
 static void
-api_image_release(struct ToriRS_PluginCtx* ctx, int image)
+api_image_release(
+    struct ToriRS_PluginCtx* ctx,
+    int image)
 {
     /* OWNED, deliberately: a borrower releasing a handle it was lent would
      * free the lender's picture out from under the frame. The refusal needs no
@@ -4659,7 +5894,10 @@ api_image_release(struct ToriRS_PluginCtx* ctx, int image)
 
 /** This plugin's row for `part`, or NULL. */
 static struct PluginChromeClaim*
-plugin_chrome_row(struct ToriRS_PluginHost* host, int plugin, char const* part)
+plugin_chrome_row(
+    struct ToriRS_PluginHost* host,
+    int plugin,
+    char const* part)
 {
     assert(host);
     assert(part);
@@ -4674,7 +5912,10 @@ plugin_chrome_row(struct ToriRS_PluginHost* host, int plugin, char const* part)
 
 /** Whoever holds `scope` of `part`, or NULL when nobody does. */
 static struct PluginChromeClaim*
-plugin_chrome_holder(struct ToriRS_PluginHost* host, char const* part, int scope)
+plugin_chrome_holder(
+    struct ToriRS_PluginHost* host,
+    char const* part,
+    int scope)
 {
     assert(host);
     assert(part);
@@ -4689,7 +5930,11 @@ plugin_chrome_holder(struct ToriRS_PluginHost* host, char const* part, int scope
 
 /** The mask of `scopes` held by anyone but `except` (-1 for anyone at all). */
 static int
-plugin_chrome_held(struct ToriRS_PluginHost* host, char const* part, int scopes, int except)
+plugin_chrome_held(
+    struct ToriRS_PluginHost* host,
+    char const* part,
+    int scopes,
+    int except)
 {
     int held = 0;
 
@@ -4708,7 +5953,9 @@ plugin_chrome_held(struct ToriRS_PluginHost* host, char const* part, int scopes,
 
 /** Any row at all for `part` -- the ADDED row is the one that matters. */
 static struct PluginChromeClaim*
-plugin_chrome_added_row(struct ToriRS_PluginHost* host, char const* part)
+plugin_chrome_added_row(
+    struct ToriRS_PluginHost* host,
+    char const* part)
 {
     assert(host);
     assert(part);
@@ -4723,16 +5970,29 @@ plugin_chrome_added_row(struct ToriRS_PluginHost* host, char const* part)
 
 /** The arranger's declaration for one member, or NULL. */
 static struct PluginSlotArt*
-plugin_slot_art_find(struct ToriRS_PluginHost* host, int slot, int member)
+plugin_slot_art_find_in(
+    struct PluginSlotArt* rows,
+    int slot,
+    int member)
 {
-    assert(host);
+    assert(rows);
     for( int i = 0; i < TORIRS_PLUGIN_SLOT_ART_MAX; i++ )
     {
-        struct PluginSlotArt* row = &host->slot_art[i];
+        struct PluginSlotArt* row = &rows[i];
         if( row->used && row->slot == (uint8_t)slot && row->member == member )
             return row;
     }
     return NULL;
+}
+
+static struct PluginSlotArt*
+plugin_slot_art_find(
+    struct ToriRS_PluginHost* host,
+    int slot,
+    int member)
+{
+    assert(host);
+    return plugin_slot_art_find_in(host->slot_art, slot, member);
 }
 
 /**
@@ -4798,10 +6058,10 @@ plugin_chrome_base(
         int y = 0;
         int w = 0;
         int h = 0;
-        int got = member < 0
-                      ? host->engine.slot_rect(host->engine.user, slot, &x, &y, &w, &h)
-                      : host->engine.slot_member_rect(
-                            host->engine.user, slot, member, &x, &y, &w, &h);
+        int got =
+            member < 0
+                ? host->engine.slot_rect(host->engine.user, slot, &x, &y, &w, &h)
+                : host->engine.slot_member_rect(host->engine.user, slot, member, &x, &y, &w, &h);
         if( declared )
         {
             *out = declared->art;
@@ -4968,9 +6228,7 @@ plugin_chrome_claim_set(
      */
     if( host->chrome_iterating )
     {
-        TORIRS_LOG("plugin: %s tried to claim '%s' from inside a chrome pass\n",
-            ctx->name,
-            part);
+        TORIRS_LOG("plugin: %s tried to claim '%s' from inside a chrome pass\n", ctx->name, part);
         return -1;
     }
 
@@ -5015,7 +6273,8 @@ plugin_chrome_claim_set(
         }
     if( free_row < 0 )
     {
-        TORIRS_LOG("plugin: %s could not claim '%s'; the claim table is full (%d)\n",
+        TORIRS_LOG(
+            "plugin: %s could not claim '%s'; the claim table is full (%d)\n",
             ctx->name,
             part,
             TORIRS_PLUGIN_CHROME_CLAIMS_MAX);
@@ -5042,7 +6301,11 @@ plugin_chrome_claim_set(
 }
 
 static int
-api_chrome_claim(struct ToriRS_PluginCtx* ctx, char const* part, int scopes, int enabled)
+api_chrome_claim(
+    struct ToriRS_PluginCtx* ctx,
+    char const* part,
+    int scopes,
+    int enabled)
 {
     struct ToriRS_PluginChromePart probe;
     int state;
@@ -5066,7 +6329,8 @@ api_chrome_claim(struct ToriRS_PluginCtx* ctx, char const* part, int scopes, int
             return -1;
         if( scopes & TORIRS_PLUGIN_CHROME_SCOPE_POSITION )
         {
-            TORIRS_LOG("plugin: %s asked to move '%s'; where an entity is is the server's\n",
+            TORIRS_LOG(
+                "plugin: %s asked to move '%s'; where an entity is is the server's\n",
                 ctx->name,
                 part);
             scopes &= ~TORIRS_PLUGIN_CHROME_SCOPE_POSITION;
@@ -5171,7 +6435,10 @@ api_chrome_add(
 }
 
 static char const*
-api_chrome_owner(struct ToriRS_PluginCtx* ctx, char const* part, int scope)
+api_chrome_owner(
+    struct ToriRS_PluginCtx* ctx,
+    char const* part,
+    int scope)
 {
     struct PluginChromeClaim const* row;
 
@@ -5186,7 +6453,10 @@ api_chrome_owner(struct ToriRS_PluginCtx* ctx, char const* part, int scope)
 }
 
 static int
-api_chrome_claimed(struct ToriRS_PluginCtx* ctx, char const* part, int scopes)
+api_chrome_claimed(
+    struct ToriRS_PluginCtx* ctx,
+    char const* part,
+    int scopes)
 {
     assert(ctx);
     assert(part);
@@ -5238,7 +6508,8 @@ api_chrome_paint(
      */
     if( (row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_POSITION) && (art->w <= 0 || art->h <= 0) )
     {
-        TORIRS_LOG("plugin: %s painted '%s' at %dx%d; nothing that size is drawn\n",
+        TORIRS_LOG(
+            "plugin: %s painted '%s' at %dx%d; nothing that size is drawn\n",
             ctx->name,
             part,
             art->w,
@@ -5299,7 +6570,10 @@ api_chrome_ops(
 }
 
 static int
-api_chrome_state(struct ToriRS_PluginCtx* ctx, char const* part, int state)
+api_chrome_state(
+    struct ToriRS_PluginCtx* ctx,
+    char const* part,
+    int state)
 {
     struct PluginChromeClaim* row;
 
@@ -5324,25 +6598,38 @@ api_layout_slot_art(
 {
     struct ToriRS_PluginHost* host = ctx->host;
     struct PluginSlotArt* row;
+    struct PluginSlotArt const* committed;
 
     assert(ctx);
-    assert(
-        host->layout_declaring && "layout_slot_art is legal only inside EV_LAYOUT");
-    assert(host->layout_owner == ctx->index);
+    assert(host->layout_declaring && "layout_slot_art is legal only inside EV_LAYOUT");
+    assert(host->layout_declarer == ctx->index);
 
     if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
         return 0;
 
-    row = plugin_slot_art_find(host, slot, member);
+    row = plugin_slot_art_find_in(host->slot_art_candidate, slot, member);
     if( !part )
     {
         if( row )
             memset(row, 0, sizeof(*row));
         return 0;
     }
+    for( int state = 0; state < TORIRS_PLUGIN_CHROME_STATE_COUNT; state++ )
+        if( part->art[state] >= 0 )
+        {
+            struct PluginImage const* image = plugin_image_owned(ctx, part->art[state]);
+            if( !image || !image->published )
+            {
+                plugin_layout_candidate_fail(
+                    host, "The frame used foreign or unready part artwork.");
+                return 0;
+            }
+        }
     if( part->w <= 0 || part->h <= 0 )
     {
-        TORIRS_LOG("plugin: %s declared slot %d member %d art at %dx%d; not drawn\n",
+        plugin_layout_candidate_fail(host, "The frame declared invalid part artwork bounds.");
+        TORIRS_LOG(
+            "plugin: %s declared slot %d member %d art at %dx%d; not drawn\n",
             ctx->name,
             slot,
             member,
@@ -5353,14 +6640,16 @@ api_layout_slot_art(
 
     if( !row )
         for( int i = 0; i < TORIRS_PLUGIN_SLOT_ART_MAX; i++ )
-            if( !host->slot_art[i].used )
+            if( !host->slot_art_candidate[i].used )
             {
-                row = &host->slot_art[i];
+                row = &host->slot_art_candidate[i];
                 break;
             }
     if( !row )
     {
-        TORIRS_LOG("plugin: %s declared more than %d parts; the rest are not drawn\n",
+        plugin_layout_candidate_fail(host, "The frame declared too many artwork parts.");
+        TORIRS_LOG(
+            "plugin: %s declared more than %d parts; the rest are not drawn\n",
             ctx->name,
             TORIRS_PLUGIN_SLOT_ART_MAX);
         return 0;
@@ -5370,7 +6659,9 @@ api_layout_slot_art(
      * at some earlier tick and the arranger has not been asked to say it
      * again, any more than a claimant is. */
     {
-        uint8_t const state = row->used ? row->state : (uint8_t)TORIRS_PLUGIN_CHROME_IDLE;
+        committed = plugin_slot_art_find(host, slot, member);
+        uint8_t const state = committed ? committed->state
+                                        : (uint8_t)TORIRS_PLUGIN_CHROME_IDLE;
         row->used = 1;
         row->slot = (uint8_t)slot;
         row->member = member;
@@ -5388,8 +6679,7 @@ api_layout_slot_art(
         int h = 0;
         return member < 0
                    ? host->engine.slot_rect(host->engine.user, slot, &x, &y, &w, &h)
-                   : host->engine.slot_member_rect(
-                         host->engine.user, slot, member, &x, &y, &w, &h);
+                   : host->engine.slot_member_rect(host->engine.user, slot, member, &x, &y, &w, &h);
     }
 }
 
@@ -5401,7 +6691,10 @@ api_layout_slot_art(
  * and needs none.
  */
 static char const*
-plugin_chrome_slot_name(struct ToriRS_PluginHost* host, int slot, int member)
+plugin_chrome_slot_name(
+    struct ToriRS_PluginHost* host,
+    int slot,
+    int member)
 {
     assert(host);
     for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
@@ -5421,23 +6714,31 @@ plugin_chrome_slot_name(struct ToriRS_PluginHost* host, int slot, int member)
 }
 
 static int
-api_layout_slot_claimed(struct ToriRS_PluginCtx* ctx, int slot, int member, int scopes)
+api_layout_slot_claimed(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int member,
+    int scopes)
 {
     char const* name;
 
     assert(ctx);
-    assert(ctx->host->layout_owner == ctx->index);
+    assert(plugin_frame_owner(ctx->host) == ctx->index);
     name = plugin_chrome_slot_name(ctx->host, slot, member);
     return name ? plugin_chrome_held(ctx->host, name, scopes, ctx->index) : 0;
 }
 
 static int
-api_layout_slot_state(struct ToriRS_PluginCtx* ctx, int slot, int member, int state)
+api_layout_slot_state(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int member,
+    int state)
 {
     struct PluginSlotArt* row;
 
     assert(ctx);
-    assert(ctx->host->layout_owner == ctx->index);
+    assert(plugin_frame_owner(ctx->host) == ctx->index);
     if( state < 0 || state >= TORIRS_PLUGIN_CHROME_STATE_COUNT )
         return 0;
     row = plugin_slot_art_find(ctx->host, slot, member);
@@ -5449,7 +6750,9 @@ api_layout_slot_state(struct ToriRS_PluginCtx* ctx, int slot, int member, int st
 
 /** Drop everything one plugin holds in this tier. @see plugin_teardown. */
 static void
-plugin_chrome_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+plugin_chrome_drop_plugin(
+    struct ToriRS_PluginHost* host,
+    int plugin)
 {
     int dropped = 0;
 
@@ -5481,15 +6784,15 @@ plugin_chrome_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
  */
 static int
 plugin_chrome_pick_art(
-    struct ToriRS_PluginChromePart const* part, int state, int hovered)
+    struct ToriRS_PluginChromePart const* part,
+    int state,
+    int hovered)
 {
     int wanted;
 
     assert(part);
-    if( state == TORIRS_PLUGIN_CHROME_ACTIVE ||
-        state == TORIRS_PLUGIN_CHROME_ACTIVE_HOVER )
-        wanted = hovered ? TORIRS_PLUGIN_CHROME_ACTIVE_HOVER
-                         : TORIRS_PLUGIN_CHROME_ACTIVE;
+    if( state == TORIRS_PLUGIN_CHROME_ACTIVE || state == TORIRS_PLUGIN_CHROME_ACTIVE_HOVER )
+        wanted = hovered ? TORIRS_PLUGIN_CHROME_ACTIVE_HOVER : TORIRS_PLUGIN_CHROME_ACTIVE;
     else if( state == TORIRS_PLUGIN_CHROME_DISABLED )
         wanted = TORIRS_PLUGIN_CHROME_DISABLED;
     else
@@ -5499,8 +6802,7 @@ plugin_chrome_pick_art(
         return part->art[wanted];
     /* One step back before IDLE, so a part with ACTIVE but no ACTIVE_HOVER
      * stays selected under the pointer instead of appearing to deselect. */
-    if( wanted == TORIRS_PLUGIN_CHROME_ACTIVE_HOVER &&
-        part->art[TORIRS_PLUGIN_CHROME_ACTIVE] >= 0 )
+    if( wanted == TORIRS_PLUGIN_CHROME_ACTIVE_HOVER && part->art[TORIRS_PLUGIN_CHROME_ACTIVE] >= 0 )
         return part->art[TORIRS_PLUGIN_CHROME_ACTIVE];
     return part->art[TORIRS_PLUGIN_CHROME_IDLE];
 }
@@ -5582,7 +6884,12 @@ plugin_chrome_paint_one(
 /** Parse `<kind>:<a>[,<b>,<c>,<d>]`. @return the kind, or 0 for a name that
  *  is not an entity's -- which is every chrome part's, and is not an error. */
 static int
-plugin_entity_parse(char const* part, int* out_a, int* out_b, int* out_c, int* out_d)
+plugin_entity_parse(
+    char const* part,
+    int* out_a,
+    int* out_b,
+    int* out_c,
+    int* out_d)
 {
     int kind;
     char const* rest;
@@ -5638,7 +6945,14 @@ plugin_entity_parse(char const* part, int* out_a, int* out_b, int* out_c, int* o
 
 static char const*
 api_entity_part(
-    struct ToriRS_PluginCtx* ctx, int kind, int a, int b, int c, int d, char* buf, int cap)
+    struct ToriRS_PluginCtx* ctx,
+    int kind,
+    int a,
+    int b,
+    int c,
+    int d,
+    char* buf,
+    int cap)
 {
     int n;
 
@@ -5672,7 +6986,9 @@ api_entity_part(
  * claims are few.
  */
 static int
-plugin_entity_element(struct ToriRS_PluginHost* host, char const* part)
+plugin_entity_element(
+    struct ToriRS_PluginHost* host,
+    char const* part)
 {
     int a;
     int b;
@@ -5745,7 +7061,10 @@ plugin_entity_resolve_all(struct ToriRS_PluginHost* host)
  * written before this tier expects; a claimed one is its holder's.
  */
 static int
-plugin_entity_hull_allowed(struct ToriRS_PluginHost* host, int plugin, int element_id)
+plugin_entity_hull_allowed(
+    struct ToriRS_PluginHost* host,
+    int plugin,
+    int element_id)
 {
     assert(host);
     if( element_id < 0 )
@@ -5777,21 +7096,26 @@ plugin_entity_paint_looks(struct ToriRS_PluginHost* host)
         if( !(host->plugins[row->plugin].enabled && host->plugins[row->plugin].running) )
             continue;
         (void)host->engine.draw_hull(
-            host->engine.user, row->element_id, row->look.rgb, row->look.fill_alpha, row->look.shape);
+            host->engine.user,
+            row->element_id,
+            row->look.rgb,
+            row->look.fill_alpha,
+            row->look.shape);
     }
 }
 
 static int
 api_entity_look(
-    struct ToriRS_PluginCtx* ctx, char const* part, struct ToriRS_PluginEntityLook const* look)
+    struct ToriRS_PluginCtx* ctx,
+    char const* part,
+    struct ToriRS_PluginEntityLook const* look)
 {
     struct PluginChromeClaim* row;
 
     assert(ctx);
     assert(part);
     assert(look);
-    assert(
-        look->shape == TORIRS_PLUGIN_HULL_BOUNDS || look->shape == TORIRS_PLUGIN_HULL_MESH);
+    assert(look->shape == TORIRS_PLUGIN_HULL_BOUNDS || look->shape == TORIRS_PLUGIN_HULL_MESH);
 
     row = plugin_chrome_row(ctx->host, ctx->index, part);
     if( !row || !row->entity || !(row->scopes & TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE) )
@@ -5906,7 +7230,9 @@ plugin_entity_row_holder(
  */
 static void
 plugin_entity_apply_ops(
-    struct ToriRS_PluginHost* host, void* cursor, struct ToriRS_PluginEvMenuBuild const* menu)
+    struct ToriRS_PluginHost* host,
+    void* cursor,
+    struct ToriRS_PluginEvMenuBuild const* menu)
 {
     struct ToriRS_PluginHoverEntity hover;
     int have_hover;
@@ -5968,19 +7294,31 @@ api_layout_slot_skin(
     int art,
     int mask)
 {
+    struct ToriRS_PluginHost* host;
+    struct PluginLayoutSkin* staged;
+    int x = 0, y = 0, w = 0, h = 0;
+
     assert(ctx);
-    assert(
-        ctx->host->layout_declaring &&
-        "layout_slot_skin is legal only inside EV_LAYOUT");
-    assert(ctx->host->layout_owner == ctx->index);
+    host = ctx->host;
+    assert(host->layout_declaring && "layout_slot_skin is legal only inside EV_LAYOUT");
+    assert(host->layout_declarer == ctx->index);
     if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    {
+        plugin_layout_candidate_fail(host, "The frame skinned an unknown surface.");
         return 0;
+    }
     if( slot != TORIRS_PLUGIN_SLOT_MINIMAP && slot != TORIRS_PLUGIN_SLOT_COMPASS )
+    {
+        plugin_layout_candidate_fail(host, "The frame skinned a surface that cannot be skinned.");
         return 0;
+    }
     /* The minimap picture is the live baked world; only its cut-out belongs to
      * the frame. Compass art is static frame art and is replaceable. */
     if( slot == TORIRS_PLUGIN_SLOT_MINIMAP && art >= 0 )
+    {
+        plugin_layout_candidate_fail(host, "The frame replaced the live minimap image.");
         return 0;
+    }
     /*
      * Not resident yet is the ORDINARY state for the first frames after a
      * load -- api_draw_image says the same and for the same reason -- so an
@@ -5992,15 +7330,30 @@ api_layout_slot_skin(
     {
         struct PluginImage const* image = plugin_image_owned(ctx, art);
         if( !image || !image->published )
+        {
+            plugin_layout_candidate_fail(host, "The frame used foreign or unready skin artwork.");
             return 0;
+        }
     }
     if( mask >= 0 )
     {
         struct PluginImage const* image = plugin_image_owned(ctx, mask);
         if( !image || !image->published )
+        {
+            plugin_layout_candidate_fail(host, "The frame used foreign or unready mask artwork.");
             return 0;
+        }
     }
-    return ctx->host->engine.layout_slot_skin(ctx->host->engine.user, slot, art, mask);
+    staged = &host->layout_candidate.skins[slot];
+    if( staged->declared )
+    {
+        plugin_layout_candidate_fail(host, "The frame skinned one surface twice.");
+        return 0;
+    }
+    staged->declared = true;
+    staged->art = art;
+    staged->mask = mask;
+    return host->engine.slot_rect(host->engine.user, slot, &x, &y, &w, &h);
 }
 
 static int
@@ -6013,26 +7366,47 @@ api_layout_slot_overlay(
     int trans)
 {
     struct PluginImage const* owned;
+    struct ToriRS_PluginHost* host;
+    struct PluginLayoutOverlay* staged;
+    int sx = 0, sy = 0, sw = 0, sh = 0;
 
     assert(ctx);
-    assert(
-        ctx->host->layout_declaring &&
-        "layout_slot_overlay is legal only inside EV_LAYOUT");
-    assert(ctx->host->layout_owner == ctx->index);
+    host = ctx->host;
+    assert(host->layout_declaring && "layout_slot_overlay is legal only inside EV_LAYOUT");
+    assert(host->layout_declarer == ctx->index);
     if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+    {
+        plugin_layout_candidate_fail(host, "The frame overlaid an unknown surface.");
         return 0;
+    }
     if( trans < 0 || trans > 255 )
+    {
+        plugin_layout_candidate_fail(host, "The frame declared invalid overlay transparency.");
         return 0;
+    }
 
     /* Unlike a skin, this is an ordinary sprite scene. Its natural dimensions
      * are read by the renderer after publication, so retaining a valid pending
      * handle is both safe and necessary: otherwise a startup EV_LAYOUT would
      * discard the declaration and the housing would not appear until resize. */
     owned = plugin_image_owned(ctx, image);
-    if( !owned )
+    if( !owned || !owned->published )
+    {
+        plugin_layout_candidate_fail(host, "The frame used foreign or unready overlay artwork.");
         return 0;
-    return ctx->host->engine.layout_slot_overlay(
-        ctx->host->engine.user, slot, image, x, y, trans);
+    }
+    staged = &host->layout_candidate.overlays[slot];
+    if( staged->declared )
+    {
+        plugin_layout_candidate_fail(host, "The frame overlaid one surface twice.");
+        return 0;
+    }
+    staged->declared = true;
+    staged->image = image;
+    staged->x = x;
+    staged->y = y;
+    staged->trans = trans;
+    return host->engine.slot_rect(host->engine.user, slot, &sx, &sy, &sw, &sh);
 }
 
 static int
@@ -6046,12 +7420,19 @@ api_layout_scrollbar(
     int arrow_down)
 {
     int images[6];
+    struct ToriRS_PluginHost* host;
+    int absent = 0;
 
     assert(ctx);
-    assert(
-        ctx->host->layout_declaring &&
-        "layout_scrollbar is legal only inside EV_LAYOUT");
-    assert(ctx->host->layout_owner == ctx->index);
+    host = ctx->host;
+    assert(host->layout_declaring && "layout_scrollbar is legal only inside EV_LAYOUT");
+    assert(host->layout_declarer == ctx->index);
+
+    if( host->layout_candidate.scrollbar_declared )
+    {
+        plugin_layout_candidate_fail(host, "The frame declared its scrollbar twice.");
+        return 0;
+    }
 
     images[0] = trough;
     images[1] = dragger_top;
@@ -6062,17 +7443,31 @@ api_layout_scrollbar(
     for( int i = 0; i < 6; i++ )
     {
         struct PluginImage const* image;
-        /* Any piece missing clears the whole skin, which is what a layout with
-         * no scrollbar art asks for by passing -1 -- and also what a layout
-         * whose art has not crossed the IO queue yet gets, until it has. */
+        /* Six absent pieces explicitly select the lane's scrollbar. A partial
+         * set is neither that nor a complete skin and is rejected atomically. */
         if( images[i] < 0 )
-            return ctx->host->engine.layout_scrollbar(ctx->host->engine.user, NULL, 0);
+        {
+            absent++;
+            continue;
+        }
         image = plugin_image_owned(ctx, images[i]);
         if( !image || !image->published )
-            return ctx->host->engine.layout_scrollbar(ctx->host->engine.user, NULL, 0);
+        {
+            plugin_layout_candidate_fail(
+                host, "The frame used foreign or unready scrollbar artwork.");
+            return 0;
+        }
     }
-    return ctx->host->engine.layout_scrollbar(
-        ctx->host->engine.user, images, 6);
+    if( absent != 0 && absent != 6 )
+    {
+        plugin_layout_candidate_fail(host, "The frame declared an incomplete scrollbar skin.");
+        return 0;
+    }
+    host->layout_candidate.scrollbar_declared = true;
+    host->layout_candidate.scrollbar_count = absent == 6 ? 0 : 6;
+    if( absent == 0 )
+        memcpy(host->layout_candidate.scrollbar, images, sizeof(images));
+    return 1;
 }
 
 static void
@@ -6153,7 +7548,9 @@ api_hit_region(
 }
 
 static void
-api_text_input(struct ToriRS_PluginCtx* ctx, int on)
+api_text_input(
+    struct ToriRS_PluginCtx* ctx,
+    int on)
 {
     assert(ctx);
     if( !ctx->host->engine.text_input )
@@ -6162,7 +7559,9 @@ api_text_input(struct ToriRS_PluginCtx* ctx, int on)
 }
 
 static void
-api_chat_focus(struct ToriRS_PluginCtx* ctx, int on)
+api_chat_focus(
+    struct ToriRS_PluginCtx* ctx,
+    int on)
 {
     assert(ctx);
     if( !ctx->host->engine.chat_focus )
@@ -6171,7 +7570,10 @@ api_chat_focus(struct ToriRS_PluginCtx* ctx, int on)
 }
 
 static int
-api_if_click(struct ToriRS_PluginCtx* ctx, int component_id, int op)
+api_if_click(
+    struct ToriRS_PluginCtx* ctx,
+    int component_id,
+    int op)
 {
     assert(ctx);
     /* Both are numbers a plugin read out of its own config, so both are bad
@@ -6298,22 +7700,34 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
      * is the answer at init, not a sentinel that would fire a phantom change
      * on the first frame. */
     host->last_screen = engine->screen(engine->user);
-    /* Same trap as the image slots below: 0 is a plugin index, so a calloc'd
-     * owner would mean "the first plugin registered owns the gameframe" and
-     * every lane would boot with its own chrome suppressed. */
-    host->layout_owner = -1;
+    PluginFrameCatalog_Init(&host->frame_catalog);
+    ToriRS_UiRegistry_Init(&host->ui_registry);
+    snprintf(
+        host->frame_selection.requested, sizeof(host->frame_selection.requested), "%s", "auto");
+    snprintf(
+        host->frame_selection.active, sizeof(host->frame_selection.active), "%s", "core/native");
+    host->frame_selection.status = TORIRS_PLUGIN_FRAME_NATIVE;
+    host->frame_selection.revision = 1;
+    host->frame_active_entry = -1;
+    host->frame_target_entry = -1;
+    host->frame_selection_dirty = 1;
+    host->placement_cache_revision = -1;
     /* 0 is a real plugin index, so an empty reservation row needs a value of
      * its own rather than the calloc's zero. */
     for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-        host->reserves[i].plugin = -1;
+    {
+        host->placement_reservations[i].plugin = -1;
+        host->placement_resolved_reservations[i].plugin = -1;
+    }
     for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
         host->role_replacements[i].plugin = -1;
     /* Same reasoning again for the chrome tier's two tables. */
     for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
         host->chrome_claims[i].plugin = -1;
-    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) /
-                              sizeof(host->chrome_borrows[0])); i++ )
+    for( int i = 0; i < (int)(sizeof(host->chrome_borrows) / sizeof(host->chrome_borrows[0])); i++ )
         host->chrome_borrows[i].borrower = -1;
+    host->layout_declarer = -1;
+    host->layout_candidate_entry = -1;
     host->chrome_declarer = -1;
     /* -1 is the free marker and 0 is plugin index zero, so the calloc above
      * would have handed every image slot to the first plugin registered. */
@@ -6339,7 +7753,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .log = api_log,
         .notify = api_notify,
         .screen = api_screen,
-        .safe_os = api_safe_os,
         .world_cycle = api_world_cycle,
         .frame_ms = api_frame_ms,
         .frame_work_us = api_frame_work_us,
@@ -6363,7 +7776,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .role_visible = api_role_visible,
         .role_click = api_role_click,
         .role_id = api_role_id,
-        .layout_reserve = api_layout_reserve,
         .layout_revision = api_layout_revision,
         .layout_slot_art = api_layout_slot_art,
         .chrome_claim = api_chrome_claim,
@@ -6379,9 +7791,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .entity_part = api_entity_part,
         .entity_look = api_entity_look,
         .entity_ops = api_entity_ops,
-        .layout_claim = api_layout_claim,
-        .layout_release = api_layout_release,
-        .layout_owned = api_layout_owned,
         .layout_slot = api_layout_slot,
         .layout_slot_at = api_layout_slot_at,
         .layout_slot_skin = api_layout_slot_skin,
@@ -6476,6 +7885,17 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .obj_image = api_obj_image,
         .loot_source_next = api_loot_source_next,
         .loot_row_next = api_loot_row_next,
+        .placement_revision = api_placement_revision,
+        .placement_rect_next = api_placement_rect_next,
+        .placement_place = api_placement_place,
+        .placement_contains = api_placement_contains,
+        .placement_reserve = api_placement_reserve,
+        .placement_reservation_rect = api_placement_reservation_rect,
+        .ui_contribution_facets = api_ui_contribution_facets,
+        .frame_offer_next = api_frame_offer_next,
+        .frame_selection = api_frame_selection,
+        .frame_select = api_frame_select,
+        .frame_invalidate = api_frame_invalidate,
     };
     host->api = api;
     return host;
@@ -6518,6 +7938,14 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
         plugin_image_drop(host, i);
     for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
         plugin_model_drop(host, i);
+    for( int i = 0; i < host->plugin_count; i++ )
+        if( host->plugins[i].v2 )
+        {
+            free(host->plugins[i].v2->state);
+            host->plugins[i].v2->state = NULL;
+            free(host->plugins[i].v2);
+            host->plugins[i].v2 = NULL;
+        }
     free(host);
 }
 
@@ -6568,8 +7996,839 @@ plugin_title_refresh(struct ToriRS_PluginCtx* ctx)
     ctx->title[out] = '\0';
 }
 
+#define PLUGIN_FRAME_PREFERENCE_MIGRATION 1
+
+static char const*
+plugin_frame_legacy_gameframe_choice(struct ToriRS_PluginCtx* ctx)
+{
+    char const* value;
+
+    assert(ctx);
+    value = api_cfg_str(ctx, "layout");
+    if( !value || !value[0] || strcmp(value, "Auto") == 0 || strcmp(value, "3") == 0 )
+        return "auto";
+    if( strcmp(value, "Classic Fixed") == 0 || strcmp(value, "0") == 0 )
+        return "gameframe-layout/classic-fixed";
+    if( strcmp(value, "Modern Fixed") == 0 || strcmp(value, "1") == 0 )
+        return "gameframe-layout/modern-fixed";
+    if( strcmp(value, "Modern Resizable") == 0 || strcmp(value, "2") == 0 )
+        return "gameframe-layout/modern-resizable";
+    return "auto";
+}
+
+/** Read/migrate the one device preference after plugin_prefs.ini has landed. */
+static void
+plugin_frame_preference_load(struct ToriRS_PluginHost* host)
+{
+    char requested[TORIRS_PLUGIN_FRAME_ID_MAX] = "auto";
+    int migration = 0;
+    int present = 0;
+
+    assert(host);
+    if( host->frame_preference_loaded )
+        return;
+    host->frame_preference_loaded = 1;
+
+    if( host->engine.frame_preference )
+        present = host->engine.frame_preference(
+            host->engine.user, requested, (int)sizeof(requested), &migration);
+    if( !plugin_frame_preference_id_valid(requested) )
+    {
+        TORIRS_REPORT("plugin: invalid saved gameframe '%s'; using auto\n", requested);
+        snprintf(requested, sizeof(requested), "%s", "auto");
+    }
+
+    if( migration < PLUGIN_FRAME_PREFERENCE_MIGRATION )
+    {
+        if( !present )
+        {
+            int const desktop = PluginHost_IndexOf(host, "gameframe-layout");
+            int const mobile = PluginHost_IndexOf(host, "mobile-gameframe");
+
+            if( desktop >= 0 && host->plugins[desktop].enabled )
+            {
+                snprintf(
+                    requested,
+                    sizeof(requested),
+                    "%s",
+                    plugin_frame_legacy_gameframe_choice(&host->plugins[desktop]));
+                if( mobile >= 0 && host->plugins[mobile].enabled )
+                    TORIRS_REPORT(
+                        "plugin: both legacy gameframe plugins were enabled; preserving "
+                        "gameframe-layout, which previously won by registry order\n");
+            }
+            else if( mobile >= 0 && host->plugins[mobile].enabled )
+                snprintf(requested, sizeof(requested), "%s", "mobile-gameframe/stone-drawer");
+        }
+        if( host->engine.frame_preference_set )
+            (void)host->engine.frame_preference_set(
+                host->engine.user, requested, PLUGIN_FRAME_PREFERENCE_MIGRATION);
+    }
+
+    snprintf(
+        host->frame_selection.requested, sizeof(host->frame_selection.requested), "%s", requested);
+    host->frame_selection_dirty = 1;
+}
+
+static void
+plugin_frame_selection_active(
+    struct ToriRS_PluginHost* host,
+    char const* active,
+    int status,
+    char const* reason)
+{
+    char const* why = reason ? reason : "";
+
+    assert(host);
+    assert(active);
+    if( strcmp(host->frame_selection.active, active) == 0 &&
+        host->frame_selection.status == status && strcmp(host->frame_selection.reason, why) == 0 )
+        return;
+    snprintf(host->frame_selection.active, sizeof(host->frame_selection.active), "%s", active);
+    host->frame_selection.status = status;
+    snprintf(host->frame_selection.reason, sizeof(host->frame_selection.reason), "%s", why);
+    host->frame_selection.revision++;
+}
+
+static void
+plugin_frame_engine_activate(
+    struct ToriRS_PluginHost* host,
+    int entry_index)
+{
+    struct PluginFrameCatalogEntry const* entry;
+    int owner = -1;
+    int canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
+    int width = 0;
+    int height = 0;
+
+    assert(host);
+    entry = PluginFrameCatalog_At(&host->frame_catalog, entry_index);
+    if( entry )
+    {
+        owner = entry->plugin;
+        canvas = entry->canvas;
+        width = entry->width;
+        height = entry->height;
+    }
+    if( host->frame_active_entry == entry_index && plugin_frame_owner(host) == owner &&
+        host->layout_canvas == canvas && host->layout_fixed_w == width &&
+        host->layout_fixed_h == height )
+        return;
+
+    host->frame_selection_epoch++;
+    host->frame_active_entry = entry_index;
+    host->layout_canvas = canvas;
+    host->layout_fixed_w = width;
+    host->layout_fixed_h = height;
+    plugin_layout_publish(host);
+}
+
+static int
+plugin_frame_provider_assets(
+    struct ToriRS_PluginHost const* host,
+    int plugin,
+    char* reason,
+    size_t reason_size)
+{
+    assert(host);
+    assert(plugin >= 0);
+    assert(plugin < host->plugin_count);
+    assert(reason);
+    assert(reason_size > 0);
+    reason[0] = '\0';
+
+    for( int i = 0; i < host->asset_count; i++ )
+    {
+        struct PluginAsset const* asset = &host->assets[i];
+        if( asset->plugin != plugin )
+            continue;
+        if( asset->missing )
+        {
+            snprintf(
+                reason,
+                reason_size,
+                "Required gameframe asset '%s' could not be loaded.",
+                asset->name);
+            return -1;
+        }
+        if( asset->pending )
+        {
+            snprintf(reason, reason_size, "Loading gameframe artwork (%s).", asset->name);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/**
+ * Resolve the complete catalogue as one transaction. Registration order never
+ * participates: the exact persisted id names the provider, or native does.
+ */
+static void
+plugin_frame_resolve(struct ToriRS_PluginHost* host)
+{
+    struct PluginFrameCatalogEntry const* target = NULL;
+    int target_index = -1;
+    int wanted_plugin = -1;
+    int asset_state = 1;
+    char asset_reason[160];
+
+    assert(host);
+    if( host->frame_resolving )
+        return;
+    /* Compatibility while bundled frame plugins are migrated: without any
+     * published offers the legacy claim API remains the sole authority. */
+    if( PluginFrameCatalog_Count(&host->frame_catalog) == 0 )
+    {
+        host->frame_selection_dirty = 0;
+        return;
+    }
+    host->frame_resolving = 1;
+
+    if( strcmp(host->frame_selection.requested, "auto") != 0 )
+    {
+        target_index =
+            PluginFrameCatalog_Find(&host->frame_catalog, host->frame_selection.requested);
+        target = PluginFrameCatalog_At(&host->frame_catalog, target_index);
+        if( target && target->available )
+            wanted_plugin = target->plugin;
+    }
+
+    /* Provider enablement is derived from selection. It is runtime state, not
+     * the old independently persisted checkbox. */
+    for( int i = 0; i < host->plugin_count; i++ )
+    {
+        struct ToriRS_PluginCtx* ctx = &host->plugins[i];
+        int const wanted = ctx->def->frames && i == wanted_plugin;
+
+        if( !ctx->def->frames )
+            continue;
+        if( ctx->running && !wanted )
+            plugin_teardown(host, i);
+        ctx->enabled = wanted ? true : false;
+    }
+    if( target && target->available && host->plugins[target->plugin].running &&
+        !host->plugins[target->plugin].refused )
+        asset_state =
+            plugin_frame_provider_assets(host, target->plugin, asset_reason, sizeof(asset_reason));
+
+    if( strcmp(host->frame_selection.requested, "auto") == 0 )
+    {
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(host, "core/native", TORIRS_PLUGIN_FRAME_NATIVE, "");
+    }
+    else if( !target )
+    {
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(
+            host,
+            "core/native",
+            TORIRS_PLUGIN_FRAME_FALLBACK,
+            "The requested gameframe is not installed in this build.");
+    }
+    else if( !target->available || host->plugins[target->plugin].refused )
+    {
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(
+            host,
+            "core/native",
+            TORIRS_PLUGIN_FRAME_FALLBACK,
+            host->plugins[target->plugin].error[0]
+                ? host->plugins[target->plugin].error
+                : "The requested gameframe is unavailable on this lane.");
+    }
+    else if( !host->plugins[target->plugin].running )
+    {
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(
+            host,
+            "core/native",
+            TORIRS_PLUGIN_FRAME_LOADING,
+            "Starting the requested gameframe provider.");
+    }
+    else if( asset_state < 0 )
+    {
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(
+            host, "core/native", TORIRS_PLUGIN_FRAME_FALLBACK, asset_reason);
+    }
+    else if( asset_state == 0 )
+    {
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(
+            host, "core/native", TORIRS_PLUGIN_FRAME_LOADING, asset_reason);
+    }
+    else if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+    {
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(
+            host,
+            "core/native",
+            TORIRS_PLUGIN_FRAME_LOADING,
+            "The requested gameframe will activate after login.");
+    }
+    else
+    {
+        plugin_frame_engine_activate(host, target_index);
+        plugin_frame_selection_active(host, target->id, TORIRS_PLUGIN_FRAME_ACTIVE, "");
+    }
+
+    host->frame_selection_dirty = 0;
+    host->frame_resolving = 0;
+}
+
+static struct ToriRS_UiNodeRef
+plugin_v2_ui_ref(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* name)
+{
+    struct ToriRS_PluginHost* host = user;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    return PluginHost_UiRef(host, context->index, name);
+}
+
+static bool
+plugin_v2_ui_info(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_UiNodeRef node,
+    struct ToriRS_UiNodeInfo* out)
+{
+    struct ToriRS_PluginHost* host = user;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    (void)context;
+    return PluginHost_UiInfo(host, node, out);
+}
+
+static bool
+plugin_v2_ui_invoke(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_UiNodeRef node,
+    char const* action)
+{
+    struct ToriRS_PluginHost* host = user;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    (void)context;
+    return PluginHost_UiInvoke(host, node, action);
+}
+
+static bool
+plugin_v2_ui_contribution_info_hook(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* node,
+    uint32_t facets,
+    struct ToriRS_UiContributionInfo* out)
+{
+    struct ToriRS_UiContributionStatus status;
+    struct ToriRS_PluginHost* host = user;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    assert(out);
+    (void)host;
+    memset(out, 0, sizeof(*out));
+    out->struct_size = sizeof(*out);
+    if( facets == 0 || (facets & ~TORIRS_UI_FACET_ALL) != 0 ||
+        !plugin_ui_contribution_status(context, node, &status) )
+        return false;
+    out->state = status.state;
+    out->active_facets = status.active_facets & facets;
+    (void)snprintf(
+        out->conflict_plugin, sizeof(out->conflict_plugin), "%s", status.conflict_plugin);
+    return true;
+}
+
+static void
+plugin_v2_frame_node_repoint(struct PluginV2FrameNode* node)
+{
+    assert(node);
+    node->value.parent = node->parent[0] ? node->parent : NULL;
+    node->value.label = node->label[0] ? node->label : NULL;
+    node->value.action = node->action[0] ? node->action : NULL;
+    for( int i = 0; i < TORIRS_UI_NAMED_ACTIONS_MAX; i++ )
+        node->value.actions[i] =
+            i < (int)node->value.action_count && node->actions[i][0] ? node->actions[i] : NULL;
+}
+
+static int
+plugin_v2_copy_frame_node(
+    struct PluginV2FrameNode* out,
+    char const* name,
+    struct ToriRS_UiNode const* node)
+{
+    size_t copy_size;
+    int written;
+
+    assert(out);
+    assert(name);
+    assert(node);
+    copy_size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_LEGACY_SIZE;
+    if( copy_size < TORIRS_UI_NODE_LEGACY_SIZE )
+        return 0;
+    memset(out, 0, sizeof(*out));
+    written = snprintf(out->name, sizeof(out->name), "%s", name);
+    if( written <= 0 || written >= (int)sizeof(out->name) )
+        return 0;
+    if( copy_size > sizeof(out->value) )
+        copy_size = sizeof(out->value);
+    memcpy(&out->value, node, copy_size);
+    out->value.struct_size = sizeof(out->value);
+    if( node->parent )
+    {
+        written = snprintf(out->parent, sizeof(out->parent), "%s", node->parent);
+        if( written < 0 || written >= (int)sizeof(out->parent) )
+            return 0;
+    }
+    if( node->label )
+    {
+        written = snprintf(out->label, sizeof(out->label), "%s", node->label);
+        if( written < 0 || written >= (int)sizeof(out->label) )
+            return 0;
+    }
+    if( node->action )
+    {
+        written = snprintf(out->action, sizeof(out->action), "%s", node->action);
+        if( written < 0 || written >= (int)sizeof(out->action) )
+            return 0;
+    }
+    if( copy_size >= offsetof(struct ToriRS_UiNode, action_count) + sizeof(node->action_count) )
+    {
+        if( node->action_count > TORIRS_UI_NAMED_ACTIONS_MAX ||
+            (node->action_count != 0 &&
+             copy_size < offsetof(struct ToriRS_UiNode, actions) + sizeof(node->actions)) )
+            return 0;
+        for( uint32_t i = 0; i < node->action_count; i++ )
+        {
+            if( !node->actions[i] )
+                return 0;
+            written = snprintf(out->actions[i], sizeof(out->actions[i]), "%s", node->actions[i]);
+            if( written <= 0 || written >= (int)sizeof(out->actions[i]) )
+                return 0;
+        }
+    }
+    plugin_v2_frame_node_repoint(out);
+    return 1;
+}
+
+static void
+plugin_v2_frame_ui_node(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* name,
+    struct ToriRS_UiNode const* node)
+{
+    struct ToriRS_PluginHost* host = user;
+    struct PluginV2Instance* v2;
+    struct ToriRS_UiNode normalized;
+    struct ToriRS_UiNodeRef name_ref;
+    char const* canonical_name;
+    size_t node_size;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    (void)host;
+    v2 = context->v2;
+    assert(v2);
+    name_ref = ToriRS_UiRegistry_PrivateRef(&context->host->ui_registry, context->name, name);
+    canonical_name = ToriRS_UiRegistry_Name(&context->host->ui_registry, name_ref);
+    if( !canonical_name )
+    {
+        v2->frame_ui_candidate_invalid = true;
+        return;
+    }
+    node_size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_LEGACY_SIZE;
+    if( node_size < TORIRS_UI_NODE_LEGACY_SIZE )
+    {
+        v2->frame_ui_candidate_invalid = true;
+        return;
+    }
+    memset(&normalized, 0, sizeof(normalized));
+    memcpy(&normalized, node, node_size < sizeof(normalized) ? node_size : sizeof(normalized));
+    normalized.struct_size = sizeof(normalized);
+    if( node->parent && node->parent[0] )
+    {
+        struct ToriRS_UiNodeRef const parent_ref =
+            ToriRS_UiRegistry_PrivateRef(&context->host->ui_registry, context->name, node->parent);
+        normalized.parent = ToriRS_UiRegistry_Name(&context->host->ui_registry, parent_ref);
+        if( !normalized.parent )
+        {
+            v2->frame_ui_candidate_invalid = true;
+            return;
+        }
+    }
+    if( v2->frame_ui_candidate_count >= PLUGIN_V2_FRAME_UI_MAX )
+    {
+        v2->frame_ui_candidate_invalid = true;
+        return;
+    }
+    for( int i = 0; i < v2->frame_ui_candidate_count; i++ )
+        if( strcmp(v2->frame_ui_candidate[i].name, canonical_name) == 0 )
+        {
+            v2->frame_ui_candidate_invalid = true;
+            return;
+        }
+    if( !plugin_v2_copy_frame_node(
+            &v2->frame_ui_candidate[v2->frame_ui_candidate_count], canonical_name, &normalized) )
+    {
+        v2->frame_ui_candidate_invalid = true;
+        return;
+    }
+    v2->frame_ui_candidate_count++;
+}
+
+static void
+plugin_v2_model_release(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_ModelRef model)
+{
+    struct ToriRS_PluginHost* host = user;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    if( model.value < 0 || model.value >= TORIRS_PLUGIN_MODELS_MAX ||
+        host->models[model.value].plugin != context->index )
+        return;
+    plugin_model_drop(host, model.value);
+}
+
+static struct ToriRS_PluginV2AdapterHooks
+plugin_v2_adapter_hooks(struct ToriRS_PluginHost* host)
+{
+    return (struct ToriRS_PluginV2AdapterHooks){
+        .struct_size = sizeof(struct ToriRS_PluginV2AdapterHooks),
+        .user = host,
+        .ui_ref = plugin_v2_ui_ref,
+        .ui_info = plugin_v2_ui_info,
+        .ui_invoke = plugin_v2_ui_invoke,
+        .ui_contribution_info = plugin_v2_ui_contribution_info_hook,
+        .frame_ui_node = plugin_v2_frame_ui_node,
+        .model_release = plugin_v2_model_release,
+    };
+}
+
+static int
+plugin_v2_has_event_callback(
+    struct ToriRS_PluginDefV2 const* def,
+    enum ToriRS_PluginEvent event)
+{
+    assert(def);
+    switch( event )
+    {
+    case TORIRS_PLUGIN_EV_START:
+        return def->callbacks.on_start != NULL;
+    case TORIRS_PLUGIN_EV_STOP:
+        return def->callbacks.on_stop != NULL;
+    case TORIRS_PLUGIN_EV_FRAME_START:
+        return def->callbacks.on_frame_start != NULL;
+    case TORIRS_PLUGIN_EV_LOGIC_TICK:
+        return def->callbacks.on_logic_tick != NULL;
+    case TORIRS_PLUGIN_EV_SERVER_TICK:
+        return def->callbacks.on_server_tick != NULL;
+    case TORIRS_PLUGIN_EV_WORLD_LOADED:
+        return def->callbacks.on_world_loaded != NULL;
+    case TORIRS_PLUGIN_EV_SCREEN_CHANGE:
+        return def->callbacks.on_screen_changed != NULL;
+    case TORIRS_PLUGIN_EV_NPC_SPAWN:
+        return def->callbacks.on_npc_spawn != NULL;
+    case TORIRS_PLUGIN_EV_NPC_RETYPE:
+        return def->callbacks.on_npc_retype != NULL;
+    case TORIRS_PLUGIN_EV_NPC_DESPAWN:
+        return def->callbacks.on_npc_despawn != NULL;
+    case TORIRS_PLUGIN_EV_OBJ_SPAWN:
+        return def->callbacks.on_item_spawn != NULL;
+    case TORIRS_PLUGIN_EV_OBJ_COUNT:
+        return def->callbacks.on_item_changed != NULL;
+    case TORIRS_PLUGIN_EV_OBJ_DESPAWN:
+        return def->callbacks.on_item_despawn != NULL;
+    case TORIRS_PLUGIN_EV_CONFIG_CHANGED:
+        return def->callbacks.on_config_changed != NULL;
+    case TORIRS_PLUGIN_EV_ASSET:
+        return def->callbacks.on_asset != NULL;
+    case TORIRS_PLUGIN_EV_CHAT_MESSAGE:
+        return def->callbacks.on_chat_message != NULL;
+    case TORIRS_PLUGIN_EV_GAME_EVENT:
+        return def->callbacks.on_game_event != NULL;
+    case TORIRS_PLUGIN_EV_KEY:
+        return def->callbacks.on_key != NULL;
+    case TORIRS_PLUGIN_EV_MENU_BUILD:
+        return def->callbacks.on_menu_build != NULL;
+    case TORIRS_PLUGIN_EV_MENU_SELECT:
+        return def->callbacks.on_menu_select != NULL;
+    case TORIRS_PLUGIN_EV_DRAW_WORLD:
+        return def->callbacks.on_draw_world != NULL;
+    case TORIRS_PLUGIN_EV_DRAW_CANVAS:
+        return def->callbacks.on_draw_canvas != NULL;
+    case TORIRS_PLUGIN_EV_PANEL_BUILD:
+        return def->callbacks.on_ui_build != NULL;
+    case TORIRS_PLUGIN_EV_PANEL_ACTION:
+        return def->callbacks.on_ui_action != NULL;
+    case TORIRS_PLUGIN_EV_PANEL_DRAW:
+        return def->callbacks.on_ui_draw != NULL;
+    case TORIRS_PLUGIN_EV_LAYOUT_CHANGED:
+        /* A placement callback follows the resolved placement revision, not
+         * this broader legacy notification. It is dispatched directly after
+         * canonical area comparison. */
+        return 0;
+    default:
+        return 0;
+    }
+}
+
+static enum ToriRS_PluginVerdict
+plugin_v2_event(
+    struct ToriRS_PluginCtx* ctx,
+    void* event,
+    void* userdata)
+{
+    enum ToriRS_PluginEvent const kind = (enum ToriRS_PluginEvent)((intptr_t)userdata - 1);
+    struct PluginV2Instance* v2;
+    struct ToriRS_ApiV2* api;
+    void* state;
+
+    assert(ctx);
+    v2 = ctx->v2;
+    assert(v2);
+    api = &v2->adapter.api;
+    state = v2->state;
+    switch( kind )
+    {
+    case TORIRS_PLUGIN_EV_START:
+        v2->definition->callbacks.on_start(api, state);
+        break;
+    case TORIRS_PLUGIN_EV_STOP:
+        v2->definition->callbacks.on_stop(api, state);
+        break;
+    case TORIRS_PLUGIN_EV_FRAME_START:
+        v2->definition->callbacks.on_frame_start(api, state, event);
+        break;
+    case TORIRS_PLUGIN_EV_LOGIC_TICK:
+        v2->definition->callbacks.on_logic_tick(api, state, event);
+        break;
+    case TORIRS_PLUGIN_EV_SERVER_TICK:
+        v2->definition->callbacks.on_server_tick(api, state, event);
+        break;
+    case TORIRS_PLUGIN_EV_WORLD_LOADED:
+        v2->definition->callbacks.on_world_loaded(api, state, event);
+        break;
+    case TORIRS_PLUGIN_EV_SCREEN_CHANGE:
+        v2->definition->callbacks.on_screen_changed(api, state, event);
+        break;
+    case TORIRS_PLUGIN_EV_NPC_SPAWN:
+        v2->definition->callbacks.on_npc_spawn(
+            api, state, &((struct ToriRS_PluginEvNpc const*)event)->npc);
+        break;
+    case TORIRS_PLUGIN_EV_NPC_RETYPE:
+        v2->definition->callbacks.on_npc_retype(
+            api, state, &((struct ToriRS_PluginEvNpc const*)event)->npc);
+        break;
+    case TORIRS_PLUGIN_EV_NPC_DESPAWN:
+        v2->definition->callbacks.on_npc_despawn(
+            api, state, &((struct ToriRS_PluginEvNpc const*)event)->npc);
+        break;
+    case TORIRS_PLUGIN_EV_OBJ_SPAWN:
+        v2->definition->callbacks.on_item_spawn(
+            api, state, &((struct ToriRS_PluginEvObj const*)event)->obj);
+        break;
+    case TORIRS_PLUGIN_EV_OBJ_COUNT:
+        v2->definition->callbacks.on_item_changed(
+            api, state, &((struct ToriRS_PluginEvObj const*)event)->obj);
+        break;
+    case TORIRS_PLUGIN_EV_OBJ_DESPAWN:
+        v2->definition->callbacks.on_item_despawn(
+            api, state, &((struct ToriRS_PluginEvObj const*)event)->obj);
+        break;
+    case TORIRS_PLUGIN_EV_CONFIG_CHANGED:
+        v2->definition->callbacks.on_config_changed(
+            api, state, ((struct ToriRS_PluginEvConfig const*)event)->key);
+        break;
+    case TORIRS_PLUGIN_EV_ASSET:
+        v2->definition->callbacks.on_asset(api, state, event);
+        break;
+    case TORIRS_PLUGIN_EV_CHAT_MESSAGE:
+        v2->definition->callbacks.on_chat_message(api, state, event);
+        break;
+    case TORIRS_PLUGIN_EV_GAME_EVENT:
+        v2->definition->callbacks.on_game_event(api, state, event);
+        break;
+    case TORIRS_PLUGIN_EV_KEY:
+        return v2->definition->callbacks.on_key(api, state, event) == TORIRS_CALLBACK_CONSUME
+                   ? TORIRS_PLUGIN_CONSUME
+                   : TORIRS_PLUGIN_PASS;
+    case TORIRS_PLUGIN_EV_MENU_BUILD:
+        return v2->definition->callbacks.on_menu_build(api, state, event) == TORIRS_CALLBACK_CONSUME
+                   ? TORIRS_PLUGIN_CONSUME
+                   : TORIRS_PLUGIN_PASS;
+    case TORIRS_PLUGIN_EV_MENU_SELECT:
+        return v2->definition->callbacks.on_menu_select(api, state, event) ==
+                       TORIRS_CALLBACK_CONSUME
+                   ? TORIRS_PLUGIN_CONSUME
+                   : TORIRS_PLUGIN_PASS;
+    case TORIRS_PLUGIN_EV_DRAW_WORLD:
+    {
+        struct ToriRS_PluginV2DrawScope scope;
+        struct ToriRS_DrawBuilder builder;
+        ToriRS_PluginV2Adapter_DrawBegin(
+            &v2->adapter, ((struct ToriRS_PluginEvDraw const*)event)->surface, &scope, &builder);
+        v2->definition->callbacks.on_draw_world(api, state, &builder);
+        ToriRS_PluginV2Adapter_DrawEnd(&scope, &builder);
+        break;
+    }
+    case TORIRS_PLUGIN_EV_DRAW_CANVAS:
+    {
+        struct ToriRS_PluginV2DrawScope scope;
+        struct ToriRS_DrawBuilder builder;
+        ToriRS_PluginV2Adapter_DrawBegin(
+            &v2->adapter,
+            ((struct ToriRS_PluginEvDrawCanvas const*)event)->surface,
+            &scope,
+            &builder);
+        v2->definition->callbacks.on_draw_canvas(api, state, &builder);
+        ToriRS_PluginV2Adapter_DrawEnd(&scope, &builder);
+        break;
+    }
+    case TORIRS_PLUGIN_EV_PANEL_BUILD:
+    {
+        struct ToriRS_PluginV2PanelScope scope;
+        struct ToriRS_PanelBuilder builder;
+        struct ToriRS_PluginEvPanelBuild const* build = event;
+        ToriRS_PluginV2Adapter_PanelBegin(&v2->adapter, &scope, &builder);
+        v2->definition->callbacks.on_ui_build(api, state, &builder, build->view);
+        ToriRS_PluginV2Adapter_PanelEnd(&scope, &builder);
+        break;
+    }
+    case TORIRS_PLUGIN_EV_PANEL_ACTION:
+        v2->definition->callbacks.on_ui_action(api, state, event);
+        break;
+    case TORIRS_PLUGIN_EV_PANEL_DRAW:
+    {
+        struct ToriRS_PluginV2DrawScope scope;
+        struct ToriRS_DrawBuilder builder;
+        struct ToriRS_PluginEvPanelDraw const* draw = event;
+        ToriRS_PluginV2Adapter_DrawBegin(&v2->adapter, draw->surface, &scope, &builder);
+        v2->definition->callbacks.on_ui_draw(api, state, draw->id, &builder);
+        ToriRS_PluginV2Adapter_DrawEnd(&scope, &builder);
+        break;
+    }
+    case TORIRS_PLUGIN_EV_LAYOUT_CHANGED:
+        v2->definition->callbacks.on_placement_changed(
+            api, state, (uint32_t)((struct ToriRS_PluginEvTick const*)event)->cycle);
+        break;
+    default:
+        assert(!"unmapped v2 callback event");
+    }
+    return TORIRS_PLUGIN_PASS;
+}
+
+static void
+plugin_v2_init(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginApi const* legacy)
+{
+    struct ToriRS_PluginV2AdapterHooks hooks;
+    struct PluginV2Instance* v2;
+    bool initialized;
+
+    assert(ctx);
+    assert(legacy);
+    v2 = ctx->v2;
+    assert(v2);
+    assert(!v2->state);
+    if( v2->definition->state_size > 0 )
+    {
+        v2->state = calloc(1, v2->definition->state_size);
+        assert(v2->state);
+    }
+    hooks = plugin_v2_adapter_hooks(ctx->host);
+    initialized = ToriRS_PluginV2Adapter_Init(&v2->adapter, legacy, ctx, &hooks);
+    assert(initialized);
+    if( !initialized )
+        return;
+    for( int event = 0; event < TORIRS_PLUGIN_EV_COUNT; event++ )
+        if( plugin_v2_has_event_callback(v2->definition, (enum ToriRS_PluginEvent)event) )
+            legacy->subscribe(
+                ctx, (enum ToriRS_PluginEvent)event, plugin_v2_event, (void*)(intptr_t)(event + 1));
+}
+
+static void
+plugin_v2_shutdown(struct ToriRS_PluginCtx* ctx)
+{
+    struct PluginV2Instance* v2;
+
+    assert(ctx);
+    v2 = ctx->v2;
+    assert(v2);
+    free(v2->state);
+    v2->state = NULL;
+    memset(&v2->adapter, 0, sizeof(v2->adapter));
+    v2->frame_ui_count = 0;
+    v2->frame_ui_candidate_count = 0;
+    v2->frame_ui_candidate_invalid = false;
+}
+
+static int
+plugin_ui_contributions_start(struct ToriRS_PluginCtx* ctx)
+{
+    int count = 0;
+
+    assert(ctx);
+    if( !ctx->def->ui_contributions || ctx->ui_contributions_registered )
+        return 1;
+    while( ctx->def->ui_contributions[count].node )
+        count++;
+    if( count == 0 )
+    {
+        ctx->ui_contributions_registered = true;
+        return 1;
+    }
+    if( count > PLUGIN_UI_CONTRIBUTIONS_MAX )
+    {
+        PluginHost_SetError(
+            ctx->host, ctx->index, "Its named UI declaration count exceeds the per-plugin budget.");
+        return 0;
+    }
+
+    ctx->ui_contribution_count = 0;
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRS_UiContributionRef ref;
+        if( ToriRS_UiRegistry_AddContribution(
+                &ctx->host->ui_registry, ctx->name, &ctx->def->ui_contributions[i], &ref) !=
+            TORIRS_UI_REGISTRY_OK )
+        {
+            (void)ToriRS_UiRegistry_RemovePlugin(&ctx->host->ui_registry, ctx->name);
+            memset(ctx->ui_contribution_refs, 0, sizeof(ctx->ui_contribution_refs));
+            ctx->ui_contribution_count = 0;
+            PluginHost_SetError(
+                ctx->host, ctx->index, "Its named UI declarations are invalid for this build.");
+            return 0;
+        }
+        ctx->ui_contribution_refs[ctx->ui_contribution_count++] = ref;
+    }
+    ctx->ui_contributions_registered = true;
+    ctx->host->placement_cache_valid = 0;
+    return 2;
+}
+
 int
-PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef const* def)
+PluginHost_Register(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginDef const* def)
 {
     assert(host);
     assert(def);
@@ -6587,28 +8846,9 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
      * second is refused rather than admitted to fight over them. */
     if( PluginHost_IndexOf(host, def->name) >= 0 )
     {
-        TORIRS_ERR("plugin: '%s' is already registered; the second one is refused "
+        TORIRS_ERR(
+            "plugin: '%s' is already registered; the second one is refused "
             "(names key the settings file, so they must be unique)\n",
-            def->name);
-        return -1;
-    }
-
-    /*
-     * A name is an identity, not a label.
-     *
-     * It keys the ini section, the panel row and PluginHost_IndexOf, so two
-     * plugins answering to one name share a config store and resolve to
-     * whichever registered first -- a script would silently inherit a C
-     * plugin's settings, and disabling one would disable the other. Refusing
-     * is the only outcome that cannot be mistaken for working; merging them
-     * quietly is what produces a bug report about settings that "reset
-     * themselves".
-     */
-    if( PluginHost_IndexOf(host, def->name) >= 0 )
-    {
-        TORIRS_ERR("plugin: '%s' is already registered -- refusing the second one. "
-            "Two plugins cannot share a name: it is the ini section and the "
-            "panel row. Rename one.\n",
             def->name);
         return -1;
     }
@@ -6631,7 +8871,8 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
                 schema_count++;
         if( schema_count > TORIRS_PLUGIN_CONFIG_MAX )
         {
-            TORIRS_ERR("plugin: '%s' declares %d config items; the store holds %d. "
+            TORIRS_ERR(
+                "plugin: '%s' declares %d config items; the store holds %d. "
                 "Refusing it rather than dropping the last %d in silence.\n",
                 def->name,
                 schema_count,
@@ -6641,7 +8882,69 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
         }
     }
 
-    int const index = host->plugin_count++;
+    int const index = host->plugin_count;
+    if( def->frames )
+    {
+        enum PluginFrameCatalogResult const result =
+            PluginFrameCatalog_Add(&host->frame_catalog, index, def->name, def->frames);
+        if( result != PLUGIN_FRAME_CATALOG_OK )
+        {
+            char const* why = result == PLUGIN_FRAME_CATALOG_DUPLICATE ? "a duplicate canonical id"
+                              : result == PLUGIN_FRAME_CATALOG_FULL
+                                  ? "the frame catalogue is full"
+                                  : "an invalid id, title, canvas policy, or size";
+            TORIRS_ERR(
+                "plugin: '%s' has invalid frame offers (%s); refusing the provider\n",
+                def->name,
+                why);
+            return -1;
+        }
+    }
+    if( def->ui_contributions )
+    {
+        struct ToriRS_UiRegistry* validation;
+        int contribution_count = 0;
+        while( def->ui_contributions[contribution_count].node )
+            contribution_count++;
+        if( contribution_count > PLUGIN_UI_CONTRIBUTIONS_MAX )
+        {
+            if( def->frames )
+                PluginFrameCatalog_RemovePlugin(&host->frame_catalog, index);
+            TORIRS_ERR(
+                "plugin: '%s' declares %d named UI contributions; the per-plugin "
+                "budget is %d\n",
+                def->name,
+                contribution_count,
+                PLUGIN_UI_CONTRIBUTIONS_MAX);
+            return -1;
+        }
+        validation = malloc(sizeof(*validation));
+        assert(validation);
+        *validation = host->ui_registry;
+        for( int i = 0; i < contribution_count; i++ )
+        {
+            struct ToriRS_UiContributionRef contribution;
+            enum ToriRS_UiRegistryResult const result = ToriRS_UiRegistry_AddContribution(
+                validation, def->name, &def->ui_contributions[i], &contribution);
+            if( result != TORIRS_UI_REGISTRY_OK )
+            {
+                free(validation);
+                if( def->frames )
+                    PluginFrameCatalog_RemovePlugin(&host->frame_catalog, index);
+                TORIRS_ERR(
+                    "plugin: '%s' has an invalid named-UI contribution at row %d; "
+                    "refusing the plugin\n",
+                    def->name,
+                    i);
+                return -1;
+            }
+        }
+        free(validation);
+        /* Registration validates the complete descriptor set. Contributions
+         * become live only while the plugin runs; validation therefore must
+         * not enqueue add/remove commands in the live retained registry. */
+    }
+    host->plugin_count++;
     struct ToriRS_PluginCtx* ctx = &host->plugins[index];
     memset(ctx, 0, sizeof(*ctx));
     ctx->host = host;
@@ -6655,10 +8958,236 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
     return index;
 }
 
+static int
+plugin_v2_id_valid(char const* id)
+{
+    size_t length;
+
+    if( !id )
+        return 0;
+    length = strlen(id);
+    if( length == 0 || length >= TORIRS_PLUGIN_NAME_MAX || id[0] == '-' || id[length - 1] == '-' )
+        return 0;
+    for( size_t i = 0; i < length; i++ )
+    {
+        char const c = id[i];
+        if( (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' )
+            continue;
+        return 0;
+    }
+    return 1;
+}
+
+static bool
+plugin_v2_field_available(
+    uint32_t struct_size,
+    size_t offset,
+    size_t field_size)
+{
+    return struct_size >= offset + field_size;
+}
+
+#define PLUGIN_V2_FIELD_AVAILABLE(pointer, type, field)                                  \
+    plugin_v2_field_available(                                                           \
+        (pointer)->struct_size, offsetof(struct type, field), sizeof((pointer)->field))
+
+int
+PluginHost_RegisterV2(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginDefV2 const* def)
+{
+    static uint32_t const KNOWN_FLAGS = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT |
+                                        TORIRS_PLUGIN_V2_ESSENTIAL | TORIRS_PLUGIN_V2_ADAPTER |
+                                        TORIRS_PLUGIN_V2_HIDDEN;
+    struct PluginV2Instance* v2;
+    struct ToriRS_FrameOffer const* source_frames = NULL;
+    struct ToriRS_UiContribution const* contributions = NULL;
+    uint32_t flags = 0;
+    int event_priority = 0;
+    int draw_order = 0;
+    int frame_count = 0;
+    int index;
+
+    assert(host);
+    assert(def);
+    if( def->struct_size < TORIRS_PLUGIN_DEF_V2_REQUIRED_SIZE ||
+        !plugin_v2_id_valid(def->id) || !def->title ||
+        !def->title[0] || strlen(def->title) >= TORIRS_PLUGIN_TITLE_MAX || !def->version ||
+        !def->version[0] ||
+        def->callbacks.struct_size < TORIRS_PLUGIN_CALLBACKS_REQUIRED_SIZE ||
+        def->callbacks.struct_size >
+            def->struct_size - offsetof(struct ToriRS_PluginDefV2, callbacks) ||
+        def->state_size > 1024u * 1024u )
+    {
+        TORIRS_ERR("plugin: invalid v2 definition refused\n");
+        return -1;
+    }
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, frames) )
+        source_frames = def->frames;
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, ui_contributions) )
+        contributions = def->ui_contributions;
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, flags) )
+        flags = def->flags;
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, event_priority) )
+        event_priority = def->event_priority;
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, draw_order) )
+        draw_order = def->draw_order;
+    if( (flags & ~KNOWN_FLAGS) != 0 )
+    {
+        TORIRS_ERR("plugin: v2 plugin '%s' has unknown policy flags\n", def->id);
+        return -1;
+    }
+    if( def->config &&
+        (def->config->struct_size <
+             offsetof(struct ToriRS_ConfigSchema, items) + sizeof(def->config->items) ||
+         !def->config->items) )
+    {
+        TORIRS_ERR("plugin: v2 plugin '%s' has an invalid config schema\n", def->id);
+        return -1;
+    }
+
+    v2 = calloc(1, sizeof(*v2));
+    assert(v2);
+    memcpy(
+        &v2->callbacks_storage,
+        &def->callbacks,
+        def->callbacks.struct_size < sizeof(v2->callbacks_storage)
+            ? def->callbacks.struct_size
+            : sizeof(v2->callbacks_storage));
+    v2->callbacks_storage.struct_size = sizeof(v2->callbacks_storage);
+
+    if( source_frames )
+    {
+        while( source_frames[frame_count].id )
+        {
+            struct ToriRS_FrameOffer const* offer = &source_frames[frame_count];
+            struct ToriRS_FrameOffer* stored;
+            if( frame_count >= TORIRS_PLUGIN_FRAME_OFFERS_MAX ||
+                offer->struct_size < TORIRS_FRAME_OFFER_REQUIRED_SIZE ||
+                !offer->title || !offer->title[0] ||
+                !offer->build ||
+                (offer->canvas != TORIRS_FRAME_CANVAS_FIXED &&
+                 offer->canvas != TORIRS_FRAME_CANVAS_WINDOW) ||
+                (offer->canvas == TORIRS_FRAME_CANVAS_FIXED &&
+                 (offer->width <= 0 || offer->height <= 0)) ||
+                (offer->canvas == TORIRS_FRAME_CANVAS_WINDOW &&
+                 (offer->min_width <= 0 || offer->min_height <= 0)) )
+            {
+                TORIRS_ERR(
+                    "plugin: v2 frame offer %d from '%s' is invalid\n", frame_count, def->id);
+                free(v2);
+                return -1;
+            }
+            stored = &v2->frame_offers[frame_count];
+            stored->struct_size = sizeof(*stored);
+            stored->id = offer->id;
+            stored->title = offer->title;
+            stored->canvas = offer->canvas;
+            stored->width = offer->width;
+            stored->height = offer->height;
+            stored->min_width = offer->min_width;
+            stored->min_height = offer->min_height;
+            stored->build = offer->build;
+            if( PLUGIN_V2_FIELD_AVAILABLE(offer, ToriRS_FrameOffer, draw) )
+                stored->draw = offer->draw;
+            frame_count++;
+        }
+    }
+
+    v2->definition_storage.struct_size = sizeof(v2->definition_storage);
+    v2->definition_storage.id = def->id;
+    v2->definition_storage.title = def->title;
+    v2->definition_storage.version = def->version;
+    v2->definition_storage.state_size = def->state_size;
+    if( def->config )
+    {
+        v2->config_storage.struct_size = sizeof(v2->config_storage);
+        v2->config_storage.items = def->config->items;
+        v2->definition_storage.config = &v2->config_storage;
+    }
+    v2->definition_storage.callbacks = v2->callbacks_storage;
+    v2->definition_storage.frames = frame_count > 0 ? v2->frame_offers : NULL;
+    v2->definition_storage.ui_contributions = contributions;
+    v2->definition_storage.flags = flags;
+    v2->definition_storage.event_priority = event_priority;
+    v2->definition_storage.draw_order = draw_order;
+    v2->definition = &v2->definition_storage;
+    v2->frame_count = frame_count;
+    for( int i = 0; i < frame_count; i++ )
+    {
+        struct ToriRS_FrameOffer const* source = &v2->frame_offers[i];
+        struct ToriRS_PluginFrameOffer* destination = &v2->frames[i];
+
+        destination->id = source->id;
+        destination->title = source->title;
+        if( source->canvas == TORIRS_FRAME_CANVAS_FIXED )
+        {
+            destination->canvas = TORIRS_PLUGIN_CANVAS_FIXED;
+            destination->width = source->width;
+            destination->height = source->height;
+        }
+        else
+        {
+            destination->canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
+            destination->width = source->min_width;
+            destination->height = source->min_height;
+        }
+    }
+    v2->normalized = (struct ToriRS_PluginDef){
+        .name = v2->definition->id,
+        .title = v2->definition->title,
+        .version = v2->definition->version,
+        .priority = v2->definition->event_priority,
+        .draw_order = v2->definition->draw_order,
+        .config = v2->definition->config ? v2->definition->config->items : NULL,
+        .disabled_by_default = (flags & TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT) != 0,
+        .adapter = (flags & TORIRS_PLUGIN_V2_ADAPTER) != 0,
+        .hidden = (flags & TORIRS_PLUGIN_V2_HIDDEN) != 0,
+        .essential = (flags & TORIRS_PLUGIN_V2_ESSENTIAL) != 0,
+        .frames = frame_count > 0 ? v2->frames : NULL,
+        .ui_contributions = contributions,
+        .init = plugin_v2_init,
+        .shutdown = plugin_v2_shutdown,
+    };
+    index = PluginHost_Register(host, &v2->normalized);
+    if( index < 0 )
+    {
+        free(v2);
+        return -1;
+    }
+    host->plugins[index].v2 = v2;
+    return index;
+}
+
 void
 PluginHost_Start(struct ToriRS_PluginHost* host)
 {
+    bool contributions_changed = false;
+
     assert(host);
+
+    plugin_frame_preference_load(host);
+    plugin_frame_resolve(host);
+
+    /* Publish the complete retained declaration set before any newly started
+     * plugin runs. An on_start query therefore cannot observe only the
+     * contributions of plugins that happened to register before it. */
+    for( int i = 0; i < host->plugin_count; i++ )
+    {
+        struct ToriRS_PluginCtx* ctx = &host->plugins[i];
+        if( ctx->running || !ctx->enabled || ctx->refused )
+            continue;
+        int const contribution_result = plugin_ui_contributions_start(ctx);
+        if( contribution_result == 0 )
+        {
+            ctx->refused = true;
+            continue;
+        }
+        if( contribution_result == 2 )
+            contributions_changed = true;
+    }
+    if( contributions_changed )
+        PluginHost_LayoutChanged(host);
 
     for( int i = 0; i < host->plugin_count; i++ )
     {
@@ -6669,7 +9198,6 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
          * reconsidered, re-taken and re-logged on each one. */
         if( ctx->running || !ctx->enabled || ctx->refused )
             continue;
-
         ctx->running = true;
         host->dispatching = i;
         if( ctx->def->init )
@@ -6677,8 +9205,11 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
         host->dispatching = -1;
 
         struct ToriRS_PluginEvFrame ev = { 0 };
-        plugin_dispatch(host, TORIRS_PLUGIN_EV_START, &ev);
+        plugin_dispatch_one(host, i, TORIRS_PLUGIN_EV_START, &ev);
     }
+    /* The first pass selected which provider should run; this pass can commit
+     * it now that its init/START callbacks have completed. */
+    plugin_frame_resolve(host);
 }
 
 /**
@@ -6691,9 +9222,12 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
  * means to do next is the caller's business.
  */
 static void
-plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
+plugin_teardown(
+    struct ToriRS_PluginHost* host,
+    int plugin_index)
 {
     struct ToriRS_PluginCtx* ctx = plugin_at(host, plugin_index);
+    bool ui_changed = false;
 
     if( ctx->tearing_down )
         return;
@@ -6729,7 +9263,7 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
     /* Reservations go too, and that is what makes `reserve` safe to use: a
      * dock that is switched off gives its edge back without anybody asking,
      * and the readouts beside it widen on the next frame. */
-    plugin_reserves_drop_plugin(host, plugin_index);
+    plugin_placement_reservations_drop_plugin(host, plugin_index);
     plugin_models_drop_plugin(host, plugin_index);
     role_replacements_drop_plugin(host, plugin_index);
     /* And the chrome tier, in both directions: the parts this plugin was
@@ -6739,6 +9273,14 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
      * claimed nothing, so there is nothing to reinstate, and picking up parts
      * at a moment nobody can see is worse than a gap. */
     plugin_chrome_drop_plugin(host, plugin_index);
+    if( ctx->ui_contributions_registered )
+    {
+        ui_changed = ToriRS_UiRegistry_RemovePlugin(&host->ui_registry, ctx->name) > 0;
+        ctx->ui_contributions_registered = false;
+        memset(ctx->ui_contribution_refs, 0, sizeof(ctx->ui_contribution_refs));
+        ctx->ui_contribution_count = 0;
+        host->placement_cache_valid = 0;
+    }
     /* The tab goes with them: a stopped plugin's controls would otherwise sit
      * in the window still taking clicks, dispatching to a plugin that is not
      * running and silently doing nothing. */
@@ -6746,10 +9288,10 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
      * holding it would leave the client with the client's chrome suppressed
      * and nobody drawing any: a black surround and an inventory floating in
      * it. */
-    if( host->layout_owner == plugin_index )
+    if( plugin_frame_owner(host) == plugin_index )
     {
-        host->layout_claim_epoch++;
-        host->layout_owner = -1;
+        host->frame_selection_epoch++;
+        host->frame_active_entry = -1;
         host->layout_canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
         host->layout_fixed_w = 0;
         host->layout_fixed_h = 0;
@@ -6764,14 +9306,23 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
     }
     ctx->running = false;
     ctx->tearing_down = false;
+    if( ui_changed )
+        PluginHost_LayoutChanged(host);
 }
 
 void
-PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool enabled)
+PluginHost_SetEnabled(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    bool enabled)
 {
     assert(host);
 
     struct ToriRS_PluginCtx* ctx = plugin_at(host, plugin_index);
+    /* A frame provider's runtime state is derived from the one Gameframe
+     * preference. It deliberately has no independent checkbox. */
+    if( ctx->def->frames )
+        return;
     /* `refused` is part of the state being asked about: a plugin that stood
      * down reads as off in the roster, so the switch the user then flips asks
      * for a state it already nominally has, and returning here would make that
@@ -6810,7 +9361,9 @@ PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool ena
 }
 
 void
-PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
+PluginHost_Reload(
+    struct ToriRS_PluginHost* host,
+    int plugin_index)
 {
     struct ToriRS_PluginCtx* ctx;
     bool panel_was_selected;
@@ -6866,7 +9419,8 @@ PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
             slot->schema_index = plugin_schema_index(ctx, item->key);
             if( !existed )
                 plugin_copy_str(
-                    slot->value, sizeof(slot->value),
+                    slot->value,
+                    sizeof(slot->value),
                     item->default_value ? item->default_value : "");
         }
     }
@@ -6876,6 +9430,11 @@ PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
      * whatever the new source says. */
     ctx->error[0] = '\0';
     ctx->refused = false;
+    if( ctx->def->frames )
+    {
+        PluginFrameCatalog_SetAvailable(&host->frame_catalog, plugin_index, 1);
+        host->frame_selection_dirty = 1;
+    }
 
     PluginHost_Start(host);
     /* Reload is replacement in place, not a user navigation action. If the
@@ -6886,7 +9445,9 @@ PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
 }
 
 bool
-PluginHost_IsEnabled(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_IsEnabled(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     assert(plugin_index >= 0);
@@ -6902,7 +9463,9 @@ PluginHost_Count(struct ToriRS_PluginHost const* host)
 }
 
 char const*
-PluginHost_Name(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_Name(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     assert(plugin_index >= 0);
@@ -6911,7 +9474,9 @@ PluginHost_Name(struct ToriRS_PluginHost const* host, int plugin_index)
 }
 
 char const*
-PluginHost_Title(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_Title(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     assert(plugin_index >= 0);
@@ -6920,7 +9485,9 @@ PluginHost_Title(struct ToriRS_PluginHost const* host, int plugin_index)
 }
 
 bool
-PluginHost_IsAdapter(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_IsAdapter(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     assert(plugin_index >= 0);
@@ -6929,25 +9496,38 @@ PluginHost_IsAdapter(struct ToriRS_PluginHost const* host, int plugin_index)
 }
 
 bool
-PluginHost_IsHidden(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_IsHidden(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
-    return host->plugins[plugin_index].def->hidden;
+    {
+        struct ToriRS_PluginCtx const* ctx = &host->plugins[plugin_index];
+        /* Providers with settings keep one locked row so their advanced
+         * controls remain reachable. A provider with no settings has nothing
+         * useful to show beside the one Gameframe selector. */
+        return ctx->def->hidden || (ctx->def->frames && ctx->schema_count == 0);
+    }
 }
 
 bool
-PluginHost_IsEssential(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_IsEssential(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
-    return host->plugins[plugin_index].def->essential;
+    return host->plugins[plugin_index].def->essential ||
+           host->plugins[plugin_index].def->frames != NULL;
 }
 
 char const*
-PluginHost_Error(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_Error(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     assert(plugin_index >= 0);
@@ -6956,7 +9536,10 @@ PluginHost_Error(struct ToriRS_PluginHost const* host, int plugin_index)
 }
 
 void
-PluginHost_SetError(struct ToriRS_PluginHost* host, int plugin_index, char const* text)
+PluginHost_SetError(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* text)
 {
     assert(host);
     struct ToriRS_PluginCtx* ctx = plugin_at(host, plugin_index);
@@ -6969,7 +9552,9 @@ PluginHost_SetError(struct ToriRS_PluginHost* host, int plugin_index, char const
 }
 
 int
-PluginHost_IndexOf(struct ToriRS_PluginHost const* host, char const* name)
+PluginHost_IndexOf(
+    struct ToriRS_PluginHost const* host,
+    char const* name)
 {
     assert(host);
     assert(name);
@@ -6989,7 +9574,9 @@ PluginHost_Api(struct ToriRS_PluginHost const* host)
 }
 
 struct ToriRS_PluginCtx*
-PluginHost_Ctx(struct ToriRS_PluginHost* host, int plugin_index)
+PluginHost_Ctx(
+    struct ToriRS_PluginHost* host,
+    int plugin_index)
 {
     assert(host);
     return plugin_at(host, plugin_index);
@@ -7002,11 +9589,157 @@ PluginHost_CtxIndex(struct ToriRS_PluginCtx const* ctx)
     return ctx->index;
 }
 
+struct ToriRS_UiNodeRef
+PluginHost_UiRef(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* name)
+{
+    struct ToriRS_PluginCtx* ctx;
+
+    assert(host);
+    assert(name);
+    ctx = plugin_at(host, plugin_index);
+    return ToriRS_UiRegistry_PrivateRef(&host->ui_registry, ctx->name, name);
+}
+
+bool
+PluginHost_UiInfo(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    struct ToriRS_UiNodeInfo* out)
+{
+    struct ToriRS_UiNodeInfo snapshot;
+    struct ToriRS_UiResolvedNode resolved;
+    uint32_t capacity;
+
+    assert(host);
+    assert(out);
+    capacity = out->struct_size;
+    if( capacity < TORIRS_UI_NODE_INFO_LEGACY_SIZE )
+        return false;
+    memset(&snapshot, 0, sizeof(snapshot));
+    snapshot.struct_size = sizeof(snapshot);
+    if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &resolved) )
+        return false;
+    snapshot.bounds = resolved.value.bounds;
+    snapshot.available_facets = resolved.available_facets;
+    snapshot.visible = (resolved.value.flags & TORIRS_UI_NODE_VISIBLE) != 0;
+    snapshot.enabled = (resolved.value.flags & TORIRS_UI_NODE_ENABLED) != 0;
+    snapshot.parent = resolved.value.parent;
+    snapshot.anchor = resolved.value.anchor;
+    snapshot.paint_order = resolved.value.paint_order;
+    snapshot.clip = resolved.value.clip;
+    memcpy(snapshot.state_images, resolved.value.state_images, sizeof(snapshot.state_images));
+    (void)snprintf(snapshot.label, sizeof(snapshot.label), "%s", resolved.value.label);
+    snapshot.label_x = resolved.value.label_x;
+    snapshot.label_y = resolved.value.label_y;
+    snapshot.hit_rect = resolved.value.hit_rect;
+    snapshot.action_count = resolved.value.action_count;
+    memcpy(snapshot.actions, resolved.value.actions, sizeof(snapshot.actions));
+    memcpy(out, &snapshot, capacity < sizeof(snapshot) ? capacity : sizeof(snapshot));
+    return true;
+}
+
+bool
+PluginHost_UiInvoke(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    char const* action)
+{
+    struct ToriRS_UiResolvedNode resolved;
+    char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    char const* name;
+    bool action_declared = false;
+
+    assert(host);
+    assert(action);
+    name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
+    if( !name )
+        return false;
+    if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &resolved) ||
+        (resolved.available_facets & TORIRS_UI_FACET_ACTIONS) == 0 ||
+        (resolved.value.flags & TORIRS_UI_NODE_ENABLED) == 0 )
+        return false;
+    for( uint32_t i = 0; i < resolved.value.action_count; i++ )
+        if( strcmp(resolved.value.actions[i], action) == 0 )
+        {
+            action_declared = true;
+            break;
+        }
+    /* Compatibility base nodes predate named-action metadata; their one
+     * conventional operation remains `activate` until RevConfig owns it. */
+    if( resolved.value.action_count == 0 )
+        action_declared = strcmp(action, "activate") == 0;
+    if( !action_declared )
+        return false;
+
+    /* A plugin-provided action facet gets first refusal. Returning CONTINUE
+     * deliberately falls through to the lane route for `activate`, while a
+     * custom spelling has no lane-specific numeric fallback. */
+    {
+        int const provider = PluginHost_IndexOf(host, resolved.actions_provider);
+        if( provider >= 0 && host->plugins[provider].enabled && host->plugins[provider].running &&
+            host->plugins[provider].v2 &&
+            host->plugins[provider].v2->definition->callbacks.on_ui_node_action )
+        {
+            struct PluginV2Instance* v2 = host->plugins[provider].v2;
+            int const previous = host->dispatching;
+            enum ToriRS_CallbackResult result;
+
+            host->dispatching = provider;
+            result = v2->definition->callbacks.on_ui_node_action(
+                &v2->adapter.api, v2->state, node, action);
+            host->dispatching = previous;
+            if( result == TORIRS_CALLBACK_CONSUME )
+                return true;
+        }
+    }
+    if( strcmp(action, "activate") != 0 )
+        return false;
+
+    role[0] = '\0';
+    if( strcmp(name, "frame.chat.button.report") == 0 )
+        snprintf(role, sizeof(role), "%s", "report_button");
+    else if( strcmp(name, "frame.orb.hitpoints") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_hitpoints");
+    else if( strcmp(name, "frame.orb.prayer") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_prayer");
+    else if( strcmp(name, "frame.orb.run") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_run");
+    else if( strcmp(name, "frame.orb.special") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_spec");
+    else if( strncmp(name, "frame.sidebar.tab.", 18) == 0 )
+        snprintf(role, sizeof(role), "sidetab_%s", name + 18);
+    if( !role[0] )
+        return false;
+
+    /* IF1's unnumbered action is 0; IF3's primary op is 1. Only try the
+     * second spelling if the first did not dispatch, so one invocation can
+     * never fire twice. RevConfig named actions will eventually own this
+     * compatibility mapping. */
+    if( host->engine.role_click(host->engine.user, role, 0) )
+        return true;
+    return host->engine.role_click(host->engine.user, role, 1) != 0;
+}
+
+int
+PluginHost_UiChangeNext(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiChange* out)
+{
+    assert(host);
+    assert(out);
+    return ToriRS_UiRegistry_ChangeNext(&host->ui_registry, out) ? 1 : 0;
+}
+
 /* ------------------------------------------------------------------ seams */
 
 void
 PluginHost_FrameStart(
-    struct ToriRS_PluginHost* host, uint64_t now_ms, uint64_t drawn_frames)
+    struct ToriRS_PluginHost* host,
+    uint64_t now_ms,
+    uint64_t drawn_frames)
 {
     if( !host )
         return;
@@ -7016,6 +9749,11 @@ PluginHost_FrameStart(
         host->plugins[i].draw_used = 0;
         host->plugins[i].draw_clipped = false;
     }
+
+    /* A placement callback may restate a reservation. That schedules this
+     * later transaction instead of recursively entering the callback list. */
+    if( host->layout_notify_pending )
+        plugin_layout_notifications_run(host);
 
     /* The screen poll. Here rather than at the transitions themselves because
      * the app changes screens from half a dozen places (login, logout, a
@@ -7030,10 +9768,14 @@ PluginHost_FrameStart(
         {
             struct ToriRS_PluginEvScreen ev = { screen, host->last_screen };
             host->last_screen = screen;
+            host->frame_selection_dirty = 1;
             if( host->sub_count[TORIRS_PLUGIN_EV_SCREEN_CHANGE] > 0 )
                 plugin_dispatch(host, TORIRS_PLUGIN_EV_SCREEN_CHANGE, &ev);
         }
     }
+
+    if( host->frame_selection_dirty )
+        PluginHost_Start(host);
 
     if( host->sub_count[TORIRS_PLUGIN_EV_FRAME_START] == 0 )
         return;
@@ -7043,7 +9785,9 @@ PluginHost_FrameStart(
 }
 
 void
-PluginHost_LogicTick(struct ToriRS_PluginHost* host, int logic_cycle)
+PluginHost_LogicTick(
+    struct ToriRS_PluginHost* host,
+    int logic_cycle)
 {
     if( !host || host->sub_count[TORIRS_PLUGIN_EV_LOGIC_TICK] == 0 )
         return;
@@ -7052,7 +9796,9 @@ PluginHost_LogicTick(struct ToriRS_PluginHost* host, int logic_cycle)
 }
 
 void
-PluginHost_ServerTick(struct ToriRS_PluginHost* host, int world_cycle)
+PluginHost_ServerTick(
+    struct ToriRS_PluginHost* host,
+    int world_cycle)
 {
     if( !host || host->sub_count[TORIRS_PLUGIN_EV_SERVER_TICK] == 0 )
         return;
@@ -7061,7 +9807,10 @@ PluginHost_ServerTick(struct ToriRS_PluginHost* host, int world_cycle)
 }
 
 void
-PluginHost_WorldLoaded(struct ToriRS_PluginHost* host, int base_tile_x, int base_tile_z)
+PluginHost_WorldLoaded(
+    struct ToriRS_PluginHost* host,
+    int base_tile_x,
+    int base_tile_z)
 {
     if( !host || host->sub_count[TORIRS_PLUGIN_EV_WORLD_LOADED] == 0 )
         return;
@@ -7084,19 +9833,25 @@ plugin_npc_event(
 }
 
 void
-PluginHost_NpcSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc)
+PluginHost_NpcSpawn(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginNpcSnap const* npc)
 {
     plugin_npc_event(host, TORIRS_PLUGIN_EV_NPC_SPAWN, npc);
 }
 
 void
-PluginHost_NpcRetype(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc)
+PluginHost_NpcRetype(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginNpcSnap const* npc)
 {
     plugin_npc_event(host, TORIRS_PLUGIN_EV_NPC_RETYPE, npc);
 }
 
 void
-PluginHost_NpcDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc)
+PluginHost_NpcDespawn(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginNpcSnap const* npc)
 {
     plugin_npc_event(host, TORIRS_PLUGIN_EV_NPC_DESPAWN, npc);
 }
@@ -7116,19 +9871,25 @@ plugin_obj_event(
 }
 
 void
-PluginHost_ObjSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj)
+PluginHost_ObjSpawn(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginObjSnap const* obj)
 {
     plugin_obj_event(host, TORIRS_PLUGIN_EV_OBJ_SPAWN, obj);
 }
 
 void
-PluginHost_ObjCount(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj)
+PluginHost_ObjCount(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginObjSnap const* obj)
 {
     plugin_obj_event(host, TORIRS_PLUGIN_EV_OBJ_COUNT, obj);
 }
 
 void
-PluginHost_ObjDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj)
+PluginHost_ObjDespawn(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PluginObjSnap const* obj)
 {
     plugin_obj_event(host, TORIRS_PLUGIN_EV_OBJ_DESPAWN, obj);
 }
@@ -7157,7 +9918,10 @@ PluginHost_ChatMessage(
 }
 
 void
-PluginHost_Setting(struct ToriRS_PluginHost* host, int setting_id, int value)
+PluginHost_Setting(
+    struct ToriRS_PluginHost* host,
+    int setting_id,
+    int value)
 {
     if( !host || host->sub_count[TORIRS_PLUGIN_EV_SETTING] == 0 )
         return;
@@ -7195,7 +9959,10 @@ PluginHost_GameEvent(
 }
 
 int
-PluginHost_PacketIn(struct ToriRS_PluginHost* host, int packet_name, int size)
+PluginHost_PacketIn(
+    struct ToriRS_PluginHost* host,
+    int packet_name,
+    int size)
 {
     if( !host || host->sub_count[TORIRS_PLUGIN_EV_PACKET_IN] == 0 )
         return 0;
@@ -7206,7 +9973,9 @@ PluginHost_PacketIn(struct ToriRS_PluginHost* host, int packet_name, int size)
 }
 
 int
-PluginHost_PacketOutVeto(struct ToriRS_PluginHost* host, char const* builder_expr)
+PluginHost_PacketOutVeto(
+    struct ToriRS_PluginHost* host,
+    char const* builder_expr)
 {
     if( !host || host->sub_count[TORIRS_PLUGIN_EV_PACKET_OUT] == 0 )
         return 0;
@@ -7236,7 +10005,11 @@ PluginHost_PacketOutVeto(struct ToriRS_PluginHost* host, char const* builder_exp
 }
 
 int
-PluginHost_Key(struct ToriRS_PluginHost* host, int key, int ch, bool down)
+PluginHost_Key(
+    struct ToriRS_PluginHost* host,
+    int key,
+    int ch,
+    bool down)
 {
     if( !host || host->sub_count[TORIRS_PLUGIN_EV_KEY] == 0 )
         return 0;
@@ -7274,7 +10047,10 @@ PluginHost_DrawWorld(struct ToriRS_PluginHost* host)
 }
 
 void
-PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height)
+PluginHost_DrawCanvas(
+    struct ToriRS_PluginHost* host,
+    int width,
+    int height)
 {
     if( !host )
         return;
@@ -7332,7 +10108,10 @@ PluginHost_ReconcileRoleReplacements(struct ToriRS_PluginHost* host)
  * frame, so every box a dresser reads is this pass's.
  */
 void
-PluginHost_ChromeTick(struct ToriRS_PluginHost* host, int width, int height)
+PluginHost_ChromeTick(
+    struct ToriRS_PluginHost* host,
+    int width,
+    int height)
 {
     struct ToriRS_PluginEvLayout ev;
     int moved = 0;
@@ -7449,7 +10228,7 @@ PluginHost_ChromeTick(struct ToriRS_PluginHost* host, int width, int height)
             host->chrome_claims[i].moved = 0;
             moved = 1;
         }
-    if( moved && host->layout_owner >= 0 )
+    if( moved && plugin_frame_owner(host) >= 0 )
         plugin_layout_publish(host);
 }
 
@@ -7483,14 +10262,18 @@ PluginHost_ChromeTick(struct ToriRS_PluginHost* host, int width, int height)
  *           behind the map's housing on every fixed frame.
  */
 static void
-plugin_chrome_paint_all(struct ToriRS_PluginHost* host, int canvas_pass)
+plugin_chrome_paint_all(
+    struct ToriRS_PluginHost* host,
+    int canvas_pass)
 {
     uint8_t painted[TORIRS_PLUGIN_SLOT_ART_MAX];
+    int frame_owner;
     int mx = 0;
     int my = 0;
     int have_mouse;
 
     assert(host);
+    frame_owner = plugin_frame_owner(host);
     have_mouse = host->engine.mouse_pos(host->engine.user, &mx, &my);
     memset(painted, 0, sizeof(painted));
 
@@ -7539,7 +10322,8 @@ plugin_chrome_paint_all(struct ToriRS_PluginHost* host, int canvas_pass)
                     all_absent = 0;
             if( all_absent )
             {
-                if( !row->added && host->engine.role_slot(host->engine.user, row->part, &slot, &member) )
+                if( !row->added &&
+                    host->engine.role_slot(host->engine.user, row->part, &slot, &member) )
                 {
                     struct PluginSlotArt const* art = plugin_slot_art_find(host, slot, member);
                     if( art )
@@ -7596,14 +10380,13 @@ plugin_chrome_paint_all(struct ToriRS_PluginHost* host, int canvas_pass)
         int w = 0;
         int h = 0;
 
-        if( !row->used || painted[i] || host->layout_owner < 0 )
+        if( !row->used || painted[i] || frame_owner < 0 )
             continue;
-        if( !(host->plugins[host->layout_owner].enabled && host->plugins[host->layout_owner].running) )
+        if( !(host->plugins[frame_owner].enabled && host->plugins[frame_owner].running) )
             continue;
-        if( !(row->member < 0
-                  ? host->engine.slot_rect(host->engine.user, row->slot, &x, &y, &w, &h)
-                  : host->engine.slot_member_rect(
-                        host->engine.user, row->slot, row->member, &x, &y, &w, &h)) )
+        if( !(row->member < 0 ? host->engine.slot_rect(host->engine.user, row->slot, &x, &y, &w, &h)
+                              : host->engine.slot_member_rect(
+                                    host->engine.user, row->slot, row->member, &x, &y, &w, &h)) )
             continue;
         plugin_chrome_paint_one(host, &row->art, row->state, have_mouse, mx, my, NULL);
     }
@@ -7611,14 +10394,42 @@ plugin_chrome_paint_all(struct ToriRS_PluginHost* host, int canvas_pass)
     host->chrome_iterating = 0;
 }
 
+static struct ToriRS_FrameOffer const*
+plugin_v2_frame_offer(
+    struct ToriRS_PluginCtx* ctx,
+    int entry_index)
+{
+    struct PluginFrameCatalogEntry const* entry;
+
+    assert(ctx);
+    if( !ctx->v2 || !ctx->v2->definition->frames )
+        return NULL;
+    entry = PluginFrameCatalog_At(&ctx->host->frame_catalog, entry_index);
+    if( !entry || entry->plugin != ctx->index )
+        return NULL;
+    for( int i = 0; i < ctx->v2->frame_count; i++ )
+        if( strcmp(ctx->v2->definition->frames[i].id, entry->local_id) == 0 )
+            return &ctx->v2->definition->frames[i];
+    return NULL;
+}
+
 void
-PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height)
+PluginHost_DrawFrame(
+    struct ToriRS_PluginHost* host,
+    int width,
+    int height)
 {
     struct ToriRS_PluginEvDrawCanvas ev;
+    struct ToriRS_FrameOffer const* v2_offer;
+    int owner;
 
-    if( !host || host->layout_owner < 0 )
+    if( !host )
         return;
-    if( host->sub_count[TORIRS_PLUGIN_EV_DRAW_FRAME] == 0 )
+    owner = plugin_frame_owner(host);
+    if( owner < 0 )
+        return;
+    v2_offer = plugin_v2_frame_offer(&host->plugins[owner], host->frame_active_entry);
+    if( host->sub_count[TORIRS_PLUGIN_EV_DRAW_FRAME] == 0 && !(v2_offer && v2_offer->draw) )
         return;
 
     /* A third token, for the third surface, on the same reasoning as the
@@ -7633,7 +10444,27 @@ PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height)
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_FRAME);
     /* The owner and nobody else. Chrome drawn under the interfaces of a frame
      * somebody else is arranging is chrome in the wrong place. */
-    plugin_dispatch_one(host, host->layout_owner, TORIRS_PLUGIN_EV_DRAW_FRAME, &ev);
+    if( v2_offer )
+    {
+        if( v2_offer->draw )
+        {
+            struct PluginV2Instance* v2 = host->plugins[owner].v2;
+            struct ToriRS_PluginV2DrawScope scope;
+            struct ToriRS_DrawBuilder builder;
+            int const previous_dispatching = host->dispatching;
+            int const previous_event = host->dispatch_event;
+
+            host->dispatching = owner;
+            host->dispatch_event = TORIRS_PLUGIN_EV_DRAW_FRAME;
+            ToriRS_PluginV2Adapter_DrawBegin(&v2->adapter, ev.surface, &scope, &builder);
+            v2_offer->draw(&v2->adapter.api, v2->state, &builder);
+            ToriRS_PluginV2Adapter_DrawEnd(&scope, &builder);
+            host->dispatching = previous_dispatching;
+            host->dispatch_event = previous_event;
+        }
+    }
+    else
+        plugin_dispatch_one(host, owner, TORIRS_PLUGIN_EV_DRAW_FRAME, &ev);
     /* Over the backdrop the owner just drew, because a plate goes ON its
      * surround and never under it. @see plugin_chrome_paint_all. */
     plugin_chrome_paint_all(host, 0);
@@ -7642,13 +10473,91 @@ PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height)
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
 }
 
-void
-PluginHost_LayoutChanged(struct ToriRS_PluginHost* host)
+/** Deliver one immutable resolved-placement transaction to v2 plugins. */
+static void
+plugin_placement_notify_v2(struct ToriRS_PluginHost* host)
+{
+    uint32_t revision;
+    int const previous_dispatching = host->dispatching;
+    int const previous_event = host->dispatch_event;
+
+    assert(host);
+    if( !host->placement_notify_pending ||
+        host->placement_notified_revision == host->placement_revision )
+    {
+        host->placement_notify_pending = 0;
+        return;
+    }
+
+    revision = host->placement_revision;
+    /* A callback can invalidate placement again. Acknowledge this snapshot
+     * before entering user code so that mutation schedules the next one. */
+    host->placement_notify_pending = 0;
+    host->placement_notified_revision = revision;
+    for( int i = 0; i < host->plugin_count; i++ )
+    {
+        struct ToriRS_PluginCtx* ctx = &host->plugins[i];
+        struct PluginV2Instance* v2 = ctx->v2;
+
+        if( !ctx->enabled || !ctx->running || !v2 ||
+            !v2->definition->callbacks.on_placement_changed )
+            continue;
+        host->dispatching = i;
+        host->dispatch_event = TORIRS_PLUGIN_EV_LAYOUT_CHANGED;
+        v2->definition->callbacks.on_placement_changed(
+            &v2->adapter.api, v2->state, revision);
+        host->dispatching = previous_dispatching;
+        host->dispatch_event = previous_event;
+    }
+}
+
+/**
+ * Notify legacy region consumers, fold any reservations they restate into one
+ * canonical placement result, then publish that result to v2 consumers.
+ */
+static void
+plugin_layout_notifications_run(struct ToriRS_PluginHost* host)
 {
     struct ToriRS_PluginEvTick ev;
 
+    assert(host);
+    if( host->layout_notifying )
+    {
+        host->layout_notify_pending = 1;
+        return;
+    }
+
+    /* Establish the transaction's first immutable placement snapshot before
+     * callbacks. The forced rebuild below folds in changes callbacks make. */
+    (void)plugin_placement_rebuild(host, 1);
+    host->layout_notifying = 1;
+    host->layout_notify_pending = 0;
+    ev.cycle = host->layout_revision;
+    if( host->sub_count[TORIRS_PLUGIN_EV_LAYOUT_CHANGED] > 0 )
+        plugin_dispatch(host, TORIRS_PLUGIN_EV_LAYOUT_CHANGED, &ev);
+
+    /* Legacy callbacks historically coalesced their own restatements into the
+     * notification already in progress. Re-resolve once so v2 sees their
+     * final geometry, then discard only that redundant broad notification. */
+    if( host->layout_notify_pending )
+        (void)plugin_placement_rebuild(host, 1);
+    host->layout_notify_pending = 0;
+    plugin_placement_notify_v2(host);
+    /* A v2 callback which mutates placement leaves layout_notify_pending set.
+     * FrameStart drains it as a later transaction, never recursively. */
+    host->layout_notifying = 0;
+}
+
+void
+PluginHost_LayoutChanged(struct ToriRS_PluginHost* host)
+{
     if( !host )
         return;
+    host->placement_cache_valid = 0;
+
+    /* Publish semantic names from the geometry the engine has just settled
+     * before any subscriber is told to query them. ReplaceBase is atomic. */
+    plugin_ui_refresh_base(host);
 
     /*
      * The revision moves for EVERY change, including one made from inside the
@@ -7661,39 +10570,34 @@ PluginHost_LayoutChanged(struct ToriRS_PluginHost* host)
      * byte, and a plugin whose parts did not really change simply declares the
      * same numbers again. */
     plugin_chrome_invalidate(host);
-    if( host->sub_count[TORIRS_PLUGIN_EV_LAYOUT_CHANGED] == 0 )
-        return;
-
-    /*
-     * The EVENT does not nest, and this is not a nicety.
-     *
-     * A cooperative layout invites exactly the shape that would spin: a dock
-     * hears that the safe region moved, recalculates the width it wants, and
-     * reserves -- which changes the layout, which notifies it again. Two docks
-     * responding to each other need not even disagree to do it forever.
-     *
-     * Coalescing rather than refusing: the claim is still recorded and the
-     * revision still moves, so the next read -- and every read is live -- sees
-     * it. What is dropped is only the second telling, which every subscriber
-     * is about to be told anyway.
-     */
     if( host->layout_notifying )
+    {
+        host->layout_notify_pending = 1;
         return;
-    host->layout_notifying = 1;
-    ev.cycle = host->layout_revision;
-    plugin_dispatch(host, TORIRS_PLUGIN_EV_LAYOUT_CHANGED, &ev);
-    host->layout_notifying = 0;
+    }
+    plugin_layout_notifications_run(host);
 }
 
 void
-PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height)
+PluginHost_Layout(
+    struct ToriRS_PluginHost* host,
+    int width,
+    int height)
 {
     struct ToriRS_PluginEvLayout ev;
+    struct ToriRS_FrameOffer const* v2_offer;
+    enum ToriRS_FrameBuildResult v2_result = TORIRS_FRAME_READY;
+    char v2_reason[TORIRS_FRAME_REASON_MAX] = { 0 };
     int owner;
     uint32_t claim_epoch;
 
-    if( !host || host->layout_owner < 0 )
+    if( !host )
         return;
+    owner = plugin_frame_owner(host);
+    if( owner < 0 )
+        return;
+    v2_offer = plugin_v2_selected_frame_offer(&host->plugins[owner]);
+    host->placement_cache_valid = 0;
     /*
      * A canvas of nothing is refused rather than laid out against.
      *
@@ -7705,8 +10609,9 @@ PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height)
      */
     if( host->layout_canvas != TORIRS_PLUGIN_CANVAS_FIXED && (width <= 0 || height <= 0) )
     {
-        TORIRS_LOG("plugin: %s asked to lay out against a %dx%d canvas; nothing declared\n",
-            host->plugins[host->layout_owner].name,
+        TORIRS_LOG(
+            "plugin: %s asked to lay out against a %dx%d canvas; nothing declared\n",
+            host->plugins[owner].name,
             width,
             height);
         return;
@@ -7736,18 +10641,88 @@ PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height)
     /* Empty first, apply after: the dispatch is the whole declaration, so a
      * slot the handler does not mention this time is one the frame no longer
      * has. @see EV_LAYOUT. */
-    owner = host->layout_owner;
-    claim_epoch = host->layout_claim_epoch;
+    claim_epoch = host->frame_selection_epoch;
     /* The part table goes with the slot table, for the same reason: the
      * dispatch is the whole declaration, so a part the arranger does not
      * declare this time is a part the frame no longer has. */
     memset(host->slot_art, 0, sizeof(host->slot_art));
     host->engine.layout_begin(host->engine.user);
     host->layout_declaring = 1;
-    plugin_dispatch_one(host, owner, TORIRS_PLUGIN_EV_LAYOUT, &ev);
-    host->layout_declaring = 0;
-    if( host->layout_owner == owner && host->layout_claim_epoch == claim_epoch )
+    if( v2_offer )
     {
+        struct PluginV2Instance* v2 = host->plugins[owner].v2;
+        struct ToriRS_PluginV2FrameScope scope;
+        struct ToriRS_FrameBuilder builder;
+        struct ToriRS_FrameBuildContext context;
+        int const previous_dispatching = host->dispatching;
+        int const previous_event = host->dispatch_event;
+
+        memset(v2->frame_ui_candidate, 0, sizeof(v2->frame_ui_candidate));
+        v2->frame_ui_candidate_count = 0;
+        v2->frame_ui_candidate_invalid = false;
+        memset(&context, 0, sizeof(context));
+        context.struct_size = sizeof(context);
+        context.offer_id = v2_offer->id;
+        context.canvas = host->layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED
+                             ? TORIRS_FRAME_CANVAS_FIXED
+                             : TORIRS_FRAME_CANVAS_WINDOW;
+        context.logical_canvas = (struct ToriRS_Rect){ 0, 0, ev.width, ev.height };
+        context.available =
+            v2->adapter.api.placement.area(&v2->adapter.api, TORIRS_AREA_FRAME_BUILD);
+        (void)v2->adapter.api.core.lane(&v2->adapter.api, &context.lane);
+
+        host->dispatching = owner;
+        host->dispatch_event = TORIRS_PLUGIN_EV_LAYOUT;
+        ToriRS_PluginV2Adapter_FrameBegin(&v2->adapter, &scope, &builder);
+        v2_result = v2_offer->build(&v2->adapter.api, v2->state, &builder, &context);
+        if( v2_result == TORIRS_FRAME_READY &&
+            !ToriRS_PluginV2Adapter_FrameValid(&scope) )
+            v2->frame_ui_candidate_invalid = true;
+        (void)snprintf(
+            v2_reason, sizeof(v2_reason), "%s", ToriRS_PluginV2Adapter_FrameReason(&scope));
+        ToriRS_PluginV2Adapter_FrameEnd(&scope, &builder);
+        host->dispatching = previous_dispatching;
+        host->dispatch_event = previous_event;
+        if( v2->frame_ui_candidate_invalid || v2_result < TORIRS_FRAME_READY ||
+            v2_result > TORIRS_FRAME_ERROR )
+        {
+            v2_result = TORIRS_FRAME_ERROR;
+            if( !v2_reason[0] )
+                snprintf(
+                    v2_reason,
+                    sizeof(v2_reason),
+                    "%s",
+                    "The frame's named UI declaration is invalid or over budget.");
+        }
+    }
+    else
+        plugin_dispatch_one(host, owner, TORIRS_PLUGIN_EV_LAYOUT, &ev);
+    host->layout_declaring = 0;
+    if( v2_offer && v2_result != TORIRS_FRAME_READY )
+    {
+        int const status = v2_result == TORIRS_FRAME_PENDING ? TORIRS_PLUGIN_FRAME_LOADING
+                                                             : TORIRS_PLUGIN_FRAME_FALLBACK;
+        char const* reason =
+            v2_reason[0]                            ? v2_reason
+            : v2_result == TORIRS_FRAME_PENDING     ? "The selected gameframe is still loading."
+            : v2_result == TORIRS_FRAME_UNSUPPORTED ? "The selected gameframe is unsupported here."
+                                                    : "The selected gameframe could not be built.";
+
+        host->plugins[owner].v2->frame_ui_count = 0;
+        plugin_frame_engine_activate(host, -1);
+        plugin_frame_selection_active(host, "core/native", status, reason);
+        return;
+    }
+    if( plugin_frame_owner(host) == owner && host->frame_selection_epoch == claim_epoch )
+    {
+        if( v2_offer )
+        {
+            struct PluginV2Instance* v2 = host->plugins[owner].v2;
+            memcpy(v2->frame_ui, v2->frame_ui_candidate, sizeof(v2->frame_ui));
+            v2->frame_ui_count = v2->frame_ui_candidate_count;
+            for( int i = 0; i < v2->frame_ui_count; i++ )
+                plugin_v2_frame_node_repoint(&v2->frame_ui[i]);
+        }
         /*
          * POSITION holders, applied over the arranger's placement and before
          * the declaration is committed.
@@ -7783,15 +10758,14 @@ PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height)
     }
 }
 
-int
-PluginHost_LayoutOwner(struct ToriRS_PluginHost const* host)
-{
-    return host ? host->layout_owner : -1;
-}
-
 void
 PluginHost_CanvasClick(
-    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int op, int x, int y)
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    uint32_t tag,
+    int op,
+    int x,
+    int y)
 {
     struct ToriRS_PluginCtx* ctx;
     struct ToriRS_PluginEvCanvasClick ev;
@@ -7858,7 +10832,9 @@ PluginHost_MenuBuild(
 }
 
 bool
-PluginHost_OwnsMenuAction(struct ToriRS_PluginHost const* host, int action)
+PluginHost_OwnsMenuAction(
+    struct ToriRS_PluginHost const* host,
+    int action)
 {
     if( !host )
         return false;
@@ -7925,8 +10901,7 @@ PluginHost_MenuSelect(
     }
     else
     {
-        consumed = plugin_dispatch(host, TORIRS_PLUGIN_EV_MENU_SELECT, &ev) ==
-                           TORIRS_PLUGIN_CONSUME
+        consumed = plugin_dispatch(host, TORIRS_PLUGIN_EV_MENU_SELECT, &ev) == TORIRS_PLUGIN_CONSUME
                        ? 1
                        : 0;
     }
@@ -7977,7 +10952,10 @@ PluginHost_ConfigApply(
  * has to survive keys it does not recognise, and because this runs against a
  * memory image the IO queue delivered, not a path. */
 void
-PluginHost_ConfigDecode(struct ToriRS_PluginHost* host, void const* data, int size)
+PluginHost_ConfigDecode(
+    struct ToriRS_PluginHost* host,
+    void const* data,
+    int size)
 {
     assert(host);
 
@@ -8069,7 +11047,10 @@ PluginHost_ConfigDecode(struct ToriRS_PluginHost* host, void const* data, int si
 }
 
 int
-PluginHost_ConfigEncode(struct ToriRS_PluginHost const* host, void** out_data, int* out_size)
+PluginHost_ConfigEncode(
+    struct ToriRS_PluginHost const* host,
+    void** out_data,
+    int* out_size)
 {
     assert(host);
     assert(out_data);
@@ -8079,8 +11060,8 @@ PluginHost_ConfigEncode(struct ToriRS_PluginHost const* host, void** out_data, i
      * The 512 is the banner below, which is written whatever the store holds. */
     size_t cap = 512;
     for( int i = 0; i < host->plugin_count; i++ )
-        cap += 96 + (size_t)host->plugins[i].config_count *
-                        (64 + TORIRS_PLUGIN_CONFIG_VALUE_MAX + 4);
+        cap +=
+            96 + (size_t)host->plugins[i].config_count * (64 + TORIRS_PLUGIN_CONFIG_VALUE_MAX + 4);
 
     char* buf = malloc(cap);
     assert(buf);
@@ -8111,14 +11092,10 @@ PluginHost_ConfigEncode(struct ToriRS_PluginHost const* host, void** out_data, i
         /* Written only when it differs from what the plugin declared, so a
          * default-off plugin left off leaves no trace, and a default-on plugin
          * left on leaves none either -- the RS_Prefs rule. */
-        if( ctx->enabled == ctx->def->disabled_by_default )
+        if( !ctx->def->frames && ctx->enabled == ctx->def->disabled_by_default )
         {
             at += (size_t)snprintf(
-                buf + at,
-                cap - at,
-                "\n[plugin:%s]\nenabled=%d\n",
-                ctx->name,
-                ctx->enabled ? 1 : 0);
+                buf + at, cap - at, "\n[plugin:%s]\nenabled=%d\n", ctx->name, ctx->enabled ? 1 : 0);
             wrote_section = true;
         }
 
@@ -8162,7 +11139,9 @@ PluginHost_ConfigClearDirty(struct ToriRS_PluginHost* host)
 }
 
 int
-PluginHost_ConfigCount(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_ConfigCount(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     assert(plugin_index >= 0);
@@ -8171,7 +11150,10 @@ PluginHost_ConfigCount(struct ToriRS_PluginHost const* host, int plugin_index)
 }
 
 struct ToriRS_PluginConfigItem const*
-PluginHost_ConfigItem(struct ToriRS_PluginHost const* host, int plugin_index, int item_index)
+PluginHost_ConfigItem(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index,
+    int item_index)
 {
     assert(host);
     assert(plugin_index >= 0);
@@ -8234,7 +11216,9 @@ plugin_dispatch_one(
 }
 
 bool
-PluginHost_WinHasTab(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_WinHasTab(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count )
@@ -8243,7 +11227,9 @@ PluginHost_WinHasTab(struct ToriRS_PluginHost const* host, int plugin_index)
 }
 
 char const*
-PluginHost_WinTabTitle(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_WinTabTitle(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count )
@@ -8252,7 +11238,9 @@ PluginHost_WinTabTitle(struct ToriRS_PluginHost const* host, int plugin_index)
 }
 
 int
-PluginHost_WinWidgetCount(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_WinWidgetCount(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count )
@@ -8262,7 +11250,9 @@ PluginHost_WinWidgetCount(struct ToriRS_PluginHost const* host, int plugin_index
 
 struct ToriRS_PluginWinWidget const*
 PluginHost_WinWidgetAt(
-    struct ToriRS_PluginHost const* host, int plugin_index, int widget_index)
+    struct ToriRS_PluginHost const* host,
+    int plugin_index,
+    int widget_index)
 {
     int n = 0;
 
@@ -8281,7 +11271,9 @@ PluginHost_WinWidgetAt(
 }
 
 void
-PluginHost_WinBuild(struct ToriRS_PluginHost* host, int plugin_index)
+PluginHost_WinBuild(
+    struct ToriRS_PluginHost* host,
+    int plugin_index)
 {
     struct ToriRS_PluginEvUi ev;
 
@@ -8359,7 +11351,9 @@ PluginHost_WinDispatch(
 }
 
 void
-PluginHost_WinClearPlugin(struct ToriRS_PluginHost* host, int plugin_index)
+PluginHost_WinClearPlugin(
+    struct ToriRS_PluginHost* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count )
@@ -8381,7 +11375,9 @@ PluginHost_WinRevision(struct ToriRS_PluginHost const* host)
 }
 
 bool
-PluginHost_PanelHasPage(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_PanelHasPage(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count )
@@ -8390,7 +11386,9 @@ PluginHost_PanelHasPage(struct ToriRS_PluginHost const* host, int plugin_index)
 }
 
 char const*
-PluginHost_PanelTitle(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_PanelTitle(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count ||
@@ -8400,7 +11398,9 @@ PluginHost_PanelTitle(struct ToriRS_PluginHost const* host, int plugin_index)
 }
 
 char const*
-PluginHost_PanelIconAsset(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_PanelIconAsset(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count ||
@@ -8410,7 +11410,9 @@ PluginHost_PanelIconAsset(struct ToriRS_PluginHost const* host, int plugin_index
 }
 
 int
-PluginHost_PanelPreferredWidth(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_PanelPreferredWidth(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count ||
@@ -8420,7 +11422,9 @@ PluginHost_PanelPreferredWidth(struct ToriRS_PluginHost const* host, int plugin_
 }
 
 bool
-PluginHost_PanelWantsAttention(struct ToriRS_PluginHost const* host, int plugin_index)
+PluginHost_PanelWantsAttention(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count ||
@@ -8431,7 +11435,8 @@ PluginHost_PanelWantsAttention(struct ToriRS_PluginHost const* host, int plugin_
 
 uint32_t
 PluginHost_PanelIconRevision(
-    struct ToriRS_PluginHost const* host, int plugin_index)
+    struct ToriRS_PluginHost const* host,
+    int plugin_index)
 {
     assert(host);
     if( plugin_index < 0 || plugin_index >= host->plugin_count ||
@@ -8474,12 +11479,10 @@ PluginHost_PanelIconPixels(
             asset = &host->assets[i];
             break;
         }
-    if( image->plugin != plugin_index || !image->published ||
-        !asset || !asset->data || asset->size <= 0 ||
-        asset->size > TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX ||
-        strcmp(image->asset, host->panel_icon[plugin_index]) != 0 ||
-        image->width <= 0 || image->height <= 0 || image->width > 64 ||
-        image->height > 64 )
+    if( image->plugin != plugin_index || !image->published || !asset || !asset->data ||
+        asset->size <= 0 || asset->size > TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX ||
+        strcmp(image->asset, host->panel_icon[plugin_index]) != 0 || image->width <= 0 ||
+        image->height <= 0 || image->width > 64 || image->height > 64 )
         return 0;
     pixels = image->width * image->height;
     if( pixels > max_pixels ||
@@ -8521,26 +11524,28 @@ PluginHost_PanelSelectionGeneration(struct ToriRS_PluginHost const* host)
 }
 
 int
-PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index)
+PluginHost_PanelSelect(
+    struct ToriRS_PluginHost* host,
+    int plugin_index)
 {
-    return PluginHost_PanelSelectView(
-        host, plugin_index, TORIRS_PLUGIN_PANEL_VIEW_PAGE);
+    return PluginHost_PanelSelectView(host, plugin_index, TORIRS_PLUGIN_PANEL_VIEW_PAGE);
 }
 
 int
 PluginHost_PanelView(struct ToriRS_PluginHost const* host)
 {
     assert(host);
-    return host->panel_active >= 0 ? host->panel_view
-                                   : TORIRS_PLUGIN_PANEL_VIEW_PAGE;
+    return host->panel_active >= 0 ? host->panel_view : TORIRS_PLUGIN_PANEL_VIEW_PAGE;
 }
 
 int
-PluginHost_PanelSelectView(struct ToriRS_PluginHost* host, int plugin_index, int view)
+PluginHost_PanelSelectView(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    int view)
 {
     assert(host);
-    if( view < TORIRS_PLUGIN_PANEL_VIEW_PAGE ||
-        view > TORIRS_PLUGIN_PANEL_VIEW_SETTINGS )
+    if( view < TORIRS_PLUGIN_PANEL_VIEW_PAGE || view > TORIRS_PLUGIN_PANEL_VIEW_SETTINGS )
         return 0;
     if( plugin_index < 0 || plugin_index >= host->plugin_count ||
         !host->panel_registered[plugin_index] || !host->plugins[plugin_index].enabled ||
@@ -8603,8 +11608,8 @@ PluginHost_PanelWidgetCount(
     uint32_t selection_generation)
 {
     assert(host);
-    if( selection_generation == 0 ||
-        selection_generation != host->panel_selection_generation || host->panel_active < 0 )
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation ||
+        host->panel_active < 0 )
         return 0;
     return host->panel_widget_count;
 }
@@ -8616,9 +11621,8 @@ PluginHost_PanelWidgetAt(
     int widget_index)
 {
     assert(host);
-    if( selection_generation == 0 ||
-        selection_generation != host->panel_selection_generation || host->panel_active < 0 ||
-        widget_index < 0 || widget_index >= host->panel_widget_count )
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation ||
+        host->panel_active < 0 || widget_index < 0 || widget_index >= host->panel_widget_count )
         return NULL;
     return &host->panel_widgets[widget_index];
 }
@@ -8645,22 +11649,18 @@ PluginHost_PanelLayout(
     int plugin;
 
     assert(host);
-    if( selection_generation == 0 ||
-        selection_generation != host->panel_selection_generation )
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation )
         return 0;
     plugin = host->panel_active;
     if( plugin < 0 || !host->panel_registered[plugin] || !host->plugins[plugin].running )
         return 0;
-    if( width < 0 || height < 0 || scale_milli <= 0 ||
-        size_class < TORIRS_PLUGIN_PANEL_COMPACT ||
-        size_class > TORIRS_PLUGIN_PANEL_EXPANDED ||
-        (visible && (width == 0 || height == 0)) )
+    if( width < 0 || height < 0 || scale_milli <= 0 || size_class < TORIRS_PLUGIN_PANEL_COMPACT ||
+        size_class > TORIRS_PLUGIN_PANEL_EXPANDED || (visible && (width == 0 || height == 0)) )
         return 0;
 
-    if( host->panel_has_layout && host->panel_width == width &&
-        host->panel_height == height && host->panel_scale_milli == scale_milli &&
-        host->panel_size_class == size_class && host->panel_visible == visible &&
-        host->panel_game_visible == game_visible )
+    if( host->panel_has_layout && host->panel_width == width && host->panel_height == height &&
+        host->panel_scale_milli == scale_milli && host->panel_size_class == size_class &&
+        host->panel_visible == visible && host->panel_game_visible == game_visible )
         return 1;
 
     host->panel_has_layout = true;
@@ -8722,18 +11722,14 @@ PluginHost_PanelDispatch(
         return 0;
 
     plugin_copy_str(event_id, sizeof(event_id), widget->id);
-    plugin_copy_str(
-        event_text,
-        sizeof(event_text),
-        text ? text : widget->text);
+    plugin_copy_str(event_text, sizeof(event_text), text ? text : widget->text);
 
     /* Result state is committed before dispatch, matching win_* compatibility
      * and making the model authoritative for native controls. */
     switch( action )
     {
     case TORIRS_PLUGIN_UI_TOGGLE:
-        changed = widget->checked != (value ? 1 : 0) ||
-                  widget->value != (value ? 1 : 0);
+        changed = widget->checked != (value ? 1 : 0) || widget->value != (value ? 1 : 0);
         widget->checked = value ? 1 : 0;
         widget->value = widget->checked;
         break;
@@ -8779,9 +11775,8 @@ PluginHost_PanelNeedsDraw(
     int slot;
 
     assert(host);
-    if( selection_generation == 0 ||
-        selection_generation != host->panel_selection_generation || host->panel_active < 0 ||
-        !host->panel_visible )
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation ||
+        host->panel_active < 0 || !host->panel_visible )
         return false;
     slot = plugin_panel_find_serial(host, widget_serial);
     return slot >= 0 && host->panel_widgets[slot].kind == TORIRS_PLUGIN_W_CUSTOM &&
@@ -8797,8 +11792,8 @@ PluginHost_PanelInvalidate(
     int slot;
 
     assert(host);
-    if( selection_generation == 0 ||
-        selection_generation != host->panel_selection_generation || host->panel_active < 0 )
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation ||
+        host->panel_active < 0 )
         return 0;
     slot = plugin_panel_find_serial(host, widget_serial);
     if( slot < 0 || host->panel_widgets[slot].kind != TORIRS_PLUGIN_W_CUSTOM )

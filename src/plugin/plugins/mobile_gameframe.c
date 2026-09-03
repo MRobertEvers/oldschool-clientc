@@ -2316,12 +2316,11 @@ mobile_chat_visible(int canvas_w, int rail_w, int chat_w)
  * under a click-blocker: they were drawn where nothing could press them, and
  * the map housing lost its right-hand arc to the same strip.
  *
- * SLOT_SAFE_LANECHROME is that question answered by the host -- the canvas
- * minus whatever the profile named `lane_chrome_<n>` and the lane has on
- * screen -- so the arithmetic below stays "pin to the edge" and the edge is
- * the right one on every lane. A revision with no such furniture answers the
- * whole canvas, which is why this is read unconditionally rather than behind a
- * lane test.
+ * FRAME_BUILD is that question answered by the placement service: platform
+ * safe space minus whatever lane furniture the selected frame may not
+ * replace. It retains fragmented geometry rather than pretending every
+ * subtraction is one rectangle; this frame chooses the largest surviving
+ * fragment because its furniture is one connected assembly.
  *
  * The VIEWPORT is deliberately not inset by it. The scene fills the window on
  * this frame, chrome included, and the rail floats on the world exactly as it
@@ -2339,19 +2338,22 @@ static struct MobileArea
 mobile_lane_area(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
 {
     struct MobileArea area = { 0, 0, canvas_w, canvas_h };
-    int x = 0;
-    int y = 0;
-    int w = 0;
-    int h = 0;
+    struct ToriRS_PlacementRect rect;
+    int iter = -1;
+    int best_area = -1;
 
     assert(ctx);
-    if( g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE_LANECHROME, &x, &y, &w, &h) && w > 0 &&
-        h > 0 )
+    while( (iter = g_api->placement_rect_next(
+                ctx, TORIRS_PLUGIN_AREA_FRAME_BUILD, iter, &rect)) >= 0 )
     {
-        area.x = x;
-        area.y = y;
-        area.w = w;
-        area.h = h;
+        int const candidate = rect.w * rect.h;
+        if( candidate <= best_area )
+            continue;
+        best_area = candidate;
+        area.x = rect.x;
+        area.y = rect.y;
+        area.w = rect.w;
+        area.h = rect.h;
     }
     return area;
 }
@@ -2774,9 +2776,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     struct MobileHousing const* housing = mobile_housing(ctx);
     int const map_x = area_right - MOBILE_MARGIN - g_map_w;
     int const map_y = area.y + MOBILE_MARGIN;
-    int safe_y = 0;
-    int safe_h = canvas_h;
-    int safe_bottom;
+    int const safe_bottom = area_bottom;
     int strip_y;
     int chat_y;
     /* The surface's size is the LANE's, asked for once and then used
@@ -2796,27 +2796,8 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     chat_visible = mobile_chat_visible(
         area.w, rail_w, oldschool ? chat_w : MOBILE_PAPER_ART_W(chat_w));
 
-    /*
-     * The chat block hangs from the SAFE bottom, not the canvas's.
-     *
-     * The two differ exactly while the soft keyboard is up: the canvas keeps
-     * its size (the keyboard is painted over it by the OS), so a sheet pinned
-     * to the canvas's bottom edge is a sheet pinned under the keyboard the
-     * moment "Tap here to chat..." is answered. The host re-declares the
-     * layout when the keyboard comes and goes, so this one read is what
-     * slides the sheet up over it and back down after.
-     *
-     * Only the chat block follows it. The rail and the drawer stay on the
-     * canvas edge: the keyboard is up because somebody is TYPING, and the
-     * furniture they are not using has nothing to say from mid-air.
-     */
-    g_api->safe_os(ctx, NULL, &safe_y, NULL, &safe_h);
-    safe_bottom = safe_y + safe_h;
-    /* Clamped to the FREE box and not to the window: the two occluders stack
-     * -- an OS keyboard over a lane that also docks a strip along the bottom
-     * would otherwise put the sheet under whichever of them the clamp forgot. */
-    if( safe_bottom > area_bottom )
-        safe_bottom = area_bottom;
+    /* Platform and lane exclusions were already composed into FRAME_BUILD,
+     * so every bottom-anchored piece uses the same visible edge. */
     strip_y = safe_bottom - MOBILE_STRIP_H;
     /* Through the macro rather than `strip_y - chat_h`, so the block is
      * still pinned by the ART's last inked row and not by the surface's -- the
@@ -3122,9 +3103,9 @@ mobile_on_layout(
     mobile_layout(ctx, ev->width, ev->height);
     g_frame.declared = 1;
 
-    /* One line per declaration, and only a claim, a resize or a rebuild
-     * produces one -- so this is the frame's whole history rather than
-     * per-frame noise. The two switches are in it because "the drawer will not
+    /* One line per retained declaration -- selection, resize, invalidation or
+     * rebuild -- so this is the frame's history rather than per-frame noise.
+     * The two switches are in it because "the drawer will not
      * open" and "the drawer opened and the sheet vanished" are the two
      * questions this layout can raise, and both are answered here. */
     g_api->log(
@@ -3367,11 +3348,8 @@ mobile_on_draw(
     return TORIRS_PLUGIN_PASS;
 }
 
-static void
-mobile_claim(struct ToriRS_PluginCtx* ctx);
-
 /*
- * Wait for the art, then say the frame again.
+ * Wait for the art, then invalidate the retained frame once.
  *
  * A SKIN is part of the declaration, not something drawn each frame: it is
  * stated in EV_LAYOUT and stands until the next one. And the windows this frame
@@ -3381,11 +3359,10 @@ mobile_claim(struct ToriRS_PluginCtx* ctx);
  * or a rebuild. That is why the compass stayed square: the mask was correct, and
  * it was correct one frame too late for anyone to have asked for it.
  *
- * So the moment the picture lands and the windows are known, re-claim. The claim
- * is idempotent for the holder and marks the frame as needing a fresh EV_LAYOUT,
- * which is the same call the drawer and the chat switch make. Once only -- the
- * flags latch, so this costs one image_size call per frame until the read
- * completes and nothing after it.
+ * So the moment the picture lands and the windows are known, explicitly mark
+ * the selected declaration stale. This changes no ownership or canvas policy.
+ * Once only -- the flags latch, so this costs one image_size call per frame
+ * until the read completes and nothing after it.
  */
 static enum ToriRS_PluginVerdict
 mobile_on_frame(
@@ -3408,7 +3385,7 @@ mobile_on_frame(
         mobile_build_masks(ctx);
     mobile_build_art(ctx);
     if( g_art_built && g_masks_ready )
-        mobile_claim(ctx);
+        g_api->frame_invalidate(ctx);
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -3441,7 +3418,7 @@ mobile_on_click(
             }
             g_api->chat_focus(ctx, 0);
         }
-        mobile_claim(ctx);
+        g_api->frame_invalidate(ctx);
         return TORIRS_PLUGIN_PASS;
     }
 
@@ -3505,48 +3482,14 @@ mobile_on_click(
             g_drawer_open = 1;
             g_api->tab_select(ctx, tabno);
         }
-        /*
-         * The drawer's presence is part of the DECLARATION, so the frame has to
-         * be restated rather than merely redrawn: the host hides a role a
-         * declaration stops mentioning, and that is what puts the panel away.
-         *
-         * A re-CLAIM is how a plugin asks for that -- idempotent for the holder,
-         * and it marks the frame as needing a fresh EV_LAYOUT.
-         */
-        mobile_claim(ctx);
+        /* The drawer's presence is retained layout state. */
+        g_api->frame_invalidate(ctx);
     }
     return TORIRS_PLUGIN_PASS;
 }
 
 /*
- * Take the frame, at a canvas that follows the window down to this layout's own
- * floor. @see MOBILE_MIN_W, and layout_claim, which reads the two for exactly
- * this.
- */
-static void
-mobile_claim(struct ToriRS_PluginCtx* ctx)
-{
-    assert(ctx);
-    if( !g_api->layout_claim(
-            ctx, TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW, MOBILE_MIN_W, MOBILE_MIN_H) )
-    {
-        /* The host also refuses every claim made off the game screen -- there
-         * is no frame to claim before there is a frame -- and that refusal is
-         * a wait, not a loss: mobile_on_screen retries it on login. Logging
-         * "someone else owns it" for that case sent the reader hunting for a
-         * plugin that does not exist. */
-        if( g_api->screen(ctx) != TORIRS_PLUGIN_SCREEN_GAME )
-            return;
-        /* Another layout plugin has it -- gameframe-layout, most likely, since
-         * both are off until asked for and both want the same frame. Saying so
-         * is the whole response: two frames drawn at once is worse than one,
-         * and the loser drawing nothing is what makes the winner's correct. */
-        g_api->log(ctx, "another plugin owns the gameframe; this one is idle");
-    }
-}
-
-/*
- * Entering the game re-states the frame.
+ * Leaving the game forgets session-local frame and chat-pack state.
  *
  * The layout handler declines to declare on the title screen -- that gate is
  * mobile_on_layout's opening lines, and it is correct -- but a declaration only
@@ -3579,9 +3522,7 @@ mobile_on_screen(
     assert(ctx);
     assert(ev);
 
-    if( ev->screen == TORIRS_PLUGIN_SCREEN_GAME )
-        mobile_claim(ctx);
-    else
+    if( ev->screen != TORIRS_PLUGIN_SCREEN_GAME )
     {
         memset(&g_frame, 0, sizeof(g_frame));
         /* The chat pack goes with the session. Releasing rather than merely
@@ -3634,7 +3575,6 @@ mobile_on_start(
             g_api->log(ctx, "could not load %s", MOBILE_IMAGE_FILE[i]);
     }
 
-    mobile_claim(ctx);
     /* The chat pack's decoration is claimed from the frame handler instead
      * of here: at start the pack does not exist yet. @see
      * mobile_chat_pieces_claim. */
@@ -3651,9 +3591,6 @@ mobile_on_stop(
     (void)userdata;
     assert(ctx);
 
-    /* Explicitly, rather than leaving it to the teardown: the release is what
-     * hands the lane's own chrome back, and doing it here means it has happened
-     * before the images this frame was drawn from are dropped. */
     /* Put the keyboard away with the frame that raised it: a disabled plugin
      * must not leave a phone with half its screen covered. */
     if( g_keyboard_on )
@@ -3661,7 +3598,6 @@ mobile_on_stop(
         g_keyboard_on = 0;
         g_api->text_input(ctx, 0);
     }
-    g_api->layout_release(ctx);
     mobile_chat_pieces_release(ctx);
     for( int i = 0; i < MOBILE_IMG_COUNT; i++ )
     {
@@ -3710,8 +3646,8 @@ mobile_on_config(
         return TORIRS_PLUGIN_PASS;
     /* The masks are cut from the housing, so a different housing is a different
      * pair of masks and a different set of window boxes. Dropping the latch is
-     * what makes the frame handler read them again; it re-claims once they are
-     * cut, which is what restates the frame. The art setting can change the
+     * what makes the frame handler read them again; it invalidates once they
+     * are cut, which is what restates the frame. The art setting can change the
      * housing too (Auto follows the family), so it drops the same latch. */
     g_masks_ready = 0;
     return TORIRS_PLUGIN_PASS;
@@ -3774,6 +3710,12 @@ _Static_assert(
     sizeof(MOBILE_HOUSING) / sizeof(MOBILE_HOUSING[0]) == MOBILE_HOUSING_COUNT,
     "every housing choice needs a picture");
 
+static struct ToriRS_PluginFrameOffer const MOBILE_FRAME_OFFERS[] = {
+    { "stone-drawer", "Stone Drawer", TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
+      MOBILE_MIN_W, MOBILE_MIN_H },
+    { NULL, NULL, 0, 0, 0 },
+};
+
 struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
     .name = "mobile-gameframe",
     .title = "Mobile Gameframe (Stone Drawer)",
@@ -3787,12 +3729,10 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
      */
     .draw_order = -100,
     .config = MOBILE_CONFIG,
-    /*
-     * OFF until asked for. This plugin does not add something to the screen, it
-     * REPLACES the screen -- and it replaces it with a frame authored for a
-     * touchscreen, on a client that is usually a desktop one.
-     */
+    /* Legacy-migration default only. The host starts this provider when the
+     * Stone Drawer offer is the one client-wide Gameframe selection. */
     .disabled_by_default = true,
+    .frames = MOBILE_FRAME_OFFERS,
     .init = mobile_init,
     .shutdown = NULL,
 };

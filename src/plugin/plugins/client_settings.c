@@ -23,11 +23,17 @@
  * pixels -- a 765-wide gameframe in a 3024-wide window, which is a client you
  * have to lean towards to read.
  *
- * This page is the client's own answer to that, and it writes THE SAME store
- * the cache's panel does. Not a second setting shadowing the first: a lane
- * that has both shows one value in two places, and the value survives a switch
- * between lanes because it lives in preferences.ini rather than in this
- * plugin's ini section.
+ * This page is the client's own answer to that. Interface scaling writes THE
+ * SAME store the cache's panel does. Not a second setting shadowing the first:
+ * a lane that has both shows one value in two places, and the value survives a
+ * switch between lanes because it lives in preferences.ini rather than in
+ * this plugin's ini section.
+ *
+ * Gameframe selection belongs here for the same single-store reason. The host
+ * owns the catalogue, resolver and `preferred_frame` preference; this page
+ * only presents those facts and hands a canonical id back when a person picks
+ * a row. Provider plugins therefore never acquire the screen by being toggled
+ * or by happening to start first.
  *
  * ## Why nothing here is a config schema
  *
@@ -56,10 +62,33 @@
 #define CS_FILTER_CHOICES "Nearest|Linear|Bicubic"
 
 /** Widget ids. Also the only strings the UI handler matches on. */
+#define CS_ID_FRAME "gameframe"
+#define CS_ID_FRAME_DETAIL "gameframe_detail"
 #define CS_ID_SCALE "ui_scale"
 #define CS_ID_FILTER "ui_scale_filter"
 
+/*
+ * win_set_options is the legacy, pipe-separated presentation API. Its host
+ * record has room for 192 bytes, while the frame catalogue currently has a
+ * hard ceiling of 32 plugin offers. Keep those implementation facts local to
+ * this adapter: the ids below are NOT preferences, and a row number is never
+ * sent to frame_select.
+ */
+#define CS_FRAME_ROWS_MAX 33
+#define CS_FRAME_CHOICES_MAX 192
+
+struct CsFrameRow
+{
+    char id[TORIRS_PLUGIN_FRAME_ID_MAX];
+    char title[TORIRS_PLUGIN_TITLE_MAX];
+};
+
 static struct ToriRS_PluginApi const* g_api;
+static struct CsFrameRow g_frame_rows[CS_FRAME_ROWS_MAX];
+static int g_frame_row_count;
+static uint32_t g_frame_seen_revision;
+static char g_frame_seen_requested[TORIRS_PLUGIN_FRAME_ID_MAX];
+static int g_frame_page_built;
 
 /* ------------------------------------------------------------------------ */
 
@@ -107,12 +136,236 @@ cs_choice_count(char const* choices)
 }
 
 /* ------------------------------------------------------------------------ */
+/* The host-owned gameframe setting                                          */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Append one human label to the old pipe-separated dropdown format.
+ *
+ * A frame title is presentation data supplied by another plugin. `|` cannot
+ * be allowed to manufacture an extra row whose index has no matching stable
+ * id, and line breaks do not belong in a one-line native control, so both are
+ * made harmless here. Refusing a label which does not fit keeps the visible
+ * rows and g_frame_rows exactly aligned.
+ */
+static int
+cs_frame_choice_append(
+    char* choices,
+    size_t choices_size,
+    char const* title)
+{
+    char safe[TORIRS_PLUGIN_TITLE_MAX];
+    size_t safe_n = 0;
+    size_t used;
+
+    assert(choices);
+    assert(choices_size > 0);
+    if( !title || !title[0] )
+        title = "Unnamed gameframe";
+
+    while( title[safe_n] && safe_n + 1 < sizeof(safe) )
+    {
+        char const c = title[safe_n];
+        safe[safe_n] = c == '|' ? '/' : (c == '\r' || c == '\n') ? ' ' : c;
+        safe_n++;
+    }
+    safe[safe_n] = '\0';
+
+    used = strlen(choices);
+    if( used + (used ? 1u : 0u) + safe_n >= choices_size )
+        return 0;
+    if( used )
+        choices[used++] = '|';
+    memcpy(choices + used, safe, safe_n + 1);
+    return 1;
+}
+
+/** A stable id's readable spelling, using the current dropdown catalogue. */
+static char const*
+cs_frame_title(char const* id)
+{
+    if( !id || !id[0] )
+        return "Unknown gameframe";
+    if( strcmp(id, "auto") == 0 )
+        return "Auto";
+    if( strcmp(id, "core/native") == 0 )
+        return "Native gameframe";
+    for( int i = 0; i < g_frame_row_count; i++ )
+        if( strcmp(g_frame_rows[i].id, id) == 0 )
+            return g_frame_rows[i].title;
+    /* A removed provider has no title left to show. Its canonical id is still
+     * more useful than calling it "unknown": it tells the user what is
+     * missing, and the host deliberately keeps that preference intact. */
+    return id;
+}
+
+/**
+ * Snapshot the catalogue into the rows the legacy dropdown can actually show.
+ * Row zero is reserved for Auto; every other row keeps the canonical id beside
+ * its title so a translated/renamed/duplicated title can never become state.
+ */
+static int
+cs_frame_choices(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginFrameSelection const* selection,
+    char* choices,
+    size_t choices_size)
+{
+    struct ToriRS_PluginFrameInfo info;
+    int iter = -1;
+    int selected = 0;
+    int omitted = 0;
+
+    assert(ctx);
+    assert(selection);
+    assert(choices);
+    assert(choices_size > 0);
+
+    memset(g_frame_rows, 0, sizeof(g_frame_rows));
+    g_frame_row_count = 0;
+    choices[0] = '\0';
+
+    if( !cs_frame_choice_append(choices, choices_size, "Auto") )
+        return 0;
+    snprintf(g_frame_rows[0].id, sizeof(g_frame_rows[0].id), "%s", "auto");
+    snprintf(g_frame_rows[0].title, sizeof(g_frame_rows[0].title), "%s", "Auto");
+    g_frame_row_count = 1;
+
+    while( (iter = g_api->frame_offer_next(ctx, iter, &info)) >= 0 )
+    {
+        int const row = g_frame_row_count;
+
+        /* Native is represented by Auto. The public iterator intentionally
+         * omits it, but filtering here keeps this adapter sound if an older or
+         * test host includes the core row. */
+        if( !info.id[0] || strcmp(info.id, "core/native") == 0 )
+            continue;
+        if( row >= CS_FRAME_ROWS_MAX ||
+            !cs_frame_choice_append(choices, choices_size, info.title) )
+        {
+            omitted++;
+            continue;
+        }
+
+        snprintf(g_frame_rows[row].id, sizeof(g_frame_rows[row].id), "%s", info.id);
+        snprintf(
+            g_frame_rows[row].title,
+            sizeof(g_frame_rows[row].title),
+            "%s",
+            info.title[0] ? info.title : info.id);
+        g_frame_row_count++;
+        if( strcmp(selection->requested, info.id) == 0 )
+            selected = row;
+    }
+
+    /* Keep a saved choice visible even when its provider is temporarily
+     * absent. Falling back to row zero made the control say "Auto" while the
+     * retained preference still named another frame, so the dropdown and the
+     * explanatory line contradicted each other. The synthetic row preserves
+     * the canonical value; choosing Auto remains an explicit user action. */
+    if( selected == 0 && strcmp(selection->requested, "auto") != 0 &&
+        g_frame_row_count < CS_FRAME_ROWS_MAX )
+    {
+        char unavailable[TORIRS_PLUGIN_TITLE_MAX];
+        int const row = g_frame_row_count;
+
+        snprintf(unavailable, sizeof(unavailable), "Unavailable: %s", selection->requested);
+        if( cs_frame_choice_append(choices, choices_size, unavailable) )
+        {
+            snprintf(
+                g_frame_rows[row].id,
+                sizeof(g_frame_rows[row].id),
+                "%s",
+                selection->requested);
+            snprintf(
+                g_frame_rows[row].title,
+                sizeof(g_frame_rows[row].title),
+                "%s",
+                selection->requested);
+            g_frame_row_count++;
+            selected = row;
+        }
+    }
+
+    if( omitted )
+        g_api->log(
+            ctx,
+            "client-settings: %d gameframe choice%s did not fit the legacy dropdown",
+            omitted,
+            omitted == 1 ? "" : "s");
+    return selected;
+}
+
+/** Explain the resolver state without making the user decode canonical ids. */
+static void
+cs_frame_detail(
+    struct ToriRS_PluginFrameSelection const* selection,
+    char* detail,
+    size_t detail_size)
+{
+    char const* const requested = cs_frame_title(selection->requested);
+    char const* const active = cs_frame_title(selection->active);
+    char const* const reason = selection->reason;
+
+    assert(selection);
+    assert(detail);
+    assert(detail_size > 0);
+
+    if( selection->status == TORIRS_PLUGIN_FRAME_NATIVE &&
+        strcmp(selection->requested, "auto") == 0 )
+        snprintf(detail, detail_size, "Active: %s. Auto follows this lane.", active);
+    else if( selection->status == TORIRS_PLUGIN_FRAME_ACTIVE &&
+             strcmp(selection->requested, selection->active) == 0 )
+        snprintf(detail, detail_size, "Active: %s.", active);
+    else if( selection->status == TORIRS_PLUGIN_FRAME_LOADING )
+        snprintf(
+            detail,
+            detail_size,
+            "Loading %s. Active for now: %s.%s%s",
+            requested,
+            active,
+            reason[0] ? " " : "",
+            reason);
+    else if( selection->status == TORIRS_PLUGIN_FRAME_FALLBACK )
+        snprintf(
+            detail,
+            detail_size,
+            "Could not use %s. Active fallback: %s.%s%s",
+            requested,
+            active,
+            reason[0] ? " " : "",
+            reason);
+    else
+        snprintf(
+            detail,
+            detail_size,
+            "Switching to %s. Active for now: %s.",
+            requested,
+            active);
+}
+
+static void
+cs_frame_remember(struct ToriRS_PluginFrameSelection const* selection)
+{
+    assert(selection);
+    g_frame_seen_revision = selection->revision;
+    snprintf(
+        g_frame_seen_requested,
+        sizeof(g_frame_seen_requested),
+        "%s",
+        selection->requested);
+}
+
+/* ------------------------------------------------------------------------ */
 /* The page                                                                  */
 /* ------------------------------------------------------------------------ */
 
 static enum ToriRS_PluginVerdict
 cs_on_ui_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
+    struct ToriRS_PluginFrameSelection frame;
+    char frame_choices[CS_FRAME_CHOICES_MAX];
+    char frame_detail[CS_FRAME_CHOICES_MAX];
     int value = 0;
     int min = 0;
     int max = 0;
@@ -122,7 +375,23 @@ cs_on_ui_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     assert(ctx);
 
     if( !g_api->win_request(ctx, "Client Settings") )
+    {
+        g_frame_page_built = 0;
         return TORIRS_PLUGIN_PASS;
+    }
+    g_frame_page_built = 1;
+
+    g_api->frame_selection(ctx, &frame);
+    {
+        int const selected =
+            cs_frame_choices(ctx, &frame, frame_choices, sizeof(frame_choices));
+        g_api->win_widget(ctx, TORIRS_PLUGIN_W_DROPDOWN, CS_ID_FRAME, "Gameframe");
+        g_api->win_set_options(ctx, CS_ID_FRAME, frame_choices, selected);
+    }
+    cs_frame_detail(&frame, frame_detail, sizeof(frame_detail));
+    g_api->win_widget(ctx, TORIRS_PLUGIN_W_LABEL, CS_ID_FRAME_DETAIL, NULL);
+    g_api->win_set_text(ctx, CS_ID_FRAME_DETAIL, frame_detail);
+    cs_frame_remember(&frame);
 
     /*
      * A row per setting the BUILD has, and none for one it does not.
@@ -159,6 +428,38 @@ cs_on_ui_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     return TORIRS_PLUGIN_PASS;
 }
 
+/** Rebuild only after this tab has existed; do not create it eagerly at boot. */
+static void
+cs_rebuild(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    if( !g_frame_page_built )
+        return;
+    g_api->win_clear(ctx);
+    g_frame_page_built = 0;
+    (void)cs_on_ui_build(ctx, NULL, NULL);
+}
+
+/** Keep loading/fallback detail live while the settings page remains open. */
+static enum ToriRS_PluginVerdict
+cs_on_frame_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    struct ToriRS_PluginFrameSelection selection;
+
+    (void)event;
+    (void)userdata;
+    assert(ctx);
+
+    g_api->frame_selection(ctx, &selection);
+    if( selection.revision != g_frame_seen_revision ||
+        strcmp(selection.requested, g_frame_seen_requested) != 0 )
+    {
+        cs_frame_remember(&selection);
+        cs_rebuild(ctx);
+    }
+    return TORIRS_PLUGIN_PASS;
+}
+
 /*
  * A row was used.
  *
@@ -182,6 +483,31 @@ cs_on_ui(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
     if( !ev->widget_id )
         return TORIRS_PLUGIN_PASS;
+
+    if( strcmp(ev->widget_id, CS_ID_FRAME) == 0 )
+    {
+        /* The visible text is presentation only. The row is resolved through
+         * the snapshot built beside the dropdown, and the canonical id is the
+         * only value that reaches the host or preferences.ini. */
+        if( ev->action != TORIRS_PLUGIN_UI_PICK ||
+            ev->value < 0 || ev->value >= g_frame_row_count )
+        {
+            g_api->log(ctx, "client-settings: ignored invalid gameframe row %d", ev->value);
+            cs_rebuild(ctx);
+            return TORIRS_PLUGIN_PASS;
+        }
+        if( !g_api->frame_select(ctx, g_frame_rows[ev->value].id) )
+            g_api->log(
+                ctx,
+                "client-settings: could not save gameframe '%s'",
+                g_frame_rows[ev->value].id);
+        /* The host updates the requested id immediately and resolves the
+         * active provider at the next frame boundary. Rebuilding now gives a
+         * failed write its old row back and makes a successful request visible
+         * without ever persisting this row number. */
+        cs_rebuild(ctx);
+        return TORIRS_PLUGIN_PASS;
+    }
 
     if( strcmp(ev->widget_id, CS_ID_SCALE) == 0 )
     {
@@ -212,8 +538,14 @@ cs_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     assert(api);
 
     g_api = api;
+    memset(g_frame_rows, 0, sizeof(g_frame_rows));
+    g_frame_row_count = 0;
+    g_frame_seen_revision = 0;
+    g_frame_seen_requested[0] = '\0';
+    g_frame_page_built = 0;
     api->subscribe(ctx, TORIRS_PLUGIN_EV_UI_BUILD, cs_on_ui_build, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_UI, cs_on_ui, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_FRAME_START, cs_on_frame_start, NULL);
 }
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS = {

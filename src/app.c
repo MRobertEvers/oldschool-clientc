@@ -3984,7 +3984,7 @@ app_chrome_route_input(
     struct ToriRSChrome* ui,
     struct LibToriRS_Input* input);
 
-/* Its keyboard half alone -- what a native-widget executor's window needs. */
+/* Its keyboard half alone -- what a WEB/BROWSER DOM editor needs. */
 static void
 app_chrome_route_keys(
     struct App* app,
@@ -5851,13 +5851,9 @@ app_chrome_merged_prims(struct App* app, int* out_count)
      * the common case -- no plugin window open -- costs exactly what it did
      * before this existed.
      *
-     * ANY bound executor other than the buffer one is the other way to get
-     * here: the plugin window is being presented somewhere else -- its own OS
-     * window, the DOM, a tool window, the interface tree -- so putting its
-     * prims in the canvas as well would draw it twice, in two places, both of
-     * them live. That is not only a surface executor's problem: a native-widget
-     * executor rebuilds the window out of foreign controls and the chrome's own
-     * display list is exactly what must NOT also appear.
+     * WEB/BROWSER rebuild the window as DOM controls, so putting its prims in
+     * the canvas as well would draw it twice. BUFFER is the only internal
+     * presentation that consumes the display list here.
      */
     if( win_count == 0 || app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER )
     {
@@ -8190,87 +8186,6 @@ app_chrome_fonts_resolve(struct App* app)
     menu = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_MENU);
     body = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_BODY);
     UITree_DebugOverlaySetFontIds(app->tree, small, menu, body);
-}
-
-/*
- * Draw a chrome display list into an arbitrary buffer.
- *
- * Lent to a SURFACE executor so a second window is drawn by the same code as
- * the first: the same prim list, the same ToriRS_Frame translator, the same
- * software backend. A second rasteriser for the aux window would be a second
- * set of rounding, a second baseline convention, and a second place for the
- * chrome to be almost right.
- *
- * The frame is hand-built rather than walked out of the tree, because the tree
- * describes the GAME canvas -- its layout, its viewport, its world. This window
- * holds one thing, so the emit buffer is exactly one desc long.
- */
-void
-App_ChromeRasterise(
-    void* user,
-    int* pixels,
-    int width,
-    int height,
-    struct ToriRSChromePrim const* prims,
-    int count)
-{
-    struct App* app = user;
-    struct UITreeEmitDesc desc[2];
-    struct ToriRS_Frame frame;
-    int desc_count = 1;
-
-    assert(app);
-    assert(pixels);
-    if( !app->scene || count <= 0 )
-        return;
-    assert(app->soft_chrome);
-
-    memset(desc, 0, sizeof(desc));
-    desc[0].kind = UITREE_EMIT_DEBUG_OVERLAY;
-    desc[0].debug_prims = prims;
-    desc[0].debug_prim_count = count;
-    for( int i = 0; i < TORIRS_CHROME_FONT_SLOT_COUNT; i++ )
-        desc[0].debug_font_id[i] = UITreeSceneBridge_EnsureDebugFont(&app->bridge, i);
-    desc[0].debug_skin_scene_id = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
-    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
-        desc[0].debug_skin_atlas[i] = i;
-    desc[0].clip.x = 0;
-    desc[0].clip.y = 0;
-    desc[0].clip.w = width;
-    desc[0].clip.h = height;
-
-    /* Custom primitives are a second, panel-local layer over the chrome well.
-     * They never enter UITree's world/canvas/frame lists; the items already
-     * carry the well's visible clip from the generation-fenced draw pass. */
-    if( app->panel_overlay_count > 0 )
-    {
-        int visible_count = 0;
-        for( int i = 0; i < app->panel_overlay_count; i++ )
-            if( app_plugin_panel_overlay_visible(
-                    app, i, &app->panel_overlay_stage[visible_count]) )
-                visible_count++;
-        if( visible_count > 0 )
-        {
-        desc[1].kind = UITREE_EMIT_ENTITY_OVERLAY;
-        desc[1].entity_overlays = app->panel_overlay_stage;
-        desc[1].entity_overlay_count = visible_count;
-        desc[1].clip.x = 0;
-        desc[1].clip.y = 0;
-        desc[1].clip.w = width;
-        desc[1].clip.h = height;
-        desc_count = 2;
-        }
-    }
-
-    ToriRS_FrameInit(&frame);
-    ToriRS_FrameSetScene(&frame, app->scene);
-    /* The surface's own size, not the game canvas's: every clip in the list
-     * below is measured against this, and a frame that thinks it is 765 wide
-     * would clip a 360-wide window's chrome to a box off the right of it. */
-    ToriRS_FrameSetCanvas(&frame, width, height);
-    ToriRS_FrameSetEmit(&frame, desc, desc_count);
-    ToriRS_Soft3D_Init(app->soft_chrome, app->scene, pixels, width, height);
-    ToriRS_Soft3D_RenderFrame(app->soft_chrome, &frame);
 }
 
 int

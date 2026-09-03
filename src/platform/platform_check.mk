@@ -18,13 +18,29 @@
 #   make -C src lane-check-artifact PLATFORM=win32   # after linking
 #   make -C src lane-check-artifact PLATFORM=win64   # after linking
 
-# --- macOS: desktop GL, and the one linker that has -dead_strip -------------
-LANE_REQUIRE_macos := OpenGL -dead_strip
-LANE_FORBID_macos  := --gc-sections
+# Plugin chrome has exactly two external executors. WEB is the Emscripten DOM
+# path; BROWSER is the shared protocol used by embedded browser engines. When
+# neither is present, torirs_chrome_exec.c selects its internal BUFFER sink.
+# The old platform-specific executors must never re-enter a production lane.
+CHROME_EXEC_FORBID_LEGACY := TORIRS_CHROME_EXEC_SDL_AVAILABLE \
+                             TORIRS_CHROME_EXEC_GDI_AVAILABLE \
+                             TORIRS_CHROME_EXEC_ANDROID_AVAILABLE \
+                             ui/torirs_chrome_exec_sdl.c \
+                             ui/torirs_chrome_exec_gdi.c \
+                             ui/torirs_chrome_exec_android.c
 
-# --- Linux: desktop GL, and specifically NOT the Apple-only strip flag -------
+# --- macOS: desktop GL, embedded browser chrome, and -dead_strip ------------
+LANE_REQUIRE_macos := OpenGL -dead_strip TORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+                      ui/torirs_chrome_exec_winbrowser.c
+LANE_FORBID_macos  := --gc-sections TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                      ui/torirs_chrome_exec_web.c
+
+# --- Linux: desktop GL and BUFFER chrome (no embedded browser transport) -----
 LANE_REQUIRE_linux := -lGL
-LANE_FORBID_linux  := -dead_strip
+LANE_FORBID_linux  := -dead_strip TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                      TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
+                      ui/torirs_chrome_exec_web.c \
+                      ui/torirs_chrome_exec_winbrowser.c
 
 # --- Windows XP: the ABI contract that makes the binary loadable on XP SP3 ---
 # console:5.01 is the PE subsystem *version*. Without it binutils stamps 6.00
@@ -35,22 +51,30 @@ LANE_FORBID_linux  := -dead_strip
 # classic Direct3DCreate9 and no Ex/D3DX/shader-compiler entry point.
 LANE_REQUIRE_win32 := _WIN32_WINNT=0x0501 WINVER=0x0501 -march=pentium4 \
                       -mfpmath=sse console:5.01 -static -static-libgcc win32_compat.h \
-                      TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9
+                      TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9 \
+                      TORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+                      ui/torirs_chrome_exec_winbrowser.c
 # -march=i686/-mfpmath=387 are forbidden, not merely un-required. SSE2 is
 # assumed present on every XP target, and the i686 baseline silently costs this
 # lane the SIMD textured span it selects with #if -- 79% of its raster cycles.
 # A well-meaning "restore the conservative baseline" edit must fail the check.
 LANE_FORBID_win32  := -dead_strip -sUSE_SDL=2 webgl1 TORIRS_HAVE_GL3 \
                       -march=i686 -mfpmath=387 \
-                      -ld3dx -ld3dcompiler -ldxcompiler
+                      -ld3dx -ld3dcompiler -ldxcompiler \
+                      TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                      ui/torirs_chrome_exec_web.c
 
 # --- Modern Windows: explicit Windows 10+, x86_64, standalone D3D9 ----------
 LANE_REQUIRE_win64 := _WIN32_WINNT=0x0A00 WINVER=0x0A00 -march=x86-64 \
                       console:6.0 -static -static-libgcc win32_compat.h \
-                      TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9
+                      TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9 \
+                      TORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+                      ui/torirs_chrome_exec_winbrowser.c
 LANE_FORBID_win64  := -march=i686 -march=pentium4 -mfpmath=387 console:5.01 -dead_strip \
                       -sUSE_SDL=2 webgl1 TORIRS_HAVE_GL3 \
-                      -ld3dx -ld3dcompiler -ldxcompiler
+                      -ld3dx -ld3dcompiler -ldxcompiler \
+                      TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                      ui/torirs_chrome_exec_web.c
 
 # --- Web: WebGL1 pinned, and no ASYNCIFY ------------------------------------
 # The IO path yields to the main loop and lets torirs_host.js pump responses
@@ -65,13 +89,17 @@ LANE_FORBID_win64  := -march=i686 -march=pentium4 -mfpmath=387 console:5.01 -dea
 # renderer, and webgl1_index16 was that fork's index-splitting object.
 LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 \
                     GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
-                    TORIRS_HAVE_GLES2=1
+                    TORIRS_HAVE_GLES2=1 \
+                    TORIRS_CHROME_EXEC_WEB_AVAILABLE=1 \
+                    ui/torirs_chrome_exec_web.c
 # -O0 is forbidden here at any OPT level, which is the one lane where that is
 # true. wasm at -O0 is several times larger and slow enough that the client
 # stops reproducing what you are trying to look at, so the debug flavor is -Og
 # (PLATFORM_DEBUG_O_LEVEL in platform.mk) rather than the -O0 every other lane
 # gets. Check it with: make -C src lane-check PLATFORM=web OPT=0
-LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1_index16
+LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1_index16 \
+                    TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
+                    ui/torirs_chrome_exec_winbrowser.c
 
 # --- Android: GLES2, armv7 NEON, and NO SDL ---------------------------------
 #
@@ -113,18 +141,24 @@ LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
 LANE_FORBID_android  := -lSDL2 -sUSE_SDL=2 -dead_strip -mfpmath=sse \
                         -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9 \
                         TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1 \
-                        platform/platform_audio_null.c
+                        platform/platform_audio_null.c \
+                        TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                        TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
+                        ui/torirs_chrome_exec_web.c \
+                        ui/torirs_chrome_exec_winbrowser.c
 
 # Everything a lane actually compiles and links with. GPU object names are in
 # here so "no WebGL in the win32 link" is checkable as a flag would be, and the
 # platform sources so is "which backend did this lane pick" -- a swapped
 # implementation of an interface every lane implements is invisible in the
 # flags.
-LANE_EFFECTIVE = $(CFLAGS) $(LDFLAGS) $(PLATFORM_GPU_OBJ_NAMES) $(PLATFORM_SRCS)
+LANE_EFFECTIVE = $(CFLAGS) $(LDFLAGS) $(PLATFORM_GPU_OBJ_NAMES) $(PLATFORM_SRCS) \
+                 $(PLATFORM_CHROME_EXEC_SRC)
 
 LANE_MISSING = $(strip $(foreach f,$(LANE_REQUIRE_$(PLATFORM)), \
                  $(if $(findstring $(f),$(LANE_EFFECTIVE)),,$(f))))
-LANE_FORBIDDEN_PRESENT = $(strip $(foreach f,$(LANE_FORBID_$(PLATFORM)), \
+LANE_FORBIDDEN_PRESENT = $(strip $(foreach f,$(CHROME_EXEC_FORBID_LEGACY) \
+                                                  $(LANE_FORBID_$(PLATFORM)), \
                            $(if $(findstring $(f),$(LANE_EFFECTIVE)),$(f),)))
 
 # Lanes needing more than a flag comparison name an extra target here.

@@ -744,23 +744,24 @@ endif
 # platform_sdl2.c; both Windows blocks override this with platform_win32gdi.c.
 PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c
 
-# The browser executor compiled for this host, and the define that tells the
-# chooser it is present. Empty is a valid answer for a deferred host. The old
-# SDL/GDI native presenters are preserved under old/plugin_chrome_native and
-# are no longer selected by a production platform.
+# The web-backed chrome executor compiled for this host, and the define that
+# tells the chooser it is present. There are deliberately only two production
+# implementations:
+#
+#   WEB      Emscripten talks directly to the document that owns the canvas.
+#   BROWSER  Native hosts talk to one embedded browser through PlatformWindow.
+#
+# Empty is also a valid answer: the executor chooser then keeps its internal
+# BUFFER sink. In particular, Linux has no embedded browser transport and the
+# old Android-specific command queue is not a third presentation protocol.
+# SDL, GDI and Android executors have been removed; no platform may reintroduce
+# their source or advertise their old availability macros.
 ifeq ($(PLATFORM),web)
 # The web lane builds on SDL but presents through the DOM: a second SDL window
 # in a browser tab is not a thing, and the page can host real form controls,
 # which is strictly better than a canvas pretending to be one.
 PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_web.c
 PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_WEB_AVAILABLE=1
-else ifeq ($(PLATFORM),android)
-# One locked-down framework WebView in the existing Activity: rail/page beside
-# the SurfaceView in split mode, or replacing it in compact exclusive mode.
-# The browser object persists across plugin selection and collapse; there is no
-# AndroidX, second Activity, overlay permission, or plugin-authored document.
-PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_android.c
-PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_ANDROID_AVAILABLE=1
 else ifeq ($(PLATFORM),macos)
 # The same semantic browser executor as Windows, backed here by the one
 # WKWebView in platform_macos_webview.m.
@@ -774,6 +775,34 @@ PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1
 else
 PLATFORM_CHROME_EXEC_SRC ?=
 PLATFORM_CHROME_EXEC_CFLAGS ?=
+endif
+
+# PLATFORM_CHROME_EXEC_* are overridable for build probes, so reject a legacy
+# executor even when it arrived on make's command line. A source not in this
+# allow-list would otherwise be appended directly to SRCS by src/makefile and
+# become a production executor without adding a new platform declaration.
+PLATFORM_CHROME_EXEC_ALLOWED_SRCS := ui/torirs_chrome_exec_web.c \
+                                    ui/torirs_chrome_exec_winbrowser.c
+ifneq ($(strip $(PLATFORM_CHROME_EXEC_SRC)),)
+  ifeq ($(filter $(PLATFORM_CHROME_EXEC_SRC),$(PLATFORM_CHROME_EXEC_ALLOWED_SRCS)),)
+    $(error plugin chrome executor '$(PLATFORM_CHROME_EXEC_SRC)' is not web-backed; expected WEB, BROWSER, or the internal BUFFER fallback)
+  endif
+endif
+
+# Availability is a source/link promise, so require the exact matching pair.
+# This catches an obsolete command-line PLATFORM_CHROME_EXEC_CFLAGS override at
+# makefile evaluation time instead of leaving the final link to diagnose a
+# missing executor symbol.
+ifeq ($(PLATFORM_CHROME_EXEC_SRC),ui/torirs_chrome_exec_web.c)
+  ifneq ($(strip $(PLATFORM_CHROME_EXEC_CFLAGS)),-DTORIRS_CHROME_EXEC_WEB_AVAILABLE=1)
+    $(error WEB plugin chrome must define exactly TORIRS_CHROME_EXEC_WEB_AVAILABLE=1)
+  endif
+else ifeq ($(PLATFORM_CHROME_EXEC_SRC),ui/torirs_chrome_exec_winbrowser.c)
+  ifneq ($(strip $(PLATFORM_CHROME_EXEC_CFLAGS)),-DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1)
+    $(error BROWSER plugin chrome must define exactly TORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1)
+  endif
+else ifneq ($(strip $(PLATFORM_CHROME_EXEC_CFLAGS)),)
+  $(error BUFFER plugin chrome has no availability define; got '$(PLATFORM_CHROME_EXEC_CFLAGS)')
 endif
 
 # What OPT=0 means for this lane's -O level. -O0 everywhere except the web

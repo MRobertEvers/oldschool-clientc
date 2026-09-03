@@ -706,32 +706,14 @@ lua_window_kind_from_name(char const* name)
 /*
  * The layout region a call is about, carried as a SECOND upvalue.
  *
- * `api.layout.safe_gamechrome.reserve(...)` and `api.layout.viewport.rect()` are the same
- * two C functions closed over different regions, which is what lets the
- * scripted surface be per-region names -- the shape the C side reads as an
- * argument -- without a function per region per verb.
+ * `api.layout.viewport.rect()` and `api.layout.chat.rect()` are the same C
+ * function closed over different read-only live surfaces. Exact safe
+ * placement and named reservations are in api.placement instead.
  */
 static int
 lua_layout_slot(lua_State* L)
 {
     return (int)lua_tointeger(L, lua_upvalueindex(2));
-}
-
-/** The named edge, or -1. */
-static int
-lua_layout_edge_from_name(char const* name)
-{
-    if( !name )
-        return -1;
-    if( strcmp(name, "left") == 0 )
-        return TORIRS_PLUGIN_EDGE_LEFT;
-    if( strcmp(name, "right") == 0 )
-        return TORIRS_PLUGIN_EDGE_RIGHT;
-    if( strcmp(name, "top") == 0 )
-        return TORIRS_PLUGIN_EDGE_TOP;
-    if( strcmp(name, "bottom") == 0 )
-        return TORIRS_PLUGIN_EDGE_BOTTOM;
-    return -1;
 }
 
 /**
@@ -776,103 +758,6 @@ lua_layout_rect(lua_State* L)
 }
 
 static int
-lua_layout_reserve(lua_State* L)
-{
-    struct LuaScript* script = lua_upvalue_script(L);
-    char const* edge_name = luaL_checkstring(L, 1);
-    int const px = (int)luaL_checkinteger(L, 2);
-    int const edge = lua_layout_edge_from_name(edge_name);
-
-    if( edge < 0 )
-        return luaL_error(
-            L, "reserve: '%s' is not an edge; use left, right, top or bottom",
-            edge_name);
-    lua_pushboolean(
-        L, g_api->layout_reserve(script->cur_ctx, lua_layout_slot(L), edge, px));
-    return 1;
-}
-
-/** Give back every edge of this region this script had taken. */
-static int
-lua_layout_release(lua_State* L)
-{
-    struct LuaScript* script = lua_upvalue_script(L);
-    int const slot = lua_layout_slot(L);
-
-    for( int edge = 0; edge < TORIRS_PLUGIN_EDGE_COUNT; edge++ )
-        g_api->layout_reserve(script->cur_ctx, slot, edge, 0);
-    return 0;
-}
-
-/**
- * `replace(rect)` on a PLACEABLE region: state where the frame puts it.
- *
- * The exclusive verb, and the host enforces the rest of what that means --
- * legal only for the plugin that owns the frame and only inside its layout
- * handler. A script calling it anywhere else is told so rather than quietly
- * doing nothing.
- */
-static int
-lua_layout_replace(lua_State* L)
-{
-    struct LuaScript* script = lua_upvalue_script(L);
-    int const slot = lua_layout_slot(L);
-    int x;
-    int y;
-    int w;
-    int h;
-
-    luaL_checktype(L, 1, LUA_TTABLE);
-    lua_getfield(L, 1, "x");
-    x = (int)luaL_optinteger(L, -1, 0);
-    lua_pop(L, 1);
-    lua_getfield(L, 1, "y");
-    y = (int)luaL_optinteger(L, -1, 0);
-    lua_pop(L, 1);
-    lua_getfield(L, 1, "w");
-    w = (int)luaL_optinteger(L, -1, 0);
-    lua_pop(L, 1);
-    lua_getfield(L, 1, "h");
-    h = (int)luaL_optinteger(L, -1, 0);
-    lua_pop(L, 1);
-
-    lua_pushboolean(L, g_api->layout_slot(script->cur_ctx, slot, x, y, w, h));
-    return 1;
-}
-
-/** `api.layout.top_level.replace([opts])` -- own the whole gameframe. */
-static int
-lua_layout_top_level_replace(lua_State* L)
-{
-    struct LuaScript* script = lua_upvalue_script(L);
-    int canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
-    int w = 0;
-    int h = 0;
-
-    if( lua_istable(L, 1) )
-    {
-        lua_getfield(L, 1, "w");
-        w = (int)luaL_optinteger(L, -1, 0);
-        lua_pop(L, 1);
-        lua_getfield(L, 1, "h");
-        h = (int)luaL_optinteger(L, -1, 0);
-        lua_pop(L, 1);
-        if( w > 0 && h > 0 )
-            canvas = TORIRS_PLUGIN_CANVAS_FIXED;
-    }
-    lua_pushboolean(L, g_api->layout_claim(script->cur_ctx, canvas, w, h));
-    return 1;
-}
-
-static int
-lua_layout_top_level_release(lua_State* L)
-{
-    struct LuaScript* script = lua_upvalue_script(L);
-    g_api->layout_release(script->cur_ctx);
-    return 0;
-}
-
-static int
 lua_layout_top_level_rect(lua_State* L)
 {
     return lua_layout_rect(L);
@@ -883,6 +768,129 @@ lua_layout_revision(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
     lua_pushinteger(L, g_api->layout_revision(script->cur_ctx));
+    return 1;
+}
+
+/* ----------------------------------------------------------- placement */
+
+static int
+lua_placement_area(char const* name)
+{
+    if( strcmp(name, "platform_safe") == 0 )
+        return TORIRS_PLUGIN_AREA_PLATFORM_SAFE;
+    if( strcmp(name, "frame_build") == 0 )
+        return TORIRS_PLUGIN_AREA_FRAME_BUILD;
+    if( strcmp(name, "overlay_safe") == 0 )
+        return TORIRS_PLUGIN_AREA_OVERLAY_SAFE;
+    if( strcmp(name, "raw_viewport") == 0 )
+        return TORIRS_PLUGIN_AREA_RAW_VIEWPORT;
+    return -1;
+}
+
+static int
+lua_placement_anchor(char const* name)
+{
+    static char const* const NAME[TORIRS_PLACEMENT_ANCHOR_COUNT] = {
+        "top-left", "top", "top-right", "left", "center", "right",
+        "bottom-left", "bottom", "bottom-right",
+    };
+    for( int i = 0; i < TORIRS_PLACEMENT_ANCHOR_COUNT; i++ )
+        if( strcmp(name, NAME[i]) == 0 )
+            return i;
+    return -1;
+}
+
+static int
+lua_placement_edge(char const* name)
+{
+    if( strcmp(name, "top") == 0 )
+        return TORIRS_PLUGIN_PLACEMENT_EDGE_TOP;
+    if( strcmp(name, "right") == 0 )
+        return TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT;
+    if( strcmp(name, "bottom") == 0 )
+        return TORIRS_PLUGIN_PLACEMENT_EDGE_BOTTOM;
+    if( strcmp(name, "left") == 0 )
+        return TORIRS_PLUGIN_PLACEMENT_EDGE_LEFT;
+    return -1;
+}
+
+static int
+lua_placement_place(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* area_name = luaL_checkstring(L, 1);
+    char const* anchor_name = luaL_checkstring(L, 2);
+    int const area = lua_placement_area(area_name);
+    int const anchor = lua_placement_anchor(anchor_name);
+    int const width = (int)luaL_checkinteger(L, 3);
+    int const height = (int)luaL_checkinteger(L, 4);
+    int const margin = (int)luaL_optinteger(L, 5, 0);
+    struct ToriRS_PlacementRect rect;
+
+    if( area < 0 )
+        return luaL_error(L, "unknown placement area '%s'", area_name);
+    if( anchor < 0 )
+        return luaL_error(L, "unknown placement anchor '%s'", anchor_name);
+    if( !g_api->placement_place(
+            script->cur_ctx, area, anchor, width, height, margin, &rect) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, rect.x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, rect.y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, rect.w);
+    lua_setfield(L, -2, "w");
+    lua_pushinteger(L, rect.h);
+    lua_setfield(L, -2, "h");
+    return 1;
+}
+
+static int
+lua_placement_reserve(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* name = luaL_checkstring(L, 1);
+    char const* area_name = luaL_checkstring(L, 2);
+    char const* edge_name = luaL_checkstring(L, 3);
+    int const pixels = (int)luaL_checkinteger(L, 4);
+    int const area = lua_placement_area(area_name);
+    int const edge = lua_placement_edge(edge_name);
+
+    if( area < 0 )
+        return luaL_error(L, "unknown placement area '%s'", area_name);
+    if( edge < 0 )
+        return luaL_error(L, "unknown placement edge '%s'", edge_name);
+    lua_pushboolean(
+        L,
+        g_api->placement_reserve(script->cur_ctx, name, area, edge, pixels));
+    return 1;
+}
+
+static int
+lua_placement_reservation_rect(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* name = luaL_checkstring(L, 1);
+    struct ToriRS_PlacementRect rect;
+
+    if( !g_api->placement_reservation_rect(script->cur_ctx, name, &rect) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, rect.x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, rect.y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, rect.w);
+    lua_setfield(L, -2, "w");
+    lua_pushinteger(L, rect.h);
+    lua_setfield(L, -2, "h");
     return 1;
 }
 
@@ -2623,18 +2631,9 @@ lua_build_api_table(struct LuaScript* script)
     }
 
     /*
-     * api.layout: one sub-table per REGION, with the verbs on it.
-     *
-     * `api.layout.safe_gamechrome.reserve("right", 180)` rather than
-     * `api.layout.reserve("safe_gamechrome", "right", 180)`, because a region is a thing
-     * a script talks about repeatedly and a string argument repeated at every
-     * call site is a typo waiting to be a silent no-op. The region is bound
-     * once, into the closure, and a misspelling is then a nil index at the
-     * point of the mistake.
-     *
-     * The verb set is the same everywhere and the host refuses what does not
-     * apply: `reserve` on a placeable region, `replace` from a plugin that
-     * does not own the frame. Uniform surface, one place that says no.
+     * api.layout: read-only compatibility views of the live surfaces. Safe
+     * placement and named reservations live under api.placement; frame writes
+     * are available only through a selected provider's scoped builder.
      */
     {
         static const struct
@@ -2655,8 +2654,6 @@ lua_build_api_table(struct LuaScript* script)
             { "chat_buttons", TORIRS_PLUGIN_SLOT_CHAT_BUTTONS },
             { "orbs", TORIRS_PLUGIN_SLOT_ORBS },
             { "canvas", TORIRS_PLUGIN_SLOT_CANVAS },
-            { "safe_gamechrome", TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME },
-            { "safe_lanechrome", TORIRS_PLUGIN_SLOT_SAFE_LANECHROME },
         };
         static const struct
         {
@@ -2664,9 +2661,6 @@ lua_build_api_table(struct LuaScript* script)
             lua_CFunction fn;
         } VERBS[] = {
             { "rect", lua_layout_rect },
-            { "reserve", lua_layout_reserve },
-            { "release", lua_layout_release },
-            { "replace", lua_layout_replace },
         };
 
         lua_createtable(L, 0, (int)(sizeof(REGIONS) / sizeof(REGIONS[0])) + 2);
@@ -2683,9 +2677,9 @@ lua_build_api_table(struct LuaScript* script)
             lua_setfield(L, -2, REGIONS[r].name);
         }
 
-        /* top_level is the frame itself, so its `replace` is the claim. Same
-         * grammar, so a script that has learned the region tables has learned
-         * this one too. */
+        /* top_level is read-only. Selectable frames are static provider
+         * offers resolved by the host; a script cannot imperatively acquire
+         * the screen from this table. */
         {
             static const struct
             {
@@ -2693,8 +2687,6 @@ lua_build_api_table(struct LuaScript* script)
                 lua_CFunction fn;
             } TOP[] = {
                 { "rect", lua_layout_top_level_rect },
-                { "replace", lua_layout_top_level_replace },
-                { "release", lua_layout_top_level_release },
             };
             lua_createtable(L, 0, (int)(sizeof(TOP) / sizeof(TOP[0])));
             for( size_t v = 0; v < sizeof(TOP) / sizeof(TOP[0]); v++ )
@@ -2711,6 +2703,22 @@ lua_build_api_table(struct LuaScript* script)
         lua_pushcclosure(L, lua_layout_revision, 1);
         lua_setfield(L, -2, "revision");
         lua_setfield(L, -2, "layout");
+    }
+
+    /* Exact, composed safe placement keeps fragmented space and answers a
+     * requested size/anchor instead of exposing lossy pseudo-slots. */
+    {
+        lua_createtable(L, 0, 3);
+        lua_pushlightuserdata(L, script);
+        lua_pushcclosure(L, lua_placement_place, 1);
+        lua_setfield(L, -2, "place");
+        lua_pushlightuserdata(L, script);
+        lua_pushcclosure(L, lua_placement_reserve, 1);
+        lua_setfield(L, -2, "reserve");
+        lua_pushlightuserdata(L, script);
+        lua_pushcclosure(L, lua_placement_reservation_rect, 1);
+        lua_setfield(L, -2, "reservation_rect");
+        lua_setfield(L, -2, "placement");
     }
 
     /* api.window: the plugin's tab in the shared window. A sub-table rather

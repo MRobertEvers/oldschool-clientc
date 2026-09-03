@@ -51,8 +51,8 @@
 -- Where it goes is the whole of the setting, and the two families of answer
 -- are different in kind:
 --
---   * A CORNER of the world's safe_gamechrome region -- the scene with the chrome and every
---     other plugin's claim already taken out, which is the only box that means
+--   * A CORNER selected from overlay_safe -- viewport, platform insets,
+--     resolved chrome and named reservations already composed. That means
 --     "somewhere the player is not trying to look" on both a fixed and a
 --     resizable frame. It sits there mostly transparent and comes up solid
 --     under the pointer, the way the reference's own orbs light up: a control
@@ -176,7 +176,7 @@ local TAG_CAPTURE = 1
 --- is also the left click, which is the whole of the interaction.
 local CAPTURE_OPS = { "Take Screenshot" }
 
---- How far a corner button sits off the safe_gamechrome region's edges.
+--- How far a corner button sits inside its selected safe fragment.
 local MARGIN = 6
 
 --- The report button's number in the chat_buttons role -- 0 public, 1 private,
@@ -454,7 +454,7 @@ end
 -- The box the button lives in this frame, and whether that box is a BUTTON --
 -- the report placement -- or a region to sit in a corner of.
 --
--- Measured EVERY frame and never cached, because every input is: the safe_gamechrome region
+-- Measured EVERY frame and never cached, because every input is: overlay_safe
 -- moves when a window is resized or another plugin reserves an edge, and the
 -- report button moves when the gameframe is rebuilt. A cached box is a button
 -- that answers clicks where it used to be.
@@ -465,7 +465,7 @@ end
 local function button_box(api)
     local where = api.config.camera
 
-    if where == "off" then return nil end
+    if where == "off" then return nil, nil end
 
     if where == "report-button" then
         -- One question, asked once. Which node answers it is the profile's
@@ -478,27 +478,9 @@ local function button_box(api)
         return report_button.rect(), true
     end
 
-    -- The scene with the chrome taken out. The fallback chain is slot_rect's
-    -- own: ask for the tightest region first, and a frame that has no safe_gamechrome
-    -- area still has a canvas.
-    return api.layout.safe_gamechrome.rect()
-        or api.layout.viewport.rect()
-        or api.layout.canvas.rect(), false
-end
-
--- Where the icon sits inside a corner region, as x, y.
-local function corner_at(api, area, w, h)
-    local where = api.config.camera
-    local left = area.x + MARGIN
-    local right = area.x + area.w - w - MARGIN
-    local top = area.y + MARGIN
-    local bottom = area.y + area.h - h - MARGIN
-
-    if where == "top-left" then return left, top end
-    if where == "top-right" then return right, top end
-    if where == "bottom-left" then return left, bottom end
-    if where == "bottom-right" then return right, bottom end
-    return nil
+    -- Corner placement is resolved after the image size is known. nil here is
+    -- not absence: `plated=false` distinguishes it from the Off case above.
+    return nil, false
 end
 
 -- The largest icon that fits `box` with a row of plate showing above and
@@ -570,7 +552,8 @@ function plugin.on_draw_canvas(api, draw)
     if not api.local_player() then return end
 
     local box, plated = button_box(api)
-    if not box then return end
+    if plated == nil then return end
+    if plated and not box then return end
 
     -- Whether the plate is this plugin's to draw, which is a fact about the
     -- frame rather than about the placement.
@@ -595,8 +578,10 @@ function plugin.on_draw_canvas(api, draw)
                 x = box.x + (box.w - w) // 2
                 y = box.y + (box.h - h) // 2
             else
-                x, y = corner_at(api, box, w, h)
-                if not x then return end
+                box = api.placement.place(
+                    "overlay_safe", api.config.camera, w, h, MARGIN)
+                if not box then return end
+                x, y = box.x, box.y
             end
 
             -- What is actually ON SCREEN, which is the art cut to the box it

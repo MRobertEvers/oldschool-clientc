@@ -7,11 +7,10 @@
  *
  * The chrome (ui/uitree_debug_overlay.h) is a model that emits a display list
  * of rectangles, glyphs and sprites. That list is exactly the right altitude
- * for a rasteriser and exactly the wrong one for anything native: a DOM
- * <input>, a Win32 EDIT control or a game interface component cannot be
+ * for a rasteriser and the wrong one for a DOM <input>, which cannot be
  * reconstructed from RECT/TEXT/SPRITE. So this layer emits the chrome's own
- * vocabulary instead — panels, tabs, widgets, properties — and each executor
- * maps a *checkbox* onto whatever a checkbox is where it lives.
+ * vocabulary instead — panels, tabs, widgets, properties — and each web
+ * executor maps a *checkbox* onto its DOM control.
  *
  * THE MODEL STAYS AUTHORITATIVE. An executor is a projection of it, never a
  * second copy of the truth: commands flow out, intents flow back, and an intent
@@ -19,12 +18,13 @@
  * would. That is what keeps five presentations of one panel agreeing, and what
  * lets the whole thing be tested with no window at all.
  *
- * DELTAS, NOT DECLARATIONS. Sync diffs the model against a shadow of what this
- * executor was last told and emits only what changed. Re-declaring a panel
- * whenever anything in it moved would be far simpler, and would also destroy
- * and recreate native controls on every keystroke -- which loses focus, loses
- * the caret, and makes a text field impossible to type into. The shadow is the
- * price of native controls that survive their own updates.
+ * MUTATION JOURNAL, NO MODEL SCAN. Mutators record the changed node and
+ * property in the retained model. Sync drains only those records and compares
+ * each against what this executor was last told; it never scans every panel or
+ * widget to discover work. Repeated writes coalesce, an idle tick is O(1), and
+ * DOM controls survive their updates with focus and caret intact. A
+ * complete walk is reserved for initial bind, rebind/reconnect, or explicit
+ * queue-loss recovery.
  *
  * STRINGS ARE COPIED HERE. The chrome deliberately borrows: prim text points
  * into its widget, and a dropdown's options point at the caller's array. Those
@@ -116,15 +116,15 @@ enum ToriRSChromeCmdKind
     /** `text` = the new title. */
     TORIRS_CHROME_CMD_PANEL_TITLE,
     /** `x`, `y`, `w`, `h` = the panel's resolved box, in chrome pixels.
-     *  Advisory: a native executor is free to let its own window manager place
-     *  and size the thing, and most should. */
+     *  Advisory: a browser executor may let its host window or page layout
+     *  place and size the thing. */
     TORIRS_CHROME_CMD_PANEL_RECT,
     /**
      * `value` = which tab of this panel is showing.
      *
      * Not advisory, unlike the rect: a widget's `tab` says which tab OWNS it
      * and this says which one is up, and an executor needs both to decide what
-     * to show. Without it a native executor can see that widget 7 belongs to
+     * to show. Without it a web executor can see that widget 7 belongs to
      * tab 2 and still have no idea whether tab 2 is the one in front -- which
      * is a window that draws every tab's controls at once.
      */
@@ -181,7 +181,7 @@ enum ToriRSChromeCmdKind
      * and a click on one reads as having done nothing. That symptom is exactly
      * what this was added for.
      *
-     * An executor whose controls own their own focus (a DOM input, an EDIT)
+     * An executor whose DOM controls own their own focus
      * may act on it to keep the two in step, or ignore it. Sent for every
      * widget kind, because MODELVIEW takes the focus too.
      */
@@ -191,11 +191,10 @@ enum ToriRSChromeCmdKind
      * The option list of a dropdown, or the titles of a tab strip, is about to
      * be restated in full: `value` = how many follow.
      *
-     * Restated rather than diffed because a list is one value -- the palettes
-     * this serves are rebuilt wholesale (every loc name in a search, every
-     * plugin in a manifest), and an executor holding a native combo box wants
-     * "here is the new list", not a sequence of inserts and deletes it has to
-     * replay in order.
+     * Restated as one value because these palettes are rebuilt wholesale
+     * (every loc name in a search, every plugin in a manifest), and a DOM
+     * select wants "here is the current list", not inferred insert/delete
+     * operations.
      */
     TORIRS_CHROME_CMD_WIDGET_OPTIONS,
     /** One entry of the list just announced: `value` = its index, `text` = it. */
@@ -231,7 +230,7 @@ enum ToriRSChromeCmdKind
      * different page and re-declaring one to say so is a visible flash. A
      * classification of "shape" against "state" is exactly the kind of thing
      * that silently stops holding; a resize with no command to carry it left
-     * every native-widget executor drawing the height the well was born with,
+     * every web executor drawing the height the well was born with,
      * with the strip clipped or floating in dead space.
      *
      * Sent for CUSTOM only, and only on a change. An executor that lays out
@@ -330,37 +329,12 @@ struct ToriRSChromeIntent
 };
 
 /**
- * One frame of pointer and keyboard, in a surface's own coordinates.
- *
- * Surface executors only. The chrome model is shared, so what a second window
- * has to send back is not intents but the raw gesture -- translated into the
- * chrome's coordinate space, which is the one thing the host cannot do for it.
- */
-struct ToriRSChromeSurfaceInput
-{
-    int mouse_x;
-    int mouse_y;
-    int mouse_down;
-    int mouse_up;
-    int wheel;
-    /** Printable bytes typed this frame, NUL-terminated. */
-    char text[32];
-    /** enum ToriRSChromeKey, or TORIRS_CHROME_KEY_NONE. One per frame is enough: these
-     *  are editing keys on a settings form, not a game's movement input. */
-    int edit_key;
-    /** The surface was resized; w/h are its new size. */
-    int resized;
-    int width;
-    int height;
-};
-
-/**
  * One complete raster for a CUSTOM semantic widget.
  *
- * Only native-widget executors consume this. Surface and buffer presenters
- * composite the retained primitives directly. `argb` is call-scoped: an
+ * Only WEB/BROWSER executors consume this. BUFFER composites the retained
+ * primitives directly. `argb` is call-scoped: an
  * executor crossing to another thread must copy it before returning. The two
- * identities fence a posted Android/DOM/GDI update from a recycled handle.
+ * identities fence an asynchronous DOM update from a recycled handle.
  */
 struct ToriRSChromeCustomFrame
 {
@@ -379,24 +353,10 @@ struct ToriRSChromeCustomFrame
 /**
  * What a presentation has to implement.
  *
- * TWO KINDS of executor share this table, and which entries an implementation
- * fills says which it is:
- *
- *  - A SURFACE executor puts the chrome's own rasterised output somewhere
- *    other than the game canvas -- a second OS window. The widgets are still
- *    the chrome's, drawn by the chrome; only their destination differs. It
- *    fills `present` and `surface_input`, and ignores `apply` entirely.
- *
- *  - A NATIVE-WIDGET executor rebuilds the model out of foreign controls: DOM
- *    elements, comctl32 windows, cache interface components. It cannot use the
- *    display list at all -- an <input> cannot be reconstructed from rectangles
- *    -- so for it the command stream IS the contract. It fills `apply` and
- *    `poll`.
- *
- * One table rather than two because a host drives them identically: bring it
- * up, hand it this frame, take back what the user did, tear it down. Making
- * the difference two interfaces would put the choice in the host, which is
- * exactly where it does not belong.
+ * WEB/BROWSER rebuild the retained model as DOM controls. They cannot use the
+ * display list -- an <input> cannot be reconstructed from rectangles -- so
+ * the semantic command stream is the contract. BUFFER is an internal sink for
+ * that stream because the same model already draws itself in the game canvas.
  *
  * None of these may block: the client's frame loop runs them, and an executor
  * that waits on a browser tab or a hung window stalls the game. One that
@@ -408,9 +368,9 @@ struct ToriRSChromeExec
 
     /**
      * Bring the presentation up. @return 0 when it cannot exist here -- no
-     * aux-window support, a blocked popup, a missing control library.
+     * browser support, a blocked page, a missing embedded engine.
      *
-     * A false here is NOT an error: the surface falls back to the buffer
+     * A false here is NOT an error: the host falls back to the buffer
      * executor and the user gets in-canvas chrome. That is the whole reason
      * every executor is optional.
      */
@@ -426,72 +386,10 @@ struct ToriRSChromeExec
      * Drain what the user did into `out`, at most `max`. @return how many were
      * written. 0 is the common case.
      *
-     * NATIVE-WIDGET executors report everything here: their controls are
-     * foreign, so a click on one is only ever an intent. A SURFACE executor
-     * normally has nothing to say -- its gestures go back raw through
-     * `surface_input` for the chrome to hit test itself -- but it still owns
-     * the WINDOW those gestures arrive in, and a window closing happens to the
-     * presentation rather than inside it. That has no coordinates to report,
-     * so it comes back here, as CLOSE, like every other executor's.
+     * WEB/BROWSER report everything here: their controls are foreign, so a
+     * click on one is only ever an intent.
      */
     int (*poll)(void* user, struct ToriRSChromeIntent* out, int max);
-
-    /**
-     * SURFACE executors: put this frame's display list on the surface.
-     *
-     * Called after Build, with the chrome's own prims. An implementation
-     * rasterises them exactly as the in-canvas path does -- same list, same
-     * renderer, different destination -- which is what makes a second window
-     * pixel-identical to the panel it replaced rather than a second look.
-     */
-    void (*present)(void* user, struct ToriRSChromePrim const* prims, int count);
-
-    /**
-     * SURFACE executors: this frame's gesture, in the surface's coordinates.
-     * @return 1 when `out` was filled.
-     *
-     * The host feeds it straight back into the same chrome, which is why the
-     * coordinates must already be surface-local: the chrome laid its panels
-     * out in that space and has no idea a window moved.
-     */
-    int (*surface_input)(void* user, struct ToriRSChromeSurfaceInput* out);
-
-    /**
-     * SURFACE executors whose surface is a WINDOW OF THEIR OWN: how big it is
-     * now, in its own pixels. @return 1 when out_w/out_h were filled; 0 when
-     * there is no window up.
-     *
-     * Its PRESENCE is the declaration that the chrome owns the surface
-     * outright -- nothing else draws into that window, so the panel is
-     * stretched to fill it rather than left floating at the coordinates it
-     * would use over a game canvas. @see ToriRSChromeSync_FillSurface.
-     *
-     * One entry rather than a flag beside a getter, because two things that
-     * say the same thing are two things that can disagree -- and this is the
-     * table where "which entries an implementation fills says which kind it
-     * is" is already the rule. The buffer executor SHARES the canvas with the
-     * game, so it has neither and its panel goes on floating.
-     */
-    int (*surface_size)(void* user, int* out_w, int* out_h);
-
-    /**
-     * SURFACE executors whose window has no native frame: where this frame's
-     * window-move handles are, in the surface's own pixels.
-     *
-     * Optional, and its absence is the ordinary case -- a window wearing its OS
-     * frame is moved by that frame and has nothing to be told. An executor that
-     * hid its frame implements this and hands the region to whatever asks the
-     * window manager's questions.
-     *
-     * Called EVERY frame, including with an empty region. A panel that stopped
-     * having a strip -- or a window whose panel went away -- has to take its
-     * handles down with it, or the pump goes on swallowing presses over chrome
-     * that is not there any more.
-     *
-     * @see ToriRSChrome_WindowDragRegion for what a handle is and why the
-     * controls inside one have to be punched back out.
-     */
-    void (*set_drag_region)(void* user, struct ToriRSChromeDragRegion const* region);
 
     /**
      * Application-owned rail, independent of the page executor lifecycle.
@@ -506,22 +404,28 @@ struct ToriRSChromeExec
     void (*rail_icon)(void* user, struct ToriRSChromeRailIcon const* icon);
     int (*rail_poll)(void* user, struct ToriRSChromeRailIntent* out, int max);
 
-    /** Optional native-widget sink for a complete dirty custom-region frame.
+    /** Optional web-canvas sink for a complete dirty custom-region frame.
      * Called only after the batch containing its WIDGET_ADD has ended. */
     void (*custom_present)(
         void* user, struct ToriRSChromeCustomFrame const* frame);
 
-    /** Non-zero for a surface executor, so a host can tell without inspecting
-     *  which function pointers happen to be set. */
-    int is_surface;
+    /**
+     * Consume an executor-side loss request.
+     *
+     * A bounded transport that could not deliver one atomic transaction sets
+     * this latch. Sync checks it before the next drain and responds with one
+     * full snapshot, rather than applying later deltas to a stale DOM.
+     */
+    int (*take_snapshot_request)(void* user);
 };
 
 /**
- * What the executor was last told, so Sync can emit only what changed.
+ * What the executor was last told for nodes named by queued changes.
  *
- * One per executor, not one per chrome: two presentations of the same model
- * are told about it independently, and an executor that came up late has to be
- * caught up from nothing while the other one is only told the delta.
+ * This is not searched per frame. The retained model supplies exact node and
+ * property records; these constant-size shadows only collapse net-zero setter
+ * bursts and fence recycled identities. A newly bound executor gets a one-time
+ * full snapshot.
  */
 struct ToriRSChromeShadowWidget
 {
@@ -539,6 +443,8 @@ struct ToriRSChromeShadowWidget
     int checked;
     int selected;
     int option_count;
+    /** Hash of the bounded option strings last delivered to this executor. */
+    uint64_t options_hash;
     /** Does the model's focus rest here? Shadowed like any other property so
      *  a focus change is one command rather than a re-declaration. */
     int focused;
@@ -549,17 +455,8 @@ struct ToriRSChromeShadowWidget
     uint32_t color;
     char label[TORIRS_CHROME_LABEL_MAX];
     char text[TORIRS_CHROME_INPUT_MAX];
-    /**
-     * The option array the widget pointed at last time, and how long it was.
-     *
-     * Compared as a POINTER, deliberately: the lists are borrowed palettes of
-     * hundreds of strings and a shadow holding a copy of one would be the
-     * largest thing in this file by an order of magnitude. A caller that
-     * rewrites a list in place under a stable pointer must say so
-     * (ToriRSChrome_DropdownSetOptions with the same pointer still re-sends,
-     * because the count or the selection is what it changes in practice).
-     */
-    char const* const* options;
+    /** Mount of the owning panel for which this shadow is valid. */
+    uint32_t panel_mount;
 };
 
 struct ToriRSChromeShadowPanel
@@ -571,6 +468,8 @@ struct ToriRSChromeShadowPanel
     int w;
     int h;
     int active_tab;
+    /** Advanced on every PANEL_OPEN; closing a panel invalidates rows in O(1). */
+    uint32_t mount;
     char title[TORIRS_CHROME_LABEL_MAX];
 };
 
@@ -614,19 +513,21 @@ struct ToriRSChromeSync
      * shadow was zeroed to" is not being told.
      */
     int check_style;
-    /** Display-list build serial whose semantic state this shadow last scanned.
-     * Together with model `dirty`, this makes a settled frame an O(1) no-op --
-     * no begin/end transaction and no max-capacity panel/widget walks. */
-    int synced_build_serial;
-    /** Build/panel pair whose frameless-window drag region was last published.
-     * A clean page cannot change that region, so its per-frame publish is O(1). */
-    int published_drag_build_serial;
-    int published_drag_panel;
     /** Commands emitted since Init, for tests and for a "did anything move"
      *  probe that costs nothing to keep. */
     int cmd_count;
-    /** Model build serial last handed to a surface presenter; -1 on bind. */
-    int presented_build_serial;
+    /** Monotonic panel-mount identity used to invalidate a closed subtree in O(1). */
+    uint32_t next_panel_mount;
+    /**
+     * Actual journal-record inspections since Init, for efficiency tests.
+     * A non-empty drain currently makes one validation pass and five fixed
+     * protocol-order passes; idle runs add zero. This deliberately counts
+     * every pass rather than presenting semantic-record count as work done.
+     */
+    uint32_t change_visit_count;
+    /** Transient lazy-transaction state, non-zero only inside Run. */
+    int transaction_open;
+    int transaction_restate;
     struct ToriRSChromeShadowPanel panels[TORIRS_CHROME_MAX_PANELS];
     struct ToriRSChromeShadowWidget widgets[TORIRS_CHROME_MAX_WIDGETS];
 };
@@ -647,31 +548,30 @@ void
 ToriRSChromeSync_Shutdown(struct ToriRSChromeSync* sync);
 
 /**
- * Emit the difference between `ui` and what this executor was last told.
+ * Drain retained changes recorded by `ui` since the previous call.
+ *
+ * Ordinary runs visit only changed nodes; they never scan the tree or shadow.
+ * A first bind, explicit invalidation, or lost/overflowed queue emits one full
+ * snapshot and then returns to queue draining.
  * @return how many commands were emitted; 0 means nothing moved.
  */
 int
-ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui);
+ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui);
 
 /**
- * Forget the shadow WITHOUT taking the executor down, so the next Run restates
- * the whole model instead of the difference from a page that no longer exists.
+ * Forget the delivered shadow WITHOUT taking the executor down, and mark the
+ * next Run as one authoritative restatement.
  *
- * The one thing a diff cannot express is "what you are holding is not what I
- * am describing any more". A page-retaining executor drops its DOM when the
- * shared shell's selection moves -- it has to, because a delta authored for
- * one page cannot patch another's -- and at that moment the shadow here still
- * describes the page that was just discarded. The next Run then emits only the
- * difference between the two pages, and where they are structurally alike (two
- * readouts with the same rows in the same order, which is the ordinary case
- * for a family of plugin pages) that difference carries no WIDGET_ADD at all:
- * the executor is handed a snapshot of a few label changes and mounts a page
- * with nothing on it.
+ * A page-retaining executor drops its DOM when the shared shell's selection
+ * moves. Queued property commands assume their panel/widget roots still exist,
+ * so they cannot rebuild that discarded page even when the next page happens
+ * to use similar handles. Invalidation makes the next Run walk the model once,
+ * emit every root and property, and stamp the transaction with `page_epoch`.
  *
  * So this is called by whoever CHANGES the selection, not by the executor that
- * reacted to it -- the shadow is the application's, and the executor cannot
- * reach it. Cheap and idempotent: it clears a shadow, it does not talk to the
- * executor.
+ * reacted to it -- the delivered shadow is the application's, and the executor
+ * cannot reach it. Cheap and idempotent: it marks a restatement; it does not
+ * talk to the executor immediately.
  */
 void
 ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync, uint32_t page_epoch);
@@ -682,54 +582,6 @@ ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync, uint32_t page_epoch);
  */
 int
 ToriRSChromeSync_Pump(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui);
-
-/** Return 1 exactly once for each built display-list serial on this binding.
- * Surface hosts use it to retain an unchanged pane without rerasterising or
- * uploading it every game frame. */
-int
-ToriRSChromeSync_TakePresentChange(
-    struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui);
-
-/**
- * Stretch `panel` over this executor's surface, when the surface is a window
- * of its own. @return 1 when the panel was filled.
- *
- * The rule, in one place, for every presentation that owns its window: a panel
- * floating at (8,72) is right over the game canvas, where the canvas is what
- * it floats over, and wrong in a window that holds nothing else -- three bands
- * of empty background around it, and no growth when the window is dragged
- * wider. Which executors those are is not enumerated here; an executor answers
- * for itself by having a `surface_size` at all, so an executor added later
- * inherits this by implementing one.
- *
- * Called every frame, deliberately: the window's size is the user's to change
- * at any moment and there is no event this side can rely on. A repeat of the
- * size the panel already fills is compared away by ToriRSChrome_PanelFill and
- * costs a rebuild of nothing.
- *
- * @return 0 -- and leaves the panel alone -- for an executor with no window,
- * one that has not come up, and one whose window has since closed. The panel
- * keeps the geometry it had, which for the in-canvas case is the floating box
- * it was authored with.
- */
-int
-ToriRSChromeSync_FillSurface(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui, int panel);
-
-/**
- * Hand `panel`'s window-move handles to an executor that asked for them.
- * @return 1 when a region was published, 0 for an executor that has no
- * `set_drag_region` -- which is every executor whose window keeps its frame.
- *
- * Called AFTER Build, unlike FillSurface, and the order is the point: the
- * handles are laid-out geometry, and publishing them before the build that
- * produced them is a frame of lag on every resize -- a window whose drag band
- * is where the panel used to be. Repeating the same panel/build pair is an O(1)
- * no-op; a changed build is always published, including an empty region that
- * clears handles which disappeared.
- */
-int
-ToriRSChromeSync_PublishDragRegion(
-    struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui, int panel);
 
 /**
  * Apply one intent to the model, as if the in-canvas chrome had been used.
@@ -747,47 +599,24 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
 /**
  * The default, on every platform: the in-canvas prim path.
  *
- * It consumes commands and does nothing with them, and that is correct rather
- * than a stub -- the model already draws itself through
- * ToriRSChrome_Build/Prims, so a "buffer executor" that re-implemented drawing
- * from the command stream would be a second renderer of the same pixels. What
- * this exists for is uniformity: a host binds an executor, and the one it binds
- * when there is nothing native to bind is this.
+ * Its vtable is empty: the model already draws itself through
+ * ToriRSChrome_Build/Prims. Sync acknowledges its queue without constructing a
+ * command transaction; a later WEB/BROWSER bind catches up by full snapshot.
  */
 struct ToriRSChromeExec
 ToriRSChromeExec_Buffer(void);
 
 /**
- * Turn a display list into pixels in `pixels` (w * h ARGB).
+ * Build the vtable for WEB/BROWSER, or the internal buffer fallback when this
+ * build cannot. `kind == -1` chooses the supported web executor for this lane.
  *
- * Supplied by the host to a surface executor, because rasterising needs the
- * scene the baked fonts and skin live in, the frame translator and a software
- * backend -- three things ui/ deliberately does not depend on. The host already
- * owns all of them for the game canvas, so lending the same one here means the
- * second window is drawn by the same code as the first rather than by a second
- * copy of it that is almost the same.
- */
-typedef void (*ToriRSChromeRasteriseFn)(
-    void* user,
-    int* pixels,
-    int width,
-    int height,
-    struct ToriRSChromePrim const* prims,
-    int count);
-
-/**
- * Build the vtable for `kind`, or the buffer one when this build cannot.
- *
- * Every executor is optional at BUILD time as well as at run time -- a macOS
- * client has no GDI executor compiled in at all -- so asking for one that is
- * not here is answered the same way as one that will not start: with the
- * buffer executor, which every build has. `out_kind` reports what was actually
- * produced, so a caller can say so rather than let the difference go unnoticed.
+ * WEB and BROWSER are optional at build time. No SDL, GDI, Android or generic
+ * PLATFORM kind is accepted here, and BUFFER is never a public selection;
+ * BUFFER is solely the safe in-canvas result when the requested web transport
+ * is absent. `out_kind` reports what was actually produced.
  */
 struct ToriRSChromeExec
-ToriRSChromeExec_ForKind(
-    int kind, void* platform, ToriRSChromeRasteriseFn rasterise, void* rasterise_user,
-    int* out_kind);
+ToriRSChromeExec_ForKind(int kind, void* platform, int* out_kind);
 
 /* ---- the client-chrome id space ------------------------------------------
  *
@@ -863,15 +692,6 @@ struct UITree;
 int
 ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree);
 
-#if defined(TORIRS_CHROME_EXEC_GDI_AVAILABLE)
-/* ---- the Win32 native-widget executor (ui/torirs_chrome_exec_gdi.c) ------- */
-
-/** ToriRSChrome-skinned USER32 controls in the main HWND's attached child pane.
- *  @param platform struct PlatformWindow*, as every executor is handed. */
-struct ToriRSChromeExec
-ToriRSChromeExec_Gdi(void* platform);
-#endif
-
 #if defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
 /* ---- attached local-bundle browser executor ---------------------------- */
 
@@ -881,7 +701,7 @@ ToriRSChromeExec_Browser(void* platform);
 #endif
 
 #if defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
-/* ---- the web native-widget executor (ui/torirs_chrome_exec_web.c) --------- */
+/* ---- the Emscripten page-DOM executor (ui/torirs_chrome_exec_web.c) ------- */
 
 /** Real DOM controls, built by the page from the command stream. Takes no
  *  platform handle: the page it talks to is a global, not a window this owns. */
@@ -889,54 +709,12 @@ struct ToriRSChromeExec
 ToriRSChromeExec_Web(void);
 #endif
 
-#if defined(TORIRS_CHROME_EXEC_ANDROID_AVAILABLE)
-/* ---- the Android packaged-WebView executor ------------------------------ */
-
-/** Canonical local application bundle in ClientActivity's one shared WebView.
- * No plugin HTML/script and no network navigation. */
-struct ToriRSChromeExec
-ToriRSChromeExec_Android(
-    void* platform, ToriRSChromeRasteriseFn rasterise, void* rasterise_user);
-#endif
-
-#if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
-/* ---- the SDL surface executor (ui/torirs_chrome_exec_sdl.c) --------------- */
-
-/** @param platform struct PlatformWindow*, void* so ui/ needs no platform header. */
-struct ToriRSChromeExec
-ToriRSChromeExec_Sdl(void* platform, ToriRSChromeRasteriseFn rasterise, void* rasterise_user);
-
-/** Is the aux window up? */
-int
-ToriRSChromeExecSdl_IsOpen(void);
-
-/**
- * Ask the plugin window to open without an OS frame, so the panel's own title
- * bar and tab strip are what move it.
- *
- * A WISH, set before the window opens rather than an instruction to a live one:
- * the shell knows what the manifest said long before anyone presses the button
- * that opens the window, and the frame comes off at open. Held outside the
- * executor's own state, which is reset every time one is built.
- *
- * TORIRS_CHROME_BORDERLESS overrides it, matching TORIRS_CHROME_EXECUTOR and
- * TORIRS_CHROME_THEME beside it.
- */
-void
-ToriRSChromeExecSdl_SetBorderless(int borderless);
-
-/** Did the window actually come up without one? False when the wish was never
- *  made, and when the video driver refused the hit test it needs. */
-int
-ToriRSChromeExecSdl_IsBorderless(void);
-#endif
-
 /**
  * A test double: records every command and replays queued intents.
  *
  * Not conditionally compiled. It is the only executor that can assert on what
  * the seam actually emitted, so it is what the sync tests drive, and a
- * recording of a real session is what a native executor gets developed
+ * recording of a real session is what a web executor gets developed
  * against before it has a window to draw into.
  */
 #define TORIRS_CHROME_RECORD_MAX 512
@@ -954,28 +732,6 @@ struct ToriRSChromeRecorder
     int pending_count;
     /** Made to fail begin(), to exercise the fallback path. */
     int refuse;
-    /**
-     * Non-zero makes the recorder a presentation with a WINDOW of its own,
-     * this big -- so the fill rule can be exercised, and its interaction with
-     * the drag and the grip pinned, on a machine with no display at all.
-     *
-     * Zero (the default) is the other half of the same test: an executor with
-     * no window of its own must leave the panel's authored geometry alone.
-     */
-    int surface_w;
-    int surface_h;
-    /**
-     * The last region published to it, and how many times one was.
-     *
-     * The recorder always accepts a region, even at `surface_w` 0. What is
-     * being pinned is the CHROME's answer -- which boxes drag and which are
-     * punched out of them -- and that is a property of the model, not of
-     * whether a real window happened to open. A test that needed a window for
-     * it could only run where there is a display, which is nowhere this suite
-     * runs.
-     */
-    struct ToriRSChromeDragRegion drag;
-    int drag_publishes;
 };
 
 void

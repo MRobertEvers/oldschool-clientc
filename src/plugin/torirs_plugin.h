@@ -21,15 +21,21 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "plugin/torirs_plugin_placement.h"
+
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 27
+#define TORIRS_PLUGIN_ABI 28
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
  * because replacement claims retain the name for their whole lifetime. */
 #define TORIRS_PLUGIN_ROLE_NAME_MAX 64
+/** Stable canonical frame id (`plugin-id/local-id`), terminator included. */
+#define TORIRS_PLUGIN_FRAME_ID_MAX 128
+/** One provider-local frame id, before the host adds the plugin namespace. */
+#define TORIRS_PLUGIN_FRAME_LOCAL_ID_MAX 48
 /** Bytes of a plugin's human title, terminator included. Longer than the name
  *  because a title carries spaces and words the kebab-case id compresses. */
 #define TORIRS_PLUGIN_TITLE_MAX 64
@@ -119,6 +125,7 @@ enum ToriRS_PluginScreen
 };
 
 struct ToriRS_PluginCtx;
+struct ToriRS_UiContribution;
 
 /* ------------------------------------------------------------------------ */
 /* Events                                                                    */
@@ -239,8 +246,8 @@ enum ToriRS_PluginEvent
      * Declare the gameframe. Payload: EvLayout. Legal callers of the layout
      * api, and the only ones.
      *
-     * Raised for the plugin that owns the frame (api->layout_claim) and no
-     * other: at the claim, whenever the canvas changes size, and after every
+     * Raised for the host-selected frame provider and no other: when the
+     * selection changes, whenever the canvas changes size, and after every
      * gameframe rebuild -- which is to say, at each of the three moments the
      * previous answer stopped being true, and at no other.
      *
@@ -1664,7 +1671,7 @@ enum ToriRS_PluginLayoutSlot
      * a different question with a different answer -- @see
      * ToriRS_PluginApi::safe_os.
      *
-     * @see layout_reserve, which is how a plugin takes a bite out of it.
+     * V2 exposes the exact, possibly fragmented answer through placement.
      */
     TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME,
 
@@ -1707,18 +1714,7 @@ enum ToriRS_PluginLayoutSlot
  */
 #define TORIRS_PLUGIN_LANECHROME_MAX 8
 
-/** Which side of a region a reservation eats. @see layout_reserve. */
-enum ToriRS_PluginEdge
-{
-    TORIRS_PLUGIN_EDGE_LEFT = 0,
-    TORIRS_PLUGIN_EDGE_RIGHT,
-    TORIRS_PLUGIN_EDGE_TOP,
-    TORIRS_PLUGIN_EDGE_BOTTOM,
-
-    TORIRS_PLUGIN_EDGE_COUNT
-};
-
-/** What the client canvas does under this layout. @see layout_claim. */
+/** What the client canvas does under a published frame offer. */
 enum ToriRS_PluginLayoutCanvas
 {
     /**
@@ -1741,6 +1737,84 @@ enum ToriRS_PluginLayoutCanvas
     TORIRS_PLUGIN_CANVAS_FIXED = 1
 };
 
+/** Exact derived placement regions. These are not live layout surfaces. */
+enum ToriRS_PluginPlacementArea
+{
+    TORIRS_PLUGIN_AREA_PLATFORM_SAFE = 0,
+    TORIRS_PLUGIN_AREA_FRAME_BUILD,
+    TORIRS_PLUGIN_AREA_OVERLAY_SAFE,
+    TORIRS_PLUGIN_AREA_RAW_VIEWPORT,
+    TORIRS_PLUGIN_AREA_COUNT,
+};
+
+#define TORIRS_PLUGIN_PLACEMENT_RESERVATION_NAME_MAX 64
+
+enum ToriRS_PluginPlacementEdge
+{
+    TORIRS_PLUGIN_PLACEMENT_EDGE_TOP = 0,
+    TORIRS_PLUGIN_PLACEMENT_EDGE_RIGHT,
+    TORIRS_PLUGIN_PLACEMENT_EDGE_BOTTOM,
+    TORIRS_PLUGIN_PLACEMENT_EDGE_LEFT,
+    TORIRS_PLUGIN_PLACEMENT_EDGE_COUNT,
+};
+
+/* ------------------------------------------------------------------------ */
+/* Published gameframes                                                     */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * One selectable gameframe supplied by a plugin.
+ *
+ * This is static catalogue data, read when the plugin definition is
+ * registered. `id` is local to the plugin; the host exposes and persists the
+ * canonical `<plugin id>/<offer id>` spelling. `title` is presentation only.
+ *
+ * `width`/`height` are the pinned logical canvas for CANVAS_FIXED and the
+ * minimum logical canvas for CANVAS_FOLLOW_WINDOW. They are constraints on
+ * this offer, never conditions that cause the resolver to select another one.
+ * A NULL id terminates the array.
+ */
+struct ToriRS_PluginFrameOffer
+{
+    char const* id;
+    char const* title;
+    int canvas;
+    int width;
+    int height;
+};
+
+enum ToriRS_PluginFrameStatus
+{
+    TORIRS_PLUGIN_FRAME_NATIVE = 0,
+    TORIRS_PLUGIN_FRAME_ACTIVE,
+    TORIRS_PLUGIN_FRAME_LOADING,
+    TORIRS_PLUGIN_FRAME_FALLBACK,
+};
+
+/** One row of the host-owned frame catalogue. */
+struct ToriRS_PluginFrameInfo
+{
+    char id[TORIRS_PLUGIN_FRAME_ID_MAX];
+    char title[TORIRS_PLUGIN_TITLE_MAX];
+    char provider[TORIRS_PLUGIN_NAME_MAX];
+    int canvas;
+    int width;
+    int height;
+    int available;
+};
+
+/** Requested and resolved frame state for settings and diagnostics. */
+struct ToriRS_PluginFrameSelection
+{
+    /** `auto` or a canonical catalogue id. */
+    char requested[TORIRS_PLUGIN_FRAME_ID_MAX];
+    /** `core/native` or the canonical active offer. */
+    char active[TORIRS_PLUGIN_FRAME_ID_MAX];
+    int status;
+    char reason[160];
+    uint32_t revision;
+};
+
 /* ------------------------------------------------------------------------ */
 /* Chrome: dressing one PART of a frame somebody else arranged               */
 /* ------------------------------------------------------------------------ */
@@ -1748,7 +1822,7 @@ enum ToriRS_PluginLayoutCanvas
 /*
  * The second tier of the frame.
  *
- * Arranging is exclusive per FRAME -- layout_claim, one plugin, the whole
+ * Arranging is exclusive per FRAME -- one host-selected offer, the whole
  * gameframe. Dressing is exclusive per PART: the report button, one orb, a
  * single control, claimed by any plugin without owning the frame around it.
  *
@@ -2051,32 +2125,6 @@ struct ToriRS_PluginApi
      */
     int (*screen)(struct ToriRS_PluginCtx* ctx);
 
-    /**
-     * The part of the canvas the OPERATING SYSTEM is not covering, in canvas
-     * coordinates. Always answers 1 and always fills a non-empty box.
-     *
-     * Not the `safe_gamechrome` role, and the difference is who the occluder
-     * answers to. `safe_gamechrome` is the canvas minus the CLIENT's own
-     * chrome -- regions the frame declared, edges plugins reserved -- and
-     * this, `safe_os`, is the canvas minus what
-     * the platform put on top of the whole window: today the soft keyboard, a
-     * band off the bottom while it is up. On a desktop, and on a phone with
-     * the keyboard away, the answer IS the canvas.
-     *
-     * The question a mobile frame asks in EV_LAYOUT: a chatbox pinned to the
-     * canvas's bottom edge is pinned under the keyboard the moment one is
-     * raised, so the bottom it wants is THIS box's. The host re-declares the
-     * layout when the answer changes -- a keyboard arriving is a layout event
-     * exactly as a resize is -- so reading it in EV_LAYOUT is enough; nothing
-     * needs to poll.
-     *
-     * Answered on every screen, unlike the frame queries: the keyboard is a
-     * property of the WINDOW, and a plugin sizing something on the title
-     * screen is as entitled to the answer as the gameframe is.
-     */
-    int (*safe_os)(
-        struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h);
-
     /* -- clocks -- */
 
     /** World cycle (advances once per 20ms client tick). */
@@ -2245,35 +2293,6 @@ struct ToriRS_PluginApi
         int* out_h);
 
     /**
-     * Take `px` off one edge of a region, for as long as this plugin runs.
-     *
-     * The COOPERATIVE claim, and the one most plugins should reach for. Many
-     * plugins may reserve; the host subtracts them in declaration order, so
-     * two plugins that each want the right edge stack rather than fight, and
-     * neither has to know the other exists. layout_slot is the exclusive verb
-     * -- it says "this region IS this box" and only the frame's owner may say
-     * it -- and a design with only that one makes any two plugins that touch
-     * the frame mutually exclusive.
-     *
-     * `px` of 0 drops this plugin's claim on that edge and leaves every other
-     * plugin's standing. Every claim is dropped for you when the plugin stops,
-     * in the same teardown that reclaims its images, meshes and window tab.
-     *
-     * Only the derived regions can be reserved from -- SAFE is the one that
-     * means anything -- because a placeable role is whatever the frame says it
-     * is, and shrinking it here would be arguing with the layout rather than
-     * making room beside it.
-     *
-     * @return 1 when the claim was recorded, 0 for a region that cannot be
-     * reserved from, an edge out of range, or a plugin at its claim budget.
-     */
-    int (*layout_reserve)(
-        struct ToriRS_PluginCtx* ctx,
-        int slot,
-        int edge,
-        int px);
-
-    /**
      * A counter that moves whenever anything about the layout does.
      *
      * For plugins that CACHE something measured against a region -- a composed
@@ -2286,68 +2305,6 @@ struct ToriRS_PluginApi
      * exist because both shapes of plugin exist.
      */
     int (*layout_revision)(struct ToriRS_PluginCtx* ctx);
-
-    /* -- owning the gameframe --
-     *
-     * One plugin at a time arranges the frame, and while it does, the lane's
-     * OWN chrome is switched off: the 2004 stone surround, the OldSchool
-     * toplevel's backing sprites, the tab strip that came with the cache. That
-     * is not a side effect to be minimised, it is what a layout plugin is --
-     * two frames drawn at once is two sets of stones over one inventory.
-     *
-     * What survives is the list in ToriRS_PluginLayoutSlot: the surfaces no
-     * plugin can author. The plugin draws everything else itself, in
-     * EV_DRAW_FRAME, out of art it ships.
-     */
-
-    /**
-     * Claim the frame for this plugin.
-     *
-     * `canvas` is enum ToriRS_PluginLayoutCanvas. `fixed_w`/`fixed_h` are the
-     * pinned canvas for CANVAS_FIXED; for FOLLOW_WINDOW they are the SMALLEST
-     * canvas this layout can be declared against, and the window's size is used
-     * everywhere above it.
-     *
-     * A minimum rather than nothing, because the client's own floor is the
-     * classic frame's 765x503 and that floor is a statement about a REVCONFIG
-     * gameframe: every rev-230 child is authored as an inset off it, so a
-     * smaller canvas gives them zero-sized viewports. A plugin layout is
-     * authored as arithmetic on the canvas it is handed and has no such
-     * breaking point -- a phone-shaped frame is narrower than 765 and is not
-     * thereby broken. Whoever computes the frame is who knows how small it can
-     * be computed, so the claim is where that number belongs.
-     *
-     * Passing the classic frame's own size here is what a desktop layout should
-     * do, and it reproduces the client's floor exactly.
-     *
-     * Idempotent for the plugin that already holds it, which is what makes a
-     * claim in the START handler and a re-claim after a config change the same
-     * call. Refused -- returning false, changing nothing -- when ANOTHER plugin
-     * holds it: the loser must be able to carry on drawing whatever it drew
-     * before, and a claim that half-succeeded would leave two plugins each
-     * believing they own the stones.
-     *
-     * A successful claim does NOT declare the frame on the spot: it marks the
-     * frame as needing one, and EV_LAYOUT arrives on the client's next layout
-     * pass, with the canvas the client actually has. A plugin therefore places
-     * its slots in exactly one place -- its EV_LAYOUT handler -- and nowhere
-     * else, and it must not assume the frame is declared by the time this
-     * returns. Anything drawn before the first EV_LAYOUT should draw nothing.
-     *
-     * The claim is dropped when the plugin stops, so a disabled layout plugin
-     * gives the lane's own gameframe back rather than leaving the client with
-     * no frame at all.
-     */
-    bool (*layout_claim)(
-        struct ToriRS_PluginCtx* ctx,
-        int canvas,
-        int fixed_w,
-        int fixed_h);
-    /** Hand the frame back. The lane's own chrome returns on the next layout
-     *  pass. Harmless for a plugin that does not hold the claim. */
-    void (*layout_release)(struct ToriRS_PluginCtx* ctx);
-    /** 1 when THIS plugin holds the frame. */
-    int (*layout_owned)(struct ToriRS_PluginCtx* ctx);
 
     /**
      * Place one slot, in canvas coordinates. Legal only inside EV_LAYOUT
@@ -4227,6 +4184,74 @@ struct ToriRS_PluginApi
         int slot,
         int* out_w,
         int* out_h);
+
+    /* -- exact safe placement -- */
+
+    /**
+     * Revision of the successfully resolved canonical placement state.
+     * Advances only when an area set or a named reservation's assigned box
+     * changes; an identical layout/tree rebuild leaves it alone.
+     */
+    uint32_t (*placement_revision)(struct ToriRS_PluginCtx* ctx);
+    /** Iterate exact fragments: pass -1 to start, -1 means finished. */
+    int (*placement_rect_next)(
+        struct ToriRS_PluginCtx* ctx,
+        int area,
+        int iter,
+        struct ToriRS_PlacementRect* out);
+    /** Place a box by nine-way anchor without discarding other fragments. */
+    int (*placement_place)(
+        struct ToriRS_PluginCtx* ctx,
+        int area,
+        int anchor,
+        int width,
+        int height,
+        int margin,
+        struct ToriRS_PlacementRect* out);
+    int (*placement_contains)(
+        struct ToriRS_PluginCtx* ctx,
+        int area,
+        struct ToriRS_PlacementRect const* rect);
+    int (*placement_reserve)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* name,
+        int area,
+        int edge,
+        int pixels);
+    int (*placement_reservation_rect)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* name,
+        struct ToriRS_PlacementRect* out);
+
+    /** Active named-UI facets for this plugin's static contribution. */
+    int (*ui_contribution_facets)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* node,
+        int* out_conflict_facets);
+
+    /* -- host-owned gameframe catalogue and selection -- */
+
+    /**
+     * Iterate selectable plugin frames. Pass -1 to start; returns the next
+     * iterator, or -1 when done. `core/native` is intentionally not a row:
+     * the settings UI presents it as the reserved `auto` choice.
+     */
+    int (*frame_offer_next)(
+        struct ToriRS_PluginCtx* ctx,
+        int iter,
+        struct ToriRS_PluginFrameInfo* out);
+    /** Always fills the current requested/resolved state. */
+    void (*frame_selection)(
+        struct ToriRS_PluginCtx* ctx,
+        struct ToriRS_PluginFrameSelection* out);
+    /**
+     * Set the one device-local choice: `auto` or a canonical catalogue id.
+     * Returns 1 when accepted. A missing id is accepted and safely falls back
+     * to native so a preference can survive switching lanes/builds.
+     */
+    int (*frame_select)(struct ToriRS_PluginCtx* ctx, char const* id);
+    /** Mark the selected provider's retained declaration stale. */
+    void (*frame_invalidate)(struct ToriRS_PluginCtx* ctx);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -4344,6 +4369,14 @@ struct ToriRS_PluginDef
      * -- and what it does not have is a second state.
      */
     bool essential;
+    /**
+     * NULL, or a NULL-id-terminated static array of selectable gameframes.
+     * A definition with offers is a provider: its lifetime is controlled by
+     * the host's frame selection and it has no independent enable switch.
+     */
+    struct ToriRS_PluginFrameOffer const* frames;
+    /** Optional NULL-node-terminated retained named-UI contributions. */
+    struct ToriRS_UiContribution const* ui_contributions;
     /** Both may be NULL. `init` is where subscriptions are made. */
     void (*init)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api);
     void (*shutdown)(struct ToriRS_PluginCtx* ctx);

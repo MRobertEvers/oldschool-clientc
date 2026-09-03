@@ -2995,16 +2995,15 @@ app_plugin_button_click(struct App* app, int component_id)
 /*
  * Bind the window to a presentation, the first time it is opened.
  *
- * Lazily, not at boot: an executor that opens an OS window must not open one
- * for a window the user never asked to see, and most sessions never open this
- * at all. Which one is asked for comes from TORIRS_CHROME_EXECUTOR, alongside
- * TORIRS_CHROME_THEME which the developer chrome already reads.
+ * Lazily, not at boot: WEB/BROWSER must not mount their DOM page for a window
+ * the user never asked to see, and most sessions never open this at all. An
+ * explicit choice comes from TORIRS_CHROME_EXECUTOR beside the theme override.
  *
  * An executor that will not start is not an error. ToriRSChromeExec_ForKind
  * already answers "not compiled in on this platform" with the buffer executor,
  * and a refused begin() is answered here with the same thing -- so a blocked
- * popup, a display that will not give a second window, or a lane with no
- * native executor all end at in-canvas chrome rather than at no chrome.
+ * page, a missing embedded engine, or a lane with no web executor all end at
+ * internal in-canvas chrome rather than at no chrome.
  */
 static void
 app_plugin_exec_bind_inner(struct App* app)
@@ -3454,7 +3453,7 @@ app_plugin_panel_present_custom(struct App* app)
     int active;
 
     assert(app);
-    if( !app->plugin_exec.exec.custom_present || app->plugin_exec.exec.is_surface )
+    if( !app->plugin_exec.exec.custom_present )
     {
         for( int i = 0; i < app->plugin_panel_row_count; i++ )
             app->plugin_panel_rows[i].custom_present_pending = 0;
@@ -3573,17 +3572,6 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     assert(input);
 
     g_plugin_panel_ticks++;
-#if defined(TORIRS_PLATFORM_ANDROID)
-    /* The rail outlives the native-widget executor: collapse shuts the sync
-     * down, but the small Activity child remains and can request that the one
-     * remembered page be expanded again. Drain that host request before the
-     * ordinary visibility early-out. */
-    {
-        int expanded = 0;
-        if( PlatformAndroidChrome_TakeExpandedRequest(&expanded) )
-            app_plugin_window_set_open(app, expanded != 0);
-    }
-#endif
 #if defined(TORIRS_PLATFORM_WEB)
     /* Like Android's Activity rail, the DOM rail deliberately survives
      * executor shutdown. Its exported request latch is therefore drained by
@@ -3723,12 +3711,6 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      * first few frames the window is open. */
     app_plugin_panel_sync(app);
 
-    /* A window-owning surface establishes the allocation before layout is
-     * built and published. In-canvas and native-widget executors make this a
-     * no-op. */
-    if( app->plugin_panel >= 0 )
-        ToriRSChromeSync_FillSurface(&app->plugin_exec, &app->plugin_ui, app->plugin_panel);
-
     /*
      * Lay the window out and produce its display list.
      *
@@ -3739,12 +3721,9 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      * zero, app_chrome_merged_prims took its `win_count == 0` early-out, and
      * the window opened, bound its executor and rendered nothing at all.
      *
-     * It went unnoticed because every desktop lane authors `[chrome]
-     * executor=sdl` and a surface executor rasterises through its own path.
-     * Android has one Surface and is clamped to the buffer executor, so it is
-     * the first platform to depend on the half of the contract that was never
-     * implemented -- which is why "Manage Plugins does nothing" was an
-     * Android-only report about code no platform-specific file touches.
+     * BUFFER remains the internal fallback on a lane without WEB/BROWSER, so
+     * this retained display list must stay valid even though normal desktop
+     * plugin chrome is projected through a web executor.
      *
      * Unconditional rather than gated on the bound executor: Build returns 0
      * and does no work on a frame where nothing moved, and a display list that
@@ -3763,52 +3742,19 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
             PluginHost_PanelSelectionGeneration(app->plugins) )
     {
         app_plugin_panel_sync(app);
-        if( app->plugin_panel >= 0 )
-            ToriRSChromeSync_FillSurface(
-                &app->plugin_exec, &app->plugin_ui, app->plugin_panel);
         ToriRSChrome_Build(&app->plugin_ui);
         (void)app_plugin_panel_publish_layout(app);
     }
 
-    /*
-     * Input, from whichever surface this window is on.
-     *
-     * A surface executor hands back the gesture in ITS coordinates and the
-     * chrome takes it unchanged -- the panels were laid out in that space, and
-     * the chrome has no idea a window moved. The in-canvas case is the game's
-     * own pointer, which is already in the right space for the same reason.
-     */
-    if( app->plugin_exec.exec.is_surface )
-    {
-        struct ToriRSChromeSurfaceInput gesture;
-        int guard = 0;
-        while( app->plugin_exec.exec.surface_input && guard++ < 64 &&
-               app->plugin_exec.exec.surface_input(
-                   app->plugin_exec.exec.user, &gesture) )
-        {
-            ToriRSChrome_MouseMove(&app->plugin_ui, gesture.mouse_x, gesture.mouse_y);
-            if( gesture.mouse_down )
-                ToriRSChrome_MouseDown(&app->plugin_ui, gesture.mouse_x, gesture.mouse_y);
-            if( gesture.mouse_up )
-                ToriRSChrome_MouseUp(&app->plugin_ui, gesture.mouse_x, gesture.mouse_y);
-            if( gesture.wheel )
-                ToriRSChrome_MouseWheel(
-                    &app->plugin_ui, gesture.mouse_x, gesture.mouse_y, gesture.wheel);
-            for( int i = 0; gesture.text[i]; i++ )
-                ToriRSChrome_KeyChar(&app->plugin_ui, (unsigned char)gesture.text[i]);
-            if( gesture.edit_key != TORIRS_CHROME_KEY_NONE )
-                ToriRSChrome_KeyEdit(&app->plugin_ui, gesture.edit_key);
-        }
-    }
-    else if( ToriRSChrome_HasVisiblePanel(&app->plugin_ui) )
+    if( ToriRSChrome_HasVisiblePanel(&app->plugin_ui) )
     {
         /* Its own instance, so its own routing -- and no ownership dance with
          * the developer chrome's activation latch, because it no longer shares
          * one. That shared latch is what made the old panel peek before taking,
          * and two panels could still eat each other's clicks.
          *
-         * A native-widget executor (cs2) gets the KEYBOARD only: its clicks
-         * arrive as component clicks through the interface tree, and routing
+         * A web executor gets the KEYBOARD only: its clicks arrive as semantic
+         * DOM intents, and routing
          * the mouse here as well would hand them to the in-canvas window's
          * ghost -- laid out and hit-testable at its floating position even
          * though nothing draws it. The keyboard must still flow, because the
@@ -3819,7 +3765,7 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
             app_chrome_route_keys(app, &app->plugin_ui, input);
     }
 
-    /* Intents from a native-widget executor land on the model the same way a
+    /* Intents from a web executor land on the model the same way a
      * click would, so the drain below sees both without knowing which. */
     ToriRSChromeSync_Pump(&app->plugin_exec, &app->plugin_ui);
 
@@ -3880,46 +3826,15 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     }
 
     /*
-     * Where the window may be grabbed, for a presentation that took its OS
-     * frame off and now has to answer for what the title bar used to do.
+     * Drain the retained change queue into the bound web executor. BUFFER has
+     * an empty sink because its authoritative model is drawn in-canvas.
      *
-     * AFTER the build, unlike the fill above, and the order is the whole point:
-     * these are laid-out boxes. Publishing them before the build that produced
-     * them is a frame of lag on every resize -- a drag band sitting where the
-     * panel was a moment ago, which on a window the user is actively dragging
-     * wider is a band that is never where it looks.
-     *
-     * Every frame and unconditionally: an executor whose window kept its frame
-     * has no set_drag_region and this costs a null test, and one that HAS a
-     * frameless window must hear about an empty region as clearly as a full
-     * one -- a panel that shrank has to stop swallowing presses over where
-     * it used to be.
-     */
-    if( app->plugin_panel >= 0 )
-        ToriRSChromeSync_PublishDragRegion(
-            &app->plugin_exec, &app->plugin_ui, app->plugin_panel);
-
-    /*
-     * Hand the frame to the executor, whichever kind it is.
-     *
-     * Sync is run for both: a surface executor ignores the commands, but
-     * running it anyway keeps the shadow current, so a window that is later
-     * REBOUND to a native-widget executor is caught up from the model rather
-     * than from a stale diff. Cheap on a quiet frame -- that is what the
-     * shadow is for.
+     * A quiet frame is one count test: no transaction and no model/shadow scan.
      */
     ToriRSChromeSync_Run(&app->plugin_exec, &app->plugin_ui);
 
-    /* Native custom Views/canvases are created by the sync above. Publish the
+    /* Web custom canvases are created by the sync above. Publish the
      * pixels afterwards so an asynchronous UI queue cannot receive a frame
      * before the WIDGET_ADD that gives it an identity and destination. */
     app_plugin_panel_present_custom(app);
-
-    if( app->plugin_exec.exec.is_surface && app->plugin_exec.exec.present &&
-        ToriRSChromeSync_TakePresentChange(&app->plugin_exec, &app->plugin_ui) )
-    {
-        int count = 0;
-        struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&app->plugin_ui, &count);
-        app->plugin_exec.exec.present(app->plugin_exec.exec.user, prims, count);
-    }
 }

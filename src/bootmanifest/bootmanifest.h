@@ -338,38 +338,22 @@ struct BootManifest
     /**
      * `[chrome] executor=` -- enum ToriRSChromeExecKind for the plugin window.
      *
-     * The zeroed storage is BUFFER, but `chrome_executor_set == 0` tells the
-     * application shell to choose PLATFORM: attached SDL, DOM, Win32 or
-     * Android for the build at hand. `buffer` is an explicit developer
-     * comparison because it overlays the game. TORIRS_CHROME_EXECUTOR
-     * overrides the manifest, the way TORIRS_CHROME_THEME overrides the theme
-     * beside it.
+     * Only `web` (the Emscripten page DOM) and `browser` (the embedded local
+     * web engine) are public choices. `chrome_executor_set == 0` asks the
+     * factory for whichever of those the build carries, with BUFFER reserved
+     * as its internal safe fallback. TORIRS_CHROME_EXECUTOR overrides the
+     * manifest, the way TORIRS_CHROME_THEME overrides the theme beside it.
      */
     int chrome_executor;
     /**
      * The key was present.
      *
-     * Distinct from the value, because "unset" and "explicitly buffer" are
-     * different instructions: unset means "pick something sensible for this
-     * gameframe", and an explicit value means "use this one" -- including when
-     * what it names is what would have been picked anyway. Without the flag the
-     * default cannot be a default, only a lock.
+     * Distinct from the value because unset means "pick the web executor this
+     * build supports", while a present key requests its named web backend.
      */
     int chrome_executor_set;
     /** Set when the key named something that is not an executor at all. */
     int chrome_executor_error;
-    /**
-     * `[chrome] borderless=` -- open an explicitly detached SDL plugin window
-     * with no OS frame, so
-     * the panel's own title bar and tab strip are what move it.
-     *
-     * Attached presentation has no separate frame to hide. Only SDL's optional
-     * detached mode reads this setting; every other presentation stays in the
-     * application's existing window.
-     * Off by default: a frameless window is a look, and one a lane has to ask
-     * for. TORIRS_CHROME_BORDERLESS overrides it.
-     */
-    int chrome_borderless;
     /** Set when `panel=` named something unknown; the load fails on it. */
     int editor_panel_error;
 

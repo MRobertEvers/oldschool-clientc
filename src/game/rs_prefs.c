@@ -8,6 +8,7 @@
 #include "3rd/ini/ini.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,6 +59,46 @@ RS_Prefs_Defaults(struct RS_Prefs* prefs)
         for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
             prefs->options[kind][id] = RS_CS2Host_OptionDefault(kind, id);
     prefs->default_window_mode = RS_PREFS_DEFAULT_WINDOW_MODE;
+    strcpy(prefs->preferred_frame, RS_PREFS_FRAME_AUTO);
+    prefs->preferred_frame_present = false;
+    prefs->frame_migration_version = 0;
+}
+
+/* strlen cannot prove that a caller-provided id is terminated inside the
+ * public bound.  This bounded walk can, without reading beyond that contract. */
+static int
+prefs_frame_id_length(char const* id, size_t* out_len)
+{
+    size_t len = 0;
+
+    if( !id )
+        return 0;
+    while( len < RS_PREFS_FRAME_ID_MAX && id[len] )
+        len++;
+    if( len == 0 || len >= RS_PREFS_FRAME_ID_MAX )
+        return 0;
+    if( out_len )
+        *out_len = len;
+    return 1;
+}
+
+int
+RS_Prefs_SetPreferredFrame(
+    struct RS_Prefs* prefs,
+    char const* id)
+{
+    size_t len;
+    int changed;
+
+    assert(prefs);
+    if( !prefs_frame_id_length(id, &len) )
+        return 0;
+
+    changed = !prefs->preferred_frame_present || strcmp(prefs->preferred_frame, id) != 0;
+    if( changed )
+        memcpy(prefs->preferred_frame, id, len + 1);
+    prefs->preferred_frame_present = true;
+    return changed;
 }
 
 /* ------------------------------------------------------------------ */
@@ -131,6 +172,34 @@ RS_Prefs_Decode(
                 if( mode == 1 || mode == 2 )
                     prefs->default_window_mode = mode;
             }
+            else if( strcmp(element._keyval.name, "preferred_frame") == 0 )
+            {
+                /* Presence, not validity, gates legacy migration.  A player
+                 * who hand-edited an empty or overlong value asked to replace
+                 * the old choice; use the safe `auto` default rather than
+                 * unexpectedly resurrecting stale plugin settings. */
+                prefs->preferred_frame_present = true;
+                if( prefs_frame_id_length(element._keyval.value, NULL) )
+                    snprintf(
+                        prefs->preferred_frame, sizeof(prefs->preferred_frame), "%s",
+                        element._keyval.value);
+                else
+                {
+                    strcpy(prefs->preferred_frame, RS_PREFS_FRAME_AUTO);
+                    TORIRS_LOG(
+                        "prefs: ignored an empty or overlong preferred_frame; using %s\n",
+                        RS_PREFS_FRAME_AUTO);
+                }
+            }
+            else if( strcmp(element._keyval.name, "frame_migration_version") == 0 )
+            {
+                char* end = NULL;
+                long migration = strtol(element._keyval.value, &end, 10);
+
+                if( end != element._keyval.value && *end == '\0' && migration >= 0 &&
+                    migration <= INT_MAX )
+                    prefs->frame_migration_version = (int)migration;
+            }
             continue;
         }
         if( section >= 0 )
@@ -174,7 +243,8 @@ RS_Prefs_Encode(
      * raise.
      */
     char* text;
-    int cap = 512 + RS_CS2_OPTION_KIND_COUNT * (64 + RS_CS2_OPTION_MAX * 24);
+    int cap = 640 + RS_PREFS_FRAME_ID_MAX +
+              RS_CS2_OPTION_KIND_COUNT * (64 + RS_CS2_OPTION_MAX * 24);
     int len = 0;
 
     assert(prefs);
@@ -197,6 +267,23 @@ RS_Prefs_Encode(
         "\n[preferences]\n"
         "version=%d\n",
         RS_PREFS_VERSION);
+
+    if( prefs->preferred_frame_present )
+    {
+        if( !prefs_frame_id_length(prefs->preferred_frame, NULL) )
+        {
+            free(text);
+            return 0;
+        }
+        len += snprintf(
+            text + len, (size_t)(cap - len), "preferred_frame=%s\n",
+            prefs->preferred_frame);
+    }
+
+    if( prefs->frame_migration_version > 0 )
+        len += snprintf(
+            text + len, (size_t)(cap - len), "frame_migration_version=%d\n",
+            prefs->frame_migration_version);
 
     if( prefs->default_window_mode != RS_PREFS_DEFAULT_WINDOW_MODE )
         len += snprintf(

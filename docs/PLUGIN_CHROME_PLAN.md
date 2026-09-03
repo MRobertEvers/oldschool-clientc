@@ -2,8 +2,10 @@
 
 ## Decision
 
-ToriRS has one application-owned plugin chrome browser for the entire client.
-It is not one browser, tab, window, or document per plugin.
+On lanes with an approved web-backed executor, ToriRS has one
+application-owned plugin chrome browser for the entire client. It is not one
+browser, tab, window, or document per plugin. Other lanes use the internal
+retained BUFFER fallback until they gain the common browser transport.
 
 The browser contains two retained regions:
 
@@ -157,7 +159,9 @@ absolute-position layout. Both consume the same protocol and skin assets.
 ### Retained update contract
 
 The native model keeps stable panel handles, widget handles, and widget
-serials. Its executor shadow emits only differences:
+serials. Compare-then-set mutators append precise property commands to a
+bounded journal; the executor drains that journal without scanning or diffing
+the retained tree:
 
 - `page.snapshot` atomically replaces the sole selected page;
 - `page.delta` mutates retained controls in place;
@@ -169,8 +173,11 @@ serials. Its executor shadow emits only differences:
 
 The reducer mutates existing nodes for text, checked state, selection, focus,
 labels, and options. It rebuilds the page only for a new page generation and
-rebuilds one widget only when its serial changes. A settled frame is an O(1)
-no-op at the native model and sends no browser message.
+rebuilds one widget only when its serial changes. Pending journal entries are
+indexed per handle, so repeated setters coalesce in O(1). A settled frame is
+an O(1) no-op at the native model and sends no browser message. A complete
+snapshot is reserved for first bind or recovery after reported queue/state
+loss.
 
 Browser output is similarly semantic:
 
@@ -280,7 +287,7 @@ are visual regressions.
 
 | Host | One-browser implementation | Layout behavior | Bundle |
 |---|---|---|---|
-| Android | Framework `android.webkit.WebView` in `PluginChromeLayout` | 46dp rail; split when enough width exists; otherwise exclusive | Explicit Chrome-39-compatible legacy layout |
+| Android | Deferred; internal BUFFER fallback | In-game retained chrome | No browser bundle |
 | Web | One persistent application-owned iframe shared by every plugin | Normal-flow split; exclusive under compact breakpoint | Modern reducer/assets |
 | macOS | One `WKWebView` subview in SDL's Cocoa `NSWindow` | Window grows/contracts around game + page + rail | Modern bundle staged to a private local directory |
 | Windows 10/11 | One WebView2 controller in a child region of the existing HWND | D3D9/GDI game rectangle excludes page + rail | Modern local bundle |
@@ -293,21 +300,12 @@ presenter.
 
 ### Android
 
-[`PluginChromePresenter.java`](../android/src/main/java/com/torirs/client/PluginChromePresenter.java)
-owns exactly one WebView for the Activity lifetime. It loads only
-`file:///android_asset/plugin_chrome/legacy-ie8.html`. The physical validation
-device is API 22 with Chrome 39, so Android cannot depend on CSS Grid, modern
-JavaScript syntax, `Map`, pointer events, or current DOM conveniences.
-
-The compatibility page therefore uses ES3/ES5-era output, explicit event
-properties, fixed/table layout, and feature-tested canvas. It still renders the
-same retained tree and ToriRSChrome assets. A typed `ToriRSAndroid` bridge
-copies intents to JNI; all Java UI changes happen on the UI thread while the
-native frame thread only exchanges bounded arrays.
-
-Network loads, multiple windows, universal file access, external navigation,
-mixed content, storage, and JavaScript-opened windows are disabled. The bundle
-is copied into APK assets by `syncPluginChromeBundle`.
+Android currently selects no external executor and uses the retained in-game
+BUFFER fallback. The retired Android-specific executor, JNI command transport,
+WebView presenter, and APK browser bundle are not build inputs. A future
+Android browser host must implement the same platform-neutral BROWSER
+transport as the desktop embedded engines; it must not restore a separate
+Android executor protocol.
 
 ### Web
 
@@ -392,12 +390,6 @@ accelerators so focus, caret movement, and IME editing remain usable.
 - Never make the game/render thread wait on a browser/UI thread.
 - Pause page-visible plugin work when compact exclusive mode reports that the
   game is not visible.
-- When exclusive mode takes the game's surface, the client stops drawing:
-  `PlatformWindow_CanPresent` answers false without a surface and the frame
-  loop skips `App_Render` and the present while the world and network keep
-  ticking. Measured on the API 22 phone before this gate, the frame thread
-  went on painting the hidden world at ~0.6 of a core for as long as a page
-  was up (see `docs/android_architecture.md`, plugin chrome cost).
 
 One browser has a higher fixed cost than the retired immediate/native
 prototype, but that cost is paid once for all plugins. Retained deltas, no
@@ -424,11 +416,10 @@ submit validated semantic data.
 
 ## Packaging
 
-Every platform package contains the same canonical files and skin revision.
-Hosts select the entry document explicitly; user-agent sniffing does not choose
-the compatibility path.
+Every browser-backed platform package contains the same canonical files and
+skin revision. Hosts select the entry document explicitly; user-agent sniffing
+does not choose the compatibility path.
 
-- Android copies the bundle into APK assets.
 - Web copies it beside the wasm host resources.
 - macOS stages it from the application resources/executable-relative tree into
   a private local directory that can also hold revisioned bitmap files.
@@ -449,41 +440,27 @@ Automated gates must cover:
 6. modern and legacy reducer behavior parity;
 7. an explicit legacy syntax/DOM/CSS compatibility gate;
 8. bounded overflow behavior without partial transaction application;
-9. Android Back/IME order and UI-thread handoff;
-10. macOS resize/collapse with software and GL game presenters;
-11. WebView2 and MSHTML navigation/security policy;
-12. XP subsystem/import checks; and
-13. real runtime screenshots, never mock/reference renders.
+9. macOS resize/collapse with software and GL game presenters;
+10. WebView2 and MSHTML navigation/security policy;
+11. XP subsystem/import checks; and
+12. real runtime screenshots, never mock/reference renders.
 
 Primary commands include:
 
 ```sh
 make -C src test-uitree test-plugin-host
-make -C src test-chrome-browser-exec test-chrome-android-exec
+make -C src test-chrome-browser-exec
 make -C src test-web-channel
 make -C src all
-cd android && ./gradlew assembleDebug lintDebug
 ```
 
 Windows adds `test-win32-platform`, XP import/subsystem inspection, and the real
-browser capture target. A real Android run must be performed on the API-22
-armeabi-v7a device, not only an emulator.
+browser capture target.
 
 ## Real runtime captures
 
 These are captures from the named production host, not drawings or reference
 mockups.
-
-### Android 5.1 / API 22 / Chrome 39 WebView
-
-The attached Motorola XT1060 runs the packaged compatibility page in the one
-real Activity WebView. Android's SurfaceFlinger screenshot omits this old
-hardware-composited layer, so the image was captured directly from that live
-WebView through its device debugging endpoint.
-
-[Open full Android capture](../res/plugin_chrome/screenshots/android-webview-expanded.png)
-
-![Android plugin chrome](../res/plugin_chrome/screenshots/android-webview-expanded.png)
 
 ### macOS / WKWebView
 
@@ -531,9 +508,9 @@ The work is complete when:
 - plugin-authored icons display from sandboxed assets;
 - the page uses exact ToriRSChrome metrics and baked controls rather than
   browser-default styling;
-- Android, Web, macOS, modern Windows, and Windows XP use the same semantic
-  protocol, with the explicit compatibility entry only where needed;
+- Web, macOS, modern Windows, and Windows XP use the same semantic protocol,
+  with the explicit compatibility entry only where needed;
 - all packages carry their required local bundle/runtime files;
 - the automated gates pass; and
-- real Android, web, macOS, and Windows screenshots are stored under
+- real web, macOS, and Windows screenshots are stored under
   `res/plugin_chrome/screenshots/` and linked above.

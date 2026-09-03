@@ -8,8 +8,9 @@
  *
  * The cases are the four things that can silently go wrong:
  *
- *   1. The CLAIM. A fixed layout must pin its canvas and a resizable one must
- *      follow the window, and the two are one call apart.
+ *   1. The SELECTION. The host's one persisted gameframe choice must select a
+ *      stable catalogue id; fixed offers pin their canvas, the resizable one
+ *      follows the window, and Auto gives the frame back to the client.
  *   2. The SLOTS. All six roles placed, at the geometry the frame is authored
  *      for -- and for classic_fixed that geometry is the dat1 lane's own, so
  *      the numbers here are copied from the same revconfig the plugin copied.
@@ -464,6 +465,36 @@ fake_asset_read(void* u, char const* plugin, char const* name)
  * leaves it be. */
 static int g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
 static int fake_plugin_screen(void* u) { (void)u; return g_screen_now; }
+
+/* The one device-local gameframe preference. Unlike the old plugin checkbox
+ * and `layout` config row, this belongs to the engine and stores a canonical
+ * catalogue id (or `auto`). */
+static char g_frame_preference[TORIRS_PLUGIN_FRAME_ID_MAX] = "auto";
+static int g_frame_preference_present = 1;
+static int g_frame_preference_migration = 1;
+static int g_frame_preference_set_calls;
+
+static int
+fake_frame_preference(void* u, char* out, int out_size, int* migration)
+{
+    (void)u;
+    snprintf(out, (size_t)out_size, "%s", g_frame_preference);
+    if( migration )
+        *migration = g_frame_preference_migration;
+    return g_frame_preference_present;
+}
+
+static int
+fake_frame_preference_set(void* u, char const* id, int migration)
+{
+    (void)u;
+    snprintf(g_frame_preference, sizeof(g_frame_preference), "%s", id);
+    g_frame_preference_present = 1;
+    g_frame_preference_migration = migration;
+    g_frame_preference_set_calls++;
+    return 1;
+}
+
 static int fake_world_cycle(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_ms(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_work_us(void* u) { (void)u; return 0; }
@@ -653,6 +684,55 @@ static uint32_t fake_hsl_to_rgb(void* u, int h) { (void)u; (void)h; return 0; }
 
 static struct ToriRS_PluginHost* g_host;
 static int g_plugin;
+static struct ToriRS_PluginCtx* g_frame_settings_ctx;
+static struct ToriRS_PluginApi const* g_frame_settings_api;
+
+/* A settings-panel-shaped client of the public API. The frame provider must
+ * not choose itself, and the host deliberately exposes no test-only selector,
+ * so this ordinary hidden plugin captures the same frame_select entry point a
+ * real settings surface uses. */
+static void
+frame_settings_init(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginApi const* api)
+{
+    g_frame_settings_ctx = ctx;
+    g_frame_settings_api = api;
+}
+
+static struct ToriRS_PluginDef const FRAME_SETTINGS = {
+    .name = "gameframe-test-settings",
+    .title = "Gameframe Test Settings",
+    .version = "1.0.0",
+    .hidden = true,
+    .init = frame_settings_init,
+};
+
+/** Select one stable catalogue id and let the host resolve it at the frame
+ * boundary, just as the application does after its Gameframe dropdown moves. */
+static void
+select_frame(char const* id, uint64_t now_ms)
+{
+    CHECK(g_frame_settings_api != NULL, "the settings client received the plugin API");
+    CHECK(g_frame_settings_ctx != NULL, "the settings client received its context");
+    if( g_frame_settings_api && g_frame_settings_ctx )
+        CHECK(
+            g_frame_settings_api->frame_select(g_frame_settings_ctx, id) == 1,
+            "the host accepts the stable frame id");
+    PluginHost_FrameStart(g_host, now_ms, 0);
+}
+
+static struct ToriRS_PluginFrameSelection
+selected_frame(void)
+{
+    struct ToriRS_PluginFrameSelection selected;
+
+    memset(&selected, 0, sizeof(selected));
+    assert(g_frame_settings_api);
+    assert(g_frame_settings_ctx);
+    g_frame_settings_api->frame_selection(g_frame_settings_ctx, &selected);
+    return selected;
+}
 
 /** One canvas size, declared. Mirrors what App_PluginLayoutTick does. */
 static void
@@ -715,6 +795,8 @@ main(void)
     e.feature_set = fake_feature_set;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
+    e.frame_preference = fake_frame_preference;
+    e.frame_preference_set = fake_frame_preference_set;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.cache_id = fake_cache_id;
@@ -795,6 +877,10 @@ main(void)
      * pointer is the only channel it has -- so the host is built twice. */
     g_frame.missing_tab = -1;
     g_frame.ungiven_tab = -1;
+    snprintf(g_frame_preference, sizeof(g_frame_preference), "%s", "auto");
+    g_frame_preference_present = 1;
+    g_frame_preference_migration = 1;
+    g_frame_preference_set_calls = 0;
     g_host = PluginHost_New(&e);
     e.user = g_host;
     PluginHost_Free(g_host);
@@ -802,18 +888,48 @@ main(void)
 
     g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
-    CHECK(g_frame.owned == 0, "nothing owns the frame before it is enabled");
+    CHECK(
+        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
+        "the settings client registers");
+    CHECK(g_frame.owned == 0, "nothing owns the frame before selection is resolved");
 
-    PluginHost_SetEnabled(g_host, g_plugin, true);
     PluginHost_Start(g_host);
 
-    /* ---- 1. the claim -------------------------------------------------- */
+    /* ---- 1. host-owned selection -------------------------------------- */
 
-    CHECK(g_frame.owned == 1, "starting claims the frame");
-    CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "classic_fixed pins the canvas");
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
+            strcmp(selected.requested, "auto") == 0,
+            "the engine's Auto preference is the host's requested frame");
+        CHECK(
+            strcmp(selected.active, "core/native") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_NATIVE,
+            "Auto resolves to the client's native frame");
+        CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto does not run a frame provider");
+        CHECK(g_frame.owned == 0, "the native frame remains owned by the client");
+    }
+
+    select_frame("gameframe-layout/classic-fixed", 100);
+
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
+            strcmp(selected.requested, "gameframe-layout/classic-fixed") == 0 &&
+                strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            "the host activates the selected classic-fixed offer");
+    }
+    CHECK(
+        strcmp(g_frame_preference, "gameframe-layout/classic-fixed") == 0 &&
+            g_frame_preference_set_calls == 1,
+        "frame_select persists the canonical id through the engine");
+    CHECK(PluginHost_IsEnabled(g_host, g_plugin), "selection starts the frame provider");
+    CHECK(g_frame.owned == 1, "the selected provider owns the frame");
+    CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "classic-fixed pins the canvas");
     CHECK(g_frame.fixed_w == 765 && g_frame.fixed_h == 503, "pinned at the classic frame");
     /*
-     * The claim does NOT declare on the spot, and that is deliberate.
+     * Selection does NOT declare on the spot, and that is deliberate.
      *
      * The host has no window, so declaring from inside the claim meant passing
      * a 0x0 canvas -- under which every edge-anchored piece of a resizable
@@ -821,7 +937,9 @@ main(void)
      * and entirely off-screen. The engine is the only thing that knows a
      * canvas, so the engine is what declares.
      */
-    CHECK(g_frame.end_calls == 0, "the claim does not declare against a canvas it cannot know");
+    CHECK(
+        g_frame.end_calls == 0,
+        "selection does not declare against a canvas it cannot know");
 
     /* ---- 2. classic fixed ---------------------------------------------- */
 
@@ -973,17 +1091,15 @@ main(void)
 
     /* ---- 4. modern fixed ----------------------------------------------- */
 
-    /*
-     * By LABEL, because that is how the setting is stored.
-     *
-     * A config enum keeps whichever dropdown row was chosen, so what reaches
-     * plugin_prefs.ini and comes back at the next launch is "Modern Fixed" and
-     * not "1". Reading it as a number turns every saved choice into 0, which
-     * is a layout silently reverting to Classic Fixed on restart -- invisible
-     * to a test that only ever set indices.
-     */
-    PluginHost_ConfigSet(g_host, g_plugin, "layout", "Modern Fixed");
-    CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "modern_fixed pins the canvas too");
+    select_frame("gameframe-layout/modern-fixed", 200);
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
+            strcmp(selected.active, "gameframe-layout/modern-fixed") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            "the stable modern-fixed id selects that offer");
+    }
+    CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "modern-fixed pins the canvas too");
     declare(765, 503);
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334),
@@ -1017,12 +1133,17 @@ main(void)
 
     /* ---- 5. modern resizable ------------------------------------------- */
 
-    /* The index form too: plugin_prefs.ini is a file people edit, and
-     * `layout=2` is the obvious thing to write in it. */
-    PluginHost_ConfigSet(g_host, g_plugin, "layout", "2");
+    select_frame("gameframe-layout/modern-resizable", 300);
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
+            strcmp(selected.active, "gameframe-layout/modern-resizable") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            "the stable modern-resizable id selects that offer");
+    }
     CHECK(
         g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
-        "the resizable layout unpins the canvas, and an index still selects it");
+        "the resizable offer follows the window");
 
     declare(1024, 768);
     CHECK(
@@ -1206,10 +1327,19 @@ main(void)
         CHECK(g_frame.regions == 0, "and no obsolete over-pass claims input regions");
     }
 
-    /* ---- 6. release ---------------------------------------------------- */
+    /* ---- 6. Auto/native ------------------------------------------------ */
 
-    PluginHost_SetEnabled(g_host, g_plugin, false);
-    CHECK(g_frame.owned == 0, "disabling the plugin gives the frame back");
+    select_frame("auto", 400);
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
+            strcmp(selected.requested, "auto") == 0 &&
+                strcmp(selected.active, "core/native") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_NATIVE,
+            "Auto explicitly resolves to the native frame");
+    }
+    CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto stops the frame provider");
+    CHECK(g_frame.owned == 0, "Auto gives the frame back to the client");
 
     {
         /* And nothing is declared or drawn afterwards: the lane's own chrome
@@ -1222,41 +1352,51 @@ main(void)
         CHECK(g_frame.blits == 0, "and draws nothing");
     }
 
-    /* ---- 6b. enabled at the title screen -------------------------------- */
+    /* ---- 6b. selected at the title screen ------------------------------ */
 
     /*
-     * The restart-shaped bug, this frame's copy of it. The host refuses a
-     * layout claim while the title is up -- there is no frame to claim before
-     * there is a frame -- so a plugin switched on at the title owned nothing,
-     * and with no claim there is no EV_LAYOUT to ask it to declare after
-     * login either. EV_SCREEN_CHANGE is the missing rung: entering the game
-     * re-claims, and the next layout pass declares.
+     * A concrete choice may be persisted while the title is up, but there is
+     * no gameframe to replace yet. The host reports it as loading over native
+     * and promotes that same requested id when login changes the screen.
      */
     g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
-    PluginHost_SetEnabled(g_host, g_plugin, true);
-    /* The title's frames tick too -- and one has to, for the frame boundary
-     * to see the title at all before login moves the screen again. */
-    PluginHost_FrameStart(g_host, 950, 0);
+    select_frame("gameframe-layout/classic-fixed", 950);
     CHECK(
         g_frame.owned == 0,
-        "enabling at the title claims nothing -- the host refuses the frame");
+        "selecting at the title leaves the native frame in charge");
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
+            strcmp(selected.requested, "gameframe-layout/classic-fixed") == 0 &&
+                strcmp(selected.active, "core/native") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_LOADING,
+            "the title reports the concrete request as loading over native");
+    }
     g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
     PluginHost_FrameStart(g_host, 1000, 0);
-    CHECK(g_frame.owned == 1, "logging in claims the frame without a restart");
+    CHECK(g_frame.owned == 1, "login activates the selected frame without a restart");
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
+            strcmp(selected.active, "gameframe-layout/classic-fixed") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            "the title-screen selection becomes active in game");
+    }
     {
         int const before = g_frame.end_calls;
         declare(765, 503);
         CHECK(g_frame.end_calls == before + 1, "and the next layout pass declares");
     }
-    PluginHost_SetEnabled(g_host, g_plugin, false);
+    select_frame("auto", 1100);
 
     /* ---- 7. the OldSchool lane ----------------------------------------- */
 
     /*
      * An OldSchool cache authors its own gameframe as a CS2 toplevel, and the
-     * plugin used to stand down there. It arranges over it now: the chat and
-     * the orbs are the cache's PACKS and are placed whole rather than dressed,
-     * and Auto reproduces whichever toplevel the server opened.
+     * selected plugin frame arranges over it: the chat and the orbs are the
+     * cache's PACKS and are placed whole rather than dressed. The concrete
+     * catalogue choice remains the policy; it is not inferred from whichever
+     * toplevel the server happened to open.
      *
      * A fresh host rather than a lane switched under the running one: a lane
      * is stated at boot and never changes inside a process.
@@ -1264,21 +1404,39 @@ main(void)
     PluginHost_Free(g_host);
     g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
     g_frame_root = 161; /* resizable classic */
+    snprintf(
+        g_frame_preference,
+        sizeof(g_frame_preference),
+        "%s",
+        "gameframe-layout/modern-resizable");
+    g_frame_preference_present = 1;
+    g_frame_preference_migration = 1;
+    g_frame_preference_set_calls = 0;
+    g_frame_settings_ctx = NULL;
+    g_frame_settings_api = NULL;
     g_host = PluginHost_New(&e);
     e.user = g_host;
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
     g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
+    CHECK(
+        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
+        "the settings client registers on the OldSchool host");
 
-    PluginHost_SetEnabled(g_host, g_plugin, true);
-    PluginHost_ConfigSet(g_host, g_plugin, "layout", "Auto");
     PluginHost_Start(g_host);
 
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the plugin on");
-    CHECK(g_frame.owned == 1, "and it claims the frame there too");
+    CHECK(g_frame.owned == 1, "and the selected provider owns the frame there too");
+    {
+        struct ToriRS_PluginFrameSelection const selected = selected_frame();
+        CHECK(
+            strcmp(selected.active, "gameframe-layout/modern-resizable") == 0 &&
+                selected.status == TORIRS_PLUGIN_FRAME_ACTIVE,
+            "a persisted modern-resizable id is restored on OldSchool");
+    }
     CHECK(
         g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
-        "Auto over a resizable toplevel follows the window");
+        "the selected modern-resizable offer follows the window");
 
     declare(1024, 768);
     CHECK(
@@ -1299,17 +1457,14 @@ main(void)
         !blitted_at(0, 768 - 165),
         "and no chat backing is blitted under the pack's own");
 
-    /*
-     * The Display panel's switch: the server opens the fixed toplevel. Auto
-     * now means Modern Fixed, whose canvas is pinned -- a different claim
-     * from the one standing, so the layout pass restates it and declares
-     * on the retry.
-     */
+    /* Selecting Modern Fixed is an explicit host transaction. The server's
+     * live root is useful lane geometry, but no longer doubles as preference
+     * or silently changes the selected offer. */
     g_frame_root = 548;
-    declare(1024, 768);
+    select_frame("gameframe-layout/modern-fixed", 1200);
     CHECK(
         g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED,
-        "Auto over the fixed toplevel re-claims a pinned canvas");
+        "the explicit modern-fixed offer pins the canvas");
     declare(765, 503);
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 338, 519, 165),
@@ -1320,9 +1475,9 @@ main(void)
     draw(765, 503);
     CHECK(!blitted_at(0, 338), "the fixed frame blits no chat backing either");
 
-    /* A concrete choice still wins over the lane: the 2004 frame around
-     * OldSchool packs, with the pack at the OldSchool fixed chat's place. */
-    PluginHost_ConfigSet(g_host, g_plugin, "layout", "Classic Fixed");
+    /* Another concrete catalogue choice puts the 2004 frame around OldSchool
+     * packs, with the pack at the OldSchool fixed chat's place. */
+    select_frame("gameframe-layout/classic-fixed", 1300);
     declare(765, 503);
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, 338, 519, 165),
@@ -1334,17 +1489,10 @@ main(void)
     CHECK(!blitted_at(17, 357), "and without the 2004 chat parchment under the pack");
     CHECK(g_frame.regions == 14, "the 2004 stones still take clicks");
 
-    {
-        /* The switch the user set is still in the file: this client boots
-         * several lanes and `enabled=1` was stated once for all of them. */
-        void* data = NULL;
-        int size = 0;
-        CHECK(PluginHost_ConfigEncode(g_host, &data, &size) == 1, "the settings encode");
-        CHECK(
-            data && size > 0 && strstr((char const*)data, "enabled=1") != NULL,
-            "and still carry the enabled=1 the user saved");
-        free(data);
-    }
+    CHECK(
+        strcmp(g_frame_preference, "gameframe-layout/classic-fixed") == 0 &&
+            g_frame_preference_set_calls == 2,
+        "the engine persists each explicit catalogue selection, not an enable switch");
 
     PluginHost_Free(g_host);
     for( int i = 0; i < FAKE_IMAGE_SLOTS; i++ )
