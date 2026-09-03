@@ -753,6 +753,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	plugin/plugins/gameframe.c \
 	plugin/plugins/mobile_gameframe.c \
 	plugin/plugins/item_stats.c \
+	plugin/plugins/plugin_draw.c \
 	plugin/plugins/xp_tracker.c \
 	plugin/plugins/loot_tracker.c \
 	plugin/plugins/nxt_highlight.c \
@@ -1127,7 +1128,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
-.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
@@ -2241,10 +2242,10 @@ test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/test/item_stats_t
 # arithmetic each is a port of -- xp/hr over TRAINING time, and attributing a
 # drop to the despawn it landed on -- is what the cases pin.
 test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/test/tracker_test.c
+		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_test \
 		plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/test/tracker_test.c $(LDFLAGS)
+		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/tracker_test
 
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plugin_host_test.c
@@ -2294,7 +2295,8 @@ test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/gameframe.
 .PHONY: test-mobile-gameframe
 test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_touch_test \
-		input/torirs_touch.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_touch.c input/torirs_input.c input/torirs_input_cmd.c \
+		cmd/cmdbus.c cmd/cmdring.c \
 		input/test/torirs_touch_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/torirs_touch_test
 
@@ -2804,6 +2806,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c \
 		ui/test/uitree_test_emit_golden.c \
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
+		ui/test/uitree_test_input_field.c \
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c \
 		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
 		ui/test/uitree_test_debug_overlay.c \
@@ -3496,6 +3499,15 @@ test-social: $(OBJ_DIR) $(OBJS)
 		game/test/rs_social_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_social_test
+
+# The ground-item pile ops (7120..7122, 6859..6863) -- the whole input to the
+# cache's ground-items overlay. All eight used to reach CS2VM2_Op_StackMetaStub
+# and fake a zero, which for OBJSTACK_COUNT reads as "the tile is empty".
+test-ground-items: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_ground_items_test \
+		game/test/rs_ground_items_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_ground_items_test
 
 # Player-pick stack expansion + local-skip (Client-TS addViewportOptions).
 test-minimenu-world: $(OBJ_DIR) $(OBJS)

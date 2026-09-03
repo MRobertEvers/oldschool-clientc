@@ -531,6 +531,10 @@ osrs239_read_zone_sub(
         out->_obj_add.pos = m.coord_in_zone_packed;
         out->_obj_add.obj_id = m.id;
         out->_obj_add.count = m.quantity;
+        out->_obj_add.time_until_public = m.time_until_public;
+        out->_obj_add.time_until_despawn = m.time_until_despawn;
+        out->_obj_add.ownership_type = m.ownership_type;
+        out->_obj_add.never_becomes_public = m.never_becomes_public;
         return 1;
     }
 

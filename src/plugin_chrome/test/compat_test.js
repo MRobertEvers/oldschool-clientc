@@ -129,6 +129,19 @@ assert.match(modernCss, /\.tpc-check\s*\{[^}]*width\s*:\s*17px[^}]*height\s*:\s*
     "the default checkbox is rendered at its baked 17px size");
 assert.match(modernCss, /\.tpc-button[^}]*\{[^}]*height\s*:\s*18px[^}]*background-size\s*:\s*18px 18px/i,
     "button art is fitted to the authored 18px control row");
+/* The caption is centred on the PLATE, not on p12's metrics: the caps' inset
+ * is a transparent border so that two pixels of top padding can drop the
+ * baseline from 13 to 14, the middle of the art's opaque band. The runtime
+ * writes the same geometry inline for a themed button, so both have to say it
+ * or a client that sent a skin gets the old off-centre caption back. */
+assert.match(modernCss, /\.tpc-button[^}]*\{[^}]*border-left-width\s*:\s*16px[^}]*padding\s*:\s*2px 0 0/i,
+    "button caption is nudged onto the plate by padding a transparent border freed");
+assert.match(modernCss, /background-clip\s*:\s*border-box, border-box, padding-box/i,
+    "the middle's clip leaves the button's vertical padding alone");
+assert.match(modernRuntime, /borderLeftWidth = '16px'/,
+    "the themed button repeats the stylesheet's cap inset inline");
+assert.match(modernRuntime, /paddingTop = '2px'/,
+    "the themed button repeats the stylesheet's caption nudge inline");
 assert.match(modernCss, /\.tpc-row select\s*\{[^}]*right 2px center[^}]*14px 14px/i,
     "dropdown arrow honors the authored two-pixel field inset");
 assert.match(modernCss, /::\-webkit-scrollbar\s*\{[^}]*width\s*:\s*16px/i,

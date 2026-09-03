@@ -644,15 +644,41 @@ layout_resolve_dirty(
         int py;
         int pw;
         int ph;
+        int jit_moved;
 
         if( i < 0 || (uint32_t)i >= n || tree->components[i].freed )
             continue;
+
+        /*
+         * A box this walk finds unmoved may still have moved THIS frame.
+         *
+         * UITree_EnsureLayoutFor services a CS2 getter by resolving one
+         * root->node chain, which applies the new box and leaves the node
+         * reading as resolved. It records that in layout_changed[] precisely
+         * because the node's descendants have not read the new box yet -- but
+         * only the full sweep below ever consulted that array, so on the
+         * incremental path layout_compute_node answered "unmoved" (the JIT had
+         * already stored the value), the children were never appended, and the
+         * whole subtree stayed on last frame's box.
+         *
+         * That is a set-then-get script leaving half a gameframe behind: the
+         * CS2 popout strip widens its container, `if_getwidth` on the way past
+         * JIT-resolves it, and the minimap, tab strip and inventory under it
+         * keep their old boxes until something forces a full pass -- which is
+         * why a window resize "fixed" it.
+         *
+         * Consume the mark: the propagation it was asking for happens here.
+         */
+        jit_moved = tree->layout_changed && (uint32_t)i < tree->layout_cap &&
+                    tree->layout_changed[i];
+        if( jit_moved )
+            tree->layout_changed[i] = 0;
 
         visited++;
         layout_parent_box(
             tree, tree->components[i].parent, root_x, root_y, root_w, root_h,
             &px, &py, &pw, &ph);
-        if( !layout_compute_node(tree, (uint32_t)i, px, py, pw, ph) )
+        if( !layout_compute_node(tree, (uint32_t)i, px, py, pw, ph) && !jit_moved )
             continue;
 
         /* The box moved, so every descendant reads a different parent box.

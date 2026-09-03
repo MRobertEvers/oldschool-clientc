@@ -46,6 +46,17 @@ Implemented and green on all six plugin suites (`test-gameframe`, `test-plugin-h
 
 Not done, and said so: moving or tinting a native node (engine work — `POSITION` on a LANE part and on any entity is refused out loud); rasterising a lane widget's sprite into a borrowable image (`SOURCE_LANE` reports a box and `art[]` of -1).
 
+## Cache gameframes (ABI 25, 2026-09-02)
+
+Both arrangers run on an OldSchool lane now, over whichever CS2 toplevel the server opened (548 fixed, 161/164 resizable, 601 mobile). The engine states a RULE and the profile states every number:
+
+- **Frame binder.** A profile role `frame_<slot>` (or `frame_<slot>_<member>`, slot spelling from `uitree_role.c`) names the cache node that IS that region; `app_plugin_frame_bind` stamps it with the slot tag and member before every frame collection (`UITree_FrameSetBinder`). `revconfig/osrs239/osrs239_dat2_cache.ini` binds chat, main_modal, orbs, sidebar and sidebar_0..13 per toplevel with `id(if(<top>, <n>))`.
+- **`orbs` region** (`TORIRS_PLUGIN_SLOT_ORBS`): the orb pack's block beside the map, placed by the arranger at the offset the lane's toplevel uses. Absent on a 2004 frame.
+- **`api->frame_root`**: the live toplevel's group id, compared against `cache_id("iface", "toplevel_fixed")` and siblings — `gameframe-layout`'s `Auto` layout follows it.
+- **Tab verbs on a cache frame**: `tab_active` reads which bound side panel is unhidden; `tab_select` runs `[script:sidebar_switch]`.
+- **Chrome rule**: root-group LAYERS with an op or `noclickthrough` are hidden with the graphics; containers and ancestors of placed surfaces stay.
+- On that lane the chat and the orbs are PACKS: placed whole, dressed with nothing.
+
 ## The problem this replaced
 
 1. `EV_LAYOUT` and `EV_DRAW_FRAME` went to exactly one plugin. A plugin replacing one button had to become the frame owner — mutually exclusive with `gameframe-layout`.

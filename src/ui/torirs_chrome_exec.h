@@ -80,7 +80,8 @@ enum ToriRSChromeCmdKind
      *  batches (a DOM layout pass, a BeginDeferWindowPos) opens here. */
     /**
      * A transaction opens. `value` is 1 when this one RESTATES A NEW PAGE and
-     * 0 when it patches the page already up.
+     * 0 when it patches the page already up; on a restatement `serial` carries
+     * that page's IDENTITY (0 when none is stated).
      *
      * That flag is the whole of how a page BOUNDARY reaches an executor, and
      * it travels here -- on the page stream, immediately ahead of the
@@ -568,6 +569,21 @@ struct ToriRSChromeSync
      */
     int restate;
     /**
+     * WHICH page the pending restatement is of, reported beside the flag.
+     *
+     * The identity has to travel with the page for the same reason the
+     * boundary does. An executor that learned the new identity from the rail
+     * instead stamped the snapshot with the identity of the page it had just
+     * discarded -- and then, when the rail did arrive, saw a generation it had
+     * never been told about, concluded the page had changed again, and closed
+     * the snapshot it had only just mounted.
+     *
+     * 0 means "no identity stated", which is what a fresh binding reports:
+     * there is no page being replaced, so an executor keeps whatever fallback
+     * it uses for a first transaction.
+     */
+    uint32_t page_epoch;
+    /**
      * The checkbox style this executor was last told about.
      *
      * Seeded to -1 by Init rather than to TICK, so the first Run states the
@@ -636,7 +652,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
  * executor.
  */
 void
-ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync);
+ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync, uint32_t page_epoch);
 
 /**
  * Drain the executor's intents and apply them to `ui`.

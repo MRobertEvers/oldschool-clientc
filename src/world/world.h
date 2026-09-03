@@ -1333,6 +1333,23 @@ World_ObjStackAdd(
     char const* name,
     char const actions[5][32]);
 
+/**
+ * OBJ_ADD's ownership half, applied to a stack the add just created.
+ *
+ * Separate from the add because only the zone packet carries it: a hotkey
+ * spawn, a plugin's pile and every pre-ownership revision leave the stack on
+ * World_ObjStackAdd's "the server never said" defaults. The two clocks are
+ * DEADLINES in client-clock units, or -1; see entity_objstack.h.
+ */
+void
+World_ObjStackSetOwnership(
+    struct World* world,
+    int idx,
+    int public_clock,
+    int despawn_clock,
+    int owner,
+    int never_becomes_public);
+
 /** Find a stack by tile + obj id (obj_id -1 = any). Returns pool idx or -1. */
 int
 World_ObjStackFind(

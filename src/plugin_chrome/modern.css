@@ -350,7 +350,7 @@ button { font-weight: 700; }
  * into the 16px space left for it, which clipped the caps to slivers.
  */
 .tpc-button, .tpc-menu {
-  height: 18px; min-height: 18px; border: 0; border-radius: 0;
+  height: 18px; min-height: 18px; border: 0 solid transparent; border-radius: 0;
   /*
    * The middle STOPS under the caps. A cap's cell is 18px but its art carries
    * a transparent bleed margin and two notched corners (measured on the bake:
@@ -360,14 +360,42 @@ button { font-weight: 700; }
    *
    * The inset is 16, the caps' opaque width, NOT their 18px cell: the middle
    * then tucks half a pixel UNDER each cap, which the cap paints over, instead
-   * of stopping half a pixel short of it and leaving a seam. The middle layer
-   * is clipped to the content box that padding leaves; the caps keep the
-   * border box and still reach the edges. Overflow hides a caption too long
-   * for the span, as the native chrome's clip does.
+   * of stopping half a pixel short of it and leaving a seam. Overflow hides a
+   * caption too long for the span, as the native chrome's clip does.
+   *
+   * The inset is a TRANSPARENT BORDER rather than padding, and that is what
+   * frees the padding for the caption nudge below: a border can be excluded
+   * from the middle's positioning area and its clip (`padding-box`) while the
+   * caps keep the whole border box, whereas the old `content-box` clip tied
+   * the middle's TOP edge to the vertical padding as well -- a padding-top
+   * would have sliced a strip of tile out of the middle of the plate.
    */
-  padding: 0 16px;
+  border-left-width: 16px;
+  border-right-width: 16px;
+  /*
+   * Two pixels of it, and they are what centres the caption ON THE PLATE.
+   *
+   * A button centres the LINE BOX, and this face's line box is not centred on
+   * its own ink: p12 claims a 12px ascent for accents nothing here writes,
+   * while a capital is 10 tall and a descender 4 deep. Centred by the metrics
+   * -- baseline at 13 of 18 -- a caption sits 2px under the plate's top edge
+   * and 3.75px over its bottom one, which is the whole of what reads as "not
+   * vertically centred" on so short a plate. Baseline 14 puts the cap block in
+   * the middle of the art's opaque 1..17 band, at the cost of a descender
+   * reaching the bottom edge; the reference's own button is the same shape
+   * with three times the room (interface 182: a 36px plate, b12, valign 1).
+   *
+   * The nudge is 2 and not 1 because a button centres its caption with AUTO
+   * MARGINS, which halve whatever the content box has left over: 2 leaves the
+   * 18px box exactly the 16px line box, nothing to halve, and the baseline is
+   * the padding edge plus the 12px ascent on the nail. A 1 would leave one
+   * pixel to share and put the baseline on a half -- a blurred row of a font
+   * whose whole point is that it lands on the pixel grid.
+   */
+  padding: 2px 0 0;
   overflow: hidden;
-  background-clip: border-box, border-box, content-box;
+  background-origin: border-box, border-box, padding-box;
+  background-clip: border-box, border-box, padding-box;
   /* White on the red plate, red under the cursor: the pair the interfaces
    * give their own red buttons. Not the label orange, and not the accent
    * yellow the flat rows hover to. */
@@ -381,8 +409,19 @@ button { font-weight: 700; }
 }
 .tpc-button:hover, .tpc-menu:hover { color: #f00; color: var(--tpc-button-hover); }
 /* Pressed: the caption shifts one pixel down and right, which is the whole of
- * what makes a press read as a press in the native chrome. */
-.tpc-button:active, .tpc-menu:active { padding: 1px 15px 0 17px; }
+ * what makes a press read as a press in the native chrome. Down is one more of
+ * top padding -- the content box is now SHORTER than the line box, and auto
+ * margins resolve to zero against negative free space rather than halving it,
+ * so the caption sits on the padding edge and the pixel is whole. Right is two
+ * of LEFT padding, which narrows the box the caption is centred in and so
+ * moves its centre one. The border is untouched, so the plate does not move
+ * with the caption.
+ *
+ * `!important` because the runtime writes the resting padding INLINE when a
+ * theme brings button art (skinButton), and an inline declaration outranks an
+ * ordinary rule: without it a themed button -- which is every button on a
+ * client that sent a skin -- would swallow its own press. */
+.tpc-button:active, .tpc-menu:active { padding: 3px 0 0 2px !important; }
 .tpc-button { width: 104px; max-width: 100%; }
 .tpc-menu { width: 104px; max-width: 100%; text-align: left; }
 /* A roster row, as the retained chrome draws one: the name in its own column,

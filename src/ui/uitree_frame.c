@@ -1015,6 +1015,32 @@ UITree_FrameForget(struct UITree* tree)
     tree->frame_layout = NULL;
 }
 
+int
+UITree_FrameSlotsStale(struct UITree* tree)
+{
+    struct UITreeFrameLayout const* fl;
+    struct UITreeFrameLayout* next;
+    int stale;
+
+    assert(tree);
+    fl = tree->frame_layout;
+    if( !fl || !fl->active )
+        return 0;
+
+    UITree_FrameBind(tree);
+    /* Heap rather than stack: the table carries the hidden and stretched
+     * lists too, and only the slot half is compared. */
+    next = calloc(1, sizeof(*next));
+    assert(next);
+    frame_collect_slots(tree, next);
+    stale = memcmp(next->slot_node, fl->slot_node, sizeof(next->slot_node)) != 0 ||
+            memcmp(next->slot_incarnation, fl->slot_incarnation, sizeof(next->slot_incarnation)) != 0 ||
+            memcmp(next->slot_member, fl->slot_member, sizeof(next->slot_member)) != 0 ||
+            memcmp(next->slot_node_count, fl->slot_node_count, sizeof(next->slot_node_count)) != 0;
+    free(next);
+    return stale;
+}
+
 void
 UITree_FrameSetBinder(
     struct UITree* tree,

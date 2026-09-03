@@ -237,7 +237,8 @@ int main(void)
     {
         int const before = sent_count;
         cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
-        cmd.value = 1; /* restates a new page */
+        cmd.value = 1;      /* restates a new page... */
+        cmd.serial = 13;    /* ...and this is which one */
         exec.apply(exec.user, &cmd);
         cmd = command(TORIRS_CHROME_CMD_PANEL_OPEN, 4, -1);
         snprintf(cmd.text, sizeof(cmd.text), "Ground Markers settings");
@@ -251,10 +252,35 @@ int main(void)
         exec.apply(exec.user, &cmd);
 
         CHECK(sent_count == before + 2);
-        CHECK(strstr(sent[before], "\"type\":\"page.close\"") != NULL);
-        CHECK(strstr(sent[before + 1], "\"type\":\"page.snapshot\"") != NULL);
-        CHECK(strstr(sent[before + 1], "\"panel\":4") != NULL);
-        CHECK(strstr(sent[before + 1], "\"s\":483") != NULL);
+        /* The close names the page being DISCARDED... */
+        CHECK(strstr(sent[before], "\"type\":\"page.close\"") != NULL &&
+              strstr(sent[before], "\"pageGeneration\":12") != NULL);
+        /* ...and the snapshot names the one REPLACING it. Stamping the
+         * snapshot with the discarded page's identity is what made the rail's
+         * later arrival read as another change and close it again. */
+        CHECK(strstr(sent[before + 1], "\"type\":\"page.snapshot\"") != NULL &&
+              strstr(sent[before + 1], "\"pageGeneration\":13") != NULL &&
+              strstr(sent[before + 1], "\"panel\":4") != NULL &&
+              strstr(sent[before + 1], "\"s\":483") != NULL);
+    }
+
+    /*
+     * The rail catching up must be a NO-OP.
+     *
+     * It arrives a frame later carrying the same generation the page stream
+     * already stated. An executor that learned the identity only from here
+     * would see a generation it had never been told about, conclude the page
+     * had changed again, and close the snapshot it had just mounted -- leaving
+     * a blank pane with nothing following it, because the application's shadow
+     * is by then in agreement with the model and emits nothing more.
+     */
+    {
+        int const before = sent_count;
+        rail.page_generation = 13;
+        exec.rail_sync(exec.user, &rail);
+        CHECK(sent_count == before + 1);
+        CHECK(strstr(sent[before], "\"type\":\"rail.snapshot\"") != NULL);
+        CHECK(strstr(sent[before], "\"type\":\"page.close\"") == NULL);
     }
 
     /* And an ordinary edit after it is a PATCH again, or every keystroke in a

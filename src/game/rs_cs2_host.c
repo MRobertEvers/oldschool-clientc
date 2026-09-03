@@ -1,6 +1,7 @@
 #include "game/rs_cs2_host.h"
 
 #include "game/rs_chat.h"
+#include "game/rs_cs2_dispatch.h"
 #include "game/rs_loot_store.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_social.h"
@@ -17,6 +18,7 @@
 #include "game/rs_worldmap.h"
 #include "inv/inv_manager.h"
 #include "perf/torirs_perf.h"
+#include "input/torirs_keymap.h"
 #include "revconfig/revconfig_refs.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
@@ -28,6 +30,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -990,6 +993,18 @@ RS_CS2Host_Init(
     host->script_settings_colour_get = cs2_host_ref(refs, "script", "settings_colour_get");
     host->settings_colour_count = 0;
     host->settings_colour_pending = false;
+    /* The number-input rows' twin pair. */
+    host->script_settings_number_click = cs2_host_ref(refs, "script", "settings_number_click");
+    host->script_settings_number_get = cs2_host_ref(refs, "script", "settings_number_get");
+    host->settings_number_count = 0;
+    host->settings_number_pending = false;
+    /* The ground-items overlay, and the two varbits that name its carriers. */
+    host->script_ground_items_overlay = cs2_host_ref(refs, "script", "ground_items_overlay");
+    host->varbit_ground_items_enabled = cs2_host_ref(refs, "varbit", "ground_items_enabled");
+    host->varbit_ground_items_modifier_key =
+        cs2_host_ref(refs, "varbit", "ground_items_modifier_key");
+    memset(&host->active_obj, 0, sizeof(host->active_obj));
+    host->active_obj_valid = false;
     RS_HighlightReset(&host->highlight);
     RS_ClientOpReset(&host->clientop);
     host->bridge = NULL;
@@ -1365,42 +1380,53 @@ RS_CS2Host_SettingsColourVarp(
     return -1;
 }
 
-void
-RS_CS2Host_ScriptStarted(
+/*
+ * The struct behind a settings row whose op script just started, or NULL.
+ *
+ * The two op scripts this file claims -- the colour swatch's and the number
+ * field's -- have the identical signature `(struct, int)`, the identical first
+ * statement (`~settings_op_checker`, which is the row's own enabled gate) and
+ * the identical reason for being claimed: their whole body is that gate,
+ * because the reference opens an editor of its own from here. So the frame
+ * check is one function, and the two callers differ only in what they build
+ * out of the struct.
+ */
+static struct ToriRS_Struct*
+rs_cs2_settings_row_struct(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    int component_id)
+    int want_script_id,
+    char const* what)
 {
     struct CS2VM2_Frame* frame;
     struct CacheProvider* provider;
     struct ToriRS_Struct* setting;
-    struct RS_CS2SettingsColourRequest* req;
-    char const* label = NULL;
     int struct_id;
-    int value;
 
     assert(host);
     assert(thread);
-    if( host->script_settings_colour_click <= 0 || thread->frame_sp <= 0 )
-        return;
+    assert(what);
+    /* An id of 0 is the feature switched off (an undeclared `[script:...]`),
+     * and an empty frame stack is a VM that could not push one. */
+    if( want_script_id <= 0 || thread->frame_sp <= 0 )
+        return NULL;
     frame = thread->frames[thread->frame_sp - 1];
     if( !frame || !frame->script )
-        return;
-    if( frame->script->script_id != host->script_settings_colour_click )
-        return;
-    /* `settings_colour_input_click(struct, int)`. A frame with the wrong arity
-     * is not this script however its id reads, and int_locals[1] on a
-     * one-parameter frame is whatever was left in the slot. */
+        return NULL;
+    if( frame->script->script_id != want_script_id )
+        return NULL;
+    /* A frame with the wrong arity is not this script however its id reads,
+     * and int_locals[1] on a one-parameter frame is whatever was left in the
+     * slot. */
     if( frame->script->int_argument_count < 2 )
-        return;
-
+        return NULL;
     /* The row's own gate, and the reason the script's first statement is
      * `if (~settings_op_checker($struct, $int) = 0) return`: a row blocked by
-     * a requirement has already said so with a chat message, and opening a
-     * picker over the top of that would be this client disagreeing with the
+     * a requirement has already said so with a chat message, and opening an
+     * editor over the top of that would be this client disagreeing with the
      * cache about whether the row can be used. */
     if( frame->int_locals[1] == 0 )
-        return;
+        return NULL;
 
     struct_id = frame->int_locals[0];
     provider = rs_cs2_provider(host);
@@ -1410,9 +1436,88 @@ RS_CS2Host_ScriptStarted(
         /* Never awaited, unlike STRUCT_PARAM's own handler: the panel read this
          * struct's title and description out of the cache to draw the row that
          * was just clicked, so a miss here is not a cold cache. */
-        TORIRS_LOG("settings: colour row struct %d is not loaded\n", struct_id);
+        TORIRS_LOG("settings: %s row struct %d is not loaded\n", what, struct_id);
+        return NULL;
+    }
+    return setting;
+}
+
+/* The number-input half of RS_CS2Host_ScriptStarted, split out so that neither
+ * row kind's build is buried inside the other's. */
+static void
+rs_cs2_settings_number_started(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    int component_id)
+{
+    struct ToriRS_Struct* setting;
+    struct RS_CS2SettingsNumberRequest* req;
+    char const* text = NULL;
+
+    setting = rs_cs2_settings_row_struct(
+        host, thread, host->script_settings_number_click, "number");
+    if( !setting )
+        return;
+
+    req = &host->settings_number_request;
+    memset(req, 0, sizeof(*req));
+    req->component_id = component_id;
+    req->varp_id = -1;
+    if( !rs_cs2_struct_param_lookup(
+            setting, RS_CS2_PARAM_SETTING_ID, NULL, &req->setting_id, NULL) )
+    {
+        TORIRS_LOG("settings: number row struct carries no setting id\n");
         return;
     }
+    if( rs_cs2_struct_param_lookup(setting, RS_CS2_PARAM_SETTING_LABEL, NULL, NULL, &text) &&
+        text )
+        snprintf(req->label, sizeof(req->label), "%s", text);
+    text = NULL;
+    if( rs_cs2_struct_param_lookup(
+            setting, RS_CS2_PARAM_SETTING_NUMBER_SUFFIX, NULL, NULL, &text) &&
+        text )
+        snprintf(req->suffix, sizeof(req->suffix), "%s", text);
+    text = NULL;
+    if( rs_cs2_struct_param_lookup(
+            setting, RS_CS2_PARAM_SETTING_NUMBER_ZERO, NULL, NULL, &text) &&
+        text )
+        snprintf(req->zero_label, sizeof(req->zero_label), "%s", text);
+
+    req->varp_id = RS_CS2Host_SettingsNumberVarp(host, req->setting_id);
+    req->value =
+        req->varp_id >= 0 && host->varps ? VarPManager_GetVarp(host->varps, req->varp_id) : 0;
+
+    if( torirs_cc_debug() )
+        TORIRS_LOG("SETTINGS_NUMBER click setting=%d varp=%d value=%d com=%d \"%s\"\n",
+            req->setting_id,
+            req->varp_id,
+            req->value,
+            req->component_id,
+            req->label);
+
+    host->settings_number_pending = true;
+}
+
+void
+RS_CS2Host_ScriptStarted(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    int component_id)
+{
+    struct ToriRS_Struct* setting;
+    struct RS_CS2SettingsColourRequest* req;
+    char const* label = NULL;
+    int value;
+
+    assert(host);
+    assert(thread);
+
+    rs_cs2_settings_number_started(host, thread, component_id);
+
+    setting = rs_cs2_settings_row_struct(
+        host, thread, host->script_settings_colour_click, "colour");
+    if( !setting )
+        return;
 
     req = &host->settings_colour_request;
     memset(req, 0, sizeof(*req));
@@ -1420,7 +1525,7 @@ RS_CS2Host_ScriptStarted(
     if( !rs_cs2_struct_param_lookup(
             setting, RS_CS2_PARAM_SETTING_ID, NULL, &req->setting_id, NULL) )
     {
-        TORIRS_LOG("settings: colour row struct %d carries no setting id\n", struct_id);
+        TORIRS_LOG("settings: colour row struct carries no setting id\n");
         return;
     }
     (void)rs_cs2_struct_param_lookup(
@@ -1465,6 +1570,34 @@ RS_CS2Host_TakeSettingsColourRequest(
     assert(out);
     *out = host->settings_colour_request;
     host->settings_colour_pending = false;
+    return true;
+}
+
+int
+RS_CS2Host_SettingsNumberVarp(
+    struct RS_CS2Host const* host,
+    int setting_id)
+{
+    assert(host);
+    for( int i = 0; i < host->settings_number_count; i++ )
+    {
+        if( host->settings_number_setting[i] == setting_id )
+            return host->settings_number_varp[i];
+    }
+    return -1;
+}
+
+bool
+RS_CS2Host_TakeSettingsNumberRequest(
+    struct RS_CS2Host* host,
+    struct RS_CS2SettingsNumberRequest* out)
+{
+    assert(host);
+    if( !host->settings_number_pending )
+        return false;
+    assert(out);
+    *out = host->settings_number_request;
+    host->settings_number_pending = false;
     return true;
 }
 
@@ -1903,6 +2036,214 @@ RS_CS2Host_TakeTriggerOpLocal(
     return true;
 }
 
+/* =========================================================================
+ * IF3 text-entry fields (component type 12)
+ *
+ * See the header for the split: the node and the caret position live on the
+ * tree, the measuring and the hook dispatch live here because only this side
+ * holds the font provider and the runner.
+ * ========================================================================= */
+
+/* Would `text` still fit the field's line? The cap is the wrapping width the
+ * script set (`cc_input_setlinewrappingwidth`), or the node's own resolved
+ * width when it set none.
+ *
+ * Measured with the same markup-aware walk PARAWIDTH uses, and for the same
+ * reason: it is the width the renderer will DRAW. A name pasted with a colour
+ * tag would otherwise be refused for glyphs that never appear. */
+static int
+rs_cs2_input_fits(
+    struct RS_CS2Host* host,
+    struct UITreeComponent const* node,
+    char const* text)
+{
+    struct ToriRS_Font* font;
+    int limit;
+
+    assert(host);
+    assert(node);
+    assert(text);
+    font = rs_cs2_provider(host)
+               ? CacheProvider_FontGet(rs_cs2_provider(host), node->u.rs_text.font_id)
+               : NULL;
+    /* No font yet means no measurement, and a field that refuses every key
+     * until its font loads is worse than one that accepts a line slightly too
+     * long for a frame. Fonts are resident by the time a panel is clickable. */
+    if( !font )
+        return 1;
+    limit = node->u.rs_text.input_wrap_width;
+    if( limit <= 0 )
+        UITree_LayoutGetBounds(&node->position, NULL, NULL, &limit, NULL);
+    if( limit <= 0 )
+        return 1;
+    return rs_cs2_measure_span(font, text, (int)strlen(text)) <= limit;
+}
+
+/* The focused field's node, or NULL. */
+static struct UITreeComponent*
+rs_cs2_input_focused_node(struct RS_CS2Host* host)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int const com_id = UITree_InputFocusId(tree);
+    int32_t idx;
+
+    if( com_id < 0 )
+        return NULL;
+    idx = UITree_FindByComponentId(tree, com_id);
+    if( idx < 0 )
+        return NULL;
+    return &tree->components[idx];
+}
+
+/* Run one of the field's own hooks. A copy first, because the script may
+ * rebuild the very component the slot lives in -- the hiscores lookup deletes
+ * and re-creates the search box from inside `torirs_hiscores_from_text`. */
+static void
+rs_cs2_input_dispatch(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int com_id,
+    size_t slot_offset)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int32_t const idx = UITree_FindByComponentId(tree, com_id);
+    struct UITreeRuntimeScriptHook const* hook;
+    struct UITreeRuntimeScriptHook copy;
+
+    if( idx < 0 )
+        return;
+    hook = (struct UITreeRuntimeScriptHook const*)((char const*)UITree_Hooks(
+               &tree->components[idx]) + slot_offset);
+    if( !UITree_HookIsSet(hook) )
+        return;
+    UITree_HookInitCopy(&copy, hook);
+    RS_CS2_DispatchHook(host, runner, com_id, &copy);
+    UITree_HookClear(&copy);
+}
+
+int
+RS_CS2_InputFocusId(struct RS_CS2Host* host)
+{
+    assert(host);
+    return UITree_InputFocusId(rs_cs2_tree(host));
+}
+
+void
+RS_CS2_InputSetFocus(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int com_id)
+{
+    int lost;
+
+    assert(host);
+    assert(runner);
+    lost = UITree_InputSetFocusId(rs_cs2_tree(host), com_id);
+    if( lost >= 0 )
+        rs_cs2_input_dispatch(
+            host, runner, lost, offsetof(struct UITreeRuntimeHooks, on_input_focus_changed));
+}
+
+int
+RS_CS2_InputKey(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int key_typed,
+    int key_pressed)
+{
+    struct UITreeComponent* node;
+    struct UITree* tree;
+    char const* text;
+    char edited[UITREE_INPUT_TEXT_MAX];
+    int caret;
+    int length;
+    int com_id;
+
+    assert(host);
+    assert(runner);
+    node = rs_cs2_input_focused_node(host);
+    if( !node )
+        return 0;
+    tree = rs_cs2_tree(host);
+    com_id = node->component_id;
+    text = node->u.rs_text.text ? node->u.rs_text.text : "";
+    length = (int)strlen(text);
+    caret = node->u.rs_text.caret;
+    if( caret < 0 || caret > length )
+        caret = length;
+
+    /* Enter: release the caret FIRST, then submit. That order is the cache's
+     * own requirement rather than a preference -- `torirs_hiscores_input_guard`
+     * (7526) opens with `if (cc_input_getfocus = 1) { return; }`, so a submit
+     * dispatched while the field still held focus would do nothing at all. The
+     * release also fires `on_input_focus_changed`, which is what runs the
+     * lookup. */
+    if( key_typed == TORIRS_OSRSKEY_ENTER )
+    {
+        RS_CS2_InputSetFocus(host, runner, -1);
+        rs_cs2_input_dispatch(
+            host, runner, com_id, offsetof(struct UITreeRuntimeHooks, on_input_submit));
+        return 1;
+    }
+    /* Escape abandons the edit. It still counts as a focus change -- the field
+     * is no longer being typed into and the panel has to know -- and the cache
+     * registers no abort handler anywhere for the "throw the text away"
+     * reading to hang off. */
+    if( key_typed == TORIRS_OSRSKEY_ESCAPE )
+    {
+        RS_CS2_InputSetFocus(host, runner, -1);
+        return 1;
+    }
+    if( key_typed == TORIRS_OSRSKEY_LEFT )
+    {
+        if( caret > 0 )
+            node->u.rs_text.caret = caret - 1;
+        UITree_MarkNodeDirty(tree, UITree_FindByComponentId(tree, com_id));
+        return 1;
+    }
+    if( key_typed == TORIRS_OSRSKEY_RIGHT )
+    {
+        if( caret < length )
+            node->u.rs_text.caret = caret + 1;
+        UITree_MarkNodeDirty(tree, UITree_FindByComponentId(tree, com_id));
+        return 1;
+    }
+
+    if( key_typed == TORIRS_OSRSKEY_BACKSPACE || key_typed == TORIRS_OSRSKEY_DELETE )
+    {
+        int const cut = key_typed == TORIRS_OSRSKEY_BACKSPACE ? caret - 1 : caret;
+        if( cut < 0 || cut >= length )
+            return 1;
+        memcpy(edited, text, (size_t)cut);
+        memcpy(edited + cut, text + cut + 1, (size_t)(length - cut - 1));
+        edited[length - 1] = '\0';
+        node->u.rs_text.caret = cut;
+    }
+    else if( key_typed < 0 && key_pressed >= 32 && key_pressed < 127 )
+    {
+        if( length + 1 >= (int)sizeof(edited) )
+            return 1;
+        memcpy(edited, text, (size_t)caret);
+        edited[caret] = (char)key_pressed;
+        memcpy(edited + caret + 1, text + caret, (size_t)(length - caret));
+        edited[length + 1] = '\0';
+        if( !rs_cs2_input_fits(host, node, edited) )
+            return 1;
+        node->u.rs_text.caret = caret + 1;
+    }
+    else
+    {
+        /* Consumed and ignored: a modifier, an F-key, an arrow this field does
+         * not move for. See the header for why "ignored" still means consumed. */
+        return 1;
+    }
+
+    UITree_SetTextAt(tree, UITree_FindByComponentId(tree, com_id), edited);
+    rs_cs2_input_dispatch(
+        host, runner, com_id, offsetof(struct UITreeRuntimeHooks, on_input_update));
+    return 1;
+}
+
 void
 RS_CS2Host_Free(struct RS_CS2Host* host)
 {
@@ -2205,6 +2546,57 @@ rs_cs2_settings_note_colour_varp(
     host->settings_colour_varp[i] = varp_id;
 }
 
+/* The number-input twin of rs_cs2_settings_note_colour_varp, watching
+ * `settings_get_number_input` instead. Kept as its own function rather than a
+ * parameterised one: the two tables are different sizes and the shared version
+ * would take four arguments to say which, for no reader's benefit. */
+static void
+rs_cs2_settings_note_number_varp(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int varp_id)
+{
+    struct CS2VM2_Frame* frame;
+    int setting_id;
+    int i;
+
+    assert(host);
+    assert(vm);
+    if( host->script_settings_number_get <= 0 || vm->frame_sp <= 0 )
+        return;
+    frame = vm->frames[vm->frame_sp - 1];
+    if( !frame || !frame->script )
+        return;
+    if( frame->script->script_id != host->script_settings_number_get )
+        return;
+    if( frame->script->int_argument_count < 1 )
+        return;
+
+    setting_id = frame->int_locals[0];
+    for( i = 0; i < host->settings_number_count; i++ )
+    {
+        if( host->settings_number_setting[i] != setting_id )
+            continue;
+        host->settings_number_varp[i] = varp_id;
+        return;
+    }
+    if( host->settings_number_count >= RS_CS2_HOST_SETTINGS_NUMBERS_MAX )
+    {
+        static int reported = 0;
+        if( !reported )
+        {
+            reported = 1;
+            TORIRS_ERR("settings: number-row table full at %d; setting %d cannot be typed\n",
+                RS_CS2_HOST_SETTINGS_NUMBERS_MAX,
+                setting_id);
+        }
+        return;
+    }
+    i = host->settings_number_count++;
+    host->settings_number_setting[i] = setting_id;
+    host->settings_number_varp[i] = varp_id;
+}
+
 static int
 exec_vars_read_varp(
     struct RS_CS2Host* host,
@@ -2213,6 +2605,7 @@ exec_vars_read_varp(
 {
     int value = 0;
     rs_cs2_settings_note_colour_varp(host, thread, varp_id);
+    rs_cs2_settings_note_number_varp(host, thread, varp_id);
     if( host->varps )
         value = VarPManager_GetVarp(host->varps, varp_id);
     return CS2VM2_PushInt(thread, value);
@@ -6209,6 +6602,12 @@ rs_cs2_runtime_hook_slot(
         return &hooks->on_key_down;
     case CS2VM_HOST_REQUEST_CC_SETONCLANSETTINGS:
         return &hooks->on_key_up;
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETONSUBMIT:
+        return &hooks->on_input_submit;
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETONUPDATE:
+        return &hooks->on_input_update;
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETONFOCUSCHANGED:
+        return &hooks->on_input_focus_changed;
     case CS2VM_HOST_REQUEST_IF_SETONCLICK:
         return &hooks->on_click;
     case CS2VM_HOST_REQUEST_IF_SETONHOLD:
@@ -7105,6 +7504,126 @@ social_queue(
     if( name )
         snprintf(send.name, sizeof(send.name), "%s", name);
     rs_cs2_social_send_push(host, &send);
+}
+
+/* =========================================================================
+ * Ground items -- the pile on a tile, and the entry a script selected in it
+ * ========================================================================= */
+
+/*
+ * A deadline in client-clock units, as the GAME ticks a cache script counts in.
+ *
+ * The reference is `max(0, obj->cycle - client->cycle)` over a counter that is
+ * already in game ticks. This client's clock runs at the LOGIC rate, so the
+ * conversion happens here rather than being spread over the ops -- and -1,
+ * "the server never said", is not a deadline that has passed: it is a duration
+ * there is no answer for, and zero is the only honest answer for that.
+ */
+static int
+rs_cs2_ground_obj_ticks_left(struct RS_CS2Host const* host, int deadline_clock)
+{
+    int left;
+
+    assert(host);
+    if( deadline_clock < 0 )
+        return 0;
+    left = deadline_clock - host->client_clock;
+    if( left <= 0 )
+        return 0;
+    return left / RS_CS2_HOST_CLOCKS_PER_TICK;
+}
+
+/* The pile on `coord`, or an empty one when this host has no world. The
+ * callback's own contract is the reference's: the return is the entry count
+ * however the index reads, and `*out` is touched only for an index inside it. */
+static int
+rs_cs2_ground_objs_on_coord(
+    struct RS_CS2Host* host,
+    int coord,
+    int index,
+    struct RS_CS2GroundObj* out)
+{
+    assert(host);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->obj_id = -1;
+    out->public_clock = -1;
+    out->despawn_clock = -1;
+    if( !host->objs_on_coord )
+        return 0;
+    return host->objs_on_coord(host->world_user, coord, index, out);
+}
+
+static int
+exec_ground_obj(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    int coord,
+    int index)
+{
+    struct RS_CS2GroundObj entry;
+    int count;
+
+    assert(host);
+    assert(vm);
+
+    switch( opcode )
+    {
+    case CS2_OP_OBJSTACK_COUNT:
+        return CS2VM2_PushInt(vm, rs_cs2_ground_objs_on_coord(host, coord, -1, &entry));
+
+    /* -1 for an index off the end, which is the reference's own answer and is
+     * what the overlay script's `if ($int12 ! null)` reads for. */
+    case CS2_OP_OBJSTACK_ID:
+        count = rs_cs2_ground_objs_on_coord(host, coord, index, &entry);
+        return CS2VM2_PushInt(vm, index >= 0 && index < count ? entry.obj_id : -1);
+
+    case CS2_OP_OBJSTACK_QUANTITY:
+        count = rs_cs2_ground_objs_on_coord(host, coord, index, &entry);
+        return CS2VM2_PushInt(vm, index >= 0 && index < count ? entry.count : -1);
+
+    /* The selector. A hit makes the entry active for the four getters below
+     * and answers 1; a miss leaves the previous selection alone -- the
+     * reference does the same, and every caller tests the answer before
+     * reading anything. */
+    case CS2_OP_OBJ_FIND:
+        count = rs_cs2_ground_objs_on_coord(host, coord, index, &entry);
+        if( index < 0 || index >= count )
+            return CS2VM2_PushInt(vm, 0);
+        host->active_obj = entry;
+        host->active_obj_valid = true;
+        return CS2VM2_PushInt(vm, 1);
+
+    case CS2_OP_OBJ_DESPAWNTIME:
+        if( !host->active_obj_valid )
+            return CS2VM2_PushInt(vm, -1);
+        return CS2VM2_PushInt(
+            vm, rs_cs2_ground_obj_ticks_left(host, host->active_obj.despawn_clock));
+
+    case CS2_OP_OBJ_VISIBLETIME:
+        if( !host->active_obj_valid )
+            return CS2VM2_PushInt(vm, -1);
+        return CS2VM2_PushInt(
+            vm, rs_cs2_ground_obj_ticks_left(host, host->active_obj.public_clock));
+
+    /* "Everyone can see this now." A pile flagged neverBecomesPublic answers no
+     * however far its clock has run -- that flag is the whole of what it says. */
+    case CS2_OP_OBJ_ISPUBLIC:
+        if( !host->active_obj_valid )
+            return CS2VM2_PushInt(vm, -1);
+        if( host->active_obj.never_becomes_public )
+            return CS2VM2_PushInt(vm, 0);
+        return CS2VM2_PushInt(
+            vm, rs_cs2_ground_obj_ticks_left(host, host->active_obj.public_clock) <= 0 ? 1 : 0);
+
+    case CS2_OP_OBJ_OWNER:
+        return CS2VM2_PushInt(vm, host->active_obj_valid ? host->active_obj.owner : -1);
+
+    default:
+        assert(0 && "unexpected ground-obj opcode");
+        return CS2VM_EXECNO_ERROR;
+    }
 }
 
 /* =========================================================================
@@ -8506,6 +9025,14 @@ rs_cs2_host_exec_dispatch(
 #define RS_CS2_MINIMENU_CASE(opname)                                            \
     case CS2VM_HOST_REQUEST_##opname:                                           \
         return exec_minimenu(host, vm, request->u.opname.opcode)
+#define RS_CS2_GROUND_OBJ_CASE(opname)                                          \
+    case CS2VM_HOST_REQUEST_##opname:                                           \
+        return exec_ground_obj(                                                 \
+            host,                                                               \
+            vm,                                                                 \
+            request->u.opname.opcode,                                           \
+            request->u.opname.coord,                                            \
+            request->u.opname.index)
 #define RS_CS2_CLIENT_OPTION_CASE(opname)                                      \
     case CS2VM_HOST_REQUEST_##opname:                                          \
         return exec_client_option(                                             \
@@ -9032,7 +9559,20 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETWRAPMODE);
 
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETLINEWRAPPINGWIDTH);
+    /* The one input field with a behaviour behind it: the typing cap. Every
+     * type-12 field in the cache sets it from its own width
+     * (`cc_input_setlinewrappingwidth(cc_getwidth - 2)`), and a keystroke that
+     * would push the line past it is refused -- which is what stops a name from
+     * running out of the search box. The rest of this group is presentation
+     * this client does not model: selection colours (no selection), cursor
+     * colour/size/offset (the caret is drawn as a glyph after the text), submit
+     * and accept modes, and the char filter. */
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETLINEWRAPPINGWIDTH:
+        node = rs_cs2_node(host, request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.component_id);
+        if( node && node->type == UIELEM_RS_TEXT )
+            node->u.rs_text.input_wrap_width =
+                request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.value;
+        return CS2VM_EXECNO_OK;
 
         RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETSELECTBGCOLOUR);
 
@@ -9193,13 +9733,15 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_UNMODELED_EVENT_CASE(CC_SETONMAPPOST);
 
-        RS_CS2_UNMODELED_EVENT_CASE(CC_INPUT_SETONSUBMIT);
+        RS_CS2_CC_EVENT_CASE(CC_INPUT_SETONSUBMIT);
 
+    /* Nothing in cache.osrs239 registers an abort handler, so there is no slot
+     * for it to land in -- see `on_input_submit` in ui/uitree_hook.h. */
         RS_CS2_UNMODELED_EVENT_CASE(CC_INPUT_SETONABORT);
 
-        RS_CS2_UNMODELED_EVENT_CASE(CC_INPUT_SETONFOCUSCHANGED);
+        RS_CS2_CC_EVENT_CASE(CC_INPUT_SETONFOCUSCHANGED);
 
-        RS_CS2_UNMODELED_EVENT_CASE(CC_INPUT_SETONUPDATE);
+        RS_CS2_CC_EVENT_CASE(CC_INPUT_SETONUPDATE);
 
     case CS2VM_HOST_REQUEST_CC_GETX:
         return CS2VM2_PushInt(
@@ -9226,6 +9768,14 @@ rs_cs2_host_exec_dispatch(
             vm,
             rs_cs2_declared_layer_component_id(
                 tree, request->u.CC_GETLAYER.component_id));
+
+    case CS2VM_HOST_REQUEST_CC_INPUT_GETFOCUS:
+        return CS2VM2_PushInt(
+            vm,
+            tree && UITree_InputFocusId(tree) ==
+                        request->u.CC_INPUT_GETFOCUS.component_id
+                ? 1
+                : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETSCROLLX:
         node = rs_cs2_node(host, request->u.CC_GETSCROLLX.component_id);
@@ -10412,6 +10962,16 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_CLIENTOP_CONTEXT_CASE(_6853);
 
+        RS_CS2_GROUND_OBJ_CASE(OBJ_FIND);
+
+        RS_CS2_GROUND_OBJ_CASE(OBJ_DESPAWNTIME);
+
+        RS_CS2_GROUND_OBJ_CASE(OBJ_VISIBLETIME);
+
+        RS_CS2_GROUND_OBJ_CASE(OBJ_ISPUBLIC);
+
+        RS_CS2_GROUND_OBJ_CASE(OBJ_OWNER);
+
         RS_CS2_CLIENTOP_CONTEXT_CASE(_6900);
 
         RS_CS2_ACTIVE_PLAYER_CASE(ACTIVEPLAYER_SETLOCAL);
@@ -10539,6 +11099,12 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_MINIMENU_CASE(MINIMENU_FINDCOMPONENT);
 
         RS_CS2_MINIMENU_CASE(MINIMENU_NUMOPS);
+
+        RS_CS2_GROUND_OBJ_CASE(OBJSTACK_COUNT);
+
+        RS_CS2_GROUND_OBJ_CASE(OBJSTACK_ID);
+
+        RS_CS2_GROUND_OBJ_CASE(OBJSTACK_QUANTITY);
 
         RS_CS2_OVERLAY_CASE(OVERLAY_NPC_CREATE);
 

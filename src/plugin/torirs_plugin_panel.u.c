@@ -181,7 +181,8 @@ app_plugin_page_select(struct App* app, int page, int view)
      * a gesture a person just made.
      */
     if( app->plugin_exec.live )
-        ToriRSChromeSync_Invalidate(&app->plugin_exec);
+        ToriRSChromeSync_Invalidate(
+            &app->plugin_exec, PluginHost_PanelSelectionGeneration(app->plugins));
 
     g_plugin_page = page;
     ToriRSChromeShell_Select(
@@ -3578,6 +3579,81 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     /* The button is kept alive whether or not the window is open -- it is how
      * the window is OPENED, so it cannot be gated on the window being up. */
     app_plugin_button_sync(app);
+
+    /*
+     * Headless drive: open the window on a named plugin's named FACE.
+     *
+     * `TORIRS_SIM_PLUGIN_PANEL="<tick>,<plugin-name>,<page|settings>;..."`.
+     *
+     * This exists because the bug it was written for -- a page boundary
+     * leaving a blank pane -- is invisible to every unit test in the tree and
+     * was only ever reported from a running client. Switching pages is a
+     * GESTURE, and the state it moves through spans the plugin host, the
+     * retained chrome, the sync shadow and an executor's own page; nothing
+     * below the whole application exercises that path. The hotkey and the rail
+     * both need input this harness cannot deliver, so the drive goes in beside
+     * them and calls exactly what they call.
+     */
+    {
+        static int sim_panel_init = 0;
+        static char const* sim_panel_cursor = NULL;
+        static long sim_panel_tick = -1;
+        static char sim_panel_name[TORIRS_PLUGIN_NAME_MAX];
+        static int sim_panel_view = APP_PLUGIN_VIEW_PAGE;
+
+        if( !sim_panel_init )
+        {
+            sim_panel_init = 1;
+            sim_panel_cursor = getenv("TORIRS_SIM_PLUGIN_PANEL");
+        }
+        if( sim_panel_tick < 0 && sim_panel_cursor && *sim_panel_cursor )
+        {
+            char* end = NULL;
+            long const at = strtol(sim_panel_cursor, &end, 0);
+            if( end && *end == ',' )
+            {
+                char const* start = end + 1;
+                size_t len = 0;
+                while( start[len] && start[len] != ',' && start[len] != ';' )
+                    len++;
+                if( len >= sizeof(sim_panel_name) )
+                    len = sizeof(sim_panel_name) - 1;
+                memcpy(sim_panel_name, start, len);
+                sim_panel_name[len] = '\0';
+                start += len;
+                sim_panel_view = APP_PLUGIN_VIEW_PAGE;
+                if( *start == ',' )
+                {
+                    start++;
+                    if( strncmp(start, "settings", 8) == 0 )
+                        sim_panel_view = APP_PLUGIN_VIEW_SETTINGS;
+                    while( *start && *start != ';' )
+                        start++;
+                }
+                sim_panel_cursor = *start == ';' ? start + 1 : NULL;
+                sim_panel_tick = at;
+            }
+            else
+                sim_panel_cursor = NULL;
+        }
+        if( sim_panel_tick >= 0 && g_plugin_panel_ticks >= sim_panel_tick )
+        {
+            int const index = PluginHost_IndexOf(app->plugins, sim_panel_name);
+            sim_panel_tick = -1;
+            if( index >= 0 )
+            {
+                fprintf(
+                    stderr, "chrome: sim panel '%s' -> %s (tick %d)\n", sim_panel_name,
+                    sim_panel_view == APP_PLUGIN_VIEW_PAGE ? "page" : "settings",
+                    g_plugin_panel_ticks);
+                app_plugin_page_select(app, index, sim_panel_view);
+                if( !app->plugin_panel_visible )
+                    app_plugin_window_set_open(app, 1);
+            }
+            else
+                fprintf(stderr, "chrome: sim panel: no plugin '%s'\n", sim_panel_name);
+        }
+    }
 
     /* Same suppression as every other chrome toggle: a focused chat line must
      * not flip windows.

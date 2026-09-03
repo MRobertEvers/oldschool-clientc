@@ -158,6 +158,41 @@ something ToriRSServer's server code addresses.
 > longer abort; they report themselves as `cs2-stub` and answer zeros. The
 > conclusion is unchanged and now demonstrated rather than inferred.
 
+### 2.0 The header's two ops ARE the server's (2026-09-02)
+
+The headline above is about the panel's **data**, and it stands. It is not about
+the panel's **header**, and this section did not look there: `894:11`
+`settings_open` (the 22x22 gear) and `894:18` `hiscores_lookup_toggle` (the
+"Enable/Disable in-world lookup" stone) are both authored `clickmask=2 op1=…`
+in `interfaces/hiscores.if`, which arms op1 for the server from the interface
+record itself — the same shape §3.3 found on `loottools:settings_button` and
+read correctly there. Their only client-side hooks are an `opsound` apiece.
+
+Measured before the fix (headless, `TORIRSSERVER_VERBOSE`, `::hiscores` then a
+click on each):
+
+    torirsserver: <- IF_BUTTON1 894:11 sub=-1
+    torirsserver: no trigger for [if_button1,hiscores:settings_open] …
+    torirsserver: <- IF_BUTTON1 894:18 sub=-1
+    torirsserver: no trigger for [if_button1,hiscores:hiscores_lookup_toggle] …
+
+Content: `interface_hiscores/scripts/hiscores.rs2` binds both — the gear through
+`~settings_panel_open_tab(^settings_category_popout)` (the Hiscores row is
+struct_1083 on the All Settings **Popout** tab, confirmed by dumping interface
+134's text after the gear opened it), the stone by flipping
+`%popout_hiscores_globalclick_enabled` and pushing scripts 7541 and 7544. Its
+carrier `settings_varp_ehc_4` is declared `transmit=yes scope=perm` in
+`interface_hiscores/configs/hiscores.varp`, without which the server's write
+never reaches the client at all.
+
+**The third control on that header is not a server op and never was.** The name
+box (`894:13`) holds a `cc_create(…, 12, …)` child — the IF3 text-entry widget —
+and this client had no model for type 12: `UITree_CcCreate` mapped it to
+`UIELEM_CC_OBJ`, so it drew nothing, collected no hit and took no keys. That is
+now a real field (`rs_text.input` in `ui/uitree.h`, `RS_CS2_InputKey` in
+`game/rs_cs2_host.c`), which also lights up the bug-report body, the
+loot-tracker ignore prompt and the settings dropdowns' custom-value boxes.
+
 ### 2.1 Server obligations
 
 | requirement | needed? | why |

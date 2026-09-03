@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 /*
  * A plugin gameframe is an EFFECTIVE view over the cache's own component
@@ -1448,10 +1449,159 @@ test_synthetic_press_sees_through_frame_hidden(void)
     UITree_Free(tree);
 }
 
+/*
+ * A cache gameframe names its regions through a BINDER.
+ *
+ * The tree recognises the world, the minimap and the compass by widget type;
+ * the chat container, the side panels and the orb column are plain layers a
+ * binder stamps with a slot tag and a member number before every collection.
+ * Two things are asserted here: that a stamped layer answers the slot lookup
+ * (with its member), and that the widened chrome rule hides a root-group
+ * LAYER only when it is a control or a click-blocker -- a plain container in
+ * the same group, and the stamped surfaces, stay.
+ */
+static int g_binder_calls;
+static int32_t g_binder_chat;
+static int32_t g_binder_side3;
+static int32_t g_binder_orbs;
+
+static void
+stamping_binder(struct UITree* tree, void* user)
+{
+    (void)user;
+    g_binder_calls++;
+    tree->components[g_binder_chat].slot_tag = UITREE_SLOT_CHAT;
+    tree->components[g_binder_side3].slot_tag = UITREE_SLOT_SIDE_MODAL;
+    tree->components[g_binder_side3].frame_member_plus1 = 3 + 1;
+    tree->components[g_binder_orbs].slot_tag = UITREE_SLOT_ORBS;
+}
+
+static void
+test_binder_stamps_cache_regions_and_layer_chrome(void)
+{
+    struct UITree* tree = UITree_New(8);
+    int32_t shell;
+    int32_t root;
+    int32_t chat;
+    int32_t side3;
+    int32_t orbs;
+    int32_t container;
+    int32_t blocker;
+    int32_t control;
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+
+    shell = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    root = UITree_TestPushXy(
+        tree, shell, UIELEM_RS_LAYER, FRAME_ROOT_ID, 0, 0, UITREE_LAYOUT_ROOT_W,
+        UITREE_LAYOUT_ROOT_H);
+    /* A container layer of the toplevel's own with the chat inside it: kept,
+     * both as a container and as an ancestor of a placed surface. */
+    container = UITree_TestPushXy(
+        tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 20, 0, 300, 519, 165);
+    chat = UITree_TestPushXy(
+        tree, container, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 21, 0, 0, 519, 165);
+    side3 = UITree_TestPushXy(
+        tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 22, 547, 205, 190, 261);
+    orbs = UITree_TestPushXy(
+        tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 23, 516, 4, 236, 163);
+    /* A click-blocker and a control, both root-group layers: chrome. */
+    {
+        struct UITreeNodeSpec spec;
+        memset(&spec, 0, sizeof(spec));
+        spec.type = UIELEM_RS_LAYER;
+        spec.component_id = (FRAME_GROUP << 16) | 24;
+        spec.x = 600;
+        spec.y = 4;
+        spec.width = 100;
+        spec.height = 100;
+        spec.no_click_through = 1;
+        blocker = UITree_Push(tree, root, &spec);
+        memset(&spec, 0, sizeof(spec));
+        spec.type = UIELEM_RS_LAYER;
+        spec.component_id = (FRAME_GROUP << 16) | 25;
+        spec.x = 4;
+        spec.y = 400;
+        spec.width = 40;
+        spec.height = 40;
+        strncpy(spec.menu_options.ops[0], "Toggle", sizeof(spec.menu_options.ops[0]) - 1);
+        control = UITree_Push(tree, root, &spec);
+    }
+    TEST_ASSERT(
+        chat >= 0 && side3 >= 0 && orbs >= 0 && blocker >= 0 && control >= 0,
+        "cache frame fixture with layers builds");
+
+    TEST_ASSERT(
+        UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_CHAT) < 0,
+        "before the binder runs the cache chat layer is not the chat slot");
+
+    g_binder_calls = 0;
+    g_binder_chat = chat;
+    g_binder_side3 = side3;
+    g_binder_orbs = orbs;
+    UITree_FrameSetBinder(tree, stamping_binder, NULL);
+
+    memset(slots, 0, sizeof(slots));
+    slots[UITREE_FRAME_SLOT_CHAT].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_CHAT].all.x = 0;
+    slots[UITREE_FRAME_SLOT_CHAT].all.y = 338;
+    slots[UITREE_FRAME_SLOT_CHAT].all.w = 519;
+    slots[UITREE_FRAME_SLOT_CHAT].all.h = 165;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].placed = 1;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].x = 100;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].y = 100;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].w = 190;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].h = 261;
+    slots[UITREE_FRAME_SLOT_ORBS].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_ORBS].all.x = 700;
+    slots[UITREE_FRAME_SLOT_ORBS].all.y = 10;
+    slots[UITREE_FRAME_SLOT_ORBS].all.w = 207;
+    slots[UITREE_FRAME_SLOT_ORBS].all.h = 197;
+    UITree_FrameApply(tree, slots, FRAME_GROUP);
+
+    TEST_ASSERT(g_binder_calls == 1, "a declaration runs the binder before it collects");
+    TEST_ASSERT(
+        UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_CHAT) == chat,
+        "the stamped layer is the chat slot");
+    TEST_ASSERT(
+        UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_SIDEBAR, 3) == side3,
+        "the stamped side panel answers as member 3");
+    TEST_ASSERT(
+        UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_SIDEBAR, 4) < 0,
+        "and as no other member");
+    TEST_ASSERT(
+        UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_ORBS) == orbs,
+        "the stamped orb block is the orbs slot");
+    TEST_ASSERT(
+        UITree_FrameSlotIndex(&tree->components[side3], UITREE_FRAME_SLOT_SIDEBAR) == 3,
+        "the member number is read off the stamp");
+
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, chat, 0, 338, 519, 165),
+        "the chat container takes the declared canvas box");
+    TEST_ASSERT(
+        effective_box_is(tree, side3, 100, 100, 190, 261),
+        "and the side panel its member box");
+
+    TEST_ASSERT(tree->components[blocker].frame_hidden, "a root-group click-blocker layer is chrome");
+    TEST_ASSERT(tree->components[control].frame_hidden, "a root-group layer with an op is chrome");
+    TEST_ASSERT(
+        !tree->components[container].frame_hidden,
+        "a plain container layer above a placed surface is not");
+    TEST_ASSERT(!tree->components[chat].frame_hidden, "a placed surface is never chrome");
+    TEST_ASSERT(!tree->components[orbs].frame_hidden, "nor is the placed orb block");
+
+    UITree_FrameRelease(tree);
+    TEST_ASSERT(!tree->components[blocker].frame_hidden, "release gives the blocker back");
+    UITree_Free(tree);
+}
+
 void
 test_frame_replacement(void)
 {
     printf("TEST: plugin frame replacement ownership / rebuild stability\n");
+    test_binder_stamps_cache_regions_and_layer_chrome();
 
     test_frame_keeps_native_state_beneath_effective_layout();
     test_frame_reconciles_rebuilt_nodes_before_emit();

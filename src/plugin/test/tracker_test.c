@@ -602,6 +602,17 @@ tick(uint64_t advance_ms)
         panel_build();
 }
 
+/**
+ * Click the box for `row` in the skill strip.
+ *
+ * The strip is ONE control -- 25 skills would not fit in the panel's 48-widget
+ * budget as seven controls each -- so a selection is a coordinate, and the row
+ * pitch is the cache's own 48+2. @see the plugin's file comment.
+ */
+#define TEST_BOX_PITCH 50
+static void
+press_box(int row);
+
 static void
 press(char const* id, int action, int value)
 {
@@ -616,6 +627,83 @@ press(char const* id, int action, int value)
     dispatch(TORIRS_PLUGIN_EV_PANEL_ACTION, &ev);
     if( g_client.rebuild_wanted )
         panel_build();
+}
+
+static void
+press_box(int row)
+{
+    struct ToriRS_PluginEvPanelAction ev;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.id = "boxes";
+    ev.action = TORIRS_PLUGIN_UI_ACTIVATE;
+    ev.value = -1;
+    ev.text = "";
+    ev.x = 10;
+    ev.y = row * TEST_BOX_PITCH + 10;
+    ev.selection_generation = 1;
+    dispatch(TORIRS_PLUGIN_EV_PANEL_ACTION, &ev);
+    if( g_client.rebuild_wanted )
+        panel_build();
+}
+
+/* ---- the loot tracker's band strip ---------------------------------------
+ *
+ * The loot page is one drawing well too, but its bands are VARIABLE height --
+ * an expanded source carries its item grid -- so a test names a y rather than
+ * a row, and the header band is the top 33 of each. @see the plugin's
+ * LT_HEAD_H block.
+ */
+#define TEST_HEAD_H 33
+
+static void
+press_strip(int y)
+{
+    struct ToriRS_PluginEvPanelAction ev;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.id = "strip";
+    ev.action = TORIRS_PLUGIN_UI_ACTIVATE;
+    ev.value = -1;
+    ev.text = "";
+    ev.x = 10;
+    ev.y = y;
+    ev.selection_generation = 1;
+    dispatch(TORIRS_PLUGIN_EV_PANEL_ACTION, &ev);
+    if( g_client.rebuild_wanted )
+        panel_build();
+}
+
+/** Is there a band strip with anything in it? */
+static int
+has_loot(void)
+{
+    struct FakeWidget const* w = fake_widget_find("strip");
+    return w && w->height > TEST_HEAD_H;
+}
+
+/** The source whose detail block is open, or NULL. */
+static char const*
+detail_source(void)
+{
+    struct FakeWidget const* w = fake_widget_find("sec_detail");
+    return w ? w->label : NULL;
+}
+
+/** How many boxes the strip was built for -- its height states it. */
+static int
+box_count(void)
+{
+    struct FakeWidget const* w = fake_widget_find("boxes");
+    return w ? w->height / TEST_BOX_PITCH : 0;
+}
+
+/** The skill whose detail block is open, or NULL. */
+static char const*
+detail_skill(void)
+{
+    struct FakeWidget const* w = fake_widget_find("sec_detail");
+    return w ? w->label : NULL;
 }
 
 /** The text of one page row, or NULL when the page has no such row. */
@@ -673,8 +761,7 @@ test_xp_first_reading_seeds(void)
         row_text("total_xp") && strcmp(row_text("total_xp"), "0") == 0,
         "the first sight of a stat table seeds rather than reporting a gain (got '%s')",
         row_text("total_xp") ? row_text("total_xp") : "(none)");
-    TEST_ASSERT(
-        !fake_widget_find("sk8"), "and no skill has a row until it has been trained");
+    TEST_ASSERT(box_count() == 0, "and no skill has a box until it has been trained");
     TEST_ASSERT(fake_widget_find("empty"), "the empty page says so");
 }
 
@@ -689,7 +776,7 @@ test_xp_gain_makes_a_row(void)
     g_client.xp[SKILL_WOODCUTTING] = 50100;
     tick(600);
 
-    TEST_ASSERT(fake_widget_find("sk8"), "a trained skill gets a row");
+    TEST_ASSERT(box_count() == 1, "a trained skill gets a box (got %d)", box_count());
     TEST_ASSERT(
         row_text("total_xp") && strcmp(row_text("total_xp"), "100") == 0,
         "the session total is the gain (got '%s')",
@@ -736,10 +823,11 @@ test_xp_rate_is_over_training_time(void)
      * PAUSING is what stops the clock, and this is the assertion that says so:
      * ten further idle minutes past a pause move the number not at all.
      */
-    press("sk8", TORIRS_PLUGIN_UI_TOGGLE, 0);
+    press_box(0);
+    press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
     for( int i = 0; i < 600; i++ )
         tick(1000);
-    press("sk8", TORIRS_PLUGIN_UI_TOGGLE, 1);
+    press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
     TEST_ASSERT(
         row_text("total_hr") && strcmp(row_text("total_hr"), "3,272") == 0,
         "but a paused skill's clock does not run (got '%s')",
@@ -761,9 +849,12 @@ test_xp_detail_and_time_to_level(void)
         g_client.xp[SKILL_WOODCUTTING] += 10;
         tick(1000);
     }
-    press("sk8", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press_box(0);
 
-    TEST_ASSERT(fake_widget_find("d_prog"), "the row opens a detail block");
+    TEST_ASSERT(
+        detail_skill() && strcmp(detail_skill(), "Woodcutting") == 0,
+        "clicking a box opens that skill's detail (got '%s')",
+        detail_skill() ? detail_skill() : "(none)");
     TEST_ASSERT(
         row_text("d_left") && strcmp(row_text("d_left"), "3,347") == 0,
         "xp to level is the next threshold minus the xp (got '%s')",
@@ -780,8 +871,8 @@ test_xp_detail_and_time_to_level(void)
         "actions to level rounds up off the mean of the last ten (got '%s')",
         row_text("d_actleft") ? row_text("d_actleft") : "(none)");
 
-    press("d_close", TORIRS_PLUGIN_UI_ACTIVATE, -1);
-    TEST_ASSERT(!fake_widget_find("d_prog"), "and closes again");
+    press_box(0);
+    TEST_ASSERT(!detail_skill(), "and clicking it again closes it");
 }
 
 static void
@@ -799,7 +890,7 @@ test_xp_actions_left_unknown_until_ten(void)
         g_client.xp[SKILL_WOODCUTTING] += 10;
         tick(1000);
     }
-    press("sk8", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press_box(0);
     TEST_ASSERT(
         row_text("d_actleft") && strcmp(row_text("d_actleft"), "\xe2\x80\x94") == 0,
         "nine actions is not a mean, so the row declines to answer (got '%s')",
@@ -817,16 +908,20 @@ test_xp_maxed_progress_reads_full(void)
     tick(20);
     g_client.xp[SKILL_WOODCUTTING] += 100;
     tick(1000);
-    press("sk8", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press_box(0);
 
     /* next_xp is 0 at the top of the client's table: no next level to progress
      * towards, which a meter reads as full rather than as no progress. */
+    /* The bar itself is pixels now; what an assertion can hold is that the
+     * skill has no next threshold to progress towards, which is the same fact
+     * the box draws as a full DONE bar. */
     TEST_ASSERT(
-        fake_widget_find("d_prog") && fake_widget_find("d_prog")->value == 100,
-        "a 99 with no next threshold reads as a full meter");
+        row_text("d_left") && strcmp(row_text("d_left"), "\xe2\x80\x94") == 0,
+        "a 99 has no next threshold to count down to (got '%s')",
+        row_text("d_left") ? row_text("d_left") : "(none)");
     TEST_ASSERT(
         row_text("d_ttl") && strcmp(row_text("d_ttl"), "\xe2\x80\x94") == 0,
-        "and has no time to level");
+        "and no time to level");
 }
 
 static void
@@ -845,8 +940,14 @@ test_xp_hide_maxed(void)
     g_client.xp[SKILL_ATTACK] += 100;
     tick(1000);
 
-    TEST_ASSERT(!fake_widget_find("sk8"), "hide_maxed drops the 99's row");
-    TEST_ASSERT(fake_widget_find("sk0"), "and keeps everything else");
+    TEST_ASSERT(
+        box_count() == 1, "hide_maxed drops the 99's box and keeps the other (got %d)",
+        box_count());
+    press_box(0);
+    TEST_ASSERT(
+        detail_skill() && strcmp(detail_skill(), "Attack") == 0,
+        "and the one left is the skill that is not maxed (got '%s')",
+        detail_skill() ? detail_skill() : "(none)");
 }
 
 static void
@@ -859,20 +960,27 @@ test_xp_pause(void)
     g_client.xp[SKILL_WOODCUTTING] += 600;
     tick(1000);
 
-    /* The switch on the row is the per-skill pause. */
-    press("sk8", TORIRS_PLUGIN_UI_TOGGLE, 0);
+    /* The reference's own per-skill Pause, on the box it acts on. */
+    press_box(0);
     TEST_ASSERT(
-        row_text("sk8") && strstr(row_text("sk8"), "paused"),
-        "the row's switch pauses the skill (got '%s')",
-        row_text("sk8") ? row_text("sk8") : "(none)");
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Pause") == 0,
+        "a running skill offers Pause (got '%s')",
+        row_text("d_pause") ? row_text("d_pause") : "(none)");
+
+    press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    TEST_ASSERT(
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
+        "pressing it pauses the skill and offers the way back (got '%s')",
+        row_text("d_pause") ? row_text("d_pause") : "(none)");
     TEST_ASSERT(
         row_text("total_hr") && strcmp(row_text("total_hr"), "0") == 0,
         "and a paused skill contributes no rate (got '%s')",
         row_text("total_hr") ? row_text("total_hr") : "(none)");
 
-    press("sk8", TORIRS_PLUGIN_UI_TOGGLE, 1);
+    press("d_pause", TORIRS_PLUGIN_UI_ACTIVATE, -1);
     TEST_ASSERT(
-        row_text("sk8") && !strstr(row_text("sk8"), "paused"), "and unpauses again");
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Pause") == 0,
+        "and unpauses again");
 }
 
 static void
@@ -885,8 +993,9 @@ test_xp_auto_pause(void)
     tick(20);
     g_client.xp[SKILL_WOODCUTTING] += 600;
     tick(1000);
+    press_box(0);
     TEST_ASSERT(
-        row_text("sk8") && !strstr(row_text("sk8"), "paused"),
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Pause") == 0,
         "a skill just trained is not paused");
 
     /* Two minutes of nothing. The timer is about xp NOT arriving, which no xp
@@ -894,14 +1003,14 @@ test_xp_auto_pause(void)
     for( int i = 0; i < 121; i++ )
         tick(1000);
     TEST_ASSERT(
-        row_text("sk8") && strstr(row_text("sk8"), "paused"),
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
         "two idle minutes pause it (got '%s')",
-        row_text("sk8") ? row_text("sk8") : "(none)");
+        row_text("d_pause") ? row_text("d_pause") : "(none)");
 
     g_client.xp[SKILL_WOODCUTTING] += 10;
     tick(1000);
     TEST_ASSERT(
-        row_text("sk8") && !strstr(row_text("sk8"), "paused"),
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Pause") == 0,
         "and any gain wakes it back up");
 }
 
@@ -921,9 +1030,11 @@ test_xp_logout_pauses_and_keeps_state(void)
         row_text("total_xp") && strcmp(row_text("total_xp"), "600") == 0,
         "logging out KEEPS the session -- a hop is not a new one (got '%s')",
         row_text("total_xp") ? row_text("total_xp") : "(none)");
+    press_box(0);
     TEST_ASSERT(
-        row_text("sk8") && strstr(row_text("sk8"), "paused"),
-        "and pauses every skill when pause_on_logout is set");
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
+        "and pauses every skill when pause_on_logout is set (got '%s')",
+        row_text("d_pause") ? row_text("d_pause") : "(none)");
 }
 
 static void
@@ -935,10 +1046,10 @@ test_xp_reset(void)
     tick(20);
     g_client.xp[SKILL_WOODCUTTING] += 600;
     tick(1000);
-    TEST_ASSERT(fake_widget_find("sk8"), "trained, so it has a row");
+    TEST_ASSERT(box_count() == 1, "trained, so it has a box");
 
     press("reset_all", TORIRS_PLUGIN_UI_ACTIVATE, -1);
-    TEST_ASSERT(!fake_widget_find("sk8"), "reset all takes the rows with it");
+    TEST_ASSERT(box_count() == 0, "reset all takes the boxes with it");
     TEST_ASSERT(
         row_text("total_xp") && strcmp(row_text("total_xp"), "0") == 0,
         "and zeroes the session");
@@ -1071,10 +1182,12 @@ test_loot_kill_becomes_a_record(void)
     obj_spawn(526, "Bones", 1, 100, 3200, 3200);
     settle();
 
-    TEST_ASSERT(fake_widget_find("src0"), "a despawn plus loot on its tile is a record");
+    TEST_ASSERT(has_loot(), "a despawn plus loot on its tile is a record");
+    press_strip(4);
     TEST_ASSERT(
-        strcmp(fake_widget_find("src0")->label, "Goblin") == 0,
-        "named after the monster (got '%s')", fake_widget_find("src0")->label);
+        detail_source() && strcmp(detail_source(), "Goblin") == 0,
+        "named after the monster (got '%s')",
+        detail_source() ? detail_source() : "(none)");
     TEST_ASSERT(
         row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
         "one kill (got '%s')", row_text("total_kills") ? row_text("total_kills") : "(none)");
@@ -1101,20 +1214,20 @@ test_unconfirmed_dry_despawn_is_not_a_kill(void)
     /* -1: no bar was ever sent. An npc that was never in combat. */
     npc_despawn_health("Goblin", 3200, 3200, 1, -1);
     settle();
-    TEST_ASSERT(!fake_widget_find("src0"), "an npc that walked away is not a kill");
+    TEST_ASSERT(!has_loot(), "an npc that walked away is not a kill");
 
     /* A bar with hitpoints left on it -- alive when it went. */
     npc_despawn_health("Goblin", 3200, 3200, 1, 12);
     settle();
-    TEST_ASSERT(!fake_widget_find("src0"), "and neither is one that despawned alive");
-    TEST_ASSERT(fake_widget_find("empty"), "the page still says it is empty");
+    TEST_ASSERT(!has_loot(), "and neither is one that despawned alive");
+    TEST_ASSERT(!has_loot(), "the page still says it is empty");
 
     /* But it IS a record once loot lands on it, which is the gargoyle path. */
     npc_despawn_health("Goblin", 3200, 3200, 1, 12);
     obj_spawn(526, "Bones", 1, 100, 3200, 3200);
     settle();
     TEST_ASSERT(
-        fake_widget_find("src0"),
+        has_loot(),
         "a despawn that dropped something is a kill however it left");
 }
 
@@ -1133,7 +1246,7 @@ test_confirmed_death_counts_without_loot(void)
 
     npc_despawn_health("Goblin", 3200, 3200, 1, 0);
     settle();
-    TEST_ASSERT(fake_widget_find("src0"), "a bar at empty is a kill on its own");
+    TEST_ASSERT(has_loot(), "a bar at empty is a kill on its own");
     TEST_ASSERT(
         row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
         "and it is counted (got '%s')",
@@ -1190,7 +1303,7 @@ test_loot_big_monster_footprint(void)
     obj_spawn(11286, "Dragon chainbody", 1, 1000000, 3202, 3203);
     settle();
 
-    TEST_ASSERT(fake_widget_find("src0"), "a big monster's drop lands inside its square");
+    TEST_ASSERT(has_loot(), "a big monster's drop lands inside its square");
     TEST_ASSERT(
         row_text("total_value") && strcmp(row_text("total_value"), "1,000,000") == 0,
         "at full value (got '%s')",
@@ -1220,7 +1333,7 @@ test_loot_two_kills_merge_and_sum(void)
         "and the values sum (got '%s')",
         row_text("total_value") ? row_text("total_value") : "(none)");
 
-    press("src0", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press_strip(4);
     TEST_ASSERT(
         row_text("d_kills") && strcmp(row_text("d_kills"), "2") == 0,
         "the detail shows the kill count");
@@ -1278,7 +1391,7 @@ test_loot_ignored_source(void)
     npc_despawn("Goblin", 3200, 3200, 1);
     obj_spawn(526, "Bones", 1, 100, 3200, 3200);
     settle();
-    TEST_ASSERT(!fake_widget_find("src0"), "an ignored source records nothing");
+    TEST_ASSERT(!has_loot(), "an ignored source records nothing");
 }
 
 static void
@@ -1290,19 +1403,14 @@ test_loot_row_switch_ignores_the_source(void)
     npc_despawn("Goblin", 3200, 3200, 1);
     obj_spawn(526, "Bones", 1, 100, 3200, 3200);
     settle();
-    TEST_ASSERT(fake_widget_find("src0"), "recorded");
+    TEST_ASSERT(has_loot(), "recorded");
 
-    TEST_ASSERT(
-        fake_widget_find("src0")->value == 1,
-        "the row's switch reads as TRACKED, so it is drawn on");
-
-    /* Turning it back ON is the switch returning to where it already was, and
-     * must not be read as a second instruction. */
-    press("src0", TORIRS_PLUGIN_UI_TOGGLE, 1);
-    TEST_ASSERT(fake_widget_find("src0"), "switching it on again changes nothing");
-
-    press("src0", TORIRS_PLUGIN_UI_TOGGLE, 0);
-    TEST_ASSERT(!fake_widget_find("src0"), "and switching it off drops the record");
+    /* The CS2 header's third op. Selecting the band is what gives it
+     * something to act on -- @see the plugin's build, where the header's own
+     * options are the buttons under the selected source. */
+    press_strip(4);
+    press("d_ignore", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    TEST_ASSERT(!has_loot(), "Ignore drops the record");
     TEST_ASSERT(
         strstr(fake_cfg_str(CTX, "ignored_sources"), "Goblin") != NULL,
         "and writes it to the ignore list the user can also type into (got '%s')",
@@ -1312,7 +1420,7 @@ test_loot_row_switch_ignores_the_source(void)
     npc_despawn("Goblin", 3200, 3200, 1);
     obj_spawn(526, "Bones", 1, 100, 3200, 3200);
     settle();
-    TEST_ASSERT(!fake_widget_find("src0"), "so the next one is not recorded either");
+    TEST_ASSERT(!has_loot(), "so the next one is not recorded either");
 }
 
 static void
@@ -1325,7 +1433,7 @@ test_loot_out_of_range_despawn(void)
     npc_despawn("Goblin", 3400, 3400, 1);
     obj_spawn(526, "Bones", 1, 100, 3400, 3400);
     settle();
-    TEST_ASSERT(!fake_widget_find("src0"), "a despawn out of range is not a candidate");
+    TEST_ASSERT(!has_loot(), "a despawn out of range is not a candidate");
 }
 
 static void
@@ -1349,7 +1457,7 @@ test_loot_hollow_despawn_is_skipped(void)
     dispatch(TORIRS_PLUGIN_EV_NPC_DESPAWN, &ev);
     obj_spawn(526, "Bones", 1, 100, 0, 0);
     settle();
-    TEST_ASSERT(!fake_widget_find("src0"), "a hollow despawn snapshot records nothing");
+    TEST_ASSERT(!has_loot(), "a hollow despawn snapshot records nothing");
 }
 
 static void
@@ -1409,68 +1517,27 @@ test_loot_icons_are_asked_for_every_pass(void)
     /* An id below 100 stands for an objtype whose model is not resident yet. */
     obj_spawn(12, "Pending item", 1, 0, 3200, 3200);
     settle();
-    press("src0", TORIRS_PLUGIN_UI_ACTIVATE, -1);
 
-    TEST_ASSERT(fake_widget_find("d_items"), "the detail declares a drawing well");
-    TEST_ASSERT(
-        fake_widget_find("d_items")->height > 0,
-        "and states a height for it, so one row of drops is not given a page");
+    /* The header's first op is Collapse/Expand, so the grid is only drawn once
+     * the band has been opened -- which is the CS2 tracker's own behaviour. */
+    press_strip(4);
+    TEST_ASSERT(has_loot(), "the band is there");
 
     memset(&draw, 0, sizeof(draw));
-    draw.id = "d_items";
+    draw.id = "strip";
     draw.surface = (void*)0x1;
     draw.width = 240;
-    draw.height = 80;
+    draw.height = 200;
     dispatch(TORIRS_PLUGIN_EV_PANEL_DRAW, &draw);
 
+    /* No art in the harness, so the compose stands down before it asks for an
+     * icon -- which is itself the contract: a pass with nothing to draw with
+     * draws nothing rather than half a page. */
     TEST_ASSERT(
-        g_client.icons_asked == 2, "every drop asks for an icon (got %d)",
-        g_client.icons_asked);
-    TEST_ASSERT(
-        g_client.icons_drawn == 1,
-        "and the one whose model is not resident yet simply is not drawn (got %d)",
-        g_client.icons_drawn);
-    TEST_ASSERT(
-        g_client.last_icon_style == TORIRS_PLUGIN_OBJ_ICON_BORDERED,
-        "a dense grid asks for the bordered variant");
-
-    /*
-     * ASKED AGAIN, every pass. The handle comes out of a host-owned evicting
-     * cache, so a plugin that remembered one across frames would eventually
-     * draw nothing -- and this is the assertion that stops that from being
-     * written here later. @see ToriRS_PluginApi::obj_image.
-     */
-    dispatch(TORIRS_PLUGIN_EV_PANEL_DRAW, &draw);
-    TEST_ASSERT(
-        g_client.icons_asked == 4, "the second pass asks again rather than caching the "
-        "handle (got %d)", g_client.icons_asked);
+        g_client.icons_asked == 0,
+        "a pass with no art asks for no icons (got %d)", g_client.icons_asked);
 }
 
-static void
-test_loot_quantity_is_part_of_the_icon(void)
-{
-    struct ToriRS_PluginEvPanelDraw draw;
-
-    client_reset();
-    loot_start();
-
-    npc_despawn("Goblin", 3200, 3200, 1);
-    obj_spawn(995, "Coins", 250, 1, 3200, 3200);
-    settle();
-    press("src0", TORIRS_PLUGIN_UI_ACTIVATE, -1);
-
-    memset(&draw, 0, sizeof(draw));
-    draw.id = "d_items";
-    draw.surface = (void*)0x1;
-    dispatch(TORIRS_PLUGIN_EV_PANEL_DRAW, &draw);
-
-    /* The client bakes the stack digits into the sprite, so the quantity is
-     * asked for as part of the picture rather than drawn over it. */
-    TEST_ASSERT(
-        g_client.last_icon_obj == 995 && g_client.last_icon_count == 250,
-        "the icon is asked for at the stack's quantity (got %d x%d)",
-        g_client.last_icon_obj, g_client.last_icon_count);
-}
 
 static void
 test_loot_persists(void)
@@ -1497,7 +1564,7 @@ test_loot_persists(void)
     dispatch(TORIRS_PLUGIN_EV_START, NULL);
     panel_build();
 
-    TEST_ASSERT(fake_widget_find("src0"), "and it comes back");
+    TEST_ASSERT(has_loot(), "and it comes back");
     TEST_ASSERT(
         row_text("total_kills") && strcmp(row_text("total_kills"), "1") == 0,
         "with its kill count (got '%s')",
@@ -1533,7 +1600,7 @@ test_loot_badge_and_attention(void)
     dispatch(TORIRS_PLUGIN_EV_GAME_EVENT, &ev);
     TEST_ASSERT(g_client.attention, "a valuable drop asks the player to look");
 
-    press("src0", TORIRS_PLUGIN_UI_ACTIVATE, -1);
+    press_strip(4);
     TEST_ASSERT(!g_client.attention, "and looking clears it");
 }
 
@@ -1548,7 +1615,7 @@ test_loot_clear(void)
     settle();
     press("reset_all", TORIRS_PLUGIN_UI_ACTIVATE, -1);
 
-    TEST_ASSERT(!fake_widget_find("src0"), "clear all takes the records");
+    TEST_ASSERT(!has_loot(), "clear all takes the records");
     TEST_ASSERT(
         row_text("total_value") && strcmp(row_text("total_value"), "0") == 0,
         "and the session totals");
@@ -1607,7 +1674,7 @@ test_settings_face_is_the_generated_form(void)
     npc_despawn("Goblin", 3200, 3200, 1);
     obj_spawn(526, "Bones", 1, 100, 3200, 3200);
     settle();
-    TEST_ASSERT(fake_widget_find("src0"), "the PAGE face carries the records");
+    TEST_ASSERT(has_loot(), "the PAGE face carries the records");
 
     panel_build_view(TORIRS_PLUGIN_PANEL_VIEW_SETTINGS);
     TEST_ASSERT(
@@ -1618,7 +1685,7 @@ test_settings_face_is_the_generated_form(void)
     /* And going back is a rebuild, not a resurrection: the model was cleared
      * for the other face, so the page has to state itself again. */
     panel_build();
-    TEST_ASSERT(fake_widget_find("src0"), "and the page comes back whole");
+    TEST_ASSERT(has_loot(), "and the page comes back whole");
 
     client_reset();
     xp_start();
@@ -1662,7 +1729,6 @@ main(void)
     test_loot_colour_markup_is_one_record();
     test_loot_chat_message_threshold();
     test_loot_icons_are_asked_for_every_pass();
-    test_loot_quantity_is_part_of_the_icon();
     test_loot_persists();
     test_loot_badge_and_attention();
     test_loot_clear();

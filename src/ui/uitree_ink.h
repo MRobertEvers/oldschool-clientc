@@ -63,6 +63,20 @@ UIInk_Show(struct UIInk* ink, int colour, int x, int y);
 void
 UIInk_SetColour(struct UIInk* ink, int colour);
 
+/**
+ * The press turned out to be a drag -- take the marker back.
+ *
+ * A drag is not a tap, and the marker answers "the glass saw a tap". The
+ * finger that is scrolling a list, turning the camera or carrying an inventory
+ * item has continuous proof the device is following it, so the ripple left
+ * behind at the grab point is noise the reference does not draw either.
+ *
+ * Distinct from letting it expire: this ends the animation wherever it had
+ * got to, and distinct from UIInk_Reset only in saying why.
+ */
+void
+UIInk_Cancel(struct UIInk* ink);
+
 void
 UIInk_Tick(struct UIInk* ink, int delta_ms);
 

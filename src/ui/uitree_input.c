@@ -94,6 +94,16 @@ UITree_ComponentIsPassThrough(
         UITree_ComponentIsDraggable(component) )
         return false;
 
+    /* An IF3 text-entry field is a click target on the strength of BEING one.
+     * It carries no op, no click mask and no hook -- `~torirs_cc_search_box`
+     * creates the type-12 child and sets nothing but its font, its colour and
+     * its input limits -- so every other test here calls it decoration and the
+     * click falls through to the panel behind it. That is exactly what "the
+     * text box does nothing" was: no menu row, no packet, no focus, nothing to
+     * see. @see `rs_text.input` in uitree.h. */
+    if( UITree_IsInputNode(component) )
+        return false;
+
     switch( component->type )
     {
     case UIELEM_BUILTIN_WORLD:

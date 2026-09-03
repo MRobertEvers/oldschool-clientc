@@ -413,8 +413,17 @@ UITree_EmitFill(
         {
             color = component->behavior.over_color;
         }
-        if( !text || text[0] == '\0' )
+        /* An editable field with the caret in it draws even while empty --
+         * the caret IS the content, and a box that shows nothing until the
+         * first keystroke looks exactly like a box that did not take the
+         * click. @see `rs_text.input` in uitree.h. */
+        bool const focused_input =
+            component->u.rs_text.input && tree &&
+            UITree_InputFocusId(tree) == component->component_id;
+        if( (!text || text[0] == '\0') && !focused_input )
             return false;
+        if( !text )
+            text = "";
         out->kind = UITREE_EMIT_TEXT;
         out->text = text;
         uitree_emit_format_placeholders(component, host, text, out);
@@ -425,6 +434,33 @@ UITree_EmitFill(
         out->text_baseline = component->u.rs_text.baseline;
         out->text_shadowed = component->u.rs_text.shadowed;
         out->text_line_height = component->u.rs_text.line_height;
+        if( focused_input )
+        {
+            /*
+             * The caret, spelled as a glyph in the line rather than drawn as a
+             * rect of its own, and that is a consequence of the emit's shape:
+             * one node produces one command, so a second draw for the cursor
+             * would mean teaching the whole walk that a node can emit two. The
+             * login screen's own caret is a string for the same reason
+             * (`caret=` in revconfig, composed by app_title_field_line).
+             *
+             * Steady rather than blinking. A blink would have to reach a clock
+             * from inside the emit, and -- worse -- would dirty the node twice
+             * a second forever, defeating the retention gate on any frame a
+             * panel with a focused box is open.
+             */
+            int caret = component->u.rs_text.caret;
+            int const length = (int)strlen(text);
+            if( caret < 0 || caret > length )
+                caret = length;
+            snprintf(
+                out->text_formatted,
+                sizeof(out->text_formatted),
+                "%.*s|%s",
+                caret,
+                text,
+                text + caret);
+        }
         return true;
     }
 

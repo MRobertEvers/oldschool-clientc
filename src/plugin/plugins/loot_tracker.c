@@ -1,3 +1,4 @@
+#include "plugin/plugins/plugin_draw.h"
 #include "plugin/torirs_plugin.h"
 
 #include <assert.h>
@@ -104,10 +105,44 @@
  */
 #define LT_CONFIG_VALUE_MAX 192
 
-/** The item well's grid, in logical units. One icon is 36x32. */
+/* ------------------------------------------------------------------------ */
+/* The CS2 loot tracker's own measurements and palette                       */
+/*                                                                           */
+/* Read out of the torirs_loot_* clientscripts, which build interface 650    */
+/* (`loottools`), rather than chosen here. To re-derive:                     */
+/*                                                                           */
+/*     3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 \           */
+/*         --rev osrs239 --out /tmp/cs2loot 2907 3042 3043 3044              */
+/*                                                                           */
+/*   script2907  the category HEADER: a 33-tall band, a 4px tiled spine at   */
+/*               x=2 (graphic_897, or graphic_4948 when ignored), the name    */
+/*               in fontmetrics_496 at 0xff981f on the left and its count on  */
+/*               the right. Its ops are Collapse/Expand, Clear data and       */
+/*               Ignore/Stop ignoring.                                       */
+/*   script3042  one item CELL: 40x36, FIVE to a row, background graphic_1120 */
+/*               (graphic_155 when ignored) with the obj drawn 36x32 at +2,+2 */
+/*               under cc_setoutline(1) -- the BORDERED icon variant. Its ops */
+/*               are Check and Ignore/Stop ignoring.                         */
+/*   script3043  "No loot to display." in fontmetrics_494, also 0xff981f.     */
+/*   script3044  the totals, as "<count><br><value> gp".                     */
+/* ------------------------------------------------------------------------ */
+
+/** The header band, and the gap the next one leaves above it. */
+#define LT_HEAD_H 33
+#define LT_HEAD_GAP 2
+/** The spine: 4 wide, inset 2, and 4 shorter than the band. */
+#define LT_SPINE_W 4
+#define LT_SPINE_X 2
+#define LT_SPINE_INSET 2
+/** One item cell, and the five-to-a-row grid script3042 lays out. */
 #define LT_CELL_W 40
 #define LT_CELL_H 36
-#define LT_GRID_COLS 6
+#define LT_GRID_COLS 5
+/** The first cell row sits `33 + 5` below the header's top. */
+#define LT_GRID_TOP (LT_HEAD_H + 5)
+/** The interfaces' own orange, which is what every label here is set in. */
+#define LT_INK_HEAD 0xFF981Fu
+#define LT_INK_VALUE 0xFFFFFFu
 
 static struct ToriRS_PluginApi const* g_api;
 
@@ -169,6 +204,30 @@ static bool g_page_built;
 /** Whether the page is on screen, as distinct from declared. @see the xp
  *  tracker's g_page_visible -- a collapsed shell keeps the model. */
 static bool g_page_visible;
+
+/* ---- the art, and what is drawn with it --------------------------------- */
+
+/** The two faces script2907 and script3043 set their text in. */
+static struct PluginDraw_Atlas g_bold;
+static struct PluginDraw_Atlas g_text;
+/** The header spine and the cell plate, in both their states. */
+static int g_img_spine = -1;
+static uint32_t* g_spine_px;
+static int g_spine_w;
+static int g_spine_h;
+static int g_img_cell = -1;
+static uint32_t* g_cell_px;
+static int g_cell_w;
+static int g_cell_h;
+
+/** Which sources are EXPANDED. The CS2 header's first op is Collapse/Expand,
+ *  so a record is a band with its grid under it or a band on its own. */
+static bool g_expanded[LT_SOURCES_MAX];
+/** The composed strip, and the size it was composed at. */
+static uint32_t* g_compose;
+static int g_compose_w;
+static int g_compose_h;
+static int g_well_w = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
 static uint64_t g_next_panel_ms;
 /** Session totals, kept beside the records because a source dropped for room
  *  should not make the session look smaller than it was. */
@@ -773,24 +832,195 @@ lt_state_apply(struct ToriRS_PluginCtx* ctx)
 /* The page                                                                  */
 /* ------------------------------------------------------------------------ */
 
-static void
-lt_row_id(int index, char* out, size_t out_size)
+/* ------------------------------------------------------------------------ */
+/* The strip                                                                 */
+/* ------------------------------------------------------------------------ */
+
+/** Everything the compose needs, resident. */
+static int
+lt_art_ready(struct ToriRS_PluginCtx* ctx)
 {
-    assert(out);
-    snprintf(out, out_size, "src%d", index);
+    assert(ctx);
+    if( !PluginDraw_AtlasLoad(ctx, g_api, &g_bold, "bold") )
+        return 0;
+    if( !PluginDraw_AtlasLoad(ctx, g_api, &g_text, "text") )
+        return 0;
+    if( !PluginDraw_ImageLoad(
+            ctx, g_api, "cat_spine.png", &g_img_spine, &g_spine_px, &g_spine_w,
+            &g_spine_h) )
+        return 0;
+    return PluginDraw_ImageLoad(
+        ctx, g_api, "cell.png", &g_img_cell, &g_cell_px, &g_cell_w, &g_cell_h);
 }
 
+/** How many cell rows one source's drops occupy. */
 static int
-lt_row_index(char const* id)
+lt_grid_rows(struct LtSource const* src)
 {
-    int index;
+    assert(src);
+    return (src->item_count + LT_GRID_COLS - 1) / LT_GRID_COLS;
+}
 
-    assert(id);
-    if( sscanf(id, "src%d", &index) != 1 )
-        return -1;
-    if( index < 0 || index >= g_source_count )
-        return -1;
-    return index;
+/** How tall one source's band is, expanded or not. */
+static int
+lt_source_h(int index)
+{
+    assert(index >= 0);
+    assert(index < g_source_count);
+    if( !g_expanded[index] || g_source[index].item_count == 0 )
+        return LT_HEAD_H + LT_HEAD_GAP;
+    return LT_GRID_TOP + lt_grid_rows(&g_source[index]) * LT_CELL_H + LT_HEAD_GAP;
+}
+
+/** The whole strip's height. */
+static int
+lt_strip_h(void)
+{
+    int total = 0;
+
+    for( int i = 0; i < g_source_count; i++ )
+        total += lt_source_h(i);
+    /* The empty note still needs a line to sit on. */
+    return total > 0 ? total : LT_HEAD_H;
+}
+
+/** The source a click at `y` landed on, and how far into it. -1 for neither. */
+static int
+lt_source_at(int y, int* out_local_y)
+{
+    int top = 0;
+
+    for( int i = 0; i < g_source_count; i++ )
+    {
+        int const h = lt_source_h(i);
+        if( y >= top && y < top + h )
+        {
+            if( out_local_y )
+                *out_local_y = y - top;
+            return i;
+        }
+        top += h;
+    }
+    return -1;
+}
+
+/**
+ * One source: the header band, then its drops if it is expanded.
+ *
+ * Every measurement is script2907's and script3042's; @see the block comment
+ * above LT_HEAD_H.
+ */
+static void
+lt_draw_source(
+    struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h, int top, int index)
+{
+    struct LtSource const* src = &g_source[index];
+    char text[96];
+    char amount[32];
+    int cell_x0;
+
+    assert(ctx);
+    assert(buf);
+
+    /* The spine, tiled down the band's height as cc_settiling does. */
+    if( g_spine_px )
+        PluginDraw_Tile(
+            buf, w, h, LT_SPINE_X, top + LT_SPINE_INSET, LT_SPINE_W,
+            LT_HEAD_H - LT_SPINE_INSET * 2, g_spine_px, g_spine_w, g_spine_h, 0);
+
+    /* The name on the left and the kill count on the right, both in the bold
+     * face at the interfaces' orange. */
+    snprintf(text, sizeof(text), "%s", src->name);
+    PluginDraw_Text(buf, w, h, 6, top + 4, &g_bold, text, LT_INK_HEAD);
+
+    lt_short(lt_source_value(ctx, src), amount, sizeof(amount));
+    snprintf(text, sizeof(text), "x%d  %s gp", src->kills, amount);
+    PluginDraw_TextRight(buf, w, h, w - 6, top + 4, &g_bold, text, LT_INK_HEAD);
+
+    if( !g_expanded[index] || src->item_count == 0 )
+        return;
+
+    /*
+     * The grid, centred the way script3042 centres it: five 40-wide cells is
+     * 200, and what is left over is shared as four gaps.
+     */
+    cell_x0 = (w - LT_GRID_COLS * LT_CELL_W) / 2;
+    if( cell_x0 < 0 )
+        cell_x0 = 0;
+
+    for( int i = 0; i < src->item_count; i++ )
+    {
+        int const col = i % LT_GRID_COLS;
+        int const row = i / LT_GRID_COLS;
+        int const x = cell_x0 + col * LT_CELL_W;
+        int const y = top + LT_GRID_TOP + row * LT_CELL_H;
+        int image;
+        int iw = 0;
+        int ih = 0;
+
+        if( g_cell_px )
+            PluginDraw_Blit(
+                buf, w, h, x, y, g_cell_px, g_cell_w, g_cell_h, 0, 0, g_cell_w,
+                g_cell_h, 0);
+
+        /*
+         * The obj at +2,+2 in the BORDERED variant, which is what
+         * cc_setoutline(1) bakes. The quantity is part of the picture -- the
+         * client stamps the stack digits into the sprite -- so it is asked for
+         * at the quantity and drawn as one thing.
+         */
+        image = g_api->obj_image(
+            ctx, src->items[i].obj_id, src->items[i].quantity,
+            TORIRS_PLUGIN_OBJ_ICON_BORDERED);
+        if( image < 0 || !g_api->image_size(ctx, image, &iw, &ih) )
+            continue;
+        {
+            uint32_t* px = malloc((size_t)iw * (size_t)ih * sizeof(*px));
+            assert(px);
+            if( g_api->image_pixels(ctx, image, px, iw * ih) )
+                PluginDraw_Blit(
+                    buf, w, h, x + 2, y + 2, px, iw, ih, 0, 0, iw, ih, 0);
+            free(px);
+        }
+    }
+}
+
+/** Rasterise every band and publish the strip. */
+static void
+lt_compose(struct ToriRS_PluginCtx* ctx, int width)
+{
+    int const height = lt_strip_h();
+    size_t const pixels = (size_t)width * (size_t)height;
+    int top = 0;
+
+    assert(ctx);
+    if( width <= 0 || height <= 0 )
+        return;
+
+    if( !g_compose || g_compose_w != width || g_compose_h != height )
+    {
+        free(g_compose);
+        g_compose = malloc(pixels * sizeof(*g_compose));
+        assert(g_compose);
+        g_compose_w = width;
+        g_compose_h = height;
+    }
+    /* Transparent, so the panel's own backing shows through exactly as the
+     * interface's does behind its bands. */
+    memset(g_compose, 0, pixels * sizeof(*g_compose));
+
+    if( g_source_count == 0 )
+        PluginDraw_Text(
+            g_compose, width, height, 4, 3, &g_text, "No loot to display.",
+            LT_INK_HEAD);
+
+    for( int i = 0; i < g_source_count; i++ )
+    {
+        lt_draw_source(ctx, g_compose, width, height, top, i);
+        top += lt_source_h(i);
+    }
+
+    g_api->image_compose(ctx, "strip", width, height, g_compose);
 }
 
 /** Rewrite every readout on the built page. */
@@ -798,7 +1028,6 @@ static void
 lt_page_refresh(struct ToriRS_PluginCtx* ctx)
 {
     char text[128];
-    char amount[32];
 
     assert(ctx);
     if( !g_page_built )
@@ -809,22 +1038,8 @@ lt_page_refresh(struct ToriRS_PluginCtx* ctx)
     lt_commas(g_session_value, text, sizeof(text));
     g_api->panel_set_text(ctx, "total_value", text);
 
-    for( int i = 0; i < g_source_count && i < g_built_rows; i++ )
-    {
-        char id[TORIRS_PLUGIN_WIDGET_ID_MAX];
-
-        lt_row_id(i, id, sizeof(id));
-        lt_short(lt_source_value(ctx, &g_source[i]), amount, sizeof(amount));
-        snprintf(text, sizeof(text), "x%d  ·  %s gp", g_source[i].kills, amount);
-        g_api->panel_set_text(ctx, id, text);
-        /*
-         * The switch reads as TRACKED, so turning it off is what stops
-         * tracking -- the direction every other switch on the page runs in. A
-         * row left unchecked would mean the opposite in the same column, and
-         * the only way to find out which was to press it.
-         */
-        g_api->panel_set_value(ctx, id, 1);
-    }
+    /* The bands are pixels and redraw themselves. */
+    g_api->panel_invalidate(ctx, "strip");
 
     if( g_detail >= 0 && g_detail < g_source_count )
     {
@@ -860,58 +1075,44 @@ lt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         return TORIRS_PLUGIN_PASS;
     }
 
-    g_built_rows = 0;
+    g_built_rows = lt_strip_h();
 
     g_api->panel_widget(ctx, TORIRS_PLUGIN_W_SECTION, "sec_session", "Session");
     g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_kills", "Kills");
     g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_value", "Total value");
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "reset_all", "Clear all loot");
 
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_SECTION, "sec_sources", "Sources");
-    for( int i = 0; i < g_source_count && i < LT_ROWS_MAX; i++ )
-    {
-        char id[TORIRS_PLUGIN_WIDGET_ID_MAX];
+    /*
+     * ONE drawing well for every band, which is what the CS2 tracker is: a
+     * header per source with its drops under it. Built out of panel controls
+     * it would be a header plus a control per item and would run out of the
+     * 48-control budget inside one boss trip.
+     */
+    if( g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CUSTOM, "strip", "Loot") )
+        g_api->panel_set_height(ctx, "strip", lt_strip_h());
 
-        lt_row_id(i, id, sizeof(id));
-        if( !g_api->panel_widget(ctx, TORIRS_PLUGIN_W_LIST_ROW, id, g_source[i].name) )
-        {
-            g_api->log(
-                ctx, "loot-tracker: no room on the page for '%s' and what follows",
-                g_source[i].name);
-            break;
-        }
-        g_built_rows++;
-    }
-    if( g_built_rows == 0 )
-        g_api->panel_widget(
-            ctx, TORIRS_PLUGIN_W_PARAGRAPH, "empty", "No loot recorded yet.");
-
+    /*
+     * The header's own ops, as buttons under the source they act on. The CS2
+     * header offers Collapse/Expand, Clear data and Ignore/Stop ignoring, and
+     * an item cell offers Ignore -- the same set, reached the only way a
+     * drawing well can offer one, because a panel has no secondary-click
+     * channel to hang a menu on.
+     */
     g_built_detail = g_detail;
-    if( g_detail >= 0 && g_detail < g_built_rows )
+    if( g_detail >= 0 && g_detail < g_source_count )
     {
         g_api->panel_widget(
             ctx, TORIRS_PLUGIN_W_SECTION, "sec_detail", g_source[g_detail].name);
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_kills", "Kills");
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_value", "Value");
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_per_kill", "Value per kill");
-        /*
-         * The drops as PICTURES, in the one bounded drawing well the page
-         * gives a plugin. A row of names would be the same information and a
-         * worse readout: an item is recognised by its icon at a glance, the
-         * quantity is already baked into the client's own sprite, and thirty
-         * drops as thirty text rows would not fit on the page at all.
-         */
-        if( g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CUSTOM, "d_items", "Drops") )
-        {
-            int const rows =
-                (g_source[g_detail].item_count + LT_GRID_COLS - 1) / LT_GRID_COLS;
-            g_api->panel_set_height(ctx, "d_items", (rows > 0 ? rows : 1) * LT_CELL_H + 8);
-        }
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_clear", "Clear this record");
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_close", "Close details");
+        g_api->panel_widget(
+            ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_per_kill", "Value per kill");
+        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_clear", "Clear data");
+        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_ignore", "Ignore");
     }
     else
         g_built_detail = -1;
+
+    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "reset_all", "Clear all loot");
 
     g_page_built = true;
     lt_page_refresh(ctx);
@@ -932,70 +1133,25 @@ lt_panel_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     (void)userdata;
 
     struct ToriRS_PluginEvPanelDraw const* ev = event;
-    struct LtSource const* src;
+    int image;
 
     assert(ctx);
     assert(ev);
     assert(ev->id);
 
-    if( strcmp(ev->id, "d_items") != 0 )
+    if( strcmp(ev->id, "strip") != 0 || ev->width <= 0 )
         return TORIRS_PLUGIN_PASS;
-    if( g_detail < 0 || g_detail >= g_source_count )
+    /* The art crosses the IO queue, so the first passes after a start have
+     * nothing to draw with. The next invalidate fills it -- the same state the
+     * client's own inventory icons are in for a frame or two. */
+    if( !lt_art_ready(ctx) )
         return TORIRS_PLUGIN_PASS;
-    src = &g_source[g_detail];
 
-    for( int i = 0; i < src->item_count; i++ )
-    {
-        int const col = i % LT_GRID_COLS;
-        int const row = i / LT_GRID_COLS;
-        int image;
-        int w = 0;
-        int h = 0;
-
-        image = g_api->obj_image(
-            ctx, src->items[i].obj_id, src->items[i].quantity,
-            TORIRS_PLUGIN_OBJ_ICON_BORDERED);
-        /* Not resident yet. The cell stays empty this pass and the next
-         * invalidate fills it -- the same state the client's own inventory is
-         * in for the first frames after a login. */
-        if( image < 0 || !g_api->image_size(ctx, image, &w, &h) )
-            continue;
-        /* Natural size: draw_image takes a position and a clip and no scale,
-         * which is right here -- an icon rasterised at 36x32 and stretched to
-         * a cell would be a blurred copy of a picture the client already has
-         * at exactly the size it is drawn at everywhere else. */
-        g_api->draw_image(
-            ctx,
-            ev->surface,
-            image,
-            ev->x + col * LT_CELL_W + 2,
-            ev->y + row * LT_CELL_H + 2,
-            0,
-            0,
-            0,
-            0,
-            0);
-    }
-    return TORIRS_PLUGIN_PASS;
-}
-
-static enum ToriRS_PluginVerdict
-lt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
-{
-    (void)userdata;
-
-    struct ToriRS_PluginEvPanelLayout const* ev = event;
-
-    assert(ctx);
-    assert(ev);
-
-    g_page_visible = ev->visible;
-    if( g_page_visible )
-    {
-        lt_page_refresh(ctx);
-        if( g_detail >= 0 )
-            g_api->panel_invalidate(ctx, "d_items");
-    }
+    g_well_w = ev->width;
+    lt_compose(ctx, ev->width);
+    image = g_api->image_load(ctx, "strip");
+    if( image >= 0 )
+        g_api->draw_image(ctx, ev->surface, image, ev->x, ev->y, 0, 0, 0, 0, 0);
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -1005,7 +1161,6 @@ lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     (void)userdata;
 
     struct ToriRS_PluginEvPanelAction const* ev = event;
-    int index;
 
     assert(ctx);
     assert(ev);
@@ -1041,41 +1196,69 @@ lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         return TORIRS_PLUGIN_PASS;
     }
 
-    index = lt_row_index(ev->id);
-    if( index < 0 )
-        return TORIRS_PLUGIN_PASS;
-
-    /*
-     * The row opens the record; its switch adds the source to the ignore list,
-     * which is the reference's `ignoredEvents` reached without a second
-     * control. The list is the config key the user can also type into, so both
-     * ways of saying it end up in one place.
-     */
-    if( ev->action == TORIRS_PLUGIN_UI_TOGGLE )
+    if( strcmp(ev->id, "d_ignore") == 0 && g_detail >= 0 && g_detail < g_source_count )
     {
+        /* The header's third op. The list is the config key a person can also
+         * type into, so both ways of saying it end up in one place. */
         char list[LT_CONFIG_VALUE_MAX];
-
-        /* Only turning it OFF means anything: the row is drawn checked, so a
-         * value of 1 is the switch coming back to where it already was. */
-        if( ev->value != 0 )
-            return TORIRS_PLUGIN_PASS;
         char const* existing = g_api->cfg_str(ctx, "ignored_sources");
 
         snprintf(
             list, sizeof(list), "%s%s%s", existing && existing[0] ? existing : "",
-            existing && existing[0] ? "," : "", g_source[index].name);
+            existing && existing[0] ? "," : "", g_source[g_detail].name);
         g_api->cfg_set(ctx, "ignored_sources", list);
-        g_session_kills -= g_source[index].kills;
-        g_session_value -= lt_source_value(ctx, &g_source[index]);
-        g_source[index] = g_source[--g_source_count];
+        g_session_kills -= g_source[g_detail].kills;
+        g_session_value -= lt_source_value(ctx, &g_source[g_detail]);
+        g_source[g_detail] = g_source[--g_source_count];
         g_detail = -1;
         g_dirty = true;
         g_api->panel_clear(ctx);
         return TORIRS_PLUGIN_PASS;
     }
 
-    g_detail = g_detail == index ? -1 : index;
-    g_api->panel_clear(ctx);
+    /*
+     * A click in the strip. The bands are variable height -- an expanded one
+     * carries its grid -- so the source is found by walking them rather than
+     * by dividing, and the header's own first op decides what the click means:
+     * inside the 33-tall band it EXPANDS or collapses, which is
+     * script2907's Collapse/Expand, and it also selects the source so the
+     * other two ops have something to act on.
+     */
+    if( strcmp(ev->id, "strip") == 0 )
+    {
+        int local_y = 0;
+        int const source = lt_source_at(ev->y, &local_y);
+
+        if( source < 0 )
+            return TORIRS_PLUGIN_PASS;
+        if( local_y < LT_HEAD_H )
+            g_expanded[source] = !g_expanded[source];
+        g_detail = g_detail == source && local_y >= LT_HEAD_H ? -1 : source;
+        g_api->panel_clear(ctx);
+        return TORIRS_PLUGIN_PASS;
+    }
+    return TORIRS_PLUGIN_PASS;
+}
+
+/** The shell moved, showed or hid this page. */
+static enum ToriRS_PluginVerdict
+lt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    (void)userdata;
+
+    struct ToriRS_PluginEvPanelLayout const* ev = event;
+
+    assert(ctx);
+    assert(ev);
+
+    g_page_visible = ev->visible;
+    if( ev->width > 0 )
+        g_well_w = ev->width;
+    if( g_page_visible )
+    {
+        lt_page_refresh(ctx);
+        g_api->panel_invalidate(ctx, "strip");
+    }
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -1147,6 +1330,7 @@ lt_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     assert(ctx);
     lt_state_save(ctx);
     g_page_built = false;
+    g_page_visible = false;
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -1178,10 +1362,8 @@ lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * it is selected again. */
     if( g_page_visible )
     {
-        if( g_page_built && (g_built_rows != (g_source_count < LT_ROWS_MAX
-                                                  ? g_source_count
-                                                  : LT_ROWS_MAX) ||
-                             g_built_detail != g_detail) )
+        if( g_page_built &&
+            (g_built_rows != lt_strip_h() || g_built_detail != g_detail) )
             g_api->panel_clear(ctx);
         else
         {
@@ -1230,6 +1412,22 @@ lt_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_DRAW, lt_panel_draw, NULL);
 }
 
+/** Give the composed strip and the decoded art back. */
+static void
+lt_shutdown(struct ToriRS_PluginCtx* ctx)
+{
+    (void)ctx;
+
+    free(g_compose);
+    g_compose = NULL;
+    g_compose_w = 0;
+    g_compose_h = 0;
+    PluginDraw_AtlasFree(&g_bold);
+    PluginDraw_AtlasFree(&g_text);
+    PluginDraw_ImageFree(&g_spine_px, &g_img_spine);
+    PluginDraw_ImageFree(&g_cell_px, &g_img_cell);
+}
+
 struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER = {
     .name = "loot-tracker",
     .title = "Loot Tracker",
@@ -1237,5 +1435,5 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER = {
     .priority = 0,
     .config = LT_CONFIG,
     .init = lt_init,
-    .shutdown = NULL,
+    .shutdown = lt_shutdown,
 };

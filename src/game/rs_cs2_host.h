@@ -20,6 +20,7 @@ struct RS_PlayerStats;
 struct CS2VM2_Thread;
 struct UITreeSceneBridge;
 struct RS_WorldMapState;
+struct TaskRunner;
 struct RS_Social;
 struct RS_Chat;
 struct LootStore;
@@ -97,6 +98,15 @@ enum RS_CS2SocialSendKind
  *  evicting one that is on screen. */
 #define RS_CS2_HOST_SETTINGS_COLOURS_MAX 96
 
+/** Number-input rows the panel is expected to hold at once. Sized the same way
+ *  as the colour table above, against the same read hub's switch. */
+#define RS_CS2_HOST_SETTINGS_NUMBERS_MAX 64
+
+/** `clientclock` ticks per GAME tick: 600 ms of 20 ms logic ticks. The
+ *  conversion between the wire's game-tick durations and the clock every cache
+ *  script counts in. */
+#define RS_CS2_HOST_CLOCKS_PER_TICK 30
+
 /* Cache script option ids used by interface 116's audio panel, plus the one
  * game option that is not audio: "hide roofs", which GETREMOVEROOFS /
  * SETREMOVEROOFS (3111/3112) name directly and which the world render reads. */
@@ -153,7 +163,61 @@ enum RS_CS2SocialSendKind
 #define RS_CS2_PARAM_SETTING_KIND 1078
 #define RS_CS2_PARAM_SETTING_LABEL 1086
 #define RS_CS2_PARAM_SETTING_COLOUR_DEFAULT 1230
+/* The number-input row's own two words: the unit it draws after a value above
+ * one ("gp"), and what it draws instead of a zero ("Off"). */
+#define RS_CS2_PARAM_SETTING_NUMBER_SUFFIX 1112
+#define RS_CS2_PARAM_SETTING_NUMBER_ZERO 1113
 #define RS_CS2_SETTING_KIND_COLOUR 9
+
+/**
+ * One entry of a tile's ground-item pile.
+ *
+ * The reference's `ClientObj`, less the fields no script asks for. The two
+ * clocks are DEADLINES in `client_clock` units or -1 ("the server never
+ * said") -- the ops turn them into the remaining GAME ticks the cache counts
+ * in, which is the one conversion this struct exists to keep in one place.
+ */
+struct RS_CS2GroundObj
+{
+    int obj_id;
+    int count;
+    int public_clock;
+    int despawn_clock;
+    /** OBJ_ADD's ownershipType, what OBJ_OWNER (6863) answers: 0/1 public or
+     *  mine, 2 someone else's, 3 a group ironman's. */
+    int owner;
+    /** OBJ_ADD's neverBecomesPublic: the pile stays private for its whole
+     *  life, so `_6862` says no however far the public clock has run. */
+    int never_becomes_public;
+};
+
+/**
+ * A number-input row's field, clicked.
+ *
+ * The numeric twin of RS_CS2SettingsColourRequest: everything the App needs to
+ * put an entry box on screen and write the answer back. `param_1112` and
+ * `param_1113` are the row's own suffix and its zero-word ("Off"), which the
+ * panel draws beside the number and which an entry box has to echo if the two
+ * are not to disagree about what is being typed.
+ */
+struct RS_CS2SettingsNumberRequest
+{
+    /** `param_1077`, the id every settings hub switches on. */
+    int setting_id;
+    /** The varp holding the value, or -1 when the read hub never named one. */
+    int varp_id;
+    /** What the varp holds now. */
+    int value;
+    /** The component the op was dispatched on, so the box can open beside the
+     *  field instead of in the middle of the screen. -1 when unknown. */
+    int component_id;
+    /** `param_1086`, the row's own title. */
+    char label[64];
+    /** `param_1112`, the unit drawn after a value above one ("gp"). */
+    char suffix[32];
+    /** `param_1113`, what the row draws instead of a zero ("Off"). */
+    char zero_label[32];
+};
 
 /**
  * A colour row's swatch, clicked.
@@ -477,6 +541,24 @@ struct RS_CS2Host
      * route, which is what a client with no players truthfully has.
      */
     int (*player_route)(void* user, int player_uid, int index, int* out_coord);
+    /**
+     * The ground-item pile on one tile, for the ground-items overlay family
+     * (`_7120`/`_7121`/`_7122`, and `_6859`'s lookup).
+     *
+     * `Client::GetObjectsOnTile` in the reference, which answers an empty pile
+     * for a coord outside the build area rather than an error -- so does this:
+     * the return is the number of entries on the tile, and `*out` is filled
+     * only when `index` names one of them.
+     *
+     * NULL is a host with no world, where every tile is empty. That is the
+     * truthful answer for a client on the login screen, and it is what makes
+     * the overlay script destroy its overlay instead of drawing a stale one.
+     */
+    int (*objs_on_coord)(
+        void* user,
+        int coord,
+        int index,
+        struct RS_CS2GroundObj* out);
     void* world_user;
 
     bool has_pending;
@@ -485,6 +567,16 @@ struct RS_CS2Host
     struct VarCManager* varcs; /* client-variable store; may be NULL */
     struct LootStore* loot;   /* client-native loot tracker; may be NULL */
 
+    /**
+     * `clientclock`, one per 20 ms logic tick (RS_CS2Host_Tick).
+     *
+     * The unit matters outside this file: `~buff_bar_time_string` divides its
+     * argument by 50 to get seconds, so every duration a cache script formats
+     * is counted in these. A GAME tick is RS_CS2_HOST_CLOCKS_PER_TICK of them,
+     * which is the conversion the ground-item timers ride on -- the wire says
+     * game ticks, this clock counts logic ticks, and the overlay script
+     * multiplies the op's answer by 30 to get back here.
+     */
     int client_clock;
 
     /* The local player's packed coord (plane<<28 | x<<14 | z), refreshed by the
@@ -564,6 +656,28 @@ struct RS_CS2Host
     int script_highlight_hover_tile;
     int script_highlight_current_tile;
     int script_highlight_dest_tile;
+
+    /**
+     * The GROUND-ITEMS overlay hook, and the pile entry `_6859` selected.
+     *
+     * `script_ground_items_overlay` is the cache's per-tile rebuild
+     * (`torirs_ground_items_overlay_hook`, 7226): it reads the tile from
+     * `_6950` and rebuilds -- or destroys -- the coord-anchored overlay that
+     * lists what is lying there. Nothing in the cache calls it, for the same
+     * reason nothing calls the three tile refreshers above: the client is what
+     * knows a pile changed. See app_ground_items_tick.
+     *
+     * `active_obj` is the reference's `ScriptRunner::SetActiveObj`. The four
+     * no-arg getters (`_6860` despawn, `_6861` visibility, `_6862` is-public,
+     * OBJ_OWNER) read the entry the last `_6859` found, so the selection has
+     * to outlive that op -- it is one obj and not a queue because the script
+     * asks its four questions before selecting the next.
+     * `active_obj_valid` is false before any `_6859`, which is what makes
+     * those getters answer -1 rather than describing entry zero of nothing.
+     */
+    int script_ground_items_overlay;
+    struct RS_CS2GroundObj active_obj;
+    bool active_obj_valid;
 
     /** The client canvas, and what GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE
      *  return. One of three copies of the canvas size — write it through
@@ -769,6 +883,40 @@ struct RS_CS2Host
      *  the one they are looking at. */
     struct RS_CS2SettingsColourRequest settings_colour_request;
     bool settings_colour_pending;
+
+    /**
+     * The All Settings panel's NUMBER-INPUT rows, and the one just clicked.
+     *
+     * The same arrangement as the colour rows above, discovered the same way
+     * and for the same reason: `settings_input_op` (the row's Select op) is
+     * `~settings_op_checker` and nothing else, because the reference opens a
+     * numeric entry of its own from here and writes the row's varp itself.
+     * `settings_get_number_input` is the read hub, so the varp it reads inside
+     * a frame of that script names the row -- which is what makes the five
+     * ground-items price tiers reachable without a table of setting ids.
+     *
+     * The value is stored PLAIN, not offset: a threshold of zero is a real
+     * threshold ("colour everything at this tier"), so there is no room for a
+     * never-chosen sentinel and none is wanted -- the cache's own default for
+     * these varps is zero.
+     */
+    int settings_number_setting[RS_CS2_HOST_SETTINGS_NUMBERS_MAX];
+    int settings_number_varp[RS_CS2_HOST_SETTINGS_NUMBERS_MAX];
+    int settings_number_count;
+    int script_settings_number_click;
+    int script_settings_number_get;
+    struct RS_CS2SettingsNumberRequest settings_number_request;
+    bool settings_number_pending;
+
+    /**
+     * The two varbits that name the ground-items settings' CARRIER varps.
+     *
+     * Not read for their own value: the App resolves each to its base varp
+     * (VarPManager_VarbitBaseVar) and watches those, because a varp is what a
+     * change can be noticed on. See app_ground_items_tick.
+     */
+    int varbit_ground_items_enabled;
+    int varbit_ground_items_modifier_key;
     /** Follow-camera trailing height, backing CAM_SET/GETFOLLOWHEIGHT. The
      *  orbit-camera render path in app.c does not consume this yet; it is stored
      *  so a script that sets it can read the same value back. */
@@ -1295,6 +1443,17 @@ RS_CS2Host_SettingsColourVarp(
     struct RS_CS2Host const* host,
     int setting_id);
 
+/** The number-input twin of the two above. */
+bool
+RS_CS2Host_TakeSettingsNumberRequest(
+    struct RS_CS2Host* host,
+    struct RS_CS2SettingsNumberRequest* out);
+
+int
+RS_CS2Host_SettingsNumberVarp(
+    struct RS_CS2Host const* host,
+    int setting_id);
+
 /**
  * Drop one scripted entity overlay and the UITree layer it owns.
  *
@@ -1532,6 +1691,56 @@ void
 RS_CS2Host_ClearHooksForInterfaceGroup(
     struct RS_CS2Host* host,
     int group_id);
+
+/* =========================================================================
+ * IF3 text-entry fields (component type 12)
+ *
+ * The caret and the keyboard for the cache's own editable boxes -- the hiscores
+ * name field, the bug-report body, the loot-tracker ignore prompt. The field
+ * itself is an ordinary RS_TEXT node flagged `input` (ui/uitree.h); what lives
+ * here is everything the field cannot do alone: measuring a candidate line
+ * against the font it draws in, and running the three CS2 hooks the scripts
+ * hang off it.
+ *
+ * The app owns the POINTER and the KEYBOARD and calls in; nothing here polls.
+ * ========================================================================= */
+
+/** The field holding the caret, by component id, or -1. */
+int
+RS_CS2_InputFocusId(struct RS_CS2Host* host);
+
+/**
+ * Move the caret to `com_id`, or drop it with -1.
+ *
+ * Dispatches `on_input_focus_changed` on the field that LOST the caret, and not
+ * on the one that took it. Both directions are a defensible reading of the
+ * opcode's name; only one is a defensible reading of what the cache hangs off
+ * it. `torirs_hiscores_from_text` (7527) reads the box and runs the lookup, so
+ * firing on entry would search for the text you clicked in to replace, and
+ * would do it again on every click into the box.
+ */
+void
+RS_CS2_InputSetFocus(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int com_id);
+
+/**
+ * One key event for the focused field, in the `LibToriRS_KeyEvent` encoding
+ * (`key_typed` = OSRS key code with `key_pressed` 0, or `key_typed` -1 with
+ * `key_pressed` carrying the character).
+ *
+ * Returns nonzero when the field consumed it — which is every key while a field
+ * is focused, including the ones it does nothing with. A focused text box that
+ * let an unhandled letter through to the onKey broadcast would switch a sidebar
+ * tab while you typed a name.
+ */
+int
+RS_CS2_InputKey(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int key_typed,
+    int key_pressed);
 
 /** Releases what the host owns (the world map state); the host itself is the
  *  caller's storage. */

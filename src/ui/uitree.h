@@ -913,6 +913,37 @@ struct UITreeComponent
             int shadowed;
             char const* text;
             char const* text_active;
+            /**
+             * IF3 component type 12: this text node is an EDITABLE FIELD.
+             *
+             * Type 12 is the reference's text-entry widget -- the hiscores
+             * search box, the bug-report body, the loot-tracker ignore prompt,
+             * every settings dropdown's filter. It draws exactly like a
+             * TYPE_TEXT (same font, colour, alignment, same `cc_settext`),
+             * which is why it is a flag on this member rather than a UIELEM of
+             * its own: a new type would have to be taught to every consumer of
+             * rs_text to arrive back where it started.
+             *
+             * What the flag adds is the caret. `UITree_InputFocusId` may name
+             * this node; clicking it takes the caret, typed keys edit `text`
+             * through UITree_InputInsert / UITree_InputBackspace, and the emit
+             * draws the cursor after `caret` characters.
+             */
+            uint8_t input;
+            /** Caret position in characters, 0..strlen(text). Meaningless
+             *  unless `input`. */
+            int caret;
+            /**
+             * CC_INPUT_SETLINEWRAPPINGWIDTH, in pixels; 0 = "the node's own
+             * layout width".
+             *
+             * The typing cap: a keystroke that would push the line past this
+             * is dropped. `cc_input_setlinewidthlimit(1)` accompanies it at
+             * every type-12 call site in the cache and means one line, which is
+             * the only mode implemented -- no field this client reaches is
+             * multi-line.
+             */
+            int input_wrap_width;
         } rs_text;
         struct
         {
@@ -1375,6 +1406,17 @@ struct UITree
      *  directly, so the count cannot drift. */
     uint32_t drag_active_nodes;
     uint16_t next_dynamic_uid;
+    /**
+     * The IF3 text-entry field that holds the caret, by component id; -1 for
+     * none. @see UITree_InputFocusId, which is the only correct way to READ it.
+     *
+     * An id and not an index, and validated on every read, because the fields
+     * are dynamic children: `cc_deleteall` on the container reclaims the slot,
+     * and a layout refresh rebuilds the whole search box while it is being
+     * typed into. Storing the index would leave the caret pointing at whatever
+     * node inherited the slot.
+     */
+    int input_focus_com_id;
     /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */
     struct UITreeInterfaceParent interface_parents[UITREE_INTERFACE_PARENT_MAX];
     int interface_parent_count;
@@ -1986,6 +2028,61 @@ UITree_SetProjectionHiddenAt(struct UITree* tree, int32_t idx, int hidden);
 
 bool
 UITree_SetTextAt(struct UITree* tree, int32_t idx, char const* text);
+
+/* ------------------------------------------------------------------ */
+/* IF3 text-entry fields (component type 12)                           */
+/* ------------------------------------------------------------------ */
+
+/* The hit walk lives in uitree_input.h, which includes this header; naming its
+ * host type here rather than including it back keeps the two out of a cycle. */
+struct UITreeHost;
+
+/** Hit-stack depth for UITree_InputHitTest. The deepest stack a field sits
+ *  under in this cache is the settings dropdown's (panel > list > row > field);
+ *  32 is the same headroom the minimenu's own walk takes. */
+#define UITREE_INPUT_HIT_STACK_MAX 32
+
+/** Longest line an editable field will hold, including the terminator. The
+ *  fields are capped by PIXEL width against their own wrapping width long
+ *  before this; it is the buffer bound, not the policy. */
+#define UITREE_INPUT_TEXT_MAX 256
+
+/** Is this node an editable field? @see `rs_text.input`. */
+int
+UITree_IsInputNode(struct UITreeComponent const* c);
+
+/**
+ * The field holding the caret, by component id, or -1.
+ *
+ * VALIDATED on every read, which is the whole reason the focus is stored as an
+ * id: the fields are dynamic children, a panel rebuild deletes and re-creates
+ * them mid-edit, and the slot one leaves behind is handed straight to another
+ * component. A remembered id that no longer names a live input node therefore
+ * means "nothing is focused", and every reader must ask through here rather
+ * than reading `input_focus_com_id`. The stale value itself is cleared by the
+ * next UITree_InputSetFocusId; leaving it is what keeps this read const.
+ */
+int
+UITree_InputFocusId(struct UITree const* tree);
+
+/**
+ * Give the caret to `com_id`, or drop it with -1. Returns the id that LOST the
+ * caret (-1 if none), which is the node whose `on_input_focus_changed` the
+ * caller still owes a dispatch to.
+ *
+ * The caret lands at the end of whatever text the field already holds, which is
+ * what clicking a name already in the box has to do to let you correct it.
+ */
+int
+UITree_InputSetFocusId(struct UITree* tree, int com_id);
+
+/** The topmost editable field under (x, y), or -1. */
+int
+UITree_InputHitTest(
+    struct UITree* tree,
+    struct UITreeHost const* host,
+    int x,
+    int y);
 
 bool
 UITree_SetGraphicAt(

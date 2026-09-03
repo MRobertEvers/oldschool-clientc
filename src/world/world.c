@@ -2672,6 +2672,12 @@ World_ObjStackAdd(
     World_DrawPositionSet(&stack->draw_position, scene_x * 128 + 64, scene_z * 128 + 64);
     stack->obj_id = obj_id;
     stack->count = count;
+    /* memset put zeroes here; the ownership half has to read "the server never
+     * said" instead, which is -1. See entity_objstack.h. */
+    stack->public_clock = -1;
+    stack->despawn_clock = -1;
+    stack->owner = 0;
+    stack->never_becomes_public = 0;
     if( name )
     {
         strncpy(stack->name, name, sizeof(stack->name) - 1);
@@ -2679,6 +2685,27 @@ World_ObjStackAdd(
     }
     World_CopyMenuActions(stack->actions, actions);
     return idx;
+}
+
+void
+World_ObjStackSetOwnership(
+    struct World* world,
+    int idx,
+    int public_clock,
+    int despawn_clock,
+    int owner,
+    int never_becomes_public)
+{
+    struct WorldEntity_ObjStack* stack;
+
+    assert(world);
+    assert(idx >= 0);
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    stack->public_clock = public_clock;
+    stack->despawn_clock = despawn_clock;
+    stack->owner = owner;
+    stack->never_becomes_public = never_becomes_public;
 }
 
 int

@@ -364,6 +364,21 @@ struct PktObjAdd
     int pos;   /* g1 */
     int obj_id; /* g2 */
     int count;  /* g2 */
+    /*
+     * The four fields OldSchool added with per-player loot ownership. All are
+     * in GAME TICKS or are flags, and all are zero on a revision whose codec
+     * does not carry them -- which reads as "public already, never despawns",
+     * the truth for a classic obj pile.
+     *
+     * They are what the cache's ground-items overlay draws its two timers and
+     * its ownership filter from (`_6860`, `_6861`, `_6862`, OBJ_OWNER); the
+     * client used to decode them and throw them away, so every one of those
+     * ops had no answer to give.
+     */
+    int time_until_public;   /* g2  ticks until everyone can see it */
+    int time_until_despawn;  /* g2  ticks until it vanishes */
+    int ownership_type;      /* g1  0/1 mine-or-public, 2 someone else's, 3 group */
+    int never_becomes_public; /* g1  bool: stays private for its whole life */
 };
 
 struct PktObjDel

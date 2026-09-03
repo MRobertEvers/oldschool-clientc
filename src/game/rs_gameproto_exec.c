@@ -458,8 +458,19 @@ exec_zone_sub_packet_at(
     case PKT_NAME_OBJ_ADD:
     {
         struct PktObjAdd const* pkt = payload;
+        int idx;
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+        idx = App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+        /* A refused add (-1: no objtype, no model, no scene element) has no
+         * stack to hang the ownership on. */
+        if( idx >= 0 )
+            App_WorldObjStackSetOwnership(
+                app,
+                idx,
+                pkt->time_until_public,
+                pkt->time_until_despawn,
+                pkt->ownership_type,
+                pkt->never_becomes_public);
         break;
     }
     case PKT_NAME_OBJ_DEL:

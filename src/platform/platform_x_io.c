@@ -48,14 +48,19 @@
 /*
  * How many of those slots hold an archive unless told otherwise.
  *
- * The win the cache exists for comes from the few groups in flight at once --
- * a group is requested once per id it contains, so the repeat run is a burst,
- * not a long tail. Over a 400-frame boot, 4 slots decompress no more than 32
- * do and give back 0.6 MB of retained archives. Raise it with
- * TORIRS_DAT2_ARCHIVE_SLOTS (up to DAT2_ARCHIVE_CACHE_SLOTS) for a workload
- * that keeps more groups open.
+ * Four was measured on a BOOT, where a group is requested once per id it
+ * contains and the repeat run is a burst rather than a long tail. In play the
+ * tail is what matters: a rebuild reads the loc, underlay, overlay, sequence
+ * and texture groups, an interface opening reads enums, structs, params and
+ * sprites, an inventory update reads the obj group, and with four slots those
+ * evict each other inside one frame. The loser is bzip2'd again on its next
+ * touch -- 0.6 MB compressed for the loc or obj group -- which is the stutter
+ * behind doors, item icons and first-open interfaces. Eight holds a rebuild's
+ * set with room for the UI's. Raise it with TORIRS_DAT2_ARCHIVE_SLOTS (up to
+ * DAT2_ARCHIVE_CACHE_SLOTS) for a workload that keeps more groups open; the
+ * split-group cache above it (DAT2_GROUP_CACHE_BUDGET) has the same story.
  */
-#define DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT 4
+#define DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT 8
 
 struct Dat2ArchiveCacheSlot
 {

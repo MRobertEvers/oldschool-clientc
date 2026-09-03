@@ -198,13 +198,33 @@
              * whole width shows through both -- the tile running past the ends of
              * the end caps. The inset is the caps' opaque width (16), not their 18px
              * cell, so the middle tucks under them rather than stopping short and
-             * leaving a seam; it is clipped to the content box that padding leaves.
-             * Set here as well as in the stylesheet because the downlevel page
-             * styles only the middle: its caps arrive from this theme, and so must
-             * their inset. */
-            button.style.backgroundClip = 'border-box,border-box,content-box';
-            button.style.paddingLeft = '16px';
-            button.style.paddingRight = '16px';
+             * leaving a seam. Set here as well as in the stylesheet because the
+             * downlevel page styles only the middle: its caps arrive from this
+             * theme, and so must their inset -- which is why this has to state the
+             * same geometry modern.css does, down to the box model, or the two pages
+             * draw the same theme two different sizes.
+             *
+             * The inset is a transparent BORDER, and the vertical padding it frees
+             * is what centres the caption on the plate: a button centres its LINE
+             * BOX, and p12's box is not centred on its own ink (a 12px ascent for
+             * accents nothing writes, over a 10px capital). Two pixels of top
+             * padding leave the 18px box exactly the 16px line box, so the baseline
+             * is the padding edge plus the ascent -- 14, the middle of the art's
+             * opaque 1..17 band -- with no free space to halve onto a blurred row.
+             * See the long note on the .tpc-button rule in modern.css. */
+            button.style.boxSizing = 'border-box';
+            button.style.backgroundOrigin = 'border-box,border-box,padding-box';
+            button.style.backgroundClip = 'border-box,border-box,padding-box';
+            button.style.borderStyle = 'solid';
+            button.style.borderColor = 'transparent';
+            button.style.borderTopWidth = '0';
+            button.style.borderBottomWidth = '0';
+            button.style.borderLeftWidth = '16px';
+            button.style.borderRightWidth = '16px';
+            button.style.paddingLeft = '0';
+            button.style.paddingRight = '0';
+            button.style.paddingTop = '2px';
+            button.style.lineHeight = '16px';
             button.style.overflow = 'hidden';
         }
         else if (middle) {
@@ -212,10 +232,18 @@
             button.style.backgroundRepeat = 'repeat-x';
             button.style.backgroundPosition = 'left center';
             button.style.backgroundSize = '10px 18px';
-            /* No caps: the tile is the whole button and needs no inset. */
+            /* No caps: the tile is the whole button and needs no inset, so the
+             * border the cap case carries has to come back off -- a theme can turn
+             * its caps off, and a stale 16px border would keep their space. The
+             * caption's own 2px nudge stays: the plate is the same 18px art. */
+            button.style.boxSizing = 'border-box';
             button.style.backgroundClip = 'border-box';
+            button.style.borderLeftWidth = '0';
+            button.style.borderRightWidth = '0';
             button.style.paddingLeft = '6px';
             button.style.paddingRight = '6px';
+            button.style.paddingTop = '2px';
+            button.style.lineHeight = '16px';
         }
     }
     /* The interfaces' own tick/cross (or the square well) at its baked side,

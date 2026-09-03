@@ -103,6 +103,8 @@ static struct
     int end_calls;
 
     int blits;
+    int blit_x[128];
+    int blit_y[128];
     int regions;
     uint32_t region_tag[64];
     int region_x[64];
@@ -266,8 +268,13 @@ fake_draw_image(
     void* u, int slot, int x, int y, int w, int h,
     int cx, int cy, int cw, int ch, int trans)
 {
-    (void)u; (void)slot; (void)x; (void)y; (void)w; (void)h;
+    (void)u; (void)slot; (void)w; (void)h;
     (void)cx; (void)cy; (void)cw; (void)ch; (void)trans;
+    if( g_frame.blits < 128 )
+    {
+        g_frame.blit_x[g_frame.blits] = x;
+        g_frame.blit_y[g_frame.blits] = y;
+    }
     g_frame.blits++;
     return 1;
 }
@@ -462,16 +469,75 @@ static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; 
 static int fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)m; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
-static int fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h) { (void)u; (void)r; (void)x; (void)y; (void)w; (void)h; return 0; }
+/*
+ * The chatbox pack's decoration, as an OldSchool lane's profile binds it:
+ * the backing over the whole 519x165 block, the bar along its bottom 23
+ * rows, and eight filter plates across it. A 2004 lane has none of these
+ * and the same fake answers 0 for every name, which is what makes "this
+ * revision has no such part" the tested case too.
+ */
+/* The canvas every test below declares against. Above the fakes because
+ * fake_role_rect answers boxes measured from its bottom edge. */
+#define M_W 1020
+#define M_H 460
+
+static int g_chat_pieces_exist = 0;
+static int
+fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h)
+{
+    int bx = 0, by = 0, bw = 0, bh = 0;
+
+    (void)u;
+    if( !g_chat_pieces_exist )
+        return 0;
+    if( strcmp(r, "chat_backing") == 0 )
+    {
+        bx = 0; by = M_H - 165; bw = 519; bh = 142;
+    }
+    else if( strcmp(r, "chat_bar") == 0 )
+    {
+        bx = 0; by = M_H - 23; bw = 519; bh = 23;
+    }
+    else if( strncmp(r, "chat_plate_", 11) == 0 )
+    {
+        int const n = atoi(r + 11);
+        if( n < 0 || n > 7 )
+            return 0;
+        bx = 3 + n * 62; by = M_H - 22; bw = 56; bh = 22;
+    }
+    else
+        return 0;
+    if( x ) *x = bx;
+    if( y ) *y = by;
+    if( w ) *w = bw;
+    if( h ) *h = bh;
+    return 1;
+}
 static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
-static int fake_role_id(void* u, char const* r) { (void)u; (void)r; return -1; }
+/* A part exists for the chrome tier exactly when the profile binds a node to
+ * its name, which on this fake is the same set fake_role_rect answers for. */
+static int
+fake_role_id(void* u, char const* r)
+{
+    int x = 0;
+    return fake_role_rect(u, r, &x, NULL, NULL, NULL) ? 1000 + (int)strlen(r) : -1;
+}
 static int fake_role_slot(void* u, char const* r, int* s, int* m)
 { (void)u; (void)r; (void)s; (void)m; return 0; }
 static int fake_role_replace(void* u, int p, char const* r, int e)
 { (void)u; (void)p; (void)r; (void)e; return 1; }
-static int fake_role_anchor(void* u, int p, char const* r, int replace, int place)
-{ (void)place; (void)u; (void)p; (void)replace; return r ? 0 : 1; }
+/* Anchoring succeeds for a role this fake frame HAS, which is the same set
+ * fake_role_rect answers for; a NULL role is the release and always works. */
+static int
+fake_role_anchor(void* u, int p, char const* r, int replace, int place)
+{
+    int x = 0;
+    (void)p; (void)replace; (void)place;
+    if( !r )
+        return 1;
+    return fake_role_rect(u, r, &x, NULL, NULL, NULL);
+}
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
@@ -540,6 +606,16 @@ draw(int w, int h)
     PluginHost_DrawFrame(g_host, w, h);
 }
 
+/** Did anything land at exactly this spot in the last draw pass? */
+static int
+blitted_at(int x, int y)
+{
+    for( int i = 0; i < g_frame.blits && i < 128; i++ )
+        if( g_frame.blit_x[i] == x && g_frame.blit_y[i] == y )
+            return 1;
+    return 0;
+}
+
 static int
 slot_is(int slot, int x, int y, int w, int h)
 {
@@ -597,8 +673,6 @@ slot_is(int slot, int x, int y, int w, int h)
 #define M_TAG_CHAT 0x0c40000u
 
 /** A phone in landscape, at the interface scale a 2778x1284 screen divides to. */
-#define M_W 1020
-#define M_H 460
 
 static void
 click(uint32_t tag)
@@ -1151,6 +1225,140 @@ main(void)
     CHECK(
         g_frame.slot[TORIRS_PLUGIN_SLOT_VIEWPORT].placed,
         "and the next layout pass declares it");
+
+    /* ---- 10. the OldSchool lane ---------------------------------------- */
+
+    /*
+     * An OldSchool cache authors a mobile gameframe of its own and the drawer
+     * used to stand down there. It arranges over it now, and by default wears
+     * that frame's own pieces: interface 601's 40x40 stones on the dark
+     * plate, its thin map ring, the fixed frame's drawer plate. The chat and
+     * the orbs are the cache's PACKS on that lane and are placed whole.
+     *
+     * A fresh host: a lane is stated at boot and never changes in a process.
+     */
+    PluginHost_Free(g_host);
+    g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+    g_chat_pieces_exist = 1;
+    g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+    g_host = PluginHost_New(&e);
+    e.user = g_host;
+    PluginHost_Free(g_host);
+    g_host = PluginHost_New(&e);
+    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
+    PluginHost_SetEnabled(g_host, g_plugin, true);
+    PluginHost_Start(g_host);
+    CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the drawer on");
+    CHECK(g_frame.owned == 1, "and it claims the frame there too");
+    /* The art lands and the masks are read off the OldSchool ring on the
+     * frame ticks, exactly as on the 2004 lane. */
+    PluginHost_FrameStart(g_host, 3000, 0);
+    PluginHost_FrameStart(g_host, 3050, 0);
+    declare(M_W, M_H);
+    {
+        int const c_rail_x = M_W - M_MARGIN - M_RAIL_W;
+        int const c_rail_y = M_H - M_MARGIN - M_RAIL_H;
+        int rail = 0;
+
+        CHECK(
+            slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, M_H - 165, 519, 165),
+            "the chat PACK's 519x165 container is placed whole, flush with the corner");
+        CHECK(
+            g_frame.slot[TORIRS_PLUGIN_SLOT_ORBS].placed,
+            "the orb block is placed beside the map");
+        CHECK(
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == M_W - M_MARGIN - M_MAP_W,
+            "Auto keeps the 2004 lizard housing on an OldSchool lane");
+        CHECK(
+            g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
+                g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].art >= 0,
+            "and brings the 2004 compass rose, since the cache's is OldSchool's");
+        CHECK(
+            g_frame.slot[TORIRS_PLUGIN_SLOT_ORBS].x ==
+                    g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].x - 53 &&
+                g_frame.slot[TORIRS_PLUGIN_SLOT_ORBS].y ==
+                    g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].y + 2,
+            "at the offset from the map window the resizable toplevels use");
+
+        draw(M_W, M_H);
+        for( int i = 0; i < g_frame.regions; i++ )
+        {
+            uint32_t const tag = g_frame.region_tag[i];
+            int const x = g_frame.region_x[i];
+            int const y = g_frame.region_y[i];
+
+            if( (tag & ~0xffffu) == M_TAG_TAB )
+                rail++;
+            /* The 2004 rail, on an OldSchool lane: Auto is the classic
+             * family everywhere, which is the whole look this frame is. */
+            if( tag == (M_TAG_TAB | 0u) )
+                CHECK(
+                    x == c_rail_x + 9 && y == c_rail_y + M_RAIL_H - 28 - 28,
+                    "tab 0 is on the first rock of the turned 2004 row");
+            if( tag == (M_TAG_TAB | 7u) )
+                CHECK(
+                    x == c_rail_x + M_COL_W && y == c_rail_y + M_RAIL_H - 28 - 28,
+                    "and tab 7 matches it on the right plate");
+            if( tag == M_TAG_CHAT )
+                CHECK(
+                    x == M_MARGIN && y == M_H - 165 - M_MARGIN - M_TOGGLE_H,
+                    "the chat switch clears the pack it operates");
+        }
+        CHECK(rail == 14, "all fourteen tabs claim a cell on the 2004 rail");
+        CHECK(
+            !blitted_at(0, M_H - 165 - M_CHAT_FRINGE),
+            "no parchment is blitted under the pack's own backing");
+    }
+
+    /*
+     * The chat pack's DECORATION, claimed and re-dressed.
+     *
+     * The pack draws its own backing, bar and eight filter plates, and the
+     * frame layer places a pack whole -- so without this the Stone Drawer
+     * stands around an OldSchool chatbox. The pieces are claimed by name
+     * (the profile binds them) and painted at the box the pack gives them.
+     */
+    {
+        /* The host paints a claimant's declaration on the CANVAS pass, at the
+         * part's own box -- so the proof is a blit at each piece's corner,
+         * which is where the pack's own art was. */
+        int plates = 0;
+
+        PluginHost_ChromeTick(g_host, M_W, M_H);
+        g_frame.blits = 0;
+        PluginHost_DrawCanvas(g_host, M_W, M_H);
+        CHECK(blitted_at(0, M_H - 165), "the pack's backing wears the plugin's parchment");
+        CHECK(blitted_at(0, M_H - 23), "and its stone bar the 2004 strip");
+        for( int n = 0; n < 8; n++ )
+            plates += blitted_at(3 + n * 62, M_H - 22) ? 1 : 0;
+        CHECK(plates == 8, "and all eight filter plates the 2004 button, scaled to them");
+    }
+
+    /* The other family, asked for: OldSchool Mobile's own rail. */
+    PluginHost_ConfigSet(g_host, g_plugin, "art", "OldSchool");
+    PluginHost_FrameStart(g_host, 3100, 0);
+    declare(M_W, M_H);
+    draw(M_W, M_H);
+    {
+        int const o_rail_w = 40 * 2 + 6;
+        int const o_rail_h = 39 * 6 + 40 + 6;
+        int const rail_x = M_W - M_MARGIN - o_rail_w;
+        int const rail_y = M_H - M_MARGIN - o_rail_h;
+        int seen = 0;
+        for( int i = 0; i < g_frame.regions; i++ )
+            if( g_frame.region_tag[i] == (M_TAG_TAB | 3u) )
+            {
+                seen = 1;
+                CHECK(
+                    g_frame.region_x[i] == rail_x + 3 && g_frame.region_y[i] == rail_y + 3,
+                    "OldSchool art puts combat's stone3 at the head of 601's left column");
+            }
+        CHECK(seen, "and that rail carries the combat tab");
+        CHECK(
+            slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, M_H - 165, 519, 165),
+            "while the chat stays the lane's pack: the art is a family, the chat a lane");
+    }
 
     PluginHost_Free(g_host);
 

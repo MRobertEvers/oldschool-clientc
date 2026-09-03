@@ -1,3 +1,4 @@
+#include "plugin/plugins/plugin_draw.h"
 #include "plugin/torirs_plugin.h"
 
 #include <assert.h>
@@ -12,6 +13,53 @@
  * What it answers, per skill and for the session as a whole: how much xp you
  * have gained, how fast you are gaining it, how many actions that took, how
  * many are left, and how long until the next level at the rate you are going.
+ *
+ * ---- the look is the CACHE's, not invented here ----
+ *
+ * This client already has an XP tracker: the CS2 that builds interface 729
+ * (`xptracker`) draws one box per skill, and every colour and measurement
+ * below was read out of it rather than chosen. To re-derive:
+ *
+ *     3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 \
+ *         --rev osrs239 --out /tmp/cs2xp 5362 5363 5364 5365 5366 5370 5371
+ *
+ * What those state, and what this draws:
+ *
+ *   script5364  the BOX -- a filled rect at `cc_settrans(128)` with an
+ *               unfilled rect over it for the border, 48 tall on a 50 pitch
+ *               (`%varcint562 = row * (48 + 2)`).
+ *   script5363  the skill ICON, 25x25 at x=3, out of `enum(stat, graphic,
+ *               enum_255, stat)`.
+ *   script5366  the STATS, a 2x2 grid anchored to the box's RIGHT edge, in
+ *               fontmetrics_494 with a shadow: keys 0xcccccc, values white,
+ *               12px line height, the pairs being XP Gained / XP/Hr and
+ *               Acts>Lvl / XP>Lvl.
+ *   script5365  the BAR: track 0x002200 and fill 0x006600, 15 tall, under the
+ *               stats at y+27, with three labels over it -- the level at the
+ *               left and the goal at the right in 0xcccccc, and the percentage
+ *               centred in white.
+ *   script5370  the fill's width, and 0x885500 across the WHOLE bar when the
+ *               goal is met rather than a green bar that happens to be full.
+ *   script5371  that centre label: "12.34%" to two decimals, "Paused." while
+ *               paused, "Done!" when the goal is met.
+ *
+ * The reference's own info box is the same shape -- an icon, four corner
+ * stats, a bar with a level at each end -- which is why the two could be put
+ * together at all: RuneLite's four configurable label slots are exactly the
+ * 2x2 grid the CS2 lays out, so the config below offers its choices and the
+ * layout stays the cache's.
+ *
+ * ---- drawn as ONE composed image ----
+ *
+ * The whole list is rasterised into a single ARGB buffer and blitted into one
+ * panel drawing well, which is xp-drop-orbs' and item-stats' pattern and is
+ * here for their reason: api->draw_text is the client's chunky hitsplat face
+ * with no way to measure a string, so a plugin that wants the game's own
+ * caption face ships a baked atlas of it and sets text itself.
+ *
+ * It is also what makes the budget work. The panel gives a plugin 48 controls;
+ * a box built out of them would be seven each and would run out at the seventh
+ * skill. One well is one control however many skills are being tracked.
  *
  * It is a PAGE and not an overlay, which is the one structural difference from
  * the reference. RuneLite's plugin is two halves -- a side panel and a set of
@@ -77,6 +125,58 @@
 #define XT_SECOND_MS 1000
 
 static struct ToriRS_PluginApi const* g_api;
+
+/* ------------------------------------------------------------------------ */
+/* The cache's own measurements and palette                                  */
+/*                                                                           */
+/* Every number here is script5363..5371's; @see the file comment.           */
+/* ------------------------------------------------------------------------ */
+
+/** One box, and the gap under it. `%varcint562 = row * (48 + 2)`. */
+#define XT_BOX_H 48
+#define XT_BOX_GAP 2
+#define XT_BOX_PITCH (XT_BOX_H + XT_BOX_GAP)
+/** The skill icon: 25x25 at x=3, y=+3. */
+#define XT_ICON 25
+#define XT_ICON_X 3
+/** The bar: 15 tall, at `2 + 25` down the box. */
+#define XT_BAR_H 15
+#define XT_BAR_Y (XT_BOX_GAP + XT_ICON)
+/** The stat grid's line box. */
+#define XT_LINE_H 12
+#define XT_PAD 4
+
+/** The box: a half-transparent black wash under a black border. */
+#define XT_BOX_FILL 0x000000u
+#define XT_BOX_FILL_ALPHA 128
+#define XT_BOX_BORDER 0x2E2B25u
+/** The bar, exactly as script5365/5370 set it. */
+#define XT_BAR_TRACK 0x002200u
+#define XT_BAR_FILL 0x006600u
+#define XT_BAR_DONE 0x885500u
+/** Text: values white, keys and the bar's end labels 0xcccccc. */
+#define XT_INK_VALUE 0xFFFFFFu
+#define XT_INK_KEY 0xCCCCCCu
+/** The selected box is lifted rather than recoloured, so the palette stays the
+ *  cache's and the selection is still unmistakable. */
+#define XT_BOX_SELECTED 0x5A5442u
+
+/* ------------------------------------------------------------ the glyph atlas */
+
+/* The kit's text verbs take the face as an argument; every label on this page
+ * is set in the one the CS2 sets its own in, so the calls name it once here. */
+#define PLUGIN_DRAW_TEXT(buf, w, h, x, top, text, tint)                                  \
+    PluginDraw_Text((buf), (w), (h), (x), (top), &g_font, (text), (tint))
+#define PLUGIN_DRAW_TEXT_RIGHT(buf, w, h, right, top, text, tint)                        \
+    PluginDraw_TextRight((buf), (w), (h), (right), (top), &g_font, (text), (tint))
+
+/** The face every label is set in, and the 25x25 icon strip. */
+static struct PluginDraw_Atlas g_font;
+static int g_img_skills = -1;
+static uint32_t* g_skill_px;
+static int g_skill_w;
+static int g_skill_h;
+
 
 /**
  * One skill's tracking state -- RuneLite's XpStateSingle, field for field.
@@ -602,50 +702,329 @@ xt_state_apply(struct ToriRS_PluginCtx* ctx)
 }
 
 /* ------------------------------------------------------------------------ */
-/* The page                                                                  */
+/* The boxes                                                                 */
 /* ------------------------------------------------------------------------ */
 
-/** Widget id of the list row for `index`. */
-static void
-xt_row_id(int index, char* out, size_t out_size)
-{
-    assert(out);
-    snprintf(out, out_size, "sk%d", index);
-}
-
-/** The skill a row id names, or -1 when the id is not a row. */
+/** Everything the compose needs, resident. */
 static int
-xt_row_index(char const* id)
+xt_art_ready(struct ToriRS_PluginCtx* ctx)
 {
-    int index;
-
-    assert(id);
-    if( sscanf(id, "sk%d", &index) != 1 )
-        return -1;
-    if( index < 0 || index >= g_skill_count )
-        return -1;
-    return index;
+    assert(ctx);
+    if( !PluginDraw_AtlasLoad(ctx, g_api, &g_font, "text") )
+        return 0;
+    return PluginDraw_ImageLoad(
+        ctx, g_api, "skills.png", &g_img_skills, &g_skill_px, &g_skill_w, &g_skill_h);
 }
 
-/** The one-line summary a skill's list row carries. */
-static void
-xt_row_text(int index, char* out, size_t out_size)
+/** Which of RuneLite's XpPanelLabel values a stat slot is showing. */
+enum XtLabel
 {
-    struct XtSkill const* skill = &g_skill[index];
-    char gained[24];
-    char rate[24];
+    XT_LABEL_XP_GAINED = 0,
+    XT_LABEL_XP_HOUR,
+    XT_LABEL_XP_LEFT,
+    XT_LABEL_ACTIONS_DONE,
+    XT_LABEL_ACTIONS_HOUR,
+    XT_LABEL_ACTIONS_LEFT,
+    XT_LABEL_TIME_TO_LEVEL,
+    XT_LABEL_COUNT
+};
 
+/** The choice list, and the KEY each choice prints. The reference's own
+ *  spellings, so a person who has used it recognises the row. */
+static char const* const XT_LABEL_CHOICES =
+    "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL";
+static char const* const XT_LABEL_KEY[XT_LABEL_COUNT] = {
+    "XP Gained: ", "XP/Hr: ", "XP>Lvl: ", "Actions: ", "Acts/Hr: ", "Acts>Lvl: ", "TTL: "
+};
+
+/** Read a label slot out of the config, by its choice text. */
+static int
+xt_label_slot(struct ToriRS_PluginCtx* ctx, char const* key, int fallback)
+{
+    char const* value = g_api->cfg_str(ctx, key);
+    char const* at = XT_LABEL_CHOICES;
+
+    assert(ctx);
+    if( !value || !value[0] )
+        return fallback;
+    for( int index = 0; index < XT_LABEL_COUNT; index++ )
+    {
+        char const* end = strchr(at, '|');
+        size_t const len = end ? (size_t)(end - at) : strlen(at);
+
+        if( strlen(value) == len && strncmp(at, value, len) == 0 )
+            return index;
+        if( !end )
+            break;
+        at = end + 1;
+    }
+    return fallback;
+}
+
+/** One stat slot's VALUE for one skill. */
+static void
+xt_label_value(
+    struct ToriRS_PluginCtx* ctx, int skill, int which, char* out, size_t out_size)
+{
+    struct XtSkill const* s = &g_skill[skill];
+    int xp = 0;
+    int next_xp = 0;
+    long long remaining;
+    int mean;
+
+    assert(ctx);
     assert(out);
 
-    xt_short(xt_gained(skill), gained, sizeof(gained));
-    xt_short(xt_hourly(skill, skill->gained_since_reset), rate, sizeof(rate));
-    if( skill->paused )
-        snprintf(out, out_size, "%s xp  (paused)", gained);
-    else
-        snprintf(out, out_size, "%s xp  %s/hr", gained, rate);
+    g_api->stat_xp(ctx, skill, &xp, NULL, &next_xp);
+    remaining = next_xp > 0 ? next_xp - xp : 0;
+    mean = xt_mean_action_xp(s);
+
+    switch( which )
+    {
+    case XT_LABEL_XP_HOUR:
+        xt_short(xt_hourly(s, s->gained_since_reset), out, out_size);
+        break;
+    case XT_LABEL_XP_LEFT:
+        if( next_xp > 0 )
+            xt_short(remaining, out, out_size);
+        else
+            snprintf(out, out_size, "-");
+        break;
+    case XT_LABEL_ACTIONS_DONE:
+        xt_short(s->actions, out, out_size);
+        break;
+    case XT_LABEL_ACTIONS_HOUR:
+        xt_short(xt_hourly(s, s->actions_since_reset), out, out_size);
+        break;
+    case XT_LABEL_ACTIONS_LEFT:
+        /* Unknown until ten actions have been seen -- @see xt_mean_action_xp,
+         * where refusing to answer is the point. */
+        if( mean > 0 && next_xp > 0 )
+            xt_short((remaining + mean - 1) / mean, out, out_size);
+        else
+            snprintf(out, out_size, "-");
+        break;
+    case XT_LABEL_TIME_TO_LEVEL:
+        if( s->skill_time_ms >= XT_SECOND_MS && s->gained_since_reset > 0 && next_xp > 0 )
+            xt_duration(
+                (remaining * (long long)(s->skill_time_ms / 1000u)) /
+                    s->gained_since_reset,
+                out,
+                out_size);
+        else
+            snprintf(out, out_size, "-");
+        break;
+    case XT_LABEL_XP_GAINED:
+    default:
+        xt_short(xt_gained(s), out, out_size);
+        break;
+    }
 }
 
-/** Rewrite every readout on the built page. Cheap: panel_set_text compares. */
+/**
+ * One skill's box, at `top` in `buf`.
+ *
+ * Laid out against the cache's numbers throughout; @see the file comment for
+ * the script each came from.
+ */
+static void
+xt_draw_box(
+    struct ToriRS_PluginCtx* ctx,
+    uint32_t* buf,
+    int w,
+    int h,
+    int top,
+    int skill,
+    int const slot[4],
+    bool selected)
+{
+    struct XtSkill const* s = &g_skill[skill];
+    char value[32];
+    char text[48];
+    int xp = 0;
+    int level_xp = 0;
+    int next_xp = 0;
+    int level = 0;
+    int bar_y;
+    int fill_w;
+    int key_w = 0;
+    int val_w;
+    bool done;
+
+    assert(ctx);
+    assert(buf);
+
+    /* The box: the wash, then the border over it. */
+    PluginDraw_Fill(buf, w, h, 0, top, w, XT_BOX_H, XT_BOX_FILL, XT_BOX_FILL_ALPHA);
+    PluginDraw_Frame(buf, w, h, 0, top, w, XT_BOX_H, selected ? XT_BOX_SELECTED : XT_BOX_BORDER);
+
+    /* The icon, indexed BY SKILL ID -- skills.png is cut in that order. */
+    if( g_skill_px && skill * XT_ICON < g_skill_w )
+        PluginDraw_Blit(
+            buf, w, h, XT_ICON_X, top + XT_BOX_GAP + 1, g_skill_px, g_skill_w,
+            g_skill_h, skill * XT_ICON, 0, XT_ICON, XT_ICON, 0);
+
+    /*
+     * The 2x2 stat grid, anchored to the box's RIGHT edge exactly as
+     * script5366 anchors it (`cc_setposition(..., 2, 0)` is right-relative).
+     * One key column width for both rows, so the two values line up.
+     */
+    for( int i = 0; i < 4; i++ )
+    {
+        int const kw = PluginDraw_TextWidth(&g_font, XT_LABEL_KEY[slot[i]]);
+        if( kw > key_w )
+            key_w = kw;
+    }
+    val_w = PluginDraw_TextWidth(&g_font, "88.888M");
+
+    for( int row = 0; row < 2; row++ )
+    {
+        int const y = top + XT_PAD + row * XT_LINE_H;
+        for( int col = 0; col < 2; col++ )
+        {
+            int const which = slot[row * 2 + col];
+            /* Two pairs, the right-hand one hard against the edge. */
+            int const right = w - XT_PAD - (1 - col) * (key_w + val_w);
+
+            xt_label_value(ctx, skill, which, value, sizeof(value));
+            PLUGIN_DRAW_TEXT(buf, w, h, right - key_w - val_w, y, XT_LABEL_KEY[which], XT_INK_KEY);
+            PLUGIN_DRAW_TEXT_RIGHT(buf, w, h, right, y, value, XT_INK_VALUE);
+        }
+    }
+
+    /* The bar. */
+    g_api->stat_xp(ctx, skill, &xp, &level_xp, &next_xp);
+    g_api->stat(ctx, skill, NULL, &level);
+    bar_y = top + XT_BAR_Y;
+    /* next_xp is 0 at the top of the client's table -- 99, with no next level
+     * to progress towards, which script5370 draws as the DONE bar rather than
+     * as a green one that happens to be full. */
+    done = next_xp <= level_xp;
+    fill_w = done || next_xp <= level_xp
+                 ? w
+                 : (int)(((long long)(xp - level_xp) * w) / (next_xp - level_xp));
+    if( fill_w < 0 )
+        fill_w = 0;
+    if( fill_w > w )
+        fill_w = w;
+
+    PluginDraw_Fill(buf, w, h, 0, bar_y, w, XT_BAR_H, XT_BAR_TRACK, 255);
+    PluginDraw_Fill(
+        buf, w, h, 0, bar_y, fill_w, XT_BAR_H, done ? XT_BAR_DONE : XT_BAR_FILL, 255);
+
+    /* Its three labels: the level at each end, the percentage in the middle. */
+    snprintf(text, sizeof(text), "%d", level);
+    PLUGIN_DRAW_TEXT(buf, w, h, XT_PAD, bar_y + 2, text, XT_INK_KEY);
+    if( !done )
+    {
+        snprintf(text, sizeof(text), "%d", level + 1);
+        PLUGIN_DRAW_TEXT_RIGHT(buf, w, h, w - XT_PAD, bar_y + 2, text, XT_INK_KEY);
+    }
+
+    if( s->paused )
+        snprintf(text, sizeof(text), "Paused.");
+    else if( done )
+        snprintf(text, sizeof(text), "Done!");
+    else
+    {
+        /* Two decimals, as script5371 sets it. */
+        long long const permyriad =
+            ((long long)(xp - level_xp) * 10000) / (next_xp - level_xp);
+        snprintf(
+            text, sizeof(text), "%lld.%02lld%%", permyriad / 100, permyriad % 100);
+    }
+    PLUGIN_DRAW_TEXT(
+        buf, w, h, (w - PluginDraw_TextWidth(&g_font, text)) / 2, bar_y + 2, text, XT_INK_VALUE);
+}
+
+/* ------------------------------------------------------------------------ */
+/* The page                                                                  */
+/* ------------------------------------------------------------------------ */
+/** The skill each drawn box belongs to, in draw order. */
+static int g_box_skill[XT_SKILLS_MAX];
+static int g_box_count;
+/** The composed strip, and the size it was composed at. */
+static uint32_t* g_compose;
+static int g_compose_w;
+static int g_compose_h;
+/** The well's last known width, so a resize recomposes. */
+static int g_well_w = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+
+/** Which skills get a box, in stats-tab order. */
+static void
+xt_collect_boxes(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    g_box_count = 0;
+    for( int i = 0; i < g_skill_count && g_box_count < XT_SKILLS_MAX; i++ )
+        if( xt_row_wanted(ctx, i) )
+            g_box_skill[g_box_count++] = i;
+}
+
+/** The four label slots the user chose, in reading order. */
+static void
+xt_slots(struct ToriRS_PluginCtx* ctx, int out[4])
+{
+    assert(ctx);
+    out[0] = xt_label_slot(ctx, "label_top_left", XT_LABEL_XP_GAINED);
+    out[1] = xt_label_slot(ctx, "label_top_right", XT_LABEL_XP_HOUR);
+    out[2] = xt_label_slot(ctx, "label_bottom_left", XT_LABEL_ACTIONS_LEFT);
+    out[3] = xt_label_slot(ctx, "label_bottom_right", XT_LABEL_XP_LEFT);
+}
+
+/** The well's height for the boxes it has to hold. */
+static int
+xt_well_h(void)
+{
+    return g_box_count > 0 ? g_box_count * XT_BOX_PITCH : XT_BOX_PITCH;
+}
+
+/**
+ * Rasterise every box and publish the strip.
+ *
+ * One image for the whole list rather than one per box: a compose is the
+ * expensive half of this plugin and the panel blits one picture either way,
+ * so composing per box would pay for the same pixels with more calls.
+ */
+static void
+xt_compose(struct ToriRS_PluginCtx* ctx, int width)
+{
+    int slot[4];
+    int const height = xt_well_h();
+    size_t const pixels = (size_t)width * (size_t)height;
+
+    assert(ctx);
+    if( width <= 0 || height <= 0 )
+        return;
+
+    if( !g_compose || g_compose_w != width || g_compose_h != height )
+    {
+        free(g_compose);
+        g_compose = malloc(pixels * sizeof(*g_compose));
+        assert(g_compose);
+        g_compose_w = width;
+        g_compose_h = height;
+    }
+    /* Transparent, so the panel's own backing shows between the boxes exactly
+     * as the interface's does between the CS2 rows. */
+    memset(g_compose, 0, pixels * sizeof(*g_compose));
+
+    xt_slots(ctx, slot);
+    for( int i = 0; i < g_box_count; i++ )
+        xt_draw_box(
+            ctx,
+            g_compose,
+            width,
+            height,
+            i * XT_BOX_PITCH,
+            g_box_skill[i],
+            slot,
+            g_box_skill[i] == g_detail);
+
+    g_api->image_compose(ctx, "boxes", width, height, g_compose);
+}
+
+/** Rewrite the session readouts. The boxes are pixels and redraw themselves. */
 static void
 xt_page_refresh(struct ToriRS_PluginCtx* ctx)
 {
@@ -653,7 +1032,6 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
     long long total_rate = 0;
     uint64_t const now = g_api->frame_ms(ctx);
     char text[96];
-    char scratch[24];
 
     assert(ctx);
     if( !g_page_built )
@@ -670,53 +1048,34 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
     g_api->panel_set_text(ctx, "total_xp", text);
     xt_commas(total_rate, text, sizeof(text));
     g_api->panel_set_text(ctx, "total_hr", text);
-    xt_duration(
-        (long long)((now - g_session_start_ms) / 1000u), text, sizeof(text));
+    xt_duration((long long)((now - g_session_start_ms) / 1000u), text, sizeof(text));
     g_api->panel_set_text(ctx, "total_time", text);
-
-    for( int i = 0; i < g_skill_count; i++ )
-    {
-        char id[TORIRS_PLUGIN_WIDGET_ID_MAX];
-
-        if( !g_built_rows[i] )
-            continue;
-        xt_row_id(i, id, sizeof(id));
-        xt_row_text(i, text, sizeof(text));
-        g_api->panel_set_text(ctx, id, text);
-        g_api->panel_set_value(ctx, id, g_skill[i].paused ? 0 : 1);
-    }
 
     if( g_detail >= 0 && g_detail < g_skill_count )
     {
         struct XtSkill const* skill = &g_skill[g_detail];
+        char scratch[24];
         int xp = 0;
-        int level_xp = 0;
         int next_xp = 0;
-        int mean;
         long long remaining;
+        int mean;
 
-        g_api->stat_xp(ctx, g_detail, &xp, &level_xp, &next_xp);
+        g_api->stat_xp(ctx, g_detail, &xp, NULL, &next_xp);
         remaining = next_xp > 0 ? next_xp - xp : 0;
         mean = xt_mean_action_xp(skill);
 
-        /* next_xp is 0 at the top of the client's table -- level 99, which has
-         * no next level to progress towards. A meter there reads FULL. */
-        if( next_xp > level_xp )
-            g_api->panel_set_value(
-                ctx, "d_prog", (int)((long long)(xp - level_xp) * 100 / (next_xp - level_xp)));
-        else
-            g_api->panel_set_value(ctx, "d_prog", 100);
+        g_api->panel_set_text(
+            ctx, "d_pause", skill->paused ? "Unpause" : "Pause");
 
         xt_commas(xt_gained(skill), text, sizeof(text));
         g_api->panel_set_text(ctx, "d_gained", text);
-
         xt_commas(xt_hourly(skill, skill->gained_since_reset), text, sizeof(text));
         g_api->panel_set_text(ctx, "d_hr", text);
 
         if( next_xp > 0 )
             xt_commas(remaining, text, sizeof(text));
         else
-            snprintf(text, sizeof(text), "—");
+            snprintf(text, sizeof(text), "\xe2\x80\x94");
         g_api->panel_set_text(ctx, "d_left", text);
 
         xt_commas(skill->actions, scratch, sizeof(scratch));
@@ -728,11 +1087,9 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
         if( mean > 0 && next_xp > 0 )
             xt_commas((remaining + mean - 1) / mean, text, sizeof(text));
         else
-            snprintf(text, sizeof(text), "—");
+            snprintf(text, sizeof(text), "\xe2\x80\x94");
         g_api->panel_set_text(ctx, "d_actleft", text);
 
-        /* The reference's formula, and its two refusals: no time has been
-         * measured, or nothing has been gained to measure a rate from. */
         if( skill->skill_time_ms >= XT_SECOND_MS && skill->gained_since_reset > 0 &&
             next_xp > 0 )
             xt_duration(
@@ -741,11 +1098,12 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
                 text,
                 sizeof(text));
         else
-            snprintf(text, sizeof(text), "—");
+            snprintf(text, sizeof(text), "\xe2\x80\x94");
         g_api->panel_set_text(ctx, "d_ttl", text);
-
-        g_api->panel_set_text(ctx, "d_pause", skill->paused ? "Resume" : "Pause");
     }
+
+    /* The strip is a picture of numbers that just moved. */
+    g_api->panel_invalidate(ctx, "boxes");
 }
 
 /**
@@ -753,7 +1111,7 @@ xt_page_refresh(struct ToriRS_PluginCtx* ctx)
  *
  * The dispatch is the whole declaration -- the host empties the model before
  * calling -- so this states the page it wants rather than the difference from
- * the page it had, and there is no path by which the two can disagree.
+ * the page it had.
  */
 static enum ToriRS_PluginVerdict
 xt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
@@ -761,18 +1119,14 @@ xt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     (void)userdata;
 
     struct ToriRS_PluginEvPanelBuild const* ev = event;
-    int rows = 0;
 
     assert(ctx);
     assert(ev);
 
     /*
-     * The SETTINGS face is the generated form and nothing else.
-     *
-     * Every knob this plugin has is a config key, so the host's staged form
-     * already states them, already validates them and already commits them
-     * with a Save that reloads the plugin -- none of which a hand-built page
-     * here could do as well. Declaring nothing is the whole answer.
+     * The SETTINGS face is the generated form and nothing else: every knob
+     * this plugin has is a config key, and the host's staged form already
+     * states, validates and commits them with a Save that reloads the plugin.
      * @see enum ToriRS_PluginPanelView.
      */
     if( ev->view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
@@ -781,47 +1135,43 @@ xt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         return TORIRS_PLUGIN_PASS;
     }
 
-    memset(g_built_rows, 0, sizeof(g_built_rows));
+    xt_collect_boxes(ctx);
 
     g_api->panel_widget(ctx, TORIRS_PLUGIN_W_SECTION, "sec_session", "Session");
     g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_xp", "XP gained");
     g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_hr", "XP/hr");
     g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "total_time", "Session time");
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "reset_all", "Reset all");
 
-    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_SECTION, "sec_skills", "Skills");
-    for( int i = 0; i < g_skill_count && rows < XT_ROWS_MAX; i++ )
-    {
-        char id[TORIRS_PLUGIN_WIDGET_ID_MAX];
-        char const* name = g_api->skill_name(ctx, i);
-
-        if( !xt_row_wanted(ctx, i) || !name )
-            continue;
-        xt_row_id(i, id, sizeof(id));
-        if( !g_api->panel_widget(ctx, TORIRS_PLUGIN_W_LIST_ROW, id, name) )
-        {
-            /* Said out loud: the alternative is a page quietly missing its
-             * last few skills with nothing on screen to suggest they exist. */
-            g_api->log(ctx, "xp-tracker: no room on the page for '%s' and what follows", name);
-            break;
-        }
-        g_built_rows[i] = 1;
-        rows++;
-    }
-    if( rows == 0 )
+    if( g_box_count == 0 )
         g_api->panel_widget(
-            ctx,
-            TORIRS_PLUGIN_W_PARAGRAPH,
-            "empty",
-            "No XP gained yet this session.");
+            ctx, TORIRS_PLUGIN_W_PARAGRAPH, "empty", "No XP gained yet this session.");
+    else if( g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CUSTOM, "boxes", "Skills") )
+        g_api->panel_set_height(ctx, "boxes", xt_well_h());
 
+    /*
+     * The reference's own right-click menu, as buttons under the box it acts
+     * on. Same options and same order -- Reset, Reset others, Reset/hr, Pause
+     * -- because they are the four things a person does to a tracked skill;
+     * what is different is only how they are reached, and a panel's drawing
+     * well has no secondary-click channel to hang a menu on.
+     *
+     * "Open Wise Old Man" is not ported: it opens a hiscores site for a
+     * username this client has no browser to show and no account to name.
+     * "Add to canvas" is xp-drop-orbs' job -- see the file comment.
+     */
     g_built_detail = g_detail;
-    if( g_detail >= 0 && g_detail < g_skill_count && g_built_rows[g_detail] )
+    if( g_detail >= 0 && g_detail < g_skill_count && xt_row_wanted(ctx, g_detail) )
     {
         char const* name = g_api->skill_name(ctx, g_detail);
 
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_SECTION, "sec_detail", name);
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_PROGRESS, "d_prog", "Level progress");
+        /*
+         * EVERY stat for the selected skill, not only the four the box has
+         * room for. The box is a glance across the list; this is the one you
+         * asked about, and it is where the figures that did not fit in a 2x2
+         * grid live -- which is the same split the reference makes between its
+         * info box and the tooltip over its bar.
+         */
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_gained", "XP gained");
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_hr", "XP/hr");
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_left", "XP to level");
@@ -829,30 +1179,36 @@ xt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_actleft", "Actions to level");
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_ttl", "Time to level");
         g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_pause", "Pause");
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_reset", "Reset skill");
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_close", "Close details");
+        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_reset", "Reset");
+        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_reset_others", "Reset others");
+        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_reset_rate", "Reset/hr");
     }
     else
         g_built_detail = -1;
+
+    g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "reset_all", "Reset all");
 
     g_page_built = true;
     xt_page_refresh(ctx);
     return TORIRS_PLUGIN_PASS;
 }
 
-/** Does the built page still show the rows the state now wants? */
+/** Does the built page still show the boxes the state now wants? */
 static bool
 xt_page_stale(struct ToriRS_PluginCtx* ctx)
 {
+    int before;
+
     assert(ctx);
     if( !g_page_built )
         return false;
     if( g_built_detail != g_detail )
         return true;
-    for( int i = 0; i < g_skill_count; i++ )
-        if( (g_built_rows[i] != 0) != xt_row_wanted(ctx, i) )
-            return true;
-    return false;
+    before = g_box_count;
+    xt_collect_boxes(ctx);
+    /* A box appearing or disappearing changes the WELL's height, which only a
+     * rebuild can state; the numbers inside one are a redraw. */
+    return before != g_box_count;
 }
 
 /** The shell moved, showed or hid this page. */
@@ -867,22 +1223,75 @@ xt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     assert(ev);
 
     g_page_visible = ev->visible;
+    if( ev->width > 0 )
+        g_well_w = ev->width;
     if( g_page_visible )
+    {
         xt_page_refresh(ctx);
+        g_api->panel_invalidate(ctx, "boxes");
+    }
     return TORIRS_PLUGIN_PASS;
 }
 
+/** The strip, blitted into the well. */
+static enum ToriRS_PluginVerdict
+xt_panel_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    (void)userdata;
+
+    struct ToriRS_PluginEvPanelDraw const* ev = event;
+    int image;
+
+    assert(ctx);
+    assert(ev);
+    assert(ev->id);
+
+    if( strcmp(ev->id, "boxes") != 0 || ev->width <= 0 )
+        return TORIRS_PLUGIN_PASS;
+    /* The art travels through the IO queue, so the first passes after a start
+     * have nothing to draw with. Nothing is drawn and the next invalidate
+     * fills it -- the state a plugin's shipped art is always in for a frame or
+     * two, and the same one the client's own inventory icons are in. */
+    if( !xt_art_ready(ctx) )
+        return TORIRS_PLUGIN_PASS;
+
+    g_well_w = ev->width;
+    xt_compose(ctx, ev->width);
+    image = g_api->image_load(ctx, "boxes");
+    if( image >= 0 )
+        g_api->draw_image(ctx, ev->surface, image, ev->x, ev->y, 0, 0, 0, 0, 0);
+    return TORIRS_PLUGIN_PASS;
+}
+
+/**
+ * A control on the page, or a click in the box strip.
+ *
+ * The strip is ONE control, so a click in it arrives with well-local
+ * coordinates and the row is arithmetic: the boxes are a fixed pitch and the
+ * order they were drawn in is `g_box_skill`.
+ */
 static enum ToriRS_PluginVerdict
 xt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
     (void)userdata;
 
     struct ToriRS_PluginEvPanelAction const* ev = event;
-    int index;
 
     assert(ctx);
     assert(ev);
     assert(ev->id);
+
+    if( strcmp(ev->id, "boxes") == 0 )
+    {
+        int const row = ev->y / XT_BOX_PITCH;
+        int const skill = row >= 0 && row < g_box_count ? g_box_skill[row] : -1;
+
+        /* Clicking the open box closes it, which is what makes the strip its
+         * own way back out of a selection. */
+        g_detail = skill >= 0 && skill != g_detail ? skill : -1;
+        g_api->panel_clear(ctx);
+        return TORIRS_PLUGIN_PASS;
+    }
 
     if( strcmp(ev->id, "reset_all") == 0 )
     {
@@ -890,53 +1299,45 @@ xt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         g_api->panel_clear(ctx);
         return TORIRS_PLUGIN_PASS;
     }
-    if( strcmp(ev->id, "d_close") == 0 )
-    {
-        g_detail = -1;
-        g_api->panel_clear(ctx);
+
+    if( g_detail < 0 || g_detail >= g_skill_count )
         return TORIRS_PLUGIN_PASS;
-    }
-    if( g_detail >= 0 && strcmp(ev->id, "d_reset") == 0 )
-    {
-        xt_reset_skill(ctx, g_detail);
-        g_detail = -1;
-        g_api->panel_clear(ctx);
-        return TORIRS_PLUGIN_PASS;
-    }
-    if( g_detail >= 0 && strcmp(ev->id, "d_pause") == 0 )
+
+    if( strcmp(ev->id, "d_pause") == 0 )
     {
         g_skill[g_detail].paused = !g_skill[g_detail].paused;
         g_skill[g_detail].last_change_ms = g_api->frame_ms(ctx);
         xt_page_refresh(ctx);
         return TORIRS_PLUGIN_PASS;
     }
-
-    index = xt_row_index(ev->id);
-    if( index < 0 )
-        return TORIRS_PLUGIN_PASS;
-
-    /*
-     * A list row has two outcomes and the shell says which one fired: the row
-     * itself opens the detail block, its switch pauses the skill. That split
-     * is the reference's own -- a skill box there is expandable AND has a
-     * pause -- and it costs no second control.
-     */
-    if( ev->action == TORIRS_PLUGIN_UI_TOGGLE )
+    if( strcmp(ev->id, "d_reset") == 0 )
     {
-        g_skill[index].paused = ev->value == 0;
-        g_skill[index].last_change_ms = g_api->frame_ms(ctx);
+        xt_reset_skill(ctx, g_detail);
+        g_detail = -1;
+        g_api->panel_clear(ctx);
+        return TORIRS_PLUGIN_PASS;
+    }
+    if( strcmp(ev->id, "d_reset_others") == 0 )
+    {
+        /* The reference's "Reset others": everything BUT this one, which is
+         * how a person keeps the skill they are training and clears the noise
+         * a trip picked up around it. */
+        for( int i = 0; i < g_skill_count; i++ )
+            if( i != g_detail )
+                xt_reset_skill(ctx, i);
+        g_api->panel_clear(ctx);
+        return TORIRS_PLUGIN_PASS;
+    }
+    if( strcmp(ev->id, "d_reset_rate") == 0 )
+    {
+        /* Only the per-hour figures, keeping the session total -- @see
+         * xt_reset_rate, which is XpStateSingle::resetPerHour. */
+        xt_reset_rate(&g_skill[g_detail]);
         xt_page_refresh(ctx);
         return TORIRS_PLUGIN_PASS;
     }
-
-    g_detail = g_detail == index ? -1 : index;
-    g_api->panel_clear(ctx);
     return TORIRS_PLUGIN_PASS;
 }
-
-/* ------------------------------------------------------------------------ */
-/* Lifecycle                                                                 */
-/* ------------------------------------------------------------------------ */
 
 static enum ToriRS_PluginVerdict
 xt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
@@ -1090,6 +1491,14 @@ static struct ToriRS_PluginConfigItem const XT_CONFIG[] = {
     { "pause_on_logout",   TORIRS_PLUGIN_CFG_BOOL, "Pause on logout",              "1", 0, 0,  NULL, 0 },
     { "pause_skill_after", TORIRS_PLUGIN_CFG_INT,  "Auto pause after (minutes)",   "0", 0, 60, NULL, 0 },
     { "reset_rate_after",  TORIRS_PLUGIN_CFG_INT,  "Auto reset rate after (minutes)", "0", 0, 60, NULL, 0 },
+    /* The four corner slots of a box's 2x2 grid, and the reference's own
+     * choice list for them (XpPanelLabel). The DEFAULTS are its defaults --
+     * gained, rate, actions left, xp left -- which is also the pairing the
+     * cache's own tracker hard-codes. @see enum XtLabel. */
+    { "label_top_left",     TORIRS_PLUGIN_CFG_ENUM, "Top-left stat",     "XP Gained", 0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_top_right",    TORIRS_PLUGIN_CFG_ENUM, "Top-right stat",    "XP/hr",     0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_bottom_left",  TORIRS_PLUGIN_CFG_ENUM, "Bottom-left stat",  "Actions",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
+    { "label_bottom_right", TORIRS_PLUGIN_CFG_ENUM, "Bottom-right stat", "XP Left",   0, 0, "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL", 0 },
     { NULL,                TORIRS_PLUGIN_CFG_BOOL, NULL,                           NULL, 0, 0, NULL, 0 },
 };
 
@@ -1115,6 +1524,21 @@ xt_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_BUILD, xt_panel_build, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_ACTION, xt_panel_action, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_LAYOUT, xt_panel_layout, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_DRAW, xt_panel_draw, NULL);
+}
+
+/** Give the composed strip and the decoded art back. */
+static void
+xt_shutdown(struct ToriRS_PluginCtx* ctx)
+{
+    (void)ctx;
+
+    free(g_compose);
+    g_compose = NULL;
+    g_compose_w = 0;
+    g_compose_h = 0;
+    PluginDraw_AtlasFree(&g_font);
+    PluginDraw_ImageFree(&g_skill_px, &g_img_skills);
 }
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER = {
@@ -1124,5 +1548,5 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER = {
     .priority = 0,
     .config = XT_CONFIG,
     .init = xt_init,
-    .shutdown = NULL,
+    .shutdown = xt_shutdown,
 };

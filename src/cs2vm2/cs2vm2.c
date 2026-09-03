@@ -3644,6 +3644,7 @@ cs2vm2_op_cc_get_int(
     switch( kind )
     {
         CS2VM_CC_GET_INT_CASE(CC_GETLAYER);
+        CS2VM_CC_GET_INT_CASE(CC_INPUT_GETFOCUS);
         CS2VM_CC_GET_INT_CASE(CC_GETSCROLLX);
         CS2VM_CC_GET_INT_CASE(CC_GETSCROLLY);
         CS2VM_CC_GET_INT_CASE(CC_GETSCROLLWIDTH);
@@ -8684,6 +8685,84 @@ CS2VM2_Op_EntityOverlay(struct CS2VM2_Thread* vm, int opcode, int operand)
     return vm->vm->host_exec(vm, &request);
 }
 
+/*
+ * The ground-item pile on a tile, and the entry a script has selected in it.
+ *
+ * Two shapes, both here because they are one subsystem: the three OBJSTACK_*
+ * ops take a coord (and, past the count, an index) and read the pile; the five
+ * OBJ_* ops read the ENTRY that OBJ_FIND last selected, so four of them pop
+ * nothing at all. The reference splits them across two dispatch files for no
+ * reason but their opcode numbers.
+ *
+ * Pop order is the push order reversed: the index is on top of the coord.
+ */
+static int
+CS2VM2_Op_GroundObj(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    struct CS2VM_HostRequest request;
+    int coord = -1;
+    int index = -1;
+
+    assert(vm);
+
+    switch( opcode )
+    {
+    /* (coord, index) */
+    case CS2_OP_OBJSTACK_ID:
+    case CS2_OP_OBJSTACK_QUANTITY:
+    case CS2_OP_OBJ_FIND:
+        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &coord) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+
+    /* (coord) */
+    case CS2_OP_OBJSTACK_COUNT:
+        if( CS2VM2_PopInt(vm, &coord) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+
+    /* () -- the active entry's own fields. */
+    case CS2_OP_OBJ_DESPAWNTIME:
+    case CS2_OP_OBJ_VISIBLETIME:
+    case CS2_OP_OBJ_ISPUBLIC:
+    case CS2_OP_OBJ_OWNER:
+        break;
+
+    default:
+        assert(0 && "ground-obj opcode reached CS2VM2_Op_GroundObj with no pop rule");
+        return CS2VM_EXECNO_ERROR;
+    }
+
+    request.kind = (enum CS2VM_HostRequestKind)opcode;
+#define CS2VM_GROUNDOBJ_CASE(name)                                  \
+    case CS2_OP_##name:                                             \
+        memset(&request.u.name, 0, sizeof(request.u.name));          \
+        request.u.name.opcode = opcode;                             \
+        request.u.name.coord = coord;                               \
+        request.u.name.index = index;                               \
+        break
+    switch( opcode )
+    {
+        CS2VM_GROUNDOBJ_CASE(OBJSTACK_COUNT);
+        CS2VM_GROUNDOBJ_CASE(OBJSTACK_ID);
+        CS2VM_GROUNDOBJ_CASE(OBJSTACK_QUANTITY);
+        CS2VM_GROUNDOBJ_CASE(OBJ_FIND);
+        CS2VM_GROUNDOBJ_CASE(OBJ_DESPAWNTIME);
+        CS2VM_GROUNDOBJ_CASE(OBJ_VISIBLETIME);
+        CS2VM_GROUNDOBJ_CASE(OBJ_ISPUBLIC);
+        CS2VM_GROUNDOBJ_CASE(OBJ_OWNER);
+    default:
+        assert(0 && "unexpected ground-obj opcode");
+        return CS2VM_EXECNO_ERROR;
+    }
+#undef CS2VM_GROUNDOBJ_CASE
+    return vm->vm->host_exec(vm, &request);
+}
+
 /* MINIMENU_* (7100..7110): no-arg getters over the current mouseover target and
  * right-click-menu state. They carry no operands to pop, so this just tags the
  * request with the opcode and lets the host push each op's result. */
@@ -11787,6 +11866,11 @@ CS2VM2_RunOp(
     /* === CS2 opcode group: cc-appearance (1600..1699) ===
      * active-component appearance getters.
      * rev-239 dispatch: Statics.method6889 -> method6296. */
+    /* Does this text-entry field hold the caret? `torirs_hiscores_input_guard`
+     * (script 7526) asks on submit and returns early while the answer is yes,
+     * so a field with no focus model would have made every submit a no-op. */
+    case CS2_OP_CC_INPUT_GETFOCUS:
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_INPUT_GETFOCUS);
     case CS2_OP_CC_GETSCROLLX:
         return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETSCROLLX);
     case CS2_OP_CC_GETSCROLLY:
@@ -12694,6 +12778,16 @@ CS2VM2_RunOp(
         return CS2VM2_Op_ClientOpContext(vm, opcode);
     case CS2_OP_LOC_FIND:
         return CS2VM2_Op_SubjectFind(vm, opcode);
+    /* The GROUND-ITEM pile's entry selector and the four getters that read
+     * whichever entry it left active. Numbered here because a ground obj is
+     * what this block is about; answered beside OBJSTACK_* (7120..7122), which
+     * is the same subsystem seen from the tile's side. */
+    case CS2_OP_OBJ_FIND:
+    case CS2_OP_OBJ_DESPAWNTIME:
+    case CS2_OP_OBJ_VISIBLETIME:
+    case CS2_OP_OBJ_ISPUBLIC:
+    case CS2_OP_OBJ_OWNER:
+        return CS2VM2_Op_GroundObj(vm, opcode);
 
     /* === CS2 opcode group: clientop-player (6900..6999) ===
      * active player and login-state commands.
@@ -12796,6 +12890,13 @@ CS2VM2_RunOp(
     case CS2_OP__7106:
     case CS2_OP__7107:
         return CS2VM2_Op_Minimenu(vm, opcode);
+    /* OBJSTACK_* (7120..7122): the ground-item pile on an absolute coord.
+     * Numerically inside the minimenu block and nothing to do with the menu --
+     * the reference answers them from Client::GetObjectsOnTile. */
+    case CS2_OP_OBJSTACK_COUNT:
+    case CS2_OP_OBJSTACK_ID:
+    case CS2_OP_OBJSTACK_QUANTITY:
+        return CS2VM2_Op_GroundObj(vm, opcode);
 
     /* === CS2 opcode group: overlay (7200..7499) ===
      * entity overlays, minimap and native extension commands.

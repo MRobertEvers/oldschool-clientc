@@ -611,6 +611,39 @@ struct ToriRS_PluginObjInfo
 };
 
 /**
+ * One group of recorded loot: what killed you gave up, and how often.
+ * @see ToriRS_PluginApi::loot_source_next.
+ */
+struct ToriRS_PluginLootSource
+{
+    /** The store's own id, which addresses its rows. */
+    int id;
+    /** What the kill was called, as the store recorded it. */
+    char name[64];
+    /** Distinct item rows under it. */
+    int row_count;
+    /**
+     * How many of this thing you have killed.
+     *
+     * Bumped once per DEATH and not once per item, because the store groups a
+     * multi-item drop under one event id -- which is the difference between a
+     * kill count and a drop count, and the number the game's own "Name x N"
+     * shows.
+     */
+    int kill_count;
+};
+
+/** One row of one source: an item, a quantity, and what the store priced it
+ *  at when it landed. @see ToriRS_PluginApi::loot_row_next. */
+struct ToriRS_PluginLootRow
+{
+    int obj_id;
+    int quantity;
+    /** The value the store recorded, which is ObjType.cost at drop time. */
+    int value;
+};
+
+/**
  * Which of the client's three inventory-icon variants to rasterise.
  *
  * The same three the interface emitter already asks the scene bridge for, and
@@ -4060,6 +4093,46 @@ struct ToriRS_PluginApi
      * never the one evicted.
      */
     int (*obj_image)(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style);
+
+    /* -- ABI 25 append: the client's own loot store ----------------------- */
+
+    /**
+     * Walk the recorded loot sources. Iterator protocol of npc_next: pass -1
+     * to begin, the return value to continue, and stop at -1.
+     *
+     * ## This is the CLIENT's record, not a plugin's reconstruction
+     *
+     * The loot tracker is a client-side feature of the game itself: no packet
+     * carries it, the server's kill hook feeds a store directly
+     * (game/rs_loot_store.c), and the cache's own tracker interface reads that
+     * store through its 7600-family ops. So a plugin that wants the same
+     * numbers reads the same store, and gets the game's answer rather than one
+     * correlated from despawns and item spawns -- which cannot see a kill that
+     * dropped nothing, cannot price what it did not witness, and cannot tell
+     * two of a thing dying on one tile apart.
+     *
+     * EMPTY is a legitimate answer and the ordinary one on a lane whose server
+     * has no such hook. A plugin that finds nothing here has found out that
+     * this world does not record loot, not that nothing has died.
+     */
+    int (*loot_source_next)(
+        struct ToriRS_PluginCtx* ctx,
+        int iter,
+        struct ToriRS_PluginLootSource* out);
+
+    /**
+     * Walk one source's rows, by the id its snapshot carried. Same iterator
+     * protocol.
+     *
+     * By ID and not by name, because the store keys a source on both and the
+     * id is the half that cannot be ambiguous -- two records can share a
+     * spelling once colour markup is stripped from one of them.
+     */
+    int (*loot_row_next)(
+        struct ToriRS_PluginCtx* ctx,
+        int source_id,
+        int iter,
+        struct ToriRS_PluginLootRow* out);
 };
 
 /* ------------------------------------------------------------------------ */

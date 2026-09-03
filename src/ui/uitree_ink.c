@@ -34,6 +34,14 @@ UIInk_SetColour(struct UIInk* ink, int colour)
 }
 
 void
+UIInk_Cancel(struct UIInk* ink)
+{
+    assert(ink);
+    ink->active = 0;
+    ink->cycle = 0;
+}
+
+void
 UIInk_Tick(struct UIInk* ink, int delta_ms)
 {
     assert(ink);

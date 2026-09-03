@@ -3,7 +3,7 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 8024
-#define CS2_OPCODE_COUNT 975
+#define CS2_OPCODE_COUNT 979
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -3081,6 +3081,10 @@
 #define CS2_OP__6853 6853
 #define CS2_OP_OC_GETOPBASE 6857
 #define CS2_OP_OC_GETOP 6858
+#define CS2_OP_OBJ_FIND 6859
+#define CS2_OP_OBJ_DESPAWNTIME 6860
+#define CS2_OP_OBJ_VISIBLETIME 6861
+#define CS2_OP_OBJ_ISPUBLIC 6862
 #define CS2_OP_OBJ_OWNER 6863
 
 /* === CS2 opcode group: clientop-player (6900..6999) ===
@@ -3504,9 +3508,9 @@
 #define CS2_OP_MINIMENU_ISOPEN 7108
 #define CS2_OP_MINIMENU_FINDCOMPONENT 7109
 #define CS2_OP_MINIMENU_NUMOPS 7110
-#define CS2_OP__7120 7120
-#define CS2_OP__7121 7121
-#define CS2_OP__7122 7122
+#define CS2_OP_OBJSTACK_COUNT 7120
+#define CS2_OP_OBJSTACK_ID 7121
+#define CS2_OP_OBJSTACK_QUANTITY 7122
 
 /* === CS2 opcode group: overlay (7200..7499) ===
  * entity overlays, minimap and native extension commands.

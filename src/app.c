@@ -520,6 +520,12 @@ app_text_input_focused(struct App const* app)
             (app->chat_input_active || app->chat.social_input_open ||
              app->chat.dialog_input_open)) ||
            app_iface_text_input_focused(app) ||
+           /* An IF3 text-entry field with the caret in it. The third kind of
+            * text input in this client and the newest, which is exactly the
+            * case this function's own header warns about: a list of the inputs
+            * that existed when it was written leaves the hotkeys live under the
+            * one added next. @see UITree_InputFocusId. */
+           (app->tree && UITree_InputFocusId(app->tree) >= 0) ||
            app_chrome_holds_keyboard(app);
 }
 
@@ -599,6 +605,14 @@ app_chat_focus_tick(
      * already forced the focus flags off; do not hand them back under it. */
     if( app->locedit_visible )
         return 0;
+    /* An IF3 text-entry field has the caret. Enter belongs to that field (it
+     * submits), and without this the chat line would claim the same press and
+     * open itself behind the box being typed into. @see UITree_InputFocusId. */
+    if( app->tree && UITree_InputFocusId(app->tree) >= 0 )
+    {
+        app->chat_input_active = 0;
+        return 0;
+    }
     /* A panel's own search box has the keyboard (the cache disarmed the
      * chatbox's onKey to give it to them), so the chat line cannot also have
      * it. Dropping focus here rather than merely ignoring it keeps
@@ -5005,6 +5019,245 @@ app_cs2_coord_in_scene(void* user, int coord)
     return app_overlay_coord_to_scene(app, coord, &x, &z, &level) ? 1 : 0;
 }
 
+/*
+ * OBJSTACK_COUNT / OBJSTACK_ID / OBJSTACK_QUANTITY, and OBJ_FIND's lookup:
+ * the ground-item pile on one absolute coord.
+ *
+ * `Client::GetObjectsOnTile` in the reference, which answers an EMPTY pile for
+ * a coord outside the build area rather than failing -- so a tile that has
+ * scrolled off the scene reads as "nothing there", and the overlay script
+ * destroys its overlay instead of drawing a stale row.
+ *
+ * The walk is the same one the right-click builder does (add_objs_on_tile in
+ * rs_minimenu_world.c): this client keys a stack by (tile, obj id), where the
+ * reference keeps one entry per add, so a pile of three different items is
+ * three entries here and the overlay lists three rows -- which is what the
+ * script's own run-merge produces from the reference's list anyway.
+ */
+static int
+app_cs2_objs_on_coord(void* user, int coord, int index, struct RS_CS2GroundObj* out)
+{
+    struct App* app = (struct App*)user;
+    struct World* world;
+    struct World_EntityPool* pool;
+    int tile_x;
+    int tile_z;
+    int level;
+    int count = 0;
+
+    assert(app);
+    assert(out);
+
+    if( !app_overlay_coord_to_scene(app, coord, &tile_x, &tile_z, &level) )
+        return 0;
+    world = app->world;
+    pool = &world->entities.obj_stack;
+    for( int oi = World_EntityPoolHead(pool); oi != WORLD_ENTITY_NIL;
+         oi = World_EntityPoolNext(pool, oi) )
+    {
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, oi);
+        if( !stack || stack->element_id < 0 )
+            continue;
+        if( stack->grid_position.x != tile_x || stack->grid_position.z != tile_z ||
+            stack->grid_position.level != level )
+            continue;
+        if( count == index )
+        {
+            out->obj_id = stack->obj_id;
+            out->count = stack->count;
+            out->public_clock = stack->public_clock;
+            out->despawn_clock = stack->despawn_clock;
+            out->owner = stack->owner;
+            out->never_becomes_public = stack->never_becomes_public;
+        }
+        count++;
+    }
+    return count;
+}
+
+/*
+ * "The pile on this tile changed" -- queue the tile for the ground-items
+ * overlay rebuild that runs once per logic tick.
+ *
+ * Scene-local in, absolute out, because the coord is what the script reads and
+ * `_6950` answers absolutes. A view that is NOT the root scene is skipped: a
+ * boat deck has its own tile space, and an absolute coord built from its base
+ * would name a tile somewhere else entirely.
+ */
+static void
+app_ground_items_mark(
+    struct App* app,
+    struct World const* world,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    int coord;
+
+    assert(app);
+    assert(world);
+    if( world != app->world )
+        return;
+    if( app->ground_items_refresh_all )
+        return;
+    coord = RS_CLIENTOP_COORD(
+        level & 3, world->_base_tile_x + scene_x, world->_base_tile_z + scene_z);
+    for( int i = 0; i < app->ground_items_dirty_count; i++ )
+    {
+        if( app->ground_items_dirty[i] == coord )
+            return;
+    }
+    if( app->ground_items_dirty_count >= APP_GROUND_ITEMS_DIRTY_MAX )
+    {
+        /* Cheaper from here on -- see APP_GROUND_ITEMS_DIRTY_MAX. */
+        app->ground_items_refresh_all = 1;
+        app->ground_items_dirty_count = 0;
+        return;
+    }
+    app->ground_items_dirty[app->ground_items_dirty_count++] = coord;
+}
+
+/* Every tile in the scene that currently holds a pile, appended to the dirty
+ * list. The overflow path, and the one a rebuild shift takes. */
+static void
+app_ground_items_mark_every_tile(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+    assert(app->world);
+    pool = &app->world->entities.obj_stack;
+    for( int oi = World_EntityPoolHead(pool); oi != WORLD_ENTITY_NIL;
+         oi = World_EntityPoolNext(pool, oi) )
+    {
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, oi);
+        if( !stack || stack->element_id < 0 )
+            continue;
+        /* Straight into the list rather than through the mark above, which
+         * would see refresh_all set and decline every one of them. */
+        int const coord = RS_CLIENTOP_COORD(
+            stack->grid_position.level & 3,
+            app->world->_base_tile_x + stack->grid_position.x,
+            app->world->_base_tile_z + stack->grid_position.z);
+        bool seen = false;
+        for( int i = 0; i < app->ground_items_dirty_count; i++ )
+            seen = seen || app->ground_items_dirty[i] == coord;
+        if( seen )
+            continue;
+        if( app->ground_items_dirty_count >= APP_GROUND_ITEMS_DIRTY_MAX )
+        {
+            /* The list is a scratchpad here, not a budget: drain what fits and
+             * come back next tick for the rest. A scene cannot gain piles
+             * faster than 32 a tick without the burst that put them there
+             * having already set refresh_all. */
+            break;
+        }
+        app->ground_items_dirty[app->ground_items_dirty_count++] = coord;
+    }
+}
+
+/*
+ * Have the ground-items settings moved?
+ *
+ * Watched as VARPS, because a varp is what a change is visible on: the two
+ * carriers hold every one of the overlay's own toggles between them, and the
+ * overlay script's `cc_setonvartransmit` list covers the colour and threshold
+ * varps but not these. Without this, switching the row off in All Settings
+ * left every overlay on screen exactly as it was until its tile changed.
+ *
+ * The varp ids are resolved lazily: the varbit table arrives with the cache,
+ * which is after RS_CS2Host_Init has read the revconfig.
+ */
+static bool
+app_ground_items_settings_moved(struct App* app)
+{
+    static int const WATCHED = 2;
+    bool moved = false;
+
+    assert(app);
+    if( !app->host.varps )
+        return false;
+    for( int i = 0; i < WATCHED; i++ )
+    {
+        int const varbit = i == 0 ? app->host.varbit_ground_items_enabled
+                                  : app->host.varbit_ground_items_modifier_key;
+        int value;
+        if( varbit <= 0 )
+            continue;
+        if( app->ground_items_settings_varp[i] < 0 )
+        {
+            app->ground_items_settings_varp[i] =
+                VarPManager_VarbitBaseVar(app->host.varps, varbit);
+            if( app->ground_items_settings_varp[i] < 0 )
+                continue;
+            /* Seed rather than fire: the value a carrier comes up with is not
+             * a change, and firing here would rebuild every overlay on the
+             * first tick after the varbit table lands. */
+            app->ground_items_settings_seen[i] =
+                VarPManager_GetVarp(app->host.varps, app->ground_items_settings_varp[i]);
+            continue;
+        }
+        value = VarPManager_GetVarp(app->host.varps, app->ground_items_settings_varp[i]);
+        if( value == app->ground_items_settings_seen[i] )
+            continue;
+        app->ground_items_settings_seen[i] = value;
+        moved = true;
+    }
+    return moved;
+}
+
+/*
+ * The ground-items overlay driver: one clientscript per tile whose pile moved.
+ *
+ * The script (7226 in this cache) reads its tile from `_6950` and either
+ * rebuilds the coord-anchored overlay listing what is lying there or destroys
+ * it, so the client's whole job is to set the active tile and fire -- exactly
+ * like the three tile refreshers beside it in app_logic_tick.
+ */
+static void
+app_ground_items_tick(struct App* app)
+{
+    assert(app);
+    if( app->host.script_ground_items_overlay <= 0 )
+        return;
+    if( !app->world || !app->world->load_complete || App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return;
+    if( app_ground_items_settings_moved(app) )
+        app->ground_items_refresh_all = 1;
+    if( app->ground_items_refresh_all )
+    {
+        app->ground_items_refresh_all = 0;
+        app_ground_items_mark_every_tile(app);
+    }
+    if( app->ground_items_dirty_count <= 0 )
+        return;
+    app_cs2_set_active_player(app, app->world->local_pid);
+    for( int i = 0; i < app->ground_items_dirty_count; i++ )
+    {
+        int const coord = app->ground_items_dirty[i];
+        /* fprintf rather than TORIRS_LOG: the interesting runs are the
+         * optimized ones, which -DNDEBUG strips every TORIRS_LOG out of --
+         * and "the overlay never appeared" reads identically whether the
+         * script ran or the tile was never queued. Same choice as
+         * TORIRS_WEV_DEBUG. */
+        if( getenv("TORIRS_GROUND_ITEMS_DEBUG") )
+        {
+            struct RS_CS2GroundObj entry;
+            fprintf(stderr, "ground_items: tile %d,%d level %d -> %d obj(s), script %d\n",
+                (coord >> 14) & 0x3fff,
+                coord & 0x3fff,
+                (coord >> 28) & 3,
+                app_cs2_objs_on_coord(app, coord, -1, &entry),
+                app->host.script_ground_items_overlay);
+        }
+        app_cs2_set_active_tile(app, coord);
+        RS_CS2_RunScript(
+            &app->host, &app->runner, app->host.script_ground_items_overlay,
+            NULL, 0, 0, NULL, 0);
+    }
+    app->ground_items_dirty_count = 0;
+}
+
 /**
  * The three anchor points an overlay's band chooses between
  * (`Client::GetAllOverlayPositions`): the top of the subject, its middle, and
@@ -8214,6 +8467,13 @@ app_debug_overlay_init(struct App* app)
     app->settings_colour_pick = -1;
     app->settings_colour_default_btn = -1;
     app->settings_colour_close_btn = -1;
+    app->settings_number_panel = ToriRSChrome_PanelAdd(
+        &app->dbg_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Value");
+    ToriRSChrome_PanelSetFramed(&app->dbg_ui, app->settings_number_panel, 1);
+    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_number_panel, 0);
+    app->settings_number_visible = 0;
+    app->settings_number_input = -1;
+    app->settings_number_close_btn = -1;
     app->locedit_loc_id = -1;
     app->locedit_shape = -1;
     app->locedit_angle = 0;
@@ -9360,6 +9620,245 @@ app_settings_colour_tick(struct App* app)
     }
 }
 
+/* =========================================================================
+ * All Settings: the number-input rows
+ *
+ * The numeric twin of the colour block above, and it exists for the identical
+ * reason. A number row -- built by `settings_create_input_setting`, cache
+ * script 3856 -- draws its value in a boxed field with a "Select" op, and that
+ * op's script is
+ *
+ *     [clientscript,settings_input_op](int $int0, int $int1)
+ *     if (~settings_op_checker($int0, $int1) = 0) {
+ *         return;
+ *     }
+ *     %varbit16074 = 0;
+ *
+ * -- a click sound, the row's refusal message when it is blocked, and a flag
+ * that closes the panel's search box. Nothing types anything, because in the
+ * reference the entry is the ENGINE's: `%varbit16075` ("a settings row is
+ * being edited") is read by three clientscripts and written by none, and
+ * `settings_input_timer` blinks a caret in a field the cache never fills.
+ *
+ * Untyped, those rows are not merely inert, they are the feature: the five
+ * ground-items price tiers decide which of the six colours a pile's name is
+ * drawn in, and `ground_items_max_lines` decides how many names appear at all.
+ * At their zero default every pile draws in the tier-5 colour and, with the
+ * line limit at zero, nothing draws.
+ *
+ * Committing to the varp is the whole apply, exactly as it is for a colour:
+ * the row installed its own var-transmit hook (`settings_input_setting_
+ * transmit`), so the field repaints itself and the overlay's own hooks pick
+ * the new thresholds up.
+ * ========================================================================= */
+
+static void
+app_settings_number_close(struct App* app)
+{
+    assert(app);
+    app->settings_number_visible = 0;
+    if( app->settings_number_panel >= 0 )
+        ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_number_panel, 0);
+}
+
+/*
+ * Commit what is typed in the box.
+ *
+ * Stored PLAIN, unlike a colour row's `value + 1`: zero is a real answer for
+ * every one of these rows (a threshold of 0 colours everything at that tier,
+ * a line limit of 0 hides the overlay), so there is no never-chosen sentinel
+ * to make room for -- which is also why `settings_get_number_input` reads them
+ * back with a bare `%var<n>` and not a `calc(%var<n> - 1)`.
+ *
+ * A field emptied and confirmed commits zero rather than being ignored: "off"
+ * is a thing these rows can be set to, and the row's own `param_1113` is the
+ * word it draws for it.
+ */
+static void
+app_settings_number_commit(struct App* app)
+{
+    char const* text;
+    long value;
+
+    assert(app);
+    /* A box is only ever opened for a row whose varp is known. */
+    assert(app->settings_number_req.varp_id >= 0);
+    text = ToriRSChrome_Text(&app->dbg_ui, app->settings_number_input);
+    value = strtol(text, NULL, 10);
+    /* Clamped rather than asserted: this is a number a person typed, and
+     * "2000000000000" is a typo and not a caller's bug. The floor is zero
+     * because none of these rows means anything negative -- a threshold below
+     * nothing would colour every pile at that tier for ever. */
+    if( value < 0 )
+        value = 0;
+    if( value > INT_MAX )
+        value = INT_MAX;
+    RS_CS2Host_ScriptWriteVarp(&app->host, app->settings_number_req.varp_id, (int)value);
+    app->need_redraw = 1;
+}
+
+/** Put the box beside the field that opened it, clamped onto the canvas. */
+static void
+app_settings_number_place(struct App* app, int component_id)
+{
+    int scale;
+    int width;
+    int x;
+    int y;
+    int32_t idx;
+
+    assert(app);
+    scale = ToriRSChrome_Scale(&app->dbg_ui);
+    width = 200 * scale;
+    x = (UITREE_LAYOUT_ROOT_W - width) / 2;
+    y = UITREE_LAYOUT_ROOT_H / 4;
+    idx = app->tree && component_id >= 0 ? UITree_FindByComponentId(app->tree, component_id) : -1;
+    if( idx >= 0 )
+    {
+        struct UITreeComponent const* c = &app->tree->components[idx];
+        /* LEFT of the field, for the same reason the picker sits left of the
+         * swatch: the field is docked on the panel's right edge and is the one
+         * thing the player is watching change. */
+        x = c->position.abs_x - width - 8 * scale;
+        y = c->position.abs_y - 8 * scale;
+    }
+
+    if( x < 0 )
+        x = 0;
+    if( y < 0 )
+        y = 0;
+    if( x + width > UITREE_LAYOUT_ROOT_W )
+        x = UITREE_LAYOUT_ROOT_W - width;
+    if( y > UITREE_LAYOUT_ROOT_H * 3 / 4 )
+        y = UITREE_LAYOUT_ROOT_H * 3 / 4;
+
+    ToriRSChrome_PanelSetFixedWidth(&app->dbg_ui, app->settings_number_panel, width);
+    ToriRSChrome_PanelMove(&app->dbg_ui, app->settings_number_panel, x, y);
+}
+
+static void
+app_settings_number_open(struct App* app, struct RS_CS2SettingsNumberRequest const* req)
+{
+    char value[32];
+    char label[128];
+
+    assert(app);
+    assert(req);
+
+    if( app->settings_number_panel < 0 )
+        return;
+    if( req->varp_id < 0 )
+    {
+        /* The read hub never named a varp for this row, so there is nowhere to
+         * put an answer. Said out loud rather than opening a box whose every
+         * keystroke would be discarded. */
+        TORIRS_LOG("settings: number row %d (%s) has no varp; not opening an entry\n",
+            req->setting_id,
+            req->label[0] ? req->label : "unnamed");
+        return;
+    }
+
+    app->settings_number_req = *req;
+    snprintf(value, sizeof(value), "%d", req->value);
+    /* The row's own suffix on the box's label, so the two agree about what is
+     * being typed -- "Value (gp)" over a field the panel prints as "20,000 gp".
+     * Its zero-word goes in the same place, because it is the other half of
+     * what this number means to the row. */
+    if( req->suffix[0] && req->zero_label[0] )
+        snprintf(label, sizeof(label), "Value (%s, 0 = %s)", req->suffix, req->zero_label);
+    else if( req->suffix[0] )
+        snprintf(label, sizeof(label), "Value (%s)", req->suffix);
+    else if( req->zero_label[0] )
+        snprintf(label, sizeof(label), "Value (0 = %s)", req->zero_label);
+    else
+        snprintf(label, sizeof(label), "Value");
+
+    ToriRSChrome_PanelClearWidgets(&app->dbg_ui, app->settings_number_panel);
+    ToriRSChrome_PanelSetTitle(
+        &app->dbg_ui, app->settings_number_panel, req->label[0] ? req->label : "Value");
+    app->settings_number_input =
+        ToriRSChrome_TextInput(&app->dbg_ui, app->settings_number_panel, label, value);
+    app->settings_number_close_btn =
+        ToriRSChrome_Button(&app->dbg_ui, app->settings_number_panel, "Done");
+    ToriRSChrome_PanelSetClosable(&app->dbg_ui, app->settings_number_panel, 1);
+
+    app_settings_number_place(app, req->component_id);
+    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_number_panel, 1);
+    app->settings_number_visible = 1;
+    app->need_redraw = 1;
+
+    /* fprintf, and gated on its own name: a dbg_ui panel reaches the platform
+     * renderer as ToriRSChrome_Prims and is invisible to every BMP path this
+     * client has, so a screenshot cannot answer "did the box open" -- and
+     * TORIRS_LOG is stripped from the optimized build, which is the only build
+     * worth taking a screenshot of. Same choice as TORIRS_GROUND_ITEMS_DEBUG. */
+    if( getenv("TORIRS_SETTINGS_DEBUG") )
+        fprintf(stderr, "settings: number entry open, setting=%d varp=%d value=%d \"%s\"\n",
+            req->setting_id,
+            req->varp_id,
+            req->value,
+            req->label);
+}
+
+/* Open, drive and commit the entry. The activation is PEEKED and only taken
+ * when it belongs to this panel, for the same reason the colour tick peeks. */
+static void
+app_settings_number_tick(struct App* app)
+{
+    struct RS_CS2SettingsNumberRequest req;
+    int activated;
+
+    assert(app);
+
+    if( RS_CS2Host_TakeSettingsNumberRequest(&app->host, &req) )
+        app_settings_number_open(app, &req);
+
+    if( !app->settings_number_visible )
+        return;
+
+    /* The panel's own Close button hid it. */
+    if( app->settings_number_panel >= 0 &&
+        !app->dbg_ui.panels[app->settings_number_panel].visible )
+    {
+        app->settings_number_visible = 0;
+        return;
+    }
+
+    /* Follow All Settings out. Asked of the GROUP, not the component: the
+     * field is a dynamic child whose component id names its container, which
+     * outlives the row. Same trap as the colour picker's. */
+    if( app->settings_number_req.component_id >= 0 && app->tree &&
+        !UITree_GroupPresent(app->tree, app->settings_number_req.component_id >> 16) )
+    {
+        app_settings_number_close(app);
+        return;
+    }
+
+    activated = app->dbg_ui.activated;
+    if( activated < 0 )
+        return;
+    if( activated == app->settings_number_input )
+    {
+        /* Enter, which is when a chrome text input activates. The box stays up
+         * so a mistyped threshold can be corrected without clicking the row
+         * again. */
+        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
+        app_settings_number_commit(app);
+    }
+    else if( activated == app->settings_number_close_btn )
+    {
+        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
+        app_settings_number_commit(app);
+        app_settings_number_close(app);
+    }
+
+    if( ToriRSChrome_Build(&app->dbg_ui) )
+    {
+        app->need_redraw = 1;
+        ToriRSChrome_DamageClear(&app->dbg_ui);
+    }
+}
+
 void
 App_SetWorldRenderMode(
     struct App* app,
@@ -9816,6 +10315,12 @@ App_Init(
     app->highlight_last_route = -2;
     app->highlight_last_dest_coord = -2;
     app->highlight_last_mouseover = -2;
+    app->ground_items_dirty_count = 0;
+    app->ground_items_refresh_all = 0;
+    app->ground_items_settings_varp[0] = -1;
+    app->ground_items_settings_varp[1] = -1;
+    app->ground_items_settings_seen[0] = 0;
+    app->ground_items_settings_seen[1] = 0;
     app->world_map_scene_id = -1;
     app->worldmap_render = RS_WorldMapRender_New();
     app->worldmap_overview_scene_id = 0;
@@ -9894,6 +10399,7 @@ App_Init(
     app->host.loc_at_coord = app_cs2_loc_at_coord;
     app->host.coord_in_scene = app_cs2_coord_in_scene;
     app->host.player_route = app_cs2_player_route;
+    app->host.objs_on_coord = app_cs2_objs_on_coord;
     app->host.world_user = app;
     /*
      * State the starting gain once, so a backend is never left guessing at a
@@ -17051,6 +17557,8 @@ app_logic_tick(struct App* app)
         }
     }
 
+    app_ground_items_tick(app);
+
     RS_CS2Host_Tick(&app->host);
 
     /*
@@ -22808,6 +23316,8 @@ struct Task_AppSpawn
     int loc_shape;
     int loc_angle;
     int loc_model_j;
+    /** APP_SPAWN_LOC_CHANGE: the loc's models and sequence, fanned out and not yet ended. */
+    int pending;
     /* APP_SPAWN_PLUGIN_OBJECT: the plugin object handle whose assets this task
      * is waiting on. Not a pointer -- the record can be destroyed while the
      * task is parked, and the handle re-resolves to NULL rather than to freed
@@ -23094,38 +23604,35 @@ Task_AppSpawn_Run(
         if( self->loc_id >= 0 )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_id));
-            for( self->model_i = 0;; self->model_i++ )
-            {
-                {
-                    struct ToriRS_Location* cfg =
-                        CacheProvider_LocationGet(app->provider, self->loc_id);
-                    int entries = 0;
-                    if( cfg && cfg->models && cfg->lengths )
-                        entries = cfg->shapes ? cfg->shapes_and_model_count : 1;
-                    if( self->model_i >= entries )
-                        break;
-                }
-                for( self->loc_model_j = 0;; self->loc_model_j++ )
-                {
-                    {
-                        struct ToriRS_Location* cfg =
-                            CacheProvider_LocationGet(app->provider, self->loc_id);
-                        if( !cfg || self->loc_model_j >= cfg->lengths[self->model_i] )
-                            break;
-                        self->model_id = cfg->models[self->model_i][self->loc_model_j];
-                    }
-                    if( self->model_id >= 0 )
-                        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-                }
-            }
+            /*
+             * Every model the config names, and its sequence, TOGETHER: they
+             * are independent reads with one consumer (the placement below),
+             * and awaiting them one after another was a round trip each on a
+             * streamed cache -- an open-door variant is commonly absent from
+             * the map build's preload, so a door was that chain every time.
+             * Queued as siblings on the asset queue and joined.
+             */
             {
                 struct ToriRS_Location* cfg =
                     CacheProvider_LocationGet(app->provider, self->loc_id);
+                int entries = 0;
+                if( cfg && cfg->models && cfg->lengths )
+                    entries = cfg->shapes ? cfg->shapes_and_model_count : 1;
+                for( int i = 0; i < entries; i++ )
+                    for( int j = 0; j < cfg->lengths[i]; j++ )
+                        if( cfg->models[i][j] >= 0 )
+                            ToriRS_TaskQueue_AddJoined(
+                                app->runner.queue,
+                                CreateTask_ModelLoad(app->provider, cfg->models[i][j]),
+                                &self->pending);
                 self->seq_id = cfg ? cfg->seq_id : -1;
+                if( self->seq_id >= 0 )
+                    ToriRS_TaskQueue_AddJoined(
+                        app->runner.queue,
+                        CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
+                        &self->pending);
             }
-            if( self->seq_id >= 0 )
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+            PT_TASK_JOIN(pending);
         }
         /* Resolve the view captured at enqueue — the change queued behind the
          * asset waits, so the live cursor moved on long ago. IsLive is a
@@ -30020,6 +30527,22 @@ App_PluginLayoutTick(struct App* app)
      * a rev-239 toplevel that is thousands of nodes for an answer that has not
      * changed since the window was last dragged.
      */
+    /*
+     * A generation move is only a reason when it moved a ROLE. The fence's
+     * reassert already re-collects the chrome on every generation change;
+     * what a fresh EV_LAYOUT adds is the plugin re-placing its slots and the
+     * answers it reads back ("does this frame have tab 7"), which change only
+     * when a role's node did. On an OldSchool lane a cache timer recreates
+     * its overlay nodes every logic tick, so without this gate the whole
+     * layout was re-declared at frame rate. @see UITree_FrameSlotsStale.
+     */
+    if( !app->plugin_layout_dirty && UITree_FrameActive(app->tree) &&
+        app->plugin_layout_generation != app->tree->generation &&
+        app->plugin_layout_w == UITREE_LAYOUT_ROOT_W &&
+        app->plugin_layout_h == UITREE_LAYOUT_ROOT_H &&
+        !UITree_FrameSlotsStale(app->tree) )
+        app->plugin_layout_generation = app->tree->generation;
+
     if( app->plugin_layout_dirty || !UITree_FrameActive(app->tree) ||
         app->plugin_layout_generation != app->tree->generation ||
         app->plugin_layout_w != UITREE_LAYOUT_ROOT_W ||
@@ -30562,6 +31085,7 @@ App_RunOnce(
      * tick above is what routed this frame's mouse into dbg_ui, and the
      * picker's own drain has to run against the activation that produced. */
     app_settings_colour_tick(app);
+    app_settings_number_tick(app);
     /* Plugin settings beside the other developer chrome, and before the loc
      * editor for the same reason it runs before the map editor: whoever is
      * open drains the shared activation latch, so order decides who sees a
@@ -31026,7 +31550,7 @@ App_RunOnce(
     plugin_region_click = app_plugin_pointer_capture_release(app, input);
 
     /*
-     * The touch marker, shown for EVERY press.
+     * The touch marker, shown for every press that is not a drag.
      *
      * Here, and not where the cross is set, because that is the point: the
      * cross is shown by the paths that DID something, and a tap that hits a
@@ -31048,9 +31572,39 @@ App_RunOnce(
      *
      * Costs nothing on a lane with no inkwell component: the state ticks and
      * the emit never asks for it.
+     *
+     * ## Not for a drag
+     *
+     * A drag is not a tap: the finger scrolling a list, turning the camera or
+     * carrying an inventory slot is being followed continuously and needs no
+     * proof the glass saw it, and a ripple parked at the grab point for the
+     * rest of the gesture is noise.
+     *
+     * The question is asked of the input layer's gesture state rather than
+     * re-derived here, because that is where a MOUSE drag is already decided
+     * (press origin, the 5px deadzone, the dead time -- try_start_drag in
+     * input/torirs_input.c) and both pointers must answer it the same way.
+     *
+     * Both halves are needed and they catch different lanes:
+     *
+     *  - The CANCEL is the mouse's. Its press is a tap until it isn't: the
+     *    marker goes up on the press edge and comes back down some frames
+     *    later, when the hand has travelled far enough to be a drag.
+     *  - The SUPPRESSION is the finger's. torirs_touch.c holds the button
+     *    back until the finger passes the 12px touch slop, then pushes the
+     *    down at the START point followed by a move to where the finger now
+     *    is -- both in one batch, so the deadzone is already crossed and the
+     *    press arrives ALREADY dragging. There is no later edge to cancel on;
+     *    the marker simply must not go up.
      */
-    if( input->curr.mouse_button_down[TORIRSM_LEFT] ||
-        input->curr.mouse_button_down[TORIRSM_RIGHT] )
+    if( LibToriRS_Input_IsDragging(input, TORIRSM_LEFT) ||
+        LibToriRS_Input_IsDragging(input, TORIRSM_RIGHT) ||
+        LibToriRS_Input_IsDragging(input, TORIRSM_MIDDLE) )
+    {
+        UIInk_Cancel(&app->ink);
+    }
+    else if( input->curr.mouse_button_down[TORIRSM_LEFT] ||
+             input->curr.mouse_button_down[TORIRSM_RIGHT] )
     {
         UIInk_Show(
             &app->ink, TORIRS_INKWELL_YELLOW, input->curr.mouse_x, input->curr.mouse_y);
@@ -31293,7 +31847,46 @@ App_RunOnce(
         app->need_redraw = 1;
     }
 
-    if( !chrome_took_click && app->inv_drag_com_id < 0 && !pressed_filled_obj &&
+    /*
+     * An IF3 text-entry field takes the caret, and any other click gives it up.
+     *
+     * Ahead of the minimenu because a click on the field IS the whole action:
+     * the box carries no op and no hook (`~torirs_cc_search_box` sets nothing
+     * but a font, a colour and its input limits), so letting the click continue
+     * would build a Cancel-only menu over it and, on a miss, walk the player.
+     *
+     * The blur half is not an afterthought: `on_input_focus_changed` is what
+     * the hiscores panel does its lookup from, so clicking OUT of the box is
+     * how a typed name is searched for. Both halves go through the host, which
+     * owns the hook dispatch -- see RS_CS2_InputSetFocus.
+     */
+    int input_took_click = 0;
+    if( !chrome_took_click && (out.clicked_com_id >= 0 || out.left_click_miss) &&
+        !out.minimenu_closed && out.minimenu_select < 0 )
+    {
+        int const field = out.clicked_com_id >= 0
+                              ? UITree_InputHitTest(
+                                    app->tree, &app->ui_host, out.clicked_x, out.clicked_y)
+                              : -1;
+        int const had_focus = RS_CS2_InputFocusId(&app->host) >= 0;
+        if( field >= 0 )
+        {
+            RS_CS2_InputSetFocus(&app->host, &app->runner, field);
+            input_took_click = 1;
+            app->input_frame_consumed = 1;
+            app->need_redraw = 1;
+        }
+        else if( had_focus )
+        {
+            RS_CS2_InputSetFocus(&app->host, &app->runner, -1);
+            app->need_redraw = 1;
+        }
+        if( field >= 0 || had_focus )
+            RS_CS2_PumpTransmits(&app->host, &app->runner);
+    }
+
+    if( !chrome_took_click && !input_took_click && app->inv_drag_com_id < 0 &&
+        !pressed_filled_obj &&
         out.clicked_com_id >= 0 && !out.minimenu_closed && out.minimenu_select < 0 )
     {
         struct RS_MinimenuBuildCtx mctx = {
@@ -31649,6 +32242,39 @@ App_RunOnce(
         }
     }
 
+    /*
+     * A focused IF3 text-entry field eats the keyboard.
+     *
+     * Before the broadcast and instead of it, which is the point: the cache's
+     * onKey handlers are the chatbox's typed line and the gameframe's F-key tab
+     * switches, and a panel search box that let them run would type a player's
+     * name into the chat box and change sidebar tabs on every `f`. The
+     * cache-authored search boxes take the keyboard by calling
+     * `~chatdefault_stopinput`; a type-12 field has no such call because in the
+     * reference the caret itself is the claim. This is that claim.
+     *
+     * Every key is consumed while a field is focused, including ones the field
+     * does nothing with -- see RS_CS2_InputKey.
+     */
+    int input_ate_keys = 0;
+    if( !plugin_ate_keys && !chrome_ate_keys && RS_CS2_InputFocusId(&app->host) >= 0 )
+    {
+        for( int e = 0; e < out.key_event_count; e++ )
+        {
+            input_ate_keys |= RS_CS2_InputKey(
+                &app->host,
+                &app->runner,
+                out.key_events[e].key_typed,
+                out.key_events[e].key_pressed);
+        }
+        if( input_ate_keys )
+        {
+            RS_CS2_PumpTransmits(&app->host, &app->runner);
+            ran_cs2 = 1;
+            app->need_redraw = 1;
+        }
+    }
+
     /* Keyboard broadcast: every event this frame times every visible onKey
      * handler, with nothing filtered out on the way -- which is the reference
      * client's dispatch exactly. Every registered hook gets every key and each
@@ -31662,7 +32288,9 @@ App_RunOnce(
      * in one frame, and an earlier one can CC_CREATE (realloc components[]) or
      * CC_DELETEALL (reclaim the slot), so a target collected during the scan may
      * be gone by its turn. Same reasoning as the on_timer loop. */
-    for( int e = 0; e < out.key_event_count && !plugin_ate_keys && !chrome_ate_keys; e++ )
+    for( int e = 0;
+         e < out.key_event_count && !plugin_ate_keys && !chrome_ate_keys && !input_ate_keys;
+         e++ )
     {
         for( int t = 0; t < out.key_target_count; t++ )
         {
@@ -33451,6 +34079,7 @@ App_WorldObjStackAdd(
         app_obj_stack_refresh_model(app, world, existing, count);
         World_ObjStackSetCount(world, existing, count);
         app_plugin_obj_notify(app, existing, TORIRS_PLUGIN_EV_OBJ_COUNT);
+        app_ground_items_mark(app, world, scene_x, scene_z, level);
         app->need_redraw = 1;
         return existing;
     }
@@ -33491,8 +34120,33 @@ App_WorldObjStackAdd(
         int const idx = World_ObjStackAdd(
             world, element_id, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
         app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_SPAWN);
+        app_ground_items_mark(app, world, scene_x, scene_z, level);
         return idx;
     }
+}
+
+void
+App_WorldObjStackSetOwnership(
+    struct App* app,
+    int idx,
+    int public_ticks,
+    int despawn_ticks,
+    int owner,
+    int never_becomes_public)
+{
+    struct World* world;
+    int const now = app->host.client_clock;
+
+    assert(app);
+    assert(idx >= 0);
+    world = App_ActiveWorldview(app)->world;
+    World_ObjStackSetOwnership(
+        world,
+        idx,
+        public_ticks > 0 ? now + public_ticks * RS_CS2_HOST_CLOCKS_PER_TICK : -1,
+        despawn_ticks > 0 ? now + despawn_ticks * RS_CS2_HOST_CLOCKS_PER_TICK : -1,
+        owner,
+        never_becomes_public);
 }
 
 void
@@ -33511,6 +34165,11 @@ App_WorldRebuildShift(
 
     World_ShiftEntities(world, base_dx, base_dz);
     World_ClearProjectilesAndSpotanims(world);
+    /* Every pile is on a different tile now, and some fell off the scene
+     * entirely -- so every ground-items overlay has to be rebuilt against the
+     * new origin, and the ones with nothing left under them destroyed. */
+    app->ground_items_refresh_all = 1;
+    app->ground_items_dirty_count = 0;
     /* Plugin objects are anchored to ABSOLUTE tiles, which the shift does not
      * move -- so they are torn down here and re-placed against the new origin
      * once the scene is up (app_plugin_objects_rebuild, from the world-loaded
@@ -33861,6 +34520,7 @@ App_WorldObjStackDel(
          * whole one -- the same ordering the npc despawn path uses. */
         app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
         World_ObjStackDel(world, idx);
+        app_ground_items_mark(app, world, scene_x, scene_z, level);
         app->need_redraw = 1;
     }
 }
@@ -33884,6 +34544,7 @@ App_WorldObjStackSetCount(
     app_obj_stack_refresh_model(app, world, idx, count);
     World_ObjStackSetCount(world, idx, count);
     app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_COUNT);
+    app_ground_items_mark(app, world, scene_x, scene_z, level);
     app->need_redraw = 1;
 }
 
@@ -33903,6 +34564,7 @@ App_WorldObjStackClearTile(
     {
         app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
         World_ObjStackDel(world, idx);
+        app_ground_items_mark(app, world, scene_x, scene_z, level);
         app->need_redraw = 1;
     }
 }

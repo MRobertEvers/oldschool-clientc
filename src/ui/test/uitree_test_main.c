@@ -29,6 +29,7 @@ main(void)
     test_emit_stack_count_placeholder();
     test_emit_golden();
     test_key_dispatch();
+    test_input_field();
     test_same_frame_press_release_clicks();
     test_touch_swipe_scrolls_layer();
     test_feedback_overlay_never_takes_a_click();

@@ -98,9 +98,10 @@ sync_emit_options(
 /* ---- sync ---------------------------------------------------------------- */
 
 void
-ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync)
+ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync, uint32_t page_epoch)
 {
     assert(sync);
+    sync->page_epoch = page_epoch;
 
     /* The shadow and the flags derived from it, and nothing else: `exec` and
      * `live` describe the BINDING, which has not changed -- this is a page
@@ -145,6 +146,8 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
      * never has to ask whether "first" and "new" are different cases.
      */
     sync->restate = 1;
+    /* A fresh binding replaces no page, so it states no identity. */
+    sync->page_epoch = 0;
     /* No begin at all is a valid executor -- the buffer one has nothing to
      * bring up -- and counts as having come up. */
     if( sync->exec.begin && !sync->exec.begin(sync->exec.user) )
@@ -219,6 +222,10 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
      * announces itself exactly once, however many frames pass before a
      * transaction actually has something to say. */
     cmd.value = sync->restate ? 1 : 0;
+    /* The identity travels WITH the boundary, so an executor never has to
+     * learn which page it is mounting from a different channel arriving on a
+     * different frame. @see ToriRSChromeSync::page_epoch. */
+    cmd.serial = sync->restate ? sync->page_epoch : 0;
     sync->restate = 0;
     sync_emit(sync, &cmd);
 

@@ -1,6 +1,7 @@
 #include "uitree.h"
 
 #include "uitree_frame.h"
+#include "uitree_input.h"
 
 #include "perf/torirs_perf.h"
 #include "uitree_layout.h"
@@ -1398,6 +1399,7 @@ UITree_New(uint32_t hint)
     tree->world_index = -1;
     tree->worldmap_index = -1;
     tree->entity_overlay_index = -1;
+    tree->input_focus_com_id = -1;
     return tree;
 }
 
@@ -2845,6 +2847,15 @@ UITree_CcCreate(
     case 9: /* TORIRS_COMPONENT_LINE */
         spec.type = UIELEM_RS_LINE;
         break;
+    case 12: /* TORIRS_COMPONENT_INPUT — the IF3 text-entry field */
+        /* An editable field is a TYPE_TEXT that also takes the caret: the
+         * scripts that build one set its font, colour and alignment with the
+         * ordinary cc_settextfont / cc_setcolour / cc_settextalign and read it
+         * back with cc_gettext, so anything else here would be a second text
+         * node to teach the whole renderer about. The `input` flag is stamped
+         * after the push, below. See `rs_text.input` in uitree.h. */
+        spec.type = UIELEM_RS_TEXT;
+        break;
     case 10: /* TORIRS_COMPONENT_ARC */
         /* An arc with no CC_SETARC yet is a zero-width sector, which draws
          * nothing -- the reference's own default, and the right one: 5480
@@ -2867,6 +2878,8 @@ UITree_CcCreate(
     /* Soft3D stretches IF3 graphics to layout size; CC_CREATE children must
      * inherit the parent's if3 flag (interfacex forces if3=1 on create). */
     tree->components[idx].if3 = tree->components[parent_index].if3;
+    if( widget_type == 12 )
+        tree->components[idx].u.rs_text.input = 1;
     return idx;
 }
 
@@ -3549,6 +3562,103 @@ UITree_ApplyText(
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     return UITree_SetTextAt(tree, idx, text);
+}
+
+/* ------------------------------------------------------------------ */
+/* IF3 text-entry fields (component type 12)                           */
+/* ------------------------------------------------------------------ */
+
+int
+UITree_IsInputNode(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->type == UIELEM_RS_TEXT && c->u.rs_text.input;
+}
+
+int
+UITree_InputFocusId(struct UITree const* tree)
+{
+    int32_t idx;
+
+    assert(tree);
+    if( tree->input_focus_com_id < 0 )
+        return -1;
+    idx = UITree_FindByComponentId(tree, tree->input_focus_com_id);
+    /* The validation, and this is the whole reason the focus is stored as an id.
+     * `~torirs_hiscores_layout_refresh` cc_deleteall's the search box and
+     * rebuilds it whenever the panel resizes, so the node under the caret can
+     * vanish between one keystroke and the next, and the slot it leaves behind
+     * is handed to some other component moments later. */
+    if( idx < 0 || tree->components[idx].freed ||
+        !UITree_IsInputNode(&tree->components[idx]) )
+        return -1;
+    return tree->input_focus_com_id;
+}
+
+int
+UITree_InputSetFocusId(
+    struct UITree* tree,
+    int com_id)
+{
+    int const lost = UITree_InputFocusId(tree);
+
+    assert(tree);
+    if( lost == com_id )
+        return -1;
+    if( lost >= 0 )
+    {
+        int32_t const lost_idx = UITree_FindByComponentId(tree, lost);
+        if( lost_idx >= 0 )
+            UITree_MarkNodeDirty(tree, lost_idx);
+    }
+    /* Also where a stale id is finally dropped -- UITree_InputFocusId only
+     * refuses to believe one. */
+    tree->input_focus_com_id = -1;
+    if( com_id >= 0 )
+    {
+        int32_t const idx = UITree_FindByComponentId(tree, com_id);
+        struct UITreeComponent* c;
+        if( idx < 0 || tree->components[idx].freed ||
+            !UITree_IsInputNode(&tree->components[idx]) )
+            return lost;
+        c = &tree->components[idx];
+        tree->input_focus_com_id = com_id;
+        /* The caret lands at the END of what is already there. Clicking a box
+         * that holds a half-typed name has to let you finish it, and the
+         * reference puts the cursor at the tail for the same reason. */
+        c->u.rs_text.caret = c->u.rs_text.text ? (int)strlen(c->u.rs_text.text) : 0;
+        UITree_MarkNodeDirty(tree, idx);
+    }
+    return lost;
+}
+
+int
+UITree_InputHitTest(
+    struct UITree* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py)
+{
+    int32_t hits[UITREE_INPUT_HIT_STACK_MAX];
+    int count;
+
+    assert(tree);
+    count = UITree_CollectNodesAt(tree, host, px, py, hits, UITREE_INPUT_HIT_STACK_MAX);
+    /*
+     * The field takes the click only when it is the TOP-MOST target, not merely
+     * one of them. CollectNodesAt reports targets top-most first and has
+     * already dropped everything decorative, so the test is the first entry.
+     *
+     * Not "the first input node in the stack", which was the obvious spelling
+     * and is wrong: `settings_create_drop_down` builds a type-12 field for a
+     * custom value and puts the row's own `Input` op on a DIFFERENT component
+     * (`cc_setonop` after a `cc_find($component6, $int31)`). Taking the click
+     * for any field found anywhere in the stack would give the caret to that
+     * field and never run the op the row is built around.
+     */
+    if( count > 0 && UITree_IsInputNode(&tree->components[hits[0]]) )
+        return tree->components[hits[0]].component_id;
+    return -1;
 }
 
 bool

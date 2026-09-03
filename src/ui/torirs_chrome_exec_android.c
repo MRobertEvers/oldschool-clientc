@@ -191,6 +191,11 @@ android_chrome_apply(void* user, struct ToriRSChromeCmd const* command)
         {
             pthread_mutex_lock(&chrome->intent_lock);
             android_chrome_drop_page(chrome);
+            /* And the identity, from the same command, so the rail's later
+             * arrival is recognised as the page already mounted rather than as
+             * a further change. */
+            if( command->serial )
+                chrome->rail_page_generation = command->serial;
             pthread_mutex_unlock(&chrome->intent_lock);
         }
         chrome->command_count = 0;

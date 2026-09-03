@@ -108,3 +108,7 @@ DUMP=tools/dump_sprites/dump_sprites
   osrs_sideicon_4=901 osrs_sideicon_5=902 osrs_sideicon_6=903 osrs_sideicon_7=904 \
   osrs_sideicon_8=1709 osrs_sideicon_9=905 osrs_sideicon_10=3560 osrs_sideicon_11=908 \
   osrs_sideicon_12=909 osrs_sideicon_13=910
+
+# The 2004 compass rose, for the OldSchool lane: there the cache's own rose is
+# OldSchool's, and a Stone Drawer wants the one its map plate was cut with.
+"$DUMP" --dat1 cache254.lostcity --out "$OUT" compass=compass.dat

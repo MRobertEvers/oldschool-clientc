@@ -1399,7 +1399,7 @@ test_chrome_exec_invalidate_restates_the_page(void)
     /* Now the page boundary, announced. Nothing about the BINDING changed --
      * the window stays open -- so the next Run must restate the page over an
      * executor that has thrown its copy away. */
-    ToriRSChromeSync_Invalidate(&g_sync);
+    ToriRSChromeSync_Invalidate(&g_sync, 77);
     TEST_ASSERT(
         ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "an invalidated shadow restates");
     TEST_ASSERT(
@@ -1466,7 +1466,7 @@ test_chrome_exec_restate_is_announced(void)
      * next one to happen -- not the next frame. A flag that needed a
      * transaction to already exist would be dropped exactly here.
      */
-    ToriRSChromeSync_Invalidate(&g_sync);
+    ToriRSChromeSync_Invalidate(&g_sync, 77);
     TEST_ASSERT(
         ToriRSChromeSync_Run(&g_sync, &g_ui) > 0,
         "an invalidation produces a transaction even with a clean model");

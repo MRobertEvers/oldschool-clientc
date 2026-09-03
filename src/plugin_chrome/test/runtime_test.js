@@ -311,5 +311,55 @@ assert.strictEqual(runtime.inspect().widgetCount, 0, 'collapse releases the sele
 assert.strictEqual(runtime.inspect().railEntries, 33, 'collapse retains the shared rail');
 assert.strictEqual(ids['tpc-rail-list'].children.length, 33);
 
+/*
+ * A page BOUNDARY as the host actually emits one: the page being discarded is
+ * closed under ITS identity, and the page replacing it arrives as a snapshot
+ * under the NEW one, back to back.
+ *
+ * That pairing is what a plugin's own "Settings" button produces -- a second
+ * face of the same plugin, so the rail never changes and the close is not
+ * preceded by any rail traffic at all. The runtime has to mount the snapshot
+ * that follows a close rather than treating the close as the end of the
+ * conversation.
+ */
+runtime.receive({
+  protocol: 1, type: 'rail.snapshot', registryRevision: 1,
+  selectionGeneration: 10, pageGeneration: 30, activePlugin: 0,
+  lastSelectedPlugin: 0, selectedEntry: 0, expanded: true, entries
+});
+runtime.receive({
+  protocol: 1, type: 'page.snapshot', pageGeneration: 30, panel: 3,
+  title: 'XP Tracker', commands: [
+    command(3, { text: 'XP Tracker' }),
+    command(8, { w: 4, v: 1, label: 'Reset all', s: 301 })
+  ]
+});
+assert.strictEqual(runtime.inspect().pageGeneration, 30);
+assert(runtime.inspect().widgetCount > 0, 'the page face mounts');
+
+runtime.receive({ protocol: 1, type: 'page.close', pageGeneration: 30 });
+runtime.receive({
+  protocol: 1, type: 'page.snapshot', pageGeneration: 31, panel: 4,
+  title: 'XP Tracker', commands: [
+    command(3, { p: 4, text: 'XP Tracker' }),
+    command(8, { p: 4, w: 5, v: 1, label: 'Save between sessions', s: 302 })
+  ]
+});
+assert.strictEqual(runtime.inspect().pageGeneration, 31,
+  'a snapshot after a close mounts the page it names');
+assert(runtime.inspect().widgetCount > 0,
+  'and its controls are there -- a close followed by a snapshot is a page '
+  + 'REPLACEMENT, not the end of the page');
+
+/* And the rail catching up a frame later must not disturb it: it carries the
+ * identity the page stream already stated. */
+runtime.receive({
+  protocol: 1, type: 'rail.snapshot', registryRevision: 1,
+  selectionGeneration: 10, pageGeneration: 31, activePlugin: 0,
+  lastSelectedPlugin: 0, selectedEntry: 0, expanded: true, entries
+});
+assert(runtime.inspect().widgetCount > 0,
+  'the rail catching up leaves the mounted page alone');
+
 assert.strictEqual(runtime.receive('{bad json'), false, 'malformed host input is ignored');
 console.log('modern plugin chrome runtime: ok');

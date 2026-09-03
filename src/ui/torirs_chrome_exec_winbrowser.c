@@ -414,6 +414,17 @@ static void browser_apply(void* user, struct ToriRSChromeCmd const* cmd)
             send_page_close_generation(s, effective_page_generation(s));
             reset_mounted_page(s);
         }
+        /*
+         * ...and the page's IDENTITY, from the same command, AFTER the close.
+         *
+         * The close names the page being discarded and the snapshot names the
+         * one replacing it, so the order here is the whole of it. Taking the
+         * identity from the rail instead stamped the snapshot with the page it
+         * had just closed, and the rail's own later arrival then read as
+         * another change and closed the snapshot.
+         */
+        if( cmd->value && cmd->serial )
+            s->page_generation = cmd->serial;
         s->collecting = 1;
         s->command_count = 0;
         s->command_overflow = 0;

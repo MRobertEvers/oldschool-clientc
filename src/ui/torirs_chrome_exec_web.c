@@ -608,6 +608,10 @@ chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
     {
         s->active_panel = -1;
         memset(s->widget_serial, 0, sizeof(s->widget_serial));
+        /* And the identity, so the rail's later arrival is recognised as the
+         * page already mounted rather than as a further change. */
+        if( cmd->serial )
+            s->page_generation = cmd->serial;
     }
 
     /* The mirror first, so the page's command and this executor's idea of what

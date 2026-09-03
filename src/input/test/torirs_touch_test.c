@@ -30,6 +30,7 @@
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
+#include "input/torirs_input_cmd.h"
 #include "input/torirs_touch.h"
 
 #include <stdint.h>
@@ -141,11 +142,31 @@ drain(struct ToriRS_CmdBus* bus, struct Seen* seen)
     }
 }
 
+/*
+ * One host frame: everything the gesture pushed, applied to a real input layer.
+ *
+ * The client's own frame boundary (main.c: Begin, drain, End), because the
+ * gesture flags this exists to read are computed across it -- is_dragging is
+ * written by End, and the one-shots are cleared by Begin.
+ */
+static void
+drain_to_input(struct ToriRS_CmdBus* bus, struct LibToriRS_Input* input, uint64_t now)
+{
+    struct ToriRS_CmdHeader header;
+    uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+
+    LibToriRS_Input_Begin(input, now);
+    while( CmdBus_Pop(bus, &header, payload) )
+        ToriRS_Input_ApplyCmd(input, &header, payload);
+    LibToriRS_Input_End(input);
+}
+
 int
 main(void)
 {
     struct ToriRS_CmdBus bus;
     struct ToriRS_Touch touch;
+    struct LibToriRS_Input input;
     struct Seen seen;
 
     /* ---- a tap is a left click, where the finger LANDED ---- */
@@ -401,6 +422,47 @@ main(void)
     ToriRS_TouchTick(&touch, &bus, 112);
     drain(&bus, &seen);
     CHECK(seen.leaves == 1, "a drag's finger leaves too");
+
+    /* ---- the press a drag pushes arrives ALREADY dragging ---- */
+    /*
+     * The touch marker (the inkwell) is drawn for a tap and must not be drawn
+     * for a drag, and app.c decides that by asking the INPUT layer --
+     * LibToriRS_Input_IsDragging -- so a finger and a mouse are answered by
+     * one gesture policy rather than two.
+     *
+     * A mouse press is a tap until the hand travels, so the marker goes up and
+     * a later frame takes it back. A finger's press has no such frame: the
+     * button is pushed only once the 12px slop is already crossed, and what
+     * has to carry it past the input layer's own 5px deadzone is the move that
+     * follows it in the SAME batch -- pushed from the finger's START, so the
+     * delta is the travel and not a jump. Break that pairing and every swipe
+     * flashes a ripple at the point it grabbed.
+     */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    LibToriRS_Input_Init(&input, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
+    drain_to_input(&bus, &input, 0);
+    CHECK(!LibToriRS_Input_IsDragging(&input, TORIRSM_LEFT),
+        "a finger just down is not dragging");
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300 + TORIRS_TOUCH_SLOP + 4, 200, 40);
+    drain_to_input(&bus, &input, 40);
+    CHECK(input.curr.mouse_button_down[TORIRSM_LEFT],
+        "the drag's press lands on the frame the slop was crossed");
+    CHECK(LibToriRS_Input_IsDragging(&input, TORIRSM_LEFT),
+        "and that same frame already reads as a drag, so no marker is shown");
+
+    /* ---- a tap's press does not ---- */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    LibToriRS_Input_Init(&input, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 300, 200, 90);
+    drain_to_input(&bus, &input, 90);
+    CHECK(input.curr.mouse_button_down[TORIRSM_LEFT],
+        "a tap presses and releases in one frame");
+    CHECK(!LibToriRS_Input_IsDragging(&input, TORIRSM_LEFT),
+        "and never reads as a drag, so the marker is shown");
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

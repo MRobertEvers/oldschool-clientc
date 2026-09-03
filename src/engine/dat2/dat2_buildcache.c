@@ -99,15 +99,29 @@ struct MapEntry_Texture
 #define DAT2_UNDERLAY_MAP_CAPACITY 512
 #define DAT2_OVERLAY_MAP_CAPACITY 2048
 #define DAT2_TEXTURE_MAP_CAPACITY 512
-/* Split-group LRU budget, swept against tracked peak on the soft3d boot: 24 MB
- * cost 108.20, 8 MB 108.23, 4 MB 105.63, 2 MB 107.35. 4 MB is the knee.
+/*
+ * Split-group LRU budget: enough to hold a SESSION's config working set.
  *
- * 24 MB never bound -- the census shows the cache topping out around 4 MB with
- * a 98.9% hit rate -- so the budget was only ever an accumulation ceiling. And
- * 2 MB is worse than 4, not better: Dat2GroupCache_Put splits the new group
- * before it evicts, so a put transiently holds the whole cache plus the new
- * blob, and a budget below the largest live group pays that twice over. */
-#define DAT2_GROUP_CACHE_BUDGET ((size_t)4 * 1024 * 1024)
+ * 4 MB was the knee for a BOOT, swept against tracked peak (24 MB cost 108.20,
+ * 8 MB 108.23, 4 MB 105.63, 2 MB 107.35) with the cache topping out around
+ * 4 MB at a 98.9% hit rate. A session is not a boot. Play touches every big
+ * config group -- locs 3.03 MB split, objs 2.90, seqs 2.01, dbrows 1.95, npcs
+ * 1.89, enums 0.62, structs 0.59, plus params, invtypes, hitsplats, dbtables --
+ * and they do not fit in 4 MB together, so each one evicted the next. Measured
+ * over four osrs239 teleports at the old budget: 59 evictions, 79.73 MB
+ * re-split, a 48.1% hit rate. Every miss re-walks the group's chunk table and,
+ * when the IO layer's archive LRU had lost it too, re-runs bzip2 on the whole
+ * group first -- a frame-sized stall on the first door, item icon, npc or
+ * interface after each eviction.
+ *
+ * At 24 MB the same run evicts NOTHING, hits 83.8%, and settles at 13.12 MB
+ * live holding all twelve groups. That 13 MB is the real cost of the change
+ * and is a ceiling rather than an allocation: the cache only ever holds groups
+ * something asked for. DAT2_GROUP_CACHE_MB narrows it where that matters.
+ * See also DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT, the compressed-archive LRU one
+ * layer down, which was sized off the same boot sweep and for the same reason.
+ */
+#define DAT2_GROUP_CACHE_BUDGET ((size_t)24 * 1024 * 1024)
 
 /* DAT2_GROUP_CACHE_MB overrides the budget so it can be swept without a
  * rebuild. An unparseable or out-of-range value falls back to the compiled

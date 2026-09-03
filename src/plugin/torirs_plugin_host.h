@@ -395,6 +395,13 @@ struct ToriRS_PluginEngine
      * and copies the finished pixels into the plugin's slot.
      * @see ToriRS_PluginApi::obj_image.
      */
+    /** Walk the client's recorded loot. Iterator protocol of npc_next.
+     *  @see ToriRS_PluginApi::loot_source_next. */
+    int (*loot_source_next)(
+        void* user, int iter, struct ToriRS_PluginLootSource* out);
+    int (*loot_row_next)(
+        void* user, int source_id, int iter, struct ToriRS_PluginLootRow* out);
+
     int (*obj_image)(
         void* user,
         int slot,

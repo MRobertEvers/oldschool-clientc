@@ -125,6 +125,53 @@ print_ops(
 }
 
 static void
+print_one_hook(
+    char const* label,
+    ComponentScriptVar const* vars,
+    int len,
+    FILE* fp,
+    char const* indent)
+{
+    if( !vars || len <= 0 )
+        return;
+    fprintf(fp, "%s%s:", indent, label);
+    for( int i = 0; i < len; i++ )
+    {
+        if( vars[i].type == SCRIPT_VAR_STRING )
+            fprintf(fp, " \"%s\"", vars[i].value.s ? vars[i].value.s : "");
+        else
+            fprintf(fp, " %d", vars[i].value.i);
+    }
+    fputc('\n', fp);
+}
+
+static void
+print_hooks(
+    RSCacheDat2A_Component const* c,
+    FILE* fp,
+    char const* indent)
+{
+    print_one_hook("onLoad", c->onLoad, c->onLoadLen, fp, indent);
+    print_one_hook("onMouseOver", c->onMouseOver, c->onMouseOverLen, fp, indent);
+    print_one_hook("onMouseLeave", c->onMouseLeave, c->onMouseLeaveLen, fp, indent);
+    print_one_hook("onVarpTransmit", c->onVarpTransmit, c->onVarpTransmitLen, fp, indent);
+    print_one_hook("onInvTransmit", c->onInvTransmit, c->onInvTransmitLen, fp, indent);
+    print_one_hook("onStatTransmit", c->onStatTransmit, c->onStatTransmitLen, fp, indent);
+    print_one_hook("onTimer", c->onTimer, c->onTimerLen, fp, indent);
+    print_one_hook("onOp", c->onOp, c->onOpLen, fp, indent);
+    print_one_hook("onMouseRepeat", c->onMouseRepeat, c->onMouseRepeatLen, fp, indent);
+    print_one_hook("onClick", c->onClick, c->onClickLen, fp, indent);
+    print_one_hook("onClickRepeat", c->onClickRepeat, c->onClickRepeatLen, fp, indent);
+    print_one_hook("onRelease", c->onRelease, c->onReleaseLen, fp, indent);
+    print_one_hook("onHold", c->onHold, c->onHoldLen, fp, indent);
+    print_one_hook("onDrag", c->onDrag, c->onDragLen, fp, indent);
+    print_one_hook("onDragComplete", c->onDragComplete, c->onDragCompleteLen, fp, indent);
+    print_one_hook("onScrollWheel", c->onScrollWheel, c->onScrollWheelLen, fp, indent);
+    print_one_hook("onVarcTransmit", c->onVarcTransmit, c->onVarcTransmitLen, fp, indent);
+    print_one_hook("onVarcstrTransmit", c->onVarcstrTransmit, c->onVarcstrTransmitLen, fp, indent);
+}
+
+static void
 print_component_details(
     struct DumpIfaceLoaded const* li,
     int i,
@@ -311,6 +358,7 @@ print_component_details(
     }
 
     print_ops(c, fp, "      ");
+    print_hooks(c, fp, "      ");
 }
 
 static void

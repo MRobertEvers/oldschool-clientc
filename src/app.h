@@ -682,6 +682,17 @@ enum ToriRS_WorldRenderMode
 #define APP_LOGIC_CYCLES_PER_SECOND 50
 
 /**
+ * Tiles the ground-items overlay driver can queue in one logic tick before it
+ * gives up and rebuilds the whole scene instead.
+ *
+ * Small on purpose. The overflow path is not a failure -- it is the cheaper
+ * branch once a tick touches this many piles, because a whole-scene rebuild
+ * walks the obj-stack pool once and the per-tile path runs a clientscript per
+ * entry. A zone burst on login is exactly that case.
+ */
+#define APP_GROUND_ITEMS_DIRTY_MAX 32
+
+/**
  * MINIMAP_TOGGLE states. 1 and 2 are not degrees of the same thing: the map is
  * equally invisible in both, and what separates them is whether clicking where
  * it used to be still walks. See struct PktMinimapToggle.
@@ -2009,6 +2020,32 @@ struct App
     int highlight_last_hover_coord;
     int highlight_last_route;
     int highlight_last_dest_coord;
+
+    /**
+     * Tiles whose ground-item pile changed since the last logic tick, as
+     * packed absolute coords.
+     *
+     * The ground-items overlay is rebuilt per TILE, by a cache script nothing
+     * in the cache calls (`[script:ground_items_overlay]`) -- the same
+     * arrangement as the three tile refreshers above, because a pile changing
+     * is something only the client knows. The list is drained once per tick
+     * rather than fired from inside the zone executor: one OBJ_ADD burst can
+     * touch the same tile several times, and a script per packet would rebuild
+     * the same overlay three times over.
+     *
+     * `ground_items_refresh_all` is the overflow and the whole-scene case
+     * together -- a rebuild shift, a settings change, more tiles in one tick
+     * than the list holds. It walks every stack in the pool, which is bounded
+     * by the scene and is why the list can stay small.
+     */
+    int ground_items_dirty[APP_GROUND_ITEMS_DIRTY_MAX];
+    int ground_items_dirty_count;
+    int ground_items_refresh_all;
+    /** The two carrier varps behind the ground-items settings, resolved from
+     *  the revconfig varbits once the varbit table is loaded, and the values
+     *  last seen in them. -1 / -1 before the resolve. */
+    int ground_items_settings_varp[2];
+    int ground_items_settings_seen[2];
     /** The mouseover subject the highlighter was last run for, folded to one
      *  int. Same edge rule as the three above. */
     int highlight_last_mouseover;
@@ -2124,6 +2161,21 @@ struct App
     /** The row the open picker belongs to, so a commit knows which varp to
      *  write and a closed All Settings knows to take the picker with it. */
     struct RS_CS2SettingsColourRequest settings_colour_req;
+    /**
+     * The All Settings NUMBER entry, the same arrangement one row down.
+     *
+     * The five ground-items price tiers, the overlay's line limit and the
+     * handful of other rows built by `settings_create_input_setting` are the
+     * rows this serves. Their op script is as empty as the colour swatch's --
+     * `settings_input_op` plays the click and returns -- because the reference
+     * opens a numeric entry of its own here. The value commits on Enter, which
+     * is when a chrome text input activates.
+     */
+    int settings_number_panel;
+    int settings_number_input;
+    int settings_number_close_btn;
+    int settings_number_visible;
+    struct RS_CS2SettingsNumberRequest settings_number_req;
     int locedit_panel;
     int locedit_visible;
     int locedit_row_target; /* "loc <id> shape <n>" or "no loc selected" */
@@ -3281,6 +3333,27 @@ App_WorldObjStackAdd(
     int level,
     int obj_id,
     int count);
+
+/**
+ * OBJ_ADD's ownership half, applied to the stack the add just returned.
+ *
+ * `public_ticks` and `despawn_ticks` are the packet's own remaining-tick
+ * counts; this converts them to the client-clock deadlines the world stores,
+ * so the caller never has to know how the two clocks relate. Zero or negative
+ * means "no such deadline", which is what a revision without the fields sends.
+ *
+ * Separate from the add for the same reason World_ObjStackSetOwnership is:
+ * only the zone packet has these, and a hotkey spawn must not have to invent
+ * them.
+ */
+void
+App_WorldObjStackSetOwnership(
+    struct App* app,
+    int idx,
+    int public_ticks,
+    int despawn_ticks,
+    int owner,
+    int never_becomes_public);
 
 /** Editor placement: enqueue the same client-side spawn task the debug
  *  hotkeys use (awaits assets, then lands the entity). Scene only -- the

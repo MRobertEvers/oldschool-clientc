@@ -2782,6 +2782,28 @@ plugin_obj_icon_owns(struct ToriRS_PluginHost const* host, int image)
  * start IO and stall it.
  */
 static int
+api_loot_source_next(
+    struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLootSource* out)
+{
+    assert(ctx);
+    assert(out);
+    return ctx->host->engine.loot_source_next(ctx->host->engine.user, iter, out);
+}
+
+static int
+api_loot_row_next(
+    struct ToriRS_PluginCtx* ctx,
+    int source_id,
+    int iter,
+    struct ToriRS_PluginLootRow* out)
+{
+    assert(ctx);
+    assert(out);
+    return ctx->host->engine.loot_row_next(
+        ctx->host->engine.user, source_id, iter, out);
+}
+
+static int
 api_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
 {
     struct ToriRS_PluginHost* host;
@@ -6186,6 +6208,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->image_read);
     assert(engine->image_release);
     assert(engine->obj_image);
+    assert(engine->loot_source_next);
+    assert(engine->loot_row_next);
     assert(engine->draw_image);
     assert(engine->hit_region);
     assert(engine->if_click);
@@ -6385,6 +6409,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .panel_clear = api_panel_clear,
         .panel_invalidate = api_panel_invalidate,
         .obj_image = api_obj_image,
+        .loot_source_next = api_loot_source_next,
+        .loot_row_next = api_loot_row_next,
     };
     host->api = api;
     return host;

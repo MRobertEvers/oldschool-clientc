@@ -281,6 +281,17 @@ LOCAL_NAMES: dict[int, str] = {
     6852: "OBJ_TYPE",
     6857: "OC_GETOPBASE",
     6858: "OC_GETOP",
+    # The ground-item pile's own queries, read off the rev-216 native client
+    # (ScriptRunnerImpl_6800To6899.cpp / _7100To7199.cpp) rather than guessed
+    # from the call sites. 6859 is the SELECTOR -- it runs
+    # Client::FindClientObjInStack(coord, index) and, on a hit, SetActiveObj --
+    # which is why the four getters beside it take no arguments: they read the
+    # ClientObj it left active. Same shape as LOC_FIND (6803) and the loc
+    # getters around it.
+    6859: "OBJ_FIND",
+    6860: "OBJ_DESPAWNTIME",
+    6861: "OBJ_VISIBLETIME",
+    6862: "OBJ_ISPUBLIC",
     6863: "OBJ_OWNER",
     6950: "TILE_COORD",
     6951: "COORD_INSCENE",  # vendor: _6951
@@ -296,6 +307,12 @@ LOCAL_NAMES: dict[int, str] = {
     # 7041/7042 behind 7043, script 6698 reads 7043 beside HIGHLIGHT_NPC_GET on
     # the same group). The reference identifies the subject as an OpGroup,
     # built from a right-click subject name and its operation list.
+    # The pile on a tile, by absolute coord: Client::GetObjectsOnTile(coord)
+    # and an index into the list it answers. Numbered inside the minimenu block
+    # but nothing to do with the menu -- the ground-items overlay walks them.
+    7120: "OBJSTACK_COUNT",
+    7121: "OBJSTACK_ID",
+    7122: "OBJSTACK_QUANTITY",
     7000: "HIGHLIGHT_NPC_SETUP",  # vendor: _7000
     7003: "HIGHLIGHT_NPC_GET",  # vendor: _7003
     7004: "HIGHLIGHT_NPC_CLEAR",  # vendor: _7004
