@@ -67,8 +67,9 @@ Items 6–11 are on the soft3d lane only. Items 1–5 and 12 touch the client fr
 - Device: XT1060, Android 5.1, both Krait cores online at 1.728 GHz for the whole run
   (`/sys/devices/system/cpu/online` = `0-1`; cpu1 came up when the client started).
 - Binary: the OPT=1 `libtorirs.so` in `android/src/main/jniLibs/armeabi-v7a` (built
-  2026-09-03 00:18, `.symtab` present, no frame pointers — flat histograms only). The
-  PROFILE=1 build of HEAD **does not boot on this phone** — see §M.6.
+  2026-09-03 00:18, `.symtab` present, no frame pointers — flat histograms only). HEAD at
+  the time crashed at login on this phone (a tile-block alignment regression, root-caused
+  and fixed in §M.6); `kr4` in §M.6 is the same measurement on the fixed HEAD.
 - Scene: `manifest_osrs239_phone.ini` against the local `torirsserver`, account `testc`,
   Lumbridge, camera still, no input. **Plugins off** (`TORIRS_PLUGINS=0`) and the saved
   15 fps "Limit Framerate" option (`preferences.ini` `5=15`) cleared so the loop runs at
@@ -231,25 +232,55 @@ worker. The structural facts the kernels now live inside:
    ran on the draw thread because the draw reached those models first. Any kernel A/B on
    this binary must sum both threads (as §M.2 does), or the split moves and the A/B lies.
 
-### M.6 The PROFILE=1 build does not boot on this phone
+### M.6 HEAD crashed at login on this phone — root-caused and fixed
 
-`make PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 PROFILE=1` of HEAD (28e7cd51c) dies
-deterministically during login on a worker thread:
+Every build of HEAD after `449eea745` ("improve world rebuild", 09-03 06:54) — OPT=1 and
+PROFILE=1 alike — died deterministically during login, on the dual-core worker:
 
 ```
-signal 7 (SIGBUS), code 1 (BUS_ADRALN)
-#00 pc 003efb0c  libtorirs.so  RSCache_Dat2SkeletalBaseBakePalette (dat2_skeletalbase.c)
+signal 7 (SIGBUS), code 1 (BUS_ADRALN), fault addr 0x957805c4
+r1 957805b0  r2 957805ba  r3 00000005  r8 957805c4
+#00 pc 003e2000  libtorirs.so
 ```
 
-`/proc/cpu/alignment` on this device reads `User faults: 4 (signal)` — the kernel
-delivers SIGBUS for any user-mode alignment trap rather than fixing it up. The faulting
-loop is the NEON matrix multiply (`vld1.32 {dN[],dN[]}, [rX:32]!` broadcasts with an
-explicit `:32` alignment qualifier; `vst1.32`), and the crash site's registers are all
-4-byte aligned, so the exact trapping instruction is not yet identified. The OPT=1 build
-of the same tree boots and was used for §M. Until this is understood, profiles are flat
-histograms only (no frame-pointer call graphs), and any A/B that needs stacks needs the
-crash fixed first. Not chased here; recorded so the next person does not lose an hour
-to it.
+**Cause.** `449eea745` carves a world tile's thirteen int16 arrays out of one `malloc`
+(`ToriDraw_Model::arrays_block`, `world_decode_tile.c`) with no padding — "every element
+is two bytes, so the slices stay aligned". The NEON32 projection kernel's contract is
+stronger: `projection.perspective.prepared.neon32.impl.h` applies
+`__builtin_assume_aligned(vertex_*, 8)` on the promise that every vertex array was
+malloc'd, so clang emits `vld1.16 {d}, [r:64]!` — an 8-byte alignment qualifier. For a
+five-vertex tile the y and z slices start at bytes 10 and 20 (the registers above: r3 = 5
+vertices, r1/r2/r8 = three arrays 10 bytes apart), and `:64` on a 4-byte address is an
+alignment fault. This device's kernel signals user alignment traps
+(`/proc/cpu/alignment`: `User faults: 4 (signal)`), so it is a SIGBUS rather than a
+silent fix-up. The kernel's own `assert(TORIDRAW_PN32_VERTEX_ALIGNED(...))` would have
+named it in an OPT=0 build; `NDEBUG` compiled it out. The 00:18 `.so` used for §M
+predates the commit, which is why it ran.
+
+**Fix** (`world_decode_tile.c`): the three vertex slices are taken at
+`TILE_BLOCK_VERTEX_SLICE_SHORTS(n) = (n + 3) & ~3` shorts, so each starts on an 8-byte
+boundary; face and colour slices stay packed. A four-vertex tile (the vast majority) pads
+nothing; five- and six-vertex tiles pad ≤ 6 bytes per axis. Asserts on the three
+pointers' low bits sit next to the carve. Verified: HEAD + fix logs in and runs at the
+20 ms pacer; `kr4` (below) was recorded on it.
+
+**Why it took an hour: debuggerd's `pc` offsets are wrong for this `.so`.** Android 5.1's
+debuggerd prints `pc − map_start` for the text mapping, but `libtorirs.so`'s executable
+segment is mapped from file offset `0x111000` and its vaddr is `0x1000` above that. The
+real symbol address is **`reported_pc + 0x111000 + 0x1000`** (check `readelf -l` for the
+`R E` LOAD line if the layout changes). `0x3e2000` symbolised to `decode_sequence_rs2`
+and, in the PROFILE build, to `RSCache_Dat2SkeletalBaseBakePalette` — both nonsense;
+`0x4f4000` is `toridraw_projection_prepared_neon32_notex_noyaw_noclip+0xac`, the first
+`vld1.16 [r8:64]!`. `llvm-symbolizer` with `-g` line tables would have said the same
+thing for the wrong address, so line tables are not a defence here; the register pattern
+(`fault addr == a base register`, three pointers `vertex_count*2` apart) was.
+
+**Baseline on the fixed tree (`kr4`, cpu-clock, 10 s, plugins off, cap cleared):**
+draw thread 7,418 samples ≈ **15.3 ms/frame**, worker 2,906 ≈ **6.0 ms/frame** (485
+frames). Same shape as `kr1` (`bucket_paint_world` 12.6 %, `dualcore_source_take` 8.7 %,
+`FrameNextCommand` 6.9 % / 19.8 %, sort 32.5 % of the worker); the draw's extra ~1.4 ms
+over `kr1` is within the run-to-run spread seen in the earlier A/Bs and is not attributed
+to the tile block. The plan in §10 uses `kr4` as its zero.
 
 ### M.7 What is still unmeasured
 
@@ -806,21 +837,91 @@ shapes these kernels lean on. Each of these decides one item above:
 
 ---
 
-## 10. Suggested order (revised after §M)
+## 10. Plan: from the profile to a faster frame
 
-1. **Fix the PROFILE=1 boot crash (§M.6)** so call-graph profiles are possible again;
-   then **S2's alignment log + padded re-record** (half a day together). Both are
-   prerequisites for measuring anything else properly.
-2. **Dual-core lane: publish the translated command with the worker's result** (ranked
-   #1; the quirks entry's own next lever) and **drop the barriers from the poll loop**
-   (#2). These are the largest measured items in the process and are not kernel work.
-3. **Sort: S6 (priority partition), S4 as fixed-N straight-line bodies, compaction folded
-   into the radix count, S1 (prefetch distance)** — in that order, each A/B'd on the
-   client with both threads summed (§M.5 item 4), since the bench mix under-weights the
-   per-model phases that the profile put at the top.
-4. **P1** on the projection shell with the per-shell counters; **P2** (tile pairs) once P1
-   says how much of the shell pairing would amortise. P3 is done by the compiler; P4 is
-   not worth a change.
-5. **R1, R2, R3, R6, R7** on the soft lane — unchanged: the tex block-end rewrite is the
-   one that moves a whole door by a double-digit percentage; the rest are single-digit each.
-6. Add the §8 kernels to arch_fuzz; **R4** and the forwarding half of **S4** wait on them.
+**Zero:** `kr4` (§M.6) — draw thread **15.3 ms** CPU per 20.4 ms frame, worker **6.0 ms**,
+Lumbridge still, plugins off, pacer 20 ms. The draw thread is the critical path; the
+frame is paced at 49 fps by the pacer, not by the CPU, so "faster" here means CPU
+headroom (for the moving-camera frame, for plugins, for a lower clock) and a lower
+p99, not a higher fps until the pacer is changed.
+
+**Rule for every step:** one binary, one env toggle, alternate arms, 10 s each, `ms/frame
+= samples / frames-in-window`, **both threads summed** (§M.5 item 4 — under the dual-core
+lane a change can move work between threads without removing it). Symbolise with the
+`+0x112000` correction from §M.6 until the tooling does it.
+
+### Step 0 — Measurement hygiene (½ day, done in part)
+
+| item | status |
+|---|---|
+| Tile-block alignment crash | **fixed** (`world_decode_tile.c`, §M.6) |
+| PROFILE=1 build boots | **confirmed** (same root cause). But call graphs are **not obtainable on this phone**: `--call-graph dwarf` → "not supported on this device" (3.4 kernel, no `PERF_SAMPLE_STACK_USER`), and `--call-graph fp` yields 1,359 broken chains of 2,304 (`kr5`) because the kernel's `user_backtrace` reads the APCS frame (`lr` at `fp−4`) while clang emits AAPCS (`lr` at `fp+4`). So attribution stays flat: **address-bucket** hot symbols (as §M.3) and add **per-call-site counters** (the tree's 986 memcpy/frame count is the model) where a caller is needed. PROFILE=1's remaining value here is `-g` line tables for the bucketing |
+| S2 alignment log | one `fprintf` of the six scene pointers `& 4095` at scene creation; decides the mechanism behind the interleave's refills before step 2e is built |
+| Face/model counts per frame | make the `gles2 …/frame` debug line print on this build (it did not under `TORIRS_FRAME_DEBUG=1`), so sort cycles/face and projection cycles/model are recoverable from a client profile |
+
+### Step 1 — Dual-core lane (largest measured items; not kernel work)
+
+| # | change | measured basis | expected | verify |
+|---|---|---|---|---|
+| 1a | **Worker publishes the translated command with its result**; the draw consumes it instead of re-running `ToriRS_FrameNextCommand` — or the inverse, whichever thread the bus must own. Either way the bus runs **once** | `FrameNextCommand` 1.06 draw + 1.26 worker; 20 % of the worker's refills, 19 % of its I-misses | worker 6.0 → ~4.7 ms. The worker stops pacing the draw, so `dualcore_source_take` (1.45 ms) should fall to ~0.1: **draw −1.3..1.5 ms** | `dualcore_source_take` share; `TORIRS_GLES2_DUALCORE_DEBUG` `stalls` counter → 0 |
+| 1b | **Barrier-free poll** in `dualcore_source_take`: plain volatile load in the loop, one `dmb ish` after the publish counter is seen to advance (same acquire); back off to `futex`/`sched_yield` after ~64 polls rather than 4096 | 2 × `dmb` per poll (§4.5: 50–80 cycles each) | draw-thread CPU only: whatever wait remains costs ~3 cycles per poll instead of ~120. Small once 1a lands; do it anyway | poll-loop samples vs kernel `futex` samples |
+| 1c | **Rebalance after 1a.** With the worker at ~4.7 ms against the draw's ~13 ms, hand it more per-model work that touches no GL: `ToriDraw_AnimApplyTransform` is already there (0.47); the pose bake (`gles2_bake_pose_vertices` 0.24) and `trspk_toridraw_bake_face` (0.30) are candidates if their outputs can be published like the projection's | §M.2 tables | **draw −0.3..0.5 ms**, worker +0.5 | both-thread sum unchanged; draw down |
+
+After step 1: draw **≈ 13.3–13.8 ms**, worker ≈ 5 ms.
+
+### Step 2 — Face sort (2.88 ms/frame both threads; the profile's largest kernel)
+
+Order is by measured share × confidence in the fix; each is bit-exact and has a
+`TORIDRAW_*` toggle in the tree's A/B style.
+
+| # | change | measured basis (§M.3) | expected | notes |
+|---|---|---|---|---|
+| 2a | **S6 — priority partition**: for models whose face-priority table is uniform (most), skip the per-key `count[]`/`depth_sum[]` RMW chains and the `bhi`; otherwise keep the ten counters in registers and make `> 9` a `cmp; movhi` | 20 % of sort cycles, 21 % of its mispredicts | **−0.3..0.4 ms** | check `face_priorities == NULL` / single-value fast path first — likely already partly there |
+| 2b | **Bitonic as fixed-N straight-line bodies** for N ∈ {8, 16, 32, 64} (S4, without waiting on the forwarding measurement) | 7.5 % cycles, **35 % of mispredicts** | **−0.1..0.15 ms**, and the per-model p99 improves more than the mean | the forwarding half of S4 (register-resident layers) stacks on top later |
+| 2c | **Fold compaction into the radix count** (count only non-sentinel keys; scatter skips sentinels) | compaction ~9 % on a serial `r11` chain | −0.15..0.2 ms | one pass over the keys removed; radix path only (N > 64) |
+| 2d | **S1 — K16 prefetch distance** to 4 lines, one `pld` per line | K16 gather 39 % of the sort's refills | −0.1..0.2 ms if the refills are L2 hits, more if DRAM | A/B on the client, not the hot-fixture bench |
+| 2e | **Interleave refills** (S2 or write-no-allocate, per step 0's log): stagger the six scene arrays, or `pld` two lines ahead in the interleave loop, or have the projection kernel write `xyz16` directly and drop the pass | 23 % of the sort's refills | −0.1..0.2 ms | the direct-write variant also deletes the K16 rebuild |
+| 2f | S3 — halve the `ldrh` index loads | block at the load-port floor | −1.5 cycles/face ≈ −0.05 ms | last; smallest |
+
+After step 2: sort **≈ 2.0 ms** both threads (−0.8..1.1), mostly on the worker; the
+draw's own share (0.65) falls in proportion.
+
+### Step 3 — Draw-thread items the kernels do not cover, but the profile ranked above them
+
+These belong to `FRAME_BUDGET_PLAN.md`'s ledger; listed with the number that makes them
+worth their place, and the one measurement each needs first.
+
+| symbol | ms/frame | what the PMU says | first measurement |
+|---|---:|---|---|
+| `bucket_paint_world` | 1.89 | **18 % of the draw's mispredicts**, 10 % of its refills | address-bucket it as §M.3 did the sort: which loop mispredicts? (a per-element visibility/`switch` is the usual answer) |
+| `World_CycleRegisterPainterDynamics` + `emit_walk_node` | 1.46 | 17 % of the draw's refills between them | address-bucket with `-g` (step 0) — the plan's 2e (write indices straight into the runs) already targets `emit_walk_node` |
+| `__memcpy_base` | 0.37 | **15 % of the draw's refills** — the single largest refill source | per-site byte counters behind the existing 986-copies/frame count (no call graphs on this phone, step 0) |
+| `__findenv` | 0.035 | 3.5 % of the draw's mispredicts | `grep getenv` on the frame path; cache it in a static. Ten minutes |
+
+### Step 4 — Projection (1.68 ms/frame both threads)
+
+| # | change | measured basis (§M.4) | expected |
+|---|---|---|---|
+| 4a | **Prefetch the model's three vertex arrays at the shell**, before FastCull (`__builtin_prefetch` per axis, one line each; two for models over 32 vertices) | ~25 % of the kernel's samples wait on the first `vld1.16` | −0.1..0.15 ms |
+| 4b | **P1** — per-shell counters on the bench (`cycles`, `instructions`, `branch-misses`, `L1-icache-load-misses`) | shell = 42 % of the family, 10.6 % of the worker's I-misses | decides 4c |
+| 4c | **P2** — two tiles per call, stage-interleaved | 500-cycle shell per tile confirmed | −0.1..0.2 ms |
+| — | P3 retired (compiler already fuses); P4 demoted (tail ≈ 0.04 ms) | | |
+
+### Step 5 — Raster (soft3d lane only; unchanged by the profile)
+
+R1, R2, R3, R6, R7 in that order; the tex block-end rewrite is the double-digit one.
+Then the §8 arch_fuzz kernels, which gate R4 and the forwarding half of S4.
+
+### Ledger
+
+| | draw ms | worker ms | both |
+|---|---:|---:|---:|
+| zero (`kr4`) | 15.3 | 6.0 | 21.3 |
+| after step 1 | 13.3–13.8 | ~5.0 | ~18.5 |
+| after step 2 | 13.1–13.6 | ~4.2 | ~17.5 |
+| after step 4 | 13.0–13.5 | ~4.0 | ~17.2 |
+| step 3 (not sized here) | the remaining ~13 ms is painter + emit + GL, i.e. `FRAME_BUDGET_PLAN.md`'s ground | | |
+
+Steps 1 and 2 are a week between them and remove ~4 ms of CPU from the frame, ~2 of it
+from the critical-path thread; every number is an estimate against a measured share, and
+the A/B rule above is what turns each row into a measurement.

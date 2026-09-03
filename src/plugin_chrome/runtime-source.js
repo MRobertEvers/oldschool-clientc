@@ -40,6 +40,9 @@
   };
   const ROW_ACTION = 0x1;
   const ROW_LOCKED = 0x2;
+  const RENDER = {
+    FULL: 1, VISIBILITY: 2, OPTIONS: 4, SELECTION: 8, FOCUS: 16, CONTENT: 32
+  };
 
   /* The XP runtime has no dependable keyed-collection implementation.
    * Handles are small integers, so a prefixed own-property store is enough. */
@@ -95,9 +98,16 @@
     activeTab: 0,
     checkStyle: 0,
     widgets: new Store(),
+    widgetsByTab: new Store(),
+    checkWidgets: new Store(),
+    tabStrips: new Store(),
+    renderQueue: [],
+    renderVisits: 0,
     sequence: 0,
     messages: [],
     intents: [],
+    messageOverflow: false,
+    intentOverflow: false,
     lastLayout: '',
     applying: false,
     editorFocused: false,
@@ -310,30 +320,42 @@
 
   function queueEnvelope(envelope, widgetIntent) {
     const copy = Codec.parse(Codec.stringify(envelope));
-    if (state.messages.length >= MAX_MESSAGES) state.messages.shift();
-    state.messages.push(copy);
     if (widgetIntent) {
       const raw = normalizeIntent(widgetIntent);
-      if (state.intents.length >= MAX_MESSAGES) state.intents.shift();
-      state.intents.push(raw);
       if (typeof global.torirsChromeIntentPosted === 'function') {
         try {
-          global.torirsChromeIntentPosted({
+          const accepted = global.torirsChromeIntentPosted({
             k: raw.k, p: raw.p, w: raw.w, v: raw.v, text: raw.text,
             x: raw.x, y: raw.y, g: raw.g, s: raw.s
           });
+          if (accepted !== false) return true;
         }
         catch (error) { /* Host failure cannot break retained UI. */ }
-        return;
       }
     }
     const encoded = Codec.stringify(copy);
     const post = typeof global.torirsPluginChromePostMessage === 'function'
       ? global.torirsPluginChromePostMessage : null;
     if (post) {
-      try { post(encoded); }
+      try { if (post(encoded) === true) return true; }
       catch (error) { /* Pull queue remains the fallback. */ }
     }
+    if (state.messages.length >= MAX_MESSAGES) {
+      state.messageOverflow = true;
+      if (widgetIntent) state.intentOverflow = true;
+      return false;
+    }
+    state.messages.push(copy);
+    if (widgetIntent) {
+      const raw = normalizeIntent(widgetIntent);
+      if (state.intents.length >= MAX_MESSAGES) {
+        state.intentOverflow = true;
+        state.messages.pop();
+        return false;
+      }
+      state.intents.push(raw);
+    }
+    return true;
   }
 
   function postRailSelect(node) {
@@ -594,7 +616,65 @@
       }
     }
     updateRailNodes();
-    state.widgets.each(renderWidget);
+    state.widgets.each(record => queueWidgetRender(record, RENDER.CONTENT));
+  }
+
+  function indexWidget(record) {
+    if (record.tab >= 0) {
+      let bucket = state.widgetsByTab.get(record.tab);
+      if (!bucket) {
+        bucket = new Store();
+        state.widgetsByTab.set(record.tab, bucket);
+      }
+      bucket.set(record.handle, record);
+    }
+    if (record.kind === W.CHECKBOX || record.kind === W.LISTROW)
+      state.checkWidgets.set(record.handle, record);
+    if (record.kind === W.TABSTRIP) state.tabStrips.set(record.handle, record);
+  }
+
+  function unindexWidget(record) {
+    if (record.tab >= 0) {
+      const bucket = state.widgetsByTab.get(record.tab);
+      if (bucket) {
+        bucket.drop(record.handle);
+        if (!bucket.count) state.widgetsByTab.drop(record.tab);
+      }
+    }
+    state.checkWidgets.drop(record.handle);
+    state.tabStrips.drop(record.handle);
+  }
+
+  /* The DOM half of retained execution. A command already names the exact
+   * widget/property, so applying a delta queues that record directly. The
+   * per-record bit and flags coalesce an OPTIONS header plus all of its items
+   * into one render, without an end-of-transaction walk over every widget. */
+  function queueWidgetRender(record, flags) {
+    if (!record || state.widgets.get(record.handle) !== record) return;
+    record.renderFlags |= flags;
+    if (!record.renderQueued) {
+      record.renderQueued = true;
+      state.renderQueue.push(record);
+    }
+    if (!state.applying) flushWidgetRenders();
+  }
+
+  function queueTabVisibility(tab) {
+    const bucket = state.widgetsByTab.get(tab);
+    if (bucket) bucket.each(record => queueWidgetRender(record, RENDER.VISIBILITY));
+  }
+
+  function flushWidgetRenders() {
+    const queued = state.renderQueue;
+    state.renderQueue = [];
+    for (let i = 0; i < queued.length; i++) {
+      const record = queued[i];
+      const flags = record.renderFlags;
+      record.renderFlags = 0;
+      record.renderQueued = false;
+      if (state.widgets.get(record.handle) === record)
+        renderWidgetParts(record, flags);
+    }
   }
 
   function clearPage(report = true) {
@@ -604,6 +684,10 @@
     popupHide();
     postEditorFocus(false);
     state.widgets.clear();
+    state.widgetsByTab.clear();
+    state.checkWidgets.clear();
+    state.tabStrips.clear();
+    state.renderQueue = [];
     clear(content);
     clear(tabs);
     setTabsVisible(false);
@@ -653,6 +737,7 @@
       checked: false, selected: -1, hidden: false, focused: false,
       options: [], structuredOptions: false, optionsRevision: 0,
       customRevision: 0, customScale: 1000,
+      renderFlags: 0, renderQueued: false,
       row, control: null
     };
     row._tpcRecord = record;
@@ -723,7 +808,10 @@
           const option = index >= 0 && index < record.options.length
             ? record.options[index] : null;
           if (record.structuredOptions) {
-            if (!option || !option.enabled) { renderOptions(record); return; }
+            if (!option || !option.enabled) {
+              renderWidgetSelection(record);
+              return;
+            }
             postWidget(record, INTENT.PICK, index, option.value);
           } else postWidget(record, INTENT.PICK, index);
         });
@@ -870,17 +958,17 @@
     }
     content.appendChild(row);
     state.widgets.set(record.handle, record);
-    renderWidget(record);
-    reconcileTabsAndVisibility();
+    indexWidget(record);
+    queueWidgetRender(record, RENDER.FULL);
   }
 
   function removeWidget(handle) {
     const record = state.widgets.get(handle);
     if (!record) return;
     if (record.row.parentNode) record.row.parentNode.removeChild(record.row);
-    if (record.kind === W.TABSTRIP) setTabsVisible(false);
+    unindexWidget(record);
+    if (record.kind === W.TABSTRIP && !state.tabStrips.count) setTabsVisible(false);
     state.widgets.drop(handle);
-    reconcileTabsAndVisibility();
   }
 
   function renderOptions(record) {
@@ -920,8 +1008,7 @@
     }
   }
 
-  function renderWidget(record) {
-    if (!record || state.applying) return;
+  function renderWidgetContent(record) {
     switch (record.kind) {
       case W.LABEL:
         setText(record.control, record.text || record.label);
@@ -946,10 +1033,6 @@
         break;
       case W.DROPDOWN:
         skinField(record.control);
-        renderOptions(record);
-        break;
-      case W.TABSTRIP:
-        renderOptions(record);
         break;
       case W.MODELVIEW:
         setText(record.control, record.label || record.text || 'Model preview');
@@ -968,17 +1051,47 @@
       default:
         break;
     }
-    hidden(record.row, !!record.hidden || (record.tab >= 0 && record.tab !== state.activeTab) ||
+  }
+
+  function renderWidget(record) {
+    if (!record) return;
+    renderWidgetContent(record);
+    if (record.kind === W.DROPDOWN || record.kind === W.TABSTRIP)
+      renderOptions(record);
+    renderWidgetVisibility(record);
+    renderWidgetFocus(record);
+  }
+
+  function renderWidgetVisibility(record) {
+    hidden(record.row, !!record.hidden ||
+      (record.tab >= 0 && record.tab !== state.activeTab) ||
       record.kind === W.TABSTRIP || record.kind === W.FREE);
+  }
+
+  function renderWidgetSelection(record) {
+    if (record.kind === W.DROPDOWN && record.control)
+      record.control.selectedIndex = record.selected >= 0 &&
+        record.selected < record.options.length ? record.selected : -1;
+  }
+
+  function renderWidgetFocus(record) {
     if (record.focused && record.control && record.control.focus) {
       try { record.control.focus({ preventScroll: true }); }
       catch (error) { record.control.focus(); }
     }
   }
 
-  function reconcileTabsAndVisibility() {
-    if (state.applying) return;
-    state.widgets.each(renderWidget);
+  function renderWidgetParts(record, flags) {
+    state.renderVisits++;
+    if (flags & RENDER.FULL) {
+      renderWidget(record);
+      return;
+    }
+    if (flags & RENDER.OPTIONS) renderOptions(record);
+    if (flags & RENDER.SELECTION) renderWidgetSelection(record);
+    if (flags & RENDER.VISIBILITY) renderWidgetVisibility(record);
+    if (flags & RENDER.FOCUS) renderWidgetFocus(record);
+    if (flags & RENDER.CONTENT) renderWidgetContent(record);
   }
 
   /* One clamp for a custom well's height, so the ADD that first states it
@@ -992,7 +1105,7 @@
     if (command.k === CMD.CHECK_STYLE) {
       state.checkStyle = command.v;
       toggleClass(shell, 'tpc-check-square', command.v === 1);
-      reconcileTabsAndVisibility();
+      state.checkWidgets.each(record => queueWidgetRender(record, RENDER.CONTENT));
       return;
     }
     if (command.k === CMD.PANEL_OPEN) {
@@ -1010,8 +1123,14 @@
         setText(title, command.text);
         break;
       case CMD.PANEL_TAB:
-        state.activeTab = command.v;
-        reconcileTabsAndVisibility();
+        if (state.activeTab !== command.v) {
+          const previous = state.activeTab;
+          state.activeTab = command.v;
+          queueTabVisibility(previous);
+          queueTabVisibility(state.activeTab);
+          state.tabStrips.each(tabstrip =>
+            queueWidgetRender(tabstrip, RENDER.OPTIONS));
+        }
         break;
       case CMD.PANEL_RECT:
         break;
@@ -1022,13 +1141,22 @@
         removeWidget(command.w);
         break;
       case CMD.WIDGET_LABEL:
-        if (record) { record.label = command.label; renderWidget(record); }
+        if (record) {
+          record.label = command.label;
+          queueWidgetRender(record, RENDER.CONTENT);
+        }
         break;
       case CMD.WIDGET_TEXT:
-        if (record) { record.text = command.text; renderWidget(record); }
+        if (record) {
+          record.text = command.text;
+          queueWidgetRender(record, RENDER.CONTENT);
+        }
         break;
       case CMD.WIDGET_CHECKED:
-        if (record) { record.checked = !!command.v; renderWidget(record); }
+        if (record) {
+          record.checked = !!command.v;
+          queueWidgetRender(record, RENDER.CONTENT);
+        }
         break;
       case CMD.WIDGET_HEIGHT:
         /* Resized in place, deliberately without renderWidget: the well holds
@@ -1040,16 +1168,28 @@
         }
         break;
       case CMD.WIDGET_HIDDEN:
-        if (record) { record.hidden = !!command.v; renderWidget(record); }
+        if (record) {
+          record.hidden = !!command.v;
+          queueWidgetRender(record, RENDER.VISIBILITY);
+        }
         break;
       case CMD.WIDGET_COLOR:
-        if (record) { record.color = command.c; renderWidget(record); }
+        if (record) {
+          record.color = command.c;
+          queueWidgetRender(record, RENDER.CONTENT);
+        }
         break;
       case CMD.WIDGET_SELECTED:
-        if (record) { record.selected = command.v; renderWidget(record); }
+        if (record) {
+          record.selected = command.v;
+          queueWidgetRender(record, RENDER.SELECTION);
+        }
         break;
       case CMD.WIDGET_FOCUS:
-        if (record) { record.focused = !!command.v; renderWidget(record); }
+        if (record) {
+          record.focused = !!command.v;
+          queueWidgetRender(record, RENDER.FOCUS);
+        }
         break;
       case CMD.WIDGET_OPTIONS:
         if (record) {
@@ -1061,7 +1201,7 @@
               ? { value: '', label: '', enabled: false, detail: '' }
               : '';
           record.optionsRevision++;
-          renderWidget(record);
+          queueWidgetRender(record, RENDER.OPTIONS);
         }
         break;
       case CMD.WIDGET_OPTION:
@@ -1071,7 +1211,7 @@
                 enabled: !!command.x, detail: command.detail }
             : command.text;
           record.optionsRevision++;
-          renderWidget(record);
+          queueWidgetRender(record, RENDER.OPTIONS);
         }
         break;
       default:
@@ -1108,7 +1248,7 @@
     state.applying = true;
     try { for (let i = 0; i < commands.length; i++) applyCommand(commands[i]); }
     finally { state.applying = false; }
-    reconcileTabsAndVisibility();
+    flushWidgetRenders();
     reportLayout();
     return true;
   }
@@ -1120,7 +1260,7 @@
     state.applying = true;
     try { for (let i = 0; i < commands.length; i++) applyCommand(commands[i]); }
     finally { state.applying = false; }
-    reconcileTabsAndVisibility();
+    flushWidgetRenders();
     return true;
   }
 
@@ -1198,11 +1338,22 @@
   }
 
   function takeMessage() {
+    if (state.messageOverflow || state.intentOverflow) {
+      state.messageOverflow = false;
+      state.intentOverflow = false;
+      return Codec.stringify({ protocol: PROTOCOL, type: 'transport.loss' });
+    }
     return state.messages.length ? Codec.stringify(state.messages.shift()) : '';
   }
 
   function takeIntent() {
     return state.intents.length ? Codec.stringify(state.intents.shift()) : '';
+  }
+
+  function takeIntentOverflow() {
+    const overflow = state.intentOverflow;
+    state.intentOverflow = false;
+    return overflow;
   }
 
   function postPanelClose() {
@@ -1481,6 +1632,7 @@
     receive,
     takeMessage,
     takeIntent,
+    takeIntentOverflow,
     inspect() {
       return {
         railEntries: state.rail.entries.length,
@@ -1489,7 +1641,8 @@
         pageGeneration: state.pageGeneration,
         panel: state.panel,
         widgetCount: state.widgets.count,
-        queuedMessages: state.messages.length
+        queuedMessages: state.messages.length,
+        renderVisits: state.renderVisits
       };
     },
     constants: { CMD, W, INTENT }

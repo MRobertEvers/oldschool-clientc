@@ -369,21 +369,25 @@ app_plugin_panel_track_semantic(
     struct App* app,
     int widget,
     int plugin,
+    int model_index,
     struct ToriRS_PluginWinWidget const* model)
 {
     struct AppPluginPanelRow* row;
 
     assert(app);
-    if( widget < 0 || !model || model->serial == 0 ||
+    if( widget < 0 || !model || model->serial == 0 || model_index < 0 ||
+        model_index >= TORIRS_PLUGIN_WIDGETS_MAX ||
         app->plugin_panel_row_count >= APP_PLUGIN_PANEL_ROWS_MAX )
         return;
 
+    app->plugin_panel_model_rows[model_index] = app->plugin_panel_row_count + 1;
     row = &app->plugin_panel_rows[app->plugin_panel_row_count++];
     memset(row, 0, sizeof(*row));
     row->widget = widget;
     row->plugin = plugin;
     row->kind = APP_PLUGIN_ROW_PANEL_WIDGET;
     row->cfg_index = -1;
+    row->model_index = model_index;
     row->widget_serial = model->serial;
     row->widget_kind = model->kind;
     snprintf(row->widget_id, sizeof(row->widget_id), "%s", model->id);
@@ -620,6 +624,7 @@ static int
 app_plugin_panel_add_semantic(
     struct App* app,
     int plugin,
+    int model_index,
     struct ToriRS_PluginWinWidget const* model)
 {
     char text[TORIRS_CHROME_INPUT_MAX];
@@ -784,7 +789,7 @@ app_plugin_panel_add_semantic(
     if( widget >= 0 )
         ToriRSChrome_WidgetSetIntentSerial(
             &app->plugin_ui, widget, model->serial);
-    app_plugin_panel_track_semantic(app, widget, plugin, model);
+    app_plugin_panel_track_semantic(app, widget, plugin, model_index, model);
     return widget;
 }
 
@@ -879,98 +884,67 @@ app_plugin_panel_semantic_chrome_kind(struct ToriRS_PluginWinWidget const* model
     }
 }
 
-/**
- * Reconcile the retained page with the model, without destroying native
- * controls or the caret in a field being edited.
- *
- * THE VALIDATE LOOP ASKS EXACTLY ONE QUESTION: has the keyed widget SEQUENCE
- * changed -- a different serial, kind, id, or count? That is identity, and it
- * is the only thing a structural rebuild is for. Everything else the model
- * carries is a PROPERTY of a widget that already exists, and the apply loop
- * writes every one of them unconditionally from the model.
- *
- * Do not add a property comparison to the validate loop. Three separate
- * flicker bugs came from doing exactly that: a custom well's height and a
- * dropdown's option list were both checked there and answered with a full
- * rebuild, throwing away the retained tree, the native controls and the
- * executor's mounted page in order to restate a number the chrome could
- * already set in place. A property the chrome cannot yet set in place is a
- * missing setter on ToriRSChrome, not a reason to declare the page again.
- *
- * The writes are all compare-then-set at the chrome, so restating an
- * unchanged page every refresh does no work.
- */
+/** Apply one exact host-model mutation to its already-retained chrome row. */
 static int
-app_plugin_panel_patch_semantic(
+app_plugin_panel_patch_row(
     struct App* app,
-    int active,
-    uint32_t generation)
+    uint32_t generation,
+    struct ToriRS_PluginPanelChange const* change)
 {
-    int const model_count = PluginHost_PanelWidgetCount(app->plugins, generation);
-    int row_count = 0;
-    int model_index = 0;
+    struct AppPluginPanelRow const* row;
+    struct ToriRS_PluginWinWidget const* model;
+    char text[TORIRS_CHROME_INPUT_MAX];
+    int mapped;
 
-    if( active < 0 || active != g_plugin_page ||
-        generation != app->plugin_panel_built_generation )
+    assert(app);
+    assert(change);
+    if( change->widget_index < 0 ||
+        change->widget_index >= TORIRS_PLUGIN_WIDGETS_MAX )
+        return 0;
+    mapped = app->plugin_panel_model_rows[change->widget_index] - 1;
+    if( mapped < 0 || mapped >= app->plugin_panel_row_count )
+        return 0;
+    row = &app->plugin_panel_rows[mapped];
+    model = PluginHost_PanelWidgetAt(
+        app->plugins, generation, change->widget_index);
+    if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET ||
+        row->model_index != change->widget_index || !model ||
+        model->serial != change->widget_serial ||
+        model->serial != row->widget_serial || model->kind != row->widget_kind ||
+        strcmp(model->id, row->widget_id) != 0 || row->widget < 0 ||
+        row->widget >= app->plugin_ui.widget_count ||
+        app->plugin_ui.widgets[row->widget].kind !=
+            app_plugin_panel_semantic_chrome_kind(model) )
         return 0;
 
-    /* Validate the whole mapping first. A half-patched page followed by a
-     * rebuild creates two executor deltas for one host revision. */
-    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    switch( model->kind )
     {
-        struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
-        struct ToriRS_PluginWinWidget const* model;
-        struct ToriRSChromeWidget const* widget;
-
-        if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET )
-            continue;
-        row_count++;
-        model = PluginHost_PanelWidgetAt(app->plugins, generation, model_index++);
-        if( !model || model->serial != row->widget_serial ||
-            model->kind != row->widget_kind || strcmp(model->id, row->widget_id) != 0 ||
-            row->widget < 0 || row->widget >= app->plugin_ui.widget_count )
-            return 0;
-        widget = &app->plugin_ui.widgets[row->widget];
-        if( widget->kind != app_plugin_panel_semantic_chrome_kind(model) )
-            return 0;
-    }
-    if( row_count != model_count )
-        return 0;
-
-    model_index = 0;
-    for( int i = 0; i < app->plugin_panel_row_count; i++ )
-    {
-        struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
-        struct ToriRS_PluginWinWidget const* model;
-        char text[TORIRS_CHROME_INPUT_MAX];
-
-        if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET )
-            continue;
-        model = PluginHost_PanelWidgetAt(app->plugins, generation, model_index++);
-        if( !model )
-            return 0;
-
-        switch( model->kind )
+    case TORIRS_PLUGIN_W_SECTION:
+    case TORIRS_PLUGIN_W_PARAGRAPH:
+    case TORIRS_PLUGIN_W_LABEL:
+    case TORIRS_PLUGIN_W_KEY_VALUE:
+    case TORIRS_PLUGIN_W_ERROR:
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
         {
-        case TORIRS_PLUGIN_W_SECTION:
-        case TORIRS_PLUGIN_W_PARAGRAPH:
-        case TORIRS_PLUGIN_W_LABEL:
-        case TORIRS_PLUGIN_W_KEY_VALUE:
-        case TORIRS_PLUGIN_W_ERROR:
             app_plugin_panel_readout(
                 text, sizeof(text), model->label, model->text, model->id);
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, text);
-            break;
-        case TORIRS_PLUGIN_W_IMAGE:
+        }
+        break;
+    case TORIRS_PLUGIN_W_IMAGE:
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
+        {
+            char shown[TORIRS_CHROME_INPUT_MAX];
             app_plugin_panel_readout(
                 text, sizeof(text), model->label, model->text, "Image");
-            {
-                char shown[TORIRS_CHROME_INPUT_MAX];
-                snprintf(shown, sizeof(shown), "[Image] %.183s", text);
-                ToriRSChrome_SetText(&app->plugin_ui, row->widget, shown);
-            }
-            break;
-        case TORIRS_PLUGIN_W_PROGRESS:
+            snprintf(shown, sizeof(shown), "[Image] %.183s", text);
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, shown);
+        }
+        break;
+    case TORIRS_PLUGIN_W_PROGRESS:
+        if( change->flags & (TORIRS_PLUGIN_PANEL_CHANGE_TEXT |
+                             TORIRS_PLUGIN_PANEL_CHANGE_VALUE) )
+        {
             if( model->text[0] )
                 app_plugin_panel_readout(
                     text, sizeof(text), model->label, model->text, model->id);
@@ -980,90 +954,116 @@ app_plugin_panel_patch_semantic(
                     model->label[0] ? model->label : model->id,
                     model->value);
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, text);
-            break;
-        case TORIRS_PLUGIN_W_CUSTOM:
-            /*
-             * Its content is a retained draw list, not widget text: the
-             * invalidate flag and resolved geometry drive it below.
-             *
-             * Its HEIGHT is applied here, and used to be a reason to refuse
-             * the patch. That refusal is what made a growing list flash: a
-             * loot band arriving or a skill earning its first box changes
-             * nothing about WHICH widgets the page has, only how tall one of
-             * them is -- and answering that with a structural rebuild threw
-             * away the retained tree, the native controls and the executor's
-             * mounted page to restate a number. A height is a value.
-             */
+        }
+        break;
+    case TORIRS_PLUGIN_W_CUSTOM:
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT )
             ToriRSChrome_SetCustomHeight(
-                &app->plugin_ui, row->widget,
+                &app->plugin_ui,
+                row->widget,
                 model->preferred_height * ToriRSChrome_Scale(&app->plugin_ui));
-            break;
-        case TORIRS_PLUGIN_W_CHECKBOX:
-        case TORIRS_PLUGIN_W_TOGGLE:
-            ToriRSChrome_SetLabel(
-                &app->plugin_ui, row->widget,
-                model->label[0] ? model->label : model->id);
+        break;
+    case TORIRS_PLUGIN_W_CHECKBOX:
+    case TORIRS_PLUGIN_W_TOGGLE:
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_VALUE )
             ToriRSChrome_SetChecked(
                 &app->plugin_ui, row->widget,
                 model->value ? 1 : model->checked);
-            break;
-        case TORIRS_PLUGIN_W_INPUT:
-        case TORIRS_PLUGIN_W_TEXTAREA:
-            ToriRSChrome_SetLabel(
-                &app->plugin_ui, row->widget,
-                model->label[0] ? model->label : model->id);
+        break;
+    case TORIRS_PLUGIN_W_INPUT:
+    case TORIRS_PLUGIN_W_TEXTAREA:
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
-            break;
-        case TORIRS_PLUGIN_W_DROPDOWN:
-            ToriRSChrome_SetLabel(
-                &app->plugin_ui, row->widget,
-                model->label[0] ? model->label : model->id);
-            if( model->structured_select )
+        break;
+    case TORIRS_PLUGIN_W_DROPDOWN:
+        if( model->structured_select )
+        {
+            if( change->flags & (TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS |
+                                 TORIRS_PLUGIN_PANEL_CHANGE_VALUE) )
             {
                 struct ToriRSChromeSelectOptionInput
                     options[TORIRS_CHROME_SELECT_OPTIONS_MAX];
                 int const count = app_plugin_panel_select_inputs(
                     model, options, TORIRS_CHROME_SELECT_OPTIONS_MAX);
-
-                if( count >= 0 )
-                    ToriRSChrome_DropdownSetStructuredOptions(
-                        &app->plugin_ui,
-                        row->widget,
-                        options,
-                        count,
-                        model->selected_value);
+                if( count < 0 )
+                    return 0;
+                ToriRSChrome_DropdownSetStructuredOptions(
+                    &app->plugin_ui,
+                    row->widget,
+                    options,
+                    count,
+                    model->selected_value);
             }
-            else if( model->choices[0] )
-            {
-                /* The option LIST is a property too. It used to be compared in
-                 * the validate loop above and answered with a rebuild, though
-                 * the chrome has always been able to set it in place. */
-                app_plugin_panel_set_options(app, row->widget, model->choices);
+        }
+        else if( model->choices[0] )
+        {
+            if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS )
+                app_plugin_panel_set_options(
+                    app, row->widget, model->choices);
+            if( change->flags & (TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS |
+                                 TORIRS_PLUGIN_PANEL_CHANGE_VALUE) )
                 ToriRSChrome_DropdownSetSelected(
                     &app->plugin_ui, row->widget, model->selected);
-            }
-            else
-                ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
-            break;
-        case TORIRS_PLUGIN_W_BUTTON:
-            ToriRSChrome_SetText(
-                &app->plugin_ui, row->widget,
-                model->label[0] ? model->label : model->id);
-            break;
-        case TORIRS_PLUGIN_W_LIST_ROW:
+        }
+        else if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        break;
+    case TORIRS_PLUGIN_W_BUTTON:
+        /* Button captions are declaration identity in ABI-21. */
+        break;
+    case TORIRS_PLUGIN_W_LIST_ROW:
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
+        {
             app_plugin_panel_readout(
                 text, sizeof(text), model->label, model->text, model->id);
             ToriRSChrome_SetLabel(&app->plugin_ui, row->widget, text);
+        }
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_VALUE )
             ToriRSChrome_SetChecked(
                 &app->plugin_ui, row->widget,
                 model->value ? 1 : model->checked);
-            break;
-        case TORIRS_PLUGIN_W_SEPARATOR:
-        default:
-            break;
-        }
+        break;
+    case TORIRS_PLUGIN_W_SEPARATOR:
+    default:
+        break;
     }
     return 1;
+}
+
+/**
+ * Drain the host's exact retained mutation journal.
+ *
+ * Structural declaration changes return false and take the existing complete
+ * rebuild path. Ordinary updates never validate or restate an unrelated row:
+ * the generation-scoped model slot maps directly to the one chrome handle it
+ * created, and the host's per-slot flags select only the affected properties.
+ */
+static int
+app_plugin_panel_patch_semantic(
+    struct App* app,
+    int active,
+    uint32_t generation)
+{
+    struct ToriRS_PluginPanelChange change;
+    uint32_t const revision = PluginHost_PanelModelRevision(app->plugins);
+    int result;
+    int changed = 0;
+
+    if( active < 0 || active != g_plugin_page ||
+        generation != app->plugin_panel_built_generation )
+        return 0;
+    while( (result = PluginHost_PanelChangeNext(
+                app->plugins, generation, &change)) > 0 )
+    {
+        if( !app_plugin_panel_patch_row(app, generation, &change) )
+            return 0;
+        changed++;
+    }
+    if( result < 0 )
+        return 0;
+    /* A revision without a row is an unjournalled/structural mutation. Never
+     * bless it merely because the queue happened to be empty. */
+    return changed > 0 || revision == app->plugin_panel_built_model_rev;
 }
 
 static void
@@ -1224,6 +1224,10 @@ app_plugin_panel_sync(struct App* app)
     }
 
     app->plugin_panel_row_count = 0;
+    memset(
+        app->plugin_panel_model_rows,
+        0,
+        sizeof(app->plugin_panel_model_rows));
     /* Reset with the widgets that point into it -- the slices handed out below
      * must live exactly as long as the row set they belong to. */
     app->plugin_choice_count = 0;
@@ -1393,7 +1397,7 @@ app_plugin_panel_sync(struct App* app)
                 PluginHost_PanelWidgetAt(app->plugins, panel_generation, i);
             if( !model )
                 break; /* selection changed while the model was being read */
-            app_plugin_panel_add_semantic(app, p, model);
+            app_plugin_panel_add_semantic(app, p, i, model);
         }
 
         /*
@@ -1634,6 +1638,8 @@ app_plugin_panel_sync(struct App* app)
         PluginHost_PanelSelectionGeneration(app->plugins);
     app->plugin_panel_built_registry_rev =
         PluginHost_PanelRegistryRevision(app->plugins);
+    PluginHost_PanelChangesAcknowledge(
+        app->plugins, app->plugin_panel_built_generation);
     g_plugin_page_built = g_plugin_page;
     g_plugin_page_view_built = g_plugin_page_view;
     g_plugin_fullscreen_built = g_plugin_fullscreen;
@@ -3532,8 +3538,9 @@ app_plugin_panel_present_custom(struct App* app)
             continue;
         if( !app_plugin_panel_raster_custom(app, row, &frame) )
             continue;
-        app->plugin_exec.exec.custom_present(app->plugin_exec.exec.user, &frame);
-        row->custom_present_pending = 0;
+        if( app->plugin_exec.exec.custom_present(
+                app->plugin_exec.exec.user, &frame) )
+            row->custom_present_pending = 0;
     }
 }
 
@@ -3889,6 +3896,11 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      * A quiet frame is one count test: no transaction and no model/shadow scan.
      */
     ToriRSChromeSync_Run(&app->plugin_exec, &app->plugin_ui);
+    if( app->plugin_exec.last_run_restate )
+        for( int i = 0; i < app->plugin_panel_row_count; i++ )
+            if( app->plugin_panel_rows[i].custom_layout_valid &&
+                app->plugin_panel_rows[i].widget_kind == TORIRS_PLUGIN_W_CUSTOM )
+                app->plugin_panel_rows[i].custom_present_pending = 1;
 
     /* Web custom canvases are created by the sync above. Publish the
      * pixels afterwards so an asynchronous UI queue cannot receive a frame

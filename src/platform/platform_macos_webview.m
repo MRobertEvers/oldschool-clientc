@@ -29,6 +29,8 @@
 #define MAC_BROWSER_RAIL_POINTS TORIRS_CHROME_M_RAIL_W
 #define MAC_BROWSER_QUEUE_MAX 64
 #define MAC_BROWSER_JSON_MAX (8u * 1024u * 1024u)
+_Static_assert(MAC_BROWSER_QUEUE_MAX == 64,
+    "mac plugin bridge literal must match its native inbound queue");
 #define MAC_BROWSER_PIXELS_MAX (4u * 1024u * 1024u)
 
 @interface ToriRSPluginWebView : WKWebView
@@ -287,19 +289,60 @@ mac_url_is_below(NSURL* url, NSURL* root)
     return YES;
 }
 
+/** Release one JS-side outbound slot only after C has consumed its native
+ * copy, then move exactly one runtime fallback message into that slot. The
+ * counters therefore bound the native queue rather than merely the number of
+ * WebKit callbacks waiting to run. */
+- (void)acknowledgeInboundSlot
+{
+    static NSString* const script =
+        @"(function(){var n=window.__torirsChromePending|0;"
+         "if(n>0)window.__torirsChromePending=n-1;"
+         "var r=window.ToriRSPluginChrome;"
+         "if(r&&typeof r.takeMessage==='function'){var m=r.takeMessage();"
+         "if(m)return window.torirsPluginChromePostMessage(m);}return true;})();";
+    if( !self.view || !self.ready )
+        return;
+    [self.view evaluateJavaScript:script completionHandler:^(id result, NSError* error) {
+        if( error || ![result respondsToSelector:@selector(boolValue)] || ![result boolValue] )
+            self.sendFailed = YES;
+    }];
+}
+
 - (void)userContentController:(WKUserContentController*)controller
       didReceiveScriptMessage:(WKScriptMessage*)message
 {
     (void)controller;
     if( ![message.name isEqualToString:@"torirsPluginChrome"] ||
         ![message.body isKindOfClass:[NSString class]] )
+    {
+        self.sendFailed = YES;
+        [self acknowledgeInboundSlot];
         return;
+    }
     NSString* json = (NSString*)message.body;
     if( json.length == 0 || json.length > 8192 )
+    {
+        self.sendFailed = YES;
+        [self acknowledgeInboundSlot];
         return;
+    }
     if( self.inbound.count >= MAC_BROWSER_QUEUE_MAX )
-        [self.inbound removeObjectAtIndex:0];
-    [self.inbound addObject:[json copy]];
+    {
+        /* Reject the newest message. The accepted prefix stays ordered and
+         * sendFailed tells the retained executor exactly what was lost. */
+        self.sendFailed = YES;
+        [self acknowledgeInboundSlot];
+        return;
+    }
+    NSString* copy = [json copy];
+    if( !copy )
+    {
+        self.sendFailed = YES;
+        [self acknowledgeInboundSlot];
+        return;
+    }
+    [self.inbound addObject:copy];
 }
 
 - (void)webView:(WKWebView*)webView didFinishNavigation:(WKNavigation*)navigation
@@ -410,8 +453,13 @@ PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* platform)
 
     WKUserContentController* controller = [[WKUserContentController alloc] init];
     NSString* bridge =
-        @"window.torirsPluginChromePostMessage=function(value){"
-         "window.webkit.messageHandlers.torirsPluginChrome.postMessage(String(value));};";
+        @"window.__torirsChromePending=0;"
+         "window.torirsPluginChromePostMessage=function(value){"
+         "if((window.__torirsChromePending|0)>=64)return false;"
+         "try{window.__torirsChromePending=(window.__torirsChromePending|0)+1;"
+         "window.webkit.messageHandlers.torirsPluginChrome.postMessage(String(value));"
+         "return true;}catch(e){window.__torirsChromePending="
+         "Math.max(0,(window.__torirsChromePending|0)-1);return false;}};";
     WKUserScript* bridgeScript = [[WKUserScript alloc] initWithSource:bridge
         injectionTime:WKUserScriptInjectionTimeAtDocumentStart
         forMainFrameOnly:YES];
@@ -508,11 +556,19 @@ PlatformWindow_PluginBrowserPoll(
         return 0;
     NSString* json = g_mac_browser.inbound[0];
     NSData* bytes = [json dataUsingEncoding:NSUTF8StringEncoding];
-    [g_mac_browser.inbound removeObjectAtIndex:0];
-    if( !bytes || bytes.length >= (NSUInteger)capacity )
+    if( !bytes )
+    {
+        [g_mac_browser.inbound removeObjectAtIndex:0];
+        g_mac_browser.sendFailed = YES;
+        [g_mac_browser acknowledgeInboundSlot];
         return 0;
+    }
+    if( bytes.length >= (NSUInteger)capacity )
+        return 0;
+    [g_mac_browser.inbound removeObjectAtIndex:0];
     memcpy(out_json, bytes.bytes, bytes.length);
     out_json[bytes.length] = '\0';
+    [g_mac_browser acknowledgeInboundSlot];
     return (int)bytes.length;
 }
 

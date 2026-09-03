@@ -41,6 +41,9 @@
     };
     var ROW_ACTION = 0x1;
     var ROW_LOCKED = 0x2;
+    var RENDER = {
+        FULL: 1, VISIBILITY: 2, OPTIONS: 4, SELECTION: 8, FOCUS: 16, CONTENT: 32
+    };
     /* The XP runtime has no dependable keyed-collection implementation.
      * Handles are small integers, so a prefixed own-property store is enough. */
     function Store() {
@@ -97,9 +100,16 @@
         activeTab: 0,
         checkStyle: 0,
         widgets: new Store(),
+        widgetsByTab: new Store(),
+        checkWidgets: new Store(),
+        tabStrips: new Store(),
+        renderQueue: [],
+        renderVisits: 0,
         sequence: 0,
         messages: [],
         intents: [],
+        messageOverflow: false,
+        intentOverflow: false,
         lastLayout: '',
         applying: false,
         editorFocused: false,
@@ -311,23 +321,18 @@
     }
     function queueEnvelope(envelope, widgetIntent) {
         var copy = Codec.parse(Codec.stringify(envelope));
-        if (state.messages.length >= MAX_MESSAGES)
-            state.messages.shift();
-        state.messages.push(copy);
         if (widgetIntent) {
             var raw = normalizeIntent(widgetIntent);
-            if (state.intents.length >= MAX_MESSAGES)
-                state.intents.shift();
-            state.intents.push(raw);
             if (typeof global.torirsChromeIntentPosted === 'function') {
                 try {
-                    global.torirsChromeIntentPosted({
+                    var accepted = global.torirsChromeIntentPosted({
                         k: raw.k, p: raw.p, w: raw.w, v: raw.v, text: raw.text,
                         x: raw.x, y: raw.y, g: raw.g, s: raw.s
                     });
+                    if (accepted !== false)
+                        return true;
                 }
                 catch (error) { /* Host failure cannot break retained UI. */ }
-                return;
             }
         }
         var encoded = Codec.stringify(copy);
@@ -335,10 +340,28 @@
             ? global.torirsPluginChromePostMessage : null;
         if (post) {
             try {
-                post(encoded);
+                if (post(encoded) === true)
+                    return true;
             }
             catch (error) { /* Pull queue remains the fallback. */ }
         }
+        if (state.messages.length >= MAX_MESSAGES) {
+            state.messageOverflow = true;
+            if (widgetIntent)
+                state.intentOverflow = true;
+            return false;
+        }
+        state.messages.push(copy);
+        if (widgetIntent) {
+            var raw = normalizeIntent(widgetIntent);
+            if (state.intents.length >= MAX_MESSAGES) {
+                state.intentOverflow = true;
+                state.messages.pop();
+                return false;
+            }
+            state.intents.push(raw);
+        }
+        return true;
     }
     function postRailSelect(node) {
         var pluginIndex = integer(node && node._tpcPluginIndex, -1);
@@ -621,7 +644,65 @@
             }
         }
         updateRailNodes();
-        state.widgets.each(renderWidget);
+        state.widgets.each(function (record) { return queueWidgetRender(record, RENDER.CONTENT); });
+    }
+    function indexWidget(record) {
+        if (record.tab >= 0) {
+            var bucket = state.widgetsByTab.get(record.tab);
+            if (!bucket) {
+                bucket = new Store();
+                state.widgetsByTab.set(record.tab, bucket);
+            }
+            bucket.set(record.handle, record);
+        }
+        if (record.kind === W.CHECKBOX || record.kind === W.LISTROW)
+            state.checkWidgets.set(record.handle, record);
+        if (record.kind === W.TABSTRIP)
+            state.tabStrips.set(record.handle, record);
+    }
+    function unindexWidget(record) {
+        if (record.tab >= 0) {
+            var bucket = state.widgetsByTab.get(record.tab);
+            if (bucket) {
+                bucket.drop(record.handle);
+                if (!bucket.count)
+                    state.widgetsByTab.drop(record.tab);
+            }
+        }
+        state.checkWidgets.drop(record.handle);
+        state.tabStrips.drop(record.handle);
+    }
+    /* The DOM half of retained execution. A command already names the exact
+     * widget/property, so applying a delta queues that record directly. The
+     * per-record bit and flags coalesce an OPTIONS header plus all of its items
+     * into one render, without an end-of-transaction walk over every widget. */
+    function queueWidgetRender(record, flags) {
+        if (!record || state.widgets.get(record.handle) !== record)
+            return;
+        record.renderFlags |= flags;
+        if (!record.renderQueued) {
+            record.renderQueued = true;
+            state.renderQueue.push(record);
+        }
+        if (!state.applying)
+            flushWidgetRenders();
+    }
+    function queueTabVisibility(tab) {
+        var bucket = state.widgetsByTab.get(tab);
+        if (bucket)
+            bucket.each(function (record) { return queueWidgetRender(record, RENDER.VISIBILITY); });
+    }
+    function flushWidgetRenders() {
+        var queued = state.renderQueue;
+        state.renderQueue = [];
+        for (var i = 0; i < queued.length; i++) {
+            var record = queued[i];
+            var flags = record.renderFlags;
+            record.renderFlags = 0;
+            record.renderQueued = false;
+            if (state.widgets.get(record.handle) === record)
+                renderWidgetParts(record, flags);
+        }
     }
     function clearPage(report) {
         if (report === void 0) { report = true; }
@@ -631,6 +712,10 @@
         popupHide();
         postEditorFocus(false);
         state.widgets.clear();
+        state.widgetsByTab.clear();
+        state.checkWidgets.clear();
+        state.tabStrips.clear();
+        state.renderQueue = [];
         clear(content);
         clear(tabs);
         setTabsVisible(false);
@@ -678,6 +763,7 @@
             checked: false, selected: -1, hidden: false, focused: false,
             options: [], structuredOptions: false, optionsRevision: 0,
             customRevision: 0, customScale: 1000,
+            renderFlags: 0, renderQueued: false,
             row: row,
             control: null
         };
@@ -749,7 +835,7 @@
                         ? record.options[index] : null;
                     if (record.structuredOptions) {
                         if (!option || !option.enabled) {
-                            renderOptions(record);
+                            renderWidgetSelection(record);
                             return;
                         }
                         postWidget(record, INTENT.PICK, index, option.value);
@@ -901,8 +987,8 @@
         }
         content.appendChild(row);
         state.widgets.set(record.handle, record);
-        renderWidget(record);
-        reconcileTabsAndVisibility();
+        indexWidget(record);
+        queueWidgetRender(record, RENDER.FULL);
     }
     function removeWidget(handle) {
         var record = state.widgets.get(handle);
@@ -910,10 +996,10 @@
             return;
         if (record.row.parentNode)
             record.row.parentNode.removeChild(record.row);
-        if (record.kind === W.TABSTRIP)
+        unindexWidget(record);
+        if (record.kind === W.TABSTRIP && !state.tabStrips.count)
             setTabsVisible(false);
         state.widgets.drop(handle);
-        reconcileTabsAndVisibility();
     }
     function renderOptions(record) {
         if (!record || !record.control)
@@ -958,9 +1044,7 @@
             setTabsVisible(record.options.length !== 0);
         }
     }
-    function renderWidget(record) {
-        if (!record || state.applying)
-            return;
+    function renderWidgetContent(record) {
         switch (record.kind) {
             case W.LABEL:
                 setText(record.control, record.text || record.label);
@@ -986,10 +1070,6 @@
                 break;
             case W.DROPDOWN:
                 skinField(record.control);
-                renderOptions(record);
-                break;
-            case W.TABSTRIP:
-                renderOptions(record);
                 break;
             case W.MODELVIEW:
                 setText(record.control, record.label || record.text || 'Model preview');
@@ -1010,8 +1090,27 @@
             default:
                 break;
         }
-        hidden(record.row, !!record.hidden || (record.tab >= 0 && record.tab !== state.activeTab) ||
+    }
+    function renderWidget(record) {
+        if (!record)
+            return;
+        renderWidgetContent(record);
+        if (record.kind === W.DROPDOWN || record.kind === W.TABSTRIP)
+            renderOptions(record);
+        renderWidgetVisibility(record);
+        renderWidgetFocus(record);
+    }
+    function renderWidgetVisibility(record) {
+        hidden(record.row, !!record.hidden ||
+            (record.tab >= 0 && record.tab !== state.activeTab) ||
             record.kind === W.TABSTRIP || record.kind === W.FREE);
+    }
+    function renderWidgetSelection(record) {
+        if (record.kind === W.DROPDOWN && record.control)
+            record.control.selectedIndex = record.selected >= 0 &&
+                record.selected < record.options.length ? record.selected : -1;
+    }
+    function renderWidgetFocus(record) {
         if (record.focused && record.control && record.control.focus) {
             try {
                 record.control.focus({ preventScroll: true });
@@ -1021,10 +1120,22 @@
             }
         }
     }
-    function reconcileTabsAndVisibility() {
-        if (state.applying)
+    function renderWidgetParts(record, flags) {
+        state.renderVisits++;
+        if (flags & RENDER.FULL) {
+            renderWidget(record);
             return;
-        state.widgets.each(renderWidget);
+        }
+        if (flags & RENDER.OPTIONS)
+            renderOptions(record);
+        if (flags & RENDER.SELECTION)
+            renderWidgetSelection(record);
+        if (flags & RENDER.VISIBILITY)
+            renderWidgetVisibility(record);
+        if (flags & RENDER.FOCUS)
+            renderWidgetFocus(record);
+        if (flags & RENDER.CONTENT)
+            renderWidgetContent(record);
     }
     /* One clamp for a custom well's height, so the ADD that first states it
      * and the WIDGET_HEIGHT that moves it cannot disagree. */
@@ -1036,7 +1147,7 @@
         if (command.k === CMD.CHECK_STYLE) {
             state.checkStyle = command.v;
             toggleClass(shell, 'tpc-check-square', command.v === 1);
-            reconcileTabsAndVisibility();
+            state.checkWidgets.each(function (record) { return queueWidgetRender(record, RENDER.CONTENT); });
             return;
         }
         if (command.k === CMD.PANEL_OPEN) {
@@ -1057,8 +1168,15 @@
                 setText(title, command.text);
                 break;
             case CMD.PANEL_TAB:
-                state.activeTab = command.v;
-                reconcileTabsAndVisibility();
+                if (state.activeTab !== command.v) {
+                    var previous = state.activeTab;
+                    state.activeTab = command.v;
+                    queueTabVisibility(previous);
+                    queueTabVisibility(state.activeTab);
+                    state.tabStrips.each(function (tabstrip) {
+                        return queueWidgetRender(tabstrip, RENDER.OPTIONS);
+                    });
+                }
                 break;
             case CMD.PANEL_RECT:
                 break;
@@ -1071,19 +1189,19 @@
             case CMD.WIDGET_LABEL:
                 if (record) {
                     record.label = command.label;
-                    renderWidget(record);
+                    queueWidgetRender(record, RENDER.CONTENT);
                 }
                 break;
             case CMD.WIDGET_TEXT:
                 if (record) {
                     record.text = command.text;
-                    renderWidget(record);
+                    queueWidgetRender(record, RENDER.CONTENT);
                 }
                 break;
             case CMD.WIDGET_CHECKED:
                 if (record) {
                     record.checked = !!command.v;
-                    renderWidget(record);
+                    queueWidgetRender(record, RENDER.CONTENT);
                 }
                 break;
             case CMD.WIDGET_HEIGHT:
@@ -1099,25 +1217,25 @@
             case CMD.WIDGET_HIDDEN:
                 if (record) {
                     record.hidden = !!command.v;
-                    renderWidget(record);
+                    queueWidgetRender(record, RENDER.VISIBILITY);
                 }
                 break;
             case CMD.WIDGET_COLOR:
                 if (record) {
                     record.color = command.c;
-                    renderWidget(record);
+                    queueWidgetRender(record, RENDER.CONTENT);
                 }
                 break;
             case CMD.WIDGET_SELECTED:
                 if (record) {
                     record.selected = command.v;
-                    renderWidget(record);
+                    queueWidgetRender(record, RENDER.SELECTION);
                 }
                 break;
             case CMD.WIDGET_FOCUS:
                 if (record) {
                     record.focused = !!command.v;
-                    renderWidget(record);
+                    queueWidgetRender(record, RENDER.FOCUS);
                 }
                 break;
             case CMD.WIDGET_OPTIONS:
@@ -1131,7 +1249,7 @@
                                 ? { value: '', label: '', enabled: false, detail: '' }
                                 : '';
                     record.optionsRevision++;
-                    renderWidget(record);
+                    queueWidgetRender(record, RENDER.OPTIONS);
                 }
                 break;
             case CMD.WIDGET_OPTION:
@@ -1141,7 +1259,7 @@
                             enabled: !!command.x, detail: command.detail }
                         : command.text;
                     record.optionsRevision++;
-                    renderWidget(record);
+                    queueWidgetRender(record, RENDER.OPTIONS);
                 }
                 break;
             default:
@@ -1185,7 +1303,7 @@
         finally {
             state.applying = false;
         }
-        reconcileTabsAndVisibility();
+        flushWidgetRenders();
         reportLayout();
         return true;
     }
@@ -1202,7 +1320,7 @@
         finally {
             state.applying = false;
         }
-        reconcileTabsAndVisibility();
+        flushWidgetRenders();
         return true;
     }
     function applyCustomBitmap(message) {
@@ -1292,10 +1410,20 @@
         return true;
     }
     function takeMessage() {
+        if (state.messageOverflow || state.intentOverflow) {
+            state.messageOverflow = false;
+            state.intentOverflow = false;
+            return Codec.stringify({ protocol: PROTOCOL, type: 'transport.loss' });
+        }
         return state.messages.length ? Codec.stringify(state.messages.shift()) : '';
     }
     function takeIntent() {
         return state.intents.length ? Codec.stringify(state.intents.shift()) : '';
+    }
+    function takeIntentOverflow() {
+        var overflow = state.intentOverflow;
+        state.intentOverflow = false;
+        return overflow;
     }
     function postPanelClose() {
         if (state.panel < 0 || !state.pageGeneration)
@@ -1590,6 +1718,7 @@
         receive: receive,
         takeMessage: takeMessage,
         takeIntent: takeIntent,
+        takeIntentOverflow: takeIntentOverflow,
         inspect: function () {
             return {
                 railEntries: state.rail.entries.length,
@@ -1598,7 +1727,8 @@
                 pageGeneration: state.pageGeneration,
                 panel: state.panel,
                 widgetCount: state.widgets.count,
-                queuedMessages: state.messages.length
+                queuedMessages: state.messages.length,
+                renderVisits: state.renderVisits
             };
         },
         constants: { CMD: CMD, W: W, INTENT: INTENT }

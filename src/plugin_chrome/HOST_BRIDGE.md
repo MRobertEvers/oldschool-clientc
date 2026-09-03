@@ -44,8 +44,15 @@ host owns directory permissions, atomic replacement, and shutdown cleanup.
 The host injects one optional outbound function before `runtime.js` runs:
 
 ```js
-window.torirsPluginChromePostMessage = function (jsonString) { /* copy it */ };
+window.torirsPluginChromePostMessage = function (jsonString) {
+    /* copy it; return the literal boolean true only when accepted */
+    return true;
+};
 ```
+
+Any return other than literal `true` leaves the message on the runtime's
+bounded pull queue. This makes admission explicit for asynchronous browser
+bridges and prevents a void callback from falsely acknowledging an action.
 
 The runtime exposes one inbound function after boot:
 
@@ -59,7 +66,14 @@ thread. The runtime also keeps a bounded 64-message queue for pull-based hosts:
 ```js
 window.ToriRSPluginChrome.takeMessage(); // JSON string, or ""
 window.ToriRSPluginChrome.takeIntent();  // legacy raw widget intent, or ""
+window.ToriRSPluginChrome.takeIntentOverflow(); // one-shot boolean
 ```
+
+The queue never deletes an older accepted action to make room. If a pull host
+falls behind, the newest item is rejected, `takeIntentOverflow()` reports the
+loss, and `takeMessage()` yields a `transport.loss` envelope before the
+accepted FIFO prefix. That signal requests a retained-state restatement; it
+does not claim that a lost non-idempotent click can be recreated.
 
 A host may install the optional typed fast path. After a widget intent passes
 the runtime's current-page checks it receives a new plain object, never a live
@@ -70,7 +84,9 @@ window.torirsChromeIntentPosted({ k, p, w, v, text, x, y, g, s });
 ```
 
 When this typed hook exists, `widget.intent` is not also sent through the JSON
-post function. Rail and layout messages still use the JSON function.
+post function. The hook may return `false` to reject the object and let the
+runtime try its other bounded delivery path. Rail and layout messages still
+use the JSON function.
 
 ## Inbound envelopes
 

@@ -839,6 +839,13 @@ web executor tick          drain queued changes only
   queued changes    -> BEGIN, commands for those changes, END
 ```
 
+That rule applies across the whole path, not just the C serializer. The plugin
+panel adapter consumes exact changed-row records instead of restating every
+row, and the browser runtime coalesces dirty widget handles while applying a
+transaction. A one-widget delta therefore visits one DOM widget. Updating a
+dropdown selection changes its selected index; it does not rebuild the option
+elements.
+
 Structural mutations record add/remove/reorder commands in the same journal.
 Removal is ordered before reuse of the same handle. A page replacement records
 one boundary followed by the new page's initial commands.
@@ -873,6 +880,8 @@ Executor tests must prove:
 - reused option/title buffers whose text changed still enqueue the relevant
   list property, even when their pointer and item count are unchanged;
 - changing one widget does not inspect unrelated widgets;
+- one browser delta visits only its changed DOM widgets, and a selection-only
+  delta preserves existing option elements;
 - add/remove/reuse ordering is deterministic;
 - bind/rebind/overflow emits exactly one complete snapshot;
 - normal builds contain no SDL/GDI/Android executor symbol or availability
@@ -995,17 +1004,21 @@ Work:
    conflict status.
 2. Seed the `frame.*` vocabulary in one table and reject malformed or duplicate
    declarations at registration/build time.
-3. Extend RevConfig role entries with canonical names, named actions, and
+3. Feed the presenter from the registry's exact changed-node journal. Keep a
+   direct `UiNodeRef` index; rebuild hierarchy/order only for structural
+   changes, and make an unchanged frame an O(1) return except for explicitly
+   unresolved native-role probes.
+4. Extend RevConfig role entries with canonical names, named actions, and
    occlusion flags. Retain current match expressions as the binding mechanism.
-4. Make frame builders publish canonical UI nodes as part of their atomic
+5. Make frame builders publish canonical UI nodes as part of their atomic
    declaration.
-5. Add temporary aliases from current role/chrome names.
-6. Migrate `gameframe.c` and `mobile_gameframe.c` housing/buttons first, then
+6. Add temporary aliases from current role/chrome names.
+7. Migrate `gameframe.c` and `mobile_gameframe.c` housing/buttons first, then
    `minimap_orbs.c` and `xp_orbs.c` to retained contributions.
-7. Move raw component ids and numeric operations under the v2 `cache` module.
-8. Add diagnostics that show a node's active provider for each facet and any
+8. Move raw component ids and numeric operations under the v2 `cache` module.
+9. Add diagnostics that show a node's active provider for each facet and any
    unresolved conflict.
-9. Delete migrated `chrome_*`, `role_replace`, and `role_anchor` call paths only
+10. Delete migrated `chrome_*`, `role_replace`, and `role_anchor` call paths only
    after all bundled users have moved.
 
 Files:
@@ -1069,7 +1082,8 @@ Work:
    chrome model, with per-handle pending-entry indices for O(1) coalescing.
 2. Have every compare-then-set mutator append/coalesce its own change; record
    structural add/remove/reorder operations at the mutation site.
-3. Change `ToriRSChromeSync_Run` to drain the journal without walking panel or
+3. Give the plugin-panel adapter its own exact changed-row journal, then change
+   `ToriRSChromeSync_Run` to drain exact records without walking panel or
    widget capacity. Preserve transaction ordering and copied string payloads.
 4. Keep the executor's delivered-value shadow only for net-zero coalescing,
    recycled-identity fences, acknowledgement, and recovery; it never discovers
@@ -1079,7 +1093,10 @@ Work:
 6. Keep only `web` and `browser` as external kinds. Remove SDL/GDI/Android and
    generic `platform` selection from parsers, factories, builds, profiles, and
    manifests. Keep the in-canvas buffer as an internal fallback.
-7. Add instrumentation/tests proving idle O(1), one-widget mutation isolation,
+7. In the browser reducer, coalesce the widget handles named by one transaction
+   and render those widgets only. Keep option replacement separate from
+   selection so a selected-index update never rebuilds the list.
+8. Add instrumentation/tests proving idle O(1), one-widget mutation isolation,
    coalescing, removal-before-handle-reuse, and one-shot recovery snapshots.
 
 Files:
@@ -1089,6 +1106,9 @@ Files:
 - `src/ui/torirs_chrome_exec_kind.[ch]`
 - `src/ui/torirs_chrome_exec_{web,winbrowser}.c`
 - `src/ui/test/uitree_test_chrome_exec.c`
+- `src/plugin/torirs_plugin_panel.u.c`
+- `src/plugin_chrome/runtime-source.js` and its generated runtimes
+- `src/web/torirs_chrome.js`
 - `src/platform/platform*.mk`, `src/makefile`, manifests, and profiles
 
 Exit condition: an idle executor tick does no model scan or transaction; work

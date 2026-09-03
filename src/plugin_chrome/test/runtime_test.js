@@ -289,6 +289,43 @@ assert.strictEqual(typed[typed.length - 1].k, 8, 'custom activation uses its sem
 assert.strictEqual(typed[typed.length - 1].g, 20);
 assert.strictEqual(typed[typed.length - 1].s, 107);
 
+const visitsBeforeDelta = runtime.inspect().renderVisits;
+const structuredFirstOption = structured.children[0];
+assert.strictEqual(runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 20,
+  commands: [command(11, { w: 8, text: 'Updated readout' })]
+}), true);
+assert.strictEqual(runtime.inspect().renderVisits, visitsBeforeDelta + 1,
+  'a one-widget delta visits only that retained widget');
+assert.strictEqual(structured.children[0], structuredFirstOption,
+  'an unrelated dropdown is neither traversed nor rebuilt');
+
+const visitsBeforeSelection = runtime.inspect().renderVisits;
+assert.strictEqual(runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 20,
+  commands: [command(15, { w: 13, v: 2, text: 'ready/frame' })]
+}), true);
+assert.strictEqual(runtime.inspect().renderVisits, visitsBeforeSelection + 1,
+  'a selection delta visits only its dropdown');
+assert.strictEqual(structured.children[0], structuredFirstOption,
+  'changing selection does not reconstruct unchanged option nodes');
+assert.strictEqual(structured.selectedIndex, 2);
+
+const visitsBeforeOptions = runtime.inspect().renderVisits;
+assert.strictEqual(runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 20,
+  commands: [
+    command(17, { w: 13, v: 2, x: 1 }),
+    command(18, { w: 13, v: 0, x: 1, text: 'compact', label: 'Compact' }),
+    command(18, { w: 13, v: 1, x: 1, text: 'roomy', label: 'Roomy' }),
+    command(15, { w: 13, v: 1, text: 'roomy' })
+  ]
+}), true);
+assert.strictEqual(runtime.inspect().renderVisits, visitsBeforeOptions + 1,
+  'an option header, its items, and selection coalesce to one widget render');
+assert.strictEqual(structured.children.length, 2);
+assert.strictEqual(structured.selectedIndex, 1);
+
 /* Same handle/kind, new page and serial: detached old DOM must remain stale. */
 runtime.receive({
   protocol: 1, type: 'page.snapshot', pageGeneration: 21, panel: 3,

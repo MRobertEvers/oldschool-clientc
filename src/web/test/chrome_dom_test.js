@@ -319,6 +319,20 @@ assert.strictEqual(message.type, 'page.snapshot');
 assert.strictEqual(message.pageGeneration, 21);
 assert.strictEqual(built.mount.children[0], frame, 'selection replacement reuses the document');
 
+for (let i = 0; i < 64; i++) assert.strictEqual(host.fromRuntime({
+  protocol: 1, type: 'widget.intent', sequence: 100 + i,
+  intent: { k: 1, p: 3, w: 5, v: i, text: '', x: 0, y: 0, g: 21, s: 900 }
+}), true);
+assert.strictEqual(host.fromRuntime({
+  protocol: 1, type: 'widget.intent', sequence: 164,
+  intent: { k: 1, p: 3, w: 5, v: 64, text: '', x: 0, y: 0, g: 21, s: 900 }
+}), false, 'a full input queue rejects the newest action instead of deleting an older one');
+assert.strictEqual(global_.torirsChromeTakeIntentOverflow(), true,
+  'input loss is exposed to the C executor exactly once');
+assert.strictEqual(global_.torirsChromeTakeIntentOverflow(), false);
+assert.strictEqual(JSON.parse(global_.torirsChromeTakeIntent()).v, 0,
+  'the accepted action prefix keeps FIFO order after overflow');
+
 global_.torirsChromeClose();
 assert.strictEqual(host.layoutMode, 'collapsed');
 assert.strictEqual(built.mount.children[0], frame, 'executor shutdown retains the shared rail document');

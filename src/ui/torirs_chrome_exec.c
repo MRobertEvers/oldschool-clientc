@@ -869,6 +869,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
 
     assert(sync);
     assert(ui);
+    sync->last_run_restate = 0;
     if( !sync->live )
         return 0;
     if( sync->exec.take_snapshot_request &&
@@ -901,6 +902,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
             return 0;
         sync->restate = 0;
         ToriRSChrome_ChangeJournalAcknowledge(ui);
+        sync->last_run_restate = 1;
         return payload;
     }
 

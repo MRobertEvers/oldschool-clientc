@@ -1977,7 +1977,8 @@ struct App
         int cfg_index;
         /** PLUGIN_WIDGET: the id the plugin gave it. */
         char widget_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
-        /** PANEL_WIDGET: identity and semantic kind copied with the row. */
+        /** PANEL_WIDGET: model slot, identity, and semantic kind copied with the row. */
+        int model_index;
         uint32_t widget_serial;
         int widget_kind;
         /** Last resolved custom drawing geometry, in executor pixels. */
@@ -1987,6 +1988,8 @@ struct App
         int custom_present_pending;
     } plugin_panel_rows[APP_PLUGIN_PANEL_ROWS_MAX];
     int plugin_panel_row_count;
+    /** Active panel-model slot -> plugin_panel_rows index + 1 (zero absent). */
+    int plugin_panel_model_rows[TORIRS_PLUGIN_WIDGETS_MAX];
     /**
      * This frame's input, parked for the plugin api's key_held.
      *

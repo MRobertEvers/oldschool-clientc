@@ -84,12 +84,25 @@ static int g_tile_shape_face_counts[15] = {
 #define TILE_MAX_FACES 8
 
 /* Every array the tile block carves is two bytes wide, which is what lets the
- * slices sit end to end with no padding. A width change breaks this build
- * rather than the alignment. */
+ * face and colour slices sit end to end with no padding. A width change breaks
+ * this build rather than the alignment. */
 #define TORIDRAW_TILE_ARRAYS_ARE_ALL_2_BYTES_CHECK                                                 \
     _Static_assert(                                                                                \
         sizeof(vertexint_t) == 2 && sizeof(faceint_t) == 2 && sizeof(hsl16_t) == 2,                \
         "the tile array block assumes 2-byte vertex, face and colour elements")
+
+/*
+ * The three vertex slices are the exception: the NEON projection kernels
+ * (projection.perspective.prepared.neon32.impl.h) read them with
+ * `vld1.16 {d}, [r:64]` -- an 8-byte alignment qualifier, taken from
+ * __builtin_assume_aligned(p, 8) on the promise that every vertex array was
+ * malloc'd. So each vertex slice is rounded up to four shorts: a four-vertex
+ * tile pads nothing, a five- or six-vertex tile pads to eight. Without this
+ * the second and third slices of a five-vertex tile sit at bytes 10 and 20 and
+ * the kernel dies with SIGBUS (BUS_ADRALN) on a phone whose kernel signals
+ * alignment traps -- measured on the XT1060, 2026-09-03.
+ */
+#define TILE_BLOCK_VERTEX_SLICE_SHORTS(n) (((size_t)(n) + 3u) & ~(size_t)3u)
 
 #define TILE_SIZE 128
 #define LEVEL_HEIGHT 240
@@ -300,13 +313,16 @@ decode_tile(
      * growing any of these arrays afterwards.
      *
      * Every element type here is two bytes wide, so consecutive slices stay
-     * aligned without padding. The static assert is what keeps that true if
-     * one of them ever changes width.
+     * 2-byte aligned without padding. The static assert is what keeps that
+     * true if one of them ever changes width. The vertex slices alone are
+     * padded to 8 bytes, for the NEON kernels' contract -- see
+     * TILE_BLOCK_VERTEX_SLICE_SHORTS.
      */
     TORIDRAW_TILE_ARRAYS_ARE_ALL_2_BYTES_CHECK;
     int const textured = texture_id != -1;
+    size_t const vertex_slice_shorts = TILE_BLOCK_VERTEX_SLICE_SHORTS(vertex_count);
     size_t const tile_block_shorts =
-        (size_t)vertex_count * 3 +                      /* vertices x, y, z */
+        vertex_slice_shorts * 3 +                       /* vertices x, y, z (8-byte slices) */
         (size_t)face_count * 3 +                        /* face indices a, b, c */
         (size_t)face_count * 3 +                        /* face colours a, b, c */
         (textured ? (size_t)face_count * 2 + 3 : 0);    /* textures, coords, p/m/n */
@@ -326,9 +342,15 @@ decode_tile(
                 : (type*)malloc((size_t)(n) * sizeof(type)));                                      \
     tile_block_at += (size_t)(n)
 
-    vertexint_t* vertices_x = TILE_BLOCK_TAKE(vertexint_t, vertex_count);
-    vertexint_t* vertices_y = TILE_BLOCK_TAKE(vertexint_t, vertex_count);
-    vertexint_t* vertices_z = TILE_BLOCK_TAKE(vertexint_t, vertex_count);
+    /* Taken at the padded width so each slice starts on an 8-byte boundary
+     * (malloc gives the block's own start); the model still reads only
+     * vertex_count of each. */
+    vertexint_t* vertices_x = TILE_BLOCK_TAKE(vertexint_t, vertex_slice_shorts);
+    vertexint_t* vertices_y = TILE_BLOCK_TAKE(vertexint_t, vertex_slice_shorts);
+    vertexint_t* vertices_z = TILE_BLOCK_TAKE(vertexint_t, vertex_slice_shorts);
+    assert(((uintptr_t)vertices_x & 7u) == 0);
+    assert(((uintptr_t)vertices_y & 7u) == 0);
+    assert(((uintptr_t)vertices_z & 7u) == 0);
 
     /*
      * Scratch, and it stays scratch: these three never reach the model, and a

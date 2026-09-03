@@ -612,7 +612,7 @@ test_role_facet_suppression(void)
         UITree_SetReplacementInputHidden(tree, target, incarnation, 1),
         "actions provider suppresses only the exact target's native input");
     TEST_ASSERT(
-        UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) < 0 &&
+        UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) != target &&
             UITree_HitTestInteractive(tree, &host, child_x + 1, child_y + 1) == child,
         "combined facets suppress target input but retain child input");
     TEST_ASSERT(
@@ -634,7 +634,7 @@ test_role_facet_suppression(void)
     UITree_EmitWalk(tree, &host, &emit, -1);
     TEST_ASSERT(
         role_emit_node_index(&emit, target) >= 0 &&
-            UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) < 0,
+            UITree_HitTestInteractive(tree, &host, target_x + 1, target_y + 1) != target,
         "actions-only suppression leaves base paint while keeping native input hidden");
     TEST_ASSERT(
         UITree_SetReplacementInputHidden(tree, target, incarnation, 0) &&

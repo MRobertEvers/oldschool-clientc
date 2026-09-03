@@ -466,17 +466,23 @@ test_chrome_exec_commit_failure_retains_journal(void)
     g_fail_on_end = 1;
     TEST_ASSERT(
         ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 &&
-            g_ui.change_count > 0 && !g_sync.primed && g_sync.restate,
+            g_ui.change_count > 0 && !g_sync.primed && g_sync.restate &&
+            !g_sync.last_run_restate,
         "a failed END neither acknowledges the journal nor advances the shadow");
 
     g_rec.count = 0;
     TEST_ASSERT(
         ToriRSChromeSync_Run(&g_sync, &g_ui) > 0 &&
-            g_ui.change_count == 0 && g_sync.primed,
+            g_ui.change_count == 0 && g_sync.primed && g_sync.last_run_restate,
         "the retained journal retries as one successful snapshot");
     begin = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_SYNC_BEGIN, -1);
     TEST_ASSERT(begin && begin->value == 1,
         "the retry is explicitly an authoritative restatement");
+    g_rec.count = 0;
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 &&
+            !g_sync.last_run_restate && g_rec.count == 0,
+        "the successful-restatement signal is one-shot on the following idle run");
 }
 
 static void

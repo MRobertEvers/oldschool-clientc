@@ -426,6 +426,7 @@ test_touch_swipe_scrolls_layer(void)
     struct UIInteractOut out;
     int32_t list;
     int32_t row;
+    int before;
 
     printf("TEST: a held finger inside a scrollable layer scrolls it\n");
 
@@ -511,6 +512,65 @@ test_touch_swipe_scrolls_layer(void)
     LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
     run_frame(&interact, tree, &host, input, &out);
     TEST_ASSERT(out.clicked_com_id == 11, "a mouse press still presses the row");
+
+    LibToriRS_Input_Begin(input, 1650);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+
+    /* Suppressing the scroll layer itself does not suppress its child row.
+     * The layer declines touch acquisition and the row receives the press. */
+    interact.touch_scroll = 1;
+    TEST_ASSERT(
+        UITree_SetReplacementInputHidden(
+            tree, list, tree->components[list].incarnation, 1),
+        "touch fixture suppresses the layer's own actions");
+    LibToriRS_Input_Begin(input, 1700);
+    LibToriRS_Input_PushMouseMove(input, 100, 30);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(
+        interact.ts_layer < 0 && out.clicked_com_id == 11,
+        "an actions-suppressed layer declines touch scroll while its child stays live");
+    LibToriRS_Input_Begin(input, 1750);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+
+    /* If ownership changes while a finger is already scrolling, cancel that
+     * exact capture and keep the physical press swallowed through release. */
+    TEST_ASSERT(
+        UITree_SetReplacementInputHidden(
+            tree, list, tree->components[list].incarnation, 0),
+        "touch layer is available for a fresh capture");
+    LibToriRS_Input_Begin(input, 1800);
+    LibToriRS_Input_PushMouseMove(input, 100, 30);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(interact.ts_layer == list, "fresh touch press captures the live layer");
+    before = tree->components[list].scroll_y;
+    TEST_ASSERT(
+        UITree_SetReplacementInputHidden(
+            tree, list, tree->components[list].incarnation, 1),
+        "active touch layer changes actions owner");
+    LibToriRS_Input_Begin(input, 1850);
+    LibToriRS_Input_PushMouseMove(input, 100, -20);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(
+        interact.ts_layer < 0 && interact.ts_press_cancelled &&
+            tree->components[list].scroll_y == before && out.cancelled_pointer_click &&
+            out.intent_count == 0,
+        "mid-capture suppression stops scrolling and retires its script notification");
+    LibToriRS_Input_Begin(input, 1900);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(
+        interact.ts_press_cancelled && out.cancelled_pointer_click,
+        "cancelled touch capture continues owning the held press");
+    LibToriRS_Input_Begin(input, 1950);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, -20);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(
+        !interact.ts_press_cancelled && out.cancelled_pointer_click &&
+            out.clicked_com_id < 0 && !out.left_click_miss,
+        "cancelled touch capture swallows and retires the release");
 
     UITree_Free(tree);
 }

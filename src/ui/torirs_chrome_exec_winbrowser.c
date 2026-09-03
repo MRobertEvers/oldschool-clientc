@@ -345,9 +345,10 @@ static int browser_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon
     if( icon->width > 0 && icon->height > 0 )
     {
         snprintf(key, sizeof(key), "rail-%d", icon->plugin_index);
-        PlatformWindow_PluginBrowserBitmapUrl(
-            s->platform, key, icon->revision, icon->argb,
-            icon->width, icon->height, url, (int)sizeof(url));
+        if( !PlatformWindow_PluginBrowserBitmapUrl(
+                s->platform, key, icon->revision, icon->argb,
+                icon->width, icon->height, url, (int)sizeof(url)) || !url[0] )
+            return 0;
     }
     json_appendf(&json,
         "{\"protocol\":1,\"type\":\"rail.icon\",\"pluginIndex\":%d,"
@@ -654,6 +655,10 @@ static int accept_sequence(struct WinBrowserExec* s, char const* json)
 
 static void queue_rail(struct WinBrowserExec* s, struct ToriRSChromeRailIntent const* intent)
 {
+    /* Selection is desired destination state, not a command: once the bounded
+     * burst is full, coalesce only its final slot to the newest destination.
+     * The earlier accepted order remains intact and the host ends at the last
+     * thing the user picked. */
     if( s->rail_intent_count >= WINBROWSER_RAIL_INTENT_MAX )
         s->rail_intents[WINBROWSER_RAIL_INTENT_MAX - 1] = *intent;
     else s->rail_intents[s->rail_intent_count++] = *intent;
@@ -676,6 +681,8 @@ static void drain_messages(struct WinBrowserExec* s)
         {
             s->snapshot_needed = 1;
             s->rail_snapshot_needed = 1;
+            fprintf(stderr,
+                "chrome: browser transport lost an action; restating visible state\n");
         }
         else if( json_type(s->raw, "rail.select") )
         {
@@ -786,7 +793,7 @@ static int browser_rail_poll(
     return count;
 }
 
-static void browser_custom_present(
+static int browser_custom_present(
     void* user, struct ToriRSChromeCustomFrame const* frame)
 {
     struct WinBrowserExec* s = user;
@@ -800,20 +807,15 @@ static void browser_custom_present(
         frame->selection_generation != effective_page_generation(s) ||
         frame->widget_serial == 0 ||
         s->widget_serial[frame->widget] != frame->widget_serial )
-        return;
-    revision = ++s->custom_revision[frame->widget];
-    if( !revision ) revision = ++s->custom_revision[frame->widget];
+        return 0;
+    revision = s->custom_revision[frame->widget] + 1;
+    if( !revision ) revision = 1;
     snprintf(key, sizeof(key), "custom-%u-%u",
         (unsigned)frame->selection_generation, (unsigned)frame->widget_serial);
     if( !PlatformWindow_PluginBrowserBitmapUrl(
             s->platform, key, revision, frame->argb, frame->width, frame->height,
             url, (int)sizeof(url)) )
-        return;
-    s->custom_panel[frame->widget] = frame->panel;
-    s->custom_width[frame->widget] =
-        (int)((int64_t)frame->width * 1000 / frame->scale_milli);
-    s->custom_height[frame->widget] =
-        (int)((int64_t)frame->height * 1000 / frame->scale_milli);
+        return 0;
     json_appendf(&json,
         "{\"protocol\":1,\"type\":\"custom.bitmap\","
         "\"pageGeneration\":%u,\"panel\":%d,\"widget\":%d,"
@@ -825,7 +827,20 @@ static void browser_custom_present(
     json_string(&json, url);
     json_append(&json, "}");
     if( !send_json(s, &json) )
+    {
         s->snapshot_needed = 1;
+        s->custom_panel[frame->widget] = -1;
+        s->custom_width[frame->widget] = 0;
+        s->custom_height[frame->widget] = 0;
+        return 0;
+    }
+    s->custom_panel[frame->widget] = frame->panel;
+    s->custom_revision[frame->widget] = revision;
+    s->custom_width[frame->widget] =
+        (int)((int64_t)frame->width * 1000 / frame->scale_milli);
+    s->custom_height[frame->widget] =
+        (int)((int64_t)frame->height * 1000 / frame->scale_milli);
+    return 1;
 }
 
 static void browser_collect_transport_loss(struct WinBrowserExec* s)
@@ -834,6 +849,8 @@ static void browser_collect_transport_loss(struct WinBrowserExec* s)
     {
         s->snapshot_needed = 1;
         s->rail_snapshot_needed = 1;
+        fprintf(stderr,
+            "chrome: browser delivery failed; requesting retained restatement\n");
     }
 }
 

@@ -1959,11 +1959,11 @@ alpha_init(
 }
 
 static struct ToriRS_PluginConfigItem const ALPHA_CONFIG[] = {
-    { "colour", TORIRS_PLUGIN_CFG_COLOR,  "Colour", "#00FF00", 0, 0,  NULL },
-    { "level",  TORIRS_PLUGIN_CFG_INT,    "Level",  "3",       0, 10, NULL },
-    { "on",     TORIRS_PLUGIN_CFG_BOOL,   "On",     "1",       0, 0,  NULL },
-    { "hidden", TORIRS_PLUGIN_CFG_STRING, NULL,     "",        0, 0,  NULL },
-    { NULL,     TORIRS_PLUGIN_CFG_BOOL,   NULL,     NULL,      0, 0,  NULL },
+    { "colour", TORIRS_PLUGIN_CFG_COLOR,  "Colour", "#00FF00", 0, 0,  NULL, 0 },
+    { "level",  TORIRS_PLUGIN_CFG_INT,    "Level",  "3",       0, 10, NULL, 0 },
+    { "on",     TORIRS_PLUGIN_CFG_BOOL,   "On",     "1",       0, 0,  NULL, 0 },
+    { "hidden", TORIRS_PLUGIN_CFG_STRING, NULL,     "",        0, 0,  NULL, 0 },
+    { NULL,     TORIRS_PLUGIN_CFG_BOOL,   NULL,     NULL,      0, 0,  NULL, 0 },
 };
 
 static struct ToriRS_PluginDef const ALPHA = {
@@ -5203,7 +5203,9 @@ main(void)
         uint32_t serial_b_rebuilt;
         uint32_t registry_before;
         uint32_t model_before;
+        uint32_t change_visits;
         uint32_t icon_revision;
+        struct ToriRS_PluginPanelChange panel_change;
         uint32_t icon_pixels[64 * 64];
         int icon_w = 0;
         int icon_h = 0;
@@ -5341,16 +5343,32 @@ main(void)
             "panel widgets use the win-compatible semantic record and result state");
         serial_a = widget ? widget->serial : 0;
         CHECK(serial_a != 0, "a mounted semantic node has a nonzero serial");
+        CHECK(
+            PluginHost_PanelChangeNext(hp, gen_a, &panel_change) < 0,
+            "a fresh structural declaration asks its presenter for one full build");
+        PluginHost_PanelChangesAcknowledge(hp, gen_a);
         builds_before = g_panel_a_builds;
         model_before = PluginHost_PanelModelRevision(hp);
+        change_visits = PluginHost_PanelChangeVisits(hp);
         CHECK(
             PluginHost_PanelEnsureBuilt(hp, gen_a) && PluginHost_PanelEnsureBuilt(hp, gen_a) &&
                 g_panel_a_builds == builds_before,
             "a retained active model does not rerun PANEL_BUILD");
         CHECK(
             g_api->panel_set_value(PluginHost_Ctx(hp, g_panel_a_index), "shared", 1) &&
-                PluginHost_PanelModelRevision(hp) == model_before,
+                PluginHost_PanelModelRevision(hp) == model_before &&
+                PluginHost_PanelChangeNext(hp, gen_a, &panel_change) == 0 &&
+                PluginHost_PanelChangeVisits(hp) == change_visits,
             "a compare-equal node update does not dirty the model subtree");
+        CHECK(
+            g_api->panel_set_value(PluginHost_Ctx(hp, g_panel_a_index), "shared", 0) &&
+                g_api->panel_set_value(PluginHost_Ctx(hp, g_panel_a_index), "shared", 1) &&
+                PluginHost_PanelChangeNext(hp, gen_a, &panel_change) == 1 &&
+                panel_change.widget_index == 0 && panel_change.widget_serial == serial_a &&
+                panel_change.flags == TORIRS_PLUGIN_PANEL_CHANGE_VALUE &&
+                PluginHost_PanelChangeNext(hp, gen_a, &panel_change) == 0 &&
+                PluginHost_PanelChangeVisits(hp) == change_visits + 1,
+            "repeated writes coalesce through the exact model slot and visit no sibling row");
         builds_before = g_panel_a_builds;
         CHECK(
             PluginHost_PanelSelect(hp, g_panel_a_index) && PluginHost_PanelActive(hp) == -1 &&
@@ -6741,6 +6759,9 @@ main(void)
         struct ToriRS_PluginEngine facet_engine;
         uint32_t late_rebuilds;
         uint32_t old_tag;
+        uint32_t change_visits;
+        uint32_t registry_visits;
+        uint32_t role_probe_visits;
         int old_actions;
         int old_draws;
         int old_hits;
@@ -6829,6 +6850,9 @@ main(void)
             "independent APPEARANCE and ACTIONS winners suppress both matching native facets");
         old_tag = g_hit_region_tag;
         old_actions = g_present_actions;
+        change_visits = PluginHost_UiPresentationChangeVisits(facet_host);
+        registry_visits = PluginHost_UiPresentationRegistryVisits(facet_host);
+        role_probe_visits = PluginHost_UiPresentationRoleProbeVisits(facet_host);
         g_present_reorder_requested = 1;
         PluginHost_LogicTick(facet_host, 1);
         PluginHost_CanvasClick(
@@ -6842,10 +6866,20 @@ main(void)
             g_present_reorder_result == TORIRS_RESULT_OK &&
                 g_present_actions == old_actions,
             "a menu row retained before ui.update cannot invoke a reordered action");
+        CHECK(
+            PluginHost_UiPresentationChangeVisits(facet_host) == change_visits + 1 &&
+                PluginHost_UiPresentationRegistryVisits(facet_host) == registry_visits &&
+                PluginHost_UiPresentationRoleProbeVisits(facet_host) == role_probe_visits,
+            "one ui.update consumes one indexed node change without a registry scan or role probe");
         PluginHost_DrawCanvas(facet_host, 100, 100);
         CHECK(
             g_hit_region_tag != old_tag && strcmp(g_hit_region_ops[0], "second") == 0,
             "action-content changes mint a new operation identity");
+        CHECK(
+            PluginHost_UiPresentationChangeVisits(facet_host) == change_visits + 1 &&
+                PluginHost_UiPresentationRegistryVisits(facet_host) == registry_visits &&
+                PluginHost_UiPresentationRoleProbeVisits(facet_host) == role_probe_visits,
+            "a settled named presenter reconcile is O(1)");
         PluginHost_CanvasClick(
             facet_host,
             actions,

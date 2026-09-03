@@ -108,6 +108,7 @@
       this.pendingBytes = 0;
       this.pendingSerial = 0;
       this.intents = [];
+      this.intentOverflow = false;
       this.batch = [];
       this.collecting = false;
       this.batchOverflow = false;
@@ -163,7 +164,7 @@
     attachRuntime(runtime, child) {
       if (!runtime || typeof runtime.receive !== 'function') return false;
       this.runtime = runtime;
-      if (child) child.torirsPluginChromePostMessage = json => { this.fromRuntime(json); };
+      if (child) child.torirsPluginChromePostMessage = json => this.fromRuntime(json);
       let accepted = true;
       try { accepted = runtime.receive(copy(THEME)) !== false; }
       catch (error) { accepted = false; }
@@ -537,8 +538,7 @@
       const key = `${generation}:${serial}`;
       let revision = (unsigned(this.customRevisions[key]) + 1) >>> 0;
       if (!revision) revision = 1;
-      this.customRevisions[key] = revision;
-      return this.send({
+      const sent = this.send({
         protocol: PROTOCOL,
         type: 'custom.bitmap',
         pageGeneration: generation,
@@ -551,6 +551,8 @@
         height,
         rgbaBase64
       });
+      if (sent) this.customRevisions[key] = revision;
+      return sent;
     }
 
     acceptSequence(message) {
@@ -589,7 +591,14 @@
               expected.generation !== normalized.g || expected.serial !== normalized.s)
             return false;
         }
-        if (this.intents.length >= MAX_INTENTS) this.intents.shift();
+        if (this.intents.length >= MAX_INTENTS) {
+          /* Reject the newest gesture and tell C explicitly. Dropping the
+           * oldest would apply later clicks on top of a state transition the
+           * authoritative model never received. A snapshot repairs visible
+           * result state; it does not pretend to recreate this lost action. */
+          this.intentOverflow = true;
+          return false;
+        }
         this.intents.push(normalized);
         return true;
       }
@@ -621,6 +630,12 @@
     }
 
     takeIntent() { return this.intents.length ? JSON.stringify(this.intents.shift()) : ''; }
+
+    takeIntentOverflow() {
+      const overflow = this.intentOverflow;
+      this.intentOverflow = false;
+      return overflow;
+    }
 
     preferredWidth() {
       let width = PANEL_DEFAULT;
@@ -729,6 +744,7 @@
     };
     global.torirsChromeTakeDeliveryLoss = () => host.takeDeliveryLoss();
     global.torirsChromeTakeIntent = () => host.takeIntent();
+    global.torirsChromeTakeIntentOverflow = () => host.takeIntentOverflow();
     global.torirsChromeRailSync = snapshot => host.railSync(snapshot);
     global.torirsChromeRailIcon = (plugin, revision, width, height, rgbaBase64) =>
       host.railIcon(plugin, revision, width, height, rgbaBase64);

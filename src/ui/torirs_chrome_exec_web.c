@@ -56,7 +56,8 @@
 EM_JS(int, web_chrome_available, (void), {
     return (typeof window.torirsChromeOpen === 'function' &&
             typeof window.torirsChromeApplyBatch === 'function' &&
-            typeof window.torirsChromeTakeDeliveryLoss === 'function') ? 1 : 0;
+            typeof window.torirsChromeTakeDeliveryLoss === 'function' &&
+            typeof window.torirsChromeTakeIntentOverflow === 'function') ? 1 : 0;
 });
 
 EM_JS(int, web_chrome_open, (void), {
@@ -183,6 +184,13 @@ EM_JS(char*, web_chrome_take_intent, (void), {
         console.warn('[torirs] chrome intent failed', e);
     }
     return stringToNewUTF8(s);
+});
+
+EM_JS(int, web_chrome_take_intent_overflow, (void), {
+    if( typeof window.torirsChromeTakeIntentOverflow !== 'function' )
+        return 0;
+    try { return window.torirsChromeTakeIntentOverflow() ? 1 : 0; }
+    catch( e ) { return 1; }
 });
 
 /* ---- the executor -------------------------------------------------------- */
@@ -943,6 +951,13 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
     if( !s->open || max <= 0 )
         return 0;
 
+    if( web_chrome_take_intent_overflow() )
+    {
+        s->snapshot_needed = 1;
+        fprintf(stderr,
+            "chrome: web input queue lost a gesture; restating visible state\n");
+    }
+
     /* Empty an earlier partial drain before importing another browser burst;
      * otherwise two individually bounded pulls can overflow their shared
      * queue between the host's 16-intent Pump calls. */
@@ -1031,7 +1046,7 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
     return ToriRSChromeMirror_Poll(&s->mirror, out, max);
 }
 
-static void
+static int
 chrome_web_custom_present(
     void* user, struct ToriRSChromeCustomFrame const* frame)
 {
@@ -1044,13 +1059,13 @@ chrome_web_custom_present(
         frame->scale_milli <= 0 || frame->selection_generation == 0 ||
         frame->widget_serial == 0 || frame->widget < 0 ||
         frame->widget >= TORIRS_CHROME_MAX_WIDGETS )
-        return;
+        return 0;
     logical_width =
         (int)((int64_t)frame->width * 1000 / frame->scale_milli);
     logical_height =
         (int)((int64_t)frame->height * 1000 / frame->scale_milli);
     if( logical_width <= 0 || logical_height <= 0 )
-        return;
+        return 0;
     if( !web_chrome_custom_present(
         frame->panel,
         frame->widget,
@@ -1067,13 +1082,14 @@ chrome_web_custom_present(
         s->custom_width[frame->widget] = 0;
         s->custom_height[frame->widget] = 0;
         s->snapshot_needed = 1;
-        return;
+        return 0;
     }
     s->custom_panel[frame->widget] = frame->panel;
     s->custom_generation[frame->widget] = frame->selection_generation;
     s->custom_serial[frame->widget] = frame->widget_serial;
     s->custom_width[frame->widget] = logical_width;
     s->custom_height[frame->widget] = logical_height;
+    return 1;
 }
 
 static int

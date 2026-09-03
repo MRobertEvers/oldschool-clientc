@@ -416,7 +416,7 @@ struct ToriRSChromeExec
 
     /** Optional web-canvas sink for a complete dirty custom-region frame.
      * Called only after the batch containing its WIDGET_ADD has ended. */
-    void (*custom_present)(
+    int (*custom_present)(
         void* user, struct ToriRSChromeCustomFrame const* frame);
 
     /**
@@ -502,6 +502,9 @@ struct ToriRSChromeSync
      * to exist at the moment the page changed.
      */
     int restate;
+    /** Set only by a successful full snapshot in the immediately preceding
+     * Run. Consumers use it to restate separately retained bitmap payloads. */
+    int last_run_restate;
     /**
      * WHICH page the pending restatement is of, reported beside the flag.
      *

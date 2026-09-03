@@ -131,6 +131,10 @@ record/coalesce mutation command
 executor drains only queued changes
 ```
 
+The same rule continues through the browser reducer: it queues the exact dirty
+widget handles named by the transaction. It does not walk every DOM widget at
+the end of a delta, and selection-only updates do not reconstruct option lists.
+
 Structural add, remove, and reorder operations use the same journal, with
 ordering rules that prevent a removed handle from being reused too early. An
 idle tick is O(1): it scans no panels or widgets and opens no transaction.

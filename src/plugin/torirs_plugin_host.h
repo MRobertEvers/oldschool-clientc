@@ -1032,6 +1032,13 @@ int
 PluginHost_UiPresentationCount(struct ToriRS_PluginHost const* host);
 uint32_t
 PluginHost_UiPresentationRebuilds(struct ToriRS_PluginHost const* host);
+/** Instrumentation for retained presenter cost-model regressions. */
+uint32_t
+PluginHost_UiPresentationChangeVisits(struct ToriRS_PluginHost const* host);
+uint32_t
+PluginHost_UiPresentationRegistryVisits(struct ToriRS_PluginHost const* host);
+uint32_t
+PluginHost_UiPresentationRoleProbeVisits(struct ToriRS_PluginHost const* host);
 
 /* ------------------------------------------------------------------------ */
 /* Seam entry points. Each is a no-op when nothing subscribed.               */
@@ -1577,6 +1584,52 @@ PluginHost_PanelWidgetAt(
     struct ToriRS_PluginHost const* host,
     uint32_t selection_generation,
     int widget_index);
+
+/** Exact retained properties changed on one mounted panel node. */
+enum ToriRS_PluginPanelChangeFlags
+{
+    TORIRS_PLUGIN_PANEL_CHANGE_TEXT = 1u << 0,
+    TORIRS_PLUGIN_PANEL_CHANGE_VALUE = 1u << 1,
+    TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT = 1u << 2,
+    TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS = 1u << 3,
+};
+
+/**
+ * One coalesced active-page mutation. `widget_index` is stable for the current
+ * selection generation and `widget_serial` fences a structural redeclaration.
+ * Values stay in the authoritative widget and are read with PanelWidgetAt.
+ */
+struct ToriRS_PluginPanelChange
+{
+    int widget_index;
+    uint32_t widget_serial;
+    uint32_t flags;
+    uint32_t model_revision;
+};
+
+/**
+ * Pop one exact retained mutation for the active page.
+ *
+ * Returns 1 for a row, 0 when caught up, and -1 when the generation is stale or
+ * a structural declaration requires the caller to rebuild the page. Repeated
+ * setters for one node coalesce through a direct per-slot index; this never
+ * searches the pending queue.
+ */
+int
+PluginHost_PanelChangeNext(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    struct ToriRS_PluginPanelChange* out);
+
+/** A full page build/recovery consumed all earlier row mutations. */
+void
+PluginHost_PanelChangesAcknowledge(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation);
+
+/** Instrumentation: exact journal rows popped since host creation. */
+uint32_t
+PluginHost_PanelChangeVisits(struct ToriRS_PluginHost const* host);
 /** Changes on every active model mutation, including result-state changes. */
 uint32_t
 PluginHost_PanelModelRevision(struct ToriRS_PluginHost const* host);

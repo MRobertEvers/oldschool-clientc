@@ -17,6 +17,7 @@ static int collapsed;
 static int page_width;
 static int send_enabled = 1;
 static int asynchronous_send_failure;
+static int bitmap_enabled = 1;
 
 bool PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* p)
 { return p == &platform; }
@@ -56,6 +57,7 @@ bool PlatformWindow_PluginBrowserBitmapUrl(
     uint32_t const* argb, int width, int height, char* out, int cap)
 {
     CHECK(p == &platform && key && revision && argb && width > 0 && height > 0);
+    if( !bitmap_enabled ) return false;
     snprintf(out, (size_t)cap, "bitmap/%s-r%u.bmp", key, (unsigned)revision);
     return true;
 }
@@ -85,6 +87,7 @@ int main(void)
 {
     struct ToriRSChromeExec exec = ToriRSChromeExec_Browser(&platform);
     struct ToriRSChromeRailSnapshot rail;
+    struct ToriRSChromeRailIcon rail_icon;
     struct ToriRSChromeRailIntent rail_intent;
     struct ToriRSChromeIntent intent;
     struct ToriRSChromeCmd cmd;
@@ -240,7 +243,11 @@ int main(void)
     frame.scale_milli = 1000;
     frame.width = frame.height = frame.stride = 2;
     frame.argb = pixels;
-    exec.custom_present(exec.user, &frame);
+    send_enabled = 0;
+    CHECK(exec.custom_present(exec.user, &frame) == 0 && sent_count == 4);
+    CHECK(exec.take_snapshot_request(exec.user) == 1);
+    send_enabled = 1;
+    CHECK(exec.custom_present(exec.user, &frame) == 1);
     CHECK(sent_count == 5);
     CHECK(strstr(sent[4], "\"type\":\"custom.bitmap\"") != NULL);
     CHECK(strstr(sent[4], "bitmap/custom-11-481-r1.bmp") != NULL);
@@ -405,6 +412,21 @@ int main(void)
         exec.apply(exec.user, &cmd);
         CHECK(sent_count == before + 1);
         CHECK(strstr(sent[before], "\"type\":\"page.delta\"") != NULL);
+    }
+
+    {
+        int const before = sent_count;
+        memset(&rail_icon, 0, sizeof(rail_icon));
+        rail_icon.plugin_index = 4;
+        rail_icon.revision = 9;
+        rail_icon.width = rail_icon.height = 1;
+        rail_icon.argb[0] = 0xff112233u;
+        bitmap_enabled = 0;
+        CHECK(exec.rail_icon(exec.user, &rail_icon) == 0 && sent_count == before);
+        bitmap_enabled = 1;
+        CHECK(exec.rail_icon(exec.user, &rail_icon) == 1 && sent_count == before + 1);
+        CHECK(strstr(sent[before], "\"type\":\"rail.icon\"") != NULL &&
+              strstr(sent[before], "bitmap/rail-4-r9.bmp") != NULL);
     }
 
     exec.end(exec.user);

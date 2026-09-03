@@ -177,6 +177,20 @@ assert.strictEqual(raw.k, 8);
 assert.strictEqual(raw.s, 103);
 assert(raw.x >= 0 && raw.y >= 0, "edge-only IE rect still yields local custom coordinates");
 
+while (runtime.takeMessage()) {}
+while (runtime.takeIntent()) {}
+for (var burst = 0; burst < 65; burst++) {
+    oldCheckbox.checked = (burst & 1) !== 0;
+    oldCheckbox.fire("change");
+}
+assert.strictEqual(runtime.takeIntentOverflow(), true,
+    "XP fallback reports an intent burst instead of deleting its oldest action");
+assert.strictEqual(codec.parse(runtime.takeMessage()).type, "transport.loss",
+    "the browser pull channel receives an explicit transport-loss envelope");
+assert.strictEqual(codec.parse(runtime.takeIntent()).v, 0,
+    "the accepted fallback prefix remains in FIFO order");
+while (runtime.takeIntent()) {}
+
 runtime.receive({
     protocol: 1, type: "page.snapshot", pageGeneration: 11, panel: 3,
     title: "Replacement", commands: [

@@ -520,7 +520,8 @@ static void inject_bridge(struct PlatformWin32Browser* s)
 {
     static char const script[] =
         "window.torirsPluginChromePostMessage=function(s){"
-        "try{return window.external.postMessage(String(s));}catch(e){return false;}};";
+        "try{window.external.postMessage(String(s));return true;}"
+        "catch(e){return false;}};";
     if( !browser_exec(s, script) )
     {
         s->failed = 1;

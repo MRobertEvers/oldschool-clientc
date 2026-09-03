@@ -16,6 +16,8 @@ const makefile = fs.readFileSync(path.join(src, 'Makefile'), 'utf8');
 const canonicalHtml = fs.readFileSync(path.join(src, 'plugin_chrome', 'modern.html'), 'utf8');
 const canonicalCss = fs.readFileSync(path.join(src, 'plugin_chrome', 'modern.css'), 'utf8');
 const httpServer = fs.readFileSync(path.join(src, 'ioserver', 'http_server.c'), 'utf8');
+const macBrowser = fs.readFileSync(
+  path.join(src, 'platform', 'platform_macos_webview.m'), 'utf8');
 
 assert.match(html, /<div id="torirs-app">[\s\S]*<main id="app-content">/,
   'the page has one fullscreenable application root');
@@ -72,6 +74,12 @@ assert.match(execWeb, /web_chrome_apply_batch[\s\S]*chrome_web_batch_begin[\s\S]
   'C crosses Wasm to JS once for each atomic retained transaction');
 assert.match(adapter, /torirsChromeApplyBatch[\s\S]*Array\.isArray[\s\S]*host\.apply/,
   'the page drains that batch through the canonical retained command path');
+assert.match(macBrowser,
+  /__torirsChromePending\|0\)>=64\)return false[\s\S]*acknowledgeInboundSlot/,
+  'WKWebView admits only a bounded truthful prefix and releases slots after C drains them');
+assert.doesNotMatch(macBrowser,
+  /inbound\.count\s*>=\s*MAC_BROWSER_QUEUE_MAX\s*\)[\s\S]{0,100}removeObjectAtIndex/,
+  'WKWebView never makes room for a new intent by deleting an accepted older one');
 
 assert.match(makefile, /WEB_PLUGIN_CHROME\s*=[\s\S]*plugin_chrome\/modern\.html[\s\S]*plugin_chrome\/runtime\.js/,
   'web staging names the canonical page and runtime');

@@ -235,7 +235,7 @@ main(void)
 
     {
         struct ToriRSChromeExec exec = ToriRSChromeExec_Web();
-        struct ToriRSChromeRailIntent intents[4];
+        struct ToriRSChromeRailIntent intents[WEB_CHROME_RAIL_INTENT_MAX];
         ToriRSChromeExecWeb_RequestSelect(5, 17);
         ToriRSChromeExecWeb_RequestSelect(-2, 17);
         ToriRSChromeExecWeb_RequestLayout(17, 320, 480, 2000, 1, 1, 0);
@@ -249,6 +249,13 @@ main(void)
         CHECK(intents[2].kind == TORIRS_CHROME_RAIL_INTENT_LAYOUT &&
                   intents[2].selection_generation == 17 && !intents[2].game_visible,
             "web allocation returns generation-fenced exclusive visibility");
+        for( int i = 0; i < WEB_CHROME_RAIL_INTENT_MAX + 8; i++ )
+            ToriRSChromeExecWeb_RequestSelect(i % 32, 17);
+        CHECK(exec.rail_poll(
+                  exec.user, intents, WEB_CHROME_RAIL_INTENT_MAX) ==
+                  WEB_CHROME_RAIL_INTENT_MAX &&
+                  intents[WEB_CHROME_RAIL_INTENT_MAX - 1].plugin_index == 7,
+            "a full rail queue preserves its prefix and coalesces the final destination");
     }
 
     {
@@ -296,8 +303,8 @@ main(void)
         frame.argb = &pixel;
         /* Native EM_JS stubs reject the send, giving this test a deterministic
          * transport-loss injection without a browser. */
-        chrome_web_custom_present(&web, &frame);
-        CHECK(web.snapshot_needed && web.custom_panel[9] == -1 &&
+        CHECK(!chrome_web_custom_present(&web, &frame) && web.snapshot_needed &&
+                  web.custom_panel[9] == -1 &&
                   web.custom_serial[9] == 0,
             "a rejected custom bitmap clears its fence and requests a page snapshot");
     }
