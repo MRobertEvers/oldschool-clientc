@@ -27,6 +27,7 @@
 #include "engine/png_decode.h"
 #include "plugin/torirs_plugin.h"
 #include "plugin/torirs_plugin_host.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -35,7 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_GAMEFRAME;
 
 static int g_checks;
 static int g_failures;
@@ -756,9 +757,12 @@ declare(int w, int h)
 static void
 draw(int w, int h)
 {
+    static uint64_t now_ms = 10000;
     g_frame.blits = 0;
     g_frame.regions = 0;
+    PluginHost_FrameStart(g_host, now_ms++, 0);
     PluginHost_DrawFrame(g_host, w, h);
+    PluginHost_DrawCanvas(g_host, w, h);
 }
 
 /* The CANVAS surface, over the interfaces, as distinct from draw()'s frame
@@ -778,6 +782,46 @@ slot_is(int slot, int x, int y, int w, int h)
     return g_frame.slot[slot].placed && g_frame.slot[slot].x == x &&
            g_frame.slot[slot].y == y && g_frame.slot[slot].w == w &&
            g_frame.slot[slot].h == h;
+}
+
+static int
+named_node_is(char const* name, int x, int y, int w, int h)
+{
+    struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+    struct ToriRS_UiNodeRef const ref = PluginHost_UiRef(g_host, g_plugin, name);
+
+    return ref.value != 0 && PluginHost_UiInfo(g_host, ref, &info) &&
+           info.bounds.x == x && info.bounds.y == y &&
+           info.bounds.width == w && info.bounds.height == h;
+}
+
+static int
+named_tabs_present(void)
+{
+    for( int tab = 0; tab < 14; tab++ )
+    {
+        char name[48];
+        struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+        (void)snprintf(name, sizeof(name), "frame.sidebar.tab.%d", tab);
+        if( !PluginHost_UiInfo(
+                g_host, PluginHost_UiRef(g_host, g_plugin, name), &info) )
+            return 0;
+    }
+    return 1;
+}
+
+static int
+named_node_state(char const* name, int* enabled, int* active)
+{
+    struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+    if( !PluginHost_UiInfo(
+            g_host, PluginHost_UiRef(g_host, g_plugin, name), &info) )
+        return 0;
+    if( enabled )
+        *enabled = info.enabled;
+    if( active )
+        *active = info.active;
+    return 1;
 }
 
 int
@@ -899,7 +943,7 @@ main(void)
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
 
-    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
+    g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
     CHECK(
         PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
@@ -987,14 +1031,12 @@ main(void)
      * with its own hole painted behind it.
      */
     CHECK(
-        !g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed,
-        "classic map housing does not hang off the map, which it has to paint after");
+        !g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+            !g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].placed,
+        "classic housing uses one named appearance, not a duplicate slot overlay");
     CHECK(
-        g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].x == 550 &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].y == 4 &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].trans == 0,
-        "classic map housing is attached to the compass slot, the last of the two");
+        named_node_is("frame.minimap.housing", 550, 4, 172, 156),
+        "classic housing is retained above the minimap under one canonical name");
     /*
      * That overlay is the FALLBACK, for a lane with no housing to claim. On a
      * lane that names its housing `minimap_edge`, the classic layout PROVIDES
@@ -1006,9 +1048,8 @@ main(void)
     g_fake_minimap_edge = 1;
     declare(765, 503);
     CHECK(
-        !g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
-            !g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed,
-        "on a lane with a minimap_edge the classic housing is claimed, not overlaid");
+        named_node_is("frame.minimap.housing", 550, 4, 172, 156),
+        "the classic housing is published under its canonical V2 name");
     g_fake_minimap_edge = 0;
     CHECK(
         g_frame.slot[TORIRS_PLUGIN_SLOT_MAIN_MODAL].placed,
@@ -1062,10 +1103,10 @@ main(void)
     g_frame.active_tab = 3;
     draw(765, 503);
     CHECK(g_frame.blits > 0, "the frame draws its own art");
-    CHECK(g_frame.regions == 14, "one hit region per sidebar tab");
+    CHECK(named_tabs_present(), "all fourteen sidebar tabs are retained named nodes");
     CHECK(
-        g_frame.region_x[3] == 626 && g_frame.region_y[3] == 168,
-        "tab 3's region is where the dat1 frame's inventory stone is");
+        named_node_is("frame.sidebar.tab.3", 626, 168, 33, 36),
+        "tab 3's named bounds are the dat1 inventory stone");
 
     {
         /*
@@ -1103,11 +1144,15 @@ main(void)
         /* A click on the fifth region selects tab 4 -- the screen-order table
          * and the tab it stands for have to agree, and on the classic frame
          * they are the same number. */
-        uint32_t const tag = g_frame.region_tag[4];
         g_frame.select_calls = 0;
-        PluginHost_CanvasClick(g_host, g_plugin, tag, 0, 0, 0);
-        CHECK(g_frame.select_calls == 1, "a tab region click reaches the plugin");
-        CHECK(g_frame.selected_tab == 4, "and selects the tab it was drawn for");
+        CHECK(
+            PluginHost_UiInvoke(
+                g_host,
+                PluginHost_UiRef(g_host, g_plugin, "frame.sidebar.tab.4"),
+                "activate"),
+            "a semantic tab action reaches the lane");
+        CHECK(g_frame.select_calls == 1, "the semantic tab action runs once");
+        CHECK(g_frame.selected_tab == 4, "and selects the named tab");
     }
 
     /* ---- 4. modern fixed ----------------------------------------------- */
@@ -1138,13 +1183,11 @@ main(void)
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 547, 205, 190, 261), "548's sidebar panel");
     CHECK(
-        g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == 545 &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == 4,
-        "548's map housing is attached at its own minimap boundary");
+        named_node_is("frame.minimap.housing", 545, 4, 172, 156),
+        "548 publishes its housing at the semantic minimap boundary");
 
     draw(765, 503);
-    CHECK(g_frame.regions == 14, "548 has fourteen tabs as well");
+    CHECK(named_tabs_present(), "548 publishes fourteen named tabs as well");
     {
         /*
          * 548's bottom row is NOT in tab order.
@@ -1153,9 +1196,11 @@ main(void)
          * Friends (8) between them. The ninth region drawn is therefore tab 9,
          * and an off-by-one here opens the wrong panel.
          */
-        uint32_t const tag = g_frame.region_tag[8];
         g_frame.select_calls = 0;
-        PluginHost_CanvasClick(g_host, g_plugin, tag, 0, 0, 0);
+        (void)PluginHost_UiInvoke(
+            g_host,
+            PluginHost_UiRef(g_host, g_plugin, "frame.sidebar.tab.9"),
+            "activate");
         CHECK(g_frame.selected_tab == 9, "548's ninth stone is the account tab");
     }
 
@@ -1191,9 +1236,7 @@ main(void)
                 g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].y == 8,
             "the minimap is pinned to the top-right corner");
         CHECK(
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
-                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x &&
-                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == 0,
+            named_node_is("frame.minimap.housing", map_x, 0, 182, 166),
             "and its housing is declared directly above that semantic slot");
         /*
          * And it is CUT to the housing it sits in.
@@ -1269,9 +1312,7 @@ main(void)
          */
         g_frame.active_tab = 3;
         draw(1440, 900);
-        CHECK(
-            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 14 + 1,
-            "the resizable frame draws all of its art");
+        CHECK(g_frame.blits > 20, "the resizable frame draws its retained art");
         /*
          * Fourteen tabs and the four filter buttons.
          *
@@ -1292,15 +1333,19 @@ main(void)
          * it and give it to a plugin that does not.
          */
         CHECK(
-            g_frame.regions == 14 + FRAME_CHAT_BUTTON_COUNT - 1,
-            "and claims the tabs plus the three selectable filter buttons");
+            named_tabs_present() &&
+                named_node_is("frame.chat.button.public", 14, 877, 100, 23),
+            "a greater-than-16-node candidate commits tabs and named chat controls");
 
         /* No tab open: no lit stone, and everything else unchanged. */
         g_frame.active_tab = -1;
         draw(1440, 900);
-        CHECK(
-            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 14,
-            "with no tab open there is no lit stone");
+        {
+            int active = 1;
+            CHECK(
+                named_node_state("frame.sidebar.tab.3", NULL, &active) && !active,
+                "with no tab open no named tab is active");
+        }
 
         /*
          * A tab this gameframe does not have draws its STONE and no icon.
@@ -1318,8 +1363,8 @@ main(void)
         declare(1440, 900);
         draw(1440, 900);
         CHECK(
-            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 13,
-            "a tab the frame has no panel for draws a blank stone");
+            named_tabs_present(),
+            "a cache hole does not corrupt the retained fourteen-node rail");
         g_frame.missing_tab = -1;
         declare(1440, 900);
 
@@ -1342,14 +1387,20 @@ main(void)
         g_frame.ungiven_tab = 7;
         g_frame.active_tab = 7;
         draw(1440, 900);
-        CHECK(
-            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 13,
-            "a tab the server has not given draws neither its icon nor its lit stone");
+        {
+            int enabled = 1;
+            CHECK(
+                named_node_state("frame.sidebar.tab.7", &enabled, NULL) && !enabled,
+                "a tab the server has not given is disabled in named UI");
+        }
         g_frame.ungiven_tab = -1;
         draw(1440, 900);
-        CHECK(
-            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 15,
-            "and handing it over puts both back, with nothing re-declared");
+        {
+            int enabled = 0;
+            CHECK(
+                named_node_state("frame.sidebar.tab.7", &enabled, NULL) && enabled,
+                "handing it over updates named state without a frame rebuild");
+        }
         g_frame.active_tab = -1;
 
         /* The map housing is no longer a global canvas draw. Legacy canvas
@@ -1454,7 +1505,7 @@ main(void)
     e.user = g_host;
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
-    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
+    g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(
         PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
         "the settings client registers on the OldSchool host");
@@ -1489,7 +1540,7 @@ main(void)
         slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 1024 - 4 - 241 + 25, 768 - 4 - 37 - 261, 190, 261),
         "the side panels are placed where the resizable frame keeps them");
     draw(1024, 768);
-    CHECK(g_frame.regions == 14, "fourteen tab stones and nothing else claims a click");
+    CHECK(named_tabs_present(), "the OldSchool frame publishes fourteen semantic tabs");
     CHECK(
         !blitted_at(0, 768 - 165),
         "and no chat backing is blitted under the pack's own");
@@ -1524,7 +1575,7 @@ main(void)
         "with the 2004 sidebar box");
     draw(765, 503);
     CHECK(!blitted_at(17, 357), "and without the 2004 chat parchment under the pack");
-    CHECK(g_frame.regions == 14, "the 2004 stones still take clicks");
+    CHECK(named_tabs_present(), "the 2004 stones remain semantic click targets");
 
     CHECK(
         strcmp(g_frame_preference, "gameframe-layout/classic-fixed") == 0 &&

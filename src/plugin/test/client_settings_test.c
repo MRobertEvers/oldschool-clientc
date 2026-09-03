@@ -1,437 +1,249 @@
-/*
- * Client Settings against a hand-built API table.
- *
- * The frame selector is deliberately tested without PluginHost: this is the
- * public edge that must turn a legacy dropdown row back into a stable frame
- * id. A fake host also lets the test put misleading text on the click and
- * prove the plugin never treats that presentation string as state.
- */
+#include "plugin/torirs_plugin_v2.h"
 
-#include "plugin/torirs_plugin.h"
-
-#include <assert.h>
-#include <stdarg.h>
-#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS;
 
-static int g_checks;
-static int g_failures;
+static int checks;
+static int failures;
+#define CHECK(c, m) do { checks++; if( !(c) ) { failures++; \
+    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, (m)); } } while( 0 )
 
-#define CHECK(condition, message)                                                     \
-    do                                                                                \
-    {                                                                                 \
-        g_checks++;                                                                   \
-        if( !(condition) )                                                            \
-        {                                                                             \
-            g_failures++;                                                             \
-            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, (message));               \
-        }                                                                             \
-    } while( 0 )
+#define CS_FRAME_ROWS_MAX 33
 
-#define FAKE_WIDGETS_MAX 8
-#define FAKE_CHOICES_MAX 192
-
-struct FakeWidget
+struct Fake
 {
-    int kind;
-    char id[TORIRS_PLUGIN_WIDGET_ID_MAX];
-    char label[64];
-    char text[FAKE_CHOICES_MAX];
-    char choices[FAKE_CHOICES_MAX];
-    int selected;
-};
-
-static struct
-{
-    ToriRS_PluginHandler handlers[TORIRS_PLUGIN_EV_COUNT];
-    struct FakeWidget widgets[FAKE_WIDGETS_MAX];
-    int widget_count;
-    int clear_count;
-    int log_count;
-    int select_count;
-    int select_accept;
-    char selected_id[TORIRS_PLUGIN_FRAME_ID_MAX];
-    struct ToriRS_PluginFrameInfo offers[5];
+    struct ToriRS_FrameOfferInfo offers[5];
     int offer_count;
-    struct ToriRS_PluginFrameSelection selection;
-} g_fake;
+    struct ToriRS_FrameSelection selection;
+    int requests;
+    int invalidates;
+    int option_sets;
+    int text_sets;
+    int selects;
+    char selected_id[TORIRS_PLUGIN_FRAME_ID_MAX];
+    char option_value[CS_FRAME_ROWS_MAX][TORIRS_PLUGIN_FRAME_ID_MAX];
+    char option_label[CS_FRAME_ROWS_MAX][TORIRS_UI_LABEL_MAX];
+    int option_count;
+    char selected_value[TORIRS_PLUGIN_FRAME_ID_MAX];
+    char detail[192];
+};
+static struct Fake fake;
 
-static int g_ctx_storage;
-
-static struct ToriRS_PluginCtx*
-fake_ctx(void)
+static void fake_log(struct ToriRS_ApiV2* api, char const* format, ...)
+{ (void)api; (void)format; }
+static int fake_offer_next(
+    struct ToriRS_ApiV2* api, int iterator, struct ToriRS_FrameOfferInfo* out)
 {
-    return (struct ToriRS_PluginCtx*)(void*)&g_ctx_storage;
-}
-
-static void
-fake_subscribe(
-    struct ToriRS_PluginCtx* ctx,
-    enum ToriRS_PluginEvent event,
-    ToriRS_PluginHandler handler,
-    void* userdata)
-{
-    (void)ctx;
-    (void)userdata;
-    assert(event >= 0 && event < TORIRS_PLUGIN_EV_COUNT);
-    g_fake.handlers[event] = handler;
-}
-
-static void
-fake_log(struct ToriRS_PluginCtx* ctx, char const* fmt, ...)
-{
-    (void)ctx;
-    (void)fmt;
-    g_fake.log_count++;
-}
-
-static struct FakeWidget*
-fake_widget_find(char const* id)
-{
-    for( int i = 0; i < g_fake.widget_count; i++ )
-        if( strcmp(g_fake.widgets[i].id, id) == 0 )
-            return &g_fake.widgets[i];
-    return NULL;
-}
-
-static bool
-fake_win_request(struct ToriRS_PluginCtx* ctx, char const* title)
-{
-    (void)ctx;
-    CHECK(strcmp(title, "Client Settings") == 0, "the tab keeps its public title");
-    return true;
-}
-
-static bool
-fake_win_widget(
-    struct ToriRS_PluginCtx* ctx,
-    int kind,
-    char const* id,
-    char const* label)
-{
-    struct FakeWidget* widget;
-
-    (void)ctx;
-    widget = fake_widget_find(id);
-    if( widget )
-        return true;
-    if( g_fake.widget_count >= FAKE_WIDGETS_MAX )
-        return false;
-    widget = &g_fake.widgets[g_fake.widget_count++];
-    memset(widget, 0, sizeof(*widget));
-    widget->kind = kind;
-    widget->selected = -1;
-    snprintf(widget->id, sizeof(widget->id), "%s", id);
-    snprintf(widget->label, sizeof(widget->label), "%s", label ? label : "");
-    return true;
-}
-
-static bool
-fake_win_set_text(
-    struct ToriRS_PluginCtx* ctx,
-    char const* id,
-    char const* text)
-{
-    struct FakeWidget* const widget = fake_widget_find(id);
-    (void)ctx;
-    if( !widget )
-        return false;
-    snprintf(widget->text, sizeof(widget->text), "%s", text ? text : "");
-    return true;
-}
-
-static bool
-fake_win_set_options(
-    struct ToriRS_PluginCtx* ctx,
-    char const* id,
-    char const* choices,
-    int selected)
-{
-    struct FakeWidget* const widget = fake_widget_find(id);
-    (void)ctx;
-    if( !widget )
-        return false;
-    snprintf(widget->choices, sizeof(widget->choices), "%s", choices ? choices : "");
-    widget->selected = selected;
-    return true;
-}
-
-static void
-fake_win_clear(struct ToriRS_PluginCtx* ctx)
-{
-    (void)ctx;
-    memset(g_fake.widgets, 0, sizeof(g_fake.widgets));
-    g_fake.widget_count = 0;
-    g_fake.clear_count++;
-}
-
-static int
-fake_display_setting(
-    struct ToriRS_PluginCtx* ctx,
-    int setting,
-    int* out_value,
-    int* out_min,
-    int* out_max)
-{
-    (void)ctx;
-    (void)setting;
-    (void)out_value;
-    (void)out_min;
-    (void)out_max;
-    return 0;
-}
-
-static int
-fake_display_setting_set(
-    struct ToriRS_PluginCtx* ctx,
-    int setting,
-    int value)
-{
-    (void)ctx;
-    (void)setting;
-    (void)value;
-    return 0;
-}
-
-static int
-fake_frame_offer_next(
-    struct ToriRS_PluginCtx* ctx,
-    int iter,
-    struct ToriRS_PluginFrameInfo* out)
-{
-    int const next = iter + 1;
-    (void)ctx;
-    if( next < 0 || next >= g_fake.offer_count )
-        return -1;
-    *out = g_fake.offers[next];
+    int const next = iterator + 1;
+    (void)api;
+    if( next < 0 || next >= fake.offer_count ) return -1;
+    *out = fake.offers[next];
     return next;
 }
-
-static void
-fake_frame_selection(
-    struct ToriRS_PluginCtx* ctx,
-    struct ToriRS_PluginFrameSelection* out)
+static void fake_selection(
+    struct ToriRS_ApiV2* api, struct ToriRS_FrameSelection* out)
+{ (void)api; *out = fake.selection; }
+static enum ToriRS_Result fake_select(struct ToriRS_ApiV2* api, char const* id)
 {
-    (void)ctx;
-    *out = g_fake.selection;
+    (void)api;
+    fake.selects++;
+    snprintf(fake.selected_id, sizeof(fake.selected_id), "%s", id);
+    snprintf(fake.selection.requested_id, sizeof(fake.selection.requested_id), "%s", id);
+    return TORIRS_RESULT_OK;
 }
-
-static int
-fake_frame_select(struct ToriRS_PluginCtx* ctx, char const* id)
+static enum ToriRS_Result fake_panel_request(
+    struct ToriRS_ApiV2* api, struct ToriRS_PluginPanelDesc const* desc)
+{ (void)api; (void)desc; fake.requests++; return TORIRS_RESULT_OK; }
+static void fake_panel_invalidate(struct ToriRS_ApiV2* api)
+{ (void)api; fake.invalidates++; }
+static enum ToriRS_Result fake_panel_set_text(
+    struct ToriRS_ApiV2* api, char const* id, char const* text)
 {
-    (void)ctx;
-    g_fake.select_count++;
-    snprintf(g_fake.selected_id, sizeof(g_fake.selected_id), "%s", id);
-    if( !g_fake.select_accept )
-        return 0;
-    snprintf(
-        g_fake.selection.requested,
-        sizeof(g_fake.selection.requested),
-        "%s",
-        id);
-    return 1;
+    (void)api;
+    fake.text_sets++;
+    if( strcmp(id, "gameframe_detail") == 0 )
+        snprintf(fake.detail, sizeof(fake.detail), "%s", text);
+    return TORIRS_RESULT_OK;
 }
-
-static void
-fake_offer(
-    int row,
+static enum ToriRS_Result fake_panel_set_options(
+    struct ToriRS_ApiV2* api,
     char const* id,
-    char const* title,
-    char const* provider)
+    char const* value,
+    struct ToriRS_SelectOption const* options,
+    int count)
 {
-    struct ToriRS_PluginFrameInfo* const offer = &g_fake.offers[row];
+    (void)api;
+    fake.option_sets++;
+    if( strcmp(id, "gameframe") != 0 ) return TORIRS_RESULT_NOT_FOUND;
+    fake.option_count = count;
+    snprintf(fake.selected_value, sizeof(fake.selected_value), "%s", value);
+    for( int i = 0; i < count && i < CS_FRAME_ROWS_MAX; i++ )
+    {
+        snprintf(fake.option_value[i], sizeof(fake.option_value[i]), "%s", options[i].value);
+        snprintf(fake.option_label[i], sizeof(fake.option_label[i]), "%s", options[i].label);
+    }
+    return TORIRS_RESULT_OK;
+}
+static bool fake_display_get(
+    struct ToriRS_ApiV2* api, int setting, int* value, int* min, int* max)
+{ (void)api; (void)setting; (void)value; (void)min; (void)max; return false; }
 
-    memset(offer, 0, sizeof(*offer));
-    snprintf(offer->id, sizeof(offer->id), "%s", id);
-    snprintf(offer->title, sizeof(offer->title), "%s", title);
-    snprintf(offer->provider, sizeof(offer->provider), "%s", provider);
-    offer->available = 1;
+static void fake_heading(struct ToriRS_PanelBuilder* p, char const* t)
+{ (void)p; (void)t; }
+static void fake_paragraph(struct ToriRS_PanelBuilder* p, char const* t)
+{ (void)p; (void)t; }
+static void fake_toggle(struct ToriRS_PanelBuilder* p, char const* i, char const* l, bool v)
+{ (void)p; (void)i; (void)l; (void)v; }
+static void fake_button(struct ToriRS_PanelBuilder* p, char const* i, char const* l, bool e)
+{ (void)p; (void)i; (void)l; (void)e; }
+static void fake_custom(struct ToriRS_PanelBuilder* p, char const* i, int h)
+{ (void)p; (void)i; (void)h; }
+static void fake_key_value(
+    struct ToriRS_PanelBuilder* p, char const* i, char const* l, char const* v)
+{ (void)p; (void)i; (void)l; (void)v; }
+static enum ToriRS_Result fake_node(
+    struct ToriRS_PanelBuilder* p, struct ToriRS_PanelNode const* n)
+{ (void)p; (void)n; return TORIRS_RESULT_OK; }
+static void fake_label(struct ToriRS_PanelBuilder* p, char const* id, char const* text)
+{
+    (void)p;
+    if( strcmp(id, "gameframe_detail") == 0 )
+        snprintf(fake.detail, sizeof(fake.detail), "%s", text);
+}
+static void fake_select_builder(
+    struct ToriRS_PanelBuilder* p,
+    char const* id,
+    char const* label,
+    char const* value,
+    struct ToriRS_SelectOption const* options,
+    int count)
+{
+    (void)p; (void)label;
+    if( strcmp(id, "gameframe") != 0 ) return;
+    fake.option_count = count;
+    snprintf(fake.selected_value, sizeof(fake.selected_value), "%s", value);
+    for( int i = 0; i < count && i < CS_FRAME_ROWS_MAX; i++ )
+    {
+        snprintf(fake.option_value[i], sizeof(fake.option_value[i]), "%s", options[i].value);
+        snprintf(fake.option_label[i], sizeof(fake.option_label[i]), "%s", options[i].label);
+    }
 }
 
-static void
-fake_build(void)
+static void offer(int row, char const* id, char const* title)
 {
-    struct ToriRS_PluginEvUi ev;
-
-    memset(&ev, 0, sizeof(ev));
-    CHECK(g_fake.handlers[TORIRS_PLUGIN_EV_UI_BUILD] != NULL, "UI build is subscribed");
-    g_fake.handlers[TORIRS_PLUGIN_EV_UI_BUILD](fake_ctx(), &ev, NULL);
+    memset(&fake.offers[row], 0, sizeof(fake.offers[row]));
+    fake.offers[row].struct_size = sizeof(fake.offers[row]);
+    snprintf(fake.offers[row].id, sizeof(fake.offers[row].id), "%s", id);
+    snprintf(fake.offers[row].title, sizeof(fake.offers[row].title), "%s", title);
+    fake.offers[row].available = true;
 }
 
-static void
-fake_pick(int row, char const* text)
+int main(void)
 {
-    struct ToriRS_PluginEvUi ev;
+    struct ToriRS_ClientApiV2 client = {
+        .struct_size = sizeof(client), .display_get = fake_display_get,
+    };
+    struct ToriRS_ApiV2 api = { 0 };
+    struct ToriRS_PanelBuilder panel = {
+        .struct_size = sizeof(panel), .heading = fake_heading,
+        .paragraph = fake_paragraph, .toggle = fake_toggle,
+        .select = fake_select_builder, .button = fake_button,
+        .custom = fake_custom, .label = fake_label,
+        .key_value = fake_key_value, .node = fake_node,
+    };
+    struct ToriRS_PluginEvPanelAction action = {
+        .id = "gameframe", .action = TORIRS_PLUGIN_UI_PICK,
+    };
+    void* state;
+    int invalidates;
 
-    memset(&ev, 0, sizeof(ev));
-    ev.widget_id = "gameframe";
-    ev.action = TORIRS_PLUGIN_UI_PICK;
-    ev.value = row;
-    ev.text = text;
-    g_fake.handlers[TORIRS_PLUGIN_EV_UI](fake_ctx(), &ev, NULL);
-}
+    memset(&fake, 0, sizeof(fake));
+    offer(0, "core/native", "Native");
+    offer(1, "gameframe-layout/classic-fixed", "Classic|Fixed");
+    offer(2, "gameframe-layout/modern-resizable", "Modern Resizable");
+    offer(3, "mobile-gameframe/stone-drawer", "Stone Drawer");
+    fake.offer_count = 4;
+    fake.selection.struct_size = sizeof(fake.selection);
+    snprintf(fake.selection.requested_id, sizeof(fake.selection.requested_id),
+        "%s", "gameframe-layout/modern-resizable");
+    snprintf(fake.selection.active_id, sizeof(fake.selection.active_id),
+        "%s", "gameframe-layout/modern-resizable");
+    fake.selection.status = TORIRS_FRAME_STATUS_ACTIVE;
+    fake.selection.revision = 7;
 
-static void
-fake_frame_start(void)
-{
-    struct ToriRS_PluginEvFrame ev;
+    api.struct_size = sizeof(api);
+    api.major_version = TORIRS_PLUGIN_API_V2_MAJOR;
+    api.minor_version = TORIRS_PLUGIN_API_V2_MINOR;
+    api.core.log = fake_log;
+    api.frame.offer_next = fake_offer_next;
+    api.frame.selection = fake_selection;
+    api.frame.select = fake_select;
+    api.panel.request = fake_panel_request;
+    api.panel.invalidate = fake_panel_invalidate;
+    api.panel.set_text = fake_panel_set_text;
+    api.panel.set_options = fake_panel_set_options;
+    api.client = &client;
+    state = calloc(1, TORIRS_PLUGIN_CLIENT_SETTINGS.state_size);
 
-    memset(&ev, 0, sizeof(ev));
-    CHECK(g_fake.handlers[TORIRS_PLUGIN_EV_FRAME_START] != NULL, "frame start is subscribed");
-    g_fake.handlers[TORIRS_PLUGIN_EV_FRAME_START](fake_ctx(), &ev, NULL);
-}
+    CHECK(TORIRS_PLUGIN_CLIENT_SETTINGS.flags & TORIRS_PLUGIN_V2_ESSENTIAL,
+        "client settings is essential");
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_start(&api, state);
+    CHECK(fake.requests == 1, "start registers one shared panel");
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_ui_build(&api, state, &panel, 0);
+    CHECK(fake.option_count == 4, "Auto plus three plugin offers are shown");
+    CHECK(strcmp(fake.option_value[0], "auto") == 0, "Auto has a stable value");
+    CHECK(strcmp(fake.option_label[1], "Classic|Fixed") == 0,
+        "structured labels preserve delimiter text");
+    CHECK(strcmp(fake.selected_value, "gameframe-layout/modern-resizable") == 0,
+        "the requested stable id is selected");
+    CHECK(strcmp(fake.detail, "Active: Modern Resizable.") == 0,
+        "the active frame is described by title");
 
-int
-main(void)
-{
-    struct ToriRS_PluginApi api;
-    struct FakeWidget* widget;
-    int clears;
-    int selects;
+    action.value = 99;
+    action.text = "gameframe-layout/classic-fixed";
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_ui_action(&api, state, &action);
+    CHECK(fake.selects == 1 &&
+          strcmp(fake.selected_id, "gameframe-layout/classic-fixed") == 0,
+        "the action uses its stable value, not a row number");
+    action.text = "forged/frame";
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_ui_action(&api, state, &action);
+    CHECK(fake.selects == 1, "an unknown stable value is refused");
 
-    memset(&g_fake, 0, sizeof(g_fake));
-    g_fake.select_accept = 1;
+    snprintf(fake.selection.requested_id, sizeof(fake.selection.requested_id),
+        "%s", "mobile-gameframe/stone-drawer");
+    snprintf(fake.selection.active_id, sizeof(fake.selection.active_id), "%s", "core/native");
+    fake.selection.status = TORIRS_FRAME_STATUS_LOADING;
+    snprintf(fake.selection.reason, sizeof(fake.selection.reason), "%s", "Starting provider.");
+    fake.selection.revision++;
+    invalidates = fake.invalidates;
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_frame_start(&api, state, NULL);
+    CHECK(fake.invalidates == invalidates, "a resolver change does not rebuild the page");
+    CHECK(fake.option_sets == 3 && fake.text_sets == 3,
+        "frame actions and resolver changes patch their two retained rows");
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_ui_build(&api, state, &panel, 0);
+    CHECK(strstr(fake.detail, "Loading Stone Drawer.") != NULL,
+        "loading detail names the requested frame");
+    CHECK(strstr(fake.detail, "Active for now: Native gameframe.") != NULL,
+        "loading detail names the active frame");
+    invalidates = fake.invalidates;
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_frame_start(&api, state, NULL);
+    CHECK(fake.invalidates == invalidates, "an unchanged selection is retained");
 
-    /* A core row from a compatibility host must not become a second Auto. */
-    fake_offer(0, "core/native", "Native", "core");
-    /* The pipe is hostile to the compatibility transport, not a new row. */
-    fake_offer(1, "gameframe-layout/classic-fixed", "Classic|Fixed", "gameframe-layout");
-    fake_offer(
-        2,
-        "gameframe-layout/modern-resizable",
-        "Modern Resizable",
-        "gameframe-layout");
-    fake_offer(3, "mobile-gameframe/stone-drawer", "Stone Drawer", "mobile-gameframe");
-    g_fake.offer_count = 4;
+    snprintf(fake.selection.requested_id, sizeof(fake.selection.requested_id),
+        "%s", "removed-provider/favourite");
+    fake.selection.status = TORIRS_FRAME_STATUS_FALLBACK;
+    fake.selection.revision++;
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_frame_start(&api, state, NULL);
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_ui_build(&api, state, &panel, 0);
+    CHECK(fake.option_count == 5, "an unavailable saved id remains visible");
+    CHECK(strcmp(fake.option_value[4], "removed-provider/favourite") == 0 &&
+          strcmp(fake.selected_value, "removed-provider/favourite") == 0,
+        "the unavailable row retains and selects the exact saved id");
 
-    snprintf(
-        g_fake.selection.requested,
-        sizeof(g_fake.selection.requested),
-        "%s",
-        "gameframe-layout/modern-resizable");
-    snprintf(
-        g_fake.selection.active,
-        sizeof(g_fake.selection.active),
-        "%s",
-        "gameframe-layout/modern-resizable");
-    g_fake.selection.status = TORIRS_PLUGIN_FRAME_ACTIVE;
-    g_fake.selection.revision = 7;
-
-    memset(&api, 0, sizeof(api));
-    api.subscribe = fake_subscribe;
-    api.log = fake_log;
-    api.win_request = fake_win_request;
-    api.win_widget = fake_win_widget;
-    api.win_set_text = fake_win_set_text;
-    api.win_set_options = fake_win_set_options;
-    api.win_clear = fake_win_clear;
-    api.display_setting = fake_display_setting;
-    api.display_setting_set = fake_display_setting_set;
-    api.frame_offer_next = fake_frame_offer_next;
-    api.frame_selection = fake_frame_selection;
-    api.frame_select = fake_frame_select;
-
-    TORIRS_PLUGIN_CLIENT_SETTINGS.init(fake_ctx(), &api);
-    CHECK(g_fake.handlers[TORIRS_PLUGIN_EV_UI] != NULL, "UI actions are subscribed");
-    fake_build();
-
-    widget = fake_widget_find("gameframe");
-    CHECK(widget != NULL, "the page has one Gameframe dropdown");
-    CHECK(
-        widget && strcmp(widget->choices, "Auto|Classic/Fixed|Modern Resizable|Stone Drawer") == 0,
-        "Auto and dynamic plugin offers are shown, with delimiter-safe titles");
-    CHECK(widget && widget->selected == 2, "the requested stable id selects its current row");
-    widget = fake_widget_find("gameframe_detail");
-    CHECK(widget && strcmp(widget->text, "Active: Modern Resizable.") == 0,
-        "the active frame is described by its human title");
-
-    /* `text` is intentionally wrong: only the row's canonical-id map counts. */
-    fake_pick(1, "Stone Drawer");
-    CHECK(g_fake.select_count == 1, "a valid row makes one selection request");
-    CHECK(strcmp(g_fake.selected_id, "gameframe-layout/classic-fixed") == 0,
-        "the selected row resolves to its canonical id, not its visible text");
-    widget = fake_widget_find("gameframe");
-    CHECK(widget && widget->selected == 1, "the accepted request is selected after rebuild");
-
-    selects = g_fake.select_count;
-    fake_pick(99, "forged");
-    CHECK(g_fake.select_count == selects, "an out-of-range row cannot select arbitrary state");
-
-    snprintf(
-        g_fake.selection.requested,
-        sizeof(g_fake.selection.requested),
-        "%s",
-        "mobile-gameframe/stone-drawer");
-    snprintf(
-        g_fake.selection.active,
-        sizeof(g_fake.selection.active),
-        "%s",
-        "core/native");
-    g_fake.selection.status = TORIRS_PLUGIN_FRAME_LOADING;
-    snprintf(
-        g_fake.selection.reason,
-        sizeof(g_fake.selection.reason),
-        "%s",
-        "Starting the requested gameframe provider.");
-    g_fake.selection.revision++;
-    clears = g_fake.clear_count;
-    fake_frame_start();
-    CHECK(g_fake.clear_count == clears + 1, "a resolver revision refreshes an open page");
-    widget = fake_widget_find("gameframe_detail");
-    CHECK(widget && strstr(widget->text, "Loading Stone Drawer.") != NULL,
-        "loading state names the requested frame");
-    CHECK(widget && strstr(widget->text, "Active for now: Native gameframe.") != NULL,
-        "loading state names the currently active frame");
-    CHECK(widget && strstr(widget->text, g_fake.selection.reason) != NULL,
-        "loading state includes the resolver's reason");
-
-    clears = g_fake.clear_count;
-    fake_frame_start();
-    CHECK(g_fake.clear_count == clears, "an unchanged selection does not rebuild every frame");
-
-    snprintf(
-        g_fake.selection.requested,
-        sizeof(g_fake.selection.requested),
-        "%s",
-        "gameframe-layout/classic-fixed");
-    g_fake.selection.status = TORIRS_PLUGIN_FRAME_FALLBACK;
-    snprintf(
-        g_fake.selection.reason,
-        sizeof(g_fake.selection.reason),
-        "%s",
-        "The requested gameframe is unavailable on this lane.");
-    g_fake.selection.revision++;
-    fake_frame_start();
-    widget = fake_widget_find("gameframe_detail");
-    CHECK(widget && strstr(widget->text, "Could not use Classic|Fixed.") != NULL,
-        "fallback state names the requested frame without changing its stored title");
-    CHECK(widget && strstr(widget->text, "Active fallback: Native gameframe.") != NULL,
-        "fallback state names the safe active frame");
-    CHECK(widget && strstr(widget->text, g_fake.selection.reason) != NULL,
-        "fallback state includes the resolver's reason");
-
-    /* An unavailable saved id remains the selected row. Showing Auto here
-     * would imply the fallback rewrote the user's preference when it did not. */
-    snprintf(
-        g_fake.selection.requested,
-        sizeof(g_fake.selection.requested),
-        "%s",
-        "removed-provider/favourite");
-    g_fake.selection.revision++;
-    fake_frame_start();
-    widget = fake_widget_find("gameframe");
-    CHECK(
-        widget && strstr(widget->choices, "Unavailable: removed-provider/favourite") != NULL,
-        "a missing saved frame stays visible in the dropdown");
-    CHECK(widget && widget->selected == 4, "the missing saved frame remains selected");
-    fake_pick(4, "forged display value");
-    CHECK(
-        strcmp(g_fake.selected_id, "removed-provider/favourite") == 0,
-        "the unavailable row still carries the exact stable id");
-
-    printf("client_settings_test: %d checks, %d failed\n", g_checks, g_failures);
-    return g_failures ? 1 : 0;
+    free(state);
+    printf("client_settings_test: %d checks, %d failed\n", checks, failures);
+    return failures ? 1 : 0;
 }

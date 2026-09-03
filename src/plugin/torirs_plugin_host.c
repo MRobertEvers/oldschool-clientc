@@ -47,6 +47,12 @@ plugin_ui_present_suppressions(
     bool enabled);
 static void
 plugin_ui_present_reconcile(struct ToriRS_PluginHost* host);
+static int
+plugin_ui_present_provider(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    char const* provider,
+    uint32_t facet);
 
 struct PluginSub
 {
@@ -132,6 +138,11 @@ struct ToriRS_PluginCtx
     struct ToriRS_UiContributionRef ui_contribution_refs[PLUGIN_UI_CONTRIBUTIONS_MAX];
     int ui_contribution_count;
     struct PluginV2Instance* v2;
+    void (*reload_handler)(
+        struct ToriRS_PluginHost* host,
+        int plugin_index,
+        void* user);
+    void* reload_user;
 };
 
 #define PLUGIN_V2_FRAME_UI_MAX TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX
@@ -511,6 +522,9 @@ struct ToriRS_PluginHost
     int ui_observed_change_head;
     int ui_observed_change_count;
     uint32_t ui_action_token;
+    int ui_tab_active;
+    uint32_t ui_tab_enabled_mask;
+    bool ui_tab_state_valid;
 
     /** enum ToriRS_PluginLayoutCanvas, and the pinned size for FIXED. */
     int layout_canvas;
@@ -673,6 +687,8 @@ struct ToriRS_PluginHost
         int plugin;
         /** The `images` slot, which is also the handle handed out. */
         int image;
+        /** Changes whenever an evicted image slot receives a new icon key. */
+        uint64_t revision;
         /**
          * The value of `icon_clock` when this was last asked for. A COUNTER
          * and not frame_ms: two icons fetched in the same millisecond by one
@@ -682,6 +698,7 @@ struct ToriRS_PluginHost
         uint64_t used;
     } obj_icons[TORIRS_PLUGIN_OBJ_ICONS_MAX];
     uint64_t icon_clock;
+    uint64_t icon_revision;
 
     /*
      * The shared plugin window.
@@ -2517,24 +2534,42 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
         { "orb_run",       "frame.orb.run",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
         { "orb_spec",      "frame.orb.special",     TORIRS_UI_NODE_BLOCKS_OVERLAY },
     };
-    struct ToriRS_UiBaseDeclaration declarations[48];
+    struct ToriRS_UiBaseDeclaration declarations[
+        TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX + 48];
     char dynamic_names[15][TORIRS_UI_NAME_MAX];
     char legacy_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
     char const* provider;
+    uint32_t tab_enabled_mask = 0;
+    int active_tab = -1;
     int count = 0;
 
     assert(host);
     if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
     {
+        host->ui_tab_state_valid = false;
         ToriRS_UiRegistry_ClearBase(&host->ui_registry);
         return;
     }
     provider = host->frame_selection.active[0] ? host->frame_selection.active : "core/native";
+    if( host->engine.tab_active )
+        active_tab = host->engine.tab_active(host->engine.user);
+    for( int tab = 0; tab < 14; tab++ )
+        if( !host->engine.tab_enabled ||
+            host->engine.tab_enabled(host->engine.user, tab) )
+            tab_enabled_mask |= 1u << tab;
+    host->ui_tab_active = active_tab;
+    host->ui_tab_enabled_mask = tab_enabled_mask;
+    host->ui_tab_state_valid = true;
 
     for( size_t i = 0; i < sizeof(SURFACE) / sizeof(SURFACE[0]); i++ )
     {
         int x, y, w, h;
-        if( host->engine.slot_rect(host->engine.user, SURFACE[i].slot, &x, &y, &w, &h) )
+        int present = host->engine.slot_rect(
+            host->engine.user, SURFACE[i].slot, &x, &y, &w, &h);
+        if( !present && SURFACE[i].slot == TORIRS_PLUGIN_SLOT_VIEWPORT )
+            present = host->engine.slot_rect(
+                host->engine.user, TORIRS_PLUGIN_SLOT_CANVAS, &x, &y, &w, &h);
+        if( present )
             count = plugin_ui_base_add_rect(
                 declarations,
                 count,
@@ -2607,6 +2642,7 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     for( int i = 0; i < 14; i++ )
     {
         int x, y, w, h;
+        int const before = count;
         snprintf(legacy_role, sizeof(legacy_role), "sidetab_%d", i);
         if( !host->engine.role_rect(host->engine.user, legacy_role, &x, &y, &w, &h) )
             continue;
@@ -2622,6 +2658,13 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
             w,
             h,
             TORIRS_UI_NODE_BLOCKS_OVERLAY);
+        if( count > before )
+        {
+            if( !(tab_enabled_mask & (1u << i)) )
+                declarations[count - 1].value.flags &= ~TORIRS_UI_NODE_ENABLED;
+            if( active_tab == i )
+                declarations[count - 1].value.flags |= TORIRS_UI_NODE_ACTIVE;
+        }
     }
 
     /* A v2 frame can publish semantic furniture directly. It replaces the
@@ -2635,11 +2678,18 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
             {
                 struct PluginV2FrameNode* source = &v2->frame_ui[i];
                 int destination = -1;
+                uint32_t runtime_flags = 0;
+                bool had_runtime = false;
 
                 for( int j = 0; j < count; j++ )
                     if( strcmp(declarations[j].node, source->name) == 0 )
                     {
                         destination = j;
+                        runtime_flags = declarations[j].value.flags &
+                                        (TORIRS_UI_NODE_VISIBLE |
+                                         TORIRS_UI_NODE_ENABLED |
+                                         TORIRS_UI_NODE_ACTIVE);
+                        had_runtime = true;
                         break;
                     }
                 if( destination < 0 )
@@ -2657,12 +2707,59 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
                     .facets = TORIRS_UI_FACET_ALL,
                     .value = source->value,
                 };
+                /* Tab availability/selection is live lane state, not frame
+                 * build state. Preserve it while replacing geometry/art. */
+                if( strncmp(source->name, "frame.sidebar.tab.", 18) == 0 )
+                {
+                    char* end = NULL;
+                    long const tab = strtol(source->name + 18, &end, 10);
+                    declarations[destination].value.flags &=
+                        ~(uint32_t)(TORIRS_UI_NODE_ENABLED |
+                                    TORIRS_UI_NODE_ACTIVE);
+                    if( end && !*end && tab >= 0 && tab < 14 )
+                    {
+                        if( tab_enabled_mask & (1u << tab) )
+                            declarations[destination].value.flags |=
+                                TORIRS_UI_NODE_ENABLED;
+                        if( active_tab == tab )
+                            declarations[destination].value.flags |=
+                                TORIRS_UI_NODE_ACTIVE;
+                    }
+                    if( had_runtime )
+                    {
+                        declarations[destination].value.flags &=
+                            ~TORIRS_UI_NODE_VISIBLE;
+                        declarations[destination].value.flags |=
+                            runtime_flags & TORIRS_UI_NODE_VISIBLE;
+                    }
+                }
             }
     }
 
     if( ToriRS_UiRegistry_ReplaceBase(&host->ui_registry, declarations, count) !=
         TORIRS_UI_REGISTRY_OK )
         TORIRS_REPORT("plugin: rejected the resolved named-UI base; keeping the previous tree\n");
+}
+
+/** Publish sidebar ACTIVE/ENABLED state only when the lane's live answer moves. */
+static void
+plugin_ui_tab_state_poll(struct ToriRS_PluginHost* host)
+{
+    uint32_t enabled_mask = 0;
+    int active = -1;
+
+    assert(host);
+    if( host->engine.screen(host->engine.user) != TORIRS_PLUGIN_SCREEN_GAME )
+        return;
+    if( host->engine.tab_active )
+        active = host->engine.tab_active(host->engine.user);
+    for( int tab = 0; tab < 14; tab++ )
+        if( !host->engine.tab_enabled ||
+            host->engine.tab_enabled(host->engine.user, tab) )
+            enabled_mask |= 1u << tab;
+    if( !host->ui_tab_state_valid || host->ui_tab_active != active ||
+        host->ui_tab_enabled_mask != enabled_mask )
+        plugin_ui_refresh_base(host);
 }
 
 /**
@@ -4239,6 +4336,10 @@ api_obj_image(
     host->obj_icons[free_entry].style = style;
     host->obj_icons[free_entry].plugin = ctx->index;
     host->obj_icons[free_entry].image = free_image;
+    host->icon_revision++;
+    if( host->icon_revision == 0 )
+        host->icon_revision++;
+    host->obj_icons[free_entry].revision = host->icon_revision;
     host->obj_icons[free_entry].used = host->icon_clock;
     return free_image;
 }
@@ -8729,6 +8830,49 @@ plugin_v2_ui_update_hook(
     }
 }
 
+static enum ToriRS_Result
+plugin_v2_ui_set_enabled_hook(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    struct ToriRS_UiNodeRef node,
+    bool enabled)
+{
+    struct ToriRS_PluginHost* host = user;
+    struct ToriRS_UiContributionRef contribution = { 0 };
+    uint32_t revision;
+
+    assert(host);
+    assert(context);
+    if( context->host != host || node.value == 0 ||
+        !context->ui_contributions_registered ||
+        !context->def->ui_contributions )
+        return TORIRS_RESULT_INVALID;
+    for( int i = 0; i < context->ui_contribution_count; i++ )
+    {
+        struct ToriRS_UiNodeRef const declared = ToriRS_UiRegistry_PrivateRef(
+            &host->ui_registry,
+            context->name,
+            context->def->ui_contributions[i].node);
+        if( declared.value == node.value )
+        {
+            contribution = context->ui_contribution_refs[i];
+            break;
+        }
+    }
+    if( contribution.value == 0 )
+        return TORIRS_RESULT_NOT_FOUND;
+    revision = ToriRS_UiRegistry_Revision(&host->ui_registry);
+    if( ToriRS_UiRegistry_SetContributionEnabled(
+            &host->ui_registry, contribution, enabled) != TORIRS_UI_REGISTRY_OK )
+        return TORIRS_RESULT_INVALID;
+    if( revision != ToriRS_UiRegistry_Revision(&host->ui_registry) )
+    {
+        host->placement_cache_valid = 0;
+        host->layout_notify_pending = 1;
+    }
+    return TORIRS_RESULT_OK;
+}
+
 static void
 plugin_v2_frame_node_repoint(struct PluginV2FrameNode* node)
 {
@@ -9017,6 +9161,76 @@ plugin_v2_panel_select(
     plugin_panel_bump(&host->panel_model_revision);
 }
 
+static enum ToriRS_Result
+plugin_v2_panel_set_options(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    char const* id,
+    char const* value,
+    struct ToriRS_SelectOption const* options,
+    int option_count)
+{
+    struct ToriRS_PluginHost* host = user;
+    struct ToriRS_PluginWinWidget* widget;
+    int selected = -1;
+    int slot;
+    bool changed = false;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    assert(id);
+    assert(value);
+    if( !plugin_panel_mutable(context, id, &slot) )
+        return TORIRS_RESULT_NOT_FOUND;
+    widget = &host->panel_widgets[slot];
+    if( widget->kind != TORIRS_PLUGIN_W_DROPDOWN || !widget->structured_select ||
+        option_count < 0 || option_count != widget->select_option_count ||
+        (option_count > 0 && !options) ||
+        strlen(value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX )
+        return TORIRS_RESULT_INVALID;
+    for( int i = 0; i < option_count; i++ )
+    {
+        struct ToriRS_PluginSelectOption* destination = &widget->select_options[i];
+        char const* detail;
+        if( options[i].struct_size < TORIRS_SELECT_OPTION_REQUIRED_SIZE ||
+            !options[i].value || !options[i].value[0] || !options[i].label ||
+            strlen(options[i].value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX )
+            return TORIRS_RESULT_INVALID;
+        for( int j = 0; j < i; j++ )
+            if( strcmp(options[i].value, options[j].value) == 0 )
+                return TORIRS_RESULT_INVALID;
+        detail = options[i].detail ? options[i].detail : "";
+        if( strcmp(destination->value, options[i].value) != 0 ||
+            strcmp(destination->label, options[i].label) != 0 ||
+            strcmp(destination->detail, detail) != 0 ||
+            destination->enabled != options[i].enabled )
+            changed = true;
+        plugin_copy_str(destination->value, sizeof(destination->value), options[i].value);
+        plugin_copy_str(destination->label, sizeof(destination->label), options[i].label);
+        plugin_copy_str(destination->detail, sizeof(destination->detail), detail);
+        destination->enabled = options[i].enabled;
+        if( strcmp(options[i].value, value) == 0 )
+            selected = i;
+    }
+    if( widget->selected != selected || strcmp(widget->selected_value, value) != 0 )
+        changed = true;
+    widget->selected = selected;
+    widget->value = selected;
+    plugin_copy_str(widget->selected_value, sizeof(widget->selected_value), value);
+    plugin_copy_str(widget->text, sizeof(widget->text), value);
+    if( changed )
+    {
+        plugin_panel_bump(&host->panel_model_revision);
+        plugin_panel_change_widget(
+            host,
+            slot,
+            TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS |
+                TORIRS_PLUGIN_PANEL_CHANGE_VALUE);
+    }
+    return TORIRS_RESULT_OK;
+}
+
 static bool
 plugin_v2_capability(
     void* user,
@@ -9032,6 +9246,58 @@ plugin_v2_capability(
     (void)context;
     return host->engine.capability &&
            host->engine.capability(host->engine.user, name) != 0;
+}
+
+static size_t
+plugin_v2_memory_bytes(
+    void* user,
+    struct ToriRS_PluginCtx* context)
+{
+    struct ToriRS_PluginHost* host = user;
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    return host->engine.memory_bytes
+               ? host->engine.memory_bytes(host->engine.user)
+               : 0;
+}
+
+static char const*
+plugin_v2_plugin_id(
+    void* user,
+    struct ToriRS_PluginCtx* context)
+{
+    struct ToriRS_PluginHost* host = user;
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    return context->name;
+}
+
+static uint64_t
+plugin_v2_loot_revision(
+    void* user,
+    struct ToriRS_PluginCtx* context)
+{
+    struct ToriRS_PluginHost* host = user;
+    assert(host);
+    assert(context && context->host == host);
+    return host->engine.loot_revision
+               ? host->engine.loot_revision(host->engine.user)
+               : 0;
+}
+
+static bool
+plugin_v2_loot_source_clear(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    int source_id)
+{
+    struct ToriRS_PluginHost* host = user;
+    assert(host);
+    assert(context && context->host == host);
+    return host->engine.loot_source_clear &&
+           host->engine.loot_source_clear(host->engine.user, source_id) != 0;
 }
 
 static enum ToriRS_AssetState
@@ -9180,6 +9446,48 @@ plugin_v2_model_request(
     return state;
 }
 
+static enum ToriRS_AssetState
+plugin_v2_item_image(
+    void* user,
+    struct ToriRS_PluginCtx* context,
+    int obj_id,
+    int count,
+    int style,
+    int* out_image,
+    uint64_t* out_revision)
+{
+    struct ToriRS_PluginHost* host = user;
+    int image;
+
+    assert(host);
+    assert(context);
+    assert(context->host == host);
+    assert(out_image);
+    assert(out_revision);
+    *out_image = -1;
+    *out_revision = 0;
+    if( obj_id < 0 || count < 0 || style < TORIRS_PLUGIN_OBJ_ICON_PLAIN ||
+        style > TORIRS_PLUGIN_OBJ_ICON_SELECTED )
+        return TORIRS_ASSET_INVALID;
+    if( count == 0 )
+        count = 1;
+    image = api_obj_image(context, obj_id, count, style);
+    if( image < 0 )
+        return TORIRS_ASSET_PENDING;
+    for( int i = 0; i < TORIRS_PLUGIN_OBJ_ICONS_MAX; i++ )
+        if( host->obj_icons[i].plugin == context->index &&
+            host->obj_icons[i].image == image &&
+            host->obj_icons[i].obj_id == obj_id &&
+            host->obj_icons[i].count == count &&
+            host->obj_icons[i].style == style )
+        {
+            *out_image = image;
+            *out_revision = host->obj_icons[i].revision;
+            return TORIRS_ASSET_READY;
+        }
+    return TORIRS_ASSET_ERROR;
+}
+
 static struct ToriRS_PluginV2AdapterHooks
 plugin_v2_adapter_hooks(struct ToriRS_PluginCtx* context)
 {
@@ -9199,10 +9507,17 @@ plugin_v2_adapter_hooks(struct ToriRS_PluginCtx* context)
         .ui_invoke = plugin_v2_ui_invoke,
         .ui_contribution_info = plugin_v2_ui_contribution_info_hook,
         .ui_update = plugin_v2_ui_update_hook,
+        .ui_set_enabled = plugin_v2_ui_set_enabled_hook,
         .frame_ui_node = plugin_v2_frame_ui_node,
         .image_release = plugin_v2_image_release,
         .model_release = plugin_v2_model_release,
         .panel_select = plugin_v2_panel_select,
+        .panel_set_options = plugin_v2_panel_set_options,
+        .memory_bytes = plugin_v2_memory_bytes,
+        .item_image = plugin_v2_item_image,
+        .plugin_id = plugin_v2_plugin_id,
+        .loot_revision = plugin_v2_loot_revision,
+        .loot_source_clear = plugin_v2_loot_source_clear,
         .resource_namespace = (uint32_t)context->index,
     };
 }
@@ -9265,6 +9580,8 @@ plugin_v2_has_event_callback(
         return def->callbacks.on_ui_action != NULL;
     case TORIRS_PLUGIN_EV_PANEL_DRAW:
         return def->callbacks.on_ui_draw != NULL;
+    case TORIRS_PLUGIN_EV_PANEL_LAYOUT:
+        return def->callbacks.on_ui_layout != NULL;
     case TORIRS_PLUGIN_EV_LAYOUT_CHANGED:
         /* A placement callback follows the resolved placement revision, not
          * this broader legacy notification. It is dispatched directly after
@@ -9406,10 +9723,16 @@ plugin_v2_event(
         struct ToriRS_DrawBuilder builder;
         struct ToriRS_PluginEvPanelDraw const* draw = event;
         ToriRS_PluginV2Adapter_DrawBegin(&v2->adapter, draw->surface, &scope, &builder);
+        ToriRS_PluginV2Adapter_DrawRegion(
+            &scope,
+            (struct ToriRS_Rect){ draw->x, draw->y, draw->width, draw->height });
         v2->definition->callbacks.on_ui_draw(api, state, draw->id, &builder);
         ToriRS_PluginV2Adapter_DrawEnd(&scope, &builder);
         break;
     }
+    case TORIRS_PLUGIN_EV_PANEL_LAYOUT:
+        v2->definition->callbacks.on_ui_layout(api, state, event);
+        break;
     case TORIRS_PLUGIN_EV_LAYOUT_CHANGED:
         v2->definition->callbacks.on_placement_changed(
             api, state, (uint32_t)((struct ToriRS_PluginEvTick const*)event)->cycle);
@@ -10066,6 +10389,20 @@ PluginHost_SetEnabled(
 }
 
 void
+PluginHost_SetReloadHandler(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    void (*handler)(struct ToriRS_PluginHost*, int, void*),
+    void* user)
+{
+    struct ToriRS_PluginCtx* context;
+    assert(host);
+    context = plugin_at(host, plugin_index);
+    context->reload_handler = handler;
+    context->reload_user = handler ? user : NULL;
+}
+
+void
 PluginHost_Reload(
     struct ToriRS_PluginHost* host,
     int plugin_index)
@@ -10090,7 +10427,9 @@ PluginHost_Reload(
      * it -- so everything below rereads through ctx->def rather than caching
      * anything from before this call.
      */
-    if( ctx->def->reload )
+    if( ctx->reload_handler )
+        ctx->reload_handler(host, plugin_index, ctx->reload_user);
+    else if( ctx->def->reload )
         ctx->def->reload(ctx);
 
     /* Reread through the new def, for the same reason as the schema below. */
@@ -10384,7 +10723,11 @@ PluginHost_UiInvoke(
      * deliberately falls through to the lane route for `activate`, while a
      * custom spelling has no lane-specific numeric fallback. */
     {
-        int const provider = PluginHost_IndexOf(host, resolved.actions_provider);
+        int const provider = plugin_ui_present_provider(
+            host,
+            node,
+            resolved.actions_provider,
+            TORIRS_UI_FACET_ACTIONS);
         if( provider >= 0 && host->plugins[provider].enabled && host->plugins[provider].running &&
             host->plugins[provider].v2 &&
             host->plugins[provider].v2->definition->callbacks.on_ui_node_action )
@@ -10416,7 +10759,13 @@ PluginHost_UiInvoke(
     else if( strcmp(name, "frame.orb.special") == 0 )
         snprintf(role, sizeof(role), "%s", "orb_spec");
     else if( strncmp(name, "frame.sidebar.tab.", 18) == 0 )
-        snprintf(role, sizeof(role), "sidetab_%s", name + 18);
+    {
+        char* end = NULL;
+        long const tab = strtol(name + 18, &end, 10);
+        if( end && !*end && tab >= 0 && tab < 14 && host->engine.tab_select )
+            return host->engine.tab_select(host->engine.user, (int)tab) != 0;
+        return false;
+    }
     if( !role[0] )
         return false;
 
@@ -10494,7 +10843,34 @@ plugin_ui_present_provider(
     assert(host);
     assert(provider);
     plugin = PluginHost_IndexOf(host, provider);
-    if( plugin < 0 || !host->plugins[plugin].v2 || !host->plugins[plugin].enabled ||
+    if( plugin < 0 )
+    {
+        int const offer = PluginFrameCatalog_Find(&host->frame_catalog, provider);
+        struct PluginFrameCatalogEntry const* entry =
+            offer >= 0 ? PluginFrameCatalog_At(&host->frame_catalog, offer) : NULL;
+
+        plugin = entry ? entry->plugin : -1;
+        if( plugin >= 0 && plugin < host->plugin_count &&
+            host->plugins[plugin].v2 && host->plugins[plugin].enabled &&
+            host->plugins[plugin].running )
+        {
+            struct PluginV2Instance const* v2 = host->plugins[plugin].v2;
+            char const* name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
+
+            for( int i = 0; name && i < v2->frame_ui_count; i++ )
+                if( strcmp(v2->frame_ui[i].name, name) == 0 )
+                {
+                    if( facet == TORIRS_UI_FACET_APPEARANCE )
+                        return plugin;
+                    if( facet == TORIRS_UI_FACET_ACTIONS &&
+                        v2->frame_ui[i].value.action_count > 0 )
+                        return plugin;
+                    return -1;
+                }
+        }
+        return -1;
+    }
+    if( !host->plugins[plugin].v2 || !host->plugins[plugin].enabled ||
         !host->plugins[plugin].running || !host->plugins[plugin].ui_contributions_registered )
         return -1;
     for( int i = 0; i < host->plugins[plugin].ui_contribution_count; i++ )
@@ -11649,6 +12025,8 @@ PluginHost_FrameStart(
      * later transaction instead of recursively entering the callback list. */
     if( host->layout_notify_pending )
         plugin_layout_notifications_run(host);
+
+    plugin_ui_tab_state_poll(host);
 
     /* The screen poll. Here rather than at the transitions themselves because
      * the app changes screens from half a dozen places (login, logout, a
@@ -12951,6 +13329,7 @@ PluginHost_CanvasClick(
     struct ToriRS_PluginCtx* ctx;
     struct ToriRS_PluginEvCanvasClick ev;
     int prev;
+    int prev_event;
 
     if( !host )
         return;
@@ -13005,6 +13384,26 @@ PluginHost_CanvasClick(
                 continue;
             (void)PluginHost_UiInvoke(host, row->node, row->value.actions[op]);
             return;
+        }
+        return;
+    }
+
+    if( ctx->v2 )
+    {
+        struct PluginV2Instance* v2 = ctx->v2;
+        enum ToriRS_CallbackResult (*callback)(
+            struct ToriRS_ApiV2*, void*, uint32_t, int, int, int) =
+            v2->definition->callbacks.on_canvas_action;
+
+        if( callback && op >= 0 )
+        {
+            prev = host->dispatching;
+            prev_event = host->dispatch_event;
+            host->dispatching = plugin_index;
+            host->dispatch_event = TORIRS_PLUGIN_EV_CANVAS_CLICK;
+            (void)callback(&v2->adapter.api, v2->state, tag, op, x, y);
+            host->dispatching = prev;
+            host->dispatch_event = prev_event;
         }
         return;
     }

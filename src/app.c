@@ -106,6 +106,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "painters/painters_cull_project.h"
 #include "painters/scene_occluders.h"
 #include "perf/torirs_perf.h"
+#include "platform/platform_memory.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"

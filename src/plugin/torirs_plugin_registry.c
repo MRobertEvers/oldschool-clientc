@@ -20,13 +20,13 @@
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_FEATURE_FLAGS;
 extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_TILEIND;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MINIMAP_ORBS;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_ORBS;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_GAMEFRAME;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_ITEM_STATS;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_TRACKER;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LOOT_TRACKER;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
 
 /*
@@ -73,20 +73,20 @@ static struct PluginRegistryEntry const PLUGIN_TABLE[] = {
     { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_CLIENT_SETTINGS },
     { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_FEATURE_FLAGS },
     { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_TILEIND },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_MINIMAP_ORBS, NULL },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_XP_ORBS, NULL },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_GAMEFRAME, NULL },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_MINIMAP_ORBS },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_XP_ORBS },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_GAMEFRAME },
     /* Beside the desktop provider for presentation only. Both publish their
      * offers before startup; the one saved canonical id selects is the only
      * provider the host runs, independent of this table order. */
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_MOBILE_GAMEFRAME, NULL },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_ITEM_STATS, NULL },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_MOBILE_GAMEFRAME },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_ITEM_STATS },
     /* The two trackers, beside the other readouts. Both are PAGES and neither
      * draws on the canvas, which is why they are on by default where
      * xp-drop-orbs is not: nothing appears on a fresh install until the player
      * opens the panel and asks. */
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_XP_TRACKER, NULL },
-    { PLUGIN_REGISTRY_V1, &TORIRS_PLUGIN_LOOT_TRACKER, NULL },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_XP_TRACKER },
+    { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_LOOT_TRACKER },
     { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_NXT_HIGHLIGHT },
     { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_NXT_BIRD_NEST },
     { PLUGIN_REGISTRY_V2, NULL, &TORIRS_PLUGIN_NXT_CANNON_AMMO },

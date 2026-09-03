@@ -1,4 +1,5 @@
-#include "plugin/torirs_plugin.h"
+#include "plugin/plugins/plugin_draw.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -228,9 +229,99 @@ struct is_change
     unsigned char positivity;
 };
 
-/* ---------------------------------------------------------------- the api */
+/* --------------------------------------------------------- per-instance state */
 
-static struct ToriRS_PluginApi const* g_api;
+struct is_glyph;
+struct is_row;
+struct is_bonus_row;
+
+struct ItemStatsState
+{
+    struct
+    {
+        int obj_id;
+        int component_id;
+        int slot;
+        long frame;
+    } hover;
+    long frame;
+    struct is_glyph* glyph;
+    int glyph_ready;
+    int glyph_line_h;
+    int glyph_row_h;
+    struct ToriRS_ImageRef img_text;
+    uint32_t* text_px;
+    int text_w;
+    int text_h;
+    uint32_t* scratch;
+    struct is_row* rows;
+    int row_count;
+    struct ToriRS_ImageRef tip_image;
+    int tip_w;
+    int tip_h;
+    int tip_obj;
+    long tip_frame;
+    struct is_bonus_row* bonus;
+    int bonus_count;
+    int bonus_state;
+    char skill_name[IS_SKILL_COUNT][32];
+};
+
+struct ItemStatsRuntime
+{
+    struct ToriRS_ApiV2* api;
+    struct ItemStatsState* state;
+};
+
+#define g_api (rt->api)
+#define g_hover (rt->state->hover)
+#define g_frame (rt->state->frame)
+#define g_glyph (rt->state->glyph)
+#define g_glyph_ready (rt->state->glyph_ready)
+#define g_glyph_line_h (rt->state->glyph_line_h)
+#define g_glyph_row_h (rt->state->glyph_row_h)
+#define g_img_text (rt->state->img_text)
+#define g_text_px (rt->state->text_px)
+#define g_text_w (rt->state->text_w)
+#define g_text_h (rt->state->text_h)
+#define g_scratch (rt->state->scratch)
+#define g_rows (rt->state->rows)
+#define g_row_count (rt->state->row_count)
+#define g_tip_image (rt->state->tip_image)
+#define g_tip_w (rt->state->tip_w)
+#define g_tip_h (rt->state->tip_h)
+#define g_tip_obj (rt->state->tip_obj)
+#define g_tip_frame (rt->state->tip_frame)
+#define g_bonus (rt->state->bonus)
+#define g_bonus_count (rt->state->bonus_count)
+#define g_bonus_state (rt->state->bonus_state)
+
+static int
+is_cfg_bool(struct ItemStatsRuntime* rt, char const* key)
+{
+    bool value = false;
+    (void)g_api->config.get_bool(g_api, key, &value);
+    return value ? 1 : 0;
+}
+
+static uint32_t
+is_cfg_color(struct ItemStatsRuntime* rt, char const* key)
+{
+    uint32_t value = 0;
+    (void)g_api->config.get_color(g_api, key, &value);
+    return value;
+}
+
+static bool
+is_skill(
+    struct ItemStatsRuntime* rt,
+    int index,
+    struct ToriRS_SkillSnapshot* out)
+{
+    memset(out, 0, sizeof(*out));
+    out->struct_size = sizeof(*out);
+    return g_api->game && g_api->game->skill(g_api, index, out);
+}
 
 /*
  * What the pointer was over, as of the last hover rebuild.
@@ -247,16 +338,6 @@ static struct ToriRS_PluginApi const* g_api;
  * so a stash nobody refreshed goes stale and stops drawing rather than
  * following the pointer around under an open menu.
  */
-static struct
-{
-    int obj_id;
-    int component_id;
-    int slot;
-    long frame;
-} g_hover;
-
-static long g_frame;
-
 /* ------------------------------------------------------------ the player */
 
 /*
@@ -275,15 +356,23 @@ struct is_player
 };
 
 static void
-is_player_sample(struct ToriRS_PluginCtx* ctx, struct is_player* out)
+is_player_sample(struct ItemStatsRuntime* rt, struct is_player* out)
 {
-    assert(ctx);
     assert(out);
 
     memset(out, 0, sizeof(*out));
     for( int skill = 0; skill < IS_SKILL_COUNT; skill++ )
-        g_api->stat(ctx, skill, &out->current[skill], &out->base[skill]);
-    out->run_energy = g_api->run_energy(ctx);
+    {
+        struct ToriRS_SkillSnapshot snap;
+        if( is_skill(rt, skill, &snap) )
+        {
+            out->current[skill] = snap.current_level;
+            out->base[skill] = snap.base_level;
+            snprintf(rt->state->skill_name[skill],
+                sizeof(rt->state->skill_name[skill]), "%s", snap.name);
+        }
+    }
+    out->run_energy = g_api->game ? g_api->game->run_energy(g_api) : 0;
 }
 
 /** The BOOSTED level, or the run meter. RuneLite's Stat.getValue. */
@@ -312,15 +401,19 @@ is_stat_maximum(struct is_player const* player, int stat)
 }
 
 static char const*
-is_stat_name(struct ToriRS_PluginCtx* ctx, int stat)
+is_stat_name(struct ItemStatsRuntime* rt, int stat)
 {
-    char const* name;
-
-    assert(ctx);
     if( stat == IS_RUN_ENERGY )
         return "Run Energy";
-    name = g_api->skill_name(ctx, stat);
-    return name ? name : "?";
+    if( stat < 0 || stat >= IS_SKILL_COUNT ) return "?";
+    if( !rt->state->skill_name[stat][0] )
+    {
+        struct ToriRS_SkillSnapshot snap;
+        if( is_skill(rt, stat, &snap) )
+            snprintf(rt->state->skill_name[stat],
+                sizeof(rt->state->skill_name[stat]), "%s", snap.name);
+    }
+    return rt->state->skill_name[stat][0] ? rt->state->skill_name[stat] : "?";
 }
 
 /* ----------------------------------------------------- the calculators */
@@ -394,7 +487,7 @@ is_max(int a, int b)
  * PrayerPotion does -- a wrench in the bank does nothing.
  */
 static int
-is_has_holy_wrench(struct ToriRS_PluginCtx* ctx)
+is_has_holy_wrench(struct ItemStatsRuntime* rt)
 {
     static char const* const k_wrench[] = {
         "holy wrench", "prayer cape", "max cape", "ring of the gods"
@@ -402,14 +495,13 @@ is_has_holy_wrench(struct ToriRS_PluginCtx* ctx)
     int const worn[] = { 1 /* cape */, 12 /* ring */ };
     struct ToriRS_PluginObjInfo info;
 
-    assert(ctx);
-
     for( int i = 0; i < (int)(sizeof(worn) / sizeof(worn[0])); i++ )
     {
         int obj_id = -1;
-        if( !g_api->inv_slot(ctx, TORIRS_PLUGIN_INV_WORN, worn[i], &obj_id, NULL) )
+        if( !g_api->game->inventory_slot(
+                g_api, TORIRS_PLUGIN_INV_WORN, worn[i], &obj_id, NULL) )
             continue;
-        if( obj_id < 0 || !g_api->obj_info(ctx, obj_id, &info) )
+        if( obj_id < 0 || !g_api->game->item_info(g_api, obj_id, &info) )
             continue;
         for( int k = 0; k < (int)(sizeof(k_wrench) / sizeof(k_wrench[0])); k++ )
         {
@@ -426,14 +518,17 @@ is_has_holy_wrench(struct ToriRS_PluginCtx* ctx)
         }
     }
 
-    for( int slot = 0, size = g_api->inv_size(ctx, TORIRS_PLUGIN_INV_BACKPACK); slot < size;
+    for( int slot = 0,
+             size = g_api->game->inventory_size(g_api, TORIRS_PLUGIN_INV_BACKPACK);
+         slot < size;
          slot++ )
     {
         int obj_id = -1;
         char lowered[64];
-        if( !g_api->inv_slot(ctx, TORIRS_PLUGIN_INV_BACKPACK, slot, &obj_id, NULL) )
+        if( !g_api->game->inventory_slot(
+                g_api, TORIRS_PLUGIN_INV_BACKPACK, slot, &obj_id, NULL) )
             continue;
-        if( obj_id < 0 || !g_api->obj_info(ctx, obj_id, &info) )
+        if( obj_id < 0 || !g_api->game->item_info(g_api, obj_id, &info) )
             continue;
         snprintf(lowered, sizeof(lowered), "%s", info.name);
         for( char* p = lowered; *p; p++ )
@@ -449,18 +544,18 @@ is_has_holy_wrench(struct ToriRS_PluginCtx* ctx)
 /** Is the named item in the given worn slot? Used by the two potions whose
  *  strength depends on one piece of equipment. */
 static int
-is_worn_named(struct ToriRS_PluginCtx* ctx, int slot, char const* prefix)
+is_worn_named(struct ItemStatsRuntime* rt, int slot, char const* prefix)
 {
     struct ToriRS_PluginObjInfo info;
     char lowered[64];
     int obj_id = -1;
 
-    assert(ctx);
     assert(prefix);
 
-    if( !g_api->inv_slot(ctx, TORIRS_PLUGIN_INV_WORN, slot, &obj_id, NULL) )
+    if( !g_api->game->inventory_slot(
+            g_api, TORIRS_PLUGIN_INV_WORN, slot, &obj_id, NULL) )
         return 0;
-    if( obj_id < 0 || !g_api->obj_info(ctx, obj_id, &info) )
+    if( obj_id < 0 || !g_api->game->item_info(g_api, obj_id, &info) )
         return 0;
     snprintf(lowered, sizeof(lowered), "%s", info.name);
     for( char* p = lowered; *p; p++ )
@@ -473,7 +568,7 @@ is_worn_named(struct ToriRS_PluginCtx* ctx, int slot, char const* prefix)
  * cap at the top is applied. */
 static int
 is_op_heals(
-    struct ToriRS_PluginCtx* ctx,
+    struct ItemStatsRuntime* rt,
     struct is_player const* player,
     struct is_op const* op,
     int use_high_end)
@@ -483,7 +578,6 @@ is_op_heals(
     int num = use_high_end ? op->num_hi : op->num;
     int delta = use_high_end ? op->delta_hi : op->delta;
 
-    assert(ctx);
     assert(player);
     assert(op);
 
@@ -509,12 +603,12 @@ is_op_heals(
     {
         /* max(base * perc, 0) + delta, with a holy wrench worth two more
          * percentage points. */
-        int num_used = num + (is_has_holy_wrench(ctx) ? 2 : 0);
+        int num_used = num + (is_has_holy_wrench(rt) ? 2 : 0);
         return (max * num_used) / 100 + delta;
     }
     case IS_STAMINA:
         /* A ring of endurance doubles it. */
-        return is_worn_named(ctx, 12, "ring of endurance") ? delta * 2 : delta;
+        return is_worn_named(rt, 12, "ring of endurance") ? delta * 2 : delta;
     case IS_ROCK_CAKE_EAT:
         return value <= 1 ? 0 : -1;
     case IS_ROCK_CAKE_GUZZLE:
@@ -556,7 +650,7 @@ is_op_heals(
  */
 static void
 is_op_effect(
-    struct ToriRS_PluginCtx* ctx,
+    struct ItemStatsRuntime* rt,
     struct is_player const* player,
     struct is_op const* op,
     int use_high_end,
@@ -564,7 +658,7 @@ is_op_effect(
 {
     int value = is_stat_value(player, op->stat);
     int max = is_stat_maximum(player, op->stat);
-    int delta = is_op_heals(ctx, player, op, use_high_end);
+    int delta = is_op_heals(rt, player, op, use_high_end);
     int hit_cap = 0;
     int new_value;
 
@@ -601,7 +695,7 @@ is_op_effect(
  * reference's own rule. */
 static void
 is_op_apply(
-    struct ToriRS_PluginCtx* ctx,
+    struct ItemStatsRuntime* rt,
     struct is_player const* player,
     struct is_op const* op,
     struct is_change* out)
@@ -613,12 +707,12 @@ is_op_apply(
 
     if( !op->ranged )
     {
-        is_op_effect(ctx, player, op, 0, out);
+        is_op_effect(rt, player, op, 0, out);
         return;
     }
 
-    is_op_effect(ctx, player, op, 0, &lo);
-    is_op_effect(ctx, player, op, 1, &hi);
+    is_op_effect(rt, player, op, 0, &lo);
+    is_op_effect(rt, player, op, 1, &hi);
 
     memset(out, 0, sizeof(*out));
     out->stat = op->stat;
@@ -1510,7 +1604,7 @@ is_lookup(char const* cache_name)
  */
 static int
 is_effect_ops(
-    struct ToriRS_PluginCtx* ctx,
+    struct ItemStatsRuntime* rt,
     struct is_player const* player,
     struct is_effect const* effect,
     struct is_op* out,
@@ -1518,7 +1612,6 @@ is_effect_ops(
 {
     int at = 0;
 
-    assert(ctx);
     assert(player);
     assert(effect);
     assert(out);
@@ -1700,7 +1793,7 @@ is_effect_ops(
         if( at < out_max )
             out[at++] = heal;
         assert(effect->base);
-        at += is_effect_ops(ctx, player, effect->base, out + at, out_max - at);
+        at += is_effect_ops(rt, player, effect->base, out + at, out_max - at);
         return at;
     }
 
@@ -1714,18 +1807,18 @@ is_effect_ops(
  *  order, which is the order the ops were declared in). */
 static int
 is_changes(
-    struct ToriRS_PluginCtx* ctx,
+    struct ItemStatsRuntime* rt,
     struct is_player const* player,
     struct is_effect const* effect,
     struct is_change* out,
     int out_max)
 {
     struct is_op ops[IS_OPS_MAX];
-    int count = is_effect_ops(ctx, player, effect, ops, IS_OPS_MAX);
+    int count = is_effect_ops(rt, player, effect, ops, IS_OPS_MAX);
     int at = 0;
 
     for( int i = 0; i < count && at < out_max; i++ )
-        is_op_apply(ctx, player, &ops[i], &out[at++]);
+        is_op_apply(rt, player, &ops[i], &out[at++]);
     return at;
 }
 
@@ -1759,15 +1852,6 @@ struct is_glyph
 
 #define IS_GLYPH_FIRST 32
 #define IS_GLYPH_COUNT 96
-static struct is_glyph g_glyph[IS_GLYPH_COUNT];
-static int g_glyph_ready;
-static int g_glyph_line_h = 10;
-static int g_glyph_row_h = 10;
-
-static int g_img_text = -1;
-static uint32_t* g_text_px;
-static int g_text_w;
-static int g_text_h;
 
 /* The plate the tooltip is drawn on, and how much of it is margin. */
 #define IS_TIP_ARGB 0xE0221E19u
@@ -1778,7 +1862,6 @@ static int g_text_h;
 
 #define IS_SCRATCH_W 288
 #define IS_SCRATCH_H 352
-static uint32_t g_scratch[IS_SCRATCH_W * IS_SCRATCH_H];
 
 static uint32_t
 is_over(uint32_t dst, uint32_t src)
@@ -1814,20 +1897,19 @@ is_over(uint32_t dst, uint32_t src)
  * other and keeps it apart from the header keys and the comments.
  */
 static int
-is_load_glyphs(struct ToriRS_PluginCtx* ctx)
+is_load_glyphs(struct ItemStatsRuntime* rt)
 {
     char const* at;
-    int size = 0;
-
-    assert(ctx);
+    void const* bytes = NULL;
+    size_t size = 0;
 
     if( g_glyph_ready )
         return 1;
-    if( !g_api->asset_load(ctx, "text.ini") )
+    if( g_api->assets.request(g_api, "text.ini") != TORIRS_ASSET_READY )
         return 0;
-    at = (char const*)g_api->asset_data(ctx, "text.ini", &size);
-    if( !at || size <= 0 )
+    if( !g_api->assets.bytes(g_api, "text.ini", &bytes, &size) || !bytes || size == 0 )
         return 0;
+    at = bytes;
 
     for( char const* end = at + size; at < end; )
     {
@@ -1885,7 +1967,7 @@ is_load_glyphs(struct ToriRS_PluginCtx* ctx)
 }
 
 static int
-is_text_width(char const* text)
+is_text_width(struct ItemStatsRuntime* rt, char const* text)
 {
     int width = 0;
 
@@ -1909,7 +1991,14 @@ is_text_width(char const* text)
  * the settings panel gets it without a rebake.
  */
 static void
-is_text(int x, int top, char const* text, int w, int h, uint32_t tint)
+is_text(
+    struct ItemStatsRuntime* rt,
+    int x,
+    int top,
+    char const* text,
+    int w,
+    int h,
+    uint32_t tint)
 {
     int pen = x;
 
@@ -1969,38 +2058,33 @@ struct is_row
 
 #define IS_ROWS_MAX 40
 
-static struct is_row g_rows[IS_ROWS_MAX];
-static int g_row_count;
-
-/** The composed panel, and what it was composed from -- so a pointer resting
- *  on one item recomposes nothing. */
-static int g_tip_image = -1;
-static int g_tip_w;
-static int g_tip_h;
-static int g_tip_obj;
-static long g_tip_frame;
+/** The composed panel is retained in ItemStatsState and keyed by object/frame. */
 
 static uint32_t
-is_positivity_rgb(struct ToriRS_PluginCtx* ctx, int positivity)
+is_positivity_rgb(struct ItemStatsRuntime* rt, int positivity)
 {
-    assert(ctx);
     switch( positivity )
     {
     case IS_BETTER_UNCAPPED:
-        return g_api->cfg_color(ctx, "color_better");
+        return is_cfg_color(rt, "color_better");
     case IS_BETTER_SOMECAPPED:
-        return g_api->cfg_color(ctx, "color_better_some_capped");
+        return is_cfg_color(rt, "color_better_some_capped");
     case IS_BETTER_CAPPED:
-        return g_api->cfg_color(ctx, "color_better_capped");
+        return is_cfg_color(rt, "color_better_capped");
     case IS_WORSE:
-        return g_api->cfg_color(ctx, "color_worse");
+        return is_cfg_color(rt, "color_worse");
     default:
-        return g_api->cfg_color(ctx, "color_no_change");
+        return is_cfg_color(rt, "color_no_change");
     }
 }
 
 static void
-is_row_add(char const* left, uint32_t left_rgb, char const* right, uint32_t right_rgb)
+is_row_add(
+    struct ItemStatsRuntime* rt,
+    char const* left,
+    uint32_t left_rgb,
+    char const* right,
+    uint32_t right_rgb)
 {
     struct is_row* row;
 
@@ -2043,23 +2127,22 @@ is_format_boost(char* out, int out_size, int value, int min_value, int has_range
  */
 static void
 is_build_consumable(
-    struct ToriRS_PluginCtx* ctx,
+    struct ItemStatsRuntime* rt,
     struct is_player const* player,
     struct is_effect const* effect)
 {
     struct is_change changes[IS_OPS_MAX];
-    int const relative = g_api->cfg_bool(ctx, "show_relative");
-    int const theoretical = g_api->cfg_bool(ctx, "show_theoretical");
-    int const absolute = g_api->cfg_bool(ctx, "show_absolute");
+    int const relative = is_cfg_bool(rt, "show_relative");
+    int const theoretical = is_cfg_bool(rt, "show_theoretical");
+    int const absolute = is_cfg_bool(rt, "show_absolute");
     int count;
 
-    assert(ctx);
     assert(effect);
 
     if( !relative && !theoretical && !absolute )
         return;
 
-    count = is_changes(ctx, player, effect, changes, IS_OPS_MAX);
+    count = is_changes(rt, player, effect, changes, IS_OPS_MAX);
     for( int i = 0; i < count; i++ )
     {
         struct is_change const* c = &changes[i];
@@ -2090,8 +2173,8 @@ is_build_consumable(
                 c->absolute);
         }
         snprintf(
-            line + at, sizeof(line) - (size_t)at, " %s", is_stat_name(ctx, c->stat));
-        is_row_add(line, is_positivity_rgb(ctx, c->positivity), NULL, 0);
+            line + at, sizeof(line) - (size_t)at, " %s", is_stat_name(rt, c->stat));
+        is_row_add(rt, line, is_positivity_rgb(rt, c->positivity), NULL, 0);
     }
 }
 
@@ -2125,32 +2208,29 @@ struct is_bonus_row
     short speed;
 };
 
-static struct is_bonus_row* g_bonus;
-static int g_bonus_count;
 /** 0 not tried, 1 loaded, -1 the asset is absent -- which is a legitimate
  *  install (the table is only needed by the older revisions) and must not be
  *  retried every frame. */
-static int g_bonus_state;
 
 static int
-is_load_bonuses(struct ToriRS_PluginCtx* ctx)
+is_load_bonuses(struct ItemStatsRuntime* rt)
 {
     char const* at;
-    int size = 0;
+    void const* bytes = NULL;
+    size_t size = 0;
     int cap = 0;
-
-    assert(ctx);
 
     if( g_bonus_state != 0 )
         return g_bonus_state > 0;
-    if( !g_api->asset_load(ctx, "bonuses.txt") )
+    if( g_api->assets.request(g_api, "bonuses.txt") != TORIRS_ASSET_READY )
         return 0; /* still reading; asked again next frame */
-    at = (char const*)g_api->asset_data(ctx, "bonuses.txt", &size);
-    if( !at || size <= 0 )
+    if( !g_api->assets.bytes(g_api, "bonuses.txt", &bytes, &size) ||
+        !bytes || size == 0 )
     {
         g_bonus_state = -1;
         return 0;
     }
+    at = bytes;
 
     for( char const* end = at + size; at < end; )
     {
@@ -2216,20 +2296,19 @@ is_load_bonuses(struct ToriRS_PluginCtx* ctx)
     }
 
     /* The bytes are the host's and are not needed once parsed. */
-    g_api->asset_release(ctx, "bonuses.txt");
+    g_api->assets.release(g_api, "bonuses.txt");
     g_bonus_state = g_bonus_count > 0 ? 1 : -1;
     return g_bonus_state > 0;
 }
 
 static struct is_bonus_row const*
-is_bonus_lookup(struct ToriRS_PluginCtx* ctx, char const* cache_name)
+is_bonus_lookup(struct ItemStatsRuntime* rt, char const* cache_name)
 {
     char key[56];
 
-    assert(ctx);
     assert(cache_name);
 
-    if( !is_load_bonuses(ctx) )
+    if( !is_load_bonuses(rt) )
         return NULL;
     is_normalize_name(cache_name, key, sizeof(key));
     if( key[0] == '\0' )
@@ -2286,13 +2365,12 @@ is_equip_from_info(struct ToriRS_PluginObjInfo const* info, struct is_equip* out
  */
 static int
 is_equip_resolve(
-    struct ToriRS_PluginCtx* ctx,
+    struct ItemStatsRuntime* rt,
     struct ToriRS_PluginObjInfo const* info,
     struct is_equip* out)
 {
     struct is_bonus_row const* row;
 
-    assert(ctx);
     assert(info);
     assert(out);
 
@@ -2302,7 +2380,7 @@ is_equip_resolve(
         return 1;
     }
 
-    row = is_bonus_lookup(ctx, info->name);
+    row = is_bonus_lookup(rt, info->name);
     if( !row || row->slot < 0 )
         return 0;
 
@@ -2369,19 +2447,19 @@ is_equip_subtract(struct is_equip* self, struct is_equip const* other)
 /** What is worn in `slot`, or 0 when the slot is empty / the container is not
  *  known / the record is not resident. */
 static int
-is_worn_equip(struct ToriRS_PluginCtx* ctx, int slot, struct is_equip* out)
+is_worn_equip(struct ItemStatsRuntime* rt, int slot, struct is_equip* out)
 {
     struct ToriRS_PluginObjInfo info;
     int obj_id = -1;
 
-    assert(ctx);
     assert(out);
 
-    if( !g_api->inv_slot(ctx, TORIRS_PLUGIN_INV_WORN, slot, &obj_id, NULL) )
+    if( !g_api->game->inventory_slot(
+            g_api, TORIRS_PLUGIN_INV_WORN, slot, &obj_id, NULL) )
         return 0;
-    if( obj_id < 0 || !g_api->obj_info(ctx, obj_id, &info) )
+    if( obj_id < 0 || !g_api->game->item_info(g_api, obj_id, &info) )
         return 0;
-    return is_equip_resolve(ctx, &info, out);
+    return is_equip_resolve(rt, &info, out);
 }
 
 /*
@@ -2394,7 +2472,7 @@ is_worn_equip(struct ToriRS_PluginCtx* ctx, int slot, struct is_equip* out)
  */
 static void
 is_bonus_row(
-    struct ToriRS_PluginCtx* ctx,
+    struct ItemStatsRuntime* rt,
     char const* label,
     int value,
     int diff,
@@ -2403,25 +2481,24 @@ is_bonus_row(
 {
     char left[72];
     char right[32];
-    uint32_t const neutral = g_api->cfg_color(ctx, "color_no_change");
+    uint32_t const neutral = is_cfg_color(rt, "color_no_change");
     uint32_t rgb;
 
-    assert(ctx);
     assert(label);
 
     if( value == 0 && diff == 0 )
         return;
-    if( diff == 0 && !(g_api->cfg_bool(ctx, "always_show_base_stats") && show_base) )
+    if( diff == 0 && !(is_cfg_bool(rt, "always_show_base_stats") && show_base) )
         return;
 
     if( diff > 0 )
-        rgb = is_positivity_rgb(ctx, inverse ? IS_WORSE : IS_BETTER_UNCAPPED);
+        rgb = is_positivity_rgb(rt, inverse ? IS_WORSE : IS_BETTER_UNCAPPED);
     else if( diff < 0 )
-        rgb = is_positivity_rgb(ctx, inverse ? IS_BETTER_UNCAPPED : IS_WORSE);
+        rgb = is_positivity_rgb(rt, inverse ? IS_BETTER_UNCAPPED : IS_WORSE);
     else
         rgb = neutral;
 
-    if( g_api->cfg_bool(ctx, "always_show_base_stats") && show_base )
+    if( is_cfg_bool(rt, "always_show_base_stats") && show_base )
     {
         snprintf(left, sizeof(left), "%s: %d ", label, value);
         if( diff != 0 )
@@ -2434,7 +2511,7 @@ is_bonus_row(
         snprintf(left, sizeof(left), "%s: ", label);
         snprintf(right, sizeof(right), "%+d", diff);
     }
-    is_row_add(left, neutral, right, rgb);
+    is_row_add(rt, left, neutral, right, rgb);
 }
 
 /*
@@ -2448,7 +2525,9 @@ is_bonus_row(
  * exactly when a player is deciding between two setups.
  */
 static void
-is_build_equipment(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginObjInfo const* info)
+is_build_equipment(
+    struct ItemStatsRuntime* rt,
+    struct ToriRS_PluginObjInfo const* info)
 {
     struct is_equip self;
     struct is_equip diff;
@@ -2456,22 +2535,21 @@ is_build_equipment(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginObjInfo con
     struct is_equip offhand;
     int have_other = 0;
     int have_offhand = 0;
-    uint32_t const header_rgb = g_api->cfg_color(ctx, "color_header");
+    uint32_t const header_rgb = is_cfg_color(rt, "color_header");
     int rows_before;
 
-    assert(ctx);
     assert(info);
 
-    if( !is_equip_resolve(ctx, info, &self) || self.wearpos < 0 )
+    if( !is_equip_resolve(rt, info, &self) || self.wearpos < 0 )
         return;
 
     diff = self;
 
-    have_other = is_worn_equip(ctx, self.wearpos, &other);
+    have_other = is_worn_equip(rt, self.wearpos, &other);
     if( !have_other && self.wearpos == IS_SLOT_SHIELD )
     {
         struct is_equip weapon;
-        if( is_worn_equip(ctx, IS_SLOT_WEAPON, &weapon) && weapon.two_handed )
+        if( is_worn_equip(rt, IS_SLOT_WEAPON, &weapon) && weapon.two_handed )
         {
             /* shield - (2h - unarmed): taking the two-hander off gives the
              * unarmed attack speed back. */
@@ -2490,7 +2568,7 @@ is_build_equipment(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginObjInfo con
             have_other = 1;
         }
         if( self.two_handed )
-            have_offhand = is_worn_equip(ctx, IS_SLOT_SHIELD, &offhand);
+            have_offhand = is_worn_equip(rt, IS_SLOT_SHIELD, &offhand);
     }
 
     if( have_other )
@@ -2498,26 +2576,26 @@ is_build_equipment(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginObjInfo con
     if( have_offhand )
         is_equip_subtract(&diff, &offhand);
 
-    is_bonus_row(ctx, "Prayer", self.bonus[TORIRS_PLUGIN_BONUS_PRAYER],
+    is_bonus_row(rt, "Prayer", self.bonus[TORIRS_PLUGIN_BONUS_PRAYER],
         diff.bonus[TORIRS_PLUGIN_BONUS_PRAYER], 0, 1);
     /* Speed only where the item is a weapon: a cape has no attack rate, and
      * printing unarmed's four for one would invent a stat. */
     if( self.wearpos == IS_SLOT_WEAPON )
-        is_bonus_row(ctx, "Speed", self.speed, diff.speed, 1, 1);
-    is_bonus_row(ctx, "Melee Str", self.bonus[TORIRS_PLUGIN_BONUS_STRENGTH],
+        is_bonus_row(rt, "Speed", self.speed, diff.speed, 1, 1);
+    is_bonus_row(rt, "Melee Str", self.bonus[TORIRS_PLUGIN_BONUS_STRENGTH],
         diff.bonus[TORIRS_PLUGIN_BONUS_STRENGTH], 0, 1);
-    is_bonus_row(ctx, "Range Str", self.ranged_strength, diff.ranged_strength, 0, 1);
+    is_bonus_row(rt, "Range Str", self.ranged_strength, diff.ranged_strength, 0, 1);
 
     rows_before = g_row_count;
-    is_bonus_row(ctx, "Stab", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_STAB],
+    is_bonus_row(rt, "Stab", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_STAB],
         diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_STAB], 0, 1);
-    is_bonus_row(ctx, "Slash", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_SLASH],
+    is_bonus_row(rt, "Slash", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_SLASH],
         diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_SLASH], 0, 1);
-    is_bonus_row(ctx, "Crush", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_CRUSH],
+    is_bonus_row(rt, "Crush", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_CRUSH],
         diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_CRUSH], 0, 1);
-    is_bonus_row(ctx, "Magic", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_MAGIC],
+    is_bonus_row(rt, "Magic", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_MAGIC],
         diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_MAGIC], 0, 1);
-    is_bonus_row(ctx, "Range", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_RANGE],
+    is_bonus_row(rt, "Range", self.bonus[TORIRS_PLUGIN_BONUS_ATTACK_RANGE],
         diff.bonus[TORIRS_PLUGIN_BONUS_ATTACK_RANGE], 0, 1);
     /* The header goes in only if the group produced anything, which is why it
      * is inserted after the fact rather than printed first. */
@@ -2534,15 +2612,15 @@ is_build_equipment(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginObjInfo con
     }
 
     rows_before = g_row_count;
-    is_bonus_row(ctx, "Stab", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_STAB],
+    is_bonus_row(rt, "Stab", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_STAB],
         diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_STAB], 0, 1);
-    is_bonus_row(ctx, "Slash", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_SLASH],
+    is_bonus_row(rt, "Slash", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_SLASH],
         diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_SLASH], 0, 1);
-    is_bonus_row(ctx, "Crush", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_CRUSH],
+    is_bonus_row(rt, "Crush", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_CRUSH],
         diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_CRUSH], 0, 1);
-    is_bonus_row(ctx, "Magic", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_MAGIC],
+    is_bonus_row(rt, "Magic", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_MAGIC],
         diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_MAGIC], 0, 1);
-    is_bonus_row(ctx, "Range", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_RANGE],
+    is_bonus_row(rt, "Range", self.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_RANGE],
         diff.bonus[TORIRS_PLUGIN_BONUS_DEFENCE_RANGE], 0, 1);
     if( g_row_count > rows_before && g_row_count < IS_ROWS_MAX )
     {
@@ -2568,21 +2646,23 @@ is_build_equipment(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginObjInfo con
  * rows for one thing: the last one is the acting row, the rest are the same
  * cell's other verbs.
  */
-static enum ToriRS_PluginVerdict
-is_on_menu_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static enum ToriRS_CallbackResult
+is_on_menu_build(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_PluginEvMenuBuild* ev)
 {
-    (void)ctx;
-    struct ToriRS_PluginEvMenuBuild* ev = (struct ToriRS_PluginEvMenuBuild*)event;
+    struct ItemStatsRuntime runtime = { api, state_ptr };
+    struct ItemStatsRuntime* rt = &runtime;
 
-    (void)userdata;
-    assert(ctx);
+    assert(api);
     assert(ev);
 
     /* The right-click menu's build is not a hover: the pointer is over the
      * menu itself by then, and following it would leave a tooltip pinned to a
      * cell nobody is pointing at. */
     if( !ev->hover_pass )
-        return TORIRS_PLUGIN_PASS;
+        return TORIRS_CALLBACK_CONTINUE;
 
     g_hover.obj_id = -1;
     g_hover.component_id = -1;
@@ -2598,38 +2678,28 @@ is_on_menu_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         break;
     }
     g_hover.frame = g_frame;
-    return TORIRS_PLUGIN_PASS;
+    return TORIRS_CALLBACK_CONTINUE;
 }
 
-static enum ToriRS_PluginVerdict
-is_on_frame(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+is_on_frame(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_PluginEvFrame const* event)
 {
-    (void)ctx;
+    struct ItemStatsRuntime runtime = { api, state_ptr };
+    struct ItemStatsRuntime* rt = &runtime;
     (void)event;
-    (void)userdata;
     g_frame++;
-    return TORIRS_PLUGIN_PASS;
 }
 
 /** Ask for the atlas, and read its pixels back once they land. */
 static void
-is_load_art(struct ToriRS_PluginCtx* ctx)
+is_load_art(struct ItemStatsRuntime* rt)
 {
-    assert(ctx);
-
-    if( g_img_text < 0 )
-        g_img_text = g_api->image_load(ctx, "text.png");
-    is_load_glyphs(ctx);
-
-    if( !g_text_px && g_img_text >= 0 &&
-        g_api->image_size(ctx, g_img_text, &g_text_w, &g_text_h) )
-    {
-        int const pixels = g_text_w * g_text_h;
-        static uint32_t s_text_px[512 * 64];
-        if( pixels > 0 && pixels <= (int)(sizeof(s_text_px) / sizeof(s_text_px[0])) &&
-            g_api->image_pixels(ctx, g_img_text, s_text_px, pixels) == pixels )
-            g_text_px = s_text_px;
-    }
+    (void)is_load_glyphs(rt);
+    (void)PluginDraw_ImageLoadV2(
+        g_api, "text.png", &g_img_text, &g_text_px, &g_text_w, &g_text_h);
 }
 
 /*
@@ -2640,64 +2710,69 @@ is_load_art(struct ToriRS_PluginCtx* ctx)
  * follows the pointer. That split is xp_orbs' and it is what keeps a
  * twenty-row super-restore tooltip off the per-frame budget.
  */
-static enum ToriRS_PluginVerdict
-is_on_draw_canvas(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+is_on_draw_canvas(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_DrawBuilder* draw)
 {
-    struct ToriRS_PluginEvDrawCanvas* ev = (struct ToriRS_PluginEvDrawCanvas*)event;
+    struct ItemStatsRuntime runtime = { api, state_ptr };
+    struct ItemStatsRuntime* rt = &runtime;
     struct ToriRS_PluginObjInfo info;
     struct is_player player;
+    struct ToriRS_Rect canvas = { 0 };
     int mouse_x = 0;
     int mouse_y = 0;
     int x;
     int y;
 
-    (void)userdata;
-    assert(ctx);
-    assert(ev);
+    assert(api);
+    assert(draw);
 
-    is_load_art(ctx);
+    is_load_art(rt);
     if( !g_glyph_ready || !g_text_px )
-        return TORIRS_PLUGIN_PASS;
+        return;
 
     /* A stash nobody refreshed this frame or last is not a hover any more:
      * either the pointer left the cell, or the right-click menu went up and
      * the hover rebuild stopped running. */
     if( g_hover.obj_id < 0 || g_frame - g_hover.frame > 1 )
-        return TORIRS_PLUGIN_PASS;
-    if( !g_api->mouse_pos(ctx, &mouse_x, &mouse_y) )
-        return TORIRS_PLUGIN_PASS;
-    if( !g_api->obj_info(ctx, g_hover.obj_id, &info) )
-        return TORIRS_PLUGIN_PASS;
+        return;
+    if( !g_api->input.pointer(g_api, &mouse_x, &mouse_y) )
+        return;
+    if( !g_api->game->item_info(g_api, g_hover.obj_id, &info) )
+        return;
 
     /* A noted stack is the base item wearing paper: it has no ops, no params
      * and no name of its own worth reading, so the question is asked again of
      * what it stands for. */
-    if( info.cert_link >= 0 && !g_api->obj_info(ctx, info.cert_link, &info) )
-        return TORIRS_PLUGIN_PASS;
+    if( info.cert_link >= 0 && !g_api->game->item_info(g_api, info.cert_link, &info) )
+        return;
 
-    if( g_tip_image < 0 || g_tip_obj != info.obj_id || g_frame - g_tip_frame > 30 )
+    if( g_tip_image.value == 0 || g_tip_obj != info.obj_id || g_frame - g_tip_frame > 30 )
     {
         int width = 0;
         int height;
 
         g_row_count = 0;
-        is_player_sample(ctx, &player);
+        is_player_sample(rt, &player);
 
-        if( g_api->cfg_bool(ctx, "consumable_stats") )
+        if( is_cfg_bool(rt, "consumable_stats") )
         {
             struct is_effect const* effect = is_lookup(info.name);
             if( effect )
-                is_build_consumable(ctx, &player, effect);
+                is_build_consumable(rt, &player, effect);
         }
-        if( g_api->cfg_bool(ctx, "equipment_stats") )
-            is_build_equipment(ctx, &info);
+        if( is_cfg_bool(rt, "equipment_stats") )
+            is_build_equipment(rt, &info);
 
         if( g_row_count == 0 )
-            return TORIRS_PLUGIN_PASS;
+            return;
 
         for( int i = 0; i < g_row_count; i++ )
         {
-            int const w = is_text_width(g_rows[i].left) + is_text_width(g_rows[i].right);
+            int const w = is_text_width(rt, g_rows[i].left) +
+                          is_text_width(rt, g_rows[i].right);
             if( w > width )
                 width = w;
         }
@@ -2715,10 +2790,12 @@ is_on_draw_canvas(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         for( int i = 0; i < g_row_count; i++ )
         {
             int const top = IS_TIP_BORDER + i * IS_LINE_PITCH;
-            is_text(IS_TIP_BORDER, top, g_rows[i].left, width, height, g_rows[i].left_rgb);
+            is_text(rt, IS_TIP_BORDER, top, g_rows[i].left,
+                width, height, g_rows[i].left_rgb);
             if( g_rows[i].right[0] )
                 is_text(
-                    IS_TIP_BORDER + is_text_width(g_rows[i].left),
+                    rt,
+                    IS_TIP_BORDER + is_text_width(rt, g_rows[i].left),
                     top,
                     g_rows[i].right,
                     width,
@@ -2726,9 +2803,10 @@ is_on_draw_canvas(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
                     g_rows[i].right_rgb);
         }
 
-        g_tip_image = g_api->image_compose(ctx, "tooltip.png", width, height, g_scratch);
-        if( g_tip_image < 0 )
-            return TORIRS_PLUGIN_PASS;
+        if( g_api->assets.image_compose(
+                g_api, "tooltip.png", width, height, g_scratch,
+                &g_tip_image) != TORIRS_ASSET_READY )
+            return;
         g_tip_w = width;
         g_tip_h = height;
         g_tip_obj = info.obj_id;
@@ -2737,71 +2815,81 @@ is_on_draw_canvas(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
     x = mouse_x + 12;
     y = mouse_y + 16;
-    if( x + g_tip_w > ev->width )
+    (void)g_api->placement.primary(
+        g_api, g_api->placement.area(g_api, TORIRS_AREA_RAW_VIEWPORT), &canvas);
+    if( x + g_tip_w > canvas.x + canvas.width )
         x = mouse_x - g_tip_w - 4;
-    if( y + g_tip_h > ev->height )
+    if( y + g_tip_h > canvas.y + canvas.height )
         y = mouse_y - g_tip_h - 4;
     if( x < 0 )
         x = 0;
     if( y < 0 )
         y = 0;
-    g_api->draw_image(ctx, ev->surface, g_tip_image, x, y, 0, 0, 0, 0, 0);
-    return TORIRS_PLUGIN_PASS;
+    draw->image(draw, g_tip_image, x, y, 255);
 }
 
 /* A settings change repaints: the five colours and the three number rows all
  * live in the composed image, so a panel kept from before the change would
  * show the old ones until the pointer moved. */
-static enum ToriRS_PluginVerdict
-is_on_config_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+is_on_config_changed(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    char const* key)
 {
-    (void)ctx;
-    (void)event;
-    (void)userdata;
-    g_tip_image = -1;
+    struct ItemStatsRuntime runtime = { api, state_ptr };
+    struct ItemStatsRuntime* rt = &runtime;
+    (void)key;
+    if( g_tip_image.value ) g_api->assets.image_release(g_api, g_tip_image);
+    g_tip_image.value = 0;
     g_tip_obj = -1;
-    return TORIRS_PLUGIN_PASS;
 }
 
 static void
-is_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+is_start(struct ToriRS_ApiV2* api, void* state_ptr)
 {
-    assert(ctx);
+    struct ItemStatsState* state = state_ptr;
+    struct ItemStatsRuntime runtime = { api, state };
+    struct ItemStatsRuntime* rt = &runtime;
     assert(api);
-    assert(api->abi_version == TORIRS_PLUGIN_ABI);
-
-    g_api = api;
+    assert(state);
+    assert(api->game);
+    state->glyph = calloc(IS_GLYPH_COUNT, sizeof(*state->glyph));
+    state->scratch = calloc(IS_SCRATCH_W * IS_SCRATCH_H, sizeof(*state->scratch));
+    state->rows = calloc(IS_ROWS_MAX, sizeof(*state->rows));
+    assert(state->glyph && state->scratch && state->rows);
+    state->glyph_line_h = 10;
+    state->glyph_row_h = 10;
     g_hover.obj_id = -1;
     g_hover.frame = -1000;
-    g_tip_image = -1;
     g_tip_obj = -1;
-    g_glyph_ready = 0;
-    g_img_text = -1;
-    g_text_px = NULL;
-
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_FRAME_START, is_on_frame, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_MENU_BUILD, is_on_menu_build, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, is_on_draw_canvas, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_CONFIG_CHANGED, is_on_config_changed, NULL);
 }
 
 static void
-is_shutdown(struct ToriRS_PluginCtx* ctx)
+is_stop(struct ToriRS_ApiV2* api, void* state_ptr)
 {
-    assert(ctx);
-    if( g_img_text >= 0 )
-        g_api->image_release(ctx, g_img_text);
-    if( g_tip_image >= 0 )
-        g_api->image_release(ctx, g_tip_image);
-    g_img_text = -1;
-    g_tip_image = -1;
+    struct ItemStatsRuntime runtime = { api, state_ptr };
+    struct ItemStatsRuntime* rt = &runtime;
+    assert(api);
+    assert(state_ptr);
+    if( g_img_text.value ) g_api->assets.image_release(g_api, g_img_text);
+    if( g_tip_image.value ) g_api->assets.image_release(g_api, g_tip_image);
+    g_img_text.value = 0;
+    g_tip_image.value = 0;
     g_tip_obj = -1;
+    free(g_text_px);
     g_text_px = NULL;
     g_glyph_ready = 0;
     free(g_bonus);
     g_bonus = NULL;
     g_bonus_count = 0;
     g_bonus_state = 0;
+    free(rt->state->glyph);
+    free(rt->state->scratch);
+    free(rt->state->rows);
+    rt->state->glyph = NULL;
+    rt->state->scratch = NULL;
+    rt->state->rows = NULL;
 }
 
 /*
@@ -2828,12 +2916,25 @@ static struct ToriRS_PluginConfigItem const ITEM_STATS_CONFIG[] = {
     { NULL, TORIRS_PLUGIN_CFG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
 };
 
-struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS = {
-    .name = "item-stats",
+static struct ToriRS_ConfigSchema const ITEM_STATS_SCHEMA = {
+    .struct_size = sizeof(ITEM_STATS_SCHEMA),
+    .items = ITEM_STATS_CONFIG,
+};
+
+struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_ITEM_STATS = {
+    .struct_size = sizeof(TORIRS_PLUGIN_ITEM_STATS),
+    .id = "item-stats",
     .title = "Item Stats",
-    .version = "1.0.0",
-    .priority = 0,
-    .config = ITEM_STATS_CONFIG,
-    .init = is_init,
-    .shutdown = is_shutdown,
+    .version = "2.0.0",
+    .state_size = sizeof(struct ItemStatsState),
+    .config = &ITEM_STATS_SCHEMA,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = is_start,
+        .on_stop = is_stop,
+        .on_frame_start = is_on_frame,
+        .on_menu_build = is_on_menu_build,
+        .on_draw_canvas = is_on_draw_canvas,
+        .on_config_changed = is_on_config_changed,
+    },
 };

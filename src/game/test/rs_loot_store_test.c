@@ -352,13 +352,19 @@ test_reset_all(void)
 
     struct LootStore store;
     LootStore_Init(&store);
+    uint64_t revision = LootStore_Revision(&store);
+    TEST_ASSERT(revision != 0, "revision starts nonzero");
 
     LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 1);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "a drop advances revision");
+    revision = LootStore_Revision(&store);
     LootStore_AuxUpsert(&store, 1, "SrcName", 0);
     LootStore_ItemIgnoreAdd(&store, "Bones");
     LootStore_SourceIgnoreAdd(&store, "Goblin");
 
     LootStore_ResetAll(&store);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "reset cannot resurrect an old revision");
+    revision = LootStore_Revision(&store);
 
     TEST_ASSERT(LootStore_SourceCount(&store) == 0, "sources cleared");
     TEST_ASSERT(LootStore_AuxCountTotal(&store) == 0, "aux cleared");
@@ -367,6 +373,7 @@ test_reset_all(void)
 
     /* Usable after reset */
     LootStore_AddKillLoot(&store, "Imp", 200, 1, 10, 1);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "post-reset mutation advances revision");
     TEST_ASSERT(LootStore_SourceCount(&store) == 1, "usable after reset");
     TEST_ASSERT(LootStore_SourceKillCount(&store, "Imp") == 1, "kill after reset");
 

@@ -2236,6 +2236,22 @@ ToriRS_FrameLookaheadElementId(
     return frame->lookahead_id[slot];
 }
 
+bool
+ToriRS_FrameHasWorldPassAhead(const struct ToriRS_Frame* frame)
+{
+    int i;
+
+    assert(frame);
+    if( frame->in_world )
+        return true;
+    /* The emit list is the interface's: a few hundred descs at most, and a
+     * consumer asks once per pass. */
+    for( i = frame->emit_index; i < frame->emit_count; i++ )
+        if( frame->emit_cmds[i].kind == UITREE_EMIT_WORLD )
+            return true;
+    return false;
+}
+
 static int
 frame_wev_debug_enabled(void)
 {

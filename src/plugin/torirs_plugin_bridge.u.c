@@ -64,6 +64,16 @@ static int app_plugin_object_ready(void* user, int handle);
  * world-loaded seam, which runs long before the definition. */
 static void app_plugin_objects_rebuild(struct App* app);
 
+static size_t
+app_plugin_memory_bytes(void* user)
+{
+    uint64_t bytes = 0;
+    (void)user;
+    if( !PlatformMemory_FootprintBytes(&bytes) )
+        return 0;
+    return bytes > SIZE_MAX ? SIZE_MAX : (size_t)bytes;
+}
+
 /* Reference the local player's route[0], not the draw position: the draw
  * position is interpolated between tiles every frame, and the server thinks in
  * whole tiles. route[0] is the authoritative one (entity_facets.h). */
@@ -3102,6 +3112,28 @@ app_plugin_loot_row_next(
     return -1;
 }
 
+static uint64_t
+app_plugin_loot_revision(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    return LootStore_Revision(&app->loot);
+}
+
+static int
+app_plugin_loot_source_clear(void* user, int source_id)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    for( int i = 0; i < app->loot.source_count; i++ )
+        if( app->loot.sources[i].id == source_id )
+        {
+            LootStore_RemoveById(&app->loot, source_id);
+            return 1;
+        }
+    return 0;
+}
+
 static int
 app_plugin_obj_image(
     void* user,
@@ -5258,6 +5290,7 @@ app_plugin_engine(struct App* app)
     engine.frame_ms = app_plugin_frame_ms;
     engine.frame_work_us = app_plugin_frame_work_us;
     engine.capability = app_plugin_capability;
+    engine.memory_bytes = app_plugin_memory_bytes;
     engine.local_player = app_plugin_local_player;
     engine.npc_next = app_plugin_npc_next;
     engine.npc_by_slot = app_plugin_npc_by_slot;
@@ -5299,6 +5332,8 @@ app_plugin_engine(struct App* app)
     engine.obj_image = app_plugin_obj_image;
     engine.loot_source_next = app_plugin_loot_source_next;
     engine.loot_row_next = app_plugin_loot_row_next;
+    engine.loot_revision = app_plugin_loot_revision;
+    engine.loot_source_clear = app_plugin_loot_source_clear;
     engine.draw_image = app_plugin_draw_image;
     engine.hit_region = app_plugin_hit_region;
     engine.if_click = app_plugin_if_click;

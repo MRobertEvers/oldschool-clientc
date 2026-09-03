@@ -270,6 +270,15 @@ ToriRS_FrameLookaheadElementId(
     const struct ToriRS_Frame* frame,
     int distance);
 
+/*
+ * Whether a world pass is still to come this frame: an interface desc not
+ * yet translated that opens one (UITREE_EMIT_WORLD), or the current pass
+ * itself when it has not emitted its END_3D. A consumer that runs a per-pass
+ * helper uses it at END_3D to tell "between passes" from "after the last".
+ */
+bool
+ToriRS_FrameHasWorldPassAhead(const struct ToriRS_Frame* frame);
+
 bool
 ToriRS_FrameNextCommand(
     struct ToriRS_Frame* frame,

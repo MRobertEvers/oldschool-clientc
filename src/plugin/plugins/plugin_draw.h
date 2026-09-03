@@ -23,6 +23,7 @@
  */
 
 #include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <stdint.h>
 
@@ -58,6 +59,18 @@ struct PluginDraw_Atlas
     int line_h;
     /** The decoded sheet, owned here and freed by PluginDraw_AtlasFree. */
     int image;
+    uint32_t* px;
+    int w;
+    int h;
+};
+
+/** Native-v2 atlas: identical retained pixels, with a typed image token. */
+struct PluginDraw_AtlasV2
+{
+    struct PluginDraw_Glyph glyph[PLUGIN_DRAW_GLYPH_COUNT];
+    int ready;
+    int line_h;
+    struct ToriRS_ImageRef image;
     uint32_t* px;
     int w;
     int h;
@@ -142,6 +155,25 @@ int PluginDraw_AtlasLoad(
     char const* name);
 void PluginDraw_AtlasFree(struct PluginDraw_Atlas* atlas);
 
+int PluginDraw_ImageLoadV2(
+    struct ToriRS_ApiV2* api,
+    char const* name,
+    struct ToriRS_ImageRef* handle,
+    uint32_t** px,
+    int* w,
+    int* h);
+void PluginDraw_ImageFreeV2(
+    struct ToriRS_ApiV2* api,
+    uint32_t** px,
+    struct ToriRS_ImageRef* handle);
+int PluginDraw_AtlasLoadV2(
+    struct ToriRS_ApiV2* api,
+    struct PluginDraw_AtlasV2* atlas,
+    char const* name);
+void PluginDraw_AtlasFreeV2(
+    struct ToriRS_ApiV2* api,
+    struct PluginDraw_AtlasV2* atlas);
+
 /* ---- text ---------------------------------------------------------------- */
 
 /** How wide `text` sets in `atlas`. */
@@ -177,5 +209,16 @@ void PluginDraw_TextCenter(
     struct PluginDraw_Atlas const* atlas,
     char const* text,
     uint32_t tint);
+
+int PluginDraw_TextWidthV2(struct PluginDraw_AtlasV2 const* atlas, char const* text);
+void PluginDraw_TextV2(
+    uint32_t* buf, int w, int h, int x, int top,
+    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint);
+void PluginDraw_TextRightV2(
+    uint32_t* buf, int w, int h, int right, int top,
+    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint);
+void PluginDraw_TextCenterV2(
+    uint32_t* buf, int w, int h, int x, int width, int top,
+    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint);
 
 #endif /* TORIRS_PLUGIN_DRAW_H */

@@ -776,44 +776,62 @@ static void
 case_feed(struct Fixture* f)
 {
     struct GLES2DualCoreStageArena arena;
-    const struct GLES2DualCoreFeedEntry* entry = NULL;
-    struct ToriRS_RenderCommand_Begin3D begin;
+    const struct ToriRS_RenderCommand* entry = NULL;
+    struct ToriRS_RenderCommand begin;
+    struct ToriRS_RenderCommand end;
+    struct ToriRS_RenderCommand model;
     uint32_t capacity;
     uint32_t i;
 
     memset(&begin, 0, sizeof(begin));
-    begin.camera = f->camera;
-    begin.view_port.width = VIEW_W;
-    begin.view_port.height = VIEW_H;
+    begin.kind = TORIRSRC_BEGIN_3D;
+    begin.u.begin_3d.camera = f->camera;
+    begin.u.begin_3d.view_port.width = VIEW_W;
+    begin.u.begin_3d.view_port.height = VIEW_H;
+    memset(&end, 0, sizeof(end));
+    end.kind = TORIRSRC_END_3D;
+    memset(&model, 0, sizeof(model));
+    model.kind = TORIRSRC_DRAW_MODEL;
 
     GLES2DualCoreStageArena_Init(&arena);
     GLES2DualCoreStageArena_BeginFrame(&arena, (uint32_t)MODEL_COUNT);
     CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 0u, &entry) == GLES2_DUALCORE_FEED_PENDING,
         "feed: an empty open feed must be pending");
 
-    /* A pass: BEGIN_3D, every model, END_3D; the producer reads it back
+    /* A pass: BEGIN_3D, every model (translated in place through
+     * reserve/publish, as the draw does), END_3D; the producer reads it back
      * entry for entry. */
-    CHECK(GLES2DualCoreStageArena_FeedPushBegin3D(&arena, &begin), "feed: push BEGIN_3D");
+    CHECK(GLES2DualCoreStageArena_FeedPush(&arena, &begin), "feed: push BEGIN_3D");
     for( i = 0; i < (uint32_t)MODEL_COUNT; i++ )
-        CHECK(GLES2DualCoreStageArena_FeedPushModel(&arena, &f->commands[i]),
-            "feed: push model %u", i);
-    CHECK(GLES2DualCoreStageArena_FeedPushEnd3D(&arena), "feed: push END_3D");
+    {
+        struct ToriRS_RenderCommand* slot = GLES2DualCoreStageArena_FeedReserve(&arena);
+        CHECK(slot != NULL, "feed: reserve model %u", i);
+        /* Reserved is not published. */
+        CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 1u + i, &entry) ==
+                  GLES2_DUALCORE_FEED_PENDING,
+            "feed: a reserved entry leaked before publish");
+        slot->kind = TORIRSRC_DRAW_MODEL;
+        slot->u.model = f->commands[i];
+        GLES2DualCoreStageArena_FeedPublish(&arena);
+    }
+    CHECK(GLES2DualCoreStageArena_FeedPush(&arena, &end), "feed: push END_3D");
 
     CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 0u, &entry) == GLES2_DUALCORE_FEED_READY &&
-              entry->kind == GLES2_DUALCORE_FEED_BEGIN_3D,
+              entry->kind == TORIRSRC_BEGIN_3D,
         "feed: entry 0 is not the BEGIN_3D");
-    CHECK(memcmp(&entry->u.begin_3d, &begin, sizeof(begin)) == 0, "feed: BEGIN_3D not copied");
+    CHECK(memcmp(&entry->u.begin_3d, &begin.u.begin_3d, sizeof(begin.u.begin_3d)) == 0,
+        "feed: BEGIN_3D not copied");
     for( i = 0; i < (uint32_t)MODEL_COUNT; i++ )
     {
         CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 1u + i, &entry) == GLES2_DUALCORE_FEED_READY &&
-                  entry->kind == GLES2_DUALCORE_FEED_MODEL,
+                  entry->kind == TORIRSRC_DRAW_MODEL,
             "feed: entry %u is not a model", 1u + i);
         CHECK(memcmp(&entry->u.model, &f->commands[i], sizeof(f->commands[i])) == 0,
             "feed: model %u not copied", i);
     }
     CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 1u + MODEL_COUNT, &entry) ==
                   GLES2_DUALCORE_FEED_READY &&
-              entry->kind == GLES2_DUALCORE_FEED_END_3D,
+              entry->kind == TORIRSRC_END_3D,
         "feed: last entry is not the END_3D");
     /* Past the end while open: pending, not ended. */
     CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 2u + MODEL_COUNT, &entry) ==
@@ -834,10 +852,13 @@ case_feed(struct Fixture* f)
     CHECK(capacity >= (uint32_t)MODEL_COUNT + 2u, "feed: capacity %u for %d models", capacity,
         MODEL_COUNT);
     for( i = 0; i < capacity; i++ )
-        CHECK(GLES2DualCoreStageArena_FeedPushModel(&arena, &f->commands[i % MODEL_COUNT]),
-            "feed: push %u of %u refused", i, capacity);
-    CHECK(!GLES2DualCoreStageArena_FeedPushModel(&arena, &f->commands[0]),
-        "feed: push past capacity accepted");
+    {
+        model.u.model = f->commands[i % MODEL_COUNT];
+        CHECK(GLES2DualCoreStageArena_FeedPush(&arena, &model), "feed: push %u of %u refused", i,
+            capacity);
+    }
+    CHECK(GLES2DualCoreStageArena_FeedReserve(&arena) == NULL,
+        "feed: reserve past capacity succeeded");
     CHECK(atomic_load(&arena.feed_state) == GLES2_DUALCORE_FEED_OVERFLOWED,
         "feed: overflow not recorded");
     CHECK(atomic_load(&arena.feed_published) == capacity, "feed: overflow changed the count");

@@ -28,6 +28,7 @@
 #define TORIRS_UI_NAMED_ACTIONS_MAX 8
 #define TORIRS_PLACEMENT_RESERVATION_MAX 64
 #define TORIRS_FRAME_REASON_MAX 160
+#define TORIRS_FRAME_NODES_MAX 48
 #define TORIRS_API_V2_MODULE_RESERVED_SLOTS 8
 #define TORIRS_DESCRIPTOR_V2_RESERVED_WORDS 8
 
@@ -39,6 +40,7 @@
 
 struct ToriRS_ApiV2;
 struct ToriRS_DrawBuilder;
+struct ToriRS_DrawContext;
 struct ToriRS_FrameBuilder;
 struct ToriRS_PanelBuilder;
 struct ToriRS_ClientApiV2;
@@ -434,6 +436,15 @@ struct ToriRS_FrameBuildContext
     struct ToriRS_PluginLane lane;
 };
 
+/** Callback-scoped drawing coordinates. Bounds are local to the callback;
+ * builders translate them to the underlying canvas/panel surface. */
+struct ToriRS_DrawContext
+{
+    uint32_t struct_size;
+    struct ToriRS_Rect bounds;
+    struct ToriRS_Rect clip;
+};
+
 struct ToriRS_DrawBuilder
 {
     uint32_t struct_size;
@@ -496,6 +507,10 @@ struct ToriRS_DrawBuilder
         struct ToriRS_Rect rect,
         char const* action,
         uint32_t action_id);
+    /** Current callback's local drawable bounds and clip. */
+    bool (*context)(
+        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_DrawContext* out);
 };
 
 struct ToriRS_FrameBuilder
@@ -714,7 +729,8 @@ struct ToriRS_CoreApiV2
     bool (*capability)(
         struct ToriRS_ApiV2* api,
         char const* name);
-    TORIRS_API_V2_MODULE_RESERVED;
+    char const* (*plugin_id)(struct ToriRS_ApiV2* api);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
 };
 
 struct ToriRS_ConfigApiV2
@@ -831,7 +847,11 @@ struct ToriRS_UiApiV2
         struct ToriRS_PluginEvMenuBuild* menu,
         char const* text,
         uint32_t action_id);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 2])(void);
+    enum ToriRS_Result (*set_enabled)(
+        struct ToriRS_ApiV2* api,
+        struct ToriRS_UiNodeRef node,
+        bool enabled);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 3])(void);
 };
 
 struct ToriRS_PlacementApiV2
@@ -1254,6 +1274,10 @@ struct ToriRS_GameApiV2
         char const* const* operations,
         int operation_count,
         uint32_t action_id);
+    uint64_t (*loot_revision)(struct ToriRS_ApiV2* api);
+    bool (*loot_source_clear)(
+        struct ToriRS_ApiV2* api,
+        int source_id);
     TORIRS_API_V2_MODULE_RESERVED;
 };
 
@@ -1419,6 +1443,11 @@ struct ToriRS_PluginCallbacks
         int operation,
         int x,
         int y);
+
+    void (*on_ui_layout)(
+        struct ToriRS_ApiV2* api,
+        void* state,
+        struct ToriRS_PluginEvPanelLayout const* event);
 };
 
 #define TORIRS_PLUGIN_CALLBACKS_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))

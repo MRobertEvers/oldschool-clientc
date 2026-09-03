@@ -162,6 +162,7 @@ struct ToriRS_PluginEngine
     /** Named runtime/platform capability. Unknown names return zero. Optional
      * for focused harnesses; absence means no advertised capabilities. */
     int (*capability)(void* user, char const* name);
+    size_t (*memory_bytes)(void* user);
 
     int (*local_player)(
         void* user,
@@ -627,6 +628,8 @@ struct ToriRS_PluginEngine
         int source_id,
         int iter,
         struct ToriRS_PluginLootRow* out);
+    uint64_t (*loot_revision)(void* user);
+    int (*loot_source_clear)(void* user, int source_id);
 
     int (*obj_image)(
         void* user,
@@ -925,6 +928,15 @@ void
 PluginHost_Reload(
     struct ToriRS_PluginHost* host,
     int plugin_index);
+
+/** Internal language-adapter hook for rebuilding source between teardown and
+ * restart. It is not part of the public plugin API. */
+void
+PluginHost_SetReloadHandler(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    void (*handler)(struct ToriRS_PluginHost*, int, void*),
+    void* user);
 /**
  * Is this plugin switched on RIGHT NOW -- the user's switch, minus any lane
  * that refused it. What the roster's checkbox and the boot line both want.
@@ -1385,7 +1397,7 @@ struct ToriRS_PluginWinWidget
      * dropdowns leave `structured_select` false and continue using choices.
      */
     bool structured_select;
-    struct ToriRS_PluginSelectOption const* select_options;
+    struct ToriRS_PluginSelectOption* select_options;
     int select_option_count;
     char selected_value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
     /** Generic result state for the ABI-21 semantic kinds. Legacy checkbox

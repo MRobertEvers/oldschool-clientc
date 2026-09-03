@@ -48,14 +48,19 @@
  *     nobody has started, which is what keeps two unequal halves of a frame
  *     from serialising on the slower one;
  *   - the COMMAND FEED: the consumer owns the frame bus (it dispatches every
- *     command, world or not), and it publishes each world command it
- *     translates -- BEGIN_3D, DRAW_MODEL, END_3D -- into `feed` before
- *     dispatching it, a few commands ahead (see the lane's ring). The producer
- *     stages from the feed and never runs the bus. Measured before the feed
- *     (2026-09-03, XT1060, Lumbridge): the producer's replay of the bus was
- *     1.26 ms of its 6.0 ms frame -- 20% of its D-cache refills and its
- *     I-cache misses -- and it was what kept the producer from staying ahead
- *     on terrain runs, so the consumer waited 1.45 ms a frame on it. Entries
+ *     command, world or not) and translates each world pass -- BEGIN_3D, the
+ *     DRAW_MODELs, END_3D -- into `feed` BEFORE dispatching it, then
+ *     dispatches from the feed. The producer stages from the feed and never
+ *     runs the bus. Measured before the feed (2026-09-03, XT1060, Lumbridge):
+ *     the producer's replay of the bus was 1.26 ms of its 6.0 ms frame -- 20%
+ *     of its D-cache refills and its I-cache misses -- and it was what kept
+ *     the producer from staying ahead on terrain runs, so the consumer waited
+ *     on it 51 times a frame. Translating the whole pass up front is what
+ *     gives the producer a lead measured in milliseconds rather than slots:
+ *     with a bounded lookahead of 16..128 commands the consumer still caught
+ *     it inside every cluster of large models (11..93 stalls a frame),
+ *     because a tile the producer has already staged costs the consumer
+ *     ~3 us, so a hundred slots of lead is a few hundred microseconds. Entries
  *     are published by bumping `feed_published` (release); the producer reads
  *     entry i once it is above i (acquire). `feed_state` closes the feed:
  *     CLOSED after the consumer's last publish of the frame, OVERFLOWED when
@@ -123,22 +128,11 @@ enum GLES2DualCoreStageFinished
 
 /* ---- the command feed ------------------------------------------------------- */
 
-enum GLES2DualCoreFeedKind
-{
-    GLES2_DUALCORE_FEED_BEGIN_3D = 1,
-    GLES2_DUALCORE_FEED_MODEL = 2,
-    GLES2_DUALCORE_FEED_END_3D = 3,
-};
-
-struct GLES2DualCoreFeedEntry
-{
-    uint32_t kind;
-    union
-    {
-        struct ToriRS_RenderCommand_Begin3D begin_3d;
-        struct ToriRS_RenderCommand_Model model;
-    } u;
-};
+/* An entry is a whole ToriRS_RenderCommand: the consumer translates the bus
+ * straight into the feed and dispatches from it, so the feed is its
+ * lookahead buffer as well as the producer's input, and no command is
+ * copied twice. The producer acts on BEGIN_3D, DRAW_MODEL and END_3D and
+ * steps over anything else. */
 
 enum GLES2DualCoreFeedState
 {
@@ -196,9 +190,9 @@ struct GLES2DualCoreStageArena
     uint32_t exhausted_frames;
 
     /* The command feed (see the header comment). `feed_count` is the
-     * consumer's private write position; the two atomics are what the
-     * producer polls, each on its own line. */
-    struct GLES2DualCoreFeedEntry* feed;
+     * consumer's private write position -- entries below it are published;
+     * the two atomics are what the producer polls, each on its own line. */
+    struct ToriRS_RenderCommand* feed;
     uint32_t feed_capacity;
     uint32_t feed_count;
     /** Feeds that ran out of slots; BeginFrame grows the feed after one. */
@@ -208,21 +202,25 @@ struct GLES2DualCoreStageArena
 };
 
 /**
- * Consumer: append a world command to the feed and publish it. False when
- * the feed is full -- nothing was appended, the feed is marked OVERFLOWED,
- * and the consumer must not push again this frame (the producer stops after
- * what it has). `model` / `begin_3d` are copied.
+ * Consumer: the next free entry, to translate a command into; NULL when the
+ * feed is full -- it is then marked OVERFLOWED and the consumer must not
+ * reserve again this frame (the producer stops after what was published).
+ * A reserved entry is not visible to the producer until FeedPublish; a
+ * reservation the consumer abandons (the bus ended) simply goes unpublished
+ * and is reused by nobody.
  */
+struct ToriRS_RenderCommand*
+GLES2DualCoreStageArena_FeedReserve(struct GLES2DualCoreStageArena* arena);
+
+/** Consumer: publish the entry FeedReserve last returned. */
+void
+GLES2DualCoreStageArena_FeedPublish(struct GLES2DualCoreStageArena* arena);
+
+/** Consumer: reserve, copy, publish. False on overflow. */
 bool
-GLES2DualCoreStageArena_FeedPushModel(
+GLES2DualCoreStageArena_FeedPush(
     struct GLES2DualCoreStageArena* arena,
-    const struct ToriRS_RenderCommand_Model* model);
-bool
-GLES2DualCoreStageArena_FeedPushBegin3D(
-    struct GLES2DualCoreStageArena* arena,
-    const struct ToriRS_RenderCommand_Begin3D* begin_3d);
-bool
-GLES2DualCoreStageArena_FeedPushEnd3D(struct GLES2DualCoreStageArena* arena);
+    const struct ToriRS_RenderCommand* command);
 
 /** Consumer: no more entries this frame. A no-op on an overflowed feed. */
 void
@@ -237,7 +235,7 @@ enum GLES2DualCoreFeedTake
 GLES2DualCoreStageArena_FeedTake(
     struct GLES2DualCoreStageArena* arena,
     uint32_t index,
-    const struct GLES2DualCoreFeedEntry** entry);
+    const struct ToriRS_RenderCommand** entry);
 
 void
 GLES2DualCoreStageArena_Init(struct GLES2DualCoreStageArena* arena);

@@ -177,6 +177,27 @@ ff_options(
 }
 
 static void
+ff_publish_option(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_PluginFeature* flag)
+{
+    struct ToriRS_SelectOption options[FF_OPTION_MAX];
+    char values[FF_OPTION_MAX][32];
+    char labels[FF_OPTION_MAX][TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
+    char const* selected;
+    int count;
+    int effective;
+
+    flag->is_default = ff_is_default(ff_stored(api, flag));
+    if( api->client->feature_get(api, flag->key, &effective) )
+        flag->value = effective;
+    count = ff_options(api, flag, options, values, labels, &selected);
+    if( api->panel.set_options(api, flag->key, selected, options, count) !=
+        TORIRS_RESULT_OK )
+        api->panel.invalidate(api);
+}
+
+static void
 ff_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 {
     struct FeatureFlagsState* state = state_ptr;
@@ -248,7 +269,7 @@ ff_on_ui_action(
             (void)api->client->feature_set(
                 api, flag->key, TORIRS_PLUGIN_FEATURE_UNSET);
         }
-        api->panel.invalidate(api);
+        ff_publish_option(api, &state->flags[i]);
         return;
     }
 }

@@ -33,29 +33,32 @@
  *     scene events (loads, unloads)
  *     BEGIN_3D -> source->begin_3d           wake
  *       feed <- BEGIN_3D ------------------> begin the pass on the view
- *     pull the next LOOKAHEAD commands
+ *     translate the whole pass into the feed
  *       feed <- DRAW_MODEL j ... ----------> stage j: pose/cull/project/
- *     DRAW_MODEL -> source->take(i)          pick/sort; publish result i
+ *       feed <- END_3D                       pick/sort; publish result i
+ *     dispatch from the feed:                ...
+ *     DRAW_MODEL -> source->take(i)          END_3D: end the pass
  *       waits until ready > i <-----------
  *       gathers, bakes, emits
- *     ...                                    ...
- *     END_3D -> feed <- END_3D               end the pass
- *     interface, ...
+ *     ...
+ *     END_3D, interface, ...
  *   close the feed -----------------------> finished
  *   join the worker <---------------------
  *   remove the stage source
  *   ToriRS_FrameEnd(frame)
  *   gles2_render_frame_end
  *
- * The draw runs the frame bus ONCE, for both threads: inside a world pass
- * it translates commands a few ahead of dispatching them (a ring of
- * TORIRS_GLES2_DUALCORE_LOOKAHEAD, default 16) and publishes each into the
- * arena's feed as it is translated, so the worker stages from translated
- * commands and never walks the painter list itself. Until 2026-09-03 the
- * worker replayed the bus world-only on its own copy of the frame: 1.26 ms
- * of its 6.0 ms frame and, on terrain runs (a tile's stage is cheaper than
- * its translation), the reason it could not stay ahead of the draw -- which
- * waited 1.45 ms a frame on it.
+ * The draw runs the frame bus ONCE, for both threads: at each BEGIN_3D it
+ * translates the pass's commands into the arena's feed, publishing each as
+ * it lands, and then dispatches them from there, so the worker stages from
+ * translated commands and never walks the painter list itself. The
+ * translation is the same work the draw always did, moved ahead of the
+ * dispatch instead of interleaved with it (~1 ms for a Lumbridge pass,
+ * during which the worker is already staging). Until 2026-09-03 the worker
+ * replayed the bus world-only on its own copy of the frame: 1.26 ms of its
+ * 6.0 ms frame and, on terrain runs (a tile's stage is cheaper than its
+ * translation), the reason it could not stay ahead of the draw -- which
+ * caught it mid-model 51 times a frame.
  *
  * Why the worker starts at BEGIN_3D and not at frame begin: the frame's
  * scene events -- model loads that bake, animation loads that pose every
@@ -88,8 +91,8 @@
  *   TORIRS_GLES2_DUALCORE_PIN=1    pin the worker to the second CPU
  *   TORIRS_GLES2_DUALCORE_LOOKAHEAD=N
  *                                  commands the draw translates ahead of
- *                                  dispatching them inside a world pass
- *                                  (default 16, max 31)
+ *                                  dispatching them inside a world pass;
+ *                                  0 (the default) is the whole pass
  *   TORIRS_GLES2_DUALCORE_DEBUG=1  a stats line every 300 frames on stderr
  */
 

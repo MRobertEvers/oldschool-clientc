@@ -167,6 +167,33 @@ cs_remember(
         "%s", selection->requested_id);
 }
 
+/* The frame catalogue and status are retained properties of two existing
+ * rows. Updating them must not rebuild the whole page: the host journals these
+ * two row mutations and the browser executor consumes only those entries. */
+static void
+cs_publish_frame(
+    struct ToriRS_ApiV2* api,
+    struct ClientSettingsState* state,
+    struct ToriRS_FrameSelection const* selection)
+{
+    struct ToriRS_SelectOption options[CS_FRAME_ROWS_MAX];
+    char detail[192];
+    enum ToriRS_Result options_result;
+    enum ToriRS_Result detail_result;
+
+    cs_frame_choices(api, state, selection);
+    cs_frame_detail(state, selection, detail, sizeof(detail));
+    cs_remember(state, selection);
+    if( !state->page_built ) return;
+    for( int i = 0; i < state->frame_row_count; i++ )
+        options[i] = state->frame_rows[i].option;
+    options_result = api->panel.set_options(
+        api, CS_ID_FRAME, selection->requested_id, options, state->frame_row_count);
+    detail_result = api->panel.set_text(api, CS_ID_FRAME_DETAIL, detail);
+    if( options_result != TORIRS_RESULT_OK || detail_result != TORIRS_RESULT_OK )
+        api->panel.invalidate(api);
+}
+
 static void
 cs_static_options(
     struct ToriRS_SelectOption* out,
@@ -192,6 +219,7 @@ cs_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
     assert(api);
     assert(state);
     assert(api->client);
+    (void)state;
     (void)api->panel.request(api, &panel);
 }
 
@@ -271,15 +299,18 @@ cs_on_ui_action(
     if( event->action != TORIRS_PLUGIN_UI_PICK || !event->id || !event->text ) return;
     if( strcmp(event->id, CS_ID_FRAME) == 0 )
     {
+        struct ToriRS_FrameSelection selection = { .struct_size = sizeof(selection) };
         if( !cs_frame_known(state, event->text) )
         {
             api->core.log(api, "client-settings: ignored unknown gameframe '%s'", event->text);
-            api->panel.invalidate(api);
+            api->frame.selection(api, &selection);
+            cs_publish_frame(api, state, &selection);
             return;
         }
         if( api->frame.select(api, event->text) != TORIRS_RESULT_OK )
             api->core.log(api, "client-settings: could not save gameframe '%s'", event->text);
-        api->panel.invalidate(api);
+        api->frame.selection(api, &selection);
+        cs_publish_frame(api, state, &selection);
         return;
     }
     if( strcmp(event->id, CS_ID_SCALE) == 0 )
@@ -310,8 +341,7 @@ cs_on_frame_start(
     if( selection.revision == state->frame_seen_revision &&
         strcmp(selection.requested_id, state->frame_seen_requested) == 0 )
         return;
-    cs_remember(state, &selection);
-    if( state->page_built ) api->panel.invalidate(api);
+    cs_publish_frame(api, state, &selection);
 }
 
 struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS = {

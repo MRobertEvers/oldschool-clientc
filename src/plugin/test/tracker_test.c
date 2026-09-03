@@ -22,9 +22,10 @@
  *     lands two tiles from its south-west corner.
  */
 
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -110,6 +111,10 @@ static struct
     /** Raised by panel_clear outside a build: the page wants rebuilding. */
     bool rebuild_wanted;
     int builds;
+    int exact_text_sets;
+    int exact_height_sets;
+    int redraws;
+    int loot_source_visits;
 
     struct FakeConfig config[FAKE_CONFIG];
     int config_count;
@@ -133,29 +138,7 @@ static struct
     int last_icon_style;
 } g_client;
 
-static ToriRS_PluginHandler g_handler[TORIRS_PLUGIN_EV_COUNT];
-
 /* ------------------------------------------------------------------ verbs */
-
-static void
-fake_subscribe(
-    struct ToriRS_PluginCtx* ctx,
-    enum ToriRS_PluginEvent event,
-    ToriRS_PluginHandler handler,
-    void* userdata)
-{
-    (void)ctx;
-    (void)userdata;
-    assert(event >= 0 && event < TORIRS_PLUGIN_EV_COUNT);
-    g_handler[event] = handler;
-}
-
-static void
-fake_log(struct ToriRS_PluginCtx* ctx, char const* fmt, ...)
-{
-    (void)ctx;
-    (void)fmt;
-}
 
 static void
 fake_notify(struct ToriRS_PluginCtx* ctx, char const* text)
@@ -179,26 +162,6 @@ fake_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginPlayerSnap* 
     if( !g_client.logged_in )
         return 0;
     *out = g_client.me;
-    return 1;
-}
-
-static char const*
-fake_skill_name(struct ToriRS_PluginCtx* ctx, int skill)
-{
-    (void)ctx;
-    return (skill >= 0 && skill < FAKE_SKILLS) ? FAKE_SKILL_NAME[skill] : NULL;
-}
-
-static int
-fake_stat(struct ToriRS_PluginCtx* ctx, int skill, int* out_current, int* out_base)
-{
-    (void)ctx;
-    if( skill < 0 || skill >= FAKE_SKILLS )
-        return 0;
-    if( out_current )
-        *out_current = g_client.level[skill];
-    if( out_base )
-        *out_base = g_client.level[skill];
     return 1;
 }
 
@@ -378,6 +341,7 @@ fake_panel_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* te
     w = fake_widget_find(id);
     if( !w )
         return false;
+    g_client.exact_text_sets++;
     snprintf(w->text, sizeof(w->text), "%s", text ? text : "");
     return true;
 }
@@ -402,6 +366,7 @@ fake_panel_set_height(struct ToriRS_PluginCtx* ctx, char const* id, int height)
     w = fake_widget_find(id);
     if( !w )
         return false;
+    g_client.exact_height_sets++;
     w->height = height;
     return true;
 }
@@ -431,6 +396,7 @@ fake_panel_invalidate(struct ToriRS_PluginCtx* ctx, char const* id)
 {
     (void)ctx;
     (void)id;
+    g_client.redraws++;
 }
 
 /* ---- images ---- */
@@ -447,45 +413,6 @@ fake_obj_image(struct ToriRS_PluginCtx* ctx, int obj_id, int count, int style)
      * resident yet -- the "ask again next frame" answer, which the plugin has
      * to survive without drawing anything. */
     return obj_id < 100 ? -1 : 40 + (obj_id % 8);
-}
-
-static int
-fake_image_size(struct ToriRS_PluginCtx* ctx, int image, int* out_w, int* out_h)
-{
-    (void)ctx;
-    if( image < 0 )
-        return 0;
-    if( out_w )
-        *out_w = 36;
-    if( out_h )
-        *out_h = 32;
-    return 1;
-}
-
-static void
-fake_draw_image(
-    struct ToriRS_PluginCtx* ctx,
-    void* surface,
-    int image,
-    int x,
-    int y,
-    int clip_x,
-    int clip_y,
-    int clip_w,
-    int clip_h,
-    int trans)
-{
-    (void)ctx;
-    (void)surface;
-    (void)image;
-    (void)x;
-    (void)y;
-    (void)clip_x;
-    (void)clip_y;
-    (void)clip_w;
-    (void)clip_h;
-    (void)trans;
-    g_client.icons_drawn++;
 }
 
 /* ---- the client's own loot store, faked -----------------------------------
@@ -511,6 +438,7 @@ static struct
     } source[FAKE_LOOT_SOURCES];
     int count;
     int next_id;
+    uint64_t revision;
 } g_store;
 
 /** LootStore_AddKillLoot, as far as this test needs it. */
@@ -518,6 +446,8 @@ static void
 loot_add(char const* name, int obj_id, int qty, int value, int event_id)
 {
     int index = -1;
+
+    g_store.revision++;
 
     for( int i = 0; i < g_store.count; i++ )
         if( strcmp(g_store.source[i].name, name) == 0 )
@@ -613,49 +543,235 @@ fake_obj_info(
     return 0;
 }
 
-static struct ToriRS_PluginApi g_api;
+static struct ToriRS_ApiV2 g_api;
+static struct ToriRS_GameApiV2 g_game_api;
+static struct ToriRS_PluginDefV2 const* g_plugin;
+static void* g_plugin_state;
+static int g_heading_id;
+
+static void v2_log(struct ToriRS_ApiV2* api, char const* format, ...)
+{ (void)api; (void)format; }
+static void v2_notify(struct ToriRS_ApiV2* api, char const* text)
+{ (void)api; fake_notify(NULL, text); }
+static uint64_t v2_frame_ms(struct ToriRS_ApiV2* api)
+{ (void)api; return fake_frame_ms(NULL); }
+static bool v2_local_player(
+    struct ToriRS_ApiV2* api, struct ToriRS_PluginPlayerSnap* out)
+{ (void)api; return fake_local_player(NULL, out) != 0; }
+static bool v2_config_has(struct ToriRS_ApiV2* api, char const* key)
+{ (void)api; return fake_config_find(key) != NULL; }
+static bool v2_config_bool(struct ToriRS_ApiV2* api, char const* key, bool* out)
+{ (void)api; *out = fake_cfg_bool(NULL, key) != 0; return true; }
+static bool v2_config_int(struct ToriRS_ApiV2* api, char const* key, int* out)
+{ (void)api; *out = fake_cfg_int(NULL, key); return true; }
+static bool v2_config_string(
+    struct ToriRS_ApiV2* api, char const* key, char const** out)
+{ (void)api; *out = fake_cfg_str(NULL, key); return true; }
+static enum ToriRS_Result v2_config_set(
+    struct ToriRS_ApiV2* api, char const* key, char const* value)
+{
+    (void)api;
+    fake_cfg_set(NULL, key, value);
+    if( g_plugin && g_plugin_state && g_plugin->callbacks.on_config_changed )
+        g_plugin->callbacks.on_config_changed(&g_api, g_plugin_state, key);
+    return TORIRS_RESULT_OK;
+}
+static enum ToriRS_AssetState v2_asset_request(
+    struct ToriRS_ApiV2* api, char const* name)
+{
+    (void)api;
+    return fake_asset_load(NULL, name) ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
+}
+static bool v2_asset_bytes(
+    struct ToriRS_ApiV2* api, char const* name, void const** out, size_t* size)
+{
+    int n = 0;
+    (void)api;
+    *out = fake_asset_data(NULL, name, &n);
+    *size = n > 0 ? (size_t)n : 0;
+    return *out != NULL;
+}
+static enum ToriRS_Result v2_asset_save(
+    struct ToriRS_ApiV2* api, char const* name, void const* data, size_t size)
+{
+    (void)api;
+    return size <= INT_MAX && fake_asset_save(NULL, name, data, (int)size)
+               ? TORIRS_RESULT_OK : TORIRS_RESULT_INVALID;
+}
+static void v2_asset_release(struct ToriRS_ApiV2* api, char const* name)
+{ (void)api; fake_asset_release(NULL, name); }
+static void v2_image_release(
+    struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image)
+{ (void)api; (void)image; }
+static bool v2_skill(
+    struct ToriRS_ApiV2* api, int skill, struct ToriRS_SkillSnapshot* out)
+{
+    int xp = 0, level_xp = 0, next_xp = 0;
+    (void)api;
+    if( skill < 0 || skill >= FAKE_SKILLS ||
+        !fake_stat_xp(NULL, skill, &xp, &level_xp, &next_xp) )
+        return false;
+    memset(out, 0, sizeof(*out));
+    out->struct_size = sizeof(*out);
+    out->index = skill;
+    snprintf(out->name, sizeof(out->name), "%s", FAKE_SKILL_NAME[skill]);
+    out->current_level = g_client.level[skill];
+    out->base_level = g_client.level[skill];
+    out->xp = xp;
+    out->level_xp = level_xp;
+    out->next_level_xp = next_xp;
+    return true;
+}
+static bool v2_item_info(
+    struct ToriRS_ApiV2* api, int obj, struct ToriRS_PluginObjInfo* out)
+{ (void)api; return fake_obj_info(NULL, obj, out) != 0; }
+static enum ToriRS_AssetState v2_item_image(
+    struct ToriRS_ApiV2* api, int obj, int count, int style,
+    struct ToriRS_ImageRef* out)
+{
+    int const image = fake_obj_image(NULL, obj, count, style);
+    (void)api;
+    out->value = image >= 0 ? (uint32_t)image + 1u : 0;
+    return image >= 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
+}
+static int v2_loot_source_next(
+    struct ToriRS_ApiV2* api, int iter, struct ToriRS_PluginLootSource* out)
+{ (void)api; g_client.loot_source_visits++; return fake_loot_source_next(NULL, iter, out); }
+static int v2_loot_row_next(
+    struct ToriRS_ApiV2* api, int source, int iter, struct ToriRS_PluginLootRow* out)
+{ (void)api; return fake_loot_row_next(NULL, source, iter, out); }
+static uint64_t v2_loot_revision(struct ToriRS_ApiV2* api)
+{ (void)api; return g_store.revision; }
+static bool v2_loot_source_clear(struct ToriRS_ApiV2* api, int source_id)
+{
+    (void)api;
+    for( int i = 0; i < g_store.count; i++ )
+    {
+        if( g_store.source[i].id != source_id ) continue;
+        if( i + 1 < g_store.count )
+            memmove(&g_store.source[i], &g_store.source[i + 1],
+                (size_t)(g_store.count - i - 1) * sizeof(g_store.source[0]));
+        g_store.count--;
+        g_store.revision++;
+        return true;
+    }
+    return false;
+}
+static enum ToriRS_Result v2_panel_request(
+    struct ToriRS_ApiV2* api, struct ToriRS_PluginPanelDesc const* desc)
+{ (void)api; return fake_panel_request(NULL, desc) ? TORIRS_RESULT_OK : TORIRS_RESULT_ERROR; }
+static void v2_panel_invalidate(struct ToriRS_ApiV2* api)
+{ (void)api; fake_panel_clear(NULL); }
+static void v2_panel_attention(struct ToriRS_ApiV2* api, bool wanted)
+{ (void)api; (void)fake_panel_set_attention(NULL, wanted); }
+static enum ToriRS_Result v2_panel_set_text(
+    struct ToriRS_ApiV2* api, char const* id, char const* text)
+{
+    struct FakeWidget* widget;
+    (void)api;
+    widget = fake_widget_find(id);
+    if( !widget ) return TORIRS_RESULT_NOT_FOUND;
+    (void)fake_panel_set_text(NULL, id, text);
+    if( widget->kind == TORIRS_PLUGIN_W_SECTION )
+        snprintf(widget->label, sizeof(widget->label), "%s", text ? text : "");
+    return TORIRS_RESULT_OK;
+}
+static enum ToriRS_Result v2_panel_set_value(
+    struct ToriRS_ApiV2* api, char const* id, int value)
+{ (void)api; return fake_panel_set_value(NULL, id, value) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
+static enum ToriRS_Result v2_panel_set_height(
+    struct ToriRS_ApiV2* api, char const* id, int height)
+{ (void)api; return fake_panel_set_height(NULL, id, height) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
+static void v2_panel_redraw(struct ToriRS_ApiV2* api, char const* id)
+{ (void)api; fake_panel_invalidate(NULL, id); }
+
+static void v2_build_heading(struct ToriRS_PanelBuilder* panel, char const* text)
+{
+    char id[32];
+    (void)panel;
+    snprintf(id, sizeof(id), "_v2_heading_%d", g_heading_id++);
+    (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_SECTION, id, text);
+}
+static void v2_build_paragraph(struct ToriRS_PanelBuilder* panel, char const* text)
+{ (void)panel; (void)text; }
+static void v2_build_toggle(
+    struct ToriRS_PanelBuilder* panel, char const* id, char const* label, bool value)
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_CHECKBOX, id, label); (void)fake_panel_set_value(NULL, id, value); }
+static void v2_build_select(
+    struct ToriRS_PanelBuilder* panel, char const* id, char const* label,
+    char const* value, struct ToriRS_SelectOption const* options, int count)
+{ (void)panel; (void)value; (void)options; (void)count; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_DROPDOWN, id, label); }
+static void v2_build_button(
+    struct ToriRS_PanelBuilder* panel, char const* id, char const* label, bool enabled)
+{ (void)panel; (void)enabled; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_BUTTON, id, label); }
+static void v2_build_custom(
+    struct ToriRS_PanelBuilder* panel, char const* id, int height)
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_CUSTOM, id, ""); (void)fake_panel_set_height(NULL, id, height); }
+static void v2_build_label(
+    struct ToriRS_PanelBuilder* panel, char const* id, char const* text)
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_LABEL, id, text); (void)fake_panel_set_text(NULL, id, text); }
+static void v2_build_key_value(
+    struct ToriRS_PanelBuilder* panel, char const* id, char const* label, char const* value)
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PLUGIN_W_KEY_VALUE, id, label); (void)fake_panel_set_text(NULL, id, value); }
+static enum ToriRS_Result v2_build_node(
+    struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node)
+{
+    int kind = TORIRS_PLUGIN_W_LABEL;
+    (void)panel;
+    if( node->kind == TORIRS_PANEL_HEADING ) kind = TORIRS_PLUGIN_W_SECTION;
+    else if( node->kind == TORIRS_PANEL_KEY_VALUE ) kind = TORIRS_PLUGIN_W_KEY_VALUE;
+    else if( node->kind == TORIRS_PANEL_CUSTOM ) kind = TORIRS_PLUGIN_W_CUSTOM;
+    if( !fake_panel_widget(NULL, kind, node->id, node->label ? node->label : node->text) )
+        return TORIRS_RESULT_BUDGET;
+    if( node->text ) (void)v2_panel_set_text(&g_api, node->id, node->text);
+    if( node->preferred_height ) (void)fake_panel_set_height(NULL, node->id, node->preferred_height);
+    return TORIRS_RESULT_OK;
+}
 
 static void
 api_init(void)
 {
     memset(&g_api, 0, sizeof(g_api));
-    g_api.abi_version = TORIRS_PLUGIN_ABI;
-    g_api.subscribe = fake_subscribe;
-    g_api.log = fake_log;
-    g_api.notify = fake_notify;
-    g_api.frame_ms = fake_frame_ms;
-    g_api.local_player = fake_local_player;
-    g_api.skill_name = fake_skill_name;
-    g_api.stat = fake_stat;
-    g_api.stat_xp = fake_stat_xp;
-    g_api.cfg_bool = fake_cfg_bool;
-    g_api.cfg_int = fake_cfg_int;
-    g_api.cfg_str = fake_cfg_str;
-    g_api.cfg_set = fake_cfg_set;
-    g_api.asset_load = fake_asset_load;
-    g_api.asset_data = fake_asset_data;
-    g_api.asset_save = fake_asset_save;
-    g_api.asset_release = fake_asset_release;
-    g_api.panel_request = fake_panel_request;
-    g_api.panel_widget = fake_panel_widget;
-    g_api.panel_set_text = fake_panel_set_text;
-    g_api.panel_set_value = fake_panel_set_value;
-    g_api.panel_set_height = fake_panel_set_height;
-    g_api.panel_set_attention = fake_panel_set_attention;
-    g_api.panel_clear = fake_panel_clear;
-    g_api.panel_invalidate = fake_panel_invalidate;
-    g_api.obj_image = fake_obj_image;
-    g_api.obj_info = fake_obj_info;
-    g_api.loot_source_next = fake_loot_source_next;
-    g_api.loot_row_next = fake_loot_row_next;
-    g_api.image_size = fake_image_size;
-    g_api.draw_image = fake_draw_image;
+    memset(&g_game_api, 0, sizeof(g_game_api));
+    g_api.struct_size = sizeof(g_api);
+    g_api.major_version = TORIRS_PLUGIN_API_V2_MAJOR;
+    g_api.minor_version = TORIRS_PLUGIN_API_V2_MINOR;
+    g_api.core.log = v2_log;
+    g_api.core.notify = v2_notify;
+    g_api.core.frame_ms = v2_frame_ms;
+    g_api.config.has = v2_config_has;
+    g_api.config.get_bool = v2_config_bool;
+    g_api.config.get_int = v2_config_int;
+    g_api.config.get_string = v2_config_string;
+    g_api.config.set = v2_config_set;
+    g_api.world.local_player = v2_local_player;
+    g_api.assets.request = v2_asset_request;
+    g_api.assets.bytes = v2_asset_bytes;
+    g_api.assets.save = v2_asset_save;
+    g_api.assets.release = v2_asset_release;
+    g_api.assets.image_release = v2_image_release;
+    g_api.panel.request = v2_panel_request;
+    g_api.panel.invalidate = v2_panel_invalidate;
+    g_api.panel.attention = v2_panel_attention;
+    g_api.panel.set_text = v2_panel_set_text;
+    g_api.panel.set_value = v2_panel_set_value;
+    g_api.panel.set_height = v2_panel_set_height;
+    g_api.panel.redraw = v2_panel_redraw;
+    g_game_api.struct_size = sizeof(g_game_api);
+    g_game_api.skill = v2_skill;
+    g_game_api.item_info = v2_item_info;
+    g_game_api.item_image = v2_item_image;
+    g_game_api.loot_source_next = v2_loot_source_next;
+    g_game_api.loot_row_next = v2_loot_row_next;
+    g_game_api.loot_revision = v2_loot_revision;
+    g_game_api.loot_source_clear = v2_loot_source_clear;
+    g_api.game = &g_game_api;
 }
 
 /* ---------------------------------------------------------------- driving */
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_TRACKER;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LOOT_TRACKER;
 
 /* The plugins assert their context is real and never look inside it -- the
  * host owns that struct -- so any address does, and using one keeps their own
@@ -663,10 +779,56 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER;
 static struct ToriRS_PluginCtx* const CTX = (struct ToriRS_PluginCtx*)&g_client;
 
 static void
+plugin_prepare(struct ToriRS_PluginDefV2 const* definition)
+{
+    assert(definition);
+    assert(!g_plugin_state);
+    g_plugin = definition;
+    g_plugin_state = calloc(1, definition->state_size);
+    assert(g_plugin_state);
+}
+
+static void
 dispatch(enum ToriRS_PluginEvent event, void* payload)
 {
-    if( g_handler[event] )
-        g_handler[event](CTX, payload, NULL);
+    assert(g_plugin);
+    assert(g_plugin_state || event == TORIRS_PLUGIN_EV_STOP);
+    switch( event )
+    {
+    case TORIRS_PLUGIN_EV_START:
+        if( g_plugin->callbacks.on_start )
+            g_plugin->callbacks.on_start(&g_api, g_plugin_state);
+        break;
+    case TORIRS_PLUGIN_EV_STOP:
+        if( g_plugin_state && g_plugin->callbacks.on_stop )
+            g_plugin->callbacks.on_stop(&g_api, g_plugin_state);
+        free(g_plugin_state);
+        g_plugin_state = NULL;
+        g_plugin = NULL;
+        break;
+    case TORIRS_PLUGIN_EV_LOGIC_TICK:
+        if( g_plugin->callbacks.on_logic_tick )
+            g_plugin->callbacks.on_logic_tick(&g_api, g_plugin_state, payload);
+        break;
+    case TORIRS_PLUGIN_EV_ASSET:
+        if( g_plugin->callbacks.on_asset )
+            g_plugin->callbacks.on_asset(&g_api, g_plugin_state, payload);
+        break;
+    case TORIRS_PLUGIN_EV_GAME_EVENT:
+        if( g_plugin->callbacks.on_game_event )
+            g_plugin->callbacks.on_game_event(&g_api, g_plugin_state, payload);
+        break;
+    case TORIRS_PLUGIN_EV_PANEL_ACTION:
+        if( g_plugin->callbacks.on_ui_action )
+            g_plugin->callbacks.on_ui_action(&g_api, g_plugin_state, payload);
+        break;
+    case TORIRS_PLUGIN_EV_PANEL_LAYOUT:
+        if( g_plugin->callbacks.on_ui_layout )
+            g_plugin->callbacks.on_ui_layout(&g_api, g_plugin_state, payload);
+        break;
+    default:
+        assert(!"unsupported direct-v2 test dispatch");
+    }
 }
 
 /** Run one EV_PANEL_BUILD for one face, with the model emptied as the host
@@ -674,17 +836,27 @@ dispatch(enum ToriRS_PluginEvent event, void* payload)
 static void
 panel_build_view(int view)
 {
-    struct ToriRS_PluginEvPanelBuild ev;
+    struct ToriRS_PanelBuilder panel = {
+        .struct_size = sizeof(panel),
+        .heading = v2_build_heading,
+        .paragraph = v2_build_paragraph,
+        .toggle = v2_build_toggle,
+        .select = v2_build_select,
+        .button = v2_build_button,
+        .custom = v2_build_custom,
+        .label = v2_build_label,
+        .key_value = v2_build_key_value,
+        .node = v2_build_node,
+    };
 
-    memset(&ev, 0, sizeof(ev));
-    ev.selection_generation = 1;
-    ev.view = view;
     g_client.widget_count = 0;
     memset(g_client.widget, 0, sizeof(g_client.widget));
     g_client.rebuild_wanted = false;
     g_client.building = true;
     g_client.builds++;
-    dispatch(TORIRS_PLUGIN_EV_PANEL_BUILD, &ev);
+    g_heading_id = 0;
+    if( g_plugin->callbacks.on_ui_build )
+        g_plugin->callbacks.on_ui_build(&g_api, g_plugin_state, &panel, view);
     g_client.building = false;
 
     /* The shell then states the allocation, and that is what tells a plugin
@@ -850,9 +1022,10 @@ row_text(char const* id)
 static void
 client_reset(void)
 {
+    if( g_plugin_state ) dispatch(TORIRS_PLUGIN_EV_STOP, NULL);
     memset(&g_client, 0, sizeof(g_client));
     memset(&g_store, 0, sizeof(g_store));
-    memset(g_handler, 0, sizeof(g_handler));
+    g_store.revision = 1;
     g_client.now_ms = 100000;
     g_client.logged_in = true;
     g_client.me.true_x = 3200;
@@ -882,7 +1055,7 @@ xp_start(void)
     fake_config_set_raw("pause_on_logout", "1");
     fake_config_set_raw("pause_skill_after", "0");
     fake_config_set_raw("reset_rate_after", "0");
-    TORIRS_PLUGIN_XP_TRACKER.init(CTX, &g_api);
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
     dispatch(TORIRS_PLUGIN_EV_START, NULL);
     panel_build();
 }
@@ -1274,7 +1447,7 @@ test_xp_offline_gains_are_not_the_session(void)
     client_reset();
     fake_config_set_raw("save_state", "1");
     g_client.xp[SKILL_WOODCUTTING] = 1000;
-    TORIRS_PLUGIN_XP_TRACKER.init(CTX, &g_api);
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
     dispatch(TORIRS_PLUGIN_EV_START, NULL);
     panel_build();
     tick(20);
@@ -1290,9 +1463,8 @@ test_xp_offline_gains_are_not_the_session(void)
      * million xp in no time at all, which is the reference's own "offline
      * gains" case.
      */
-    memset(g_handler, 0, sizeof(g_handler));
     g_client.xp[SKILL_WOODCUTTING] = 1001600;
-    TORIRS_PLUGIN_XP_TRACKER.init(CTX, &g_api);
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
     dispatch(TORIRS_PLUGIN_EV_START, NULL);
     panel_build();
     tick(20);
@@ -1322,7 +1494,7 @@ loot_start(void)
     fake_config_set_raw("chat_value_threshold", "0");
     fake_config_set_raw("ignored_items", "");
     fake_config_set_raw("ignored_sources", "");
-    TORIRS_PLUGIN_LOOT_TRACKER.init(CTX, &g_api);
+    plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
     dispatch(TORIRS_PLUGIN_EV_START, NULL);
     panel_build();
 }
@@ -1558,6 +1730,8 @@ test_loot_growth_does_not_rebuild(void)
 {
     int builds;
     int height;
+    int height_sets;
+    int redraws;
 
     client_reset();
     loot_start();
@@ -1565,6 +1739,8 @@ test_loot_growth_does_not_rebuild(void)
     settle();
     builds = g_client.builds;
     height = fake_widget_find("strip")->height;
+    height_sets = g_client.exact_height_sets;
+    redraws = g_client.redraws;
     TEST_ASSERT(builds > 0, "the page was declared once to begin with");
 
     loot_add("Cerberus", 1319, 1, 500, 2);
@@ -1582,6 +1758,31 @@ test_loot_growth_does_not_rebuild(void)
         g_client.builds == builds,
         "and not one of them re-declares the page (%d rebuilds)",
         g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.exact_height_sets > height_sets && g_client.redraws > redraws,
+        "growth journals an exact height plus custom redraw instead of a rebuild");
+}
+
+static void
+test_loot_unchanged_revision_is_o1(void)
+{
+    int const idle_ticks = 4;
+    int visits;
+    int height_sets;
+    int redraws;
+
+    client_reset();
+    loot_start();
+    visits = g_client.loot_source_visits;
+    height_sets = g_client.exact_height_sets;
+    redraws = g_client.redraws;
+    for( int i = 0; i < idle_ticks; i++ ) settle();
+    TEST_ASSERT(
+        g_client.loot_source_visits == visits,
+        "an unchanged loot revision performs no source/row snapshot walk");
+    TEST_ASSERT(
+        g_client.exact_height_sets == height_sets && g_client.redraws == redraws,
+        "an unchanged loot revision emits no retained panel mutations");
 }
 
 /** The same for a skill earning its first box. */
@@ -1620,6 +1821,7 @@ static void
 test_hidden_page_does_no_work(void)
 {
     struct ToriRS_PluginEvPanelLayout hidden;
+    int visits;
 
     client_reset();
     loot_start();
@@ -1629,9 +1831,13 @@ test_hidden_page_does_no_work(void)
     hidden.visible = false;
     dispatch(TORIRS_PLUGIN_EV_PANEL_LAYOUT, &hidden);
 
+    visits = g_client.loot_source_visits;
     loot_add("Goblin", 526, 1, 100, 1);
     settle();
     TEST_ASSERT(!has_loot(), "a hidden page is not rebuilt");
+    TEST_ASSERT(
+        g_client.loot_source_visits == visits,
+        "a hidden page leaves even a changed store unscanned");
 
     /* The STORE still holds it -- only the drawing stopped -- so showing the
      * page again states everything that happened meanwhile. */
@@ -1701,8 +1907,11 @@ main(void)
 
     test_settings_face_is_the_generated_form();
     test_loot_growth_does_not_rebuild();
+    test_loot_unchanged_revision_is_o1();
     test_xp_growth_does_not_rebuild();
     test_hidden_page_does_no_work();
+
+    if( g_plugin_state ) dispatch(TORIRS_PLUGIN_EV_STOP, NULL);
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

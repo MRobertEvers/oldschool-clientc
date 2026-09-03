@@ -2247,9 +2247,9 @@ test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c \
 # panel say", and every input to that is an api verb. It reads the real
 # text.ini, so a rebaked atlas whose metrics moved shows up here as a row count
 # that no longer matches.
-test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/test/item_stats_test.c
+test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/plugins/plugin_draw.c plugin/test/item_stats_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/item_stats_test \
-		plugin/plugins/item_stats.c engine/png_decode.c \
+		plugin/plugins/item_stats.c plugin/plugins/plugin_draw.c engine/png_decode.c \
 		$(REPO_ROOT)/3rd/miniz/miniz.c plugin/test/item_stats_test.c $(LDFLAGS)
 	ITEM_STATS_TEST_BMP=$(OBJ_DIR)/item_stats_test.bmp ./$(OBJ_DIR)/item_stats_test
 
@@ -2427,6 +2427,13 @@ test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/mobile_gameframe.c \
 		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/mobile_gameframe_test
+
+.PHONY: test-minimap-orbs-v2
+test-minimap-orbs-v2: $(OBJ_DIR) plugin/plugins/minimap_orbs.c \
+		plugin/test/minimap_orbs_v2_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_orbs_v2_test \
+		plugin/plugins/minimap_orbs.c plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/minimap_orbs_v2_test
 
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_v2_adapter.c \
 		plugin/plugins/xp_orbs.c \

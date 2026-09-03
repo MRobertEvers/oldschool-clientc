@@ -35,7 +35,7 @@
  * on a 2004 cache, on a cache that failed to open, and on a client started
  * with no cache at all.
  *
- * That is deliberate and it is the whole reason api->image_load exists. The
+ * That is deliberate and it is the whole reason api->assets.image exists. The
  * alternative -- naming graphic 1071 by cache id -- would work on exactly the
  * one revision the ids came from and silently draw whatever is numbered 1071
  * everywhere else.
@@ -66,11 +66,9 @@
  *
  * ## Clicking one
  *
- * An orb is a button in the reference and it is a button here. Each one claims
- * its plate with api->hit_region, so the mouseover line names the verb, the
- * right-click menu offers it and a left click runs it -- one declaration, all
- * three -- and the click is answered with api->if_click, which presses the
- * interface button the gameframe already has for that job.
+ * An orb is a button in the reference and it is a button here. Each canonical
+ * named node retains its hit rectangle and verb; on_ui_node_action resolves
+ * the lane's configured component and cache.invoke presses it.
  *
  * Pressing the real button rather than writing the var is what makes this
  * work at all: the run toggle and the special attack are the SERVER's, and a
@@ -94,7 +92,7 @@
 #define ORB_TEXT_W 23
 #define ORB_TEXT_H 13
 #define ORB_TEXT_CX (ORB_TEXT_X + ORB_TEXT_W / 2)
-/* Only the fallback path's, which draws through api->draw_text and so takes a
+/* Only the fallback path's, which draws through DrawBuilder.text and so takes a
  * baseline rather than a box. */
 #define ORB_TEXT_BASELINE (ORB_TEXT_Y + ORB_TEXT_H / 2 + 4)
 /** Yellow, as every orb's own `colour=16776960` states it. */
@@ -228,16 +226,6 @@ orbs_cfg_string(struct ToriRS_ApiV2* api, char const* key)
     return value ? value : "";
 }
 
-/** What a click on each orb means. Handed to api->hit_region and read back in
- *  EV_CANVAS_CLICK; the host does not look at these. */
-enum OrbTag
-{
-    ORB_TAG_HP = 1,
-    ORB_TAG_PRAYER,
-    ORB_TAG_RUN,
-    ORB_TAG_SPEC
-};
-
 /**
  * The interface button an orb presses, as `<interface>:<component>[:<op>]`.
  *
@@ -324,18 +312,7 @@ orbs_button(
     return 1;
 }
 
-/**
- * The verbs an orb offers, into `out`, which must hold
- * TORIRS_PLUGIN_REGION_OPS_MAX entries.
- *
- * An orb offers a verb only when the lane has told the plugin which button it
- * presses -- there is nothing to put in the menu otherwise, and a row that
- * does nothing is worse than no row. The REGION is still claimed either way,
- * which is what keeps a click on an orb from falling through to the minimap
- * behind it and walking the player.
- *
- * @return how many were written.
- */
+/** Request every authored image once; pending tokens become live in place. */
 static void
 orbs_load_images(struct ToriRS_ApiV2* api, struct OrbsState* state)
 {
@@ -618,9 +595,6 @@ orbs_draw_one(
     int value,
     int filled,
     int total,
-    uint32_t tag,
-    char const* const* ops,
-    int op_count,
     int inactive)
 {
     char text[16];
@@ -641,15 +615,10 @@ orbs_draw_one(
      *             `specenergy_indicator` is authored with.
      *   HOVERED   the same, with the lit plate (graphic 1072 beside 1071).
      *
-     * The plate, the lit plate and the hit region are the HOST's now: they
-     * were declared as the part's art and ops in orbs_chrome, and the host
-     * picks the hovered plate itself from the pointer and the box. What is
-     * drawn here is what changes every tick -- the disc, its cap, the icon
-     * and the number -- over the plate the host already put down.
+     * The plate, lit plate and hit region are retained named-node facets; the
+     * host picks the hovered plate from the pointer and box. This callback
+     * draws only what changes every tick over that retained plate.
      */
-    (void)ops;
-    (void)op_count;
-    (void)tag;
     trans = inactive ? 50 : 25;
     if( inactive )
     {
@@ -712,26 +681,10 @@ orbs_draw_one(
     draw->text(draw, x + ORB_TEXT_CX, y + ORB_TEXT_BASELINE, text, ORB_TEXT_RGB);
 }
 
-/*
- * ## The orbs are PARTS
- *
- * Each orb is a chrome part -- `orb_hitpoints`, `orb_prayer`, `orb_run`,
- * `orb_spec` -- claimed at start and, where this revision has no such thing,
- * ADDED and hung off the minimap. That is what lets this plugin coexist with
- * whatever else provides orbs: on an OldSchool cache the four names bind to
- * interface 160's own orb roots, so claiming them hides the cache's orbs and
- * this plugin draws exactly one set; on a 2004 cache nothing binds, so the
- * parts are introduced here; and on a frame where a gameframe plugin already
- * drew them, the claim comes back 0 and this plugin draws none of that orb --
- * and lays its remaining ones out AROUND it, because a part somebody else
- * holds still answers where it is.
- *
- * The split of labour: the HOST paints the plate and owns the hit region from
- * this plugin's declaration (chrome_paint / chrome_ops in EV_CHROME), and this
- * plugin draws what changes every tick -- the fill, the icon, the number -- on
- * top of it in EV_DRAW_CANVAS. Hover is the host's: it has the pointer and the
- * box and picks the lit plate itself.
- */
+/* Each orb is a canonical named node. Static retained facets own its plate,
+ * hover art, bounds and action; on_ui_node_draw adds only the live meter, icon
+ * and number. That keeps arbitration, paint order and input on one semantic
+ * tree without any legacy chrome claim or role lookup. */
 
 static struct
 {
@@ -753,10 +706,11 @@ static struct
       .mode = TORIRS_UI_REPLACE_OR_PROVIDE,                                        \
       .facets = TORIRS_UI_FACET_ALL,                                               \
       .value = { .struct_size = sizeof(struct ToriRS_UiNode),                      \
+                 .bounds = { 0, 0, 1, 1 },                                        \
                  .parent = "frame.minimap",                                        \
                  .anchor = TORIRS_ANCHOR_TOP_LEFT,                                 \
                  .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,                      \
-                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED,         \
+                 .flags = TORIRS_UI_NODE_ENABLED,                                  \
                  .hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM } }
 
 static struct ToriRS_UiContribution const ORB_CONTRIBUTIONS[] = {
@@ -828,9 +782,10 @@ orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
     for( int i = 0; i < ORB_COUNT; i++ )
     {
         struct ToriRS_UiNode value;
-        int const have_bounds = orbs_bounds(api, i, &value.bounds);
+        int have_bounds;
 
         memset(&value, 0, sizeof(value));
+        have_bounds = orbs_bounds(api, i, &value.bounds);
         value.struct_size = sizeof(value);
         value.parent = "frame.minimap";
         value.anchor = TORIRS_ANCHOR_TOP_LEFT;
@@ -839,8 +794,6 @@ orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
         value.flags = TORIRS_UI_NODE_ENABLED;
         if( have_bounds && orbs_cfg_bool(api, ORB_PART[i].show_key) )
             value.flags |= TORIRS_UI_NODE_VISIBLE;
-        if( have_bounds )
-            (void)orbs_bounds(api, i, &value.bounds);
         value.hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM;
         value.hit_rect = value.bounds;
         value.state_image_mask =
@@ -897,9 +850,6 @@ orbs_draw_node(
                 skill.current_level,
                 skill.current_level,
                 skill.base_level,
-                0,
-                NULL,
-                0,
                 0);
         return;
     }
@@ -921,9 +871,6 @@ orbs_draw_node(
             energy,
             energy,
             100,
-            0,
-            NULL,
-            0,
             !running);
         return;
     }
@@ -953,9 +900,6 @@ orbs_draw_node(
                 energy * 100 / spec_max,
                 energy,
                 spec_max,
-                0,
-                NULL,
-                0,
                 inactive);
         }
     }

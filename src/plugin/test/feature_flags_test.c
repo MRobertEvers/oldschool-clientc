@@ -1524,7 +1524,22 @@ main(void)
 
     /* A pick reaches the engine. An ENUM stores the choice TEXT, so a settings
      * file survives the list gaining an entry. */
-    pick(host, p, "camera_zoom", "Fixed");
+    {
+        struct ToriRS_PluginWinWidget const* camera =
+            widget_named(host, p, "camera_zoom");
+        struct ToriRS_PluginWinWidget const* distance =
+            widget_named(host, p, "draw_distance");
+        uint32_t const camera_serial = camera ? camera->serial : 0;
+        uint32_t const distance_serial = distance ? distance->serial : 0;
+
+        pick(host, p, "camera_zoom", "Fixed");
+        camera = widget_named(host, p, "camera_zoom");
+        distance = widget_named(host, p, "draw_distance");
+        CHECK(camera && camera->serial == camera_serial,
+            "changing a flag patches its retained row without rebuilding it");
+        CHECK(distance && distance->serial == distance_serial,
+            "changing a flag does not rebuild an unrelated row");
+    }
     CHECK(g_flags[1].value == 1, "picking a choice applies it");
     CHECK(
         strcmp(PluginHost_ConfigGet(host, p, "camera_zoom"), "Fixed") == 0,

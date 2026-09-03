@@ -121,6 +121,7 @@ struct ToriRS_UiRegistryNode
 struct ToriRS_UiRegistryContribution
 {
     bool used;
+    bool enabled;
     uint32_t serial;
     int node;
     int next_for_node;
@@ -268,6 +269,14 @@ ToriRS_UiRegistry_UpdateContribution(
     struct ToriRS_UiContributionRef contribution,
     uint32_t facets,
     struct ToriRS_UiNode const* value);
+
+/** Enable/disable one retained declaration without unregistering its stable
+ * node/ref. Identical restatements enqueue nothing. */
+enum ToriRS_UiRegistryResult
+ToriRS_UiRegistry_SetContributionEnabled(
+    struct ToriRS_UiRegistry* registry,
+    struct ToriRS_UiContributionRef contribution,
+    bool enabled);
 
 /** Remove all base facets and contributions belonging to a plugin. */
 int

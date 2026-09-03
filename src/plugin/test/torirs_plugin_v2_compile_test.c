@@ -51,15 +51,17 @@ STRUCT_SIZE_IS_FIRST(ToriRS_CacheApiV2);
 STRUCT_SIZE_IS_FIRST(ToriRS_ClientApiV2);
 STRUCT_SIZE_IS_FIRST(ToriRS_GameApiV2);
 STRUCT_SIZE_IS_FIRST(ToriRS_DrawBuilder);
+STRUCT_SIZE_IS_FIRST(ToriRS_DrawContext);
 STRUCT_SIZE_IS_FIRST(ToriRS_FrameBuilder);
 STRUCT_SIZE_IS_FIRST(ToriRS_PanelBuilder);
+STRUCT_SIZE_IS_FIRST(ToriRS_PanelNode);
 STRUCT_SIZE_IS_FIRST(ToriRS_PluginCallbacks);
 STRUCT_SIZE_IS_FIRST(ToriRS_PluginDefV2);
-MODULE_LAYOUT_IS_FROZEN(ToriRS_CoreApiV2, log, 7);
+MODULE_LAYOUT_IS_FROZEN(ToriRS_CoreApiV2, log, 8);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_ConfigApiV2, has, 6);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_WorldApiV2, local_player, 6);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_InputApiV2, key_held, 6);
-MODULE_LAYOUT_IS_FROZEN(ToriRS_UiApiV2, ref, 6);
+MODULE_LAYOUT_IS_FROZEN(ToriRS_UiApiV2, ref, 7);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_PlacementApiV2, revision, 8);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_FrameApiV2, offer_next, 5);
 MODULE_LAYOUT_IS_FROZEN(ToriRS_DrawApiV2, project, 4);
@@ -73,6 +75,7 @@ RESERVED_IS_TAIL(ToriRS_SelectOption);
 RESERVED_IS_TAIL(ToriRS_UiNode);
 RESERVED_IS_TAIL(ToriRS_UiContribution);
 RESERVED_IS_TAIL(ToriRS_FrameOffer);
+RESERVED_IS_TAIL(ToriRS_PanelNode);
 RESERVED_IS_TAIL(ToriRS_ApiV2);
 _Static_assert(
     offsetof(struct ToriRS_SelectOption, reserved_v2) == (sizeof(void*) == 8 ? 40u : 20u),

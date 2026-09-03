@@ -3300,7 +3300,7 @@ v2_transition_build(
     marker.label = g_v2_transition_mode == V2_TRANSITION_READY ? "committed" : "candidate";
     frame->ui_node(frame, "marker", &marker);
     if( g_v2_transition_mode == V2_TRANSITION_TOO_MANY_NODES )
-        for( int i = 0; i < 17; i++ )
+        for( int i = 0; i < TORIRS_FRAME_NODES_MAX + 1; i++ )
         {
             char name[24];
             snprintf(name, sizeof(name), "extra.%d", i);

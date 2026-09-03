@@ -1,5 +1,5 @@
 #include "plugin/plugins/plugin_draw.h"
-#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -179,8 +179,6 @@
 #define LT_INK_HEAD 0xFF981Fu
 #define LT_INK_VALUE 0xFFFFFFu
 
-static struct ToriRS_PluginApi const* g_api;
-
 /** One item, summed across every kill of one source. */
 struct LtItem
 {
@@ -205,85 +203,130 @@ struct LtSource
     uint64_t last_ms;
 };
 
-static struct LtSource g_source[LT_SOURCES_MAX];
-static int g_source_count;
+struct LootTrackerState
+{
+    struct LtSource source[LT_SOURCES_MAX];
+    int source_count;
+    int detail;
+    int built_detail;
+    int built_rows;
+    bool page_built;
+    bool page_visible;
 
-/** Which source's detail is open, or -1 for the list alone. */
-static int g_detail = -1;
-static int g_built_detail = -1;
-static int g_built_rows;
-static bool g_page_built;
-/** Whether the page is on screen, as distinct from declared. @see the xp
- *  tracker's g_page_visible -- a collapsed shell keeps the model. */
-static bool g_page_visible;
+    struct PluginDraw_AtlasV2 bold;
+    struct ToriRS_ImageRef img_over;
+    uint32_t* over_px;
+    int over_w;
+    int over_h;
+    struct PluginDraw_AtlasV2 text;
+    struct ToriRS_ImageRef img_spine;
+    uint32_t* spine_px;
+    int spine_w;
+    int spine_h;
+    struct ToriRS_ImageRef img_cell;
+    uint32_t* cell_px;
+    int cell_w;
+    int cell_h;
 
-/* ---- the art, and what is drawn with it --------------------------------- */
+    bool expanded[LT_SOURCES_MAX];
+    bool drop_view;
+    struct ToriRS_ImageRef img_view;
+    uint32_t* view_px;
+    int view_w;
+    int view_h;
+    struct ToriRS_ImageRef img_view2;
+    uint32_t* view2_px;
+    int view2_w;
+    int view2_h;
+    struct ToriRS_ImageRef img_alch;
+    uint32_t* alch_px;
+    int alch_w;
+    int alch_h;
+    struct ToriRS_ImageRef img_collapse;
+    uint32_t* collapse_px;
+    int collapse_w;
+    int collapse_h;
+    struct ToriRS_ImageRef img_ignored;
+    uint32_t* ignored_px;
+    int ignored_w;
+    int ignored_h;
 
-/** The two faces script2907 and script3043 set their text in. */
-static struct PluginDraw_Atlas g_bold;
-/** The panel's own stone, drawn at the left of the totals band. */
-static int g_img_over = -1;
-static uint32_t* g_over_px;
-static int g_over_w;
-static int g_over_h;
-static struct PluginDraw_Atlas g_text;
-/** The header spine and the cell plate, in both their states. */
-static int g_img_spine = -1;
-static uint32_t* g_spine_px;
-static int g_spine_w;
-static int g_spine_h;
-static int g_img_cell = -1;
-static uint32_t* g_cell_px;
-static int g_cell_w;
-static int g_cell_h;
+    uint32_t* compose;
+    int compose_w;
+    int compose_h;
+    struct ToriRS_ImageRef strip_image;
+    uint64_t compose_key;
+    int well_w;
+    uint64_t next_panel_ms;
+    long long session_value;
+    int session_kills;
+    bool dirty;
+    bool redraw_pending;
+    uint64_t loot_revision;
+};
 
-/** Which sources are EXPANDED. The CS2 header's first op is Collapse/Expand,
- *  so a record is a band with its grid under it or a band on its own. */
-static bool g_expanded[LT_SOURCES_MAX];
-/**
- * Which of the two views the strip is drawing -- the cache's `%varbit9607`.
- *
- * 0 SOURCE: a band per kill with its drops under it, which is what the panel
- *   opens on. 1 DROP: every drop the log holds in one grid, summed across the
- *   sources, which is the answer to "what did I actually get" rather than
- *   "what dropped it". The button that swaps them wears graphic_4915 in one
- *   state and graphic_4916 in the other, and its op names the view it is
- *   about to move TO -- @see torirs_loot_tracker_view_mode.
- */
-static bool g_drop_view;
+struct LootTrackerRuntime
+{
+    struct ToriRS_ApiV2* api;
+    struct LootTrackerState* state;
+};
 
-/** The control art, in the order the band lays it out. */
-static int g_img_view = -1;
-static uint32_t* g_view_px;
-static int g_view_w;
-static int g_view_h;
-static int g_img_view2 = -1;
-static uint32_t* g_view2_px;
-static int g_view2_w;
-static int g_view2_h;
-static int g_img_alch = -1;
-static uint32_t* g_alch_px;
-static int g_alch_w;
-static int g_alch_h;
-static int g_img_collapse = -1;
-static uint32_t* g_collapse_px;
-static int g_collapse_w;
-static int g_collapse_h;
-static int g_img_ignored = -1;
-static uint32_t* g_ignored_px;
-static int g_ignored_w;
-static int g_ignored_h;
-/** The composed strip, and the size it was composed at. */
-static uint32_t* g_compose;
-static int g_compose_w;
-static int g_compose_h;
-static int g_well_w = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
-static uint64_t g_next_panel_ms;
-/** Session totals, kept beside the records because a source dropped for room
- *  should not make the session look smaller than it was. */
-static long long g_session_value;
-static int g_session_kills;
-static bool g_dirty;
+#define g_api (rt->api)
+#define g_source (rt->state->source)
+#define g_source_count (rt->state->source_count)
+#define g_detail (rt->state->detail)
+#define g_built_detail (rt->state->built_detail)
+#define g_built_rows (rt->state->built_rows)
+#define g_page_built (rt->state->page_built)
+#define g_page_visible (rt->state->page_visible)
+#define g_bold (rt->state->bold)
+#define g_img_over (rt->state->img_over)
+#define g_over_px (rt->state->over_px)
+#define g_over_w (rt->state->over_w)
+#define g_over_h (rt->state->over_h)
+#define g_text (rt->state->text)
+#define g_img_spine (rt->state->img_spine)
+#define g_spine_px (rt->state->spine_px)
+#define g_spine_w (rt->state->spine_w)
+#define g_spine_h (rt->state->spine_h)
+#define g_img_cell (rt->state->img_cell)
+#define g_cell_px (rt->state->cell_px)
+#define g_cell_w (rt->state->cell_w)
+#define g_cell_h (rt->state->cell_h)
+#define g_expanded (rt->state->expanded)
+#define g_drop_view (rt->state->drop_view)
+#define g_img_view (rt->state->img_view)
+#define g_view_px (rt->state->view_px)
+#define g_view_w (rt->state->view_w)
+#define g_view_h (rt->state->view_h)
+#define g_img_view2 (rt->state->img_view2)
+#define g_view2_px (rt->state->view2_px)
+#define g_view2_w (rt->state->view2_w)
+#define g_view2_h (rt->state->view2_h)
+#define g_img_alch (rt->state->img_alch)
+#define g_alch_px (rt->state->alch_px)
+#define g_alch_w (rt->state->alch_w)
+#define g_alch_h (rt->state->alch_h)
+#define g_img_collapse (rt->state->img_collapse)
+#define g_collapse_px (rt->state->collapse_px)
+#define g_collapse_w (rt->state->collapse_w)
+#define g_collapse_h (rt->state->collapse_h)
+#define g_img_ignored (rt->state->img_ignored)
+#define g_ignored_px (rt->state->ignored_px)
+#define g_ignored_w (rt->state->ignored_w)
+#define g_ignored_h (rt->state->ignored_h)
+#define g_compose (rt->state->compose)
+#define g_compose_w (rt->state->compose_w)
+#define g_compose_h (rt->state->compose_h)
+#define g_strip_image (rt->state->strip_image)
+#define g_compose_key (rt->state->compose_key)
+#define g_well_w (rt->state->well_w)
+#define g_next_panel_ms (rt->state->next_panel_ms)
+#define g_session_value (rt->state->session_value)
+#define g_session_kills (rt->state->session_kills)
+#define g_dirty (rt->state->dirty)
+#define g_redraw_pending (rt->state->redraw_pending)
+#define g_loot_revision (rt->state->loot_revision)
 
 /* ------------------------------------------------------------------------ */
 /* Names and numbers                                                         */
@@ -474,15 +517,23 @@ lt_listed(char const* list, char const* name)
 }
 
 /** What one of `item` is worth, through the configured price source. */
+static char const*
+lt_config_string(struct LootTrackerRuntime* rt, char const* key)
+{
+    char const* value = "";
+    (void)g_api->config.get_string(g_api, key, &value);
+    return value ? value : "";
+}
+
 static long long
-lt_unit_value(struct ToriRS_PluginCtx* ctx, struct LtItem const* item)
+lt_unit_value(struct LootTrackerRuntime* rt, struct LtItem const* item)
 {
     char const* source;
 
-    assert(ctx);
+    assert(rt);
     assert(item);
 
-    source = g_api->cfg_str(ctx, "price_source");
+    source = lt_config_string(rt, "price_source");
     /* High alchemy is three fifths of the cache cost, which is the game's own
      * formula and not an approximation of one. */
     if( source && lt_name_eq(source, "High alchemy") )
@@ -492,15 +543,23 @@ lt_unit_value(struct ToriRS_PluginCtx* ctx, struct LtItem const* item)
 
 /** Everything one source's drops are worth. */
 static long long
-lt_source_value(struct ToriRS_PluginCtx* ctx, struct LtSource const* src)
+lt_source_value(struct LootTrackerRuntime* rt, struct LtSource const* src)
 {
     long long total = 0;
 
-    assert(ctx);
+    assert(rt);
     assert(src);
     for( int i = 0; i < src->item_count; i++ )
-        total += lt_unit_value(ctx, &src->items[i]) * src->items[i].quantity;
+        total += lt_unit_value(rt, &src->items[i]) * src->items[i].quantity;
     return total;
+}
+
+static void
+lt_revalue(struct LootTrackerRuntime* rt)
+{
+    g_session_value = 0;
+    for( int i = 0; i < g_source_count; i++ )
+        g_session_value += lt_source_value(rt, &g_source[i]);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -521,21 +580,22 @@ lt_source_value(struct ToriRS_PluginCtx* ctx, struct LtSource const* src)
  * what the chat line adds is that the player should LOOK, which is what the
  * attention marker on the plugin's rail entry says.
  */
-static enum ToriRS_PluginVerdict
-lt_game_event(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+lt_game_event(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_PluginEvGameEvent const* ev)
 {
-    (void)userdata;
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
 
-    struct ToriRS_PluginEvGameEvent const* ev = event;
-
-    assert(ctx);
+    assert(api);
     assert(ev);
     assert(ev->kind);
 
     if( strcmp(ev->kind, "valuable_drop") == 0 || strcmp(ev->kind, "pet") == 0 ||
         strcmp(ev->kind, "collection_log") == 0 )
-        g_api->panel_set_attention(ctx, true);
-    return TORIRS_PLUGIN_PASS;
+        g_api->panel.attention(g_api, true);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -548,40 +608,40 @@ lt_game_event(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
 /** Everything the compose needs, resident. */
 static int
-lt_art_ready(struct ToriRS_PluginCtx* ctx)
+lt_art_ready(struct LootTrackerRuntime* rt)
 {
-    assert(ctx);
-    if( !PluginDraw_AtlasLoad(ctx, g_api, &g_bold, "bold") )
+    assert(rt);
+    if( !PluginDraw_AtlasLoadV2(g_api, &g_bold, "bold") )
         return 0;
-    (void)PluginDraw_ImageLoad(
-        ctx, g_api, "panel_icon.png", &g_img_over, &g_over_px, &g_over_w, &g_over_h);
+    (void)PluginDraw_ImageLoadV2(
+        g_api, "panel_icon.png", &g_img_over, &g_over_px, &g_over_w, &g_over_h);
     /*
      * The band's four controls, cut from the cache: graphic_4915/4916 are the
      * two faces of the view toggle, 4912 the value basis, 4917 collapse-all,
      * 4913 the ignore list. Wanted but not REQUIRED -- a band with a gap where
      * a button belongs still reads, and a page that refuses to draw does not.
      */
-    (void)PluginDraw_ImageLoad(
-        ctx, g_api, "btn_dropview.png", &g_img_view, &g_view_px, &g_view_w, &g_view_h);
-    (void)PluginDraw_ImageLoad(
-        ctx, g_api, "btn_sourceview.png", &g_img_view2, &g_view2_px, &g_view2_w,
+    (void)PluginDraw_ImageLoadV2(
+        g_api, "btn_dropview.png", &g_img_view, &g_view_px, &g_view_w, &g_view_h);
+    (void)PluginDraw_ImageLoadV2(
+        g_api, "btn_sourceview.png", &g_img_view2, &g_view2_px, &g_view2_w,
         &g_view2_h);
-    (void)PluginDraw_ImageLoad(
-        ctx, g_api, "btn_alch.png", &g_img_alch, &g_alch_px, &g_alch_w, &g_alch_h);
-    (void)PluginDraw_ImageLoad(
-        ctx, g_api, "btn_collapse.png", &g_img_collapse, &g_collapse_px, &g_collapse_w,
+    (void)PluginDraw_ImageLoadV2(
+        g_api, "btn_alch.png", &g_img_alch, &g_alch_px, &g_alch_w, &g_alch_h);
+    (void)PluginDraw_ImageLoadV2(
+        g_api, "btn_collapse.png", &g_img_collapse, &g_collapse_px, &g_collapse_w,
         &g_collapse_h);
-    (void)PluginDraw_ImageLoad(
-        ctx, g_api, "btn_ignored.png", &g_img_ignored, &g_ignored_px, &g_ignored_w,
+    (void)PluginDraw_ImageLoadV2(
+        g_api, "btn_ignored.png", &g_img_ignored, &g_ignored_px, &g_ignored_w,
         &g_ignored_h);
-    if( !PluginDraw_AtlasLoad(ctx, g_api, &g_text, "text") )
+    if( !PluginDraw_AtlasLoadV2(g_api, &g_text, "text") )
         return 0;
-    if( !PluginDraw_ImageLoad(
-            ctx, g_api, "cat_spine.png", &g_img_spine, &g_spine_px, &g_spine_w,
+    if( !PluginDraw_ImageLoadV2(
+            g_api, "cat_spine.png", &g_img_spine, &g_spine_px, &g_spine_w,
             &g_spine_h) )
         return 0;
-    return PluginDraw_ImageLoad(
-        ctx, g_api, "cell.png", &g_img_cell, &g_cell_px, &g_cell_w, &g_cell_h);
+    return PluginDraw_ImageLoadV2(
+        g_api, "cell.png", &g_img_cell, &g_cell_px, &g_cell_w, &g_cell_h);
 }
 
 /** How many cell rows one source's drops occupy. */
@@ -594,7 +654,7 @@ lt_grid_rows(struct LtSource const* src)
 
 /** How tall one source's band is, expanded or not. */
 static int
-lt_source_h(int index)
+lt_source_h(struct LootTrackerRuntime* rt, int index)
 {
     assert(index >= 0);
     assert(index < g_source_count);
@@ -613,7 +673,7 @@ lt_source_h(int index)
  * merged by obj id, so twenty goblins' worth of bones is one cell.
  */
 static int
-lt_collect_drops(struct LtItem* out, int max)
+lt_collect_drops(struct LootTrackerRuntime* rt, struct LtItem* out, int max)
 {
     int n = 0;
 
@@ -649,7 +709,7 @@ lt_drop_rows(int n)
 }
 
 static int
-lt_strip_h(void)
+lt_strip_h(struct LootTrackerRuntime* rt)
 {
     int total = LT_TOTALS_H + LT_HEAD_GAP;
 
@@ -657,19 +717,19 @@ lt_strip_h(void)
     {
         struct LtItem drops[LT_SOURCES_MAX * 4];
         int const n = lt_collect_drops(
-            drops, (int)(sizeof(drops) / sizeof(drops[0])));
+            rt, drops, (int)(sizeof(drops) / sizeof(drops[0])));
         return total + (n > 0 ? lt_drop_rows(n) * LT_CELL_H + 6 : LT_HEAD_H);
     }
 
     for( int i = 0; i < g_source_count; i++ )
-        total += lt_source_h(i);
+        total += lt_source_h(rt, i);
     /* The empty note still needs a line to sit on. */
     return g_source_count > 0 ? total : total + LT_HEAD_H;
 }
 
 /** The totals band, which the game's tracker puts above the categories. */
 static void
-lt_draw_totals(uint32_t* buf, int w, int h)
+lt_draw_totals(struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h)
 {
     char text[64];
 
@@ -686,16 +746,16 @@ lt_draw_totals(uint32_t* buf, int w, int h)
      * the band's other three controls. An icon here as well sat on top of it.
      */
 
-    PluginDraw_Text(
+    PluginDraw_TextV2(
         buf, w, h, LT_TOTALS_KEY_X, 8, &g_text, "Total count:", LT_INK_VALUE);
-    PluginDraw_Text(
+    PluginDraw_TextV2(
         buf, w, h, LT_TOTALS_KEY_X, 22, &g_text, "Total value:", LT_INK_VALUE);
 
     lt_kmb(g_session_kills, text, sizeof(text));
-    PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 8, &g_text, text, LT_INK_VALUE);
+    PluginDraw_TextV2(buf, w, h, LT_TOTALS_VAL_X, 8, &g_text, text, LT_INK_VALUE);
     lt_kmb(g_session_value, text, sizeof(text));
     snprintf(text + strlen(text), sizeof(text) - strlen(text), " gp");
-    PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 22, &g_text, text, LT_INK_VALUE);
+    PluginDraw_TextV2(buf, w, h, LT_TOTALS_VAL_X, 22, &g_text, text, LT_INK_VALUE);
 
     /*
      * The band's four controls, at the offsets interface 650 places them.
@@ -729,13 +789,13 @@ lt_draw_totals(uint32_t* buf, int w, int h)
 
 /** The source a click at `y` landed on, and how far into it. -1 for neither. */
 static int
-lt_source_at(int y, int* out_local_y)
+lt_source_at(struct LootTrackerRuntime* rt, int y, int* out_local_y)
 {
     int top = LT_TOTALS_H + LT_HEAD_GAP;
 
     for( int i = 0; i < g_source_count; i++ )
     {
-        int const h = lt_source_h(i);
+        int const h = lt_source_h(rt, i);
         if( y >= top && y < top + h )
         {
             if( out_local_y )
@@ -768,14 +828,15 @@ lt_source_at(int y, int* out_local_y)
  */
 static void
 lt_draw_cell(
-    struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h, int x, int y,
+    struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h, int x, int y,
     struct LtItem const* item)
 {
-    int image;
+    struct ToriRS_ImageRef image = { 0 };
     int iw = 0;
     int ih = 0;
+    size_t copied = 0;
 
-    assert(ctx);
+    assert(rt);
     assert(buf);
     assert(item);
 
@@ -783,29 +844,39 @@ lt_draw_cell(
         PluginDraw_Blit(
             buf, w, h, x, y, g_cell_px, g_cell_w, g_cell_h, 0, 0, g_cell_w, g_cell_h, 0);
 
-    image = g_api->obj_image(
-        ctx, item->obj_id, item->quantity, TORIRS_PLUGIN_OBJ_ICON_BORDERED);
-    if( image < 0 || !g_api->image_size(ctx, image, &iw, &ih) )
+    if( !g_api->game ||
+        g_api->game->item_image(
+            g_api, item->obj_id, item->quantity,
+            TORIRS_PLUGIN_OBJ_ICON_BORDERED, &image) != TORIRS_ASSET_READY ||
+        !g_api->assets.image_size(g_api, image, &iw, &ih) )
+    {
+        g_redraw_pending = true;
+        g_compose_key = 0;
+        if( image.value ) g_api->assets.image_release(g_api, image);
         return;
+    }
     {
         uint32_t* px = malloc((size_t)iw * (size_t)ih * sizeof(*px));
         assert(px);
-        if( g_api->image_pixels(ctx, image, px, iw * ih) )
+        if( g_api->assets.image_pixels(
+                g_api, image, px, (size_t)iw * (size_t)ih, &copied) &&
+            copied == (size_t)iw * (size_t)ih )
             PluginDraw_Blit(buf, w, h, x + 2, y + 2, px, iw, ih, 0, 0, iw, ih, 0);
         free(px);
     }
+    g_api->assets.image_release(g_api, image);
 }
 
 static void
 lt_draw_source(
-    struct ToriRS_PluginCtx* ctx, uint32_t* buf, int w, int h, int top, int index)
+    struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h, int top, int index)
 {
     struct LtSource const* src = &g_source[index];
     char text[96];
     char amount[32];
     int cell_x0;
 
-    assert(ctx);
+    assert(rt);
     assert(buf);
 
     /* The plate, inset 2 all round -- @see LT_PLATE_INSET. */
@@ -818,11 +889,11 @@ lt_draw_source(
     /* "Goblin x 2" on the left and its value on the right, both in the bold
      * face at the interfaces' orange, as script2907 sets them. */
     snprintf(text, sizeof(text), "%s x %d", src->name, src->kills);
-    PluginDraw_Text(buf, w, h, 8, top + 9, &g_bold, text, LT_INK_HEAD);
+    PluginDraw_TextV2(buf, w, h, 8, top + 9, &g_bold, text, LT_INK_HEAD);
 
-    lt_kmb(lt_source_value(ctx, src), amount, sizeof(amount));
+    lt_kmb(lt_source_value(rt, src), amount, sizeof(amount));
     snprintf(text, sizeof(text), "%s gp", amount);
-    PluginDraw_TextRight(buf, w, h, w - 8, top + 9, &g_bold, text, LT_INK_HEAD);
+    PluginDraw_TextRightV2(buf, w, h, w - 8, top + 9, &g_bold, text, LT_INK_HEAD);
 
     if( !g_expanded[index] || src->item_count == 0 )
         return;
@@ -845,7 +916,7 @@ lt_draw_source(
         int iw = 0;
         int ih = 0;
 
-        lt_draw_cell(ctx, buf, w, h, x, y, &src->items[i]);
+        lt_draw_cell(rt, buf, w, h, x, y, &src->items[i]);
         (void)image;
         (void)iw;
         (void)ih;
@@ -870,10 +941,10 @@ lt_draw_source(
  * quantity -- because anything left out is a change that will not redraw.
  */
 static uint64_t
-lt_compose_key(struct ToriRS_PluginCtx* ctx, int width)
+lt_compose_key(struct LootTrackerRuntime* rt, int width)
 {
     uint64_t k = 1469598103934665603ull;
-    char const* price = g_api->cfg_str(ctx, "price_source");
+    char const* price = lt_config_string(rt, "price_source");
 
 #define LT_MIX(v)                                                                        \
     do                                                                                   \
@@ -882,7 +953,7 @@ lt_compose_key(struct ToriRS_PluginCtx* ctx, int width)
         k *= 1099511628211ull;                                                           \
     } while( 0 )
 
-    assert(ctx);
+    assert(rt);
     LT_MIX(width);
     LT_MIX(g_drop_view ? 1 : 0);
     LT_MIX(g_source_count);
@@ -909,18 +980,15 @@ lt_compose_key(struct ToriRS_PluginCtx* ctx, int width)
     return k;
 }
 
-/** The key the published strip was composed from; 0 is "nothing published". */
-static uint64_t g_compose_key;
-
 static void
-lt_compose(struct ToriRS_PluginCtx* ctx, int width)
+lt_compose(struct LootTrackerRuntime* rt, int width)
 {
-    int const height = lt_strip_h();
+    int const height = lt_strip_h(rt);
     size_t const pixels = (size_t)width * (size_t)height;
-    uint64_t const key = lt_compose_key(ctx, width);
+    uint64_t const key = lt_compose_key(rt, width);
     int top = 0;
 
-    assert(ctx);
+    assert(rt);
     if( width <= 0 || height <= 0 )
         return;
     /*
@@ -946,34 +1014,35 @@ lt_compose(struct ToriRS_PluginCtx* ctx, int width)
      * interface's does behind its bands. */
     memset(g_compose, 0, pixels * sizeof(*g_compose));
 
-    lt_draw_totals(g_compose, width, height);
+    lt_draw_totals(rt, g_compose, width, height);
     top = LT_TOTALS_H + LT_HEAD_GAP;
 
     if( g_source_count == 0 )
-        PluginDraw_Text(
+        PluginDraw_TextV2(
             g_compose, width, height, 4, top + 3, &g_text, "No loot to display.",
             LT_INK_HEAD);
     else if( g_drop_view )
     {
         struct LtItem drops[LT_SOURCES_MAX * 4];
         int const n = lt_collect_drops(
-            drops, (int)(sizeof(drops) / sizeof(drops[0])));
+            rt, drops, (int)(sizeof(drops) / sizeof(drops[0])));
         int const x0 = (width - LT_GRID_COLS * LT_CELL_W) / 2;
 
         for( int i = 0; i < n; i++ )
             lt_draw_cell(
-                ctx, g_compose, width, height,
+                rt, g_compose, width, height,
                 (x0 < 0 ? 0 : x0) + (i % LT_GRID_COLS) * LT_CELL_W,
                 top + (i / LT_GRID_COLS) * LT_CELL_H, &drops[i]);
     }
     else
         for( int i = 0; i < g_source_count; i++ )
         {
-            lt_draw_source(ctx, g_compose, width, height, top, i);
-            top += lt_source_h(i);
+            lt_draw_source(rt, g_compose, width, height, top, i);
+            top += lt_source_h(rt, i);
         }
 
-    g_api->image_compose(ctx, "strip", width, height, g_compose);
+    (void)g_api->assets.image_compose(
+        g_api, "strip", width, height, g_compose, &g_strip_image);
 }
 
 /**
@@ -986,12 +1055,10 @@ lt_compose(struct ToriRS_PluginCtx* ctx, int width)
  * on the drawn values; so is asking for the pass at all.
  */
 static void
-lt_strip_invalidate(struct ToriRS_PluginCtx* ctx)
+lt_strip_invalidate(struct LootTrackerRuntime* rt)
 {
-    assert(ctx);
-    if( g_compose && lt_compose_key(ctx, g_well_w) == g_compose_key )
-        return;
-    g_api->panel_invalidate(ctx, "strip");
+    assert(rt);
+    g_api->panel.redraw(g_api, "strip");
 }
 
 /**
@@ -1010,7 +1077,7 @@ lt_strip_invalidate(struct ToriRS_PluginCtx* ctx)
  * @return true when anything changed, which is what decides a rebuild.
  */
 static bool
-lt_sync_store(struct ToriRS_PluginCtx* ctx)
+lt_sync_store(struct LootTrackerRuntime* rt)
 {
     struct ToriRS_PluginLootSource src;
     char const* ignored;
@@ -1018,16 +1085,17 @@ lt_sync_store(struct ToriRS_PluginCtx* ctx)
     int count = 0;
     bool changed = false;
 
-    assert(ctx);
+    assert(rt);
 
-    ignored = g_api->cfg_str(ctx, "ignored_sources");
+    ignored = lt_config_string(rt, "ignored_sources");
     g_session_kills = 0;
     g_session_value = 0;
 
-    for( int it = g_api->loot_source_next(ctx, -1, &src); it >= 0;
-         it = g_api->loot_source_next(ctx, it, &src) )
+    for( int it = g_api->game->loot_source_next(g_api, -1, &src); it >= 0;
+         it = g_api->game->loot_source_next(g_api, it, &src) )
     {
         struct LtSource* dst;
+        struct LtSource previous;
         struct ToriRS_PluginLootRow row;
         char name[64];
 
@@ -1038,16 +1106,14 @@ lt_sync_store(struct ToriRS_PluginCtx* ctx)
             break;
 
         dst = &g_source[count];
-        if( strcmp(dst->name, name) != 0 || dst->kills != src.kill_count ||
-            dst->item_count != src.row_count )
-            changed = true;
+        previous = *dst;
         memset(dst, 0, sizeof(*dst));
         snprintf(dst->name, sizeof(dst->name), "%s", name);
         dst->kills = src.kill_count;
         dst->id = src.id;
 
-        for( int r = g_api->loot_row_next(ctx, src.id, -1, &row); r >= 0;
-             r = g_api->loot_row_next(ctx, src.id, r, &row) )
+        for( int r = g_api->game->loot_row_next(g_api, src.id, -1, &row); r >= 0;
+             r = g_api->game->loot_row_next(g_api, src.id, r, &row) )
         {
             struct ToriRS_PluginObjInfo info;
             struct LtItem item;
@@ -1061,15 +1127,17 @@ lt_sync_store(struct ToriRS_PluginCtx* ctx)
              * asked for, and an objtype that is not resident yet simply has
              * none this pass. */
             item.cost = row.value;
-            if( g_api->obj_info(ctx, row.obj_id, &info) )
+            if( g_api->game->item_info(g_api, row.obj_id, &info) )
                 lt_clean_name(info.name, item.name, sizeof(item.name));
-            if( lt_listed(g_api->cfg_str(ctx, "ignored_items"), item.name) )
+            if( lt_listed(lt_config_string(rt, "ignored_items"), item.name) )
                 continue;
             dst->items[dst->item_count++] = item;
         }
 
         g_session_kills += dst->kills;
-        g_session_value += lt_source_value(ctx, dst);
+        g_session_value += lt_source_value(rt, dst);
+        if( count >= before || memcmp(&previous, dst, sizeof(*dst)) != 0 )
+            changed = true;
         count++;
     }
 
@@ -1081,13 +1149,33 @@ lt_sync_store(struct ToriRS_PluginCtx* ctx)
     return changed;
 }
 
+/** O(1) idle gate over the authoritative loot store. Revision zero is the
+ * compatibility answer for a host without the minor capability, where the
+ * bounded two-Hz snapshot remains the safe fallback. */
+static bool
+lt_sync_changed(struct LootTrackerRuntime* rt, bool force)
+{
+    uint64_t const revision = g_api->game->loot_revision
+                                  ? g_api->game->loot_revision(g_api)
+                                  : 0;
+    bool changed;
+
+    if( !force && revision != 0 && revision == g_loot_revision )
+        return false;
+    changed = lt_sync_store(rt);
+    g_loot_revision = g_api->game->loot_revision
+                          ? g_api->game->loot_revision(g_api)
+                          : revision;
+    return changed;
+}
+
 /** Rewrite every readout on the built page. */
 static void
-lt_page_refresh(struct ToriRS_PluginCtx* ctx)
+lt_page_refresh(struct LootTrackerRuntime* rt)
 {
     char text[128];
 
-    assert(ctx);
+    assert(rt);
     if( !g_page_built )
         return;
 
@@ -1098,47 +1186,55 @@ lt_page_refresh(struct ToriRS_PluginCtx* ctx)
      * be a panel_clear, and re-declaring the whole page every time a kill
      * landed is what the list flashed on.
      */
-    g_built_rows = lt_strip_h();
-    g_api->panel_set_height(ctx, "strip", g_built_rows);
+    g_built_rows = lt_strip_h(rt);
+    (void)g_api->panel.set_height(g_api, "strip", g_built_rows);
 
     /* The bands are pixels and redraw themselves. */
-    lt_strip_invalidate(ctx);
+    lt_strip_invalidate(rt);
 
     if( g_detail >= 0 && g_detail < g_source_count )
     {
         struct LtSource const* src = &g_source[g_detail];
 
+        (void)g_api->panel.set_text(g_api, "sec_detail", src->name);
         lt_commas(src->kills, text, sizeof(text));
-        g_api->panel_set_text(ctx, "d_kills", text);
-        lt_commas(lt_source_value(ctx, src), text, sizeof(text));
-        g_api->panel_set_text(ctx, "d_value", text);
+        (void)g_api->panel.set_text(g_api, "d_kills", text);
+        lt_commas(lt_source_value(rt, src), text, sizeof(text));
+        (void)g_api->panel.set_text(g_api, "d_value", text);
         if( src->kills > 0 )
         {
-            lt_commas(lt_source_value(ctx, src) / src->kills, text, sizeof(text));
-            g_api->panel_set_text(ctx, "d_per_kill", text);
+            lt_commas(lt_source_value(rt, src) / src->kills, text, sizeof(text));
+            (void)g_api->panel.set_text(g_api, "d_per_kill", text);
         }
+        else
+            (void)g_api->panel.set_text(g_api, "d_per_kill", "0");
+        g_built_detail = g_detail;
     }
 }
 
-static enum ToriRS_PluginVerdict
-lt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+lt_panel_build(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_PanelBuilder* panel,
+    int view)
 {
-    (void)userdata;
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
 
-    struct ToriRS_PluginEvPanelBuild const* ev = event;
-
-    assert(ctx);
-    assert(ev);
+    assert(api);
+    assert(panel);
 
     /* The SETTINGS face is the generated form and nothing else -- every knob
      * here is a config key. @see enum ToriRS_PluginPanelView. */
-    if( ev->view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
+    if( view != TORIRS_PLUGIN_PANEL_VIEW_PAGE )
     {
         g_page_built = false;
-        return TORIRS_PLUGIN_PASS;
+        return;
     }
 
-    g_built_rows = lt_strip_h();
+    (void)lt_sync_changed(rt, true);
+    g_built_rows = lt_strip_h(rt);
 
     /* No Session rows: the strip's own totals band carries them, exactly as
      * the game's tracker does, and two readouts of one number that round
@@ -1150,8 +1246,7 @@ lt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * it would be a header plus a control per item and would run out of the
      * 48-control budget inside one boss trip.
      */
-    if( g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CUSTOM, "strip", "Loot") )
-        g_api->panel_set_height(ctx, "strip", lt_strip_h());
+    panel->custom(panel, "strip", lt_strip_h(rt));
 
     /*
      * The header's own ops, as buttons under the source they act on. The CS2
@@ -1163,14 +1258,27 @@ lt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     g_built_detail = g_detail;
     if( g_detail >= 0 && g_detail < g_source_count )
     {
-        g_api->panel_widget(
-            ctx, TORIRS_PLUGIN_W_SECTION, "sec_detail", g_source[g_detail].name);
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_kills", "Kills");
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_value", "Value");
-        g_api->panel_widget(
-            ctx, TORIRS_PLUGIN_W_KEY_VALUE, "d_per_kill", "Value per kill");
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_clear", "Clear data");
-        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "d_ignore", "Ignore");
+        struct ToriRS_PanelNode heading = {
+            .struct_size = sizeof(heading),
+            .kind = TORIRS_PANEL_HEADING,
+            .id = "sec_detail",
+            .text = g_source[g_detail].name,
+        };
+        char text[64];
+        (void)panel->node(panel, &heading);
+        lt_commas(g_source[g_detail].kills, text, sizeof(text));
+        panel->key_value(panel, "d_kills", "Kills", text);
+        lt_commas(lt_source_value(rt, &g_source[g_detail]), text, sizeof(text));
+        panel->key_value(panel, "d_value", "Value", text);
+        if( g_source[g_detail].kills > 0 )
+            lt_commas(
+                lt_source_value(rt, &g_source[g_detail]) / g_source[g_detail].kills,
+                text, sizeof(text));
+        else
+            snprintf(text, sizeof(text), "0");
+        panel->key_value(panel, "d_per_kill", "Value per kill", text);
+        panel->button(panel, "d_clear", "Clear data", true);
+        panel->button(panel, "d_ignore", "Ignore", true);
     }
     else
         g_built_detail = -1;
@@ -1183,8 +1291,7 @@ lt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      */
 
     g_page_built = true;
-    lt_page_refresh(ctx);
-    return TORIRS_PLUGIN_PASS;
+    lt_page_refresh(rt);
 }
 
 /**
@@ -1195,62 +1302,75 @@ lt_panel_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
  * host-owned evicting cache, and a plugin that remembered one across frames
  * would eventually draw nothing. @see ToriRS_PluginApi::obj_image.
  */
-static enum ToriRS_PluginVerdict
-lt_panel_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+lt_panel_draw(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    char const* node,
+    struct ToriRS_DrawBuilder* draw)
 {
-    (void)userdata;
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
+    struct ToriRS_DrawContext context = { .struct_size = sizeof(context) };
 
-    struct ToriRS_PluginEvPanelDraw const* ev = event;
-    int image;
+    assert(api);
+    assert(node);
+    assert(draw);
 
-    assert(ctx);
-    assert(ev);
-    assert(ev->id);
-
-    if( strcmp(ev->id, "strip") != 0 || ev->width <= 0 )
-        return TORIRS_PLUGIN_PASS;
+    if( strcmp(node, "strip") != 0 || !draw->context(draw, &context) ||
+        context.bounds.width <= 0 )
+        return;
     /* The art crosses the IO queue, so the first passes after a start have
      * nothing to draw with. The next invalidate fills it -- the same state the
      * client's own inventory icons are in for a frame or two. */
-    if( !lt_art_ready(ctx) )
-        return TORIRS_PLUGIN_PASS;
+    if( !lt_art_ready(rt) )
+    {
+        g_redraw_pending = true;
+        return;
+    }
 
-    g_well_w = ev->width;
-    lt_compose(ctx, ev->width);
-    image = g_api->image_load(ctx, "strip");
-    if( image >= 0 )
-        g_api->draw_image(ctx, ev->surface, image, ev->x, ev->y, 0, 0, 0, 0, 0);
-    return TORIRS_PLUGIN_PASS;
+    g_well_w = context.bounds.width;
+    g_redraw_pending = false;
+    lt_compose(rt, context.bounds.width);
+    if( g_strip_image.value )
+        draw->image(draw, g_strip_image, 0, 0, 255);
 }
 
-static enum ToriRS_PluginVerdict
-lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+lt_panel_action(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_PluginEvPanelAction const* ev)
 {
-    (void)userdata;
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
 
-    struct ToriRS_PluginEvPanelAction const* ev = event;
-
-    assert(ctx);
+    assert(api);
     assert(ev);
     assert(ev->id);
 
-    g_api->panel_set_attention(ctx, false);
+    g_api->panel.attention(g_api, false);
 
     if( strcmp(ev->id, "d_close") == 0 )
     {
         g_detail = -1;
-        g_api->panel_clear(ctx);
-        return TORIRS_PLUGIN_PASS;
+        g_api->panel.invalidate(g_api);
+        return;
     }
     if( strcmp(ev->id, "d_clear") == 0 && g_detail >= 0 && g_detail < g_source_count )
     {
-        g_session_kills -= g_source[g_detail].kills;
-        g_session_value -= lt_source_value(ctx, &g_source[g_detail]);
-        g_source[g_detail] = g_source[--g_source_count];
+        int const source_id = g_source[g_detail].id;
+        if( !g_api->game->loot_source_clear ||
+            !g_api->game->loot_source_clear(g_api, source_id) )
+        {
+            g_api->core.log(api, "loot-tracker: could not clear loot source %d", source_id);
+            return;
+        }
         g_detail = -1;
+        (void)lt_sync_changed(rt, true);
         g_dirty = true;
-        g_api->panel_clear(ctx);
-        return TORIRS_PLUGIN_PASS;
+        g_api->panel.invalidate(g_api);
+        return;
     }
 
     if( strcmp(ev->id, "d_ignore") == 0 && g_detail >= 0 && g_detail < g_source_count )
@@ -1258,19 +1378,22 @@ lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         /* The header's third op. The list is the config key a person can also
          * type into, so both ways of saying it end up in one place. */
         char list[LT_CONFIG_VALUE_MAX];
-        char const* existing = g_api->cfg_str(ctx, "ignored_sources");
+        char const* existing = lt_config_string(rt, "ignored_sources");
+        char source_name[sizeof(g_source[0].name)];
 
+        snprintf(source_name, sizeof(source_name), "%s", g_source[g_detail].name);
         snprintf(
             list, sizeof(list), "%s%s%s", existing && existing[0] ? existing : "",
-            existing && existing[0] ? "," : "", g_source[g_detail].name);
-        g_api->cfg_set(ctx, "ignored_sources", list);
-        g_session_kills -= g_source[g_detail].kills;
-        g_session_value -= lt_source_value(ctx, &g_source[g_detail]);
-        g_source[g_detail] = g_source[--g_source_count];
+            existing && existing[0] ? "," : "", source_name);
+        /* Config callbacks are synchronous in the host. Close the detail
+         * before publishing the filter so re-entrant reconciliation cannot
+         * leave this action indexing a row it just removed. */
         g_detail = -1;
+        (void)g_api->config.set(g_api, "ignored_sources", list);
+        (void)lt_sync_changed(rt, true);
         g_dirty = true;
-        g_api->panel_clear(ctx);
-        return TORIRS_PLUGIN_PASS;
+        g_api->panel.invalidate(g_api);
+        return;
     }
 
     /*
@@ -1320,44 +1443,48 @@ lt_panel_action(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
             {
                 /* The value basis, which is the same config key the settings
                  * form offers as a dropdown. */
-                char const* now = g_api->cfg_str(ctx, "price_source");
-                g_api->cfg_set(
-                    ctx, "price_source",
+                char const* now = lt_config_string(rt, "price_source");
+                (void)g_api->config.set(
+                    g_api, "price_source",
                     now && lt_name_eq(now, "High alchemy") ? "Cache value"
                                                            : "High alchemy");
             }
             else
-                return TORIRS_PLUGIN_PASS;
-            g_api->panel_clear(ctx);
-            return TORIRS_PLUGIN_PASS;
+                return;
+            if( g_built_detail >= 0 && g_detail < 0 )
+                g_api->panel.invalidate(g_api);
+            else
+                lt_page_refresh(rt);
+            return;
         }
 
         /* The flat drop grid has no bands to open. */
         if( g_drop_view )
-            return TORIRS_PLUGIN_PASS;
+            return;
 
-        source = lt_source_at(ev->y, &local_y);
+        source = lt_source_at(rt, ev->y, &local_y);
         if( source < 0 )
-            return TORIRS_PLUGIN_PASS;
+            return;
         if( local_y < LT_HEAD_H )
             g_expanded[source] = !g_expanded[source];
         g_detail = g_detail == source && local_y >= LT_HEAD_H ? -1 : source;
-        g_api->panel_clear(ctx);
-        return TORIRS_PLUGIN_PASS;
+        if( (g_built_detail >= 0) != (g_detail >= 0) )
+            g_api->panel.invalidate(g_api);
+        else
+            lt_page_refresh(rt);
+        return;
     }
-    return TORIRS_PLUGIN_PASS;
 }
 
 
-static enum ToriRS_PluginVerdict
-lt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+lt_start(struct ToriRS_ApiV2* api, void* state_ptr)
 {
-    (void)event;
-    (void)userdata;
-
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
     struct ToriRS_PluginPanelDesc desc;
 
-    assert(ctx);
+    assert(api);
 
     g_source_count = 0;
     g_session_value = 0;
@@ -1369,6 +1496,10 @@ lt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     g_page_visible = false;
     g_next_panel_ms = 0;
     g_dirty = false;
+    g_redraw_pending = false;
+    g_loot_revision = 0;
+    g_well_w = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+    g_strip_image.value = 0;
     /*
      * OPEN by default, which is what the game's own tracker does: a band with
      * its drops under it is the thing a person opened the panel to see, and a
@@ -1384,19 +1515,20 @@ lt_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * the row. @see script/plugins/assets/loot-tracker/panel_icon.txt. */
     desc.icon_asset = "panel_icon.png";
     desc.preferred_width = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
-    g_api->panel_request(ctx, &desc);
-    return TORIRS_PLUGIN_PASS;
+    (void)g_api->panel.request(g_api, &desc);
 }
 
 /** The shell moved, showed or hid this page. */
-static enum ToriRS_PluginVerdict
-lt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+lt_panel_layout(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_PluginEvPanelLayout const* ev)
 {
-    (void)userdata;
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
 
-    struct ToriRS_PluginEvPanelLayout const* ev = event;
-
-    assert(ctx);
+    assert(api);
     assert(ev);
 
     g_page_visible = ev->visible;
@@ -1404,41 +1536,61 @@ lt_panel_layout(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         g_well_w = ev->width;
     if( g_page_visible )
     {
-        lt_page_refresh(ctx);
-        g_api->panel_invalidate(ctx, "strip");
+        (void)lt_sync_changed(rt, false);
+        lt_page_refresh(rt);
+        g_api->panel.redraw(g_api, "strip");
     }
-    return TORIRS_PLUGIN_PASS;
 }
 
-static enum ToriRS_PluginVerdict
-lt_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+lt_stop(struct ToriRS_ApiV2* api, void* state_ptr)
 {
-    (void)ctx; /* only asserted, so NDEBUG would leave it unread */
-    (void)event;
-    (void)userdata;
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
 
-    assert(ctx);
+    assert(api);
     g_page_built = false;
     g_page_visible = false;
-    return TORIRS_PLUGIN_PASS;
+    free(g_compose);
+    g_compose = NULL;
+    g_compose_w = 0;
+    g_compose_h = 0;
+    if( g_strip_image.value ) g_api->assets.image_release(g_api, g_strip_image);
+    PluginDraw_AtlasFreeV2(g_api, &g_bold);
+    PluginDraw_AtlasFreeV2(g_api, &g_text);
+    PluginDraw_ImageFreeV2(g_api, &g_over_px, &g_img_over);
+    PluginDraw_ImageFreeV2(g_api, &g_spine_px, &g_img_spine);
+    PluginDraw_ImageFreeV2(g_api, &g_cell_px, &g_img_cell);
+    PluginDraw_ImageFreeV2(g_api, &g_view_px, &g_img_view);
+    PluginDraw_ImageFreeV2(g_api, &g_view2_px, &g_img_view2);
+    PluginDraw_ImageFreeV2(g_api, &g_alch_px, &g_img_alch);
+    PluginDraw_ImageFreeV2(g_api, &g_collapse_px, &g_img_collapse);
+    PluginDraw_ImageFreeV2(g_api, &g_ignored_px, &g_img_ignored);
 }
 
-static enum ToriRS_PluginVerdict
-lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+static void
+lt_tick(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_PluginEvTick const* event)
 {
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
     (void)event;
-    (void)userdata;
 
-    uint64_t const now = g_api->frame_ms(ctx);
+    uint64_t const now = g_api->core.frame_ms(g_api);
 
-    assert(ctx);
+    assert(api);
 
     if( now < g_next_panel_ms )
-        return TORIRS_PLUGIN_PASS;
+        return;
     g_next_panel_ms = now + LT_PANEL_REFRESH_MS;
 
+    if( !g_page_visible )
+        return;
+
     /* The client's own record, which is what the game's tracker shows. */
-    if( lt_sync_store(ctx) )
+    if( lt_sync_changed(rt, false) )
         g_dirty = true;
 
     /*
@@ -1449,15 +1601,14 @@ lt_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * page nobody is looking at; the rebuild happens when it is selected
      * again.
      */
-    if( g_page_visible )
+    if( g_dirty || g_redraw_pending )
     {
-        if( g_page_built && g_built_detail != g_detail )
-            g_api->panel_clear(ctx);
+        if( g_page_built && ((g_built_detail >= 0) != (g_detail >= 0)) )
+            g_api->panel.invalidate(g_api);
         else
-            lt_page_refresh(ctx);
+            lt_page_refresh(rt);
+        g_dirty = false;
     }
-
-    return TORIRS_PLUGIN_PASS;
 }
 
 static struct ToriRS_PluginConfigItem const LT_CONFIG[] = {
@@ -1470,48 +1621,50 @@ static struct ToriRS_PluginConfigItem const LT_CONFIG[] = {
 };
 
 static void
-lt_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+lt_config_changed(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    char const* key)
 {
-    assert(ctx);
-    assert(api);
-    assert(api->abi_version == TORIRS_PLUGIN_ABI);
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
+    bool const filtered = key &&
+                          (strcmp(key, "ignored_items") == 0 ||
+                           strcmp(key, "ignored_sources") == 0);
+    bool const affects_picture = filtered ||
+                                 (key && strcmp(key, "price_source") == 0);
 
-    g_api = api;
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_START, lt_start, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, lt_stop, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_GAME_EVENT, lt_game_event, NULL);
-    /* EV_LOGIC_TICK and not EV_SERVER_TICK: the tick fence is only on the wire
-     * for osrs230, osrs239 and the rsprot bridge, and a candidate that never
-     * expired would never become a record on any other lane. */
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_LOGIC_TICK, lt_tick, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_BUILD, lt_panel_build, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_ACTION, lt_panel_action, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_LAYOUT, lt_panel_layout, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_DRAW, lt_panel_draw, NULL);
+    if( filtered ) (void)lt_sync_changed(rt, true);
+    else if( affects_picture ) lt_revalue(rt);
+    if( !g_page_visible || !affects_picture ) return;
+    if( (g_built_detail >= 0) != (g_detail >= 0) )
+        g_api->panel.invalidate(g_api);
+    else
+        lt_page_refresh(rt);
 }
 
-/** Give the composed strip and the decoded art back. */
-static void
-lt_shutdown(struct ToriRS_PluginCtx* ctx)
-{
-    (void)ctx;
+static struct ToriRS_ConfigSchema const LT_SCHEMA = {
+    .struct_size = sizeof(LT_SCHEMA),
+    .items = LT_CONFIG,
+};
 
-    free(g_compose);
-    g_compose = NULL;
-    g_compose_w = 0;
-    g_compose_h = 0;
-    PluginDraw_AtlasFree(&g_bold);
-    PluginDraw_AtlasFree(&g_text);
-    PluginDraw_ImageFree(&g_spine_px, &g_img_spine);
-    PluginDraw_ImageFree(&g_cell_px, &g_img_cell);
-}
-
-struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER = {
-    .name = "loot-tracker",
+struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LOOT_TRACKER = {
+    .struct_size = sizeof(TORIRS_PLUGIN_LOOT_TRACKER),
+    .id = "loot-tracker",
     .title = "Loot Tracker",
-    .version = "1.0.0",
-    .priority = 0,
-    .config = LT_CONFIG,
-    .init = lt_init,
-    .shutdown = lt_shutdown,
+    .version = "2.0.0",
+    .state_size = sizeof(struct LootTrackerState),
+    .config = &LT_SCHEMA,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = lt_start,
+        .on_stop = lt_stop,
+        .on_logic_tick = lt_tick,
+        .on_game_event = lt_game_event,
+        .on_config_changed = lt_config_changed,
+        .on_ui_build = lt_panel_build,
+        .on_ui_action = lt_panel_action,
+        .on_ui_draw = lt_panel_draw,
+        .on_ui_layout = lt_panel_layout,
+    },
 };

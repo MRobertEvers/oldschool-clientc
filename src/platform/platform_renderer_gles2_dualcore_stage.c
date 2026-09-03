@@ -113,7 +113,7 @@ GLES2DualCoreStageArena_BeginFrame(
         }
         if( want > arena->feed_capacity )
         {
-            struct GLES2DualCoreFeedEntry* grown = (struct GLES2DualCoreFeedEntry*)realloc(
+            struct ToriRS_RenderCommand* grown = (struct ToriRS_RenderCommand*)realloc(
                 arena->feed, (size_t)want * sizeof(*grown));
             assert(grown);
             arena->feed = grown;
@@ -127,11 +127,9 @@ GLES2DualCoreStageArena_BeginFrame(
 
 /* ---- the command feed ------------------------------------------------------- */
 
-static struct GLES2DualCoreFeedEntry*
-feed_reserve(struct GLES2DualCoreStageArena* arena, uint32_t kind)
+struct ToriRS_RenderCommand*
+GLES2DualCoreStageArena_FeedReserve(struct GLES2DualCoreStageArena* arena)
 {
-    struct GLES2DualCoreFeedEntry* entry;
-
     assert(arena);
     assert(atomic_load_explicit(&arena->feed_state, memory_order_relaxed) ==
            GLES2_DUALCORE_FEED_OPEN);
@@ -141,57 +139,31 @@ feed_reserve(struct GLES2DualCoreStageArena* arena, uint32_t kind)
             &arena->feed_state, GLES2_DUALCORE_FEED_OVERFLOWED, memory_order_release);
         return NULL;
     }
-    entry = &arena->feed[arena->feed_count];
-    entry->kind = kind;
-    return entry;
+    return &arena->feed[arena->feed_count];
 }
 
-static void
-feed_publish(struct GLES2DualCoreStageArena* arena)
+void
+GLES2DualCoreStageArena_FeedPublish(struct GLES2DualCoreStageArena* arena)
 {
+    assert(arena);
+    assert(arena->feed_count < arena->feed_capacity);
     arena->feed_count++;
     atomic_store_explicit(&arena->feed_published, arena->feed_count, memory_order_release);
 }
 
 bool
-GLES2DualCoreStageArena_FeedPushModel(
+GLES2DualCoreStageArena_FeedPush(
     struct GLES2DualCoreStageArena* arena,
-    const struct ToriRS_RenderCommand_Model* model)
+    const struct ToriRS_RenderCommand* command)
 {
-    struct GLES2DualCoreFeedEntry* entry;
+    struct ToriRS_RenderCommand* entry;
 
-    assert(model);
-    entry = feed_reserve(arena, GLES2_DUALCORE_FEED_MODEL);
+    assert(command);
+    entry = GLES2DualCoreStageArena_FeedReserve(arena);
     if( !entry )
         return false;
-    entry->u.model = *model;
-    feed_publish(arena);
-    return true;
-}
-
-bool
-GLES2DualCoreStageArena_FeedPushBegin3D(
-    struct GLES2DualCoreStageArena* arena,
-    const struct ToriRS_RenderCommand_Begin3D* begin_3d)
-{
-    struct GLES2DualCoreFeedEntry* entry;
-
-    assert(begin_3d);
-    entry = feed_reserve(arena, GLES2_DUALCORE_FEED_BEGIN_3D);
-    if( !entry )
-        return false;
-    entry->u.begin_3d = *begin_3d;
-    feed_publish(arena);
-    return true;
-}
-
-bool
-GLES2DualCoreStageArena_FeedPushEnd3D(struct GLES2DualCoreStageArena* arena)
-{
-    struct GLES2DualCoreFeedEntry* entry = feed_reserve(arena, GLES2_DUALCORE_FEED_END_3D);
-    if( !entry )
-        return false;
-    feed_publish(arena);
+    *entry = *command;
+    GLES2DualCoreStageArena_FeedPublish(arena);
     return true;
 }
 
@@ -213,7 +185,7 @@ enum GLES2DualCoreFeedTake
 GLES2DualCoreStageArena_FeedTake(
     struct GLES2DualCoreStageArena* arena,
     uint32_t index,
-    const struct GLES2DualCoreFeedEntry** entry)
+    const struct ToriRS_RenderCommand** entry)
 {
     unsigned state;
 

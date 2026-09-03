@@ -39,7 +39,7 @@
 #include <string.h>
 #include "miniz.h"
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_ORBS;
 
 /*
  * A do-nothing second plugin.
@@ -500,20 +500,28 @@ static int
 fake_role_rect(void* u, char const* role, int* x, int* y, int* w, int* h)
 {
     (void)u;
-    (void)role;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
+    if( !role || strcmp(role, "viewport") != 0 )
+        return 0;
+    if( x ) *x = g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT]
+                      ? g_slot_x[TORIRS_PLUGIN_SLOT_VIEWPORT]
+                      : g_slot_x[TORIRS_PLUGIN_SLOT_CANVAS];
+    if( y ) *y = g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT]
+                      ? g_slot_y[TORIRS_PLUGIN_SLOT_VIEWPORT]
+                      : g_slot_y[TORIRS_PLUGIN_SLOT_CANVAS];
+    if( w ) *w = g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT]
+                      ? g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT]
+                      : g_slot_w[TORIRS_PLUGIN_SLOT_CANVAS];
+    if( h ) *h = g_slot_h[TORIRS_PLUGIN_SLOT_VIEWPORT]
+                      ? g_slot_h[TORIRS_PLUGIN_SLOT_VIEWPORT]
+                      : g_slot_h[TORIRS_PLUGIN_SLOT_CANVAS];
+    return (!w || *w > 0) && (!h || *h > 0);
 }
 
 static int
 fake_role_visible(void* u, char const* role)
 {
     (void)u;
-    (void)role;
-    return 0;
+    return role && strcmp(role, "viewport") == 0;
 }
 
 static int
@@ -557,7 +565,7 @@ static int
 fake_role_anchor(void* u, int plugin, char const* role, int replace, int place)
 {
     (void)place; (void)u; (void)plugin; (void)replace;
-    return role ? 0 : 1;
+    return !role || strcmp(role, "viewport") == 0;
 }
 
 static int
@@ -1429,7 +1437,12 @@ main(void)
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
 
-    index = PluginHost_Register(g_host, &TORIRS_PLUGIN_XP_ORBS);
+    CHECK(TORIRS_PLUGIN_XP_ORBS.struct_size == sizeof(TORIRS_PLUGIN_XP_ORBS) &&
+              TORIRS_PLUGIN_XP_ORBS.state_size > 0 &&
+              TORIRS_PLUGIN_XP_ORBS.callbacks.on_ui_node_draw &&
+              TORIRS_PLUGIN_XP_ORBS.callbacks.on_canvas_action,
+        "the orb implementation is a native per-instance V2 plugin");
+    index = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_XP_ORBS);
     CHECK(index >= 0, "the plugin registers");
     PluginHost_SetEnabled(g_host, index, true);
     g_second = PluginHost_Register(g_host, &SECOND);
@@ -1445,6 +1458,9 @@ main(void)
     g_slot_y[TORIRS_PLUGIN_SLOT_CANVAS] = 0;
     g_slot_w[TORIRS_PLUGIN_SLOT_CANVAS] = CANVAS_W;
     g_slot_h[TORIRS_PLUGIN_SLOT_CANVAS] = CANVAS_H;
+    /* Native V2 presentation resolves through the canonical viewport node;
+     * publish the fake lane's first layout before asking it to draw. */
+    PluginHost_LayoutChanged(g_host);
 
     /* Off for the structural cases: a floating label is a second blit per
      * globe and would make every count below say something about two features

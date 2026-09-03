@@ -1330,6 +1330,7 @@ ToriRS_UiRegistry_AddContribution(
     contribution = &registry->_contributions[slot];
     memset(contribution, 0, sizeof(*contribution));
     contribution->used = true;
+    contribution->enabled = true;
     contribution->serial = registry->_next_contribution_serial;
     registry->_next_contribution_serial = ui_revision_next(registry->_next_contribution_serial);
     contribution->node = (int)node_ref.value - 1;
@@ -1344,6 +1345,27 @@ ToriRS_UiRegistry_AddContribution(
     registry->_revision = ui_revision_next(registry->_revision);
     if( out_ref )
         out_ref->value = contribution->serial;
+    return TORIRS_UI_REGISTRY_OK;
+}
+
+enum ToriRS_UiRegistryResult
+ToriRS_UiRegistry_SetContributionEnabled(
+    struct ToriRS_UiRegistry* registry,
+    struct ToriRS_UiContributionRef contribution_ref,
+    bool enabled)
+{
+    struct ToriRS_UiRegistryContribution* contribution;
+
+    assert(registry);
+    contribution = ui_contribution_by_ref(registry, contribution_ref);
+    if( !contribution )
+        return TORIRS_UI_REGISTRY_INVALID;
+    enabled = enabled ? true : false;
+    if( contribution->enabled == enabled )
+        return TORIRS_UI_REGISTRY_OK;
+    contribution->enabled = enabled;
+    ui_queue_change(registry, contribution->node, contribution->facets);
+    registry->_revision = ui_revision_next(registry->_revision);
     return TORIRS_UI_REGISTRY_OK;
 }
 
@@ -1407,6 +1429,8 @@ ui_contribution_eligible(
     bool base_present)
 {
     assert(contribution);
+    if( !contribution->enabled )
+        return false;
     if( contribution->mode == TORIRS_UI_MODIFY )
         return base_present;
     if( contribution->mode == TORIRS_UI_PROVIDE_IF_MISSING )
@@ -1468,7 +1492,9 @@ ui_resolve_node(
         assert(contribution->used);
         contribution->active_facets = 0;
         contribution->conflict_facets = 0;
-        contribution->target_absent = contribution->mode == TORIRS_UI_MODIFY && !base_present;
+        contribution->target_absent = contribution->enabled &&
+                                      contribution->mode == TORIRS_UI_MODIFY &&
+                                      !base_present;
     }
 
     for( uint32_t facet = TORIRS_UI_FACET_BOUNDS; facet <= TORIRS_UI_FACET_ACTIONS; facet <<= 1u )

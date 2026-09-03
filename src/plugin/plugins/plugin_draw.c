@@ -303,6 +303,144 @@ PluginDraw_AtlasFree(struct PluginDraw_Atlas* atlas)
     atlas->h = 0;
 }
 
+int
+PluginDraw_ImageLoadV2(
+    struct ToriRS_ApiV2* api,
+    char const* name,
+    struct ToriRS_ImageRef* handle,
+    uint32_t** px,
+    int* w,
+    int* h)
+{
+    size_t count = 0;
+
+    assert(api);
+    assert(name);
+    assert(handle);
+    assert(px);
+    assert(w);
+    assert(h);
+    if( *px ) return 1;
+    if( handle->value == 0 )
+    {
+        enum ToriRS_AssetState const state = api->assets.image(api, name, handle);
+        if( state != TORIRS_ASSET_PENDING && state != TORIRS_ASSET_READY )
+            return 0;
+    }
+    if( !api->assets.image_size(api, *handle, w, h) || *w <= 0 || *h <= 0 ||
+        (size_t)*w > SIZE_MAX / (size_t)*h ||
+        (size_t)*w * (size_t)*h > SIZE_MAX / sizeof(**px) )
+        return 0;
+    count = (size_t)*w * (size_t)*h;
+    *px = malloc(count * sizeof(**px));
+    if( !*px ) return 0;
+    {
+        size_t written = 0;
+        if( !api->assets.image_pixels(api, *handle, *px, count, &written) ||
+            written != count )
+        {
+            free(*px);
+            *px = NULL;
+            return 0;
+        }
+    }
+    return 1;
+}
+
+void
+PluginDraw_ImageFreeV2(
+    struct ToriRS_ApiV2* api,
+    uint32_t** px,
+    struct ToriRS_ImageRef* handle)
+{
+    assert(api);
+    assert(px);
+    assert(handle);
+    free(*px);
+    *px = NULL;
+    if( handle->value ) api->assets.image_release(api, *handle);
+    handle->value = 0;
+}
+
+static int
+plugin_draw_read_ini_v2(
+    struct ToriRS_ApiV2* api,
+    struct PluginDraw_AtlasV2* atlas,
+    char const* name)
+{
+    char file[TORIRS_PLUGIN_ASSET_NAME_MAX];
+    void const* bytes = NULL;
+    char const* at;
+    size_t size = 0;
+
+    snprintf(file, sizeof(file), "%s.ini", name);
+    if( api->assets.request(api, file) != TORIRS_ASSET_READY ||
+        !api->assets.bytes(api, file, &bytes, &size) || !bytes || size == 0 )
+        return 0;
+    at = bytes;
+    for( char const* end = at + size; at < end; )
+    {
+        char line[128];
+        char const* start = at;
+        char const* stop = start;
+        size_t len;
+        while( stop < end && *stop != '\n' ) stop++;
+        at = stop < end ? stop + 1 : end;
+        if( stop > start && stop[-1] == '\r' ) stop--;
+        len = (size_t)(stop - start);
+        if( len >= sizeof(line) ) len = sizeof(line) - 1;
+        memcpy(line, start, len);
+        line[len] = '\0';
+        if( len > 12 && strncmp(line, "line_height=", 12) == 0 )
+        {
+            atlas->line_h = atoi(line + 12);
+            continue;
+        }
+        if( len >= 3 && line[1] == '=' )
+        {
+            int const index = (unsigned char)line[0] - PLUGIN_DRAW_GLYPH_FIRST;
+            struct PluginDraw_Glyph* glyph;
+            if( index < 0 || index >= PLUGIN_DRAW_GLYPH_COUNT ) continue;
+            glyph = &atlas->glyph[index];
+            if( sscanf(line + 2, "%d %d %d %d %d %d %d",
+                    &glyph->x, &glyph->y, &glyph->w, &glyph->h,
+                    &glyph->off_x, &glyph->off_y, &glyph->advance) == 7 )
+                atlas->ready = 1;
+        }
+    }
+    return atlas->ready;
+}
+
+int
+PluginDraw_AtlasLoadV2(
+    struct ToriRS_ApiV2* api,
+    struct PluginDraw_AtlasV2* atlas,
+    char const* name)
+{
+    char file[TORIRS_PLUGIN_ASSET_NAME_MAX];
+    assert(api);
+    assert(atlas);
+    assert(name);
+    if( atlas->ready && atlas->px ) return 1;
+    if( !atlas->ready && !plugin_draw_read_ini_v2(api, atlas, name) ) return 0;
+    snprintf(file, sizeof(file), "%s.png", name);
+    return PluginDraw_ImageLoadV2(
+        api, file, &atlas->image, &atlas->px, &atlas->w, &atlas->h);
+}
+
+void
+PluginDraw_AtlasFreeV2(
+    struct ToriRS_ApiV2* api,
+    struct PluginDraw_AtlasV2* atlas)
+{
+    assert(api);
+    assert(atlas);
+    PluginDraw_ImageFreeV2(api, &atlas->px, &atlas->image);
+    atlas->ready = 0;
+    atlas->w = 0;
+    atlas->h = 0;
+}
+
 /* ------------------------------------------------------------------ text */
 
 int
@@ -386,4 +524,68 @@ PluginDraw_TextCenter(
     PluginDraw_Text(
         buf, w, h, x + (width - PluginDraw_TextWidth(atlas, text)) / 2, top, atlas,
         text, tint);
+}
+
+int
+PluginDraw_TextWidthV2(struct PluginDraw_AtlasV2 const* atlas, char const* text)
+{
+    int width = 0;
+    assert(atlas);
+    assert(text);
+    for( char const* p = text; *p; p++ )
+    {
+        int const index = (unsigned char)*p - PLUGIN_DRAW_GLYPH_FIRST;
+        if( index >= 0 && index < PLUGIN_DRAW_GLYPH_COUNT )
+            width += atlas->glyph[index].advance;
+    }
+    return width;
+}
+
+void
+PluginDraw_TextV2(
+    uint32_t* buf,
+    int w,
+    int h,
+    int x,
+    int top,
+    struct PluginDraw_AtlasV2 const* atlas,
+    char const* text,
+    uint32_t tint)
+{
+    int pen = x;
+    assert(buf);
+    assert(atlas);
+    assert(text);
+    if( !atlas->ready || !atlas->px ) return;
+    for( char const* p = text; *p; p++ )
+    {
+        int const index = (unsigned char)*p - PLUGIN_DRAW_GLYPH_FIRST;
+        struct PluginDraw_Glyph const* glyph;
+        if( index < 0 || index >= PLUGIN_DRAW_GLYPH_COUNT ) continue;
+        glyph = &atlas->glyph[index];
+        if( glyph->w > 0 && glyph->h > 0 )
+            PluginDraw_Blit(buf, w, h, pen + glyph->off_x, top + glyph->off_y,
+                atlas->px, atlas->w, atlas->h, glyph->x, glyph->y,
+                glyph->w, glyph->h, tint);
+        pen += glyph->advance;
+    }
+}
+
+void
+PluginDraw_TextRightV2(
+    uint32_t* buf, int w, int h, int right, int top,
+    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint)
+{
+    PluginDraw_TextV2(buf, w, h,
+        right - PluginDraw_TextWidthV2(atlas, text), top, atlas, text, tint);
+}
+
+void
+PluginDraw_TextCenterV2(
+    uint32_t* buf, int w, int h, int x, int width, int top,
+    struct PluginDraw_AtlasV2 const* atlas, char const* text, uint32_t tint)
+{
+    PluginDraw_TextV2(buf, w, h,
+        x + (width - PluginDraw_TextWidthV2(atlas, text)) / 2,
+        top, atlas, text, tint);
 }

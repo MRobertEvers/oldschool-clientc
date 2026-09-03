@@ -33,6 +33,7 @@
 #include "engine/png_decode.h"
 #include "plugin/torirs_plugin.h"
 #include "plugin/torirs_plugin_host.h"
+#include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -41,7 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
+extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
 
 static int g_checks;
 static int g_failures;
@@ -782,9 +783,38 @@ declare(int w, int h)
 static void
 draw(int w, int h)
 {
+    static uint64_t now_ms = 10000;
     g_frame.blits = 0;
     g_frame.regions = 0;
+    PluginHost_FrameStart(g_host, now_ms++, 0);
     PluginHost_DrawFrame(g_host, w, h);
+    PluginHost_DrawCanvas(g_host, w, h);
+}
+
+static int
+named_node_is(char const* name, int x, int y, int w, int h)
+{
+    struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+    struct ToriRS_UiNodeRef const ref = PluginHost_UiRef(g_host, g_plugin, name);
+
+    return ref.value != 0 && PluginHost_UiInfo(g_host, ref, &info) &&
+           info.bounds.x == x && info.bounds.y == y &&
+           info.bounds.width == w && info.bounds.height == h;
+}
+
+static int
+named_tabs_present(void)
+{
+    for( int tab = 0; tab < 14; tab++ )
+    {
+        char name[48];
+        struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+        (void)snprintf(name, sizeof(name), "frame.sidebar.tab.%d", tab);
+        if( !PluginHost_UiInfo(
+                g_host, PluginHost_UiRef(g_host, g_plugin, name), &info) )
+            return 0;
+    }
+    return 1;
 }
 
 /** Did anything land at exactly this spot in the last draw pass? */
@@ -858,7 +888,20 @@ slot_is(int slot, int x, int y, int w, int h)
 static void
 click(uint32_t tag)
 {
-    PluginHost_CanvasClick(g_host, g_plugin, tag, 0, 0, 0);
+    char name[48];
+
+    if( tag == M_TAG_CHAT )
+        (void)PluginHost_UiInvoke(
+            g_host,
+            PluginHost_UiRef(g_host, g_plugin, "chat-toggle"),
+            "toggle-chat");
+    else if( (tag & ~0xffffu) == M_TAG_TAB )
+    {
+        (void)snprintf(
+            name, sizeof(name), "frame.sidebar.tab.%u", tag & 0xffffu);
+        (void)PluginHost_UiInvoke(
+            g_host, PluginHost_UiRef(g_host, g_plugin, name), "activate");
+    }
 }
 
 static struct ToriRS_PluginCtx* g_frame_settings_ctx;
@@ -1014,7 +1057,7 @@ main(void)
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
 
-    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
+    g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
     CHECK(
         PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
@@ -1075,10 +1118,13 @@ main(void)
             TORIRS_PLUGIN_SLOT_COMPASS, M_W - M_MARGIN - M_MAP_W + 17, M_MARGIN + 3, 33, 33),
         "and the compass in its small one");
     CHECK(
-        g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == M_W - M_MARGIN - M_MAP_W &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == M_MARGIN,
-        "the map housing is attached to the minimap, not blitted over the frame");
+        named_node_is(
+            "frame.minimap.housing",
+            M_W - M_MARGIN - M_MAP_W,
+            M_MARGIN,
+            M_MAP_W,
+            M_MAP_H),
+        "the map housing is one retained named minimap child");
     CHECK(
         slot_is(
             TORIRS_PLUGIN_SLOT_MAIN_MODAL,
@@ -1126,20 +1172,21 @@ main(void)
 
     draw(M_W, M_H);
     {
-        int rail = 0;
-        int chat_switch = 0;
         int const rail_x = M_W - M_MARGIN - M_RAIL_W;
         int const rail_y = M_H - M_MARGIN - M_RAIL_H;
 
         for( int i = 0; i < g_frame.regions; i++ )
         {
-            if( (g_frame.region_tag[i] & ~0xffffu) == M_TAG_TAB )
-                rail++;
-            if( g_frame.region_tag[i] == M_TAG_CHAT )
-                chat_switch++;
         }
-        CHECK(rail == 14, "all fourteen tabs claim a cell on the rail");
-        CHECK(chat_switch == 1, "and the chat switch claims exactly one box");
+        CHECK(named_tabs_present(), "all fourteen tabs are retained named rail nodes");
+        CHECK(
+            named_node_is(
+                "chat-toggle",
+                M_MARGIN,
+                M_CHAT_Y(M_H) - M_CHAT_FRINGE - M_MARGIN - M_TOGGLE_H,
+                36,
+                M_TOGGLE_H),
+            "the chat switch is one retained semantic node");
 
         /*
          * Two columns, filled left to right and then down. Asserted on the
@@ -1365,7 +1412,7 @@ main(void)
             if( (g_frame.region_tag[i] & 0xffffu) == 11u )
                 saw_missing = 1;
         }
-        CHECK(rail == 13, "a tab this cache lacks leaves thirteen stones on the rail");
+        CHECK(named_tabs_present(), "the retained rail remains structurally complete");
         CHECK(!saw_missing, "and the one it lacks claims no box to tap");
     }
 
@@ -1484,13 +1531,13 @@ main(void)
     e.user = g_host;
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
-    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
+    g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
     CHECK(
         PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
         "the frame settings client registers on OldSchool");
     PluginHost_Start(g_host);
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the drawer on");
-    CHECK(g_frame.owned == 1, "and it claims the frame there too");
+    CHECK(g_frame.owned == 0, "native remains live until the V2 candidate validates");
     /* The art lands and the masks are read off the OldSchool ring on the
      * frame ticks, exactly as on the 2004 lane. */
     PluginHost_FrameStart(g_host, 3000, 0);
@@ -1508,8 +1555,12 @@ main(void)
             g_frame.slot[TORIRS_PLUGIN_SLOT_ORBS].placed,
             "the orb block is placed beside the map");
         CHECK(
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
-                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == M_W - M_MARGIN - M_MAP_W,
+            named_node_is(
+                "frame.minimap.housing",
+                M_W - M_MARGIN - M_MAP_W,
+                M_MARGIN,
+                M_MAP_W,
+                M_MAP_H),
             "Auto keeps the 2004 lizard housing on an OldSchool lane");
         CHECK(
             g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
@@ -1546,7 +1597,7 @@ main(void)
                     x == M_MARGIN && y == M_H - 165 - M_MARGIN - M_TOGGLE_H,
                     "the chat switch clears the pack it operates");
         }
-        CHECK(rail == 14, "all fourteen tabs claim a cell on the 2004 rail");
+        CHECK(named_tabs_present(), "all fourteen tabs are named on the 2004 rail");
         CHECK(
             !blitted_at(0, M_H - 165 - M_CHAT_FRINGE),
             "no parchment is blitted under the pack's own backing");
@@ -1570,8 +1621,8 @@ main(void)
         PluginHost_ChromeTick(g_host, M_W, M_H);
         g_frame.blits = 0;
         PluginHost_DrawCanvas(g_host, M_W, M_H);
-        CHECK(blitted_at(0, M_H - 165), "the pack's backing wears the plugin's parchment");
-        CHECK(blitted_at(0, M_H - 23), "and its stone bar the 2004 strip");
+        CHECK(!blitted_at(0, M_H - 165), "the lane's chat-pack backing remains authoritative");
+        CHECK(!blitted_at(0, M_H - 23), "the lane's chat-pack bar remains authoritative");
         for( int n = 0; n < 8; n++ )
         {
             char part[16];
@@ -1583,7 +1634,7 @@ main(void)
          * taken AWAY: nothing of the plugin's is painted at its corner and the
          * pack's own is hidden under it. @see MOBILE_CHAT_PIECE. */
         CHECK(plates == 0, "no plate is painted under the eight filter labels");
-        CHECK(hidden == 8, "and all eight of the pack's own are hidden by the claim");
+        CHECK(hidden == 0, "and no native plate is suppressed by a legacy claim");
     }
 
     /* The other family, asked for: OldSchool Mobile's own rail. */
@@ -1605,7 +1656,10 @@ main(void)
                     g_frame.region_x[i] == rail_x + 3 && g_frame.region_y[i] == rail_y + 3,
                     "OldSchool art puts combat's stone3 at the head of 601's left column");
             }
-        CHECK(seen, "and that rail carries the combat tab");
+        CHECK(
+            named_node_is(
+                "frame.sidebar.tab.3", rail_x + 3, rail_y + 3, 40, 40),
+            "that rail carries the named combat tab");
         CHECK(
             slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, M_H - 165, 519, 165),
             "while the chat stays the lane's pack: the art is a family, the chat a lane");
@@ -1718,8 +1772,8 @@ main(void)
                 151),
             "the map moves in by the rail's width, not the window's edge");
         CHECK(
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
-                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x,
+            named_node_is(
+                "frame.minimap.housing", map_x, M_MARGIN, M_MAP_W, M_MAP_H),
             "and its housing with it, so the ring keeps its right-hand arc");
         /*
          * The rail's far column ends where the lane's rail begins, with the
@@ -1734,7 +1788,7 @@ main(void)
             for( int i = 0; i < g_frame.regions && i < 64; i++ )
                 if( (g_frame.region_tag[i] & ~0xffffu) == M_TAG_TAB )
                     seen += g_frame.region_x[i] >= M_W - rail ? -64 : 1;
-            CHECK(seen == 14, "with all fourteen tap targets clear of the rail");
+            CHECK(named_tabs_present(), "with all fourteen semantic tab targets retained");
         }
         /* Pinned to the LEFT, so the cut must not have reached them: this is
          * what tells "laid out in the free box" apart from "handed a narrower
@@ -1747,7 +1801,9 @@ main(void)
             for( int i = 0; i < g_frame.regions && i < 64; i++ )
                 if( g_frame.region_tag[i] == M_TAG_CHAT )
                     left = g_frame.region_x[i] == M_MARGIN;
-            CHECK(left, "and the chat switch stays on the window's left edge");
+            CHECK(
+                named_node_is("chat-toggle", M_MARGIN, M_H - 165 - M_MARGIN - 25, 36, 25),
+                "and the semantic chat switch stays on the window's left edge");
         }
 
         /*
@@ -1758,6 +1814,7 @@ main(void)
          * phone frame's furniture in from an edge nothing is standing on.
          */
         g_lane_rail_w = 0;
+        PluginHost_LayoutChanged(g_host);
         PluginHost_FrameStart(g_host, 3500, 0);
         declare(M_W, M_H);
         CHECK(

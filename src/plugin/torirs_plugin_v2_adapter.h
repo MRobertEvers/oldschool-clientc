@@ -50,20 +50,21 @@ struct ToriRS_PluginV2Adapter;
  * named node, two images for each of the two skinnable surfaces, one overlay
  * per surface, and all six scrollbar pieces. Keep the dependency ledger at
  * that real API/host maximum instead of imposing a smaller accidental cap. */
-#define TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX 16
+#define TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX TORIRS_FRAME_NODES_MAX
 #define TORIRS_PLUGIN_V2_FRAME_SKIN_SURFACES_MAX 2
 #define TORIRS_PLUGIN_V2_FRAME_SKIN_REFS_PER_SURFACE 2
 #define TORIRS_PLUGIN_V2_FRAME_SCROLLBAR_REFS_MAX 6
-#define TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX                                      \
-    (TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX * (1 + TORIRS_UI_VISUAL_STATE_COUNT) + \
-     TORIRS_PLUGIN_V2_FRAME_SKIN_SURFACES_MAX *                                    \
-         TORIRS_PLUGIN_V2_FRAME_SKIN_REFS_PER_SURFACE +                            \
-     TORIRS_SURFACE_COUNT + TORIRS_PLUGIN_V2_FRAME_SCROLLBAR_REFS_MAX)
+/* A descriptor can name 48 nodes, but no plugin can own more image tokens
+ * than the host-wide image budget. The dependency ledger therefore follows
+ * the real resource ceiling rather than multiplying mutually impossible
+ * per-node maxima. */
+#define TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX
 
 struct ToriRS_PluginV2ResourceToken
 {
     int legacy;
     uint32_t incarnation;
+    uint64_t source_revision;
     bool active;
     bool retired;
 };
@@ -171,6 +172,29 @@ struct ToriRS_PluginV2AdapterHooks
         char const* value,
         struct ToriRS_SelectOption const* options,
         int option_count);
+    enum ToriRS_AssetState (*item_image)(
+        void* user,
+        struct ToriRS_PluginCtx* context,
+        int obj_id,
+        int count,
+        int style,
+        int* out_image,
+        uint64_t* out_revision);
+    char const* (*plugin_id)(
+        void* user,
+        struct ToriRS_PluginCtx* context);
+    uint64_t (*loot_revision)(
+        void* user,
+        struct ToriRS_PluginCtx* context);
+    bool (*loot_source_clear)(
+        void* user,
+        struct ToriRS_PluginCtx* context,
+        int source_id);
+    enum ToriRS_Result (*ui_set_enabled)(
+        void* user,
+        struct ToriRS_PluginCtx* context,
+        struct ToriRS_UiNodeRef node,
+        bool enabled);
 
     /* Stable for this adapter lifetime and unique among the host's live
      * plugin instances.  Five encoded bits cover TORIRS_PLUGIN_MAX == 32. */
@@ -199,6 +223,11 @@ struct ToriRS_PluginV2DrawScope
     bool active;
     bool clip_active;
     struct ToriRS_Rect clip;
+    bool context_valid;
+    int origin_x;
+    int origin_y;
+    struct ToriRS_Rect local_bounds;
+    struct ToriRS_Rect local_clip;
 };
 
 struct ToriRS_PluginV2FrameScope
@@ -281,6 +310,13 @@ void
 ToriRS_PluginV2Adapter_DrawClip(
     struct ToriRS_PluginV2DrawScope* scope,
     struct ToriRS_Rect clip);
+
+/** Set a callback-local drawing region; subsequent builder coordinates are
+ * translated by its origin and clipped to it. */
+void
+ToriRS_PluginV2Adapter_DrawRegion(
+    struct ToriRS_PluginV2DrawScope* scope,
+    struct ToriRS_Rect region);
 
 void
 ToriRS_PluginV2Adapter_FrameBegin(

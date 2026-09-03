@@ -2,6 +2,7 @@
 #define RS_LOOT_STORE_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /*
  * Client-native loot tracker store.
@@ -83,6 +84,8 @@ struct LootStore
     /* Monotonic ids for debug/seed paths that call AddKillLoot without a
      * server event_id (App_LootNotifyKill). */
     int next_event_id;
+    /** Changes only when the retained source/row view changes; never zero. */
+    uint64_t revision;
 };
 
 void
@@ -307,5 +310,8 @@ void
 LootStore_RemoveById(
     struct LootStore* store,
     int source_id);
+
+uint64_t
+LootStore_Revision(const struct LootStore* store);
 
 #endif /* RS_LOOT_STORE_H */
