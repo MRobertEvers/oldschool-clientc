@@ -329,6 +329,41 @@ test_debug_overlay_damage(void)
         TEST_ASSERT(d.x == 0 && d.y == 0, "union covers the first panel");
         TEST_ASSERT(d.x + d.w >= 340 && d.y + d.h >= 200, "union covers the second panel");
     }
+
+    /* A fixed-pane readout is a paint mutation, not a layout mutation. Its
+     * exact row bubbles dirty to the panel while an unrelated sibling subtree
+     * remains clean. */
+    {
+        int fixed;
+        int sibling;
+        int readout;
+        struct ToriRSChromeRect row;
+
+        ToriRSChrome_Init(&g_ui);
+        fixed = ToriRSChrome_PanelAdd(
+            &g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 30, 220, "Page");
+        readout = ToriRSChrome_Label(&g_ui, fixed, "status: idle");
+        sibling = ToriRSChrome_PanelAdd(
+            &g_ui, TORIRS_CHROME_PANEL_WINDOW, 400, 40, 180, "Other");
+        ToriRSChrome_Label(&g_ui, sibling, "untouched");
+        ToriRSChrome_Build(&g_ui);
+        ToriRSChrome_DamageClear(&g_ui);
+        row.x = g_ui.widgets[readout].x;
+        row.y = g_ui.widgets[readout].y;
+        row.w = g_ui.widgets[readout].w;
+        row.h = g_ui.widgets[readout].h;
+
+        ToriRSChrome_SetText(&g_ui, readout, "status: ready");
+        TEST_ASSERT(
+            g_ui.panels[fixed].dirty && g_ui.panels[fixed].paint_only_dirty &&
+                !g_ui.panels[sibling].dirty,
+            "one readout dirties only its containing subtree for paint");
+        ToriRSChrome_Build(&g_ui);
+        TEST_ASSERT(ToriRSChrome_Damage(&g_ui, &d), "the changed readout has damage");
+        TEST_ASSERT(
+            d.x == row.x && d.y == row.y && d.w == row.w && d.h == row.h,
+            "a fixed readout damages its row instead of the whole pane");
+    }
 }
 
 /*
@@ -1227,6 +1262,108 @@ test_debug_overlay_panel_scroll(void)
     TEST_ASSERT(g_ui.widgets[rows[0]].h > 0, "and every row is back");
 }
 
+static void
+test_debug_overlay_custom_region(void)
+{
+    struct ToriRSChromeRect region;
+    struct ToriRSChromeRect clip;
+    int panel;
+    int custom;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 220, "Custom");
+    custom = ToriRSChrome_Custom(&g_ui, panel, "Activity chart", 0);
+    for( int i = 0; i < 10; i++ )
+        ToriRSChrome_Label(&g_ui, panel, "later row");
+    ToriRSChrome_PanelSetScrollable(&g_ui, panel, 1);
+    g_ui.panels[panel].fixed_h = 110;
+    g_ui.panels[panel].dirty = 1;
+    g_ui.dirty = 1;
+
+    TEST_ASSERT(ToriRSChrome_Build(&g_ui), "custom panel builds");
+    TEST_ASSERT(
+        g_ui.widgets[custom].kind == TORIRS_CHROME_W_CUSTOM,
+        "a custom well is distinct from a label/model preview");
+    TEST_ASSERT(
+        ToriRSChrome_CustomRegion(&g_ui, custom, &region, &clip),
+        "a partially visible custom well exposes its region and clip");
+    TEST_ASSERT(
+        region.h == TORIRS_CHROME_M_CUSTOM_H,
+        "the default custom height is the shared logical metric");
+    TEST_ASSERT(
+        clip.x >= region.x && clip.y >= region.y &&
+            clip.x + clip.w <= region.x + region.w &&
+            clip.y + clip.h <= region.y + region.h && clip.h < region.h,
+        "the custom clip is the visible intersection of the scrolling well");
+    TEST_ASSERT(
+        ToriRSChrome_HitTest(&g_ui, clip.x, clip.y) == custom,
+        "the visible custom well owns pointer hit testing");
+
+    {
+        int local_x = -1;
+        int local_y = -1;
+        uint32_t generation = 99;
+        uint32_t serial = 99;
+        int const x = clip.x + clip.w / 2;
+        int const y = clip.y + clip.h / 2;
+
+        ToriRSChrome_MouseDown(&g_ui, x, y);
+        ToriRSChrome_MouseUp(&g_ui, x, y);
+        TEST_ASSERT(
+            ToriRSChrome_TakeActivated(&g_ui) == custom &&
+                ToriRSChrome_ActivationWasCustom(
+                    &g_ui, &local_x, &local_y, &generation, &serial),
+            "pointer-up inside the custom content reports a custom activation");
+        TEST_ASSERT(
+            local_x == (x - region.x) / ToriRSChrome_Scale(&g_ui) &&
+                local_y == (y - region.y) / ToriRSChrome_Scale(&g_ui) &&
+                generation == 0 && serial == 0,
+            "surface activation coordinates are content-local and synchronously unfenced");
+        TEST_ASSERT(
+            ToriRSChrome_KeyChar(&g_ui, 'x') &&
+                ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_LEFT),
+            "focused custom chrome consumes keys instead of leaking them to the game");
+        TEST_ASSERT(
+            ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_ESCAPE) && g_ui.focus == -1,
+            "Escape releases custom focus while remaining consumed");
+
+        /* Its caption is panel chrome, not part of the plugin coordinate
+         * system. It consumes the click but emits no custom action. */
+        ToriRSChrome_MouseDown(&g_ui, region.x, region.y - 1);
+        ToriRSChrome_MouseUp(&g_ui, region.x, region.y - 1);
+        TEST_ASSERT(
+            ToriRSChrome_TakeActivated(&g_ui) == -1,
+            "a custom row caption cannot fabricate a region activation");
+        TEST_ASSERT(
+            !ToriRSChrome_CustomActivate(&g_ui, custom, -1, 0) &&
+                !ToriRSChrome_CustomActivate(
+                    &g_ui, custom, region.w / ToriRSChrome_Scale(&g_ui), 0) &&
+                !ToriRSChrome_CustomActivate(
+                    &g_ui, custom, 0, region.h / ToriRSChrome_Scale(&g_ui)),
+            "out-of-bounds native custom coordinates are rejected");
+    }
+
+    ToriRSChrome_WidgetInvalidate(&g_ui, custom);
+    TEST_ASSERT(ToriRSChrome_Build(&g_ui), "custom pixel invalidation rebuilds once");
+    TEST_ASSERT(!ToriRSChrome_Build(&g_ui), "an unchanged custom well remains retained");
+
+    /* Scroll past it. Build must clear the old clip, not leave a ghost region
+     * accepting pixels or pointer input at its former position. */
+    for( int i = 0; i < 40; i++ )
+        ToriRSChrome_MouseWheel(
+            &g_ui,
+            g_ui.panels[panel].last_rect.x + 4,
+            g_ui.panels[panel].last_rect.y + g_ui.panels[panel].last_rect.h / 2,
+            -1);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        !ToriRSChrome_CustomRegion(&g_ui, custom, &region, &clip) &&
+            g_ui.widgets[custom].custom_clip_w == 0 &&
+            g_ui.widgets[custom].custom_clip_h == 0,
+        "a custom well scrolled away retains no drawable clip");
+}
+
 void
 test_debug_overlay(void)
 {
@@ -1251,4 +1388,5 @@ test_debug_overlay(void)
     test_debug_overlay_tabs();
     test_debug_overlay_button();
     test_debug_overlay_panel_scroll();
+    test_debug_overlay_custom_region();
 }

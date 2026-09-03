@@ -6,17 +6,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
-/**
- * The Activity's application layout: game surface and the one shared plugin
- * page are siblings in the same native window.
- *
- * <p>The breakpoint is deliberately a measurement, not a device or orientation
- * test. Android windows can change size while the Activity stays alive (split
- * screen, desktop mode, folds and rotation). When both useful regions fit, the
- * page sits beside the game. Otherwise it owns the content area and the game
- * SurfaceView becomes {@link View#GONE}; that makes the normal Surface callback
- * publish a null ANativeWindow while the native game loop keeps running.</p>
- */
+/** Game surface plus exactly one persistent local plugin-chrome WebView. */
 public final class PluginChromeLayout extends ViewGroup
 {
     public interface EditorFocusListener
@@ -24,25 +14,22 @@ public final class PluginChromeLayout extends ViewGroup
         void onPluginEditorFocusChanged(boolean focused);
     }
 
-    private static final int RAIL_DP = 56;
+    /** Matches legacy-ie8.css, the explicit Chrome-39/API22 bundle. */
+    private static final int RAIL_DP = 46;
     private static final int PANEL_DP = 320;
     private static final int PANEL_MIN_DP = 280;
+    private static final int PANEL_MAX_DP = 480;
     private static final int GAME_MIN_DP = 480;
 
     private final View gameView;
     private final View overlayView;
-    private View railView;
-    private View paneView;
+    private View chromeView;
     private boolean chromeOpen;
     private boolean split;
     private boolean pluginEditorFocused;
+    private int panelWidthDp = PANEL_DP;
     private EditorFocusListener editorFocusListener;
     private final Rect gameRect = new Rect();
-
-    private int insetLeft;
-    private int insetTop;
-    private int insetRight;
-    private int insetBottom;
 
     public PluginChromeLayout(Context context, View gameView, View overlayView)
     {
@@ -54,19 +41,14 @@ public final class PluginChromeLayout extends ViewGroup
         addView(overlayView);
     }
 
-    public void attachChrome(View rail, View pane)
+    public void attachChrome(View chrome)
     {
-        if( railView != null || paneView != null )
+        if( chromeView != null )
             throw new IllegalStateException("plugin chrome is already attached");
-        railView = rail;
-        paneView = pane;
-        railView.setVisibility(GONE);
-        paneView.setVisibility(GONE);
-        /* Added after the SurfaceView, so an opaque native pane is above it
-         * during the one layout pass in which an expanded window becomes
-         * exclusive. It never relies on that overlap after layout settles. */
-        addView(railView);
-        addView(paneView);
+        chromeView = chrome;
+        chromeView.setVisibility(VISIBLE);
+        addView(chromeView);
+        requestLayout();
     }
 
     public void setEditorFocusListener(EditorFocusListener listener)
@@ -83,10 +65,7 @@ public final class PluginChromeLayout extends ViewGroup
             editorFocusListener.onPluginEditorFocusChanged(focused);
     }
 
-    public boolean isPluginEditorFocused()
-    {
-        return pluginEditorFocused;
-    }
+    public boolean isPluginEditorFocused() { return pluginEditorFocused; }
 
     public void setChromeOpen(boolean open)
     {
@@ -98,39 +77,30 @@ public final class PluginChromeLayout extends ViewGroup
         requestLayout();
     }
 
-    public boolean isChromeOpen()
+    public boolean isChromeOpen() { return chromeOpen; }
+    public boolean isSplit() { return chromeOpen && split; }
+
+    public void setPanelWidthDp(int width)
     {
-        return chromeOpen;
+        int next = Math.max(PANEL_MIN_DP, Math.min(PANEL_MAX_DP, width));
+        if( panelWidthDp == next )
+            return;
+        panelWidthDp = next;
+        requestLayout();
     }
 
-    public boolean isSplit()
+    public boolean isGameVisible()
     {
-        return chromeOpen && split;
+        return gameView.getVisibility() == VISIBLE && gameRect.width() > 0 &&
+                gameRect.height() > 0;
     }
 
-    /** Insets are applied only to application chrome. The game retains the
-     * Surface geometry and keyboard-inset path it already owns in native code. */
     public void setChromeInsets(int left, int top, int right, int bottom)
     {
-        left = Math.max(0, left);
-        top = Math.max(0, top);
-        right = Math.max(0, right);
-        bottom = Math.max(0, bottom);
-        if( insetLeft == left && insetTop == top && insetRight == right && insetBottom == bottom )
-            return;
-        insetLeft = left;
-        insetTop = top;
-        insetRight = right;
-        insetBottom = bottom;
-        applyChromeInsets();
-    }
-
-    private void applyChromeInsets()
-    {
-        if( railView != null )
-            railView.setPadding(insetLeft, insetTop, 0, insetBottom);
-        if( paneView != null )
-            paneView.setPadding(0, insetTop, insetRight, insetBottom);
+        if( chromeView != null )
+            chromeView.setPadding(
+                    Math.max(0, left), Math.max(0, top),
+                    Math.max(0, right), Math.max(0, bottom));
     }
 
     private int dp(int value)
@@ -150,54 +120,38 @@ public final class PluginChromeLayout extends ViewGroup
     {
         int width = MeasureSpec.getSize(widthMeasureSpec);
         int height = MeasureSpec.getSize(heightMeasureSpec);
-        int railWidth = Math.min(dp(RAIL_DP), width);
-        int panelWidth = Math.min(dp(PANEL_DP), Math.max(0, width - railWidth));
-        boolean nextSplit = chromeOpen
-                && width >= dp(GAME_MIN_DP + RAIL_DP + PANEL_MIN_DP);
+        int collapsed = Math.min(width, dp(RAIL_DP));
+        int expanded = Math.min(width, dp(RAIL_DP + panelWidthDp));
+        split = chromeOpen && width >= dp(GAME_MIN_DP + RAIL_DP + PANEL_MIN_DP);
 
-        split = nextSplit;
-        if( chromeOpen && railView != null && paneView != null )
+        if( chromeView == null )
         {
-            railView.setVisibility(VISIBLE);
-            paneView.setVisibility(VISIBLE);
-            if( split )
-            {
-                gameView.setVisibility(VISIBLE);
-                int gameWidth = Math.max(0, width - railWidth - panelWidth);
-                measureExactly(gameView, gameWidth, height);
-                measureExactly(railView, railWidth, height);
-                measureExactly(paneView, panelWidth, height);
-                gameRect.set(0, 0, gameWidth, height);
-            }
-            else
-            {
-                /* GONE, rather than a zero-sized visible SurfaceView: surface
-                 * loss is Android's supported lifetime signal and the native
-                 * presenter already treats a null window as "skip present". */
-                gameView.setVisibility(GONE);
-                measureExactly(gameView, 0, 0);
-                measureExactly(railView, railWidth, height);
-                measureExactly(paneView, Math.max(0, width - railWidth), height);
-                gameRect.setEmpty();
-            }
+            gameView.setVisibility(VISIBLE);
+            measureExactly(gameView, width, height);
+            gameRect.set(0, 0, width, height);
+        }
+        else if( !chromeOpen )
+        {
+            gameView.setVisibility(VISIBLE);
+            measureExactly(gameView, Math.max(0, width - collapsed), height);
+            measureExactly(chromeView, collapsed, height);
+            gameRect.set(0, 0, Math.max(0, width - collapsed), height);
+        }
+        else if( split )
+        {
+            gameView.setVisibility(VISIBLE);
+            measureExactly(gameView, Math.max(0, width - expanded), height);
+            measureExactly(chromeView, expanded, height);
+            gameRect.set(0, 0, Math.max(0, width - expanded), height);
         }
         else
         {
-            if( railView != null )
-                railView.setVisibility(GONE);
-            if( paneView != null )
-                paneView.setVisibility(GONE);
-            gameView.setVisibility(VISIBLE);
-            measureExactly(gameView, width, height);
-            if( railView != null )
-                measureExactly(railView, 0, 0);
-            if( paneView != null )
-                measureExactly(paneView, 0, 0);
-            gameRect.set(0, 0, width, height);
+            gameView.setVisibility(GONE);
+            measureExactly(gameView, 0, 0);
+            measureExactly(chromeView, width, height);
+            gameRect.setEmpty();
         }
 
-        /* The keyboard dismiss affordance belongs to the game region, not the
-         * plugin page. Its own measured size is capped by that region. */
         overlayView.measure(
                 MeasureSpec.makeMeasureSpec(Math.max(0, gameRect.width()), MeasureSpec.AT_MOST),
                 MeasureSpec.makeMeasureSpec(Math.max(0, gameRect.height()), MeasureSpec.AT_MOST));
@@ -209,31 +163,13 @@ public final class PluginChromeLayout extends ViewGroup
     {
         int width = right - left;
         int height = bottom - top;
-
-        if( chromeOpen && railView != null && paneView != null )
+        int gameWidth = gameView.getMeasuredWidth();
+        gameView.layout(0, 0, gameWidth, gameView.getMeasuredHeight());
+        if( chromeView != null )
         {
-            int railWidth = railView.getMeasuredWidth();
-            if( split )
-            {
-                int gameWidth = gameView.getMeasuredWidth();
-                gameView.layout(0, 0, gameWidth, height);
-                railView.layout(gameWidth, 0, gameWidth + railWidth, height);
-                paneView.layout(gameWidth + railWidth, 0, width, height);
-            }
-            else
-            {
-                gameView.layout(0, 0, 0, 0);
-                railView.layout(0, 0, railWidth, height);
-                paneView.layout(railWidth, 0, width, height);
-            }
-        }
-        else
-        {
-            gameView.layout(0, 0, width, height);
-            if( railView != null )
-                railView.layout(0, 0, 0, 0);
-            if( paneView != null )
-                paneView.layout(0, 0, 0, 0);
+            int chromeWidth = chromeView.getMeasuredWidth();
+            int chromeLeft = chromeOpen && !split ? 0 : width - chromeWidth;
+            chromeView.layout(chromeLeft, 0, chromeLeft + chromeWidth, height);
         }
 
         int overlayWidth = overlayView.getMeasuredWidth();
@@ -245,11 +181,18 @@ public final class PluginChromeLayout extends ViewGroup
                 Math.min(gameRect.bottom, gameRect.top + overlayHeight));
     }
 
-    /** Absorb blank-space touches in rail/page so they can never fall through
-     * Activity.onTouchEvent and be translated into game-surface coordinates. */
     @Override
     public boolean onTouchEvent(MotionEvent event)
     {
-        return chromeOpen && !gameRect.contains((int)event.getX(), (int)event.getY());
+        if( event.getActionMasked() == MotionEvent.ACTION_UP )
+            performClick();
+        return chromeView != null && !gameRect.contains((int)event.getX(), (int)event.getY());
+    }
+
+    @Override
+    public boolean performClick()
+    {
+        super.performClick();
+        return true;
     }
 }

@@ -29,6 +29,8 @@
 
 #include "platform/platform_window.h"
 #include "platform/platform_app_icon.h"
+#include "platform/platform_win32_chrome.h"
+#include "platform/platform_win32_browser_backend.h"
 #include "platform/platform_win32_timing.h"
 
 #include "cmd/cmdbus.h"
@@ -36,8 +38,8 @@
 #include "input/torirs_keymap.h"
 #include "input/torirs_touch.h"
 #include "perf/torirs_perf.h"
-
 #include <windows.h>
+#include <objbase.h>
 
 /*
  * WM_TOUCH, without giving up the XP lane.
@@ -114,8 +116,10 @@ win32_touch_load(void)
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #ifndef GET_X_LPARAM
 #  define GET_X_LPARAM(lp) ((int)(short)LOWORD(lp))
@@ -126,6 +130,15 @@ win32_touch_load(void)
 #endif
 
 static const char RPD_WNDCLASS[] = "TorirsWin32GdiWindow";
+static const char RPD_CHROME_RAIL_WNDCLASS[] = "TorirsWin32ChromeRail";
+
+/* One logical, persistent modern-OSRS strip. Win32 uses device pixels here.
+ * The ES3 legacy bundle is authored at 46px; modern WebView2 is 48px. */
+#if defined(_WIN64)
+#  define WIN32_CHROME_RAIL_W 48
+#else
+#  define WIN32_CHROME_RAIL_W 46
+#endif
 
 struct PlatformWindow
 {
@@ -163,6 +176,23 @@ struct PlatformWindow
     int     resizable_h;
     int     interface_scale_mode;
 
+    /*
+     * The ONE plugin-chrome shell inside hwnd.
+     *
+     * rail_hwnd is one persistent browser-container child. Its local DOM owns
+     * both the rail and the sole selected page; collapse only changes width.
+     */
+    HWND    chrome_rail_hwnd;
+    struct PlatformWin32Browser* chrome_browser;
+    WCHAR   chrome_browser_asset_dir[MAX_PATH];
+    WCHAR   chrome_browser_asset_url[MAX_PATH * 3];
+    int     chrome_width;
+    int     chrome_height;
+    int     chrome_requested_w;
+    int     chrome_layout_w;
+    int     chrome_collapsed_client_w;
+    int     chrome_open;
+
     /* Set only for the duration of PollCommands so the WndProc can translate
      * into the caller's bus; the coalesced resize is applied after the pump. */
     struct ToriRS_CmdBus* poll_bus;
@@ -176,6 +206,208 @@ struct PlatformWindow
     uint32_t paint_count;
 #endif
 };
+
+static LRESULT CALLBACK
+chrome_rail_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+
+static int
+win32_main_client_size(struct PlatformWindow const* p, int* out_w, int* out_h)
+{
+    RECT client;
+
+    if( !p || !p->hwnd || !GetClientRect(p->hwnd, &client) )
+        return 0;
+    if( out_w )
+        *out_w = (int)(client.right - client.left);
+    if( out_h )
+        *out_h = (int)(client.bottom - client.top);
+    return 1;
+}
+
+static void
+win32_resize_client(struct PlatformWindow* p, int width, int height)
+{
+    RECT outer;
+    DWORD style;
+
+    if( !p || !p->hwnd || width <= 0 || height <= 0 )
+        return;
+    outer.left = 0;
+    outer.top = 0;
+    outer.right = width;
+    outer.bottom = height;
+    style = (DWORD)GetWindowLongPtr(p->hwnd, GWL_STYLE);
+    AdjustWindowRect(&outer, style, FALSE);
+    SetWindowPos(
+        p->hwnd,
+        NULL,
+        0,
+        0,
+        outer.right - outer.left,
+        outer.bottom - outer.top,
+        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+static int
+win32_chrome_reserved_width(struct PlatformWindow const* p)
+{
+    int reserved = 0;
+
+    if( !p )
+        return 0;
+    if( p->chrome_rail_hwnd )
+        reserved += WIN32_CHROME_RAIL_W;
+    if( p->chrome_open )
+        reserved += p->chrome_layout_w;
+    return reserved;
+}
+
+static int
+win32_game_client_size(
+    struct PlatformWindow const* p, int* out_w, int* out_h)
+{
+    int width;
+    int height;
+
+    if( !win32_main_client_size(p, &width, &height) )
+        return 0;
+    width -= win32_chrome_reserved_width(p);
+    if( width < 0 )
+        width = 0;
+    if( out_w )
+        *out_w = width;
+    if( out_h )
+        *out_h = height;
+    return 1;
+}
+
+static void
+win32_chrome_layout(struct PlatformWindow* p, int client_w, int client_h)
+{
+    int rail_w;
+    int pane_w;
+    int shell_w;
+    int game_w;
+
+    if( !p || client_w < 0 || client_h < 0 )
+        return;
+    rail_w = p->chrome_rail_hwnd ? WIN32_CHROME_RAIL_W : 0;
+    pane_w = p->chrome_open ? p->chrome_requested_w : 0;
+    if( pane_w > client_w - rail_w )
+        pane_w = client_w - rail_w;
+    if( pane_w < 0 )
+        pane_w = 0;
+    shell_w = rail_w + pane_w;
+    game_w = client_w - shell_w;
+    if( game_w < 0 )
+        game_w = 0;
+    p->chrome_layout_w = pane_w;
+    SetWindowLongPtr(
+        p->hwnd,
+        TORIRS_WIN32_CHROME_EXTRA_RESERVED_OFFSET,
+        (LONG_PTR)shell_w);
+
+    /* Anatomy is game | one browser. The DOM inside that browser owns both
+     * its persistent rail and its optional selected page. */
+    if( p->chrome_rail_hwnd )
+        SetWindowPos(
+            p->chrome_rail_hwnd,
+            NULL,
+            game_w,
+            0,
+            shell_w,
+            client_h,
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    if( p->chrome_browser )
+        PlatformWin32Browser_Resize(p->chrome_browser, shell_w, client_h);
+
+}
+
+
+/* This HWND is only the clip/layout parent for the embedded browser. It must
+ * never become a second native presenter when WebView2/MSHTML is unavailable:
+ * the browser bundle owns every visible rail/page pixel and every interaction. */
+static LRESULT CALLBACK
+chrome_rail_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    struct PlatformWindow* p =
+        (struct PlatformWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+
+    switch( msg )
+    {
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:
+    {
+        PAINTSTRUCT paint;
+        RECT client;
+        HDC const dc = BeginPaint(hwnd, &paint);
+        GetClientRect(hwnd, &client);
+        FillRect(dc, &client, (HBRUSH)GetStockObject(BLACK_BRUSH));
+        EndPaint(hwnd, &paint);
+        return 0;
+    }
+    case WM_PRINTCLIENT:
+        if( wparam )
+        {
+            RECT client;
+            GetClientRect(hwnd, &client);
+            FillRect(
+                (HDC)wparam, &client, (HBRUSH)GetStockObject(BLACK_BRUSH));
+        }
+        return 0;
+    case WM_SIZE:
+        if( p && p->chrome_browser )
+            PlatformWin32Browser_Resize(
+                p->chrome_browser, LOWORD(lparam), HIWORD(lparam));
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, msg, wparam, lparam);
+}
+
+static int
+win32_chrome_ensure_rail(struct PlatformWindow* p)
+{
+    int width;
+    int height;
+    LONG_PTR style;
+
+    if( !p || !p->hwnd )
+        return 0;
+    if( p->chrome_rail_hwnd )
+        return 1;
+    if( !win32_main_client_size(p, &width, &height) )
+        return 0;
+    p->chrome_rail_hwnd = CreateWindowExA(
+        0,
+        RPD_CHROME_RAIL_WNDCLASS,
+        "Plugins",
+        WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+        width,
+        0,
+        WIN32_CHROME_RAIL_W,
+        height,
+        p->hwnd,
+        NULL,
+        GetModuleHandleA(NULL),
+        NULL);
+    if( !p->chrome_rail_hwnd )
+        return 0;
+    SetWindowLongPtr(
+        p->chrome_rail_hwnd, GWLP_USERDATA, (LONG_PTR)p);
+
+    /* Keep-game-size, RuneLite-style, where USER32 permits it.  Maximized and
+     * popup/fullscreen windows are fit in place and never forced off-screen. */
+    style = GetWindowLongPtr(p->hwnd, GWL_STYLE);
+    if( !(style & WS_POPUP) && !(style & WS_MAXIMIZE) )
+        win32_resize_client(p, width + WIN32_CHROME_RAIL_W, height);
+    win32_main_client_size(p, &width, &height);
+    win32_chrome_layout(p, width, height);
+    ShowWindow(p->chrome_rail_hwnd, SW_SHOWNOACTIVATE);
+    return 1;
+}
 
 /* ---- pixel buffer ------------------------------------------------------- */
 
@@ -282,8 +514,11 @@ map_mouse(struct PlatformWindow* p, int win_x, int win_y, int* out_x, int* out_y
         return;
     }
     GetClientRect(p->hwnd, &client);
-    win_w = client.right - client.left;
-    win_h = client.bottom - client.top;
+    if( !win32_game_client_size(p, &win_w, &win_h) )
+    {
+        win_w = client.right - client.left;
+        win_h = client.bottom - client.top;
+    }
     letterbox_dst(p->width, p->height, win_w, win_h, &box);
     if( box.right <= 0 || box.bottom <= 0 )
     {
@@ -349,8 +584,11 @@ gdi_paint_latest(struct PlatformWindow* p, HDC dc)
     assert(dc);
 
     GetClientRect(p->hwnd, &client);
-    win_w = client.right - client.left;
-    win_h = client.bottom - client.top;
+    if( !win32_game_client_size(p, &win_w, &win_h) )
+    {
+        win_w = client.right - client.left;
+        win_h = client.bottom - client.top;
+    }
     if( win_w <= 0 || win_h <= 0 )
         return;
 
@@ -719,12 +957,21 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                 {
                     POINT pt;
                     enum ToriRS_TouchPhase phase = TORIRS_TOUCH_MOVED;
+                    int game_w = 0;
+                    int game_h = 0;
 
                     /* Screen space, in HUNDREDTHS of a pixel, so it is divided
                      * down before being made client-relative. */
                     pt.x = inputs[i].x / 100;
                     pt.y = inputs[i].y / 100;
                     ScreenToClient(hwnd, &pt);
+                    /* Child chrome owns every contact in its reserved region.
+                     * WM_TOUCH can still be delivered to the registered parent
+                     * on older digitiser stacks, so enforce the same boundary
+                     * here that child HWND hit-testing gives mouse input. */
+                    if( win32_game_client_size(p, &game_w, &game_h) &&
+                        (pt.x < 0 || pt.y < 0 || pt.x >= game_w || pt.y >= game_h) )
+                        continue;
                     map_mouse(p, pt.x, pt.y, &lx, &ly);
 
                     if( inputs[i].flags & TOUCHEVENTF_DOWN )
@@ -744,12 +991,20 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     case WM_SIZE:
         if( p && wparam != SIZE_MINIMIZED )
         {
+            int const client_w = LOWORD(lparam);
+            int const client_h = HIWORD(lparam);
+            int game_w;
+
+            win32_chrome_layout(p, client_w, client_h);
             if( p->gdi_frame_valid )
                 InvalidateRect(hwnd, NULL, FALSE);
             if( p->canvas_follows_window )
             {
-                p->pending_resize_w = LOWORD(lparam);
-                p->pending_resize_h = HIWORD(lparam);
+                game_w = client_w - win32_chrome_reserved_width(p);
+                if( game_w < 0 )
+                    game_w = 0;
+                p->pending_resize_w = game_w;
+                p->pending_resize_h = client_h;
             }
         }
         break;
@@ -872,6 +1127,7 @@ register_class(void)
     memset(&wc, 0, sizeof(wc));
     wc.style = CS_OWNDC;
     wc.lpfnWndProc = wnd_proc;
+    wc.cbWndExtra = (int)(2 * sizeof(LONG_PTR));
     wc.hInstance = GetModuleHandle(NULL);
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     /* hIconSm is left NULL: Windows derives the small icon by scaling
@@ -882,7 +1138,16 @@ register_class(void)
      * frame before WM_PAINT and recreate the black flash this backend avoids. */
     wc.hbrBackground = NULL;
     wc.lpszClassName = RPD_WNDCLASS;
-    if( !RegisterClassA(&wc) )
+    if( !RegisterClassA(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS )
+        return 0;
+
+    memset(&wc, 0, sizeof(wc));
+    wc.lpfnWndProc = chrome_rail_proc;
+    wc.hInstance = GetModuleHandle(NULL);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = NULL;
+    wc.lpszClassName = RPD_CHROME_RAIL_WNDCLASS;
+    if( !RegisterClassA(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS )
         return 0;
     registered = 1;
     return 1;
@@ -920,7 +1185,7 @@ PlatformWindow_Init(struct PlatformWindow* p, int width, int height, char const*
      * This decides the window's STYLE, not its size -- the caller still owns
      * that, and fills the screen by passing the screen's own resolution. */
     fullscreen = getenv("TORIRS_WIN32_FULLSCREEN") ? 1 : 0;
-    style = fullscreen ? WS_POPUP : WS_OVERLAPPEDWINDOW;
+    style = (fullscreen ? WS_POPUP : WS_OVERLAPPEDWINDOW) | WS_CLIPCHILDREN;
 
     r.left = 0;
     r.top = 0;
@@ -937,6 +1202,10 @@ PlatformWindow_Init(struct PlatformWindow* p, int width, int height, char const*
     if( !p->hwnd )
         return false;
     SetWindowLongPtr(p->hwnd, GWLP_USERDATA, (LONG_PTR)p);
+    SetWindowLongPtr(
+        p->hwnd,
+        TORIRS_WIN32_CHROME_EXTRA_MAGIC_OFFSET,
+        (LONG_PTR)TORIRS_WIN32_CHROME_EXTRA_MAGIC);
 
     /* Asked for, and a refusal is an answer: a desktop without a digitiser
      * says no here and simply never sends WM_TOUCH. TWF_WANTPALM keeps the
@@ -1010,11 +1279,839 @@ PlatformWindow_NativeWindowHandle(struct PlatformWindow* p)
     return p ? (void*)p->hwnd : NULL;
 }
 
+bool
+PlatformWindow_ChromeOpen(
+    struct PlatformWindow* p, int width, int height, char const* title)
+{
+    int client_w;
+    int client_h;
+    int prior_width;
+    LONG_PTR style;
+
+    (void)title; /* The attached page shares its top-level window's title. */
+    assert(p);
+    if( !p->hwnd || width <= 0 || !PlatformWindow_PluginBrowserEnsure(p) )
+        return false;
+    if( !win32_main_client_size(p, &client_w, &client_h) )
+        return false;
+
+    if( p->chrome_open )
+    {
+        prior_width = p->chrome_requested_w;
+        p->chrome_requested_w = width;
+        style = GetWindowLongPtr(p->hwnd, GWL_STYLE);
+        if( width != prior_width && !(style & WS_POPUP) && !(style & WS_MAXIMIZE) )
+            win32_resize_client(
+                p, client_w + width - prior_width,
+                height > client_h ? height : client_h);
+        win32_main_client_size(p, &client_w, &client_h);
+        win32_chrome_layout(p, client_w, client_h);
+        p->chrome_width = p->chrome_layout_w;
+        p->chrome_height = client_h;
+        return p->chrome_layout_w > 0 && client_h > 0;
+    }
+
+    p->chrome_requested_w = width;
+    p->chrome_collapsed_client_w = client_w;
+    p->chrome_open = 1;
+
+    /* The browser/rail was grown separately and remains part of the collapsed
+     * width. Expanding adds only the page portion to that same child. */
+    style = GetWindowLongPtr(p->hwnd, GWL_STYLE);
+    if( !(style & WS_POPUP) && !(style & WS_MAXIMIZE) )
+        win32_resize_client(
+            p,
+            p->chrome_collapsed_client_w + width,
+            height > client_h ? height : client_h);
+    win32_main_client_size(p, &client_w, &client_h);
+    win32_chrome_layout(p, client_w, client_h);
+    if( p->chrome_layout_w <= 0 || client_h <= 0 )
+    {
+        PlatformWindow_ChromeClose(p);
+        return false;
+    }
+
+    p->chrome_width = p->chrome_layout_w;
+    p->chrome_height = client_h;
+    InvalidateRect(p->chrome_rail_hwnd, NULL, FALSE);
+    return true;
+}
+
+bool
+PlatformWindow_ChromeRailOpen(
+    struct PlatformWindow* p, int width, char const* title)
+{
+    (void)width; /* Windows browser bundle owns its 48px (legacy 46px) rail. */
+    (void)title;
+    assert(p);
+    return PlatformWindow_PluginBrowserEnsure(p);
+}
+
+bool
+PlatformWindow_ChromeSetPageWidth(struct PlatformWindow* p, int page_width)
+{
+    assert(p);
+    if( !p->chrome_open || page_width <= 0 )
+        return false;
+    return PlatformWindow_ChromeOpen(
+        p, page_width, p->chrome_height > 0 ? p->chrome_height : 480, "Plugins");
+}
+
+void
+PlatformWindow_ChromeClose(struct PlatformWindow* p)
+{
+    int client_w = 0;
+    int client_h = 0;
+    int restore_w;
+    int pane_w;
+    LONG_PTR style;
+
+    assert(p);
+    if( !p->chrome_open )
+        return;
+    win32_main_client_size(p, &client_w, &client_h);
+    pane_w = p->chrome_layout_w;
+    restore_w = client_w - pane_w;
+    if( restore_w < p->chrome_collapsed_client_w )
+        restore_w = p->chrome_collapsed_client_w;
+
+    /* Publish collapsed before resizing. The browser object and its DOM rail
+     * survive; only its attached allocation contracts. */
+    p->chrome_open = 0;
+    p->chrome_layout_w = 0;
+    p->chrome_requested_w = 0;
+    p->chrome_width = 0;
+    p->chrome_height = 0;
+    SetFocus(p->hwnd);
+
+    style = GetWindowLongPtr(p->hwnd, GWL_STYLE);
+    if( !(style & WS_POPUP) && !(style & WS_MAXIMIZE) && restore_w > 0 && client_h > 0 )
+        win32_resize_client(p, restore_w, client_h);
+    win32_main_client_size(p, &client_w, &client_h);
+    win32_chrome_layout(p, client_w, client_h);
+    if( p->chrome_rail_hwnd )
+        InvalidateRect(p->chrome_rail_hwnd, NULL, FALSE);
+}
+
+bool
+PlatformWindow_ChromeIsOpen(struct PlatformWindow const* p)
+{
+    assert(p);
+    return p->chrome_open != 0;
+}
+
+int*
+PlatformWindow_ChromePixels(struct PlatformWindow* p)
+{
+    assert(p);
+    return NULL; /* Windows plugin chrome is a browser control, not a surface. */
+}
+
+int
+PlatformWindow_ChromeWidth(struct PlatformWindow const* p)
+{
+    assert(p);
+    return p->chrome_open ? p->chrome_width : 0;
+}
+
+int
+PlatformWindow_ChromeHeight(struct PlatformWindow const* p)
+{
+    assert(p);
+    return p->chrome_open ? p->chrome_height : 0;
+}
+
+int
+PlatformWindow_ChromeRailWidth(struct PlatformWindow const* p)
+{
+    return p && p->chrome_rail_hwnd ? WIN32_CHROME_RAIL_W : 0;
+}
+
+int
+PlatformWindow_ChromePageWidth(struct PlatformWindow const* p)
+{
+    return p && p->chrome_open ? p->chrome_layout_w : 0;
+}
+
+bool
+PlatformWindow_ChromeResize(struct PlatformWindow* p, int width, int height)
+{
+    assert(p);
+    (void)width;
+    (void)height;
+    return false;
+}
+
+void
+PlatformWindow_ChromePresent(struct PlatformWindow* p)
+{
+    assert(p);
+}
+
+bool
+PlatformWindow_ChromeTakeDirty(struct PlatformWindow* p)
+{
+    /* This backend blits the retained pane straight into its child HWND; there
+     * is no GPU texture upload to schedule. */
+    assert(p);
+    return false;
+}
+
+bool
+PlatformWindow_ChromeIsDirty(struct PlatformWindow const* p)
+{
+    (void)p;
+    return false;
+}
+
+bool
+PlatformWindow_ChromeTakeInput(
+    struct PlatformWindow* p, struct PlatformWindow_AuxInput* out)
+{
+    assert(p);
+    assert(out);
+    /* Browser input stays inside its native child and exits only as a copied,
+     * generation-fenced protocol intent. */
+    return false;
+}
+
+bool
+PlatformWindow_ChromeTakeRailInput(
+    struct PlatformWindow* p, struct PlatformWindow_AuxInput* out)
+{
+    (void)p;
+    (void)out;
+    /* Browser DOM events cross through the protocol queue, never this raw
+     * surface-only input seam. */
+    return false;
+}
+
+void*
+PlatformWindow_Win32ChromeHandle(struct PlatformWindow* p)
+{
+    return p ? (void*)p->chrome_rail_hwnd : NULL;
+}
+
+#if defined(TORIRS_WIN32_BROWSER_CAPTURE_API)
+bool
+PlatformWindow_Win32BrowserCapturePng(
+    struct PlatformWindow* p, char const* path)
+{
+    return p && p->chrome_browser && path && path[0] &&
+           PlatformWin32Browser_CapturePng(p->chrome_browser, path) != 0;
+}
+
+int
+PlatformWindow_Win32BrowserCaptureStatus(struct PlatformWindow const* p)
+{
+    return p && p->chrome_browser
+               ? PlatformWin32Browser_CaptureStatus(p->chrome_browser)
+               : -1;
+}
+#endif
+
+static int
+win32_browser_file_url(WCHAR const* path, WCHAR* out, int capacity)
+{
+    static WCHAR const prefix[] = L"file:///";
+    int at = 0;
+
+    if( !path || !path[0] || !out || capacity < 16 )
+        return 0;
+    for( int i = 0; prefix[i] && at < capacity - 1; i++ )
+        out[at++] = prefix[i];
+    for( int i = 0; path[i] && at < capacity - 4; i++ )
+    {
+        WCHAR const c = path[i] == L'\\' ? L'/' : path[i];
+        if( c == L' ' )
+        {
+            out[at++] = L'%';
+            out[at++] = L'2';
+            out[at++] = L'0';
+        }
+        else
+            out[at++] = c;
+    }
+    out[at] = 0;
+    return 1;
+}
+
+static int
+win32_browser_asset_dir(struct PlatformWindow* p)
+{
+    WCHAR temp[MAX_PATH];
+    WCHAR unique[MAX_PATH];
+    WCHAR guid_text[40];
+    WCHAR guid_name[40];
+    GUID guid;
+    int length;
+    int made = 0;
+
+    if( p->chrome_browser_asset_dir[0] )
+        return 1;
+    length = (int)GetTempPathW(MAX_PATH, temp);
+    if( length <= 0 || length >= MAX_PATH )
+        return 0;
+    /* CreateDirectory is the atomic claim. A GUID avoids GetTempFileName's
+     * 16-bit namespace and its delete-then-create race; the directory inherits
+     * the current user's private temp-directory ACL on XP and modern Windows. */
+    for( int attempt = 0; attempt < 8; attempt++ )
+    {
+        if( FAILED(CoCreateGuid(&guid)) ||
+            StringFromGUID2(&guid, guid_text, 40) <= 0 )
+            return 0;
+        {
+            int at = 0;
+            for( int i = 0; guid_text[i] && at < 39; i++ )
+                if( guid_text[i] != L'{' && guid_text[i] != L'}' )
+                    guid_name[at++] = guid_text[i];
+            guid_name[at] = 0;
+        }
+        if( _snwprintf(
+                unique, MAX_PATH, L"%sToriRS-PluginChrome-%lu-%s",
+                temp, (unsigned long)GetCurrentProcessId(), guid_name) <= 0 )
+            return 0;
+        if( CreateDirectoryW(unique, NULL) )
+        {
+            made = 1;
+            break;
+        }
+        if( GetLastError() != ERROR_ALREADY_EXISTS )
+            return 0;
+    }
+    if( !made )
+        return 0;
+    length = (int)wcslen(unique);
+    if( length <= 0 || length >= MAX_PATH )
+    {
+        p->chrome_browser_asset_dir[0] = 0;
+        return 0;
+    }
+    lstrcpynW(p->chrome_browser_asset_dir, unique, MAX_PATH);
+    if( !win32_browser_file_url(
+            p->chrome_browser_asset_dir,
+            p->chrome_browser_asset_url,
+            (int)(sizeof(p->chrome_browser_asset_url) /
+                  sizeof(p->chrome_browser_asset_url[0]))) )
+        return 0;
+    length = (int)wcslen(p->chrome_browser_asset_url);
+    if( length + 1 >= (int)(sizeof(p->chrome_browser_asset_url) /
+                            sizeof(p->chrome_browser_asset_url[0])) )
+        return 0;
+    if( length && p->chrome_browser_asset_url[length - 1] != L'/' )
+    {
+        p->chrome_browser_asset_url[length++] = L'/';
+        p->chrome_browser_asset_url[length] = 0;
+    }
+    return 1;
+}
+
+static int
+win32_browser_find_source(WCHAR* out, int capacity)
+{
+    WCHAR env[MAX_PATH];
+    WCHAR executable[MAX_PATH];
+    WCHAR full[MAX_PATH];
+    WCHAR probe[MAX_PATH];
+    WCHAR* slash;
+    static WCHAR const* candidates[] = {
+        L"plugin_chrome", L"src\\plugin_chrome", L"..\\src\\plugin_chrome"
+    };
+    DWORD n = GetEnvironmentVariableW(
+        L"TORIRS_PLUGIN_CHROME_DIR", env, MAX_PATH);
+
+    if( n > 0 && n < MAX_PATH )
+    {
+        GetFullPathNameW(env, MAX_PATH, full, NULL);
+        _snwprintf(probe, MAX_PATH, L"%s\\modern.html", full);
+        if( GetFileAttributesW(probe) != INVALID_FILE_ATTRIBUTES )
+        {
+            lstrcpynW(out, full, capacity);
+            return 1;
+        }
+    }
+
+    /* Standalone distributions keep the immutable canonical bundle beside
+     * torirs.exe. Resolve it from the module path, never the caller's current
+     * directory, so shortcuts and remote launchers cannot change what loads. */
+    n = GetModuleFileNameW(NULL, executable, MAX_PATH);
+    if( n > 0 && n < MAX_PATH )
+    {
+        slash = wcsrchr(executable, L'\\');
+        if( slash )
+        {
+            *slash = 0;
+            if( _snwprintf(
+                    full, MAX_PATH, L"%s\\plugin_chrome", executable) > 0 )
+            {
+                _snwprintf(probe, MAX_PATH, L"%s\\modern.html", full);
+                if( GetFileAttributesW(probe) != INVALID_FILE_ATTRIBUTES )
+                {
+                    lstrcpynW(out, full, capacity);
+                    return 1;
+                }
+            }
+        }
+    }
+    for( int i = 0; i < (int)(sizeof(candidates) / sizeof(candidates[0])); i++ )
+    {
+        if( !GetFullPathNameW(candidates[i], MAX_PATH, full, NULL) )
+            continue;
+        _snwprintf(probe, MAX_PATH, L"%s\\modern.html", full);
+        if( GetFileAttributesW(probe) == INVALID_FILE_ATTRIBUTES )
+            continue;
+        lstrcpynW(out, full, capacity);
+        return 1;
+    }
+    return 0;
+}
+
+static int
+win32_browser_copy(
+    WCHAR const* source_root, WCHAR const* target_root, WCHAR const* name)
+{
+    WCHAR source[MAX_PATH];
+    WCHAR target[MAX_PATH];
+
+    if( _snwprintf(source, MAX_PATH, L"%s\\%s", source_root, name) <= 0 ||
+        _snwprintf(target, MAX_PATH, L"%s\\%s", target_root, name) <= 0 )
+        return 0;
+    return CopyFileW(source, target, FALSE) != 0;
+}
+
+static void
+win32_browser_stage_skin(
+    WCHAR const* bundle_source, WCHAR const* target_root)
+{
+    static WCHAR const* const names[] = {
+        L"PanelBody.png", L"PluginIcon.png", L"ButtonLeft.png",
+        L"ButtonMid.png", L"ButtonRight.png", L"CheckOn.png",
+        L"CheckOff.png", L"CheckBoxOn.png", L"CheckBoxOff.png",
+        L"DropdownBody.png", L"ScrollUp.png", L"ScrollDown.png",
+        L"ScrollTrack.png", L"ScrollGripTop.png", L"ScrollGripMid.png",
+        L"ScrollGripBottom.png", L"CloseButton.png", L"CloseButtonOver.png",
+        L"FrameTopLeft.png",
+        L"FrameTop.png", L"FrameTopRight.png", L"FrameLeft.png",
+        L"FrameRight.png", L"FrameBottomLeft.png", L"FrameBottom.png",
+        L"FrameBottomRight.png"
+    };
+    WCHAR source[MAX_PATH];
+    WCHAR target[MAX_PATH];
+    WCHAR probe[MAX_PATH];
+    WCHAR skin_source[MAX_PATH];
+    WCHAR skin_target[MAX_PATH];
+    static WCHAR const* const candidates[] = {
+        L"res\\plugin_chrome\\skin", L"..\\res\\plugin_chrome\\skin"
+    };
+
+    _snwprintf(probe, MAX_PATH, L"%s\\skin\\PanelBody.png", bundle_source);
+    if( GetFileAttributesW(probe) != INVALID_FILE_ATTRIBUTES )
+        _snwprintf(skin_source, MAX_PATH, L"%s\\skin", bundle_source);
+    else
+    {
+        skin_source[0] = 0;
+        for( int i = 0; i < (int)(sizeof(candidates) / sizeof(candidates[0])); i++ )
+        {
+            if( !GetFullPathNameW(candidates[i], MAX_PATH, probe, NULL) )
+                continue;
+            _snwprintf(source, MAX_PATH, L"%s\\PanelBody.png", probe);
+            if( GetFileAttributesW(source) != INVALID_FILE_ATTRIBUTES )
+            {
+                lstrcpynW(skin_source, probe, MAX_PATH);
+                break;
+            }
+        }
+    }
+    if( !skin_source[0] )
+        return; /* flat palette remains complete without optional baked art */
+    _snwprintf(skin_target, MAX_PATH, L"%s\\skin", target_root);
+    CreateDirectoryW(skin_target, NULL);
+    for( int i = 0; i < (int)(sizeof(names) / sizeof(names[0])); i++ )
+    {
+        _snwprintf(source, MAX_PATH, L"%s\\%s", skin_source, names[i]);
+        _snwprintf(target, MAX_PATH, L"%s\\%s", skin_target, names[i]);
+        CopyFileW(source, target, FALSE);
+    }
+}
+
+static int
+win32_browser_stage_fonts(
+    WCHAR const* bundle_source, WCHAR const* target_root)
+{
+    static WCHAR const* const names[] = {
+        L"ToriRSBody.eot", L"ToriRSBody.woff", L"ToriRSBody.ttf",
+        L"ToriRSMenu.eot", L"ToriRSMenu.woff", L"ToriRSMenu.ttf",
+        L"ToriRSSmall.eot", L"ToriRSSmall.woff", L"ToriRSSmall.ttf",
+        L"manifest.json", L"README.md"
+    };
+    static WCHAR const* const candidates[] = {
+        L"res\\plugin_chrome\\font", L"..\\res\\plugin_chrome\\font"
+    };
+    WCHAR source[MAX_PATH];
+    WCHAR target[MAX_PATH];
+    WCHAR probe[MAX_PATH];
+    WCHAR font_source[MAX_PATH];
+    WCHAR font_target[MAX_PATH];
+
+    _snwprintf(probe, MAX_PATH, L"%s\\font\\ToriRSBody.eot", bundle_source);
+    if( GetFileAttributesW(probe) != INVALID_FILE_ATTRIBUTES )
+        _snwprintf(font_source, MAX_PATH, L"%s\\font", bundle_source);
+    else
+    {
+        font_source[0] = 0;
+        for( int i = 0; i < (int)(sizeof(candidates) / sizeof(candidates[0])); i++ )
+        {
+            if( !GetFullPathNameW(candidates[i], MAX_PATH, probe, NULL) )
+                continue;
+            _snwprintf(source, MAX_PATH, L"%s\\ToriRSBody.eot", probe);
+            if( GetFileAttributesW(source) != INVALID_FILE_ATTRIBUTES )
+            {
+                lstrcpynW(font_source, probe, MAX_PATH);
+                break;
+            }
+        }
+    }
+    if( !font_source[0] )
+        return 0;
+    _snwprintf(font_target, MAX_PATH, L"%s\\font", target_root);
+    if( !CreateDirectoryW(font_target, NULL) &&
+        GetLastError() != ERROR_ALREADY_EXISTS )
+        return 0;
+    for( int i = 0; i < (int)(sizeof(names) / sizeof(names[0])); i++ )
+    {
+        _snwprintf(source, MAX_PATH, L"%s\\%s", font_source, names[i]);
+        _snwprintf(target, MAX_PATH, L"%s\\%s", font_target, names[i]);
+        if( !CopyFileW(source, target, FALSE) )
+            return 0;
+    }
+    return 1;
+}
+
+static int
+win32_browser_stage_bundle(struct PlatformWindow* p)
+{
+    static WCHAR const* const files[] = {
+        L"modern.html", L"modern.css", L"codec-es3.js", L"runtime.js",
+        L"legacy-ie8.html", L"legacy-ie8.css", L"runtime-ie8.js"
+    };
+    WCHAR source[MAX_PATH];
+    WCHAR bitmap[MAX_PATH];
+
+    if( !win32_browser_asset_dir(p) ||
+        !win32_browser_find_source(source, MAX_PATH) )
+        return 0;
+    for( int i = 0; i < (int)(sizeof(files) / sizeof(files[0])); i++ )
+        if( !win32_browser_copy(source, p->chrome_browser_asset_dir, files[i]) )
+            return 0;
+    _snwprintf(bitmap, MAX_PATH, L"%s\\bitmap", p->chrome_browser_asset_dir);
+    if( !CreateDirectoryW(bitmap, NULL) && GetLastError() != ERROR_ALREADY_EXISTS )
+        return 0;
+    win32_browser_stage_skin(source, p->chrome_browser_asset_dir);
+    if( !win32_browser_stage_fonts(source, p->chrome_browser_asset_dir) )
+        return 0;
+    return 1;
+}
+
+bool
+PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* p)
+{
+    RECT client;
+
+    if( !p || !p->hwnd || !win32_chrome_ensure_rail(p) )
+        return false;
+    if( p->chrome_browser )
+        return !PlatformWin32Browser_Failed(p->chrome_browser);
+    if( !win32_browser_stage_bundle(p) )
+        return false;
+    p->chrome_browser = PlatformWin32Browser_New(
+        p->chrome_rail_hwnd, p->chrome_browser_asset_dir);
+    if( !p->chrome_browser )
+        return false;
+    if( win32_browser_asset_dir(p) )
+        PlatformWin32Browser_AllowLocalRoot(
+            p->chrome_browser, p->chrome_browser_asset_url);
+    if( GetClientRect(p->chrome_rail_hwnd, &client) )
+        PlatformWin32Browser_Resize(
+            p->chrome_browser, client.right - client.left, client.bottom - client.top);
+    return !PlatformWin32Browser_Failed(p->chrome_browser);
+}
+
+bool
+PlatformWindow_PluginBrowserReady(struct PlatformWindow const* p)
+{
+    return p && p->chrome_browser &&
+           PlatformWin32Browser_Ready(p->chrome_browser) != 0;
+}
+
+bool
+PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* p)
+{
+    return !p || (p->chrome_browser &&
+                  PlatformWin32Browser_Failed(p->chrome_browser));
+}
+
+void
+PlatformWindow_PluginBrowserSend(struct PlatformWindow* p, char const* json)
+{
+    if( !p || !json || !PlatformWindow_PluginBrowserEnsure(p) )
+        return;
+    PlatformWin32Browser_Send(p->chrome_browser, json);
+}
+
+int
+PlatformWindow_PluginBrowserPoll(
+    struct PlatformWindow* p, char* out_json, int capacity)
+{
+    if( !p || !p->chrome_browser || !out_json || capacity <= 0 )
+        return 0;
+    return PlatformWin32Browser_Poll(p->chrome_browser, out_json, capacity);
+}
+
+static void
+win32_browser_remove_files(WCHAR const* directory)
+{
+    WCHAR pattern[MAX_PATH];
+    WCHAR path[MAX_PATH];
+    WIN32_FIND_DATAW found;
+    HANDLE search;
+
+    if( !directory || !directory[0] ||
+        _snwprintf(pattern, MAX_PATH, L"%s\\*", directory) <= 0 )
+        return;
+    search = FindFirstFileW(pattern, &found);
+    if( search == INVALID_HANDLE_VALUE )
+        return;
+    do
+    {
+        if( found.cFileName[0] == L'.' &&
+            (!found.cFileName[1] ||
+             (found.cFileName[1] == L'.' && !found.cFileName[2])) )
+            continue;
+        if( found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
+            continue;
+        if( _snwprintf(path, MAX_PATH, L"%s\\%s", directory, found.cFileName) > 0 )
+        {
+            if( found.dwFileAttributes & FILE_ATTRIBUTE_READONLY )
+                SetFileAttributesW(
+                    path, found.dwFileAttributes & ~FILE_ATTRIBUTE_READONLY);
+            DeleteFileW(path);
+        }
+    } while( FindNextFileW(search, &found) );
+    FindClose(search);
+}
+
+static void
+win32_browser_remove_bundle(struct PlatformWindow* p)
+{
+    WCHAR child[MAX_PATH];
+
+    if( !p || !p->chrome_browser_asset_dir[0] )
+        return;
+    _snwprintf(child, MAX_PATH, L"%s\\bitmap", p->chrome_browser_asset_dir);
+    win32_browser_remove_files(child);
+    RemoveDirectoryW(child);
+    _snwprintf(child, MAX_PATH, L"%s\\skin", p->chrome_browser_asset_dir);
+    win32_browser_remove_files(child);
+    RemoveDirectoryW(child);
+    _snwprintf(child, MAX_PATH, L"%s\\font", p->chrome_browser_asset_dir);
+    win32_browser_remove_files(child);
+    RemoveDirectoryW(child);
+    win32_browser_remove_files(p->chrome_browser_asset_dir);
+    RemoveDirectoryW(p->chrome_browser_asset_dir);
+    p->chrome_browser_asset_dir[0] = 0;
+    p->chrome_browser_asset_url[0] = 0;
+}
+
+bool
+PlatformWindow_PluginBrowserBitmapUrl(
+    struct PlatformWindow* p,
+    char const* cache_key,
+    uint32_t revision,
+    uint32_t const* argb,
+    int width,
+    int height,
+    char* out_url,
+    int capacity)
+{
+    WCHAR path[MAX_PATH];
+    WCHAR temporary[MAX_PATH];
+    WCHAR name[128];
+    BITMAPFILEHEADER file;
+    BITMAPINFOHEADER info;
+    HANDLE handle;
+    uint32_t* row;
+    DWORD wrote;
+    int key_length;
+    int url_length;
+
+    if( !p || !cache_key || !cache_key[0] || !argb || !out_url || capacity <= 0 ||
+        revision == 0 || width <= 0 || height <= 0 || width > 4096 || height > 4096 ||
+        (size_t)width > SIZE_MAX / (size_t)height )
+        return false;
+    key_length = (int)strlen(cache_key);
+    if( key_length <= 0 || key_length >= 96 )
+        return false;
+    for( int i = 0; i < key_length; i++ )
+        if( !((cache_key[i] >= 'a' && cache_key[i] <= 'z') ||
+              (cache_key[i] >= 'A' && cache_key[i] <= 'Z') ||
+              (cache_key[i] >= '0' && cache_key[i] <= '9') ||
+              cache_key[i] == '-' || cache_key[i] == '_' || cache_key[i] == '.') )
+            return false;
+    if( !PlatformWindow_PluginBrowserEnsure(p) || !win32_browser_asset_dir(p) )
+        return false;
+    if( !MultiByteToWideChar(CP_ACP, 0, cache_key, -1, name, 128) )
+        return false;
+    if( _snwprintf(
+            path, MAX_PATH, L"%s\\bitmap\\%s-r%lu.bmp",
+            p->chrome_browser_asset_dir, name, (unsigned long)revision) <= 0 ||
+        _snwprintf(temporary, MAX_PATH, L"%s.tmp", path) <= 0 )
+        return false;
+
+    memset(&file, 0, sizeof(file));
+    memset(&info, 0, sizeof(info));
+    file.bfType = 0x4D42;
+    file.bfOffBits = sizeof(file) + sizeof(info);
+    file.bfSize = file.bfOffBits + (DWORD)((size_t)width * (size_t)height * 4u);
+    info.biSize = sizeof(info);
+    info.biWidth = width;
+    info.biHeight = height;
+    info.biPlanes = 1;
+    info.biBitCount = 32;
+    info.biCompression = BI_RGB;
+    info.biSizeImage = file.bfSize - file.bfOffBits;
+    handle = CreateFileW(
+        temporary, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+        FILE_ATTRIBUTE_TEMPORARY, NULL);
+    if( handle == INVALID_HANDLE_VALUE )
+        return false;
+    if( !WriteFile(handle, &file, sizeof(file), &wrote, NULL) || wrote != sizeof(file) ||
+        !WriteFile(handle, &info, sizeof(info), &wrote, NULL) || wrote != sizeof(info) )
+    {
+        CloseHandle(handle);
+        DeleteFileW(temporary);
+        return false;
+    }
+    row = (uint32_t*)malloc((size_t)width * sizeof(*row));
+    if( !row )
+    {
+        CloseHandle(handle);
+        DeleteFileW(temporary);
+        return false;
+    }
+    for( int y = height - 1; y >= 0; y-- )
+    {
+        for( int x = 0; x < width; x++ )
+        {
+            uint32_t const source = argb[(size_t)y * (size_t)width + (size_t)x];
+            unsigned const alpha = source >> 24;
+            unsigned const red =
+                (((source >> 16) & 255u) * alpha + 0x37u * (255u - alpha)) / 255u;
+            unsigned const green =
+                (((source >> 8) & 255u) * alpha + 0x2Eu * (255u - alpha)) / 255u;
+            unsigned const blue =
+                ((source & 255u) * alpha + 0x22u * (255u - alpha)) / 255u;
+            row[x] = (red << 16) | (green << 8) | blue;
+        }
+        if( !WriteFile(
+                handle, row, (DWORD)((size_t)width * sizeof(*row)), &wrote, NULL) ||
+            wrote != (DWORD)((size_t)width * sizeof(*row)) )
+        {
+            free(row);
+            CloseHandle(handle);
+            DeleteFileW(temporary);
+            return false;
+        }
+    }
+    free(row);
+    CloseHandle(handle);
+    if( !MoveFileExW(
+            temporary, path,
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) )
+    {
+        DeleteFileW(temporary);
+        return false;
+    }
+    url_length = snprintf(
+        out_url,
+        (size_t)capacity,
+        "bitmap/%s-r%lu.bmp",
+        cache_key,
+        (unsigned long)revision);
+    return url_length > 0 && url_length < capacity;
+}
+
+bool
+PlatformWindow_Win32GameClientSize(
+    void* native_window, int* out_width, int* out_height)
+{
+    HWND hwnd = (HWND)native_window;
+    struct PlatformWindow* p;
+
+    if( !hwnd || !out_width || !out_height )
+        return false;
+    /* D3D9 can also be embedded in a probe's arbitrary HWND. Do not interpret
+     * another class's application-defined GWLP_USERDATA as our structure. */
+    if( (WNDPROC)GetWindowLongPtr(hwnd, GWLP_WNDPROC) != wnd_proc )
+        return false;
+    p = (struct PlatformWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    if( !p || p->hwnd != hwnd )
+        return false;
+    return win32_game_client_size(p, out_width, out_height) != 0;
+}
+
+
+void
+PlatformWindow_Win32ChromeRailSync(
+    struct PlatformWindow* p,
+    struct ToriRSChromeRailSnapshot const* snapshot)
+{
+    (void)p;
+    (void)snapshot;
+}
+
+void
+PlatformWindow_Win32ChromeRailIcon(
+    struct PlatformWindow* p,
+    struct ToriRSChromeRailIcon const* icon)
+{
+    (void)p;
+    (void)icon;
+}
+
+int
+PlatformWindow_Win32ChromeRailPoll(
+    struct PlatformWindow* p,
+    struct ToriRSChromeRailIntent* out,
+    int max)
+{
+    (void)p;
+    (void)out;
+    (void)max;
+    return 0;
+}
+
+#if defined(TORIRS_WIN32_GDI_TEST_API)
+void*
+PlatformWindow_Win32TestRailHandle(struct PlatformWindow* p)
+{
+    return p ? (void*)p->chrome_rail_hwnd : NULL;
+}
+#endif
+
 void
 PlatformWindow_Free(struct PlatformWindow* p)
 {
     if( !p )
         return;
+    if( p->chrome_open )
+        PlatformWindow_ChromeClose(p);
+    if( p->chrome_browser )
+        PlatformWin32Browser_Free(p->chrome_browser);
+    p->chrome_browser = NULL;
+    win32_browser_remove_bundle(p);
+    if( p->chrome_rail_hwnd )
+        DestroyWindow(p->chrome_rail_hwnd);
+    p->chrome_rail_hwnd = NULL;
     if( p->mem_dc )
     {
         if( p->old_bmp )
@@ -1137,8 +2234,11 @@ PlatformWindow_SetCanvasFollowsWindow(
         return;
 
     GetClientRect(p->hwnd, &rc);
-    win_w = rc.right - rc.left;
-    win_h = rc.bottom - rc.top;
+    if( !win32_game_client_size(p, &win_w, &win_h) )
+    {
+        win_w = rc.right - rc.left;
+        win_h = rc.bottom - rc.top;
+    }
 
     if( !follow )
     {
@@ -1148,18 +2248,25 @@ PlatformWindow_SetCanvasFollowsWindow(
             p->resizable_h = win_h;
         }
         if( min_w > 0 && min_h > 0 )
-            PlatformWindow_SetWindowSize(p, min_w, min_h);
+            PlatformWindow_SetWindowSize(
+                p, min_w + win32_chrome_reserved_width(p), min_h);
         return;
     }
 
     if( !was_following && p->resizable_w > 0 && p->resizable_h > 0 )
     {
-        PlatformWindow_SetWindowSize(p, p->resizable_w, p->resizable_h);
+        PlatformWindow_SetWindowSize(
+            p,
+            p->resizable_w + win32_chrome_reserved_width(p),
+            p->resizable_h);
         p->resizable_w = 0;
         p->resizable_h = 0;
         GetClientRect(p->hwnd, &rc);
-        win_w = rc.right - rc.left;
-        win_h = rc.bottom - rc.top;
+        if( !win32_game_client_size(p, &win_w, &win_h) )
+        {
+            win_w = rc.right - rc.left;
+            win_h = rc.bottom - rc.top;
+        }
     }
     if( bus && win_w > 0 && win_h > 0 )
         CmdBus_PushWindowResize(bus, win_w, win_h);
@@ -1168,18 +2275,10 @@ PlatformWindow_SetCanvasFollowsWindow(
 void
 PlatformWindow_SetWindowSize(struct PlatformWindow* p, int width, int height)
 {
-    RECT r;
     if( !p->hwnd || width <= 0 || height <= 0 )
         return;
     /* Grow the outer window so the *client* area becomes width x height. */
-    r.left = 0;
-    r.top = 0;
-    r.right = width;
-    r.bottom = height;
-    AdjustWindowRect(&r, (DWORD)GetWindowLongPtr(p->hwnd, GWL_STYLE), FALSE);
-    SetWindowPos(
-        p->hwnd, NULL, 0, 0, r.right - r.left, r.bottom - r.top,
-        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    win32_resize_client(p, width, height);
 }
 
 bool
@@ -1221,6 +2320,15 @@ PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
             p->quit = 1;
             continue;
         }
+        if( p->chrome_browser && p->chrome_rail_hwnd )
+        {
+            HWND const focus = GetFocus();
+            if( (focus == p->chrome_rail_hwnd ||
+                 (focus && IsChild(p->chrome_rail_hwnd, focus))) &&
+                PlatformWin32Browser_PreTranslateMessage(
+                    p->chrome_browser, &msg) )
+                continue;
+        }
         TranslateMessage(&msg); /* WM_KEYDOWN -> WM_CHAR for typed characters */
         DispatchMessage(&msg);  /* routed to wnd_proc, which pushes to the bus */
     }
@@ -1229,7 +2337,6 @@ PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
      * the old size is applied at the old size, matching the SDL backend. */
     if( p->pending_resize_w > 0 && p->pending_resize_h > 0 )
         CmdBus_PushWindowResize(bus, p->pending_resize_w, p->pending_resize_h);
-
     p->poll_bus = NULL;
 }
 

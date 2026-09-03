@@ -103,6 +103,7 @@ src/.last_flavor
 # committed. See tools/toolchain/README.md.
 /toolchains/mingw32/
 /toolchains/mingw64/
+/toolchains/webview2-*/
 /toolchains/emsdk-win64/
 
 # Same rule for the XP profiler tooling: lib/cv2pdb-0.54-win32.zip and

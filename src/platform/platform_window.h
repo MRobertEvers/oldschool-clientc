@@ -197,19 +197,34 @@ PlatformWindow_AuxTakeCloseRequest(struct PlatformWindow* platform);
  * is still exactly one top-level application window: opening reserves a pane
  * at its trailing edge and, where the window manager accepts it, grows the
  * client area so the game presentation keeps its previous size. A platform
- * that cannot compose an attached surface returns false; the host then uses
- * its native widget presenter or exclusive in-window fallback, never an
- * in-game overlay.
+ * that cannot compose an attached region returns false; the host then uses
+ * its exclusive in-window browser fallback, never an in-game overlay.
  *
  * Sizes and input are in the attached pane's DRAWABLE pixels. `width` passed
  * to Open is in window points, matching AuxOpen and making it a physical desk
  * size on HighDPI displays.
  */
 
+/** Expand the selected page beside the permanent rail. `width` is the page
+ * width in window points; the backend adds its fixed rail allocation. Calling
+ * this again while open updates that page width without replacing the browser. */
 bool
 PlatformWindow_ChromeOpen(
     struct PlatformWindow* platform, int width, int height, char const* title);
 
+/** Materialise only the permanent trailing rail. Valid before any page
+ * executor begins; grows the one main window exactly once. */
+bool PlatformWindow_ChromeRailOpen(
+    struct PlatformWindow* platform, int width, char const* title);
+
+/** Resize only the attached page portion, preserving the fixed rail and the
+ * game width. Used when a newly selected plugin has another preferred width. */
+bool PlatformWindow_ChromeSetPageWidth(
+    struct PlatformWindow* platform, int page_width);
+
+/** Collapse the page while retaining the small in-window rail and remembered
+ * launcher. Reopening expands the same surface; final PlatformWindow_Free
+ * removes the rail with the application window. */
 void
 PlatformWindow_ChromeClose(struct PlatformWindow* platform);
 
@@ -225,14 +240,58 @@ PlatformWindow_ChromeWidth(struct PlatformWindow const* platform);
 int
 PlatformWindow_ChromeHeight(struct PlatformWindow const* platform);
 
+/** Drawable width occupied by the far-right rail, and by the page left of it. */
+int PlatformWindow_ChromeRailWidth(struct PlatformWindow const* platform);
+int PlatformWindow_ChromePageWidth(struct PlatformWindow const* platform);
+
 bool
 PlatformWindow_ChromeResize(struct PlatformWindow* platform, int width, int height);
 
 void
 PlatformWindow_ChromePresent(struct PlatformWindow* platform);
 
+/** Was the retained pane texture changed since the last take? Clears the
+ * dirty latch. GPU hosts use this to upload only changed pixels while still
+ * compositing the retained texture every frame. */
+bool
+PlatformWindow_ChromeTakeDirty(struct PlatformWindow* platform);
+
+/** Non-consuming dirty probe used to schedule a GL frame for rail-only hover
+ * or metadata changes. */
+bool PlatformWindow_ChromeIsDirty(struct PlatformWindow const* platform);
+
 bool
 PlatformWindow_ChromeTakeInput(
+    struct PlatformWindow* platform, struct PlatformWindow_AuxInput* out);
+
+/* ---- local plugin-browser bundle transport -----------------------------
+ *
+ * Implemented by hosts which present plugin chrome through one embedded
+ * browser control. The semantic executor is deliberately platform-neutral:
+ * WebView2, MSHTML and WKWebView consume the same copied JSON and
+ * relative bitmap URLs.
+ */
+bool PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* platform);
+bool PlatformWindow_PluginBrowserReady(struct PlatformWindow const* platform);
+bool PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* platform);
+void PlatformWindow_PluginBrowserSend(
+    struct PlatformWindow* platform, char const* json);
+int PlatformWindow_PluginBrowserPoll(
+    struct PlatformWindow* platform, char* out_json, int capacity);
+bool PlatformWindow_PluginBrowserBitmapUrl(
+    struct PlatformWindow* platform,
+    char const* cache_key,
+    uint32_t revision,
+    uint32_t const* argb,
+    int width,
+    int height,
+    char* out_url,
+    int capacity);
+
+/** Raw rail-local pointer/wheel input, available collapsed and expanded. It is
+ * a separate queue so rail events can reach neither page hit-testing nor the
+ * game's command bus. */
+bool PlatformWindow_ChromeTakeRailInput(
     struct PlatformWindow* platform, struct PlatformWindow_AuxInput* out);
 
 /* ---- borderless windows, dragged by what is drawn in them -----------------

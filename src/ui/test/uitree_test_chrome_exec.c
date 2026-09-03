@@ -84,6 +84,7 @@ test_chrome_exec_quiet_frame(void)
 {
     int panel;
     int input;
+    int commands;
 
     exec_reset();
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 20, 160, "Settings");
@@ -91,7 +92,11 @@ test_chrome_exec_quiet_frame(void)
     ToriRSChrome_Build(&g_ui);
     exec_settle();
 
+    commands = g_sync.cmd_count;
     TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 0, "a frame with no change says nothing");
+    TEST_ASSERT(
+        g_rec.count == 0 && g_sync.cmd_count == commands,
+        "a settled frame starts no executor transaction and scans no deltas");
     TEST_ASSERT(
         ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 0,
         "and re-adds nothing");
@@ -100,6 +105,7 @@ test_chrome_exec_quiet_frame(void)
      * chrome's own compare-then-set mutators treat it. */
     ToriRSChrome_SetText(&g_ui, input, "#FFCC00");
     TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 0, "a no-op write is still quiet");
+    TEST_ASSERT(g_rec.count == 0, "a compare-equal write reaches no native executor callback");
 
     /* A real change emits exactly one thing. */
     g_rec.count = 0;
@@ -112,6 +118,107 @@ test_chrome_exec_quiet_frame(void)
         strcmp(ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_TEXT, input)->text,
                "#00FF00") == 0,
         "carrying the new value");
+}
+
+static void
+test_chrome_exec_retains_focused_node(void)
+{
+    struct ToriRSChromeIntent intent;
+    int panel;
+    int input;
+    int check;
+    int serial;
+    int caret;
+    int commands;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 20, 180, "Focused");
+    input = ToriRSChrome_TextInput(&g_ui, panel, "name", "Rune");
+    check = ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 0);
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+    serial = g_ui.widgets[input].serial;
+
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_ACTIVATE;
+    intent.panel = panel;
+    intent.widget = input;
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    TEST_ASSERT(
+        ToriRSChromeSync_Pump(&g_sync, &g_ui) == 1,
+        "native focus changes retained model state once");
+    TEST_ASSERT(g_ui.focus == input && g_ui.dirty, "native focus dirties its surface row");
+    caret = g_ui.widgets[input].caret;
+    TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 1, "focus receives one retained repaint");
+    g_rec.count = 0;
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 1, "focus is one semantic delta");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_FOCUS) == 1 &&
+            ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 0,
+        "taking focus updates rather than recreates the native control");
+
+    g_rec.count = 0;
+    commands = g_sync.cmd_count;
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    TEST_ASSERT(
+        ToriRSChromeSync_Pump(&g_sync, &g_ui) == 0,
+        "a duplicate native focus intent is an idempotent no-op");
+    TEST_ASSERT(
+        g_ui.focus == input && g_ui.widgets[input].caret == caret &&
+            g_ui.widgets[input].serial == serial && !g_ui.dirty,
+        "duplicate focus preserves identity and caret without repainting");
+    TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 0, "duplicate focus performs no layout");
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) == 0 && g_rec.count == 0 &&
+            g_sync.cmd_count == commands,
+        "duplicate focus performs no executor transaction");
+
+    ToriRSChrome_SetChecked(&g_ui, check, 1);
+    TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 1, "a sibling state change rebuilds once");
+    g_rec.count = 0;
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 1, "the sibling emits one delta");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_CHECKED) == 1 &&
+            ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 0 &&
+            ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_REMOVE) == 0,
+        "a node state patch does not replace its focused sibling subtree");
+    TEST_ASSERT(
+        g_ui.focus == input && g_ui.widgets[input].caret == caret &&
+            g_ui.widgets[input].serial == serial,
+        "sibling patches preserve native focus, caret, and identity");
+}
+
+static void
+test_chrome_exec_maximum_clean_fast_path(void)
+{
+    int panel;
+    int commands;
+    int build_serial;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 320, "Maximum");
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+        TEST_ASSERT(
+            ToriRSChrome_Label(&g_ui, panel, "retained row") >= 0,
+            "the maximum retained node budget is declarative");
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+    /* The recorder can intentionally truncate the initial catch-up; the sync
+     * shadow itself still saw every fixed-array node. What is measured here is
+     * the settled path after that one-time declaration. */
+    g_rec.count = 0;
+    commands = g_sync.cmd_count;
+    build_serial = g_ui.build_serial;
+    for( int i = 0; i < 100; i++ )
+        TEST_ASSERT(
+            ToriRSChromeSync_Run(&g_sync, &g_ui) == 0,
+            "a maximum-size clean tree remains quiet");
+    TEST_ASSERT(
+        g_rec.count == 0 && g_sync.cmd_count == commands &&
+            g_ui.build_serial == build_serial,
+        "100 clean maximum-size ticks perform no build or executor callback");
 }
 
 static void
@@ -289,6 +396,9 @@ test_chrome_exec_intents(void)
     TEST_ASSERT(ToriRSChrome_Checked(&g_ui, check) == 1, "the toggle landed on the model");
     TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, input), "#FFFFFF") == 0, "the edit landed");
     TEST_ASSERT(ToriRSChrome_PanelActiveTab(&g_ui, panel) == 1, "the tab switch landed");
+    TEST_ASSERT(
+        ToriRSChrome_TakeActivated(&g_ui) == check,
+        "a native result-state toggle reaches the active plugin drain");
 
     /* An activation reaches the same latch the in-canvas click uses, which is
      * what lets one host drain clicks from every presentation at once. */
@@ -366,8 +476,8 @@ test_chrome_exec_close_reported(void)
     /* Idempotent like every other intent: a transport that delivers the close
      * twice must not leave the host with two answers. */
     TEST_ASSERT(
-        ToriRSChromeIntent_Apply(&g_ui, &intent) == 1 && g_ui.panels[panel].visible == 0,
-        "a duplicated close is still closed");
+        ToriRSChromeIntent_Apply(&g_ui, &intent) == 0 && g_ui.panels[panel].visible == 0,
+        "a duplicated close is a settled no-op");
 
     /* An executor still bound is told, once, and the rows go with it. */
     ToriRSChrome_Build(&g_ui);
@@ -907,10 +1017,10 @@ test_chrome_exec_drag_region(void)
         "and the title bar is what is left to drag it by");
 
     /*
-     * The region is published on EVERY frame, including a frame that has none.
-     * An executor that simply stopped hearing about handles would go on
-     * offering the last set it was told -- a band of the window that eats
-     * presses because a strip used to be there.
+     * Every CHANGED build is published, including one that has no region. An
+     * executor that simply stopped hearing about handles would go on offering
+     * the last set it was told -- a band of the window that eats presses
+     * because a strip used to be there. A clean build is retained afterward.
      */
     ToriRSChrome_PanelSetVisible(&g_ui, panel, 0);
     ToriRSChrome_Build(&g_ui);
@@ -922,6 +1032,10 @@ test_chrome_exec_drag_region(void)
     TEST_ASSERT(
         g_rec.drag.handle_count == 0 && g_rec.drag.hole_count == 0,
         "and what crosses is an empty region, not a stale one");
+    TEST_ASSERT(
+        ToriRSChromeSync_PublishDragRegion(&g_sync, &g_ui, panel) == 0 &&
+            g_rec.drag_publishes == 1,
+        "an unchanged build performs no drag-region tree walk or boundary call");
 }
 
 /*
@@ -1085,6 +1199,244 @@ test_chrome_exec_textarea(void)
         "and does not also fire the activation latch");
 }
 
+static void
+test_chrome_exec_retained_present(void)
+{
+    int panel;
+
+    exec_reset();
+    /* The recorder normally models a native command executor. Mark this
+     * binding as a surface to exercise the retained raster/upload gate. */
+    g_sync.exec.is_surface = 1;
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 160, "Retained");
+    ToriRSChrome_Label(&g_ui, panel, "one");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChromeSync_TakePresentChange(&g_sync, &g_ui) == 1,
+        "a new surface binding presents its current display list once");
+    TEST_ASSERT(ToriRSChromeSync_TakePresentChange(&g_sync, &g_ui) == 0,
+        "an unchanged retained display list does not reraster or upload");
+    ToriRSChrome_PanelSetTitle(&g_ui, panel, "Changed");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChromeSync_TakePresentChange(&g_sync, &g_ui) == 1,
+        "a new build serial presents one dirty frame");
+}
+
+static void
+test_chrome_exec_custom_shape(void)
+{
+    struct ToriRSChromeCmd const* add;
+    struct ToriRSChromeIntent intent;
+    int panel;
+    int custom;
+
+    exec_reset();
+    ToriRSChrome_SetScale(&g_ui, 2);
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 400, "Custom");
+    custom = ToriRSChrome_Custom(
+        &g_ui, panel, "Chart", 150 * ToriRSChrome_Scale(&g_ui));
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+    add = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, custom);
+    TEST_ASSERT(add && add->value == TORIRS_CHROME_W_CUSTOM, "custom kind crosses");
+    TEST_ASSERT(
+        add && add->h == 150,
+        "custom height crosses in logical units, independent of display scale");
+    TEST_ASSERT(add && strcmp(add->label, "Chart") == 0, "custom accessible label crosses");
+
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE;
+    intent.panel = panel;
+    intent.widget = custom;
+    intent.x = 7;
+    intent.y = 11;
+    intent.selection_generation = 23;
+    intent.widget_serial = 42;
+    TEST_ASSERT(
+        ToriRSChromeIntent_Apply(&g_ui, &intent),
+        "a bounded native custom activation applies to the chrome model");
+    {
+        int x = -1;
+        int y = -1;
+        uint32_t generation = 0;
+        uint32_t serial = 0;
+        TEST_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == custom, "custom handle is drained");
+        TEST_ASSERT(
+            ToriRSChrome_ActivationWasCustom(
+                &g_ui, &x, &y, &generation, &serial) && x == 7 && y == 11 &&
+                generation == 23 && serial == 42,
+            "native custom coordinates and semantic fences survive the intent seam");
+    }
+    intent.x = 10000;
+    TEST_ASSERT(
+        !ToriRSChromeIntent_Apply(&g_ui, &intent),
+        "an out-of-bounds native custom activation is dropped before dispatch");
+}
+
+static void
+test_chrome_exec_external_intent_serial(void)
+{
+    struct ToriRSChromeCmd const* add;
+    int panel;
+    int widget;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "Semantic");
+    widget = ToriRSChrome_Button(&g_ui, panel, "Run");
+    ToriRSChrome_WidgetSetIntentSerial(&g_ui, widget, 7001);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    add = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, widget);
+    TEST_ASSERT(add && add->serial == 7001,
+        "WIDGET_ADD carries the semantic serial bound by the host");
+
+    exec_settle();
+    ToriRSChrome_WidgetSetIntentSerial(&g_ui, widget, 7002);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    add = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, widget);
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(
+            &g_rec, TORIRS_CHROME_CMD_WIDGET_REMOVE) == 1 &&
+            add && add->serial == 7002,
+        "rebinding identity removes/adds the node so old DOM listeners stay stale");
+}
+
+struct RailExecFixture
+{
+    int snapshots;
+    int icons;
+    struct ToriRSChromeRailSnapshot snapshot;
+    struct ToriRSChromeRailIcon icon;
+    struct ToriRSChromeRailIntent intents[4];
+    int intent_count;
+};
+
+static void
+rail_fixture_sync(void* user, struct ToriRSChromeRailSnapshot const* snapshot)
+{
+    struct RailExecFixture* fixture = user;
+    fixture->snapshots++;
+    fixture->snapshot = *snapshot;
+}
+
+static void
+rail_fixture_icon(void* user, struct ToriRSChromeRailIcon const* icon)
+{
+    struct RailExecFixture* fixture = user;
+    fixture->icons++;
+    fixture->icon = *icon;
+}
+
+static int
+rail_fixture_poll(void* user, struct ToriRSChromeRailIntent* out, int max)
+{
+    struct RailExecFixture* fixture = user;
+    int const count = fixture->intent_count < max ? fixture->intent_count : max;
+    for( int i = 0; i < count; i++ )
+        out[i] = fixture->intents[i];
+    for( int i = count; i < fixture->intent_count; i++ )
+        fixture->intents[i - count] = fixture->intents[i];
+    fixture->intent_count -= count;
+    return count;
+}
+
+static void
+test_chrome_exec_retained_rail(void)
+{
+    struct RailExecFixture fixture;
+    struct ToriRSChromeExec exec;
+    struct ToriRSChromeRailSync sync;
+    struct ToriRSChromeRailSnapshot snapshot;
+    struct ToriRSChromeRailIcon icon;
+    struct ToriRSChromeRailIntent intent;
+
+    memset(&fixture, 0, sizeof(fixture));
+    memset(&exec, 0, sizeof(exec));
+    exec.user = &fixture;
+    exec.rail_sync = rail_fixture_sync;
+    exec.rail_icon = rail_fixture_icon;
+    exec.rail_poll = rail_fixture_poll;
+    ToriRSChromeRailSync_Init(&sync);
+    ToriRSChromeRailSnapshot_Init(&snapshot);
+    snapshot.registry_revision = 9;
+    snapshot.selection_generation = 4;
+    snapshot.page_generation = 7;
+    snapshot.selected_entry = -2;
+    snapshot.expanded = 1;
+    TEST_ASSERT(
+        ToriRSChromeRailSnapshot_AddManage(&snapshot, -2, "Manage Plugins"),
+        "the permanent Manage destination accepts its reserved negative key");
+    TEST_ASSERT(
+        ToriRSChromeRailSnapshot_Add(
+            &snapshot, 3, "Ground Items", "ground.png", 360, "12", 1),
+        "a plugin destination is copied into the shared snapshot");
+    TEST_ASSERT(
+        ToriRSChromeRailSync_Run(&sync, &exec, &snapshot) == 1 &&
+            fixture.snapshots == 1 && fixture.snapshot.entry_count == 2 &&
+            fixture.snapshot.entries[0].kind == TORIRS_CHROME_RAIL_ENTRY_MANAGE &&
+            strcmp(fixture.snapshot.entries[1].icon_asset, "ground.png") == 0 &&
+            strcmp(fixture.snapshot.entries[1].badge, "12") == 0 &&
+            fixture.snapshot.entries[1].attention,
+        "one retained snapshot carries Manage and all plugin rail metadata");
+    TEST_ASSERT(
+        ToriRSChromeRailSync_Run(&sync, &exec, &snapshot) == 0 &&
+            fixture.snapshots == 1,
+        "an idle rail is not rebuilt every frame");
+    snapshot.expanded = 0;
+    TEST_ASSERT(
+        ToriRSChromeRailSync_Run(&sync, &exec, &snapshot) == 1,
+        "collapse republishes selection state without changing the registry");
+
+    memset(&icon, 0, sizeof(icon));
+    icon.plugin_index = 3;
+    icon.revision = 5;
+    icon.width = 2;
+    icon.height = 1;
+    icon.argb[0] = 0xFF112233u;
+    icon.argb[1] = 0xFF445566u;
+    TEST_ASSERT(
+        ToriRSChromeRailSync_Icon(&sync, &exec, &icon) == 1 &&
+            fixture.icons == 1 && fixture.icon.argb[1] == 0xFF445566u,
+        "authored icon pixels cross in a separate bounded copied payload");
+    TEST_ASSERT(
+        ToriRSChromeRailSync_Icon(&sync, &exec, &icon) == 0 && fixture.icons == 1,
+        "an unchanged icon revision stays cached");
+    icon.revision++;
+    icon.width = icon.height = 0;
+    TEST_ASSERT(
+        ToriRSChromeRailSync_Icon(&sync, &exec, &icon) == 1 &&
+            fixture.icon.width == 0,
+        "a failed icon revision explicitly selects presenter fallback");
+
+    memset(&fixture.intents[0], 0, sizeof(fixture.intents[0]));
+    fixture.intents[0].kind = TORIRS_CHROME_RAIL_INTENT_SELECT;
+    fixture.intents[0].plugin_index = -2;
+    fixture.intents[0].selection_generation = 4;
+    fixture.intent_count = 1;
+    TEST_ASSERT(
+        ToriRSChromeRail_Poll(&exec, &intent, 1) == 1 &&
+            intent.plugin_index == -2 && intent.selection_generation == 4,
+        "rail selection queues a destination key and generation, not a boolean");
+
+    ToriRSChromeRailSnapshot_Init(&snapshot);
+    TEST_ASSERT(ToriRSChromeRailSnapshot_AddManage(&snapshot, -2, "Manage Plugins"),
+        "capacity reserves the permanent destination");
+    for( int plugin = 0; plugin < 32; plugin++ )
+        TEST_ASSERT(
+            ToriRSChromeRailSnapshot_Add(
+                &snapshot, plugin, "Plugin", "", 320, "", 0),
+            "all PluginHost slots fit beside Manage");
+    TEST_ASSERT(snapshot.entry_count == 33,
+        "Manage plus all 32 plugins fills, rather than truncates, the rail");
+}
+
 void
 test_chrome_exec(void)
 {
@@ -1092,6 +1444,8 @@ test_chrome_exec(void)
 
     test_chrome_exec_catchup();
     test_chrome_exec_quiet_frame();
+    test_chrome_exec_retains_focused_node();
+    test_chrome_exec_maximum_clean_fast_path();
     test_chrome_exec_remove();
     test_chrome_exec_panel_close();
     test_chrome_exec_options();
@@ -1105,4 +1459,8 @@ test_chrome_exec(void)
     test_chrome_exec_drag_region();
     test_chrome_exec_check_style();
     test_chrome_exec_textarea();
+    test_chrome_exec_retained_present();
+    test_chrome_exec_custom_shape();
+    test_chrome_exec_external_intent_serial();
+    test_chrome_exec_retained_rail();
 }

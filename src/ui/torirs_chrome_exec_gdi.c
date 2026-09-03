@@ -8,11 +8,12 @@
  * be reconstructed from rectangles, which is the entire reason this kind of
  * executor exists.
  *
- * ONE OWNED TOOL WINDOW, NEVER A RENDER TARGET. WS_EX_TOOLWINDOW keeps it off
- * the taskbar and `hwnd_owner` keeps it above the game and minimising with it.
- * No renderer is ever bound to it: see COMMON-CHROME-001, and the narrow
- * amendment to WINDOWS-HOST-001 that permits this window precisely because it
- * holds controls rather than a device.
+ * ONE ATTACHED CHILD PANE, NEVER A SECOND TOP LEVEL OR RENDERER. The platform
+ * reserves it beside the game's presentation inside the existing application
+ * HWND. Its narrow rail survives collapse; this selected page does not. The
+ * GDI executor subclasses that one platform child so USER32 controls and the
+ * retained ToriRSChrome skin share the same pane rather than nesting another
+ * host or opening an owned popup.
  *
  * NO COMCTL32. The five control classes used here -- BUTTON, EDIT, STATIC,
  * COMBOBOX and the tab strip, which is drawn as a row of BUTTONs -- are all in
@@ -49,6 +50,7 @@
 #include "torirs_chrome_mirror.h"
 #include "torirs_chrome_skin.h"
 
+#include "../platform/platform_win32_chrome.h"
 #include "../platform/platform_window.h"
 
 #include <windows.h>
@@ -58,7 +60,7 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
-static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
+static char const CHROME_GDI_CUSTOM_WNDCLASS[] = "TorirsChromeCustomView";
 
 /**
  * Chrome pixels to window pixels.
@@ -193,13 +195,38 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
  * already that multiple everywhere else in this window.
  */
 #define CHROME_GDI_CLOSE_SIDE CHROME_GDI_PX(16)
+#define CHROME_GDI_CUSTOM_MAX 4096
+
+struct ChromeGdiCustom
+{
+    HDC dc;
+    HBITMAP bitmap;
+    HBITMAP old_bitmap;
+    uint32_t* pixels;
+    int width;
+    int height;
+    int logical_h;
+    /** Device pixels per logical custom-coordinate unit, in thousandths. */
+    int scale_milli;
+    uint32_t generation;
+    uint32_t serial;
+    /** Most recently removed identity: a late frame must not become the first
+     * frame of a recycled chrome handle. */
+    uint32_t retired_generation;
+    uint32_t retired_serial;
+    uint32_t pressed_generation;
+    uint32_t pressed_serial;
+    unsigned char pressed;
+};
 
 struct ChromeGdi
 {
-    HWND owner;
+    struct PlatformWindow* platform;
     HWND hwnd;
+    WNDPROC platform_wndproc;
     HFONT font;
     int open;
+    int attached;
     /** The panel this one-window executor is presenting. Unlike `tab_panel`,
      * this is also set for a paged window with no TABSTRIP, so either close X
      * can address a real panel. */
@@ -273,6 +300,8 @@ struct ChromeGdi
      *  The layout needs it, because a multiline row is the one row here that is
      *  not CHROME_GDI_ROW_H tall. */
     unsigned char rows[TORIRS_CHROME_MAX_WIDGETS];
+    struct ChromeGdiCustom custom[TORIRS_CHROME_MAX_WIDGETS];
+    uint32_t latest_custom_generation;
     /** Resolved widget colour, 0 meaning the kind's palette default. */
     uint32_t color[TORIRS_CHROME_MAX_WIDGETS];
     int selected[TORIRS_CHROME_MAX_WIDGETS];
@@ -328,6 +357,9 @@ struct ChromeGdi
 };
 
 static struct ChromeGdi g_chrome_gdi;
+
+static LRESULT CALLBACK
+chrome_gdi_custom_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 
 /* ---- the baked skin -------------------------------------------------------
  *
@@ -602,9 +634,14 @@ chrome_gdi_textarea_h(struct ChromeGdi const* s, int widget)
 static int
 chrome_gdi_row_h(struct ChromeGdi const* s, int kind, int widget)
 {
-    if( kind != TORIRS_CHROME_W_TEXTAREA )
-        return CHROME_GDI_ROW_H;
-    return (s->label[widget] ? CHROME_GDI_ROW_H : 0) + chrome_gdi_textarea_h(s, widget);
+    if( kind == TORIRS_CHROME_W_TEXTAREA )
+        return (s->label[widget] ? CHROME_GDI_ROW_H : 0) +
+               chrome_gdi_textarea_h(s, widget);
+    if( kind == TORIRS_CHROME_W_CUSTOM )
+        return (s->label[widget] ? CHROME_GDI_ROW_H : 0) +
+               s->custom[widget].logical_h * CHROME_GDI_K +
+               2 * CHROME_GDI_RULE;
+    return CHROME_GDI_ROW_H;
 }
 
 /** Total native COMBOBOX height: its closed selection plus the authored
@@ -752,7 +789,8 @@ chrome_gdi_measure_content(struct ChromeGdi* s)
         struct ToriRSChromeMirrorWidget const* w =
             ToriRSChromeMirror_Widget(&s->mirror, i);
 
-        if( !w || !w->native || !ToriRSChromeMirror_Shown(&s->mirror, i) )
+        if( !w || w->panel != s->window_panel || !w->native ||
+            !ToriRSChromeMirror_Shown(&s->mirror, i) )
             continue;
         y += chrome_gdi_row_h(s, w->kind, i) + CHROME_GDI_ROW_GAP;
         if( w->kind == TORIRS_CHROME_W_COLORPICK && s->checked[i] )
@@ -1023,7 +1061,8 @@ chrome_gdi_layout(struct ChromeGdi* s)
             row_extent += CHROME_GDI_COLORPOP_H + CHROME_GDI_ROW_GAP;
         control = (HWND)w->native;
 
-        if( !ToriRSChromeMirror_Shown(&s->mirror, i) )
+        if( w->panel != s->window_panel ||
+            !ToriRSChromeMirror_Shown(&s->mirror, i) )
         {
             /* Hidden, not destroyed: the control keeps its text and its
              * selection, so switching back to a tab restores what was on it
@@ -1109,6 +1148,21 @@ chrome_gdi_layout(struct ChromeGdi* s)
                 chrome_gdi_textarea_h(s, i) - 2 * CHROME_GDI_TEXTAREA_PAD_Y,
                 CHROME_GDI_SWP_SHOW);
             y += row_h + CHROME_GDI_ROW_GAP;
+            continue;
+        }
+
+        if( w->kind == TORIRS_CHROME_W_CUSTOM )
+        {
+            int const cap_h = s->label[i] ? CHROME_GDI_ROW_H : 0;
+
+            if( s->label[i] )
+                dwp = DeferWindowPos(
+                    dwp, s->label[i], NULL, x, y, row_w, cap_h,
+                    CHROME_GDI_SWP_SHOW);
+            dwp = DeferWindowPos(
+                dwp, control, NULL, x, y + cap_h, row_w, row_h - cap_h,
+                CHROME_GDI_SWP_SHOW);
+            y += row_extent + CHROME_GDI_ROW_GAP;
             continue;
         }
 
@@ -1214,6 +1268,326 @@ chrome_gdi_text(HDC dc, RECT box, char const* text, uint32_t rgb, UINT align)
     DrawTextA(
         dc, text, -1, &box,
         align | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+}
+
+static void
+chrome_gdi_custom_drop(struct ChromeGdiCustom* custom)
+{
+    if( !custom )
+        return;
+    if( custom->generation && custom->serial )
+    {
+        custom->retired_generation = custom->generation;
+        custom->retired_serial = custom->serial;
+    }
+    if( custom->dc && custom->old_bitmap )
+        SelectObject(custom->dc, custom->old_bitmap);
+    if( custom->bitmap )
+        DeleteObject(custom->bitmap);
+    if( custom->dc )
+        DeleteDC(custom->dc);
+    custom->dc = NULL;
+    custom->bitmap = NULL;
+    custom->old_bitmap = NULL;
+    custom->pixels = NULL;
+    custom->width = 0;
+    custom->height = 0;
+    custom->logical_h = 0;
+    custom->scale_milli = 0;
+    custom->generation = 0;
+    custom->serial = 0;
+    custom->pressed_generation = 0;
+    custom->pressed_serial = 0;
+    custom->pressed = 0;
+}
+
+static int
+chrome_gdi_custom_surface(struct ChromeGdiCustom* custom, int width, int height)
+{
+    BITMAPINFO info;
+    HBITMAP made;
+    HGDIOBJ previous;
+    void* bits = NULL;
+
+    if( !custom || width <= 0 || height <= 0 ||
+        width > CHROME_GDI_CUSTOM_MAX || height > CHROME_GDI_CUSTOM_MAX )
+        return 0;
+    if( custom->bitmap && custom->pixels &&
+        custom->width == width && custom->height == height )
+        return 1;
+    if( !custom->dc )
+    {
+        custom->dc = CreateCompatibleDC(NULL);
+        if( !custom->dc )
+            return 0;
+    }
+
+    memset(&info, 0, sizeof(info));
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = width;
+    info.bmiHeader.biHeight = -height;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    made = CreateDIBSection(custom->dc, &info, DIB_RGB_COLORS, &bits, NULL, 0);
+    if( !made || !bits )
+    {
+        if( made )
+            DeleteObject(made);
+        return 0;
+    }
+    previous = SelectObject(custom->dc, made);
+    if( !previous || previous == HGDI_ERROR ||
+        (custom->bitmap && previous != (HGDIOBJ)custom->bitmap) )
+    {
+        if( previous && previous != HGDI_ERROR )
+            SelectObject(custom->dc, previous);
+        DeleteObject(made);
+        return 0;
+    }
+    if( !custom->bitmap )
+        custom->old_bitmap = (HBITMAP)previous;
+    else
+        DeleteObject(custom->bitmap);
+    custom->bitmap = made;
+    custom->pixels = (uint32_t*)bits;
+    custom->width = width;
+    custom->height = height;
+    return 1;
+}
+
+/** Flatten one call-scoped ARGB custom frame against the well's own body. */
+static void
+chrome_gdi_custom_copy(
+    struct ChromeGdiCustom* custom, struct ToriRSChromeCustomFrame const* frame)
+{
+    unsigned const br = (TORIRS_CHROME_C_TEXTAREA_BG >> 16) & 0xFF;
+    unsigned const bg = (TORIRS_CHROME_C_TEXTAREA_BG >> 8) & 0xFF;
+    unsigned const bb = TORIRS_CHROME_C_TEXTAREA_BG & 0xFF;
+
+    assert(custom);
+    assert(frame);
+    for( int y = 0; y < frame->height; y++ )
+        for( int x = 0; x < frame->width; x++ )
+        {
+            uint32_t const src = frame->argb[(size_t)y * (size_t)frame->stride + (size_t)x];
+            unsigned const a = (src >> 24) & 0xFF;
+            unsigned const r = (((src >> 16) & 0xFF) * a + br * (255 - a)) / 255;
+            unsigned const g = (((src >> 8) & 0xFF) * a + bg * (255 - a)) / 255;
+            unsigned const b = ((src & 0xFF) * a + bb * (255 - a)) / 255;
+            custom->pixels[(size_t)y * (size_t)frame->width + (size_t)x] =
+                (r << 16) | (g << 8) | b;
+        }
+}
+
+static int
+chrome_gdi_custom_handle(HWND hwnd)
+{
+    LONG_PTR const stored = GetWindowLongPtrA(hwnd, GWLP_USERDATA);
+    int const widget = (int)stored - 1;
+
+    return widget >= 0 && widget < TORIRS_CHROME_MAX_WIDGETS ? widget : -1;
+}
+
+static int
+chrome_gdi_custom_point(
+    struct ChromeGdi* s, HWND hwnd, int widget, int x, int y, int* out_x, int* out_y)
+{
+    struct ChromeGdiCustom const* custom;
+    RECT client;
+    int inner_w;
+    int inner_h;
+    int px;
+    int py;
+
+    if( !s || widget < 0 || widget >= TORIRS_CHROME_MAX_WIDGETS ||
+        !out_x || !out_y )
+        return 0;
+    custom = &s->custom[widget];
+    if( !custom->bitmap || !custom->generation || !custom->serial ||
+        custom->scale_milli <= 0 ||
+        !GetClientRect(hwnd, &client) )
+        return 0;
+    client.left += CHROME_GDI_RULE;
+    client.top += CHROME_GDI_RULE;
+    client.right -= CHROME_GDI_RULE;
+    client.bottom -= CHROME_GDI_RULE;
+    inner_w = client.right - client.left;
+    inner_h = client.bottom - client.top;
+    if( inner_w <= 0 || inner_h <= 0 || x < client.left || x >= client.right ||
+        y < client.top || y >= client.bottom )
+        return 0;
+    px = (x - client.left) * custom->width / inner_w;
+    py = (y - client.top) * custom->height / inner_h;
+    if( px < 0 || py < 0 || px >= custom->width || py >= custom->height )
+        return 0;
+    *out_x = px * 1000 / custom->scale_milli;
+    *out_y = py * 1000 / custom->scale_milli;
+    return *out_x >= 0 && *out_y >= 0 &&
+           *out_x < custom->width * 1000 / custom->scale_milli &&
+           *out_y < custom->height * 1000 / custom->scale_milli;
+}
+
+static void
+chrome_gdi_custom_paint(struct ChromeGdi* s, HWND hwnd, int widget, HDC dc)
+{
+    struct ChromeGdiCustom const* custom;
+    RECT client;
+    RECT inner;
+
+    if( !s || widget < 0 || widget >= TORIRS_CHROME_MAX_WIDGETS || !dc )
+        return;
+    custom = &s->custom[widget];
+    GetClientRect(hwnd, &client);
+    chrome_gdi_rect(
+        dc, 0, 0, client.right, client.bottom, TORIRS_CHROME_C_TEXTAREA_BG);
+    chrome_gdi_outline(
+        dc, 0, 0, client.right, client.bottom, TORIRS_CHROME_C_FRAME);
+    inner = client;
+    inner.left += CHROME_GDI_RULE;
+    inner.top += CHROME_GDI_RULE;
+    inner.right -= CHROME_GDI_RULE;
+    inner.bottom -= CHROME_GDI_RULE;
+    if( custom->bitmap && custom->dc && inner.right > inner.left && inner.bottom > inner.top )
+    {
+        SetStretchBltMode(dc, COLORONCOLOR);
+        StretchBlt(
+            dc,
+            inner.left,
+            inner.top,
+            inner.right - inner.left,
+            inner.bottom - inner.top,
+            custom->dc,
+            0,
+            0,
+            custom->width,
+            custom->height,
+            SRCCOPY);
+    }
+    else
+        chrome_gdi_text(
+            dc, inner, "custom view", TORIRS_CHROME_C_LABEL, DT_CENTER);
+    chrome_gdi_outline(
+        dc,
+        CHROME_GDI_RULE,
+        CHROME_GDI_RULE,
+        client.right - 2 * CHROME_GDI_RULE,
+        client.bottom - 2 * CHROME_GDI_RULE,
+        custom->pressed ? TORIRS_CHROME_C_ACCENT : TORIRS_CHROME_C_FRAME_INSET);
+}
+
+static LRESULT CALLBACK
+chrome_gdi_custom_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    struct ChromeGdi* s = &g_chrome_gdi;
+    int const widget = chrome_gdi_custom_handle(hwnd);
+    struct ChromeGdiCustom* custom =
+        widget >= 0 ? &s->custom[widget] : NULL;
+
+    (void)wp;
+    switch( msg )
+    {
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:
+        if( custom )
+        {
+            PAINTSTRUCT ps;
+            HDC dc = BeginPaint(hwnd, &ps);
+            chrome_gdi_custom_paint(s, hwnd, widget, dc);
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+        break;
+    case WM_PRINTCLIENT:
+        if( custom && wp )
+        {
+            chrome_gdi_custom_paint(s, hwnd, widget, (HDC)wp);
+            return 0;
+        }
+        break;
+    case WM_LBUTTONDOWN:
+        if( custom )
+        {
+            int x;
+            int y;
+            if( chrome_gdi_custom_point(
+                    s,
+                    hwnd,
+                    widget,
+                    (LONG)(short)LOWORD(lp),
+                    (LONG)(short)HIWORD(lp),
+                    &x,
+                    &y) )
+            {
+                custom->pressed = 1;
+                custom->pressed_generation = custom->generation;
+                custom->pressed_serial = custom->serial;
+                SetCapture(hwnd);
+                SetFocus(hwnd);
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            return 0;
+        }
+        break;
+    case WM_LBUTTONUP:
+        if( custom )
+        {
+            int x;
+            int y;
+            int const was_pressed = custom->pressed;
+            uint32_t const pressed_generation = custom->pressed_generation;
+            uint32_t const pressed_serial = custom->pressed_serial;
+            custom->pressed = 0;
+            custom->pressed_generation = 0;
+            custom->pressed_serial = 0;
+            if( GetCapture() == hwnd )
+                ReleaseCapture();
+            InvalidateRect(hwnd, NULL, FALSE);
+            if( was_pressed && pressed_generation == custom->generation &&
+                pressed_serial == custom->serial &&
+                chrome_gdi_custom_point(
+                    s,
+                    hwnd,
+                    widget,
+                    (LONG)(short)LOWORD(lp),
+                    (LONG)(short)HIWORD(lp),
+                    &x,
+                    &y) )
+            {
+                struct ToriRSChromeMirrorWidget* w =
+                    ToriRSChromeMirror_Widget(&s->mirror, widget);
+                if( w && w->kind == TORIRS_CHROME_W_CUSTOM &&
+                    w->panel == s->window_panel && s->presented[widget] )
+                {
+                    struct ToriRSChromeIntent intent;
+                    memset(&intent, 0, sizeof(intent));
+                    intent.kind = TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE;
+                    intent.panel = w->panel;
+                    intent.widget = widget;
+                    intent.x = x;
+                    intent.y = y;
+                    intent.selection_generation = custom->generation;
+                    intent.widget_serial = custom->serial;
+                    ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+                }
+            }
+            return 0;
+        }
+        break;
+    case WM_CAPTURECHANGED:
+        if( custom )
+        {
+            custom->pressed = 0;
+            custom->pressed_generation = 0;
+            custom->pressed_serial = 0;
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+        break;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, msg, wp, lp);
 }
 
 /** Edge of the box a checkbox reserves, for the art this window was told to
@@ -1477,7 +1851,7 @@ chrome_gdi_resize_at(struct ChromeGdi const* s, int x, int y)
     RECT client;
 
     assert(s);
-    if( !s->hwnd || !GetClientRect(s->hwnd, &client) )
+    if( s->attached || !s->hwnd || !GetClientRect(s->hwnd, &client) )
         return 0;
     return x >= client.right - CHROME_GDI_RULE - CHROME_GDI_RESIZE_GRIP &&
            y >= client.bottom - CHROME_GDI_RULE - CHROME_GDI_RESIZE_GRIP;
@@ -1900,7 +2274,8 @@ chrome_gdi_draw_parent(struct ChromeGdi* s, HDC dc, RECT const* client)
     chrome_gdi_draw_title(s, dc, client->right);
     chrome_gdi_draw_scrollbar(s, dc, client);
     chrome_gdi_frame(s, dc, client->right, client->bottom);
-    chrome_gdi_draw_resize_grip(dc, client);
+    if( !s->attached )
+        chrome_gdi_draw_resize_grip(dc, client);
 
     ordered = ToriRSChromeMirror_Order(&s->mirror, order, TORIRS_CHROME_MAX_WIDGETS);
     for( int oi = 0; oi < ordered; oi++ )
@@ -1932,6 +2307,25 @@ chrome_gdi_draw_parent(struct ChromeGdi* s, HDC dc, RECT const* client)
         }
     }
     chrome_gdi_draw_color_popup(s, dc);
+}
+
+/** Paint the retained parent chrome to either WM_PAINT or a capture DC. */
+static void
+chrome_gdi_paint_to(struct ChromeGdi* s, HDC dc)
+{
+    RECT client;
+
+    if( !s || !s->hwnd || !dc || !GetClientRect(s->hwnd, &client) )
+        return;
+    if( chrome_gdi_paint_buffer(s, client.right, client.bottom) )
+    {
+        chrome_gdi_draw_parent(s, s->paint_dc, &client);
+        BitBlt(
+            dc, 0, 0, client.right, client.bottom,
+            s->paint_dc, 0, 0, SRCCOPY);
+    }
+    else
+        chrome_gdi_draw_parent(s, dc, &client);
 }
 
 /* ---- the window ----------------------------------------------------------- */
@@ -1994,7 +2388,8 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 ToriRSChromeMirror_Widget(&s->mirror, handle);
             struct ToriRSChromeIntent intent;
 
-            if( !w || w->kind != TORIRS_CHROME_W_COLORPICK || notify != STN_CLICKED )
+            if( !w || w->panel != s->window_panel ||
+                w->kind != TORIRS_CHROME_W_COLORPICK || notify != STN_CLICKED )
                 return 0;
             memset(&intent, 0, sizeof(intent));
             intent.kind = TORIRS_CHROME_INTENT_ACTIVATE;
@@ -2016,7 +2411,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 ToriRSChromeMirror_Widget(&s->mirror, handle);
             struct ToriRSChromeIntent intent;
 
-            if( !w || notify != BN_CLICKED )
+            if( !w || w->panel != s->window_panel || notify != BN_CLICKED )
                 return 0;
             memset(&intent, 0, sizeof(intent));
             intent.kind = TORIRS_CHROME_INTENT_ACTION;
@@ -2037,7 +2432,8 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             struct ToriRSChromeMirrorWidget* w =
                 ToriRSChromeMirror_Widget(&s->mirror, handle);
 
-            if( w && w->kind == TORIRS_CHROME_W_DROPDOWN &&
+            if( w && w->panel == s->window_panel &&
+                w->kind == TORIRS_CHROME_W_DROPDOWN &&
                 notify == BN_CLICKED && w->native )
             {
                 SetFocus((HWND)w->native);
@@ -2053,7 +2449,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 ToriRSChromeMirror_Widget(&s->mirror, handle);
             HWND control = (HWND)lp;
 
-            if( !w )
+            if( !w || w->panel != s->window_panel )
                 return 0;
 
             switch( w->kind )
@@ -2158,6 +2554,8 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
     case WM_NCHITTEST:
     {
+        if( s->attached )
+            return HTCLIENT;
         /* The window has no operating-system frame. Its black title band is
          * the non-client area now: returning HTCAPTION lets USER32 perform the
          * move loop, including capture, monitor transitions and snapping,
@@ -2353,21 +2751,15 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     {
         PAINTSTRUCT ps;
         HDC dc = BeginPaint(hwnd, &ps);
-        RECT client;
-
-        GetClientRect(hwnd, &client);
-        if( chrome_gdi_paint_buffer(s, client.right, client.bottom) )
-        {
-            chrome_gdi_draw_parent(s, s->paint_dc, &client);
-            BitBlt(
-                dc, 0, 0, client.right, client.bottom,
-                s->paint_dc, 0, 0, SRCCOPY);
-        }
-        else
-            chrome_gdi_draw_parent(s, dc, &client);
+        chrome_gdi_paint_to(s, dc);
         EndPaint(hwnd, &ps);
         return 0;
     }
+
+    case WM_PRINTCLIENT:
+        if( wp )
+            chrome_gdi_paint_to(s, (HDC)wp);
+        return 0;
 
     case WM_CLOSE:
     {
@@ -2507,42 +2899,44 @@ chrome_gdi_begin(void* user)
     struct ChromeGdi* s = user;
     WNDCLASSA wc;
     NONCLIENTMETRICSA ncm;
+    LONG_PTR previous;
 
     assert(s);
     if( s->hwnd )
         return 1;
-
     memset(&wc, 0, sizeof(wc));
-    wc.lpfnWndProc = chrome_gdi_wndproc;
+    wc.lpfnWndProc = chrome_gdi_custom_wndproc;
     wc.hInstance = GetModuleHandleA(NULL);
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    /* NO class brush: WM_PAINT supplies the complete off-screen background,
-     * and a class brush would flash the dialog face under it first. */
     wc.hbrBackground = NULL;
-    wc.lpszClassName = CHROME_GDI_WNDCLASS;
-    /* A duplicate class is not an error: begin() can run again after the model
-     * closed the window, and the class outlives the window. */
+    wc.lpszClassName = CHROME_GDI_CUSTOM_WNDCLASS;
     if( !RegisterClassA(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS )
         return 0;
-
-    s->hwnd = CreateWindowExA(
-        WS_EX_TOOLWINDOW | WS_EX_COMPOSITED,
-        CHROME_GDI_WNDCLASS,
-        "Plugins",
-        /* Borderless by construction. WM_NCHITTEST turns the title we draw in
-         * the client into USER32's drag handle; a native caption or resize
-         * rail here would be a second, platform-themed chrome around it. */
-        WS_POPUP | WS_CLIPCHILDREN,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CHROME_GDI_W,
-        CHROME_GDI_H,
-        s->owner,
-        NULL,
-        GetModuleHandleA(NULL),
-        NULL);
-    if( !s->hwnd )
+    if( !s->platform ||
+        !PlatformWindow_ChromeOpen(
+            s->platform, CHROME_GDI_W, CHROME_GDI_H, "Plugins") )
         return 0;
+    s->hwnd = (HWND)PlatformWindow_Win32ChromeHandle(s->platform);
+    if( !s->hwnd )
+    {
+        PlatformWindow_ChromeClose(s->platform);
+        return 0;
+    }
+
+    /* This IS the platform's one page child. Subclassing preserves its HWND,
+     * placement and grow/collapse state while giving the styled controls their
+     * existing message implementation. No nested host or second renderer is
+     * introduced. The original proc is restored before the child is closed. */
+    previous = SetWindowLongPtrA(
+        s->hwnd, GWLP_WNDPROC, (LONG_PTR)chrome_gdi_wndproc);
+    if( !previous )
+    {
+        PlatformWindow_ChromeClose(s->platform);
+        s->hwnd = NULL;
+        return 0;
+    }
+    s->platform_wndproc = (WNDPROC)previous;
+    s->attached = 1;
 
     /* The shell's own UI font, so the window reads as part of the system
      * rather than as the 1990s SYSTEM_FONT a control defaults to. */
@@ -2584,7 +2978,8 @@ chrome_gdi_begin(void* user)
     s->resizing = 0;
     s->tab_count = 0;
     s->open = 1;
-    ShowWindow(s->hwnd, SW_SHOWNOACTIVATE);
+    chrome_gdi_layout(s);
+    InvalidateRect(s->hwnd, NULL, FALSE);
     return 1;
 }
 
@@ -2596,13 +2991,17 @@ chrome_gdi_end(void* user)
     assert(s);
     if( !s->open )
         return;
-    /* The children go with the parent; Windows destroys them for us, which is
-     * why nothing here walks the mirror to destroy controls one at a time. */
-    if( s->hwnd )
-        DestroyWindow(s->hwnd);
+    /* The controls go with the platform's one page child. Restore its own
+     * procedure before collapse so destroy-time messages cannot enter a GDI
+     * presenter whose mirror is being retired. */
+    if( s->hwnd && s->platform_wndproc )
+        SetWindowLongPtrA(
+            s->hwnd, GWLP_WNDPROC, (LONG_PTR)s->platform_wndproc);
+    if( s->platform )
+        PlatformWindow_ChromeClose(s->platform);
     if( s->font )
         DeleteObject(s->font);
-    /* Every GDI object this window made. A tool window opened and closed a
+    /* Every GDI object this page made. A pane expanded and collapsed a
      * dozen times a session leaks a bitmap, a brush and a DC each time
      * otherwise -- and GDI handles are a per-process quota, not merely
      * memory. */
@@ -2619,12 +3018,17 @@ chrome_gdi_end(void* user)
     if( s->paint_bitmap )
         DeleteObject(s->paint_bitmap);
     for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+    {
         if( s->swatch_brush[i] )
         {
             DeleteObject(s->swatch_brush[i]);
             s->swatch_brush[i] = NULL;
         }
+        chrome_gdi_custom_drop(&s->custom[i]);
+    }
     s->hwnd = NULL;
+    s->platform_wndproc = NULL;
+    s->attached = 0;
     s->close_button = NULL; /* a child: destroyed with the parent above. */
     s->font = NULL;
     s->tile_brush = NULL;
@@ -2723,6 +3127,7 @@ chrome_gdi_drop_extras(struct ChromeGdi* s, int widget)
     }
     if( s->dropdown_open == widget )
         s->dropdown_open = -1;
+    chrome_gdi_custom_drop(&s->custom[widget]);
 }
 
 static void
@@ -2746,14 +3151,23 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
      * either is re-added, not updated. */
     s->row_action[cmd->widget] = (cmd->w & TORIRS_CHROME_ROW_ACTION) ? 1 : 0;
     s->row_locked[cmd->widget] = (cmd->w & TORIRS_CHROME_ROW_LOCKED) ? 1 : 0;
-    /* ...and `h` is a TEXTAREA's line count. Clamped on the way in, because
-     * the number reaches the seam from a plugin manifest. */
+    /* ...and `h` is the vertical shape: line count for TEXTAREA, logical
+     * content height for CUSTOM. */
     s->rows[cmd->widget] =
-        (unsigned char)(cmd->h > 0
+        (unsigned char)(cmd->value == TORIRS_CHROME_W_TEXTAREA && cmd->h > 0
                             ? (cmd->h < TORIRS_CHROME_M_TEXTAREA_ROWS_MAX
                                    ? cmd->h
                                    : TORIRS_CHROME_M_TEXTAREA_ROWS_MAX)
                             : TORIRS_CHROME_M_TEXTAREA_ROWS);
+    if( cmd->value == TORIRS_CHROME_W_CUSTOM )
+    {
+        int height = cmd->h > 0 ? cmd->h : TORIRS_CHROME_M_CUSTOM_H;
+        if( height < TORIRS_CHROME_M_CUSTOM_H_MIN )
+            height = TORIRS_CHROME_M_CUSTOM_H_MIN;
+        if( height > TORIRS_CHROME_M_CUSTOM_H_MAX )
+            height = TORIRS_CHROME_M_CUSTOM_H_MAX;
+        s->custom[cmd->widget].logical_h = height;
+    }
 
     switch( cmd->value )
     {
@@ -2895,6 +3309,17 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
         control = chrome_gdi_child(
             s, "STATIC", SS_OWNERDRAW,
             cmd->label[0] ? cmd->label : "model preview", id);
+        break;
+
+    case TORIRS_CHROME_W_CUSTOM:
+        if( cmd->label[0] )
+            s->label[cmd->widget] =
+                chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
+        control = chrome_gdi_child(
+            s, CHROME_GDI_CUSTOM_WNDCLASS, 0, "", id);
+        if( control )
+            SetWindowLongPtrA(
+                control, GWLP_USERDATA, (LONG_PTR)(cmd->widget + 1));
         break;
 
     case TORIRS_CHROME_W_TABSTRIP:
@@ -3041,7 +3466,7 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
      * CLOSE -- deliberately, so a recycled handle cannot inherit a stale
      * native id. That means the HWND is unreachable the instant Apply returns,
      * so taking it afterwards leaks the window and leaves a dead control
-     * sitting in the tool window with nothing behind it.
+     * sitting in the page child with nothing behind it.
      */
     if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_REMOVE )
     {
@@ -3081,7 +3506,8 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         return;
 
     case TORIRS_CHROME_CMD_PANEL_TITLE:
-        SetWindowTextA(s->hwnd, cmd->text);
+        if( cmd->panel == s->window_panel )
+            SetWindowTextA(s->hwnd, cmd->text);
         return;
 
     case TORIRS_CHROME_CMD_PANEL_CLOSE:
@@ -3285,6 +3711,102 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
 }
 
 static int
+chrome_gdi_generation_before(uint32_t generation, uint32_t reference)
+{
+    return generation != reference && (int32_t)(generation - reference) < 0;
+}
+
+static void
+chrome_gdi_custom_present(
+    void* user, struct ToriRSChromeCustomFrame const* frame)
+{
+    struct ChromeGdi* s = user;
+    struct ToriRSChromeMirrorWidget* widget;
+    struct ChromeGdiCustom* custom;
+
+    assert(s);
+    if( !frame || !s->open || !frame->argb || frame->panel != s->window_panel ||
+        frame->widget < 0 || frame->widget >= TORIRS_CHROME_MAX_WIDGETS ||
+        frame->selection_generation == 0 || frame->widget_serial == 0 ||
+        frame->scale_milli < TORIRS_CHROME_SCALE_MIN * 1000 ||
+        frame->scale_milli > TORIRS_CHROME_SCALE_MAX * 1000 ||
+        frame->width <= 0 || frame->height <= 0 ||
+        frame->width > CHROME_GDI_CUSTOM_MAX || frame->height > CHROME_GDI_CUSTOM_MAX ||
+        frame->stride < frame->width || frame->stride > CHROME_GDI_CUSTOM_MAX )
+        return;
+    widget = ToriRSChromeMirror_Widget(&s->mirror, frame->widget);
+    if( !widget || widget->kind != TORIRS_CHROME_W_CUSTOM ||
+        widget->panel != frame->panel || !widget->native ||
+        !ToriRSChromeMirror_Shown(&s->mirror, frame->widget) )
+        return;
+    custom = &s->custom[frame->widget];
+    if( custom->logical_h <= 0 ||
+        frame->height * 1000 != custom->logical_h * frame->scale_milli )
+        return;
+
+    if( custom->generation || custom->serial )
+    {
+        if( custom->generation != frame->selection_generation ||
+            custom->serial != frame->widget_serial )
+            return;
+    }
+    else
+    {
+        /* Removal leaves a tombstone. This closes the only race a synchronous
+         * native presenter can still see: an old frame arriving after its
+         * chrome handle was recycled but before the replacement's first one. */
+        if( custom->retired_generation == frame->selection_generation &&
+            custom->retired_serial == frame->widget_serial )
+            return;
+        if( s->latest_custom_generation &&
+            chrome_gdi_generation_before(
+                frame->selection_generation, s->latest_custom_generation) )
+            return;
+    }
+
+    if( !chrome_gdi_custom_surface(custom, frame->width, frame->height) )
+        return;
+    chrome_gdi_custom_copy(custom, frame);
+    custom->generation = frame->selection_generation;
+    custom->serial = frame->widget_serial;
+    custom->scale_milli = frame->scale_milli;
+    if( !s->latest_custom_generation ||
+        !chrome_gdi_generation_before(
+            frame->selection_generation, s->latest_custom_generation) )
+        s->latest_custom_generation = frame->selection_generation;
+    InvalidateRect((HWND)widget->native, NULL, FALSE);
+}
+
+static void
+chrome_gdi_rail_sync(
+    void* user, struct ToriRSChromeRailSnapshot const* snapshot)
+{
+    struct ChromeGdi* s = user;
+
+    assert(s);
+    PlatformWindow_Win32ChromeRailSync(s->platform, snapshot);
+}
+
+static void
+chrome_gdi_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon)
+{
+    struct ChromeGdi* s = user;
+
+    assert(s);
+    PlatformWindow_Win32ChromeRailIcon(s->platform, icon);
+}
+
+static int
+chrome_gdi_rail_poll(
+    void* user, struct ToriRSChromeRailIntent* out, int max)
+{
+    struct ChromeGdi* s = user;
+
+    assert(s);
+    return PlatformWindow_Win32ChromeRailPoll(s->platform, out, max);
+}
+
+static int
 chrome_gdi_poll(void* user, struct ToriRSChromeIntent* out, int max)
 {
     struct ChromeGdi* s = user;
@@ -3307,16 +3829,18 @@ ToriRSChromeExec_Gdi(void* platform)
 
     memset(&exec, 0, sizeof(exec));
     memset(&g_chrome_gdi, 0, sizeof(g_chrome_gdi));
-    /* The shell hands every executor the same platform handle; this one asks
-     * it for the game's HWND, which is all an owned tool window needs. Asking
-     * here rather than making the shell branch per executor is what keeps the
-     * chooser's call site identical on every lane. */
-    g_chrome_gdi.owner = platform ? (HWND)PlatformWindow_NativeWindowHandle(platform) : NULL;
+    /* The shell hands every executor the same platform handle. This one asks
+     * that platform for its single attached page child when begin() runs. */
+    g_chrome_gdi.platform = (struct PlatformWindow*)platform;
 
     exec.user = &g_chrome_gdi;
     exec.begin = chrome_gdi_begin;
     exec.apply = chrome_gdi_apply;
     exec.end = chrome_gdi_end;
     exec.poll = chrome_gdi_poll;
+    exec.rail_sync = chrome_gdi_rail_sync;
+    exec.rail_icon = chrome_gdi_rail_icon;
+    exec.rail_poll = chrome_gdi_rail_poll;
+    exec.custom_present = chrome_gdi_custom_present;
     return exec;
 }

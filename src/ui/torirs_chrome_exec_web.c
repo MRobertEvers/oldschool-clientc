@@ -1,16 +1,16 @@
 /*
- * The web chrome executor: the plugin window as real DOM controls.
+ * The web chrome executor: fixed POD into the canonical retained DOM bundle.
  *
  * A NATIVE-WIDGET executor (see the two kinds in torirs_chrome_exec.h): the
  * chrome's display list is not used at all, because an <input> cannot be
- * reconstructed from rectangles. What crosses is the command stream, and the
- * page turns each command into a DOM node.
+ * reconstructed from rectangles. Commands cross to the application-owned web
+ * adapter, which preserves SYNC transactions and publishes protocol-1
+ * snapshots/deltas into one persistent canonical iframe.
  *
- * C ASKS, THE PAGE OWNS THE DOM. Every crossing is an EM_JS call onto a
- * `window.torirsChrome*` hook, exactly as web_editor_open_panel_tab already
- * asks for a panel tab. A page that defines no hooks leaves begin() returning
- * false and the plugin window falls back to in-canvas chrome -- so a stale
- * index.html degrades rather than breaking the client.
+ * C ASKS, THE BUNDLE OWNS THE DOM. Every crossing is an EM_JS call onto a
+ * `window.torirsChrome*` compatibility hook. A page that defines no hooks
+ * leaves begin() returning false and the plugin window falls back to in-canvas
+ * chrome -- so a stale index.html degrades rather than breaking the client.
  *
  * NOTHING HERE WAITS ON THE PAGE. The commands go out as fire-and-forget calls
  * and the intents are pulled from a queue the page fills; the renderer never
@@ -23,7 +23,7 @@
  */
 
 #include "torirs_chrome_exec.h"
-#include "torirs_chrome_metrics.h"
+#include "torirs_chrome_exec_web.h"
 #include "torirs_chrome_mirror.h"
 #include "torirs_chrome_skin.h"
 
@@ -75,6 +75,34 @@ EM_JS(void, web_chrome_close, (void), {
         window.torirsChromeClose();
 });
 
+EM_JS(void, web_chrome_rail_sync, (char const* json), {
+    if( typeof window.torirsChromeRailSync !== 'function' )
+        return;
+    try
+    {
+        window.torirsChromeRailSync(JSON.parse(UTF8ToString(json)));
+    }
+    catch( e )
+    {
+        console.warn('[torirs] plugin rail sync failed', e);
+    }
+});
+
+EM_JS(void, web_chrome_rail_icon,
+      (int plugin, unsigned revision, int w, int h, char const* b64), {
+    if( typeof window.torirsChromeRailIcon !== 'function' )
+        return;
+    try
+    {
+        window.torirsChromeRailIcon(
+            plugin, revision, w, h, b64 ? UTF8ToString(b64) : "");
+    }
+    catch( e )
+    {
+        console.warn('[torirs] plugin rail icon failed', e);
+    }
+});
+
 /**
  * One command, as JSON.
  *
@@ -96,6 +124,28 @@ EM_JS(void, web_chrome_apply, (char const* json), {
     }
 });
 
+/* A dirty custom well. The hook consumes and converts the call-scoped HEAPU32
+ * view synchronously before the App reuses its raster scratch. */
+EM_JS(void, web_chrome_custom_present,
+    (int panel, int widget, unsigned generation, unsigned serial,
+     int scale_milli, int width, int height, uint32_t const* argb), {
+    if( typeof window.torirsChromeCustom !== 'function' ||
+        width <= 0 || height <= 0 || scale_milli <= 0 )
+        return;
+    try
+    {
+        var count = width * height;
+        var copy = HEAPU32.subarray(argb >> 2, (argb >> 2) + count);
+        window.torirsChromeCustom(
+            panel, widget, generation >>> 0, serial >>> 0,
+            scale_milli, width, height, copy);
+    }
+    catch( e )
+    {
+        console.warn('[torirs] custom chrome frame failed', e);
+    }
+});
+
 /**
  * Take one queued intent as JSON, or "" when the queue is empty.
  *
@@ -105,57 +155,17 @@ EM_JS(void, web_chrome_apply, (char const* json), {
  */
 EM_JS(char*, web_chrome_take_intent, (void), {
     if( typeof window.torirsChromeTakeIntent !== 'function' )
-        return stringToNewUTF8('');
-    var s = '';
+        return stringToNewUTF8("");
+    var s = "";
     try
     {
-        s = window.torirsChromeTakeIntent() || '';
+        s = window.torirsChromeTakeIntent() || "";
     }
     catch( e )
     {
         console.warn('[torirs] chrome intent failed', e);
     }
     return stringToNewUTF8(s);
-});
-
-/* ---- the skin ------------------------------------------------------------
- *
- * The page draws the same chrome the game does, out of the same baked images:
- * the tradebacking behind the panel and every field, the interfaces' 17x17
- * tick and cross for a boolean, the scrollbar's own arrows and grip, and the
- * nine-slice panel frame. It is the in-canvas look, rebuilt out of DOM nodes
- * instead of drawn prims.
- *
- * WHY THE PIXELS CROSS AT ALL. Every other way for the page to get them is
- * worse. Shipping the images beside index.html means a second copy of the bake
- * that can go stale, and a lane that changed cache would serve last cache's
- * art; asking the cache at runtime is the exact failure the bake exists to
- * remove. The wasm already holds them in .rdata, so it hands them over.
- *
- * RAW RGBA, NOT PNG. The page turns the bytes into an ImageData, puts them on
- * a canvas and takes a data: URL back out -- three lines of platform API
- * against a PNG encoder in C that would exist for this alone. It costs about
- * 70KB of base64 ONCE, at the frame the window is first opened, and nothing
- * per frame after.
- *
- * The metrics ride the same crossing, so the page lays its rows out on the
- * numbers in torirs_chrome_metrics.h rather than on a second set spelled in
- * CSS -- which is what the header exists to prevent.
- */
-
-EM_JS(void, web_chrome_skin_metrics, (char const* json), {
-    if( typeof window.torirsChromeSkinMetrics === 'function' )
-        window.torirsChromeSkinMetrics(JSON.parse(UTF8ToString(json)));
-});
-
-EM_JS(void, web_chrome_skin_sprite, (int slot, int w, int h, char const* b64), {
-    if( typeof window.torirsChromeSkinSprite === 'function' )
-        window.torirsChromeSkinSprite(slot, w, h, UTF8ToString(b64));
-});
-
-EM_JS(void, web_chrome_skin_done, (void), {
-    if( typeof window.torirsChromeSkinDone === 'function' )
-        window.torirsChromeSkinDone();
 });
 
 /* ---- the executor -------------------------------------------------------- */
@@ -168,64 +178,117 @@ struct ChromeWeb
      *  a value, each of which can double under escaping, plus the fixed fields
      *  and their punctuation. */
     char json[2 * (TORIRS_CHROME_LABEL_MAX + TORIRS_CHROME_TEXT_MAX) + 256];
+    int custom_panel[TORIRS_CHROME_MAX_WIDGETS];
+    uint32_t custom_generation[TORIRS_CHROME_MAX_WIDGETS];
+    uint32_t custom_serial[TORIRS_CHROME_MAX_WIDGETS];
+    int custom_width[TORIRS_CHROME_MAX_WIDGETS];
+    int custom_height[TORIRS_CHROME_MAX_WIDGETS];
 };
 
 static struct ChromeWeb g_chrome_web;
 
-/* ---- handing the skin over ------------------------------------------------ */
+#define WEB_CHROME_RAIL_INTENT_MAX 32
+static struct ToriRSChromeRailIntent
+    g_chrome_web_rail_intents[WEB_CHROME_RAIL_INTENT_MAX];
+static int g_chrome_web_rail_intent_count;
+static struct ToriRSChromeRailIntent g_chrome_web_rail_layout;
+static int g_chrome_web_rail_layout_pending;
+static uint64_t g_chrome_web_rail_sequence;
 
-/**
- * The slots the PAGE draws with.
- *
- * Not every baked slot: the wrench is the sidebar launcher's, which the game
- * canvas draws and this window never does, and the close button is a real DOM
- * <button> here wearing the browser's own hover. Sending them would be base64
- * blobs across the wall for images nothing asks for.
+/*
+ * Collapsed-rail requests outlive ChromeWeb::open: closing the pane shuts the
+ * widget executor down, while the host-owned rail deliberately remains. Keep
+ * this one-bit desired state outside g_chrome_web so a subsequent executor
+ * bind cannot erase a click that the app frame has not consumed yet.
  */
-static int const k_web_skin_slots[] = {
-    TORIRS_CHROME_SKIN_PANEL_BODY,
-    TORIRS_CHROME_SKIN_DROPDOWN_BODY,
-    TORIRS_CHROME_SKIN_CHECK_ON,
-    TORIRS_CHROME_SKIN_CHECK_OFF,
-    /* BOTH boolean pairs, always -- the page is told which to wear by a
-     * command that can arrive at any time (TORIRS_CHROME_CMD_CHECK_STYLE), and
-     * a style change that had to wait for a base64 blob to cross the wall
-     * would repaint the window in two steps. Two 18x18 sprites is a kilobyte
-     * of base64, once, at open. */
-    TORIRS_CHROME_SKIN_CHECK_BOX_ON,
-    TORIRS_CHROME_SKIN_CHECK_BOX_OFF,
-    TORIRS_CHROME_SKIN_SCROLL_UP,
-    TORIRS_CHROME_SKIN_SCROLL_DOWN,
-    TORIRS_CHROME_SKIN_SCROLL_TRACK,
-    TORIRS_CHROME_SKIN_SCROLL_GRIP_TOP,
-    TORIRS_CHROME_SKIN_SCROLL_GRIP_MID,
-    TORIRS_CHROME_SKIN_SCROLL_GRIP_BOTTOM,
-    TORIRS_CHROME_SKIN_FRAME_TOP_LEFT,
-    TORIRS_CHROME_SKIN_FRAME_TOP,
-    TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT,
-    TORIRS_CHROME_SKIN_FRAME_LEFT,
-    TORIRS_CHROME_SKIN_FRAME_RIGHT,
-    TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT,
-    TORIRS_CHROME_SKIN_FRAME_BOTTOM,
-    TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT,
-    /* The window X, and the same button lit from the other corner for hover.
-     * The page wears the interfaces' own close mark rather than a '\u2715'
-     * out of the system font, for the same reason its checkboxes wear the
-     * game's tick: this is the game's window, in a browser. */
-    TORIRS_CHROME_SKIN_CLOSE,
-    TORIRS_CHROME_SKIN_CLOSE_OVER,
-    /* The pop-out pair, and the pair for putting it back. Sent only to this
-     * presentation because it is the only one with a tab to pop into -- but
-     * sent from the same shared bake, so the arrow wears the close button's
-     * plate rather than the system font's weight. */
-    TORIRS_CHROME_SKIN_POPOUT,
-    TORIRS_CHROME_SKIN_POPOUT_OVER,
-    TORIRS_CHROME_SKIN_DOCK,
-    TORIRS_CHROME_SKIN_DOCK_OVER,
-};
+static int g_chrome_web_open_request;
+static int g_chrome_web_open_request_pending;
+
+#if defined(__EMSCRIPTEN__)
+EMSCRIPTEN_KEEPALIVE
+#endif
+void
+ToriRSChromeExecWeb_RequestOpen(int open)
+{
+    g_chrome_web_open_request = open ? 1 : 0;
+    g_chrome_web_open_request_pending = 1;
+}
+
+int
+ToriRSChromeExecWeb_TakeOpenRequest(int* open)
+{
+    if( !open || !g_chrome_web_open_request_pending )
+        return 0;
+    *open = g_chrome_web_open_request;
+    g_chrome_web_open_request_pending = 0;
+    return 1;
+}
+
+static uint64_t
+chrome_web_rail_sequence_next(void)
+{
+    g_chrome_web_rail_sequence++;
+    if( g_chrome_web_rail_sequence == 0 )
+        g_chrome_web_rail_sequence++;
+    return g_chrome_web_rail_sequence;
+}
+
+#if defined(__EMSCRIPTEN__)
+EMSCRIPTEN_KEEPALIVE
+#endif
+void
+ToriRSChromeExecWeb_RequestSelect(
+    int plugin_index, uint32_t selection_generation)
+{
+    struct ToriRSChromeRailIntent intent;
+
+    if( plugin_index < -2 || plugin_index == -1 || selection_generation == 0 )
+        return;
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_RAIL_INTENT_SELECT;
+    intent.plugin_index = plugin_index;
+    intent.selection_generation = selection_generation;
+    intent.sequence = chrome_web_rail_sequence_next();
+    if( g_chrome_web_rail_intent_count >= WEB_CHROME_RAIL_INTENT_MAX )
+    {
+        /* Keep the latest requested destination. The application deliberately
+         * coalesces clicks from one displayed generation to this last event. */
+        g_chrome_web_rail_intents[WEB_CHROME_RAIL_INTENT_MAX - 1] = intent;
+        return;
+    }
+    g_chrome_web_rail_intents[g_chrome_web_rail_intent_count++] = intent;
+}
+
+#if defined(__EMSCRIPTEN__)
+EMSCRIPTEN_KEEPALIVE
+#endif
+void
+ToriRSChromeExecWeb_RequestLayout(
+    uint32_t selection_generation,
+    int width,
+    int height,
+    int scale_milli,
+    int size_class,
+    int visible,
+    int game_visible)
+{
+    if( selection_generation == 0 || width < 0 || height < 0 || scale_milli <= 0 )
+        return;
+    memset(&g_chrome_web_rail_layout, 0, sizeof(g_chrome_web_rail_layout));
+    g_chrome_web_rail_layout.kind = TORIRS_CHROME_RAIL_INTENT_LAYOUT;
+    g_chrome_web_rail_layout.selection_generation = selection_generation;
+    g_chrome_web_rail_layout.sequence = chrome_web_rail_sequence_next();
+    g_chrome_web_rail_layout.width = width;
+    g_chrome_web_rail_layout.height = height;
+    g_chrome_web_rail_layout.scale_milli = scale_milli;
+    g_chrome_web_rail_layout.size_class = size_class;
+    g_chrome_web_rail_layout.visible = visible ? 1 : 0;
+    g_chrome_web_rail_layout.game_visible = game_visible ? 1 : 0;
+    g_chrome_web_rail_layout_pending = 1;
+}
 
 /**
- * One sprite as base64 RGBA, in the byte order ImageData wants.
+ * One authored rail icon as base64 RGBA, in the byte order ImageData wants.
  *
  * The bake is 0xAARRGGBB host-endian words; a canvas wants R,G,B,A bytes. The
  * shuffle is here rather than in the page because it is a property of the
@@ -293,79 +356,6 @@ chrome_web_sprite_b64(struct ToriRSChromeSkin_Sprite const* spr)
     return out;
 }
 
-/**
- * Hand the page the metrics and the images, once, at open.
- *
- * A build with no baked skin sends the metrics and no sprites, and the page
- * keeps its flat fallback stylesheet -- the same degradation every other
- * consumer of the skin already has, and the reason the page's base sheet is
- * complete on its own rather than assuming the overrides arrive.
- */
-static void
-chrome_web_push_skin(void)
-{
-    /* One JSON object of two dozen small integers. Generous, because a
-     * truncated snprintf here is not a short message -- it is malformed JSON,
-     * which the page's JSON.parse throws on, so the metrics never arrive at
-     * all and every row lays out on the fallback stylesheet. */
-    char json[768];
-
-    snprintf(
-        json,
-        sizeof(json),
-        "{\"pad\":%d,\"rowH\":%d,\"rowGap\":%d,\"labelW\":%d,\"box\":%d,"
-        "\"boxSquare\":%d,"
-        "\"checkGap\":%d,\"toggleW\":%d,\"toggleH\":%d,\"rowIcon\":%d,"
-        "\"rowIconGap\":%d,\"rowNameGap\":%d,\"dot\":%d,\"dotPitch\":%d,"
-        "\"dotInset\":%d,\"scrollW\":%d,\"swatch\":%d,\"swatchGap\":%d,"
-        "\"frame\":%d,\"frameCorner\":%d,\"tabH\":%d,\"tabPadX\":%d,\"fieldPadX\":%d,"
-        "\"fieldInset\":%d,\"dropArrow\":%d,\"textareaRows\":%d,"
-        "\"textareaLine\":%d,\"textareaPadY\":%d}",
-        TORIRS_CHROME_M_PAD,
-        TORIRS_CHROME_M_ROW_H,
-        TORIRS_CHROME_M_ROW_GAP,
-        TORIRS_CHROME_M_LABEL_W,
-        TORIRS_CHROME_M_BOX,
-        TORIRS_CHROME_M_BOX_SQUARE,
-        TORIRS_CHROME_M_CHECK_GAP,
-        TORIRS_CHROME_M_TOGGLE_W,
-        TORIRS_CHROME_M_TOGGLE_H,
-        TORIRS_CHROME_M_ROW_ICON,
-        TORIRS_CHROME_M_ROW_ICON_GAP,
-        TORIRS_CHROME_M_ROW_NAME_GAP,
-        TORIRS_CHROME_M_DOT,
-        TORIRS_CHROME_M_DOT_PITCH,
-        TORIRS_CHROME_M_DOT_INSET,
-        TORIRS_CHROME_M_SCROLL_W,
-        TORIRS_CHROME_M_SWATCH,
-        TORIRS_CHROME_M_SWATCH_GAP,
-        TORIRS_CHROME_M_FRAME,
-        TORIRS_CHROME_M_FRAME_CORNER,
-        TORIRS_CHROME_M_TAB_H,
-        TORIRS_CHROME_M_TAB_PAD_X,
-        TORIRS_CHROME_M_FIELD_PAD_X,
-        TORIRS_CHROME_M_FIELD_INSET,
-        TORIRS_CHROME_M_DROP_ARROW,
-        TORIRS_CHROME_M_TEXTAREA_ROWS,
-        TORIRS_CHROME_M_TEXTAREA_LINE,
-        TORIRS_CHROME_M_TEXTAREA_PAD_Y);
-    web_chrome_skin_metrics(json);
-
-    for( int i = 0; i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
-    {
-        int const slot = k_web_skin_slots[i];
-        struct ToriRSChromeSkin_Sprite const* spr = ToriRSChromeSkin_ForSlot(slot);
-        char* b64;
-
-        if( !spr || spr->w <= 0 || spr->h <= 0 )
-            continue;
-        b64 = chrome_web_sprite_b64(spr);
-        web_chrome_skin_sprite(slot, spr->w, spr->h, b64);
-        free(b64);
-    }
-    web_chrome_skin_done();
-}
-
 static int
 chrome_web_begin(void* user)
 {
@@ -379,11 +369,6 @@ chrome_web_begin(void* user)
     }
     if( !web_chrome_open() )
         return 0;
-    /* After open(), because the page builds its root there and the stylesheet
-     * these produce is scoped to it -- and before any command, so the first
-     * row that arrives is already laid out on the real metrics rather than
-     * reflowed a frame later. */
-    chrome_web_push_skin();
     ToriRSChromeMirror_Init(&s->mirror);
     s->open = 1;
     return 1;
@@ -456,6 +441,130 @@ chrome_web_escape(char* dst, int cap, char const* src)
 }
 
 static void
+chrome_web_rail_sync(
+    void* user, struct ToriRSChromeRailSnapshot const* snapshot)
+{
+    /* Manage plus all 32 plugin entries, with every byte doubled by JSON
+     * escaping, fit below 16 KiB.
+     * Keep extra headroom so a future scalar does not turn a complete snapshot
+     * into a prefix the page could mistake for truth. */
+    static char json[32768];
+    int at;
+    int count;
+
+    (void)user;
+    if( !snapshot )
+        return;
+    count = snapshot->entry_count;
+    if( count < 0 )
+        count = 0;
+    if( count > TORIRS_CHROME_RAIL_ENTRY_MAX )
+        count = TORIRS_CHROME_RAIL_ENTRY_MAX;
+    at = snprintf(
+        json,
+        sizeof(json),
+        "{\"protocol\":1,\"type\":\"rail.snapshot\","
+        "\"registryRevision\":%u,\"selectionGeneration\":%u,"
+        "\"pageGeneration\":%u,\"activePlugin\":%d,"
+        "\"lastSelectedPlugin\":%d,\"selectedEntry\":%d,"
+        "\"expanded\":%s,\"entries\":[",
+        (unsigned)snapshot->registry_revision,
+        (unsigned)snapshot->selection_generation,
+        (unsigned)snapshot->page_generation,
+        snapshot->active_plugin,
+        snapshot->last_selected_plugin,
+        snapshot->selected_entry,
+        snapshot->expanded ? "true" : "false");
+    if( at < 0 || at >= (int)sizeof(json) )
+        return;
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRSChromeRailEntry const* entry = &snapshot->entries[i];
+        char title[TORIRS_CHROME_RAIL_TITLE_MAX * 2 + 1];
+        char icon[TORIRS_CHROME_RAIL_ICON_MAX * 2 + 1];
+        char badge[TORIRS_CHROME_RAIL_BADGE_MAX * 2 + 1];
+        int n;
+
+        chrome_web_escape(title, sizeof(title), entry->title);
+        chrome_web_escape(icon, sizeof(icon), entry->icon_asset);
+        chrome_web_escape(badge, sizeof(badge), entry->badge);
+        n = snprintf(
+            json + at,
+            sizeof(json) - (size_t)at,
+            "%s{\"kind\":%d,\"pluginIndex\":%d,\"preferredWidth\":%d,"
+            "\"attention\":%s,\"title\":\"%s\","
+            "\"iconAsset\":\"%s\",\"badge\":\"%s\"}",
+            i ? "," : "",
+            entry->kind,
+            entry->plugin_index,
+            entry->preferred_width,
+            entry->attention ? "true" : "false",
+            title,
+            icon,
+            badge);
+        if( n < 0 || n >= (int)(sizeof(json) - (size_t)at) )
+            return;
+        at += n;
+    }
+    if( at + 3 > (int)sizeof(json) )
+        return;
+    json[at++] = ']';
+    json[at++] = '}';
+    json[at] = '\0';
+    web_chrome_rail_sync(json);
+}
+
+static void
+chrome_web_rail_icon(void* user, struct ToriRSChromeRailIcon const* icon)
+{
+    char* b64 = NULL;
+
+    (void)user;
+    if( !icon )
+        return;
+    if( icon->width > 0 && icon->height > 0 )
+    {
+        struct ToriRSChromeSkin_Sprite sprite;
+        sprite.w = icon->width;
+        sprite.h = icon->height;
+        sprite.argb = icon->argb;
+        b64 = chrome_web_sprite_b64(&sprite);
+    }
+    web_chrome_rail_icon(
+        icon->plugin_index,
+        (unsigned)icon->revision,
+        icon->width,
+        icon->height,
+        b64 ? b64 : "");
+    free(b64);
+}
+
+static int
+chrome_web_rail_poll(
+    void* user, struct ToriRSChromeRailIntent* out, int max)
+{
+    int count;
+
+    (void)user;
+    if( !out || max <= 0 )
+        return 0;
+    count = g_chrome_web_rail_intent_count < max
+                ? g_chrome_web_rail_intent_count
+                : max;
+    for( int i = 0; i < count; i++ )
+        out[i] = g_chrome_web_rail_intents[i];
+    for( int i = count; i < g_chrome_web_rail_intent_count; i++ )
+        g_chrome_web_rail_intents[i - count] = g_chrome_web_rail_intents[i];
+    g_chrome_web_rail_intent_count -= count;
+    if( count < max && g_chrome_web_rail_layout_pending )
+    {
+        out[count++] = g_chrome_web_rail_layout;
+        g_chrome_web_rail_layout_pending = 0;
+    }
+    return count;
+}
+
+static void
 chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
 {
     struct ChromeWeb* s = user;
@@ -473,11 +582,35 @@ chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
      * exists cannot disagree about a handle that was just recycled. */
     ToriRSChromeMirror_Apply(&s->mirror, cmd);
 
-    /* The sync brackets are for an executor that batches; the DOM does its own
-     * batching in the layout pass, so sending them would be two messages a
-     * frame that the page would only ignore. */
-    if( cmd->kind == TORIRS_CHROME_CMD_SYNC_BEGIN || cmd->kind == TORIRS_CHROME_CMD_SYNC_END )
-        return;
+    if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_ADD ||
+        cmd->kind == TORIRS_CHROME_CMD_WIDGET_REMOVE )
+    {
+        if( cmd->widget >= 0 && cmd->widget < TORIRS_CHROME_MAX_WIDGETS )
+        {
+            s->custom_panel[cmd->widget] = -1;
+            s->custom_generation[cmd->widget] = 0;
+            s->custom_serial[cmd->widget] = 0;
+            s->custom_width[cmd->widget] = 0;
+            s->custom_height[cmd->widget] = 0;
+        }
+    }
+    else if( cmd->kind == TORIRS_CHROME_CMD_PANEL_CLOSE )
+    {
+        for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+            if( s->custom_panel[i] == cmd->panel )
+            {
+                s->custom_panel[i] = -1;
+                s->custom_generation[i] = 0;
+                s->custom_serial[i] = 0;
+                s->custom_width[i] = 0;
+                s->custom_height[i] = 0;
+            }
+    }
+
+    /* The application page no longer owns a second widget renderer. It uses
+     * these brackets to turn the command transaction into one canonical
+     * page.snapshot/page.delta envelope for the retained bundle, so preserve
+     * them across the wasm boundary. */
 
     chrome_web_escape(label, (int)sizeof(label), cmd->label);
     chrome_web_escape(text, (int)sizeof(text), cmd->text);
@@ -485,7 +618,8 @@ chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
         s->json,
         sizeof(s->json),
         "{\"k\":%d,\"p\":%d,\"w\":%d,\"tab\":%d,\"v\":%d,\"c\":%u,"
-        "\"x\":%d,\"y\":%d,\"cw\":%d,\"ch\":%d,\"label\":\"%s\",\"text\":\"%s\"}",
+        "\"x\":%d,\"y\":%d,\"cw\":%d,\"ch\":%d,\"s\":%u,"
+        "\"label\":\"%s\",\"text\":\"%s\"}",
         cmd->kind,
         cmd->panel,
         cmd->widget,
@@ -496,6 +630,7 @@ chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
         cmd->y,
         cmd->w,
         cmd->h,
+        (unsigned)cmd->serial,
         label,
         text);
     web_chrome_apply(s->json);
@@ -600,6 +735,11 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
         intent.panel = chrome_web_int(json, "p", -1);
         intent.widget = chrome_web_int(json, "w", -1);
         intent.value = chrome_web_int(json, "v", 0);
+        intent.x = chrome_web_int(json, "x", 0);
+        intent.y = chrome_web_int(json, "y", 0);
+        intent.selection_generation =
+            (uint32_t)chrome_web_int(json, "g", 0);
+        intent.widget_serial = (uint32_t)chrome_web_int(json, "s", 0);
         chrome_web_str(json, "text", intent.text, (int)sizeof(intent.text));
         free(json);
 
@@ -609,6 +749,15 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
         if( intent.kind <= 0 )
             continue;
         if( intent.widget >= 0 && !ToriRSChromeMirror_Widget(&s->mirror, intent.widget) )
+            continue;
+        if( intent.kind == TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE &&
+            (intent.widget < 0 || intent.widget >= TORIRS_CHROME_MAX_WIDGETS ||
+             s->custom_panel[intent.widget] != intent.panel ||
+             s->custom_generation[intent.widget] != intent.selection_generation ||
+             s->custom_serial[intent.widget] != intent.widget_serial ||
+             intent.x < 0 || intent.y < 0 ||
+             intent.x >= s->custom_width[intent.widget] ||
+             intent.y >= s->custom_height[intent.widget]) )
             continue;
         ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
 
@@ -621,6 +770,43 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
     return ToriRSChromeMirror_Poll(&s->mirror, out, max);
 }
 
+static void
+chrome_web_custom_present(
+    void* user, struct ToriRSChromeCustomFrame const* frame)
+{
+    struct ChromeWeb* s = user;
+
+    if( !s || !s->open || !frame || !frame->argb || frame->width <= 0 ||
+        frame->height <= 0 || frame->stride != frame->width ||
+        frame->scale_milli <= 0 || frame->selection_generation == 0 ||
+        frame->widget_serial == 0 || frame->widget < 0 ||
+        frame->widget >= TORIRS_CHROME_MAX_WIDGETS )
+        return;
+    s->custom_panel[frame->widget] = frame->panel;
+    s->custom_generation[frame->widget] = frame->selection_generation;
+    s->custom_serial[frame->widget] = frame->widget_serial;
+    s->custom_width[frame->widget] =
+        (int)((int64_t)frame->width * 1000 / frame->scale_milli);
+    s->custom_height[frame->widget] =
+        (int)((int64_t)frame->height * 1000 / frame->scale_milli);
+    if( s->custom_width[frame->widget] <= 0 ||
+        s->custom_height[frame->widget] <= 0 )
+    {
+        s->custom_generation[frame->widget] = 0;
+        s->custom_serial[frame->widget] = 0;
+        return;
+    }
+    web_chrome_custom_present(
+        frame->panel,
+        frame->widget,
+        frame->selection_generation,
+        frame->widget_serial,
+        frame->scale_milli,
+        frame->width,
+        frame->height,
+        frame->argb);
+}
+
 struct ToriRSChromeExec
 ToriRSChromeExec_Web(void)
 {
@@ -628,12 +814,18 @@ ToriRSChromeExec_Web(void)
 
     memset(&exec, 0, sizeof(exec));
     memset(&g_chrome_web, 0, sizeof(g_chrome_web));
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+        g_chrome_web.custom_panel[i] = -1;
 
     exec.user = &g_chrome_web;
     exec.begin = chrome_web_begin;
     exec.apply = chrome_web_apply;
     exec.end = chrome_web_end;
     exec.poll = chrome_web_poll;
+    exec.rail_sync = chrome_web_rail_sync;
+    exec.rail_icon = chrome_web_rail_icon;
+    exec.rail_poll = chrome_web_rail_poll;
+    exec.custom_present = chrome_web_custom_present;
     /* Not a surface executor: no present, no surface_input. The DOM holds the
      * widgets, so there is no display list to place. */
     return exec;

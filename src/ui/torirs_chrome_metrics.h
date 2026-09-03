@@ -235,6 +235,19 @@
  *  `~script7210` insets its input by 2 and offsets it by another 3. */
 #define TORIRS_CHROME_M_TEXTAREA_PAD_Y 3
 
+/* ---- custom plugin region ------------------------------------------------
+ *
+ * A custom region is the retained chrome's bounded drawing well. It is taller
+ * than an ordinary form row because its intended contents are charts,
+ * timelines and previews rather than one line of text. The caller may request
+ * another height, but this is the portable default used by the semantic panel
+ * API and by native presenters rebuilding the same row.
+ */
+
+#define TORIRS_CHROME_M_CUSTOM_H 120
+#define TORIRS_CHROME_M_CUSTOM_H_MIN 48
+#define TORIRS_CHROME_M_CUSTOM_H_MAX 512
+
 /* ---- the open dropdown list ----------------------------------------------
  *
  * The list is the same width as the button it hangs off and starts at its

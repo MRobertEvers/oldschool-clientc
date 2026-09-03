@@ -38,6 +38,7 @@
  */
 
 #include "torirs_chrome_exec_kind.h"
+#include "torirs_chrome_rail.h"
 #include "uitree_debug_overlay.h"
 
 #include <stdint.h>
@@ -116,7 +117,8 @@ enum ToriRSChromeCmdKind
      * with a remove-then-add:
      *
      *   `w` -- a LISTROW's shape bits, TORIRS_CHROME_ROW_*.
-     *   `h` -- a TEXTAREA is this many lines tall.
+     *   `h` -- a TEXTAREA is this many lines tall; a CUSTOM region is this
+     *          many logical chrome pixels tall.
      */
     TORIRS_CHROME_CMD_WIDGET_ADD,
     /** A widget went away. Its handle may be reused by a later ADD. */
@@ -216,6 +218,8 @@ struct ToriRSChromeCmd
     int y;
     int w;
     int h;
+    /** ToriRSChromeWidget::serial on WIDGET_ADD, zero otherwise. */
+    uint32_t serial;
     char label[TORIRS_CHROME_LABEL_MAX];
     char text[TORIRS_CHROME_TEXT_MAX];
 };
@@ -243,6 +247,8 @@ enum ToriRSChromeIntentKind
     /** The presentation was dismissed by its own chrome (a window's close box,
      *  a tab being shut). `widget` is -1; `panel` says which. */
     TORIRS_CHROME_INTENT_CLOSE,
+    /** A CUSTOM well was released: `x`/`y` are content-local logical units. */
+    TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE,
 };
 
 /*
@@ -270,6 +276,13 @@ struct ToriRSChromeIntent
     int panel;
     int widget;
     int value;
+    /** CUSTOM_ACTIVATE only: content-local logical coordinates. */
+    int x;
+    int y;
+    /** CUSTOM_ACTIVATE only: semantic page/node identity from the frame that
+     * received the pointer. Zero is the synchronous surface-model path. */
+    uint32_t selection_generation;
+    uint32_t widget_serial;
     char text[TORIRS_CHROME_TEXT_MAX];
 };
 
@@ -296,6 +309,28 @@ struct ToriRSChromeSurfaceInput
     int resized;
     int width;
     int height;
+};
+
+/**
+ * One complete raster for a CUSTOM semantic widget.
+ *
+ * Only native-widget executors consume this. Surface and buffer presenters
+ * composite the retained primitives directly. `argb` is call-scoped: an
+ * executor crossing to another thread must copy it before returning. The two
+ * identities fence a posted Android/DOM/GDI update from a recycled handle.
+ */
+struct ToriRSChromeCustomFrame
+{
+    int panel;
+    int widget;
+    uint32_t selection_generation;
+    uint32_t widget_serial;
+    /** Device pixels per logical unit, in thousandths. */
+    int scale_milli;
+    int width;
+    int height;
+    int stride;
+    uint32_t const* argb;
 };
 
 /**
@@ -415,6 +450,24 @@ struct ToriRSChromeExec
      */
     void (*set_drag_region)(void* user, struct ToriRSChromeDragRegion const* region);
 
+    /**
+     * Application-owned rail, independent of the page executor lifecycle.
+     *
+     * These callbacks are valid before begin() and after end(): end removes
+     * the selected page controls, while the narrow rail must remain able to
+     * select a plugin and expand the one shared shell. Snapshots and returned
+     * intents are fixed-size copies; no plugin-owned pointer crosses here.
+     */
+    void (*rail_sync)(
+        void* user, struct ToriRSChromeRailSnapshot const* snapshot);
+    void (*rail_icon)(void* user, struct ToriRSChromeRailIcon const* icon);
+    int (*rail_poll)(void* user, struct ToriRSChromeRailIntent* out, int max);
+
+    /** Optional native-widget sink for a complete dirty custom-region frame.
+     * Called only after the batch containing its WIDGET_ADD has ended. */
+    void (*custom_present)(
+        void* user, struct ToriRSChromeCustomFrame const* frame);
+
     /** Non-zero for a surface executor, so a host can tell without inspecting
      *  which function pointers happen to be set. */
     int is_surface;
@@ -435,6 +488,7 @@ struct ToriRSChromeShadowWidget
      *  is not enough: a rebuilt panel commonly puts the same kind back on the
      *  same panel under the same handle, in a different row. */
     int serial;
+    uint32_t intent_serial;
     int kind;
     int panel;
     int tab;
@@ -489,9 +543,19 @@ struct ToriRSChromeSync
      * shadow was zeroed to" is not being told.
      */
     int check_style;
+    /** Display-list build serial whose semantic state this shadow last scanned.
+     * Together with model `dirty`, this makes a settled frame an O(1) no-op --
+     * no begin/end transaction and no max-capacity panel/widget walks. */
+    int synced_build_serial;
+    /** Build/panel pair whose frameless-window drag region was last published.
+     * A clean page cannot change that region, so its per-frame publish is O(1). */
+    int published_drag_build_serial;
+    int published_drag_panel;
     /** Commands emitted since Init, for tests and for a "did anything move"
      *  probe that costs nothing to keep. */
     int cmd_count;
+    /** Model build serial last handed to a surface presenter; -1 on bind. */
+    int presented_build_serial;
     struct ToriRSChromeShadowPanel panels[TORIRS_CHROME_MAX_PANELS];
     struct ToriRSChromeShadowWidget widgets[TORIRS_CHROME_MAX_WIDGETS];
 };
@@ -524,6 +588,13 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
  */
 int
 ToriRSChromeSync_Pump(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui);
+
+/** Return 1 exactly once for each built display-list serial on this binding.
+ * Surface hosts use it to retain an unchanged pane without rerasterising or
+ * uploading it every game frame. */
+int
+ToriRSChromeSync_TakePresentChange(
+    struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui);
 
 /**
  * Stretch `panel` over this executor's surface, when the surface is a window
@@ -558,7 +629,9 @@ ToriRSChromeSync_FillSurface(struct ToriRSChromeSync* sync, struct ToriRSChrome*
  * Called AFTER Build, unlike FillSurface, and the order is the point: the
  * handles are laid-out geometry, and publishing them before the build that
  * produced them is a frame of lag on every resize -- a window whose drag band
- * is where the panel used to be.
+ * is where the panel used to be. Repeating the same panel/build pair is an O(1)
+ * no-op; a changed build is always published, including an empty region that
+ * clears handles which disappeared.
  */
 int
 ToriRSChromeSync_PublishDragRegion(
@@ -699,10 +772,18 @@ ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree);
 #if defined(TORIRS_CHROME_EXEC_GDI_AVAILABLE)
 /* ---- the Win32 native-widget executor (ui/torirs_chrome_exec_gdi.c) ------- */
 
-/** An owned tool window of USER32 controls.
+/** ToriRSChrome-skinned USER32 controls in the main HWND's attached child pane.
  *  @param platform struct PlatformWindow*, as every executor is handed. */
 struct ToriRSChromeExec
 ToriRSChromeExec_Gdi(void* platform);
+#endif
+
+#if defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
+/* ---- attached local-bundle browser executor ---------------------------- */
+
+/** One shared local DOM bundle in WebView2 (win64) or MSHTML (XP). */
+struct ToriRSChromeExec
+ToriRSChromeExec_Browser(void* platform);
 #endif
 
 #if defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
@@ -715,12 +796,13 @@ ToriRSChromeExec_Web(void);
 #endif
 
 #if defined(TORIRS_CHROME_EXEC_ANDROID_AVAILABLE)
-/* ---- the Android native-widget executor -------------------------------- */
+/* ---- the Android packaged-WebView executor ------------------------------ */
 
-/** Framework Views in ClientActivity's one shared plugin-chrome pane.
- *  No WebView and no second Activity or OS window. */
+/** Canonical local application bundle in ClientActivity's one shared WebView.
+ * No plugin HTML/script and no network navigation. */
 struct ToriRSChromeExec
-ToriRSChromeExec_Android(void* platform);
+ToriRSChromeExec_Android(
+    void* platform, ToriRSChromeRasteriseFn rasterise, void* rasterise_user);
 #endif
 
 #if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)

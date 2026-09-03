@@ -579,13 +579,14 @@ PlatformAudio_Update(struct PlatformAudio* audio)
     /*
      * Park the player while the activity is stopped.
      *
-     * Android takes the Surface away when the app leaves the foreground and the
-     * frame loop keeps running without one, so nothing else in this lane would
-     * stop the sound -- the client would go on playing music from the recents
-     * list. Pausing rather than stopping keeps the queue intact, so coming back
-     * is one call and no re-prime.
+     * The frame loop keeps running while the Activity is stopped, so nothing
+     * else in this lane would stop the sound -- the client would go on playing
+     * music from the recents list. Activity lifecycle is the signal, not the
+     * ANativeWindow: compact plugin chrome deliberately hides the SurfaceView
+     * while this Activity remains foreground. Pausing rather than stopping
+     * keeps the queue intact, so coming back is one call and no re-prime.
      */
-    foreground = PlatformAndroid_Window() != NULL;
+    foreground = PlatformAndroid_IsForeground() != 0;
     if( foreground == audio->playing )
         return;
     (*audio->player)->SetPlayState(

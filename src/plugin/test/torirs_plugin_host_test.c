@@ -46,6 +46,7 @@ struct FakeObject
 struct FakeEngine
 {
     int draw_items;
+    int draw_canvas;
     int menu_rows;
     int last_action;
     char last_text[128];
@@ -1061,19 +1062,45 @@ static void
 fake_draw_select_canvas(void* u, int canvas)
 {
     (void)u;
-    (void)canvas;
+    g_engine.draw_canvas = canvas;
 }
+static struct
+{
+    int slot;
+    int w;
+    int h;
+    uint32_t argb[64 * 64];
+} g_loaded_image;
+
 static int
 fake_image_publish(void* u, int slot, void const* data, int size, int* w, int* h)
 {
+    unsigned char const* bytes = data;
     (void)u;
-    (void)slot;
-    (void)data;
-    (void)size;
+    if( size >= 4 && memcmp(data, "FAIL", 4) == 0 )
+        return 0;
+    g_loaded_image.slot = slot;
+    g_loaded_image.w = 26;
+    g_loaded_image.h = 26;
+    if( size >= 10 && memcmp(data, "ICON", 4) == 0 )
+    {
+        g_loaded_image.w = bytes[4];
+        g_loaded_image.h = bytes[5];
+    }
     if( w )
-        *w = 26;
+        *w = g_loaded_image.w;
     if( h )
-        *h = 26;
+        *h = g_loaded_image.h;
+    if( g_loaded_image.w > 0 && g_loaded_image.h > 0 &&
+        g_loaded_image.w * g_loaded_image.h <=
+            (int)(sizeof(g_loaded_image.argb) / sizeof(g_loaded_image.argb[0])) )
+    {
+        uint32_t color = 0xFF336699u;
+        if( size >= 10 && memcmp(data, "ICON", 4) == 0 )
+            memcpy(&color, bytes + 6, sizeof(color));
+        for( int i = 0; i < g_loaded_image.w * g_loaded_image.h; i++ )
+            g_loaded_image.argb[i] = color;
+    }
     return 1;
 }
 /* The composed image the host last published, so a test can see the pixels
@@ -1102,8 +1129,15 @@ static int
 fake_image_read(void* u, int slot, uint32_t* out, int max)
 {
     (void)u;
+    int const loaded_pixels = g_loaded_image.w * g_loaded_image.h;
     int const pixels = g_composed.w * g_composed.h;
 
+    if( slot == g_loaded_image.slot && loaded_pixels > 0 && loaded_pixels <= max &&
+        loaded_pixels <= (int)(sizeof(g_loaded_image.argb) / sizeof(g_loaded_image.argb[0])) )
+    {
+        memcpy(out, g_loaded_image.argb, (size_t)loaded_pixels * sizeof(uint32_t));
+        return loaded_pixels;
+    }
     if( slot != g_composed.slot || pixels <= 0 || pixels > max )
         return 0;
     memcpy(out, g_composed.argb, (size_t)pixels * sizeof(uint32_t));
@@ -1582,6 +1616,153 @@ static struct ToriRS_PluginDef const WINNER = {
     .priority = 0,
     .config = NULL,
     .init = winner_init,
+};
+
+
+/* ---- two plugins contending for the one application panel --------------- */
+static int g_panel_a_index;
+static int g_panel_b_index;
+static int g_panel_a_builds;
+static int g_panel_b_builds;
+static int g_panel_a_actions;
+static int g_panel_b_actions;
+static int g_panel_a_layouts;
+static int g_panel_b_layouts;
+static int g_panel_a_hides;
+static int g_panel_b_hides;
+static int g_panel_a_draws;
+static int g_panel_b_draws;
+static int g_panel_draw_surface_mode;
+static uint32_t g_panel_last_generation;
+static uint64_t g_panel_last_sequence;
+static char g_panel_last_id[64];
+
+static enum ToriRS_PluginVerdict
+panel_start(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    struct ToriRS_PluginPanelDesc desc;
+    int const index = PluginHost_CtxIndex(ctx);
+    (void)ev;
+    (void)ud;
+
+    memset(&desc, 0, sizeof(desc));
+    if( index == g_panel_a_index )
+    {
+        desc.title = "Alpha tools";
+        desc.icon_asset = "alpha.png";
+        desc.preferred_width = 100; /* proves the common lower clamp */
+    }
+    else
+    {
+        desc.title = "Beta tools";
+        desc.preferred_width = 900; /* and the upper clamp */
+    }
+    CHECK(g_api->panel_request(ctx, &desc), "EV_START may register panel metadata");
+    if( index == g_panel_b_index )
+    {
+        CHECK(g_api->panel_set_badge(ctx, "3"), "an inactive rail entry accepts a badge");
+        CHECK(
+            g_api->panel_set_attention(ctx, true),
+            "an inactive rail entry may request attention");
+    }
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+panel_build(struct ToriRS_PluginCtx* ctx, void* payload, void* ud)
+{
+    struct ToriRS_PluginEvPanelBuild const* ev = payload;
+    int const index = PluginHost_CtxIndex(ctx);
+    (void)ud;
+
+    g_panel_last_generation = ev->selection_generation;
+    if( index == g_panel_a_index )
+        g_panel_a_builds++;
+    else
+        g_panel_b_builds++;
+    CHECK(
+        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CHECKBOX, "shared", "Enabled"),
+        "the selected build may declare a semantic control");
+    CHECK(
+        g_api->panel_widget(ctx, TORIRS_PLUGIN_W_CUSTOM, "chart", "Activity chart"),
+        "the selected build may declare a custom region");
+    CHECK(g_api->panel_set_value(ctx, "shared", 1), "a build can seed result state");
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+panel_action(struct ToriRS_PluginCtx* ctx, void* payload, void* ud)
+{
+    struct ToriRS_PluginEvPanelAction const* ev = payload;
+    (void)ud;
+    if( PluginHost_CtxIndex(ctx) == g_panel_a_index )
+        g_panel_a_actions++;
+    else
+        g_panel_b_actions++;
+    snprintf(g_panel_last_id, sizeof(g_panel_last_id), "%s", ev->id ? ev->id : "");
+    g_panel_last_generation = ev->selection_generation;
+    g_panel_last_sequence = ev->intent_sequence;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+panel_layout(struct ToriRS_PluginCtx* ctx, void* payload, void* ud)
+{
+    struct ToriRS_PluginEvPanelLayout const* ev = payload;
+    (void)ud;
+    if( PluginHost_CtxIndex(ctx) == g_panel_a_index )
+    {
+        g_panel_a_layouts++;
+        if( !ev->visible )
+            g_panel_a_hides++;
+    }
+    else
+    {
+        g_panel_b_layouts++;
+        if( !ev->visible )
+            g_panel_b_hides++;
+    }
+    g_panel_last_generation = ev->selection_generation;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+panel_draw(struct ToriRS_PluginCtx* ctx, void* payload, void* ud)
+{
+    struct ToriRS_PluginEvPanelDraw const* ev = payload;
+    (void)ud;
+    if( PluginHost_CtxIndex(ctx) == g_panel_a_index )
+        g_panel_a_draws++;
+    else
+        g_panel_b_draws++;
+    g_panel_draw_surface_mode = g_engine.draw_canvas;
+    g_api->draw_rect(ctx, ev->surface, 0, 0, ev->width, ev->height, 0x123456u, 255);
+    return TORIRS_PLUGIN_PASS;
+}
+
+static void
+panel_plugin_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+{
+    g_api = api;
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_START, panel_start, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_BUILD, panel_build, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_ACTION, panel_action, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_LAYOUT, panel_layout, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_PANEL_DRAW, panel_draw, NULL);
+}
+
+static struct ToriRS_PluginDef const PANEL_ALPHA = {
+    .name = "panel-alpha",
+    .title = "Panel Alpha",
+    .version = "1",
+    .init = panel_plugin_init,
+};
+
+static struct ToriRS_PluginDef const PANEL_BETA = {
+    .name = "panel-beta",
+    .title = "Panel Beta",
+    .version = "1",
+    .init = panel_plugin_init,
 };
 
 
@@ -2814,6 +2995,452 @@ main(void)
         CHECK(PluginHost_WinWidgetCount(hw, w) == 4, "and gets its controls back");
 
         PluginHost_Free(hw);
+    }
+
+
+    /* ---- one shared application plugin panel ----------------------------- */
+    {
+        struct ToriRS_PluginHost* hp = PluginHost_New(&engine);
+        struct ToriRS_PluginPanelDesc outside = { "Too late", NULL, 320 };
+        struct ToriRS_PluginWinWidget const* widget;
+        uint32_t gen_a;
+        uint32_t gen_b;
+        uint32_t serial_a;
+        uint32_t serial_b;
+        uint32_t serial_b_rebuilt;
+        uint32_t registry_before;
+        uint32_t model_before;
+        uint32_t icon_revision;
+        uint32_t icon_pixels[64 * 64];
+        int icon_w = 0;
+        int icon_h = 0;
+        int builds_before;
+
+        g_panel_a_index = PluginHost_Register(hp, &PANEL_ALPHA);
+        g_panel_b_index = PluginHost_Register(hp, &PANEL_BETA);
+        g_panel_a_builds = 0;
+        g_panel_b_builds = 0;
+        g_panel_a_actions = 0;
+        g_panel_b_actions = 0;
+        g_panel_a_layouts = 0;
+        g_panel_b_layouts = 0;
+        g_panel_a_hides = 0;
+        g_panel_b_hides = 0;
+        g_panel_a_draws = 0;
+        g_panel_b_draws = 0;
+        g_panel_draw_surface_mode = -1;
+        g_panel_last_generation = 0;
+        g_panel_last_sequence = 0;
+        g_engine.draw_items = 0;
+
+        registry_before = PluginHost_PanelRegistryRevision(hp);
+        PluginHost_Start(hp);
+        CHECK(
+            PluginHost_PanelRegistryRevision(hp) != registry_before,
+            "EV_START registrations change the inert rail revision");
+        CHECK(
+            PluginHost_PanelHasPage(hp, g_panel_a_index) &&
+                PluginHost_PanelHasPage(hp, g_panel_b_index),
+            "both plugins can register entries in the one rail");
+        CHECK(
+            strcmp(PluginHost_PanelTitle(hp, g_panel_a_index), "Alpha tools") == 0 &&
+                strcmp(PluginHost_PanelIconAsset(hp, g_panel_a_index), "alpha.png") == 0,
+            "registration metadata is copied into the host");
+        CHECK(
+            strcmp(g_engine.last_asset_plugin, "panel-alpha") == 0 &&
+                strcmp(g_engine.last_asset_name, "alpha.png") == 0,
+            "panel registration automatically loads its icon through the plugin sandbox");
+        icon_revision = PluginHost_PanelIconRevision(hp, g_panel_a_index);
+        CHECK(
+            icon_revision != 0 &&
+                PluginHost_PanelIconPixels(
+                    hp, g_panel_a_index, icon_pixels, 64 * 64, &icon_w, &icon_h) == 0,
+            "a pending icon has a revision and resolves to presenter fallback");
+        {
+            unsigned char* image = malloc(10);
+            uint32_t const color = 0xFFA1B2C3u;
+            memcpy(image, "ICON", 4);
+            image[4] = 2;
+            image[5] = 2;
+            memcpy(image + 6, &color, sizeof(color));
+            PluginHost_AssetDeliver(hp, "panel-alpha", "alpha.png", image, 10);
+            CHECK(
+                PluginHost_PanelIconRevision(hp, g_panel_a_index) != icon_revision &&
+                    PluginHost_PanelIconPixels(
+                        hp, g_panel_a_index, icon_pixels, 64 * 64, &icon_w, &icon_h) == 4 &&
+                    icon_w == 2 && icon_h == 2 && icon_pixels[0] == color,
+                "a late authored icon publishes bounded ARGB pixels under a new revision");
+            icon_revision = PluginHost_PanelIconRevision(hp, g_panel_a_index);
+        }
+        {
+            int const huge_size = 256 * 1024 + 1;
+            unsigned char* image = calloc((size_t)huge_size, 1);
+            memcpy(image, "ICON", 4);
+            image[4] = 2;
+            image[5] = 2;
+            PluginHost_AssetDeliver(
+                hp, "panel-alpha", "alpha.png", image, huge_size);
+            CHECK(
+                PluginHost_PanelIconRevision(hp, g_panel_a_index) != icon_revision &&
+                    PluginHost_PanelIconPixels(
+                        hp, g_panel_a_index, icon_pixels, 64 * 64, &icon_w, &icon_h) == 0,
+                "an over-budget icon source is rejected before automatic decode");
+            icon_revision = PluginHost_PanelIconRevision(hp, g_panel_a_index);
+        }
+        {
+            unsigned char* image = malloc(10);
+            uint32_t const color = 0xFFFFFFFFu;
+            memcpy(image, "ICON", 4);
+            image[4] = 65;
+            image[5] = 1;
+            memcpy(image + 6, &color, sizeof(color));
+            PluginHost_AssetDeliver(hp, "panel-alpha", "alpha.png", image, 10);
+            CHECK(
+                PluginHost_PanelIconRevision(hp, g_panel_a_index) != icon_revision &&
+                    PluginHost_PanelIconPixels(
+                        hp, g_panel_a_index, icon_pixels, 64 * 64, &icon_w, &icon_h) == 0 &&
+                    icon_w == 0 && icon_h == 0,
+                "an oversized authored icon is rejected for baked-wrench fallback");
+            icon_revision = PluginHost_PanelIconRevision(hp, g_panel_a_index);
+        }
+        {
+            char* bad = malloc(4);
+            memcpy(bad, "FAIL", 4);
+            PluginHost_AssetDeliver(hp, "panel-alpha", "alpha.png", bad, 4);
+            CHECK(
+                PluginHost_PanelIconRevision(hp, g_panel_a_index) != icon_revision &&
+                    PluginHost_PanelIconPixels(
+                        hp, g_panel_a_index, icon_pixels, 64 * 64, &icon_w, &icon_h) == 0,
+                "a malformed authored icon reaches the same baked fallback");
+        }
+        CHECK(
+            PluginHost_PanelPreferredWidth(hp, g_panel_a_index) ==
+                    TORIRS_PLUGIN_PANEL_WIDTH_MIN &&
+                PluginHost_PanelPreferredWidth(hp, g_panel_b_index) ==
+                    TORIRS_PLUGIN_PANEL_WIDTH_MAX,
+            "preferred width hints are clamped identically for every presenter");
+        CHECK(
+            strcmp(PluginHost_PanelBadge(hp, g_panel_b_index), "3") == 0 &&
+                PluginHost_PanelWantsAttention(hp, g_panel_b_index),
+            "badge and attention are retained without opening the page");
+        CHECK(
+            PluginHost_PanelActive(hp) == -1 && g_panel_a_builds == 0 &&
+                g_panel_b_builds == 0,
+            "registration neither selects nor builds any plugin");
+        CHECK(
+            !g_api->panel_request(PluginHost_Ctx(hp, g_panel_a_index), &outside),
+            "panel_request is refused outside EV_START");
+
+        CHECK(PluginHost_PanelSelect(hp, g_panel_a_index), "the first rail entry selects");
+        gen_a = PluginHost_PanelSelectionGeneration(hp);
+        CHECK(
+            gen_a != 0 && PluginHost_PanelActive(hp) == g_panel_a_index,
+            "selection publishes one active plugin and a nonzero generation");
+        CHECK(
+            g_panel_a_builds == 1 && g_panel_b_builds == 0 &&
+                g_panel_last_generation == gen_a,
+            "only the selected plugin receives PANEL_BUILD");
+        CHECK(
+            PluginHost_PanelWidgetCount(hp, gen_a) == 2,
+            "only the active page's semantic records are mounted");
+        widget = PluginHost_PanelWidgetAt(hp, gen_a, 0);
+        CHECK(
+            widget && strcmp(widget->id, "shared") == 0 && widget->checked == 1 &&
+                widget->value == 1,
+            "panel widgets use the win-compatible semantic record and result state");
+        serial_a = widget ? widget->serial : 0;
+        CHECK(serial_a != 0, "a mounted semantic node has a nonzero serial");
+        builds_before = g_panel_a_builds;
+        model_before = PluginHost_PanelModelRevision(hp);
+        CHECK(
+            PluginHost_PanelEnsureBuilt(hp, gen_a) &&
+                PluginHost_PanelEnsureBuilt(hp, gen_a) &&
+                g_panel_a_builds == builds_before,
+            "a retained active model does not rerun PANEL_BUILD");
+        CHECK(
+            g_api->panel_set_value(
+                PluginHost_Ctx(hp, g_panel_a_index), "shared", 1) &&
+                PluginHost_PanelModelRevision(hp) == model_before,
+            "a compare-equal node update does not dirty the model subtree");
+        builds_before = g_panel_a_builds;
+        CHECK(
+            PluginHost_PanelSelect(hp, g_panel_a_index) &&
+                PluginHost_PanelActive(hp) == -1 &&
+                PluginHost_PanelLastSelected(hp) == g_panel_a_index &&
+                g_panel_a_builds == builds_before,
+            "clicking the selected rail icon collapses but remembers it");
+        gen_a = PluginHost_PanelSelectionGeneration(hp);
+        CHECK(
+            PluginHost_PanelWidgetCount(hp, gen_a) == 0 &&
+                !PluginHost_PanelEnsureBuilt(hp, gen_a),
+            "a collapsed shell mounts and builds no page model");
+        CHECK(
+            !PluginHost_PanelLayout(
+                hp, gen_a, 320, 500, 2000, TORIRS_PLUGIN_PANEL_MEDIUM, true, true),
+            "a collapsed shell rejects page layout work");
+        CHECK(
+            !PluginHost_PanelDispatch(
+                hp,
+                gen_a,
+                serial_a,
+                1,
+                "shared",
+                TORIRS_PLUGIN_UI_ACTIVATE,
+                -1,
+                NULL,
+                0,
+                0),
+            "a collapsed shell rejects page input");
+        CHECK(
+            !PluginHost_PanelNeedsDraw(hp, gen_a, serial_a) &&
+                !PluginHost_PanelDraw(
+                    hp, gen_a, serial_a, &g_engine, 0, 0, 200, 100),
+            "a collapsed shell rejects page draw work");
+        CHECK(
+            PluginHost_PanelSelect(hp, PluginHost_PanelLastSelected(hp)) &&
+                PluginHost_PanelActive(hp) == g_panel_a_index &&
+                g_panel_a_builds == builds_before + 1,
+            "selecting the remembered icon expands and rebuilds its page");
+        gen_a = PluginHost_PanelSelectionGeneration(hp);
+        widget = PluginHost_PanelWidgetAt(hp, gen_a, 0);
+        serial_a = widget ? widget->serial : 0;
+
+        CHECK(
+            PluginHost_PanelLayout(
+                hp, gen_a, 320, 500, 2000, TORIRS_PLUGIN_PANEL_MEDIUM, true, true),
+            "the shell can publish neutral allocation facts");
+        CHECK(
+            g_panel_a_layouts == 1 && g_panel_b_layouts == 0,
+            "layout reaches only the selected plugin");
+        CHECK(
+            PluginHost_PanelLayout(
+                hp, gen_a, 320, 500, 2000, TORIRS_PLUGIN_PANEL_MEDIUM, true, true) &&
+                g_panel_a_layouts == 1 && g_panel_b_layouts == 0,
+            "an unchanged allocation dispatches no duplicate layout event");
+        CHECK(
+            !g_api->panel_set_text(
+                PluginHost_Ctx(hp, g_panel_b_index), "shared", "hidden mutation"),
+            "a nonselected plugin cannot mutate the mounted model");
+        CHECK(
+            PluginHost_PanelDispatch(
+                hp,
+                gen_a,
+                serial_a,
+                1,
+                "shared",
+                TORIRS_PLUGIN_UI_TOGGLE,
+                0,
+                NULL,
+                0,
+                0),
+            "a current generation/serial/sequence intent is accepted");
+        CHECK(
+            g_panel_a_actions == 1 && g_panel_b_actions == 0 &&
+                strcmp(g_panel_last_id, "shared") == 0 && g_panel_last_sequence == 1,
+            "input reaches the selected owner and no other plugin");
+        CHECK(
+            PluginHost_PanelWidgetAt(hp, gen_a, 0)->checked == 0,
+            "result state is committed before the action callback");
+        CHECK(
+            !PluginHost_PanelDispatch(
+                hp,
+                gen_a,
+                serial_a,
+                1,
+                "shared",
+                TORIRS_PLUGIN_UI_TOGGLE,
+                1,
+                NULL,
+                0,
+                0) &&
+                g_panel_a_actions == 1,
+            "a duplicate momentary intent sequence dispatches once");
+
+        widget = PluginHost_PanelWidgetAt(hp, gen_a, 1);
+        CHECK(
+            widget && widget->preferred_height ==
+                          TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT &&
+                PluginHost_PanelNeedsDraw(hp, gen_a, widget->serial),
+            "a new custom region starts at the portable default height and dirty");
+        CHECK(
+            !g_api->panel_set_height(
+                PluginHost_Ctx(hp, g_panel_a_index), "shared", 120),
+            "height is accepted only by a custom semantic node");
+        CHECK(
+            g_api->panel_set_height(
+                PluginHost_Ctx(hp, g_panel_a_index), "chart", 1) &&
+                PluginHost_PanelWidgetAt(hp, gen_a, 1)->preferred_height ==
+                    TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MIN,
+            "custom preferred height clamps at the portable lower bound");
+        CHECK(
+            g_api->panel_set_height(
+                PluginHost_Ctx(hp, g_panel_a_index), "chart", 9999) &&
+                PluginHost_PanelWidgetAt(hp, gen_a, 1)->preferred_height ==
+                    TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MAX,
+            "custom preferred height clamps at the portable upper bound");
+        CHECK(
+            g_api->panel_set_height(
+                PluginHost_Ctx(hp, g_panel_a_index), "chart", 0) &&
+                PluginHost_PanelWidgetAt(hp, gen_a, 1)->preferred_height ==
+                    TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT,
+            "zero restores the custom height default");
+        model_before = PluginHost_PanelModelRevision(hp);
+        CHECK(
+            widget && PluginHost_PanelDraw(
+                          hp, gen_a, widget->serial, &g_engine, 0, 0, 200, 100),
+            "a visible selected custom region is eligible to draw");
+        CHECK(
+            g_panel_a_draws == 1 && g_panel_b_draws == 0 &&
+                g_panel_draw_surface_mode == TORIRS_PLUGIN_ENGINE_DRAW_PANEL &&
+                g_engine.draw_canvas == 0,
+            "the draw is scoped to the panel target and restores the game target");
+        CHECK(
+            widget && !PluginHost_PanelNeedsDraw(hp, gen_a, widget->serial),
+            "a custom region is clean after its draw pass");
+        CHECK(
+            PluginHost_PanelModelRevision(hp) == model_before,
+            "consuming visual invalidation does not dirty semantic model state");
+        CHECK(
+            widget && PluginHost_PanelInvalidate(hp, gen_a, widget->serial) &&
+                PluginHost_PanelNeedsDraw(hp, gen_a, widget->serial) &&
+                PluginHost_PanelModelRevision(hp) == model_before,
+            "visual invalidation does not dirty semantic model state");
+        CHECK(
+            !PluginHost_PanelInvalidate(hp, gen_a, serial_a) &&
+                !PluginHost_PanelInvalidate(hp, gen_a + 1, widget->serial),
+            "layout invalidation rejects non-custom and stale identities");
+
+        CHECK(PluginHost_PanelSelect(hp, g_panel_b_index), "a newer selection replaces it");
+        gen_b = PluginHost_PanelSelectionGeneration(hp);
+        CHECK(gen_b != gen_a, "replacing the active page advances its generation");
+        CHECK(
+            g_panel_a_hides == 1 && g_panel_b_builds == 1 &&
+                PluginHost_PanelActive(hp) == g_panel_b_index,
+            "the old page is hidden before only the new plugin is built");
+        CHECK(
+            !PluginHost_PanelWantsAttention(hp, g_panel_b_index),
+            "selecting an attention request acknowledges it");
+        CHECK(
+            PluginHost_PanelWidgetCount(hp, gen_a) == 0 &&
+                PluginHost_PanelWidgetAt(hp, gen_a, 0) == NULL,
+            "a presenter reading an old generation cannot see the new model");
+        widget = PluginHost_PanelWidgetAt(hp, gen_b, 0);
+        serial_b = widget ? widget->serial : 0;
+        CHECK(
+            serial_b != 0 && serial_b != serial_a,
+            "the same plugin-local id on the replacement page has a new serial");
+        CHECK(
+            !PluginHost_PanelDispatch(
+                hp,
+                gen_a,
+                serial_a,
+                2,
+                "shared",
+                TORIRS_PLUGIN_UI_ACTIVATE,
+                -1,
+                NULL,
+                0,
+                0),
+            "late input from the old selection generation is dropped");
+        CHECK(
+            PluginHost_PanelLayout(
+                hp, gen_b, 300, 480, 1000, TORIRS_PLUGIN_PANEL_COMPACT, true, false),
+            "the replacement page receives its own exclusive allocation");
+        CHECK(
+            PluginHost_PanelDispatch(
+                hp,
+                gen_b,
+                serial_b,
+                1,
+                "shared",
+                TORIRS_PLUGIN_UI_ACTIVATE,
+                -1,
+                NULL,
+                0,
+                0) &&
+                g_panel_b_actions == 1,
+            "intent sequence restarts within the new selection generation");
+
+        /* Re-declaration inside one selection is fenced by the node serial,
+         * independently of the selection-generation fence above. */
+        g_api->panel_clear(PluginHost_Ctx(hp, g_panel_b_index));
+        CHECK(
+            PluginHost_PanelWidgetCount(hp, gen_b) == 0,
+            "panel_clear drops the active retained model");
+        CHECK(
+            !PluginHost_PanelEnsureBuilt(hp, gen_a),
+            "an old generation cannot trigger a page build");
+        CHECK(
+            PluginHost_PanelEnsureBuilt(hp, gen_b) && g_panel_b_builds == 2,
+            "the current selected plugin alone can rebuild a cleared page");
+        widget = PluginHost_PanelWidgetAt(hp, gen_b, 0);
+        serial_b_rebuilt = widget ? widget->serial : 0;
+        CHECK(
+            serial_b_rebuilt != 0 && serial_b_rebuilt != serial_b,
+            "redeclaring an id assigns a fresh widget serial");
+        CHECK(
+            !PluginHost_PanelDispatch(
+                hp,
+                gen_b,
+                serial_b,
+                2,
+                "shared",
+                TORIRS_PLUGIN_UI_ACTIVATE,
+                -1,
+                NULL,
+                0,
+                0),
+            "a stale serial cannot address the redeclared id");
+        CHECK(
+            PluginHost_PanelDispatch(
+                hp,
+                gen_b,
+                serial_b_rebuilt,
+                2,
+                "shared",
+                TORIRS_PLUGIN_UI_ACTIVATE,
+                -1,
+                NULL,
+                0,
+                0) &&
+                g_panel_b_actions == 2,
+            "the redeclared node accepts the next sequenced result");
+
+        CHECK(PluginHost_PanelClose(hp), "the one shared page can collapse");
+        CHECK(
+            PluginHost_PanelActive(hp) == -1 && g_panel_b_hides == 1 &&
+                PluginHost_PanelWidgetCount(
+                    hp, PluginHost_PanelSelectionGeneration(hp)) == 0,
+            "collapse hides the selected plugin and unmounts its model");
+        CHECK(!PluginHost_PanelClose(hp), "closing an already collapsed shell is a no-op");
+
+        /* Reload preserves the user's selection but builds from the new run's
+         * EV_START registration; disabling removes it instead. */
+        CHECK(PluginHost_PanelSelect(hp, g_panel_a_index), "alpha can be selected again");
+        gen_a = PluginHost_PanelSelectionGeneration(hp);
+        builds_before = g_panel_a_builds;
+        PluginHost_Reload(hp, g_panel_a_index);
+        CHECK(
+            PluginHost_PanelActive(hp) == g_panel_a_index &&
+                PluginHost_PanelSelectionGeneration(hp) != gen_a &&
+                g_panel_a_builds == builds_before + 1,
+            "reloading the selected plugin re-registers and rebuilds only its page");
+        PluginHost_SetEnabled(hp, g_panel_a_index, false);
+        CHECK(
+            !PluginHost_PanelHasPage(hp, g_panel_a_index) &&
+                PluginHost_PanelActive(hp) == -1,
+            "disabling the active plugin removes its rail entry and page");
+        CHECK(
+            PluginHost_PanelIconRevision(hp, g_panel_a_index) == 0 &&
+                PluginHost_PanelIconPixels(
+                    hp, g_panel_a_index, icon_pixels, 64 * 64, &icon_w, &icon_h) == 0,
+            "plugin teardown exposes neither stale icon revision nor pixels");
+        PluginHost_SetEnabled(hp, g_panel_b_index, false);
+        CHECK(
+            !PluginHost_PanelHasPage(hp, g_panel_b_index),
+            "disabling an inactive plugin removes its inert registration too");
+
+        PluginHost_Free(hp);
     }
 
 

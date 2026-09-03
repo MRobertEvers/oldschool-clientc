@@ -7,11 +7,13 @@
 #include <stdint.h>
 typedef void* HWND; typedef void* HDC; typedef void* HFONT; typedef void* HBRUSH;
 typedef void* HMENU; typedef void* HINSTANCE; typedef void* HDWP; typedef void* HCURSOR;
-typedef void* HICON; typedef void* HBITMAP; typedef void* HGDIOBJ;
-typedef unsigned UINT; typedef unsigned long DWORD; typedef unsigned short WORD;
+typedef void* HICON; typedef void* HBITMAP; typedef void* HGDIOBJ; typedef void* HANDLE;
+typedef void* HMODULE; typedef void (*FARPROC)(void);
+typedef unsigned UINT; typedef unsigned long DWORD; typedef unsigned long ULONG; typedef unsigned short WORD;
 typedef uintptr_t WPARAM; typedef intptr_t LPARAM; typedef intptr_t LRESULT;
-typedef intptr_t INT_PTR; typedef uintptr_t ULONG_PTR; typedef int BOOL; typedef char CHAR; typedef long LONG;
+typedef intptr_t INT_PTR; typedef intptr_t LONG_PTR; typedef uintptr_t ULONG_PTR; typedef int BOOL; typedef char CHAR; typedef long LONG;
 #define CALLBACK
+#define WINAPI
 #define TRUE 1
 #define FALSE 0
 typedef struct { LONG left, top, right, bottom; } RECT;
@@ -28,6 +30,13 @@ typedef struct {
 } BITMAPINFOHEADER;
 typedef struct { DWORD dummy; } RGBQUAD;
 typedef struct { BITMAPINFOHEADER bmiHeader; RGBQUAD bmiColors[1]; } BITMAPINFO;
+typedef struct {
+  DWORD bV5Size; LONG bV5Width, bV5Height; WORD bV5Planes, bV5BitCount;
+  DWORD bV5Compression, bV5SizeImage; LONG bV5XPelsPerMeter, bV5YPelsPerMeter;
+  DWORD bV5ClrUsed, bV5ClrImportant, bV5RedMask, bV5GreenMask, bV5BlueMask, bV5AlphaMask;
+} BITMAPV5HEADER;
+typedef struct { BOOL fIcon; DWORD xHotspot, yHotspot; HBITMAP hbmMask, hbmColor; } ICONINFO;
+typedef struct { HWND hwnd; UINT message; WPARAM wParam; LPARAM lParam; DWORD time; POINT pt; } MSG;
 /* WM_DRAWITEM's payload: what an owner-drawn control is handed instead of a
  * default paint. `hDC` and `rcItem` are the whole of what the drawing below
  * needs; `itemState` carries the pressed bit a button reads. */
@@ -44,6 +53,7 @@ typedef struct {
   int cbClsExtra, cbWndExtra; HINSTANCE hInstance; HICON hIcon; HCURSOR hCursor;
   HBRUSH hbrBackground; const char* lpszMenuName; const char* lpszClassName;
 } WNDCLASSA;
+typedef LRESULT (CALLBACK *WNDPROC)(HWND,UINT,WPARAM,LPARAM);
 #define LOWORD(x) ((int)((x)&0xFFFF))
 #define HIWORD(x) ((int)(((x)>>16)&0xFFFF))
 #define WS_CHILD 1
@@ -57,6 +67,9 @@ typedef struct {
 #define WS_EX_COMPOSITED 256
 #define WS_POPUP 256
 #define WS_CLIPCHILDREN 512
+#define WS_CLIPSIBLINGS 1024
+#define WS_MAXIMIZE 2048
+#define WS_OVERLAPPEDWINDOW 4096
 #define BS_AUTOCHECKBOX 1
 #define BS_PUSHBUTTON 2
 #define ES_AUTOHSCROLL 4
@@ -79,6 +92,7 @@ typedef struct {
 #define SWP_NOMOVE 8
 #define SWP_NOSIZE 16
 #define SWP_NOREDRAW 32
+#define SWP_NOACTIVATE 64
 #define WM_COMMAND 1
 #define WM_SIZE 2
 #define WM_CLOSE 3
@@ -126,8 +140,27 @@ typedef struct {
 #define WM_CAPTURECHANGED 32
 #define WM_PAINT 33
 #define WM_SETREDRAW 34
+#define WM_PRINTCLIENT 35
+#define WM_GETDLGCODE 36
+#define WM_CHAR 37
+#define WM_KEYDOWN 38
+#define WM_KEYUP 39
+#define WM_SYSKEYDOWN 40
+#define WM_SYSKEYUP 41
+#define WM_KILLFOCUS 42
+#define WM_TOUCH 43
+#define WM_DESTROY 44
+#define WM_RBUTTONDOWN 45
+#define WM_RBUTTONUP 46
+#define WM_MBUTTONDOWN 47
+#define WM_MBUTTONUP 48
+#define GWLP_WNDPROC (-4)
+#define GWLP_USERDATA (-21)
+#define GWL_STYLE (-16)
 #define HTCLIENT 1
 #define HTCAPTION 2
+#define DLGC_WANTALLKEYS 4
+#define DLGC_WANTCHARS 8
 #define ODS_SELECTED 0x0001
 #define ODS_COMBOBOXEDIT 0x1000
 #define ODT_COMBOBOX 3
@@ -149,6 +182,7 @@ typedef struct {
 #define GET_WHEEL_DELTA_WPARAM(wp) ((short)HIWORD(wp))
 #define SRCCOPY 0x00CC0020
 #define BI_RGB 0
+#define BI_BITFIELDS 3
 #define DIB_RGB_COLORS 0
 #define DT_LEFT 0
 #define DT_CENTER 0x01
@@ -156,6 +190,51 @@ typedef struct {
 #define DT_SINGLELINE 0x20
 #define DT_END_ELLIPSIS 0x8000
 #define NULL_BRUSH 5
+#define BLACK_BRUSH 4
+#define DEFAULT_GUI_FONT 17
+#define SIZE_MINIMIZED 1
+#define CS_OWNDC 0x20
+#define CS_HREDRAW 0x02
+#define CS_VREDRAW 0x01
+#define WM_QUIT 0x12
+#define GCLP_HBRBACKGROUND (-10)
+#define GCL_STYLE (-26)
+#define PM_REMOVE 1
+#define SW_HIDE 0
+#define SW_SHOW 5
+#define WS_VISIBLE 0x10000000
+#define MK_LBUTTON 1
+#define VK_ESCAPE 27
+#define VK_RETURN 13
+#define VK_BACK 8
+#define VK_INSERT 45
+#define VK_DELETE 46
+#define VK_SHIFT 16
+#define VK_LSHIFT 160
+#define VK_RSHIFT 161
+#define VK_CONTROL 17
+#define VK_LCONTROL 162
+#define VK_RCONTROL 163
+#define VK_MENU 18
+#define VK_TAB 9
+#define VK_SPACE 32
+#define VK_LEFT 37
+#define VK_UP 38
+#define VK_RIGHT 39
+#define VK_DOWN 40
+#define VK_HOME 36
+#define VK_END 35
+#define VK_F1 112
+#define VK_F12 123
+#define VK_PRIOR 33
+#define VK_NEXT 34
+#define VK_OEM_COMMA 188
+#define XBUTTON1 1
+#define XBUTTON2 2
+#define GET_XBUTTON_WPARAM(wp) HIWORD(wp)
+#define HGDI_ERROR ((HGDIOBJ)(intptr_t)-1)
+#define COLORONCOLOR 3
+#define HALFTONE 4
 #define RDW_INVALIDATE 1
 #define RDW_ALLCHILDREN 0x80
 HWND CreateWindowExA(DWORD,const char*,const char*,DWORD,int,int,int,int,HWND,HMENU,HINSTANCE,void*);
@@ -163,7 +242,13 @@ BOOL DestroyWindow(HWND); BOOL ShowWindow(HWND,int);
 LRESULT SendMessageA(HWND,UINT,WPARAM,LPARAM);
 LRESULT DefWindowProcA(HWND,UINT,WPARAM,LPARAM);
 BOOL RegisterClassA(const WNDCLASSA*); DWORD GetLastError(void);
+LONG_PTR SetWindowLongPtrA(HWND,int,LONG_PTR);
+LONG_PTR GetWindowLongPtrA(HWND,int);
+#define SetWindowLongPtr SetWindowLongPtrA
+#define GetWindowLongPtr GetWindowLongPtrA
 HINSTANCE GetModuleHandleA(const char*); HCURSOR LoadCursor(HINSTANCE,const char*);
+#define GetModuleHandle GetModuleHandleA
+FARPROC GetProcAddress(HMODULE,const char*);
 BOOL GetClientRect(HWND,RECT*); HDWP BeginDeferWindowPos(int);
 HDWP DeferWindowPos(HDWP,HWND,HWND,int,int,int,int,UINT); BOOL EndDeferWindowPos(HDWP);
 BOOL SetWindowTextA(HWND,const char*); int GetWindowTextA(HWND,char*,int);
@@ -175,6 +260,14 @@ typedef DWORD COLORREF;
 HBRUSH CreateSolidBrush(COLORREF);
 BOOL InvalidateRect(HWND, const RECT*, BOOL);
 HWND SetFocus(HWND);
+HDC GetDC(HWND); int ReleaseDC(HWND,HDC); BOOL UpdateWindow(HWND);
+BOOL AdjustWindowRect(RECT*,DWORD,BOOL); BOOL SetWindowTextA(HWND,const char*);
+HBITMAP CreateBitmap(int,int,UINT,UINT,const void*); HICON CreateIconIndirect(ICONINFO*);
+LRESULT DefWindowProc(HWND,UINT,WPARAM,LPARAM);
+BOOL PeekMessage(MSG*,HWND,UINT,UINT,UINT); BOOL TranslateMessage(const MSG*); LRESULT DispatchMessage(const MSG*);
+short GetKeyState(int); DWORD GetTickCount(void);
+BOOL SetEnvironmentVariableA(const char*,const char*);
+ULONG_PTR GetClassLongPtrA(HWND,int); HWND GetParent(HWND);
 /* GDI32, for the owner-drawn half. No msimg32: the alpha compositing is done
  * in software, which is why AlphaBlend is absent from this list. */
 HDC CreateCompatibleDC(HDC);
@@ -183,6 +276,8 @@ BOOL EndPaint(HWND, const PAINTSTRUCT*);
 HBITMAP CreateDIBSection(HDC, const BITMAPINFO*, UINT, void**, void*, DWORD);
 HGDIOBJ SelectObject(HDC, HGDIOBJ);
 BOOL BitBlt(HDC, int, int, int, int, HDC, int, int, DWORD);
+BOOL StretchBlt(HDC,int,int,int,int,HDC,int,int,int,int,DWORD);
+int SetStretchBltMode(HDC,int); BOOL SetBrushOrgEx(HDC,int,int,POINT*);
 BOOL DeleteDC(HDC);
 int FillRect(HDC, const RECT*, HBRUSH);
 HBRUSH CreatePatternBrush(HBITMAP);

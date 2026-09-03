@@ -35,6 +35,16 @@ ToriRS_GL3_SetInterfaceScaleMode(
     struct ToriRS_GL3* gl3,
     int mode);
 
+/** Reserve drawable pixels at the trailing edge for application chrome. */
+void
+ToriRS_GL3_SetHostRightInset(struct ToriRS_GL3* gl3, int pixels);
+
+/** Upload and composite one retained top-down ARGB ToriRSChrome surface into
+ * the reserved trailing pane. No-op when pixels/size are absent. */
+void
+ToriRS_GL3_DrawChromePixels(
+    struct ToriRS_GL3* gl3, int const* pixels, int width, int height);
+
 /**
  * Bring up the GL context and the renderer's resources.
  *

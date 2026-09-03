@@ -1,18 +1,17 @@
 /*
- * The baked skin, as the web executor hands it to the page.
+ * The web executor's authored-icon RGBA encoder, checked against baked pixels.
  *
  * WHAT THIS IS FOR. `chrome_web_sprite_b64` shuffles the bake's 0xAARRGGBB
  * words into the R,G,B,A byte stream an ImageData wants, and base64s the
- * result. Get that shuffle wrong and NOTHING fails: the page decodes the right
- * number of bytes, puts them on a canvas, and the window comes up wearing a
- * checkbox whose red and blue are swapped -- a blue tick and a cyan cross,
- * which reads as a theme rather than as a bug. The node test on the other side
- * of the wall cannot see it either, because it feeds itself made-up bytes.
+ * result. The immutable theme is packaged as PNG now, but plugin-authored rail
+ * icons still cross through this encoder. Get the shuffle wrong and every icon
+ * silently swaps red and blue. The node test on the other side cannot see that
+ * because it feeds itself made-up bytes.
  *
  * So this drives the REAL encoder over the REAL bake and decodes it back, and
  * asserts on what the pixels mean: the ON slot is a green tick, the OFF slot is
- * a red cross. Those two are the whole point of the byte order, and they are
- * the same property `visual_checkbox_skinned` asserts about the in-canvas path.
+ * a red cross. They are convenient known images for the same encoder an
+ * arbitrary authored icon uses.
  *
  * The executor is #included rather than linked. It is a web-lane translation
  * unit whose every EM_JS body is dead code off that lane (the file stubs the
@@ -125,7 +124,7 @@ mark_hues(int slot, int* green_out, int* red_out, int* opaque_out)
 int
 main(void)
 {
-    printf("chrome web skin: the bake, as the page receives it\n");
+    printf("chrome web pixels: packaged bake and authored-icon encoder\n");
 
     if( !ToriRSChromeSkin_Available() )
     {
@@ -135,43 +134,6 @@ main(void)
          * coverage that did not happen. */
         printf("  no skin baked into this build; nothing to check\n");
         return 0;
-    }
-
-    /* Every slot the executor sends must actually be in the bake. A slot named
-     * in that list and missing from the bake is a sprite the page waits for
-     * forever, which shows up as a permanently flat window. */
-    for( int i = 0; i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
-    {
-        struct ToriRSChromeSkin_Sprite const* spr =
-            ToriRSChromeSkin_ForSlot(k_web_skin_slots[i]);
-        CHECK(spr != NULL, "every slot the page is sent is in the bake");
-        if( spr )
-            CHECK(spr->w > 0 && spr->h > 0, "and every one of them has pixels");
-    }
-
-    /*
-     * The window X is SENT, not merely named.
-     *
-     * The page has had a `SKIN.CLOSE` entry in its slot table for as long as
-     * the enum has, and the client did not send it -- so the title bar wore a
-     * system-font glyph beside a window of baked art, and nothing anywhere
-     * failed. A slot the page knows and the client never sends is exactly the
-     * shape of that: the enum-sync test sees the two tables agree, the loop
-     * above sees every slot it IS sent, and neither can see the gap between.
-     */
-    {
-        int sends_close = 0;
-        int sends_over = 0;
-
-        for( int i = 0; i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
-        {
-            if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_CLOSE )
-                sends_close = 1;
-            if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_CLOSE_OVER )
-                sends_over = 1;
-        }
-        CHECK(sends_close, "the page is sent the window X the other presentations wear");
-        CHECK(sends_over, "and the hover half of it, which is a second sprite not a filter");
     }
 
     /*
@@ -228,21 +190,6 @@ main(void)
             CHECK(inside_diff, "and actually replaced the mark in the middle of it");
             CHECK(rotated, "putting it back is the same arrow, turned around");
         }
-
-        {
-            int sends_pop = 0;
-            int sends_dock = 0;
-            for( int i = 0;
-                 i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
-            {
-                if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_POPOUT )
-                    sends_pop = 1;
-                if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_DOCK )
-                    sends_dock = 1;
-            }
-            CHECK(sends_pop, "and the page is sent the pop-out button");
-            CHECK(sends_dock, "and the one that puts it back");
-        }
     }
 
     /*
@@ -284,24 +231,24 @@ main(void)
         mark_hues(TORIRS_CHROME_SKIN_CHECK_BOX_OFF, &green, &red, &opaque);
         CHECK(opaque > 100, "the boxed OFF slot is a well of the same weight");
         CHECK(green < 5, "and it is EMPTY -- no tick, and no cross either");
+    }
 
-        {
-            int sends_on = 0;
-            int sends_off = 0;
-            for( int i = 0;
-                 i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
-            {
-                if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_CHECK_BOX_ON )
-                    sends_on = 1;
-                if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_CHECK_BOX_OFF )
-                    sends_off = 1;
-            }
-            /* BOTH pairs cross at open, always: the style command can arrive on
-             * any frame and a page that had to wait for a base64 blob would
-             * repaint the window in two steps. */
-            CHECK(sends_on, "the page is sent the boxed tick");
-            CHECK(sends_off, "and the empty well beside it");
-        }
+    {
+        struct ToriRSChromeExec exec = ToriRSChromeExec_Web();
+        struct ToriRSChromeRailIntent intents[4];
+        ToriRSChromeExecWeb_RequestSelect(5, 17);
+        ToriRSChromeExecWeb_RequestSelect(-2, 17);
+        ToriRSChromeExecWeb_RequestLayout(17, 320, 480, 2000, 1, 1, 0);
+        /* rail_poll is intentionally independent of begin/end: collapsed is
+         * exactly when there is no page executor to poll. */
+        exec.end(exec.user);
+        CHECK(exec.rail_poll(exec.user, intents, 4) == 3,
+            "the persistent web rail drains while the page executor is down");
+        CHECK(intents[0].plugin_index == 5 && intents[1].plugin_index == -2,
+            "web rail events retain concrete plugin and Manage destinations");
+        CHECK(intents[2].kind == TORIRS_CHROME_RAIL_INTENT_LAYOUT &&
+                  intents[2].selection_generation == 17 && !intents[2].game_visible,
+            "web allocation returns generation-fenced exclusive visibility");
     }
 
     if( g_failures )

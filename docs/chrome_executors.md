@@ -1,933 +1,395 @@
-# Chrome executors and the plugin window
+# Plugin chrome browser executors
 
-How `ToriRSChrome` widgets reach a screen, and how a Lua plugin gets a tab with
-settings that survive a reload.
+This document defines the production path from a plugin's retained semantic
+page to the shared plugin chrome. The central rule is literal:
 
-Two things are described here and they are separable: the **executor seam**,
-which lets one widget model be presented in more than one place, and the
-**plugin window**, which is the first surface to use it.
+> One running client owns exactly one plugin-chrome browser instance/browsing
+> context. Every plugin shares it, and only the most recently selected plugin
+> has a page in it.
 
----
+The browser is application infrastructure, not plugin infrastructure. A plugin
+cannot create a browser, window, document, iframe, script context, or URL. It
+registers a destination and publishes bounded semantic controls. The
+application-owned runtime renders those controls with the ToriRS modern Old
+School RuneScape skin.
 
-## 1. Why a seam at all
+## 1. Non-negotiable invariants
 
-`ToriRSChrome` (`src/ui/uitree_debug_overlay.h`) is a retained widget model that
-does not rasterise. It emits a flat display list of three primitive kinds --
-RECT, TEXT, SPRITE -- which the existing pipeline carries to whichever backend
-is live:
+- There is one application-owned plugin-chrome browser control/browsing context
+  and one persistent rail per application window. There is never one browser or
+  iframe per plugin. On Web, the one shared application-owned iframe is that
+  context; the application's containing page is not a second plugin-chrome
+  instance.
+- The browser control survives collapse and plugin selection. It is destroyed
+  only with its owning application window/activity.
+- At most one plugin page exists in the browser's page root. Selecting another
+  destination replaces that page in place; it does not navigate or recreate
+  the browser.
+- Collapse removes the page, shrinks the allocation to the rail, and restores
+  the game allocation. It does not destroy the browser or rail.
+- Plugin UI is semantic data. Plugins do not supply HTML, JavaScript, CSS,
+  native controls, browser URLs, or navigation callbacks.
+- Rail and pane input is isolated from game input. An HTML editor owns text,
+  selection, caret, composition, and accessibility while it is focused.
+- The browser loads only application-packaged files and locally staged
+  host-owned bitmap resources. Network navigation, popups, downloads,
+  permissions, and external schemes are rejected.
+- The retired native View/GDI/SDL presenters are reference material under
+  [`old/plugin_chrome_native`](../old/plugin_chrome_native/README.md), not an
+  alternate production path.
 
+## 2. Ownership and lifetime
+
+```text
+PluginHost
+  registry: all rail destinations and authored icon metadata
+  selected page: one retained semantic model, generation fenced
+       |
+       +--> rail.snapshot / rail.icon -------------------+
+       |                                                 |
+       +--> page.snapshot / page.delta / custom.bitmap --+--> one browser
+                                                            one document
+                                                            one rail root
+                                                            zero/one page root
+                                                                 |
+                         rail.select / widget.intent / layout / editor.focus
+                                                                 |
+                                                             frame thread
 ```
-ToriRSChrome_Build  →  ToriRSChromePrim[]  →  UITree emit  →  ToriRS_Frame  →  Soft3D / GL3 / WebGL1 / D3D9
-```
 
-That list is the right altitude for a rasteriser and the wrong one for anything
-native. A DOM `<input>`, a Win32 `EDIT` control or a cache interface component
-cannot be reconstructed from rectangles. So the seam emits the chrome's *own*
-vocabulary -- panels, tabs, widgets, properties -- and each executor maps a
-checkbox onto whatever a checkbox is where it lives.
+[`PluginHost`](../src/plugin/torirs_plugin_host.h) owns the complete registry,
+the selected plugin, its selection generation, and the sole bounded page
+model. A nonselected plugin cannot add nodes to, mutate, draw into, or receive
+input from that page.
 
-**The model stays authoritative.** An executor is a projection, never a second
-copy of the truth: commands flow out, intents flow back, and an intent is
-applied by mutating the model exactly as an in-canvas click would
-(`ToriRSChromeIntent_Apply`). That is what keeps several presentations of one
-panel agreeing, and what lets the whole thing be tested with no window at all.
+[`ToriRSChrome`](../src/ui/uitree_debug_overlay.h) is the retained semantic
+model. Stable row identity, focus, values, layout, and custom-region damage
+remain authoritative outside the browser. Widget handles can be recycled, so
+every browser event is fenced by page generation and widget serial.
 
-## 2. Two kinds of executor
+[`ToriRSChromeExec`](../src/ui/torirs_chrome_exec.h) copies the retained model
+into pointer-free transactions. The browser reducer applies a complete
+snapshot or a delta to its one DOM tree. Result-state intents are copied back
+to the frame thread; browser callbacks never invoke plugin code directly.
 
-Both share `struct ToriRSChromeExec`; which entries an implementation fills says
-which kind it is.
+[`ToriRSChromeRailSync`](../src/ui/torirs_chrome_rail.h) publishes the rail
+independently of the selected page. This is why the rail can remain interactive
+while the page is collapsed. Rail selection is fenced by the snapshot's
+selection generation just as page input is fenced by page generation and
+widget serial.
 
-| | Surface executor | Native-widget executor |
+## 3. Canonical local bundle and bridge
+
+The embedded hosts load the application bundle in
+[`src/plugin_chrome`](../src/plugin_chrome/README.md):
+
+- `modern.html`, `modern.css`, and `runtime.js` for WKWebView and WebView2;
+- `legacy-ie8.html`, `legacy-ie8.css`, `runtime-ie8.js`, and `codec-es3.js` for
+  Windows XP MSHTML and the explicit Android API 22 compatibility lane.
+
+Both entry points implement the same reducer and the same protocol. The legacy
+page is not a different plugin API. It uses conservative table/absolute layout
+and an ES3-safe DOM subset so old MSHTML can run it, while Android Chrome 39
+still uses its canvas and typed bridge capabilities.
+
+The complete protocol is specified in
+[`HOST_BRIDGE.md`](../src/plugin_chrome/HOST_BRIDGE.md). Its important message
+groups are:
+
+| Direction | Envelopes | Purpose |
 |---|---|---|
-| What it does | Puts the chrome's own rasterised output somewhere other than the game canvas | Rebuilds the model out of foreign controls |
-| Fills | `present`, `surface_input`, `is_surface` | `apply`, `poll` |
-| Uses the command stream | No | Yes -- it is the whole contract |
-| Widgets are | ToriRSChrome's, drawn by ToriRSChrome | The platform's own |
-| Examples | `buffer` (in-canvas), `sdl` (second OS window) | `web` (DOM), `gdi` (comctl32) |
+| Host to browser | `rail.snapshot`, `rail.icon` | Replace navigation state and revisioned authored icons |
+| Host to browser | `theme` | Publish local ToriRS skin URLs |
+| Host to browser | `page.snapshot`, `page.delta`, `page.close` | Replace, patch, or remove the sole page |
+| Host to browser | `custom.bitmap` | Replace one generation/serial-fenced custom region |
+| Browser to host | `rail.select` | Expand, collapse, or replace the selected page |
+| Browser to host | `widget.intent` | Report a result-state semantic action |
+| Browser to host | `layout`, `editor.focus` | Report allocation and HTML editor ownership |
 
-One table rather than two, because a host drives them identically: bring it up,
-hand it this frame, take back what the user did, tear it down. Making the
-difference two interfaces would put the choice in the host, which is exactly
-where it does not belong.
+Messages carry protocol version 1 and are copied across the boundary. Queues
+are bounded and nonblocking. Unknown versions and stale generations are
+ignored. The host calls `window.ToriRSPluginChrome.receive(...)`; the runtime
+uses the host's copied post-message hook or bounded pull queue.
 
-### Deltas, not declarations
+## 4. Platform hosts
 
-`ToriRSChromeSync_Run` diffs the model against a shadow of what *this* executor
-was last told, and emits only what changed. Re-declaring a panel whenever
-anything in it moved would be far simpler and would also destroy and recreate
-native controls on every keystroke -- losing focus, losing the caret, making a
-text field impossible to type into. The shadow is the price of native controls
-that survive their own updates.
-
-Three orderings are load-bearing and all three are tested:
-
-- **Panel closes before panel opens.** An executor may assume a widget's panel
-  exists when it hears about the widget.
-- **Widget removals before widget additions.** A freed handle can be recycled by
-  an add in the same frame; an executor told `add 7` before `remove 7` would end
-  up with neither.
-- **Widgets are announced in ROW order, not handle order.** The sync walks each
-  panel's own row list. Array order is *allocation* order, and the free list
-  makes the two diverge the moment a panel is cleared and rebuilt -- an
-  executor creating controls in arrival order would then lay the window out in
-  the order rows were first created. The symptom was a Save button above the
-  settings it commits.
-
-### A handle is not an identity
-
-`ToriRSChromeWidget::serial` is. Handles come off a free list, so handle 5 removed
-and handle 5 added are two different widgets wearing one number, and a shadow
-that diffed on `(handle, kind, panel)` concluded "nothing changed" for a row
-that had in fact been replaced. The serial is monotonic, never reused, and never
-reset by a panel clear -- it only ever has to be comparable and distinct.
-
-### Strings are copied at the seam
-
-The chrome deliberately borrows -- prim text points into its widget, a
-dropdown's options point at the caller's array. Those lifetimes are fine inside
-one process and wrong the moment a command is queued, posted to a browser tab,
-or written to a recording. Every string entering a command is copied into it.
-
-## 3. Choosing one
-
-`[chrome] executor=buffer|sdl|web|gdi` in the boot manifest, overridden by
-`TORIRS_CHROME_EXECUTOR` -- the same precedence `TORIRS_CHROME_THEME` has over
-the theme beside it, so a lane can ship a default a developer steps past without
-editing it.
-
-**With no key and no env var** it is `buffer`, which is also the fallback for
-every failure below. The *presence* of the key is tracked separately from its
-value (`BootManifest::chrome_executor_set`), because `buffer` is both the zero
-value and a legitimate answer, and the client says which it was on the frame the
-window first opens:
-
-```
-chrome: plugin window executor = sdl (configured)
-chrome: plugin window executor = buffer (default)
-```
-
-A manifest naming something that is not an executor at all is a **load-time
-error**, next to the line that asked. A name this *build* has no executor for is
-not: every lane carries a different set, and the chooser answers that with the
-in-canvas one and a message.
-
-The shell chooses, because choosing needs the platform handle and `struct App`
-is deliberately platform-free (`App_Render` is handed a pixel buffer rather than
-a window for the same reason). What crosses into the App is a **vtable, not a
-started executor** -- `App_SetPluginChromeExec` -- and it is brought up the
-first time the plugin window is opened. A session that never opens it never
-opens a second OS window either.
-
-Failure is not an error at any stage:
-
-| Situation | Result |
-|---|---|
-| Name is not an executor | message, then `buffer` |
-| Executor is not compiled into this lane | message, then `buffer` |
-| `begin()` refuses (no display, blocked popup, missing control library) | message, then `buffer` |
-
-`buffer` is what every build has, so the fallback is always available. Only the
-**plugin window** is bound to an executor; the developer overlay, the loc editor
-and the map editor stay in-canvas, because they are in-canvas tools and giving
-them a choice would be four more consumers to keep working for nobody.
-
-## 4. What is implemented
-
-| Executor | Kind | Lanes | State |
+| Platform | The one browser instance | Page | Attachment |
 |---|---|---|---|
-| `buffer` | surface | every | **Done.** The in-canvas prim path; the default and the fallback everywhere. |
-| `sdl` | surface | macOS, Linux | **Done.** One auxiliary OS window. See COMMON-CHROME-001 and COMMON-CHROME-002 (points in, pixels out). |
-| `web` | native-widget | web | **Done.** Real DOM controls, built by the page from the command stream. |
-| `gdi` | native-widget | win32, win64 | **Written, not run.** Compiles only on Windows; parsed here by `make -C src check-gdi-syntax`. |
-
-### What each native-widget executor does
-
-**Both wear the same art.** `web` and `gdi` draw their controls out of one bake
--- `engine/torirs_chrome_skin_baked.c` -- on one set of metrics,
-`ui/torirs_chrome_metrics.h`. What differs is only how a platform is *told*: the
-page is handed base64 RGBA it turns into
-data: URLs, and Windows gets a DIB it composites in software. The semantic slot
-enum and the bake's own order are the same numbers, which all of them rely on
-and none of them used to check; `ui/torirs_chrome_skin.h` is the static
-assertion that they agree, and the page's copy of the same table is pinned by
-`web/test/chrome_enum_sync_test.js`.
-
-- **web** (`src/ui/torirs_chrome_exec_web.c` + `src/web/torirs_chrome.js`) --
-  every crossing is an `EM_JS` call onto a `window.torirsChrome*` hook,
-  following the existing `web_editor_open_panel_tab` pattern: C asks, the page
-  owns the DOM. Commands go out as JSON (not the channel's packed frames --
-  this direction has no need to be handed to a wasm bus, the volume is a
-  handful per tab build, and a page you can debug by reading its console beats
-  one whose messages have to be unpacked first). Intents come back the same
-  way. The hooks' *presence* is the availability test, so a cached `index.html`
-  without them degrades to in-canvas chrome instead of a window that silently
-  does nothing.
-
-  **The art crosses too, once, at open.** `torirsChromeSkinMetrics` carries the
-  numbers out of `torirs_chrome_metrics.h`; `torirsChromeSkinSprite` carries
-  each baked image as base64 RGBA, which the page turns into a data: URL
-  through an ImageData and a canvas. Raw pixels rather than PNG, because a PNG
-  encoder in C would exist for this alone and the platform already has a
-  decoder. About 70KB, once, and nothing per frame.
-
-  The page builds the panel out of it: tradebacking behind the window and every
-  field, the interfaces' tick and cross as an `appearance:none` checkbox's
-  background, the scrollbar's own arrow on the closed dropdown and its lighter
-  parchment behind the open list, `::-webkit-scrollbar` wearing the bar's track
-  and grip, and the nine-slice frame as EIGHT BACKGROUND LAYERS -- one per
-  piece, corners at their baked 32 and rails stretched along the run between
-  them, which is `dbg_push_frame` verbatim. Every rule is an OVERRIDE of a
-  flat one, scoped to `.skinned`, and the class goes on only when every sprite
-  the sheet names has arrived: a nine-slice frame around a flat black panel
-  reads as a fault, where a complete flat window reads as a theme.
-
-  **Why not `border-image`, which this was.** That property slices ONE source
-  into a grid whose corner cells are the border's own width, and the frame's
-  pieces are two sizes: 32x32 corners carrying an L of 6px rail, and bare 6px
-  rails between them. Sliced at the 6px rail the content is inset by, it
-  sampled 6x6 out of each corner and threw the other 26 away. Worse, composing
-  that single source needed a canvas, and `drawImage` of an `<img>` whose `src`
-  was assigned the same turn draws NOTHING in a browser -- a data: URL has not
-  decoded yet, `complete` is false, and the call is a silent no-op. The
-  shipping page wore a fully transparent 6px border while the node test's fake
-  canvas dutifully reported eight draws. Background layers name each piece's
-  own URL and read nothing back, so there is nothing left to be undecoded.
-
-  **The dropdown is not a `<select>`.** It was: a `<select>` is the platform's
-  idiom for the control, and the CLOSED button could be made to look like the
-  game -- the tile, the frame, the arrow at the right. The list it opens is the
-  operating system's, though, and no page may style it, so the one part of the
-  window a user opens in order to LOOK at it was the one part that could not be
-  made to match. The button is a span now and the list is built in the document
-  when it is pressed, on the shared table's geometry, wearing the cache's
-  lighter parchment and script_9114's alternating bands.
-
-  Everything the `<select>` did for free is done by hand as a result, and each
-  of those is a line in `web/test/chrome_dom_test.js`: it shuts on the next
-  press anywhere else (a capture-phase listener on the document that asks where
-  the press was, since a `stopPropagation` in the row would shut the list out
-  from under the very click choosing it), it flips above the button when there
-  is no room below, and it takes the keyboard -- arrows for a cursor row, Enter
-  to choose, Escape to leave the setting alone. The rows are built at open and
-  thrown away at close, so a panel of twenty dropdowns carries twenty lists of
-  nothing.
-
-  The shuffle from the bake's `0xAARRGGBB` words to ImageData's R,G,B,A bytes
-  happens in C, and `make -C src test-chrome-web-skin` is what keeps it honest
-  -- it decodes the real bake back and asserts the ON slot is a *green* tick and
-  the OFF slot a *red* cross. A red/blue swap decodes, blits and looks
-  deliberate; the hue is the only thing that catches it.
-
-  **It sits in an iframe beside the canvas, exactly as tall.** Not a corner
-  overlay -- which is what it was, and it covered the part of the frame the
-  player was looking at. The plugin window is read *while* the game is played,
-  so it belongs next to the picture; every executor with a real window of its
-  own had already answered this the other way. An `<iframe>` rather than a
-  `<div>` for the same reason those get a window: the chrome is then in a
-  document of its own, so the host page's stylesheet cannot reach its controls
-  and typing into a settings field cannot reach the canvas's key listeners and
-  walk the player. The iframe is created with **no `src`** -- an iframe left
-  without one keeps the about:blank document it is born with, and writing into
-  that is synchronous, where `src="about:blank"` navigates it and replaces
-  what you built a tick later. The height is the canvas's, tracked with a
-  `ResizeObserver`, so the page's scaled modes, the browser window and the
-  game's own Display setting all move it. So is the **top edge**: the scaled
-  modes centre the letterboxed canvas inside its stage, so the picture starts
-  below the row the window is in, and matching only the height left the window
-  hanging above it. It is corrected as a delta off where the frame currently
-  measures, which keeps the parent's padding and alignment out of the sum, and
-  the canvas's *container* is observed as well -- growing the stage in the
-  dimension the fit is not limited by moves the canvas without resizing it.
-  The frame's width is published to the page as `--torirs-dock-width` (`0px`
-  when nothing is docked), which is how `index.html` keeps its full-canvas
-  corner toggles off the window's title bar without knowing anything else
-  about it. A page with no `#canvas` falls back to the old corner overlay.
-
-  **A pop-out mark moves it into a tab of its own**, and moves it back. The
-  tab is about:blank built by this same page, not a URL with a script of its
-  own: the widget state lives in the client and the intent queue lives in the
-  page's host object, both one same-origin property access from the popped-out
-  document, where a second page would need the channel, a HELLO and a second
-  copy of every branch in `makeWidget`. The nodes are **adopted, not rebuilt**
-  (`adoptNode`), because the seam emits deltas -- a rebuilt page would sit
-  empty until something in the model happened to change -- and adopting keeps
-  the listeners, values and caret. Where a presentation puts its pixels is its
-  own business, so none of this reaches the model, exactly as the SDL window's
-  position never does. Closing the popped-out tab is reported as a `CLOSE`,
-  like the SDL window's X.
-
-  **Its title-bar buttons wear the game's own art.** The close mark is
-  `CloseButton`/`CloseButtonOver` (archives 831/832) -- the button the
-  interfaces themselves put in a title bar -- and the hover is *in the art*,
-  the same plate lit from the opposite corner, so no accent outline goes over
-  it. The pop-out mark is that same plate with an arrow stamped where the X
-  was, because the game has no pop-out button to lift: see **A button the cache
-  does not have** below. Both are optional -- a client too old to send the
-  sprites leaves the text glyphs, which is what every build had until the art
-  crossed the wall -- and both are sized to the title bar rather than to the
-  sprite, the same slight downscale `dbg_panel_close_box` asks for.
-
-  **Its close mark was dead for a release**, and the cause is worth keeping:
-  a close names a panel, and the page latched which panel that was when a
-  `TABSTRIP` arrived. The plugin window is *paged*, not tabbed, so no strip
-  ever arrives: the button addressed panel `-1`, `PanelSetVisible` validated
-  that away, and every layer reported success. It is latched on `PANEL_OPEN`
-  now -- the one command every window gets -- and `ToriRSChromeIntent_Apply`
-  answers a close naming a panel the model does not have with **0** rather
-  than the 1 it used to give unasked, so a drain that changed nothing can no
-  longer read as one that worked. The page's own test grew a window with no
-  tab strip to catch it; the fixture that hid it was one that always built a
-  strip first.
-
-- **gdi** (`src/ui/torirs_chrome_exec_gdi.c`) -- an owned
-  `WS_EX_TOOLWINDOW` whose children are USER32 controls: `BUTTON`, `EDIT`,
-  `COMBOBOX`, `STATIC`. **No comctl32**: a real `WC_TABCONTROL` would mean
-  linking it, shipping a v6 common-controls manifest, and adding both to the
-  lane's import audit, where a row of buttons is the same affordance with none
-  of that. The XP lane's one-file artifact contract (`WINXP-ABI-001`) is what
-  makes that trade worth taking.
-
-  **They are still USER32 controls; they just wear the game's art.** Every
-  button, checkbox, tab and dropdown is `BS_OWNERDRAW` / `CBS_OWNERDRAWFIXED`
-  and painted from the bake; a double-buffered `WM_PAINT` tiles the tradebacking and draws
-  the nine-slice frame -- corners SQUARE at their baked 32, rails stretched
-  along the run between them, the two numbers `dbg_push_frame` uses, because a
-  corner blitted at the rail's 6 squashes 32px of tile into 6 and takes the
-  mitred junction with it; `WM_CTLCOLOR*` puts a pattern brush over the tile
-  behind the ones that keep their own painting. An `EDIT` is still an `EDIT`, with its
-  caret, its selection and its keyboard -- that is what a native executor is
-  for, and skinning a control is not the same as replacing it.
-
-  **gdi32 only, no msimg32.** `AlphaBlend` and `TransparentBlt` live in
-  msimg32, another import on a lane whose whole contract is a one-file
-  artifact, so the sprites are composited in *software* into a scratch DIB and
-  blitted back opaque. The destination is read back first rather than assumed:
-  these sprites have soft edges, and a tick composited against a guessed
-  background wears a halo of that guess wherever the guess was wrong -- which
-  over the tradebacking is every pixel. It also keeps the nearest-neighbour
-  scaling ours, which is what makes a 2x checkbox crisp rather than smeared.
-
-  A roster row becomes **three** controls -- a name, a settings well, an
-  on/off switch -- because a
-  single owner-drawn button reports a click without saying where in itself it
-  landed, so one control could never tell "open this plugin's page" from "turn
-  it off". Before that, a `LISTROW` fell through to the default branch and
-  became a `STATIC`: a column of plugin names with no switch and no way in.
-
-  Three more things follow from owner-drawing, and each was a bug first:
-
-  1. **The check state is the executor's now.** `BS_AUTOCHECKBOX` kept its own
-     tick and answered `BM_GETCHECK`; `BS_OWNERDRAW` knows nothing, so the bit
-     lives in the executor and the click flips it. A `WIDGET_CHECKED` that
-     disagrees overwrites it, which is how a toggle the model refused snaps
-     back.
-  2. **A `STATIC`'s brush may not be hollow.** Hollow looks right -- the parent
-     has already tiled that area -- until a caption changes: a `STATIC` erases
-     with the brush this hands back, and one that paints nothing leaves the old
-     caption on screen under the new one. It gets the tile brush.
-  3. **A sync and relayout repaint one completed frame.** The
-     background is drawn from the *controls'* boxes -- the field frame under
-     each `EDIT` is placed from that control's rect -- so the parent still has
-     to be invalidated after a batch move. `SYNC_BEGIN` freezes the parent and
-     every native child with `WM_SETREDRAW`; commands may then remove, create,
-     label and populate controls without exposing an intermediate page.
-     `SYNC_END` rebuilds tabs and lays out once. Every child move uses
-     `SWP_NOREDRAW`, then queues one parent-and-children redraw after the layout
-     is stable. It deliberately does not force an immediate update, so a burst
-     of wheel or mouse-move messages coalesces into one paint. The parent
-     suppresses background erase and composes its chrome into an off-screen DIB
-     before one blit. `WS_CLIPCHILDREN` plus the
-     composited tool window presents that batch as one frame while navigating
-     or scrolling. Transparent owner-drawn checks tile their own box so a move
-     does not leave old captions behind.
-
-  A `CBS_DROPDOWNLIST` still owns the popup, selection, keyboard navigation and
-  accessibility, but no longer owns the visible closed face. USER32 withholds
-  its shell-style arrow strip from `WM_DRAWITEM`, so an owner-drawn `BUTTON`
-  sibling sits over the complete combo and draws the same field, centred orange
-  value and scrollbar up/down sprite as the other executors. Its explicit
-  top-of-sibling z-order is important: creation order alone left the white
-  shell arrow visible. `CB_SETITEMHEIGHT` also contracts the native selection
-  to the authored row height; otherwise USER32's font-derived combo edge peeks
-  out below the overlay. The native popup rows are owner-drawn at the shared
-  dropdown-list pitch, though the popup frame and long-list scrollbar remain
-  USER32's.
-
-  **Its whole frame is the game's.** The HWND is a borderless `WS_POPUP`: the
-  title is a black client-area band, its `BS_OWNERDRAW` X wears `CloseButton`,
-  and `WM_NCHITTEST` turns the rest of the band into `HTCAPTION` so USER32 still
-  supplies movement, snapping and capture. No Windows caption or resize rail
-  surrounds the nine-slice frame. ToriRSChrome's six-dot, nested-caret resize
-  grip sits in the bottom-right and performs captured client-area resizing
-  with a minimum size, preserving resizability without restoring
-  `WS_THICKFRAME`.
-
-  Its panel scrollbar is client-area chrome too, assembled the same way
-  `~script31` does it: `ScrollUp`, `ScrollDown`, a stretched `ScrollTrack`, and
-  the top/middle/bottom grip sprites. Arrow clicks, track paging, wheel input
-  and captured grip dragging all update one pixel scroll position. A standard
-  `WS_VSCROLL` would put platform chrome straight back on the borderless skin.
-
-### Two checkboxes, and an option that picks one
-
-This game has no *drawn* checkbox. Every boolean in its interfaces is a pair of
-sprites, and there are **two** such pairs:
-
-| Style | Archives | Size | On | Off |
-|---|---|---|---|---|
-| `tick` (default) | 8380 / 8379 | 17x17 | a green tick | a **red cross** |
-| `box` | 2848 / 2847 | 18x18 | a green tick in a bordered well | the **empty well** |
-
-They say different things. The settings page's cross is an answer -- *off*,
-where an empty box would read as "nothing here yet" -- and the journals' well is
-one control in two states. Neither is a fallback for the other, so both are
-baked and the choice is an option:
-
-- `[ui] chrome_checkbox = tick|box` in the boot manifest, `TORIRS_CHROME_CHECKBOX`
-  over the top of it (the same order `chrome_scale` is resolved in), and
-  `App_SetChromeCheckStyle` at runtime;
-- it is a property of the MODEL (`ToriRSChrome_SetCheckStyle`), beside `scale`
-  rather than in the theme -- a theme is a palette a host swaps wholesale
-  (`TORIRS_CHROME_THEME=flat`), and a user's choice of checkbox has no business
-  being reset by one;
-- both chrome instances are set together, because the developer overlay and the
-  plugin window are commonly on screen at once.
-
-**It is a layout input, not a palette one.** The two arts are 17 and 18 wide
-(`TORIRS_CHROME_M_BOX` / `_M_BOX_SQUARE`), and a UI sprite drawn at anything but
-its baked size speckles -- the outline is baked before the scale. So the control
-is sized to the art it is wearing, everywhere: `dbg_check_size` in the in-canvas
-chrome, `chrome_gdi_box` in the Win32 one, and a
-`.checkbox-square` class in the page's stylesheet that carries its own width.
-Changing the style dirties every panel exactly as `SetScale` does.
-
-**It crosses the seam as its own command.** `TORIRS_CHROME_CMD_CHECK_STYLE`
-names no panel and no widget -- it is chrome-wide -- and is emitted **before any
-panel**, on the first sync and again whenever it changes. A native executor that
-heard it after the rows were declared would have placed every checkbox against
-the wrong width; one that was never told would draw the tick pair beside an
-in-canvas panel drawing the well, which is precisely the disagreement this seam
-exists to prevent. The shadow starts at `-1`, not at `TICK`, so the first sync
-states the style even when the model is sitting at the default.
-
-The page is sent **both** pairs at open and switches with a `classList.toggle`:
-the stylesheet is built once and the command can arrive on any frame, so a style
-change that had to wait for a base64 blob would repaint the window in two steps.
-
-Pinned by `make -C src test-uitree` (the command's content and its order),
-`make -C src test-debug-overlay-visual`
-(the in-canvas pixels, against the bake, both ways round), and
-`make -C src test-web-channel` (the page's class, its sheet, and that the boxed
-pair decodes to a green tick and an empty well rather than to each other).
-
-## 5. The SDL executor
-
-A *surface* executor: the widgets are still ToriRSChrome's, laid out by
-ToriRSChrome and rasterised by the same software path that draws them in the
-canvas. Only the destination and the pointer's origin change -- which is why it
-is pixel-identical to the panel it replaces rather than a second look.
-
-The platform API under it (`PlatformWindow_Aux*`) is deliberately the smallest one
-that serves exactly this: open, close, a pixel buffer, resize, present, an input
-drain and a close request. It is the first thing in the tree to want a second OS
-window, and it is refusable, which is what keeps it from becoming a general
-multi-window layer that every backend has to answer for.
-
-Rasterising is **lent by the App** (`App_ChromeRasterise`), not reimplemented:
-drawing needs the scene the baked fonts and chrome skin were registered in, the
-frame translator and a software backend, and a second rasteriser here would be a
-second set of rounding, a second baseline convention, and a second place for the
-chrome to be almost right.
-
-Input is routed by SDL **window id**, not by "is the pointer over it": a drag
-that started in one window keeps delivering to that window, which is what makes
-a grip drag work when the cursor leaves the frame -- and what would otherwise
-let a click in the plugin window also walk the player.
-
-### A window of its own is filled, not floated in
-
-A panel's authored box -- (8,72), 320 wide -- is a box that floats over the
-**game canvas**, which is what it has to float over. Put the same box in a
-window that holds nothing else and it is a window inside a window: three bands
-of empty background around it, and dragging the frame wider grows the
-background rather than the settings.
-
-So a presentation whose surface is a window of its own gets the panel stretched
-over the whole of it, every frame, tracking the OS window as the user drags it.
-The rule is `ToriRSChromeSync_FillSurface`'s, in the seam -- not the SDL
-executor's -- and an executor opts into it by answering `surface_size`. That
-answer *is* the declaration: a flag beside a getter would be two things that
-can disagree, and this is the table where which entries an implementation fills
-already says which kind it is. The buffer executor shares the canvas with the
-game and has neither, so in-canvas chrome goes on floating; a native-widget
-executor lays its own controls out and never sees this at all.
-
-Filling takes the panel's **drag and grip** with it (`ToriRSChromePanel::filled`).
-Both write geometry that the next fill overwrites, so leaving them is a title
-bar that takes the cursor and gives nothing back, and a corner that snaps.
-The OS window's own frame is what moves and resizes it now.
-
-`test-uitree` pins it through the recorder, which grows a window when a test
-sets `surface_w`/`surface_h` -- so the fill, the resize, the two dead
-affordances and the in-canvas panel that must NOT be touched are all checked on
-a machine with no display.
-
-### No OS frame: dragging the window by the chrome in it
-
-`[chrome] borderless = 1` (or `TORIRS_CHROME_BORDERLESS=1`) opens the window
-with no OS frame at all, and the panel's own title bar and the empty tail of its
-tab strip move it instead. Off by default: a frameless window is a look, and one
-a lane has to ask for.
-
-Taking the frame off takes four things with it -- the title bar that moved the
-window, the border that resized it, the buttons that closed and minimised it,
-and the double-click that zoomed it. Two of those come back through SDL's window
-hit test (`SDL_SetWindowHitTest`), which asks us, per point, what that pixel is:
-
-- a band `SDL_BORDERLESS_RESIZE` points deep along each edge resizes, corners
-  first. **Tested before the drag handles, and it has to be:** the strip runs to
-  the top edge, and a window whose top edge drags instead of resizing can never
-  be made shorter from the top again;
-- anything the chrome published as a handle drags;
-- everything else is an ordinary press.
-
-Closing comes back through the panel's own Close button, which it already had.
-
-**A draggable region swallows the press that starts the drag.** The application
-is never told about a mouse-down inside one, so every control drawn inside a
-handle has to be punched back out of it or it silently stops being clickable.
-That is what `struct ToriRSChromeDragRegion` is: handles, minus holes. The holes
-are the tab run, a closable panel's Close, and any dropdown list or
-colour picker floating over the strip while it is open.
-
-The tab run is **one** hole rather than one per tab, because tabs are laid out
-contiguously from the strip's left edge -- their union is the run, and the tail
-behind it is the only part of the strip that is not already a control. A strip
-whose tabs have been compressed to fill its width therefore offers no handle at
-all, correctly. The title bar is the handle that is always there.
-
-Why a **published region** rather than a callback into the model: SDL calls the
-hit test from inside its event pump, while the window manager is deciding what a
-press even is, and the model is the frame thread's. A callback that walked
-panels and widgets would be reading a tree the frame it interrupted is halfway
-through rebuilding. So the host publishes a dozen rectangles once a frame --
-`ToriRSChromeSync_PublishDragRegion`, **after** Build, unlike `FillSurface`
-before it, because these are laid-out boxes and publishing them a frame early is
-a drag band sitting where the panel used to be. An empty region is published
-too: an executor that simply stopped hearing about handles would go on offering
-the last set it was told.
-
-If the video driver has no hit test, `PlatformWindow_AuxSetBorderless` **refuses
-and keeps the frame**, with a line on stderr saying why. Every way a user has of
-moving or resizing a window runs through the frame or the hit test; a window
-with neither is pinned where it opened, at the size it opened, for the rest of
-the session -- a worse answer than the frame it was asked to hide. `dummy`
-refuses; Cocoa, Windows and X11 do not.
-
-The same platform calls exist for the **game** window
-(`PlatformWindow_SetBorderless`, `PlatformWindow_SetDragHandleProvider`, which takes
-canvas coordinates with the letterbox already undone). Nothing wires them: the
-game window has no drawn top bar to grab, and hiding its frame without one would
-leave it movable only from its resize edges.
-
-### A button the cache does not have
-
-The plugin window's pop-out has no counterpart anywhere in the interfaces --
-the game has no window that leaves its frame -- so there is no archive to name
-in the bake recipe. It shipped first as a text arrow from the system font,
-which sat beside a close button drawn in 2005 and read as furniture from two
-different programs.
-
-So `spritebake` grew a `--stamp`: `Source=Symbol:glyph` borrows an already-baked
-sprite's **plate** -- its frame, bevel, face, ink and hover treatment, all of it
-the cache's -- erases the mark sitting on it, and stamps an 8x8 glyph in the
-mark's own colour. `CloseButton` gives four synthesized siblings that way:
-`PopoutButton`, `PopoutButtonOver`, and the same arrow turned around for putting
-the window back (`DockButton`, `DockButtonOver`). Only the eight by eight pixels
-in the middle are ours, so a re-bake against another revision carries them along
-with the real buttons instead of leaving them at last year's palette.
-
-Two things in that were bugs first, both of them in deciding which colour is
-the plate's **face**:
-
-- *the commonest colour in the middle of the button* is the **ink**. The close
-  X covers more than half of its own 8x8 box, so that reading stamps every
-  glyph inside out -- and the result still looks like a button, which is what
-  makes it worth writing down.
-- *the commonest colour outside it* is the **border**, drawn in the same
-  near-black the mark is; the face does not outnumber it.
-
-It is the one-pixel ring around the mark box: plate on both the lit and the
-pressed variant, and where the glyph's own edges land.
-
-`make -C src test-web-channel` pins the result from the C side -- that the plate
-outside the box is byte-identical to its source, that the middle actually
-changed, and that the dock arrow is the pop-out arrow rotated 180. None of those
-is visible from the page, and a stamp that silently did nothing would give you a
-pop-out button wearing an X.
-
-## 5a. Opening it: the Manage Plugins button
-
-A wide stone plate at the bottom of the **logout tab**, reading "Manage
-Plugins". Also reachable by the `plugin_panel_toggle` debug action. It is the
-same control on every lane; only who builds it differs.
-
-**An authored gameframe authors it.** The 2004 profiles write it out as
-`[component:manage_plugins_*]` records plus a layout entry inside the logout
-tab (`revconfig/rs245_2lc`, read by 254, 289 and 377): a container carrying
-`option=Manage Plugins` / `option_action=PLUGIN_PANEL`, three
-`sprite=chrome:button_{left,mid,right}` graphics, and a `font=chrome:bold`
-caption. The op lands in `RS_MINIMENU_ACTION_PLUGIN_PANEL` and `app.c`'s
-dispatcher opens the window.
-
-**A cache gameframe gets the same plate built for it.** On a lane whose frame is
-a CS2 toplevel there are no authored records to add one to, so
-`app_plugin_button_sync` pushes the identical five components into the interface
-tree and answers its own click. Where they go is the profile's `[chrome]` block
--- the interface, the child to hang off, and the box inside it -- because those
-numbers are facts about a revision. A lane that states none of it builds
-nothing, which is exactly what the authored lanes want.
-
-It is **not** a sidebar tab, and that is a finding rather than a shortcut. A tab
-would be a `tab_icon` + `redstone_tab` + `sidebar` triple in a layout INI --
-which a cache gameframe has none of: the tab strip on screen is cache components
-with cache hooks. Declaring a builtin `tab_icon` anyway would render, and then
-route its click through `SET_SELECTED_TAB` -- selecting a tabno the gameframe
-does not have, which blanks its sidebar.
-
-**The art is the chrome's, not the cache's.** Three baked skin slots and a baked
-face, so the plate draws identically on a cache that carries neither -- which is
-the whole point of a button that opens the client's own furniture.
-
-Two things about it were bugs first:
-
-- **It must wait for the gameframe.** The plugin tick runs before the BOOTING
-  early-out -- deliberately, so the window is usable while a cache loads --
-  which means the first frames see an *empty* tree. A component built there
-  becomes the first root, which makes the gameframe's own group the odd one out
-  and blanks the screen; `ToriRSChrome_TreeAcceptsChrome` is that gate.
-- **It follows the plugin transport.** Every file the plugin system needs rides
-  `TORIRS_IOK_SCRIPT`, so with that transport down the button is *hidden*, not
-  merely unclickable -- the plate has no greyed variant, and its menu row is
-  suppressed by action (`RS_MinimenuBuildCtx::plugin_io_down`).
-
-### Closing it takes the presentation down with it
-
-Opening the window **binds** an executor and closing it **unbinds** one. The
-two are the same lever, and for a while only one end of it was wired: Close hid
-the panel, the executor went on being driven for a panel with nothing in it,
-and the plugin window stayed on screen -- empty -- while the client insisted it
-was closed. The next press of the toggle then spent itself re-closing something
-the user had already closed.
-
-The chain is worth stating because no link in it is obviously the owner:
-
-1. A close arrives. From the panel's own close box (any presentation), from
-   the window's title bar (SDL, GDI), from a popped-out tab being closed
-   (web), or from the toggle.
-2. It lands on the **model**: `CLOSE` ends at `PanelSetVisible(0)`, which is
-   what keeps five presentations of one panel from disagreeing about whether it
-   is up.
-3. The host reconciles its own flag against the model each frame -- the model
-   is the only thing every presentation shares, so it is the only place the
-   answer can be read -- and calls `app_plugin_window_set_open(app, 0)`.
-4. That calls `ToriRSChromeSync_Shutdown`, and the executor's own `end()`
-   decides what closing means: SDL destroys its aux window, GDI its HWND, the
-   web one calls the page's close hook.
-
-The host knows none of those four things, which is the point. The next open
-re-binds from scratch, so nothing carries a shadow of a window nobody can see
--- and a window taken down by *its* side is openable again, because `live` is
-the guard the bind reads.
-
-A presentation can also lose its window from its own side, and each says so in
-the model's vocabulary rather than going quiet: the web page reports a
-`CLOSE` when the popped-out tab is gone (polled in `takeIntent`, because the
-client already calls that once a frame and `unload` fires on a reload too), and
-the SDL executor reports its title-bar X.
-
-The SDL one **also drops the window at once**.
-That is a deliberate departure from the GDI rule ("report it, and let the model
-decide"): a Win32 window is still there to wait in, an aux window whose
-`SDL_Window` is gone is not, and presenting into it would be drawing into a
-window that no longer exists. It is the only intent a surface executor sends --
-every other gesture goes back raw through `surface_input` for the chrome to hit
-test itself -- and it needs the panel handle, which is the one thing that file
-reads out of the command stream (`PANEL_OPEN`).
-
-## 6. The plugin window
-
-One window, **paged**. The roster lists every plugin as a row carrying its
-name, its last fault, a switch and -- when it has anything to configure -- a
-way into its own page; that page holds its settings and whatever controls it
-declared, under a Back button. That is the sandbox rule made concrete: plugins
-share ONE extra window, and `api->win_request` claims a **page** in it rather
-than a window of its own.
-
-### Pages, not a tab per plugin
-
-This was a tab strip first, and a strip is the wrong shape for a roster: it
-lays its destinations out across one row, so eight plugins already compress
-their captions past reading and the ninth has nowhere to go. RuneLite's plugin
-panel answers the same problem with a scrolling list of rows -- each with its
-own switch -- and a drill-down into the one you asked about, so that is the
-navigation this borrows. What it does **not** borrow is the look: the rows are
-drawn in the game's own chrome by whichever executor is live.
-
-The row is its own widget kind (`TORIRS_CHROME_W_LISTROW`) rather than a checkbox
-with extras, because it has three zones and **two** outcomes -- flip the
-switch, or open the page -- and the model has to be able to say which one
-fired. It does that with `ToriRSChrome_ActivationWasAction` beside the ordinary
-activation latch, and `TORIRS_CHROME_INTENT_ACTION` carries the same
-distinction back from a native-widget executor. Putting the row in the MODEL is
-what gets every executor the same list, and the page state is the host's, so
-nothing below the seam knows a page changed.
-
-A row whose plugin has nothing to configure gets no affordance, and then its
-whole width toggles -- no zone is ever inert. "Nothing to configure" means no
-LABELLED config key and no declared control; an unlabelled key is state the
-plugin persists for itself, not something to hand-edit.
-
-It is its own `ToriRSChrome` instance rather than a panel in the developer
-chrome, because it is the one piece of chrome a *player* uses: it must be
-openable beside the game without the editors' claim on the keyboard, it needs
-capacity for every plugin's rows at once, and it is the surface an executor is bound to
-while the developer chrome stays in-canvas. The old objection -- "a second
-chrome is a second of all the focus, damage and scale handling" -- stopped
-applying once input routing became one shared call taking the instance
-(`app_chrome_route_input`).
-
-Toggle with the `plugin_panel_toggle` debug action (`p` in
-`manifests/manifest_osrs239_torirs.ini`).
-
-### Two kinds of row, on purpose
-
-- **Settings**, generated from the plugin's declared config schema, are
-  **staged**. Typing changes nothing until Save. *The chrome is the staging
-  buffer* -- a retained widget already holds exactly "what the user typed and
-  has not committed", so no third copy of a pending edit exists anywhere.
-- **Controls the plugin declared itself** are dispatched the moment they are
-  used, because a plugin's own button is an action rather than a setting.
-
-### Dropdowns need storage neither side owns
-
-A config schema's `choices` and a plugin's `win_set_options` are both one
-`"a|b|c"` string owned by the plugin. The chrome's dropdown *borrows* a
-`char const* const*` whose strings must outlive the widget. Neither shape fits,
-which is why both used to render as text fields with the choices printed in the
-label.
-
-The window now splits them into a pool on `struct App`, reset once per panel
-rebuild so the slices live exactly as long as the rows pointing into them. A
-declared enum is then a real dropdown -- which matters beyond looks: a text
-field that accepts anything for a key that accepts three things is a typo
-waiting to be saved.
-
-Save reads a dropdown's chosen **option**, not its text field; a dropdown's text
-is empty, and reading it wrote every enum key blank.
-
-### Colours are picked on the game's own axes
-
-A declared `CFG_COLOR` key is an **HSL16 picker** -- a swatch, a typeable hex,
-and a popup of three bars that are the palette's own axes: 64 hues, 8
-saturations, 128 lightnesses.
-
-Those axes rather than RGB, because a model face is not RGB. It is a 6-bit
-hue / 3-bit saturation / 7-bit lightness index into the revision's palette
-(which is why the plugin api has `hsl_from_rgb` at all), so a 24-bit picker
-would be lying about its own precision: two hexes the user can tell apart in
-the field land on one entry on screen. Picking on the axes makes every
-reachable value one the renderer can produce, and puts the quantisation where
-the user can see it -- the field shows the entry the colour landed on, not the
-colour that was asked for.
-
-The hex stays editable, because a colour usually arrives as a hex out of a wiki
-page or another client. Typing one commits on Enter or on blur, never per
-keystroke: half a hex is not a colour, and a swatch flickering through six
-wrong ones while the right one is typed reads as a fault.
-
-**The store round trip has to hold still, and with the reference quantiser it
-did not.** `hsl_from_rgb` is the function Jagex's toolchain used to turn
-authored art into palette indices; it is not an inverse of the palette and
-cannot be made into one (the palette puts hue *h* at `(h + 0.5) / 64` and it
-recovers hue with `ceil(hue * 64) % 63`). Measured: 63813 of the 65536 entries
-fail to survive one `hsl -> rgb -> hsl` trip. Since Save writes the hex and the
-next open reads it back, a marker colour drifted a shade per session. The
-picker therefore uses `ToriRSChrome_Hsl16NearestRgb`, an exact nearest-entry
-search -- an entry matching at distance zero always exists, so the trip is
-stable by construction. Both conversions are kept, and
-`test-debug-overlay-visual` pins the difference so a future simplification back
-onto one of them fails there rather than in a settings panel months later.
-
-Each executor maps the widget onto its own idiom, the way it already does for
-dropdowns:
-
-| | How a colour row appears |
-|---|---|
-| `buffer` / `sdl` | The swatch, the hex, and the three bars; a press-sweep-release along a bar moves that axis, and the wheel steps it one value |
-| `web` | `<input type="color">` beside the hex. The browser's picker is 24-bit; what comes back is a TEXT intent the MODEL quantises, so the swatch visibly snaps to a palette entry |
-| `gdi` | A clickable coloured `STATIC` beside the `EDIT`; it expands three ToriRS-styled H/S/L bars inline, with click-and-drag selection at the renderer's real HSL16 resolution |
-
-The seam carries no new command for any of it. The value rides
-`WIDGET_SELECTED` (a colour *is* a selection out of a palette), the hex rides
-`WIDGET_TEXT`, and "the axis popup is open" rides `WIDGET_CHECKED` -- which is
-what lets a native-widget executor draw its own bars without being told in a
-vocabulary of its own. The two zones of the row are told apart by *which*
-intent arrives: `ACTIVATE` is the swatch, `ACTION` is the field. A coordinate
-would have made every executor carry the row's geometry, which is the thing the
-seam exists to avoid.
-
-### The plugin API (ABI 5)
+| Android | `android.webkit.WebView` | `legacy-ie8.html` on the supported API 22/Chrome 39 device | Child of the existing Activity layout beside, or in compact mode instead of, the game `SurfaceView` |
+| Web | One application-owned persistent iframe in the existing browser tab | `modern.html` | Normal-flow sibling of the game region; no per-plugin iframe or popup |
+| macOS | `WKWebView` | `modern.html` | Child of the SDL window's Cocoa content view |
+| Windows 10+ x64 | WebView2 controller | `modern.html` | Child of the existing main `HWND`'s chrome container |
+| Windows XP | `IWebBrowser2` / MSHTML ActiveX control | `legacy-ie8.html` | Child of the existing main `HWND`'s chrome container |
+| Linux | Deferred | None claimed | The former SDL surface presenter is not the final browser architecture |
+
+The Web lane's top-level page owns one stable
+[`plugin-chrome-mount`](../src/web/index.html). The host in
+[`torirs_chrome.js`](../src/web/torirs_chrome.js) creates exactly one iframe in
+that mount, loads `plugin_chrome/modern.html`, and keeps the iframe across every
+selection and collapse. The iframe is the sole plugin-chrome browsing context
+and document; it is not one iframe per plugin. No plugin can create or navigate
+it, and the runtime must not create a nested iframe, popup, or second
+plugin-chrome document.
+
+Linux browser integration is intentionally deferred. Documentation and tests
+must not represent the old SDL texture pane as completion of the WebView
+architecture.
+
+### Android
+
+[`PluginChromeLayout`](../android/src/main/java/com/torirs/client/PluginChromeLayout.java)
+owns the game surface, overlay, and one persistent WebView. Collapsed mode
+allocates only the 46dp rail. Expanded wide mode partitions the Activity as
+`game | browser`. Compact expanded mode hides the game and gives the same
+browser the Activity content area. No selection or collapse path calls
+`WebView.destroy()`.
+
+[`PluginChromePresenter`](../android/src/main/java/com/torirs/client/PluginChromePresenter.java)
+loads the packaged legacy entry point explicitly. This is a compatibility
+choice for the physical API 22 device's Chrome 39 WebView, not user-agent
+sniffing and not permission for plugin-authored markup. The presenter disables
+network loads, multiple windows, file-to-network access, DOM storage, and
+external navigation. Its typed JavaScript bridge validates bounded JSON and
+copies intents onto the native queue.
+
+The runtime uses CSS logical pixels. Android density scales the complete
+composition; Java must not independently double rows, icons, or skin pieces.
+Insets are applied to the persistent WebView, and `editor.focus` prevents a
+focused HTML editor from leaking key or inset handling to the game.
+
+### Web
+
+The top-level browser document owns one persistent plugin-chrome iframe. Its
+mount is a normal-flow sibling of the game region and remains a stable node
+across plugin selection. The iframe loads the canonical modern bundle once.
+Its rail remains mounted while collapse clears the page root and reduces the
+allocated width. Compact exclusive mode may hide the game region, but it does
+not create another plugin-chrome document.
+
+Pop-out windows, nested iframes, and additional/per-plugin iframe instances are
+outside this contract: each would add another plugin-chrome document lifetime
+and complicate the single active page rule. The Web host and embedded runtime
+stop pointer, touch, wheel, keyboard, and composition events before game
+listeners can receive them.
+
+### macOS
+
+[`platform_macos_webview.m`](../src/platform/platform_macos_webview.m) embeds one
+WKWebView in the SDL-created Cocoa window. The object is shared by all plugins,
+tracks the trailing chrome allocation, and survives page close/collapse. It
+loads a private staged copy of the modern bundle and skin, permits only files
+below that root, rejects navigation and new windows, and returns copied JSON
+through one `WKScriptMessageHandler`.
+
+The macOS host uses the shared browser executor in
+[`torirs_chrome_exec_winbrowser.c`](../src/ui/torirs_chrome_exec_winbrowser.c);
+the filename reflects its first use, not Windows-only semantics. The platform
+backend supplies the browser transport while the executor supplies the common
+retained protocol projection.
+
+### Modern Windows
+
+[`platform_win32_webview2.c`](../src/platform/platform_win32_webview2.c) owns one
+WebView2 controller inside the existing plugin-chrome child container. It does
+not create a second top-level window or game renderer. The controller is
+created once for the owning main window, resized between rail-only and
+rail-plus-page allocations, and released at main-window shutdown.
+
+The host stages the modern bundle and skin in an application-owned local root,
+injects the copied post-message bridge, and blocks navigation, permissions,
+downloads, new windows, and resources outside the allowed roots. D3D9 and GDI
+continue to receive the game-only client rectangle; the browser owns only its
+trailing allocation.
+
+### Windows XP
+
+[`platform_win32_mshtml.c`](../src/platform/platform_win32_mshtml.c) hosts the
+system `IWebBrowser2`/MSHTML ActiveX control in the same child container used by
+modern Windows. It is still exactly one browser instance and no auxiliary
+top-level window. The application asks for IE8 standards mode when available,
+but the legacy bundle deliberately stays within an IE6/7-safe ES3 DOM subset.
+
+XP cannot rely on canvas, data URLs, CSS Grid, CSS variables, modern events, or
+native `JSON`. The compatibility page uses table/absolute layout, the bundled
+codec, ordinary local `IMG` URLs, and host-staged BMP/GIF resources. Transparent
+images may use MSHTML's AlphaImageLoader path. Plugin icons and custom bitmaps
+are opaque, revisioned local names under a per-process private directory; the
+browser never receives an arbitrary plugin filesystem path.
+
+The XP executable must keep its XP loader/import floor. Browser support comes
+from the OS-provided COM control and must not add WebView2, CEF, or a post-XP
+loader-time import.
+
+## 5. Expand, collapse, and replacement
+
+The visible shell has two retained roots:
+
+- the rail root contains Manage Plugins plus up to 32 plugin destinations;
+- the page root contains either no page or the most recently selected page.
+
+State transitions do not navigate the browser:
+
+1. Clicking an inactive rail icon selects it, expands the shell, and replaces
+   the page root with that plugin's page snapshot.
+2. Clicking the expanded selected icon collapses the page but retains the
+   browser, rail, selection metadata, and icon cache.
+3. Clicking the selected icon while collapsed rebuilds only that selected page
+   in the existing page root.
+4. Clicking another icon invalidates the old generation, clears focus and
+   custom frames, and replaces the page in the same browser.
+5. Application-window shutdown is the only normal path that destroys the
+   browser instance.
+
+In split mode the platform publishes a game rectangle and a browser rectangle
+that do not overlap. In compact exclusive mode the browser receives the usable
+window and the game is hidden. Browser blank space still belongs to the browser
+and cannot generate game input.
+
+## 6. Retained performance contract
+
+The retained model is valuable even though presentation is HTML:
+
+- A clean model performs no build, browser transaction, DOM walk, or bitmap
+  upload.
+- A changed model emits one atomic snapshot/delta transaction. Property
+  changes update an existing DOM control instead of recreating the page.
+- The selected plugin is the only plugin allowed to build a page or receive
+  page input/draw work.
+- The one browser and one document are reused across every plugin selection,
+  so engine startup, script parse, stylesheet parse, and skin decode are paid
+  once per application-window lifetime.
+- Rail snapshots and authored icons are gated by revisions. Custom bitmaps are
+  gated by page generation, widget serial, and bitmap revision.
+- The browser owns caret and composition state. A model echo does not replace a
+  focused editor or overwrite the browser's current selection.
+
+The semantic limits remain bounded: one selected page, at most 48 semantic
+nodes authored by a plugin, 32 plugin registry entries plus Manage Plugins, and
+host-capped command, JSON, icon, and custom-bitmap buffers. A browser bridge
+must reject overflow rather than allocate without bound or block the game
+thread.
+
+## 7. ToriRS modern OSRS presentation
+
+Both pages render from the shared skin in
+[`res/plugin_chrome/skin`](../res/plugin_chrome/skin). Host-owned frame corners,
+edges, panel body, buttons, checks, dropdown, scroll furniture, close mark, and
+fallback wrench are composed as retained DOM elements. Plugin-authored icons
+occupy only the icon well; the rail plate, hover, selected state, badge,
+attention treatment, tooltip, and accessible label remain host-owned.
+
+The authored 1x metrics are shared with
+[`torirs_chrome_metrics.h`](../src/ui/torirs_chrome_metrics.h): 18px rows, 3px
+row gaps, 6px panel padding, a 104px label column, 17/18px checks, 20px tabs,
+and 16px scroll furniture. Those values are logical CSS pixels. Device scale
+applies to the whole page, and pixel-art assets use nearest-neighbor rendering
+where the engine supports it.
+
+Text uses the converted cache bake in
+[`res/plugin_chrome/font`](../res/plugin_chrome/font/README.md), not a system
+lookalike. Body/p12 and Menu/b12 retain their authored 12px glyphs, 16px line
+box, and baked advances; Small retains 10px/12px. Modern engines load WOFF with
+TTF fallback. XP's legacy page loads direct EOT Classic files rooted to
+`file:///`; Android's Chrome-39 path selects separate WOFF/TTF aliases so it
+never attempts the EOT face. Text remains normal selectable/accessibility DOM
+text.
+
+The legacy page may use older layout machinery, but it must preserve the same
+silhouette, palette, spacing, skin pieces, and interaction states. Compatibility
+is not permission to fall back to generic white browser controls.
+
+## 8. Plugin API, icons, and custom regions
+
+Registration occurs from `EV_START`; only the selected plugin builds during
+`EV_PANEL_BUILD`:
 
 ```lua
-function M.on_ui_build(api)          -- raised whenever the tab is EMPTY
-  api.window.request("Beam Demo")
-  api.window.widget("checkbox", "live", "live preview")
-  api.window.widget("input", "note", "note")
-  api.window.widget("button", "reset", "Reset counter")
-  api.window.set_checked("live", true)
+function M.on_start(api)
+  api.panel.request({
+    title = "Panel Demo",
+    icon_asset = "panel_icon.png",
+    preferred_width = 320
+  })
 end
 
-function M.on_ui(api, ev)            -- ev.widget, ev.action, ev.value, ev.on, ev.text
-  if ev.widget == "reset" then ... end
+function M.on_panel_build(api)
+  api.panel.widget("key_value", "count", "Button presses")
+  api.panel.widget("toggle", "enabled", "Live updates")
+  api.panel.widget("input", "note", "Note")
+  api.panel.widget("dropdown", "mode", "Mode")
+  api.panel.widget("button", "increment", "Increment")
+  api.panel.widget("custom", "chart", "Activity chart")
 end
 ```
 
-Controls are named by plugin-scoped **string ids**, not handles, because a
-reload rebuilds the tab from nothing: an id survives that and a handle does not.
+`icon_asset` is a sandboxed plugin asset name, not a filesystem path, URL,
+resource ID, SVG, or callback. The host decodes it once, caps it at 64x64 and
+256KiB, and publishes a host-owned revision. Missing or invalid art selects the
+baked fallback wrench.
 
-`on_ui_build` rather than `on_start` is where a tab is declared, and the host
-re-raises it whenever the tab is empty -- after a reload, after a re-enable,
-when the window is first opened. One declaration site covers every way the tab
-can come back. A plugin that built its tab only in `on_start` would come back
-from a reload with a blank one.
+A `custom` node remains semantic. `EV_PANEL_DRAW` draws through the portable
+draw API into a bounded host-owned retained bitmap. Modern engines and Android
+Chrome 39 can consume copied RGBA; XP receives a revisioned local BMP/GIF URL.
+Clicks return node-local coordinates with the page generation and widget
+serial. Collapse or replacement stops draw callbacks and invalidates old
+frames.
 
-`PluginHost_WinBuild` is called for **every** plugin, not only those that
-already have a tab. "Already has a tab" is a deadlock: claiming the tab is the
-first thing a plugin does inside the build handler.
+## 9. Executor selection
 
-### Chrome is not game content, and the game had to be told
+Production manifests use:
 
-Two ways client chrome leaked into machinery that has no business seeing it:
-
-- **The minimenu and the mouseover text.** The Manage Plugins button is a real
-  interface component, armed for clicks so the client hears about it -- and
-  that arming is exactly what `RS_Minimenu_Build` reads. So it grew a
-  right-click menu offering "Continue" (the generic verb the reference gives a
-  component a script enabled), and the mouseover text said so too.
-  `add_component_rows` now returns nothing for the chrome group, which covers
-  the right-click menu, the left-click default row and the mouseover text in
-  one test, because all three are that one build.
-
-- **The keyboard.** A chrome field under the caret is the model's, and the host
-  routes keys into it long before the game's own key handling runs -- but
-  nothing downstream knew. So typing a colour into a plugin's field ALSO ran
-  every armed `onKey` script and typed the same characters into the chat line,
-  and an Enter meant to commit the field sent whatever was in the chat box.
-  `app_text_input_focused` had the same hole: it named `dbg_ui` and not
-  `plugin_ui`, so a plugin field's keystrokes fired debug hotkeys too. Both now
-  go through `app_chrome_holds_keyboard`, which names both instances.
-
-The second of these is why the fields *looked* uneditable: they were not. They
-took typing and showed it, with no caret, no focus ring, and the same
-keystrokes going into the chat line underneath. See `WIDGET_FOCUS` in §4.
-
-## 7. Save and reload
-
-Save writes the staged settings and then **reloads the plugin**. The reload is
-the point rather than a courtesy: a plugin reads its config in `on_start` and
-caches what it found, so writing a key underneath a running plugin leaves it
-running on the old value with the panel showing the new one.
-
-```
-Save  →  ConfigSet per staged row  →  PluginHost_Reload
-             │                            │
-             │                            ├── teardown: EV_STOP, shutdown, drop subs,
-             │                            │            world objects, assets, window tab
-             │                            ├── def->reload(ctx)      ← the adapter rebuilds
-             │                            ├── re-seed schema, PRESERVING saved values
-             │                            └── Start → EV_START      ← on_start sees the new config
-             └── prefs file written by the existing settle-delayed task
+```ini
+[chrome]
+executor=platform
 ```
 
-Two properties are tested and both matter:
+`platform` selects Android's WebView bridge, the Web persistent-iframe bridge,
+macOS's WKWebView bridge, or the Windows browser bridge. `browser` explicitly
+names the common embedded-browser semantic executor on macOS and Windows;
+`android` and `web` name their platform transports. The old spelling `gdi` is
+accepted only as an alias for `browser` and does not revive the native GDI
+presenter.
 
-- **Saved values survive the reload.** A reload that re-seeded defaults over the
-  store would make Save a button that resets the plugin.
-- **Keys the reloaded source newly declares arrive with their defaults**, so a
-  script that gained a setting comes back with it populated.
+`buffer` and `sdl` are developer/legacy executors. They are not the final
+plugin-chrome architecture. Linux currently has no approved browser-backed
+`platform` implementation because that work is deferred.
 
-`def->reload` exists because a scripted plugin's reload is something only its
-adapter can do: the host can drop subscriptions and call `init` again, but
-`init` for a Lua script re-subscribes the *same* function references, so the
-file's text is never re-executed and the reload changes nothing. The Lua adapter
-keeps each script's source on the C heap (the per-script Lua arena is exactly
-what a reload throws away) and rebuilds the VM from it through the same
-`lua_script_build` path a first load takes -- anything a reload did differently
-would be a difference that only shows up after a reload.
+## 10. Verification
 
-A disabled plugin is left alone: it is already torn down, and reloading it would
-switch it back on behind the user's back.
-
-## 8. Testing
-
-| Target | Covers |
+| Target | Coverage |
 |---|---|
-| `make -C src test-uitree` | Chrome model (tabs, buttons, scrolling, widget removal) and the executor seam (deltas, ordering, intents, refusal) |
-| `make -C src test-debug-overlay-visual` | What the chrome looks like, as BMPs into `src/build/` -- including a tabbed, scrolling panel |
-| `make -C src test-plugin-host` | The window registry, dispatch, and reload, against a fake engine with no window at all |
-| `make -C src test-web-channel` | The web executor's DOM half, driven against a fake document -- node only, no browser |
-| `make -C src check-gdi-syntax` | That `torirs_chrome_exec_gdi.c` still parses, on a machine with no Windows SDK |
+| `make -C src test-uitree` | Retained identity, focus, damage, delta ordering, and clean-path behavior |
+| `make -C src test-plugin-host` | Registry, selection generations, selected-only page build/input/draw, reload, and collapse |
+| `make -C src test-web-channel` | Modern and legacy reducer behavior plus downlevel syntax/DOM compatibility and the Web DOM/channel suite |
+| `make -C src test-chrome-android-exec` | Android semantic transactions, serials, bounded queues, rail snapshots, and intents |
+| `make -C src test-chrome-browser-exec` | Shared embedded-browser snapshots/deltas, replacement, collapse, and intent fencing |
+| `make -C src PLATFORM=win64 capture-win32-plugin-chrome` | Real WebView2 child, local bundle, authored icon, semantic page, and capture |
 
-End-to-end, headlessly:
+Platform runtime verification must also prove:
 
-```sh
-TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 \
-TORIRS_PLUGIN_MANIFEST=plugins/_windemo.ini TORIRS_PLUGIN_PREFS= \
-TORIRS_SIM_HOTKEY="150,p" TORIRS_SIM_CLICK_AT="200,110,100" \
-TORIRS_EXIT_BMP=/tmp/win.bmp TORIRS_MAX_FRAMES=280 \
-./src/torirs --soft3d --manifest manifests/manifest_osrs239_torirs.ini
-```
+- one browser object before and after repeated selections and collapses;
+- no page from a nonselected plugin in the DOM;
+- no browser navigation, popup, download, permission, or network path;
+- no pointer, wheel, keyboard, or composition leakage into the game;
+- game/browser rectangles remain disjoint through resize, fullscreen, and
+  compact exclusive transitions;
+- the modern OSRS skin remains legible at each supported density; and
+- the Android API 22 and Windows XP compatibility pages execute without modern
+  syntax or DOM APIs.
 
-Add `TORIRS_CHROME_EXECUTOR=sdl TORIRS_CHROME_DEBUG=1` and
-`TORIRS_SIM_HOTKEY="150,p;220,p;280,p"` to watch the window open, close and
-open again: the debug line reports each `set_open`, and the aux window's own
-lifetime has to follow it. That toggle is the same host path a click on Close
-takes, which is why it is the one worth simulating -- an aux window's own
-pointer cannot be simulated at all.
+## 11. Source map
 
-Add `TORIRS_CHROME_BORDERLESS=1` to open that window with no OS frame. Under
-`SDL_VIDEODRIVER=dummy` it prints the refusal (`no window hit test`) and keeps
-the frame, which is the branch worth having in a headless run; on a real driver
-it prints `plugin window has no OS frame`. What cannot be simulated either way
-is the pointer inside that window, so the handles and holes themselves are
-pinned in `test-uitree` against the model instead --
-`test_chrome_exec_drag_region`, which asserts both halves of every box: this one
-drags the window, and that one still reaches the control drawn on it.
-
-`script/plugins/_windemo.lua` is a probe plugin that exists only to exercise the
-window API -- it draws nothing and touches no world state, so what it proves is
-the surface the executors have to carry and nothing else.
-
-To A/B an executor against the canvas, run the same command with
-`TORIRS_CHROME_EXECUTOR=buffer` and `=sdl` and sample canvas pixels where the
-in-canvas panel would be: panel body under `buffer`, world under `sdl`. That is
-the verification COMMON-CHROME-001 asks for.
-
-## 9. Where things live
-
-| Path | What |
+| Path | Responsibility |
 |---|---|
-| `src/ui/uitree_debug_overlay.{h,c}` | The chrome: model, layout, display list, input |
-| `src/ui/torirs_chrome_exec.{h,c}` | The seam: commands, intents, sync, buffer + recorder executors, the chooser |
-| `src/ui/torirs_chrome_mirror.{h,c}` | Handle→native map, row order and the intent queue -- shared by all three native-widget executors |
-| `src/ui/torirs_chrome_exec_sdl.c` | The SDL surface executor |
-| `src/ui/torirs_chrome_exec_web.c` | The web executor's C half |
-| `src/web/torirs_chrome.js` | The web executor's DOM half |
-| `src/ui/torirs_chrome_exec_gdi.c` | The Win32 executor |
-| `src/platform/platform_sdl2.{h,c}` | `PlatformWindow_Aux*` -- the auxiliary window; `*_SetBorderless` / `*_SetDragHandleProvider` -- the frameless one |
-| `src/plugin/torirs_plugin.h` | The plugin contract, ABI 5: `win_*`, `EV_UI`, `EV_UI_BUILD` |
-| `src/plugin/torirs_plugin_host.{h,c}` | The window registry, dispatch, `PluginHost_Reload` |
-| `src/plugin/torirs_plugin_lua.c` | `api.window.*`, `on_ui` / `on_ui_build`, rebuild-from-source |
-| `src/plugin/torirs_plugin_panel.u.c` | The plugin window itself (included into `app.c`) |
-| `docs/platform_quirks.md` | COMMON-CHROME-001, and the WINDOWS-HOST-001 amendment |
+| [`src/plugin_chrome/`](../src/plugin_chrome/README.md) | Canonical modern/legacy application bundle and protocol |
+| [`src/plugin/torirs_plugin_host.{h,c}`](../src/plugin/torirs_plugin_host.h) | Registry, selected page, generations, serials, and draw invalidation |
+| [`src/ui/torirs_chrome_exec.{h,c}`](../src/ui/torirs_chrome_exec.h) | Semantic commands, intents, and executor selection |
+| [`src/ui/torirs_chrome_rail.{h,c}`](../src/ui/torirs_chrome_rail.h) | Persistent rail snapshots and revisioned icon publication |
+| [`src/ui/torirs_chrome_exec_winbrowser.c`](../src/ui/torirs_chrome_exec_winbrowser.c) | Common embedded-browser protocol projection |
+| [`android/.../PluginChromeLayout.java`](../android/src/main/java/com/torirs/client/PluginChromeLayout.java) | Android game/browser split and compact exclusive layout |
+| [`android/.../PluginChromePresenter.java`](../android/src/main/java/com/torirs/client/PluginChromePresenter.java) | One locked-down persistent Android WebView and typed bridge |
+| [`src/platform/platform_macos_webview.m`](../src/platform/platform_macos_webview.m) | One attached WKWebView transport |
+| [`src/platform/platform_win32_webview2.c`](../src/platform/platform_win32_webview2.c) | One attached modern Windows WebView2 transport |
+| [`src/platform/platform_win32_mshtml.c`](../src/platform/platform_win32_mshtml.c) | One attached XP IWebBrowser2/MSHTML transport |
+| [`src/web/torirs_chrome.js`](../src/web/torirs_chrome.js) | One persistent Web iframe and the Wasm/protocol bridge |
+| [`old/plugin_chrome_native/`](../old/plugin_chrome_native/README.md) | Archived native/surface prototype material |

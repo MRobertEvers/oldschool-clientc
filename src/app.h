@@ -161,14 +161,20 @@ enum AppPluginRowKind
     /** A control the plugin declared itself. Dispatched on use, not staged: a
      *  plugin's own button is an action, not a setting. */
     APP_PLUGIN_ROW_PLUGIN_WIDGET,
+    /** An ABI-21 semantic control belonging to the one selected panel model.
+     *  Its generation and serial are checked again by PluginHost at dispatch. */
+    APP_PLUGIN_ROW_PANEL_WIDGET,
     APP_PLUGIN_ROW_SAVE,
     APP_PLUGIN_ROW_REVERT,
 };
 
 /** Choice strings across every dropdown in the plugin window at once. */
 #define APP_PLUGIN_CHOICES_MAX 128
-/** Room for both chrome instances' display lists at once. */
-#define APP_CHROME_PRIMS_MAX (2 * TORIRS_CHROME_MAX_PRIMS)
+/** Retained portable primitives across every custom well on the active page. */
+#define APP_PLUGIN_PANEL_OVERLAYS_MAX 512
+/** Room for both chrome instances plus converted panel-local primitives. */
+#define APP_CHROME_PRIMS_MAX                                                                   \
+    (2 * TORIRS_CHROME_MAX_PRIMS + APP_PLUGIN_PANEL_OVERLAYS_MAX)
 
 /* World objects across every plugin at once. Per-plugin budgeting is the
  * host's (TORIRS_PLUGIN_OBJECT_BUDGET); this is the ceiling on the table those
@@ -576,7 +582,9 @@ enum AppPluginSurface
 {
     APP_PLUGIN_SURFACE_WORLD = 0,
     APP_PLUGIN_SURFACE_CANVAS = 1,
-    APP_PLUGIN_SURFACE_FRAME = 2
+    APP_PLUGIN_SURFACE_FRAME = 2,
+    /** Selected semantic page's custom well; never enters a game draw list. */
+    APP_PLUGIN_SURFACE_PANEL = 3
 };
 
 /** App boot lifecycle: BOOTING until the root-interface build task (and its
@@ -1227,9 +1235,34 @@ struct App
      */
     struct UITreeEntityOverlay frame_overlays[512];
     int frame_overlay_count;
-    /** Which of the three lists the plugin draw verbs append to this dispatch
-     *  -- enum AppPluginSurface, which IS the host's enum PluginDrawSurface.
-     *  Set by the host around each draw window. */
+    /**
+     * Retained custom-page drawing, isolated from all three game lists.
+     *
+     * Each item is tagged by the semantic widget serial that owns it. Redrawing
+     * one dirty custom well replaces only that serial's run; unchanged wells
+     * survive without invoking their plugin again. The stage is committed only
+     * after the generation/serial still name the selected page.
+     */
+    struct UITreeEntityOverlay panel_overlays[APP_PLUGIN_PANEL_OVERLAYS_MAX];
+    uint32_t panel_overlay_owner[APP_PLUGIN_PANEL_OVERLAYS_MAX];
+    int panel_overlay_count;
+    struct UITreeEntityOverlay panel_overlay_stage[APP_PLUGIN_PANEL_OVERLAYS_MAX];
+    int panel_overlay_stage_count;
+    int panel_overlay_stage_active;
+    int panel_overlay_stage_overflow;
+    int panel_overlay_origin_x;
+    int panel_overlay_origin_y;
+    int panel_overlay_scale;
+    struct ToriRSChromeRect panel_overlay_clip;
+    uint32_t panel_overlay_generation;
+    uint32_t panel_overlay_revision;
+    uint64_t panel_custom_last_draw_cycle;
+    int panel_custom_has_draw_cycle;
+    /** Reused native-widget custom raster; the sink copies before return. */
+    uint32_t* panel_custom_pixels;
+    size_t panel_custom_pixel_capacity;
+    /** Which draw list the plugin verbs append to this dispatch -- enum
+     * AppPluginSurface, which IS the host's enum PluginDrawSurface. */
     int plugin_draw_canvas;
     /*
      * Clickable rectangles a plugin claimed while drawing its canvas overlay.
@@ -1811,6 +1844,12 @@ struct App
      * one with a choice.
      */
     struct ToriRSChromeSync plugin_exec;
+    /** Persistent navigation bridge. Unlike plugin_exec this is never shut
+     * down when the selected page collapses. */
+    struct ToriRSChromeRailSync plugin_rail;
+    /** Latest presenter-owned page allocation, generation fenced. */
+    struct ToriRSChromeRailIntent plugin_rail_layout;
+    int plugin_rail_has_layout;
     /**
      * The vtable the shell handed over, not yet started.
      *
@@ -1846,6 +1885,7 @@ struct App
     /** The build serials the merge was made from. */
     int chrome_merged_dbg;
     int chrome_merged_win;
+    uint32_t chrome_merged_panel;
     /** Tree node of the client-built "Manage Plugins" button, or -1. Rechecked
      *  rather than trusted: a tree rebuild takes it, and the index alone cannot
      *  say so. */
@@ -1888,6 +1928,12 @@ struct App
      *  plugin can declare or drop controls at any time. */
     int plugin_panel_built_for;
     int plugin_panel_built_rev;
+    /** ABI-21 model stamps used by the shared ToriRSChrome presenter. */
+    uint32_t plugin_panel_built_model_rev;
+    uint32_t plugin_panel_built_generation;
+    uint32_t plugin_panel_built_registry_rev;
+    /** Strictly increasing within (and harmlessly across) selections. */
+    uint64_t plugin_panel_intent_sequence;
 
     struct AppPluginPanelRow
     {
@@ -1899,6 +1945,14 @@ struct App
         int cfg_index;
         /** PLUGIN_WIDGET: the id the plugin gave it. */
         char widget_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
+        /** PANEL_WIDGET: identity and semantic kind copied with the row. */
+        uint32_t widget_serial;
+        int widget_kind;
+        /** Last resolved custom drawing geometry, in executor pixels. */
+        struct ToriRSChromeRect custom_region;
+        struct ToriRSChromeRect custom_clip;
+        int custom_layout_valid;
+        int custom_present_pending;
     } plugin_panel_rows[APP_PLUGIN_PANEL_ROWS_MAX];
     int plugin_panel_row_count;
     /**

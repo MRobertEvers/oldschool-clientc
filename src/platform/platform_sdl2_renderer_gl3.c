@@ -270,6 +270,8 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
     renderer->rotmask_last_texture = 0u;
     if( renderer->white_texture )
         glDeleteTextures(1, &renderer->white_texture);
+    if( renderer->chrome_texture )
+        glDeleteTextures(1, &renderer->chrome_texture);
     if( renderer->quad_vao )
         glDeleteVertexArrays(1, &renderer->quad_vao);
     if( renderer->quad_vbo )
@@ -286,6 +288,9 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
     renderer->atlas_texture = 0u;
     renderer->sprite_atlas_texture = 0u;
     renderer->white_texture = 0u;
+    renderer->chrome_texture = 0u;
+    renderer->chrome_texture_w = 0;
+    renderer->chrome_texture_h = 0;
 }
 
 static void
@@ -4905,6 +4910,15 @@ ToriRS_GL3_SetViewport(
 }
 
 void
+ToriRS_GL3_SetHostRightInset(struct ToriRS_GL3* renderer, int pixels)
+{
+    assert(renderer);
+    if( pixels < 0 )
+        pixels = 0;
+    renderer->host_right_inset = pixels;
+}
+
+void
 ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
 {
     if( !renderer )
@@ -5393,6 +5407,13 @@ ToriRS_GL3_DrawBootBar(
     int drawable_w = gl3->width;
     int drawable_h = gl3->height;
     ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
+    int const full_drawable_w = drawable_w;
+    if( gl3->host_right_inset > 0 )
+    {
+        drawable_w -= gl3->host_right_inset;
+        if( drawable_w < 1 )
+            drawable_w = 1;
+    }
 
     struct TRSPK_Letterbox lb;
     trspk_compute_letterbox(gl3->width, gl3->height, drawable_w, drawable_h, &lb);
@@ -5401,7 +5422,7 @@ ToriRS_GL3_DrawBootBar(
     gl3->lb_w = lb.w;
     gl3->lb_h = lb.h;
 
-    glViewport(0, 0, drawable_w, drawable_h);
+    glViewport(0, 0, full_drawable_w, drawable_h);
     if( clear_only )
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     else
@@ -5482,6 +5503,13 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
     int drawable_w = gl3->width;
     int drawable_h = gl3->height;
     ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
+    int const full_drawable_w = drawable_w;
+    if( gl3->host_right_inset > 0 )
+    {
+        drawable_w -= gl3->host_right_inset;
+        if( drawable_w < 1 )
+            drawable_w = 1;
+    }
 
     {
         struct TRSPK_Letterbox lb;
@@ -5492,7 +5520,7 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
         gl3->lb_h = lb.h;
     }
 
-    glViewport(0, 0, drawable_w, drawable_h);
+    glViewport(0, 0, full_drawable_w, drawable_h);
     glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -5533,6 +5561,99 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
             free(top);
         }
     }
+}
+
+void
+ToriRS_GL3_DrawChromePixels(
+    struct ToriRS_GL3* gl3, int const* pixels, int width, int height)
+{
+    int drawable_w = 0;
+    int drawable_h = 0;
+    int pane_w;
+    float projection[16];
+    float const white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    assert(gl3);
+    if( width <= 0 || height <= 0 || gl3->host_right_inset <= 0 )
+        return;
+    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
+    if( drawable_w <= 0 || drawable_h <= 0 )
+        return;
+    pane_w = gl3->host_right_inset;
+    if( pane_w > drawable_w )
+        pane_w = drawable_w;
+
+    if( !gl3->chrome_texture )
+        glGenTextures(1, &gl3->chrome_texture);
+    if( !gl3->chrome_texture )
+        return;
+    glBindTexture(GL_TEXTURE_2D, gl3->chrome_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    if( pixels )
+    {
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        if( gl3->chrome_texture_w != width || gl3->chrome_texture_h != height )
+        {
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RGBA8,
+                width,
+                height,
+                0,
+                GL_BGRA,
+                GL_UNSIGNED_BYTE,
+                pixels);
+            gl3->chrome_texture_w = width;
+            gl3->chrome_texture_h = height;
+        }
+        else
+            glTexSubImage2D(
+                GL_TEXTURE_2D,
+                0,
+                0,
+                0,
+                width,
+                height,
+                GL_BGRA,
+                GL_UNSIGNED_BYTE,
+                pixels);
+    }
+    if( gl3->chrome_texture_w <= 0 || gl3->chrome_texture_h <= 0 )
+    {
+        glBindTexture(GL_TEXTURE_2D, 0);
+        return;
+    }
+
+    /* One retained textured quad after the game. The game renderer already
+     * cleared the full drawable and restricted its own letterbox to the space
+     * left of host_right_inset, so this cannot cover a gameframe pixel. */
+    gl3_flush_2d_batch(gl3);
+    glViewport(drawable_w - pane_w, 0, pane_w, drawable_h);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glUseProgram(gl3->program2d);
+    trspk_mat4_ortho2d_top_left(projection, 0.0f, (float)width, (float)height, 0.0f);
+    glUniformMatrix4fv(gl3->u2d_projection, 1, GL_FALSE, projection);
+    gl3_bind_quad_attribs(gl3);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gl3->chrome_texture);
+    glUniform1i(gl3->u2d_texture, 0);
+    if( gl3->u2d_text_mode >= 0 )
+        glUniform1i(gl3->u2d_text_mode, 0);
+    if( gl3->u2d_uv_clamp >= 0 )
+        glUniform1i(gl3->u2d_uv_clamp, 0);
+    gl3_draw_textured_quad_immediate(
+        gl3, 0.0f, 0.0f, (float)width, (float)height, 0.0f, 0.0f, 1.0f, 1.0f,
+        white);
+    gl3_unbind_attribs(gl3);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 /*

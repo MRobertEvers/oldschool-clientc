@@ -5,6 +5,11 @@
 #include "input/torirs_touch.h"
 #include "platform/platform_app_icon.h"
 
+#if defined(__APPLE__)
+#include "platform/platform_macos_webview.h"
+#include <SDL_syswm.h>
+#endif
+
 #include <SDL.h>
 
 #include <assert.h>
@@ -47,6 +52,8 @@ struct SdlHitState
  * beside it.
  */
 #define SDL_BORDERLESS_RESIZE 6
+/** The collapsed RuneLite-like rail retained after the pane closes. */
+#define SDL_CHROME_RAIL_POINTS 48
 
 struct PlatformWindow
 {
@@ -132,12 +139,18 @@ struct PlatformWindow
     int chrome_saved_point_w;
     int chrome_saved_point_h;
     bool chrome_open;
+    bool chrome_rail_visible;
     bool chrome_grew;
     bool chrome_focused;
     bool chrome_pointer_down;
+    bool chrome_rail_focused;
+    bool chrome_rail_pointer_down;
+    bool chrome_rail_hovered;
     bool chrome_dirty;
     struct PlatformWindow_AuxInput chrome_input;
     bool chrome_have_input;
+    struct PlatformWindow_AuxInput chrome_rail_input;
+    bool chrome_rail_have_input;
 
     /* Last title handed to SDL, so a per-frame caller does not repeat itself.
      * See PlatformWindow_SetTitle. Sized to hold main.c's readout whole: a title
@@ -830,12 +843,41 @@ PlatformWindow_GLWindow(struct PlatformWindow* platform)
     return (ToriRS_GLWindow*)platform->window;
 }
 
+void*
+PlatformWindow_NativeWindowHandle(struct PlatformWindow* platform)
+{
+    assert(platform);
+#if defined(__APPLE__)
+    SDL_SysWMinfo info;
+    SDL_VERSION(&info.version);
+    if( platform->window && SDL_GetWindowWMInfo(platform->window, &info) )
+        return (void*)info.info.cocoa.window;
+    return NULL;
+#else
+    /* No native consumer is compiled on the remaining SDL lanes.  Returning
+     * the opaque SDL handle is still a more useful identity than NULL and
+     * preserves the interface's historical diagnostic use. */
+    return (void*)platform->window;
+#endif
+}
+
 void
 PlatformWindow_Free(struct PlatformWindow* platform)
 {
     if( !platform )
         return;
     PlatformWindow_ChromeClose(platform);
+#if defined(__APPLE__)
+    PlatformMacPluginBrowser_Destroy(platform);
+#endif
+    if( platform->chrome_texture )
+    {
+        SDL_DestroyTexture(platform->chrome_texture);
+        platform->chrome_texture = NULL;
+    }
+    free(platform->chrome_pixels);
+    platform->chrome_pixels = NULL;
+    platform->chrome_rail_visible = false;
     /* Before the main window's teardown, so the aux one never outlives the
      * SDL_Quit that follows. */
     PlatformWindow_AuxClose(platform);
@@ -1371,28 +1413,42 @@ PlatformWindow_AuxTakeCloseRequest(struct PlatformWindow* platform)
 static bool
 chrome_make_surface(struct PlatformWindow* platform, int width, int height)
 {
-    SDL_Texture* texture;
+    SDL_Texture* texture = NULL;
     int* pixels;
 
     assert(platform);
-    if( !platform->renderer || width <= 0 || height <= 0 )
+    if( width <= 0 || height <= 0 )
         return false;
+#if defined(__APPLE__)
+    /* WKWebView owns these pixels.  Keep only the allocation geometry used by
+     * the game viewport and Cocoa subview; allocating an SDL texture behind
+     * the opaque browser would retain and upload a second, invisible chrome. */
+    platform->chrome_width = width;
+    platform->chrome_height = height;
+    platform->chrome_dirty = false;
+    return true;
+#endif
     if( width == platform->chrome_width && height == platform->chrome_height &&
-        platform->chrome_texture && platform->chrome_pixels )
+        (platform->use_opengl || platform->chrome_texture) && platform->chrome_pixels )
         return true;
 
-    texture = SDL_CreateTexture(
-        platform->renderer,
-        SDL_PIXELFORMAT_ARGB8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        width,
-        height);
-    if( !texture )
+    if( !platform->use_opengl )
     {
-        fprintf(stderr, "attached chrome texture: %s\n", SDL_GetError());
-        return false;
+        if( !platform->renderer )
+            return false;
+        texture = SDL_CreateTexture(
+            platform->renderer,
+            SDL_PIXELFORMAT_ARGB8888,
+            SDL_TEXTUREACCESS_STREAMING,
+            width,
+            height);
+        if( !texture )
+        {
+            fprintf(stderr, "attached chrome texture: %s\n", SDL_GetError());
+            return false;
+        }
+        SDL_SetTextureScaleMode(texture, SDL_ScaleModeNearest);
     }
-    SDL_SetTextureScaleMode(texture, SDL_ScaleModeNearest);
     pixels = calloc((size_t)width * (size_t)height, sizeof(*pixels));
     assert(pixels);
 
@@ -1420,7 +1476,8 @@ chrome_drawable_size(struct PlatformWindow* platform, int* out_w, int* out_h)
     sdl_drawable_size(platform, &drawable_w, &drawable_h);
     SDL_GetWindowSize(platform->window, &point_w, &point_h);
     (void)point_w;
-    if( platform->chrome_open && point_w > 0 && drawable_w > 0 )
+    if( (platform->chrome_open || platform->chrome_rail_visible) && point_w > 0 &&
+        drawable_w > 0 )
         width = platform->chrome_point_w * drawable_w / point_w;
     if( width < 0 )
         width = 0;
@@ -1432,6 +1489,24 @@ chrome_drawable_size(struct PlatformWindow* platform, int* out_w, int* out_h)
         *out_h = drawable_h;
 }
 
+static int
+chrome_rail_pixel_width(struct PlatformWindow const* platform)
+{
+    int rail;
+
+    assert(platform);
+    if( !platform->chrome_rail_visible || platform->chrome_width <= 0 ||
+        platform->chrome_point_w <= 0 )
+        return 0;
+    rail = SDL_CHROME_RAIL_POINTS * platform->chrome_width /
+           platform->chrome_point_w;
+    if( rail < 1 )
+        rail = 1;
+    if( rail > platform->chrome_width )
+        rail = platform->chrome_width;
+    return rail;
+}
+
 static void
 sdl_chrome_sync_drawable(struct PlatformWindow* platform)
 {
@@ -1439,15 +1514,70 @@ sdl_chrome_sync_drawable(struct PlatformWindow* platform)
     int h = 0;
 
     assert(platform);
-    if( !platform->chrome_open )
+    if( !platform->chrome_open && !platform->chrome_rail_visible )
         return;
     chrome_drawable_size(platform, &w, &h);
     if( w <= 0 || h <= 0 || (w == platform->chrome_width && h == platform->chrome_height) )
         return;
-    platform->chrome_input.resized = 1;
-    platform->chrome_input.width = w;
-    platform->chrome_input.height = h;
-    platform->chrome_have_input = true;
+    if( !chrome_make_surface(platform, w, h) )
+        return;
+    platform->chrome_rail_input.resized = 1;
+    platform->chrome_rail_input.width = chrome_rail_pixel_width(platform);
+    platform->chrome_rail_input.height = h;
+    platform->chrome_rail_have_input = true;
+    if( platform->chrome_open )
+    {
+        platform->chrome_input.resized = 1;
+        platform->chrome_input.width = w - chrome_rail_pixel_width(platform);
+        platform->chrome_input.height = h;
+        platform->chrome_have_input = true;
+    }
+}
+
+bool
+PlatformWindow_ChromeRailOpen(
+    struct PlatformWindow* platform, int width, char const* title)
+{
+    int point_w = 0;
+    int point_h = 0;
+    int pixel_w = 0;
+    int pixel_h = 0;
+
+    (void)title;
+    assert(platform);
+    if( platform->chrome_rail_visible )
+        return true;
+    if( !platform->window || width <= 0 )
+        return false;
+    SDL_GetWindowSize(platform->window, &point_w, &point_h);
+    if( point_w <= 0 || point_h <= 0 )
+        return false;
+    platform->chrome_saved_point_w = point_w;
+    platform->chrome_saved_point_h = point_h;
+    platform->chrome_point_w = width;
+    platform->chrome_rail_visible = true;
+    platform->chrome_open = false;
+    platform->chrome_grew = true;
+    platform->chrome_focused = false;
+    platform->chrome_pointer_down = false;
+    platform->chrome_rail_focused = false;
+    platform->chrome_rail_pointer_down = false;
+    platform->chrome_rail_hovered = false;
+    memset(&platform->chrome_input, 0, sizeof(platform->chrome_input));
+    memset(&platform->chrome_rail_input, 0, sizeof(platform->chrome_rail_input));
+    platform->chrome_rail_input.mouse_x = -1;
+    platform->chrome_rail_input.mouse_y = -1;
+    SDL_SetWindowSize(platform->window, point_w + width, point_h);
+    chrome_drawable_size(platform, &pixel_w, &pixel_h);
+    if( !chrome_make_surface(platform, pixel_w, pixel_h) )
+    {
+        platform->chrome_rail_visible = false;
+        platform->chrome_grew = false;
+        platform->chrome_point_w = 0;
+        SDL_SetWindowSize(platform->window, point_w, point_h);
+        return false;
+    }
+    return true;
 }
 
 bool
@@ -1458,43 +1588,105 @@ PlatformWindow_ChromeOpen(
     int point_h = 0;
     int pixel_w = 0;
     int pixel_h = 0;
+    int old_chrome_w;
+    int next_chrome_w;
+    int had_rail;
 
     (void)title; /* The pane shares the main window's title. */
     assert(platform);
-    if( platform->chrome_open )
-        return true;
-    if( !platform->window || !platform->renderer || platform->use_opengl || width <= 0 )
+    if( !platform->window || width <= 0 )
         return false;
+    if( platform->chrome_open )
+        return PlatformWindow_ChromeSetPageWidth(platform, width);
 
     SDL_GetWindowSize(platform->window, &point_w, &point_h);
     (void)point_h;
     if( point_w <= 0 || point_h <= 0 )
         return false;
-    platform->chrome_saved_point_w = point_w;
-    platform->chrome_saved_point_h = point_h;
-    platform->chrome_point_w = width;
-    platform->chrome_open = true;
-    platform->chrome_grew = true;
-    platform->chrome_focused = false;
-    platform->chrome_pointer_down = false;
-    memset(&platform->chrome_input, 0, sizeof(platform->chrome_input));
-    platform->chrome_have_input = false;
+    had_rail = platform->chrome_rail_visible ? 1 : 0;
+    old_chrome_w = had_rail ? platform->chrome_point_w : 0;
+    next_chrome_w = width + SDL_CHROME_RAIL_POINTS;
+    {
+        int const grow_w = next_chrome_w > old_chrome_w ?
+            next_chrome_w - old_chrome_w : 0;
 
-    /* Attached-grow: add exactly the pane once. A repeated Open returns above,
-     * and Close subtracts it, so toggling cannot ratchet the window wider. */
-    SDL_SetWindowSize(
-        platform->window,
-        point_w + width,
-        height > point_h ? height : point_h);
+        platform->chrome_saved_point_w = point_w - old_chrome_w;
+        platform->chrome_saved_point_h = point_h;
+        platform->chrome_point_w = next_chrome_w;
+        platform->chrome_open = true;
+        platform->chrome_rail_visible = true;
+        platform->chrome_grew = grow_w > 0;
+        platform->chrome_focused = false;
+        platform->chrome_pointer_down = false;
+        platform->chrome_rail_focused = false;
+        platform->chrome_rail_pointer_down = false;
+        platform->chrome_rail_hovered = false;
+        memset(&platform->chrome_input, 0, sizeof(platform->chrome_input));
+        platform->chrome_have_input = false;
+        memset(&platform->chrome_rail_input, 0, sizeof(platform->chrome_rail_input));
+        platform->chrome_rail_input.mouse_x = -1;
+        platform->chrome_rail_input.mouse_y = -1;
+        platform->chrome_rail_have_input = false;
+
+        /* Attached-grow adds only the page width not already occupied by the
+         * persistent collapsed rail. */
+        SDL_SetWindowSize(
+            platform->window,
+            point_w + grow_w,
+            height > point_h ? height : point_h);
+    }
     chrome_drawable_size(platform, &pixel_w, &pixel_h);
     if( !chrome_make_surface(platform, pixel_w, pixel_h) )
     {
         platform->chrome_open = false;
         platform->chrome_grew = false;
-        platform->chrome_point_w = 0;
+        platform->chrome_point_w = old_chrome_w;
+        platform->chrome_rail_visible = had_rail != 0;
         SDL_SetWindowSize(platform->window, point_w, point_h);
         return false;
     }
+    return true;
+}
+
+bool
+PlatformWindow_ChromeSetPageWidth(
+    struct PlatformWindow* platform, int page_width)
+{
+    int point_w = 0;
+    int point_h = 0;
+    int pixel_w = 0;
+    int pixel_h = 0;
+    int const old_chrome_w = platform ? platform->chrome_point_w : 0;
+    int next_chrome_w;
+
+    assert(platform);
+    if( page_width <= 0 || page_width > 4096 )
+        return false;
+    next_chrome_w = page_width + SDL_CHROME_RAIL_POINTS;
+    if( !platform->chrome_open || !platform->window || next_chrome_w == old_chrome_w )
+        return next_chrome_w == old_chrome_w && platform->chrome_open;
+    SDL_GetWindowSize(platform->window, &point_w, &point_h);
+    if( point_w <= 0 || point_h <= 0 )
+        return false;
+    platform->chrome_point_w = next_chrome_w;
+    SDL_SetWindowSize(
+        platform->window, point_w + next_chrome_w - old_chrome_w, point_h);
+    chrome_drawable_size(platform, &pixel_w, &pixel_h);
+    if( !chrome_make_surface(platform, pixel_w, pixel_h) )
+    {
+        platform->chrome_point_w = old_chrome_w;
+        SDL_SetWindowSize(platform->window, point_w, point_h);
+        return false;
+    }
+    platform->chrome_grew = true;
+    platform->chrome_input.resized = 1;
+    platform->chrome_input.width = PlatformWindow_ChromePageWidth(platform);
+    platform->chrome_input.height = pixel_h;
+    platform->chrome_have_input = true;
+    platform->chrome_rail_input.resized = 1;
+    platform->chrome_rail_input.width = PlatformWindow_ChromeRailWidth(platform);
+    platform->chrome_rail_input.height = pixel_h;
+    platform->chrome_rail_have_input = true;
     return true;
 }
 
@@ -1509,26 +1701,30 @@ PlatformWindow_ChromeClose(struct PlatformWindow* platform)
     if( !platform->chrome_open )
         return;
     SDL_GetWindowSize(platform->window, &point_w, &point_h);
-    restore_w = point_w - platform->chrome_point_w;
-    if( restore_w < platform->chrome_saved_point_w )
-        restore_w = platform->chrome_saved_point_w;
+    restore_w = point_w - platform->chrome_point_w + SDL_CHROME_RAIL_POINTS;
+    if( restore_w < platform->chrome_saved_point_w + SDL_CHROME_RAIL_POINTS )
+        restore_w = platform->chrome_saved_point_w + SDL_CHROME_RAIL_POINTS;
 
     platform->chrome_open = false;
     platform->chrome_focused = false;
     platform->chrome_pointer_down = false;
+    platform->chrome_rail_focused = false;
+    platform->chrome_rail_pointer_down = false;
+    platform->chrome_rail_hovered = false;
     platform->chrome_have_input = false;
+    platform->chrome_rail_have_input = false;
     platform->chrome_dirty = false;
-    if( platform->chrome_texture )
-        SDL_DestroyTexture(platform->chrome_texture);
-    platform->chrome_texture = NULL;
-    free(platform->chrome_pixels);
-    platform->chrome_pixels = NULL;
-    platform->chrome_width = 0;
-    platform->chrome_height = 0;
-    platform->chrome_point_w = 0;
+    platform->chrome_rail_visible = true;
+    platform->chrome_point_w = SDL_CHROME_RAIL_POINTS;
     if( platform->chrome_grew && platform->window )
         SDL_SetWindowSize(platform->window, restore_w, point_h);
     platform->chrome_grew = false;
+    {
+        int rail_w = 0;
+        int rail_h = 0;
+        chrome_drawable_size(platform, &rail_w, &rail_h);
+        (void)chrome_make_surface(platform, rail_w, rail_h);
+    }
 }
 
 bool
@@ -1559,6 +1755,22 @@ PlatformWindow_ChromeHeight(struct PlatformWindow const* platform)
     return platform->chrome_height;
 }
 
+int
+PlatformWindow_ChromeRailWidth(struct PlatformWindow const* platform)
+{
+    return chrome_rail_pixel_width(platform);
+}
+
+int
+PlatformWindow_ChromePageWidth(struct PlatformWindow const* platform)
+{
+    int width;
+
+    assert(platform);
+    width = platform->chrome_width - chrome_rail_pixel_width(platform);
+    return width > 0 ? width : 0;
+}
+
 bool
 PlatformWindow_ChromeResize(struct PlatformWindow* platform, int width, int height)
 {
@@ -1573,7 +1785,15 @@ PlatformWindow_ChromePresent(struct PlatformWindow* platform)
     int pitch = 0;
 
     assert(platform);
-    if( !platform->chrome_open || !platform->chrome_texture || !platform->chrome_pixels )
+    if( (!platform->chrome_open && !platform->chrome_rail_visible) ||
+        !platform->chrome_pixels )
+        return;
+    if( platform->use_opengl )
+    {
+        platform->chrome_dirty = true;
+        return;
+    }
+    if( !platform->chrome_texture )
         return;
     if( SDL_LockTexture(platform->chrome_texture, NULL, (void**)&write, &pitch) < 0 )
     {
@@ -1587,6 +1807,24 @@ PlatformWindow_ChromePresent(struct PlatformWindow* platform)
             (size_t)platform->chrome_width * sizeof(*platform->chrome_pixels));
     SDL_UnlockTexture(platform->chrome_texture);
     platform->chrome_dirty = true;
+}
+
+bool
+PlatformWindow_ChromeTakeDirty(struct PlatformWindow* platform)
+{
+    bool dirty;
+
+    assert(platform);
+    dirty = platform->chrome_dirty;
+    platform->chrome_dirty = false;
+    return dirty;
+}
+
+bool
+PlatformWindow_ChromeIsDirty(struct PlatformWindow const* platform)
+{
+    assert(platform);
+    return platform->chrome_dirty;
 }
 
 bool
@@ -1605,6 +1843,25 @@ PlatformWindow_ChromeTakeInput(
     platform->chrome_input.edit_key = PLATFORM_AUX_KEY_NONE;
     platform->chrome_input.resized = 0;
     platform->chrome_have_input = false;
+    return true;
+}
+
+bool
+PlatformWindow_ChromeTakeRailInput(
+    struct PlatformWindow* platform, struct PlatformWindow_AuxInput* out)
+{
+    assert(platform);
+    assert(out);
+    if( !platform->chrome_rail_visible || !platform->chrome_rail_have_input )
+        return false;
+    *out = platform->chrome_rail_input;
+    platform->chrome_rail_input.mouse_down = 0;
+    platform->chrome_rail_input.mouse_up = 0;
+    platform->chrome_rail_input.wheel = 0;
+    platform->chrome_rail_input.text[0] = '\0';
+    platform->chrome_rail_input.edit_key = PLATFORM_AUX_KEY_NONE;
+    platform->chrome_rail_input.resized = 0;
+    platform->chrome_rail_have_input = false;
     return true;
 }
 
@@ -2067,7 +2324,7 @@ PlatformWindow_MapMouse(
     assert(platform->window);
 
     SDL_GetWindowSize(platform->window, &window_w, &window_h);
-    if( platform->chrome_open )
+    if( platform->chrome_open || platform->chrome_rail_visible )
         window_w -= platform->chrome_point_w;
     if( window_w < 1 )
         window_w = 1;
@@ -2097,24 +2354,27 @@ PlatformWindow_MapMouse(
 }
 
 static void
-chrome_point_to_pixel(
-    struct PlatformWindow const* platform, int x, int y, int* out_x, int* out_y)
+chrome_region_point_to_pixel(
+    struct PlatformWindow const* platform,
+    int x,
+    int y,
+    int region_point_w,
+    int region_pixel_w,
+    int* out_x,
+    int* out_y)
 {
-    int point_w = 0;
     int point_h = 0;
 
     assert(platform);
     assert(out_x);
     assert(out_y);
-    SDL_GetWindowSize(platform->window, &point_w, &point_h);
-    *out_x = platform->chrome_point_w > 0
-                 ? x * platform->chrome_width / platform->chrome_point_w
-                 : x;
+    SDL_GetWindowSize(platform->window, NULL, &point_h);
+    *out_x = region_point_w > 0 ? x * region_pixel_w / region_point_w : x;
     *out_y = point_h > 0 ? y * platform->chrome_height / point_h : y;
     if( *out_x < 0 )
         *out_x = 0;
-    if( *out_x >= platform->chrome_width )
-        *out_x = platform->chrome_width > 0 ? platform->chrome_width - 1 : 0;
+    if( *out_x >= region_pixel_w )
+        *out_x = region_pixel_w > 0 ? region_pixel_w - 1 : 0;
     if( *out_y < 0 )
         *out_y = 0;
     if( *out_y >= platform->chrome_height )
@@ -2130,13 +2390,26 @@ sdl_chrome_event(struct PlatformWindow* platform, SDL_Event const* event)
     int point_w = 0;
     int point_h = 0;
     int pane_x;
+    int rail_x;
+    int rail_point_w;
+    int page_point_w;
+    int rail_pixel_w;
+    int page_pixel_w;
     int x;
     int y;
 
-    if( !platform->chrome_open )
+    if( !platform->chrome_open && !platform->chrome_rail_visible )
         return false;
     SDL_GetWindowSize(platform->window, &point_w, &point_h);
+    (void)point_h;
     pane_x = point_w - platform->chrome_point_w;
+    rail_point_w = platform->chrome_point_w < SDL_CHROME_RAIL_POINTS
+                       ? platform->chrome_point_w
+                       : SDL_CHROME_RAIL_POINTS;
+    page_point_w = platform->chrome_point_w - rail_point_w;
+    rail_x = point_w - rail_point_w;
+    rail_pixel_w = chrome_rail_pixel_width(platform);
+    page_pixel_w = platform->chrome_width - rail_pixel_w;
 
     switch( event->type )
     {
@@ -2146,11 +2419,45 @@ sdl_chrome_event(struct PlatformWindow* platform, SDL_Event const* event)
         if( event->button.x < pane_x )
         {
             if( event->button.button == SDL_BUTTON_LEFT )
+            {
                 platform->chrome_focused = false;
+                platform->chrome_rail_focused = false;
+            }
             return false;
         }
-        chrome_point_to_pixel(
-            platform, event->button.x - pane_x, event->button.y, &x, &y);
+        if( event->button.x >= rail_x )
+        {
+            chrome_region_point_to_pixel(
+                platform,
+                event->button.x - rail_x,
+                event->button.y,
+                rail_point_w,
+                rail_pixel_w,
+                &x,
+                &y);
+            platform->chrome_rail_input.mouse_x = x;
+            platform->chrome_rail_input.mouse_y = y;
+            if( event->button.button == SDL_BUTTON_LEFT )
+            {
+                platform->chrome_rail_input.mouse_down = 1;
+                platform->chrome_rail_pointer_down = true;
+            }
+            platform->chrome_rail_focused = true;
+            platform->chrome_rail_hovered = true;
+            platform->chrome_focused = false;
+            platform->chrome_rail_have_input = true;
+            return true;
+        }
+        if( !platform->chrome_open )
+            return true;
+        chrome_region_point_to_pixel(
+            platform,
+            event->button.x - pane_x,
+            event->button.y,
+            page_point_w,
+            page_pixel_w,
+            &x,
+            &y);
         platform->chrome_input.mouse_x = x;
         platform->chrome_input.mouse_y = y;
         if( event->button.button == SDL_BUTTON_LEFT )
@@ -2159,15 +2466,46 @@ sdl_chrome_event(struct PlatformWindow* platform, SDL_Event const* event)
             platform->chrome_pointer_down = true;
         }
         platform->chrome_focused = true;
+        platform->chrome_rail_focused = false;
         platform->chrome_have_input = true;
         return true;
 
     case SDL_MOUSEBUTTONUP:
-        if( event->button.windowID != main_id ||
-            (!platform->chrome_pointer_down && event->button.x < pane_x) )
+        if( event->button.windowID != main_id )
             return false;
-        chrome_point_to_pixel(
-            platform, event->button.x - pane_x, event->button.y, &x, &y);
+        if( platform->chrome_rail_pointer_down || event->button.x >= rail_x )
+        {
+            chrome_region_point_to_pixel(
+                platform,
+                event->button.x - rail_x,
+                event->button.y,
+                rail_point_w,
+                rail_pixel_w,
+                &x,
+                &y);
+            platform->chrome_rail_input.mouse_x = x;
+            platform->chrome_rail_input.mouse_y = y;
+            if( event->button.button == SDL_BUTTON_LEFT )
+            {
+                platform->chrome_rail_input.mouse_up = 1;
+                platform->chrome_rail_pointer_down = false;
+            }
+            platform->chrome_rail_focused = event->button.x >= rail_x;
+            platform->chrome_rail_hovered = event->button.x >= rail_x;
+            platform->chrome_rail_have_input = true;
+            return true;
+        }
+        if( !platform->chrome_open ||
+            (!platform->chrome_pointer_down && event->button.x < pane_x) )
+            return event->button.x >= pane_x;
+        chrome_region_point_to_pixel(
+            platform,
+            event->button.x - pane_x,
+            event->button.y,
+            page_point_w,
+            page_pixel_w,
+            &x,
+            &y);
         platform->chrome_input.mouse_x = x;
         platform->chrome_input.mouse_y = y;
         if( event->button.button == SDL_BUTTON_LEFT )
@@ -2179,18 +2517,126 @@ sdl_chrome_event(struct PlatformWindow* platform, SDL_Event const* event)
         return true;
 
     case SDL_MOUSEMOTION:
-        if( event->motion.windowID != main_id ||
+        if( event->motion.windowID != main_id )
+            return false;
+        if( platform->chrome_rail_pointer_down || event->motion.x >= rail_x )
+        {
+            chrome_region_point_to_pixel(
+                platform,
+                event->motion.x - rail_x,
+                event->motion.y,
+                rail_point_w,
+                rail_pixel_w,
+                &x,
+                &y);
+            platform->chrome_rail_input.mouse_x = x;
+            platform->chrome_rail_input.mouse_y = y;
+            platform->chrome_rail_hovered = event->motion.x >= rail_x;
+            platform->chrome_rail_have_input = true;
+            return true;
+        }
+        if( platform->chrome_rail_hovered )
+        {
+            platform->chrome_rail_input.mouse_x = -1;
+            platform->chrome_rail_input.mouse_y = -1;
+            platform->chrome_rail_hovered = false;
+            platform->chrome_rail_have_input = true;
+        }
+        if( !platform->chrome_open ||
             (!platform->chrome_pointer_down && event->motion.x < pane_x) )
             return false;
-        chrome_point_to_pixel(
-            platform, event->motion.x - pane_x, event->motion.y, &x, &y);
+        chrome_region_point_to_pixel(
+            platform,
+            event->motion.x - pane_x,
+            event->motion.y,
+            page_point_w,
+            page_pixel_w,
+            &x,
+            &y);
         platform->chrome_input.mouse_x = x;
         platform->chrome_input.mouse_y = y;
         platform->chrome_have_input = true;
         return true;
 
+    case SDL_FINGERDOWN:
+    case SDL_FINGERMOTION:
+    case SDL_FINGERUP:
+    {
+        int const finger_x = (int)(event->tfinger.x * (float)point_w);
+        int const finger_y = (int)(event->tfinger.y * (float)point_h);
+
+        if( event->tfinger.windowID != main_id )
+            return false;
+        if( platform->chrome_rail_pointer_down || finger_x >= rail_x )
+        {
+            chrome_region_point_to_pixel(
+                platform,
+                finger_x - rail_x,
+                finger_y,
+                rail_point_w,
+                rail_pixel_w,
+                &x,
+                &y);
+            platform->chrome_rail_input.mouse_x = x;
+            platform->chrome_rail_input.mouse_y = y;
+            if( event->type == SDL_FINGERDOWN )
+            {
+                platform->chrome_rail_input.mouse_down = 1;
+                platform->chrome_rail_pointer_down = true;
+                platform->chrome_rail_focused = true;
+                platform->chrome_focused = false;
+            }
+            else if( event->type == SDL_FINGERUP )
+            {
+                platform->chrome_rail_input.mouse_up = 1;
+                platform->chrome_rail_pointer_down = false;
+            }
+            platform->chrome_rail_hovered = finger_x >= rail_x;
+            platform->chrome_rail_have_input = true;
+            return true;
+        }
+        if( !platform->chrome_open ||
+            (!platform->chrome_pointer_down && finger_x < pane_x) )
+            return false;
+        chrome_region_point_to_pixel(
+            platform,
+            finger_x - pane_x,
+            finger_y,
+            page_point_w,
+            page_pixel_w,
+            &x,
+            &y);
+        platform->chrome_input.mouse_x = x;
+        platform->chrome_input.mouse_y = y;
+        if( event->type == SDL_FINGERDOWN )
+        {
+            platform->chrome_input.mouse_down = 1;
+            platform->chrome_pointer_down = true;
+            platform->chrome_focused = true;
+            platform->chrome_rail_focused = false;
+        }
+        else if( event->type == SDL_FINGERUP )
+        {
+            platform->chrome_input.mouse_up = 1;
+            platform->chrome_pointer_down = false;
+        }
+        platform->chrome_have_input = true;
+        return true;
+    }
+
     case SDL_MOUSEWHEEL:
-        if( event->wheel.windowID != main_id || !platform->chrome_focused )
+        if( event->wheel.windowID != main_id )
+            return false;
+        if( platform->chrome_rail_focused )
+        {
+            platform->chrome_rail_input.wheel +=
+                event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED
+                    ? -event->wheel.y
+                    : event->wheel.y;
+            platform->chrome_rail_have_input = true;
+            return true;
+        }
+        if( !platform->chrome_focused )
             return false;
         platform->chrome_input.wheel +=
             event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event->wheel.y : event->wheel.y;
@@ -2311,8 +2757,11 @@ PlatformWindow_PollCommands(
          */
         if( platform->aux_window && sdl_aux_event(platform, &event) )
             continue;
-        if( platform->chrome_open && sdl_chrome_event(platform, &event) )
+#if !defined(__APPLE__)
+        if( (platform->chrome_open || platform->chrome_rail_visible) &&
+            sdl_chrome_event(platform, &event) )
             continue;
+#endif
 
         switch( event.type )
         {
@@ -2392,7 +2841,7 @@ PlatformWindow_PollCommands(
                  * ordinary display looks like from in here. */
                 sdl_refresh_pixel_density(platform);
                 sdl_drawable_size(platform, &pending_resize_w, &pending_resize_h);
-                if( platform->chrome_open )
+                if( platform->chrome_open || platform->chrome_rail_visible )
                 {
                     int pane_w = 0;
                     chrome_drawable_size(platform, &pane_w, NULL);
@@ -2472,7 +2921,6 @@ PlatformWindow_PollCommands(
      * App_Render would write off the end of it. */
     if( pending_resize_w > 0 && pending_resize_h > 0 )
         CmdBus_PushWindowResize(bus, pending_resize_w, pending_resize_h);
-
     /* A finger held perfectly still generates no events at all, so the long
      * press has to be given a chance to become a right click from out here. */
     ToriRS_TouchTick(&platform->touch, bus, (uint64_t)SDL_GetTicks());
@@ -2562,7 +3010,7 @@ PlatformWindow_Present(struct PlatformWindow* platform)
      * because one of them is stale.
      */
     sdl_drawable_size(platform, &window_w, &window_h);
-    if( platform->chrome_open )
+    if( platform->chrome_open || platform->chrome_rail_visible )
     {
         chrome_drawable_size(platform, &pane_w, NULL);
         if( pane_w > window_w )
@@ -2574,14 +3022,16 @@ PlatformWindow_Present(struct PlatformWindow* platform)
     /* When the letterbox fills the output, RenderCopy overwrites every pixel —
      * skip the clear (and the software-renderer SDL_FillRect4 it becomes under
      * the headless harness). */
-    if( platform->chrome_open || dst.x != 0 || dst.y != 0 || dst.w != window_w ||
-        dst.h != window_h )
+    if( platform->chrome_open || platform->chrome_rail_visible || dst.x != 0 || dst.y != 0 ||
+        dst.w != window_w || dst.h != window_h )
     {
         SDL_SetRenderDrawColor(platform->renderer, 0, 0, 0, 255);
         SDL_RenderClear(platform->renderer);
     }
     SDL_RenderCopy(platform->renderer, platform->texture, NULL, &dst);
-    if( platform->chrome_open && platform->chrome_texture && pane_w > 0 )
+#if !defined(__APPLE__)
+    if( (platform->chrome_open || platform->chrome_rail_visible) &&
+        platform->chrome_texture && pane_w > 0 )
     {
         chrome_dst.x = window_w;
         chrome_dst.y = 0;
@@ -2589,7 +3039,13 @@ PlatformWindow_Present(struct PlatformWindow* platform)
         chrome_dst.h = window_h;
         SDL_RenderCopy(platform->renderer, platform->chrome_texture, NULL, &chrome_dst);
     }
+#else
+    (void)chrome_dst;
+#endif
     SDL_RenderPresent(platform->renderer);
+    /* Software already uploaded and composited the retained chrome texture in
+     * this present. GL clears the same latch through ChromeTakeDirty. */
+    platform->chrome_dirty = false;
 }
 
 void

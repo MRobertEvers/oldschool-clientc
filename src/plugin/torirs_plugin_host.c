@@ -20,6 +20,8 @@
  */
 #define PLUGIN_MENU_ACTION_BASE (UITREE_MINIMENU_ACTION_CLIENT_BASE + 16)
 
+static void plugin_panel_bump(uint32_t* revision);
+
 struct PluginSub
 {
     ToriRS_PluginHandler handler;
@@ -164,6 +166,9 @@ struct PluginRoleReplacement
  * because only the frame's owner may write it.
  */
 #define TORIRS_PLUGIN_SLOT_ART_MAX 32
+/** A 64x64 PNG has no reason to approach this; cap pathological compressed
+ * input before the automatic rail-icon decode spends work on it. */
+#define TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX (256 * 1024)
 
 /** One part a plugin has taken exclusive responsibility for dressing. */
 struct PluginChromeClaim
@@ -303,7 +308,7 @@ struct ToriRS_PluginHost
     /* Non-NULL only between the open and close of a draw window. */
     void* draw_surface;
     /* Which surface that is -- enum PluginDrawSurface. Read by the two
-     * world-only draw verbs, which have nothing to mean on the other two. */
+     * world-only draw verbs, which have nothing to mean on screen/panel. */
     int draw_canvas;
 
     /*
@@ -470,10 +475,15 @@ struct ToriRS_PluginHost
     bool panel_registered[TORIRS_PLUGIN_MAX];
     char panel_title[TORIRS_PLUGIN_MAX][TORIRS_PLUGIN_TITLE_MAX];
     char panel_icon[TORIRS_PLUGIN_MAX][TORIRS_PLUGIN_ASSET_NAME_MAX];
+    /** Sandboxed image slot automatically loaded for panel_icon, or -1. */
+    int panel_icon_image[TORIRS_PLUGIN_MAX];
+    uint32_t panel_icon_revision[TORIRS_PLUGIN_MAX];
     int panel_preferred_width[TORIRS_PLUGIN_MAX];
     char panel_badge[TORIRS_PLUGIN_MAX][TORIRS_PLUGIN_PANEL_BADGE_MAX];
     bool panel_attention[TORIRS_PLUGIN_MAX];
     int panel_active;
+    /** Retained through collapse; cleared only when that entry is removed. */
+    int panel_last_selected;
     uint32_t panel_selection_generation;
     uint32_t panel_registry_revision;
     uint32_t panel_model_revision;
@@ -568,6 +578,23 @@ static void
 plugin_copy_str(char* dst, size_t cap, char const* src)
 {
     snprintf(dst, cap, "%s", src ? src : "");
+}
+
+/** Whether copying `src` with plugin_copy_str would change this fixed field.
+ *  Comparing the unbounded source directly makes an already-truncated value
+ *  look new forever, which turns one long live label into per-frame deltas. */
+static bool
+plugin_copy_str_would_change(char const* dst, size_t cap, char const* src)
+{
+    size_t n;
+
+    assert(dst);
+    assert(cap > 0);
+    src = src ? src : "";
+    n = strlen(src);
+    if( n >= cap )
+        n = cap - 1;
+    return strlen(dst) != n || memcmp(dst, src, n) != 0;
 }
 
 /* Seed the store from the schema. Called at registration so a plugin can read
@@ -703,7 +730,7 @@ static int
 plugin_ev_is_draw(enum ToriRS_PluginEvent ev)
 {
     return ev == TORIRS_PLUGIN_EV_DRAW_WORLD || ev == TORIRS_PLUGIN_EV_DRAW_CANVAS ||
-           ev == TORIRS_PLUGIN_EV_DRAW_FRAME;
+           ev == TORIRS_PLUGIN_EV_DRAW_FRAME || ev == TORIRS_PLUGIN_EV_PANEL_DRAW;
 }
 
 /*
@@ -2641,7 +2668,7 @@ plugin_images_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
  * -- and deliberately so, because for a caller laying out against it there is
  * nothing to do differently.
  */
-static void
+static int
 plugin_image_publish(
     struct ToriRS_PluginHost* host, int image, void const* data, int size)
 {
@@ -2660,11 +2687,12 @@ plugin_image_publish(
             host->plugins[slot->plugin].name,
             slot->asset,
             size);
-        return;
+        return 0;
     }
     slot->width = w;
     slot->height = h;
     slot->published = true;
+    return 1;
 }
 
 static int
@@ -2925,12 +2953,25 @@ PluginHost_AssetDeliver(
     {
         for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
             if( host->images[i].plugin == plugin &&
-                strcmp(host->images[i].asset, asset_name) == 0 )
+                strcmp(host->images[i].asset, asset_name) == 0 &&
+                !(host->panel_registered[plugin] &&
+                  host->panel_icon_image[plugin] == i &&
+                  size > TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX) )
                 plugin_image_publish(host, i, slot->data, slot->size);
         for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
             if( host->models[i].plugin == plugin &&
                 strcmp(host->models[i].asset, asset_name) == 0 )
                 plugin_model_publish(host, i, slot->data, slot->size);
+    }
+
+    /* A rail icon is application chrome, but its bytes still arrive through
+     * this plugin's sandbox. Every terminal outcome advances the revision:
+     * success exposes pixels; missing/malformed exposes the baked fallback. */
+    if( host->panel_registered[plugin] && host->panel_icon[plugin][0] &&
+        strcmp(host->panel_icon[plugin], asset_name) == 0 )
+    {
+        plugin_panel_bump(&host->panel_icon_revision[plugin]);
+        plugin_panel_bump(&host->panel_registry_revision);
     }
 
     struct ToriRS_PluginCtx* ctx = &host->plugins[plugin];
@@ -3414,6 +3455,8 @@ api_win_clear(struct ToriRS_PluginCtx* ctx)
  * presenter has to remember.
  */
 
+static int api_image_load(struct ToriRS_PluginCtx* ctx, char const* name);
+
 static void
 plugin_panel_bump(uint32_t* revision)
 {
@@ -3511,8 +3554,14 @@ api_panel_request(
         width = TORIRS_PLUGIN_PANEL_WIDTH_MAX;
 
     changed = !host->panel_registered[ctx->index] ||
-              strcmp(host->panel_title[ctx->index], title) != 0 ||
-              strcmp(host->panel_icon[ctx->index], icon) != 0 ||
+              plugin_copy_str_would_change(
+                  host->panel_title[ctx->index],
+                  sizeof(host->panel_title[ctx->index]),
+                  title) ||
+              plugin_copy_str_would_change(
+                  host->panel_icon[ctx->index],
+                  sizeof(host->panel_icon[ctx->index]),
+                  icon) ||
               host->panel_preferred_width[ctx->index] != width;
     host->panel_registered[ctx->index] = true;
     plugin_copy_str(
@@ -3521,7 +3570,25 @@ api_panel_request(
         host->panel_icon[ctx->index], sizeof(host->panel_icon[ctx->index]), icon);
     host->panel_preferred_width[ctx->index] = width;
     if( changed )
+    {
         plugin_panel_bump(&host->panel_registry_revision);
+        plugin_panel_bump(&host->panel_icon_revision[ctx->index]);
+    }
+    /* Icon art follows the ordinary per-plugin asset sandbox and image
+     * decoder. Registration merely names it; the host starts the asynchronous
+     * load so a plugin does not need platform-specific setup code. */
+    if( icon[0] )
+    {
+        struct PluginAsset const* resident =
+            plugin_asset_find(host, ctx->index, icon);
+        host->panel_icon_image[ctx->index] =
+            resident && resident->data &&
+                    resident->size > TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX
+                ? -1
+                : api_image_load(ctx, icon);
+    }
+    else
+        host->panel_icon_image[ctx->index] = -1;
     return true;
 }
 
@@ -3556,6 +3623,8 @@ api_panel_widget(
     memset(widget, 0, sizeof(*widget));
     widget->kind = kind;
     widget->selected = -1;
+    if( kind == TORIRS_PLUGIN_W_CUSTOM )
+        widget->preferred_height = TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT;
     widget->serial = plugin_widget_next_serial(host);
     plugin_copy_str(widget->id, sizeof(widget->id), id);
     plugin_copy_str(widget->label, sizeof(widget->label), label);
@@ -3596,7 +3665,7 @@ api_panel_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* tex
     if( !plugin_panel_mutable(ctx, id, &slot) )
         return false;
     widget = &ctx->host->panel_widgets[slot];
-    if( strcmp(widget->text, next) == 0 )
+    if( !plugin_copy_str_would_change(widget->text, sizeof(widget->text), next) )
         return true;
     plugin_copy_str(widget->text, sizeof(widget->text), next);
     plugin_panel_bump(&ctx->host->panel_model_revision);
@@ -3633,6 +3702,35 @@ api_panel_set_value(struct ToriRS_PluginCtx* ctx, char const* id, int value)
 }
 
 static bool
+api_panel_set_height(
+    struct ToriRS_PluginCtx* ctx,
+    char const* custom_view_id,
+    int preferred_height)
+{
+    struct ToriRS_PluginWinWidget* widget;
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, custom_view_id, &slot) )
+        return false;
+    widget = &ctx->host->panel_widgets[slot];
+    if( widget->kind != TORIRS_PLUGIN_W_CUSTOM )
+        return false;
+    if( preferred_height == 0 )
+        preferred_height = TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT;
+    if( preferred_height < TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MIN )
+        preferred_height = TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MIN;
+    if( preferred_height > TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MAX )
+        preferred_height = TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MAX;
+    if( widget->preferred_height == preferred_height )
+        return true;
+    widget->preferred_height = preferred_height;
+    ctx->host->panel_invalidated[slot] = true;
+    plugin_panel_bump(&ctx->host->panel_model_revision);
+    return true;
+}
+
+static bool
 api_panel_set_options(
     struct ToriRS_PluginCtx* ctx,
     char const* id,
@@ -3648,8 +3746,9 @@ api_panel_set_options(
     if( !plugin_panel_mutable(ctx, id, &slot) )
         return false;
     widget = &ctx->host->panel_widgets[slot];
-    changed = strcmp(widget->choices, next) != 0 || widget->selected != selected ||
-              widget->value != selected;
+    changed = plugin_copy_str_would_change(
+                  widget->choices, sizeof(widget->choices), next) ||
+              widget->selected != selected || widget->value != selected;
     plugin_copy_str(widget->choices, sizeof(widget->choices), next);
     widget->selected = selected;
     widget->value = selected;
@@ -3666,7 +3765,10 @@ api_panel_set_badge(struct ToriRS_PluginCtx* ctx, char const* text)
     assert(ctx);
     if( !ctx->host->panel_registered[ctx->index] || !ctx->running )
         return false;
-    if( strcmp(ctx->host->panel_badge[ctx->index], next) == 0 )
+    if( !plugin_copy_str_would_change(
+            ctx->host->panel_badge[ctx->index],
+            sizeof(ctx->host->panel_badge[ctx->index]),
+            next) )
         return true;
     plugin_copy_str(
         ctx->host->panel_badge[ctx->index],
@@ -3711,7 +3813,6 @@ api_panel_invalidate(struct ToriRS_PluginCtx* ctx, char const* custom_view_id)
         ctx->host->panel_invalidated[slot] )
         return;
     ctx->host->panel_invalidated[slot] = true;
-    plugin_panel_bump(&ctx->host->panel_model_revision);
 }
 
 /** Leave the mounted page before its plugin stops or another page replaces
@@ -3787,9 +3888,13 @@ plugin_panel_unregister(struct ToriRS_PluginHost* host, int plugin_index)
     host->panel_registered[plugin_index] = false;
     host->panel_title[plugin_index][0] = '\0';
     host->panel_icon[plugin_index][0] = '\0';
+    host->panel_icon_image[plugin_index] = -1;
+    plugin_panel_bump(&host->panel_icon_revision[plugin_index]);
     host->panel_preferred_width[plugin_index] = 0;
     host->panel_badge[plugin_index][0] = '\0';
     host->panel_attention[plugin_index] = false;
+    if( host->panel_last_selected == plugin_index )
+        host->panel_last_selected = -1;
     if( registered )
         plugin_panel_bump(&host->panel_registry_revision);
 }
@@ -5859,6 +5964,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     host->dispatching = -1;
     host->dispatch_event = -1;
     host->panel_active = -1;
+    host->panel_last_selected = -1;
     /* Zero is the invalid/stale sentinel carried by queued presenter work. */
     host->panel_selection_generation = 1;
     host->panel_registry_revision = 1;
@@ -5888,6 +5994,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
      * would have handed every image slot to the first plugin registered. */
     for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
         host->images[i].plugin = -1;
+    for( int i = 0; i < TORIRS_PLUGIN_MAX; i++ )
+        host->panel_icon_image[i] = -1;
     for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
         host->models[i].plugin = -1;
 
@@ -6024,6 +6132,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .panel_widget = api_panel_widget,
         .panel_set_text = api_panel_set_text,
         .panel_set_value = api_panel_set_value,
+        .panel_set_height = api_panel_set_height,
         .panel_set_options = api_panel_set_options,
         .panel_set_badge = api_panel_set_badge,
         .panel_set_attention = api_panel_set_attention,
@@ -6039,6 +6148,10 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
 {
     if( !host )
         return;
+
+    /* Keep the same lifecycle ordering as runtime disable: the selected page
+     * becomes invisible while its handler is still subscribed. */
+    (void)plugin_panel_deactivate(host);
 
     for( int i = host->plugin_count - 1; i >= 0; i-- )
     {
@@ -7987,6 +8100,69 @@ PluginHost_PanelWantsAttention(struct ToriRS_PluginHost const* host, int plugin_
 }
 
 uint32_t
+PluginHost_PanelIconRevision(
+    struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count ||
+        !host->panel_registered[plugin_index] )
+        return 0;
+    return host->panel_icon_revision[plugin_index];
+}
+
+int
+PluginHost_PanelIconPixels(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index,
+    uint32_t* out_argb,
+    int max_pixels,
+    int* out_width,
+    int* out_height)
+{
+    struct PluginImage const* image;
+    struct PluginAsset const* asset = NULL;
+    int slot;
+    int pixels;
+
+    assert(host);
+    if( out_width )
+        *out_width = 0;
+    if( out_height )
+        *out_height = 0;
+    if( plugin_index < 0 || plugin_index >= host->plugin_count ||
+        !host->panel_registered[plugin_index] || !host->plugins[plugin_index].running ||
+        !out_argb || max_pixels <= 0 )
+        return 0;
+    slot = host->panel_icon_image[plugin_index];
+    if( slot < 0 || slot >= TORIRS_PLUGIN_IMAGES_MAX )
+        return 0;
+    image = &host->images[slot];
+    for( int i = 0; i < host->asset_count; i++ )
+        if( host->assets[i].plugin == plugin_index &&
+            strcmp(host->assets[i].name, host->panel_icon[plugin_index]) == 0 )
+        {
+            asset = &host->assets[i];
+            break;
+        }
+    if( image->plugin != plugin_index || !image->published ||
+        !asset || !asset->data || asset->size <= 0 ||
+        asset->size > TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX ||
+        strcmp(image->asset, host->panel_icon[plugin_index]) != 0 ||
+        image->width <= 0 || image->height <= 0 || image->width > 64 ||
+        image->height > 64 )
+        return 0;
+    pixels = image->width * image->height;
+    if( pixels > max_pixels ||
+        host->engine.image_read(host->engine.user, slot, out_argb, max_pixels) != pixels )
+        return 0;
+    if( out_width )
+        *out_width = image->width;
+    if( out_height )
+        *out_height = image->height;
+    return pixels;
+}
+
+uint32_t
 PluginHost_PanelRegistryRevision(struct ToriRS_PluginHost const* host)
 {
     assert(host);
@@ -7998,6 +8174,13 @@ PluginHost_PanelActive(struct ToriRS_PluginHost const* host)
 {
     assert(host);
     return host->panel_active;
+}
+
+int
+PluginHost_PanelLastSelected(struct ToriRS_PluginHost const* host)
+{
+    assert(host);
+    return host->panel_last_selected;
 }
 
 uint32_t
@@ -8017,7 +8200,7 @@ PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index)
         return 0;
 
     if( host->panel_active == plugin_index )
-        return plugin_panel_build_active(host, host->panel_selection_generation);
+        return plugin_panel_deactivate(host);
 
     (void)plugin_panel_deactivate(host);
     /* The old plugin's invisible callback may have changed lifecycle state. */
@@ -8027,6 +8210,7 @@ PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index)
 
     plugin_panel_generation_next(host);
     host->panel_active = plugin_index;
+    host->panel_last_selected = plugin_index;
     host->panel_needs_build = true;
     host->panel_has_layout = false;
     host->panel_visible = false;
@@ -8249,6 +8433,26 @@ PluginHost_PanelNeedsDraw(
 }
 
 int
+PluginHost_PanelInvalidate(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial)
+{
+    int slot;
+
+    assert(host);
+    if( selection_generation == 0 ||
+        selection_generation != host->panel_selection_generation || host->panel_active < 0 )
+        return 0;
+    slot = plugin_panel_find_serial(host, widget_serial);
+    if( slot < 0 || host->panel_widgets[slot].kind != TORIRS_PLUGIN_W_CUSTOM )
+        return 0;
+    if( !host->panel_invalidated[slot] )
+        host->panel_invalidated[slot] = true;
+    return 1;
+}
+
+int
 PluginHost_PanelDraw(
     struct ToriRS_PluginHost* host,
     uint32_t selection_generation,
@@ -8276,7 +8480,6 @@ PluginHost_PanelDraw(
 
     plugin_copy_str(id, sizeof(id), host->panel_widgets[slot].id);
     host->panel_invalidated[slot] = false;
-    plugin_panel_bump(&host->panel_model_revision);
     memset(&ev, 0, sizeof(ev));
     ev.id = id;
     ev.surface = surface;

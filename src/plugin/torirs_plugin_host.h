@@ -808,6 +808,8 @@ struct ToriRS_PluginWinWidget
     /** Generic result state for the ABI-21 semantic kinds. Legacy checkbox
      *  and dropdown adapters keep this in step with checked/selected. */
     int value;
+    /** CUSTOM only: preferred logical content height. */
+    int preferred_height;
     /** Never reused within one host lifetime. Lets a queued intent distinguish
      *  a removed node from a later declaration with the same string id. */
     uint32_t serial;
@@ -887,24 +889,43 @@ bool PluginHost_PanelWantsAttention(
     struct ToriRS_PluginHost const* host,
     int plugin_index);
 
+/** Revisioned, host-owned icon pixels for the registered rail entry. The
+ * accessor never crosses plugin namespaces: `plugin_index` must own both the
+ * registration and its automatically loaded image. Source icons are capped
+ * at 64x64; 0 means pending, missing, malformed, or intentionally absent and
+ * presenters use the baked wrench fallback. */
+uint32_t PluginHost_PanelIconRevision(
+    struct ToriRS_PluginHost const* host, int plugin_index);
+int PluginHost_PanelIconPixels(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index,
+    uint32_t* out_argb,
+    int max_pixels,
+    int* out_width,
+    int* out_height);
+
 /** Changes whenever an entry is added, removed, renamed, rebadged, or changes
  *  attention state. Presenters use it to avoid rebuilding an idle rail. */
 uint32_t PluginHost_PanelRegistryRevision(struct ToriRS_PluginHost const* host);
 
 /** The only plugin whose page is mounted, or -1. */
 int PluginHost_PanelActive(struct ToriRS_PluginHost const* host);
+/** Most recently selected registered entry. Unlike PanelActive this survives
+ *  an ordinary collapse, so the same icon can expand again. */
+int PluginHost_PanelLastSelected(struct ToriRS_PluginHost const* host);
 /** Nonzero and advanced for every active-selection transition. */
 uint32_t PluginHost_PanelSelectionGeneration(
     struct ToriRS_PluginHost const* host);
 
 /**
- * Select and synchronously build one registered page. Selecting the current
- * page is idempotent; collapse is explicit through PanelClose. Returns 1 when
- * selected and 0 for an absent/stopped entry.
+ * Handle a rail selection and synchronously build one registered page.
+ * Selecting the mounted entry collapses it; selecting while collapsed expands
+ * it; selecting another entry replaces it. Returns 1 when the action was
+ * accepted and 0 for an absent/stopped entry.
  */
 int PluginHost_PanelSelect(struct ToriRS_PluginHost* host, int plugin_index);
-/** Collapse the page, notifying the old plugin that it became invisible.
- *  Returns 1 when a page was closed. */
+/** Collapse the page, notifying the old plugin that it became invisible and
+ *  retaining PanelLastSelected. Returns 1 when a page was closed. */
 int PluginHost_PanelClose(struct ToriRS_PluginHost* host);
 
 /** Build the active page if it was explicitly cleared. A presenter resync
@@ -958,6 +979,11 @@ int PluginHost_PanelDispatch(
  *  or non-custom nodes. */
 bool PluginHost_PanelNeedsDraw(
     struct ToriRS_PluginHost const* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial);
+/** Mark an active custom node dirty because presenter geometry changed. */
+int PluginHost_PanelInvalidate(
+    struct ToriRS_PluginHost* host,
     uint32_t selection_generation,
     uint32_t widget_serial);
 int PluginHost_PanelDraw(

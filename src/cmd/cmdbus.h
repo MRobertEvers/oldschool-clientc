@@ -79,6 +79,10 @@ enum ToriRS_CmdType
      * change, not per frame; desktop backends never push it and the host keeps
      * its "plugged in, on wifi" defaults. */
     TORIRS_CMD_DEVICE_STATUS = 50, /* struct ToriRS_CmdDeviceStatus */
+    /* -> App. The persistent application-chrome rail was pressed while the
+     * page executor was collapsed, so there is no executor intent queue to
+     * carry it. No payload: it toggles the one shared plugin pane. */
+    TORIRS_CMD_PLUGIN_CHROME_TOGGLE = 51,
 
     /* -> App, from a HOST rather than from a device.
      *
@@ -361,6 +365,10 @@ CmdBus_PushDeviceStatus(
     int32_t battery_percent,
     int32_t battery_charging,
     int32_t network_kind);
+
+/** Persistent application-chrome rail -> the one shared pane. */
+int
+CmdBus_PushPluginChromeToggle(struct ToriRS_CmdBus* bus);
 
 /* ---- host commands ------------------------------------------------------ */
 

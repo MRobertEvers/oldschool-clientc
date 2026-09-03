@@ -11,8 +11,9 @@
         standalone (no separate game server needed) -- what you want on XP.
 
     The binary is built HERE (the XP box has no compiler) with a 32-bit MinGW
-    toolchain, then copied to dist\win32\torirs.exe for deployment. Deploy + run
-    it on XP with the RemoteProxyDesktopXP build server (rpdxpctl).
+    toolchain, then staged with its IE6/7-safe local plugin_chrome bundle under
+    dist\win32. Deploy + run it on XP with the RemoteProxyDesktopXP build
+    server (rpdxpctl).
 
 .PARAMETER Toolchain
     Path to a MinGW root or 'bin' directory (must contain gcc, mingw32-make,
@@ -102,11 +103,12 @@ if (-not (Test-Path $built)) {
 $dist = Join-Path $repo "dist\win32"
 New-Item -ItemType Directory -Force $dist | Out-Null
 Copy-Item $built (Join-Path $dist "torirs.exe") -Force
-Write-Host ("[winxp] done -> dist\win32\torirs.exe  ({0:N0} KB)" -f ((Get-Item (Join-Path $dist 'torirs.exe')).Length/1KB))
+Copy-ToriRSPluginChromeBundle -RepoRoot $repo -Destination (Join-Path $dist "plugin_chrome")
+Write-Host ("[winxp] done -> dist\win32\  (torirs.exe {0:N0} KB + IE6/7-safe local chrome bundle)" -f ((Get-Item (Join-Path $dist 'torirs.exe')).Length/1KB))
 Write-Host "[winxp] local run (nonpacked OSRS239, fixed-function D3D9):"
 Write-Host "        .\src\torirs.exe --manifest .\manifests/manifest_osrs239.ini"
 Write-Host "[winxp] deploy + run on XP with the RemoteProxyDesktopXP build server, e.g.:"
-Write-Host "        rpdxpctl push dist\win32\torirs.exe C:\dev\torirs.exe"
+Write-Host "        deploy dist\win32\torirs.exe and dist\win32\plugin_chrome together"
 } finally {
     $env:PATH = $originalPath
 }

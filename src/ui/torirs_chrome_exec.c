@@ -104,6 +104,10 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
     assert(exec);
 
     memset(sync, 0, sizeof(*sync));
+    sync->synced_build_serial = -1;
+    sync->presented_build_serial = -1;
+    sync->published_drag_build_serial = -1;
+    sync->published_drag_panel = -1;
     sync->exec = *exec;
     /* Not a style any model can hold, so the first Run states the real one --
      * @see ToriRSChromeSync::check_style. */
@@ -116,6 +120,19 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
         return 0;
     }
     sync->live = 1;
+    return 1;
+}
+
+int
+ToriRSChromeSync_TakePresentChange(
+    struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
+{
+    assert(sync);
+    assert(ui);
+    if( !sync->live || !sync->exec.is_surface ||
+        sync->presented_build_serial == ui->build_serial )
+        return 0;
+    sync->presented_build_serial = ui->build_serial;
     return 1;
 }
 
@@ -155,6 +172,12 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
     assert(sync);
     assert(ui);
     if( !sync->live )
+        return 0;
+    /* A settled retained frame has neither unbuilt mutations nor a display-list
+     * generation the executor has not scanned. Do not even bracket a native
+     * transaction in that case: begin/end can trigger UI-thread scheduling and
+     * a max-capacity shadow walk is still work even when it finds no deltas. */
+    if( sync->primed && !ui->dirty && sync->synced_build_serial == ui->build_serial )
         return 0;
 
     cmd_init(&cmd, TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
@@ -261,7 +284,10 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
         if( !sw->live )
             continue;
         if( i < ui->widget_count && sync_widget_relevant(ui, i) &&
-            ui->widgets[i].serial == sw->serial )
+            ui->widgets[i].serial == sw->serial &&
+            (ui->widgets[i].intent_serial
+                 ? ui->widgets[i].intent_serial
+                 : (uint32_t)ui->widgets[i].serial) == sw->intent_serial )
             continue;
         sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_REMOVE, sw->panel, i, 0);
         memset(sw, 0, sizeof(*sw));
@@ -304,16 +330,20 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
              * update. */
             cmd.w = (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
                     (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
-            /* ...and a TEXTAREA's line count, the other half of the same
-             * rule. An executor that never heard it would build every
-             * multiline field one line tall. */
-            cmd.h = w->rows;
+            /* ...and the kind-specific vertical shape. A CUSTOM region keeps
+             * its model height in scaled pixels, but foreign presenters lay
+             * out in logical chrome units and apply their own density. */
+            cmd.h = w->kind == TORIRS_CHROME_W_CUSTOM
+                        ? w->view_h / (ui->scale > 0 ? ui->scale : 1)
+                        : w->rows;
+            cmd.serial = w->intent_serial ? w->intent_serial : (uint32_t)w->serial;
             chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
             chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->text);
             sync_emit(sync, &cmd);
 
             sw->live = 1;
             sw->serial = w->serial;
+            sw->intent_serial = cmd.serial;
             sw->kind = w->kind;
             sw->panel = w->panel;
             sw->tab = w->tab;
@@ -416,6 +446,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
     sync_emit(sync, &cmd);
 
     sync->primed = 1;
+    sync->synced_build_serial = ui->build_serial;
     /* The two markers are not "something moved": a caller asking whether this
      * frame had any content subtracts them. */
     return sync->cmd_count - before - 2;
@@ -432,10 +463,31 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
     switch( intent->kind )
     {
     case TORIRS_CHROME_INTENT_TOGGLE:
+        if( intent->widget < 0 || intent->widget >= ui->widget_count ||
+            ui->widgets[intent->widget].kind == TORIRS_CHROME_W_FREE )
+            return 0;
+        if( ui->widgets[intent->widget].checked == (intent->value ? 1 : 0) )
+            return 0;
         ToriRSChrome_SetChecked(ui, intent->widget, intent->value);
+        /* A native checkbox is one gesture carrying its resulting state. The
+         * in-canvas path both changes the value and raises the activation latch;
+         * doing only the first here made semantic plugin toggles render yet
+         * never reach their active plugin callback. */
+        ui->activated = intent->widget;
+        ui->activated_action = 0;
         return 1;
 
     case TORIRS_CHROME_INTENT_TEXT:
+    {
+        char before[TORIRS_CHROME_INPUT_MAX];
+        int selected;
+
+        if( intent->widget < 0 || intent->widget >= ui->widget_count ||
+            ui->widgets[intent->widget].kind == TORIRS_CHROME_W_FREE )
+            return 0;
+        chrome_copy(
+            before, (int)sizeof(before), ui->widgets[intent->widget].text);
+        selected = ui->widgets[intent->widget].selected;
         ToriRSChrome_SetText(ui, intent->widget, intent->text);
         /* A colour field's text is a RENDERING of its value, so an edit that
          * arrives from a presentation has to be resolved into one -- and the
@@ -445,7 +497,9 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         if( intent->widget >= 0 && intent->widget < ui->widget_count &&
             ui->widgets[intent->widget].kind == TORIRS_CHROME_W_COLORPICK )
             ToriRSChrome_ColorPickCommitText(ui, intent->widget);
-        return 1;
+        return strcmp(before, ui->widgets[intent->widget].text) != 0 ||
+               selected != ui->widgets[intent->widget].selected;
+    }
 
     case TORIRS_CHROME_INTENT_PICK:
         /* A colour's "index" is its packed HSL16 -- the same field, a different
@@ -467,8 +521,13 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         return 1;
 
     case TORIRS_CHROME_INTENT_TAB:
-        ToriRSChrome_PanelSetActiveTab(ui, intent->panel, intent->value);
-        return 1;
+        if( intent->panel < 0 || intent->panel >= ui->panel_count )
+            return 0;
+        {
+            int const before = ui->panels[intent->panel].active_tab;
+            ToriRSChrome_PanelSetActiveTab(ui, intent->panel, intent->value);
+            return before != ui->panels[intent->panel].active_tab;
+        }
 
     case TORIRS_CHROME_INTENT_ACTIVATE:
         /*
@@ -487,12 +546,10 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
              * would be a no-op: the staged-settings drain ignores config rows. */
             if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_TEXTINPUT ||
                 ui->widgets[intent->widget].kind == TORIRS_CHROME_W_TEXTAREA )
-            {
-                ui->focus = intent->widget;
-                ui->widgets[intent->widget].caret =
-                    (int)strlen(ui->widgets[intent->widget].text);
-                return 1;
-            }
+                return ToriRSChrome_FocusWidget(
+                    ui,
+                    intent->widget,
+                    (int)strlen(ui->widgets[intent->widget].text));
             /* A colour row has two zones and the executor says which fired by
              * WHICH INTENT it sends: ACTIVATE is the swatch, so it toggles the
              * axis popup, and ACTION is the field, so it takes the focus. The
@@ -521,12 +578,10 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
              * input does, and latching it as `activated` instead would be the
              * same no-op it would be there. */
             if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_COLORPICK )
-            {
-                ui->focus = intent->widget;
-                ui->widgets[intent->widget].caret =
-                    (int)strlen(ui->widgets[intent->widget].text);
-                return 1;
-            }
+                return ToriRSChrome_FocusWidget(
+                    ui,
+                    intent->widget,
+                    (int)strlen(ui->widgets[intent->widget].text));
             ui->activated = intent->widget;
             ui->activated_action = 1;
             return 1;
@@ -547,9 +602,18 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
          * hid nothing while reporting success is precisely how the web
          * window's close mark stayed dead: every layer said it had worked.
          */
-        if( intent->panel < 0 || intent->panel >= ui->panel_count )
+        if( intent->panel < 0 || intent->panel >= ui->panel_count ||
+            !ui->panels[intent->panel].visible )
             return 0;
         ToriRSChrome_PanelSetVisible(ui, intent->panel, 0);
+        return 1;
+
+    case TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE:
+        if( !ToriRSChrome_CustomActivate(
+                ui, intent->widget, intent->x, intent->y) )
+            return 0;
+        ui->activated_selection_generation = intent->selection_generation;
+        ui->activated_widget_serial = intent->widget_serial;
         return 1;
 
     default:
@@ -615,6 +679,9 @@ ToriRSChromeSync_PublishDragRegion(
      * its OS frame has nowhere to put a handle, and that is most of them. */
     if( !sync->live || !sync->exec.set_drag_region )
         return 0;
+    if( sync->published_drag_panel == panel &&
+        sync->published_drag_build_serial == ui->build_serial )
+        return 0;
     /*
      * Published whether or not there IS a region, which is why the return of
      * WindowDragRegion is dropped: it clears `region` on the way to answering
@@ -624,6 +691,8 @@ ToriRSChromeSync_PublishDragRegion(
      */
     ToriRSChrome_WindowDragRegion(ui, panel, &region);
     sync->exec.set_drag_region(sync->exec.user, &region);
+    sync->published_drag_panel = panel;
+    sync->published_drag_build_serial = ui->build_serial;
     return 1;
 }
 
@@ -656,20 +725,40 @@ ToriRSChromeExec_ForKind(
 {
     switch( kind )
 {
+    case TORIRS_CHROME_EXEC_PLATFORM:
+#if defined(TORIRS_CHROME_EXEC_ANDROID_AVAILABLE)
+        if( out_kind )
+            *out_kind = TORIRS_CHROME_EXEC_ANDROID;
+        return ToriRSChromeExec_Android(platform, rasterise, rasterise_user);
+#elif defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
+        if( out_kind )
+            *out_kind = TORIRS_CHROME_EXEC_WEB;
+        return ToriRSChromeExec_Web();
+#elif defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
+        if( out_kind )
+            *out_kind = TORIRS_CHROME_EXEC_BROWSER;
+        return ToriRSChromeExec_Browser(platform);
+#elif defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
+        if( out_kind )
+            *out_kind = TORIRS_CHROME_EXEC_SDL;
+        return ToriRSChromeExec_Sdl(platform, rasterise, rasterise_user);
+#else
+        break;
+#endif
 #if defined(TORIRS_CHROME_EXEC_ANDROID_AVAILABLE)
     case TORIRS_CHROME_EXEC_ANDROID:
     {
         if( out_kind )
             *out_kind = TORIRS_CHROME_EXEC_ANDROID;
-        return ToriRSChromeExec_Android(platform);
+        return ToriRSChromeExec_Android(platform, rasterise, rasterise_user);
     }
 #endif
-#if defined(TORIRS_CHROME_EXEC_GDI_AVAILABLE)
-    case TORIRS_CHROME_EXEC_GDI:
+#if defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
+    case TORIRS_CHROME_EXEC_BROWSER:
     {
-        struct ToriRSChromeExec exec = ToriRSChromeExec_Gdi(platform);
+        struct ToriRSChromeExec exec = ToriRSChromeExec_Browser(platform);
         if( out_kind )
-            *out_kind = TORIRS_CHROME_EXEC_GDI;
+            *out_kind = TORIRS_CHROME_EXEC_BROWSER;
         return exec;
     }
 #endif

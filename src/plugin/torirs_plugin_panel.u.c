@@ -72,12 +72,39 @@ static int g_plugin_page_built = -1;
  *  plugin, so it is remembered here rather than tracked as a row. */
 static int g_plugin_back_widget = -1;
 
+/* Defined beside the custom presenter below; panel sync may run before a host
+ * exists and must still retire any retained pixels from the prior host. */
+static void
+app_plugin_panel_overlay_reset(struct App* app, uint32_t generation);
+
 /* Change the ONE page selection and its generation together. A platform event
  * queued by the page being left is stale from this statement onward. */
 static void
 app_plugin_page_select(struct App* app, int page)
 {
     assert(app);
+
+    /* The roster is also the portable rail until a platform exposes distinct
+     * icons. Selecting a registered entry goes through the host transaction:
+     * that is the boundary which unmounts the previous model before building
+     * this one. Legacy settings-only pages still use the same detail view, but
+     * do not fabricate an ABI-21 selection for a plugin that never registered
+     * one. */
+    if( app->plugins )
+    {
+        if( page >= 0 && PluginHost_PanelHasPage(app->plugins, page) )
+        {
+            if( PluginHost_PanelActive(app->plugins) != page )
+                (void)PluginHost_PanelSelect(app->plugins, page);
+            ToriRSChromeShell_SetPanelWidth(
+                &app->plugin_shell,
+                PluginHost_PanelPreferredWidth(app->plugins, page),
+                TORIRS_PLUGIN_PANEL_WIDTH_MIN,
+                TORIRS_PLUGIN_PANEL_WIDTH_MAX);
+        }
+        else if( PluginHost_PanelActive(app->plugins) >= 0 )
+            (void)PluginHost_PanelClose(app->plugins);
+    }
     g_plugin_page = page;
     ToriRSChromeShell_Select(
         &app->plugin_shell,
@@ -208,6 +235,8 @@ app_plugin_has_page(struct App* app, int plugin)
 {
     int const cfg_count = PluginHost_ConfigCount(app->plugins, plugin);
 
+    if( PluginHost_PanelHasPage(app->plugins, plugin) )
+        return 1;
     if( PluginHost_WinWidgetCount(app->plugins, plugin) > 0 )
         return 1;
     for( int c = 0; c < cfg_count; c++ )
@@ -241,11 +270,40 @@ app_plugin_panel_track(
         return;
 
     row = &app->plugin_panel_rows[app->plugin_panel_row_count++];
+    memset(row, 0, sizeof(*row));
     row->widget = widget;
     row->plugin = plugin;
     row->kind = kind;
     row->cfg_index = cfg_index;
     snprintf(row->widget_id, sizeof(row->widget_id), "%s", widget_id ? widget_id : "");
+    row->widget_serial = 0;
+    row->widget_kind = -1;
+}
+
+/** Track one control mirrored from the generation-scoped ABI-21 panel model. */
+static void
+app_plugin_panel_track_semantic(
+    struct App* app,
+    int widget,
+    int plugin,
+    struct ToriRS_PluginWinWidget const* model)
+{
+    struct AppPluginPanelRow* row;
+
+    assert(app);
+    if( widget < 0 || !model || model->serial == 0 ||
+        app->plugin_panel_row_count >= APP_PLUGIN_PANEL_ROWS_MAX )
+        return;
+
+    row = &app->plugin_panel_rows[app->plugin_panel_row_count++];
+    memset(row, 0, sizeof(*row));
+    row->widget = widget;
+    row->plugin = plugin;
+    row->kind = APP_PLUGIN_ROW_PANEL_WIDGET;
+    row->cfg_index = -1;
+    row->widget_serial = model->serial;
+    row->widget_kind = model->kind;
+    snprintf(row->widget_id, sizeof(row->widget_id), "%s", model->id);
 }
 
 /** Put one config key's stored value into the widget showing it. */
@@ -373,14 +431,26 @@ app_plugin_panel_place(struct App* app)
     {
         ToriRSChrome_PanelMove(&app->plugin_ui, app->plugin_panel, 0, 0);
         ToriRSChrome_PanelSetFixedWidth(&app->plugin_ui, app->plugin_panel, UITREE_LAYOUT_ROOT_W);
-        app->plugin_ui.panels[app->plugin_panel].fixed_h = UITREE_LAYOUT_ROOT_H;
+        ToriRSChrome_PanelSetFixedHeight(
+            &app->plugin_ui, app->plugin_panel, UITREE_LAYOUT_ROOT_H);
     }
     else
     {
         int x = 8 * scale;
         int y = 72 * scale;
-        int w = 320 * scale;
+        int logical_w = TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT;
+        int w;
         int h = 260 * scale;
+
+        if( app->plugins && g_plugin_page >= 0 &&
+            PluginHost_PanelActive(app->plugins) == g_plugin_page )
+        {
+            int const preferred =
+                PluginHost_PanelPreferredWidth(app->plugins, g_plugin_page);
+            if( preferred > 0 )
+                logical_w = preferred;
+        }
+        w = logical_w * scale;
 
         if( w > UITREE_LAYOUT_ROOT_W )
             w = UITREE_LAYOUT_ROOT_W;
@@ -393,7 +463,7 @@ app_plugin_panel_place(struct App* app)
 
         ToriRSChrome_PanelMove(&app->plugin_ui, app->plugin_panel, x, y);
         ToriRSChrome_PanelSetFixedWidth(&app->plugin_ui, app->plugin_panel, w);
-        app->plugin_ui.panels[app->plugin_panel].fixed_h = h;
+        ToriRSChrome_PanelSetFixedHeight(&app->plugin_ui, app->plugin_panel, h);
     }
 
     g_plugin_geom_scale_built = scale;
@@ -401,15 +471,424 @@ app_plugin_panel_place(struct App* app)
     g_plugin_geom_canvas_h_built = UITREE_LAYOUT_ROOT_H;
 }
 
+/**
+ * Spell a semantic readout without losing either its accessible label or its
+ * live text. ToriRSChrome copies constructor strings, so this stack buffer is
+ * intentionally short-lived.
+ */
+static void
+app_plugin_panel_readout(
+    char* out,
+    size_t out_size,
+    char const* label,
+    char const* text,
+    char const* empty)
+{
+    char const* const lhs = label ? label : "";
+    char const* const rhs = text ? text : "";
+
+    assert(out);
+    assert(out_size > 0);
+    if( lhs[0] && rhs[0] )
+        snprintf(out, out_size, "%s: %s", lhs, rhs);
+    else if( lhs[0] )
+        snprintf(out, out_size, "%s", lhs);
+    else if( rhs[0] )
+        snprintf(out, out_size, "%s", rhs);
+    else
+        snprintf(out, out_size, "%s", empty ? empty : "");
+}
+
+/**
+ * Materialize one ABI-21 semantic node as a styled retained-chrome control.
+ *
+ * This is deliberately a translation, not a second UI toolkit. Every target
+ * kind already crosses the buffer/SDL/native/DOM executor seam, which keeps a
+ * plugin ignorant of the platform presenting it. Kinds without a dedicated
+ * primitive keep a clear, accessible OSRS-styled readout. CUSTOM is the one
+ * bounded drawing well; its pixels are supplied after layout by the selected
+ * generation's EV_PANEL_DRAW pass.
+ */
+static int
+app_plugin_panel_add_semantic(
+    struct App* app,
+    int plugin,
+    struct ToriRS_PluginWinWidget const* model)
+{
+    char text[TORIRS_CHROME_INPUT_MAX];
+    int widget = -1;
+
+    assert(app);
+    assert(model);
+
+    switch( model->kind )
+    {
+    case TORIRS_PLUGIN_W_SECTION:
+        ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+        app_plugin_panel_readout(
+            text, sizeof(text), model->label, model->text, model->id);
+        widget = ToriRSChrome_LabelColored(
+            &app->plugin_ui, app->plugin_panel, text, 0xFFFFB83Fu);
+        break;
+
+    case TORIRS_PLUGIN_W_PARAGRAPH:
+    case TORIRS_PLUGIN_W_LABEL:
+        app_plugin_panel_readout(
+            text, sizeof(text), model->label, model->text, model->id);
+        widget = ToriRSChrome_Label(&app->plugin_ui, app->plugin_panel, text);
+        break;
+
+    case TORIRS_PLUGIN_W_KEY_VALUE:
+        app_plugin_panel_readout(
+            text, sizeof(text), model->label, model->text, model->id);
+        widget = ToriRSChrome_LabelColored(
+            &app->plugin_ui, app->plugin_panel, text, 0xFFFFE7B0u);
+        break;
+
+    case TORIRS_PLUGIN_W_CHECKBOX:
+    case TORIRS_PLUGIN_W_TOGGLE:
+        widget = ToriRSChrome_Checkbox(
+            &app->plugin_ui,
+            app->plugin_panel,
+            model->label[0] ? model->label : model->id,
+            model->value ? 1 : model->checked);
+        break;
+
+    case TORIRS_PLUGIN_W_INPUT:
+        widget = ToriRSChrome_TextInput(
+            &app->plugin_ui,
+            app->plugin_panel,
+            model->label[0] ? model->label : model->id,
+            model->text);
+        break;
+
+    case TORIRS_PLUGIN_W_TEXTAREA:
+        widget = ToriRSChrome_TextArea(
+            &app->plugin_ui,
+            app->plugin_panel,
+            model->label[0] ? model->label : model->id,
+            model->text,
+            0);
+        break;
+
+    case TORIRS_PLUGIN_W_DROPDOWN:
+    {
+        int count = 0;
+        char const* const* choices =
+            app_plugin_choices_add(app, model->choices, &count);
+        if( choices )
+            widget = ToriRSChrome_Dropdown(
+                &app->plugin_ui,
+                app->plugin_panel,
+                model->label[0] ? model->label : model->id,
+                choices,
+                count,
+                model->selected >= 0 && model->selected < count
+                    ? model->selected
+                    : app_plugin_choice_index(choices, count, model->text));
+        else
+            widget = ToriRSChrome_TextInput(
+                &app->plugin_ui,
+                app->plugin_panel,
+                model->label[0] ? model->label : model->id,
+                model->text);
+        break;
+    }
+
+    case TORIRS_PLUGIN_W_BUTTON:
+        widget = ToriRSChrome_Button(
+            &app->plugin_ui,
+            app->plugin_panel,
+            model->label[0] ? model->label : model->id);
+        break;
+
+    case TORIRS_PLUGIN_W_SEPARATOR:
+        widget = ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+        break;
+
+    case TORIRS_PLUGIN_W_LIST_ROW:
+        app_plugin_panel_readout(
+            text, sizeof(text), model->label, model->text, model->id);
+        widget = ToriRSChrome_ListRow(
+            &app->plugin_ui, app->plugin_panel, text,
+            model->value ? 1 : model->checked, 1);
+        break;
+
+    case TORIRS_PLUGIN_W_IMAGE:
+        app_plugin_panel_readout(
+            text, sizeof(text), model->label, model->text, "Image");
+        {
+            char shown[TORIRS_CHROME_INPUT_MAX];
+            snprintf(shown, sizeof(shown), "[Image] %.183s", text);
+            widget = ToriRSChrome_LabelColored(
+                &app->plugin_ui, app->plugin_panel, shown, 0xFFB8A276u);
+        }
+        break;
+
+    case TORIRS_PLUGIN_W_PROGRESS:
+        if( model->text[0] )
+            app_plugin_panel_readout(
+                text, sizeof(text), model->label, model->text, model->id);
+        else
+            snprintf(
+                text, sizeof(text), "%s: %d%%",
+                model->label[0] ? model->label : model->id,
+                model->value);
+        widget = ToriRSChrome_LabelColored(
+            &app->plugin_ui, app->plugin_panel, text, 0xFF9BC56Du);
+        break;
+
+    case TORIRS_PLUGIN_W_ERROR:
+        app_plugin_panel_readout(
+            text, sizeof(text), model->label, model->text, "Plugin error");
+        widget = ToriRSChrome_LabelColored(
+            &app->plugin_ui, app->plugin_panel, text, 0xFFCC5555u);
+        break;
+
+    case TORIRS_PLUGIN_W_CUSTOM:
+        widget = ToriRSChrome_Custom(
+            &app->plugin_ui,
+            app->plugin_panel,
+            model->label[0] ? model->label : model->id,
+            model->preferred_height * ToriRSChrome_Scale(&app->plugin_ui));
+        break;
+
+    default:
+        return -1;
+    }
+
+    if( widget >= 0 )
+        ToriRSChrome_WidgetSetIntentSerial(
+            &app->plugin_ui, widget, model->serial);
+    app_plugin_panel_track_semantic(app, widget, plugin, model);
+    return widget;
+}
+
+/** Does the dropdown's borrowed slice still spell the model's option list? */
+static int
+app_plugin_panel_options_match(
+    struct ToriRSChromeWidget const* widget,
+    char const* choices)
+{
+    char const* at = choices ? choices : "";
+    int index = 0;
+
+    if( widget->kind != TORIRS_CHROME_W_DROPDOWN )
+        return !at[0];
+    if( !at[0] )
+        return widget->option_count == 0;
+    while( *at )
+    {
+        char const* end = strchr(at, '|');
+        size_t const len = end ? (size_t)(end - at) : strlen(at);
+        if( index >= widget->option_count || !widget->options ||
+            strlen(widget->options[index]) != len ||
+            strncmp(widget->options[index], at, len) != 0 )
+            return 0;
+        index++;
+        if( !end )
+            break;
+        at = end + 1;
+    }
+    return index == widget->option_count;
+}
+
+/** Chrome primitive kind used for one semantic model kind. */
+static int
+app_plugin_panel_semantic_chrome_kind(struct ToriRS_PluginWinWidget const* model)
+{
+    switch( model->kind )
+    {
+    case TORIRS_PLUGIN_W_SECTION:
+    case TORIRS_PLUGIN_W_PARAGRAPH:
+    case TORIRS_PLUGIN_W_LABEL:
+    case TORIRS_PLUGIN_W_KEY_VALUE:
+    case TORIRS_PLUGIN_W_IMAGE:
+    case TORIRS_PLUGIN_W_PROGRESS:
+    case TORIRS_PLUGIN_W_ERROR:
+        return TORIRS_CHROME_W_LABEL;
+    case TORIRS_PLUGIN_W_CUSTOM:
+        return TORIRS_CHROME_W_CUSTOM;
+    case TORIRS_PLUGIN_W_CHECKBOX:
+    case TORIRS_PLUGIN_W_TOGGLE:
+        return TORIRS_CHROME_W_CHECKBOX;
+    case TORIRS_PLUGIN_W_INPUT:
+        return TORIRS_CHROME_W_TEXTINPUT;
+    case TORIRS_PLUGIN_W_TEXTAREA:
+        return TORIRS_CHROME_W_TEXTAREA;
+    case TORIRS_PLUGIN_W_DROPDOWN:
+        return model->choices[0] ? TORIRS_CHROME_W_DROPDOWN
+                                 : TORIRS_CHROME_W_TEXTINPUT;
+    case TORIRS_PLUGIN_W_BUTTON:
+        return TORIRS_CHROME_W_BUTTON;
+    case TORIRS_PLUGIN_W_SEPARATOR:
+        return TORIRS_CHROME_W_SEPARATOR;
+    case TORIRS_PLUGIN_W_LIST_ROW:
+        return TORIRS_CHROME_W_LISTROW;
+    default:
+        return TORIRS_CHROME_W_FREE;
+    }
+}
+
+/**
+ * Apply a value-only PanelModelRevision without destroying native controls or
+ * the caret in a field being edited. A serial/kind/count/options change is a
+ * structural rebuild and returns false before touching anything.
+ */
+static int
+app_plugin_panel_patch_semantic(
+    struct App* app,
+    int active,
+    uint32_t generation)
+{
+    int const model_count = PluginHost_PanelWidgetCount(app->plugins, generation);
+    int row_count = 0;
+    int model_index = 0;
+
+    if( active < 0 || active != g_plugin_page ||
+        generation != app->plugin_panel_built_generation )
+        return 0;
+
+    /* Validate the whole mapping first. A half-patched page followed by a
+     * rebuild creates two executor deltas for one host revision. */
+    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    {
+        struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
+        struct ToriRS_PluginWinWidget const* model;
+        struct ToriRSChromeWidget const* widget;
+
+        if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET )
+            continue;
+        row_count++;
+        model = PluginHost_PanelWidgetAt(app->plugins, generation, model_index++);
+        if( !model || model->serial != row->widget_serial ||
+            model->kind != row->widget_kind || strcmp(model->id, row->widget_id) != 0 ||
+            row->widget < 0 || row->widget >= app->plugin_ui.widget_count )
+            return 0;
+        widget = &app->plugin_ui.widgets[row->widget];
+        if( widget->kind != app_plugin_panel_semantic_chrome_kind(model) )
+            return 0;
+        if( model->kind == TORIRS_PLUGIN_W_CUSTOM &&
+            widget->view_h !=
+                model->preferred_height * ToriRSChrome_Scale(&app->plugin_ui) )
+            return 0;
+        if( model->kind == TORIRS_PLUGIN_W_DROPDOWN && model->choices[0] &&
+            !app_plugin_panel_options_match(widget, model->choices) )
+            return 0;
+    }
+    if( row_count != model_count )
+        return 0;
+
+    model_index = 0;
+    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    {
+        struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
+        struct ToriRS_PluginWinWidget const* model;
+        char text[TORIRS_CHROME_INPUT_MAX];
+
+        if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET )
+            continue;
+        model = PluginHost_PanelWidgetAt(app->plugins, generation, model_index++);
+        if( !model )
+            return 0;
+
+        switch( model->kind )
+        {
+        case TORIRS_PLUGIN_W_SECTION:
+        case TORIRS_PLUGIN_W_PARAGRAPH:
+        case TORIRS_PLUGIN_W_LABEL:
+        case TORIRS_PLUGIN_W_KEY_VALUE:
+        case TORIRS_PLUGIN_W_ERROR:
+            app_plugin_panel_readout(
+                text, sizeof(text), model->label, model->text, model->id);
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, text);
+            break;
+        case TORIRS_PLUGIN_W_IMAGE:
+            app_plugin_panel_readout(
+                text, sizeof(text), model->label, model->text, "Image");
+            {
+                char shown[TORIRS_CHROME_INPUT_MAX];
+                snprintf(shown, sizeof(shown), "[Image] %.183s", text);
+                ToriRSChrome_SetText(&app->plugin_ui, row->widget, shown);
+            }
+            break;
+        case TORIRS_PLUGIN_W_PROGRESS:
+            if( model->text[0] )
+                app_plugin_panel_readout(
+                    text, sizeof(text), model->label, model->text, model->id);
+            else
+                snprintf(
+                    text, sizeof(text), "%s: %d%%",
+                    model->label[0] ? model->label : model->id,
+                    model->value);
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, text);
+            break;
+        case TORIRS_PLUGIN_W_CUSTOM:
+            /* Its content is a retained draw list, not widget text. The
+             * invalidate flag and resolved geometry drive it below. */
+            break;
+        case TORIRS_PLUGIN_W_CHECKBOX:
+        case TORIRS_PLUGIN_W_TOGGLE:
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
+            ToriRSChrome_SetChecked(
+                &app->plugin_ui, row->widget,
+                model->value ? 1 : model->checked);
+            break;
+        case TORIRS_PLUGIN_W_INPUT:
+        case TORIRS_PLUGIN_W_TEXTAREA:
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+            break;
+        case TORIRS_PLUGIN_W_DROPDOWN:
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
+            if( model->choices[0] )
+                ToriRSChrome_DropdownSetSelected(
+                    &app->plugin_ui, row->widget, model->selected);
+            else
+                ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+            break;
+        case TORIRS_PLUGIN_W_BUTTON:
+            ToriRSChrome_SetText(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
+            break;
+        case TORIRS_PLUGIN_W_LIST_ROW:
+            app_plugin_panel_readout(
+                text, sizeof(text), model->label, model->text, model->id);
+            ToriRSChrome_SetLabel(&app->plugin_ui, row->widget, text);
+            ToriRSChrome_SetChecked(
+                &app->plugin_ui, row->widget,
+                model->value ? 1 : model->checked);
+            break;
+        case TORIRS_PLUGIN_W_SEPARATOR:
+        default:
+            break;
+        }
+    }
+    return 1;
+}
+
 static void
 app_plugin_panel_sync(struct App* app)
 {
     int count;
     int rev;
+    int panel_active;
+    uint32_t panel_generation;
+    uint32_t panel_model_rev;
 
     assert(app);
     if( !app->plugins )
+    {
+        app_plugin_panel_overlay_reset(app, 0);
         return;
+    }
 
     /* A scale or canvas change re-places the BOX without rebuilding the rows:
      * the build gate below deliberately keeps a typed-into field alive, and a
@@ -422,11 +901,35 @@ app_plugin_panel_sync(struct App* app)
         app_plugin_panel_place(app);
 
     count = PluginHost_Count(app->plugins);
+    panel_active = PluginHost_PanelActive(app->plugins);
+    panel_generation = PluginHost_PanelSelectionGeneration(app->plugins);
+    /* panel_clear outside EV_PANEL_BUILD marks the selected model for one
+     * rebuild. This call is cheap when it is already retained and, crucially,
+     * can only invoke the currently selected plugin. */
+    if( panel_active >= 0 && panel_active == g_plugin_page )
+    {
+        (void)PluginHost_PanelEnsureBuilt(app->plugins, panel_generation);
+        panel_active = PluginHost_PanelActive(app->plugins);
+        panel_generation = PluginHost_PanelSelectionGeneration(app->plugins);
+    }
+    panel_model_rev = PluginHost_PanelModelRevision(app->plugins);
     rev = PluginHost_WinRevision(app->plugins);
     if( app->plugin_panel_built_for == count && app->plugin_panel_built_rev == rev &&
+        app->plugin_panel_built_generation == panel_generation &&
+        (g_plugin_page >= 0 ||
+         app->plugin_panel_built_registry_rev ==
+             PluginHost_PanelRegistryRevision(app->plugins)) &&
         g_plugin_page_built == g_plugin_page &&
         g_plugin_fullscreen_built == g_plugin_fullscreen )
-        return;
+    {
+        if( app->plugin_panel_built_model_rev == panel_model_rev )
+            return;
+        if( app_plugin_panel_patch_semantic(app, panel_active, panel_generation) )
+        {
+            app->plugin_panel_built_model_rev = panel_model_rev;
+            return;
+        }
+    }
 
     if( app->plugin_panel < 0 )
     {
@@ -451,7 +954,8 @@ app_plugin_panel_sync(struct App* app)
         /* Tall enough to be useful, short enough to leave the game visible.
          * Scrollable because a plugin with a dozen settings will overflow it,
          * and rows below the fold used to be simply dropped. */
-        app->plugin_ui.panels[app->plugin_panel].fixed_h = 260 * scale;
+        ToriRSChrome_PanelSetFixedHeight(
+            &app->plugin_ui, app->plugin_panel, 260 * scale);
         ToriRSChrome_PanelSetScrollable(&app->plugin_ui, app->plugin_panel, 1);
         /* The interfaces' own nine-slice border rather than the minimenu's
          * rails. This is the one panel a PLAYER sees, and it has to look like
@@ -483,13 +987,22 @@ app_plugin_panel_sync(struct App* app)
     /* A page that named a plugin the host no longer has is a page with nothing
      * to build; the roster is the honest answer to that. */
     if( g_plugin_page >= count )
+    {
         app_plugin_page_select(app, -1);
+        panel_active = PluginHost_PanelActive(app->plugins);
+        panel_generation = PluginHost_PanelSelectionGeneration(app->plugins);
+        panel_model_rev = PluginHost_PanelModelRevision(app->plugins);
+    }
 
     /* The title says where you are, the way a page's own header would -- there
      * is no tab strip to say it any more. */
     ToriRSChrome_PanelSetTitle(
         &app->plugin_ui, app->plugin_panel,
-        g_plugin_page < 0 ? "Plugins" : PluginHost_Title(app->plugins, g_plugin_page));
+        g_plugin_page < 0
+            ? "Plugins"
+            : panel_active == g_plugin_page
+                  ? PluginHost_PanelTitle(app->plugins, g_plugin_page)
+                  : PluginHost_Title(app->plugins, g_plugin_page));
 
     ToriRSChrome_PanelClearWidgets(&app->plugin_ui, app->plugin_panel);
     g_plugin_back_widget = -1;
@@ -509,10 +1022,13 @@ app_plugin_panel_sync(struct App* app)
      * there would need its own sprite, hover state and hit region for one
      * button. It also has to be pressable with a finger, and a row already is.
      */
-    g_plugin_fullscreen_widget = ToriRSChrome_Button(
-        &app->plugin_ui, app->plugin_panel,
-        g_plugin_fullscreen ? "Exit fullscreen" : "Fullscreen");
-    ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+    if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER )
+    {
+        g_plugin_fullscreen_widget = ToriRSChrome_Button(
+            &app->plugin_ui, app->plugin_panel,
+            g_plugin_fullscreen ? "Exit fullscreen" : "Fullscreen");
+        ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+    }
 
     app->plugin_panel_row_count = 0;
     /* Reset with the widgets that point into it -- the slices handed out below
@@ -575,11 +1091,30 @@ app_plugin_panel_sync(struct App* app)
                 if( PluginHost_IsHidden(app->plugins, p) )
                     continue;
 
-                /* The TITLE, not the name: the name is the ini key, and a roster
-                 * of kebab-case ids reads as a config file that got onto the
-                 * screen. Nothing here keys off the string -- the row carries the
-                 * plugin index. */
-                snprintf(label, sizeof(label), "%s", PluginHost_Title(app->plugins, p));
+                /* The TITLE, not the name: the name is the ini key. A semantic
+                 * entry also carries its live badge/attention in this portable
+                 * roster until each platform's narrow rail can expose those
+                 * atoms itself. Nothing keys off the spelling; the row carries
+                 * the plugin index. */
+                if( PluginHost_PanelHasPage(app->plugins, p) )
+                {
+                    char const* const title = PluginHost_PanelTitle(app->plugins, p);
+                    char const* const badge = PluginHost_PanelBadge(app->plugins, p);
+                    if( badge[0] )
+                        snprintf(
+                            label, sizeof(label), "%s%s [%s]",
+                            PluginHost_PanelWantsAttention(app->plugins, p) ? "! " : "",
+                            title,
+                            badge);
+                    else
+                        snprintf(
+                            label, sizeof(label), "%s%s",
+                            PluginHost_PanelWantsAttention(app->plugins, p) ? "! " : "",
+                            title);
+                }
+                else
+                    snprintf(
+                        label, sizeof(label), "%s", PluginHost_Title(app->plugins, p));
                 app_plugin_panel_track(
                     app,
                     /* An essential plugin's row carries no switch: it has one
@@ -615,14 +1150,43 @@ app_plugin_panel_sync(struct App* app)
         int const p = g_plugin_page;
         int const cfg_count = PluginHost_ConfigCount(app->plugins, p);
         int const win_count = PluginHost_WinWidgetCount(app->plugins, p);
+        int const panel_count =
+            panel_active == p
+                ? PluginHost_PanelWidgetCount(app->plugins, panel_generation)
+                : 0;
         int has_settings = 0;
 
         /* Back first, so the way out is the first thing on the page and in the
          * same place on every page. Its handle is remembered rather than
          * tracked as a row: it belongs to no plugin. */
-        g_plugin_back_widget =
-            ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "< Plugins");
-        ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+        if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER )
+        {
+            g_plugin_back_widget =
+                ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "< Plugins");
+            ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+        }
+
+        /* Only PanelActive is read. Registered-but-inactive plugins have rail
+         * metadata and nothing else materialized, so merely opening Manage
+         * Plugins cannot execute or allocate every custom page. */
+        for( int i = 0; i < panel_count; i++ )
+        {
+            struct ToriRS_PluginWinWidget const* model =
+                PluginHost_PanelWidgetAt(app->plugins, panel_generation, i);
+            if( !model )
+                break; /* selection changed while the model was being read */
+            app_plugin_panel_add_semantic(app, p, model);
+        }
+
+        /* The old generated settings and win_* page remains reachable below
+         * the semantic page during migration. It is one detail page, not a
+         * second shell or a second simultaneously active plugin. */
+        if( panel_count > 0 && (cfg_count > 0 || win_count > 0) )
+        {
+            ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+            ToriRSChrome_LabelColored(
+                &app->plugin_ui, app->plugin_panel, "Plugin settings", 0xFFFFB83Fu);
+        }
 
         for( int c = 0; c < cfg_count; c++ )
         {
@@ -831,7 +1395,15 @@ app_plugin_panel_sync(struct App* app)
     ToriRSChrome_PanelSetClosable(&app->plugin_ui, app->plugin_panel, 1);
 
     app->plugin_panel_built_for = count;
-    app->plugin_panel_built_rev = rev;
+    /* Callbacks above may have changed either compatibility controls or the
+     * active model. Stamp what was actually consumed, not the pre-build
+     * revision, so an unchanged next frame stays an O(1) sync. */
+    app->plugin_panel_built_rev = PluginHost_WinRevision(app->plugins);
+    app->plugin_panel_built_model_rev = PluginHost_PanelModelRevision(app->plugins);
+    app->plugin_panel_built_generation =
+        PluginHost_PanelSelectionGeneration(app->plugins);
+    app->plugin_panel_built_registry_rev =
+        PluginHost_PanelRegistryRevision(app->plugins);
     g_plugin_page_built = g_plugin_page;
     g_plugin_fullscreen_built = g_plugin_fullscreen;
 }
@@ -919,6 +1491,137 @@ app_plugin_panel_revert(struct App* app, int plugin)
             app_plugin_panel_load_row(app, &app->plugin_panel_rows[i]);
 }
 
+/** The active host record named by one presented semantic row, or NULL. */
+static struct ToriRS_PluginWinWidget const*
+app_plugin_panel_model_for_row(
+    struct App* app,
+    struct AppPluginPanelRow const* row)
+{
+    uint32_t const generation = app->plugin_panel_built_generation;
+    int const count = PluginHost_PanelWidgetCount(app->plugins, generation);
+
+    if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET || row->widget_serial == 0 ||
+        PluginHost_PanelActive(app->plugins) != row->plugin ||
+        PluginHost_PanelSelectionGeneration(app->plugins) != generation )
+        return NULL;
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRS_PluginWinWidget const* model =
+            PluginHost_PanelWidgetAt(app->plugins, generation, i);
+        if( model && model->serial == row->widget_serial &&
+            strcmp(model->id, row->widget_id) == 0 )
+            return model;
+    }
+    return NULL;
+}
+
+/** Dispatch one copied semantic intent through all three identity fences. */
+static int
+app_plugin_panel_dispatch_row(
+    struct App* app,
+    struct AppPluginPanelRow const* row,
+    int action,
+    int value,
+    char const* text,
+    int x,
+    int y)
+{
+    uint64_t sequence;
+
+    if( !app || !app->plugins || !row ||
+        app->plugin_panel_built_generation == 0 || row->widget_serial == 0 )
+        return 0;
+    sequence = ++app->plugin_panel_intent_sequence;
+    if( sequence == 0 )
+        sequence = ++app->plugin_panel_intent_sequence;
+    return PluginHost_PanelDispatch(
+        app->plugins,
+        app->plugin_panel_built_generation,
+        row->widget_serial,
+        sequence,
+        row->widget_id,
+        action,
+        value,
+        text,
+        x,
+        y);
+}
+
+/**
+ * Native editors/toggles deliver result state as TEXT/TOGGLE intents without
+ * synthesizing an activation, and a canvas textarea has no Enter-to-commit
+ * edge. Compare only semantic rows against their authoritative records after
+ * input, dispatching any result that the activation path did not already
+ * commit. Legacy staged settings intentionally do not participate.
+ */
+static int
+app_plugin_panel_reconcile_semantic(struct App* app)
+{
+    int dispatched = 0;
+
+    assert(app);
+    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    {
+        struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
+        struct ToriRS_PluginWinWidget const* model;
+        int action = -1;
+        int value = -1;
+        char const* text = NULL;
+
+        if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET )
+            continue;
+        model = app_plugin_panel_model_for_row(app, row);
+        if( !model )
+            break;
+
+        switch( row->widget_kind )
+        {
+        case TORIRS_PLUGIN_W_CHECKBOX:
+        case TORIRS_PLUGIN_W_TOGGLE:
+        case TORIRS_PLUGIN_W_LIST_ROW:
+            value = ToriRSChrome_Checked(&app->plugin_ui, row->widget) ? 1 : 0;
+            if( value != (model->checked ? 1 : 0) )
+                action = TORIRS_PLUGIN_UI_TOGGLE;
+            break;
+
+        case TORIRS_PLUGIN_W_INPUT:
+        case TORIRS_PLUGIN_W_TEXTAREA:
+            text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
+            if( strcmp(text ? text : "", model->text) != 0 )
+                action = TORIRS_PLUGIN_UI_TEXT;
+            break;
+
+        case TORIRS_PLUGIN_W_DROPDOWN:
+            if( row->widget >= 0 && row->widget < app->plugin_ui.widget_count &&
+                app->plugin_ui.widgets[row->widget].kind == TORIRS_CHROME_W_DROPDOWN )
+            {
+                value = ToriRSChrome_DropdownSelected(&app->plugin_ui, row->widget);
+                text = app_plugin_dropdown_value(app, row->widget);
+                if( value != model->selected )
+                    action = TORIRS_PLUGIN_UI_PICK;
+            }
+            else
+            {
+                /* Option-pool exhaustion degrades to a field, but still
+                 * reports the plugin's semantic PICK with the copied text. */
+                text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
+                value = -1;
+                if( strcmp(text ? text : "", model->text) != 0 )
+                    action = TORIRS_PLUGIN_UI_PICK;
+            }
+            break;
+
+        default:
+            break;
+        }
+
+        if( action >= 0 && app_plugin_panel_dispatch_row(
+                              app, row, action, value, text ? text : "", 0, 0) )
+            dispatched++;
+    }
+    return dispatched;
+}
+
 /* Apply one activated widget. */
 static void
 app_plugin_panel_apply(struct App* app, int widget)
@@ -983,6 +1686,88 @@ app_plugin_panel_apply(struct App* app, int widget)
         case APP_PLUGIN_ROW_REVERT:
             app_plugin_panel_revert(app, row->plugin);
             return;
+
+        case APP_PLUGIN_ROW_PANEL_WIDGET:
+        {
+            int action = TORIRS_PLUGIN_UI_ACTIVATE;
+            int value = -1;
+            int local_x = 0;
+            int local_y = 0;
+            uint32_t custom_generation = 0;
+            uint32_t custom_serial = 0;
+            char const* text = NULL;
+
+            /* The row was copied from one exact selection. Never retarget a
+             * queued native click by looking a string id up in whichever page
+             * happens to be active now; generation + never-reused serial + id
+             * are all checked by the host. */
+            if( app->plugin_panel_built_generation == 0 || row->widget_serial == 0 )
+                return;
+
+            switch( row->widget_kind )
+            {
+            case TORIRS_PLUGIN_W_CHECKBOX:
+            case TORIRS_PLUGIN_W_TOGGLE:
+                action = TORIRS_PLUGIN_UI_TOGGLE;
+                value = ToriRSChrome_Checked(&app->plugin_ui, widget) ? 1 : 0;
+                break;
+
+            case TORIRS_PLUGIN_W_INPUT:
+            case TORIRS_PLUGIN_W_TEXTAREA:
+                action = TORIRS_PLUGIN_UI_TEXT;
+                text = ToriRSChrome_Text(&app->plugin_ui, widget);
+                break;
+
+            case TORIRS_PLUGIN_W_DROPDOWN:
+                action = TORIRS_PLUGIN_UI_PICK;
+                value = ToriRSChrome_DropdownSelected(&app->plugin_ui, widget);
+                text = app_plugin_dropdown_value(app, widget);
+                if( !text )
+                    text = "";
+                break;
+
+            case TORIRS_PLUGIN_W_LIST_ROW:
+                if( !ToriRSChrome_ActivationWasAction(&app->plugin_ui) )
+                {
+                    action = TORIRS_PLUGIN_UI_TOGGLE;
+                    value = ToriRSChrome_Checked(&app->plugin_ui, widget) ? 1 : 0;
+                }
+                break;
+
+            case TORIRS_PLUGIN_W_BUTTON:
+                break;
+
+            case TORIRS_PLUGIN_W_CUSTOM:
+                if( !ToriRSChrome_ActivationWasCustom(
+                        &app->plugin_ui,
+                        &local_x,
+                        &local_y,
+                        &custom_generation,
+                        &custom_serial) )
+                    return;
+                if( (custom_generation != 0 &&
+                     custom_generation != app->plugin_panel_built_generation) ||
+                    (custom_serial != 0 && custom_serial != row->widget_serial) )
+                    return;
+                break;
+
+            /* Readouts have no interactive ToriRSChrome primitive. */
+            case TORIRS_PLUGIN_W_LABEL:
+            case TORIRS_PLUGIN_W_SEPARATOR:
+            case TORIRS_PLUGIN_W_SECTION:
+            case TORIRS_PLUGIN_W_PARAGRAPH:
+            case TORIRS_PLUGIN_W_KEY_VALUE:
+            case TORIRS_PLUGIN_W_IMAGE:
+            case TORIRS_PLUGIN_W_PROGRESS:
+            case TORIRS_PLUGIN_W_ERROR:
+            default:
+                return;
+            }
+
+            (void)app_plugin_panel_dispatch_row(
+                app, row, action, value, text, local_x, local_y);
+            return;
+        }
 
         case APP_PLUGIN_ROW_PLUGIN_WIDGET:
         {
@@ -1758,11 +2543,25 @@ app_plugin_window_set_open(struct App* app, int open)
         fprintf(
             stderr, "chrome: plugin window set_open(%d) tick=%d\n", open ? 1 : 0,
             g_plugin_panel_ticks);
+    /* Collapse is a host transaction too: it invalidates the active
+     * generation, sends the last visible layout, clears the sole mounted
+     * model, and deliberately retains PanelLastSelected for the rail. */
+    if( !open && app->plugins )
+        (void)PluginHost_PanelClose(app->plugins);
+
     app->plugin_panel_visible = open ? 1 : 0;
     if( app->plugin_panel_visible )
+    {
+        /* Reopening a semantic detail page rebuilds only the remembered
+         * plugin. Manage/legacy pages do not wake any panel plugin. */
+        if( app->plugins && g_plugin_page >= 0 &&
+            PluginHost_PanelHasPage(app->plugins, g_plugin_page) &&
+            PluginHost_PanelActive(app->plugins) != g_plugin_page )
+            (void)PluginHost_PanelSelect(app->plugins, g_plugin_page);
         ToriRSChromeShell_Select(
             &app->plugin_shell,
             g_plugin_page >= 0 ? g_plugin_page : TORIRS_CHROME_SHELL_PAGE_MANAGE);
+    }
     else
         ToriRSChromeShell_Collapse(&app->plugin_shell);
     if( app->plugin_panel >= 0 )
@@ -1796,6 +2595,170 @@ app_plugin_window_set_open(struct App* app, int open)
          * reads.
          */
         ToriRSChromeSync_Shutdown(&app->plugin_exec);
+}
+
+/** Copy every registered plugin destination into the platform-neutral rail. */
+static void
+app_plugin_rail_snapshot(
+    struct App* app, struct ToriRSChromeRailSnapshot* snapshot)
+{
+    int count;
+
+    assert(app);
+    assert(snapshot);
+    ToriRSChromeRailSnapshot_Init(snapshot);
+    if( !app->plugins )
+        return;
+
+    snapshot->registry_revision =
+        PluginHost_PanelRegistryRevision(app->plugins);
+    snapshot->selection_generation = app->plugin_shell.selection_generation;
+    snapshot->page_generation =
+        PluginHost_PanelSelectionGeneration(app->plugins);
+    snapshot->active_plugin = PluginHost_PanelActive(app->plugins);
+    snapshot->last_selected_plugin =
+        PluginHost_PanelLastSelected(app->plugins);
+    snapshot->selected_entry = app->plugin_shell.active_plugin;
+    snapshot->expanded = app->plugin_shell.expanded ? 1 : 0;
+
+    /* Permanent application destination, in the same retained rail and the
+     * same shared page pane as plugins. Its icon is the baked wrench. */
+    (void)ToriRSChromeRailSnapshot_AddManage(
+        snapshot, TORIRS_CHROME_SHELL_PAGE_MANAGE, "Manage Plugins");
+
+    count = PluginHost_Count(app->plugins);
+    for( int plugin = 0; plugin < count; plugin++ )
+    {
+        if( !PluginHost_PanelHasPage(app->plugins, plugin) )
+            continue;
+        (void)ToriRSChromeRailSnapshot_Add(
+            snapshot,
+            plugin,
+            PluginHost_PanelTitle(app->plugins, plugin),
+            PluginHost_PanelIconAsset(app->plugins, plugin),
+            PluginHost_PanelPreferredWidth(app->plugins, plugin),
+            PluginHost_PanelBadge(app->plugins, plugin),
+            PluginHost_PanelWantsAttention(app->plugins, plugin));
+    }
+}
+
+static void
+app_plugin_rail_publish(struct App* app)
+{
+    struct ToriRSChromeRailSnapshot snapshot;
+
+    app_plugin_rail_snapshot(app, &snapshot);
+    (void)ToriRSChromeRailSync_Run(
+        &app->plugin_rail, &app->plugin_exec_pending, &snapshot);
+    if( !app->plugins )
+        return;
+    for( int i = 0; i < snapshot.entry_count; i++ )
+    {
+        struct ToriRSChromeRailEntry const* entry = &snapshot.entries[i];
+        struct ToriRSChromeRailIcon icon;
+
+        if( entry->kind != TORIRS_CHROME_RAIL_ENTRY_PLUGIN )
+            continue;
+        memset(&icon, 0, sizeof(icon));
+        icon.plugin_index = entry->plugin_index;
+        icon.revision = PluginHost_PanelIconRevision(
+            app->plugins, entry->plugin_index);
+        if( icon.revision == 0 )
+            continue;
+        (void)PluginHost_PanelIconPixels(
+            app->plugins,
+            entry->plugin_index,
+            icon.argb,
+            TORIRS_CHROME_RAIL_ICON_PIXELS_MAX,
+            &icon.width,
+            &icon.height);
+        (void)ToriRSChromeRailSync_Icon(
+            &app->plugin_rail, &app->plugin_exec_pending, &icon);
+    }
+}
+
+/**
+ * Drain persistent rail work without ever invoking a plugin from a presenter
+ * thread. Multiple clicks against one displayed generation coalesce to the
+ * newest one, so a rapid A -> B gesture cannot briefly build A then reject B
+ * merely because A advanced the generation first.
+ */
+static void
+app_plugin_rail_drain(struct App* app)
+{
+    struct ToriRSChromeRailIntent batch[32];
+    struct ToriRSChromeRailIntent latest_select;
+    uint32_t const generation = app->plugin_shell.selection_generation;
+    int have_select = 0;
+
+    memset(&latest_select, 0, sizeof(latest_select));
+    for( int pass = 0; pass < 4; pass++ )
+    {
+        int const count = ToriRSChromeRail_Poll(
+            &app->plugin_exec_pending, batch,
+            (int)(sizeof(batch) / sizeof(batch[0])));
+        for( int i = 0; i < count; i++ )
+        {
+            struct ToriRSChromeRailIntent const* intent = &batch[i];
+
+            if( intent->selection_generation == 0 ||
+                intent->selection_generation != generation )
+                continue;
+            if( intent->kind == TORIRS_CHROME_RAIL_INTENT_LAYOUT )
+            {
+                if( intent->width < 0 || intent->height < 0 ||
+                    intent->scale_milli <= 0 )
+                    continue;
+                if( !app->plugin_rail_has_layout ||
+                    intent->sequence >= app->plugin_rail_layout.sequence )
+                {
+                    app->plugin_rail_layout = *intent;
+                    app->plugin_rail_has_layout = 1;
+                }
+            }
+            else if( intent->kind == TORIRS_CHROME_RAIL_INTENT_SELECT &&
+                     (!have_select || intent->sequence >= latest_select.sequence) )
+            {
+                latest_select = *intent;
+                have_select = 1;
+            }
+        }
+        if( count < (int)(sizeof(batch) / sizeof(batch[0])) )
+            break;
+    }
+
+    if( !have_select || !app->plugins ||
+        latest_select.selection_generation != app->plugin_shell.selection_generation )
+        return;
+
+    if( latest_select.plugin_index == TORIRS_CHROME_SHELL_PAGE_MANAGE )
+    {
+        if( app->plugin_panel_visible &&
+            app->plugin_shell.active_plugin == TORIRS_CHROME_SHELL_PAGE_MANAGE )
+            app_plugin_window_set_open(app, 0);
+        else
+        {
+            app_plugin_page_select(app, -1);
+            if( !app->plugin_panel_visible )
+                app_plugin_window_set_open(app, 1);
+        }
+        return;
+    }
+    if( !PluginHost_PanelHasPage(app->plugins, latest_select.plugin_index) )
+        return;
+
+    /* The selected expanded entry is a collapse affordance. Every other
+     * registered entry selects/replaces the sole page and expands the shell. */
+    if( app->plugin_panel_visible &&
+        app->plugin_shell.active_plugin == latest_select.plugin_index )
+    {
+        app_plugin_window_set_open(app, 0);
+        return;
+    }
+
+    app_plugin_page_select(app, latest_select.plugin_index);
+    if( !app->plugin_panel_visible )
+        app_plugin_window_set_open(app, 1);
 }
 
 static int
@@ -1875,6 +2838,493 @@ app_plugin_exec_bind(struct App* app)
     }
 }
 
+static int
+app_plugin_panel_rect_equal(
+    struct ToriRSChromeRect const* a,
+    struct ToriRSChromeRect const* b)
+{
+    return a->x == b->x && a->y == b->y && a->w == b->w && a->h == b->h;
+}
+
+/** Copy one retained item with the row's current visible scroll clip. */
+static int
+app_plugin_panel_overlay_visible(
+    struct App const* app,
+    int index,
+    struct UITreeEntityOverlay* out)
+{
+    struct ToriRSChromeRect clip;
+    int right;
+    int bottom;
+
+    assert(app);
+    assert(out);
+    if( index < 0 || index >= app->panel_overlay_count ||
+        app->panel_overlay_generation == 0 )
+        return 0;
+    *out = app->panel_overlays[index];
+    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    {
+        struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
+        if( row->widget_serial != app->panel_overlay_owner[index] ||
+            row->widget_kind != TORIRS_PLUGIN_W_CUSTOM ||
+            !row->custom_layout_valid )
+            continue;
+        clip = row->custom_clip;
+        right = clip.x + clip.w;
+        bottom = clip.y + clip.h;
+        if( out->clip_x > clip.x )
+            clip.x = out->clip_x;
+        if( out->clip_y > clip.y )
+            clip.y = out->clip_y;
+        if( out->clip_x + out->clip_w < right )
+            right = out->clip_x + out->clip_w;
+        if( out->clip_y + out->clip_h < bottom )
+            bottom = out->clip_y + out->clip_h;
+        clip.w = right - clip.x;
+        clip.h = bottom - clip.y;
+        if( clip.w <= 0 || clip.h <= 0 )
+            return 0;
+        out->clip_x = clip.x;
+        out->clip_y = clip.y;
+        out->clip_w = clip.w;
+        out->clip_h = clip.h;
+        return 1;
+    }
+    return 0;
+}
+
+static void
+app_plugin_panel_overlay_bump(struct App* app)
+{
+    app->panel_overlay_revision++;
+    if( app->panel_overlay_revision == 0 )
+        app->panel_overlay_revision++;
+}
+
+/** Drop every retained custom primitive when the selected page changes. */
+static void
+app_plugin_panel_overlay_reset(struct App* app, uint32_t generation)
+{
+    assert(app);
+    if( app->panel_overlay_count > 0 || app->panel_overlay_generation != generation )
+        app_plugin_panel_overlay_bump(app);
+    app->panel_overlay_count = 0;
+    app->panel_overlay_stage_count = 0;
+    app->panel_overlay_stage_active = 0;
+    app->panel_overlay_stage_overflow = 0;
+    app->panel_overlay_generation = generation;
+    app->panel_custom_last_draw_cycle = 0;
+    app->panel_custom_has_draw_cycle = 0;
+    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+        app->plugin_panel_rows[i].custom_present_pending = 0;
+}
+
+/** Remove one semantic serial's retained run. */
+static int
+app_plugin_panel_overlay_remove(struct App* app, uint32_t serial)
+{
+    int out = 0;
+
+    assert(app);
+    for( int i = 0; i < app->panel_overlay_count; i++ )
+    {
+        if( app->panel_overlay_owner[i] == serial )
+            continue;
+        if( out != i )
+        {
+            app->panel_overlays[out] = app->panel_overlays[i];
+            app->panel_overlay_owner[out] = app->panel_overlay_owner[i];
+        }
+        out++;
+    }
+    if( out == app->panel_overlay_count )
+        return 0;
+    app->panel_overlay_count = out;
+    app_plugin_panel_overlay_bump(app);
+    return 1;
+}
+
+/** Atomically replace one custom region's retained primitive run. */
+static int
+app_plugin_panel_overlay_commit(
+    struct App* app,
+    uint32_t generation,
+    uint32_t serial)
+{
+    int other = 0;
+    int out = 0;
+
+    assert(app);
+    if( generation == 0 || serial == 0 ||
+        generation != app->panel_overlay_generation ||
+        app->panel_overlay_stage_overflow )
+        return 0;
+
+    for( int i = 0; i < app->panel_overlay_count; i++ )
+        if( app->panel_overlay_owner[i] != serial )
+            other++;
+    if( other + app->panel_overlay_stage_count > APP_PLUGIN_PANEL_OVERLAYS_MAX )
+        return 0;
+
+    /* Compact the other regions only after capacity and identity passed, so a
+     * failed redraw leaves the last complete frame intact. */
+    for( int i = 0; i < app->panel_overlay_count; i++ )
+    {
+        if( app->panel_overlay_owner[i] == serial )
+            continue;
+        if( out != i )
+        {
+            app->panel_overlays[out] = app->panel_overlays[i];
+            app->panel_overlay_owner[out] = app->panel_overlay_owner[i];
+        }
+        out++;
+    }
+    for( int i = 0; i < app->panel_overlay_stage_count; i++ )
+    {
+        app->panel_overlays[out] = app->panel_overlay_stage[i];
+        app->panel_overlay_owner[out] = serial;
+        out++;
+    }
+    app->panel_overlay_count = out;
+    app_plugin_panel_overlay_bump(app);
+    return 1;
+}
+
+/**
+ * Draw every dirty custom well on the one active semantic page.
+ *
+ * Geometry is read only after ToriRSChrome_Build. A resize, scroll or scale
+ * change invalidates that exact semantic serial; an unchanged clean well does
+ * no plugin work and keeps its retained run.
+ */
+static int
+app_plugin_panel_draw_custom(struct App* app)
+{
+    uint32_t const generation = app->plugins
+                                    ? PluginHost_PanelSelectionGeneration(app->plugins)
+                                    : 0;
+    int const active = app->plugins ? PluginHost_PanelActive(app->plugins) : -1;
+    int changed = 0;
+    int drew_this_pass = 0;
+
+    assert(app);
+    if( !app->plugins || !app->plugin_panel_visible || active < 0 ||
+        active != g_plugin_page || generation == 0 ||
+        generation != app->plugin_panel_built_generation )
+    {
+        app_plugin_panel_overlay_reset(app, 0);
+        return 0;
+    }
+    if( app->panel_overlay_generation != generation )
+        app_plugin_panel_overlay_reset(app, generation);
+
+    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    {
+        struct AppPluginPanelRow* row = &app->plugin_panel_rows[i];
+        struct ToriRSChromeRect region;
+        struct ToriRSChromeRect clip;
+        int geometry_changed;
+        int scale;
+        int logical_w;
+        int logical_h;
+
+        if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET ||
+            row->widget_kind != TORIRS_PLUGIN_W_CUSTOM || row->widget_serial == 0 )
+            continue;
+
+        if( !ToriRSChrome_CustomRegion(
+                &app->plugin_ui, row->widget, &region, &clip) )
+        {
+            if( row->custom_layout_valid )
+            {
+                row->custom_layout_valid = 0;
+                changed += app_plugin_panel_overlay_remove(app, row->widget_serial);
+            }
+            continue;
+        }
+
+        geometry_changed = !row->custom_layout_valid ||
+                           !app_plugin_panel_rect_equal(&row->custom_region, &region) ||
+                           !app_plugin_panel_rect_equal(&row->custom_clip, &clip);
+        row->custom_region = region;
+        row->custom_clip = clip;
+        row->custom_layout_valid = 1;
+        if( geometry_changed )
+            (void)PluginHost_PanelInvalidate(
+                app->plugins, generation, row->widget_serial);
+        if( !PluginHost_PanelNeedsDraw(
+                app->plugins, generation, row->widget_serial) )
+            continue;
+        /* A draw callback may re-invalidate itself for animation. Cap that
+         * loop to every other 20ms game cycle (25 Hz); geometry and the first
+         * frame bypass the cap so resize/open never waits. */
+        if( !geometry_changed && app->panel_custom_has_draw_cycle &&
+            app->logic_cycle < app->panel_custom_last_draw_cycle + 2 )
+            continue;
+
+        scale = ToriRSChrome_Scale(&app->plugin_ui);
+        if( scale <= 0 )
+            scale = 1;
+        logical_w = region.w / scale;
+        logical_h = region.h / scale;
+        if( logical_w <= 0 || logical_h <= 0 )
+            continue;
+
+        app->panel_overlay_stage_count = 0;
+        app->panel_overlay_stage_overflow = 0;
+        app->panel_overlay_stage_active = 1;
+        app->panel_overlay_origin_x = region.x;
+        app->panel_overlay_origin_y = region.y;
+        app->panel_overlay_scale = scale;
+        /* Retain the complete region. Surface/buffer presentation intersects
+         * this with the current scrolling clip; native custom Views receive
+         * the full bitmap and let their own ScrollView clip it. */
+        app->panel_overlay_clip = region;
+
+        if( PluginHost_PanelDraw(
+                app->plugins,
+                generation,
+                row->widget_serial,
+                &app->panel_overlay_stage,
+                0,
+                0,
+                logical_w,
+                logical_h) &&
+            PluginHost_PanelActive(app->plugins) == active &&
+            PluginHost_PanelSelectionGeneration(app->plugins) == generation &&
+            app_plugin_panel_overlay_commit(app, generation, row->widget_serial) )
+        {
+            ToriRSChrome_WidgetInvalidate(&app->plugin_ui, row->widget);
+            row->custom_present_pending = 1;
+            changed++;
+            drew_this_pass = 1;
+        }
+        app->panel_overlay_stage_active = 0;
+        app->panel_overlay_stage_count = 0;
+        app->panel_overlay_stage_overflow = 0;
+
+        /* A draw callback may disable or replace itself. No later row from
+         * the abandoned generation is eligible in this pass. */
+        if( PluginHost_PanelActive(app->plugins) != active ||
+            PluginHost_PanelSelectionGeneration(app->plugins) != generation )
+        {
+            app_plugin_panel_overlay_reset(app, 0);
+            break;
+        }
+    }
+    if( drew_this_pass )
+    {
+        app->panel_custom_last_draw_cycle = app->logic_cycle;
+        app->panel_custom_has_draw_cycle = 1;
+    }
+    return changed;
+}
+
+/** Raster one retained serial into a region-local transparent bitmap. */
+static int
+app_plugin_panel_raster_custom(
+    struct App* app,
+    struct AppPluginPanelRow const* row,
+    struct ToriRSChromeCustomFrame* out)
+{
+    struct UITreeEmitDesc desc;
+    struct ToriRS_Frame frame;
+    size_t pixels;
+    int count = 0;
+
+    assert(app);
+    assert(row);
+    assert(out);
+    if( !app->scene || !app->soft_chrome || row->custom_region.w <= 0 ||
+        row->custom_region.h <= 0 || row->custom_region.w > 4096 ||
+        row->custom_region.h > 4096 )
+        return 0;
+    if( (size_t)row->custom_region.w > SIZE_MAX / (size_t)row->custom_region.h )
+        return 0;
+    pixels = (size_t)row->custom_region.w * (size_t)row->custom_region.h;
+    if( pixels > SIZE_MAX / sizeof(*app->panel_custom_pixels) )
+        return 0;
+    if( pixels > app->panel_custom_pixel_capacity )
+    {
+        uint32_t* grown = realloc(
+            app->panel_custom_pixels,
+            pixels * sizeof(*app->panel_custom_pixels));
+        if( !grown )
+            return 0;
+        app->panel_custom_pixels = grown;
+        app->panel_custom_pixel_capacity = pixels;
+    }
+    memset(app->panel_custom_pixels, 0, pixels * sizeof(*app->panel_custom_pixels));
+
+    /* Reuse the draw stage as a temporary local-coordinate list. No plugin
+     * callback is open now, and the native sink copies before this function's
+     * caller advances to the next region. */
+    for( int i = 0; i < app->panel_overlay_count; i++ )
+    {
+        struct UITreeEntityOverlay* item;
+        if( app->panel_overlay_owner[i] != row->widget_serial ||
+            count >= APP_PLUGIN_PANEL_OVERLAYS_MAX )
+            continue;
+        item = &app->panel_overlay_stage[count++];
+        *item = app->panel_overlays[i];
+        item->x -= row->custom_region.x;
+        item->y -= row->custom_region.y;
+        item->clip_x -= row->custom_region.x;
+        item->clip_y -= row->custom_region.y;
+    }
+
+    if( count > 0 )
+    {
+        memset(&desc, 0, sizeof(desc));
+        desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+        desc.entity_overlays = app->panel_overlay_stage;
+        desc.entity_overlay_count = count;
+        desc.clip.x = 0;
+        desc.clip.y = 0;
+        desc.clip.w = row->custom_region.w;
+        desc.clip.h = row->custom_region.h;
+
+        ToriRS_FrameInit(&frame);
+        ToriRS_FrameSetScene(&frame, app->scene);
+        ToriRS_FrameSetCanvas(
+            &frame, row->custom_region.w, row->custom_region.h);
+        ToriRS_FrameSetEmit(&frame, &desc, 1);
+        ToriRS_Soft3D_Init(
+            app->soft_chrome,
+            app->scene,
+            (int*)app->panel_custom_pixels,
+            row->custom_region.w,
+            row->custom_region.h);
+        ToriRS_Soft3D_RenderFrame(app->soft_chrome, &frame);
+    }
+
+    memset(out, 0, sizeof(*out));
+    out->panel = app->plugin_panel;
+    out->widget = row->widget;
+    out->selection_generation = app->plugin_panel_built_generation;
+    out->widget_serial = row->widget_serial;
+    out->scale_milli = ToriRSChrome_Scale(&app->plugin_ui) * 1000;
+    out->width = row->custom_region.w;
+    out->height = row->custom_region.h;
+    out->stride = row->custom_region.w;
+    out->argb = app->panel_custom_pixels;
+    return 1;
+}
+
+/** Publish dirty custom frames after their WIDGET_ADD transaction committed. */
+static void
+app_plugin_panel_present_custom(struct App* app)
+{
+    uint32_t generation;
+    int active;
+
+    assert(app);
+    if( !app->plugin_exec.exec.custom_present || app->plugin_exec.exec.is_surface )
+    {
+        for( int i = 0; i < app->plugin_panel_row_count; i++ )
+            app->plugin_panel_rows[i].custom_present_pending = 0;
+        return;
+    }
+    generation = PluginHost_PanelSelectionGeneration(app->plugins);
+    active = PluginHost_PanelActive(app->plugins);
+    if( generation == 0 || generation != app->plugin_panel_built_generation ||
+        active < 0 || active != g_plugin_page )
+        return;
+
+    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    {
+        struct AppPluginPanelRow* row = &app->plugin_panel_rows[i];
+        struct ToriRSChromeCustomFrame frame;
+
+        if( !row->custom_present_pending || !row->custom_layout_valid ||
+            row->widget_kind != TORIRS_PLUGIN_W_CUSTOM )
+            continue;
+        if( !app_plugin_panel_raster_custom(app, row, &frame) )
+            continue;
+        app->plugin_exec.exec.custom_present(app->plugin_exec.exec.user, &frame);
+        row->custom_present_pending = 0;
+    }
+}
+
+/** Publish the selected semantic page's allocation before any input uses it. */
+static int
+app_plugin_panel_publish_layout(struct App* app)
+{
+    struct ToriRSChromeRect rect;
+    uint32_t generation;
+    int active;
+    int scale;
+    int width;
+    int height;
+    int size_class;
+    int game_visible;
+
+    assert(app);
+    if( !app->plugins || app->plugin_panel < 0 || !app->plugin_panel_visible ||
+        !app->plugin_ui.panels[app->plugin_panel].visible )
+        return 0;
+    active = PluginHost_PanelActive(app->plugins);
+    generation = PluginHost_PanelSelectionGeneration(app->plugins);
+    if( active < 0 || active != g_plugin_page || generation == 0 )
+        return 0;
+
+    /* Attached Android/DOM presenters own their allocation. In compact mode
+     * they replace the game rather than merely drawing a floating model panel,
+     * so their neutral report wins over the in-canvas geometry below. */
+    if( app->plugin_rail_has_layout &&
+        app->plugin_rail_layout.selection_generation ==
+            app->plugin_shell.selection_generation )
+    {
+        struct ToriRSChromeRailIntent const* layout = &app->plugin_rail_layout;
+        if( !layout->visible || layout->width <= 0 || layout->height <= 0 )
+            return 0;
+        return PluginHost_PanelLayout(
+            app->plugins,
+            generation,
+            layout->width,
+            layout->height,
+            layout->scale_milli,
+            layout->size_class,
+            true,
+            layout->game_visible != 0);
+    }
+
+    rect = ToriRSChrome_PanelRect(&app->plugin_ui, app->plugin_panel);
+    scale = ToriRSChrome_Scale(&app->plugin_ui);
+    if( scale <= 0 )
+        scale = 1;
+    /* PanelRect is executor/canvas pixels; the plugin contract is logical
+     * chrome units plus an explicit scale, so a Retina lane does not look
+     * twice as wide to the plugin. */
+    width = rect.w / scale;
+    height = rect.h / scale;
+    if( width <= 0 || height <= 0 )
+        return 0;
+
+    if( width < TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT )
+        size_class = TORIRS_PLUGIN_PANEL_COMPACT;
+    else if( width >= TORIRS_PLUGIN_PANEL_WIDTH_MAX )
+        size_class = TORIRS_PLUGIN_PANEL_EXPANDED;
+    else
+        size_class = TORIRS_PLUGIN_PANEL_MEDIUM;
+
+    /* The ordinary floating/attached panel leaves the game visible. The
+     * phone/fullscreen presentation replaces the canvas and tells animated
+     * plugins to stand down from duplicate game work. */
+    game_visible = !(g_plugin_fullscreen &&
+                     app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER);
+    return PluginHost_PanelLayout(
+        app->plugins,
+        generation,
+        width,
+        height,
+        scale * 1000,
+        size_class,
+        true,
+        game_visible != 0);
+}
+
 /*
  * Per-frame: the toggle, the lazy build, input, and one activation.
  *
@@ -1889,8 +3339,36 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     assert(input);
 
     g_plugin_panel_ticks++;
+#if defined(TORIRS_PLATFORM_ANDROID)
+    /* The rail outlives the native-widget executor: collapse shuts the sync
+     * down, but the small Activity child remains and can request that the one
+     * remembered page be expanded again. Drain that host request before the
+     * ordinary visibility early-out. */
+    {
+        int expanded = 0;
+        if( PlatformAndroidChrome_TakeExpandedRequest(&expanded) )
+            app_plugin_window_set_open(app, expanded != 0);
+    }
+#endif
+#if defined(TORIRS_PLATFORM_WEB)
+    /* Like Android's Activity rail, the DOM rail deliberately survives
+     * executor shutdown. Its exported request latch is therefore drained by
+     * the always-running shell tick rather than by the executor that is absent
+     * precisely while the pane is collapsed. */
+    {
+        int expanded = 0;
+        if( ToriRSChromeExecWeb_TakeOpenRequest(&expanded) )
+            app_plugin_window_set_open(app, expanded != 0);
+    }
+#endif
     if( !app->plugins )
         return;
+
+    /* Navigation is application chrome, not page chrome: publish and drain it
+     * even while plugin_exec is shut down in the collapsed state. */
+    app_plugin_rail_publish(app);
+    app_plugin_rail_drain(app);
+    app_plugin_rail_publish(app);
 
     /* The button is kept alive whether or not the window is open -- it is how
      * the window is OPENED, so it cannot be gated on the window being up. */
@@ -1923,13 +3401,22 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     }
 
     if( !app->plugin_panel_visible )
+    {
+        app_plugin_panel_overlay_reset(app, 0);
         return;
+    }
 
     app_plugin_exec_bind(app);
 
     /* Scripts register asynchronously, so the list can still be growing the
      * first few frames the window is open. */
     app_plugin_panel_sync(app);
+
+    /* A window-owning surface establishes the allocation before layout is
+     * built and published. In-canvas and native-widget executors make this a
+     * no-op. */
+    if( app->plugin_panel >= 0 )
+        ToriRSChromeSync_FillSurface(&app->plugin_exec, &app->plugin_ui, app->plugin_panel);
 
     /*
      * Lay the window out and produce its display list.
@@ -1951,8 +3438,26 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      * Unconditional rather than gated on the bound executor: Build returns 0
      * and does no work on a frame where nothing moved, and a display list that
      * is always current is what lets the merge stay a pointer copy.
-     */
+    */
     ToriRSChrome_Build(&app->plugin_ui);
+
+    /* Layout is a lifecycle input to the selected plugin, so publish it before
+     * either pointer path can dispatch a control. A layout callback may update
+     * retained values (or request a rebuild); fold that revision back into the
+     * same frame before exposing controls to input. */
+    (void)app_plugin_panel_publish_layout(app);
+    if( app->plugin_panel_built_model_rev !=
+            PluginHost_PanelModelRevision(app->plugins) ||
+        app->plugin_panel_built_generation !=
+            PluginHost_PanelSelectionGeneration(app->plugins) )
+    {
+        app_plugin_panel_sync(app);
+        if( app->plugin_panel >= 0 )
+            ToriRSChromeSync_FillSurface(
+                &app->plugin_exec, &app->plugin_ui, app->plugin_panel);
+        ToriRSChrome_Build(&app->plugin_ui);
+        (void)app_plugin_panel_publish_layout(app);
+    }
 
     /*
      * Input, from whichever surface this window is on.
@@ -1965,8 +3470,10 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     if( app->plugin_exec.exec.is_surface )
     {
         struct ToriRSChromeSurfaceInput gesture;
-        if( app->plugin_exec.exec.surface_input &&
-            app->plugin_exec.exec.surface_input(app->plugin_exec.exec.user, &gesture) )
+        int guard = 0;
+        while( app->plugin_exec.exec.surface_input && guard++ < 64 &&
+               app->plugin_exec.exec.surface_input(
+                   app->plugin_exec.exec.user, &gesture) )
         {
             ToriRSChrome_MouseMove(&app->plugin_ui, gesture.mouse_x, gesture.mouse_y);
             if( gesture.mouse_down )
@@ -2001,21 +3508,6 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
             app_chrome_route_keys(app, &app->plugin_ui, input);
     }
 
-    /*
-     * A presentation with a window of its own gets the panel STRETCHED over
-     * it: there is nothing else in that window for a floating box to float
-     * over, so its margins would just be background, and the window growing
-     * would grow the background rather than the settings.
-     *
-     * After the input above, not before it: a resize is applied to the surface
-     * as it is drained, so asking here reports the size the user just dragged
-     * to instead of the one from before it. In-canvas -- and every native
-     * executor, which lays its own controls out -- this is a no-op and the
-     * panel keeps the floating geometry it was built with.
-     */
-    if( app->plugin_panel >= 0 )
-        ToriRSChromeSync_FillSurface(&app->plugin_exec, &app->plugin_ui, app->plugin_panel);
-
     /* Intents from a native-widget executor land on the model the same way a
      * click would, so the drain below sees both without knowing which. */
     ToriRSChromeSync_Pump(&app->plugin_exec, &app->plugin_ui);
@@ -2023,8 +3515,17 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     {
         int const activated = ToriRSChrome_TakeActivated(&app->plugin_ui);
         if( activated >= 0 )
+        {
             app_plugin_panel_apply(app, activated);
+            /* A semantic action can synchronously change siblings, clear and
+             * rebuild its page, or unregister itself. Present that
+             * authoritative result in this commit rather than one frame later. */
+            if( app->plugin_panel_visible )
+                app_plugin_panel_sync(app);
+        }
     }
+    if( app->plugin_panel_visible && app_plugin_panel_reconcile_semantic(app) > 0 )
+        app_plugin_panel_sync(app);
 
     /*
      * The window's own Ok or Close hid the panel; the host has to hear about
@@ -2052,10 +3553,19 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      * re-presents the previous framebuffer, and the window is invisible until
      * something unrelated happens to request a repaint.
      */
-    if( ToriRSChrome_Build(&app->plugin_ui) )
     {
-        app->need_redraw = 1;
-        ToriRSChrome_DamageClear(&app->plugin_ui);
+        int built = ToriRSChrome_Build(&app->plugin_ui);
+
+        /* Build resolves each custom well's full box and visible clip. Draw
+         * only after those exist, then rebuild once if new retained pixels
+         * damaged a well. A clean steady page does neither operation. */
+        if( app_plugin_panel_draw_custom(app) )
+            built |= ToriRSChrome_Build(&app->plugin_ui);
+        if( built )
+        {
+            app->need_redraw = 1;
+            ToriRSChrome_DamageClear(&app->plugin_ui);
+        }
     }
 
     /*
@@ -2089,7 +3599,13 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      */
     ToriRSChromeSync_Run(&app->plugin_exec, &app->plugin_ui);
 
-    if( app->plugin_exec.exec.is_surface && app->plugin_exec.exec.present )
+    /* Native custom Views/canvases are created by the sync above. Publish the
+     * pixels afterwards so an asynchronous UI queue cannot receive a frame
+     * before the WIDGET_ADD that gives it an identity and destination. */
+    app_plugin_panel_present_custom(app);
+
+    if( app->plugin_exec.exec.is_surface && app->plugin_exec.exec.present &&
+        ToriRSChromeSync_TakePresentChange(&app->plugin_exec, &app->plugin_ui) )
     {
         int count = 0;
         struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&app->plugin_ui, &count);

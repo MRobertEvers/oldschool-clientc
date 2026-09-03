@@ -15,6 +15,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.DisplayMetrics;
+import android.util.SparseArray;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -89,12 +90,29 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private PluginChromeLayout rootLayout;
     private PluginChromePresenter pluginChrome;
     private boolean started;
+    private boolean destroyed;
     private int lastImeInset;
     private int lastChromeInsetLeft;
     private int lastChromeInsetTop;
     private int lastChromeInsetRight;
     private int lastChromeInsetBottom;
     private boolean chromeBackHeld;
+    private final Object chromeCustomFrameLock = new Object();
+    private final SparseArray<PendingCustomFrame> pendingChromeCustomFrames =
+            new SparseArray<>();
+    private boolean chromeCustomFramePosted;
+
+    private static final class PendingCustomFrame
+    {
+        int panel;
+        int widget;
+        int generation;
+        int serial;
+        int scaleMilli;
+        int width;
+        int height;
+        int[] argb;
+    }
 
     /** Latest battery reading, held so a network change can report both
      *  numbers together. @see #reportDeviceStatus. */
@@ -155,12 +173,32 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private native void nativeStart(String[] args, String dataRoot);
     private native void nativeSurfaceChanged(Surface surface, int width, int height);
     private native void nativeSetDensity(int density);
+    private native void nativeSetForeground(int foreground);
     private native void nativeTouch(int action, int pointerId, int x, int y);
     private native void nativeKey(int keycode, int down, int unicode);
     private native void nativeKeyboardInset(int bottomPx);
     private native void nativeDeviceStatus(int batteryPercent, int batteryCharging, int networkKind);
     private native void nativePluginChromeIntent(
-            int kind, int panel, int widget, int value, String text);
+            int kind,
+            int panel,
+            int widget,
+            int value,
+            String text,
+            int x,
+            int y,
+            int selectionGeneration,
+            int widgetSerial);
+    private native void nativePluginChromeSetExpanded(int expanded);
+    private native void nativePluginChromeRailSelect(
+            int pluginIndex, int selectionGeneration);
+    private native void nativePluginChromeRailLayout(
+            int selectionGeneration,
+            int width,
+            int height,
+            int scaleMilli,
+            int sizeClass,
+            int visible,
+            int gameVisible);
     private native void nativeStop();
 
     /* ---- lifecycle ------------------------------------------------------- */
@@ -211,9 +249,55 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 new PluginChromePresenter.IntentSink()
                 {
                     @Override
-                    public void send(int kind, int panel, int widget, int value, String text)
+                    public void send(
+                            int kind,
+                            int panel,
+                            int widget,
+                            int value,
+                            String text,
+                            int x,
+                            int y,
+                            int selectionGeneration,
+                            int widgetSerial)
                     {
-                        nativePluginChromeIntent(kind, panel, widget, value, text);
+                        nativePluginChromeIntent(
+                                kind,
+                                panel,
+                                widget,
+                                value,
+                                text,
+                                x,
+                                y,
+                                selectionGeneration,
+                                widgetSerial);
+                    }
+                },
+                new PluginChromePresenter.ShellSink()
+                {
+                    @Override
+                    public void select(int pluginIndex, int selectionGeneration)
+                    {
+                        nativePluginChromeRailSelect(pluginIndex, selectionGeneration);
+                    }
+
+                    @Override
+                    public void layout(
+                            int selectionGeneration,
+                            int width,
+                            int height,
+                            int scaleMilli,
+                            int sizeClass,
+                            boolean visible,
+                            boolean gameVisible)
+                    {
+                        nativePluginChromeRailLayout(
+                                selectionGeneration,
+                                width,
+                                height,
+                                scaleMilli,
+                                sizeClass,
+                                visible ? 1 : 0,
+                                gameVisible ? 1 : 0);
                     }
                 });
         rootLayout.setEditorFocusListener(new PluginChromeLayout.EditorFocusListener()
@@ -317,6 +401,20 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
         nativeSetDensity(displayDensityBucket());
         startDeviceStatusReports();
+    }
+
+    @Override
+    protected void onResume()
+    {
+        super.onResume();
+        nativeSetForeground(1);
+    }
+
+    @Override
+    protected void onPause()
+    {
+        nativeSetForeground(0);
+        super.onPause();
     }
 
     private void setChromeInsets(int left, int top, int right, int bottom)
@@ -521,6 +619,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     @Override
     protected void onDestroy()
     {
+        destroyed = true;
         super.onDestroy();
         stopDeviceStatusReports();
         if( started )
@@ -866,13 +965,112 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
             @Override
             public void run()
             {
-                if( pluginChrome != null )
+                if( !destroyed && pluginChrome != null )
                     pluginChrome.applyBatch(words, strings);
             }
         });
     }
 
-    /** Release native controls when the one shared executor is unbound. */
+    /** One complete custom-region bitmap, posted after its WIDGET_ADD batch. */
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void applyPluginChromeCustom(
+            final int panel,
+            final int widget,
+            final int selectionGeneration,
+            final int widgetSerial,
+            final int scaleMilli,
+            final int width,
+            final int height,
+            final int[] argb)
+    {
+        if( selectionGeneration == 0 || widgetSerial == 0 || scaleMilli <= 0 ||
+                width <= 0 || height <= 0 || width > 4096 || height > 4096 ||
+                (long)width * height > 2_000_000L || argb == null ||
+                argb.length != width * height )
+            return;
+        PendingCustomFrame frame = new PendingCustomFrame();
+        frame.panel = panel;
+        frame.widget = widget;
+        frame.generation = selectionGeneration;
+        frame.serial = widgetSerial;
+        frame.scaleMilli = scaleMilli;
+        frame.width = width;
+        frame.height = height;
+        frame.argb = argb;
+        synchronized( chromeCustomFrameLock )
+        {
+            if( pendingChromeCustomFrames.size() >= 16 &&
+                    pendingChromeCustomFrames.get(widget) == null )
+                pendingChromeCustomFrames.removeAt(0);
+            pendingChromeCustomFrames.put(widget, frame);
+            if( chromeCustomFramePosted )
+                return;
+            chromeCustomFramePosted = true;
+        }
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                SparseArray<PendingCustomFrame> frames = new SparseArray<>();
+                synchronized( chromeCustomFrameLock )
+                {
+                    for( int i = 0; i < pendingChromeCustomFrames.size(); i++ )
+                        frames.put(
+                                pendingChromeCustomFrames.keyAt(i),
+                                pendingChromeCustomFrames.valueAt(i));
+                    pendingChromeCustomFrames.clear();
+                    chromeCustomFramePosted = false;
+                }
+                if( !destroyed && pluginChrome != null )
+                    for( int i = 0; i < frames.size(); i++ )
+                    {
+                        PendingCustomFrame next = frames.valueAt(i);
+                        pluginChrome.applyCustomFrame(
+                                next.panel, next.widget, next.generation, next.serial,
+                                next.scaleMilli, next.width, next.height, next.argb);
+                    }
+            }
+        });
+    }
+
+    /** One copied application-owned rail snapshot. It is independent of the
+     * selected page executor and therefore remains applicable while collapsed. */
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void applyPluginChromeRail(final int[] words, final byte[] strings)
+    {
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if( !destroyed && pluginChrome != null )
+                    pluginChrome.applyRailSnapshot(words, strings);
+            }
+        });
+    }
+
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void applyPluginChromeRailIcon(
+            final int pluginIndex,
+            final int revision,
+            final int width,
+            final int height,
+            final int[] argb)
+    {
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if( !destroyed && pluginChrome != null )
+                    pluginChrome.applyRailIcon(
+                            pluginIndex, revision, width, height, argb);
+            }
+        });
+    }
+
+    /** Collapse the one persistent application-owned WebView when unbound. */
     @SuppressWarnings("unused") /* invoked by JNI, by name */
     public void endPluginChrome()
     {
@@ -881,8 +1079,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
             @Override
             public void run()
             {
-                if( pluginChrome != null )
-                    pluginChrome.shutdown();
+                if( !destroyed && pluginChrome != null )
+                    pluginChrome.collapse();
             }
         });
     }

@@ -20,16 +20,23 @@
 enum ToriRSChromeExecKind
 {
     TORIRS_CHROME_EXEC_BUFFER = 0,
-    /** A second OS window, chrome prims blitted into its own surface. */
+    /** ToriRSChrome prims in an attached SDL-owned region of the main window. */
     TORIRS_CHROME_EXEC_SDL,
     /** Real DOM controls, driven from wasm through the page's channel. */
     TORIRS_CHROME_EXEC_WEB,
-    /** An owned Win32 tool window of common controls. */
-    TORIRS_CHROME_EXEC_GDI,
-    /** Native Android Views in the activity's one shared plugin-chrome pane. */
+    /** Shared DOM bundle in one attached WebView2/MSHTML browser control. */
+    TORIRS_CHROME_EXEC_BROWSER,
+    /** One packaged Android WebView in the activity's shared chrome pane. */
     TORIRS_CHROME_EXEC_ANDROID,
+    /** The native/default presenter compiled for this host. */
+    TORIRS_CHROME_EXEC_PLATFORM,
     TORIRS_CHROME_EXEC_COUNT
 };
+
+/* Old manifests may still spell `gdi`; it resolves to the replacement browser
+ * presenter and never revives the retired native-control implementation. */
+#define TORIRS_CHROME_EXEC_GDI TORIRS_CHROME_EXEC_BROWSER
+#define TORIRS_CHROME_EXEC_WINBROWSER TORIRS_CHROME_EXEC_BROWSER
 
 /** The name a config or an env var spells, e.g. "buffer". Never NULL. */
 char const*

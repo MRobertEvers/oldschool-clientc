@@ -34,6 +34,9 @@
 
 struct ANativeWindow;
 struct ToriRSChromeCmd;
+struct ToriRSChromeCustomFrame;
+struct ToriRSChromeRailSnapshot;
+struct ToriRSChromeRailIcon;
 
 /* ---- UI thread -> platform ------------------------------------------------
  *
@@ -74,6 +77,16 @@ PlatformAndroid_WindowSize(int* out_width, int* out_height);
  *  its baked font size from. */
 void
 PlatformAndroid_SetDensity(int density);
+
+/** Activity lifecycle, independent of whether its game SurfaceView is visible.
+ * Exclusive plugin chrome intentionally destroys that surface while the app
+ * remains foreground, so audio and networking must not infer lifecycle from
+ * PlatformAndroid_Window(). */
+void
+PlatformAndroid_SetForeground(int foreground);
+
+int
+PlatformAndroid_IsForeground(void);
 
 /**
  * How many SURFACE rows the soft keyboard covers at the bottom; 0 = away.
@@ -245,11 +258,13 @@ PlatformAndroidGL_SwapBuffers(void);
 void
 PlatformAndroidJni_SetSoftKeyboard(int on);
 
-/* ---- native plugin chrome ------------------------------------------------
+/* ---- packaged-WebView plugin chrome --------------------------------------
  *
  * The executor runs on the frame thread. It accumulates one complete
  * ToriRSChrome sync and crosses JNI only at SYNC_END; ClientActivity then
- * posts exactly one Runnable which mutates framework Views on the UI thread.
+ * posts exactly one Runnable which feeds the application-owned local DOM on
+ * the UI thread. Plugins supply semantic records and pixels, never HTML, JS,
+ * URLs, or a second WebView.
  * None of these functions takes platform_android.c's surface/input mutex, so
  * calling Java can never hold that mutex across re-entry.
  */
@@ -259,9 +274,23 @@ int
 PlatformAndroidJni_ChromeAvailable(void);
 
 /** Copy one complete transaction into Java. The call returns after enqueueing
- * it; Views are not touched on the frame thread. */
+ * it; the WebView is not touched on the frame thread. */
 void
 PlatformAndroidJni_ApplyChromeBatch(struct ToriRSChromeCmd const* commands, int count);
+
+/** Copy one dirty custom-region raster into the Activity presenter. */
+void
+PlatformAndroidJni_ApplyChromeCustom(
+    struct ToriRSChromeCustomFrame const* frame);
+
+
+/** Copy the complete application-owned rail snapshot into ClientActivity.
+ * Valid independently of the selected page executor lifecycle. */
+void
+PlatformAndroidJni_ApplyChromeRail(
+    struct ToriRSChromeRailSnapshot const* snapshot);
+void PlatformAndroidJni_ApplyChromeRailIcon(
+    struct ToriRSChromeRailIcon const* icon);
 
 /** Tear down the Activity's one shared presenter. Asynchronous to the UI
  * thread, like ApplyChromeBatch. */
@@ -272,6 +301,36 @@ PlatformAndroidJni_EndChrome(void);
  * returns; a toggle is paired with its activation by the native executor. */
 void
 PlatformAndroidChrome_PostIntent(
-    int kind, int panel, int widget, int value, char const* text);
+    int kind,
+    int panel,
+    int widget,
+    int value,
+    char const* text,
+    int x,
+    int y,
+    uint32_t selection_generation,
+    uint32_t widget_serial);
+
+
+/** Persistent rail -> application shell. The request survives executor end,
+ * because collapsed is precisely the state in which the widget executor is
+ * unbound. Take returns 1 once and writes the requested expanded state. */
+void
+PlatformAndroidChrome_RequestExpanded(int expanded);
+
+int
+PlatformAndroidChrome_TakeExpandedRequest(int* out_expanded);
+
+/** Persistent native rail -> frame-thread selection/layout queue. */
+void PlatformAndroidChrome_PostRailSelect(
+    int plugin_index, uint32_t selection_generation);
+void PlatformAndroidChrome_PostRailLayout(
+    uint32_t selection_generation,
+    int width,
+    int height,
+    int scale_milli,
+    int size_class,
+    int visible,
+    int game_visible);
 
 #endif

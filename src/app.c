@@ -38,6 +38,7 @@
 
 #if defined(TORIRS_PLATFORM_WEB)
 #include <emscripten.h>
+#include "ui/torirs_chrome_exec_web.h"
 
 /*
  * Ask the page to open the command-panel tab (`[editor:boot] panel=tab`).
@@ -112,6 +113,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
 #include "ui/uitree_build.h"
+#include "ui/torirs_chrome_panel_draw.h"
 #include "ui/uitree_iface_stats.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_obj_cell.h"
@@ -2663,6 +2665,34 @@ app_overlay_push(
     struct App* app,
     struct UITreeEntityOverlay const* item)
 {
+    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_PANEL )
+    {
+        struct UITreeEntityOverlay* out;
+
+        /* PANEL is a staged, panel-local target. If the application did not
+         * prepare an exact custom well, drawing is dropped rather than falling
+         * through into the world list. That is the isolation boundary. */
+        if( !app->panel_overlay_stage_active )
+            return;
+        if( app->panel_overlay_stage_count >= APP_PLUGIN_PANEL_OVERLAYS_MAX )
+        {
+            app->panel_overlay_stage_overflow = 1;
+            return;
+        }
+
+        out = &app->panel_overlay_stage[app->panel_overlay_stage_count];
+        if( !ToriRSChromePanelDraw_Transform(
+                item,
+                app->panel_overlay_origin_x,
+                app->panel_overlay_origin_y,
+                app->panel_overlay_scale,
+                app->panel_overlay_clip,
+                out) )
+            return;
+        app->panel_overlay_stage_count++;
+        return;
+    }
+
     /*
      * Which list depends on the draw window that is open, and nothing above
      * this has to know which one that is.
@@ -2670,7 +2700,8 @@ app_overlay_push(
      * Every built-in overlay -- health bars, hitsplats, overhead chat, the
      * editor marks -- is built with no window open at all, so `canvas` is 0
      * for all of them and they land in the world list exactly as before. Only
-     * a plugin drawing inside EV_DRAW_CANVAS flips it.
+     * an explicit plugin draw event flips it; PANEL returned above and can
+     * never enter one of these game lists.
      */
     if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_CANVAS )
     {
@@ -2726,6 +2757,8 @@ app_overlay_count(struct App const* app)
         return app->canvas_overlay_count + app->plugin_role_overlay_raw_count;
     case APP_PLUGIN_SURFACE_FRAME:
         return app->frame_overlay_count;
+    case APP_PLUGIN_SURFACE_PANEL:
+        return app->panel_overlay_stage_active ? app->panel_overlay_stage_count : 0;
     default:
         return app->entity_overlay_count;
     }
@@ -5494,8 +5527,62 @@ app_inv_drag_promoted(struct App const* app);
 static int
 app_inv_drag_ghosting(struct App const* app);
 
+/** Convert one retained panel primitive for the in-canvas fallback. */
+static int
+app_panel_overlay_to_chrome(
+    struct App const* app,
+    int index,
+    struct ToriRSChromePrim* out)
+{
+    struct UITreeEntityOverlay visible;
+    struct UITreeEntityOverlay const* item = &visible;
+
+    assert(app);
+    if( !app_plugin_panel_overlay_visible(app, index, &visible) )
+        return 0;
+    assert(item);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->x = item->x;
+    out->y = item->y;
+    out->w = item->w;
+    out->h = item->h;
+    out->color = item->color & 0x00FFFFFFu;
+    out->trans = item->trans;
+    out->clip.x = item->clip_x;
+    out->clip.y = item->clip_y;
+    out->clip.w = item->clip_w;
+    out->clip.h = item->clip_h;
+
+    switch( item->kind )
+    {
+    case UITREE_ENTITY_OVERLAY_RECT:
+        out->kind = TORIRS_CHROME_PRIM_RECT;
+        out->filled = 1;
+        return 1;
+    case UITREE_ENTITY_OVERLAY_TEXT:
+        out->kind = TORIRS_CHROME_PRIM_TEXT;
+        out->font_slot = TORIRS_CHROME_FONT_BODY;
+        out->baseline = 1;
+        out->text = item->text;
+        return item->text[0] != '\0';
+    case UITREE_ENTITY_OVERLAY_SPRITE:
+        out->kind = TORIRS_CHROME_PRIM_SPRITE;
+        out->sprite_scene_id = item->scene_id;
+        return item->scene_id > 0;
+    case UITREE_ENTITY_OVERLAY_LINE:
+        out->kind = TORIRS_CHROME_PRIM_LINE;
+        out->line_direction = item->line_direction;
+        out->line_width = item->line_width;
+        return 1;
+    default:
+        /* Panel APIs expose rect/line/text/image, not world polygons. */
+        return 0;
+    }
+}
+
 /**
- * Both chrome instances' display lists, back to back.
+ * Both chrome instances' display lists, then panel-local custom primitives.
  *
  * Rebuilt only when the pair actually differs from what was merged last: the
  * prim arrays are handed downstream by pointer and a steady frame must stay a
@@ -5514,7 +5601,6 @@ app_chrome_merged_prims(struct App* app, int* out_count)
     int win_count = 0;
     struct ToriRSChromePrim const* dbg = ToriRSChrome_Prims(&app->dbg_ui, &dbg_count);
     struct ToriRSChromePrim const* win = ToriRSChrome_Prims(&app->plugin_ui, &win_count);
-    int total;
 
     assert(out_count);
 
@@ -5537,23 +5623,31 @@ app_chrome_merged_prims(struct App* app, int* out_count)
         return dbg;
     }
 
-    total = dbg_count + win_count;
-    if( total > APP_CHROME_PRIMS_MAX )
-        total = APP_CHROME_PRIMS_MAX;
-
     /* Exact, not a heuristic: the serials move on every rebuild, including one
      * that changed a string without changing the prim count. */
     if( app->chrome_merged_dbg != app->dbg_ui.build_serial ||
-        app->chrome_merged_win != app->plugin_ui.build_serial )
+        app->chrome_merged_win != app->plugin_ui.build_serial ||
+        app->chrome_merged_panel != app->panel_overlay_revision )
     {
-        int n = dbg_count < total ? dbg_count : total;
+        int n = dbg_count < APP_CHROME_PRIMS_MAX ? dbg_count : APP_CHROME_PRIMS_MAX;
         memcpy(app->chrome_merged, dbg, (size_t)n * sizeof(*dbg));
-        if( n < total )
+        if( n < APP_CHROME_PRIMS_MAX )
+        {
+            int const take = win_count < APP_CHROME_PRIMS_MAX - n
+                                 ? win_count
+                                 : APP_CHROME_PRIMS_MAX - n;
             memcpy(
-                &app->chrome_merged[n], win, (size_t)(total - n) * sizeof(*win));
+                &app->chrome_merged[n], win, (size_t)take * sizeof(*win));
+            n += take;
+        }
+        for( int i = 0; i < app->panel_overlay_count && n < APP_CHROME_PRIMS_MAX; i++ )
+            if( app_panel_overlay_to_chrome(
+                    app, i, &app->chrome_merged[n]) )
+                n++;
         app->chrome_merged_dbg = app->dbg_ui.build_serial;
         app->chrome_merged_win = app->plugin_ui.build_serial;
-        app->chrome_merged_count = total;
+        app->chrome_merged_panel = app->panel_overlay_revision;
+        app->chrome_merged_count = n;
     }
     *out_count = app->chrome_merged_count;
     return app->chrome_merged;
@@ -7918,8 +8012,9 @@ App_ChromeRasterise(
     int count)
 {
     struct App* app = user;
-    struct UITreeEmitDesc desc;
+    struct UITreeEmitDesc desc[2];
     struct ToriRS_Frame frame;
+    int desc_count = 1;
 
     assert(app);
     assert(pixels);
@@ -7927,19 +8022,42 @@ App_ChromeRasterise(
         return;
     assert(app->soft_chrome);
 
-    memset(&desc, 0, sizeof(desc));
-    desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
-    desc.debug_prims = prims;
-    desc.debug_prim_count = count;
+    memset(desc, 0, sizeof(desc));
+    desc[0].kind = UITREE_EMIT_DEBUG_OVERLAY;
+    desc[0].debug_prims = prims;
+    desc[0].debug_prim_count = count;
     for( int i = 0; i < TORIRS_CHROME_FONT_SLOT_COUNT; i++ )
-        desc.debug_font_id[i] = UITreeSceneBridge_EnsureDebugFont(&app->bridge, i);
-    desc.debug_skin_scene_id = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
+        desc[0].debug_font_id[i] = UITreeSceneBridge_EnsureDebugFont(&app->bridge, i);
+    desc[0].debug_skin_scene_id = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
     for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
-        desc.debug_skin_atlas[i] = i;
-    desc.clip.x = 0;
-    desc.clip.y = 0;
-    desc.clip.w = width;
-    desc.clip.h = height;
+        desc[0].debug_skin_atlas[i] = i;
+    desc[0].clip.x = 0;
+    desc[0].clip.y = 0;
+    desc[0].clip.w = width;
+    desc[0].clip.h = height;
+
+    /* Custom primitives are a second, panel-local layer over the chrome well.
+     * They never enter UITree's world/canvas/frame lists; the items already
+     * carry the well's visible clip from the generation-fenced draw pass. */
+    if( app->panel_overlay_count > 0 )
+    {
+        int visible_count = 0;
+        for( int i = 0; i < app->panel_overlay_count; i++ )
+            if( app_plugin_panel_overlay_visible(
+                    app, i, &app->panel_overlay_stage[visible_count]) )
+                visible_count++;
+        if( visible_count > 0 )
+        {
+        desc[1].kind = UITREE_EMIT_ENTITY_OVERLAY;
+        desc[1].entity_overlays = app->panel_overlay_stage;
+        desc[1].entity_overlay_count = visible_count;
+        desc[1].clip.x = 0;
+        desc[1].clip.y = 0;
+        desc[1].clip.w = width;
+        desc[1].clip.h = height;
+        desc_count = 2;
+        }
+    }
 
     ToriRS_FrameInit(&frame);
     ToriRS_FrameSetScene(&frame, app->scene);
@@ -7947,9 +8065,7 @@ App_ChromeRasterise(
      * below is measured against this, and a frame that thinks it is 765 wide
      * would clip a 360-wide window's chrome to a box off the right of it. */
     ToriRS_FrameSetCanvas(&frame, width, height);
-    /* One desc, handed directly: the buffer form exists for the tree's whole
-     * emit walk, and this window is a single display list. */
-    ToriRS_FrameSetEmit(&frame, &desc, 1);
+    ToriRS_FrameSetEmit(&frame, desc, desc_count);
     ToriRS_Soft3D_Init(app->soft_chrome, app->scene, pixels, width, height);
     ToriRS_Soft3D_RenderFrame(app->soft_chrome, &frame);
 }
@@ -8087,6 +8203,12 @@ app_debug_overlay_init(struct App* app)
     app->plugin_button_disabled = 0;
     app->plugin_panel_built_for = -1;
     app->plugin_panel_built_rev = -1;
+    app->plugin_panel_built_model_rev = 0;
+    app->plugin_panel_built_generation = 0;
+    app->plugin_panel_built_registry_rev = 0;
+    app->plugin_panel_intent_sequence = 0;
+    ToriRSChromeRailSync_Init(&app->plugin_rail);
+    app->plugin_rail_has_layout = 0;
     /* No executor has been reported yet, and BUFFER is a real answer. */
     app->plugin_exec_logged_kind = -1;
 
@@ -10474,6 +10596,9 @@ App_Shutdown(struct App* app)
     UITreeSceneBridge_Free(&app->bridge);
     TorirsModelInstCache_Free(&app->model_inst_cache);
     ToriRS_Soft3D_Free(app->soft_chrome);
+    free(app->panel_custom_pixels);
+    app->panel_custom_pixels = NULL;
+    app->panel_custom_pixel_capacity = 0;
     ToriRS_Soft3D_Free(app->soft);
     ToriDraw_SceneFree(app->scene);
     /* Only the pair matching cfg.cache_kind was ever created; both frees assert
@@ -30162,6 +30287,10 @@ App_DrainCommands(
                     (int)cmd->network_kind);
             break;
         }
+        case TORIRS_CMD_PLUGIN_CHROME_TOGGLE:
+            assert(header.length == 0);
+            app_plugin_window_set_open(app, !app->plugin_panel_visible);
+            break;
         /*
          * Host commands. Each is the same call the equivalent TORIRS_SIM_*
          * harness makes, reached from the drain instead of from a pre-loop
@@ -34762,6 +34891,10 @@ App_SetPluginChromeExec(
     assert(app);
     assert(exec);
     app->plugin_exec_pending = *exec;
+    /* A newly installed presentation needs the complete retained rail even
+     * when the registry itself did not change. */
+    ToriRSChromeRailSync_Init(&app->plugin_rail);
+    app->plugin_rail_has_layout = 0;
     app->plugin_exec_explicit = explicit_choice ? 1 : 0;
     /* Carried so a refusal can name what refused. Without it the fallback
      * message said "the 'buffer' executor would not start", which is both

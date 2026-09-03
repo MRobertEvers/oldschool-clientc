@@ -1,5 +1,137 @@
 Set-StrictMode -Version Latest
 
+function Copy-ToriRSPluginChromeBundle {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Destination
+    )
+
+    $RepoRoot = [IO.Path]::GetFullPath($RepoRoot)
+    $source = Join-Path $RepoRoot "src\plugin_chrome"
+    $skin = Join-Path $RepoRoot "res\plugin_chrome\skin"
+    $font = Join-Path $RepoRoot "res\plugin_chrome\font"
+    $files = @(
+        "modern.html", "modern.css", "codec-es3.js", "runtime.js",
+        "legacy-ie8.html", "legacy-ie8.css", "runtime-ie8.js"
+    )
+    foreach ($name in $files) {
+        if (-not (Test-Path -LiteralPath (Join-Path $source $name))) {
+            throw "Canonical plugin-chrome bundle is missing '$name' under $source."
+        }
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $skin "PanelBody.png"))) {
+        throw "Canonical plugin-chrome skin is missing under $skin."
+    }
+    $fontFiles = @(
+        "ToriRSBody.eot", "ToriRSBody.woff", "ToriRSBody.ttf",
+        "ToriRSMenu.eot", "ToriRSMenu.woff", "ToriRSMenu.ttf",
+        "ToriRSSmall.eot", "ToriRSSmall.woff", "ToriRSSmall.ttf"
+    )
+    foreach ($name in $fontFiles) {
+        if (-not (Test-Path -LiteralPath (Join-Path $font $name))) {
+            throw "Canonical plugin-chrome webfont '$name' is missing under $font."
+        }
+    }
+
+    $Destination = [IO.Path]::GetFullPath($Destination)
+    $repoPrefix = $RepoRoot.TrimEnd('\') + '\'
+    if (-not $Destination.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+        (Split-Path -Leaf $Destination) -ne "plugin_chrome") {
+        throw "Refusing to replace plugin-chrome bundle outside a plugin_chrome directory under $RepoRoot."
+    }
+    if (Test-Path -LiteralPath $Destination) {
+        Get-ChildItem -LiteralPath $Destination -File -Recurse |
+            ForEach-Object { $_.IsReadOnly = $false }
+        Remove-Item -LiteralPath $Destination -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+    foreach ($name in $files) {
+        Copy-Item -LiteralPath (Join-Path $source $name) -Destination $Destination
+    }
+    Copy-Item -LiteralPath $skin -Destination (Join-Path $Destination "skin") -Recurse
+    Copy-Item -LiteralPath $font -Destination (Join-Path $Destination "font") -Recurse
+    Get-ChildItem -LiteralPath $Destination -File -Recurse |
+        ForEach-Object { $_.IsReadOnly = $true }
+}
+
+function Resolve-ToriRSWebView2Sdk {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [string]$Override = ""
+    )
+
+    $version = "1.0.4191.47"
+    $expectedSha256 = "f492bbf547d0da329553b6727435b677579b1e9f91cc9e4a1ad029366d5f23d0"
+    $RepoRoot = [IO.Path]::GetFullPath($RepoRoot)
+    $root = if ($Override) {
+        [IO.Path]::GetFullPath($Override)
+    } else {
+        Join-Path $RepoRoot "toolchains\webview2-$version"
+    }
+    $native = if (Test-Path -LiteralPath (Join-Path $root "include\WebView2.h")) {
+        $root
+    } else {
+        Join-Path $root "build\native"
+    }
+    $header = Join-Path $native "include\WebView2.h"
+    $loader = Join-Path $native "x64\WebView2Loader.dll"
+
+    if ((-not (Test-Path -LiteralPath $header)) -or
+        (-not (Test-Path -LiteralPath $loader))) {
+        if ($Override) {
+            throw "WebView2 SDK '$Override' must contain include\WebView2.h and x64\WebView2Loader.dll (directly or under build\native)."
+        }
+        $toolchainParent = Join-Path $RepoRoot "toolchains"
+        $extractDir = Join-Path $toolchainParent (".extract-webview2-{0}" -f [guid]::NewGuid().ToString("N"))
+        $package = Join-Path ([IO.Path]::GetTempPath()) ("torirs-webview2-{0}-{1}.nupkg" -f $version, [guid]::NewGuid().ToString("N"))
+        $uri = "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/$version"
+        New-Item -ItemType Directory -Force -Path $toolchainParent | Out-Null
+        Write-Host "[win64] downloading pinned Microsoft.Web.WebView2 $version"
+        try {
+            Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $package
+            $actual = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $expectedSha256) {
+                throw "WebView2 package SHA-256 mismatch: expected $expectedSha256, got $actual."
+            }
+            New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [IO.Compression.ZipFile]::ExtractToDirectory($package, $extractDir)
+            if (-not (Test-Path -LiteralPath (Join-Path $extractDir "build\native\include\WebView2.h")) -or
+                -not (Test-Path -LiteralPath (Join-Path $extractDir "build\native\x64\WebView2Loader.dll"))) {
+                throw "Pinned WebView2 package did not contain its native header and x64 loader."
+            }
+            if (Test-Path -LiteralPath $root) {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+            Move-Item -LiteralPath $extractDir -Destination $root
+        } finally {
+            if (Test-Path -LiteralPath $package) {
+                Remove-Item -LiteralPath $package -Force
+            }
+            if (Test-Path -LiteralPath $extractDir) {
+                Remove-Item -LiteralPath $extractDir -Recurse -Force
+            }
+        }
+        $native = Join-Path $root "build\native"
+        $header = Join-Path $native "include\WebView2.h"
+        $loader = Join-Path $native "x64\WebView2Loader.dll"
+    }
+
+    [pscustomobject]@{
+        NativeDir = [IO.Path]::GetFullPath($native)
+        Header = [IO.Path]::GetFullPath($header)
+        Loader = [IO.Path]::GetFullPath($loader)
+        Version = $version
+    }
+}
+
 function Resolve-ToriRSWindowsToolchain {
     [CmdletBinding()]
     param(

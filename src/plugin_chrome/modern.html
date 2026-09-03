@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: torirs: https://torirs.local; connect-src 'none'; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>ToriRS Plugin Chrome</title>
+  <link rel="stylesheet" href="modern.css">
+</head>
+<body>
+  <div id="tpc-shell" class="tpc-shell tpc-collapsed" role="group" aria-label="Plugin chrome">
+    <section id="tpc-pane" class="tpc-pane tpc-no-tabs" aria-label="Selected plugin page" hidden>
+      <div class="tpc-frame" aria-hidden="true">
+        <i id="tpc-frame-tl" class="tpc-frame-tl"></i><i id="tpc-frame-t" class="tpc-frame-t"></i><i id="tpc-frame-tr" class="tpc-frame-tr"></i>
+        <i id="tpc-frame-l" class="tpc-frame-l"></i><i id="tpc-frame-r" class="tpc-frame-r"></i>
+        <i id="tpc-frame-bl" class="tpc-frame-bl"></i><i id="tpc-frame-b" class="tpc-frame-b"></i><i id="tpc-frame-br" class="tpc-frame-br"></i>
+      </div>
+      <header class="tpc-header">
+        <h1 id="tpc-title">Plugins</h1>
+        <button id="tpc-close" class="tpc-close" type="button" aria-label="Close plugin page">×</button>
+      </header>
+      <nav id="tpc-tabs" class="tpc-tabs" aria-label="Page tabs" hidden></nav>
+      <main id="tpc-content" class="tpc-content"></main>
+    </section>
+    <nav id="tpc-rail" class="tpc-rail" aria-label="Plugin pages">
+      <div id="tpc-rail-list" class="tpc-rail-list"></div>
+    </nav>
+  </div>
+  <div id="tpc-status" class="tpc-sr-only" aria-live="polite"></div>
+  <script src="codec-es3.js" defer></script>
+  <script src="runtime.js" defer></script>
+</body>
+</html>

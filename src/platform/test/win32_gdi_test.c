@@ -1,4 +1,5 @@
 #include "platform/platform_window.h"
+#include "platform/platform_win32_chrome.h"
 
 #include <windows.h>
 
@@ -103,6 +104,11 @@ main(void)
      * requested client size is not silently widened during CreateWindow. */
     int const logical_w = 160;
     int const logical_h = 80;
+#if defined(_WIN64)
+    int const rail_w = 48;
+#else
+    int const rail_w = 46;
+#endif
     uint32_t const sentinel = UINT32_C(0x00234567);
     struct PlatformWindow* platform;
     HWND hwnd;
@@ -111,6 +117,16 @@ main(void)
     int* source;
     LRESULT erased;
     uint32_t paints_before;
+    HWND chrome;
+    HWND rail;
+    HWND browser_child;
+    int game_w;
+    int game_h;
+    uint32_t icon_pixels[4] = {
+        UINT32_C(0xff000000), UINT32_C(0xffffffff),
+        UINT32_C(0xffff981f), UINT32_C(0xff372e22)
+    };
+    char bitmap_url[128];
 
     SetEnvironmentVariableA("TORIRS_WIN32_HIDDEN", "1");
     platform = PlatformWindow_New();
@@ -199,9 +215,113 @@ main(void)
         !PlatformWindow_Pixels(platform) )
         fail("second retained-DIB resize failed");
 
+    /* The plugin shell is part of this same top-level HWND.  Restore its
+     * original size first: the letterbox case above deliberately doubled it. */
+    PlatformWindow_SetWindowSize(platform, logical_w, logical_h);
+    GetClientRect(hwnd, &client);
+    if( client.right != logical_w || client.bottom != logical_h )
+        fail("could not restore main client before chrome test");
+    if( !PlatformWindow_ChromeRailOpen(platform, rail_w, "Plugins") )
+        fail("could not create persistent browser rail");
+    chrome = (HWND)PlatformWindow_Win32ChromeHandle(platform);
+    rail = (HWND)PlatformWindow_Win32TestRailHandle(platform);
+    if( !chrome || chrome != rail || chrome == hwnd )
+        fail("plugin chrome did not expose its one persistent browser container");
+    if( GetParent(chrome) != hwnd ||
+        !(GetWindowLongPtrA(chrome, GWL_STYLE) & WS_CHILD) ||
+        (GetWindowLongPtrA(chrome, GWL_STYLE) & WS_POPUP) )
+        fail("plugin browser container escaped the main HWND");
+    browser_child = GetWindow(chrome, GW_CHILD);
+    if( !browser_child || GetParent(browser_child) != chrome )
+        fail("browser backend did not attach inside the persistent container");
+    GetClientRect(hwnd, &client);
+    if( client.right != logical_w + rail_w || client.bottom != logical_h ||
+        !PlatformWindow_Win32GameClientSize(hwnd, &game_w, &game_h) ||
+        game_w != logical_w || game_h != logical_h ||
+        PlatformWindow_ChromeRailWidth(platform) != rail_w ||
+        PlatformWindow_ChromePageWidth(platform) != 0 )
+        fail("collapsed browser rail changed the game allocation");
+    if( !PlatformWindow_PluginBrowserReady(platform) ||
+        PlatformWindow_PluginBrowserFailed(platform) )
+        fail("deterministic browser backend did not become ready");
+    GetClientRect(chrome, &client);
+    if( client.right != rail_w || client.bottom != logical_h )
+        fail("collapsed browser was not exactly rail width");
+    if( !PlatformWindow_PluginBrowserBitmapUrl(
+            platform, "rail-4", 9, icon_pixels, 2, 2,
+            bitmap_url, (int)sizeof(bitmap_url)) ||
+        strcmp(bitmap_url, "bitmap/rail-4-r9.bmp") != 0 )
+        fail("browser bitmap cache did not publish a relative revision URL");
+    if( PlatformWindow_PluginBrowserBitmapUrl(
+            platform, "../escape", 9, icon_pixels, 2, 2,
+            bitmap_url, (int)sizeof(bitmap_url)) )
+        fail("browser bitmap cache accepted a path traversal key");
+
+    if( !PlatformWindow_ChromeOpen(platform, 60, logical_h, "Plugins") )
+        fail("could not open attached plugin chrome");
+    chrome = (HWND)PlatformWindow_Win32ChromeHandle(platform);
+    rail = (HWND)PlatformWindow_Win32TestRailHandle(platform);
+    if( !chrome || chrome != rail || GetParent(chrome) != hwnd )
+        fail("expand replaced the persistent browser container");
+    if( GetWindow(chrome, GW_CHILD) != browser_child )
+        fail("expand replaced the one shared browser control");
+    if( !PlatformWindow_Win32GameClientSize(hwnd, &game_w, &game_h) ||
+        game_w != logical_w || game_h != logical_h )
+        fail("attached-grow changed the game presentation size");
+    if( PlatformWindow_ChromeWidth(platform) != 60 ||
+        PlatformWindow_ChromeHeight(platform) != logical_h ||
+        PlatformWindow_ChromeRailWidth(platform) != rail_w ||
+        PlatformWindow_ChromePageWidth(platform) != 60 )
+        fail("attached pane reported the wrong drawable size");
+    if( PlatformWindow_ChromePixels(platform) != NULL )
+        fail("browser-backed chrome unexpectedly exposed a surface buffer");
+    GetClientRect(chrome, &client);
+    if( client.right != rail_w + 60 || client.bottom != logical_h )
+        fail("expanded browser did not contain rail plus selected page");
+    PlatformWindow_ChromePresent(platform);
+
+    PlatformWindow_ChromeClose(platform);
+    if( PlatformWindow_ChromeIsOpen(platform) ||
+        PlatformWindow_Win32ChromeHandle(platform) != chrome ||
+        PlatformWindow_Win32TestRailHandle(platform) != rail )
+        fail("collapse did not preserve the shared browser control");
+    GetClientRect(hwnd, &client);
+    if( client.right != logical_w + rail_w || client.bottom != logical_h ||
+        !PlatformWindow_Win32GameClientSize(hwnd, &game_w, &game_h) ||
+        game_w != logical_w || game_h != logical_h ||
+        PlatformWindow_ChromePageWidth(platform) != 0 )
+        fail("collapse failed to preserve the rail and game width");
+
+    /* A second cycle must land on the exact same expanded and collapsed
+     * widths. This catches the classic frame-vs-client one-pixel ratchet. */
+    if( !PlatformWindow_ChromeOpen(platform, 60, logical_h, "Plugins") )
+        fail("could not reopen attached plugin chrome");
+    GetClientRect(hwnd, &client);
+    if( client.right != logical_w + rail_w + 60 )
+        fail("reopen accumulated width drift");
+    if( !PlatformWindow_ChromeOpen(platform, 60, logical_h, "Plugins") )
+        fail("idempotent open was refused");
+    GetClientRect(hwnd, &client);
+    if( client.right != logical_w + rail_w + 60 )
+        fail("idempotent open ratcheted the window wider");
+
+    /* A user/window-manager shrink while expanded must not make the next
+     * collapsed game smaller than the size from which this cycle opened. */
+    PlatformWindow_SetWindowSize(platform, logical_w + rail_w + 30, logical_h);
+    PlatformWindow_ChromeClose(platform);
+    GetClientRect(hwnd, &client);
+    if( client.right != logical_w + rail_w )
+        fail("collapse after an external resize lost the saved game width");
+    if( !PlatformWindow_ChromeOpen(platform, 60, logical_h, "Plugins") )
+        fail("could not expand after the clamped collapse");
+    PlatformWindow_ChromeClose(platform);
+    GetClientRect(hwnd, &client);
+    if( client.right != logical_w + rail_w )
+        fail("third collapse accumulated width drift");
+
     surface_free(&target);
     PlatformWindow_Free(platform);
     SetEnvironmentVariableA("TORIRS_WIN32_HIDDEN", NULL);
-    puts("win32_gdi_test: ok (retained paint, no erase, isolated letterbox bars)");
+    puts("win32_gdi_test: ok (retained game paint, one attached browser, stable collapse)");
     return 0;
 }

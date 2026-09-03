@@ -115,6 +115,12 @@ HttpServer_ContentTypeForPath(char const* path)
         return "image/png";
     if( strcmp(dot, ".ico") == 0 )
         return "image/x-icon";
+    if( strcmp(dot, ".woff") == 0 )
+        return "font/woff";
+    if( strcmp(dot, ".ttf") == 0 )
+        return "font/ttf";
+    if( strcmp(dot, ".eot") == 0 )
+        return "application/vnd.ms-fontobject";
     return "application/octet-stream";
 }
 

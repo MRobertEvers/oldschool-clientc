@@ -102,6 +102,9 @@ static jobject g_activity;      /* global ref, held for the app's life */
 static jmethodID g_show_keyboard;
 static jmethodID g_boot_failed;
 static jmethodID g_apply_chrome_batch;
+static jmethodID g_apply_chrome_custom;
+static jmethodID g_apply_chrome_rail;
+static jmethodID g_apply_chrome_rail_icon;
 static jmethodID g_end_chrome;
 /**
  * The frame thread has been attached to the JVM.
@@ -304,7 +307,7 @@ PlatformAndroidJni_SetSoftKeyboard(int on)
 
 /* ---- plugin chrome: frame thread -> one Java transaction ---------------- */
 
-#define ANDROID_CHROME_WORDS 10
+#define ANDROID_CHROME_WORDS 11
 #define ANDROID_CHROME_LABEL_BYTES TORIRS_CHROME_LABEL_MAX
 #define ANDROID_CHROME_TEXT_BYTES TORIRS_CHROME_TEXT_MAX
 #define ANDROID_CHROME_STRING_BYTES                                                   \
@@ -358,6 +361,7 @@ PlatformAndroidJni_ApplyChromeBatch(struct ToriRSChromeCmd const* commands, int 
         out[7] = (jint)command->y;
         out[8] = (jint)command->w;
         out[9] = (jint)command->h;
+        out[10] = (jint)command->serial;
         memcpy(text, command->label, ANDROID_CHROME_LABEL_BYTES);
         memcpy(
             text + ANDROID_CHROME_LABEL_BYTES,
@@ -391,6 +395,192 @@ done:
         (*env)->DeleteLocalRef(env, java_words);
     free(strings);
     free(words);
+}
+
+void
+PlatformAndroidJni_ApplyChromeCustom(
+    struct ToriRSChromeCustomFrame const* frame)
+{
+    JNIEnv* env;
+    jintArray java_pixels = NULL;
+    size_t count;
+
+    if( !frame || !frame->argb || frame->width <= 0 || frame->height <= 0 ||
+        frame->stride != frame->width || frame->scale_milli <= 0 ||
+        frame->selection_generation == 0 ||
+        frame->widget_serial == 0 || !g_vm || !g_activity ||
+        !g_apply_chrome_custom )
+        return;
+    if( (size_t)frame->width > 0x7fffffffU / (size_t)frame->height )
+        return;
+    count = (size_t)frame->width * (size_t)frame->height;
+    if( count > 2000000U )
+        return;
+    env = frame_thread_jni();
+    if( !env )
+        return;
+    java_pixels = (*env)->NewIntArray(env, (jsize)count);
+    if( !java_pixels || (*env)->ExceptionCheck(env) )
+        goto done;
+    (*env)->SetIntArrayRegion(
+        env, java_pixels, 0, (jsize)count, (jint const*)frame->argb);
+    if( (*env)->ExceptionCheck(env) )
+        goto done;
+    (*env)->CallVoidMethod(
+        env,
+        g_activity,
+        g_apply_chrome_custom,
+        (jint)frame->panel,
+        (jint)frame->widget,
+        (jint)frame->selection_generation,
+        (jint)frame->widget_serial,
+        (jint)frame->scale_milli,
+        (jint)frame->width,
+        (jint)frame->height,
+        java_pixels);
+
+done:
+    if( (*env)->ExceptionCheck(env) )
+    {
+        LOGE("could not enqueue Android plugin custom frame");
+        (*env)->ExceptionClear(env);
+    }
+    if( java_pixels )
+        (*env)->DeleteLocalRef(env, java_pixels);
+}
+
+#define ANDROID_RAIL_HEADER_WORDS 8
+#define ANDROID_RAIL_ENTRY_WORDS 4
+#define ANDROID_RAIL_ENTRY_BYTES                                                \
+    (TORIRS_CHROME_RAIL_TITLE_MAX + TORIRS_CHROME_RAIL_ICON_MAX +             \
+     TORIRS_CHROME_RAIL_BADGE_MAX)
+
+void
+PlatformAndroidJni_ApplyChromeRail(
+    struct ToriRSChromeRailSnapshot const* snapshot)
+{
+    JNIEnv* env;
+    jintArray java_words = NULL;
+    jbyteArray java_strings = NULL;
+    jint words[ANDROID_RAIL_HEADER_WORDS +
+               TORIRS_CHROME_RAIL_ENTRY_MAX * ANDROID_RAIL_ENTRY_WORDS];
+    jbyte strings[TORIRS_CHROME_RAIL_ENTRY_MAX * ANDROID_RAIL_ENTRY_BYTES];
+    int count;
+    int word_count;
+    int string_count;
+
+    if( !snapshot || !g_vm || !g_activity || !g_apply_chrome_rail )
+        return;
+    env = frame_thread_jni();
+    if( !env )
+        return;
+    count = snapshot->entry_count;
+    if( count < 0 )
+        count = 0;
+    if( count > TORIRS_CHROME_RAIL_ENTRY_MAX )
+        count = TORIRS_CHROME_RAIL_ENTRY_MAX;
+    word_count = ANDROID_RAIL_HEADER_WORDS + count * ANDROID_RAIL_ENTRY_WORDS;
+    string_count = count * ANDROID_RAIL_ENTRY_BYTES;
+    memset(words, 0, sizeof(words));
+    memset(strings, 0, sizeof(strings));
+    words[0] = (jint)snapshot->registry_revision;
+    words[1] = (jint)snapshot->selection_generation;
+    words[2] = (jint)snapshot->page_generation;
+    words[3] = (jint)snapshot->active_plugin;
+    words[4] = (jint)snapshot->last_selected_plugin;
+    words[5] = (jint)snapshot->selected_entry;
+    words[6] = (jint)snapshot->expanded;
+    words[7] = (jint)count;
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRSChromeRailEntry const* entry = &snapshot->entries[i];
+        jint* out = &words[ANDROID_RAIL_HEADER_WORDS + i * ANDROID_RAIL_ENTRY_WORDS];
+        jbyte* text = &strings[i * ANDROID_RAIL_ENTRY_BYTES];
+        out[0] = (jint)entry->kind;
+        out[1] = (jint)entry->plugin_index;
+        out[2] = (jint)entry->preferred_width;
+        out[3] = (jint)entry->attention;
+        memcpy(text, entry->title, TORIRS_CHROME_RAIL_TITLE_MAX);
+        memcpy(
+            text + TORIRS_CHROME_RAIL_TITLE_MAX,
+            entry->icon_asset,
+            TORIRS_CHROME_RAIL_ICON_MAX);
+        memcpy(
+            text + TORIRS_CHROME_RAIL_TITLE_MAX + TORIRS_CHROME_RAIL_ICON_MAX,
+            entry->badge,
+            TORIRS_CHROME_RAIL_BADGE_MAX);
+    }
+
+    java_words = (*env)->NewIntArray(env, word_count);
+    java_strings = (*env)->NewByteArray(env, string_count);
+    if( !java_words || !java_strings || (*env)->ExceptionCheck(env) )
+        goto done;
+    (*env)->SetIntArrayRegion(env, java_words, 0, word_count, words);
+    if( string_count > 0 )
+        (*env)->SetByteArrayRegion(env, java_strings, 0, string_count, strings);
+    if( (*env)->ExceptionCheck(env) )
+        goto done;
+    (*env)->CallVoidMethod(
+        env, g_activity, g_apply_chrome_rail, java_words, java_strings);
+
+done:
+    if( (*env)->ExceptionCheck(env) )
+    {
+        LOGE("could not enqueue Android plugin rail snapshot");
+        (*env)->ExceptionClear(env);
+    }
+    if( java_strings )
+        (*env)->DeleteLocalRef(env, java_strings);
+    if( java_words )
+        (*env)->DeleteLocalRef(env, java_words);
+}
+
+void
+PlatformAndroidJni_ApplyChromeRailIcon(
+    struct ToriRSChromeRailIcon const* icon)
+{
+    JNIEnv* env;
+    jintArray java_pixels = NULL;
+    int count;
+
+    if( !icon || !g_vm || !g_activity || !g_apply_chrome_rail_icon )
+        return;
+    if( icon->width < 0 || icon->height < 0 ||
+        icon->width > TORIRS_CHROME_RAIL_ICON_SIDE_MAX ||
+        icon->height > TORIRS_CHROME_RAIL_ICON_SIDE_MAX )
+        return;
+    count = icon->width * icon->height;
+    env = frame_thread_jni();
+    if( !env )
+        return;
+    if( count > 0 )
+    {
+        java_pixels = (*env)->NewIntArray(env, count);
+        if( !java_pixels || (*env)->ExceptionCheck(env) )
+            goto done;
+        (*env)->SetIntArrayRegion(
+            env, java_pixels, 0, count, (jint const*)icon->argb);
+        if( (*env)->ExceptionCheck(env) )
+            goto done;
+    }
+    (*env)->CallVoidMethod(
+        env,
+        g_activity,
+        g_apply_chrome_rail_icon,
+        (jint)icon->plugin_index,
+        (jint)icon->revision,
+        (jint)icon->width,
+        (jint)icon->height,
+        java_pixels);
+
+done:
+    if( (*env)->ExceptionCheck(env) )
+    {
+        LOGE("could not enqueue Android plugin rail icon");
+        (*env)->ExceptionClear(env);
+    }
+    if( java_pixels )
+        (*env)->DeleteLocalRef(env, java_pixels);
 }
 
 void
@@ -610,6 +800,18 @@ Java_com_torirs_client_ClientActivity_nativeStart(
             (*env)->GetMethodID(env, cls, "applyPluginChromeBatch", "([I[B)V");
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
+        g_apply_chrome_custom = (*env)->GetMethodID(
+            env, cls, "applyPluginChromeCustom", "(IIIIIII[I)V");
+        if( (*env)->ExceptionCheck(env) )
+            (*env)->ExceptionClear(env);
+        g_apply_chrome_rail =
+            (*env)->GetMethodID(env, cls, "applyPluginChromeRail", "([I[B)V");
+        if( (*env)->ExceptionCheck(env) )
+            (*env)->ExceptionClear(env);
+        g_apply_chrome_rail_icon = (*env)->GetMethodID(
+            env, cls, "applyPluginChromeRailIcon", "(IIII[I)V");
+        if( (*env)->ExceptionCheck(env) )
+            (*env)->ExceptionClear(env);
         g_end_chrome = (*env)->GetMethodID(env, cls, "endPluginChrome", "()V");
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
@@ -680,6 +882,15 @@ Java_com_torirs_client_ClientActivity_nativeSetDensity(
 }
 
 JNIEXPORT void JNICALL
+Java_com_torirs_client_ClientActivity_nativeSetForeground(
+    JNIEnv* env, jobject thiz, jint foreground)
+{
+    (void)env;
+    (void)thiz;
+    PlatformAndroid_SetForeground((int)foreground);
+}
+
+JNIEXPORT void JNICALL
 Java_com_torirs_client_ClientActivity_nativeKeyboardInset(
     JNIEnv* env, jobject thiz, jint bottom_px)
 {
@@ -706,7 +917,11 @@ Java_com_torirs_client_ClientActivity_nativePluginChromeIntent(
     jint panel,
     jint widget,
     jint value,
-    jstring text)
+    jstring text,
+    jint x,
+    jint y,
+    jint selection_generation,
+    jint widget_serial)
 {
     char const* utf = NULL;
 
@@ -714,9 +929,60 @@ Java_com_torirs_client_ClientActivity_nativePluginChromeIntent(
     if( text )
         utf = (*env)->GetStringUTFChars(env, text, NULL);
     PlatformAndroidChrome_PostIntent(
-        (int)kind, (int)panel, (int)widget, (int)value, utf ? utf : "");
+        (int)kind,
+        (int)panel,
+        (int)widget,
+        (int)value,
+        utf ? utf : "",
+        (int)x,
+        (int)y,
+        (uint32_t)selection_generation,
+        (uint32_t)widget_serial);
     if( utf )
         (*env)->ReleaseStringUTFChars(env, text, utf);
+}
+
+JNIEXPORT void JNICALL
+Java_com_torirs_client_ClientActivity_nativePluginChromeSetExpanded(
+    JNIEnv* env, jobject thiz, jint expanded)
+{
+    (void)env;
+    (void)thiz;
+    PlatformAndroidChrome_RequestExpanded((int)expanded);
+}
+
+JNIEXPORT void JNICALL
+Java_com_torirs_client_ClientActivity_nativePluginChromeRailSelect(
+    JNIEnv* env, jobject thiz, jint plugin_index, jint selection_generation)
+{
+    (void)env;
+    (void)thiz;
+    PlatformAndroidChrome_PostRailSelect(
+        (int)plugin_index, (uint32_t)selection_generation);
+}
+
+JNIEXPORT void JNICALL
+Java_com_torirs_client_ClientActivity_nativePluginChromeRailLayout(
+    JNIEnv* env,
+    jobject thiz,
+    jint selection_generation,
+    jint width,
+    jint height,
+    jint scale_milli,
+    jint size_class,
+    jint visible,
+    jint game_visible)
+{
+    (void)env;
+    (void)thiz;
+    PlatformAndroidChrome_PostRailLayout(
+        (uint32_t)selection_generation,
+        (int)width,
+        (int)height,
+        (int)scale_milli,
+        (int)size_class,
+        (int)visible,
+        (int)game_visible);
 }
 
 JNIEXPORT void JNICALL
@@ -764,6 +1030,9 @@ Java_com_torirs_client_ClientActivity_nativeStop(JNIEnv* env, jobject thiz)
     g_show_keyboard = NULL;
     g_boot_failed = NULL;
     g_apply_chrome_batch = NULL;
+    g_apply_chrome_custom = NULL;
+    g_apply_chrome_rail = NULL;
+    g_apply_chrome_rail_icon = NULL;
     g_end_chrome = NULL;
     g_vm = NULL;
     LOGI("frame thread joined");

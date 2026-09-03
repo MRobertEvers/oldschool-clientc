@@ -1562,6 +1562,18 @@ lua_panel_set_value(lua_State* L)
 }
 
 static int
+lua_panel_set_height(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* id = luaL_checkstring(L, 1);
+    int const height = (int)luaL_checkinteger(L, 2);
+
+    lua_pushboolean(
+        L, g_api->panel_set_height(script->cur_ctx, id, height));
+    return 1;
+}
+
+static int
 lua_panel_set_options(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
@@ -2744,6 +2756,7 @@ lua_build_api_table(struct LuaScript* script)
             { "widget", lua_panel_widget },
             { "set_text", lua_panel_set_text },
             { "set_value", lua_panel_set_value },
+            { "set_height", lua_panel_set_height },
             { "set_options", lua_panel_set_options },
             { "set_badge", lua_panel_set_badge },
             { "set_attention", lua_panel_set_attention },

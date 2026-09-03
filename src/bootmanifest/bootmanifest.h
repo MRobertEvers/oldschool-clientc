@@ -338,10 +338,12 @@ struct BootManifest
     /**
      * `[chrome] executor=` -- enum ToriRSChromeExecKind for the plugin window.
      *
-     * Defaults to 0 (buffer, the in-canvas chrome), which is also what a
-     * manifest that says nothing means and what every build can provide.
-     * TORIRS_CHROME_EXECUTOR overrides it, the way TORIRS_CHROME_THEME
-     * overrides the theme beside it.
+     * The zeroed storage is BUFFER, but `chrome_executor_set == 0` tells the
+     * application shell to choose PLATFORM: attached SDL, DOM, Win32 or
+     * Android for the build at hand. `buffer` is an explicit developer
+     * comparison because it overlays the game. TORIRS_CHROME_EXECUTOR
+     * overrides the manifest, the way TORIRS_CHROME_THEME overrides the theme
+     * beside it.
      */
     int chrome_executor;
     /**
@@ -357,11 +359,13 @@ struct BootManifest
     /** Set when the key named something that is not an executor at all. */
     int chrome_executor_error;
     /**
-     * `[chrome] borderless=` -- open the plugin window with no OS frame, so
+     * `[chrome] borderless=` -- open an explicitly detached SDL plugin window
+     * with no OS frame, so
      * the panel's own title bar and tab strip are what move it.
      *
-     * Only the `sdl` executor has a frame to hide; every other presentation
-     * either has no window of its own or builds one out of the host's widgets.
+     * Attached presentation has no separate frame to hide. Only SDL's optional
+     * detached mode reads this setting; every other presentation stays in the
+     * application's existing window.
      * Off by default: a frameless window is a look, and one a lane has to ask
      * for. TORIRS_CHROME_BORDERLESS overrides it.
      */

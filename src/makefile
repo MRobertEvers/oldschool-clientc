@@ -699,6 +699,8 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c ui/uitree_snapshot.c \
 	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c ui/torirs_chrome_shell.c \
+	ui/torirs_chrome_panel_draw.c \
+	ui/torirs_chrome_rail.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
@@ -1081,7 +1083,8 @@ TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_UNITY_SIDECAR_
 # because it does not exist yet when that file is read. The previous "native or
 # else" test silently gave win32, which has no GPU path at all, the WebGL one.
 GPU_OBJS = $(addprefix $(OBJ_DIR)/,$(PLATFORM_GPU_OBJ_NAMES))
-OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
+OBJC_OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(PLATFORM_OBJC_SRCS:.m=.o)))
+OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) $(OBJC_OBJS) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(EMBED_SERVER_OBJS) \
 	$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
@@ -1211,6 +1214,14 @@ WEB_ASSETS += $(SRC_DIR)/web/favicon.ico $(SRC_DIR)/web/icon-16.png \
 	$(SRC_DIR)/web/icon-32.png $(SRC_DIR)/web/apple-touch-icon.png \
 	$(SRC_DIR)/web/site.webmanifest $(SRC_DIR)/web/icon-192.png \
 	$(SRC_DIR)/web/icon-512.png $(SRC_DIR)/web/icon-maskable-512.png
+# One app-owned iframe loads this canonical bundle. Keep its directory shape:
+# modern.html resolves its own stylesheet/runtime and every theme URL below it.
+WEB_PLUGIN_CHROME = $(SRC_DIR)/plugin_chrome/modern.html \
+	$(SRC_DIR)/plugin_chrome/modern.css \
+	$(SRC_DIR)/plugin_chrome/codec-es3.js \
+	$(SRC_DIR)/plugin_chrome/runtime.js
+WEB_PLUGIN_CHROME_SKIN = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin/*.png)
+WEB_PLUGIN_CHROME_FONT = $(wildcard $(REPO_ROOT)/res/plugin_chrome/font/*)
 ifeq ($(MEMTRACE),1)
 WEB_ASSETS += $(REPO_ROOT)/tools/memtrace/viewer.html
 endif
@@ -1233,12 +1244,26 @@ servers:
 web: servers
 	$(MAKE) PLATFORM=web OPT=1 MEMTRACE=$(MEMTRACE) all
 	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
+	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin
+	@cp $(WEB_PLUGIN_CHROME) $(REPO_ROOT)/build-web/plugin_chrome/
+	@cp $(WEB_PLUGIN_CHROME_SKIN) $(REPO_ROOT)/build-web/plugin_chrome/skin/
+	@if test -n "$(WEB_PLUGIN_CHROME_FONT)"; then \
+		mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/font; \
+		cp $(WEB_PLUGIN_CHROME_FONT) $(REPO_ROOT)/build-web/plugin_chrome/font/; \
+	fi
 	@echo "built $(REPO_ROOT)/build-web/torirs.js â run it with:"
 	@echo "  ./src/build/io_server --manifest <boot.ini> --root build-web"
 
 web-debug: servers
 	$(MAKE) PLATFORM=web OPT=0 MEMTRACE=$(MEMTRACE) all
 	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
+	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin
+	@cp $(WEB_PLUGIN_CHROME) $(REPO_ROOT)/build-web/plugin_chrome/
+	@cp $(WEB_PLUGIN_CHROME_SKIN) $(REPO_ROOT)/build-web/plugin_chrome/skin/
+	@if test -n "$(WEB_PLUGIN_CHROME_FONT)"; then \
+		mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/font; \
+		cp $(WEB_PLUGIN_CHROME_FONT) $(REPO_ROOT)/build-web/plugin_chrome/font/; \
+	fi
 
 # --- Windows XP target ---------------------------------------------------
 # `make -C src winxp` is the XP lane's entry point, shaped like `web` above so
@@ -1386,6 +1411,11 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(1) -o $$@
 endef
 
+define make-objc-goal
+$(OBJ_DIR)/$(notdir $(1:.m=.o)): $(1) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(PLATFORM_OBJC_CFLAGS) -c $(1) -o $$@
+endef
+
 NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	net/rev/lc289/gameproto_rev_lc289.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c net/rev/osrs230/gameproto_rev_osrs230.c \
@@ -1395,6 +1425,7 @@ NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_r
 # explicit rule below carrying extra include paths, and letting the generic
 # rule also claim it makes make warn about overriding commands.
 $(foreach src,$(filter-out plugin/torirs_plugin_lua.c painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+$(foreach src,$(PLATFORM_OBJC_SRCS),$(eval $(call make-objc-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -c painters/painters.c -o $@
@@ -2749,6 +2780,8 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
 		ui/test/uitree_test_debug_overlay.c \
 		ui/test/uitree_test_chrome_exec.c ui/torirs_chrome_exec.c \
+		ui/test/uitree_test_chrome_panel_draw.c ui/torirs_chrome_panel_draw.c \
+		ui/torirs_chrome_rail.c \
 		ui/torirs_chrome_exec_kind.c \
 		ui/test/uitree_test_chrome_shell.c ui/torirs_chrome_shell.c \
 		ui/torirs_chrome_mirror.c \
@@ -2758,6 +2791,34 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_roles.c \
 		ui/test/uitree_test_scripted_overlay.c render/torirs_arc.c -lm
 	./$(OBJ_DIR)/uitree_test
+
+.PHONY: test-sdl-chrome
+ifneq ($(filter $(PLATFORM),macos linux),)
+test-sdl-chrome: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_chrome_test \
+		platform/test/sdl_chrome_test.c platform/platform_sdl2.c \
+		ui/torirs_chrome_exec_sdl.c ui/torirs_chrome_rail.c \
+		engine/torirs_chrome_skin_baked.c \
+		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_chrome_test
+
+# Deterministic runtime evidence: the same production PlatformWindow and SDL
+# executor exercised above, presented once into the real main-window renderer
+# and read back as a BMP. Override CAPTURE_PATH to choose the artifact name.
+CAPTURE_PATH ?= plugin_chrome_capture.bmp
+.PHONY: capture-sdl-chrome
+capture-sdl-chrome: test-sdl-chrome
+	TORIRS_PLUGIN_CHROME_CAPTURE="$(CAPTURE_PATH)" ./$(OBJ_DIR)/sdl_chrome_test
+else
+test-sdl-chrome:
+	@echo "test-sdl-chrome requires PLATFORM=macos or PLATFORM=linux"
+	@false
+
+capture-sdl-chrome:
+	@echo "capture-sdl-chrome requires PLATFORM=macos or PLATFORM=linux"
+	@false
+endif
 
 # Font markup grammar + the rules it strokes (<str>, <u>), rasterised into a
 # plain buffer with the baked font. Pixel-level, but needs no cache and no
@@ -2792,6 +2853,28 @@ check-gdi-syntax:
 		ui/torirs_chrome_exec_gdi.c
 	@echo "check-gdi-syntax: ok"
 
+# Android's presenter is split at JNI, but its executor/queue half is ordinary
+# pthread C and can be proved on every development host. The bridge functions
+# in this test are recorders: they verify whole-sync delivery and UI -> frame
+# intent ordering without needing an emulator or an Android window.
+.PHONY: test-chrome-android-exec
+test-chrome-android-exec: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIRS_CHROME_EXEC_ANDROID_AVAILABLE=1 \
+		-o $(OBJ_DIR)/chrome_android_exec_test \
+		ui/test/torirs_chrome_exec_android_test.c ui/torirs_chrome_exec_android.c \
+		-pthread
+	./$(OBJ_DIR)/chrome_android_exec_test
+
+# Shared browser protocol serializer/parser, with a fake PlatformWindow
+# transport. This runs on every host; WebView2/MSHTML engine tests are separate.
+.PHONY: test-chrome-browser-exec
+test-chrome-browser-exec: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+		-o $(OBJ_DIR)/chrome_browser_exec_test \
+		ui/test/torirs_chrome_exec_browser_test.c \
+		ui/torirs_chrome_exec_winbrowser.c ui/torirs_chrome_mirror.c
+	./$(OBJ_DIR)/chrome_browser_exec_test
+
 # The web executor's half of the skin: the real base64 encoder over the real
 # bake, decoded back and checked for what the pixels MEAN. See the file comment
 # on why a byte-order slip is invisible to every other test.
@@ -2810,10 +2893,14 @@ test-chrome-web-skin: $(OBJ_DIR)
 # wasm, no build step, because the channel deliberately has none of those.
 .PHONY: test-web-channel
 test-web-channel:
+	node plugin_chrome/test/runtime_test.js
+	node plugin_chrome/test/runtime_legacy_test.js
+	node plugin_chrome/test/compat_test.js
 	node web/test/channel_codec_test.js
 	node web/test/channel_handshake_test.js
 	node web/test/chrome_enum_sync_test.js
 	node web/test/chrome_dom_test.js
+	node web/test/chrome_layout_test.js
 	node web/test/host_plugin_files_test.js
 	$(MAKE) test-chrome-web-skin
 
@@ -5450,25 +5537,76 @@ endif
 # so they run under either repository MinGW lane without booting the client.
 .PHONY: test-win32-platform
 ifneq ($(filter $(PLATFORM),win32 win64),)
-WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g -I$(SRC_DIR) \
-	$(PLATFORM_BASE_CFLAGS)
+WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g \
+	-DTORIRS_PERF_DISABLE=1 -I$(SRC_DIR) \
+	$(PLATFORM_CFLAGS)
 WIN32_PLATFORM_TEST_LDFLAGS := -static -static-libgcc \
-	-lgdi32 -luser32 -lwinmm -lkernel32
+	-lgdi32 -luser32 -lole32 -loleaut32 -luuid -lwinmm -lkernel32
+WIN32_CHROME_CAPTURE_BMP ?= $(OBJ_DIR)/plugin_chrome_browser_capture.bmp
+WIN32_CHROME_CAPTURE_OUT ?= $(OBJ_DIR)/plugin_chrome_browser_capture.png
+ifeq ($(PLATFORM),win32)
+WIN32_CHROME_BROWSER_BACKEND := platform/platform_win32_mshtml.c
+WIN32_CHROME_CAPTURE_RUN_ENV :=
+else
+WIN32_CHROME_BROWSER_BACKEND := platform/platform_win32_webview2.c
+WIN32_CHROME_CAPTURE_RUN_ENV := \
+	TORIRS_WEBVIEW2_LOADER="$(WEBVIEW2_SDK_DIR)/x64/WebView2Loader.dll"
+endif
 test-win32-platform: $(OBJ_DIR)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) -DTORIRS_WIN32_GDI_TEST_API=1 \
 		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) \
 		platform/test/win32_gdi_test.c platform/platform_win32gdi.c \
-		platform/platform_win32_timing.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c $(WIN32_PLATFORM_TEST_LDFLAGS)
+		platform/test/win32_browser_backend_fake.c \
+		platform/platform_win32_timing.c platform/platform_app_icon.c \
+		cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(WIN32_PLATFORM_TEST_LDFLAGS)
 	./$(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
 		-o $(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX) \
 		platform/test/win32_timing_test.c platform/platform_win32_timing.c \
 		$(WIN32_PLATFORM_TEST_LDFLAGS)
 	./$(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX)
+
+.PHONY: build-win32-plugin-chrome-capture capture-win32-plugin-chrome
+build-win32-plugin-chrome-capture: $(OBJ_DIR)
+	@if [ "$(PLATFORM)" = "win64" ] && \
+		[ ! -f "$(WEBVIEW2_SDK_DIR)/x64/WebView2Loader.dll" ]; then \
+		echo "capture-win32-plugin-chrome: set WEBVIEW2_SDK_DIR to Microsoft.Web.WebView2 build/native"; \
+		exit 1; \
+	fi
+	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
+		-DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+		-DTORIRS_WIN32_BROWSER_CAPTURE_API=1 \
+		-o $(OBJ_DIR)/win32_plugin_chrome_capture$(PLATFORM_EXE_SUFFIX) \
+		platform/test/win32_plugin_chrome_capture.c \
+		platform/platform_win32gdi.c platform/platform_win32_timing.c \
+		platform/platform_app_icon.c $(WIN32_CHROME_BROWSER_BACKEND) \
+		ui/torirs_chrome_exec_winbrowser.c ui/torirs_chrome_mirror.c \
+		cmd/cmdbus.c cmd/cmdring.c input/torirs_keymap.c input/torirs_touch.c \
+		-lm $(WIN32_PLATFORM_TEST_LDFLAGS)
+
+capture-win32-plugin-chrome: build-win32-plugin-chrome-capture
+	$(WIN32_CHROME_CAPTURE_RUN_ENV) \
+		./$(OBJ_DIR)/win32_plugin_chrome_capture$(PLATFORM_EXE_SUFFIX) \
+		"$(WIN32_CHROME_CAPTURE_BMP)"
+ifeq ($(PLATFORM),win64)
+	powershell.exe -NoProfile -Command '$$ErrorActionPreference="Stop"; Add-Type -AssemblyName System.Drawing; $$main=[System.Drawing.Bitmap]::FromFile("$(WIN32_CHROME_CAPTURE_BMP)"); $$pane=[System.Drawing.Bitmap]::FromFile("$(WIN32_CHROME_CAPTURE_BMP).browser.png"); $$graphics=[System.Drawing.Graphics]::FromImage($$main); $$graphics.DrawImageUnscaled($$pane,$$main.Width-$$pane.Width,0); $$graphics.Dispose(); $$main.Save("$(WIN32_CHROME_CAPTURE_OUT)",[System.Drawing.Imaging.ImageFormat]::Png); $$pane.Dispose(); $$main.Dispose()'
+	@echo "capture-win32-plugin-chrome: wrote $(WIN32_CHROME_CAPTURE_OUT)"
+else
+	@echo "capture-win32-plugin-chrome: wrote $(WIN32_CHROME_CAPTURE_BMP)"
+endif
 else
 test-win32-platform:
 	@echo "test-win32-platform requires PLATFORM=win32 or PLATFORM=win64"
+	@false
+
+.PHONY: build-win32-plugin-chrome-capture capture-win32-plugin-chrome
+build-win32-plugin-chrome-capture:
+	@echo "build-win32-plugin-chrome-capture requires PLATFORM=win32 or PLATFORM=win64"
+	@false
+
+capture-win32-plugin-chrome:
+	@echo "capture-win32-plugin-chrome requires PLATFORM=win32 or PLATFORM=win64"
 	@false
 endif
 
@@ -5489,7 +5627,8 @@ clean:
 		$(REPO_ROOT)/build-web/index.html $(REPO_ROOT)/build-web/torirs_host.js \
 		$(REPO_ROOT)/build-web/torirs_hostio.js $(REPO_ROOT)/build-web/torirs_idb.js \
 		$(REPO_ROOT)/build-web/torirs_js5.js $(REPO_ROOT)/build-web/torirs_ondemand.js \
-		$(REPO_ROOT)/build-web/torirs_channel.js $(REPO_ROOT)/build-web/panel.html \
+		$(REPO_ROOT)/build-web/torirs_channel.js $(REPO_ROOT)/build-web/torirs_chrome.js \
+		$(REPO_ROOT)/build-web/panel.html \
 		$(REPO_ROOT)/build-web/viewer.html \
 		$(REPO_ROOT)/build-web/favicon.ico $(REPO_ROOT)/build-web/icon-16.png \
 		$(REPO_ROOT)/build-web/icon-32.png \
@@ -5497,6 +5636,7 @@ clean:
 		$(REPO_ROOT)/build-web/site.webmanifest \
 		$(REPO_ROOT)/build-web/icon-192.png $(REPO_ROOT)/build-web/icon-512.png \
 		$(REPO_ROOT)/build-web/icon-maskable-512.png
+	rm -rf $(REPO_ROOT)/build-web/plugin_chrome
 
 # Every flavor suffix OBJ_DIR can grow, in the order the top of this file
 # appends them. Enumerated rather than globbed on purpose: PLATFORM_OBJ_BASE

@@ -131,6 +131,26 @@ dofile = nil
 
 ------------------------------------------------------------------ the apis --
 
+---@alias torirs.PanelWidgetKind
+---| '"label"'|'"checkbox"'|'"input"'|'"dropdown"'|'"button"'|'"separator"'
+---| '"section"'|'"paragraph"'|'"key_value"'|'"toggle"'|'"textarea"'
+---| '"list_row"'|'"image"'|'"progress"'|'"error"'|'"custom"'
+
+--- The one shared application-chrome page. `request` registers inert rail
+--- metadata from on_start; widgets may be declared only when this plugin is
+--- the selected page's on_panel_build handler.
+---@class torirs.PanelApi
+---@field request fun(desc?: string|{title?: string, icon?: string, icon_asset?: string, preferred_width?: integer}): boolean
+---@field widget fun(kind: torirs.PanelWidgetKind, id: string, label?: string): boolean
+---@field set_text fun(id: string, value: any): boolean
+---@field set_value fun(id: string, value: integer|boolean): boolean
+---@field set_height fun(custom_id: string, preferred_height: integer): boolean Sets a custom region's logical content height; 0 uses 120, otherwise clamped to 48..512.
+---@field set_options fun(id: string, choices: string, selected?: integer): boolean `choices` is `a|b|c`; selected is 1-based, 0/nil means none.
+---@field set_badge fun(text?: string): boolean Short rail status text.
+---@field set_attention fun(attention: boolean): boolean Requests a host-owned rail treatment; never opens the page.
+---@field clear fun() Clears the selected model and schedules one fresh on_panel_build.
+---@field invalidate fun(custom_id: string) Marks one visible custom region for on_panel_draw.
+
 --- Handed to every handler as its first argument.
 ---@class torirs.Api
 ---@field log fun(...: any) Writes to stderr, prefixed with the plugin name. Values are stringified with __tostring.
@@ -188,6 +208,7 @@ dofile = nil
 ---@field hsl_pack fun(hue: integer, saturation: integer, luminance: integer): integer Hue 0-63, saturation 0-7, luminance 0-127.
 ---@field hsl_unpack fun(hsl: integer): integer, integer, integer
 ---@field layout torirs.Layout The gameframe's regions: where the scene, the chat, the sidebar and the modal area are, and how to take a bite out of the space beside them.
+---@field panel torirs.PanelApi The one shared application-chrome page. No platform/window handle is exposed.
 
 --- The names key_held() understands. Any other key is passed as its
 --- enum LibToriRS_KeyCode integer.
@@ -329,8 +350,9 @@ dofile = nil
 --- `draw.width - something`, so the size rides on the table rather than
 --- arriving as an argument every handler has to accept in order to use.
 ---@class torirs.Draw
----@field width integer Canvas width. Set for on_draw_canvas only.
----@field height integer Canvas height. Set for on_draw_canvas only.
+---@field width integer Current canvas or panel custom-region width.
+---@field height integer Current canvas or panel custom-region height.
+---@field id? string Custom panel-region id during on_panel_draw.
 --- A tile's wash has a colour of its own -- the marker is read against the
 --- ground rather than against a model, so a bright outline can stay findable
 --- while the fill only tints the tile. Both halves are given together: pass
@@ -442,6 +464,31 @@ dofile = nil
 ---@field size integer Bytes now resident; 0 when the read failed.
 ---@field ok boolean False when the asset does not exist or could not be read. A plugin is told either way, so a load never has to be timed out.
 
+---@class torirs.EvPanelBuild
+---@field generation integer Selection generation. Work from an older generation is rejected.
+
+---@class torirs.EvPanelAction
+---@field id string Plugin-scoped semantic widget id.
+---@field action '"activate"'|'"toggle"'|'"text"'|'"pick"'|'"drag"'|'"scroll"'|'"key"'
+---@field value integer Result value; a pick is converted to a 1-based Lua index.
+---@field on boolean Convenience boolean for toggle-like values.
+---@field text string Whole result text.
+---@field x integer Custom-region-local x, otherwise 0.
+---@field y integer Custom-region-local y, otherwise 0.
+---@field generation integer
+---@field serial integer Widget incarnation.
+---@field sequence integer Monotonic action sequence within this selection.
+
+---@class torirs.EvPanelLayout
+---@field width integer Allocated page width in logical chrome units.
+---@field height integer
+---@field scale number Display scale, where 1 is normal.
+---@field scale_milli integer Display scale in thousandths.
+---@field size_class '"compact"'|'"medium"'|'"expanded"'
+---@field visible boolean False immediately on collapse/replacement.
+---@field game_visible boolean False when a compact page exclusively replaces the game.
+---@field generation integer
+
 ------------------------------------------------------------- the manifest --
 
 --- One entry in a plugin's config schema. It drives the settings panel and
@@ -498,3 +545,7 @@ dofile = nil
 ---@field on_game_event? fun(api: torirs.Api, ev: torirs.EvGameEvent): torirs.Verdict A level-up, quest completion, drop, boss kill or other notable moment.
 ---@field on_setting? fun(api: torirs.Api, ev: torirs.EvSetting): torirs.Verdict A row in the cache's All Settings panel was used. Only needed for the rows that have no var to read -- a BUTTON row is momentary, and this is the only trace of it.
 ---@field on_screen_change? fun(api: torirs.Api, ev: torirs.EvScreen): torirs.Verdict The screen moved -- title to game on a login, game to title on a logout. For work that a screen gate declined and that nothing would otherwise retry, e.g. a claim the host refuses before the player is in game.
+---@field on_panel_build? fun(api: torirs.Api, ev: torirs.EvPanelBuild): torirs.Verdict Declare this selected plugin's one page. Nonselected plugins are never called.
+---@field on_panel_action? fun(api: torirs.Api, ev: torirs.EvPanelAction): torirs.Verdict A result-state action from this plugin's selected page.
+---@field on_panel_layout? fun(api: torirs.Api, ev: torirs.EvPanelLayout): torirs.Verdict Visibility/allocation changed; collapse sends visible=false before unmount.
+---@field on_panel_draw? fun(api: torirs.Api, draw: torirs.Draw): torirs.Verdict Draw one dirty custom region in panel-local coordinates. Hidden/nonselected pages are never called.

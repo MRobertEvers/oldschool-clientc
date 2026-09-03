@@ -102,8 +102,11 @@ ifneq ($(filter $(PLATFORM),macos linux),)
     SDL_LIBS   := -L/opt/homebrew/lib -L/usr/local/lib -lSDL2
   endif
 
-  # Flags every translation unit needs, third-party units included.
-  PLATFORM_BASE_CFLAGS :=
+  # Flags every translation unit needs, third-party units included. Linux must
+  # request its POSIX/GNU declarations explicitly: musl (unlike glibc's common
+  # defaults) otherwise hides clock_gettime, nanosleep and strdup under -std=c11.
+  # Keep it off macOS, whose libc exposes those through its own SDK feature set.
+  PLATFORM_BASE_CFLAGS := $(if $(filter linux,$(PLATFORM)),-D_GNU_SOURCE,)
   # The desktop-GL frame renderer exists only here; main.c compiles its GL
   # paths out rather than stubbing them, so --opengl3 is refused instead of
   # silently ignored on a host that cannot do it.
@@ -118,6 +121,11 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   PLATFORM_TARGET_MEMTRACE_SUFFIX := _mt
 
   ifeq ($(PLATFORM),macos)
+    # The plugin shell is one WKWebView layered into SDL's Cocoa content view.
+    # Keep Objective-C out of the portable C source list; src/makefile gives
+    # these files their own ARC-enabled compile rule.
+    PLATFORM_OBJC_SRCS := platform/platform_macos_webview.m
+    PLATFORM_OBJC_CFLAGS := -fobjc-arc -fblocks
     # A dynamically linked SDL may allocate before ASan's interceptors finish
     # initialising on macOS 26. The static archive avoids that startup edge;
     # src/makefile supplies the matching dyld interpose shim.
@@ -134,7 +142,7 @@ ifneq ($(filter $(PLATFORM),macos linux),)
       endif
       PLATFORM_LDFLAGS := -lm $(SDL_LIBS)
     endif
-    PLATFORM_LDFLAGS += -framework OpenGL
+    PLATFORM_LDFLAGS += -framework OpenGL -framework Cocoa -framework WebKit
     PLATFORM_STRIP_LDFLAGS := -Wl,-dead_strip
     # ld64 has no --wrap. The tracer instead defines malloc/free as strong
     # symbols and reaches the real ones through dlsym(RTLD_NEXT), so there is
@@ -169,6 +177,7 @@ else ifeq ($(PLATFORM),win32)
                        platform/platform_x_http.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
+                       platform/platform_win32_mshtml.c \
                        platform/platform_win32_renderer_d3d9_core.c \
                        platform/platform_win32_renderer_d3d9_painter.c \
                        platform/platform_win32_renderer_d3d9_zbuffer.c
@@ -248,7 +257,8 @@ else ifeq ($(PLATFORM),win32)
   # stages the .exe and nothing else. Linking static makes the one file the
   # whole deliverable, which is what this lane is for.
   PLATFORM_LDFLAGS := -lm -static -static-libgcc -Wl,--subsystem,console:5.01 \
-                      -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lpsapi -lkernel32
+                      -ld3d9 -lgdi32 -luser32 -lole32 -loleaut32 -luuid \
+                      -lws2_32 -lwinmm -lpsapi -lkernel32
   # See the linux note above: --gc-sections would be a no-op here too.
   PLATFORM_STRIP_LDFLAGS :=
   PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
@@ -273,6 +283,7 @@ else ifeq ($(PLATFORM),win64)
                        platform/platform_x_http.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
+                       platform/platform_win32_webview2.c \
                        platform/platform_win32_renderer_d3d9_core.c \
                        platform/platform_win32_renderer_d3d9_painter.c \
                        platform/platform_win32_renderer_d3d9_zbuffer.c
@@ -293,6 +304,14 @@ else ifeq ($(PLATFORM),win64)
                           -march=x86-64 -mtune=generic \
                           -include $(SRC_DIR)/platform/win32_compat.h
   PLATFORM_CFLAGS := $(PLATFORM_BASE_CFLAGS)
+  WEBVIEW2_SDK_DIR ?= $(firstword $(sort \
+      $(wildcard $(REPO_ROOT)/toolchains/webview2-*/build/native)))
+  # Point this at Microsoft.Web.WebView2's build/native directory to compile
+  # the real controller. Without it the backend is a linkable unavailable stub;
+  # WebView2Loader.dll must also be staged beside the executable at runtime.
+  ifneq ($(strip $(WEBVIEW2_SDK_DIR)),)
+    PLATFORM_CFLAGS += -I$(WEBVIEW2_SDK_DIR)/include
+  endif
 
   # One-file delivery, just like XP. This Winlibs compiler uses POSIX threads;
   # without -static it can pull in libwinpthread-1.dll even though the client
@@ -302,7 +321,8 @@ else ifeq ($(PLATFORM),win64)
   # loader reject the image with STATUS_INVALID_IMAGE_FORMAT before main.
   # _WIN32_WINNT/WINVER above remain the actual Windows 10 API floor.
   PLATFORM_LDFLAGS := -lm -static -static-libgcc -Wl,--subsystem,console:6.0 \
-                       -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lpsapi -lkernel32
+                       -ld3d9 -lgdi32 -luser32 -lole32 -luuid \
+                       -lws2_32 -lwinmm -lpsapi -lkernel32
   PLATFORM_STRIP_LDFLAGS :=
   PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
       -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \
@@ -724,14 +744,10 @@ endif
 # platform_sdl2.c; both Windows blocks override this with platform_win32gdi.c.
 PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c
 
-# The chrome executor that comes with this window backend, and the define that
-# tells the chooser it is here. Empty is a valid answer: a lane with no native
-# executor falls back to the in-canvas buffer one, which every build has.
-#
-# Keyed off the WINDOW backend rather than the platform name because that is
-# what actually decides it -- the aux window is SDL_CreateWindow, so every lane
-# using platform_sdl2.c gets it and the two Win32 lanes (which will get a GDI
-# tool window instead) do not.
+# The browser executor compiled for this host, and the define that tells the
+# chooser it is present. Empty is a valid answer for a deferred host. The old
+# SDL/GDI native presenters are preserved under old/plugin_chrome_native and
+# are no longer selected by a production platform.
 ifeq ($(PLATFORM),web)
 # The web lane builds on SDL but presents through the DOM: a second SDL window
 # in a browser tab is not a thing, and the page can host real form controls,
@@ -739,19 +755,22 @@ ifeq ($(PLATFORM),web)
 PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_web.c
 PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_WEB_AVAILABLE=1
 else ifeq ($(PLATFORM),android)
-# Framework Views in the existing Activity: one native rail/page beside the
-# SurfaceView in split mode, or replacing it in compact exclusive mode. No
-# WebView, AndroidX, second Activity or overlay permission.
+# One locked-down framework WebView in the existing Activity: rail/page beside
+# the SurfaceView in split mode, or replacing it in compact exclusive mode.
+# The browser object persists across plugin selection and collapse; there is no
+# AndroidX, second Activity, overlay permission, or plugin-authored document.
 PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_android.c
 PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_ANDROID_AVAILABLE=1
-else ifeq ($(PLATFORM_WINDOW_SRC),platform/platform_sdl2.c)
-PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_sdl.c
-PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_SDL_AVAILABLE=1
-else ifeq ($(PLATFORM_WINDOW_SRC),platform/platform_win32gdi.c)
-# USER32 only -- see the no-comctl32 note in the executor. Nothing is added to
-# PLATFORM_LDFLAGS because the Windows lanes already link user32 and gdi32.
-PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_gdi.c
-PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_GDI_AVAILABLE=1
+else ifeq ($(PLATFORM),macos)
+# The same semantic browser executor as Windows, backed here by the one
+# WKWebView in platform_macos_webview.m.
+PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_winbrowser.c
+PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1
+else ifneq ($(filter $(PLATFORM),win32 win64),)
+# One shared local DOM bundle. win64 embeds WebView2; XP embeds its system
+# IWebBrowser2/MSHTML control. Neither creates another top-level window.
+PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_winbrowser.c
+PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1
 else
 PLATFORM_CHROME_EXEC_SRC ?=
 PLATFORM_CHROME_EXEC_CFLAGS ?=

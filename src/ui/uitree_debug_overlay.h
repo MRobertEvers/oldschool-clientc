@@ -19,12 +19,13 @@
  * copy. An immediate-mode overlay would re-measure every label every frame,
  * which is exactly the work this avoids. See src/ui/README_DEBUG_OVERLAY.md.
  *
- * DAMAGE RECTANGLES, the XP-era half. Every mutation marks its panel dirty;
- * Build unions the panel's *old* and *new* bounds into ToriRSChrome_Damage. That
- * is the invalid region in the classic WM_PAINT sense — the smallest box that
- * has to be repainted for the frame to be correct. Callers that can present a
- * partial frame (or want to skip presenting at all) read it; callers that
- * always repaint the whole canvas can ignore it and still get the layout skip.
+ * DAMAGE RECTANGLES, the XP-era half. Structural mutations dirty their panel
+ * and Build unions its *old* and *new* bounds. Fixed-layout value, focus and
+ * colour mutations instead bubble paint dirtiness from their exact row. The
+ * result is the invalid region in the classic WM_PAINT sense — the smallest
+ * box that has to be repainted for the frame to be correct. Callers that can
+ * present a partial frame (or want to skip presenting at all) read it; callers
+ * that always repaint the whole canvas can ignore it and still get the skip.
  *
  * NO DEPENDENCIES. The whole module is this header, one .c, and the generated
  * uitree_debug_font_metrics.h — which is `static const int` tables and nothing
@@ -170,6 +171,8 @@ enum ToriRSChromePrimKind
      * two caps exactly as ~script31 stretches it.
      */
     TORIRS_CHROME_PRIM_SPRITE,
+    /** A diagonal of the x/y/w/h box, matching UITreeEntityOverlay LINE. */
+    TORIRS_CHROME_PRIM_LINE,
 };
 
 /**
@@ -419,6 +422,9 @@ struct ToriRSChromePrim
     uint32_t color;
     /** RECT: 1 = filled, 0 = a 1px outline of the same box. */
     int filled;
+    /** LINE: diagonal direction and thickness. */
+    uint8_t line_direction;
+    uint8_t line_width;
     /** enum ToriRSChromeFontSlot. TEXT only. */
     int font_slot;
     /** TEXT: `y` is the baseline (reference PixFont.drawString), not a box top. */
@@ -722,6 +728,17 @@ enum ToriRSChromeWidgetKind
      */
     TORIRS_CHROME_W_TEXTAREA,
     /**
+     * A bounded plugin-drawn region: an optional caption row followed by a
+     * framed well of `view_h` pixels. ToriRSChrome draws only the well; the
+     * application composites the selected plugin's retained primitives into
+     * its inner rectangle, clipped to `custom_clip_*`.
+     *
+     * It is a kind of its own rather than a MODELVIEW because its pixels and
+     * input belong to a plugin generation/widget serial, not to a scene
+     * sprite, and because it expands to the content column's whole width.
+     */
+    TORIRS_CHROME_W_CUSTOM,
+    /**
      * A removed widget's slot, waiting on the free list.
      *
      * A kind rather than a flag so a stale handle is inert everywhere at once:
@@ -813,6 +830,12 @@ struct ToriRSChromeWidget
     int view_w;
     int view_h;
     int view_scene_id;
+    /** CUSTOM: the visible intersection of its inner drawing region and the
+     * panel's current content clip. Cleared when the row is offscreen. */
+    int custom_clip_x;
+    int custom_clip_y;
+    int custom_clip_w;
+    int custom_clip_h;
     /**
      * Dropdown-as-menu: the closed state is just the label, opening clears
      * `selected` so choosing the same row twice still reads as a fresh choice,
@@ -852,6 +875,10 @@ struct ToriRSChromeWidget
      * comparable and distinct.
      */
     int serial;
+    /** Identity an external semantic model assigned this presentation node.
+     * Zero uses `serial`; nonzero is emitted on WIDGET_ADD and fenced on every
+     * browser/native intent without replacing the chrome's own allocator id. */
+    uint32_t intent_serial;
     /** First visible row while the list is open. */
     int scroll;
 };
@@ -982,6 +1009,9 @@ struct ToriRSChromePanel
     int w;
     int h;
     int dirty;
+    /** Every pending mutation is paint-only. Cleared by any structural/layout
+     * dirty, so Build may safely keep damage to the rows already accumulated. */
+    int paint_only_dirty;
     /** Bounds as of the last Build, for the damage union. */
     struct ToriRSChromeRect last_rect;
     int first_widget;
@@ -1115,10 +1145,21 @@ struct ToriRSChrome
     /** Set beside `activated` when a LISTROW's ACTION zone was what fired it,
      *  rather than its switch. */
     int activated_action;
+    /** CUSTOM activation, in plugin-local logical coordinates. */
+    int activated_custom;
+    int activated_x;
+    int activated_y;
+    uint32_t activated_selection_generation;
+    uint32_t activated_widget_serial;
     /** `activated_action` as it stood at the last TakeActivated, so a host can
      *  ask which kind of activation it just drained -- the drain clears the
      *  live flag, and asking after the drain is the only order a caller has. */
     int taken_action;
+    int taken_custom;
+    int taken_x;
+    int taken_y;
+    uint32_t taken_selection_generation;
+    uint32_t taken_widget_serial;
     /**
      * The dropdown whose list is open, or -1.
      *
@@ -1312,6 +1353,10 @@ ToriRSChrome_PanelSetClosable(struct ToriRSChrome* ui, int panel, int closable);
 void
 ToriRSChrome_PanelSetFixedWidth(struct ToriRSChrome* ui, int panel, int width);
 
+/** Height counterpart to PanelSetFixedWidth; 0 returns to content sizing. */
+void
+ToriRSChrome_PanelSetFixedHeight(struct ToriRSChrome* ui, int panel, int height);
+
 /**
  * Stretch a panel over a whole surface: origin 0,0, exactly `w` x `h`.
  *
@@ -1381,6 +1426,41 @@ ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, ch
 int
 ToriRSChrome_TextArea(
     struct ToriRSChrome* ui, int panel, char const* label, char const* text, int rows);
+
+/**
+ * Add a bounded custom drawing well. `height` is in current chrome pixels;
+ * non-positive asks for TORIRS_CHROME_M_CUSTOM_H at the instance scale.
+ */
+int
+ToriRSChrome_Custom(struct ToriRSChrome* ui, int panel, char const* label, int height);
+
+/**
+ * Resolve a custom well after Build.
+ *
+ * `out_region` is the complete inner drawing rectangle. `out_clip` is its
+ * visible intersection with the panel's scroll/content clip. Returns zero for
+ * a non-custom, hidden, or wholly clipped row and clears both outputs.
+ */
+int
+ToriRSChrome_CustomRegion(
+    struct ToriRSChrome const* ui,
+    int widget,
+    struct ToriRSChromeRect* out_region,
+    struct ToriRSChromeRect* out_clip);
+
+/** Queue one bounds-checked custom activation in logical coordinates. */
+int
+ToriRSChrome_CustomActivate(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y);
+
+/** Mark one widget dirty without changing its semantic value. */
+void
+ToriRSChrome_WidgetInvalidate(struct ToriRSChrome* ui, int widget);
+
+/** Bind a copied external identity before presentation. Changing it forces a
+ * remove/add transaction so listeners holding the prior identity go stale. */
+void ToriRSChrome_WidgetSetIntentSerial(
+    struct ToriRSChrome* ui, int widget, uint32_t serial);
 
 /**
  * Break `text` into display lines that fit `width` pixels, at `font_slot`.
@@ -1829,6 +1909,16 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y);
 int
 ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta);
 
+/**
+ * Move model focus to `widget` and place its caret, compare-then-set.
+ *
+ * Native presenters use this instead of assigning `focus` directly so both
+ * the old and new rows are dirtied for a retained surface repaint. `widget`
+ * may be -1 to release focus. Returns 1 only when focus or caret changed.
+ */
+int
+ToriRSChrome_FocusWidget(struct ToriRSChrome* ui, int widget, int caret);
+
 /** Insert a printable byte into the focused input. @return 1 if consumed. */
 int
 ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch);
@@ -1851,6 +1941,15 @@ ToriRSChrome_TakeActivated(struct ToriRSChrome* ui);
  */
 int
 ToriRSChrome_ActivationWasAction(struct ToriRSChrome const* ui);
+
+/** Whether the activation just drained was a CUSTOM well and its coordinates. */
+int
+ToriRSChrome_ActivationWasCustom(
+    struct ToriRSChrome const* ui,
+    int* out_x,
+    int* out_y,
+    uint32_t* out_selection_generation,
+    uint32_t* out_widget_serial);
 
 /* ---- display list ------------------------------------------------------- */
 

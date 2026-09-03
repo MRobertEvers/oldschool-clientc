@@ -252,6 +252,12 @@ CmdBus_PushDeviceStatus(
     return CmdBus_Push(bus, TORIRS_CMD_DEVICE_STATUS, &cmd, sizeof(cmd));
 }
 
+int
+CmdBus_PushPluginChromeToggle(struct ToriRS_CmdBus* bus)
+{
+    return CmdBus_Push(bus, TORIRS_CMD_PLUGIN_CHROME_TOGGLE, NULL, 0);
+}
+
 /* ---- host commands ------------------------------------------------------ */
 
 int

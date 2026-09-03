@@ -648,8 +648,11 @@ interactive_render_present(
         struct ToriRS_Frame frame;
         int progress = 0;
         int pick_armed = 0;
+        int const chrome_w = PlatformWindow_ChromeWidth(platform);
+        int const chrome_h = PlatformWindow_ChromeHeight(platform);
 
         ToriRS_GL3_SetInterfaceScaleMode(gl3, interface_scale_mode);
+        ToriRS_GL3_SetHostRightInset(gl3, chrome_w);
 
         if( App_IsBooting(app, &progress) )
         {
@@ -691,6 +694,19 @@ interactive_render_present(
                 }
             }
         }
+#if !defined(__APPLE__)
+        if( chrome_w > 0 && chrome_h > 0 )
+        {
+            int const* pixels = PlatformWindow_ChromeTakeDirty(platform)
+                                    ? PlatformWindow_ChromePixels(platform)
+                                    : NULL;
+            ToriRS_GL3_DrawChromePixels(gl3, pixels, chrome_w, chrome_h);
+        }
+#else
+        /* The Cocoa child WKWebView owns the reserved right inset directly;
+         * there is no retained SDL chrome texture underneath it to composite. */
+        (void)chrome_h;
+#endif
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
             PlatformWindow_PresentGL(platform);
@@ -2657,6 +2673,13 @@ frame_loop_step(void)
             }
         }
     }
+#if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
+    /* Rail hover/attention/icon changes are platform-owned retained pixels and
+     * may not mutate App at all. A GL backbuffer cannot safely swap only the
+     * rail quad, so schedule one ordinary full frame when that surface changed. */
+    if( PlatformWindow_ChromeIsDirty(platform) )
+        app_redraw = 1;
+#endif
     input_frame_pending =
         app.app_state == APP_STATE_READY && !App_InputFrameConsumed(&app);
     if( app_redraw )
@@ -5209,7 +5232,8 @@ main(
          * plugin window is opened, so a session that never opens it never opens a
          * second OS window either.
          *
-         * TORIRS_CHROME_EXECUTOR names one (buffer|platform|web|gdi|cs2), beside
+         * TORIRS_CHROME_EXECUTOR names one
+         * (platform|buffer|sdl|web|browser|android), beside
          * TORIRS_CHROME_THEME which the developer chrome already reads. An unknown
          * name, or one this build has no executor for, lands on the in-canvas
          * chrome -- which is what every lane without a native executor uses anyway.
@@ -5244,7 +5268,8 @@ main(
             {
                 int const from_env = ToriRSChromeExec_KindFromName(want);
                 if( from_env < 0 )
-                    TORIRS_LOG("chrome: '%s' is not an executor (buffer|platform|web|gdi); "
+                    TORIRS_LOG("chrome: '%s' is not an executor "
+                        "(platform|buffer|sdl|web|browser|android); "
                         "using buffer\n",
                         want);
                 else
@@ -5253,37 +5278,22 @@ main(
                     chosen = 1;
                 }
             }
-#if defined(TORIRS_PLATFORM_ANDROID)
-            /*
-             * Android is ALWAYS the in-canvas buffer executor.
-             *
-             * Every other executor presents the plugin chrome in a second
-             * OS-level surface -- an SDL window, a Win32 tool window, DOM
-             * controls in a page. Android has no second window to give: an app
-             * is one Activity with one Surface, and the client already owns it.
-             * There is no `platform` or `gdi` executor compiled into this lane
-             * anyway, so a manifest asking for one would have fallen back to
-             * buffer regardless; clamping here means it does so as a stated
-             * property of the platform rather than as the accident of an
-             * absent object file, and the log line says which manifest to fix.
-             *
-             * Deliberately after the env override, so TORIRS_CHROME_EXECUTOR
-             * cannot talk this lane into a window it does not have either.
-             */
-            if( wanted > TORIRS_CHROME_EXEC_BUFFER )
-                TORIRS_LOG("chrome: '%s' was requested, but Android has one surface — "
-                    "using the in-canvas buffer executor\n",
-                    ToriRSChromeExec_KindName(wanted));
-            wanted = TORIRS_CHROME_EXEC_BUFFER;
-            chosen = 1;
-#endif
+            /* No configured choice means the presenter native to this build:
+             * attached SDL, DOM, Win32 or Android. `buffer` is now an explicit
+             * developer comparison only; production must not silently put the
+             * plugin page over the gameframe. */
+            if( !chosen )
+                wanted = TORIRS_CHROME_EXEC_PLATFORM;
             chrome_exec = ToriRSChromeExec_ForKind(
                 wanted < 0 ? TORIRS_CHROME_EXEC_BUFFER : wanted,
                 platform,
                 App_ChromeRasterise,
                 &app,
                 &got);
-            if( wanted > TORIRS_CHROME_EXEC_BUFFER && got != wanted )
+            if( wanted > TORIRS_CHROME_EXEC_BUFFER &&
+                ((wanted == TORIRS_CHROME_EXEC_PLATFORM &&
+                  got == TORIRS_CHROME_EXEC_BUFFER) ||
+                 (wanted != TORIRS_CHROME_EXEC_PLATFORM && got != wanted)) )
                 TORIRS_LOG("chrome: no '%s' executor in this build; the plugin window stays in the "
                     "canvas\n",
                     ToriRSChromeExec_KindName(wanted));

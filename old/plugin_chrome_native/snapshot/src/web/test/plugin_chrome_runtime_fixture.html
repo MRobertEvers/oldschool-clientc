@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ToriRS plugin chrome runtime capture</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #111; }
+    body { color: #ddd; font: 14px system-ui, sans-serif; }
+    #torirs-app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+    header {
+      display: flex; align-items: center; height: 42px; padding: 0 14px;
+      color: #ff981f; background: #18140f; border-bottom: 1px solid #594b38;
+    }
+    header strong { letter-spacing: .08em; }
+    header span { margin-left: auto; color: #a99c86; font-size: 12px; }
+    #app-content { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
+    #game-region {
+      display: flex; flex: 1 1 auto; min-width: 0; min-height: 0;
+      align-items: stretch; justify-content: stretch; padding: 12px; background: #15130f;
+    }
+    #stage { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; }
+    #canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+    #plugin-chrome-mount {
+      display: flex; flex: 0 0 auto; min-width: 0; min-height: 0;
+      align-self: stretch; overflow: hidden;
+    }
+    #plugin-chrome-mount[hidden] { display: none; }
+    #app-content.torirs-chrome-exclusive #game-region { display: none; }
+    #app-content.torirs-chrome-exclusive #plugin-chrome-mount {
+      flex: 1 1 100%; width: 100%;
+    }
+  </style>
+</head>
+<body>
+<div id="torirs-app">
+  <header><strong>TORIRS · WEB</strong><span>real Chrome DOM presenter capture</span></header>
+  <main id="app-content">
+    <div id="game-region"><div id="stage">
+      <canvas id="canvas" width="960" height="720" tabindex="-1"></canvas>
+    </div></div>
+    <aside id="plugin-chrome-mount" aria-label="Plugin tools" hidden></aside>
+  </main>
+</div>
+<script src="../torirs_chrome.js"></script>
+<script>
+(async function () {
+  'use strict';
+
+  function apply(k, p = -1, w = -1, v = 0, label = '', text = '', extra = {}) {
+    window.torirsChromeApply(Object.assign({
+      k, p, w, tab: -1, v, c: 0, x: 0, y: 0, cw: 0, ch: 0, label, text
+    }, extra));
+  }
+
+  function drawGame() {
+    const canvas = document.getElementById('canvas');
+    const g = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    g.imageSmoothingEnabled = false;
+    const sky = g.createLinearGradient(0, 0, 0, h * .48);
+    sky.addColorStop(0, '#71859a'); sky.addColorStop(1, '#a9b1aa');
+    g.fillStyle = sky; g.fillRect(0, 0, w, h * .48);
+    g.fillStyle = '#3d5c2f'; g.fillRect(0, h * .48, w, h * .52);
+    g.strokeStyle = '#314d27'; g.lineWidth = 1;
+    for (let y = h * .48; y < h; y += 24) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+    for (let x = -300; x < w; x += 44) { g.beginPath(); g.moveTo(x, h); g.lineTo(x + 340, h * .48); g.stroke(); }
+    g.fillStyle = '#294f65'; g.fillRect(w * .62, h * .48, w * .38, h * .36);
+    g.strokeStyle = '#44798c';
+    for (let y = h * .49; y < h * .84; y += 13) { g.beginPath(); g.moveTo(w * .62, y); g.lineTo(w, y); g.stroke(); }
+    for (let i = 0; i < 9; i++) {
+      const x = 40 + i * 91, y = h * .45 + (i % 3) * 29;
+      g.fillStyle = '#603e25'; g.fillRect(x, y, 9, 38);
+      g.fillStyle = '#244923'; g.fillRect(x - 22, y - 23, 52, 27);
+      g.fillStyle = '#346332'; g.fillRect(x - 13, y - 32, 34, 15);
+    }
+    g.fillStyle = '#8f2832'; g.fillRect(w * .49, h * .7, 18, 28);
+    g.fillStyle = '#d7b38b'; g.fillRect(w * .49 + 5, h * .7 - 12, 9, 12);
+    g.fillStyle = 'rgba(15,12,8,.90)'; g.fillRect(12, h - 122, 540, 108);
+    g.strokeStyle = '#75654b'; g.strokeRect(12.5, h - 121.5, 539, 107);
+    g.fillStyle = '#ff981f'; g.font = 'bold 19px monospace';
+    g.fillText('Welcome to ToriRS', 30, h - 88);
+    g.fillStyle = '#fff'; g.font = '13px monospace';
+    g.fillText('The plugin shell owns space beside this game frame.', 30, h - 59);
+  }
+
+  async function imagePixels(url) {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    const g = canvas.getContext('2d', { willReadFrequently: true });
+    g.drawImage(image, 0, 0);
+    const bytes = g.getImageData(0, 0, canvas.width, canvas.height).data;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x4000)
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x4000));
+    return { w: canvas.width, h: canvas.height, b64: btoa(binary) };
+  }
+
+  const skinFiles = [
+    'PanelBody', 'ScrollUp', 'ScrollDown', 'ScrollTrack',
+    'ScrollGripTop', 'ScrollGripMid', 'ScrollGripBottom', 'DropdownBody',
+    'PluginIcon', 'CheckOn', 'CheckOff', 'FrameTopLeft', 'FrameTop',
+    'FrameTopRight', 'FrameLeft', 'FrameRight', 'FrameBottomLeft',
+    'FrameBottom', 'FrameBottomRight', 'CloseButton', 'CloseButtonOver',
+    'PopoutButton', 'PopoutButtonOver', 'DockButton', 'DockButtonOver',
+    'CheckBoxOn', 'CheckBoxOff'
+  ];
+
+  drawGame();
+  window.torirsChromeRailSync({
+    r: 7, g: 13, pg: 21, a: 0, l: 0, s: 0, x: 1,
+    entries: [
+      { kind: 1, p: -2, pw: 320, attention: false, title: 'Manage Plugins', icon: '', badge: '' },
+      { kind: 2, p: 0, pw: 360, attention: false, title: 'Panel Demo', icon: 'panel_icon.png', badge: '12' },
+      { kind: 2, p: 1, pw: 320, attention: true, title: 'Loot Tracker', icon: '', badge: '!' }
+    ]
+  });
+  window.torirsChromeOpen();
+
+  for (let slot = 0; slot < skinFiles.length; slot++) {
+    const image = await imagePixels('/res/plugin_chrome/skin/' + skinFiles[slot] + '.png');
+    window.torirsChromeSkinSprite(slot, image.w, image.h, image.b64);
+  }
+  window.torirsChromeSkinDone();
+  const icon = await imagePixels('/script/plugins/assets/paneldemo/panel_icon.png');
+  window.torirsChromeRailIcon(0, 2, icon.w, icon.h, icon.b64);
+
+  apply(19, -1, -1, 0);
+  apply(3, 0, -1, 1, '', 'Panel Demo');
+  apply(6, 0, -1, 0, '', '', { cw: 360, ch: 760 });
+  apply(8, 0, 0, 0, '', 'ToriRSChrome panel');
+  apply(8, 0, 1, 0, '', 'One retained page; only the selected plugin renders.');
+  apply(8, 0, 2, 0, '', 'Button presses: 12');
+  apply(8, 0, 3, 1, 'Live updates', '');
+  apply(12, 0, 3, 1);
+  apply(8, 0, 4, 2, 'Note', 'styled like modern OSRS');
+  apply(8, 0, 5, 5, 'Mode', 'normal');
+  apply(17, 0, 5, 3);
+  apply(18, 0, 5, 0, '', 'compact');
+  apply(18, 0, 5, 1, '', 'normal');
+  apply(18, 0, 5, 2, '', 'expanded');
+  apply(15, 0, 5, 1, '', 'normal');
+  apply(8, 0, 6, 7, '', 'Increment');
+  apply(8, 0, 7, 12, 'Activity chart', '', { ch: 120 });
+  apply(2);
+
+  const cw = 600, ch = 240, pixels = new Uint32Array(cw * ch);
+  pixels.fill(0xff201b16);
+  const bars = [28, 51, 37, 86, 64, 109, 78, 128, 102, 162];
+  for (let i = 0; i < bars.length; i++) {
+    const bx = 22 + i * 55, bh = bars[i];
+    for (let y = ch - 20 - bh; y < ch - 20; y++)
+      for (let x = bx; x < bx + 34; x++) pixels[y * cw + x] = 0xffff981f;
+  }
+  window.torirsChromeCustom(0, 7, 21, 7007, 2000, cw, ch, pixels);
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  document.documentElement.dataset.captureReady = '1';
+})();
+</script>
+</body>
+</html>

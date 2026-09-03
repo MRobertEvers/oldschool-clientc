@@ -74,7 +74,8 @@ ToriRSChromeShell_Accepts(
     struct ToriRSChromeShell const* shell, int plugin, uint32_t selection_generation)
 {
     assert(shell);
-    return shell->expanded && plugin >= 0 && plugin == shell->active_plugin &&
+    return shell->expanded && plugin != TORIRS_CHROME_SHELL_PAGE_NONE &&
+           plugin == shell->active_plugin &&
            selection_generation != 0 && selection_generation == shell->selection_generation;
 }
 

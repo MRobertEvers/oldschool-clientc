@@ -91,68 +91,109 @@ one lane only.
   resize every frame; steady `surface_sync` p95 should be effectively zero.
 - **Sources:** [`src/app.c`](../src/app.c), [`src/main.c`](../src/main.c)
 
-### COMMON-CHROME-001 - The chrome auxiliary window is never a render target
+### COMMON-CHROME-001 - Every plugin shares one persistent browser
 
 - **Status:** Contract
-- **Applies to:** Every lane with a chrome executor
-  (`TORIRS_CHROME_EXECUTOR=sdl` today; `gdi` and `web` when they land)
-- **Behavior:** A chrome SURFACE executor may open exactly ONE auxiliary
-  window, and only when the user opens the chrome it presents. The game's
-  renderer -- Soft3D, GL3, WebGL1, D3D9 -- is never bound to it: the aux
-  surface holds a `ToriRSChromePrim` display list rasterised through the same
-  `ToriRS_Frame` translator the canvas uses, and nothing else. The window is
-  opened lazily by `begin()`, not at boot, and a backend that cannot provide
-  one returns `false` so the surface falls back to in-canvas chrome.
-- **Reason:** Two render windows means two swap chains, two resize paths and
-  two present cadences, on every lane, for a settings panel. It is also what
-  WINDOWS-HOST-001 exists to forbid, and the amendment there is deliberately
-  narrow for the same reason: a window holding rectangles and glyphs costs a
-  DIB or a software renderer, where a window holding the world costs a device.
-- **Failure mode:** Binding a renderer to the aux window would put a second
-  D3D9 device (or GL context) beside the game's on a machine chosen for the
-  first one. On the SDL lanes it would also make the frame loop present twice
-  per frame, halving the pacing headroom the 50 Hz deadline is built on.
-- **Verification:** With `TORIRS_CHROME_EXECUTOR=sdl`, the plugin window opens
-  in its own window AND leaves the game canvas: sampling canvas pixels where
-  the in-canvas panel would be shows world, not panel body. With
-  `TORIRS_CHROME_EXECUTOR=buffer` (the default) the same pixels are panel body
-  and no second window is created at all.
-- **Sources:** [`src/ui/torirs_chrome_exec.h`](../src/ui/torirs_chrome_exec.h),
-  [`src/ui/torirs_chrome_exec_sdl.c`](../src/ui/torirs_chrome_exec_sdl.c),
-  [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c)
+- **Applies to:** Android, Web, macOS, Win32, and Win64 plugin chrome; Linux is
+  explicitly deferred
+- **Behavior:** One application window/activity owns exactly one plugin-chrome
+  browser instance, one document, one persistent rail root, and zero or one
+  page root. Every plugin registers a rail destination, but only the most
+  recently selected plugin may build, render, or receive input for a page.
+  Selecting another destination replaces that page in place. Collapse clears
+  the page and reduces the browser allocation to the rail; it does not destroy,
+  navigate, or recreate the browser. Only application-window/activity shutdown
+  destroys it.
+- **Platform meaning:** Android embeds one `android.webkit.WebView`; macOS one
+  `WKWebView`; Win64 one WebView2 controller; XP one `IWebBrowser2`/MSHTML
+  ActiveX control. The Web lane owns one application iframe in one stable DOM
+  mount; that iframe is the sole plugin-chrome browsing context, not one iframe
+  per plugin. It must not add a nested iframe or popup. All native controls are
+  children of the existing top-level application window, not auxiliary
+  top-level windows.
+- **Reason:** Browser creation, engine startup, stylesheet/script parse, focus,
+  accessibility, and resource caches have application lifetime. A browser or
+  hidden page per plugin would create unbounded process and focus state and
+  would allow inactive plugins to retain UI or steal input.
+- **Failure mode:** Destroying the WebView on collapse reparses the bundle and
+  loses the rail/icon cache. Keeping more than one page lets stale generations
+  submit input. A popout, nested/additional iframe, or auxiliary plugin window
+  creates another plugin-chrome document lifetime and violates the
+  single-instance guarantee.
+- **Verification:** Repeated expand/collapse and cross-plugin selection must
+  preserve browser object identity, keep exactly one rail, leave no nonselected
+  page in the DOM, and never leak rail/page input into the game. Use
+  `make -C src test-chrome-android-exec`,
+  `make -C src test-chrome-browser-exec`, and the Web DOM/layout tests. Linux's
+  former SDL surface presenter is not accepted as verification of this
+  browser-backed contract.
+- **Sources:** [`docs/chrome_executors.md`](chrome_executors.md),
+  [`src/ui/torirs_chrome_exec.h`](../src/ui/torirs_chrome_exec.h),
+  [`src/ui/torirs_chrome_rail.h`](../src/ui/torirs_chrome_rail.h),
+  [`android/src/main/java/com/torirs/client/PluginChromePresenter.java`](../android/src/main/java/com/torirs/client/PluginChromePresenter.java),
+  [`src/platform/platform_macos_webview.m`](../src/platform/platform_macos_webview.m),
+  [`src/platform/platform_win32_webview2.c`](../src/platform/platform_win32_webview2.c),
+  [`src/platform/platform_win32_mshtml.c`](../src/platform/platform_win32_mshtml.c)
 
-### COMMON-CHROME-002 - The aux window is asked for in points and drawn in pixels
+### COMMON-CHROME-002 - Plugin chrome is retained semantic data, not plugin web content
 
 - **Status:** Contract
-- **Applies to:** Every lane with a chrome SURFACE executor in a window of its
-  own (`TORIRS_CHROME_EXECUTOR=sdl` today)
-- **Behavior:** The window is OPENED at a size in window points -- a physical
-  size on a desk. Its SURFACE is the DRAWABLE, in pixels, which on a HighDPI
-  display is a multiple of that; `PlatformWindow_AuxWidth/Height` report the
-  surface, `PlatformWindow_AuxResize` takes the surface, and every pointer
-  coordinate the platform hands the chrome has already been scaled from points
-  into it. A density that changes without a resize -- a window dragged to
-  another display -- is noticed per frame and reported as a resize.
-- **Reason:** The chrome picks its baked font size from the display's density
-  (`App_SetChromeScale` off `PlatformWindow_PixelDensity`), so a 2x display lays
-  out 36px rows and a 208px label column. That layout needs a 2x surface. It is
-  the same rule the game window already keeps -- "everything this platform hands
-  the client is a PIXEL count" -- and the aux window was the one surface that
-  did not.
-- **Failure mode:** Sized in points, a 2x chrome gets half the room it was laid
-  out for: labels run under their fields, fields are clipped against the
-  scrollbar, and the rows past the bottom edge get a ZERO box -- which is not
-  merely invisible, it is unhittable, so most of a plugin's settings page
-  cannot be clicked at all. SDL then stretches the half-resolution result over
-  the drawable, so what is left is soft as well.
-- **Verification:** On a 2x display with `TORIRS_CHROME_EXECUTOR=sdl`, a 360x420
-  window reports a 720x840 surface, the roster rows are the panel's full width,
-  and a click at window point (x, y) reaches the chrome as (2x, 2y) -- open a
-  plugin's page from its `...` well and every row of it, Save and Revert
-  included, is on screen and clickable.
-- **Sources:** [`src/platform/platform_window.h`](../src/platform/platform_window.h),
-  [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
-  [`src/ui/torirs_chrome_exec_sdl.c`](../src/ui/torirs_chrome_exec_sdl.c)
+- **Applies to:** Every plugin-chrome host
+- **Behavior:** Plugins publish bounded registration metadata, semantic control
+  records, authored icon pixels, and retained custom-region pixels. They never
+  publish HTML, JavaScript, CSS, a URL, or navigation policy. The application
+  owns the local modern-OSRS bundle and reduces `rail.snapshot`,
+  `page.snapshot`, and `page.delta` messages into one retained DOM tree. Result
+  intents return through bounded nonblocking queues and are validated again on
+  the frame thread. Rail selection carries the snapshot generation; widget
+  input and custom frames carry page generation and widget serial.
+- **Security boundary:** Embedded hosts may load only application-packaged
+  bundle files and locally staged host-owned bitmap resources. They reject
+  external navigation, network loads, new windows, downloads, permissions, and
+  arbitrary plugin filesystem paths. The Web host follows the same content and
+  ownership boundary inside its sole application-owned plugin-chrome iframe.
+- **Performance boundary:** A clean retained model emits no browser message,
+  DOM walk, or bitmap upload. A changed model patches the existing selected
+  page rather than recreating the browser or document. The browser retains the
+  active HTML editor so model echoes do not discard its caret or composition.
+- **Failure mode:** Plugin-authored markup turns the semantic ABI into an
+  unbounded browser capability. Handle-only events can mutate a recycled node;
+  synchronous browser calls can stall the game thread; rebuilding the document
+  for a value change loses focus and repays startup cost.
+- **Verification:** The host bridge tests reject stale generations/serials,
+  unknown protocol versions, queue overflow, and nonlocal resource attempts.
+  A maximum-size clean page must produce no transaction. Changing one control
+  must preserve neighboring DOM nodes and focused-editor state.
+- **Sources:** [`src/plugin_chrome/HOST_BRIDGE.md`](../src/plugin_chrome/HOST_BRIDGE.md),
+  [`src/plugin/torirs_plugin_host.h`](../src/plugin/torirs_plugin_host.h),
+  [`src/ui/torirs_chrome_exec_winbrowser.c`](../src/ui/torirs_chrome_exec_winbrowser.c)
+
+### COMMON-CHROME-003 - Old engines use the same styled page contract
+
+- **Status:** Contract
+- **Applies to:** Android API 22/Chrome 39 and Windows XP MSHTML
+- **Behavior:** Both lanes load `legacy-ie8.html` explicitly; they do not guess
+  from a user agent. Its reducer implements the same protocol and modern OSRS
+  presentation as the modern page using conservative ES3/ES5 syntax and an
+  IE6/7-safe DOM subset. Android retains canvas/RGBA and its typed Java bridge.
+  XP uses table/absolute layout, the bundled JSON codec, ordinary local `IMG`
+  URLs, and private revisioned BMP/GIF files because canvas, data URLs, CSS
+  Grid, CSS variables, modern events, and native `JSON` cannot be assumed.
+- **Scale rule:** Bundle dimensions are authored 1x logical CSS pixels. Device
+  density scales the complete composition; platform code must not independently
+  double rows, icons, or skin pieces. The compatibility layout must retain the
+  ToriRS silhouette, palette, spacing, skin pieces, and states rather than
+  exposing generic white browser controls.
+- **Reason:** A page that parses on current Chromium can still be blank on
+  Chrome 39 or fail before startup in XP MSHTML. A visually unstyled fallback
+  would meet syntax compatibility while failing the actual chrome contract.
+- **Verification:** `make -C src test-web-channel` covers the modern and legacy
+  reducer and rejects unsupported syntax/DOM APIs. Runtime checks on
+  the physical API 22 device and an XP-compatible MSHTML host remain required.
+- **Sources:** [`src/plugin_chrome/README.md`](../src/plugin_chrome/README.md),
+  [`src/plugin_chrome/legacy-ie8.html`](../src/plugin_chrome/legacy-ie8.html),
+  [`src/plugin_chrome/legacy-ie8.css`](../src/plugin_chrome/legacy-ie8.css),
+  [`src/plugin_chrome/runtime-ie8.js`](../src/plugin_chrome/runtime-ie8.js)
 
 ### COMMON-INPUT-001 - Escape is an application key by default
 
@@ -374,10 +415,11 @@ one lane only.
 - **Reason:** Requiring SDL or an audio runtime would violate the standalone
   artifact contract. D3D9 consumes the existing `HWND`; it must not create a
   second window.
-- **Amendment (chrome executors):** The prohibition is on a second *render*
-  window, not on a second window. A chrome executor may own one auxiliary
-  window for chrome the user opened -- the plugin window -- provided no
-  renderer is ever bound to it. See COMMON-CHROME-001.
+- **Amendment (plugin chrome):** The one plugin browser is a child control of
+  the existing main `HWND`, never an auxiliary top-level window. Win64 embeds
+  one WebView2 controller; XP embeds one system `IWebBrowser2`/MSHTML control.
+  They share the game window's lifetime, own no game renderer, and receive only
+  the trailing chrome rectangle. See COMMON-CHROME-001.
 
 ### WINDOWS-RENDER-001 - D3D9 is the default; GDI is an explicit fallback
 

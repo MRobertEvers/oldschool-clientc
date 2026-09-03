@@ -310,6 +310,7 @@ void test_mount_slot_reclaim_no_shadow_text(void);
 void test_live_node_sets(void);
 void test_debug_overlay(void);
 void test_chrome_exec(void);
+void test_chrome_panel_draw(void);
 void test_entity_overlay_draw_order(void);
 void test_server_driven_viewport_widgets(void);
 void test_frame_replacement(void);

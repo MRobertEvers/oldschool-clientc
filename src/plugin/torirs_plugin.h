@@ -1010,13 +1010,19 @@ struct ToriRS_PluginEvUi
 #define TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT 320
 #define TORIRS_PLUGIN_PANEL_WIDTH_MIN 280
 #define TORIRS_PLUGIN_PANEL_WIDTH_MAX 480
+/** Bounded logical height of one custom drawing well. */
+#define TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_DEFAULT 120
+#define TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MIN 48
+#define TORIRS_PLUGIN_PANEL_CUSTOM_HEIGHT_MAX 512
 
 /** Inert rail metadata copied by panel_request during EV_START. */
 struct ToriRS_PluginPanelDesc
 {
     /** Human-facing page title. NULL or empty uses the plugin's title. */
     char const* title;
-    /** Optional plugin asset name. NULL or empty asks for the host fallback. */
+    /** Optional sandboxed PNG asset name. The host loads it automatically;
+     * malformed, over-budget, or larger-than-64x64 art uses the baked wrench.
+     * NULL or empty asks for that fallback directly. */
     char const* icon_asset;
     /** Logical units; 0 asks for TORIRS_PLUGIN_PANEL_WIDTH_DEFAULT. */
     int preferred_width;
@@ -3861,6 +3867,12 @@ struct ToriRS_PluginApi
     void (*panel_clear)(struct ToriRS_PluginCtx* ctx);
     /** Mark a selected custom node dirty. Hidden pages never draw. */
     void (*panel_invalidate)(struct ToriRS_PluginCtx* ctx, char const* custom_view_id);
+    /** Set a custom drawing well's preferred logical height. Zero asks for the
+     *  default; other values are clamped to the portable bounds. */
+    bool (*panel_set_height)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* custom_view_id,
+        int preferred_height);
 };
 
 /* ------------------------------------------------------------------------ */

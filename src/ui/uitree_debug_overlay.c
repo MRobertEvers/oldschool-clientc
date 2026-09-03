@@ -1161,6 +1161,8 @@ dbg_dirty_panel(struct ToriRSChrome* ui, int panel)
     if( !dbg_valid_panel(ui, panel) )
         return;
     ui->panels[panel].dirty = 1;
+    /* Structural/layout dirtiness dominates any row paints already pending. */
+    ui->panels[panel].paint_only_dirty = 0;
     ui->dirty = 1;
 }
 
@@ -1169,6 +1171,33 @@ dbg_dirty_widget(struct ToriRSChrome* ui, int widget)
 {
     if( dbg_valid_widget(ui, widget) )
         dbg_dirty_panel(ui, ui->widgets[widget].panel);
+}
+
+static void
+dbg_damage_add(struct ToriRSChrome* ui, struct ToriRSChromeRect r);
+
+/** Repaint one stable row without claiming that its containing layout moved. */
+static void
+dbg_dirty_widget_paint(struct ToriRSChrome* ui, int widget)
+{
+    struct ToriRSChromeWidget const* w;
+    struct ToriRSChromePanel* p;
+    struct ToriRSChromeRect row;
+
+    if( !dbg_valid_widget(ui, widget) )
+        return;
+    w = &ui->widgets[widget];
+    p = &ui->panels[w->panel];
+    /* Do not weaken a structural dirty which arrived first. */
+    if( !p->dirty )
+        p->paint_only_dirty = 1;
+    p->dirty = 1;
+    ui->dirty = 1;
+    row.x = w->x;
+    row.y = w->y;
+    row.w = w->w;
+    row.h = w->h;
+    dbg_damage_add(ui, row);
 }
 
 /** Union `r` into the accumulated invalid region. Empty boxes contribute nothing. */
@@ -1222,6 +1251,7 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
     ui->hover = -1;
     ui->press = -1;
     ui->activated = -1;
+    ui->activated_custom = 0;
     ui->dropdown_open = -1;
     ui->colorpick_open = -1;
     ui->colorpick_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
@@ -1255,6 +1285,8 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->hover = -1;
     ui->press = -1;
     ui->activated = -1;
+    ui->activated_custom = 0;
+    ui->taken_custom = 0;
     ui->drag_panel = -1;
     ui->resize_panel = -1;
     ui->scroll_panel = -1;
@@ -1520,6 +1552,20 @@ ToriRSChrome_PanelSetFixedWidth(struct ToriRSChrome* ui, int panel, int width)
 }
 
 void
+ToriRSChrome_PanelSetFixedHeight(struct ToriRSChrome* ui, int panel, int height)
+{
+    if( !dbg_valid_panel(ui, panel) )
+        return;
+    if( height < 0 )
+        height = 0;
+    if( ui->panels[panel].fixed_h == height )
+        return;
+    dbg_damage_add(ui, ui->panels[panel].last_rect);
+    ui->panels[panel].fixed_h = height;
+    dbg_dirty_panel(ui, panel);
+}
+
+void
 ToriRSChrome_PanelFill(struct ToriRSChrome* ui, int panel, int w, int h)
 {
     struct ToriRSChromePanel* p;
@@ -1608,7 +1654,10 @@ dbg_widget_forget(struct ToriRSChrome* ui, int widget)
     if( ui->press == widget )
         ui->press = -1;
     if( ui->activated == widget )
+    {
         ui->activated = -1;
+        ui->activated_custom = 0;
+    }
     if( ui->dropdown_open == widget )
     {
         ui->dropdown_open = -1;
@@ -1723,7 +1772,7 @@ ToriRSChrome_ModelViewSet(struct ToriRSChrome* ui, int widget, int scene_sprite_
     if( ui->widgets[widget].view_scene_id == scene_sprite_id )
         return;
     ui->widgets[widget].view_scene_id = scene_sprite_id;
-    dbg_dirty_widget(ui, widget);
+    dbg_dirty_widget_paint(ui, widget);
 }
 
 
@@ -1811,6 +1860,114 @@ ToriRSChrome_TextArea(
      * front of everything already there. */
     ui->widgets[h].caret = (int)strlen(ui->widgets[h].text);
     return h;
+}
+
+int
+ToriRSChrome_Custom(struct ToriRSChrome* ui, int panel, char const* label, int height)
+{
+    int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_CUSTOM);
+    int min_h;
+    int max_h;
+
+    if( h < 0 )
+        return -1;
+    dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
+    min_h = DBG_PX(TORIRS_CHROME_M_CUSTOM_H_MIN);
+    max_h = DBG_PX(TORIRS_CHROME_M_CUSTOM_H_MAX);
+    if( height <= 0 )
+        height = DBG_PX(TORIRS_CHROME_M_CUSTOM_H);
+    if( height < min_h )
+        height = min_h;
+    if( height > max_h )
+        height = max_h;
+    ui->widgets[h].view_h = height;
+    return h;
+}
+
+int
+ToriRSChrome_CustomRegion(
+    struct ToriRSChrome const* ui,
+    int widget,
+    struct ToriRSChromeRect* out_region,
+    struct ToriRSChromeRect* out_clip)
+{
+    struct ToriRSChromeRect none = { 0, 0, 0, 0 };
+    struct ToriRSChromeWidget const* w;
+
+    if( out_region )
+        *out_region = none;
+    if( out_clip )
+        *out_clip = none;
+    if( !dbg_valid_widget(ui, widget) ||
+        ui->widgets[widget].kind != TORIRS_CHROME_W_CUSTOM )
+        return 0;
+    w = &ui->widgets[widget];
+    if( w->w <= 2 * DBG_RULE || w->view_h <= 0 ||
+        w->custom_clip_w <= 0 || w->custom_clip_h <= 0 )
+        return 0;
+    if( out_region )
+    {
+        out_region->x = w->x + DBG_RULE;
+        out_region->y = w->y + (w->label[0] ? DBG_ROW_H : 0) + DBG_RULE;
+        out_region->w = w->w - 2 * DBG_RULE;
+        out_region->h = w->view_h;
+    }
+    if( out_clip )
+    {
+        out_clip->x = w->custom_clip_x;
+        out_clip->y = w->custom_clip_y;
+        out_clip->w = w->custom_clip_w;
+        out_clip->h = w->custom_clip_h;
+    }
+    return 1;
+}
+
+int
+ToriRSChrome_CustomActivate(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y)
+{
+    struct ToriRSChromeWidget const* w;
+    int scale;
+    int width;
+    int height;
+
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) ||
+        ui->widgets[widget].kind != TORIRS_CHROME_W_CUSTOM )
+        return 0;
+    w = &ui->widgets[widget];
+    scale = ui->scale > 0 ? ui->scale : 1;
+    width = (w->w - 2 * DBG_RULE) / scale;
+    height = w->view_h / scale;
+    if( local_x < 0 || local_y < 0 || local_x >= width || local_y >= height )
+        return 0;
+    ui->activated = widget;
+    ui->activated_action = 0;
+    ui->activated_custom = 1;
+    ui->activated_x = local_x;
+    ui->activated_y = local_y;
+    ui->activated_selection_generation = 0;
+    ui->activated_widget_serial = 0;
+    return 1;
+}
+
+void
+ToriRSChrome_WidgetInvalidate(struct ToriRSChrome* ui, int widget)
+{
+    assert(ui);
+    if( dbg_valid_widget(ui, widget) )
+        dbg_dirty_widget_paint(ui, widget);
+}
+
+void
+ToriRSChrome_WidgetSetIntentSerial(
+    struct ToriRSChrome* ui, int widget, uint32_t serial)
+{
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].intent_serial == serial )
+        return;
+    ui->widgets[widget].intent_serial = serial;
+    dbg_dirty_widget(ui, widget);
 }
 
 /* ---- the colour picker's model half -------------------------------------- */
@@ -1959,6 +2116,48 @@ ToriRSChrome_ColorPickSetOpen(struct ToriRSChrome* ui, int widget, int open)
     dbg_dirty_widget(ui, widget);
 }
 
+int
+ToriRSChrome_FocusWidget(struct ToriRSChrome* ui, int widget, int caret)
+{
+    int const old = ui ? ui->focus : -1;
+    struct ToriRSChromeWidget* w = NULL;
+    int caret_changed = 0;
+
+    if( !ui || widget < -1 || (widget >= 0 && !dbg_valid_widget(ui, widget)) )
+        return 0;
+    if( widget >= 0 )
+    {
+        w = &ui->widgets[widget];
+        if( w->kind == TORIRS_CHROME_W_TEXTINPUT ||
+            w->kind == TORIRS_CHROME_W_TEXTAREA ||
+            w->kind == TORIRS_CHROME_W_COLORPICK )
+        {
+            int const length = (int)strlen(w->text);
+            if( caret < 0 )
+                caret = 0;
+            if( caret > length )
+                caret = length;
+            caret_changed = w->caret != caret;
+        }
+        else
+            caret = w->caret;
+    }
+    if( old == widget && !caret_changed )
+        return 0;
+
+    if( old != widget )
+        dbg_dirty_widget_paint(ui, old);
+    ui->focus = widget;
+    if( w )
+    {
+        w->caret = caret;
+        if( w->kind == TORIRS_CHROME_W_TEXTAREA )
+            dbg_textarea_scroll_to_caret(ui, w);
+        dbg_dirty_widget_paint(ui, widget);
+    }
+    return 1;
+}
+
 /**
  * Drop the focus, committing whatever the field was holding.
  *
@@ -1979,8 +2178,7 @@ dbg_focus_release(struct ToriRSChrome* ui)
 
     if( had < 0 )
         return;
-    ui->focus = -1;
-    dbg_dirty_widget(ui, had);
+    (void)ToriRSChrome_FocusWidget(ui, -1, 0);
     if( dbg_valid_widget(ui, had) && ui->widgets[had].kind == TORIRS_CHROME_W_COLORPICK )
         ToriRSChrome_ColorPickCommitText(ui, had);
 }
@@ -2110,7 +2308,7 @@ ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int select
         return;
     w->selected = selected;
     dbg_dropdown_clamp(w);
-    dbg_dirty_widget(ui, widget);
+    dbg_dirty_widget_paint(ui, widget);
 }
 
 int
@@ -2294,7 +2492,13 @@ ToriRSChrome_SetText(struct ToriRSChrome* ui, int widget, char const* text)
      * which draws as an empty field that the user cannot scroll back up. */
     if( w->kind == TORIRS_CHROME_W_TEXTAREA )
         dbg_textarea_scroll_to_caret(ui, w);
-    dbg_dirty_widget(ui, widget);
+    if( (ui->panels[w->panel].style == TORIRS_CHROME_PANEL_WINDOW &&
+         ui->panels[w->panel].fixed_w > 0) ||
+        w->kind == TORIRS_CHROME_W_TEXTAREA ||
+        w->kind == TORIRS_CHROME_W_COLORPICK )
+        dbg_dirty_widget_paint(ui, widget);
+    else
+        dbg_dirty_widget(ui, widget);
 }
 
 void
@@ -2309,8 +2513,15 @@ ToriRSChrome_SetLabel(struct ToriRSChrome* ui, int widget, char const* label)
     dbg_copy(buf, TORIRS_CHROME_LABEL_MAX, label);
     if( strcmp(w->label, buf) == 0 )
         return;
-    memcpy(w->label, buf, sizeof(buf));
-    dbg_dirty_widget(ui, widget);
+    {
+        int const same_shape = (w->label[0] == '\0') == (buf[0] == '\0');
+        memcpy(w->label, buf, sizeof(buf));
+        if( same_shape && ui->panels[w->panel].style == TORIRS_CHROME_PANEL_WINDOW &&
+            ui->panels[w->panel].fixed_w > 0 )
+            dbg_dirty_widget_paint(ui, widget);
+        else
+            dbg_dirty_widget(ui, widget);
+    }
 }
 
 void
@@ -2319,7 +2530,7 @@ ToriRSChrome_SetColor(struct ToriRSChrome* ui, int widget, uint32_t color)
     if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].color == color )
         return;
     ui->widgets[widget].color = color;
-    dbg_dirty_widget(ui, widget);
+    dbg_dirty_widget_paint(ui, widget);
 }
 
 void
@@ -2329,7 +2540,10 @@ ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked)
     if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].checked == checked )
         return;
     ui->widgets[widget].checked = checked;
-    dbg_dirty_widget(ui, widget);
+    if( ui->widgets[widget].kind == TORIRS_CHROME_W_COLORPICK )
+        dbg_dirty_widget(ui, widget);
+    else
+        dbg_dirty_widget_paint(ui, widget);
 }
 
 int
@@ -2354,7 +2568,7 @@ ToriRSChrome_SetCaretVisible(struct ToriRSChrome* ui, int visible)
     ui->caret_visible = visible;
     /* Only the panel holding the focused input repaints for a blink. */
     if( ui->focus >= 0 )
-        dbg_dirty_widget(ui, ui->focus);
+        dbg_dirty_widget_paint(ui, ui->focus);
 }
 
 /* ---- layout -------------------------------------------------------------- */
@@ -2398,6 +2612,10 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
          * box does want is enough room to be worth wrapping into, which is the
          * one-line field's minimum plus the caption column it does not use.
          */
+        return DBG_LABEL_W + DBG_INPUT_MIN_W;
+    case TORIRS_CHROME_W_CUSTOM:
+        /* It fills the content column, but still asks an auto-sized panel for
+         * the same useful minimum as a multiline editor. */
         return DBG_LABEL_W + DBG_INPUT_MIN_W;
     case TORIRS_CHROME_W_COLORPICK:
     {
@@ -2487,6 +2705,8 @@ dbg_widget_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const
          * reason of the three: it is `rows` lines tall by construction, with
          * its caption on a row of its own above. */
         return (w->label[0] ? DBG_ROW_H : 0) + dbg_textarea_box_h(ui, w);
+    case TORIRS_CHROME_W_CUSTOM:
+        return (w->label[0] ? DBG_ROW_H : 0) + w->view_h + 2 * DBG_RULE;
     case TORIRS_CHROME_W_FREE:
         return 0;
     default:
@@ -3720,6 +3940,17 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         int row_x;
         int hovered;
 
+        /* A custom clip belongs to this exact layout. Clear it before any of
+         * the visibility exits below so a row scrolled out this build cannot
+         * keep accepting pixels against last build's box. */
+        if( w->kind == TORIRS_CHROME_W_CUSTOM )
+        {
+            w->custom_clip_x = 0;
+            w->custom_clip_y = 0;
+            w->custom_clip_w = 0;
+            w->custom_clip_h = 0;
+        }
+
         /* Not shown: no space, no draw -- and no stale hit box, or the widget
          * would keep taking clicks meant for the row drawn where it was. The
          * measuring loop above skipped it too; skipping in only one of the
@@ -4259,6 +4490,57 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             break;
         }
 
+        case TORIRS_CHROME_W_CUSTOM:
+        {
+            struct ToriRSChromeRect box;
+            struct ToriRSChromeRect inner;
+            struct ToriRSChromeRect visible;
+
+            if( w->label[0] )
+                dbg_push_text(
+                    ui,
+                    row_x,
+                    dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
+                    w->label,
+                    w->color ? w->color : th->text_dim,
+                    ui->theme.font_row,
+                    0,
+                    clip);
+
+            box.x = row_x;
+            box.y = row_y + (w->label[0] ? DBG_ROW_H : 0);
+            box.w = w->w;
+            box.h = w->view_h + 2 * DBG_RULE;
+            if( box.w <= 2 * DBG_RULE || box.h <= 2 * DBG_RULE )
+                break;
+
+            /* The chrome owns the well; plugin pixels begin one rule inside
+             * it and are later intersected with this exact visible clip. */
+            dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->textarea_bg, 1, clip);
+            dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->dropdown_border, 0, clip);
+            dbg_push_rect(
+                ui,
+                box.x + DBG_RULE,
+                box.y + DBG_RULE,
+                box.w - 2 * DBG_RULE,
+                box.h - 2 * DBG_RULE,
+                ui->focus == widget ? th->input_border_focus
+                                    : th->dropdown_border_inner,
+                0,
+                clip);
+
+            inner.x = box.x + DBG_RULE;
+            inner.y = box.y + DBG_RULE;
+            inner.w = box.w - 2 * DBG_RULE;
+            inner.h = box.h - 2 * DBG_RULE;
+            visible = dbg_rect_clip(clip, inner);
+            w->custom_clip_x = visible.x;
+            w->custom_clip_y = visible.y;
+            w->custom_clip_w = visible.w;
+            w->custom_clip_h = visible.h;
+            break;
+        }
+
         case TORIRS_CHROME_W_COLORPICK:
         {
             /* The same labelled field a text row wears, with a swatch sitting
@@ -4617,6 +4899,7 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
                 p->last_rect.w = 0;
                 p->last_rect.h = 0;
                 p->dirty = 0;
+                p->paint_only_dirty = 0;
             }
             continue;
         }
@@ -4634,11 +4917,16 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
         rect.h = p->h;
         if( p->dirty )
         {
-            /* Old bounds ∪ new bounds: a panel that shrank or moved leaves the
-             * vacated pixels invalid too. */
-            dbg_damage_add(ui, p->last_rect);
-            dbg_damage_add(ui, rect);
+            if( !p->paint_only_dirty )
+            {
+                /* Old bounds ∪ new bounds: a panel that shrank or moved leaves
+                 * the vacated pixels invalid too. Paint-only rows accumulated
+                 * their exact damage at mutation time and skip this broad union. */
+                dbg_damage_add(ui, p->last_rect);
+                dbg_damage_add(ui, rect);
+            }
             p->dirty = 0;
+            p->paint_only_dirty = 0;
         }
         p->last_rect = rect;
     }
@@ -6077,17 +6365,29 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
     }
 
     ui->press = hit;
+    if( hit >= 0 && ui->widgets[hit].kind == TORIRS_CHROME_W_CUSTOM )
+    {
+        struct ToriRSChromeRect region;
+        struct ToriRSChromeRect clip;
+
+        /* The caption belongs to the row but not to the plugin surface. It
+         * consumes panel input without starting a custom activation. */
+        if( !ToriRSChrome_CustomRegion(ui, hit, &region, &clip) ||
+            !dbg_point_in_rect(x, y, clip) )
+        {
+            ui->press = -1;
+            dbg_focus_release(ui);
+            return 1;
+        }
+        (void)ToriRSChrome_FocusWidget(ui, hit, 0);
+        return 1;
+    }
     if( hit >= 0 && ui->widgets[hit].kind == TORIRS_CHROME_W_MODELVIEW )
     {
         /* Focusable so the host can route WASD/zoom keys at it -- the same
          * focus slot text inputs use, so clicking anywhere else releases it
          * through the existing paths. */
-        if( ui->focus != hit )
-        {
-            dbg_dirty_widget(ui, ui->focus);
-            ui->focus = hit;
-            dbg_dirty_widget(ui, hit);
-        }
+        (void)ToriRSChrome_FocusWidget(ui, hit, 0);
         return 1;
     }
     if( hit >= 0 && ui->widgets[hit].kind == TORIRS_CHROME_W_COLORPICK )
@@ -6115,13 +6415,7 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
             ui->press = -1;
             return 1;
         }
-        if( ui->focus != hit )
-        {
-            dbg_dirty_widget(ui, ui->focus);
-            ui->focus = hit;
-            dbg_dirty_widget(ui, hit);
-        }
-        w->caret = (int)strlen(w->text);
+        (void)ToriRSChrome_FocusWidget(ui, hit, (int)strlen(w->text));
         return 1;
     }
     if( hit >= 0 && ui->widgets[hit].kind == TORIRS_CHROME_W_TEXTAREA )
@@ -6143,11 +6437,6 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
         int const line_h = dbg_textarea_line_h(ui);
         int line;
 
-        if( ui->focus != hit )
-        {
-            dbg_dirty_widget(ui, ui->focus);
-            ui->focus = hit;
-        }
         /* The caption band is inside the row's hit box, so a press up there
          * has to land on the first VISIBLE line rather than on a negative one. */
         line = y <= inner.y ? w->scroll : w->scroll + (y - inner.y) / line_h;
@@ -6155,21 +6444,17 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
             line = count - 1;
         if( line < 0 )
             line = 0;
-        w->caret =
-            starts[line] + dbg_textarea_col_at(ui, w, starts[line], lens[line], x - inner.x);
-        dbg_textarea_scroll_to_caret(ui, w);
-        dbg_dirty_widget(ui, hit);
+        (void)ToriRSChrome_FocusWidget(
+            ui,
+            hit,
+            starts[line] +
+                dbg_textarea_col_at(ui, w, starts[line], lens[line], x - inner.x));
         return 1;
     }
     if( hit >= 0 && ui->widgets[hit].kind == TORIRS_CHROME_W_TEXTINPUT )
     {
-        if( ui->focus != hit )
-        {
-            dbg_dirty_widget(ui, ui->focus);
-            ui->focus = hit;
-            dbg_dirty_widget(ui, hit);
-        }
-        ui->widgets[hit].caret = (int)strlen(ui->widgets[hit].text);
+        (void)ToriRSChrome_FocusWidget(
+            ui, hit, (int)strlen(ui->widgets[hit].text));
     }
     else
         dbg_focus_release(ui);
@@ -6285,7 +6570,18 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
     if( hit >= 0 && hit == ui->press )
     {
         struct ToriRSChromeWidget* w = &ui->widgets[hit];
-        if( w->kind == TORIRS_CHROME_W_CHECKBOX )
+        if( w->kind == TORIRS_CHROME_W_CUSTOM )
+        {
+            struct ToriRSChromeRect region;
+            struct ToriRSChromeRect clip;
+            int const scale = ui->scale > 0 ? ui->scale : 1;
+
+            if( ToriRSChrome_CustomRegion(ui, hit, &region, &clip) &&
+                dbg_point_in_rect(x, y, clip) )
+                (void)ToriRSChrome_CustomActivate(
+                    ui, hit, (x - region.x) / scale, (y - region.y) / scale);
+        }
+        else if( w->kind == TORIRS_CHROME_W_CHECKBOX )
         {
             w->checked = !w->checked;
             ui->activated = hit;
@@ -6505,6 +6801,12 @@ ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch)
     assert(ui);
     if( ui->focus < 0 )
         return 0;
+    /* A custom well owns focus after it is clicked. Key actions are an
+     * optional extension of the panel API, but until one is declared they are
+     * still consumed here: falling through would move/chat in the game behind
+     * focused plugin chrome. */
+    if( ui->widgets[ui->focus].kind == TORIRS_CHROME_W_CUSTOM )
+        return 1;
     /* Typing edits TEXT FIELDS only -- a text input, a multiline field, or a
      * colour picker's hex. A model view holds focus so the HOST can route its
      * own keys at it; characters falling through into its unused text field
@@ -6617,6 +6919,12 @@ ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
     assert(ui);
     if( ui->focus < 0 )
         return 0;
+    if( ui->widgets[ui->focus].kind == TORIRS_CHROME_W_CUSTOM )
+    {
+        if( key == TORIRS_CHROME_KEY_ESCAPE )
+            (void)ToriRSChrome_FocusWidget(ui, -1, 0);
+        return 1;
+    }
     /* Same rule as KeyChar: editing keys belong to text fields alone. */
     if( ui->widgets[ui->focus].kind != TORIRS_CHROME_W_TEXTINPUT &&
         ui->widgets[ui->focus].kind != TORIRS_CHROME_W_TEXTAREA &&
@@ -6717,8 +7025,16 @@ ToriRSChrome_TakeActivated(struct ToriRSChrome* ui)
         /* Carried across the drain, because a caller can only ask which kind
          * of activation it got AFTER it has taken one. */
         ui->taken_action = ui->activated_action;
+        ui->taken_custom =
+            ui->activated_custom && dbg_valid_widget(ui, fired) &&
+            ui->widgets[fired].kind == TORIRS_CHROME_W_CUSTOM;
+        ui->taken_x = ui->activated_x;
+        ui->taken_y = ui->activated_y;
+        ui->taken_selection_generation = ui->activated_selection_generation;
+        ui->taken_widget_serial = ui->activated_widget_serial;
         ui->activated = -1;
         ui->activated_action = 0;
+        ui->activated_custom = 0;
     }
     return fired;
 }
@@ -6728,4 +7044,24 @@ ToriRSChrome_ActivationWasAction(struct ToriRSChrome const* ui)
 {
     assert(ui);
     return ui->taken_action;
+}
+
+int
+ToriRSChrome_ActivationWasCustom(
+    struct ToriRSChrome const* ui,
+    int* out_x,
+    int* out_y,
+    uint32_t* out_selection_generation,
+    uint32_t* out_widget_serial)
+{
+    assert(ui);
+    if( out_x )
+        *out_x = ui->taken_x;
+    if( out_y )
+        *out_y = ui->taken_y;
+    if( out_selection_generation )
+        *out_selection_generation = ui->taken_selection_generation;
+    if( out_widget_serial )
+        *out_widget_serial = ui->taken_widget_serial;
+    return ui->taken_custom;
 }

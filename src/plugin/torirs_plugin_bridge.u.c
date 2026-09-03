@@ -3334,6 +3334,7 @@ app_plugin_safe_os(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
     struct App* app = (struct App*)user;
 
     assert(app);
+    (void)app;
     if( out_x )
         *out_x = 0;
     if( out_y )
@@ -3370,6 +3371,9 @@ app_plugin_if_click(void* user, int component_id, int op)
 /* Which overlay list the draw verbs above append to. @see app_overlay_push.
  * The value is enum PluginDrawSurface and is carried verbatim, because the
  * lists are indexed by it on the other side. */
+_Static_assert(
+    APP_PLUGIN_SURFACE_PANEL == TORIRS_PLUGIN_ENGINE_DRAW_PANEL,
+    "App and plugin host panel draw surfaces drifted");
 static void
 app_plugin_draw_select_canvas(void* user, int canvas)
 {

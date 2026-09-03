@@ -107,6 +107,7 @@ static ANativeWindow* g_window;
 static int g_window_w;
 static int g_window_h;
 static int g_density = 1;
+static int g_activity_foreground;
 /** Surface rows the soft keyboard covers at the bottom; 0 = away.
  *  @see PlatformAndroid_SetKeyboardInset. */
 static int g_keyboard_inset_px;
@@ -249,6 +250,25 @@ PlatformAndroid_SetDensity(int density)
     pthread_mutex_lock(&g_lock);
     g_density = density;
     pthread_mutex_unlock(&g_lock);
+}
+
+void
+PlatformAndroid_SetForeground(int foreground)
+{
+    pthread_mutex_lock(&g_lock);
+    g_activity_foreground = foreground ? 1 : 0;
+    pthread_mutex_unlock(&g_lock);
+}
+
+int
+PlatformAndroid_IsForeground(void)
+{
+    int foreground;
+
+    pthread_mutex_lock(&g_lock);
+    foreground = g_activity_foreground;
+    pthread_mutex_unlock(&g_lock);
+    return foreground;
 }
 
 void

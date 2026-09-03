@@ -360,6 +360,8 @@ struct ToriRS_GL3
     int lb_y;
     int lb_w;
     int lb_h;
+    /** Drawable pixels reserved at the right for the attached plugin shell. */
+    int host_right_inset;
     /* All Settings' interface scaling mode. GL has nearest and linear
      * sampling; the Bicubic choice uses the highest portable one, linear. */
     int interface_scale_mode;
@@ -446,6 +448,10 @@ struct ToriRS_GL3
     struct TRSPK_Atlas sprite_atlas;
     GLuint sprite_atlas_texture;
     GLuint white_texture;
+    /** Retained attached ToriRSChrome pane, uploaded only when its host asks. */
+    GLuint chrome_texture;
+    int chrome_texture_w;
+    int chrome_texture_h;
     /* Dedicated GL textures for rotated+masked chrome (minimap, compass).
      * Soft3D reblits into the framebuffer every frame; we keep one texture per
      * (scene, mask, size) and rewrite it each draw so the two never alias. */

@@ -1,9 +1,10 @@
 /*
  * The page's copies of four C enums must match the C.
  *
- * torirs_chrome.js hand-copies `ToriRSChromeWidgetKind`, `ToriRSChromeIntentKind`,
- * `ToriRSChromeCmdKind` and `ToriRSChromeSkinSlot` as JS objects, because the
- * browser cannot include a header. Hand-copies rot: LISTROW and COLORPICK were added to the widget enum
+ * The canonical runtime and its thin web adapter copy
+ * `ToriRSChromeWidgetKind`, `ToriRSChromeIntentKind`, and
+ * `ToriRSChromeCmdKind` as JS objects, because the browser cannot include a
+ * header. Hand-copies rot: LISTROW and COLORPICK were added to the widget enum
  * and ACTION to the intent enum, and the page kept the old numbering. Nothing
  * failed loudly -- the roster's rows fell through to the generic branch and
  * rendered as bare text, and every control reported the intent one past the one
@@ -65,10 +66,10 @@ function readEnum(file, tag) {
 }
 
 /** The JS table object literals, read as data rather than executed. */
-function readJsTable(name) {
-  const src = fs.readFileSync(path.join(ROOT, 'web', 'torirs_chrome.js'), 'utf8');
+function readJsTable(name, relative) {
+  const src = fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const at = src.indexOf(`const ${name} = {`);
-  if (at < 0) throw new Error(`no table ${name} in torirs_chrome.js`);
+  if (at < 0) throw new Error(`no table ${name} in ${relative}`);
   const open = src.indexOf('{', at);
   const close = src.indexOf('}', open);
   const out = {};
@@ -114,42 +115,31 @@ function compare(label, cEnum, prefix, jsTable) {
   }
 }
 
-compare(
-  'widget kinds',
-  readEnum('ui/uitree_debug_overlay.h', 'ToriRSChromeWidgetKind'),
-  'TORIRS_CHROME_W_',
-  readJsTable('W'));
-
-compare(
-  'intent kinds',
-  readEnum('ui/torirs_chrome_exec.h', 'ToriRSChromeIntentKind'),
-  'TORIRS_CHROME_INTENT_',
-  readJsTable('INTENT'));
-
-compare(
-  'command kinds',
-  readEnum('ui/torirs_chrome_exec.h', 'ToriRSChromeCmdKind'),
-  'TORIRS_CHROME_CMD_',
-  readJsTable('CMD'));
-
-/*
- * The skin slots, which fail in a quieter way than the three above.
- *
- * A slot is an INDEX into the bake, and the page turns each one into a data:
- * URL it then names in a stylesheet. Get the numbering wrong and nothing
- * errors: the window comes up wearing a scrollbar arrow where its checkbox
- * should be, or the tradebacking stretched into a 17x17 box. The C side of the
- * same coupling is pinned by the static assertions in ui/torirs_chrome_skin.h;
- * this is the page's half of it.
- *
- * SLOT_COUNT is dropped, not compared: it is the enum's terminator rather than
- * a slot, and the page has no use for it.
- */
-{
-  const slots = readEnum('ui/uitree_debug_overlay.h', 'ToriRSChromeSkinSlot');
-  delete slots.TORIRS_CHROME_SKIN_SLOT_COUNT;
-  compare('skin slots', slots, 'TORIRS_CHROME_SKIN_', readJsTable('SKIN'));
+for (const implementation of [
+  { label: 'canonical runtime', file: 'plugin_chrome/runtime-source.js' },
+  { label: 'web protocol adapter', file: 'web/torirs_chrome.js' }
+]) {
+  compare(
+    `${implementation.label} widget kinds`,
+    readEnum('ui/uitree_debug_overlay.h', 'ToriRSChromeWidgetKind'),
+    'TORIRS_CHROME_W_',
+    readJsTable('W', implementation.file));
+  compare(
+    `${implementation.label} intent kinds`,
+    readEnum('ui/torirs_chrome_exec.h', 'ToriRSChromeIntentKind'),
+    'TORIRS_CHROME_INTENT_',
+    readJsTable('INTENT', implementation.file));
+  compare(
+    `${implementation.label} command kinds`,
+    readEnum('ui/torirs_chrome_exec.h', 'ToriRSChromeCmdKind'),
+    'TORIRS_CHROME_CMD_',
+    readJsTable('CMD', implementation.file));
 }
+
+/* Skin slot numbers no longer cross the web boundary. Both the adapter theme
+ * and canonical CSS name packaged, local files, so adding a slot cannot silently
+ * make a different numbered sprite appear. The C bake test checks the pixel
+ * meaning; staging tests check the filenames. */
 
 if (failures > 0) {
   console.log(`${failures} failure(s)`);

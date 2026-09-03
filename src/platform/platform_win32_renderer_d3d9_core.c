@@ -16,6 +16,7 @@
  */
 
 #include "engine/boot_bar.h"
+#include "platform/platform_win32_chrome.h"
 #include "platform/platform_win32_renderer_d3d9_core.h"
 #include "toridraw_element_id.h"
 #include <assert.h>
@@ -530,9 +531,21 @@ static bool
 d3d9_read_client_size(struct ToriRS_D3D9* renderer, int* out_w, int* out_h)
 {
     RECT client;
+    int reserved = 0;
     if( !renderer->hwnd || !GetClientRect(renderer->hwnd, &client) )
         return false;
-    *out_w = (int)(client.right - client.left);
+    /* The platform's main HWND is a container while plugin chrome is attached.
+     * Class-extra storage avoids a renderer -> PlatformWindow link dependency:
+     * the CPU-only D3D retained-resource test links this core without a window
+     * backend, and an arbitrary probe HWND fails the magic check harmlessly. */
+    if( GetWindowLongPtr(
+            renderer->hwnd, TORIRS_WIN32_CHROME_EXTRA_MAGIC_OFFSET) ==
+        (LONG_PTR)TORIRS_WIN32_CHROME_EXTRA_MAGIC )
+        reserved = (int)GetWindowLongPtr(
+            renderer->hwnd, TORIRS_WIN32_CHROME_EXTRA_RESERVED_OFFSET);
+    *out_w = (int)(client.right - client.left) - reserved;
+    if( *out_w < 0 )
+        *out_w = 0;
     *out_h = (int)(client.bottom - client.top);
     return true;
 }
@@ -6841,10 +6854,19 @@ void
 ToriRS_D3D9_Present(struct ToriRS_D3D9* renderer)
 {
     HRESULT hr;
+    RECT destination;
     assert(renderer);
     if( renderer->scene_active || !d3d9_device_ready(renderer) )
         return;
-    hr = IDirect3DDevice9_Present(renderer->device, NULL, NULL, NULL, NULL);
+    destination.left = 0;
+    destination.top = 0;
+    destination.right = renderer->client_w;
+    destination.bottom = renderer->client_h;
+    /* NULL would stretch the game-sized backbuffer across the container's
+     * whole client, underneath its child chrome.  An explicit, equally-sized
+     * destination keeps the one renderer inside the game region. */
+    hr = IDirect3DDevice9_Present(
+        renderer->device, NULL, &destination, NULL, NULL);
     if( hr == D3DERR_DEVICELOST || hr == D3DERR_DEVICENOTRESET )
         renderer->reset_pending = true;
     else if( FAILED(hr) )

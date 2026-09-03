@@ -2370,11 +2370,8 @@ Editor_PanelTick(
      * happens on an actual change, and dirtying is what triggers a rebuild. */
     if( panel->menubar_panel >= 0 &&
         ui->panels[panel->menubar_panel].fixed_w != UITREE_LAYOUT_ROOT_W )
-    {
-        ui->panels[panel->menubar_panel].fixed_w = UITREE_LAYOUT_ROOT_W;
-        ui->panels[panel->menubar_panel].dirty = 1;
-        ui->dirty = 1;
-    }
+        ToriRSChrome_PanelSetFixedWidth(
+            ui, panel->menubar_panel, UITREE_LAYOUT_ROOT_W);
 
     /*
      * Only the active tool's inputs are visible.

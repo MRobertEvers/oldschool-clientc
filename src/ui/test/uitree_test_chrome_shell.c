@@ -1,6 +1,7 @@
 #include "test_harness.h"
 
 #include "torirs_chrome_shell.h"
+#include "torirs_chrome_exec.h"
 
 void
 test_chrome_shell(void)
@@ -12,6 +13,11 @@ test_chrome_shell(void)
     uint32_t second;
 
     printf("TEST: one plugin-chrome shell selection and attached layout\n");
+    TEST_ASSERT(
+        ToriRSChromeExec_KindFromName("platform") == TORIRS_CHROME_EXEC_PLATFORM,
+        "the portable manifest spelling selects this build's native presenter");
+    TEST_ASSERT(strcmp(ToriRSChromeExec_KindName(TORIRS_CHROME_EXEC_PLATFORM), "platform") == 0,
+        "the platform executor name round-trips");
     ToriRSChromeShell_Init(&shell, 320);
     TEST_ASSERT(shell.active_plugin == TORIRS_CHROME_SHELL_PAGE_NONE,
         "the shell starts with no selected plugin");
@@ -83,6 +89,12 @@ test_chrome_shell(void)
     ToriRSChromeShell_Layout(&shell, &in, &out);
     TEST_ASSERT(out.mode == TORIRS_CHROME_SHELL_DETACHED && shell.active_plugin == 7,
         "detach moves the same selection rather than making another shell");
+
+    second = ToriRSChromeShell_Select(&shell, TORIRS_CHROME_SHELL_PAGE_MANAGE);
+    TEST_ASSERT(
+        ToriRSChromeShell_Accepts(
+            &shell, TORIRS_CHROME_SHELL_PAGE_MANAGE, second),
+        "the permanent Manage destination uses the same generation-fenced shell");
 
     ToriRSChromeShell_Select(&shell, TORIRS_CHROME_SHELL_PAGE_NONE);
     TEST_ASSERT(!shell.detached, "collapsing also ends optional detached presentation");

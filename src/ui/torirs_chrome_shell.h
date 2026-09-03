@@ -85,7 +85,7 @@ ToriRSChromeShell_Select(struct ToriRSChromeShell* shell, int plugin);
 uint32_t
 ToriRSChromeShell_Collapse(struct ToriRSChromeShell* shell);
 
-/** Does an event still name the page currently allowed to render/receive input? */
+/** Does an event still name the plugin or Manage page allowed to receive input? */
 int
 ToriRSChromeShell_Accepts(
     struct ToriRSChromeShell const* shell, int plugin, uint32_t selection_generation);

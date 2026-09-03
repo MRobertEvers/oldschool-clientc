@@ -1596,8 +1596,10 @@ translate_ui_cmd(
                 out->u.sprite.atlas_index = 0;
                 out->u.sprite.x = prim->x;
                 out->u.sprite.y = prim->y;
-                out->u.sprite.w = 0;
-                out->u.sprite.h = 0;
+                out->u.sprite.w = prim->w;
+                out->u.sprite.h = prim->h;
+                out->u.sprite.if3 = prim->w > 0 && prim->h > 0;
+                out->u.sprite.trans = prim->trans;
                 out->u.sprite.scissor_x = prim->clip.x;
                 out->u.sprite.scissor_y = prim->clip.y;
                 out->u.sprite.scissor_w = prim->clip.w;
@@ -1636,6 +1638,23 @@ translate_ui_cmd(
             out->u.sprite.scissor_y = prim->clip.y;
             out->u.sprite.scissor_w = prim->clip.w;
             out->u.sprite.scissor_h = prim->clip.h;
+            return true;
+        }
+
+        if( prim->kind == TORIRS_CHROME_PRIM_LINE )
+        {
+            out->kind = TORIRSRC_LINE;
+            out->u.line.x = prim->x;
+            out->u.line.y = prim->y;
+            out->u.line.w = prim->w;
+            out->u.line.h = prim->h;
+            out->u.line.argb = emit_color_argb((int)prim->color, prim->trans);
+            out->u.line.line_width = prim->line_width > 0 ? prim->line_width : 1;
+            out->u.line.line_direction = prim->line_direction;
+            out->u.line.scissor_x = prim->clip.x;
+            out->u.line.scissor_y = prim->clip.y;
+            out->u.line.scissor_w = prim->clip.w;
+            out->u.line.scissor_h = prim->clip.h;
             return true;
         }
 

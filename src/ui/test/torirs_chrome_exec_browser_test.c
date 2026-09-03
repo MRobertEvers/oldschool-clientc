@@ -1,0 +1,210 @@
+#include "ui/torirs_chrome_exec.h"
+#include "platform/platform_window.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define CHECK(x) do { if( !(x) ) { fprintf(stderr, "browser exec: %s\n", #x); exit(1); } } while( 0 )
+
+struct PlatformWindow { int unused; };
+static struct PlatformWindow platform;
+static char sent[16][32768];
+static int sent_count;
+static char inbound[2048];
+static int opened;
+static int collapsed;
+static int page_width;
+
+bool PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* p)
+{ return p == &platform; }
+bool PlatformWindow_PluginBrowserReady(struct PlatformWindow const* p)
+{ return p == &platform; }
+bool PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* p)
+{ return p != &platform; }
+void PlatformWindow_PluginBrowserSend(struct PlatformWindow* p, char const* json)
+{
+    CHECK(p == &platform && json && sent_count < 16);
+    snprintf(sent[sent_count++], sizeof(sent[0]), "%s", json);
+}
+int PlatformWindow_PluginBrowserPoll(struct PlatformWindow* p, char* out, int cap)
+{
+    int n;
+    CHECK(p == &platform);
+    if( !inbound[0] ) return 0;
+    n = (int)strlen(inbound);
+    if( n >= cap ) n = cap - 1;
+    memcpy(out, inbound, (size_t)n);
+    out[n] = 0;
+    inbound[0] = 0;
+    return n;
+}
+bool PlatformWindow_PluginBrowserBitmapUrl(
+    struct PlatformWindow* p, char const* key, uint32_t revision,
+    uint32_t const* argb, int width, int height, char* out, int cap)
+{
+    CHECK(p == &platform && key && revision && argb && width > 0 && height > 0);
+    snprintf(out, (size_t)cap, "bitmap/%s-r%u.bmp", key, (unsigned)revision);
+    return true;
+}
+bool PlatformWindow_ChromeOpen(
+    struct PlatformWindow* p, int width, int height, char const* title)
+{
+    CHECK(p == &platform && height > 0 && title);
+    opened++;
+    page_width = width;
+    return true;
+}
+void PlatformWindow_ChromeClose(struct PlatformWindow* p)
+{ CHECK(p == &platform); collapsed++; }
+
+static struct ToriRSChromeCmd command(int kind, int panel, int widget)
+{
+    struct ToriRSChromeCmd cmd;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.kind = kind;
+    cmd.panel = panel;
+    cmd.widget = widget;
+    cmd.tab = -1;
+    return cmd;
+}
+
+int main(void)
+{
+    struct ToriRSChromeExec exec = ToriRSChromeExec_Browser(&platform);
+    struct ToriRSChromeRailSnapshot rail;
+    struct ToriRSChromeRailIntent rail_intent;
+    struct ToriRSChromeIntent intent;
+    struct ToriRSChromeCmd cmd;
+    struct ToriRSChromeCustomFrame frame;
+    uint32_t pixels[4] = { 0xff000000u, 0xffffffffu, 0xffff981fu, 0xff372e22u };
+
+    CHECK(exec.begin && exec.apply && exec.end && exec.poll &&
+          exec.rail_sync && exec.rail_icon && exec.rail_poll && exec.custom_present);
+    memset(&rail, 0, sizeof(rail));
+    rail.registry_revision = 3;
+    rail.selection_generation = 7;
+    rail.page_generation = 11;
+    rail.selected_entry = 4;
+    rail.expanded = 1;
+    rail.entry_count = 2;
+    rail.entries[0].kind = TORIRS_CHROME_RAIL_ENTRY_MANAGE;
+    rail.entries[0].plugin_index = -2;
+    snprintf(rail.entries[0].title, sizeof(rail.entries[0].title), "Manage Plugins");
+    rail.entries[1].kind = TORIRS_CHROME_RAIL_ENTRY_PLUGIN;
+    rail.entries[1].plugin_index = 4;
+    rail.entries[1].preferred_width = 420;
+    snprintf(rail.entries[1].title, sizeof(rail.entries[1].title), "Loot Tracker");
+    exec.rail_sync(exec.user, &rail);
+    CHECK(sent_count == 2);
+    CHECK(strstr(sent[0], "\"type\":\"theme\"") != NULL);
+    CHECK(strstr(sent[0], "\"checkBoxOn\":\"skin/CheckBoxOn.png\"") != NULL);
+    CHECK(strstr(sent[0], "\"dropdownBody\":\"skin/DropdownBody.png\"") != NULL);
+    CHECK(strstr(sent[0], "\"scrollGripMiddle\":\"skin/ScrollGripMid.png\"") != NULL);
+    CHECK(strstr(sent[1], "\"selectionGeneration\":7") != NULL);
+    CHECK(strstr(sent[1], "\"pageGeneration\":11") != NULL);
+
+    CHECK(exec.begin(exec.user));
+    CHECK(opened == 1 && page_width == 420);
+    cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_PANEL_OPEN, 2, -1);
+    snprintf(cmd.text, sizeof(cmd.text), "Loot Tracker");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_WIDGET_ADD, 2, 9);
+    cmd.value = TORIRS_CHROME_W_CUSTOM;
+    cmd.serial = 481;
+    cmd.h = 48;
+    snprintf(cmd.label, sizeof(cmd.label), "Chart");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_SYNC_END, -1, -1);
+    exec.apply(exec.user, &cmd);
+    CHECK(sent_count == 3);
+    CHECK(strstr(sent[2], "\"type\":\"page.snapshot\"") != NULL);
+    CHECK(strstr(sent[2], "\"pageGeneration\":11") != NULL);
+    CHECK(strstr(sent[2], "\"s\":481") != NULL);
+
+    memset(&frame, 0, sizeof(frame));
+    frame.panel = 2;
+    frame.widget = 9;
+    frame.selection_generation = 11;
+    frame.widget_serial = 481;
+    frame.scale_milli = 1000;
+    frame.width = frame.height = frame.stride = 2;
+    frame.argb = pixels;
+    exec.custom_present(exec.user, &frame);
+    CHECK(sent_count == 4);
+    CHECK(strstr(sent[3], "\"type\":\"custom.bitmap\"") != NULL);
+    CHECK(strstr(sent[3], "bitmap/custom-11-481-r1.bmp") != NULL);
+
+    snprintf(inbound, sizeof(inbound),
+        "{\"protocol\":1,\"type\":\"widget.intent\",\"sequence\":1,"
+        "\"intent\":{\"k\":8,\"p\":2,\"w\":9,\"v\":0,\"text\":\"\","
+        "\"x\":1,\"y\":1,\"g\":10,\"s\":481}}");
+    CHECK(exec.poll(exec.user, &intent, 1) == 0);
+    snprintf(inbound, sizeof(inbound),
+        "{\"protocol\":1,\"type\":\"widget.intent\",\"sequence\":2,"
+        "\"intent\":{\"k\":8,\"p\":2,\"w\":9,\"v\":0,\"text\":\"\","
+        "\"x\":1,\"y\":1,\"g\":11,\"s\":481}}");
+    CHECK(exec.poll(exec.user, &intent, 1) == 1);
+    CHECK(intent.kind == TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE &&
+          intent.selection_generation == 11 && intent.widget_serial == 481);
+
+    snprintf(inbound, sizeof(inbound),
+        "{\"protocol\":1,\"type\":\"rail.select\",\"sequence\":3,"
+        "\"pluginIndex\":-2,\"selectionGeneration\":7}");
+    CHECK(exec.rail_poll(exec.user, &rail_intent, 1) == 1);
+    CHECK(rail_intent.kind == TORIRS_CHROME_RAIL_INTENT_SELECT &&
+          rail_intent.plugin_index == -2 && rail_intent.selection_generation == 7);
+    /* XP's push bridge and pull fallback can expose the same copied envelope;
+     * replaying a runtime sequence must never select the plugin twice. */
+    snprintf(inbound, sizeof(inbound),
+        "{\"protocol\":1,\"type\":\"rail.select\",\"sequence\":3,"
+        "\"pluginIndex\":-2,\"selectionGeneration\":7}");
+    CHECK(exec.rail_poll(exec.user, &rail_intent, 1) == 0);
+
+    /* Replacing A with B while expanded keeps the one browser, closes A with
+     * A's generation, and makes B's first transaction a snapshot (not a delta
+     * that the old DOM must reject). Panel CLOSE is omitted from that fresh
+     * image because handles may be recycled. */
+    rail.selection_generation = 8;
+    rail.page_generation = 12;
+    rail.active_plugin = 7;
+    rail.selected_entry = 7;
+    rail.entries[1].plugin_index = 7;
+    snprintf(rail.entries[1].title, sizeof(rail.entries[1].title), "Ground Markers");
+    exec.rail_sync(exec.user, &rail);
+    CHECK(sent_count == 6);
+    CHECK(strstr(sent[4], "\"type\":\"page.close\"") != NULL &&
+          strstr(sent[4], "\"pageGeneration\":11") != NULL);
+    CHECK(strstr(sent[5], "\"type\":\"rail.snapshot\"") != NULL &&
+          strstr(sent[5], "\"pageGeneration\":12") != NULL);
+
+    cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_PANEL_CLOSE, 2, -1);
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_PANEL_OPEN, 3, -1);
+    snprintf(cmd.text, sizeof(cmd.text), "Ground Markers");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_WIDGET_ADD, 3, 9);
+    cmd.value = TORIRS_CHROME_W_BUTTON;
+    cmd.serial = 482;
+    snprintf(cmd.text, sizeof(cmd.text), "Apply");
+    exec.apply(exec.user, &cmd);
+    cmd = command(TORIRS_CHROME_CMD_SYNC_END, -1, -1);
+    exec.apply(exec.user, &cmd);
+    CHECK(sent_count == 7);
+    CHECK(strstr(sent[6], "\"type\":\"page.snapshot\"") != NULL &&
+          strstr(sent[6], "\"pageGeneration\":12") != NULL &&
+          strstr(sent[6], "\"panel\":3") != NULL &&
+          strstr(sent[6], "\"s\":482") != NULL &&
+          strstr(sent[6], "\"k\":4") == NULL &&
+          strstr(sent[6], "\"commands\":[,") == NULL);
+
+    exec.end(exec.user);
+    CHECK(collapsed == 1 && strstr(sent[sent_count - 1], "page.close") != NULL &&
+          strstr(sent[sent_count - 1], "\"pageGeneration\":12") != NULL);
+    puts("browser chrome executor: ok");
+    return 0;
+}

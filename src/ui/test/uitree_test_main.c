@@ -45,6 +45,7 @@ main(void)
     test_live_node_sets();
     test_debug_overlay();
     test_chrome_exec();
+    test_chrome_panel_draw();
     test_chrome_shell();
     test_entity_overlay_draw_order();
     test_scripted_entity_overlay();
