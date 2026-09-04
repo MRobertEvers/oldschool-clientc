@@ -420,10 +420,11 @@ tile_remove_scenery_element(
  *
  * So the node that leaves the chain is always one at or above the high-water:
  * if the payload's node is a static one, the payload of some above-high-water
- * node in the same chain is moved into it first. One such node exists for
- * every dynamic element registered on the tile, and the sort only permutes
- * within the chain, so the search cannot fail; the chain keeps exactly the
- * static payloads it had, in static nodes.
+ * node in the same chain is moved into it first. Usually one exists for every
+ * dynamic element registered on the tile. A static scenery release can have
+ * already removed that node after sorting put the released static payload in
+ * it; in that case the below-high-water victim is now an unused hole and can
+ * be unlinked directly.
  */
 static void
 tile_unlink_dynamic_scenery_element(
@@ -458,7 +459,11 @@ tile_unlink_dynamic_scenery_element(
         int32_t* dyn_link = &tile->scenery_head;
         while( *dyn_link != -1 && *dyn_link < high_water )
             dyn_link = &painter->scenery_pool[*dyn_link].next;
-        assert(*dyn_link != -1);
+        if( *dyn_link == -1 )
+        {
+            *link = victim->next;
+        }
+        else
         {
             struct SceneryNode* dyn = &painter->scenery_pool[*dyn_link];
             victim->element_idx = dyn->element_idx;

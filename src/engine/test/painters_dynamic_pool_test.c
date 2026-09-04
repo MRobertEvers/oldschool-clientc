@@ -185,6 +185,54 @@ test_permuted_chain_survives_reset(void)
 }
 
 static void
+test_static_release_after_payload_permutation(void)
+{
+    struct Painter* p = painter_new(SCENE, SCENE, LEVELS, PAINTER_NEW_CTX_BUCKET);
+    struct PaintersTile* tile;
+    int high_water;
+    int dynamic_element;
+    int32_t static_node;
+    int32_t dynamic_node;
+
+    assert(p);
+    painter_set_draw_distance(p, 25);
+    printf("a static release may retire the dynamic node before reset\n");
+
+    painter_add_normal_scenery(p, 5, 5, 0, 100, 1, 1, 100);
+    painter_mark_static_count(p);
+    high_water = p->static_scenery_pool_count;
+    tile = painter_tile_at(p, 5, 5, 0);
+    static_node = tile->scenery_head;
+    dynamic_element = painter_add_normal_scenery(p, 5, 5, 0, 1000, 1, 1, 200);
+    dynamic_node = p->scenery_pool[static_node].next;
+
+    /* Match a completed paint: the dynamic payload occupies the static node,
+     * and the static payload occupies the appended node. */
+    {
+        struct SceneryNode tmp = p->scenery_pool[static_node];
+        p->scenery_pool[static_node].element_idx = p->scenery_pool[dynamic_node].element_idx;
+        p->scenery_pool[static_node].span = p->scenery_pool[dynamic_node].span;
+        p->scenery_pool[dynamic_node].element_idx = tmp.element_idx;
+        p->scenery_pool[dynamic_node].span = tmp.span;
+    }
+
+    painter_release_scenery(p, 5, 5, 0, 100);
+    expect(
+        tile->scenery_head == static_node &&
+            p->scenery_pool[static_node].element_idx == dynamic_element &&
+            p->scenery_pool[static_node].next == -1,
+        "releasing the static payload removes its above-high-water node");
+
+    painter_reset_to_static(p);
+    expect(tile->scenery_head == -1, "reset unlinks the stranded dynamic payload");
+    expect(
+        p->scenery_pool_count == high_water,
+        "reset restores the pool high-water without reading before its allocation");
+
+    painter_free(p);
+}
+
+static void
 test_pool_does_not_grow(void)
 {
     struct Painter* p = make_painter();
@@ -330,6 +378,7 @@ int
 main(void)
 {
     test_permuted_chain_survives_reset();
+    test_static_release_after_payload_permutation();
     test_pool_does_not_grow();
     test_journal_is_invisible_to_the_paint();
     if( g_failures )
