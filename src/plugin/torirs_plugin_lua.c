@@ -871,6 +871,8 @@ static int lua_ui_info(lua_State* L)
     return 1;
 }
 static int lua_ui_invoke(lua_State* L) { struct ToriRS_ApiV2* a=lua_current_api(L);lua_pushboolean(L,a->ui.invoke(a,lua_ui_ref_arg(L,1),luaL_checkstring(L,2)));return 1; }
+static int lua_ui_base_action_available(lua_State* L) { struct ToriRS_ApiV2* a=lua_current_api(L);lua_pushboolean(L,a->ui.base_action_available(a,lua_ui_ref_arg(L,1),luaL_checkstring(L,2)));return 1; }
+static int lua_ui_invoke_base(lua_State* L) { struct ToriRS_ApiV2* a=lua_current_api(L);lua_pushboolean(L,a->ui.invoke_base(a,lua_ui_ref_arg(L,1),luaL_checkstring(L,2)));return 1; }
 static int lua_ui_contribution_info(lua_State* L)
 {
     struct ToriRS_ApiV2* a=lua_current_api(L);struct ToriRS_UiContributionInfo v;memset(&v,0,sizeof(v));v.struct_size=sizeof(v);
@@ -1380,6 +1382,7 @@ static struct LuaFn const LUA_INPUT_FNS[] = {
 };
 static struct LuaFn const LUA_UI_FNS[] = {
     {"ref",lua_ui_ref},{"info",lua_ui_info},{"invoke",lua_ui_invoke},
+    {"base_action_available",lua_ui_base_action_available},{"invoke_base",lua_ui_invoke_base},
     {"contribution_info",lua_ui_contribution_info},{"update",lua_ui_update},
     {"menu_add",lua_ui_menu_add},{"set_enabled",lua_ui_set_enabled},{NULL,NULL}
 };

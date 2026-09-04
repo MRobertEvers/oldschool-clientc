@@ -2354,6 +2354,22 @@ frame_on_asset(
 }
 
 static void
+frame_on_placement(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    uint32_t revision)
+{
+    (void)state_ptr;
+    (void)revision;
+    assert(api);
+    /* Modern Resizable consumes FRAME_BUILD, whose right edge can change
+     * when osrs239 mounts or expands its popout strip after login.  An
+     * unconditional invalidation is also safe for the two fixed offers and
+     * avoids retaining stale geometry while an offer transition is pending. */
+    api->frame.invalidate(api);
+}
+
+static void
 frame_on_stop(struct ToriRS_ApiV2* api, void* state_ptr)
 {
     struct FrameState* state = state_ptr;
@@ -2435,6 +2451,7 @@ struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_GAMEFRAME = {
         .on_start = frame_on_start,
         .on_stop = frame_on_stop,
         .on_asset = frame_on_asset,
+        .on_placement_changed = frame_on_placement,
         .on_ui_node_action = frame_on_node_action,
     },
 };

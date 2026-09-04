@@ -649,6 +649,97 @@ test_role_facet_suppression(void)
     UITree_Free(tree);
 }
 
+/*
+ * Interface 160's OSRS orbs are not paint leaves. Each semantic orb role names
+ * a type-0 layer whose backing, meter, number and icon are child components.
+ * A complete REPLACE_OR_PROVIDE winner therefore has to use the whole-node
+ * tombstone path: exact-node paint suppression would hide an empty layer and
+ * then draw every native child over the plugin orb.
+ */
+static void
+test_osrs_composite_orb_replacement(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeHost host;
+    struct TestHostState state;
+    struct UITreeEmitBuffer emit;
+    struct UITreeEntityOverlay plugin_orb;
+    struct UITreeRoleOverlayGroup group;
+    int32_t root;
+    int32_t orb;
+    int32_t backing;
+    int32_t number;
+    int32_t meter;
+    int32_t icon;
+    int32_t sibling;
+    int plugin_draws = 0;
+
+    TEST_ASSERT(tree != NULL, "OSRS composite-orb replacement tree");
+    UITree_TestHostInit(&host, &state);
+    UITree_EmitBufferInit(&emit);
+    root = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, 548 << 16, 0, 0, 765, 503);
+    orb = UITree_TestPushXy(
+        tree, root, UIELEM_RS_LAYER, (160 << 16) | 26, 520, 70, 57, 34);
+    backing = UITree_TestPushXy(
+        tree, orb, UIELEM_RS_GRAPHIC, (160 << 16) | 27, 0, 0, 57, 34);
+    number = UITree_TestPushXy(
+        tree, orb, UIELEM_RS_TEXT, (160 << 16) | 29, 4, 16, 23, 13);
+    meter = UITree_TestPushXy(
+        tree, orb, UIELEM_RS_GRAPHIC, (160 << 16) | 30, 27, 4, 26, 26);
+    icon = UITree_TestPushXy(
+        tree, orb, UIELEM_RS_GRAPHIC, (160 << 16) | 33, 27, 4, 26, 26);
+    sibling = UITree_TestPushXy(
+        tree, root, UIELEM_RS_RECT, (548 << 16) | 1, 600, 70, 20, 20);
+    TEST_ASSERT(
+        root >= 0 && orb >= 0 && backing >= 0 && number >= 0 &&
+            meter >= 0 && icon >= 0 && sibling >= 0,
+        "OSRS interface-160-shaped orb fixture builds");
+    UITree_TestResolve(tree);
+
+    memset(&plugin_orb, 0, sizeof(plugin_orb));
+    plugin_orb.kind = UITREE_ENTITY_OVERLAY_RECT;
+    plugin_orb.x = 520;
+    plugin_orb.y = 70;
+    plugin_orb.w = 57;
+    plugin_orb.h = 34;
+    memset(&group, 0, sizeof(group));
+    group.node_index = orb;
+    group.node_incarnation = tree->components[orb].incarnation;
+    group.replace = 1;
+    group.place = UITREE_ROLE_PLACE_SELF;
+    group.items = &plugin_orb;
+    group.item_count = 1;
+    state.role_overlay_groups = &group;
+    state.role_overlay_group_count = 1;
+    state.role_anchor_seen = 1;
+
+    TEST_ASSERT(
+        UITree_SetReplacementHidden(
+            tree, orb, tree->components[orb].incarnation, 1),
+        "complete orb replacement suppresses its native subtree");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+
+    TEST_ASSERT(
+        role_emit_node_index(&emit, orb) < 0 &&
+            role_emit_node_index(&emit, backing) < 0 &&
+            role_emit_node_index(&emit, number) < 0 &&
+            role_emit_node_index(&emit, meter) < 0 &&
+            role_emit_node_index(&emit, icon) < 0,
+        "native OSRS orb root and all visible children emit zero descriptors");
+    for( int i = 0; i < emit.count; i++ )
+        if( emit.cmds[i].kind == UITREE_EMIT_ENTITY_OVERLAY &&
+            emit.cmds[i].entity_overlays == &plugin_orb )
+            plugin_draws++;
+    TEST_ASSERT(
+        plugin_draws == 1 && role_emit_node_index(&emit, sibling) >= 0,
+        "one plugin orb paints at the tombstone without pruning later UI");
+
+    UITree_EmitBufferFree(&emit);
+    UITree_Free(tree);
+}
+
 static void
 test_role_boundary_deferred_drag(void)
 {
@@ -917,6 +1008,7 @@ test_roles(void)
     test_role_slot_delegation();
     test_role_replacement_overlay();
     test_role_facet_suppression();
+    test_osrs_composite_orb_replacement();
     test_role_boundary_deferred_drag();
     test_role_boundary_input_covers();
     test_role_drawn_bounds_follow_scroll_and_drag();

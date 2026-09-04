@@ -37,6 +37,19 @@ _Static_assert(MAC_BROWSER_QUEUE_MAX == 64,
 @end
 
 @implementation ToriRSPluginWebView
+- (BOOL)acceptsFirstMouse:(NSEvent*)event
+{
+    /*
+     * This view lives in a borderless child window so WebKit can composite at
+     * its own cadence. Clicking the game makes the SDL parent key again; by
+     * default AppKit then spends the next click only activating this child and
+     * never delivers it to the DOM. Plugin chrome is an application control,
+     * so its activation click must also be the control click.
+     */
+    (void)event;
+    return YES;
+}
+
 - (NSMenu*)menuForEvent:(NSEvent*)event
 {
     (void)event;
@@ -68,6 +81,32 @@ _Static_assert(MAC_BROWSER_QUEUE_MAX == 64,
 - (BOOL)canBecomeMainWindow
 {
     return NO;
+}
+
+- (void)sendEvent:(NSEvent*)event
+{
+    /*
+     * AppKit asks the farthest hit-tested view whether an activation click
+     * should pass through. For WKWebView that receiver is WebKit's private
+     * content view, not our WKWebView subclass, so acceptsFirstMouse: on the
+     * public wrapper alone cannot guarantee delivery. This is especially
+     * visible with the browser in a child NSWindow: every click on the SDL
+     * parent makes that parent key and the next rail click would only make
+     * this child key.
+     *
+     * Make the child key before NSWindow dispatches a mouse-down. Super then
+     * sees an ordinary event in the key window and delivers the same event to
+     * WebKit's real hit view; there is no synthetic second click and no DOM
+     * coordinate reconstruction. acceptsFirstMouse: above remains useful for
+     * the simpler case where AppKit does consult the public wrapper.
+     */
+    NSEventType const type = event.type;
+    if( !self.isKeyWindow &&
+        (type == NSEventTypeLeftMouseDown ||
+         type == NSEventTypeRightMouseDown ||
+         type == NSEventTypeOtherMouseDown) )
+        [self makeKeyWindow];
+    [super sendEvent:event];
 }
 @end
 

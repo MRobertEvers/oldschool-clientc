@@ -23,11 +23,12 @@
 #                  fourteen of them edge to edge to build the tab rail, plus a
 #                  dimmed copy for the cells that are not open. It is 34x36, so
 #                  a rail cell is 36x34.
-#   stone        = backvmid2, the surround's vertical strip, tiled to make the
-#                  bar the chat filter buttons stand on. It backs nothing else:
-#                  the rail used to be tiled out of this and seamed every 37
-#                  columns, because it is a piece cut for a different job.
+#   stone        = backvmid2, the surround's vertical strip retained for the
+#                  classic Stone Drawer set.
 #   drawer       = invback, the side panel, which the drawer IS.
+#   chat_plate*  = backbase1/backbase2, the two classic base sprites from which
+#                  the four actual chat-control regions are cut at runtime.
+#                  Report crosses their seam, so both source pictures travel.
 #   chat_sheet   = NOT cut here any more, and not cut at all -- see below. The
 #                  bar that used to go under it was never a cut of backbase1
 #                  either: that is a shaped corner plate, 496 wide against the
@@ -118,10 +119,19 @@ cd "$(dirname "$0")/../../../.."
 OUT=script/plugins/assets/mobile-gameframe
 DUMP=tools/dump_sprites/dump_sprites
 
+# The keyboard switch uses OldSchool's dedicated `osm_keyboard` sprite 4794.
+# Keep its full 33x36 transparent canvas: the visible keyboard is centred in
+# that authored box and mobile_gameframe.c centres the box on either switch.
+# The canonical export lives in res so this recipe copies it byte-for-byte
+# instead of re-encoding or recropping it.
+cp res/osm_keyboard_icon_sprite4794.png "$OUT/icon_keyboard.png"
+
 "$DUMP" --dat1 cache254.lostcity --out "$OUT" \
   stone=backvmid2.dat \
   highlight=redstone1.dat \
   drawer=invback.dat \
+  chat_plate=backbase1.dat \
+  chat_plate_end=backbase2.dat \
   map_housing=mapback.dat \
   sideicon=sideicons.dat:0-12
 

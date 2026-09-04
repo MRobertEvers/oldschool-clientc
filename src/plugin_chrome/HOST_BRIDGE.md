@@ -123,7 +123,9 @@ Complete application-owned navigation state:
 The maximum is 33 entries: permanent Manage plus all 32 plugin slots. A
 registry revision change rebuilds rail buttons. Selection-only changes update
 the retained buttons in place. `expanded: false` removes page controls but not
-the rail.
+the rail. `preferredWidth` remains a compatibility field; every destination is
+presented in the same fixed 320px pane, so switching entries cannot resize the
+chrome or game allocation.
 
 ### `rail.icon`
 
@@ -333,7 +335,7 @@ well border. The embedding host remains authoritative when it knows a more exact
 allocation (for example, whether compact mode hid the game). It may replace
 these values before putting the corresponding POD event on the frame-thread
 queue. Both selection and page generations fence that allocation, so changing
-faces of one selected plugin cannot reuse the prior face's width.
+faces of one selected plugin cannot reuse the prior face's layout.
 
 ### `editor.focus`
 

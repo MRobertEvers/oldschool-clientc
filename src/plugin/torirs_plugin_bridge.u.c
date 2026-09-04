@@ -163,14 +163,17 @@ app_plugin_fill_player(
 }
 
 static void
-app_plugin_fill_npc(
+app_plugin_fill_npc_for_world(
     struct App* app,
+    struct World const* world,
     struct WorldEntity_NPC const* npc,
     struct ToriRS_NpcSnapshot* out)
 {
-    int const base_x = app->world->_base_tile_x;
-    int const base_z = app->world->_base_tile_z;
+    int const base_x = world->_base_tile_x;
+    int const base_z = world->_base_tile_z;
 
+    assert(app);
+    assert(world);
     assert(npc);
     assert(out);
 
@@ -230,6 +233,17 @@ app_plugin_fill_npc(
     /* The name was copied onto the entity at spawn/retype; there is no cache
      * fetch here, the same way the minimenu builder does not do one. */
     snprintf(out->name, sizeof(out->name), "%s", npc->name);
+}
+
+static void
+app_plugin_fill_npc(
+    struct App* app,
+    struct WorldEntity_NPC const* npc,
+    struct ToriRS_NpcSnapshot* out)
+{
+    assert(app);
+    assert(app->world);
+    app_plugin_fill_npc_for_world(app, app->world, npc, out);
 }
 
 static void
@@ -3474,10 +3488,11 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
     pick.has_node_identity = 1;
     pick.node_index = node;
     pick.node_incarnation = app->tree->components[node].incarnation;
-    /* A semantic replacement is still allowed to delegate its native action.
-     * Ignore only this node's own display:none tombstone; hidden ancestors and
-     * any rebuild during menu interception remain hard lifetime fences. */
-    pick.allow_own_replacement_hidden = 1;
+    /* A semantic replacement is still allowed to delegate its native action,
+     * including to a button below the composite root it replaced. Ignore
+     * replacement tombstones on that ancestry; cache/script hiding and any
+     * rebuild during menu interception remain hard lifetime fences. */
+    pick.allow_replacement_hidden = 1;
     /*
      * And the frame plugin's own suppression is not a fence either.
      *
@@ -3870,9 +3885,16 @@ app_plugin_slot_rect(
             *out_h = app->world_emit_desc.h;
         return 1;
     }
-    if( slot == TORIRS_HOST_SURFACE_MINIMAP )
-        return app_plugin_minimap_rect(user, out_x, out_y, out_w, out_h);
+    if( slot == TORIRS_HOST_SURFACE_MINIMAP &&
+        app_plugin_minimap_rect(user, out_x, out_y, out_w, out_h) )
+        return 1;
 
+    /* Before the first emitted minimap descriptor (and briefly after a frame
+     * remount), the laid-out slot is already authoritative geometry. Falling
+     * through to it keeps frame.minimap present while retained children are
+     * being reconciled; returning the empty live-desc result here made the
+     * semantic parent disappear, so a replacement could suppress native orbs
+     * while being considered unpresentable itself. */
     if( app_plugin_slot_node_rect(app, slot, out_x, out_y, out_w, out_h) )
         return 1;
 
@@ -4017,6 +4039,8 @@ app_plugin_role_visible(void* user, char const* role)
 {
     struct App* app = (struct App*)user;
     int32_t node;
+    int32_t target;
+    int replacement;
 
     assert(app);
     assert(role);
@@ -4026,40 +4050,32 @@ app_plugin_role_visible(void* user, char const* role)
     node = app_plugin_ui_boundary_node(app, role);
     if( node < 0 )
         return 0;
+    target = node;
+    replacement = app->tree->components[target].replacement_hidden != 0;
 
     /* Pack ids can cross an InterfaceParent mount edge that is not represented
-     * by Component::parent. Use the tree's virtual-ancestry visibility check
-     * before the local walk below; revconfig-only builtins have no id and keep
-     * using the physical walk. */
-    if( app->tree->components[node].component_id >= 0 &&
-        UITree_ComponentOrAncestorDisplayHidden(
-            app->tree, app->tree->components[node].component_id) )
+     * by Component::parent, so visibility starts with the tree's virtual-
+     * ancestry query. A complete semantic replacement deliberately hides its
+     * exact target subtree; that target remains a live role/tombstone while its
+     * native descendants are suppressed. Every other hide, including an
+     * ancestor replacement, still wins. */
+    if( replacement
+            ? UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
+                  app->tree, target)
+            : UITree_NodeOrAncestorDisplayHidden(app->tree, target) )
         return 0;
 
     /*
-     * Up the ancestry, because a visible child of a hidden parent is not on
-     * screen. Three tests, because "hidden" is spelled three ways by three
-     * owners and means one thing to the player:
-     *
-     *   `hide` is the cache's and the scripts'. Read directly rather than
-     *   through UITree_ComponentVisibleById, whose rule that a hidden node
-     *   with no id counts as visible is right for the hover-reveal it was
-     *   written for and wrong here -- every revconfig builtin has no id, and
-     *   this verb would call all of them visible always.
-     *
-     *   `frame_hidden` is a gameframe layout's suppression.
-     *
-     *   And the HOST's, for the builtins whose visibility is not a flag at
-     *   all: a sidebar mount is on screen only while its tab is the selected
-     *   one, and that lives in the client rather than on the node. Without it
-     *   "is the logout screen up" would answer yes from the moment the frame
-     *   was built, on every tab -- which is the whole question.
+     * Up the physical ancestry for the HOST's visibility, which is not a flag
+     * and therefore is not part of the shared query above. A sidebar mount is
+     * on screen only while its tab is selected, and that lives in the client
+     * rather than on the node. Without it "is the logout screen up" would
+     * answer yes from the moment the frame was built, on every tab.
      */
     while( node >= 0 && (uint32_t)node < app->tree->component_count )
     {
         struct UITreeComponent const* c = &app->tree->components[node];
-        if( c->freed || c->frame_hidden || c->replacement_hidden ||
-            c->behavior.hide )
+        if( c->freed )
             return 0;
         if( c->type == UIELEM_BUILTIN_SIDEBAR || c->type == UIELEM_BUILTIN_REDSTONE_TAB ||
             c->type == UIELEM_BUILTIN_CROSS || c->type == UIELEM_BUILTIN_MINIMENU )
@@ -4071,6 +4087,33 @@ app_plugin_role_visible(void* user, char const* role)
         node = c->parent;
     }
     return 1;
+}
+
+/* A semantic replacement may delegate into the native control underneath
+ * itself (and into a panel a plugin frame has put away), but it must not bring
+ * back a button CS2 itself hid. The ordinary role_visible query cannot express
+ * that distinction: replacement/frame hiding is meaningful for pixels and
+ * deliberately ignored here, while behavior/screen/projection hiding remains
+ * an authoritative action fence. */
+static int
+app_plugin_role_action_available(void* user, char const* role)
+{
+    struct App* app = (struct App*)user;
+    int32_t node;
+
+    assert(app);
+    assert(role);
+    if( !app->tree )
+        return -1;
+    node = app_plugin_ui_boundary_node(app, role);
+    if( node < 0 || (uint32_t)node >= app->tree->component_count ||
+        app->tree->components[node].freed )
+        return -1;
+    return !UITree_NodeOrAncestorDisplayHiddenEx(
+        app->tree,
+        node,
+        /*ignore_replacement_hidden=*/1,
+        /*ignore_frame_hidden=*/1);
 }
 
 static int
@@ -4122,6 +4165,7 @@ app_plugin_role_facet_refresh_node(
 {
     int paint = 0;
     int input = 0;
+    int subtree = 0;
 
     if( !app->tree || node < 0 || incarnation == 0 )
         return;
@@ -4135,7 +4179,9 @@ app_plugin_role_facet_refresh_node(
             continue;
         paint |= row->paint != 0;
         input |= row->input != 0;
+        subtree |= row->subtree != 0;
     }
+    (void)UITree_SetReplacementHidden(app->tree, node, incarnation, subtree);
     (void)UITree_SetReplacementPaintHidden(app->tree, node, incarnation, paint);
     (void)UITree_SetReplacementInputHidden(app->tree, node, incarnation, input);
 }
@@ -4145,7 +4191,8 @@ app_plugin_role_suppress_facets(
     void* user,
     char const* role,
     int paint,
-    int input)
+    int input,
+    int subtree)
 {
     struct App* app = (struct App*)user;
     struct AppPluginRoleFacetSuppression* row;
@@ -4159,13 +4206,14 @@ app_plugin_role_suppress_facets(
     assert(role);
     paint = paint ? 1 : 0;
     input = input ? 1 : 0;
+    subtree = subtree ? 1 : 0;
     at = app_plugin_role_facet_find(app, role);
     if( at >= 0 )
     {
         old_node = app->plugin_role_facet_suppressions[at].node_index;
         old_incarnation = app->plugin_role_facet_suppressions[at].node_incarnation;
     }
-    if( !paint && !input )
+    if( !paint && !input && !subtree )
     {
         if( at < 0 )
             return 1;
@@ -4196,6 +4244,7 @@ app_plugin_role_suppress_facets(
     }
     row->paint = (uint8_t)paint;
     row->input = (uint8_t)input;
+    row->subtree = (uint8_t)subtree;
     row->node_index = next_node;
     row->node_incarnation = next_incarnation;
     if( old_node != next_node || old_incarnation != next_incarnation )
@@ -4215,6 +4264,7 @@ app_plugin_ui_boundary(
 {
     struct App* app = (struct App*)user;
     int32_t node;
+    int replace;
 
     assert(app);
     if( !role )
@@ -4223,6 +4273,7 @@ app_plugin_ui_boundary(
         app->plugin_ui_boundary_valid = 0;
         app->plugin_ui_boundary_node = -1;
         app->plugin_ui_boundary_incarnation = 0;
+        app->plugin_ui_boundary_replace = 0;
         app->plugin_ui_boundary_place = 0;
         return 1;
     }
@@ -4235,24 +4286,34 @@ app_plugin_ui_boundary(
     app->plugin_ui_boundary_node = -1;
     app->plugin_ui_boundary_incarnation = 0;
     app->plugin_ui_boundary_place = (uint8_t)place;
+    app->plugin_ui_boundary_replace = 0;
     if( !app->tree )
         return 0;
     node = app_plugin_ui_boundary_node(app, role);
     if( node < 0 || (uint32_t)node >= app->tree->component_count ||
         app->tree->components[node].freed )
         return 0;
-    if( UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
+    /* A whole-node replacement is already hidden at this point. Its draw must
+     * enter the replacement tombstone rather than fail the ordinary visibility
+     * fence (or become an additive SELF overlay before still-live children).
+     * Partial facet suppression never sets replacement_hidden and keeps the
+     * exact-node SELF path. */
+    replace = app->tree->components[node].replacement_hidden != 0;
+    if( replace
+            ? UITree_NodeOrAncestorDisplayHiddenExceptReplacement(app->tree, node)
+            : UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
         return 0;
 
     app->plugin_ui_boundary_valid = 1;
     app->plugin_ui_boundary_node = node;
     app->plugin_ui_boundary_incarnation =
         app->tree->components[node].incarnation;
+    app->plugin_ui_boundary_replace = (uint8_t)replace;
     app_role_overlay_group_seed(
         app,
         app->plugin_ui_boundary_node,
         app->plugin_ui_boundary_incarnation,
-        0,
+        replace,
         app->plugin_ui_boundary_place);
     return 1;
 }
@@ -5130,6 +5191,7 @@ app_plugin_engine(struct App* app)
     engine.component_rect = app_plugin_component_rect;
     engine.role_rect = app_plugin_role_rect;
     engine.role_visible = app_plugin_role_visible;
+    engine.role_action_available = app_plugin_role_action_available;
     engine.role_click = app_plugin_role_click;
     engine.role_suppress_facets = app_plugin_role_suppress_facets;
     engine.ui_boundary = app_plugin_ui_boundary;

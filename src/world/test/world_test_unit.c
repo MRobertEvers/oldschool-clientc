@@ -339,8 +339,35 @@ test_player_npc(void)
     World_NpcSetAnimation(world, ni, 9, WORLD_ANIMATION_TYPE_PRIMARY);
     World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_RUN, 6);
     World_NpcPathJump(world, ni, false, 8, 8);
+    npc->server_slot = 77;
+    npc->combat_level = 42;
+    npc->combat.healthbar_type = 3;
+    npc->combat.healthbar_end_fill = 0;
+    snprintf(npc->name, sizeof(npc->name), "%s", "Goblin");
     World_NpcDespawn(world, ni);
     TEST_ASSERT(World_EventsCount(world) == 1, "npc despawn event");
+    ev = World_EventsPeek(world, 0);
+    TEST_ASSERT(!World_EntityPoolIsActive(&world->entities.npc, ni),
+                "npc pool slot is released before the event drain");
+    TEST_ASSERT(ev && ev->removed_npc,
+                "npc despawn event retains a pre-release snapshot");
+    {
+        int const replacement = World_NpcSpawn(world, 21, 999, 1, 9, 10, 1, idle);
+        struct WorldEntity_NPC* live =
+            World_EntityPoolGet(&world->entities.npc, replacement);
+
+        TEST_ASSERT(replacement == ni,
+                    "the released npc slot can be reused before the event drain");
+        TEST_ASSERT(live && live->npc_id == 999,
+                    "the reused pool slot now belongs to the replacement npc");
+    }
+    TEST_ASSERT(ev && ev->removed_npc && ev->removed_npc->npc_id == 1234 &&
+                    ev->removed_npc->server_slot == 77 &&
+                    ev->removed_npc->combat_level == 42 &&
+                    ev->removed_npc->combat.healthbar_type == 3 &&
+                    ev->removed_npc->combat.healthbar_end_fill == 0 &&
+                    strcmp(ev->removed_npc->name, "Goblin") == 0,
+                "the queued snapshot carries the plugin-visible death facts");
     World_EventsClear(world);
 
     World_Free(world);

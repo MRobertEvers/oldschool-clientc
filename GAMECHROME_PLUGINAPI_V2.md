@@ -408,6 +408,12 @@ are recomputed, and one change notification is emitted. Notifications are
 coalesced; a reservation changed from inside a notification schedules another
 transaction rather than recursively dispatching.
 
+Named nodes authored by `FrameBuilder.ui_node` are presented on the frame
+surface: above the world and below native interface widgets. Their action
+regions therefore capture clicks on custom redstones and switches without
+blocking inventory/panel controls drawn over them. They do not depend on the
+lane's corresponding native chrome node remaining visible.
+
 ## Named UI tree
 
 ### One semantic name
@@ -474,6 +480,22 @@ api->ui.invoke(api, report, "activate");
 RevConfig maps `activate` to the correct lane-native operation internally. Raw
 component ids and numeric ops remain available only under an explicitly
 lane-specific `api->cache` escape hatch.
+
+A plugin that replaces an action facet can delegate to the lane control below
+it without recursively calling its own callback:
+
+```c
+if (api->ui.base_action_available(api, run, "enable"))
+    api->ui.invoke_base(api, run, "enable");
+```
+
+`invoke_base` resolves the live RevConfig action role at call time, so a cache
+subtree rebuild, revision change, or custom gameframe does not leave a stored
+component id behind. Two-state controls use `enable` and `disable`; ordinary
+buttons use `activate`. Plugin frame/replacement hiding is transparent to this
+delegation, while cache/CS2 hiding is authoritative: for example a special-
+attack button with no compatible weapon makes `base_action_available` false.
+This pair was added in API 2.3.
 
 ### Facets replace chrome scopes
 

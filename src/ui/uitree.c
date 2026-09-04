@@ -5456,7 +5456,8 @@ uitree_node_or_ancestor_hidden(
     int32_t idx,
     int include_plugin_hidden,
     int32_t ignore_own_replacement,
-    int ignore_frame_hidden)
+    int ignore_frame_hidden,
+    int ignore_replacement_hidden)
 {
     int group;
     int mount_hops = 0;
@@ -5483,10 +5484,10 @@ uitree_node_or_ancestor_hidden(
              * of the decoration it hid. @see emit_walk_node, which paints the
              * tombstone of such a node for the same reason.
              *
-             * `ignore_frame_hidden` excuses it on the whole walk instead, for
-             * a caller that names a COMPONENT rather than a place -- a
-             * synthesised press. Two separate excuses because they answer two
-             * different questions, and only the first is about this node.
+             * The Ex form can excuse frame and replacement hiding on the whole
+             * walk for a caller that names a COMPONENT rather than a place --
+             * a synthesised semantic press. The exact-node exception remains
+             * separate because it is used for painting at one tombstone.
              * @see UITree_NodeOrAncestorDisplayHiddenEx. */
             if( tree->components[idx].behavior.hide ||
                 (include_plugin_hidden &&
@@ -5494,7 +5495,7 @@ uitree_node_or_ancestor_hidden(
                    idx != ignore_own_replacement) ||
                   tree->components[idx].screen_hidden ||
                   tree->components[idx].projection_hidden ||
-                  (tree->components[idx].replacement_hidden &&
+                  (tree->components[idx].replacement_hidden && !ignore_replacement_hidden &&
                    idx != ignore_own_replacement))) )
                 return 1;
             idx = tree->components[idx].parent;
@@ -5529,7 +5530,7 @@ UITree_ComponentOrAncestorHidden(
     /* Cache/script activity remains live beneath a plugin frame so native CS2
      * state is current the instant the effective frame layer is released. */
     return uitree_node_or_ancestor_hidden(
-        tree, UITree_FindByComponentId(tree, component_id), 0, -1, 0);
+        tree, UITree_FindByComponentId(tree, component_id), 0, -1, 0, 0);
 }
 
 int
@@ -5538,7 +5539,7 @@ UITree_ComponentOrAncestorDisplayHidden(
     int component_id)
 {
     return uitree_node_or_ancestor_hidden(
-        tree, UITree_FindByComponentId(tree, component_id), 1, -1, 0);
+        tree, UITree_FindByComponentId(tree, component_id), 1, -1, 0, 0);
 }
 
 int
@@ -5549,7 +5550,7 @@ UITree_NodeOrAncestorDisplayHidden(
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
-    return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1, 0);
+    return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1, 0, 0);
 }
 
 int
@@ -5561,14 +5562,14 @@ UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
     return uitree_node_or_ancestor_hidden(
-        tree, node_index, 1, node_index, 0);
+        tree, node_index, 1, node_index, 0, 0);
 }
 
 int
 UITree_NodeOrAncestorDisplayHiddenEx(
     struct UITree const* tree,
     int32_t node_index,
-    int ignore_own_replacement,
+    int ignore_replacement_hidden,
     int ignore_frame_hidden)
 {
     assert(tree);
@@ -5578,8 +5579,9 @@ UITree_NodeOrAncestorDisplayHiddenEx(
         tree,
         node_index,
         1,
-        ignore_own_replacement ? node_index : -1,
-        ignore_frame_hidden);
+        -1,
+        ignore_frame_hidden,
+        ignore_replacement_hidden);
 }
 
 static int

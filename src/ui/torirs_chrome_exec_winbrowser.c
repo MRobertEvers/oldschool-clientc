@@ -17,6 +17,11 @@
 #define WINBROWSER_COMMAND_MAX TORIRS_CHROME_PROTOCOL_COMMAND_MAX
 #define WINBROWSER_RAW_MAX (8 * 1024 * 1024)
 #define WINBROWSER_RAIL_INTENT_MAX 32
+/* The attached browser is one application pane, not a collection of plugin
+ * windows. Keep its page allocation stable while the user moves between
+ * Manage, trackers, and any other rail destination; only expand/collapse may
+ * change the width reserved beside the game. */
+#define WINBROWSER_PAGE_WIDTH 320
 
 struct WinBrowserJson
 {
@@ -251,22 +256,6 @@ static int send_theme(struct WinBrowserExec* s)
     }
 }
 
-static int selected_width(
-    struct ToriRSChromeRailSnapshot const* snapshot)
-{
-    int width = 360;
-    int count = snapshot->entry_count;
-    if( count < 0 ) count = 0;
-    if( count > TORIRS_CHROME_RAIL_ENTRY_MAX ) count = TORIRS_CHROME_RAIL_ENTRY_MAX;
-    for( int i = 0; i < count; i++ )
-        if( snapshot->entries[i].plugin_index == snapshot->selected_entry &&
-            snapshot->entries[i].preferred_width > 0 )
-        { width = snapshot->entries[i].preferred_width; break; }
-    if( width < 280 ) width = 280;
-    if( width > 640 ) width = 640;
-    return width;
-}
-
 static int browser_rail_sync(
     void* user, struct ToriRSChromeRailSnapshot const* snapshot)
 {
@@ -291,7 +280,7 @@ static int browser_rail_sync(
     }
     s->shell_generation = snapshot->selection_generation;
     s->page_generation = snapshot->page_generation;
-    s->preferred_width = selected_width(snapshot);
+    s->preferred_width = WINBROWSER_PAGE_WIDTH;
     if( s->open && snapshot->expanded )
         PlatformWindow_ChromeOpen(s->platform, s->preferred_width, 480, "Plugins");
     if( !send_theme(s) )
@@ -371,7 +360,8 @@ static int browser_begin(void* user)
         PlatformWindow_PluginBrowserFailed(s->platform) )
         return 0;
     if( !PlatformWindow_ChromeOpen(
-            s->platform, s->preferred_width > 0 ? s->preferred_width : 360,
+            s->platform,
+            s->preferred_width > 0 ? s->preferred_width : WINBROWSER_PAGE_WIDTH,
             480, "Plugins") )
         return 0;
     reset_mounted_page(s);
@@ -889,7 +879,7 @@ ToriRSChromeExec_Browser(void* platform)
     memset(&g_winbrowser, 0, sizeof(g_winbrowser));
     g_winbrowser.platform = (struct PlatformWindow*)platform;
     g_winbrowser.panel = -1;
-    g_winbrowser.preferred_width = 360;
+    g_winbrowser.preferred_width = WINBROWSER_PAGE_WIDTH;
     for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
         g_winbrowser.custom_panel[i] = -1;
     exec.user = &g_winbrowser;

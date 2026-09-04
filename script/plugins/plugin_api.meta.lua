@@ -253,6 +253,8 @@ warn = nil
 ---@field ref fun(name: string): torirs.UiNodeRef?
 ---@field info fun(node: torirs.UiNodeRef): torirs.UiNodeInfo?
 ---@field invoke fun(node: torirs.UiNodeRef, action: string): boolean
+---@field base_action_available fun(node: torirs.UiNodeRef, action: string): boolean True when the lane binds this semantic action beneath any plugin replacement. Since API 2.3.
+---@field invoke_base fun(node: torirs.UiNodeRef, action: string): boolean Invoke the lane-owned semantic action without redispatching the plugin action provider. Since API 2.3.
 ---@field contribution_info fun(node: string, facets: torirs.UiFacet[]|torirs.UiFacet|integer): torirs.UiContributionInfo?
 ---@field update fun(node: torirs.UiNodeRef, facets: torirs.UiFacet[]|torirs.UiFacet|integer, value: torirs.UiNode): boolean, torirs.ResultName
 ---@field menu_add fun(text: string, action_id: integer): boolean Only during on_menu_build.

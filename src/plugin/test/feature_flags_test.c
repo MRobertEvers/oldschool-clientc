@@ -600,9 +600,9 @@ fake_role_slot(void* user, char const* role, int* out_slot, int* out_member)
 
 
 static int
-fake_role_suppress_facets(void* u, char const* role, int paint, int input)
+fake_role_suppress_facets(void* u, char const* role, int paint, int input, int subtree)
 {
-    (void)u; (void)role; (void)paint; (void)input;
+    (void)u; (void)role; (void)paint; (void)input; (void)subtree;
     return 1;
 }
 

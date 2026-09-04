@@ -15,6 +15,7 @@ static char inbound[2048];
 static int opened;
 static int collapsed;
 static int page_width;
+static int width_changes;
 static int send_enabled = 1;
 static int asynchronous_send_failure;
 static int bitmap_enabled = 1;
@@ -66,6 +67,8 @@ bool PlatformWindow_ChromeOpen(
 {
     CHECK(p == &platform && height > 0 && title);
     opened++;
+    if( page_width != width )
+        width_changes++;
     page_width = width;
     return true;
 }
@@ -121,7 +124,7 @@ int main(void)
     CHECK(strstr(sent[1], "\"pageGeneration\":11") != NULL);
 
     CHECK(exec.begin(exec.user));
-    CHECK(opened == 1 && page_width == 420);
+    CHECK(opened == 1 && page_width == 320 && width_changes == 1);
     cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
     exec.apply(exec.user, &cmd);
     cmd = command(TORIRS_CHROME_CMD_PANEL_OPEN, 2, -1);
@@ -284,15 +287,15 @@ int main(void)
 
     snprintf(inbound, sizeof(inbound),
         "{\"protocol\":1,\"type\":\"rail.select\",\"sequence\":5,"
-        "\"pluginIndex\":-2,\"selectionGeneration\":7}");
+        "\"pluginIndex\":4,\"selectionGeneration\":7}");
     CHECK(exec.rail_poll(exec.user, &rail_intent, 1) == 1);
     CHECK(rail_intent.kind == TORIRS_CHROME_RAIL_INTENT_SELECT &&
-          rail_intent.plugin_index == -2 && rail_intent.selection_generation == 7);
-    /* XP's push bridge and pull fallback can expose the same copied envelope;
+          rail_intent.plugin_index == 4 && rail_intent.selection_generation == 7);
+    /* The push bridge and pull fallback can expose the same copied envelope;
      * replaying a runtime sequence must never select the plugin twice. */
     snprintf(inbound, sizeof(inbound),
         "{\"protocol\":1,\"type\":\"rail.select\",\"sequence\":5,"
-        "\"pluginIndex\":-2,\"selectionGeneration\":7}");
+        "\"pluginIndex\":4,\"selectionGeneration\":7}");
     CHECK(exec.rail_poll(exec.user, &rail_intent, 1) == 0);
 
     snprintf(inbound, sizeof(inbound),
@@ -315,8 +318,10 @@ int main(void)
     rail.active_plugin = 7;
     rail.selected_entry = 7;
     rail.entries[1].plugin_index = 7;
+    rail.entries[1].preferred_width = 480;
     snprintf(rail.entries[1].title, sizeof(rail.entries[1].title), "Ground Markers");
     exec.rail_sync(exec.user, &rail);
+    CHECK(page_width == 320 && width_changes == 1);
     CHECK(sent_count == 7);
     CHECK(strstr(sent[5], "\"type\":\"page.close\"") != NULL &&
           strstr(sent[5], "\"pageGeneration\":11") != NULL);

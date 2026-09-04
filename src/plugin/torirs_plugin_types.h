@@ -741,7 +741,8 @@ struct ToriRS_PanelDescriptor
      * malformed, over-budget, or larger-than-64x64 art uses the baked wrench.
      * NULL or empty asks for that fallback directly. */
     char const* icon_asset;
-    /** Logical units; 0 asks for TORIRS_PANEL_WIDTH_DEFAULT. */
+    /** Compatibility/advisory metadata. The shared application pane is fixed
+     * at TORIRS_PANEL_WIDTH_DEFAULT, so changing pages never resizes the game. */
     int preferred_width;
 };
 

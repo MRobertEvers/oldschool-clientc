@@ -33,6 +33,8 @@
  * state and on the chrome the App owns.
  */
 
+#include "plugin/torirs_plugin_panel_route.h"
+
 /*
  * Split a `"a|b|c"` choice list into the window's pool and hand back the slice
  * the chrome should borrow.
@@ -149,11 +151,14 @@ app_plugin_page_select(struct App* app, int page, int view)
             if( PluginHost_PanelActive(app->plugins) != page ||
                 PluginHost_PanelView(app->plugins) != want )
                 (void)PluginHost_PanelSelectView(app->plugins, page, want);
+            /* One application pane has one allocation. A plugin descriptor's
+             * preferred width is presentation metadata, not permission to
+             * resize the game every time the player changes rail tabs. */
             ToriRSChromeShell_SetPanelWidth(
                 &app->plugin_shell,
-                PluginHost_PanelPreferredWidth(app->plugins, page),
-                TORIRS_PANEL_WIDTH_MIN,
-                TORIRS_PANEL_WIDTH_MAX);
+                TORIRS_PANEL_WIDTH_DEFAULT,
+                TORIRS_PANEL_WIDTH_DEFAULT,
+                TORIRS_PANEL_WIDTH_DEFAULT);
         }
         else if( PluginHost_PanelActive(app->plugins) >= 0 )
             (void)PluginHost_PanelClose(app->plugins);
@@ -537,18 +542,9 @@ app_plugin_panel_place(struct App* app)
     {
         int x = 8 * scale;
         int y = 72 * scale;
-        int logical_w = TORIRS_PANEL_WIDTH_DEFAULT;
+        int const logical_w = TORIRS_PANEL_WIDTH_DEFAULT;
         int w;
         int h = 260 * scale;
-
-        if( app->plugins && g_plugin_page >= 0 &&
-            PluginHost_PanelActive(app->plugins) == g_plugin_page )
-        {
-            int const preferred =
-                PluginHost_PanelPreferredWidth(app->plugins, g_plugin_page);
-            if( preferred > 0 )
-                logical_w = preferred;
-        }
         w = logical_w * scale;
 
         if( w > UITREE_LAYOUT_ROOT_W )
@@ -2875,106 +2871,67 @@ app_plugin_rail_publish(struct App* app)
  * merely because A advanced the generation first.
  */
 static void
+app_plugin_rail_select(struct App* app, int destination)
+{
+    assert(app);
+    assert(app->plugins);
+    struct AppPluginRailRouteInput const input = {
+        .destination = destination,
+        .destination_has_page =
+            destination >= 0 && PluginHost_PanelHasPage(app->plugins, destination),
+        .panel_visible = app->plugin_panel_visible,
+        .shell_selection = app->plugin_shell.active_plugin,
+        .requested_view = g_plugin_page_view,
+        .host_selection = PluginHost_PanelActive(app->plugins),
+        .host_view = PluginHost_PanelView(app->plugins),
+    };
+    int const route = AppPluginRailRoute_Decide(&input);
+
+    if( route == APP_PLUGIN_RAIL_ROUTE_CLOSE )
+    {
+        app_plugin_window_set_open(app, 0);
+        return;
+    }
+    if( route == APP_PLUGIN_RAIL_ROUTE_MANAGE )
+    {
+        app_plugin_page_select(app, -1, APP_PLUGIN_VIEW_SETTINGS);
+        if( !app->plugin_panel_visible )
+            app_plugin_window_set_open(app, 1);
+        return;
+    }
+    if( route == APP_PLUGIN_RAIL_ROUTE_PAGE )
+    {
+        app_plugin_page_select(app, destination, APP_PLUGIN_VIEW_PAGE);
+        if( !app->plugin_panel_visible )
+            app_plugin_window_set_open(app, 1);
+    }
+}
+
+static void
 app_plugin_rail_drain(struct App* app)
 {
-    struct ToriRSChromeRailIntent batch[32];
-    struct ToriRSChromeRailIntent latest_select;
+    struct AppPluginRailDrainResult drained;
     uint32_t const generation = app->plugin_shell.selection_generation;
-    int have_select = 0;
 
-    memset(&latest_select, 0, sizeof(latest_select));
-    for( int pass = 0; pass < 4; pass++ )
+    AppPluginRailRoute_Drain(&app->plugin_exec_pending, generation, &drained);
+    if( drained.have_layout &&
+        (!app->plugin_rail_has_layout ||
+         drained.layout.sequence >= app->plugin_rail_layout.sequence) )
     {
-        int const count = ToriRSChromeRail_Poll(
-            &app->plugin_exec_pending, batch,
-            (int)(sizeof(batch) / sizeof(batch[0])));
-        for( int i = 0; i < count; i++ )
-        {
-            struct ToriRSChromeRailIntent const* intent = &batch[i];
-
-            if( intent->selection_generation == 0 ||
-                intent->selection_generation != generation )
-                continue;
-            if( intent->kind == TORIRS_CHROME_RAIL_INTENT_LAYOUT )
-            {
-                if( intent->width < 0 || intent->height < 0 ||
-                    intent->custom_width < 0 || intent->page_generation == 0 ||
-                    intent->scale_milli <= 0 )
-                    continue;
-                if( !app->plugin_rail_has_layout ||
-                    intent->sequence >= app->plugin_rail_layout.sequence )
-                {
-                    app->plugin_rail_layout = *intent;
-                    app->plugin_rail_has_layout = 1;
-                }
-            }
-            else if( intent->kind == TORIRS_CHROME_RAIL_INTENT_SELECT &&
-                     (!have_select || intent->sequence >= latest_select.sequence) )
-            {
-                latest_select = *intent;
-                have_select = 1;
-            }
-        }
-        if( count < (int)(sizeof(batch) / sizeof(batch[0])) )
-            break;
+        app->plugin_rail_layout = drained.layout;
+        app->plugin_rail_has_layout = 1;
     }
 
-    if( !have_select || !app->plugins ||
-        latest_select.selection_generation != app->plugin_shell.selection_generation )
+    if( !drained.have_select || !app->plugins ||
+        drained.select.selection_generation != app->plugin_shell.selection_generation )
         return;
 
     if( getenv("TORIRS_CHROME_DEBUG") )
         fprintf(
             stderr, "chrome: rail select plugin=%d seq=%llu gen=%u tick=%d\n",
-            latest_select.plugin_index, (unsigned long long)latest_select.sequence,
-            (unsigned)latest_select.selection_generation, g_plugin_panel_ticks);
-    if( latest_select.plugin_index == TORIRS_CHROME_SHELL_PAGE_MANAGE )
-    {
-        if( app->plugin_panel_visible &&
-            app->plugin_shell.active_plugin == TORIRS_CHROME_SHELL_PAGE_MANAGE )
-            app_plugin_window_set_open(app, 0);
-        else
-        {
-            app_plugin_page_select(app, -1, APP_PLUGIN_VIEW_SETTINGS);
-            if( !app->plugin_panel_visible )
-                app_plugin_window_set_open(app, 1);
-        }
-        return;
-    }
-    if( !PluginHost_PanelHasPage(app->plugins, latest_select.plugin_index) )
-        return;
-
-    /*
-     * The selected expanded entry is a collapse affordance. Every other
-     * registered entry selects/replaces the sole page and expands the shell.
-     *
-     * The stone means "show me this plugin's PAGE", so it is only its own off
-     * switch while the page is what is showing. Pressing it while the SETTINGS
-     * face of the same plugin is up goes back to the page instead -- otherwise
-     * the stone becomes a toggle between closed and the settings, and a plugin
-     * whose settings you once opened can never be looked at again.
-     */
-    /* All three authorities must say the PAGE is what is open before the
-     * rail stone can mean "close it". A settings face reached through Manage
-     * can retain the same plugin/shell key; treating that partial match as the
-     * page made the XP stone close/reopen settings instead of navigating to
-     * the tracker. Any disagreement falls through to the explicit PAGE
-     * selection below, which repairs it. */
-    if( app->plugin_panel_visible &&
-        app->plugin_shell.active_plugin == latest_select.plugin_index &&
-        g_plugin_page_view == APP_PLUGIN_VIEW_PAGE &&
-        PluginHost_PanelActive(app->plugins) == latest_select.plugin_index &&
-        PluginHost_PanelView(app->plugins) == TORIRS_PANEL_VIEW_PAGE )
-    {
-        app_plugin_window_set_open(app, 0);
-        return;
-    }
-
-    /* The plugin's OWN stone, so it opens what the plugin has to say.
-     * @see enum AppPluginPageView. */
-    app_plugin_page_select(app, latest_select.plugin_index, APP_PLUGIN_VIEW_PAGE);
-    if( !app->plugin_panel_visible )
-        app_plugin_window_set_open(app, 1);
+            drained.select.plugin_index, (unsigned long long)drained.select.sequence,
+            (unsigned)drained.select.selection_generation, g_plugin_panel_ticks);
+    app_plugin_rail_select(app, drained.select.plugin_index);
 }
 
 static int
@@ -3803,9 +3760,16 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
                     stderr, "chrome: sim panel '%s' -> %s (tick %d)\n", sim_panel_name,
                     sim_panel_view == APP_PLUGIN_VIEW_PAGE ? "page" : "settings",
                     g_plugin_panel_ticks);
-                app_plugin_page_select(app, index, sim_panel_view);
-                if( !app->plugin_panel_visible )
-                    app_plugin_window_set_open(app, 1);
+                if( sim_panel_view == APP_PLUGIN_VIEW_PAGE )
+                    /* Exercise the exact application mutation used after a
+                     * queued rail.select, including PAGE-vs-SETTINGS repair. */
+                    app_plugin_rail_select(app, index);
+                else
+                {
+                    app_plugin_page_select(app, index, sim_panel_view);
+                    if( !app->plugin_panel_visible )
+                        app_plugin_window_set_open(app, 1);
+                }
             }
             else
                 fprintf(stderr, "chrome: sim panel: no plugin '%s'\n", sim_panel_name);

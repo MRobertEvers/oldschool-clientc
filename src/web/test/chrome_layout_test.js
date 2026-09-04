@@ -18,6 +18,8 @@ const canonicalCss = fs.readFileSync(path.join(src, 'plugin_chrome', 'modern.css
 const httpServer = fs.readFileSync(path.join(src, 'ioserver', 'http_server.c'), 'utf8');
 const macBrowser = fs.readFileSync(
   path.join(src, 'platform', 'platform_macos_webview.m'), 'utf8');
+const pluginPanel = fs.readFileSync(
+  path.join(src, 'plugin', 'torirs_plugin_panel.u.c'), 'utf8');
 
 assert.match(html, /<div id="torirs-app">[\s\S]*<main id="app-content">/,
   'the page has one fullscreenable application root');
@@ -43,9 +45,17 @@ assert.match(adapter, /entries\.slice\(0, 33\)/,
   'one rail can retain Manage plus all 32 plugins');
 assert.match(adapter, /const RAIL_WIDTH = 42;/,
   'the outer allocation reserves the modern rail width');
+assert.match(adapter, /const PANEL_WIDTH = 320;/,
+  'every web chrome destination shares one fixed page width');
+assert.match(pluginPanel,
+  /ToriRSChromeShell_SetPanelWidth\([\s\S]*TORIRS_PANEL_WIDTH_DEFAULT,[\s\S]*TORIRS_PANEL_WIDTH_DEFAULT,[\s\S]*TORIRS_PANEL_WIDTH_DEFAULT\)/,
+  'the application shell clamps every destination to that same fixed width');
+assert.strictEqual(
+  (pluginPanel.match(/PluginHost_PanelPreferredWidth/g) || []).length, 1,
+  'preferred width is copied only as compatibility metadata, never used for allocation');
 assert.match(canonicalCss, /grid-template-columns:\s*minmax\(0, 1fr\) 42px/,
   'the canonical modern document consumes the same 42px rail width');
-assert.match(adapter, /GAME_MIN \+ RAIL_WIDTH \+ PANEL_MIN/,
+assert.match(adapter, /GAME_MIN \+ RAIL_WIDTH \+ PANEL_WIDTH/,
   'split/exclusive mode is derived from available width');
 assert.match(adapter, /game\.hidden\s*=\s*mode\s*===\s*['"]exclusive['"]/,
   'exclusive mode replaces the game instead of covering it');
@@ -77,6 +87,12 @@ assert.match(adapter, /torirsChromeApplyBatch[\s\S]*Array\.isArray[\s\S]*host\.a
 assert.match(macBrowser,
   /__torirsChromePending\|0\)>=64\)return false[\s\S]*acknowledgeInboundSlot/,
   'WKWebView admits only a bounded truthful prefix and releases slots after C drains them');
+assert.match(macBrowser,
+  /acceptsFirstMouse:\(NSEvent\*\)event[\s\S]*return YES;/,
+  'the public WKWebView wrapper opts into click-through');
+assert.match(macBrowser,
+  /@implementation ToriRSPluginChromeWindow[\s\S]*sendEvent:\(NSEvent\*\)event[\s\S]*!self\.isKeyWindow[\s\S]*\[self makeKeyWindow\][\s\S]*\[super sendEvent:event\]/,
+  'the macOS child becomes key before dispatch to WebKit\'s private hit view');
 assert.doesNotMatch(macBrowser,
   /inbound\.count\s*>=\s*MAC_BROWSER_QUEUE_MAX\s*\)[\s\S]{0,100}removeObjectAtIndex/,
   'WKWebView never makes room for a new intent by deleting an accepted older one');

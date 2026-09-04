@@ -38,6 +38,7 @@ World_Free(struct World* world)
 {
     if( !world )
         return;
+    World_EventsClear(world);
     if( world->heightmap )
         heightmap_free(world->heightmap);
     if( world->minimap )
@@ -724,6 +725,37 @@ World_EmitEntityRemoved(
     World_EmitEvent(world, WorldEventKind_EntityRemoved, element_id);
 }
 
+/**
+ * Queue the render-side removal together with the NPC as it exists now.
+ *
+ * World_NpcDespawn releases the entity-pool slot immediately. The App drains
+ * World_Event later, so looking the element id up at that point normally finds
+ * nothing (and can find an unrelated replacement after slot reuse). Keeping a
+ * queue-owned copy makes the despawn event a real snapshot rather than an id
+ * whose subject has already vanished.
+ */
+static void
+World_EmitNpcRemoved(
+    struct World* world,
+    struct WorldEntity_NPC const* npc)
+{
+    struct World_Event* event;
+
+    assert(world);
+    assert(npc);
+    if( npc->element_id < 0 )
+        return;
+    assert(world->event_count < WORLD_MAX_EVENTS && "world event queue full — raise WORLD_MAX_EVENTS");
+    event = &world->events[world->event_count++];
+    *event = (struct World_Event){
+        .kind = WorldEventKind_EntityRemoved,
+        .element_id = npc->element_id,
+    };
+    event->removed_npc = malloc(sizeof(*event->removed_npc));
+    assert(event->removed_npc);
+    *event->removed_npc = *npc;
+}
+
 static int
 World_ProjectileDstY(
     struct World* world,
@@ -923,7 +955,7 @@ World_NpcDespawn(
         return;
 
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
-    World_EmitEntityRemoved(world, npc->element_id);
+    World_EmitNpcRemoved(world, npc);
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -2067,6 +2099,11 @@ void
 World_EventsClear(struct World* world)
 {
     assert(world);
+    for( int i = 0; i < world->event_count; i++ )
+    {
+        free(world->events[i].removed_npc);
+        world->events[i].removed_npc = NULL;
+    }
     world->event_count = 0;
 }
 

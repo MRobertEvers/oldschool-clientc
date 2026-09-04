@@ -268,6 +268,15 @@ struct PluginUiPresentation
     struct ToriRS_UiStoredNode value;
     int appearance_plugin;
     int actions_plugin;
+    /** One REPLACE_OR_PROVIDE contribution won both user-visible facets. When
+     * this node maps to a live lane role, its native component is a whole
+     * semantic object rather than a paint leaf and is replaced at the subtree
+     * tombstone. Bounds may remain lane-owned; appearance-only or split
+     * appearance/actions winners keep exact-node suppression. */
+    bool replace_subtree;
+    /** Authored by the selected FrameBuilder: paint and input belong to the
+     * frame surface, below native panels but above the world underneath. */
+    bool frame_surface;
     uint32_t action_token;
     uint64_t state_identity;
     int boundary_place;
@@ -394,10 +403,10 @@ struct PluginLayoutCandidate
  */
 enum PluginDrawSurface
 {
-    PLUGIN_DRAW_SURFACE_WORLD = 0,
-    PLUGIN_DRAW_SURFACE_CANVAS = 1,
+    PLUGIN_DRAW_SURFACE_WORLD = TORIRS_PLUGIN_ENGINE_DRAW_WORLD,
+    PLUGIN_DRAW_SURFACE_CANVAS = TORIRS_PLUGIN_ENGINE_DRAW_CANVAS,
     /** Over the scene, under the interfaces. @see FrameOffer.draw. */
-    PLUGIN_DRAW_SURFACE_FRAME = 2,
+    PLUGIN_DRAW_SURFACE_FRAME = TORIRS_PLUGIN_ENGINE_DRAW_FRAME,
     /** Panel-local custom region prepared by the application shell. */
     PLUGIN_DRAW_SURFACE_PANEL = TORIRS_PLUGIN_ENGINE_DRAW_PANEL
 };
@@ -447,6 +456,10 @@ struct ToriRS_PluginHost
     /** One-shot request consumed by the app's next safe layout fence. */
     int frame_layout_requested;
     int frame_preference_loaded;
+    /** Set only by an explicit startup call after the boot task has loaded both
+     * preference stores. FrameStart must not turn its initial dirty bit into an
+     * implicit start while those stores are still zero-filled. */
+    bool started_once;
     int frame_resolving;
     int frame_selection_dirty;
 
@@ -463,6 +476,13 @@ struct ToriRS_PluginHost
     uint32_t placement_notified_revision;
     int placement_initialized;
     int placement_notify_pending;
+    /** Last effective lane-owned popout cut observed by placement. Unlike the
+     * selected frame's slots, this mounted sibling can move or hide without a
+     * tree-generation or canvas-size change, so FrameStart polls this one
+     * retained input explicitly. */
+    int placement_lane_chrome_observed;
+    int placement_lane_chrome_active;
+    struct ToriRS_PlacementRect placement_lane_chrome_rect;
     struct ToriRS_UiRegistry ui_registry;
     /* Rebuilt only when the named registry revision changes. Per-frame paint
      * walks this compact winning-provider list, never the registry. */
@@ -1601,6 +1621,47 @@ plugin_placement_add_named_occluders(
     return 1;
 }
 
+/*
+ * Add lane furniture from the lane itself, independently of the semantic
+ * frame tree that a selected provider publishes.
+ *
+ * `lane_chrome_0` is interface 728's live popout strip on osrs239.  Its
+ * canonical UI name is `frame.sidebar.rail`, which is also the name a custom
+ * frame quite correctly gives its own tab rail.  Once that frame commits,
+ * its base declaration replaces the native declaration in the semantic
+ * registry; deriving FRAME_BUILD solely from the winning semantic node then
+ * forgets the cache strip and lets the replacement frame slide underneath
+ * it.  The strip is still mounted, painted, and noclickthrough, so the result
+ * is clipped artwork and dead tab targets.
+ *
+ * Placement must therefore read this non-replaceable lane fact from the
+ * profile role.  Named UI still describes the selected frame, while this cut
+ * preserves the native popout as a fully usable sibling.  Adding it again
+ * when the native base also won is harmless: PlacementRegion_AddRect is a
+ * geometric union.
+ */
+static int
+plugin_placement_lane_chrome_rect(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_PlacementRect* rect)
+{
+    assert(host);
+    assert(rect);
+    memset(rect, 0, sizeof(*rect));
+    if( !host->engine.role_rect || !host->engine.role_visible ||
+        !host->engine.role_rect(
+            host->engine.user,
+            "lane_chrome_0",
+            &rect->x,
+            &rect->y,
+            &rect->w,
+            &rect->h) ||
+        !host->engine.role_visible(host->engine.user, "lane_chrome_0") ||
+        rect->w <= 0 || rect->h <= 0 )
+        return 0;
+    return 1;
+}
+
 static int
 plugin_placement_named_before(
     struct ToriRS_PluginHost const* host,
@@ -1809,12 +1870,15 @@ plugin_placement_rebuild(
     struct ToriRS_PlacementRegion candidate[PLUGIN_AREA_COUNT];
     struct PluginPlacementResolvedReservation resolved[TORIRS_PLUGIN_RESERVES_MAX];
     struct ToriRS_PlacementRect rect;
+    struct ToriRS_PlacementRect lane_chrome_rect;
+    int lane_chrome_active;
     int changed;
 
     assert(host);
     if( host->placement_cache_valid && host->placement_cache_revision == host->layout_revision )
         return 1;
     plugin_ui_refresh_base(host);
+    lane_chrome_active = plugin_placement_lane_chrome_rect(host, &lane_chrome_rect);
 
     ToriRS_PlacementRegion_Clear(&canvas);
     ToriRS_PlacementRegion_Clear(&os);
@@ -1860,6 +1924,9 @@ plugin_placement_rebuild(
     ToriRS_PlacementRegion_Clear(&cuts);
     if( !plugin_placement_add_named_occluders(host, &cuts, TORIRS_UI_NODE_BLOCKS_FRAME) )
         return 0;
+    if( lane_chrome_active &&
+        ToriRS_PlacementRegion_AddRect(&cuts, &lane_chrome_rect) != TORIRS_PLACEMENT_OK )
+        return 0;
     if( ToriRS_PlacementRegion_Subtract(
             &candidate[TORIRS_AREA_PLATFORM_SAFE],
             &cuts,
@@ -1881,6 +1948,9 @@ plugin_placement_rebuild(
 
     ToriRS_PlacementRegion_Clear(&cuts);
     if( !plugin_placement_add_named_occluders(host, &cuts, TORIRS_UI_NODE_BLOCKS_OVERLAY) )
+        return 0;
+    if( lane_chrome_active &&
+        ToriRS_PlacementRegion_AddRect(&cuts, &lane_chrome_rect) != TORIRS_PLACEMENT_OK )
         return 0;
     if( ToriRS_PlacementRegion_Subtract(
             &candidate[TORIRS_AREA_OVERLAY_SAFE],
@@ -1921,6 +1991,9 @@ plugin_placement_rebuild(
     }
     host->placement_cache_revision = host->layout_revision;
     host->placement_cache_valid = 1;
+    host->placement_lane_chrome_observed = 1;
+    host->placement_lane_chrome_active = lane_chrome_active;
+    host->placement_lane_chrome_rect = lane_chrome_rect;
     if( changed )
     {
         host->placement_revision = plugin_placement_revision_next(host->placement_revision);
@@ -2171,6 +2244,10 @@ plugin_ui_base_parent(char const* name)
         return "frame.minimap";
     if( strcmp(name, "frame.chat.buttons") == 0 )
         return "frame.chat";
+    if( strcmp(name, "frame.chat.backing") == 0 ||
+        strcmp(name, "frame.chat.bar") == 0 ||
+        strncmp(name, "frame.chat.plate.", 17) == 0 )
+        return "frame.chat";
     if( strncmp(name, "frame.chat.button.", 18) == 0 )
         return "frame.chat.buttons";
     if( strcmp(name, "frame.sidebar.rail") == 0 ||
@@ -2260,6 +2337,16 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
         { "orb_prayer",    "frame.orb.prayer",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
         { "orb_run",       "frame.orb.run",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
         { "orb_spec",      "frame.orb.special",     TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_backing",  "frame.chat.backing",    TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_bar",      "frame.chat.bar",        TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_plate_0",  "frame.chat.plate.0",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_plate_1",  "frame.chat.plate.1",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_plate_2",  "frame.chat.plate.2",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_plate_3",  "frame.chat.plate.3",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_plate_4",  "frame.chat.plate.4",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_plate_5",  "frame.chat.plate.5",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_plate_6",  "frame.chat.plate.6",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
+        { "chat_plate_7",  "frame.chat.plate.7",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
     };
     struct ToriRS_UiBaseDeclaration declarations[
         TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX + 48];
@@ -6124,12 +6211,39 @@ plugin_title_refresh(struct PluginContext* ctx)
     ctx->title[out] = '\0';
 }
 
-/** Read the one device preference after the preferences file has landed. */
+#define PLUGIN_FRAME_PREFERENCE_MIGRATION 1
+
+/* Map the pre-catalogue gameframe-layout setting onto the stable V2 offer id.
+ * Old files contain either the visible label or its former numeric row. */
+static char const*
+plugin_frame_legacy_gameframe_choice(struct PluginContext* ctx)
+{
+    struct PluginConfigSlot const* slot;
+    char const* value;
+
+    assert(ctx);
+    slot = plugin_config_slot(ctx, "layout", false);
+    value = slot ? slot->value : NULL;
+    if( !value || !value[0] || strcmp(value, "Auto") == 0 ||
+        strcmp(value, "3") == 0 )
+        return "auto";
+    if( strcmp(value, "Classic Fixed") == 0 || strcmp(value, "0") == 0 )
+        return "gameframe-layout/classic-fixed";
+    if( strcmp(value, "Modern Fixed") == 0 || strcmp(value, "1") == 0 )
+        return "gameframe-layout/modern-fixed";
+    if( strcmp(value, "Modern Resizable") == 0 || strcmp(value, "2") == 0 )
+        return "gameframe-layout/modern-resizable";
+    return "auto";
+}
+
+/** Read or migrate the one device preference after both preference stores
+ * have landed. */
 static void
 plugin_frame_preference_load(struct ToriRS_PluginHost* host)
 {
     char requested[TORIRS_PLUGIN_FRAME_ID_MAX] = "auto";
     int migration = 0;
+    int present = 0;
 
     assert(host);
     if( host->frame_preference_loaded )
@@ -6137,12 +6251,45 @@ plugin_frame_preference_load(struct ToriRS_PluginHost* host)
     host->frame_preference_loaded = 1;
 
     if( host->engine.frame_preference )
-        (void)host->engine.frame_preference(
+        present = host->engine.frame_preference(
             host->engine.user, requested, (int)sizeof(requested), &migration);
     if( !plugin_frame_preference_id_valid(requested) )
     {
         TORIRS_REPORT("plugin: invalid saved gameframe '%s'; using auto\n", requested);
         snprintf(requested, sizeof(requested), "%s", "auto");
+    }
+
+    if( migration < PLUGIN_FRAME_PREFERENCE_MIGRATION )
+    {
+        if( !present )
+        {
+            int const desktop = PluginHost_IndexOf(host, "gameframe-layout");
+            int const mobile = PluginHost_IndexOf(host, "mobile-gameframe");
+
+            if( desktop >= 0 && host->plugins[desktop].enabled )
+            {
+                snprintf(
+                    requested,
+                    sizeof(requested),
+                    "%s",
+                    plugin_frame_legacy_gameframe_choice(&host->plugins[desktop]));
+                if( mobile >= 0 && host->plugins[mobile].enabled )
+                    TORIRS_REPORT(
+                        "plugin: both legacy gameframe plugins were enabled; preserving "
+                        "gameframe-layout, which previously won by registry order\n");
+            }
+            else if( mobile >= 0 && host->plugins[mobile].enabled )
+                snprintf(
+                    requested,
+                    sizeof(requested),
+                    "%s",
+                    "mobile-gameframe/stone-drawer");
+        }
+        if( host->engine.frame_preference_set )
+            (void)host->engine.frame_preference_set(
+                host->engine.user,
+                requested,
+                PLUGIN_FRAME_PREFERENCE_MIGRATION);
     }
 
     snprintf(
@@ -7849,6 +7996,11 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
 
     assert(host);
 
+    /* This public call is the boot task's publication fence. Later calls come
+     * from normal enable/reload/frame-resolution paths; before the first one,
+     * a frame boundary is not permission to start plugins on defaults. */
+    host->started_once = true;
+
     plugin_frame_preference_load(host);
     plugin_frame_resolve(host);
 
@@ -8034,7 +8186,11 @@ PluginHost_SetEnabled(
      * honest answer to the click: the reason lands beside the row the switch
      * is on. */
     ctx->refused = false;
-    PluginHost_Start(host);
+    /* During asynchronous boot, config/manifest decode is still assembling
+     * the complete enabled set. The boot task's final explicit Start publishes
+     * it all at once; only a later user enable starts immediately. */
+    if( host->started_once )
+        PluginHost_Start(host);
 }
 
 void
@@ -8342,20 +8498,168 @@ PluginHost_UiInfo(
 }
 
 bool
+PluginHost_UiBaseActionAvailable(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    char const* action)
+{
+    char const* name;
+    char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    int x, y, w, h;
+
+    assert(host);
+    assert(action);
+    name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
+    if( !name )
+        return false;
+
+    /* Presentation roles name the composite object; action roles name the
+     * actual cache control that implements it. Keeping those separate is what
+     * lets a gameframe replace/move the former while the latter remains a
+     * revision-profile fact. This table is the core frame.* vocabulary, not a
+     * cache-id table; every numeric/live binding stays in RevConfig. */
+    role[0] = '\0';
+    if( strcmp(name, "frame.chat.button.report") == 0 &&
+        strcmp(action, "activate") == 0 )
+        snprintf(role, sizeof(role), "%s", "report_button");
+    else if( strcmp(name, "frame.orb.hitpoints") == 0 &&
+             strcmp(action, "activate") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_hp_button");
+    else if( strcmp(name, "frame.orb.prayer") == 0 &&
+             strcmp(action, "activate") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_prayer_button");
+    else if( strcmp(name, "frame.orb.run") == 0 &&
+             (strcmp(action, "activate") == 0 || strcmp(action, "enable") == 0) )
+        snprintf(role, sizeof(role), "%s", "orb_run_on");
+    else if( strcmp(name, "frame.orb.run") == 0 &&
+             strcmp(action, "disable") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_run_off");
+    else if( strcmp(name, "frame.orb.special") == 0 &&
+             strcmp(action, "activate") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_spec_button");
+    else if( strncmp(name, "frame.sidebar.tab.", 18) == 0 &&
+             strcmp(action, "activate") == 0 )
+    {
+        char* end = NULL;
+        long const tab = strtol(name + 18, &end, 10);
+        if( end && !*end && tab >= 0 && tab < 14 && host->engine.tab_enabled )
+            return host->engine.tab_enabled(host->engine.user, (int)tab) != 0;
+        return false;
+    }
+    if( !role[0] )
+        return false;
+    if( host->engine.role_action_available )
+        return host->engine.role_action_available(host->engine.user, role) > 0;
+    return host->engine.role_rect &&
+           host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h) != 0;
+}
+
+bool
+PluginHost_UiInvokeBase(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    char const* action)
+{
+    char const* name;
+    char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    int availability = -1;
+
+    assert(host);
+    assert(action);
+    name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
+    if( !name )
+        return false;
+
+    role[0] = '\0';
+    if( strcmp(name, "frame.chat.button.report") == 0 &&
+        strcmp(action, "activate") == 0 )
+        snprintf(role, sizeof(role), "%s", "report_button");
+    else if( strcmp(name, "frame.orb.hitpoints") == 0 &&
+             strcmp(action, "activate") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_hp_button");
+    else if( strcmp(name, "frame.orb.prayer") == 0 &&
+             strcmp(action, "activate") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_prayer_button");
+    else if( strcmp(name, "frame.orb.run") == 0 &&
+             (strcmp(action, "activate") == 0 || strcmp(action, "enable") == 0) )
+        snprintf(role, sizeof(role), "%s", "orb_run_on");
+    else if( strcmp(name, "frame.orb.run") == 0 &&
+             strcmp(action, "disable") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_run_off");
+    else if( strcmp(name, "frame.orb.special") == 0 &&
+             strcmp(action, "activate") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_spec_button");
+    else if( strncmp(name, "frame.sidebar.tab.", 18) == 0 &&
+             strcmp(action, "activate") == 0 )
+    {
+        char* end = NULL;
+        long const tab = strtol(name + 18, &end, 10);
+        if( end && !*end && tab >= 0 && tab < 14 && host->engine.tab_select )
+            return host->engine.tab_select(host->engine.user, (int)tab) != 0;
+        return false;
+    }
+    if( !role[0] || !host->engine.role_click )
+        return false;
+
+    /* IF1's unnumbered action is 0; IF3's primary op is 1. Only try the
+     * second spelling if the first did not dispatch, so one invocation can
+     * never fire twice. RevConfig named actions will eventually own this
+     * compatibility mapping. */
+    if( host->engine.role_action_available )
+    {
+        availability = host->engine.role_action_available(host->engine.user, role);
+        /* The action node exists and CS2 hid it. Do not fall back to pressing
+         * the composite root: that would turn an unavailable special attack
+         * into IF_BUTTON on the orb container. */
+        if( availability == 0 )
+            return false;
+    }
+    if( !host->engine.role_action_available || availability > 0 )
+    {
+        if( host->engine.role_click(host->engine.user, role, 0) )
+            return true;
+        if( host->engine.role_click(host->engine.user, role, 1) )
+            return true;
+        /* A resolved action role is authoritative even when dispatch failed.
+         * Falling through would mask a bad live binding by clicking the
+         * composite container under its replacement. */
+        if( host->engine.role_action_available )
+            return false;
+    }
+
+    /* Compatibility with profiles that predate separate action roles. New
+     * profiles bind the button role above, so composite replacements can
+     * delegate into a child without coupling presentation bounds to it. */
+    if( strcmp(name, "frame.orb.hitpoints") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_hitpoints");
+    else if( strcmp(name, "frame.orb.prayer") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_prayer");
+    else if( strcmp(name, "frame.orb.run") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_run");
+    else if( strcmp(name, "frame.orb.special") == 0 )
+        snprintf(role, sizeof(role), "%s", "orb_spec");
+    else
+        return false;
+    if( host->engine.role_action_available &&
+        host->engine.role_action_available(host->engine.user, role) <= 0 )
+        return false;
+    if( host->engine.role_click(host->engine.user, role, 0) )
+        return true;
+    return host->engine.role_click(host->engine.user, role, 1) != 0;
+}
+
+bool
 PluginHost_UiInvoke(
     struct ToriRS_PluginHost* host,
     struct ToriRS_UiNodeRef node,
     char const* action)
 {
     struct ToriRS_UiResolvedNode resolved;
-    char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    char const* name;
     bool action_declared = false;
 
     assert(host);
     assert(action);
-    name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
-    if( !name )
+    if( !ToriRS_UiRegistry_Name(&host->ui_registry, node) )
         return false;
     if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &resolved) ||
         (resolved.available_facets & TORIRS_UI_FACET_ACTIONS) == 0 ||
@@ -8375,8 +8679,7 @@ PluginHost_UiInvoke(
         return false;
 
     /* A plugin-provided action facet gets first refusal. Returning CONTINUE
-     * deliberately falls through to the lane route for `activate`, while a
-     * custom spelling has no lane-specific numeric fallback. */
+     * deliberately falls through to the lane-owned semantic action. */
     {
         int const provider = plugin_ui_present_provider(
             host,
@@ -8401,36 +8704,7 @@ PluginHost_UiInvoke(
     }
     if( strcmp(action, "activate") != 0 )
         return false;
-
-    role[0] = '\0';
-    if( strcmp(name, "frame.chat.button.report") == 0 )
-        snprintf(role, sizeof(role), "%s", "report_button");
-    else if( strcmp(name, "frame.orb.hitpoints") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_hitpoints");
-    else if( strcmp(name, "frame.orb.prayer") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_prayer");
-    else if( strcmp(name, "frame.orb.run") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_run");
-    else if( strcmp(name, "frame.orb.special") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_spec");
-    else if( strncmp(name, "frame.sidebar.tab.", 18) == 0 )
-    {
-        char* end = NULL;
-        long const tab = strtol(name + 18, &end, 10);
-        if( end && !*end && tab >= 0 && tab < 14 && host->engine.tab_select )
-            return host->engine.tab_select(host->engine.user, (int)tab) != 0;
-        return false;
-    }
-    if( !role[0] )
-        return false;
-
-    /* IF1's unnumbered action is 0; IF3's primary op is 1. Only try the
-     * second spelling if the first did not dispatch, so one invocation can
-     * never fire twice. RevConfig named actions will eventually own this
-     * compatibility mapping. */
-    if( host->engine.role_click(host->engine.user, role, 0) )
-        return true;
-    return host->engine.role_click(host->engine.user, role, 1) != 0;
+    return PluginHost_UiInvokeBase(host, node, action);
 }
 
 static void
@@ -8515,6 +8789,8 @@ plugin_ui_present_provider(
             for( int i = 0; name && i < v2->frame_ui_count; i++ )
                 if( strcmp(v2->frame_ui[i].name, name) == 0 )
                 {
+                    if( facet == TORIRS_UI_FACET_BOUNDS )
+                        return plugin;
                     if( facet == TORIRS_UI_FACET_APPEARANCE )
                         return plugin;
                     if( facet == TORIRS_UI_FACET_ACTIONS &&
@@ -8544,6 +8820,54 @@ plugin_ui_present_provider(
             return plugin;
     }
     return -1;
+}
+
+/**
+ * Did one REPLACE_OR_PROVIDE declaration win the node's visible behavior?
+ *
+ * The distinction is observable only when the semantic name maps to a live
+ * UITree role. A partial appearance/actions override replaces the target's own
+ * facets and deliberately leaves child controls alive. Appearance plus actions
+ * from one replacement stands for the object as a whole even when bounds stay
+ * lane-owned; OSRS minimap orbs and the report button are composite layer roots,
+ * so leaving their children alive would draw/operate the native object too.
+ */
+static bool
+plugin_ui_present_complete_replacement(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    int plugin)
+{
+    uint32_t const replaced_facets =
+        TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS;
+    struct PluginContext* context;
+
+    assert(host);
+    if( plugin < 0 || plugin >= host->plugin_count )
+        return false;
+    context = &host->plugins[plugin];
+    if( !context->v2 || !context->ui_contributions_registered ||
+        !context->def->ui_contributions )
+        return false;
+
+    for( int i = 0; i < context->ui_contribution_count; i++ )
+    {
+        struct ToriRS_UiContribution const* declaration =
+            &context->def->ui_contributions[i];
+        struct ToriRS_UiContributionStatus status;
+        struct ToriRS_UiNodeRef const declared = ToriRS_UiRegistry_PrivateRef(
+            &host->ui_registry, context->name, declaration->node);
+
+        if( declared.value != node.value ||
+            declaration->mode != TORIRS_UI_REPLACE_OR_PROVIDE ||
+            (declaration->facets & replaced_facets) != replaced_facets )
+            continue;
+        if( ToriRS_UiRegistry_ContributionStatus(
+                &host->ui_registry, context->ui_contribution_refs[i], &status) &&
+            (status.active_facets & replaced_facets) == replaced_facets )
+            return true;
+    }
+    return false;
 }
 
 static bool
@@ -8577,6 +8901,7 @@ static bool
 plugin_ui_present_tree_state(
     struct ToriRS_PluginHost* host,
     struct ToriRS_UiNodeRef node,
+    bool frame_surface,
     bool* out_clip_active,
     struct ToriRS_Rect* out_clip,
     uint64_t* out_identity)
@@ -8598,6 +8923,16 @@ plugin_ui_present_tree_state(
         if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &current) )
         {
             *out_identity = identity;
+            /* A committed FrameBuilder declaration was validated as one
+             * complete tree. During a base refresh its generated surface
+             * ancestor can be absent for one registry edge while the authored
+             * child remains the current frame's real control. Do not turn that
+             * bookkeeping gap into a click-through frame. */
+            if( frame_surface && depth > 0 )
+            {
+                *out_clip_active = clip_active;
+                return true;
+            }
             return false;
         }
         identity ^= node.value;
@@ -8693,12 +9028,28 @@ plugin_ui_present_role(
         return "chat";
     if( strcmp(name, "frame.chat.buttons") == 0 )
         return "chat_buttons";
+    if( strcmp(name, "frame.chat.backing") == 0 )
+        return "chat_backing";
+    if( strcmp(name, "frame.chat.bar") == 0 )
+        return "chat_bar";
+    if( strncmp(name, "frame.chat.plate.", 17) == 0 )
+    {
+        (void)snprintf(dynamic, dynamic_size, "chat_plate_%s", name + 17);
+        return dynamic;
+    }
     if( strcmp(name, "frame.chat.button.report") == 0 )
         return "report_button";
     if( strcmp(name, "frame.sidebar") == 0 )
         return "sidebar";
+    /* A selected frame's sidebar rail and the lane's auxiliary popout strip
+     * are adjacent objects, not two providers for one object.  Mapping the
+     * former onto `lane_chrome_0` suppresses interface 728 after the frame's
+     * first post-login rebuild: the custom art stops clipping, but XP/Loot/
+     * Hiscores disappear with it.  The live lane strip participates directly
+     * in FRAME_BUILD placement; it is deliberately not a presentation target
+     * for replacement frame furniture. */
     if( strcmp(name, "frame.sidebar.rail") == 0 )
-        return "lane_chrome_0";
+        return NULL;
     if( strncmp(name, "frame.sidebar.tab.", 18) == 0 )
     {
         (void)snprintf(dynamic, dynamic_size, "sidetab_%s", name + 18);
@@ -8795,6 +9146,15 @@ plugin_ui_present_boundary(
     rows[index].target_role[0] = '\0';
     rows[index].boundary_role[0] = '\0';
     rows[index].pending_boundary_role[0] = '\0';
+    /* A FrameBuilder node is the replacement frame's own control, not an
+     * overlay attached to the lane node that happens to share its semantic
+     * name. Requiring that native node to be visible makes custom redstones
+     * lose input exactly when the frame correctly hides native chrome. */
+    if( rows[index].frame_surface )
+    {
+        rows[index].boundary_place = PLUGIN_UI_BOUNDARY_AFTER;
+        return;
+    }
     (void)plugin_ui_present_mapped_role(
         host, rows[index].node, rows[index].target_role,
         sizeof(rows[index].target_role));
@@ -9026,8 +9386,11 @@ plugin_ui_present_suppressions(
         (void)host->engine.role_suppress_facets(
             host->engine.user,
             rows[i].target_role,
-            enabled && rows[i].appearance_plugin >= 0,
-            enabled && rows[i].actions_plugin >= 0);
+            enabled && rows[i].presentable && rows[i].appearance_plugin >= 0,
+            enabled && rows[i].presentable && rows[i].actions_plugin >= 0,
+            enabled && rows[i].presentable && rows[i].replace_subtree &&
+                rows[i].boundary_role[0] &&
+                strcmp(rows[i].boundary_role, rows[i].target_role) == 0);
     }
 }
 
@@ -9063,6 +9426,8 @@ plugin_ui_present_actions_equal(
     struct PluginUiPresentation const* candidate)
 {
     if( !old || old->actions_plugin != candidate->actions_plugin ||
+        old->frame_surface != candidate->frame_surface ||
+        old->replace_subtree != candidate->replace_subtree ||
         old->value.action_count != candidate->value.action_count ||
         old->presentable != candidate->presentable ||
         old->state_identity != candidate->state_identity ||
@@ -9086,6 +9451,7 @@ plugin_ui_present_candidate(
     struct PluginUiPresentation* out)
 {
     struct ToriRS_UiResolvedNode resolved;
+    int bounds;
     int appearance;
     int actions;
 
@@ -9105,6 +9471,12 @@ plugin_ui_present_candidate(
     out->value = resolved.value;
     out->appearance_plugin = appearance;
     out->actions_plugin = actions;
+    bounds = plugin_ui_present_provider(
+        host, node, resolved.bounds_provider, TORIRS_UI_FACET_BOUNDS);
+    out->frame_surface = bounds >= 0 && bounds == plugin_frame_owner(host);
+    out->replace_subtree = appearance >= 0 && appearance == actions &&
+                           plugin_ui_present_complete_replacement(
+                               host, node, appearance);
     return true;
 }
 
@@ -9118,8 +9490,10 @@ plugin_ui_present_suppression_one(
         (void)host->engine.role_suppress_facets(
             host->engine.user,
             row->target_role,
-            enabled && row->appearance_plugin >= 0,
-            enabled && row->actions_plugin >= 0);
+            enabled && row->presentable && row->appearance_plugin >= 0,
+            enabled && row->presentable && row->actions_plugin >= 0,
+            enabled && row->presentable && row->replace_subtree && row->boundary_role[0] &&
+                strcmp(row->boundary_role, row->target_role) == 0);
 }
 
 /** Maintain an exact compact list of rows with a not-yet-live role boundary. */
@@ -9172,14 +9546,24 @@ plugin_ui_present_finish_row(
     assert(host);
     assert(index >= 0 && index < host->ui_presentation_count);
     row = &host->ui_presentations[index];
-    plugin_ui_present_suppression_one(host, old, false);
     tree_presentable = plugin_ui_present_tree_state(
         host,
         row->node,
+        row->frame_surface,
         &row->clip_active,
         &row->clip,
         &row->state_identity);
     plugin_ui_present_boundary(host, index);
+    /* Updating one standing role must be one suppression restatement, not an
+     * off/on pulse. Paint/input-only flags merely dirtied the target, but a
+     * subtree replacement changes reachability and therefore the tree
+     * generation on both edges. Pulsing it during every base refresh creates a
+     * self-sustaining relayout loop and a visible frame with no replacement.
+     * The engine callback overwrites and re-aggregates the row atomically, so
+     * only a genuinely different role needs the old one released first. */
+    if( old && old->target_role[0] &&
+        strcmp(old->target_role, row->target_role) != 0 )
+        plugin_ui_present_suppression_one(host, old, false);
     row->presentable = tree_presentable &&
                        plugin_ui_present_anchor_available(host, row);
     if( row->actions_plugin >= 0 && row->value.action_count > 0 )
@@ -9493,6 +9877,7 @@ plugin_ui_present_anchor(
     /* The live role disappeared between reconciliation and paint. Do not scan
      * all rows speculatively each frame; this failed exact dependency is the
      * event that schedules one role-state reconciliation on the next fence. */
+    plugin_ui_present_suppression_one(host, row, false);
     host->ui_presentation_roles_dirty = true;
     return false;
 }
@@ -9534,7 +9919,8 @@ plugin_ui_present_image(
 static void
 plugin_ui_present_draw(
     struct ToriRS_PluginHost* host,
-    void* surface)
+    void* surface,
+    bool frame_surface)
 {
     int mouse_x = 0;
     int mouse_y = 0;
@@ -9551,7 +9937,7 @@ plugin_ui_present_draw(
                              mouse_y >= row->value.hit_rect.y &&
                              mouse_y < row->value.hit_rect.y + row->value.hit_rect.height;
 
-        if( !row->presentable )
+        if( !row->presentable || row->frame_surface != frame_surface )
             continue;
 
         if( row->appearance_plugin >= 0 && (row->value.flags & TORIRS_UI_NODE_VISIBLE) &&
@@ -9655,6 +10041,46 @@ PluginHost_UiPresentationRoleProbeVisits(struct ToriRS_PluginHost const* host)
     return host ? host->ui_presentation_role_probe_visits : 0;
 }
 
+/**
+ * Observe the one lane-owned placement input that is not part of the selected
+ * frame's retained slot topology.
+ *
+ * CS2 changes interface 728's popout from a collapsed rail to an expanded
+ * panel (and can hide it again) by mutating that mounted interface in place.
+ * Neither the canvas size nor the selected-frame slot set changes, so the
+ * App's ordinary relayout fences cannot discover it. One role lookup and a
+ * four-int comparison at the frame boundary closes that gap without turning
+ * every UI layout change into a gameframe rebuild.
+ */
+static void
+plugin_placement_poll_lane_chrome(struct ToriRS_PluginHost* host)
+{
+    struct ToriRS_PlacementRect rect;
+    int active;
+    int changed;
+
+    assert(host);
+    active = plugin_placement_lane_chrome_rect(host, &rect);
+    if( !host->placement_lane_chrome_observed )
+    {
+        host->placement_lane_chrome_observed = 1;
+        host->placement_lane_chrome_active = active;
+        host->placement_lane_chrome_rect = rect;
+        return;
+    }
+    changed = active != host->placement_lane_chrome_active ||
+              (active && !plugin_placement_rect_equal(
+                             &rect, &host->placement_lane_chrome_rect));
+    if( !changed )
+        return;
+
+    /* LayoutChanged performs the one canonical rebuild and publishes only if
+     * its area sets really differ. The successful rebuild updates this
+     * observation; on failure the old value deliberately remains so the next
+     * frame retries instead of swallowing the transition. */
+    PluginHost_LayoutChanged(host);
+}
+
 /* ------------------------------------------------------------------ seams */
 
 void
@@ -9677,6 +10103,10 @@ PluginHost_FrameStart(
     if( host->layout_notify_pending )
         plugin_layout_notifications_run(host);
 
+    /* A mounted CS2 popout is independent of selected-frame topology. Poll it
+     * before plugins read placement or receive this frame's callbacks. */
+    plugin_placement_poll_lane_chrome(host);
+
     plugin_ui_tab_state_poll(host);
 
     /* The screen poll. Here rather than at the transitions themselves because
@@ -9698,7 +10128,7 @@ PluginHost_FrameStart(
         }
     }
 
-    if( host->frame_selection_dirty )
+    if( host->started_once && host->frame_selection_dirty )
         PluginHost_Start(host);
 
     if( host->callback_count[PLUGIN_CALLBACK_FRAME_START] == 0 )
@@ -9926,7 +10356,7 @@ PluginHost_DrawCanvas(
     /* Retained contributions are a compact presenter list rebuilt only at
      * named-registry revisions. Only facet winners enter this pass, so two
      * providers cannot draw the same semantic node. */
-    plugin_ui_present_draw(host, host->draw_surface);
+    plugin_ui_present_draw(host, host->draw_surface, false);
     if( host->callback_count[PLUGIN_CALLBACK_DRAW_CANVAS] > 0 )
         plugin_dispatch(host, PLUGIN_CALLBACK_DRAW_CANVAS, &canvas);
     host->draw_surface = NULL;
@@ -9976,7 +10406,7 @@ PluginHost_DrawFrame(
     if( owner < 0 )
         return;
     v2_offer = plugin_v2_frame_offer(&host->plugins[owner], host->frame_active_entry);
-    if( !v2_offer || !v2_offer->draw )
+    if( !v2_offer )
         return;
 
     /* A third token, for the third surface, on the same reasoning as the
@@ -9988,8 +10418,8 @@ PluginHost_DrawFrame(
     canvas.surface = &host->engine;
     canvas.bounds = (struct ToriRS_Rect){ 0, 0, width, height };
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_FRAME);
-    /* The owner and nobody else. Chrome drawn under the interfaces of a frame
-     * somebody else is arranging is chrome in the wrong place. */
+    /* The imperative frame draw belongs to the owner. Resolved contributors
+     * to its retained named furniture join only in the presenter pass below. */
     if( v2_offer )
     {
         if( v2_offer->draw )
@@ -10010,6 +10440,10 @@ PluginHost_DrawFrame(
             host->dispatch_event = previous_event;
         }
     }
+    /* FrameBuilder furniture shares the selected frame's depth. Its regions
+     * therefore capture the world under a redstone while native panel widgets
+     * can still cover it. */
+    plugin_ui_present_draw(host, host->draw_surface, true);
     host->draw_surface = NULL;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
@@ -10608,6 +11042,7 @@ PluginHost_CanvasClick(
                 !plugin_ui_present_tree_state(
                     host,
                     row->node,
+                    row->frame_surface,
                     &clip_active,
                     &clip,
                     &state_identity) ||

@@ -40,16 +40,16 @@
  * is a mobile frame already. It arranges over it now -- over whichever
  * toplevel the server opened -- so the drawer is the same drawer on every
  * world. Two things differ there, and both are asked of the host rather than
- * assumed (api->lane): the CHAT is the cache's own 519x165 pack and is placed
- * whole and dressed with nothing, and the ORBS are a pack laid out beside the
- * map, placed as a block at the offset the cache's frames use. The tab state
- * is the cache's too, through the host's tab verbs.
+ * assumed (api->lane): the CHAT is the cache's own 519x165 behavior pack and
+ * is placed whole, while its backing/bar/plates are replaced through retained
+ * appearance facets; the ORBS are a pack laid out beside the map, placed as a
+ * block at the offset the cache's frames use. The tab state is the cache's
+ * too, through the host's tab verbs.
  *
- * And the ART follows the lane by default: the `art` setting's Auto wears
- * the 2004 pieces on a 2004 world and OldSchool Mobile's own -- interface
- * 601's 40x40 stones, its dark 9-slice plate, its thin map ring, the
- * resizable frame's tab icons -- on an OldSchool one. Either family can be
- * asked for anywhere. @see MobileFamily.
+ * Auto deliberately means the classic 2004 family everywhere: selecting this
+ * frame on an OldSchool lane is how a player gets that look back. OldSchool
+ * Mobile's own interface-601 stones, plate, ring and icons remain an explicit
+ * family choice. @see MobileFamily.
  *
  * ## The canvas it asks for
  *
@@ -75,21 +75,17 @@
  * plugin's for a second reason -- the pieces are used for things the 2004 client
  * never used them for, and the media file's names would describe the wrong job:
  *
- *   stone       the surround's vertical strip, TILED to back the tab rail and
- *               the chat switch. The classic frame never needed a backing: its
- *               stones sit on a surround that is already stone. A floating rail
- *               has nothing behind it, so the rail brings its own.
+ *   stone       the surround's vertical strip retained with the classic set.
  *   highlight   the pressed stone, drawn on the open tab only.
  *   drawer      the 2004 side panel, which the drawer IS.
- *   chat_sheet  the chatbox, and `chat_strip` the strip its filter buttons
- *               stand on.
+ *   chat_plate  the two classic base sprites whose real chat-control regions
+ *               are cut out and, on OldSchool, reduced to the native cells.
+ *   chat_sheet  the torn parchment behind either lane's chat behavior.
  *   map_housing the map plate, with the minimap and compass in the holes the
  *               classic frame puts them in.
  *
- * There is deliberately no art for the chat switch. No 2004 cache has a chat
- * glyph anywhere in it, so the switch is `stone` tiled to its box with the
- * client's own font over it -- inventing a speech bubble here would put art in
- * this plugin that no cache it runs on has ever shipped.
+ * The two switch glyphs are the OldSchool client's own chat and keyboard
+ * pictures; the switch plate itself remains classic interface art.
  */
 
 /* --------------------------------------------------------------- geometry */
@@ -208,8 +204,9 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
 
 /*
  * The OldSchool chat PACK's container: interface 162 mounts into a 519x165
- * layer and draws its own backing, buttons and bar. On that lane the sheet,
- * the strip and the plates are not placed at all. @see mobile_layout.
+ * layer and owns the text, buttons, actions and scrollbar. On that lane the
+ * frame does not place a second chat surface; retained decoration facets dress
+ * the pack in Stone Drawer art. @see mobile_chat_decoration_update.
  *
  * The DEFAULT and not the answer -- the four OldSchool toplevels each name
  * their own container and a resizable one need not be the fixed frame's size.
@@ -412,6 +409,22 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
 #define MOBILE_CHAT_BUTTON_H 32
 #define MOBILE_CHAT_BUTTON_LIFT ((MOBILE_STRIP_H - MOBILE_CHAT_BUTTON_H) / 2)
 
+/*
+ * The OldSchool pack's eight controls are 56x22. A one-pixel inset all round
+ * keeps the classic stone from closing back into a continuous desktop strip
+ * when the pack places the controls six pixels apart. The label and action
+ * remain on the cache-owned siblings at the original 56x22 boxes.
+ */
+#define MOBILE_O_CHAT_BUTTON_W 54
+#define MOBILE_O_CHAT_BUTTON_H 20
+/* All/Game share Public's neutral stone; Channel/Clan share Private's. The
+ * two controls with direct classic counterparts keep their own source. */
+static unsigned char const MOBILE_O_CHAT_BUTTON_SOURCE[8] = { 0, 0, 0, 1, 1, 1, 2, 3 };
+
+/** One small-font chat line of parchment beyond the cache's text backing. */
+#define MOBILE_O_PAPER_PAD_T 14
+#define MOBILE_O_PAPER_PAD_B 14
+
 /**
  * Where filter button `i` starts, across a bar as wide as the chat surface.
  *
@@ -532,11 +545,13 @@ enum MobileImage
     /** The grey button the 2004 interfaces use for logout and the settings
      *  toggles -- `miscgraphics2` frame 0. The chat switch wears it. */
     IMG_SWITCH,
-    /** The chat filter button, shipped at 295x97 and scaled to the box the
-     *  frame gives it. @see mobile_compose_scaled. */
-    IMG_CHAT_BUTTON,
+    /** The 2004 base plates the four chat buttons are regions of. The first
+     *  three fit in `backbase1`; Report crosses into `backbase2`.
+     *  @see mobile_compose_chat_button. */
+    IMG_CHAT_PLATE,
+    IMG_CHAT_PLATE_END,
     /*
-     * The two switch glyphs, from OSRS-Content's own sprite set.
+     * The two switch glyphs, from OldSchool's own sprite set.
      *
      * The chat one is `options_icons` frame 5, the pair of speech bubbles --
      * and it is the RIGHT one rather than a lookalike: interface 601's chat
@@ -544,16 +559,16 @@ enum MobileImage
      * (`cc_setgraphic("options_icons,5")` in torirs_osm_chatbox_bind), so this
      * is the icon OldSchool Mobile puts on the button that does this job.
      *
-     * The keyboard is the lower half of `osm_fn_mode_icons_2`, OldSchool
-     * Mobile's keyboard-mode icon. That sprite is a hand ABOVE a keyboard and
-     * the two do not touch -- row 13 of its 22 is empty -- so the keyboard is
-     * lifted out at rows 14..21, columns 1..19. Cutting a sprite at a seam its
-     * own artist left is not the same as drawing one: no atlas in this content
-     * has a hand-free keyboard, and every keyboard in it is this keyboard.
+     * The keyboard is `osm_keyboard` (sprite 4794), copied whole from the
+     * canonical export in `res/osm_keyboard_icon_sprite4794.png`. Its 33x36
+     * canvas is mostly transparent around a centred 29x13 keyboard. That
+     * authored canvas is intentional: mobile_draw_icon centres the canvas in
+     * either switch family and the visible keys land in the middle of the
+     * stone without a second offset table.
      *
-     * It is shipped at that size and drawn at it. Only the CHAT glyph is
-     * scaled, because only the chat glyph is cut for a 40px mobile button and
-     * overhangs a 36x25 switch.
+     * Both are shipped on their authored canvases and only the CHAT glyph is
+     * scaled, because it is cut for a 40px mobile button and overhangs a 36x25
+     * switch.
      */
     IMG_ICON_KEYBOARD,
     IMG_ICON_CHAT,
@@ -590,9 +605,9 @@ enum MobileImage
  *
  * A FAMILY and not a lane: the rail, the drawer, the switches and the map
  * ring are all authored twice, once from each cache, and the choice between
- * them is the player's (`art`) with the lane as the default. What is NOT a
- * family choice is the chat and the orbs, which are the lane's packs or the
- * client's builtins whatever the stones look like. @see mobile_lane_oldschool.
+ * them is the player's (`art`), with classic as Auto. What is NOT a family
+ * choice is chat/orb behavior, which remains the lane's packs or the client's
+ * builtins whatever the stones look like. @see mobile_lane_oldschool.
  */
 enum MobileFamily
 {
@@ -703,7 +718,8 @@ static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
     [IMG_STONE] = "stone.png",
     [IMG_PLATE] = "rail_back_top_cleaned.png",
     [IMG_SWITCH] = "switch.png",
-    [IMG_CHAT_BUTTON] = "chat_button.png",
+    [IMG_CHAT_PLATE] = "chat_plate.png",
+    [IMG_CHAT_PLATE_END] = "chat_plate_end.png",
     [IMG_ICON_KEYBOARD] = "icon_keyboard.png",
     [IMG_ICON_CHAT] = "icon_chat.png",
     [IMG_COMPASS] = "compass.png",
@@ -777,12 +793,14 @@ enum MobileComposed
      * close enough to fourteen that a table keyed by the thing the draw pass
      * actually has in its hand is simpler than one it has to look up.
      */
-    /** The chat filter button at the size the frame gives it. All four wear
-     *  the same one. @see mobile_compose_scaled. */
-    ART_CHAT_BUTTON,
-    /** The chat glyph, scaled to fit the switch. The keyboard needs no scale:
-     *  it is 19x8 as cut. @see MOBILE_ICON_NUM. */
-    ART_ICON_CHAT,
+    /** Four real regions of the classic base plate, at their original
+     *  100x32 boxes, followed by compact copies for OldSchool's 56x22 cells. */
+    ART_CHAT_BUTTON_0,
+    ART_O_CHAT_BUTTON_0 = ART_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT,
+    /** The chat glyph, scaled to fit the switch. The keyboard keeps
+     *  `osm_keyboard`'s authored 33x36 transparent canvas.
+     *  @see MOBILE_ICON_NUM. */
+    ART_ICON_CHAT = ART_O_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT,
     /** The two backing plates, turned: one whole column each. */
     ART_PLATE_0,
     ART_PLATE_1,
@@ -1078,6 +1096,43 @@ struct MobilePaper
     int h;
 };
 
+/*
+ * The OldSchool chat pack's decoration, restored through retained V2 facets.
+ *
+ * Stone Drawer keeps the pack's text, actions, scrollbars and message widgets,
+ * but its native backing/button furniture belongs to the gameframe being
+ * replaced.  The V1 plugin claimed these ten profile roles.  The first V2
+ * port dropped that claim entirely, leaving an OldSchool chatbox in the
+ * middle of a classic Stone Drawer.  Appearance-only contributions preserve
+ * every behavior facet while replacing exactly the decoration.
+ */
+enum MobileChatDecoration
+{
+    MOBILE_CHAT_BACKING = 0,
+    MOBILE_CHAT_BAR,
+    MOBILE_CHAT_PLATE_0,
+    MOBILE_CHAT_DECORATION_COUNT = MOBILE_CHAT_PLATE_0 + 8,
+};
+
+static char const* const MOBILE_CHAT_NODE[MOBILE_CHAT_DECORATION_COUNT] = {
+    [MOBILE_CHAT_BACKING] = "frame.chat.backing",
+    [MOBILE_CHAT_BAR] = "frame.chat.bar",
+    [MOBILE_CHAT_PLATE_0 + 0] = "frame.chat.plate.0",
+    [MOBILE_CHAT_PLATE_0 + 1] = "frame.chat.plate.1",
+    [MOBILE_CHAT_PLATE_0 + 2] = "frame.chat.plate.2",
+    [MOBILE_CHAT_PLATE_0 + 3] = "frame.chat.plate.3",
+    [MOBILE_CHAT_PLATE_0 + 4] = "frame.chat.plate.4",
+    [MOBILE_CHAT_PLATE_0 + 5] = "frame.chat.plate.5",
+    [MOBILE_CHAT_PLATE_0 + 6] = "frame.chat.plate.6",
+    [MOBILE_CHAT_PLATE_0 + 7] = "frame.chat.plate.7",
+};
+
+struct MobileChatDecorationState
+{
+    struct ToriRS_UiNodeRef node[MOBILE_CHAT_DECORATION_COUNT];
+    struct ToriRS_UiNodeRef paper;
+};
+
 /** All mutable state belongs to one host-managed plugin instance. */
 struct MobileState
 {
@@ -1097,6 +1152,7 @@ struct MobileState
     bool tab_present[MOBILE_TAB_COUNT];
     struct MobileRuntime frame;
     struct MobilePaper paper;
+    struct MobileChatDecorationState chat_decoration;
 };
 
 #define g_api (ctx->api)
@@ -1114,8 +1170,102 @@ struct MobileState
 #define g_tab_present (ctx->state->tab_present)
 #define g_frame (ctx->state->frame)
 #define g_paper (ctx->state->paper)
+#define g_chat_decoration (ctx->state->chat_decoration)
 
 /* -------------------------------------------------------- composing the art */
+
+/*
+ * Where the classic frame's four chat controls sit in its two base sprites.
+ * `backbase1` is at (0,453), the controls begin at y=467, and `backbase2`
+ * begins at x=496 one row higher. Report is the only cut which crosses that
+ * seam.
+ */
+#define MOBILE_CHAT_PLATE_Y 14
+#define MOBILE_CHAT_PLATE_END_X 496
+#define MOBILE_CHAT_PLATE_END_DY 1
+static int const MOBILE_CHAT_BUTTON_SRC[MOBILE_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
+
+/** Cut one complete 100x32 chat plate from the classic gameframe sprites. */
+static struct ToriRS_ImageRef
+mobile_compose_chat_button(
+    struct MobileCall* ctx,
+    char const* name,
+    int index)
+{
+    uint32_t* plate;
+    uint32_t* tail;
+    uint32_t* out;
+    int plate_w = 0;
+    int plate_h = 0;
+    int tail_w = 0;
+    int tail_h = 0;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+    int const from = MOBILE_CHAT_BUTTON_SRC[index];
+
+    assert(ctx);
+    assert(name);
+    assert(index >= 0);
+    assert(index < MOBILE_CHAT_BUTTON_COUNT);
+    if( !g_api->assets.image_size(g_api, g_image[IMG_CHAT_PLATE], &plate_w, &plate_h) ||
+        plate_w <= 0 || plate_h <= 0 ||
+        !g_api->assets.image_size(
+            g_api, g_image[IMG_CHAT_PLATE_END], &tail_w, &tail_h) ||
+        tail_w <= 0 || tail_h <= 0 )
+        return handle;
+
+    plate = malloc((size_t)plate_w * (size_t)plate_h * sizeof(*plate));
+    tail = malloc((size_t)tail_w * (size_t)tail_h * sizeof(*tail));
+    assert(plate);
+    assert(tail);
+    if( !g_api->assets.image_pixels(
+            g_api,
+            g_image[IMG_CHAT_PLATE],
+            plate,
+            (size_t)plate_w * (size_t)plate_h,
+            &copied) ||
+        copied != (size_t)plate_w * (size_t)plate_h )
+        goto done;
+    copied = 0;
+    if( !g_api->assets.image_pixels(
+            g_api,
+            g_image[IMG_CHAT_PLATE_END],
+            tail,
+            (size_t)tail_w * (size_t)tail_h,
+            &copied) ||
+        copied != (size_t)tail_w * (size_t)tail_h )
+        goto done;
+
+    out = malloc(
+        (size_t)MOBILE_CHAT_BUTTON_W * (size_t)MOBILE_CHAT_BUTTON_H * sizeof(*out));
+    assert(out);
+    for( int y = 0; y < MOBILE_CHAT_BUTTON_H; y++ )
+        for( int x = 0; x < MOBILE_CHAT_BUTTON_W; x++ )
+        {
+            int const sx = from + x;
+            int const sy = MOBILE_CHAT_PLATE_Y + y;
+            uint32_t pixel = 0;
+
+            if( sx < plate_w && sy < plate_h )
+                pixel = plate[(size_t)sy * (size_t)plate_w + (size_t)sx];
+            else if( sx >= MOBILE_CHAT_PLATE_END_X )
+            {
+                int const tx = sx - MOBILE_CHAT_PLATE_END_X;
+                int const ty = sy + MOBILE_CHAT_PLATE_END_DY;
+                if( tx < tail_w && ty < tail_h )
+                    pixel = tail[(size_t)ty * (size_t)tail_w + (size_t)tx];
+            }
+            out[(size_t)y * MOBILE_CHAT_BUTTON_W + (size_t)x] = pixel;
+        }
+    (void)g_api->assets.image_compose(
+        g_api, name, MOBILE_CHAT_BUTTON_W, MOBILE_CHAT_BUTTON_H, out, &handle);
+    free(out);
+
+done:
+    free(plate);
+    free(tail);
+    return handle;
+}
 
 /*
  * The redstone through a quarter turn, optionally dimmed.
@@ -1628,13 +1778,10 @@ mobile_build_masks(struct MobileCall* ctx)
 /*
  * An image at a different size, averaged down.
  *
- * The chat button ships at 295x97 and the box the frame gives it is 100x32 --
- * near enough the same shape (3.04 against 3.13) that the scale is a resize
- * rather than a distortion, but a third of the size in each direction, which is
- * where the care goes. Point sampling a reduction that large throws away eight
- * pixels in nine and keeps whichever one it landed on, so a stone edge comes
- * back as a staircase and the speckle in the texture turns into noise. Taking
- * the MEAN of each destination pixel's footprint keeps the edge.
+ * Used here to reduce each 100x32 classic chat plate into the compact box an
+ * OldSchool filter cell can hold. Point sampling a reduction throws away most
+ * of the source and turns the stone edge into a staircase; taking the MEAN of
+ * each destination pixel's footprint keeps the bevel and texture legible.
  *
  * Averaged in premultiplied space, because the alternative is wrong at every
  * edge: a transparent pixel still carries a colour, and mixing that colour in
@@ -1825,7 +1972,10 @@ mobile_build_art(struct MobileCall* ctx)
     if( !g_api->assets.image_size(g_api, g_image[IMG_SWITCH], &ready_w, &ready_h) )
         return;
     if( !g_api->assets.image_size(
-            g_api, g_image[IMG_CHAT_BUTTON], &ready_w, &ready_h) )
+            g_api, g_image[IMG_CHAT_PLATE], &ready_w, &ready_h) )
+        return;
+    if( !g_api->assets.image_size(
+            g_api, g_image[IMG_CHAT_PLATE_END], &ready_w, &ready_h) )
         return;
     if( !g_api->assets.image_size(g_api, g_image[IMG_ICON_CHAT], &ready_w, &ready_h) )
         return;
@@ -1882,17 +2032,25 @@ mobile_build_art(struct MobileCall* ctx)
                 (icon_w * MOBILE_ICON_NUM) / MOBILE_ICON_DEN,
                 (icon_h * MOBILE_ICON_NUM) / MOBILE_ICON_DEN);
     }
-    g_art[ART_CHAT_BUTTON] = mobile_compose_scaled(
-        ctx,
-        "chat_button_fit.png",
-        g_image[IMG_CHAT_BUTTON],
-        MOBILE_CHAT_BUTTON_W,
-        MOBILE_CHAT_BUTTON_H);
+    for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
+    {
+        char name[40];
+
+        (void)snprintf(name, sizeof(name), "chat_button_%d.png", i);
+        g_art[ART_CHAT_BUTTON_0 + i] = mobile_compose_chat_button(ctx, name, i);
+        (void)snprintf(name, sizeof(name), "chat_button_small_%d.png", i);
+        g_art[ART_O_CHAT_BUTTON_0 + i] = mobile_compose_scaled(
+            ctx,
+            name,
+            g_art[ART_CHAT_BUTTON_0 + i],
+            MOBILE_O_CHAT_BUTTON_W,
+            MOBILE_O_CHAT_BUTTON_H);
+    }
     g_art[ART_PLATE_0] =
         mobile_compose_turned(ctx, "plate_l.png", g_image[IMG_PLATE], 1, 1, /*dim=*/0);
     g_art[ART_PLATE_1] =
         mobile_compose_turned(ctx, "plate_r.png", g_image[IMG_PLATE], 1, 0, /*dim=*/0);
-    for( int i = ART_CHAT_BUTTON; i < MOBILE_ART_COUNT; i++ )
+    for( int i = ART_CHAT_BUTTON_0; i < MOBILE_ART_COUNT; i++ )
         if( g_art[i].value == 0 )
             return;
     g_art_built = 1;
@@ -2429,6 +2587,116 @@ mobile_paper_art(struct MobileCall* ctx, int width, int height)
 }
 
 /*
+ * Restyle the cache-owned OldSchool chat pack without replacing its behavior.
+ *
+ * The native backing and bar are blanked. A separate retained paper node can
+ * extend a line above and below the backing without changing the pack's own
+ * geometry. Each of the eight native plate graphics then receives a compact
+ * copy of one of the four real classic chat stones; their cache-owned labels,
+ * hover/input regions and actions remain untouched.
+ */
+static void
+mobile_chat_decoration_update(struct MobileCall* ctx)
+{
+    int const oldschool = mobile_lane_oldschool(ctx);
+    struct ToriRS_UiNodeRef const paper_node = g_chat_decoration.paper;
+
+    assert(ctx);
+    if( !oldschool || !g_frame.chat_placed )
+    {
+        for( int i = 0; i < MOBILE_CHAT_DECORATION_COUNT; i++ )
+            if( g_chat_decoration.node[i].value != 0 )
+                (void)g_api->ui.set_enabled(g_api, g_chat_decoration.node[i], false);
+        if( paper_node.value != 0 )
+            (void)g_api->ui.set_enabled(g_api, paper_node, false);
+        return;
+    }
+    for( int i = 0; i < MOBILE_CHAT_DECORATION_COUNT; i++ )
+    {
+        struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+        struct ToriRS_UiNode appearance = { .struct_size = sizeof(appearance) };
+        struct ToriRS_ImageRef art = { 0 };
+        struct ToriRS_UiNodeRef const node = g_chat_decoration.node[i];
+
+        if( node.value == 0 )
+            continue;
+        if( !g_api->ui.info(g_api, node, &info) ||
+            (info.available_facets & TORIRS_UI_FACET_BOUNDS) == 0 ||
+            info.bounds.width <= 0 || info.bounds.height <= 0 )
+        {
+            (void)g_api->ui.set_enabled(g_api, node, false);
+            if( i == MOBILE_CHAT_BACKING && paper_node.value != 0 )
+                (void)g_api->ui.set_enabled(g_api, paper_node, false);
+            continue;
+        }
+
+        if( i >= MOBILE_CHAT_PLATE_0 )
+            art = g_art[ART_O_CHAT_BUTTON_0 +
+                        MOBILE_O_CHAT_BUTTON_SOURCE[i - MOBILE_CHAT_PLATE_0]];
+        if( i >= MOBILE_CHAT_PLATE_0 && art.value == 0 )
+        {
+            (void)g_api->ui.set_enabled(g_api, node, false);
+            continue;
+        }
+
+        appearance.flags = TORIRS_UI_NODE_VISIBLE;
+        appearance.image = art;
+        if( i >= MOBILE_CHAT_PLATE_0 )
+        {
+            appearance.bounds.x =
+                info.bounds.x + (info.bounds.width - MOBILE_O_CHAT_BUTTON_W) / 2;
+            appearance.bounds.y =
+                info.bounds.y + (info.bounds.height - MOBILE_O_CHAT_BUTTON_H) / 2;
+            appearance.bounds.width = MOBILE_O_CHAT_BUTTON_W;
+            appearance.bounds.height = MOBILE_O_CHAT_BUTTON_H;
+            appearance.parent = "frame.chat";
+            appearance.anchor = TORIRS_ANCHOR_TOP_LEFT;
+            appearance.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
+            appearance.clip = TORIRS_UI_CLIP_NONE;
+        }
+        if( g_api->ui.update(
+                g_api,
+                node,
+                TORIRS_UI_FACET_APPEARANCE |
+                    (i >= MOBILE_CHAT_PLATE_0 ? TORIRS_UI_FACET_BOUNDS : 0),
+                &appearance) == TORIRS_RESULT_OK )
+            (void)g_api->ui.set_enabled(g_api, node, true);
+
+        if( i == MOBILE_CHAT_BACKING && paper_node.value != 0 )
+        {
+            struct ToriRS_UiNode paper = {
+                .struct_size = sizeof(paper),
+                .bounds = {
+                    info.bounds.x,
+                    info.bounds.y - MOBILE_O_PAPER_PAD_T,
+                    info.bounds.width,
+                    info.bounds.height + MOBILE_O_PAPER_PAD_T + MOBILE_O_PAPER_PAD_B,
+                },
+                .parent = "frame.chat",
+                .anchor = TORIRS_ANCHOR_TOP_LEFT,
+                .paint_order = TORIRS_UI_PAINT_BEFORE_PARENT,
+                .flags = TORIRS_UI_NODE_VISIBLE,
+                .image = mobile_paper_art(
+                    ctx,
+                    info.bounds.width,
+                    info.bounds.height + MOBILE_O_PAPER_PAD_T + MOBILE_O_PAPER_PAD_B),
+                .clip = TORIRS_UI_CLIP_NONE,
+            };
+
+            if( paper.image.value != 0 &&
+                g_api->ui.update(
+                    g_api,
+                    paper_node,
+                    TORIRS_UI_FACET_BOUNDS | TORIRS_UI_FACET_APPEARANCE,
+                    &paper) == TORIRS_RESULT_OK )
+                (void)g_api->ui.set_enabled(g_api, paper_node, true);
+            else
+                (void)g_api->ui.set_enabled(g_api, paper_node, false);
+        }
+    }
+}
+
+/*
  * Is there room for the sheet AND the drawer, or does one have to give way?
  *
  * The sheet is pinned to the bottom-left and the drawer to the bottom-right,
@@ -2514,8 +2782,9 @@ mobile_lane_area(struct MobileCall* ctx, int canvas_w, int canvas_h)
 /* ---------------------------------------------------------- the chat pack */
 
 /*
- * An OldSchool chatbox is a cache-owned pack, so the frame places it whole
- * and leaves its backing, controls, operations, and scrollbar lane-owned.
+ * An OldSchool chatbox is a cache-owned pack, so the frame places it whole.
+ * Its text, labels, operations and scrollbar stay lane-owned; retained
+ * appearance facets replace only its backing, bar and plate graphics.
  * A dat1 chat surface instead receives this frame's parchment and publishes
  * each filter plate as a retained named UI node. Other plugins can then
  * contribute individual facets without either frame knowing their load order.
@@ -2850,8 +3119,8 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
      * this frame has no surround for it to continue, so the bar read as a slab
      * of stone lying on the grass under four labels.
      *
-     * On an OldSchool lane there is no sheet to blit: the chat pack draws its
-     * own backing over the box it is placed in.
+     * On an OldSchool lane there is no global sheet blit: a retained paper
+     * layer replaces the pack backing and extends one text line past it.
      */
     if( chat_visible && !oldschool )
         mobile_blit(
@@ -2958,8 +3227,9 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         return;
 
     /* The OldSchool chat pack: placed whole, at its own size, flush with the
-     * corner, and dressed with nothing -- it brings its backing, its seven
-     * filter buttons and its scrollbar. @see MOBILE_O_CHAT_W_DEFAULT. */
+     * corner. It keeps its text, actions and scrollbar; the retained chat
+     * decoration contributions replace only its furniture.
+     * @see MOBILE_O_CHAT_W_DEFAULT. */
     if( oldschool )
     {
         mobile_surface(ctx, TORIRS_SURFACE_CHAT, 0, chat_y, chat_w, chat_h);
@@ -3022,7 +3292,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
             NAME[i],
             "frame.chat.buttons",
             bounds,
-            g_art[ART_CHAT_BUTTON],
+            g_art[ART_CHAT_BUTTON_0 + i],
             NULL,
             TORIRS_UI_NODE_BLOCKS_OVERLAY);
     }
@@ -3168,8 +3438,7 @@ mobile_on_draw(
      * A word is what these carried while nothing in the 2004 media file could
      * stand for them -- it has no chat glyph and no keyboard, and inventing one
      * would have put art in this plugin that no cache it runs on ships. The
-     * OldSchool content does have both: one outright, and one as the lower half
-     * of an icon that draws a hand over it. @see IMG_ICON_KEYBOARD.
+     * OldSchool content does have both outright. @see IMG_ICON_KEYBOARD.
      */
     mobile_draw_icon(
         ctx, g_art[ART_ICON_CHAT], g_frame.toggle_x, g_frame.toggle_y,
@@ -3322,6 +3591,11 @@ mobile_on_frame(
     memset(&call, 0, sizeof(call));
     call.api = api;
     call.state = state;
+
+    /* The OldSchool chat pack is mounted/rebuilt independently of the
+     * toplevel. Re-read its retained semantic decoration just as the V1 chrome
+     * claim did; unchanged updates are registry no-ops. */
+    mobile_chat_decoration_update(ctx);
 
     /* Compose masks and frame art incrementally as their source images arrive.
      * Once both sets are ready, invalidate the retained frame exactly once. */
@@ -3536,6 +3810,15 @@ mobile_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 
     for( int i = 0; i < MOBILE_IMG_COUNT; i++ )
         mobile_image_request(api, state, i);
+    for( int i = 0; i < MOBILE_CHAT_DECORATION_COUNT; i++ )
+    {
+        state->chat_decoration.node[i] = api->ui.ref(api, MOBILE_CHAT_NODE[i]);
+        if( state->chat_decoration.node[i].value != 0 )
+            (void)api->ui.set_enabled(api, state->chat_decoration.node[i], false);
+    }
+    state->chat_decoration.paper = api->ui.ref(api, "chat-paper");
+    if( state->chat_decoration.paper.value != 0 )
+        (void)api->ui.set_enabled(api, state->chat_decoration.paper, false);
 }
 
 static void
@@ -3545,16 +3828,22 @@ mobile_on_asset(
     struct ToriRS_AssetEvent const* event)
 {
     struct MobileState* state = state_ptr;
+    struct MobileCall call;
+    struct MobileCall* ctx = &call;
 
     assert(api);
     assert(state);
     assert(event);
+    memset(&call, 0, sizeof(call));
+    call.api = api;
+    call.state = state;
     if( !event->name )
         return;
     for( int i = 0; i < MOBILE_IMG_COUNT; i++ )
         if( MOBILE_IMAGE_FILE[i] && strcmp(MOBILE_IMAGE_FILE[i], event->name) == 0 )
         {
             mobile_image_request(api, state, i);
+            mobile_chat_decoration_update(ctx);
             api->frame.invalidate(api);
             return;
         }
@@ -3601,6 +3890,29 @@ mobile_on_stop(
     if( g_paper.art.value != 0 )
         g_api->assets.image_release(g_api, g_paper.art);
     memset(state, 0, sizeof(*state));
+}
+
+static void
+mobile_on_placement(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    uint32_t revision)
+{
+    struct MobileCall call;
+    struct MobileCall* ctx = &call;
+
+    (void)revision;
+    assert(api);
+    assert(state_ptr);
+    memset(&call, 0, sizeof(call));
+    call.api = api;
+    call.state = state_ptr;
+    mobile_chat_decoration_update(ctx);
+    /* FRAME_BUILD is live lane geometry.  In particular, osrs239 mounts its
+     * popout rail after the first candidate can already have been committed.
+     * Rebuilding is what moves the map housing and both tab columns clear of
+     * that late sibling instead of retaining a frame underneath it. */
+    api->frame.invalidate(api);
 }
 
 static void
@@ -3665,6 +3977,52 @@ static struct ToriRS_ConfigSchema const MOBILE_SCHEMA = {
     .items = MOBILE_CONFIG,
 };
 
+#define MOBILE_CHAT_CONTRIBUTION(name_, facets_)                             \
+    { .struct_size = sizeof(struct ToriRS_UiContribution),                    \
+      .node = (name_),                                                        \
+      .mode = TORIRS_UI_MODIFY,                                               \
+      .facets = (facets_),                                                    \
+      .value = { .struct_size = sizeof(struct ToriRS_UiNode),                 \
+                 .bounds = { 0, 0, 1, 1 },                                   \
+                 .parent = "frame.chat",                                     \
+                 .anchor = TORIRS_ANCHOR_TOP_LEFT,                            \
+                 .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,                 \
+                 .flags = TORIRS_UI_NODE_VISIBLE } }
+
+#define MOBILE_CHAT_APPEARANCE(name_) \
+    MOBILE_CHAT_CONTRIBUTION((name_), TORIRS_UI_FACET_APPEARANCE)
+#define MOBILE_CHAT_PLATE(name_)                                             \
+    MOBILE_CHAT_CONTRIBUTION(                                                \
+        (name_), TORIRS_UI_FACET_BOUNDS | TORIRS_UI_FACET_APPEARANCE)
+
+static struct ToriRS_UiContribution const MOBILE_CHAT_CONTRIBUTIONS[] = {
+    MOBILE_CHAT_APPEARANCE("frame.chat.backing"),
+    MOBILE_CHAT_APPEARANCE("frame.chat.bar"),
+    MOBILE_CHAT_PLATE("frame.chat.plate.0"),
+    MOBILE_CHAT_PLATE("frame.chat.plate.1"),
+    MOBILE_CHAT_PLATE("frame.chat.plate.2"),
+    MOBILE_CHAT_PLATE("frame.chat.plate.3"),
+    MOBILE_CHAT_PLATE("frame.chat.plate.4"),
+    MOBILE_CHAT_PLATE("frame.chat.plate.5"),
+    MOBILE_CHAT_PLATE("frame.chat.plate.6"),
+    MOBILE_CHAT_PLATE("frame.chat.plate.7"),
+    {
+        .struct_size = sizeof(struct ToriRS_UiContribution),
+        .node = "chat-paper",
+        .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+        .facets = TORIRS_UI_FACET_BOUNDS | TORIRS_UI_FACET_APPEARANCE,
+        .value = {
+            .struct_size = sizeof(struct ToriRS_UiNode),
+            .bounds = { 0, 0, 1, 1 },
+            .parent = "frame.chat",
+            .anchor = TORIRS_ANCHOR_TOP_LEFT,
+            .paint_order = TORIRS_UI_PAINT_BEFORE_PARENT,
+            .clip = TORIRS_UI_CLIP_NONE,
+        },
+    },
+    { .node = NULL },
+};
+
 _Static_assert(
     sizeof(MOBILE_HOUSING_NAME) / sizeof(MOBILE_HOUSING_NAME[0]) == MOBILE_HOUSING_AUTO + 1,
     "the housing name table and the schema's choices= are the same list");
@@ -3700,6 +4058,7 @@ struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
      */
     .draw_order = -100,
     .config = &MOBILE_SCHEMA,
+    .ui_contributions = MOBILE_CHAT_CONTRIBUTIONS,
     .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
     .frames = MOBILE_FRAME_OFFERS,
     .callbacks = {
@@ -3710,6 +4069,7 @@ struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
         .on_screen_changed = mobile_on_screen,
         .on_config_changed = mobile_on_config,
         .on_asset = mobile_on_asset,
+        .on_placement_changed = mobile_on_placement,
         .on_ui_node_action = mobile_on_node_action,
         .on_canvas_action = mobile_on_canvas_action,
     },

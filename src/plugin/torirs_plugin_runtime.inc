@@ -634,6 +634,30 @@ v2_ui_invoke(
 }
 
 static bool
+v2_ui_base_action_available(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_UiNodeRef node,
+    char const* action)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+
+    assert(action);
+    return PluginHost_UiBaseActionAvailable(runtime->context->host, node, action);
+}
+
+static bool
+v2_ui_invoke_base(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_UiNodeRef node,
+    char const* action)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+
+    assert(action);
+    return PluginHost_UiInvokeBase(runtime->context->host, node, action);
+}
+
+static bool
 v2_ui_contribution_info(
     struct ToriRS_ApiV2* api,
     char const* node,
@@ -3481,6 +3505,8 @@ v2_runtime_init(
             .update = v2_ui_update,
             .menu_add = v2_ui_menu_add,
             .set_enabled = v2_ui_set_enabled,
+            .base_action_available = v2_ui_base_action_available,
+            .invoke_base = v2_ui_invoke_base,
         },
         .placement = {
             .struct_size = sizeof(runtime->api.placement),

@@ -1435,6 +1435,15 @@ test_synthetic_press_sees_through_frame_hidden(void)
         !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),
         "a synthesised press reaches into a frame-hidden subtree");
 
+    tree->components[panel].replacement_hidden = 1;
+    TEST_ASSERT(
+        UITree_NodeOrAncestorDisplayHidden(tree, button),
+        "ordinary input cannot reach a child of a replaced composite node");
+    TEST_ASSERT(
+        !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 1, 1),
+        "semantic delegation reaches the native child below its replacement tombstone");
+    tree->components[panel].replacement_hidden = 0;
+
     tree->components[panel].screen_hidden = 1;
     TEST_ASSERT(
         UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),

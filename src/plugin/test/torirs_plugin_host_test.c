@@ -1208,11 +1208,18 @@ fake_component_rect(
 static char const* g_role_name;
 static int g_role_box[4];
 static int g_role_visible;
+static int g_role_action_status = 1;
+static char const* g_role_compat_name;
+static int g_role_compat_status = -1;
+static int g_role_click_result = 1;
+static int g_role_click_attempts;
+static char const* g_role_click_last_attempt;
 static int g_role_clicked_op = -1;
 static char const* g_role_clicked;
 static int g_role_suppress_calls;
 static int g_role_suppress_paint;
 static int g_role_suppress_input;
+static int g_role_suppress_subtree;
 static char g_role_suppress_name[TORIRS_PLUGIN_ROLE_NAME_MAX];
 static int g_ui_boundary_calls;
 static int g_ui_boundary_resets;
@@ -1274,13 +1281,31 @@ fake_role_visible(
 }
 
 static int
+fake_role_action_available(
+    void* u,
+    char const* role)
+{
+    (void)u;
+    if( role_is(role) )
+        return g_role_action_status;
+    if( g_role_compat_name && strcmp(role, g_role_compat_name) == 0 )
+        return g_role_compat_status;
+    return -1;
+}
+
+static int
 fake_role_click(
     void* u,
     char const* role,
     int op)
 {
     (void)u;
-    if( !role_is(role) )
+    g_role_click_attempts++;
+    g_role_click_last_attempt = role;
+    if( !role_is(role) &&
+        (!g_role_compat_name || strcmp(role, g_role_compat_name) != 0) )
+        return 0;
+    if( !g_role_click_result )
         return 0;
     g_role_clicked = role;
     g_role_clicked_op = op;
@@ -1292,12 +1317,14 @@ fake_role_suppress_facets(
     void* u,
     char const* role,
     int paint,
-    int input)
+    int input,
+    int subtree)
 {
     (void)u;
     g_role_suppress_calls++;
     g_role_suppress_paint = paint;
     g_role_suppress_input = input;
+    g_role_suppress_subtree = subtree;
     (void)snprintf(
         g_role_suppress_name,
         sizeof(g_role_suppress_name),
@@ -1685,6 +1712,7 @@ fake_engine(void)
     e.component_rect = fake_component_rect;
     e.role_rect = fake_role_rect;
     e.role_visible = fake_role_visible;
+    e.role_action_available = fake_role_action_available;
     e.role_click = fake_role_click;
     e.role_suppress_facets = fake_role_suppress_facets;
     e.ui_boundary = fake_ui_boundary;
@@ -1777,6 +1805,7 @@ static int g_v2_frame_width;
 static int g_v2_frame_canvas;
 static int g_v2_node_actions;
 static int g_v2_prefix_starts;
+static int g_v2_started_with_saved_config;
 
 static char g_v2_option_label_a[] = "Same|label";
 static char g_v2_option_label_missing[] = "Same|label";
@@ -1849,6 +1878,12 @@ v2_probe_start(
 
     if( marker == 1 )
     {
+        char const* loaded = NULL;
+        CHECK(
+            api->config.get_string(api, "loaded", &loaded) && loaded &&
+                strcmp(loaded, "saved") == 0,
+            "v2 on_start observes config loaded before the explicit startup fence");
+        g_v2_started_with_saved_config = loaded && strcmp(loaded, "saved") == 0;
         own = api->ui.ref(api, "status");
         CHECK(
             api->ui.info(api, own, &info) && info.visible,
@@ -2081,6 +2116,8 @@ v2_probe_frame_draw(
 
 static struct ToriRS_ConfigItem const V2_CONFIG_A_ITEMS[] = {
     { .key = "marker", .label = "Marker", .type = TORIRS_CONFIG_INT, .default_value = "1" },
+    { .key = "loaded", .label = "Loaded", .type = TORIRS_CONFIG_STRING,
+      .default_value = "default" },
     { 0 },
 };
 static struct ToriRS_ConfigItem const V2_CONFIG_B_ITEMS[] = {
@@ -2826,8 +2863,8 @@ static struct ToriRS_UiContribution const V2_PRESENT_A_UI[] = {
     {
         .struct_size = sizeof(struct ToriRS_UiContribution),
         .node = "frame.orb.run",
-        .mode = TORIRS_UI_MODIFY,
-        .facets = TORIRS_UI_FACET_ALL,
+        .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+        .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
         .value = {
             .struct_size = sizeof(struct ToriRS_UiNode),
             .bounds = { 72, 35, 20, 15 },
@@ -2847,8 +2884,8 @@ static struct ToriRS_UiContribution const V2_PRESENT_B_UI[] = {
     {
         .struct_size = sizeof(struct ToriRS_UiContribution),
         .node = "frame.orb.run",
-        .mode = TORIRS_UI_MODIFY,
-        .facets = TORIRS_UI_FACET_ALL,
+        .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
+        .facets = TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS,
         .value = {
             .struct_size = sizeof(struct ToriRS_UiNode),
             .bounds = { 73, 36, 18, 12 },
@@ -2886,6 +2923,114 @@ static struct ToriRS_PluginDefV2 const V2_PRESENT_B = {
     .ui_contributions = V2_PRESENT_B_UI,
     .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
 };
+
+/* Minimal providers used only to exercise the one-time preference migration.
+ * Their canonical ids intentionally match the bundled providers; no layout is
+ * executed in these cases, but registration still requires a valid builder. */
+static enum ToriRS_FrameBuildResult
+legacy_frame_build(
+    struct ToriRS_ApiV2* api,
+    void* state,
+    struct ToriRS_FrameBuilder* frame,
+    struct ToriRS_FrameBuildContext const* context)
+{
+    (void)api;
+    (void)state;
+    (void)context;
+    frame->surface(
+        frame, TORIRS_SURFACE_VIEWPORT, (struct ToriRS_Rect){ 0, 0, 765, 503 });
+    return TORIRS_FRAME_READY;
+}
+
+static struct ToriRS_FrameOffer const LEGACY_DESKTOP_OFFERS[] = {
+    { .struct_size = sizeof(struct ToriRS_FrameOffer),
+      .id = "classic-fixed", .title = "Classic Fixed",
+      .canvas = TORIRS_FRAME_CANVAS_FIXED, .width = 765, .height = 503,
+      .build = legacy_frame_build },
+    { .struct_size = sizeof(struct ToriRS_FrameOffer),
+      .id = "modern-fixed", .title = "Modern Fixed",
+      .canvas = TORIRS_FRAME_CANVAS_FIXED, .width = 765, .height = 503,
+      .build = legacy_frame_build },
+    { .struct_size = sizeof(struct ToriRS_FrameOffer),
+      .id = "modern-resizable", .title = "Modern Resizable",
+      .canvas = TORIRS_FRAME_CANVAS_WINDOW, .min_width = 765, .min_height = 503,
+      .build = legacy_frame_build },
+    { .struct_size = sizeof(struct ToriRS_FrameOffer) },
+};
+
+static struct ToriRS_FrameOffer const LEGACY_MOBILE_OFFERS[] = {
+    { .struct_size = sizeof(struct ToriRS_FrameOffer),
+      .id = "stone-drawer", .title = "Stone Drawer",
+      .canvas = TORIRS_FRAME_CANVAS_WINDOW, .min_width = 640, .min_height = 437,
+      .build = legacy_frame_build },
+    { .struct_size = sizeof(struct ToriRS_FrameOffer) },
+};
+
+static struct ToriRS_PluginDefV2 const LEGACY_DESKTOP_PROVIDER = {
+    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+    .id = "gameframe-layout",
+    .title = "Legacy desktop frame",
+    .version = "1",
+    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .frames = LEGACY_DESKTOP_OFFERS,
+    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+};
+
+static struct ToriRS_PluginDefV2 const LEGACY_MOBILE_PROVIDER = {
+    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+    .id = "mobile-gameframe",
+    .title = "Legacy mobile frame",
+    .version = "1",
+    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .frames = LEGACY_MOBILE_OFFERS,
+    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+};
+
+static void
+check_legacy_frame_migration(
+    char const* layout,
+    int desktop_enabled,
+    int mobile_enabled,
+    int preferred_present,
+    char const* preferred,
+    char const* expected,
+    char const* what)
+{
+    struct ToriRS_PluginEngine engine;
+    struct ToriRS_PluginHost* host;
+    int desktop;
+    int mobile;
+
+    memset(&g_engine, 0, sizeof(g_engine));
+    g_screen_now = TORIRS_SCREEN_GAME;
+    engine = fake_engine();
+    host = PluginHost_New(&engine);
+    desktop = PluginHost_RegisterV2(host, &LEGACY_DESKTOP_PROVIDER);
+    mobile = PluginHost_RegisterV2(host, &LEGACY_MOBILE_PROVIDER);
+    CHECK(desktop >= 0 && mobile >= 0, "legacy migration providers register");
+    if( desktop_enabled )
+        PluginHost_ConfigApply(host, "gameframe-layout", "enabled", "1");
+    if( mobile_enabled )
+        PluginHost_ConfigApply(host, "mobile-gameframe", "enabled", "1");
+    if( layout )
+        PluginHost_ConfigApply(host, "gameframe-layout", "layout", layout);
+    g_engine.frame_preference_present = preferred_present;
+    g_engine.frame_migration_version = 0;
+    if( preferred )
+        (void)snprintf(
+            g_engine.frame_preference,
+            sizeof(g_engine.frame_preference),
+            "%s",
+            preferred);
+
+    PluginHost_Start(host);
+    CHECK(
+        strcmp(g_engine.frame_preference, expected) == 0 &&
+            g_engine.frame_preference_present &&
+            g_engine.frame_migration_version == 1,
+        what);
+    PluginHost_Free(host);
+}
 
 static void
 v2_present_reorder_logic(
@@ -3111,6 +3256,51 @@ main(void)
 {
     struct ToriRS_PluginEngine engine;
 
+    /* ---- pre-V2 frame preference migration ------------------------------ */
+    check_legacy_frame_migration(
+        "Auto", 1, 0, 0, NULL, "auto",
+        "legacy desktop Auto label migrates to automatic selection");
+    check_legacy_frame_migration(
+        "3", 1, 0, 0, NULL, "auto",
+        "legacy desktop Auto numeric value migrates to automatic selection");
+    check_legacy_frame_migration(
+        "Classic Fixed", 1, 0, 0, NULL,
+        "gameframe-layout/classic-fixed",
+        "legacy desktop Classic Fixed label migrates to its stable offer id");
+    check_legacy_frame_migration(
+        "0", 1, 0, 0, NULL, "gameframe-layout/classic-fixed",
+        "legacy desktop Classic Fixed numeric value migrates to its stable offer id");
+    check_legacy_frame_migration(
+        "Modern Fixed", 1, 0, 0, NULL,
+        "gameframe-layout/modern-fixed",
+        "legacy desktop Modern Fixed label migrates to its stable offer id");
+    check_legacy_frame_migration(
+        "1", 1, 0, 0, NULL, "gameframe-layout/modern-fixed",
+        "legacy desktop Modern Fixed numeric value migrates to its stable offer id");
+    check_legacy_frame_migration(
+        "Modern Resizable", 1, 0, 0, NULL,
+        "gameframe-layout/modern-resizable",
+        "legacy desktop Modern Resizable label migrates to its stable offer id");
+    check_legacy_frame_migration(
+        "2", 1, 0, 0, NULL, "gameframe-layout/modern-resizable",
+        "legacy desktop Modern Resizable numeric value migrates to its stable offer id");
+    check_legacy_frame_migration(
+        "Not a frame", 1, 0, 0, NULL, "auto",
+        "invalid legacy desktop selection migrates to automatic selection");
+    check_legacy_frame_migration(
+        NULL, 0, 1, 0, NULL, "mobile-gameframe/stone-drawer",
+        "legacy mobile-only selection migrates to Stone Drawer");
+    check_legacy_frame_migration(
+        "Modern Fixed", 1, 1, 0, NULL,
+        "gameframe-layout/modern-fixed",
+        "legacy desktop selection takes precedence when both frame plugins were enabled");
+    check_legacy_frame_migration(
+        NULL, 0, 0, 0, NULL, "auto",
+        "absent legacy frame selection migrates to automatic selection");
+    check_legacy_frame_migration(
+        "Modern Fixed", 1, 1, 1, "INVALID SAVED VALUE", "auto",
+        "invalid explicit preferred frame migrates to auto instead of legacy settings");
+
     /* ---- V2 registration and lifecycle ---------------------------------- */
     {
         struct ToriRS_PluginHost* hv2;
@@ -3150,6 +3340,7 @@ main(void)
         g_v2_frame_draws = 0;
         g_v2_node_actions = 0;
         g_v2_prefix_starts = 0;
+        g_v2_started_with_saved_config = 0;
         g_screen_now = TORIRS_SCREEN_GAME;
         g_lane_game = TORIRS_GAME_RS2;
         g_role_name = NULL;
@@ -3163,10 +3354,6 @@ main(void)
         g_slot_y[TORIRS_HOST_SURFACE_MINIMAP] = 10;
         g_slot_w[TORIRS_HOST_SURFACE_MINIMAP] = 150;
         g_slot_h[TORIRS_HOST_SURFACE_MINIMAP] = 150;
-        snprintf(
-            g_engine.frame_preference, sizeof(g_engine.frame_preference), "%s", "v2-frame/test");
-        g_engine.frame_preference_present = 1;
-        g_engine.frame_migration_version = 1;
         engine = fake_engine();
         hv2 = PluginHost_New(&engine);
 
@@ -3192,13 +3379,34 @@ main(void)
         CHECK(
             strcmp(PluginHost_Name(hv2, a2), "v2-probe-a") == 0 &&
                 strcmp(PluginHost_Title(hv2, a2), "V2 Probe A") == 0 &&
-                PluginHost_ConfigCount(hv2, a2) == 1,
+                PluginHost_ConfigCount(hv2, a2) == 2,
             "v2 identity, title, and config schema normalize into host metadata");
         CHECK(PluginHost_IsRuntimeHost(hv2, b2), "v2 runtime-host flag normalizes");
         CHECK(
             PluginHost_IsEssential(hv2, frame2),
             "a v2 frame provider has host-controlled lifetime and no switch");
 
+        PluginHost_SetEnabled(hv2, a2, false);
+        PluginHost_SetEnabled(hv2, a2, true);
+        CHECK(
+            g_v2_starts[1] == 0 && g_v2_starts[2] == 0 &&
+                g_v2_starts[3] == 0 && g_v2_prefix_starts == 0,
+            "pre-boot enable-state decoding cannot start V2 plugins");
+
+        /* FrameStart runs while App's asynchronous boot is still loading the
+         * client and plugin preference files. It may reset budgets and observe
+         * the screen, but it must not implicitly start the registry on defaults
+         * or latch an empty frame preference. */
+        PluginHost_FrameStart(hv2, 1, 0);
+        CHECK(
+            g_v2_starts[1] == 0 && g_v2_starts[2] == 0 &&
+                g_v2_starts[3] == 0 && g_v2_prefix_starts == 0,
+            "a pre-boot frame boundary cannot start V2 plugins");
+        PluginHost_ConfigApply(hv2, "v2-probe-a", "loaded", "saved");
+        snprintf(
+            g_engine.frame_preference, sizeof(g_engine.frame_preference), "%s", "v2-frame/test");
+        g_engine.frame_preference_present = 1;
+        g_engine.frame_migration_version = 1;
         PluginHost_Start(hv2);
         PluginHost_Start(hv2);
         CHECK(
@@ -3207,6 +3415,9 @@ main(void)
         CHECK(
             g_v2_prefix_starts == 1,
             "a shorter callback table dispatches its declared prefix without reading its tail");
+        CHECK(
+            g_v2_started_with_saved_config,
+            "the explicit startup fence publishes saved config before on_start");
         CHECK(
             g_v2_zeroed_starts == 3 && g_v2_first_state[1] != g_v2_first_state[2] &&
                 g_v2_first_state[2] != g_v2_first_state[3],
@@ -3791,6 +4002,52 @@ main(void)
                 g_placement_v2_revision == api->placement.revision(api),
             "callback-side changes coalesce into one later placement transaction");
 
+        /* Interface 728 mutates independently of the selected frame: opening
+         * it widens the collapsed rail, closing it hides the whole cut, and a
+         * later click restores it. None of those transitions changes canvas
+         * size or frame-slot topology, so the frame-boundary role poll itself
+         * must discover and publish each one. */
+        {
+            uint32_t revision = api->placement.revision(api);
+            int calls = g_placement_v2_calls;
+            struct ToriRS_Rect inside_expanded = { 80, 20, 5, 5 };
+            struct ToriRS_Rect inside_collapsed = { 92, 20, 5, 5 };
+
+            g_lane_rail_box[0] = 70;
+            g_lane_rail_box[2] = 30;
+            PluginHost_FrameStart(hp, 2, 0);
+            CHECK(
+                api->placement.revision(api) == ++revision &&
+                    g_placement_v2_calls == ++calls &&
+                    !api->placement.contains(api, frame_area, inside_expanded),
+                "an expanded lane popout is observed and cut without an explicit layout notification");
+
+            g_lane_rail_visible = 0;
+            PluginHost_FrameStart(hp, 3, 0);
+            CHECK(
+                api->placement.revision(api) == ++revision &&
+                    g_placement_v2_calls == ++calls &&
+                    api->placement.contains(api, frame_area, inside_expanded),
+                "hiding the lane popout restores its frame-build columns automatically");
+
+            g_lane_rail_box[0] = rail.x;
+            g_lane_rail_box[2] = rail.width;
+            g_lane_rail_visible = 1;
+            PluginHost_FrameStart(hp, 4, 0);
+            CHECK(
+                api->placement.revision(api) == ++revision &&
+                    g_placement_v2_calls == ++calls &&
+                    api->placement.contains(api, frame_area, inside_expanded) &&
+                    !api->placement.contains(api, frame_area, inside_collapsed),
+                "restoring the collapsed popout restores exactly its narrow cut");
+
+            PluginHost_FrameStart(hp, 5, 0);
+            CHECK(
+                api->placement.revision(api) == revision &&
+                    g_placement_v2_calls == calls,
+                "a steady lane popout costs no placement revision or callback");
+        }
+
         PluginHost_Free(hp);
         g_platform_safe_count = 0;
         g_lane_rail_visible = 0;
@@ -3842,6 +4099,7 @@ main(void)
         uint32_t change_visits;
         uint32_t registry_visits;
         uint32_t role_probe_visits;
+        struct ToriRS_UiNodeRef action_ref;
         int old_actions;
         int old_draws;
         int old_hits;
@@ -3871,6 +4129,7 @@ main(void)
         g_role_suppress_calls = 0;
         g_role_suppress_paint = -1;
         g_role_suppress_input = -1;
+        g_role_suppress_subtree = -1;
         g_role_suppress_name[0] = '\0';
         g_present_draws = 0;
         g_present_actions = 0;
@@ -3893,6 +4152,65 @@ main(void)
         PluginHost_Start(facet_host);
         PluginHost_LayoutChanged(facet_host);
 
+        action_ref = PluginHost_UiRef(facet_host, appearance, "frame.orb.run");
+        g_role_name = "orb_run_on";
+        CHECK(
+            PluginHost_UiBaseActionAvailable(facet_host, action_ref, "enable") &&
+                PluginHost_UiInvokeBase(facet_host, action_ref, "enable") &&
+                g_role_clicked && strcmp(g_role_clicked, "orb_run_on") == 0 &&
+                g_role_clicked_op == 0,
+            "a replacement can discover and invoke the lane-owned semantic action without a component id");
+        g_role_name = "orb_run_off";
+        CHECK(
+            PluginHost_UiBaseActionAvailable(facet_host, action_ref, "disable") &&
+                PluginHost_UiInvokeBase(facet_host, action_ref, "disable") &&
+                g_role_clicked && strcmp(g_role_clicked, "orb_run_off") == 0,
+            "two-state semantic actions resolve separate live enable and disable roles");
+        CHECK(
+            !PluginHost_UiBaseActionAvailable(facet_host, action_ref, "unknown") &&
+                !PluginHost_UiInvokeBase(facet_host, action_ref, "unknown"),
+            "unknown base actions fail without dispatch");
+
+        /* The action component remains in the tree while CS2 hides and clears
+         * it (the special-attack orb does this when no spec weapon is worn).
+         * That is authoritative unavailability, not permission to press the
+         * composite root as a compatibility fallback. */
+        g_role_name = "orb_run_on";
+        g_role_compat_name = "orb_run";
+        g_role_compat_status = 1;
+        g_role_action_status = 0;
+        g_role_click_attempts = 0;
+        g_role_clicked = NULL;
+        CHECK(
+            !PluginHost_UiBaseActionAvailable(facet_host, action_ref, "enable") &&
+                !PluginHost_UiInvokeBase(facet_host, action_ref, "enable") &&
+                g_role_click_attempts == 0 && !g_role_clicked,
+            "a present-but-CS2-hidden action never falls back to its composite root");
+
+        /* Likewise, a present action role whose two operation spellings both
+         * fail is a bad live binding, not an absent legacy binding. */
+        g_role_action_status = 1;
+        g_role_click_result = 0;
+        g_role_click_attempts = 0;
+        CHECK(
+            !PluginHost_UiInvokeBase(facet_host, action_ref, "enable") &&
+                g_role_click_attempts == 2 && g_role_click_last_attempt &&
+                strcmp(g_role_click_last_attempt, "orb_run_on") == 0,
+            "a failed authoritative action role does not fall through to the composite root");
+        g_role_click_result = 1;
+        g_role_compat_name = NULL;
+        g_role_compat_status = -1;
+        g_role_action_status = 1;
+
+        /* A profile that genuinely predates the separate action role may
+         * still name only the old composite role. */
+        g_role_name = "orb_run";
+        g_role_click_attempts = 0;
+        CHECK(
+            PluginHost_UiInvokeBase(facet_host, action_ref, "enable") &&
+                g_role_clicked && strcmp(g_role_clicked, "orb_run") == 0,
+            "an unresolved action role retains composite-role compatibility");
+
         PluginHost_SetEnabled(facet_host, appearance, true);
         /* The base snapshot still names the target, but its live tree role is
          * absent during this reconciliation (the rebuild gap). The presenter
@@ -3906,7 +4224,7 @@ main(void)
         CHECK(
             PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds + 1 &&
                 g_role_suppress_calls > 0 && g_role_suppress_paint == 1 &&
-                g_role_suppress_input == 0,
+                g_role_suppress_input == 0 && g_role_suppress_subtree == 0,
             "a contribution retained through a rebuild gap suppresses its newly live role without a registry change");
         late_rebuilds = PluginHost_UiPresentationRebuilds(facet_host);
         PluginHost_ReconcileUi(facet_host);
@@ -3917,6 +4235,7 @@ main(void)
         CHECK(
             PluginHost_UiPresentationCount(facet_host) == 1 &&
                 g_role_suppress_paint == 1 && g_role_suppress_input == 0 &&
+                g_role_suppress_subtree == 0 &&
                 strcmp(g_role_suppress_name, "orb_run") == 0 &&
                 g_present_draws == 1 && g_hit_region_calls == 0,
             "an APPEARANCE winner suppresses only native paint and presents no action surface");
@@ -3931,8 +4250,10 @@ main(void)
         PluginHost_DrawCanvas(facet_host, 100, 100);
         CHECK(
             g_present_draws == old_draws &&
-                PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds,
-            "a failed live-boundary anchor schedules recovery without a global pre-scan");
+                PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds &&
+                g_role_suppress_paint == 0 && g_role_suppress_input == 0 &&
+                g_role_suppress_subtree == 0,
+            "an unpresentable live-boundary replacement leaves native facets visible while scheduling recovery");
         PluginHost_ReconcileUi(facet_host);
         CHECK(
             PluginHost_UiPresentationRebuilds(facet_host) == late_rebuilds + 1 &&
@@ -3957,6 +4278,7 @@ main(void)
         CHECK(
             PluginHost_UiPresentationCount(facet_host) == 1 &&
                 g_role_suppress_paint == 1 && g_role_suppress_input == 1 &&
+                g_role_suppress_subtree == 0 &&
                 g_present_draws == 2 && g_hit_region_calls == 1,
             "independent APPEARANCE and ACTIONS winners suppress both matching native facets");
         old_tag = g_hit_region_tag;
@@ -4023,8 +4345,9 @@ main(void)
         PluginHost_DrawCanvas(facet_host, 100, 100);
         CHECK(
             g_present_draws == old_draws && g_hit_region_calls == old_hits &&
-                g_role_suppress_paint == 1 && g_role_suppress_input == 1,
-            "a hidden winner keeps native facets suppressed but publishes no paint or input");
+                g_role_suppress_paint == 0 && g_role_suppress_input == 0 &&
+                g_role_suppress_subtree == 0,
+            "a hidden/unpresentable winner publishes neither replacement nor native suppression");
         g_present_visibility_request = 1;
         PluginHost_LogicTick(facet_host, 3);
         PluginHost_DrawCanvas(facet_host, 100, 100);
@@ -4040,13 +4363,15 @@ main(void)
         CHECK(
             PluginHost_UiPresentationCount(facet_host) == 1 &&
                 g_role_suppress_paint == 0 && g_role_suppress_input == 1 &&
+                g_role_suppress_subtree == 0 &&
                 g_present_draws == old_actions,
             "an ACTIONS-only winner leaves native paint live");
         PluginHost_SetEnabled(facet_host, actions, false);
         PluginHost_DrawCanvas(facet_host, 100, 100);
         CHECK(
             PluginHost_UiPresentationCount(facet_host) == 0 &&
-                g_role_suppress_paint == 0 && g_role_suppress_input == 0,
+                g_role_suppress_paint == 0 && g_role_suppress_input == 0 &&
+                g_role_suppress_subtree == 0,
             "provider teardown releases each native facet independently");
 
         g_present_order_count = 0;
@@ -4090,7 +4415,8 @@ main(void)
             "restoring the ancestor remints and republishes the descendant action");
         PluginHost_SetEnabled(facet_host, nested, false);
         CHECK(
-            g_role_suppress_paint == 0 && g_role_suppress_input == 0,
+            g_role_suppress_paint == 0 && g_role_suppress_input == 0 &&
+                g_role_suppress_subtree == 0,
             "nested provider teardown restores the target's native appearance");
         PluginHost_Free(facet_host);
         g_role_name = NULL;
@@ -4133,6 +4459,7 @@ main(void)
         g_role_suppress_calls = 0;
         g_role_suppress_paint = -1;
         g_role_suppress_input = -1;
+        g_role_suppress_subtree = -1;
         g_present_draws = 0;
         g_present_actions = 0;
         g_present_foreign_update = TORIRS_RESULT_ERROR;
@@ -4158,7 +4485,8 @@ main(void)
         CHECK(
             PluginHost_UiPresentationCount(present_host) == 0 &&
                 g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls &&
-                g_role_suppress_paint != 1 && g_role_suppress_input != 1,
+                g_role_suppress_paint != 1 && g_role_suppress_input != 1 &&
+                g_role_suppress_subtree != 1,
             "two conflicting providers leave base paint/input and neither draws nor acts");
         rebuilds = PluginHost_UiPresentationRebuilds(present_host);
         PluginHost_DrawCanvas(present_host, 100, 100);
@@ -4178,14 +4506,19 @@ main(void)
         PluginHost_DrawCanvas(present_host, 100, 100);
         CHECK(
             PluginHost_UiPresentationCount(present_host) == 1 &&
-                g_engine.draw_items == draw_items + 2 && g_present_draws == 1 &&
-                g_hit_region_calls == hit_calls + 1 && g_hit_region_plugin == present_a &&
-                g_hit_region_box[0] == 70 && g_hit_region_box[1] == 18 &&
-                g_hit_region_box[2] == 15 && g_hit_region_box[3] == 20 &&
+                g_engine.draw_items == draw_items + 2 && g_present_draws == 1,
+            "one complete REPLACE_OR_PROVIDE winner yields one visual result");
+        CHECK(
+            g_hit_region_calls == hit_calls + 1 && g_hit_region_plugin == present_a &&
+                g_hit_region_box[0] == 65 && g_hit_region_box[1] == 18 &&
+                g_hit_region_box[2] == 20 && g_hit_region_box[3] == 20 &&
                 g_hit_region_op_count == 2 &&
-                strcmp(g_hit_region_ops[0], "inspect") == 0 &&
-                g_role_suppress_paint == 1 && g_role_suppress_input == 1,
-            "one winning provider yields exactly one visual callback, label, and hit region");
+                strcmp(g_hit_region_ops[0], "inspect") == 0,
+            "a replacement retaining lane bounds yields one input result");
+        CHECK(
+            g_role_suppress_paint == 1 && g_role_suppress_input == 1 &&
+                g_role_suppress_subtree == 1,
+            "one appearance+actions REPLACE_OR_PROVIDE winner suppresses the native subtree");
         CHECK(
             (g_hit_region_tag & 0x80000000u) != 0,
             "retained named actions use the host-reserved route namespace");
@@ -4217,13 +4550,15 @@ main(void)
         CHECK(
             PluginHost_UiPresentationCount(present_host) == 0 &&
                 g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls &&
-                g_role_suppress_paint == 0 && g_role_suppress_input == 0,
+                g_role_suppress_paint == 0 && g_role_suppress_input == 0 &&
+                g_role_suppress_subtree == 0,
             "restoring the contender returns to conflict and restores base facets");
         PluginHost_SetEnabled(present_host, present_b, false);
         PluginHost_DrawCanvas(present_host, 100, 100);
         CHECK(
             PluginHost_UiPresentationCount(present_host) == 1 && g_present_draws == 4 &&
-                g_role_suppress_paint == 1 && g_role_suppress_input == 1,
+                g_role_suppress_paint == 1 && g_role_suppress_input == 1 &&
+                g_role_suppress_subtree == 1,
             "tearing the contender down restores the sole winner exactly once");
         PluginHost_SetEnabled(present_host, present_a, false);
         draw_items = g_engine.draw_items;
@@ -4232,7 +4567,8 @@ main(void)
         CHECK(
             PluginHost_UiPresentationCount(present_host) == 0 &&
                 g_engine.draw_items == draw_items && g_hit_region_calls == hit_calls &&
-                g_role_suppress_paint == 0 && g_role_suppress_input == 0,
+                g_role_suppress_paint == 0 && g_role_suppress_input == 0 &&
+                g_role_suppress_subtree == 0,
             "winner teardown removes retained visuals/actions and restores base facets");
         PluginHost_Free(present_host);
         g_role_name = NULL;

@@ -26673,23 +26673,18 @@ App_WorldDrainEntityRemovedFor(
         const struct World_Event* ev = World_EventsPeek(world, i);
         if( ev->kind == WorldEventKind_EntityRemoved && ev->element_id >= 0 )
         {
-            /*
-             * Ahead of the element being freed, so a plugin's last look at the
-             * npc is a whole one.
-             *
-             * The pool entry may already be gone by the time this drain runs
-             * -- the event exists to clean up the RENDER side after the world
-             * side has let go. When it is, the snapshot carries the element id
-             * and nothing else, which is still enough for a plugin to drop
-             * per-element state; nothing is invented to fill the gap.
-             */
+            /* The world releases its pool slot when it queues the removal, but
+             * preserves an immutable NPC copy on that event. Prefer it over a
+             * live lookup: the slot may be absent or may already belong to a
+             * different NPC by the time this render-side drain runs. */
             if( app->plugins )
             {
-                struct WorldEntity_NPC* going =
-                    World_NpcGetByElementId(world, ev->element_id, NULL);
+                struct WorldEntity_NPC const* going = ev->removed_npc;
                 struct ToriRS_NpcSnapshot snap;
+                if( !going )
+                    going = World_NpcGetByElementId(world, ev->element_id, NULL);
                 if( going )
-                    app_plugin_fill_npc(app, going, &snap);
+                    app_plugin_fill_npc_for_world(app, world, going, &snap);
                 else
                 {
                     memset(&snap, 0, sizeof(snap));
@@ -28577,7 +28572,7 @@ app_minimenu_ui_pick_live(
         if( UITree_NodeOrAncestorDisplayHiddenEx(
                 app->tree,
                 pick->node_index,
-                pick->allow_own_replacement_hidden,
+                pick->allow_replacement_hidden,
                 pick->allow_frame_hidden) )
             return 0;
         idx = pick->node_index;
@@ -28596,7 +28591,8 @@ app_minimenu_ui_pick_live(
      * pruning independent descendants. An already-open native menu therefore
      * has to revalidate this exact node against the same facet fence used by
      * hit collection; otherwise it can fire after the provider took over. */
-    if( app->tree->components[idx].replacement_input_hidden )
+    if( app->tree->components[idx].replacement_input_hidden &&
+        !pick->allow_replacement_hidden )
         return 0;
     if( pick->kind == UI_MINIMENU_PICK_INV_SLOT &&
         app->tree->components[idx].type == UIELEM_RS_INV )

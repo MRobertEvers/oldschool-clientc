@@ -67,16 +67,16 @@
  * ## Clicking one
  *
  * An orb is a button in the reference and it is a button here. Each canonical
- * named node retains its hit rectangle and verb; on_ui_node_action resolves
- * the lane's configured component and cache.invoke presses it.
+ * named node retains its hit rectangle and verb; on_ui_node_action delegates
+ * through ui.invoke_base, which resolves the lane's live semantic action.
  *
  * Pressing the real button rather than writing the var is what makes this
  * work at all: the run toggle and the special attack are the SERVER's, and a
  * client that flipped the varp locally would show a state the server never
  * agreed to and lose it on the next sync. Which component that button is
- * cannot be known from here -- it is a different one in every gameframe and no
- * profile names it -- so it comes from config, and an orb told nothing offers
- * no verb rather than pressing something at random.
+ * cannot be known from here -- it differs between revisions and may sit below
+ * chrome a custom frame replaced. The RevConfig profile names that action
+ * role. Raw component config remains only as a compatibility escape hatch.
  */
 
 /* The plate, and where interface 160 puts each piece inside it. */
@@ -200,6 +200,10 @@ struct OrbsState
     int digit_max_ascent;
     int digit_max_descent;
     struct ToriRS_UiNodeRef node[ORB_COUNT];
+    struct ToriRS_Rect map_bounds;
+    int map_bounds_valid;
+    int parent_is_housing;
+    uint32_t action_mask;
 };
 
 static bool
@@ -281,29 +285,22 @@ orbs_parse_button(
 }
 
 /**
- * The button an orb presses: the plugin's config first, the boot profile's
- * `[iface:<name>]` second.
+ * Compatibility lookup for profiles that predate semantic action roles.
  *
- * Same three-step shape as orbs_varp, and for the same reason -- which
- * component a button is cannot be known from here. The profile is where a lane
- * states it (the LostCity run toggle is `controls:com_5`, id 153; the rev-239
- * one is interface 160's `runbutton`), and the config key is the escape hatch
- * for a server that has moved one and has no profile entry to say so.
+ * The profile's old `[iface:<name>]` entry resolves to a component id. New
+ * profiles bind a `[role:<name>]` and are reached through ui.invoke_base; this
+ * path remains so an older/private profile keeps working during migration.
  *
  * @return 1 when a button was named, and then `out_*` describe it.
  */
 static int
-orbs_button(
+orbs_compat_button(
     struct ToriRS_ApiV2* api,
-    char const* key,
     char const* name,
     int* out_component,
     int* out_op)
 {
     int declared;
-
-    if( orbs_parse_button(orbs_cfg_string(api, key), out_component, out_op) )
-        return 1;
 
     if( !api->cache.named_id(api, "iface", name, &declared) )
         return 0;
@@ -731,9 +728,8 @@ orbs_node_index(struct OrbsState const* state, struct ToriRS_UiNodeRef node)
 }
 
 static int
-orbs_bounds(
+orbs_map_bounds(
     struct ToriRS_ApiV2* api,
-    int orb,
     struct ToriRS_Rect* out)
 {
     struct ToriRS_UiNodeInfo map;
@@ -744,34 +740,69 @@ orbs_bounds(
     if( ref.value == 0 || !api->ui.info(api, ref, &map) || !map.visible ||
         map.bounds.width <= 0 || map.bounds.height <= 0 )
         return 0;
-    out->x = map.bounds.x + orbs_cfg_int(api, "offset_x") - ORB_W + ORB_SLOT[orb].dx;
-    out->y = map.bounds.y + map.bounds.height / 4 + orbs_cfg_int(api, "offset_y") -
-             ORB_SLOT[0].dy + ORB_SLOT[orb].dy;
-    out->width = ORB_W;
-    out->height = ORB_H;
+    *out = map.bounds;
     return 1;
 }
 
+static void
+orbs_bounds(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_Rect const* map,
+    int orb,
+    struct ToriRS_Rect* out)
+{
+    assert(map);
+    assert(out);
+    out->x = map->x + orbs_cfg_int(api, "offset_x") - ORB_W + ORB_SLOT[orb].dx;
+    out->y = map->y + map->height / 4 + orbs_cfg_int(api, "offset_y") -
+             ORB_SLOT[0].dy + ORB_SLOT[orb].dy;
+    out->width = ORB_W;
+    out->height = ORB_H;
+}
+
+static char const*
+orbs_base_action(struct ToriRS_ApiV2* api, int orb)
+{
+    if( orb != ORB_RUN )
+        return "activate";
+    {
+        int const run_varp =
+            orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
+        return run_varp >= 0 && api->cache.varp(api, run_varp) != 0
+                   ? "disable"
+                   : "enable";
+    }
+}
+
 static int
-orbs_has_action(struct ToriRS_ApiV2* api, int orb)
+orbs_has_action(
+    struct ToriRS_ApiV2* api,
+    struct OrbsState const* state,
+    int orb)
 {
     int component;
     int operation;
+    char const* key = ORB_PART[orb].button_key;
+    char const* name = ORB_PART[orb].button_name;
 
     if( orb == ORB_RUN )
     {
         int const run_varp =
             orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
-        if( run_varp >= 0 && api->cache.varp(api, run_varp) != 0 &&
-            orbs_button(api, "run_button_off", "orb_run_off", &component, &operation) )
-            return 1;
+        if( run_varp >= 0 && api->cache.varp(api, run_varp) != 0 )
+        {
+            key = "run_button_off";
+            name = "orb_run_off";
+        }
     }
-    return orbs_button(
-        api,
-        ORB_PART[orb].button_key,
-        ORB_PART[orb].button_name,
-        &component,
-        &operation);
+    if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
+        return 1;
+    if( api->minor_version >= 3 && api->ui.base_action_available &&
+        state->node[orb].value != 0 &&
+        api->ui.base_action_available(
+            api, state->node[orb], orbs_base_action(api, orb)) )
+        return 1;
+    return orbs_compat_button(api, name, &component, &operation);
 }
 
 /* The housing is the correct paint boundary when a frame publishes one: its
@@ -799,6 +830,13 @@ static void
 orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
 {
     char const* const parent = orbs_parent(api);
+    struct ToriRS_Rect map = { 0 };
+    int const have_map = orbs_map_bounds(api, &map);
+    uint32_t action_mask = 0;
+
+    state->map_bounds_valid = have_map;
+    state->map_bounds = map;
+    state->parent_is_housing = strcmp(parent, "frame.minimap.housing") == 0;
 
     orbs_load_images(api, state);
     (void)orbs_load_digits(api, state);
@@ -808,7 +846,9 @@ orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
         int have_bounds;
 
         memset(&value, 0, sizeof(value));
-        have_bounds = orbs_bounds(api, i, &value.bounds);
+        have_bounds = have_map;
+        if( have_bounds )
+            orbs_bounds(api, &map, i, &value.bounds);
         value.struct_size = sizeof(value);
         value.parent = parent;
         value.anchor = TORIRS_ANCHOR_TOP_LEFT;
@@ -823,14 +863,16 @@ orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
             (1u << TORIRS_UI_VISUAL_IDLE) | (1u << TORIRS_UI_VISUAL_HOVER);
         value.state_images[TORIRS_UI_VISUAL_IDLE] = state->image[ORB_IMG_FRAME];
         value.state_images[TORIRS_UI_VISUAL_HOVER] = state->image[ORB_IMG_FRAME_OVER];
-        if( orbs_has_action(api, i) )
+        if( orbs_has_action(api, state, i) )
         {
+            action_mask |= 1u << i;
             value.action_count = 1;
             value.actions[0] = ORB_PART[i].action;
         }
         if( state->node[i].value != 0 )
             (void)api->ui.update(api, state->node[i], TORIRS_UI_FACET_ALL, &value);
     }
+    state->action_mask = action_mask;
 }
 
 static void
@@ -907,7 +949,7 @@ orbs_draw_node(
         {
             int energy = api->cache.varp(api, spec_varp);
             int const armed = api->cache.varp(api, spec_varp + 1) > 0;
-            int const inactive = !orbs_has_action(api, ORB_SPEC);
+            int const inactive = !orbs_has_action(api, state, ORB_SPEC);
 
             if( energy < 0 )
                 energy = 0;
@@ -950,12 +992,21 @@ orbs_action(
     {
         int const run_varp =
             orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
-        if( run_varp >= 0 && api->cache.varp(api, run_varp) != 0 &&
-            orbs_button(
-                api, "run_button_off", "orb_run_off", &component, &operation) )
-            goto invoke;
+        if( run_varp >= 0 && api->cache.varp(api, run_varp) != 0 )
+        {
+            key = "run_button_off";
+            name = "orb_run_off";
+        }
     }
-    if( !orbs_button(api, key, name, &component, &operation) )
+    /* An explicit raw override wins. Otherwise delegate to the lane action by
+     * semantic name; this remains valid through CS2 rebuilds and custom frame
+     * replacement because no component id crosses the plugin boundary. */
+    if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
+        goto invoke;
+    if( api->minor_version >= 3 && api->ui.invoke_base &&
+        api->ui.invoke_base(api, node, orbs_base_action(api, orb)) )
+        return TORIRS_CALLBACK_CONSUME;
+    if( !orbs_compat_button(api, name, &component, &operation) )
         return TORIRS_CALLBACK_CONSUME;
 
 invoke:
@@ -1028,6 +1079,46 @@ orbs_placement(
     orbs_update(api, plugin_state);
 }
 
+/*
+ * The native frame can appear after plugins start without changing a placement
+ * area: on_start then sees no frame.minimap and publishes hidden placeholders.
+ * Re-read the one O(1) semantic node each frame, but restate the four orbs only
+ * when its availability/box (or the optional housing boundary) actually
+ * changes. Action roles are checked too: interface 160 can mount after the
+ * minimap without moving it, and a CS2 can hide/reveal the special-attack
+ * button in place as equipment changes. Once settled these are memoised role
+ * lookups and zero mutations.
+ */
+static void
+orbs_frame(
+    struct ToriRS_ApiV2* api,
+    void* plugin_state,
+    struct ToriRS_FrameEvent const* event)
+{
+    struct OrbsState* state = plugin_state;
+    struct ToriRS_Rect map = { 0 };
+    char const* parent;
+    int have_map;
+    int parent_is_housing;
+    uint32_t action_mask = 0;
+
+    (void)event;
+    have_map = orbs_map_bounds(api, &map);
+    parent = orbs_parent(api);
+    parent_is_housing = strcmp(parent, "frame.minimap.housing") == 0;
+    for( int i = 0; i < ORB_COUNT; i++ )
+        if( orbs_has_action(api, state, i) )
+            action_mask |= 1u << i;
+    if( have_map != state->map_bounds_valid ||
+        (have_map &&
+         (map.x != state->map_bounds.x || map.y != state->map_bounds.y ||
+          map.width != state->map_bounds.width ||
+          map.height != state->map_bounds.height)) ||
+        parent_is_housing != state->parent_is_housing ||
+        action_mask != state->action_mask )
+        orbs_update(api, state);
+}
+
 /* Per-world overrides remain ordinary V2 config schema entries. */
 static struct ToriRS_ConfigItem const ORBS_CONFIG[] = {
     { "show_hp",        TORIRS_CONFIG_BOOL,   "Hitpoints orb",                  "1",    0,    0,      NULL, 0 },
@@ -1044,13 +1135,11 @@ static struct ToriRS_ConfigItem const ORBS_CONFIG[] = {
      0                                                                                                            },
     { "spec_max",       TORIRS_CONFIG_INT,    "Special attack bar maximum",     "1000", 1,    100000, NULL, 0 },
     /*
-     * The buttons each orb presses, `<interface>:<component>[:<op>]`, empty
-     * for none.
+     * Optional raw button overrides, `<interface>:<component>[:<op>]`.
      *
-     * Empty by DEFAULT, on every lane, and that is the safe answer rather than
-     * a missing one: a wrong id here is not an orb that does nothing, it is an
-     * IF_BUTTON sent to a server about a component the player never touched.
-     * Filling these in is a per-world job, which is what a config key is.
+     * Empty by default because normal lanes use semantic base actions. These
+     * remain an explicit private-lane escape hatch; a wrong id is not an orb
+     * that does nothing, it is an IF_BUTTON about a component never touched.
      */
     { "hp_button",      TORIRS_CONFIG_STRING, "Hitpoints orb button",           "",     0,    0,      NULL, 0 },
     { "prayer_button",  TORIRS_CONFIG_STRING, "Prayer orb button",              "",     0,    0,      NULL, 0 },
@@ -1085,6 +1174,7 @@ struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MINIMAP_ORBS = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = orbs_start,
         .on_stop = orbs_stop,
+        .on_frame_start = orbs_frame,
         .on_config_changed = orbs_changed,
         .on_asset = orbs_asset,
         .on_placement_changed = orbs_placement,

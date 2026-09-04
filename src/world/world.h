@@ -46,6 +46,15 @@ struct World_Event
 {
     enum WorldEventKind kind;
     int element_id;
+    /**
+     * Immutable actor state captured before World_NpcDespawn releases its
+     * pool slot. EntityRemoved is drained later, after that slot may already
+     * have been reused, so an element-id lookup cannot reconstruct a despawn
+     * event. NULL for every non-NPC removal.
+     *
+     * Owned by the event queue and valid until World_EventsClear/World_Free.
+     */
+    struct WorldEntity_NPC* removed_npc;
 };
 
 struct World_SceneryPick

@@ -16,9 +16,15 @@ static int next_image = 1;
 static int released;
 static int invoked_component = -1;
 static int invoked_operation = -1;
+static int base_action_calls;
+static uint32_t base_action_node;
+static char base_action_name[24];
+static uint32_t base_available_mask;
+static int run_mode;
 static int images_drawn;
 static int clipped_images;
 static int text_drawn;
+static int ui_updates;
 
 static bool cfg_bool(struct ToriRS_ApiV2* api, char const* key, bool* out)
 {
@@ -98,7 +104,31 @@ static enum ToriRS_Result ui_update(
     if( ref.value < 2 || ref.value > 5 || facets != TORIRS_UI_FACET_ALL )
         return TORIRS_RESULT_INVALID;
     nodes[ref.value] = *value;
+    ui_updates++;
     return TORIRS_RESULT_OK;
+}
+
+static bool ui_base_action_available(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_UiNodeRef ref,
+    char const* action)
+{
+    (void)api;
+    return ref.value >= 2 && ref.value <= 5 && action && action[0] &&
+           (base_available_mask & (1u << (ref.value - 2u))) != 0;
+}
+
+static bool ui_invoke_base(
+    struct ToriRS_ApiV2* api,
+    struct ToriRS_UiNodeRef ref,
+    char const* action)
+{
+    if( !ui_base_action_available(api, ref, action) )
+        return false;
+    base_action_calls++;
+    base_action_node = ref.value;
+    snprintf(base_action_name, sizeof(base_action_name), "%s", action ? action : "");
+    return true;
 }
 
 static enum ToriRS_AssetState asset_request(struct ToriRS_ApiV2* api, char const* name)
@@ -128,15 +158,15 @@ static bool named_id(
     struct ToriRS_ApiV2* api, char const* kind, char const* name, int* out)
 {
     (void)api;
-    if( strcmp(kind, "iface") == 0 ) *out = 100 + (int)strlen(name);
-    else if( strcmp(kind, "varp") == 0 )
+    if( strcmp(kind, "iface") == 0 ) return false;
+    if( strcmp(kind, "varp") == 0 )
         *out = strcmp(name, "run_mode") == 0 ? 173 : 300;
     else return false;
     return true;
 }
 
 static int cache_varp(struct ToriRS_ApiV2* api, int id)
-{ (void)api; return id == 300 ? 500 : 0; }
+{ (void)api; return id == 300 ? 500 : id == 173 ? run_mode : 0; }
 
 static bool cache_invoke(struct ToriRS_ApiV2* api, int component, int operation)
 {
@@ -203,6 +233,7 @@ int main(void)
     memset(&api, 0, sizeof(api));
     memset(&game, 0, sizeof(game));
     memset(&draw, 0, sizeof(draw));
+    api.minor_version = TORIRS_PLUGIN_API_V2_MINOR;
     api.core.notify = notify;
     api.core.log = log_line;
     api.config.get_bool = cfg_bool;
@@ -211,6 +242,8 @@ int main(void)
     api.ui.ref = ui_ref;
     api.ui.info = ui_info;
     api.ui.update = ui_update;
+    api.ui.base_action_available = ui_base_action_available;
+    api.ui.invoke_base = ui_invoke_base;
     api.assets.request = asset_request;
     api.assets.bytes = asset_bytes;
     api.assets.image = asset_image;
@@ -230,6 +263,7 @@ int main(void)
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.state_size > 0);
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_draw != NULL);
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_action != NULL);
+    CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start != NULL);
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.ui_contributions != NULL);
     for( int i = 0; i < 4; i++ )
         CHECK(strcmp(
@@ -237,12 +271,43 @@ int main(void)
                   "frame.minimap.housing") == 0);
     state = calloc(1, TORIRS_PLUGIN_MINIMAP_ORBS.state_size);
     CHECK(state != NULL);
+    /* Plugins start before the native frame on a real OSRS boot. The retained
+     * placeholders must recover when frame.minimap first appears even if no
+     * placement-area revision was published for that transition. */
+    map_rect.width = 0;
+    base_available_mask = (1u << 0) | (1u << 2);
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_start(&api, state);
     CHECK(nodes[2].parent && strcmp(nodes[2].parent, "frame.minimap.housing") == 0);
+    CHECK((nodes[2].flags & TORIRS_UI_NODE_VISIBLE) == 0);
+    map_rect = (struct ToriRS_Rect){ 600, 20, 146, 151 };
+    TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
     CHECK(nodes[2].bounds.x == map_rect.x + 6 - 57);
     CHECK(nodes[2].bounds.width == 57 && nodes[2].bounds.height == 34);
+    CHECK((nodes[2].flags & TORIRS_UI_NODE_VISIBLE) != 0);
+    {
+        int const settled_updates = ui_updates;
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+        CHECK(ui_updates == settled_updates);
+    }
     CHECK(nodes[2].state_images[TORIRS_UI_VISUAL_IDLE].value != 0);
     CHECK(nodes[2].action_count == 1 && strcmp(nodes[2].actions[0], "Cure") == 0);
+    CHECK(nodes[3].action_count == 0 && nodes[5].action_count == 0);
+
+    /* Interface 160's actionable children can mount after the minimap itself,
+     * without any placement or geometry change. Discover that transition
+     * once, then settle without update churn. */
+    {
+        int const before = ui_updates;
+        base_available_mask |= (1u << 1) | (1u << 3);
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+        CHECK(ui_updates == before + 4);
+        CHECK(nodes[3].action_count == 1 &&
+              strcmp(nodes[3].actions[0], "Quick-prayers") == 0);
+        CHECK(nodes[5].action_count == 1 &&
+              strcmp(nodes[5].actions[0], "Use Special Attack") == 0);
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+        CHECK(ui_updates == before + 4);
+    }
 
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_draw(
         &api, state, (struct ToriRS_UiNodeRef){ 2 }, &draw);
@@ -252,7 +317,41 @@ int main(void)
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_action(
               &api, state, (struct ToriRS_UiNodeRef){ 2 }, "Cure") ==
           TORIRS_CALLBACK_CONSUME);
-    CHECK(invoked_component >= 100 && invoked_operation == 0);
+    CHECK(base_action_calls == 1 && base_action_node == 2 &&
+          strcmp(base_action_name, "activate") == 0);
+    CHECK(invoked_component == -1 && invoked_operation == -1);
+    CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_action(
+              &api, state, (struct ToriRS_UiNodeRef){ 4 }, "Toggle Run") ==
+          TORIRS_CALLBACK_CONSUME);
+    CHECK(base_action_calls == 2 && base_action_node == 4 &&
+          strcmp(base_action_name, "enable") == 0);
+    run_mode = 1;
+    CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_action(
+              &api, state, (struct ToriRS_UiNodeRef){ 4 }, "Toggle Run") ==
+          TORIRS_CALLBACK_CONSUME);
+    CHECK(base_action_calls == 3 && strcmp(base_action_name, "disable") == 0);
+
+    CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_action(
+              &api, state, (struct ToriRS_UiNodeRef){ 3 }, "Quick-prayers") ==
+          TORIRS_CALLBACK_CONSUME);
+    CHECK(base_action_calls == 4 && base_action_node == 3 &&
+          strcmp(base_action_name, "activate") == 0);
+    CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_action(
+              &api, state, (struct ToriRS_UiNodeRef){ 5 }, "Use Special Attack") ==
+          TORIRS_CALLBACK_CONSUME);
+    CHECK(base_action_calls == 5 && base_action_node == 5 &&
+          strcmp(base_action_name, "activate") == 0);
+
+    /* CS2 keeps specbutton allocated but hides and clears it with no special
+     * weapon. Losing that live base action removes the plugin verb without a
+     * minimap move or placement notification. */
+    {
+        int const before = ui_updates;
+        base_available_mask &= ~(1u << 3);
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+        CHECK(ui_updates == before + 4);
+        CHECK(nodes[5].action_count == 0);
+    }
 
     map_rect.x = 500;
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_placement_changed(&api, state, 2);

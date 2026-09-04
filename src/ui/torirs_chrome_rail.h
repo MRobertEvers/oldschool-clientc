@@ -27,6 +27,7 @@ struct ToriRSChromeRailEntry
     /** enum ToriRSChromeRailEntryKind. */
     int kind;
     int plugin_index;
+    /** Copied for protocol compatibility; shell allocation is fixed-width. */
     int preferred_width;
     int attention;
     char title[TORIRS_CHROME_RAIL_TITLE_MAX];

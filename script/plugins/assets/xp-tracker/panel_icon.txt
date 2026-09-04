@@ -1,16 +1,13 @@
 panel_icon.png -- where it came from.
 
-The XP Tracker's rail icon is the one RuneLite's own XpTrackerPlugin builds its
-navigation button from, taken unmodified from
+The XP Tracker's rail icon is the OldSchool popout's own graphic, not
+RuneLite's similar `skill_icons/overall.png` resource.
 
-    runelite-client/src/main/resources/skill_icons/overall.png
+`torirs_popout_icons` (clientscript 5356) looks up each popout slot in
+`enum_4067`, then assigns `struct_param(slot, param_1412)` as its graphic. Slot
+1 is XP Tracker (`struct_3742`), whose `param_1412` is 3579: `popout_icons,2`.
 
-(23x22 RGBA, 409 bytes) -- the "Overall" skill icon, which is what
-`XpTrackerPlugin.startUp` loads. RuneLite is BSD 2-Clause; the copyright is
-theirs and the licence text is reproduced at 3rd/RUNELITE_LICENSE for the
-assets this tree carries from it.
-
-Note that this is a RESOURCE of RuneLite's rather than a cache sprite: the
-client's own stats-tab skill icons live at sprite ids 197..222 (see
-script/plugins/assets/xp-drop-orbs/skills.png), and there is no "overall" among
-them -- the stats tab draws that panel's total as text.
+The cache sprite has a 30x30 logical canvas and 23x22 painted bounds at (3,4).
+SOURCES.sh extracts that complete logical sprite so the cache-authored padding,
+palette, and alpha all survive. `overview_icon.png` is intentionally different:
+the XP tracker's total row names `staticons2,7` (sprite 222) directly.

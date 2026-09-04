@@ -130,7 +130,7 @@ assert.strictEqual(received[0].assets.buttonMiddle, 'skin/ButtonMid.png');
 
 const entries = [{ kind: 1, p: -2, pw: 320, title: 'Manage Plugins', icon: '', badge: '' }];
 for (let i = 0; i < 32; i++) entries.push({
-  kind: 2, p: i, pw: i === 31 ? 400 : 320,
+  kind: 2, p: i, pw: i === 31 ? 400 : (i === 2 ? 480 : 320),
   title: `Plugin ${i}`, icon: `p${i}.png`, badge: i === 31 ? '9' : '',
   attention: i === 31
 });
@@ -147,6 +147,28 @@ assert.strictEqual(message.entries[32].iconAsset, 'p31.png');
 assert.strictEqual(host.layoutMode, 'exclusive', 'compact web allocation replaces the game');
 assert.strictEqual(built.game.hidden, true);
 assert.strictEqual(built.mount.children[0], frame, 'rail updates never replace the iframe');
+
+/* Once there is room for split mode, metadata from differently sized plugin
+ * pages cannot resize either the chrome mount or the game allocation. */
+built.app.clientWidth = built.layout.clientWidth = global_.innerWidth = 1200;
+resize[0]();
+assert.strictEqual(host.layoutMode, 'split');
+assert.strictEqual(built.mount.style.width, '362px');
+assert.strictEqual(
+  built.document.documentElement.style['--torirs-dock-width'], '362px');
+global_.torirsChromeRailSync({
+  r: 4, g: 7, pg: 20, a: 2, l: 2, s: 2, x: 1, entries
+});
+assert.strictEqual(built.mount.style.width, '362px',
+  'switching 400px to 480px metadata keeps the fixed 320px pane');
+assert.strictEqual(
+  built.document.documentElement.style['--torirs-dock-width'], '362px',
+  'tab replacement does not change the game reservation');
+global_.torirsChromeRailSync({
+  r: 4, g: 7, pg: 20, a: 31, l: 31, s: 31, x: 1, entries
+});
+built.app.clientWidth = built.layout.clientWidth = global_.innerWidth = 900;
+resize[0]();
 
 assert.strictEqual(global_.torirsChromeOpen(), true);
 assert.strictEqual(typeof global_.torirsChromeApplyBatch, 'function',

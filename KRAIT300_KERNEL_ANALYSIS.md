@@ -1155,7 +1155,7 @@ worth their place, and the one measurement each needs first.
 | `bucket_paint_world` | 1.89 | **18 % of the draw's mispredicts**, 10 % of its refills | address-bucket it as §M.3 did the sort: which loop mispredicts? (a per-element visibility/`switch` is the usual answer) |
 | `World_CycleRegisterPainterDynamics` + `emit_walk_node` | 1.46 | 17 % of the draw's refills between them | address-bucket with `-g` (step 0) — the plan's 2e (write indices straight into the runs) already targets `emit_walk_node` |
 | `__memcpy_base` | 0.37 | **15 % of the draw's refills** — the single largest refill source | per-site byte counters behind the existing 986-copies/frame count (no call graphs on this phone, step 0) |
-| `__findenv` | 0.035 | 3.5 % of the draw's mispredicts | **done** — see below |
+| `__findenv` | 0.035 | 3.5 % of the draw's mispredicts | **done: −0.09 ms/frame, gone from the profile** — see below |
 
 **`__findenv`, done (kr18/kr19) — and the method matters more than the fix.** `grep getenv`
 was the wrong tool: the frame path has **283 live call sites**, and which of them runs per
@@ -1166,24 +1166,44 @@ weak `torirs_shim_dump` hook the gles2 debug line already calls every 300 frames
 with `make ... BUILD_DIAGNOSTIC_CFLAGS='-fomit-frame-pointer -include /tmp/getenv_shim.h'`;
 the tables are weak definitions so the whole shim is one file and needs no makefile change.
 
-It found **22 263 calls per 300 frames over 283 sites — and 12 818 of them, 58 %, at one
-site**: the `TORIRS_OVERLAY_SCRIPT_DEBUG` gate inside `app_entity_overlay_layout`'s loop,
-asked once per live overlay, 43 times a frame. Cached in an `app_*_armed()` static like the
-rest of the tree: **74 → 31 getenv calls a frame**, and the draw thread's `__findenv` +
-`getenv` went **0.59 % → 0.38 % of its cycles** (≈ −0.03 ms/frame; each lookup is ~1.4k
-cycles, a linear scan of this client's environment).
+It found **22 263 calls per 300 frames over 283 sites — 58 % of them at one site**: the
+`TORIRS_OVERLAY_SCRIPT_DEBUG` gate inside `app_entity_overlay_layout`'s loop, asked once
+per live overlay, 43 times a frame. Caching that one took the frame path to 31 calls and
+the draw thread's `__findenv` + `getenv` from 0.59 % to 0.38 % of its cycles. The shim's
+full dump then showed the rest was not a tail at all but **33 sites, 32 calls a frame,
+nearly every one asked exactly once per frame** — the `app_debug_*` passes' gates, the
+painter's knobs, five in `main.c`, and `TORIRS_NET_DEBUG`, which alone has ~35 call sites
+in `app.c`.
 
-What is left is 31 calls a frame: twelve sites at exactly one per frame — the `app_debug_*`
-passes' own gates plus four in `main.c` — and a tail of ~19 spread thin. Caching the twelve
-is the same one-line change twelve times for ~0.014 ms, which is under every threshold
-here; left alone deliberately.
+**So all of them were removed, through one mechanism (`src/torirs_env.h`).** Each knob is
+declared once with `TORIRS_ENV_KNOB(fn, "NAME")`, expanding to a `static inline` accessor
+that reads the environment on first call and returns a cached pointer after. Because the
+accessor returns `char const*`, it is a drop-in replacement at every site whether the
+value or only its presence is wanted: **99 sites across 14 files**, mechanically. Reading
+once is safe by construction rather than by luck — nothing in the tree calls `setenv` on
+any of these names, Android's `env.txt` is applied before `main()`, and every other host
+sets them in the launching shell. A knob a running client could change would not belong in
+that file.
 
-*Two cautions this turned up.* `make` does not track `CFLAGS` changes, so dropping the
+Measured, clean build, defaults (kr20): **22 263 → 0-16 calls per 300 frames** (≈ 0.03 a
+frame, from event-driven paths), and `__findenv` and `getenv` are **absent from the draw
+thread's profile** — 0.59 % → 0.00 % of its cycles, so **≈ −0.09 ms/frame off the critical
+path**, three times the 0.035 ms this row originally estimated (that estimate counted only
+`__findenv`, not `getenv` itself). The 3.5 % of the draw's mispredicts goes with it: each
+lookup was a `strncmp` walk of the environment.
+
+The header also takes `-DTORIRS_NO_ENV_GATES`, which compiles every knob to "unset" so the
+gated blocks fold away entirely — branch, log call, and the argument setup feeding it. It
+is not the default, and should not become one: §10's rule is that one binary contains every
+arm, and a knob compiled out cannot be an arm. It exists for a ship build that will never
+have one set. Both shapes build and the tests pass.
+
+*Three cautions this turned up.* `make` does not track `CFLAGS` changes, so dropping the
 `-include` and rebuilding leaves shimmed objects linked in — the instrumented wrapper was
-still in the "clean" binary until the build directory was removed. And a `getenv` count is
-not a cost: the same shim shows the twelve one-per-frame sites are 39 % of the remaining
-calls but nearly none of the remaining time, because cost scales with the scan, not the
-call.
+still in the "clean" binary until the build directory was removed; check for the symbol,
+do not assume. A `getenv` count is not a cost, either: cost scales with the scan, so the
+57 % of calls removed first bought only 36 % of the time. And `grep` was the wrong
+instrument throughout — it finds 283 sites and ranks none of them.
 
 ### Step 4 — Projection (1.68 ms/frame both threads)
 

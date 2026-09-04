@@ -561,7 +561,7 @@ static int fake_lane(void* u, struct ToriRS_LaneInfo* o)
     o->game = g_lane_game;
     o->epoch = g_lane_game == TORIRS_GAME_OLDSCHOOL ? TORIRS_CACHE_EPOCH_DAT2
                                                            : TORIRS_CACHE_EPOCH_DAT1;
-    o->revision = g_lane_game == TORIRS_GAME_OLDSCHOOL ? 239 : 254;
+    o->revision = g_lane_game == TORIRS_GAME_OLDSCHOOL ? 239 : 289;
     return g_lane_game != TORIRS_GAME_UNKNOWN;
 }
 static int fake_project(void* u, int a, int b, int c, int* x, int* y) { (void)u; (void)a; (void)b; (void)c; (void)x; (void)y; return 0; }
@@ -637,8 +637,8 @@ fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h)
 }
 static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
-static int fake_role_suppress_facets(void* u, char const* r, int paint, int input)
-{ (void)u; (void)r; (void)paint; (void)input; return 1; }
+static int fake_role_suppress_facets(void* u, char const* r, int paint, int input, int subtree)
+{ (void)u; (void)r; (void)paint; (void)input; (void)subtree; return 1; }
 static int fake_ui_boundary(void* u, char const* r, int place)
 { (void)place; (void)u; return r ? 0 : 1; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
@@ -916,6 +916,7 @@ main(void)
      * pointer is the only channel it has -- so the host is built twice. */
     g_frame.missing_tab = -1;
     g_frame.ungiven_tab = -1;
+    g_lane_game = TORIRS_GAME_RS2; /* rs289lc */
     snprintf(g_frame_preference, sizeof(g_frame_preference), "%s", "auto");
     g_frame_preference_present = 1;
     g_frame_preference_migration = 1;
@@ -925,6 +926,9 @@ main(void)
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
 
+    CHECK(
+        TORIRS_PLUGIN_GAMEFRAME.callbacks.on_placement_changed != NULL,
+        "the resizable gameframe rebuilds when live lane chrome moves");
     g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
     CHECK(

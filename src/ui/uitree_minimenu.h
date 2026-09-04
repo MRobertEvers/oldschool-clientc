@@ -89,9 +89,10 @@ struct UIMinimenuPick
     int has_node_identity;
     int32_t node_index;
     uint32_t node_incarnation;
-    /** Synthetic engine click: the exact target's replacement tombstone is
-     * addressable, but native hiding and hidden ancestors still invalidate it. */
-    int allow_own_replacement_hidden;
+    /** Synthetic engine click delegated by a semantic replacement: its native
+     * source remains addressable below replacement tombstones. Cache/script
+     * hiding and other native visibility fences still invalidate it. */
+    int allow_replacement_hidden;
     /** Synthetic engine click into a subtree a gameframe PLUGIN is not
      * showing -- a sidebar panel behind a shut drawer, a stone the plugin
      * replaced. The press names a component rather than a screen position, so

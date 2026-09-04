@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #define TORIRS_PLUGIN_API_V2_MAJOR 2u
-#define TORIRS_PLUGIN_API_V2_MINOR 2u
+#define TORIRS_PLUGIN_API_V2_MINOR 3u
 
 #define TORIRS_UI_NAME_MAX 128
 #define TORIRS_UI_ACTION_MAX 48
@@ -874,7 +874,23 @@ struct ToriRS_UiApiV2
         struct ToriRS_ApiV2* api,
         struct ToriRS_UiNodeRef node,
         bool enabled);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 3])(void);
+    /**
+     * Since API 2.3. Query and invoke the lane-owned action beneath the
+     * composed node. These deliberately bypass a plugin's ACTIONS provider,
+     * so a replacement can delegate to the cache control it stands for
+     * without recursively invoking itself. `action` is semantic (for example
+     * `activate`, or `enable`/`disable` for a two-state control); RevConfig
+     * owns the live component and numeric operation on each lane.
+     */
+    bool (*base_action_available)(
+        struct ToriRS_ApiV2* api,
+        struct ToriRS_UiNodeRef node,
+        char const* action);
+    bool (*invoke_base)(
+        struct ToriRS_ApiV2* api,
+        struct ToriRS_UiNodeRef node,
+        char const* action);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
 };
 
 struct ToriRS_PlacementApiV2

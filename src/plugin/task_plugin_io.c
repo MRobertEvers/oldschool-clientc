@@ -249,7 +249,16 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
              * for a script that has never been run and so has no saved state
              * at all. */
             if( index >= 0 && !task->entries[task->at].enabled )
-                PluginHost_SetEnabled(task->host, index, false);
+                /* Boot is still assembling the complete registry and neither
+                 * preference store has been published to callbacks yet. Apply
+                 * the author switch as decoded state; the one explicit Start
+                 * below is the only startup fence. SetEnabled would start the
+                 * whole host immediately and recreate the pre-v2 ordering bug. */
+                PluginHost_ConfigApply(
+                    task->host,
+                    PluginHost_Name(task->host, index),
+                    "enabled",
+                    "0");
         }
         else
         {

@@ -20,9 +20,10 @@
    * at TORIRS_CHROME_M_RAIL_W (42, the gameframe popout strip's own width,
    * frame included), and the dock must reserve exactly that. */
   const RAIL_WIDTH = 42;
-  const PANEL_MIN = 280;
-  const PANEL_MAX = 640;
-  const PANEL_DEFAULT = 360;
+  /* The pane is application chrome, not plugin-owned geometry. Switching a
+   * rail destination replaces content inside this allocation; only expanding
+   * or collapsing the pane may resize the game. */
+  const PANEL_WIDTH = 320;
   const GAME_MIN = 765;
 
   /* Kept literal so web/test/chrome_enum_sync_test.js can compare the shared
@@ -244,7 +245,7 @@
         entries.push({
           kind,
           pluginIndex,
-          preferredWidth: integer(raw.preferredWidth, integer(raw.pw, PANEL_DEFAULT)),
+          preferredWidth: integer(raw.preferredWidth, integer(raw.pw, PANEL_WIDTH)),
           title: boundedText(raw.title || 'Plugin', 63),
           iconAsset: boundedText(raw.iconAsset != null ? raw.iconAsset : raw.icon, 127),
           badge: boundedText(raw.badge, 15),
@@ -638,14 +639,7 @@
     }
 
     preferredWidth() {
-      let width = PANEL_DEFAULT;
-      for (let i = 0; i < this.rail.entries.length; i++) {
-        if (this.rail.entries[i].pluginIndex === this.rail.selectedEntry) {
-          width = this.rail.entries[i].preferredWidth;
-          break;
-        }
-      }
-      return Math.max(PANEL_MIN, Math.min(PANEL_MAX, integer(width, PANEL_DEFAULT)));
+      return PANEL_WIDTH;
     }
 
     availableWidth() {
@@ -668,7 +662,7 @@
       const paneWidth = this.preferredWidth();
       let mode = 'closed';
       if (expanded)
-        mode = this.availableWidth() >= GAME_MIN + RAIL_WIDTH + PANEL_MIN
+        mode = this.availableWidth() >= GAME_MIN + RAIL_WIDTH + PANEL_WIDTH
           ? 'split' : 'exclusive';
       else if (hasRail) mode = 'collapsed';
       this.layoutMode = mode;

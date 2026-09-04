@@ -121,8 +121,12 @@
 
 struct ToriRS_PluginHost;
 
-/** Engine draw_select_canvas mode for a panel-local custom target. The
- *  application prepares that target before PluginHost_PanelDraw. */
+/** Engine draw_select_canvas modes. FRAME is the custom-gameframe layer over
+ * the scene and below native interfaces; this ordering is also the input
+ * priority contract for regions created during those passes. */
+#define TORIRS_PLUGIN_ENGINE_DRAW_WORLD 0
+#define TORIRS_PLUGIN_ENGINE_DRAW_CANVAS 1
+#define TORIRS_PLUGIN_ENGINE_DRAW_FRAME 2
 #define TORIRS_PLUGIN_ENGINE_DRAW_PANEL 3
 
 /* ------------------------------------------------------------------------ */
@@ -297,18 +301,31 @@ struct ToriRS_PluginEngine
     int (*role_visible)(
         void* user,
         char const* role);
+    /** Whether the role's native action is currently live: 1 live, 0 present
+     * but cache/script hidden, -1 unresolved. Unlike ordinary role_visible
+     * this ignores plugin frame/replacement hiding, because a semantic
+     * replacement delegates through that presentation layer, while still
+     * respecting cache/script and screen visibility. Optional: the host falls
+     * back to role_rect for older/focused engine seams. */
+    int (*role_action_available)(
+        void* user,
+        char const* role);
     /** Press it. @see role_click. */
     int (*role_click)(
         void* user,
         char const* role,
         int op);
-    /** Suppress only a live role node's native paint and/or own input. Its
-     * children remain live. Idempotent and re-resolved across tree rebuilds. */
+    /** Suppress a live role node's native facets. Paint/input affect only the
+     * node itself and leave its children live. `subtree` is reserved for a
+     * complete REPLACE_OR_PROVIDE winner: it replaces the semantic object as a
+     * whole, including native children. Idempotent and re-resolved across tree
+     * rebuilds. */
     int (*role_suppress_facets)(
         void* user,
         char const* role,
         int paint,
-        int input);
+        int input,
+        int subtree);
     /** Select or reset the named-UI insertion boundary for the open canvas
      * pass. NULL resets it. `place` is one of PLUGIN_UI_BOUNDARY_*; SELF is
      * the resolved node's own appearance, between BEFORE and AFTER children. */
@@ -965,6 +982,18 @@ PluginHost_UiInfo(
     struct ToriRS_UiNodeInfo* out);
 bool
 PluginHost_UiInvoke(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    char const* action);
+/** Lane-owned semantic action beneath the composed node. The availability
+ * query has no side effects; InvokeBase bypasses plugin action providers. */
+bool
+PluginHost_UiBaseActionAvailable(
+    struct ToriRS_PluginHost* host,
+    struct ToriRS_UiNodeRef node,
+    char const* action);
+bool
+PluginHost_UiInvokeBase(
     struct ToriRS_PluginHost* host,
     struct ToriRS_UiNodeRef node,
     char const* action);

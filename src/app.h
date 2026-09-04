@@ -1336,7 +1336,9 @@ struct App
 
     /** Engine-side incarnation fences for named-UI facet suppression. The
      * host arbitrates ownership; these rows remember the exact component-array
-     * occupant while appearance and actions remain independently composable. */
+     * occupant while appearance and actions remain independently composable.
+     * `subtree` is used only when one complete REPLACE_OR_PROVIDE contribution
+     * owns the whole semantic object. */
     struct AppPluginRoleFacetSuppression
     {
         char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
@@ -1344,6 +1346,7 @@ struct App
         uint32_t node_incarnation;
         uint8_t paint;
         uint8_t input;
+        uint8_t subtree;
     } plugin_role_facet_suppressions[64];
 
     /*
