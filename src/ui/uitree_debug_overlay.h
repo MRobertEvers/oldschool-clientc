@@ -801,6 +801,27 @@ enum ToriRSChromeWidgetKind
     TORIRS_CHROME_W_FREE,
 };
 
+/**
+ * Semantic shape of a TORIRS_CHROME_W_LABEL.
+ *
+ * The first browser implementation collapsed all read-only panel nodes to a
+ * generic text span and tried to recover their meaning from colour. Keeping
+ * the public panel kind through this internal seam lets the DOM executor use
+ * real headings, paragraphs, definition rows, progress meters and alerts.
+ * Values ride WIDGET_ADD's kind-specific `w` shape field and are immutable for
+ * the life of the widget.
+ */
+enum ToriRSChromeLabelStyle
+{
+    TORIRS_CHROME_LABEL_PLAIN = 0,
+    TORIRS_CHROME_LABEL_HEADING,
+    TORIRS_CHROME_LABEL_PARAGRAPH,
+    TORIRS_CHROME_LABEL_KEY_VALUE,
+    TORIRS_CHROME_LABEL_PROGRESS,
+    TORIRS_CHROME_LABEL_ERROR,
+    TORIRS_CHROME_LABEL_STYLE_COUNT,
+};
+
 /** Rows the open dropdown list shows at once; longer lists scroll. Chosen so a
  *  palette of several hundred entries stays inside TORIRS_CHROME_MAX_PRIMS. */
 #define TORIRS_CHROME_DROPDOWN_ROWS 10
@@ -844,10 +865,13 @@ struct ToriRSChromeWidget
      *  is a name and a switch, and its whole width toggles. */
     int row_action;
     /** LISTROW: this row has no switch at all -- the thing it names has one
-     *  state. The toggle column is not drawn and not reserved, so the name
-     *  runs out to where the switch would have been, and every part of the row
-     *  opens it. @see ToriRSChrome_ListRowLocked. */
+     *  state. With row_action set it is the essential management shape; without
+     *  row_action it is a semantic navigation row whose `text` is the optional
+     *  secondary summary. @see ToriRSChrome_ListRowLocked and
+     *  ToriRSChrome_ActionRow. */
     int row_locked;
+    /** TORIRS_CHROME_W_LABEL only: enum ToriRSChromeLabelStyle. */
+    int label_style;
     /** TEXTAREA: visible lines of the box, before it scrolls. Part of the
      *  widget's SHAPE, so it rides the ADD command and never changes after. */
     int rows;
@@ -1510,6 +1534,33 @@ ToriRSChrome_Label(struct ToriRSChrome* ui, int panel, char const* text);
 int
 ToriRSChrome_LabelColored(struct ToriRSChrome* ui, int panel, char const* text, uint32_t color);
 
+/** Read-only semantic panel components, retained as distinct DOM elements. */
+int
+ToriRSChrome_Heading(struct ToriRSChrome* ui, int panel, char const* text);
+int
+ToriRSChrome_Paragraph(struct ToriRSChrome* ui, int panel, char const* text);
+int
+ToriRSChrome_KeyValue(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    char const* value);
+int
+ToriRSChrome_Progress(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    char const* detail,
+    int percent);
+int
+ToriRSChrome_Error(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    char const* detail);
+void
+ToriRSChrome_SetProgress(struct ToriRSChrome* ui, int widget, int percent);
+
 int
 ToriRSChrome_Checkbox(struct ToriRSChrome* ui, int panel, char const* label, int checked);
 
@@ -1538,11 +1589,16 @@ int
 ToriRSChrome_ListRowLocked(struct ToriRSChrome* ui, int panel, char const* label);
 
 /**
- * A full-width navigation row: `label`, no settings well, and no switch.
- * Activating its name reports through ToriRSChrome_ActivationWasAction.
+ * A full-width navigation row: primary `label`, optional secondary `summary`,
+ * no settings well, and no switch. Activating it reports through
+ * ToriRSChrome_ActivationWasAction.
  */
 int
-ToriRSChrome_ActionRow(struct ToriRSChrome* ui, int panel, char const* label);
+ToriRSChrome_ActionRow(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    char const* summary);
 
 int
 ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text);

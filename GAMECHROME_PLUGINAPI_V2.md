@@ -762,6 +762,42 @@ semantic kind. The web and embedded-browser executors then create real retained
 controls and own their typography, layout, scaling, clipping, focus, and hit
 regions.
 
+The semantic kind survives that entire path. A heading becomes a native `h2`,
+a paragraph a `p`, a key/value row a `dl`/`dt`/`dd`, progress a native
+`progress` control (with an accessible legacy fallback), errors an alert, and
+actions real `button` elements. The executor does not flatten all readouts to
+one styled span and it does not ask plugins to recreate OSRS controls.
+
+Navigation has the same single meaning everywhere. The top wrench/Manage page
+owns plugin configuration; choosing a plugin there opens its generated settings
+face. A plugin's own rail icon always opens `TORIRS_PANEL_VIEW_PAGE`, never its
+settings. While a settings face is visible the shell's selected rail destination
+is Manage, even though the host still knows which plugin is being configured.
+
+This panel model is deliberately not the game's `UITree`. `UITree` owns the
+cache gameframe, mounted interfaces, minimap, and in-game hit testing. A plugin
+panel has a smaller semantic tree whose only external presentations are web
+executors:
+
+```text
+plugin on_ui_build
+  -> retained semantic panel model
+  -> exact add/remove/property mutation journal
+  -> web/browser command queue
+  -> HTML/JS executor
+  -> native DOM elements
+
+native DOM event
+  -> typed intent queue
+  -> generation + widget-identity validation
+  -> plugin on_ui_action
+```
+
+There is no steady-state tree diff. The setter that changes a property records
+that exact mutation, repeated writes coalesce on the retained widget, and the
+executor updates only that DOM node. A complete panel snapshot is reserved for
+initial binding, recovery, or a real structural page replacement.
+
 Lists of changing stats or drill-down destinations use
 `TORIRS_PANEL_ACTION_ROW`. It is a full-width native navigation row with a
 stable `id`, primary `label`, and optional concise `text` summary. It has no

@@ -58,6 +58,18 @@
  */
 #define TORIRS_CHROME_M_LABEL_W 104
 
+/* ---- semantic read-only components -------------------------------------
+ *
+ * Ordinary form controls stay on the compact 18px grid above. Read-only
+ * content has its own authored component heights: enough room for the OSRS
+ * inset frame and, for navigation/progress, a second line or meter. Browser
+ * CSS and the internal fallback are regression-tested against these values.
+ */
+#define TORIRS_CHROME_M_HEADING_H 24
+#define TORIRS_CHROME_M_DATA_ROW_H 28
+#define TORIRS_CHROME_M_PROGRESS_H 40
+#define TORIRS_CHROME_M_ACTION_ROW_H 42
+
 /* ---- controls ------------------------------------------------------------ */
 
 /** The interfaces' own on/off art, and the box a checkbox reserves for it. */

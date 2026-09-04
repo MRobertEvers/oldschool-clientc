@@ -205,18 +205,33 @@ const commands = [
     label: 'Same|label', detail: 'Provider is not installed' }),
   command(18, { w: 13, v: 2, x: 1, text: 'ready/frame',
     label: 'Ready', detail: 'Available now' }),
-  command(15, { w: 13, v: 1, text: 'missing/frame' })
+  command(15, { w: 13, v: 1, text: 'missing/frame' }),
+  command(8, { w: 14, v: 9, label: 'Woodcutting',
+    text: 'XP/hr 12.3K · XP 4,200', cw: 2, s: 114 }),
+  command(8, { w: 15, v: 9, label: 'Client Settings', cw: 3, s: 115 }),
+  command(8, { w: 16, v: 0, text: 'Session', cw: 1, s: 116 }),
+  command(8, { w: 17, v: 0, text: 'No loot recorded yet.', cw: 2, s: 117 }),
+  command(8, { w: 18, v: 0, label: 'Total value', text: '12,450 gp', cw: 3, s: 118 }),
+  command(8, { w: 19, v: 0, label: 'Level progress', text: 'Level 72 to 73', cw: 4, s: 119 }),
+  command(15, { w: 19, v: 68 }),
+  command(8, { w: 20, v: 0, label: 'Tracker unavailable', text: 'Log in first', cw: 5, s: 120 })
 ];
 runtime.receive({
   protocol: 1, type: 'rail.snapshot', registryRevision: 1,
   selectionGeneration: 8, pageGeneration: 20, activePlugin: 0,
   lastSelectedPlugin: 0, selectedEntry: 0, expanded: true, entries
 });
+const selectedPluginRailButton = ids['tpc-rail-list'].children[1];
+selectedPluginRailButton.fire('click');
+assert.strictEqual(posted[posted.length - 1].type, 'rail.select');
+assert.strictEqual(posted[posted.length - 1].pluginIndex, 0,
+  'a plugin rail button always emits its page destination, even while another face is visible');
+assert.strictEqual(posted[posted.length - 1].selectionGeneration, 8);
 runtime.receive({
   protocol: 1, type: 'page.snapshot', pageGeneration: 20,
   panel: 3, title: 'Plugin 0', checkStyle: 0, commands
 });
-assert.strictEqual(runtime.inspect().widgetCount, 13, 'all semantic control kinds are retained');
+assert.strictEqual(runtime.inspect().widgetCount, 20, 'all semantic control kinds are retained');
 assert(!ids['tpc-pane'].hidden, 'one selected page is visible');
 const dropdownRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 3);
 assert.match(dropdownRow._tpcRecord.control.style.backgroundImage,
@@ -255,6 +270,60 @@ assert.strictEqual(buttonRow._tpcRecord.control.style.backgroundSize,
 const separatorRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 9);
 assert.strictEqual(separatorRow.children[0].className, 'tpc-separator-line',
   'separator retains a normal row but paints only its one-pixel center rule');
+const actionRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 14);
+const actionButton = actionRow._tpcRecord.control;
+assert.strictEqual(actionButton.tagName, 'BUTTON',
+  'a semantic action row is a native focusable button, not a clickable table cell');
+assert.strictEqual(actionButton.type, 'button');
+assert.strictEqual(actionButton.children[0].innerText, 'Woodcutting',
+  'the action row retains its primary label separately');
+assert.strictEqual(actionButton.children[1].innerText, 'XP/hr 12.3K · XP 4,200',
+  'the action row retains its live summary separately');
+assert.match(actionButton.getAttribute('aria-label'), /Woodcutting\. XP\/hr 12\.3K/,
+  'the native button exposes both fields as one accessible name');
+assert.strictEqual(actionRow.getElementsByClassName('tpc-check').length, 0,
+  'an action row has no management switch');
+assert.strictEqual(actionRow.getElementsByClassName('tpc-row-well').length, 0,
+  'an action row has no management settings well');
+actionButton.fire('click');
+assert.deepStrictEqual(typed[typed.length - 1], {
+  k: 2, p: 3, w: 14, v: 0, text: '', x: 0, y: 0, g: 20, s: 114
+}, 'the native action-row button emits the existing ACTION intent');
+
+const managedRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 5);
+assert.strictEqual(managedRow._tpcRecord.control.tagName, 'TABLE',
+  'an ordinary management row keeps its existing three-zone table');
+assert.strictEqual(managedRow.getElementsByClassName('tpc-row-well').length, 1);
+assert.strictEqual(managedRow.getElementsByClassName('tpc-check').length, 1);
+const lockedManagedRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 15);
+assert.strictEqual(lockedManagedRow._tpcRecord.control.tagName, 'TABLE',
+  'a locked management row remains distinct from a semantic action row');
+assert.strictEqual(lockedManagedRow.getElementsByClassName('tpc-row-well').length, 1);
+assert.strictEqual(lockedManagedRow.getElementsByClassName('tpc-check').length, 0);
+
+const headingRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 16);
+assert.strictEqual(headingRow.children[0].tagName, 'H2',
+  'a panel heading remains a native heading instead of flattening to a span');
+assert.strictEqual(headingRow.children[0].innerText, 'Session');
+const paragraphRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 17);
+assert.strictEqual(paragraphRow.children[0].tagName, 'P');
+assert.strictEqual(paragraphRow.children[0].innerText, 'No loot recorded yet.');
+const keyValueRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 18);
+assert.strictEqual(keyValueRow.children[0].tagName, 'DL');
+assert.strictEqual(keyValueRow.children[0].children[0].tagName, 'DT');
+assert.strictEqual(keyValueRow.children[0].children[0].innerText, 'Total value');
+assert.strictEqual(keyValueRow.children[0].children[1].tagName, 'DD');
+assert.strictEqual(keyValueRow.children[0].children[1].innerText, '12,450 gp');
+const progressRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 19);
+assert.strictEqual(progressRow._tpcRecord.control.tagName, 'PROGRESS');
+assert.strictEqual(progressRow._tpcRecord.control.value, 68);
+assert.strictEqual(progressRow._tpcRecord.control.getAttribute('aria-valuenow'), '68');
+assert.strictEqual(progressRow._tpcRecord.valueNode.innerText, 'Level 72 to 73');
+const errorRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 20);
+assert.strictEqual(errorRow.children[0].tagName, 'P');
+assert.strictEqual(errorRow.children[0].getAttribute('role'), 'alert');
+assert.strictEqual(errorRow._tpcRecord.caption.innerText, 'Tracker unavailable');
+assert.strictEqual(errorRow._tpcRecord.valueNode.innerText, ' Log in first');
 
 const oldCheckboxRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 1);
 const oldCheckbox = oldCheckboxRow.children[0];
@@ -321,6 +390,28 @@ assert.strictEqual(runtime.inspect().renderVisits, visitsBeforeDelta + 1,
   'a one-widget delta visits only that retained widget');
 assert.strictEqual(structured.children[0], structuredFirstOption,
   'an unrelated dropdown is neither traversed nor rebuilt');
+
+const visitsBeforeActionSummary = runtime.inspect().renderVisits;
+const retainedActionButton = actionButton;
+assert.strictEqual(runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 20,
+  commands: [command(11, { w: 14, text: 'XP/hr 13.1K · XP 4,500' })]
+}), true);
+assert.strictEqual(runtime.inspect().renderVisits, visitsBeforeActionSummary + 1,
+  'an action-row summary delta visits only that retained row');
+assert.strictEqual(actionRow._tpcRecord.control, retainedActionButton,
+  'an action-row summary patch preserves the native button and its focus identity');
+assert.strictEqual(actionButton.children[0].innerText, 'Woodcutting');
+assert.strictEqual(actionButton.children[1].innerText, 'XP/hr 13.1K · XP 4,500');
+const visitsBeforeEmptySummary = runtime.inspect().renderVisits;
+assert.strictEqual(runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 20,
+  commands: [command(11, { w: 14, text: '' })]
+}), true);
+assert.strictEqual(runtime.inspect().renderVisits, visitsBeforeEmptySummary + 1);
+assert.strictEqual(actionRow._tpcRecord.control, retainedActionButton);
+assert.strictEqual(actionButton.children[1].style.display, 'none',
+  'removing the optional summary collapses only its retained secondary line');
 
 const visitsBeforeSelection = runtime.inspect().renderVisits;
 assert.strictEqual(runtime.receive({

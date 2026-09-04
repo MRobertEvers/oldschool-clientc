@@ -2274,26 +2274,25 @@ test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/plugins/plugin_dr
 # answers, what does the page say", and the page is what the fake keeps. The
 # arithmetic each is a port of -- xp/hr over TRAINING time, and attributing a
 # drop to the despawn it landed on -- is what the cases pin.
-# What the two trackers LOOK like: the real strips composed out of the real
-# shipped art, written to PNGs. The layout is the half no assertion holds, so
-# this pins the few numbers a regression moves (strip height, box pitch) and
-# leaves the rest to the picture.
+# Panel-shape regression: neither tracker may regain a CUSTOM bitmap well or
+# panel draw callback; their empty summaries are semantic retained rows.
+TRACKER_TEST_ENV =
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+TRACKER_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
 test-tracker-render: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/plugins/plugin_draw.c plugin/test/tracker_render_test.c
+		plugin/test/tracker_render_test.c $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_render_test \
 		plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/plugins/plugin_draw.c engine/png_decode.c \
-		$(REPO_ROOT)/3rd/miniz/miniz.c plugin/test/tracker_render_test.c $(LDFLAGS)
-	TRACKER_RENDER_XP_PNG=$(OBJ_DIR)/xp_strip.png \
-		TRACKER_RENDER_LOOT_PNG=$(OBJ_DIR)/loot_strip.png \
-		./$(OBJ_DIR)/tracker_render_test
+		plugin/test/tracker_render_test.c $(LDFLAGS)
+	$(TRACKER_TEST_ENV) ./$(OBJ_DIR)/tracker_render_test
 
 test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c
+		plugin/test/tracker_test.c $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_test \
 		plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/tracker_test
+		plugin/test/tracker_test.c $(LDFLAGS)
+	$(TRACKER_TEST_ENV) ./$(OBJ_DIR)/tracker_test
 
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c \

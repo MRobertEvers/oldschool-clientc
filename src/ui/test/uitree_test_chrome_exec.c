@@ -129,6 +129,166 @@ test_chrome_exec_catchup(void)
         "and its initial checked state");
 }
 
+static void
+test_chrome_exec_action_row(void)
+{
+    struct ToriRSChromeCmd const* add;
+    struct ToriRSChromeIntent intent;
+    int panel;
+    int action;
+    int managed;
+    int locked_managed;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 20, 320, "Tracker");
+    action = ToriRSChrome_ActionRow(
+        &g_ui, panel, "Woodcutting", "XP/hr 12.3K - XP 4,200");
+    managed = ToriRSChrome_ListRow(
+        &g_ui, panel, "Ordinary plugin", 1, 1);
+    locked_managed = ToriRSChrome_ListRowLocked(
+        &g_ui, panel, "Client Settings");
+    ToriRSChrome_Build(&g_ui);
+
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "action rows cross");
+    add = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, action);
+    TEST_ASSERT(
+        add && add->value == TORIRS_CHROME_W_LISTROW &&
+            add->w == TORIRS_CHROME_ROW_LOCKED &&
+            strcmp(add->label, "Woodcutting") == 0 &&
+            strcmp(add->text, "XP/hr 12.3K - XP 4,200") == 0,
+        "an action row keeps primary label and summary separate on its unique shape");
+    add = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, managed);
+    TEST_ASSERT(
+        add && add->w == TORIRS_CHROME_ROW_ACTION,
+        "an ordinary management row keeps its action-well-plus-switch shape");
+    add = ToriRSChromeRecorder_Find(
+        &g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, locked_managed);
+    TEST_ASSERT(
+        add && add->w ==
+                   (TORIRS_CHROME_ROW_ACTION | TORIRS_CHROME_ROW_LOCKED),
+        "an essential management row keeps its well-without-switch shape");
+
+    exec_settle();
+    ToriRSChrome_SetText(
+        &g_ui, action, "XP/hr 13.1K - XP 4,500");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) > 0 &&
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_TEXT) == 1 &&
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_LABEL) == 0 &&
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 0,
+        "a live summary is one retained TEXT patch, not a relabel or rebuild");
+    {
+        struct ToriRSChromeCmd const* text =
+            ToriRSChromeRecorder_Find(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_TEXT, action);
+        TEST_ASSERT(
+            text && strcmp(text->text, "XP/hr 13.1K - XP 4,500") == 0,
+            "the summary patch carries only the changed secondary text");
+    }
+
+    exec_settle();
+    ToriRSChrome_SetText(&g_ui, action, "");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) > 0 &&
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_TEXT) == 1 &&
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_PANEL_RECT) == 0,
+        "removing the optional summary patches one retained field without relayout");
+
+    exec_settle();
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_ACTION;
+    intent.panel = panel;
+    intent.widget = action;
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    TEST_ASSERT(
+        ToriRSChromeSync_Pump(&g_sync, &g_ui) == 1 &&
+            ToriRSChrome_TakeActivated(&g_ui) == action &&
+            ToriRSChrome_ActivationWasAction(&g_ui),
+        "the browser ACTION intent reaches the ordinary activation drain");
+}
+
+static void
+test_chrome_exec_semantic_readouts(void)
+{
+    struct ToriRSChromeCmd const* add;
+    int panel;
+    int heading;
+    int paragraph;
+    int pair;
+    int progress;
+    int error;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 20, 320, "Tracker");
+    heading = ToriRSChrome_Heading(&g_ui, panel, "Session");
+    paragraph = ToriRSChrome_Paragraph(
+        &g_ui, panel, "No loot recorded this session.");
+    pair = ToriRSChrome_KeyValue(&g_ui, panel, "Total value", "12,450 gp");
+    progress = ToriRSChrome_Progress(
+        &g_ui, panel, "Level progress", "Level 72 to 73", 42);
+    error = ToriRSChrome_Error(
+        &g_ui, panel, "Tracker unavailable", "Log in first");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) > 0,
+        "semantic readouts cross the executor seam");
+
+#define ASSERT_LABEL_STYLE(widget_, style_, label_, text_)                         \
+    do                                                                              \
+    {                                                                               \
+        add = ToriRSChromeRecorder_Find(                                             \
+            &g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, (widget_));                       \
+        TEST_ASSERT(                                                                \
+            add && add->value == TORIRS_CHROME_W_LABEL && add->w == (style_) &&     \
+                strcmp(add->label, (label_)) == 0 && strcmp(add->text, (text_)) == 0, \
+            "semantic label style and separate fields survive WIDGET_ADD");        \
+    } while( 0 )
+
+    ASSERT_LABEL_STYLE(
+        heading, TORIRS_CHROME_LABEL_HEADING, "", "Session");
+    ASSERT_LABEL_STYLE(
+        paragraph, TORIRS_CHROME_LABEL_PARAGRAPH, "", "No loot recorded this session.");
+    ASSERT_LABEL_STYLE(
+        pair, TORIRS_CHROME_LABEL_KEY_VALUE, "Total value", "12,450 gp");
+    ASSERT_LABEL_STYLE(
+        progress, TORIRS_CHROME_LABEL_PROGRESS, "Level progress", "Level 72 to 73");
+    ASSERT_LABEL_STYLE(
+        error, TORIRS_CHROME_LABEL_ERROR, "Tracker unavailable", "Log in first");
+#undef ASSERT_LABEL_STYLE
+
+    exec_settle();
+    ToriRSChrome_SetText(&g_ui, pair, "12,900 gp");
+    ToriRSChrome_SetProgress(&g_ui, progress, 64);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        ToriRSChromeSync_Run(&g_sync, &g_ui) > 0 &&
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_TEXT) == 1 &&
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_SELECTED) == 1 &&
+            ToriRSChromeRecorder_CountKind(
+                &g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 0,
+        "value and meter changes patch only their retained DOM properties");
+    {
+        struct ToriRSChromeCmd const* selected = ToriRSChromeRecorder_Find(
+            &g_rec, TORIRS_CHROME_CMD_WIDGET_SELECTED, progress);
+        TEST_ASSERT(
+            selected && selected->value == 64,
+            "progress uses the bounded retained selected-value channel");
+    }
+}
+
 /*
  * The property the delivered shadow exists for. A frame where nothing moved
  * must emit nothing, or every DOM control is torn down and rebuilt 50 times a
@@ -2040,6 +2200,8 @@ test_chrome_exec(void)
 
     test_chrome_exec_internal_fallback();
     test_chrome_exec_catchup();
+    test_chrome_exec_action_row();
+    test_chrome_exec_semantic_readouts();
     test_chrome_exec_quiet_frame();
     test_chrome_exec_coalesces_setter_burst();
     test_chrome_exec_indexed_coalescing();

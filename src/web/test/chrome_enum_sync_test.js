@@ -136,6 +136,12 @@ for (const implementation of [
     readJsTable('CMD', implementation.file));
 }
 
+compare(
+  'canonical runtime semantic label styles',
+  readEnum('ui/uitree_debug_overlay.h', 'ToriRSChromeLabelStyle'),
+  'TORIRS_CHROME_LABEL_',
+  readJsTable('LABEL', 'plugin_chrome/runtime-source.js'));
+
 /* Skin slot numbers no longer cross the web boundary. Both the adapter theme
  * and canonical CSS name packaged, local files, so adding a slot cannot silently
  * make a different numbered sprite appear. The C bake test checks the pixel

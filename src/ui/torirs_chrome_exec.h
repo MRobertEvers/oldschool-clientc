@@ -60,7 +60,9 @@
  *
  * LOCKED is the roster's essential row: it has no second state, so it has no
  * switch at all and its name takes the column (@see ToriRS_PluginDefV2 flags
- * and ToriRSChrome_ListRowLocked). Executors that never heard it drew the
+ * and ToriRSChrome_ListRowLocked). LOCKED without ACTION is the distinct
+ * semantic navigation-row shape; browser executors expose it as one native
+ * button with `label` and `text` kept separate. Executors that never heard it drew the
  * switch anyway, unchecked -- a red cross beside Client Settings and Feature
  * Flags, which reads as two disabled plugins rather than as two that cannot be
  * disabled. A LOCKED row is always an ACTION row: with no switch, opening its
@@ -144,7 +146,8 @@ enum ToriRSChromeCmdKind
      * rebuild that changed it gives it a new serial, which the shadow answers
      * with a remove-then-add:
      *
-     *   `w` -- a LISTROW's shape bits, TORIRS_CHROME_ROW_*.
+     *   `w` -- a LISTROW's shape bits, TORIRS_CHROME_ROW_*, or a LABEL's
+     *          enum ToriRSChromeLabelStyle.
      *   `h` -- a TEXTAREA is this many lines tall; a CUSTOM region is this
      *          many logical chrome pixels tall.
      */

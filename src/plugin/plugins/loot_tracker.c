@@ -1,4 +1,3 @@
-#include "plugin/plugins/plugin_draw.h"
 #include "plugin/torirs_plugin_v2.h"
 
 #include <assert.h>
@@ -8,89 +7,43 @@
 #include <string.h>
 
 /*
- * Loot Tracker -- a port of RuneLite's `loottracker` plugin and the
- * `LootManager` underneath it.
+ * Loot Tracker -- a native retained view of the client's loot store.
  *
  * What it keeps: one record per SOURCE (a monster's name), carrying how many
  * of them you have killed and the running total of every item they dropped,
- * with a value on each. The page lists the sources, drills into one, and draws
- * that one's drops as the client's own item icons.
+ * with a value on each. The panel lists sources as native action rows and
+ * drills into one source's native summary and item rows.
  *
- * ---- how a drop is attributed ----
+ * ---- where the records come from ----
  *
- * The reference's LootManager watches for an npc that is DYING and collects
- * every item that spawns inside that npc's tiles on the same tick. Its
- * `NpcUtil.isDying` is built on `Actor.getHealthRatio() == 0` -- the overhead
- * health bar reaching empty -- plus a hand-written table for the monsters that
- * do not die at zero (the gargoyle family, which is finished with an item, and
- * the bosses that transform).
- *
- * Both halves of that are portable here. `ToriRS_NpcSnapshot` carries
- * `health_ratio`, which is the same number off the same HEADBAR block, so a
- * despawn with a bar at zero is a CONFIRMED kill and is counted whether or not
- * anything dropped. A despawn with hitpoints left -- the gargoyle case, and
- * every npc that simply walked out of view -- is only a CANDIDATE, and becomes
- * a kill if loot lands on its footprint within the window. That is the same
- * two-path shape the reference has, and for the same reason.
- *
- * What is still traded away, stated plainly:
- *
- *   - A drop you cannot SEE is not counted, but that is the server's doing
- *     and not this plugin's: ground items are only sent for tiles near you,
- *     and an item somebody else's kill dropped across the room never reaches
- *     the client at all.
- *   - A gargoyle killed with no drop is not counted, because at zero-with-
- *     hitpoints-left this cannot tell a kill from a monster wandering off.
- *     The reference answers that with a per-npc table; this does not carry
- *     one, because a table of ids is a thing that rots per revision and this
- *     client boots several.
- *   - Two of the same monster dying on adjacent tiles in one tick can hand
- *     one's drop to the other. They are the same record, so the totals are
- *     right and only the per-kill split is not -- and this plugin does not
- *     keep a per-kill split.
+ * Gameplay code writes the authoritative session record used by the cache's
+ * own tracker. This plugin reads it through `loot_source_next` and
+ * `loot_row_next`; it does not independently infer kills from npc despawns or
+ * ground-item timing. That preserves zero-drop kills and the store's source
+ * attribution.
  *
  * ---- what an item is WORTH ----
  *
  * There is no live Grand Exchange quote anywhere in this client, so the
- * reference's GE price is not portable. What the cache does state is
- * `ObjType.cost`, which is the number CS2 reads through OC_COST and the same
- * one the ground-item snapshot carries. Both of the config's price sources are
- * computed from it: the cache value itself, and high alchemy -- three fifths
- * of it, the game's own formula -- which is the one figure a player can
- * actually realise for most drops.
+ * reference's GE price is not portable. The store records the cache value
+ * derived from `ObjType.cost`, the number CS2 reads through OC_COST. Both
+ * configured price sources are computed from it: the cache value itself, and
+ * high alchemy -- three fifths of it, the game's own formula -- which is the
+ * one figure a player can actually realise for most drops.
  *
  * ---- not ported ----
  *
- * Event loot (barrows, raid chests, clue caskets) is inventory-diff work that
- * needs a reliable "this interface just opened" fence per revision, and PVP
- * loot needs a player-death signal the bus does not raise. Both are named here
- * so the gap is a decision rather than an omission.
+ * Event loot (barrows, raid chests, clue caskets) and PVP loot appear only when
+ * a producer records them in the shared store. This view deliberately adds no
+ * second attribution path.
  */
 
-/** Sources the session will remember. Past it the least valuable is dropped
- *  rather than the newest refused -- a trip that met one new monster should
- *  not silently stop recording it. */
+/** Maximum source records mirrored into the bounded panel state. The shared
+ *  store remains authoritative for any records beyond this view. */
 #define LT_SOURCES_MAX 48
-/** Distinct items one source may accumulate. A drop table's whole spread. */
+/** Maximum distinct item records mirrored for one source. */
 #define LT_ITEMS_MAX 32
-/** Deaths waiting for their loot. Deliberately small: a candidate lives for
- *  about two server ticks, and more than eight npcs leaving the scene in that
- *  span is a crowd rather than a kill. */
-#define LT_PENDING_MAX 8
-/**
- * How long a despawn stays a candidate, in milliseconds.
- *
- * Two server ticks. The reference collects on the death tick alone; this needs
- * the extra one because the despawn and the item spawn arrive from different
- * packets, and nothing here guarantees they were executed in the same client
- * cycle.
- */
-#define LT_PENDING_MS 1200
-/** How far from the player a despawn may be and still be a candidate kill, in
- *  tiles. Loot outside this is not yours to have seen. */
-#define LT_PENDING_RANGE 15
-
-/** Source rows the page will draw before it stops and says so. */
+/** Source rows the page will declare before it stops and says so. */
 #define LT_ROWS_MAX 24
 /** How often the page's numbers are rewritten, in ms. */
 #define LT_PANEL_REFRESH_MS 500
@@ -104,80 +57,6 @@
  * shorter ignore list than the store would have held.
  */
 #define LT_CONFIG_VALUE_MAX 192
-
-/* ------------------------------------------------------------------------ */
-/* The CS2 loot tracker's own measurements and palette                       */
-/*                                                                           */
-/* Read out of the torirs_loot_* clientscripts, which build interface 650    */
-/* (`loottools`), rather than chosen here. To re-derive:                     */
-/*                                                                           */
-/*     3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 \           */
-/*         --rev osrs239 --out /tmp/cs2loot 2907 3042 3043 3044              */
-/*                                                                           */
-/*   script2907  the category HEADER: a 33-tall band, a 4px tiled spine at   */
-/*               x=2 (graphic_897, or graphic_4948 when ignored), the name    */
-/*               in fontmetrics_496 at 0xff981f on the left and its count on  */
-/*               the right. Its ops are Collapse/Expand, Clear data and       */
-/*               Ignore/Stop ignoring.                                       */
-/*   script3042  one item CELL: 40x36, FIVE to a row, background graphic_1120 */
-/*               (graphic_155 when ignored) with the obj drawn 36x32 at +2,+2 */
-/*               under cc_setoutline(1) -- the BORDERED icon variant. Its ops */
-/*               are Check and Ignore/Stop ignoring.                         */
-/*   script3043  "No loot to display." in fontmetrics_494, also 0xff981f.     */
-/*   script3044  the totals, as "<count><br><value> gp".                     */
-/* ------------------------------------------------------------------------ */
-
-/** The header band, and the gap the next one leaves above it. */
-#define LT_HEAD_H 33
-#define LT_HEAD_GAP 2
-/*
- * The band PLATE, inset 2 all round.
- *
- * `cc_setsize(4, 33 - 4, 1, 0)` in script2907 is width mode 1, which is PARENT
- * MINUS the value -- not a 4-pixel-wide spine, which is how it reads at a
- * glance and how this was drawn at first. The same sprite is used untiled at
- * 244x42 for the totals band (interface 650:58), so it is a plate that takes
- * whatever size it is given, and it is what puts a border around every band in
- * the game's own tracker.
- */
-#define LT_PLATE_INSET 2
-/** One item cell, and the five-to-a-row grid script3042 lays out. */
-#define LT_CELL_W 40
-#define LT_CELL_H 36
-#define LT_GRID_COLS 5
-/** The first cell row sits `33 + 5` below the header's top. */
-#define LT_GRID_TOP (LT_HEAD_H + 5)
-/*
- * The TOTALS band, which the game's tracker puts above the categories
- * (interface 650:57..64): a 42-tall plate carrying two lines --
- * "Total count:" and "Total value:" as keys at x=36, their values at x=97,
- * both in fontmetrics_494.
- */
-#define LT_TOTALS_H 42
-/* ---- the totals band's own controls, as interface 650 places them --------
- *
- * Four 30x30 buttons in a 244-wide band at y+6: the VIEW toggle hard against
- * the left at x=4, and the other three anchored to the RIGHT at 4, 35 and 66
- * in from that edge (the cache authors them at x=651/682/713 in a band that
- * starts at 503 and runs 244 wide). Anchoring the right-hand three from the
- * right is what keeps them in place when the panel is not the cache's width.
- */
-#define LT_BTN 30
-#define LT_BTN_Y 6
-#define LT_BTN_LEFT_X 4
-#define LT_BTN_R0 4
-#define LT_BTN_R1 35
-#define LT_BTN_R2 66
-
-#define LT_TOTALS_ICON 24
-#define LT_TOTALS_ICON_X 6
-#define LT_TOTALS_KEY_X 36
-#define LT_TOTALS_VAL_X 97
-
-/** The interfaces' own orange, which every heading is set in, and the white
- *  the totals' values are. */
-#define LT_INK_HEAD 0xFF981Fu
-#define LT_INK_VALUE 0xFFFFFFu
 
 /** One item, summed across every kill of one source. */
 struct LtItem
@@ -199,8 +78,6 @@ struct LtSource
     int kills;
     struct LtItem items[LT_ITEMS_MAX];
     int item_count;
-    /** Frame clock of the last drop, for the page's ordering. */
-    uint64_t last_ms;
 };
 
 struct LootTrackerState
@@ -210,58 +87,19 @@ struct LootTrackerState
     int detail;
     int built_detail;
     int built_rows;
+    int built_source_id[LT_ROWS_MAX];
+    char built_source_label[LT_ROWS_MAX][64];
+    int built_detail_source_id;
+    char built_detail_source_label[64];
+    int built_item_obj_id[LT_ITEMS_MAX];
+    char built_item_label[LT_ITEMS_MAX][64];
     bool page_built;
     bool page_visible;
 
-    struct PluginDraw_Atlas bold;
-    struct ToriRS_ImageRef img_over;
-    uint32_t* over_px;
-    int over_w;
-    int over_h;
-    struct PluginDraw_Atlas text;
-    struct ToriRS_ImageRef img_spine;
-    uint32_t* spine_px;
-    int spine_w;
-    int spine_h;
-    struct ToriRS_ImageRef img_cell;
-    uint32_t* cell_px;
-    int cell_w;
-    int cell_h;
-
-    bool expanded[LT_SOURCES_MAX];
-    bool drop_view;
-    struct ToriRS_ImageRef img_view;
-    uint32_t* view_px;
-    int view_w;
-    int view_h;
-    struct ToriRS_ImageRef img_view2;
-    uint32_t* view2_px;
-    int view2_w;
-    int view2_h;
-    struct ToriRS_ImageRef img_alch;
-    uint32_t* alch_px;
-    int alch_w;
-    int alch_h;
-    struct ToriRS_ImageRef img_collapse;
-    uint32_t* collapse_px;
-    int collapse_w;
-    int collapse_h;
-    struct ToriRS_ImageRef img_ignored;
-    uint32_t* ignored_px;
-    int ignored_w;
-    int ignored_h;
-
-    uint32_t* compose;
-    int compose_w;
-    int compose_h;
-    struct ToriRS_ImageRef strip_image;
-    uint64_t compose_key;
-    int well_w;
     uint64_t next_panel_ms;
     long long session_value;
     int session_kills;
     bool dirty;
-    bool redraw_pending;
     uint64_t loot_revision;
 };
 
@@ -277,55 +115,18 @@ struct LootTrackerRuntime
 #define g_detail (rt->state->detail)
 #define g_built_detail (rt->state->built_detail)
 #define g_built_rows (rt->state->built_rows)
+#define g_built_source_id (rt->state->built_source_id)
+#define g_built_source_label (rt->state->built_source_label)
+#define g_built_detail_source_id (rt->state->built_detail_source_id)
+#define g_built_detail_source_label (rt->state->built_detail_source_label)
+#define g_built_item_obj_id (rt->state->built_item_obj_id)
+#define g_built_item_label (rt->state->built_item_label)
 #define g_page_built (rt->state->page_built)
 #define g_page_visible (rt->state->page_visible)
-#define g_bold (rt->state->bold)
-#define g_img_over (rt->state->img_over)
-#define g_over_px (rt->state->over_px)
-#define g_over_w (rt->state->over_w)
-#define g_over_h (rt->state->over_h)
-#define g_text (rt->state->text)
-#define g_img_spine (rt->state->img_spine)
-#define g_spine_px (rt->state->spine_px)
-#define g_spine_w (rt->state->spine_w)
-#define g_spine_h (rt->state->spine_h)
-#define g_img_cell (rt->state->img_cell)
-#define g_cell_px (rt->state->cell_px)
-#define g_cell_w (rt->state->cell_w)
-#define g_cell_h (rt->state->cell_h)
-#define g_expanded (rt->state->expanded)
-#define g_drop_view (rt->state->drop_view)
-#define g_img_view (rt->state->img_view)
-#define g_view_px (rt->state->view_px)
-#define g_view_w (rt->state->view_w)
-#define g_view_h (rt->state->view_h)
-#define g_img_view2 (rt->state->img_view2)
-#define g_view2_px (rt->state->view2_px)
-#define g_view2_w (rt->state->view2_w)
-#define g_view2_h (rt->state->view2_h)
-#define g_img_alch (rt->state->img_alch)
-#define g_alch_px (rt->state->alch_px)
-#define g_alch_w (rt->state->alch_w)
-#define g_alch_h (rt->state->alch_h)
-#define g_img_collapse (rt->state->img_collapse)
-#define g_collapse_px (rt->state->collapse_px)
-#define g_collapse_w (rt->state->collapse_w)
-#define g_collapse_h (rt->state->collapse_h)
-#define g_img_ignored (rt->state->img_ignored)
-#define g_ignored_px (rt->state->ignored_px)
-#define g_ignored_w (rt->state->ignored_w)
-#define g_ignored_h (rt->state->ignored_h)
-#define g_compose (rt->state->compose)
-#define g_compose_w (rt->state->compose_w)
-#define g_compose_h (rt->state->compose_h)
-#define g_strip_image (rt->state->strip_image)
-#define g_compose_key (rt->state->compose_key)
-#define g_well_w (rt->state->well_w)
 #define g_next_panel_ms (rt->state->next_panel_ms)
 #define g_session_value (rt->state->session_value)
 #define g_session_kills (rt->state->session_kills)
 #define g_dirty (rt->state->dirty)
-#define g_redraw_pending (rt->state->redraw_pending)
 #define g_loot_revision (rt->state->loot_revision)
 
 /* ------------------------------------------------------------------------ */
@@ -566,19 +367,12 @@ lt_revalue(struct LootTrackerRuntime* rt)
 /* The records                                                               */
 /* ------------------------------------------------------------------------ */
 
-
-
-
-
-
-
 /**
  * A moment the client recognised.
  *
- * Only the rail flag is taken from these. The drop itself already arrives as a
- * ground-item spawn and counting it twice would double every valuable line;
- * what the chat line adds is that the player should LOOK, which is what the
- * attention marker on the plugin's rail entry says.
+ * Tracking already lives in the shared loot store. These notifications only
+ * say that the player should look, which is what the attention marker on the
+ * plugin's rail entry represents.
  */
 static void
 lt_game_event(
@@ -599,466 +393,17 @@ lt_game_event(
 }
 
 /* ------------------------------------------------------------------------ */
-/* Persistence                                                               */
+/* Store mirror                                                             */
 /* ------------------------------------------------------------------------ */
 
-/* ------------------------------------------------------------------------ */
-/* The strip                                                                 */
-/* ------------------------------------------------------------------------ */
-
-/** Everything the compose needs, resident. */
 static int
-lt_art_ready(struct LootTrackerRuntime* rt)
+lt_source_index_by_id(struct LootTrackerRuntime* rt, int source_id)
 {
     assert(rt);
-    if( !PluginDraw_AtlasLoad(g_api, &g_bold, "bold") )
-        return 0;
-    (void)PluginDraw_ImageLoad(
-        g_api, "panel_icon.png", &g_img_over, &g_over_px, &g_over_w, &g_over_h);
-    /*
-     * The band's four controls, cut from the cache: graphic_4915/4916 are the
-     * two faces of the view toggle, 4912 the value basis, 4917 collapse-all,
-     * 4913 the ignore list. Wanted but not REQUIRED -- a band with a gap where
-     * a button belongs still reads, and a page that refuses to draw does not.
-     */
-    (void)PluginDraw_ImageLoad(
-        g_api, "btn_dropview.png", &g_img_view, &g_view_px, &g_view_w, &g_view_h);
-    (void)PluginDraw_ImageLoad(
-        g_api, "btn_sourceview.png", &g_img_view2, &g_view2_px, &g_view2_w,
-        &g_view2_h);
-    (void)PluginDraw_ImageLoad(
-        g_api, "btn_alch.png", &g_img_alch, &g_alch_px, &g_alch_w, &g_alch_h);
-    (void)PluginDraw_ImageLoad(
-        g_api, "btn_collapse.png", &g_img_collapse, &g_collapse_px, &g_collapse_w,
-        &g_collapse_h);
-    (void)PluginDraw_ImageLoad(
-        g_api, "btn_ignored.png", &g_img_ignored, &g_ignored_px, &g_ignored_w,
-        &g_ignored_h);
-    if( !PluginDraw_AtlasLoad(g_api, &g_text, "text") )
-        return 0;
-    if( !PluginDraw_ImageLoad(
-            g_api, "cat_spine.png", &g_img_spine, &g_spine_px, &g_spine_w,
-            &g_spine_h) )
-        return 0;
-    return PluginDraw_ImageLoad(
-        g_api, "cell.png", &g_img_cell, &g_cell_px, &g_cell_w, &g_cell_h);
-}
-
-/** How many cell rows one source's drops occupy. */
-static int
-lt_grid_rows(struct LtSource const* src)
-{
-    assert(src);
-    return (src->item_count + LT_GRID_COLS - 1) / LT_GRID_COLS;
-}
-
-/** How tall one source's band is, expanded or not. */
-static int
-lt_source_h(struct LootTrackerRuntime* rt, int index)
-{
-    assert(index >= 0);
-    assert(index < g_source_count);
-    if( !g_expanded[index] || g_source[index].item_count == 0 )
-        return LT_HEAD_H + LT_HEAD_GAP;
-    return LT_GRID_TOP + lt_grid_rows(&g_source[index]) * LT_CELL_H + LT_HEAD_GAP;
-}
-
-/** The whole strip's height: the totals band, then every category. */
-/**
- * Every drop in the log, summed across the sources.
- *
- * The DROP view's whole content: interface 650 hides its band container and
- * shows a flat one, because "what did I get" and "what dropped it" are two
- * questions and a list grouped by killer answers only the second. Items are
- * merged by obj id, so twenty goblins' worth of bones is one cell.
- */
-static int
-lt_collect_drops(struct LootTrackerRuntime* rt, struct LtItem* out, int max)
-{
-    int n = 0;
-
-    assert(out);
     for( int i = 0; i < g_source_count; i++ )
-        for( int j = 0; j < g_source[i].item_count; j++ )
-        {
-            struct LtItem const* row = &g_source[i].items[j];
-            int at = -1;
-            for( int k = 0; k < n; k++ )
-                if( out[k].obj_id == row->obj_id )
-                {
-                    at = k;
-                    break;
-                }
-            if( at >= 0 )
-            {
-                out[at].quantity += row->quantity;
-                continue;
-            }
-            if( n >= max )
-                continue;
-            out[n++] = *row;
-        }
-    return n;
-}
-
-/** Rows the drop grid needs for `n` cells. */
-static int
-lt_drop_rows(int n)
-{
-    return (n + LT_GRID_COLS - 1) / LT_GRID_COLS;
-}
-
-static int
-lt_strip_h(struct LootTrackerRuntime* rt)
-{
-    int total = LT_TOTALS_H + LT_HEAD_GAP;
-
-    if( g_drop_view )
-    {
-        struct LtItem drops[LT_SOURCES_MAX * 4];
-        int const n = lt_collect_drops(
-            rt, drops, (int)(sizeof(drops) / sizeof(drops[0])));
-        return total + (n > 0 ? lt_drop_rows(n) * LT_CELL_H + 6 : LT_HEAD_H);
-    }
-
-    for( int i = 0; i < g_source_count; i++ )
-        total += lt_source_h(rt, i);
-    /* The empty note still needs a line to sit on. */
-    return g_source_count > 0 ? total : total + LT_HEAD_H;
-}
-
-/** The totals band, which the game's tracker puts above the categories. */
-static void
-lt_draw_totals(struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h)
-{
-    char text[64];
-
-    assert(buf);
-
-    if( g_spine_px )
-        PluginDraw_Tile(
-            buf, w, h, LT_PLATE_INSET, LT_PLATE_INSET, w - LT_PLATE_INSET * 2,
-            LT_TOTALS_H - LT_PLATE_INSET * 2, g_spine_px, g_spine_w, g_spine_h, 0);
-
-    /*
-     * No panel stone at the left of the band: the thing the cache puts there
-     * is the VIEW TOGGLE (interface 650:62 at x=4), and it is drawn below with
-     * the band's other three controls. An icon here as well sat on top of it.
-     */
-
-    PluginDraw_Text(
-        buf, w, h, LT_TOTALS_KEY_X, 8, &g_text, "Total count:", LT_INK_VALUE);
-    PluginDraw_Text(
-        buf, w, h, LT_TOTALS_KEY_X, 22, &g_text, "Total value:", LT_INK_VALUE);
-
-    lt_kmb(g_session_kills, text, sizeof(text));
-    PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 8, &g_text, text, LT_INK_VALUE);
-    lt_kmb(g_session_value, text, sizeof(text));
-    snprintf(text + strlen(text), sizeof(text) - strlen(text), " gp");
-    PluginDraw_Text(buf, w, h, LT_TOTALS_VAL_X, 22, &g_text, text, LT_INK_VALUE);
-
-    /*
-     * The band's four controls, at the offsets interface 650 places them.
-     *
-     * The view toggle wears the face of the view it will move TO -- 4915 while
-     * the source bands are up, 4916 while the flat drop grid is -- which is
-     * why the two sprites read as each other's opposite rather than as an
-     * on/off pair.
-     */
-    if( g_drop_view ? g_view2_px != NULL : g_view_px != NULL )
-    {
-        uint32_t const* px = g_drop_view ? g_view2_px : g_view_px;
-        int const pw = g_drop_view ? g_view2_w : g_view_w;
-        int const ph = g_drop_view ? g_view2_h : g_view_h;
-        PluginDraw_Blit(
-            buf, w, h, LT_BTN_LEFT_X, LT_BTN_Y, px, pw, ph, 0, 0, pw, ph, 0);
-    }
-    if( g_ignored_px )
-        PluginDraw_Blit(
-            buf, w, h, w - LT_BTN_R0 - LT_BTN, LT_BTN_Y, g_ignored_px, g_ignored_w,
-            g_ignored_h, 0, 0, g_ignored_w, g_ignored_h, 0);
-    if( g_collapse_px )
-        PluginDraw_Blit(
-            buf, w, h, w - LT_BTN_R1 - LT_BTN, LT_BTN_Y, g_collapse_px, g_collapse_w,
-            g_collapse_h, 0, 0, g_collapse_w, g_collapse_h, 0);
-    if( g_alch_px )
-        PluginDraw_Blit(
-            buf, w, h, w - LT_BTN_R2 - LT_BTN, LT_BTN_Y, g_alch_px, g_alch_w,
-            g_alch_h, 0, 0, g_alch_w, g_alch_h, 0);
-}
-
-/** The source a click at `y` landed on, and how far into it. -1 for neither. */
-static int
-lt_source_at(struct LootTrackerRuntime* rt, int y, int* out_local_y)
-{
-    int top = LT_TOTALS_H + LT_HEAD_GAP;
-
-    for( int i = 0; i < g_source_count; i++ )
-    {
-        int const h = lt_source_h(rt, i);
-        if( y >= top && y < top + h )
-        {
-            if( out_local_y )
-                *out_local_y = y - top;
+        if( g_source[i].id == source_id )
             return i;
-        }
-        top += h;
-    }
     return -1;
-}
-
-/**
- * One source: the header band, then its drops if it is expanded.
- *
- * Every measurement is script2907's and script3042's; @see the block comment
- * above LT_HEAD_H.
- */
-/**
- * One item cell: the plate, then the client's own icon at +2,+2.
- *
- * Shared by both views, which is the point of pulling it out -- the source
- * bands and the flat drop grid draw the same cell, and two copies of a blit
- * that has to line an icon up inside a plate is two chances to line it up
- * differently.
- *
- * The BORDERED variant is what `cc_setoutline(1)` bakes, and the quantity is
- * part of the picture rather than drawn over it: the client stamps the stack
- * digits into the sprite, so the icon is asked for AT the quantity and blitted
- * as one thing.
- */
-static void
-lt_draw_cell(
-    struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h, int x, int y,
-    struct LtItem const* item)
-{
-    struct ToriRS_ImageRef image = { 0 };
-    int iw = 0;
-    int ih = 0;
-    size_t copied = 0;
-
-    assert(rt);
-    assert(buf);
-    assert(item);
-
-    if( g_cell_px )
-        PluginDraw_Blit(
-            buf, w, h, x, y, g_cell_px, g_cell_w, g_cell_h, 0, 0, g_cell_w, g_cell_h, 0);
-
-    if( !g_api->game ||
-        g_api->game->item_image(
-            g_api, item->obj_id, item->quantity,
-            TORIRS_ITEM_ICON_BORDERED, &image) != TORIRS_ASSET_READY ||
-        !g_api->assets.image_size(g_api, image, &iw, &ih) )
-    {
-        g_redraw_pending = true;
-        g_compose_key = 0;
-        if( image.value ) g_api->assets.image_release(g_api, image);
-        return;
-    }
-    {
-        uint32_t* px = malloc((size_t)iw * (size_t)ih * sizeof(*px));
-        assert(px);
-        if( g_api->assets.image_pixels(
-                g_api, image, px, (size_t)iw * (size_t)ih, &copied) &&
-            copied == (size_t)iw * (size_t)ih )
-            PluginDraw_Blit(buf, w, h, x + 2, y + 2, px, iw, ih, 0, 0, iw, ih, 0);
-        free(px);
-    }
-    g_api->assets.image_release(g_api, image);
-}
-
-static void
-lt_draw_source(
-    struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h, int top, int index)
-{
-    struct LtSource const* src = &g_source[index];
-    char text[96];
-    char amount[32];
-    int cell_x0;
-
-    assert(rt);
-    assert(buf);
-
-    /* The plate, inset 2 all round -- @see LT_PLATE_INSET. */
-    if( g_spine_px )
-        PluginDraw_Tile(
-            buf, w, h, LT_PLATE_INSET, top + LT_PLATE_INSET,
-            w - LT_PLATE_INSET * 2, LT_HEAD_H - LT_PLATE_INSET * 2, g_spine_px,
-            g_spine_w, g_spine_h, 0);
-
-    /* "Goblin x 2" on the left and its value on the right, both in the bold
-     * face at the interfaces' orange, as script2907 sets them. */
-    snprintf(text, sizeof(text), "%s x %d", src->name, src->kills);
-    PluginDraw_Text(buf, w, h, 8, top + 9, &g_bold, text, LT_INK_HEAD);
-
-    lt_kmb(lt_source_value(rt, src), amount, sizeof(amount));
-    snprintf(text, sizeof(text), "%s gp", amount);
-    PluginDraw_TextRight(buf, w, h, w - 8, top + 9, &g_bold, text, LT_INK_HEAD);
-
-    if( !g_expanded[index] || src->item_count == 0 )
-        return;
-
-    /*
-     * The grid, centred the way script3042 centres it: five 40-wide cells is
-     * 200, and what is left over is shared as four gaps.
-     */
-    cell_x0 = (w - LT_GRID_COLS * LT_CELL_W) / 2;
-    if( cell_x0 < 0 )
-        cell_x0 = 0;
-
-    for( int i = 0; i < src->item_count; i++ )
-    {
-        int const col = i % LT_GRID_COLS;
-        int const row = i / LT_GRID_COLS;
-        int const x = cell_x0 + col * LT_CELL_W;
-        int const y = top + LT_GRID_TOP + row * LT_CELL_H;
-        int image;
-        int iw = 0;
-        int ih = 0;
-
-        lt_draw_cell(rt, buf, w, h, x, y, &src->items[i]);
-        (void)image;
-        (void)iw;
-        (void)ih;
-    }
-}
-
-/** Rasterise every band and publish the strip. */
-/**
- * Everything the strip's picture depends on, in one number.
- *
- * The compose is the expensive half of this plugin -- a plate and a text pass
- * per band, and an icon read back per cell -- and the draw event fires
- * whenever the well is dirty, which is every frame the panel is up. Composing
- * unconditionally therefore re-rasterised and RE-PUBLISHED the same picture
- * sixty times a second; the republish replaces the scene sprite the overlay
- * item is about to reference, and the frames that landed between the two are
- * what the loot list was flickering with.
- *
- * So the picture is hashed on its inputs and only rebuilt when one moves. The
- * hash has to cover everything a reader can SEE -- the view, the width, the
- * price basis, every band's name, count and value, and every cell's obj and
- * quantity -- because anything left out is a change that will not redraw.
- */
-static uint64_t
-lt_compose_key(struct LootTrackerRuntime* rt, int width)
-{
-    uint64_t k = 1469598103934665603ull;
-    char const* price = lt_config_string(rt, "price_source");
-
-#define LT_MIX(v)                                                                        \
-    do                                                                                   \
-    {                                                                                    \
-        k ^= (uint64_t)(v);                                                              \
-        k *= 1099511628211ull;                                                           \
-    } while( 0 )
-
-    assert(rt);
-    LT_MIX(width);
-    LT_MIX(g_drop_view ? 1 : 0);
-    LT_MIX(g_source_count);
-    LT_MIX(g_session_kills);
-    LT_MIX(g_session_value);
-    for( char const* at = price ? price : ""; *at; at++ )
-        LT_MIX((unsigned char)*at);
-    for( int i = 0; i < g_source_count; i++ )
-    {
-        struct LtSource const* src = &g_source[i];
-        LT_MIX(src->kills);
-        LT_MIX(src->item_count);
-        LT_MIX(g_expanded[i] ? 1 : 0);
-        for( char const* at = src->name; *at; at++ )
-            LT_MIX((unsigned char)*at);
-        for( int j = 0; j < src->item_count; j++ )
-        {
-            LT_MIX(src->items[j].obj_id);
-            LT_MIX(src->items[j].quantity);
-            LT_MIX(src->items[j].cost);
-        }
-    }
-#undef LT_MIX
-    return k;
-}
-
-static void
-lt_compose(struct LootTrackerRuntime* rt, int width)
-{
-    int const height = lt_strip_h(rt);
-    size_t const pixels = (size_t)width * (size_t)height;
-    uint64_t const key = lt_compose_key(rt, width);
-    int top = 0;
-
-    assert(rt);
-    if( width <= 0 || height <= 0 )
-        return;
-    /*
-     * Nothing moved, so the published picture is still the right one. An icon
-     * that was not resident when it was composed is the one thing this would
-     * miss, and lt_art_ready gates the whole draw on the art rather than on
-     * any one cell, so a late icon arrives with the next real change.
-     */
-    if( key == g_compose_key && g_compose && g_compose_w == width &&
-        g_compose_h == height )
-        return;
-    g_compose_key = key;
-
-    if( !g_compose || g_compose_w != width || g_compose_h != height )
-    {
-        free(g_compose);
-        g_compose = malloc(pixels * sizeof(*g_compose));
-        assert(g_compose);
-        g_compose_w = width;
-        g_compose_h = height;
-    }
-    /* Transparent, so the panel's own backing shows through exactly as the
-     * interface's does behind its bands. */
-    memset(g_compose, 0, pixels * sizeof(*g_compose));
-
-    lt_draw_totals(rt, g_compose, width, height);
-    top = LT_TOTALS_H + LT_HEAD_GAP;
-
-    if( g_source_count == 0 )
-        PluginDraw_Text(
-            g_compose, width, height, 4, top + 3, &g_text, "No loot to display.",
-            LT_INK_HEAD);
-    else if( g_drop_view )
-    {
-        struct LtItem drops[LT_SOURCES_MAX * 4];
-        int const n = lt_collect_drops(
-            rt, drops, (int)(sizeof(drops) / sizeof(drops[0])));
-        int const x0 = (width - LT_GRID_COLS * LT_CELL_W) / 2;
-
-        for( int i = 0; i < n; i++ )
-            lt_draw_cell(
-                rt, g_compose, width, height,
-                (x0 < 0 ? 0 : x0) + (i % LT_GRID_COLS) * LT_CELL_W,
-                top + (i / LT_GRID_COLS) * LT_CELL_H, &drops[i]);
-    }
-    else
-        for( int i = 0; i < g_source_count; i++ )
-        {
-            lt_draw_source(rt, g_compose, width, height, top, i);
-            top += lt_source_h(rt, i);
-        }
-
-    (void)g_api->assets.image_compose(
-        g_api, "strip", width, height, g_compose, &g_strip_image);
-}
-
-/**
- * Ask for a redraw of the strip only when the picture would differ.
- *
- * The refresh runs on a timer, and an unconditional invalidate would put the
- * well through a full draw pass twice a second for a picture that is already
- * on screen -- every one of those passes a chance to catch the art or an obj
- * icon mid-flight and publish a frame that is missing one. Composing is keyed
- * on the drawn values; so is asking for the pass at all.
- */
-static void
-lt_strip_invalidate(struct LootTrackerRuntime* rt)
-{
-    assert(rt);
-    g_api->panel.redraw(g_api, "strip");
 }
 
 /**
@@ -1084,8 +429,18 @@ lt_sync_store(struct LootTrackerRuntime* rt)
     int before = g_source_count;
     int count = 0;
     bool changed = false;
+    bool had_detail = false;
+    int selected_source_id = 0;
 
     assert(rt);
+
+    if( g_detail >= 0 && g_detail < g_source_count )
+    {
+        had_detail = true;
+        selected_source_id = g_page_built && g_built_detail >= 0
+                                 ? g_built_detail_source_id
+                                 : g_source[g_detail].id;
+    }
 
     ignored = lt_config_string(rt, "ignored_sources");
     g_session_kills = 0;
@@ -1144,8 +499,7 @@ lt_sync_store(struct LootTrackerRuntime* rt)
     g_source_count = count;
     if( before != count )
         changed = true;
-    if( g_detail >= g_source_count )
-        g_detail = -1;
+    g_detail = had_detail ? lt_source_index_by_id(rt, selected_source_id) : -1;
     return changed;
 }
 
@@ -1187,8 +541,7 @@ lt_source_summary(
     snprintf(
         out,
         out_size,
-        "%s \xc2\xb7 %s %s \xc2\xb7 %s gp \xc2\xb7 %d item%s",
-        source->name,
+        "%s %s \xc2\xb7 %s gp \xc2\xb7 %d item%s",
         kills,
         source->kills == 1 ? "kill" : "kills",
         value,
@@ -1213,6 +566,13 @@ lt_item_summary(
     lt_commas(
         lt_unit_value(rt, item) * item->quantity, value, sizeof(value));
     snprintf(out, out_size, "%s \xc2\xb7 %s gp", quantity, value);
+}
+
+static char const*
+lt_item_label(struct LtItem const* item)
+{
+    assert(item);
+    return item->name[0] ? item->name : "Unknown item";
 }
 
 /** Patch live text on the already-retained native DOM rows. */
@@ -1266,20 +626,44 @@ lt_page_refresh(struct LootTrackerRuntime* rt)
     }
 }
 
-/** Whether the native row topology changed. Value-only changes stay on the
- * retained setter path; a new/removed source or item rebuilds the page. */
+/** Whether retained row identity changed. Value-only changes stay on the
+ * setter path; count, order, stable identity, or primary-label changes rebuild
+ * the page before an immutable DOM row can describe a different record. */
 static bool
 lt_page_stale(struct LootTrackerRuntime* rt)
 {
+    int rows;
+
     assert(rt);
     if( !g_page_built )
         return false;
     if( g_built_detail != g_detail )
         return true;
     if( g_detail >= 0 && g_detail < g_source_count )
-        return g_built_rows != g_source[g_detail].item_count;
-    return g_built_rows !=
-           (g_source_count < LT_ROWS_MAX ? g_source_count : LT_ROWS_MAX);
+    {
+        struct LtSource const* source = &g_source[g_detail];
+
+        if( g_built_detail_source_id != source->id ||
+            strcmp(g_built_detail_source_label, source->name) != 0 )
+            return true;
+        rows = source->item_count < LT_ITEMS_MAX ? source->item_count : LT_ITEMS_MAX;
+        if( g_built_rows != rows )
+            return true;
+        for( int i = 0; i < rows; i++ )
+            if( g_built_item_obj_id[i] != source->items[i].obj_id ||
+                strcmp(g_built_item_label[i], lt_item_label(&source->items[i])) != 0 )
+                return true;
+        return false;
+    }
+
+    rows = g_source_count < LT_ROWS_MAX ? g_source_count : LT_ROWS_MAX;
+    if( g_built_rows != rows )
+        return true;
+    for( int i = 0; i < rows; i++ )
+        if( g_built_source_id[i] != g_source[i].id ||
+            strcmp(g_built_source_label[i], g_source[i].name) != 0 )
+            return true;
+    return false;
 }
 
 static void
@@ -1307,49 +691,61 @@ lt_panel_build(
     g_built_detail = g_detail;
     if( g_detail >= 0 && g_detail < g_source_count )
     {
+        struct LtSource const* source = &g_source[g_detail];
         struct ToriRS_PanelNode heading = {
             .struct_size = sizeof(heading),
             .kind = TORIRS_PANEL_HEADING,
             .id = "sec_detail",
-            .text = g_source[g_detail].name,
+            .text = source->name,
         };
         char text[192];
+        int const rows = source->item_count < LT_ITEMS_MAX
+                             ? source->item_count
+                             : LT_ITEMS_MAX;
+
+        g_built_detail_source_id = source->id;
+        snprintf(
+            g_built_detail_source_label,
+            sizeof(g_built_detail_source_label),
+            "%s",
+            source->name);
 
         panel->button(panel, "d_back", "Back to sources", true);
         (void)panel->node(panel, &heading);
-        lt_commas(g_source[g_detail].kills, text, sizeof(text));
+        lt_commas(source->kills, text, sizeof(text));
         panel->key_value(panel, "d_kills", "Kills", text);
-        lt_commas(lt_source_value(rt, &g_source[g_detail]), text, sizeof(text));
+        lt_commas(lt_source_value(rt, source), text, sizeof(text));
         panel->key_value(panel, "d_value", "Value", text);
-        if( g_source[g_detail].kills > 0 )
+        if( source->kills > 0 )
             lt_commas(
-                lt_source_value(rt, &g_source[g_detail]) / g_source[g_detail].kills,
-                text, sizeof(text));
+                lt_source_value(rt, source) / source->kills, text, sizeof(text));
         else
             snprintf(text, sizeof(text), "0");
         panel->key_value(panel, "d_per_kill", "Value per kill", text);
         panel->heading(panel, "Items");
-        for( int i = 0; i < g_source[g_detail].item_count && i < LT_ITEMS_MAX; i++ )
+        for( int i = 0; i < rows; i++ )
         {
             char id[32];
-            char const* name = g_source[g_detail].items[i].name[0]
-                                   ? g_source[g_detail].items[i].name
-                                   : "Unknown item";
+            char const* name = lt_item_label(&source->items[i]);
 
             snprintf(id, sizeof(id), "item_%d", i);
-            lt_item_summary(
-                rt, &g_source[g_detail].items[i], text, sizeof(text));
+            g_built_item_obj_id[i] = source->items[i].obj_id;
+            snprintf(
+                g_built_item_label[i], sizeof(g_built_item_label[i]), "%s", name);
+            lt_item_summary(rt, &source->items[i], text, sizeof(text));
             panel->key_value(panel, id, name, text);
         }
         panel->button(panel, "d_clear", "Clear data", true);
         panel->button(panel, "d_ignore", "Ignore", true);
-        g_built_rows = g_source[g_detail].item_count;
+        g_built_rows = rows;
     }
     else
     {
         char text[192];
 
         g_built_detail = -1;
+        g_built_detail_source_id = 0;
+        g_built_detail_source_label[0] = '\0';
         g_built_rows = g_source_count < LT_ROWS_MAX ? g_source_count : LT_ROWS_MAX;
         panel->heading(panel, "Session");
         lt_commas(g_session_kills, text, sizeof(text));
@@ -1363,8 +759,12 @@ lt_panel_build(
             char id[32];
 
             snprintf(id, sizeof(id), "source_%d", i);
+            g_built_source_id[i] = g_source[i].id;
+            snprintf(
+                g_built_source_label[i], sizeof(g_built_source_label[i]), "%s",
+                g_source[i].name);
             lt_source_summary(rt, &g_source[i], text, sizeof(text));
-            panel->action_row(panel, id, "", text);
+            panel->action_row(panel, id, g_source[i].name, text);
         }
         if( g_source_count > g_built_rows )
             panel->paragraph(panel, "More sources are recorded; refine ignored sources in Settings.");
@@ -1398,19 +798,29 @@ lt_panel_action(
     if( strncmp(ev->id, "source_", 7) == 0 )
     {
         char* end = NULL;
-        long const source = strtol(ev->id + 7, &end, 10);
+        long const row = strtol(ev->id + 7, &end, 10);
 
-        if( end && !*end && source >= 0 && source < g_source_count &&
-            source < LT_ROWS_MAX )
+        if( end && !*end && g_page_built && g_built_detail < 0 && row >= 0 &&
+            row < g_built_rows )
         {
-            g_detail = (int)source;
+            int const source =
+                lt_source_index_by_id(rt, g_built_source_id[(int)row]);
+            if( source >= 0 )
+                g_detail = source;
             g_api->panel.invalidate(g_api);
         }
         return;
     }
-    if( strcmp(ev->id, "d_clear") == 0 && g_detail >= 0 && g_detail < g_source_count )
+    if( strcmp(ev->id, "d_clear") == 0 && g_page_built && g_built_detail >= 0 )
     {
-        int const source_id = g_source[g_detail].id;
+        int const source_id = g_built_detail_source_id;
+        int const source = lt_source_index_by_id(rt, source_id);
+
+        if( source < 0 )
+        {
+            g_api->panel.invalidate(g_api);
+            return;
+        }
         if( !g_api->game->loot_source_clear ||
             !g_api->game->loot_source_clear(g_api, source_id) )
         {
@@ -1424,15 +834,22 @@ lt_panel_action(
         return;
     }
 
-    if( strcmp(ev->id, "d_ignore") == 0 && g_detail >= 0 && g_detail < g_source_count )
+    if( strcmp(ev->id, "d_ignore") == 0 && g_page_built && g_built_detail >= 0 )
     {
         /* The header's third op. The list is the config key a person can also
          * type into, so both ways of saying it end up in one place. */
         char list[LT_CONFIG_VALUE_MAX];
         char const* existing = lt_config_string(rt, "ignored_sources");
         char source_name[sizeof(g_source[0].name)];
+        int const source =
+            lt_source_index_by_id(rt, g_built_detail_source_id);
 
-        snprintf(source_name, sizeof(source_name), "%s", g_source[g_detail].name);
+        if( source < 0 )
+        {
+            g_api->panel.invalidate(g_api);
+            return;
+        }
+        snprintf(source_name, sizeof(source_name), "%s", g_source[source].name);
         snprintf(
             list, sizeof(list), "%s%s%s", existing && existing[0] ? existing : "",
             existing && existing[0] ? "," : "", source_name);
@@ -1465,6 +882,8 @@ lt_start(struct ToriRS_ApiV2* api, void* state_ptr)
     g_detail = -1;
     g_built_detail = -1;
     g_built_rows = 0;
+    g_built_detail_source_id = 0;
+    g_built_detail_source_label[0] = '\0';
     g_page_built = false;
     g_page_visible = false;
     g_next_panel_ms = 0;
@@ -1570,12 +989,12 @@ lt_config_changed(
     bool const filtered = key &&
                           (strcmp(key, "ignored_items") == 0 ||
                            strcmp(key, "ignored_sources") == 0);
-    bool const affects_picture = filtered ||
-                                 (key && strcmp(key, "price_source") == 0);
+    bool const affects_panel = filtered ||
+                               (key && strcmp(key, "price_source") == 0);
 
     if( filtered ) (void)lt_sync_changed(rt, true);
-    else if( affects_picture ) lt_revalue(rt);
-    if( !g_page_visible || !affects_picture ) return;
+    else if( affects_panel ) lt_revalue(rt);
+    if( !g_page_visible || !affects_panel ) return;
     if( lt_page_stale(rt) )
         g_api->panel.invalidate(g_api);
     else

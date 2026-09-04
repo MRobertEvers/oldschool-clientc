@@ -182,9 +182,17 @@ app_plugin_page_select(struct App* app, int page, int view)
             &app->plugin_exec, PluginHost_PanelSelectionGeneration(app->plugins));
 
     g_plugin_page = page;
+    /* The shell stores a RAIL destination, not merely the plugin whose data
+     * backs the page. A generated settings face belongs to Manage even though
+     * `g_plugin_page` still names the plugin being configured. Keeping the
+     * plugin index here made its rail stone look selected and behave like a
+     * close toggle while the settings face was visible, so clicking XP never
+     * navigated to the tracker. */
     ToriRSChromeShell_Select(
         &app->plugin_shell,
-        page >= 0 ? page : TORIRS_CHROME_SHELL_PAGE_MANAGE);
+        page >= 0 && view == APP_PLUGIN_VIEW_PAGE
+            ? page
+            : TORIRS_CHROME_SHELL_PAGE_MANAGE);
     if( getenv("TORIRS_CHROME_DEBUG") )
         fprintf(
             stderr, "chrome: page_select page=%d view=%s -> host active=%d view=%d has_page=%d\n",
@@ -618,11 +626,12 @@ app_plugin_panel_select_inputs(
  * Materialize one ABI-21 semantic node as a styled retained-chrome control.
  *
  * This is deliberately a translation, not a second UI toolkit. Every target
- * kind already crosses the internal-canvas/WEB/BROWSER presentation seam, which keeps a
- * plugin ignorant of the platform presenting it. Kinds without a dedicated
- * primitive keep a clear, accessible OSRS-styled readout. CUSTOM is the one
- * bounded drawing well; its pixels are supplied after layout by the selected
- * generation's on_ui_draw pass.
+ * kind already crosses the internal-canvas/WEB/BROWSER presentation seam,
+ * which keeps a plugin ignorant of the platform presenting it. Read-only
+ * kinds stay distinct here: the browser must receive enough information to
+ * create a heading, paragraph, key/value component, progress meter, or alert,
+ * rather than flattening every one to the same text span. CUSTOM remains the
+ * explicit low-level drawing well; ordinary bundled pages do not use it.
  */
 static int
 app_plugin_panel_add_semantic(
@@ -640,25 +649,32 @@ app_plugin_panel_add_semantic(
     switch( model->kind )
     {
     case TORIRS_PANEL_WIDGET_SECTION:
-        ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
         app_plugin_panel_readout(
             text, sizeof(text), model->label, model->text, model->id);
-        widget = ToriRSChrome_LabelColored(
-            &app->plugin_ui, app->plugin_panel, text, 0xFFFFB83Fu);
+        widget = ToriRSChrome_Heading(
+            &app->plugin_ui, app->plugin_panel, text);
         break;
 
     case TORIRS_PANEL_WIDGET_PARAGRAPH:
+        app_plugin_panel_readout(
+            text, sizeof(text), model->label, model->text, model->id);
+        widget = ToriRSChrome_Paragraph(
+            &app->plugin_ui, app->plugin_panel, text);
+        break;
+
     case TORIRS_PANEL_WIDGET_LABEL:
         app_plugin_panel_readout(
             text, sizeof(text), model->label, model->text, model->id);
-        widget = ToriRSChrome_Label(&app->plugin_ui, app->plugin_panel, text);
+        widget = ToriRSChrome_Label(
+            &app->plugin_ui, app->plugin_panel, text);
         break;
 
     case TORIRS_PANEL_WIDGET_KEY_VALUE:
-        app_plugin_panel_readout(
-            text, sizeof(text), model->label, model->text, model->id);
-        widget = ToriRSChrome_LabelColored(
-            &app->plugin_ui, app->plugin_panel, text, 0xFFFFE7B0u);
+        widget = ToriRSChrome_KeyValue(
+            &app->plugin_ui,
+            app->plugin_panel,
+            model->label[0] ? model->label : model->id,
+            model->text);
         break;
 
     case TORIRS_PANEL_WIDGET_CHECKBOX:
@@ -748,10 +764,11 @@ app_plugin_panel_add_semantic(
         break;
 
     case TORIRS_PANEL_WIDGET_ACTION_ROW:
-        app_plugin_panel_readout(
-            text, sizeof(text), model->label, model->text, model->id);
         widget = ToriRSChrome_ActionRow(
-            &app->plugin_ui, app->plugin_panel, text);
+            &app->plugin_ui,
+            app->plugin_panel,
+            model->label[0] ? model->label : model->id,
+            model->text);
         break;
 
     case TORIRS_PANEL_WIDGET_IMAGE:
@@ -766,23 +783,20 @@ app_plugin_panel_add_semantic(
         break;
 
     case TORIRS_PANEL_WIDGET_PROGRESS:
-        if( model->text[0] )
-            app_plugin_panel_readout(
-                text, sizeof(text), model->label, model->text, model->id);
-        else
-            snprintf(
-                text, sizeof(text), "%s: %d%%",
-                model->label[0] ? model->label : model->id,
-                model->value);
-        widget = ToriRSChrome_LabelColored(
-            &app->plugin_ui, app->plugin_panel, text, 0xFF9BC56Du);
+        widget = ToriRSChrome_Progress(
+            &app->plugin_ui,
+            app->plugin_panel,
+            model->label[0] ? model->label : model->id,
+            model->text,
+            model->value);
         break;
 
     case TORIRS_PANEL_WIDGET_ERROR:
-        app_plugin_panel_readout(
-            text, sizeof(text), model->label, model->text, "Plugin error");
-        widget = ToriRSChrome_LabelColored(
-            &app->plugin_ui, app->plugin_panel, text, 0xFFCC5555u);
+        widget = ToriRSChrome_Error(
+            &app->plugin_ui,
+            app->plugin_panel,
+            model->label[0] ? model->label : "Plugin error",
+            model->text);
         break;
 
     case TORIRS_PANEL_WIDGET_CUSTOM:
@@ -937,14 +951,17 @@ app_plugin_panel_patch_row(
     case TORIRS_PANEL_WIDGET_SECTION:
     case TORIRS_PANEL_WIDGET_PARAGRAPH:
     case TORIRS_PANEL_WIDGET_LABEL:
-    case TORIRS_PANEL_WIDGET_KEY_VALUE:
-    case TORIRS_PANEL_WIDGET_ERROR:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
         {
             app_plugin_panel_readout(
                 text, sizeof(text), model->label, model->text, model->id);
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, text);
         }
+        break;
+    case TORIRS_PANEL_WIDGET_KEY_VALUE:
+    case TORIRS_PANEL_WIDGET_ERROR:
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
         break;
     case TORIRS_PANEL_WIDGET_IMAGE:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
@@ -957,19 +974,10 @@ app_plugin_panel_patch_row(
         }
         break;
     case TORIRS_PANEL_WIDGET_PROGRESS:
-        if( change->flags & (TORIRS_PLUGIN_PANEL_CHANGE_TEXT |
-                             TORIRS_PLUGIN_PANEL_CHANGE_VALUE) )
-        {
-            if( model->text[0] )
-                app_plugin_panel_readout(
-                    text, sizeof(text), model->label, model->text, model->id);
-            else
-                snprintf(
-                    text, sizeof(text), "%s: %d%%",
-                    model->label[0] ? model->label : model->id,
-                    model->value);
-            ToriRSChrome_SetText(&app->plugin_ui, row->widget, text);
-        }
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_VALUE )
+            ToriRSChrome_SetProgress(&app->plugin_ui, row->widget, model->value);
         break;
     case TORIRS_PANEL_WIDGET_CUSTOM:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT )
@@ -1042,11 +1050,7 @@ app_plugin_panel_patch_row(
         break;
     case TORIRS_PANEL_WIDGET_ACTION_ROW:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
-        {
-            app_plugin_panel_readout(
-                text, sizeof(text), model->label, model->text, model->id);
-            ToriRSChrome_SetLabel(&app->plugin_ui, row->widget, text);
-        }
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
         break;
     case TORIRS_PANEL_WIDGET_SEPARATOR:
     default:
@@ -1351,9 +1355,11 @@ app_plugin_panel_sync(struct App* app)
                  * only in a log nobody has open. */
                 if( err )
                 {
-                    snprintf(label, sizeof(label), "  ! %s", err);
-                    ToriRSChrome_LabelColored(
-                        &app->plugin_ui, app->plugin_panel, label, 0xFFCC5555u);
+                    ToriRSChrome_Error(
+                        &app->plugin_ui,
+                        app->plugin_panel,
+                        PluginHost_Title(app->plugins, p),
+                        err);
                 }
             }
         }
@@ -1433,9 +1439,8 @@ app_plugin_panel_sync(struct App* app)
          * controls, then the schema's staged rows and their Save. */
         if( !on_page && panel_count > 0 && cfg_count > 0 )
         {
-            ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
-            ToriRSChrome_LabelColored(
-                &app->plugin_ui, app->plugin_panel, "Plugin settings", 0xFFFFB83Fu);
+            ToriRSChrome_Heading(
+                &app->plugin_ui, app->plugin_panel, "Plugin settings");
         }
 
         for( int c = 0; c < cfg_count; c++ )
@@ -2713,7 +2718,9 @@ app_plugin_window_set_open(struct App* app, int open)
         }
         ToriRSChromeShell_Select(
             &app->plugin_shell,
-            g_plugin_page >= 0 ? g_plugin_page : TORIRS_CHROME_SHELL_PAGE_MANAGE);
+            g_plugin_page >= 0 && g_plugin_page_view == APP_PLUGIN_VIEW_PAGE
+                ? g_plugin_page
+                : TORIRS_CHROME_SHELL_PAGE_MANAGE);
     }
     else
         ToriRSChromeShell_Collapse(&app->plugin_shell);
@@ -2781,13 +2788,18 @@ app_plugin_rail_snapshot(
     snapshot->selected_entry = app->plugin_shell.active_plugin;
     /* A plugin's generated settings page has no stone of its own: it is
      * reached from the roster, so the rail keeps Manage Plugins pressed while
-     * it is up, and pressing Manage again is the way back to the roster. */
+     * it is up, and pressing Manage again is the way back to the roster. Check
+     * the host's mounted face as well as our desired face: if a rejected or
+     * interrupted transition left those two disagreeing, the rail must report
+     * what is actually on screen and the next plugin click must repair it. */
     if( snapshot->selected_entry >= 0 )
     {
         int const selected = snapshot->selected_entry;
         int const has_page = PluginHost_PanelHasPage(app->plugins, selected);
         int const managed_only =
             g_plugin_page_view != APP_PLUGIN_VIEW_PAGE ||
+            PluginHost_PanelActive(app->plugins) != selected ||
+            PluginHost_PanelView(app->plugins) != TORIRS_PANEL_VIEW_PAGE ||
             (has_page && PluginHost_IsEssential(app->plugins, selected));
         if( !ToriRSChromeRailSnapshot_IncludesPlugin(
                 has_page, managed_only) )
@@ -2942,9 +2954,17 @@ app_plugin_rail_drain(struct App* app)
      * the stone becomes a toggle between closed and the settings, and a plugin
      * whose settings you once opened can never be looked at again.
      */
+    /* All three authorities must say the PAGE is what is open before the
+     * rail stone can mean "close it". A settings face reached through Manage
+     * can retain the same plugin/shell key; treating that partial match as the
+     * page made the XP stone close/reopen settings instead of navigating to
+     * the tracker. Any disagreement falls through to the explicit PAGE
+     * selection below, which repairs it. */
     if( app->plugin_panel_visible &&
         app->plugin_shell.active_plugin == latest_select.plugin_index &&
-        g_plugin_page_view == APP_PLUGIN_VIEW_PAGE )
+        g_plugin_page_view == APP_PLUGIN_VIEW_PAGE &&
+        PluginHost_PanelActive(app->plugins) == latest_select.plugin_index &&
+        PluginHost_PanelView(app->plugins) == TORIRS_PANEL_VIEW_PAGE )
     {
         app_plugin_window_set_open(app, 0);
         return;
@@ -2960,11 +2980,20 @@ app_plugin_rail_drain(struct App* app)
 static int
 app_plugin_button_click(struct App* app, int component_id)
 {
+    int const opening = !app->plugin_panel_visible;
+
     if( component_id != TORIRS_CHROME_PLUGIN_BUTTON_ID )
         return 0;
     if( getenv("TORIRS_CHROME_DEBUG") )
         fprintf(stderr, "chrome: Manage Plugins plate click tick=%d\n", g_plugin_panel_ticks);
-    app_plugin_window_set_open(app, !app->plugin_panel_visible);
+    /* This is the top-level wrench labelled Manage Plugins, so opening it
+     * always goes to the roster/settings destination. Plugin-owned rail icons
+     * are the separate entry points for live tracker pages. Remembering the
+     * last plugin face here made the wrench and that plugin's icon do the same
+     * thing, and was how the XP settings face leaked back into its rail path. */
+    if( opening )
+        app_plugin_page_select(app, -1, APP_PLUGIN_VIEW_SETTINGS);
+    app_plugin_window_set_open(app, opening);
     return 1;
 }
 

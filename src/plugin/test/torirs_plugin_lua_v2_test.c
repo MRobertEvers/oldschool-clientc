@@ -24,6 +24,7 @@ static int g_ui_enabled;
 static int g_ui_updates;
 static int g_draws;
 static int g_headings;
+static int g_action_rows;
 static int g_surfaces;
 static int g_reasons;
 static int g_disabled_self;
@@ -168,6 +169,20 @@ static void fake_heading(struct ToriRS_PanelBuilder* panel, char const* text)
     (void)panel;
     CHECK(strcmp(text, "Native V2") == 0, "panel builder forwards heading");
     g_headings++;
+}
+static void fake_action_row(
+    struct ToriRS_PanelBuilder* panel,
+    char const* id,
+    char const* label,
+    char const* summary)
+{
+    (void)panel;
+    CHECK(strcmp(id, "skill_8") == 0, "Lua action row forwards its stable id");
+    CHECK(strcmp(label, "Woodcutting") == 0,
+        "Lua action row forwards its primary label");
+    CHECK(strcmp(summary, "XP/hr 12.3K") == 0,
+        "Lua action row forwards its retained summary");
+    g_action_rows++;
 }
 static void fake_surface(
     struct ToriRS_FrameBuilder* frame,
@@ -332,7 +347,8 @@ test_runtime(struct ToriRS_PluginHost* host)
         " on_draw_canvas=function(api,draw)"
         "  assert(api.config.set('answer',43));draw.rect(1,2,3,4,0xffffff,255)"
         " end,"
-        " on_ui_build=function(api,panel,view) assert(view=='page');panel.heading('Native V2') end"
+        " on_ui_build=function(api,panel,view) assert(view=='page');"
+        "  panel.heading('Native V2');panel.action_row('skill_8','Woodcutting','XP/hr 12.3K') end"
         "}";
     struct FakeInstance instance = { "lua-v2-test", "lua-v2-test/ready" };
     struct ToriRS_ApiV2 api = fake_api(&instance);
@@ -383,6 +399,7 @@ test_runtime(struct ToriRS_PluginHost* host)
     memset(&panel, 0, sizeof(panel));
     panel.struct_size = sizeof(panel);
     panel.heading = fake_heading;
+    panel.action_row = fake_action_row;
     g_defs[0]->callbacks.on_ui_build(&api, NULL, &panel, TORIRS_PANEL_VIEW_PAGE);
     memset(&frame, 0, sizeof(frame));
     frame.struct_size = sizeof(frame);
@@ -411,7 +428,8 @@ test_runtime(struct ToriRS_PluginHost* host)
     g_defs[0]->frames[0].draw(&api, NULL, &draw);
     CHECK(g_logs == 2 && g_ui_enabled == 1 && g_ui_updates == 1,
         "canonical and synchronously reentrant API calls reached V2 functions");
-    CHECK(g_draws == 2 && g_headings == 1, "scoped draw/panel builders reached V2 functions");
+    CHECK(g_draws == 2 && g_headings == 1 && g_action_rows == 1,
+        "scoped draw and native action-row builders reached V2 functions");
     CHECK(g_surfaces == 1 && g_reasons == 1, "scoped frame builder reached V2 functions");
     CHECK(g_config_dispatches == 1,
         "config.set synchronously dispatched on_config_changed once");

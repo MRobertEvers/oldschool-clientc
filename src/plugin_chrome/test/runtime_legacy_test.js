@@ -150,16 +150,50 @@ runtime.receive({
         command(3, { text: "Plugin" }),
         command(8, { w: 1, v: 1, label: "Enabled", s: 101 }),
         command(8, { w: 2, v: 2, label: "Text", text: "abc", s: 102 }),
-        command(8, { w: 3, v: 12, label: "Chart", ch: 120, s: 103 })
+        command(8, { w: 3, v: 12, label: "Chart", ch: 120, s: 103 }),
+        command(8, { w: 4, v: 9, label: "Woodcutting",
+            text: "XP/hr 12.3K", cw: 2, s: 104 }),
+        command(8, { w: 5, v: 0, text: "Session", cw: 1, s: 105 }),
+        command(8, { w: 6, v: 0, label: "Total value", text: "12,450 gp", cw: 3, s: 106 }),
+        command(8, { w: 7, v: 0, label: "Level progress", text: "Level 72 to 73", cw: 4, s: 107 }),
+        command(15, { w: 7, v: 68 }),
+        command(8, { w: 8, v: 0, label: "Tracker unavailable", text: "Log in first", cw: 5, s: 108 }),
+        command(8, { w: 9, v: 0, text: "No loot recorded yet.", cw: 2, s: 109 })
     ]
 });
-assert.strictEqual(runtime.inspect().widgetCount, 3);
+assert.strictEqual(runtime.inspect().widgetCount, 9);
 var oldCheckbox = built.ids["tpc-content"].children[0].children[0];
 oldCheckbox.checked = true;
 oldCheckbox.fire("change");
 var raw = codec.parse(runtime.takeIntent());
 assert.strictEqual(raw.g, 10);
 assert.strictEqual(raw.s, 101, "legacy intent is generation and serial fenced");
+var actionButton = built.ids["tpc-content"].children[3]._tpcRecord.control;
+assert.strictEqual(actionButton.tagName, "BUTTON",
+    "legacy chrome also exposes an action row as a native button");
+assert.strictEqual(actionButton.children[0].innerText, "Woodcutting");
+assert.strictEqual(actionButton.children[1].innerText, "XP/hr 12.3K");
+actionButton.fire("click");
+raw = codec.parse(runtime.takeIntent());
+assert.strictEqual(raw.k, 2);
+assert.strictEqual(raw.s, 104, "legacy action button emits the semantic ACTION intent");
+var headingRow = built.ids["tpc-content"].children[4];
+assert.strictEqual(headingRow.children[0].tagName, "H2");
+assert.strictEqual(headingRow.children[0].innerText, "Session");
+var keyValueRow = built.ids["tpc-content"].children[5];
+assert.strictEqual(keyValueRow.children[0].tagName, "DL");
+assert.strictEqual(keyValueRow.children[0].children[0].innerText, "Total value");
+assert.strictEqual(keyValueRow.children[0].children[1].innerText, "12,450 gp");
+var progressRow = built.ids["tpc-content"].children[6];
+assert.strictEqual(progressRow._tpcRecord.control.tagName, "DIV",
+    "legacy progress uses an accessible DOM fallback");
+assert.strictEqual(progressRow._tpcRecord.control.getAttribute("role"), "progressbar");
+assert.strictEqual(progressRow._tpcRecord.control.getAttribute("aria-valuenow"), "68");
+assert.strictEqual(progressRow._tpcRecord.progressFill.style.width, "68%");
+var errorRow = built.ids["tpc-content"].children[7];
+assert.strictEqual(errorRow.children[0].getAttribute("role"), "alert");
+assert.strictEqual(errorRow._tpcRecord.caption.innerText, "Tracker unavailable");
+assert.strictEqual(built.ids["tpc-content"].children[8].children[0].tagName, "P");
 
 runtime.receive({
     protocol: 1, type: "custom.bitmap", pageGeneration: 10,

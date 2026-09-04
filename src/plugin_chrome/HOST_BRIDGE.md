@@ -213,10 +213,20 @@ allowed for built-in/legacy controls. Command kinds are:
 Widget kinds on ADD are 0 label, 1 checkbox, 2 text input, 3 separator,
 4 menu item, 5 dropdown, 6 model view, 7 button, 8 tab strip, 9 list row,
 10 color picker, 11 textarea, 12 custom bitmap region, and 13 free/hidden.
-For a list row, `cw` carries the row shape bits: 1 = the row opens a page
-(the runtime adds the three-dot settings well and sends intent 2 from the name
-and the well), 2 = locked (no switch; the whole row is the action). A row with
-neither bit toggles from anywhere, including its name.
+For a list row, `cw` carries the row shape bits: 1 = the management row opens a
+page (the runtime adds the three-dot settings well and sends intent 2 from the
+name and the well), 2 = locked (no switch). The locked-only shape is a semantic
+navigation row: the runtime creates one real button, keeps `label` as its
+primary line and `text` as its independently patchable summary, and sends
+intent 2 when activated. Bits 1+2 remain the essential management row with a
+settings well and no switch. A row with neither bit toggles from anywhere,
+including its name.
+For a label widget, `cw` preserves the semantic read-only component kind:
+0 = plain label, 1 = heading, 2 = paragraph, 3 = key/value pair,
+4 = progress meter, and 5 = error/alert. Key/value, progress, and error keep
+`label` and `text` as separate DOM fields; command 15 updates a progress
+meter's 0..100 value. The browser therefore creates `H2`, `P`, `DL`/`DT`/`DD`,
+`PROGRESS`, and alert elements instead of styling every readout as one span.
 For a custom widget, `ch` is its bounded preferred height in 1x chrome logical
 pixels; the bitmap is fitted to that retained box and its source aspect ratio
 does not resize the page.

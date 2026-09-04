@@ -41,6 +41,10 @@
     };
     var ROW_ACTION = 0x1;
     var ROW_LOCKED = 0x2;
+    var LABEL = {
+        PLAIN: 0, HEADING: 1, PARAGRAPH: 2, KEY_VALUE: 3, PROGRESS: 4, ERROR: 5,
+        STYLE_COUNT: 6
+    };
     var RENDER = {
         FULL: 1, VISIBILITY: 2, OPTIONS: 4, SELECTION: 8, FOCUS: 16, CONTENT: 32
     };
@@ -794,13 +798,95 @@
         row._tpcRecord = record;
         switch (record.kind) {
             case W.LABEL: {
-                var value = document.createElement('span');
-                value.className = 'tpc-value';
-                row.appendChild(value);
-                record.control = value;
+                if (record.shape === LABEL.HEADING) {
+                    row.className += ' tpc-section-row';
+                    var heading = document.createElement('h2');
+                    heading.className = 'tpc-section-heading';
+                    row.appendChild(heading);
+                    record.control = heading;
+                }
+                else if (record.shape === LABEL.PARAGRAPH) {
+                    row.className += ' tpc-paragraph-row';
+                    var paragraph = document.createElement('p');
+                    paragraph.className = 'tpc-paragraph';
+                    row.appendChild(paragraph);
+                    record.control = paragraph;
+                }
+                else if (record.shape === LABEL.KEY_VALUE) {
+                    row.className += ' tpc-key-value-row';
+                    var pair = document.createElement('dl');
+                    pair.className = 'tpc-key-value';
+                    var key = document.createElement('dt');
+                    key.className = 'tpc-key';
+                    var value = document.createElement('dd');
+                    value.className = 'tpc-value';
+                    pair.appendChild(key);
+                    pair.appendChild(value);
+                    row.appendChild(pair);
+                    record.control = pair;
+                    record.caption = key;
+                    record.valueNode = value;
+                }
+                else if (record.shape === LABEL.PROGRESS) {
+                    row.className += ' tpc-progress-row';
+                    var group = document.createElement('div');
+                    group.className = 'tpc-progress';
+                    var header = document.createElement('div');
+                    header.className = 'tpc-progress-header';
+                    var caption = document.createElement('span');
+                    caption.className = 'tpc-progress-label';
+                    var detail = document.createElement('span');
+                    detail.className = 'tpc-progress-detail';
+                    header.appendChild(caption);
+                    header.appendChild(detail);
+                    var meter = void 0;
+                    if (legacy) {
+                        meter = document.createElement('div');
+                        meter.className = 'tpc-progress-meter tpc-progress-meter-legacy';
+                        meter.setAttribute('role', 'progressbar');
+                        var fill = document.createElement('span');
+                        fill.className = 'tpc-progress-fill';
+                        meter.appendChild(fill);
+                        record.progressFill = fill;
+                    }
+                    else {
+                        meter = document.createElement('progress');
+                        meter.className = 'tpc-progress-meter';
+                        meter.max = 100;
+                    }
+                    group.appendChild(header);
+                    group.appendChild(meter);
+                    row.appendChild(group);
+                    record.control = meter;
+                    record.caption = caption;
+                    record.valueNode = detail;
+                }
+                else if (record.shape === LABEL.ERROR) {
+                    row.className += ' tpc-error-row';
+                    var error = document.createElement('p');
+                    error.className = 'tpc-error';
+                    error.setAttribute('role', 'alert');
+                    var caption = document.createElement('strong');
+                    caption.className = 'tpc-error-label';
+                    var detail = document.createElement('span');
+                    detail.className = 'tpc-error-detail';
+                    error.appendChild(caption);
+                    error.appendChild(detail);
+                    row.appendChild(error);
+                    record.control = error;
+                    record.caption = caption;
+                    record.valueNode = detail;
+                }
+                else {
+                    var value = document.createElement('span');
+                    value.className = 'tpc-value';
+                    row.appendChild(value);
+                    record.control = value;
+                }
                 break;
             }
             case W.CHECKBOX: {
+                row.className += ' tpc-toggle-row';
                 var box_1 = document.createElement('input');
                 box_1.type = 'checkbox';
                 box_1.className = 'tpc-check';
@@ -813,6 +899,7 @@
                 break;
             }
             case W.TEXTINPUT: {
+                row.className += ' tpc-field-row';
                 var input_1 = document.createElement('input');
                 input_1.type = 'text';
                 input_1.className = 'tpc-field tpc-text-field';
@@ -823,7 +910,7 @@
                 break;
             }
             case W.TEXTAREA: {
-                row.className += ' tpc-tall-row';
+                row.className += ' tpc-tall-row tpc-field-row';
                 var area_1 = document.createElement('textarea');
                 area_1.className = 'tpc-field tpc-textarea';
                 area_1.maxLength = MAX_TEXT;
@@ -842,6 +929,7 @@
             }
             case W.MENUITEM:
             case W.BUTTON: {
+                row.className += ' tpc-button-row';
                 var button = document.createElement('button');
                 button.type = 'button';
                 button.className = record.kind === W.BUTTON ? 'tpc-button' : 'tpc-menu';
@@ -851,6 +939,7 @@
                 break;
             }
             case W.DROPDOWN: {
+                row.className += ' tpc-field-row';
                 var select_1 = document.createElement('select');
                 select_1.className = 'tpc-field tpc-select';
                 bind(select_1, 'change', function () {
@@ -889,6 +978,30 @@
                  * flex row so XP MSHTML lays the same three zones out. */
                 var locked_1 = !!(record.shape & ROW_LOCKED);
                 var action_1 = !!(record.shape & ROW_ACTION);
+                /* LOCKED without the management ACTION affordance is the semantic
+                 * ACTION_ROW shape. Give it one real form control rather than making a
+                 * table cell pretend to be a button: keyboard activation, focus, and
+                 * its accessible name then come from the browser. Keep the primary
+                 * label and live summary in distinct retained nodes so a TEXT delta can
+                 * patch the summary without replacing the control. */
+                if (locked_1 && !action_1) {
+                    var button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'tpc-action-row';
+                    var primary = document.createElement('span');
+                    primary.className = 'tpc-action-label';
+                    var summary = document.createElement('span');
+                    summary.className = 'tpc-action-summary';
+                    button.appendChild(primary);
+                    button.appendChild(summary);
+                    bind(button, 'click', function () { return postWidget(record, INTENT.ACTION); });
+                    row.appendChild(button);
+                    record.control = button;
+                    record.caption = primary;
+                    record.summary = summary;
+                    record.actionButton = button;
+                    break;
+                }
                 var holder = document.createElement('table');
                 holder.className = 'tpc-list-table';
                 holder.setAttribute('role', 'presentation');
@@ -1069,8 +1182,22 @@
     function renderWidgetContent(record) {
         switch (record.kind) {
             case W.LABEL:
-                setText(record.control, record.text || record.label);
-                if (record.color) {
+                if (record.shape === LABEL.KEY_VALUE) {
+                    setText(record.caption, record.label || 'Value');
+                    setText(record.valueNode, record.text || '\u2014');
+                }
+                else if (record.shape === LABEL.PROGRESS) {
+                    setText(record.caption, record.label || 'Progress');
+                    setText(record.valueNode, record.text || "".concat(Math.max(0, record.selected), "%"));
+                }
+                else if (record.shape === LABEL.ERROR) {
+                    setText(record.caption, record.label || 'Plugin error');
+                    setText(record.valueNode, record.text ? " ".concat(record.text) : '');
+                }
+                else {
+                    setText(record.control, record.text || record.label);
+                }
+                if (record.color && record.control) {
                     var raw = (record.color & 0xffffff).toString(16);
                     record.control.style.color = "#".concat('000000'.slice(raw.length)).concat(raw);
                 }
@@ -1097,9 +1224,21 @@
                 setText(record.control, record.label || record.text || 'Model preview');
                 break;
             case W.LISTROW:
-                setText(record.caption, record.label || record.text);
-                if (record.well)
-                    record.well.title = text(record.label || record.text, 63);
+                if (record.actionButton) {
+                    var primary = record.label || 'Open';
+                    var summary = record.text || '';
+                    var accessible = summary ? "".concat(primary, ". ").concat(summary) : primary;
+                    setText(record.caption, primary);
+                    setText(record.summary, summary);
+                    hidden(record.summary, !summary);
+                    record.actionButton.title = text(accessible, 255);
+                    record.actionButton.setAttribute('aria-label', text(accessible, 255));
+                }
+                else {
+                    setText(record.caption, record.label || record.text);
+                    if (record.well)
+                        record.well.title = text(record.label || record.text, 63);
+                }
                 if (record.toggle)
                     skinCheck(record.toggle, !!record.checked);
                 break;
@@ -1119,6 +1258,7 @@
         renderWidgetContent(record);
         if (record.kind === W.DROPDOWN || record.kind === W.TABSTRIP)
             renderOptions(record);
+        renderWidgetSelection(record);
         renderWidgetVisibility(record);
         renderWidgetFocus(record);
     }
@@ -1131,6 +1271,18 @@
         if (record.kind === W.DROPDOWN && record.control)
             record.control.selectedIndex = record.selected >= 0 &&
                 record.selected < record.options.length ? record.selected : -1;
+        else if (record.kind === W.LABEL && record.shape === LABEL.PROGRESS && record.control) {
+            var value = Math.max(0, Math.min(100, integer(record.selected, 0)));
+            if (record.progressFill)
+                record.progressFill.style.width = "".concat(value, "%");
+            else
+                record.control.value = value;
+            record.control.setAttribute('aria-valuemin', '0');
+            record.control.setAttribute('aria-valuemax', '100');
+            record.control.setAttribute('aria-valuenow', String(value));
+            if (!record.text)
+                setText(record.valueNode, "".concat(value, "%"));
+        }
     }
     function renderWidgetFocus(record) {
         if (record.focused && record.control && record.control.focus) {
@@ -1580,7 +1732,9 @@
                 toggleRow(rows, record, record.control);
                 break;
             case W.LISTROW:
-                if (record.shape & (ROW_ACTION | ROW_LOCKED))
+                if ((record.shape & ROW_LOCKED) && !(record.shape & ROW_ACTION))
+                    addRow(rows, record.label || 'Open', function () { return postWidget(record, INTENT.ACTION); });
+                else if (record.shape & (ROW_ACTION | ROW_LOCKED))
                     addRow(rows, 'Settings', function () { return postWidget(record, INTENT.ACTION); });
                 if (record.toggle)
                     toggleRow(rows, record, record.toggle);

@@ -713,6 +713,9 @@ static void v2_build_label(
 static void v2_build_key_value(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, char const* value)
 { (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_KEY_VALUE, id, label); (void)fake_panel_set_text(NULL, id, value); }
+static void v2_build_action_row(
+    struct ToriRS_PanelBuilder* panel, char const* id, char const* label, char const* text)
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_ACTION_ROW, id, label); (void)fake_panel_set_text(NULL, id, text ? text : ""); }
 static enum ToriRS_Result v2_build_node(
     struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node)
 {
@@ -720,10 +723,14 @@ static enum ToriRS_Result v2_build_node(
     (void)panel;
     if( node->kind == TORIRS_PANEL_HEADING ) kind = TORIRS_PANEL_HEADING;
     else if( node->kind == TORIRS_PANEL_KEY_VALUE ) kind = TORIRS_PANEL_KEY_VALUE;
+    else if( node->kind == TORIRS_PANEL_PROGRESS ) kind = TORIRS_PANEL_PROGRESS;
     else if( node->kind == TORIRS_PANEL_CUSTOM ) kind = TORIRS_PANEL_CUSTOM;
+    else if( node->kind == TORIRS_PANEL_ACTION_ROW ) kind = TORIRS_PANEL_ACTION_ROW;
     if( !fake_panel_widget(NULL, kind, node->id, node->label ? node->label : node->text) )
         return TORIRS_RESULT_BUDGET;
     if( node->text ) (void)v2_panel_set_text(&g_api, node->id, node->text);
+    if( node->kind == TORIRS_PANEL_PROGRESS )
+        (void)v2_panel_set_value(&g_api, node->id, node->value);
     if( node->preferred_height ) (void)fake_panel_set_height(NULL, node->id, node->preferred_height);
     return TORIRS_RESULT_OK;
 }
@@ -853,6 +860,7 @@ panel_build_view(int view)
         .label = v2_build_label,
         .key_value = v2_build_key_value,
         .node = v2_build_node,
+        .action_row = v2_build_action_row,
     };
 
     g_client.widget_count = 0;
@@ -904,14 +912,7 @@ tick(uint64_t advance_ms)
         panel_build();
 }
 
-/**
- * Click the box for `row` in the skill strip.
- *
- * The strip is ONE control -- 25 skills would not fit in the panel's 48-widget
- * budget as seven controls each -- so a selection is a coordinate, and the row
- * pitch is the cache's own 48+2. @see the plugin's file comment.
- */
-#define TEST_BOX_PITCH 50
+/** Activate the nth retained native skill action row. */
 static void
 press_box(int row);
 
@@ -934,57 +935,42 @@ press(char const* id, int action, int value)
 static void
 press_box(int row)
 {
-    struct ToriRS_PanelActionEvent ev;
-
-    memset(&ev, 0, sizeof(ev));
-    ev.id = "boxes";
-    ev.action = TORIRS_PANEL_ACTION_ACTIVATE;
-    ev.value = -1;
-    ev.text = "";
-    ev.x = 10;
-    ev.y = row * TEST_BOX_PITCH + 10;
-    ev.selection_generation = 1;
-    dispatch_panel_action(&ev);
-    if( g_client.rebuild_wanted )
-        panel_build();
+    for( int i = 0, found = 0; i < g_client.widget_count; i++ )
+        if( g_client.widget[i].live &&
+            g_client.widget[i].kind == TORIRS_PANEL_ACTION_ROW )
+        {
+            if( found++ != row )
+                continue;
+            press(
+                g_client.widget[i].id,
+                TORIRS_PANEL_ACTION_ACTIVATE,
+                -1);
+            return;
+        }
 }
 
-/* ---- the loot tracker's band strip ---------------------------------------
- *
- * The loot page is one drawing well too, but its bands are VARIABLE height --
- * an expanded source carries its item grid -- so a test names a y rather than
- * a row, and the header band is the top 33 of each. @see the plugin's
- * LT_HEAD_H block.
- */
-#define TEST_HEAD_H 33
-/** The totals band the strip opens with, which every band sits below. */
-#define TEST_TOTALS_H 44
-
-static void
-press_strip(int y)
-{
-    struct ToriRS_PanelActionEvent ev;
-
-    memset(&ev, 0, sizeof(ev));
-    ev.id = "strip";
-    ev.action = TORIRS_PANEL_ACTION_ACTIVATE;
-    ev.value = -1;
-    ev.text = "";
-    ev.x = 10;
-    ev.y = y;
-    ev.selection_generation = 1;
-    dispatch_panel_action(&ev);
-    if( g_client.rebuild_wanted )
-        panel_build();
-}
-
-/** Is there a band strip with anything in it? A strip with only its totals
- *  band and the empty note is the "nothing recorded" state. */
+/** Number of native source navigation rows on the loot overview. */
 static int
-has_loot(void)
+loot_source_count(void)
 {
-    struct FakeWidget const* w = fake_widget_find("strip");
-    return w && w->height > TEST_TOTALS_H + TEST_HEAD_H;
+    int count = 0;
+    for( int i = 0; i < g_client.widget_count; i++ )
+        if( g_client.widget[i].live &&
+            g_client.widget[i].kind == TORIRS_PANEL_ACTION_ROW &&
+            strncmp(g_client.widget[i].id, "source_", 7) == 0 )
+            count++;
+    return count;
+}
+
+static int has_loot(void) { return loot_source_count() > 0; }
+
+/** Activate one stable source row. */
+static void
+press_source(int index)
+{
+    char id[32];
+    snprintf(id, sizeof(id), "source_%d", index);
+    press(id, TORIRS_PANEL_ACTION_ACTIVATE, -1);
 }
 
 /** The source whose detail block is open, or NULL. */
@@ -995,18 +981,25 @@ detail_source(void)
     return w ? w->label : NULL;
 }
 
-/** How many boxes the strip was built for -- its height states it. */
+/** The accessible primary label of one semantic row. */
+static char const*
+row_label(char const* id)
+{
+    struct FakeWidget const* w = fake_widget_find(id);
+    return w ? w->label : NULL;
+}
+
+/** How many native skill action rows the overview currently owns. */
 static int
 box_count(void)
 {
-    struct FakeWidget const* w = fake_widget_find("boxes");
-    /*
-     * The SKILL boxes, which is one fewer than the strip holds: the overview
-     * box is always drawn -- it is the session's own answer and it has one
-     * whether or not a skill has been trained -- so the strip is the list plus
-     * that one. @see xt_draw_overview.
-     */
-    return w && w->height >= TEST_BOX_PITCH ? w->height / TEST_BOX_PITCH - 1 : 0;
+    int count = 0;
+    for( int i = 0; i < g_client.widget_count; i++ )
+        if( g_client.widget[i].live &&
+            g_client.widget[i].kind == TORIRS_PANEL_ACTION_ROW &&
+            strncmp(g_client.widget[i].id, "skill_", 6) == 0 )
+            count++;
+    return count;
 }
 
 /** The skill whose detail block is open, or NULL. */
@@ -1081,8 +1074,13 @@ test_xp_first_reading_seeds(void)
         "skill has a box until it has been trained (got %d)",
         box_count());
     TEST_ASSERT(
-        fake_widget_find("boxes") != NULL,
-        "the strip is still declared -- its overview box states the empty session");
+        fake_widget_find("total_gained") != NULL &&
+            fake_widget_find("total_rate") != NULL,
+        "the native overview still declares its session totals");
+    TEST_ASSERT(
+        TORIRS_PLUGIN_XP_TRACKER.callbacks.on_ui_draw == NULL &&
+            fake_widget_find("boxes") == NULL,
+        "the XP panel has no custom bitmap draw path");
 }
 
 /*
@@ -1143,6 +1141,11 @@ test_xp_gain_makes_a_row(void)
     tick(600);
 
     TEST_ASSERT(box_count() == 1, "a trained skill gets a box (got %d)", box_count());
+    TEST_ASSERT(
+        fake_widget_find("skill_8") &&
+            fake_widget_find("skill_8")->kind == TORIRS_PANEL_ACTION_ROW &&
+            strstr(row_text("skill_8"), "XP/hr") != NULL,
+        "the stable skill id owns a native action row with semantic summary text");
     TEST_ASSERT(!fake_widget_find("empty"), "and the empty note is gone");
 
     press_box(0);
@@ -1229,6 +1232,13 @@ test_xp_detail_and_time_to_level(void)
         row_text("d_left") && strcmp(row_text("d_left"), "3,347") == 0,
         "xp to level is the next threshold minus the xp (got '%s')",
         row_text("d_left") ? row_text("d_left") : "(none)");
+    TEST_ASSERT(
+        fake_widget_find("d_progress") &&
+            fake_widget_find("d_progress")->kind == TORIRS_PANEL_PROGRESS &&
+            fake_widget_find("d_progress")->value == 15 &&
+            row_text("d_progress") &&
+            strcmp(row_text("d_progress"), "Level 40 to 41") == 0,
+        "the XP detail exposes a semantic level-progress component");
     /* 3347 remaining at 600 xp per 60s of training = 334 seconds = 05:34. */
     TEST_ASSERT(
         row_text("d_ttl") && strcmp(row_text("d_ttl"), "05:34") == 0,
@@ -1241,8 +1251,8 @@ test_xp_detail_and_time_to_level(void)
         "actions to level rounds up off the mean of the last ten (got '%s')",
         row_text("d_actleft") ? row_text("d_actleft") : "(none)");
 
-    press_box(0);
-    TEST_ASSERT(!detail_skill(), "and clicking it again closes it");
+    press("d_back", TORIRS_PANEL_ACTION_ACTIVATE, -1);
+    TEST_ASSERT(!detail_skill(), "and its native Back button closes it");
 }
 
 static void
@@ -1282,9 +1292,7 @@ test_xp_maxed_progress_reads_full(void)
 
     /* next_xp is 0 at the top of the client's table: no next level to progress
      * towards, which a meter reads as full rather than as no progress. */
-    /* The bar itself is pixels now; what an assertion can hold is that the
-     * skill has no next threshold to progress towards, which is the same fact
-     * the box draws as a full DONE bar. */
+    /* A maxed skill has no next threshold to report in the native details. */
     TEST_ASSERT(
         row_text("d_left") && strcmp(row_text("d_left"), "\xe2\x80\x94") == 0,
         "a 99 has no next threshold to count down to (got '%s')",
@@ -1330,18 +1338,18 @@ test_xp_pause(void)
     g_client.xp[SKILL_WOODCUTTING] += 600;
     tick(1000);
 
-    /* The reference's own per-skill Pause, on the box it acts on. */
+    /* The reference's own per-skill Pause, on the detail view it acts on. */
     press_box(0);
     TEST_ASSERT(
-        row_text("d_pause") && strcmp(row_text("d_pause"), "Pause") == 0,
-        "a running skill offers Pause (got '%s')",
-        row_text("d_pause") ? row_text("d_pause") : "(none)");
+        row_text("d_status") && strcmp(row_text("d_status"), "Tracking") == 0,
+        "a running skill reports Tracking (got '%s')",
+        row_text("d_status") ? row_text("d_status") : "(none)");
 
     press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     TEST_ASSERT(
-        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
-        "pressing it pauses the skill and offers the way back (got '%s')",
-        row_text("d_pause") ? row_text("d_pause") : "(none)");
+        row_text("d_status") && strcmp(row_text("d_status"), "Paused") == 0,
+        "pressing the stable Pause / resume button pauses the skill (got '%s')",
+        row_text("d_status") ? row_text("d_status") : "(none)");
     /*
      * A pause stops the CLOCK, not the record: the xp you earned is still
      * earned, so the record keeps it and the per-skill rate keeps its last
@@ -1357,8 +1365,8 @@ test_xp_pause(void)
 
     press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     TEST_ASSERT(
-        row_text("d_pause") && strcmp(row_text("d_pause"), "Pause") == 0,
-        "and unpauses again");
+        row_text("d_status") && strcmp(row_text("d_status"), "Tracking") == 0,
+        "and the same button resumes it again");
 }
 
 static void
@@ -1373,7 +1381,7 @@ test_xp_auto_pause(void)
     tick(1000);
     press_box(0);
     TEST_ASSERT(
-        row_text("d_pause") && strcmp(row_text("d_pause"), "Pause") == 0,
+        row_text("d_status") && strcmp(row_text("d_status"), "Tracking") == 0,
         "a skill just trained is not paused");
 
     /* Two minutes of nothing. The timer is about xp NOT arriving, which no xp
@@ -1381,14 +1389,14 @@ test_xp_auto_pause(void)
     for( int i = 0; i < 121; i++ )
         tick(1000);
     TEST_ASSERT(
-        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
+        row_text("d_status") && strcmp(row_text("d_status"), "Paused") == 0,
         "two idle minutes pause it (got '%s')",
-        row_text("d_pause") ? row_text("d_pause") : "(none)");
+        row_text("d_status") ? row_text("d_status") : "(none)");
 
     g_client.xp[SKILL_WOODCUTTING] += 10;
     tick(1000);
     TEST_ASSERT(
-        row_text("d_pause") && strcmp(row_text("d_pause"), "Pause") == 0,
+        row_text("d_status") && strcmp(row_text("d_status"), "Tracking") == 0,
         "and any gain wakes it back up");
 }
 
@@ -1410,9 +1418,9 @@ test_xp_logout_pauses_and_keeps_state(void)
         "logging out KEEPS the session -- a hop is not a new one (got %s)",
         row_text("d_gained") ? row_text("d_gained") : "(none)");
     TEST_ASSERT(
-        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
+        row_text("d_status") && strcmp(row_text("d_status"), "Paused") == 0,
         "and pauses every skill when pause_on_logout is set (got '%s')",
-        row_text("d_pause") ? row_text("d_pause") : "(none)");
+        row_text("d_status") ? row_text("d_status") : "(none)");
 }
 
 static void
@@ -1505,13 +1513,7 @@ loot_start(void)
     panel_build();
 }
 
-/*
- * A kill in the client's store becomes a band.
- *
- * The store is the CLIENT's record -- the server's kill hook feeds it and the
- * game's own tracker reads it -- so a case seeds the store rather than
- * staging a despawn and hoping the plugin correlates it.
- */
+/* A kill in the client's store becomes one native source action row. */
 static void
 test_loot_kill_becomes_a_record(void)
 {
@@ -1521,8 +1523,29 @@ test_loot_kill_becomes_a_record(void)
     loot_add("Goblin", 526, 1, 100, 1);
     settle();
 
-    TEST_ASSERT(has_loot(), "a recorded kill is a band");
-    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        TORIRS_PLUGIN_LOOT_TRACKER.callbacks.on_ui_draw == NULL &&
+            fake_widget_find("strip") == NULL,
+        "the loot panel has no custom bitmap draw path");
+    TEST_ASSERT(
+        loot_source_count() == 1 && fake_widget_find("source_0") &&
+            fake_widget_find("source_0")->kind == TORIRS_PANEL_ACTION_ROW,
+        "a recorded kill is one native source action row");
+    TEST_ASSERT(
+        row_label("source_0") && strcmp(row_label("source_0"), "Goblin") == 0,
+        "the source name is the row's accessible primary label (got '%s')",
+        row_label("source_0") ? row_label("source_0") : "(none)");
+    TEST_ASSERT(
+        row_text("source_0") && strstr(row_text("source_0"), "1 kill") &&
+            strstr(row_text("source_0"), "100 gp") &&
+            strstr(row_text("source_0"), "1 item"),
+        "the mutable summary states kills, value, and item count (got '%s')",
+        row_text("source_0") ? row_text("source_0") : "(none)");
+    TEST_ASSERT(
+        row_text("total_count") && strcmp(row_text("total_count"), "1") == 0 &&
+            row_text("total_value") && strcmp(row_text("total_value"), "100") == 0,
+        "native session totals agree with the source");
+    press_source(0);
     TEST_ASSERT(
         detail_source() && strcmp(detail_source(), "Goblin") == 0,
         "named after the kill (got '%s')",
@@ -1534,6 +1557,17 @@ test_loot_kill_becomes_a_record(void)
         row_text("d_value") && strcmp(row_text("d_value"), "100") == 0,
         "worth what the store priced it at (got '%s')",
         row_text("d_value") ? row_text("d_value") : "(none)");
+    TEST_ASSERT(
+        row_label("item_0") && strcmp(row_label("item_0"), "obj526") == 0 &&
+            row_text("item_0") && strcmp(row_text("item_0"), "1 \xc2\xb7 100 gp") == 0,
+        "the drop is a native labelled item row (got '%s': '%s')",
+        row_label("item_0") ? row_label("item_0") : "(none)",
+        row_text("item_0") ? row_text("item_0") : "(none)");
+
+    press("d_back", TORIRS_PANEL_ACTION_ACTIVATE, -1);
+    TEST_ASSERT(
+        !detail_source() && loot_source_count() == 1,
+        "Back returns to the retained source overview");
 }
 
 /*
@@ -1552,7 +1586,7 @@ test_loot_multi_item_drop_is_one_kill(void)
     loot_add("Goblin", 526, 1, 100, 1);
     loot_add("Goblin", 995, 25, 1, 1);
     settle();
-    press_strip(TEST_TOTALS_H + 4);
+    press_source(0);
 
     TEST_ASSERT(
         row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
@@ -1562,6 +1596,10 @@ test_loot_multi_item_drop_is_one_kill(void)
         row_text("d_value") && strcmp(row_text("d_value"), "125") == 0,
         "and every row counts towards its value (got '%s')",
         row_text("d_value") ? row_text("d_value") : "(none)");
+    TEST_ASSERT(
+        fake_widget_find("item_0") && fake_widget_find("item_1") &&
+            !fake_widget_find("item_2"),
+        "two distinct drops become two native item rows");
 }
 
 static void
@@ -1573,7 +1611,7 @@ test_loot_two_kills_merge_and_sum(void)
     loot_add("Goblin", 526, 1, 100, 1);
     loot_add("Goblin", 526, 1, 100, 2);
     settle();
-    press_strip(TEST_TOTALS_H + 4);
+    press_source(0);
 
     TEST_ASSERT(
         row_text("d_kills") && strcmp(row_text("d_kills"), "2") == 0,
@@ -1598,7 +1636,7 @@ test_loot_high_alchemy_price(void)
 
     loot_add("Goblin", 1319, 1, 100000, 1);
     settle();
-    press_strip(TEST_TOTALS_H + 4);
+    press_source(0);
 
     /* Three fifths, which is the game's own formula and not a rounding of it. */
     TEST_ASSERT(
@@ -1632,7 +1670,7 @@ test_loot_ignore_button(void)
     TEST_ASSERT(has_loot(), "recorded");
 
     /* The CS2 header's third op, on the band it acts on. */
-    press_strip(TEST_TOTALS_H + 4);
+    press_source(0);
     press("d_ignore", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     settle();
     TEST_ASSERT(!has_loot(), "Ignore drops the band");
@@ -1648,41 +1686,84 @@ test_loot_ignore_button(void)
     TEST_ASSERT(!has_loot(), "so the store's next kill is filtered too");
 }
 
-/*
- * The header's first op: a band is a header alone until it is opened.
- *
- * script2907 offers Collapse/Expand and script3042 only lays cells out under
- * an expanded one, so the strip's height is the assertion -- a collapsed band
- * is exactly the header and its gap.
- */
 static void
-test_loot_expand_collapse(void)
+test_loot_clear_button(void)
 {
-    int collapsed;
-    int expanded;
+    client_reset();
+    loot_start();
+    loot_add("Goblin", 526, 1, 100, 1);
+    loot_add("Guard", 995, 2, 1, 2);
+    settle();
+
+    press_source(0);
+    press("d_clear", TORIRS_PANEL_ACTION_ACTIVATE, -1);
+    TEST_ASSERT(
+        loot_source_count() == 1 &&
+            row_label("source_0") && strcmp(row_label("source_0"), "Guard") == 0,
+        "Clear data removes only the selected source and returns to overview");
+    TEST_ASSERT(
+        row_text("total_count") && strcmp(row_text("total_count"), "1") == 0 &&
+            row_text("total_value") && strcmp(row_text("total_value"), "2") == 0,
+        "session totals are rebuilt from the remaining source");
+}
+
+static void
+test_loot_identity_changes_rebuild(void)
+{
+    int builds;
+    struct ToriRS_LootRow item;
 
     client_reset();
     loot_start();
 
     loot_add("Goblin", 526, 1, 100, 1);
+    loot_add("Guard", 995, 2, 1, 2);
     settle();
-    /*
-     * A band arrives OPEN, the way the game's own tracker draws one: the drops
-     * under a name are what the panel was opened to see. So the gesture under
-     * test is closing it and opening it again, not the other way round.
-     */
-    expanded = fake_widget_find("strip")->height;
-
-    press_strip(TEST_TOTALS_H + 4);
-    collapsed = fake_widget_find("strip")->height;
+    builds = g_client.builds;
     TEST_ASSERT(
-        collapsed < expanded,
-        "closing a band gives its drops' room back (%d -> %d)", expanded, collapsed);
+        row_label("source_0") && row_label("source_1") &&
+            strcmp(row_label("source_0"), "Goblin") == 0 &&
+            strcmp(row_label("source_1"), "Guard") == 0,
+        "source rows begin in store order");
 
-    press_strip(TEST_TOTALS_H + 4);
+    {
+        unsigned char tmp[sizeof(g_store.source[0])];
+        memcpy(tmp, &g_store.source[0], sizeof(tmp));
+        memcpy(&g_store.source[0], &g_store.source[1], sizeof(tmp));
+        memcpy(&g_store.source[1], tmp, sizeof(tmp));
+    }
+    g_store.revision++;
+    settle();
     TEST_ASSERT(
-        fake_widget_find("strip")->height == expanded,
-        "and opening it again makes room for them");
+        g_client.builds == builds + 1 &&
+            row_label("source_0") && row_label("source_1") &&
+            strcmp(row_label("source_0"), "Guard") == 0 &&
+            strcmp(row_label("source_1"), "Goblin") == 0,
+        "same-count source replacement/reorder performs one structural rebuild");
+
+    press_source(1);
+    builds = g_client.builds;
+    TEST_ASSERT(
+        row_label("item_0") && strcmp(row_label("item_0"), "obj526") == 0,
+        "detail begins with its first item identity");
+
+    loot_add("Goblin", 995, 1, 1, 1);
+    settle();
+    builds = g_client.builds;
+    TEST_ASSERT(fake_widget_find("item_1"), "a second item adds a detail row");
+
+    item = g_store.source[1].rows[0];
+    g_store.source[1].rows[0] = g_store.source[1].rows[1];
+    g_store.source[1].rows[1] = item;
+    g_store.revision++;
+    settle();
+
+    TEST_ASSERT(
+        g_client.builds == builds + 1 &&
+            row_label("item_0") && row_label("item_1") &&
+            strcmp(row_label("item_0"), "obj995") == 0 &&
+            strcmp(row_label("item_1"), "obj526") == 0,
+        "same-count item replacement/reorder rebuilds native item labels");
 }
 
 static void
@@ -1703,7 +1784,7 @@ test_loot_attention(void)
     dispatch_game_event(&ev);
     TEST_ASSERT(g_client.attention, "a valuable drop asks the player to look");
 
-    press_strip(TEST_TOTALS_H + 4);
+    press_source(0);
     TEST_ASSERT(!g_client.attention, "and looking clears it");
 }
 
@@ -1722,51 +1803,37 @@ test_loot_attention(void)
  * and -- worse -- would go on asking for rebuilds of a model nobody is
  * showing. The state still advances; only the page stops.
  */
-/*
- * A list that GREW is not a different page.
- *
- * A band arriving makes the well taller, and a height is a property of a
- * widget the page already has. Answering it with a rebuild re-declared every
- * widget, which the shell shows as a flash on the one thing the tracker exists
- * to do -- accumulate. The height goes out with panel_set_height and the page
- * stands. @see app_plugin_panel_patch_semantic for the other half.
- */
 static void
-test_loot_growth_does_not_rebuild(void)
+test_loot_updates_rebuild_only_topology(void)
 {
     int builds;
-    int height;
-    int height_sets;
-    int redraws;
+    int text_sets;
 
     client_reset();
     loot_start();
     loot_add("Goblin", 1319, 1, 100, 1);
     settle();
     builds = g_client.builds;
-    height = fake_widget_find("strip")->height;
-    height_sets = g_client.exact_height_sets;
-    redraws = g_client.redraws;
-    TEST_ASSERT(builds > 0, "the page was declared once to begin with");
+    text_sets = g_client.exact_text_sets;
 
-    loot_add("Cerberus", 1319, 1, 500, 2);
+    loot_add("Goblin", 1319, 2, 100, 2);
     settle();
-    loot_add("Guard", 1319, 2, 50, 3);
-    settle();
-    loot_add("Imp", 1319, 1, 10, 4);
-    settle();
+    TEST_ASSERT(
+        g_client.builds == builds && g_client.exact_text_sets > text_sets,
+        "same-source value changes patch retained text without rebuilding");
+    TEST_ASSERT(
+        row_text("source_0") && row_text("total_count") &&
+            strstr(row_text("source_0"), "2 kills") &&
+            strstr(row_text("source_0"), "300 gp") &&
+            strcmp(row_text("total_count"), "2") == 0,
+        "the patched source and total values are current (got '%s')",
+        row_text("source_0") ? row_text("source_0") : "(none)");
 
+    loot_add("Cerberus", 1319, 1, 500, 3);
+    settle();
     TEST_ASSERT(
-        fake_widget_find("strip")->height > height,
-        "three more sources make the strip taller (%d -> %d)", height,
-        fake_widget_find("strip")->height);
-    TEST_ASSERT(
-        g_client.builds == builds,
-        "and not one of them re-declares the page (%d rebuilds)",
-        g_client.builds - builds);
-    TEST_ASSERT(
-        g_client.exact_height_sets > height_sets && g_client.redraws > redraws,
-        "growth journals an exact height plus custom redraw instead of a rebuild");
+        g_client.builds == builds + 1 && loot_source_count() == 2,
+        "adding a source performs exactly one topology rebuild");
 }
 
 static void
@@ -1774,29 +1841,27 @@ test_loot_unchanged_revision_is_o1(void)
 {
     int const idle_ticks = 4;
     int visits;
-    int height_sets;
-    int redraws;
+    int text_sets;
 
     client_reset();
     loot_start();
     visits = g_client.loot_source_visits;
-    height_sets = g_client.exact_height_sets;
-    redraws = g_client.redraws;
+    text_sets = g_client.exact_text_sets;
     for( int i = 0; i < idle_ticks; i++ ) settle();
     TEST_ASSERT(
         g_client.loot_source_visits == visits,
         "an unchanged loot revision performs no source/row snapshot walk");
     TEST_ASSERT(
-        g_client.exact_height_sets == height_sets && g_client.redraws == redraws,
+        g_client.exact_text_sets == text_sets,
         "an unchanged loot revision emits no retained panel mutations");
 }
 
-/** The same for a skill earning its first box. */
+/** Adding a native row is a topology change; changing its values is not. */
 static void
-test_xp_growth_does_not_rebuild(void)
+test_xp_growth_rebuilds_only_for_topology(void)
 {
     int builds;
-    int height;
+    int text_sets;
 
     client_reset();
     g_client.xp[SKILL_WOODCUTTING] = 50000;
@@ -1806,20 +1871,22 @@ test_xp_growth_does_not_rebuild(void)
     g_client.xp[SKILL_WOODCUTTING] += 100;
     tick(1000);
     builds = g_client.builds;
-    height = fake_widget_find("boxes")->height;
+    text_sets = g_client.exact_text_sets;
     TEST_ASSERT(box_count() == 1, "one skill trained, one box");
+
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    TEST_ASSERT(
+        g_client.builds == builds && g_client.exact_text_sets > text_sets,
+        "an existing skill patches its retained DOM text without rebuilding");
 
     g_client.xp[SKILL_ATTACK] += 100;
     tick(1000);
 
     TEST_ASSERT(box_count() == 2, "a second skill trained gets a second box");
     TEST_ASSERT(
-        fake_widget_find("boxes")->height > height,
-        "which makes the strip taller (%d -> %d)", height,
-        fake_widget_find("boxes")->height);
-    TEST_ASSERT(
-        g_client.builds == builds,
-        "and does not re-declare the page (%d rebuilds)",
+        g_client.builds == builds + 1,
+        "adding that DOM row performs exactly one structural rebuild (got %d)",
         g_client.builds - builds);
 }
 
@@ -1901,6 +1968,7 @@ main(void)
     test_xp_logout_pauses_and_keeps_state();
     test_xp_reset();
     test_xp_offline_gains_are_not_the_session();
+    test_xp_growth_rebuilds_only_for_topology();
 
     test_loot_kill_becomes_a_record();
     test_loot_multi_item_drop_is_one_kill();
@@ -1908,13 +1976,13 @@ main(void)
     test_loot_high_alchemy_price();
     test_loot_ignored_source();
     test_loot_ignore_button();
-    test_loot_expand_collapse();
+    test_loot_clear_button();
+    test_loot_identity_changes_rebuild();
     test_loot_attention();
 
     test_settings_face_is_the_generated_form();
-    test_loot_growth_does_not_rebuild();
+    test_loot_updates_rebuild_only_topology();
     test_loot_unchanged_revision_is_o1();
-    test_xp_growth_does_not_rebuild();
     test_hidden_page_does_no_work();
 
     if( g_plugin_state ) dispatch_stop();

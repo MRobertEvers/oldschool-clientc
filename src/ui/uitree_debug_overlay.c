@@ -10,6 +10,7 @@
  * file owns them. */
 #include "torirs_chrome_metrics.h"
 
+#include <stdio.h>
 #include <string.h>
 
 /* The two names for one ceiling: the model's, which the widgets are clamped
@@ -2277,6 +2278,85 @@ ToriRSChrome_LabelColored(struct ToriRSChrome* ui, int panel, char const* text, 
     return h;
 }
 
+static int
+dbg_semantic_label(
+    struct ToriRSChrome* ui,
+    int panel,
+    int style,
+    char const* label,
+    char const* text,
+    uint32_t color)
+{
+    int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_LABEL);
+
+    assert(style >= TORIRS_CHROME_LABEL_PLAIN);
+    assert(style < TORIRS_CHROME_LABEL_STYLE_COUNT);
+    if( h < 0 )
+        return -1;
+    ui->widgets[h].label_style = style;
+    dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label ? label : "");
+    dbg_copy(ui->widgets[h].text, TORIRS_CHROME_INPUT_MAX, text ? text : "");
+    ui->widgets[h].color = color;
+    return h;
+}
+
+int
+ToriRSChrome_Heading(struct ToriRSChrome* ui, int panel, char const* text)
+{
+    return dbg_semantic_label(
+        ui, panel, TORIRS_CHROME_LABEL_HEADING, "", text, 0);
+}
+
+int
+ToriRSChrome_Paragraph(struct ToriRSChrome* ui, int panel, char const* text)
+{
+    return dbg_semantic_label(
+        ui, panel, TORIRS_CHROME_LABEL_PARAGRAPH, "", text, 0);
+}
+
+int
+ToriRSChrome_KeyValue(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    char const* value)
+{
+    return dbg_semantic_label(
+        ui, panel, TORIRS_CHROME_LABEL_KEY_VALUE, label, value, 0);
+}
+
+int
+ToriRSChrome_Progress(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    char const* detail,
+    int percent)
+{
+    int const h = dbg_semantic_label(
+        ui, panel, TORIRS_CHROME_LABEL_PROGRESS, label, detail, 0);
+
+    if( h < 0 )
+        return -1;
+    if( percent < 0 )
+        percent = 0;
+    if( percent > 100 )
+        percent = 100;
+    ui->widgets[h].selected = percent;
+    return h;
+}
+
+int
+ToriRSChrome_Error(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    char const* detail)
+{
+    return dbg_semantic_label(
+        ui, panel, TORIRS_CHROME_LABEL_ERROR, label, detail, 0);
+}
+
 int
 ToriRSChrome_Checkbox(struct ToriRSChrome* ui, int panel, char const* label, int checked)
 {
@@ -2317,15 +2397,20 @@ ToriRSChrome_ListRowLocked(struct ToriRSChrome* ui, int panel, char const* label
 }
 
 int
-ToriRSChrome_ActionRow(struct ToriRSChrome* ui, int panel, char const* label)
+ToriRSChrome_ActionRow(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    char const* summary)
 {
     int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_LISTROW);
     if( h < 0 )
         return -1;
     dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
-    /* The browser LISTROW already treats a locked name cell as its action
-     * target. Leaving row_action clear omits the management-only three-dot
-     * well while row_locked omits the switch. */
+    dbg_copy(ui->widgets[h].text, TORIRS_CHROME_INPUT_MAX, summary);
+    /* LOCKED without the management ACTION well is the executor's semantic
+     * navigation shape. It becomes one native button in the browser, while
+     * row_locked still makes the in-canvas fallback's whole row the target. */
     ui->widgets[h].row_action = 0;
     ui->widgets[h].row_locked = 1;
     return h;
@@ -3349,6 +3434,28 @@ ToriRSChrome_SetColor(struct ToriRSChrome* ui, int widget, uint32_t color)
 }
 
 void
+ToriRSChrome_SetProgress(struct ToriRSChrome* ui, int widget, int percent)
+{
+    struct ToriRSChromeWidget* w;
+
+    if( !dbg_valid_widget(ui, widget) )
+        return;
+    w = &ui->widgets[widget];
+    if( w->kind != TORIRS_CHROME_W_LABEL ||
+        w->label_style != TORIRS_CHROME_LABEL_PROGRESS )
+        return;
+    if( percent < 0 )
+        percent = 0;
+    if( percent > 100 )
+        percent = 100;
+    if( w->selected == percent )
+        return;
+    w->selected = percent;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_SELECTED);
+    dbg_dirty_widget_paint(ui, widget);
+}
+
+void
 ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked)
 {
     checked = checked ? 1 : 0;
@@ -3400,11 +3507,36 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
      * ARRAYS on the widget, never pointers, so the test is always true and the
      * compiler says so. An empty one measures 0, which is what it wanted. */
     case TORIRS_CHROME_W_LABEL:
-        return ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->text);
+        if( w->label_style == TORIRS_CHROME_LABEL_KEY_VALUE )
+            return ToriRSChrome_MeasureText(
+                       ui->theme.font_row, ui->scale, w->label) +
+                   DBG_ROW_NAME_GAP +
+                   ToriRSChrome_MeasureText(
+                       ui->theme.font_row, ui->scale, w->text) +
+                   2 * DBG_INPUT_PAD_X;
+        {
+            int const label_w = ToriRSChrome_MeasureText(
+                ui->theme.font_row, ui->scale, w->label);
+            int const text_w = ToriRSChrome_MeasureText(
+                ui->theme.font_row, ui->scale, w->text);
+            return (label_w > text_w ? label_w : text_w) +
+                   (w->label_style == TORIRS_CHROME_LABEL_PLAIN
+                        ? 0
+                        : 2 * DBG_INPUT_PAD_X);
+        }
     case TORIRS_CHROME_W_CHECKBOX:
         return DBG_CHECK_SIZE + DBG_CHECK_GAP +
                ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label);
     case TORIRS_CHROME_W_LISTROW:
+        if( w->row_locked && !w->row_action )
+        {
+            int const label_w = ToriRSChrome_MeasureText(
+                ui->theme.font_row, ui->scale, w->label);
+            int const summary_w = ToriRSChrome_MeasureText(
+                ui->theme.font_row, ui->scale, w->text);
+            return (label_w > summary_w ? label_w : summary_w) +
+                   DBG_ROW_NAME_GAP;
+        }
         /* Name, then the fixed furniture at the right end. A row that cannot
          * have its natural width is TRUNCATED at draw rather than laid out
          * narrower -- the switch has to stay reachable at the same x down the
@@ -3514,6 +3646,21 @@ dbg_widget_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const
 {
     switch( w->kind )
     {
+    case TORIRS_CHROME_W_LABEL:
+        switch( w->label_style )
+        {
+        case TORIRS_CHROME_LABEL_HEADING:
+            return DBG_PX(TORIRS_CHROME_M_HEADING_H);
+        case TORIRS_CHROME_LABEL_KEY_VALUE:
+        case TORIRS_CHROME_LABEL_ERROR:
+            return DBG_PX(TORIRS_CHROME_M_DATA_ROW_H);
+        case TORIRS_CHROME_LABEL_PROGRESS:
+            return DBG_PX(TORIRS_CHROME_M_PROGRESS_H);
+        case TORIRS_CHROME_LABEL_PARAGRAPH:
+        case TORIRS_CHROME_LABEL_PLAIN:
+        default:
+            return DBG_ROW_H;
+        }
     case TORIRS_CHROME_W_MODELVIEW:
         return w->view_h + 2 * DBG_RULE;
     case TORIRS_CHROME_W_TABSTRIP:
@@ -3525,6 +3672,13 @@ dbg_widget_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const
         return (w->label[0] ? DBG_ROW_H : 0) + dbg_textarea_box_h(ui, w);
     case TORIRS_CHROME_W_CUSTOM:
         return (w->label[0] ? DBG_ROW_H : 0) + w->view_h + 2 * DBG_RULE;
+    case TORIRS_CHROME_W_LISTROW:
+        /* The locked-without-well shape is a semantic navigation button. Its
+         * optional summary is a second retained text line rather than part of
+         * the management roster's one-line name column. */
+        if( w->row_locked && !w->row_action )
+            return DBG_PX(TORIRS_CHROME_M_ACTION_ROW_H);
+        return DBG_ROW_H;
     case TORIRS_CHROME_W_FREE:
         return 0;
     default:
@@ -4799,15 +4953,151 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         switch( w->kind )
         {
         case TORIRS_CHROME_W_LABEL:
-            dbg_push_text(
-                ui,
-                row_x,
-                dbg_row_text_baseline(ui, row_y, row_h),
-                w->text,
-                w->color ? w->color : th->text,
-                ui->theme.font_row,
-                0,
-                clip);
+            switch( w->label_style )
+            {
+            case TORIRS_CHROME_LABEL_HEADING:
+                dbg_push_text(
+                    ui,
+                    row_x + DBG_INPUT_PAD_X,
+                    dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
+                    w->text[0] ? w->text : w->label,
+                    w->color ? w->color : th->text_dim,
+                    ui->theme.font_row,
+                    0,
+                    clip);
+                dbg_push_rect(
+                    ui, row_x, row_y + row_h - DBG_RULE, w->w, DBG_RULE,
+                    th->separator, 1, clip);
+                break;
+
+            case TORIRS_CHROME_LABEL_KEY_VALUE:
+            {
+                int const value_w = ToriRSChrome_MeasureText(
+                    ui->theme.font_row, ui->scale, w->text);
+                int const value_x = row_x + w->w - DBG_INPUT_PAD_X - value_w;
+
+                dbg_push_rect(
+                    ui, row_x, row_y, w->w, row_h, th->textarea_bg, 1, clip);
+                dbg_push_rect(
+                    ui, row_x, row_y, w->w, row_h, th->input_border, 0, clip);
+                dbg_push_rect(
+                    ui,
+                    row_x + DBG_RULE,
+                    row_y + DBG_RULE,
+                    w->w - 2 * DBG_RULE,
+                    row_h - 2 * DBG_RULE,
+                    th->dropdown_border_inner,
+                    0,
+                    clip);
+                dbg_push_text(
+                    ui,
+                    row_x + DBG_INPUT_PAD_X,
+                    dbg_row_text_baseline(ui, row_y, row_h),
+                    w->label,
+                    th->text_dim,
+                    ui->theme.font_row,
+                    0,
+                    clip);
+                dbg_push_text(
+                    ui,
+                    value_x,
+                    dbg_row_text_baseline(ui, row_y, row_h),
+                    w->text,
+                    w->color ? w->color : th->text,
+                    ui->theme.font_row,
+                    0,
+                    clip);
+                break;
+            }
+
+            case TORIRS_CHROME_LABEL_PROGRESS:
+            {
+                int const percent = w->selected < 0 ? 0 : w->selected > 100 ? 100 : w->selected;
+                int const detail_w = ToriRSChrome_MeasureText(
+                    ui->theme.font_row, ui->scale, w->text);
+                int const track_x = row_x + DBG_INPUT_PAD_X;
+                int const track_y = row_y + row_h - DBG_PX(9);
+                int const track_w = w->w - 2 * DBG_INPUT_PAD_X;
+                int const track_h = DBG_PX(6);
+
+                dbg_push_rect(
+                    ui, row_x, row_y, w->w, row_h, th->textarea_bg, 1, clip);
+                dbg_push_rect(
+                    ui, row_x, row_y, w->w, row_h, th->input_border, 0, clip);
+                dbg_push_text(
+                    ui,
+                    row_x + DBG_INPUT_PAD_X,
+                    dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
+                    w->label,
+                    th->text_dim,
+                    ui->theme.font_row,
+                    0,
+                    clip);
+                if( w->text[0] )
+                    dbg_push_text(
+                        ui,
+                        row_x + w->w - DBG_INPUT_PAD_X - detail_w,
+                        dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
+                        w->text,
+                        th->text,
+                        ui->theme.font_row,
+                        0,
+                        clip);
+                dbg_push_rect(
+                    ui, track_x, track_y, track_w, track_h,
+                    th->scroll_track, 1, clip);
+                if( percent > 0 )
+                    dbg_push_rect(
+                        ui, track_x + DBG_RULE, track_y + DBG_RULE,
+                        (track_w - 2 * DBG_RULE) * percent / 100,
+                        track_h - 2 * DBG_RULE,
+                        th->check_mark, 1, clip);
+                break;
+            }
+
+            case TORIRS_CHROME_LABEL_ERROR:
+            {
+                char message[TORIRS_CHROME_INPUT_MAX + TORIRS_CHROME_LABEL_MAX + 3];
+                snprintf(
+                    message,
+                    sizeof(message),
+                    "%s%s%s",
+                    w->label,
+                    w->label[0] && w->text[0] ? ": " : "",
+                    w->text);
+                dbg_push_rect(
+                    ui, row_x, row_y, w->w, row_h, th->textarea_bg, 1, clip);
+                dbg_push_rect(
+                    ui, row_x, row_y, w->w, row_h,
+                    w->color ? w->color : 0xFF5555u, 0, clip);
+                dbg_push_text(
+                    ui,
+                    row_x + DBG_INPUT_PAD_X,
+                    dbg_row_text_baseline(ui, row_y, row_h),
+                    message,
+                    w->color ? w->color : 0xFF5555u,
+                    ui->theme.font_row,
+                    0,
+                    clip);
+                break;
+            }
+
+            case TORIRS_CHROME_LABEL_PARAGRAPH:
+            case TORIRS_CHROME_LABEL_PLAIN:
+            default:
+                dbg_push_text(
+                    ui,
+                    row_x + (w->label_style == TORIRS_CHROME_LABEL_PLAIN
+                                 ? 0
+                                 : DBG_INPUT_PAD_X),
+                    dbg_row_text_baseline(ui, row_y, row_h),
+                    w->text[0] ? w->text : w->label,
+                    w->color ? w->color : th->text,
+                    ui->theme.font_row,
+                    0,
+                    clip);
+                break;
+            }
             break;
 
         case TORIRS_CHROME_W_SEPARATOR:
@@ -4907,6 +5197,50 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
 
         case TORIRS_CHROME_W_LISTROW:
         {
+            if( w->row_locked && !w->row_action )
+            {
+                struct ToriRSChromeRect action_clip = clip;
+                int const text_w = w->w - 2 * DBG_INPUT_PAD_X;
+
+                dbg_push_rect(
+                    ui, row_x, row_y, w->w, row_h, th->textarea_bg, 1, clip);
+                dbg_push_rect(
+                    ui, row_x, row_y, w->w, row_h,
+                    hovered ? th->accent : th->input_border, 0, clip);
+                dbg_push_rect(
+                    ui,
+                    row_x + DBG_RULE,
+                    row_y + DBG_RULE,
+                    w->w - 2 * DBG_RULE,
+                    row_h - 2 * DBG_RULE,
+                    th->dropdown_border_inner,
+                    0,
+                    clip);
+                action_clip.x += DBG_INPUT_PAD_X;
+                if( action_clip.w > text_w )
+                    action_clip.w = text_w > 0 ? text_w : 0;
+                dbg_push_text(
+                    ui,
+                    row_x + DBG_INPUT_PAD_X,
+                    dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
+                    w->label,
+                    hovered ? th->accent : th->text_dim,
+                    ui->theme.font_row,
+                    0,
+                    action_clip);
+                if( w->text[0] )
+                    dbg_push_text(
+                        ui,
+                        row_x + DBG_INPUT_PAD_X,
+                        dbg_row_text_baseline(
+                            ui, row_y + DBG_ROW_H, DBG_ROW_H),
+                        w->text,
+                        th->text,
+                        ui->theme.font_row,
+                        0,
+                        action_clip);
+                break;
+            }
             /* Right-to-left: the switch is pinned to the row's right edge, the
              * settings affordance sits inside it, and the name gets what is
              * left. Pinned rather than flowed so a column of rows lines its

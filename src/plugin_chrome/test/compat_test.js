@@ -123,6 +123,16 @@ assert.match(legacyCss, /\.tpc-custom img\s*,\s*\.tpc-custom canvas\s*\{[^}]*hei
     "legacy custom pixels fill the host-selected region height");
 assert.match(legacyCss, /\.tpc-custom\s*\{[^}]*width\s*:\s*auto[^}]*box-sizing\s*:\s*content-box/i,
     "legacy custom height names its drawable content box while the outer well still fits");
+assert.match(legacyCss, /\.tpc-action-row\s*\{[^}]*display\s*:\s*block[^}]*width\s*:\s*100%/i,
+    "legacy semantic action rows use one full-width native button");
+assert.match(legacyCss, /\.tpc-action-summary\s*\{[^}]*font-weight\s*:\s*400[^}]*word-wrap\s*:\s*break-word/i,
+    "legacy action summaries remain distinct readable text");
+assert.match(legacyCss, /\.tpc-section-heading\s*\{[^}]*color\s*:\s*#ff981f/i,
+    "legacy semantic headings use the OSRS settings orange");
+assert.match(legacyCss, /\.tpc-key-value\s*\{[^}]*DropdownBody\.png/i,
+    "legacy key/value rows use the OSRS 239 inset field surface");
+assert.match(legacyCss, /\.tpc-progress-meter\s*\{[^}]*height\s*:\s*8px/i,
+    "legacy progress retains a compact OSRS-style meter");
 
 assert.match(modernCss, /display:\s*-webkit-box;[\s\S]*display:\s*flex;[\s\S]*display:\s*grid;/,
     "modern CSS supplies prefixed flex before optional grid enhancement");
@@ -164,6 +174,18 @@ assert.match(modernCss, /\.tpc-custom img\s*,\s*\.tpc-custom canvas\s*\{[^}]*hei
     "custom pixels fill the host-selected region height");
 assert.match(modernCss, /\.tpc-custom\s*\{[^}]*width\s*:\s*auto[^}]*box-sizing\s*:\s*content-box/i,
     "custom height names its drawable content box while the outer well still fits");
+assert.match(modernCss, /\.tpc-action-row\s*\{[^}]*display\s*:\s*block[^}]*width\s*:\s*100%/i,
+    "semantic action rows use one full-width native button");
+assert.match(modernCss, /\.tpc-action-summary\s*\{[^}]*font-weight\s*:\s*400[^}]*overflow-wrap\s*:\s*break-word/i,
+    "action summaries remain distinct readable text instead of a flattened caption");
+assert.match(modernCss, /\.tpc-section-heading\s*\{[^}]*var\(--tpc-label\)[^}]*font-weight\s*:\s*700/i,
+    "semantic headings use the cache-derived bold face and OSRS label colour");
+assert.match(modernCss, /\.tpc-key-value\s*\{[^}]*DropdownBody\.png[^}]*image-rendering\s*:\s*pixelated/i,
+    "key/value components use the actual OSRS 239 inset field art");
+assert.match(modernCss, /\.tpc-progress-meter::-webkit-progress-value\s*\{[^}]*#4f8a32/i,
+    "native progress uses the OSRS green meter treatment");
+assert.match(modernCss, /\.tpc-action-row\s*\{[^}]*min-height\s*:\s*42px[^}]*DropdownBody\.png/i,
+    "tracker navigation rows use an OSRS 239 component surface rather than a black debug box");
 
 assert.match(legacyRuntime, /AlphaImageLoader/, "XP transparent PNG fallback is bundled");
 assert.match(legacyRuntime, /type:\s*['"]editor\.focus['"]/,

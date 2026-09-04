@@ -435,14 +435,14 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
             cmd.value = w->kind;
             cmd.tab = w->tab;
             cmd.color = w->color;
-            /* A LISTROW's action affordance and its lock are part of its
-             * SHAPE, so they ride the one command that states a widget's
-             * shape. A row that gained or lost either is a different row: the
-             * panel rebuild that changed it gives it a new serial, and the
-             * shadow answers that with a remove-then-add rather than an
-             * update. */
-            cmd.w = (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
-                    (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
+            /* Kind-specific immutable shape. LISTROW carries its furniture;
+             * LABEL carries the semantic component kind the DOM must create.
+             * A shape change is a new widget with a new serial, never a
+             * property patch. */
+            cmd.w = w->kind == TORIRS_CHROME_W_LABEL
+                        ? w->label_style
+                        : (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
+                              (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
             /* ...and the kind-specific vertical shape. A CUSTOM region keeps
              * its model height in scaled pixels, but foreign presenters lay
              * out in logical chrome units and apply their own density. */
@@ -728,8 +728,10 @@ sync_refresh_widget(
         cmd.value = w->kind;
         cmd.tab = w->tab;
         cmd.color = w->color;
-        cmd.w = (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
-                (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
+        cmd.w = w->kind == TORIRS_CHROME_W_LABEL
+                    ? w->label_style
+                    : (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
+                          (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
         cmd.h = w->kind == TORIRS_CHROME_W_CUSTOM
                     ? sync_custom_logical_h(ui, w)
                     : w->rows;
