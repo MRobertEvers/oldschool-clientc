@@ -590,6 +590,17 @@ d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
         renderer->ibo = NULL;
     }
     renderer->gpu_ibo_capacity = 0u;
+    /* A mapping open across a device reset would leak the lock and take the
+     * buffer down under it. Nothing baked into it survives the reset anyway,
+     * so it is abandoned rather than closed and counted. */
+    if( renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].mapped )
+    {
+        IDirect3DVertexBuffer9_Unlock(
+            renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu);
+        trspk_vbo_d3d9_unmap(renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_cpu);
+        renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].mapped = NULL;
+        renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].mapped_capacity = 0u;
+    }
     if( renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu )
     {
         IDirect3DVertexBuffer9_Release(
@@ -3920,6 +3931,13 @@ d3d9_reclassify_texture_faces(
         bool changed = false;
         uint32_t slot_index;
 
+        /* Never the dynamic group. It is re-baked wholesale every frame, so
+         * patching vertices an earlier frame wrote buys one frame of
+         * correctness the next bake delivers regardless -- and it is a READ of
+         * vertex memory, which is the one thing a mapped bake cannot afford:
+         * that memory belongs to the driver, and reads from it are ruinous. */
+        if( group->reset_each_frame )
+            continue;
         if( !arena || !vbo || !vbo->vertices.as_d3d9 )
             continue;
 
@@ -3979,6 +3997,184 @@ d3d9_reclassify_texture_faces(
     }
 }
 
+/* Make the group's GPU buffer exist and hold at least `vertex_count` vertices.
+ * Growing means recreating, which loses the contents -- so the whole buffer is
+ * marked dirty and the caller fills it again. */
+static bool
+d3d9_group_ensure_gpu_buffer(
+    struct ToriRS_D3D9* renderer,
+    struct D3D9ModelGroup* group,
+    uint32_t vertex_count)
+{
+    HRESULT hr;
+    uint32_t capacity;
+
+    assert(renderer);
+    assert(group);
+
+    if( group->vbo_gpu && vertex_count <= group->gpu_capacity )
+        return true;
+
+    capacity = group->gpu_capacity ? group->gpu_capacity : D3D9_GPU_BUFFER_INIT;
+    while( capacity < vertex_count )
+        capacity *= 2u;
+    if( group->vbo_gpu )
+        IDirect3DVertexBuffer9_Release(group->vbo_gpu);
+    group->vbo_gpu = NULL;
+    /* DEFAULT for the static group too (was MANAGED): vbo_cpu is a full copy
+     * already, so the runtime's MANAGED sysmem mirror only doubled it. Reset
+     * releases this buffer and re-marks vbo_cpu dirty; this same path then
+     * rebuilds it on the next upload. */
+    hr = IDirect3DDevice9_CreateVertexBuffer(
+        renderer->device,
+        (UINT)(capacity * sizeof(struct TRSPK_VertexD3D9)),
+        D3DUSAGE_WRITEONLY | (group->reset_each_frame ? D3DUSAGE_DYNAMIC : 0u),
+        0u,
+        D3DPOOL_DEFAULT,
+        &group->vbo_gpu,
+        NULL);
+    if( FAILED(hr) )
+    {
+        group->gpu_capacity = 0u;
+        d3d9_log_hr("CreateVertexBuffer", hr);
+        return false;
+    }
+    group->gpu_capacity = capacity;
+    /* Nothing is in a buffer that did not exist a moment ago, so the dirty
+     * range is not the question -- all of it has to go up. */
+    trspk_vbo_set_dirty(group->vbo_cpu);
+    return true;
+}
+
+/*
+ * TORIRS_D3D9_DIRECT_BAKE=1 -- bake into the mapped buffer instead of copying.
+ *
+ * OFF by default, because on the development box it LOSES, and it loses for a
+ * reason worth writing down rather than rediscovering.
+ *
+ * Measured on lumbridge-ground/d3d9 with 64 npcs, arms interleaved over four
+ * scenes: +3.45% frame time, 0 of 32 paired observations in favour. The memcpy
+ * really does disappear -- msvcrt drops 0.069 ms/frame, which is the whole of
+ * what it cost -- but the frame gets 0.182 ms LONGER, and the extra time lands
+ * on code that never touches a vertex: ToriDraw_Project +0.045, the face sort
+ * +0.048, bucket_paint_run +0.029, ToriRS_FrameNextCommand +0.025.
+ *
+ * That spread is the tell. A locked DEFAULT-pool buffer is write-combined, and
+ * x86 has only a handful of write-combining buffers. The bake does not write
+ * vertices in a stream: between one vertex and the next it looks up texture
+ * slots, maps UVs through the atlas and reads model data, and that traffic
+ * evicts WC buffers still half full. Each partial eviction is an uncached
+ * partial-line write to the bus, the store buffer backs up behind it, and the
+ * stall is paid by whatever instruction retires next -- which is why the cost
+ * appears everywhere except in the bake.
+ *
+ * The copy path wins by keeping the two things apart: the bake writes cached
+ * memory at cache speed, and the memcpy is a tight sequential stream, which is
+ * the one access pattern write-combining is actually good at.
+ *
+ * Kept, and kept switchable, for two reasons. The reasoning above is a fact
+ * about THIS machine's memory system, and the target is a Pentium 4-era box
+ * whose balance between a cached write and a bus write is not this one's. And
+ * an idea this natural will be proposed again; better that it comes with its
+ * own measurement attached than that it is re-implemented from scratch.
+ */
+static bool
+d3d9_direct_bake_enabled(void)
+{
+    static int enabled = -1;
+
+    if( enabled < 0 )
+    {
+        const char* v = getenv("TORIRS_D3D9_DIRECT_BAKE");
+        enabled = (v && v[0] && v[0] != '0') ? 1 : 0;
+    }
+    return enabled != 0;
+}
+
+/*
+ * Open the dynamic group's GPU buffer and aim the bake straight at it.
+ *
+ * This is the whole point of the exercise. Unmapped, a frame's posed vertices
+ * are written once into a system-memory array and then memcpy'd across in
+ * full, so every byte of dynamic geometry is written twice and the second
+ * write buys nothing. Mapped, trspk_vbo_write_vertex_d3d9_argb lands in the
+ * driver's buffer and the copy stops existing.
+ *
+ * The lock has to be taken before a single model has been baked -- nothing yet
+ * knows how big the frame is -- and a D3DLOCK_DISCARD lock cannot be resized
+ * while open. So the buffer is sized off the running high-water mark with half
+ * again on top, and a frame that outgrows even that has its overflowing models
+ * refused by d3d9_bake_into_arena rather than written out of bounds.
+ */
+static bool
+d3d9_dynamic_map_begin(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
+{
+    void* locked = NULL;
+    HRESULT hr;
+
+    assert(renderer);
+    assert(group);
+    assert(group->reset_each_frame);
+    assert(!group->mapped);
+
+    if( !renderer->device || !group->vbo_cpu )
+        return false;
+    if( group->vbo_cpu->format != TRSPK_VERTEX_FORMAT_D3D9 )
+        return false;
+    if( !d3d9_group_ensure_gpu_buffer(
+            renderer, group, group->peak_vertices + group->peak_vertices / 2u + 256u) )
+        return false;
+
+    hr = IDirect3DVertexBuffer9_Lock(group->vbo_gpu, 0u, 0u, &locked, D3DLOCK_DISCARD);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("Lock(dynamic vertex buffer)", hr);
+        return false;
+    }
+    group->mapped = locked;
+    group->mapped_capacity = group->gpu_capacity;
+    trspk_vbo_d3d9_map(group->vbo_cpu, (struct TRSPK_VertexD3D9*)locked);
+    return true;
+}
+
+/* Close it. Has to happen before anything draws from the buffer, and before
+ * Present -- a lock left open is a frame that never reaches the screen. */
+static void
+d3d9_dynamic_map_end(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
+{
+    uint32_t demand;
+    uint32_t written;
+
+    assert(group);
+    (void)renderer;
+
+    if( !group->mapped )
+        return;
+    demand = group->vbo_cpu->vertex_count;
+    written = demand < group->mapped_capacity ? demand : group->mapped_capacity;
+
+    IDirect3DVertexBuffer9_Unlock(group->vbo_gpu);
+    trspk_vbo_d3d9_unmap(group->vbo_cpu);
+    group->mapped = NULL;
+    group->mapped_capacity = 0u;
+    group->mapped_vertices = written;
+    group->uploaded_by_map = true;
+    /* The DEMAND sizes the next frame, not what fitted. Sizing off what fitted
+     * would rebuild the same too-small buffer and refuse the same models
+     * again, every frame, forever. */
+    if( demand > group->peak_vertices )
+        group->peak_vertices = demand;
+
+    /* The counters the copy path kept, so a run with this on stays comparable
+     * with one without. The bytes were still written -- once, and into the
+     * place they were going to end up anyway. */
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_D3D9_DYNAMIC_VBO_UPLOAD_BYTES,
+        (int64_t)((uint64_t)written * sizeof(struct TRSPK_VertexD3D9)));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_DYNAMIC_VBO_UPLOADS, 1);
+    trspk_vbo_clear_dirty(group->vbo_cpu);
+}
+
 static bool
 d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
 {
@@ -3988,6 +4184,11 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
     HRESULT hr;
     if( !renderer->device || !group->vbo_cpu )
         return false;
+    /* Baked into the mapping, which d3d9_dynamic_map_end has already closed.
+     * Copying the system-memory array over it now would replace this frame's
+     * geometry with whatever that array happened to hold last. */
+    if( group->uploaded_by_map )
+        return group->vbo_gpu != NULL;
     vertex_count = group->vbo_cpu->vertex_count;
     if( vertex_count == 0u )
     {
@@ -3997,38 +4198,8 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
     if( !group->reset_each_frame && !trspk_vbo_is_dirty(group->vbo_cpu) )
         return group->vbo_gpu != NULL;
 
-    if( !group->vbo_gpu || vertex_count > group->gpu_capacity )
-    {
-        uint32_t capacity = group->gpu_capacity ? group->gpu_capacity : D3D9_GPU_BUFFER_INIT;
-        while( capacity < vertex_count )
-            capacity *= 2u;
-        if( group->vbo_gpu )
-            IDirect3DVertexBuffer9_Release(group->vbo_gpu);
-        group->vbo_gpu = NULL;
-        /* DEFAULT for the static group too (was MANAGED): vbo_cpu is a full
-         * copy already, so the runtime's MANAGED sysmem mirror only doubled
-         * it. Reset releases this buffer and re-marks vbo_cpu dirty; this
-         * same creation path then rebuilds it on the next upload. */
-        hr = IDirect3DDevice9_CreateVertexBuffer(
-            renderer->device,
-            (UINT)(capacity * sizeof(struct TRSPK_VertexD3D9)),
-            D3DUSAGE_WRITEONLY |
-                (group->reset_each_frame ? D3DUSAGE_DYNAMIC : 0u),
-            0u,
-            D3DPOOL_DEFAULT,
-            &group->vbo_gpu,
-            NULL);
-        if( FAILED(hr) )
-        {
-            group->gpu_capacity = 0u;
-            d3d9_log_hr("CreateVertexBuffer", hr);
-            return false;
-        }
-        group->gpu_capacity = capacity;
-        /* Nothing is in a buffer that did not exist a moment ago, so the
-         * dirty range is not the question -- all of it has to go up. */
-        trspk_vbo_set_dirty(group->vbo_cpu);
-    }
+    if( !d3d9_group_ensure_gpu_buffer(renderer, group, vertex_count) )
+        return false;
 
     /* Upload only what changed.
      *
@@ -4608,6 +4779,12 @@ d3d9_ensure_ibo(struct ToriRS_D3D9* renderer, uint32_t index_count)
 static void
 d3d9_reset_group(struct D3D9ModelGroup* group)
 {
+    /* Carried across the clear, because it is what sizes the buffer the next
+     * frame maps -- and a frame that ended without ever being uploaded (an
+     * early return in d3d9_draw_retained) would otherwise forget its demand. */
+    if( group->vbo_cpu && group->vbo_cpu->vertex_count > group->peak_vertices )
+        group->peak_vertices = group->vbo_cpu->vertex_count;
+    group->uploaded_by_map = false;
     if( group->arena )
         trspk_modelarena_clear(group->arena);
 }
@@ -4741,7 +4918,19 @@ d3d9_bake_pose_vertices(
                 true,
                 TRSPK_BAKE_COLOR_ARGB,
                 &face) )
+        {
+            /* Zeroed rather than left. Unmapped these three were memset by
+             * trspk_vbo_growby, but mapped they are whatever the driver's
+             * buffer held a moment ago -- and a skipped face has to read as a
+             * degenerate triangle, not as somebody else's geometry. */
+            trspk_vbo_write_vertex_d3d9_argb(
+                vbo, vertex, 0.0f, 0.0f, 0.0f, 0u, 0.0f, 0.0f, 0.0f);
+            trspk_vbo_write_vertex_d3d9_argb(
+                vbo, vertex + 1u, 0.0f, 0.0f, 0.0f, 0u, 0.0f, 0.0f, 0.0f);
+            trspk_vbo_write_vertex_d3d9_argb(
+                vbo, vertex + 2u, 0.0f, 0.0f, 0.0f, 0u, 0.0f, 0.0f, 0.0f);
             continue;
+        }
 
         if( face.tex_id >= 0 && face.is_animated &&
             d3d9_ensure_animated_texture(renderer, face.tex_id) )
@@ -4866,9 +5055,30 @@ d3d9_bake_into_arena(
                 d3d9_compact_static_group(renderer);
         }
     }
+    /* The dynamic group bakes into the mapped GPU buffer. Opened here, on the
+     * frame's first dynamic model, because before one arrives there is nothing
+     * to open it for -- and a frame with no dynamic geometry should not be
+     * locking a vertex buffer at all. A failure to map is not fatal: the group
+     * stays unmapped and the copy path below carries the frame. */
+    if( group->reset_each_frame && !group->mapped && !group->uploaded_by_map &&
+        d3d9_direct_bake_enabled() )
+        (void)d3d9_dynamic_map_begin(renderer, group);
+
     slot_index = trspk_modelarena_load(
         group->arena, arena_element_id, arena_pose_id, vertex_count);
     model_slot = trspk_modelarena_get(group->arena, slot_index);
+    if( group->mapped && model_slot &&
+        model_slot->vertex_base + vertex_count > group->mapped_capacity )
+    {
+        /* Past the end of a lock that cannot be grown. Refuse the model rather
+         * than write outside the mapping -- d3d9_draw_model reads UINT32_MAX as
+         * "skip this one". The demand still reaches peak_vertices through
+         * d3d9_dynamic_map_end, so the next frame's buffer is already big
+         * enough and this costs one model for one frame. */
+        trspk_modelarena_unload(group->arena, slot_index);
+        group->mapped_refusals++;
+        return UINT32_MAX;
+    }
     if( !model_slot || !d3d9_bake_pose_vertices(
             renderer,
             group->vbo_cpu,
@@ -5601,6 +5811,10 @@ d3d9_draw_retained(
     uint32_t last_config = UINT32_MAX;
     uint32_t group;
 
+    /* Closed FIRST, and unconditionally. It has to be closed before anything
+     * draws out of that buffer, and before every early return below -- a lock
+     * still open at Present costs the whole frame. */
+    d3d9_dynamic_map_end(renderer, &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC]);
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
         if( !d3d9_upload_group(renderer, &renderer->groups[group]) )
             return;

@@ -41,6 +41,11 @@ trspk_vbo_realloc_if_needed(
     assert(grown != NULL);
     vbo->vertices.as_webgl1 = (struct TRSPK_VertexWebGL1*)grown;
     vbo->capacity = new_capacity;
+    /* The write target follows the array it points into -- unless it has been
+     * aimed somewhere else entirely, in which case realloc moved memory this
+     * VBO owns and the mapping is none of its business. */
+    if( vbo->format == TRSPK_VERTEX_FORMAT_D3D9 && !(vbo->flags & TRSPK_VBO_FLAG_MAPPED) )
+        vbo->d3d9_write = vbo->vertices.as_d3d9;
 }
 
 struct TRSPK_VBO*
@@ -85,7 +90,14 @@ trspk_vbo_growby(
             &vbo->vertices.as_opengl3[old_count], 0, sizeof(struct TRSPK_VertexOpenGl3) * amount);
         break;
     case TRSPK_VERTEX_FORMAT_D3D9:
-        memset(&vbo->vertices.as_d3d9[old_count], 0, sizeof(struct TRSPK_VertexD3D9) * amount);
+        /* Not while mapped. These zeros exist so that a face a bake declines
+         * to write reads as a degenerate triangle instead of as whatever was
+         * in the buffer before; mapped, the array being zeroed is not the one
+         * the bake writes, so this would be a megabyte a frame of memset that
+         * nothing ever reads. A mapped bake zeroes its own skipped faces. */
+        if( !(vbo->flags & TRSPK_VBO_FLAG_MAPPED) )
+            memset(
+                &vbo->vertices.as_d3d9[old_count], 0, sizeof(struct TRSPK_VertexD3D9) * amount);
         break;
     case TRSPK_VERTEX_FORMAT_GLES2:
         memset(&vbo->vertices.as_gles2[old_count], 0, sizeof(struct TRSPK_VertexGLES2) * amount);
