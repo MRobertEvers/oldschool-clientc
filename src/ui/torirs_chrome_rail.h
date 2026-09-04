@@ -88,11 +88,16 @@ struct ToriRSChromeRailIntent
     int kind;
     int plugin_index;
     uint32_t selection_generation;
+    /** LAYOUT only: mounted semantic page generation. */
+    uint32_t page_generation;
     uint64_t sequence;
 
     /* LAYOUT only, in logical chrome units unless scale_milli says otherwise. */
     int width;
     int height;
+    /** Content-box width of a full-width CUSTOM well, in logical units.
+     * Zero when the current page has no measurable custom well. */
+    int custom_width;
     int scale_milli;
     int size_class;
     int visible;
@@ -116,6 +121,9 @@ struct ToriRSChromeRailSync
 };
 
 void ToriRSChromeRailSnapshot_Init(struct ToriRSChromeRailSnapshot* snapshot);
+/** Whether a running registered panel is an independent rail destination.
+ * Managed-only pages stay reachable through the Manage Plugins roster. */
+int ToriRSChromeRailSnapshot_IncludesPlugin(int panel_registered, int managed_only);
 int ToriRSChromeRailSnapshot_Add(
     struct ToriRSChromeRailSnapshot* snapshot,
     int plugin_index,

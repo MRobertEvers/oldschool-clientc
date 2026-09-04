@@ -14,6 +14,48 @@ panel_scaled(int value, int scale, int origin, int* out)
     return 1;
 }
 
+static int
+panel_rect_equal(
+    struct ToriRSChromeRect const* a,
+    struct ToriRSChromeRect const* b)
+{
+    return a->x == b->x && a->y == b->y && a->w == b->w && a->h == b->h;
+}
+
+unsigned
+ToriRSChromePanelDraw_Changes(
+    int previous_valid,
+    struct ToriRSChromeRect previous_region,
+    struct ToriRSChromeRect previous_clip,
+    int next_valid,
+    struct ToriRSChromeRect next_region,
+    struct ToriRSChromeRect next_clip)
+{
+    unsigned changes = 0;
+
+    if( !next_valid )
+    {
+        if( !previous_valid )
+            return 0;
+        changes |= TORIRS_CHROME_PANEL_DRAW_HIDDEN;
+        if( previous_clip.w > 0 || previous_clip.h > 0 )
+            changes |= TORIRS_CHROME_PANEL_DRAW_CLIP;
+        return changes;
+    }
+    if( !previous_valid )
+        return TORIRS_CHROME_PANEL_DRAW_SIZE |
+               TORIRS_CHROME_PANEL_DRAW_CLIP;
+    if( previous_region.w != next_region.w ||
+        previous_region.h != next_region.h )
+        changes |= TORIRS_CHROME_PANEL_DRAW_SIZE;
+    if( previous_region.x != next_region.x ||
+        previous_region.y != next_region.y )
+        changes |= TORIRS_CHROME_PANEL_DRAW_ORIGIN;
+    if( !panel_rect_equal(&previous_clip, &next_clip) )
+        changes |= TORIRS_CHROME_PANEL_DRAW_CLIP;
+    return changes;
+}
+
 int
 ToriRSChromePanelDraw_Transform(
     struct UITreeEntityOverlay const* item,

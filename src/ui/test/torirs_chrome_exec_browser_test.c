@@ -295,6 +295,17 @@ int main(void)
         "\"pluginIndex\":-2,\"selectionGeneration\":7}");
     CHECK(exec.rail_poll(exec.user, &rail_intent, 1) == 0);
 
+    snprintf(inbound, sizeof(inbound),
+        "{\"protocol\":1,\"type\":\"layout\",\"sequence\":6,"
+        "\"selectionGeneration\":7,\"pageGeneration\":11,"
+        "\"width\":420,\"height\":500,"
+        "\"customWidth\":394,\"scaleMilli\":1500,\"sizeClass\":1,"
+        "\"visible\":true}");
+    CHECK(exec.rail_poll(exec.user, &rail_intent, 1) == 1);
+    CHECK(rail_intent.kind == TORIRS_CHROME_RAIL_INTENT_LAYOUT &&
+          rail_intent.page_generation == 11 && rail_intent.custom_width == 394 &&
+          rail_intent.scale_milli == 1500);
+
     /* Replacing A with B while expanded keeps the one browser, closes A with
      * A's generation, and makes B's first transaction a snapshot (not a delta
      * that the old DOM must reject). Panel CLOSE is omitted from that fresh

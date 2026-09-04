@@ -25,8 +25,10 @@ void ToriRSChromeExecWeb_RequestSelect(
     int plugin_index, uint32_t selection_generation);
 void ToriRSChromeExecWeb_RequestLayout(
     uint32_t selection_generation,
+    uint32_t page_generation,
     int width,
     int height,
+    int custom_width,
     int scale_milli,
     int size_class,
     int visible,

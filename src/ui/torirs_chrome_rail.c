@@ -27,6 +27,12 @@ ToriRSChromeRailSnapshot_Init(struct ToriRSChromeRailSnapshot* snapshot)
 }
 
 int
+ToriRSChromeRailSnapshot_IncludesPlugin(int panel_registered, int managed_only)
+{
+    return panel_registered && !managed_only;
+}
+
+int
 ToriRSChromeRailSnapshot_Add(
     struct ToriRSChromeRailSnapshot* snapshot,
     int plugin_index,

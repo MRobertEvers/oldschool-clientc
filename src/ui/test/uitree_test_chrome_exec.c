@@ -1943,6 +1943,11 @@ test_chrome_exec_retained_rail(void)
     exec.rail_poll = rail_fixture_poll;
     ToriRSChromeRailSync_Init(&sync);
     ToriRSChromeRailSnapshot_Init(&snapshot);
+    TEST_ASSERT(
+        !ToriRSChromeRailSnapshot_IncludesPlugin(1, 1) &&
+            ToriRSChromeRailSnapshot_IncludesPlugin(1, 0) &&
+            !ToriRSChromeRailSnapshot_IncludesPlugin(0, 0),
+        "managed settings stay under Manage while standalone pages enter the rail");
     snapshot.registry_revision = 9;
     snapshot.selection_generation = 4;
     snapshot.page_generation = 7;

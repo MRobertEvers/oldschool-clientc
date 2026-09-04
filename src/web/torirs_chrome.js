@@ -695,14 +695,18 @@
 
     publishLayout(message) {
       const generation = unsigned(message.selectionGeneration);
-      if (!generation || generation !== this.rail.selectionGeneration) return false;
+      const pageGeneration = unsigned(message.pageGeneration);
+      if (!generation || generation !== this.rail.selectionGeneration || !pageGeneration)
+        return false;
       const width = Math.max(0, integer(message.width, 0));
       const height = Math.max(0, integer(message.height, 0));
+      const customWidth = Math.max(0, integer(message.customWidth, 0));
       const scale = Math.max(1, integer(message.scaleMilli, 1000));
       const sizeClass = integer(message.sizeClass, 0);
       const visible = message.visible ? 1 : 0;
       const gameVisible = this.layoutMode === 'exclusive' ? 0 : 1;
-      const key = [generation, width, height, scale, sizeClass, visible, gameVisible].join(':');
+      const key = [generation, pageGeneration, width, height, customWidth, scale, sizeClass,
+        visible, gameVisible].join(':');
       if (key === this.lastLayoutKey) return true;
       this.lastLayoutKey = key;
       const exported = this.global.Module &&
@@ -710,9 +714,11 @@
       const fallback = this.global.torirsChromeRequestLayout;
       try {
         if (typeof exported === 'function')
-          exported(generation, width, height, scale, sizeClass, visible, gameVisible);
+          exported(generation, pageGeneration, width, height, customWidth,
+            scale, sizeClass, visible, gameVisible);
         else if (typeof fallback === 'function')
-          fallback(generation, width, height, scale, sizeClass, visible, gameVisible);
+          fallback(generation, pageGeneration, width, height, customWidth,
+            scale, sizeClass, visible, gameVisible);
         else return false;
       } catch (error) { return false; }
       return true;

@@ -1970,7 +1970,8 @@ struct App
         int model_index;
         uint32_t widget_serial;
         int widget_kind;
-        /** Last resolved custom drawing geometry, in executor pixels. */
+        /** Last resolved custom drawing geometry: executor pixels for BUFFER,
+         * presenter-local logical pixels for an external custom sink. */
         struct ToriRSChromeRect custom_region;
         struct ToriRSChromeRect custom_clip;
         int custom_layout_valid;

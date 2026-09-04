@@ -3064,6 +3064,21 @@ test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o -lm
 	./$(OBJ_DIR)/debug_overlay_visual
 
+# A plugin image is carried through UITREE's entity-overlay list. Positive
+# destination dimensions must select the renderers' scaled/IF3 sprite path;
+# built-in hitsplats and headicons leave those dimensions zero and stay 1:1.
+.PHONY: test-frame-entity-overlay-sprite
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+FRAME_ENTITY_OVERLAY_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
+test-frame-entity-overlay-sprite: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/frame_entity_overlay_sprite_test \
+		render/test/torirs_frame_entity_overlay_sprite_test.c \
+		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_entity_overlay_sprite_test
+
 # The message store the cache's chatbox scripts read: per-type rings, the uid
 # walk rebuildchatbox drives, ring recycling, friend/ignore state.
 test-chat-store: $(OBJ_DIR)

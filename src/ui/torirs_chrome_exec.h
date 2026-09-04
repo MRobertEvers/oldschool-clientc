@@ -352,7 +352,8 @@ struct ToriRSChromeCustomFrame
     int widget;
     uint32_t selection_generation;
     uint32_t widget_serial;
-    /** Device pixels per logical unit, in thousandths. */
+    /** Bitmap/source pixels per logical unit, in thousandths. The browser
+     * compositor applies its own device-pixel ratio afterwards. */
     int scale_milli;
     int width;
     int height;

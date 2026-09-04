@@ -101,6 +101,7 @@
     widgetsByTab: new Store(),
     checkWidgets: new Store(),
     tabStrips: new Store(),
+    customWidgets: new Store(),
     renderQueue: [],
     renderVisits: 0,
     sequence: 0,
@@ -631,6 +632,7 @@
     if (record.kind === W.CHECKBOX || record.kind === W.LISTROW)
       state.checkWidgets.set(record.handle, record);
     if (record.kind === W.TABSTRIP) state.tabStrips.set(record.handle, record);
+    if (record.kind === W.CUSTOM) state.customWidgets.set(record.handle, record);
   }
 
   function unindexWidget(record) {
@@ -643,6 +645,7 @@
     }
     state.checkWidgets.drop(record.handle);
     state.tabStrips.drop(record.handle);
+    state.customWidgets.drop(record.handle);
   }
 
   /* The DOM half of retained execution. A command already names the exact
@@ -687,9 +690,16 @@
     state.widgetsByTab.clear();
     state.checkWidgets.clear();
     state.tabStrips.clear();
+    state.customWidgets.clear();
     state.renderQueue = [];
     clear(content);
+    /* A new semantic page starts at its beginning. The DOM keeps scrollTop
+     * when its children are replaced, so without this a long tracker/settings
+     * page can leave the next page's Back row clipped above the viewport. */
+    content.scrollTop = 0;
+    content.scrollLeft = 0;
     clear(tabs);
+    tabs.scrollLeft = 0;
     setTabsVisible(false);
     hidden(pane, true);
     state.pageGeneration = 0;
@@ -931,13 +941,21 @@
           if (!record.pointer) return;
           record.pointer = null;
           const bounds = custom.getBoundingClientRect();
-          const boundsWidth = bounds.width || (bounds.right - bounds.left);
-          const boundsHeight = bounds.height || (bounds.bottom - bounds.top);
+          const boundsWidth = custom.clientWidth || 0;
+          const boundsHeight = custom.clientHeight || 0;
+          const boundsLeft = bounds.left + Math.max(0, integer(custom.clientLeft, 0));
+          const boundsTop = bounds.top + Math.max(0, integer(custom.clientTop, 0));
           if (!boundsWidth || !boundsHeight) return;
+          const localX = event.clientX - boundsLeft;
+          const localY = event.clientY - boundsTop;
+          /* The bitmap occupies the content box. A press on the chrome-owned
+           * one-pixel border is not a click on the plugin's first/last pixel. */
+          if (localX < 0 || localY < 0 || localX >= boundsWidth || localY >= boundsHeight)
+            return;
           const px = Math.max(0, Math.min(record.bitmapWidth - 1,
-            Math.floor((event.clientX - bounds.left) * record.bitmapWidth / boundsWidth)));
+            Math.floor(localX * record.bitmapWidth / boundsWidth)));
           const py = Math.max(0, Math.min(record.bitmapHeight - 1,
-            Math.floor((event.clientY - bounds.top) * record.bitmapHeight / boundsHeight)));
+            Math.floor(localY * record.bitmapHeight / boundsHeight)));
           postWidget(record, INTENT.CUSTOM_ACTIVATE, 0, '',
             Math.floor(px * 1000 / Math.max(1, record.customScale)),
             Math.floor(py * 1000 / Math.max(1, record.customScale)));
@@ -1261,6 +1279,10 @@
     try { for (let i = 0; i < commands.length; i++) applyCommand(commands[i]); }
     finally { state.applying = false; }
     flushWidgetRenders();
+    /* A retained height/visibility/text change can make the content scrollbar
+     * appear or disappear without resizing the outer window. That changes a
+     * full-width custom well, so publish its post-layout content width too. */
+    reportLayout();
     return true;
   }
 
@@ -1292,10 +1314,18 @@
     const visible = pane.style.display !== 'none' && !!state.pageGeneration;
     const width = visible ? Math.max(0, pane.clientWidth || 0) : 0;
     const height = visible ? Math.max(0, pane.clientHeight || 0) : 0;
+    let customWidth = 0;
+    if (visible) state.customWidgets.each(record => {
+      /* CUSTOM is full-width in both browser styles. clientWidth is its
+       * content box: pane/content padding, the scrollbar and the well border
+       * have therefore already been removed by the browser's own layout. */
+      if (!customWidth && record.kind === W.CUSTOM && !record.hidden && record.control)
+        customWidth = Math.max(0, integer(record.control.clientWidth, 0));
+    });
     const scaleMilli = Math.max(1, Math.round(Number(global.devicePixelRatio || 1) * 1000));
     const sizeClass = width < 320 ? 0 : (width >= 480 ? 2 : 1);
     const key = [state.rail.selectionGeneration, state.pageGeneration, width, height,
-      scaleMilli, sizeClass, visible ? 1 : 0].join(':');
+      customWidth, scaleMilli, sizeClass, visible ? 1 : 0].join(':');
     if (key === state.lastLayout) return;
     state.lastLayout = key;
     queueEnvelope({
@@ -1306,6 +1336,7 @@
       pageGeneration: state.pageGeneration,
       width,
       height,
+      customWidth,
       scaleMilli,
       sizeClass,
       visible,

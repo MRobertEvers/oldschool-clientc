@@ -71,6 +71,29 @@
 /* The debug line's model classes: below this many faces a model is "small". */
 #define GLES2_DUALCORE_SMALL_FACES 64
 
+/*
+ * A KERNEL KNOB THIS LANE ALTERNATES. `target` is an int a kernel reads --
+ * one of toridraw's -- and `arms` the two values to put in it on alternate
+ * debug periods, so both arms are measured in the same scene of the same
+ * launch. Nothing else has produced a trustworthy kernel comparison on this
+ * phone: two launches of one binary differ by more than a millisecond.
+ *
+ * A new kernel experiment is one row in the table below. The lane's own
+ * knobs (lookahead, lead) stay separate because they are lane state rather
+ * than a kernel's, and because they are unsigned counts, not tri-state ints.
+ */
+struct GLES2DualCore_KernelKnob
+{
+    char const* env;   /* TORIRS_GLES2_DUALCORE_<X>_AB=a,b, or =1 for 0,1 */
+    char const* label; /* what the debug line calls it */
+    int* target;
+    int max; /* arms above this are refused; 0 = unbounded */
+    int arms[2];
+    bool armed;
+};
+
+#define GLES2_DUALCORE_KERNEL_KNOBS 3
+
 struct ToriRS_GLES2DualCore
 {
     struct ToriRS_GLES2* renderer;
@@ -195,16 +218,9 @@ struct ToriRS_GLES2DualCore
      * millisecond, kr12). */
     bool ab_lookahead;
     bool ab_lead;
-    /* TORIRS_GLES2_DUALCORE_PRIO_PAD_AB=a,b: the sort's band-slice pad
-     * (g_toridraw_prio_slice_pad), the same way; a kernel A/B in the same
-     * harness. */
-    bool ab_prio_pad;
-    /* TORIRS_GLES2_DUALCORE_KERNEL_AB=1: flip g_toridraw_kernel_ab_arm each
-     * period (see toridraw.h). */
-    bool ab_kernel;
     uint32_t ab_lookahead_arms[2];
     uint32_t ab_lead_arms[2];
-    uint32_t ab_prio_pad_arms[2];
+    struct GLES2DualCore_KernelKnob kernel_knobs[GLES2_DUALCORE_KERNEL_KNOBS];
     unsigned ab_arm;
 };
 
@@ -867,21 +883,137 @@ dualcore_render_frame_commands(struct ToriRS_GLES2DualCore* lane, struct ToriRS_
     GLES2DualCoreStageArena_FeedClose(&lane->arena);
 }
 
+/*
+ * `a,b` names the two arms; a bare `1` is shorthand for `0,1`, which is what
+ * a knob that is simply on or off wants to say.
+ */
+static bool
+dualcore_knob_arms(char const* env, int max, int* arms)
+{
+    char const* v = getenv(env);
+    unsigned first;
+    unsigned second;
+
+    assert(env);
+    assert(arms);
+
+    if( !v )
+        return false;
+    if( sscanf(v, "%u,%u", &first, &second) != 2 )
+    {
+        if( v[0] != '1' || v[1] != '\0' )
+            return false;
+        first = 0u;
+        second = 1u;
+    }
+    if( max > 0 && ((int)first > max || (int)second > max) )
+        return false;
+    arms[0] = (int)first;
+    arms[1] = (int)second;
+    return true;
+}
+
+/*
+ * THE KERNEL KNOB TABLE. One row per kernel experiment; see
+ * struct GLES2DualCore_KernelKnob.
+ *
+ * An unarmed knob is left alone rather than written, because the kernels
+ * that hold their arming in these globals read the environment on first use
+ * and a -1 there means "not read yet".
+ */
+static void
+dualcore_kernel_knobs_init(struct ToriRS_GLES2DualCore* lane)
+{
+    struct GLES2DualCore_KernelKnob const table[GLES2_DUALCORE_KERNEL_KNOBS] = {
+        /* env, label, target, max */
+        { "TORIRS_GLES2_DUALCORE_KERNEL_AB",
+          "kernel-arm",
+          &g_toridraw_kernel_ab_arm,
+          1,
+          { 0, 0 },
+          false },
+        { "TORIRS_GLES2_DUALCORE_PRIO_PAD_AB",
+          "prio-pad",
+          &g_toridraw_prio_slice_pad,
+          TORIDRAW_PRIO_SLICE_PAD,
+          { 0, 0 },
+          false },
+        { "TORIRS_GLES2_DUALCORE_PLD_AB", "pld", &g_toridraw_sort_pld, 1, { 0, 0 }, false },
+    };
+    unsigned i;
+
+    assert(lane);
+
+    for( i = 0; i < GLES2_DUALCORE_KERNEL_KNOBS; i++ )
+    {
+        struct GLES2DualCore_KernelKnob* knob = &lane->kernel_knobs[i];
+        *knob = table[i];
+        knob->armed = dualcore_knob_arms(knob->env, knob->max, knob->arms);
+        if( knob->armed )
+            *knob->target = knob->arms[0];
+    }
+}
+
+static bool
+dualcore_ab_armed(const struct ToriRS_GLES2DualCore* lane)
+{
+    unsigned i;
+
+    assert(lane);
+
+    if( lane->ab_lookahead || lane->ab_lead )
+        return true;
+    for( i = 0; i < GLES2_DUALCORE_KERNEL_KNOBS; i++ )
+        if( lane->kernel_knobs[i].armed )
+            return true;
+    return false;
+}
+
+/* Every kernel knob's live value, for the debug line: the arms only mean
+ * something next to the numbers they produced. */
+static void
+dualcore_knob_summary(const struct ToriRS_GLES2DualCore* lane, char* out, size_t cap)
+{
+    size_t off = 0;
+    unsigned i;
+
+    assert(lane);
+    assert(out);
+    assert(cap > 0);
+
+    out[0] = '\0';
+    for( i = 0; i < GLES2_DUALCORE_KERNEL_KNOBS; i++ )
+    {
+        int const written = snprintf(
+            out + off,
+            cap - off,
+            "%s%s %d",
+            i ? " " : "",
+            lane->kernel_knobs[i].label,
+            *lane->kernel_knobs[i].target);
+        if( written <= 0 || (size_t)written >= cap - off )
+            return;
+        off += (size_t)written;
+    }
+}
+
 static void
 dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
 {
     struct timespec ts;
     uint64_t draw_cpu_ns = 0u;
     uint64_t worker_cpu_ns = 0u;
+    char knobs[128];
 
     if( !lane->debug || lane->frames == 0u || (lane->frames % GLES2_DUALCORE_DEBUG_PERIOD) != 0u )
         return;
+    dualcore_knob_summary(lane, knobs, sizeof(knobs));
     if( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0 )
         draw_cpu_ns = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
     if( lane->worker_cpu_clock_ok && clock_gettime(lane->worker_cpu_clock, &ts) == 0 )
         worker_cpu_ns = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
     TORIRS_ERR(
-        "gles2-dualcore: lookahead %u lead %u pad %d kernel-arm %d draw-cpu %.2f worker-cpu %.2f ms/frame | "
+        "gles2-dualcore: lookahead %u lead %u [%s] draw-cpu %.2f worker-cpu %.2f ms/frame | "
         "frames %llu dual %llu taken %llu claimed-by-draw %llu (worker saw %llu) "
         "inline %llu stalls %llu (spins %llu) [tile %llu/%llu small %llu/%llu large %llu/%llu] "
         "lead-hist [0 %llu, 1-7 %llu, 8-63 %llu, 64-511 %llu, 512+ %llu] "
@@ -890,8 +1022,7 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
         "worker %.2f ms/frame (feed-wait %.2f) draw-stall %.2f ms/frame join %.3f ms/frame\n",
         lane->lookahead,
         lane->lead,
-        g_toridraw_prio_slice_pad,
-        g_toridraw_kernel_ab_arm,
+        knobs,
         (double)(draw_cpu_ns - lane->draw_cpu_ns_last) / 1.0e6 / (double)GLES2_DUALCORE_DEBUG_PERIOD,
         (double)(worker_cpu_ns - lane->worker_cpu_ns_last) / 1.0e6 /
             (double)GLES2_DUALCORE_DEBUG_PERIOD,
@@ -955,17 +1086,17 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
     lane->stall_ns_window = 0u;
     lane->draw_cpu_ns_last = draw_cpu_ns;
     lane->worker_cpu_ns_last = worker_cpu_ns;
-    if( lane->ab_lookahead || lane->ab_lead || lane->ab_prio_pad || lane->ab_kernel )
+    if( dualcore_ab_armed(lane) )
     {
+        unsigned i;
         lane->ab_arm ^= 1u;
-        if( lane->ab_kernel )
-            g_toridraw_kernel_ab_arm = (int)lane->ab_arm;
         if( lane->ab_lookahead )
             lane->lookahead = lane->ab_lookahead_arms[lane->ab_arm];
         if( lane->ab_lead )
             lane->lead = lane->ab_lead_arms[lane->ab_arm];
-        if( lane->ab_prio_pad )
-            g_toridraw_prio_slice_pad = (int)lane->ab_prio_pad_arms[lane->ab_arm];
+        for( i = 0; i < GLES2_DUALCORE_KERNEL_KNOBS; i++ )
+            if( lane->kernel_knobs[i].armed )
+                *lane->kernel_knobs[i].target = lane->kernel_knobs[i].arms[lane->ab_arm];
     }
 }
 
@@ -1062,19 +1193,8 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
             lane->ab_lead_arms[1] = second;
             lane->lead = first;
         }
-        arms = getenv("TORIRS_GLES2_DUALCORE_KERNEL_AB");
-        if( arms && arms[0] == '1' )
-            lane->ab_kernel = true;
-        arms = getenv("TORIRS_GLES2_DUALCORE_PRIO_PAD_AB");
-        if( arms && sscanf(arms, "%u,%u", &first, &second) == 2 &&
-            first <= TORIDRAW_PRIO_SLICE_PAD && second <= TORIDRAW_PRIO_SLICE_PAD )
-        {
-            lane->ab_prio_pad = true;
-            lane->ab_prio_pad_arms[0] = first;
-            lane->ab_prio_pad_arms[1] = second;
-            g_toridraw_prio_slice_pad = (int)first;
-        }
     }
+    dualcore_kernel_knobs_init(lane);
 
     pthread_mutex_init(&lane->lock, NULL);
     pthread_cond_init(&lane->wake, NULL);

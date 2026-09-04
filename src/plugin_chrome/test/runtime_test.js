@@ -283,11 +283,33 @@ runtime.receive({
 });
 const custom = customRow.children[customRow.children.length - 1];
 assert.strictEqual(custom.children[0].tagName, 'IMG', 'matching custom bitmap is retained');
+custom.clientWidth = 294;
+const layoutCountBeforeResize = posted.filter(message => message.type === 'layout').length;
+global_.onresize();
+const resizedLayout = posted[posted.length - 1];
+assert.strictEqual(resizedLayout.type, 'layout');
+assert.strictEqual(resizedLayout.customWidth, 294,
+  'layout publishes the browser-computed custom content-box width');
+assert.strictEqual(resizedLayout.scaleMilli, 2000,
+  'custom width remains logical while layout preserves the presenter DPR');
+global_.onresize();
+assert.strictEqual(posted.filter(message => message.type === 'layout').length,
+  layoutCountBeforeResize + 1, 'unchanged custom geometry is retained-deduplicated');
+custom.clientLeft = 1;
+custom.clientTop = 1;
+custom.clientHeight = 120;
+const typedBeforeBorder = typed.length;
+custom.fire('mousedown', { clientX: 0, clientY: 20 });
+custom.fire('mouseup', { clientX: 0, clientY: 20 });
+assert.strictEqual(typed.length, typedBeforeBorder,
+  'the chrome-owned custom border does not activate a plugin pixel');
 custom.fire('mousedown', { clientX: 50, clientY: 25 });
 custom.fire('mouseup', { clientX: 50, clientY: 25 });
 assert.strictEqual(typed[typed.length - 1].k, 8, 'custom activation uses its semantic intent');
 assert.strictEqual(typed[typed.length - 1].g, 20);
 assert.strictEqual(typed[typed.length - 1].s, 107);
+assert(typed[typed.length - 1].x >= 0 && typed[typed.length - 1].y >= 0,
+  'custom content-box coordinates remain logical after DPR mapping');
 
 const visitsBeforeDelta = runtime.inspect().renderVisits;
 const structuredFirstOption = structured.children[0];
@@ -327,6 +349,7 @@ assert.strictEqual(structured.children.length, 2);
 assert.strictEqual(structured.selectedIndex, 1);
 
 /* Same handle/kind, new page and serial: detached old DOM must remain stale. */
+ids['tpc-content'].scrollTop = 37;
 runtime.receive({
   protocol: 1, type: 'page.snapshot', pageGeneration: 21, panel: 3,
   title: 'Replacement', commands: [
@@ -334,6 +357,8 @@ runtime.receive({
     command(8, { w: 1, v: 1, label: 'Enabled', s: 202 })
   ]
 });
+assert.strictEqual(ids['tpc-content'].scrollTop, 0,
+  'a replacement page starts at the top instead of inheriting the prior page scroll');
 const typedBefore = typed.length;
 oldCheckbox.fire('change');
 assert.strictEqual(typed.length, typedBefore,

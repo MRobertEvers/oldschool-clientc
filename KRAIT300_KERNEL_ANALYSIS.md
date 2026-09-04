@@ -970,7 +970,8 @@ replay gone; 1.7 ms/frame of `sched_yield` kernel contention gone (it was also t
 draw); lead 2 → 12 (−0.4 ms draw); whole-pass translation (−0.2). Remaining draw wait
 **~0.9 ms/frame**, all of it the worker on 2000+-face models at the end of the pass.
 
-**1c is re-scoped.** More per-model work on the worker would *lengthen* the stalls, since
+**1c is re-scoped, and after the step-2 profile it is the plan's largest remaining item
+(§ step 2's revised expectation).** More per-model work on the worker would *lengthen* the stalls, since
 the worker is the bottleneck exactly where the draw waits. The rebalance that helps is the
 inverse: (i) step 2 on the worker's sort (each 100 µs off a big model's stage is ~0.3 ms
 off the draw), and (ii) an **out-of-order worker** that stages big models first while the
@@ -981,6 +982,9 @@ but results are published as an in-order count, so it needs per-slot ready flags
 After step 1 as built: draw **≈ 15.0 ms** by `CLOCK_THREAD_CPUTIME_ID` (this clock runs ~1.5
 ms/frame above `/proc`'s jiffies on the same thread; the ledger below is in `/proc` terms,
 ≈ 13.5), worker ≈ 6.3 of which ~1 is parked in `wfe`.
+
+After step 2a's cursor partition (kr15, same clock): draw ≈ 15.1 (unchanged), worker
+**6.31** against 6.50 with the old partition in the alternate periods of the same launch.
 
 ### Step 2 — Face sort (2.88 ms/frame both threads; the profile's largest kernel)
 
@@ -1038,36 +1042,107 @@ mean of three, so every digit lands inside it). Upper bound of the win is the 18
 = 0.045 ms/frame on the worker, under the in-launch method's ~0.1 ms floor, so it is kept
 on the profile's evidence rather than an A/B.
 
-**2a, still to build, in the order the buckets rank them:**
-1. **K16 index software-pipelining** (0.49 ms region): load the next trip's 24 face
-   indices before this trip's gathers so the `ldrsh → add → vld1` chain is overlapped
-   across trips; 24 scalar registers are not available on A32, so hold them as three
-   `int16x8` and extract, or gather the *next* trip's addresses into a small stack ring.
-   Bit-exact by construction; `TORIDRAW_K16_UZP`-style toggle.
-2. **Partition as one cursor per band** (0.24 ms region): replace `base[prio]` +
-   `counts[prio]` (two loads, two adds) with a `faceint_t* cursor[12]`
-   (`ldr; strh face, [cursor], #2; str`), and `depth_sum` as the only other chain; drops
-   ~5 of 20 instructions. Then (ii) below removes the merge.
-3. **Partition scatters into `tmp_face_order` directly** (the 0.12 ms merge): a band
-   histogram taken in the radix histogram pass (one more `ldrb; ldr; add; str` there)
-   gives the output bases before the scatter; the flex (10/11) faces still take the
-   threshold walk.
-4. **Compaction folded into the radix histogram** (0.18 ms): S5/2c as written.
+**2a, partition as one cursor per band — built and measured (−0.19 ms/frame worker).**
+`base[prio] + counts[prio]` (two loads, two adds, a store on the chain) became a
+`faceint_t* cursor[12]` (`ldr; strh; str`), `counts[]` recovered from the cursors after the
+loop, the flex bands taking their in-band index by a subtract on their rare branch. The
+previous shape is kept as the control arm behind a new general hook,
+`g_toridraw_kernel_ab_arm` (`toridraw.h`), which the lane flips each debug period under
+`TORIRS_GLES2_DUALCORE_KERNEL_AB=1` and prints as `kernel-arm`. Six alternations in one
+launch (kr15), worker CPU ms/frame:
 
-The bitonic-lane (≤64 faces) variant — band in the key's top nibble so the network sorts
-by (band, depth) — is sound but the faces are mostly in radix models (~100 varied models
-under 64 faces against ~125 over), so it is fourth.
+| arm | periods | mean |
+|---|---|---|
+| 1 (base + counts) | 6.47 6.65 6.35 6.48 6.44 6.59 | **6.50** |
+| 0 (cursor) | 6.21 6.31 6.54 6.16 6.22 6.40 | **6.31** |
+
+Five of six adjacent pairs in the same direction; draw CPU unchanged (15.0–15.4 both
+arms — its sort is mostly tile and ≤16-face models, which never reach the partition);
+draw-stall in the noise (0.70–1.02 both arms). Parity PASS on the phone. Bigger than the
+5-of-20-instructions estimate, which says the `counts[]` chain (load → add → store →
+forward to the next same-band key) was carrying more than its issue slots. Default is
+arm 0.
+
+**The K16 gather, taken apart and left alone (kr16/kr17).** This was ranked first — 0.49
+ms/frame, the sort's largest single region — and it is now closed. Two measurements and
+two nulls:
+
+*What the region actually is.* A second profile with `-e cpu-cycles,instructions` puts the
+sort symbol at **IPC 0.91** on the worker and the K16 windows at **0.84**, against a
+3-wide machine: nothing here is issue-bound, so cutting instructions is not the lever.
+Instruction-level attribution of the loop (108.5 cycles/trip over ~6 875 trips a frame):
+gathers and shuffles **70.6 cyc**, winding/depth/store **23.0 cyc** (IPC 1.96 — that half
+is fine), and the loop-invariant `if( pld )` with its three prefetches **15.0 cyc**, 14 %
+of the loop, sitting *inside* the trip.
+
+*The prefetch is a null.* `TORIRS_GLES2_DUALCORE_PLD_AB=1,0`, five in-launch pairs: worker
+6.24 ms/frame armed against 6.27 unarmed, three pairs one way and two the other. Its ~0.07
+ms of instructions and its benefit are both under the floor, so `TORIDRAW_SORT_PLD` keeps
+its default and its toggle. Note what it prefetches: the three *index* streams, which are
+sequential and which the hardware prefetcher handles anyway — the region's misses are the
+random `xyz16` gathers, which no `pld` on the index streams can reach. That also demotes
+**2d** below.
+
+*Fewer loads is the wrong axis.* 70.6 cycles for 48 loads a trip (24 `ldrsh` + 24 `vld1`)
+reads as 1.47 cycles/load, which looks like a load-port wall — so the index loads were
+paired into twelve 32-bit reads (adjacent faces' indices are adjacent int16), taking the
+trip to 36 loads. Clang emitted it well: `ldr`, then `and`/shifted-`add` for the halves,
+no `memcpy` call, and parity PASS on the phone including the odd-`f` tail. It **lost**:
+`TORIDRAW_K16_IDX32`, seven in-launch pairs, worker **6.07 ms/frame with the `ldrsh` shape
+against 6.22 with the pairs**, four of seven pairs worse. The reason is that 1.47
+cycles/load is an average, not a port limit: each gather is a chain
+`ldrsh → add → vld1`, and pairing makes it `ldr → and → add → vld1` — one link longer,
+twice per load saved. **The region is latency-bound on that chain**, exactly as this
+document first said, and the port-limit reading was wrong.
+
+So the shape is at its floor. Shortening the chain needs an addressing mode that folds a
+scaled 16-bit index load into the gather, and A32 has none; de-indexing `xyz16` into face
+order would remove the chain entirely but multiplies the interleave pass's writes by three
+(48 KB per big model, well past L1). The arm was retired rather than left in the tree —
+each K16 loop instantiation is ~740 bytes of a function already past the 16 KB L1-I, and
+the sort body went 0x41d0 → 0x4530 with the third arm present, 0x4234 after.
+
+**2a, still to build:**
+1. **Compaction out of place** (0.18 ms region): the pass writes `keys[written]` behind
+   its own reads of `keys[i]`, so every load lands on a line with a store in flight a few
+   words away — §4.2's partial-overlap case — which is the likelier reason it runs at ~3
+   cycles/key rather than the port limit's 2. Compact into `sm_sort_tmp` and swap the
+   buffer roles for the sort (`out_keys` already exists to say which one holds the run).
+   Measure before believing it; the chain alternative (unroll by four, one `written`
+   add per trip) is the fallback. **Note the expected size**: −0.05..0.1 ms is at the
+   floor, and three of this session's four sort experiments landed there, so weigh it
+   against the out-of-order worker (−0.5..0.9 ms draw) before spending a day on it.
+2. **Partition scatters into `tmp_face_order` directly** (the 0.12 ms merge): needs the
+   band counts and depth sums before the scatter, i.e. a pre-pass that is most of the
+   present loop minus its store; the merge it removes is ~4 instructions a face plus twelve
+   loop entries. Likely a wash — build only with the A/B in hand.
+
+Struck: **S5/2c, compaction folded into the radix histogram.** Half the faces are culled
+(56 900 in, 28 259 out), so the fold makes both radix passes walk 2n keys with a
+predicated digit; the lane's own history (neon32 block comment: "stored the sentinels and
+sorted them too, which lost: it doubled the sort") already measured that shape losing.
+The bitonic-lane band-in-key variant stays sound but fourth: the priced faces are mostly
+in radix models.
 
 | # | change | measured basis (§M.3) | expected | notes |
 |---|---|---|---|---|
-| 2a | **S6 — priority partition**: for models whose face-priority table is uniform (most), skip the per-key `count[]`/`depth_sum[]` RMW chains and the `bhi`; otherwise keep the ten counters in registers and make `> 9` a `cmp; movhi` | 20 % of sort cycles, 21 % of its mispredicts | **−0.3..0.4 ms** | check `face_priorities == NULL` / single-value fast path first — likely already partly there |
+| 2a | **S6 — priority partition + K16** — *done; K16 closed*: the uniform fast path already existed and fires on no model (census: 0 uniform / 226 varied a frame); the per-band cursor rewrite of the partition is built and measured **−0.19 ms worker**; the shallow radix's prefix is bounded to the model's depth span (≤ 0.045 ms, under the floor). The K16 gather (0.49 ms, the largest region) is **closed**: it is latency-bound on `ldrsh → add → vld1` at IPC 0.84, its `pld` is a null, and pairing the index loads lost — see the step 2 text | 22 % of the worker's sort (0.37 ms) was partition + merge; K16 108.5 cyc/trip | **−0.19 ms measured**; ≤ 0.1 more available in the sort | `TORIRS_GLES2_DUALCORE_KERNEL_AB=1` alternates the old partition; parity test runs on the phone |
 | 2b | **Bitonic as fixed-N straight-line bodies** for N ∈ {8, 16, 32, 64} (S4, without waiting on the forwarding measurement) | 7.5 % cycles, **35 % of mispredicts** | **−0.1..0.15 ms**, and the per-model p99 improves more than the mean | the forwarding half of S4 (register-resident layers) stacks on top later |
-| 2c | **Fold compaction into the radix count** (count only non-sentinel keys; scatter skips sentinels) | compaction ~9 % on a serial `r11` chain | −0.15..0.2 ms | one pass over the keys removed; radix path only (N > 64) |
-| 2d | **S1 — K16 prefetch distance** to 4 lines, one `pld` per line | K16 gather 39 % of the sort's refills | −0.1..0.2 ms if the refills are L2 hits, more if DRAM | A/B on the client, not the hot-fixture bench |
+| 2c | ~~Fold compaction into the radix count~~ — **struck**: half the faces are culled, so both radix passes would walk 2n keys; the lane's own history measured that shape doubling the sort. Replaced by *compaction out of place* (step 2 text, item 2) | compaction 10.8 % of the worker's sort, ~3 cycles/key against a 2-cycle port floor | −0.05..0.1 ms | measure; the unroll-by-four chain break is the fallback |
+| 2d | ~~S1 — K16 prefetch distance~~ — **demoted to unlikely**: the `pld` prefetches the three *index* streams, which are sequential and which the hardware prefetcher already covers; arming it on or off is a measured null (kr17). If the 39 % of refills is the random `xyz16` gathers, no distance on the index streams reaches them | K16 gather 39 % of the sort's refills | ~0 | needs the refill source attributed to the gathers vs the index streams *first* |
 | 2e | **Interleave refills** (S2 or write-no-allocate, per step 0's log): stagger the six scene arrays, or `pld` two lines ahead in the interleave loop, or have the projection kernel write `xyz16` directly and drop the pass | 23 % of the sort's refills | −0.1..0.2 ms | the direct-write variant also deletes the K16 rebuild |
 | 2f | S3 — halve the `ldrh` index loads | block at the load-port floor | −1.5 cycles/face ≈ −0.05 ms | last; smallest |
 
-After step 2: sort **≈ 2.0 ms** both threads (−0.8..1.1), mostly on the worker; the
+**Revised expectation for step 2 (2026-09-03).** The −0.8..1.1 ms below was written before
+the region-by-region profile. What is measured: −0.19 (partition) and ≤0.045 (radix
+prefix), with the largest region (K16, 0.49 ms) closed at its floor and 2c and 2d struck.
+What is left is 2b (bitonic straight-line bodies, −0.1..0.15 and a better p99) plus two
+floor-sized items. **So step 2 is worth ~0.3-0.4 ms on the worker, not ~1 ms** — and a
+worker-side millisecond does not shorten the frame anyway unless it shortens the *stall*
+(§M.5b). The next real lever is the out-of-order worker in step 1c, at −0.5..0.9 ms on the
+draw; it should be built before the rest of step 2, not after.
+
+After step 2 as originally sized: sort **≈ 2.0 ms** both threads (−0.8..1.1), mostly on the worker; the
 draw's own share (0.65) falls in proportion.
 
 ### Step 3 — Draw-thread items the kernels do not cover, but the profile ranked above them

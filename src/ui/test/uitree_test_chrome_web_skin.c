@@ -238,7 +238,7 @@ main(void)
         struct ToriRSChromeRailIntent intents[WEB_CHROME_RAIL_INTENT_MAX];
         ToriRSChromeExecWeb_RequestSelect(5, 17);
         ToriRSChromeExecWeb_RequestSelect(-2, 17);
-        ToriRSChromeExecWeb_RequestLayout(17, 320, 480, 2000, 1, 1, 0);
+        ToriRSChromeExecWeb_RequestLayout(17, 23, 320, 480, 294, 2000, 1, 1, 0);
         /* rail_poll is intentionally independent of begin/end: collapsed is
          * exactly when there is no page executor to poll. */
         exec.end(exec.user);
@@ -247,8 +247,10 @@ main(void)
         CHECK(intents[0].plugin_index == 5 && intents[1].plugin_index == -2,
             "web rail events retain concrete plugin and Manage destinations");
         CHECK(intents[2].kind == TORIRS_CHROME_RAIL_INTENT_LAYOUT &&
-                  intents[2].selection_generation == 17 && !intents[2].game_visible,
-            "web allocation returns generation-fenced exclusive visibility");
+                  intents[2].selection_generation == 17 &&
+                  intents[2].page_generation == 23 &&
+                  intents[2].custom_width == 294 && !intents[2].game_visible,
+            "web allocation returns custom content width and generation-fenced visibility");
         for( int i = 0; i < WEB_CHROME_RAIL_INTENT_MAX + 8; i++ )
             ToriRSChromeExecWeb_RequestSelect(i % 32, 17);
         CHECK(exec.rail_poll(

@@ -706,15 +706,19 @@ static void drain_messages(struct WinBrowserExec* s)
             intent.kind = TORIRS_CHROME_RAIL_INTENT_LAYOUT;
             intent.selection_generation = json_u32(
                 s->raw, "selectionGeneration", 0);
+            intent.page_generation = json_u32(s->raw, "pageGeneration", 0);
             intent.sequence = json_u32(s->raw, "sequence", 0);
             intent.width = json_int(s->raw, "width", 0);
             intent.height = json_int(s->raw, "height", 0);
+            intent.custom_width = json_int(s->raw, "customWidth", 0);
             intent.scale_milli = json_int(s->raw, "scaleMilli", 1000);
             intent.size_class = json_int(s->raw, "sizeClass", 0);
             intent.visible = json_bool(s->raw, "visible", 0);
             intent.game_visible = 1;
-            if( intent.selection_generation == s->shell_generation && intent.sequence &&
-                intent.width >= 0 && intent.height >= 0 && intent.scale_milli > 0 )
+            if( intent.selection_generation == s->shell_generation &&
+                intent.page_generation != 0 && intent.sequence &&
+                intent.width >= 0 && intent.height >= 0 && intent.custom_width >= 0 &&
+                intent.scale_milli > 0 )
             { s->layout = intent; s->layout_pending = 1; }
         }
         else if( json_type(s->raw, "widget.intent") )

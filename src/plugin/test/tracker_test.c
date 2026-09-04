@@ -672,7 +672,7 @@ static enum ToriRS_Result v2_panel_set_text(
     widget = fake_widget_find(id);
     if( !widget ) return TORIRS_RESULT_NOT_FOUND;
     (void)fake_panel_set_text(NULL, id, text);
-    if( widget->kind == TORIRS_PANEL_WIDGET_SECTION )
+    if( widget->kind == TORIRS_PANEL_HEADING )
         snprintf(widget->label, sizeof(widget->label), "%s", text ? text : "");
     return TORIRS_RESULT_OK;
 }
@@ -690,37 +690,37 @@ static void v2_build_heading(struct ToriRS_PanelBuilder* panel, char const* text
     char id[32];
     (void)panel;
     snprintf(id, sizeof(id), "_v2_heading_%d", g_heading_id++);
-    (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_SECTION, id, text);
+    (void)fake_panel_widget(NULL, TORIRS_PANEL_HEADING, id, text);
 }
 static void v2_build_paragraph(struct ToriRS_PanelBuilder* panel, char const* text)
 { (void)panel; (void)text; }
 static void v2_build_toggle(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, bool value)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_CHECKBOX, id, label); (void)fake_panel_set_value(NULL, id, value); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_TOGGLE, id, label); (void)fake_panel_set_value(NULL, id, value); }
 static void v2_build_select(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label,
     char const* value, struct ToriRS_SelectOption const* options, int count)
-{ (void)panel; (void)value; (void)options; (void)count; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_DROPDOWN, id, label); }
+{ (void)panel; (void)value; (void)options; (void)count; (void)fake_panel_widget(NULL, TORIRS_PANEL_SELECT, id, label); }
 static void v2_build_button(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, bool enabled)
-{ (void)panel; (void)enabled; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_BUTTON, id, label); }
+{ (void)panel; (void)enabled; (void)fake_panel_widget(NULL, TORIRS_PANEL_BUTTON, id, label); }
 static void v2_build_custom(
     struct ToriRS_PanelBuilder* panel, char const* id, int height)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_CUSTOM, id, ""); (void)fake_panel_set_height(NULL, id, height); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_CUSTOM, id, ""); (void)fake_panel_set_height(NULL, id, height); }
 static void v2_build_label(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* text)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_LABEL, id, text); (void)fake_panel_set_text(NULL, id, text); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_LABEL, id, text); (void)fake_panel_set_text(NULL, id, text); }
 static void v2_build_key_value(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, char const* value)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_WIDGET_KEY_VALUE, id, label); (void)fake_panel_set_text(NULL, id, value); }
+{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_KEY_VALUE, id, label); (void)fake_panel_set_text(NULL, id, value); }
 static enum ToriRS_Result v2_build_node(
     struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node)
 {
-    int kind = TORIRS_PANEL_WIDGET_LABEL;
+    int kind = TORIRS_PANEL_LABEL;
     (void)panel;
-    if( node->kind == TORIRS_PANEL_HEADING ) kind = TORIRS_PANEL_WIDGET_SECTION;
-    else if( node->kind == TORIRS_PANEL_KEY_VALUE ) kind = TORIRS_PANEL_WIDGET_KEY_VALUE;
-    else if( node->kind == TORIRS_PANEL_CUSTOM ) kind = TORIRS_PANEL_WIDGET_CUSTOM;
+    if( node->kind == TORIRS_PANEL_HEADING ) kind = TORIRS_PANEL_HEADING;
+    else if( node->kind == TORIRS_PANEL_KEY_VALUE ) kind = TORIRS_PANEL_KEY_VALUE;
+    else if( node->kind == TORIRS_PANEL_CUSTOM ) kind = TORIRS_PANEL_CUSTOM;
     if( !fake_panel_widget(NULL, kind, node->id, node->label ? node->label : node->text) )
         return TORIRS_RESULT_BUDGET;
     if( node->text ) (void)v2_panel_set_text(&g_api, node->id, node->text);

@@ -103,6 +103,7 @@
         widgetsByTab: new Store(),
         checkWidgets: new Store(),
         tabStrips: new Store(),
+        customWidgets: new Store(),
         renderQueue: [],
         renderVisits: 0,
         sequence: 0,
@@ -659,6 +660,8 @@
             state.checkWidgets.set(record.handle, record);
         if (record.kind === W.TABSTRIP)
             state.tabStrips.set(record.handle, record);
+        if (record.kind === W.CUSTOM)
+            state.customWidgets.set(record.handle, record);
     }
     function unindexWidget(record) {
         if (record.tab >= 0) {
@@ -671,6 +674,7 @@
         }
         state.checkWidgets.drop(record.handle);
         state.tabStrips.drop(record.handle);
+        state.customWidgets.drop(record.handle);
     }
     /* The DOM half of retained execution. A command already names the exact
      * widget/property, so applying a delta queues that record directly. The
@@ -715,9 +719,16 @@
         state.widgetsByTab.clear();
         state.checkWidgets.clear();
         state.tabStrips.clear();
+        state.customWidgets.clear();
         state.renderQueue = [];
         clear(content);
+        /* A new semantic page starts at its beginning. The DOM keeps scrollTop
+         * when its children are replaced, so without this a long tracker/settings
+         * page can leave the next page's Back row clipped above the viewport. */
+        content.scrollTop = 0;
+        content.scrollLeft = 0;
         clear(tabs);
+        tabs.scrollLeft = 0;
         setTabsVisible(false);
         hidden(pane, true);
         state.pageGeneration = 0;
@@ -961,12 +972,20 @@
                         return;
                     record.pointer = null;
                     var bounds = custom_1.getBoundingClientRect();
-                    var boundsWidth = bounds.width || (bounds.right - bounds.left);
-                    var boundsHeight = bounds.height || (bounds.bottom - bounds.top);
+                    var boundsWidth = custom_1.clientWidth || 0;
+                    var boundsHeight = custom_1.clientHeight || 0;
+                    var boundsLeft = bounds.left + Math.max(0, integer(custom_1.clientLeft, 0));
+                    var boundsTop = bounds.top + Math.max(0, integer(custom_1.clientTop, 0));
                     if (!boundsWidth || !boundsHeight)
                         return;
-                    var px = Math.max(0, Math.min(record.bitmapWidth - 1, Math.floor((event.clientX - bounds.left) * record.bitmapWidth / boundsWidth)));
-                    var py = Math.max(0, Math.min(record.bitmapHeight - 1, Math.floor((event.clientY - bounds.top) * record.bitmapHeight / boundsHeight)));
+                    var localX = event.clientX - boundsLeft;
+                    var localY = event.clientY - boundsTop;
+                    /* The bitmap occupies the content box. A press on the chrome-owned
+                     * one-pixel border is not a click on the plugin's first/last pixel. */
+                    if (localX < 0 || localY < 0 || localX >= boundsWidth || localY >= boundsHeight)
+                        return;
+                    var px = Math.max(0, Math.min(record.bitmapWidth - 1, Math.floor(localX * record.bitmapWidth / boundsWidth)));
+                    var py = Math.max(0, Math.min(record.bitmapHeight - 1, Math.floor(localY * record.bitmapHeight / boundsHeight)));
                     postWidget(record, INTENT.CUSTOM_ACTIVATE, 0, '', Math.floor(px * 1000 / Math.max(1, record.customScale)), Math.floor(py * 1000 / Math.max(1, record.customScale)));
                 });
                 bind(custom_1, 'keydown', function (event) {
@@ -1321,6 +1340,10 @@
             state.applying = false;
         }
         flushWidgetRenders();
+        /* A retained height/visibility/text change can make the content scrollbar
+         * appear or disappear without resizing the outer window. That changes a
+         * full-width custom well, so publish its post-layout content width too. */
+        reportLayout();
         return true;
     }
     function applyCustomBitmap(message) {
@@ -1353,10 +1376,19 @@
         var visible = pane.style.display !== 'none' && !!state.pageGeneration;
         var width = visible ? Math.max(0, pane.clientWidth || 0) : 0;
         var height = visible ? Math.max(0, pane.clientHeight || 0) : 0;
+        var customWidth = 0;
+        if (visible)
+            state.customWidgets.each(function (record) {
+                /* CUSTOM is full-width in both browser styles. clientWidth is its
+                 * content box: pane/content padding, the scrollbar and the well border
+                 * have therefore already been removed by the browser's own layout. */
+                if (!customWidth && record.kind === W.CUSTOM && !record.hidden && record.control)
+                    customWidth = Math.max(0, integer(record.control.clientWidth, 0));
+            });
         var scaleMilli = Math.max(1, Math.round(Number(global.devicePixelRatio || 1) * 1000));
         var sizeClass = width < 320 ? 0 : (width >= 480 ? 2 : 1);
         var key = [state.rail.selectionGeneration, state.pageGeneration, width, height,
-            scaleMilli, sizeClass, visible ? 1 : 0].join(':');
+            customWidth, scaleMilli, sizeClass, visible ? 1 : 0].join(':');
         if (key === state.lastLayout)
             return;
         state.lastLayout = key;
@@ -1368,6 +1400,7 @@
             pageGeneration: state.pageGeneration,
             width: width,
             height: height,
+            customWidth: customWidth,
             scaleMilli: scaleMilli,
             sizeClass: sizeClass,
             visible: visible,

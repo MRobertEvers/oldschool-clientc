@@ -284,14 +284,17 @@ toridraw_face_sort_emit_vec_armed(void)
 }
 
 /* TORIDRAW_SORT_PLD=0: no prefetch of the three face-index streams; on, each
- * block prefetches the line 32 faces (64 bytes of int16) ahead on all three. */
+ * block prefetches the line 32 faces (64 bytes of int16) ahead on all three.
+ *
+ * The arming lives in a global rather than a function-local static because
+ * this one is under test by a harness that alternates it between debug
+ * periods of one launch (see g_toridraw_sort_pld). */
 static inline int
 toridraw_face_sort_pld_armed(void)
 {
-    static int armed = -1;
-    if( armed < 0 )
-        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_SORT_PLD");
-    return armed;
+    if( g_toridraw_sort_pld < 0 )
+        g_toridraw_sort_pld = toridraw_face_sort_env_on_unless_zero("TORIDRAW_SORT_PLD");
+    return g_toridraw_sort_pld;
 }
 
 /* TORIDRAW_SORT_BITONIC2=0: the bitonic network's original control loop (a
@@ -1002,8 +1005,9 @@ int g_toridraw_prio_varied_models = 0;
 /* See toridraw_prio_slice_base. */
 int g_toridraw_prio_slice_pad = TORIDRAW_PRIO_SLICE_PAD_DEFAULT;
 
-/* See toridraw.h. */
+/* See toridraw.h. -1 until the environment has been read. */
 int g_toridraw_kernel_ab_arm = 0;
+int g_toridraw_sort_pld = -1;
 
 /*
  * True when every one of the model's `face_count` priorities is the same

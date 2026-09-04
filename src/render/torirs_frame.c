@@ -1468,7 +1468,14 @@ translate_ui_cmd(
             out->u.sprite.scissor_y = clip_y;
             out->u.sprite.scissor_w = clip_w;
             out->u.sprite.scissor_h = clip_h;
-            out->u.sprite.if3 = 0;
+            /* Native entity art (hitsplats, headicons and health bars) leaves
+             * the destination size at zero and is blitted 1:1. Plugin image
+             * draws carry an explicit destination box; honouring that box
+             * requires the renderers' IF3/scaled sprite path. In particular,
+             * the retained chrome panel doubles both the bitmap's placement
+             * and its destination size at 2x -- a native blit would otherwise
+             * occupy only the upper-left quarter of the scaled well. */
+            out->u.sprite.if3 = (uint8_t)(item->w > 0 && item->h > 0);
             return true;
         case UITREE_ENTITY_OVERLAY_TEXT:
             /* >= 0: dat1 p11 is cache font id 0, and scene font ids are the

@@ -170,6 +170,19 @@ var custom = built.ids["tpc-content"].children[2]._tpcRecord.control;
 assert.strictEqual(custom.style.height, "120px",
     "legacy custom region obeys the command height rather than image aspect ratio");
 assert.strictEqual(custom.children[0].tagName, "IMG", "custom region is host-URL/IMG based");
+custom.clientWidth = 287;
+root.onresize();
+assert.strictEqual(posted[posted.length - 1].customWidth, 287,
+    "legacy layout publishes the custom content-box width");
+assert.strictEqual(posted[posted.length - 1].scaleMilli, 1000,
+    "legacy custom width remains in logical CSS pixels");
+custom.clientLeft = 1;
+custom.clientTop = 1;
+custom.clientHeight = 120;
+custom.fire("mousedown", { clientX: 0, clientY: 20 });
+custom.fire("mouseup", { clientX: 0, clientY: 20 });
+assert.strictEqual(runtime.takeIntent(), "",
+    "legacy custom border does not activate the plugin's edge pixel");
 custom.fire("mousedown", { clientX: 50, clientY: 25 });
 custom.fire("mouseup", { clientX: 50, clientY: 25 });
 raw = codec.parse(runtime.takeIntent());
@@ -191,6 +204,7 @@ assert.strictEqual(codec.parse(runtime.takeIntent()).v, 0,
     "the accepted fallback prefix remains in FIFO order");
 while (runtime.takeIntent()) {}
 
+built.ids["tpc-content"].scrollTop = 37;
 runtime.receive({
     protocol: 1, type: "page.snapshot", pageGeneration: 11, panel: 3,
     title: "Replacement", commands: [
@@ -198,6 +212,8 @@ runtime.receive({
         command(8, { w: 1, v: 1, label: "Enabled", s: 202 })
     ]
 });
+assert.strictEqual(built.ids["tpc-content"].scrollTop, 0,
+    "a replacement legacy page does not inherit the prior page scroll");
 oldCheckbox.fire("change");
 assert.strictEqual(runtime.takeIntent(), "", "stale XP DOM listener cannot retarget a recycled handle");
 

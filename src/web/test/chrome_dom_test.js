@@ -267,11 +267,11 @@ assert.strictEqual(global_.torirsChromeTakeIntent(), '',
   'ordinary stale-generation and recycled-serial intents are rejected');
 frame.contentWindow.torirsPluginChromePostMessage(JSON.stringify({
   protocol: 1, type: 'layout', sequence: 5, selectionGeneration: 7,
-  pageGeneration: 20, width: 400, height: 500, scaleMilli: 2000,
+  pageGeneration: 20, width: 400, height: 500, customWidth: 374, scaleMilli: 2000,
   sizeClass: 1, visible: true, gameVisible: true
 }));
-assert.deepStrictEqual(layouts[0], [7, 400, 500, 2000, 1, 1, 0],
-  'outer presenter corrects gameVisible for exclusive mode');
+assert.deepStrictEqual(layouts[0], [7, 20, 400, 500, 374, 2000, 1, 1, 0],
+  'outer presenter carries custom content width and corrects exclusive visibility');
 frame.contentWindow.torirsPluginChromePostMessage(JSON.stringify({
   protocol: 1, type: 'editor.focus', sequence: 6, focused: true, pageGeneration: 20
 }));

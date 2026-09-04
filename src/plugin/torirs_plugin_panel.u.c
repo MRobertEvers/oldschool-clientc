@@ -779,10 +779,13 @@ app_plugin_panel_add_semantic(
         break;
 
     case TORIRS_PANEL_WIDGET_CUSTOM:
+        /* A custom id routes draw and input callbacks; it is not a caption.
+         * The shorthand builder deliberately authors no label, while a
+         * general CUSTOM node can still opt into one. */
         widget = ToriRSChrome_Custom(
             &app->plugin_ui,
             app->plugin_panel,
-            model->label[0] ? model->label : model->id,
+            model->label,
             model->preferred_height * ToriRSChrome_Scale(&app->plugin_ui));
         break;
 
@@ -2760,9 +2763,17 @@ app_plugin_rail_snapshot(
     /* A plugin's generated settings page has no stone of its own: it is
      * reached from the roster, so the rail keeps Manage Plugins pressed while
      * it is up, and pressing Manage again is the way back to the roster. */
-    if( snapshot->selected_entry >= 0 &&
-        !PluginHost_PanelHasPage(app->plugins, snapshot->selected_entry) )
-        snapshot->selected_entry = TORIRS_CHROME_SHELL_PAGE_MANAGE;
+    if( snapshot->selected_entry >= 0 )
+    {
+        int const selected = snapshot->selected_entry;
+        int const has_page = PluginHost_PanelHasPage(app->plugins, selected);
+        int const managed_only =
+            g_plugin_page_view != APP_PLUGIN_VIEW_PAGE ||
+            (has_page && PluginHost_IsEssential(app->plugins, selected));
+        if( !ToriRSChromeRailSnapshot_IncludesPlugin(
+                has_page, managed_only) )
+            snapshot->selected_entry = TORIRS_CHROME_SHELL_PAGE_MANAGE;
+    }
     snapshot->expanded = app->plugin_shell.expanded ? 1 : 0;
 
     /* Permanent application destination, in the same retained rail and the
@@ -2773,7 +2784,12 @@ app_plugin_rail_snapshot(
     count = PluginHost_Count(app->plugins);
     for( int plugin = 0; plugin < count; plugin++ )
     {
-        if( !PluginHost_PanelHasPage(app->plugins, plugin) )
+        /* Essential entries are client settings reached through the roster,
+         * not independent plugin pages. Giving them a rail stone duplicated
+         * Manage Plugins with the same baked wrench fallback. */
+        if( !ToriRSChromeRailSnapshot_IncludesPlugin(
+                PluginHost_PanelHasPage(app->plugins, plugin),
+                PluginHost_IsEssential(app->plugins, plugin)) )
             continue;
         (void)ToriRSChromeRailSnapshot_Add(
             snapshot,
@@ -2851,6 +2867,7 @@ app_plugin_rail_drain(struct App* app)
             if( intent->kind == TORIRS_CHROME_RAIL_INTENT_LAYOUT )
             {
                 if( intent->width < 0 || intent->height < 0 ||
+                    intent->custom_width < 0 || intent->page_generation == 0 ||
                     intent->scale_milli <= 0 )
                     continue;
                 if( !app->plugin_rail_has_layout ||
@@ -2998,14 +3015,6 @@ app_plugin_exec_bind(struct App* app)
     }
 }
 
-static int
-app_plugin_panel_rect_equal(
-    struct ToriRSChromeRect const* a,
-    struct ToriRSChromeRect const* b)
-{
-    return a->x == b->x && a->y == b->y && a->w == b->w && a->h == b->h;
-}
-
 /** Copy one retained item with the row's current visible scroll clip. */
 static int
 app_plugin_panel_overlay_visible(
@@ -3065,6 +3074,34 @@ app_plugin_panel_overlay_bump(struct App* app)
         app->panel_overlay_revision++;
 }
 
+/** Re-place one retained custom run when only its buffer-space origin moved. */
+static int
+app_plugin_panel_overlay_move(
+    struct App* app, uint32_t serial, int dx, int dy)
+{
+    int moved = 0;
+
+    assert(app);
+    if( serial == 0 || (dx == 0 && dy == 0) )
+        return 0;
+    for( int i = 0; i < app->panel_overlay_count; i++ )
+    {
+        struct UITreeEntityOverlay* item;
+
+        if( app->panel_overlay_owner[i] != serial )
+            continue;
+        item = &app->panel_overlays[i];
+        item->x += dx;
+        item->y += dy;
+        item->clip_x += dx;
+        item->clip_y += dy;
+        moved = 1;
+    }
+    if( moved )
+        app_plugin_panel_overlay_bump(app);
+    return moved;
+}
+
 static void
 app_plugin_panel_custom_pending_set(
     struct App* app,
@@ -3103,32 +3140,6 @@ app_plugin_panel_overlay_reset(struct App* app, uint32_t generation)
         app->plugin_panel_rows[row].custom_present_pending = 0;
     }
     app->plugin_panel_custom_pending_count = 0;
-}
-
-/** Remove one semantic serial's retained run. */
-static int
-app_plugin_panel_overlay_remove(struct App* app, uint32_t serial)
-{
-    int out = 0;
-
-    assert(app);
-    for( int i = 0; i < app->panel_overlay_count; i++ )
-    {
-        if( app->panel_overlay_owner[i] == serial )
-            continue;
-        if( out != i )
-        {
-            app->panel_overlays[out] = app->panel_overlays[i];
-            app->panel_overlay_owner[out] = app->panel_overlay_owner[i];
-            app->panel_overlay_row[out] = app->panel_overlay_row[i];
-        }
-        out++;
-    }
-    if( out == app->panel_overlay_count )
-        return 0;
-    app->panel_overlay_count = out;
-    app_plugin_panel_overlay_bump(app);
-    return 1;
 }
 
 /**
@@ -3197,9 +3208,10 @@ app_plugin_panel_overlay_commit(
 /**
  * Draw every dirty custom well on the one active semantic page.
  *
- * Geometry is read only after ToriRSChrome_Build. A resize, scroll or scale
- * change invalidates that exact semantic serial; an unchanged clean well does
- * no plugin work and keeps its retained run.
+ * Buffer geometry is read only after ToriRSChrome_Build; foreign presenters
+ * supply their own content width. A size change invalidates that exact
+ * semantic serial. Movement and clipping only reposition its retained run, so
+ * an unchanged clean well does no plugin work while the page scrolls.
  */
 static int
 app_plugin_panel_draw_custom(struct App* app)
@@ -3228,7 +3240,13 @@ app_plugin_panel_draw_custom(struct App* app)
         struct AppPluginPanelRow* row = &app->plugin_panel_rows[row_index];
         struct ToriRSChromeRect region;
         struct ToriRSChromeRect clip;
-        int geometry_changed;
+        int size_changed;
+        int position_changed;
+        int clip_changed;
+        int draw_geometry_changed;
+        int external;
+        int retained_moved = 0;
+        unsigned layout_changes;
         int scale;
         int logical_w;
         int logical_h;
@@ -3237,25 +3255,117 @@ app_plugin_panel_draw_custom(struct App* app)
         assert(row->widget_kind == TORIRS_PANEL_WIDGET_CUSTOM);
         assert(row->widget_serial != 0);
 
-        if( !ToriRSChrome_CustomRegion(
-                &app->plugin_ui, row->widget, &region, &clip) )
+        external = app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER;
+        if( external )
         {
-            app_plugin_panel_custom_pending_set(app, row, 0);
-            if( row->custom_layout_valid )
+            struct ToriRS_PanelWidget const* model =
+                PluginHost_PanelWidgetAt(
+                    app->plugins, generation, row->model_index);
+
+            if( !app->plugin_rail_has_layout || !app->plugin_rail_layout.visible ||
+                app->plugin_rail_layout.selection_generation !=
+                    app->plugin_shell.selection_generation ||
+                app->plugin_rail_layout.page_generation != generation || !model ||
+                model->kind != TORIRS_PANEL_WIDGET_CUSTOM ||
+                model->serial != row->widget_serial )
+                continue;
+            logical_w = app->plugin_rail_layout.custom_width;
+            logical_h = model->preferred_height;
+            if( logical_w <= 0 )
             {
-                row->custom_layout_valid = 0;
-                changed += app_plugin_panel_overlay_remove(app, row->widget_serial);
+                struct ToriRSChromeRect fallback_region;
+                int const fallback_scale =
+                    ToriRSChrome_Scale(&app->plugin_ui) > 0
+                        ? ToriRSChrome_Scale(&app->plugin_ui)
+                        : 1;
+
+                /* Additive wire compatibility: an older cached page does not
+                 * send customWidth. Prefer the hidden model's already-resolved
+                 * content width when it has one; otherwise use the bounded
+                 * pane allocation rather than leave the custom page blank.
+                 * A later measured width changes the region and redraws it. */
+                if( ToriRSChrome_CustomRegion(
+                        &app->plugin_ui, row->widget, &fallback_region, NULL) )
+                    logical_w =
+                        (fallback_region.w + fallback_scale - 1) / fallback_scale;
+                else
+                    logical_w = app->plugin_rail_layout.width > TORIRS_PANEL_WIDTH_MAX
+                                    ? TORIRS_PANEL_WIDTH_MAX
+                                    : app->plugin_rail_layout.width;
             }
-            continue;
+            if( logical_w <= 0 || logical_h <= 0 )
+                continue;
+            region = (struct ToriRSChromeRect){ 0, 0, logical_w, logical_h };
+            clip = region;
+            /* Browser/native presenters scale this logical 1x bitmap at their
+             * own (possibly fractional) DPR. Keeping the raster logical avoids
+             * coupling it to the hidden in-canvas model's integer scale. */
+            scale = 1;
+        }
+        else
+        {
+            if( !ToriRSChrome_CustomRegion(
+                    &app->plugin_ui, row->widget, &region, &clip) )
+            {
+                struct ToriRSChromeRect const none = { 0, 0, 0, 0 };
+
+                /* A scrolled-out buffer well still owns a complete retained
+                 * run. Hide it through the live clip, but keep the pixels so
+                 * scrolling it back does not invoke the plugin again. */
+                layout_changes = ToriRSChromePanelDraw_Changes(
+                    row->custom_layout_valid,
+                    row->custom_region,
+                    row->custom_clip,
+                    0,
+                    none,
+                    none);
+                if( layout_changes & TORIRS_CHROME_PANEL_DRAW_CLIP )
+                {
+                    row->custom_clip = none;
+                    app_plugin_panel_overlay_bump(app);
+                    changed++;
+                }
+                continue;
+            }
+            scale = ToriRSChrome_Scale(&app->plugin_ui);
+            if( scale <= 0 )
+                scale = 1;
+            /* The exact physical region remains the clip. Rounding the logical
+             * callback box up lets IF3 cover an odd-sized final column/row;
+             * the region clip trims the at-most-(scale-1) excess pixels. */
+            logical_w = (region.w + scale - 1) / scale;
+            logical_h = (region.h + scale - 1) / scale;
         }
 
-        geometry_changed = !row->custom_layout_valid ||
-                           !app_plugin_panel_rect_equal(&row->custom_region, &region) ||
-                           !app_plugin_panel_rect_equal(&row->custom_clip, &clip);
+        layout_changes = ToriRSChromePanelDraw_Changes(
+            row->custom_layout_valid,
+            row->custom_region,
+            row->custom_clip,
+            1,
+            region,
+            clip);
+        size_changed = (layout_changes & TORIRS_CHROME_PANEL_DRAW_SIZE) != 0;
+        position_changed = (layout_changes & TORIRS_CHROME_PANEL_DRAW_ORIGIN) != 0;
+        clip_changed = (layout_changes & TORIRS_CHROME_PANEL_DRAW_CLIP) != 0;
+        if( position_changed && !size_changed )
+            retained_moved = app_plugin_panel_overlay_move(
+                app,
+                row->widget_serial,
+                region.x - row->custom_region.x,
+                region.y - row->custom_region.y);
+        changed += retained_moved;
+        /* Visible clipping is applied while retained runs are replayed. It is
+         * paint damage, not new plugin content. */
+        if( clip_changed && !size_changed && !retained_moved )
+        {
+            app_plugin_panel_overlay_bump(app);
+            changed++;
+        }
         row->custom_region = region;
         row->custom_clip = clip;
         row->custom_layout_valid = 1;
-        if( geometry_changed )
+        draw_geometry_changed = size_changed;
+        if( draw_geometry_changed )
             (void)PluginHost_PanelInvalidate(
                 app->plugins, generation, row->widget_serial);
         if( !PluginHost_PanelNeedsDraw(
@@ -3264,15 +3374,9 @@ app_plugin_panel_draw_custom(struct App* app)
         /* A draw callback may re-invalidate itself for animation. Cap that
          * loop to every other 20ms game cycle (25 Hz); geometry and the first
          * frame bypass the cap so resize/open never waits. */
-        if( !geometry_changed && app->panel_custom_has_draw_cycle &&
+        if( !draw_geometry_changed && app->panel_custom_has_draw_cycle &&
             app->logic_cycle < app->panel_custom_last_draw_cycle + 2 )
             continue;
-
-        scale = ToriRSChrome_Scale(&app->plugin_ui);
-        if( scale <= 0 )
-            scale = 1;
-        logical_w = region.w / scale;
-        logical_h = region.h / scale;
         if( logical_w <= 0 || logical_h <= 0 )
             continue;
 
@@ -3410,7 +3514,9 @@ app_plugin_panel_raster_custom(
     out->widget = row->widget;
     out->selection_generation = app->plugin_panel_built_generation;
     out->widget_serial = row->widget_serial;
-    out->scale_milli = ToriRSChrome_Scale(&app->plugin_ui) * 1000;
+    /* Only WEB/BROWSER consumes this frame. It is authored in logical pixels;
+     * the presenter maps those CSS units through its own fractional DPR. */
+    out->scale_milli = 1000;
     out->width = row->custom_region.w;
     out->height = row->custom_region.h;
     out->stride = row->custom_region.w;
@@ -3491,12 +3597,13 @@ app_plugin_panel_publish_layout(struct App* app)
     /* Attached Android/DOM presenters own their allocation. In compact mode
      * they replace the game rather than merely drawing a floating model panel,
      * so their neutral report wins over the in-canvas geometry below. */
-    if( app->plugin_rail_has_layout &&
-        app->plugin_rail_layout.selection_generation ==
-            app->plugin_shell.selection_generation )
+    if( app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER )
     {
         struct ToriRSChromeRailIntent const* layout = &app->plugin_rail_layout;
-        if( !layout->visible || layout->width <= 0 || layout->height <= 0 )
+        if( !app->plugin_rail_has_layout ||
+            layout->selection_generation != app->plugin_shell.selection_generation ||
+            layout->page_generation != generation || !layout->visible ||
+            layout->width <= 0 || layout->height <= 0 )
             return 0;
         return PluginHost_PanelLayout(
             app->plugins,

@@ -366,6 +366,25 @@ toridraw_face_sort_bitonic_radix_block8_k16_neon32(
 {
     int16x8_t ax, ay, az, bx, by, bz, cx, cy, cz;
 
+/*
+ * THE EIGHT INDICES OF ONE CORNER: one `ldrsh` each.
+ *
+ * MEASURED, NOT ASSUMED. The obvious cut is to read them in pairs -- adjacent
+ * faces' indices are adjacent int16, so twelve 32-bit loads carry all
+ * twenty-four -- and the trip's load count falls from forty-eight to
+ * thirty-six. It does not pay: in-launch, arms alternating every 300 frames
+ * (`TORIDRAW_K16_IDX32`, kr17), the worker measured 6.07 ms/frame with the
+ * `ldrsh` shape against 6.22 with the pairs, four of seven pairs worse.
+ *
+ * The reason is the shape of the stall. Each gather is a chain
+ * `ldrsh -> add address -> vld1`, and the pair form makes it
+ * `ldr -> and/shift -> add -> vld1` -- one link longer, twice per load
+ * saved. The region is latency-bound on that chain (`kr16`: IPC 0.85 against
+ * a 3-wide machine), not up against the load port, so trading chain length
+ * for load count is the wrong direction. Anything here has to SHORTEN the
+ * chain, and no A32 addressing mode folds a scaled 16-bit index load into
+ * the gather.
+ */
 /* Eight {x,y,z,0} quads -> one vector per axis, the unzip way: see above.
  * vuzpq_s16(a, b).val[0] is the even lanes of a then b, .val[1] the odd. */
 #define TORIDRAW_K16_GATHER_UZP(fa_, ox_, oy_, oz_)                                              \
@@ -836,8 +855,11 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
                 scene->sm_sort_depth_hi = div3_fast_fixedpoint(3 * z_hi) + model_min_depth;
                 g_toridraw_sort_k16_models++;
 /* The gather shape is asked once per model (TORIDRAW_K16_UZP), and each
- * answer is a loop whose block was compiled with it as a literal. */
-#define TORIDRAW_NEON32_K16_LOOP(spec_uzp_)                                                      \
+ * answer is a loop whose block was compiled with it as a literal. Every
+ * instantiation is another ~740 bytes of a function already past the 16 KB
+ * L1-I (§3.9), so an arm that loses is deleted rather than left in the
+ * ladder -- see the index-load note above. */
+#define TORIDRAW_NEON32_K16_LOOP(spec_uzp_)                                         \
     do                                                                                             \
     {                                                                                              \
         for( ; f + 8 <= num_faces; f += 8 )                                                        \

@@ -322,21 +322,26 @@ EMSCRIPTEN_KEEPALIVE
 void
 ToriRSChromeExecWeb_RequestLayout(
     uint32_t selection_generation,
+    uint32_t page_generation,
     int width,
     int height,
+    int custom_width,
     int scale_milli,
     int size_class,
     int visible,
     int game_visible)
 {
-    if( selection_generation == 0 || width < 0 || height < 0 || scale_milli <= 0 )
+    if( selection_generation == 0 || page_generation == 0 || width < 0 || height < 0 ||
+        custom_width < 0 || scale_milli <= 0 )
         return;
     memset(&g_chrome_web_rail_layout, 0, sizeof(g_chrome_web_rail_layout));
     g_chrome_web_rail_layout.kind = TORIRS_CHROME_RAIL_INTENT_LAYOUT;
     g_chrome_web_rail_layout.selection_generation = selection_generation;
+    g_chrome_web_rail_layout.page_generation = page_generation;
     g_chrome_web_rail_layout.sequence = chrome_web_rail_sequence_next();
     g_chrome_web_rail_layout.width = width;
     g_chrome_web_rail_layout.height = height;
+    g_chrome_web_rail_layout.custom_width = custom_width;
     g_chrome_web_rail_layout.scale_milli = scale_milli;
     g_chrome_web_rail_layout.size_class = size_class;
     g_chrome_web_rail_layout.visible = visible ? 1 : 0;

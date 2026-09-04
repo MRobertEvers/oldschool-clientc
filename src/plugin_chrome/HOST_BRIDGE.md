@@ -241,9 +241,9 @@ Replaces one custom widget's retained bitmap only when all identities match:
   widget: 12,
   widgetSerial: 481,
   revision: 8,
-  scaleMilli: 2000,
-  width: 600,
-  height: 240,
+  scaleMilli: 1000,
+  width: 300,
+  height: 120,
   url: "torirs://bitmap/custom/17/481/8"
 }
 ```
@@ -251,7 +251,9 @@ Replaces one custom widget's retained bitmap only when all identities match:
 Modern hosts may use `rgbaBase64` instead of `url`. XP MSHTML uses `IMG` and
 requires the URL form; the embedding host may use a private relative BMP/GIF or
 implement the `torirs://bitmap/` resource scheme from its copied POD bitmap cache. A frame from an old page
-generation or recycled widget serial is ignored.
+generation or recycled widget serial is ignored. `scaleMilli` describes bitmap
+source pixels per logical CSS unit; browser presenters normally receive a 1x
+source and let their compositor apply the actual (including fractional) DPR.
 
 ## Outbound envelopes
 
@@ -307,6 +309,7 @@ The view reports copied neutral facts, never a platform name:
   pageGeneration: 17,
   width: 320,
   height: 500,
+  customWidth: 294,
   scaleMilli: 2000,
   sizeClass: 1,
   visible: true,
@@ -314,9 +317,13 @@ The view reports copied neutral facts, never a platform name:
 }
 ```
 
-The embedding host remains authoritative when it knows a more exact allocation
-(for example, whether compact mode hid the game). It may replace these values
-before putting the corresponding POD event on the frame-thread queue.
+`customWidth` is the measured content box of a full-width custom well in logical
+CSS pixels. It therefore already excludes page padding, any scrollbar, and the
+well border. The embedding host remains authoritative when it knows a more exact
+allocation (for example, whether compact mode hid the game). It may replace
+these values before putting the corresponding POD event on the frame-thread
+queue. Both selection and page generations fence that allocation, so changing
+faces of one selected plugin cannot reuse the prior face's width.
 
 ### `editor.focus`
 

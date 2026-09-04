@@ -372,4 +372,13 @@ extern int g_toridraw_prio_varied_models;
  */
 extern int g_toridraw_kernel_ab_arm;
 
+/*
+ * `TORIDRAW_SORT_PLD` -- prefetch the three face-index streams a line ahead
+ * of every K16 block -- held in a global rather than in the function-local
+ * static the sort's other toggles use, because the harness above alternates
+ * it between debug periods. -1 means the environment has not been read yet;
+ * a harness writing 0 or 1 before the first sort takes precedence.
+ */
+extern int g_toridraw_sort_pld;
+
 #endif

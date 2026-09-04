@@ -55,4 +55,46 @@ test_chrome_panel_draw(void)
     TEST_ASSERT(
         !ToriRSChromePanelDraw_Transform(&item, 110, 210, 0, visible, &out),
         "a missing presentation scale cannot leak an untransformed primitive");
+
+    {
+        struct ToriRSChromeRect const old_region = { 100, 200, 300, 120 };
+        struct ToriRSChromeRect const old_clip = { 100, 210, 300, 100 };
+        struct ToriRSChromeRect const scrolled_region = { 100, 180, 300, 120 };
+        struct ToriRSChromeRect const scrolled_clip = { 100, 210, 300, 90 };
+        struct ToriRSChromeRect const hidden = { 0, 0, 0, 0 };
+        struct ToriRSChromeRect const reentered_region = { 100, 140, 300, 120 };
+        struct ToriRSChromeRect const reentered_clip = { 100, 210, 300, 50 };
+        struct ToriRSChromeRect const resized_region = { 100, 140, 301, 120 };
+        unsigned changes;
+
+        changes = ToriRSChromePanelDraw_Changes(
+            1, old_region, old_clip, 1, scrolled_region, scrolled_clip);
+        TEST_ASSERT(
+            (changes & TORIRS_CHROME_PANEL_DRAW_ORIGIN) &&
+                (changes & TORIRS_CHROME_PANEL_DRAW_CLIP) &&
+                !(changes & TORIRS_CHROME_PANEL_DRAW_SIZE),
+            "scroll movement translates and reclips a retained run without redrawing it");
+
+        changes = ToriRSChromePanelDraw_Changes(
+            1, scrolled_region, scrolled_clip, 0, hidden, hidden);
+        TEST_ASSERT(
+            (changes & TORIRS_CHROME_PANEL_DRAW_HIDDEN) &&
+                (changes & TORIRS_CHROME_PANEL_DRAW_CLIP) &&
+                !(changes & TORIRS_CHROME_PANEL_DRAW_SIZE),
+            "a fully scrolled-out well hides but retains its completed run");
+
+        changes = ToriRSChromePanelDraw_Changes(
+            1, scrolled_region, hidden, 1, reentered_region, reentered_clip);
+        TEST_ASSERT(
+            (changes & TORIRS_CHROME_PANEL_DRAW_ORIGIN) &&
+                (changes & TORIRS_CHROME_PANEL_DRAW_CLIP) &&
+                !(changes & TORIRS_CHROME_PANEL_DRAW_SIZE),
+            "a same-sized well re-enters by translating its retained run");
+
+        changes = ToriRSChromePanelDraw_Changes(
+            1, reentered_region, reentered_clip, 1, resized_region, reentered_clip);
+        TEST_ASSERT(
+            (changes & TORIRS_CHROME_PANEL_DRAW_SIZE) != 0,
+            "a custom content-width change is the geometry that requests a redraw");
+    }
 }

@@ -1939,6 +1939,14 @@ v2_probe_ui_build(
     struct ToriRS_PanelBuilder* panel,
     int view)
 {
+    struct ToriRS_PanelNode labelled_custom = {
+        .struct_size = sizeof(labelled_custom),
+        .kind = TORIRS_PANEL_CUSTOM,
+        .id = "labelled_chart",
+        .label = "Activity chart",
+        .preferred_height = 72,
+    };
+
     (void)api;
     (void)state;
     if( view != TORIRS_PANEL_VIEW_PAGE )
@@ -1953,6 +1961,7 @@ v2_probe_ui_build(
         V2_PANEL_OPTIONS,
         (int)(sizeof(V2_PANEL_OPTIONS) / sizeof(V2_PANEL_OPTIONS[0])));
     panel->custom(panel, "chart", 96);
+    (void)panel->node(panel, &labelled_custom);
     g_v2_panel_builds++;
 }
 
@@ -3300,7 +3309,7 @@ main(void)
         CHECK(PluginHost_PanelSelect(hv2, a2), "v2 panel can be selected");
         generation = PluginHost_PanelSelectionGeneration(hv2);
         CHECK(
-            g_v2_panel_builds == 1 && PluginHost_PanelWidgetCount(hv2, generation) == 4,
+            g_v2_panel_builds == 1 && PluginHost_PanelWidgetCount(hv2, generation) == 5,
             "v2 on_ui_build receives the semantic panel builder");
         CHECK(
             PluginHost_PanelLayout(
@@ -3396,10 +3405,17 @@ main(void)
             "an enabled selection dispatches its stable value, never its duplicate label");
         widget = PluginHost_PanelWidgetAt(hv2, generation, 3);
         CHECK(
-            widget &&
+            widget && widget->kind == TORIRS_PANEL_WIDGET_CUSTOM &&
+                strcmp(widget->id, "chart") == 0 && widget->label[0] == '\0' &&
                 PluginHost_PanelDraw(hv2, generation, widget->serial, &g_engine, 0, 0, 100, 96) &&
                 g_v2_panel_draws == 1,
-            "v2 custom panel drawing is callback scoped");
+            "shorthand custom panels retain no invented label and draw in callback scope");
+        widget = PluginHost_PanelWidgetAt(hv2, generation, 4);
+        CHECK(
+            widget && widget->kind == TORIRS_PANEL_WIDGET_CUSTOM &&
+                strcmp(widget->id, "labelled_chart") == 0 &&
+                strcmp(widget->label, "Activity chart") == 0,
+            "general custom nodes preserve their explicitly authored label");
 
         private_ref = PluginHost_UiRef(hv2, a2, "status");
         CHECK(
