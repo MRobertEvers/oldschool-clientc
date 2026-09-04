@@ -8497,61 +8497,107 @@ PluginHost_UiInfo(
     return true;
 }
 
+/** Build the open RevConfig role for one semantic base action. This convention
+ * keeps the host out of the vocabulary business: adding a new core node or
+ * action requires only `[role:action_<node>_<action>]` in each supporting
+ * profile, never another C routing branch. */
+static bool
+plugin_ui_base_action_role(
+    char const* name,
+    char const* action,
+    char* out,
+    size_t out_size)
+{
+    size_t at = 0;
+    char const* part[2] = { name, action };
+
+    if( !name || !name[0] || !action || !action[0] || !out || out_size == 0 )
+        return false;
+    for( char const* prefix = "action_"; *prefix; prefix++ )
+        if( at + 1 >= out_size )
+            return false;
+        else
+            out[at++] = *prefix;
+    for( int p = 0; p < 2; p++ )
+    {
+        if( p != 0 )
+        {
+            if( at + 1 >= out_size )
+                return false;
+            out[at++] = '_';
+        }
+        for( char const* s = part[p]; *s; s++ )
+        {
+            char c = *s;
+            if( c == '.' || c == '-' )
+                c = '_';
+            else if( !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') )
+                return false;
+            if( at + 1 >= out_size )
+                return false;
+            out[at++] = c;
+        }
+    }
+    out[at] = '\0';
+    return true;
+}
+
+/** -1 unresolved, 0 present but authoritatively unavailable, 1 live. */
+static int
+plugin_ui_base_role_available(
+    struct ToriRS_PluginHost* host,
+    char const* role)
+{
+    int x, y, w, h;
+
+    if( host->engine.role_action_available )
+        return host->engine.role_action_available(host->engine.user, role);
+    return host->engine.role_rect &&
+                   host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h)
+               ? 1
+               : -1;
+}
+
+static bool
+plugin_ui_base_role_invoke(
+    struct ToriRS_PluginHost* host,
+    char const* role)
+{
+    if( !host->engine.role_click )
+        return false;
+    if( host->engine.role_click(host->engine.user, role, 0) )
+        return true;
+    return host->engine.role_click(host->engine.user, role, 1) != 0;
+}
+
 bool
 PluginHost_UiBaseActionAvailable(
     struct ToriRS_PluginHost* host,
     struct ToriRS_UiNodeRef node,
     char const* action)
 {
-    char const* name;
     char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    int x, y, w, h;
+    char const* name;
+    int available;
 
     assert(host);
     assert(action);
     name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
-    if( !name )
+    if( !plugin_ui_base_action_role(name, action, role, sizeof(role)) )
         return false;
+    available = plugin_ui_base_role_available(host, role);
+    if( available >= 0 )
+        return available > 0;
 
-    /* Presentation roles name the composite object; action roles name the
-     * actual cache control that implements it. Keeping those separate is what
-     * lets a gameframe replace/move the former while the latter remains a
-     * revision-profile fact. This table is the core frame.* vocabulary, not a
-     * cache-id table; every numeric/live binding stays in RevConfig. */
-    role[0] = '\0';
-    if( strcmp(name, "frame.chat.button.report") == 0 &&
-        strcmp(action, "activate") == 0 )
-        snprintf(role, sizeof(role), "%s", "report_button");
-    else if( strcmp(name, "frame.orb.hitpoints") == 0 &&
-             strcmp(action, "activate") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_hp_button");
-    else if( strcmp(name, "frame.orb.prayer") == 0 &&
-             strcmp(action, "activate") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_prayer_button");
-    else if( strcmp(name, "frame.orb.run") == 0 &&
-             (strcmp(action, "activate") == 0 || strcmp(action, "enable") == 0) )
-        snprintf(role, sizeof(role), "%s", "orb_run_on");
-    else if( strcmp(name, "frame.orb.run") == 0 &&
-             strcmp(action, "disable") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_run_off");
-    else if( strcmp(name, "frame.orb.special") == 0 &&
-             strcmp(action, "activate") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_spec_button");
-    else if( strncmp(name, "frame.sidebar.tab.", 18) == 0 &&
-             strcmp(action, "activate") == 0 )
+    if( strcmp(action, "activate") == 0 && name &&
+        strncmp(name, "frame.sidebar.tab.", 18) == 0 )
     {
         char* end = NULL;
         long const tab = strtol(name + 18, &end, 10);
-        if( end && !*end && tab >= 0 && tab < 14 && host->engine.tab_enabled )
-            return host->engine.tab_enabled(host->engine.user, (int)tab) != 0;
-        return false;
+        return end && !*end && tab >= 0 && tab < 14 && host->engine.tab_enabled &&
+               host->engine.tab_enabled(host->engine.user, (int)tab) != 0;
     }
-    if( !role[0] )
-        return false;
-    if( host->engine.role_action_available )
-        return host->engine.role_action_available(host->engine.user, role) > 0;
-    return host->engine.role_rect &&
-           host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h) != 0;
+    return false;
 }
 
 bool
@@ -8560,92 +8606,28 @@ PluginHost_UiInvokeBase(
     struct ToriRS_UiNodeRef node,
     char const* action)
 {
-    char const* name;
     char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    int availability = -1;
+    char const* name;
+    int available;
 
     assert(host);
     assert(action);
     name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
-    if( !name )
+    if( !plugin_ui_base_action_role(name, action, role, sizeof(role)) )
         return false;
+    available = plugin_ui_base_role_available(host, role);
+    if( available >= 0 )
+        return available > 0 && plugin_ui_base_role_invoke(host, role);
 
-    role[0] = '\0';
-    if( strcmp(name, "frame.chat.button.report") == 0 &&
-        strcmp(action, "activate") == 0 )
-        snprintf(role, sizeof(role), "%s", "report_button");
-    else if( strcmp(name, "frame.orb.hitpoints") == 0 &&
-             strcmp(action, "activate") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_hp_button");
-    else if( strcmp(name, "frame.orb.prayer") == 0 &&
-             strcmp(action, "activate") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_prayer_button");
-    else if( strcmp(name, "frame.orb.run") == 0 &&
-             (strcmp(action, "activate") == 0 || strcmp(action, "enable") == 0) )
-        snprintf(role, sizeof(role), "%s", "orb_run_on");
-    else if( strcmp(name, "frame.orb.run") == 0 &&
-             strcmp(action, "disable") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_run_off");
-    else if( strcmp(name, "frame.orb.special") == 0 &&
-             strcmp(action, "activate") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_spec_button");
-    else if( strncmp(name, "frame.sidebar.tab.", 18) == 0 &&
-             strcmp(action, "activate") == 0 )
+    if( strcmp(action, "activate") == 0 && name &&
+        strncmp(name, "frame.sidebar.tab.", 18) == 0 )
     {
         char* end = NULL;
         long const tab = strtol(name + 18, &end, 10);
-        if( end && !*end && tab >= 0 && tab < 14 && host->engine.tab_select )
-            return host->engine.tab_select(host->engine.user, (int)tab) != 0;
-        return false;
+        return end && !*end && tab >= 0 && tab < 14 && host->engine.tab_select &&
+               host->engine.tab_select(host->engine.user, (int)tab) != 0;
     }
-    if( !role[0] || !host->engine.role_click )
-        return false;
-
-    /* IF1's unnumbered action is 0; IF3's primary op is 1. Only try the
-     * second spelling if the first did not dispatch, so one invocation can
-     * never fire twice. RevConfig named actions will eventually own this
-     * compatibility mapping. */
-    if( host->engine.role_action_available )
-    {
-        availability = host->engine.role_action_available(host->engine.user, role);
-        /* The action node exists and CS2 hid it. Do not fall back to pressing
-         * the composite root: that would turn an unavailable special attack
-         * into IF_BUTTON on the orb container. */
-        if( availability == 0 )
-            return false;
-    }
-    if( !host->engine.role_action_available || availability > 0 )
-    {
-        if( host->engine.role_click(host->engine.user, role, 0) )
-            return true;
-        if( host->engine.role_click(host->engine.user, role, 1) )
-            return true;
-        /* A resolved action role is authoritative even when dispatch failed.
-         * Falling through would mask a bad live binding by clicking the
-         * composite container under its replacement. */
-        if( host->engine.role_action_available )
-            return false;
-    }
-
-    /* Compatibility with profiles that predate separate action roles. New
-     * profiles bind the button role above, so composite replacements can
-     * delegate into a child without coupling presentation bounds to it. */
-    if( strcmp(name, "frame.orb.hitpoints") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_hitpoints");
-    else if( strcmp(name, "frame.orb.prayer") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_prayer");
-    else if( strcmp(name, "frame.orb.run") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_run");
-    else if( strcmp(name, "frame.orb.special") == 0 )
-        snprintf(role, sizeof(role), "%s", "orb_spec");
-    else
-        return false;
-    if( host->engine.role_action_available &&
-        host->engine.role_action_available(host->engine.user, role) <= 0 )
-        return false;
-    if( host->engine.role_click(host->engine.user, role, 0) )
-        return true;
-    return host->engine.role_click(host->engine.user, role, 1) != 0;
+    return false;
 }
 
 bool

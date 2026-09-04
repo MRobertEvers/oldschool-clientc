@@ -497,6 +497,13 @@ delegation, while cache/CS2 hiding is authoritative: for example a special-
 attack button with no compatible weapon makes `base_action_available` false.
 This pair was added in API 2.3.
 
+Action-role names are derived mechanically rather than maintained in a host
+switch: `<node>, <action>` becomes
+`action_<node-with-dots-as-underscores>_<action-with-dashes-as-underscores>`.
+For example, `frame.orb.run` + `enable` resolves
+`[role:action_frame_orb_run_enable]`. The vocabulary is open, so a new
+semantic action needs only bindings in the revision profiles that support it.
+
 ### Facets replace chrome scopes
 
 A UI node has three independently replaceable facets:

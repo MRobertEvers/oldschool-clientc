@@ -880,7 +880,9 @@ struct ToriRS_UiApiV2
      * so a replacement can delegate to the cache control it stands for
      * without recursively invoking itself. `action` is semantic (for example
      * `activate`, or `enable`/`disable` for a two-state control); RevConfig
-     * owns the live component and numeric operation on each lane.
+     * owns the live component and numeric operation on each lane. The binding
+     * is open vocabulary: node/action become the role
+     * `action_<node-with-dots-as-underscores>_<action>`.
      */
     bool (*base_action_available)(
         struct ToriRS_ApiV2* api,

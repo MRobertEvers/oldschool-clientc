@@ -4153,18 +4153,20 @@ main(void)
         PluginHost_LayoutChanged(facet_host);
 
         action_ref = PluginHost_UiRef(facet_host, appearance, "frame.orb.run");
-        g_role_name = "orb_run_on";
+        g_role_name = "action_frame_orb_run_enable";
         CHECK(
             PluginHost_UiBaseActionAvailable(facet_host, action_ref, "enable") &&
                 PluginHost_UiInvokeBase(facet_host, action_ref, "enable") &&
-                g_role_clicked && strcmp(g_role_clicked, "orb_run_on") == 0 &&
+                g_role_clicked &&
+                    strcmp(g_role_clicked, "action_frame_orb_run_enable") == 0 &&
                 g_role_clicked_op == 0,
             "a replacement can discover and invoke the lane-owned semantic action without a component id");
-        g_role_name = "orb_run_off";
+        g_role_name = "action_frame_orb_run_disable";
         CHECK(
             PluginHost_UiBaseActionAvailable(facet_host, action_ref, "disable") &&
                 PluginHost_UiInvokeBase(facet_host, action_ref, "disable") &&
-                g_role_clicked && strcmp(g_role_clicked, "orb_run_off") == 0,
+                g_role_clicked &&
+                    strcmp(g_role_clicked, "action_frame_orb_run_disable") == 0,
             "two-state semantic actions resolve separate live enable and disable roles");
         CHECK(
             !PluginHost_UiBaseActionAvailable(facet_host, action_ref, "unknown") &&
@@ -4175,7 +4177,7 @@ main(void)
          * it (the special-attack orb does this when no spec weapon is worn).
          * That is authoritative unavailability, not permission to press the
          * composite root as a compatibility fallback. */
-        g_role_name = "orb_run_on";
+        g_role_name = "action_frame_orb_run_enable";
         g_role_compat_name = "orb_run";
         g_role_compat_status = 1;
         g_role_action_status = 0;
@@ -4195,21 +4197,22 @@ main(void)
         CHECK(
             !PluginHost_UiInvokeBase(facet_host, action_ref, "enable") &&
                 g_role_click_attempts == 2 && g_role_click_last_attempt &&
-                strcmp(g_role_click_last_attempt, "orb_run_on") == 0,
+                strcmp(g_role_click_last_attempt, "action_frame_orb_run_enable") == 0,
             "a failed authoritative action role does not fall through to the composite root");
         g_role_click_result = 1;
         g_role_compat_name = NULL;
         g_role_compat_status = -1;
         g_role_action_status = 1;
 
-        /* A profile that genuinely predates the separate action role may
-         * still name only the old composite role. */
+        /* A state-changing action must never guess at a legacy composite
+         * control. Older minimap-orbs builds retain their explicit cache-id
+         * fallback; the generic V2 host stays out of revision policy. */
         g_role_name = "orb_run";
         g_role_click_attempts = 0;
         CHECK(
-            PluginHost_UiInvokeBase(facet_host, action_ref, "enable") &&
-                g_role_clicked && strcmp(g_role_clicked, "orb_run") == 0,
-            "an unresolved action role retains composite-role compatibility");
+            !PluginHost_UiInvokeBase(facet_host, action_ref, "enable") &&
+                g_role_click_attempts == 0,
+            "an unresolved state-changing action never guesses at a composite role");
 
         PluginHost_SetEnabled(facet_host, appearance, true);
         /* The base snapshot still names the target, but its live tree role is
