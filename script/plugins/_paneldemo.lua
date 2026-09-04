@@ -2,7 +2,10 @@
 ---@type torirs.Plugin
 local plugin = { id = "paneldemo", title = "Panel Demo", version = "2" }
 local presses = 0
-local visible = false
+
+local function press_summary()
+    return tostring(presses) .. (presses == 1 and " press" or " presses")
+end
 
 local modes = {
     { value = "compact", label = "Compact", enabled = true,
@@ -25,38 +28,24 @@ function plugin.on_ui_build(api, panel, view)
     panel.heading("ToriRSChrome panel")
     panel.paragraph("One retained page; only this selection renders.")
     panel.key_value("count", "Button presses", tostring(presses))
+    panel.action_row("activity", "Counter activity", press_summary())
     panel.toggle("enabled", "Live updates", true)
     panel.select("mode", "Mode", "normal", modes)
     panel.button("increment", "Increment", true)
-    panel.custom("chart", 120)
-end
-
-function plugin.on_ui_layout(api, ev)
-    visible = ev.visible
-    if visible then api.panel.redraw("chart") end
 end
 
 function plugin.on_ui_action(api, ev)
-    if ev.id == "increment" or ev.id == "chart" then
+    if ev.id == "increment" then
         presses = presses + 1
         api.panel.set_text("count", tostring(presses))
-        api.panel.redraw("chart")
+        api.panel.set_text("activity", press_summary())
+    elseif ev.id == "activity" then
+        api.core.log("panel action row activated at", presses, "presses")
     elseif ev.id == "enabled" then
         api.core.log("panel live updates =", ev.on)
     elseif ev.id == "mode" then
         api.core.log("panel mode stable value =", ev.text)
     end
-end
-
-function plugin.on_ui_draw(api, node, draw)
-    if not visible or node ~= "chart" then return end
-    local context = draw.context()
-    if not context then return end
-    local width, height = context.bounds.width, context.bounds.height
-    draw.rect(0, 0, width, height, 0x5D5447, 255)
-    local bar = math.min(width - 8, 8 + presses * 8)
-    draw.rect(4, math.max(4, height // 2 - 5), bar, 10, 0xFF981F, 255)
-    draw.text(8, 16, tostring(presses), 0xFFFFFF)
 end
 
 return plugin

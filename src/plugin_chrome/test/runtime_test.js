@@ -300,9 +300,9 @@ custom.clientTop = 1;
 custom.clientHeight = 120;
 const typedBeforeBorder = typed.length;
 custom.fire('mousedown', { clientX: 0, clientY: 20 });
-custom.fire('mouseup', { clientX: 0, clientY: 20 });
+custom.fire('mouseup', { clientX: 50, clientY: 20 });
 assert.strictEqual(typed.length, typedBeforeBorder,
-  'the chrome-owned custom border does not activate a plugin pixel');
+  'a press beginning on chrome-owned custom border cannot activate plugin content');
 custom.fire('mousedown', { clientX: 50, clientY: 25 });
 custom.fire('mouseup', { clientX: 50, clientY: 25 });
 assert.strictEqual(typed[typed.length - 1].k, 8, 'custom activation uses its semantic intent');
@@ -531,6 +531,10 @@ assert.strictEqual(popupRows().length, 2, 'the popup reopens on the next right c
 runtime.receive({ protocol: 1, type: 'page.close', pageGeneration: 31 });
 assert.strictEqual(popupRows().length, 0,
   'a page torn down under the popup takes the popup with it');
+while (runtime.takeMessage()) {}
+runtime.receive({ protocol: 1, type: 'page.close', pageGeneration: 0 });
+assert.strictEqual(runtime.takeMessage(), '',
+  'a closed page does not retain an unrouteable generation-zero layout');
 
 assert.strictEqual(runtime.receive('{bad json'), false, 'malformed host input is ignored');
 console.log('modern plugin chrome runtime: ok');

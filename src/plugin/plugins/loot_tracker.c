@@ -1169,28 +1169,61 @@ lt_sync_changed(struct LootTrackerRuntime* rt, bool force)
     return changed;
 }
 
-/** Rewrite every readout on the built page. */
+/** Summary text for one native source row. */
+static void
+lt_source_summary(
+    struct LootTrackerRuntime* rt,
+    struct LtSource const* source,
+    char* out,
+    size_t out_size)
+{
+    char kills[32];
+    char value[32];
+
+    assert(rt);
+    assert(source);
+    lt_commas(source->kills, kills, sizeof(kills));
+    lt_kmb(lt_source_value(rt, source), value, sizeof(value));
+    snprintf(
+        out,
+        out_size,
+        "%s \xc2\xb7 %s %s \xc2\xb7 %s gp \xc2\xb7 %d item%s",
+        source->name,
+        kills,
+        source->kills == 1 ? "kill" : "kills",
+        value,
+        source->item_count,
+        source->item_count == 1 ? "" : "s");
+}
+
+/** Value text for one native item row. */
+static void
+lt_item_summary(
+    struct LootTrackerRuntime* rt,
+    struct LtItem const* item,
+    char* out,
+    size_t out_size)
+{
+    char quantity[32];
+    char value[32];
+
+    assert(rt);
+    assert(item);
+    lt_commas(item->quantity, quantity, sizeof(quantity));
+    lt_commas(
+        lt_unit_value(rt, item) * item->quantity, value, sizeof(value));
+    snprintf(out, out_size, "%s \xc2\xb7 %s gp", quantity, value);
+}
+
+/** Patch live text on the already-retained native DOM rows. */
 static void
 lt_page_refresh(struct LootTrackerRuntime* rt)
 {
-    char text[128];
+    char text[192];
 
     assert(rt);
     if( !g_page_built )
         return;
-
-    /*
-     * A band arriving, or a drop grid growing a row, makes the well TALLER.
-     * That is a property of a widget the page already has, so the retained
-     * page states it in place -- the same call the build makes. This used to
-     * be a panel_clear, and re-declaring the whole page every time a kill
-     * landed is what the list flashed on.
-     */
-    g_built_rows = lt_strip_h(rt);
-    (void)g_api->panel.set_height(g_api, "strip", g_built_rows);
-
-    /* The bands are pixels and redraw themselves. */
-    lt_strip_invalidate(rt);
 
     if( g_detail >= 0 && g_detail < g_source_count )
     {
@@ -1208,8 +1241,45 @@ lt_page_refresh(struct LootTrackerRuntime* rt)
         }
         else
             (void)g_api->panel.set_text(g_api, "d_per_kill", "0");
-        g_built_detail = g_detail;
+        for( int i = 0; i < src->item_count && i < LT_ITEMS_MAX; i++ )
+        {
+            char id[32];
+
+            snprintf(id, sizeof(id), "item_%d", i);
+            lt_item_summary(rt, &src->items[i], text, sizeof(text));
+            (void)g_api->panel.set_text(g_api, id, text);
+        }
+        return;
     }
+
+    lt_commas(g_session_kills, text, sizeof(text));
+    (void)g_api->panel.set_text(g_api, "total_count", text);
+    lt_commas(g_session_value, text, sizeof(text));
+    (void)g_api->panel.set_text(g_api, "total_value", text);
+    for( int i = 0; i < g_source_count && i < LT_ROWS_MAX; i++ )
+    {
+        char id[32];
+
+        snprintf(id, sizeof(id), "source_%d", i);
+        lt_source_summary(rt, &g_source[i], text, sizeof(text));
+        (void)g_api->panel.set_text(g_api, id, text);
+    }
+}
+
+/** Whether the native row topology changed. Value-only changes stay on the
+ * retained setter path; a new/removed source or item rebuilds the page. */
+static bool
+lt_page_stale(struct LootTrackerRuntime* rt)
+{
+    assert(rt);
+    if( !g_page_built )
+        return false;
+    if( g_built_detail != g_detail )
+        return true;
+    if( g_detail >= 0 && g_detail < g_source_count )
+        return g_built_rows != g_source[g_detail].item_count;
+    return g_built_rows !=
+           (g_source_count < LT_ROWS_MAX ? g_source_count : LT_ROWS_MAX);
 }
 
 static void
@@ -1234,27 +1304,6 @@ lt_panel_build(
     }
 
     (void)lt_sync_changed(rt, true);
-    g_built_rows = lt_strip_h(rt);
-
-    /* No Session rows: the strip's own totals band carries them, exactly as
-     * the game's tracker does, and two readouts of one number that round
-     * differently is how they come to disagree. */
-
-    /*
-     * ONE drawing well for every band, which is what the CS2 tracker is: a
-     * header per source with its drops under it. Built out of panel controls
-     * it would be a header plus a control per item and would run out of the
-     * 48-control budget inside one boss trip.
-     */
-    panel->custom(panel, "strip", lt_strip_h(rt));
-
-    /*
-     * The header's own ops, as buttons under the source they act on. The CS2
-     * header offers Collapse/Expand, Clear data and Ignore/Stop ignoring, and
-     * an item cell offers Ignore -- the same set, reached the only way a
-     * drawing well can offer one, because a panel has no secondary-click
-     * channel to hang a menu on.
-     */
     g_built_detail = g_detail;
     if( g_detail >= 0 && g_detail < g_source_count )
     {
@@ -1264,7 +1313,9 @@ lt_panel_build(
             .id = "sec_detail",
             .text = g_source[g_detail].name,
         };
-        char text[64];
+        char text[192];
+
+        panel->button(panel, "d_back", "Back to sources", true);
         (void)panel->node(panel, &heading);
         lt_commas(g_source[g_detail].kills, text, sizeof(text));
         panel->key_value(panel, "d_kills", "Kills", text);
@@ -1277,63 +1328,50 @@ lt_panel_build(
         else
             snprintf(text, sizeof(text), "0");
         panel->key_value(panel, "d_per_kill", "Value per kill", text);
+        panel->heading(panel, "Items");
+        for( int i = 0; i < g_source[g_detail].item_count && i < LT_ITEMS_MAX; i++ )
+        {
+            char id[32];
+            char const* name = g_source[g_detail].items[i].name[0]
+                                   ? g_source[g_detail].items[i].name
+                                   : "Unknown item";
+
+            snprintf(id, sizeof(id), "item_%d", i);
+            lt_item_summary(
+                rt, &g_source[g_detail].items[i], text, sizeof(text));
+            panel->key_value(panel, id, name, text);
+        }
         panel->button(panel, "d_clear", "Clear data", true);
         panel->button(panel, "d_ignore", "Ignore", true);
+        g_built_rows = g_source[g_detail].item_count;
     }
     else
-        g_built_detail = -1;
+    {
+        char text[192];
 
-    /*
-     * No "clear all" row. The tracker this is a port of has no such control:
-     * its clears are ops on a BAND -- the detail block's own Clear data, one
-     * source at a time -- and a page-wide button was this port's invention.
-     * @see the same note on the xp tracker's page.
-     */
+        g_built_detail = -1;
+        g_built_rows = g_source_count < LT_ROWS_MAX ? g_source_count : LT_ROWS_MAX;
+        panel->heading(panel, "Session");
+        lt_commas(g_session_kills, text, sizeof(text));
+        panel->key_value(panel, "total_count", "Total kills", text);
+        lt_commas(g_session_value, text, sizeof(text));
+        panel->key_value(panel, "total_value", "Total value", text);
+        if( g_source_count == 0 )
+            panel->paragraph(panel, "No loot recorded this session.");
+        for( int i = 0; i < g_built_rows; i++ )
+        {
+            char id[32];
+
+            snprintf(id, sizeof(id), "source_%d", i);
+            lt_source_summary(rt, &g_source[i], text, sizeof(text));
+            panel->action_row(panel, id, "", text);
+        }
+        if( g_source_count > g_built_rows )
+            panel->paragraph(panel, "More sources are recorded; refine ignored sources in Settings.");
+    }
 
     g_page_built = true;
     lt_page_refresh(rt);
-}
-
-/**
- * Draw the selected source's drops.
- *
- * Every icon is asked for again, on every pass, and that is the contract
- * rather than an oversight: `obj_image` hands back a handle out of a
- * host-owned evicting cache, and a plugin that remembered one across frames
- * would eventually draw nothing. @see ToriRS_GameApiV2::item_image.
- */
-static void
-lt_panel_draw(
-    struct ToriRS_ApiV2* api,
-    void* state_ptr,
-    char const* node,
-    struct ToriRS_DrawBuilder* draw)
-{
-    struct LootTrackerRuntime runtime = { api, state_ptr };
-    struct LootTrackerRuntime* rt = &runtime;
-    struct ToriRS_DrawContext context = { .struct_size = sizeof(context) };
-
-    assert(api);
-    assert(node);
-    assert(draw);
-
-    if( strcmp(node, "strip") != 0 || !draw->context(draw, &context) ||
-        context.bounds.width <= 0 )
-        return;
-    /* The art crosses the IO queue, so the first passes after a start have
-     * nothing to draw with. The next invalidate fills it -- the same state the
-     * client's own inventory icons are in for a frame or two. */
-    if( !lt_art_ready(rt) )
-    {
-        g_redraw_pending = true;
-        return;
-    }
-
-    g_well_w = context.bounds.width;
-    g_redraw_pending = false;
-    lt_compose(rt, context.bounds.width);
-    if( g_strip_image.value )
-        draw->image(draw, g_strip_image, 0, 0, 255);
 }
 
 static void
@@ -1351,10 +1389,23 @@ lt_panel_action(
 
     g_api->panel.attention(g_api, false);
 
-    if( strcmp(ev->id, "d_close") == 0 )
+    if( strcmp(ev->id, "d_back") == 0 )
     {
         g_detail = -1;
         g_api->panel.invalidate(g_api);
+        return;
+    }
+    if( strncmp(ev->id, "source_", 7) == 0 )
+    {
+        char* end = NULL;
+        long const source = strtol(ev->id + 7, &end, 10);
+
+        if( end && !*end && source >= 0 && source < g_source_count &&
+            source < LT_ROWS_MAX )
+        {
+            g_detail = (int)source;
+            g_api->panel.invalidate(g_api);
+        }
         return;
     }
     if( strcmp(ev->id, "d_clear") == 0 && g_detail >= 0 && g_detail < g_source_count )
@@ -1396,84 +1447,6 @@ lt_panel_action(
         return;
     }
 
-    /*
-     * A click in the strip. The bands are variable height -- an expanded one
-     * carries its grid -- so the source is found by walking them rather than
-     * by dividing, and the header's own first op decides what the click means:
-     * inside the 33-tall band it EXPANDS or collapses, which is
-     * script2907's Collapse/Expand, and it also selects the source so the
-     * other two ops have something to act on.
-     */
-    if( strcmp(ev->id, "strip") == 0 )
-    {
-        int local_y = 0;
-        int source;
-
-        /*
-         * The TOTALS band's own four controls first, because they sit above
-         * every source and a click there is not a click on a band.
-         *
-         * Same four the cache offers, in the same places: the view toggle at
-         * the left, then value-basis, collapse-all and the ignore list at the
-         * right. `g_well_w` is the width the strip was last composed at, which
-         * is what the right-anchored three were placed against.
-         */
-        if( ev->y < LT_TOTALS_H )
-        {
-            int const w = g_well_w;
-            if( ev->x >= LT_BTN_LEFT_X && ev->x < LT_BTN_LEFT_X + LT_BTN )
-                g_drop_view = !g_drop_view;
-            else if( ev->x >= w - LT_BTN_R0 - LT_BTN && ev->x < w - LT_BTN_R0 )
-            {
-                /* The ignore list: the settings form edits the same key, so
-                 * the panel's shortcut and the typed list are one thing. */
-                g_detail = -1;
-            }
-            else if( ev->x >= w - LT_BTN_R1 - LT_BTN && ev->x < w - LT_BTN_R1 )
-            {
-                /* Collapse all -- or expand all when everything is already
-                 * shut, which is what makes one button enough. */
-                bool any = false;
-                for( int i = 0; i < g_source_count; i++ )
-                    any = any || g_expanded[i];
-                for( int i = 0; i < g_source_count; i++ )
-                    g_expanded[i] = !any;
-            }
-            else if( ev->x >= w - LT_BTN_R2 - LT_BTN && ev->x < w - LT_BTN_R2 )
-            {
-                /* The value basis, which is the same config key the settings
-                 * form offers as a dropdown. */
-                char const* now = lt_config_string(rt, "price_source");
-                (void)g_api->config.set(
-                    g_api, "price_source",
-                    now && lt_name_eq(now, "High alchemy") ? "Cache value"
-                                                           : "High alchemy");
-            }
-            else
-                return;
-            if( g_built_detail >= 0 && g_detail < 0 )
-                g_api->panel.invalidate(g_api);
-            else
-                lt_page_refresh(rt);
-            return;
-        }
-
-        /* The flat drop grid has no bands to open. */
-        if( g_drop_view )
-            return;
-
-        source = lt_source_at(rt, ev->y, &local_y);
-        if( source < 0 )
-            return;
-        if( local_y < LT_HEAD_H )
-            g_expanded[source] = !g_expanded[source];
-        g_detail = g_detail == source && local_y >= LT_HEAD_H ? -1 : source;
-        if( (g_built_detail >= 0) != (g_detail >= 0) )
-            g_api->panel.invalidate(g_api);
-        else
-            lt_page_refresh(rt);
-        return;
-    }
 }
 
 
@@ -1496,19 +1469,7 @@ lt_start(struct ToriRS_ApiV2* api, void* state_ptr)
     g_page_visible = false;
     g_next_panel_ms = 0;
     g_dirty = false;
-    g_redraw_pending = false;
     g_loot_revision = 0;
-    g_well_w = TORIRS_PANEL_WIDTH_DEFAULT;
-    g_strip_image.value = 0;
-    /*
-     * OPEN by default, which is what the game's own tracker does: a band with
-     * its drops under it is the thing a person opened the panel to see, and a
-     * list of closed bands is a list of names. The row click still collapses
-     * one, so a long trip can be tidied.
-     */
-    for( size_t i = 0; i < sizeof(g_expanded) / sizeof(g_expanded[0]); i++ )
-        g_expanded[i] = true;
-    g_compose_key = 0;
 
     memset(&desc, 0, sizeof(desc));
     /* RuneLite's own, so a person who has used the plugin there recognises
@@ -1532,13 +1493,13 @@ lt_panel_layout(
     assert(ev);
 
     g_page_visible = ev->visible;
-    if( ev->width > 0 )
-        g_well_w = ev->width;
     if( g_page_visible )
     {
         (void)lt_sync_changed(rt, false);
-        lt_page_refresh(rt);
-        g_api->panel.redraw(g_api, "strip");
+        if( lt_page_stale(rt) )
+            g_api->panel.invalidate(g_api);
+        else
+            lt_page_refresh(rt);
     }
 }
 
@@ -1551,21 +1512,7 @@ lt_stop(struct ToriRS_ApiV2* api, void* state_ptr)
     assert(api);
     g_page_built = false;
     g_page_visible = false;
-    free(g_compose);
-    g_compose = NULL;
-    g_compose_w = 0;
-    g_compose_h = 0;
-    if( g_strip_image.value ) g_api->assets.image_release(g_api, g_strip_image);
-    PluginDraw_AtlasFree(g_api, &g_bold);
-    PluginDraw_AtlasFree(g_api, &g_text);
-    PluginDraw_ImageFree(g_api, &g_over_px, &g_img_over);
-    PluginDraw_ImageFree(g_api, &g_spine_px, &g_img_spine);
-    PluginDraw_ImageFree(g_api, &g_cell_px, &g_img_cell);
-    PluginDraw_ImageFree(g_api, &g_view_px, &g_img_view);
-    PluginDraw_ImageFree(g_api, &g_view2_px, &g_img_view2);
-    PluginDraw_ImageFree(g_api, &g_alch_px, &g_img_alch);
-    PluginDraw_ImageFree(g_api, &g_collapse_px, &g_img_collapse);
-    PluginDraw_ImageFree(g_api, &g_ignored_px, &g_img_ignored);
+    (void)rt;
 }
 
 static void
@@ -1593,17 +1540,9 @@ lt_tick(
     if( lt_sync_changed(rt, false) )
         g_dirty = true;
 
-    /*
-     * Opening or closing the detail block changes WHICH widgets the page has,
-     * and that is the only thing a rebuild is for. Everything else a kill can
-     * do -- a new band, a taller drop grid, a bigger number -- the refresh
-     * states on the page that is already there. Neither is worth doing for a
-     * page nobody is looking at; the rebuild happens when it is selected
-     * again.
-     */
-    if( g_dirty || g_redraw_pending )
+    if( g_dirty )
     {
-        if( g_page_built && ((g_built_detail >= 0) != (g_detail >= 0)) )
+        if( lt_page_stale(rt) )
             g_api->panel.invalidate(g_api);
         else
             lt_page_refresh(rt);
@@ -1637,7 +1576,7 @@ lt_config_changed(
     if( filtered ) (void)lt_sync_changed(rt, true);
     else if( affects_picture ) lt_revalue(rt);
     if( !g_page_visible || !affects_picture ) return;
-    if( (g_built_detail >= 0) != (g_detail >= 0) )
+    if( lt_page_stale(rt) )
         g_api->panel.invalidate(g_api);
     else
         lt_page_refresh(rt);
@@ -1664,7 +1603,6 @@ struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LOOT_TRACKER = {
         .on_config_changed = lt_config_changed,
         .on_ui_build = lt_panel_build,
         .on_ui_action = lt_panel_action,
-        .on_ui_draw = lt_panel_draw,
         .on_ui_layout = lt_panel_layout,
     },
 };

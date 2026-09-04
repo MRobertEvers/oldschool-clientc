@@ -528,9 +528,10 @@ warn = nil
 ---@field toggle fun(id: string, label: string, value: boolean)
 ---@field select fun(id: string, label: string, value: string, options: torirs.SelectOption[])
 ---@field button fun(id: string, label: string, enabled?: boolean)
----@field custom fun(id: string, preferred_height?: integer)
+---@field custom fun(id: string, preferred_height?: integer) Low-level bitmap surface; do not use for ordinary text, lists, stats, or settings.
 ---@field label fun(id: string, text: string)
 ---@field key_value fun(id: string, label: string, value: string)
+---@field action_row fun(id: string, label: string, summary?: string) Full-width native navigation row; activation reports `action == 'activate'`.
 ---@field node fun(node: torirs.PanelNode): boolean, torirs.ResultName
 
 ---@class torirs.PanelNode

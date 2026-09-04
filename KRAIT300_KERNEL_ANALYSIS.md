@@ -1155,7 +1155,35 @@ worth their place, and the one measurement each needs first.
 | `bucket_paint_world` | 1.89 | **18 % of the draw's mispredicts**, 10 % of its refills | address-bucket it as §M.3 did the sort: which loop mispredicts? (a per-element visibility/`switch` is the usual answer) |
 | `World_CycleRegisterPainterDynamics` + `emit_walk_node` | 1.46 | 17 % of the draw's refills between them | address-bucket with `-g` (step 0) — the plan's 2e (write indices straight into the runs) already targets `emit_walk_node` |
 | `__memcpy_base` | 0.37 | **15 % of the draw's refills** — the single largest refill source | per-site byte counters behind the existing 986-copies/frame count (no call graphs on this phone, step 0) |
-| `__findenv` | 0.035 | 3.5 % of the draw's mispredicts | `grep getenv` on the frame path; cache it in a static. Ten minutes |
+| `__findenv` | 0.035 | 3.5 % of the draw's mispredicts | **done** — see below |
+
+**`__findenv`, done (kr18/kr19) — and the method matters more than the fix.** `grep getenv`
+was the wrong tool: the frame path has **283 live call sites**, and which of them runs per
+frame is not visible in the source. Since this phone gives no call graphs, the answer came
+from the per-call-site counter shim this section already prescribes — a `-include` header
+that macro-replaces `getenv` with a wrapper keyed on `__FILE__`/`__LINE__`, dumped from the
+weak `torirs_shim_dump` hook the gles2 debug line already calls every 300 frames. Built
+with `make ... BUILD_DIAGNOSTIC_CFLAGS='-fomit-frame-pointer -include /tmp/getenv_shim.h'`;
+the tables are weak definitions so the whole shim is one file and needs no makefile change.
+
+It found **22 263 calls per 300 frames over 283 sites — and 12 818 of them, 58 %, at one
+site**: the `TORIRS_OVERLAY_SCRIPT_DEBUG` gate inside `app_entity_overlay_layout`'s loop,
+asked once per live overlay, 43 times a frame. Cached in an `app_*_armed()` static like the
+rest of the tree: **74 → 31 getenv calls a frame**, and the draw thread's `__findenv` +
+`getenv` went **0.59 % → 0.38 % of its cycles** (≈ −0.03 ms/frame; each lookup is ~1.4k
+cycles, a linear scan of this client's environment).
+
+What is left is 31 calls a frame: twelve sites at exactly one per frame — the `app_debug_*`
+passes' own gates plus four in `main.c` — and a tail of ~19 spread thin. Caching the twelve
+is the same one-line change twelve times for ~0.014 ms, which is under every threshold
+here; left alone deliberately.
+
+*Two cautions this turned up.* `make` does not track `CFLAGS` changes, so dropping the
+`-include` and rebuilding leaves shimmed objects linked in — the instrumented wrapper was
+still in the "clean" binary until the build directory was removed. And a `getenv` count is
+not a cost: the same shim shows the twelve one-per-frame sites are 39 % of the remaining
+calls but nearly none of the remaining time, because cost scales with the scan, not the
+call.
 
 ### Step 4 — Projection (1.68 ms/frame both threads)
 

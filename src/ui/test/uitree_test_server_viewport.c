@@ -1,4 +1,5 @@
 #include "test_harness.h"
+#include "uitree_interact.h"
 
 /*
  * Three viewport widgets the SERVER decides the visibility of, none of which
@@ -22,7 +23,7 @@ test_server_driven_viewport_widgets(void)
     struct TestHostState hs;
     struct UITreeHost host;
     struct UITreeEmitBuffer emit;
-    int32_t root, map, multi, reboot;
+    int32_t root, map, mapback, multi, reboot;
 
     printf("TEST: minimap toggle, multiway icon and reboot countdown gate on the host\n");
     TEST_ASSERT(tree != NULL, "server-viewport tree allocation");
@@ -31,9 +32,16 @@ test_server_driven_viewport_widgets(void)
 
     root = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, root_uid, 0, 0, 0, 0);
     map = UITree_TestPushXy(tree, root, UIELEM_BUILTIN_MINIMAP, map_uid, 575, 9, 146, 151);
+    /* The stock rs289lc frame's exact overlap: mapback is a bounded sprite so
+     * minimap-orbs can anchor to its `minimap_edge` role, and is a later
+     * sibling because the housing paints over the map. It must not become an
+     * input target merely because role measurement gave it a box. */
+    mapback = UITree_TestPushXy(tree, root, UIELEM_BUILTIN_SPRITE, -1, 550, 4, 172, 156);
     multi = UITree_TestPushXy(tree, root, UIELEM_BUILTIN_MULTIWAY, multi_uid, 476, 300, 16, 16);
     reboot = UITree_TestPushXy(tree, root, UIELEM_BUILTIN_REBOOT_TIMER, reboot_uid, 8, 333, 0, 0);
-    TEST_ASSERT(map >= 0 && multi >= 0 && reboot >= 0, "server-viewport nodes pushed");
+    TEST_ASSERT(
+        map >= 0 && mapback >= 0 && multi >= 0 && reboot >= 0,
+        "server-viewport nodes pushed");
 
     /* Both widgets carry what they draw with; revconfig fills these at bake,
      * and neither is allowed to invent one when the host says "draw". */
@@ -47,6 +55,32 @@ test_server_driven_viewport_widgets(void)
      * and "hidden" would be indistinguishable from "not loaded yet". */
     hs.minimap_scene_id = 42;
     UITree_TestResolve(tree);
+
+    TEST_ASSERT(
+        UITree_ComponentIsPassThrough(&tree->components[mapback], &host),
+        "bounded frame sprite remains decorative");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, 680, 82) == map,
+        "mapback housing does not win a hit inside the minimap");
+    {
+        struct UIInteraction interact;
+        struct LibToriRS_Input input_storage;
+        struct LibToriRS_Input* input = LibToriRS_Input_Init(&input_storage, 0);
+        struct UIInteractOut result;
+
+        UIInteraction_Init(&interact);
+        LibToriRS_Input_Begin(input, 0);
+        LibToriRS_Input_PushMouseMove(input, 680, 82);
+        LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 680, 82);
+        LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 680, 82);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 0, &result);
+        TEST_ASSERT(result.minimap_click, "click through mapback reaches minimap gesture");
+        TEST_ASSERT(
+            result.minimap_click_x == 680 && result.minimap_click_y == 82,
+            "minimap gesture keeps the clicked canvas point");
+        TEST_ASSERT(result.clicked_com_id < 0, "decorative mapback reports no component click");
+    }
 
     /* Nothing happening: the map draws, and neither the icon nor the countdown
      * does. */

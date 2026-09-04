@@ -1,4 +1,5 @@
 #include "task_interface_open.h"
+#include "torirs_env.h"
 
 #include "task_static_sprites_load.h"
 
@@ -588,7 +589,7 @@ Task_InterfaceOpen_Run(
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_BAKE_REUSE, 1);
             UITreeIfaceStats_NoteBakeReuse(self->interface_id);
-            if( getenv("TORIRS_NET_DEBUG") )
+            if( torirs_env_net_debug() )
                 TORIRS_LOG("interface open: group %d already baked; reusing it\n",
                     self->interface_id);
         }

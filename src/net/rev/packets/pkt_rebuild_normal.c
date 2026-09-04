@@ -1,4 +1,5 @@
 #include "pkt_rebuild_normal.h"
+#include "torirs_env.h"
 #include <assert.h>
 
 #include "net/rev/revpacket.h"
@@ -47,7 +48,7 @@ pkt_rebuild_normal_read(uint8_t const* data, int len, struct RevPacket* out)
             out->_map_rebuild.region_keys[i] = (int32_t)g4(&buf);
     }
 
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("pkt_rebuild_normal: zoneX=%d zoneZ=%d keys=%d\n",
             zone_x,
             zone_z,

@@ -1,4 +1,5 @@
 #include "gameproto_parse.h"
+#include "torirs_env.h"
 
 #include "net/wordpack.h"
 
@@ -14,7 +15,7 @@ parse_debug(void)
 {
     static int cached = -1;
     if( cached < 0 )
-        cached = getenv("TORIRS_NET_DEBUG") != NULL;
+        cached = torirs_env_net_debug() != NULL;
     return cached;
 }
 

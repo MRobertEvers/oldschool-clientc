@@ -3254,7 +3254,7 @@ v2_builder_node(
     assert(node);
     if( node->struct_size < TORIRS_PANEL_NODE_REQUIRED_SIZE || !node->id ||
         !node->id[0] || node->kind < TORIRS_PANEL_HEADING ||
-        node->kind > TORIRS_PANEL_CUSTOM )
+        node->kind > TORIRS_PANEL_ACTION_ROW )
         return TORIRS_RESULT_INVALID;
     switch( node->kind )
     {
@@ -3272,6 +3272,7 @@ v2_builder_node(
     case TORIRS_PANEL_ERROR: kind = TORIRS_PANEL_WIDGET_ERROR; break;
     case TORIRS_PANEL_LIST_ROW: kind = TORIRS_PANEL_WIDGET_LIST_ROW; break;
     case TORIRS_PANEL_CUSTOM: kind = TORIRS_PANEL_WIDGET_CUSTOM; break;
+    case TORIRS_PANEL_ACTION_ROW: kind = TORIRS_PANEL_WIDGET_ACTION_ROW; break;
     default: return TORIRS_RESULT_INVALID;
     }
     if( node->kind == TORIRS_PANEL_SELECT )
@@ -3309,6 +3310,25 @@ v2_builder_node(
     return TORIRS_RESULT_OK;
 }
 
+static void
+v2_builder_action_row(
+    struct ToriRS_PanelBuilder* panel,
+    char const* id,
+    char const* label,
+    char const* text)
+{
+    struct PluginV2PanelScope* scope = v2_panel_scope(panel);
+
+    assert(id);
+    if( api_panel_widget(
+            scope->runtime->context,
+            TORIRS_PANEL_WIDGET_ACTION_ROW,
+            id,
+            label) )
+        (void)api_panel_set_text(
+            scope->runtime->context, id, text ? text : "");
+}
+
 void
 plugin_v2_runtime_panel_begin(
     struct PluginV2Runtime* runtime,
@@ -3333,6 +3353,7 @@ plugin_v2_runtime_panel_begin(
         .label = v2_builder_label,
         .key_value = v2_builder_key_value,
         .node = v2_builder_node,
+        .action_row = v2_builder_action_row,
     };
 }
 

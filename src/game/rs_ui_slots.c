@@ -1,4 +1,5 @@
 #include "rs_ui_slots.h"
+#include "torirs_env.h"
 
 #include "app.h"
 #include "engine/uitree_builder/task_slot_mount.h"
@@ -349,7 +350,7 @@ RS_UISlots_SetTab(struct App* app, int tabno, int iface_id)
     /* Wire format: 65535 clears the slot. */
     if( iface_id == 65535 )
         iface_id = -1;
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("rs_ui_slots: settab tab=%d iface=%d owner=%d\n",
             tabno,
             iface_id,

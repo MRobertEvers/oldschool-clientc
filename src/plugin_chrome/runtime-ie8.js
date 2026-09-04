@@ -761,6 +761,19 @@
             row.appendChild(labelNode(record.label));
         row.appendChild(control);
     }
+    /** Resolve a pointer only inside a custom well's drawable content box. */
+    function customContentPoint(custom, event) {
+        var bounds = custom.getBoundingClientRect();
+        var width = custom.clientWidth || 0;
+        var height = custom.clientHeight || 0;
+        var left = bounds.left + Math.max(0, integer(custom.clientLeft, 0));
+        var top = bounds.top + Math.max(0, integer(custom.clientTop, 0));
+        var x = event.clientX - left;
+        var y = event.clientY - top;
+        if (!width || !height || x < 0 || y < 0 || x >= width || y >= height)
+            return null;
+        return { x: x, y: y, width: width, height: height };
+    }
     function createWidget(command) {
         if (command.p !== state.panel || command.w < 0 || command.v < 0 || command.v > W.FREE)
             return;
@@ -965,27 +978,17 @@
                 custom_1.style.height = customHeightPx(record.rows);
                 custom_1.tabIndex = 0;
                 bind(custom_1, 'mousedown', function (event) {
-                    record.pointer = { x: event.clientX, y: event.clientY };
+                    record.pointer = customContentPoint(custom_1, event);
                 });
                 bind(custom_1, 'mouseup', function (event) {
                     if (!record.pointer)
                         return;
                     record.pointer = null;
-                    var bounds = custom_1.getBoundingClientRect();
-                    var boundsWidth = custom_1.clientWidth || 0;
-                    var boundsHeight = custom_1.clientHeight || 0;
-                    var boundsLeft = bounds.left + Math.max(0, integer(custom_1.clientLeft, 0));
-                    var boundsTop = bounds.top + Math.max(0, integer(custom_1.clientTop, 0));
-                    if (!boundsWidth || !boundsHeight)
+                    var point = customContentPoint(custom_1, event);
+                    if (!point)
                         return;
-                    var localX = event.clientX - boundsLeft;
-                    var localY = event.clientY - boundsTop;
-                    /* The bitmap occupies the content box. A press on the chrome-owned
-                     * one-pixel border is not a click on the plugin's first/last pixel. */
-                    if (localX < 0 || localY < 0 || localX >= boundsWidth || localY >= boundsHeight)
-                        return;
-                    var px = Math.max(0, Math.min(record.bitmapWidth - 1, Math.floor(localX * record.bitmapWidth / boundsWidth)));
-                    var py = Math.max(0, Math.min(record.bitmapHeight - 1, Math.floor(localY * record.bitmapHeight / boundsHeight)));
+                    var px = Math.max(0, Math.min(record.bitmapWidth - 1, Math.floor(point.x * record.bitmapWidth / point.width)));
+                    var py = Math.max(0, Math.min(record.bitmapHeight - 1, Math.floor(point.y * record.bitmapHeight / point.height)));
                     postWidget(record, INTENT.CUSTOM_ACTIVATE, 0, '', Math.floor(px * 1000 / Math.max(1, record.customScale)), Math.floor(py * 1000 / Math.max(1, record.customScale)));
                 });
                 bind(custom_1, 'keydown', function (event) {
@@ -1373,6 +1376,13 @@
     }
     function reportLayout() {
         sizeLegacyViewport();
+        /* A closed page has no semantic generation to fence a layout with. The
+         * rail snapshot already carries its collapsed state, so do not retain an
+         * unrouteable generation-zero layout in the pull fallback. */
+        if (!state.pageGeneration) {
+            state.lastLayout = '';
+            return;
+        }
         var visible = pane.style.display !== 'none' && !!state.pageGeneration;
         var width = visible ? Math.max(0, pane.clientWidth || 0) : 0;
         var height = visible ? Math.max(0, pane.clientHeight || 0) : 0;

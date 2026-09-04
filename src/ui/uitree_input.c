@@ -110,6 +110,14 @@ UITree_ComponentIsPassThrough(
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:
         return true;
+    case UIELEM_BUILTIN_SPRITE:
+        /* RevConfig frame art is decoration even when it carries an explicit
+         * box for role anchoring. In particular, rs245_2lc's 172x156 mapback
+         * is painted after the 146x151 minimap and covers it geometrically;
+         * treating that plate as a target makes the visible map inert. Hooks
+         * were checked above, so a deliberately scripted sprite remains a
+         * real input target. */
+        return true;
     case UIELEM_RS_LAYER:
         /*
          * A layer is *usually* structure and must not eat clicks — but "usually"

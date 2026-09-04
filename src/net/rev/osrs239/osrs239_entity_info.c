@@ -27,6 +27,7 @@
  */
 
 #include "net/bitbuffer.h"
+#include "torirs_env.h"
 #include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_info.h"
 
@@ -781,7 +782,7 @@ player_extended(
          * decoded at the wrong offset, or the executor dropped the op — and
          * only the middle one is invisible from either end. Pairs with
          * TORIRSSERVER_EXT_DEBUG on the server. */
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("osrs239: player %d extended flag=0x%x at %d/%d\n", idx, flag,
                     pos, len);
 

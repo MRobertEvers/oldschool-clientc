@@ -1,4 +1,5 @@
 #include "net_transport.h"
+#include "torirs_env.h"
 
 #include "cmd/cmdbus.h"
 #include "net/net.h"
@@ -69,7 +70,7 @@ ws_debug(void)
 {
     static int cached = -1;
     if( cached < 0 )
-        cached = getenv("TORIRS_NET_DEBUG") ? 1 : 0;
+        cached = torirs_env_net_debug() ? 1 : 0;
     return cached;
 }
 #define WSLOG(...)                                                                                  \

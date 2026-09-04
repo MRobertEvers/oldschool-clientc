@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #define TORIRS_PLUGIN_API_V2_MAJOR 2u
-#define TORIRS_PLUGIN_API_V2_MINOR 1u
+#define TORIRS_PLUGIN_API_V2_MINOR 2u
 
 #define TORIRS_UI_NAME_MAX 128
 #define TORIRS_UI_ACTION_MAX 48
@@ -628,6 +628,16 @@ enum ToriRS_PanelNodeKind
     TORIRS_PANEL_ERROR,
     TORIRS_PANEL_LIST_ROW,
     TORIRS_PANEL_CUSTOM,
+    /**
+     * A full-width navigation row with no checkbox.
+     *
+     * `label` is its primary text and optional `text` is a concise live
+     * summary. Activating any part of the row reports
+     * TORIRS_PANEL_ACTION_ACTIVATE. Use this for a retained list that drills
+     * into details; LIST_ROW is the distinct name-plus-switch control used by
+     * management screens.
+     */
+    TORIRS_PANEL_ACTION_ROW,
 };
 
 /** General retained panel declaration for uncommon node kinds. */
@@ -693,7 +703,21 @@ struct ToriRS_PanelBuilder
     enum ToriRS_Result (*node)(
         struct ToriRS_PanelBuilder* panel,
         struct ToriRS_PanelNode const* node);
+    /**
+     * Since API 2.2. A full-width retained navigation row with no checkbox.
+     * Check struct_size against TORIRS_PANEL_BUILDER_ACTION_ROW_SIZE before
+     * calling when a plugin may run on an older 2.x host.
+     */
+    void (*action_row)(
+        struct ToriRS_PanelBuilder* panel,
+        char const* id,
+        char const* label,
+        char const* text);
 };
+
+#define TORIRS_PANEL_BUILDER_ACTION_ROW_SIZE                                      \
+    ((uint32_t)(offsetof(struct ToriRS_PanelBuilder, action_row) +                 \
+                sizeof(((struct ToriRS_PanelBuilder*)0)->action_row)))
 
 /* ------------------------------------------------------------------------ */
 /* Embedded API modules                                                     */

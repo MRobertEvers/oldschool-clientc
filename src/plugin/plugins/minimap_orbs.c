@@ -707,7 +707,7 @@ static struct
       .facets = TORIRS_UI_FACET_ALL,                                               \
       .value = { .struct_size = sizeof(struct ToriRS_UiNode),                      \
                  .bounds = { 0, 0, 1, 1 },                                        \
-                 .parent = "frame.minimap",                                        \
+                 .parent = "frame.minimap.housing",                                \
                  .anchor = TORIRS_ANCHOR_TOP_LEFT,                                 \
                  .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,                      \
                  .flags = TORIRS_UI_NODE_ENABLED,                                  \
@@ -774,9 +774,32 @@ orbs_has_action(struct ToriRS_ApiV2* api, int orb)
         &operation);
 }
 
+/* The housing is the correct paint boundary when a frame publishes one: its
+ * plate is drawn after the live map, so children of the map itself would sit
+ * underneath it. It is optional, though. Older/custom lanes expose only the
+ * minimap surface, and an unresolved semantic parent makes the whole retained
+ * subtree non-presentable. Pick the deepest live boundary at each placement
+ * refresh instead of turning that optional node into a global requirement. */
+static char const*
+orbs_parent(struct ToriRS_ApiV2* api)
+{
+    struct ToriRS_UiNodeInfo housing;
+    struct ToriRS_UiNodeRef const ref = api->ui.ref(api, "frame.minimap.housing");
+
+    memset(&housing, 0, sizeof(housing));
+    housing.struct_size = sizeof(housing);
+    if( ref.value != 0 && api->ui.info(api, ref, &housing) && housing.visible &&
+        (housing.available_facets & TORIRS_UI_FACET_BOUNDS) != 0 &&
+        housing.bounds.width > 0 && housing.bounds.height > 0 )
+        return "frame.minimap.housing";
+    return "frame.minimap";
+}
+
 static void
 orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
 {
+    char const* const parent = orbs_parent(api);
+
     orbs_load_images(api, state);
     (void)orbs_load_digits(api, state);
     for( int i = 0; i < ORB_COUNT; i++ )
@@ -787,7 +810,7 @@ orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
         memset(&value, 0, sizeof(value));
         have_bounds = orbs_bounds(api, i, &value.bounds);
         value.struct_size = sizeof(value);
-        value.parent = "frame.minimap";
+        value.parent = parent;
         value.anchor = TORIRS_ANCHOR_TOP_LEFT;
         value.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
         value.clip = TORIRS_UI_CLIP_NONE;

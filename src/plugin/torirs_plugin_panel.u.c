@@ -747,6 +747,13 @@ app_plugin_panel_add_semantic(
             model->value ? 1 : model->checked, 1);
         break;
 
+    case TORIRS_PANEL_WIDGET_ACTION_ROW:
+        app_plugin_panel_readout(
+            text, sizeof(text), model->label, model->text, model->id);
+        widget = ToriRSChrome_ActionRow(
+            &app->plugin_ui, app->plugin_panel, text);
+        break;
+
     case TORIRS_PANEL_WIDGET_IMAGE:
         app_plugin_panel_readout(
             text, sizeof(text), model->label, model->text, "Image");
@@ -885,6 +892,7 @@ app_plugin_panel_semantic_chrome_kind(struct ToriRS_PanelWidget const* model)
     case TORIRS_PANEL_WIDGET_SEPARATOR:
         return TORIRS_CHROME_W_SEPARATOR;
     case TORIRS_PANEL_WIDGET_LIST_ROW:
+    case TORIRS_PANEL_WIDGET_ACTION_ROW:
         return TORIRS_CHROME_W_LISTROW;
     default:
         return TORIRS_CHROME_W_FREE;
@@ -1031,6 +1039,14 @@ app_plugin_panel_patch_row(
             ToriRSChrome_SetChecked(
                 &app->plugin_ui, row->widget,
                 model->value ? 1 : model->checked);
+        break;
+    case TORIRS_PANEL_WIDGET_ACTION_ROW:
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
+        {
+            app_plugin_panel_readout(
+                text, sizeof(text), model->label, model->text, model->id);
+            ToriRSChrome_SetLabel(&app->plugin_ui, row->widget, text);
+        }
         break;
     case TORIRS_PANEL_WIDGET_SEPARATOR:
     default:
@@ -1910,6 +1926,9 @@ app_plugin_panel_apply(struct App* app, int widget)
                     action = TORIRS_PANEL_ACTION_TOGGLE;
                     value = ToriRSChrome_Checked(&app->plugin_ui, widget) ? 1 : 0;
                 }
+                break;
+
+            case TORIRS_PANEL_WIDGET_ACTION_ROW:
                 break;
 
             case TORIRS_PANEL_WIDGET_BUTTON:

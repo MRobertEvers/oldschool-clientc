@@ -1,4 +1,5 @@
 #include "rs_gameproto_exec.h"
+#include "torirs_env.h"
 
 #include "app.h"
 #include "inv/inv_manager.h"
@@ -523,7 +524,7 @@ exec_zone_sub_packet_at(
         App_WorldLocChangeOps(
             app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3,
             pkt->op_flags, pkt->ops);
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
                 pkt->loc_id,
                 pkt->info >> 2,
@@ -1139,7 +1140,7 @@ RS_GameProto_Exec(
         break;
     }
     case PKT_NAME_IF_OPENSUB:
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("if-opensub: iface=%d target=0x%08x (%d<<16|%d) type=%d\n",
                 packet->_if_opensub.interface_id,
                 (unsigned)packet->_if_opensub.target_uid,
@@ -1305,7 +1306,7 @@ RS_GameProto_Exec(
     case PKT_NAME_REBUILD_REGION:
         /* Handled inside Task_GameProtoExec (world-load await + MAP_BUILD_
          * COMPLETE ack); reaching here means no app context. */
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("gameproto_exec: %s zone=%d,%d (no app ctx)\n",
                 packet->_map_rebuild.zones ? "REBUILD_REGION" : "REBUILD_NORMAL",
                 packet->_map_rebuild.zonex,
@@ -1315,7 +1316,7 @@ RS_GameProto_Exec(
     case PKT_NAME_NPC_INFO:
         /* Normally consumed by Task_GameProtoExec's awaited entity-info
          * tasks; reaching here means no world is active (packet dropped). */
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("gameproto_exec: entity info packet %d dropped (no active world)\n",
                 packet->packet_type);
         break;
@@ -1920,7 +1921,7 @@ RS_GameProto_Exec(
         break;
 
     default:
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("gameproto_exec: unhandled packet %d\n", packet->packet_type);
         break;
     }

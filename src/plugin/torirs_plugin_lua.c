@@ -1218,6 +1218,7 @@ static int lua_panel_builder_button(lua_State* L) { struct ToriRS_PanelBuilder* 
 static int lua_panel_builder_custom(lua_State* L) { struct ToriRS_PanelBuilder* p=lua_panel_builder(L);p->custom(p,luaL_checkstring(L,1),(int)luaL_optinteger(L,2,TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT));return 0; }
 static int lua_panel_builder_label(lua_State* L) { struct ToriRS_PanelBuilder* p=lua_panel_builder(L);p->label(p,luaL_checkstring(L,1),luaL_checkstring(L,2));return 0; }
 static int lua_panel_builder_key_value(lua_State* L) { struct ToriRS_PanelBuilder* p=lua_panel_builder(L);p->key_value(p,luaL_checkstring(L,1),luaL_checkstring(L,2),luaL_checkstring(L,3));return 0; }
+static int lua_panel_builder_action_row(lua_State* L) { struct ToriRS_PanelBuilder*p=lua_panel_builder(L);p->action_row(p,luaL_checkstring(L,1),luaL_checkstring(L,2),luaL_optstring(L,3,""));return 0; }
 static int lua_panel_builder_node(lua_State* L)
 {
     struct ToriRS_PanelBuilder* panel = lua_panel_builder(L);
@@ -1448,6 +1449,7 @@ static struct LuaFn const LUA_PANEL_BUILDER_FNS[] = {
     {"toggle",lua_panel_builder_toggle},{"select",lua_panel_builder_select},
     {"button",lua_panel_builder_button},{"custom",lua_panel_builder_custom},
     {"label",lua_panel_builder_label},{"key_value",lua_panel_builder_key_value},
+    {"action_row",lua_panel_builder_action_row},
     {"node",lua_panel_builder_node},{NULL,NULL}
 };
 static struct LuaFn const LUA_FRAME_BUILDER_FNS[] = {

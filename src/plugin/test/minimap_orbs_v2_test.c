@@ -10,6 +10,8 @@ extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MINIMAP_ORBS;
 
 static struct ToriRS_UiNode nodes[8];
 static struct ToriRS_Rect map_rect = { 600, 20, 146, 151 };
+static struct ToriRS_Rect housing_rect = { 575, 15, 172, 156 };
+static bool housing_available = true;
 static int next_image = 1;
 static int released;
 static int invoked_component = -1;
@@ -47,6 +49,7 @@ static struct ToriRS_UiNodeRef ui_ref(struct ToriRS_ApiV2* api, char const* name
 {
     (void)api;
     if( strcmp(name, "frame.minimap") == 0 ) return (struct ToriRS_UiNodeRef){ 1 };
+    if( strcmp(name, "frame.minimap.housing") == 0 ) return (struct ToriRS_UiNodeRef){ 6 };
     if( strcmp(name, "frame.orb.hitpoints") == 0 ) return (struct ToriRS_UiNodeRef){ 2 };
     if( strcmp(name, "frame.orb.prayer") == 0 ) return (struct ToriRS_UiNodeRef){ 3 };
     if( strcmp(name, "frame.orb.run") == 0 ) return (struct ToriRS_UiNodeRef){ 4 };
@@ -63,6 +66,15 @@ static bool ui_info(
     if( ref.value == 1 )
     {
         out->bounds = map_rect;
+        out->visible = true;
+        out->enabled = true;
+        out->available_facets = TORIRS_UI_FACET_ALL;
+        return true;
+    }
+    if( ref.value == 6 )
+    {
+        if( !housing_available ) return false;
+        out->bounds = housing_rect;
         out->visible = true;
         out->enabled = true;
         out->available_facets = TORIRS_UI_FACET_ALL;
@@ -218,9 +230,15 @@ int main(void)
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.state_size > 0);
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_draw != NULL);
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_action != NULL);
+    CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.ui_contributions != NULL);
+    for( int i = 0; i < 4; i++ )
+        CHECK(strcmp(
+                  TORIRS_PLUGIN_MINIMAP_ORBS.ui_contributions[i].value.parent,
+                  "frame.minimap.housing") == 0);
     state = calloc(1, TORIRS_PLUGIN_MINIMAP_ORBS.state_size);
     CHECK(state != NULL);
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_start(&api, state);
+    CHECK(nodes[2].parent && strcmp(nodes[2].parent, "frame.minimap.housing") == 0);
     CHECK(nodes[2].bounds.x == map_rect.x + 6 - 57);
     CHECK(nodes[2].bounds.width == 57 && nodes[2].bounds.height == 34);
     CHECK(nodes[2].state_images[TORIRS_UI_VISUAL_IDLE].value != 0);
@@ -239,6 +257,12 @@ int main(void)
     map_rect.x = 500;
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_placement_changed(&api, state, 2);
     CHECK(nodes[2].bounds.x == map_rect.x + 6 - 57);
+    housing_available = false;
+    TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_placement_changed(&api, state, 3);
+    CHECK(nodes[2].parent && strcmp(nodes[2].parent, "frame.minimap") == 0);
+    housing_available = true;
+    TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_placement_changed(&api, state, 4);
+    CHECK(nodes[2].parent && strcmp(nodes[2].parent, "frame.minimap.housing") == 0);
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_stop(&api, state);
     CHECK(released == 15);
     free(state);

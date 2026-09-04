@@ -2317,6 +2317,21 @@ ToriRSChrome_ListRowLocked(struct ToriRSChrome* ui, int panel, char const* label
 }
 
 int
+ToriRSChrome_ActionRow(struct ToriRSChrome* ui, int panel, char const* label)
+{
+    int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_LISTROW);
+    if( h < 0 )
+        return -1;
+    dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
+    /* The browser LISTROW already treats a locked name cell as its action
+     * target. Leaving row_action clear omits the management-only three-dot
+     * well while row_locked omits the switch. */
+    ui->widgets[h].row_action = 0;
+    ui->widgets[h].row_locked = 1;
+    return h;
+}
+
+int
 ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text)
 {
     int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_TEXTINPUT);

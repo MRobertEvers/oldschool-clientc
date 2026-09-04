@@ -1537,6 +1537,13 @@ ToriRSChrome_ListRow(
 int
 ToriRSChrome_ListRowLocked(struct ToriRSChrome* ui, int panel, char const* label);
 
+/**
+ * A full-width navigation row: `label`, no settings well, and no switch.
+ * Activating its name reports through ToriRSChrome_ActivationWasAction.
+ */
+int
+ToriRSChrome_ActionRow(struct ToriRSChrome* ui, int panel, char const* label);
+
 int
 ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text);
 

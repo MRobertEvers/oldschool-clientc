@@ -25,7 +25,7 @@ why the system was built in that order; they are not outstanding work.
 
 ## The short version
 
-The system obeys five rules:
+The system obeys six rules:
 
 1. A frame plugin **offers** one or more frames. It never claims the screen.
 2. The host is the only code that chooses the active frame. `Auto` means “use
@@ -38,6 +38,9 @@ The system obeys five rules:
 5. Plugin callbacks restate desired state. The host validates and atomically
    commits it; partially built frames and order-dependent claims never become
    visible.
+6. Application-chrome panels use retained semantic controls. Canvas drawing is
+   for content over the game, not for recreating panel text, lists, buttons, or
+   settings.
 
 The most important user-visible change is that “Gameframe” becomes one client
 setting. Enabling two frame-provider plugins cannot produce a race because
@@ -749,6 +752,32 @@ pattern where enum labels are saved and later parsed back as values. The
 Gameframe dropdown contains `auto` plus the non-core catalogue offers;
 `core/native` is the internal resolution of `auto`, not a duplicate user
 choice. Unavailable saved choices remain visible with their reason.
+
+### Plugin panels are native retained chrome
+
+`on_ui_build` declares application-chrome content as semantic panel nodes. Use
+the ordinary builders (`heading`, `paragraph`, `label`, `key_value`, `toggle`,
+`select`, `button`, and `action_row`) or `panel->node` for a less common
+semantic kind. The web and embedded-browser executors then create real retained
+controls and own their typography, layout, scaling, clipping, focus, and hit
+regions.
+
+Lists of changing stats or drill-down destinations use
+`TORIRS_PANEL_ACTION_ROW`. It is a full-width native navigation row with a
+stable `id`, primary `label`, and optional concise `text` summary. It has no
+checkbox; activating any part of it emits `TORIRS_PANEL_ACTION_ACTIVATE`.
+`panel.set_text(id, text)` patches the summary in place without rebuilding the
+page or replacing the DOM node. C exposes
+`panel->action_row(panel, id, label, summary)` and Lua exposes the equivalent
+`panel.action_row(id, label, summary)` builder.
+
+Panel text, status blocks, tracker rows, tables, lists, and settings must not be
+rendered into a `CUSTOM` bitmap. Doing so substitutes image pixels for native
+content, bypassing the executor's font and interaction semantics and making
+device-pixel-ratio and interface scaling part of plugin code.
+`on_draw_world` and `on_draw_canvas` remain the correct callbacks for overlays
+that belong over the game. The in-canvas panel presenter is a host-owned
+fallback for the same semantic model, not a second panel-authoring API.
 
 ## Public frame API example
 

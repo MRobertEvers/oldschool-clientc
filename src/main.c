@@ -1,4 +1,5 @@
 #include "app.h"
+#include "torirs_env.h"
 #include "log/torirs_log.h"
 #include "bootmanifest/bootmanifest.h"
 #include "executor_config.h"
@@ -540,7 +541,7 @@ interactive_render_present(
             {
                 ToriRS_D3D9_RenderFrame(d3d9, &frame);
             }
-            if( getenv("TORIRS_FRAME_DEBUG") )
+            if( torirs_env_frame_debug() )
                 TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
                     frame.dbg_emit_element,
                     frame.dbg_emit_terrain,
@@ -611,7 +612,7 @@ interactive_render_present(
 #endif
                     ToriRS_GLES2_RenderFrame(gles2, &frame);
             }
-            if( getenv("TORIRS_FRAME_DEBUG") )
+            if( torirs_env_frame_debug() )
                 TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
                     frame.dbg_emit_element,
                     frame.dbg_emit_terrain,
@@ -680,7 +681,7 @@ interactive_render_present(
             {
                 ToriRS_GL3_RenderFrame(gl3, &frame);
             }
-            if( getenv("TORIRS_FRAME_DEBUG") )
+            if( torirs_env_frame_debug() )
                 TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
                     frame.dbg_emit_element,
                     frame.dbg_emit_terrain,
@@ -2008,7 +2009,7 @@ frame_loop_step(void)
                  * short-circuit at the top of the loop -- so keying off it
                  * made this silently never fire in a time-bounded run. */
                 static long shot_frames = 0;
-                char const* shot_name = getenv("TORIRS_SCREENSHOT");
+                char const* shot_name = torirs_env_screenshot();
 
                 shot_frames++;
                 if( !shot_done && shot_name && *shot_name )
@@ -2042,7 +2043,7 @@ frame_loop_step(void)
              * path. */
             {
                 static int harness_done = 0;
-                char const* harness_cases = getenv("TORIRS_CS2_HARNESS");
+                char const* harness_cases = torirs_env_cs2_harness();
                 if( !harness_done && harness_cases && *harness_cases )
                 {
                     char const* at = getenv("TORIRS_CS2_HARNESS_FRAME");
@@ -2569,7 +2570,7 @@ frame_loop_step(void)
 #endif
         /* The touch-sized interface on a desktop, to look at it. @see
          * App.touch_ui. */
-        if( getenv("TORIRS_TOUCH_UI") )
+        if( torirs_env_touch_ui() )
             app.touch_ui = 1;
         /* A finger scrolls a list by dragging it; a mouse has the bar and the
          * wheel. Mirrored here, beside the flag it follows, rather than after
@@ -2580,7 +2581,7 @@ frame_loop_step(void)
         /* Cheap and unconditional: a window dragged from a Retina display to
          * an ordinary one changes density with no event that says so, and
          * App_SetChromeScale returns immediately when nothing moved. */
-        if( !getenv("TORIRS_CHROME_SCALE") )
+        if( !torirs_env_chrome_scale() )
         {
             if( app.cfg.chrome_scale < 0 )
             {
@@ -3124,7 +3125,7 @@ frame_loop_teardown(void)
                     d->model_x_offset, d->model_y_offset);
             }
         }
-        if( getenv("TORIRS_NET_DEBUG") && app.tree )
+        if( torirs_env_net_debug() && app.tree )
         {
             for( int t = 0; t < 14; t++ )
                 TORIRS_LOG("exit: tab %d overlay=%d owner=%d\n",
@@ -5412,7 +5413,7 @@ main(
          */
         {
             int density = PlatformWindow_PixelDensity(platform);
-            char const* forced = getenv("TORIRS_CHROME_SCALE");
+            char const* forced = torirs_env_chrome_scale();
             /* Precedence: the env pin (a dev working on scaled chrome from a
              * 1x display), then the manifest's stated size, then the display
              * itself. The manifest slot is what lets a boot say "this editor

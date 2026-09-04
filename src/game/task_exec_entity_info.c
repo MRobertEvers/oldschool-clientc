@@ -1,4 +1,5 @@
 #include "task_exec_entity_info.h"
+#include "torirs_env.h"
 
 #include "app.h"
 #include "game/rs_healthbar.h"
@@ -70,7 +71,7 @@ enum
 static void
 entity_debug_log(char const* fmt, int a, int b)
 {
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG(fmt, a, b);
 }
 
@@ -662,7 +663,7 @@ player_apply_op(
         break;
     }
     case PKT_PLAYER_INFO_OP_SEQUENCE:
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("player_info: sequence idx=%d id=%d delay=%d\n",
                 idx,
                 op->_sequence.sequence_id,
@@ -780,7 +781,7 @@ player_apply_op(
                     op->_headbar.end_fill));
         break;
     case PKT_PLAYER_INFO_OP_SPOTANIM:
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("player_info: spotanim idx=%d id=%d height=%d delay=%d\n",
                 idx,
                 op->_spotanim.spotanim_id,
@@ -812,7 +813,7 @@ player_apply_op(
         /* The client half of TORIRSSERVER_EXT_DEBUG's exact-move line. Without the
          * pair, "the obstacle did not glide" cannot be split into "the server
          * never set the mask" and "the client dropped the block". */
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("exactmove player idx=%d (%d,%d)->(%d,%d) cycles %d..%d "
                     "facing=%d yaw=%d\n",
                     idx, sx, sz, ex, ez, op->_exactmove.start_cycle_delta,

@@ -121,6 +121,8 @@ assert.match(legacyCss, /\.tpc-separator\s*\{[^}]*height\s*:\s*18px[^}]*backgrou
     "legacy separator keeps row pitch without painting a solid slab");
 assert.match(legacyCss, /\.tpc-custom img\s*,\s*\.tpc-custom canvas\s*\{[^}]*height\s*:\s*100%/i,
     "legacy custom pixels fill the host-selected region height");
+assert.match(legacyCss, /\.tpc-custom\s*\{[^}]*width\s*:\s*auto[^}]*box-sizing\s*:\s*content-box/i,
+    "legacy custom height names its drawable content box while the outer well still fits");
 
 assert.match(modernCss, /display:\s*-webkit-box;[\s\S]*display:\s*flex;[\s\S]*display:\s*grid;/,
     "modern CSS supplies prefixed flex before optional grid enhancement");
@@ -160,6 +162,8 @@ assert.match(modernCss, /::\-webkit-scrollbar\s*\{[^}]*width\s*:\s*16px/i,
     "browser scrollbar uses the shared 16px strip");
 assert.match(modernCss, /\.tpc-custom img\s*,\s*\.tpc-custom canvas\s*\{[^}]*height\s*:\s*100%/i,
     "custom pixels fill the host-selected region height");
+assert.match(modernCss, /\.tpc-custom\s*\{[^}]*width\s*:\s*auto[^}]*box-sizing\s*:\s*content-box/i,
+    "custom height names its drawable content box while the outer well still fits");
 
 assert.match(legacyRuntime, /AlphaImageLoader/, "XP transparent PNG fallback is bundled");
 assert.match(legacyRuntime, /type:\s*['"]editor\.focus['"]/,

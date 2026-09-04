@@ -1,4 +1,5 @@
 #include "perf/torirs_perf.h"
+#include "torirs_env.h"
 
 #include "game/task_cs2_run.h"
 
@@ -2033,7 +2034,7 @@ var_hook_debug_on(void)
 {
     static int on = -1;
     if( on < 0 )
-        on = getenv("TORIRS_VAR_HOOK_DEBUG") != NULL;
+        on = torirs_env_var_hook_debug() != NULL;
     return on;
 }
 

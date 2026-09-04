@@ -1,4 +1,5 @@
 #include "net.h"
+#include "torirs_env.h"
 
 #include "cmd/cmdbus.h"
 #include "rev/gameproto_parse.h"
@@ -300,7 +301,7 @@ ToriRS_Network_SendRaw(
     assert(net);
     if( len > 0 && data )
     {
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("net: -> %d bytes (first 0x%02x)\n", len, data[0]);
         push_out(net, TORIRS_NET_OUT_SEND_DATA, data, len);
     }
@@ -450,7 +451,7 @@ net_process_packets(struct ToriRS_Network* net)
         enum GameProtoPktName name = (enum GameProtoPktName)net->rev->packetin_code(wire);
 
         memset(&packet, 0, sizeof(packet));
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("net: <- wire=%d name=%d size=%d\n",
                 wire,
                 (int)name,

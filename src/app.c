@@ -1,4 +1,5 @@
 #include "app.h"
+#include "torirs_env.h"
 #include "log/torirs_log.h"
 
 #include "bmp.h"
@@ -823,7 +824,7 @@ App_IfEventsSet(
     app->if_event_count = replacement_count;
     app->if_event_cap = replacement_cap;
 
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("if_setevents: com=%d (%d:%d) slots=%d..%d events=0x%x\n",
             com_id,
             (com_id >> 16) & 0xffff,
@@ -2029,7 +2030,7 @@ app_worldmap_click(
     if( source < 0 )
         return;
     ToriRS_WorldMapUnpackCoord(source, &plane, &abs_x, &abs_z);
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("worldmap_click: screen=%d,%d display=%d,%d -> %d,%d,%d\n",
             mouse_x,
             mouse_y,
@@ -5404,7 +5405,7 @@ app_entity_overlay_layout(struct App* app)
              * walked out of the scene is never coming back under the same uid,
              * and the script that made the overlay gets no event to tell it so.
              */
-            if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
+            if( torirs_env_overlay_script_debug() )
                 TORIRS_LOG("overlay: reap #%d anchor=%d uid=%d coord=%d slot=%d\n",
                     i,
                     item->anchor,
@@ -5465,7 +5466,7 @@ app_entity_overlay_layout(struct App* app)
             (void)UITree_EntityOverlaySetLayerPosition(app->tree, node, x, y);
         }
 
-        if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
+        if( torirs_env_overlay_script_debug() )
         {
             int kids = 0;
             for( int32_t k = c->first_child; k >= 0; k = app->tree->components[k].next_sibling )
@@ -5559,7 +5560,7 @@ app_build_frame_overlays(
      * those it is decides whether to look at the plugin or at the
      * suppression, and there is no other way to tell them apart.
      */
-    if( getenv("TORIRS_FRAME_DEBUG") )
+    if( torirs_env_frame_debug() )
         TORIRS_LOG("frameoverlay: %d items, canvas %dx%d, hid %d chrome, roles "
             "world=%d map=%d compass=%d chat=%d side=%d modal=%d\n",
             app->frame_overlay_count,
@@ -5720,7 +5721,7 @@ app_build_entity_overlays(
     /* TORIRS_OVERLAY_DEBUG=1: the primitives this frame, plus the two assets
      * they need — a missing p11 (font -1) or hitmarks pack is the usual
      * reason a hit lands but nothing is drawn. */
-    if( getenv("TORIRS_OVERLAY_DEBUG") && app->entity_overlay_count > 0 )
+    if( torirs_env_overlay_debug() && app->entity_overlay_count > 0 )
     {
         TORIRS_LOG("overlay: %d items font=%d hitmarks=%d\n",
             app->entity_overlay_count,
@@ -10555,7 +10556,7 @@ App_Init(
                 app->features_storage.mover_model = model;
         }
 
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("app: features era=%s ground_click_nearest=%s "
                 "unbounded=%d offmap=%d painter_draw_distance=%d\n",
                 app->features->name,
@@ -10570,7 +10571,7 @@ App_Init(
          * rather than the singleton so a manifest override reaches it, and set
          * after the overrides above for the same reason. */
         World_SetFeatures(app->world, app->features);
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("app: world mover=%s\n",
                 ToriRS_Features_MoverModelName(World_MoverModel(app->world)));
 
@@ -14137,7 +14138,7 @@ app_debug_log_position(struct App* app)
 {
     struct WorldEntity_Player* local;
 
-    if( !getenv("TORIRS_POS_DEBUG") || !app->world )
+    if( !torirs_env_pos_debug() || !app->world )
         return;
     local = app_local_player(app);
     if( !local )
@@ -14187,7 +14188,7 @@ static void
 app_debug_height_profile(struct App* app)
 {
     static unsigned logged = (unsigned)-1;
-    const char* env = getenv("TORIRS_HPROF");
+    const char* env = torirs_env_hprof();
     int x0, x1, z0, z1;
     if( !env || !app->world || !app->world->load_complete )
         return;
@@ -14214,7 +14215,7 @@ static void
 app_debug_tile_flags(struct App* app)
 {
     static unsigned logged = (unsigned)-1;
-    const char* env = getenv("TORIRS_TFLAGS");
+    const char* env = torirs_env_tflags();
     int x0, x1, z0, z1;
     if( !env || !app->world || !app->world->load_complete )
         return;
@@ -14254,7 +14255,7 @@ static void
 app_debug_tile_project(struct App* app)
 {
     static int ticks = 0;
-    const char* env = getenv("TORIRS_TPROJ");
+    const char* env = torirs_env_tproj();
     int x0, x1, z0, z1;
     if( !env || !app->world || !app->world->load_complete || !app->world_view_valid )
         return;
@@ -14282,7 +14283,7 @@ app_debug_log_bridges(struct App* app)
     static unsigned logged_seq = 0;
     int count = 0;
 
-    if( !getenv("TORIRS_BRIDGE_DEBUG") || !app->world || !app->world->load_complete )
+    if( !torirs_env_bridge_debug() || !app->world || !app->world->load_complete )
         return;
     if( app->world->load_seq == logged_seq )
         return;
@@ -14401,7 +14402,7 @@ app_apply_wedge_scale(struct App* app)
     {
         app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
         app->world_camera.fov_rpi2048 = fov_override;
-        if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+        if( torirs_env_wedge_fov_debug() )
         {
             static int logged = 0;
             if( !logged )
@@ -14445,7 +14446,7 @@ app_apply_wedge_scale(struct App* app)
     {
         app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
         app->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
-        if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+        if( torirs_env_wedge_fov_debug() )
         {
             static int logged = 0;
             if( !logged )
@@ -14477,7 +14478,7 @@ app_apply_wedge_scale(struct App* app)
         near_zoom = app->host.viewport_zoom_near;
         far_zoom = app->host.viewport_zoom_far;
         {
-            char const* z = getenv("TORIRS_WEDGE_ZOOM");
+            char const* z = torirs_env_wedge_zoom();
             int zn, zf;
             if( z && sscanf(z, "%d,%d", &zn, &zf) == 2 )
             {
@@ -14507,7 +14508,7 @@ app_apply_wedge_scale(struct App* app)
     app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
     app->world_camera.projection_scale = scale;
 
-    if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+    if( torirs_env_wedge_fov_debug() )
     {
         static int last = -1;
         if( scale != last )
@@ -14539,7 +14540,7 @@ app_update_world_viewport(struct App* app)
     app_debug_tile_flags(app);
     app->world_view_valid = 0;
     app->minimap_view_valid = 0;
-    if( getenv("TORIRS_WORLD_VIEW_DEBUG") )
+    if( torirs_env_world_view_debug() )
     {
         int kinds[24] = { 0 };
         for( int i = 0; i < app->emit.count; i++ )
@@ -15534,7 +15535,7 @@ App_OpenSubInterface(
     int type)
 {
     assert(app);
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("if-opensub: mount iface=%d under uid=0x%08x (%d<<16|%d) type=%d\n",
             interface_id,
             (unsigned)target_uid,
@@ -15555,7 +15556,7 @@ App_CloseSubInterface(
     int target_uid)
 {
     assert(app);
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("if-closesub: unmount uid=0x%08x (%d<<16|%d)\n",
             (unsigned)target_uid,
             (target_uid >> 16) & 0xffff,
@@ -15582,7 +15583,7 @@ App_MoveSubInterface(
         return;
     group_id = app->tree->interface_parents[idx].group_id;
     type = app->tree->interface_parents[idx].type;
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("if-movesub: group=%d type=%d src=0x%08x dest=0x%08x\n",
             group_id,
             type,
@@ -15642,7 +15643,7 @@ App_RunClientScript(
 {
     assert(app);
     assert(request);
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("runclientscript: script=%d argc=%d str_mask=0x%x (held for tick fence)\n",
             request->script_id,
             request->argc,
@@ -16896,7 +16897,7 @@ app_logic_tick(struct App* app)
         if( app->net->state == TORIRS_NET_GAME && app->world_active )
         {
             static int cheat_every = -1;
-            char const* cheat = getenv("TORIRS_NET_CHEAT");
+            char const* cheat = torirs_env_net_cheat();
             int fire = 0;
 
             if( !cheat || !cheat[0] )
@@ -16981,7 +16982,7 @@ app_logic_tick(struct App* app)
                 if( rotate )
                 {
                     int parts = 0;
-                    char const* p = getenv("TORIRS_NET_CHEAT");
+                    char const* p = torirs_env_net_cheat();
                     if( !p || !p[0] )
                         p = app->cfg.net_cheat;
                     while( p && p[0] )
@@ -17338,7 +17339,7 @@ app_logic_tick(struct App* app)
              * The three TILE refreshers are different and are driven below:
              * nothing in the cache calls those at all.
              */
-            if( getenv("TORIRS_CLIENTOP_DEBUG") )
+            if( torirs_env_clientop_debug() )
             {
                 /* The COMPONENT is part of what the pointer is on, so a UI
                  * hover is a change of subject even when the world pick is
@@ -18891,7 +18892,7 @@ app_update_painter_cull(
         return;
     painter = world->painter;
     {
-        char const* dd = getenv("TORIRS_DRAW_DISTANCE");
+        char const* dd = torirs_env_draw_distance();
         int v = ToriRS_Features_PainterDrawDistance(app->features);
         int from_env;
         if( dd && dd[0] != '\0' && sscanf(dd, "%d", &from_env) == 1 )
@@ -18900,7 +18901,7 @@ app_update_painter_cull(
     }
     radius = painter_get_draw_distance(painter);
 
-    nocull = getenv("TORIRS_PAINTER_NOCULL");
+    nocull = torirs_env_painter_nocull();
     if( nocull && nocull[0] != '\0' && nocull[0] != '0' )
     {
         painter_set_cullspan(painter, NULL);
@@ -18931,7 +18932,7 @@ app_update_painter_cull(
      * TORIRS_WEDGE_DRAWCENTER=orbit restores the old behaviour for A/B. */
     follow_cam = 0;
     {
-        char const* dc = getenv("TORIRS_WEDGE_DRAWCENTER");
+        char const* dc = torirs_env_wedge_drawcenter();
         if( dc && strcmp(dc, "orbit") == 0 )
             follow_cam = app->net && !app->cam_script.scripted;
     }
@@ -18969,7 +18970,7 @@ app_update_painter_cull(
      * radius box diagonal (radius * 128 * sqrt(2)) at both 25 and 90. */
     far_z = radius * OCCLUDER_FAR_CLIP_PER_TILE;
 
-    cull_mode = getenv("TORIRS_PAINTER_CULL");
+    cull_mode = torirs_env_painter_cull();
     if( cull_mode && strcmp(cull_mode, "baked") == 0 )
     {
         struct PaintersCullMap* cm = NULL;
@@ -19580,7 +19581,7 @@ app_world_paint(struct App* app)
      * disables (mirrors TORIRS_PAINTER_NOCULL=1). Default is on. */
     {
         struct SceneOccluders* occ = painter_get_occluders(app->world->painter);
-        const char* env_occ = getenv("TORIRS_OCCLUDERS");
+        const char* env_occ = torirs_env_occluders();
         int occ_off = env_occ && env_occ[0] == '0' && env_occ[1] == '\0';
         if( occ && !occ_off )
         {
@@ -19613,7 +19614,7 @@ app_world_paint(struct App* app)
                 NULL,
                 app->world_camera.pitch,
                 app->world_camera.yaw);
-            if( getenv("TORIRS_OCCLUDERS_DEBUG") )
+            if( torirs_env_occluders_debug() )
             {
                 static int s_logged;
                 if( !s_logged )
@@ -19669,7 +19670,7 @@ app_world_paint(struct App* app)
      * it with TORIRS_PIXOWNER to name what changed hands, or
      * TORIRS_PAINTER_ALT=1 + TORIRS_BMP_SERIES for a same-frame image pair. */
     else if( g_torirs_painter_force == 1 ||
-             (g_torirs_painter_force == 0 && getenv("TORIRS_PAINTER_W3D")) )
+             (g_torirs_painter_force == 0 && torirs_env_painter_w3d()) )
         painter_paint_world3d(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
     else
         painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
@@ -19683,7 +19684,7 @@ app_world_paint(struct App* app)
     /* TORIRS_PAINT_DEBUG: what the painter actually emitted this frame, by kind.
      * Scene elements existing is not the same as being painted — the bucket
      * flood-fill, the level mask and the cull map each drop work silently. */
-    if( getenv("TORIRS_PAINT_DEBUG") )
+    if( torirs_env_paint_debug() )
     {
         int by_kind[16] = { 0 };
         for( int i = 0; i < app->painter_buffer->command_count; i++ )
@@ -19724,12 +19725,12 @@ app_world_paint(struct App* app)
     {
         static int done = 0;
         static int paints = 0;
-        const char* env = getenv("TORIRS_TILETABLE");
+        const char* env = torirs_env_tiletable();
         /* Wait for the paint the caller means. The table is only interesting
          * after a teleport into an instance, and printing on the first paint
          * silently describes wherever the player logged in — the same trap that
          * made TORIRS_HPROF report Lumbridge's relief for the arena. */
-        const char* at = getenv("TORIRS_TILETABLE_AT");
+        const char* at = torirs_env_tiletable_at();
         int want_paint = at ? atoi(at) : 600;
         int x0, x1, z0, z1;
         paints++;
@@ -20000,7 +20001,7 @@ app_world_nearest_ground_tile(
 
     if( best_d2 == LLONG_MAX )
         return 0;
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("groundfallback: click=%d,%d -> scene=%d,%d l%d dist2=%lld\n",
             click_x,
             click_y,
@@ -20086,7 +20087,7 @@ app_try_move(
         {
             int clamped_x = (px * over + dst_x * clamp) / (over + clamp);
             int clamped_z = (pz * over + dst_z * clamp) / (over + clamp);
-            if( getenv("TORIRS_NET_DEBUG") )
+            if( torirs_env_net_debug() )
                 TORIRS_LOG("groundclamp: %d,%d -> %d,%d (player %d,%d; %d tiles past %d)\n",
                     dst_x,
                     dst_z,
@@ -20140,7 +20141,7 @@ app_try_move(
     if( route_len < 1 )
         return 0;
 
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("trymove: type=%d src=%d,%d dst=%d,%d route_len=%d nearest=%d dest=%d,%d\n",
             type,
             player->pathing.route_x[0],
@@ -20520,7 +20521,7 @@ app_minimap_click(
         tile_z >= app->world->_scene_size )
         return 0;
 
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("minimap: click=%d,%d rel=%d,%d scene=%d,%d abs=%d,%d\n",
             center_x,
             center_y,
@@ -20647,7 +20648,7 @@ app_world_camera_keys(
      * key state rather than key_event_count — that counter only fills when a
      * component carries an onKey hook, so it is 0 for exactly the debug keys
      * this is meant to explain. */
-    if( getenv("TORIRS_KEY_DEBUG") &&
+    if( torirs_env_key_debug() &&
         (app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_TOGGLE) ||
          app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_MORE) ||
          app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_LESS) ||
@@ -22451,7 +22452,7 @@ app_world_spawn_projectile_spot_now(
     ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
     app_world_apply_seq(app, element_id, spot->seq);
 
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("spawn_projectile_spot: element=%d spotanim=%d model=%d seq=%d "
             "%d,%d -> %d,%d lvl=%d/%d t1=%d t2=%d target=%d src_y=%d ground=%d "
             "dst_ground=%d h1=%d h2=%d\n",
@@ -23767,7 +23768,7 @@ Task_AppIfHead_Run(
      * a redraw so the poll runs now that the head is composited. */
     if( scene_id >= 0 )
         app->need_redraw = 1;
-    else if( getenv("TORIRS_NET_DEBUG") )
+    else if( torirs_env_net_debug() )
         TORIRS_LOG("if-head: component=0x%x kind=%d could not composite head (npc=%d)\n",
             (unsigned)self->component_id,
             (int)self->kind,
@@ -24291,7 +24292,7 @@ app_if_head_poll(struct App* app)
                 UITree_ApplyModelAnim(app->tree, head->com_id, head->anim_id);
             head->applied_gen = app->tree->generation;
         }
-        else if( getenv("TORIRS_NET_DEBUG") )
+        else if( torirs_env_net_debug() )
             TORIRS_LOG("if-head: reapply com=%d npc=%d gen=%u missed (node not mounted?)\n",
                 head->com_id,
                 head->npc_id,
@@ -24319,7 +24320,7 @@ app_if_player_model_poll(struct App* app)
                 UITree_ApplyModelAnim(app->tree, model->com_id, model->anim_id);
             model->applied_gen = app->tree->generation;
         }
-        else if( getenv("TORIRS_NET_DEBUG") )
+        else if( torirs_env_net_debug() )
             TORIRS_LOG("if-player-model: reapply com=%d scene=%d gen=%u missed\n",
                 model->com_id,
                 model->scene_id,
@@ -26631,7 +26632,7 @@ app_world_camera_follow(struct App* app)
      * is invisible in a still frame — it only shows as the model swinging in a
      * circle while you rotate, which reads as "the camera orbits the tile".
      * This is the number that says whether it does: settled, it must go to 0. */
-    if( getenv("TORIRS_ORBIT_DEBUG") )
+    if( torirs_env_orbit_debug() )
         TORIRS_LOG("orbit: anchor=(%.3f,%.3f) player=(%d,%d) residual=(%.3f,%.3f) "
             "pitch=%d yaw=%d dist=%d look_y=%d eye=(%d,%d,%d)\n",
             (double)app->orbit_x,
@@ -26869,7 +26870,7 @@ app_world_frame(
      * me" is that last symptom. The first two are fixed by identity checks; this
      * detector is what proves whether the underlying aliasing still happens.
      */
-    if( app->world && getenv("TORIRS_ELEMENT_ALIAS_CHECK") )
+    if( app->world && torirs_env_element_alias_check() )
     {
         struct World_EntityPool* pools[2] = { &app->world->entities.player,
                                               &app->world->entities.npc };
@@ -27429,7 +27430,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
         return 1;
     }
 
-    if( getenv("TORIRS_CLIENTOP_DEBUG") )
+    if( torirs_env_clientop_debug() )
         TORIRS_LOG("clientop: %s slot %d '%s' -> script %d (uid=%d type=%d coord=%d '%s')\n",
             RS_ClientOpKindName((enum RS_ClientOpKind)kind),
             slot,
@@ -29439,7 +29440,7 @@ app_minimenu_run_option(
             int deck_route_x[1] = { opt.pick.secondary_id };
             int deck_route_z[1] = { opt.pick.tertiary_id };
 
-            if( getenv("TORIRS_NET_DEBUG") )
+            if( torirs_env_net_debug() )
                 TORIRS_LOG("minimenu: deck walk-click view=%d local=%d,%d abs=%d,%d\n",
                     opt.pick.view_id,
                     opt.pick.secondary_id,
@@ -29493,7 +29494,7 @@ app_minimenu_run_option(
         /* Walk here (reference tryMove type 0): BFS route + MOVE_GAMECLICK
          * waypoints; no local prediction — the PLAYER_INFO echo moves the
          * player. */
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("minimenu: walk-click scene=%d,%d abs=%d,%d\n",
                 opt.pick.secondary_id,
                 opt.pick.tertiary_id,
@@ -31837,7 +31838,7 @@ App_RunOnce(
     /* Left click over bare world (no UI component hit): run the default menu
      * entry from world rows only — Walk here / nearest entity op (reference
      * chooseDefaultMenuEntry over the last rendered frame's pickset). */
-    if( getenv("TORIRS_NET_DEBUG") && (out.left_click_miss || out.clicked_com_id >= 0) )
+    if( torirs_env_net_debug() && (out.left_click_miss || out.clicked_com_id >= 0) )
         TORIRS_LOG("click: miss=%d (%d,%d) com=0x%x gate=%d drawable=%d picks=%d\n",
             out.left_click_miss,
             out.left_click_miss_x,
@@ -32155,7 +32156,7 @@ App_RunOnce(
                 &app->host, out.key_mouse_x - target->abs_x, out.key_mouse_y - target->abs_y);
             RS_CS2_SetEventKey(
                 &app->host, out.key_events[e].key_typed, out.key_events[e].key_pressed);
-            if( getenv("TORIRS_KEY_DEBUG") )
+            if( torirs_env_key_debug() )
                 TORIRS_LOG("key_dispatch: com=0x%08x script=%d typed=%d pressed=%d\n",
                     target->component_id,
                     UITree_Hooks(&app->tree->components[idx])->on_key.script_id,
@@ -32208,7 +32209,7 @@ App_RunOnce(
                 RS_CS2_SetEventMouse(
                     &app->host, out.key_mouse_x - target->abs_x, out.key_mouse_y - target->abs_y);
                 RS_CS2_SetEventKey(&app->host, codes[e], 0);
-                if( getenv("TORIRS_KEY_DEBUG") )
+                if( torirs_env_key_debug() )
                     TORIRS_LOG("key_%s_dispatch: com=0x%08x script=%d key=%d\n",
                         down ? "down" : "up",
                         target->component_id,
@@ -32625,7 +32626,7 @@ App_RunOnce(
             {
                 bool ok =
                     UITree_ApplyText(app->tree, app->if_texts[i].com_id, app->if_texts[i].text);
-                if( !ok && getenv("TORIRS_NET_DEBUG") )
+                if( !ok && torirs_env_net_debug() )
                     TORIRS_LOG("if_settext: reapply com=%d gen=%u missed\n",
                         app->if_texts[i].com_id,
                         app->tree->generation);
@@ -32638,7 +32639,7 @@ App_RunOnce(
             {
                 bool ok =
                     UITree_ApplyHide(app->tree, app->if_hides[i].com_id, app->if_hides[i].hide);
-                if( !ok && getenv("TORIRS_NET_DEBUG") )
+                if( !ok && torirs_env_net_debug() )
                     TORIRS_LOG("if_sethide: reapply com=%d gen=%u missed\n",
                         app->if_hides[i].com_id,
                         app->tree->generation);
@@ -32651,7 +32652,7 @@ App_RunOnce(
             {
                 bool ok = UITree_ApplyColour(
                     app->tree, app->if_colours[i].com_id, app->if_colours[i].colour);
-                if( !ok && getenv("TORIRS_NET_DEBUG") )
+                if( !ok && torirs_env_net_debug() )
                     TORIRS_LOG("if_setcolour: reapply com=%d gen=%u missed\n",
                         app->if_colours[i].com_id,
                         app->tree->generation);
@@ -32667,7 +32668,7 @@ App_RunOnce(
          * so e.g. the magic tab (161|82 = 0x00a10052) is otherwise never visible.
          * Only this node's own flag is forced; the subtree's own hide state stands. */
         {
-            char const* force_show = getenv("TORIRS_FORCE_SHOW_SLOT");
+            char const* force_show = torirs_env_force_show_slot();
             if( force_show )
             {
                 int want = (int)strtol(force_show, NULL, 0);
@@ -33035,7 +33036,7 @@ App_SendIdkDesign(
     int const colours[RS_IDK_DESIGN_COLOURS])
 {
     assert(app && kits && colours);
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("idk_savedesign: gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] colours=[%d,%d,%d,%d,%d]\n",
             gender,
             kits[0],
@@ -33084,7 +33085,7 @@ App_IfTextSet(
     app->if_texts[i].text = strdup(text ? text : "");
     {
         bool applied = UITree_ApplyText(app->tree, com_id, text);
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("if_settext: com=%d text='%s' applied=%d\n",
                 com_id,
                 text ? text : "",
@@ -33119,7 +33120,7 @@ App_IfColourSet(
     app->if_colours[i].colour = colour;
     {
         bool applied = UITree_ApplyColour(app->tree, com_id, colour);
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour,
                 (int)applied);
     }
@@ -33152,7 +33153,7 @@ App_IfHideSet(
     app->if_hides[i].hide = hide ? 1 : 0;
     {
         bool applied = UITree_ApplyHide(app->tree, com_id, hide);
-        if( getenv("TORIRS_NET_DEBUG") )
+        if( torirs_env_net_debug() )
             TORIRS_LOG("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
     }
     app->need_redraw = 1;
@@ -33172,7 +33173,7 @@ app_send_if_button(
      * on chatmenu rows (and any other IF_SETEVENTS-armed list) must use that
      * pair, which is IF_BUTTON1 with the sub-id, not plain IF_BUTTON. */
     app_if_button_target(app, com_id, &target, &sub);
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("if_button: com=%d target=%d sub=%d\n", com_id, target, sub);
     if( sub >= 0 )
     {
@@ -33200,7 +33201,7 @@ app_send_resume_pausebutton(
      * uid plus the dynamic child's sub-id. The child runtime uid exists only
      * in this client, so resolve it at the wire boundary. */
     app_if_button_target(app, com_id, &target, &sub);
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("resume_pausebutton: com=%d target=%d sub=%d\n", com_id, target, sub);
     APP_NET_SEND(
         app,
@@ -33954,7 +33955,7 @@ App_WorldObjStackAdd(
     if( element_id < 0 )
         return -1;
 
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("objstack: obj=%d tile=%d,%d,%d element=%d\n",
             obj_id,
             scene_x,
@@ -34102,7 +34103,7 @@ App_WorldRebuildShift(
     /* Force a minimap rebake (deob field757 = -1 / Client-TS minimapLevel = -1). */
     app->world_map_level = -1;
 
-    if( getenv("TORIRS_NET_DEBUG") )
+    if( torirs_env_net_debug() )
         TORIRS_LOG("rebuild_shift: dx=%d dz=%d\n", base_dx, base_dz);
     /* Projectiles/spotanims/far stacks queued EntityRemoved above — free their
      * DYNAMIC scene elements now so the next frame does not race a full queue. */
@@ -34692,7 +34693,7 @@ App_WorldApplyNpcType(
                 app_plugin_fill_npc(app, npc, &retyped);
                 PluginHost_NpcRetype(app->plugins, &retyped);
             }
-            if( getenv("TORIRS_NET_DEBUG") )
+            if( torirs_env_net_debug() )
                 TORIRS_ERR("entity_sync: npc type replacement=%d element=%d tile=%d,%d size=%d "
                     "model=%s\n",
                     npc_type,
@@ -35393,7 +35394,7 @@ App_Render(
     if( app->net_lost )
         app_draw_connection_lost_overlay(app, pixels, width, height);
 
-    if( getenv("TORIRS_FRAME_DEBUG") )
+    if( torirs_env_frame_debug() )
         TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
             frame.dbg_emit_element,
             frame.dbg_emit_terrain,

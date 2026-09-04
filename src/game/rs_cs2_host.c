@@ -1,4 +1,5 @@
 #include "game/rs_cs2_host.h"
+#include "torirs_env.h"
 
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
@@ -2986,7 +2987,7 @@ minimenu_find(struct RS_CS2Host* host, enum RS_ClientOpKind kind, int menu_type)
         return 0;
     }
     RS_ClientOpActiveSet(&host->clientop, kind, &host->clientop.mouseover);
-    if( getenv("TORIRS_CLIENTOP_DEBUG") )
+    if( torirs_env_clientop_debug() )
         TORIRS_LOG("minimenu_find: %s latched uid=%d type=%d '%s'\n",
             RS_ClientOpKindName(kind),
             host->clientop.mouseover.uid,
@@ -3095,7 +3096,7 @@ exec_minimenu(
         if( host->clientop.mouseover_component < 0 )
             return CS2VM2_PushInt(thread, 0);
         CS2VM2_SetActiveAndDotComponentId(thread, host->clientop.mouseover_component);
-        if( getenv("TORIRS_CLIENTOP_DEBUG") )
+        if( torirs_env_clientop_debug() )
             TORIRS_LOG("minimenu_find: component latched %d\n",
                 host->clientop.mouseover_component);
         return CS2VM2_PushInt(thread, 1);
@@ -3386,7 +3387,7 @@ exec_viewport(
          * kept (Statics.method5659), each falling back to 256. */
         host->viewport_zoom_near = rs_cs2_viewport_zoom_decode(args[0]);
         host->viewport_zoom_far = rs_cs2_viewport_zoom_decode(args[1]);
-        if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+        if( torirs_env_wedge_fov_debug() )
             TORIRS_ERR("wedge: VIEWPORT_SETFOV raw=%d,%d decoded near=%d far=%d\n",
                 args[0], args[1],
                 host->viewport_zoom_near, host->viewport_zoom_far);
@@ -4837,7 +4838,7 @@ exec_entity_overlay(
 
     assert(host);
 
-    if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
+    if( torirs_env_overlay_script_debug() )
     {
         TORIRS_LOG("overlay: op %d args", opcode);
         for( int i = 0; i < arg_count; i++ )
@@ -6395,7 +6396,7 @@ exec_set_on_var_transmit(
     /* TORIRS_VAR_HOOK_DEBUG=1: what the VM actually asked for. A hook that is
      * never registered and a hook that is registered and then reclaimed look
      * the same in the dispatch trace; this is the other end of that pair. */
-    if( getenv("TORIRS_VAR_HOOK_DEBUG") )
+    if( torirs_env_var_hook_debug() )
     {
         int t;
         TORIRS_LOG("VARHOOKSET com=0x%08x script=%d triggers=%d[",
@@ -8239,7 +8240,7 @@ exec_clientop_request(
     int script_id,
     char const* label)
 {
-    if( getenv("TORIRS_CLIENTOP_DEBUG") )
+    if( torirs_env_clientop_debug() )
         TORIRS_LOG("clientop: op %d %s slot %d script %d '%s'\n",
             opcode,
             is_set ? "set" : "del",
