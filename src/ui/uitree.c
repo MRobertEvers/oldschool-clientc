@@ -3039,7 +3039,7 @@ UITree_CcCopy(
     spec.component_id = UITree_AllocateDynamicComponentId(tree, iface_id);
     spec.dynamic = 1;
     spec.dynamic_child_index = dst_sub_id;
-    spec.always_dirty = 1;
+    spec.always_dirty = src.always_dirty;
 
     int32_t const idx = UITree_Push(tree, parent_index, &spec);
     if( idx < 0 )
@@ -3047,6 +3047,9 @@ UITree_CcCopy(
 
     struct UITreeComponent* dst = &tree->components[idx];
 
+    /* Push owns default lazy blocks for builtin arms. Drop those before
+     * installing an independently owned payload; identity/topology stay new. */
+    uitree_component_free_owned(dst);
     dst->u = src.u;
     if( src.type == UIELEM_RS_TEXT )
     {
@@ -3054,6 +3057,53 @@ UITree_CcCopy(
         dst->u.rs_text.text = src.u.rs_text.text ? strdup(src.u.rs_text.text) : NULL;
         dst->u.rs_text.text_active =
             src.u.rs_text.text_active ? strdup(src.u.rs_text.text_active) : NULL;
+    }
+
+    /* Every pointer-bearing union arm must own its allocation. Native CC_COPY
+     * normally copies IF3 payloads, but this internal operation also accepts
+     * dynamic engine-created nodes. Never alias their inventory/chrome data. */
+#define COPY_OWNED_ARM(arm) do { \
+    dst->u.arm = src.u.arm ? malloc(sizeof(*src.u.arm)) : NULL; \
+    if( src.u.arm ) { \
+        if( !dst->u.arm ) abort(); \
+        *dst->u.arm = *src.u.arm; \
+    } \
+} while( 0 )
+    switch( src.type )
+    {
+    case UIELEM_RS_INV: COPY_OWNED_ARM(rs_inv.slots); break;
+    case UIELEM_BUILTIN_CHAT: COPY_OWNED_ARM(chat); break;
+    case UIELEM_BUILTIN_CHAT_BUTTON: COPY_OWNED_ARM(chat_button); break;
+    case UIELEM_BUILTIN_DEBUG_OVERLAY: COPY_OWNED_ARM(debug_overlay); break;
+    case UIELEM_BUILTIN_LOGIN_INPUT: COPY_OWNED_ARM(login_input); break;
+    default: break;
+    }
+#undef COPY_OWNED_ARM
+
+    /* Native state copies independently of the source's placement, claims,
+     * focus, mount bookkeeping, derived indexes and active gesture. Those
+     * remain the freshly allocated destination's values. */
+    UITree_SetBehavior(tree, idx, &src.behavior);
+    dst->native_hide = src.native_hide;
+    dst->colour = src.colour;
+    dst->fill_colour = src.fill_colour;
+    dst->data_text = src.data_text ? strdup(src.data_text) : NULL;
+    if( src.data_text && !dst->data_text ) abort();
+    dst->cs1_active = src.cs1_active;
+    memcpy(dst->cs1_values, src.cs1_values, sizeof(dst->cs1_values));
+    dst->scroll_x = src.scroll_x;
+    dst->scroll_y = src.scroll_y;
+    dst->trans_bot = src.trans_bot;
+    dst->hotkey_effects = src.hotkey_effects;
+    dst->drag_render_area_uid = src.drag_render_area_uid;
+    dst->drag_render_area_child_index = src.drag_render_area_child_index;
+    dst->item_num_mode = src.item_num_mode;
+    for( int i = 0; i < src.params_count; ++i )
+    {
+        struct UITreeComponentParam const* param = &src.params[i];
+        if( !UITree_ApplyComponentParam(tree, dst->component_id, param->id, param->value,
+                                       param->str) )
+            abort();
     }
 
     dst->trans = src.trans;
@@ -3097,9 +3147,6 @@ UITree_CcCopy(
         UITreeNodeSet_Add(&tree->opkeys, idx);
     else
         UITreeNodeSet_Remove(&tree->opkeys, idx);
-
-    /* cs1 behavior scripts stay uncopied: dynamic children are driven by cs2
-     * hooks, and the script arrays are owned per node. */
 
     dst->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);

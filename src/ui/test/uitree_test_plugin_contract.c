@@ -85,3 +85,70 @@ void test_plugin_contract_native(void)
     TEST_ASSERT(UITree_NodeNativeVisible(tree, NULL, root, -1), "mount exposes current native visibility");
     UITree_Free(tree);
 }
+
+void test_plugin_contract_copy(void)
+{
+    struct UITree* tree = UITree_New(8);
+    int parent = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 0x220000, 0, 0, 100, 100);
+    int source = UITree_CcCreate(tree, parent, 0x220000, 0, 0);
+    int source_id = tree->components[source].component_id;
+    int script_ops[] = {1, 2, 3};
+    int* scripts[] = {script_ops};
+    int lengths[] = {3};
+    struct UITreeBehavior behavior = {.scripts_count=1, .scripts=scripts, .scripts_lengths=lengths};
+    UITree_SetBehavior(tree, source, &behavior);
+    UITree_SetHideAt(tree, source, 1);
+    UITree_ApplyClickMask(tree, source_id, 0x123456);
+    UITree_ApplyColour(tree, source_id, 0x125678);
+    UITree_ApplyFillColour(tree, source_id, 0xabcdef);
+    UITree_ApplyText(tree, source_id, "live source");
+    UITree_ApplyComponentParam(tree, source_id, 100, 42, NULL);
+    UITree_ApplyComponentParam(tree, source_id, 101, 0, "source parameter");
+    UITree_SetScrollSizeAt(tree, source, 200, 300);
+    UITree_SetScrollPosAt(tree, source, 12, 23);
+    tree->components[source].frame_hidden = 1;
+    tree->components[source].replacement_paint_hidden = 1;
+    int copy = UITree_CcCopy(tree, parent, 0x220000, 0, 1);
+    TEST_ASSERT(copy >= 0, "copy succeeds");
+    if( copy < 0 ) { UITree_Free(tree); return; }
+    int copy_id = tree->components[copy].component_id;
+    TEST_ASSERT(tree->components[copy].behavior.scripts_count == 1 &&
+                tree->components[copy].behavior.scripts != tree->components[source].behavior.scripts &&
+                tree->components[copy].behavior.scripts[0][2] == 3,
+                "copy owns native behavior scripts");
+    TEST_ASSERT(tree->cs1_script_nodes == 2, "copied behavior joins CS1 evaluation");
+    TEST_ASSERT(tree->components[copy].native_hide, "copy preserves native hide");
+    TEST_ASSERT(tree->components[copy].behavior.click_mask == 0x123456, "copy preserves native click mask");
+    TEST_ASSERT(tree->components[copy].colour == 0x125678 && tree->components[copy].fill_colour == 0xabcdef,
+                "copy preserves script-visible colors");
+    TEST_ASSERT(tree->components[copy].data_text && strcmp(tree->components[copy].data_text, "live source") == 0,
+                "copy preserves generic component text");
+    int value = 0;
+    TEST_ASSERT(UITree_ComponentParamGet(tree, copy_id, 100, &value) && value == 42,
+                "copy preserves integer parameters");
+    char const* text = UITree_ComponentParamGetStr(tree, copy_id, 101);
+    TEST_ASSERT(text && strcmp(text, "source parameter") == 0, "copy preserves string parameters");
+    TEST_ASSERT(tree->components[copy].scroll_x == 12 && tree->components[copy].scroll_y == 23,
+                "copy preserves native scrolling");
+    TEST_ASSERT(!tree->components[copy].frame_hidden && !tree->components[copy].replacement_paint_hidden,
+                "copy cannot acquire source presentation claims");
+    UITree_ApplyText(tree, source_id, "changed");
+    UITree_ApplyComponentParam(tree, source_id, 101, 0, "changed");
+    UITree_CcDelete(tree, source);
+    TEST_ASSERT(tree->cs1_script_nodes == 1, "source deletion preserves copied CS1 registration");
+    text = UITree_ComponentParamGetStr(tree, copy_id, 101);
+    TEST_ASSERT(text && strcmp(text, "source parameter") == 0, "copy owns parameters after source deletion");
+    TEST_ASSERT(tree->components[copy].data_text && strcmp(tree->components[copy].data_text, "live source") == 0,
+                "copy owns generic text after source deletion");
+    struct UITreeNodeSpec spec = {.type=UIELEM_RS_INV, .component_id=0x220001,
+        .dynamic=1, .dynamic_child_index=2};
+    int inv = UITree_Push(tree, parent, &spec);
+    UITree_InvSlotsMut(&tree->components[inv])->offset_x[0] = 17;
+    int inv_copy = UITree_CcCopy(tree, parent, 0x220000, 2, 3);
+    TEST_ASSERT(inv_copy >= 0 && tree->components[inv_copy].u.rs_inv.slots !=
+                tree->components[inv].u.rs_inv.slots, "copy owns inventory slot data");
+    UITree_CcDelete(tree, inv);
+    TEST_ASSERT(UITree_InvSlots(&tree->components[inv_copy])->offset_x[0] == 17,
+                "inventory copy survives source deletion");
+    UITree_Free(tree);
+}

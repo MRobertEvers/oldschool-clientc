@@ -2974,7 +2974,12 @@ test-painters-world-entity: $(OBJ_DIR)
 CHROME_EXEC_TEST_CFLAGS = -UTORIRS_CHROME_EXEC_WEB_AVAILABLE \
 	-UTORIRS_CHROME_EXEC_BROWSER_AVAILABLE
 
-test-uitree: $(OBJ_DIR)
+UITREE_TEST_ENV =
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+UITREE_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
+
+test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
@@ -3007,7 +3012,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_server_viewport.c ui/test/uitree_test_frame.c \
 		ui/test/uitree_test_roles.c \
 		ui/test/uitree_test_scripted_overlay.c render/torirs_arc.c -lm
-	./$(OBJ_DIR)/uitree_test
+	$(UITREE_TEST_ENV) ./$(OBJ_DIR)/uitree_test
 
 # The attached plugin pane's WINDOW-SIZE policy alone (grow only where the
 # display has room, never while maximised, Close gives back what was grown,

@@ -10,6 +10,7 @@ import subprocess
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", type=Path)
+    parser.add_argument("--only", action="append", help="run only this named mechanism (repeatable)")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
     out = args.out.resolve()
@@ -21,6 +22,7 @@ def main():
                    if "ui/uitree.c " in line and " -o " in line)
     original = (src / "ui/uitree.c").read_text()
     controls = {
+        "copy_state": ("i < src.params_count", "i < 0", "copy preserves integer parameters"),
         "tree_identity": ("ref.tree_instance != tree->instance_id", "false",
                           "reference cannot cross tree instances"),
         "identity": ("!c->freed && c->incarnation == ref.incarnation",
@@ -36,7 +38,11 @@ def main():
                        "mount cannot clear later server hide"),
         "topology": ("ancestor == child_index ||", "false ||", "reject descendant cycle"),
     }
+    if args.only and set(args.only) - controls.keys():
+        parser.error("unknown control: " + ", ".join(set(args.only) - controls.keys()))
     for name, (before, after, expected) in controls.items():
+        if args.only and name not in args.only:
+            continue
         if original.count(before) != 1:
             raise RuntimeError(f"{name}: mechanism changed; update the explicit mutation")
         mutant = out / f"{name}.c"

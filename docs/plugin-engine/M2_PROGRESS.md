@@ -47,3 +47,33 @@ completion, publication-boundary enforcement, remaining direct runtime writers,
 and invalidation coverage for every property family. Focus visibility/lifecycle
 and the other retained interactions need the complete presentation authority
 from M3/M4. These runs do not establish those unimplemented guarantees.
+
+## Native copy checkpoint
+
+`CC_COPY` now preserves native behavior/hiding, script-visible colors and text,
+parameters, scroll state, count display mode, drag constraints and hotkeys.
+Owned strings, behavior scripts, parameters, inventory slot data and builtin
+payloads are copied independently. Topology, identity, presentation claims and
+active interactions remain those of the new node.
+
+Nine native-copy assertions were observed failing before this fix
+(`/private/tmp/plugin-engine-m2-copy-red.log`). Ordinary UITree tests now pass,
+and `m2-copy-negative` proves removing parameter copying fails the semantic
+assertions. The source-deletion cases cover independent ownership and CS1
+live-set membership.
+
+`make -C src OPT=0 ENABLE_ASAN=1 test-uitree` passes with actual address
+instrumentation. The UITree make target now uses the existing macOS ASan shim,
+matching other native test targets. Without it the sampled process recurred
+through `AsanInitFromRtl`, dyld shared-cache iteration and `_Block_copy` before
+main. The earlier command using `ASAN=1` was only an ordinary debug build and
+is excluded as sanitizer evidence.
+
+`m2-osrs-bank-copy-trace` passes the prepared native capture gate. With
+`TORIRS_CS2_TRACE=1 TORIRS_CS2_TRACE_SCRIPT=505` and `500,bank`, the trace records
+45 actual `CC_COPY(105)` operations in native script 505. The bank capture was
+inspected at 2×: 48 visible item cells, three visible tab-strip boxes, twelve
+bottom controls and the Close control. rs289lc has no CS2 `CC_COPY` producer;
+its previous actual packet/CS1 runs cover the shared identity/hiding changes.
+The complete mutation audit, allocation-failure policy and queued-callback
+validation are still pending; native-copy success does not close those gates.
