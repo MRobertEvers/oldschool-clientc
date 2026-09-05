@@ -91,6 +91,16 @@ struct UITreeFrameLayout
     int32_t stretched[UITREE_FRAME_STRETCHED_MAX];
     uint32_t stretched_incarnation[UITREE_FRAME_STRETCHED_MAX];
     int stretched_count;
+    /**
+     * The lane's own GAME-AREA container, re-boxed to the area the
+     * declaration gave the scene. @see frame_collect_game_area.
+     *
+     * `area_rect.placed` is the whole guard: a lane that authors no such
+     * container leaves it zero and nothing is overridden.
+     */
+    int32_t area_node;
+    uint32_t area_incarnation;
+    struct UITreeFrameRect area_rect;
     /** The semantic binding this table describes. */
     uint32_t applied_generation;
     int root_group;
@@ -570,14 +580,47 @@ frame_rect_for(
         return &rects->at[member];
     /*
      * A member of the orb block is a button INSIDE the block, and the block's
-     * box is no place for it: unmentioned means hidden, not stretched across
-     * the whole pack. A sidebar mount or a chat button, by contrast, IS the
-     * role at that number, and the whole-role box is exactly what "the
-     * sidebar" said about it.
+     * box is no place for it: unmentioned means the member keeps its own box,
+     * not stretched across the whole pack. A sidebar mount or a chat button,
+     * by contrast, IS the role at that number, and the whole-role box is
+     * exactly what "the sidebar" said about it.
+     *
+     * What an unmentioned orb member then MEANS is a second question, and the
+     * two kinds answer it differently. @see frame_orb_member_is_carried.
      */
     if( slot == UITREE_FRAME_SLOT_ORBS && member >= 0 )
         return NULL;
     return rects->all.placed ? &rects->all : NULL;
+}
+
+/*
+ * Is this member of the orb block one a frame must SEAT, or one it CARRIES?
+ *
+ * Both are children of the pack that the pack itself positions by TOPLEVEL,
+ * so a frame of one shape standing over another toplevel inherits the wrong
+ * spot for either. What differs is how wrong, and therefore what a frame that
+ * says nothing about it meant:
+ *
+ * The activity adviser is SEATED. `torirs_gridmaster_pos` right-aligns it
+ * beside the map on the fixed toplevel and puts it under the run orb on the
+ * resizable ones, so the wrong spot is not merely offset -- it is inside the
+ * map circle or on the tab stones below the housing. A frame that does not
+ * place it cannot show it.
+ *
+ * The world-map globe and the wiki banner are CARRIED. Both are anchored to
+ * the block's right edge and differ only by the inset the pack gives them (10
+ * and 8 columns on the fixed toplevel, nothing on the resizable ones), so the
+ * wrong spot is a few columns off inside the same alcove. A frame that does
+ * not place them wants them where the pack put them, moved with the block --
+ * which is what every frame written before they were named already asks for,
+ * and hiding them instead would take the globe and the banner off frames that
+ * are right today. @see enum ToriRS_OrbsMember.
+ */
+static int
+frame_orb_member_is_carried(int slot, int member)
+{
+    return slot == UITREE_FRAME_SLOT_ORBS && member >= 0 &&
+           member != (int)TORIRS_HOST_ORBS_MEMBER_ACTIVITY_ADVISER;
 }
 
 /* Record one suppression in a declaration being built. Applying the flag is a
@@ -727,6 +770,167 @@ frame_stretch_ancestors(
     }
 }
 
+/** Authored to be exactly its parent's box (if3 size mode 1 with a zero
+ *  inset, at the origin), which is how a toplevel says "the scene IS this
+ *  layer". */
+static int
+frame_authored_fills_parent(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->position.kind == UIPOS_XY && c->position.x == 0 && c->position.y == 0 &&
+           c->position.x_mode <= 0 && c->position.y_mode <= 0 &&
+           c->position.width_mode == 1 && c->position.height_mode == 1 &&
+           c->position.width == 0 && c->position.height == 0;
+}
+
+/** Authored as a fixed rectangle rather than as a share of its parent -- a
+ *  box the lane sized for one canvas and one canvas only. */
+static int
+frame_authored_in_pixels(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->position.kind == UIPOS_XY && c->position.width_mode <= 0 &&
+           c->position.height_mode <= 0 && c->position.width > 0 &&
+           c->position.height > 0;
+}
+
+/*
+ * The nearest edge one role occupies on an axis, over the whole-role box and
+ * every member box a declaration named.
+ *
+ * Members and not just `all` because a frame may state a role only through
+ * them -- the Stone Drawer places the sidebar as fourteen tab mounts and
+ * names the role itself only while the drawer is open.
+ */
+static int
+frame_slot_edge(
+    struct UITreeFrameLayout const* fl,
+    int slot,
+    int want_x,
+    int* out_edge)
+{
+    int found = 0;
+    int best = 0;
+
+    assert(fl);
+    assert(out_edge);
+    for( int n = -1; n < UITREE_FRAME_SLOT_NODES_MAX; n++ )
+    {
+        struct UITreeFrameRect const* r =
+            n < 0 ? &fl->slot_rect[slot].all : &fl->slot_rect[slot].at[n];
+        int edge;
+        if( !r->placed )
+            continue;
+        edge = want_x ? r->x : r->y;
+        if( !found || edge < best )
+            best = edge;
+        found = 1;
+    }
+    if( found )
+        *out_edge = best;
+    return found;
+}
+
+/*
+ * The lane's own GAME AREA, when a declaration moved the scene out of it.
+ *
+ * A toplevel does not hang its world overlays -- the hitpoint bars, the buff
+ * bar, the XP counter, the combat/boost HUD -- off the scene component. It
+ * hangs them off the LAYER the scene lives in, each authored to fill that
+ * layer, and seats them against ITS box: the boost HUD two pixels up from its
+ * bottom edge, the XP counter flush with its right one.
+ *
+ * On a resizable toplevel that layer is the whole game area and follows the
+ * window by itself, so a plugin frame changes nothing about it. On the FIXED
+ * toplevel it is a 512x334 box authored for a 765x503 client (548's `main`),
+ * and a window-following plugin frame -- Modern Resizable, the Stone Drawer --
+ * places the scene at the whole window and leaves every one of those overlays
+ * pinned to a rectangle the scene has left: the combat HUD floats in mid-air
+ * 297px above the chat it belongs on top of.
+ *
+ * So the container follows the scene. Not to the scene's rectangle outright:
+ * where a window-following frame draws its chat and its sidebar OVER the
+ * world, the lane's own resizable toplevel does not seat its HUD under them
+ * either -- interface 708 takes the sidebar's width and the chat's height off
+ * the game area before it places itself. This reproduces that with the
+ * DECLARATION's chat and sidebar boxes, which are the only such numbers that
+ * can be right about a frame the lane has never seen.
+ *
+ * Only a container the lane authored in PIXELS is taken, and only when the
+ * scene is authored to fill it. That pair is what makes it the fixed frame's
+ * game area rather than any layer that happens to be above the scene: the
+ * 2004 lane's `fixed_shell` is authored in pixels too, but it holds the
+ * minimap, the compass and the chat buttons beside a scene that fills no part
+ * of it, and re-boxing that would move all of them.
+ */
+static void
+frame_collect_game_area(
+    struct UITree const* tree,
+    struct UITreeFrameLayout* fl)
+{
+    static int const column[] = {
+        UITREE_FRAME_SLOT_SIDEBAR,
+        UITREE_FRAME_SLOT_MINIMAP,
+        UITREE_FRAME_SLOT_ORBS,
+    };
+    struct UITreeFrameRect const* scene;
+    struct UITreeFrameRect area;
+    int32_t node;
+    int32_t parent;
+    int edge;
+
+    assert(tree);
+    assert(fl);
+    /* One scene, or this is not a frame with a game area. */
+    if( fl->slot_node_count[UITREE_FRAME_SLOT_VIEWPORT] != 1 )
+        return;
+    node = fl->slot_node[UITREE_FRAME_SLOT_VIEWPORT][0];
+    scene = frame_rect_for(
+        UITREE_FRAME_SLOT_VIEWPORT,
+        &fl->slot_rect[UITREE_FRAME_SLOT_VIEWPORT],
+        fl->slot_member[UITREE_FRAME_SLOT_VIEWPORT][0]);
+    if( !scene || !frame_node_alive(tree, node) )
+        return;
+    parent = tree->components[node].parent;
+    /* A parent that is itself a placed surface has the box the declaration
+     * gave it, and its content belongs inside that box. */
+    if( !frame_node_alive(tree, parent) || frame_is_placed_node(fl, parent) )
+        return;
+    if( !frame_authored_fills_parent(&tree->components[node]) ||
+        !frame_authored_in_pixels(&tree->components[parent]) )
+        return;
+
+    area.placed = 1;
+    area.x = scene->x;
+    area.y = scene->y;
+    area.w = scene->w;
+    area.h = scene->h;
+    /*
+     * The chat takes off the bottom and the map/orb/sidebar column takes off
+     * the right, which is the shape every one of these frames has -- 548's
+     * `main` stops at the map column and above the chat, 164's HUD subtracts
+     * a sidebar width and a chat height -- and the axis is stated per role
+     * rather than guessed from the box, because a minimap sitting at the TOP
+     * of the right-hand column would otherwise read as "takes off the top"
+     * and leave a game area eight pixels tall.
+     *
+     * A surface that is not OVER the scene takes nothing off, which is what
+     * makes every FIXED frame a no-op here: its chat is below the scene and
+     * its column is beside it.
+     */
+    if( frame_slot_edge(fl, UITREE_FRAME_SLOT_CHAT, 0, &edge) && edge > area.y &&
+        edge < area.y + area.h )
+        area.h = edge - area.y;
+    for( int s = 0; s < (int)(sizeof(column) / sizeof(column[0])); s++ )
+        if( frame_slot_edge(fl, column[s], 1, &edge) && edge > area.x &&
+            edge < area.x + area.w )
+            area.w = edge - area.x;
+
+    fl->area_node = parent;
+    fl->area_incarnation = tree->components[parent].incarnation;
+    fl->area_rect = area;
+}
+
 static void
 frame_collect_chrome(
     struct UITree* tree,
@@ -819,6 +1023,9 @@ frame_mark_bound_nodes(
     for( int i = 0; i < fl->stretched_count; i++ )
         if( frame_node_same(tree, fl->stretched[i], fl->stretched_incarnation[i]) )
             UITree_MarkNodeDirty(tree, fl->stretched[i]);
+    if( fl->area_rect.placed &&
+        frame_node_same(tree, fl->area_node, fl->area_incarnation) )
+        UITree_MarkNodeDirty(tree, fl->area_node);
 }
 
 void
@@ -856,19 +1063,21 @@ UITree_FrameApply(
             struct UITreeFrameRect const* rect =
                 frame_rect_for(s, &next.slot_rect[s], next.slot_member[s][n]);
 
-            if( !rect )
+            if( !rect && !frame_orb_member_is_carried(s, next.slot_member[s][n]) )
             {
-                /* A role -- or one member of it -- the declaration did not
-                 * mention is one this frame does not show. A modern resizable
-                 * layout has no compass housing of its own, and leaving the
-                 * lane's compass on screen would put it wherever the old frame
-                 * had it. */
+                /* A role -- or one SEATED member of it -- the declaration did
+                 * not mention is one this frame does not show. A modern
+                 * resizable layout has no compass housing of its own, and
+                 * leaving the lane's compass on screen would put it wherever
+                 * the old frame had it. A carried member stays where the pack
+                 * drew it, inside the block this frame did place. */
                 frame_record_hidden(tree, &next, idx);
             }
         }
     }
 
     frame_stretch_ancestors(tree, &next);
+    frame_collect_game_area(tree, &next);
     frame_collect_chrome(tree, &next, root_group);
 
     fl = frame_state(tree);
@@ -1037,11 +1246,62 @@ UITree_FramePositionOverride(
         }
     }
 
-    /* An ancestor of a placed surface is NOT overridden: its release from
-     * clipping is the frame_stretched flag, and its box remains the lane's
-     * own, because that box is the space every child the declaration did not
-     * place is laid out in. @see frame_stretch_ancestors. */
+    /* The lane's game-area container follows the scene it was authored to
+     * hold, so the world overlays seated against it follow too.
+     * @see frame_collect_game_area. */
+    if( fl->area_rect.placed && fl->area_node == node &&
+        frame_node_same(tree, node, fl->area_incarnation) )
+    {
+        *out = tree->components[node].position;
+        out->layout_resolved = 0;
+        out->kind = UIPOS_XY;
+        out->x = fl->area_rect.x;
+        out->y = fl->area_rect.y;
+        out->width = fl->area_rect.w;
+        out->height = fl->area_rect.h;
+        out->x_mode = -1;
+        out->y_mode = -1;
+        out->width_mode = -1;
+        out->height_mode = -1;
+        out->relative_flags = 0;
+        return 1;
+    }
+
+    /* Any OTHER ancestor of a placed surface is NOT overridden: its release
+     * from clipping is the frame_stretched flag, and its box remains the
+     * lane's own, because that box is the space every child the declaration
+     * did not place is laid out in. @see frame_stretch_ancestors. */
     return 0;
+}
+
+int
+UITree_FrameSlotNodes(
+    struct UITree const* tree,
+    int slot,
+    int32_t* out_nodes,
+    int max)
+{
+    struct UITreeFrameLayout const* fl;
+    int n = 0;
+
+    assert(tree);
+    assert(out_nodes);
+    assert(max > 0);
+    if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT )
+        return 0;
+    fl = tree->frame_layout;
+    if( !fl || !fl->active )
+        return 0;
+    for( int i = 0; i < fl->slot_node_count[slot] && n < max; i++ )
+    {
+        int32_t const idx = fl->slot_node[slot][i];
+        if( idx < 0 || (uint32_t)idx >= tree->component_count )
+            continue;
+        if( !frame_node_same(tree, idx, fl->slot_incarnation[slot][i]) )
+            continue;
+        out_nodes[n++] = idx;
+    }
+    return n;
 }
 
 int
@@ -1061,6 +1321,11 @@ UITree_FramePositionOwned(
                 frame_node_same(tree, node, fl->slot_incarnation[s][n]) &&
                 frame_rect_for(s, &fl->slot_rect[s], fl->slot_member[s][n]) )
                 return 1;
+    /* The game-area container's effective box is the declaration's too, and
+     * it is in canvas coordinates for the same reason. */
+    if( fl->area_rect.placed && fl->area_node == node &&
+        frame_node_same(tree, node, fl->area_incarnation) )
+        return 1;
     return 0;
 }
 

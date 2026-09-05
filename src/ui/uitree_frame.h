@@ -237,6 +237,26 @@ UITree_FrameApply(
     int root_group);
 
 /**
+ * The nodes a placed slot is spread across, for a caller that has to order
+ * DRAWING against them rather than lay them out.
+ *
+ * The emit walk needs this and cannot have the layout struct: `struct
+ * UITreeFrameLayout` is private to uitree_frame.c on purpose, so nothing
+ * outside it can move a box by writing a field. Reading which nodes a slot
+ * bound is a different thing from writing where they go, and depth is the one
+ * question that genuinely cannot be answered from a rectangle.
+ *
+ * Returns how many were written (0 when the slot is not placed), never more
+ * than `max`.
+ */
+int
+UITree_FrameSlotNodes(
+    struct UITree const* tree,
+    int slot,
+    int32_t* out_nodes,
+    int max);
+
+/**
  * Reconcile the standing declaration with the current tree generation.
  *
  * Called at the publication fence. A CS2 rebuild can reclaim a matched node

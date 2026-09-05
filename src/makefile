@@ -2405,6 +2405,20 @@ test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 # pixels it loaded, so an image table that answered nothing would exercise none
 # of it. Run from src/, where the shipped assets resolve.
 .PHONY: test-gameframe
+# The forty-permutation gameframe gate: OSRS239 toplevel x frame x window size,
+# rendered headlessly and scored on root opened, chat bar present and the LANE's
+# own filter count (8 desktop, 7 on the mobile top). About four minutes.
+#
+# Its own OPT=0 embed binary in its own object dir, so it never disturbs a
+# working src/torirs, and its own preferences.ini written from nothing, so the
+# repo's live device settings (which have carried a 150% interface scale) cannot
+# make every capture look like a regression.
+.PHONY: test-gameframe-matrix
+test-gameframe-matrix:
+	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
+		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
+	../tools/gameframe_matrix.sh
+
 test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c

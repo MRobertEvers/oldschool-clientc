@@ -1106,6 +1106,22 @@ _Static_assert(
     (int)TORIRS_SCREEN_GAME == 30,
     "plugin screen GAME");
 
+/* And enum ToriRS_HostOrbsMember, which the tree reads, against the contract's
+ * enum ToriRS_OrbsMember, which a frame declaration is written in. */
+_Static_assert(
+    (int)TORIRS_HOST_ORBS_MEMBER_ACTIVITY_ADVISER ==
+        (int)TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER,
+    "orb member ACTIVITY_ADVISER");
+_Static_assert(
+    (int)TORIRS_HOST_ORBS_MEMBER_WORLD_MAP == (int)TORIRS_ORBS_MEMBER_WORLD_MAP,
+    "orb member WORLD_MAP");
+_Static_assert(
+    (int)TORIRS_HOST_ORBS_MEMBER_WIKI == (int)TORIRS_ORBS_MEMBER_WIKI,
+    "orb member WIKI");
+_Static_assert(
+    (int)TORIRS_HOST_ORBS_MEMBER_COUNT == (int)TORIRS_ORBS_MEMBER_COUNT,
+    "orb member count");
+
 static int
 api_screen(struct PluginContext* ctx)
 {

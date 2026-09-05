@@ -2768,6 +2768,20 @@ int
 App_MeasureRightChromeStripWidth(struct App const* app);
 
 /**
+ * The width the LANE's own frame is asking for, when the canvas it was given
+ * is too narrow to hold it: the fixed-size block a toplevel lays inside the
+ * strip-carved area, on the frames where that block comes out wider than the
+ * area. 0 when it fits, and when there is no such block.
+ *
+ * This is the floor a plugin frame's own minimum cannot go below: a layout
+ * plugin arranges OVER the lane's toplevel, so the lane's widgets are still
+ * laid out by it, and a toplevel that does not fit centres its block and hangs
+ * it off both edges of the area the plugin frame was handed.
+ */
+int
+App_MeasureLaneFrameCoreWidth(struct App const* app);
+
+/**
  * Fixed-mode canvas width that keeps the classic frame at APP_CANVAS_MIN_W and
  * parks the chrome strip outside it: MIN_W + measured strip. Resizable callers
  * want App_CanvasFloorWidth instead — they carve from whatever window size

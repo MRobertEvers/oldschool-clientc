@@ -7451,6 +7451,54 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "layout ", 7) == 0 )
+    {
+        /*
+         * `::layout <0|1|2>` — Fixed / Resizable Classic / Resizable Modern,
+         * mid-session, through the same door the All Settings Display row uses.
+         *
+         * The headless client can drive a resize and a tab switch already
+         * (TORIRS_SIM_RESIZE, TORIRS_SIM_CLICK_AT) but had no way at all to
+         * make the server swap the TOPLEVEL under a running session -- the one
+         * event a gameframe plugin has to survive and the only one no harness
+         * could reach. Opening the All Settings panel and hitting the row by
+         * pixel is a dozen clicks that break whenever the panel moves.
+         *
+         * The synthesized IF_BUTTON and not a direct field write, because the
+         * field is only half of it: `handle_if_button_op` latches the choice,
+         * clears the older dropdown latch, synchronizes the arrangement varbit
+         * and lets the echoed clientscript's WINDOW_STATUS through in the right
+         * order. A cheat that set `client_layout_mode` itself would test a path
+         * no player can take. @see the layout block in
+         * torirs_server_world_selftest.c, which builds the same payload.
+         */
+        int mode = -1;
+        int layout_buttons;
+        uint8_t button[6];
+        struct RSAreaBuf out;
+
+        if( sscanf(text, "layout %d", &mode) != 1 || mode < 0 || mode > 2 )
+        {
+            say(srv, "layout: expected ::layout <0 fixed|1 classic|2 modern>.");
+            return;
+        }
+        layout_buttons = ToriRSServer_ContentSymbol(
+            TORIRSSERVER_PACK_COMPONENT,
+            "settings_side:display_dynamic_setting_1_buttons");
+        if( layout_buttons <= 0 )
+        {
+            say(srv, "layout: this cache has no Display row to press.");
+            return;
+        }
+        rsab_wrap(&out, button, sizeof(button));
+        rsab_p4(&out, layout_buttons);
+        rsab_p2(&out, mode + 1);
+        handle_if_button_op(
+            srv, PKTOUT_NAME_IF_BUTTON1, button, (int)rsab_len(&out));
+        fprintf(stderr, "layout: pressed Display row sub %d\n", mode + 1);
+        return;
+    }
+
     if( strncmp(text, "style", 5) == 0 )
     {
         /*

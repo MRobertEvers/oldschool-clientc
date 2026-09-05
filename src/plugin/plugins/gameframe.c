@@ -162,6 +162,12 @@ enum FrameLayout
 #define FRAME_C_HOLE_COMPASS_DY 0
 #define FRAME_C_HOLE_COMPASS_W 33
 #define FRAME_C_HOLE_COMPASS_H 33
+/* The 2004 chat hole: where `chatback` is blitted, at its own size. Both eras'
+ * packs are placed at this origin; only the 2004 one is also this wide. */
+#define FRAME_C_CHAT_X 17
+#define FRAME_C_CHAT_Y 357
+#define FRAME_C_CHAT_W 479
+#define FRAME_C_CHAT_H 96
 
 #define FRAME_O_ORBS_FIXED_DX (-29)
 #define FRAME_O_ORBS_FIXED_DY 0
@@ -187,6 +193,38 @@ enum FrameLayout
 #define FRAME_O_ADVISER_FIXED_DY 50
 #define FRAME_O_ADVISER_R_DX 85
 #define FRAME_O_ADVISER_R_DY 143
+
+/*
+ * The world-map globe and the wiki banner inside that block -- the two other
+ * children whose spot the pack picks by TOPLEVEL.
+ *
+ * Both are anchored to the block's RIGHT edge, and both are inset from it by
+ * a number the pack chooses from `~toplevel_getcomponents`:
+ * `orbs_worldmap_setup_1700` gives the globe `if_setposition(10, 115,
+ * ^setpos_abs_right, ^setpos_abs_top)` on the fixed toplevel (1129) and
+ * `(0, 115, ...)` on the resizable ones (1130/1131), and
+ * `wiki_icon_update_3306` gives the banner `(8, 135, ...)` against
+ * `(0, 135, ...)`. Every other number about them -- the row, the globe's
+ * 30x30 ring, the banner's 40x34 box -- is the same on all three.
+ *
+ * So a FIXED frame standing over a resizable toplevel gets both flush to the
+ * block's right edge, ten and eight columns right of the alcove its housing
+ * draws for them, and a RESIZABLE frame over the fixed toplevel gets them ten
+ * and eight columns left of its own. The frame states the inset it wants and
+ * the two become members it seats, which is what the adviser above already
+ * is. Read off the two procs, as the adviser's numbers are.
+ * @see ToriRS_OrbsMember, frame_place_orbs.
+ */
+#define FRAME_O_WORLD_MAP_W 30
+#define FRAME_O_WORLD_MAP_H 30
+#define FRAME_O_WORLD_MAP_DY 115
+#define FRAME_O_WORLD_MAP_FIXED_INSET 10
+#define FRAME_O_WORLD_MAP_R_INSET 0
+#define FRAME_O_WIKI_W 40
+#define FRAME_O_WIKI_H 34
+#define FRAME_O_WIKI_DY 135
+#define FRAME_O_WIKI_FIXED_INSET 8
+#define FRAME_O_WIKI_R_INSET 0
 
 /** Sidebar tabs, in the order every revision since 2001 numbers them. */
 #define FRAME_TAB_COUNT 14
@@ -995,15 +1033,21 @@ frame_surface_member(
 }
 
 /*
- * The OldSchool orb block at (x, y), and the activity adviser at its own
- * spot inside it. A lane with no such block -- every 2004 one -- answers 0
- * to both and nothing moves.
+ * The OldSchool orb block at (x, y), and the three children the pack places
+ * by TOPLEVEL rather than by block: the activity adviser at its own spot
+ * inside it, and the world-map globe and the wiki banner at the insets this
+ * frame's housing draws an alcove for. A lane with no such block -- every
+ * 2004 one -- answers 0 to all four and nothing moves.
  *
  * `adviser_h` is how many of the adviser's 34 rows the frame has room for.
  * Anything short of its full height CUTS it, and nothing at all leaves the
  * member out of the declaration, which the host reads as a member its holder
  * hides. @see frame_layout_modern_resizable for the one layout that has to
  * say less than 34.
+ *
+ * `world_map_inset` and `wiki_inset` are columns in from the block's RIGHT
+ * edge, which is the edge the pack anchors both to. @see
+ * FRAME_O_WORLD_MAP_FIXED_INSET.
  */
 static void
 frame_place_orbs(
@@ -1014,10 +1058,28 @@ frame_place_orbs(
     int height,
     int adviser_dx,
     int adviser_dy,
-    int adviser_h)
+    int adviser_h,
+    int world_map_inset,
+    int wiki_inset)
 {
     assert(ctx);
     frame_surface(ctx, TORIRS_SURFACE_ORBS, x, y, width, height);
+    frame_surface_member(
+        ctx,
+        TORIRS_SURFACE_ORBS,
+        TORIRS_ORBS_MEMBER_WORLD_MAP,
+        x + width - world_map_inset - FRAME_O_WORLD_MAP_W,
+        y + FRAME_O_WORLD_MAP_DY,
+        FRAME_O_WORLD_MAP_W,
+        FRAME_O_WORLD_MAP_H);
+    frame_surface_member(
+        ctx,
+        TORIRS_SURFACE_ORBS,
+        TORIRS_ORBS_MEMBER_WIKI,
+        x + width - wiki_inset - FRAME_O_WIKI_W,
+        y + FRAME_O_WIKI_DY,
+        FRAME_O_WIKI_W,
+        FRAME_O_WIKI_H);
     if( adviser_h <= 0 )
         return;
     frame_surface_member(
@@ -1673,10 +1735,65 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
      * around a chatbox from another, which is what asking for Classic Fixed
      * on that lane means.
      */
+    /*
+     * The chat at the 2004 PLACE, on either era's pack.
+     *
+     * The 2004 chatbox is 479x96 at (17,357); an OldSchool one is 519 wide and
+     * its width does not reflow -- 519 is authored absolute on chatbox.if's
+     * `controls` (1) and `chatarea` (34), and torirs_chatbox_layout computes
+     * the filter gap from that same literal. Its HEIGHT does reflow, so the
+     * pack is given the 2004 box's origin and height and keeps its own width:
+     * 357 + 73 backing + 23 bar = 453, which is exactly where `backbase1`
+     * starts. The bar, the eight filters and their green mode lines come with
+     * it, because a placed surface moves the node and the node moves its
+     * subtree. @see frame_place_chat.
+     *
+     * Measured before this: an OldSchool pack left at (0,338) is byte-identical
+     * to running with no frame at all -- the frame re-skinned the chat and
+     * never moved it, which is the half of "a 2004 gameframe" that was missing.
+     */
     if( oldschool )
-        frame_place_chat(ctx, 0, 338);
+    {
+        /*
+         * ASK the lane for its chat's shape; do not assert one.
+         *
+         * The 2004 hole is 479x96. An OldSchool desktop pack is 519x165 and
+         * its width does not reflow (519 is authored absolute on chatbox.if's
+         * `controls` and `chatarea`, and torirs_chatbox_layout computes the
+         * filter gap from that same literal), but its HEIGHT does -- so it
+         * takes the 2004 origin and the 2004 height and keeps its own width:
+         * 357 + 73 backing + 23 bar = 453, exactly where `backbase1` starts.
+         *
+         * The MOBILE top is a different pack: 461 wide, and its bar sits ABOVE
+         * the message area rather than under it. Placed at the desktop box it
+         * leaves an unpainted gap and its filters keep the lane's own plates,
+         * because everything this frame composes for a chat assumes the bar is
+         * the strip along the bottom. That is the Stone Drawer's frame to
+         * dress, not this one, so here the pack is left where the lane put it.
+         * @see ToriRS_FrameApiV2::surface_native_size, mobile_chat_native.
+         */
+        int native_w = FRAME_O_CHAT_PACK_W;
+        int native_h = FRAME_O_CHAT_PACK_H;
+        int mobile_top = 0;
+
+        (void)g_api->frame.surface_native_size(
+            g_api, TORIRS_SURFACE_CHAT, &native_w, &native_h);
+        /* By the TOPLEVEL and not by the size: the mobile top mounts the same
+         * 519-wide interface 162 and reports the same native size, and lays it
+         * out with the bar ABOVE the message area. The size cannot tell the
+         * two apart; the root can. */
+        if( g_api->cache.named_id(g_api, "iface", "toplevel_mobile", &mobile_top) &&
+            mobile_top > 0 && g_api->cache.frame_root(g_api) == mobile_top )
+            frame_place_chat(ctx, 0, 338);
+        else
+            frame_surface(
+                ctx, TORIRS_SURFACE_CHAT, FRAME_C_CHAT_X, FRAME_C_CHAT_Y,
+                native_w, FRAME_C_CHAT_H);
+    }
     else
-        frame_surface(ctx, TORIRS_SURFACE_CHAT, 17, 357, 479, 96);
+        frame_surface(
+            ctx, TORIRS_SURFACE_CHAT, FRAME_C_CHAT_X, FRAME_C_CHAT_Y,
+            FRAME_C_CHAT_W, FRAME_C_CHAT_H);
     frame_surface(ctx, TORIRS_SURFACE_SIDEBAR, 553, 205, 190, 261);
     frame_surface(ctx, TORIRS_SURFACE_MODAL, 4, 4, 512, 334);
     /* The orb block where the OldSchool fixed frame keeps it, beside a map
@@ -1690,7 +1807,9 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         FRAME_O_ORBS_FIXED_H,
         FRAME_O_ADVISER_FIXED_DX,
         FRAME_O_ADVISER_FIXED_DY,
-        FRAME_O_ADVISER_H);
+        FRAME_O_ADVISER_H,
+        FRAME_O_WORLD_MAP_FIXED_INSET,
+        FRAME_O_WIKI_FIXED_INSET);
     /*
      * The four filter buttons at the reference's own x, which is not an even
      * spacing and cannot be computed: 6, 135, 273, 408. `Report abuse` is
@@ -1916,7 +2035,9 @@ frame_layout_modern_fixed(struct FrameCall* ctx)
         FRAME_O_ORBS_FIXED_H,
         FRAME_O_ADVISER_FIXED_DX,
         FRAME_O_ADVISER_FIXED_DY,
-        FRAME_O_ADVISER_H);
+        FRAME_O_ADVISER_H,
+        FRAME_O_WORLD_MAP_FIXED_INSET,
+        FRAME_O_WIKI_FIXED_INSET);
     /* On the stone bar under the chatbox, spread across its width -- for a
      * 2004 chat. The OldSchool pack carries its own seven. */
     if( !oldschool )
@@ -2015,8 +2136,6 @@ frame_layout_modern_resizable(
     int canvas_h)
 {
     int const row_x = canvas_w - FRAME_R_MARGIN - FRAME_R_ROW_W;
-    int const bottom_row_y = canvas_h - FRAME_R_MARGIN - FRAME_R_ROW_H;
-    int const panel_y = bottom_row_y - FRAME_R_PANEL_H;
     /*
      * The one layout here with a COLLAPSED state, because the toplevel it is
      * shaped after has one: 164 logs in with every side panel hidden and draws
@@ -2031,6 +2150,39 @@ frame_layout_modern_resizable(
      * @see frame_on_frame_start.
      */
     int const sidebar_open = frame_sidebar_open(ctx);
+    /*
+     * The bottom row hangs off the canvas's bottom edge and the float margin
+     * is kept at EVERY height, 503 included. Everything else in this column
+     * chains upward from it -- the panel is 261 rows above it and the top row
+     * 37 above that -- so this one expression fixes where the top tab strip
+     * lands, and there is no slack anywhere for it to be moved down.
+     *
+     * That was tried, and MEASURED, and it is why the arithmetic is one line:
+     * at 765x503 the two columns want 10 + 197 + 37 + 261 + 37 + 4 = 546 rows
+     * and have 503, so the strip sits over the bottom of the orb block however
+     * this is arranged. The only slack is the 4-row margin, and spending it
+     * moves the WHOLE column because the bottom row is what the rest hangs
+     * from. Two things came out of the pictures when it was:
+     *
+     *   - the bottom row's own Y then depends on the state of the PANEL, since
+     *     "is the strip too high?" is asked 261 rows further up when a tab is
+     *     open. Measured at the same canvas: the bottom row's top border at
+     *     462 collapsed against 466 open -- opening a sidebar tab slid the
+     *     bottom row and its seven icons by four pixels.
+     *   - and at exactly 503 the row ended on the canvas's last row, making
+     *     that the one height with no float margin under the chrome.
+     *
+     * Neither is worth the four rows, so the margin is not spendable and the
+     * strip stays where this puts it -- and this is 164's own answer, not a
+     * compromise: interface 164 at 765x503 draws its bottom row at rows
+     * 462..498 with four rows of scene under it, unmoved when a panel opens,
+     * which is exactly what this expression gives. It is 161 that ends flush
+     * with the canvas, and 161 is not the toplevel this layout is shaped
+     * after. What the four rows cost is stated where it is paid: @see the
+     * adviser cut below.
+     */
+    int const bottom_row_y = canvas_h - FRAME_R_MARGIN - FRAME_R_ROW_H;
+    int const panel_y = bottom_row_y - FRAME_R_PANEL_H;
     int const top_row_y =
         (sidebar_open ? panel_y : bottom_row_y) - FRAME_R_ROW_H;
     /* The panel is narrower than the strip, so it is centred under it -- which
@@ -2226,7 +2378,20 @@ frame_layout_modern_resizable(
      * the strip could start below the block instead. The LANE's own frame
      * collides there too, and 161 at 765x503 is the picture to copy: the side
      * block is emitted after the map block, so the stones paint over the
-     * adviser and eleven rows of the orange scroll show above them.
+     * adviser and part of the orange scroll shows above them. Which is the
+     * answer to "should the adviser be seated whole here" -- it is not a
+     * rendering defect, it is the toplevel's own geometry at its own minimum,
+     * and seating all 34 rows would cost the panel about 19 of its 261.
+     *
+     * MEASURED, at 765x503 with a tab open, and the one number where this
+     * frame and the reference differ: native 161 puts its top strip at 168
+     * and this frame at 164, because 161 ends its bottom row on the canvas's
+     * last row and this one keeps FRAME_R_MARGIN under it. The adviser's 34
+     * rows start at 10 + 143 = 153 either way, so the reference shows 15 of
+     * them and this frame 11. The four rows are the float margin, exactly,
+     * and the margin is the thing that is not for sale -- @see the layout's
+     * bottom_row_y, where spending it was tried and what it cost is written
+     * down.
      *
      * This layout draws its chrome in the frame's BACKDROP pass, under every
      * live surface (@see emit_plugin_frame_pass -- over the scene, under the
@@ -2255,7 +2420,9 @@ frame_layout_modern_resizable(
         FRAME_O_ORBS_R_H,
         FRAME_O_ADVISER_R_DX,
         FRAME_O_ADVISER_R_DY,
-        adviser_h);
+        adviser_h,
+        FRAME_O_WORLD_MAP_R_INSET,
+        FRAME_O_WIKI_R_INSET);
     /*
      * The modal is CENTRED, not pinned.
      *
@@ -3031,6 +3198,47 @@ frame_chat_dress(struct FrameCall* ctx)
         {
             (void)g_api->ui.set_enabled(g_api, node, false);
             continue;
+        }
+        /* PROTOTYPE (step 4 of the gameframe protocol, 2026-09-04), gated on
+         * TORIRS_GFPROTO_CHAT_DXDY="dx,dy" and off without it: ask for the
+         * node at a MOVED box, to find out what the BOUNDS facet actually
+         * does to a CS2-placed node. Not a design; an experiment whose result
+         * is the answer to "can a plugin re-position what the cache placed".
+         * Delete once the answer is written down. */
+        {
+            static char const* dxdy = NULL;
+            static int probed = 0;
+            int dx = 0;
+            int dy = 0;
+
+            if( !probed )
+            {
+                probed = 1;
+                dxdy = getenv("TORIRS_GFPROTO_CHAT_DXDY");
+            }
+            if( dxdy && sscanf(dxdy, "%d,%d", &dx, &dy) == 2 && (dx || dy) )
+            {
+                appearance.bounds = info.bounds;
+                appearance.bounds.x += dx;
+                appearance.bounds.y += dy;
+                g_api->core.log(
+                    g_api,
+                    "gfproto: ask %s -> %d,%d %dx%d (was %d,%d)",
+                    FRAME_CHAT_NODE[i],
+                    appearance.bounds.x,
+                    appearance.bounds.y,
+                    appearance.bounds.width,
+                    appearance.bounds.height,
+                    info.bounds.x,
+                    info.bounds.y);
+                if( g_api->ui.update(
+                        g_api,
+                        node,
+                        TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_BOUNDS,
+                        &appearance) == TORIRS_RESULT_OK )
+                    (void)g_api->ui.set_enabled(g_api, node, true);
+                continue;
+            }
         }
         /* APPEARANCE only, on both. A node's SUBTREE goes only for a holder
          * that took over everything the node offered, and taking the bar's

@@ -394,23 +394,39 @@ enum ToriRS_Surface
  * Members of TORIRS_SURFACE_ORBS, for ToriRS_FrameBuilder::surface_member.
  *
  * The orb pack (OldSchool interface 160) is placed whole by the ORBS surface
- * and lays its own children out inside that box: the four orbs, the XP
- * toggle, the world-map globe and the wiki banner sit at the same offsets on
- * every toplevel, so the block's rectangle is all a frame has to say about
- * them. The activity adviser is the one child whose spot the lane picks by
- * TOPLEVEL (`torirs_gridmaster_pos`: right-aligned beside the map on the
- * fixed one, under the run orb on the resizable ones), and a frame of the
- * other shape over that toplevel inherits the wrong spot -- inside the map
- * circle, or on the tab stones below the housing. So it is a member a frame
- * seats itself.
+ * and lays most of its children out inside that box on its own: the four
+ * orbs, the XP toggle and the store button are anchored to the block's top
+ * left and follow it wherever a frame puts it, so the block's rectangle is
+ * all a frame has to say about them.
  *
- * Unlike a sidebar tab, a member of the orb block a declaration does not
- * mention is HIDDEN, not moved with the block: it is a button inside the
- * block, and the block's box is no place for it.
+ * The three below are the ones the pack positions by TOPLEVEL, so a frame of
+ * one shape standing over another toplevel inherits the wrong spot for them:
+ *
+ *   ACTIVITY_ADVISER -- `torirs_gridmaster_pos` right-aligns it beside the
+ *     map on the fixed toplevel and puts it under the run orb on the
+ *     resizable ones, so the wrong one lands inside the map circle or on the
+ *     tab stones below the housing;
+ *   WORLD_MAP / WIKI -- `orbs_worldmap_setup_1700` and `wiki_icon_update_3306`
+ *     anchor both to the block's RIGHT edge and inset them by 10 and 8
+ *     columns on the fixed toplevel (1129) and by nothing on the resizable
+ *     ones (1130/1131), so the wrong one leaves the globe's rim and the
+ *     banner hanging off the alcove they are drawn to sit in.
+ *
+ * The two kinds behave differently when a declaration says nothing about
+ * them, because "nothing" means different things:
+ *
+ *   the adviser is SEATED -- a frame that does not place it does not show it,
+ *     because its native spot on the other toplevel is somewhere this frame
+ *     has no room for at all;
+ *   the globe and the banner are CARRIED -- a frame that does not place them
+ *     gets them where the pack put them, moved with the block, which is what
+ *     every frame written before they were named already asks for.
  */
 enum ToriRS_OrbsMember
 {
     TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER = 0,
+    TORIRS_ORBS_MEMBER_WORLD_MAP,
+    TORIRS_ORBS_MEMBER_WIKI,
     TORIRS_ORBS_MEMBER_COUNT,
 };
 

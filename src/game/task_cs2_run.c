@@ -1323,7 +1323,13 @@ Task_CS2Run_Run(
     for( ;; )
     {
         thread = CS2VM2_ThreadMain(self->vm);
+        /* Name the author of every host request this run makes. Set here and
+         * cleared straight after, so a write from outside any script reads -1
+         * rather than inheriting the last script that ran. @see
+         * TORIRS_DUMP_SETPOS in rs_cs2_host.c. */
+        self->host->trace_script_id = self->script_id;
         status = CS2VM2_ThreadRun(thread, &err);
+        self->host->trace_script_id = -1;
         if( status == CS2VM2_THREAD_DONE || status == 0 )
             break;
         if( status == CS2VM2_THREAD_ERROR )

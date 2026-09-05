@@ -977,6 +977,7 @@ RS_CS2Host_Init(
     host->default_window_mode = CS2VM_WINDOW_MODE_RESIZABLE;
     host->window_mode_dirty = false;
     host->client_layout_mode = 1; /* resizable classic — matches stretch boot */
+    host->trace_script_id = -1;
     host->client_layout_dirty = false;
     /* The Display panel's mode/apply pair (decompile names
      * settings_client_mode / settings_client_apply) and the varbit those apply
@@ -8412,6 +8413,34 @@ exec_widget_set_position(
     int ymode)
 {
     struct UITree* tree = rs_cs2_tree(host);
+    /* TORIRS_DUMP_SETPOS=<group>: every position a script writes to that
+     * interface, with the script that wrote it. The twin of
+     * TORIRS_DUMP_SETSIZE above; both CC_SETPOSITION and IF_SETPOSITION come
+     * through here, so one line covers the whole opcode pair, and
+     * host->trace_script_id names the clientscript whose ThreadRun is on the
+     * stack. Without it a moved box is a fact with no author. */
+    {
+        static int setpos_want = -2;
+        if( setpos_want == -2 )
+        {
+            char const* env = getenv("TORIRS_DUMP_SETPOS");
+            setpos_want = env ? (int)strtol(env, NULL, 0) : -1;
+        }
+        if( setpos_want >= 0 )
+        {
+            int const group = (component_id >> 16) & 0xffff;
+            if( group == setpos_want || setpos_want == 0 )
+                TORIRS_LOG("SETPOS com=0x%08x (%d|%d) %d,%d modes=%d,%d script=%d\n",
+                    (unsigned)component_id,
+                    group,
+                    component_id & 0xffff,
+                    x,
+                    y,
+                    xmode,
+                    ymode,
+                    host ? host->trace_script_id : -1);
+        }
+    }
     if( tree )
         (void)UITree_ApplyPositionModes(tree, component_id, x, y, xmode, ymode);
     return CS2VM_EXECNO_OK;

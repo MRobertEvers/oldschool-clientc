@@ -1484,6 +1484,7 @@ static int32_t g_binder_chat;
 static int32_t g_binder_side3;
 static int32_t g_binder_orbs;
 static int32_t g_binder_adviser;
+static int32_t g_binder_globe;
 
 static void
 stamping_binder(struct UITree* tree, void* user)
@@ -1498,6 +1499,10 @@ stamping_binder(struct UITree* tree, void* user)
      * activity adviser is: orbs member 0. */
     tree->components[g_binder_adviser].slot_tag = UITREE_SLOT_ORBS;
     tree->components[g_binder_adviser].frame_member_plus1 = 0 + 1;
+    /* And one the profile names as furniture the block CARRIES, as the
+     * world-map globe is: orbs member 1. */
+    tree->components[g_binder_globe].slot_tag = UITREE_SLOT_ORBS;
+    tree->components[g_binder_globe].frame_member_plus1 = 1 + 1;
 }
 
 static void
@@ -1511,6 +1516,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     int32_t orbs;
     int32_t pack;
     int32_t adviser;
+    int32_t globe;
     int32_t container;
     int32_t blocker;
     int32_t control;
@@ -1540,6 +1546,10 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
         tree, orbs, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 0, 0, 0, 236, 163);
     adviser = UITree_TestPushXy(
         tree, pack, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 48, 202, 50, 34, 34);
+    /* The globe, flush to the right edge of the block the pack fills, where
+     * the pack's own script puts it on a resizable toplevel. */
+    globe = UITree_TestPushXy(
+        tree, pack, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 49, 206, 115, 30, 30);
     /* A click-blocker and a control, both root-group layers: chrome. */
     {
         struct UITreeNodeSpec spec;
@@ -1575,7 +1585,8 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     tip_plate = UITree_CcCreate(tree, tip_host, (FRAME_GROUP << 16) | 26, 3, 0);
     panel_border = UITree_CcCreate(tree, container, (FRAME_GROUP << 16) | 20, 3, 0);
     TEST_ASSERT(
-        chat >= 0 && side3 >= 0 && orbs >= 0 && pack >= 0 && adviser >= 0 && blocker >= 0 &&
+        chat >= 0 && side3 >= 0 && orbs >= 0 && pack >= 0 && adviser >= 0 && globe >= 0 &&
+            blocker >= 0 &&
             control >= 0 && tip_host >= 0 && tip_plate >= 0 && panel_border >= 0,
         "cache frame fixture with layers builds");
     TEST_ASSERT(
@@ -1592,6 +1603,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     g_binder_side3 = side3;
     g_binder_orbs = orbs;
     g_binder_adviser = adviser;
+    g_binder_globe = globe;
     UITree_FrameSetBinder(tree, stamping_binder, NULL);
 
     memset(slots, 0, sizeof(slots));
@@ -1628,6 +1640,9 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_ORBS, 0) == adviser,
         "and the stamped button inside it is orbs member 0");
+    TEST_ASSERT(
+        UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_ORBS, 1) == globe,
+        "and the stamped globe is orbs member 1");
     TEST_ASSERT(
         UITree_FrameSlotIndex(&tree->components[side3], UITREE_FRAME_SLOT_SIDEBAR) == 3,
         "the member number is read off the stamp");
@@ -1669,6 +1684,19 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         !tree->components[pack].frame_hidden && effective_box_is(tree, orbs, 700, 10, 207, 197),
         "and the block itself is placed whole around it");
+    /*
+     * A CARRIED member -- the globe, the wiki banner -- answers the same
+     * question the other way: unmentioned, it is furniture the pack drew
+     * inside the block, so it stays visible and keeps the spot the pack gave
+     * it, moved with the block. Hiding it instead would take the globe off
+     * every frame written before the member was named.
+     */
+    TEST_ASSERT(
+        !tree->components[globe].frame_hidden,
+        "a carried orbs member the declaration did not place is NOT hidden");
+    TEST_ASSERT(
+        effective_box_is(tree, globe, 700 + 206, 10 + 115, 30, 30),
+        "it keeps the pack's own spot, moved with the block");
 
     /* Placing the member seats it at ITS box, in canvas coordinates. */
     slots[UITREE_FRAME_SLOT_ORBS].at[0].placed = 1;
@@ -1694,6 +1722,21 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_ORBS) == orbs,
         "and the whole-role answer is still the block, not the member");
+
+    /* And a carried member the declaration DOES place is seated at its box,
+     * which is what a fixed frame over a resizable toplevel has to say to put
+     * the globe back in its alcove. */
+    slots[UITREE_FRAME_SLOT_ORBS].at[1].placed = 1;
+    slots[UITREE_FRAME_SLOT_ORBS].at[1].x = 867;
+    slots[UITREE_FRAME_SLOT_ORBS].at[1].y = 125;
+    slots[UITREE_FRAME_SLOT_ORBS].at[1].w = 30;
+    slots[UITREE_FRAME_SLOT_ORBS].at[1].h = 30;
+    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(
+        !tree->components[globe].frame_hidden &&
+            effective_box_is(tree, globe, 867, 125, 30, 30),
+        "a placed carried member is seated at the member box");
 
     UITree_FrameRelease(tree);
     TEST_ASSERT(!tree->components[blocker].frame_hidden, "release gives the blocker back");
@@ -1808,6 +1851,167 @@ test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
     UITree_Free(tree);
 }
 
+/*
+ * A fixed toplevel's GAME AREA follows the scene a window-following frame
+ * placed, so the lane's own world overlays follow it too.
+ *
+ * 548's shape: `main` is a 512x334 box authored in pixels, the scene fills it,
+ * and the world overlays -- here one bottom-anchored HUD -- are the scene's
+ * SIBLINGS inside it, seated against its box. A Modern Resizable declaration
+ * places the scene at the whole window; without the game area following, the
+ * HUD stays at the 503-tall frame's Y and floats in mid-air over the world.
+ *
+ * The area is the scene minus the frame's own chat band and right-hand
+ * column, which is what the lane's resizable toplevel does for itself.
+ */
+static void
+test_fixed_game_area_follows_a_window_following_frame(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+    int32_t shell;
+    int32_t area;
+    int32_t world;
+    int32_t hud;
+    int const area_x = 4;
+    int const area_y = 4;
+    int const area_w = 512;
+    int const area_h = 334;
+    int const hud_w = 46;
+    int const hud_h = 35;
+    int const canvas_w = 1158;
+    int const canvas_h = 800;
+    int const chat_y = 635;
+    int const side_x = 938;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    shell = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, FRAME_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    area = UITree_TestPushXy(
+        tree, shell, UIELEM_RS_LAYER, FRAME_CHAT_ID + 40, area_x, area_y, area_w, area_h);
+    world = UITree_TestPushXy(
+        tree, area, UIELEM_BUILTIN_WORLD, FRAME_WORLD_ID, 0, 0, 0, 0);
+    hud = UITree_TestPushXy(
+        tree, area, UIELEM_RS_LAYER, FRAME_CONTENT_ID, 2, 2, hud_w, hud_h);
+    TEST_ASSERT(
+        shell >= 0 && area >= 0 && world >= 0 && hud >= 0, "548-shaped game area builds");
+    /* The scene FILLS the game area (if3 size mode 1 with a zero inset), and
+     * the HUD is two pixels up from its bottom edge (position mode 2). That
+     * pair is the whole shape this rule keys on. */
+    tree->components[world].position.width_mode = 1;
+    tree->components[world].position.height_mode = 1;
+    tree->components[hud].position.y_mode = 2;
+    UITree_LayoutInvalidate(tree);
+
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, area, area_x, area_y, area_w, area_h) &&
+            effective_box_is(
+                tree, hud, area_x + 2, area_y + area_h - hud_h - 2, hud_w, hud_h),
+        "the lane seats its HUD against its own game area");
+
+    /* A FIXED declaration -- scene in the lane's own hole, chat below it,
+     * column beside it -- leaves the game area exactly where the lane put it. */
+    memset(slots, 0, sizeof(slots));
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.x = area_x;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.y = area_y;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.w = area_w;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.h = area_h;
+    slots[UITREE_FRAME_SLOT_CHAT].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_CHAT].all.y = area_y + area_h;
+    slots[UITREE_FRAME_SLOT_CHAT].all.w = 519;
+    slots[UITREE_FRAME_SLOT_CHAT].all.h = 165;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].all.x = area_x + area_w + 31;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].all.w = 190;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].all.h = 261;
+    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, area, area_x, area_y, area_w, area_h) &&
+            effective_box_is(
+                tree, hud, area_x + 2, area_y + area_h - hud_h - 2, hud_w, hud_h),
+        "a fixed frame's chat and column are outside the scene and take nothing off");
+
+    /* The window-following one. */
+    memset(slots, 0, sizeof(slots));
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.w = canvas_w;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.h = canvas_h;
+    slots[UITREE_FRAME_SLOT_CHAT].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_CHAT].all.y = chat_y;
+    slots[UITREE_FRAME_SLOT_CHAT].all.w = 519;
+    slots[UITREE_FRAME_SLOT_CHAT].all.h = canvas_h - chat_y;
+    /* Stated only through a member, as the Stone Drawer states its sidebar. */
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].placed = 1;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].x = side_x;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].y = 200;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].w = 190;
+    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].h = 261;
+    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, area, 0, 0, side_x, chat_y),
+        "the game area becomes the scene minus the frame's chat band and column");
+    TEST_ASSERT(
+        effective_box_is(tree, hud, 2, chat_y - hud_h - 2, hud_w, hud_h),
+        "and the lane's bottom-anchored HUD is seated on the frame's chat");
+    TEST_ASSERT(
+        raw_box_is(tree, area, area_x, area_y, area_w, area_h),
+        "the lane's own geometry is untouched underneath");
+
+    UITree_FrameRelease(tree);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, area, area_x, area_y, area_w, area_h) &&
+            effective_box_is(
+                tree, hud, area_x + 2, area_y + area_h - hud_h - 2, hud_w, hud_h),
+        "release hands the lane its game area back");
+
+    UITree_Free(tree);
+}
+
+/*
+ * A shell that merely CONTAINS the scene is not a game area.
+ *
+ * The 2004 lane's `fixed_shell` is authored in pixels too, but it holds the
+ * minimap, the compass and the chat buttons beside a scene that fills no part
+ * of it. Re-boxing that would move every one of them.
+ */
+static void
+test_a_shell_the_scene_does_not_fill_is_not_re_boxed(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+    int32_t shell;
+    int32_t world;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    shell = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0, 765, 503);
+    world = UITree_TestPushXy(
+        tree, shell, UIELEM_BUILTIN_WORLD, FRAME_WORLD_ID, 4, 4, 512, 334);
+    TEST_ASSERT(shell >= 0 && world >= 0, "2004-shaped shell builds");
+
+    memset(slots, 0, sizeof(slots));
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.w = 1158;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.h = 800;
+    slots[UITREE_FRAME_SLOT_CHAT].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_CHAT].all.y = 635;
+    slots[UITREE_FRAME_SLOT_CHAT].all.w = 519;
+    slots[UITREE_FRAME_SLOT_CHAT].all.h = 165;
+    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, shell, 0, 0, 765, 503),
+        "the 2004 shell keeps the box its own chrome is laid out in");
+
+    UITree_FrameRelease(tree);
+    UITree_Free(tree);
+}
+
 void
 test_frame_replacement(void)
 {
@@ -1826,4 +2030,6 @@ test_frame_replacement(void)
     test_frame_slot_overlay_follows_target_subtree();
     test_synthetic_press_sees_through_frame_hidden();
     test_placed_world_paints_first_and_stretched_ancestor_clips_nothing();
+    test_fixed_game_area_follows_a_window_following_frame();
+    test_a_shell_the_scene_does_not_fill_is_not_re_boxed();
 }

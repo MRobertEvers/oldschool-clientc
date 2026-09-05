@@ -30126,6 +30126,111 @@ App_MeasureRightChromeStripWidth(struct App const* app)
     return best;
 }
 
+/*
+ * The width the LANE's own frame needs, when the canvas it was given is too
+ * narrow for it.
+ *
+ * The resizable OldSchool toplevels are not fluid all the way down: each one
+ * carves the popout strip off the canvas (a full-height layer authored as
+ * "parent width - <strip>") and then lays a single fixed-size block inside
+ * what is left, clamped up to 765x503 by its own resize script. Handed less
+ * than that, the script writes the floor anyway and the layout CENTRES the
+ * block, so it hangs off both sides -- and every lane widget anchored to its
+ * right edge (the XP counter, the tracker overlays) lands to the RIGHT of the
+ * area a plugin frame was handed, under that frame's own right-hand furniture.
+ *
+ * Nobody notices this natively because APP_CANVAS_MIN_W is that same 765: the
+ * canvas floor already holds the block. A plugin frame that declares
+ * TORIRS_FRAME_CANVAS_WINDOW replaces that floor with its OWN minimum, and a
+ * frame written for a phone declares a smaller one -- legitimately, for its
+ * own furniture, which is all a frame offer can speak for. It does not replace
+ * the lane's toplevel; it arranges over it. So the lane's floor still applies,
+ * and this is where it is read: not from a constant (the mobile toplevel is
+ * fluid and must stay able to lay out at phone widths) but from the lane's own
+ * layout, at the one moment it states the number -- when the block it lays in
+ * the carved area comes out WIDER than the carved area.
+ *
+ * 0 when everything fits, which is also the answer when there is no such
+ * block. Only the overflow case is measurable: a block that fits tells us
+ * nothing about how small it could have been, and needs nothing.
+ */
+int
+App_MeasureLaneFrameCoreWidth(struct App const* app)
+{
+    /* Memoised on the same three terms as the strip scan above, and for the
+     * same reason: this is a full pass over every component, asked once per
+     * frame from App_CanvasFloorWidth. @see App_MeasureRightChromeStripWidth. */
+    static struct UITree const* memo_tree = NULL;
+    static uint32_t memo_dirty_gen;
+    static uint32_t memo_layout_seq;
+    static uint32_t memo_count;
+    static int memo_value;
+
+    int canvas_w;
+    int canvas_h;
+    int strip;
+    int best;
+    uint32_t i;
+
+    assert(app);
+    if( !app->tree || app->tree->component_count == 0 )
+        return 0;
+
+    if( memo_tree == app->tree && memo_dirty_gen == app->tree->dirty_gen &&
+        memo_layout_seq == app->tree->layout_resolve_seq &&
+        memo_count == app->tree->component_count )
+        return memo_value;
+
+    canvas_w = UITREE_LAYOUT_ROOT_W;
+    canvas_h = UITREE_LAYOUT_ROOT_H;
+    strip = App_MeasureRightChromeStripWidth(app);
+    best = 0;
+
+    for( i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &app->tree->components[i];
+        struct UITreeComponent const* p;
+
+        /* A block with a size of its own -- not one that follows whatever it
+         * is put in, which by construction can never overflow. */
+        if( c->freed || c->position.width_mode != 0 || c->position.abs_w <= 0 )
+            continue;
+        if( c->parent < 0 || (uint32_t)c->parent >= app->tree->component_count )
+            continue;
+        p = &app->tree->components[c->parent];
+        if( c->position.abs_w <= p->position.abs_w )
+            continue;
+        /*
+         * The parent must be the CARVED AREA: full-canvas height, docked on
+         * the left edge, and exactly the strip narrower than the canvas. That
+         * signature is what separates the lane's frame from every other fixed
+         * box that is bigger than the container it hangs in -- a 512x334 modal
+         * parked inside the 42-column popout strip is the shape this would
+         * otherwise measure, and it is not short of anything.
+         */
+        if( p->position.width_mode != 1 || p->position.height_mode != 1 )
+            continue;
+        if( p->position.abs_x != 0 || p->position.abs_w != canvas_w - strip )
+            continue;
+        if( p->position.abs_h < canvas_h - 2 )
+            continue;
+        if( c->position.abs_w <= best )
+            continue;
+        /* Ancestors too, for the reason the strip scan gives: a speculatively
+         * baked panel keeps live-looking boxes under a hidden root. */
+        if( component_hidden_or_orphaned(app->tree, (int32_t)i) )
+            continue;
+        best = c->position.abs_w;
+    }
+
+    memo_tree = app->tree;
+    memo_dirty_gen = app->tree->dirty_gen;
+    memo_layout_seq = app->tree->layout_resolve_seq;
+    memo_count = app->tree->component_count;
+    memo_value = best;
+    return best;
+}
+
 int
 App_FixedCanvasWidth(struct App const* app)
 {
@@ -30141,6 +30246,15 @@ App_CanvasFloorWidth(struct App const* app)
 
     assert(app);
     App_PluginLayoutMinSize(app, &frame_min_w, &frame_min_h);
+    /* And never below the LANE's own frame, which a plugin layout arranges
+     * over rather than replaces: its widgets are still laid out by the lane's
+     * toplevel, and a toplevel handed less than it can use spills them out of
+     * the area the plugin frame was given. @see App_MeasureLaneFrameCoreWidth. */
+    {
+        int const lane_core_w = App_MeasureLaneFrameCoreWidth(app);
+        if( frame_min_w < lane_core_w )
+            frame_min_w = lane_core_w;
+    }
     /* The strip is CARVED OUT of the canvas -- the resizable toplevels lay
      * their own children out beside it (interface 728's rail is 42 columns of
      * the canvas on both of them, and a plugin layout gets the same canvas

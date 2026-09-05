@@ -4497,6 +4497,162 @@ app_plugin_frame_stamp_role(
     next[(*next_count)++] = node;
 }
 
+static int
+app_plugin_frame_root(void* user);
+
+/*
+ * The cache's OWN per-toplevel element map, for auditing the profile's rungs.
+ *
+ * Each toplevel's `control` component carries
+ * `onload=i:901,i:-2147483645,i:<enum>` -- 548:1129, 161:1130, 164:1131,
+ * 601:1745 -- and the cache's own layout scripts reach every frame piece
+ * through it as `enum(component, component, $enum, interface_161:N)`. So the
+ * enum IS the list of elements this toplevel has, keyed on interface 161's
+ * component ids, shipped as data and correct by construction.
+ *
+ * The `[role:frame_*]` rungs in revconfig are a hand-copied subset of the same
+ * table. Hand-copied means silently wrong: a mistyped rung binds a frame slot
+ * to some other node and the plugin is handed a rectangle rather than an
+ * error, which is where three of the September audit's defects lived.
+ *
+ * This does not resolve roles -- it CHECKS them, under
+ * TORIRS_FRAME_ROLE_AUDIT=1, by asking whether each role's bound node is one
+ * of the elements the cache itself calls part of this frame. A role pointing
+ * outside that set is the shape of a mistyped rung.
+ */
+static int
+app_plugin_frame_role_enum_id(int root_group)
+{
+    switch( root_group )
+    {
+        case 548: return 1129;
+        case 161: return 1130;
+        case 164: return 1131;
+        case 601: return 1745;
+        default: return -1;
+    }
+}
+
+/**
+ * What enum(root) says component `key` of interface 161 becomes on this
+ * toplevel, or -1 when the enum does not answer.
+ *
+ * Membership in the value set is NOT enough to check a rung with, and that is
+ * worth stating because it was the first thing tried: a rung mistyped from
+ * `id(if(548, 11))` to `id(if(548, 39))` still lands on an element the enum
+ * names -- 39 is helper_content, the value of key 161:12 -- so "is this node
+ * in the frame's element set" answered yes for a rung pointing at the wrong
+ * element. The key has to be resolved, not the value looked for.
+ */
+static int
+app_plugin_frame_role_enum_value(struct App* app, int root_group, int key_uid)
+{
+    int const enum_id = app_plugin_frame_role_enum_id(root_group);
+    struct ToriRS_Enum* e;
+
+    assert(app);
+    if( enum_id < 0 || !app->provider )
+        return -1;
+    e = CacheProvider_EnumGet(app->provider, enum_id);
+    if( !e || e->output_is_string || !e->keys || !e->int_values )
+        return -1;
+    for( int i = 0; i < e->count; i++ )
+        if( e->keys[i] == key_uid )
+            return e->int_values[i];
+    return -1;
+}
+
+/**
+ * The interface-161 uid a role's chain names, which is the key the cache's own
+ * scripts address that element by. -1 when the profile declares no 161 rung.
+ *
+ * 161 is the canonical spelling because that is the interface every rung in
+ * enum 1129/1130/1131/1745 is keyed on -- the cache reaches the chat as
+ * `interface_161:96` whichever toplevel is up, and the enum turns that into
+ * 548:11, 164:93 or 601:49. A profile that carries the 161 rung therefore
+ * carries the key, and the other three rungs are derivable rather than
+ * copied.
+ */
+static int
+app_plugin_frame_role_key_161(struct UITreeRoleTable const* table, uint16_t role_id)
+{
+    struct UITreeRoleEntry const* entry;
+
+    assert(table);
+    if( role_id == 0 || (int)role_id > table->count )
+        return -1;
+    entry = &table->entries[role_id - 1];
+    for( int i = 0; i < entry->matcher_count; i++ )
+        if( entry->matchers[i].kind == UITREE_ROLE_MATCH_ID &&
+            ((entry->matchers[i].uid >> 16) & 0xffff) == 161 )
+            return entry->matchers[i].uid;
+    return -1;
+}
+
+static void
+app_plugin_frame_role_audit(struct App* app, struct UITree* tree)
+{
+    int const root = app_plugin_frame_root(app);
+    int checked = 0;
+    int outside = 0;
+    int unbound = 0;
+
+    assert(app);
+    assert(tree);
+    if( root <= 0 )
+        return;
+    for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
+    {
+        char const* name = UITree_RoleSlotName(slot);
+        char role[UITREE_ROLE_NAME_MAX];
+        uint16_t role_id;
+        int32_t node;
+        int in_enum = 0;
+
+        if( !name || app_plugin_frame_slot_tag(slot) == UITREE_SLOT_NONE )
+            continue;
+        snprintf(role, sizeof(role), "frame_%s", name);
+        role_id = UITree_RoleFind(&app->ui_roles, role);
+        if( role_id == 0 )
+            continue;
+        checked++;
+        node = UITree_RoleNode(tree, &app->ui_roles, role_id);
+        if( node < 0 || (uint32_t)node >= tree->component_count ||
+            tree->components[node].freed )
+        {
+            unbound++;
+            TORIRS_LOG("frameroles: %s UNBOUND on root %d\n", role, root);
+            continue;
+        }
+        {
+            int const key = app_plugin_frame_role_key_161(&app->ui_roles, role_id);
+            int const want = key < 0
+                                 ? -1
+                                 : app_plugin_frame_role_enum_value(app, root, key);
+            int const got = tree->components[node].component_id;
+
+            if( want >= 0 && want != got )
+            {
+                outside++;
+                TORIRS_LOG(
+                    "frameroles: %s on root %d -> (%d|%d), but enum %d maps its "
+                    "161 key (161|%d) to (%d|%d)\n",
+                    role,
+                    root,
+                    (got >> 16) & 0xffff,
+                    got & 0xffff,
+                    app_plugin_frame_role_enum_id(root),
+                    key & 0xffff,
+                    (want >> 16) & 0xffff,
+                    want & 0xffff);
+            }
+        }
+        (void)in_enum;
+    }
+    TORIRS_LOG("frameroles: root %d, %d roles checked, %d unbound, %d outside the enum\n",
+        root, checked, unbound, outside);
+}
+
 static void
 app_plugin_frame_bind(struct UITree* tree, void* user)
 {
@@ -4528,6 +4684,18 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         {
             snprintf(role, sizeof(role), "frame_%s_%d", name, member);
             app_plugin_frame_stamp_role(app, tree, role, tag, member, next, &next_count);
+        }
+    }
+
+    /* One audit per root, when asked for: the rungs are hand-copied from a
+     * table the cache also ships, and a mistyped one is otherwise silent. */
+    {
+        static int audited_root = -1;
+        int const root = app_plugin_frame_root(app);
+        if( root > 0 && root != audited_root && getenv("TORIRS_FRAME_ROLE_AUDIT") )
+        {
+            audited_root = root;
+            app_plugin_frame_role_audit(app, tree);
         }
     }
 

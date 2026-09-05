@@ -1692,17 +1692,29 @@ main(void)
          * the two columns to meet.
          *
          * They are anchored to opposite edges, so at the 503-row minimum the
-         * strip's 164 is above the adviser's 187 and there is no arithmetic
-         * that separates them. The lane's own 161 frame collides there too and
-         * paints its stones over the scroll; a plugin gameframe paints its
-         * chrome UNDER every live surface, so the frame has to state the cut
-         * instead. 164 - (10 + 143) is the eleven rows that are above the
-         * stones, which is what the lane's frame leaves showing.
+         * strip is above the adviser's 187 and there is no arithmetic that
+         * separates them. The lane's own frames collide there too -- 161
+         * paints its stones over the scroll, 164 puts its whole panel over it
+         * -- and a plugin gameframe paints its chrome UNDER every live
+         * surface, so this frame has to state the cut instead.
+         *
+         * WHERE the strip lands is not free to move. The bottom row keeps
+         * FRAME_R_MARGIN under it at every height, and the panel's 261 rows
+         * and the row's 37 chain off it, so the strip is at 503 - 4 - 37 -
+         * 261 - 37 = 164 and the adviser gets 164 - (10 + 143) = 11 of its
+         * 34 rows. Native 164 measures the same bottom row at the same size
+         * (765x503: rows 462..498, four rows of scene under it) whether its
+         * panel is open or shut, which is what the two halves below pin.
          */
         int const was_active = g_frame.active_tab;
 
         g_frame.active_tab = 3; /* a panel open, so the top row is lifted */
         declare(765, 503);
+        CHECK(
+            slot_is(
+                TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, 503 - 4 - 37 - 261, 190, 261),
+            "at the 503-row minimum an open panel still hangs off the float"
+            " margin");
         CHECK(
             member_is(
                 TORIRS_HOST_SURFACE_ORBS,
@@ -1715,9 +1727,18 @@ main(void)
         CHECK(
             slot_is(TORIRS_HOST_SURFACE_ORBS, 765 - 182 - 29, 10, 207, 197),
             "and the block itself keeps 161's own 197 rows");
-        /* No panel open: the strip drops to the corner and nothing is cut. */
+        /* No panel open: the strip drops to the corner and nothing is cut.
+         * The BOTTOM row may not move for that -- the panel's state is not
+         * allowed to slide the seven icons the player is aiming at, which is
+         * what an earlier attempt at buying the adviser its rows back did.
+         * The sidebar slot is where that shows: it is the bottom row's own y
+         * less 261, so an unchanged y here is an unchanged bottom row. */
         g_frame.active_tab = -1;
         declare(765, 503);
+        CHECK(
+            slot_is(
+                TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, 503 - 4 - 37 - 261, 190, 261),
+            "and a collapsed sidebar puts the bottom row in the same place");
         CHECK(
             member_is(
                 TORIRS_HOST_SURFACE_ORBS,
@@ -1727,6 +1748,24 @@ main(void)
                 34,
                 34),
             "a collapsed sidebar leaves the adviser whole at the same size");
+        /* One row taller and one row shorter, both states: the margin is a
+         * constant under the bottom row, not a reserve the layout dips into
+         * at the sizes where the two columns are tightest. */
+        for( int h = 503; h <= 507; h++ )
+        {
+            g_frame.active_tab = 3;
+            declare(765, h);
+            CHECK(
+                slot_is(
+                    TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, h - 4 - 37 - 261, 190, 261),
+                "the float margin is kept at every height with a panel open");
+            g_frame.active_tab = -1;
+            declare(765, h);
+            CHECK(
+                slot_is(
+                    TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, h - 4 - 37 - 261, 190, 261),
+                "and at every height with it shut");
+        }
         g_frame.active_tab = was_active;
         declare(1024, 768);
     }
@@ -1770,12 +1809,23 @@ main(void)
     CHECK(!blitted_at(0, 338), "the fixed frame blits no chat backing either");
 
     /* Another concrete catalogue choice puts the 2004 frame around OldSchool
-     * packs, with the pack at the OldSchool fixed chat's place. */
+     * packs -- at the 2004 chat's PLACE, which is the half of "a 2004
+     * gameframe" that used to be missing.
+     *
+     * REVERSED 2026-09-04, and this check is the record of it. It used to
+     * assert (0, 338, 519, 165) -- the OldSchool origin -- under the reasoning
+     * that a frame from one era around a chatbox from another leaves the
+     * chatbox where its own lane put it. Measured, that made the frame
+     * byte-identical to running with no frame at all: the chat was re-skinned
+     * and never moved. The pack now takes the 2004 origin and the 2004 height
+     * and keeps its own width, because 519 is authored absolute on chatbox.if
+     * and its height is the only axis that reflows. 357 + 96 = 453, which is
+     * exactly where the 2004 `backbase1` strip starts. */
     select_frame("gameframe-layout/classic-fixed", 1300);
     declare(765, 503);
     CHECK(
-        slot_is(TORIRS_HOST_SURFACE_CHAT, 0, 338, 519, 165),
-        "Classic Fixed on OldSchool places the chat pack whole");
+        slot_is(TORIRS_HOST_SURFACE_CHAT, 17, 357, 519, 96),
+        "Classic Fixed on OldSchool places the chat pack at the 2004 box");
     CHECK(
         slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 553, 205, 190, 261),
         "with the 2004 sidebar box");
