@@ -27,6 +27,11 @@ def run_cs2_controls(src, out, make_args, selected):
     registry = ("if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )\n"
                 "        {\n            hook->last_seen_serial = self->host->inv_change_serial;")
     controls = {
+        "resume_context": ("if( self->has_resume_context )", "if( false )",
+                           "resumed callback respects widget incarnation dot=0 stale=1"),
+        "dispatch_compaction": (
+            "if( hint < count && task_cs2_refs_equal(ref, task_cs2_hook_ref(hooks, stride, hint)) )",
+            "if( hint < count )", "compaction cannot skip original listener channel=0"),
         "queued_origin": ("(!self->started &&", "(false &&",
                           "queued CS2 callback cannot write recycled native ID"),
         "snapshot_identity": (snapshot, snapshot.replace(
@@ -84,6 +89,9 @@ def main():
                    if "ui/uitree.c " in line and " -o " in line)
     original = (src / "ui/uitree.c").read_text()
     controls = {
+        "global_identity": ("component->incarnation = atomic_fetch_add(&next_incarnation, 1);",
+                            "component->incarnation = (uint64_t)idx + 1;",
+                            "retained incarnation cannot affect another tree"),
         "copy_state": ("i < src.params_count", "i < 0", "copy preserves integer parameters"),
         "tree_identity": ("ref.tree_instance != tree->instance_id", "false",
                           "reference cannot cross tree instances"),

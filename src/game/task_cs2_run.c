@@ -115,6 +115,9 @@ struct Task_CS2Run
     struct UITreeNodeRef active_ref;
     struct UITreeNodeRef dot_ref;
     struct UITreeNodeRef pending_target_ref;
+    struct UITreeNodeRef resume_active_ref;
+    struct UITreeNodeRef resume_dot_ref;
+    uint8_t has_resume_context;
     uint8_t cancelled;
     int int_args[TASK_CS2_RUN_INT_ARGS_MAX];
     int int_arg_count;
@@ -1213,6 +1216,17 @@ Task_CS2Run_Run(
         PT_EXIT(&self->pt);
     }
 
+    if( self->has_resume_context )
+    {
+        thread = CS2VM2_ThreadMain(self->vm);
+        int32_t active = UITree_ResolveRef(self->host->tree, self->resume_active_ref);
+        int32_t dot = UITree_ResolveRef(self->host->tree, self->resume_dot_ref);
+        if( active < 0 || self->host->tree->components[active].component_id != thread->active_component_id )
+            thread->active_component_id = -1;
+        if( dot < 0 || self->host->tree->components[dot].component_id != thread->dot_component_id )
+            thread->dot_component_id = -1;
+    }
+
     PT_BEGIN(&self->pt);
 
     assert(self->host);
@@ -1360,6 +1374,7 @@ Task_CS2Run_Run(
          * rather than inheriting the last script that ran. @see
          * TORIRS_DUMP_SETPOS in rs_cs2_host.c. */
         self->pending_target_ref = (struct UITreeNodeRef){0};
+        self->has_resume_context = 0;
         self->host->trace_script_id = self->script_id;
         status = CS2VM2_ThreadRun(thread, &err);
         self->host->trace_script_id = -1;
@@ -1446,6 +1461,11 @@ Task_CS2Run_Run(
         }
         *self->pending = self->host->pending;
         self->host->has_pending = false;
+        self->has_resume_context = 1;
+        self->resume_active_ref = UITree_RefAt(self->host->tree,
+            self->host->tree ? UITree_FindByComponentId(self->host->tree, thread->active_component_id) : -1);
+        self->resume_dot_ref = UITree_RefAt(self->host->tree,
+            self->host->tree ? UITree_FindByComponentId(self->host->tree, thread->dot_component_id) : -1);
         int target_id = task_cs2_component_id_from_request(self->pending);
         self->pending_target_ref = UITree_RefAt(self->host->tree,
             self->host->tree ? UITree_FindByComponentId(self->host->tree, target_id) : -1);
@@ -1872,6 +1892,60 @@ CreateTask_CS2RunScript(
  * Inv-transmit dispatch
  * ========================================================================= */
 
+/* Registrations may move during a yielded callback. Snapshot participants,
+ * then use their old slot as an O(1) hint; only compaction needs a search. */
+_Static_assert(offsetof(struct RS_CS2InvTransmitHook, ref) == offsetof(struct RS_CS2VarTransmitHook, ref),
+               "transmit identity prefix differs");
+_Static_assert(offsetof(struct RS_CS2InvTransmitHook, ref) == offsetof(struct RS_CS2StatTransmitHook, ref),
+               "transmit identity prefix differs");
+
+struct Task_CS2HookSnapshot
+{
+    struct UITreeNodeRef* refs;
+    int count;
+};
+
+static struct UITreeNodeRef
+task_cs2_hook_ref(void const* hooks, size_t stride, int index)
+{
+    struct UITreeNodeRef ref;
+    memcpy(&ref, (char const*)hooks + stride * (size_t)index +
+                 offsetof(struct RS_CS2InvTransmitHook, ref), sizeof(ref));
+    return ref;
+}
+
+static struct Task_CS2HookSnapshot
+task_cs2_snapshot_hooks(void const* hooks, size_t stride, int count)
+{
+    struct Task_CS2HookSnapshot snapshot = {.count=count};
+    if( count > 0 )
+    {
+        snapshot.refs = malloc((size_t)count * sizeof(*snapshot.refs));
+        if( !snapshot.refs ) abort();
+        for( int i = 0; i < count; ++i )
+            snapshot.refs[i] = task_cs2_hook_ref(hooks, stride, i);
+    }
+    return snapshot;
+}
+
+static bool
+task_cs2_refs_equal(struct UITreeNodeRef a, struct UITreeNodeRef b)
+{
+    return a.tree_instance == b.tree_instance && a.index == b.index && a.incarnation == b.incarnation;
+}
+
+static int
+task_cs2_snapshot_slot(void const* hooks, size_t stride, int count,
+                       struct UITreeNodeRef ref, int hint)
+{
+    if( !ref.incarnation ) return -1;
+    if( hint < count && task_cs2_refs_equal(ref, task_cs2_hook_ref(hooks, stride, hint)) )
+        return hint;
+    for( int i = 0; i < count; ++i )
+        if( task_cs2_refs_equal(ref, task_cs2_hook_ref(hooks, stride, i)) ) return i;
+    return -1;
+}
+
 struct Task_CS2InvTransmitDispatch
 {
     struct ToriRS_Task task;
@@ -1881,6 +1955,7 @@ struct Task_CS2InvTransmitDispatch
     int container_id;
     int unhide_only;
     int hook_index;
+    struct Task_CS2HookSnapshot snapshot;
 };
 
 static int
@@ -1914,10 +1989,15 @@ Task_CS2InvTransmitDispatch_Run(
 
     assert(self->host);
 
-    for( self->hook_index = 0; self->hook_index < self->host->inv_transmit_hook_count;
-         self->hook_index++ )
+    self->snapshot = task_cs2_snapshot_hooks(self->host->inv_transmit_hooks,
+        sizeof(*self->host->inv_transmit_hooks), self->host->inv_transmit_hook_count);
+    for( self->hook_index = 0; self->hook_index < self->snapshot.count; self->hook_index++ )
     {
-        hook = &self->host->inv_transmit_hooks[self->hook_index];
+        int slot = task_cs2_snapshot_slot(self->host->inv_transmit_hooks,
+            sizeof(*self->host->inv_transmit_hooks), self->host->inv_transmit_hook_count,
+            self->snapshot.refs[self->hook_index], self->hook_index);
+        if( slot < 0 ) continue;
+        hook = &self->host->inv_transmit_hooks[slot];
         if( self->unhide_only ? !hook->pending_unhide
                               : !hook_matches_container(hook, self->container_id) )
             continue;
@@ -1988,6 +2068,7 @@ Task_CS2InvTransmitDispatch_Free(struct ToriRS_Task* task)
 {
     struct Task_CS2InvTransmitDispatch* self = (struct Task_CS2InvTransmitDispatch*)task;
     assert(self);
+    free(self->snapshot.refs);
     free(self);
 }
 
@@ -2043,6 +2124,7 @@ struct Task_CS2VarTransmitDispatch
     int var_count;
     int unhide_only;
     int hook_index;
+    struct Task_CS2HookSnapshot snapshot;
 };
 
 int
@@ -2098,10 +2180,15 @@ Task_CS2VarTransmitDispatch_Run(
 
     assert(self->host);
 
-    for( self->hook_index = 0; self->hook_index < self->host->var_transmit_hook_count;
-         self->hook_index++ )
+    self->snapshot = task_cs2_snapshot_hooks(self->host->var_transmit_hooks,
+        sizeof(*self->host->var_transmit_hooks), self->host->var_transmit_hook_count);
+    for( self->hook_index = 0; self->hook_index < self->snapshot.count; self->hook_index++ )
     {
-        hook = &self->host->var_transmit_hooks[self->hook_index];
+        int slot = task_cs2_snapshot_slot(self->host->var_transmit_hooks,
+            sizeof(*self->host->var_transmit_hooks), self->host->var_transmit_hook_count,
+            self->snapshot.refs[self->hook_index], self->hook_index);
+        if( slot < 0 ) continue;
+        hook = &self->host->var_transmit_hooks[slot];
         /* TORIRS_VAR_HOOK_DEBUG=1: one line per registered hook per dispatch,
          * with its trigger list and the varps that actually changed. A hook
          * that never fires and a hook that fires and paints nothing look
@@ -2184,6 +2271,7 @@ Task_CS2VarTransmitDispatch_Free(struct ToriRS_Task* task)
 {
     struct Task_CS2VarTransmitDispatch* self = (struct Task_CS2VarTransmitDispatch*)task;
     assert(self);
+    free(self->snapshot.refs);
     free(self);
 }
 
@@ -2271,6 +2359,7 @@ struct Task_CS2StatTransmitDispatch
     int unhide_only;
     /* How many hooks existed when this dispatch started — see the loop. */
     int hook_count;
+    struct Task_CS2HookSnapshot snapshot;
 };
 
 /* One line per hook the stat dispatch considered, under TORIRS_STAT_DEBUG.
@@ -2332,28 +2421,15 @@ Task_CS2StatTransmitDispatch_Run(
 
     assert(self->host);
 
-    /*
-     * The bound is snapshotted, and that is not a micro-optimisation.
-     *
-     * A dispatched hook runs a clientscript, and the XP-drop script's own job
-     * includes re-arming its listener (`xpdrops_setstatlistener`). Re-arming an
-     * existing component reuses its slot, but re-arming a *different* one
-     * appends — so reading `stat_transmit_hook_count` fresh each iteration lets
-     * a hook extend the loop it is being run from. It does, and the client
-     * hangs: no crash, no error, just a frame that never completes.
-     *
-     * Anything registered during this dispatch belongs to the next one. That is
-     * also the semantics you want — a listener armed by a stat change has not
-     * missed the change that armed it, because the script that armed it just
-     * ran for it.
-     */
-    self->hook_count = self->host->stat_transmit_hook_count;
-
-    for( self->hook_index = 0; self->hook_index < self->hook_count; self->hook_index++ )
+    self->snapshot = task_cs2_snapshot_hooks(self->host->stat_transmit_hooks,
+        sizeof(*self->host->stat_transmit_hooks), self->host->stat_transmit_hook_count);
+    for( self->hook_index = 0; self->hook_index < self->snapshot.count; self->hook_index++ )
     {
-        if( self->hook_index >= self->host->stat_transmit_hook_count )
-            break; /* compacted mid-dispatch (a component was reclaimed) */
-        hook = &self->host->stat_transmit_hooks[self->hook_index];
+        int slot = task_cs2_snapshot_slot(self->host->stat_transmit_hooks,
+            sizeof(*self->host->stat_transmit_hooks), self->host->stat_transmit_hook_count,
+            self->snapshot.refs[self->hook_index], self->hook_index);
+        if( slot < 0 ) continue;
+        hook = &self->host->stat_transmit_hooks[slot];
         /* TORIRS_STAT_DEBUG prints the SKIPS as well as the runs, and that is
          * what this loop is worth debugging with: every one of the five gates
          * below presents identically from the outside — the panel draws
@@ -2363,7 +2439,7 @@ Task_CS2StatTransmitDispatch_Run(
         if( self->unhide_only ? !hook->pending_unhide
                               : !hook_matches_stat(hook, self->stat_ids, self->stat_count) )
         {
-            stat_dispatch_trace(self->host, hook, self->hook_index, "no-trigger-match");
+            stat_dispatch_trace(self->host, hook, slot, "no-trigger-match");
             continue;
         }
         if( hook->script_id <= 0 )
@@ -2372,7 +2448,7 @@ Task_CS2StatTransmitDispatch_Run(
         {
             hook->last_seen_serial = self->host->stat_change_serial;
             hook->pending_unhide = 0;
-            stat_dispatch_trace(self->host, hook, self->hook_index, "not-in-tree");
+            stat_dispatch_trace(self->host, hook, slot, "not-in-tree");
             continue;
         }
         if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
@@ -2382,7 +2458,7 @@ Task_CS2StatTransmitDispatch_Run(
                 hook->pending_unhide = 1;
                 hook->last_seen_serial = self->host->stat_change_serial;
             }
-            stat_dispatch_trace(self->host, hook, self->hook_index, "hidden");
+            stat_dispatch_trace(self->host, hook, slot, "hidden");
             continue;
         }
         if( !self->unhide_only &&
@@ -2390,7 +2466,7 @@ Task_CS2StatTransmitDispatch_Run(
             continue;
         hook->last_seen_serial = self->host->stat_change_serial;
         hook->pending_unhide = 0;
-        stat_dispatch_trace(self->host, hook, self->hook_index, "run");
+        stat_dispatch_trace(self->host, hook, slot, "run");
 
         {
             char const* str_ptrs[CS2VM_SETON_STR_ARG_MAX];

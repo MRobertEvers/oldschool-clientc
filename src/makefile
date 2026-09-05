@@ -3686,11 +3686,11 @@ test-minimap-dots: $(OBJ_DIR) $(OBJS)
 # on the CS2 VM for two lanes. Each case sets exactly ONE flag, because with any
 # second flag set the guard opens and the bug is invisible. Needs no cache and
 # no server.
-test-cs2-transmit-pump: $(OBJ_DIR) $(OBJS)
+test-cs2-transmit-pump: $(OBJ_DIR) $(OBJS) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_cs2_transmit_pump_test \
 		game/test/rs_cs2_transmit_pump_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
-	./$(OBJ_DIR)/rs_cs2_transmit_pump_test
+	$(UITREE_TEST_ENV) ./$(OBJ_DIR)/rs_cs2_transmit_pump_test
 
 # Runtime interface-slot API contract test (IF_OPENMAIN/IF_OPENSIDE/IF_SETTAB
 # surface) against the real dat1 cache + rs245_2lc RevConfig build.

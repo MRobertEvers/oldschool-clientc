@@ -1068,8 +1068,12 @@ push_element_unlinked(struct UITree* tree)
 
     struct UITreeComponent* component = &tree->components[idx];
     memset(component, 0, sizeof(struct UITreeComponent));
-    if( ++tree->next_incarnation == 0 ) abort();
-    component->incarnation = tree->next_incarnation;
+    /* Retained native caches may outlive the tree they originally read.
+     * A process-wide nonce prevents their index/incarnation pairs from ever
+     * matching a component allocated in another tree. */
+    static _Atomic uint64_t next_incarnation = 1;
+    component->incarnation = atomic_fetch_add(&next_incarnation, 1);
+    if( !component->incarnation ) abort();
     component->parent = -1;
     component->first_child = -1;
     component->next_sibling = -1;

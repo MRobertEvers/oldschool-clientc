@@ -128,3 +128,76 @@ cross-tree checks in older index/incarnation caches, registration changes and
 registry compaction during dispatch, VM active/dot references across unrelated
 asset yields, and task/resource teardown. The complete mutation/publication
 audit and major-3 plugin lifecycle are still required before M2–M6 can close.
+
+## Retained input and dispatch checkpoint
+
+Sources: [tree identity](../../src/ui/uitree.c),
+[native queues and keyboard routing](../../src/game/rs_cs2_host.c),
+[cooperative dispatch](../../src/game/task_cs2_run.c), and
+[executable conformance cases](../../src/game/test/rs_cs2_transmit_pump_test.c).
+
+Component incarnations are now process-unique, closing cross-tree aliasing in
+older native caches that retain only an index and incarnation. Resize and
+operation queues retain checked references; local child operations retain the
+child, not merely its still-live parent. Four assertions were observed red
+before these changes (`m2-cross-tree-red` and `m2-queued-op-red` logs in `/private/tmp`).
+
+The CS2 continuation keeps independent active/dot references across asset
+loads. Reusing one context invalidates that context without cancelling work on
+the other live context. The test drives the real dat2 script-load task and
+cache encoder/decoder, with both valid and stale continuations. A stale active
+context was observed writing its replacement before the fix.
+
+All three transmit dispatchers now snapshot participant identities, using their
+old registry positions as fast hints. Compaction during a yielded callback
+cannot skip an original listener or introduce a newly registered participant
+into the current pass. The new listener receives its initial update on the
+next pass. Six assertions failed before this implementation, including the
+already count-bounded stat dispatcher: a count alone did not protect identity.
+The native tests exercise registry compaction while a real script load waits.
+
+`m2-global-negative` and `m2-dispatch-negative` record the expected failures
+when process identity, resumed context validation, participant relocation,
+queued-origin, snapshot and registry checks are individually broken. UITree
+and the expanded CS2 native suite pass under ASan. The IO fixture now explicitly
+identifies OSRS239; its earlier missing-profile assertion is not counted as
+sanitizer acceptance. The fixture also calls the production host destructor.
+
+`m2-dispatch-lc` passes both packet/CS1 cases with distinct accounts.
+`m2-dispatch-native-roots` passes the four native roots. The first optimized
+OSRS scenario run failed eight groups because required opt-in trace lines
+were compiled out, while its rendering assertions passed. Those diagnostics
+now use gated reports. `m2-dispatch-osrs-instrumented` passes all 13 existing
+native captures, including packet receipt, walk permission, hiding, resize and
+remount assertions. Enlarged map captures show the four map-visible modes and
+three compass-visible modes required by the OSRS state table.
+
+### Actual focused-field/server-hide case
+
+Logical focus is distinct from permission to receive keys. `RS_CS2_InputKey`
+now receives the app's UI host and checks the same native availability plus
+presentation suppression before editing. Native hiding, unmounting and input
+suppression pause typing without moving logical focus to another field.
+All three restrictions were observed accepting keys before the fix.
+
+The existing gameframe harness now includes `focus-native-hide`: open the native
+Hiscores pane (894), focus its type-12 search field, type `ab`, hide its parent
+with a server packet, type `x`, unhide it, then type `c`. The checker requires
+the ordered input/packet trace and a focused-field text fingerprint for `abc`.
+`NATIVE_INPUT` records length/hash rather than the field's raw text.
+
+`m2-native-focused-hide` passes. At 2× its four top controls remain intact and
+the search field shows `abc`. In `m2-native-focused-hide-negative`, a temporary
+native build with only the keyboard eligibility guard removed shows `abxc` and
+fails the focused-input assertion, while the ordered packet/input sequence and
+other capture assertions pass. The source mutation, binary and build log are
+in `m2-native-focus-negative-build`; `m2-focus-positive-negative-2x.png` records
+the inspected comparison. This is an actual native-cache UI and server-packet
+negative control, in addition to the small bytecode conformance cases.
+
+The default OSRS scenario set is now 11 groups / 14 captures. These results
+close the listed retained-input cases, not the entire M2 gate. Outstanding work
+includes complete mutation/dependency auditing and publication checks, retained
+operation semantics when labels/masks/content change, async teardown and
+allocation-failure behavior, and the remaining animation/resource writers.
+M3–M6 and the production major-3 C/Lua cutover are still required.

@@ -18,23 +18,30 @@ void test_plugin_contract_native(void)
     TEST_ASSERT(UITree_GetLayoutHeight(tree,0x120001) == 0, "computed zero height readback");
     int field = UITree_CcCreate(tree,root,0x120000,12,4);
     int id = tree->components[field].component_id;
+    struct UITree* replacement_tree = UITree_New(16);
+    int other_root = UITree_TestPushXy(replacement_tree, -1, UIELEM_RS_LAYER, 0x120000, 0, 0, 100, 100);
+    int other_node = UITree_TestPushXy(replacement_tree, other_root, UIELEM_RS_GRAPHIC, 0x120001, 0, 0, 20, 20);
+    TEST_ASSERT(!UITree_SetReplacementHidden(replacement_tree, other_node,
+                tree->components[node].incarnation, 1), "retained incarnation cannot affect another tree");
+    UITree_Free(replacement_tree);
     uint64_t incarnation = tree->components[field].incarnation;
     struct UITreeNodeRef ref = UITree_RefAt(tree, field);
     TEST_ASSERT(UITree_ResolveRef(tree, ref) == field, "live reference resolves");
     struct UITree* other = UITree_New(1);
     for( int i = 0; i <= field; ++i )
         UITree_TestPushXy(other,-1,UIELEM_RS_TEXT,id+i,0,0,10,10);
-    TEST_ASSERT(other->components[field].incarnation == ref.incarnation,
-                "cross-tree fixture has matching slot and incarnation");
+    /* Even a malformed reference with a colliding nonce cannot cross trees. */
+    other->components[field].incarnation = ref.incarnation;
     TEST_ASSERT(UITree_ResolveRef(other, ref) < 0, "reference cannot cross tree instances");
     UITree_Free(other);
     UITree_InputSetFocusId(tree,id);
     UITree_StageDragPickup(tree, field, 3, 4);
     UITree_CcDelete(tree,field);
     TEST_ASSERT(UITree_ResolveRef(tree, ref) < 0, "deleted reference is stale");
-    tree->next_incarnation = UINT32_MAX; /* exercise widening past the old wrap boundary */
     tree->next_dynamic_uid = (uint16_t)(id & 0xffff); /* exercise the allocator's reuse boundary */
     int replacement = UITree_CcCreate(tree,root,0x120000,12,4);
+    /* Exercise wide tokens without billions of allocations. */
+    tree->components[replacement].incarnation |= UINT64_C(1) << 32;
     TEST_ASSERT(tree->components[replacement].component_id == id, "native id was recycled");
     TEST_ASSERT(tree->components[replacement].incarnation > UINT32_MAX, "incarnation survives 32-bit boundary");
     TEST_ASSERT(tree->components[replacement].incarnation != incarnation, "replacement is another incarnation");

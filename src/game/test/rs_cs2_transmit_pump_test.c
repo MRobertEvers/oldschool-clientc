@@ -58,6 +58,7 @@
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_script.h"
 #include "cs2vm2/cs2_opcode.h"
+#include "3rd/rscache/src/datatypes/clientscript.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_cs2_dispatch.h"
@@ -115,6 +116,9 @@ fixture_init(struct Fixture* fx)
     fx->tree = UITree_New(256);
     fx->bc = dat2_buildcache_new();
     provider = dat2_buildcache_as_provider(fx->bc);
+    struct RSCache profile;
+    if( !RSCache_ProfileByName("osrs239", &profile) ) abort();
+    CacheProvider_SetProfile(provider, &profile);
     InvManager_Init(&fx->invs);
     RS_CS2Host_Init(&fx->host, fx->tree, provider, &fx->invs, NULL, NULL, NULL);
 
@@ -128,6 +132,7 @@ static void
 fixture_free(struct Fixture* fx)
 {
     ToriRS_TaskQueue_Free(fx->runner.queue);
+    RS_CS2Host_Free(&fx->host);
     InvManager_Free(&fx->invs);
     UITree_Free(fx->tree);
     dat2_buildcache_free(fx->bc);
@@ -909,12 +914,243 @@ test_transmit_registry_identity(void)
 #undef REGISTER
     ToriRS_IO_Free(io);
     CS2VM2_Release(vm);
-    free(fx.host.inv_transmit_hooks);
-    free(fx.host.var_transmit_hooks);
-    free(fx.host.stat_transmit_hooks);
-    fx.host.inv_transmit_hooks = NULL;
-    fx.host.var_transmit_hooks = NULL;
-    fx.host.stat_transmit_hooks = NULL;
+    fixture_free(&fx);
+}
+
+static void
+test_queued_widget_operations(void)
+{
+    struct Fixture fx;
+    fixture_init(&fx);
+    struct UITreeNodeSpec spec = {.type=UIELEM_RS_LAYER, .component_id=0x180000};
+    int parent = UITree_Push(fx.tree, -1, &spec);
+    int child = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, 0);
+    int id = fx.tree->components[child].component_id;
+    struct CS2VM2* vm = CS2VM2_Acquire();
+    CS2VM2_BindHost(vm, &fx.host, RS_CS2Host_Exec);
+    struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(vm);
+    for( int stale = 0; stale <= 1; ++stale )
+    {
+        struct CS2VM_HostRequest req = {.kind=CS2VM_HOST_REQUEST_IF_CALLONRESIZE};
+        req.u.IF_CALLONRESIZE.component_id = id;
+        CHECK(RS_CS2Host_Exec(thread, &req) == CS2VM_EXECNO_OK, "queue native resize");
+        req.kind = CS2VM_HOST_REQUEST_CC_TRIGGEROP;
+        req.u.CC_TRIGGEROP.component_id = id;
+        req.u.CC_TRIGGEROP.op_index = 3;
+        CHECK(RS_CS2Host_Exec(thread, &req) == CS2VM_EXECNO_OK, "queue native operation");
+        req.kind = CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL;
+        req.u.IF_TRIGGEROPLOCAL.component_id = spec.component_id;
+        req.u.IF_TRIGGEROPLOCAL.sub = 0;
+        CHECK(RS_CS2Host_Exec(thread, &req) == CS2VM_EXECNO_OK, "queue native child operation");
+        if( stale )
+        {
+            UITree_CcDelete(fx.tree, child);
+            fx.tree->next_dynamic_uid = (uint16_t)(id & 0xffff);
+            child = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, 0);
+        }
+        int resized = -1;
+        struct RS_CS2TriggerOp op = {0};
+        struct RS_CS2TriggerOpLocal local = {0};
+        CHECK(RS_CS2Host_TakeCallOnResize(&fx.host, &resized) == !stale,
+              "queued resize respects incarnation stale=%d", stale);
+        CHECK(RS_CS2Host_TakeTriggerOp(&fx.host, &op) == !stale,
+              "queued operation respects incarnation stale=%d", stale);
+        CHECK(RS_CS2Host_TakeTriggerOpLocal(&fx.host, &local) == !stale,
+              "queued child operation respects incarnation stale=%d", stale);
+        if( !stale )
+            CHECK(resized == id && op.component_id == id && op.op_index == 3 &&
+                  local.component_id == spec.component_id && local.sub == 0,
+                  "valid operations keep their native payloads");
+    }
+    CS2VM2_Release(vm);
+    fixture_free(&fx);
+}
+
+static void
+test_callback_context_across_asset_yield(void)
+{
+    for( int dot = 0; dot <= 1; ++dot )
+    for( int stale = 0; stale <= 1; ++stale )
+    {
+        struct Fixture fx;
+        fixture_init(&fx);
+        struct UITreeNodeSpec spec = {.type=UIELEM_RS_LAYER, .component_id=0x190000};
+        int parent = UITree_Push(fx.tree, -1, &spec);
+        int active_node = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, 0);
+        int dot_node = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, 1);
+        int child = dot ? dot_node : active_node;
+        int id = fx.tree->components[child].component_id;
+        uint16_t ops[] = {CS2_OP_GOSUB_WITH_PARAMS, CS2_OP_PUSH_CONSTANT_INT,
+                         CS2_OP_CC_SETCOLOUR, CS2_OP_PUSH_CONSTANT_INT,
+                         CS2_OP_CC_SETCOLOUR, CS2_OP_RETURN};
+        int operands[] = {99996, 0x234567, 0, 0x345678, 1, 0};
+        char* strings[] = {NULL, NULL, NULL, NULL, NULL, NULL};
+        struct CS2VM2_Script script = {.script_id=99995, .op_count=6, .opcodes=ops,
+            .int_operands=operands, .string_operands=strings, .int_stack_depth=1};
+        struct ToriRS_Task* callback = CreateTask_CS2RunScript(&fx.host, &script,
+            fx.tree->components[active_node].component_id, fx.tree->components[dot_node].component_id, NULL, 0);
+        struct ToriRS_IO* io = ToriRS_IO_New();
+        CHECK(task_run(callback, io) == PT_YIELDED, "native callback yields for missing callee");
+        CHECK(io->active_count == 1 && io->io_slots[io->active[0]].kind == TORIRS_IOK_CACHE,
+              "callee load reaches real cache IO request");
+        if( stale )
+        {
+            UITree_CcDelete(fx.tree, child);
+            fx.tree->next_dynamic_uid = (uint16_t)(id & 0xffff);
+            child = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, dot);
+        }
+        uint16_t callee_ops[] = {CS2_OP_RETURN};
+        int callee_args[] = {0};
+        char* callee_strings[] = {NULL};
+        struct RSCache_ClientScript callee = {.script={.script_id=99996, .op_count=1,
+            .opcodes=callee_ops, .int_operands=callee_args, .string_operands=callee_strings}};
+        unsigned cap = RSCache_ClientScriptEncodeBound(&callee);
+        struct RSCache_Dat2DiskArchive* archive = calloc(1, sizeof(*archive));
+        archive->data = malloc(cap);
+        archive->data_size = RSCache_ClientScriptEncodeFlags(&callee,
+            RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY, archive->data, cap);
+        CHECK(archive->data_size > 0, "encode callee for native cache decoder");
+        io->io_slots[io->active[0]].data = archive;
+        ToriRS_IO_ResetActive(io);
+        CHECK(task_run(callback, io) == PT_ENDED, "native callback resumes through loaded callee");
+        CHECK(fx.tree->components[child].colour == (stale ? 0 : dot ? 0x345678 : 0x234567),
+              "resumed callback respects widget incarnation dot=%d stale=%d", dot, stale);
+        CHECK(fx.tree->components[dot ? active_node : dot_node].colour == (dot ? 0x234567 : 0x345678),
+              "stale context does not cancel independent live context dot=%d stale=%d", dot, stale);
+        task_free(callback);
+        ToriRS_IO_Free(io);
+        fixture_free(&fx);
+    }
+}
+
+static void
+register_test_transmit(struct CS2VM2_Thread* thread, int channel, int id, int script_id)
+{
+    struct CS2VM_HostRequest req = {0};
+#define REGISTER_CASE(n, opcode_name) case n: \
+    req.kind = CS2VM_HOST_REQUEST_##opcode_name; \
+    req.u.opcode_name.component_id = id; req.u.opcode_name.script_id = script_id; break
+    switch( channel )
+    {
+        REGISTER_CASE(0, CC_SETONINVTRANSMIT);
+        REGISTER_CASE(1, CC_SETONVARTRANSMIT);
+        REGISTER_CASE(2, CC_SETONSTATTRANSMIT);
+    }
+#undef REGISTER_CASE
+    CHECK(RS_CS2Host_Exec(thread, &req) == CS2VM_EXECNO_OK, "register listener channel=%d", channel);
+}
+
+static struct ToriRS_Task*
+test_transmit_task(struct RS_CS2Host* host, int channel)
+{
+    if( channel == 0 ) return CreateTask_CS2InvTransmitDispatch(host, -1);
+    if( channel == 1 ) return CreateTask_CS2VarTransmitDispatch(host, -1);
+    return CreateTask_CS2StatTransmitDispatchSet(host, NULL, 0);
+}
+
+static void
+test_registry_compaction_during_callback(void)
+{
+    for( int channel = 0; channel < 3; ++channel )
+    {
+        struct Fixture fx;
+        fixture_init(&fx);
+        struct UITreeNodeSpec spec = {.type=UIELEM_RS_LAYER, .component_id=0x1a0000};
+        int parent = UITree_Push(fx.tree, -1, &spec);
+        int nodes[4];
+        for( int i = 0; i < 4; ++i )
+            nodes[i] = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, i);
+        uint16_t wait_ops[] = {CS2_OP_GOSUB_WITH_PARAMS, CS2_OP_RETURN};
+        int wait_args[] = {99992, 0};
+        char* wait_strings[] = {NULL, NULL};
+        struct CS2VM2_Script wait_script = {.script_id=99991, .op_count=2,
+            .opcodes=wait_ops, .int_operands=wait_args, .string_operands=wait_strings};
+        uint16_t paint_ops[] = {CS2_OP_PUSH_CONSTANT_INT, CS2_OP_CC_SETCOLOUR, CS2_OP_RETURN};
+        int paint_args[] = {0x56789a, 0, 0};
+        char* paint_strings[] = {NULL, NULL, NULL};
+        struct CS2VM2_Script paint_script = {.script_id=99993, .op_count=3,
+            .opcodes=paint_ops, .int_operands=paint_args, .string_operands=paint_strings,
+            .int_stack_depth=1};
+        struct CS2VM2_Script* sources[] = {&wait_script, &paint_script};
+        for( int i = 0; i < 2; ++i )
+        {
+            struct CS2VM2_Script* cached = malloc(sizeof(*cached));
+            CS2VM2_ScriptInit(cached);
+            CHECK(CS2VM2_ScriptCopy(sources[i], cached), "copy callback fixture");
+            CacheProvider_ClientScriptAdd(fx.host.provider, cached->script_id, cached);
+        }
+        struct CS2VM2* vm = CS2VM2_Acquire();
+        CS2VM2_BindHost(vm, &fx.host, RS_CS2Host_Exec);
+        struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(vm);
+        for( int i = 0; i < 3; ++i )
+            register_test_transmit(thread, channel, fx.tree->components[nodes[i]].component_id,
+                                   i == 1 ? 99991 : 99993);
+        UITree_CcDelete(fx.tree, nodes[0]);
+        struct ToriRS_Task* dispatch = test_transmit_task(&fx.host, channel);
+        struct ToriRS_IO* io = ToriRS_IO_New();
+        CHECK(task_run(dispatch, io) == PT_YIELDED, "dispatch pauses in native callback channel=%d", channel);
+        /* Adding D compacts the dead first entry. A and B move, while the
+         * dispatcher is suspended inside A's resource load. */
+        register_test_transmit(thread, channel, fx.tree->components[nodes[3]].component_id, 99993);
+        uint16_t return_op[] = {CS2_OP_RETURN};
+        int return_arg[] = {0};
+        char* return_string[] = {NULL};
+        struct RSCache_ClientScript callee = {.script={.script_id=99992, .op_count=1,
+            .opcodes=return_op, .int_operands=return_arg, .string_operands=return_string}};
+        unsigned cap = RSCache_ClientScriptEncodeBound(&callee);
+        struct RSCache_Dat2DiskArchive* archive = calloc(1, sizeof(*archive));
+        archive->data = malloc(cap);
+        archive->data_size = RSCache_ClientScriptEncodeFlags(&callee,
+            RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY, archive->data, cap);
+        io->io_slots[io->active[0]].data = archive;
+        ToriRS_IO_ResetActive(io);
+        CHECK(task_run(dispatch, io) == PT_ENDED, "dispatch finishes after compaction channel=%d", channel);
+        CHECK(fx.tree->components[nodes[2]].colour == 0x56789a,
+              "compaction cannot skip original listener channel=%d", channel);
+        CHECK(fx.tree->components[nodes[3]].colour == 0,
+              "new listener waits for next dispatch channel=%d", channel);
+        task_free(dispatch);
+        dispatch = test_transmit_task(&fx.host, channel);
+        CHECK(task_run(dispatch, io) == PT_ENDED, "next dispatch drains channel=%d", channel);
+        CHECK(fx.tree->components[nodes[3]].colour == 0x56789a,
+              "new listener gets its initial update channel=%d", channel);
+        task_free(dispatch);
+        CS2VM2_Release(vm);
+        ToriRS_IO_Free(io);
+        fixture_free(&fx);
+    }
+}
+
+static void
+test_hidden_focus_does_not_receive_keys(void)
+{
+    struct Fixture fx;
+    fixture_init(&fx);
+    struct UITreeNodeSpec spec = {.type=UIELEM_RS_LAYER, .component_id=0x1b0000};
+    int parent = UITree_Push(fx.tree, -1, &spec);
+    int field = UITree_CcCreate(fx.tree, parent, spec.component_id, 12, 0);
+    int id = fx.tree->components[field].component_id;
+    UITree_SetTextAt(fx.tree, field, "a");
+    UITree_InputSetFocusId(fx.tree, id);
+    CHECK(RS_CS2_InputKey(&fx.host, &fx.runner, NULL, -1, 'b'), "visible focused field receives typing");
+    for( int mode = 0; mode < 3; ++mode )
+    {
+        UITree_SetTextAt(fx.tree, field, "ab");
+        fx.tree->components[field].u.rs_text.caret = 2;
+        if( mode == 0 ) UITree_SetHideAt(fx.tree, parent, 1);
+        if( mode == 1 ) UITree_SetMountHiddenAt(fx.tree, parent, 1);
+        if( mode == 2 ) UITree_SetReplacementInputHidden(fx.tree, field,
+                            fx.tree->components[field].incarnation, 1);
+        CHECK(!RS_CS2_InputKey(&fx.host, &fx.runner, NULL, -1, 'x'), "unavailable focus rejects typing mode=%d", mode);
+        CHECK(strcmp(fx.tree->components[field].u.rs_text.text, "ab") == 0,
+              "unavailable focus preserves text mode=%d", mode);
+        UITree_SetHideAt(fx.tree, parent, 0);
+        UITree_SetMountHiddenAt(fx.tree, parent, 0);
+        UITree_SetReplacementInputHidden(fx.tree, field, fx.tree->components[field].incarnation, 0);
+    }
+    CHECK(UITree_InputFocusId(fx.tree) == id, "visibility does not transfer logical focus");
+    CHECK(RS_CS2_InputKey(&fx.host, &fx.runner, NULL, -1, 'c'), "same field receives keys when available again");
+    CHECK(strcmp(fx.tree->components[field].u.rs_text.text, "abc") == 0, "only available typing changed text");
     fixture_free(&fx);
 }
 
@@ -924,6 +1160,10 @@ main(void)
     printf("TEST: RS_CS2_PumpTransmits — the transmit dirty-flag guard\n");
 
     test_queued_callback_identity();
+    test_queued_widget_operations();
+    test_callback_context_across_asset_yield();
+    test_registry_compaction_during_callback();
+    test_hidden_focus_does_not_receive_keys();
     test_transmit_registry_identity();
     test_quiet_tick();
     test_standard_sizes_exist_before_first_packet();

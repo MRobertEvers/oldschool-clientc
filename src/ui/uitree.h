@@ -670,7 +670,7 @@ struct UITreeComponent
      *  walks and reused by the next push. */
     uint8_t freed;
     /**
-     * Identity of this particular occupant of the component-array slot.
+     * Process-unique identity of this occupant of the component-array slot.
      *
      * Array indices are storage, not identity: CC_DELETEALL puts an index on
      * the free list and the next CC_CREATE can hand it straight to an
@@ -1312,8 +1312,6 @@ struct UITree
     /** Tail of root sibling list — O(1) append while baking large packs. */
     int32_t last_root_index;
     uint32_t generation;
-    /** Monotonic source for UITreeComponent::incarnation. Zero is skipped. */
-    uint64_t next_incarnation;
     uint64_t instance_id;
     /** Bumped every time `UITree_LayoutResolve` actually walks, i.e. every time
      *  a resolved box could have moved. `dirty_gen` does not cover this: layout

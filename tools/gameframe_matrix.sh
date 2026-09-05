@@ -22,7 +22,7 @@
 # frame clamps to its own minimum and the captures look exactly like a
 # regression in whatever change is under test. Two hours went to that once.
 #
-# Needs the OPT=0 embed binary:
+# Uses an embedded-server binary; OPT=0 and OPT=1 both retain opt-in traces:
 #   make -C src OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
 #        PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix -j8
 set -u
@@ -85,7 +85,12 @@ if [[ "${GF_MATRIX_SCENARIOS:-0}" == 1 ]]; then
   scenario resize-tabs GF_MATRIX_TAGS=m03,m13,m23 GF_MATRIX_EXPECT_IFACE=320 \
     TORIRS_SIM_RESIZE='500,1200x800' TORIRS_SIM_CLICK_AT='540,574,182'
   scenario remount GF_MATRIX_TAGS=m03,m13 GF_MATRIX_EXPECT_ROOT=164 TORIRS_SIM_CMD='500,layout 2'
-  echo "NATIVE CONTRACT: $failures failed scenario groups / 10 (13 captures)"
+  scenario focus-native-hide GF_MATRIX_TAGS=m01 GF_MATRIX_BASELINE=1 GF_MATRIX_EXPECT_IFACE=894 \
+    GF_MATRIX_INPUT_STATE=58589197:abc GF_MATRIX_NATIVE_FOCUS_HIDE=1 GF_MATRIX_MAX_FRAMES=1040 \
+    TORIRS_NET_DEBUG=1 TORIRS_SIM_CLICK_AT='500,785,88;650,820,70' \
+    TORIRS_SIM_TYPE='700,c97,c98;800,c120;900,c99' \
+    TORIRS_SIM_CMD='750,ifhide 58589197 1;850,ifhide 58589197 0'
+  echo "NATIVE CONTRACT: $failures failed scenario groups / 11 (14 captures)"
   exit $((failures > 0))
 fi
 if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
@@ -230,6 +235,8 @@ while IFS='|' read tag m f s; do
     [[ "$BASELINE" == 1 ]] && local_state_args+=(--native-baseline)
     [[ -n "${GF_MATRIX_MINIMAP_STATE:-}" ]] && local_state_args+=(--minimap-state "$GF_MATRIX_MINIMAP_STATE")
     [[ -n "${GF_MATRIX_SERVER_HIDE:-}" ]] && local_state_args+=(--server-hide "$GF_MATRIX_SERVER_HIDE")
+    [[ -n "${GF_MATRIX_INPUT_STATE:-}" ]] && local_state_args+=(--input-state "$GF_MATRIX_INPUT_STATE")
+    [[ "${GF_MATRIX_NATIVE_FOCUS_HIDE:-0}" == 1 ]] && local_state_args+=(--native-focus-hide)
     python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$active" --root "$rt" --bounds "$L" "${local_state_args[@]}" > "$OUT/$tag/pixels.txt" 2>&1 || { v="PIXELS"; checks=$((checks+1)); }
     cat "$OUT/$tag/pixels.txt"
   fi

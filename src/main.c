@@ -2221,7 +2221,7 @@ frame_loop_step(void)
                     CmdBus_PushKeyEvent(&bus, -1, (int32_t)val, 0);
                 else
                     CmdBus_PushKeyEvent(&bus, (int32_t)val, 0, 0);
-                TORIRS_LOG("sim_type: %c%ld at frame %ld\n", kind, val, frame_count);
+                TORIRS_REPORT("sim_type: %c%ld at frame %ld\n", kind, val, frame_count);
 
                 if( end && *end == ',' )
                 {
@@ -2448,7 +2448,7 @@ frame_loop_step(void)
                 if( step == 0 )
                 {
                     CmdBus_PushMouseMove(&bus, (int)pend_x, (int)pend_y);
-                    TORIRS_LOG("sim_click_at: frame=%ld move %ld,%ld right=%ld\n",
+                    TORIRS_REPORT("sim_click_at: frame=%ld move %ld,%ld right=%ld\n",
                         pend_frame,
                         pend_x,
                         pend_y,
@@ -2463,7 +2463,7 @@ frame_loop_step(void)
                 {
                     CmdBus_PushMouseButton(
                         &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, (int)pend_x, (int)pend_y);
-                    TORIRS_LOG("sim_click_at: released %ld,%ld\n", pend_x, pend_y);
+                    TORIRS_REPORT("sim_click_at: released %ld,%ld\n", pend_x, pend_y);
                     pend_frame = -1;
                 }
             }
@@ -3182,6 +3182,17 @@ frame_loop_teardown(void)
                         c->slot_tag, c->frame_member_plus1, c->role_id,
                         c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h,
                         c->behavior.scripts_count, c->cs1_active);
+                if( getenv("TORIRS_TRACE_NATIVE_UI") && c->type == UIELEM_RS_TEXT && c->u.rs_text.input )
+                {
+                    char const* text = c->u.rs_text.text ? c->u.rs_text.text : "";
+                    uint64_t hash = UINT64_C(14695981039346656037);
+                    for( unsigned char const* p = (unsigned char const*)text; *p; ++p )
+                        hash = (hash ^ *p) * UINT64_C(1099511628211);
+                    TORIRS_REPORT("NATIVE_INPUT parent=%d com=%d focused=%d len=%zu hash=%016" PRIx64 "\n",
+                        c->parent >= 0 ? app.tree->components[c->parent].component_id : -1,
+                        c->component_id, UITree_InputFocusId(app.tree) == c->component_id,
+                        strlen(text), hash);
+                }
             }
         }
 

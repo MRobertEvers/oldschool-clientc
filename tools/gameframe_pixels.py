@@ -169,7 +169,7 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native"):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline"):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False):
     width, height, rows = read_bmp(path)
     failures = []
     if bounds_path:
@@ -220,6 +220,36 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             print(f"PIXEL chat_inside_complete_surround={'PASS' if valid else 'FAIL'} root={root}")
             if not valid:
                 failures.append("chat_inside_complete_surround")
+    if native_focus_hide:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        markers = ("sim_type: c97 at frame 700", "sim_type: c98 at frame 701",
+                   "if_sethide: com=58589197 hide=1 applied=1", "sim_type: c120 at frame 800",
+                   "if_sethide: com=58589197 hide=0 applied=1", "sim_type: c99 at frame 900")
+        cursor = 0
+        valid = True
+        for marker in markers:
+            at = log.find(marker, cursor)
+            if at < 0:
+                valid = False
+                break
+            cursor = at + len(marker)
+        print(f"PIXEL native_focus_hide_sequence={'PASS' if valid else 'FAIL'}")
+        if not valid:
+            failures.append("native_focus_hide_sequence")
+        if input_state is None:
+            input_state = "58589197:abc"
+    if input_state:
+        parent, expected = input_state.split(":", 1)
+        raw = expected.encode("utf-8")
+        fingerprint = 14695981039346656037
+        for byte in raw:
+            fingerprint = ((fingerprint ^ byte) * 1099511628211) & ((1 << 64) - 1)
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        matches = re.findall(rf"NATIVE_INPUT parent={int(parent)} com=\d+ focused=(\d) len=(\d+) hash=([0-9a-f]+)", log)
+        valid = len(matches) == 1 and matches[0] == ("1", str(len(raw)), f"{fingerprint:016x}")
+        print(f"PIXEL native_focused_input_state={'PASS' if valid else 'FAIL'} parent={parent}")
+        if not valid:
+            failures.append("native_focused_input_state")
     if bounds_path:
         check_live_surfaces(rows, Path(bounds_path).read_text(), frame, root, minimap_state, server_hide, failures, native_baseline)
     return failures
@@ -236,10 +266,12 @@ if __name__ == "__main__":
     parser.add_argument("--rs289-scenario", choices=("baseline", "stats", "skill-guide"), default="baseline")
     parser.add_argument("--minimap-state", type=int, choices=range(6))
     parser.add_argument("--server-hide", help="expected native component uid:hide receipt")
+    parser.add_argument("--input-state", help="focused native field parent uid:expected text")
+    parser.add_argument("--native-focus-hide", action="store_true", help="verify the native Hiscores typing/hide packet sequence")
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

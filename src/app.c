@@ -20534,7 +20534,7 @@ app_minimap_click(
         return 0;
 
     if( torirs_env_net_debug() )
-        TORIRS_LOG("minimap: click=%d,%d rel=%d,%d scene=%d,%d abs=%d,%d\n",
+        TORIRS_REPORT("minimap: click=%d,%d rel=%d,%d scene=%d,%d abs=%d,%d\n",
             center_x,
             center_y,
             rel_x,
@@ -32295,7 +32295,7 @@ App_RunOnce(
      * `~chatdefault_stopinput`; a type-12 field has no such call because in the
      * reference the caret itself is the claim. This is that claim.
      *
-     * Every key is consumed while a field is focused, including ones the field
+     * Every key is consumed while a focused field is available, including ones the field
      * does nothing with -- see RS_CS2_InputKey.
      */
     int input_ate_keys = 0;
@@ -32306,6 +32306,7 @@ App_RunOnce(
             input_ate_keys |= RS_CS2_InputKey(
                 &app->host,
                 &app->runner,
+                &app->ui_host,
                 out.key_events[e].key_typed,
                 out.key_events[e].key_pressed);
         }
@@ -33356,7 +33357,7 @@ App_IfHideSet(
     {
         bool applied = UITree_ApplyHide(app->tree, com_id, hide);
         if( torirs_env_net_debug() )
-            TORIRS_LOG("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
+            TORIRS_REPORT("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
     }
     app->need_redraw = 1;
 }

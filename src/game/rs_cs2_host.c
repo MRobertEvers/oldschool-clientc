@@ -22,6 +22,7 @@
 #include "input/torirs_keymap.h"
 #include "revconfig/revconfig_refs.h"
 #include "ui/uitree.h"
+#include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_scroll.h"
 #include "toridraw_font.h"
@@ -1264,24 +1265,26 @@ rs_cs2_call_on_resize_push(
     }
     slot = (host->call_on_resize_head + host->call_on_resize_count) %
            RS_CS2_HOST_CALL_ON_RESIZE_MAX;
-    host->call_on_resize[slot] = component_id;
+    host->call_on_resize[slot] = UITree_RefAt(host->tree,
+        host->tree ? UITree_FindByComponentId(host->tree, component_id) : -1);
     host->call_on_resize_count++;
 }
 
 bool
-RS_CS2Host_TakeCallOnResize(
-    struct RS_CS2Host* host,
-    int* out_component_id)
+RS_CS2Host_TakeCallOnResize(struct RS_CS2Host* host, int* out_component_id)
 {
-    assert(host);
-    if( host->call_on_resize_count <= 0 )
-        return false;
-    assert(out_component_id);
-    *out_component_id = host->call_on_resize[host->call_on_resize_head];
-    host->call_on_resize_head =
-        (host->call_on_resize_head + 1) % RS_CS2_HOST_CALL_ON_RESIZE_MAX;
-    host->call_on_resize_count--;
-    return true;
+    assert(host && out_component_id);
+    while( host->call_on_resize_count > 0 )
+    {
+        struct UITreeNodeRef ref = host->call_on_resize[host->call_on_resize_head];
+        host->call_on_resize_head = (host->call_on_resize_head + 1) % RS_CS2_HOST_CALL_ON_RESIZE_MAX;
+        host->call_on_resize_count--;
+        int32_t node = UITree_ResolveRef(host->tree, ref);
+        if( node < 0 ) continue;
+        *out_component_id = host->tree->components[node].component_id;
+        return true;
+    }
+    return false;
 }
 
 /* Queue a (component, op index) pair CC_TRIGGEROP asked the App to run. */
@@ -1304,6 +1307,8 @@ rs_cs2_trigger_op_push(
     }
     slot = (host->trigger_op_head + host->trigger_op_count) % RS_CS2_HOST_TRIGGER_OP_MAX;
     host->trigger_op[slot].component_id = component_id;
+    host->trigger_op[slot].ref = UITree_RefAt(host->tree,
+        host->tree ? UITree_FindByComponentId(host->tree, component_id) : -1);
     host->trigger_op[slot].op_index = op_index;
     host->trigger_op_count++;
 }
@@ -1984,18 +1989,19 @@ RS_CS2Host_SyncAudioVarp(
 }
 
 bool
-RS_CS2Host_TakeTriggerOp(
-    struct RS_CS2Host* host,
-    struct RS_CS2TriggerOp* out)
+RS_CS2Host_TakeTriggerOp(struct RS_CS2Host* host, struct RS_CS2TriggerOp* out)
 {
-    assert(host);
-    if( host->trigger_op_count <= 0 )
-        return false;
-    assert(out);
-    *out = host->trigger_op[host->trigger_op_head];
-    host->trigger_op_head = (host->trigger_op_head + 1) % RS_CS2_HOST_TRIGGER_OP_MAX;
-    host->trigger_op_count--;
-    return true;
+    assert(host && out);
+    while( host->trigger_op_count > 0 )
+    {
+        struct RS_CS2TriggerOp next = host->trigger_op[host->trigger_op_head];
+        host->trigger_op_head = (host->trigger_op_head + 1) % RS_CS2_HOST_TRIGGER_OP_MAX;
+        host->trigger_op_count--;
+        if( UITree_ResolveRef(host->tree, next.ref) < 0 ) continue;
+        *out = next;
+        return true;
+    }
+    return false;
 }
 
 static void
@@ -2017,25 +2023,32 @@ rs_cs2_triggeroplocal_push(
     }
     slot = (host->triggeroplocal_head + host->triggeroplocal_count) %
            RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
+    int32_t target = host->tree ? UITree_FindByComponentId(host->tree, component_id) : -1;
+    if( target >= 0 && sub >= 0 )
+    {
+        int32_t child = UITree_FindChildBySubid(host->tree, target, component_id, sub);
+        if( child >= 0 ) target = child;
+    }
     host->triggeroplocal[slot].component_id = component_id;
+    host->triggeroplocal[slot].ref = UITree_RefAt(host->tree, target);
     host->triggeroplocal[slot].sub = sub;
     host->triggeroplocal_count++;
 }
 
 bool
-RS_CS2Host_TakeTriggerOpLocal(
-    struct RS_CS2Host* host,
-    struct RS_CS2TriggerOpLocal* out)
+RS_CS2Host_TakeTriggerOpLocal(struct RS_CS2Host* host, struct RS_CS2TriggerOpLocal* out)
 {
-    assert(host);
-    if( host->triggeroplocal_count <= 0 )
-        return false;
-    assert(out);
-    *out = host->triggeroplocal[host->triggeroplocal_head];
-    host->triggeroplocal_head =
-        (host->triggeroplocal_head + 1) % RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
-    host->triggeroplocal_count--;
-    return true;
+    assert(host && out);
+    while( host->triggeroplocal_count > 0 )
+    {
+        struct RS_CS2TriggerOpLocal next = host->triggeroplocal[host->triggeroplocal_head];
+        host->triggeroplocal_head = (host->triggeroplocal_head + 1) % RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
+        host->triggeroplocal_count--;
+        if( UITree_ResolveRef(host->tree, next.ref) < 0 ) continue;
+        *out = next;
+        return true;
+    }
+    return false;
 }
 
 /* =========================================================================
@@ -2081,18 +2094,20 @@ rs_cs2_input_fits(
     return rs_cs2_measure_span(font, text, (int)strlen(text)) <= limit;
 }
 
-/* The focused field's node, or NULL. */
+/* The focused field when eligible for keyboard input; logical focus is separate. */
 static struct UITreeComponent*
-rs_cs2_input_focused_node(struct RS_CS2Host* host)
+rs_cs2_input_focused_node(struct RS_CS2Host* host, struct UITreeHost const* ui_host)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    int const com_id = UITree_InputFocusId(tree);
+    int const com_id = tree ? UITree_InputFocusId(tree) : -1;
     int32_t idx;
 
     if( com_id < 0 )
         return NULL;
     idx = UITree_FindByComponentId(tree, com_id);
-    if( idx < 0 )
+    if( idx < 0 || tree->components[idx].replacement_input_hidden ||
+        UITree_NodeOrAncestorDisplayHidden(tree, idx) ||
+        !UITree_NodeNativeInputPresent(tree, ui_host, idx) )
         return NULL;
     return &tree->components[idx];
 }
@@ -2127,7 +2142,7 @@ int
 RS_CS2_InputFocusId(struct RS_CS2Host* host)
 {
     assert(host);
-    return UITree_InputFocusId(rs_cs2_tree(host));
+    return rs_cs2_tree(host) ? UITree_InputFocusId(rs_cs2_tree(host)) : -1;
 }
 
 void
@@ -2150,6 +2165,7 @@ int
 RS_CS2_InputKey(
     struct RS_CS2Host* host,
     struct TaskRunner* runner,
+    struct UITreeHost const* ui_host,
     int key_typed,
     int key_pressed)
 {
@@ -2163,7 +2179,7 @@ RS_CS2_InputKey(
 
     assert(host);
     assert(runner);
-    node = rs_cs2_input_focused_node(host);
+    node = rs_cs2_input_focused_node(host, ui_host);
     if( !node )
         return 0;
     tree = rs_cs2_tree(host);
