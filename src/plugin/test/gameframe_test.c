@@ -109,6 +109,8 @@ static struct
         int h;
     } slot[TORIRS_HOST_SURFACE_COUNT];
     struct FakeRect member[TORIRS_HOST_SURFACE_COUNT][FAKE_SLOT_MEMBERS];
+    int anchor_relation[TORIRS_HOST_SURFACE_COUNT];
+    int anchor_slot[TORIRS_HOST_SURFACE_COUNT];
     int begin_calls;
     int end_calls;
 
@@ -152,7 +154,8 @@ static struct
 static int
 fake_has_slot(int slot)
 {
-    return slot != TORIRS_HOST_SURFACE_COMPASS;
+    (void)slot;
+    return 1;
 }
 
 static void
@@ -183,6 +186,14 @@ fake_layout_end(void* u)
 {
     (void)u;
     g_frame.end_calls++;
+}
+
+static void
+fake_layout_slot_anchor(void* u, int slot, int relation, int target)
+{
+    (void)u;
+    g_frame.anchor_relation[slot] = relation;
+    g_frame.anchor_slot[slot] = target;
 }
 
 static int
@@ -977,6 +988,7 @@ main(void)
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
+    e.layout_slot_anchor = fake_layout_slot_anchor;
     e.layout_slot_exists = fake_layout_slot_exists;
     e.layout_slot_skin = fake_layout_slot_skin;
     e.layout_slot_overlay = fake_layout_slot_overlay;
@@ -1168,17 +1180,8 @@ main(void)
     CHECK(
         g_frame.slot[TORIRS_HOST_SURFACE_MODAL].placed,
         "the modal region is placed, not left to the lane");
-    /*
-     * The compass is placed even though this fake frame has none.
-     *
-     * That is the contract: the placement is recorded either way and the
-     * RETURN says whether the frame has such a surface. A layout that stopped
-     * placing a role because one gameframe lacks it would stop placing it on
-     * the frames that have it too.
-     */
-    CHECK(
-        g_frame.slot[TORIRS_HOST_SURFACE_COMPASS].placed,
-        "a role the frame lacks is still declared");
+    CHECK(g_frame.slot[TORIRS_HOST_SURFACE_COMPASS].placed,
+          "the provider declares the native compass surface");
 
     {
         /*
@@ -1319,32 +1322,17 @@ main(void)
     }
 
     {
-        /*
-         * A FIXED frame handed a closed sidebar opens one.
-         *
-         * 548 and the 2004 frame both draw a panel with a lit stone over it
-         * from the moment the player logs in, and neither has any art for the
-         * sidebar being away -- so a lane that answers "no tab is open" (164
-         * does, it logs in with every side panel hidden) gets asked to open
-         * the inventory rather than being drawn as fourteen stones around an
-         * empty plate.
-         *
-         * And asked ONCE. The ask goes through the lane's own switch, which on
-         * a cache frame is a script; a frame that re-asked every time it saw
-         * the same fourteen answers would run that script at frame rate.
-         */
+        /* Native/script closure is authoritative. Rendering a fixed frame
+         * cannot turn a passive layout callback into a tab-selection action. */
         g_frame.active_tab = -1;
         g_frame.select_calls = 0;
         g_frame.selected_tab = -1;
         draw(765, 503);
-        CHECK(
-            g_frame.select_calls == 1,
-            "a fixed frame with no tab open asks the lane to open one");
-        CHECK(g_frame.selected_tab == 3, "and the tab it opens is the inventory");
+        printf("FRAME_CONTRACT passive_closed_sidebar select_calls=%d\n", g_frame.select_calls);
+        CHECK(g_frame.select_calls == 0 && g_frame.selected_tab == -1,
+              "a frame respects a natively closed sidebar instead of reopening it");
         draw(765, 503);
-        CHECK(
-            g_frame.select_calls == 1,
-            "and does not ask again while the answers are unchanged");
+        CHECK(g_frame.select_calls == 0, "steady rendering never issues native navigation");
         g_frame.active_tab = 3;
     }
 
@@ -1870,6 +1858,9 @@ main(void)
     /* Do not restore the native chat box just to cover these empty hollows:
      * retain the 2004 placement and remove the obsolete lower filter row. */
     CHECK(classic_base_is_flat(), "no captionless 2004 hollows below the CS2 filters");
+    CHECK(g_frame.anchor_relation[TORIRS_HOST_SURFACE_COMPASS] == TORIRS_FRAME_RELATION_OVER &&
+          g_frame.anchor_slot[TORIRS_HOST_SURFACE_COMPASS] == TORIRS_HOST_SURFACE_VIEWPORT,
+          "the frame states compass depth in the host's slot numbering");
     CHECK(blitted_at(536, 357) && !blitted_at(496, 357),
           "the classic right border surrounds the whole 519-wide CS2 pack");
 
@@ -1994,6 +1985,23 @@ main(void)
         strcmp(g_frame_preference, "gameframe-layout/classic-fixed") == 0 &&
             g_frame_preference_set_calls == 4,
         "the engine persists each explicit catalogue selection, not an enable switch");
+
+    g_frame_root = 601;
+    declare(765, 503);
+    draw(765, 503);
+    struct ToriRS_FrameSelection mobile_fallback = selected_frame();
+    CHECK(!g_frame.active && strcmp(mobile_fallback.active_id, "core/native") == 0 &&
+          mobile_fallback.status == TORIRS_FRAME_STATUS_FALLBACK,
+          "Classic Fixed stands down completely on the mobile root");
+    CHECK(!named_node_has_image("frame.chat.bar"),
+          "a rejected mobile frame cannot leave its desktop chat dressing active");
+    g_frame_root = 548;
+    declare(765, 503);
+    draw(765, 503);
+    CHECK(g_frame.active && strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0,
+          "returning to a supported root restores the requested frame");
+
+
 
     PluginHost_Free(g_host);
     for( int i = 0; i < FAKE_IMAGE_SLOTS; i++ )

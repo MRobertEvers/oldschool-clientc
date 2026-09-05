@@ -2431,7 +2431,10 @@ emit_buffer_append(
         buf->cmds = grown;
         buf->cap = n;
     }
-    buf->cmds[buf->count++] = *desc;
+    buf->cmds[buf->count] = *desc;
+    if( !buf->cmds[buf->count].frame_owner_plus_one && desc->node_index >= 0 )
+        buf->cmds[buf->count].frame_owner_plus_one = desc->node_index + 1;
+    buf->count++;
 }
 
 static int
@@ -2573,6 +2576,7 @@ emit_frame_slot_overlay(
     /* Paint-only: it borrows the semantic node's placement and clip but is not
      * another interactive component, so it must not acquire its id. */
     desc.node_index = -1;
+    desc.frame_owner_plus_one = idx + 1;
     desc.component_id = -1;
     desc.scene_id = overlay.scene_id;
     desc.atlas_index = 0;
@@ -2638,6 +2642,7 @@ emit_role_overlay_groups(
         /* Paint-only: the replacement's hit surface is the plugin region, not
          * a second copy of the native semantic component. */
         desc.node_index = -1;
+    desc.frame_owner_plus_one = idx + 1;
         desc.component_id = -1;
         desc.clip = *parent_clip;
         desc.entity_overlays = group->items;
@@ -2702,6 +2707,18 @@ emit_walk_node(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_EMIT, 1);
 
     c = &tree->components[idx];
+    if( !UITree_NodeNativeVisible(tree, host, idx, hovered_component_id) ) return;
+    if( UITree_FrameHasDepth(tree) && UITree_FramePositionOwned(tree, idx) )
+    {
+        int slot = UITree_FrameNodeSlot(tree, idx);
+        if( slot >= 0 && out->frame_order.position[slot] < 0 )
+        {
+            out->frame_order.position[slot] = out->count;
+            out->frame_order.sequence[slot] = out->frame_order.next_sequence++;
+        }
+    }
+
+
     /*
      * Native/script hiding outranks replacement art: an anchor is local to a
      * target that is actually present in this frame, not a way to resurrect a
@@ -3547,115 +3564,13 @@ emit_hoist_entity_overlays(struct UITree const* tree, struct UITreeEmitBuffer* o
     }
 }
 
-/*
- * DECLARED depth: which slots draw over which, in the frame's own vocabulary.
- *
- * This replaces a rotation that inferred its intent from a rectangle. The
- * Fixed toplevel walks its map group BEFORE its viewport -- harmless natively,
- * because the two boxes never overlap, and a critical bug the moment a plugin
- * says the viewport is the whole canvas, at which point the scene paints over
- * the minimap, the compass and every orb. The old pass answered that by
- * rotating the world descriptor to index 0 whenever a plugin owned the
- * viewport's box: the right effect through the wrong door. It knew only about
- * the world, it put the world in front of everything rather than in front of
- * the things that had a reason to be over it, and what it keyed on was a
- * rectangle rather than a stated relation.
- *
- * So the relations are stated. Each row is one element drawn OVER another,
- * named by slot; a row whose either side this frame did not place is simply
- * not a relation that exists here. The world moves to just before the earliest
- * descriptor of anything declared over it -- which is the same place it landed
- * before on 548, and nowhere at all on a frame that placed no map.
- *
- * @see UITree_FrameSlotNodes, and the `behind / replace / over` verbs this is
- * the first half of.
- */
-static struct
-{
-    uint8_t element;
-    uint8_t over;
-} const EMIT_FRAME_DEPTH[] = {
-    { UITREE_FRAME_SLOT_MINIMAP, UITREE_FRAME_SLOT_VIEWPORT },
-    { UITREE_FRAME_SLOT_COMPASS, UITREE_FRAME_SLOT_VIEWPORT },
-    { UITREE_FRAME_SLOT_ORBS, UITREE_FRAME_SLOT_VIEWPORT },
-};
-
-/** Is `node` inside any of `nodes` -- itself or a descendant of one? */
-static int
-emit_node_within(
-    struct UITree const* tree,
-    int32_t node,
-    int32_t const* nodes,
-    int count)
-{
-    assert(tree);
-    assert(nodes);
-    for( int guard = 0; node >= 0 && (uint32_t)node < tree->component_count &&
-                        guard < (int)tree->component_count;
-         guard++ )
-    {
-        for( int i = 0; i < count; i++ )
-            if( nodes[i] == node )
-                return 1;
-        node = tree->components[node].parent;
-    }
-    return 0;
-}
-
-/** The earliest descriptor drawn from inside `slot`, or -1. */
-static int
-emit_first_desc_of_slot(
-    struct UITree const* tree,
-    struct UITreeEmitBuffer const* out,
-    int slot)
-{
-    int32_t nodes[UITREE_FRAME_SLOT_NODES_MAX];
-    int const n = UITree_FrameSlotNodes(tree, slot, nodes, (int)(sizeof(nodes) / sizeof(nodes[0])));
-
-    assert(tree);
-    assert(out);
-    if( n <= 0 )
-        return -1;
-    for( int i = 0; i < out->count; i++ )
-        if( emit_node_within(tree, out->cmds[i].node_index, nodes, n) )
-            return i;
-    return -1;
-}
-
+/* The same declared order also processes hover and input barriers. */
 static void
-emit_apply_frame_depth(struct UITree const* tree, struct UITreeEmitBuffer* out)
+emit_apply_frame_depth(struct UITree const* tree, struct UITreeHost const* host, struct UITreeEmitBuffer* out)
 {
-    struct UITreeEmitDesc moved;
-    int world = -1;
-    int earliest = -1;
-
-    assert(tree);
-    assert(out);
-    if( tree->world_index < 0 || !UITree_FramePositionOwned(tree, tree->world_index) )
-        return;
-    /* The last one, as every other consumer of the WORLD desc takes it. */
-    for( int i = 0; i < out->count; i++ )
-        if( out->cmds[i].kind == UITREE_EMIT_WORLD )
-            world = i;
-    if( world < 0 )
-        return;
-    for( size_t r = 0; r < sizeof(EMIT_FRAME_DEPTH) / sizeof(EMIT_FRAME_DEPTH[0]); r++ )
-    {
-        int first;
-
-        if( EMIT_FRAME_DEPTH[r].over != UITREE_FRAME_SLOT_VIEWPORT )
-            continue;
-        first = emit_first_desc_of_slot(tree, out, EMIT_FRAME_DEPTH[r].element);
-        if( first >= 0 && (earliest < 0 || first < earliest) )
-            earliest = first;
-    }
-    if( earliest < 0 || world <= earliest )
-        return;
-    moved = out->cmds[world];
-    memmove(&out->cmds[earliest + 1],
-        &out->cmds[earliest],
-        (size_t)(world - earliest) * sizeof(*out->cmds));
-    out->cmds[earliest] = moved;
+    out->count = UITree_FrameReorder(tree, host, out->cmds, out->count,
+                                   sizeof(*out->cmds),
+                                   offsetof(struct UITreeEmitDesc, frame_owner_plus_one), &out->frame_order);
 }
 
 void
@@ -3673,6 +3588,10 @@ UITree_EmitWalk(
 
     assert(tree);
     assert(out);
+    for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
+        out->frame_order.position[slot] = out->frame_order.sequence[slot] = -1;
+    out->frame_order.next_sequence = 0;
+
 
     /* Observe host reads through a shallow copy: the application's host stays
      * immutable, while every UITree_Host call made by this walk contributes
@@ -3820,7 +3739,7 @@ UITree_EmitWalk(
         out->volatile_overlay_seen |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_ENTITY);
         out->volatile_overlay_template[UITREE_EMIT_OVERLAY_ENTITY] = *d;
     }
-    emit_apply_frame_depth(tree, out);
+    emit_apply_frame_depth(tree, host, out);
     /* A layout plugin's gameframe: over the scene, under the interfaces.
      * Before the hoist, which is what puts the bars and hitsplats it moves
      * BEHIND the chrome rather than over it. */

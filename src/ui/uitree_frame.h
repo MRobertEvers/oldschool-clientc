@@ -27,6 +27,7 @@
 #include "uitree.h"
 
 #include <stdint.h>
+#include <stddef.h>
 
 /**
  * The live surfaces a layout arranges.
@@ -134,13 +135,43 @@ struct UITreeFrameOverlay
  * `at[]` is the second. A member with its own box uses it; one without falls
  * back to `all`; a role with neither is hidden.
  */
+enum UITreeFrameRelation
+{
+    UITREE_FRAME_RELATION_NATIVE = 0,
+    UITREE_FRAME_RELATION_OVER,
+    UITREE_FRAME_RELATION_BEHIND,
+    UITREE_FRAME_RELATION_REPLACE,
+};
+
 struct UITreeFrameSlotRect
 {
     struct UITreeFrameRect all;
     struct UITreeFrameRect at[UITREE_FRAME_SLOT_NODES_MAX];
     struct UITreeFrameSkin skin;
     struct UITreeFrameOverlay overlay;
+    struct UITreeFrameAnchor
+    {
+        int relation; /* 0 native, 1 over, 2 behind, 3 replace */
+        int slot;
+    } anchor;
 };
+
+struct UITreeFrameOrderHints
+{
+    int position[UITREE_FRAME_SLOT_COUNT];
+    int sequence[UITREE_FRAME_SLOT_COUNT];
+    int next_sequence;
+};
+
+int UITree_FrameHasDepth(struct UITree const* tree);
+/** All frame paint and input consumers use this ordering. Records carry an
+ * int32_t node-index-plus-one at node_offset; zero means unanchored paint.
+ * Returns the retained count; REPLACE removes the target's records. */
+int UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, void* records, int count,
+                       size_t stride, size_t node_offset,
+                       struct UITreeFrameOrderHints const* hints);
+int UITree_FrameNodeSlot(struct UITree const* tree, int32_t node);
+int UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* host, int32_t node);
 
 /**
  * The number `node` answers to WITHIN its role, or -1 when the role has no

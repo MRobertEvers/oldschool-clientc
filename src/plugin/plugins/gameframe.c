@@ -229,13 +229,7 @@ enum FrameLayout
 /** Sidebar tabs, in the order every revision since 2001 numbers them. */
 #define FRAME_TAB_COUNT 14
 
-/**
- * The tab a frame with no collapsed state opens when the lane has none open.
- *
- * The inventory, which is what every fixed frame in this game's history shows
- * a player who has just logged in. @see frame_sidebar_seed.
- */
-#define FRAME_TAB_INVENTORY 3
+
 
 /*
  * Screen order is not tab order.
@@ -622,6 +616,17 @@ frame_lane_oldschool(struct FrameCall* ctx)
     return lane.game == TORIRS_GAME_OLDSCHOOL;
 }
 
+/* This provider puts its live panels above the scene. The host retains the
+ * relation with each surface instead of inferring it from overlapping boxes. */
+static void
+frame_surface_at(struct FrameCall* ctx, int surface, struct ToriRS_Rect rect)
+{
+    ctx->builder->surface_anchored(ctx->builder, surface, rect,
+        (struct ToriRS_FrameAnchor){ surface == TORIRS_SURFACE_VIEWPORT
+            ? TORIRS_FRAME_RELATION_NATIVE : TORIRS_FRAME_RELATION_OVER,
+            TORIRS_SURFACE_VIEWPORT });
+}
+
 /*
  * The chat surface's box on this lane, and whether the layout dresses it.
  *
@@ -639,13 +644,13 @@ frame_place_chat(struct FrameCall* ctx, int x, int y)
 {
     assert(ctx);
     if( frame_lane_oldschool(ctx) )
-        ctx->builder->surface(
-            ctx->builder,
+        frame_surface_at(
+            ctx,
             TORIRS_SURFACE_CHAT,
             (struct ToriRS_Rect){ x, y, FRAME_O_CHAT_PACK_W, FRAME_O_CHAT_PACK_H });
     else
-        ctx->builder->surface(
-            ctx->builder,
+        frame_surface_at(
+            ctx,
             TORIRS_SURFACE_CHAT,
             (struct ToriRS_Rect){
                 x + FRAME_O_CHAT_INNER_X,
@@ -882,21 +887,8 @@ struct FrameState
      * a declaration that depends on this, and compared against the live answer
      * every frame so that opening or closing a tab re-declares the frame.
      * The two fixed layouts have no collapsed state and never read it.
-     * @see frame_sidebar_seed.
      */
     bool sidebar_open;
-    /*
-     * The tabs the server had given when this frame last asked the lane to
-     * open one, as a bitmask, or 0 for "never asked".
-     *
-     * The seed below has to be idempotent: a lane that answers "tab 3 is
-     * yours" and then leaves the panel shut would otherwise have its switch
-     * script run once per frame for ever. Re-asking is allowed only when the
-     * information changed -- a tab has since been handed over, or a tab has
-     * since been open -- because asking twice with the same facts gets the
-     * same answer.
-     */
-    uint32_t sidebar_seed_given;
     struct ToriRS_UiNodeRef chat_node[FRAME_CHAT_DECORATION_COUNT];
     struct FrameSized chat_paper;
     struct FrameSized chat_bar;
@@ -920,7 +912,6 @@ struct FrameState
 #define g_redstone_flipped (ctx->state->redstone_flipped)
 #define g_chat_open (ctx->state->chat_open)
 #define g_sidebar_open (ctx->state->sidebar_open)
-#define g_sidebar_seed_given (ctx->state->sidebar_seed_given)
 #define g_chat_filter (ctx->state->chat_filter)
 #define g_chat_node (ctx->state->chat_node)
 #define g_chat_paper (ctx->state->chat_paper)
@@ -948,59 +939,6 @@ frame_sidebar_open(struct FrameCall* ctx)
     return g_api->cache.tab_active(g_api) >= 0;
 }
 
-/*
- * A frame that draws a panel must have something in it.
- *
- * Two of the three layouts here are FIXED frames, and a fixed frame has no
- * collapsed state: 548 and the 2004 frame both keep a panel up with a lit
- * stone over it from the moment the player logs in, and neither has any art
- * for the sidebar being away. So when the lane hands one of them a closed
- * sidebar -- which 164 does, it logs in with every side panel hidden -- the
- * frame asks the lane to open the inventory rather than drawing fourteen
- * stones around an empty plate. The resizable layout does have a collapsed
- * state and draws it instead; it is excluded here.
- *
- * The ASK is the lane's own verb (the cache's switch script on a CS2 lane,
- * the client's selection on a 2004 one), so the cache's state agrees with the
- * frame afterwards -- the same route a click on one of this frame's stones
- * takes. @see ToriRS_CacheApiV2::tab_select.
- *
- * Run from the frame-start pass rather than at declaration time, because a
- * tab being handed over or taken away is not a resize, a rebuild or a claim:
- * nothing re-runs the layout for it. @see FrameState::sidebar_seed_given for
- * why asking twice is fenced.
- */
-static void
-frame_sidebar_seed(struct FrameCall* ctx)
-{
-    uint32_t given = 0;
-
-    assert(ctx);
-    if( !g_frame.declared || g_frame.layout == FRAME_MODERN_RESIZABLE )
-        return;
-    if( frame_sidebar_open(ctx) )
-    {
-        /* Open: re-arm, so a later closure is seeded again. */
-        g_sidebar_seed_given = 0;
-        return;
-    }
-    for( int tab = 0; tab < FRAME_TAB_COUNT; tab++ )
-        if( g_api->cache.tab_enabled(g_api, tab) )
-            given |= 1u << tab;
-    /* Nothing to open (a tutorial account before its first tab), or the same
-     * fourteen answers this frame already asked with. */
-    if( given == 0 || given == g_sidebar_seed_given )
-        return;
-    g_sidebar_seed_given = given;
-    if( g_api->cache.tab_select(g_api, FRAME_TAB_INVENTORY) )
-        return;
-    /* The inventory is not the player's yet -- the tutorial hands the fourteen
-     * out one at a time -- so open the first tab that is. */
-    for( int tab = 0; tab < FRAME_TAB_COUNT; tab++ )
-        if( (given & (1u << tab)) && g_api->cache.tab_select(g_api, tab) )
-            return;
-}
-
 static void
 frame_surface(
     struct FrameCall* ctx,
@@ -1011,8 +949,8 @@ frame_surface(
     int height)
 {
     assert(ctx);
-    ctx->builder->surface(
-        ctx->builder,
+    frame_surface_at(
+        ctx,
         surface,
         (struct ToriRS_Rect){
             x + ctx->origin_x, y + ctx->origin_y, width, height });
@@ -3479,6 +3417,17 @@ frame_on_layout(
         return TORIRS_FRAME_PENDING;
     }
 
+    if( strcmp(build->offer_id, "classic-fixed") == 0 && frame_lane_oldschool(ctx) )
+    {
+        int mobile = -1;
+        if( api->cache.named_id(api, "iface", "toplevel_mobile", &mobile) &&
+            mobile > 0 && api->cache.frame_root(api) == mobile )
+        {
+            builder->reason(builder, "Classic Fixed is a desktop frame; choose Stone Drawer for the native mobile layout.");
+            return TORIRS_FRAME_UNSUPPORTED;
+        }
+    }
+
     usable = build->logical_canvas;
     if( build->canvas == TORIRS_FRAME_CANVAS_WINDOW )
     {
@@ -3743,7 +3692,6 @@ frame_on_frame_start(
     if( g_api->core.screen(g_api) != TORIRS_SCREEN_GAME )
         return;
     /* A fixed frame with a closed sidebar opens one. */
-    frame_sidebar_seed(ctx);
     /*
      * ...and the resizable one, which draws the closed sidebar rather than
      * opening it, re-declares when that answer moves. Opening or closing a tab

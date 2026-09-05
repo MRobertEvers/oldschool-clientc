@@ -375,6 +375,7 @@ test_host_input_epochs(void)
         [UITREE_HOST_GET_STATIC_SPRITE_SCENE] = assets,
         [UITREE_HOST_GET_MINIMAP_STATE] = camera | world | assets,
         [UITREE_HOST_GET_MINIMAP_HIDDEN] = client | world,
+        [UITREE_HOST_GET_COMPASS_HIDDEN] = world,
         [UITREE_HOST_GET_MULTIWAY] = world,
         [UITREE_HOST_GET_REBOOT_TIMER] = client | animation,
         [UITREE_HOST_GET_TITLE_SCREEN] = client,
@@ -618,7 +619,10 @@ test_mutate_emit(void)
     TEST_ASSERT(UITree_ApplyHide(tree, 400, 1), "apply hide");
     TEST_ASSERT(tree->components[layer].behavior.hide == 1, "hide set");
     TEST_ASSERT(!UITree_ComponentVisibleById(&tree->components[layer], -1), "hide gated");
-    TEST_ASSERT(UITree_ComponentVisibleById(&tree->components[layer], 400), "hide shown when hovered");
+    /* Runtime hide is a server/script veto. Authored IF1 tooltip reveal is
+     * tested separately; it must not weaken a later explicit hide command. */
+    TEST_ASSERT(!UITree_ComponentVisibleById(&tree->components[layer], 400),
+                "runtime hide remains hidden with a stale hover id");
     TEST_ASSERT(UITree_ApplyHide(tree, 400, 0), "unhide");
 
     /* EmitWalk hard-skips hidden node and its children (interfacex semantics). */

@@ -3,6 +3,7 @@
 
 #include "uitree.h"
 #include "uitree_host.h"
+#include "uitree_frame.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -52,6 +53,8 @@ struct UITreeEmitDesc
 {
     enum UITreeEmitKind kind;
     int32_t node_index;
+    /** Semantic owner for ordering paint-only attachments; zero means none. */
+    int32_t frame_owner_plus_one;
     int component_id;
     int x;
     int y;
@@ -183,6 +186,7 @@ UITree_EmitFill(
 
 struct UITreeEmitBuffer
 {
+    struct UITreeFrameOrderHints frame_order;
     struct UITreeEmitDesc* cmds;
     int count;
     int cap;

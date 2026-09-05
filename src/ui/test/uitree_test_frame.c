@@ -1807,6 +1807,8 @@ test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
     slots[UITREE_FRAME_SLOT_COMPASS].all.y = placed_compass_y;
     slots[UITREE_FRAME_SLOT_COMPASS].all.w = 33;
     slots[UITREE_FRAME_SLOT_COMPASS].all.h = 33;
+    slots[UITREE_FRAME_SLOT_COMPASS].anchor =
+        (struct UITreeFrameAnchor){ UITREE_FRAME_RELATION_OVER, UITREE_FRAME_SLOT_VIEWPORT };
     UITree_FrameApply(tree, slots, FRAME_GROUP);
     TEST_ASSERT(
         tree->components[map_container].frame_stretched &&

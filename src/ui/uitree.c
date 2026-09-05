@@ -3299,12 +3299,13 @@ UITree_SetHideAt(
      * Every applier below therefore compares first and leaves the node clean
      * when nothing changed; the position/size ones already did.
      */
-    if( c->behavior.hide == (uint8_t)hide )
+    if( c->behavior.hide == (uint8_t)hide && c->native_hide == (uint8_t)hide )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
     c->behavior.hide = (uint8_t)hide;
+    c->native_hide = (uint8_t)hide;
     uitree_note_mutation(
         tree,
         idx,
@@ -5118,8 +5119,12 @@ UITree_ComponentVisibleById(
     int hovered_component_id)
 {
     assert(component);
+    if( component->native_hide ) return false;
     if( !component->behavior.hide )
         return true;
+    /* IF1 uses hide for hover-gated tooltip layers. IF3/CS2 explicit hiding
+     * is not a tooltip mechanism and must not be undone by last frame's hover. */
+    if( component->if3 ) return false;
     if( component->component_id < 0 )
         return true;
     return hovered_component_id == component->component_id;
@@ -5140,13 +5145,10 @@ UITree_ComponentVisibleByHoverIds(
     struct UITreeComponent const* component,
     struct UITreeHoverIds const* hover_ids)
 {
-    assert(component);
-    assert(hover_ids);
-    if( !component->behavior.hide )
-        return true;
-    if( component->component_id < 0 )
-        return true;
-    return UITree_ComponentHoveredByIds(component->component_id, hover_ids);
+    assert(component && hover_ids);
+    return UITree_ComponentVisibleById(component, hover_ids->main_com_id) ||
+           UITree_ComponentVisibleById(component, hover_ids->side_com_id) ||
+           UITree_ComponentVisibleById(component, hover_ids->chat_com_id);
 }
 
 bool

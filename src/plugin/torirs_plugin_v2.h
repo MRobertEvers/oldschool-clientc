@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #define TORIRS_PLUGIN_API_V2_MAJOR 2u
-#define TORIRS_PLUGIN_API_V2_MINOR 3u
+#define TORIRS_PLUGIN_API_V2_MINOR 4u
 
 #define TORIRS_UI_NAME_MAX 128
 #define TORIRS_UI_ACTION_MAX 48
@@ -552,11 +552,39 @@ struct ToriRS_DrawBuilder
         struct ToriRS_DrawContext* out);
 };
 
+enum ToriRS_FrameRelation
+{
+    TORIRS_FRAME_RELATION_NATIVE = 0,
+    TORIRS_FRAME_RELATION_OVER,
+    TORIRS_FRAME_RELATION_BEHIND,
+    TORIRS_FRAME_RELATION_REPLACE,
+};
+
+/** Order the whole surface and its attached art relative to another surface.
+ * REPLACE suppresses that target's paint and input until this frame releases it.
+ * The target must be declared in the same build. The required live viewport
+ * may be arranged but cannot be substituted by another surface. Cycles and competing
+ * replacements reject the entire candidate and preserve the current frame. */
+struct ToriRS_FrameAnchor
+{
+    enum ToriRS_FrameRelation relation;
+    int slot; /* enum ToriRS_Surface */
+};
+
+/** A presentation declaration over live native UI. Server, CS1 and CS2
+ * mutations continue beneath effective geometry. Native hide/availability
+ * vetoes surface paint, attached contributions and actionable regions.
+ * Release exposes current native values. REPLACE inherits the target's
+ * native visibility and yields to it when the replacement source is hidden.
+ * Layout callbacks must not issue native navigation commands. */
 struct ToriRS_FrameBuilder
 {
     uint32_t struct_size;
     void* implementation;
 
+    /** Place a live surface. Non-viewport surfaces default to OVER(viewport),
+     * preserving a safe frame order even when only geometry is specified.
+     * Use surface_anchored for an explicit different relation. */
     void (*surface)(
         struct ToriRS_FrameBuilder* frame,
         int surface,
@@ -584,6 +612,9 @@ struct ToriRS_FrameBuilder
         struct ToriRS_FrameBuilder* frame,
         int surface,
         struct ToriRS_FrameSurfaceOverlay const* overlay);
+    void (*surface_anchored)(
+        struct ToriRS_FrameBuilder* frame, int surface,
+        struct ToriRS_Rect rect, struct ToriRS_FrameAnchor anchor);
 };
 
 typedef enum ToriRS_FrameBuildResult (*ToriRS_FrameBuildCallback)(
@@ -1250,6 +1281,8 @@ struct ToriRS_CacheApiV2
         int* out_id);
     int (*tab_active)(struct ToriRS_ApiV2* api);
     bool (*tab_enabled)(struct ToriRS_ApiV2* api, int tab);
+    /** Native navigation is allowed from action callbacks, not from layout,
+     * draw or background updates that might fight a server/script closure. */
     bool (*tab_select)(struct ToriRS_ApiV2* api, int tab);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 4])(void);
 };

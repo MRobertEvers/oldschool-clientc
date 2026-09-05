@@ -7451,6 +7451,25 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "minimap ", 8) == 0 )
+    {
+        int state = -1;
+        if( sscanf(text, "minimap %d", &state) != 1 || state < 0 || state > 5 )
+        { say(srv, "minimap: expected state 0..5."); return; }
+        ToriRSServer_SendMinimapToggle(srv->active_player, state);
+        fprintf(stderr, "minimap: requested native state=%d\n", state);
+        return;
+    }
+    if( strncmp(text, "ifhide ", 7) == 0 )
+    {
+        int uid = -1, hidden = -1;
+        if( sscanf(text, "ifhide %i %d", &uid, &hidden) != 2 || uid < 0 || (hidden != 0 && hidden != 1) )
+        { say(srv, "ifhide: expected component uid and 0 or 1."); return; }
+        ToriRSServer_SendIfSethide(srv->active_player, uid, hidden);
+        fprintf(stderr, "ifhide: requested native component=(%d|%d) hidden=%d\n", uid >> 16, uid & 65535, hidden);
+        return;
+    }
+
     if( strncmp(text, "layout ", 7) == 0 )
     {
         /*

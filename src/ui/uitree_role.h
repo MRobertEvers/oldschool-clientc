@@ -148,6 +148,10 @@ struct UITreeRoleTable
     struct UITreeRoleEntry* entries;
     int count;
     int capacity;
+    /** Optional authoritative lane adapter after authored tags. -2 declines
+     * the role (use matchers); -1 means the native role is currently absent. */
+    int32_t (*fallback)(struct UITree const*, struct UITreeRoleTable const*, uint16_t, void*);
+    void* fallback_user;
 };
 
 /**

@@ -1,4 +1,5 @@
 #include "app.h"
+#include "game/rs_minimap_state.h"
 #include "torirs_env.h"
 #include "log/torirs_log.h"
 
@@ -6494,7 +6495,9 @@ app_host_request(
         return app->world_map_scene_id;
     }
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
-        return app->minimap_state != APP_MINIMAP_STATE_NORMAL;
+        return !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_DRAW_MAP);
+    case UITREE_HOST_GET_COMPASS_HIDDEN:
+        return !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_DRAW_COMPASS);
     case UITREE_HOST_GET_MULTIWAY:
         return app->multiway == 1;
     case UITREE_HOST_GET_REBOOT_TIMER:
@@ -20503,11 +20506,8 @@ app_minimap_click(
 
     if( !app->minimap_view_valid || !app->world || !app->world->load_complete )
         return 0;
-    /* MINIMAP_TOGGLE state 2 takes the clicks as well as the picture; state 1
-     * takes only the picture, and walking by memory across a map you cannot
-     * see is the point of that state existing. */
-    if( app->minimap_state == APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE )
-        return 0;
+    /* Native permission, independent of whether the map is currently painted. */
+    if( !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_WALK) ) return 0;
     if( mouse_x < desc->x || mouse_x >= desc->x + desc->w || mouse_y < desc->y ||
         mouse_y >= desc->y + desc->h )
         return 0;
@@ -30476,7 +30476,6 @@ App_PluginLayoutTick(struct App* app)
      * them at the same pre-interaction publication fence so a role
      * rebuilt into a recycled component-array slot cannot leak one native
      * frame or inherit another target's suppression. */
-    PluginHost_ReconcileUi(app->plugins);
     /*
      * Name the cache gameframe's regions before providers and placement code
      * query them. Frame builds and the emit-fence rebind read these stamps. The
@@ -30487,6 +30486,7 @@ App_PluginLayoutTick(struct App* app)
         UITree_FrameSetBinder(app->tree, app_plugin_frame_bind, app);
         UITree_FrameBind(app->tree);
     }
+    PluginHost_ReconcileUi(app->plugins);
     frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
     if( !app->plugin_frame_active )
     {

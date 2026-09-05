@@ -3266,6 +3266,8 @@ app_plugin_role_region_live(
         return 0;
     if( region->role_clip_w <= 0 || region->role_clip_h <= 0 )
         return 0;
+    if( !UITree_NodeNativeVisible(app->tree, &app->ui_host, region->ui_boundary_node, -1) ||
+        UITree_FrameNodeReplaced(app->tree, &app->ui_host, region->ui_boundary_node) ) return 0;
     if( !region->ui_boundary_replace )
         return !UITree_NodeOrAncestorDisplayHidden(app->tree, region->ui_boundary_node);
     if( !target->replacement_hidden )
@@ -4367,6 +4369,8 @@ app_plugin_ui_boundary(
     if( node < 0 || (uint32_t)node >= app->tree->component_count ||
         app->tree->components[node].freed )
         return 0;
+    if( !UITree_NodeNativeVisible(app->tree, &app->ui_host, node, -1) ||
+        UITree_FrameNodeReplaced(app->tree, &app->ui_host, node) ) return 0;
     /* A whole-node replacement is already hidden at this point. Its draw must
      * enter the replacement tombstone rather than fail the ordinary visibility
      * fence (or become an additive SELF overlay before still-live children).
@@ -4604,6 +4608,38 @@ app_plugin_frame_role_key_161(struct UITreeRoleTable const* table, uint16_t role
     return -1;
 }
 
+/* Native metadata is authoritative for compatible roots and shared chat
+ * pieces. Explicit profile values remain independently audited for drift. */
+static int32_t
+app_plugin_frame_role_fallback(struct UITree const* tree, struct UITreeRoleTable const* table,
+                               uint16_t role, void* user)
+{
+    struct App* app = user;
+    if( role == 0 || role > table->count ) return -2;
+    char const* name = table->entries[role - 1].name;
+    if( strncmp(name, "chat_plate_", 11) == 0 &&
+        RevConfigRefs_Get(&app->revconfig_refs, "enum", "chat_filters") >= 0 )
+    {
+        char* end;
+        long filter = strtol(name + 11, &end, 10);
+        if( end == name + 11 || *end || filter < 0 || filter > 255 ) return -1;
+        int uid = app_plugin_chat_plate_expected(app, (int)filter);
+        return uid < 0 ? -1 : UITree_FindByComponentId(tree, uid);
+    }
+    if( strncmp(name, "frame_", 6) && strncmp(name, "sidetab_", 8) ) return -2;
+    int key = app_plugin_frame_role_key_161(table, role), uid = -1, control = -1;
+    int root = app_plugin_frame_root(app);
+    int element_map = app_plugin_frame_role_enum_id(app, root, &control);
+    if( key < 0 || RevConfigRefs_Get(&app->revconfig_refs, "script", "frame_init") < 0 ) return -2;
+    if( element_map < 0 ) return -1;
+    if( !app_plugin_frame_enum_value(app, element_map, key, &uid) || uid < 0 ) return -1;
+    int32_t node = UITree_FindByComponentId(tree, uid);
+    if( node >= 0 && getenv("TORIRS_FRAME_ROLE_AUDIT") )
+        TORIRS_LOG("frameroles: derived %s root=%d enum=%d key=(161|%d) -> (%d|%d)\n",
+                   name, root, element_map, key & 65535, uid >> 16, uid & 65535);
+    return node;
+}
+
 static int
 app_plugin_frame_role_audit(struct App* app, struct UITree* tree)
 {
@@ -4646,6 +4682,19 @@ app_plugin_frame_role_audit(struct App* app, struct UITree* tree)
         node = UITree_RoleNode(tree, &app->ui_roles, (uint16_t)(i + 1));
         int const got = node < 0 || (uint32_t)node >= tree->component_count ||
                         tree->components[node].freed ? -1 : tree->components[node].component_id;
+        int declared = got;
+        if( key >= 0 || strncmp(entry->name, "chat_plate_", 11) == 0 )
+            for( int m = 0; m < entry->matcher_count; m++ )
+                if( (entry->matchers[m].kind == UITREE_ROLE_MATCH_ID || entry->matchers[m].kind == UITREE_ROLE_MATCH_IFACE) &&
+                    ((entry->matchers[m].uid >> 16) & 65535) == (key >= 0 ? root : chat) )
+                { declared = entry->matchers[m].uid; break; }
+        if( known && declared >= 0 && declared != want )
+        {
+            mismatched++;
+            TORIRS_LOG("frameroles: %s MISMATCH declared=(%d|%d) expected=(%d|%d) root=%d enum=%d\n",
+                       entry->name, declared >> 16, declared & 65535, want >> 16, want & 65535, root, enum_id);
+            continue;
+        }
         if( known && want == -1 && got == -1 ) { absent++; continue; }
         if( got == -1 )
         {
@@ -4682,6 +4731,12 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
     if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
         return;
 
+    if( app->ui_roles.fallback != app_plugin_frame_role_fallback || app->ui_roles.fallback_user != app )
+    {
+        app->ui_roles.fallback = app_plugin_frame_role_fallback;
+        app->ui_roles.fallback_user = app;
+        for( int i = 0; i < app->ui_roles.count; i++ ) app->ui_roles.entries[i].memo_valid = 0;
+    }
     for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
     {
         uint8_t const tag = app_plugin_frame_slot_tag(slot);
@@ -4845,6 +4900,15 @@ app_plugin_layout_slot(void* user, int slot, int member, int x, int y, int w, in
      * "did that land on anything" so it knows whether to draw the housing for
      * it, and a frame with no compass should get no compass ring. */
     return app->tree && UITree_FrameSlotMemberNode(app->tree, slot, member) >= 0;
+}
+
+static void
+app_plugin_layout_slot_anchor(void* user, int slot, int relation, int anchor_slot)
+{
+    struct App* app = user;
+    if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT ) return;
+    app->plugin_layout_slots[slot].anchor =
+        (struct UITreeFrameAnchor){ relation, anchor_slot };
 }
 
 static int
@@ -5468,6 +5532,7 @@ app_plugin_engine(struct App* app)
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;
     engine.layout_slot = app_plugin_layout_slot;
+    engine.layout_slot_anchor = app_plugin_layout_slot_anchor;
     engine.layout_slot_exists = app_plugin_layout_slot_exists;
     engine.layout_slot_skin = app_plugin_layout_slot_skin;
     engine.layout_slot_overlay = app_plugin_layout_slot_overlay;

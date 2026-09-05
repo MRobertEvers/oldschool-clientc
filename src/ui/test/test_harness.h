@@ -74,6 +74,7 @@ struct TestHostState
      * UPDATE_REBOOT_TIMER line. All three default off, which is what a client
      * with no session is actually in. */
     int minimap_hidden;
+    int compass_hidden;
     /** Scene id GET_MINIMAP_STATE answers with; 0 leaves it at "no baked map",
      *  which the emit treats the same as any other not-ready asset. */
     int minimap_scene_id;
@@ -164,6 +165,8 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         return st->frame_overlay_count;
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
         return st->minimap_hidden;
+    case UITREE_HOST_GET_COMPASS_HIDDEN:
+        return st->compass_hidden;
     case UITREE_HOST_GET_MINIMAP_STATE:
         if( st->minimap_scene_id <= 0 )
             return -1;
@@ -316,5 +319,6 @@ void test_entity_overlay_draw_order(void);
 void test_server_driven_viewport_widgets(void);
 void test_frame_replacement(void);
 void test_frame_authored_metadata(void);
+void test_frame_declared_depth(void);
 
 #endif

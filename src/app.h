@@ -689,16 +689,15 @@ enum ToriRS_WorldRenderMode
  */
 #define APP_GROUND_ITEMS_DIRTY_MAX 32
 
-/**
- * MINIMAP_TOGGLE states. 1 and 2 are not degrees of the same thing: the map is
- * equally invisible in both, and what separates them is whether clicking where
- * it used to be still walks. See struct PktMinimapToggle.
- */
+/** Raw native states; game/rs_minimap_state.h defines their independent permissions. */
 enum AppMinimapState
 {
     APP_MINIMAP_STATE_NORMAL = 0,
-    APP_MINIMAP_STATE_HIDDEN = 1,
-    APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE = 2,
+    APP_MINIMAP_STATE_UNCLICKABLE = 1,
+    APP_MINIMAP_STATE_HIDDEN = 2,
+    APP_MINIMAP_STATE_COMPASS_HIDDEN = 3,
+    APP_MINIMAP_STATE_UNCLICKABLE_COMPASS_HIDDEN = 4,
+    APP_MINIMAP_STATE_DISABLED = 5,
 };
 
 /**

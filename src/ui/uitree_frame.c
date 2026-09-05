@@ -2,6 +2,7 @@
 
 #include "plugin/torirs_plugin_host_types.h"
 #include "uitree_layout.h"
+#include "uitree_host.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -1302,6 +1303,189 @@ UITree_FrameSlotNodes(
         out_nodes[n++] = idx;
     }
     return n;
+}
+
+int
+UITree_FrameHasDepth(struct UITree const* tree)
+{
+    struct UITreeFrameLayout const* fl = tree->frame_layout;
+    if( !fl || !fl->active ) return 0;
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+        if( fl->slot_rect[s].anchor.relation ) return 1;
+    return 0;
+}
+
+int
+UITree_FrameNodeSlot(struct UITree const* tree, int32_t node)
+{
+    struct UITreeFrameLayout const* fl = tree->frame_layout;
+    if( !fl || !fl->active ) return -1;
+    /* Nearest surface wins when a placed pack contains a separately placed
+     * surface. Its children and paint-only attachments travel together. */
+    for( uint32_t guard = 0; node >= 0 && (uint32_t)node < tree->component_count &&
+                             guard < tree->component_count; guard++ )
+    {
+        for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+            for( int n = 0; n < fl->slot_node_count[s]; n++ )
+                if( fl->slot_node[s][n] == node &&
+                    frame_node_same(tree, node, fl->slot_incarnation[s][n]) &&
+                    frame_rect_for(s, &fl->slot_rect[s], fl->slot_member[s][n]) )
+                    return s;
+        node = tree->components[node].parent;
+    }
+    return -1;
+}
+
+int
+UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
+{
+    struct UITreeFrameLayout const* fl = tree->frame_layout;
+    int slot = UITree_FrameNodeSlot(tree, node);
+    if( slot < 0 || !fl || !fl->active ) return 0;
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+        if( fl->slot_rect[s].anchor.relation == UITREE_FRAME_RELATION_REPLACE &&
+            fl->slot_rect[s].anchor.slot == slot )
+            for( int n = 0; n < fl->slot_node_count[s]; n++ )
+                if( frame_node_same(tree, fl->slot_node[s][n], fl->slot_incarnation[s][n]) &&
+                    UITree_NodeNativeVisible(tree, host, fl->slot_node[s][n], -1) ) return 1;
+    return 0;
+}
+
+struct FrameOrderWork
+{
+    struct UITreeFrameLayout const* fl;
+    unsigned char const* input;
+    unsigned char* output;
+    int const* owners;
+    int count;
+    size_t stride;
+    int first[UITREE_FRAME_SLOT_COUNT];
+    int native_order[UITREE_FRAME_SLOT_COUNT];
+    int suppressed[UITREE_FRAME_SLOT_COUNT];
+    int written;
+};
+
+static void
+frame_order_surface(struct FrameOrderWork* work, int slot, int depth)
+{
+    int children[UITREE_FRAME_SLOT_COUNT], count = 0, replacement = -1;
+    if( depth >= UITREE_FRAME_SLOT_COUNT || work->suppressed[slot] ) return;
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+        if( work->fl->slot_rect[s].anchor.relation && work->fl->slot_rect[s].anchor.slot == slot )
+        {
+            int at = count++;
+            while( at > 0 && work->native_order[children[at - 1]] > work->native_order[s] )
+            { children[at] = children[at - 1]; at--; }
+            children[at] = s;
+        }
+    for( int i = 0; i < count; i++ )
+    {
+        int s = children[i];
+        if( work->fl->slot_rect[s].anchor.relation == UITREE_FRAME_RELATION_BEHIND )
+            frame_order_surface(work, s, depth + 1);
+        if( work->fl->slot_rect[s].anchor.relation == UITREE_FRAME_RELATION_REPLACE && !work->suppressed[s] )
+            replacement = s;
+    }
+    if( replacement >= 0 )
+        frame_order_surface(work, replacement, depth + 1);
+    else
+        for( int i = 0; i < work->count; i++ )
+            if( work->owners[i] == slot )
+                memcpy(work->output + (size_t)work->written++ * work->stride,
+                       work->input + (size_t)i * work->stride, work->stride);
+    for( int i = 0; i < count; i++ )
+        if( work->fl->slot_rect[children[i]].anchor.relation == UITREE_FRAME_RELATION_OVER )
+            frame_order_surface(work, children[i], depth + 1);
+}
+
+int
+UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, void* records, int count,
+                   size_t stride, size_t node_offset,
+                   struct UITreeFrameOrderHints const* hints)
+{
+    struct UITreeFrameLayout const* fl = tree->frame_layout;
+    int roots[UITREE_FRAME_SLOT_COUNT], active[UITREE_FRAME_SLOT_COUNT] = { 0 };
+    struct FrameOrderWork work = { .fl = fl, .input = records, .count = count, .stride = stride };
+    if( !UITree_FrameHasDepth(tree) || count <= 0 ) return count;
+    assert(stride >= sizeof(int32_t) && node_offset <= stride - sizeof(int32_t));
+    assert((size_t)count <= SIZE_MAX / stride);
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+    {
+        int at = s, guard = 0;
+        work.first[s] = count;
+        while( fl->slot_rect[at].anchor.relation )
+        {
+            at = fl->slot_rect[at].anchor.slot;
+            if( at < 0 || at >= UITREE_FRAME_SLOT_COUNT || ++guard >= UITREE_FRAME_SLOT_COUNT )
+                return count; /* Malformed engine caller; public builds reject this earlier. */
+        }
+        roots[s] = at;
+        if( at != s ) active[at] = 1;
+    }
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+        if( fl->slot_rect[s].anchor.relation == UITREE_FRAME_RELATION_REPLACE )
+        {
+            int target = fl->slot_rect[s].anchor.slot;
+            int visible = hints && hints->position[target] >= 0;
+            for( int n = 0; !visible && n < fl->slot_node_count[target]; n++ )
+                if( frame_node_same(tree, fl->slot_node[target][n], fl->slot_incarnation[target][n]) &&
+                    UITree_NodeNativeVisible(tree, host, fl->slot_node[target][n], -1) ) visible = 1;
+            int source_visible = hints && hints->position[s] >= 0;
+            for( int n = 0; !source_visible && n < fl->slot_node_count[s]; n++ )
+                if( frame_node_same(tree, fl->slot_node[s][n], fl->slot_incarnation[s][n]) &&
+                    UITree_NodeNativeVisible(tree, host, fl->slot_node[s][n], -1) ) source_visible = 1;
+            work.suppressed[s] = !visible || !source_visible;
+        }
+    int* owners = malloc((size_t)count * sizeof(*owners));
+    work.output = malloc((size_t)count * stride);
+    assert(owners && work.output);
+    work.owners = owners;
+    for( int i = 0; i < count; i++ )
+    {
+        int32_t node_plus_one;
+        memcpy(&node_plus_one, work.input + (size_t)i * stride + node_offset, sizeof(node_plus_one));
+        owners[i] = UITree_FrameNodeSlot(tree, node_plus_one - 1);
+        if( owners[i] >= 0 && work.first[owners[i]] == count ) work.first[owners[i]] = i;
+    }
+    /* Native element boundaries remain anchors even when another plugin
+     * replaces all of their paint, or their visible container is empty.
+     * They are ordering metadata, never fake draw commands. */
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+    {
+        int present = work.first[s] < count;
+        work.native_order[s] = work.first[s];
+        if( hints && hints->position[s] >= 0 && hints->position[s] <= count )
+        {
+            if( hints->position[s] < work.first[s] ) work.first[s] = hints->position[s];
+            work.native_order[s] = hints->sequence[s];
+            present = 1;
+        }
+        if( !present ) active[s] = 0;
+    }
+    for( int i = 0; i <= count; i++ )
+    {
+        int at[UITREE_FRAME_SLOT_COUNT], n = 0;
+        for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+            if( active[s] && roots[s] == s && work.first[s] == i )
+            {
+                int insert = n++;
+                while( insert > 0 && work.native_order[at[insert - 1]] > work.native_order[s] )
+                { at[insert] = at[insert - 1]; insert--; }
+                at[insert] = s;
+            }
+        for( int j = 0; j < n; j++ ) frame_order_surface(&work, at[j], 0);
+        if( i == count ) break;
+        int slot = owners[i];
+        int root = slot < 0 ? -1 : roots[slot];
+        if( slot >= 0 && work.suppressed[slot] ) continue;
+        if( root >= 0 && active[root] ) continue;
+        memcpy(work.output + (size_t)work.written++ * stride,
+               work.input + (size_t)i * stride, stride);
+    }
+    memcpy(records, work.output, (size_t)work.written * stride);
+    free(work.output);
+    free(owners);
+    return work.written;
 }
 
 int

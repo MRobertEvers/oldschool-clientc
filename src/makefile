@@ -2713,7 +2713,7 @@ test-cs1: $(OBJ_DIR)
 		inv/inv_manager.c varp/varp_manager.c \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
-		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c \
+		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c ui/torirs_chrome_inkwell.c \
 		perf/torirs_perf.c \
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
@@ -2953,7 +2953,7 @@ test-uitree: $(OBJ_DIR)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_frame_depth.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \

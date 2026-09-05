@@ -39,6 +39,12 @@ enabled=1
 [plugin:mobile-gameframe]
 enabled=1
 art=Classic
+[plugin:minimap-orbs]
+enabled=1
+show_hp=1
+show_prayer=1
+show_run=1
+show_spec=1
 EOF
 
 one() {
@@ -58,7 +64,7 @@ one() {
       TORIRS_PLUGIN_PREFS="$OUT/plugin_prefs.ini" TORIRS_PLUGINS=1 \
       TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 TORIRS_STDERR_UNBUFFERED=1 \
       SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=620 TORIRS_FRAME_ROLE_AUDIT=1 \
-      TORIRS_EXIT_BMP="$run/out.bmp" TORIRS_DUMP_BOUNDS=162 "${env_extra[@]}" \
+      TORIRS_EXIT_BMP="$run/out.bmp" TORIRS_DUMP_BOUNDS=all TORIRS_DUMP_EMIT_EXIT=all "${env_extra[@]}" \
       "$BIN" --manifest "$MANIFEST" --windowmode resizable --window "$size" \
       >> "$run/log.txt" 2>&1 )
 }
@@ -77,26 +83,44 @@ wait
 fi
 
 fail=0
+checks=0
 printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" TAG TOP FRAME SIZE ROOT FILTERS VERDICT
 while IFS='|' read tag m f s; do
   L=$OUT/$tag/log.txt
   rt=$(grep -o 'switching root [-0-9]* -> [0-9]*' "$L" 2>/dev/null | tail -1 | grep -o '[0-9]*$')
   n=$(grep '^BOUNDS' "$L" 2>/dev/null | awk '{g=$3;gsub(/[()]/,"",g);split(g,p,"|");x=p[2]+0;
-        if((x==5||x==8||x==12||x==16||x==20||x==24||x==28||x==32) && $0!~/hidden=1/) print}' | wc -l | tr -d ' ')
+        if(p[1]==162 && (x==5||x==8||x==12||x==16||x==20||x==24||x==28||x==32) && $0!~/hidden=1/) print}' | wc -l | tr -d ' ')
   bar=$(grep '^BOUNDS' "$L" 2>/dev/null | grep -c '(162|3)')
   want=8; [ "$rt" = "601" ] && want=7
   v=ok
-  [ -z "$rt" ] && { v="NO ROOT"; fail=$((fail+1)); }
-  [ -n "$rt" ] && [ "$n" != "$want" ] && { v="FILTERS $n want $want"; fail=$((fail+1)); }
-  [ -n "$rt" ] && [ "$bar" = "0" ] && { v="NO CHAT BAR"; fail=$((fail+1)); }
+  before=$checks
+  case "$m" in 0) expected_root=548;; 1) expected_root=161;; 2) expected_root=164;; M) expected_root=601;; esac
+  expected_root=${GF_MATRIX_EXPECT_ROOT:-$expected_root}
+  active=$(awk '/^BOUNDS/{exit} /^frame_selection:/{for(i=1;i<=NF;i++) if($i~/^active=/){value=$i;sub(/^active=/,"",value)}} END{print value}' "$L")
+  active=${active:-$f}
+  [ "$rt" != "$expected_root" ] && { v="WRONG ROOT"; checks=$((checks+1)); }
+  if [[ "${GF_MATRIX_EXPECT_NATIVE:-0}" == 1 ]]; then
+    [[ "$active" == core/native ]] && grep -q 'active=core/native status=3 reason=.' "$L" || { v="FALLBACK"; checks=$((checks+1)); }
+  elif [[ "$f" == gameframe-layout/classic-fixed && "$rt" == 601 ]]; then
+    [[ "$active" == core/native ]] && grep -q 'Classic Fixed is a desktop frame' "$L" || { v="FALLBACK"; checks=$((checks+1)); }
+  elif [[ "$f" != auto && "$active" != "$f" ]]; then
+    v="FRAME NOT ACTIVE"; checks=$((checks+1))
+  fi
+  [ -z "$rt" ] && { v="NO ROOT"; checks=$((checks+1)); }
+  [ -n "$rt" ] && [ "$n" != "$want" ] && { v="FILTERS $n want $want"; checks=$((checks+1)); }
+  [ -n "$rt" ] && [ "$bar" = "0" ] && { v="NO CHAT BAR"; checks=$((checks+1)); }
   if [ -n "$rt" ]; then
-    if ! grep -q "frameroles: root $rt, .*roles checked, .* absent, 0 unbound, 0 mismatched" "$L" || grep -Eq 'frameroles: .* (MISMATCH|UNBOUND)' "$L"; then
-      v="ROLE AUDIT"; fail=$((fail+1))
+    if [[ "${GF_MATRIX_EXPECT_NATIVE:-0}" != 1 ]] && { ! grep -q "frameroles: root $rt, .*roles checked, .* absent, 0 unbound, 0 mismatched" "$L" || grep -Eq 'frameroles: .* (MISMATCH|UNBOUND)' "$L"; }; then
+      v="ROLE AUDIT"; checks=$((checks+1))
     fi
-    python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" --root "$rt" --bounds "$L" > "$OUT/$tag/pixels.txt" 2>&1 || { v="PIXELS"; fail=$((fail+1)); }
+    local_state_args=()
+    [[ -n "${GF_MATRIX_MINIMAP_STATE:-}" ]] && local_state_args=(--minimap-state "$GF_MATRIX_MINIMAP_STATE")
+    [[ -n "${GF_MATRIX_SERVER_HIDE:-}" ]] && local_state_args+=(--server-hide "$GF_MATRIX_SERVER_HIDE")
+    python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$active" --root "$rt" --bounds "$L" "${local_state_args[@]}" > "$OUT/$tag/pixels.txt" 2>&1 || { v="PIXELS"; checks=$((checks+1)); }
     cat "$OUT/$tag/pixels.txt"
   fi
+  [[ "$checks" != "$before" ]] && fail=$((fail+1))
   printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" "$tag" "$m" "$f" "$s" "${rt:--}" "$n" "$v"
 done < "$OUT/index.txt"
-echo "--- $fail failures / $(wc -l < "$OUT/index.txt" | tr -d ' ') --- captures in $OUT"
+echo "--- $fail failures ($checks checks) / $(wc -l < "$OUT/index.txt" | tr -d ' ') --- captures in $OUT"
 exit $(( fail > 0 ))

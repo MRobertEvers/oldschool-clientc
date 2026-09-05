@@ -6891,6 +6891,7 @@ ToriRSServer_SendIfSetcolour(
     struct ToriRSServerPlayer* player,
     int uid,
     int colour);
+void ToriRSServer_SendMinimapToggle(struct ToriRSServerPlayer* player, int state);
 void
 ToriRSServer_SendIfSethide(
     struct ToriRSServerPlayer* player,

@@ -2188,6 +2188,17 @@ ToriRSServer_SendIfSetcolour(
 }
 
 void
+ToriRSServer_SendMinimapToggle(struct ToriRSServerPlayer* player, int state)
+{
+    struct RSAreaBuf buf;
+    /* The generated revision-239 codec is one U1, and the wire adapter owns
+     * opcode/framing. No client-side state assignment stands in for the packet. */
+    open_packet(&buf, 1);
+    rsab_p1(&buf, state);
+    flush(player, &buf, PKT_NAME_MINIMAP_TOGGLE, 0);
+}
+
+void
 ToriRSServer_SendIfSethide(
     struct ToriRSServerPlayer* player,
     int uid,
