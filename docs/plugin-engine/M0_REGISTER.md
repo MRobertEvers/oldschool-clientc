@@ -26,12 +26,37 @@ It serves revision 289 on TCP 43594 / HTTP 80. Each new connection uses a
 test-owned `rs289-seed.sav`; an existing player's save is never overwritten.
 `player.json` names the account and records the seed SHA-256.
 
-OSRS content: clean checkout at `695844ed5b4254aa34b1c297a1137ce95e2ae032`,
-`/private/tmp/plugin-engine-content`. The curses server pack rebuilt 29,603
-scripts successfully (`/private/tmp/plugin-engine-scripts-build.log`). The full
-cache bake exited 1 (`/private/tmp/plugin-engine-cache-build.log`), including
-chat script 223's unresolved `torirs_gim_chat_prefix` proc. The existing targeted
-cache remains diagnostic input only. No runtime stale-script bypass was used.
+OSRS content is now `26aba4540c` on `codex/plugin-engine-content`, in
+`/private/tmp/plugin-engine-content`. The source corrections preserve native
+script IDs: 1,922 proc headers are backed by decoded native call edges, and
+107 renamed call/hook references are repaired against native GOSUBs or decoded
+hook expressions. All 60 initially repaired hook references were checked against
+the native AST; a final type-12 focus hook was repaired the same way. Explicit
+`script<ID>` calls retain their native IDs where trigger names differ. The
+compiler's ambiguous clientscript-to-proc fallback remains disabled.
+
+The full base-cache recipe now succeeds: **189,969 config records, zero failed**,
+all 23 required tables present, and no script compile failures. The Ancient
+Curses overlay passes its isolation/compile gates and post-bake decompilation
+checks. Its server pack rebuilds **29,603 scripts**. All three normal freshness
+predicates report up to date. Logs: `/private/tmp/plugin-engine-cache-pass4.log`,
+`/private/tmp/plugin-engine-curses-preparation.log`, and
+`/private/tmp/plugin-engine-fresh-scripts.log`.
+
+`prepared-native-baselines` passes **0/4 failures**, and
+`prepared-native-window` passes the Cocoa native launch, with the prepared
+cache, scripts and explicitly selected matching content tree. No stale-script
+bypass or diagnostic acceptance override is used. The existing foundation
+matrix also passes **0/40** on the freshly prepared cache. These establish the
+preparation/baseline checks, not complete tree-mutation correctness.
+
+Remaining content diagnostics are explicit: the source for sailing interface
+937 is byte-identical to the pinned cache's native export, but its partial
+`.compack` naming file is incompatible with that source; the asset pass retains
+the base interface. Hosidius group 236 has neither source nor a native cache
+group and remains absent. The packer also reports 3,002 server-side inventory
+keys it cannot encode into the client cache. Their scope must remain visible
+in the inventory; none is evidence that a missing native capability exists.
 
 ## Implemented mechanisms and observed controls
 
@@ -163,9 +188,10 @@ override for accepted runs. `GF_MATRIX_DIAGNOSTIC=1` exits 3 even if pixels pass
 
 1. Finish semantic review of every schema field, typed/indirect/bulk writer,
    consumer, initialization boundary and unexamined frontend branch.
-2. Repair required OSRS cache preparation, including the full chat proc closure;
-   rebuild and validate the consumed artifacts against pinned content. Existing
-   targeted cache captures are not final evidence.
+2. Keep the completed OSRS preparation recipe pinned through the API cutover;
+   close the remaining content-diagnostic dispositions and verify final commits
+   against their rebuilt artifacts. The earlier targeted cache is no longer the
+   baseline.
 3. Make the LostCity server/content fixture reproducible from recorded inputs,
    including its existing runtime adaptations, and close the native drawable
    behavior question.

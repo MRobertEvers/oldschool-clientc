@@ -27,6 +27,7 @@ revision=239
 dir=cache
 [net:boot]
 rev=osrs239
+transport=embed
 scripts=scripts
 [ui:boot]
 logic=cs2
@@ -70,6 +71,10 @@ check=unused
 
     def test_revision_mismatch_blocks(self):
         self.manifest.write_text(self.manifest.read_text().replace("logic=cs2", "logic=cs1"))
+        self.assertFalse(self.inspect()["accepted"])
+
+    def test_inherited_server_cache_cannot_replace_the_declared_fixture(self):
+        fixture.os.environ["TORIRSSERVER_CACHE"] = str(self.root / "another-cache")
         self.assertFalse(self.inspect()["accepted"])
 
     def test_missing_coverage_blocks(self):

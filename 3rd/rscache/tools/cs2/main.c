@@ -351,6 +351,7 @@ usage(void)
         "  cs2 roundtrip (--cache DIR | --raw DIR) [--names DIR] [--dump DIR] [id ...]\n"
         "  cs2 codec     (--cache DIR | --raw DIR) [--dump DIR] [id ...]\n"
         "  cs2 disassemble (--cache DIR | --raw DIR) id ...\n"
+        "  cs2 callgraph   (--cache DIR | --raw DIR) [id ...]\n"
         "  cs2 infer-arity (--cache DIR | --raw DIR) [--names DIR] [id ...]\n");
 }
 
@@ -1226,6 +1227,30 @@ run_infer(struct options* options, struct script_store* store, int* ids, int id_
  * the only way to do it before this mode existed.
  */
 static int
+run_callgraph(struct script_store* store, int* ids, int id_count)
+{
+    int missing = 0;
+    for( int i = 0; i < id_count; i++ )
+    {
+        struct RSCache_CS2_Script const* script = store_load(store, ids[i]);
+        if( !script )
+        {
+            fprintf(stderr, "callgraph: missing script %d\n", ids[i]);
+            missing++;
+            continue;
+        }
+        printf("script\t%d\t%d\t%d\t%d\n", script->script_id,
+               script->int_argument_count, script->string_argument_count, script->long_argument_count);
+        for( int pc = 0; pc < script->op_count; pc++ )
+            if( script->opcodes[pc] == 40 ) /* GOSUB_WITH_PARAMS */
+                printf("call\t%d\t%d\t%d\n", script->script_id, pc, script->int_operands[pc]);
+            else if( script->opcodes[pc] == 0 ) /* includes statically bound hook IDs */
+                printf("constant\t%d\t%d\t%d\n", script->script_id, pc, script->int_operands[pc]);
+    }
+    return missing ? 1 : 0;
+}
+
+static int
 run_disassemble(struct options* options, struct script_store* store, int* ids, int id_count)
 {
     (void)options;
@@ -1717,6 +1742,8 @@ main(int argc, char** argv)
         status = run_codec(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "disassemble") == 0 )
         status = run_disassemble(&options, &store, ids, id_count);
+    else if( strcmp(options.mode, "callgraph") == 0 )
+        status = run_callgraph(&store, ids, id_count);
     else
     {
         usage();

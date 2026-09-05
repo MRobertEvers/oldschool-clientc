@@ -45,11 +45,21 @@ def inspect(repo, binary, manifest_path, revision):
     report["inputs"] = {key: os.environ.get(key) for key in (
         "GF_MATRIX_BASELINE", "GF_MATRIX_TAGS", "GF_MATRIX_MAX_FRAMES", "GF_MATRIX_LC_SAVE",
         "TORIRS_SIM_CMD", "TORIRS_SIM_CLICK_AT", "TORIRS_SIM_RESIZE", "TORIRS_SIM_HOVER",
-        "TORIRS_CLIENTTYPE", "TORIRS_REVCONFIG_PLATFORM", "SDL_VIDEODRIVER")}
+        "TORIRS_CLIENTTYPE", "TORIRS_REVCONFIG_PLATFORM", "SDL_VIDEODRIVER",
+        "TORIRSSERVER_CONTENT", "TORIRSSERVER_CACHE", "TORIRSSERVER_SCRIPTS")}
     expected = {"rs289lc": ("289", "lc289", "cs1"), "osrs239": ("239", "osrs239", "cs2")}
     actual = (manifest.revision, manifest.rev, manifest.ini.get("ui:boot", "logic"))
     if actual != expected[revision]:
         report["blockers"].append(f"revision/codec/logic mismatch: {actual}")
+    if manifest.transport == "embed":
+        for key, consumed in (("TORIRSSERVER_CACHE", manifest.cache_dir),
+                              ("TORIRSSERVER_SCRIPTS", manifest.server_scripts)):
+            override = os.environ.get(key)
+            if override and (not consumed or Path(override).resolve() != Path(consumed).resolve()):
+                report["blockers"].append(f"{key} overrides the fixture's declared artifact")
+        content = os.environ.get("TORIRSSERVER_CONTENT")
+        if content:
+            report["content"] = git_state(Path(content).resolve().parent)
     for key in ("TORIRSSERVER_ALLOW_STALE_SCRIPTS", "TORIRS_SKIP_CHECKS"):
         if key in os.environ:
             report["blockers"].append(f"freshness override present: {key}")
@@ -130,6 +140,9 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     try:
+        # Keep the exact input even if its source path is later edited. The
+        # report retains the original directory for resolving relative paths.
+        args.out.with_name("manifest.input.ini").write_bytes(args.manifest.read_bytes())
         report = inspect(args.repo.resolve(), args.binary.resolve(), args.manifest.resolve(), args.revision)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         report = {"accepted": False, "blockers": [str(error)]}

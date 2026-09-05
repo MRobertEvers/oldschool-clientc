@@ -519,7 +519,13 @@ struct CP_Ctx
      * Param id -> declared `type=` character, or 0. Built by
      * `cp_param_types_load` before the type loop; see it for why not lazily.
      */
-    char* param_types;
+    struct CP_ParamType
+    {
+        char code;
+        /** A declared asset namespace can share an integer wire type.
+         * Zero = no asset reference; otherwise enum CP_AssetId + 1. */
+        int asset_plus_one;
+    } *param_types;
     int param_types_count;
 
     /**

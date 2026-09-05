@@ -2434,6 +2434,12 @@ test-gameframe-baseline:
 test-gameframe-fixture:
 	python3 ../tools/test_gameframe_fixture.py
 
+.PHONY: test-plugin-engine-content
+test-plugin-engine-content:
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
+	python3 ../tools/test_cachepack_param_assets.py
+	python3 ../tools/test_cs2_proc_headers.py
+
 test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c
