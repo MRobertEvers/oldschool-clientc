@@ -314,6 +314,41 @@ blitted_at(int x, int y)
     return 0;
 }
 
+/* Compare the painted lower strip with clean source rock. This checks
+ * compositing order as well as pixels: a correct image hidden under the old
+ * recesses must fail. The source is the shipped 496x50 backbase1 artwork. */
+static int
+classic_base_is_flat(void)
+{
+    int source = -1;
+    for( int i = 0; i < g_frame.blits && i < 128; i++ )
+        if( g_frame.blit_x[i] == 0 && g_frame.blit_y[i] == 453 )
+            source = g_frame.blit_image[i];
+    if( source < 0 || !g_image[source].argb || g_image[source].w != 496 ||
+        g_image[source].h != 50 )
+        return 0;
+    for( int y = 467; y < 499; y++ )
+        for( int x = 0; x < 496; x++ )
+        {
+            uint32_t painted = 0;
+            for( int i = 0; i < g_frame.blits && i < 128; i++ )
+            {
+                int slot = g_frame.blit_image[i];
+                int px = x - g_frame.blit_x[i];
+                int py = y - g_frame.blit_y[i];
+                if( slot >= 0 && slot < FAKE_IMAGE_SLOTS && g_image[slot].argb &&
+                    px >= 0 && py >= 0 && px < g_image[slot].w && py < g_image[slot].h )
+                {
+                    uint32_t color = g_image[slot].argb[py * g_image[slot].w + px];
+                    if( (color >> 24) == 255 ) painted = color;
+                }
+            }
+            if( painted != g_image[source].argb[(y - 453) * 496 + 106 + x % 29] )
+                return 0;
+        }
+    return 1;
+}
+
 static int
 fake_hit_region(
     void* u, int plugin, int x, int y, int w, int h,
@@ -1832,6 +1867,9 @@ main(void)
     draw(765, 503);
     CHECK(!blitted_at(17, 357), "and without the 2004 chat parchment under the pack");
     CHECK(named_tabs_present(), "the 2004 stones remain semantic click targets");
+    /* Do not restore the native chat box just to cover these empty hollows:
+     * retain the 2004 placement and remove the obsolete lower filter row. */
+    CHECK(classic_base_is_flat(), "no captionless 2004 hollows below the CS2 filters");
 
     {
         /*

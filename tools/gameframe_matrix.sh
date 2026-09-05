@@ -20,6 +20,7 @@
 #   make -C src OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
 #        PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix -j8
 set -u
+TOOLS_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO=${REPO:-$(cd "$(dirname "$0")/.." && pwd)}
 BIN=${BIN:-$REPO/src/torirs_gfmatrix}
 MANIFEST=${MANIFEST:-$REPO/manifests/manifest_osrs239_curses.ini}
@@ -30,6 +31,7 @@ SIZES=(765x503 1200x800)
 
 [ -x "$BIN" ] || { echo "no binary at $BIN -- see the header"; exit 2; }
 mkdir -p "$OUT"
+: > "$OUT/index.txt"
 cat > "$OUT/plugin_prefs.ini" <<EOF
 [plugin:gameframe-layout]
 enabled=1
@@ -63,6 +65,7 @@ one() {
 i=0
 for m in 0 1 2 M; do for f in $FRAMES_LIST; do for s in $SIZES; do
   i=$((i+1)); tag="m$(printf '%02d' $i)"
+  if [[ -n "${GF_MATRIX_TAGS:-}" && ",${GF_MATRIX_TAGS}," != *",${tag},"* ]]; then continue; fi
   mode=$m; mobile=0
   [ "$m" = "M" ] && { mode=1; mobile=1; }
   echo "$tag|$m|$f|$s" >> "$OUT/index.txt"
@@ -84,7 +87,11 @@ while IFS='|' read tag m f s; do
   [ -z "$rt" ] && { v="NO ROOT"; fail=$((fail+1)); }
   [ -n "$rt" ] && [ "$n" != "$want" ] && { v="FILTERS $n want $want"; fail=$((fail+1)); }
   [ -n "$rt" ] && [ "$bar" = "0" ] && { v="NO CHAT BAR"; fail=$((fail+1)); }
+  if [ -n "$rt" ]; then
+    python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" --root "$rt" > "$OUT/$tag/pixels.txt" 2>&1 || { v="PIXELS"; fail=$((fail+1)); }
+    cat "$OUT/$tag/pixels.txt"
+  fi
   printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" "$tag" "$m" "$f" "$s" "${rt:--}" "$n" "$v"
 done < "$OUT/index.txt"
-echo "--- $fail failures / 40 --- captures in $OUT"
+echo "--- $fail failures / $(wc -l < "$OUT/index.txt" | tr -d ' ') --- captures in $OUT"
 exit $(( fail > 0 ))

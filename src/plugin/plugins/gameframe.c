@@ -906,6 +906,8 @@ struct FrameState
     /** The 2004 bar the two OldSchool layouts blit on a 2004 lane, with this
      *  frame's own four hollows cut into it. @see frame_chat_stones. */
     struct FrameSized chat_stones;
+    /** Plain rock covering the unused dat1 filter recesses on CS2 lanes. */
+    struct FrameSized base_flat;
     struct FrameRuntime frame;
 };
 
@@ -923,6 +925,7 @@ struct FrameState
 #define g_chat_bar (ctx->state->chat_bar)
 #define g_chat_band (ctx->state->chat_band)
 #define g_chat_stones (ctx->state->chat_stones)
+#define g_base_flat (ctx->state->base_flat)
 #define g_frame (ctx->state->frame)
 #define g_api (ctx->api)
 
@@ -1563,6 +1566,22 @@ frame_housing_node(
     ctx->builder->ui_node(ctx->builder, "frame.minimap.housing", &node);
 }
 
+/* Composed in the art section below, called from the layout pass here: the
+ * layouts run first in this file and the picture they ask for is cut from
+ * pixels rather than stated. @see frame_chat_bar_art. */
+static struct ToriRS_ImageRef
+frame_chat_bar_art(
+    struct FrameCall* ctx,
+    struct FrameSized* cache,
+    char const* prefix,
+    int width,
+    int height,
+    struct ToriRS_ImageRef base,
+    struct FrameChatCell const* cell,
+    int cell_count,
+    int band_y,
+    int band_h);
+
 /* --------------------------------------------------------- classic fixed */
 
 /*
@@ -1665,6 +1684,17 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         frame_blit(ctx, g_image[IMG_C_CHATBACK], 17, 357);
     frame_blit(ctx, g_image[IMG_C_BACKVMID3], 496, 357);
     frame_blit(ctx, g_image[IMG_C_BACKBASE1], 0, 453);
+    /* The CS2 pack carries every live filter above this strip. Leaving the
+     * four dat1 recesses here makes a second, captionless row. Fill only
+     * that band from the source rock; preserve the surrounding frame. */
+    if( oldschool )
+        frame_blit(
+            ctx,
+            frame_chat_bar_art(
+                ctx, &g_base_flat, "classic_base_flat", 496,
+                FRAME_CHAT_BUTTON_H, (struct ToriRS_ImageRef){ 0 }, NULL,
+                0, 0, FRAME_CHAT_BUTTON_H),
+            0, 453 + FRAME_C_STRIP_BAND_Y);
     frame_blit(ctx, g_image[IMG_C_BACKBASE2], 496, 466);
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
@@ -1831,22 +1861,6 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
                     FRAME_CHAT_BUTTON_H });
     }
 }
-
-/* Composed in the art section below, called from the layout pass here: the
- * layouts run first in this file and the picture they ask for is cut from
- * pixels rather than stated. @see frame_chat_bar_art. */
-static struct ToriRS_ImageRef
-frame_chat_bar_art(
-    struct FrameCall* ctx,
-    struct FrameSized* cache,
-    char const* prefix,
-    int width,
-    int height,
-    struct ToriRS_ImageRef base,
-    struct FrameChatCell const* cell,
-    int cell_count,
-    int band_y,
-    int band_h);
 
 /* The same, for the OldSchool band this frame blits whole. @see
  * frame_compose_osrs_band. */
@@ -3775,6 +3789,8 @@ frame_on_stop(struct ToriRS_ApiV2* api, void* state_ptr)
         api->assets.image_release(api, state->chat_band.art);
     if( state->chat_stones.art.value != 0 )
         api->assets.image_release(api, state->chat_stones.art);
+    if( state->base_flat.art.value != 0 )
+        api->assets.image_release(api, state->base_flat.art);
     memset(state, 0, sizeof(*state));
 }
 
