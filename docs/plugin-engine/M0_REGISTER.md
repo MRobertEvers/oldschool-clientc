@@ -50,6 +50,13 @@ bypass or diagnostic acceptance override is used. The existing foundation
 matrix also passes **0/40** on the freshly prepared cache. These establish the
 preparation/baseline checks, not complete tree-mutation correctness.
 
+`prepared-native-contract` also passes **0/10 failed groups, 13 captures** on
+that prepared fixture, including minimap packets, server hides, resize/tab
+selection and remounts. Root commit `ae29d3d20` was checked out cleanly and its
+native client and content-tool/fixture tests built/passed. Tool builds modify
+the repository's two tracked generated executables; those binary changes are
+build outputs, not additional source changes or a shipped API migration.
+
 Remaining content diagnostics are explicit: the source for sailing interface
 937 is byte-identical to the pinned cache's native export, but its partial
 `.compack` naming file is incompatible with that source; the asset pass retains
@@ -176,6 +183,7 @@ GF_MATRIX_LC_SAVE=/path/to/test-owned-gameplay-seed.sav GF_MATRIX_SCENARIOS=1 \
 tools/gameframe_matrix.sh /tmp/rs289-new-run
 
 REPO=/path/to/installed/runtime BIN=/path/to/exact/client \
+TORIRSSERVER_CONTENT=/path/to/matching/OSRS-Content/osrs239-content \
 MANIFEST=/path/to/prepared-osrs239.ini GF_MATRIX_BASELINE=1 \
 GF_MATRIX_TAGS=m01,m11,m21,m31 tools/gameframe_matrix.sh /tmp/osrs239-new-run
 ```
