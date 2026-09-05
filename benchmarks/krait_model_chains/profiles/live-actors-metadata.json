@@ -1,0 +1,32 @@
+{
+  "scene": "varrock-square-ground",
+  "event": "cpu-cycles",
+  "period": 150000,
+  "motion": false,
+  "serial": "T062809L3Z",
+  "live": true,
+  "warmup": 600,
+  "source_commit": "9fca0e47ae53279d4d20aed6fa16e73ce1526328",
+  "local_library_sha256": "fccfd8aa6ae89506d0a36e7cde7abee49078bdc015785503a6cb4f64942cd551",
+  "installed_library_sha256": "fccfd8aa6ae89506d0a36e7cde7abee49078bdc015785503a6cb4f64942cd551",
+  "samples": 148260,
+  "lost": 0,
+  "library_map_path": "/data/app/com.torirs.client-1/lib/arm/libtorirs.so",
+  "record_command": [
+    "run-as",
+    "com.torirs.client",
+    "./simpleperf",
+    "record",
+    "-e",
+    "cpu-cycles:u",
+    "-c",
+    "150000",
+    "-p",
+    "24631",
+    "--duration",
+    "15",
+    "-o",
+    "/sdcard/Android/data/com.torirs.client/files/pipeline-sample.data",
+    "--no-dump-kernel-symbols"
+  ]
+}

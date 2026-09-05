@@ -1,0 +1,9 @@
+{
+  "serial": "T062809L3Z",
+  "manifest": "/sdcard/Android/data/com.torirs.client/files/manifests/krait-skeletal.ini",
+  "first_pass": 300,
+  "passes": 24,
+  "sha256": "9d03e10a860c2e2fe60b7348992b2184820c4035d1c1b6f712398cfd4b890aa8",
+  "bytes": 4242920,
+  "completion": "I/torirs  (30021): animation capture complete: 912 real pose calls"
+}

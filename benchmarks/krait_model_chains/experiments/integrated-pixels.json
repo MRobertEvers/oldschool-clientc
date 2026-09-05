@@ -1,0 +1,20 @@
+{
+  "scene": "varrock-square-ground",
+  "frame": 120,
+  "size": [
+    956,
+    576
+  ],
+  "pixels": 550656,
+  "frames": {
+    "A": "bc8f6effa263f92f8a8e2a4441d76e90fde9209cdc20d6252551c08b2f1cae58",
+    "B": "cb3bd99a8fafee59ecc0a02123dad1f48ca10107dee85784d5374fbf09c17c5f",
+    "A2": "f26f42643fbe809fb20000853cbf506efb8f1b2890b4400b335c888957cfac6b",
+    "B2": "bc8f6effa263f92f8a8e2a4441d76e90fde9209cdc20d6252551c08b2f1cae58"
+  },
+  "A_vs_B_different_pixels": 680,
+  "A_vs_A2_different_pixels": 530,
+  "A_vs_B2_different_pixels": 0,
+  "interpretation": "Differences localized visually to animated fountain water. Baseline repeats vary; repeated optimized frame B2 matches reference A exactly. This is a static offline-scene check, not exhaustive actor/UI coverage.",
+  "build": "4815f208adc1a4a5ce24cb1c60f8c9a74f411931dc2dd4c1c3ad9477acd9af82"
+}

@@ -22,6 +22,7 @@
  */
 
 #include "platform/platform_renderer_gles2_core.h"
+#include "platform/platform_renderer_gles2_placement.h"
 
 #include "engine/boot_bar.h"
 #include "log/torirs_log.h"
@@ -41,11 +42,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(TORIRS_BAKE_CHAIN_CAPTURE)
+#include "platform_renderer_gles2_bake_capture.u.c"
+#elif defined(TORIRS_BAKE_VERIFY)
+#include "../../tools/perf/bake_chain_format.h"
+#endif
+
+#if defined(TORIRS_PLACEMENT_CAPTURE)
+#include "platform_renderer_gles2_placement_capture.u.c"
+#else
+#define gles2_static_resolve_recorded gles2_static_resolve
+#endif
+
+
 /* One line of the TORIRS_GLES2_DEBUG census. TORIRS_REPORT rather than
  * TORIRS_LOG: the reader asked for it by setting the variable, so it must
  * survive an optimized build. The lane decides where stderr goes -- the
  * console on the desktop and in the browser, logcat on Android. */
 #define gles2_report_line(fmt, ...) TORIRS_REPORT(fmt "\n", __VA_ARGS__)
+
+#if defined(TORIRS_MODEL_CHAIN_CAPTURE)
+#include "platform_renderer_gles2_chain_capture.u.c"
+#endif
 
 _Static_assert(
     GLES2_ATLAS_COLS * TRSPK_ATLAS_TILE == GLES2_ATLAS_DIM,
@@ -169,66 +187,12 @@ gles2_bind_texture0(struct ToriRS_GLES2* renderer, GLuint texture)
  * batch entry read alone was 39% of gles2_dispatch.
  */
 void
-gles2_prefetch_ahead_ids(
-    struct ToriRS_GLES2* renderer,
-    int id_plus1,
-    int id_plus2,
-    int id_plus3)
+gles2_prefetch_ahead_ids(struct ToriRS_GLES2* renderer,int id_plus1,int id_plus2,int id_plus3)
 {
-    const struct TRSPK_PoseTable* table = &renderer->batch_poses;
-    int id;
-
-    assert(renderer);
-    if( !table->elements || !renderer->has_3d )
-        return;
-
-    id = id_plus3;
-    if( id >= 0 )
-    {
-        uint32_t const index = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
-        if( index < table->element_count )
-            __builtin_prefetch(&table->elements[index], 0, 1);
-    }
-    id = id_plus2;
-    if( id >= 0 )
-    {
-        uint32_t const index = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
-        if( index < table->element_count )
-        {
-            const struct TRSPK_PoseTrack* track = &table->elements[index].tracks[0];
-            if( track->vertex_base )
-                __builtin_prefetch(track->vertex_base, 0, 1);
-        }
-    }
-    id = id_plus1;
-    if( id >= 0 )
-    {
-        uint32_t const index = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
-        if( index < table->element_count )
-        {
-            const struct TRSPK_PoseTrack* track = &table->elements[index].tracks[0];
-            if( track->vertex_base && track->pose_count > 0u )
-            {
-                uint32_t const base = track->vertex_base[0];
-                if( base != TRSPK_POSE_VERTEX_BASE_INVALID && (base & GLES2_BATCH_POSE_FLAG) )
-                {
-                    uint32_t const slot =
-                        (base >> GLES2_BATCH_POSE_SLOT_SHIFT) & GLES2_BATCH_POSE_SLOT_MASK;
-                    if( slot < renderer->static_batch_count )
-                    {
-                        const struct GLES2StaticBatch* batch = &renderer->static_batches[slot];
-                        if( batch->active && batch->cpu )
-                        {
-                            const struct TRSPK_Batch16Entry* entry = trspk_batch16_get_entry(
-                                batch->cpu, base & GLES2_BATCH_POSE_ENTRY_MASK);
-                            if( entry )
-                                __builtin_prefetch(entry, 0, 1);
-                        }
-                    }
-                }
-            }
-        }
-    }
+#if defined(TORIRS_PLACEMENT_CAPTURE)
+    gles2_placement_prefetch_record(renderer,id_plus1,id_plus2,id_plus3);
+#endif
+    gles2_static_prefetch_ids(renderer,id_plus1,id_plus2,id_plus3);
 }
 
 static void
@@ -431,6 +395,10 @@ gles2_delete_program(struct GLES2Program* program)
 static bool
 gles2_create_programs(struct ToriRS_GLES2* renderer)
 {
+    const char* shader_override=getenv("TORIRS_GLES2_FAST_SHADER");
+    const char* gpu=(const char*)glGetString(GL_RENDERER);
+    renderer->world_fast_shader=shader_override ? shader_override[0]!='0'
+        : gpu && strstr(gpu,"Adreno") && strstr(gpu,"320");
     /* Fresh program objects hold no uniform values yet. */
     renderer->ui_projection_pushed = false;
     renderer->rotmask_projection_pushed = false;
@@ -448,6 +416,10 @@ gles2_create_programs(struct ToriRS_GLES2* renderer)
                false,
                true,
                "world (cutout)") &&
+        gles2_link_program(&renderer->program_world_fast_plain,gles2_world_vertex_shader,
+               gles2_world_fast_plain_fragment_shader,false,true,"world fast plain") &&
+        gles2_link_program(&renderer->program_world_fast_cutout,gles2_world_vertex_shader,
+               gles2_world_fast_cutout_fragment_shader,false,true,"world fast cutout") &&
         gles2_link_program(
                &renderer->program_ui,
                gles2_ui_vertex_shader,
@@ -1318,6 +1290,7 @@ gles2_rebuild_batch_pose_table(struct ToriRS_GLES2* renderer)
                 GLES2_BATCH_POSE_FLAG | (batch_slot << GLES2_BATCH_POSE_SLOT_SHIFT) | entry_index);
         }
     }
+    gles2_static_primary_rebuild(renderer);
 }
 
 static bool
@@ -1808,6 +1781,7 @@ gles2_bake_pose_vertices(
     int face_count;
     uint32_t order_index;
     uint32_t written_count;
+    bool const ordered_painter=face_order && !renderer->zbuffer && vbo==renderer->frame_stream_cpu;
 
     assert(renderer);
     assert(renderer->scene);
@@ -1820,6 +1794,29 @@ gles2_bake_pose_vertices(
      * path's sorted actors -- and only the faces the order names. */
     written_count = face_order ? (uint32_t)(order_count > 0 ? order_count : 0) : (uint32_t)face_count;
     trspk_toridraw_placement_init(&placement, world_position);
+    float* world_xyz=NULL;
+    struct ToriDraw_Model* full_model=NULL;
+    if( renderer->actor_world_cache_enabled && face_order && !renderer->zbuffer &&
+        ToriDraw_ModelKindIsFull(model_handle.kind) )
+    {
+        full_model=(struct ToriDraw_Model*)ToriDraw_ModelRead(model_handle);
+        if( written_count*3u>(uint32_t)full_model->vertex_count )
+        {
+            if( (uint32_t)full_model->vertex_count>renderer->actor_world_capacity )
+            {
+                float* grown=realloc(renderer->actor_world_xyz,(size_t)full_model->vertex_count*3*sizeof(float));
+                if( grown ) {renderer->actor_world_xyz=grown;renderer->actor_world_capacity=(uint32_t)full_model->vertex_count;}
+            }
+            if( (uint32_t)full_model->vertex_count<=renderer->actor_world_capacity )
+            {
+                world_xyz=renderer->actor_world_xyz;
+                trspk_toridraw_world_vertices(full_model,&placement,world_xyz);
+            }
+        }
+    }
+#if defined(TORIRS_BAKE_CHAIN_CAPTURE)
+    gles2_bake_capture_begin(renderer,model_handle,world_position,face_order,order_count);
+#endif
 
     for( order_index = 0u; order_index < written_count; order_index++ )
     {
@@ -1838,21 +1835,26 @@ gles2_bake_pose_vertices(
         float vc;
         int config = GLES2_TRIANGLE_UNTEXTURED;
 
-        if( face_index >= (uint32_t)face_count ||
-            !trspk_toridraw_bake_face_handle(
-                model_handle,
-                face_index,
-                &placement,
-                renderer->scene,
-                true,
-                TRSPK_BAKE_COLOR_ARGB,
-                &face) )
+        bool baked=false;
+        if( face_index<(uint32_t)face_count )
+        {
+            if( world_xyz )
+            {
+                trspk_toridraw_bake_face_cached(full_model,face_index,&placement,NULL,
+                    true,TRSPK_BAKE_COLOR_ARGB,world_xyz,&face);
+                baked=true;
+            }
+            else
+                baked=trspk_toridraw_bake_face_handle(model_handle,face_index,&placement,
+                    NULL,true,TRSPK_BAKE_COLOR_ARGB,&face);
+        }
+        if( !baked )
         {
             /* A skipped face still owns its triplet in an ordered bake: leave
              * it fully transparent so the alpha test drops it. */
             if( face_order )
             {
-                trspk_triangles_set(
+                if( !ordered_painter ) trspk_triangles_set(
                     triangles, trspk_triangles_index_from_vertex(vertex), GLES2_TRIANGLE_UNTEXTURED);
                 trspk_vbo_write_vertex_gles2(vbo, vertex, 0.0f, 0.0f, 0.0f, 0u, 0.5f, 0.5f, 0u, 0u,
                     TRSPK_VERTEX_GLES2_ANIM_STILL, TRSPK_VERTEX_GLES2_ANIM_STILL);
@@ -1864,6 +1866,21 @@ gles2_bake_pose_vertices(
             continue;
         }
 
+#if defined(TORIRS_BAKE_CHAIN_CAPTURE)
+        gles2_bake_capture_face(&face);
+#endif
+#if defined(TORIRS_BAKE_VERIFY)
+        if( world_xyz )
+        {
+            struct TRSPK_ToriDrawBakeFaceVerts reference;
+            trspk_toridraw_bake_face_handle(model_handle,face_index,&placement,renderer->scene,
+                true,TRSPK_BAKE_COLOR_ARGB,&reference);
+            struct BakeChainFace a=bake_chain_face(&face),b=bake_chain_face(&reference);
+            if( memcmp(&a,&b,sizeof(a)) ){fprintf(stderr,"bake verification FAILED\n");abort();}
+            static unsigned matched=0;
+            if( (++matched%10000)==0 ) fprintf(stderr,"bake verification: %u real faces matched\n",matched);
+        }
+#endif
         if( face.tex_id >= 0 )
         {
             int slot = gles2_ensure_texture(renderer, face.tex_id);
@@ -1898,7 +1915,7 @@ gles2_bake_pose_vertices(
             va = vb = vc = 0.5f;
         }
 
-        trspk_triangles_set(triangles, trspk_triangles_index_from_vertex(vertex), config);
+        if( !ordered_painter ) trspk_triangles_set(triangles, trspk_triangles_index_from_vertex(vertex), config);
         trspk_vbo_write_vertex_gles2(
             vbo, vertex, face.wx_a, face.wy_a, face.wz_a,
             gles2_argb_to_rgba_bytes(face.argb_a), ua, va, tile_col, tile_row, anim_u, anim_v);
@@ -1912,6 +1929,9 @@ gles2_bake_pose_vertices(
     /* Once for the model rather than three times per face -- and as a RANGE,
      * because this model is the only part of a shared retained buffer that
      * changed. */
+#if defined(TORIRS_BAKE_CHAIN_CAPTURE)
+    gles2_bake_capture_end();
+#endif
     trspk_vbo_mark_dirty_range(vbo, vertex_base, written_count * 3u);
     return true;
 }
@@ -2318,7 +2338,9 @@ gles2_use_world_program(struct ToriRS_GLES2* renderer, bool cutout)
 {
     const struct GLES2Program* program;
     assert(renderer);
-    program = cutout ? &renderer->program_world_cutout : &renderer->program_world_plain;
+    program = renderer->world_fast_shader
+        ? (cutout ? &renderer->program_world_fast_cutout : &renderer->program_world_fast_plain)
+        : (cutout ? &renderer->program_world_cutout : &renderer->program_world_plain);
     gles2_use_program(renderer, program);
     glUniformMatrix4fv(program->u_matrix, 1, GL_FALSE, renderer->model_view_projection);
     /* Reduced modulo 128 on the CPU: speed / 128 texels per tick means the
@@ -2486,7 +2508,8 @@ gles2_frame_stream_reserve(struct ToriRS_GLES2* renderer, uint32_t vertex_count)
     assert(renderer->frame_stream_cpu);
     first = renderer->frame_stream_count;
     trspk_vbo_ensure_capacity(renderer->frame_stream_cpu, first + vertex_count);
-    trspk_triangles_ensure(&renderer->frame_stream_triangles, (first + vertex_count) / 3u + 1u);
+    if( renderer->zbuffer )
+        trspk_triangles_ensure(&renderer->frame_stream_triangles, (first + vertex_count) / 3u + 1u);
     renderer->frame_stream_count = first + vertex_count;
     return first;
 }
@@ -2516,32 +2539,9 @@ gles2_frame_stream_upload(struct ToriRS_GLES2* renderer)
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOADS, 1);
 }
 
-void
-gles2_sequence_draw(struct ToriRS_GLES2* renderer)
+static void gles2_sequence_issue(struct ToriRS_GLES2* renderer,uint32_t index_base_bytes)
 {
-    uint32_t index_base_bytes = 0u;
-    uint32_t item_index;
-    uint32_t draw_calls = 0u;
-    int program_cutout = -1;
-    int pass_blended = -1;
-
-    assert(renderer);
-    if( renderer->draw_item_count == 0u )
-        return;
-    if( renderer->ibo_staging_count > 0u )
-    {
-        uint32_t bytes = renderer->ibo_staging_count * (uint32_t)sizeof(uint16_t);
-        index_base_bytes = gles2_stream_set_append(
-            &renderer->index_stream,
-            renderer->frame_slot,
-            GL_ELEMENT_ARRAY_BUFFER,
-            GLES2_INDEX_STREAM_INIT_BYTES,
-            renderer->ibo_staging,
-            bytes,
-            false);
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)bytes);
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
-    }
+    uint32_t item_index,draw_calls=0;int program_cutout=-1,pass_blended=-1;
     if( renderer->zbuffer )
         gles2_zbuffer_apply_world_states(renderer);
     else
@@ -2574,6 +2574,39 @@ gles2_sequence_draw(struct ToriRS_GLES2* renderer)
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, draw_calls);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_RANGES, renderer->draw_item_count);
+}
+
+#if defined(TORIRS_SHADER_PROBE)
+#include "../../tools/perf/gles2_shader_probe.u.h"
+#endif
+
+void
+gles2_sequence_draw(struct ToriRS_GLES2* renderer)
+{
+    uint32_t index_base_bytes = 0u;
+
+    assert(renderer);
+    if( renderer->draw_item_count == 0u )
+        return;
+    if( renderer->ibo_staging_count > 0u )
+    {
+        uint32_t bytes = renderer->ibo_staging_count * (uint32_t)sizeof(uint16_t);
+        index_base_bytes = gles2_stream_set_append(
+            &renderer->index_stream,
+            renderer->frame_slot,
+            GL_ELEMENT_ARRAY_BUFFER,
+            GLES2_INDEX_STREAM_INIT_BYTES,
+            renderer->ibo_staging,
+            bytes,
+            false);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)bytes);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
+    }
+
+#if defined(TORIRS_SHADER_PROBE)
+    gles2_shader_probe(renderer,index_base_bytes);
+#endif
+    gles2_sequence_issue(renderer,index_base_bytes);
 }
 
 /* ---- the 3D pass ------------------------------------------------------------------- */
@@ -2614,6 +2647,12 @@ gles2_begin_3d(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_
         return;
     gles2_sequence_reset(renderer);
     renderer->current_3d = *command;
+#if defined(TORIRS_MODEL_CHAIN_CAPTURE)
+    g_chain_pass++;
+#endif
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+    ToriDraw_AnimCaptureBeginPass();
+#endif
     renderer->has_3d = true;
     renderer->in3d = true;
     /* Publish the prepared camera block: the prepared projection kernels are
@@ -2684,6 +2723,8 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     struct ToriDraw_Position projected_position;
     struct GLES2ModelPlacement placement;
     struct GLES2ModelStage stage;
+    struct GLES2StaticPrimary static_placement;
+    int static_state;
     bool staged = false;
     const int* face_order;
     bool projected_in_scene;
@@ -2709,6 +2750,9 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
             renderer->model_stage_source->user, command, &stage);
     if( !renderer->has_3d || !renderer->scene || command->model.kind == TORIDRAWMK_NONE )
         return;
+#if defined(TORIRS_MODEL_CHAIN_CAPTURE)
+    gles2_chain_capture(renderer, command);
+#endif
     placement.page_id = UINT32_MAX;
     placement.batch_slot = UINT32_MAX;
     placement.entry_index = UINT32_MAX;
@@ -2752,12 +2796,16 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     }
     else
     {
-        if( command->animation && command->element_id >= 0 )
-            ToriDraw_SceneElementApplyAnimation(
-                renderer->scene,
-                command->element_id,
-                command->anim_index == 0,
-                command->anim_frame);
+        if( !renderer->poses_prepared && command->animation && command->element_id >= 0 )
+        {
+            if( renderer->pose_reuse_enabled )
+                ToriDraw_SceneElementApplyAnimationResolved(
+                    ToriDraw_SceneElementGet(renderer->scene,command->element_id),
+                    command->element_id,command->anim_index==0,command->anim_frame,true);
+            else
+                ToriDraw_SceneElementApplyAnimation(renderer->scene,command->element_id,
+                    command->anim_index==0,command->anim_frame);
+        }
         projected_position = command->position;
         if( ToriDraw_RenderModel1ProjectWithTable(
                 command->model,
@@ -2870,36 +2918,16 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
             &command->world_position,
             false);
     }
-    else if( trspk_pose_table_get(
-                 &renderer->batch_poses, command->element_id, anim_index, pose_id, &vertex_base) )
+    else if( (static_state=gles2_static_resolve_recorded(renderer,command->element_id,anim_index,pose_id,&static_placement))!=0 )
     {
-        uint32_t batch_slot;
-        uint32_t entry_index;
-        uint32_t page_id;
-        const struct GLES2StaticBatch* batch;
-        const struct TRSPK_Batch16Entry* entry;
-        if( (vertex_base & GLES2_BATCH_POSE_FLAG) == 0u )
-            return;
-        batch_slot = (vertex_base >> GLES2_BATCH_POSE_SLOT_SHIFT) & GLES2_BATCH_POSE_SLOT_MASK;
-        entry_index = vertex_base & GLES2_BATCH_POSE_ENTRY_MASK;
-        if( batch_slot >= renderer->static_batch_count )
-            return;
-        batch = &renderer->static_batches[batch_slot];
-        if( !batch->active || !batch->cpu )
-            return;
-        entry = trspk_batch16_get_entry(batch->cpu, entry_index);
-        if( !entry || entry->chunk_index >= batch->page_id_capacity )
-            return;
-        page_id = batch->page_ids[entry->chunk_index];
-        if( page_id >= renderer->static_page_count || !renderer->static_pages[page_id].valid )
-            return;
-        binding = GLES2_STATIC_PAGE_BINDING;
-        page_base = renderer->static_pages[page_id].gpu_offset;
-        placement.page_id = page_id;
-        placement.batch_slot = batch_slot;
-        placement.entry_index = entry_index;
-        placement.entry_vertex_count = entry->vertex_count;
-        vertex_base = entry->vertex_base;
+        if( static_state<0 ) return;
+        binding=GLES2_STATIC_PAGE_BINDING;
+        page_base=static_placement.page_base;
+        placement.page_id=static_placement.page_id;
+        placement.batch_slot=static_placement.batch_slot;
+        placement.entry_index=static_placement.entry_index;
+        placement.entry_vertex_count=static_placement.vertex_count;
+        vertex_base=static_placement.vertex_base;
     }
     else if( !trspk_pose_table_get(
                  &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
@@ -3433,7 +3461,33 @@ ToriRS_GLES2_New(int width, int height)
     renderer->debug = getenv("TORIRS_GLES2_DEBUG") != NULL;
     /* The levers (see the struct): each defaults ON; NAME=0 is the control
      * arm. Read once, here, so no frame ever scans the environment. */
+    {
+        const char* v=getenv("TORIRS_GLES2_POSE_REUSE");
+        const char* legacy=getenv("TORIDRAW_ANIM_SKIP_SAME");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        renderer->pose_reuse_enabled=v ? v[0]!='0' : !(legacy && legacy[0]=='0');
+#else
+        renderer->pose_reuse_enabled=v && v[0]=='1';
+#endif
+    }
+    {
+        const char* v=getenv("TORIRS_GLES2_ACTOR_WORLD_CACHE");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        renderer->actor_world_cache_enabled=!v || v[0]!='0';
+#else
+        renderer->actor_world_cache_enabled=v && v[0]=='1';
+#endif
+    }
+    { const char* v=getenv("TORIRS_GLES2_FAST_SHADER");renderer->world_fast_shader=v && v[0]=='1'; }
     renderer->lever_ui_defer = gles2_lever_enabled("TORIRS_GLES2_UI_DEFER");
+    {
+        const char* v=getenv("TORIRS_GLES2_STATIC_PRIMARY");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        renderer->static_primary_enabled=!v || v[0]!='0';
+#else
+        renderer->static_primary_enabled=v && v[0]=='1';
+#endif
+    }
     renderer->lever_resident_fast = gles2_lever_enabled("TORIRS_GLES2_RESIDENT_FAST");
     renderer->lever_triplet_neon = gles2_lever_enabled("TORIRS_GLES2_TRIPLET_NEON");
     renderer->lever_rotmask_gen = gles2_lever_enabled("TORIRS_GLES2_ROTMASK_GEN");
@@ -3600,6 +3654,8 @@ gles2_destroy_gl_resources(struct ToriRS_GLES2* renderer)
     gles2_ui_destroy_gl(renderer);
     gles2_delete_program(&renderer->program_world_plain);
     gles2_delete_program(&renderer->program_world_cutout);
+    gles2_delete_program(&renderer->program_world_fast_plain);
+    gles2_delete_program(&renderer->program_world_fast_cutout);
     gles2_delete_program(&renderer->program_ui);
     gles2_delete_program(&renderer->program_rotmask);
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
@@ -3654,12 +3710,15 @@ ToriRS_GLES2_Free(struct ToriRS_GLES2* renderer)
         trspk_triangles_free(&renderer->groups[group].triangles);
     }
     free(renderer->hot_stage);
+    free(renderer->actor_world_xyz);
     if( renderer->frame_stream_cpu )
         trspk_vbo_free(renderer->frame_stream_cpu);
     trspk_triangles_free(&renderer->frame_stream_triangles);
     free(renderer->draw_items);
     trspk_pose_table_free(&renderer->poses);
     trspk_pose_table_free(&renderer->batch_poses);
+    free(renderer->static_primary);
+    free(renderer->static_primary_bits);
     gles2_zbuffer_destroy(renderer);
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
     {
@@ -3970,6 +4029,12 @@ void
 gles2_render_frame_end(struct ToriRS_GLES2* renderer)
 {
     assert(renderer);
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+    ToriDraw_AnimCaptureEndPass();
+#endif
+#if defined(TORIRS_PLACEMENT_CAPTURE)
+    gles2_placement_capture_end();
+#endif
     if( renderer->in3d )
         gles2_end_3d(renderer);
     if( renderer->in2d )

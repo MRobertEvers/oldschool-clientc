@@ -1,0 +1,6 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/final-face_sort_test: unused DT entry: type 0x6ffffef5 arg 0x454
+WARNING: linker: /data/local/tmp/final-face_sort_test: unused DT entry: type 0x6ffffffe arg 0x414
+WARNING: linker: /data/local/tmp/final-face_sort_test: unused DT entry: type 0x6fffffff arg 0x2
+k16 census: 238 models took the K16 block, 1300 declined, 147 took the masked tail (A32 lane only); tile fast path: 91 models
+face sort bitonic+radix vs bucket: 1869 fixtures, 299546 faces compared, 299546 drawn -- PASS

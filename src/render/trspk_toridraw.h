@@ -158,4 +158,12 @@ trspk_toridraw_bake_face_handle(
 int
 trspk_toridraw_face_count(struct ToriDraw_ModelHandle model_handle);
 
+/** Optional per-model world coordinates; caller owns vertex_count*3 floats. */
+void trspk_toridraw_world_vertices(const struct ToriDraw_Model* model,
+    const struct TRSPK_WorldPlacement* placement,float* xyz);
+void trspk_toridraw_bake_face_cached(struct ToriDraw_Model* model,uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,struct ToriDraw_Scene* ctx,
+    bool invert_face_alpha,enum TRSPK_BakeColorForm color_form,const float* world_xyz,
+    struct TRSPK_ToriDrawBakeFaceVerts* out);
+
 #endif

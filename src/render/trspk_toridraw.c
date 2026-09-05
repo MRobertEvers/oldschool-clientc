@@ -246,15 +246,16 @@ trspk_toridraw_face_colors(
     trspk_toridraw_hsl16_to_rgba(color_c_hsl16, alpha, out->color_c);
 }
 
-void
-trspk_toridraw_bake_face(
+static void
+trspk_toridraw_bake_face_impl(
     struct ToriDraw_Model* model,
     uint32_t face_index,
     const struct TRSPK_WorldPlacement* placement,
     struct ToriDraw_Scene* ctx,
     bool invert_face_alpha,
     enum TRSPK_BakeColorForm color_form,
-    struct TRSPK_ToriDrawBakeFaceVerts* out)
+    struct TRSPK_ToriDrawBakeFaceVerts* out,
+    const float* world_xyz)
 {
     const uint32_t face_a = (uint32_t)model->face_indices_a[face_index];
     const uint32_t face_b = (uint32_t)model->face_indices_b[face_index];
@@ -313,6 +314,13 @@ trspk_toridraw_bake_face(
     else
         memset(&out->uv, 0, sizeof(out->uv));
 
+    if( world_xyz )
+    {
+        out->wx_a=world_xyz[face_a*3];out->wy_a=world_xyz[face_a*3+1];out->wz_a=world_xyz[face_a*3+2];
+        out->wx_b=world_xyz[face_b*3];out->wy_b=world_xyz[face_b*3+1];out->wz_b=world_xyz[face_b*3+2];
+        out->wx_c=world_xyz[face_c*3];out->wy_c=world_xyz[face_c*3+1];out->wz_c=world_xyz[face_c*3+2];
+        return;
+    }
     trspk_toridraw_world_vertex(
         placement,
         model->vertices_x[face_a],
@@ -337,6 +345,27 @@ trspk_toridraw_bake_face(
         &out->wx_c,
         &out->wy_c,
         &out->wz_c);
+}
+
+void trspk_toridraw_bake_face(struct ToriDraw_Model* model,uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,struct ToriDraw_Scene* ctx,
+    bool invert_face_alpha,enum TRSPK_BakeColorForm color_form,struct TRSPK_ToriDrawBakeFaceVerts* out)
+{
+    trspk_toridraw_bake_face_impl(model,face_index,placement,ctx,invert_face_alpha,color_form,out,NULL);
+}
+void trspk_toridraw_bake_face_cached(struct ToriDraw_Model* model,uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,struct ToriDraw_Scene* ctx,
+    bool invert_face_alpha,enum TRSPK_BakeColorForm color_form,const float* world_xyz,
+    struct TRSPK_ToriDrawBakeFaceVerts* out)
+{
+    trspk_toridraw_bake_face_impl(model,face_index,placement,ctx,invert_face_alpha,color_form,out,world_xyz);
+}
+void trspk_toridraw_world_vertices(const struct ToriDraw_Model* model,
+    const struct TRSPK_WorldPlacement* placement,float* xyz)
+{
+    for(int i=0;i<model->vertex_count;i++)
+        trspk_toridraw_world_vertex(placement,model->vertices_x[i],model->vertices_y[i],model->vertices_z[i],
+            xyz+i*3,xyz+i*3+1,xyz+i*3+2);
 }
 
 static void

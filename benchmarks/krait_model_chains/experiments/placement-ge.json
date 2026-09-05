@@ -1,0 +1,285 @@
+{
+  "corpus": "benchmarks/krait_model_chains/placement-ge.chain.gz",
+  "sha256": "e2c95a7b185401f3f68cb3247d761b529e579772994e3e2d804d474dfa75a71a",
+  "binary_sha256": "245b40f2a7bc3be0c70dfb0858b578353483517af0b2dcd7677d5e231412c54f",
+  "events": {
+    "cpu-cycles": {
+      "arms": {
+        "0": 328.763,
+        "1": 92.754
+      },
+      "samples": [
+        {
+          "sample": 1,
+          "queries": 300456,
+          "count": 100513400,
+          "per_call": 334.536,
+          "arm": 0
+        },
+        {
+          "sample": 2,
+          "queries": 300456,
+          "count": 27916956,
+          "per_call": 92.915,
+          "arm": 1
+        },
+        {
+          "sample": 3,
+          "queries": 300456,
+          "count": 28068815,
+          "per_call": 93.421,
+          "arm": 1
+        },
+        {
+          "sample": 4,
+          "queries": 300456,
+          "count": 98579623,
+          "per_call": 328.1,
+          "arm": 0
+        },
+        {
+          "sample": 5,
+          "queries": 300456,
+          "count": 98221336,
+          "per_call": 326.908,
+          "arm": 0
+        },
+        {
+          "sample": 6,
+          "queries": 300456,
+          "count": 27884849,
+          "per_call": 92.808,
+          "arm": 1
+        },
+        {
+          "sample": 7,
+          "queries": 300456,
+          "count": 27715199,
+          "per_call": 92.244,
+          "arm": 1
+        },
+        {
+          "sample": 8,
+          "queries": 300456,
+          "count": 98702328,
+          "per_call": 328.508,
+          "arm": 0
+        },
+        {
+          "sample": 9,
+          "queries": 300456,
+          "count": 98855548,
+          "per_call": 329.018,
+          "arm": 0
+        },
+        {
+          "sample": 10,
+          "queries": 300456,
+          "count": 27852124,
+          "per_call": 92.7,
+          "arm": 1
+        },
+        {
+          "sample": 11,
+          "queries": 300456,
+          "count": 27703778,
+          "per_call": 92.206,
+          "arm": 1
+        },
+        {
+          "sample": 12,
+          "queries": 300456,
+          "count": 99874276,
+          "per_call": 332.409,
+          "arm": 0
+        }
+      ]
+    },
+    "instructions": {
+      "arms": {
+        "0": 127.983,
+        "1": 63.006
+      },
+      "samples": [
+        {
+          "sample": 1,
+          "queries": 300456,
+          "count": 38453309,
+          "per_call": 127.983,
+          "arm": 0
+        },
+        {
+          "sample": 2,
+          "queries": 300456,
+          "count": 18930424,
+          "per_call": 63.006,
+          "arm": 1
+        },
+        {
+          "sample": 3,
+          "queries": 300456,
+          "count": 18930426,
+          "per_call": 63.006,
+          "arm": 1
+        },
+        {
+          "sample": 4,
+          "queries": 300456,
+          "count": 38453309,
+          "per_call": 127.983,
+          "arm": 0
+        },
+        {
+          "sample": 5,
+          "queries": 300456,
+          "count": 38453309,
+          "per_call": 127.983,
+          "arm": 0
+        },
+        {
+          "sample": 6,
+          "queries": 300456,
+          "count": 18930425,
+          "per_call": 63.006,
+          "arm": 1
+        },
+        {
+          "sample": 7,
+          "queries": 300456,
+          "count": 18930425,
+          "per_call": 63.006,
+          "arm": 1
+        },
+        {
+          "sample": 8,
+          "queries": 300456,
+          "count": 38453309,
+          "per_call": 127.983,
+          "arm": 0
+        },
+        {
+          "sample": 9,
+          "queries": 300456,
+          "count": 38453309,
+          "per_call": 127.983,
+          "arm": 0
+        },
+        {
+          "sample": 10,
+          "queries": 300456,
+          "count": 18930425,
+          "per_call": 63.006,
+          "arm": 1
+        },
+        {
+          "sample": 11,
+          "queries": 300456,
+          "count": 18930426,
+          "per_call": 63.006,
+          "arm": 1
+        },
+        {
+          "sample": 12,
+          "queries": 300456,
+          "count": 38453308,
+          "per_call": 127.983,
+          "arm": 0
+        }
+      ]
+    },
+    "L1-dcache-load-misses": {
+      "arms": {
+        "0": 3.924,
+        "1": 1.848
+      },
+      "samples": [
+        {
+          "sample": 1,
+          "queries": 300456,
+          "count": 1179039,
+          "per_call": 3.924,
+          "arm": 0
+        },
+        {
+          "sample": 2,
+          "queries": 300456,
+          "count": 555345,
+          "per_call": 1.848,
+          "arm": 1
+        },
+        {
+          "sample": 3,
+          "queries": 300456,
+          "count": 555179,
+          "per_call": 1.848,
+          "arm": 1
+        },
+        {
+          "sample": 4,
+          "queries": 300456,
+          "count": 1179906,
+          "per_call": 3.927,
+          "arm": 0
+        },
+        {
+          "sample": 5,
+          "queries": 300456,
+          "count": 1179102,
+          "per_call": 3.924,
+          "arm": 0
+        },
+        {
+          "sample": 6,
+          "queries": 300456,
+          "count": 555111,
+          "per_call": 1.848,
+          "arm": 1
+        },
+        {
+          "sample": 7,
+          "queries": 300456,
+          "count": 555184,
+          "per_call": 1.848,
+          "arm": 1
+        },
+        {
+          "sample": 8,
+          "queries": 300456,
+          "count": 1179041,
+          "per_call": 3.924,
+          "arm": 0
+        },
+        {
+          "sample": 9,
+          "queries": 300456,
+          "count": 1179122,
+          "per_call": 3.924,
+          "arm": 0
+        },
+        {
+          "sample": 10,
+          "queries": 300456,
+          "count": 554339,
+          "per_call": 1.845,
+          "arm": 1
+        },
+        {
+          "sample": 11,
+          "queries": 300456,
+          "count": 554980,
+          "per_call": 1.847,
+          "arm": 1
+        },
+        {
+          "sample": 12,
+          "queries": 300456,
+          "count": 1179841,
+          "per_call": 3.927,
+          "arm": 0
+        }
+      ]
+    }
+  },
+  "graph": "graph: 33306 elements, 1 batches, 66 pages; descriptor bytes=1065792",
+  "verified": "verified: 2889 real placement queries, both arms"
+}

@@ -1,0 +1,136 @@
+{
+  "corpus": "benchmarks/krait_model_chains/ge-orbit.chain.gz",
+  "corpus_sha256": "15c75d6dd6a6ab284f8a45c5f7cfdfba86087c5ce866fe20ac7089786e14c88f",
+  "serial": "T062809L3Z",
+  "cpu": 0,
+  "pinned": true,
+  "exclude_kernel": true,
+  "binary_sha256": "282ea309344bfe094b64280820452254ea3c024b54f276c90f70b9a48a7286f7",
+  "mode": "chain",
+  "env": [
+    "TORIDRAW_GPU_PACK=1"
+  ],
+  "events": {
+    "cpu-cycles": {
+      "median": 4245.65,
+      "mad": 5.2450000000008,
+      "samples": [
+        {
+          "sample": 1,
+          "calls": 41988,
+          "count": 176759814,
+          "per_call": 4209.77
+        },
+        {
+          "sample": 2,
+          "calls": 41988,
+          "count": 177577967,
+          "per_call": 4229.255
+        },
+        {
+          "sample": 3,
+          "calls": 41988,
+          "count": 178171842,
+          "per_call": 4243.399
+        },
+        {
+          "sample": 4,
+          "calls": 41988,
+          "count": 178266359,
+          "per_call": 4245.65
+        },
+        {
+          "sample": 5,
+          "calls": 41988,
+          "count": 178199319,
+          "per_call": 4244.054
+        },
+        {
+          "sample": 6,
+          "calls": 41988,
+          "count": 178486564,
+          "per_call": 4250.895
+        },
+        {
+          "sample": 7,
+          "calls": 41988,
+          "count": 178271555,
+          "per_call": 4245.774
+        },
+        {
+          "sample": 8,
+          "calls": 41988,
+          "count": 178527667,
+          "per_call": 4251.874
+        },
+        {
+          "sample": 9,
+          "calls": 41988,
+          "count": 178546377,
+          "per_call": 4252.319
+        }
+      ]
+    },
+    "instructions": {
+      "median": 2147.454,
+      "mad": 0.0,
+      "samples": [
+        {
+          "sample": 1,
+          "calls": 41988,
+          "count": 90167305,
+          "per_call": 2147.454
+        },
+        {
+          "sample": 2,
+          "calls": 41988,
+          "count": 90167321,
+          "per_call": 2147.455
+        },
+        {
+          "sample": 3,
+          "calls": 41988,
+          "count": 90167316,
+          "per_call": 2147.454
+        },
+        {
+          "sample": 4,
+          "calls": 41988,
+          "count": 90167314,
+          "per_call": 2147.454
+        },
+        {
+          "sample": 5,
+          "calls": 41988,
+          "count": 90167313,
+          "per_call": 2147.454
+        },
+        {
+          "sample": 6,
+          "calls": 41988,
+          "count": 90167314,
+          "per_call": 2147.454
+        },
+        {
+          "sample": 7,
+          "calls": 41988,
+          "count": 90167330,
+          "per_call": 2147.455
+        },
+        {
+          "sample": 8,
+          "calls": 41988,
+          "count": 90167338,
+          "per_call": 2147.455
+        },
+        {
+          "sample": 9,
+          "calls": 41988,
+          "count": 90167313,
+          "per_call": 2147.454
+        }
+      ]
+    }
+  },
+  "workload": "verified: 41988 chains, 12 passes, 3726 distinct posed assets, 26864 visible, 336446 faces, 130 clipped, 41 pick hits, 12388 prioritized, 12 animated snapshots, 0 dynamic"
+}

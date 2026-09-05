@@ -2660,6 +2660,12 @@ try_emit_world_draw_model(
             }
         }
 
+        /* A GPU frame may freeze each requested pose here. The model is
+         * element-owned and the world update cannot advance until FrameEnd.
+         * The feed release publishes these geometry writes to the worker. */
+        if( frame->prepare_gpu_poses && el->animation )
+            ToriDraw_SceneElementApplyAnimationResolved(el,element_id,true,el->anim_frame,true);
+
         frame_command_reset(out);
         out->kind = TORIRSRC_DRAW_MODEL;
         out->u.model.model = el->model;
@@ -2897,6 +2903,7 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->world_begun = false;
     frame->has_queued = false;
     frame->world_only = false;
+    frame->prepare_gpu_poses = false;
     memset(&frame->queued, 0, sizeof(frame->queued));
     memset(&frame->pending_begin_3d, 0, sizeof(frame->pending_begin_3d));
 }
@@ -2926,6 +2933,7 @@ ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame)
     frame->world_begun = false;
     frame->has_queued = false;
     frame->world_only = true;
+    frame->prepare_gpu_poses = false;
     memset(&frame->queued, 0, sizeof(frame->queued));
     memset(&frame->pending_begin_3d, 0, sizeof(frame->pending_begin_3d));
 }
@@ -3116,6 +3124,7 @@ void
 ToriRS_FrameEnd(struct ToriRS_Frame* frame)
 {
     assert(frame);
+    frame->prepare_gpu_poses = false;
     if( frame->scene )
         ToriDraw_SceneFrameEnd(frame->scene);
     frame->pass = TORIRS_FRAME_PASS_NONE;

@@ -34,6 +34,7 @@
 
 #include "toridraw.h"
 #include "toridraw_model.h"
+#include "toridraw_animation.h"
 #include "toridraw_raster_kernel.h"
 #include "toridraw_scene.h"
 
@@ -419,8 +420,11 @@ case_independence(struct Fixture* f)
         struct ToriDraw_Position position = f->commands[(i + 1) % MODEL_COUNT].position;
         int const next = (i + 1) % MODEL_COUNT;
         int cull;
+        int* const owned_order = view->tmp_face_order;
         CHECK(GLES2DualCoreStage_ComputeModel(&context, &arena, &f->commands[i]),
             "independence: model %d refused", i);
+        CHECK(view->tmp_face_order == owned_order,
+            "independence: model %d changed scratch-buffer ownership", i);
         cull = ToriDraw_RenderModel1ProjectWithTable(
             f->commands[next].model, f->scene, &position, &f->view_port, &f->camera, f->kernel);
         CHECK(cull == refs[next].cull, "independence: scene cull of %d changed", next);
@@ -890,6 +894,192 @@ case_feed(struct Fixture* f)
     GLES2DualCoreStageArena_Free(&arena);
 }
 
+struct PrefixThreadCase { struct GLES2DualCoreStageArena* arena; uint32_t count, seed; };
+static void* prefix_reader(void* argument)
+{
+    struct PrefixThreadCase* test = argument;
+    uint32_t frontier = 0;
+    for( uint32_t i = 0; i < test->count; i++ )
+    {
+        const struct ToriRS_RenderCommand* command;
+        while( GLES2DualCoreStageArena_FeedTake(test->arena, i, &command) == GLES2_DUALCORE_FEED_PENDING )
+            GLES2DualCore_SpinWait();
+        CHECK(command->u.model.element_id == (int)(i ^ test->seed), "thread prefix: feed payload %u", i);
+        const struct GLES2DualCoreStageResult* result;
+        while( !(result = GLES2DualCoreStageArena_TryAcquireResult(test->arena, i, &frontier)) )
+            GLES2DualCore_SpinWait();
+        CHECK(result->sorted_face_count == (int)(i ^ test->seed) &&
+            test->arena->orders[result->order_offset] == (int)(i + test->seed),
+            "thread prefix: result/order payload %u", i);
+    }
+    return NULL;
+}
+static void case_concurrent_prefix(void)
+{
+    struct GLES2DualCoreStageArena arena;
+    struct PrefixThreadCase test = { &arena, 8192, 0 };
+    GLES2DualCoreStage_SetAcquireCache(1);
+    GLES2DualCoreStageArena_Init(&arena);
+    for( unsigned frame = 0; frame < 4; frame++ )
+    {
+        GLES2DualCoreStageArena_BeginFrame(&arena, test.count);
+        test.seed = frame * 97 + 13;
+        pthread_t reader;
+        int err = pthread_create(&reader, NULL, prefix_reader, &test);
+        CHECK(!err, "thread prefix: pthread_create");
+        if( err ) break;
+        for( uint32_t i = 0; i < test.count; i++ )
+        {
+            struct ToriRS_RenderCommand command = {0};
+            command.kind = TORIRSRC_DRAW_MODEL;
+            command.u.model.element_id = (int)(i ^ test.seed);
+            GLES2DualCoreStageArena_FeedPush(&arena, &command);
+            arena.results[i].sorted_face_count = (int)(i ^ test.seed);
+            arena.results[i].order_offset = i;
+            arena.orders[i] = (int)(i + test.seed);
+            atomic_store_explicit(&arena.ready, i + 1, memory_order_release);
+            GLES2DualCore_SpinSignal();
+        }
+        GLES2DualCoreStageArena_FeedClose(&arena);
+        pthread_join(reader, NULL);
+        atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    }
+    GLES2DualCoreStageArena_Free(&arena);
+    GLES2DualCoreStage_SetAcquireCache(-1);
+}
+
+static void case_batched_feed(void)
+{
+    struct GLES2DualCoreStageArena arena;
+    const struct ToriRS_RenderCommand* entry;
+    GLES2DualCoreStageArena_Init(&arena);
+    GLES2DualCoreStageArena_BeginFrame(&arena, 8);
+    arena.feed_batch_mask = 7;
+    for( unsigned i = 0; i < 10; i++ )
+    {
+        struct ToriRS_RenderCommand* slot = GLES2DualCoreStageArena_FeedReserve(&arena);
+        slot->kind = TORIRSRC_DRAW_MODEL;
+        slot->u.model.element_id = (int)i;
+        GLES2DualCoreStageArena_FeedCommitBatched(&arena);
+        CHECK(atomic_load(&arena.feed_published) == (i + 1u < 8u ? 0u : 8u),
+            "batch feed: unexpected publication %u", i);
+    }
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 9, &entry) == GLES2_DUALCORE_FEED_PENDING,
+        "batch feed: unpublished tail");
+    GLES2DualCoreStageArena_FeedClose(&arena);
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 9, &entry) == GLES2_DUALCORE_FEED_READY &&
+        entry->u.model.element_id == 9, "batch feed: close must flush");
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 10, &entry) == GLES2_DUALCORE_FEED_ENDED,
+        "batch feed: end");
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_BeginFrame(&arena, 8);
+    arena.feed_batch_mask = 7;
+    uint32_t saved_capacity = arena.feed_capacity;
+    arena.feed_capacity = 3;
+    for( unsigned i = 0; i < 3; i++ )
+    {
+        struct ToriRS_RenderCommand* slot = GLES2DualCoreStageArena_FeedReserve(&arena);
+        slot->kind = TORIRSRC_DRAW_MODEL;
+        GLES2DualCoreStageArena_FeedCommitBatched(&arena);
+    }
+    CHECK(!GLES2DualCoreStageArena_FeedReserve(&arena) && atomic_load(&arena.feed_published) == 3,
+        "batch feed: overflow must flush");
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 2, &entry) == GLES2_DUALCORE_FEED_READY &&
+        GLES2DualCoreStageArena_FeedTake(&arena, 3, &entry) == GLES2_DUALCORE_FEED_OVERFLOW,
+        "batch feed: overflow tail");
+    arena.feed_capacity = saved_capacity;
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_Free(&arena);
+}
+
+static void
+case_acquired_prefix(void)
+{
+    struct GLES2DualCoreStageArena arena;
+    const struct ToriRS_RenderCommand* entry;
+    struct ToriRS_RenderCommand command = {0};
+    uint32_t frontier = 0;
+    GLES2DualCoreStage_SetAcquireCache(1);
+    GLES2DualCoreStageArena_Init(&arena);
+    GLES2DualCoreStageArena_BeginFrame(&arena, 4);
+    CHECK(!GLES2DualCoreStageArena_TryAcquireResult(&arena, 0, &frontier), "prefix: unpublished");
+    arena.results[0].taken_by_draw = 1;
+    arena.results[1].sorted_face_count = 17;
+    atomic_store_explicit(&arena.ready, 2, memory_order_release);
+    CHECK(GLES2DualCoreStageArena_TryAcquireResult(&arena, 0, &frontier)->taken_by_draw,
+        "prefix: placeholder lost");
+    CHECK(frontier == 2, "prefix: entire publication not acquired");
+    CHECK(GLES2DualCoreStageArena_TryAcquireResult(&arena, 1, &frontier)->sorted_face_count == 17,
+        "prefix: cached payload");
+    CHECK(!GLES2DualCoreStageArena_TryAcquireResult(&arena, 2, &frontier), "prefix: tail unpublished");
+    atomic_store_explicit(&arena.ready, 3, memory_order_release);
+    CHECK(GLES2DualCoreStageArena_TryAcquireResult(&arena, 2, &frontier) && frontier == 3,
+        "prefix: growth");
+    GLES2DualCoreStageArena_FeedPush(&arena, &command);
+    GLES2DualCoreStageArena_FeedPush(&arena, &command);
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 0, &entry) == GLES2_DUALCORE_FEED_READY &&
+        arena.feed_acquired == 2, "prefix: feed publication");
+    GLES2DualCoreStageArena_FeedClose(&arena);
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 1, &entry) == GLES2_DUALCORE_FEED_READY,
+        "prefix: closed feed tail");
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 2, &entry) == GLES2_DUALCORE_FEED_ENDED,
+        "prefix: closed feed end");
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_BeginFrame(&arena, 4);
+    frontier = 0;
+    CHECK(arena.feed_acquired == 0 && !GLES2DualCoreStageArena_TryAcquireResult(&arena, 0, &frontier),
+        "prefix: frame reset");
+    CHECK(GLES2DualCoreStageArena_FeedTake(&arena, 0, &entry) == GLES2_DUALCORE_FEED_PENDING,
+        "prefix: stale feed after reset");
+    atomic_store(&arena.finished, GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_Free(&arena);
+    GLES2DualCoreStage_SetAcquireCache(-1);
+}
+
+static void case_prepared_pose(struct Fixture* f)
+{
+    struct ToriDraw_Model* model=f->commands[0].model.u.model.model;
+    struct ToriDraw_Bones* bones=calloc(1,sizeof(*bones));
+    CHECK(bones!=NULL,"prepared pose: bones allocation");
+    bones->bones_count=1; bones->bones_sizes=malloc(sizeof(*bones->bones_sizes));
+    bones->bones=malloc(sizeof(*bones->bones));
+    bones->bones_sizes[0]=(boneint_t)model->vertex_count;
+    bones->bones[0]=malloc((size_t)model->vertex_count*sizeof(boneint_t));
+    for(int i=0;i<model->vertex_count;i++)bones->bones[0][i]=(boneint_t)i;
+    model->vertex_bones=bones;
+    uint8_t type=1,group=0; uint8_t* groups[]={&group}; uint16_t length=1;
+    struct ToriDraw_AnimBase base={1,&type,groups,&length};
+    int16_t frame_group=0,x=23,y=5,z=3;
+    struct ToriDraw_AnimFrame frame={.length=1,.groups=&frame_group,.x=&x,.y=&y,.z=&z};
+    struct ToriDraw_Animation animation={.base=&base,.frames=&frame,.frame_count=1};
+    struct ToriRS_RenderCommand_Model command=f->commands[0];command.animation=&animation;command.anim_frame=0;
+    ToriDraw_SceneElementSetAnimation(f->scene,command.element_id,&animation,true);
+    struct ToriDraw_SceneElement* element=ToriDraw_SceneElementGet(f->scene,command.element_id);
+    ToriDraw_SceneElementApplyAnimationResolved(element,command.element_id,true,0,true);
+    int prepared_x=model->vertices_x[0];
+    struct Reference reference;reference_stage(f,&command,false,&reference);
+    struct ToriDraw_Scene* view=ToriDraw_SceneScratchViewNew(f->scene);
+    struct GLES2DualCoreStageContext context;context_init(&context,f,view,false);
+    context.poses_prepared=true;
+    struct GLES2DualCoreStageArena arena;GLES2DualCoreStageArena_Init(&arena);
+    GLES2DualCoreStageArena_BeginFrame(&arena,1);
+    /* Poison later animation metadata: a prepared consumer must read the
+     * published geometry, not evaluate any animation itself. Correctness
+     * fixture only; production keeps frame animation metadata immutable. */
+    x=1700;element->posed_primary=-1;
+    CHECK(GLES2DualCoreStage_ComputeModel(&context,&arena,&command),"prepared pose: stage");
+    CHECK(model->vertices_x[0]==prepared_x,"prepared pose: consumer mutated geometry");
+    check_result_against_reference(&arena,0,&reference,&command,"prepared pose");
+    atomic_store(&arena.finished,GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_BeginFrame(&arena,1);context.poses_prepared=false;
+    CHECK(GLES2DualCoreStage_ComputeModel(&context,&arena,&command),"unprepared pose: stage");
+    CHECK(model->vertices_x[0]!=prepared_x,"unprepared pose: fixture did not exercise animation");
+    GLES2DualCoreStage_EndPass(&context);
+    atomic_store(&arena.finished,GLES2_DUALCORE_STAGE_DONE);
+    GLES2DualCoreStageArena_Free(&arena);ToriDraw_SceneScratchViewFree(view);
+    ToriDraw_SceneElementSetAnimation(f->scene,command.element_id,NULL,true);
+}
+
 static void
 run_tier(char const* name, uint32_t flags)
 {
@@ -906,6 +1096,7 @@ run_tier(char const* name, uint32_t flags)
     case_feed(&fixture);
     case_sync(&fixture);
     case_concurrent_sort(&fixture);
+    case_prepared_pose(&fixture);
     fixture_free(&fixture);
     printf("%s tier: %s\n", name, failures == before ? "ok" : "FAILED");
 }
@@ -915,6 +1106,9 @@ main(void)
 {
     /* The trig and hsl tables the projection reads. */
     ToriDraw_Init();
+    case_acquired_prefix();
+    case_batched_feed();
+    case_concurrent_prefix();
     run_tier("small", TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER);
     run_tier("full", TORIDRAW_SCENE_FULL | TORIDRAW_SCENE_MODEL_ZBUFFER);
     if( failures )

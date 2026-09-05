@@ -153,6 +153,8 @@ struct ToriRS_Frame
      * full iteration's.
      */
     bool world_only;
+    /** GPU lane: pose on this owning thread before publishing model inputs. */
+    bool prepare_gpu_poses;
     /** Cursor into ToriDraw_SceneEvents for unload/clear → TORIRSRC_* drain. */
     int event_index;
     struct ToriRS_RenderCommand queued;

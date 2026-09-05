@@ -1162,6 +1162,8 @@ int g_toridraw_raster_scanline = 0;
 void
 ToriDraw_Init(void)
 {
+    const char* compact_env = getenv("TORIDRAW_SORT_COMPACT4");
+    if( compact_env ) ToriDraw_FaceSortSetCompact4(compact_env[0] != '0');
     ToriDraw_InitMath();
     ToriDraw_InitHsl16();
     /* The HD path's cylinder and sphere projections read this. */

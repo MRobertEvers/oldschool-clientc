@@ -1,0 +1,76 @@
+{
+  "corpus": "benchmarks/krait_model_chains/varrock-low.chain.gz",
+  "corpus_sha256": "344de8e795f0c4aee18a0caf236959332bd102077d13137ea542b36bed51a1b6",
+  "serial": "T062809L3Z",
+  "cpu": 0,
+  "pinned": true,
+  "exclude_kernel": true,
+  "binary_sha256": "d507c848f64253a76f7eafa04c139109d10a2d3c2cce0808d0a9ce50d506d985",
+  "mode": "chain",
+  "env": [
+    "TORIDRAW_GPU_ORDER_DIRECT=0"
+  ],
+  "events": {
+    "cpu-cycles": {
+      "median": 5062.646,
+      "mad": 14.456000000000131,
+      "samples": [
+        {
+          "sample": 1,
+          "calls": 33800,
+          "count": 167759385,
+          "per_call": 4963.295
+        },
+        {
+          "sample": 2,
+          "calls": 33800,
+          "count": 169357818,
+          "per_call": 5010.586
+        },
+        {
+          "sample": 3,
+          "calls": 33800,
+          "count": 170101402,
+          "per_call": 5032.586
+        },
+        {
+          "sample": 4,
+          "calls": 33800,
+          "count": 170686711,
+          "per_call": 5049.903
+        },
+        {
+          "sample": 5,
+          "calls": 33800,
+          "count": 171553563,
+          "per_call": 5075.549
+        },
+        {
+          "sample": 6,
+          "calls": 33800,
+          "count": 171431859,
+          "per_call": 5071.948
+        },
+        {
+          "sample": 7,
+          "calls": 33800,
+          "count": 171606057,
+          "per_call": 5077.102
+        },
+        {
+          "sample": 8,
+          "calls": 33800,
+          "count": 171117449,
+          "per_call": 5062.646
+        },
+        {
+          "sample": 9,
+          "calls": 33800,
+          "count": 171637026,
+          "per_call": 5078.019
+        }
+      ]
+    }
+  },
+  "workload": "verified: 6760 chains, 4 passes, 1493 distinct posed assets, 4156 visible, 90462 faces, 72 clipped, 28 pick hits, 1784 prioritized, 16 animated snapshots, 0 dynamic"
+}
