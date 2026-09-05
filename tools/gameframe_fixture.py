@@ -46,6 +46,7 @@ def inspect(repo, binary, manifest_path, revision):
         "GF_MATRIX_BASELINE", "GF_MATRIX_TAGS", "GF_MATRIX_MAX_FRAMES", "GF_MATRIX_LC_SAVE",
         "TORIRS_SIM_CMD", "TORIRS_SIM_CLICK_AT", "TORIRS_SIM_RESIZE", "TORIRS_SIM_HOVER",
         "TORIRS_CLIENTTYPE", "TORIRS_REVCONFIG_PLATFORM", "SDL_VIDEODRIVER",
+        "TORIRS_SIM_AFTER_READY",
         "TORIRSSERVER_CONTENT", "TORIRSSERVER_CACHE", "TORIRSSERVER_SCRIPTS")}
     expected = {"rs289lc": ("289", "lc289", "cs1"), "osrs239": ("239", "osrs239", "cs2")}
     actual = (manifest.revision, manifest.rev, manifest.ini.get("ui:boot", "logic"))

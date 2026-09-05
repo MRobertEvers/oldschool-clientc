@@ -19,12 +19,29 @@ content commits and dirty source hashes are recorded. These are preflight
 checks, not proof that every mutable source input has been covered.
 
 LostCity engine: `55e89e60209a958f0499b35f26cade1b17cdab94`, content:
-`b6e11d98c1542221286af3ceb63c635b6469ba0e`. The running server has existing Node
-worker adaptations; their dirty state is captured, not claimed to be upstream.
-It serves revision 289 on TCP 43594 / HTTP 80. Each new connection uses a
-**different account**. Scenario accounts are created exclusively from the same
-test-owned `rs289-seed.sav`; an existing player's save is never overwritten.
-`player.json` names the account and records the seed SHA-256.
+`b6e11d98c1542221286af3ceb63c635b6469ba0e`. The reproducible fixture helper
+`tools/gameframe_lostcity_fixture.py` creates isolated worktrees, installs the
+locked dependencies, applies the checked-in Node worker patch and builds all
+cache/script content from source. Bun can build the pack but cannot run this
+engine's `node:sqlite` dependency; the pinned runtime is Node 24.5.0. The helper
+derives the public key from the actual private key because the upstream public
+PEM has reversed values. Original key files are untouched.
+
+`/private/tmp/plugin-engine-lc-pinned` is the independent prepared fixture on
+TCP 43894 / HTTP 8982. `fixture-build.json` hashes 10,776 source/config inputs
+and 76 packed files; serving rejects changed inputs or a changed pack. Each
+connection gets a different account copied exclusively from the test-owned
+seed. The original LostCity server stays running and unchanged.
+
+The cold-stream tests exposed a harness bug: pipeline iterations could consume
+all test frames before login/mount completion. `TORIRS_SIM_AFTER_READY=1` now
+waits for a ready game tree, logged-in network and idle pipeline, then advances
+scenario ticks at 20 ms intervals while retaining the ordinary native logic
+clock. The existing harness enables it and rejects missing readiness evidence.
+`lc-rebuilt-contract` failed on the old clock; `lc-ready-contract` and the
+independent `lc-replay-keyed-contract` pass both real packet/CS1 scenarios.
+The latest 2× controls show 19 skill cells, Strength 20/20, and exactly the two
+skill-guide operations plus Close Window.
 
 OSRS content is now `26aba4540c` on `codex/plugin-engine-content`, in
 `/private/tmp/plugin-engine-content`. The source corrections preserve native
@@ -129,10 +146,14 @@ units from an actual build using Python libclang. The generated register keeps
 unreviewed entries blocking. Lexical matches can refer to other structs; typed
 accesses still need phase/alias/bulk-write review. Counts are not proof of closure.
 
-The examined build has 408 C translation units. Three platform units failed
-libclang analysis because the installed libclang and Apple's NEON headers differ
-(`platform_audio_sdl2.c`, `platform_gl_context_sdl.c`, `platform_sdl2.c`). Native
-compilation passed. Other frontend/preprocessor branches remain unexamined.
+The examined build has 408 C translation units and now parses with **zero
+failures** using the same Xcode libclang and builtin headers as the compiler.
+Lvalue classification distinguishes index reads, owned-array writes, pointee
+writes, address escapes and local value assembly, and handles macro operators
+through Clang's operator API. Tests pin those distinctions. The registered
+1,560 mutating references are in `m0-mutations.json`; their dispositions retain
+construction/async-publication, native mutation, local assembly and derived
+cache distinctions. Unselected preprocessor branches still need final review.
 
 | Mutation family | Mechanisms read / current evidence | Blocking disposition |
 |---|---|---|
@@ -156,7 +177,8 @@ finds all 13 C products, Lua runtime, six product scripts, ten probes/demos and
 plugin chrome executors/archived snapshots, frontend bridges and API examples.
 All ports are **pending**. User preferences are marked preserve-user-data.
 
-The 159-file discovery list needs a final independent review for indirect build
+The 163-file discovery list has explicit host/plugin/test/manifest/archive/data
+dispositions and needs a final independent review for indirect build
 references and disabled branches; discovery scripts introduced in this pass are
 themselves tooling consumers. No API has been removed or port declared complete.
 
@@ -200,10 +222,33 @@ override for accepted runs. `GF_MATRIX_DIAGNOSTIC=1` exits 3 even if pixels pass
    close the remaining content-diagnostic dispositions and verify final commits
    against their rebuilt artifacts. The earlier targeted cache is no longer the
    baseline.
-3. Make the LostCity server/content fixture reproducible from recorded inputs,
-   including its existing runtime adaptations, and close the native drawable
-   behavior question.
-4. Measure quiet, mutation-heavy and multi-plugin performance on accepted pinned
-   fixtures. Current startup-inclusive OPT=0 timings are diagnostic, not budgets.
+3. Preserve the completed source-built LostCity fixture. The native fixed
+   layout versus drawable-size behavior remains a frontend contract item for M4.
+4. `m0-performance.json` records optimized native, mutation and multi-plugin
+   baselines on both revisions, excludes startup samples, and sets explicit
+   comparative budgets for M6. The rs289 multi-plugin run uses the native frame:
+   Classic Fixed currently declines its missing native orb surface. That is an
+   M3 adapter/port requirement, not a fabricated native surface or a passing
+   custom-frame result.
 5. Review/close the native action and capability tables before M1. No breaking API
    contract or bulk plugin conversion has been attempted ahead of these gates.
+
+## Confirmed implementation gaps to carry into conformance
+
+These are source findings, not claims that the new contract is implemented:
+
+- `UITree_ApplyObject` can unhide an item node and a silhouette sibling; native
+  hide authority must not be acquired implicitly by a content update.
+- Speculative mount hiding shares `UITree_SetHideAt` with explicit script/server
+  hides; opening a mount must not clear an independently authored native hide.
+- Focus and queued drag pickup retain plain component IDs. Retained gesture
+  references partly use incarnations, but that does not cover these paths.
+- `UITree_Reparent` rejects self-parenting but does not reject a descendant cycle.
+- `UITree_CcCopy` copies some fields explicitly and others through its union;
+  owned payloads and native-state completeness need a classified copy operation.
+- `GetLayoutWidth/Height` fall back from resolved zero to requested dimensions.
+- Native `trans` suppresses self paint, not children; drag presentation has its
+  own subtree translation/ghosting semantics. Do not treat them as one opacity.
+- The exact rs289 encoder documents states 0 normal, 1 unclickable, 2 blacked out.
+  The reference client draws map/compass except state 2 (compass only) and walks
+  only in state 0. OSRS states 3–5 must not become rs289 semantics by accident.

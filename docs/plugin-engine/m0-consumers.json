@@ -1,5 +1,5 @@
 {
-  "status": "M0 discovery; no consumers ported yet",
+  "status": "M0 discovery with explicit migration dispositions; ports remain pending",
   "plugins": [
     {
       "path": "script/plugins/_beamprobe.lua",
@@ -400,145 +400,163 @@
     {
       "path": "FRAME_BUDGET_PLAN.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "GAMECHROME_PLUGINAPI_V2.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "NXT_CLIENT_PLUGINS.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "docs/FRAME_PACING.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "docs/PLUGIN_CHROME_PLAN.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
+      "persistence": "review"
+    },
+    {
+      "path": "docs/PLUGIN_ENGINE_IMPLEMENTATION_PLAN.md",
+      "kind": "documentation",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "docs/SEMANTIC_UI_PLAN.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "docs/chrome_executors.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "docs/d3d9/hotspot-plan.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "docs/platform_quirks.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
+      "persistence": "review"
+    },
+    {
+      "path": "docs/plugin-engine/M0_REGISTER.md",
+      "kind": "documentation",
+      "disposition": "UPDATE_DOCUMENTATION",
+      "persistence": "review"
+    },
+    {
+      "path": "docs/plugin-engine/m0-consumers.json",
+      "kind": "consumer",
+      "disposition": "UPDATE_TOOLING",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/README.md",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/script/plugins/_paneldemo.ini",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/script/plugins/_paneldemo.lua",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/platform/platform_win32_chrome.h",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/platform/test/sdl_chrome_test.c",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/platform/test/win32_plugin_chrome_capture.c",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/ui/test/torirs_chrome_exec_android_test.c",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/ui/test/uitree_test_chrome_panel_draw.c",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_exec_web.h",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_panel_draw.c",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_panel_draw.h",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_rail.c",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_rail.h",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/web/test/chrome_layout_test.js",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
       "path": "old/plugin_chrome_native/snapshot/src/web/test/plugin_chrome_runtime_fixture.html",
       "kind": "archived-execution-surface",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "RETIRE_EXECUTABLE_ARCHIVE",
       "persistence": "review"
     },
     {
@@ -556,799 +574,805 @@
     {
       "path": "revconfig/osrs239/osrs239_dat2_cache.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_beamprobe.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_beamprobe.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_drawprobe.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_drawprobe_manifest.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_gicount.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_gicount.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_giprobe.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_giprobe.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_grounditems.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_hoverprobe.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_hoverprobe.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_hullprobe.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_hullprobe.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_lootbeam.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_paneldemo.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_paneldemo.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_probe.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_probe_manifest.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_roleprobe.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_roleprobe.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_tileonly.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_windemo.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/_windemo.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/gameframe-layout/SOURCES.sh",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/item-stats/text.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/loot-tracker/SOURCES.sh",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/loot-tracker/bold.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/loot-tracker/text.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/minimap-orbs/digits.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/mobile-gameframe/SOURCES.sh",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/screenshot/SOURCES.sh",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/screenshot/bake.py",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/xp-drop-orbs/text.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/xp-tracker/SOURCES.sh",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/assets/xp-tracker/text.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/entity_highlighter.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/ground_items.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/loot_beam.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/performance_display.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/plugin_api.meta.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_METADATA",
       "persistence": "review"
     },
     {
       "path": "script/plugins/plugins.ini",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_MANIFEST",
       "persistence": "review"
     },
     {
       "path": "script/plugins/screenshot.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "script/plugins/tile_indicator.lua",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/app.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/app.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/engine/uitree_builder/task_uibuilder_assets_load.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/engine/uitree_scene_bridge.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/game/rs_gameproto_exec.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/game/rs_minimenu_build.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/game/rs_ui_slots.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/main.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/makefile",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/platform/platform.mk",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/platform/platform_web_api.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/platform/platform_web_io.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/platform/test/platform_web_io_test.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/lua_unity.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/client_settings.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/feature_flags.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/gameframe.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/item_stats.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/loot_tracker.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/minimap_orbs.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/mobile_gameframe.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/nxt_activities.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/nxt_bird_nest.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/nxt_cannon_ammo.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/nxt_highlight.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/plugin_draw.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/plugin_draw.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/tileind.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/xp_orbs.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/plugins/xp_tracker.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_PLUGIN",
       "persistence": "review"
     },
     {
       "path": "src/plugin/task_plugin_io.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/task_plugin_io.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/client_settings_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/feature_flags_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/gameframe_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/item_stats_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/minimap_orbs_v2_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/mobile_gameframe_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/nxt_activities_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/plugin_api_single_version_test.py",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/plugin_lua_api_inventory_test.py",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/plugin_panel_route_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/tileind_v2_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/torirs_plugin_frame_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/torirs_plugin_host_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/torirs_plugin_lua_v2_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/torirs_plugin_placement_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/torirs_plugin_ui_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/torirs_plugin_v2_compile_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/tracker_render_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/tracker_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/test/xp_orbs_test.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/tools/plugin_model_extract.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_bridge.u.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_frame.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_frame.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_host.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_host.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_host_types.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_lua.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_lua.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_panel.u.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_panel_route.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_placement.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_placement.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_registry.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_registry.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_runtime.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_runtime.inc",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_types.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_ui.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_ui.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin/torirs_plugin_v2.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/HOST_BRIDGE.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/README.md",
       "kind": "documentation",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_DOCUMENTATION",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/codec-es3.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/legacy-ie8.html",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/modern.html",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/runtime-ie8.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/runtime-source.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/runtime.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/test/compat_test.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/test/runtime_legacy_test.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/plugin_chrome/test/runtime_test.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "src/revconfig/revconfig.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/ui/torirs_chrome_exec.h",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/ui/uitree_frame.c",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_HOST",
       "persistence": "review"
     },
     {
       "path": "src/web/test/chrome_layout_test.js",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "PORT_TEST",
       "persistence": "review"
     },
     {
       "path": "tools/gameframe_matrix.sh",
       "kind": "consumer",
-      "disposition": "PORT_OR_REMOVE",
+      "disposition": "UPDATE_TOOLING",
+      "persistence": "review"
+    },
+    {
+      "path": "tools/plugin_engine_inventory.py",
+      "kind": "consumer",
+      "disposition": "UPDATE_TOOLING",
       "persistence": "review"
     }
   ],

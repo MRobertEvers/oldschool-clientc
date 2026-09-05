@@ -6434,7 +6434,7 @@ plugin_frame_selection_active(
     snprintf(host->frame_selection.reason, sizeof(host->frame_selection.reason), "%s", why);
     host->frame_selection.revision++;
     if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
-        TORIRS_LOG("frame_selection: requested=%s active=%s status=%d reason=%s\n",
+        TORIRS_REPORT("frame_selection: requested=%s active=%s status=%d reason=%s\n",
                    host->frame_selection.requested_id, active, status, why);
 
 }

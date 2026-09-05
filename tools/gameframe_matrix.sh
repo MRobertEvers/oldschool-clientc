@@ -116,11 +116,12 @@ one() {
   sed -e "s/^client_layout_mode = .*/client_layout_mode = $mode/" \
     -e "s/^x = .*/x = 3210/" -e "s/^z = .*/z = 3424/" -e "s/^level = .*/level = 0/" \
     "$REPO/saves/testc.ini" > "$run/saves/testc.ini"
-  echo "PINNED tag=$tag mode=$mode size=$size frame=$frame scale=none" > "$run/log.txt"
+  echo "PINNED tag=$tag mode=$mode size=$size frame=$frame scale=none after_ready=1" > "$run/log.txt"
   local -a env_extra
   env_extra=()
   [ "$mobile" = "1" ] && env_extra=(TORIRS_CLIENTTYPE=7)
   [[ "$BASELINE" == 1 ]] && env_extra+=(TORIRS_PLUGINS=0)
+  [[ "${GF_MATRIX_PERF:-0}" == 1 ]] && env_extra+=(TORIRS_PERF=1 TORIRS_PERF_CSV="$run/perf.csv" TORIRS_PERF_WINDOW=200)
   local -a client_args
   client_args=()
   if [[ "$REVISION" == rs289lc ]]; then
@@ -150,7 +151,7 @@ PY
   ( cd "$REPO" && env TORIRS_PREFS="$run/preferences.ini" \
       TORIRSSERVER_SAVES="$run/saves" \
       TORIRS_PLUGIN_PREFS="$OUT/plugin_prefs.ini" TORIRS_PLUGINS=1 \
-      TORIRS_STDERR_UNBUFFERED=1 TORIRS_TRACE_NATIVE_UI=1 \
+      TORIRS_STDERR_UNBUFFERED=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_SIM_AFTER_READY=1 \
       SDL_VIDEODRIVER=${SDL_VIDEODRIVER:-dummy} TORIRS_MAX_FRAMES=${GF_MATRIX_MAX_FRAMES:-620} TORIRS_FRAME_ROLE_AUDIT=1 \
       TORIRS_EXIT_BMP="$run/out.bmp" TORIRS_DUMP_BOUNDS=all TORIRS_DUMP_EMIT_EXIT=all "${env_extra[@]}" \
       "$BIN" --manifest "$MANIFEST" --windowmode resizable --window "$size" "${client_args[@]}" \
@@ -160,9 +161,10 @@ PY
 
 i=0
 if [[ "$REVISION" == rs289lc ]]; then
-  echo 'r01|R|core/native|765x503' >> "$OUT/index.txt"
-  BASELINE=1
-  one r01 0 765x503 core/native 0
+  rs_frame=${GF_MATRIX_RS289_FRAME:-core/native}
+  echo "r01|R|$rs_frame|765x503" >> "$OUT/index.txt"
+  [[ "$rs_frame" == core/native ]] && BASELINE=1 || BASELINE=0
+  one r01 0 765x503 "$rs_frame" 0
 else
 for m in 0 1 2 M; do for f in $FRAMES_LIST; do for s in $SIZES; do
   i=$((i+1)); tag="m$(printf '%02d' $i)"
@@ -184,7 +186,7 @@ printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" TAG TOP FRAME SIZE ROOT FILTERS VER
 while IFS='|' read tag m f s; do
   L=$OUT/$tag/log.txt
   if [[ "$m" == R ]]; then
-    python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame core/native \
+    python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" \
       --root 0 --revision rs289lc --rs289-scenario "${GF_MATRIX_RS289_SCENARIO:-baseline}" \
       --bounds "$L" > "$OUT/$tag/pixels.txt" 2>&1
     result=$?
@@ -193,6 +195,7 @@ while IFS='|' read tag m f s; do
     continue
   fi
   rt=$(grep -o 'switching root [-0-9]* -> [0-9]*' "$L" 2>/dev/null | tail -1 | grep -o '[0-9]*$')
+  [[ -z "$rt" ]] && rt=$(sed -n 's/^NATIVE_ROOT id=\([0-9]*\)$/\1/p' "$L" | tail -1)
   n=$(grep '^BOUNDS' "$L" 2>/dev/null | awk '{g=$3;gsub(/[()]/,"",g);split(g,p,"|");x=p[2]+0;
         if(p[1]==162 && (x==5||x==8||x==12||x==16||x==20||x==24||x==28||x==32) && $0!~/hidden=1/) print}' | wc -l | tr -d ' ')
   bar=$(grep '^BOUNDS' "$L" 2>/dev/null | grep -c '(162|3)')

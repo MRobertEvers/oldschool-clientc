@@ -8120,6 +8120,9 @@ app_provider_set_cache_profile(
         RSCache_GameName(profile.game),
         profile.revision,
         quirks_buf);
+    if( getenv("TORIRS_TRACE_NATIVE_UI") )
+        TORIRS_REPORT("NATIVE_REVISION epoch=%s game=%s revision=%d\n",
+            RSCache_EpochName(profile.epoch), RSCache_GameName(profile.game), profile.revision);
 
     /* The disk resolves logical table names to ids and decides map XTEA, so it
      * needs the same identity the decoders got. Without this it answers as

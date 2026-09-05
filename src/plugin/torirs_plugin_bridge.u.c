@@ -4653,7 +4653,7 @@ app_plugin_frame_role_audit(struct App* app, struct UITree* tree)
         !chat_pack || chat_pack->component_count == 0 ||
         UITree_FindByComponentId(tree, chat_pack->components[0].id) < 0 ||
         app_plugin_chat_plate_expected(app, 0) < 0 ) return 0;
-    TORIRS_LOG("frameroles: root %d control=(%d|%d) authored enum=%d\n",
+    TORIRS_REPORT("frameroles: root %d control=(%d|%d) authored enum=%d\n",
                root, (control >> 16) & 0xffff, control & 0xffff, enum_id);
     for( int i = 0; i < app->ui_roles.count; i++ )
     {
@@ -4689,7 +4689,7 @@ app_plugin_frame_role_audit(struct App* app, struct UITree* tree)
         if( known && declared >= 0 && declared != want )
         {
             mismatched++;
-            TORIRS_LOG("frameroles: %s MISMATCH declared=(%d|%d) expected=(%d|%d) root=%d enum=%d\n",
+            TORIRS_REPORT("frameroles: %s MISMATCH declared=(%d|%d) expected=(%d|%d) root=%d enum=%d\n",
                        entry->name, declared >> 16, declared & 65535, want >> 16, want & 65535, root, enum_id);
             continue;
         }
@@ -4697,19 +4697,19 @@ app_plugin_frame_role_audit(struct App* app, struct UITree* tree)
         if( got == -1 )
         {
             unbound++;
-            TORIRS_LOG("frameroles: %s UNBOUND on root %d expected=(%d|%d)\n",
+            TORIRS_REPORT("frameroles: %s UNBOUND on root %d expected=(%d|%d)\n",
                        entry->name, root, (want >> 16) & 0xffff, want & 0xffff);
         }
         else if( !known || want != got )
         {
             mismatched++;
-            TORIRS_LOG("frameroles: %s MISMATCH root=%d got=(%d|%d) expected=(%d|%d) enum=%d key=(%d|%d) known=%d\n",
+            TORIRS_REPORT("frameroles: %s MISMATCH root=%d got=(%d|%d) expected=(%d|%d) enum=%d key=(%d|%d) known=%d\n",
                        entry->name, root, (got >> 16) & 0xffff, got & 0xffff,
                        (want >> 16) & 0xffff, want & 0xffff, enum_id,
                        (key >> 16) & 0xffff, key & 0xffff, known);
         }
     }
-    TORIRS_LOG("frameroles: root %d, %d roles checked, %d absent, %d unbound, %d mismatched\n",
+    TORIRS_REPORT("frameroles: root %d, %d roles checked, %d absent, %d unbound, %d mismatched\n",
                root, checked, absent, unbound, mismatched);
     return 1;
 }

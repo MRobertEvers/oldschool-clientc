@@ -897,6 +897,11 @@ static int sim_sound_every;
 static long sim_sound_next;
 static long max_frames;
 static long frame_count;
+static int sim_after_ready;
+static int sim_ready;
+static int sim_ready_failed;
+static uint64_t sim_ready_start_ms;
+static uint64_t sim_next_frame_ms;
 
 #if defined(TORIRS_PLATFORM_WEB)
 /*
@@ -1338,7 +1343,46 @@ frame_loop_step(void)
      * address frames by this number, and an uncapped run -- the only one
      * whose logic ticks are wall-clock, so the only one that behaves like a
      * player's -- used to leave it at zero and never fire them. */
-    frame_count++;
+    if( sim_after_ready )
+    {
+        uint64_t const simulation_now = PlatformWindow_Ticks64();
+        if( !sim_ready )
+        {
+            if( app.app_state == APP_STATE_READY && app.screen == APP_SCREEN_GAME &&
+                !App_AsyncPending(&app) && (!app.net ||
+                (app.net->state == TORIRS_NET_GAME && app.rebuild_zone_x >= 0)) )
+            {
+                sim_ready = 1;
+                frame_count = 0;
+                sim_next_frame_ms = simulation_now;
+                TORIRS_REPORT("SIM_READY elapsed_ms=%llu tree_generation=%u\n",
+                    (unsigned long long)(simulation_now - sim_ready_start_ms),
+                    app.tree ? app.tree->generation : 0);
+                if( g_torirs_perf_enabled )
+                {
+                    TorirsPerf_Shutdown();
+                    TorirsPerf_Init(1);
+                    TORIRS_REPORT("SIM_PERF_BEGIN: native gameplay ready; startup samples excluded\n");
+                }
+            }
+            else if( simulation_now - sim_ready_start_ms > 60000 )
+            {
+                TORIRS_ERR("SIM_READY failed: gameplay did not become ready within 60 seconds\n");
+                sim_ready_failed = 1;
+                return 0;
+            }
+        }
+        /* Loading spins drain real IO; they are not scenario time. Advancing
+         * this clock at most once per 20 ms also prevents a later async mount
+         * from consuming the whole test before its server can answer. */
+        if( sim_ready && simulation_now >= sim_next_frame_ms )
+        {
+            frame_count++;
+            sim_next_frame_ms = simulation_now + 20;
+        }
+    }
+    else
+        frame_count++;
     if( max_frames > 0 && frame_count > max_frames )
     {
         ToriDraw_EipSampleStop("frames");
@@ -3089,6 +3133,8 @@ frame_loop_teardown(void)
          * than the cache says is why its children escape the clip. */
         if( getenv("TORIRS_DUMP_BOUNDS") && app.tree )
         {
+            if( getenv("TORIRS_TRACE_NATIVE_UI") )
+                TORIRS_REPORT("NATIVE_ROOT id=%d\n", app.boot_interface_id);
             char const* filter = getenv("TORIRS_DUMP_BOUNDS");
             int want = strcmp(filter, "all") == 0 ? -1 : (int)strtol(filter, NULL, 0);
             for( uint32_t i = 0; i < app.tree->component_count; i++ )
@@ -3185,7 +3231,7 @@ frame_loop_teardown(void)
                  * parser (cs2dom's emit_parity.js) matches an unanchored
                  * prefix, so trailing fields are additive. A pixel diff on a
                  * model widget is unexplainable without the angles. */
-                TORIRS_LOG("EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d model=%d "
+                TORIRS_REPORT("EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d model=%d "
                     "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d "
                     "mzoom=%d mxan=%d myan=%d mzan=%d mox=%d moy=%d\n",
                     i, (int)d->kind, d->component_id, group, d->component_id & 0xFFFF,
@@ -5607,13 +5653,19 @@ main(
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
         max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
-        frame_count = 0;
+        sim_after_ready = getenv("TORIRS_SIM_AFTER_READY") && atoi(getenv("TORIRS_SIM_AFTER_READY"));
+        sim_ready = sim_ready_failed = 0;
+        sim_ready_start_ms = PlatformWindow_Ticks64();
+        sim_next_frame_ms = 0;
+        frame_count = sim_after_ready ? -1 : 0;
         {
             /* The logic pacer needs this too: a bounded run ticks once per
              * frame rather than on the wall clock, so `clientclock` lands on
              * the same cycle every run and an emit dump is reproducible. */
             extern long g_torirs_max_frames;
-            g_torirs_max_frames = max_frames;
+            /* A readiness-based native scenario uses the ordinary logic clock.
+             * Only its synthetic actions and exit fence use scenario ticks. */
+            g_torirs_max_frames = sim_after_ready ? 0 : max_frames;
         }
 
         /* TORIRS_PACE_SPIN=1: spin the 50 fps wait rather than sleeping it. */
@@ -5771,5 +5823,5 @@ main(
      * on the one lane where it is the only way to see it.
      */
     fflush(stderr);
-    return 0;
+    return sim_ready_failed ? 1 : 0;
 }

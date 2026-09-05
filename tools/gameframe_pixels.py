@@ -116,7 +116,7 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
                f"warm_backing={fractions[0]:.3f} warm_bar={fractions[1]:.3f}")
 
 
-def check_rs289(rows, log, failures, scenario="baseline"):
+def check_rs289(rows, log, failures, scenario="baseline", frame="core/native"):
     """Revconfig controls, plus evidence that actual mounted CS1 ran.
 
     The RS2 frame has three mode controls and Report. Do not borrow the
@@ -144,7 +144,11 @@ def check_rs289(rows, log, failures, scenario="baseline"):
     report("rs289_actual_cs1_values", bool(re.search(r"^NATIVE_CS1 com=\d+ incarnation=[1-9]\d* value\[0\]=[1-9]\d*", log, re.M)))
     report("rs289_mounted_cache_interfaces", bool(re.search(
         r"NATIVE_UI[^\n]*com=[1-9]\d* type=rs_\w+ hidden=0 native_paint=1", log)))
-    report("rs289_revision", "cache profile epoch=dat1 game=rs2 revision=289" in log)
+    report("rs289_revision", "cache profile epoch=dat1 game=rs2 revision=289" in log
+           or "NATIVE_REVISION epoch=dat1 game=rs2 revision=289" in log)
+    if frame not in ("core/native", "auto"):
+        selections = re.findall(r"^frame_selection:.*?active=(\S+)", log.split("BOUNDS",1)[0], re.M)
+        report("rs289_requested_frame_active", bool(selections) and selections[-1] == frame)
     if scenario == "stats":
         update = log.partition("sent ::setstat strength 20")[2]
         report("rs289_stat_packet_applied", bool(re.search(
@@ -168,10 +172,15 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
           revision="osrs239", native_baseline=False, rs289_scenario="baseline"):
     width, height, rows = read_bmp(path)
     failures = []
+    if bounds_path:
+        log = Path(bounds_path).read_text()
+        if "after_ready=1" in log and not re.search(r"^SIM_READY elapsed_ms=\d+ tree_generation=[1-9]\d*", log, re.M):
+            print("PIXEL native_readiness=FAIL")
+            failures.append("native_readiness")
     if revision == "rs289lc":
         if not bounds_path:
             raise ValueError("rs289lc requires its matching native trace")
-        check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario)
+        check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame)
         return failures
     if frame == "gameframe-layout/classic-fixed":
         # The approved plain-rock band spans x=0..495, y=467..498.

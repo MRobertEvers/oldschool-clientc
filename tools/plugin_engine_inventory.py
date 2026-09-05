@@ -13,8 +13,104 @@ from pathlib import Path
 import re
 import subprocess
 import shlex
+import sys
+import ctypes
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def clang_api():
+    from clang import cindex as cx
+    resource = Path(subprocess.check_output(["clang", "-print-resource-dir"], text=True).strip())
+    # Use the same compiler's library and builtin headers. Mixing pip's
+    # libclang with Apple's NEON headers left three actual frontend TUs out.
+    library = resource.parents[1] / "libclang.dylib"
+    if sys.platform == "darwin" and library.exists() and not cx.Config.loaded:
+        cx.Config.set_library_file(str(library))
+        cx.Config.set_compatibility_check(False)
+    for kind in ("Binary", "Unary"):
+        getter = getattr(cx.conf.lib, f"clang_getCursor{kind}OperatorKind")
+        getter.argtypes = [cx.Cursor]
+        getter.restype = ctypes.c_int
+        spelling = getattr(cx.conf.lib, f"clang_get{kind}OperatorKindSpelling")
+        spelling.argtypes = [ctypes.c_int]
+        spelling.restype = cx._CXString
+        spelling.errcheck = cx._CXString.from_result
+    return cx
+
+
+def field_access_kind(node, ancestors, cx):
+    """Follow the lvalue, not just source offsets around an assignment.
+
+    In `array[node->index] = value`, index is READ. In `node->values[i] =
+    value`, the owned array is written. Operators come from Clang, including
+    macro expansions whose token extents need not describe their lvalues.
+    """
+    current = node
+    indirect = False
+    transparent = (cx.CursorKind.UNEXPOSED_EXPR, cx.CursorKind.PAREN_EXPR)
+    for parent in reversed(ancestors):
+        if parent.kind in transparent:
+            current = parent
+            continue
+        children = list(parent.get_children())
+        if parent.kind == cx.CursorKind.MEMBER_REF_EXPR:
+            return "read"  # another field, not the aggregate containing it, is the lvalue
+        if parent.kind == cx.CursorKind.ARRAY_SUBSCRIPT_EXPR:
+            if not children or children[0].hash != current.hash:
+                return "read"
+            indirect |= node.type.kind == cx.TypeKind.POINTER
+            current = parent
+            continue
+        if parent.kind == cx.CursorKind.UNARY_OPERATOR:
+            kind = cx.conf.lib.clang_getCursorUnaryOperatorKind(parent)
+            op = cx.conf.lib.clang_getUnaryOperatorKindSpelling(kind)
+            if op == "&":
+                return "address_escape"
+            if op in ("++", "--"):
+                return "pointee_write" if indirect else "write"
+            if op == "*":
+                indirect = True
+                current = parent
+                continue
+            return "read"
+        if parent.kind in (cx.CursorKind.BINARY_OPERATOR, cx.CursorKind.COMPOUND_ASSIGNMENT_OPERATOR):
+            if not children or children[0].hash != current.hash:
+                return "read"
+            kind = cx.conf.lib.clang_getCursorBinaryOperatorKind(parent)
+            op = cx.conf.lib.clang_getBinaryOperatorKindSpelling(kind)
+            if op in ("=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="):
+                return "pointee_write" if indirect else "write"
+            return "read"
+        if parent.kind == cx.CursorKind.CALL_EXPR and parent.referenced:
+            arguments = list(parent.get_arguments())
+            parameters = list(parent.referenced.get_arguments())
+            for index, argument in enumerate(arguments):
+                if argument.hash != current.hash or index >= len(parameters):
+                    continue
+                parameter = parameters[index].type
+                if parameter.kind == cx.TypeKind.POINTER and not parameter.get_pointee().is_const_qualified():
+                    return "address_escape"
+        return "read"
+    return "read"
+
+
+def field_storage_root(node, cx):
+    """Distinguish local value construction from writes through shared pointers."""
+    current = node
+    while True:
+        if current.kind == cx.CursorKind.DECL_REF_EXPR and current.referenced:
+            declaration = current.referenced
+            value_type = declaration.type
+            pointer = value_type.kind in (cx.TypeKind.POINTER, cx.TypeKind.LVALUEREFERENCE)
+            local = declaration.semantic_parent.kind == cx.CursorKind.FUNCTION_DECL
+            return {"root": declaration.spelling,
+                    "kind": "indirect" if pointer else "local-value" if local else "static-value",
+                    "type": value_type.spelling}
+        children = list(current.get_children())
+        if not children or current.kind == cx.CursorKind.CALL_EXPR:
+            return {"root": current.spelling, "kind": "computed", "type": current.type.spelling}
+        current = children[0]
 
 
 def tracked():
@@ -74,7 +170,7 @@ def discover():
     public = re.compile(r"ToriRS_.*(?:Api|Plugin|Builder)|PluginHost_|torirs_plugin_|torirs\.plugin|api_version|\[plugin:")
     for path in tracked():
         file = ROOT / path
-        if file.suffix.lower() not in (".c", ".h", ".inc", ".lua", ".ini", ".py", ".js", ".md", ".html", ".sh", ".mk") and file.name.lower() not in ("makefile", "cmakelists.txt"):
+        if file.suffix.lower() not in (".c", ".h", ".inc", ".lua", ".ini", ".py", ".js", ".md", ".html", ".sh", ".mk", ".m", ".mm", ".cc", ".cpp", ".hpp", ".def", ".json", ".ts", ".tsx") and file.name.lower() not in ("makefile", "cmakelists.txt"):
             continue
         if not file.is_file():
             continue
@@ -83,7 +179,16 @@ def discover():
             kind = "documentation" if file.suffix == ".md" else "consumer"
             if path.startswith("old/"):
                 kind = "archived-execution-surface"
-            consumers.append({"path": path, "kind": kind, "disposition": "PRESERVE_USER_DATA" if path.startswith("plugin_prefs") else "PORT_OR_REMOVE",
+            disposition = ("PRESERVE_USER_DATA" if path.startswith("plugin_prefs") else
+                           "RETIRE_EXECUTABLE_ARCHIVE" if path.startswith("old/") else
+                           "UPDATE_DOCUMENTATION" if file.suffix == ".md" else
+                           "UPDATE_METADATA" if file.name == "plugin_api.meta.lua" else
+                           "PORT_TEST" if "/test/" in path or file.name.startswith("test_") else
+                           "PORT_MANIFEST" if file.suffix == ".ini" else
+                           "PORT_HOST" if path.startswith("src/") and not path.startswith("src/plugin/plugins/") else
+                           "PORT_PLUGIN" if path.startswith(("src/plugin/plugins/", "script/plugins/")) else
+                           "UPDATE_TOOLING")
+            consumers.append({"path": path, "kind": kind, "disposition": disposition,
                 "persistence": "preserve" if path.startswith("plugin_prefs") else "review"})
         if file.suffix == ".c":
             for match in re.finditer(r'struct\s+ToriRS_PluginDef\w*\s+const\s+(\w+)\s*=\s*\{(.*?)\n\};', source, re.S):
@@ -136,7 +241,7 @@ def typed_accesses(compile_log):
     Requires the libclang Python package. Failed parses are blocking entries;
     frontend/compiler branches absent from the build remain explicit gaps.
     """
-    from clang import cindex as cx
+    cx = clang_api()
     index = cx.Index.create()
     resource_dir = subprocess.check_output(["clang", "-print-resource-dir"], text=True).strip()
     sdk = subprocess.check_output(["xcrun", "--show-sdk-path"], text=True).strip() if __import__("sys").platform == "darwin" else None
@@ -179,28 +284,12 @@ def typed_accesses(compile_log):
                     if source_path.startswith(str(ROOT)):
                         if source_path not in source_lines:
                             source_lines[source_path] = Path(source_path).read_text().splitlines()
-                        usage = "read"
-                        for parent in reversed(ancestors[-4:]):
-                            if parent.kind in (cx.CursorKind.BINARY_OPERATOR, cx.CursorKind.COMPOUND_ASSIGNMENT_OPERATOR):
-                                children = list(parent.get_children())
-                                if children and children[0].extent.start.offset <= node.extent.start.offset and children[0].extent.end.offset >= node.extent.end.offset:
-                                    # Only the operator BETWEEN the operands.
-                                    # Macro token extents can cover unrelated
-                                    # statements and must never invent writes.
-                                    pt = [t.spelling for t in parent.get_tokens()
-                                          if len(children) == 2 and children[0].extent.end.offset <= t.extent.start.offset < children[1].extent.start.offset]
-                                    if len(pt) == 1 and pt[0] in ("=", "+=", "-=", "*=", "/=", "&=", "|=", "^=", "<<=", ">>="):
-                                        usage = "write"
-                            if parent.kind == cx.CursorKind.UNARY_OPERATOR:
-                                pt = [t.spelling for t in parent.get_tokens()]
-                                if "++" in pt or "--" in pt:
-                                    usage = "write"
-                                elif pt and pt[0] == "&" and usage != "write":
-                                    usage = "address_escape"
+                        usage = field_access_kind(node, ancestors, cx)
                         item = {"path": str(Path(source_path).relative_to(ROOT)), "line": node.location.line,
                             "column": node.location.column, "field": ref.get_usr(), "field_name": ref.spelling,
                             "declaration": f"{Path(location).relative_to(ROOT)}:{ref.location.line}",
                             "record": ref.semantic_parent.spelling,
+                            "storage": field_storage_root(node, cx),
                             "function": function, "use": usage,
                             "expression": source_lines[source_path][node.location.line-1].strip(),
                             "disposition": "REVIEW_REQUIRED"}
@@ -208,7 +297,7 @@ def typed_accesses(compile_log):
             for child in node.get_children():
                 loc = str(child.location.file or "")
                 if loc.startswith(str(ROOT / "src")):
-                    walk(child, (*ancestors[-4:],node), function)
+                    walk(child, (*ancestors,node), function)
         walk(tu.cursor)
     return {"translation_units": list(commands), "parse_blockers": errors,
         "coverage_gaps": ["preprocessor branches not selected by supplied build", "indirect bulk writes require review"],
