@@ -221,17 +221,27 @@ def discover():
             packets = sorted(set(re.findall(r"case (PKT_NAME_\w+):", clean)))
     # All widget opcodes, not just SET-prefixed ones: create/copy/delete,
     # getters, listeners, input, find, op and target operations all matter.
+    hosted = []
     for line in (ROOT / "src/cs2vm2/cs2vm2_host_request_kinds.def").read_text().splitlines():
-        match = re.match(r"CS2VM_HOST_REQUEST_KIND\(((?:CC_|IF_)\w+),\s*(\d+)", line)
+        match = re.match(r"CS2VM_HOST_REQUEST_KIND\((\w+),\s*(\d+)", line)
         if match:
-            opcodes.append({"name": match[1], "opcode": int(match[2]), "disposition": "TRACE_HOST_AND_VM"})
+            name = match[1]
+            ui = name.startswith(("CC_", "IF_", "OVERLAY_")) or name == "SETANTIDRAG"
+            row = {"name": name, "opcode": int(match[2]),
+                   "disposition": "M2_NATIVE_UI_OPERATION" if ui else "M3_NATIVE_STATE_OR_SERVICE"}
+            hosted.append(row)
+            if ui:
+                opcodes.append(row)
+    all_opcodes = [{"name": name, "opcode": int(value), "disposition": "HOSTED" if name in {r['name'] for r in hosted} else "VM_EXECUTION"}
+                   for name,value in re.findall(r"^#define CS2_OP_(\w+)[ \t]+(\d+)\b", (ROOT / "src/cs2vm2/cs2_opcode.h").read_text(), re.M)]
     for field in fields:
         for key in ("readers", "writers"):
             field[key] = sorted(set(field[key]))
     return {"schema_version": 1, "closure": "BLOCKED_UNREVIEWED",
         "method": "Clang schema; lexical candidate references include same-name fields of other types. Bulk memory writes and aliasing require mechanism review.",
         "fields": fields, "mutation_candidates": mutations, "operations": operations,
-        "widget_opcodes": opcodes, "packet_dispatch_cases": packets,
+        "widget_opcodes": opcodes, "hosted_opcodes": hosted, "all_cs2_opcodes": all_opcodes,
+        "packet_dispatch_cases": packets,
         "plugins": plugins, "consumers": consumers}
 
 

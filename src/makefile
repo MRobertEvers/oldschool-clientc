@@ -2440,6 +2440,16 @@ test-plugin-engine-content:
 	python3 ../tools/test_cachepack_param_assets.py
 	python3 ../tools/test_cs2_proc_headers.py
 
+.PHONY: test-plugin-contract test-plugin-contract-native
+test-plugin-contract: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_contract_test \
+		plugin/torirs_plugin_contract.c plugin/test/torirs_plugin_contract_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_contract_test
+
+# M1 red cases; uses the existing UITree harness rather than another runner.
+test-plugin-contract-native:
+	TORIRS_TEST_CONTRACT_V3=1 $(MAKE) test-uitree
+
 test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c
@@ -2982,7 +2992,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c \
 		ui/test/uitree_test_emit_golden.c \
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
-		ui/test/uitree_test_input_field.c \
+		ui/test/uitree_test_input_field.c ui/test/uitree_test_plugin_contract.c \
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c \
 		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
 		ui/test/uitree_test_debug_overlay.c \

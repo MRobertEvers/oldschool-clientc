@@ -1,10 +1,18 @@
 #include "test_harness.h"
+#include <stdlib.h>
+
+void test_plugin_contract_native(void);
 
 int g_failures;
 
 int
 main(void)
 {
+    if( getenv("TORIRS_TEST_CONTRACT_V3") )
+    {
+        test_plugin_contract_native();
+        return g_failures ? 1 : 0;
+    }
     test_dirty_marking();
     test_walk_topology();
     test_mounted_world_resize();

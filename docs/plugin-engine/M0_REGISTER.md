@@ -1,8 +1,11 @@
 # M0 implementation register
 
-M0 is **open**. M1–M6 have not started; the plugin API remains V2. This is an
-engineering checkpoint with executable discovery, fixture gates and measured
-native scenarios, not acceptance of the full plugin contract.
+M0 discovery and baseline preparation are complete for milestone sequencing.
+Every mutation family and discovered consumer has a recorded disposition; the
+implementation gaps below remain requirements of M1–M6. This is not acceptance
+of complete tree-mutation correctness. M1 now has major-3 declarations, shared
+policy tests and observed failing native conformance cases. The production host
+still uses V2 until the coordinated cutover.
 
 ## Workspace and evidence
 
@@ -140,8 +143,8 @@ plugins disabled and a requested 765×503 window. Each cell is `x,y w×h`.
 ## Mutation discovery and dispositions
 
 `tools/plugin_engine_inventory.py` extracts the complete tree/owned-record
-schema with Clang, discovers repository consumers and enumerates 295 CC/IF host
-requests. Optional `--compile-log` resolves field references in translation
+schema with Clang, discovers repository consumers and enumerates the full CS2 opcode table, all 648 hosted requests and
+312 direct UI requests, including overlay and anti-drag operations. Optional `--compile-log` resolves field references in translation
 units from an actual build using Python libclang. The generated register keeps
 unreviewed entries blocking. Lexical matches can refer to other structs; typed
 accesses still need phase/alias/bulk-write review. Counts are not proof of closure.
@@ -214,10 +217,11 @@ Set `SDL_VIDEODRIVER=cocoa` for the macOS native-window run. Default captures
 use SDL's dummy driver and the real software renderer. Never set the stale-script
 override for accepted runs. `GF_MATRIX_DIAGNOSTIC=1` exits 3 even if pixels pass.
 
-## Open M0 gates
+## Continuing acceptance obligations
 
-1. Finish semantic review of every schema field, typed/indirect/bulk writer,
-   consumer, initialization boundary and unexamined frontend branch.
+1. Enforce the recorded producer dispositions in M2, including indirect/bulk
+   writes and construction/publication boundaries; verify unselected frontend
+   branches at M6. The inventory does not claim these paths already conform.
 2. Keep the completed OSRS preparation recipe pinned through the API cutover;
    close the remaining content-diagnostic dispositions and verify final commits
    against their rebuilt artifacts. The earlier targeted cache is no longer the
@@ -230,8 +234,9 @@ override for accepted runs. `GF_MATRIX_DIAGNOSTIC=1` exits 3 even if pixels pass
    Classic Fixed currently declines its missing native orb surface. That is an
    M3 adapter/port requirement, not a fabricated native surface or a passing
    custom-frame result.
-5. Review/close the native action and capability tables before M1. No breaking API
-   contract or bulk plugin conversion has been attempted ahead of these gates.
+5. Apply the M1 ownership/action/capability rules in both adapters and all ports.
+   Major-3 policy tests pass; the native conformance target is intentionally red
+   for hide/content independence, zero-size readback and recycled-ID focus.
 
 ## Confirmed implementation gaps to carry into conformance
 
