@@ -886,8 +886,8 @@ test_apply_object_silhouette(void)
         TEST_ASSERT(tree->components[c2].item_scene_id == 12, "bank child 2 scene_id");
     }
 
-    /* Equipment slot: d1 overlay + d2 silhouette — SETOBJECT on overlay hides
-     * silhouette; clear unhides it. */
+    /* Equipment-shaped containers do not grant SETOBJECT authority over sibling
+     * visibility. Scripts own the silhouette through explicit SETHIDE. */
     {
         int32_t slot = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 200, 0, 0, 36, 32);
         int32_t overlay = UITree_CcCreate(tree, slot, 200, 2, 1);
@@ -898,18 +898,18 @@ test_apply_object_silhouette(void)
         TEST_ASSERT(
             UITree_ApplyObject(tree, tree->components[overlay].component_id, 1153, 1, 20, 0, 0),
             "setobject equipment overlay");
-        TEST_ASSERT(tree->components[sil].behavior.hide == 1, "silhouette hidden while occupied");
+        TEST_ASSERT(tree->components[sil].behavior.hide == 0, "content does not hide silhouette");
         TEST_ASSERT(!tree->components[overlay].behavior.hide, "overlay visible");
 
         TEST_ASSERT(
             UITree_ApplyObject(tree, tree->components[overlay].component_id, -1, 0, -1, 0, 0),
             "clear equipment overlay");
-        TEST_ASSERT(tree->components[sil].behavior.hide == 0, "silhouette shown when cleared");
+        TEST_ASSERT(tree->components[sil].behavior.hide == 0, "content does not change silhouette hide");
 
-        /* SETOBJECT on static parent redirects to d1 overlay. */
+        /* Static targets keep their identity even when they have dynamic children. */
         TEST_ASSERT(UITree_ApplyObject(tree, 200, 1725, 1, 21, 0, 0), "setobject via static parent");
-        TEST_ASSERT(tree->components[overlay].item_id == 1725, "redirect set overlay item");
-        TEST_ASSERT(tree->components[sil].behavior.hide == 1, "silhouette hidden after redirect");
+        TEST_ASSERT(tree->components[slot].item_id == 1725, "static target owns its content");
+        TEST_ASSERT(tree->components[overlay].item_id == 0, "static content does not redirect to child");
     }
 
     /*

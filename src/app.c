@@ -2763,7 +2763,7 @@ static void
 app_role_overlay_group_seed(
     struct App* app,
     int32_t node,
-    uint32_t incarnation,
+    uint64_t incarnation,
     int replace,
     int place)
 {
@@ -15460,7 +15460,7 @@ Task_OpenSubRefresh_Run(
          * reclaims here.
          *
          * The version before this hid the group instead (hide +
-         * hide_unmounted on its roots) so the next mount could reuse the bake,
+         * mount_hidden on its roots) so the next mount could reuse the bake,
          * with `chatbox:chatmodal` carved out because alternating
          * chat_left/chat_right left shadowed text that IF_SETTEXT then
          * updated instead of the live copy. That carve-out was the
@@ -30025,7 +30025,7 @@ component_hidden_or_orphaned(
         struct UITreeComponent const* c;
         assert((uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
-        if( c->freed || c->behavior.hide || c->frame_hidden ||
+        if( c->freed || c->behavior.hide || c->mount_hidden || c->frame_hidden ||
             c->replacement_hidden )
             return 1;
         idx = c->parent;
@@ -32744,10 +32744,13 @@ App_RunOnce(
             /* Press-time track onclick → cc_dragpickup stages pending during
              * the drain above. Consume it in the same frame so the thumb jumps
              * under the cursor now and keeps following it while held. */
-            if( app->tree && app->tree->pending_drag_pickup &&
-                app_displayable_component_node(
-                    app, app->tree->pending_drag_pickup_id) < 0 )
-                app->tree->pending_drag_pickup = 0;
+            if( app->tree && app->tree->pending_drag_pickup )
+            {
+                int32_t node = UITree_ResolveRef(app->tree, app->tree->pending_drag_pickup_ref);
+                if( node < 0 || app_displayable_component_node(
+                        app, app->tree->components[node].component_id) < 0 )
+                    app->tree->pending_drag_pickup = 0;
+            }
             if( app->tree && app->tree->pending_drag_pickup )
             {
                 struct UIInteractOut pickup_out;

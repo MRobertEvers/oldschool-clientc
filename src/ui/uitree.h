@@ -353,11 +353,6 @@ struct UITreeBehavior
      *  walks read on every node, and putting it at offset 0 keeps it on the
      *  second cache line of the component rather than a fourth. */
     uint8_t hide;
-    /** Set when `hide` was forced by the interface-mount bookkeeping (a group
-     *  baked into the tree but not mounted anywhere, or the group a mount slot
-     *  just replaced) rather than by the cache data or a script. Mounting the
-     *  group clears it — a cache/script hide is left alone. */
-    uint8_t hide_unmounted;
     uint8_t script_kind;
     /** CS1 (IF1) value scripts: scripts[i] is compared against script_operand[i]
      *  using script_comparator[i] to decide the component's active state. */
@@ -684,7 +679,7 @@ struct UITreeComponent
      * old declaration can never restore state through a recycled index.
      * Zero is reserved for an empty/reclaimed slot.
      */
-    uint32_t incarnation;
+    uint64_t incarnation;
     int32_t free_next;
     /** Hint at the tail of `first_child`'s sibling list, so appending a child is
      *  O(1) instead of walking the list (cc_create fills a container one child at
@@ -753,6 +748,8 @@ struct UITreeComponent
     /** Explicit server/script hiding, separate from an authored IF1 tooltip
      * gate. Only the native hide setter changes it; frame release does not. */
     uint8_t native_hide;
+    /** Group is prepared but not mounted. Independent of cache/script hiding. */
+    uint8_t mount_hidden;
     int cs1_values[UITREE_CS1_VALUE_MAX];
     /** CS2 event hooks, owned by the component, NULL until one is registered.
      *  17 slots each carrying argv[64] and strv[4][80] inline is ~10 KB — the
@@ -1298,6 +1295,14 @@ struct UITreeGroupBucket
     struct UITreeNodeSet nodes;
 };
 
+/** Internal retained identity. Native component IDs remain script-visible queries. */
+struct UITreeNodeRef
+{
+    uint64_t tree_instance;
+    uint64_t incarnation;
+    int32_t index;
+};
+
 struct UITree
 {
     struct UITreeComponent* components;
@@ -1308,7 +1313,8 @@ struct UITree
     int32_t last_root_index;
     uint32_t generation;
     /** Monotonic source for UITreeComponent::incarnation. Zero is skipped. */
-    uint32_t next_incarnation;
+    uint64_t next_incarnation;
+    uint64_t instance_id;
     /** Bumped every time `UITree_LayoutResolve` actually walks, i.e. every time
      *  a resolved box could have moved. `dirty_gen` does not cover this: layout
      *  re-resolves on `layout_stale`, `layout_force_full` and a changed root box,
@@ -1435,17 +1441,8 @@ struct UITree
      *  directly, so the count cannot drift. */
     uint32_t drag_active_nodes;
     uint16_t next_dynamic_uid;
-    /**
-     * The IF3 text-entry field that holds the caret, by component id; -1 for
-     * none. @see UITree_InputFocusId, which is the only correct way to READ it.
-     *
-     * An id and not an index, and validated on every read, because the fields
-     * are dynamic children: `cc_deleteall` on the container reclaims the slot,
-     * and a layout refresh rebuilds the whole search box while it is being
-     * typed into. Storing the index would leave the caret pointing at whatever
-     * node inherited the slot.
-     */
-    int input_focus_com_id;
+    /** Retained focus is checked by tree, slot, and incarnation on every read. */
+    struct UITreeNodeRef input_focus;
     /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */
     struct UITreeInterfaceParent interface_parents[UITREE_INTERFACE_PARENT_MAX];
     int interface_parent_count;
@@ -1455,7 +1452,7 @@ struct UITree
      *  The CS2 host cannot reach UIInteraction::input_state, so it writes
      *  these and InteractFrame consumes them into a live drag source. */
     uint8_t pending_drag_pickup;
-    int pending_drag_pickup_id;
+    struct UITreeNodeRef pending_drag_pickup_ref;
     int pending_drag_pickup_x;
     int pending_drag_pickup_y;
     /** Set when any node's layout is invalidated (position/size/topology
@@ -1954,8 +1951,8 @@ UITree_LinkUnderParent(
     int32_t parent_index,
     int32_t child_index);
 
-/** Move child_index under new_parent_index (-1 = root list). Preserves child's subtree. */
-void
+/** Move child under new parent (-1 = root). Invalid/cyclic moves fail atomically. */
+bool
 UITree_Reparent(
     struct UITree* tree,
     int32_t child_index,
@@ -2031,6 +2028,9 @@ UITree_CollectDynamicChildIndices(
  * corresponding component-id UITree_Apply* entry points below are lookup
  * wrappers around these functions.
  */
+/** Mount bookkeeping may suppress a group without changing native hide. */
+bool UITree_SetMountHiddenAt(struct UITree* tree, int32_t idx, int hidden);
+
 bool
 UITree_SetHideAt(struct UITree* tree, int32_t idx, int hide);
 
@@ -2085,17 +2085,13 @@ struct UITreeHost;
 int
 UITree_IsInputNode(struct UITreeComponent const* c);
 
-/**
- * The field holding the caret, by component id, or -1.
- *
- * VALIDATED on every read, which is the whole reason the focus is stored as an
- * id: the fields are dynamic children, a panel rebuild deletes and re-creates
- * them mid-edit, and the slot one leaves behind is handed straight to another
- * component. A remembered id that no longer names a live input node therefore
- * means "nothing is focused", and every reader must ask through here rather
- * than reading `input_focus_com_id`. The stale value itself is cleared by the
- * next UITree_InputSetFocusId; leaving it is what keeps this read const.
- */
+/** Capture/resolve a live identity. Zero references and references from another
+ * tree, deleted slots, or recycled slots resolve to -1. */
+bool UITree_StageDragPickup(struct UITree* tree, int32_t index, int x, int y);
+struct UITreeNodeRef UITree_RefAt(struct UITree const* tree, int32_t index);
+int32_t UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref);
+
+/** Current live focus component ID, or -1. Never transfers across node reuse. */
 int
 UITree_InputFocusId(struct UITree const* tree);
 
@@ -2772,7 +2768,7 @@ int
 UITree_SetReplacementHidden(
     struct UITree* tree,
     int32_t node_index,
-    uint32_t incarnation,
+    uint64_t incarnation,
     int hidden);
 
 /** Facet-specific variants used by the named-UI presenter. Neither prunes the
@@ -2781,13 +2777,13 @@ int
 UITree_SetReplacementPaintHidden(
     struct UITree* tree,
     int32_t node_index,
-    uint32_t incarnation,
+    uint64_t incarnation,
     int hidden);
 int
 UITree_SetReplacementInputHidden(
     struct UITree* tree,
     int32_t node_index,
-    uint32_t incarnation,
+    uint64_t incarnation,
     int hidden);
 
 /** Resync timer/key/wheel/resize/sub_change set membership from current hooks.

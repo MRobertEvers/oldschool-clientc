@@ -4236,7 +4236,7 @@ static void
 app_plugin_role_facet_refresh_node(
     struct App* app,
     int32_t node,
-    uint32_t incarnation)
+    uint64_t incarnation)
 {
     int paint = 0;
     int input = 0;
@@ -4273,9 +4273,9 @@ app_plugin_role_suppress_facets(
     struct AppPluginRoleFacetSuppression* row;
     int at;
     int32_t old_node = -1;
-    uint32_t old_incarnation = 0;
+    uint64_t old_incarnation = 0;
     int32_t next_node = -1;
-    uint32_t next_incarnation = 0;
+    uint64_t next_incarnation = 0;
 
     assert(app);
     assert(role);
@@ -4758,7 +4758,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
      * table the cache also ships, and a mistyped one is otherwise silent. */
     {
         static int audited_root = -1;
-        static uint32_t audited_incarnation;
+        static uint64_t audited_incarnation;
         static struct UITree const* audited_tree;
         int const root = app_plugin_frame_root(app);
         if( root > 0 && getenv("TORIRS_FRAME_ROLE_AUDIT") )
@@ -4766,7 +4766,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
             int control = -1;
             (void)app_plugin_frame_role_enum_id(app, root, &control);
             int32_t const node = UITree_FindByComponentId(tree, control);
-            uint32_t const incarnation = node >= 0 ? tree->components[node].incarnation : 0;
+            uint64_t const incarnation = node >= 0 ? tree->components[node].incarnation : 0;
             if( (tree != audited_tree || root != audited_root || incarnation != audited_incarnation) &&
                 app_plugin_frame_role_audit(app, tree) )
             {

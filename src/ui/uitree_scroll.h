@@ -95,7 +95,7 @@ struct UITreeScrollbarHitInfo
     int32_t layer_index;
     /** A captured scrollbar must never transfer to a node later recycled into
      * the same component-array slot. */
-    uint32_t layer_incarnation;
+    uint64_t layer_incarnation;
     int layer_x;
     int layer_y;
     int layer_w;

@@ -14,15 +14,15 @@ struct UIInputState
     int32_t pressed;
     /** Exact array occupant which received mouse-down. Component ids and
      * array slots are both reused by CC_DELETEALL/CC_CREATE. */
-    uint32_t pressed_incarnation;
+    uint64_t pressed_incarnation;
     /** Drag gesture (TS OsrsClient widget drag). */
     int drag_active;
     int32_t drag_source_idx;
-    uint32_t drag_source_incarnation;
+    uint64_t drag_source_incarnation;
     int drag_source_id;
     int drag_target_id;
     int32_t drag_target_idx;
-    uint32_t drag_target_incarnation;
+    uint64_t drag_target_incarnation;
     int drag_pickup_x;
     int drag_pickup_y;
     int drag_click_x;
@@ -65,16 +65,16 @@ struct UIInputResult
     int drag_moved;
     int drag_ended;
     int32_t drag_source_idx;
-    uint32_t drag_source_incarnation;
+    uint64_t drag_source_incarnation;
     int drag_source_id;
     int drag_target_id;
     int32_t drag_target_idx;
-    uint32_t drag_target_incarnation;
+    uint64_t drag_target_incarnation;
     int deferred_click_fired;
     /** Widget that owned this frame's mouse-up, even when the release was not
      * also a click (pointer moved away or a drag completed). */
     int32_t released_source_idx;
-    uint32_t released_source_incarnation;
+    uint64_t released_source_incarnation;
     int released_source_id;
     /* 1 = clicked was armed on the press edge (non-draggable). interact_click
      * must use the current pointer, not last_click_* (set only on release). */
@@ -136,7 +136,7 @@ UITree_NodePaintsAfterRoleBoundary(
     struct UITreeHost const* host,
     int32_t candidate_node,
     int32_t anchor_node,
-    uint32_t anchor_incarnation,
+    uint64_t anchor_incarnation,
     bool replace);
 
 /** Placement-aware form used by the retained role presenter. `place` is one
@@ -148,7 +148,7 @@ UITree_NodePaintsAfterRolePlacement(
     struct UITreeHost const* host,
     int32_t candidate_node,
     int32_t anchor_node,
-    uint32_t anchor_incarnation,
+    uint64_t anchor_incarnation,
     bool replace,
     int place);
 
@@ -164,7 +164,7 @@ UITree_PointInputCoverPaintsAfterRoleBoundary(
     int px,
     int py,
     int32_t anchor_node,
-    uint32_t anchor_incarnation,
+    uint64_t anchor_incarnation,
     bool replace);
 
 /** Placement-aware form of UITree_PointInputCoverPaintsAfterRoleBoundary. */
@@ -175,7 +175,7 @@ UITree_PointInputCoverPaintsAfterRolePlacement(
     int px,
     int py,
     int32_t anchor_node,
-    uint32_t anchor_incarnation,
+    uint64_t anchor_incarnation,
     bool replace,
     int place);
 

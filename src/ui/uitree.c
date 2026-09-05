@@ -8,6 +8,7 @@
 #include "uitree_scroll.h"
 
 #include <assert.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1067,8 +1068,7 @@ push_element_unlinked(struct UITree* tree)
 
     struct UITreeComponent* component = &tree->components[idx];
     memset(component, 0, sizeof(struct UITreeComponent));
-    if( ++tree->next_incarnation == 0 )
-        tree->next_incarnation++;
+    if( ++tree->next_incarnation == 0 ) abort();
     component->incarnation = tree->next_incarnation;
     component->parent = -1;
     component->first_child = -1;
@@ -1230,22 +1230,30 @@ UITree_UnlinkFromRootList(
     }
 }
 
-void
+bool
 UITree_Reparent(
     struct UITree* tree,
     int32_t child_index,
     int32_t new_parent_index)
 {
-    assert(tree);
-    assert(child_index >= 0 && (uint32_t)child_index < tree->component_count);
-    if( new_parent_index >= 0 )
-        assert((uint32_t)new_parent_index < tree->component_count);
-    assert(child_index != new_parent_index);
+    if( !tree || child_index < 0 || (uint32_t)child_index >= tree->component_count ||
+        tree->components[child_index].freed || new_parent_index < -1 )
+        return false;
+    /* Validate the entire proposed ancestor chain before changing any links. */
+    int32_t ancestor = new_parent_index;
+    uint32_t visited = 0;
+    while( ancestor >= 0 )
+    {
+        if( (uint32_t)ancestor >= tree->component_count || ancestor == child_index ||
+            tree->components[ancestor].freed || visited++ >= tree->component_count )
+            return false;
+        ancestor = tree->components[ancestor].parent;
+    }
 
     struct UITreeComponent* child = &tree->components[child_index];
     int32_t old_parent = child->parent;
     if( old_parent == new_parent_index )
-        return;
+        return true;
 
     if( old_parent >= 0 )
         UITree_UnlinkChild(tree, old_parent, child_index);
@@ -1289,6 +1297,7 @@ UITree_Reparent(
         uitree_topo_bump(tree, __LINE__);
     }
     tree->generation++;
+    return true;
 }
 
 uint32_t
@@ -1399,7 +1408,9 @@ UITree_New(uint32_t hint)
     tree->world_index = -1;
     tree->worldmap_index = -1;
     tree->entity_overlay_index = -1;
-    tree->input_focus_com_id = -1;
+    static _Atomic uint64_t next_tree_instance = 1;
+    tree->instance_id = atomic_fetch_add(&next_tree_instance, 1);
+    if( !tree->instance_id ) abort(); /* Never recycle identity, even on overflow. */
     return tree;
 }
 
@@ -1712,7 +1723,7 @@ int
 UITree_SetReplacementHidden(
     struct UITree* tree,
     int32_t node_index,
-    uint32_t incarnation,
+    uint64_t incarnation,
     int hidden)
 {
     struct UITreeComponent* component;
@@ -1738,7 +1749,7 @@ int
 UITree_SetReplacementPaintHidden(
     struct UITree* tree,
     int32_t node_index,
-    uint32_t incarnation,
+    uint64_t incarnation,
     int hidden)
 {
     struct UITreeComponent* component;
@@ -1764,7 +1775,7 @@ int
 UITree_SetReplacementInputHidden(
     struct UITree* tree,
     int32_t node_index,
-    uint32_t incarnation,
+    uint64_t incarnation,
     int hidden)
 {
     struct UITreeComponent* component;
@@ -3281,6 +3292,19 @@ UITree_CollectDynamicChildIndices(
 }
 
 bool
+UITree_SetMountHiddenAt(struct UITree* tree, int32_t idx, int hidden)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c ) return false;
+    hidden = hidden ? 1 : 0;
+    if( c->mount_hidden == hidden ) return true;
+    c->mount_hidden = (uint8_t)hidden;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY |
+                                  UITREE_IMPACT_LAYOUT_TREE);
+    return true;
+}
+
+bool
 UITree_SetHideAt(
     struct UITree* tree,
     int32_t idx,
@@ -3643,24 +3667,45 @@ UITree_IsInputNode(struct UITreeComponent const* c)
     return c->type == UIELEM_RS_TEXT && c->u.rs_text.input;
 }
 
+struct UITreeNodeRef
+UITree_RefAt(struct UITree const* tree, int32_t index)
+{
+    if( !tree || index < 0 || (uint32_t)index >= tree->component_count ||
+        tree->components[index].freed )
+        return (struct UITreeNodeRef){0};
+    return (struct UITreeNodeRef){tree->instance_id, tree->components[index].incarnation, index};
+}
+
+int32_t
+UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref)
+{
+    if( !tree || !ref.tree_instance || ref.tree_instance != tree->instance_id ||
+        !ref.incarnation || ref.index < 0 || (uint32_t)ref.index >= tree->component_count )
+        return -1;
+    struct UITreeComponent const* c = &tree->components[ref.index];
+    return !c->freed && c->incarnation == ref.incarnation ? ref.index : -1;
+}
+
+bool
+UITree_StageDragPickup(struct UITree* tree, int32_t index, int x, int y)
+{
+    struct UITreeNodeRef ref = UITree_RefAt(tree, index);
+    if( !ref.incarnation ) return false;
+    tree->pending_drag_pickup_ref = ref;
+    tree->pending_drag_pickup_x = x;
+    tree->pending_drag_pickup_y = y;
+    tree->pending_drag_pickup = 1;
+    return true;
+}
+
 int
 UITree_InputFocusId(struct UITree const* tree)
 {
-    int32_t idx;
-
     assert(tree);
-    if( tree->input_focus_com_id < 0 )
+    int32_t idx = UITree_ResolveRef(tree, tree->input_focus);
+    if( idx < 0 || !UITree_IsInputNode(&tree->components[idx]) )
         return -1;
-    idx = UITree_FindByComponentId(tree, tree->input_focus_com_id);
-    /* The validation, and this is the whole reason the focus is stored as an id.
-     * `~torirs_hiscores_layout_refresh` cc_deleteall's the search box and
-     * rebuilds it whenever the panel resizes, so the node under the caret can
-     * vanish between one keystroke and the next, and the slot it leaves behind
-     * is handed to some other component moments later. */
-    if( idx < 0 || tree->components[idx].freed ||
-        !UITree_IsInputNode(&tree->components[idx]) )
-        return -1;
-    return tree->input_focus_com_id;
+    return tree->components[idx].component_id;
 }
 
 int
@@ -3681,7 +3726,7 @@ UITree_InputSetFocusId(
     }
     /* Also where a stale id is finally dropped -- UITree_InputFocusId only
      * refuses to believe one. */
-    tree->input_focus_com_id = -1;
+    tree->input_focus = (struct UITreeNodeRef){0};
     if( com_id >= 0 )
     {
         int32_t const idx = UITree_FindByComponentId(tree, com_id);
@@ -3690,7 +3735,7 @@ UITree_InputSetFocusId(
             !UITree_IsInputNode(&tree->components[idx]) )
             return lost;
         c = &tree->components[idx];
-        tree->input_focus_com_id = com_id;
+        tree->input_focus = UITree_RefAt(tree, idx);
         /* The caret lands at the END of what is already there. Clicking a box
          * that holds a half-typed name has to let you finish it, and the
          * reference puts the cursor at the tail for the same reason. */
@@ -4386,39 +4431,6 @@ UITree_ApplyScrollPos(
     return UITree_SetScrollPosAt(tree, idx, scroll_x, scroll_y);
 }
 
-/* Does `child` sit in an equipment slot — a container the script builds three
- * cc_create children for (d0 border, d1 item overlay, d2 empty silhouette) —
- * rather than in an item grid?
- *
- * A grid (the backpack under 149|0, a bank's rows) puts one cell per sub_id
- * under a single parent, so its d1 and d2 are both real slots. Keying only on
- * "this is d1" therefore made every grid's *third* cell the silhouette of its
- * second: setting an object in slot 1 hid slot 2. The inventory's third square
- * went blank that way, and only came back while the pointer was over it,
- * because the emit walk lets a hovered component through its own hide gate.
- *
- * The shape is the discriminator: a slot container's cells stop at d2, a grid's
- * do not. */
-static bool
-uitree_parent_is_equipment_slot(
-    struct UITree const* tree,
-    struct UITreeComponent const* child)
-{
-    assert(tree);
-    assert(child);
-    if( child->parent < 0 || (uint32_t)child->parent >= tree->component_count )
-        return false;
-
-    for( int32_t sib = tree->components[child->parent].first_child; sib >= 0;
-         sib = tree->components[sib].next_sibling )
-    {
-        struct UITreeComponent const* s = &tree->components[sib];
-        if( s->dynamic && s->dynamic_child_index > 2 )
-            return false;
-    }
-    return true;
-}
-
 bool
 UITree_ApplyObject(
     struct UITree* tree,
@@ -4435,31 +4447,8 @@ UITree_ApplyObject(
         return false;
 
     struct UITreeComponent* c = &tree->components[idx];
-    if( obj_id > 0 && !c->dynamic && c->first_child >= 0 )
-    {
-        int32_t overlay_idx = UITree_FindChildBySubid(tree, idx, c->component_id, 1);
-        if( overlay_idx >= 0 )
-        {
-            idx = overlay_idx;
-            c = &tree->components[idx];
-        }
-    }
-
-    /* Equipment slots: d1 = item overlay, d2 = empty silhouette graphic.
-     * Only toggle silhouette when applying to the overlay, d2 is chrome (not
-     * another CC_OBJ), and the parent is an equipment slot at all — an item
-     * *grid* fills one parent with a cell per sub_id, so its d2 is a real slot
-     * (see uitree_parent_is_equipment_slot). */
-    int const is_equipment_overlay =
-        c->dynamic && c->dynamic_child_index == 1 && uitree_parent_is_equipment_slot(tree, c);
-
-    /*
-     * Tracked rather than short-circuited, because the sibling silhouette below
-     * is state this write owns as much as the item fields are: a cell whose
-     * object is unchanged can still have had its silhouette toggled from
-     * elsewhere, and returning early would leave the two disagreeing. The
-     * silhouette call is itself an ApplyHide, so it costs nothing when it agrees.
-     */
+    /* SETOBJECT owns the target's content only. Native scripts control slot
+     * decoration and visibility with their own SETGRAPHIC/SETHIDE operations. */
     int changed;
 
     if( obj_id <= 0 )
@@ -4482,16 +4471,6 @@ UITree_ApplyObject(
         }
         /* RS_GRAPHIC: clear item overlay only — leave rs_graphic.scene_id
          * (SETGRAPHIC chrome / silhouette) intact. */
-        /* Scripts often leave d2 hidden after InvTransmit — show it when the
-         * overlay is cleared. */
-        if( is_equipment_overlay && c->parent >= 0 )
-        {
-            int32_t parent_idx = c->parent;
-            int32_t sil_idx = UITree_FindChildBySubid(
-                tree, parent_idx, tree->components[parent_idx].component_id, 2);
-            if( sil_idx >= 0 && tree->components[sil_idx].type == UIELEM_RS_GRAPHIC )
-                (void)UITree_ApplyHide(tree, tree->components[sil_idx].component_id, 0);
-        }
         if( !changed )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
@@ -4503,7 +4482,7 @@ UITree_ApplyObject(
 
     changed = c->item_id != obj_id || c->item_count != obj_count ||
               c->item_scene_id != scene_id || c->item_atlas_index != atlas_index ||
-              c->item_num_mode != (uint8_t)num_mode || c->behavior.hide != 0;
+              c->item_num_mode != (uint8_t)num_mode;
     if( c->type == UIELEM_CC_OBJ )
         changed = changed || c->u.cc_obj.obj_id != obj_id || c->u.cc_obj.obj_count != obj_count ||
                   c->u.cc_obj.scene_id != scene_id || c->u.cc_obj.atlas_index != atlas_index;
@@ -4528,17 +4507,6 @@ UITree_ApplyObject(
     /* RS_GRAPHIC: item lives in item_id/item_scene_id; do not overwrite
      * rs_graphic.scene_id (SETGRAPHIC chrome). Emit prefers item when set. */
 
-    if( c->behavior.hide )
-        (void)UITree_SetHideAt(tree, idx, 0);
-    /* Hide silhouette sibling while an item occupies the equipment slot. */
-    if( is_equipment_overlay && c->parent >= 0 )
-    {
-        int32_t parent_idx = c->parent;
-        int32_t sil_idx = UITree_FindChildBySubid(
-            tree, parent_idx, tree->components[parent_idx].component_id, 2);
-        if( sil_idx >= 0 && tree->components[sil_idx].type == UIELEM_RS_GRAPHIC )
-            (void)UITree_ApplyHide(tree, tree->components[sil_idx].component_id, 1);
-    }
     if( !changed )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
@@ -5047,8 +5015,8 @@ UITree_GetLayoutWidth(
         return 0;
     UITree_EnsureLayoutFor(tree, idx);
     struct UITreeElemPosition const* pos = &tree->components[idx].position;
-    if( pos->layout_resolved && pos->abs_w > 0 )
-        return pos->abs_w;
+    if( pos->layout_resolved )
+        return pos->abs_w > 0 ? pos->abs_w : 0;
     return pos->width > 0 ? pos->width : 0;
 }
 
@@ -5062,8 +5030,8 @@ UITree_GetLayoutHeight(
         return 0;
     UITree_EnsureLayoutFor(tree, idx);
     struct UITreeElemPosition const* pos = &tree->components[idx].position;
-    if( pos->layout_resolved && pos->abs_h > 0 )
-        return pos->abs_h;
+    if( pos->layout_resolved )
+        return pos->abs_h > 0 ? pos->abs_h : 0;
     return pos->height > 0 ? pos->height : 0;
 }
 
@@ -5119,8 +5087,8 @@ UITree_ComponentVisibleById(
     int hovered_component_id)
 {
     assert(component);
-    if( component->native_hide ) return false;
-    if( !component->behavior.hide )
+    if( component->native_hide || component->mount_hidden ) return false;
+    if( !(component->behavior.hide || component->mount_hidden) )
         return true;
     /* IF1 uses hide for hover-gated tooltip layers. IF3/CS2 explicit hiding
      * is not a tooltip mechanism and must not be undone by last frame's hover. */
@@ -5513,7 +5481,7 @@ uitree_node_or_ancestor_hidden(
              * a synthesised semantic press. The exact-node exception remains
              * separate because it is used for painting at one tombstone.
              * @see UITree_NodeOrAncestorDisplayHiddenEx. */
-            if( tree->components[idx].behavior.hide ||
+            if( tree->components[idx].behavior.hide || tree->components[idx].mount_hidden ||
                 (include_plugin_hidden &&
                  ((tree->components[idx].frame_hidden && !ignore_frame_hidden &&
                    idx != ignore_own_replacement) ||
@@ -5637,7 +5605,7 @@ drop_target_pick_in_subtree(
         return 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
-    if( c->behavior.hide || c->frame_hidden || c->screen_hidden || c->replacement_hidden ||
+    if( c->behavior.hide || c->mount_hidden || c->frame_hidden || c->screen_hidden || c->replacement_hidden ||
         c->projection_hidden )
         return 0;
     if( c->component_id == exclude_component_id )
@@ -5740,7 +5708,7 @@ UITree_FindDropTargetNode(
     assert(tree);
     for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
-        if( tree->components[root].behavior.hide || tree->components[root].frame_hidden ||
+        if( tree->components[root].behavior.hide || tree->components[root].mount_hidden || tree->components[root].frame_hidden ||
             tree->components[root].screen_hidden ||
             tree->components[root].replacement_hidden ||
             tree->components[root].projection_hidden )

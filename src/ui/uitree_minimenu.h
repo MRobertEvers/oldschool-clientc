@@ -88,7 +88,7 @@ struct UIMinimenuPick
      * ids and array slots can both be reused while the menu is open. */
     int has_node_identity;
     int32_t node_index;
-    uint32_t node_incarnation;
+    uint64_t node_incarnation;
     /** Synthetic engine click delegated by a semantic replacement: its native
      * source remains addressable below replacement tombstones. Cache/script
      * hiding and other native visibility fences still invalidate it. */

@@ -476,17 +476,14 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
      * right-docked column, so fixed mode grew the canvas to 765+264 and left a
      * 222px black band between the classic frame and the 42px strip.
      *
-     * hide_unmounted, not a plain hide: it is the same marker the spillover
+     * mount_hidden, not a native hide: it is the same marker the spillover
      * sweep and a replacing mount use, and it is what the eventual open (sub or
      * top) knows how to undo.
      */
     if( pack_root_idx >= 0 && tree->components[pack_root_idx].parent < 0 &&
         !UITree_InterfaceParentIsMountedGroup(tree, self->await_id) )
     {
-        struct UITreeComponent* root = &tree->components[pack_root_idx];
-        if( !root->behavior.hide )
-            root->behavior.hide_unmounted = 1;
-        (void)UITree_SetHideAt(tree, pack_root_idx, 1);
+        (void)UITree_SetMountHiddenAt(tree, pack_root_idx, 1);
     }
 
     UITree_LayoutResolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);

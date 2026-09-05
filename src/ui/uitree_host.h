@@ -143,7 +143,7 @@ struct UITreeEntityOverlay
 struct UITreeRoleOverlayGroup
 {
     int32_t node_index;
-    uint32_t node_incarnation;
+    uint64_t node_incarnation;
     uint8_t replace;
     uint8_t place;
     struct UITreeEntityOverlay const* items;
@@ -683,7 +683,7 @@ struct UITreeHostRequest
         struct
         {
             int32_t node_index;
-            uint32_t node_incarnation;
+            uint64_t node_incarnation;
             int replace;
             int clip_x;
             int clip_y;

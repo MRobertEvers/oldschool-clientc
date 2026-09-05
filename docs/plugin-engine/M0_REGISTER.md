@@ -4,7 +4,8 @@ M0 discovery and baseline preparation are complete for milestone sequencing.
 Every mutation family and discovered consumer has a recorded disposition; the
 implementation gaps below remain requirements of M1–M6. This is not acceptance
 of complete tree-mutation correctness. M1 now has major-3 declarations, shared
-policy tests and observed failing native conformance cases. The production host
+policy tests and observed failing native conformance cases, now repaired in the
+[first M2 checkpoint](M2_PROGRESS.md). M2 remains in progress. The production host
 still uses V2 until the coordinated cutover.
 
 ## Workspace and evidence

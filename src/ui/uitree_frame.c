@@ -77,7 +77,7 @@ struct UITreeFrameLayout
 {
     /** Nodes carrying each role and their exact array-slot incarnations. */
     int32_t slot_node[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
-    uint32_t slot_incarnation[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
+    uint64_t slot_incarnation[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     /** UITree_FrameSlotIndex for each, so a per-member box finds its node
      *  without re-deriving it every frame. */
     int slot_member[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
@@ -86,11 +86,11 @@ struct UITreeFrameLayout
     struct UITreeFrameSlotRect slot_rect[UITREE_FRAME_SLOT_COUNT];
     /** Lane chrome (and unplaced slots) the declaration suppresses. */
     int32_t hidden[UITREE_FRAME_HIDDEN_MAX];
-    uint32_t hidden_incarnation[UITREE_FRAME_HIDDEN_MAX];
+    uint64_t hidden_incarnation[UITREE_FRAME_HIDDEN_MAX];
     int hidden_count;
     /** Layers effectively widened so they do not clip placed surfaces. */
     int32_t stretched[UITREE_FRAME_STRETCHED_MAX];
-    uint32_t stretched_incarnation[UITREE_FRAME_STRETCHED_MAX];
+    uint64_t stretched_incarnation[UITREE_FRAME_STRETCHED_MAX];
     int stretched_count;
     /**
      * The lane's own GAME-AREA container, re-boxed to the area the
@@ -100,7 +100,7 @@ struct UITreeFrameLayout
      * container leaves it zero and nothing is overridden.
      */
     int32_t area_node;
-    uint32_t area_incarnation;
+    uint64_t area_incarnation;
     struct UITreeFrameRect area_rect;
     /** The semantic binding this table describes. */
     uint32_t applied_generation;
@@ -127,7 +127,7 @@ static int
 frame_node_same(
     struct UITree const* tree,
     int32_t idx,
-    uint32_t incarnation)
+    uint64_t incarnation)
 {
     assert(tree);
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
@@ -987,7 +987,7 @@ static int
 frame_hidden_has(
     struct UITreeFrameLayout const* fl,
     int32_t idx,
-    uint32_t incarnation)
+    uint64_t incarnation)
 {
     assert(fl);
     for( int i = 0; i < fl->hidden_count; i++ )
@@ -1000,7 +1000,7 @@ static int
 frame_stretched_has(
     struct UITreeFrameLayout const* fl,
     int32_t idx,
-    uint32_t incarnation)
+    uint64_t incarnation)
 {
     assert(fl);
     for( int i = 0; i < fl->stretched_count; i++ )
@@ -1103,7 +1103,7 @@ UITree_FrameApply(
     for( int i = 0; i < fl->hidden_count; i++ )
     {
         int32_t const idx = fl->hidden[i];
-        uint32_t const incarnation = fl->hidden_incarnation[i];
+        uint64_t const incarnation = fl->hidden_incarnation[i];
         if( !frame_node_same(tree, idx, incarnation) ||
             frame_hidden_has(&next, idx, incarnation) )
             continue;
@@ -1113,7 +1113,7 @@ UITree_FrameApply(
     for( int i = 0; i < next.hidden_count; i++ )
     {
         int32_t const idx = next.hidden[i];
-        uint32_t const incarnation = next.hidden_incarnation[i];
+        uint64_t const incarnation = next.hidden_incarnation[i];
         if( !frame_node_same(tree, idx, incarnation) ||
             frame_hidden_has(fl, idx, incarnation) )
             continue;
@@ -1126,7 +1126,7 @@ UITree_FrameApply(
     for( int i = 0; i < fl->stretched_count; i++ )
     {
         int32_t const idx = fl->stretched[i];
-        uint32_t const incarnation = fl->stretched_incarnation[i];
+        uint64_t const incarnation = fl->stretched_incarnation[i];
         if( !frame_node_same(tree, idx, incarnation) ||
             frame_stretched_has(&next, idx, incarnation) )
             continue;
@@ -1136,7 +1136,7 @@ UITree_FrameApply(
     for( int i = 0; i < next.stretched_count; i++ )
     {
         int32_t const idx = next.stretched[i];
-        uint32_t const incarnation = next.stretched_incarnation[i];
+        uint64_t const incarnation = next.stretched_incarnation[i];
         if( !frame_node_same(tree, idx, incarnation) ||
             frame_stretched_has(fl, idx, incarnation) )
             continue;

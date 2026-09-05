@@ -13,6 +13,7 @@ main(void)
         test_plugin_contract_native();
         return g_failures ? 1 : 0;
     }
+    test_plugin_contract_native();
     test_dirty_marking();
     test_walk_topology();
     test_mounted_world_resize();

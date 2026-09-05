@@ -8877,10 +8877,7 @@ exec_widget_drag_pickup(
     if( node->drag_render_area_uid < 0 &&
         UITree_ClickMaskDragDepth(node->behavior.click_mask) == 0 )
         return CS2VM_EXECNO_OK;
-    tree->pending_drag_pickup = 1;
-    tree->pending_drag_pickup_id = component_id;
-    tree->pending_drag_pickup_x = pickup_x;
-    tree->pending_drag_pickup_y = pickup_y;
+    (void)UITree_StageDragPickup(tree, (int32_t)(node - tree->components), pickup_x, pickup_y);
     return CS2VM_EXECNO_OK;
 }
 

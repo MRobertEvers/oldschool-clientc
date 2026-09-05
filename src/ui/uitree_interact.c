@@ -1123,7 +1123,6 @@ interact_drag_consume_pending(
     struct UITreeComponent* src;
     int mx;
     int my;
-    int pending_id;
     int pending_x;
     int pending_y;
 
@@ -1137,7 +1136,6 @@ interact_drag_consume_pending(
 
     /* Snapshot then clear only after accept — a refuse must not drop the
      * request when a live drag blocks it (next frame may be free). */
-    pending_id = tree->pending_drag_pickup_id;
     pending_x = tree->pending_drag_pickup_x;
     pending_y = tree->pending_drag_pickup_y;
 
@@ -1151,7 +1149,7 @@ interact_drag_consume_pending(
         return 0;
     }
 
-    idx = UITree_FindByComponentId(tree, pending_id);
+    idx = UITree_ResolveRef(tree, tree->pending_drag_pickup_ref);
     if( idx < 0 || UITree_NodeOrAncestorDisplayHidden(tree, idx) )
     {
         tree->pending_drag_pickup = 0;

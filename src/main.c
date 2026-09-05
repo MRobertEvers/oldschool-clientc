@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include "app.h"
 #include "torirs_env.h"
 #include "log/torirs_log.h"
@@ -3170,7 +3171,7 @@ frame_loop_teardown(void)
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
                     c->scroll_x, c->scroll_y);
                 if( getenv("TORIRS_TRACE_NATIVE_UI") )
-                    TORIRS_REPORT("NATIVE_UI node=%u incarnation=%u parent=%d com=%d "
+                    TORIRS_REPORT("NATIVE_UI node=%u incarnation=%" PRIu64 " parent=%d com=%d "
                         "type=%s hidden=%d native_paint=%d native_input=%d native_hide=%u slot=%u member=%u role=%u "
                         "box=%d,%d,%d,%d cs1_scripts=%d active=%d\n",
                         i, c->incarnation, c->parent, c->component_id,

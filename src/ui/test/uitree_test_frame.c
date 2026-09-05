@@ -1196,7 +1196,7 @@ test_release_ignores_same_id_recycled_incarnations(void)
     int32_t old_compass;
     int32_t new_root;
     int32_t new_compass;
-    uint32_t old_incarnation;
+    uint64_t old_incarnation;
     struct UITreeEmitDesc native_desc;
 
     TEST_ASSERT(tree != NULL, "UITree_New");

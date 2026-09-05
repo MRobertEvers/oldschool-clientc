@@ -65,7 +65,7 @@ struct TestHostState
     int role_anchor_seen;
     int role_clip_updates;
     int32_t role_clip_node;
-    uint32_t role_clip_incarnation;
+    uint64_t role_clip_incarnation;
     struct UITreeScrollClip role_clip;
     /** When >= 0, GET_OBJ_NAME answers for that obj id and reports it as a bank
      *  placeholder — the one fact that suppresses an item cell's count text. */

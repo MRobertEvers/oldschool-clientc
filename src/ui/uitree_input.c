@@ -330,7 +330,7 @@ hit_test_interactive_recursive(
      * info screen's "Try again" plate, which covers the right half of Login
      * and the left half of Cancel -- both buttons visibly lit and dead over
      * the overlap. */
-    if( component->behavior.hide || component->frame_hidden || component->screen_hidden ||
+    if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
         component->replacement_hidden || component->projection_hidden )
         return -1;
 
@@ -523,7 +523,7 @@ UITree_HitTestRecursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide || component->frame_hidden || component->screen_hidden ||
+    if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
         component->replacement_hidden || component->projection_hidden )
         return -1;
 
@@ -611,7 +611,7 @@ collect_nodes_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( component->behavior.hide || component->screen_hidden || component->projection_hidden ||
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden || component->projection_hidden ||
         (component->frame_hidden && !component->replacement_hidden) ) return;
     if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
     if( component->replacement_hidden )
@@ -888,7 +888,7 @@ struct role_boundary_order
     struct UITreeHost const* host;
     int32_t candidate;
     int32_t anchor;
-    uint32_t anchor_incarnation;
+    uint64_t anchor_incarnation;
     bool replace;
     int place;
     uint64_t sequence;
@@ -1020,7 +1020,7 @@ role_boundary_walk_node(
         return;
     component = &tree->components[node];
     if( component->freed || component->frame_hidden || component->screen_hidden ||
-        component->projection_hidden || component->behavior.hide )
+        component->projection_hidden || (component->behavior.hide || component->mount_hidden) )
         return;
 
     if( !UITree_NodeNativeVisible(tree, order->host, node, -1) ) return;
@@ -1267,7 +1267,7 @@ UITree_NodePaintsAfterRolePlacement(
     struct UITreeHost const* host,
     int32_t candidate_node,
     int32_t anchor_node,
-    uint32_t anchor_incarnation,
+    uint64_t anchor_incarnation,
     bool replace,
     int place)
 {
@@ -1303,7 +1303,7 @@ UITree_NodePaintsAfterRoleBoundary(
     struct UITreeHost const* host,
     int32_t candidate_node,
     int32_t anchor_node,
-    uint32_t anchor_incarnation,
+    uint64_t anchor_incarnation,
     bool replace)
 {
     return UITree_NodePaintsAfterRolePlacement(
@@ -1323,7 +1323,7 @@ UITree_PointInputCoverPaintsAfterRolePlacement(
     int px,
     int py,
     int32_t anchor_node,
-    uint32_t anchor_incarnation,
+    uint64_t anchor_incarnation,
     bool replace,
     int place)
 {
@@ -1359,7 +1359,7 @@ UITree_PointInputCoverPaintsAfterRoleBoundary(
     int px,
     int py,
     int32_t anchor_node,
-    uint32_t anchor_incarnation,
+    uint64_t anchor_incarnation,
     bool replace)
 {
     return UITree_PointInputCoverPaintsAfterRolePlacement(

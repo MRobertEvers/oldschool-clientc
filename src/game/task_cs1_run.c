@@ -1,3 +1,4 @@
+#include <inttypes.h>
 /*
  * CS1 evaluation task. Mirrors task_cs2_run: drive the VM, and when a host op
  * yields for a cache load, plan the yield in a flat switch and service it with
@@ -91,7 +92,7 @@ task_cs1_eval_component(struct Task_CS1Eval* self)
     {
         (void)UITree_SetCS1ActiveAt(self->host->tree, self->cursor, active ? 1 : 0);
         if( getenv("TORIRS_TRACE_NATIVE_UI") )
-            TORIRS_REPORT("NATIVE_CS1 com=%d incarnation=%u active=%d\n",
+            TORIRS_REPORT("NATIVE_CS1 com=%d incarnation=%" PRIu64 " active=%d\n",
                 component->component_id, component->incarnation, component->cs1_active);
         self->host->eval_dirty = true;
     }
@@ -110,7 +111,7 @@ task_cs1_eval_component(struct Task_CS1Eval* self)
         {
             (void)UITree_SetCS1ValueAt(self->host->tree, self->cursor, i, value);
             if( getenv("TORIRS_TRACE_NATIVE_UI") )
-                TORIRS_REPORT("NATIVE_CS1 com=%d incarnation=%u value[%d]=%d\n",
+                TORIRS_REPORT("NATIVE_CS1 com=%d incarnation=%" PRIu64 " value[%d]=%d\n",
                     component->component_id, component->incarnation, i, component->cs1_values[i]);
             self->host->eval_dirty = true;
         }

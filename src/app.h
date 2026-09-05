@@ -1205,7 +1205,7 @@ struct App
     {
         struct UITreeEntityOverlay item;
         int32_t node_index;
-        uint32_t node_incarnation;
+        uint64_t node_incarnation;
         uint8_t replace;
         uint8_t place;
     } plugin_role_overlay_raw[512];
@@ -1225,7 +1225,7 @@ struct App
     int plugin_ui_boundary_active;
     int plugin_ui_boundary_valid;
     int32_t plugin_ui_boundary_node;
-    uint32_t plugin_ui_boundary_incarnation;
+    uint64_t plugin_ui_boundary_incarnation;
     uint8_t plugin_ui_boundary_replace;
     uint8_t plugin_ui_boundary_place;
     /*
@@ -1299,7 +1299,7 @@ struct App
         uint8_t ui_boundary_replace;
         uint8_t ui_boundary_place;
         int32_t ui_boundary_node;
-        uint32_t ui_boundary_incarnation;
+        uint64_t ui_boundary_incarnation;
         int role_clip_x;
         int role_clip_y;
         int role_clip_w;
@@ -1330,7 +1330,7 @@ struct App
         uint8_t ui_boundary_replace;
         uint8_t ui_boundary_place;
         int32_t ui_boundary_node;
-        uint32_t ui_boundary_incarnation;
+        uint64_t ui_boundary_incarnation;
     } plugin_pointer_capture;
 
     /** Engine-side incarnation fences for named-UI facet suppression. The
@@ -1342,7 +1342,7 @@ struct App
     {
         char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
         int32_t node_index;
-        uint32_t node_incarnation;
+        uint64_t node_incarnation;
         uint8_t paint;
         uint8_t input;
         uint8_t subtree;
@@ -1400,7 +1400,7 @@ struct App
     struct
     {
         int32_t node;
-        uint32_t incarnation;
+        uint64_t incarnation;
     } plugin_frame_stamp[64];
     int plugin_frame_stamp_count;
     /** Set when the tree is rebuilt or the canvas changes under an active
@@ -2604,7 +2604,7 @@ struct App
     /** Exact cell/grid occupant armed on mouse-down. Prevents a held gesture
      * transferring to a same-id node rebuilt into the recycled slot. */
     int32_t inv_drag_node_index;
-    uint32_t inv_drag_node_incarnation;
+    uint64_t inv_drag_node_incarnation;
     int inv_drag_can_drag; /* armed cell's IF_SETEVENTS drag-depth != 0 */
     int inv_drag_from_slot;
     int inv_drag_source_id; /* inv container source id */

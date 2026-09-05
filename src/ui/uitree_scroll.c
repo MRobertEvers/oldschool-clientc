@@ -477,7 +477,7 @@ find_scrollbar_recursive(
     /* A plugin replacement is display:none, not merely unpainted.  Prune the
      * whole subtree exactly as emit/hit/menu do, or an invisible IF1 bar can
      * capture the pointer before generic hit-testing gets a say. */
-    if( component->behavior.hide || component->frame_hidden ||
+    if( component->behavior.hide || component->mount_hidden || component->frame_hidden ||
         component->replacement_hidden || component->projection_hidden )
         return false;
     int bx = 0;

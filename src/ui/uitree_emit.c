@@ -2742,7 +2742,7 @@ emit_walk_node(
         return;
     }
     /* Hide-gated layers stay invisible unless their component_id is hovered. */
-    if( c->behavior.hide && !UITree_ComponentVisibleById(c, hovered_component_id) )
+    if( !UITree_ComponentVisibleById(c, hovered_component_id) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;

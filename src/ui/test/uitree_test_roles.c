@@ -342,7 +342,7 @@ test_role_replacement_overlay(void)
     struct UITreeEntityOverlay item;
     struct UITreeRoleOverlayGroup group;
     int32_t root, target, child_a, child_b, sibling;
-    uint32_t target_incarnation;
+    uint64_t target_incarnation;
     int overlay_at, child_a_at, child_b_at, sibling_at;
     int cx, cy, cw, ch;
 
@@ -520,7 +520,7 @@ test_role_facet_suppression(void)
     struct UITreeRoleOverlayGroup group;
     int32_t hits[8];
     int32_t root, target, child, sibling;
-    uint32_t incarnation;
+    uint64_t incarnation;
     int target_x, target_y, target_w, target_h;
     int child_x, child_y, child_w, child_h;
     int hook_component = -1;
@@ -790,7 +790,7 @@ test_role_boundary_input_covers(void)
     struct UITreeHost host;
     struct TestHostState state;
     int32_t root, under_blocker, anchor, over_blocker;
-    uint32_t anchor_incarnation;
+    uint64_t anchor_incarnation;
 
     TEST_ASSERT(tree != NULL, "role input-cover tree");
     UITree_TestHostInit(&host, &state);

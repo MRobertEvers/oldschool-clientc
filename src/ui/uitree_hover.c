@@ -113,7 +113,7 @@ find_hovered_recursive(
      * visible jewellery-enchant sibling (last-match-wins). IF1 overlayer
      * tooltips stay correct: the visible cell redirects via over_layer_id;
      * the hidden tooltip layer never needs to self-report. */
-    if( component->behavior.hide || component->screen_hidden || component->projection_hidden ||
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden || component->projection_hidden ||
         (component->frame_hidden && !component->replacement_hidden) ) return;
     if( component->replacement_hidden )
     {
