@@ -90,6 +90,9 @@ task_cs1_eval_component(struct Task_CS1Eval* self)
     if( component->cs1_active != (active ? 1 : 0) )
     {
         (void)UITree_SetCS1ActiveAt(self->host->tree, self->cursor, active ? 1 : 0);
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            TORIRS_REPORT("NATIVE_CS1 com=%d incarnation=%u active=%d\n",
+                component->component_id, component->incarnation, component->cs1_active);
         self->host->eval_dirty = true;
     }
 
@@ -106,6 +109,9 @@ task_cs1_eval_component(struct Task_CS1Eval* self)
         if( component->cs1_values[i] != value )
         {
             (void)UITree_SetCS1ValueAt(self->host->tree, self->cursor, i, value);
+            if( getenv("TORIRS_TRACE_NATIVE_UI") )
+                TORIRS_REPORT("NATIVE_CS1 com=%d incarnation=%u value[%d]=%d\n",
+                    component->component_id, component->incarnation, i, component->cs1_values[i]);
             self->host->eval_dirty = true;
         }
     }

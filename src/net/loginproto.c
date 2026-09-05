@@ -14,12 +14,30 @@ rsbuf_rsaenc(
     struct RSCache_Buffer* buffer,
     const struct rsa* rsa)
 {
+    if( buffer->size < 3 || buffer->position <= 0 )
+        return -1;
     int8_t* temp = malloc(buffer->position);
+    if( !temp )
+        return -1;
     memcpy(temp, buffer->data, buffer->position);
 
     int enclen = rsa_crypt(
-        (struct rsa*)rsa, temp, buffer->position, buffer->data + 1, buffer->size);
+        (struct rsa*)rsa, temp, buffer->position, buffer->data + 1, buffer->size - 2);
     free(temp);
+
+    if( enclen <= 0 || enclen > 254 )
+        return -1;
+    /* This wire uses Java BigInteger.toByteArray, a signed two's-complement
+     * representation. rsa_crypt returns an unsigned magnitude. LostCity's
+     * Packet.rsadec interprets an unprefixed high bit as a NEGATIVE cipher,
+     * decrypts another number, then returns the misleading out-of-date reply.
+     * Keep this encoding here: other login protocols use unsigned blocks. */
+    if( buffer->data[1] & 0x80 )
+    {
+        memmove(buffer->data + 2, buffer->data + 1, (size_t)enclen);
+        buffer->data[1] = 0;
+        enclen++;
+    }
 
     buffer->data[0] = enclen;
     buffer->position = enclen + 1;
@@ -332,8 +350,8 @@ loginproto_poll(struct LoginProto* loginproto)
             }
             /*
              * Reply 6 is the one worth spelling out. It means "client out of
-             * date", and the server decides it from the two things this block
-             * just sent -- the revision and the nine jag checksums -- so the
+             * date", but the server also uses it for an invalid RSA block.
+             * Revision and jag checksums are not the only possible causes, so the
              * number alone names neither. All-zero checksums are the failure
              * that looks like a version problem and is not: an on-demand boot
              * fills them from the server's own `GET /crc`, so zeros mean that
@@ -367,8 +385,8 @@ loginproto_poll(struct LoginProto* loginproto)
                            "revision disagrees -- check engine.revision in the "
                            "server's data/config/world.json -- or the server "
                            "repacked between that read and this login, which "
-                           "makes them stale and is transient: retry once "
-                           "before believing the revision.");
+                           "makes them stale. LostCity also returns this reply "
+                           "for an invalid RSA block; verify the login key.");
             }
             else
                 TORIRS_ERR("loginproto: login rejected, reply=%d\n", reply_byte);

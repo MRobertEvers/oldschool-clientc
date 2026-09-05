@@ -1,0 +1,175 @@
+# M0 implementation register
+
+M0 is **open**. M1–M6 have not started; the plugin API remains V2. This is an
+engineering checkpoint with executable discovery, fixture gates and measured
+native scenarios, not acceptance of the full plugin contract.
+
+## Workspace and evidence
+
+Work is isolated on `codex/plugin-engine`, based on PR #82 head `9fca0e47a`.
+The original dirty workspace, its submodules and the uncommitted plan are
+preserved. No stash or shared-tree cleanup was used.
+
+Local evidence is under `/private/tmp/plugin-engine-evidence`. Each capture has
+`fixture.json`, its complete preferences, player seed provenance, client exit
+status, native trace, BMP and pixel scores. `fixture.json` hashes the binary,
+manifest, cache/pack files and revision profiles. LostCity's eight downloaded
+JAG archives are checked against its nine-entry login CRC response. Server and
+content commits and dirty source hashes are recorded. These are preflight
+checks, not proof that every mutable source input has been covered.
+
+LostCity engine: `55e89e60209a958f0499b35f26cade1b17cdab94`, content:
+`b6e11d98c1542221286af3ceb63c635b6469ba0e`. The running server has existing Node
+worker adaptations; their dirty state is captured, not claimed to be upstream.
+It serves revision 289 on TCP 43594 / HTTP 80. Each new connection uses a
+**different account**. Scenario accounts are created exclusively from the same
+test-owned `rs289-seed.sav`; an existing player's save is never overwritten.
+`player.json` names the account and records the seed SHA-256.
+
+OSRS content: clean checkout at `695844ed5b4254aa34b1c297a1137ce95e2ae032`,
+`/private/tmp/plugin-engine-content`. The curses server pack rebuilt 29,603
+scripts successfully (`/private/tmp/plugin-engine-scripts-build.log`). The full
+cache bake exited 1 (`/private/tmp/plugin-engine-cache-build.log`), including
+chat script 223's unresolved `torirs_gim_chat_prefix` proc. The existing targeted
+cache remains diagnostic input only. No runtime stale-script bypass was used.
+
+## Implemented mechanisms and observed controls
+
+* `tools/gameframe_matrix.sh` now selects rs289lc or OSRS239, supports native
+  baselines without plugins, and runs revision-specific scenarios through the
+  existing capture/scoring path. It rejects reused output directories, missing
+  captures, failed client exits and rejected fixture provenance. Diagnostic runs
+  cannot return an acceptance exit code.
+* `tools/gameframe_fixture.py` reuses launcher manifest/freshness parsing. It
+  rejects stale checks, missing coverage, mismatched checked/consumed paths,
+  wrong revision/codec/logic and inherited freshness bypasses (including `=0`).
+* `NATIVE_UI` records incarnation, parent, bounds, native hide and separate
+  paint/input availability. `NATIVE_CS1` records evaluated state changes.
+  Packet traces distinguish receipt from applied stat values. Nothing assumes
+  an asynchronous hide has applied merely because it was received.
+* A baseline launch defect was reproduced and fixed in `net/loginproto.c`:
+  LostCity interprets RSA ciphertext as a signed BigInteger. The unsigned
+  magnitude needs a leading zero when its high bit is set. The independent
+  modular-exponentiation vector in `net_login_test.c` failed before the fix and
+  passes afterward for both the one-byte and escaped revision encodings.
+
+Observed native runs:
+
+| Evidence directory | Result and limits |
+|---|---|
+| `rs289-contract-isolated` | 0/2 failed groups. Strength changes through the real UPDATE_STAT → CS1 path; both value components read 20. Skill-guide packets arrive before mounting; eight control layers remain hidden and the two-operation layer is shown. Native paint and input agree with final hide state. |
+| `negative-cs1` | Actual client with CS1 evaluation disabled: CS1-value gate fails while the four chat controls still pass. Restored evaluation passes. |
+| `negative-rs289-server-hide` | Actual client with `UITree_SetHideAt` disabled: packet gate passes, final hide/availability gate fails. Production source is restored and rebuilt. |
+| `osrs239-native-diagnostic` | 0/4 capture failures for 548/161/164/601 with plugins disabled; fixture acceptance remains blocked. |
+| `rs289-native-window` | Real Cocoa native launch and exit bitmap, no freshness bypass. Four chat controls and fourteen sidebar controls inspected at 2×. |
+| `osrs239-native-window` | Real Cocoa native launch; eight filters inspected at 2×. Diagnostic because full content preparation is blocked. |
+
+The rs289 Stats screenshot has **19 skill cells**, including Strength **20/20**.
+The skill-guide screenshot has Attack and Defence operations plus Close Window;
+the other server-hidden operation groups are absent. OSRS desktop screenshots
+have eight filters and six readable mode cells; mobile has seven filters and
+six mode cells. These counts do not establish every action's correctness.
+
+The native Cocoa rs289 capture has a 1530×1006 drawable with the native fixed
+765×503 frame at its upper left. The dummy-driver reference is 765×503. This
+logical/drawable behavior remains an explicit frontend question, not a claim
+that arbitrary native rs289 resizing works.
+
+## Measured native surfaces
+
+Coordinates are canvas pixels from the instrumented dummy-driver runs, with
+plugins disabled and a requested 765×503 window. Each cell is `x,y w×h`.
+
+| Revision/root | World | Minimap | Compass | Chat |
+|---|---|---|---|---|
+| rs289lc | 4,4 513×335 | 575,9 146×151 | 550,4 33×33 | builtin 17,357 479×96 |
+| OSRS 548 | 4,4 512×334 | 570,9 145×151 | 545,4 32×33 | 162:0 at 0,338 519×165 |
+| OSRS 161 | 0,0 765×503 | 607,8 152×152 | 588,5 35×35 | 162:0 at 0,338 519×165 |
+| OSRS 164 | 0,0 765×503 | 607,8 152×152 | 588,5 35×35 | 162:0 at 0,338 519×165 |
+| OSRS 601 | 0,0 765×503 | 590,8 152×152 | 571,5 35×35 | 162:0 at 11,0 519×145 |
+
+## Mutation discovery and dispositions
+
+`tools/plugin_engine_inventory.py` extracts the complete tree/owned-record
+schema with Clang, discovers repository consumers and enumerates 295 CC/IF host
+requests. Optional `--compile-log` resolves field references in translation
+units from an actual build using Python libclang. The generated register keeps
+unreviewed entries blocking. Lexical matches can refer to other structs; typed
+accesses still need phase/alias/bulk-write review. Counts are not proof of closure.
+
+The examined build has 408 C translation units. Three platform units failed
+libclang analysis because the installed libclang and Apple's NEON headers differ
+(`platform_audio_sdl2.c`, `platform_gl_context_sdl.c`, `platform_sdl2.c`). Native
+compilation passed. Other frontend/preprocessor branches remain unexamined.
+
+| Mutation family | Mechanisms read / current evidence | Blocking disposition |
+|---|---|---|
+| Identity/topology | `uitree.c`: Push, Clear, reclaim, Reparent, CcCreate/Copy/Delete/DeleteAll; incarnation allocation. | Audit bulk copies, subtree reuse, role/index invalidation and every async completion. Existing incarnation support is incomplete evidence. |
+| Hide/availability | SetHideAt, App_IfHideSet/reapply, uitree_host native paint/input, replacement-chain presentation. Real rs289 pending hides and restored negative control. | Complete cross-feature descendants/controller and all lifecycle sequences; do not reuse OSRS minimap meanings on rs289. |
+| Geometry | Native setters retain requested geometry under frame ownership. GetLayoutWidth/Height and GetRelativeX/Y call EnsureLayoutFor. | Settle allocation/readback semantics, zero-size fallback, ancestor/descendant propagation and one-script read-after-write under allocations. |
+| Scroll/clip | Native scroll setters; frame_stretched changes ancestor clipping. | Replace implicit broad escape with an explicit policy; measure scroll extent/position/clipping under moved native descendants. |
+| Opacity/appearance | Typed trans/colour/image setters coexist with direct CS2 writes to flips, line width, trans_bot, active graphic and fill. | Define self/subtree and per-property ownership, state mappings and all paint/resource invalidations. |
+| Animation | CS2 directly updates sequence/frame/cycle/orthographic fields; app_player_model_poll writes native pose state. | Classify tick and async writers and preserve native animation beneath skins. |
+| Live content | Real UPDATE_STAT → CS1 readback; packet inventory clears directly mutate item/icon fields. | Audit text/CS1 variants, inventory epochs, asynchronous icon resources and release to current native content. |
+| Operations/hooks | CS2 direct drag/deadzone/no-click-through writes; mutable menu/options/hook blocks are accessible internally. | Classify action labels, masks, listener/index registration and callback authority, including bulk/alias writes. |
+| Retained interaction | Input/drag and menus have some incarnation checks. Focus currently stores only component ID; pending CS1 evaluation retains an array cursor across awaits. | Prove focus, press/release, drag, menus, tooltip and queued callback outcomes for delete/reuse/reparent/remount. |
+| Composition/lifecycle | Existing frame host validates anchors and scopes active providers. | Specify exclusive property conflict outcomes, additive ordering, transactional enable/failure/reload and resource replacement for C/Lua together. |
+
+## Consumer checklist
+
+[`m0-consumers.json`](m0-consumers.json) records every discovered consumer,
+plugin definition, widget request and packet dispatcher case. Current discovery
+finds all 13 C products, Lua runtime, six product scripts, ten probes/demos and
+23 C test plugin definitions. It also includes disabled manifests, Lua metadata,
+plugin chrome executors/archived snapshots, frontend bridges and API examples.
+All ports are **pending**. User preferences are marked preserve-user-data.
+
+The 159-file discovery list needs a final independent review for indirect build
+references and disabled branches; discovery scripts introduced in this pass are
+themselves tooling consumers. No API has been removed or port declared complete.
+
+## Reproduction
+
+Build the source separately from installed runtime data:
+
+```sh
+make -C src OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_plugin_engine \
+  PLATFORM_TARGET=torirs_plugin_engine torirs_plugin_engine -j8
+make -C src test-gameframe-fixture test-net-login test-net-loopback test-net-exec test-cs1 test-uitree
+python3 tools/plugin_engine_inventory.py --out /tmp/plugin-engine-inventory.json
+```
+
+For typed discovery, install Python `libclang` in an isolated virtual environment
+and add `--compile-log /path/to/the/full-build.log`. Parse errors remain blockers.
+
+Use a fresh output directory for each harness invocation:
+
+```sh
+REPO=/path/to/installed/runtime BIN=/path/to/exact/client \
+GF_MATRIX_REVISION=rs289lc GF_MATRIX_LC_SERVER=/path/to/LostCity_Server \
+GF_MATRIX_LC_SAVE=/path/to/test-owned-gameplay-seed.sav GF_MATRIX_SCENARIOS=1 \
+tools/gameframe_matrix.sh /tmp/rs289-new-run
+
+REPO=/path/to/installed/runtime BIN=/path/to/exact/client \
+MANIFEST=/path/to/prepared-osrs239.ini GF_MATRIX_BASELINE=1 \
+GF_MATRIX_TAGS=m01,m11,m21,m31 tools/gameframe_matrix.sh /tmp/osrs239-new-run
+```
+
+Set `SDL_VIDEODRIVER=cocoa` for the macOS native-window run. Default captures
+use SDL's dummy driver and the real software renderer. Never set the stale-script
+override for accepted runs. `GF_MATRIX_DIAGNOSTIC=1` exits 3 even if pixels pass.
+
+## Open M0 gates
+
+1. Finish semantic review of every schema field, typed/indirect/bulk writer,
+   consumer, initialization boundary and unexamined frontend branch.
+2. Repair required OSRS cache preparation, including the full chat proc closure;
+   rebuild and validate the consumed artifacts against pinned content. Existing
+   targeted cache captures are not final evidence.
+3. Make the LostCity server/content fixture reproducible from recorded inputs,
+   including its existing runtime adaptations, and close the native drawable
+   behavior question.
+4. Measure quiet, mutation-heavy and multi-plugin performance on accepted pinned
+   fixtures. Current startup-inclusive OPT=0 timings are diagnostic, not budgets.
+5. Review/close the native action and capability tables before M1. No breaking API
+   contract or bulk plugin conversion has been attempted ahead of these gates.

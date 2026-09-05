@@ -3123,6 +3123,18 @@ frame_loop_teardown(void)
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_width : -1,
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
                     c->scroll_x, c->scroll_y);
+                if( getenv("TORIRS_TRACE_NATIVE_UI") )
+                    TORIRS_REPORT("NATIVE_UI node=%u incarnation=%u parent=%d com=%d "
+                        "type=%s hidden=%d native_paint=%d native_input=%d native_hide=%u slot=%u member=%u role=%u "
+                        "box=%d,%d,%d,%d cs1_scripts=%d active=%d\n",
+                        i, c->incarnation, c->parent, c->component_id,
+                        UITree_ComponentTypeStr(c->type), dump_node_hidden(app.tree, (int32_t)i),
+                        UITree_NodeNativeVisible(app.tree, &app.ui_host, (int32_t)i, app.hover_com_id),
+                        UITree_NodeNativeInputPresent(app.tree, &app.ui_host, (int32_t)i),
+                        c->native_hide,
+                        c->slot_tag, c->frame_member_plus1, c->role_id,
+                        c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h,
+                        c->behavior.scripts_count, c->cs1_active);
             }
         }
 

@@ -1,0 +1,2933 @@
+{
+  "status": "M0 discovery; no consumers ported yet",
+  "plugins": [
+    {
+      "path": "script/plugins/_beamprobe.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/_drawprobe.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/_gicount.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/_giprobe.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/_hoverprobe.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/_hullprobe.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/_paneldemo.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/_probe.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/_roleprobe.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/_windemo.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/entity_highlighter.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/ground_items.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/loot_beam.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/performance_display.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/screenshot.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "script/plugins/tile_indicator.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/client_settings.c",
+      "symbol": "TORIRS_PLUGIN_CLIENT_SETTINGS",
+      "id": "client-settings",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/feature_flags.c",
+      "symbol": "TORIRS_FEATURE_FLAGS",
+      "id": "feature-flags",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/gameframe.c",
+      "symbol": "TORIRS_PLUGIN_GAMEFRAME",
+      "id": "gameframe-layout",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/item_stats.c",
+      "symbol": "TORIRS_PLUGIN_ITEM_STATS",
+      "id": "item-stats",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/loot_tracker.c",
+      "symbol": "TORIRS_PLUGIN_LOOT_TRACKER",
+      "id": "loot-tracker",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/minimap_orbs.c",
+      "symbol": "TORIRS_PLUGIN_MINIMAP_ORBS",
+      "id": "minimap-orbs",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/mobile_gameframe.c",
+      "symbol": "TORIRS_PLUGIN_MOBILE_GAMEFRAME",
+      "id": "mobile-gameframe",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/nxt_bird_nest.c",
+      "symbol": "TORIRS_PLUGIN_NXT_BIRD_NEST",
+      "id": "nxt-bird-nest",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/nxt_cannon_ammo.c",
+      "symbol": "TORIRS_PLUGIN_NXT_CANNON_AMMO",
+      "id": "nxt-cannon-ammo",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/nxt_highlight.c",
+      "symbol": "TORIRS_PLUGIN_NXT_HIGHLIGHT",
+      "id": "nxt-highlight",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/tileind.c",
+      "symbol": "TORIRS_PLUGIN_TILEIND",
+      "id": "tile-indicator-c",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/xp_orbs.c",
+      "symbol": "TORIRS_PLUGIN_XP_ORBS",
+      "id": "xp-drop-orbs",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/plugins/xp_tracker.c",
+      "symbol": "TORIRS_PLUGIN_XP_TRACKER",
+      "id": "xp-tracker",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/torirs_plugin_lua.c",
+      "symbol": "TORIRS_PLUGIN_LUA",
+      "id": "lua",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    }
+  ],
+  "test_definitions": [
+    {
+      "path": "src/plugin/test/gameframe_test.c",
+      "symbol": "FRAME_SETTINGS",
+      "id": "gameframe-test-settings",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/mobile_gameframe_test.c",
+      "symbol": "FRAME_SETTINGS",
+      "id": "mobile-frame-test-settings",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_BAD_CONFIG_KEY",
+      "id": "v2-bad-config-key",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_DUPLICATE_CONFIG_KEY",
+      "id": "v2-duplicate-config-key",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_MULTILINE_CONFIG_DEFAULT",
+      "id": "v2-multiline-config-default",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_PROBE_A",
+      "id": "v2-probe-a",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_PROBE_B",
+      "id": "v2-probe-b",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_FRAME_PROVIDER",
+      "id": "v2-frame",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_SEAM_PROBE",
+      "id": "v2-seam-probe",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_ABA_PROBE",
+      "id": "v2-aba",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_PREFIX_ONLY",
+      "id": "v2-prefix",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_PLACEMENT_PROBE",
+      "id": "v2-placement-probe",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_TEARDOWN_PROBE",
+      "id": "v2-teardown-probe",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_PRESENT_A",
+      "id": "v2-present-a",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_PRESENT_B",
+      "id": "v2-present-b",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "LEGACY_DESKTOP_PROVIDER",
+      "id": "gameframe-layout",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "LEGACY_MOBILE_PROVIDER",
+      "id": "mobile-gameframe",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_PRESENT_APPEARANCE",
+      "id": "v2-present-appearance",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_PRESENT_ACTIONS",
+      "id": "v2-present-actions",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "symbol": "V2_PRESENT_NESTED",
+      "id": "v2-present-nested",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_v2_compile_test.c",
+      "symbol": "EXAMPLE_PLUGIN",
+      "id": "v2-compile-example",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/xp_orbs_test.c",
+      "symbol": "SECOND",
+      "id": "second",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    },
+    {
+      "path": "src/plugin/test/xp_orbs_test.c",
+      "symbol": "OTHER",
+      "id": "other",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": []
+    }
+  ],
+  "consumers": [
+    {
+      "path": "FRAME_BUDGET_PLAN.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "GAMECHROME_PLUGINAPI_V2.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "NXT_CLIENT_PLUGINS.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "docs/FRAME_PACING.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "docs/PLUGIN_CHROME_PLAN.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "docs/SEMANTIC_UI_PLAN.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "docs/chrome_executors.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "docs/d3d9/hotspot-plan.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "docs/platform_quirks.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/README.md",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/script/plugins/_paneldemo.ini",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/script/plugins/_paneldemo.lua",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/platform/platform_win32_chrome.h",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/platform/test/sdl_chrome_test.c",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/platform/test/win32_plugin_chrome_capture.c",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/ui/test/torirs_chrome_exec_android_test.c",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/ui/test/uitree_test_chrome_panel_draw.c",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_exec_web.h",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_panel_draw.c",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_panel_draw.h",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_rail.c",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/ui/torirs_chrome_rail.h",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/web/test/chrome_layout_test.js",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "old/plugin_chrome_native/snapshot/src/web/test/plugin_chrome_runtime_fixture.html",
+      "kind": "archived-execution-surface",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "plugin_prefs.ini",
+      "kind": "consumer",
+      "disposition": "PRESERVE_USER_DATA",
+      "persistence": "preserve"
+    },
+    {
+      "path": "plugin_prefs.mobile.ini",
+      "kind": "consumer",
+      "disposition": "PRESERVE_USER_DATA",
+      "persistence": "preserve"
+    },
+    {
+      "path": "revconfig/osrs239/osrs239_dat2_cache.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_beamprobe.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_beamprobe.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_drawprobe.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_drawprobe_manifest.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_gicount.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_gicount.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_giprobe.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_giprobe.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_grounditems.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_hoverprobe.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_hoverprobe.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_hullprobe.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_hullprobe.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_lootbeam.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_paneldemo.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_paneldemo.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_probe.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_probe_manifest.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_roleprobe.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_roleprobe.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_tileonly.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_windemo.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/_windemo.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/gameframe-layout/SOURCES.sh",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/item-stats/text.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/loot-tracker/SOURCES.sh",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/loot-tracker/bold.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/loot-tracker/text.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/minimap-orbs/digits.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/mobile-gameframe/SOURCES.sh",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/screenshot/SOURCES.sh",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/screenshot/bake.py",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/xp-drop-orbs/text.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/xp-tracker/SOURCES.sh",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/assets/xp-tracker/text.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/entity_highlighter.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/ground_items.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/loot_beam.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/performance_display.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/plugin_api.meta.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/plugins.ini",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/screenshot.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "script/plugins/tile_indicator.lua",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/app.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/app.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/engine/uitree_builder/task_uibuilder_assets_load.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/engine/uitree_scene_bridge.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/game/rs_gameproto_exec.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/game/rs_minimenu_build.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/game/rs_ui_slots.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/main.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/makefile",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/platform/platform.mk",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/platform/platform_web_api.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/platform/platform_web_io.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/platform/test/platform_web_io_test.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/lua_unity.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/client_settings.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/feature_flags.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/gameframe.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/item_stats.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/loot_tracker.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/minimap_orbs.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/mobile_gameframe.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/nxt_activities.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/nxt_bird_nest.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/nxt_cannon_ammo.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/nxt_highlight.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/plugin_draw.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/plugin_draw.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/tileind.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/xp_orbs.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/plugins/xp_tracker.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/task_plugin_io.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/task_plugin_io.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/client_settings_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/feature_flags_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/gameframe_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/item_stats_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/minimap_orbs_v2_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/mobile_gameframe_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/nxt_activities_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/plugin_api_single_version_test.py",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/plugin_lua_api_inventory_test.py",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/plugin_panel_route_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/tileind_v2_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_frame_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_host_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_lua_v2_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_placement_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_ui_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/torirs_plugin_v2_compile_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/tracker_render_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/tracker_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/test/xp_orbs_test.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/tools/plugin_model_extract.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_bridge.u.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_frame.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_frame.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_host.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_host.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_host_types.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_lua.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_lua.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_panel.u.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_panel_route.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_placement.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_placement.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_registry.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_registry.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_runtime.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_runtime.inc",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_types.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_ui.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_ui.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin/torirs_plugin_v2.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/HOST_BRIDGE.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/README.md",
+      "kind": "documentation",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/codec-es3.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/legacy-ie8.html",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/modern.html",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/runtime-ie8.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/runtime-source.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/runtime.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/test/compat_test.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/test/runtime_legacy_test.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/plugin_chrome/test/runtime_test.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/revconfig/revconfig.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/ui/torirs_chrome_exec.h",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/ui/uitree_frame.c",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "src/web/test/chrome_layout_test.js",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    },
+    {
+      "path": "tools/gameframe_matrix.sh",
+      "kind": "consumer",
+      "disposition": "PORT_OR_REMOVE",
+      "persistence": "review"
+    }
+  ],
+  "widget_opcodes": [
+    {
+      "name": "CC_CREATE",
+      "opcode": 100,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_DELETE",
+      "opcode": 101,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_DELETEALL",
+      "opcode": 102,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_COPY",
+      "opcode": 105,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_CREATECHILD",
+      "opcode": 106,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_CREATESIBLING",
+      "opcode": 107,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_FIND",
+      "opcode": 200,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_FIND",
+      "opcode": 201,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_CHILDREN_FIND",
+      "opcode": 205,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_CHILDREN_COLLECT",
+      "opcode": 211,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_CHILDREN_FIND_COUNT",
+      "opcode": 212,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_CHILDREN_FINDNEXT",
+      "opcode": 213,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETPOSITION",
+      "opcode": 1000,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETSIZE",
+      "opcode": 1001,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETHIDE",
+      "opcode": 1003,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETPINCH",
+      "opcode": 1004,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETNOCLICKTHROUGH",
+      "opcode": 1005,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETNOSCROLLTHROUGH",
+      "opcode": 1006,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETSCROLLPOS",
+      "opcode": 1100,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETCOLOUR",
+      "opcode": 1101,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETFILL",
+      "opcode": 1102,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETTRANS",
+      "opcode": 1103,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETLINEWID",
+      "opcode": 1104,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETGRAPHIC",
+      "opcode": 1105,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SET2DANGLE",
+      "opcode": 1106,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETTILING",
+      "opcode": 1107,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETMODEL",
+      "opcode": 1108,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETMODELANGLE",
+      "opcode": 1109,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETMODELANIM",
+      "opcode": 1110,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETMODELORTHOG",
+      "opcode": 1111,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETTEXT",
+      "opcode": 1112,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETTEXTFONT",
+      "opcode": 1113,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETTEXTALIGN",
+      "opcode": 1114,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETTEXTSHADOW",
+      "opcode": 1115,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOUTLINE",
+      "opcode": 1116,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETGRAPHICSHADOW",
+      "opcode": 1117,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETVFLIP",
+      "opcode": 1118,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETHFLIP",
+      "opcode": 1119,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETSCROLLSIZE",
+      "opcode": 1120,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_RESUME_PAUSEBUTTON",
+      "opcode": 1121,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETGRAPHIC2",
+      "opcode": 1122,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETFILLCOLOUR",
+      "opcode": 1123,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETTRANSBOT",
+      "opcode": 1124,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETFILLMODE",
+      "opcode": 1125,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETLINEDIRECTION",
+      "opcode": 1126,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETMODELTRANSPARENT",
+      "opcode": 1127,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETARC",
+      "opcode": 1128,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETSUBMITMODE",
+      "opcode": 1133,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETSELECTCOLOUR",
+      "opcode": 1134,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETACCEPTMODE",
+      "opcode": 1135,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETWRAPMODE",
+      "opcode": 1136,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETLINEWRAPPINGWIDTH",
+      "opcode": 1137,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETSELECTBGCOLOUR",
+      "opcode": 1138,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETLINECOUNTLIMIT",
+      "opcode": 1139,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETCURSORCOLOUR",
+      "opcode": 1140,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETCURSORTRANS",
+      "opcode": 1141,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETCURSORWIDTH",
+      "opcode": 1142,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETCURSORHEIGHT",
+      "opcode": 1143,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETCURSOROFFSET",
+      "opcode": 1144,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETLINEWIDTHLIMIT",
+      "opcode": 1145,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETCHARFILTER",
+      "opcode": 1146,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOBJECT",
+      "opcode": 1200,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETNPCHEAD",
+      "opcode": 1201,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETPLAYERHEAD_SELF",
+      "opcode": 1202,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETPLAYERMODEL_SELF",
+      "opcode": 1203,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETMODEL_PLAYERCHATHEAD",
+      "opcode": 1204,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOBJECT_NONUM",
+      "opcode": 1205,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOBJECT_ALWAYS_NUM",
+      "opcode": 1212,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOP",
+      "opcode": 1300,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETDRAGGABLE",
+      "opcode": 1301,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETDRAGGABLEBEHAVIOR",
+      "opcode": 1302,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETDRAGDEADZONE",
+      "opcode": 1303,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETDRAGDEADTIME",
+      "opcode": 1304,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOPBASE",
+      "opcode": 1305,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETTARGETVERB",
+      "opcode": 1306,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_CLEAROPS",
+      "opcode": 1307,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOPFORCELEFTCLICK",
+      "opcode": 1308,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_CLEAROPSUBMENU",
+      "opcode": 1310,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOPSUBMENU",
+      "opcode": 1311,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETTARGETPRIORITY",
+      "opcode": 1312,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOPKEY",
+      "opcode": 1350,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOPTKEY",
+      "opcode": 1351,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOPKEYRATE",
+      "opcode": 1352,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOPTKEYRATE",
+      "opcode": 1353,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOPKEYIGNOREHELD",
+      "opcode": 1354,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETOPTKEYIGNOREHELD",
+      "opcode": 1355,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONCLICK",
+      "opcode": 1400,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONHOLD",
+      "opcode": 1401,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONRELEASE",
+      "opcode": 1402,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONMOUSEOVER",
+      "opcode": 1403,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONMOUSELEAVE",
+      "opcode": 1404,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONDRAG",
+      "opcode": 1405,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONTARGETLEAVE",
+      "opcode": 1406,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONVARTRANSMIT",
+      "opcode": 1407,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONTIMER",
+      "opcode": 1408,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONOP",
+      "opcode": 1409,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONDRAGCOMPLETE",
+      "opcode": 1410,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONCLICKREPEAT",
+      "opcode": 1411,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONMOUSEREPEAT",
+      "opcode": 1412,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONINVTRANSMIT",
+      "opcode": 1414,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONSTATTRANSMIT",
+      "opcode": 1415,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONTARGETENTER",
+      "opcode": 1416,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONSCROLLWHEEL",
+      "opcode": 1417,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONCHATTRANSMIT",
+      "opcode": 1418,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONKEY",
+      "opcode": 1419,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONFRIENDTRANSMIT",
+      "opcode": 1420,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONCLANTRANSMIT",
+      "opcode": 1421,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONMISCTRANSMIT",
+      "opcode": 1422,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONDIALOGABORT",
+      "opcode": 1423,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONSUBCHANGE",
+      "opcode": 1424,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONSTOCKTRANSMIT",
+      "opcode": 1425,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONRESIZE",
+      "opcode": 1427,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONCLANSETTINGSTRANSMIT",
+      "opcode": 1428,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONCLANCHANNELTRANSMIT",
+      "opcode": 1429,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONITEMONITEM",
+      "opcode": 1430,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONCLANSETTINGS",
+      "opcode": 1431,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETONMAPPOST",
+      "opcode": 1433,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETONSUBMIT",
+      "opcode": 1436,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETONABORT",
+      "opcode": 1437,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETONFOCUSCHANGED",
+      "opcode": 1438,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_SETONUPDATE",
+      "opcode": 1439,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETX",
+      "opcode": 1500,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETY",
+      "opcode": 1501,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETWIDTH",
+      "opcode": 1502,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETHEIGHT",
+      "opcode": 1503,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETHIDE",
+      "opcode": 1504,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETLAYER",
+      "opcode": 1505,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETSCROLLX",
+      "opcode": 1600,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETSCROLLY",
+      "opcode": 1601,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETTEXT",
+      "opcode": 1602,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETSCROLLWIDTH",
+      "opcode": 1603,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETSCROLLHEIGHT",
+      "opcode": 1604,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETMODELZOOM",
+      "opcode": 1605,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETMODELANGLE_X",
+      "opcode": 1606,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETMODELANGLE_Z",
+      "opcode": 1607,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETMODELANGLE_Y",
+      "opcode": 1608,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETTRANS",
+      "opcode": 1609,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETBLENDTRANS",
+      "opcode": 1610,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETCOLOUR",
+      "opcode": 1611,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETFILLCOLOUR",
+      "opcode": 1612,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETPARAM",
+      "opcode": 1613,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETMODELTRANSPARENT",
+      "opcode": 1614,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETARCSTART",
+      "opcode": 1615,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETARCEND",
+      "opcode": 1616,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_INPUT_GETFOCUS",
+      "opcode": 1624,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETINVOBJECT",
+      "opcode": 1700,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETINVCOUNT",
+      "opcode": 1701,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETID",
+      "opcode": 1702,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETCOMPONENTPARAM",
+      "opcode": 1703,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_SETCOMPONENTPARAM",
+      "opcode": 1704,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETTARGETMASK",
+      "opcode": 1800,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETOP",
+      "opcode": 1801,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_GETOPBASE",
+      "opcode": 1802,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_TRIGGEROP",
+      "opcode": 1928,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETPOSITION",
+      "opcode": 2000,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETSIZE",
+      "opcode": 2001,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETHIDE",
+      "opcode": 2003,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETPINCH",
+      "opcode": 2004,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETNOCLICKTHROUGH",
+      "opcode": 2005,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETNOSCROLLTHROUGH",
+      "opcode": 2006,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETSCROLLPOS",
+      "opcode": 2100,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETCOLOUR",
+      "opcode": 2101,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETFILL",
+      "opcode": 2102,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETTRANS",
+      "opcode": 2103,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETLINEWID",
+      "opcode": 2104,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETGRAPHIC",
+      "opcode": 2105,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SET2DANGLE",
+      "opcode": 2106,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETTILING",
+      "opcode": 2107,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETMODEL",
+      "opcode": 2108,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETMODELANGLE",
+      "opcode": 2109,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETMODELANIM",
+      "opcode": 2110,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETMODELORTHOG",
+      "opcode": 2111,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETTEXT",
+      "opcode": 2112,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETTEXTFONT",
+      "opcode": 2113,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETTEXTALIGN",
+      "opcode": 2114,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETTEXTSHADOW",
+      "opcode": 2115,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOUTLINE",
+      "opcode": 2116,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETGRAPHICSHADOW",
+      "opcode": 2117,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETVFLIP",
+      "opcode": 2118,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETHFLIP",
+      "opcode": 2119,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETSCROLLSIZE",
+      "opcode": 2120,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_RESUME_PAUSEBUTTON",
+      "opcode": 2121,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETGRAPHIC2",
+      "opcode": 2122,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETFILLCOLOUR",
+      "opcode": 2123,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETTRANSBOT",
+      "opcode": 2124,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETFILLMODE",
+      "opcode": 2125,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETLINEDIRECTION",
+      "opcode": 2126,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETMODELTRANSPARENT",
+      "opcode": 2127,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETARC",
+      "opcode": 2128,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETSUBMITMODE",
+      "opcode": 2133,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETSELECTCOLOUR",
+      "opcode": 2134,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETACCEPTMODE",
+      "opcode": 2135,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETWRAPMODE",
+      "opcode": 2136,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETLINEWRAPPINGWIDTH",
+      "opcode": 2137,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETSELECTBGCOLOUR",
+      "opcode": 2138,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETLINECOUNTLIMIT",
+      "opcode": 2139,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETCURSORCOLOUR",
+      "opcode": 2140,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETCURSORTRANS",
+      "opcode": 2141,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETCURSORWIDTH",
+      "opcode": 2142,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETCURSORHEIGHT",
+      "opcode": 2143,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETCURSOROFFSET",
+      "opcode": 2144,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETLINEWIDTHLIMIT",
+      "opcode": 2145,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETCHARFILTER",
+      "opcode": 2146,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOBJECT",
+      "opcode": 2200,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETNPCHEAD",
+      "opcode": 2201,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETPLAYERHEAD_SELF",
+      "opcode": 2202,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETMODEL_PLAYERCHATHEAD",
+      "opcode": 2203,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOBJECT_NONUM",
+      "opcode": 2205,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOBJECT_ALWAYS_NUM",
+      "opcode": 2212,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOP",
+      "opcode": 2300,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETDRAGGABLE",
+      "opcode": 2301,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETDRAGGABLEBEHAVIOR",
+      "opcode": 2302,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETDRAGDEADZONE",
+      "opcode": 2303,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETDRAGDEADTIME",
+      "opcode": 2304,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOPBASE",
+      "opcode": 2305,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETTARGETVERB",
+      "opcode": 2306,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_CLEAROPS",
+      "opcode": 2307,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETCLICKMASK",
+      "opcode": 2308,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOPSUBMENU",
+      "opcode": 2311,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETTARGETPRIORITY",
+      "opcode": 2312,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOPKEY",
+      "opcode": 2350,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOPTKEY",
+      "opcode": 2351,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOPKEYRATE",
+      "opcode": 2352,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOPTKEYRATE",
+      "opcode": 2353,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOPKEYIGNOREHELD",
+      "opcode": 2354,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETOPTKEYIGNOREHELD",
+      "opcode": 2355,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONCLICK",
+      "opcode": 2400,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONHOLD",
+      "opcode": 2401,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONRELEASE",
+      "opcode": 2402,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONMOUSEOVER",
+      "opcode": 2403,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONMOUSELEAVE",
+      "opcode": 2404,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONDRAG",
+      "opcode": 2405,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONTARGETLEAVE",
+      "opcode": 2406,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONVARTRANSMIT",
+      "opcode": 2407,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONTIMER",
+      "opcode": 2408,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONOP",
+      "opcode": 2409,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONDRAGCOMPLETE",
+      "opcode": 2410,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONCLICKREPEAT",
+      "opcode": 2411,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONMOUSEREPEAT",
+      "opcode": 2412,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONINVTRANSMIT",
+      "opcode": 2414,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONSTATTRANSMIT",
+      "opcode": 2415,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONTARGETENTER",
+      "opcode": 2416,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONSCROLLWHEEL",
+      "opcode": 2417,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONCHATTRANSMIT",
+      "opcode": 2418,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONKEY",
+      "opcode": 2419,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONFRIENDTRANSMIT",
+      "opcode": 2420,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONCLANTRANSMIT",
+      "opcode": 2421,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONMISCTRANSMIT",
+      "opcode": 2422,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONDIALOGABORT",
+      "opcode": 2423,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONSUBCHANGE",
+      "opcode": 2424,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONSTOCKTRANSMIT",
+      "opcode": 2425,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONRESIZE",
+      "opcode": 2427,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONCLANSETTINGSTRANSMIT",
+      "opcode": 2428,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONCLANCHANNELTRANSMIT",
+      "opcode": 2429,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONITEMONITEM",
+      "opcode": 2430,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONCLANSETTINGS",
+      "opcode": 2431,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETONMAPPOST",
+      "opcode": 2433,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETONSUBMIT",
+      "opcode": 2436,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETONABORT",
+      "opcode": 2437,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETONFOCUSCHANGED",
+      "opcode": 2438,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_INPUT_SETONUPDATE",
+      "opcode": 2439,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETX",
+      "opcode": 2500,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETY",
+      "opcode": 2501,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETWIDTH",
+      "opcode": 2502,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETHEIGHT",
+      "opcode": 2503,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETHIDE",
+      "opcode": 2504,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETLAYER",
+      "opcode": 2505,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETSCROLLX",
+      "opcode": 2600,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETSCROLLY",
+      "opcode": 2601,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETTEXT",
+      "opcode": 2602,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETSCROLLWIDTH",
+      "opcode": 2603,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETSCROLLHEIGHT",
+      "opcode": 2604,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETMODELZOOM",
+      "opcode": 2605,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETMODELANGLE_X",
+      "opcode": 2606,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETMODELANGLE_Z",
+      "opcode": 2607,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETMODELANGLE_Y",
+      "opcode": 2608,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETTRANS",
+      "opcode": 2609,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETCOLOUR",
+      "opcode": 2611,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETFILLCOLOUR",
+      "opcode": 2612,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETMODELTRANSPARENT",
+      "opcode": 2614,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETINVOBJECT",
+      "opcode": 2700,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETINVCOUNT",
+      "opcode": 2701,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_HASSUB",
+      "opcode": 2702,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETCOMPONENTPARAM",
+      "opcode": 2703,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_SETPARAM",
+      "opcode": 2704,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_HASCHILD_OVERLAY",
+      "opcode": 2705,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETTOP",
+      "opcode": 2706,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETTARGETMASK",
+      "opcode": 2800,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETOP",
+      "opcode": 2801,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_GETOPBASE",
+      "opcode": 2802,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_CALLONRESIZE",
+      "opcode": 2927,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_TRIGGEROPLOCAL",
+      "opcode": 2929,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_CLOSE",
+      "opcode": 3103,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "IF_DRAGPICKUP",
+      "opcode": 3108,
+      "disposition": "TRACE_HOST_AND_VM"
+    },
+    {
+      "name": "CC_DRAGPICKUP",
+      "opcode": 3109,
+      "disposition": "TRACE_HOST_AND_VM"
+    }
+  ],
+  "packet_dispatch_cases": [
+    "PKT_NAME_AMBIENTSOUND_START",
+    "PKT_NAME_AMBIENTSOUND_STOP",
+    "PKT_NAME_CAM_LOOKAT",
+    "PKT_NAME_CAM_MOVETO",
+    "PKT_NAME_CAM_RESET",
+    "PKT_NAME_CAM_SHAKE",
+    "PKT_NAME_CHAT_FILTER_SETTINGS",
+    "PKT_NAME_ENABLE_TRACKING",
+    "PKT_NAME_FINISH_TRACKING",
+    "PKT_NAME_FRIENDLIST_LOADED",
+    "PKT_NAME_HINT_ARROW",
+    "PKT_NAME_IF_CLEARINV",
+    "PKT_NAME_IF_CLOSE",
+    "PKT_NAME_IF_CLOSESUB",
+    "PKT_NAME_IF_MOVESUB",
+    "PKT_NAME_IF_OPENCHAT",
+    "PKT_NAME_IF_OPENMAIN",
+    "PKT_NAME_IF_OPENMAIN_SIDE",
+    "PKT_NAME_IF_OPENOVERLAY",
+    "PKT_NAME_IF_OPENSIDE",
+    "PKT_NAME_IF_OPENSUB",
+    "PKT_NAME_IF_OPENTOP",
+    "PKT_NAME_IF_RESYNC_V2",
+    "PKT_NAME_IF_SETANGLE",
+    "PKT_NAME_IF_SETANIM",
+    "PKT_NAME_IF_SETCOLOUR",
+    "PKT_NAME_IF_SETEVENTS",
+    "PKT_NAME_IF_SETHIDE",
+    "PKT_NAME_IF_SETMODEL",
+    "PKT_NAME_IF_SETNPCHEAD",
+    "PKT_NAME_IF_SETNPCHEAD_ACTIVE",
+    "PKT_NAME_IF_SETOBJECT",
+    "PKT_NAME_IF_SETPLAYERHEAD",
+    "PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR",
+    "PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE",
+    "PKT_NAME_IF_SETPLAYERMODEL_OBJ",
+    "PKT_NAME_IF_SETPLAYERMODEL_SELF",
+    "PKT_NAME_IF_SETPOSITION",
+    "PKT_NAME_IF_SETROTATESPEED",
+    "PKT_NAME_IF_SETSCROLLPOS",
+    "PKT_NAME_IF_SETTAB",
+    "PKT_NAME_IF_SETTAB_ACTIVE",
+    "PKT_NAME_IF_SETTEXT",
+    "PKT_NAME_LAST_LOGIN_INFO",
+    "PKT_NAME_LOC_ADD_CHANGE",
+    "PKT_NAME_LOC_ANIM",
+    "PKT_NAME_LOC_DEL",
+    "PKT_NAME_LOC_MERGE",
+    "PKT_NAME_LOGOUT",
+    "PKT_NAME_MAP_ANIM",
+    "PKT_NAME_MAP_PROJANIM",
+    "PKT_NAME_MESSAGE_GAME",
+    "PKT_NAME_MESSAGE_PRIVATE",
+    "PKT_NAME_MIDI_JINGLE",
+    "PKT_NAME_MIDI_SONG",
+    "PKT_NAME_MIDI_SONG_STOP",
+    "PKT_NAME_MIDI_SONG_WITHSECONDARY",
+    "PKT_NAME_MIDI_SWAP",
+    "PKT_NAME_MINIMAP_TOGGLE",
+    "PKT_NAME_NPC_INFO",
+    "PKT_NAME_OBJ_ADD",
+    "PKT_NAME_OBJ_COUNT",
+    "PKT_NAME_OBJ_DEL",
+    "PKT_NAME_OBJ_REVEAL",
+    "PKT_NAME_PLAYER_INFO",
+    "PKT_NAME_P_COUNTDIALOG",
+    "PKT_NAME_REBUILD_NORMAL",
+    "PKT_NAME_REBUILD_REGION",
+    "PKT_NAME_RESET_ANIMS",
+    "PKT_NAME_RUNCLIENTSCRIPT",
+    "PKT_NAME_SERVER_TICK_END",
+    "PKT_NAME_SET_ACTIVE_WORLD",
+    "PKT_NAME_SET_MULTIWAY",
+    "PKT_NAME_SET_NPC_UPDATE_ORIGIN",
+    "PKT_NAME_SET_PLAYER_OP",
+    "PKT_NAME_SOUND_AREA",
+    "PKT_NAME_SYNTH_SOUND",
+    "PKT_NAME_TRIGGER_ONDIALOGABORT",
+    "PKT_NAME_TUT_FLASH",
+    "PKT_NAME_TUT_OPEN",
+    "PKT_NAME_UNSET_MAP_FLAG",
+    "PKT_NAME_UPDATE_FRIENDLIST",
+    "PKT_NAME_UPDATE_IGNORELIST",
+    "PKT_NAME_UPDATE_INV_FULL",
+    "PKT_NAME_UPDATE_INV_PARTIAL",
+    "PKT_NAME_UPDATE_INV_STOP_TRANSMIT",
+    "PKT_NAME_UPDATE_PID",
+    "PKT_NAME_UPDATE_REBOOT_TIMER",
+    "PKT_NAME_UPDATE_RUNENERGY",
+    "PKT_NAME_UPDATE_RUNWEIGHT",
+    "PKT_NAME_UPDATE_STAT",
+    "PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS",
+    "PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED",
+    "PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS",
+    "PKT_NAME_VARP_LARGE",
+    "PKT_NAME_VARP_RESET",
+    "PKT_NAME_VARP_SMALL",
+    "PKT_NAME_VARP_SYNC",
+    "PKT_NAME_WORLDENTITY_INFO"
+  ]
+}

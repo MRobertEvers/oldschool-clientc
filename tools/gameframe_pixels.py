@@ -28,7 +28,7 @@ def read_bmp(path):
     return width, abs(height), rows
 
 
-def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, failures):
+def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, failures, native_baseline=False):
     height, width = len(rows), len(rows[0])
     def report(name, valid, detail=""):
         print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
@@ -92,7 +92,8 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
         matches = sum(rows[y+dy][x+dx] == tuple(reversed(rgb))
                       for (dx,dy),rgb in zip(fixture["points"], fixture["rgb"]))
         discs += matches >= 15
-    report("orb_column_four_discs", discs == 4, f"discs={discs}")
+    if not native_baseline:
+        report("orb_column_four_discs", discs == 4, f"discs={discs}")
 
     controls = []
     for child, hidden, *box in re.findall(
@@ -115,9 +116,63 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
                f"warm_backing={fractions[0]:.3f} warm_bar={fractions[1]:.3f}")
 
 
-def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None):
+def check_rs289(rows, log, failures, scenario="baseline"):
+    """Revconfig controls, plus evidence that actual mounted CS1 ran.
+
+    The RS2 frame has three mode controls and Report. Do not borrow the
+    eight-control IF3 rule or the six-state OSRS minimap protocol here.
+    """
+    height, width = len(rows), len(rows[0])
+    def report(name, valid, detail=""):
+        print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
+        if not valid:
+            failures.append(name)
+    boxes = [tuple(map(int, values)) for values in re.findall(
+        r"NATIVE_UI[^\n]*type=chat_button hidden=0 native_paint=1[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)", log)]
+    report("rs289_four_chat_controls", len(boxes) == 4, f"controls={len(boxes)}")
+    report("rs289_controls_inside_canvas", len(boxes) == 4 and all(
+        x >= 0 and y >= 0 and w > 0 and h > 0 and x+w <= width and y+h <= height
+        for x,y,w,h in boxes))
+    modes = captions = 0
+    for x,y,w,h in boxes:
+        ps = [rows[yy][xx] for yy in range(max(0,y),min(height,y+h))
+              for xx in range(max(0,x),min(width,x+w))]
+        modes += sum(g > 150 and r < 100 and b < 100 for b,g,r in ps) >= 10
+        captions += sum(min(b,g,r) > 180 and max(b,g,r)-min(b,g,r) < 30 for b,g,r in ps) >= 20
+    report("rs289_live_chat_modes", modes == 3, f"green_cells={modes}")
+    report("rs289_chat_captions", captions == 4, f"captions={captions}")
+    report("rs289_actual_cs1_values", bool(re.search(r"^NATIVE_CS1 com=\d+ incarnation=[1-9]\d* value\[0\]=[1-9]\d*", log, re.M)))
+    report("rs289_mounted_cache_interfaces", bool(re.search(
+        r"NATIVE_UI[^\n]*com=[1-9]\d* type=rs_\w+ hidden=0 native_paint=1", log)))
+    report("rs289_revision", "cache profile epoch=dat1 game=rs2 revision=289" in log)
+    if scenario == "stats":
+        update = log.partition("sent ::setstat strength 20")[2]
+        report("rs289_stat_packet_applied", bool(re.search(
+            r"NATIVE_PACKET UPDATE_STAT applied stat=2 level=20 xp=\d+", update)))
+        report("rs289_stat_cs1_readback", all(re.search(
+            rf"NATIVE_CS1 com={uid} incarnation=\d+ value\[0\]=20", update)
+            for uid in (4006, 4007)))
+    if scenario == "skill-guide":
+        packets = {int(uid): int(hidden) for uid,hidden in re.findall(
+            r"NATIVE_PACKET IF_SETHIDE received com=(\d+) hide=([01])", log)}
+        expected = {8844:1, 8813:0, 8825:1, 8828:1, 8838:1, 8841:1, 8850:1, 8860:1, 8863:1}
+        report("rs289_skill_guide_packets", all(packets.get(uid) == hidden for uid,hidden in expected.items()))
+        # The packet arrives before mounting. The final incarnation must carry
+        # the latest server value and BOTH native availability consequences.
+        report("rs289_skill_guide_hide_after_mount", all(re.search(
+            rf"NATIVE_UI[^\n]*com={uid} type=rs_layer hidden={hidden} native_paint={1-hidden} native_input={1-hidden} native_hide={hidden} ", log)
+            for uid,hidden in expected.items()))
+
+
+def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline"):
     width, height, rows = read_bmp(path)
     failures = []
+    if revision == "rs289lc":
+        if not bounds_path:
+            raise ValueError("rs289lc requires its matching native trace")
+        check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario)
+        return failures
     if frame == "gameframe-layout/classic-fixed":
         # The approved plain-rock band spans x=0..495, y=467..498.
         # Its 29-column source repeats without any of the four old recesses.
@@ -157,7 +212,7 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             if not valid:
                 failures.append("chat_inside_complete_surround")
     if bounds_path:
-        check_live_surfaces(rows, Path(bounds_path).read_text(), frame, root, minimap_state, server_hide, failures)
+        check_live_surfaces(rows, Path(bounds_path).read_text(), frame, root, minimap_state, server_hide, failures, native_baseline)
     return failures
 
 
@@ -167,11 +222,15 @@ if __name__ == "__main__":
     parser.add_argument("--frame", required=True)
     parser.add_argument("--root", required=True, type=int)
     parser.add_argument("--bounds", help="matching TORIRS_DUMP_BOUNDS log")
+    parser.add_argument("--revision", choices=("osrs239", "rs289lc"), default="osrs239")
+    parser.add_argument("--native-baseline", action="store_true", help="plugins disabled; no plugin orb assertion")
+    parser.add_argument("--rs289-scenario", choices=("baseline", "stats", "skill-guide"), default="baseline")
     parser.add_argument("--minimap-state", type=int, choices=range(6))
     parser.add_argument("--server-hide", help="expected native component uid:hide receipt")
     args = parser.parse_args()
     try:
-        raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state, args.server_hide)))
+        raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

@@ -1,6 +1,12 @@
 #!/bin/zsh
 #
-# The gameframe permutation gate: OSRS239 toplevel x frame x window size.
+# The gameframe permutation and native contract gate for OSRS239 / rs289lc.
+# GF_MATRIX_BASELINE=1 disables plugins. GF_MATRIX_REVISION=rs289lc selects
+# revconfig/CS1 with a unique account per connection; GF_MATRIX_LC_SAVE pins
+# gameplay state, and GF_MATRIX_LC_SERVER names the matching server checkout.
+# GF_MATRIX_SCENARIOS=1 selects that revision's native interaction scenarios.
+# Freshness failures stop captures. GF_MATRIX_DIAGNOSTIC=1 may capture them
+# for investigation, but always returns a nonzero, non-acceptance result.
 #
 #   tools/gameframe_matrix.sh [outdir]
 #
@@ -23,14 +29,30 @@ set -u
 TOOLS_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO=${REPO:-$(cd "$(dirname "$0")/.." && pwd)}
 BIN=${BIN:-$REPO/src/torirs_gfmatrix}
-MANIFEST=${MANIFEST:-$REPO/manifests/manifest_osrs239_curses.ini}
+REVISION=${GF_MATRIX_REVISION:-osrs239}
+BASELINE=${GF_MATRIX_BASELINE:-0}
+if [[ "$REVISION" == rs289lc ]]; then
+  MANIFEST=${MANIFEST:-$REPO/manifests/manifest_rs289lc.ini}
+else
+  MANIFEST=${MANIFEST:-$REPO/manifests/manifest_osrs239_curses.ini}
+fi
 OUT=${1:-${GF_MATRIX_OUT:-${TMPDIR:-/tmp}/gfmatrix.$$}}
 FRAMES_LIST=(auto gameframe-layout/classic-fixed gameframe-layout/modern-fixed \
              gameframe-layout/modern-resizable mobile-gameframe/stone-drawer)
 SIZES=(765x503 1200x800)
 
 [ -x "$BIN" ] || { echo "no binary at $BIN -- see the header"; exit 2; }
+if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 && -e "$OUT" ]]; then
+  echo "output already exists: $OUT (use a new directory or GF_MATRIX_SCORE_ONLY=1)" >&2
+  exit 2
+fi
 mkdir -p "$OUT"
+if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
+  python3 "$TOOLS_DIR/gameframe_fixture.py" --repo "$REPO" --binary "$BIN" \
+    --manifest "$MANIFEST" --revision "$REVISION" --out "$OUT/fixture.json"
+  fixture_result=$?
+  if [[ $fixture_result != 0 && "${GF_MATRIX_DIAGNOSTIC:-0}" != 1 ]]; then exit 2; fi
+fi
 # The same capture/scoring path exercises native transitions. Keep this in the
 # reference harness so a new frame provider can run the contract with one target.
 if [[ "${GF_MATRIX_SCENARIOS:-0}" == 1 ]]; then
@@ -43,6 +65,15 @@ if [[ "${GF_MATRIX_SCENARIOS:-0}" == 1 ]]; then
     cat "$OUT/$name.log"
     [[ $result == 0 ]] || failures=$((failures+1))
   }
+  if [[ "$REVISION" == rs289lc ]]; then
+    [[ -f "${GF_MATRIX_LC_SAVE:-}" ]] || { echo 'rs289 scenarios require GF_MATRIX_LC_SAVE: an isolated gameplay seed save'; exit 2; }
+    scenario stats GF_MATRIX_RS289_SCENARIO=stats GF_MATRIX_MAX_FRAMES=900 \
+      TORIRS_SIM_CLICK_AT='500,585,184' TORIRS_SIM_CMD='480,setstat strength 1;650,setstat strength 20'
+    scenario skill-guide GF_MATRIX_RS289_SCENARIO=skill-guide GF_MATRIX_MAX_FRAMES=900 \
+      TORIRS_SIM_CLICK_AT='500,585,184;650,584,250'
+    echo "RS289 NATIVE CONTRACT: $failures failed scenario groups / 2"
+    exit $((failures > 0))
+  fi
   for state in 0 1 2 3 4 5; do
     scenario "minimap-$state" GF_MATRIX_TAGS=m03 GF_MATRIX_MINIMAP_STATE=$state \
       TORIRS_NET_DEBUG=1 TORIRS_SIM_CMD="500,minimap $state" TORIRS_SIM_CLICK_AT='550,630,80'
@@ -58,6 +89,7 @@ if [[ "${GF_MATRIX_SCENARIOS:-0}" == 1 ]]; then
   exit $((failures > 0))
 fi
 if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
+[[ ! -e "$OUT/index.txt" ]] || { echo "capture index already exists: $OUT/index.txt" >&2; exit 2; }
 : > "$OUT/index.txt"
 cat > "$OUT/plugin_prefs.ini" <<EOF
 [plugin:gameframe-layout]
@@ -76,7 +108,9 @@ EOF
 one() {
   local tag=$1 mode=$2 size=$3 frame=$4 mobile=$5
   local run=$OUT/$tag
-  rm -rf "$run"; mkdir -p "$run/saves"
+  # Never erase a previous run (or an unrelated directory supplied as OUT).
+  [[ ! -e "$run" ]] || { echo "capture already exists: $run" >&2; return 2; }
+  mkdir -p "$run/saves"
   printf '[preferences]\nversion=1\npreferred_frame=%s\nframe_migration_version=1\n' \
     "$frame" > "$run/preferences.ini"
   sed -e "s/^client_layout_mode = .*/client_layout_mode = $mode/" \
@@ -86,19 +120,53 @@ one() {
   local -a env_extra
   env_extra=()
   [ "$mobile" = "1" ] && env_extra=(TORIRS_CLIENTTYPE=7)
+  [[ "$BASELINE" == 1 ]] && env_extra+=(TORIRS_PLUGINS=0)
+  local -a client_args
+  client_args=()
+  if [[ "$REVISION" == rs289lc ]]; then
+    local lc_user
+    lc_user=$(python3 -c "import uuid; print('gf' + uuid.uuid4().hex[:8])") || return 2
+    if [[ -n "${GF_MATRIX_LC_SAVE:-}" ]]; then
+      # Each capture gets a new account loaded from the SAME test-owned save.
+      # LostCity retains disconnected accounts briefly; reconnecting the same
+      # one immediately yields reply 5. Never overwrite a live user's save.
+      lc_user=$(python3 - "$GF_MATRIX_LC_SERVER" "$GF_MATRIX_LC_SAVE" "$run" <<'PY'
+import hashlib, json, pathlib, sys, uuid
+server, seed, run = map(pathlib.Path, sys.argv[1:])
+profile = json.loads((server/'engine/data/config/world.json').read_text())['node']['profile']
+user = 'gf' + uuid.uuid4().hex[:8]
+data = seed.read_bytes()
+destination = server/'engine/data/players'/profile/(user+'.sav')
+with destination.open('xb') as stream:
+    stream.write(data)
+(run/'player.json').write_text(json.dumps({'user':user, 'seed':str(seed),
+    'seed_sha256':hashlib.sha256(data).hexdigest(), 'save':str(destination)}, indent=2)+'\n')
+print(user)
+PY
+      ) || return 2
+    fi
+    client_args=(--user "$lc_user" --pass "${GF_MATRIX_LC_PASS:-local}")
+  fi
   ( cd "$REPO" && env TORIRS_PREFS="$run/preferences.ini" \
       TORIRSSERVER_SAVES="$run/saves" \
       TORIRS_PLUGIN_PREFS="$OUT/plugin_prefs.ini" TORIRS_PLUGINS=1 \
-      TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 TORIRS_STDERR_UNBUFFERED=1 \
-      SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=620 TORIRS_FRAME_ROLE_AUDIT=1 \
+      TORIRS_STDERR_UNBUFFERED=1 TORIRS_TRACE_NATIVE_UI=1 \
+      SDL_VIDEODRIVER=${SDL_VIDEODRIVER:-dummy} TORIRS_MAX_FRAMES=${GF_MATRIX_MAX_FRAMES:-620} TORIRS_FRAME_ROLE_AUDIT=1 \
       TORIRS_EXIT_BMP="$run/out.bmp" TORIRS_DUMP_BOUNDS=all TORIRS_DUMP_EMIT_EXIT=all "${env_extra[@]}" \
-      "$BIN" --manifest "$MANIFEST" --windowmode resizable --window "$size" \
+      "$BIN" --manifest "$MANIFEST" --windowmode resizable --window "$size" "${client_args[@]}" \
       >> "$run/log.txt" 2>&1 )
+  echo $? > "$run/exit-status"
 }
 
 i=0
+if [[ "$REVISION" == rs289lc ]]; then
+  echo 'r01|R|core/native|765x503' >> "$OUT/index.txt"
+  BASELINE=1
+  one r01 0 765x503 core/native 0
+else
 for m in 0 1 2 M; do for f in $FRAMES_LIST; do for s in $SIZES; do
   i=$((i+1)); tag="m$(printf '%02d' $i)"
+  [[ "$BASELINE" == 1 && "$f" != auto ]] && continue
   if [[ -n "${GF_MATRIX_TAGS:-}" && ",${GF_MATRIX_TAGS}," != *",${tag},"* ]]; then continue; fi
   mode=$m; mobile=0
   [ "$m" = "M" ] && { mode=1; mobile=1; }
@@ -108,12 +176,22 @@ for m in 0 1 2 M; do for f in $FRAMES_LIST; do for s in $SIZES; do
 done; done; done
 wait
 fi
+fi
 
 fail=0
 checks=0
 printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" TAG TOP FRAME SIZE ROOT FILTERS VERDICT
 while IFS='|' read tag m f s; do
   L=$OUT/$tag/log.txt
+  if [[ "$m" == R ]]; then
+    python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame core/native \
+      --root 0 --revision rs289lc --rs289-scenario "${GF_MATRIX_RS289_SCENARIO:-baseline}" \
+      --bounds "$L" > "$OUT/$tag/pixels.txt" 2>&1
+    result=$?
+    cat "$OUT/$tag/pixels.txt"
+    [[ "$result" == 0 && "$(cat "$OUT/$tag/exit-status" 2>/dev/null)" == 0 ]] || fail=$((fail+1))
+    continue
+  fi
   rt=$(grep -o 'switching root [-0-9]* -> [0-9]*' "$L" 2>/dev/null | tail -1 | grep -o '[0-9]*$')
   n=$(grep '^BOUNDS' "$L" 2>/dev/null | awk '{g=$3;gsub(/[()]/,"",g);split(g,p,"|");x=p[2]+0;
         if(p[1]==162 && (x==5||x==8||x==12||x==16||x==20||x==24||x==28||x==32) && $0!~/hidden=1/) print}' | wc -l | tr -d ' ')
@@ -121,10 +199,12 @@ while IFS='|' read tag m f s; do
   want=8; [ "$rt" = "601" ] && want=7
   v=ok
   before=$checks
+  [[ "$(cat "$OUT/$tag/exit-status" 2>/dev/null)" == 0 ]] || { v="CLIENT FAILED"; checks=$((checks+1)); }
   case "$m" in 0) expected_root=548;; 1) expected_root=161;; 2) expected_root=164;; M) expected_root=601;; esac
   expected_root=${GF_MATRIX_EXPECT_ROOT:-$expected_root}
   active=$(awk '/^BOUNDS/{exit} /^frame_selection:/{for(i=1;i<=NF;i++) if($i~/^active=/){value=$i;sub(/^active=/,"",value)}} END{print value}' "$L")
   active=${active:-$f}
+  [[ "$BASELINE" == 1 ]] && active=core/native
   [ "$rt" != "$expected_root" ] && { v="WRONG ROOT"; checks=$((checks+1)); }
   if [[ "${GF_MATRIX_EXPECT_NATIVE:-0}" == 1 ]]; then
     [[ "$active" == core/native ]] && grep -q 'active=core/native status=3 reason=.' "$L" || { v="FALLBACK"; checks=$((checks+1)); }
@@ -140,11 +220,12 @@ while IFS='|' read tag m f s; do
   fi
   [ -n "$rt" ] && [ "$bar" = "0" ] && { v="NO CHAT BAR"; checks=$((checks+1)); }
   if [ -n "$rt" ]; then
-    if [[ "${GF_MATRIX_EXPECT_NATIVE:-0}" != 1 ]] && { ! grep -q "frameroles: root $rt, .*roles checked, .* absent, 0 unbound, 0 mismatched" "$L" || grep -Eq 'frameroles: .* (MISMATCH|UNBOUND)' "$L"; }; then
+    if [[ "$BASELINE" != 1 && "${GF_MATRIX_EXPECT_NATIVE:-0}" != 1 ]] && { ! grep -q "frameroles: root $rt, .*roles checked, .* absent, 0 unbound, 0 mismatched" "$L" || grep -Eq 'frameroles: .* (MISMATCH|UNBOUND)' "$L"; }; then
       v="ROLE AUDIT"; checks=$((checks+1))
     fi
     local_state_args=()
-    [[ -n "${GF_MATRIX_MINIMAP_STATE:-}" ]] && local_state_args=(--minimap-state "$GF_MATRIX_MINIMAP_STATE")
+    [[ "$BASELINE" == 1 ]] && local_state_args+=(--native-baseline)
+    [[ -n "${GF_MATRIX_MINIMAP_STATE:-}" ]] && local_state_args+=(--minimap-state "$GF_MATRIX_MINIMAP_STATE")
     [[ -n "${GF_MATRIX_SERVER_HIDE:-}" ]] && local_state_args+=(--server-hide "$GF_MATRIX_SERVER_HIDE")
     python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$active" --root "$rt" --bounds "$L" "${local_state_args[@]}" > "$OUT/$tag/pixels.txt" 2>&1 || { v="PIXELS"; checks=$((checks+1)); }
     cat "$OUT/$tag/pixels.txt"
@@ -153,4 +234,20 @@ while IFS='|' read tag m f s; do
   printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" "$tag" "$m" "$f" "$s" "${rt:--}" "$n" "$v"
 done < "$OUT/index.txt"
 echo "--- $fail failures ($checks checks) / $(wc -l < "$OUT/index.txt" | tr -d ' ') --- captures in $OUT"
+[[ -s "$OUT/index.txt" ]] || { echo 'no captures selected'; exit 2; }
+if [[ "${GF_MATRIX_DIAGNOSTIC:-0}" == 1 ]]; then
+  echo 'DIAGNOSTIC ONLY: fixture acceptance not established'
+  exit 3
+fi
+python3 - "$OUT/fixture.json" <<'PY'
+import json, sys
+try:
+    accepted = json.load(open(sys.argv[1]))['accepted'] is True
+except (OSError, ValueError, KeyError):
+    accepted = False
+if not accepted:
+    print('FIXTURE BLOCKED: missing or rejected provenance; pixel scores cannot approve it')
+    sys.exit(2)
+PY
+[[ $? == 0 ]] || exit 2
 exit $(( fail > 0 ))
