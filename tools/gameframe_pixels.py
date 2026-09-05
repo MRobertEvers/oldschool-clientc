@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Pixel assertions for gameframe_matrix.sh (standard library only)."""
 import argparse
+import re
 import struct
 from pathlib import Path
 
@@ -25,17 +26,31 @@ def read_bmp(path):
     return width, abs(height), rows
 
 
-def check(path, frame, root):
+def check(path, frame, root, bounds_path=None):
     width, height, rows = read_bmp(path)
     failures = []
     if frame == "gameframe-layout/classic-fixed":
         # The approved plain-rock band spans x=0..495, y=467..498.
         # Its 29-column source repeats without any of the four old recesses.
         # Checking all repeats also catches partially covered/late old art.
-        valid = width >= 496 and height >= 499
+        # Mobile puts its message area below the filters, covering part of
+        # this strip. Test the exposed rock, not the chat painted over it.
+        backing = None
+        if bounds_path:
+            match = re.search(r"BOUNDS[^\n]*\(162\|37\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
+                              Path(bounds_path).read_text())
+            if match:
+                backing = tuple(map(int, match.groups()))
+        def exposed(x, y):
+            if backing is None:
+                return True
+            bx, by, bw, bh = backing
+            return not (bx <= x < bx + bw and by <= y < by + bh)
+        valid = width >= 496 and height >= 499 and (root != 601 or backing is not None)
         if valid:
             valid = all(rows[y][x] == rows[y][x % 29]
-                        for y in range(467, 499) for x in range(29, 496))
+                        for y in range(467, 499) for x in range(29, 496)
+                        if exposed(x, y) and exposed(x % 29, y))
             valid = valid and len({p for row in rows[467:499] for p in row[:29]}) > 3
         print(f"PIXEL no_captionless_2004_hollows={'PASS' if valid else 'FAIL'} root={root}")
         if not valid:
@@ -48,9 +63,10 @@ if __name__ == "__main__":
     parser.add_argument("capture")
     parser.add_argument("--frame", required=True)
     parser.add_argument("--root", required=True, type=int)
+    parser.add_argument("--bounds", help="matching TORIRS_DUMP_BOUNDS log")
     args = parser.parse_args()
     try:
-        raise SystemExit(bool(check(args.capture, args.frame, args.root)))
+        raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

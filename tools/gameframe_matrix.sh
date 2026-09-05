@@ -31,6 +31,7 @@ SIZES=(765x503 1200x800)
 
 [ -x "$BIN" ] || { echo "no binary at $BIN -- see the header"; exit 2; }
 mkdir -p "$OUT"
+if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
 : > "$OUT/index.txt"
 cat > "$OUT/plugin_prefs.ini" <<EOF
 [plugin:gameframe-layout]
@@ -73,6 +74,7 @@ for m in 0 1 2 M; do for f in $FRAMES_LIST; do for s in $SIZES; do
   [ $((i % 4)) -eq 0 ] && wait
 done; done; done
 wait
+fi
 
 fail=0
 printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" TAG TOP FRAME SIZE ROOT FILTERS VERDICT
@@ -88,7 +90,7 @@ while IFS='|' read tag m f s; do
   [ -n "$rt" ] && [ "$n" != "$want" ] && { v="FILTERS $n want $want"; fail=$((fail+1)); }
   [ -n "$rt" ] && [ "$bar" = "0" ] && { v="NO CHAT BAR"; fail=$((fail+1)); }
   if [ -n "$rt" ]; then
-    python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" --root "$rt" > "$OUT/$tag/pixels.txt" 2>&1 || { v="PIXELS"; fail=$((fail+1)); }
+    python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" --root "$rt" --bounds "$L" > "$OUT/$tag/pixels.txt" 2>&1 || { v="PIXELS"; fail=$((fail+1)); }
     cat "$OUT/$tag/pixels.txt"
   fi
   printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" "$tag" "$m" "$f" "$s" "${rt:--}" "$n" "$v"
