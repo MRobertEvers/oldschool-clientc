@@ -4500,66 +4500,81 @@ app_plugin_frame_stamp_role(
 static int
 app_plugin_frame_root(void* user);
 
-/*
- * The cache's OWN per-toplevel element map, for auditing the profile's rungs.
- *
- * Each toplevel's `control` component carries
- * `onload=i:901,i:-2147483645,i:<enum>` -- 548:1129, 161:1130, 164:1131,
- * 601:1745 -- and the cache's own layout scripts reach every frame piece
- * through it as `enum(component, component, $enum, interface_161:N)`. So the
- * enum IS the list of elements this toplevel has, keyed on interface 161's
- * component ids, shipped as data and correct by construction.
- *
- * The `[role:frame_*]` rungs in revconfig are a hand-copied subset of the same
- * table. Hand-copied means silently wrong: a mistyped rung binds a frame slot
- * to some other node and the plugin is handed a rectangle rather than an
- * error, which is where three of the September audit's defects lived.
- *
- * This does not resolve roles -- it CHECKS them, under
- * TORIRS_FRAME_ROLE_AUDIT=1, by asking whether each role's bound node is one
- * of the elements the cache itself calls part of this frame. A role pointing
- * outside that set is the shape of a mistyped rung.
- */
+/* Read the control's authored LOAD arguments from the decoded cache pack.
+ * Runtime hooks are a different store and do not carry authored onload. */
 static int
-app_plugin_frame_role_enum_id(int root_group)
+app_plugin_frame_role_enum_id(struct App* app, int root_group, int* control)
 {
-    switch( root_group )
-    {
-        case 548: return 1129;
-        case 161: return 1130;
-        case 164: return 1131;
-        case 601: return 1745;
-        default: return -1;
-    }
+    int value = -1;
+    if( !app->provider || root_group < 0 ) return -1;
+    int const init = RevConfigRefs_Get(&app->revconfig_refs, "script", "frame_init");
+    struct ToriRS_ComponentPack const* pack =
+        CacheProvider_ComponentPackGet(app->provider, root_group);
+    if( init <= 0 || !ToriRS_ComponentPackLoadInt(pack, init, 2, control, &value) )
+        return -1;
+    return value;
 }
 
-/**
- * What enum(root) says component `key` of interface 161 becomes on this
- * toplevel, or -1 when the enum does not answer.
- *
- * Membership in the value set is NOT enough to check a rung with, and that is
- * worth stating because it was the first thing tried: a rung mistyped from
- * `id(if(548, 11))` to `id(if(548, 39))` still lands on an element the enum
- * names -- 39 is helper_content, the value of key 161:12 -- so "is this node
- * in the frame's element set" answered yes for a rung pointing at the wrong
- * element. The key has to be resolved, not the value looked for.
- */
+/* A present -1 is an authored absence, distinct from a missing enum/key. */
 static int
-app_plugin_frame_role_enum_value(struct App* app, int root_group, int key_uid)
+app_plugin_frame_enum_value(struct App* app, int enum_id, int key, int* value)
 {
-    int const enum_id = app_plugin_frame_role_enum_id(root_group);
-    struct ToriRS_Enum* e;
-
-    assert(app);
-    if( enum_id < 0 || !app->provider )
-        return -1;
-    e = CacheProvider_EnumGet(app->provider, enum_id);
-    if( !e || e->output_is_string || !e->keys || !e->int_values )
-        return -1;
+    struct ToriRS_Enum const* e = CacheProvider_EnumGet(app->provider, enum_id);
+    if( !e || e->output_is_string || !e->keys || !e->int_values ) return 0;
     for( int i = 0; i < e->count; i++ )
-        if( e->keys[i] == key_uid )
-            return e->int_values[i];
-    return -1;
+        if( e->keys[i] == key )
+        {
+            *value = e->int_values[i];
+            return 1;
+        }
+    return 0;
+}
+
+/* The plate is the unique authored graphic child of a filter container.
+ * Caption/state siblings must never be substituted for that decoration. */
+static int
+app_plugin_chat_plate_expected(struct App* app, int filter)
+{
+    int const enum_id = RevConfigRefs_Get(&app->revconfig_refs, "enum", "chat_filters");
+    int const chat = RevConfigRefs_Get(&app->revconfig_refs, "iface", "chat");
+    struct ToriRS_Enum const* filters = CacheProvider_EnumGet(app->provider, enum_id);
+    struct ToriRS_ComponentPack const* pack = CacheProvider_ComponentPackGet(app->provider, chat);
+    int container = -1, graphic = -1;
+    if( !filters || !pack ) return -1;
+    if( !app_plugin_frame_enum_value(app, enum_id, filter, &container) )
+    {
+        /* Report is not in the filter enum. It is the sole other actionable
+         * child of the filters' authored parent, so no copied component id
+         * or translated caption is needed to identify it. */
+        int first = -1;
+        struct ToriRS_Component const* first_component;
+        if( filter != filters->count ||
+            !app_plugin_frame_enum_value(app, enum_id, 0, &first) ) return -1;
+        first_component = CacheProvider_ComponentGet(app->provider, first);
+        if( !first_component ) return -1;
+        for( int i = 0; i < pack->component_count; i++ )
+        {
+            struct ToriRS_Component const* c = &pack->components[i];
+            int listed = 0, actionable = 0;
+            if( c->parent_id != first_component->parent_id ) continue;
+            for( int j = 0; j < filters->count; j++ )
+                if( filters->int_values[j] == c->id ) listed = 1;
+            for( int j = 0; j < TORIRS_MENU_ACTION_SLOTS; j++ )
+                if( c->ops[j][0] ) actionable = 1;
+            if( listed || !actionable ) continue;
+            if( container >= 0 ) return -1;
+            container = c->id;
+        }
+    }
+    if( container < 0 ) return -1;
+    for( int i = 0; i < pack->component_count; i++ )
+    {
+        struct ToriRS_Component const* c = &pack->components[i];
+        if( c->parent_id != container || c->type != TORIRS_COMPONENT_GRAPHIC ) continue;
+        if( graphic >= 0 ) return -1;
+        graphic = c->id;
+    }
+    return graphic;
 }
 
 /**
@@ -4589,68 +4604,67 @@ app_plugin_frame_role_key_161(struct UITreeRoleTable const* table, uint16_t role
     return -1;
 }
 
-static void
+static int
 app_plugin_frame_role_audit(struct App* app, struct UITree* tree)
 {
     int const root = app_plugin_frame_root(app);
-    int checked = 0;
-    int outside = 0;
-    int unbound = 0;
-
-    assert(app);
-    assert(tree);
-    if( root <= 0 )
-        return;
-    for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
+    int control = -1;
+    int const enum_id = app_plugin_frame_role_enum_id(app, root, &control);
+    int const chat = RevConfigRefs_Get(&app->revconfig_refs, "iface", "chat");
+    int checked = 0, mismatched = 0, unbound = 0, absent = 0;
+    struct ToriRS_ComponentPack const* chat_pack = CacheProvider_ComponentPackGet(app->provider, chat);
+    /* The chat is server-mounted after the root; wait for the pack before
+     * auditing its plates rather than permanently reporting startup misses. */
+    if( root <= 0 || enum_id < 0 || !CacheProvider_EnumGet(app->provider, enum_id) ||
+        !chat_pack || chat_pack->component_count == 0 ||
+        UITree_FindByComponentId(tree, chat_pack->components[0].id) < 0 ||
+        app_plugin_chat_plate_expected(app, 0) < 0 ) return 0;
+    TORIRS_LOG("frameroles: root %d control=(%d|%d) authored enum=%d\n",
+               root, (control >> 16) & 0xffff, control & 0xffff, enum_id);
+    for( int i = 0; i < app->ui_roles.count; i++ )
     {
-        char const* name = UITree_RoleSlotName(slot);
-        char role[UITREE_ROLE_NAME_MAX];
-        uint16_t role_id;
+        struct UITreeRoleEntry const* entry = &app->ui_roles.entries[i];
+        int want = -1, known = 0, key = -1;
         int32_t node;
-        int in_enum = 0;
-
-        if( !name || app_plugin_frame_slot_tag(slot) == UITREE_SLOT_NONE )
-            continue;
-        snprintf(role, sizeof(role), "frame_%s", name);
-        role_id = UITree_RoleFind(&app->ui_roles, role);
-        if( role_id == 0 )
-            continue;
+        if( strncmp(entry->name, "chat_plate_", 11) == 0 )
+        {
+            char* end;
+            long filter = strtol(entry->name + 11, &end, 10);
+            if( end == entry->name + 11 || *end || filter < 0 || filter > 255 ) continue;
+            want = app_plugin_chat_plate_expected(app, (int)filter);
+            known = want >= 0;
+        }
+        else if( strncmp(entry->name, "frame_", 6) == 0 ||
+                 strncmp(entry->name, "sidetab_", 8) == 0 )
+        {
+            key = app_plugin_frame_role_key_161(&app->ui_roles, (uint16_t)(i + 1));
+            if( key < 0 ) continue; /* Shared-pack members have no toplevel enum key. */
+            known = app_plugin_frame_enum_value(app, enum_id, key, &want);
+        }
+        else continue;
         checked++;
-        node = UITree_RoleNode(tree, &app->ui_roles, role_id);
-        if( node < 0 || (uint32_t)node >= tree->component_count ||
-            tree->components[node].freed )
+        node = UITree_RoleNode(tree, &app->ui_roles, (uint16_t)(i + 1));
+        int const got = node < 0 || (uint32_t)node >= tree->component_count ||
+                        tree->components[node].freed ? -1 : tree->components[node].component_id;
+        if( known && want == -1 && got == -1 ) { absent++; continue; }
+        if( got == -1 )
         {
             unbound++;
-            TORIRS_LOG("frameroles: %s UNBOUND on root %d\n", role, root);
-            continue;
+            TORIRS_LOG("frameroles: %s UNBOUND on root %d expected=(%d|%d)\n",
+                       entry->name, root, (want >> 16) & 0xffff, want & 0xffff);
         }
+        else if( !known || want != got )
         {
-            int const key = app_plugin_frame_role_key_161(&app->ui_roles, role_id);
-            int const want = key < 0
-                                 ? -1
-                                 : app_plugin_frame_role_enum_value(app, root, key);
-            int const got = tree->components[node].component_id;
-
-            if( want >= 0 && want != got )
-            {
-                outside++;
-                TORIRS_LOG(
-                    "frameroles: %s on root %d -> (%d|%d), but enum %d maps its "
-                    "161 key (161|%d) to (%d|%d)\n",
-                    role,
-                    root,
-                    (got >> 16) & 0xffff,
-                    got & 0xffff,
-                    app_plugin_frame_role_enum_id(root),
-                    key & 0xffff,
-                    (want >> 16) & 0xffff,
-                    want & 0xffff);
-            }
+            mismatched++;
+            TORIRS_LOG("frameroles: %s MISMATCH root=%d got=(%d|%d) expected=(%d|%d) enum=%d key=(%d|%d) known=%d\n",
+                       entry->name, root, (got >> 16) & 0xffff, got & 0xffff,
+                       (want >> 16) & 0xffff, want & 0xffff, enum_id,
+                       (key >> 16) & 0xffff, key & 0xffff, known);
         }
-        (void)in_enum;
     }
-    TORIRS_LOG("frameroles: root %d, %d roles checked, %d unbound, %d outside the enum\n",
-        root, checked, unbound, outside);
+    TORIRS_LOG("frameroles: root %d, %d roles checked, %d absent, %d unbound, %d mismatched\n",
+               root, checked, absent, unbound, mismatched);
+    return 1;
 }
 
 static void
@@ -4691,11 +4705,22 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
      * table the cache also ships, and a mistyped one is otherwise silent. */
     {
         static int audited_root = -1;
+        static uint32_t audited_incarnation;
+        static struct UITree const* audited_tree;
         int const root = app_plugin_frame_root(app);
-        if( root > 0 && root != audited_root && getenv("TORIRS_FRAME_ROLE_AUDIT") )
+        if( root > 0 && getenv("TORIRS_FRAME_ROLE_AUDIT") )
         {
-            audited_root = root;
-            app_plugin_frame_role_audit(app, tree);
+            int control = -1;
+            (void)app_plugin_frame_role_enum_id(app, root, &control);
+            int32_t const node = UITree_FindByComponentId(tree, control);
+            uint32_t const incarnation = node >= 0 ? tree->components[node].incarnation : 0;
+            if( (tree != audited_tree || root != audited_root || incarnation != audited_incarnation) &&
+                app_plugin_frame_role_audit(app, tree) )
+            {
+                audited_tree = tree;
+                audited_root = root;
+                audited_incarnation = incarnation;
+            }
         }
     }
 

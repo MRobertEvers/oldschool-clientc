@@ -435,7 +435,7 @@ struct RevConfigLoginReplyItem
 };
 
 /** Section types that build an RCITEM_CACHE_REF, i.e. a bare name -> cache id. */
-#define REVCONFIG_CACHEREF_KINDS "script", "iface", "varbit", "varp", "seq", "setting"
+#define REVCONFIG_CACHEREF_KINDS "script", "iface", "varbit", "varp", "seq", "setting", "enum"
 
 /*
  * One `[<kind>:<name>] id=<n>` binding — a cache id the CLIENT has to know by

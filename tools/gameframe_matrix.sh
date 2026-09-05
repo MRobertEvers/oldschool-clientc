@@ -57,7 +57,7 @@ one() {
       TORIRSSERVER_SAVES="$run/saves" \
       TORIRS_PLUGIN_PREFS="$OUT/plugin_prefs.ini" TORIRS_PLUGINS=1 \
       TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 TORIRS_STDERR_UNBUFFERED=1 \
-      SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=620 \
+      SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=620 TORIRS_FRAME_ROLE_AUDIT=1 \
       TORIRS_EXIT_BMP="$run/out.bmp" TORIRS_DUMP_BOUNDS=162 "${env_extra[@]}" \
       "$BIN" --manifest "$MANIFEST" --windowmode resizable --window "$size" \
       >> "$run/log.txt" 2>&1 )
@@ -90,6 +90,9 @@ while IFS='|' read tag m f s; do
   [ -n "$rt" ] && [ "$n" != "$want" ] && { v="FILTERS $n want $want"; fail=$((fail+1)); }
   [ -n "$rt" ] && [ "$bar" = "0" ] && { v="NO CHAT BAR"; fail=$((fail+1)); }
   if [ -n "$rt" ]; then
+    if ! grep -q "frameroles: root $rt, .*roles checked, .* absent, 0 unbound, 0 mismatched" "$L" || grep -Eq 'frameroles: .* (MISMATCH|UNBOUND)' "$L"; then
+      v="ROLE AUDIT"; fail=$((fail+1))
+    fi
     python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" --root "$rt" --bounds "$L" > "$OUT/$tag/pixels.txt" 2>&1 || { v="PIXELS"; fail=$((fail+1)); }
     cat "$OUT/$tag/pixels.txt"
   fi

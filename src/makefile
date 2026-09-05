@@ -2953,7 +2953,7 @@ test-uitree: $(OBJ_DIR)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \

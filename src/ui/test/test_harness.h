@@ -315,5 +315,6 @@ void test_chrome_panel_draw(void);
 void test_entity_overlay_draw_order(void);
 void test_server_driven_viewport_widgets(void);
 void test_frame_replacement(void);
+void test_frame_authored_metadata(void);
 
 #endif
