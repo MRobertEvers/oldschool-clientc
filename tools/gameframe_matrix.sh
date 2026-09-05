@@ -31,6 +31,32 @@ SIZES=(765x503 1200x800)
 
 [ -x "$BIN" ] || { echo "no binary at $BIN -- see the header"; exit 2; }
 mkdir -p "$OUT"
+# The same capture/scoring path exercises native transitions. Keep this in the
+# reference harness so a new frame provider can run the contract with one target.
+if [[ "${GF_MATRIX_SCENARIOS:-0}" == 1 ]]; then
+  failures=0
+  scenario() {
+    local name=$1
+    shift
+    env GF_MATRIX_SCENARIOS=0 "$@" "$TOOLS_DIR/gameframe_matrix.sh" "$OUT/$name" > "$OUT/$name.log" 2>&1
+    local result=$?
+    cat "$OUT/$name.log"
+    [[ $result == 0 ]] || failures=$((failures+1))
+  }
+  for state in 0 1 2 3 4 5; do
+    scenario "minimap-$state" GF_MATRIX_TAGS=m03 GF_MATRIX_MINIMAP_STATE=$state \
+      TORIRS_NET_DEBUG=1 TORIRS_SIM_CMD="500,minimap $state" TORIRS_SIM_CLICK_AT='550,630,80'
+  done
+  for hidden in 0 1; do
+    scenario "server-hide-$hidden" GF_MATRIX_TAGS=m03 GF_MATRIX_SERVER_HIDE="35913750:$hidden" \
+      TORIRS_NET_DEBUG=1 TORIRS_SIM_CMD="490,ifhide 35913750 1;550,ifhide 35913750 $hidden"
+  done
+  scenario resize-tabs GF_MATRIX_TAGS=m03,m13,m23 GF_MATRIX_EXPECT_IFACE=320 \
+    TORIRS_SIM_RESIZE='500,1200x800' TORIRS_SIM_CLICK_AT='540,574,182'
+  scenario remount GF_MATRIX_TAGS=m03,m13 GF_MATRIX_EXPECT_ROOT=164 TORIRS_SIM_CMD='500,layout 2'
+  echo "NATIVE CONTRACT: $failures failed scenario groups / 10 (13 captures)"
+  exit $((failures > 0))
+fi
 if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
 : > "$OUT/index.txt"
 cat > "$OUT/plugin_prefs.ini" <<EOF
@@ -54,6 +80,7 @@ one() {
   printf '[preferences]\nversion=1\npreferred_frame=%s\nframe_migration_version=1\n' \
     "$frame" > "$run/preferences.ini"
   sed -e "s/^client_layout_mode = .*/client_layout_mode = $mode/" \
+    -e "s/^x = .*/x = 3210/" -e "s/^z = .*/z = 3424/" -e "s/^level = .*/level = 0/" \
     "$REPO/saves/testc.ini" > "$run/saves/testc.ini"
   echo "PINNED tag=$tag mode=$mode size=$size frame=$frame scale=none" > "$run/log.txt"
   local -a env_extra
@@ -108,6 +135,9 @@ while IFS='|' read tag m f s; do
   fi
   [ -z "$rt" ] && { v="NO ROOT"; checks=$((checks+1)); }
   [ -n "$rt" ] && [ "$n" != "$want" ] && { v="FILTERS $n want $want"; checks=$((checks+1)); }
+  if [[ -n "${GF_MATRIX_EXPECT_IFACE:-}" ]]; then
+    grep -q "EMIT_EXIT.*($GF_MATRIX_EXPECT_IFACE|" "$L" || { v="NO SELECTED TAB PAINT"; checks=$((checks+1)); }
+  fi
   [ -n "$rt" ] && [ "$bar" = "0" ] && { v="NO CHAT BAR"; checks=$((checks+1)); }
   if [ -n "$rt" ]; then
     if [[ "${GF_MATRIX_EXPECT_NATIVE:-0}" != 1 ]] && { ! grep -q "frameroles: root $rt, .*roles checked, .* absent, 0 unbound, 0 mismatched" "$L" || grep -Eq 'frameroles: .* (MISMATCH|UNBOUND)' "$L"; }; then

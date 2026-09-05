@@ -2419,6 +2419,12 @@ test-gameframe-matrix:
 		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
 	../tools/gameframe_matrix.sh
 
+.PHONY: test-gameframe-contract
+test-gameframe-contract:
+	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
+		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
+	GF_MATRIX_SCENARIOS=1 ../tools/gameframe_matrix.sh
+
 test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c
