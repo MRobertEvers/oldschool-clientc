@@ -89,6 +89,28 @@ static void test_native_map_with_other_plugin(void)
     maps = 0;
     for( int i = 0; i < buffer.count; i++ ) maps += buffer.cmds[i].kind == UITREE_EMIT_MINIMAP;
     TEST_ASSERT(maps == 1, "native re-enable restores the map without a new plugin claim");
+    slots[UITREE_FRAME_SLOT_MINIMAP].anchor.relation = UITREE_FRAME_RELATION_BEHIND;
+    UITree_FrameApply(tree, slots, group_id);
+    buffer.count = 0;
+    UITree_EmitWalk(tree,&host,&buffer,-1);
+    int map_order = -1, world_order = -1, nodes[16], hidden_menu = 0;
+    for( int i=0; i<buffer.count; i++ )
+    {
+        if( buffer.cmds[i].kind == UITREE_EMIT_MINIMAP ) map_order=i;
+        if( buffer.cmds[i].kind == UITREE_EMIT_WORLD ) world_order=i;
+    }
+    int count = UITree_CollectNodesAt(tree,&host,20,20,nodes,16);
+    for( int i=0; i<count; i++ ) hidden_menu |= nodes[i] == child;
+    int hit = UITree_HitTestInteractive(tree,&host,20,20);
+    printf("FRAME_CONTRACT behind_world map_order=%d world_order=%d hit=%d hidden_menu=%d\n",
+           map_order,world_order,hit,hidden_menu);
+    TEST_ASSERT(map_order >= 0 && world_order > map_order && hit != child && !hidden_menu &&
+                UITree_FindHoveredComponentIdForRegion(tree,&host,-1,20,20,0,0,765,503) == -1,
+                "the viewport covers paint, click, menu and hover for a declared BEHIND surface");
+    TEST_ASSERT(UITree_PointInputCoverPaintsAfterRolePlacement(tree,&host,20,20,map,
+                    tree->components[map].incarnation,false,UITREE_ROLE_PLACE_BEFORE),
+                "another plugin's attached region shares its behind-world occlusion");
+
     UITree_EmitBufferFree(&buffer);
     UITree_Free(tree);
 }
@@ -129,10 +151,73 @@ static void test_empty_native_anchor(void)
     UITree_Free(tree);
 }
 
+static void test_replacement_chain_liveness(void)
+{
+    struct UITree* tree = UITree_New(16);
+    struct UITreeHost host;
+    struct TestHostState state;
+    struct UITreeEmitBuffer buffer;
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT] = { 0 };
+    int root = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 782 << 16, 0, 0, 765, 503);
+    int a = UITree_TestPushXy(tree, root, UIELEM_RS_LAYER, (782 << 16)|1, 10,10,50,50);
+    int red = depth_button(tree, a, (783 << 16)|1, 0xff0000);
+    int b = UITree_TestPushXy(tree, root, UIELEM_RS_LAYER, (782 << 16)|2, 10,10,50,50);
+    depth_button(tree, b, (783 << 16)|2, 0x0000ff);
+    int c = UITree_TestPushXy(tree, root, UIELEM_RS_LAYER, (782 << 16)|3, 10,10,50,50);
+    depth_button(tree, c, (783 << 16)|3, 0x00ffff);
+    tree->components[a].slot_tag = UITREE_SLOT_CHAT;
+    tree->components[b].slot_tag = UITREE_SLOT_MAIN_MODAL;
+    tree->components[c].slot_tag = UITREE_SLOT_CHAT_BUTTON;
+    slots[UITREE_FRAME_SLOT_CHAT].all = (struct UITreeFrameRect){1,10,10,50,50};
+    slots[UITREE_FRAME_SLOT_MAIN_MODAL].all = slots[UITREE_FRAME_SLOT_CHAT].all;
+    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].all = slots[UITREE_FRAME_SLOT_CHAT].all;
+    slots[UITREE_FRAME_SLOT_CHAT].anchor = (struct UITreeFrameAnchor){UITREE_FRAME_RELATION_REPLACE, UITREE_FRAME_SLOT_MAIN_MODAL};
+    slots[UITREE_FRAME_SLOT_MAIN_MODAL].anchor = (struct UITreeFrameAnchor){UITREE_FRAME_RELATION_REPLACE, UITREE_FRAME_SLOT_CHAT_BUTTONS};
+    UITree_TestHostInit(&host, &state);
+    UITree_TestResolve(tree);
+    UITree_FrameApply(tree, slots, 782);
+    UITree_EmitBufferInit(&buffer);
+    UITree_EmitWalk(tree, &host, &buffer, -1);
+    TEST_ASSERT(rect_pixel(&buffer,20,20) == 0xff0000 && UITree_FrameNodePresented(tree,&host,red),
+                "a fully live replacement chain presents its outer replacement");
+    UITree_ApplyHide(tree, tree->components[c].component_id, 1);
+    buffer.count = 0;
+    UITree_EmitWalk(tree, &host, &buffer, -1);
+    printf("FRAME_CONTRACT retained_replacement target_hide=1 presented=%d pixel=%d\n",
+           UITree_FrameNodePresented(tree,&host,red), rect_pixel(&buffer,20,20));
+    TEST_ASSERT(!UITree_FrameNodePresented(tree,&host,red),
+                "retained contribution/menu liveness follows transitive replacement target hiding");
+    TEST_ASSERT(rect_pixel(&buffer,20,20) == -1 && UITree_HitTestInteractive(tree,&host,20,20) != red,
+                "a hidden terminal target suppresses the entire replacement chain");
+    /* OVER does not create a native visibility parent. It stays usable when
+     * its anchor's replacement is unavailable, using the empty boundary. */
+    int d = UITree_TestPushXy(tree, root, UIELEM_RS_LAYER, (782 << 16)|4, 10,10,50,50);
+    int green = depth_button(tree, d, (783 << 16)|4, 0x00ff00);
+    tree->components[d].slot_tag = UITREE_SLOT_ORBS;
+    slots[UITREE_FRAME_SLOT_ORBS].all = slots[UITREE_FRAME_SLOT_CHAT].all;
+    slots[UITREE_FRAME_SLOT_ORBS].anchor = (struct UITreeFrameAnchor){UITREE_FRAME_RELATION_OVER, UITREE_FRAME_SLOT_MAIN_MODAL};
+    UITree_TestResolve(tree);
+    UITree_FrameApply(tree, slots, 782);
+    buffer.count = 0;
+    UITree_EmitWalk(tree,&host,&buffer,-1);
+    TEST_ASSERT(rect_pixel(&buffer,20,20) == 0x00ff00 && UITree_FrameNodePresented(tree,&host,green) &&
+                UITree_HitTestInteractive(tree,&host,20,20) == green,
+                "an independent OVER surface survives an unavailable replacement anchor");
+    UITree_ApplyHide(tree,tree->components[c].component_id,0);
+    UITree_ApplyHide(tree,tree->components[b].component_id,1);
+    buffer.count = 0;
+    UITree_EmitWalk(tree,&host,&buffer,-1);
+    TEST_ASSERT(UITree_FrameNodePresented(tree,&host,green) && rect_pixel(&buffer,20,20) == 0x00ff00,
+                "native hiding of the intermediate replacement does not hide its independent OVER peer");
+    UITree_EmitBufferFree(&buffer);
+    UITree_Free(tree);
+}
+
 void test_frame_declared_depth(void)
 {
     test_native_map_with_other_plugin();
     test_empty_native_anchor();
+    test_replacement_chain_liveness();
     struct UITree* tree = UITree_New(16);
     struct UITreeEmitBuffer buffer;
     struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT] = { 0 };

@@ -172,6 +172,8 @@ int UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host
                        struct UITreeFrameOrderHints const* hints);
 int UITree_FrameNodeSlot(struct UITree const* tree, int32_t node);
 int UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* host, int32_t node);
+/** Effective eligibility for attached contributions and retained actions. */
+int UITree_FrameNodePresented(struct UITree const* tree, struct UITreeHost const* host, int32_t node);
 
 /**
  * The number `node` answers to WITHIN its role, or -1 when the role has no

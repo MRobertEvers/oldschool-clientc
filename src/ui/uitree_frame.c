@@ -1336,6 +1336,36 @@ UITree_FrameNodeSlot(struct UITree const* tree, int32_t node)
     return -1;
 }
 
+static int
+frame_slot_native_visible(struct UITree const* tree, struct UITreeHost const* host, int slot,
+                          struct UITreeFrameOrderHints const* hints)
+{
+    struct UITreeFrameLayout const* fl = tree->frame_layout;
+    if( hints && hints->position[slot] >= 0 ) return 1;
+    for( int n = 0; n < fl->slot_node_count[slot]; n++ )
+        if( frame_rect_for(slot, &fl->slot_rect[slot], fl->slot_member[slot][n]) &&
+            frame_node_same(tree, fl->slot_node[slot][n], fl->slot_incarnation[slot][n]) &&
+            UITree_NodeNativeVisible(tree, host, fl->slot_node[slot][n], -1) ) return 1;
+    return 0;
+}
+
+/* Only REPLACE inherits its target's native veto. Follow that dependency
+ * transitively; OVER and BEHIND remain independent native surfaces. */
+static int
+frame_replacement_available(struct UITree const* tree, struct UITreeHost const* host, int slot,
+                            struct UITreeFrameOrderHints const* hints)
+{
+    struct UITreeFrameLayout const* fl = tree->frame_layout;
+    for( int guard = 0; guard < UITREE_FRAME_SLOT_COUNT; guard++ )
+    {
+        if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT ||
+            !frame_slot_native_visible(tree, host, slot, hints) ) return 0;
+        if( fl->slot_rect[slot].anchor.relation != UITREE_FRAME_RELATION_REPLACE ) return 1;
+        slot = fl->slot_rect[slot].anchor.slot;
+    }
+    return 0;
+}
+
 int
 UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
 {
@@ -1345,15 +1375,22 @@ UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* hos
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
         if( fl->slot_rect[s].anchor.relation == UITREE_FRAME_RELATION_REPLACE &&
             fl->slot_rect[s].anchor.slot == slot )
-            for( int n = 0; n < fl->slot_node_count[s]; n++ )
-                if( frame_node_same(tree, fl->slot_node[s][n], fl->slot_incarnation[s][n]) &&
-                    UITree_NodeNativeVisible(tree, host, fl->slot_node[s][n], -1) ) return 1;
+            if( frame_replacement_available(tree, host, s, NULL) ) return 1;
     return 0;
+}
+
+int
+UITree_FrameNodePresented(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
+{
+    if( !UITree_NodeNativeVisible(tree, host, node, -1) ) return 0;
+    int slot = UITree_FrameNodeSlot(tree, node);
+    return slot < 0 || (frame_replacement_available(tree, host, slot, NULL) &&
+                       !UITree_FrameNodeReplaced(tree, host, node));
 }
 
 struct FrameOrderWork
 {
-    struct UITreeFrameLayout const* fl;
+    struct UITreeFrameAnchor anchors[UITREE_FRAME_SLOT_COUNT];
     unsigned char const* input;
     unsigned char* output;
     int const* owners;
@@ -1369,9 +1406,9 @@ static void
 frame_order_surface(struct FrameOrderWork* work, int slot, int depth)
 {
     int children[UITREE_FRAME_SLOT_COUNT], count = 0, replacement = -1;
-    if( depth >= UITREE_FRAME_SLOT_COUNT || work->suppressed[slot] ) return;
+    if( depth >= UITREE_FRAME_SLOT_COUNT ) return;
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
-        if( work->fl->slot_rect[s].anchor.relation && work->fl->slot_rect[s].anchor.slot == slot )
+        if( work->anchors[s].relation && work->anchors[s].slot == slot )
         {
             int at = count++;
             while( at > 0 && work->native_order[children[at - 1]] > work->native_order[s] )
@@ -1381,20 +1418,20 @@ frame_order_surface(struct FrameOrderWork* work, int slot, int depth)
     for( int i = 0; i < count; i++ )
     {
         int s = children[i];
-        if( work->fl->slot_rect[s].anchor.relation == UITREE_FRAME_RELATION_BEHIND )
+        if( work->anchors[s].relation == UITREE_FRAME_RELATION_BEHIND )
             frame_order_surface(work, s, depth + 1);
-        if( work->fl->slot_rect[s].anchor.relation == UITREE_FRAME_RELATION_REPLACE && !work->suppressed[s] )
+        if( work->anchors[s].relation == UITREE_FRAME_RELATION_REPLACE && !work->suppressed[s] )
             replacement = s;
     }
     if( replacement >= 0 )
         frame_order_surface(work, replacement, depth + 1);
-    else
+    else if( !work->suppressed[slot] )
         for( int i = 0; i < work->count; i++ )
             if( work->owners[i] == slot )
                 memcpy(work->output + (size_t)work->written++ * work->stride,
                        work->input + (size_t)i * work->stride, work->stride);
     for( int i = 0; i < count; i++ )
-        if( work->fl->slot_rect[children[i]].anchor.relation == UITREE_FRAME_RELATION_OVER )
+        if( work->anchors[children[i]].relation == UITREE_FRAME_RELATION_OVER )
             frame_order_surface(work, children[i], depth + 1);
 }
 
@@ -1405,37 +1442,35 @@ UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, vo
 {
     struct UITreeFrameLayout const* fl = tree->frame_layout;
     int roots[UITREE_FRAME_SLOT_COUNT], active[UITREE_FRAME_SLOT_COUNT] = { 0 };
-    struct FrameOrderWork work = { .fl = fl, .input = records, .count = count, .stride = stride };
+    struct FrameOrderWork work = { .input = records, .count = count, .stride = stride };
     if( !UITree_FrameHasDepth(tree) || count <= 0 ) return count;
     assert(stride >= sizeof(int32_t) && node_offset <= stride - sizeof(int32_t));
     assert((size_t)count <= SIZE_MAX / stride);
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
     {
+        work.anchors[s] = fl->slot_rect[s].anchor;
+        if( work.anchors[s].relation == UITREE_FRAME_RELATION_REPLACE &&
+            !frame_replacement_available(tree, host, s, hints) )
+        {
+            work.suppressed[s] = 1;
+            /* Retain an empty native boundary for independent OVER/BEHIND
+             * peers. Their visibility must not inherit this failed replace. */
+            work.anchors[s].relation = UITREE_FRAME_RELATION_NATIVE;
+        }
+    }
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+    {
         int at = s, guard = 0;
         work.first[s] = count;
-        while( fl->slot_rect[at].anchor.relation )
+        while( work.anchors[at].relation )
         {
-            at = fl->slot_rect[at].anchor.slot;
+            at = work.anchors[at].slot;
             if( at < 0 || at >= UITREE_FRAME_SLOT_COUNT || ++guard >= UITREE_FRAME_SLOT_COUNT )
                 return count; /* Malformed engine caller; public builds reject this earlier. */
         }
         roots[s] = at;
         if( at != s ) active[at] = 1;
     }
-    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
-        if( fl->slot_rect[s].anchor.relation == UITREE_FRAME_RELATION_REPLACE )
-        {
-            int target = fl->slot_rect[s].anchor.slot;
-            int visible = hints && hints->position[target] >= 0;
-            for( int n = 0; !visible && n < fl->slot_node_count[target]; n++ )
-                if( frame_node_same(tree, fl->slot_node[target][n], fl->slot_incarnation[target][n]) &&
-                    UITree_NodeNativeVisible(tree, host, fl->slot_node[target][n], -1) ) visible = 1;
-            int source_visible = hints && hints->position[s] >= 0;
-            for( int n = 0; !source_visible && n < fl->slot_node_count[s]; n++ )
-                if( frame_node_same(tree, fl->slot_node[s][n], fl->slot_incarnation[s][n]) &&
-                    UITree_NodeNativeVisible(tree, host, fl->slot_node[s][n], -1) ) source_visible = 1;
-            work.suppressed[s] = !visible || !source_visible;
-        }
     int* owners = malloc((size_t)count * sizeof(*owners));
     work.output = malloc((size_t)count * stride);
     assert(owners && work.output);

@@ -3266,8 +3266,7 @@ app_plugin_role_region_live(
         return 0;
     if( region->role_clip_w <= 0 || region->role_clip_h <= 0 )
         return 0;
-    if( !UITree_NodeNativeVisible(app->tree, &app->ui_host, region->ui_boundary_node, -1) ||
-        UITree_FrameNodeReplaced(app->tree, &app->ui_host, region->ui_boundary_node) ) return 0;
+    if( !UITree_FrameNodePresented(app->tree, &app->ui_host, region->ui_boundary_node) ) return 0;
     if( !region->ui_boundary_replace )
         return !UITree_NodeOrAncestorDisplayHidden(app->tree, region->ui_boundary_node);
     if( !target->replacement_hidden )
@@ -4369,8 +4368,7 @@ app_plugin_ui_boundary(
     if( node < 0 || (uint32_t)node >= app->tree->component_count ||
         app->tree->components[node].freed )
         return 0;
-    if( !UITree_NodeNativeVisible(app->tree, &app->ui_host, node, -1) ||
-        UITree_FrameNodeReplaced(app->tree, &app->ui_host, node) ) return 0;
+    if( !UITree_FrameNodePresented(app->tree, &app->ui_host, node) ) return 0;
     /* A whole-node replacement is already hidden at this point. Its draw must
      * enter the replacement tombstone rather than fail the ordinary visibility
      * fence (or become an additive SELF overlay before still-live children).
