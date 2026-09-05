@@ -689,16 +689,15 @@ enum ToriRS_WorldRenderMode
  */
 #define APP_GROUND_ITEMS_DIRTY_MAX 32
 
-/**
- * MINIMAP_TOGGLE states. 1 and 2 are not degrees of the same thing: the map is
- * equally invisible in both, and what separates them is whether clicking where
- * it used to be still walks. See struct PktMinimapToggle.
- */
+/** Raw native states; game/rs_minimap_state.h defines their independent permissions. */
 enum AppMinimapState
 {
     APP_MINIMAP_STATE_NORMAL = 0,
-    APP_MINIMAP_STATE_HIDDEN = 1,
-    APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE = 2,
+    APP_MINIMAP_STATE_UNCLICKABLE = 1,
+    APP_MINIMAP_STATE_HIDDEN = 2,
+    APP_MINIMAP_STATE_COMPASS_HIDDEN = 3,
+    APP_MINIMAP_STATE_UNCLICKABLE_COMPASS_HIDDEN = 4,
+    APP_MINIMAP_STATE_DISABLED = 5,
 };
 
 /**
@@ -2766,6 +2765,20 @@ App_ChromeScale(struct App const* app);
  */
 int
 App_MeasureRightChromeStripWidth(struct App const* app);
+
+/**
+ * The width the LANE's own frame is asking for, when the canvas it was given
+ * is too narrow to hold it: the fixed-size block a toplevel lays inside the
+ * strip-carved area, on the frames where that block comes out wider than the
+ * area. 0 when it fits, and when there is no such block.
+ *
+ * This is the floor a plugin frame's own minimum cannot go below: a layout
+ * plugin arranges OVER the lane's toplevel, so the lane's widgets are still
+ * laid out by it, and a toplevel that does not fit centres its block and hangs
+ * it off both edges of the area the plugin frame was handed.
+ */
+int
+App_MeasureLaneFrameCoreWidth(struct App const* app);
 
 /**
  * Fixed-mode canvas width that keeps the classic frame at APP_CANVAS_MIN_W and

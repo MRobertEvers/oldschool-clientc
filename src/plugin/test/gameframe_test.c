@@ -109,6 +109,8 @@ static struct
         int h;
     } slot[TORIRS_HOST_SURFACE_COUNT];
     struct FakeRect member[TORIRS_HOST_SURFACE_COUNT][FAKE_SLOT_MEMBERS];
+    int anchor_relation[TORIRS_HOST_SURFACE_COUNT];
+    int anchor_slot[TORIRS_HOST_SURFACE_COUNT];
     int begin_calls;
     int end_calls;
 
@@ -152,7 +154,8 @@ static struct
 static int
 fake_has_slot(int slot)
 {
-    return slot != TORIRS_HOST_SURFACE_COMPASS;
+    (void)slot;
+    return 1;
 }
 
 static void
@@ -183,6 +186,14 @@ fake_layout_end(void* u)
 {
     (void)u;
     g_frame.end_calls++;
+}
+
+static void
+fake_layout_slot_anchor(void* u, int slot, int relation, int target)
+{
+    (void)u;
+    g_frame.anchor_relation[slot] = relation;
+    g_frame.anchor_slot[slot] = target;
 }
 
 static int
@@ -312,6 +323,41 @@ blitted_at(int x, int y)
         if( g_frame.blit_x[i] == x && g_frame.blit_y[i] == y )
             return 1;
     return 0;
+}
+
+/* Compare the painted lower strip with clean source rock. This checks
+ * compositing order as well as pixels: a correct image hidden under the old
+ * recesses must fail. The source is the shipped 496x50 backbase1 artwork. */
+static int
+classic_base_is_flat(void)
+{
+    int source = -1;
+    for( int i = 0; i < FAKE_IMAGE_SLOTS; i++ )
+        if( g_image[i].argb && g_image[i].w == 496 && g_image[i].h == 50 )
+            source = i;
+    if( source < 0 || !g_image[source].argb || g_image[source].w != 496 ||
+        g_image[source].h != 50 )
+        return 0;
+    for( int y = 467; y < 499; y++ )
+        for( int x = 0; x < 536; x++ )
+        {
+            uint32_t painted = 0;
+            for( int i = 0; i < g_frame.blits && i < 128; i++ )
+            {
+                int slot = g_frame.blit_image[i];
+                int px = x - g_frame.blit_x[i];
+                int py = y - g_frame.blit_y[i];
+                if( slot >= 0 && slot < FAKE_IMAGE_SLOTS && g_image[slot].argb &&
+                    px >= 0 && py >= 0 && px < g_image[slot].w && py < g_image[slot].h )
+                {
+                    uint32_t color = g_image[slot].argb[py * g_image[slot].w + px];
+                    if( (color >> 24) == 255 ) painted = color;
+                }
+            }
+            if( painted != g_image[source].argb[(y - 453) * 496 + 106 + x % 29] )
+                return 0;
+        }
+    return 1;
 }
 
 static int
@@ -942,6 +988,7 @@ main(void)
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
+    e.layout_slot_anchor = fake_layout_slot_anchor;
     e.layout_slot_exists = fake_layout_slot_exists;
     e.layout_slot_skin = fake_layout_slot_skin;
     e.layout_slot_overlay = fake_layout_slot_overlay;
@@ -1133,17 +1180,8 @@ main(void)
     CHECK(
         g_frame.slot[TORIRS_HOST_SURFACE_MODAL].placed,
         "the modal region is placed, not left to the lane");
-    /*
-     * The compass is placed even though this fake frame has none.
-     *
-     * That is the contract: the placement is recorded either way and the
-     * RETURN says whether the frame has such a surface. A layout that stopped
-     * placing a role because one gameframe lacks it would stop placing it on
-     * the frames that have it too.
-     */
-    CHECK(
-        g_frame.slot[TORIRS_HOST_SURFACE_COMPASS].placed,
-        "a role the frame lacks is still declared");
+    CHECK(g_frame.slot[TORIRS_HOST_SURFACE_COMPASS].placed,
+          "the provider declares the native compass surface");
 
     {
         /*
@@ -1284,32 +1322,17 @@ main(void)
     }
 
     {
-        /*
-         * A FIXED frame handed a closed sidebar opens one.
-         *
-         * 548 and the 2004 frame both draw a panel with a lit stone over it
-         * from the moment the player logs in, and neither has any art for the
-         * sidebar being away -- so a lane that answers "no tab is open" (164
-         * does, it logs in with every side panel hidden) gets asked to open
-         * the inventory rather than being drawn as fourteen stones around an
-         * empty plate.
-         *
-         * And asked ONCE. The ask goes through the lane's own switch, which on
-         * a cache frame is a script; a frame that re-asked every time it saw
-         * the same fourteen answers would run that script at frame rate.
-         */
+        /* Native/script closure is authoritative. Rendering a fixed frame
+         * cannot turn a passive layout callback into a tab-selection action. */
         g_frame.active_tab = -1;
         g_frame.select_calls = 0;
         g_frame.selected_tab = -1;
         draw(765, 503);
-        CHECK(
-            g_frame.select_calls == 1,
-            "a fixed frame with no tab open asks the lane to open one");
-        CHECK(g_frame.selected_tab == 3, "and the tab it opens is the inventory");
+        printf("FRAME_CONTRACT passive_closed_sidebar select_calls=%d\n", g_frame.select_calls);
+        CHECK(g_frame.select_calls == 0 && g_frame.selected_tab == -1,
+              "a frame respects a natively closed sidebar instead of reopening it");
         draw(765, 503);
-        CHECK(
-            g_frame.select_calls == 1,
-            "and does not ask again while the answers are unchanged");
+        CHECK(g_frame.select_calls == 0, "steady rendering never issues native navigation");
         g_frame.active_tab = 3;
     }
 
@@ -1692,17 +1715,29 @@ main(void)
          * the two columns to meet.
          *
          * They are anchored to opposite edges, so at the 503-row minimum the
-         * strip's 164 is above the adviser's 187 and there is no arithmetic
-         * that separates them. The lane's own 161 frame collides there too and
-         * paints its stones over the scroll; a plugin gameframe paints its
-         * chrome UNDER every live surface, so the frame has to state the cut
-         * instead. 164 - (10 + 143) is the eleven rows that are above the
-         * stones, which is what the lane's frame leaves showing.
+         * strip is above the adviser's 187 and there is no arithmetic that
+         * separates them. The lane's own frames collide there too -- 161
+         * paints its stones over the scroll, 164 puts its whole panel over it
+         * -- and a plugin gameframe paints its chrome UNDER every live
+         * surface, so this frame has to state the cut instead.
+         *
+         * WHERE the strip lands is not free to move. The bottom row keeps
+         * FRAME_R_MARGIN under it at every height, and the panel's 261 rows
+         * and the row's 37 chain off it, so the strip is at 503 - 4 - 37 -
+         * 261 - 37 = 164 and the adviser gets 164 - (10 + 143) = 11 of its
+         * 34 rows. Native 164 measures the same bottom row at the same size
+         * (765x503: rows 462..498, four rows of scene under it) whether its
+         * panel is open or shut, which is what the two halves below pin.
          */
         int const was_active = g_frame.active_tab;
 
         g_frame.active_tab = 3; /* a panel open, so the top row is lifted */
         declare(765, 503);
+        CHECK(
+            slot_is(
+                TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, 503 - 4 - 37 - 261, 190, 261),
+            "at the 503-row minimum an open panel still hangs off the float"
+            " margin");
         CHECK(
             member_is(
                 TORIRS_HOST_SURFACE_ORBS,
@@ -1715,9 +1750,18 @@ main(void)
         CHECK(
             slot_is(TORIRS_HOST_SURFACE_ORBS, 765 - 182 - 29, 10, 207, 197),
             "and the block itself keeps 161's own 197 rows");
-        /* No panel open: the strip drops to the corner and nothing is cut. */
+        /* No panel open: the strip drops to the corner and nothing is cut.
+         * The BOTTOM row may not move for that -- the panel's state is not
+         * allowed to slide the seven icons the player is aiming at, which is
+         * what an earlier attempt at buying the adviser its rows back did.
+         * The sidebar slot is where that shows: it is the bottom row's own y
+         * less 261, so an unchanged y here is an unchanged bottom row. */
         g_frame.active_tab = -1;
         declare(765, 503);
+        CHECK(
+            slot_is(
+                TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, 503 - 4 - 37 - 261, 190, 261),
+            "and a collapsed sidebar puts the bottom row in the same place");
         CHECK(
             member_is(
                 TORIRS_HOST_SURFACE_ORBS,
@@ -1727,6 +1771,24 @@ main(void)
                 34,
                 34),
             "a collapsed sidebar leaves the adviser whole at the same size");
+        /* One row taller and one row shorter, both states: the margin is a
+         * constant under the bottom row, not a reserve the layout dips into
+         * at the sizes where the two columns are tightest. */
+        for( int h = 503; h <= 507; h++ )
+        {
+            g_frame.active_tab = 3;
+            declare(765, h);
+            CHECK(
+                slot_is(
+                    TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, h - 4 - 37 - 261, 190, 261),
+                "the float margin is kept at every height with a panel open");
+            g_frame.active_tab = -1;
+            declare(765, h);
+            CHECK(
+                slot_is(
+                    TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, h - 4 - 37 - 261, 190, 261),
+                "and at every height with it shut");
+        }
         g_frame.active_tab = was_active;
         declare(1024, 768);
     }
@@ -1770,18 +1832,37 @@ main(void)
     CHECK(!blitted_at(0, 338), "the fixed frame blits no chat backing either");
 
     /* Another concrete catalogue choice puts the 2004 frame around OldSchool
-     * packs, with the pack at the OldSchool fixed chat's place. */
+     * packs -- at the 2004 chat's PLACE, which is the half of "a 2004
+     * gameframe" that used to be missing.
+     *
+     * REVERSED 2026-09-04, and this check is the record of it. It used to
+     * assert (0, 338, 519, 165) -- the OldSchool origin -- under the reasoning
+     * that a frame from one era around a chatbox from another leaves the
+     * chatbox where its own lane put it. Measured, that made the frame
+     * byte-identical to running with no frame at all: the chat was re-skinned
+     * and never moved. The pack now takes the 2004 origin and the 2004 height
+     * and keeps its own width, because 519 is authored absolute on chatbox.if
+     * and its height is the only axis that reflows. 357 + 96 = 453, which is
+     * exactly where the 2004 `backbase1` strip starts. */
     select_frame("gameframe-layout/classic-fixed", 1300);
     declare(765, 503);
     CHECK(
-        slot_is(TORIRS_HOST_SURFACE_CHAT, 0, 338, 519, 165),
-        "Classic Fixed on OldSchool places the chat pack whole");
+        slot_is(TORIRS_HOST_SURFACE_CHAT, 17, 357, 519, 96),
+        "Classic Fixed on OldSchool places the chat pack at the 2004 box");
     CHECK(
         slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 553, 205, 190, 261),
         "with the 2004 sidebar box");
     draw(765, 503);
     CHECK(!blitted_at(17, 357), "and without the 2004 chat parchment under the pack");
     CHECK(named_tabs_present(), "the 2004 stones remain semantic click targets");
+    /* Do not restore the native chat box just to cover these empty hollows:
+     * retain the 2004 placement and remove the obsolete lower filter row. */
+    CHECK(classic_base_is_flat(), "no captionless 2004 hollows below the CS2 filters");
+    CHECK(g_frame.anchor_relation[TORIRS_HOST_SURFACE_COMPASS] == TORIRS_FRAME_RELATION_OVER &&
+          g_frame.anchor_slot[TORIRS_HOST_SURFACE_COMPASS] == TORIRS_HOST_SURFACE_VIEWPORT,
+          "the frame states compass depth in the host's slot numbering");
+    CHECK(blitted_at(536, 357) && !blitted_at(496, 357),
+          "the classic right border surrounds the whole 519-wide CS2 pack");
 
     {
         /*
@@ -1904,6 +1985,23 @@ main(void)
         strcmp(g_frame_preference, "gameframe-layout/classic-fixed") == 0 &&
             g_frame_preference_set_calls == 4,
         "the engine persists each explicit catalogue selection, not an enable switch");
+
+    g_frame_root = 601;
+    declare(765, 503);
+    draw(765, 503);
+    struct ToriRS_FrameSelection mobile_fallback = selected_frame();
+    CHECK(!g_frame.active && strcmp(mobile_fallback.active_id, "core/native") == 0 &&
+          mobile_fallback.status == TORIRS_FRAME_STATUS_FALLBACK,
+          "Classic Fixed stands down completely on the mobile root");
+    CHECK(!named_node_has_image("frame.chat.bar"),
+          "a rejected mobile frame cannot leave its desktop chat dressing active");
+    g_frame_root = 548;
+    declare(765, 503);
+    draw(765, 503);
+    CHECK(g_frame.active && strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0,
+          "returning to a supported root restores the requested frame");
+
+
 
     PluginHost_Free(g_host);
     for( int i = 0; i < FAKE_IMAGE_SLOTS; i++ )

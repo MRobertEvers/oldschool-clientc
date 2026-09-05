@@ -122,6 +122,7 @@ struct ToriRS_UiRegistryContribution
 {
     bool used;
     bool enabled;
+    bool scope_enabled;
     uint32_t serial;
     int node;
     int next_for_node;
@@ -276,6 +277,11 @@ ToriRS_UiRegistry_SetContributionEnabled(
     struct ToriRS_UiRegistry* registry,
     struct ToriRS_UiContributionRef contribution,
     bool enabled);
+
+/** Host-owned eligibility, independent of a contribution's requested enabled
+ * state. A warming/inactive frame provider cannot bypass it with ui.update. */
+void ToriRS_UiRegistry_SetPluginScope(struct ToriRS_UiRegistry* registry,
+                                    char const* plugin, bool enabled);
 
 /** Remove all base facets and contributions belonging to a plugin. */
 int

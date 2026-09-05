@@ -1675,6 +1675,8 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_MINIMAP_TOGGLE:
+        if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
+            TORIRS_LOG("frame_native: MINIMAP_TOGGLE state=%d\n", packet->_minimap_toggle.state);
         if( ctx->app && ctx->app->minimap_state != packet->_minimap_toggle.state )
         {
             ctx->app->minimap_state = packet->_minimap_toggle.state;

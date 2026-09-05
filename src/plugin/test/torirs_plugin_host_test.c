@@ -81,6 +81,11 @@ struct FakeEngine
     int mesh_vertices;
     int mesh_faces;
     int mesh_clears;
+    int anchor_relation[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
+    int anchor_slot[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
+    uint32_t missing_surfaces;
+    int native_root;
+    int native_tab_selects;
     int layout_begins;
     int layout_ends;
     int layout_sets;
@@ -895,6 +900,22 @@ fake_frame_activate(
     e->layout_fixed_w = fixed_w;
     e->layout_fixed_h = fixed_h;
 }
+static int fake_layout_slot_exists(void* user, int slot, int member)
+{
+    struct FakeEngine* engine = user;
+    (void)member;
+    return (engine->missing_surfaces & (1u << slot)) == 0;
+}
+static int fake_frame_root(void* user) { return ((struct FakeEngine*)user)->native_root; }
+
+static void
+fake_layout_slot_anchor(void* user, int slot, int relation, int target)
+{
+    struct FakeEngine* engine = user;
+    engine->anchor_relation[slot] = relation;
+    engine->anchor_slot[slot] = target;
+}
+
 static int
 fake_layout_slot(
     void* u,
@@ -1031,9 +1052,9 @@ fake_tab_select(
     void* u,
     int tabno)
 {
-    (void)u;
+    ((struct FakeEngine*)u)->native_tab_selects++;
     (void)tabno;
-    return 0;
+    return 1;
 }
 static int
 fake_tab_enabled(
@@ -1718,6 +1739,9 @@ fake_engine(void)
     e.ui_boundary = fake_ui_boundary;
     e.frame_activate = fake_frame_activate;
     e.layout_slot = fake_layout_slot;
+    e.layout_slot_exists = fake_layout_slot_exists;
+    e.frame_root = fake_frame_root;
+    e.layout_slot_anchor = fake_layout_slot_anchor;
     e.layout_slot_skin = fake_layout_slot_skin;
     e.layout_slot_overlay = fake_layout_slot_overlay;
     e.layout_scrollbar = fake_layout_scrollbar;
@@ -1800,6 +1824,7 @@ static int g_v2_select_actions;
 static char g_v2_select_value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
 static int g_v2_panel_draws;
 static int g_v2_frame_builds;
+static int g_v2_anchor_mode;
 static int g_v2_frame_draws;
 static int g_v2_frame_width;
 static int g_v2_frame_canvas;
@@ -2089,13 +2114,36 @@ v2_probe_frame_build(
         .action_count = 2,
         .actions = { "activate", "inspect" },
     };
+    int navigation_before = g_engine.native_tab_selects;
+    CHECK(!api->cache.tab_select(api, 3) && g_engine.native_tab_selects == navigation_before,
+          "passive frame construction cannot issue native navigation commands");
     (void)api;
     CHECK(state && state->marker == 3, "selected frame receives its own v2 state");
     CHECK(strcmp(context->offer_id, "test") == 0, "frame build receives local offer id");
     g_v2_frame_width = context->logical_canvas.width;
     g_v2_frame_canvas = context->canvas;
-    frame->surface(frame, TORIRS_SURFACE_VIEWPORT, (struct ToriRS_Rect){ 0, 0, 600, 500 });
-    frame->surface(frame, TORIRS_SURFACE_MINIMAP, (struct ToriRS_Rect){ 620, 10, 150, 150 });
+    if( g_v2_anchor_mode )
+    {
+        struct ToriRS_FrameAnchor world = { TORIRS_FRAME_RELATION_NATIVE, TORIRS_SURFACE_VIEWPORT };
+        struct ToriRS_FrameAnchor map = { TORIRS_FRAME_RELATION_OVER, TORIRS_SURFACE_VIEWPORT };
+        if( g_v2_anchor_mode == 2 ) world = (struct ToriRS_FrameAnchor){ TORIRS_FRAME_RELATION_OVER, TORIRS_SURFACE_MINIMAP };
+        if( g_v2_anchor_mode == 3 ) map.slot = TORIRS_SURFACE_COMPASS;
+        if( g_v2_anchor_mode == 4 )
+        {
+            struct ToriRS_FrameAnchor replace = { TORIRS_FRAME_RELATION_REPLACE, TORIRS_SURFACE_MINIMAP };
+            map.relation = TORIRS_FRAME_RELATION_NATIVE;
+            frame->surface_anchored(frame, TORIRS_SURFACE_CHAT, (struct ToriRS_Rect){ 0, 400, 100, 100 }, replace);
+            frame->surface_anchored(frame, TORIRS_SURFACE_COMPASS, (struct ToriRS_Rect){ 600, 0, 32, 32 }, replace);
+        }
+        if( g_v2_anchor_mode == 5 ) map.relation = TORIRS_FRAME_RELATION_REPLACE;
+        frame->surface_anchored(frame, TORIRS_SURFACE_VIEWPORT, (struct ToriRS_Rect){ 0, 0, 600, 500 }, world);
+        frame->surface_anchored(frame, TORIRS_SURFACE_MINIMAP, (struct ToriRS_Rect){ 620, 10, 150, 150 }, map);
+    }
+    else
+    {
+        frame->surface(frame, TORIRS_SURFACE_VIEWPORT, (struct ToriRS_Rect){ 0, 0, 600, 500 });
+        frame->surface(frame, TORIRS_SURFACE_MINIMAP, (struct ToriRS_Rect){ 620, 10, 150, 150 });
+    }
     frame->ui_node(frame, "frame.minimap.housing", &housing);
     g_v2_frame_builds++;
     return TORIRS_FRAME_READY;
@@ -3499,6 +3547,10 @@ main(void)
                 g_engine.layout_canvas == TORIRS_FRAME_CANVAS_WINDOW &&
                 g_engine.layout_fixed_w == 640 && g_engine.layout_fixed_h == 480,
             "READY v2 geometry and its canvas policy publish together");
+        CHECK(g_engine.anchor_relation[TORIRS_HOST_SURFACE_MINIMAP] == TORIRS_FRAME_RELATION_OVER &&
+              g_engine.anchor_slot[TORIRS_HOST_SURFACE_MINIMAP] == TORIRS_HOST_SURFACE_VIEWPORT,
+              "a geometry-only surface declaration gets an explicit safe viewport anchor");
+
         PluginHost_LayoutChanged(hv2);
         housing_ref = PluginHost_UiRef(hv2, frame2, "frame.minimap.housing");
         CHECK(
@@ -3515,6 +3567,46 @@ main(void)
         CHECK(
             g_v2_frame_draws == 1 && g_engine.draw_items == draw_before + 1,
             "selected v2 offer receives a callback-scoped frame draw builder");
+        g_v2_anchor_mode = 1;
+        PluginHost_Layout(hv2, 900, 600);
+        CHECK(g_engine.anchor_relation[TORIRS_HOST_SURFACE_MINIMAP] == TORIRS_FRAME_RELATION_OVER &&
+              g_engine.anchor_slot[TORIRS_HOST_SURFACE_MINIMAP] == TORIRS_HOST_SURFACE_VIEWPORT,
+              "the anchored surface API commits its declared relation to the engine");
+        for( int bad = 2; bad <= 5; bad++ )
+        {
+            int commits = g_engine.layout_ends;
+            g_v2_anchor_mode = bad;
+            PluginHost_Layout(hv2, 900, 600);
+            g_v2_api[1]->frame.selection(g_v2_api[1], &selection);
+            CHECK(g_engine.layout_ends == commits && g_engine.frame_active &&
+                  selection.status == TORIRS_FRAME_STATUS_FALLBACK && selection.reason[0] &&
+                  strcmp(selection.active_id, "v2-frame/test") == 0,
+                  "invalid anchor graphs are rejected atomically with a reason, preserving the valid frame");
+            printf("FRAME_CONTRACT invalid_graph=%d committed=%d reason=%s\n", bad,
+                   g_engine.layout_ends != commits, selection.reason);
+        }
+        g_v2_anchor_mode = 0;
+        PluginHost_Layout(hv2, 900, 600);
+        g_engine.native_root = 778;
+        g_v2_anchor_mode = 2;
+        PluginHost_Layout(hv2, 900, 600);
+        g_v2_api[1]->frame.selection(g_v2_api[1], &selection);
+        CHECK(!g_engine.frame_active && strcmp(selection.active_id, "core/native") == 0,
+              "a rejected new-root candidate cannot retain the old root's frame");
+        g_v2_anchor_mode = 1;
+        PluginHost_Layout(hv2, 900, 600);
+        CHECK(g_engine.frame_active, "a supported new-root declaration can activate after fallback");
+        g_engine.missing_surfaces = 1u << TORIRS_HOST_SURFACE_MINIMAP;
+        PluginHost_Layout(hv2, 900, 600);
+        g_v2_api[1]->frame.selection(g_v2_api[1], &selection);
+        CHECK(!g_engine.frame_active && selection.reason[0] && strcmp(selection.active_id, "core/native") == 0,
+              "a missing required binding produces native fallback instead of a partial frame");
+        printf("FRAME_CONTRACT missing_surface active=%s reason=%s\n", selection.active_id, selection.reason);
+        g_engine.missing_surfaces = 0;
+        g_v2_anchor_mode = 0;
+        PluginHost_Layout(hv2, 900, 600);
+
+
 
         CHECK(PluginHost_PanelHasPage(hv2, a2), "v2 on_start panel registration is retained");
         CHECK(PluginHost_PanelSelect(hv2, a2), "v2 panel can be selected");
@@ -3818,10 +3910,9 @@ main(void)
         memset(&badge_info, 0, sizeof(badge_info));
         badge_info.struct_size = sizeof(badge_info);
         CHECK(
-            PluginHost_UiInfo(aba_host, badge, &badge_info) &&
-                badge_info.state_images[TORIRS_UI_VISUAL_IDLE].value ==
-                    g_v2_aba.image_old.value,
-            "the retained UI model still holds the old token, never the replacement by slot");
+            !PluginHost_UiInfo(aba_host, badge, &badge_info) ||
+                badge_info.state_images[TORIRS_UI_VISUAL_IDLE].value == 0,
+            "an inactive frame's stale UI contribution is dormant, never rebound to a reused slot");
 
         data = malloc(3);
         memcpy(data, "NEW", 3);

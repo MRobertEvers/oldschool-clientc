@@ -2405,6 +2405,26 @@ test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 # pixels it loaded, so an image table that answered nothing would exercise none
 # of it. Run from src/, where the shipped assets resolve.
 .PHONY: test-gameframe
+# The forty-permutation gameframe gate: OSRS239 toplevel x frame x window size,
+# rendered headlessly and scored on root opened, chat bar present and the LANE's
+# own filter count (8 desktop, 7 on the mobile top). About four minutes.
+#
+# Its own OPT=0 embed binary in its own object dir, so it never disturbs a
+# working src/torirs, and its own preferences.ini written from nothing, so the
+# repo's live device settings (which have carried a 150% interface scale) cannot
+# make every capture look like a regression.
+.PHONY: test-gameframe-matrix
+test-gameframe-matrix:
+	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
+		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
+	../tools/gameframe_matrix.sh
+
+.PHONY: test-gameframe-contract
+test-gameframe-contract:
+	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
+		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
+	GF_MATRIX_SCENARIOS=1 ../tools/gameframe_matrix.sh
+
 test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c
@@ -2699,7 +2719,7 @@ test-cs1: $(OBJ_DIR)
 		inv/inv_manager.c varp/varp_manager.c \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
-		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c \
+		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c ui/torirs_chrome_inkwell.c \
 		perf/torirs_perf.c \
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
@@ -2939,7 +2959,7 @@ test-uitree: $(OBJ_DIR)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_frame_depth.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \

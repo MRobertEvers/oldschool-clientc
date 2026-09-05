@@ -769,6 +769,16 @@ test_change_journal(void)
             ToriRS_UiRegistry_ContributionStatus(&registry_a, skin, &status) &&
             status.state == TORIRS_UI_CONTRIBUTION_ACTIVE,
         "the same contribution ref can be re-enabled");
+    ToriRS_UiRegistry_SetPluginScope(&registry_a, "skin", false);
+    ToriRS_UiRegistry_SetContributionEnabled(&registry_a, skin, true);
+    CHECK(ToriRS_UiRegistry_ContributionStatus(&registry_a, skin, &status) &&
+          status.state == TORIRS_UI_CONTRIBUTION_INACTIVE,
+          "host-owned scope cannot be bypassed by re-enabling a contribution");
+    ToriRS_UiRegistry_SetPluginScope(&registry_a, "skin", true);
+    CHECK(ToriRS_UiRegistry_ContributionStatus(&registry_a, skin, &status) &&
+          status.state == TORIRS_UI_CONTRIBUTION_ACTIVE,
+          "reactivating the owner restores its current retained declaration");
+
     drain_changes(&registry_a);
 
     CHECK(ToriRS_UiRegistry_RemovePlugin(&registry_a, "skin") == 1, "one provider is removed");

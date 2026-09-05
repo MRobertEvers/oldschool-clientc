@@ -27,6 +27,7 @@
 #include "uitree.h"
 
 #include <stdint.h>
+#include <stddef.h>
 
 /**
  * The live surfaces a layout arranges.
@@ -134,13 +135,45 @@ struct UITreeFrameOverlay
  * `at[]` is the second. A member with its own box uses it; one without falls
  * back to `all`; a role with neither is hidden.
  */
+enum UITreeFrameRelation
+{
+    UITREE_FRAME_RELATION_NATIVE = 0,
+    UITREE_FRAME_RELATION_OVER,
+    UITREE_FRAME_RELATION_BEHIND,
+    UITREE_FRAME_RELATION_REPLACE,
+};
+
 struct UITreeFrameSlotRect
 {
     struct UITreeFrameRect all;
     struct UITreeFrameRect at[UITREE_FRAME_SLOT_NODES_MAX];
     struct UITreeFrameSkin skin;
     struct UITreeFrameOverlay overlay;
+    struct UITreeFrameAnchor
+    {
+        int relation; /* 0 native, 1 over, 2 behind, 3 replace */
+        int slot;
+    } anchor;
 };
+
+struct UITreeFrameOrderHints
+{
+    int position[UITREE_FRAME_SLOT_COUNT];
+    int sequence[UITREE_FRAME_SLOT_COUNT];
+    int next_sequence;
+};
+
+int UITree_FrameHasDepth(struct UITree const* tree);
+/** All frame paint and input consumers use this ordering. Records carry an
+ * int32_t node-index-plus-one at node_offset; zero means unanchored paint.
+ * Returns the retained count; REPLACE removes the target's records. */
+int UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, void* records, int count,
+                       size_t stride, size_t node_offset,
+                       struct UITreeFrameOrderHints const* hints);
+int UITree_FrameNodeSlot(struct UITree const* tree, int32_t node);
+int UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* host, int32_t node);
+/** Effective eligibility for attached contributions and retained actions. */
+int UITree_FrameNodePresented(struct UITree const* tree, struct UITreeHost const* host, int32_t node);
 
 /**
  * The number `node` answers to WITHIN its role, or -1 when the role has no
@@ -235,6 +268,26 @@ UITree_FrameApply(
     struct UITree* tree,
     struct UITreeFrameSlotRect const* slots,
     int root_group);
+
+/**
+ * The nodes a placed slot is spread across, for a caller that has to order
+ * DRAWING against them rather than lay them out.
+ *
+ * The emit walk needs this and cannot have the layout struct: `struct
+ * UITreeFrameLayout` is private to uitree_frame.c on purpose, so nothing
+ * outside it can move a box by writing a field. Reading which nodes a slot
+ * bound is a different thing from writing where they go, and depth is the one
+ * question that genuinely cannot be answered from a rectangle.
+ *
+ * Returns how many were written (0 when the slot is not placed), never more
+ * than `max`.
+ */
+int
+UITree_FrameSlotNodes(
+    struct UITree const* tree,
+    int slot,
+    int32_t* out_nodes,
+    int max);
 
 /**
  * Reconcile the standing declaration with the current tree generation.

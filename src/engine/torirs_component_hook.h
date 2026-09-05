@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 struct ToriRS_Component;
+struct ToriRS_ComponentPack;
 struct ToriRS_ScriptHook;
 
 /*
@@ -87,5 +88,12 @@ ToriRS_ComponentHasAnyHook(struct ToriRS_Component const* component);
 /** Field name of `kind` ("on_load", …), for diagnostics. */
 char const*
 ToriRS_ComponentHookName(enum ToriRS_ComponentHookKind kind);
+
+/** Read an integer from the unique authored onload calling script_id.
+ * Missing, string-valued and ambiguous declarations fail without changing outputs.
+ * These are cache declarations, independent of mounted runtime hooks. */
+int ToriRS_ComponentPackLoadInt(
+    struct ToriRS_ComponentPack const* pack, int script_id, int argument,
+    int* component_id, int* value);
 
 #endif

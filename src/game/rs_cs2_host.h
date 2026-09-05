@@ -704,6 +704,11 @@ struct RS_CS2Host
      *  calls setwindowmode; drained to WINDOW_STATUS so the server remounts. */
     int client_layout_mode;
     bool client_layout_dirty;
+    /** The clientscript whose CS2VM2_ThreadRun is on the stack right now, or
+     *  -1 between runs. Read only by the TORIRS_DUMP_SETPOS trace, so a
+     *  position write can name the script that made it instead of leaving the
+     *  reader to infer it. Written by Task_CS2Run around the VM call. */
+    int trace_script_id;
     /** Cache id of settings_client_mode (pack name script_3998). Dialect/cache
      *  surface for observing the dropdown's mode arg on SETWINDOWMODE. */
     int script_settings_client_mode;

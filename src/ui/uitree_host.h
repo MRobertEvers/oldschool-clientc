@@ -227,6 +227,7 @@ enum UITreeHostRequestKind
      * will eventually treat one as the other.
      */
     UITREE_HOST_GET_MINIMAP_HIDDEN,
+    UITREE_HOST_GET_COMPASS_HIDDEN,
     /**
      * Nonzero when the player is in a multi-combat zone (SET_MULTIWAY) and the
      * indicator should draw. The sprite and its place are the widget's, from
@@ -791,6 +792,16 @@ bool
 UITree_HostInputStampIsCurrent(
     struct UITreeHostInputStamp const* stamp,
     struct UITreeHost const* host);
+
+/** Native visibility/availability, including ancestors, before plugin paint
+ * ownership is considered. Shared by presentation, input and frame relations.
+ * hovered_component_id preserves IF1 tooltip semantics; IF3 hiding is absolute. */
+bool UITree_NodeNativeVisible(struct UITree const* tree, struct UITreeHost const* host,
+                              int32_t node, int hovered_component_id);
+/** Native controllers can reserve input without drawing (an unlit tab, or
+ * disabled minimap). This does not enable invisible plugin regions/children. */
+bool UITree_NodeNativeInputPresent(struct UITree const* tree, struct UITreeHost const* host,
+                                   int32_t node);
 
 bool
 UITree_ComponentVisibleHost(

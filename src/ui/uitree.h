@@ -750,6 +750,9 @@ struct UITreeComponent
      *  host: emit stays synchronous while the VM's asset yields are serviced by
      *  the task layer. */
     uint8_t cs1_active;
+    /** Explicit server/script hiding, separate from an authored IF1 tooltip
+     * gate. Only the native hide setter changes it; frame release does not. */
+    uint8_t native_hide;
     int cs1_values[UITREE_CS1_VALUE_MAX];
     /** CS2 event hooks, owned by the component, NULL until one is registered.
      *  17 slots each carrying argv[64] and strv[4][80] inline is ~10 KB — the

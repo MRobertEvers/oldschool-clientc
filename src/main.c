@@ -3089,11 +3089,12 @@ frame_loop_teardown(void)
          * than the cache says is why its children escape the clip. */
         if( getenv("TORIRS_DUMP_BOUNDS") && app.tree )
         {
-            int want = (int)strtol(getenv("TORIRS_DUMP_BOUNDS"), NULL, 0);
+            char const* filter = getenv("TORIRS_DUMP_BOUNDS");
+            int want = strcmp(filter, "all") == 0 ? -1 : (int)strtol(filter, NULL, 0);
             for( uint32_t i = 0; i < app.tree->component_count; i++ )
             {
                 struct UITreeComponent const* c = &app.tree->components[i];
-                if( c->freed || ((c->component_id >> 16) & 0xFFFF) != want )
+                if( c->freed || (want >= 0 && ((c->component_id >> 16) & 0xFFFF) != want) )
                     continue;
                 /* TORIRS_REPORT, not TORIRS_LOG: the lever is the env var,
                  * and the optimised build is the one the geometry question is
@@ -3122,6 +3123,21 @@ frame_loop_teardown(void)
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_width : -1,
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
                     c->scroll_x, c->scroll_y);
+            }
+        }
+
+        if( getenv("TORIRS_DUMP_BOUNDS") && app.plugins )
+        {
+            static char const* parts[] = { "frame.orb.hitpoints", "frame.orb.prayer",
+                "frame.orb.run", "frame.orb.special", "frame.chat.backing", "frame.chat.bar" };
+            int reader = PluginHost_IndexOf(app.plugins, "minimap-orbs");
+            for( size_t i = 0; reader >= 0 && i < sizeof(parts) / sizeof(parts[0]); i++ )
+            {
+                struct ToriRS_UiNodeRef ref = PluginHost_UiRef(app.plugins, reader, parts[i]);
+                struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+                if( PluginHost_UiInfo(app.plugins, ref, &info) )
+                    TORIRS_REPORT("UI_PART name=%s visible=%d box=%d,%d %dx%d\n", parts[i], info.visible,
+                                  info.bounds.x, info.bounds.y, info.bounds.width, info.bounds.height);
             }
         }
 
