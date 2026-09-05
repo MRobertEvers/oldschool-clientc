@@ -112,6 +112,10 @@ struct Task_CS2Run
     struct CS2VM2_Script* script; /* optional preloaded; else load by script_id */
     int active_component_id;
     int dot_component_id;
+    struct UITreeNodeRef active_ref;
+    struct UITreeNodeRef dot_ref;
+    struct UITreeNodeRef pending_target_ref;
+    uint8_t cancelled;
     int int_args[TASK_CS2_RUN_INT_ARGS_MAX];
     int int_arg_count;
     /* Bit i set = arg position i is a string; strings fill str_args[] in
@@ -1178,6 +1182,37 @@ Task_CS2Run_Run(
     struct CS2VM2_ThreadError err;
     int j;
 
+    /* Queue-time event identity is checked until execution starts. A running
+     * native script may delete its own origin; each yielded widget request
+     * instead retains the exact target that existed when that request began. */
+    if( self->cancelled ||
+        (!self->started &&
+         ((self->active_component_id >= 0 &&
+           UITree_ResolveRef(self->host->tree, self->active_ref) < 0) ||
+          (self->dot_component_id >= 0 &&
+           UITree_ResolveRef(self->host->tree, self->dot_ref) < 0))) ||
+        (self->pending_target_ref.incarnation &&
+         UITree_ResolveRef(self->host->tree, self->pending_target_ref) < 0) )
+    {
+        if( !self->cancelled && getenv("TORIRS_TRACE_NATIVE_UI") )
+            TORIRS_REPORT("NATIVE_CALLBACK_CANCEL script=%d reason=stale-widget\n", self->script_id);
+        self->cancelled = 1;
+        /* Resource-load children own outstanding IO. Drain that load without
+         * resuming the callback or its tree bake, then release the child. */
+        struct ToriRS_Task* child = self->pt.user;
+        if( child )
+        {
+            int result = task_run(child, io);
+            self->task.blocked = child->blocked;
+            self->task.wants_render = child->wants_render;
+            self->task.render = child->render;
+            if( result != PT_ENDED && result != PT_EXITED ) return result;
+            task_free(child);
+            self->pt.user = NULL;
+        }
+        PT_EXIT(&self->pt);
+    }
+
     PT_BEGIN(&self->pt);
 
     assert(self->host);
@@ -1324,6 +1359,7 @@ Task_CS2Run_Run(
          * cleared straight after, so a write from outside any script reads -1
          * rather than inheriting the last script that ran. @see
          * TORIRS_DUMP_SETPOS in rs_cs2_host.c. */
+        self->pending_target_ref = (struct UITreeNodeRef){0};
         self->host->trace_script_id = self->script_id;
         status = CS2VM2_ThreadRun(thread, &err);
         self->host->trace_script_id = -1;
@@ -1410,6 +1446,11 @@ Task_CS2Run_Run(
         }
         *self->pending = self->host->pending;
         self->host->has_pending = false;
+        int target_id = task_cs2_component_id_from_request(self->pending);
+        self->pending_target_ref = UITree_RefAt(self->host->tree,
+            self->host->tree ? UITree_FindByComponentId(self->host->tree, target_id) : -1);
+        /* Missing cache groups may be loaded by this explicit native lookup.
+         * A request that already resolved a live node cannot acquire its reuse. */
 
         /* Flat switch (no PT) then linear awaits — protothreads cannot nest switch. */
         task_cs2_plan_yield(self);
@@ -1655,6 +1696,10 @@ task_cs2_run_new(
     self->script = script;
     self->active_component_id = active_component_id;
     self->dot_component_id = dot_component_id >= 0 ? dot_component_id : active_component_id;
+    self->active_ref = UITree_RefAt(host->tree,
+        host->tree ? UITree_FindByComponentId(host->tree, self->active_component_id) : -1);
+    self->dot_ref = UITree_RefAt(host->tree,
+        host->tree ? UITree_FindByComponentId(host->tree, self->dot_component_id) : -1);
 
     /* Freeze the event the dispatcher just wrote. See struct Task_CS2Run. */
     self->event_key_typed = host->event_key_typed;
@@ -1880,7 +1925,7 @@ Task_CS2InvTransmitDispatch_Run(
             continue;
         /* Dead hook (component reclaimed): mark seen so it never fires — a missing
          * component reads as "not hidden" below. */
-        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+        if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )
         {
             hook->last_seen_serial = self->host->inv_change_serial;
             hook->pending_unhide = 0;
@@ -2086,7 +2131,7 @@ Task_CS2VarTransmitDispatch_Run(
             continue;
         /* Dead hook (component reclaimed): mark seen so it never fires — a missing
          * component reads as "not hidden" below. */
-        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+        if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )
         {
             hook->last_seen_serial = self->host->var_change_serial;
             hook->pending_unhide = 0;
@@ -2323,7 +2368,7 @@ Task_CS2StatTransmitDispatch_Run(
         }
         if( hook->script_id <= 0 )
             continue;
-        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+        if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )
         {
             hook->last_seen_serial = self->host->stat_change_serial;
             hook->pending_unhide = 0;
@@ -2437,6 +2482,7 @@ CreateTask_CS2StatTransmitUnhideDispatch(
 struct Task_CS2SubChangeHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int argc;
     int argv[UITREE_HOOK_ARG_MAX];
@@ -2475,7 +2521,7 @@ Task_CS2SubChangeDispatch_Run(
 
         /* The hook's component may have been reclaimed by an earlier hook in
          * this same pass. */
-        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+        if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )
             continue;
         for( si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
             strp[si] = hook->strv[si];
@@ -2532,6 +2578,7 @@ CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host)
                 continue;
             dst = &self->hooks[self->hook_count++];
             dst->component_id = node->component_id;
+            dst->ref = UITree_RefAt(host->tree, (int32_t)(node - host->tree->components));
             dst->script_id = slot->script_id;
             dst->argc = slot->argc > UITREE_HOOK_ARG_MAX ? UITREE_HOOK_ARG_MAX : slot->argc;
             for( int ai = 0; ai < dst->argc; ai++ )
@@ -2591,7 +2638,7 @@ Task_CS2MiscTransmitDispatch_Run(
         char const* strp[UITREE_HOOK_STR_ARG_MAX];
         int si;
 
-        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+        if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )
             continue;
         for( si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
             strp[si] = hook->strv[si];
@@ -2660,6 +2707,7 @@ create_no_trigger_transmit_dispatch(
                 continue;
             dst = &self->hooks[self->hook_count++];
             dst->component_id = node->component_id;
+            dst->ref = UITree_RefAt(host->tree, (int32_t)(node - host->tree->components));
             dst->script_id = slot->script_id;
             dst->argc = slot->argc > UITREE_HOOK_ARG_MAX ? UITREE_HOOK_ARG_MAX : slot->argc;
             for( int ai = 0; ai < dst->argc; ai++ )

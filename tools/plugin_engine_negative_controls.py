@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Break production mechanisms in temporary sources; reuse the UITree harness."""
+"""Break temporary production sources; reuse the existing UI/CS2 test targets."""
 import argparse
 import os
 from pathlib import Path
@@ -7,16 +7,78 @@ import shlex
 import subprocess
 
 
+def run_cs2_controls(src, out, make_args, selected):
+    make = ["make", "--no-print-directory", *make_args]
+    with (out / "positive.log").open("w") as log:
+        subprocess.run([*make, "test-cs2-transmit-pump"], cwd=src,
+                       stdout=log, stderr=subprocess.STDOUT, check=True)
+    recipe = subprocess.check_output([*make, "-n", "test-cs2-transmit-pump"],
+                                     cwd=src, text=True).replace("\\\n", " ")
+    link = next(shlex.split(line) for line in recipe.splitlines()
+                if "game/test/rs_cs2_transmit_pump_test.c " in line and " -o " in line)
+    source = "game/task_cs2_run.c"
+    obj = next(arg for arg in link if arg.endswith("/task_cs2_run.o"))
+    recipe = subprocess.check_output([*make, "-n", "-W", source, obj],
+                                     cwd=src, text=True).replace("\\\n", " ")
+    compile_cmd = next(shlex.split(line) for line in recipe.splitlines()
+                       if f" -c {source} " in line)
+    original = (src / source).read_text()
+    snapshot = "this same pass. */\n        if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )"
+    registry = ("if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )\n"
+                "        {\n            hook->last_seen_serial = self->host->inv_change_serial;")
+    controls = {
+        "queued_origin": ("(!self->started &&", "(false &&",
+                          "queued CS2 callback cannot write recycled native ID"),
+        "snapshot_identity": (snapshot, snapshot.replace(
+            "UITree_ResolveRef(self->host->tree, hook->ref)",
+            "UITree_FindByComponentId(self->host->tree, hook->component_id)"),
+            "snapshot callback 0 cannot reach replacement"),
+        "registry_identity": (registry, registry.replace(
+            "UITree_ResolveRef(self->host->tree, hook->ref)",
+            "UITree_FindByComponentId(self->host->tree, hook->component_id)"),
+            "registry callback 0 cannot reach replacement"),
+    }
+    if selected and set(selected) - controls.keys():
+        raise ValueError("unknown CS2 control")
+    for name, (before, after, expected) in controls.items():
+        if selected and name not in selected:
+            continue
+        if original.count(before) != 1:
+            raise RuntimeError(f"{name}: mechanism changed; update explicit mutation")
+        mutant = out / f"{name}.c"
+        mutant.write_text(original.replace(before, after))
+        mutant_obj = out / f"{name}.o"
+        binary = out / name
+        compile_mutant = [str(mutant) if arg == source else arg for arg in compile_cmd]
+        compile_mutant[compile_mutant.index("-o") + 1] = str(mutant_obj)
+        link_mutant = [str(mutant_obj) if arg == obj else arg for arg in link]
+        link_mutant[link_mutant.index("-o") + 1] = str(binary)
+        with (out / f"{name}-build.log").open("w") as log:
+            for command in (compile_mutant, link_mutant):
+                subprocess.run(command, cwd=src, stdout=log, stderr=subprocess.STDOUT, check=True)
+        run = subprocess.run([str(binary)], cwd=src, text=True, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, timeout=30)
+        (out / f"{name}.log").write_text(run.stdout)
+        if run.returncode != 1 or "FAIL " + expected not in run.stdout:
+            raise RuntimeError(f"{name}: expected assertion was not observed")
+        print(f"{name}: observed expected failing assertion", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", type=Path)
     parser.add_argument("--only", action="append", help="run only this named mechanism (repeatable)")
+    parser.add_argument("--suite", choices=("ui", "cs2"), default="ui")
+    parser.add_argument("--make-arg", action="append", default=[], help="make assignment, e.g. OPT=1")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
     out = args.out.resolve()
     src = Path(__file__).resolve().parents[1] / "src"
+    if args.suite == "cs2":
+        run_cs2_controls(src, out, args.make_arg, args.only)
+        return
     recipe = subprocess.check_output(
-        ["make", "--no-print-directory", "-n", "test-uitree"], cwd=src, text=True
+        ["make", "--no-print-directory", *args.make_arg, "-n", "test-uitree"], cwd=src, text=True
     ).replace("\\\n", " ")
     command = next(shlex.split(line) for line in recipe.splitlines()
                    if "ui/uitree.c " in line and " -o " in line)
@@ -57,7 +119,7 @@ def main():
                              text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                              timeout=30)
         (out / f"{name}.log").write_text(run.stdout)
-        if run.returncode != 1 or expected not in run.stdout:
+        if run.returncode != 1 or "FAIL: " + expected not in run.stdout:
             raise RuntimeError(f"{name}: did not produce its expected assertion: {run.stdout}")
         print(f"{name}: observed expected failing assertion", flush=True)
 

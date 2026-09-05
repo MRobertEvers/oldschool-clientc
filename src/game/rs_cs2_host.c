@@ -4685,6 +4685,8 @@ exec_set_text_font(
     return CS2VM_EXECNO_OK;
 }
 
+static bool rs_cs2_copy_transmit_hooks(struct RS_CS2Host* host, int source_id, int target_id);
+
 /* CC_COPY clones an existing dynamic child into another slot. The bank tab
  * strip (script 505) builds tab 0 with CC_CREATE then copies it into slots
  * 1..9; without this the whole strip collapses onto the one created tab. */
@@ -4717,6 +4719,13 @@ exec_cc_copy(
     if( child_idx < 0 )
         return CS2VM_EXECNO_ERROR;
 
+    int32_t source = UITree_FindChildBySubid(tree, parent_idx, parent_id, src_sub_id);
+    if( source < 0 || !rs_cs2_copy_transmit_hooks(host, tree->components[source].component_id,
+                                               tree->components[child_idx].component_id) )
+    {
+        UITree_CcDelete(tree, child_idx);
+        return CS2VM_EXECNO_ERROR;
+    }
     rs_cs2_set_cc_target(vm, dot_operand, tree->components[child_idx].component_id);
     return CS2VM_EXECNO_OK;
 }
@@ -5547,12 +5556,12 @@ rs_cs2_grow_transmit_hooks(
  * deleteall+create with fresh dynamic uids and re-registers — without compacting
  * on every grow the array climbed until MAX and only then purged. */
 static void
-rs_cs2_compact_inv_transmit_hooks(struct RS_CS2Host* host)
+rs_cs2_compact_inv_transmit_hooks(struct RS_CS2Host* host, struct UITree* tree)
 {
     int w = 0;
     for( int i = 0; i < host->inv_transmit_hook_count; i++ )
     {
-        if( UITree_FindByComponentId(host->tree, host->inv_transmit_hooks[i].component_id) < 0 )
+        if( UITree_ResolveRef(tree, host->inv_transmit_hooks[i].ref) < 0 )
             continue;
         if( w != i )
             host->inv_transmit_hooks[w] = host->inv_transmit_hooks[i];
@@ -5564,10 +5573,13 @@ rs_cs2_compact_inv_transmit_hooks(struct RS_CS2Host* host)
 static struct RS_CS2InvTransmitHook*
 rs_cs2_acquire_inv_transmit_hook(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     int component_id,
     int create)
 {
     int i;
+    struct UITreeNodeRef ref = UITree_RefAt(tree,
+        tree ? UITree_FindByComponentId(tree, component_id) : -1);
     struct RS_CS2InvTransmitHook* hook;
 
     for( i = 0; i < host->inv_transmit_hook_count; i++ )
@@ -5575,9 +5587,10 @@ rs_cs2_acquire_inv_transmit_hook(
         hook = &host->inv_transmit_hooks[i];
         if( hook->component_id == component_id )
         {
-            uint32_t const last_seen = hook->last_seen_serial;
-            uint8_t const pending_unhide = create ? hook->pending_unhide : 0;
+            uint32_t const last_seen = UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->last_seen_serial : 0;
+            uint8_t const pending_unhide = create && UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->pending_unhide : 0;
             memset(hook, 0, sizeof(*hook));
+            hook->ref = ref;
             hook->last_seen_serial = last_seen;
             hook->pending_unhide = pending_unhide;
             return hook;
@@ -5590,7 +5603,7 @@ rs_cs2_acquire_inv_transmit_hook(
     if( !create )
         return NULL;
 
-    rs_cs2_compact_inv_transmit_hooks(host);
+    rs_cs2_compact_inv_transmit_hooks(host, tree);
 
     if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
     {
@@ -5616,17 +5629,18 @@ rs_cs2_acquire_inv_transmit_hook(
         RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX);
     hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
+    hook->ref = ref;
     return hook;
 }
 
 /* Var-transmit counterpart of rs_cs2_acquire_inv_transmit_hook. */
 static void
-rs_cs2_compact_var_transmit_hooks(struct RS_CS2Host* host)
+rs_cs2_compact_var_transmit_hooks(struct RS_CS2Host* host, struct UITree* tree)
 {
     int w = 0;
     for( int i = 0; i < host->var_transmit_hook_count; i++ )
     {
-        if( UITree_FindByComponentId(host->tree, host->var_transmit_hooks[i].component_id) < 0 )
+        if( UITree_ResolveRef(tree, host->var_transmit_hooks[i].ref) < 0 )
             continue;
         if( w != i )
             host->var_transmit_hooks[w] = host->var_transmit_hooks[i];
@@ -5638,10 +5652,13 @@ rs_cs2_compact_var_transmit_hooks(struct RS_CS2Host* host)
 static struct RS_CS2VarTransmitHook*
 rs_cs2_acquire_var_transmit_hook(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     int component_id,
     int create)
 {
     int i;
+    struct UITreeNodeRef ref = UITree_RefAt(tree,
+        tree ? UITree_FindByComponentId(tree, component_id) : -1);
     struct RS_CS2VarTransmitHook* hook;
 
     for( i = 0; i < host->var_transmit_hook_count; i++ )
@@ -5649,9 +5666,10 @@ rs_cs2_acquire_var_transmit_hook(
         hook = &host->var_transmit_hooks[i];
         if( hook->component_id == component_id )
         {
-            uint32_t const last_seen = hook->last_seen_serial;
-            uint8_t const pending_unhide = create ? hook->pending_unhide : 0;
+            uint32_t const last_seen = UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->last_seen_serial : 0;
+            uint8_t const pending_unhide = create && UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->pending_unhide : 0;
             memset(hook, 0, sizeof(*hook));
+            hook->ref = ref;
             hook->last_seen_serial = last_seen;
             hook->pending_unhide = pending_unhide;
             return hook;
@@ -5664,7 +5682,7 @@ rs_cs2_acquire_var_transmit_hook(
     if( !create )
         return NULL;
 
-    rs_cs2_compact_var_transmit_hooks(host);
+    rs_cs2_compact_var_transmit_hooks(host, tree);
 
     if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
     {
@@ -5687,6 +5705,7 @@ rs_cs2_acquire_var_transmit_hook(
         RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX);
     hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
+    hook->ref = ref;
     return hook;
 }
 
@@ -5793,6 +5812,7 @@ rs_cs2_cache_hook_triggers(
 static struct RS_CS2StatTransmitHook*
 rs_cs2_acquire_stat_transmit_hook(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     int component_id,
     int create);
 
@@ -5820,6 +5840,7 @@ rs_cs2_acquire_stat_transmit_hook(
 void
 RS_CS2_RegisterCacheTransmitHooks(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     struct ToriRS_Component const* src)
 {
     /* The three channels are one shape, so they are one loop: which cache hook
@@ -5852,16 +5873,22 @@ RS_CS2_RegisterCacheTransmitHooks(
         char (*str_args)[CS2VM_SETON_STR_ARG_LEN];
         int* component_id;
         int* script_id;
+        struct UITreeNodeRef* ref;
+        uint32_t* last_seen;
+        uint8_t* pending_unhide;
 
         if( !cache_hook || cache_hook->argc <= 0 || cache_hook->argv[0] <= 0 )
             continue;
 
         if( k_channels[i].channel == 0 )
         {
-            struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, src->id, 1);
+            struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, tree, src->id, 1);
             if( !hook )
                 continue;
             component_id = &hook->component_id;
+            ref = &hook->ref;
+            last_seen = &hook->last_seen_serial;
+            pending_unhide = &hook->pending_unhide;
             script_id = &hook->script_id;
             int_args = hook->int_args;
             int_arg_count = &hook->int_arg_count;
@@ -5875,10 +5902,13 @@ RS_CS2_RegisterCacheTransmitHooks(
         }
         else if( k_channels[i].channel == 1 )
         {
-            struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, src->id, 1);
+            struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, tree, src->id, 1);
             if( !hook )
                 continue;
             component_id = &hook->component_id;
+            ref = &hook->ref;
+            last_seen = &hook->last_seen_serial;
+            pending_unhide = &hook->pending_unhide;
             script_id = &hook->script_id;
             int_args = hook->int_args;
             int_arg_count = &hook->int_arg_count;
@@ -5892,10 +5922,13 @@ RS_CS2_RegisterCacheTransmitHooks(
         }
         else
         {
-            struct RS_CS2StatTransmitHook* hook = rs_cs2_acquire_stat_transmit_hook(host, src->id, 1);
+            struct RS_CS2StatTransmitHook* hook = rs_cs2_acquire_stat_transmit_hook(host, tree, src->id, 1);
             if( !hook )
                 continue;
             component_id = &hook->component_id;
+            ref = &hook->ref;
+            last_seen = &hook->last_seen_serial;
+            pending_unhide = &hook->pending_unhide;
             script_id = &hook->script_id;
             int_args = hook->int_args;
             int_arg_count = &hook->int_arg_count;
@@ -5908,6 +5941,12 @@ RS_CS2_RegisterCacheTransmitHooks(
             src_trigger_count = src->stat_triggers_count;
         }
 
+        if( UITree_ResolveRef(tree, *ref) < 0 )
+        {
+            *last_seen = 0;
+            *pending_unhide = 0;
+        }
+        *ref = UITree_RefAt(tree, UITree_FindByComponentId(tree, src->id));
         *component_id = src->id;
         *script_id = cache_hook->argv[0];
         rs_cs2_cache_hook_args(
@@ -5931,7 +5970,7 @@ exec_set_on_inv_transmit(
 {
     struct RS_CS2InvTransmitHook* hook;
     assert(host);
-    hook = rs_cs2_acquire_inv_transmit_hook(host, component_id, script_id > 0);
+    hook = rs_cs2_acquire_inv_transmit_hook(host, host->tree, component_id, script_id > 0);
     if( !hook )
     {
         /* Two ways to get here now, and only one is a defect: the registry is
@@ -5990,12 +6029,12 @@ exec_set_on_inv_transmit(
  * gameframe re-armed it.
  */
 static void
-rs_cs2_compact_stat_transmit_hooks(struct RS_CS2Host* host)
+rs_cs2_compact_stat_transmit_hooks(struct RS_CS2Host* host, struct UITree* tree)
 {
     int w = 0;
     for( int i = 0; i < host->stat_transmit_hook_count; i++ )
     {
-        if( UITree_FindByComponentId(host->tree, host->stat_transmit_hooks[i].component_id) < 0 )
+        if( UITree_ResolveRef(tree, host->stat_transmit_hooks[i].ref) < 0 )
             continue;
         if( w != i )
             host->stat_transmit_hooks[w] = host->stat_transmit_hooks[i];
@@ -6007,10 +6046,13 @@ rs_cs2_compact_stat_transmit_hooks(struct RS_CS2Host* host)
 static struct RS_CS2StatTransmitHook*
 rs_cs2_acquire_stat_transmit_hook(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     int component_id,
     int create)
 {
     int i;
+    struct UITreeNodeRef ref = UITree_RefAt(tree,
+        tree ? UITree_FindByComponentId(tree, component_id) : -1);
     struct RS_CS2StatTransmitHook* hook;
 
     for( i = 0; i < host->stat_transmit_hook_count; i++ )
@@ -6018,9 +6060,10 @@ rs_cs2_acquire_stat_transmit_hook(
         hook = &host->stat_transmit_hooks[i];
         if( hook->component_id == component_id )
         {
-            uint32_t const last_seen = hook->last_seen_serial;
-            uint8_t const pending_unhide = create ? hook->pending_unhide : 0;
+            uint32_t const last_seen = UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->last_seen_serial : 0;
+            uint8_t const pending_unhide = create && UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->pending_unhide : 0;
             memset(hook, 0, sizeof(*hook));
+            hook->ref = ref;
             hook->last_seen_serial = last_seen;
             hook->pending_unhide = pending_unhide;
             return hook;
@@ -6035,7 +6078,7 @@ rs_cs2_acquire_stat_transmit_hook(
 
     /* Compact dead entries (closed/rebuilt interface left hooks behind) before
      * appending — same as inv/var acquire. */
-    rs_cs2_compact_stat_transmit_hooks(host);
+    rs_cs2_compact_stat_transmit_hooks(host, tree);
 
     if( host->stat_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
     {
@@ -6058,7 +6101,39 @@ rs_cs2_acquire_stat_transmit_hook(
         RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX);
     hook = &host->stat_transmit_hooks[host->stat_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
+    hook->ref = ref;
     return hook;
+}
+
+/* The tree owns ordinary hooks; these three native channels retain trigger
+ * arrays in the host. Copy both halves of native widget behavior together. */
+static bool
+rs_cs2_copy_transmit_hooks(struct RS_CS2Host* host, int source_id, int target_id)
+{
+    struct UITree* tree = host->tree;
+    struct UITreeNodeRef target = UITree_RefAt(tree, UITree_FindByComponentId(tree, target_id));
+    if( !target.incarnation ) return false;
+#define COPY_TRANSMIT(channel, HookType) do { \
+    for( int i = 0; i < host->channel##_transmit_hook_count; ++i ) { \
+        struct HookType const* source = &host->channel##_transmit_hooks[i]; \
+        if( source->component_id != source_id || source->script_id <= 0 || \
+            UITree_ResolveRef(tree, source->ref) < 0 ) continue; \
+        struct HookType copy = *source; \
+        struct HookType* dst = rs_cs2_acquire_##channel##_transmit_hook(host, tree, target_id, 1); \
+        if( !dst ) return false; \
+        copy.component_id = target_id; \
+        copy.ref = target; \
+        copy.last_seen_serial = 0; \
+        copy.pending_unhide = 0; \
+        *dst = copy; \
+        break; \
+    } \
+} while( 0 )
+    COPY_TRANSMIT(inv, RS_CS2InvTransmitHook);
+    COPY_TRANSMIT(var, RS_CS2VarTransmitHook);
+    COPY_TRANSMIT(stat, RS_CS2StatTransmitHook);
+#undef COPY_TRANSMIT
+    return true;
 }
 
 /* True when `idx` is part of interface `group_id`: its own packed id matches,
@@ -6358,7 +6433,7 @@ exec_set_on_stat_transmit(
     struct RS_CS2StatTransmitHook* hook;
 
     assert(host);
-    hook = rs_cs2_acquire_stat_transmit_hook(host, component_id, script_id > 0);
+    hook = rs_cs2_acquire_stat_transmit_hook(host, host->tree, component_id, script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;
     hook->component_id = component_id;
@@ -6408,7 +6483,7 @@ exec_set_on_var_transmit(
             TORIRS_LOG("%s%d", t ? "," : "", trigger_ids[t]);
         TORIRS_LOG("]\n");
     }
-    hook = rs_cs2_acquire_var_transmit_hook(host, component_id, script_id > 0);
+    hook = rs_cs2_acquire_var_transmit_hook(host, host->tree, component_id, script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;
     hook->component_id = component_id;
@@ -6460,7 +6535,7 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT )
     {
         struct RS_CS2InvTransmitHook* hook;
-        hook = rs_cs2_acquire_inv_transmit_hook(host, component_id, script_id > 0);
+        hook = rs_cs2_acquire_inv_transmit_hook(host, host->tree, component_id, script_id > 0);
         if( !hook )
         {
             /* Full, or a disarm of a component that had no hook — see
@@ -6498,7 +6573,7 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT )
     {
         struct RS_CS2VarTransmitHook* hook;
-        hook = rs_cs2_acquire_var_transmit_hook(host, component_id, script_id > 0);
+        hook = rs_cs2_acquire_var_transmit_hook(host, host->tree, component_id, script_id > 0);
         if( !hook )
             return CS2VM_EXECNO_OK;
         hook->component_id = component_id;
@@ -6522,7 +6597,7 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT )
     {
         struct RS_CS2StatTransmitHook* hook;
-        hook = rs_cs2_acquire_stat_transmit_hook(host, component_id, script_id > 0);
+        hook = rs_cs2_acquire_stat_transmit_hook(host, host->tree, component_id, script_id > 0);
         if( !hook )
             return CS2VM_EXECNO_OK;
         hook->component_id = component_id;

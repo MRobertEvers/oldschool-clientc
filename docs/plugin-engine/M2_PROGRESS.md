@@ -77,3 +77,54 @@ bottom controls and the Close control. rs289lc has no CS2 `CC_COPY` producer;
 its previous actual packet/CS1 runs cover the shared identity/hiding changes.
 The complete mutation audit, allocation-failure policy and queued-callback
 validation are still pending; native-copy success does not close those gates.
+
+## Queued native callback checkpoint
+
+The production CS2 task now retains the active/dot node identities while an
+event waits to start, including a wait for its script. Unbound server scripts
+still make explicit current-component queries. Once a script starts it may
+legitimately delete its origin; a widget operation waiting on assets instead
+retains the identity of its own already-resolved target. If that target becomes
+stale, the resource-load child drains and is released without replaying the
+callback's widget operation. Delayed-IO interruption coverage remains open.
+
+Sub-change and misc/friend/chat snapshot dispatches retain node references.
+Inventory, variable and stat registries retain references too; a recycled ID
+cannot inherit an old listener or its already-seen/pending-unhide state.
+Cache registration receives the actual tree being built. Native `CC_COPY`
+copies the host-owned transmit registrations as well as tree-owned hooks,
+with fresh initial-update state and the new node's identity.
+
+The existing `test-cs2-transmit-pump` target now executes real CS2 tasks against
+the native host. It observed a queued callback changing a replacement's color
+before the fix. It covers stale queued events, both snapshot dispatch paths,
+all three stale registries, initial delivery after re-registration and three
+copied transmit listeners. All three copied-listener checks were observed red
+before their implementation. These are small bytecode conformance fixtures;
+the native revision runs below are separate evidence, not substitutes for the
+remaining adversarial callback scenarios.
+
+`m2-callback-negative-final` records expected assertion failures after disabling
+the queued-origin, snapshot and registry identity checks. The helper reuses
+the existing CS2 test target and links temporary mutated objects; source files
+and native client objects are not modified. Reproduce with:
+
+```sh
+python3 tools/plugin_engine_negative_controls.py --suite cs2 \
+  --make-arg OPT=1 --make-arg EMBED_SERVER=1 \
+  --make-arg PLATFORM_OBJ_BASE=build_plugin_engine_perf NEW_DIRECTORY
+```
+
+`m2-callback-osrs` passes all four native-root captures; `m2-callback-lc` passes
+both actual packet/CS1 scenarios using two distinct accounts. The inspected
+2× contact sheet preserves 8/8/8/7 OSRS chat controls, 19 Lost City skill cells,
+strength 20/20 and the three guide controls. `m2-callback-bank` passes after the
+listener-copy change and records 45 native script-505 `CC_COPY` operations;
+its enlarged capture retains 48 visible item cells and twelve bottom controls.
+These baseline runs reported zero callback cancellations.
+
+Remaining retained-state work includes queued resize/trigger operations,
+cross-tree checks in older index/incarnation caches, registration changes and
+registry compaction during dispatch, VM active/dot references across unrelated
+asset yields, and task/resource teardown. The complete mutation/publication
+audit and major-3 plugin lifecycle are still required before M2–M6 can close.

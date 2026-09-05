@@ -6,6 +6,7 @@
 #include "game/rs_entity_overlay.h"
 #include "game/rs_highlight.h"
 #include "input/torirs_keymap.h"
+#include "ui/uitree.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -382,6 +383,7 @@ struct RS_CS2TriggerOpLocal
 struct RS_CS2InvTransmitHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
@@ -404,6 +406,7 @@ struct RS_CS2InvTransmitHook
 struct RS_CS2VarTransmitHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
@@ -428,6 +431,7 @@ struct RS_CS2VarTransmitHook
 struct RS_CS2StatTransmitHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
@@ -1279,6 +1283,7 @@ RS_CS2Host_Init(
 void
 RS_CS2_RegisterCacheTransmitHooks(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     struct ToriRS_Component const* src);
 
 /** Give the host the player's skill table. Separate from Init because the

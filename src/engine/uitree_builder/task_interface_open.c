@@ -310,7 +310,7 @@ arm_cache_transmit_hooks(
     if( !self->host )
         return;
     for( int i = 0; i < pack->component_count; i++ )
-        RS_CS2_RegisterCacheTransmitHooks(self->host, &pack->components[i]);
+        RS_CS2_RegisterCacheTransmitHooks(self->host, self->tree, &pack->components[i]);
 }
 
 static void

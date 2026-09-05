@@ -538,7 +538,7 @@ uitree_builder_bake_pack_under_owner(
          * They must exist before the builder's initial var/inv dispatch or the
          * mount paints from the onload and then goes deaf. */
         if( builder->host )
-            RS_CS2_RegisterCacheTransmitHooks(builder->host, src);
+            RS_CS2_RegisterCacheTransmitHooks(builder->host, tree, src);
     }
 
     /* Pass 2: reparent using full pack id scan (forward layer refs). */

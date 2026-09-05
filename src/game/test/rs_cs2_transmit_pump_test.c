@@ -56,6 +56,8 @@
  */
 
 #include "cs2vm2/cs2vm2.h"
+#include "cs2vm2/cs2vm2_script.h"
+#include "cs2vm2/cs2_opcode.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_cs2_dispatch.h"
@@ -462,6 +464,7 @@ test_widgets_loaded_queues_stat_unhide(void)
     fx.host.stat_transmit_hook_cap = 1;
     fx.host.stat_transmit_hook_count = 1;
     fx.host.stat_transmit_hooks[0].component_id = spec.component_id;
+    fx.host.stat_transmit_hooks[0].ref = UITree_RefAt(fx.tree, listener);
     fx.host.stat_transmit_hooks[0].script_id = 5451;
 
     RS_CS2Host_NotifyStatChanged(&fx.host, 0);
@@ -766,11 +769,162 @@ test_var_trigger_ids_are_not_reinterpreted_as_varbits(void)
         "varp 1055 still matches its exact trigger");
 }
 
+/* Execute a real cooperative CS2 task after queue-time identity changes. */
+static void
+test_queued_callback_identity(void)
+{
+    struct Fixture fx;
+    fixture_init(&fx);
+    struct UITreeNodeSpec spec = {.type=UIELEM_RS_LAYER, .component_id=0x160000,
+                                 .width=100, .height=100};
+    int parent = UITree_Push(fx.tree, -1, &spec);
+    int source = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, 0);
+    int id = fx.tree->components[source].component_id;
+    uint16_t opcodes[] = {CS2_OP_PUSH_CONSTANT_INT, CS2_OP_CC_SETCOLOUR, CS2_OP_RETURN};
+    int operands[] = {0x123456, 0, 0};
+    char* strings[] = {NULL, NULL, NULL};
+    struct CS2VM2_Script script = {.script_id=99999, .op_count=3, .opcodes=opcodes,
+        .int_operands=operands, .string_operands=strings, .int_stack_depth=1};
+    struct ToriRS_Task* live = CreateTask_CS2RunScript(&fx.host, &script, id, id, NULL, 0);
+    live->vtable->run(live, NULL);
+    CHECK(fx.tree->components[source].colour == 0x123456, "live CS2 callback writes native color");
+    live->vtable->free(live);
+    struct ToriRS_Task* queued = CreateTask_CS2RunScript(&fx.host, &script, id, id, NULL, 0);
+    UITree_CcDelete(fx.tree, source);
+    fx.tree->next_dynamic_uid = (uint16_t)(id & 0xffff);
+    int replacement = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, 0);
+    CHECK(fx.tree->components[replacement].component_id == id, "callback fixture reuses native ID");
+    queued->vtable->run(queued, NULL);
+    CHECK(fx.tree->components[replacement].colour == 0, "queued CS2 callback cannot write recycled native ID");
+    queued->vtable->free(queued);
+    uint16_t global_ops[] = {CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT,
+                            CS2_OP_IF_SETCOLOUR, CS2_OP_RETURN};
+    int global_operands[] = {0xabcdef, id, 0, 0};
+    char* global_strings[] = {NULL, NULL, NULL, NULL};
+    struct CS2VM2_Script global_script = {.script_id=99997, .op_count=4,
+        .opcodes=global_ops, .int_operands=global_operands,
+        .string_operands=global_strings, .int_stack_depth=2};
+    struct ToriRS_Task* global = CreateTask_CS2RunScript(&fx.host, &global_script, -1, -1, NULL, 0);
+    global->vtable->run(global, NULL);
+    CHECK(fx.tree->components[replacement].colour == 0xabcdef,
+          "unbound native script can explicitly address current component");
+    global->vtable->free(global);
+    fixture_free(&fx);
+}
+
+static void
+test_transmit_registry_identity(void)
+{
+    struct Fixture fx;
+    fixture_init(&fx);
+    struct UITreeNodeSpec spec = {.type=UIELEM_RS_LAYER, .component_id=0x170000,
+                                 .width=100, .height=100};
+    int parent = UITree_Push(fx.tree, -1, &spec);
+    int source = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, 0);
+    int id = fx.tree->components[source].component_id;
+    uint16_t opcodes[] = {CS2_OP_PUSH_CONSTANT_INT, CS2_OP_CC_SETCOLOUR, CS2_OP_RETURN};
+    int operands[] = {0x654321, 0, 0};
+    char* strings[] = {NULL, NULL, NULL};
+    struct CS2VM2_Script script = {.script_id=99998, .op_count=3, .opcodes=opcodes,
+        .int_operands=operands, .string_operands=strings, .int_stack_depth=1};
+    struct CS2VM2_Script* cached = malloc(sizeof(*cached));
+    CS2VM2_ScriptInit(cached);
+    CHECK(CS2VM2_ScriptCopy(&script, cached), "cache callback bytecode");
+    CacheProvider_ClientScriptAdd(fx.host.provider, script.script_id, cached);
+    struct CS2VM2* vm = CS2VM2_Acquire();
+    CS2VM2_BindHost(vm, &fx.host, RS_CS2Host_Exec);
+    struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(vm);
+    struct CS2VM_HostRequest request;
+#define REGISTER(channel) do { \
+    memset(&request, 0, sizeof(request)); \
+    request.kind = CS2VM_HOST_REQUEST_CC_SETON##channel##TRANSMIT; \
+    request.u.CC_SETON##channel##TRANSMIT.component_id = id; \
+    request.u.CC_SETON##channel##TRANSMIT.script_id = script.script_id; \
+    CHECK(RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_OK, "register " #channel " callback"); \
+} while( 0 )
+    REGISTER(INV);
+    REGISTER(VAR);
+    REGISTER(STAT);
+    UITree_HookSet(&UITree_HooksMut(&fx.tree->components[source])->on_misc_transmit,
+                  script.script_id, NULL, 0, 0, NULL, 0);
+    UITree_HookSet(&UITree_HooksMut(&fx.tree->components[source])->on_sub_change,
+                  script.script_id, NULL, 0, 0, NULL, 0);
+    struct ToriRS_Task* snapshots[] = {CreateTask_CS2SubChangeDispatch(&fx.host),
+                                      CreateTask_CS2MiscTransmitDispatch(&fx.host)};
+    UITree_CcDelete(fx.tree, source);
+    fx.tree->next_dynamic_uid = (uint16_t)(id & 0xffff);
+    int replacement = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, 0);
+    struct ToriRS_IO* io = ToriRS_IO_New();
+    for( int i = 0; i < 2; ++i )
+    {
+        UITree_SetColourAt(fx.tree, replacement, 0);
+        CHECK(task_run(snapshots[i], io) == PT_ENDED, "stale snapshot dispatch %d drains", i);
+        CHECK(fx.tree->components[replacement].colour == 0, "snapshot callback %d cannot reach replacement", i);
+        task_free(snapshots[i]);
+    }
+    struct ToriRS_Task* tasks[] = {
+        CreateTask_CS2InvTransmitDispatch(&fx.host, -1),
+        CreateTask_CS2VarTransmitDispatch(&fx.host, -1),
+        CreateTask_CS2StatTransmitDispatchSet(&fx.host, NULL, 0)
+    };
+    for( int i = 0; i < 3; ++i )
+    {
+        CHECK(task_run(tasks[i], io) == PT_ENDED, "stale registry dispatch %d drains", i);
+        CHECK(fx.tree->components[replacement].colour == 0, "registry callback %d cannot reach replacement", i);
+        task_free(tasks[i]);
+    }
+    REGISTER(INV);
+    REGISTER(VAR);
+    REGISTER(STAT);
+    tasks[0] = CreateTask_CS2InvTransmitDispatch(&fx.host, -1);
+    tasks[1] = CreateTask_CS2VarTransmitDispatch(&fx.host, -1);
+    tasks[2] = CreateTask_CS2StatTransmitDispatchSet(&fx.host, NULL, 0);
+    for( int i = 0; i < 3; ++i )
+    {
+        UITree_SetColourAt(fx.tree, replacement, 0);
+        CHECK(task_run(tasks[i], io) == PT_ENDED, "new registry dispatch %d drains", i);
+        CHECK(fx.tree->components[replacement].colour == 0x654321,
+              "new registration %d gets initial update after ID reuse", i);
+        task_free(tasks[i]);
+    }
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_COPY;
+    request.u.CC_COPY.parent_id = spec.component_id;
+    request.u.CC_COPY.src_sub_id = 0;
+    request.u.CC_COPY.dst_sub_id = 2;
+    CHECK(RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_OK, "native CC_COPY clones listener component");
+    int copy = UITree_FindChildBySubid(fx.tree, parent, spec.component_id, 2);
+    CHECK(copy >= 0, "copied listener exists");
+    tasks[0] = CreateTask_CS2InvTransmitDispatch(&fx.host, -1);
+    tasks[1] = CreateTask_CS2VarTransmitDispatch(&fx.host, -1);
+    tasks[2] = CreateTask_CS2StatTransmitDispatchSet(&fx.host, NULL, 0);
+    for( int i = 0; i < 3; ++i )
+    {
+        UITree_SetColourAt(fx.tree, copy, 0);
+        CHECK(task_run(tasks[i], io) == PT_ENDED, "copied registry dispatch %d drains", i);
+        CHECK(fx.tree->components[copy].colour == 0x654321,
+              "copied native listener %d receives its initial update", i);
+        task_free(tasks[i]);
+    }
+#undef REGISTER
+    ToriRS_IO_Free(io);
+    CS2VM2_Release(vm);
+    free(fx.host.inv_transmit_hooks);
+    free(fx.host.var_transmit_hooks);
+    free(fx.host.stat_transmit_hooks);
+    fx.host.inv_transmit_hooks = NULL;
+    fx.host.var_transmit_hooks = NULL;
+    fx.host.stat_transmit_hooks = NULL;
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
     printf("TEST: RS_CS2_PumpTransmits — the transmit dirty-flag guard\n");
 
+    test_queued_callback_identity();
+    test_transmit_registry_identity();
     test_quiet_tick();
     test_standard_sizes_exist_before_first_packet();
     test_each_flag_alone();
