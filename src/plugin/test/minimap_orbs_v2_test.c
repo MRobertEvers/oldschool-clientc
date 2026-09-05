@@ -26,6 +26,32 @@ static int clipped_images;
 static int text_drawn;
 static int ui_updates;
 
+/*
+ * Does any pixel of `orb` fall inside the disc inscribed in `map`?
+ *
+ * The independent statement of what the plugin promises: every housing draws
+ * its map as that disc, and an orb that covers a pixel of it is covering the
+ * thing it exists to report on. Written out here rather than reusing the
+ * plugin's own arithmetic so the test can disagree with it.
+ */
+static int
+orb_covers_map(struct ToriRS_Rect map, struct ToriRS_Rect orb)
+{
+    long const cx = 2L * map.x + map.width;
+    long const cy = 2L * map.y + map.height;
+    long const r = map.width < map.height ? map.width : map.height;
+
+    for( int y = orb.y; y < orb.y + orb.height; y++ )
+        for( int x = orb.x; x < orb.x + orb.width; x++ )
+        {
+            long const dx = 2L * x + 1 - cx;
+            long const dy = 2L * y + 1 - cy;
+            if( dx * dx + dy * dy < r * r )
+                return 1;
+        }
+    return 0;
+}
+
 static bool cfg_bool(struct ToriRS_ApiV2* api, char const* key, bool* out)
 {
     (void)api;
@@ -281,7 +307,16 @@ int main(void)
     CHECK((nodes[2].flags & TORIRS_UI_NODE_VISIBLE) == 0);
     map_rect = (struct ToriRS_Rect){ 600, 20, 146, 151 };
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
-    CHECK(nodes[2].bounds.x == map_rect.x + 6 - 57);
+    /* Interface 160's own offset is the column's starting point and its right
+     * bound -- an orb is never pushed further ONTO the map -- and the disc of
+     * whatever housing this frame drew is what it is then clamped out of. On
+     * the 2004 box below that clamp is what moves it; on a housing whose
+     * window the column already clears, nothing does. */
+    CHECK(nodes[2].bounds.x <= map_rect.x + 6 - 57);
+    CHECK(!orb_covers_map(map_rect, nodes[2].bounds));
+    CHECK(!orb_covers_map(map_rect, nodes[3].bounds));
+    CHECK(!orb_covers_map(map_rect, nodes[4].bounds));
+    CHECK(!orb_covers_map(map_rect, nodes[5].bounds));
     CHECK(nodes[2].bounds.width == 57 && nodes[2].bounds.height == 34);
     CHECK((nodes[2].flags & TORIRS_UI_NODE_VISIBLE) != 0);
     {
@@ -353,9 +388,16 @@ int main(void)
         CHECK(nodes[5].action_count == 0);
     }
 
-    map_rect.x = 500;
-    TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_placement_changed(&api, state, 2);
-    CHECK(nodes[2].bounds.x == map_rect.x + 6 - 57);
+    {
+        /* The placement is an offset from the map wherever the map goes: the
+         * clamp reads the map's own geometry, which a translation does not
+         * change. */
+        int const was = nodes[2].bounds.x - map_rect.x;
+        map_rect.x = 500;
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_placement_changed(&api, state, 2);
+        CHECK(nodes[2].bounds.x - map_rect.x == was);
+        CHECK(!orb_covers_map(map_rect, nodes[2].bounds));
+    }
     housing_available = false;
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_placement_changed(&api, state, 3);
     CHECK(nodes[2].parent && strcmp(nodes[2].parent, "frame.minimap") == 0);

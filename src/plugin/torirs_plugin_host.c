@@ -511,6 +511,16 @@ struct ToriRS_PluginHost
     int ui_tab_active;
     uint32_t ui_tab_enabled_mask;
     bool ui_tab_state_valid;
+    /** The surfaces whose rectangle is the one this frame DREW rather than the
+     *  one the layout laid out: the world viewport and the minimap both read a
+     *  frame's emit descriptor. A descriptor is a frame behind the layout that
+     *  moved it, so the base refresh a layout change triggers reads the old
+     *  box and -- being edge triggered -- would latch it for the session.
+     *  These are the values that refresh published; the poll below compares
+     *  them against the live answer and refreshes again when they move. */
+    struct ToriRS_Rect ui_live_surface_rect[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
+    bool ui_live_surface_present[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
+    bool ui_live_surface_valid;
 
     /** enum ToriRS_FrameCanvas, and the pinned size for FIXED. */
     int layout_canvas;
@@ -2302,6 +2312,35 @@ plugin_ui_base_add_rect(
     return count;
 }
 
+/**
+ * One surface's live rectangle, with the viewport's documented CANVAS fallback.
+ *
+ * Both the base refresh and the poll that watches it move must ask the same
+ * question, or the poll would refresh for ever over a difference it invented.
+ */
+static int
+plugin_ui_surface_rect(
+    struct ToriRS_PluginHost* host,
+    int slot,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int present;
+
+    assert(host);
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    present = host->engine.slot_rect(host->engine.user, slot, out_x, out_y, out_w, out_h);
+    if( !present && slot == TORIRS_HOST_SURFACE_VIEWPORT )
+        present = host->engine.slot_rect(
+            host->engine.user, TORIRS_HOST_SURFACE_CANVAS, out_x, out_y, out_w, out_h);
+    return present;
+}
+
 static void
 plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
 {
@@ -2361,6 +2400,7 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
     {
         host->ui_tab_state_valid = false;
+        host->ui_live_surface_valid = false;
         ToriRS_UiRegistry_ClearBase(&host->ui_registry);
         return;
     }
@@ -2374,15 +2414,19 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     host->ui_tab_active = active_tab;
     host->ui_tab_enabled_mask = tab_enabled_mask;
     host->ui_tab_state_valid = true;
+    host->ui_live_surface_valid = true;
 
     for( size_t i = 0; i < sizeof(SURFACE) / sizeof(SURFACE[0]); i++ )
     {
         int x, y, w, h;
-        int present = host->engine.slot_rect(
-            host->engine.user, SURFACE[i].slot, &x, &y, &w, &h);
-        if( !present && SURFACE[i].slot == TORIRS_HOST_SURFACE_VIEWPORT )
-            present = host->engine.slot_rect(
-                host->engine.user, TORIRS_HOST_SURFACE_CANVAS, &x, &y, &w, &h);
+        int const present =
+            plugin_ui_surface_rect(host, SURFACE[i].slot, &x, &y, &w, &h);
+        host->ui_live_surface_present[SURFACE[i].slot] = present != 0;
+        host->ui_live_surface_rect[SURFACE[i].slot] =
+            (struct ToriRS_Rect){ present ? x : 0,
+                                  present ? y : 0,
+                                  present ? w : 0,
+                                  present ? h : 0 };
         if( present )
             count = plugin_ui_base_add_rect(
                 declarations,
@@ -2553,6 +2597,49 @@ plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
     if( ToriRS_UiRegistry_ReplaceBase(&host->ui_registry, declarations, count) !=
         TORIRS_UI_REGISTRY_OK )
         TORIRS_REPORT("plugin: rejected the resolved named-UI base; keeping the previous tree\n");
+}
+
+/**
+ * Refresh the base when a surface rectangle moved without a layout change.
+ *
+ * The world viewport's and the minimap's boxes are the emit descriptors the
+ * last frame drew with, so they arrive one frame after the layout that moved
+ * them -- which is one frame after the layout change refreshed the base. With
+ * nothing watching them the stale box is what every plugin anchored to that
+ * surface keeps: after a window resize the minimap-orbs cluster stayed at the
+ * pre-resize position while interface 160, which clips it, moved with the
+ * relayout, and the orbs were cut in half at the new container's left edge.
+ */
+static void
+plugin_ui_surface_rect_poll(struct ToriRS_PluginHost* host)
+{
+    /* Only these two: every other surface's box is a laid-out node, and a
+     * layout that moves one already refreshes the base through
+     * PluginHost_LayoutChanged. Polling them as well would cost a role lookup
+     * per surface per frame to re-learn what the layout just said. */
+    static int const LIVE_SLOT[] = { TORIRS_HOST_SURFACE_VIEWPORT,
+                                     TORIRS_HOST_SURFACE_MINIMAP };
+
+    assert(host);
+    if( !host->ui_live_surface_valid )
+        return;
+    if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
+        return;
+    for( size_t i = 0; i < sizeof(LIVE_SLOT) / sizeof(LIVE_SLOT[0]); i++ )
+    {
+        int const slot = LIVE_SLOT[i];
+        int x = 0, y = 0, w = 0, h = 0;
+        int const present = plugin_ui_surface_rect(host, slot, &x, &y, &w, &h);
+        struct ToriRS_Rect const* known = &host->ui_live_surface_rect[slot];
+
+        if( (present != 0) != host->ui_live_surface_present[slot] ||
+            (present && (x != known->x || y != known->y || w != known->width ||
+                         h != known->height)) )
+        {
+            plugin_ui_refresh_base(host);
+            return;
+        }
+    }
 }
 
 /** Publish sidebar ACTIVE/ENABLED state only when the lane's live answer moves. */
@@ -10089,6 +10176,7 @@ PluginHost_FrameStart(
      * before plugins read placement or receive this frame's callbacks. */
     plugin_placement_poll_lane_chrome(host);
 
+    plugin_ui_surface_rect_poll(host);
     plugin_ui_tab_state_poll(host);
 
     /* The screen poll. Here rather than at the transitions themselves because

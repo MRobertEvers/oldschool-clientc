@@ -140,6 +140,29 @@ enum FrameLayout
  * toplevel's own too. Copied from the .if files rather than derived, for the
  * reason every other number in this file is.
  */
+/*
+ * The 2004 map housing, and the two holes cut in `classic_mapback.png`.
+ *
+ * The offsets are the ART's, measured off its own alpha: flood-filling the
+ * plate's transparent components gives exactly (25,5) 146x151 and (0,0) 33x33.
+ * They are stated here because the SURFACE boxes below are the same two
+ * rectangles offset by the housing's origin -- the map at (575,9) and the
+ * compass at (550,4) -- and a hole that does not agree with the surface in it
+ * is a housing whose window is somewhere its map is not.
+ */
+#define FRAME_C_HOUSING_X 550
+#define FRAME_C_HOUSING_Y 4
+#define FRAME_C_HOUSING_W 172
+#define FRAME_C_HOUSING_H 156
+#define FRAME_C_HOLE_MAP_DX 25
+#define FRAME_C_HOLE_MAP_DY 5
+#define FRAME_C_HOLE_MAP_W 146
+#define FRAME_C_HOLE_MAP_H 151
+#define FRAME_C_HOLE_COMPASS_DX 0
+#define FRAME_C_HOLE_COMPASS_DY 0
+#define FRAME_C_HOLE_COMPASS_W 33
+#define FRAME_C_HOLE_COMPASS_H 33
+
 #define FRAME_O_ORBS_FIXED_DX (-29)
 #define FRAME_O_ORBS_FIXED_DY 0
 #define FRAME_O_ORBS_FIXED_W 236
@@ -149,8 +172,32 @@ enum FrameLayout
 #define FRAME_O_ORBS_R_W 207
 #define FRAME_O_ORBS_R_H 197
 
+/*
+ * The activity adviser's spot inside that block -- the one child of the orb
+ * pack the TOPLEVEL positions rather than the pack (torirs_gridmaster_pos):
+ * 548 right-aligns it 50 rows down, 161/164 put it at (85, 143) under the
+ * run orb. A frame of one shape over the other toplevel has to say which, or
+ * the button lands inside the map circle or on the tab stones. Copied from
+ * the proc, as the block numbers are from the .if files.
+ * @see ToriRS_OrbsMember
+ */
+#define FRAME_O_ADVISER_W 34
+#define FRAME_O_ADVISER_H 34
+#define FRAME_O_ADVISER_FIXED_DX (FRAME_O_ORBS_FIXED_W - FRAME_O_ADVISER_W)
+#define FRAME_O_ADVISER_FIXED_DY 50
+#define FRAME_O_ADVISER_R_DX 85
+#define FRAME_O_ADVISER_R_DY 143
+
 /** Sidebar tabs, in the order every revision since 2001 numbers them. */
 #define FRAME_TAB_COUNT 14
+
+/**
+ * The tab a frame with no collapsed state opens when the lane has none open.
+ *
+ * The inventory, which is what every fixed frame in this game's history shows
+ * a player who has just logged in. @see frame_sidebar_seed.
+ */
+#define FRAME_TAB_INVENTORY 3
 
 /*
  * Screen order is not tab order.
@@ -181,18 +228,67 @@ static int const FRAME_TAB_SCREEN_ORDER[FRAME_TAB_COUNT] = {
 #define FRAME_CHAT_BUTTON_W 100
 #define FRAME_CHAT_BUTTON_H 32
 
-/*
- * The OldSchool plate a filter button stands on, and the rounded ends that
- * cannot be stretched.
+/**
+ * Where the four stand on the 2004 strip, in the strip's own columns.
  *
- * `chat_tab_button` is 56x22 with four tapering rows top and bottom and a
- * light-to-dark bevel down the middle: it can be any WIDTH and only that
- * height. Which happens to be the height the 2004 button needs -- p12 at
- * label_y 2 and mode_y 15 is 25 rows of ink, and a plate two rows above the
- * stone bar lands under all of it -- so the plate is three-sliced sideways to
- * the button's box and left alone vertically.
+ * The reference's own x and not an even spread: 6, 135, 273, 408. `Report
+ * abuse` is centred at 458 (Client-TS redrawPrivacySettings), so its 100-wide
+ * box starts at 408 -- and 412 pushed the final `e` against the backbase2
+ * corner, which is why the number is copied rather than derived. Read twice:
+ * by the classic layout placing the buttons on its own strip, and by the
+ * composer that cuts a strip for an OldSchool chatbox to wear -- and it is the
+ * SAME table on purpose, because a plate cut at one column and a button drawn
+ * at another is two bars fighting. @see frame_compose_classic_bar.
  */
-#define FRAME_O_CHAT_BUTTON_CAP 8
+static int const FRAME_CHAT_BUTTON_X[FRAME_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
+
+/**
+ * The one recess the 2004 bar is cut from, and the clean rock beside it.
+ *
+ * A chat filter is a LABEL ON A RECESS in the stone, not a button laid over
+ * it: 2004 cut the four hollows into `backbase1` itself, and nothing is drawn
+ * between the rock and the text. A frame that wants a different NUMBER of them
+ * -- eight, because that is how many filters an OldSchool lane has -- has to
+ * re-cut the bar rather than lay plates on it, or the picture is two bars
+ * fighting: a hollow at one column with a button at another.
+ *
+ * So one recess is read (the first, at FRAME_CHAT_BUTTON_X[0], wholly inside
+ * `backbase1`) and re-cut per cell, and the rock between the hollows -- the
+ * 29 clean columns after the first one ends -- fills what the cells leave.
+ * FRAME_C_RECESS_CAP columns at each end are copied exactly: they carry the
+ * rounded corner and the bevel, and are the two things a narrower cell must
+ * not squash. What is between them is a smooth left-to-right gradient, so it
+ * is resampled rather than tiled -- a tile has to put the source's own end
+ * somewhere, and wherever it lands is a corner in the middle of a hollow.
+ */
+#define FRAME_C_RECESS_CAP 10
+#define FRAME_C_ROCK_X (FRAME_CHAT_BUTTON_X[0] + FRAME_CHAT_BUTTON_W)
+#define FRAME_C_ROCK_W 29
+
+/** As many hollows as a bar can be asked for: an OldSchool chatbox has eight
+ *  filters and a 2004 one has four. */
+#define FRAME_CHAT_CELL_MAX 8
+
+/** One hollow to cut, in the BAR's own columns and rows. */
+struct FrameChatCell
+{
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
+/*
+ * The 2004 strip's own geometry inside the sprite it is cut from.
+ *
+ * `backbase1` is blitted at (0,453) and the controls begin at y=467, so the
+ * band the four recessed plates live in starts fourteen rows down it and is
+ * FRAME_CHAT_BUTTON_H tall. Only `backbase1` is read: the first hollow and the
+ * clean rock after it are both inside its 496 columns, and everything a
+ * composed bar needs is a re-cut of those. The `backbase2` continuation is the
+ * 2004 LAYOUT's business -- it blits the pair whole. @see FRAME_C_RECESS_CAP.
+ */
+#define FRAME_C_STRIP_BAND_Y 14
 
 /*
  * The OldSchool chatbox: a 519x142 backing with a 23-tall stone bar under it.
@@ -202,10 +298,38 @@ static int const FRAME_TAB_SCREEN_ORDER[FRAME_TAB_COUNT] = {
  * is its own sprite (`main_stones_bottom`) rather than part of the backing, so
  * a layout that blits only the backing gives the filter buttons nothing to
  * stand on and they read as text floating on the scene.
+ *
+ * The SPRITE boundary is not the BAND boundary, and that is the trap. The
+ * button band the player sees is 29 rows and not 23: the backing sprite's last
+ * six rows are already rock -- the band's top edge, baked into the backing
+ * because that is where the cache put it -- and its parchment stops six rows
+ * short of its own bottom. A frame that dresses the two pictures has to keep
+ * that seam. Composing the band as the bar alone makes it six rows shallow,
+ * and the captions do not follow: the lane draws them at rows 481 and 491 of
+ * the chatbox whatever is under them, so they land on the band's top lip with
+ * the On line's shadow hanging off the bottom of the canvas.
  */
 #define FRAME_O_CHAT_W 519
 #define FRAME_O_CHAT_H 142
 #define FRAME_O_CHAT_STONES_H 23
+/**
+ * The band the filter captions stand in, the six rows of it the BACKING
+ * carries rather than the bar, and the body above it. @see FRAME_O_CHAT_H.
+ *
+ * The band is also the BOX each filter button gets, on the frames that place
+ * their own: the 2004 chat-button builtin draws its caption two rows below the
+ * box top and its mode line thirteen rows below that, both measured from the
+ * box and neither from its height (uitree_emit.c's emit_chat_button over the
+ * label_y/mode_y of revconfig's `[component:chat_button_*]`), so the ink is
+ * twenty-three rows starting four below the box -- handed the band's own
+ * twenty-nine it sits inside, with four rows of rock above it and two below.
+ * An earlier version lifted a 25-row box three rows clear of a 23-row bar to
+ * squeeze the same ink onto it, which put the caption on the lip above the bar
+ * and the On line's shadow row off the bottom of the canvas.
+ */
+#define FRAME_O_CHAT_BAND_H 29
+#define FRAME_O_CHAT_BAND_LIP (FRAME_O_CHAT_BAND_H - FRAME_O_CHAT_STONES_H)
+#define FRAME_O_CHAT_BODY_H (FRAME_O_CHAT_H - FRAME_O_CHAT_BAND_LIP)
 
 /*
  * The chat SURFACE inside it, at the size the lane authored -- not the size of
@@ -226,19 +350,6 @@ static int const FRAME_TAB_SCREEN_ORDER[FRAME_TAB_COUNT] = {
 #define FRAME_O_CHAT_INNER_H 96
 #define FRAME_O_CHAT_INNER_X ((FRAME_O_CHAT_W - FRAME_O_CHAT_INNER_W) / 2)
 #define FRAME_O_CHAT_INNER_Y ((FRAME_O_CHAT_H - FRAME_O_CHAT_INNER_H) / 2)
-
-/*
- * The filter buttons stand ON the stone bar, two rows above its top.
- *
- * The ink runs from four rows below the box top to twenty-four -- twenty-one
- * rows, measured off a render rather than derived, because p12's glyphs sit
- * inside their line boxes. Three rows up centres those twenty-one in the
- * bar's twenty-three, which is the one offset with a row of margin at each
- * end; two put `On` on the bar's bottom lip and four put the label on the
- * chatbox border. The 2004 frame needs none of this: its own strip is 50 tall.
- */
-#define FRAME_O_CHAT_BUTTON_H 25
-#define FRAME_O_CHAT_BUTTON_LIFT 3
 
 /* ------------------------------------------------------------------- assets */
 
@@ -286,11 +397,6 @@ enum FrameImage
     IMG_O_MAPBACK,
     IMG_O_CHATBACK,
     IMG_O_CHAT_STONES,
-    IMG_O_CHAT_BUTTON,
-    IMG_O_CHAT_BUTTON_HOVER,
-    IMG_O_CHAT_BUTTON_ACTIVE,
-    IMG_O_CHAT_BUTTON_ACTIVE_HOVER,
-    IMG_O_CHAT_BUTTON_REPORT,
     IMG_O_SB_TROUGH,
     IMG_O_SB_DRAGGER_TOP,
     IMG_O_SB_DRAGGER_MID,
@@ -319,7 +425,16 @@ enum FrameImage
     IMG_O_SIDE_COLUMN_R,
     IMG_O_SIDEICON_0,
 
-    FRAME_IMG_COUNT = IMG_O_SIDEICON_0 + FRAME_TAB_COUNT
+    /*
+     * -- the rev-239 LANE's own tab icons --
+     *
+     * Not a third frame family: these are what the osrs239 toplevels draw on
+     * their own stones, and a stone's icon names the PANEL it opens rather
+     * than the era its rock was cut in. @see frame_sideicon.
+     */
+    IMG_OSRS239_SIDEICON_0 = IMG_O_SIDEICON_0 + FRAME_TAB_COUNT,
+
+    FRAME_IMG_COUNT = IMG_OSRS239_SIDEICON_0 + FRAME_TAB_COUNT
 };
 
 static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
@@ -377,11 +492,6 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
     [IMG_O_MAPBACK] = "osrs_mapback.png",
     [IMG_O_CHATBACK] = "osrs_chatback.png",
     [IMG_O_CHAT_STONES] = "osrs_chat_stones.png",
-    [IMG_O_CHAT_BUTTON] = "osrs_chat_button.png",
-    [IMG_O_CHAT_BUTTON_HOVER] = "osrs_chat_button_hover.png",
-    [IMG_O_CHAT_BUTTON_ACTIVE] = "osrs_chat_button_active.png",
-    [IMG_O_CHAT_BUTTON_ACTIVE_HOVER] = "osrs_chat_button_active_hover.png",
-    [IMG_O_CHAT_BUTTON_REPORT] = "osrs_chat_button_report.png",
     [IMG_O_SB_TROUGH] = "osrs_sb_trough.png",
     [IMG_O_SB_DRAGGER_TOP] = "osrs_sb_dragger_top.png",
     [IMG_O_SB_DRAGGER_MID] = "osrs_sb_dragger_mid.png",
@@ -422,6 +532,21 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
     [IMG_O_SIDEICON_0 + 11] = "osrs_sideicon_11.png",
     [IMG_O_SIDEICON_0 + 12] = "osrs_sideicon_12.png",
     [IMG_O_SIDEICON_0 + 13] = "osrs_sideicon_13.png",
+
+    [IMG_OSRS239_SIDEICON_0 + 0] = "osrs239_sideicon_0.png",
+    [IMG_OSRS239_SIDEICON_0 + 1] = "osrs239_sideicon_1.png",
+    [IMG_OSRS239_SIDEICON_0 + 2] = "osrs239_sideicon_2.png",
+    [IMG_OSRS239_SIDEICON_0 + 3] = "osrs239_sideicon_3.png",
+    [IMG_OSRS239_SIDEICON_0 + 4] = "osrs239_sideicon_4.png",
+    [IMG_OSRS239_SIDEICON_0 + 5] = "osrs239_sideicon_5.png",
+    [IMG_OSRS239_SIDEICON_0 + 6] = "osrs239_sideicon_6.png",
+    [IMG_OSRS239_SIDEICON_0 + 7] = "osrs239_sideicon_7.png",
+    [IMG_OSRS239_SIDEICON_0 + 8] = "osrs239_sideicon_8.png",
+    [IMG_OSRS239_SIDEICON_0 + 9] = "osrs239_sideicon_9.png",
+    [IMG_OSRS239_SIDEICON_0 + 10] = "osrs239_sideicon_10.png",
+    [IMG_OSRS239_SIDEICON_0 + 11] = "osrs239_sideicon_11.png",
+    [IMG_OSRS239_SIDEICON_0 + 12] = "osrs239_sideicon_12.png",
+    [IMG_OSRS239_SIDEICON_0 + 13] = "osrs239_sideicon_13.png",
 };
 
 /* ------------------------------------------------------------------- state */
@@ -508,28 +633,6 @@ enum
     REDSTONE_FLIP_HV,
     REDSTONE_FLIP_COUNT
 };
-
-/*
- * The six plates a filter button can wear, composed to the size this lane's
- * two-line buttons need.
- *
- * Declared here rather than beside the composer that fills it, because the
- * LAYOUT pass reads it -- a button records which plates it wears at the moment
- * it is placed -- and the layout pass runs first in this file.
- * @see frame_build_chat_plates for what each one is cut from.
- */
-enum FrameChatPlate
-{
-    CHAT_PLATE_IDLE = 0,
-    CHAT_PLATE_HOVER,
-    CHAT_PLATE_ACTIVE,
-    CHAT_PLATE_ACTIVE_HOVER,
-    CHAT_PLATE_REPORT,
-    CHAT_PLATE_REPORT_HOVER,
-
-    CHAT_PLATE_COUNT
-};
-
 
 /*
  * The chatbox's own switch, and which filter it is showing.
@@ -650,48 +753,74 @@ struct FrameRuntime
     int housing_claimed;
     struct FrameTab tab[FRAME_TAB_COUNT];
     int tab_count;
-    /*
-     * The filter buttons' plates.
-     *
-     * Declared here rather than blitted into the list above, for the reason
-     * the tab stones are: which plate a button wears changes with the POINTER
-     * and the list is built once per layout. Same shape, same reason -- a
-     * frame that has no plates simply records none.
-     */
-    struct FrameChatButton
-    {
-        int x;
-        int y;
-        int w;
-        /**
-         * The filter this button selects -- carried, not inferred.
-         *
-         * It equals the index today because the four are recorded in order,
-         * and the draw and click paths still read it rather than the slot: a
-         * frame that placed only some of them would otherwise light the wrong
-         * button, and the tag handed to the host has to be a filter number
-         * because that is what frame_on_click compares against.
-         */
-        int filter;
-        struct ToriRS_ImageRef idle;
-        struct ToriRS_ImageRef hover;
-        /**
-         * The SELECTED plates, and the one thing that says this button is the
-         * frame's to click.
-         *
-         * -1 on two kinds of button and they mean the same thing here: one on
-         * a frame whose chatbox cannot be put away, and Report abuse, which is
-         * not a view of the chat but a verb the LANE implements. Neither is
-         * the frame's action, so no action region is registered over the
-         * client's own report button.
-         */
-        struct ToriRS_ImageRef active;
-        struct ToriRS_ImageRef active_hover;
-    } chat_button[FRAME_CHAT_BUTTON_COUNT];
-    int chat_button_count;
     /** Set once the layout has been declared at least once, so the draw pass
      *  can tell "nothing to draw yet" from "a frame with no chrome". */
     int declared;
+};
+
+/*
+ * The OldSchool chat pack's decoration, held through retained V2 facets.
+ *
+ * Classic Fixed on an OldSchool lane used to place the 519x165 pack whole and
+ * dress none of it, which put an OldSchool chatbox -- its parchment, its stone
+ * bar and its eight filter buttons -- in the middle of a 2004 surround. The
+ * pack's own furniture is named piece by piece by the profile, so a frame can
+ * replace exactly the decoration and leave the message text, the input line,
+ * the scrollbar and every action inside them alone.
+ *
+ * The bar is the GRAPHIC and not the layer -- `[role:chat_bar]` is
+ * `iface(chat, 3)` -- because the eight filters are the LANE's and stay: a
+ * frame dresses the stone they stand on, it does not decide how many chat
+ * filters this revision has. Taking the layer instead took the eight with it
+ * and left four 2004 buttons where the player had All, Game, Public, Private,
+ * Channel, Clan, Trade and Report, and no On/Off line under any of them.
+ *
+ * The eight PLATES are claimed to be taken AWAY rather than re-dressed: a
+ * claim whose declaration carries no art in any state is the API's "hidden by
+ * its holder", and a 2004 chat filter is a caption on a hollow cut into the
+ * bar with nothing between the rock and the text. The hollows are cut into
+ * the bar at the eight boxes these very roles report.
+ * @see frame_chat_dress, frame_compose_chat_bar.
+ */
+enum FrameChatDecoration
+{
+    FRAME_CHAT_BACKING = 0,
+    FRAME_CHAT_BAR,
+    FRAME_CHAT_PLATE_0,
+    FRAME_CHAT_DECORATION_COUNT = FRAME_CHAT_PLATE_0 + FRAME_CHAT_CELL_MAX,
+};
+
+static char const* const FRAME_CHAT_NODE[FRAME_CHAT_DECORATION_COUNT] = {
+    [FRAME_CHAT_BACKING] = "frame.chat.backing",
+    [FRAME_CHAT_BAR] = "frame.chat.bar",
+    [FRAME_CHAT_PLATE_0 + 0] = "frame.chat.plate.0",
+    [FRAME_CHAT_PLATE_0 + 1] = "frame.chat.plate.1",
+    [FRAME_CHAT_PLATE_0 + 2] = "frame.chat.plate.2",
+    [FRAME_CHAT_PLATE_0 + 3] = "frame.chat.plate.3",
+    [FRAME_CHAT_PLATE_0 + 4] = "frame.chat.plate.4",
+    [FRAME_CHAT_PLATE_0 + 5] = "frame.chat.plate.5",
+    [FRAME_CHAT_PLATE_0 + 6] = "frame.chat.plate.6",
+    [FRAME_CHAT_PLATE_0 + 7] = "frame.chat.plate.7",
+};
+
+/** A composed picture and the box it was composed for. Held across
+ *  declarations: the size changes about as often as the chatbox does.
+ *  `key` is whatever else the picture depends on -- for the chat bar, the
+ *  hollows cut into it, which move when the lane rebuilds its chatbox. */
+struct FrameSized
+{
+    struct ToriRS_ImageRef art;
+    int w;
+    int h;
+    uint32_t key;
+};
+
+/** The two surfaces the 2004 housing has a window for, in mask order. */
+enum
+{
+    FRAME_C_MASK_MAP,
+    FRAME_C_MASK_COMPASS,
+    FRAME_C_MASK_COUNT,
 };
 
 /** All mutable state belongs to one host-managed plugin instance. */
@@ -700,26 +829,134 @@ struct FrameState
     struct ToriRS_ImageRef image_token[FRAME_IMG_COUNT];
     struct ToriRS_ImageRef image[FRAME_IMG_COUNT];
     struct ToriRS_ImageRef redstone_flip[3][REDSTONE_FLIP_COUNT];
-    struct ToriRS_ImageRef chat_plate[CHAT_PLATE_COUNT];
     bool image_ready[FRAME_IMG_COUNT];
+    /* The two windows of the 2004 housing, cut out of its own art.
+     * @see frame_build_classic_masks. */
+    struct ToriRS_ImageRef classic_mask[FRAME_C_MASK_COUNT];
+    bool classic_masks_built;
     bool redstone_flipped;
-    bool chat_plates_built;
     bool chat_open;
     int chat_filter;
+    /*
+     * Whether the SIDEBAR was open when the retained declaration was made.
+     *
+     * Read by the resizable layout, which has a collapsed state and therefore
+     * a declaration that depends on this, and compared against the live answer
+     * every frame so that opening or closing a tab re-declares the frame.
+     * The two fixed layouts have no collapsed state and never read it.
+     * @see frame_sidebar_seed.
+     */
+    bool sidebar_open;
+    /*
+     * The tabs the server had given when this frame last asked the lane to
+     * open one, as a bitmask, or 0 for "never asked".
+     *
+     * The seed below has to be idempotent: a lane that answers "tab 3 is
+     * yours" and then leaves the panel shut would otherwise have its switch
+     * script run once per frame for ever. Re-asking is allowed only when the
+     * information changed -- a tab has since been handed over, or a tab has
+     * since been open -- because asking twice with the same facts gets the
+     * same answer.
+     */
+    uint32_t sidebar_seed_given;
+    struct ToriRS_UiNodeRef chat_node[FRAME_CHAT_DECORATION_COUNT];
+    struct FrameSized chat_paper;
+    struct FrameSized chat_bar;
+    /** The OldSchool band, backing lip and bar sprite stacked, before this
+     *  frame's hollows are cut into it. @see frame_compose_osrs_band. */
+    struct FrameSized chat_band;
+    /** The 2004 bar the two OldSchool layouts blit on a 2004 lane, with this
+     *  frame's own four hollows cut into it. @see frame_chat_stones. */
+    struct FrameSized chat_stones;
     struct FrameRuntime frame;
 };
 
 #define g_image (ctx->state->image)
+#define g_classic_mask (ctx->state->classic_mask)
+#define g_classic_masks_built (ctx->state->classic_masks_built)
 #define g_redstone_flip (ctx->state->redstone_flip)
 #define g_redstone_flipped (ctx->state->redstone_flipped)
-#define g_chat_plate (ctx->state->chat_plate)
-#define g_chat_plates_built (ctx->state->chat_plates_built)
 #define g_chat_open (ctx->state->chat_open)
+#define g_sidebar_open (ctx->state->sidebar_open)
+#define g_sidebar_seed_given (ctx->state->sidebar_seed_given)
 #define g_chat_filter (ctx->state->chat_filter)
+#define g_chat_node (ctx->state->chat_node)
+#define g_chat_paper (ctx->state->chat_paper)
+#define g_chat_bar (ctx->state->chat_bar)
+#define g_chat_band (ctx->state->chat_band)
+#define g_chat_stones (ctx->state->chat_stones)
 #define g_frame (ctx->state->frame)
 #define g_api (ctx->api)
 
 /* ------------------------------------------------------------------ helpers */
+
+/**
+ * Is a sidebar tab open right now?
+ *
+ * The lane's answer and not the frame's: on a CS2 toplevel the open tab is
+ * the side panel the cache's switch script left unhidden, and on a 2004 lane
+ * it is the client's own selection. -1 means the sidebar is CLOSED, which is
+ * a state 164 (`toplevel_pre_eoc`) logs in with.
+ */
+static int
+frame_sidebar_open(struct FrameCall* ctx)
+{
+    assert(ctx);
+    return g_api->cache.tab_active(g_api) >= 0;
+}
+
+/*
+ * A frame that draws a panel must have something in it.
+ *
+ * Two of the three layouts here are FIXED frames, and a fixed frame has no
+ * collapsed state: 548 and the 2004 frame both keep a panel up with a lit
+ * stone over it from the moment the player logs in, and neither has any art
+ * for the sidebar being away. So when the lane hands one of them a closed
+ * sidebar -- which 164 does, it logs in with every side panel hidden -- the
+ * frame asks the lane to open the inventory rather than drawing fourteen
+ * stones around an empty plate. The resizable layout does have a collapsed
+ * state and draws it instead; it is excluded here.
+ *
+ * The ASK is the lane's own verb (the cache's switch script on a CS2 lane,
+ * the client's selection on a 2004 one), so the cache's state agrees with the
+ * frame afterwards -- the same route a click on one of this frame's stones
+ * takes. @see ToriRS_CacheApiV2::tab_select.
+ *
+ * Run from the frame-start pass rather than at declaration time, because a
+ * tab being handed over or taken away is not a resize, a rebuild or a claim:
+ * nothing re-runs the layout for it. @see FrameState::sidebar_seed_given for
+ * why asking twice is fenced.
+ */
+static void
+frame_sidebar_seed(struct FrameCall* ctx)
+{
+    uint32_t given = 0;
+
+    assert(ctx);
+    if( !g_frame.declared || g_frame.layout == FRAME_MODERN_RESIZABLE )
+        return;
+    if( frame_sidebar_open(ctx) )
+    {
+        /* Open: re-arm, so a later closure is seeded again. */
+        g_sidebar_seed_given = 0;
+        return;
+    }
+    for( int tab = 0; tab < FRAME_TAB_COUNT; tab++ )
+        if( g_api->cache.tab_enabled(g_api, tab) )
+            given |= 1u << tab;
+    /* Nothing to open (a tutorial account before its first tab), or the same
+     * fourteen answers this frame already asked with. */
+    if( given == 0 || given == g_sidebar_seed_given )
+        return;
+    g_sidebar_seed_given = given;
+    if( g_api->cache.tab_select(g_api, FRAME_TAB_INVENTORY) )
+        return;
+    /* The inventory is not the player's yet -- the tutorial hands the fourteen
+     * out one at a time -- so open the first tab that is. */
+    for( int tab = 0; tab < FRAME_TAB_COUNT; tab++ )
+        if( (given & (1u << tab)) && g_api->cache.tab_select(g_api, tab) )
+            return;
+}
 
 static void
 frame_surface(
@@ -736,6 +973,61 @@ frame_surface(
         surface,
         (struct ToriRS_Rect){
             x + ctx->origin_x, y + ctx->origin_y, width, height });
+}
+
+static void
+frame_surface_member(
+    struct FrameCall* ctx,
+    int surface,
+    int member,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    assert(ctx);
+    ctx->builder->surface_member(
+        ctx->builder,
+        surface,
+        member,
+        (struct ToriRS_Rect){
+            x + ctx->origin_x, y + ctx->origin_y, width, height });
+}
+
+/*
+ * The OldSchool orb block at (x, y), and the activity adviser at its own
+ * spot inside it. A lane with no such block -- every 2004 one -- answers 0
+ * to both and nothing moves.
+ *
+ * `adviser_h` is how many of the adviser's 34 rows the frame has room for.
+ * Anything short of its full height CUTS it, and nothing at all leaves the
+ * member out of the declaration, which the host reads as a member its holder
+ * hides. @see frame_layout_modern_resizable for the one layout that has to
+ * say less than 34.
+ */
+static void
+frame_place_orbs(
+    struct FrameCall* ctx,
+    int x,
+    int y,
+    int width,
+    int height,
+    int adviser_dx,
+    int adviser_dy,
+    int adviser_h)
+{
+    assert(ctx);
+    frame_surface(ctx, TORIRS_SURFACE_ORBS, x, y, width, height);
+    if( adviser_h <= 0 )
+        return;
+    frame_surface_member(
+        ctx,
+        TORIRS_SURFACE_ORBS,
+        TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER,
+        x + adviser_dx,
+        y + adviser_dy,
+        FRAME_O_ADVISER_W,
+        adviser_h);
 }
 
 static void
@@ -865,13 +1157,20 @@ frame_tab(
 }
 
 /*
- * The filter buttons spread evenly across a strip.
+ * The filter buttons spread evenly across a strip, on the hollows cut for
+ * them.
  *
- * What the two OldSchool layouts use, because neither frame has a row of 2004
- * chat buttons to copy positions from -- OldSchool moved these into the
- * chatbox interface itself. Even spacing is therefore a LAYOUT decision rather
- * than a reproduction, and stating it as arithmetic is what lets the same
- * three lines serve a 519-wide fixed chatbox and a resizable one.
+ * What the two OldSchool layouts use ON A 2004 LANE, because neither frame has
+ * a row of 2004 chat buttons to copy positions from -- OldSchool moved these
+ * into the chatbox interface itself. Even spacing is therefore a LAYOUT
+ * decision rather than a reproduction, and stating it as arithmetic is what
+ * lets the same three lines serve a 519-wide fixed chatbox and a resizable
+ * one. @see frame_chat_cells_across, which cuts the bar's hollows from the
+ * same arithmetic so the two cannot drift apart.
+ *
+ * Nothing is drawn UNDER the label: the recess is in the bar and the lane's
+ * own two-line caption sits straight on it, which is what a 2004 chat filter
+ * is. A plate laid over the bar is a second bar.
  */
 static void
 frame_chat_buttons_across(
@@ -880,7 +1179,6 @@ frame_chat_buttons_across(
     int y,
     int width,
     int height,
-    int plate,
     int selectable)
 {
     static char const* const NAME[FRAME_CHAT_BUTTON_COUNT] = {
@@ -896,42 +1194,8 @@ frame_chat_buttons_across(
     {
         int const bx = x + i * cell + (cell - FRAME_CHAT_BUTTON_W) / 2;
         int const report = i == FRAME_CHAT_BUTTON_REPORT;
+        struct ToriRS_UiNode part;
 
-        /*
-         * The plate goes down BEFORE the button is placed, and in the frame
-         * pass rather than the canvas one, so it lands under the label the
-         * tree draws on top of it. A plate drawn over would hide the very
-         * thing it is a background for.
-         */
-        /*
-         * Report abuse wears the RED plate and the other three the stone one.
-         * `chat_tab_button` ships six tints for exactly this kind of call, and
-         * the red is not decoration: the button reports a player, it is the
-         * one control on the bar with a consequence, and the reference marks
-         * it apart from the three that only toggle what you can see.
-         */
-        if( plate && g_frame.chat_button_count < FRAME_CHAT_BUTTON_COUNT )
-        {
-            struct FrameChatButton* b = &g_frame.chat_button[g_frame.chat_button_count++];
-            b->x = bx + ctx->origin_x;
-            b->y = y + ctx->origin_y + FRAME_O_CHAT_BUTTON_LIFT;
-            b->w = FRAME_CHAT_BUTTON_W;
-            b->filter = i;
-            b->idle = g_chat_plate[report ? CHAT_PLATE_REPORT : CHAT_PLATE_IDLE];
-            b->hover = g_chat_plate[report ? CHAT_PLATE_REPORT_HOVER : CHAT_PLATE_HOVER];
-            /*
-             * Report abuse selects nothing and so is never active: it is not a
-             * view of the chat, it opens a report. It still hovers, which is
-             * the whole of what a momentary button has to say.
-             */
-            b->active = selectable && !report
-                            ? g_chat_plate[CHAT_PLATE_ACTIVE]
-                            : (struct ToriRS_ImageRef){ 0 };
-            b->active_hover =
-                selectable && !report
-                    ? g_chat_plate[CHAT_PLATE_ACTIVE_HOVER]
-                    : (struct ToriRS_ImageRef){ 0 };
-        }
         ctx->builder->surface_member(
             ctx->builder,
             TORIRS_SURFACE_CHAT_BUTTONS,
@@ -942,85 +1206,89 @@ frame_chat_buttons_across(
                     FRAME_CHAT_BUTTON_W,
                     height });
 
+        memset(&part, 0, sizeof(part));
+        part.struct_size = sizeof(part);
+        part.bounds = (struct ToriRS_Rect){
+            bx + ctx->origin_x,
+            y + ctx->origin_y,
+            FRAME_CHAT_BUTTON_W,
+            height };
+        part.parent = "frame.chat.buttons";
+        part.anchor = TORIRS_ANCHOR_TOP_LEFT;
+        part.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
+        part.clip = TORIRS_UI_CLIP_PARENT;
+        part.flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED |
+                     TORIRS_UI_NODE_BLOCKS_OVERLAY;
         /*
-         * And DECLARED, not merely remembered for the draw pass.
-         *
-         * The plate is published as a named node with independently resolved
-         * bounds, appearance, and actions. A contribution can replace one
-         * facet, and the host paints only the resolved winner. This frame does
-         * not need to query whether another plugin changed the report button.
-         *
-         * The box is the PLATE's, lifted FRAME_O_CHAT_BUTTON_LIFT rows and
-         * two rows shorter than the mount the label sits in. That difference
-         * is the whole reason the declaration carries a box of its own: a
-         * plugin painting the ROLE's rectangle overhangs the plate it meant
-         * to replace.
+         * Report abuse selects nothing and so is never the frame's to click:
+         * it is not a view of the chat, it opens a report, and the verb is the
+         * LANE's. Neither is a fixed frame's chatbox one this frame can put
+         * away -- `selectable` is the resizable layout alone.
          */
-        if( plate && g_frame.chat_button_count > 0 &&
-            g_frame.chat_button[g_frame.chat_button_count - 1].filter == i )
+        if( selectable && !report )
         {
-            struct FrameChatButton const* b =
-                &g_frame.chat_button[g_frame.chat_button_count - 1];
-            struct ToriRS_UiNode part;
-            int pw = 0;
-            int ph = 0;
-
-            memset(&part, 0, sizeof(part));
-            part.struct_size = sizeof(part);
-            part.bounds = (struct ToriRS_Rect){
-                b->x,
-                b->y,
-                b->w,
-                g_api->assets.image_size(g_api, b->idle, &pw, &ph) ? ph : height };
-            part.parent = "frame.chat.buttons";
-            part.anchor = TORIRS_ANCHOR_TOP_LEFT;
-            part.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
-            part.clip = TORIRS_UI_CLIP_PARENT;
-            part.flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED |
-                         TORIRS_UI_NODE_BLOCKS_OVERLAY;
-            if( selectable && !report && g_chat_open && g_chat_filter == i )
-                part.flags |= TORIRS_UI_NODE_ACTIVE;
-            part.image = b->idle;
-            part.state_image_mask = (1u << TORIRS_UI_VISUAL_HOVER) |
-                                    (1u << TORIRS_UI_VISUAL_ACTIVE) |
-                                    (1u << TORIRS_UI_VISUAL_ACTIVE_HOVER);
-            part.state_images[TORIRS_UI_VISUAL_HOVER] = b->hover;
-            part.state_images[TORIRS_UI_VISUAL_ACTIVE] = b->active;
-            part.state_images[TORIRS_UI_VISUAL_ACTIVE_HOVER] = b->active_hover;
-            part.label_x = b->w / 2;
-            part.label_y = part.bounds.height / 2;
-            if( selectable && !report )
-            {
-                part.action_count = 1;
-                part.actions[0] = "activate";
-            }
-            ctx->builder->ui_node(ctx->builder, NAME[i], &part);
+            part.action_count = 1;
+            part.actions[0] = "activate";
         }
-        else
-        {
-            struct ToriRS_UiNode part;
-
-            memset(&part, 0, sizeof(part));
-            part.struct_size = sizeof(part);
-            part.bounds = (struct ToriRS_Rect){
-                bx + ctx->origin_x,
-                y + ctx->origin_y,
-                FRAME_CHAT_BUTTON_W,
-                height };
-            part.parent = "frame.chat.buttons";
-            part.anchor = TORIRS_ANCHOR_TOP_LEFT;
-            part.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
-            part.clip = TORIRS_UI_CLIP_PARENT;
-            part.flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED |
-                         TORIRS_UI_NODE_BLOCKS_OVERLAY;
-            if( selectable && !report )
-            {
-                part.action_count = 1;
-                part.actions[0] = "activate";
-            }
-            ctx->builder->ui_node(ctx->builder, NAME[i], &part);
-        }
+        ctx->builder->ui_node(ctx->builder, NAME[i], &part);
     }
+}
+
+/*
+ * The same four columns, as HOLLOWS in the bar under them.
+ *
+ * One arithmetic, read twice -- by the buttons above and by the composer that
+ * cuts the bar -- because a hollow at one column with a button at another is
+ * two bars fighting. The hollow and the button's box are the SAME rectangle,
+ * the band's full height: the caption's two lines of ink sit inside the box
+ * and the hollow has to be under the ink.
+ */
+static int
+frame_chat_cells_across(
+    int width,
+    int height,
+    struct FrameChatCell* out)
+{
+    int const cell = width / FRAME_CHAT_BUTTON_COUNT;
+
+    assert(width > 0);
+    assert(height > 0);
+    assert(out);
+    for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
+        out[i] = (struct FrameChatCell){
+            i * cell + (cell - FRAME_CHAT_BUTTON_W) / 2,
+            0,
+            FRAME_CHAT_BUTTON_W,
+            height,
+        };
+    return FRAME_CHAT_BUTTON_COUNT;
+}
+
+/*
+ * The picture for one tab, from the set the LANE numbers its panels by.
+ *
+ * A stone's icon names the PANEL behind it, and the two eras do not number the
+ * panels alike: the 2004 vocabulary (`sideicons.dat`, and sprites 774-787,
+ * which are that same set carried forward) has nothing at all at 7, friends at
+ * 8 and ignore at 9, while rev-239's toplevels have chat-channel at 7, account
+ * management at 8 and friends at 9 and draw them from an entirely different
+ * fourteen sprites. So the icon SET follows the lane and not the chrome: an
+ * OldSchool lane wearing a 2004 frame still opens rev-239's panels, and a
+ * stone showing the wrong one of them invites the click that surprises.
+ *
+ * `era_base` is the set the frame's own era would use, which is what a dat1
+ * lane still gets -- the 2004 frame's thirteen-over-fourteen sideicons for the
+ * classic layout, the OldSchool surround's for the other two.
+ */
+static struct ToriRS_ImageRef
+frame_sideicon(struct FrameCall* ctx, int tabno, int era_base)
+{
+    assert(ctx);
+    assert(tabno >= 0);
+    assert(tabno < FRAME_TAB_COUNT);
+    if( frame_lane_oldschool(ctx) )
+        return g_image[IMG_OSRS239_SIDEICON_0 + tabno];
+    return g_image[era_base + tabno];
 }
 
 /**
@@ -1128,6 +1396,43 @@ frame_skin_map(
 }
 
 /*
+ * The 2004 housing's own two windows, as the shape its live surfaces are cut
+ * to. Art is left alone: this frame states where its holes are, not what the
+ * map is baked from or which rose the lane turns.
+ *
+ * The 2004 client never masked anything -- it painted `mapback` AFTER the map
+ * and the compass, and the plate's opaque body is what hid the square map's
+ * corners and the compass sprite's (100,0,0) ones. A frame provider cannot
+ * reproduce that order: its furniture is declared once and painted in the
+ * frame's backdrop pass, which is under every live surface the lane draws, so
+ * the plate went down first and both surfaces came out as bare rectangles on
+ * top of it. Cutting the surfaces to the holes reaches the same pixels from
+ * the other side, and it is what the housing already knows -- the masks are
+ * literal crops of `classic_mapback.png` at FRAME_C_HOLE_*, so a re-cut plate
+ * moves its windows and its masks together. @see frame_build_classic_masks.
+ */
+static void
+frame_skin_classic_map(struct FrameCall* ctx)
+{
+    struct ToriRS_FrameSkin minimap;
+    struct ToriRS_FrameSkin compass;
+
+    assert(ctx);
+    if( !g_classic_masks_built )
+        return;
+    minimap = (struct ToriRS_FrameSkin){
+        .struct_size = sizeof(minimap),
+        .mask = g_classic_mask[FRAME_C_MASK_MAP],
+    };
+    compass = (struct ToriRS_FrameSkin){
+        .struct_size = sizeof(compass),
+        .mask = g_classic_mask[FRAME_C_MASK_COMPASS],
+    };
+    ctx->builder->skin(ctx->builder, TORIRS_SURFACE_MINIMAP, &minimap);
+    ctx->builder->skin(ctx->builder, TORIRS_SURFACE_COMPASS, &compass);
+}
+
+/*
  * The OldSchool scrollbar, on every bar this frame draws.
  *
  * One call and not one per bar: the art belongs to the FRAME, and a chatbox
@@ -1220,10 +1525,15 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
      * read off the art. Every one of the thirteen was checked against a stock
      * revconfig frame at the same revision and lands on it exactly.
      *
-     * Tab 7 is the unused slot -- this revision has no clan chat, so
+     * Tab 7 is the unused slot -- the 2004 revision has no clan chat, so
      * FRAME_IMAGE_FILE has no art at its index and frame_tab_icon answers -1
      * for it either way. Its icon position is its plate's rather than a number
      * invented for a stone that never wears one.
+     *
+     * Both those numbers are read only on a dat1 lane. On an OldSchool one
+     * this frame's stones open rev-239's fourteen panels, so they wear
+     * rev-239's icons, centred -- and the seventh is a Chat-channel tab like
+     * any other. @see frame_sideicon.
      */
     static struct
     {
@@ -1273,7 +1583,12 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
      * out drawn on top of the frame as a bare square.
      */
     frame_housing_node(
-        ctx, g_image[IMG_C_MAPBACK], (struct ToriRS_Rect){ 550, 4, 172, 156 });
+        ctx,
+        g_image[IMG_C_MAPBACK],
+        (struct ToriRS_Rect){ FRAME_C_HOUSING_X,
+                              FRAME_C_HOUSING_Y,
+                              FRAME_C_HOUSING_W,
+                              FRAME_C_HOUSING_H });
     frame_blit(ctx, g_image[IMG_C_BACKRIGHT1], 722, 4);
     frame_blit(ctx, g_image[IMG_C_BACKHMID1], 516, 160);
     frame_blit(ctx, g_image[IMG_C_BACKVMID2], 516, 205);
@@ -1295,28 +1610,61 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         int const base = REDSTONE_BASE[TAB[i].stone];
         struct ToriRS_ImageRef const pressed =
             TAB[i].flip < 0 ? g_image[base] : g_redstone_flip[TAB[i].stone][TAB[i].flip];
-        /* By the TAB, which is what FRAME_IMAGE_FILE is keyed on: it already
-         * spends the thirteen frames of `sideicons.dat` over the fourteen tab
-         * slots, giving the unused seventh no art at all. */
-        struct ToriRS_ImageRef const art = g_image[IMG_C_SIDEICON_0 + i];
-        /* The 2004 frame's boxes ARE in tab order, so the box index is the
-         * tab; it is passed anyway rather than left implied, because the frame
-         * below is the one where they differ and one loop that reads the index
-         * and one that reads a field is how that divergence hides. */
+        /*
+         * Which tab this box stands for: its own index on a 2004 lane, screen
+         * order on an OldSchool one.
+         *
+         * The 2004 frame's fourteen boxes ARE in tab order, which is why this
+         * loop needs no table on dat1. rev-239 runs chat-channel, friends,
+         * account along the bottom row instead, so a plugin frame numbering
+         * that row 7, 8, 9 would open a different panel from the stone the
+         * native 548 frame opens it with. @see FRAME_TAB_SCREEN_ORDER.
+         */
+        int const tab = oldschool ? FRAME_TAB_SCREEN_ORDER[i] : i;
+        /* By the TAB, which is what the icon tables are keyed on: the 2004 one
+         * already spends the thirteen frames of `sideicons.dat` over the
+         * fourteen tab slots, giving the unused seventh no art at all -- a
+         * slot that IS a panel on an OldSchool lane. @see frame_sideicon. */
+        struct ToriRS_ImageRef const art = frame_sideicon(ctx, tab, IMG_C_SIDEICON_0);
+        /*
+         * A 2004 icon is drawn at a stated origin because it carries its own
+         * offset inside `sideicons.dat`; a lane icon carries none, so it is
+         * centred on its stone the way the two OldSchool frames centre theirs.
+         * @see FrameTab::icon_x.
+         */
+        int icon_x = TAB[i].icon_x;
+        int icon_y = TAB[i].icon_y;
+
+        if( oldschool )
+            frame_tab_centre(ctx, TAB[i].box, art, &icon_x, &icon_y);
         frame_tab(
             ctx,
-            i,
+            tab,
             TAB[i].box,
-            TAB[i].icon_x,
-            TAB[i].icon_y,
+            icon_x,
+            icon_y,
             /*stone=*/(struct ToriRS_ImageRef){ 0 },
             pressed,
-            frame_tab_icon(ctx, i, art, 553, 205, 190, 261));
+            frame_tab_icon(ctx, tab, art, 553, 205, 190, 261));
     }
 
     frame_surface(ctx, TORIRS_SURFACE_VIEWPORT, 4, 4, 512, 334);
-    frame_surface(ctx, TORIRS_SURFACE_MINIMAP, 575, 9, 146, 151);
-    frame_surface(ctx, TORIRS_SURFACE_COMPASS, 550, 4, 33, 33);
+    /* Both surfaces sit in the housing's own holes, and are cut to them. */
+    frame_surface(
+        ctx,
+        TORIRS_SURFACE_MINIMAP,
+        FRAME_C_HOUSING_X + FRAME_C_HOLE_MAP_DX,
+        FRAME_C_HOUSING_Y + FRAME_C_HOLE_MAP_DY,
+        FRAME_C_HOLE_MAP_W,
+        FRAME_C_HOLE_MAP_H);
+    frame_surface(
+        ctx,
+        TORIRS_SURFACE_COMPASS,
+        FRAME_C_HOUSING_X + FRAME_C_HOLE_COMPASS_DX,
+        FRAME_C_HOUSING_Y + FRAME_C_HOLE_COMPASS_DY,
+        FRAME_C_HOLE_COMPASS_W,
+        FRAME_C_HOLE_COMPASS_H);
+    frame_skin_classic_map(ctx);
     /*
      * The 2004 chat at the 2004 place. An OldSchool chat pack is 519x165 and
      * the classic frame has a 496x96 hole; it goes in at the OldSchool
@@ -1332,15 +1680,17 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
     frame_surface(ctx, TORIRS_SURFACE_SIDEBAR, 553, 205, 190, 261);
     frame_surface(ctx, TORIRS_SURFACE_MODAL, 4, 4, 512, 334);
     /* The orb block where the OldSchool fixed frame keeps it, beside a map
-     * housing that on this frame stands five columns further right. A lane
-     * with no such block answers 0 and nothing moves. */
-    frame_surface(
+     * housing that on this frame stands five columns further right, with the
+     * adviser at the fixed frame's own spot. */
+    frame_place_orbs(
         ctx,
-        TORIRS_SURFACE_ORBS,
-        550 + FRAME_O_ORBS_FIXED_DX,
-        4 + FRAME_O_ORBS_FIXED_DY,
+        FRAME_C_HOUSING_X + FRAME_O_ORBS_FIXED_DX,
+        FRAME_C_HOUSING_Y + FRAME_O_ORBS_FIXED_DY,
         FRAME_O_ORBS_FIXED_W,
-        FRAME_O_ORBS_FIXED_H);
+        FRAME_O_ORBS_FIXED_H,
+        FRAME_O_ADVISER_FIXED_DX,
+        FRAME_O_ADVISER_FIXED_DY,
+        FRAME_O_ADVISER_H);
     /*
      * The four filter buttons at the reference's own x, which is not an even
      * spacing and cannot be computed: 6, 135, 273, 408. `Report abuse` is
@@ -1350,18 +1700,105 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
      */
     if( !oldschool )
     {
-        static int const X[FRAME_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
         for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
             ctx->builder->surface_member(
                 ctx->builder,
                 TORIRS_SURFACE_CHAT_BUTTONS,
                 i,
                 (struct ToriRS_Rect){
-                    X[i] + ctx->origin_x,
+                    FRAME_CHAT_BUTTON_X[i] + ctx->origin_x,
                     467 + ctx->origin_y,
                     FRAME_CHAT_BUTTON_W,
                     FRAME_CHAT_BUTTON_H });
     }
+}
+
+/* Composed in the art section below, called from the layout pass here: the
+ * layouts run first in this file and the picture they ask for is cut from
+ * pixels rather than stated. @see frame_chat_bar_art. */
+static struct ToriRS_ImageRef
+frame_chat_bar_art(
+    struct FrameCall* ctx,
+    struct FrameSized* cache,
+    char const* prefix,
+    int width,
+    int height,
+    struct ToriRS_ImageRef base,
+    struct FrameChatCell const* cell,
+    int cell_count,
+    int band_y,
+    int band_h);
+
+/* The same, for the OldSchool band this frame blits whole. @see
+ * frame_compose_osrs_band. */
+static struct ToriRS_ImageRef
+frame_compose_osrs_band(
+    struct FrameCall* ctx,
+    char const* name,
+    int width,
+    int height);
+
+/* One composed picture per size, held across declarations. @see
+ * frame_sized_art. */
+static struct ToriRS_ImageRef
+frame_sized_art(
+    struct FrameCall* ctx,
+    struct FrameSized* cache,
+    struct ToriRS_ImageRef (*compose)(struct FrameCall*, char const*, int, int),
+    char const* prefix,
+    int width,
+    int height);
+
+/*
+ * The OldSchool button BAND, with this frame's four hollows cut into it.
+ *
+ * Only on a 2004 lane, and only because the two Modern layouts put a 2004 chat
+ * inside an OldSchool surround: the band is the frame's own art and the
+ * filters on it are the era's four. Cutting the hollow into it is the whole of
+ * the dressing -- the lane's chat-button builtin draws the filter's name over
+ * its mode straight onto the rock, exactly as 2004 does, and a plate laid
+ * between them is the rectangle you can see behind every caption.
+ *
+ * Twenty-nine rows and not the bar sprite's twenty-three: the band's top six
+ * belong to the backing sprite, so it is composed from both and blitted over
+ * the backing's last six rows. @see FRAME_O_CHAT_BAND_H.
+ *
+ * Falls back to the uncut band, and then to nothing at all, while the art it
+ * is composed from is still crossing the IO queue -- which is the ordinary
+ * state for the first frames after start, and is why the callers blit what
+ * this returns rather than assuming a picture.
+ */
+static struct ToriRS_ImageRef
+frame_chat_stones(struct FrameCall* ctx)
+{
+    struct FrameChatCell cell[FRAME_CHAT_BUTTON_COUNT];
+    int count;
+    struct ToriRS_ImageRef band;
+    struct ToriRS_ImageRef art;
+
+    assert(ctx);
+    band = frame_sized_art(
+        ctx,
+        &g_chat_band,
+        frame_compose_osrs_band,
+        "osrs_chat_band",
+        FRAME_O_CHAT_W,
+        FRAME_O_CHAT_BAND_H);
+    if( band.value == 0 )
+        return band;
+    count = frame_chat_cells_across(FRAME_O_CHAT_W, FRAME_O_CHAT_BAND_H, cell);
+    art = frame_chat_bar_art(
+        ctx,
+        &g_chat_stones,
+        "osrs_chat_stones_cut",
+        FRAME_O_CHAT_W,
+        FRAME_O_CHAT_BAND_H,
+        band,
+        cell,
+        count,
+        /*band_y=*/0,
+        /*band_h=*/FRAME_O_CHAT_BAND_H);
+    return art.value != 0 ? art : band;
 }
 
 /* ---------------------------------------------------------- modern fixed */
@@ -1427,7 +1864,7 @@ frame_layout_modern_fixed(struct FrameCall* ctx)
     if( !oldschool )
     {
         frame_blit(ctx, g_image[IMG_O_CHATBACK], 0, 338);
-        frame_blit(ctx, g_image[IMG_O_CHAT_STONES], 0, 338 + FRAME_O_CHAT_H);
+        frame_blit(ctx, frame_chat_stones(ctx), 0, 338 + FRAME_O_CHAT_BODY_H);
     }
     frame_blit(ctx, g_image[IMG_O_BACKLEFT2], 519, 338);
     frame_blit(ctx, g_image[IMG_O_TABS_BOTTOM], 519, 466);
@@ -1435,7 +1872,7 @@ frame_layout_modern_fixed(struct FrameCall* ctx)
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
-        struct ToriRS_ImageRef const art = g_image[IMG_O_SIDEICON_0 + tab];
+        struct ToriRS_ImageRef const art = frame_sideicon(ctx, tab, IMG_O_SIDEICON_0);
         /* The icon centres on the stone it sits on, which is what a uniform
          * grid of stones means -- and this frame's icons carry no offset to
          * honour, so the centre IS the answer. @see FrameTab::icon_x. */
@@ -1470,24 +1907,25 @@ frame_layout_modern_fixed(struct FrameCall* ctx)
     frame_surface(ctx, TORIRS_SURFACE_SIDEBAR, 547, 205, 190, 261);
     frame_surface(ctx, TORIRS_SURFACE_MODAL, 4, 4, 512, 334);
     /* 548's own orb block: its map container's origin, level with the
-     * housing at 545. */
-    frame_surface(
+     * housing at 545, and the adviser where 548 keeps it. */
+    frame_place_orbs(
         ctx,
-        TORIRS_SURFACE_ORBS,
         545 + FRAME_O_ORBS_FIXED_DX,
         4 + FRAME_O_ORBS_FIXED_DY,
         FRAME_O_ORBS_FIXED_W,
-        FRAME_O_ORBS_FIXED_H);
+        FRAME_O_ORBS_FIXED_H,
+        FRAME_O_ADVISER_FIXED_DX,
+        FRAME_O_ADVISER_FIXED_DY,
+        FRAME_O_ADVISER_H);
     /* On the stone bar under the chatbox, spread across its width -- for a
      * 2004 chat. The OldSchool pack carries its own seven. */
     if( !oldschool )
         frame_chat_buttons_across(
             ctx,
             0,
-            338 + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
+            338 + FRAME_O_CHAT_BODY_H,
             FRAME_O_CHAT_W,
-            FRAME_O_CHAT_BUTTON_H,
-            /*plate=*/1,
+            FRAME_O_CHAT_BAND_H,
             /*selectable=*/0);
 }
 
@@ -1579,7 +2017,22 @@ frame_layout_modern_resizable(
     int const row_x = canvas_w - FRAME_R_MARGIN - FRAME_R_ROW_W;
     int const bottom_row_y = canvas_h - FRAME_R_MARGIN - FRAME_R_ROW_H;
     int const panel_y = bottom_row_y - FRAME_R_PANEL_H;
-    int const top_row_y = panel_y - FRAME_R_ROW_H;
+    /*
+     * The one layout here with a COLLAPSED state, because the toplevel it is
+     * shaped after has one: 164 logs in with every side panel hidden and draws
+     * its two tab rows stacked in the corner, no pillars and no backing, until
+     * a stone is pressed. Drawing the pillars anyway framed 261 rows of bare
+     * scene. So the panel's furniture -- backing, both pillars -- is drawn only
+     * when a tab is open, and when none is the top row drops onto the bottom
+     * one. The stones, their icons and the fourteen hit boxes are the same in
+     * both states: they are how the panel is opened again.
+     *
+     * A frame-start check re-declares this frame when the answer moves.
+     * @see frame_on_frame_start.
+     */
+    int const sidebar_open = frame_sidebar_open(ctx);
+    int const top_row_y =
+        (sidebar_open ? panel_y : bottom_row_y) - FRAME_R_ROW_H;
     /* The panel is narrower than the strip, so it is centred under it -- which
      * is what puts the strip's end caps proud of the panel, as the reference
      * draws them. */
@@ -1591,8 +2044,16 @@ frame_layout_modern_resizable(
      * it away), so the plugin's switch is a 2004-lane thing and on this lane
      * the pack is simply placed. */
     int const chat_open = oldschool || g_chat_open;
+    /* How much of the activity adviser is above the top tab strip. @see the
+     * placement below; 0 or less is a member the declaration leaves out, which
+     * the host reads as one its holder hides. */
+    int const adviser_h =
+        top_row_y - (FRAME_O_ORBS_R_DY + FRAME_O_ADVISER_R_DY) < FRAME_O_ADVISER_H
+            ? top_row_y - (FRAME_O_ORBS_R_DY + FRAME_O_ADVISER_R_DY)
+            : FRAME_O_ADVISER_H;
 
     assert(ctx);
+    g_sidebar_open = sidebar_open != 0;
 
     frame_housing_node(
         ctx,
@@ -1614,20 +2075,26 @@ frame_layout_modern_resizable(
      * 164 does horizontally and says why. Drawn before all of them for the
      * same reason.
      */
-    frame_blit_tiled(
-        ctx,
-        g_image[IMG_O_SIDE_PANEL_R],
-        panel_x - FRAME_R_PANEL_BLEED_X,
-        panel_y - FRAME_R_PANEL_BLEED_Y,
-        FRAME_R_PANEL_W + 2 * FRAME_R_PANEL_BLEED_X,
-        FRAME_R_PANEL_H + 2 * FRAME_R_PANEL_BLEED_Y,
-        FRAME_R_PANEL_TRANS);
+    if( sidebar_open )
+        frame_blit_tiled(
+            ctx,
+            g_image[IMG_O_SIDE_PANEL_R],
+            panel_x - FRAME_R_PANEL_BLEED_X,
+            panel_y - FRAME_R_PANEL_BLEED_Y,
+            FRAME_R_PANEL_W + 2 * FRAME_R_PANEL_BLEED_X,
+            FRAME_R_PANEL_H + 2 * FRAME_R_PANEL_BLEED_Y,
+            FRAME_R_PANEL_TRANS);
     frame_blit(ctx, g_image[IMG_O_TABS_TOP_R], row_x, top_row_y);
     /* The pillars either side of the panel, which the fixed frame gets from
      * its surround (`backvmid2`/`backright1`) and this one has nothing to get
-     * them from -- a floating panel has no surround, only its own edges. */
-    frame_blit(ctx, g_image[IMG_O_SIDE_COLUMN_L], panel_x - FRAME_R_COL_W, panel_y);
-    frame_blit(ctx, g_image[IMG_O_SIDE_COLUMN_R], panel_x + FRAME_R_PANEL_W, panel_y);
+     * them from -- a floating panel has no surround, only its own edges. And
+     * with no panel between them they are a pair of columns holding up
+     * nothing, so they go away with it. */
+    if( sidebar_open )
+    {
+        frame_blit(ctx, g_image[IMG_O_SIDE_COLUMN_L], panel_x - FRAME_R_COL_W, panel_y);
+        frame_blit(ctx, g_image[IMG_O_SIDE_COLUMN_R], panel_x + FRAME_R_PANEL_W, panel_y);
+    }
     frame_blit(ctx, g_image[IMG_O_TABS_BOTTOM_R], row_x, bottom_row_y);
     /*
      * The backing only when the chatbox is up. The stone BAR always: it is
@@ -1638,7 +2105,7 @@ frame_layout_modern_resizable(
     {
         if( g_chat_open )
             frame_blit(ctx, g_image[IMG_O_CHATBACK], 0, chat_y);
-        frame_blit(ctx, g_image[IMG_O_CHAT_STONES], 0, chat_y + FRAME_O_CHAT_H);
+        frame_blit(ctx, frame_chat_stones(ctx), 0, chat_y + FRAME_O_CHAT_BODY_H);
     }
 
     /*
@@ -1688,7 +2155,7 @@ frame_layout_modern_resizable(
          * where friends belongs. @see FRAME_TAB_SCREEN_ORDER.
          */
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
-        struct ToriRS_ImageRef const art = g_image[IMG_O_SIDEICON_0 + tab];
+        struct ToriRS_ImageRef const art = frame_sideicon(ctx, tab, IMG_O_SIDEICON_0);
         /* Centred on the stone, as on the fixed OldSchool frame and for the
          * same reason. @see FrameTab::icon_x. */
         struct FrameBox const box = { row_x + TAB[i].x,
@@ -1746,15 +2213,49 @@ frame_layout_modern_resizable(
         frame_place_chat(ctx, 0, chat_y);
     frame_surface(
         ctx, TORIRS_SURFACE_SIDEBAR, panel_x, panel_y, FRAME_R_PANEL_W, FRAME_R_PANEL_H);
-    /* The orb block as 161/164 keep it: the map container's origin, 29
-     * columns left of the ring and ten rows down from the top. */
-    frame_surface(
+    /*
+     * The orb block as 161/164 keep it: the map container's origin, 29
+     * columns left of the ring and ten rows down from the top, and the
+     * adviser under the run orb as they keep it -- but the adviser CUT at the
+     * top tab strip, which is the one number the toplevels do not state.
+     *
+     * The two columns are anchored to opposite edges: the orbs to the top with
+     * the map, the tab rows and the panel between them to the bottom. 10 + 197
+     * + 37 + 261 + 37 + 4 is 546, so at the 503-row minimum they overlap by 43
+     * rows however the arithmetic is arranged -- there is no height at which
+     * the strip could start below the block instead. The LANE's own frame
+     * collides there too, and 161 at 765x503 is the picture to copy: the side
+     * block is emitted after the map block, so the stones paint over the
+     * adviser and eleven rows of the orange scroll show above them.
+     *
+     * This layout draws its chrome in the frame's BACKDROP pass, under every
+     * live surface (@see emit_plugin_frame_pass -- over the scene, under the
+     * interfaces, which is the only place a gameframe can go), so the same
+     * collision came out the other way up: the whole scroll on top of the
+     * inventory and equipment stones, hiding both icons. Seating the member at
+     * the height there is ABOVE the strip is that same picture from the other
+     * side -- a member is placed by its own box and clips its own subtree, so
+     * the rows the reference paints stones over are the rows this frame does
+     * not give it. Nothing above the strip moves, and at any window tall
+     * enough for both (the 1200x800 preset, or any drag past 546) the member
+     * is its full 34 rows and this is the toplevel's own geometry again.
+     *
+     * The block itself keeps 161's 197 rows. Cutting THAT is inert: its
+     * children are layers, and a layer's clip is its own box intersected with
+     * the enclosing surface, never compounded with the layers above it
+     * (UITree_LayerChildClip, which is the reference's Pix2D.setClipping) --
+     * so a shorter block clips nothing and would only misstate the pack's
+     * geometry.
+     */
+    frame_place_orbs(
         ctx,
-        TORIRS_SURFACE_ORBS,
         map_x + FRAME_O_ORBS_R_DX,
-        0 + FRAME_O_ORBS_R_DY,
+        FRAME_O_ORBS_R_DY,
         FRAME_O_ORBS_R_W,
-        FRAME_O_ORBS_R_H);
+        FRAME_O_ORBS_R_H,
+        FRAME_O_ADVISER_R_DX,
+        FRAME_O_ADVISER_R_DY,
+        adviser_h);
     /*
      * The modal is CENTRED, not pinned.
      *
@@ -1774,10 +2275,9 @@ frame_layout_modern_resizable(
         frame_chat_buttons_across(
             ctx,
             0,
-            chat_y + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
+            chat_y + FRAME_O_CHAT_BODY_H,
             FRAME_O_CHAT_W,
-            FRAME_O_CHAT_BUTTON_H,
-            /*plate=*/1,
+            FRAME_O_CHAT_BAND_H,
             /*selectable=*/1);
 }
 
@@ -1837,59 +2337,59 @@ frame_compose_flip(
 }
 
 /*
- * The plates, cut to the height a 2004 filter button actually needs.
+ * One WINDOW of a housing plate, published as the stencil that window wants.
  *
- * `chat_tab_button` is 22 rows because OldSchool's own chat tabs are ONE line
- * of text. This lane's buttons are two -- the filter's name over its mode, at
- * label_y 2 and mode_y 15 -- and their ink runs from four rows below the box
- * top to twenty-four, which is 21 rows that have to sit inside 22 with the
- * bevel's dark lip at the bottom. It fits arithmetically and looks wedged: the
- * `On` sits ON the lip.
+ * The other half of frame_compose_flip's trick. A plate with its windows
+ * punched out already IS the mask each of those windows needs -- opaque where
+ * the surface must not show, transparent where it must -- so this is a crop
+ * and never a second drawing.
  *
- * So each plate is rebuilt at the button's OWN size -- taller, and as wide as
- * the button. The two ends are copied exactly -- they
- * carry the rounded corners and both bevels -- and the extra rows come out of
- * the middle of the straight body, where the art is a smooth vertical gradient
- * and a repeated row is invisible. Stretching, not tiling: tiling a gradient
- * shows every seam, and this has none because the seam is inside a run of
- * near-identical rows.
+ * With one correction, and it is the whole reason this is not `memcpy` in a
+ * loop: a plate has more than one window, and their BOUNDING BOXES overlap
+ * even when the windows themselves do not. `classic_mapback`'s compass hole
+ * runs to x 32 and its map hole starts at x 25, so a straight crop of the map
+ * window carries eight columns of the compass window's transparency with it --
+ * and the minimap, cut to that, painted over the compass's right-hand edge on
+ * a lane that draws the compass first. The transparent run reached from the
+ * crop's CENTRE is this window; every other transparent pixel belongs to a
+ * neighbour and is filled back in.
  *
- * `bright` is the other thing composed here, and only the Report plate needs
- * it: the family is six states of one shape -- 0 idle, 1 hovered, 2 active,
- * 3 active and hovered, 4 alerting, 5 red (`redraw_chat_buttons`, clientscript
- * 178) -- and the red is the only member of its pair, so the three ordinary
- * buttons brighten by swapping to the cache's own hovered plate and this one
- * brightens by arithmetic. The factor is measured off that pair: across it the
- * median channel goes up by about half again.
+ * Flood-filled rather than tabulated for the reason the holes themselves are
+ * measured that way: it is right on a plate nobody has written the numbers
+ * down for.
  */
-#define FRAME_O_CHAT_PLATE_H 23
-#define FRAME_CHAT_BRIGHT_NUM 3
-#define FRAME_CHAT_BRIGHT_DEN 2
-
 static struct ToriRS_ImageRef
-frame_compose_plate(
+frame_compose_window(
     struct FrameCall* ctx,
     char const* name,
     struct ToriRS_ImageRef src,
-    int bright)
+    int x,
+    int y,
+    int width,
+    int height)
 {
     uint32_t* px;
     uint32_t* out;
+    int32_t* stack;
+    uint8_t* keep;
+    int top = 0;
     int w = 0;
     int h = 0;
     size_t copied = 0;
     struct ToriRS_ImageRef handle = { 0 };
-    int const out_w = FRAME_CHAT_BUTTON_W;
-    int const out_h = FRAME_O_CHAT_PLATE_H;
-    int const cap = FRAME_O_CHAT_BUTTON_CAP;
+    int const seed = (height / 2) * width + width / 2;
 
     assert(ctx);
     assert(name);
-    if( src.value == 0 || !g_api->assets.image_size(g_api, src, &w, &h) || w <= 0 || h <= 0 )
+    assert(width > 0);
+    assert(height > 0);
+    assert(x >= 0);
+    assert(y >= 0);
+    if( src.value == 0 || !g_api->assets.image_size(g_api, src, &w, &h) )
         return handle;
-    /* Both ways round: a plate wider than the button, or a source too narrow
-     * to have a body between its caps, has no three-slice to make. */
-    if( h > out_h || w > out_w || w <= 2 * cap || out_w <= 2 * cap )
+    /* A source too small for the window asked of it is a re-cut plate whose
+     * holes moved, not a contract violation: leave the surface unmasked. */
+    if( x + width > w || y + height > h )
         return handle;
 
     px = malloc((size_t)w * (size_t)h * sizeof(*px));
@@ -1901,93 +2401,675 @@ frame_compose_plate(
         free(px);
         return handle;
     }
-    out = malloc((size_t)out_w * (size_t)out_h * sizeof(*out));
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
     assert(out);
-    for( int y = 0; y < out_h; y++ )
+    for( int row = 0; row < height; row++ )
+        memcpy(
+            &out[(size_t)row * (size_t)width],
+            &px[(size_t)(y + row) * (size_t)w + (size_t)x],
+            (size_t)width * sizeof(*out));
+    free(px);
+
+    /* The window is the transparent run the crop is centred on. A centre that
+     * is already plate means the numbers name no window at all. */
+    keep = calloc((size_t)width * (size_t)height, sizeof(*keep));
+    assert(keep);
+    stack = malloc((size_t)width * (size_t)height * sizeof(*stack));
+    assert(stack);
+    if( (out[seed] >> 24) < 128u )
     {
-        /* Top half from the top and bottom half from the bottom, so BOTH end
-         * caps are exact and the only repeated rows are the ones in the middle
-         * of the body. */
-        int const sy = y < out_h / 2 ? y : h - (out_h - y);
+        keep[seed] = 1;
+        stack[top++] = seed;
+    }
+    while( top > 0 )
+    {
+        int const at = stack[--top];
+        int const cx = at % width;
+        int const cy = at / width;
+        int const STEP[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
 
-        for( int x = 0; x < out_w; x++ )
+        for( int i = 0; i < 4; i++ )
         {
-            /*
-             * The same rule sideways, and the middle STRETCHED rather than
-             * repeated. A repeat has to put the source's own edge somewhere,
-             * and wherever it lands is a rounded cap in the middle of a
-             * straight button -- which is what tiling this plate looked like.
-             * The body is a vertical gradient with a little grain, so
-             * stretching it shows nothing at all.
-             */
-            int sx;
-            if( x < cap )
-                sx = x;
-            else if( x >= out_w - cap )
-                sx = w - (out_w - x);
-            else
-                sx = cap + (x - cap) * (w - 2 * cap) / (out_w - 2 * cap);
+            int const nx = cx + STEP[i][0];
+            int const ny = cy + STEP[i][1];
+            int next;
 
-            uint32_t const p = px[sy * w + sx];
-            uint32_t v = p & 0xFF000000u;
-
-            for( int ch = 0; ch < 3; ch++ )
-            {
-                int c = (int)((p >> (ch * 8)) & 0xFFu);
-                if( bright )
-                    c = c * FRAME_CHAT_BRIGHT_NUM / FRAME_CHAT_BRIGHT_DEN;
-                if( c > 255 )
-                    c = 255;
-                v |= (uint32_t)c << (ch * 8);
-            }
-            out[y * out_w + x] = v;
+            if( nx < 0 || ny < 0 || nx >= width || ny >= height )
+                continue;
+            next = ny * width + nx;
+            if( keep[next] || (out[next] >> 24) >= 128u )
+                continue;
+            keep[next] = 1;
+            stack[top++] = next;
         }
     }
-    (void)g_api->assets.image_compose(g_api, name, out_w, out_h, out, &handle);
+    for( int i = 0; i < width * height; i++ )
+        if( !keep[i] )
+            out[i] = 0xFF000000u;
+    free(keep);
+    free(stack);
+
+    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    free(out);
+    return handle;
+}
+
+/*
+ * The 2004 chat strip, cut to the box the bar under a chatbox occupies, with
+ * a hollow re-cut for every filter that bar carries.
+ *
+ * One BAND and not a row of buttons. 2004 drew the four hollows into
+ * `backbase1` itself, so a bar is one picture and a filter is a caption on it;
+ * the moment a plate is laid over the bar there are two bars, and the seam
+ * between them is the rectangle you can see behind every label. The lane
+ * decides how many filters there are -- eight on an OldSchool chatbox, four on
+ * a 2004 one -- and that is why the hollows are re-cut here rather than read
+ * off the source at its own four columns.
+ *
+ * Each hollow is the source recess three-sliced SIDEWAYS: FRAME_C_RECESS_CAP
+ * columns from each end copied exactly (the rounded corner and the bevel), and
+ * the smooth gradient between them resampled to whatever is left. Vertically
+ * nothing is scaled -- the source band is FRAME_CHAT_BUTTON_H rows, so rows
+ * are taken top from the top and bottom from the bottom, both rock edges exact
+ * and the only rows lost out of the middle of a hollow whose middle is flat.
+ *
+ * `band_y`/`band_h` are which SLICE of a band this picture is: a dressed
+ * OldSchool chatbox cuts one 29-row band into two images, six rows on the
+ * backing and twenty-three on the bar, and each has to take its rock from its
+ * own part of the source rather than from the top and bottom of a band it is
+ * only a piece of. A picture that is the whole band passes 0 and its height.
+ *
+ * `base` is the picture the hollows are cut INTO: an OldSchool frame's own
+ * stone keeps its stone, and a band with no base of its own is filled with
+ * the clean rock the source carries beside its first hollow.
+ */
+static int
+frame_chat_band_row(int row, int rows)
+{
+    int band = row < rows / 2 ? row : FRAME_CHAT_BUTTON_H - (rows - row);
+
+    if( band < 0 )
+        band = 0;
+    else if( band >= FRAME_CHAT_BUTTON_H )
+        band = FRAME_CHAT_BUTTON_H - 1;
+    return band;
+}
+
+/*
+ * `backbase1`'s pixels, or NULL while it is still crossing the IO queue.
+ *
+ * Read by both halves of a dressed chatbox -- the bar and the six band rows
+ * the backing carries -- and once rather than twice because the two are one
+ * band cut in two places, and a strip read differently by each would put a
+ * seam exactly where the picture must not have one. The caller frees.
+ */
+static uint32_t*
+frame_chat_strip_pixels(struct FrameCall* ctx, int* out_w, int* out_h)
+{
+    uint32_t* strip;
+    int w = 0;
+    int h = 0;
+    size_t copied = 0;
+
+    assert(ctx);
+    assert(out_w);
+    assert(out_h);
+    if( !g_api->assets.image_size(g_api, g_image[IMG_C_BACKBASE1], &w, &h) ||
+        w < FRAME_C_ROCK_X + FRAME_C_ROCK_W ||
+        h < FRAME_C_STRIP_BAND_Y + FRAME_CHAT_BUTTON_H )
+        return NULL;
+
+    strip = malloc((size_t)w * (size_t)h * sizeof(*strip));
+    assert(strip);
+    if( !g_api->assets.image_pixels(
+            g_api, g_image[IMG_C_BACKBASE1], strip, (size_t)w * (size_t)h, &copied) ||
+        copied != (size_t)w * (size_t)h )
+    {
+        free(strip);
+        return NULL;
+    }
+    *out_w = w;
+    *out_h = h;
+    return strip;
+}
+
+static struct ToriRS_ImageRef
+frame_compose_chat_bar(
+    struct FrameCall* ctx,
+    char const* name,
+    int width,
+    int height,
+    struct ToriRS_ImageRef base,
+    struct FrameChatCell const* cell,
+    int cell_count,
+    int band_y,
+    int band_h)
+{
+    uint32_t* strip;
+    uint32_t* under = NULL;
+    uint32_t* out;
+    int strip_w = 0;
+    int strip_h = 0;
+    int under_w = 0;
+    int under_h = 0;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    assert(width > 0);
+    assert(height > 0);
+    assert(cell_count >= 0);
+    assert(cell_count == 0 || cell);
+    assert(band_y >= 0);
+    assert(band_y + height <= band_h);
+    if( base.value != 0 &&
+        (!g_api->assets.image_size(g_api, base, &under_w, &under_h) || under_w <= 0 ||
+         under_h <= 0) )
+        return handle;
+
+    strip = frame_chat_strip_pixels(ctx, &strip_w, &strip_h);
+    if( !strip )
+        return handle;
+    if( base.value != 0 )
+    {
+        copied = 0;
+        under = malloc((size_t)under_w * (size_t)under_h * sizeof(*under));
+        assert(under);
+        if( !g_api->assets.image_pixels(
+                g_api, base, under, (size_t)under_w * (size_t)under_h, &copied) ||
+            copied != (size_t)under_w * (size_t)under_h )
+        {
+            free(under);
+            free(strip);
+            return handle;
+        }
+    }
+
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    assert(out);
+    for( int y = 0; y < height; y++ )
+    {
+        int const sy =
+            FRAME_C_STRIP_BAND_Y + frame_chat_band_row(band_y + y, band_h);
+
+        for( int x = 0; x < width; x++ )
+        {
+            uint32_t pixel;
+
+            if( under )
+                pixel = under[(size_t)(y % under_h) * (size_t)under_w +
+                              (size_t)(x % under_w)];
+            else
+                pixel = strip[(size_t)sy * (size_t)strip_w +
+                              (size_t)(FRAME_C_ROCK_X + (x % FRAME_C_ROCK_W))];
+            out[(size_t)y * (size_t)width + (size_t)x] = pixel;
+        }
+    }
+    for( int i = 0; i < cell_count; i++ )
+    {
+        int const cw = cell[i].w;
+        int const ch = cell[i].h;
+
+        /* A cell too narrow to hold both caps has no three-slice to make, and
+         * a squashed bevel is worse than the plain rock it would replace. */
+        if( cw <= 2 * FRAME_C_RECESS_CAP || ch <= 0 )
+            continue;
+        for( int y = 0; y < ch; y++ )
+        {
+            int const oy = cell[i].y + y;
+            int const sy =
+                FRAME_C_STRIP_BAND_Y + frame_chat_band_row(y, ch);
+
+            if( oy < 0 || oy >= height )
+                continue;
+            for( int x = 0; x < cw; x++ )
+            {
+                int const ox = cell[i].x + x;
+                int sx;
+
+                if( ox < 0 || ox >= width )
+                    continue;
+                if( x < FRAME_C_RECESS_CAP )
+                    sx = x;
+                else if( x >= cw - FRAME_C_RECESS_CAP )
+                    sx = FRAME_CHAT_BUTTON_W - (cw - x);
+                else
+                    sx = FRAME_C_RECESS_CAP +
+                         (x - FRAME_C_RECESS_CAP) *
+                             (FRAME_CHAT_BUTTON_W - 2 * FRAME_C_RECESS_CAP) /
+                             (cw - 2 * FRAME_C_RECESS_CAP);
+                out[(size_t)oy * (size_t)width + (size_t)ox] =
+                    strip[(size_t)sy * (size_t)strip_w +
+                          (size_t)(FRAME_CHAT_BUTTON_X[0] + sx)];
+            }
+        }
+    }
+    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    free(out);
+    free(under);
+    free(strip);
+    return handle;
+}
+
+/*
+ * The chatbox BACKING: `classic_chatback` at a box that is not its own, by
+ * REFLECTING it, with the band's top lip along its bottom edge.
+ *
+ * The 2004 parchment is 479x96 and an OldSchool chatbox's backing is bigger in
+ * both directions, so the picture has to reach further than it was drawn. It
+ * is a flat grain with no border and no shape in it, which rules out the
+ * nine-slice the torn sheet needs and rules in a wrap -- and a MIRRORED wrap
+ * rather than a plain one, because a plain repeat butts the source's right
+ * edge against its left and the join is a vertical line down a texture that
+ * has none. Reflecting makes every join continuous by construction.
+ *
+ * And then the last FRAME_O_CHAT_BAND_LIP rows are not parchment at all: they
+ * are the top of the button band, which the cache baked into this sprite
+ * rather than into the bar under it. Filling them with grain is what left the
+ * band six rows shallow with the filter captions on its lip. Rock here, and
+ * the bar composed as the rest of the same band, and the seam between the two
+ * pictures is invisible because both are cut from one strip.
+ */
+static struct ToriRS_ImageRef
+frame_compose_chat_backing(
+    struct FrameCall* ctx,
+    char const* name,
+    int width,
+    int height)
+{
+    uint32_t* px;
+    uint32_t* strip = NULL;
+    uint32_t* out;
+    int w = 0;
+    int h = 0;
+    int strip_w = 0;
+    int strip_h = 0;
+    int lip;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    assert(width > 0);
+    assert(height > 0);
+    if( !g_api->assets.image_size(g_api, g_image[IMG_C_CHATBACK], &w, &h) || w <= 0 ||
+        h <= 0 )
+        return handle;
+    /* The lip is the band's and the rock it is cut from is the bar's source,
+     * so a backing composed before that strip has landed would be parchment
+     * to its bottom edge for ever -- the picture is cached by size. */
+    strip = frame_chat_strip_pixels(ctx, &strip_w, &strip_h);
+    if( !strip )
+        return handle;
+    lip = height < FRAME_O_CHAT_BAND_LIP ? height : FRAME_O_CHAT_BAND_LIP;
+
+    px = malloc((size_t)w * (size_t)h * sizeof(*px));
+    assert(px);
+    if( !g_api->assets.image_pixels(g_api, g_image[IMG_C_CHATBACK], px, (size_t)w * (size_t)h, &copied) ||
+        copied != (size_t)w * (size_t)h )
+    {
+        free(px);
+        return handle;
+    }
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    assert(out);
+    for( int y = 0; y < height - lip; y++ )
+    {
+        int const ry = y % (2 * h);
+        int const sy = ry < h ? ry : 2 * h - 1 - ry;
+
+        for( int x = 0; x < width; x++ )
+        {
+            int const rx = x % (2 * w);
+            int const sx = rx < w ? rx : 2 * w - 1 - rx;
+
+            out[(size_t)y * (size_t)width + (size_t)x] =
+                px[(size_t)sy * (size_t)w + (size_t)sx];
+        }
+    }
+    for( int y = height - lip; y < height; y++ )
+    {
+        int const sy = FRAME_C_STRIP_BAND_Y +
+                       frame_chat_band_row(y - (height - lip), FRAME_O_CHAT_BAND_H);
+
+        for( int x = 0; x < width; x++ )
+            out[(size_t)y * (size_t)width + (size_t)x] =
+                strip[(size_t)sy * (size_t)strip_w +
+                      (size_t)(FRAME_C_ROCK_X + (x % FRAME_C_ROCK_W))];
+    }
+    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    free(strip);
     free(px);
     free(out);
     return handle;
 }
 
-static void
-frame_build_chat_plates(struct FrameCall* ctx)
+/*
+ * The OldSchool button band as ONE picture: the six rows the backing sprite
+ * carries and the twenty-three of the bar sprite under them.
+ *
+ * For the two Modern layouts on a 2004 lane, which blit both sprites
+ * themselves and then cut four hollows into the band. Cutting only the bar
+ * left the hollows six rows short of the band's top, so a caption drawn for
+ * the band sat above its own hollow; a hollow cut into THIS reaches the band's
+ * own top edge. The pieces are stacked at their own sizes and never scaled --
+ * they are two halves of one 29-row band and each is already the height it
+ * contributes.
+ */
+static struct ToriRS_ImageRef
+frame_compose_osrs_band(
+    struct FrameCall* ctx,
+    char const* name,
+    int width,
+    int height)
 {
-    static struct
+    struct
     {
-        char const* name;
-        int src;
-        int bright;
-    } const PLATE[CHAT_PLATE_COUNT] = {
-        { "chat_plate_idle.png",        IMG_O_CHAT_BUTTON,             0 },
-        { "chat_plate_hover.png",       IMG_O_CHAT_BUTTON_HOVER,       0 },
-        { "chat_plate_active.png",      IMG_O_CHAT_BUTTON_ACTIVE,      0 },
-        { "chat_plate_active_hov.png",  IMG_O_CHAT_BUTTON_ACTIVE_HOVER,0 },
-        { "chat_plate_report.png",      IMG_O_CHAT_BUTTON_REPORT,      0 },
-        { "chat_plate_report_hov.png",  IMG_O_CHAT_BUTTON_REPORT,      1 },
+        int image;
+        int w;
+        int h;
+        uint32_t* px;
+        int from;
+        int rows;
+    } part[2] = {
+        { IMG_O_CHATBACK, 0, 0, NULL, 0, height - FRAME_O_CHAT_STONES_H },
+        { IMG_O_CHAT_STONES, 0, 0, NULL, 0, FRAME_O_CHAT_STONES_H },
     };
-
-    int width;
-    int height;
+    uint32_t* out;
+    int at = 0;
+    struct ToriRS_ImageRef handle = { 0 };
 
     assert(ctx);
-    if( g_chat_plates_built )
-        return;
-    /* Every one or none, and re-tried from the layout pass until they are all
-     * resident: an image crosses the IO queue like any other asset, so a set
-     * built from whichever had landed would be half the frame at the wrong
-     * height for the rest of the session. */
-    for( int i = 0; i < CHAT_PLATE_COUNT; i++ )
-        if( !g_api->assets.image_size(
-                g_api, g_image[PLATE[i].src], &width, &height) )
-            return;
+    assert(name);
+    assert(width > 0);
+    assert(height > FRAME_O_CHAT_STONES_H);
+    for( int i = 0; i < 2; i++ )
+    {
+        size_t copied = 0;
 
-    for( int i = 0; i < CHAT_PLATE_COUNT; i++ )
-        g_chat_plate[i] =
-            frame_compose_plate(ctx, PLATE[i].name, g_image[PLATE[i].src], PLATE[i].bright);
-    for( int i = 0; i < CHAT_PLATE_COUNT; i++ )
-        if( g_chat_plate[i].value == 0 )
-            return;
-    g_chat_plates_built = 1;
+        if( !g_api->assets.image_size(
+                g_api, g_image[part[i].image], &part[i].w, &part[i].h) ||
+            part[i].w <= 0 || part[i].h < part[i].rows )
+        {
+            for( int j = 0; j < i; j++ )
+                free(part[j].px);
+            return handle;
+        }
+        part[i].px =
+            malloc((size_t)part[i].w * (size_t)part[i].h * sizeof(*part[i].px));
+        assert(part[i].px);
+        if( !g_api->assets.image_pixels(
+                g_api,
+                g_image[part[i].image],
+                part[i].px,
+                (size_t)part[i].w * (size_t)part[i].h,
+                &copied) ||
+            copied != (size_t)part[i].w * (size_t)part[i].h )
+        {
+            for( int j = 0; j <= i; j++ )
+                free(part[j].px);
+            return handle;
+        }
+        /* The backing's contribution is its LAST rows -- the lip the cache
+         * baked into the bottom of a sprite that is otherwise parchment. */
+        part[i].from = part[i].image == IMG_O_CHATBACK ? part[i].h - part[i].rows : 0;
+    }
+
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    assert(out);
+    for( int i = 0; i < 2; i++ )
+        for( int y = 0; y < part[i].rows; y++, at++ )
+            for( int x = 0; x < width; x++ )
+                out[(size_t)at * (size_t)width + (size_t)x] =
+                    part[i].px[(size_t)(part[i].from + y) * (size_t)part[i].w +
+                               (size_t)(x % part[i].w)];
+    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    for( int i = 0; i < 2; i++ )
+        free(part[i].px);
+    free(out);
+    return handle;
+}
+
+/** One composed picture per size, kept until the size changes. */
+static struct ToriRS_ImageRef
+frame_sized_art(
+    struct FrameCall* ctx,
+    struct FrameSized* cache,
+    struct ToriRS_ImageRef (*compose)(struct FrameCall*, char const*, int, int),
+    char const* prefix,
+    int width,
+    int height)
+{
+    char name[64];
+    struct ToriRS_ImageRef art;
+
+    assert(ctx);
+    assert(cache);
+    assert(compose);
+    assert(prefix);
+    assert(width > 0);
+    assert(height > 0);
+    if( cache->art.value != 0 && cache->w == width && cache->h == height )
+        return cache->art;
+
+    (void)snprintf(name, sizeof(name), "%s_%dx%d.png", prefix, width, height);
+    art = compose(ctx, name, width, height);
+    if( art.value == 0 )
+        return cache->art;
+    if( cache->art.value != 0 )
+        g_api->assets.image_release(g_api, cache->art);
+    cache->art = art;
+    cache->w = width;
+    cache->h = height;
+    return art;
+}
+
+/*
+ * One bar per (size, hollows), kept until either changes.
+ *
+ * The hollows are folded into a KEY rather than compared one by one: the
+ * chatbox is rebuilt on the lane's schedule and this runs every frame, so what
+ * matters is only that a moved filter re-cuts the bar and an unmoved one does
+ * not re-cut it sixty times a second.
+ */
+static struct ToriRS_ImageRef
+frame_chat_bar_art(
+    struct FrameCall* ctx,
+    struct FrameSized* cache,
+    char const* prefix,
+    int width,
+    int height,
+    struct ToriRS_ImageRef base,
+    struct FrameChatCell const* cell,
+    int cell_count,
+    int band_y,
+    int band_h)
+{
+    char name[64];
+    struct ToriRS_ImageRef art;
+    uint32_t key = (uint32_t)cell_count * 2654435761u;
+
+    assert(ctx);
+    assert(cache);
+    assert(prefix);
+    assert(width > 0);
+    assert(height > 0);
+    assert(cell_count >= 0);
+    assert(cell_count == 0 || cell);
+    key = (key * 16777619u) ^ (uint32_t)(band_y * 31 + band_h);
+    for( int i = 0; i < cell_count; i++ )
+        key = (key * 16777619u) ^
+              (uint32_t)((cell[i].x * 31 + cell[i].y) * 31 + cell[i].w * 31 +
+                         cell[i].h);
+    if( cache->art.value != 0 && cache->w == width && cache->h == height &&
+        cache->key == key )
+        return cache->art;
+
+    (void)snprintf(name, sizeof(name), "%s_%dx%d_%08x.png", prefix, width, height, key);
+    art = frame_compose_chat_bar(
+        ctx, name, width, height, base, cell, cell_count, band_y, band_h);
+    if( art.value == 0 )
+        return cache->art;
+    if( cache->art.value != 0 )
+        g_api->assets.image_release(g_api, cache->art);
+    cache->art = art;
+    cache->w = width;
+    cache->h = height;
+    cache->key = key;
+    return art;
+}
+
+/*
+ * Dress the OldSchool chat pack in 2004 furniture, or take the dressing off.
+ *
+ * Only Classic Fixed, and only while it is the frame the host has selected:
+ * the two Modern layouts are OldSchool's own frames and the chatbox they are
+ * drawn around is the one the cache mounts. Asked of the host every frame
+ * rather than latched with the layout, because a frame this plugin no longer
+ * provides must not leave another era's parchment on the lane's chatbox.
+ *
+ * The pack keeps its message text, its input line, its scrollbar, its eight
+ * FILTERS and every action inside them. What changes is the picture: parchment
+ * on the backing, and 2004 rock on the bar with a hollow cut for each of the
+ * eight -- at the eight boxes the plate roles report, so a caption always
+ * lands on a hollow. The plates themselves are held with no art, which is how
+ * this API says "hidden by its holder"; the captions and their On/Off lines
+ * are the LANE's and are drawn by the lane, over the rock.
+ *
+ * Two boxes read and one written, in that order: the bar cannot be cut until
+ * the eight are known, and the eight are known only from the pack.
+ */
+static void
+frame_chat_dress(struct FrameCall* ctx)
+{
+    struct ToriRS_FrameSelection selection;
+    struct ToriRS_UiNodeInfo bar = { .struct_size = sizeof(bar) };
+    struct FrameChatCell cell[FRAME_CHAT_CELL_MAX];
+    int cell_count = 0;
+    bool bar_placed = false;
+
+    assert(ctx);
+    memset(&selection, 0, sizeof(selection));
+    selection.struct_size = sizeof(selection);
+    g_api->frame.selection(g_api, &selection);
+    if( !frame_lane_oldschool(ctx) ||
+        strcmp(selection.active_id, "gameframe-layout/classic-fixed") != 0 )
+    {
+        for( int i = 0; i < FRAME_CHAT_DECORATION_COUNT; i++ )
+            if( g_chat_node[i].value != 0 )
+                (void)g_api->ui.set_enabled(g_api, g_chat_node[i], false);
+        return;
+    }
+
+    /* The BAR's box first: every hollow is measured from its left edge rather
+     * than from the canvas, and a bar with no box is a pack the server has not
+     * mounted yet -- the ordinary state before login, not a failure. */
+    if( g_chat_node[FRAME_CHAT_BAR].value != 0 &&
+        g_api->ui.info(g_api, g_chat_node[FRAME_CHAT_BAR], &bar) &&
+        (bar.available_facets & TORIRS_UI_FACET_BOUNDS) != 0 &&
+        bar.bounds.width > 0 && bar.bounds.height > 0 )
+        bar_placed = true;
+
+    for( int i = 0; bar_placed && i < FRAME_CHAT_CELL_MAX; i++ )
+    {
+        struct ToriRS_UiNodeInfo plate = { .struct_size = sizeof(plate) };
+        struct ToriRS_UiNodeRef const node = g_chat_node[FRAME_CHAT_PLATE_0 + i];
+
+        if( node.value == 0 || !g_api->ui.info(g_api, node, &plate) ||
+            (plate.available_facets & TORIRS_UI_FACET_BOUNDS) == 0 ||
+            plate.bounds.width <= 0 || plate.bounds.height <= 0 )
+            continue;
+        cell[cell_count++] = (struct FrameChatCell){
+            plate.bounds.x - bar.bounds.x,
+            plate.bounds.y - bar.bounds.y,
+            plate.bounds.width,
+            plate.bounds.height,
+        };
+    }
+
+    for( int i = 0; i < FRAME_CHAT_PLATE_0; i++ )
+    {
+        struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+        struct ToriRS_UiNode appearance = { .struct_size = sizeof(appearance) };
+        struct ToriRS_UiNodeRef const node = g_chat_node[i];
+
+        if( node.value == 0 )
+            continue;
+        /* No box means the pack is not mounted yet -- it is server-mounted and
+         * script-created, so this is the ordinary state before login rather
+         * than a failure. Hold nothing until it has one. */
+        if( !g_api->ui.info(g_api, node, &info) ||
+            (info.available_facets & TORIRS_UI_FACET_BOUNDS) == 0 ||
+            info.bounds.width <= 0 || info.bounds.height <= 0 )
+        {
+            (void)g_api->ui.set_enabled(g_api, node, false);
+            continue;
+        }
+        appearance.flags = TORIRS_UI_NODE_VISIBLE;
+        appearance.image =
+            i == FRAME_CHAT_BACKING
+                ? frame_sized_art(
+                      ctx,
+                      &g_chat_paper,
+                      frame_compose_chat_backing,
+                      "classic_chat_paper",
+                      info.bounds.width,
+                      info.bounds.height)
+                : frame_chat_bar_art(
+                      ctx,
+                      &g_chat_bar,
+                      "classic_chat_bar",
+                      info.bounds.width,
+                      info.bounds.height,
+                      (struct ToriRS_ImageRef){ 0 },
+                      cell,
+                      cell_count,
+                      /*band_y=*/FRAME_O_CHAT_BAND_LIP,
+                      /*band_h=*/info.bounds.height + FRAME_O_CHAT_BAND_LIP);
+        if( appearance.image.value == 0 )
+        {
+            (void)g_api->ui.set_enabled(g_api, node, false);
+            continue;
+        }
+        /* APPEARANCE only, on both. A node's SUBTREE goes only for a holder
+         * that took over everything the node offered, and taking the bar's
+         * subtree is exactly what threw the lane's eight filters away: the bar
+         * is `iface(chat, 3)`, the 519x23 stone GRAPHIC, and the eight are its
+         * siblings rather than its children. @see `[role:chat_bar]`. */
+        if( g_api->ui.update(
+                g_api, node, TORIRS_UI_FACET_APPEARANCE, &appearance) ==
+            TORIRS_RESULT_OK )
+            (void)g_api->ui.set_enabled(g_api, node, true);
+    }
+
+    /*
+     * And the eight plates, HELD WITH NO ART.
+     *
+     * Held rather than released: releasing gives the plate back to the pack,
+     * which draws OldSchool's own button on top of the hollow this frame just
+     * cut for it -- two plates, one over the other, which is the rectangle
+     * behind every label. A claim carrying no picture in any state is what
+     * this API means by "hidden by its holder", and the caption above it is
+     * still the lane's own, mode line and all.
+     */
+    for( int i = 0; i < FRAME_CHAT_CELL_MAX; i++ )
+    {
+        struct ToriRS_UiNode blank = { .struct_size = sizeof(blank) };
+        struct ToriRS_UiNodeRef const node = g_chat_node[FRAME_CHAT_PLATE_0 + i];
+
+        if( node.value == 0 )
+            continue;
+        if( !bar_placed || g_chat_bar.art.value == 0 )
+        {
+            (void)g_api->ui.set_enabled(g_api, node, false);
+            continue;
+        }
+        blank.flags = TORIRS_UI_NODE_VISIBLE;
+        if( g_api->ui.update(g_api, node, TORIRS_UI_FACET_APPEARANCE, &blank) ==
+            TORIRS_RESULT_OK )
+            (void)g_api->ui.set_enabled(g_api, node, true);
+    }
 }
 
 /*
@@ -2033,6 +3115,48 @@ frame_build_redstones(struct FrameCall* ctx)
             if( g_redstone_flip[i][f].value == 0 )
                 return;
     g_redstone_flipped = 1;
+}
+
+/*
+ * The 2004 housing's two windows, cut once from the plate they are holes in.
+ *
+ * Retried from the layout pass until the plate has pixels behind it, the way
+ * the redstone flips are: the art crosses the IO queue, and an unmasked frame
+ * for the first frames after a load is what the layout already tolerates.
+ * @see frame_skin_classic_map.
+ */
+static void
+frame_build_classic_masks(struct FrameCall* ctx)
+{
+    int width = 0;
+    int height = 0;
+
+    assert(ctx);
+    if( g_classic_masks_built )
+        return;
+    if( !g_api->assets.image_size(g_api, g_image[IMG_C_MAPBACK], &width, &height) )
+        return;
+
+    g_classic_mask[FRAME_C_MASK_MAP] = frame_compose_window(
+        ctx,
+        "classic_map_mask.png",
+        g_image[IMG_C_MAPBACK],
+        FRAME_C_HOLE_MAP_DX,
+        FRAME_C_HOLE_MAP_DY,
+        FRAME_C_HOLE_MAP_W,
+        FRAME_C_HOLE_MAP_H);
+    g_classic_mask[FRAME_C_MASK_COMPASS] = frame_compose_window(
+        ctx,
+        "classic_compass_mask.png",
+        g_image[IMG_C_MAPBACK],
+        FRAME_C_HOLE_COMPASS_DX,
+        FRAME_C_HOLE_COMPASS_DY,
+        FRAME_C_HOLE_COMPASS_W,
+        FRAME_C_HOLE_COMPASS_H);
+    for( int i = 0; i < FRAME_C_MASK_COUNT; i++ )
+        if( g_classic_mask[i].value == 0 )
+            return;
+    g_classic_masks_built = 1;
 }
 
 /** The choices, in enum order. Also the schema's `choices` string, split. */
@@ -2115,7 +3239,7 @@ frame_on_layout(
     canvas_h = usable.height;
 
     frame_build_redstones(ctx);
-    frame_build_chat_plates(ctx);
+    frame_build_classic_masks(ctx);
 
     g_frame.layout = frame_layout_resolve(ctx);
     assert(
@@ -2126,7 +3250,6 @@ frame_on_layout(
     g_frame.blit_count = 0;
     g_frame.anchored_count = 0;
     g_frame.tab_count = 0;
-    g_frame.chat_button_count = 0;
 
     switch( g_frame.layout )
     {
@@ -2329,6 +3452,53 @@ frame_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 
     for( int i = 0; i < FRAME_IMG_COUNT; i++ )
         frame_image_request(api, state, i);
+    /* Named once and held disabled: the pack these dress is server-mounted, so
+     * the refs exist long before the nodes do and holding one before the frame
+     * has been selected would dress a chatbox no layout of this plugin's is
+     * around. @see frame_chat_dress. */
+    for( int i = 0; i < FRAME_CHAT_DECORATION_COUNT; i++ )
+    {
+        state->chat_node[i] = api->ui.ref(api, FRAME_CHAT_NODE[i]);
+        if( state->chat_node[i].value != 0 )
+            (void)api->ui.set_enabled(api, state->chat_node[i], false);
+    }
+}
+
+/*
+ * The chat pack is mounted and rebuilt on the LANE's schedule, not the
+ * frame's, so its decoration is re-read every frame rather than at layout
+ * time. Unchanged updates are registry no-ops.
+ */
+static void
+frame_on_frame_start(
+    struct ToriRS_ApiV2* api,
+    void* state_ptr,
+    struct ToriRS_FrameEvent const* event)
+{
+    struct FrameState* state = state_ptr;
+    struct FrameCall call;
+    struct FrameCall* ctx = &call;
+
+    (void)event;
+    assert(api);
+    assert(state);
+    memset(&call, 0, sizeof(call));
+    call.api = api;
+    call.state = state;
+    frame_chat_dress(ctx);
+    if( g_api->core.screen(g_api) != TORIRS_SCREEN_GAME )
+        return;
+    /* A fixed frame with a closed sidebar opens one. */
+    frame_sidebar_seed(ctx);
+    /*
+     * ...and the resizable one, which draws the closed sidebar rather than
+     * opening it, re-declares when that answer moves. Opening or closing a tab
+     * is neither a resize nor a rebuild nor a claim, so nothing else re-runs
+     * the layout for it. @see frame_layout_modern_resizable.
+     */
+    if( g_frame.declared && g_frame.layout == FRAME_MODERN_RESIZABLE &&
+        (frame_sidebar_open(ctx) != 0) != g_sidebar_open )
+        api->frame.invalidate(api);
 }
 
 static void
@@ -2384,15 +3554,68 @@ frame_on_stop(struct ToriRS_ApiV2* api, void* state_ptr)
         for( int f = 0; f < REDSTONE_FLIP_COUNT; f++ )
             if( state->redstone_flip[i][f].value != 0 )
                 api->assets.image_release(api, state->redstone_flip[i][f]);
-    for( int i = 0; i < CHAT_PLATE_COUNT; i++ )
-        if( state->chat_plate[i].value != 0 )
-            api->assets.image_release(api, state->chat_plate[i]);
+    for( int i = 0; i < FRAME_C_MASK_COUNT; i++ )
+        if( state->classic_mask[i].value != 0 )
+            api->assets.image_release(api, state->classic_mask[i]);
+    /* The two composed at the chatbox's size are handles like any other and
+     * are this plugin's to drop. @see frame_sized_art. */
+    if( state->chat_paper.art.value != 0 )
+        api->assets.image_release(api, state->chat_paper.art);
+    if( state->chat_bar.art.value != 0 )
+        api->assets.image_release(api, state->chat_bar.art);
+    if( state->chat_band.art.value != 0 )
+        api->assets.image_release(api, state->chat_band.art);
+    if( state->chat_stones.art.value != 0 )
+        api->assets.image_release(api, state->chat_stones.art);
     memset(state, 0, sizeof(*state));
 }
 
 _Static_assert(
     sizeof(FRAME_LAYOUT_NAME) / sizeof(FRAME_LAYOUT_NAME[0]) == FRAME_LAYOUT_COUNT,
     "the name table and the layout enum must agree");
+
+/*
+ * A REPAINT and not a replacement, on every one of them.
+ *
+ * `REPLACE_OR_PROVIDE` with every replaced facet is how a holder says
+ * "everything this node offered is mine now", and it is the only declaration
+ * that takes the node's SUBTREE with it. Nothing here wants that: the bar is
+ * the 519x23 stone GRAPHIC and its neighbours are the lane's eight filters,
+ * which stay -- captions, mode lines, verbs and all. Asking for the subtree
+ * threw four of the eight away.
+ */
+#define FRAME_CHAT_CONTRIBUTION(name_, mode_, facets_)                        \
+    { .struct_size = sizeof(struct ToriRS_UiContribution),                    \
+      .node = (name_),                                                        \
+      .mode = (mode_),                                                        \
+      .facets = (facets_),                                                    \
+      .value = { .struct_size = sizeof(struct ToriRS_UiNode),                 \
+                 .bounds = { 0, 0, 1, 1 },                                    \
+                 .parent = "frame.chat",                                      \
+                 .anchor = TORIRS_ANCHOR_TOP_LEFT,                            \
+                 .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,                 \
+                 .flags = TORIRS_UI_NODE_VISIBLE } }
+/* APPEARANCE alone, and not BOUNDS: a plate's box is the LANE's answer and is
+ * read back to place the hollow cut for it. @see FRAME_CHAT_PLATE_0. */
+#define FRAME_CHAT_PLATE_CONTRIBUTION(name_)                                  \
+    FRAME_CHAT_CONTRIBUTION(                                                  \
+        (name_), TORIRS_UI_MODIFY, TORIRS_UI_FACET_APPEARANCE)
+
+static struct ToriRS_UiContribution const FRAME_CHAT_CONTRIBUTIONS[] = {
+    FRAME_CHAT_CONTRIBUTION(
+        "frame.chat.backing", TORIRS_UI_MODIFY, TORIRS_UI_FACET_APPEARANCE),
+    FRAME_CHAT_CONTRIBUTION(
+        "frame.chat.bar", TORIRS_UI_MODIFY, TORIRS_UI_FACET_APPEARANCE),
+    FRAME_CHAT_PLATE_CONTRIBUTION("frame.chat.plate.0"),
+    FRAME_CHAT_PLATE_CONTRIBUTION("frame.chat.plate.1"),
+    FRAME_CHAT_PLATE_CONTRIBUTION("frame.chat.plate.2"),
+    FRAME_CHAT_PLATE_CONTRIBUTION("frame.chat.plate.3"),
+    FRAME_CHAT_PLATE_CONTRIBUTION("frame.chat.plate.4"),
+    FRAME_CHAT_PLATE_CONTRIBUTION("frame.chat.plate.5"),
+    FRAME_CHAT_PLATE_CONTRIBUTION("frame.chat.plate.6"),
+    FRAME_CHAT_PLATE_CONTRIBUTION("frame.chat.plate.7"),
+    { .node = NULL },
+};
 
 static struct ToriRS_FrameOffer const FRAME_OFFERS[] = {
     {
@@ -2446,10 +3669,12 @@ struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_GAMEFRAME = {
     .draw_order = -100,
     .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
     .frames = FRAME_OFFERS,
+    .ui_contributions = FRAME_CHAT_CONTRIBUTIONS,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = frame_on_start,
         .on_stop = frame_on_stop,
+        .on_frame_start = frame_on_frame_start,
         .on_asset = frame_on_asset,
         .on_placement_changed = frame_on_placement,
         .on_ui_node_action = frame_on_node_action,

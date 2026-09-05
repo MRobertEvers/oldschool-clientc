@@ -14793,6 +14793,27 @@ Task_AppBoot_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
     if( !app->boot_config_ready )
         RS_Prefs_ApplyToHost(&app->prefs, &app->host);
+    /*
+     * A window mode the manifest or command line stated wins over the saved
+     * one. App_SetBootWindowMode has already run (it must, before the root's
+     * scripts call getwindowmode), so the line above just overwrote it;
+     * `cfg.window_mode` is 0 when nothing said anything, which is when the
+     * saved default is the only opinion there is. Same precedence as a server
+     * VARP over the seeded volumes: an explicit instruction for this run beats
+     * what the last run happened to leave behind.
+     *
+     * Immediately after the clobber, and BEFORE the plugin boot below, because
+     * the window a frame is laid out in is decided during that boot: committing
+     * a selection calls App_SyncPluginLayoutCanvas, whose native answer IS
+     * `default_window_mode`. Restoring after it meant the dat1 lane -- whose
+     * boot mode is fixed because its 2004 gameframe is a baked 765x503 layout
+     * -- was flipped to the saved resizable default by plugin selection and
+     * left there, since nothing calls that function again while the native
+     * frame stands. On screen: the frame stranded in the top-left of a grey
+     * canvas.
+     */
+    if( !app->boot_config_ready && app->cfg.window_mode )
+        app->host.default_window_mode = app->cfg.window_mode;
 
     /*
      * Plugins: read the script manifest, compile each script, apply saved
@@ -14808,18 +14829,6 @@ Task_AppBoot_Run(
     if( !app->boot_config_ready && app->plugins )
         PT_TASK_AWAITSELF_IF(
             CreateTask_PluginBoot(app->plugins, PluginManifest_Path(), PluginPrefs_Path()));
-
-    /*
-     * A window mode the manifest or command line stated wins over the saved
-     * one. App_SetBootWindowMode has already run (it must, before the root's
-     * scripts call getwindowmode), so the restore above just overwrote it;
-     * `cfg.window_mode` is 0 when nothing said anything, which is when the
-     * saved default is the only opinion there is. Same precedence as a server
-     * VARP over the seeded volumes: an explicit instruction for this run beats
-     * what the last run happened to leave behind.
-     */
-    if( !app->boot_config_ready && app->cfg.window_mode )
-        app->host.default_window_mode = app->cfg.window_mode;
 
     /*
      * Seed the four audio volumes.
@@ -29925,12 +29934,20 @@ App_SetCanvasSize(
      * is the one on screen. While a plugin arranges the frame it is not, and
      * clamping a phone-shaped layout up to a desktop canvas is how a mobile
      * frame ends up letterboxed inside the size it was written to avoid.
+     *
+     * And the frame's floor is not the CANVAS's: the lane docks its popout
+     * strip inside the canvas, so the canvas has to hold the frame AND the
+     * strip. @see App_CanvasFloorWidth.
      */
     {
-        int min_w = APP_CANVAS_MIN_W;
+        int min_w = App_CanvasFloorWidth(app);
         int min_h = APP_CANVAS_MIN_H;
+        int plugin_min_w = 0;
 
-        App_PluginLayoutMinSize(app, &min_w, &min_h);
+        /* Height only: the width floor already carries the frame's own and the
+         * strip's, and the strip is full-height by definition, so there is
+         * nothing to add on this axis. */
+        App_PluginLayoutMinSize(app, &plugin_min_w, &min_h);
         if( width < min_w )
             width = min_w;
         if( height < min_h )
@@ -30117,6 +30134,22 @@ App_FixedCanvasWidth(struct App const* app)
 }
 
 int
+App_CanvasFloorWidth(struct App const* app)
+{
+    int frame_min_w = APP_CANVAS_MIN_W;
+    int frame_min_h = APP_CANVAS_MIN_H;
+
+    assert(app);
+    App_PluginLayoutMinSize(app, &frame_min_w, &frame_min_h);
+    /* The strip is CARVED OUT of the canvas -- the resizable toplevels lay
+     * their own children out beside it (interface 728's rail is 42 columns of
+     * the canvas on both of them, and a plugin layout gets the same canvas
+     * less the same rail as its FRAME_BUILD area), so a canvas of exactly the
+     * frame's floor leaves the frame 42 short of it. */
+    return frame_min_w + App_MeasureRightChromeStripWidth(app);
+}
+
+int
 App_SyncFixedChromeInset(struct App* app)
 {
     int want_w;
@@ -30128,6 +30161,24 @@ App_SyncFixedChromeInset(struct App* app)
     if( want_w == UITREE_LAYOUT_ROOT_W && APP_CANVAS_MIN_H == UITREE_LAYOUT_ROOT_H )
         return 0;
     return App_SetCanvasSize(app, want_w, APP_CANVAS_MIN_H);
+}
+
+int
+App_SyncResizableCanvasFloor(struct App* app)
+{
+    int want_w;
+
+    assert(app);
+    if( App_WindowMode(app) != CS2VM_WINDOW_MODE_RESIZABLE )
+        return 0;
+    want_w = App_CanvasFloorWidth(app);
+    /* Raise only. The canvas a resizable window follows is the window's, and
+     * the window is the authority whenever it is big enough; shrinking back
+     * belongs to the next TORIRS_CMD_WINDOW_RESIZE, which carries the size the
+     * window actually is and is clamped by this same floor on the way in. */
+    if( UITREE_LAYOUT_ROOT_W >= want_w )
+        return 0;
+    return App_SetCanvasSize(app, want_w, UITREE_LAYOUT_ROOT_H);
 }
 
 /* One window axis through the interface scale. Rounds down, so 100% is exact
@@ -30180,9 +30231,23 @@ App_SetBootWindowMode(
         return;
     app->host.window_mode = mode;
     app->host.default_window_mode = mode;
-    /* Deliberately NOT window_mode_dirty: the shell is the caller and applies
+    /*
+     * Record it on the App's OWN config too, because that is where the boot
+     * statement is looked for later.
+     *
+     * `app->cfg` is a COPY taken by App_Init, so a caller that settles the mode
+     * after App_Init -- which the shell must, since the CS1 lane's mode is
+     * derived from the resolved ui logic -- writes only its own local struct,
+     * and the App is left believing nobody stated a mode. The preferences
+     * restore (`app->cfg.window_mode` in Task_AppBoot) then hands the saved
+     * default the lane instead, and a fixed-only 2004 frame ends up in a
+     * resizable window it has no layout for: a 765x503 island in a grey field.
+     *
+     * Deliberately NOT window_mode_dirty: the shell is the caller and applies
      * the platform side directly. Raising it here would make the boot config
-     * indistinguishable from a clientscript's SETWINDOWMODE on the next drain. */
+     * indistinguishable from a clientscript's SETWINDOWMODE on the next drain.
+     */
+    app->cfg.window_mode = mode;
 }
 
 void
@@ -30199,9 +30264,30 @@ App_SyncPluginLayoutCanvas(struct App* app)
      * should hand that back rather than leave the client in whatever mode the
      * plugin wanted. A committed frame states its mode; native restates the
      * lane's default.
+     *
+     * Except that on a CS1 lane the native frame does not HAVE a resizable
+     * mode to restate. Its gameframe is a baked 765x503 layout wrapped in one
+     * `fixed_shell` rs_layer (revconfig `*_dat1_ui.ini`) that clips every
+     * surface under it, and there is no CS2 setwindowmode and no relayout hook
+     * on that lane to make it anything else -- so a bigger canvas leaves the
+     * 2004 frame anchored in the top-left corner and the rest of the window
+     * flat grey. That is not the lane's default being honoured, it is a mode
+     * the frame on screen cannot be in.
+     *
+     * So the native answer on CS1 is FIXED whatever the default says, and the
+     * default -- the command line, the manifest, or the saved preference,
+     * whose out-of-the-box value is resizable -- only gets a say on CS2, where
+     * the toplevel really does lay itself out to the canvas it is handed.
+     *
+     * The escape hatch is a PLUGIN frame that declares
+     * TORIRS_FRAME_CANVAS_WINDOW (gameframe-layout's Modern Resizable, the
+     * Stone Drawer): it takes the other branch, so selecting one still makes
+     * this lane resizable, and releasing it comes back here and pins fixed
+     * again.
      */
     want = !app->plugin_frame_active
-               ? app->host.default_window_mode
+               ? (App_UiLogic(app) == APP_UI_LOGIC_CS1 ? CS2VM_WINDOW_MODE_FIXED
+                                                       : app->host.default_window_mode)
                : app->plugin_layout_canvas == TORIRS_FRAME_CANVAS_FIXED
                      ? CS2VM_WINDOW_MODE_FIXED
                      : CS2VM_WINDOW_MODE_RESIZABLE;

@@ -4048,6 +4048,37 @@ main(void)
                 "a steady lane popout costs no placement revision or callback");
         }
 
+        /* The minimap's box is the descriptor the last frame DREW with, so it
+         * arrives one frame after the layout that moved it -- after the layout
+         * change refreshed the base. Nothing else observes it, so an unpolled
+         * base latches the pre-move box: the resize that widened the window
+         * moved interface 160 and left every orb anchored to `frame.minimap`
+         * behind it, clipped at the container's new left edge. */
+        {
+            struct ToriRS_UiNodeRef map_ref;
+            struct ToriRS_UiNodeInfo map_info;
+
+            memset(&map_info, 0, sizeof(map_info));
+            map_info.struct_size = sizeof(map_info);
+            map_ref = PluginHost_UiRef(hp, probe, "frame.minimap");
+            CHECK(
+                PluginHost_UiInfo(hp, map_ref, &map_info) &&
+                    map_info.bounds.x == minimap.x,
+                "the named minimap surface starts at the box the frame drew");
+            g_slot_x[TORIRS_HOST_SURFACE_MINIMAP] = minimap.x + 42;
+            PluginHost_FrameStart(hp, 6, 0);
+            CHECK(
+                PluginHost_UiInfo(hp, map_ref, &map_info) &&
+                    map_info.bounds.x == minimap.x + 42,
+                "a minimap box that moves with no layout change refreshes the named base");
+            g_slot_x[TORIRS_HOST_SURFACE_MINIMAP] = minimap.x;
+            PluginHost_FrameStart(hp, 7, 0);
+            CHECK(
+                PluginHost_UiInfo(hp, map_ref, &map_info) &&
+                    map_info.bounds.x == minimap.x,
+                "and follows it back");
+        }
+
         PluginHost_Free(hp);
         g_platform_safe_count = 0;
         g_lane_rail_visible = 0;

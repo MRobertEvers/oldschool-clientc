@@ -2770,10 +2770,26 @@ App_MeasureRightChromeStripWidth(struct App const* app);
 /**
  * Fixed-mode canvas width that keeps the classic frame at APP_CANVAS_MIN_W and
  * parks the chrome strip outside it: MIN_W + measured strip. Resizable callers
- * should not use this — they carve from whatever window size they already have.
+ * want App_CanvasFloorWidth instead — they carve from whatever window size
+ * they already have, down to that floor and no further.
  */
 int
 App_FixedCanvasWidth(struct App const* app);
+
+/**
+ * The narrowest canvas the frame now on screen can be laid out in: the FRAME's
+ * floor (a plugin layout's when one holds the frame, the revconfig gameframe's
+ * APP_CANVAS_MIN_W otherwise) PLUS the right-docked chrome strip.
+ *
+ * The strip is not part of any frame's area — both resizable toplevels lay
+ * their own children out beside interface 728's 42-column rail, and a layout
+ * plugin is handed the canvas less that same rail as its build area — so a
+ * canvas of exactly the frame's floor leaves the frame 42 columns short of it,
+ * which is what puts a 519-wide chatbox under a 249-wide sidebar at the
+ * 765x503 preset.
+ */
+int
+App_CanvasFloorWidth(struct App const* app);
 
 /**
  * When window_mode is fixed, grow/shrink the canvas to App_FixedCanvasWidth so
@@ -2783,6 +2799,20 @@ App_FixedCanvasWidth(struct App const* app);
  */
 int
 App_SyncFixedChromeInset(struct App* app);
+
+/**
+ * When window_mode is resizable, raise the canvas to App_CanvasFloorWidth if
+ * the window it follows is too narrow to hold the frame and the strip both.
+ * Returns 1 if the canvas size changed.
+ *
+ * Raise only: the window owns the canvas whenever it is big enough, and its
+ * own size comes back with the next resize command, clamped by the same floor.
+ * The shell must then ask the window for the canvas it could not supply (App
+ * has no platform); a window that cannot grow letterboxes the floor-sized
+ * canvas, which is the answer App_SetCanvasSize's clamp has always given.
+ */
+int
+App_SyncResizableCanvasFloor(struct App* app);
 
 /**
  * Apply a pending "Interface scaling" change (device option 27), if a

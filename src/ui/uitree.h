@@ -780,6 +780,25 @@ struct UITreeComponent
      */
     uint8_t frame_hidden;
     /**
+     * A layer the plugin frame declared NOT to clip.
+     *
+     * Every ancestor of a placed surface: the lane's shell and the toplevel's
+     * mount groups are authored for the lane's own gameframe, and a layer
+     * clips to its own box. Widening the box was tried first and was never
+     * enough, because a layer's box has an ORIGIN too -- the 548 toplevel's
+     * `mapcontainer` sits at 516,4, so a compass the frame placed at 504 was
+     * cut off at 516 however wide the layer had been made -- and it was
+     * actively wrong besides: the box is the space the layer's OTHER children
+     * are laid out in, and widening it right-aligned 548's XP-total plate to
+     * the window instead of to the viewport. So the box stays native and this
+     * flag carries the whole release: UITree_LayerChildClip and
+     * UITree_LayerCullsChildren read it, so the emit, hit, hover and drop
+     * walks all agree that the layer clips nothing and culls nothing.
+     *
+     * Written only by the frame layout, like `frame_hidden`.
+     */
+    uint8_t frame_stretched;
+    /**
      * Suppressed because this title screen is not the one showing.
      *
      * Its own flag for the reason given above `frame_hidden`: `behavior.hide`
@@ -2023,6 +2042,11 @@ UITree_SetCS1ValueAt(struct UITree* tree, int32_t idx, int value_index, int valu
 /** Set frame-layout suppression with unfiltered reachability invalidation. */
 bool
 UITree_SetFrameHiddenAt(struct UITree* tree, int32_t idx, int hidden);
+
+/** Set frame-layout containment release (`frame_stretched`): the layer's
+ *  children take the enclosing clip instead of the layer's own box. */
+bool
+UITree_SetFrameStretchedAt(struct UITree* tree, int32_t idx, int stretched);
 
 /** As above for `screen_hidden`: hide the subtree of a title screen that is
  *  not the current one. */

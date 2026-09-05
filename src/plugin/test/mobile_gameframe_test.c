@@ -855,6 +855,32 @@ blitted_at(int x, int y)
     return 0;
 }
 
+/*
+ * Does this tab rock wear one of the LANE's own icons, centred on it?
+ *
+ * 33x36 is what every one of rev-239's fourteen `iconN` components declares,
+ * and it is stated here rather than read off the picture because a test that
+ * asked the art its size would agree with the art by construction. A rock is
+ * a piece of the rail's ONE plate and the lit stone goes down only under the
+ * open tab, so the only thing that can land on that pixel is the icon -- and
+ * the 2004 set, whose thirteen pictures are 19x24 up to 30x29, centres
+ * somewhere else entirely (or, for the seventh, nowhere at all).
+ */
+#define LANE_ICON_W 33
+#define LANE_ICON_H 36
+static int
+tab_wears_lane_icon(char const* name)
+{
+    struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+    struct ToriRS_UiNodeRef const ref = PluginHost_UiRef(g_host, g_plugin, name);
+
+    if( ref.value == 0 || !PluginHost_UiInfo(g_host, ref, &info) )
+        return 0;
+    return blitted_at(
+        info.bounds.x + ((info.bounds.width - LANE_ICON_W) / 2),
+        info.bounds.y + ((info.bounds.height - LANE_ICON_H) / 2));
+}
+
 static int
 slot_is(int slot, int x, int y, int w, int h)
 {
@@ -901,11 +927,18 @@ slot_is(int slot, int x, int y, int w, int h)
  *  @see MOBILE_CHAT_Y. */
 #define M_CHAT_Y(h) ((h) -M_STRIP_H - M_CHAT_H - M_CHAT_FRINGE_B - M_CHAT_GAP)
 #define M_O_PAPER_PAD 14
-#define M_O_BUTTON_W 54
-#define M_O_BUTTON_H 20
+/** The pack's own bar, which a 2004 dressing replaces whole -- and the four
+ *  columns the reference puts its buttons at inside it.
+ *  @see MOBILE_CHAT_BUTTON_SRC. */
+#define M_O_BAR_H 23
+#define M_O_BUTTON_W 100
 #define M_STRIP_W 479
 #define M_STRIP_H 36
 #define M_TOGGLE_H 25
+/** The gap between the two switches. @see MOBILE_TOGGLE_GAP. */
+#define M_TOGGLE_GAP 4
+/** The OldSchool chat block's own width. @see MOBILE_O_CHAT_W_DEFAULT. */
+#define M_O_CHAT_W 519
 #define M_MODAL_W 512
 #define M_MODAL_H 334
 #define M_MIN_W 640
@@ -1662,29 +1695,43 @@ main(void)
                 named_node_image_state("chat-paper", 1),
             "Stone Drawer expands its parchment one chat line above and below the backing");
         CHECK(
-            named_node_is("frame.chat.bar", 0, M_H - 23, 519, 23) &&
-                named_node_image_state("frame.chat.bar", 0),
-            "and removes the native solid bar below the parchment");
+            named_node_is("frame.chat.bar", 0, M_H - M_O_BAR_H, 519, M_O_BAR_H) &&
+                named_node_image_state("frame.chat.bar", 1),
+            "and wears the 2004 strip in place of the native solid bar");
         {
+            static char const* const NAME[4] = {
+                "frame.chat.button.public",
+                "frame.chat.button.private",
+                "frame.chat.button.trade",
+                "frame.chat.button.report",
+            };
             int classic = 0;
+            int blank = 0;
+
+            /*
+             * All EIGHT of the lane's filters keep standing, on the hollows
+             * this frame cut for them: each plate is HELD -- so the pack's own
+             * OldSchool button cannot draw over the hollow -- and held with no
+             * art, which is this API's "hidden by its holder". The captions
+             * and their On/Friends/Off lines are the pack's and are untouched.
+             */
             for( int plate = 0; plate < 8; plate++ )
             {
                 char name[48];
                 (void)snprintf(name, sizeof(name), "frame.chat.plate.%d", plate);
-                classic +=
-                    named_node_is(
-                        name,
-                        4 + plate * 62,
-                        M_H - 21,
-                        M_O_BUTTON_W,
-                        M_O_BUTTON_H) &&
-                            named_node_image_state(name, 1)
-                        ? 1
-                        : 0;
+                blank += named_node_image_state(name, 0) ? 1 : 0;
             }
+            for( int button = 0; button < 4; button++ )
+                classic += named_node_image_state(NAME[button], 1) ||
+                                   named_node_image_state(NAME[button], 0)
+                               ? 1
+                               : 0;
             CHECK(
-                classic == 8,
-                "all eight native labels keep their actions over compact classic chat plates");
+                blank == 8,
+                "all eight OldSchool plates are held with no art, over the bar's own hollows");
+            CHECK(
+                classic == 0,
+                "and no 2004 filter button of the frame's own replaces four of the eight");
         }
         CHECK(
             g_frame.slot[TORIRS_HOST_SURFACE_ORBS].placed,
@@ -1760,8 +1807,8 @@ main(void)
                         g_frame.slot[TORIRS_HOST_SURFACE_ORBS].placed &&
                         named_node_image_state("chat-paper", 1) &&
                         named_node_image_state("frame.chat.backing", 0) &&
-                        named_node_image_state("frame.chat.bar", 0) &&
-                        named_node_image_state("frame.chat.plate.0", 1),
+                        named_node_image_state("frame.chat.bar", 1) &&
+                        !named_node_image_state("frame.chat.plate.0", 1),
                     "every art/housing choice keeps IF3 chat/orbs with replaced chat decoration");
             }
         }
@@ -1791,8 +1838,8 @@ main(void)
         CHECK(
             named_node_image_state("chat-paper", 1) &&
                 named_node_image_state("frame.chat.backing", 0) &&
-                named_node_image_state("frame.chat.bar", 0) &&
-                named_node_image_state("frame.chat.plate.0", 1),
+                named_node_image_state("frame.chat.bar", 1) &&
+                !named_node_image_state("frame.chat.plate.0", 1),
             "and the Stone Drawer chat replacement survives the art-family switch");
     }
 
@@ -1931,18 +1978,57 @@ main(void)
             rail_x + M_RAIL_W == M_W - rail - M_MARGIN,
             "and the fourteen-tab rail stops clear of the lane's own");
         CHECK(named_tabs_present(), "with all fourteen semantic tab targets retained");
+        /*
+         * And the 2004 rocks wear THIS LANE's icons.
+         *
+         * The seventh tab is the tell: `sideicons.dat` has no picture at all
+         * for it -- the 2004 revision has no chat channel -- while rev-239
+         * opens a Chat-channel panel from it, so a 2004 rail on this lane used
+         * to leave a live stone bare (and put the frowning ignore face on
+         * Friends, which no pixel here can see but the same table decides).
+         * A rock is a piece of the rail's one plate, so anything landing
+         * inside its box is the icon. @see mobile_layout_rail_classic.
+         */
+        CHECK(
+            tab_wears_lane_icon("frame.sidebar.tab.7") &&
+                tab_wears_lane_icon("frame.sidebar.tab.8") &&
+                tab_wears_lane_icon("frame.sidebar.tab.9"),
+            "the 2004 rocks wear this lane's chat-channel, account and friends icons");
         CHECK(
             g_lane_rail_suppressed == 0,
             "the custom sidebar rail does not suppress the separate native popout");
-        /* Pinned to the LEFT, so the cut must not have reached them: this is
-         * what tells "laid out in the free box" apart from "handed a narrower
-         * canvas". */
+        /* Pinned to the CHAT BLOCK, so the cut must not have reached them:
+         * this is what tells "laid out in the free box" apart from "handed a
+         * narrower canvas". The switch's x below carries no window term at
+         * all, and the viewport check is what says the window is still whole.
+         */
         CHECK(
             slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 0, 0, M_W, M_H),
             "the scene still fills the whole window -- the rail floats on it");
+        /*
+         * And it is at the FAR end of the strip above the chat, because this
+         * lane parks `stat_boosts_hud` in the near one: script 4130 puts the
+         * boosted-stat readout bottom-LEFT for a desktop client and
+         * bottom-RIGHT for a mobile one, and this frame is mobile chrome in a
+         * desktop client, so the readout takes the corner the switch used to.
+         * @see mobile_layout.
+         */
         CHECK(
-            named_node_is("chat-toggle", M_MARGIN, M_H - 165 - M_MARGIN - 25, 36, 25),
-            "and the semantic chat switch stays on the window's left edge");
+            named_node_is(
+                "chat-toggle",
+                M_O_CHAT_W - M_MARGIN - (2 * 36 + M_TOGGLE_GAP),
+                M_H - 165 - M_MARGIN - 25,
+                36,
+                25),
+            "the chat switch takes the far end of the strip on an OldSchool lane");
+        CHECK(
+            named_node_is(
+                "keyboard-toggle",
+                M_O_CHAT_W - M_MARGIN - 36,
+                M_H - 165 - M_MARGIN - 25,
+                36,
+                25),
+            "and the keyboard switch is the outer one, flush with the chat's right edge");
 
         /*
          * A rail that resolves and is HIDDEN occludes nothing.

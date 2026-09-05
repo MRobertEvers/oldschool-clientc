@@ -744,6 +744,56 @@ orbs_map_bounds(
     return 1;
 }
 
+/*
+ * The first column of the map's own ink over the rows [top, bottom).
+ *
+ * Every housing an orb hangs off in this tree draws its map as the disc
+ * INSCRIBED in the box `frame.minimap` reports -- 2004's `mapback`, the
+ * OldSchool fixed plate, both OldSchool rings and the Stone Drawer's own ring
+ * are all a round window with the scene or the stone showing through the
+ * corners -- so the box is enough to say where the map begins on any row, and
+ * an orb does not have to know which housing it is beside.
+ *
+ * Answers the box's RIGHT edge when the span misses the disc entirely, which
+ * is the honest "nothing here to keep clear of".
+ *
+ * A lane whose map is genuinely a square would need its box and not its disc;
+ * none in this tree is, and the clamp below only ever moves an orb further
+ * OUT, so the worst such a lane gets is the placement it already had.
+ */
+static int
+orbs_map_ink_left(
+    struct ToriRS_Rect const* map,
+    int top,
+    int bottom)
+{
+    /* Doubled coordinates: the centre of a box with an even side falls
+     * between two columns, and a half-pixel error here is a visible one. */
+    long const cx = 2 * (long)map->x + map->width;
+    long const cy = 2 * (long)map->y + map->height;
+    long const r = map->width < map->height ? map->width : map->height;
+    int left = map->x + map->width;
+
+    assert(map);
+    for( int y = top; y < bottom; y++ )
+    {
+        long const dy = 2 * (long)y + 1 - cy;
+
+        if( dy * dy >= r * r )
+            continue;
+        for( int x = map->x; x < left; x++ )
+        {
+            long const dx = 2 * (long)x + 1 - cx;
+            if( dx * dx + dy * dy < r * r )
+            {
+                left = x;
+                break;
+            }
+        }
+    }
+    return left;
+}
+
 static void
 orbs_bounds(
     struct ToriRS_ApiV2* api,
@@ -751,6 +801,8 @@ orbs_bounds(
     int orb,
     struct ToriRS_Rect* out)
 {
+    int limit;
+
     assert(map);
     assert(out);
     out->x = map->x + orbs_cfg_int(api, "offset_x") - ORB_W + ORB_SLOT[orb].dx;
@@ -758,6 +810,27 @@ orbs_bounds(
              ORB_SLOT[0].dy + ORB_SLOT[orb].dy;
     out->width = ORB_W;
     out->height = ORB_H;
+
+    /*
+     * And then out of the map.
+     *
+     * The offsets above are interface 160's, measured against the OldSchool
+     * housings' window; the 2004 housing's window is a pixel wider and its
+     * disc reaches further left at every row, so the same numbers put the
+     * plates on the map's rim -- the disc's left edge and the housing's stone
+     * ring both disappear behind the hitpoints and prayer orbs, and the lower
+     * two step into map pixels outright.
+     *
+     * The per-housing offset that fixes it is not a constant anyone can write
+     * down once: it is the distance from this orb's own rows to the disc that
+     * THIS frame drew, which is what `orbs_map_ink_left` answers. Clamping
+     * rather than positioning keeps the reference's own curve wherever it
+     * already clears the map -- an orb is only ever pushed left, and only as
+     * far as it takes to stop covering the thing it is reporting on.
+     */
+    limit = orbs_map_ink_left(map, out->y, out->y + out->height);
+    if( out->x + out->width > limit )
+        out->x = limit - out->width;
 }
 
 static char const*

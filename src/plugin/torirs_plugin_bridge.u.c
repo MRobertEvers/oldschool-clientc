@@ -3815,6 +3815,74 @@ app_plugin_slot_node_rect(
 }
 
 /*
+ * A role that is only ever its MEMBERS: the box they all fit in.
+ *
+ * The chat filter buttons are four separate nodes on a 2004 frame -- four
+ * `type=chat_button` builtins, or four profile-named mounts on a cache one --
+ * and nothing in either tree stands for "the strip they sit on". The host's
+ * canonical UI vocabulary nevertheless makes `frame.chat.buttons` the PARENT
+ * of `frame.chat.button.*` (plugin_ui_base_parent), and a CLIP_PARENT child is
+ * clipped to its parent's bounds. Answering the FIRST member's box therefore
+ * declared a parent that excludes three of its own four children: a plugin
+ * frame's four chat plates were drawn, clipped to one 100x25 button, and only
+ * the one whose box happened to be the answer survived.
+ *
+ * The union is the only rectangle that contains the children the host says are
+ * inside it, and on this role it is also the right picture: the four buttons
+ * are a row along one bar, so their union IS the strip.
+ *
+ * Asked for CHAT_BUTTONS alone. ORBS has a block node of its own -- the pack's
+ * container, which frame_node_is_own_member exists to keep distinct from the
+ * buttons inside it -- so its whole-role box is a real node's. SIDEBAR's
+ * members are fourteen mounts scattered around a frame with the panel between
+ * them, and the rectangle spanning a top row and a bottom row is not what
+ * "the sidebar" means.
+ */
+static int
+app_plugin_slot_member_union_rect(
+    struct App* app, int slot, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    int left = 0;
+    int top = 0;
+    int right = 0;
+    int bottom = 0;
+    int found = 0;
+
+    assert(app);
+    assert(app->tree);
+    for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
+    {
+        int32_t const node = UITree_FrameSlotMemberNode(app->tree, slot, member);
+        int x, y, w, h;
+
+        if( node < 0 )
+            continue;
+        if( !app_plugin_node_rect(app, node, &x, &y, &w, &h) )
+            continue;
+        if( !found || x < left )
+            left = x;
+        if( !found || y < top )
+            top = y;
+        if( !found || x + w > right )
+            right = x + w;
+        if( !found || y + h > bottom )
+            bottom = y + h;
+        found = 1;
+    }
+    if( !found )
+        return 0;
+    if( out_x )
+        *out_x = left;
+    if( out_y )
+        *out_y = top;
+    if( out_w )
+        *out_w = right - left;
+    if( out_h )
+        *out_h = bottom - top;
+    return 1;
+}
+
+/*
  * The size the LANE gave a surface, before this frame moved it.
  * @see slot_native_size.
  *
@@ -3887,6 +3955,12 @@ app_plugin_slot_rect(
     }
     if( slot == TORIRS_HOST_SURFACE_MINIMAP &&
         app_plugin_minimap_rect(user, out_x, out_y, out_w, out_h) )
+        return 1;
+
+    /* The chat filter buttons have no block node in either kind of gameframe,
+     * so the role IS its members. @see app_plugin_slot_member_union_rect. */
+    if( slot == TORIRS_HOST_SURFACE_CHAT_BUTTONS && app->tree &&
+        app_plugin_slot_member_union_rect(app, slot, out_x, out_y, out_w, out_h) )
         return 1;
 
     /* Before the first emitted minimap descriptor (and briefly after a frame
@@ -4386,7 +4460,8 @@ app_plugin_frame_slot_tag(int slot)
 static int
 app_plugin_frame_slot_has_members(int slot)
 {
-    return slot == UITREE_FRAME_SLOT_SIDEBAR || slot == UITREE_FRAME_SLOT_CHAT_BUTTONS;
+    return slot == UITREE_FRAME_SLOT_SIDEBAR || slot == UITREE_FRAME_SLOT_CHAT_BUTTONS ||
+           slot == UITREE_FRAME_SLOT_ORBS;
 }
 
 /* One name resolved and stamped, or nothing. */

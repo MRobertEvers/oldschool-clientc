@@ -2796,10 +2796,52 @@ frame_loop_step(void)
         {
             int const fw = UITREE_LAYOUT_ROOT_W;
             int const fh = UITREE_LAYOUT_ROOT_H;
-            PlatformWindow_SetWindowSize(platform, fw, fh);
+            /*
+             * Clear the follow gate FIRST, then snap the window.
+             *
+             * Both calls end in the same SDL_SetWindowSize(fw + pane, fh), so
+             * the order looks free -- but leaving resizable is where the
+             * platform records the window size to hand back on the way in
+             * again (PlatformWindow_SetCanvasFollowsWindow's `resizable_w`),
+             * and it records what SDL reports at that moment. Snapping first
+             * meant it read the already-snapped 765x503, remembered nothing,
+             * and a later return to resizable restored the fixed frame's size
+             * instead of the window the user had. Visible the moment a lane
+             * pins fixed before a resizable plugin frame commits: the Modern
+             * Resizable layout came up in a 765x503 window on a 1200x800
+             * desktop.
+             */
             PlatformWindow_SetCanvasFollowsWindow(platform, &bus, false, fw, fh);
+            PlatformWindow_SetWindowSize(platform, fw, fh);
             if( getenv("TORIRS_RESIZE_DEBUG") )
                 TORIRS_LOG("fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
+        }
+        /*
+         * Resizable mode: the SAME strip, carved from a canvas nobody grew.
+         *
+         * Both resizable toplevels dock interface 728's rail inside the canvas
+         * and lay themselves out beside it, so a window at the 765x503 minimum
+         * gave the frame 723 columns -- below the floor the whole frame is
+         * authored to, and the chatbox ran under the sidebar. The floor is the
+         * frame's, so the canvas has to carry the strip on top of it; when the
+         * window is too narrow for that, ask the window for it, exactly as the
+         * fixed branch does. A window that refuses (maximised, or no room on
+         * the display) letterboxes the floor-sized canvas instead -- the same
+         * trade sdl_chrome_growth_decide makes for the plugin pane.
+         *
+         * The canvas is the DRAWABLE in this mode, so the window is asked in
+         * points: on a 2x display the two differ by the density, and asking for
+         * pixels there would double a window that only needed 42 more columns.
+         */
+        else if( App_SyncResizableCanvasFloor(&app) )
+        {
+            int const density = PlatformWindow_PixelDensity(platform);
+            int const fw = UITREE_LAYOUT_ROOT_W;
+            int const fh = UITREE_LAYOUT_ROOT_H;
+            assert(density >= 1);
+            PlatformWindow_SetWindowSize(platform, fw / density, fh / density);
+            if( getenv("TORIRS_RESIZE_DEBUG") )
+                TORIRS_LOG("resizable-chrome: canvas %dx%d (strip floor)\n", fw, fh);
         }
 
     /*

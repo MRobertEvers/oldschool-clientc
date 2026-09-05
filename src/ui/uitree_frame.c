@@ -200,6 +200,23 @@ frame_node_is_slot(
     }
 }
 
+/*
+ * Is this node a member button INSIDE the orb block, as opposed to the block?
+ *
+ * The binder tags both with the slot, and the block is what "the orbs" means
+ * to every whole-role query (its native size, its box, is it there): a member
+ * answers only UITree_FrameSlotMemberNode. Only the orb pack has members of
+ * this kind -- a sidebar mount or a chat button IS the role at its number.
+ */
+static int
+frame_node_is_own_member(
+    struct UITreeComponent const* c,
+    int slot)
+{
+    assert(c);
+    return slot == UITREE_FRAME_SLOT_ORBS && UITree_FrameSlotIndex(c, slot) >= 0;
+}
+
 int
 UITree_FrameSlotNativeSize(
     struct UITree const* tree,
@@ -249,6 +266,10 @@ UITree_FrameSlotIndex(
         /* A cache gameframe's `sideN`, numbered by the binder. Its side-modal
          * region -- the one node a 2004 frame tags -- carries no number and
          * answers -1 here on both kinds of frame. */
+        return (int)node->frame_member_plus1 - 1;
+    case UITREE_FRAME_SLOT_ORBS:
+        /* A button inside the orb pack the binder named on its own (the
+         * activity adviser); the block itself carries no number. */
         return (int)node->frame_member_plus1 - 1;
     default:
         /* One surface, nothing to number. */
@@ -317,7 +338,7 @@ UITree_FrameSlotNode(
     if( *cached >= 0 )
     {
         struct UITreeComponent const* c = &tree->components[*cached];
-        if( !c->freed && frame_node_is_slot(c, slot) )
+        if( !c->freed && frame_node_is_slot(c, slot) && !frame_node_is_own_member(c, slot) )
             return *cached;
         *cached = -2;
     }
@@ -336,7 +357,7 @@ UITree_FrameSlotNode(
         struct UITreeComponent const* c = &tree->components[i];
         if( c->freed )
             continue;
-        if( frame_node_is_slot(c, slot) )
+        if( frame_node_is_slot(c, slot) && !frame_node_is_own_member(c, slot) )
             return *cached = (int32_t)i;
     }
     return -1;
@@ -399,11 +420,29 @@ UITree_FrameSlotMemberNode(
  * The slot nodes are excluded by the caller rather than here: a viewport is
  * not chrome under either rule, but a chat REGION on a dat1 frame is a tagged
  * layer that would otherwise pass the first rule's sprite test.
+ *
+ * `parent_is_frame_owned` is what makes the second rule true of a node a
+ * CLIENTSCRIPT created. A cc_create child is given the component id of the
+ * container it was created in (UITree_AllocateDynamicComponentId takes the
+ * parent's iface), so it always answers "toplevel group" -- the group test
+ * stops asking "did the toplevel's .if author this" and starts asking "was
+ * this drawn inside one of the toplevel's containers", which is a different
+ * question with a different answer. The caller supplies the missing half:
+ * whether the container it was drawn into is one the declaration TOOK OVER
+ * (a placed slot or an ancestor of one). Drawn there, a script-made widget is
+ * the surround of a region the layout now draws itself -- the CS2 nine-slice
+ * the toplevel script paints around `side_container` for the panel the frame
+ * has just placed. Drawn anywhere else it is content the script is showing
+ * the player: the mouse-over tooltip's box and plate under `mouseover`, a
+ * marker on the minimap. Hiding those is hiding content, and it left the
+ * rev-239 cursor tooltip as bare unreadable text over the world -- its three
+ * TEXT children are not of a hideable type, so only its backing vanished.
  */
 static int
 frame_is_lane_chrome(
     struct UITreeComponent const* c,
-    int root_group)
+    int root_group,
+    int parent_is_frame_owned)
 {
     assert(c);
     switch( c->type )
@@ -459,6 +498,8 @@ frame_is_lane_chrome(
         return 0;
     }
     if( root_group < 0 || c->component_id < 0 )
+        return 0;
+    if( c->dynamic && !parent_is_frame_owned )
         return 0;
     return ((c->component_id >> 16) & 0xffff) == root_group;
 }
@@ -520,13 +561,23 @@ frame_collect_slots(
  */
 static struct UITreeFrameRect const*
 frame_rect_for(
-    struct UITreeFrameSlotRect const* slot,
+    int slot,
+    struct UITreeFrameSlotRect const* rects,
     int member)
 {
-    assert(slot);
-    if( member >= 0 && member < UITREE_FRAME_SLOT_NODES_MAX && slot->at[member].placed )
-        return &slot->at[member];
-    return slot->all.placed ? &slot->all : NULL;
+    assert(rects);
+    if( member >= 0 && member < UITREE_FRAME_SLOT_NODES_MAX && rects->at[member].placed )
+        return &rects->at[member];
+    /*
+     * A member of the orb block is a button INSIDE the block, and the block's
+     * box is no place for it: unmentioned means hidden, not stretched across
+     * the whole pack. A sidebar mount or a chat button, by contrast, IS the
+     * role at that number, and the whole-role box is exactly what "the
+     * sidebar" said about it.
+     */
+    if( slot == UITREE_FRAME_SLOT_ORBS && member >= 0 )
+        return NULL;
+    return rects->all.placed ? &rects->all : NULL;
 }
 
 /* Record one suppression in a declaration being built. Applying the flag is a
@@ -576,7 +627,7 @@ frame_stretch_node(
 }
 
 /*
- * Widen every layer a placed surface hangs under.
+ * Release every layer a placed surface hangs under from its own containment.
  *
  * The lane's shell is authored for the canvas the lane's own frame was drawn
  * at -- on a 2004 dat1 frame that is one `rs_layer` at 765x503 with the world,
@@ -590,10 +641,24 @@ frame_stretch_node(
  * Every ancestor and not just the root: a cache gameframe mounts its surfaces
  * inside interface group roots, and any one of them clips just as hard.
  *
- * Sized to the CANVAS rather than to the declaration's own union, because the
- * boxes a declaration states are canvas coordinates, so "does not clip the
- * canvas" is the only condition that makes every one of them land where it
- * was asked for.
+ * RELEASED FROM CLIPPING, and nothing else (UITreeComponent.frame_stretched).
+ * The release was once a WIDENING of the box to the canvas, which never
+ * covered the whole problem -- a layer's box has an origin too, and the 548
+ * toplevel's `mapcontainer` at 516,4 cut a compass placed at 504 however wide
+ * it had been made -- so the flag was added beside it. With the flag reading
+ * "this layer clips nothing", the widening had no clipping left to do and only
+ * one remaining effect, which was a bug: a layer's box is the SPACE ITS
+ * CHILDREN ARE LAID OUT IN, and the children a declaration did not place are
+ * the lane's own HUD. Widening 548's `main` -- the 512x334 viewport container
+ * -- to the canvas right-aligned the XP-total plate inside it to the window
+ * instead of to the viewport, so it landed on the map housing and was cut off
+ * at the plugin rail. The box therefore stays exactly native: the lane's HUD
+ * keeps the geometry the lane authored for it, and the surfaces the plugin
+ * placed are in canvas coordinates and never consult it.
+ *
+ * A layer released from clipping cannot CULL either -- see
+ * UITree_LayerCullsChildren. That is what a script shrinking an ancestor to
+ * nothing used to need the canvas-sized floor for.
  */
 
 static int
@@ -605,7 +670,7 @@ frame_is_placed_node(
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
         for( int n = 0; n < fl->slot_node_count[s]; n++ )
             if( fl->slot_node[s][n] == idx &&
-                frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]) )
+                frame_rect_for(s, &fl->slot_rect[s], fl->slot_member[s][n]) )
                 return 1;
     return 0;
 }
@@ -622,19 +687,38 @@ frame_stretch_ancestors(
         for( int n = 0; n < fl->slot_node_count[s]; n++ )
         {
             int32_t const idx = fl->slot_node[s][n];
+            int inside_placed = 0;
             if( !frame_node_alive(tree, idx) ||
-                !frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]) )
+                !frame_rect_for(s, &fl->slot_rect[s], fl->slot_member[s][n]) )
+                continue;
+            /*
+             * A placed node INSIDE another placed surface -- the activity
+             * adviser, a member of the orb block -- releases nothing. The
+             * chain above that surface was released by its own walk, and
+             * the chain between is that surface's content, which is laid
+             * out AND clipped in that surface's space: the orb pack's root
+             * sits between the block and the adviser, and letting it clip
+             * nothing spills the pack's own children out of the block.
+             */
+            for( int32_t p = tree->components[idx].parent; p >= 0 && !inside_placed;
+                 p = tree->components[p].parent )
+            {
+                if( !frame_node_alive(tree, p) )
+                    break;
+                inside_placed = frame_is_placed_node(fl, p);
+            }
+            if( inside_placed )
                 continue;
             for( int32_t p = tree->components[idx].parent; p >= 0;
                  p = tree->components[p].parent )
             {
                 if( !frame_node_alive(tree, p) )
                     break;
-                /* A layer that is ITSELF a placed surface keeps the box the
-                 * declaration gave it -- the chat region is a role and a
-                 * container at once, and widening it to the canvas would put
-                 * the chat log across the whole window rather than at the
-                 * declaration's effective box. */
+                /* A layer that is ITSELF a placed surface keeps its own
+                 * containment: it has the box the declaration gave it, and
+                 * its content belongs inside that box. The chat region is a
+                 * role and a container at once, and releasing it would spill
+                 * the chat log out of the rectangle the frame put it in. */
                 if( frame_is_placed_node(fl, p) )
                     continue;
                 frame_stretch_node(tree, fl, p);
@@ -683,7 +767,11 @@ frame_collect_chrome(
 
         if( c->freed || keep[i] )
             continue;
-        if( !frame_is_lane_chrome(c, root_group) )
+        /* `keep` is exactly "the frame took this node over", so it answers
+         * frame_is_lane_chrome's question about a script-created child as
+         * well as excluding the slot nodes themselves. */
+        if( !frame_is_lane_chrome(
+                c, root_group, c->parent >= 0 && keep[c->parent] != 0) )
             continue;
         frame_record_hidden(tree, fl, (int32_t)i);
     }
@@ -699,6 +787,19 @@ frame_hidden_has(
     assert(fl);
     for( int i = 0; i < fl->hidden_count; i++ )
         if( fl->hidden[i] == idx && fl->hidden_incarnation[i] == incarnation )
+            return 1;
+    return 0;
+}
+
+static int
+frame_stretched_has(
+    struct UITreeFrameLayout const* fl,
+    int32_t idx,
+    uint32_t incarnation)
+{
+    assert(fl);
+    for( int i = 0; i < fl->stretched_count; i++ )
+        if( fl->stretched[i] == idx && fl->stretched_incarnation[i] == incarnation )
             return 1;
     return 0;
 }
@@ -753,7 +854,7 @@ UITree_FrameApply(
         {
             int32_t const idx = next.slot_node[s][n];
             struct UITreeFrameRect const* rect =
-                frame_rect_for(&next.slot_rect[s], next.slot_member[s][n]);
+                frame_rect_for(s, &next.slot_rect[s], next.slot_member[s][n]);
 
             if( !rect )
             {
@@ -809,6 +910,29 @@ UITree_FrameApply(
         if( !tree->components[idx].frame_hidden )
             (void)UITree_SetFrameHiddenAt(tree, idx, 1);
     }
+    /* Containment release is the other flag on the component itself, diffed
+     * the same way: a layer stops clipping while a placed surface hangs under
+     * it, and takes its own box back the moment none does. */
+    for( int i = 0; i < fl->stretched_count; i++ )
+    {
+        int32_t const idx = fl->stretched[i];
+        uint32_t const incarnation = fl->stretched_incarnation[i];
+        if( !frame_node_same(tree, idx, incarnation) ||
+            frame_stretched_has(&next, idx, incarnation) )
+            continue;
+        if( tree->components[idx].frame_stretched )
+            (void)UITree_SetFrameStretchedAt(tree, idx, 0);
+    }
+    for( int i = 0; i < next.stretched_count; i++ )
+    {
+        int32_t const idx = next.stretched[i];
+        uint32_t const incarnation = next.stretched_incarnation[i];
+        if( !frame_node_same(tree, idx, incarnation) ||
+            frame_stretched_has(fl, idx, incarnation) )
+            continue;
+        if( !tree->components[idx].frame_stretched )
+            (void)UITree_SetFrameStretchedAt(tree, idx, 1);
+    }
 
     /* Geometry and skin are sparse effective layers. Mark both the outgoing
      * and incoming bindings once, then atomically replace the table. */
@@ -855,6 +979,14 @@ UITree_FrameRelease(struct UITree* tree)
         if( tree->components[idx].frame_hidden )
             (void)UITree_SetFrameHiddenAt(tree, idx, 0);
     }
+    for( int i = 0; i < fl->stretched_count; i++ )
+    {
+        int32_t const idx = fl->stretched[i];
+        if( !frame_node_same(tree, idx, fl->stretched_incarnation[i]) )
+            continue;
+        if( tree->components[idx].frame_stretched )
+            (void)UITree_SetFrameStretchedAt(tree, idx, 0);
+    }
 
     frame_mark_bound_nodes(tree, fl);
     memset(fl, 0, sizeof(*fl));
@@ -886,7 +1018,7 @@ UITree_FramePositionOverride(
             if( fl->slot_node[s][n] != node ||
                 !frame_node_same(tree, node, fl->slot_incarnation[s][n]) )
                 continue;
-            rect = frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]);
+            rect = frame_rect_for(s, &fl->slot_rect[s], fl->slot_member[s][n]);
             if( !rect )
                 return 0;
             *out = tree->components[node].position;
@@ -905,24 +1037,10 @@ UITree_FramePositionOverride(
         }
     }
 
-    /* Ancestors retain native position and only gain enough effective extent
-     * to contain the canvas. A script changing their native state therefore
-     * remains meaningful and appears immediately on release. */
-    for( int i = 0; i < fl->stretched_count; i++ )
-    {
-        if( fl->stretched[i] != node ||
-            !frame_node_same(tree, node, fl->stretched_incarnation[i]) )
-            continue;
-        *out = tree->components[node].position;
-        out->layout_resolved = 0;
-        if( out->width < UITREE_LAYOUT_ROOT_W )
-            out->width = UITREE_LAYOUT_ROOT_W;
-        if( out->height < UITREE_LAYOUT_ROOT_H )
-            out->height = UITREE_LAYOUT_ROOT_H;
-        out->width_mode = -1;
-        out->height_mode = -1;
-        return 1;
-    }
+    /* An ancestor of a placed surface is NOT overridden: its release from
+     * clipping is the frame_stretched flag, and its box remains the lane's
+     * own, because that box is the space every child the declaration did not
+     * place is laid out in. @see frame_stretch_ancestors. */
     return 0;
 }
 
@@ -941,7 +1059,7 @@ UITree_FramePositionOwned(
         for( int n = 0; n < fl->slot_node_count[s]; n++ )
             if( fl->slot_node[s][n] == node &&
                 frame_node_same(tree, node, fl->slot_incarnation[s][n]) &&
-                frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]) )
+                frame_rect_for(s, &fl->slot_rect[s], fl->slot_member[s][n]) )
                 return 1;
     return 0;
 }
@@ -1005,7 +1123,7 @@ UITree_FrameOverlayOverride(
          * binding is the stable primary used by UITree_FrameSlotNode too. */
         if( fl->slot_node[s][0] != node ||
             !frame_node_same(tree, node, fl->slot_incarnation[s][0]) ||
-            !frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][0]) )
+            !frame_rect_for(s, &fl->slot_rect[s], fl->slot_member[s][0]) )
             continue;
         *out = fl->slot_rect[s].overlay;
         return 1;

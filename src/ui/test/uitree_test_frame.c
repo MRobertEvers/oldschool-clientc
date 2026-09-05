@@ -1110,8 +1110,20 @@ test_frame_visibility_invalidates_retention_and_hover(void)
     UITree_Free(tree);
 }
 
+/*
+ * A frame ancestor keeps the lane's own box, before and after a CS2 resize.
+ *
+ * It used to be widened to the canvas, which is where the 548 XP-total plate's
+ * mis-anchoring came from: the plate is a right-aligned grandchild of `main`,
+ * the 512x334 viewport container, so a `main` widened to the window put it on
+ * the map housing and under the plugin rail. The release from clipping is the
+ * frame_stretched flag alone (test_placed_world_paints_first_and_stretched_
+ * ancestor_clips_nothing), so the box no longer has to carry it -- and a box
+ * is the space a layer's OTHER children are laid out in, which is the lane's
+ * HUD and not the plugin's business.
+ */
 static void
-test_large_ancestor_remains_effectively_stretched_after_shrink(void)
+test_ancestor_keeps_its_native_box_across_a_shrink(void)
 {
     struct UITree* tree = UITree_New(8);
     struct FrameNodes frame;
@@ -1154,13 +1166,11 @@ test_large_ancestor_remains_effectively_stretched_after_shrink(void)
         "the shrunken ancestor remains native beneath the frame");
     TEST_ASSERT(
         effective_box_is(
-            tree,
-            shell,
-            native_x,
-            native_y,
-            UITREE_LAYOUT_ROOT_W,
-            UITREE_LAYOUT_ROOT_H),
-        "the active frame keeps a later-shrunken ancestor canvas-sized");
+            tree, shell, native_x, native_y, native_small_w, native_small_h),
+        "the shrunken ancestor's effective box is the lane's, not the canvas");
+    TEST_ASSERT(
+        tree->components[shell].frame_stretched,
+        "and it carries the containment release that lets the frame out of it");
     TEST_ASSERT(
         effective_box_is(
             tree, frame.compass,
@@ -1473,6 +1483,7 @@ static int g_binder_calls;
 static int32_t g_binder_chat;
 static int32_t g_binder_side3;
 static int32_t g_binder_orbs;
+static int32_t g_binder_adviser;
 
 static void
 stamping_binder(struct UITree* tree, void* user)
@@ -1483,6 +1494,10 @@ stamping_binder(struct UITree* tree, void* user)
     tree->components[g_binder_side3].slot_tag = UITREE_SLOT_SIDE_MODAL;
     tree->components[g_binder_side3].frame_member_plus1 = 3 + 1;
     tree->components[g_binder_orbs].slot_tag = UITREE_SLOT_ORBS;
+    /* A button INSIDE the orb block the profile names on its own, as the
+     * activity adviser is: orbs member 0. */
+    tree->components[g_binder_adviser].slot_tag = UITREE_SLOT_ORBS;
+    tree->components[g_binder_adviser].frame_member_plus1 = 0 + 1;
 }
 
 static void
@@ -1494,9 +1509,14 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     int32_t chat;
     int32_t side3;
     int32_t orbs;
+    int32_t pack;
+    int32_t adviser;
     int32_t container;
     int32_t blocker;
     int32_t control;
+    int32_t tip_host;
+    int32_t tip_plate;
+    int32_t panel_border;
     struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
 
     shell = UITree_TestPushXy(
@@ -1514,6 +1534,12 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
         tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 22, 547, 205, 190, 261);
     orbs = UITree_TestPushXy(
         tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 23, 516, 4, 236, 163);
+    /* The pack mounted in the block (another group), and the adviser button
+     * inside it at the toplevel's own spot for it. */
+    pack = UITree_TestPushXy(
+        tree, orbs, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 0, 0, 0, 236, 163);
+    adviser = UITree_TestPushXy(
+        tree, pack, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 48, 202, 50, 34, 34);
     /* A click-blocker and a control, both root-group layers: chrome. */
     {
         struct UITreeNodeSpec spec;
@@ -1536,9 +1562,26 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
         strncpy(spec.menu_options.ops[0], "Toggle", sizeof(spec.menu_options.ops[0]) - 1);
         control = UITree_Push(tree, root, &spec);
     }
+    /* A bare root-group layer the toplevel keeps for its clientscripts to draw
+     * into -- rev-239's `mouseover`, which holds nothing until the cursor
+     * tooltip is built in it. Neither a control nor an ancestor of anything
+     * placed, so the declaration does not take it over. */
+    tip_host = UITree_TestPushXy(
+        tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 26, 0, 0, UITREE_LAYOUT_ROOT_W,
+        UITREE_LAYOUT_ROOT_H);
+    /* The two script-drawn rectangles this test is about. Both are cc_create
+     * children, so both carry a component id in the TOPLEVEL's group whatever
+     * they are pictures of -- the group alone cannot tell them apart. */
+    tip_plate = UITree_CcCreate(tree, tip_host, (FRAME_GROUP << 16) | 26, 3, 0);
+    panel_border = UITree_CcCreate(tree, container, (FRAME_GROUP << 16) | 20, 3, 0);
     TEST_ASSERT(
-        chat >= 0 && side3 >= 0 && orbs >= 0 && blocker >= 0 && control >= 0,
+        chat >= 0 && side3 >= 0 && orbs >= 0 && pack >= 0 && adviser >= 0 && blocker >= 0 &&
+            control >= 0 && tip_host >= 0 && tip_plate >= 0 && panel_border >= 0,
         "cache frame fixture with layers builds");
+    TEST_ASSERT(
+        (tree->components[tip_plate].component_id >> 16) == FRAME_GROUP &&
+            (tree->components[panel_border].component_id >> 16) == FRAME_GROUP,
+        "a cc_create child is given the group of the container it was made in");
 
     TEST_ASSERT(
         UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_CHAT) < 0,
@@ -1548,6 +1591,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     g_binder_chat = chat;
     g_binder_side3 = side3;
     g_binder_orbs = orbs;
+    g_binder_adviser = adviser;
     UITree_FrameSetBinder(tree, stamping_binder, NULL);
 
     memset(slots, 0, sizeof(slots));
@@ -1582,6 +1626,9 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
         UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_ORBS) == orbs,
         "the stamped orb block is the orbs slot");
     TEST_ASSERT(
+        UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_ORBS, 0) == adviser,
+        "and the stamped button inside it is orbs member 0");
+    TEST_ASSERT(
         UITree_FrameSlotIndex(&tree->components[side3], UITREE_FRAME_SLOT_SIDEBAR) == 3,
         "the member number is read off the stamp");
 
@@ -1599,10 +1646,165 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
         !tree->components[container].frame_hidden,
         "a plain container layer above a placed surface is not");
     TEST_ASSERT(!tree->components[chat].frame_hidden, "a placed surface is never chrome");
+    TEST_ASSERT(
+        !tree->components[tip_host].frame_hidden,
+        "a bare root-group layer a clientscript draws into is not chrome");
+    /* The whole of the cc rule: same type, same group, opposite answers,
+     * decided by whether the frame took the container over. The tooltip's
+     * plate is the picture that went missing under a plugin frame while its
+     * TEXT children -- not a hideable type -- stayed on screen. */
+    TEST_ASSERT(
+        !tree->components[tip_plate].frame_hidden,
+        "a script-drawn rectangle in a container the frame did not take over is content");
+    TEST_ASSERT(
+        tree->components[panel_border].frame_hidden,
+        "and one drawn inside a container the frame took over is its surround");
     TEST_ASSERT(!tree->components[orbs].frame_hidden, "nor is the placed orb block");
+    /* A member of the orb block the declaration did not mention is HIDDEN --
+     * a button inside the pack, not a mount the block's box applies to -- and
+     * the pack around it keeps the block's box. */
+    TEST_ASSERT(
+        tree->components[adviser].frame_hidden,
+        "an orbs member the declaration did not place is hidden");
+    TEST_ASSERT(
+        !tree->components[pack].frame_hidden && effective_box_is(tree, orbs, 700, 10, 207, 197),
+        "and the block itself is placed whole around it");
+
+    /* Placing the member seats it at ITS box, in canvas coordinates. */
+    slots[UITREE_FRAME_SLOT_ORBS].at[0].placed = 1;
+    slots[UITREE_FRAME_SLOT_ORBS].at[0].x = 785;
+    slots[UITREE_FRAME_SLOT_ORBS].at[0].y = 153;
+    slots[UITREE_FRAME_SLOT_ORBS].at[0].w = 34;
+    slots[UITREE_FRAME_SLOT_ORBS].at[0].h = 34;
+    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(
+        !tree->components[adviser].frame_hidden,
+        "a placed orbs member is shown again");
+    TEST_ASSERT(
+        effective_box_is(tree, adviser, 785, 153, 34, 34),
+        "at the member box the declaration gave it");
+    /* The pack root between the placed member and the placed block is the
+     * block's content: it keeps the block's box, so the pack's right- and
+     * bottom-anchored children (the globe, the wiki banner) stay beside the
+     * map instead of following a canvas-wide layer to the corner. */
+    TEST_ASSERT(
+        !tree->components[pack].frame_stretched && effective_box_is(tree, pack, 700, 10, 236, 163),
+        "the pack root under a placed block is not widened for a member inside it");
+    TEST_ASSERT(
+        UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_ORBS) == orbs,
+        "and the whole-role answer is still the block, not the member");
 
     UITree_FrameRelease(tree);
     TEST_ASSERT(!tree->components[blocker].frame_hidden, "release gives the blocker back");
+    UITree_Free(tree);
+}
+
+/*
+ * The Fixed (548) toplevel's shape: the minimap group -- and the compass in
+ * it -- is emitted BEFORE the group holding the viewport, from a container
+ * whose own origin is 516,4. A plugin frame that places the viewport across
+ * the canvas and the compass at 504 needs two things from the engine that
+ * the native order does not give: the world painted first, and the container
+ * clipping nothing.
+ */
+static void
+test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeEmitBuffer buf;
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+    struct UITreeEmitDesc const* world_desc;
+    struct UITreeEmitDesc const* compass_desc;
+    int32_t shell;
+    int32_t map_container;
+    int32_t main_container;
+    int32_t compass;
+    int32_t world;
+    int const container_x = 516;
+    int const container_y = 4;
+    int const placed_compass_x = 504;
+    int const placed_compass_y = 3;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    shell = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, FRAME_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    map_container = UITree_TestPushXy(
+        tree, shell, UIELEM_RS_LAYER, FRAME_CHROME_ID, container_x, container_y, 249, 163);
+    compass = push_compass(
+        tree, map_container, 30, 0, 32, 33, NATIVE_COMPASS_ART, NATIVE_COMPASS_MASK);
+    main_container = UITree_TestPushXy(
+        tree, shell, UIELEM_RS_LAYER, FRAME_CHAT_ID + 40, 4, 4, 512, 334);
+    world = UITree_TestPushXy(
+        tree, main_container, UIELEM_BUILTIN_WORLD, FRAME_WORLD_ID, 0, 0, 512, 334);
+    TEST_ASSERT(
+        shell >= 0 && map_container >= 0 && compass >= 0 && main_container >= 0 && world >= 0,
+        "548-shaped fixture builds");
+
+    UITree_EmitBufferInit(&buf);
+    emit_frame(tree, &buf);
+    world_desc = emit_find(&buf, world);
+    compass_desc = emit_find(&buf, compass);
+    TEST_ASSERT(world_desc && compass_desc, "native frame emits both surfaces");
+    TEST_ASSERT(
+        world_desc && compass_desc && compass_desc < world_desc,
+        "the native frame keeps the toplevel's own order: minimap group, then world");
+    TEST_ASSERT(
+        compass_desc && compass_desc->clip.x == container_x && compass_desc->clip.y == container_y,
+        "the native compass is clipped to its container");
+    TEST_ASSERT(!tree->components[map_container].frame_stretched, "no frame, no release");
+
+    memset(slots, 0, sizeof(slots));
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.w = UITREE_LAYOUT_ROOT_W;
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all.h = UITREE_LAYOUT_ROOT_H;
+    slots[UITREE_FRAME_SLOT_COMPASS].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_COMPASS].all.x = placed_compass_x;
+    slots[UITREE_FRAME_SLOT_COMPASS].all.y = placed_compass_y;
+    slots[UITREE_FRAME_SLOT_COMPASS].all.w = 33;
+    slots[UITREE_FRAME_SLOT_COMPASS].all.h = 33;
+    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    TEST_ASSERT(
+        tree->components[map_container].frame_stretched &&
+            tree->components[shell].frame_stretched &&
+            tree->components[main_container].frame_stretched,
+        "every ancestor of a placed surface is released from clipping");
+
+    emit_frame(tree, &buf);
+    world_desc = emit_find(&buf, world);
+    compass_desc = emit_find(&buf, compass);
+    TEST_ASSERT(world_desc && compass_desc, "plugin frame emits both surfaces");
+    TEST_ASSERT(
+        buf.count > 0 && buf.cmds[0].kind == UITREE_EMIT_WORLD,
+        "a plugin-placed world is the first thing painted");
+    TEST_ASSERT(
+        world_desc && compass_desc && world_desc < compass_desc,
+        "the relocated compass paints over the world");
+    TEST_ASSERT(
+        compass_desc && compass_desc->x == placed_compass_x &&
+            compass_desc->y == placed_compass_y,
+        "the compass emits at the plugin rectangle");
+    TEST_ASSERT(
+        compass_desc && compass_desc->clip.x <= placed_compass_x &&
+            compass_desc->clip.y <= placed_compass_y &&
+            compass_desc->clip.x + compass_desc->clip.w >= placed_compass_x + 33,
+        "the relocated compass is clipped to the canvas, not to its native container");
+
+    UITree_FrameRelease(tree);
+    TEST_ASSERT(
+        !tree->components[map_container].frame_stretched &&
+            !tree->components[shell].frame_stretched,
+        "release hands the containers their clip back");
+    emit_frame(tree, &buf);
+    world_desc = emit_find(&buf, world);
+    compass_desc = emit_find(&buf, compass);
+    TEST_ASSERT(
+        world_desc && compass_desc && compass_desc < world_desc &&
+            compass_desc->clip.x == container_x,
+        "release restores the toplevel's own order and clip");
+
+    UITree_EmitBufferFree(&buf);
     UITree_Free(tree);
 }
 
@@ -1619,8 +1821,9 @@ test_frame_replacement(void)
     test_transparent_entity_overlay_stays_absent_on_refresh();
     test_zero_mask_skin_explicitly_unmasks();
     test_frame_visibility_invalidates_retention_and_hover();
-    test_large_ancestor_remains_effectively_stretched_after_shrink();
+    test_ancestor_keeps_its_native_box_across_a_shrink();
     test_release_ignores_same_id_recycled_incarnations();
     test_frame_slot_overlay_follows_target_subtree();
     test_synthetic_press_sees_through_frame_hidden();
+    test_placed_world_paints_first_and_stretched_ancestor_clips_nothing();
 }

@@ -3547,6 +3547,50 @@ emit_hoist_entity_overlays(struct UITree const* tree, struct UITreeEmitBuffer* o
     }
 }
 
+/*
+ * A plugin-placed world is the BACKDROP: it paints first.
+ *
+ * The 3D pass opens where the WORLD desc sits in this list, and the scene
+ * overwrites everything emitted before it inside the viewport box. A cache
+ * toplevel orders its subtrees for ITS viewport: the Fixed (548) toplevel
+ * paints `mapcontainer` -- the minimap, the compass, the orb block with
+ * interface 160 in it -- and only then `main`, which holds the viewport,
+ * because the two boxes never overlapped. A plugin gameframe that placed the
+ * viewport across the whole canvas kept that order, and the live minimap,
+ * the compass and every claimed orb survived only where the scene left sky.
+ * The resizable toplevels (161/164) happen to put the viewport first, which
+ * is why the same frames looked right over them.
+ *
+ * So while a plugin declaration owns the viewport's box, the world desc is
+ * rotated to the head of the list and everything else keeps its tree order
+ * -- over the scene, which is the only place a surface a frame placed can
+ * mean to be. Native frames are untouched: their tree order is the
+ * reference's.
+ *
+ * Before the entity-overlay hoist and the plugin frame pass, both of which
+ * anchor themselves to wherever the world desc is.
+ */
+static void
+emit_hoist_plugin_world(struct UITree const* tree, struct UITreeEmitBuffer* out)
+{
+    struct UITreeEmitDesc moved;
+    int world = -1;
+
+    assert(tree);
+    assert(out);
+    if( tree->world_index < 0 || !UITree_FramePositionOwned(tree, tree->world_index) )
+        return;
+    /* The last one, as every other consumer of the WORLD desc takes it. */
+    for( int i = 0; i < out->count; i++ )
+        if( out->cmds[i].kind == UITREE_EMIT_WORLD )
+            world = i;
+    if( world <= 0 )
+        return;
+    moved = out->cmds[world];
+    memmove(&out->cmds[1], &out->cmds[0], (size_t)world * sizeof(*out->cmds));
+    out->cmds[0] = moved;
+}
+
 void
 UITree_EmitWalk(
     struct UITree const* tree,
@@ -3709,6 +3753,7 @@ UITree_EmitWalk(
         out->volatile_overlay_seen |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_ENTITY);
         out->volatile_overlay_template[UITREE_EMIT_OVERLAY_ENTITY] = *d;
     }
+    emit_hoist_plugin_world(tree, out);
     /* A layout plugin's gameframe: over the scene, under the interfaces.
      * Before the hoist, which is what puts the bars and hitsplats it moves
      * BEHIND the chrome rather than over it. */

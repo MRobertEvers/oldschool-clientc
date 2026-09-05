@@ -372,6 +372,7 @@ builder->surface(builder, TORIRS_SURFACE_COMPASS, compass_rect);
 builder->surface(builder, TORIRS_SURFACE_ORBS, orb_pack_rect);
 builder->surface(builder, TORIRS_SURFACE_CHAT, rect);
 builder->surface_member(builder, TORIRS_SURFACE_CHAT_BUTTONS, 3, rect);
+builder->surface_member(builder, TORIRS_SURFACE_ORBS, TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER, rect);
 builder->skin(builder, TORIRS_SURFACE_MINIMAP, skin);
 builder->surface_overlay(builder, TORIRS_SURFACE_COMPASS, &overlay);
 builder->ui_node(builder, "frame.minimap.housing", &node);

@@ -3367,6 +3367,28 @@ UITree_SetFrameHiddenAt(
 }
 
 bool
+UITree_SetFrameStretchedAt(
+    struct UITree* tree,
+    int32_t idx,
+    int stretched)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
+        return false;
+    stretched = stretched ? 1 : 0;
+    if( c->frame_stretched == (uint8_t)stretched )
+        return true;
+    c->frame_stretched = (uint8_t)stretched;
+    /* The clip of every descendant changes, which the retained emit list
+     * cannot patch in place: treat it as the reachability change it is. */
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
+    return true;
+}
+
+bool
 UITree_SetScreenHiddenAt(
     struct UITree* tree,
     int32_t idx,

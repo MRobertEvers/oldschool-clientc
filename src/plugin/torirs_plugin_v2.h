@@ -390,6 +390,30 @@ enum ToriRS_Surface
     TORIRS_SURFACE_COUNT,
 };
 
+/*
+ * Members of TORIRS_SURFACE_ORBS, for ToriRS_FrameBuilder::surface_member.
+ *
+ * The orb pack (OldSchool interface 160) is placed whole by the ORBS surface
+ * and lays its own children out inside that box: the four orbs, the XP
+ * toggle, the world-map globe and the wiki banner sit at the same offsets on
+ * every toplevel, so the block's rectangle is all a frame has to say about
+ * them. The activity adviser is the one child whose spot the lane picks by
+ * TOPLEVEL (`torirs_gridmaster_pos`: right-aligned beside the map on the
+ * fixed one, under the run orb on the resizable ones), and a frame of the
+ * other shape over that toplevel inherits the wrong spot -- inside the map
+ * circle, or on the tab stones below the housing. So it is a member a frame
+ * seats itself.
+ *
+ * Unlike a sidebar tab, a member of the orb block a declaration does not
+ * mention is HIDDEN, not moved with the block: it is a button inside the
+ * block, and the block's box is no place for it.
+ */
+enum ToriRS_OrbsMember
+{
+    TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER = 0,
+    TORIRS_ORBS_MEMBER_COUNT,
+};
+
 struct ToriRS_FrameSkin
 {
     uint32_t struct_size;
