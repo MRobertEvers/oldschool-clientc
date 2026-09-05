@@ -24,7 +24,7 @@ TOOLS_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO=${REPO:-$(cd "$(dirname "$0")/.." && pwd)}
 BIN=${BIN:-$REPO/src/torirs_gfmatrix}
 MANIFEST=${MANIFEST:-$REPO/manifests/manifest_osrs239_curses.ini}
-OUT=${1:-${TMPDIR:-/tmp}/gfmatrix.$$}
+OUT=${1:-${GF_MATRIX_OUT:-${TMPDIR:-/tmp}/gfmatrix.$$}}
 FRAMES_LIST=(auto gameframe-layout/classic-fixed gameframe-layout/modern-fixed \
              gameframe-layout/modern-resizable mobile-gameframe/stone-drawer)
 SIZES=(765x503 1200x800)

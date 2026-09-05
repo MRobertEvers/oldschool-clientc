@@ -908,6 +908,8 @@ struct FrameState
     struct FrameSized chat_stones;
     /** Plain rock covering the unused dat1 filter recesses on CS2 lanes. */
     struct FrameSized base_flat;
+    struct FrameSized chat_rail;
+    struct FrameSized chat_base;
     struct FrameRuntime frame;
 };
 
@@ -1582,6 +1584,44 @@ frame_chat_bar_art(
     int band_y,
     int band_h);
 
+/* Re-cut a surround piece for the pack's width, keeping its vertical rows. */
+static struct ToriRS_ImageRef
+frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
+                     int source, int width, int height, char const* name)
+{
+    int sw = 0, sh = 0;
+    size_t copied = 0;
+    uint32_t* input;
+    uint32_t* output;
+    struct ToriRS_ImageRef art = { 0 };
+    if( cache->art.value && cache->w == width && cache->h == height )
+        return cache->art;
+    if( !g_api->assets.image_size(g_api, g_image[source], &sw, &sh) ||
+        sw <= 0 || sh != height )
+        return art;
+    input = malloc((size_t)sw * sh * sizeof(*input));
+    output = malloc((size_t)width * height * sizeof(*output));
+    assert(input && output);
+    if( g_api->assets.image_pixels(g_api, g_image[source], input,
+                                   (size_t)sw * sh, &copied) && copied == (size_t)sw * sh )
+    {
+        for( int y = 0; y < height; y++ )
+            for( int x = 0; x < width; x++ )
+                output[y * width + x] = input[y * sw + x * sw / width];
+        (void)g_api->assets.image_compose(g_api, name, width, height, output, &art);
+    }
+    free(output);
+    free(input);
+    if( art.value )
+    {
+        if( cache->art.value ) g_api->assets.image_release(g_api, cache->art);
+        cache->art = art;
+        cache->w = width;
+        cache->h = height;
+    }
+    return art;
+}
+
 /* --------------------------------------------------------- classic fixed */
 
 /*
@@ -1682,8 +1722,19 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
      * classic parchment under it would show at two edges. */
     if( !oldschool )
         frame_blit(ctx, g_image[IMG_C_CHATBACK], 17, 357);
-    frame_blit(ctx, g_image[IMG_C_BACKVMID3], 496, 357);
-    frame_blit(ctx, g_image[IMG_C_BACKBASE1], 0, 453);
+    if( oldschool )
+    {
+        frame_blit(ctx, frame_surround_piece(ctx, &ctx->state->chat_rail,
+                   IMG_C_BACKVMID3, 17, 109, "classic_chat_rail_wide.png"), 536, 357);
+        frame_blit(ctx, frame_surround_piece(ctx, &ctx->state->chat_base,
+                   IMG_C_BACKBASE1, 536, 50, "classic_chat_base_wide.png"), 0, 453);
+    }
+    else
+    {
+        frame_blit(ctx, g_image[IMG_C_BACKVMID3], 496, 357);
+        frame_blit(ctx, g_image[IMG_C_BACKBASE1], 0, 453);
+    }
+    frame_blit(ctx, g_image[IMG_C_BACKBASE2], 496, 466);
     /* The CS2 pack carries every live filter above this strip. Leaving the
      * four dat1 recesses here makes a second, captionless row. Fill only
      * that band from the source rock; preserve the surrounding frame. */
@@ -1691,11 +1742,10 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         frame_blit(
             ctx,
             frame_chat_bar_art(
-                ctx, &g_base_flat, "classic_base_flat", 496,
+                ctx, &g_base_flat, "classic_base_flat", 536,
                 FRAME_CHAT_BUTTON_H, (struct ToriRS_ImageRef){ 0 }, NULL,
                 0, 0, FRAME_CHAT_BUTTON_H),
             0, 453 + FRAME_C_STRIP_BAND_Y);
-    frame_blit(ctx, g_image[IMG_C_BACKBASE2], 496, 466);
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
@@ -1757,31 +1807,13 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         FRAME_C_HOLE_COMPASS_W,
         FRAME_C_HOLE_COMPASS_H);
     frame_skin_classic_map(ctx);
-    /*
-     * The 2004 chat at the 2004 place. An OldSchool chat pack is 519x165 and
-     * the classic frame has a 496x96 hole; it goes in at the OldSchool
-     * fixed frame's own (0, 338), where its backing covers the classic
-     * parchment and its bar covers the classic strip -- a frame from one era
-     * around a chatbox from another, which is what asking for Classic Fixed
-     * on that lane means.
-     */
-    /*
-     * The chat at the 2004 PLACE, on either era's pack.
-     *
-     * The 2004 chatbox is 479x96 at (17,357); an OldSchool one is 519 wide and
-     * its width does not reflow -- 519 is authored absolute on chatbox.if's
-     * `controls` (1) and `chatarea` (34), and torirs_chatbox_layout computes
-     * the filter gap from that same literal. Its HEIGHT does reflow, so the
-     * pack is given the 2004 box's origin and height and keeps its own width:
-     * 357 + 73 backing + 23 bar = 453, which is exactly where `backbase1`
-     * starts. The bar, the eight filters and their green mode lines come with
-     * it, because a placed surface moves the node and the node moves its
-     * subtree. @see frame_place_chat.
-     *
-     * Measured before this: an OldSchool pack left at (0,338) is byte-identical
-     * to running with no frame at all -- the frame re-skinned the chat and
-     * never moved it, which is the half of "a 2004 gameframe" that was missing.
-     */
+    /* Keep the 2004 origin and height while accommodating the lane's pack.
+     * The surround above is re-cut for the desktop pack's 519 columns.
+     * Narrowing the content to 479 was prototyped with relative container
+     * widths and a measured-width filter calculation: the running client
+     * put All at x=-18, clipped against the left edge. The wider surround
+     * keeps all eight filters and their state lines inside a complete rail.
+     * 357 + 73 backing + 23 bar = 453, where the lower rock strip begins. */
     if( oldschool )
     {
         /*
@@ -3789,6 +3821,10 @@ frame_on_stop(struct ToriRS_ApiV2* api, void* state_ptr)
         api->assets.image_release(api, state->chat_band.art);
     if( state->chat_stones.art.value != 0 )
         api->assets.image_release(api, state->chat_stones.art);
+    if( state->chat_rail.art.value != 0 )
+        api->assets.image_release(api, state->chat_rail.art);
+    if( state->chat_base.art.value != 0 )
+        api->assets.image_release(api, state->chat_base.art);
     if( state->base_flat.art.value != 0 )
         api->assets.image_release(api, state->base_flat.art);
     memset(state, 0, sizeof(*state));

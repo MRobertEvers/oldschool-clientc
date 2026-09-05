@@ -55,6 +55,18 @@ def check(path, frame, root, bounds_path=None):
         print(f"PIXEL no_captionless_2004_hollows={'PASS' if valid else 'FAIL'} root={root}")
         if not valid:
             failures.append("no_captionless_2004_hollows")
+        if root != 601:
+            # Approved running-client crop. The pre-fix 519-wide parchment
+            # covered 40 columns of the old rail; its surviving right edge
+            # does not match this complete re-cut border.
+            fixture = Path(__file__).parent / "testdata/gameframe/classic-chat-rail.bmp"
+            rw, rh, expected = read_bmp(fixture)
+            valid = width >= 536 + rw and height >= 357 + rh
+            if valid:
+                valid = all(rows[357 + y][536:536 + rw] == expected[y] for y in range(rh))
+            print(f"PIXEL chat_inside_complete_surround={'PASS' if valid else 'FAIL'} root={root}")
+            if not valid:
+                failures.append("chat_inside_complete_surround")
     return failures
 
 

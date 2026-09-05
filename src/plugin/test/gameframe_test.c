@@ -321,14 +321,14 @@ static int
 classic_base_is_flat(void)
 {
     int source = -1;
-    for( int i = 0; i < g_frame.blits && i < 128; i++ )
-        if( g_frame.blit_x[i] == 0 && g_frame.blit_y[i] == 453 )
-            source = g_frame.blit_image[i];
+    for( int i = 0; i < FAKE_IMAGE_SLOTS; i++ )
+        if( g_image[i].argb && g_image[i].w == 496 && g_image[i].h == 50 )
+            source = i;
     if( source < 0 || !g_image[source].argb || g_image[source].w != 496 ||
         g_image[source].h != 50 )
         return 0;
     for( int y = 467; y < 499; y++ )
-        for( int x = 0; x < 496; x++ )
+        for( int x = 0; x < 536; x++ )
         {
             uint32_t painted = 0;
             for( int i = 0; i < g_frame.blits && i < 128; i++ )
@@ -1870,6 +1870,8 @@ main(void)
     /* Do not restore the native chat box just to cover these empty hollows:
      * retain the 2004 placement and remove the obsolete lower filter row. */
     CHECK(classic_base_is_flat(), "no captionless 2004 hollows below the CS2 filters");
+    CHECK(blitted_at(536, 357) && !blitted_at(496, 357),
+          "the classic right border surrounds the whole 519-wide CS2 pack");
 
     {
         /*
