@@ -65,6 +65,10 @@ RS_UISlots_Init(struct RS_UISlots* slots);
  * reference's unassigned sideOverlayId gate) and adopt the INI-selected boot
  * tab. Call after every full tree (re)build.
  */
+/* Replace tree-owned slot bindings while retaining the player's current chat
+ * modes. Server CHAT_FILTER_SETTINGS remains authoritative after this call. */
+void RS_UISlots_RebindTree(struct RS_UISlots*,struct UITree const*);
+
 void
 RS_UISlots_InitFromTree(
     struct RS_UISlots* slots,

@@ -29400,5 +29400,31 @@
       "ground-layout-rs289"
     ],
     "remaining": "full filtering/order and auxiliary-control/timer combinations; frontend rendering coverage"
+  },
+  "checked_native_widget_actions": {
+    "producers": [
+      "RS_Minimenu_AddWidgetRows",
+      "widgets.actions",
+      "widgets.invoke"
+    ],
+    "validation": [
+      "tree instance/incarnation",
+      "native operation signature",
+      "row targets and label",
+      "current server mask",
+      "native and effective presentation availability",
+      "plugin dispatch execution context"
+    ],
+    "dispatch": "regenerate current native rows, then ordinary app_minimenu_run_option; OK is not server acknowledgement",
+    "tests": [
+      "test-plugin-host",
+      "test-plugin-lua",
+      "test-minimenu-world",
+      "widget-action-negative",
+      "roleprobe-actions-osrs-v2",
+      "roleprobe-actions-rs289"
+    ],
+    "native_fix": "RS_UISlots_RebindTree preserves player chat modes while retiring tree mount identities",
+    "remaining": "complete item/line selection and native action/listener matrix; full Report behavior; queued/lifecycle/composition gates"
   }
 }

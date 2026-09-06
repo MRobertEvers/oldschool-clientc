@@ -1034,6 +1034,44 @@ static int lua_widget_collection(lua_State* L, bool all)
 }
 static int lua_widget_children(lua_State* L) { return lua_widget_collection(L,false); }
 static int lua_widget_find_all(lua_State* L) { return lua_widget_collection(L,true); }
+
+#define LUA_WIDGET_ACTION_MT "torirs.WidgetActionRef"
+static int lua_widget_visible(lua_State* L)
+{
+    struct ToriRS_WidgetApi* api=&lua_current_api(L)->widgets;bool visible=false;
+    if( api->visible(api->context,lua_widget_arg(L),&visible)!=TORIRS_CONTRACT_OK )
+    { lua_pushnil(L);return 1; }
+    lua_pushboolean(L,visible);return 1;
+}
+static int lua_widget_actions(lua_State* L)
+{
+    struct ToriRS_WidgetApi* api=&lua_current_api(L)->widgets;
+    struct ToriRS_WidgetRef widget=lua_widget_arg(L);size_t count=0;
+    enum ToriRS_ContractResult result=api->actions(api->context,widget,NULL,0,&count);
+    if( result!=TORIRS_CONTRACT_OK && result!=TORIRS_CONTRACT_BUDGET_EXCEEDED )
+    { lua_pushnil(L);return 1; }
+    if( count>INT_MAX || count>SIZE_MAX/sizeof(struct ToriRS_WidgetAction) )
+        return luaL_error(L,"widget actions exceed runtime capacity");
+    struct ToriRS_WidgetAction* actions=lua_newuserdatauv(L,count*sizeof(*actions),0);
+    result=api->actions(api->context,widget,actions,count,&count);
+    if( result!=TORIRS_CONTRACT_OK ) { lua_pop(L,1);lua_pushnil(L);return 1; }
+    lua_createtable(L,(int)count,0);
+    for( size_t i=0;i<count;++i )
+    {
+        lua_createtable(L,0,2);
+        lua_pushstring(L,actions[i].label);lua_setfield(L,-2,"label");
+        struct ToriRS_WidgetActionRef* ref=lua_newuserdatauv(L,sizeof(*ref),0);*ref=actions[i].ref;
+        luaL_newmetatable(L,LUA_WIDGET_ACTION_MT);lua_setmetatable(L,-2);lua_setfield(L,-2,"ref");
+        lua_rawseti(L,-2,(lua_Integer)i+1);
+    }
+    lua_remove(L,-2);return 1;
+}
+static int lua_widget_invoke(lua_State* L)
+{
+    struct ToriRS_WidgetApi* api=&lua_current_api(L)->widgets;
+    struct ToriRS_WidgetActionRef* ref=luaL_checkudata(L,1,LUA_WIDGET_ACTION_MT);
+    return lua_widget_result(L,api->invoke(api->context,*ref));
+}
 static int lua_widget_parent(lua_State* L)
 {
     struct ToriRS_WidgetApi* api=&lua_current_api(L)->widgets;struct ToriRS_WidgetRef out;
@@ -1176,10 +1214,10 @@ static int lua_widget_remove(lua_State* L)
     return lua_widget_result(L,ui->remove(ui->context,lua_widget_arg(L)));
 }
 static struct LuaFn const LUA_WIDGET_FNS[] = {
-    {"find",lua_widget_find},{"find_all",lua_widget_find_all},{"watch_tree",lua_widget_watch_tree},{"get",lua_widget_get},{"watch",lua_widget_watch},{NULL,NULL}
+    {"invoke",lua_widget_invoke},{"find",lua_widget_find},{"find_all",lua_widget_find_all},{"watch_tree",lua_widget_watch_tree},{"get",lua_widget_get},{"watch",lua_widget_watch},{NULL,NULL}
 };
 static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
-    {"position",lua_widget_position},{"bounds",lua_widget_bounds},
+    {"visible",lua_widget_visible},{"actions",lua_widget_actions},{"position",lua_widget_position},{"bounds",lua_widget_bounds},
     {"children",lua_widget_children},{"text",lua_widget_text},
     {"set_text_outline",lua_widget_text_outline},{"parent",lua_widget_parent},{"set_projection_height",lua_widget_projection_height},{"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
     {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},

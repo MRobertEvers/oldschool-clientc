@@ -4,6 +4,7 @@
  * player never gets OPPLAYER rows.
  */
 #include "game/rs_attack_option.h"
+#include "game/rs_ui_slots.h"
 #include "game/rs_minimenu_build.h"
 #include "game/rs_minimenu_world.h"
 #include "engine/torirs_objtype_from_rscache.h"
@@ -1151,9 +1152,69 @@ test_deck_scenery_pick_resolves_through_view_world(void)
     World_Free(root);
 }
 
+static void test_checked_widget_native_actions(void)
+{
+    struct RS_UISlots slots;RS_UISlots_Init(&slots);
+    slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC]=1;
+    slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE]=2;
+    slots.side_overlay_id[1]=123;
+    struct UITree* replacement=UITree_New(1);
+    RS_UISlots_RebindTree(&slots,replacement);
+    TEST_ASSERT(slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC]==1 && slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE]==2 && slots.side_overlay_id[1]==-1,
+        "native tree remount preserves chat modes while retiring old mount identities");
+    RS_UISlots_SetChatFilter(&slots,RS_UI_CHAT_FILTER_PUBLIC,0);
+    TEST_ASSERT(slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC]==0,"later native chat mode remains authoritative after remount");
+    UITree_Free(replacement);
+    for( int if3=0;if3<2;++if3 )
+    {
+        struct UITree* tree=UITree_New(4);
+        struct UITreeBehavior behavior={.button_type=if3 ? 0 : REVCONFIG_BUTTON_TYPE_SELECT};
+        struct UITreeNodeSpec spec={.type=UIELEM_RS_TEXT,.component_id=101,.width=80,.height=20,.behavior=&behavior};
+        spec.u.rs_text.text="Control";
+        if( if3 ) snprintf(spec.menu_options.ops[1],sizeof(spec.menu_options.ops[1]),"Activate");
+        else snprintf(spec.menu_options.option,sizeof(spec.menu_options.option),"Activate");
+        int node=UITree_Push(tree,-1,&spec);
+        tree->components[node].if3=if3;
+        UITree_LayoutResolve(tree,0,0,200,100);
+        struct TestEvents events={101,1<<2};
+        struct RS_MinimenuBuildCtx ctx={.tree=tree,.events_for_component=test_events_for_component,.events_user=&events};
+        struct UIMinimenu menu;UIMinimenu_Reset(&menu);
+        TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx,node,&menu)==1,"checked widget uses native IF1/IF3 action rows");
+        if( menu.option_count )
+        {
+            struct UIMinimenuOption row=menu.options[0];
+            TEST_ASSERT(row.action_index==(if3 ? 1 : -1),"checked widget preserves numbered versus native IF1 operation");
+            TEST_ASSERT(row.action==(if3 ? REVCONFIG_MINIMENU_IF_BUTTON : REVCONFIG_MINIMENU_IF_BUTTON_SELECT),"checked widget preserves native button type");
+            TEST_ASSERT(row.pick.has_node_identity && row.pick.node_index==node && UITree_MenuPickCurrent(tree,&row.pick),"widget action carries native incarnation and operation signature");
+            uint64_t revision=RS_Minimenu_WidgetActionRevision(&row);
+            TEST_ASSERT(RS_Minimenu_WidgetActionIndex(&menu,1,revision)==0,"current checked native action resolves");
+            UITree_SetTextAt(tree,node,"New target");
+            TEST_ASSERT(!UITree_MenuPickCurrent(tree,&row.pick),"retained widget action rejects native target changes");
+            UIMinimenu_Reset(&menu);RS_Minimenu_AddWidgetRows(&ctx,node,&menu);
+            TEST_ASSERT(RS_Minimenu_WidgetActionIndex(&menu,1,revision)<0,"native action re-resolution rejects changed target signature");
+            revision=RS_Minimenu_WidgetActionRevision(&menu.options[0]);
+            events.mask|=1<<5;
+            UIMinimenu_Reset(&menu);RS_Minimenu_AddWidgetRows(&ctx,node,&menu);
+            TEST_ASSERT(RS_Minimenu_WidgetActionIndex(&menu,1,revision)<0,"native action re-resolution rejects changed server mask");
+        }
+        UITree_SetHideAt(tree,node,1);
+        UITree_WidgetSetHidden(tree,UITree_RefAt(tree,node),1,false);
+        UIMinimenu_Reset(&menu);
+        TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx,node,&menu)==0,"native hide blocks widget actions despite plugin show");
+        UITree_SetHideAt(tree,node,0);
+        if( if3 )
+        {
+            events.mask=0;
+            TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx,node,&menu)==0,"widget actions recheck current server event mask");
+        }
+        UITree_Free(tree);
+    }
+}
+
 int
 main(void)
 {
+    test_checked_widget_native_actions();
     test_widget_target_priority_default();
     test_dat2_stacking_behaviour_is_not_boolean();
     test_if3_continue_uses_resume();

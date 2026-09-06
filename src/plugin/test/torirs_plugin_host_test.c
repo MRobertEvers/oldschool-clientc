@@ -3310,6 +3310,7 @@ static struct ToriRS_PluginDef const V2_PRESENT_NESTED = {
 /* ------------------------------------------------------------------ tests */
 
 static struct ToriRS_WidgetApi saved_widgets;
+static struct ToriRS_WidgetActionRef saved_widget_action;
 static int widget_requests, widget_resets;
 static uint64_t widget_owner;
 static struct ToriRS_WidgetRef watched_native = {{77,2,3}};
@@ -3319,8 +3320,21 @@ static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner
     widget_owner = owner;
     ++widget_requests;
     if( r->kind == PLUGIN_WIDGET_FIND ) *r->refs = watched_native;
+    if( r->kind == PLUGIN_WIDGET_VISIBLE ) *r->flag=true;
+    if( r->kind == PLUGIN_WIDGET_ACTIONS )
+    {
+        *r->count=1;
+        if( r->capacity ) r->actions[0]=(struct ToriRS_WidgetAction){.ref={watched_native,2,99},.label="Activate"};
+        else return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    }
     if( r->kind == PLUGIN_WIDGET_RESET_OWNER ) ++widget_resets;
     return TORIRS_CONTRACT_OK;
+}
+static void widget_probe_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
+{
+    (void)state;(void)graphics;
+    CHECK(api->widgets.invoke(api->widgets.context,saved_widget_action)==TORIRS_CONTRACT_WRONG_CONTEXT,
+          "paint cannot invoke a native widget action");
 }
 static void widget_probe_start(struct ToriRS_Api* api, void* state)
 {
@@ -3344,12 +3358,22 @@ static void widget_probe_start(struct ToriRS_Api* api, void* state)
           "live widget setter routes on the client callback");
     CHECK(api->widgets.revalidate(api->widgets.context, ref) == TORIRS_CONTRACT_OK,
           "live widget revalidation routes on the client callback");
+    bool visible=false;size_t count=0;struct ToriRS_WidgetAction action;
+    CHECK(api->widgets.visible(api->widgets.context,ref,&visible)==TORIRS_CONTRACT_OK && visible,
+          "current widget visibility reaches the adapter");
+    CHECK(api->widgets.actions(api->widgets.context,ref,&action,1,&count)==TORIRS_CONTRACT_OK && count==1 && !strcmp(action.label,"Activate"),
+          "native action snapshot crosses the public C widget API");
+    saved_widget_action=action.ref;
+    CHECK(api->widgets.invoke(api->widgets.context,action.ref)==TORIRS_CONTRACT_OK,
+          "checked native action dispatch reaches the adapter in an event context");
 }
 
 static void widget_probe_stop(struct ToriRS_Api* api, void* state)
 {
     (void)state;
     struct ToriRS_WidgetRef out;
+    CHECK(api->widgets.invoke(api->widgets.context,saved_widget_action)==TORIRS_CONTRACT_WRONG_CONTEXT,
+          "shutdown cannot invoke native widget actions");
     CHECK(api->widgets.create_text(api->widgets.context,(struct ToriRS_WidgetRef){{77,2,3}},"late",&out)
               == TORIRS_CONTRACT_WRONG_CONTEXT,
           "shutdown cannot create new owned widgets");
@@ -3443,6 +3467,9 @@ static void script_test_start(struct ToriRS_Api* api,void* state)
 static void script_test_callback(struct ToriRS_Api* api,void* state,struct ToriRS_ScriptEvent const* event)
 {
     (void)state;++script_test_calls;script_test_api=api;
+    struct ToriRS_WidgetActionRef action={{{77,2,3}},1,1};
+    CHECK(api->widgets.invoke(api->widgets.context,action)==TORIRS_CONTRACT_WRONG_CONTEXT,
+          "synchronous script callback cannot invoke native widget actions");
     CHECK(strcmp(event->name,"caption")==0 && event->script_id==99,"script event identifies native execution");
     if( script_test_retained.token && script_test_retained.token!=event->ref.token )
     {
@@ -4910,15 +4937,16 @@ main(void)
         struct ToriRS_PluginHost* widget_host = PluginHost_New(&widget_engine);
         struct ToriRS_PluginDef widget_def = {
             .struct_size=sizeof(widget_def), .id="widget-host-test", .title="Widget", .version="3",
-            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks), .on_start=widget_probe_start,.on_stop=widget_probe_stop}
+            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks), .on_start=widget_probe_start,.on_stop=widget_probe_stop,.on_draw_canvas=widget_probe_draw}
         };
         int owner = PluginHost_Register(widget_host, &widget_def);
         PluginHost_Start(widget_host);
-        CHECK(widget_requests == 3 && widget_owner == (uint64_t)owner + 1,
+        CHECK(widget_requests == 6 && widget_owner == (uint64_t)owner + 1,
               "widget bridge receives its plugin owner");
         struct ToriRS_WidgetRef ref;
-        CHECK(saved_widgets.find(saved_widgets.context, "sidebar", &ref) == TORIRS_CONTRACT_WRONG_CONTEXT && widget_requests == 3,
+        CHECK(saved_widgets.find(saved_widgets.context, "sidebar", &ref) == TORIRS_CONTRACT_WRONG_CONTEXT && widget_requests == 6,
               "retained widget API cannot mutate outside a live dispatch");
+        PluginHost_DrawCanvas(widget_host,765,503);
         PluginHost_SetEnabled(widget_host, owner, false);
         CHECK(widget_resets == 1, "plugin disable releases its native widget edits");
         PluginHost_Free(widget_host);

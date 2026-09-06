@@ -4181,6 +4181,16 @@ app_widget_ref(struct UITree const* tree, int32_t index)
     return (struct ToriRS_WidgetRef){{ref.tree_instance, (uint64_t)ref.index + 1, ref.incarnation}};
 }
 
+static void app_widget_actions(struct App* app,int32_t node,struct UIMinimenu* menu)
+{
+    struct RS_MinimenuBuildCtx ctx={.tree=app->tree,.ui_host=&app->ui_host,
+        .provider=app->provider,.runner=&app->runner,.invs=&app->invs,
+        .events_for_component=app_minimenu_events_for_component,.events_user=app};
+    UIMinimenu_Reset(menu);
+    RS_Minimenu_AddWidgetRows(&ctx,node,menu);
+    UIMinimenu_SortPriorityActions(menu);
+}
+
 static enum ToriRS_ContractResult
 app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
@@ -4249,6 +4259,37 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         return TORIRS_CONTRACT_NATIVE_BLOCKED;
     switch( r->kind )
     {
+    case PLUGIN_WIDGET_VISIBLE:
+        *r->flag=!UITree_NodeOrAncestorDisplayHidden(tree,idx) &&
+            UITree_NodeNativeVisible(tree,&app->ui_host,idx,app->hover_com_id);
+        return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_ACTIONS:
+    case PLUGIN_WIDGET_INVOKE:
+    {
+        if( UITree_NodeOrAncestorDisplayHidden(tree,idx) ||
+            !UITree_NodeNativeInputPresent(tree,&app->ui_host,idx) ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        struct UIMinimenu menu;
+        app_widget_actions(app,idx,&menu);
+        if( r->kind==PLUGIN_WIDGET_ACTIONS )
+        {
+            *r->count=(size_t)menu.option_count;
+            for( size_t i=0;i<*r->count && i<r->capacity;++i )
+            {
+                r->actions[i].ref=(struct ToriRS_WidgetActionRef){r->ref,i+1,RS_Minimenu_WidgetActionRevision(&menu.options[i])};
+                snprintf(r->actions[i].label,sizeof(r->actions[i].label),"%s",menu.options[i].text);
+            }
+            return *r->count>r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+        }
+        int op=RS_Minimenu_WidgetActionIndex(&menu,r->action.operation,r->action.revision);
+        if( op<0 ) return TORIRS_CONTRACT_STALE_REFERENCE;
+        /* The normal dispatcher repeats native availability and event checks.
+         * A local action returns zero too; OK means dispatched, not server ack. */
+        struct UIMinimenu saved=app->interact.minimenu;
+        app->interact.minimenu=menu;
+        app_minimenu_run_option(app,op,0,0);
+        app->interact.minimenu=saved;
+        return TORIRS_CONTRACT_OK;
+    }
     case PLUGIN_WIDGET_PARENT:
         *r->refs=app_widget_ref(tree,c->parent);
         return r->refs->opaque[2] ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_UNAVAILABLE;

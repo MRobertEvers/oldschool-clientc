@@ -3250,6 +3250,12 @@ frame_loop_teardown(void)
             }
         }
 
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            TORIRS_REPORT("NATIVE_CHAT_MODES public=%d private=%d trade=%d\n",
+                app.slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC],
+                app.slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE],
+                app.slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE]);
+
         if( getenv("TORIRS_DUMP_BOUNDS") && app.plugins )
         {
             static char const* parts[] = { "frame.orb.hitpoints", "frame.orb.prayer",

@@ -299,6 +299,14 @@ RS_Minimenu_ActionIsDefaultable(int action)
 
 /** Build the full menu for a right click at (click_x, click_y): Cancel row,
  * per-hit-node rows (top-most component first), priority-sorted. */
+/* Native actions for one live widget, without hit-testing unrelated widgets.
+ * Grid inventories and chat lines require a cell/line selection and yield no
+ * widget-level rows. Appends current native rows and stamps exact identity. */
+uint64_t RS_Minimenu_WidgetActionRevision(struct UIMinimenuOption const*);
+int RS_Minimenu_WidgetActionIndex(struct UIMinimenu const*,uint64_t ordinal,uint64_t revision);
+int RS_Minimenu_AddWidgetRows(struct RS_MinimenuBuildCtx const*, int32_t node,
+                             struct UIMinimenu*);
+
 void
 RS_Minimenu_Build(
     struct RS_MinimenuBuildCtx const* ctx,

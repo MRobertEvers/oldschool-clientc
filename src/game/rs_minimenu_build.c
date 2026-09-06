@@ -999,6 +999,55 @@ add_component_rows(
     return menu->option_count - before;
 }
 
+uint64_t RS_Minimenu_WidgetActionRevision(struct UIMinimenuOption const* row)
+{
+    uint64_t hash=row->pick.action_signature;
+    int fields[]={row->action,row->action_index,row->pick.kind,row->pick.id,
+        row->pick.secondary_id,row->pick.tertiary_id,row->pick.quaternary_id,
+        row->pick.view_id,row->pick.has_native_events,(int)row->pick.native_events};
+    for( size_t i=0;i<sizeof(fields)/sizeof(fields[0]);++i )
+    {
+        uint32_t value=(uint32_t)fields[i];
+        for( int byte=0;byte<4;++byte ) { hash=(hash^(value&255))*UINT64_C(1099511628211);value>>=8; }
+    }
+    for( unsigned char const* p=(unsigned char const*)row->text;*p;++p ) hash=(hash^*p)*UINT64_C(1099511628211);
+    return hash ? hash : 1;
+}
+
+int RS_Minimenu_WidgetActionIndex(struct UIMinimenu const* menu,uint64_t ordinal,uint64_t revision)
+{
+    if( !menu || !ordinal || ordinal>(uint64_t)menu->option_count ) return -1;
+    int index=(int)ordinal-1;
+    return revision==RS_Minimenu_WidgetActionRevision(&menu->options[index]) ? index : -1;
+}
+
+int
+RS_Minimenu_AddWidgetRows(struct RS_MinimenuBuildCtx const* ctx, int32_t index,
+                         struct UIMinimenu* out)
+{
+    if( !ctx || !ctx->tree || !out || index < 0 ||
+        (uint32_t)index >= ctx->tree->component_count ||
+        UITree_NodeOrAncestorDisplayHidden(ctx->tree, index) ||
+        !UITree_NodeNativeInputPresent(ctx->tree, ctx->ui_host, index) ) return 0;
+    struct UITreeComponent const* node = &ctx->tree->components[index];
+    int before = out->option_count;
+    if( node->type == UIELEM_BUILTIN_CHAT_BUTTON )
+        add_chat_button_rows(ctx, node, out);
+    else if( node->type != UIELEM_BUILTIN_CHAT && node->type != UIELEM_RS_INV &&
+             node->type != UIELEM_RS_INV_TEXT )
+        add_component_rows(ctx, node, RS_MINIMENU_SELECT_NONE, out);
+    for( int i = before; i < out->option_count; ++i )
+    {
+        UITree_StampMenuPick(ctx->tree, index, &out->options[i].pick);
+        if( ctx->events_for_component )
+        {
+            out->options[i].pick.has_native_events = 1;
+            out->options[i].pick.native_events = ctx->events_for_component(ctx->events_user, node->component_id, -1);
+        }
+    }
+    return out->option_count - before;
+}
+
 void
 RS_Minimenu_Build(
     struct RS_MinimenuBuildCtx const* ctx,

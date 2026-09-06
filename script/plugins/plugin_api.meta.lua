@@ -579,7 +579,15 @@ warn = nil
 ---@field choices? string
 ---@field rows? integer
 
+---@class torirs.WidgetActionRef
+
+---@class torirs.WidgetAction
+---@field label string Current native action label.
+---@field ref torirs.WidgetActionRef Checked retained action.
+
 ---@class torirs.Widget
+---@field visible fun(self:torirs.Widget):boolean?
+---@field actions fun(self:torirs.Widget):torirs.WidgetAction[]?
 ---@field create_text fun(self:torirs.Widget,key:string):torirs.Widget? Creates or returns this owner's child.
 ---@field set_text fun(self:torirs.Widget,text:string):boolean,string Owned text only.
 ---@field set_text_color fun(self:torirs.Widget,color:torirs.Colour):boolean,string Owned text only.
@@ -604,6 +612,7 @@ warn = nil
 ---@field native_revision integer
 
 ---@class torirs.WidgetsApi
+---@field invoke fun(action:torirs.WidgetActionRef):boolean, string? Rechecks current native visibility, masks and widget identity.
 ---@field watch fun(role:string,callback:fun(widget:torirs.Widget,event:torirs.WidgetBindingEvent)?):boolean,string Follows native binding identity; nil removes this subscription.
 ---@field find fun(role:string):torirs.Widget?
 ---@field find_all fun(role:string):torirs.Widget[]? All current matches. ground_item_labels is unavailable without the native CS2 overlay adapter.

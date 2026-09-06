@@ -237,7 +237,7 @@ checks=0
 printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" TAG TOP FRAME SIZE ROOT FILTERS VERDICT
 while IFS='|' read tag m f s; do
   L=$OUT/$tag/log.txt
-  widget_args=(--owned-count "${GF_MATRIX_OWNED_COUNT:-1}" --widget-offset "${GF_MATRIX_WIDGET_OFFSET:-12}" --widget-moves "${GF_MATRIX_WIDGET_MOVES:-1}" --widget-rune-slot "${GF_MATRIX_WIDGET_RUNE_SLOT:-0}")
+  widget_args=(--public-chat-mode "${GF_MATRIX_PUBLIC_CHAT_MODE:-on}" --owned-count "${GF_MATRIX_OWNED_COUNT:-1}" --widget-offset "${GF_MATRIX_WIDGET_OFFSET:-12}" --widget-moves "${GF_MATRIX_WIDGET_MOVES:-1}" --widget-rune-slot "${GF_MATRIX_WIDGET_RUNE_SLOT:-0}")
   if [[ -n "${GF_MATRIX_PLUGIN:-}" ]]; then
     widget_args+=(--plugin-id "${GF_MATRIX_PLUGIN#lua:}" --plugin-enabled "${GF_MATRIX_PLUGIN_ENABLED:-1}")
     [[ "$GF_MATRIX_PLUGIN" == lua:* ]] && widget_args+=(--plugin-lua)

@@ -15139,7 +15139,7 @@ Task_AppBoot_Run(
 
     /* Tab/interface-slot state seeds from the baked tree (INI componentno= and
      * selected= drive it; nothing here is hardcoded). */
-    RS_UISlots_InitFromTree(&app->slots, app->tree);
+    RS_UISlots_RebindTree(&app->slots, app->tree);
 
     /* Queue model-widget sequences (they land through the frame pump and
      * render at rest pose meanwhile) and apply whatever is already loaded. */

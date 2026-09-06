@@ -28,7 +28,7 @@ def read_bmp(path):
     return width, abs(height), rows
 
 
-def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, failures, native_baseline=False):
+def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, failures, native_baseline=False, public_chat_mode="on"):
     height, width = len(rows), len(rows[0])
     def report(name, valid, detail=""):
         print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
@@ -106,7 +106,7 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
     # surviving beneath a world draw or an opaque overlay cannot pass.
     modes = sum(any(g > 150 and r < 100 and b < 100 for b,g,r in pixels(box))
                 for child,box in controls if child not in (5,32))
-    report("filter_modes_visible", modes == 6, f"green_cells={modes}")
+    report("filter_modes_visible", modes == (5 if public_chat_mode=="friends" else 6), f"green_cells={modes}")
     if frame in ("gameframe-layout/classic-fixed", "mobile-gameframe/stone-drawer"):
         fractions = []
         for name in ("frame.chat.backing", "frame.chat.bar"):
@@ -116,7 +116,7 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
                f"warm_backing={fractions[0]:.3f} warm_bar={fractions[1]:.3f}")
 
 
-def check_rs289(rows, log, failures, scenario="baseline", frame="core/native"):
+def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", public_chat_mode="on"):
     """Revconfig controls, plus evidence that actual mounted CS1 ran.
 
     The RS2 frame has three mode controls and Report. Do not borrow the
@@ -139,7 +139,7 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native"):
               for xx in range(max(0,x),min(width,x+w))]
         modes += sum(g > 150 and r < 100 and b < 100 for b,g,r in ps) >= 10
         captions += sum(min(b,g,r) > 180 and max(b,g,r)-min(b,g,r) < 30 for b,g,r in ps) >= 20
-    report("rs289_live_chat_modes", modes == 3, f"green_cells={modes}")
+    report("rs289_live_chat_modes", modes == (2 if public_chat_mode=="friends" else 3), f"green_cells={modes}")
     report("rs289_chat_captions", captions == 4, f"captions={captions}")
     report("rs289_actual_cs1_values", bool(re.search(r"^NATIVE_CS1 com=\d+ incarnation=[1-9]\d* value\[0\]=[1-9]\d*", log, re.M)))
     report("rs289_mounted_cache_interfaces", bool(re.search(
@@ -232,9 +232,14 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on"):
     width, height, rows = read_bmp(path)
     failures = []
+    if public_chat_mode=="friends":
+        log=Path(bounds_path).read_text() if bounds_path else ""
+        valid=bool(re.search(r"NATIVE_CHAT_MODES public=1 private=0 trade=0",log))
+        print(f"PIXEL public_chat_native_state={'PASS' if valid else 'FAIL'} expected=friends")
+        if not valid: failures.append("public_chat_native_state")
     if native_caption:
         check_native_caption(rows,Path(bounds_path).read_text() if bounds_path else "",native_caption,failures)
     if ground_row_gap is not None:
@@ -349,7 +354,7 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
     if revision == "rs289lc":
         if not bounds_path:
             raise ValueError("rs289lc requires its matching native trace")
-        check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame)
+        check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame, public_chat_mode)
         return failures
     if frame == "gameframe-layout/classic-fixed":
         # The approved plain-rock band spans x=0..495, y=467..498.
@@ -420,7 +425,7 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         if not valid:
             failures.append("native_focused_input_state")
     if bounds_path:
-        check_live_surfaces(rows, Path(bounds_path).read_text(), frame, root, minimap_state, server_hide, failures, native_baseline)
+        check_live_surfaces(rows, Path(bounds_path).read_text(), frame, root, minimap_state, server_hide, failures, native_baseline, public_chat_mode)
     return failures
 
 
@@ -453,10 +458,11 @@ if __name__ == "__main__":
     parser.add_argument("--native-ground-labels",choices=("hidden","shown"))
     parser.add_argument("--native-caption")
     parser.add_argument("--ground-row-gap",type=int)
+    parser.add_argument("--public-chat-mode",choices=("on","friends"),default="on")
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

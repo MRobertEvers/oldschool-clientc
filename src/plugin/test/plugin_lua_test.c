@@ -521,6 +521,44 @@ static enum ToriRS_ContractResult fake_lua_watch(void* context, char const* role
     lua_watch_listener=listener;lua_watch_user=user;
     return TORIRS_CONTRACT_OK;
 }
+static int lua_action_calls;
+static enum ToriRS_ContractResult fake_lua_actions(void* ctx,struct ToriRS_WidgetRef widget,
+    struct ToriRS_WidgetAction* out,size_t capacity,size_t* count)
+{
+    (void)ctx;*count=2;
+    if( capacity<2 ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    out[0]=(struct ToriRS_WidgetAction){.ref={widget,1,3},.label="First"};
+    out[1]=(struct ToriRS_WidgetAction){.ref={widget,2,UINT64_C(0xfedcba9876543210)},.label="Second"};
+    return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult fake_lua_invoke(void* ctx,struct ToriRS_WidgetActionRef action)
+{
+    (void)ctx;
+    CHECK(action.operation==2 && action.revision==UINT64_C(0xfedcba9876543210) &&
+        action.widget.opaque[0]==UINT64_C(0xfedcba9876543211),"Lua native action preserves full-width checked identity");
+    ++lua_action_calls;return TORIRS_CONTRACT_STALE_REFERENCE;
+}
+static void test_widget_actions(struct ToriRS_PluginHost* host)
+{
+    static char const source[]=
+        "local p={id='widget-actions'};function p.on_start(api) "
+        "assert(api.widgets.watch('sidebar',function(widget,event) "
+        "local actions=assert(widget:actions());assert(#actions==2 and actions[2].label=='Second');"
+        "local ok,reason=api.widgets.invoke(actions[2].ref);assert(not ok and reason=='stale_reference');"
+        "api.core.log('actions verified') end)) end;function p.on_key(api) api.widgets.invoke({}) end;return p";
+    struct FakeInstance instance={"widget-actions",""};struct ToriRS_Api api=fake_api(&instance);
+    api.widgets.watch=fake_lua_watch;api.widgets.actions=fake_lua_actions;api.widgets.invoke=fake_lua_invoke;
+    int index=PluginLua_AddScript(host,"widget-actions",source,(int)strlen(source));
+    CHECK(index>=0,"native action script registers");
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    struct ToriRS_WidgetEvent event={.type=TORIRS_WIDGET_BOUND,.widget={{UINT64_C(0xfedcba9876543211),2,3}},.role="sidebar"};
+    int logs=g_logs;lua_watch_listener(&api,lua_watch_user,&event);
+    CHECK(lua_action_calls==1 && g_logs==logs+1,"Lua actions retain native status");
+    int disables=g_disabled_self;struct ToriRS_KeyEvent key={0};
+    g_defs[index]->callbacks.on_key(&api,NULL,&key);
+    CHECK(g_disabled_self==disables+1 && lua_action_calls==1 && strstr(g_disable_reason,"torirs.WidgetActionRef"),
+          "Lua rejects forged action references before reaching native dispatch");
+}
 static void test_widget_watch(struct ToriRS_PluginHost* host)
 {
     static char const source[] =
@@ -656,6 +694,7 @@ main(void)
     reset_fake();
     test_runtime(&host);
     test_widget_watch(&host);
+    test_widget_actions(&host);
     test_menu_module(&host);
     PluginLua_Shutdown();
     reset_fake();

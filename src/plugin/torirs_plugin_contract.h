@@ -27,6 +27,12 @@ struct ToriRS_WidgetActionRef
     uint64_t revision;
 };
 
+struct ToriRS_WidgetAction
+{
+    struct ToriRS_WidgetActionRef ref;
+    char label[256]; /* Current native menu label, copied into caller storage. */
+};
+
 enum ToriRS_ContractResult
 {
     TORIRS_CONTRACT_OK,
@@ -138,6 +144,11 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*get_widget)(void*, int32_t component_id, struct ToriRS_WidgetRef*);
     enum ToriRS_ContractResult (*children)(void*, struct ToriRS_WidgetRef,
                                          struct ToriRS_WidgetRef*, size_t capacity, size_t* count);
+    /* Retained actions expire when widget identity, operation state or the
+     * native menu row changes. Invoke always checks current native authority. */
+    enum ToriRS_ContractResult (*visible)(void*,struct ToriRS_WidgetRef,bool*);
+    enum ToriRS_ContractResult (*actions)(void*,struct ToriRS_WidgetRef,struct ToriRS_WidgetAction*,size_t capacity,size_t* count);
+    enum ToriRS_ContractResult (*invoke)(void*,struct ToriRS_WidgetActionRef);
     enum ToriRS_ContractResult (*parent)(void*,struct ToriRS_WidgetRef,struct ToriRS_WidgetRef*);
     enum ToriRS_ContractResult (*bounds)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetBounds*);
     /* Native-parent-local, unscrolled geometry; bounds is drawn canvas space. */

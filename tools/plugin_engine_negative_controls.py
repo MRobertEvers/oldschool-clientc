@@ -233,16 +233,56 @@ def run_product_controls(src, out, make_args, selected):
         print(f"{name}: observed expected failing assertion", flush=True)
 
 
+def run_action_controls(src, out, make_args, selected):
+    make=["make","--no-print-directory",*make_args]
+    with (out/"positive.log").open("w") as log:
+        subprocess.run([*make,"test-minimenu-world"],cwd=src,stdout=log,stderr=subprocess.STDOUT,check=True)
+    recipe=subprocess.check_output([*make,"-n","test-minimenu-world"],cwd=src,text=True).replace("\\\n"," ")
+    link=next(shlex.split(line) for line in recipe.splitlines() if "game/test/rs_minimenu_world_test.c " in line and " -o " in line)
+    source="game/rs_minimenu_build.c"
+    obj=next(arg for arg in link if arg.endswith("/rs_minimenu_build.o"))
+    recipe=subprocess.check_output([*make,"-n","-W",source,obj],cwd=src,text=True).replace("\\\n"," ")
+    compile_cmd=next(shlex.split(line) for line in recipe.splitlines() if f" -c {source} " in line)
+    original=(src/source).read_text()
+    controls={
+        "action_signature": ("return revision==RS_Minimenu_WidgetActionRevision(&menu->options[index]) ? index : -1;", "return index;",
+            "native action re-resolution rejects changed target signature"),
+        "action_availability": ("UITree_NodeOrAncestorDisplayHidden(ctx->tree, index) ||\n        !UITree_NodeNativeInputPresent(ctx->tree, ctx->ui_host, index)", "false",
+            "native hide blocks widget actions despite plugin show"),
+    }
+    if selected and set(selected)-controls.keys(): raise ValueError("unknown native action control")
+    for name,(before,after,expected) in controls.items():
+        if selected and name not in selected: continue
+        if original.count(before)!=1: raise RuntimeError(f"{name}: mechanism changed")
+        mutant=out/(name+".c");mutant.write_text(original.replace(before,after))
+        mutant_obj=out/(name+".o");binary=out/name
+        compile_mutant=[str(mutant) if arg==source else arg for arg in compile_cmd]
+        compile_mutant[compile_mutant.index("-o")+1]=str(mutant_obj)
+        compile_mutant.extend(["-I",str((src/source).parent)])
+        link_mutant=[str(mutant_obj) if arg==obj else arg for arg in link]
+        link_mutant[link_mutant.index("-o")+1]=str(binary)
+        with (out/(name+"-build.log")).open("w") as log:
+            for command in (compile_mutant,link_mutant):
+                subprocess.run(command,cwd=src,stdout=log,stderr=subprocess.STDOUT,check=True)
+        run=subprocess.run([str(binary)],cwd=src,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=30)
+        (out/(name+".log")).write_text(run.stdout)
+        if run.returncode!=1 or expected not in run.stdout: raise RuntimeError(f"{name}: intended failing assertion was not observed")
+        print(f"{name}: observed expected failing assertion",flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", type=Path)
     parser.add_argument("--only", action="append", help="run only this named mechanism (repeatable)")
-    parser.add_argument("--suite", choices=("ui", "cs2", "host", "lua", "products"), default="ui")
+    parser.add_argument("--suite", choices=("ui", "cs2", "host", "lua", "products", "actions"), default="ui")
     parser.add_argument("--make-arg", action="append", default=[], help="make assignment, e.g. OPT=1")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
     out = args.out.resolve()
     src = Path(__file__).resolve().parents[1] / "src"
+    if args.suite == "actions":
+        run_action_controls(src, out, args.make_arg, args.only)
+        return
     if args.suite == "products":
         run_product_controls(src, out, args.make_arg, args.only)
         return

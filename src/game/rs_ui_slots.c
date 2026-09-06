@@ -35,6 +35,14 @@ RS_UISlots_Init(struct RS_UISlots* slots)
     slots->flash_tab = -1;
 }
 
+void RS_UISlots_RebindTree(struct RS_UISlots* slots,struct UITree const* tree)
+{
+    int modes[RS_UI_CHAT_FILTER_COUNT];
+    memcpy(modes,slots->chat_filter_mode,sizeof(modes));
+    RS_UISlots_InitFromTree(slots,tree);
+    memcpy(slots->chat_filter_mode,modes,sizeof(modes));
+}
+
 void
 RS_UISlots_InitFromTree(
     struct RS_UISlots* slots,

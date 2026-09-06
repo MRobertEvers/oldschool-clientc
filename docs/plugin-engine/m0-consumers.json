@@ -116,8 +116,21 @@
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
-      "screenshots": []
+      "port_status": "live widget/watch/action port; both native revisions inspected; Report endpoint and full release gates remain open",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/roleprobe-actions-osrs-v2/m01",
+          "scope": "native widget actions checkpoint; see PLUGIN_PORTS.md for limits"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/roleprobe-actions-rs289/r01",
+          "scope": "native widget actions checkpoint; see PLUGIN_PORTS.md for limits"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/roleprobe-report-osrs/m01",
+          "scope": "native widget actions checkpoint; see PLUGIN_PORTS.md for limits"
+        }
+      ]
     },
     {
       "path": "script/plugins/_windemo.lua",
@@ -472,7 +485,7 @@
       "kind": "C",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "live widgets and native C script callback demonstrated; CS1 reports script capability unavailable and updates live label",
+      "port_status": "live widgets, C script callback and checked native actions verified on both revisions; native remount preserves chat state and rejects stale actions; full release gates pending",
       "screenshots": [
         {
           "capture": "/private/tmp/plugin-engine-evidence/owned-widget-c-osrs/m01",
@@ -489,6 +502,14 @@
         {
           "capture": "/private/tmp/plugin-engine-evidence/callback-c-rs289/r01",
           "scope": "C callback and common logic-tick evidence"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/widget-actions-c-rs289/r01",
+          "scope": "native C widget action and Strength label"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/widget-actions-c-remount-v3/m01",
+          "scope": "native C action, stale reference rejection and preserved chat mode after root remount"
         }
       ]
     }

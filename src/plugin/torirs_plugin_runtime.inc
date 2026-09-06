@@ -3520,6 +3520,8 @@ plugin_widget_request(void* user, struct PluginWidgetRequest* request)
     struct PluginContext* ctx = runtime ? runtime->context : NULL;
     if( !ctx || !ctx->running || ctx->host->dispatching != ctx->index )
         return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( request->kind == PLUGIN_WIDGET_INVOKE && (ctx->tearing_down ||
+        ctx->host->dispatch_event == PLUGIN_CALLBACK_SCRIPT_CALLBACK) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
     if( request->kind == PLUGIN_WIDGET_CREATE_TEXT && ctx->tearing_down ) return TORIRS_CONTRACT_WRONG_CONTEXT;
     if( request->kind >= PLUGIN_WIDGET_POSITION && plugin_ev_is_draw(ctx->host->dispatch_event) )
         return TORIRS_CONTRACT_WRONG_CONTEXT;
@@ -3564,6 +3566,27 @@ static enum ToriRS_ContractResult widget_set_hidden(void* u,struct ToriRS_Widget
 static enum ToriRS_ContractResult widget_text_outline(void* u,struct ToriRS_WidgetRef ref,bool outline)
 {
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_OUTLINE,.ref=ref,.a=outline};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_visible(void* u,struct ToriRS_WidgetRef ref,bool* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=false;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_VISIBLE,.ref=ref,.flag=out};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_actions(void* u,struct ToriRS_WidgetRef ref,
+    struct ToriRS_WidgetAction* out,size_t capacity,size_t* count)
+{
+    if( !count || (capacity && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *count=0;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_ACTIONS,.ref=ref,.actions=out,.capacity=capacity,.count=count};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_invoke(void* u,struct ToriRS_WidgetActionRef action)
+{
+    if( !action.operation || !action.revision ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_INVOKE,.ref=action.widget,.action=action};
     return plugin_widget_request(u,&r);
 }
 static enum ToriRS_ContractResult widget_parent(void* u,struct ToriRS_WidgetRef ref,struct ToriRS_WidgetRef* out)
@@ -3770,7 +3793,7 @@ v2_runtime_init(
         .widgets = {
             .context = runtime, .find = widget_find, .get_widget = widget_get,
             .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
-            .parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
+            .visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,
