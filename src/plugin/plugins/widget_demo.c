@@ -4,7 +4,7 @@
 #include <string.h>
 
 struct WidgetDemoState {
-    struct ToriRS_WidgetRef label, public_button;
+    struct ToriRS_WidgetRef label, control, public_button;
     struct ToriRS_WidgetActionRef retained_action;
     int level;
     bool action_done;
@@ -15,23 +15,41 @@ static struct ToriRS_ConfigItem const WIDGET_CONFIG[]={
 };
 static struct ToriRS_ConfigSchema const WIDGET_SCHEMA={sizeof(WIDGET_SCHEMA),WIDGET_CONFIG};
 
-static void widget_demo_action(struct ToriRS_Api* api,struct WidgetDemoState* state)
+/* Invoke the native public-chat "Friends" operation through the checked action
+ * API. Returns UNAVAILABLE when the native button or its row is not present. */
+static enum ToriRS_ContractResult widget_demo_public_friends(struct ToriRS_Api* api,struct WidgetDemoState* state,char const* why)
 {
-    bool enabled=false;
-    api->config.get_bool(api,"public_friends",&enabled);
-    if( !enabled || state->action_done || !state->public_button.opaque[2] ) return;
     struct ToriRS_WidgetAction actions[16];size_t count=0;
     struct ToriRS_WidgetApi* ui=&api->widgets;
-    if( ui->actions(ui->context,state->public_button,actions,16,&count)!=TORIRS_CONTRACT_OK ) return;
+    if( !state->public_button.opaque[2] ) return TORIRS_CONTRACT_UNAVAILABLE;
+    enum ToriRS_ContractResult result=ui->actions(ui->context,state->public_button,actions,16,&count);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
     for( size_t i=0;i<count;++i )
         if( strstr(actions[i].label,"Friends") || strstr(actions[i].label,"friends") )
         {
             state->retained_action=actions[i].ref;
-            enum ToriRS_ContractResult result=ui->invoke(ui->context,actions[i].ref);
-            state->action_done=result==TORIRS_CONTRACT_OK;
-            api->core.log(api,"WIDGET_DEMO_ACTION label=%s result=%d",actions[i].label,result);
-            return;
+            result=ui->invoke(ui->context,actions[i].ref);
+            api->core.log(api,"WIDGET_DEMO_ACTION label=%s result=%d via=%s",actions[i].label,result,why);
+            return result;
         }
+    return TORIRS_CONTRACT_UNAVAILABLE;
+}
+static void widget_demo_action(struct ToriRS_Api* api,struct WidgetDemoState* state)
+{
+    bool enabled=false;
+    api->config.get_bool(api,"public_friends",&enabled);
+    if( !enabled || state->action_done ) return;
+    if( widget_demo_public_friends(api,state,"config")==TORIRS_CONTRACT_OK ) state->action_done=true;
+}
+/* The owned control's single operation: a native operation on a native widget,
+ * reached through the ordinary hit test and menu dispatch. */
+static void widget_demo_operation(struct ToriRS_Api* api,void* user,struct ToriRS_WidgetEvent const* event)
+{
+    struct WidgetDemoState* state=user;
+    struct ToriRS_WidgetApi* ui=&api->widgets;
+    enum ToriRS_ContractResult result=widget_demo_public_friends(api,state,"control");
+    api->core.log(api,"WIDGET_DEMO_OP result=%d registration=%llu",result,(unsigned long long)event->native_revision);
+    if( result==TORIRS_CONTRACT_OK ) ui->set_text(ui->context,event->widget,"Public: set");
 }
 
 static void widget_demo_update(struct ToriRS_Api* api, void* user, struct ToriRS_TickEvent const* tick)
@@ -63,7 +81,9 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
         if( event->type==TORIRS_WIDGET_UNBOUND )
         {
             if( state->label.opaque[2] ) ui->remove(ui->context,state->label);
+            if( state->control.opaque[2] ) ui->remove(ui->context,state->control);
             state->label=(struct ToriRS_WidgetRef){0};
+            state->control=(struct ToriRS_WidgetRef){0};
             return;
         }
         if( ui->create_text(ui->context,event->widget,"strength",&state->label)!=TORIRS_CONTRACT_OK ) return;
@@ -72,6 +92,15 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
         ui->set_text_color(ui->context,state->label,0xffffff);
         widget_demo_update(api,user,NULL);
         ui->revalidate(ui->context,state->label);
+        if( ui->create_text(ui->context,event->widget,"public",&state->control)!=TORIRS_CONTRACT_OK ) return;
+        ui->set_position(ui->context,state->control,12,56);
+        ui->set_text(ui->context,state->control,"Public: Friends");
+        ui->set_text_color(ui->context,state->control,0x00ffff);
+        enum ToriRS_ContractResult armed=ui->set_on_op(ui->context,state->control,"Set public chat to friends",widget_demo_operation,user);
+        ui->revalidate(ui->context,state->control);
+        struct ToriRS_WidgetBounds box={0};
+        ui->bounds(ui->context,state->control,&box);
+        api->core.log(api,"WIDGET_DEMO_OP_BOUNDS armed=%d x=%d y=%d w=%d h=%d",armed,box.x,box.y,box.width,box.height);
         return;
     }
     if( event->type==TORIRS_WIDGET_UNBOUND )

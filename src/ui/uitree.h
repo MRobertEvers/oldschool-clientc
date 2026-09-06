@@ -792,6 +792,7 @@ struct UITreeComponent
     struct UITreeWidgetGeometry* widget_geometry;
     uint64_t plugin_owner;
     char* plugin_key;
+    uint64_t plugin_op_serial; /* Host listener version; never copied with native content. */
     /**
      * A layer the plugin frame declared NOT to clip.
      *
@@ -2125,6 +2126,7 @@ bool UITree_WidgetReset(struct UITree*, struct UITreeNodeRef, uint64_t owner);
 void UITree_WidgetResetOwner(struct UITree*, uint64_t owner);
 int32_t UITree_WidgetCreateText(struct UITree*, struct UITreeNodeRef parent, uint64_t owner,
                                char const* key, int font_id);
+bool UITree_WidgetSetOperation(struct UITree*,struct UITreeNodeRef,uint64_t owner,uint64_t serial,char const* label);
 bool UITree_WidgetRemove(struct UITree*, struct UITreeNodeRef, uint64_t owner);
 
 int UITree_WidgetPositionOverride(struct UITree const*, int32_t, struct UITreeElemPosition*);

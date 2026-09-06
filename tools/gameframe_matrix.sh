@@ -256,6 +256,9 @@ while IFS='|' read tag m f s; do
   fi
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]] && widget_args+=(--widget-demo c)
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua ]] && widget_args+=(--widget-demo lua)
+  # GF_MATRIX_WIDGET_OP=1: the simulated click (TORIRS_SIM_CLICK_AT) must land
+  # inside the demo's owned control and its operation must run.
+  [[ "${GF_MATRIX_WIDGET_OP:-0}" == 1 ]] && widget_args+=(--widget-op)
   if [[ "$m" == R ]]; then
     python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" \
       --root 0 --revision rs289lc --rs289-scenario "${GF_MATRIX_RS289_SCENARIO:-baseline}" \

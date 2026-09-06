@@ -3314,11 +3314,25 @@ static struct ToriRS_WidgetActionRef saved_widget_action;
 static int widget_requests, widget_resets;
 static uint64_t widget_owner;
 static struct ToriRS_WidgetRef watched_native = {{77,2,3}};
+static struct ToriRS_WidgetRef const stale_control = {{77,9,1}};
+static char op_label[64];
+static uint64_t op_registration;
+static int op_requests;
 static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
     (void)user;
     widget_owner = owner;
     ++widget_requests;
+    if( r->kind >= PLUGIN_WIDGET_POSITION && ToriRS_WidgetRefEqual(r->ref,stale_control) )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
+    if( r->kind == PLUGIN_WIDGET_VISIBLE && ToriRS_WidgetRefEqual(r->ref,stale_control) )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
+    if( r->kind == PLUGIN_WIDGET_SET_ON_OP )
+    {
+        ++op_requests;
+        snprintf(op_label,sizeof(op_label),"%s",r->name);
+        op_registration=r->registration;
+    }
     if( r->kind == PLUGIN_WIDGET_FIND ) *r->refs = watched_native;
     if( r->kind == PLUGIN_WIDGET_VISIBLE ) *r->flag=true;
     if( r->kind == PLUGIN_WIDGET_ACTIONS )
@@ -3377,6 +3391,129 @@ static void widget_probe_stop(struct ToriRS_Api* api, void* state)
     CHECK(api->widgets.create_text(api->widgets.context,(struct ToriRS_WidgetRef){{77,2,3}},"late",&out)
               == TORIRS_CONTRACT_WRONG_CONTEXT,
           "shutdown cannot create new owned widgets");
+}
+
+/* Owned-control operations: registration, replacement, removal, budget,
+ * reentry, self-disable and context rules through the public C API. */
+static struct ToriRS_PluginHost* op_host;
+static int op_index, op_calls, op_mode;
+static uint64_t op_last_revision;
+static struct ToriRS_WidgetRef const op_control={{77,5,9}};
+static void op_listener(struct ToriRS_Api* api,void* user,struct ToriRS_WidgetEvent const* event)
+{
+    struct ToriRS_WidgetApi* ui=&api->widgets;
+    (void)user;
+    ++op_calls;
+    op_last_revision=event->native_revision;
+    CHECK(event->type==TORIRS_WIDGET_OPERATION && ToriRS_WidgetRefEqual(event->widget,op_control) && event->operation==1,
+          "operation event names the pressed control");
+    CHECK(ui->set_text(ui->context,op_control,"pressed")==TORIRS_CONTRACT_OK,
+          "an operation callback may mutate widgets");
+    CHECK(ui->invoke(ui->context,(struct ToriRS_WidgetActionRef){op_control,1,1})==TORIRS_CONTRACT_OK,
+          "an operation callback may invoke checked native actions");
+    int mode=op_mode;op_mode=0;
+    if( mode==1 )
+        CHECK(ui->set_on_op(ui->context,op_control,NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
+              "a listener can remove its own operation while handling it");
+    if( mode==2 )
+        PluginHost_SetEnabled(op_host,op_index,false);
+    if( mode==3 )
+        CHECK(ui->set_on_op(ui->context,op_control,"Again",op_listener,NULL)==TORIRS_CONTRACT_OK,
+              "a listener can re-arm its control while handling it");
+    if( mode==4 )
+    {
+        int ok=0;
+        for( int i=0;i<126;++i )
+            if( ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,200+(uint64_t)i,1}},"Row",op_listener,NULL)==TORIRS_CONTRACT_OK ) ++ok;
+        CHECK(ok==126,"the per-owner budget admits 128 armed controls");
+        CHECK(ui->set_on_op(ui->context,stale_control,"Row",op_listener,NULL)==TORIRS_CONTRACT_STALE_REFERENCE,
+              "arming a vanished control reports the stale reference");
+        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,900,1}},"Row",op_listener,NULL)==TORIRS_CONTRACT_OK,
+              "the last free slot is granted");
+        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,901,1}},"Row",op_listener,NULL)==TORIRS_CONTRACT_BUDGET_EXCEEDED,
+              "a full table never evicts a live registration");
+        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,902,1}},NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
+              "removing an operation that was never armed is a no-op");
+        int before=op_requests;
+        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,903,1}},NULL,NULL,NULL)==TORIRS_CONTRACT_OK && op_requests==before,
+              "a no-op removal sends nothing to the adapter");
+    }
+}
+static void op_start(struct ToriRS_Api* api,void* state)
+{
+    struct ToriRS_WidgetApi* ui=&api->widgets;
+    char too_long[TORIRS_WIDGET_OP_LABEL_MAX+1];
+    (void)state;
+    memset(too_long,'x',sizeof(too_long)-1);too_long[sizeof(too_long)-1]=0;
+    CHECK(ui->set_on_op(ui->context,op_control,"",op_listener,NULL)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "an empty operation label is rejected");
+    CHECK(ui->set_on_op(ui->context,op_control,NULL,op_listener,NULL)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "a missing operation label is rejected");
+    CHECK(ui->set_on_op(ui->context,op_control,too_long,op_listener,NULL)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "an over-long operation label is rejected");
+    int before=op_requests;
+    CHECK(ui->set_on_op(ui->context,op_control,"Press",op_listener,NULL)==TORIRS_CONTRACT_OK &&
+          op_requests==before+1 && strcmp(op_label,"Press")==0 && op_registration!=0,
+          "arming reaches the native adapter with its label and registration");
+}
+static void op_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
+{
+    (void)state;(void)graphics;
+    CHECK(api->widgets.set_on_op(api->widgets.context,op_control,"Paint",op_listener,NULL)==TORIRS_CONTRACT_WRONG_CONTEXT,
+          "paint cannot arm an owned control");
+}
+static void op_stop(struct ToriRS_Api* api,void* state)
+{
+    (void)state;
+    CHECK(api->widgets.set_on_op(api->widgets.context,op_control,"Late",op_listener,NULL)==TORIRS_CONTRACT_WRONG_CONTEXT,
+          "shutdown cannot arm an owned control");
+    CHECK(api->widgets.set_on_op(api->widgets.context,op_control,NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
+          "shutdown removal is accepted as a no-op");
+}
+static void test_widget_operations(void)
+{
+    struct ToriRS_PluginEngine engine=fake_engine();engine.widget_request=fake_widget_request;
+    op_host=PluginHost_New(&engine);op_calls=0;op_mode=0;op_requests=0;op_label[0]=0;op_registration=0;
+    struct ToriRS_PluginDef def={.struct_size=sizeof(def),.id="op-plugin",.title="Op",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=op_start,.on_stop=op_stop,.on_draw_canvas=op_draw}};
+    struct ToriRS_PluginDef other=def;other.id="op-other";other.title="Other";other.callbacks.on_start=NULL;other.callbacks.on_stop=NULL;other.callbacks.on_draw_canvas=NULL;
+    op_index=PluginHost_Register(op_host,&def);
+    int other_index=PluginHost_Register(op_host,&other);
+    CHECK(op_index>=0 && other_index>=0,"operation fixtures register");
+    PluginHost_Start(op_host);
+    uint64_t owner=(uint64_t)op_index+1,serial=op_registration;
+    CHECK(serial!=0,"startup armed the control");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,0),"a zero registration never dispatches");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,serial+1),"a mismatched registration is rejected");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,(struct ToriRS_WidgetRef){{77,5,10}},serial),"a different widget incarnation is rejected");
+    CHECK(!PluginHost_WidgetOperation(op_host,(uint64_t)other_index+1,op_control,serial),"another plugin's registration cannot be dispatched to a foreign owner");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner+7,op_control,serial),"an unknown owner is rejected");
+    CHECK(op_calls==0,"rejected dispatches reach no listener");
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,serial) && op_calls==1 && op_last_revision==serial,
+          "a current registration dispatches to the owner's listener");
+    PluginHost_DrawCanvas(op_host,765,503);
+    op_mode=3;
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,serial) && op_calls==2,"dispatch during which the listener re-arms");
+    uint64_t replaced=op_registration;
+    CHECK(replaced!=serial && replaced!=0 && strcmp(op_label,"Again")==0,"re-arming issues a fresh registration with the new label");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,serial),"a retired registration no longer dispatches");
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,replaced) && op_calls==3,"the replacement registration dispatches");
+    op_mode=1;
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,replaced) && op_calls==4,"dispatch during which the listener removes itself");
+    CHECK(op_registration==0 && op_label[0]==0,"removal clears the adapter operation");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,replaced) && op_calls==4,"a removed registration no longer dispatches");
+    PluginHost_SetEnabled(op_host,op_index,false);
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,replaced),"a disabled plugin receives no operations");
+    PluginHost_SetEnabled(op_host,op_index,true);
+    uint64_t fresh=op_registration;
+    CHECK(fresh!=0 && fresh!=replaced && PluginHost_WidgetOperation(op_host,owner,op_control,fresh) && op_calls==5,
+          "restart re-arms with a new registration");
+    op_mode=4;
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,fresh) && op_calls==6,"budget probe dispatched");
+    op_mode=2;
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,fresh) && op_calls==7,"a listener may disable its own plugin");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,fresh) && op_calls==7,"nothing dispatches after self-disable");
+    PluginHost_Free(op_host);
 }
 
 static struct ToriRS_PluginHost* watched_host;
@@ -5011,6 +5148,7 @@ main(void)
         PluginHost_Free(watched_host);
     }
     test_script_callbacks();
+    test_widget_operations();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

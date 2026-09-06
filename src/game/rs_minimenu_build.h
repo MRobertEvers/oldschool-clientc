@@ -269,6 +269,7 @@ _Static_assert(
  * is default-eligible, and having two ids is how that difference is stated.
  */
 #define RS_MINIMENU_ACTION_PLUGIN_REGION (UITREE_MINIMENU_ACTION_CLIENT_BASE + 6)
+#define RS_MINIMENU_ACTION_PLUGIN_WIDGET (UITREE_MINIMENU_ACTION_CLIENT_BASE + 8)
 
 /**
  * May this row be the LEFT-click default?
@@ -287,7 +288,7 @@ static inline int
 RS_Minimenu_ActionIsDefaultable(int action)
 {
     return action < 1000 || action == RS_MINIMENU_ACTION_PLUGIN_PANEL ||
-           action == RS_MINIMENU_ACTION_PLUGIN_REGION;
+           action == RS_MINIMENU_ACTION_PLUGIN_REGION || action == RS_MINIMENU_ACTION_PLUGIN_WIDGET;
 }
 
 /** Pack a client op's (kind, slot) into a minimenu option's action_index, and

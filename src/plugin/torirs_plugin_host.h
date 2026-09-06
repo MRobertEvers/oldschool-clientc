@@ -140,7 +140,7 @@ enum PluginWidgetRequestKind
     PLUGIN_WIDGET_POSITION, PLUGIN_WIDGET_SIZE,
     PLUGIN_WIDGET_REVALIDATE, PLUGIN_WIDGET_RESET, PLUGIN_WIDGET_RESET_OWNER,
     PLUGIN_WIDGET_CREATE_TEXT, PLUGIN_WIDGET_SET_TEXT, PLUGIN_WIDGET_TEXT_COLOR, PLUGIN_WIDGET_TEXT_ALIGN, PLUGIN_WIDGET_REMOVE,
-    PLUGIN_WIDGET_HIDDEN, PLUGIN_WIDGET_PROJECTION_HEIGHT, PLUGIN_WIDGET_TEXT_OUTLINE, PLUGIN_WIDGET_INVOKE
+    PLUGIN_WIDGET_HIDDEN, PLUGIN_WIDGET_PROJECTION_HEIGHT, PLUGIN_WIDGET_TEXT_OUTLINE, PLUGIN_WIDGET_INVOKE, PLUGIN_WIDGET_SET_ON_OP
 };
 struct PluginWidgetRequest
 {
@@ -153,6 +153,7 @@ struct PluginWidgetRequest
     bool* flag;
     struct ToriRS_WidgetAction* actions;
     struct ToriRS_WidgetActionRef action;
+    uint64_t registration;
     char* text;
     size_t capacity;
     size_t* count;
@@ -160,6 +161,7 @@ struct PluginWidgetRequest
 
 /* Called after native frame bindings are available at the pre-input/paint
  * publication fence. A zero instance means no ready native tree. */
+bool PluginHost_WidgetOperation(struct ToriRS_PluginHost*,uint64_t owner,struct ToriRS_WidgetRef,uint64_t registration);
 void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uint64_t generation);
 
 /* Internal native adapter. No VM pointer or borrowed stack slot reaches a

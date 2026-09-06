@@ -3947,7 +3947,7 @@ UITree_ActionSignatureAt(struct UITree const* tree, int32_t idx)
     ACTION_FIELD(behavior.button_type); ACTION_FIELD(behavior.client_code);
     ACTION_FIELD(behavior.click_mask); ACTION_FIELD(behavior.target_mask);
     ACTION_FIELD(target_priority); ACTION_FIELD(force_left_click);
-    ACTION_FIELD(item_id); ACTION_FIELD(item_count);
+    ACTION_FIELD(item_id); ACTION_FIELD(item_count); ACTION_FIELD(plugin_op_serial);
 #undef ACTION_FIELD
     hash = action_hash_text(hash, c->data_text);
     /* Native social rows and server-armed continue prompts derive their
@@ -4183,6 +4183,21 @@ int32_t UITree_WidgetCreateText(struct UITree* tree, struct UITreeNodeRef parent
     if( index<0 ) { free(saved_key); return -1; }
     tree->components[index].plugin_key=saved_key;
     return index;
+}
+
+bool UITree_WidgetSetOperation(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,
+                                uint64_t serial,char const* label)
+{
+    int32_t idx=UITree_ResolveRef(tree,ref);
+    if( idx<0 || !owner || tree->components[idx].plugin_owner!=owner ||
+        !label || strlen(label)>=UITREE_MENU_OPTION_LEN || (serial && !*label) ) return false;
+    struct UITreeComponent* c=&tree->components[idx];
+    struct UITreeMenuOptions* options=UITree_MenuOptionsMut(c);
+    if( !options ) return false;
+    snprintf(options->option,sizeof(options->option),"%s",serial ? label : "");
+    c->plugin_op_serial=serial;
+    uitree_note_mutation(tree,idx,UITREE_IMPACT_EMIT_SELF|UITREE_IMPACT_REACHABILITY);
+    return true;
 }
 
 bool UITree_WidgetRemove(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner)

@@ -3672,6 +3672,62 @@ static enum ToriRS_ContractResult widget_text_align(void* u, struct ToriRS_Widge
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_ALIGN,.ref=ref,.a=h,.b=v};
     return plugin_widget_request(u,&r);
 }
+static enum ToriRS_ContractResult widget_set_on_op(void* u,struct ToriRS_WidgetRef ref,
+    char const* label,ToriRS_WidgetListener listener,void* user)
+{
+    struct PluginV2Runtime* runtime=u;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching!=ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    /* Teardown already dropped the registrations and resets the owned widgets. */
+    if( ctx->tearing_down ) return listener ? TORIRS_CONTRACT_WRONG_CONTEXT : TORIRS_CONTRACT_OK;
+    if( listener && (!label || !*label || strlen(label)>=TORIRS_WIDGET_OP_LABEL_MAX) )
+        return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( !ctx->host->engine.widget_request ) return TORIRS_CONTRACT_UNAVAILABLE;
+    if( listener && ctx->host->widget_watch_serial==UINT64_MAX ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    if( !ctx->widget_ops )
+    {
+        if( !listener ) return TORIRS_CONTRACT_OK;
+        ctx->widget_ops=calloc(PLUGIN_WIDGET_OP_MAX,sizeof(*ctx->widget_ops));
+        assert(ctx->widget_ops);
+    }
+    int slot=-1;
+    for( int i=0;i<PLUGIN_WIDGET_OP_MAX;++i )
+    {
+        if( ctx->widget_ops[i].serial && ToriRS_WidgetRefEqual(ctx->widget_ops[i].widget,ref) ) { slot=i;break; }
+        if( slot<0 && !ctx->widget_ops[i].serial ) slot=i;
+    }
+    if( slot<0 || ctx->widget_ops[slot].serial==0 )
+    {
+        /* Removing an operation that was never armed changes nothing. */
+        if( !listener ) return TORIRS_CONTRACT_OK;
+    }
+    if( slot<0 )
+    {
+        /* Every slot is armed: reclaim one whose widget no longer exists.
+         * Live registrations are never evicted for a newcomer. */
+        for( int i=0;i<PLUGIN_WIDGET_OP_MAX;++i )
+        {
+            bool visible;
+            if( widget_visible(u,ctx->widget_ops[i].widget,&visible)==TORIRS_CONTRACT_STALE_REFERENCE ) { slot=i;break; }
+        }
+    }
+    if( slot<0 ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    uint64_t serial=listener ? ++ctx->host->widget_watch_serial : 0;
+    struct PluginWidgetRequest request={.kind=PLUGIN_WIDGET_SET_ON_OP,.ref=ref,
+        .name=listener ? label : "",.registration=serial};
+    enum ToriRS_ContractResult result=plugin_widget_request(u,&request);
+    if( result!=TORIRS_CONTRACT_OK )
+    {
+        /* A registration whose widget vanished is dead either way. */
+        if( result==TORIRS_CONTRACT_STALE_REFERENCE && ctx->widget_ops[slot].serial )
+            ctx->widget_ops[slot]=(struct PluginWidgetOp){0};
+        return result;
+    }
+    ctx->widget_ops[slot]=listener ? (struct PluginWidgetOp){ref,serial,listener,user}
+                                   : (struct PluginWidgetOp){0};
+    return TORIRS_CONTRACT_OK;
+}
 static enum ToriRS_ContractResult widget_remove(void* u, struct ToriRS_WidgetRef ref)
 {
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_REMOVE,.ref=ref};
@@ -3793,7 +3849,7 @@ v2_runtime_init(
         .widgets = {
             .context = runtime, .find = widget_find, .get_widget = widget_get,
             .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
-            .visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
+            .set_on_op=widget_set_on_op,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,

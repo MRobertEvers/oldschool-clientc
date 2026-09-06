@@ -160,6 +160,15 @@ struct PluginWidgetWatch
     void* user;
 };
 
+#define PLUGIN_WIDGET_OP_MAX 128
+struct PluginWidgetOp
+{
+    struct ToriRS_WidgetRef widget;
+    uint64_t serial;
+    ToriRS_WidgetListener listener;
+    void* user;
+};
+
 struct PluginContext
 {
     struct ToriRS_PluginHost* host;
@@ -221,6 +230,7 @@ struct PluginContext
     int ui_contribution_count;
     struct PluginV2Instance* v2;
     struct PluginWidgetWatch* widget_watches;
+    struct PluginWidgetOp* widget_ops;
     void (*reload_handler)(
         struct ToriRS_PluginHost* host,
         int plugin_index,
@@ -8269,6 +8279,8 @@ plugin_teardown(
     if( ctx->tearing_down )
         return;
     ctx->tearing_down = true;
+    free(ctx->widget_ops);
+    ctx->widget_ops=NULL;
     free(ctx->widget_watches);
     ctx->widget_watches = NULL;
 
@@ -10340,6 +10352,34 @@ PluginHost_FrameStart(
 
     struct ToriRS_FrameEvent ev = { now_ms, drawn_frames };
     plugin_dispatch(host, PLUGIN_CALLBACK_FRAME_START, &ev);
+}
+
+/* The native dispatcher has already re-checked the retained row: node identity,
+ * action signature (which includes the registration serial) and native input
+ * availability. This only confirms that the owner still holds that exact
+ * registration and delivers the operation in a mutating event context. */
+bool PluginHost_WidgetOperation(struct ToriRS_PluginHost* host,uint64_t owner,
+                                struct ToriRS_WidgetRef widget,uint64_t registration)
+{
+    assert(host);
+    if( !owner || owner>(uint64_t)host->plugin_count || !registration || !widget.opaque[2] ) return false;
+    int index=(int)owner-1;
+    struct PluginContext* ctx=&host->plugins[index];
+    if( !ctx->enabled || !ctx->running || ctx->tearing_down || !ctx->v2 || !ctx->widget_ops ) return false;
+    for( int i=0;i<PLUGIN_WIDGET_OP_MAX;++i )
+    {
+        /* Copied: the listener may replace or remove this registration. */
+        struct PluginWidgetOp op=ctx->widget_ops[i];
+        if( op.serial!=registration || !ToriRS_WidgetRefEqual(op.widget,widget) ) continue;
+        struct ToriRS_WidgetEvent event={.type=TORIRS_WIDGET_OPERATION,.widget=widget,
+            .operation=1,.native_revision=registration,.role=""};
+        int previous_owner=host->dispatching,previous_event=host->dispatch_event;
+        host->dispatching=index;host->dispatch_event=PLUGIN_CALLBACK_WIDGET_BINDING;
+        op.listener(&ctx->v2->runtime.api,op.user,&event);
+        host->dispatching=previous_owner;host->dispatch_event=previous_event;
+        return true;
+    }
+    return false;
 }
 
 static struct PluginWidgetWatch*

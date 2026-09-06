@@ -4173,6 +4173,9 @@ app_plugin_ui_boundary_node(struct App* app, char const* role)
     return UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
 }
 
+_Static_assert(TORIRS_WIDGET_OP_LABEL_MAX==UITREE_MENU_OPTION_LEN,
+    "public owned-control label capacity must match native menu option storage");
+
 static struct ToriRS_WidgetRef
 app_widget_ref(struct UITree const* tree, int32_t index)
 {
@@ -4259,6 +4262,12 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         return TORIRS_CONTRACT_NATIVE_BLOCKED;
     switch( r->kind )
     {
+    case PLUGIN_WIDGET_SET_ON_OP:
+        /* Native widgets keep their native operations; only owned controls
+         * take a plugin operation. */
+        if( c->plugin_owner!=owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_WidgetSetOperation(tree,ref,owner,r->registration,r->name) ) return TORIRS_CONTRACT_FAILED;
+        break;
     case PLUGIN_WIDGET_VISIBLE:
         *r->flag=!UITree_NodeOrAncestorDisplayHidden(tree,idx) &&
             UITree_NodeNativeVisible(tree,&app->ui_host,idx,app->hover_com_id);

@@ -28952,6 +28952,17 @@ app_minimenu_run_option(
      * on a later one, and in between a plugin can have been switched off and
      * its regions cleared.
      */
+    if( opt.action == RS_MINIMENU_ACTION_PLUGIN_WIDGET )
+    {
+        int32_t node=opt.pick.node_index;
+        if( opt.pick.has_node_identity && node>=0 && (uint32_t)node<app->tree->component_count )
+        {
+            struct UITreeComponent const* c=&app->tree->components[node];
+            PluginHost_WidgetOperation(app->plugins,c->plugin_owner,app_widget_ref(app->tree,node),c->plugin_op_serial);
+        }
+        return 0;
+    }
+
     if( opt.action == RS_MINIMENU_ACTION_PLUGIN_REGION )
     {
         int const at = opt.action_index / TORIRS_PLUGIN_REGION_OPS_MAX;
@@ -31928,7 +31939,7 @@ App_RunOnce(
      * owns the hook dispatch -- see RS_CS2_InputSetFocus.
      */
     int input_took_click = 0;
-    if( !chrome_took_click && (out.clicked_com_id >= 0 || out.left_click_miss) &&
+    if( !chrome_took_click && (out.clicked_com_id >= 0 || out.clicked_node >= 0 || out.left_click_miss) &&
         !out.minimenu_closed && out.minimenu_select < 0 )
     {
         int const field = out.clicked_com_id >= 0
@@ -31952,9 +31963,13 @@ App_RunOnce(
             RS_CS2_PumpTransmits(&app->host, &app->runner);
     }
 
+    /* Keyed on the clicked NODE, not only its component id: a plugin-owned
+     * control has no component id, and keying on the id alone dropped its click
+     * on the floor -- neither a UI click here nor a world click below, because
+     * the interactive hit had already closed the world gate. */
     if( !chrome_took_click && !input_took_click && app->inv_drag_com_id < 0 &&
         !pressed_filled_obj &&
-        out.clicked_com_id >= 0 && !out.minimenu_closed && out.minimenu_select < 0 )
+        (out.clicked_com_id >= 0 || out.clicked_node >= 0) && !out.minimenu_closed && out.minimenu_select < 0 )
     {
         struct RS_MinimenuBuildCtx mctx = {
             .tree = app->tree,

@@ -456,3 +456,42 @@ void test_owned_widgets(void)
     TEST_ASSERT(UITree_ResolveRef(t,nested_ref)<0,"closing a native subtree invalidates owned descendants");
     UITree_Free(t);
 }
+
+/* Owned-control operations: the label lives in the native menu option storage,
+ * the registration serial takes part in the action signature, and nothing
+ * native or foreign can be armed. */
+void test_owned_widget_operations(void)
+{
+    struct UITree* t=UITree_New(16);
+    int root=UITree_TestPushXy(t,-1,UIELEM_RS_LAYER,0x360000,0,0,300,300);
+    int native=UITree_TestPushXy(t,root,UIELEM_RS_TEXT,0x360002,0,0,20,20);
+    int own=UITree_WidgetCreateText(t,UITree_RefAt(t,root),1,"button",1);
+    struct UITreeNodeRef ref=UITree_RefAt(t,own);
+    uint64_t unarmed=UITree_ActionSignatureAt(t,own);
+    char too_long[UITREE_MENU_OPTION_LEN+1];
+    memset(too_long,'x',sizeof(too_long)-1);too_long[sizeof(too_long)-1]=0;
+    TEST_ASSERT(own>=0,"owned control fixture created");
+    TEST_ASSERT(!UITree_WidgetSetOperation(t,UITree_RefAt(t,native),1,5,"Toggle"),"a native widget never takes a plugin operation");
+    TEST_ASSERT(!UITree_WidgetSetOperation(t,ref,2,5,"Toggle"),"another owner cannot arm an owned control");
+    TEST_ASSERT(!UITree_WidgetSetOperation(t,ref,1,5,""),"an armed operation needs a label");
+    TEST_ASSERT(!UITree_WidgetSetOperation(t,ref,1,5,too_long),"the label must fit native menu option storage");
+    TEST_ASSERT(!t->components[own].plugin_op_serial && !UITree_MenuOptions(&t->components[own])->option[0],
+        "rejected arming leaves the control unarmed");
+    TEST_ASSERT(UITree_WidgetSetOperation(t,ref,1,5,"Toggle"),"the owner arms its control");
+    TEST_ASSERT(strcmp(UITree_MenuOptions(&t->components[own])->option,"Toggle")==0 && t->components[own].plugin_op_serial==5,
+        "operation label and registration are stored on the node");
+    uint64_t armed=UITree_ActionSignatureAt(t,own);
+    TEST_ASSERT(armed!=unarmed,"arming changes the native action signature");
+    TEST_ASSERT(UITree_WidgetSetOperation(t,ref,1,6,"Toggle"),"the owner replaces its listener");
+    TEST_ASSERT(UITree_ActionSignatureAt(t,own)!=armed,"replacing the listener retires rows built for the old one");
+    TEST_ASSERT(UITree_WidgetSetOperation(t,ref,1,0,""),"the owner removes its operation");
+    TEST_ASSERT(!UITree_MenuOptions(&t->components[own])->option[0] && !t->components[own].plugin_op_serial,
+        "removal clears label and registration");
+    TEST_ASSERT(UITree_ActionSignatureAt(t,own)==unarmed,"a disarmed control has its original signature");
+    UITree_WidgetRemove(t,ref,1);
+    TEST_ASSERT(!UITree_WidgetSetOperation(t,ref,1,7,"Toggle"),"a stale reference cannot be armed");
+    int again=UITree_WidgetCreateText(t,UITree_RefAt(t,root),1,"button",1);
+    TEST_ASSERT(again>=0 && !t->components[again].plugin_op_serial && !UITree_MenuOptions(&t->components[again])->option[0],
+        "a recreated control starts unarmed");
+    UITree_Free(t);
+}

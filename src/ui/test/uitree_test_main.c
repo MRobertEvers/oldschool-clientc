@@ -10,6 +10,8 @@ void test_live_widget_geometry(void);
 void test_live_widget_visibility(void);
 void test_widget_sidebar_group(void);
 void test_owned_widgets(void);
+void test_owned_widget_operations(void);
+void test_owned_control_click_reports_node(void);
 void test_plugin_contract_copy(void);
 
 int g_failures;
@@ -29,6 +31,7 @@ main(void)
     test_live_widget_visibility();
     test_widget_sidebar_group();
     test_owned_widgets();
+    test_owned_widget_operations();
         test_plugin_contract_copy();
         return g_failures ? 1 : 0;
     }
@@ -41,6 +44,7 @@ main(void)
     test_live_widget_visibility();
     test_widget_sidebar_group();
     test_owned_widgets();
+    test_owned_widget_operations();
     test_plugin_contract_copy();
     test_dirty_marking();
     test_walk_topology();
@@ -68,6 +72,7 @@ main(void)
     test_key_dispatch();
     test_input_field();
     test_same_frame_press_release_clicks();
+    test_owned_control_click_reports_node();
     test_touch_swipe_scrolls_layer();
     test_feedback_overlay_never_takes_a_click();
     test_minimenu();

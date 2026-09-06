@@ -593,6 +593,7 @@ warn = nil
 ---@field set_text_color fun(self:torirs.Widget,color:torirs.Colour):boolean,string Owned text only.
 ---@field set_text_outline fun(self:torirs.Widget,outline:boolean):boolean,string Native or owned text; false resumes native shadow style.
 ---@field set_text_align fun(self:torirs.Widget,horizontal:integer,vertical:integer):boolean,string 0=start, 1=center, 2=end; owned text only.
+---@field set_on_op fun(self:torirs.Widget,label:string?,callback:fun(widget:torirs.Widget,event:torirs.WidgetOperationEvent)?):boolean,string Owned controls only. Arms one left-click/menu operation delivered through the native hit test and retained-menu checks; replacing the callback retires earlier menu rows; nil removes it.
 ---@field remove fun(self:torirs.Widget):boolean,string Removes only this owner's widget.
 ---@field position fun(self:torirs.Widget):torirs.Rect? Native-parent-local, unscrolled geometry.
 ---@field bounds fun(self:torirs.Widget):torirs.Rect? Drawn canvas geometry, including scroll/drag.
@@ -610,6 +611,11 @@ warn = nil
 ---@field kind 'bound'|'unbound'|'tree_changed'
 ---@field role string
 ---@field native_revision integer
+
+---@class torirs.WidgetOperationEvent
+---@field kind 'operation'
+---@field operation integer Always 1 for an owned control's single operation.
+---@field native_revision integer The registration that produced this operation.
 
 ---@class torirs.WidgetsApi
 ---@field invoke fun(action:torirs.WidgetActionRef):boolean, string? Rechecks current native visibility, masks and widget identity.

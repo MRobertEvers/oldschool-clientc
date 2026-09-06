@@ -588,6 +588,67 @@ static void test_widget_watch(struct ToriRS_PluginHost* host)
     CHECK(g_logs==logs+3,"Lua watch starts fresh after enable");
 }
 
+static ToriRS_WidgetListener lua_op_listener;
+static void* lua_op_user;
+static char lua_op_label[64];
+static int lua_op_sets;
+static enum ToriRS_ContractResult fake_lua_get_widget(void* ctx,int32_t id,struct ToriRS_WidgetRef* out)
+{
+    (void)ctx;CHECK(id==1,"Lua forwards the requested component id");
+    *out=(struct ToriRS_WidgetRef){{7,8,9}};return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult fake_lua_set_on_op(void* ctx,struct ToriRS_WidgetRef widget,char const* label,
+    ToriRS_WidgetListener listener,void* user)
+{
+    (void)ctx;++lua_op_sets;
+    CHECK(widget.opaque[0]==7 && widget.opaque[1]==8 && widget.opaque[2]==9,"Lua forwards the checked control identity");
+    CHECK((listener==NULL)==(label==NULL),"Lua removal sends no label and arming sends one");
+    snprintf(lua_op_label,sizeof(lua_op_label),"%s",label ? label : "");
+    lua_op_listener=listener;lua_op_user=user;
+    return TORIRS_CONTRACT_OK;
+}
+static void test_widget_set_on_op(struct ToriRS_PluginHost* host)
+{
+    static char const source[]=
+        "local p={id='widget-op'};local presses=0;function p.on_start(api) "
+        " local control=assert(api.widgets.get(1));"
+        " assert(control:set_on_op('Press',function(widget,event) "
+        "  presses=presses+1;"
+        "  assert(type(widget)=='userdata' and event.kind=='operation' and event.operation==1 and event.native_revision==11);"
+        "  api.core.log('pressed '..presses);"
+        "  if presses==2 then assert(control:set_on_op(nil)) end end)) end;"
+        "function p.on_key(api) local control=api.widgets.get(1);control:set_on_op('',function() end) end;"
+        "return p";
+    struct FakeInstance instance={"widget-op",""};struct ToriRS_Api api=fake_api(&instance);
+    api.widgets.get_widget=fake_lua_get_widget;api.widgets.set_on_op=fake_lua_set_on_op;
+    int index=PluginLua_AddScript(host,"widget-op",source,(int)strlen(source));
+    CHECK(index>=0,"owned operation script registers");
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    CHECK(lua_op_sets==1 && strcmp(lua_op_label,"Press")==0 && lua_op_listener!=NULL,"Lua arms the control through the C API");
+    struct ToriRS_WidgetEvent event={.type=TORIRS_WIDGET_OPERATION,.widget={{7,8,9}},.operation=1,.native_revision=11,.role=""};
+    int logs=g_logs;
+    ToriRS_WidgetListener armed=lua_op_listener;void* armed_user=lua_op_user;
+    armed(&api,armed_user,&event);
+    CHECK(g_logs==logs+1,"an operation runs the Lua callback with widget and event");
+    armed(&api,armed_user,&event);
+    CHECK(g_logs==logs+2 && lua_op_sets==2 && lua_op_listener==NULL && !lua_op_label[0],
+          "the Lua callback can remove its own operation, which reaches the adapter as a NULL listener");
+    armed(&api,armed_user,&event);
+    CHECK(g_logs==logs+2,"a released operation closure is inert even if a stale dispatch reaches it");
+    g_defs[index]->callbacks.on_stop(&api,NULL);
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    CHECK(lua_op_sets==3 && lua_op_listener!=NULL,"restart re-arms the control");
+    armed=lua_op_listener;armed_user=lua_op_user;
+    g_defs[index]->callbacks.on_stop(&api,NULL);
+    armed(&api,armed_user,&event);
+    CHECK(g_logs==logs+2,"Lua shutdown revokes retained operation closures");
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    int disables=g_disabled_self;struct ToriRS_KeyEvent key={0};
+    g_defs[index]->callbacks.on_key(&api,NULL,&key);
+    CHECK(g_disabled_self==disables+1 && strstr(g_disable_reason,"invalid operation label"),
+          "Lua rejects an empty operation label before reaching native dispatch");
+}
+
 static int menu_calls;
 static struct ToriRS_MenuBuildEvent* expected_menu;
 static bool fake_menu_entry(struct ToriRS_Api* api,struct ToriRS_MenuBuildEvent* menu,
@@ -695,6 +756,7 @@ main(void)
     test_runtime(&host);
     test_widget_watch(&host);
     test_widget_actions(&host);
+    test_widget_set_on_op(&host);
     test_menu_module(&host);
     PluginLua_Shutdown();
     reset_fake();

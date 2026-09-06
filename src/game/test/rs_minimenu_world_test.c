@@ -1211,9 +1211,80 @@ static void test_checked_widget_native_actions(void)
     }
 }
 
+/* An owned control reaches the menu only through the real hit test and only
+ * with its plugin row: no native packet op, exact node identity, and a
+ * retained row dies when the listener is replaced or the native parent hides. */
+static void
+test_owned_widget_operation_rows(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec spec = { 0 };
+    struct RS_MinimenuBuildCtx ctx = { .tree = tree };
+    struct UIMinimenu menu;
+    int row = -1;
+
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = 0x360000;
+    spec.width = 300;
+    spec.height = 200;
+    int root = UITree_Push(tree, -1, &spec);
+    int own = UITree_WidgetCreateText(tree, UITree_RefAt(tree, root), 3, "button", 0);
+    TEST_ASSERT(root >= 0 && own >= 0, "owned control fixture pushed");
+    UITree_LayoutResolve(tree, 0, 0, 400, 300);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    int const base_rows = menu.option_count;
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 0,
+        "an unarmed owned control offers no rows");
+
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 41, "Toggle"),
+        "owner arms the control");
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 1,
+        "an armed owned control offers exactly one plugin row");
+    TEST_ASSERT(menu.option_count == base_rows + 1, "an owned control adds no native rows");
+    for( int i = 0; i < menu.option_count; i++ )
+        if( menu.options[i].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET ) row = i;
+    TEST_ASSERT(row >= 0 && strcmp(menu.options[row].text, "Toggle") == 0, "the row uses the plugin label");
+    TEST_ASSERT(row >= 0 && menu.options[row].pick.has_node_identity && menu.options[row].pick.node_index == own,
+        "the row carries the exact owned node identity");
+    TEST_ASSERT(RS_Minimenu_DefaultOptionIndex(&menu) == row, "an owned control is the left-click default");
+    TEST_ASSERT(row >= 0 && UITree_MenuPickCurrent(tree, &menu.options[row].pick), "a fresh row is current");
+
+    struct UIMinimenuOption retained = menu.options[row >= 0 ? row : 0];
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 42, "Toggle"),
+        "owner replaces the listener");
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &retained.pick),
+        "replacing the listener retires the retained row");
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 1, "the new listener builds a current row");
+    for( int i = 0; i < menu.option_count; i++ )
+        if( menu.options[i].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET ) row = i;
+    retained = menu.options[row];
+    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 0, "");
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &retained.pick), "removing the operation retires the retained row");
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 0, "a disarmed control offers no rows");
+
+    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 43, "Toggle");
+    struct UIMinimenu widget_menu;
+    UIMinimenu_Reset(&widget_menu);
+    TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx, own, &widget_menu) == 1 &&
+        widget_menu.options[0].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET,
+        "the checked widget action query lists the owned operation");
+    UITree_SetHideAt(tree, root, 1);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 0,
+        "native hiding of the parent removes the owned row");
+    UIMinimenu_Reset(&widget_menu);
+    TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx, own, &widget_menu) == 0,
+        "native hiding blocks the checked widget action query too");
+    UITree_Free(tree);
+}
+
 int
 main(void)
 {
+    test_owned_widget_operation_rows();
     test_checked_widget_native_actions();
     test_widget_target_priority_default();
     test_dat2_stacking_behaviour_is_not_boolean();

@@ -1262,6 +1262,7 @@ UITree_InteractConsumePendingDragPickup(
     out->chat_button_filter = -1;
     out->hover_com_id = -1;
     out->clicked_com_id = -1;
+    out->clicked_node = -1;
     out->minimenu_select = -1;
 
     left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
@@ -1769,6 +1770,9 @@ interact_click(
         : (ihit >= 0 && (uint32_t)ihit < tree->component_count
                ? tree->components[ihit].component_id
                : tree->components[ui_result->clicked].component_id);
+    out->clicked_node = hook_com_id >= 0 && hook_node_index >= 0 ? hook_node_index
+        : (ihit >= 0 && (uint32_t)ihit < tree->component_count ? ihit : ui_result->clicked);
+    out->clicked_incarnation = out->clicked_node >= 0 ? tree->components[out->clicked_node].incarnation : 0;
     out->clicked_x = click_x;
     out->clicked_y = click_y;
 
@@ -1997,6 +2001,7 @@ UITree_InteractFrameWithPointerOwner(
     out->chat_button_filter = -1;
     out->hover_com_id = -1;
     out->clicked_com_id = -1;
+    out->clicked_node = -1;
     out->minimenu_select = -1;
 
     /* A popup normally freezes the tree input bridge, but display:none is a

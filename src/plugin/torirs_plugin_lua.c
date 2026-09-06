@@ -144,6 +144,16 @@ struct LuaWidgetWatch
     char role[TORIRS_UI_NAME_MAX];
     int function_ref;
 };
+/* One armed owned-control operation. The same per-owner budget as the C
+ * runtime, so a Lua plugin is not silently limited to fewer controls. */
+#define LUA_WIDGET_OP_MAX 128
+struct LuaWidgetOp
+{
+    struct LuaScript* script;
+    struct ToriRS_WidgetRef widget;
+    int function_ref;
+    bool armed;
+};
 
 struct LuaScript
 {
@@ -179,6 +189,7 @@ struct LuaScript
     char frame_titles[PLUGIN_LUA_MAX_FRAMES][TORIRS_PLUGIN_TITLE_MAX];
     int frame_count;
     struct LuaWidgetWatch widget_watches[LUA_WIDGET_WATCH_MAX];
+    struct LuaWidgetOp widget_ops[LUA_WIDGET_OP_MAX];
 
     /* Callback-scoped native values. Lua closures only read these while the
      * corresponding callback is armed. */
@@ -1183,6 +1194,100 @@ static void lua_widget_watches_clear(struct LuaScript* script)
     }
 }
 
+static void lua_widget_operation_callback(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct LuaWidgetOp* op = user;
+    struct LuaScript* script = op->script;
+    if( !script || !script->alive || !script->L || !op->armed ) return;
+    if( event->type != TORIRS_WIDGET_OPERATION ) return;
+    if( !lua_callback_scope_push(script,api) ) return;
+    lua_State* L = script->L;
+    lua_rawgeti(L,LUA_REGISTRYINDEX,op->function_ref);
+    lua_push_widget(L,event->widget);
+    lua_createtable(L,0,3);
+    lua_pushstring(L,"operation");lua_setfield(L,-2,"kind");
+    lua_pushinteger(L,(lua_Integer)event->operation);lua_setfield(L,-2,"operation");
+    lua_pushinteger(L,(lua_Integer)event->native_revision);lua_setfield(L,-2,"native_revision");
+    int result = lua_callback_pcall(script,2,0);
+    if( result != LUA_OK )
+    {
+        char error[128];
+        snprintf(error,sizeof(error),"%s",lua_tostring(L,-1) ? lua_tostring(L,-1) : "error");
+        lua_pop(L,1);
+        lua_script_fault(script,api,"widget.set_on_op",error);
+    }
+    (void)lua_script_flush_disable(script,api);
+}
+static void lua_widget_op_release(struct LuaScript* script, struct LuaWidgetOp* op)
+{
+    if( op->armed ) luaL_unref(script->L,LUA_REGISTRYINDEX,op->function_ref);
+    memset(op,0,sizeof(*op));
+}
+/* widget:set_on_op(label, callback) arms one operation; widget:set_on_op(nil)
+ * or a nil callback removes it. Registrations are keyed by checked widget. */
+static int lua_widget_set_on_op(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
+    struct ToriRS_WidgetRef ref = lua_widget_arg(L);
+    bool remove = lua_isnoneornil(L,3);
+    char const* label = remove ? NULL : luaL_checkstring(L,2);
+    if( !remove )
+    {
+        luaL_checktype(L,3,LUA_TFUNCTION);
+        if( !*label || strlen(label) >= TORIRS_WIDGET_OP_LABEL_MAX ) return luaL_argerror(L,2,"invalid operation label");
+    }
+    int at = -1;
+    for( int i = 0; i < LUA_WIDGET_OP_MAX; ++i )
+    {
+        if( script->widget_ops[i].armed && ToriRS_WidgetRefEqual(script->widget_ops[i].widget,ref) ) { at=i; break; }
+        if( at < 0 && !script->widget_ops[i].armed ) at=i;
+    }
+    if( at < 0 || !script->widget_ops[at].armed )
+    {
+        if( remove ) return lua_widget_result(L, TORIRS_CONTRACT_OK);
+    }
+    if( at < 0 )
+    {
+        /* Full: reclaim a registration whose widget no longer exists, like the
+         * C runtime. Live registrations are never evicted. */
+        for( int i = 0; i < LUA_WIDGET_OP_MAX; ++i )
+        {
+            bool visible;
+            if( ui->visible(ui->context,script->widget_ops[i].widget,&visible) != TORIRS_CONTRACT_STALE_REFERENCE ) continue;
+            lua_widget_op_release(script,&script->widget_ops[i]);
+            at=i; break;
+        }
+    }
+    if( at < 0 ) return lua_widget_result(L, TORIRS_CONTRACT_BUDGET_EXCEEDED);
+    struct LuaWidgetOp* op = &script->widget_ops[at];
+    int next_ref = LUA_NOREF;
+    if( !remove ) { lua_pushvalue(L,3); next_ref=luaL_ref(L,LUA_REGISTRYINDEX); }
+    enum ToriRS_ContractResult result = ui->set_on_op(ui->context,ref,label,
+        remove ? NULL : lua_widget_operation_callback,op);
+    if( result == TORIRS_CONTRACT_OK )
+    {
+        lua_widget_op_release(script,op);
+        if( !remove )
+        {
+            op->script=script; op->widget=ref; op->function_ref=next_ref; op->armed=true;
+        }
+    }
+    else
+    {
+        if( next_ref != LUA_NOREF ) luaL_unref(L,LUA_REGISTRYINDEX,next_ref);
+        /* The C runtime drops a registration whose widget vanished. */
+        if( result == TORIRS_CONTRACT_STALE_REFERENCE ) lua_widget_op_release(script,op);
+    }
+    return lua_widget_result(L,result);
+}
+static void lua_widget_ops_clear(struct LuaScript* script)
+{
+    if( !script || !script->L ) return;
+    for( int i = 0; i < LUA_WIDGET_OP_MAX; ++i )
+        lua_widget_op_release(script,&script->widget_ops[i]);
+}
+
 static int lua_widget_create_text(lua_State* L)
 {
     struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
@@ -1222,7 +1327,7 @@ static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"set_text_outline",lua_widget_text_outline},{"parent",lua_widget_parent},{"set_projection_height",lua_widget_projection_height},{"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
     {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},
     {"create_text",lua_widget_create_text},{"set_text",lua_widget_set_text},
-    {"set_text_color",lua_widget_set_text_color},{"set_text_align",lua_widget_set_text_align},{"remove",lua_widget_remove},{NULL,NULL}
+    {"set_text_color",lua_widget_set_text_color},{"set_text_align",lua_widget_set_text_align},{"set_on_op",lua_widget_set_on_op},{"remove",lua_widget_remove},{NULL,NULL}
 };
 
 static int lua_ui_ref(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_UiNodeRef r=a->ui.ref(a,luaL_checkstring(L,1));if(!r.value)lua_pushnil(L);else lua_pushinteger(L,r.value);return 1; }
@@ -2003,10 +2108,11 @@ lua_cb_stop(struct ToriRS_Api* api, void* state)
 {
     struct LuaScript* script = lua_script_for_api(api);
     (void)state;
-    if( script && script->reload_failed ) { lua_widget_watches_clear(script); return; }
+    if( script && script->reload_failed ) { lua_widget_watches_clear(script); lua_widget_ops_clear(script); return; }
     if( lua_call_begin(script, api, LUA_ON_STOP) )
         (void)lua_call_end(script, LUA_ON_STOP, 1, false);
     lua_widget_watches_clear(script);
+    lua_widget_ops_clear(script);
 }
 #define SIMPLE_EVENT_CB(fn,handler,type,push) static void fn(struct ToriRS_Api*a,void*state,type const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,handler)){push(s->L,e);lua_call_end(s,handler,2,false);}}
 SIMPLE_EVENT_CB(lua_cb_frame,LUA_ON_FRAME_START,struct ToriRS_FrameEvent,lua_push_frame_event)

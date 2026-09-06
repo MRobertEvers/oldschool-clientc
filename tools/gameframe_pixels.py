@@ -116,6 +116,36 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
                f"warm_backing={fractions[0]:.3f} warm_bar={fractions[1]:.3f}")
 
 
+def check_owned_operation(log, language, failures):
+    """The owned control was armed, the simulated click released inside its
+    current canvas bounds, and its operation ran and invoked the native action.
+
+    Containment is read from the client's own sim_click_at trace, not from the
+    harness input, so a click that missed the control fails here even when the
+    native filter happened to change for another reason."""
+    if language == "c":
+        bounds = re.findall(r"WIDGET_DEMO_OP_BOUNDS armed=(-?\d+) x=(-?\d+) y=(-?\d+) w=(\d+) h=(\d+)", log)
+        armed = bool(bounds) and all(int(b[0]) == 0 for b in bounds)
+        boxes = [tuple(map(int, b[1:])) for b in bounds]
+        fired = re.findall(r"WIDGET_DEMO_OP result=(-?\d+) registration=(\d+)", log)
+        ran = len(fired) >= 1 and all(int(r) == 0 and int(reg) > 0 for r, reg in fired)
+    else:
+        bounds = re.findall(r"LUA_WIDGET_DEMO_OP_BOUNDS (-?\d+) (-?\d+) (\d+) (\d+)", log)
+        armed = bool(bounds)
+        boxes = [tuple(map(int, b)) for b in bounds]
+        fired = re.findall(r"LUA_WIDGET_DEMO_OP (\w+) (\w+)", log)
+        ran = len(fired) >= 1 and all(ok == "true" and reason == "ok" for ok, reason in fired)
+    releases = [tuple(map(int, m)) for m in re.findall(r"sim_click_at: released (-?\d+),(-?\d+)", log)]
+    inside = bool(boxes) and bool(releases) and all(
+        any(x <= rx < x + w and y <= ry < y + h for x, y, w, h in boxes) for rx, ry in releases)
+    print(f"PIXEL owned_widget_armed={'PASS' if armed else 'FAIL'} language={language} bounds={len(bounds)}")
+    if not armed: failures.append("owned_widget_armed")
+    print(f"PIXEL owned_widget_click_inside={'PASS' if inside else 'FAIL'} releases={len(releases)}")
+    if not inside: failures.append("owned_widget_click_inside")
+    print(f"PIXEL owned_widget_operation_ran={'PASS' if ran else 'FAIL'} operations={len(fired)}")
+    if not ran: failures.append("owned_widget_operation_ran")
+
+
 def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", public_chat_mode="on"):
     """Revconfig controls, plus evidence that actual mounted CS1 ran.
 
@@ -232,7 +262,7 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on"):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False):
     width, height, rows = read_bmp(path)
     failures = []
     if public_chat_mode=="friends":
@@ -313,6 +343,8 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             (int(m[2]),int(m[3])) == (int(m[0])-12,int(m[1])) for m in matches)
         print(f"PIXEL native_widget_api_move={'PASS' if valid else 'FAIL'} language={widget_demo} observations={len(matches)}")
         if not valid: failures.append("native_widget_api_move")
+        if widget_op:
+            check_owned_operation(log, widget_demo, failures)
         if revision == "osrs239":
             # A moved hidden tab or unused side-modal can satisfy API readback
             # while leaving the active inventory untouched. Check the actual
@@ -443,6 +475,7 @@ if __name__ == "__main__":
     parser.add_argument("--input-state", help="focused native field parent uid:expected text")
     parser.add_argument("--native-focus-hide", action="store_true", help="verify the native Hiscores typing/hide packet sequence")
     parser.add_argument("--widget-demo", choices=("c", "lua"))
+    parser.add_argument("--widget-op", action="store_true", help="the simulated click must press the demo's owned control")
     parser.add_argument("--widget-moves", type=int, default=1)
     parser.add_argument("--widget-rune-slot", type=int, choices=range(28), default=0)
     parser.add_argument("--owned-text")
@@ -462,7 +495,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

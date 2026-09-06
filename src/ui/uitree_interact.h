@@ -172,6 +172,11 @@ struct UIInteractOut
     int need_redraw;
     int hover_com_id;
     int clicked_com_id;
+    /** The clicked node itself, -1 when nothing was clicked. A plugin-owned
+     * control has no component id (clicked_com_id stays -1) but is still a
+     * real click target; consumers that only key on the id lose it. */
+    int32_t clicked_node;
+    uint64_t clicked_incarnation;
     /** Screen position of the left click that produced clicked_com_id. */
     int clicked_x;
     int clicked_y;

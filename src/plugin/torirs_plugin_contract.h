@@ -32,6 +32,9 @@ struct ToriRS_WidgetAction
     struct ToriRS_WidgetActionRef ref;
     char label[256]; /* Current native menu label, copied into caller storage. */
 };
+/* Capacity of an owned control's operation label, including the terminator.
+ * The native adapter checks this against its menu option storage. */
+#define TORIRS_WIDGET_OP_LABEL_MAX 64
 
 enum ToriRS_ContractResult
 {
@@ -68,8 +71,14 @@ enum ToriRS_PluginOperation
     TORIRS_PLUGIN_RELEASE_OWNED
 };
 
-bool ToriRS_WidgetRefValid(struct ToriRS_WidgetRef ref);
-bool ToriRS_WidgetRefEqual(struct ToriRS_WidgetRef a, struct ToriRS_WidgetRef b);
+static inline bool ToriRS_WidgetRefValid(struct ToriRS_WidgetRef ref)
+{
+    return ref.opaque[0] && ref.opaque[1] && ref.opaque[2];
+}
+static inline bool ToriRS_WidgetRefEqual(struct ToriRS_WidgetRef a, struct ToriRS_WidgetRef b)
+{
+    return a.opaque[0] == b.opaque[0] && a.opaque[1] == b.opaque[1] && a.opaque[2] == b.opaque[2];
+}
 bool ToriRS_PluginContextAllows(enum ToriRS_PluginExecutionContext context,
                                enum ToriRS_PluginOperation operation);
 
@@ -168,6 +177,12 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*set_text_color)(void*, struct ToriRS_WidgetRef, uint32_t rgb);
     enum ToriRS_ContractResult (*set_text_align)(void*, struct ToriRS_WidgetRef, int horizontal, int vertical);
     enum ToriRS_ContractResult (*remove)(void*, struct ToriRS_WidgetRef);
+    /* Owned controls only: arm one left-click/menu operation with this label
+     * (shorter than TORIRS_WIDGET_OP_LABEL_MAX). The listener receives
+     * TORIRS_WIDGET_OPERATION through the normal native hit test and retained
+     * menu checks. Replacing the listener retires earlier retained rows. A NULL
+     * listener removes the operation. */
+    enum ToriRS_ContractResult (*set_on_op)(void*,struct ToriRS_WidgetRef,char const* label,ToriRS_WidgetListener,void* user);
 
     /* Follow a semantic binding at native publication boundaries. A new
      * subscription receives BOUND when available; replacement sends UNBOUND

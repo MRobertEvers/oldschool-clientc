@@ -878,6 +878,17 @@ add_component_rows(
     if( ((node->component_id >> 16) & 0xFFFF) == TORIRS_CHROME_GROUP )
         return 0;
 
+    if( node->plugin_owner )
+    {
+        if( node->plugin_op_serial && opts->option[0] )
+        {
+            struct UIMinimenuPick owned=pick;
+            UITree_StampMenuPick(ctx->tree,(int32_t)(node-ctx->tree->components),&owned);
+            UIMinimenu_AddOption(menu,opts->option,RS_MINIMENU_ACTION_PLUGIN_WIDGET,0,owned);
+        }
+        return menu->option_count-before;
+    }
+
     if( add_social_rows(node, menu) )
         return menu->option_count - before;
 

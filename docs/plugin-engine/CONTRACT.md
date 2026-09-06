@@ -96,6 +96,31 @@ widgets cannot be moved into an owned subtree, and another owner cannot create o
 write inside it. `remove` is ownership-checked; owner teardown removes its added
 widgets as well as its geometry edits. Creation during shutdown is rejected.
 
+### Owned-control operations (implemented slice)
+
+C `widgets.set_on_op(context, widget, label, listener, user)` and Lua
+`widget:set_on_op(label, callback)` arm exactly one operation on an owned
+widget. The label is shorter than `TORIRS_WIDGET_OP_LABEL_MAX` (64 bytes) and is
+stored in the same native menu option storage native components use, so the
+control becomes input-eligible through the ordinary hit test: it hovers, shows
+the label as the left-click default and in the right-click menu, and is
+dismissed by the same retained-menu checks. Native widgets never take a plugin
+operation (`NATIVE_BLOCKED`); another owner's control is refused the same way.
+
+Each arming issues a registration serial that is part of the node's native
+action signature. Replacing the listener or removing it (NULL / nil) retires
+every retained row and press built for the previous registration; a row whose
+node was freed, reused, hidden natively, or natively unavailable never reaches
+the listener. The listener receives `TORIRS_WIDGET_OPERATION` (`operation` 1,
+`native_revision` = registration) in a mutating event context: it may edit
+widgets, invoke checked native actions, re-arm or remove its own operation, and
+disable or reload its plugin. Paint and shutdown cannot arm; shutdown removal is
+an accepted no-op because teardown releases the registrations and the owned
+widgets. Registrations are bounded at 128 armed controls per owner in C and
+Lua alike; a full table reclaims only a registration whose widget no longer
+exists and never evicts a live one. Lua releases the callback closure on
+removal, on reclamation and on stop.
+
 ## Events, listeners and actions
 
 `widgets.watch(role, listener, user)` follows the current semantic binding at the
