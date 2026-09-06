@@ -56,7 +56,11 @@ python3 tools/sailing_harness.py stop
 ```
 
 Additional commands expose `button NAME SUB OP`, `widget NAME SUB`,
-`varbit NAME`, `reload`, and a raw mailbox command for focused investigation.
+`varbit NAME`, `hover X Y`, `close`, `reload`, and a raw mailbox command for
+focused investigation. Useful raw queries include `collision 20` (independent
+boat and player maps), `inventory 963` (server, local and captain containers),
+`activity SLOT` (facility registers, target health and experience), and
+`scenery X Z` (the actual rendered model and animation on land or a boat deck).
 `start` launches the existing binary with the sailing manifest and dedicated
 test credentials; prepare/build content separately before starting. An existing
 healthy session is reused. No fixed multi-second sleeps are used; startup waits
@@ -66,17 +70,30 @@ boot advances complete server ticks until the initial boat/player packets agree.
 
 Startup places the player aboard a skiff at ocean tile `(3072, 3160)` with the
 helm held and sails down. This is natural cache water near Port Sarim. The
+controller opens Sailing Options and sets a wide side view so the whole boat
+and its facilities are immediately visible. The
 default software renderer can run visibly or with `start --headless`; use
 `start --renderer gl3-zbuffer` for a visible GPU verification session. A renderer
 change requires stopping and starting the session. Captures are PNG files from
 the selected lane. `recover` collects a response after a controller timeout.
 
-Checkpoints restore sailing state within the same deck/facility topology; a
-topology change is rejected explicitly rather than partially restored. They do
-not claim to snapshot the entire world, other actors, arbitrary script queues,
-or general interface state. Reopen the required sailing panel when comparing a
-checkpoint. `resume` lets the shared virtual clock follow wall time until
-`pause` freezes it again.
+Checkpoints restore movement, helm ownership, player stats/experience, varps,
+backpack, worn equipment, all five cargo holds, retained net catches, facility
+options and operating registers, camera, and the exact hull interpolation
+phase. Scalar player queues and timers are restored with relative timing.
+They retain the same vessel identities and deck geometry; creating, deleting
+or resizing a vessel requires a new fixture. Changes to installed facilities
+are restored through the same placement code used by customisation.
+
+Stop active facility operations before saving or restoring. Checkpoints reject
+suspended scripts and active encounters because they do not rewind other
+actors, damaged targets, or depleted world resources. They also do not restore
+general interface state; reopen the desired panel for comparison. `resume`
+lets the shared virtual clock follow wall time until `pause` freezes it again.
+Reloading scripts clears checkpoints because their queued script IDs belong to
+the previous pack. Live player queues and timers are rebound by script name
+and argument count; removed or incompatible callbacks are cancelled. The
+loaded pack hash is updated even when a timed-out reload is collected later.
 
 ## Performance acceptance
 

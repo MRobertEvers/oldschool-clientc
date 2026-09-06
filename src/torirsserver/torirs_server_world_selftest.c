@@ -39706,6 +39706,29 @@ ToriRSServer_WorldSelftest(void)
                         }
                     }
 
+                    /* Ocean NPCs must also enter the rider's ordinary ROOT
+                     * subscription. Filtering its zones by deck feet/plane
+                     * silently discarded visible sharks and shoals. */
+                    {
+                        int chicken = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "chicken");
+                        int ocean_npc = chicken > 0 ? ToriRSServer_WorldNpcSpawn(
+                            srv, chicken, rider->obs_x + 3, rider->obs_z, boat->level) : -1;
+                        SELFTEST_CHECK(ocean_npc >= 0, "an ocean NPC spawns beside the hull");
+                        if( ocean_npc >= 0 )
+                        {
+                            int candidates[TORIRSSERVER_TRACKED_NPC_MAX];
+                            int found = 0;
+                            selftest_tick(srv);
+                            int count = ToriRSServer_PlayerzonemapNpcs(
+                                rider, TORIRSSERVER_NPC_VIEW_TILES, candidates,
+                                TORIRSSERVER_TRACKED_NPC_MAX);
+                            for( int i = 0; i < count; ++i ) found |= candidates[i] == ocean_npc;
+                            SELFTEST_CHECK(found, "rider's root zones offer the nearby ocean NPC despite distant deck coordinates");
+                            ToriRSServer_WorldNpcFree(srv, ocean_npc);
+                            ToriRSServer_WorldNpcReap(srv);
+                        }
+                    }
+
                     /*
                      * D. The hull is freed under them.
                      *

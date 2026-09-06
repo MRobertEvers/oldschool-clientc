@@ -23,6 +23,7 @@ int ContentTest_Enabled(void)
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_content.h"
 #include "torirsserver/torirs_server_scene.h"
+#include "serverscript/ssvm_provider.h"
 #include "world/world.h"
 #include <toridraw_scene.h>
 #include "varp/varp_manager.h"
@@ -35,14 +36,68 @@ static int remaining, active, finishing, running, publish_pending, restore_pendi
 static int observe_requested, observe_drawn, observe_x, observe_z, observe_bit;
 static char observe_widget[512];
 static int click_phase = -1, click_x, click_y, click_button;
+static int hover_requested;
 static char command[2048], result[16384], capture_path[1024];
+
+static int reload_scripts(struct ToriRSServer* srv, const char* directory)
+{
+    /* Queue/timer ids are compiler allocations. Preserve work by its declared
+     * name and argument signature across a warm reload, never by the old id. */
+    enum { MAX_BINDINGS=TORIRSSERVER_PLAYER_MAX *
+        (TORIRSSERVER_QUEUE_MAX+TORIRSSERVER_ENGINE_QUEUE_MAX+TORIRSSERVER_TIMER_MAX) };
+    struct Binding { int* id; int* active; int argc; char* name; };
+    struct Binding* bindings=calloc(MAX_BINDINGS,sizeof(*bindings));
+    assert(bindings);
+    int count=0;
+    for( int p=0; p<TORIRSSERVER_PLAYER_MAX; ++p )
+    {
+        struct ToriRSServerPlayer* player=&srv->players[p];
+        for( int kind=0; kind<3; ++kind )
+        {
+            int length=kind==0 ? TORIRSSERVER_QUEUE_MAX : kind==1 ? TORIRSSERVER_ENGINE_QUEUE_MAX : TORIRSSERVER_TIMER_MAX;
+            for( int n=0; n<length; ++n )
+            {
+                int *id, *enabled, argc=0;
+                if( kind==2 ) { id=&player->timers[n].script_id; enabled=&player->timers[n].active; }
+                else
+                {
+                    struct ToriRSServerQueued* queue=kind ? &player->engine_queue[n] : &player->queue[n];
+                    id=&queue->script_id; enabled=&queue->active; argc=queue->argc;
+                }
+                if( !*enabled ) continue;
+                const struct SSVM_Script* script=srv->scripts ? SSVM_ProviderGet(srv->scripts,*id) : NULL;
+                if( !script || !script->name ) { *enabled=0; continue; }
+                struct Binding* binding=&bindings[count++];
+                binding->id=id; binding->active=enabled; binding->argc=argc;
+                size_t length=strlen(script->name)+1;
+                binding->name=malloc(length);
+                assert(binding->name);
+                memcpy(binding->name,script->name,length);
+            }
+        }
+    }
+    ToriRSServer_ScriptsFree(srv);
+    int ok=ToriRSServer_ScriptsLoad(srv,directory);
+    for( int n=0; n<count; ++n )
+    {
+        struct Binding* binding=&bindings[n];
+        const struct SSVM_Script* script=ok ? SSVM_ProviderGetByName(srv->scripts,binding->name) : NULL;
+        if( script && script->int_arg_count==binding->argc && script->string_arg_count==0 )
+            *binding->id=script->id;
+        else *binding->active=0;
+        free(binding->name);
+    }
+    free(bindings);
+    ContentTestSailing_Clear();
+    return ok;
+}
 
 int ContentTest_DrawRequested(struct App* app)
 {
     if( !ContentTest_Enabled() || !App_FrameSettled(app) || App_IsBooting(app, NULL) || app->world_load_inflight ) return 0;
     if( active && observe_requested && !remaining && !observe_drawn )
     { observe_drawn = 1; return 1; }
-    return (active && (capture_path[0] || click_phase >= 0)) || running;
+    return (active && (capture_path[0] || click_phase >= 0 || hover_requested)) || running;
 }
 
 /* Hash the posed mesh actually handed to the renderer, not just its frame
@@ -61,8 +116,8 @@ static void geometry_json(struct App* app, int id, char* out, size_t capacity)
         if( !i || model->vertices_y[i] < min_y ) min_y = model->vertices_y[i];
         if( !i || model->vertices_y[i] > max_y ) max_y = model->vertices_y[i];
     }
-    snprintf(out, capacity, "{\"vertices\":%d,\"hash\":%u,\"min_y\":%d,\"max_y\":%d,\"posed_frame\":%d}",
-        count, hash, min_y, max_y, e ? e->posed_frame : -1);
+    snprintf(out, capacity, "{\"vertices\":%d,\"hash\":%u,\"min_y\":%d,\"max_y\":%d,\"posed_frame\":%d,\"yaw\":%d}",
+        count, hash, min_y, max_y, e ? e->posed_frame : -1, e ? e->world_position.yaw : -1);
 }
 
 static void path(char* out, size_t cap, const char* file)
@@ -99,11 +154,18 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
             app->orbit_yaw, app->orbit_pitch, app->world_cam_zoom,
             app->world ? app->world->load_complete : 0, app->world_render_mode);
         struct WorldEntity_Player* player = app->world ? World_PlayerGetByServerPid(app->world, app->esync.local_pid) : NULL;
+        int base_x=app->world ? app->world->_base_tile_x : 0;
+        int base_z=app->world ? app->world->_base_tile_z : 0;
+        if( app->aboard_view>0 )
+        {
+            struct Worldview* view=WorldviewRegistry_Get(&app->worldviews,app->aboard_view);
+            if( view ) { base_x=view->base_x; base_z=view->base_z; }
+        }
         size_t client_end = strlen(result);
         snprintf(result + client_end - 1, sizeof(result) - client_end + 1,
             ",\"x\":%d,\"z\":%d,\"camera\":%d,\"animation\":%d,\"anim_frame\":%d,\"chat_blocked\":%d}",
-            player ? app->world->_base_tile_x + player->grid_position.x : -1,
-            player ? app->world->_base_tile_z + player->grid_position.z : -1,
+            player ? base_x + player->grid_position.x : -1,
+            player ? base_z + player->grid_position.z : -1,
             app->cam_script.scripted, player ? player->animation.primary.anim_id : -1,
             player ? player->animation.primary.frame : -1, VarCManager_GetInt(&app->varcs, 11));
         char rig[256];
@@ -114,6 +176,17 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
         ContentTestSailing_State(app, embed, sailing, sizeof(sailing));
         size_t n = strlen(result);
         snprintf(result + n - 1, sizeof(result) - n + 1, ",\"sailing\":%s}", sailing);
+        if( server )
+        {
+            n=strlen(result);
+            snprintf(result+n-1,sizeof(result)-n+1,
+                ",\"server_activity\":{\"active_script\":%d,\"action_locked\":%d,\"delay_until\":%d,\"waypoint\":%d,\"kind\":%d,\"op\":%d,\"target\":%d,\"x\":%d,\"z\":%d,\"use_on\":%d,\"last_useitem\":%d,\"last_useslot\":%d,\"client_selected_obj\":%d}}",
+                server->active_script!=NULL,server->action_locked,server->delayed_until,
+                server->waypoint_index,server->interaction.kind,server->interaction.op,
+                server->interaction.target_id,server->interaction.x,server->interaction.z,
+                server->interaction.use_on,server->last_useitem,server->last_useslot,
+                app->objsel.active ? app->objsel.obj_id : -1);
+        }
 
     snprintf(out, capacity, "%s", result);
 }
@@ -124,20 +197,28 @@ static void scenery_json(struct App* app, int x, int z, char* out, size_t capaci
     if( !app->world ) { snprintf(out, capacity, "{\"ok\":true,\"items\":[]}"); return; }
             strcpy(result, "{\"ok\":true,\"items\":[");
             int count = 0;
-            struct World_EntityPool* pool = &app->world->entities.scenery;
+            for( int view_id=0; view_id<WORLDVIEW_MAX; ++view_id )
+            {
+            if( !WorldviewRegistry_IsLive(&app->worldviews,view_id) ) continue;
+            struct Worldview* view=WorldviewRegistry_Get(&app->worldviews,view_id);
+            struct World* world=view->world;
+            int base_x=view_id ? view->base_x : world->_base_tile_x;
+            int base_z=view_id ? view->base_z : world->_base_tile_z;
+            struct World_EntityPool* pool = &world->entities.scenery;
             for( int i = World_EntityPoolHead(pool); i >= 0; i = World_EntityPoolNext(pool, i) )
             {
                 struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, i);
-                if( !sc || sc->grid_position.x + app->world->_base_tile_x != x ||
-                    sc->grid_position.z + app->world->_base_tile_z != z ) continue;
+                if( !sc || sc->grid_position.x + base_x != x ||
+                    sc->grid_position.z + base_z != z ) continue;
                 struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(app->scene, sc->element_id);
                 char rig[256];
                 geometry_json(app, sc->element_id, rig, sizeof(rig));
                 size_t used = strlen(result);
                 snprintf(result + used, sizeof(result) - used,
-                    "%s{\"loc\":%d,\"seq\":%d,\"frame\":%d,\"cycle\":%d,\"angle\":%d,\"element\":%d,\"rig\":%s}",
+                    "%s{\"loc\":%d,\"seq\":%d,\"frame\":%d,\"cycle\":%d,\"angle\":%d,\"element\":%d,\"rig\":%s,\"view\":%d}",
                     count++ ? "," : "", sc->loc_id, element ? element->anim_seq_id : -1, element ? element->anim_frame : -1,
-                    element ? element->anim_cycle : -1, sc->angle, sc->element_id, rig);
+                    element ? element->anim_cycle : -1, sc->angle, sc->element_id, rig, view_id);
+            }
             }
             size_t used = strlen(result);
             snprintf(result + used, sizeof(result) - used, "]}");
@@ -215,6 +296,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             active = 1;
             finishing = remaining = publish_pending = 0;
             observe_requested = observe_drawn = 0;
+            hover_requested=0;
             capture_path[0] = 0;
             started_us = PlatformWindow_TicksUs();
             strcpy(result, "{\"ok\":true}");
@@ -233,6 +315,12 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             }
             else if( !strcmp(command, "pause") ) running = 0;
             else if( !strcmp(command, "resume") ) running = 1;
+            else if( sscanf(command,"hover %d %d",&x,&z)==2 )
+            {
+                CmdBus_PushMouseMove(bus,x,z);
+                hover_requested=1;
+                app->need_redraw=1;
+            }
             else if( strncmp(command, "cheat ", 6) == 0 )
             {
                 if( !App_SendCommand(app, command + 6) ) error("client is not online");
@@ -296,9 +384,8 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                 if( !scripts || !srv ) error("set TORIRSSERVER_SCRIPTS and log in first");
                 else
                 {
-                    ToriRSServer_ScriptsFree(srv);
-                    int ok = ToriRSServer_ScriptsLoad(srv, scripts);
-                    snprintf(result, sizeof(result), "{\"ok\":%s}", ok ? "true" : "false");
+                    int ok = reload_scripts(srv, scripts);
+                    snprintf(result, sizeof(result), "{\"ok\":%s,\"checkpoints_cleared\":true}", ok ? "true" : "false");
                 }
             }
             /* Queue readback only after input/network/UI settlement in End. */
@@ -306,7 +393,8 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             else if( strcmp(command, "state") && strncmp(command, "varbit ", 7) &&
                      strcmp(command, "threats") && strncmp(command, "scenery ", 8) && strncmp(command, "npc ", 4) && strncmp(command, "widget ", 7) && strncmp(command, "save ", 5) &&
                      strncmp(command, "restore ", 8) && strncmp(command, "collision", 9) &&
-                     strncmp(command, "varp ", 5) && strncmp(command, "inventory ", 10) )
+                     strncmp(command, "varp ", 5) && strncmp(command, "inventory ", 10) &&
+                     strncmp(command, "activity ", 9) )
                 error("unknown command or invalid arguments");
         }
     }
@@ -444,6 +532,32 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
         else snprintf(result,sizeof(result),"{\"ok\":true,\"client\":%d,\"server\":%d}",
             VarPManager_GetVarp(&app->varps,sub),server ? server->varps[sub] : -1);
     }
+    else if( sscanf(command,"activity %d",&sub)==1 && server )
+    {
+        struct ToriRSServer* srv=ToriRSServer_EmbedWorld(embed);
+        struct ToriRSServerVessel* boat=ToriRSServer_VesselAtTile(srv,server->x,server->z);
+        if( !boat || sub<0 || sub>=13 ) error("activity requires a boat and hotspot0..12");
+        else
+        {
+            int reg[7],wind[8];
+            for( int i=0; i<7; ++i ) reg[i]=ToriRSServer_MapInstanceVarGet(boat->instance,8+sub*7+i);
+            for( int i=0; i<8; ++i ) wind[i]=ToriRSServer_MapInstanceVarGet(boat->instance,i);
+            uint32_t uid=(uint32_t)reg[4]-1;
+            int target=(int)(uid&65535), hp=-1, frozen=0, slow_token=0, burn_token=0;
+            if( reg[4] && target<TORIRSSERVER_NPC_MAX && srv->npcs[target].active &&
+                srv->npcs[target].generation==(uid>>16) )
+            {
+                hp=srv->npcs[target].hitpoints;
+                frozen=srv->npcs[target].frozen_ticks;
+                slow_token=srv->npcs[target].script_vars[62];
+                burn_token=srv->npcs[target].script_vars[63];
+            }
+            snprintf(result,sizeof(result),
+                "{\"ok\":true,\"slot\":%d,\"registers\":[%d,%d,%d,%d,%d,%d,%d],\"wind\":[%d,%d,%d,%d,%d,%d,%d,%d],\"sailing_xp_tenths\":%d,\"fishing_xp_tenths\":%d,\"ranged_xp_tenths\":%d,\"construction_xp_tenths\":%d,\"target_hp\":%d,\"target_frozen\":%d,\"target_slow_token\":%d,\"target_burn_token\":%d}",
+                sub,reg[0],reg[1],reg[2],reg[3],reg[4],reg[5],reg[6],wind[0],wind[1],wind[2],wind[3],wind[4],wind[5],wind[6],wind[7],
+                server->stat_xp_tenths[23],server->stat_xp_tenths[10],server->stat_xp_tenths[4],server->stat_xp_tenths[22],hp,frozen,slow_token,burn_token);
+        }
+    }
     else if( sscanf(command,"inventory %d",&sub)==1 )
     {
         if( sub<0 || sub>=32768 ) error("inventory requires a native base ID below32768");
@@ -511,11 +625,20 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
             for( int i = World_EntityPoolHead(pool); i >= 0; i = World_EntityPoolNext(pool, i) )
             {
                 struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-                if( npc && npc->npc_id == id )
+                if( npc && (npc->npc_id == id || npc->base_npc_id == id) )
                 { count++; x = npc->draw_position.x; z = npc->draw_position.z; }
             }
         }
-        snprintf(result, sizeof(result), "{\"ok\":%s,\"count\":%d,\"x\":%d,\"z\":%d}", id >= 0 ? "true" : "false", count, x, z);
+        int server_count=0, server_x=-1, server_z=-1;
+        if( server && id>=0 )
+        {
+            struct ToriRSServer* srv=ToriRSServer_EmbedWorld(embed);
+            for( int i=0; i<TORIRSSERVER_NPC_MAX; ++i )
+                if( srv->npcs[i].active && srv->npcs[i].type==id )
+                { ++server_count; server_x=srv->npcs[i].x; server_z=srv->npcs[i].z; }
+        }
+        snprintf(result, sizeof(result), "{\"ok\":%s,\"count\":%d,\"x\":%d,\"z\":%d,\"server_count\":%d,\"server_x\":%d,\"server_z\":%d}",
+            id >= 0 ? "true" : "false", count, x, z, server_count, server_x, server_z);
     }
     else if( sscanf(command, "widget %511s %d", name, &sub) == 2 )
     {
@@ -557,7 +680,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
         if( !ok ) error(message);
         else
         {
-            strcpy(result, "{\"ok\":true,\"scope\":\"movement,varps,backpack,worn,cargo,facilities,camera; unchanged vessel topology\"}");
+            strcpy(result, "{\"ok\":true,\"scope\":\"movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology\"}");
             if( restoring )
             {
                 /* Execute the restore once. Subsequent frames only drain its

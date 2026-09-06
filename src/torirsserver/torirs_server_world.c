@@ -2792,6 +2792,17 @@ world_window_scene_build(
      * loc change. The durable record is the ZoneMap's; replay it onto the
      * window just built — the other windows still carry theirs. */
     world_locs_reapply_window(srv, window);
+    /* A window may cover several retained deck reservations. Apply every
+     * live hull's padding rule so overlapping collision windows agree. */
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
+    {
+        const struct ToriRSServerVessel* vessel = &srv->vessels[i];
+        int bx, bz, width, height, x0, z0, x1, z1;
+        if( !vessel->in_use ||
+            !ToriRSServer_MapInstanceBounds(vessel->instance, &bx, &bz, &width, &height) ||
+            !ToriRSServer_VesselDeckWalkBounds(vessel, &x0, &z0, &x1, &z1) ) continue;
+        ToriRSServer_SceneRestrictDeckWalk(bx, bz, width, height, x0, z0, x1, z1);
+    }
     ToriRSServer_SceneBindWindow(bound);
 
     /* The entities' own collision, which the rebuilt map does not carry.
@@ -2990,6 +3001,10 @@ ToriRSServer_WorldMapInstanceBuilt(
     struct ToriRSServer* srv,
     int handle)
 {
+    int vessel_instance = 0;
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
+        if( srv->vessels[i].in_use && srv->vessels[i].instance == handle )
+            vessel_instance = 1;
     /*
      * A vessel's deck gets its collision pinned in the vessel's own window.
      *
@@ -3007,7 +3022,10 @@ ToriRSServer_WorldMapInstanceBuilt(
         int width = 0;
         int height = 0;
 
-        if( !vessel->in_use || vessel->instance != handle || vessel->deck_window == 0 )
+        /* Adjacent pool reservations share scene windows. Rebuild every deck
+         * window when a boat is assembled so its new template and walk mask
+         * cannot disagree with an older overlapping window. */
+        if( !vessel_instance || !vessel->in_use || vessel->deck_window == 0 )
             continue;
         if( !ToriRSServer_MapInstanceBounds(vessel->instance, &base_x, &base_z, &width,
                                             &height) )
@@ -3929,6 +3947,60 @@ ToriRSServer_WorldNpcSetOwner(
  * PathingEntity.takeStep against the current waypoint. Returns 1 when the npc
  * moved. Never uses ToriRSServer_SceneRoute — occupancy gates every attempt.
  */
+/* Crew must reach work stations around deck furniture and other occupants.
+ * Ordinary NPCs retain the reference's direct/naive movement. Use the existing
+ * tile router on a private occupancy-aware snapshot so this does not change
+ * player collision, scenery flags, or another NPC's movement policy. */
+static int
+npc_crew_route_step(struct ToriRSServerNpc* npc, int target_x, int target_z,
+                   int extra, int coll_type, int* step_x, int* step_z)
+{
+    assert(npc);
+    assert(step_x);
+    assert(step_z);
+    if( !npc->owner_gen || npc->size > 1 || coll_type != COLL_TYPE_NORMAL ) return 0;
+    int category = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "sailing_crew");
+    if( category < 0 || ToriRSServer_NpcCategory(npc->type) != category ) return 0;
+    int instance = ToriRSServer_MapInstanceFind(npc->x, npc->z);
+    if( !instance || ToriRSServer_MapInstanceFind(target_x, target_z) != instance ) return 0;
+    struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowFind(npc->x, npc->z);
+    if( !window || !ToriRSServer_SceneWindowContains(window, target_x, target_z) ) return 0;
+    struct ToriRSServerSceneWindow* previous = ToriRSServer_SceneBoundWindow();
+    ToriRSServer_SceneBindWindow(window);
+    struct CollisionMap* source = ToriRSServer_SceneCollision(npc->level);
+    int base_x = ToriRSServer_SceneBaseX();
+    int base_z = ToriRSServer_SceneBaseZ();
+    struct CollisionMap* route = NULL;
+    if( source )
+    {
+        route = collision_map_new(source->size_x, source->size_z);
+        assert(route);
+        route->route_window = source->route_window;
+        for( int i = 0; i < source->size_x * source->size_z; ++i )
+        {
+            int flags = source->flags[i];
+            route->flags[i] = flags | ((flags & extra) ? COLL_FLAG_LOC : 0);
+        }
+    }
+    ToriRSServer_SceneBindWindow(previous);
+    if( !route ) return 0;
+    struct CollisionNearestOpts nearest;
+    ToriRSServer_SceneOpNearestOpts(&nearest);
+    int path_x[1], path_z[1];
+    int count = collision_map_route_tiles(
+        route, npc->x - base_x, npc->z - base_z, target_x - base_x, target_z - base_z,
+        NULL, &nearest, path_x, path_z, 1, NULL, NULL, NULL);
+    collision_map_free(route);
+    if( count <= 0 ) return 0;
+    int dx = path_x[0] + base_x - npc->x;
+    int dz = path_z[0] + base_z - npc->z;
+    if( !ToriRSServer_SceneCanTravelTyped(
+            npc->level, npc->x, npc->z, dx, dz, 1, extra, coll_type) ) return 0;
+    *step_x = dx;
+    *step_z = dz;
+    return 1;
+}
+
 static int
 npc_take_step(struct ToriRSServerNpc* npc)
 {
@@ -3980,6 +4052,15 @@ npc_take_step(struct ToriRSServerNpc* npc)
     /* The npc's own move restriction, not everyone's: a swimmer walks where the
      * map blocks, an indoors npc will not leave the roof. */
     coll_type = npc_collision_type(npc);
+    if( npc->owner_gen && ToriRSServer_FamiliarDebug() )
+        fprintf(stderr,
+            "crew_path type=%d level=%d size=%d collision=%d category=%d expected=%d extra=%x "
+            "from=%d,%d to=%d,%d source=%x next=%x\n",
+            npc->type, npc->level, size, coll_type, ToriRSServer_NpcCategory(npc->type),
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "sailing_crew"), extra,
+            npc->x, npc->z, wp_x, wp_z,
+            ToriRSServer_SceneTileFlags(npc->level,npc->x,npc->z),
+            ToriRSServer_SceneTileFlags(npc->level,npc->x+dx,npc->z+dz));
     try_dx = 0;
     try_dz = 0;
 
@@ -4001,7 +4082,11 @@ npc_take_step(struct ToriRSServerNpc* npc)
      * along the rows the other crabs are queued on instead of away from them.
      * "The nylocas do not path correctly towards Maiden" is this line.
      */
-    if( dx != 0 && dz != 0 &&
+    if( npc_crew_route_step(npc, wp_x, wp_z, extra, coll_type, &try_dx, &try_dz) )
+    {
+        /* The first tile of the route is already checked with NPC blockers. */
+    }
+    else if( dx != 0 && dz != 0 &&
         ToriRSServer_SceneCanTravelTyped(npc->level, npc->x, npc->z, dx, dz, size, extra,
                                        coll_type) )
     {
@@ -5333,6 +5418,53 @@ player_helm_vessel(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     return vessel;
 }
 
+/* A captain can give bearings while an assigned crewmate handles the helm.
+ * The roster alone is insufficient: validate the retained actor generation
+ * and its actual deck membership, so dead/despawned crew grants no control. */
+int
+ToriRSServer_VesselPlayerControlAllowed(struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player, struct ToriRSServerVessel* vessel, int sails)
+{
+    assert(srv);
+    assert(player);
+    assert(vessel);
+    if( ToriRSServer_VesselAtTile(srv,player->x,player->z)!=vessel ||
+        ToriRSServer_MapInstanceVarGet(vessel->instance,110) ) return 0;
+    /* All three player-boat DB rows in revision239 declare combined navigation. */
+    int combined=vessel->config_id>=1 && vessel->config_id<=3;
+    if( player_helm_vessel(srv,player)==vessel && (!sails || combined) ) return 1;
+    if( vessel->owner_uid!=player->pid+1 ) return 0;
+    for( int slot=0; slot<5; ++slot )
+    {
+        char key[64];
+        snprintf(key,sizeof(key),"sailing_sidepanel_crew_slot_%d_position",slot+1);
+        int duty=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+        int position=duty>=0 ? ToriRSServer_VarbitGet(player,duty) : 0;
+        if( sails ? (position!=2 && !(combined && (position==3 || position==4))) :
+                    (position!=3 && !(combined && position==4)) ) continue;
+        snprintf(key,sizeof(key),"sailing_sidepanel_crew_slot_%d",slot+1);
+        int roster=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+        if( roster<0 || ToriRSServer_VarbitGet(player,roster)==0 ) continue;
+        uint32_t retained=(uint32_t)ToriRSServer_MapInstanceVarGet(vessel->instance,112+slot);
+        if( !retained ) continue;
+        uint32_t uid=retained-1;
+        unsigned npc_slot=uid&0xffffu;
+        unsigned generation=uid>>16;
+        if( npc_slot>=TORIRSSERVER_NPC_MAX || !generation ) continue;
+        struct ToriRSServerNpc* npc=&srv->npcs[npc_slot];
+        if( npc->active && npc->generation==generation && npc->hitpoints>0 &&
+            ToriRSServer_VesselAtTile(srv,npc->x,npc->z)==vessel ) return 1;
+    }
+    return 0;
+}
+
+static struct ToriRSServerVessel*
+player_crew_helm_vessel(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServerVessel* vessel=ToriRSServer_VesselAtTile(srv,player->x,player->z);
+    return vessel && ToriRSServer_VesselPlayerControlAllowed(srv,player,vessel,0) ? vessel : NULL;
+}
+
 /*
  * MOVE_GAMECLICK / MOVE_MINIMAPCLICK.
  *
@@ -6136,6 +6268,19 @@ handle_opnpc(
     ToriRSServer_WorldClearPendingAction(srv);
 
     info = ToriRSServer_NpcInfo(npc->type);
+    /* An operated ship weapon or a following crewmate consumes the same
+     * visible Attack intent. Content decides whether that order is naval;
+     * otherwise the ordinary player combat interaction below remains intact. */
+    if( op_num>=1 && op_num<=5 && info->ops[op_num-1] &&
+        strcmp(info->ops[op_num-1],"Attack")==0 && srv->scripts_ok &&
+        ToriRSServer_VesselAtTile(srv,srv->active_player->x,srv->active_player->z) )
+    {
+        const struct SSVM_Script* hook=SSVM_ProviderGetByName(srv->scripts,"[proc,sailing_attack_target]");
+        int32_t target=(int32_t)(((uint32_t)npc->generation<<16)|(uint32_t)slot);
+        int32_t handled=0;
+        if( hook && ToriRSServer_ScriptsRunHookInt(srv,hook,&target,1,&handled) && handled )
+            return;
+    }
     ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, op_num, slot, npc->type, npc->x,
                                   npc->z, npc->level, info->size, info->size);
     {
@@ -6361,6 +6506,21 @@ handle_oploc(
         size_z = loc->size_z > 0 ? loc->size_z : 1;
     }
 
+    struct ToriRSServerPlayer* actor=srv->active_player;
+    struct ToriRSServerVessel* helmed=player_helm_vessel(srv,actor);
+    if( helmed && ToriRSServer_VesselAtTile(srv,tile_x,tile_z)==helmed )
+    {
+        int category=ToriRSServer_LocCategory(loc_id);
+        /* A deck work order must release the physical helm before routing;
+         * the reached OPLOC script cannot free a player who never gets there.
+         * Mast/cloth and steering retain their combined navigation controls. */
+        int remote_fathom=category==2338 && (op_num==1 || op_num==3);
+        if( category!=2322 && category!=2323 && !remote_fathom )
+        {
+            actor->navigating_vessel=0;
+            actor->navigating_vessel_serial=0;
+        }
+    }
     ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_LOC, op_num, -1, loc_id, tile_x,
                                   tile_z, srv->active_player->level, size_x, size_z);
     {
@@ -6552,7 +6712,7 @@ useon_interact(
     }
     else
     {
-        int loc_slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, level, target_id);
+        int loc_slot = find_interaction_loc(tile_x, tile_z, level, target_id);
         struct CollisionApproach approach;
         ToriRSServer_SceneLocApproach(loc_slot, &approach);
         ToriRSServer_WorldWalkToApproach(srv, tile_x, tile_z, &approach);
@@ -6882,6 +7042,7 @@ handle_oplocu(
                 tile_z, use_obj, use_slot);
 
     /* The footprint decides what counts as "beside it", exactly as OPLOC<n>. */
+    scene_bind_covering(tile_x, tile_z);
     slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, srv->active_player->level, loc_id);
     loc = ToriRSServer_SceneLoc(slot);
     if( loc )
@@ -6892,6 +7053,13 @@ handle_oplocu(
         size_z = loc->size_z > 0 ? loc->size_z : 1;
     }
 
+    struct ToriRSServerPlayer* actor = srv->active_player;
+    struct ToriRSServerVessel* boat = ToriRSServer_VesselAtTile(srv, actor->x, actor->z);
+    if( boat && ToriRSServer_VesselAtTile(srv, tile_x, tile_z) == boat )
+    {
+        actor->navigating_vessel = 0;
+        actor->navigating_vessel_serial = 0;
+    }
     useon_interact(srv, TORIRSSERVER_INTERACT_LOC, -1, loc_id, tile_x, tile_z,
                    srv->active_player->level, size_x, size_z, use_obj, use_slot);
 }
@@ -8472,6 +8640,8 @@ handle_cheat(
             say(srv, "No such vessel. ::vesselspawn first.");
             return;
         }
+        int old_sail_mode = vessel->sails_set && !vessel->reversing
+            ? (vessel->speed_tier > 1 ? 2 : 1) : 0;
         ToriRSServer_VesselSetHeading(vessel, heading & 15);
         ToriRSServer_VesselSetSpeed(vessel, tier < 1 ? 1 :
             (tier > TORIRSSERVER_VESSEL_SPEED_TIER_MAX ? TORIRSSERVER_VESSEL_SPEED_TIER_MAX : tier));
@@ -8479,6 +8649,7 @@ handle_cheat(
          * sail gate and every harness that calls it expects motion. */
         vessel->sails_set = 1;
         vessel->reversing = 0;
+        if( old_sail_mode != (vessel->speed_tier > 1 ? 2 : 1) )
         {
             int32_t visual_handle = vessel->index;
             ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
@@ -8695,6 +8866,8 @@ handle_cheat(
         vessel->sails_set = !vessel->sails_set;
         if( vessel->sails_set )
             vessel->reversing = 0;
+        int32_t visual_handle = vessel->index;
+        ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
         say(srv, "Sails %s.", vessel->sails_set ? "set" : "un-set");
         return;
     }
@@ -8711,10 +8884,12 @@ handle_cheat(
             say(srv, "You are not at a helm. ::helm first.");
             return;
         }
-        if( up && vessel->speed_tier < TORIRSSERVER_VESSEL_SPEED_TIER_MAX )
+        if( up && vessel->speed_tier * 64 < vessel->base_speed_fine )
             vessel->speed_tier++;
         else if( !up && vessel->speed_tier > TORIRSSERVER_VESSEL_SPEED_TIER_MIN )
             vessel->speed_tier--;
+        int32_t visual_handle = vessel->index;
+        ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
         say(srv, "Speed %d.%d tiles per tick.", vessel->speed_tier / 2,
             (vessel->speed_tier % 2) ? 5 : 0);
         return;
@@ -8736,6 +8911,8 @@ handle_cheat(
             return;
         }
         vessel->reversing = !vessel->reversing;
+        int32_t visual_handle = vessel->index;
+        ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
         say(srv, "%s.", vessel->reversing ? "Reversing" : "Holding");
         return;
     }
@@ -8856,6 +9033,7 @@ handle_set_heading(
         return;
     struct ToriRSServerPlayer* player = srv->active_player;
     struct ToriRSServerVessel* vessel = player_helm_vessel(srv, player);
+    if( !vessel ) vessel=player_crew_helm_vessel(srv,player);
     if( !vessel || ToriRSServer_VesselAtTile(srv, player->x, player->z) != vessel )
         return;
     ToriRSServer_VesselSetHeading(vessel, payload[0]);
@@ -13925,12 +14103,19 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                 ? ToriRSServer_VarbitGet(player, ids->varbit_sailing_move_mode) : 0;
             int at_helm = vessel && player->navigating_vessel == vessel->index &&
                 player->navigating_vessel_serial == vessel->serial;
+            int combined=vessel && vessel->config_id>=1 && vessel->config_id<=3;
+            int at_sails=at_helm && combined;
             int operating_hotspot=-1;
             if( vessel && !at_helm )
                 for( int slot=0; slot<13; ++slot )
                     if( ToriRSServer_MapInstanceVarGet(vessel->instance,8+slot*7) &&
                         ToriRSServer_MapInstanceVarGet(vessel->instance,8+slot*7+5)==player->pid+1 )
                     { operating_hotspot=slot; break; }
+            int hotspot_bit=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,"sailing_facility_hotspot_number");
+            if( hotspot_bit>=0 && ToriRSServer_VarbitGet(player,hotspot_bit)!=operating_hotspot+1 )
+                ToriRSServer_VarbitSetOn(srv,player,hotspot_bit,operating_hotspot+1);
+            int combat_data=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,"sailing_combat_facility_data");
+            int at_cannon=operating_hotspot>=0 && combat_data>=0 && player->varps[combat_data]>0;
             for( int slot=0; slot<13; ++slot )
             {
                 char key[80];
@@ -13953,14 +14138,14 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                 { ids->varbit_sailing_switch, vessel != NULL },
                 { ids->varbit_sailing_on_boat, vessel != NULL },
                 { ids->varbit_sailing_boat_type, vessel ? vessel->config_id - 1 : 0 },
-                { ids->varbit_sailing_locked_in, at_helm ? 3 : operating_hotspot>=0 ? 6+operating_hotspot : 0 },
+                { ids->varbit_sailing_locked_in, at_helm ? (combined ? 3 : 1) : at_sails ? 2 : at_cannon ? 4 : 0 },
                 { ids->varbit_sailing_move_mode, vessel ?
                     (vessel->reversing ? 3 : vessel->sails_set ?
                         (vessel->speed_tier > 1 ? 2 : 1) : 0) : 0 },
                 { ids->varbit_sailing_sail_toggle, vessel ? vessel->sails_set : 0 },
                 { ids->varbit_sailing_helm_status, vessel ? (at_helm ? 2 : 1) : 0 },
                 { ids->varbit_sailing_player_at_helm, at_helm },
-                { ids->varbit_sailing_player_at_sails, at_helm },
+                { ids->varbit_sailing_player_at_sails, at_sails },
                 { ids->varbit_sailing_player_role, vessel ?
                     (vessel->owner_uid == 0 || vessel->owner_uid == player->pid + 1 ? 10 : 6) : 0 },
                 { ids->varbit_sailing_players_aboard, aboard_count },
@@ -14918,6 +15103,8 @@ ToriRSServer_WorldTick(struct ToriRSServer* srv)
     TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
     {
         struct ToriRSServerVessel* helmed = player_helm_vessel(srv, player);
+
+        if( !helmed ) helmed=player_crew_helm_vessel(srv,player);
 
         if( !helmed || !ToriRSServer_VesselTakeBlocked(helmed) )
             continue;

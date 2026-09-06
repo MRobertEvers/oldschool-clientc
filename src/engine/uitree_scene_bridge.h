@@ -7,6 +7,7 @@
 
 struct ToriDraw_Scene;
 struct CacheProvider;
+struct ToriRS_Location;
 struct HMap;
 
 /**
@@ -120,6 +121,17 @@ struct UITreeSceneBridge
 /** Obj interface models (IF_SETOBJECT: lit + recoloured inventory model bound
  * to a MODEL widget, e.g. the combat-tab weapon): scene ids are base | obj_id. */
 #define UITREE_SCENE_OBJ_MODEL_BASE 0x58000000
+
+/** Native widget model kind 8: loc shape 10, orientation 0. */
+#define UITREE_SCENE_LOC_MODEL_BASE 0x59000000
+
+/** Borrow the native shape-10 model list; zero means this loc has no preview. */
+int
+UITreeSceneBridge_LocModelIds(struct ToriRS_Location const* loc, int const** ids);
+
+/** Build a resident loc's native interface model, including its transforms. */
+int
+UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
 
 /* Reserved scene font ids for the baked debug-overlay faces at 1x. Scene font
  * ids are cache font ids everywhere else (see EnsureFont), so these sit out of

@@ -1,5 +1,9 @@
 # Sailing implementation plan
 
+The current implementation is validated in
+[sailing_validation/README.md](sailing_validation/README.md). This earlier plan
+also retains completed milestones and prototype assumptions.
+
 Companion to `docs/SAILING.md` (the research doc — read it first; §5 has the
 deob ground truth this plan is built on). Work happens on the
 `worktree-sailing` branch.

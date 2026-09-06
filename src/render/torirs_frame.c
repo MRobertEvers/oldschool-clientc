@@ -2676,7 +2676,10 @@ try_emit_world_draw_model(
         out->u.model.element_id = element_id;
         out->u.model.animation = el->animation;
         out->u.model.anim_frame = el->anim_frame;
-        out->u.model.dynamic = el->dynamic;
+        /* A static deck model moves in root space with its carrier. Retained
+         * GPU vertices baked at the deck's original placement cannot serve
+         * this draw: publish the composed placement through the dynamic lane. */
+        out->u.model.dynamic = el->dynamic || frame->view_depth>0;
         /* Primary pose track.  Assigned rather than left to a zeroed
          * command: this is the one field on the 1,621-per-frame path
          * that used to arrive as 0 by accident rather than on

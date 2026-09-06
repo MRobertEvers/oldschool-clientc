@@ -827,6 +827,8 @@ vessel_tick(struct ToriRSServerVessel* vessel)
     /* Sails-down turns still collide. Reverse is a stationary half-tile nudge. */
     if( vessel->state == TORIRSSERVER_VESSEL_HEADING && !vessel->sails_set )
         speed = vessel->reversing ? -64 : 0;
+    if( vessel->anchored )
+        speed = 0;
 
     if( vessel->state == TORIRSSERVER_VESSEL_TARGET )
     {
@@ -1077,6 +1079,34 @@ vessel_recenter_fine(
               px;
     *out_cz = ((vessel->size_z_tiles + 7) / 8) * 8 * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2) +
               pz;
+}
+
+int
+ToriRSServer_VesselDeckWalkBounds(
+    const struct ToriRSServerVessel* vessel,
+    int* min_x, int* min_z, int* max_x, int* max_z)
+{
+    int base_x, base_z, cx, cz, hx, hz, ox, oz;
+    assert(vessel);
+    assert(min_x);
+    assert(min_z);
+    assert(max_x);
+    assert(max_z);
+    if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_x, &base_z) ) return 0;
+    vessel_recenter_fine(vessel, &cx, &cz);
+    vessel_bound_rect(vessel, &hx, &hz, &ox, &oz);
+    /* A tile centre is x*128+64. Floor division keeps signed native offsets
+     * correct even for a large hull extending beyond its reservation. */
+    *min_x = base_x + (int)floor((cx + ox - hx + 63) / 128.0);
+    *max_x = base_x + (int)floor((cx + ox + hx + 63) / 128.0);
+    *min_z = base_z + (int)floor((cz + oz - hz + 63) / 128.0);
+    *max_z = base_z + (int)floor((cz + oz + hz + 63) / 128.0);
+    /* Revision239's Sloop has a3x10 navigation box but a3x8 walkable hull.
+     * Native hull model58220 starts at local2,3: the two preceding tiles are
+     * water beneath the bowsprit, visually verified in sloop-deck-z1/2/3.png.
+     * This affects deck walking only; vessel_bound_rect retains all3x10. */
+    if( vessel->config_id == 3 ) *min_z += 2;
+    return 1;
 }
 
 void

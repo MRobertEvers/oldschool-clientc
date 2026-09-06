@@ -1,0 +1,129 @@
+{
+  "ok": true,
+  "checks": [
+    "native inventory namespace matches captain inventory",
+    "dismissal transmits and removes the blocking warning",
+    "native All button and item click withdraw all thirteen coins",
+    "native 10 button and inventory click deposit exactly ten coins",
+    "inventory and hold conserve the total item count",
+    "all interactions finish while server time remains paused"
+  ],
+  "timings": [
+    {
+      "command": "close",
+      "elapsed_ms": 5.164
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.91
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 2.838
+    },
+    {
+      "command": "save cargo_acceptance",
+      "elapsed_ms": 2.856
+    },
+    {
+      "command": "cheat sailverify",
+      "elapsed_ms": 5.449
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 2.894
+    },
+    {
+      "command": "cheat sailcargo",
+      "elapsed_ms": 10.131
+    },
+    {
+      "command": "varp 5204",
+      "elapsed_ms": 5.438
+    },
+    {
+      "command": "inventory 963",
+      "elapsed_ms": 2.865
+    },
+    {
+      "command": "varbit sailing_boat_cargohold_warning_dismissed",
+      "elapsed_ms": 2.82
+    },
+    {
+      "command": "widget sailing_boat_cargohold_side:dismiss -1",
+      "elapsed_ms": 2.757
+    },
+    {
+      "command": "click 643 385 left",
+      "elapsed_ms": 13.112
+    },
+    {
+      "command": "varbit sailing_boat_cargohold_warning_dismissed",
+      "elapsed_ms": 3.006
+    },
+    {
+      "command": "widget sailing_boat_cargohold:all -1",
+      "elapsed_ms": 2.858
+    },
+    {
+      "command": "click 481 300 left",
+      "elapsed_ms": 14.913
+    },
+    {
+      "command": "widget sailing_boat_cargohold:items 0",
+      "elapsed_ms": 3.161
+    },
+    {
+      "command": "click 64 105 left",
+      "elapsed_ms": 14.974
+    },
+    {
+      "command": "inventory 963",
+      "elapsed_ms": 5.586
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 3.039
+    },
+    {
+      "command": "widget sailing_boat_cargohold:quantity_10 -1",
+      "elapsed_ms": 2.669
+    },
+    {
+      "command": "click 387 300 left",
+      "elapsed_ms": 12.935
+    },
+    {
+      "command": "widget sailing_boat_cargohold_side:items 0",
+      "elapsed_ms": 2.99
+    },
+    {
+      "command": "click 583 229 left",
+      "elapsed_ms": 12.685
+    },
+    {
+      "command": "inventory 963",
+      "elapsed_ms": 7.317
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 6.741
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 3.853
+    },
+    {
+      "command": "close",
+      "elapsed_ms": 9.312
+    },
+    {
+      "command": "restore cargo_acceptance",
+      "elapsed_ms": 12.816
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 6.55
+    }
+  ]
+}

@@ -85,6 +85,9 @@ struct ToriRSServerSceneWindow
     /* Hull navigation is independent of player movement and occupancy. */
     struct CollisionMap* boat_collision[SCENE_LEVELS];
     uint8_t ocean[SCENE_LEVELS][SCENE_TILES][SCENE_TILES];
+    /* Empty reservation padding is not deck surface. Persist this alongside
+     * terrain so removing a facility cannot make the surrounding void walkable. */
+    uint8_t deck_padding[SCENE_TILES][SCENE_TILES];
     /* Absolute tile of the window's (0,0); -1 = not built. */
     int base_x;
     int base_z;
@@ -154,6 +157,7 @@ scene_bound(void)
 #define g_base_z (scene_bound()->base_z)
 #define g_link_below (scene_bound()->link_below)
 #define g_settings (scene_bound()->settings)
+#define g_deck_padding (scene_bound()->deck_padding)
 #define g_locs (scene_bound()->locs)
 #define g_loc_count (scene_bound()->loc_count)
 #define g_loc_capacity (scene_bound()->loc_capacity)
@@ -367,6 +371,25 @@ ToriRSServer_SceneBoatCollision(int level)
     if( level < 0 || level >= SCENE_LEVELS )
         return NULL;
     return g_boat_collision[level];
+}
+
+void
+ToriRSServer_SceneRestrictDeckWalk(
+    int base_x, int base_z, int width, int height,
+    int min_x, int min_z, int max_x, int max_z)
+{
+    assert(width > 0);
+    assert(height > 0);
+    for( int x = base_x; x < base_x + width; ++x )
+        for( int z = base_z; z < base_z + height; ++z )
+        {
+            int sx = x - g_base_x, sz = z - g_base_z;
+            if( sx < 0 || sz < 0 || sx >= SCENE_TILES || sz >= SCENE_TILES ||
+                (x >= min_x && x < max_x && z >= min_z && z < max_z) ) continue;
+            g_deck_padding[sx][sz] = 1;
+            for( int level = 0; level < SCENE_LEVELS; ++level )
+                if( g_collision[level] ) collision_map_add_floor(g_collision[level], sx, sz);
+        }
 }
 
 int
@@ -1132,6 +1155,9 @@ apply_terrain_column(
         uint8_t settings = g_settings[level][scene_x][scene_z];
         int true_level = level;
 
+        if( g_deck_padding[scene_x][scene_z] )
+            collision_map_add_floor(g_collision[level], scene_x, scene_z);
+
         /* Unknown, inland, partial shore and empty upper planes all block
          * boats. Ocean itself blocks walking even where the cache omits BLOCK.
          * Player bridge shifts still apply: water below a raised pier must not
@@ -1280,6 +1306,7 @@ scene_build_begin(
     }
     memset(g_link_below, 0, sizeof(g_link_below));
     memset(g_settings, 0, sizeof(g_settings));
+    memset(g_deck_padding, 0, sizeof(g_deck_padding));
     memset(g_ocean, 0, sizeof(g_ocean));
 
     /* Loc configs are cache state, not window state: decoded once and shared

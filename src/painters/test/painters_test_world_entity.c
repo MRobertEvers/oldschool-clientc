@@ -233,9 +233,9 @@ markers_balanced(
  * ---------------------------------------------------------------------- */
 
 static void
-test_descent_emits_deck_between_markers(void)
+test_descent_emits_deck_between_markers(int depth_renderer)
 {
-    printf("test_descent_emits_deck_between_markers\n");
+    printf("test_descent_emits_deck_between_markers (depth=%d)\n",depth_renderer);
 
     struct Painter* root = make_painter();
     struct Painter* deck = make_painter();
@@ -253,7 +253,8 @@ test_descent_emits_deck_between_markers(void)
     painter_clear_world_entity_views(root);
     painter_set_world_entity_view(root, 1, deck, /*cam_sx=*/0, /*cam_sz=*/0, 0);
 
-    painter_paint_bucket(root, buf, 0, 0, 0);
+    if( depth_renderer ) painter_collect_visible_depth(root,buf,0,0,0);
+    else painter_paint_bucket(root, buf, 0, 0, 0);
 
     int begin = index_of(buf, PNTR_CMD_BEGIN_WORLD, 1);
     int end = index_of(buf, PNTR_CMD_END_WORLD, 1);
@@ -809,7 +810,8 @@ main(void)
     ToriDraw_InitSinTable();
     ToriDraw_InitCosTable();
 
-    test_descent_emits_deck_between_markers();
+    test_descent_emits_deck_between_markers(0);
+    test_descent_emits_deck_between_markers(1);
     test_descent_resumes_the_rest_of_the_tile();
     test_unbound_view_emits_an_empty_pair();
     test_cycle_is_refused_not_re_entered();

@@ -99,3 +99,26 @@ Automated checks run on 2026-09-06:
 - `src/build_opt/walkable_probe cache.osrs239 3072 3160 0 8`: before the
   change, every surveyed ocean tile wrongly reported walkable (`flags=0`);
   afterward the ocean blocks players (`flags=0x200000`).
+
+Ocean actors use the same observation frame as the boat. The subscribed zone
+set follows the root ocean anchor; its initial plane and rectangle filters
+must also compare `obs_level/obs_x/obs_z`. Comparing deck pool coordinates
+there discarded every ocean NPC before NPC_INFO could consider it, even though
+facility scripts could find and damage the server NPC. The sailing integration
+regression now requires an ocean actor beside the hull to enter the rider's
+ordinary zone candidate set. The activity acceptance additionally requires
+native shark and shoal entries in the actual client's NPC pool.
+
+A lowered anchor blocks translation, including reverse nudges and target
+movement, while preserving sails and the chosen heading. Rotation still checks
+the complete swept hull against the boat map. The focused collision target
+checks an anchored turn and resumption after raising the anchor.
+
+The Sloop illustrates why navigation bounds are not always its walking deck.
+Its native3x10 navigation box includes two tiles ahead of the3x8 hull
+planking. Native model58220 and captures `sloop-deck-z1.png`,
+`sloop-deck-z2.png`, and `sloop-deck-z3.png` show the difference. Player
+walking is restricted to local `[2,3..5,11)`; hull navigation still uses
+all3x10. Empty reservation padding persists as player terrain blocking after
+facility removal. Every rebuilt overlapping deck window receives the same
+restrictions and keeps each plane's original interior collision.

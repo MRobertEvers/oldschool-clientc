@@ -83,6 +83,7 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_OBJ,
     TASK_CS2_YIELD_COMPONENT,
     TASK_CS2_YIELD_MODEL,
+    TASK_CS2_YIELD_LOC_MODEL,
     TASK_CS2_YIELD_NPC,
     TASK_CS2_YIELD_NPC_HEAD,
     /* NC_PARAM / LC_PARAM: the record plus its ParamType, like YIELD_OBJ. */
@@ -758,10 +759,12 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
         kind = self->pending->u.name.model_kind;                     \
         break
         TASK_CS2_MODEL_KIND_CASE(CC_SETNPCHEAD);
+        TASK_CS2_MODEL_KIND_CASE(CC_SETLOCMODEL);
         TASK_CS2_MODEL_KIND_CASE(CC_SETPLAYERHEAD_SELF);
         TASK_CS2_MODEL_KIND_CASE(CC_SETPLAYERMODEL_SELF);
         TASK_CS2_MODEL_KIND_CASE(CC_SETMODEL_PLAYERCHATHEAD);
         TASK_CS2_MODEL_KIND_CASE(IF_SETNPCHEAD);
+        TASK_CS2_MODEL_KIND_CASE(IF_SETLOCMODEL);
         TASK_CS2_MODEL_KIND_CASE(IF_SETPLAYERHEAD_SELF);
         TASK_CS2_MODEL_KIND_CASE(IF_SETMODEL_PLAYERCHATHEAD);
 #undef TASK_CS2_MODEL_KIND_CASE
@@ -791,6 +794,12 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
         }
         self->await_id = model_id;
         self->yield_plan = TASK_CS2_YIELD_NPC_HEAD;
+        return;
+    }
+    if( kind == CS2VM_MODEL_KIND_LOC )
+    {
+        self->await_id = model_id;
+        self->yield_plan = model_id < 0 ? TASK_CS2_YIELD_NONE : TASK_CS2_YIELD_LOC_MODEL;
         return;
     }
     if( kind == CS2VM_MODEL_KIND_PLAYER_HEAD || kind == CS2VM_MODEL_KIND_PLAYER_SELF ||
@@ -1007,6 +1016,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         break;
 
     case CS2VM_HOST_REQUEST_CC_SETNPCHEAD:
+    case CS2VM_HOST_REQUEST_CC_SETLOCMODEL:
         task_cs2_plan_widget_set_model_kind(self);
         break;
     case CS2VM_HOST_REQUEST_CC_SETPLAYERHEAD_SELF:
@@ -1055,6 +1065,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         task_cs2_plan_setobject(self);
         break;
     case CS2VM_HOST_REQUEST_IF_SETNPCHEAD:
+    case CS2VM_HOST_REQUEST_IF_SETLOCMODEL:
         task_cs2_plan_widget_set_model_kind(self);
         break;
     case CS2VM_HOST_REQUEST_IF_SETPLAYERHEAD_SELF:
@@ -1487,6 +1498,24 @@ Task_CS2Run_Run(
         else if( self->yield_plan == TASK_CS2_YIELD_MODEL )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_LOC_MODEL )
+        {
+            PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(self->provider, self->await_id));
+            for( self->yield_i = 0;; self->yield_i++ )
+            {
+                struct ToriRS_Location* loc =
+                    CacheProvider_LocationGet(self->provider, self->await_id);
+                int const* ids;
+                int count;
+                if( !loc )
+                    break;
+                count = UITreeSceneBridge_LocModelIds(loc, &ids);
+                if( self->yield_i >= count )
+                    break;
+                PT_TASK_AWAITSELF_IF(
+                    CreateTask_ModelLoad(self->provider, ids[self->yield_i]));
+            }
         }
         else if( self->yield_plan == TASK_CS2_YIELD_NPC )
         {

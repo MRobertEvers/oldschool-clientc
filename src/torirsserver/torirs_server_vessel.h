@@ -67,9 +67,8 @@ struct ToriRSServerPlayer;
 /** Angle units between adjacent 16-point compass headings. */
 #define TORIRSSERVER_VESSEL_HEADING_STEP 128
 
-/** Facility slots a hull tracks, indexed by TORIRSSERVER_VESSEL_FACILITY_*.
- *  The cache's boat rows carry more (keel, flag, brazier); these three are
- *  the ones the sidepanel's Facilities tab reads. */
+/** Core parts, thirteen facility hotspots, keel and cosmetic slots. Values
+ *  are one-based selections in the native boat row's option columns. */
 #define TORIRSSERVER_VESSEL_FACILITY_SLOTS 21
 #define TORIRSSERVER_VESSEL_FACILITY_KEEL 16
 #define TORIRSSERVER_VESSEL_FACILITY_FLAG 17
@@ -86,8 +85,8 @@ struct ToriRSServerPlayer;
  *  that "there is no shore here" still means it. */
 #define TORIRSSERVER_VESSEL_DISEMBARK_RANGE 12
 
-/** Default turn rate: 128 angle units per tick = 90 degrees in 4 ticks, the
- *  mid ship class (docs/SAILING.md §2 cites 2/4/6-tick quarter turns). */
+/** Current server turn cap: 128 angle units per tick = 90 degrees in 4 ticks.
+ *  Rotation, including anchored turns, always sweeps the native hull bounds. */
 #define TORIRSSERVER_VESSEL_TURN_RATE_DEFAULT 128
 
 /** Speed tiers, 1-based; tier * 64 fine units per tick. */
@@ -138,9 +137,8 @@ struct ToriRSServerVessel
      */
     int serial;
 
-    /** Content's vessel kind (the config-72 id this hull was spawned as). The
-     *  server does not read config 72 in S1; the id is carried for S2's wire
-     *  encoding and for content queries. */
+    /** Archive-72 hull id, decoded by the same implementation as the client.
+     *  Native bounds, offsets, pivot and deck plane drive movement/projection. */
     int config_id;
 
     /** Deck reservation extents. Native archive-72 hull bounds and signed
@@ -149,9 +147,8 @@ struct ToriRSServerVessel
     int size_x_tiles;
     int size_z_tiles;
 
-    /** Hull integrity, the sailing sidepanel's HP bar (varbits
-     *  `sailing_sidepanel_boat_hp[_max]`). Spawned full; nothing damages a
-     *  hull yet, but the state is the vessel's so content can when it does. */
+    /** Hull integrity, published to the native sidepanel. Grounding damage
+     *  and real repair-kit consumption are handled by sailing content. */
     int hp;
     int hp_max;
 
@@ -246,6 +243,7 @@ struct ToriRSServerVessel
      */
     int sails_set;
     int reversing;
+    int anchored; /* Stops translation while retaining the chosen heading/sails. */
     /** Max angle units turned per tick (shortest arc, clamped to this). */
     int turn_rate;
     /** TARGET state's destination, fine units (already quantum-aligned). */
@@ -489,6 +487,11 @@ ToriRSServer_VesselDeckToRoot(
  *  whose collision is solid. */
 int
 ToriRSServer_VesselDeckPlane(const struct ToriRSServerVessel* vessel);
+
+/** Absolute half-open walkable hull bounds, excluding navigation-only bow space. */
+int ToriRSServer_VesselDeckWalkBounds(
+    const struct ToriRSServerVessel* vessel,
+    int* min_x, int* min_z, int* max_x, int* max_z);
 
 void
 ToriRSServer_VesselRootToDeck(

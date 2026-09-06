@@ -136,6 +136,10 @@ struct WorldEntity_Scenery
 {
     int element_id;
     int loc_id;
+    /** Placement overrides survive a varp-driven model change. Names already
+     * live in the interned info; these masks distinguish them from cache ops. */
+    uint8_t placement_op_mask;
+    uint8_t placement_op_overrides;
     struct WorldEntityFacet_GridPosition grid_position;
     /** ROUTE footprint: the loc's config size, angle-swapped, which is what the
      *  click-time approach test measures against. Not the render footprint —

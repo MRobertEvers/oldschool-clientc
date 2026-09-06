@@ -7,17 +7,21 @@
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
 #include "app.h"
 #include "torirsserver/torirs_server.h"
+#include "torirsserver/torirs_server_content.h"
 #include "torirsserver/torirs_server_container.h"
 #include "torirsserver/torirs_server_embed.h"
 #include "torirsserver/torirs_server_ids.h"
 #include "torirsserver/torirs_server_mapinstance.h"
 #include "serverscript/ssvm_provider.h"
 #include "world/world.h"
+#include "world/entity_scenery.h"
+#include "toridraw_animation.h"
 
 #define SAILING_CHECKPOINT_MAX 8
 #define SAILING_CHECKPOINT_NAME_MAX 64
 #define SAILING_CHECKPOINT_INVS 6
 #define SAILING_CHECKPOINT_REGS 111
+#define SAILING_CHECKPOINT_ANIMS 512
 
 /* Numeric client motion only: no config, world, model or view pointers. */
 struct SailingWevMotion
@@ -66,7 +70,12 @@ struct SailingCheckpoint
     int x, z, level, navigating_vessel, navigating_vessel_serial;
     struct ToriRSServerVessel vessels[TORIRSSERVER_VESSEL_MAX];
     int instance_vars[TORIRSSERVER_VESSEL_MAX][SAILING_CHECKPOINT_REGS];
+    int crew_clocks[TORIRSSERVER_VESSEL_MAX][5];
     int32_t varps[TORIRSSERVER_VARP_COUNT];
+    int stat_level[TORIRSSERVER_STAT_COUNT];
+    int stat_boosted[TORIRSSERVER_STAT_COUNT];
+    int stat_xp_tenths[TORIRSSERVER_STAT_COUNT];
+    int hitpoints, max_hitpoints;
     struct ToriRSServerItem inv[TORIRSSERVER_INV_SLOTS];
     struct ToriRSServerItem worn[TORIRSSERVER_WORN_SLOTS];
     struct ToriRSServerQueued queue[TORIRSSERVER_QUEUE_MAX];
@@ -84,6 +93,12 @@ struct SailingCheckpoint
     uint64_t selected_remaining;
     double wev_clock;
     struct SailingWevMotion motion[WORLDVIEW_MAX];
+    int scenery_count;
+    struct
+    {
+        int view, x, z, level, shape, loc_id;
+        int seq_id, frame, cycle, loop;
+    } scenery[SAILING_CHECKPOINT_ANIMS];
     struct
     {
         int live, seq_id, seq_delay, bob_y;
@@ -196,7 +211,16 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
         for( int key=0; key<SAILING_CHECKPOINT_REGS; ++key )
             saved->instance_vars[i][key]=srv->vessels[i].in_use
                 ? ToriRSServer_MapInstanceVarGet(srv->vessels[i].instance,key) : 0;
+    for( int i=0; i<TORIRSSERVER_VESSEL_MAX; ++i )
+        for( int slot=0; slot<5; ++slot )
+            saved->crew_clocks[i][slot]=srv->vessels[i].in_use
+                ? ToriRSServer_MapInstanceVarGet(srv->vessels[i].instance,117+slot) : 0;
     memcpy(saved->varps, player->varps, sizeof(saved->varps));
+    memcpy(saved->stat_level,player->stat_level,sizeof(saved->stat_level));
+    memcpy(saved->stat_boosted,player->stat_boosted,sizeof(saved->stat_boosted));
+    memcpy(saved->stat_xp_tenths,player->stat_xp_tenths,sizeof(saved->stat_xp_tenths));
+    saved->hitpoints=player->hitpoints;
+    saved->max_hitpoints=player->max_hitpoints;
     memcpy(saved->inv, player->inv, sizeof(saved->inv));
     memcpy(saved->worn, player->worn, sizeof(saved->worn));
     memcpy(saved->queue, player->queue, sizeof(saved->queue));
@@ -237,6 +261,31 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
     saved->selected_remaining=app->sailing_selected_until>app->logic_cycle
         ? app->sailing_selected_until-app->logic_cycle : 0;
     saved->wev_clock = app->wevs.clock;
+    saved->scenery_count=0;
+    for( int view_id=1; view_id<WORLDVIEW_MAX; ++view_id )
+    {
+        if( !WorldviewRegistry_IsLive(&app->worldviews,view_id) ) continue;
+        struct World* view=WorldviewRegistry_Get(&app->worldviews,view_id)->world;
+        struct World_EntityPool* pool=&view->entities.scenery;
+        for( int id=World_EntityPoolHead(pool); id>=0; id=World_EntityPoolNext(pool,id) )
+        {
+            struct WorldEntity_Scenery* sc=World_EntityPoolGet(pool,id);
+            struct ToriDraw_SceneElement* el=ToriDraw_SceneElementGet(app->scene,sc->element_id);
+            if( !el || el->anim_seq_id<0 ) continue;
+            assert(saved->scenery_count<SAILING_CHECKPOINT_ANIMS);
+            int n=saved->scenery_count++;
+            saved->scenery[n].view=view_id;
+            saved->scenery[n].x=sc->grid_position.x;
+            saved->scenery[n].z=sc->grid_position.z;
+            saved->scenery[n].level=sc->grid_position.level;
+            saved->scenery[n].shape=sc->shape;
+            saved->scenery[n].loc_id=sc->loc_id;
+            saved->scenery[n].seq_id=el->anim_seq_id;
+            saved->scenery[n].frame=el->anim_frame;
+            saved->scenery[n].cycle=el->anim_cycle;
+            saved->scenery[n].loop=el->anim_loop;
+        }
+    }
     for( int i = 1; i < WORLDVIEW_MAX; ++i )
     {
         saved->bob[i].live = Wevs_IsLive(&app->wevs, i);
@@ -293,7 +342,9 @@ int ContentTestSailing_Restore(struct App* app, struct ToriRSServerEmbed* embed,
             live->size_z_tiles != old->size_z_tiles )
             return fail(error, cap, "deck identity changed since checkpoint");
         facility_changed[i]=memcmp(live->facility,old->facility,sizeof(live->facility))!=0 ||
-            ToriRSServer_MapInstanceVarGet(live->instance,110)!=saved->instance_vars[i][110];
+            live->anchored!=old->anchored;
+        for( int key=0; key<SAILING_CHECKPOINT_REGS && !facility_changed[i]; ++key )
+            facility_changed[i]=ToriRSServer_MapInstanceVarGet(live->instance,key)!=saved->instance_vars[i][key];
         if( facility_changed[i] && (!srv->scripts ||
             !SSVM_ProviderGetByName(srv->scripts,"[proc,sailing_facilities_restore]")) )
             return fail(error,cap,"facility restore requires the sailing content proc");
@@ -327,6 +378,17 @@ int ContentTestSailing_Restore(struct App* app, struct ToriRSServerEmbed* embed,
     for( int i = 0; i < TORIRSSERVER_VARP_COUNT; ++i )
         if( player->varps[i] != saved->varps[i] )
             ToriRSServer_WorldSetVarpOn(srv, player, i, saved->varps[i]);
+    for( int i=0; i<TORIRSSERVER_STAT_COUNT; ++i )
+    {
+        if( player->stat_level[i]!=saved->stat_level[i] ||
+            player->stat_boosted[i]!=saved->stat_boosted[i] ||
+            player->stat_xp_tenths[i]!=saved->stat_xp_tenths[i] ) player->stat_dirty|=1u<<i;
+        player->stat_level[i]=saved->stat_level[i];
+        player->stat_boosted[i]=saved->stat_boosted[i];
+        player->stat_xp_tenths[i]=saved->stat_xp_tenths[i];
+    }
+    player->hitpoints=saved->hitpoints;
+    player->max_hitpoints=saved->max_hitpoints;
     memcpy(player->inv, saved->inv, sizeof(saved->inv));
     memcpy(player->worn, saved->worn, sizeof(saved->worn));
     for( int i=0; i<SAILING_CHECKPOINT_INVS; ++i )
@@ -343,11 +405,15 @@ int ContentTestSailing_Restore(struct App* app, struct ToriRSServerEmbed* embed,
             int32_t handle=srv->vessels[i].index;
             for( int key=0; key<SAILING_CHECKPOINT_REGS; ++key )
                 ToriRSServer_MapInstanceVarSet(srv->vessels[i].instance,key,saved->instance_vars[i][key]);
+            for( int slot=0; slot<5; ++slot )
+                ToriRSServer_MapInstanceVarSet(srv->vessels[i].instance,117+slot,saved->crew_clocks[i][slot]);
             if( facility_changed[i] )
             {
                 int ran=ToriRSServer_ScriptsRunProc(srv,"[proc,sailing_facilities_restore]",&handle,1);
                 assert(ran);
                 (void)ran;
+                if( SSVM_ProviderGetByName(srv->scripts,"[proc,sailing_wind_publish]") )
+                    ToriRSServer_ScriptsRunProc(srv,"[proc,sailing_wind_publish]",&handle,1);
             }
             else if( srv->scripts && SSVM_ProviderGetByName(srv->scripts,"[proc,sailing_sail_visual_on]") )
                 ToriRSServer_ScriptsRunProc(srv,"[proc,sailing_sail_visual_on]",&handle,1);
@@ -413,6 +479,30 @@ void ContentTestSailing_SettleRestore(struct App* app)
     struct SailingCheckpoint* saved = checkpoints[restore_slot];
     assert(saved);
     assert(app->world);
+    for( int n=0; n<saved->scenery_count; ++n )
+    {
+        int view_id=saved->scenery[n].view;
+        assert(WorldviewRegistry_IsLive(&app->worldviews,view_id));
+        struct World* view=WorldviewRegistry_Get(&app->worldviews,view_id)->world;
+        int id=World_SceneryFindAt(view,saved->scenery[n].x,saved->scenery[n].z,
+            saved->scenery[n].level,saved->scenery[n].shape);
+        struct WorldEntity_Scenery* sc=id>=0 ? World_EntityPoolGet(&view->entities.scenery,id) : NULL;
+        assert(sc && sc->loc_id==saved->scenery[n].loc_id);
+        struct ToriDraw_Animation* anim=ToriDraw_SceneAnimationGet(app->scene,saved->scenery[n].seq_id);
+        assert(anim);
+        ToriDraw_SceneElementSetAnimationSeq(app->scene,sc->element_id,saved->scenery[n].seq_id);
+        ToriDraw_SceneElementSetAnimation(app->scene,sc->element_id,anim,true);
+        struct ToriDraw_SceneElement* el=ToriDraw_SceneElementGet(app->scene,sc->element_id);
+        assert(el);
+        el->is_skeletal=anim->skeletal!=NULL;
+        el->skeletal_animation=anim->skeletal;
+        el->skeletal_play_frames=el->is_skeletal ? anim->frame_count : 0;
+        el->anim_loop=saved->scenery[n].loop;
+        el->anim_frame=saved->scenery[n].frame;
+        el->anim_cycle=saved->scenery[n].cycle;
+        ToriDraw_SceneElementPoseInvalidate(app->scene,sc->element_id);
+        ToriDraw_SceneElementApplyAnimation(app->scene,sc->element_id,true,el->anim_frame);
+    }
     for( int i = 1; i < WORLDVIEW_MAX; ++i )
         if( Wevs_IsLive(&app->wevs, i) )
         {
@@ -472,7 +562,7 @@ void ContentTestSailing_State(struct App* app, struct ToriRSServerEmbed* embed,
     }
     snprintf(json, cap,
         "{\"ok\":true,\"aboard\":true,\"checkpoints\":%d,"
-        "\"checkpoint_scope\":\"movement,varps,backpack,worn,cargo,facilities,camera; unchanged vessel topology\","
+        "\"checkpoint_scope\":\"movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology\","
         "\"server_tick\":%d,\"player\":{\"x\":%d,\"z\":%d,\"level\":%d,\"navigating\":%d},"
         "\"vessel\":{\"id\":%d,\"serial\":%d,\"view\":%d,\"config\":%d,\"instance\":%d,"
         "\"fine_x\":%d,\"fine_z\":%d,\"angle\":%d,\"heading\":%d,\"state\":%d,"

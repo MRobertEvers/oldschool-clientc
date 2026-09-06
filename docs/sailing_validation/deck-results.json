@@ -1,0 +1,471 @@
+{
+  "ok": true,
+  "events": [
+    {
+      "command": "state",
+      "response": {
+        "ok": true,
+        "online": true,
+        "paused": true,
+        "time_ms": 18700,
+        "server_x": 6404,
+        "server_z": 67,
+        "level": 1,
+        "aboard_view": 1,
+        "logic_cycle": 884,
+        "server_tick": 29,
+        "camera_yaw": 1024,
+        "camera_pitch": 256,
+        "camera_zoom": 1200,
+        "world_ready": 1,
+        "renderer": 0,
+        "x": 6404,
+        "z": 67,
+        "camera": 0,
+        "animation": 0,
+        "anim_frame": 0,
+        "chat_blocked": -1,
+        "player_yaw": 0,
+        "rig": {
+          "vertices": 288,
+          "hash": 974037449,
+          "min_y": -196,
+          "max_y": 6,
+          "posed_frame": 5
+        },
+        "sailing": {
+          "ok": true,
+          "aboard": true,
+          "checkpoints": 3,
+          "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+          "server_tick": 29,
+          "player": {
+            "x": 6404,
+            "z": 67,
+            "level": 1,
+            "navigating": 1
+          },
+          "vessel": {
+            "id": 1,
+            "serial": 1,
+            "view": 1,
+            "config": 2,
+            "instance": 1,
+            "fine_x": 393280,
+            "fine_z": 404544,
+            "angle": 0,
+            "heading": 0,
+            "state": 1,
+            "speed_tier": 1,
+            "sails_set": 0,
+            "reversing": 0,
+            "hp": 80,
+            "hp_max": 80,
+            "facilities": [
+              1,
+              1,
+              1
+            ]
+          },
+          "client_vessel": {
+            "present": true,
+            "fine_x": 393280,
+            "fine_z": 404544,
+            "angle": 0,
+            "target_fine_x": 393280,
+            "target_fine_z": 404544,
+            "target_angle": 0,
+            "queue_count": 0
+          }
+        },
+        "server_activity": {
+          "active_script": 0,
+          "action_locked": 0,
+          "delay_until": 0,
+          "waypoint": -1,
+          "kind": 0,
+          "op": 0,
+          "target": 0,
+          "x": 0,
+          "z": 0,
+          "use_on": 0,
+          "last_useitem": -1,
+          "last_useslot": -1,
+          "client_selected_obj": -1
+        },
+        "runtime_ms": 0.479,
+        "elapsed_ms": 6.053
+      }
+    },
+    {
+      "command": "pause",
+      "response": {
+        "ok": true,
+        "runtime_ms": 1.879,
+        "elapsed_ms": 6.575
+      }
+    },
+    {
+      "command": "close",
+      "response": {
+        "ok": true,
+        "runtime_ms": 2.599,
+        "elapsed_ms": 4.406
+      }
+    },
+    {
+      "command": "camera 256 256 1000",
+      "response": {
+        "ok": true,
+        "runtime_ms": 1.986,
+        "elapsed_ms": 9.498
+      }
+    },
+    {
+      "command": "save deck_acceptance",
+      "response": {
+        "ok": true,
+        "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "runtime_ms": 1.373,
+        "elapsed_ms": 7.3
+      }
+    },
+    {
+      "command": "scenery 6404 69",
+      "response": {
+        "ok": true,
+        "items": [
+          {
+            "loc": 29516,
+            "seq": 13884,
+            "frame": 0,
+            "cycle": 0,
+            "angle": 0,
+            "element": 536873348,
+            "rig": {
+              "vertices": 202,
+              "hash": 3908446670,
+              "min_y": -720,
+              "max_y": -176,
+              "posed_frame": 0
+            },
+            "view": 1
+          }
+        ],
+        "runtime_ms": 0.481,
+        "elapsed_ms": 2.971
+      }
+    },
+    {
+      "command": "save deck_acceptance",
+      "response": {
+        "ok": true,
+        "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "runtime_ms": 1.237,
+        "elapsed_ms": 2.926
+      }
+    },
+    {
+      "command": "cheat vesselsail 0 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.199,
+        "elapsed_ms": 7.943
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 31.272,
+        "elapsed_ms": 34.366
+      }
+    },
+    {
+      "command": "scenery 6404 69",
+      "response": {
+        "ok": true,
+        "items": [
+          {
+            "loc": 29516,
+            "seq": 13890,
+            "frame": 14,
+            "cycle": 0,
+            "angle": 0,
+            "element": 536873336,
+            "rig": {
+              "vertices": 202,
+              "hash": 862597058,
+              "min_y": -720,
+              "max_y": -195,
+              "posed_frame": 14
+            },
+            "view": 1
+          }
+        ],
+        "runtime_ms": 0.415,
+        "elapsed_ms": 2.906
+      }
+    },
+    {
+      "command": "step 5",
+      "response": {
+        "ok": true,
+        "runtime_ms": 2.984,
+        "elapsed_ms": 5.402
+      }
+    },
+    {
+      "command": "scenery 6404 69",
+      "response": {
+        "ok": true,
+        "items": [
+          {
+            "loc": 29516,
+            "seq": 13890,
+            "frame": 19,
+            "cycle": 0,
+            "angle": 0,
+            "element": 536873336,
+            "rig": {
+              "vertices": 202,
+              "hash": 860852514,
+              "min_y": -720,
+              "max_y": -196,
+              "posed_frame": 19
+            },
+            "view": 1
+          }
+        ],
+        "runtime_ms": 0.469,
+        "elapsed_ms": 2.899
+      }
+    },
+    {
+      "command": "step 185",
+      "response": {
+        "ok": true,
+        "runtime_ms": 81.797,
+        "elapsed_ms": 84.979
+      }
+    },
+    {
+      "command": "scenery 6404 69",
+      "response": {
+        "ok": true,
+        "items": [
+          {
+            "loc": 29516,
+            "seq": 13890,
+            "frame": 24,
+            "cycle": 0,
+            "angle": 0,
+            "element": 536873336,
+            "rig": {
+              "vertices": 202,
+              "hash": 1895221712,
+              "min_y": -720,
+              "max_y": -196,
+              "posed_frame": 24
+            },
+            "view": 1
+          }
+        ],
+        "runtime_ms": 0.432,
+        "elapsed_ms": 2.972
+      }
+    },
+    {
+      "command": "restore deck_acceptance",
+      "response": {
+        "ok": true,
+        "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "runtime_ms": 6.81,
+        "elapsed_ms": 10.361
+      }
+    },
+    {
+      "command": "scenery 6404 69",
+      "response": {
+        "ok": true,
+        "items": [
+          {
+            "loc": 29516,
+            "seq": 13884,
+            "frame": 0,
+            "cycle": 0,
+            "angle": 0,
+            "element": 536873330,
+            "rig": {
+              "vertices": 202,
+              "hash": 3908446670,
+              "min_y": -720,
+              "max_y": -176,
+              "posed_frame": 0
+            },
+            "view": 1
+          }
+        ],
+        "runtime_ms": 0.433,
+        "elapsed_ms": 2.88
+      }
+    },
+    {
+      "command": "scenery 6403 66",
+      "response": {
+        "ok": true,
+        "items": [],
+        "runtime_ms": 0.462,
+        "elapsed_ms": 2.855
+      }
+    },
+    {
+      "command": "cheat sailnetfixture 4",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.405,
+        "elapsed_ms": 7.914
+      }
+    },
+    {
+      "command": "scenery 6403 66",
+      "response": {
+        "ok": true,
+        "items": [
+          {
+            "loc": 59755,
+            "seq": 13440,
+            "frame": 0,
+            "cycle": 0,
+            "angle": 1,
+            "element": 536873322,
+            "rig": {
+              "vertices": 1323,
+              "hash": 4070985850,
+              "min_y": -278,
+              "max_y": 51,
+              "posed_frame": 0
+            },
+            "view": 1
+          }
+        ],
+        "runtime_ms": 0.462,
+        "elapsed_ms": 3.033
+      }
+    },
+    {
+      "command": "restore deck_acceptance",
+      "response": {
+        "ok": true,
+        "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "runtime_ms": 6.742,
+        "elapsed_ms": 9.678
+      }
+    },
+    {
+      "command": "scenery 6403 66",
+      "response": {
+        "ok": true,
+        "items": [],
+        "runtime_ms": 0.422,
+        "elapsed_ms": 2.903
+      }
+    }
+  ],
+  "captures": [
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/deck-baseline.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 55.037,
+      "elapsed_ms": 58.145,
+      "bytes": 221626,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/deck-sailing.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 43.558,
+      "elapsed_ms": 47.054,
+      "bytes": 218836,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/deck-sailing-next.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 44.712,
+      "elapsed_ms": 46.569,
+      "bytes": 220731,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/deck-sailing-looped.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 44.168,
+      "elapsed_ms": 47.821,
+      "bytes": 221452,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/deck-restored.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 45.227,
+      "elapsed_ms": 47.63,
+      "bytes": 221481,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/deck-net-installed.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 45.161,
+      "elapsed_ms": 47.412,
+      "bytes": 223245,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/deck-net-restored.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 45.199,
+      "elapsed_ms": 49.096,
+      "bytes": 221495,
+      "world_order_mode": 0
+    }
+  ],
+  "provenance": {
+    "pid": 54509,
+    "process_identity": "Sun Sep  6 15:02:11 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user sailingtest --pass test --soft3d",
+    "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs",
+    "manifest": "/Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini",
+    "renderer": "soft3d",
+    "user": "sailingtest",
+    "headless": true,
+    "boat": "skiff",
+    "binary_sha256": "092d1e5bfc50466e66814f55675c39f6cc1d384ffc9f864a983830893098da04",
+    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_sha256": "355e1388465d2eb336fb10894bc67cf88d868f90055ffabb8cc9e7dddb05907c",
+    "allow_stale_scripts": false
+  },
+  "visual_review_required": true,
+  "elapsed_ms": 566.722
+}

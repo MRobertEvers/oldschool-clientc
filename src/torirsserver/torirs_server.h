@@ -4846,6 +4846,9 @@ void ToriRSServer_WorldPublish(struct ToriRSServer* srv);
 /** Build/furnish a spawned player boat using its revision-239 deck template.
  * Returns zero for an unsupported hull, missing vessel, or blocked launch. */
 int ToriRSServer_VesselBuildPlayerDeck(struct ToriRSServer* srv, int handle);
+/** Native helm/sail station authority, including validated assigned crew. */
+int ToriRSServer_VesselPlayerControlAllowed(struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player, struct ToriRSServerVessel* vessel, int sails);
 int ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
                              int level, int near_x, int near_z);
 

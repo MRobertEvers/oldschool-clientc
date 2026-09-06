@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import json
 import math
 import os
@@ -97,8 +98,12 @@ class Session:
                 next_process_check = now + 1.0
             time.sleep(POLL_SECONDS)
         result = json.loads(response.read_text())
+        pending_path = self.directory / "pending.json"
+        pending = json.loads(pending_path.read_text()) if pending_path.exists() else {}
+        if result.get("ok") and pending.get("reload_metadata") is not None:
+            atomic_write(self.directory / "session.json", json.dumps(pending["reload_metadata"], indent=2))
         response.unlink()
-        (self.directory / "pending.json").unlink(missing_ok=True)
+        pending_path.unlink(missing_ok=True)
         return result
 
     def request(self, command: str, timeout: float | None = None) -> dict:
@@ -108,8 +113,23 @@ class Session:
             raise HarnessError("A previous command is pending; use 'recover' first")
         if (self.directory / "request").exists() or (self.directory / "response").exists():
             raise HarnessError("Mailbox has uncollected data; use 'recover' first")
+        reload_metadata = None
+        if command == "reload" or command.startswith("reload "):
+            reload_metadata = self.metadata()
+            pack = (Path(command[7:]) / "script.dat" if command.startswith("reload ")
+                    else Path(reload_metadata.get("launch_script_pack", reload_metadata["script_pack"])))
+            reload_metadata["script_pack"] = str(pack.resolve())
+            reload_metadata["script_sha256"] = hashlib.sha256(pack.read_bytes()).hexdigest()
+            if not reload_metadata.get("allow_stale_scripts"):
+                fresh = subprocess.run(
+                    [sys.executable, str(ROOT / "tools/server_scripts_stale.py"), "--out", str(pack.parent)],
+                    capture_output=True, text=True, check=False,
+                )
+                if fresh.returncode != 1:
+                    raise HarnessError("Reload refused before changing the live session; rebuild the script pack. "
+                                       + (fresh.stdout or fresh.stderr).strip())
         started = time.perf_counter()
-        atomic_write(self.directory / "pending.json", json.dumps({"command": command}))
+        atomic_write(self.directory / "pending.json", json.dumps({"command": command, "reload_metadata": reload_metadata}))
         atomic_write(self.directory / "request", command + "\n")
         result = self._receive(self.timeout if timeout is None else timeout)
         result["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 3)
@@ -137,6 +157,8 @@ class Session:
                 raise HarnessError(f"Capture is not a PNG from renderer readback: {output}")
         result["path"] = str(output)
         result["bytes"] = output.stat().st_size
+        result["world_order_mode"] = result.get("renderer")
+        result["renderer"] = self.metadata().get("renderer", "unknown")
         return result
 
     def start(self, args) -> dict:
@@ -148,6 +170,10 @@ class Session:
                 raise HarnessError("Stop the existing session before changing its manifest")
             if metadata.get("boat", "skiff") != args.boat:
                 raise HarnessError("Stop the existing session before changing its boat fixture")
+            if metadata.get("headless") != args.headless:
+                raise HarnessError("Stop the existing session before changing window visibility")
+            if metadata.get("user") != args.user:
+                raise HarnessError("Stop the existing session before changing its test account")
             result = self.checked("state")
             return {**result, "reused": True, "session": str(self.directory)}
         binary = args.binary.expanduser().resolve()
@@ -195,6 +221,14 @@ class Session:
             if section == "[net:boot]" and line.startswith("scripts="):
                 env["TORIRSSERVER_SCRIPTS"] = str((manifest.parent / line[8:].strip()).resolve())
         renderer = {"soft3d": "--soft3d", "gl3": "--opengl3", "gl3-zbuffer": "--opengl3-zbuffer"}
+        script_pack = Path(env["TORIRSSERVER_SCRIPTS"]) / "script.dat"
+        provenance = {
+            "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+            "script_pack": str(script_pack),
+            "launch_script_pack": str(script_pack),
+            "script_sha256": hashlib.sha256(script_pack.read_bytes()).hexdigest(),
+            "allow_stale_scripts": env.get("TORIRSSERVER_ALLOW_STALE_SCRIPTS") == "1",
+        }
         argv = [str(binary), "--manifest", str(manifest), "--user", args.user,
                 "--pass", "test", renderer[args.renderer], *args.client_arg]
         started = time.perf_counter()
@@ -210,6 +244,7 @@ class Session:
             "manifest": str(manifest), "renderer": args.renderer, "user": args.user,
             "headless": args.headless,
             "boat": args.boat,
+            **provenance,
         }, indent=2))
         deadline = time.monotonic() + args.startup_timeout
         while time.monotonic() < deadline:
@@ -223,6 +258,9 @@ class Session:
                     and result.get("aboard_view", 0) > 0 and sailing.get("aboard")
                     and result["aboard_view"] == vessel.get("view")
                     and sailing.get("player", {}).get("navigating") == vessel.get("id")):
+                self.checked("cheat sailpanel")
+                self.checked("camera 256 256 1000")
+                result = self.checked("state")
                 return {**result, "reused": False, "pid": process.pid,
                         "session": str(self.directory),
                         "startup_ms": round((time.perf_counter() - started) * 1000, 3)}
@@ -283,7 +321,7 @@ def parser() -> argparse.ArgumentParser:
     start.add_argument("--startup-timeout", type=float, default=120)
     start.add_argument("--headless", action="store_true", help="Render software frames without a visible window")
     start.add_argument("--client-arg", action="append", default=[], help="Additional flag; use =--flag")
-    for name in ("status", "pause", "resume", "stop", "recover", "reload"):
+    for name in ("status", "pause", "resume", "stop", "recover", "reload", "close"):
         sub.add_parser(name)
     step = sub.add_parser("step")
     step.add_argument("frames", type=int, help="Client cycles, 20 ms each; 30 = one game tick")
@@ -297,6 +335,9 @@ def parser() -> argparse.ArgumentParser:
     click.add_argument("x", type=int)
     click.add_argument("y", type=int)
     click.add_argument("button", nargs="?", default="left", choices=("left", "right", "middle"))
+    hover = sub.add_parser("hover")
+    hover.add_argument("x", type=int)
+    hover.add_argument("y", type=int)
     camera = sub.add_parser("camera")
     camera.add_argument("yaw", type=int)
     camera.add_argument("pitch", type=int)
@@ -351,6 +392,8 @@ def main() -> int:
                 command = ("cheat " if action == "cheat" else "") + " ".join(args.text)
             elif action == "click":
                 command = f"click {args.x} {args.y} {args.button}"
+            elif action == "hover":
+                command = f"hover {args.x} {args.y}"
             elif action == "camera":
                 command = f"camera {args.yaw} {args.pitch} {args.zoom}"
             elif action in ("button", "widget"):

@@ -870,6 +870,9 @@ struct App
     /** Native bearing-marker models. Scene-owned elements are claimed across
      * root rebuilds; a chosen heading remains highlighted for 30 cycles. */
     int sailing_at_helm_varbit;
+    int sailing_captain_role_varbit;
+    int sailing_crew_duty_varbit[5];
+    int sailing_crew_roster_varbit[5];
     int sailing_crew_category;
     int sailing_arrow_model[2];
     int sailing_arrow_element[2];

@@ -199,6 +199,10 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
         anim->skeletal = self->skeletal;
         self->skeletal = NULL;
         anim->frame_count = play_frames > 0 ? play_frames : 1;
+        /* DynamicObject uses frameStep for Maya loops too. Leaving calloc's
+         * zero here discards a looping sail at its first 90-frame boundary
+         * and exposes the cloth's unposed, offset bind geometry. */
+        anim->frame_step = self->seq ? self->seq->frame_step : -1;
         if( self->seq )
         {
             seq_apply_meta(anim, self->seq);

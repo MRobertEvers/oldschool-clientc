@@ -1,0 +1,105 @@
+{
+  "ok": true,
+  "input": "Actual mouse clicks in native937; actual938 Assign click for Jim",
+  "script_sha256": "3db5e2c90a47f4fbe0489910d6d3527ac4a9235908f5e0b5672d021ef60e224c",
+  "binary_sha256": "430562e21dbc683a546399cbc20495ec96116954f483a573e16373e547e0c1e2",
+  "swap": {
+    "pixel": [
+      652,
+      413
+    ],
+    "loaded_sequence": [
+      [
+        1,
+        11
+      ],
+      [
+        16,
+        5
+      ],
+      [
+        9,
+        5
+      ],
+      [
+        1,
+        11
+      ]
+    ],
+    "ammunition_conserved": true,
+    "client_and_server_types_match": true,
+    "flags": 7
+  },
+  "crew": "Jobless Jim, crew slot0 duty7, operatorUID0",
+  "clear": {
+    "pixel": [
+      614,
+      413
+    ],
+    "mode": 2,
+    "target": 0,
+    "ammo": 10,
+    "ammo_unchanged_after_ticks": 6
+  },
+  "follow": {
+    "pixel": [
+      576,
+      413
+    ],
+    "mode": 3,
+    "native_following_value": 0,
+    "ammo_unchanged_without_captain_target_after_ticks": 6
+  },
+  "visual_review": true,
+  "captures": [
+    "activity-cannon-panel-swap.png",
+    "activity-cannon-panel-clear.png",
+    "activity-cannon-panel-follow.png"
+  ],
+  "follow_positive_target": {
+    "input": "Actual NPC menu Attack click284,333 after selecting Follow mode",
+    "selected_uid_plus_one": 197937,
+    "rounds_before": 34,
+    "rounds_after": 30,
+    "target_hp_before": 10,
+    "target_hp_after": 8,
+    "captain_navigating": 1,
+    "player_tile": [
+      6404,
+      67
+    ],
+    "no_walk_route": true,
+    "capture": "activity-captain-target-selected.png",
+    "metadata": {
+      "pid": 46446,
+      "process_identity": "Sun Sep  6 14:02:12 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user sailacts --pass test --soft3d",
+      "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs",
+      "manifest": "/Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini",
+      "renderer": "soft3d",
+      "user": "sailacts",
+      "headless": true,
+      "boat": "skiff",
+      "binary_sha256": "622ebea16385bbe9f576ba0b7bb39e693d7c68dd37ec795fc25bbe3a2152fdc5",
+      "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+      "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+      "script_sha256": "6bcbd3c2914023ebf0c88d53a5d06b7c48e33235b6c069e6dc3d054039974110",
+      "allow_stale_scripts": false
+    }
+  },
+  "manual_target": {
+    "input": "Actual world cannon Operate, then actual NPC Attack click282,333",
+    "mode": 4,
+    "selected_uid_plus_one": 197937,
+    "rounds_before": 42,
+    "rounds_after": 41,
+    "target_hp_before": 8,
+    "target_hp_after": 1,
+    "ranged_xp_tenths": 140,
+    "player_tile": [
+      6404,
+      68
+    ],
+    "no_walk_route": true,
+    "capture": "activity-manual-target-selected.png"
+  }
+}

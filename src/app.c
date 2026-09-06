@@ -1132,13 +1132,35 @@ app_sailing_at_helm(struct App* app)
            VarPManager_GetVarbit(&app->varps, id) != 0;
 }
 
+static int
+app_sailing_can_steer(struct App* app)
+{
+    if( app_sailing_at_helm(app) ) return 1;
+    int role=app->sailing_captain_role_varbit;
+    if( app->aboard_view==WORLDVIEW_ROOT ||
+        !Wevs_IsLive(&app->wevs,app->aboard_view) ||
+        !WorldviewRegistry_IsLive(&app->worldviews,app->aboard_view) ||
+        role<0 || role>=app->varps.varbit_count ||
+        VarPManager_GetVarbit(&app->varps,role)!=10 ) return 0;
+    for( int slot=0; slot<5; ++slot )
+    {
+        int duty=app->sailing_crew_duty_varbit[slot];
+        int roster=app->sailing_crew_roster_varbit[slot];
+        if( duty>=0 && duty<app->varps.varbit_count &&
+            roster>=0 && roster<app->varps.varbit_count &&
+            (VarPManager_GetVarbit(&app->varps,duty)==3 || VarPManager_GetVarbit(&app->varps,duty)==4) &&
+            VarPManager_GetVarbit(&app->varps,roster)>0 ) return 1;
+    }
+    return 0;
+}
+
 /* The native selector intersects the pointer ray with the boat's horizontal
  * plane (class108.method3786), so it works over deck geometry and open sea. */
 static int
 app_sailing_heading_at(struct App* app, int mouse_x, int mouse_y, int* heading)
 {
     assert(heading);
-    if( !app_sailing_at_helm(app) || !app->world_view_valid ) return 0;
+    if( !app_sailing_can_steer(app) || !app->world_view_valid ) return 0;
     struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
     if( vessel->parent_view_id != WORLDVIEW_ROOT ) return 0;
     double x, z;
@@ -1158,7 +1180,15 @@ static void
 app_sailing_menu_context(struct App* app, struct RS_MinimenuBuildCtx* ctx,
                          int mouse_x, int mouse_y)
 {
-    ctx->sailing_navigating = app_sailing_at_helm(app) != 0;
+    ctx->sailing_navigating = app_sailing_can_steer(app) != 0;
+    /* With crew at the helm the captain is free to walk and work on deck.
+     * Only open-water/root picks become bearings; a held player helm keeps
+     * the native all-directions selector. */
+    if( ctx->sailing_navigating && !app_sailing_at_helm(app) && ctx->world_pickset )
+        for( int i=0; i<ctx->world_pickset->count; ++i )
+            if( ctx->world_pickset->items[i].type==WORLD_PICK_TERRAIN &&
+                ctx->world_pickset->items[i].view_id==app->aboard_view )
+                ctx->sailing_navigating=false;
     ctx->sailing_heading_valid = ctx->sailing_navigating &&
         app_sailing_heading_at(app, mouse_x, mouse_y, &ctx->sailing_heading);
 }
@@ -1166,7 +1196,7 @@ app_sailing_menu_context(struct App* app, struct RS_MinimenuBuildCtx* ctx,
 static int
 app_sailing_send_heading(struct App* app, int heading)
 {
-    if( !app_sailing_at_helm(app) || !app->net || app->net->state != TORIRS_NET_GAME ) return 0;
+    if( !app_sailing_can_steer(app) || !app->net || app->net->state != TORIRS_NET_GAME ) return 0;
     APP_NET_SEND(app, net_out_set_heading(
         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), heading));
     app->sailing_selected_heading = heading;
@@ -1181,7 +1211,7 @@ app_sailing_send_heading(struct App* app, int heading)
 static void
 app_sailing_register_arrows(struct App* app, struct World* world)
 {
-    if( world != app->world || !app_sailing_at_helm(app) ) return;
+    if( world != app->world || !app_sailing_can_steer(app) ) return;
     struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
     if( vessel->parent_view_id != WORLDVIEW_ROOT ) return;
     int hover = -1;
@@ -8054,81 +8084,76 @@ app_loc_transform_depends_on_varp(
 }
 
 static void
-app_varp_refresh_loc_transforms(
-    struct App* app,
-    int varp_id)
+app_varp_refresh_loc_transforms(struct App* app, int varp_id)
 {
-    struct World_EntityPool* pool;
-    enum
+    assert(app);
+    if( !app->provider || varp_id < 0 ) return;
+    int previous_view = app->active_world;
+    /* Each view has independent scene-local tile keys. In particular, (3,2)
+     * on a raft must never retype (3,2) in the root or another boat. */
+    for( int view = 0; view < WORLDVIEW_MAX; ++view )
     {
-        MAX_REFRESH = 256
-    };
-    struct
-    {
-        int x, z, level, loc_id, shape, angle;
-    } pending[MAX_REFRESH];
-    int n = 0;
-
-    if( !app || !app->world || !app->world->load_complete || !app->provider )
-        return;
-    if( varp_id < 0 )
-        return;
-
-    pool = &app->world->entities.scenery;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, i);
-        struct ToriRS_Location* loc;
-        int x, z, level, shape, angle, loc_id;
-        int dup;
-
-        if( !sc )
-            continue;
-        loc = CacheProvider_LocationGet(app->provider, sc->loc_id);
-        if( !app_loc_transform_depends_on_varp(app, loc, varp_id) )
-            continue;
-
-        x = sc->grid_position.x;
-        z = sc->grid_position.z;
-        level = sc->grid_position.level;
-        loc_id = sc->loc_id;
-        shape = sc->shape;
-        angle = sc->angle;
-
-        /* L-walls register two pool halves on the same tile+shape — one refresh. */
-        dup = 0;
-        for( int j = 0; j < n; j++ )
+        if( !WorldviewRegistry_IsLive(&app->worldviews, view) ) continue;
+        struct World* world = WorldviewRegistry_Get(&app->worldviews, view)->world;
+        if( !world || !world->load_complete ) continue;
+        enum { MAX_REFRESH = 256 };
+        struct
         {
-            if( pending[j].x == x && pending[j].z == z && pending[j].level == level &&
-                pending[j].shape == shape )
+            int x, z, level, loc_id, shape, angle, op_flags;
+            char ops[5][32];
+        } pending[MAX_REFRESH];
+        int n = 0;
+        struct World_EntityPool* pool = &world->entities.scenery;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, i);
+            assert(sc);
+            struct ToriRS_Location* loc = CacheProvider_LocationGet(app->provider, sc->loc_id);
+            int depends = 0;
+            /* A varp may drive a descendant of the placed wrapper. Every
+             * config along a previously materialised chain is resident. */
+            for( int depth = 0; loc && depth < 16; ++depth )
             {
-                dup = 1;
-                break;
+                if( app_loc_transform_depends_on_varp(app, loc, varp_id) )
+                { depends = 1; break; }
+                if( loc->transform_count <= 0 || !loc->transforms ) break;
+                int next = VarPManager_ResolveTransform(&app->varps, loc->transforms,
+                    loc->transform_count, loc->transform_varbit, loc->transform_varp);
+                if( next < 0 || next == loc->id ) break;
+                loc = CacheProvider_LocationGet(app->provider, next);
             }
+            if( !depends ) continue;
+            int duplicate = 0;
+            for( int j = 0; j < n; ++j )
+                if( pending[j].x == sc->grid_position.x && pending[j].z == sc->grid_position.z &&
+                    pending[j].level == sc->grid_position.level && pending[j].shape == sc->shape )
+                { duplicate = 1; break; }
+            if( duplicate ) continue;
+            if( n == MAX_REFRESH ) break;
+            pending[n].x = sc->grid_position.x; pending[n].z = sc->grid_position.z;
+            pending[n].level = sc->grid_position.level; pending[n].loc_id = sc->loc_id;
+            pending[n].shape = sc->shape; pending[n].angle = sc->angle;
+            pending[n].op_flags = 0x1f;
+            memset(pending[n].ops, 0, sizeof(pending[n].ops));
+            for( int op = 0; op < 5; ++op )
+                if( sc->placement_op_overrides & (1 << op) )
+                {
+                    if( !(sc->placement_op_mask & (1 << op)) )
+                        pending[n].op_flags &= ~(1 << op);
+                    else
+                        snprintf(pending[n].ops[op], sizeof(pending[n].ops[op]), "%s",
+                                 sc->info->actions[op].name);
+                }
+            ++n;
         }
-        if( dup )
-            continue;
-        if( n >= MAX_REFRESH )
-            break;
-        pending[n].x = x;
-        pending[n].z = z;
-        pending[n].level = level;
-        pending[n].loc_id = loc_id;
-        pending[n].shape = shape;
-        pending[n].angle = angle;
-        n++;
+        app->active_world = view;
+        for( int i = 0; i < n; ++i )
+            App_WorldLocChangeOps(app, pending[i].x, pending[i].z, pending[i].level,
+                pending[i].loc_id, pending[i].shape, pending[i].angle,
+                pending[i].op_flags, pending[i].ops);
     }
-
-    for( int i = 0; i < n; i++ )
-        App_WorldLocChange(
-            app,
-            pending[i].x,
-            pending[i].z,
-            pending[i].level,
-            pending[i].loc_id,
-            pending[i].shape,
-            pending[i].angle);
+    app->active_world = previous_view;
 }
 
 /*
@@ -10302,6 +10327,15 @@ App_Init(
      * WORLDENTITY_INFO spawns one; the config table fills at boot. */
     Wevs_Init(&app->wevs);
     app->sailing_at_helm_varbit = RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sailing_player_at_helm");
+    app->sailing_captain_role_varbit = RevConfigRefs_Get(&app->revconfig_refs,"varbit","sailing_captain_role");
+    for( int slot=0; slot<5; ++slot )
+    {
+        char key[48];
+        snprintf(key,sizeof(key),"sailing_crew_duty_%d",slot+1);
+        app->sailing_crew_duty_varbit[slot]=RevConfigRefs_Get(&app->revconfig_refs,"varbit",key);
+        snprintf(key,sizeof(key),"sailing_crew_roster_%d",slot+1);
+        app->sailing_crew_roster_varbit[slot]=RevConfigRefs_Get(&app->revconfig_refs,"varbit",key);
+    }
     app->sailing_crew_category = RevConfigRefs_Get(&app->revconfig_refs, "category", "sailing_crew");
     app->sailing_arrow_model[0] = RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_hover");
     app->sailing_arrow_model[1] = RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_selected");
@@ -18646,9 +18680,11 @@ app_world_tick_animations(struct App* app)
                  * decides whether the final pose is retained or the sequence
                  * is discarded. Keep the skeletal playback span as the
                  * authoritative bound when the config limits it. */
-                if( anim && anim->frame_count == play_frames &&
-                    !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
-                    ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                if( anim && anim->frame_count == play_frames )
+                {
+                    if( !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
+                        ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                }
                 else
                     element->anim_frame = (element->anim_frame + 1) % play_frames;
                 element->anim_cycle = 0;
@@ -20729,7 +20765,7 @@ app_minimap_click(
         rel_x = (center_y * sin + center_x * cos) >> 11;
         rel_y = (center_y * cos - center_x * sin) >> 11;
     }
-    if( app_sailing_at_helm(app) )
+    if( app_sailing_can_steer(app) )
     {
         if( rel_x == 0 && rel_y == 0 ) return 0;
         return app_sailing_send_heading(app, SailingNavigation_Heading(rel_x, -rel_y));
@@ -21472,9 +21508,11 @@ app_world_catch_up_object_seq(
             element->anim_cycle++;
             if( element->anim_cycle >= 1 )
             {
-                if( anim->frame_count == play_frames &&
-                    !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
-                    ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                if( anim->frame_count == play_frames )
+                {
+                    if( !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
+                        ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                }
                 else
                     element->anim_frame = (element->anim_frame + 1) % play_frames;
                 element->anim_cycle = 0;
@@ -23434,6 +23472,9 @@ struct Task_AppSpawn
     int loc_shape;
     int loc_angle;
     int loc_model_j;
+    int loc_resolved_id;
+    int loc_resolve_depth;
+    int loc_base_seq;
     /** APP_SPAWN_LOC_CHANGE: the loc's models and sequence, fanned out and not yet ended. */
     int pending;
     /* APP_SPAWN_PLUGIN_OBJECT: the plugin object handle whose assets this task
@@ -23490,8 +23531,12 @@ app_loc_change_apply_ops(
         struct WorldEntity_SceneryInfo probe = *sc->info;
         int has_action = 0;
 
+        sc->placement_op_mask = (uint8_t)self->loc_op_flags;
+        sc->placement_op_overrides = 0;
         for( int i = 0; i < 5; i++ )
         {
+            if( !(self->loc_op_flags & (1 << i)) || self->loc_ops[i][0] )
+                sc->placement_op_overrides |= (uint8_t)(1 << i);
             char const* label = NULL;
 
             if( (self->loc_op_flags & (1 << i)) == 0 )
@@ -23721,9 +23766,25 @@ Task_AppSpawn_Run(
          * packet order on the serial exec FIFO. */
         if( self->loc_id >= 0 )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_id));
+            self->loc_resolved_id = self->loc_id;
+            self->loc_base_seq = -1;
+            for( self->loc_resolve_depth = 0;
+                 self->loc_resolved_id >= 0 && self->loc_resolve_depth < 16;
+                 ++self->loc_resolve_depth )
+            {
+                PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_resolved_id));
+                struct ToriRS_Location* cfg =
+                    CacheProvider_LocationGet(app->provider, self->loc_resolved_id);
+                if( !cfg ) { self->loc_resolved_id = -1; break; }
+                if( self->loc_resolve_depth == 0 ) self->loc_base_seq = cfg->seq_id;
+                if( cfg->transform_count <= 0 || !cfg->transforms ) break;
+                int next = VarPManager_ResolveTransform(&app->varps, cfg->transforms,
+                    cfg->transform_count, cfg->transform_varbit, cfg->transform_varp);
+                if( next == self->loc_resolved_id ) break;
+                self->loc_resolved_id = next;
+            }
             /*
-             * Every model the config names, and its sequence, TOGETHER: they
+             * Every model the resolved child names, and its sequence, TOGETHER: they
              * are independent reads with one consumer (the placement below),
              * and awaiting them one after another was a round trip each on a
              * streamed cache -- an open-door variant is commonly absent from
@@ -23731,8 +23792,8 @@ Task_AppSpawn_Run(
              * Queued as siblings on the asset queue and joined.
              */
             {
-                struct ToriRS_Location* cfg =
-                    CacheProvider_LocationGet(app->provider, self->loc_id);
+                struct ToriRS_Location* cfg = self->loc_resolved_id >= 0
+                    ? CacheProvider_LocationGet(app->provider, self->loc_resolved_id) : NULL;
                 int entries = 0;
                 if( cfg && cfg->models && cfg->lengths )
                     entries = cfg->shapes ? cfg->shapes_and_model_count : 1;
@@ -23743,7 +23804,7 @@ Task_AppSpawn_Run(
                                 app->runner.queue,
                                 CreateTask_ModelLoad(app->provider, cfg->models[i][j]),
                                 &self->pending);
-                self->seq_id = cfg ? cfg->seq_id : -1;
+                self->seq_id = cfg && cfg->seq_id >= 0 ? cfg->seq_id : self->loc_base_seq;
                 if( self->seq_id >= 0 )
                     ToriRS_TaskQueue_AddJoined(
                         app->runner.queue,
@@ -29309,12 +29370,24 @@ app_minimenu_run_option(
     {
         int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
         int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
+        int deck_loc = opt.pick.view_id != 0 &&
+            (opt.action == REVCONFIG_MINIMENU_USEHELD_ONLOC ||
+             opt.action == REVCONFIG_MINIMENU_TGT_LOC);
+        if( deck_loc )
+        {
+            if( !WorldviewRegistry_IsLive(&app->worldviews, opt.pick.view_id) || !app->net )
+                return 0;
+            const struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, opt.pick.view_id);
+            abs_x = opt.pick.tertiary_id + view->base_x;
+            abs_z = opt.pick.quaternary_id + view->base_z;
+        }
         switch( opt.action )
         {
         case REVCONFIG_MINIMENU_USEHELD_ONLOC:
-            /* Reference interactWithLoc returns before sending anything when
-             * the placed loc cannot be resolved (typecode2 == -1). */
-            if( !app_try_move_loc(
+            /* Root locs use the ordinary client route. A deck loc is in a
+             * different collision map; the server routes that interaction,
+             * using the picked live view's coordinates as plain OPLOC does. */
+            if( !deck_loc && !app_try_move_loc(
                     app,
                     opt.pick.id,
                     opt.pick.tertiary_id,
@@ -29336,7 +29409,7 @@ app_minimenu_run_option(
                     app->objsel.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_LOC:
-            if( !app_try_move_loc(
+            if( !deck_loc && !app_try_move_loc(
                     app,
                     opt.pick.id,
                     opt.pick.tertiary_id,

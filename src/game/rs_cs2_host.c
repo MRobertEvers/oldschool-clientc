@@ -276,6 +276,25 @@ rs_cs2_model_ready(
     return provider && CacheProvider_ModelHas(provider, model_id);
 }
 
+static bool
+rs_cs2_loc_model_ready(struct RS_CS2Host* host, int loc_id)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Location* loc;
+    int const* ids;
+    int count;
+    if( loc_id < 0 )
+        return true;
+    if( !provider || !CacheProvider_LocationHas(provider, loc_id) )
+        return false;
+    loc = CacheProvider_LocationGet(provider, loc_id);
+    count = UITreeSceneBridge_LocModelIds(loc, &ids);
+    for( int i = 0; i < count; i++ )
+        if( !CacheProvider_ModelHas(provider, ids[i]) )
+            return false;
+    return true;
+}
+
 /* Resolve a resident multiNpc chain under this client's vars. false means a
  * config in the selected chain is still cold; true with -1 means the selected
  * positional entry intentionally hides the NPC. */
@@ -5282,6 +5301,18 @@ exec_widget_set_model_kind(
             scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
         (void)UITree_ApplyModel(rs_cs2_tree(host), component_id, scene_model);
     }
+    else if( model_kind == CS2VM_MODEL_KIND_LOC && host->bridge && rs_cs2_tree(host) )
+    {
+        if( !rs_cs2_loc_model_ready(host, model_id) )
+        {
+            if( !rs_cs2_await_spent(vm, exact_request->kind, model_id, -1) )
+                return rs_cs2_yield_load(host, vm, exact_request, model_id, -1);
+            return CS2VM_EXECNO_OK;
+        }
+        (void)UITree_ApplyModel(
+            rs_cs2_tree(host), component_id,
+            UITreeSceneBridge_EnsureLocModel(host->bridge, model_id));
+    }
     /* NPC head (kind 2): model_id is the npc id. Composite the chathead
      * (reference IfType.getModel type 2 / NpcType.getHead / deob method3601).
      * Yield until npctype + head models are resident (IF1 Task_AppIfHead parity);
@@ -9632,6 +9663,7 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_CC_SET_OBJECT_CASE(CC_SETOBJECT);
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(CC_SETNPCHEAD);
+        RS_CS2_WIDGET_MODEL_KIND_CASE(CC_SETLOCMODEL);
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(CC_SETPLAYERHEAD_SELF);
 
@@ -10032,6 +10064,7 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_IF_SET_OBJECT_CASE(IF_SETOBJECT);
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(IF_SETNPCHEAD);
+        RS_CS2_WIDGET_MODEL_KIND_CASE(IF_SETLOCMODEL);
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(IF_SETPLAYERHEAD_SELF);
 

@@ -419,6 +419,12 @@ ToriRSServer_SceneBoatCollision(int level);
 int
 ToriRSServer_SceneBoatTileFlags(int level, int x, int z);
 
+/** In the bound window, block reservation tiles outside the native hull.
+ * Bounds are absolute and half-open; original plane/loc flags inside remain. */
+void ToriRSServer_SceneRestrictDeckWalk(
+    int base_x, int base_z, int width, int height,
+    int min_x, int min_z, int max_x, int max_z);
+
 /** Absolute tile of scene-local (0, 0). */
 int
 ToriRSServer_SceneDebugSettings(int level, int x, int z);

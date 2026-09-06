@@ -1,7 +1,7 @@
 {
   "ok": true,
-  "session": "/private/tmp/sailing-collision-live",
-  "elapsed_ms": 986.364,
+  "session": "/private/tmp/sailing-final-review",
+  "elapsed_ms": 1026.872,
   "ocean": {
     "x": 3072,
     "z": 3160,
@@ -269,72 +269,67 @@
       "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-before.png",
       "width": 807,
       "height": 503,
-      "renderer": 0,
-      "runtime_ms": 40.932,
-      "elapsed_ms": 43.009,
-      "bytes": 208862
+      "renderer": "soft3d",
+      "runtime_ms": 36.268,
+      "elapsed_ms": 37.805,
+      "bytes": 188127,
+      "world_order_mode": 0
     },
     {
       "ok": true,
       "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-underway.png",
       "width": 807,
       "height": 503,
-      "renderer": 0,
-      "runtime_ms": 39.614,
-      "elapsed_ms": 41.818,
-      "bytes": 208362
+      "renderer": "soft3d",
+      "runtime_ms": 35.179,
+      "elapsed_ms": 36.4,
+      "bytes": 188630,
+      "world_order_mode": 0
     },
     {
       "ok": true,
       "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-mid-motion-restored.png",
       "width": 807,
       "height": 503,
-      "renderer": 0,
-      "runtime_ms": 39.743,
-      "elapsed_ms": 43.981,
-      "bytes": 208368
+      "renderer": "soft3d",
+      "runtime_ms": 35.365,
+      "elapsed_ms": 37.757,
+      "bytes": 188183,
+      "world_order_mode": 0
     },
     {
       "ok": true,
       "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-stopped.png",
       "width": 807,
       "height": 503,
-      "renderer": 0,
-      "runtime_ms": 34.908,
-      "elapsed_ms": 38.063,
-      "bytes": 202741
+      "renderer": "soft3d",
+      "runtime_ms": 32.035,
+      "elapsed_ms": 34.944,
+      "bytes": 183797,
+      "world_order_mode": 0
     },
     {
       "ok": true,
       "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-restored.png",
       "width": 807,
       "height": 503,
-      "renderer": 0,
-      "runtime_ms": 39.809,
-      "elapsed_ms": 41.917,
-      "bytes": 208721
+      "renderer": "soft3d",
+      "runtime_ms": 36.185,
+      "elapsed_ms": 38.319,
+      "bytes": 188316,
+      "world_order_mode": 0
     },
     {
       "ok": true,
       "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-land-rejected.png",
       "width": 807,
       "height": 503,
-      "renderer": 0,
-      "runtime_ms": 31.206,
-      "elapsed_ms": 34.666,
-      "bytes": 204923
+      "renderer": "soft3d",
+      "runtime_ms": 30.546,
+      "elapsed_ms": 32.224,
+      "bytes": 198345,
+      "world_order_mode": 0
     }
   ],
-  "visual_review_required": false,
-  "visual_review": {
-    "reviewed": true,
-    "findings": [
-      "Before: player visibly aboard a skiff in open ocean.",
-      "Stopped: bow reaches the real rocky shoreline and stays at the same safe boat-map position.",
-      "Restored: open-ocean world and minimap match the baseline again.",
-      "Mid-motion restore preserves the client pose and the received target."
-    ]
-  },
-  "script_pack_sha256": "33578d625eae7efa86eadbbc694bed8a34bba4647a34aadcb3bc6c17fabcf6d6",
-  "stale_script_override": false
+  "visual_review_required": true
 }

@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "target_ms": 100,
+  "operations": {
+    "state": {
+      "count": 30,
+      "median_ms": 2.833,
+      "p95_ms": 2.907,
+      "max_ms": 2.909
+    },
+    "capture": {
+      "count": 30,
+      "median_ms": 47.724,
+      "p95_ms": 80.062,
+      "max_ms": 81.176
+    },
+    "step_30": {
+      "count": 30,
+      "median_ms": 17.381,
+      "p95_ms": 18.163,
+      "max_ms": 20.14
+    }
+  },
+  "query_capture_target_met": true,
+  "checkpoint_operations": {
+    "pause": {
+      "count": 20,
+      "median_ms": 2.939,
+      "p95_ms": 5.412,
+      "max_ms": 5.502
+    },
+    "save": {
+      "count": 20,
+      "median_ms": 2.896,
+      "p95_ms": 5.228,
+      "max_ms": 5.48
+    },
+    "restore": {
+      "count": 20,
+      "median_ms": 9.948,
+      "p95_ms": 10.388,
+      "max_ms": 10.516
+    }
+  }
+}

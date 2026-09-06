@@ -85,6 +85,22 @@ int main(int argc, char** argv)
           "partial shoreline has boat terrain collision");
     CHECK(!ToriRSServer_VesselTileSailable(1, ocean_x, ocean_z), "empty sky is not water");
     CHECK(!ToriRSServer_VesselTileSailable(0, 0, 0), "unknown map blocks a hull");
+    {
+        int x = ocean_x + 10, z = ocean_z + 10;
+        CHECK(!ToriRSServer_SceneWalkBlocked(1, x + 1, z + 1),
+              "empty template padding initially has no cache player block");
+        ToriRSServer_SceneRestrictDeckWalk(x, z, 4, 4, x + 1, z + 1, x + 3, z + 3);
+        CHECK(ToriRSServer_SceneWalkBlocked(1, x, z) &&
+              !ToriRSServer_SceneWalkBlocked(1, x + 1, z + 1),
+              "deck restriction blocks padding and preserves the native interior plane");
+        int obstacle = ToriRSServer_SceneAddLoc(x, z, 1, 1276, 10, 0);
+        CHECK(obstacle >= 0 && ToriRSServer_SceneRemoveLoc(obstacle),
+              "facility removal exercises deck terrain restamping");
+        CHECK(ToriRSServer_SceneWalkBlocked(1, x, z),
+              "removing a facility cannot reopen deck padding");
+        CHECK(ToriRSServer_VesselTileSailable(0, x, z),
+              "player deck restriction never changes boat ocean collision");
+    }
     CHECK(!ToriRSServer_SceneCanStep(0, ocean_x, ocean_z, 4), "player cannot step into open ocean");
     ToriRSServer_SceneChangeOccupancy(0, ocean_x, ocean_z, 1,
                                      COLL_FLAG_NPC_OCC | COLL_FLAG_PLAYER_OCC, 1);
@@ -122,6 +138,25 @@ int main(int argc, char** argv)
 
     /* The native config determines hull geometry, independently of the deck
      * reservation. The ten-tile sloop's -256 offset rotates with the vessel. */
+    for( int config = 1; config <= 3; ++config )
+    {
+        int lengths[] = {0, 3, 5, 10};
+        int bx = 0, bz = 0, x0 = 0, z0 = 0, x1 = 0, z1 = 0;
+        boat = fixture(srv, config, lengths[config], 0);
+        boat->config_id = config;
+        boat->instance = ToriRSServer_MapInstanceAlloc(cache_dir, 1, (lengths[config] + 7) / 8);
+        CHECK(boat->instance > 0 && ToriRSServer_MapInstanceBase(boat->instance, &bx, &bz),
+              "native deck footprint fixture reserves pool tiles");
+        CHECK(ToriRSServer_VesselDeckWalkBounds(boat, &x0, &z0, &x1, &z1) &&
+              x1 - x0 == config && z1 - z0 == (config == 3 ? 8 : lengths[config]),
+              "native raft/skiff/sloop walk rectangles exclude zone rounding padding");
+        if( config == 3 )
+            CHECK(z0 - bz == 3 && z1 - bz == 11,
+                  "Sloop navigation bow buffer is excluded from player planking");
+        fprintf(stderr, "deck walk config%d local %d,%d..%d,%d (exclusive)\n",
+                config, x0 - bx, z0 - bz, x1 - bx, z1 - bz);
+        ToriRSServer_MapInstanceFree(boat->instance);
+    }
     boat = fixture(srv, 8, 8, 0);
     boat->config_id = 2;
     boat_obstacle(3, 0, 1);
@@ -190,6 +225,18 @@ int main(int argc, char** argv)
     for( int i = 0; i < 4; i++ ) ToriRSServer_VesselTickAll(srv);
     CHECK(boat->angle == 512 && boat->fine_x == ocean_x * 128 + 64 &&
           boat->fine_z == ocean_z * 128 + 64, "clear stationary turn reaches heading without translation");
+
+    boat = fixture(srv, 1, 3, 0);
+    boat->anchored = 1;
+    boat->heading = 4;
+    for( int i = 0; i < 4; i++ ) ToriRSServer_VesselTickAll(srv);
+    CHECK(boat->angle == 512 && boat->fine_x == ocean_x * 128 + 64 &&
+          boat->fine_z == ocean_z * 128 + 64,
+          "lowered anchor permits collision-checked heading changes but stops translation");
+    boat->anchored = 0;
+    ToriRSServer_VesselTickAll(srv);
+    CHECK(boat->fine_x < ocean_x * 128 + 64 && boat->sails_set,
+          "raising anchor resumes the retained sails and heading");
 
     for( int heading = 0; heading < 16; heading++ )
     {

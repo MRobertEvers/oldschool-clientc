@@ -1395,15 +1395,17 @@ area_entities(
         int zone_level = (index >> 22) & 3;
         struct ToriRSServerZone* zone;
 
-        if( zone_level != player->level )
+        /* Subscriptions follow the root-world observation anchor. Deck feet
+         * are in the instance pool and would reject every ocean zone here. */
+        if( zone_level != player->obs_level )
             continue;
         /* The zone box first, as a cheap reject for the 40-odd zones that
          * cannot contain anything in range. */
-        if( zone_x > player->x + radius + zone_pad ||
-            zone_x + TORIRSSERVER_ZONE_TILES - 1 < player->x - radius - zone_pad )
+        if( zone_x > player->obs_x + radius + zone_pad ||
+            zone_x + TORIRSSERVER_ZONE_TILES - 1 < player->obs_x - radius - zone_pad )
             continue;
-        if( zone_z > player->z + radius + zone_pad ||
-            zone_z + TORIRSSERVER_ZONE_TILES - 1 < player->z - radius - zone_pad )
+        if( zone_z > player->obs_z + radius + zone_pad ||
+            zone_z + TORIRSSERVER_ZONE_TILES - 1 < player->obs_z - radius - zone_pad )
             continue;
         zone = zone_by_index(srv, index);
         if( !zone )
@@ -1414,9 +1416,9 @@ area_entities(
             {
                 struct ToriRSServerPlayer* other = &srv->players[zone->players[n]];
 
-                if( other->x < player->x - radius || other->x > player->x + radius )
+                if( other->obs_x < player->obs_x - radius || other->obs_x > player->obs_x + radius )
                     continue;
-                if( other->z < player->z - radius || other->z > player->z + radius )
+                if( other->obs_z < player->obs_z - radius || other->obs_z > player->obs_z + radius )
                     continue;
                 out[count++] = zone->players[n];
             }

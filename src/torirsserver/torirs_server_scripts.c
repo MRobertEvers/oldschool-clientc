@@ -1775,6 +1775,21 @@ ToriRSServer_ScriptsRunHookIntSv(
  * asked about every interaction in the game. Content's side of that bargain is
  * to answer `false` immediately when the player holds no clue.
  */
+/* Capture the loc's world coordinates while its owning scene is bound.
+ * Activating a player binds that player's ocean window, and a bare scene slot
+ * would then refer to an unrelated loc. Coordinate handles also survive a
+ * parked trigger resuming after a scene change. */
+static void*
+script_trigger_loc_handle(int loc_slot)
+{
+    if( loc_slot < 0 )
+        return NULL;
+    struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(loc_slot);
+    if( !loc || !loc->active )
+        return NULL;
+    return ToriRSServer_ScriptZoneLocHandle(loc->x, loc->z, loc->level, loc->shape);
+}
+
 int
 ToriRSServer_ScriptsRunClaim(
     struct ToriRSServer* srv,
@@ -1813,17 +1828,9 @@ ToriRSServer_ScriptsRunClaim(
         SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
         state->host_tag = npc_slot + 1;
     }
-    if( loc_slot >= 0 )
-    {
-        struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(loc_slot);
-
-        /* Slot PLUS ONE, and the liveness check, both copied from
-         * `run_trigger_script` rather than reinvented: `SSVM_ENT_LOC` stores a
-         * one-based slot so that 0 can mean "none", and binding a dead slot is
-         * how a loc opcode ends up describing whatever was there before. */
-        if( loc && loc->active )
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(loc_slot + 1));
-    }
+    void* loc_handle = script_trigger_loc_handle(loc_slot);
+    if( loc_handle )
+        SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, loc_handle);
 
     status = SSVM_Execute(state);
     if( status == SSVM_ABORTED )
@@ -2153,7 +2160,7 @@ run_trigger_script_inner(
     struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int npc_slot,
-    int loc_slot,
+    void* loc_handle,
     int player_slot);
 
 static int
@@ -2161,14 +2168,14 @@ run_trigger_script(
     struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int npc_slot,
-    int loc_slot,
+    void* loc_handle,
     int player_slot)
 {
     int outer = g_script_depth++ == 0;
     uint64_t t0 = outer ? script_now_us() : 0;
     int result;
 
-    result = run_trigger_script_inner(srv, script, npc_slot, loc_slot, player_slot);
+    result = run_trigger_script_inner(srv, script, npc_slot, loc_handle, player_slot);
 
     g_script_depth--;
     if( outer )
@@ -2192,7 +2199,7 @@ run_trigger_script_inner(
     struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int npc_slot,
-    int loc_slot,
+    void* loc_handle,
     int player_slot)
 {
     struct SSVM_State* state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
@@ -2262,33 +2269,9 @@ run_trigger_script_inner(
             SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_SECONDARY, &srv->npcs[npc2]);
     }
 
-    /*
-     * The loc the trigger is about, on the same footing as the npc.
-     *
-     * `SSVM_ENT_LOC` had exactly three writers tree-wide before 2026-08-02 — the
-     * iterator, `LOC_FIND` and `LOC_ADD` — so **every** `[oploc<n>]` and
-     * `[aploc<n>]` script ran with no active loc, and the first `loc_coord`,
-     * `loc_angle`, `loc_shape`, `loc_param`, `loc_change` or `loc_del` in it
-     * aborted with "the active loc is gone". A door script could bind and could
-     * not say anything about the door it was bound to; that, and not the `loc_*`
-     * family, was what the `oploc` fallback row was actually waiting on.
-     *
-     * By *slot*, not by pointer, and encoded `slot + 1` — the convention
-     * `torirs_server_ops_loc.c` and `LOC_FIND` already share, for the reason stated
-     * there: a script can suspend between the dispatch and the read, and a scene
-     * rebuild reallocates the array underneath it. The pointer's only job is to
-     * satisfy the VM's require-an-active-loc check.
-     */
-    if( loc_slot >= 0 )
-    {
-        struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(loc_slot);
-
-        if( loc && loc->active )
-        {
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
-                           (void*)(intptr_t)(loc_slot + 1));
-        }
-    }
+    /* The caller captured this handle before activating the player's scene. */
+    if( loc_handle )
+        SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, loc_handle);
 
     /* run_or_park answers 1 for ran-or-parked and 0 for every way a bound script
      * can fail to run — aborted, no parking slot, world queue full. All of those
@@ -2316,7 +2299,7 @@ run_rung(
     struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int npc_slot,
-    int loc_slot,
+    void* loc_handle,
     int player_slot,
     int* declined)
 {
@@ -2324,7 +2307,7 @@ run_rung(
 
     srv->trigger_declined = 0;
     srv->trigger_dispatch_depth++;
-    result = run_trigger_script(srv, script, npc_slot, loc_slot, player_slot);
+    result = run_trigger_script(srv, script, npc_slot, loc_handle, player_slot);
     srv->trigger_dispatch_depth--;
 
     *declined = srv->trigger_declined && result == TORIRSSERVER_TRIGGER_RAN;
@@ -2372,6 +2355,7 @@ run_trigger_impl(
     } rungs[3];
     int rung_count = 0;
     int any_declined = 0;
+    void* loc_handle = script_trigger_loc_handle(loc_slot);
 
     if( !srv->scripts_ok )
         return TORIRSSERVER_TRIGGER_NONE;
@@ -2450,7 +2434,7 @@ run_trigger_impl(
         }
         saved_player = srv->active_player;
         ToriRSServer_WorldSetActive(srv, context_player);
-        result = run_rung(srv, script, npc_slot, loc_slot, player_slot, &declined);
+        result = run_rung(srv, script, npc_slot, loc_handle, player_slot, &declined);
         ToriRSServer_WorldSetActive(srv, saved_player);
 
         if( srv->verbose && rung_count > 1 )
@@ -2642,7 +2626,7 @@ ToriRSServer_ScriptsRunScriptId(struct ToriRSServer* srv, int script_id)
     script = &srv->scripts->scripts[script_id];
     if( !script )
         return;
-    run_trigger_script(srv, script, -1, -1, -1);
+    run_trigger_script(srv, script, -1, NULL, -1);
 }
 
 int
@@ -2686,6 +2670,7 @@ ToriRSServer_ScriptsRunSpellTrigger(
     const char* component;
     char name[192];
     int result;
+    void* loc_handle = script_trigger_loc_handle(loc_slot);
 
     if( !srv->scripts_ok || spell_component <= 0 )
         return TORIRSSERVER_TRIGGER_NONE;
@@ -2716,7 +2701,7 @@ ToriRSServer_ScriptsRunSpellTrigger(
             fprintf(stderr, "torirsserver: no trigger for %s\n", name);
         return TORIRSSERVER_TRIGGER_NONE;
     }
-    return run_trigger_script(srv, script, npc_slot, loc_slot, player_slot);
+    return run_trigger_script(srv, script, npc_slot, loc_handle, player_slot);
 }
 
 /*
@@ -2755,7 +2740,7 @@ run_if_button_trigger(
     script = SSVM_ProviderGetByName(srv->scripts, name);
     if( !script )
         return TORIRSSERVER_TRIGGER_NONE;
-    return run_trigger_script(srv, script, -1, -1, -1);
+    return run_trigger_script(srv, script, -1, NULL, -1);
 }
 
 int
@@ -2902,7 +2887,7 @@ ToriRSServer_ScriptsRunTriggerAt(
 
     if( !script )
         return TORIRSSERVER_TRIGGER_NONE;
-    return run_trigger_script(srv, script, -1, -1, -1);
+    return run_trigger_script(srv, script, -1, NULL, -1);
 }
 
 int
@@ -3125,7 +3110,7 @@ ToriRSServer_ScriptsRunOpheldu(
         }
 
         opheldu_orient(player, &pair, rungs[i].bound_to_use_obj);
-        result = run_rung(srv, script, -1, -1, -1, &declined);
+        result = run_rung(srv, script, -1, NULL, -1, &declined);
         if( srv->verbose )
             fprintf(stderr, "torirsserver:   opheldu rung %d (%s) -> %s %s\n", i + 1,
                     k_opheldu_rung_name[i], script->name ? script->name : "?",
@@ -4055,7 +4040,23 @@ ToriRSServer_ScriptLocResolve(
         if( !key->used || !srv )
             return NULL;
         rec = ToriRSServer_ZoneLocFind(srv, key->x, key->z, key->level, key->shape);
-        if( !rec || rec->loc_id < 0 )
+        if( !rec )
+        {
+            /* A boat deck has its own pinned scene, while the player's bound
+             * scene follows the ocean. Coordinate handles also name static
+             * locs in that other scene without leaking a foreign slot index. */
+            struct ToriRSServerSceneWindow* bound = ToriRSServer_SceneBoundWindow();
+            struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowFind(key->x, key->z);
+            if( !window ) return NULL;
+            ToriRSServer_SceneBindWindow(window);
+            int slot = ToriRSServer_SceneFindLocExact(key->x,key->z,key->level,key->shape);
+            struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
+            int found = loc && loc->active;
+            if( found ) view = *loc;
+            ToriRSServer_SceneBindWindow(bound);
+            return found ? &view : NULL;
+        }
+        if( rec->loc_id < 0 )
             return NULL;
         memset(&view, 0, sizeof(view));
         view.loc_id = rec->loc_id;
@@ -6354,6 +6355,10 @@ ToriRSServer_ScriptCommand(
         srv->iterator.count = 0;
         srv->iterator.cursor = 0;
         srv->iterator.kind = SSVM_ENT_LOC;
+        struct ToriRSServerSceneWindow* bound = ToriRSServer_SceneBoundWindow();
+        struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowFind(coord_x(coord),coord_z(coord));
+        if( !window ) return 1;
+        ToriRSServer_SceneBindWindow(window);
         for( int slot = 0;; slot++ )
         {
             struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
@@ -6367,8 +6372,14 @@ ToriRSServer_ScriptCommand(
                 continue;
             if( srv->iterator.count <
                 (int)(sizeof(srv->iterator.slots) / sizeof(srv->iterator.slots[0])) )
-                srv->iterator.slots[srv->iterator.count++] = slot;
+            {
+                /* Keep the legacy zero-based slots in the bound scene. A
+                 * negative coordinate handle remains valid after unbinding. */
+                srv->iterator.slots[srv->iterator.count++] = window == bound ? slot :
+                    (int)(intptr_t)ToriRSServer_ScriptZoneLocHandle(loc->x,loc->z,loc->level,loc->shape);
+            }
         }
+        ToriRSServer_SceneBindWindow(bound);
         return 1;
     }
 
@@ -6382,13 +6393,14 @@ ToriRSServer_ScriptCommand(
         while( srv->iterator.cursor < srv->iterator.count )
         {
             int slot = srv->iterator.slots[srv->iterator.cursor++];
-            struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
+            void* handle = (void*)(intptr_t)(slot < 0 ? slot : slot + 1);
+            struct ToriRSServerSceneLoc* loc = ToriRSServer_ScriptLocResolve(srv,handle);
 
             /* A `loc_del` in the loop body frees the slot; skip it rather than
              * handing the body a loc that is no longer there. */
             if( !loc || !loc->active )
                 continue;
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, handle);
             SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
             SSVM_PushInt(state, 1);
             return 1;
@@ -7096,16 +7108,28 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
-        slot = ToriRSServer_SceneFindLocId(coord_x(coord), coord_z(coord), coord_level(coord),
-                                         loc_id);
+        struct ToriRSServerSceneWindow* bound = ToriRSServer_SceneBoundWindow();
+        struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowFind(coord_x(coord),coord_z(coord));
+        if( window ) ToriRSServer_SceneBindWindow(window);
+        slot = window ? ToriRSServer_SceneFindLocId(coord_x(coord), coord_z(coord), coord_level(coord),
+                                                   loc_id) : -1;
+        void* handle = NULL;
         if( slot >= 0 )
         {
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+            struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
+            assert(loc);
+            handle = window == bound ? (void*)(intptr_t)(slot + 1) :
+                ToriRSServer_ScriptZoneLocHandle(loc->x,loc->z,loc->level,loc->shape);
+        }
+        ToriRSServer_SceneBindWindow(bound);
+        if( slot >= 0 )
+        {
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, handle);
             SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
             SSVM_PushInt(state, 1);
             return 1;
         }
-        if( !ToriRSServer_SceneContains(coord_x(coord), coord_z(coord)) )
+        if( !window )
         {
             struct ToriRSServerZoneLoc* rec = ToriRSServer_ZoneLocFindId(
                 srv, coord_x(coord), coord_z(coord), coord_level(coord), loc_id);
@@ -10302,7 +10326,26 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &key) ||
             !SSVM_PopInt(state, &handle) ) return 1;
         struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
-        if( !vessel || key < 0 || key > 6 ) { SSVM_PushInt(state, 0); return 1; }
+        if( !vessel || key < 0 || key > 9 ) { SSVM_PushInt(state, 0); return 1; }
+        if( key == 9 )
+        {
+            /* Authoritative release check, independent of UI publication. */
+            struct ToriRSServerPlayer* actor = srv->active_player;
+            SSVM_PushInt(state, actor && actor->navigating_vessel == vessel->index &&
+                actor->navigating_vessel_serial == vessel->serial);
+            return 1;
+        }
+        if( key == 8 )
+        {
+            SSVM_PushInt(state, vessel->speed_tier * 64);
+            return 1;
+        }
+        if( key == 7 )
+        {
+            if( value >= 0 ) vessel->anchored = value != 0;
+            SSVM_PushInt(state, vessel->anchored);
+            return 1;
+        }
         if( key == 6 )
         {
             SSVM_PushInt(state, vessel->reversing ? 3 : vessel->sails_set ?
@@ -10329,9 +10372,8 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopInt(state, &action) || !SSVM_PopInt(state, &handle) ) return 1;
         struct ToriRSServerPlayer* rider = srv->active_player;
         struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
-        if( !rider || !vessel || ToriRSServer_VesselAtTile(srv, rider->x, rider->z) != vessel ||
-            rider->navigating_vessel != vessel->index ||
-            rider->navigating_vessel_serial != vessel->serial || action < 0 || action > 3 )
+        if( !rider || !vessel || action < 0 || action > 3 ||
+            !ToriRSServer_VesselPlayerControlAllowed(srv,rider,vessel,1) )
         { SSVM_PushInt(state, -1); return 1; }
         if( vessel->hp <= 0 && action != 3 )
         { SSVM_PushInt(state, -2); return 1; }
@@ -10351,7 +10393,7 @@ ToriRSServer_ScriptCommand(
         case 2:
             if( vessel->reversing ) vessel->reversing = 0;
             else if( !vessel->sails_set ) vessel->sails_set = 1;
-            else if( vessel->speed_tier * 64 < vessel->speed_cap_fine )
+            else if( vessel->speed_tier * 64 < vessel->base_speed_fine )
                 ToriRSServer_VesselSetSpeed(vessel, vessel->speed_tier + 1);
             break;
         case 3: vessel->sails_set = 0; vessel->reversing = 0; break;
@@ -10428,7 +10470,18 @@ ToriRSServer_ScriptCommand(
             return 1;
         vessel = ToriRSServer_VesselGet(srv, handle);
         if( vessel && slot >= 0 && slot < TORIRSSERVER_VESSEL_FACILITY_SLOTS )
-            vessel->facility[slot] = option < 0 ? 0 : (int)option;
+        {
+            int selected=option<0 ? 0 : (int)option;
+            if( vessel->facility[slot]!=selected && slot>=3 && slot<=15 )
+            {
+                int base=8+(slot-3)*7;
+                int generation=(int)((uint32_t)ToriRSServer_MapInstanceVarGet(vessel->instance,base+6)+1u);
+                if( generation==0 ) generation=1;
+                for( int i=0; i<6; ++i ) ToriRSServer_MapInstanceVarSet(vessel->instance,base+i,0);
+                ToriRSServer_MapInstanceVarSet(vessel->instance,base+6,generation);
+            }
+            vessel->facility[slot]=selected;
+        }
         return 1;
     }
 

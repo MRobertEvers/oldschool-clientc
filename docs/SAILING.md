@@ -1,5 +1,11 @@
 # Sailing — research notes
 
+Current implementation and visual evidence (2026-09-06):
+[validation report](sailing_validation/README.md), [fast harness](sailing_harness.md),
+and [separate collision maps](sailing_collision.md). Earlier prototype values
+and stamped-water test results below are historical; use the current acceptance
+records when assessing the implementation.
+
 Research for implementing OSRS Sailing (world-entity boats) in this client and
 its embedded server. Reference deob: osrs239 (`src_osrs239_rl1_12_33`). Sailing
 shipped in the real game on 19 November 2025, so revision 239 contains the

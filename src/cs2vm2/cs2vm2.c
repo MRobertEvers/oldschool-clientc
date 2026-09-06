@@ -11024,6 +11024,7 @@ CS2VM2_Op_CC_SetModelKind(
     switch( opcode )
     {
         CS2VM_CC_MODEL_KIND_CASE(CC_SETNPCHEAD);
+        CS2VM_CC_MODEL_KIND_CASE(CC_SETLOCMODEL);
         CS2VM_CC_MODEL_KIND_CASE(CC_SETPLAYERHEAD_SELF);
         CS2VM_CC_MODEL_KIND_CASE(CC_SETPLAYERMODEL_SELF);
         CS2VM_CC_MODEL_KIND_CASE(CC_SETMODEL_PLAYERCHATHEAD);
@@ -11071,6 +11072,7 @@ CS2VM2_Op_IF_SetModelKind(
     switch( opcode )
     {
         CS2VM_IF_MODEL_KIND_CASE(IF_SETNPCHEAD);
+        CS2VM_IF_MODEL_KIND_CASE(IF_SETLOCMODEL);
         CS2VM_IF_MODEL_KIND_CASE(IF_SETPLAYERHEAD_SELF);
         CS2VM_IF_MODEL_KIND_CASE(IF_SETMODEL_PLAYERCHATHEAD);
     default:
@@ -11591,6 +11593,9 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETNPCHEAD:
         return CS2VM2_Op_CC_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_NPC_HEAD, true, opcode);
+    case CS2_OP_CC_SETLOCMODEL:
+        return CS2VM2_Op_CC_SetModelKind(
+            vm, frame, operand, CS2VM_MODEL_KIND_LOC, true, opcode);
     case CS2_OP_CC_SETPLAYERHEAD_SELF:
         return CS2VM2_Op_CC_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false, opcode);
@@ -11603,6 +11608,9 @@ CS2VM2_RunOp(
     case CS2_OP_IF_SETNPCHEAD:
         return CS2VM2_Op_IF_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_NPC_HEAD, true, opcode);
+    case CS2_OP_IF_SETLOCMODEL:
+        return CS2VM2_Op_IF_SetModelKind(
+            vm, frame, operand, CS2VM_MODEL_KIND_LOC, true, opcode);
     case CS2_OP_IF_SETPLAYERHEAD_SELF:
         return CS2VM2_Op_IF_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false, opcode);
