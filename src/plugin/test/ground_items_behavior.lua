@@ -13,6 +13,7 @@ return {id='ground-behavior',on_start=function(host)
     local labels,projections={},{}
     local tree_listener,hidden_count=nil,0
     local api={config=config,core={log=function() end},assets={request=function() end},
+        scripts={invalidate=function() return false end},
         widgets={watch_tree=function(callback) tree_listener=callback;return true end,
             find_all=function(role)
                 assert(role=='ground_item_labels')
@@ -70,5 +71,28 @@ return {id='ground-behavior',on_start=function(host)
     product.on_menu_select(api,{owned=true,tag=added[2].tag})
     assert(config.hidden_items=='Rune *, Bones' and config.hide_exceptions=='',
         'Hide resumes the original wildcard rule without duplicate entries')
+    -- Native formatter gets a declared argument window. Native edit controls
+    -- must still expose ignored items and reflect native highlight/ignore state.
+    local values={[0]=0,0,1,0,39000,1,1127,(3210<<14)|3424}
+    local caption,color,invalidations=nil,nil,0
+    api.scripts.counts=function() return 8,1 end
+    api.scripts.get_int=function(ref,index) return values[index] end
+    api.scripts.set_int=function(ref,index,value) assert(index==3);color=value;return true end
+    api.scripts.set_string=function(ref,index,value) assert(index==0);caption=value;return true end
+    api.scripts.invalidate=function(name) assert(name=='groundItemCaption');invalidations=invalidations+1;return true end
+    api.game.item_info=function() return {name='Rune platebody',cost=65000} end
+    api.config.set('hidden_items','')
+    api.config.set('highlighted_items','')
+    product.on_script_callback(api,{name='groundItemCaption',ref={}})
+    assert(caption=='Rune platebody (EX: 65K gp) (HA: 39K gp)', 'native formatter preserves plugin price fields')
+    values[0]=1
+    product.on_script_callback(api,{name='groundItemCaption',ref={}})
+    assert(color==config.hidden_color, 'native Ignore remains visible in edit mode with hidden styling')
+    values[1]=1
+    product.on_script_callback(api,{name='groundItemCaption',ref={}})
+    assert(color==config.highlighted_color, 'native Highlight keeps priority over native Ignore')
+    product.on_config_changed(api,'price_mode')
+    product.on_stop(api)
+    assert(invalidations==2, 'configuration and disable refresh current native caption results')
     host.core.log('ground behavior passed')
 end}

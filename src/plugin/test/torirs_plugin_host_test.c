@@ -3416,6 +3416,92 @@ static void tree_watch_start(struct ToriRS_Api* api,void* state)
         "tree subscription registers from startup");
 }
 
+static struct ToriRS_PluginHost* script_test_host;
+static struct ToriRS_Api* script_test_api;
+static struct ToriRS_ScriptRef script_test_retained;
+static int script_test_b,script_test_calls,script_test_churn;
+static int script_test_ints[2];
+static char script_test_string[64];
+static int script_test_capability(void* u,char const* name)
+{ (void)u;return strcmp(name,"scripts.callbacks")==0; }
+static int32_t script_test_get_int(void* u,size_t index)
+{ (void)u;return script_test_ints[1-index]; }
+static void script_test_set_int(void* u,size_t index,int32_t value)
+{ (void)u;script_test_ints[1-index]=value; }
+static char const* script_test_get_string(void* u,size_t index)
+{ (void)u;(void)index;return script_test_string; }
+static bool script_test_set_string(void* u,size_t index,char const* value)
+{ (void)u;(void)index;snprintf(script_test_string,sizeof(script_test_string),"%s",value);return true; }
+static void script_test_start(struct ToriRS_Api* api,void* state)
+{
+    (void)state;
+    CHECK(api->scripts.available(api->scripts.context),"script callback capability reaches the adapter");
+    int32_t value;
+    CHECK(api->scripts.get_int(api->scripts.context,script_test_retained,0,&value)==TORIRS_CONTRACT_WRONG_CONTEXT,
+        "nested startup cannot borrow another callback's script context");
+}
+static void script_test_callback(struct ToriRS_Api* api,void* state,struct ToriRS_ScriptEvent const* event)
+{
+    (void)state;++script_test_calls;script_test_api=api;
+    CHECK(strcmp(event->name,"caption")==0 && event->script_id==99,"script event identifies native execution");
+    if( script_test_retained.token && script_test_retained.token!=event->ref.token )
+    {
+        int32_t value;
+        CHECK(api->scripts.get_int(api->scripts.context,script_test_retained,0,&value)==TORIRS_CONTRACT_STALE_REFERENCE,
+            "a previous script callback reference cannot address this callback");
+    }
+    script_test_retained=event->ref;
+    size_t ints=0,strings=0,required=0;
+    CHECK(api->scripts.counts(api->scripts.context,event->ref,&ints,&strings)==TORIRS_CONTRACT_OK && ints==2 && strings==1,
+        "callback sees remaining native stack sizes");
+    int32_t value;
+    CHECK(api->scripts.get_int(api->scripts.context,event->ref,1,&value)==TORIRS_CONTRACT_OK && value==1127,
+        "script stack indices are checked and top-relative");
+    CHECK(api->scripts.set_int(api->scripts.context,event->ref,2,9)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+        "callback cannot write beyond its native stack");
+    CHECK(api->scripts.set_int(api->scripts.context,event->ref,1,9)==TORIRS_CONTRACT_NATIVE_BLOCKED,
+        "script callbacks cannot overwrite read-only native arguments");
+    char text[64];
+    CHECK(api->scripts.get_string(api->scripts.context,event->ref,0,text,sizeof(text),&required)==TORIRS_CONTRACT_OK,
+        "callback copies native strings without exposing VM memory");
+    bool a=strcmp(api->core.plugin_id(api),"script-a")==0;
+    CHECK(strcmp(text,a ? "native" : "A")==0,"script callbacks observe earlier callback writes in order");
+    CHECK(api->scripts.set_string(api->scripts.context,event->ref,0,a ? "A" : "AB")==TORIRS_CONTRACT_OK,
+        "script callback writes a native result");
+    if( a && script_test_churn )
+    {
+        script_test_churn=0;
+        PluginHost_SetEnabled(script_test_host,script_test_b,false);
+        PluginHost_SetEnabled(script_test_host,script_test_b,true);
+    }
+}
+static void test_script_callbacks(void)
+{
+    struct ToriRS_PluginEngine engine=fake_engine();engine.capability=script_test_capability;
+    script_test_host=PluginHost_New(&engine);script_test_calls=0;script_test_retained.token=0;
+    struct ToriRS_PluginDef a={.struct_size=sizeof(a),.id="script-a",.title="A",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=script_test_start,.on_script_callback=script_test_callback}};
+    struct ToriRS_PluginDef b=a;b.id="script-b";b.title="B";
+    script_test_b=PluginHost_Register(script_test_host,&b);
+    CHECK(script_test_b>=0 && PluginHost_Register(script_test_host,&a)>=0,"script callback fixtures register");
+    PluginHost_Start(script_test_host);
+    struct PluginScriptStack stack={.int_count=2,.string_count=1,.writable_ints=1,.writable_strings=1,.get_int=script_test_get_int,
+        .set_int=script_test_set_int,.get_string=script_test_get_string,.set_string=script_test_set_string};
+    script_test_ints[0]=1127;script_test_ints[1]=7;strcpy(script_test_string,"native");
+    PluginHost_ScriptCallback(script_test_host,"caption",99,&stack);
+    CHECK(script_test_calls==2 && strcmp(script_test_string,"AB")==0,"callbacks finish before native execution resumes");
+    int32_t value;
+    CHECK(script_test_api->scripts.get_int(script_test_api->scripts.context,script_test_retained,0,&value)==TORIRS_CONTRACT_WRONG_CONTEXT,
+        "script access is revoked immediately after dispatch");
+    strcpy(script_test_string,"native");script_test_churn=1;
+    PluginHost_ScriptCallback(script_test_host,"caption",99,&stack);
+    CHECK(script_test_calls==3 && strcmp(script_test_string,"A")==0,"restarted plugin cannot join an active script callback dispatch");
+    strcpy(script_test_string,"native");
+    PluginHost_ScriptCallback(script_test_host,"caption",99,&stack);
+    CHECK(script_test_calls==5,"restarted script plugin receives the next callback");
+    PluginHost_Free(script_test_host);
+}
+
 int
 main(void)
 {
@@ -4896,6 +4982,7 @@ main(void)
         CHECK(tree_events==5,"disabled tree subscriber receives no later callback");
         PluginHost_Free(watched_host);
     }
+    test_script_callbacks();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

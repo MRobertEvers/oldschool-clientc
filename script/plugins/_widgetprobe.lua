@@ -1,9 +1,12 @@
 -- Same live-widget source on CS1/revconfig and CS2, including native remounts.
 local plugin = { id = "widgetprobe", version = "3" }
-local label
+local label, last_level
 local function update(api)
     local strength = api.game.skill(2)
-    if label and strength then label:set_text("Strength: " .. strength.current_level) end
+    if label and strength and last_level ~= strength.current_level then
+        last_level = strength.current_level
+        label:set_text("Strength: " .. last_level)
+    end
 end
 function plugin.on_start(api)
     assert(api.widgets.watch("sidebar", function(sidebar, event)
@@ -26,12 +29,13 @@ function plugin.on_start(api)
             return
         end
         label = assert(viewport:create_text("strength"))
+        last_level = nil
         assert(label:set_position(12, 40))
         assert(label:set_text_color(0xffffff))
         update(api)
         assert(label:revalidate())
     end))
 end
-function plugin.on_server_tick(api) update(api) end
-function plugin.on_stop() label = nil end
+function plugin.on_logic_tick(api) update(api) end
+function plugin.on_stop() label, last_level = nil, nil end
 return plugin

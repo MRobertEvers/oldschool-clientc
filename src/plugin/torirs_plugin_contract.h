@@ -12,6 +12,13 @@
 #define TORIRS_PLUGIN_CONTRACT_MINOR 0u
 
 struct ToriRS_WidgetRef { uint64_t opaque[3]; };
+struct ToriRS_ScriptRef { uint64_t token; };
+struct ToriRS_ScriptEvent
+{
+    char const* name; /* borrowed during this callback */
+    int32_t script_id;
+    struct ToriRS_ScriptRef ref;
+};
 struct ToriRS_WidgetActionRef
 {
     struct ToriRS_WidgetRef widget;
@@ -100,6 +107,21 @@ struct ToriRS_WidgetEvent
 };
 
 struct ToriRS_Api;
+/* Access is valid only during this plugin's synchronous script callback.
+ * Stack indices are zero-based from the top. Setters cannot resize stacks. */
+struct ToriRS_ScriptApi
+{
+    void* context;
+    bool (*available)(void*);
+    /* Coalesced native rebuild at its normal safe point, also valid during
+     * shutdown. This schedules no plugin callback or arbitrary script. */
+    enum ToriRS_ContractResult (*invalidate)(void*,char const* callback_name);
+    enum ToriRS_ContractResult (*counts)(void*,struct ToriRS_ScriptRef,size_t* ints,size_t* strings);
+    enum ToriRS_ContractResult (*get_int)(void*,struct ToriRS_ScriptRef,size_t index,int32_t*);
+    enum ToriRS_ContractResult (*set_int)(void*,struct ToriRS_ScriptRef,size_t index,int32_t);
+    enum ToriRS_ContractResult (*get_string)(void*,struct ToriRS_ScriptRef,size_t index,char*,size_t capacity,size_t* required);
+    enum ToriRS_ContractResult (*set_string)(void*,struct ToriRS_ScriptRef,size_t index,char const*);
+};
 typedef void (*ToriRS_WidgetListener)(struct ToriRS_Api*, void* user,
                                     struct ToriRS_WidgetEvent const* event);
 

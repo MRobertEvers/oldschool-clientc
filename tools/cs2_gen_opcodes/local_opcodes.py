@@ -13,6 +13,8 @@ from __future__ import annotations
 
 # id -> name. Replaces a vendor placeholder, or adds an id vendor never listed.
 LOCAL_NAMES: dict[int, str] = {
+    # RuneLiteOpcodes.RUNELITE_EXECUTE / RuneLiteInstructions.runelite_callback.
+    6599: "RUNELITE_CALLBACK",
     # Modern nullable array/string-stack literal. The cache command catalogue
     # calls this PUSH_CONSTANT_NULL; older RuneLite tables use PUSH_NULL.
     63: "PUSH_CONSTANT_NULL",

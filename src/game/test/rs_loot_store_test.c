@@ -233,6 +233,16 @@ test_aux_lists(void)
     TEST_ASSERT(LootStore_AuxCount(&store, 3) == 1, "kind 3");
     TEST_ASSERT(LootStore_AuxCount(&store, 4) == 1, "kind 4");
     TEST_ASSERT(LootStore_AuxCountTotal(&store) == 2, "kinds 3+4 total");
+    uint64_t filter_revision=LootStore_AuxRevision(&store,3);
+    uint64_t highlight_revision=LootStore_AuxRevision(&store,4);
+    TEST_ASSERT(filter_revision && highlight_revision,"native aux edits publish a revision");
+    LootStore_AuxUpsert(&store,3,"Filter*",0);
+    TEST_ASSERT(LootStore_AuxRevision(&store,3)==filter_revision,"duplicate aux insertion does not invalidate views");
+    LootStore_AuxRemove(&store,3,"Filter*",0);
+    TEST_ASSERT(LootStore_AuxRevision(&store,3)!=filter_revision && LootStore_AuxRevision(&store,4)==highlight_revision,
+        "aux removal invalidates only its own list");
+    LootStore_AuxClear(&store,4);
+    TEST_ASSERT(LootStore_AuxRevision(&store,4)!=highlight_revision,"aux clear invalidates dependent native views");
 
     /* out of range kind */
     TEST_ASSERT(LootStore_AuxCount(&store, -1) == 0, "negative kind");

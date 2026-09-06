@@ -214,10 +214,29 @@ def check_overlay_text(rows, log, expected, failures):
         if not valid: failures.append("overlay_text")
 
 
+def check_native_caption(rows,log,text,failures):
+    raw=text.encode();fingerprint=14695981039346656037
+    for byte in raw: fingerprint=((fingerprint^byte)*1099511628211)&((1<<64)-1)
+    entries=re.findall(rf"NATIVE_GROUND_CAPTION root=(\d+) node=\d+ painted=[1-9]\d* box=(-?\d+),(-?\d+),(\d+),(\d+) color=([0-9a-f]+) len={len(raw)} hash={fingerprint:016x}",log)
+    valid=len(entries)==1;ink=[];controls=[]
+    if valid:
+        root,x,y,w,h,color=entries[0];x,y,w,h=map(int,(x,y,w,h));rgb=int(color,16);bgr=(rgb&255,(rgb>>8)&255,(rgb>>16)&255)
+        ink=[(xx,yy) for yy in range(max(0,y),min(len(rows),y+h)) for xx in range(max(0,x),min(len(rows[0]),x+w)) if rows[yy][xx]==bgr]
+        valid=len(ink)>=len(text)*2
+        controls=[tuple(map(int,box)) for box in re.findall(rf"NATIVE_GROUND_CONTROL root={root} node=\d+ live=1 box=(-?\d+),(-?\d+),(\d+),(\d+)",log)]
+        for bx,by,bw,bh in controls:
+            if y<by+bh and by<y+h and ink:
+                valid &= max(xx for xx,yy in ink)<bx or min(xx for xx,yy in ink)>=bx+bw
+    print(f"PIXEL native_caption_callback={'PASS' if valid else 'FAIL'} matches={len(entries)} ink={len(ink)} controls={len(controls)}")
+    if not valid: failures.append("native_caption_callback")
+
+
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None):
     width, height, rows = read_bmp(path)
     failures = []
+    if native_caption:
+        check_native_caption(rows,Path(bounds_path).read_text() if bounds_path else "",native_caption,failures)
     if overlay_text:
         check_overlay_text(rows,Path(bounds_path).read_text() if bounds_path else "",overlay_text,failures)
     if native_ground_labels:
@@ -422,10 +441,11 @@ if __name__ == "__main__":
     parser.add_argument("--performance-color",default="FFFFFF")
     parser.add_argument("--overlay-text",action="append",help="require a single non-shadow overlay label and matching ink")
     parser.add_argument("--native-ground-labels",choices=("hidden","shown"))
+    parser.add_argument("--native-caption")
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

@@ -56,6 +56,7 @@ enum LuaHandler
     LUA_ON_LOGIC_TICK,
     LUA_ON_SERVER_TICK,
     LUA_ON_WORLD_LOADED,
+    LUA_ON_SCRIPT_CALLBACK,
     LUA_ON_SCREEN_CHANGED,
     LUA_ON_NPC_SPAWN,
     LUA_ON_NPC_RETYPE,
@@ -90,6 +91,7 @@ static char const* const LUA_HANDLER_NAMES[LUA_HANDLER_COUNT] = {
     "on_logic_tick",
     "on_server_tick",
     "on_world_loaded",
+    "on_script_callback",
     "on_screen_changed",
     "on_npc_spawn",
     "on_npc_retype",
@@ -867,6 +869,72 @@ static int lua_input_hover_entity(lua_State* L)
 static int lua_input_text_input(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);a->input.text_input(a,lua_toboolean(L,1)!=0);return 0; }
 static int lua_input_chat_focus(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);a->input.chat_focus(a,lua_toboolean(L,1)!=0);return 0; }
 
+/* Scoped native script access; no VM pointer or stack array is exposed. */
+#define LUA_SCRIPT_REF_MT "torirs.script_callback"
+static struct ToriRS_ScriptRef lua_script_ref(lua_State* L)
+{ return *(struct ToriRS_ScriptRef*)luaL_checkudata(L,1,LUA_SCRIPT_REF_MT); }
+static size_t lua_script_index(lua_State* L)
+{
+    lua_Integer index=luaL_checkinteger(L,2);
+    if( index<0 || (uint64_t)index>SIZE_MAX ) luaL_argerror(L,2,"stack index is out of range");
+    return (size_t)index;
+}
+static int lua_scripts_available(lua_State* L)
+{
+    struct ToriRS_ScriptApi* a=&lua_current_api(L)->scripts;
+    lua_pushboolean(L,a->available(a->context));return 1;
+}
+static int lua_scripts_invalidate(lua_State* L)
+{
+    struct ToriRS_ScriptApi* a=&lua_current_api(L)->scripts;
+    enum ToriRS_ContractResult result=a->invalidate(a->context,luaL_checkstring(L,1));
+    lua_pushboolean(L,result==TORIRS_CONTRACT_OK);return 1;
+}
+static int lua_scripts_counts(lua_State* L)
+{
+    struct ToriRS_ScriptApi* a=&lua_current_api(L)->scripts;size_t ints=0,strings=0;
+    if( a->counts(a->context,lua_script_ref(L),&ints,&strings)!=TORIRS_CONTRACT_OK )
+        return luaL_error(L,"script callback is no longer active");
+    lua_pushinteger(L,(lua_Integer)ints);lua_pushinteger(L,(lua_Integer)strings);return 2;
+}
+static int lua_scripts_get_int(lua_State* L)
+{
+    struct ToriRS_ScriptApi* a=&lua_current_api(L)->scripts;int32_t value;
+    if( a->get_int(a->context,lua_script_ref(L),lua_script_index(L),&value)!=TORIRS_CONTRACT_OK )
+        return luaL_error(L,"script integer is unavailable or callback has ended");
+    lua_pushinteger(L,value);return 1;
+}
+static int lua_scripts_set_int(lua_State* L)
+{
+    struct ToriRS_ScriptApi* a=&lua_current_api(L)->scripts;
+    lua_Integer value=luaL_checkinteger(L,3);
+    if( value<INT32_MIN || value>INT32_MAX ) return luaL_argerror(L,3,"integer out of range");
+    enum ToriRS_ContractResult result=a->set_int(a->context,lua_script_ref(L),lua_script_index(L),(int32_t)value);
+    if( result!=TORIRS_CONTRACT_OK ) return luaL_error(L,"script integer write refused (%d)",result);
+    lua_pushboolean(L,1);return 1;
+}
+static int lua_scripts_get_string(lua_State* L)
+{
+    struct ToriRS_ScriptApi* a=&lua_current_api(L)->scripts;
+    struct ToriRS_ScriptRef ref=lua_script_ref(L);size_t index=lua_script_index(L),required=0;
+    enum ToriRS_ContractResult result=a->get_string(a->context,ref,index,NULL,0,&required);
+    if( result!=TORIRS_CONTRACT_BUDGET_EXCEEDED || !required )
+        return luaL_error(L,"script string is unavailable or callback has ended");
+    luaL_Buffer buffer;char* out=luaL_buffinitsize(L,&buffer,required);
+    if( a->get_string(a->context,ref,index,out,required,&required)!=TORIRS_CONTRACT_OK )
+        return luaL_error(L,"script string changed while reading");
+    luaL_pushresultsize(&buffer,required-1);return 1;
+}
+static int lua_scripts_set_string(lua_State* L)
+{
+    struct ToriRS_ScriptApi* a=&lua_current_api(L)->scripts;size_t length;
+    char const* value=luaL_checklstring(L,3,&length);
+    if( strlen(value)!=length || length>16384 ) return luaL_argerror(L,3,"invalid callback string");
+    enum ToriRS_ContractResult result=a->set_string(a->context,lua_script_ref(L),lua_script_index(L),value);
+    if( result!=TORIRS_CONTRACT_OK ) return luaL_error(L,"script string write refused (%d)",result);
+    lua_pushboolean(L,1);return 1;
+}
+
 /* ---------------------------------------------------------------- api.ui */
 
 #define LUA_WIDGET_MT "torirs.widget"
@@ -1621,6 +1689,11 @@ static int lua_frame_builder_surface_overlay(lua_State* L)
 
 /* Registration arrays are the runtime inventory.  The Python contract test
  * reads these exact arrays and compares them bidirectionally with LuaLS. */
+static struct LuaFn const LUA_SCRIPTS_FNS[] = {
+    {"available",lua_scripts_available},{"invalidate",lua_scripts_invalidate},{"counts",lua_scripts_counts},
+    {"get_int",lua_scripts_get_int},{"set_int",lua_scripts_set_int},
+    {"get_string",lua_scripts_get_string},{"set_string",lua_scripts_set_string},{NULL,NULL}
+};
 static struct LuaFn const LUA_CORE_FNS[] = {
     {"log",lua_core_log},{"notify",lua_core_notify},{"screen",lua_core_screen},
     {"frame_ms",lua_core_frame_ms},{"frame_work_us",lua_core_frame_work_us},
@@ -1733,7 +1806,7 @@ struct LuaModuleRegistration
 
 static struct LuaModuleRegistration const LUA_API_MODULES[] = {
     {"widgets",LUA_WIDGET_FNS},{"core",LUA_CORE_FNS},{"config",LUA_CONFIG_FNS},{"world",LUA_WORLD_FNS},
-    {"input",LUA_INPUT_FNS},{"ui",LUA_UI_FNS},{"menu",LUA_MENU_FNS},{"placement",LUA_PLACEMENT_FNS},
+    {"scripts",LUA_SCRIPTS_FNS},{"input",LUA_INPUT_FNS},{"ui",LUA_UI_FNS},{"menu",LUA_MENU_FNS},{"placement",LUA_PLACEMENT_FNS},
     {"frame",LUA_FRAME_FNS},{"draw",LUA_DRAW_API_FNS},{"assets",LUA_ASSETS_FNS},
     {"scene",LUA_SCENE_FNS},{"panel",LUA_PANEL_FNS},{"cache",LUA_CACHE_FNS},
     {"client",LUA_CLIENT_FNS},{"game",LUA_GAME_FNS},{NULL,NULL}
@@ -1901,6 +1974,18 @@ static void lua_cb_config(struct ToriRS_Api*a,void*state,char const*key){(void)s
 static enum ToriRS_CallbackResult lua_cb_key(struct ToriRS_Api*a,void*state,struct ToriRS_KeyEvent const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_KEY))return TORIRS_CALLBACK_CONTINUE;lua_push_key_event(s->L,e);return lua_call_end(s,LUA_ON_KEY,2,true);}
 static enum ToriRS_CallbackResult lua_cb_menu_build(struct ToriRS_Api*a,void*state,struct ToriRS_MenuBuildEvent*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_MENU_BUILD))return TORIRS_CALLBACK_CONTINUE;s->cur_menu=e;lua_push_menu_build_event(s->L,e);return lua_call_end(s,LUA_ON_MENU_BUILD,2,true);}
 static enum ToriRS_CallbackResult lua_cb_menu_select(struct ToriRS_Api*a,void*state,struct ToriRS_MenuSelectEvent const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_MENU_SELECT))return TORIRS_CALLBACK_CONTINUE;lua_push_menu_select_event(s->L,e);return lua_call_end(s,LUA_ON_MENU_SELECT,2,true);}
+static void lua_cb_script(struct ToriRS_Api* api,void* state,struct ToriRS_ScriptEvent const* event)
+{
+    (void)state;struct LuaScript* script=lua_script_for_api(api);
+    if( !lua_call_begin(script,api,LUA_ON_SCRIPT_CALLBACK) ) return;
+    lua_State* L=script->L;
+    lua_createtable(L,0,3);
+    lua_pushstring(L,event->name);lua_setfield(L,-2,"name");
+    lua_pushinteger(L,event->script_id);lua_setfield(L,-2,"script_id");
+    struct ToriRS_ScriptRef* ref=lua_newuserdatauv(L,sizeof(*ref),0);*ref=event->ref;
+    luaL_newmetatable(L,LUA_SCRIPT_REF_MT);lua_setmetatable(L,-2);lua_setfield(L,-2,"ref");
+    lua_call_end(script,LUA_ON_SCRIPT_CALLBACK,2,false);
+}
 static void lua_callback_draw(struct ToriRS_Api*a,enum LuaHandler h,struct ToriRS_Graphics*d){struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,h)){s->cur_draw=d;lua_rawgeti(s->L,LUA_REGISTRYINDEX,s->draw_ref);lua_call_end(s,h,2,false);}}
 static void lua_cb_draw_world(struct ToriRS_Api*a,void*state,struct ToriRS_Graphics*d){(void)state;lua_callback_draw(a,LUA_ON_DRAW_WORLD,d);}
 static void lua_cb_draw_canvas(struct ToriRS_Api*a,void*state,struct ToriRS_Graphics*d){(void)state;lua_callback_draw(a,LUA_ON_DRAW_CANVAS,d);}
@@ -2328,6 +2413,7 @@ lua_definition_callbacks(struct ToriRS_PluginCallbacks* callbacks)
     callbacks->on_logic_tick = lua_cb_logic;
     callbacks->on_server_tick = lua_cb_server;
     callbacks->on_world_loaded = lua_cb_world;
+    callbacks->on_script_callback = lua_cb_script;
     callbacks->on_screen_changed = lua_cb_screen;
     callbacks->on_npc_spawn = lua_cb_npc_spawn;
     callbacks->on_npc_retype = lua_cb_npc_retype;

@@ -764,6 +764,7 @@ export const CS2_WIRE_OPCODE_METADATA = [
     { opcode: 6526, name: "MOBILE_WIFIAVAILABLE", operand: "int8" },
     { opcode: 6527, name: "PLATFORMTYPE", operand: "int8" },
     { opcode: 6531, name: "CLIENT_VERSION", operand: "int8" },
+    { opcode: 6599, name: "RUNELITE_CALLBACK", operand: "int8" },
     { opcode: 6600, name: "WORLDMAP_INIT", operand: "int8" },
     { opcode: 6601, name: "WORLDMAP_GETMAPNAME", operand: "int8" },
     { opcode: 6602, name: "WORLDMAP_SETMAP", operand: "int8" },

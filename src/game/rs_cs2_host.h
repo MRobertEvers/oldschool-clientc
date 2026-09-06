@@ -505,6 +505,11 @@ struct RS_CS2Host
      */
     int (*events_override_for_component)(void* user, int com_id, int* out_events);
     void* events_user;
+    /** Synchronous named callback. Stack access is scoped to this invocation;
+     * it must neither yield nor recursively execute the VM. Optional. */
+    void (*script_callback)(void* user, struct CS2VM2_Thread*, char const* name);
+    void* script_callback_user;
+    bool script_callback_running;
 
     /*
      * The scene, for the two ops that ask about it: LOC_FIND (6803) and

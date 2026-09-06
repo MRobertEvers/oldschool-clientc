@@ -5219,6 +5219,14 @@ app_ground_items_tick(struct App* app)
         return;
     if( app_ground_items_settings_moved(app) )
         app->ground_items_refresh_all = 1;
+    /* Aux lists 3/4 are the native Ignore/Highlight inputs. A time-window
+     * timer notification can be missed; their revisions cannot. */
+    for( int i=0;i<2;++i )
+    {
+        uint64_t revision=LootStore_AuxRevision(&app->loot,3+i);
+        if( revision!=app->ground_items_aux_seen[i] )
+        { app->ground_items_aux_seen[i]=revision;app->ground_items_refresh_all=1; }
+    }
     if( app->ground_items_refresh_all )
     {
         app->ground_items_refresh_all = 0;
@@ -10234,6 +10242,8 @@ App_Init(
     app->ground_items_settings_varp[1] = -1;
     app->ground_items_settings_seen[0] = 0;
     app->ground_items_settings_seen[1] = 0;
+    app->ground_items_aux_seen[0] = 0;
+    app->ground_items_aux_seen[1] = 0;
     app->world_map_scene_id = -1;
     app->worldmap_render = RS_WorldMapRender_New();
     app->worldmap_overview_scene_id = 0;
@@ -10308,6 +10318,8 @@ App_Init(
     app->host.loot = &app->loot;
     app->host.events_override_for_component = app_cs2_events_override_for_component;
     app->host.events_user = app;
+    app->host.script_callback = app_script_callback;
+    app->host.script_callback_user = app;
     app->host.loc_at_coord = app_cs2_loc_at_coord;
     app->host.coord_in_scene = app_cs2_coord_in_scene;
     app->host.player_route = app_cs2_player_route;

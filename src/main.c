@@ -3407,12 +3407,24 @@ frame_loop_teardown(void)
                     if( item->type==UIELEM_RS_TEXT && item->position.width_mode==1 && item->position.width==108 )
                     {
                         ++captions;hidden_captions+=item->widget_hidden!=0;
-                        for( int j=0;j<app.emit.count;++j ) if( app.emit.cmds[j].node_index==child ) ++caption_emits;
+                        int painted=0;
+                        for( int j=0;j<app.emit.count;++j ) if( app.emit.cmds[j].node_index==child ) { ++caption_emits;++painted; }
+                        char const* text=item->u.rs_text.text ? item->u.rs_text.text : "";
+                        uint64_t hash=UINT64_C(14695981039346656037);
+                        for( unsigned char const* p=(unsigned char const*)text;*p;++p ) hash=(hash^*p)*UINT64_C(1099511628211);
+                        TORIRS_REPORT("NATIVE_GROUND_CAPTION root=%d node=%d painted=%d box=%d,%d,%d,%d color=%06x len=%zu hash=%016" PRIx64 "\n",
+                            root,child,painted,item->position.abs_x,item->position.abs_y,item->position.abs_w,item->position.abs_h,
+                            item->u.rs_text.color&0xffffffu,strlen(text),hash);
                     }
                     bool has_op=false;
                     if( item->menu_options )
                         for( int op=0;op<UITREE_MENU_OPTION_SLOTS;++op ) has_op|=item->menu_options->ops[op][0]!=0;
-                    if( has_op ) { ++buttons;live_buttons+=UITree_NodeNativeInputPresent(app.tree,&app.ui_host,child); }
+                    if( has_op )
+                    {
+                        ++buttons;bool live=UITree_NodeNativeInputPresent(app.tree,&app.ui_host,child);live_buttons+=live;
+                        TORIRS_REPORT("NATIVE_GROUND_CONTROL root=%d node=%d live=%d box=%d,%d,%d,%d\n",
+                            root,child,live,item->position.abs_x,item->position.abs_y,item->position.abs_w,item->position.abs_h);
+                    }
                 }
                 TORIRS_REPORT("NATIVE_GROUND_OVERLAY root=%d widget_hide=%d native_hide=%d emitted=%d coord=%d captions=%d hidden_captions=%d caption_emits=%d buttons=%d live_buttons=%d\n",
                     root,c->widget_hidden,c->native_hide,emitted,overlay->coord,captions,hidden_captions,caption_emits,buttons,live_buttons);

@@ -97,7 +97,7 @@ def main() -> int:
     errors += difference("registration arrays", set(arrays), expected_array_names)
 
     module_structs = {
-        "widgets": "ToriRS_WidgetApi",
+        "widgets": "ToriRS_WidgetApi", "scripts": "ToriRS_ScriptApi",
         "core": "ToriRS_CoreApi", "config": "ToriRS_ConfigApi",
         "world": "ToriRS_WorldApi", "input": "ToriRS_InputApi",
         "ui": "ToriRS_UiApi", "menu": "ToriRS_MenuApi", "placement": "ToriRS_PlacementApi",

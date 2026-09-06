@@ -2053,6 +2053,7 @@ struct App
      *  last seen in them. -1 / -1 before the resolve. */
     int ground_items_settings_varp[2];
     int ground_items_settings_seen[2];
+    uint64_t ground_items_aux_seen[2];
     /** The mouseover subject the highlighter was last run for, folded to one
      *  int. Same edge rule as the three above. */
     int highlight_last_mouseover;

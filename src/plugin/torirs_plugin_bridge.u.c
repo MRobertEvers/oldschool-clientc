@@ -1301,6 +1301,80 @@ app_plugin_frame_work_us(void* user)
     return App_LastFrameUs(app);
 }
 
+#include "plugin/native_script_hooks.gen.h"
+static void app_script_hash_word(uint64_t* hash,uint32_t value)
+{
+    for( int i=0;i<4;++i ) { *hash=(*hash^(value&255))*UINT64_C(1099511628211);value>>=8; }
+}
+static uint64_t app_script_fingerprint(struct CS2VM2_Script const* script)
+{
+    uint64_t hash=UINT64_C(14695981039346656037);
+    int const fields[]={script->script_id,script->op_count,script->local_int_count,
+        script->local_string_count,script->local_long_count,script->int_argument_count,
+        script->string_argument_count,script->long_argument_count};
+    for( size_t i=0;i<sizeof(fields)/sizeof(fields[0]);++i ) app_script_hash_word(&hash,(uint32_t)fields[i]);
+    for( int i=0;i<script->op_count;++i )
+    {
+        app_script_hash_word(&hash,script->opcodes[i]);
+        app_script_hash_word(&hash,script->opcodes[i]==CS2_OP_PUSH_CONSTANT_STRING ? 0 : (uint32_t)script->int_operands[i]);
+        char const* text=script->opcodes[i]==CS2_OP_PUSH_CONSTANT_STRING ? script->string_operands[i] : "";
+        if( text ) for( unsigned char const* p=(unsigned char const*)text;*p;++p ) hash=(hash^*p)*UINT64_C(1099511628211);
+        hash=hash*UINT64_C(1099511628211);
+    }
+    app_script_hash_word(&hash,script->switch_table_count);
+    for( int i=0;i<script->switch_table_count;++i )
+    {
+        struct CS2VM2_ScriptSwitch const* table=&script->switch_tables[i];
+        app_script_hash_word(&hash,table->case_count);
+        for( int j=0;j<table->case_count;++j )
+        { app_script_hash_word(&hash,table->cases[j].key);app_script_hash_word(&hash,table->cases[j].target_pc); }
+    }
+    return hash;
+}
+
+static int32_t app_script_get_int(void* user,size_t index)
+{
+    struct CS2VM2_Thread* thread=user;
+    return thread->ints_stack[thread->ints_stack_top-1-(int)index];
+}
+static void app_script_set_int(void* user,size_t index,int32_t value)
+{
+    struct CS2VM2_Thread* thread=user;
+    thread->ints_stack[thread->ints_stack_top-1-(int)index]=value;
+}
+static char const* app_script_get_string(void* user,size_t index)
+{
+    struct CS2VM2_Thread* thread=user;
+    return thread->strs_stack[thread->strs_stack_top-1-(int)index];
+}
+static bool app_script_set_string(void* user,size_t index,char const* value)
+{
+    struct CS2VM2_Thread* thread=user;
+    char* copy=CS2VM2_StrDup(thread,value);
+    if( !copy ) return false;
+    thread->strs_stack[thread->strs_stack_top-1-(int)index]=copy;
+    return true;
+}
+static void app_script_callback(void* user,struct CS2VM2_Thread* thread,char const* name)
+{
+    struct App* app=user;
+    if( !app->plugins || App_UiLogic(app)!=APP_UI_LOGIC_CS2 || thread->frame_sp<=0 ) return;
+    struct CS2VM2_Script const* script=CS2VM_FRAME(thread)->script;
+    if( strcmp(name,"groundItemCaption")!=0 ) return;
+    if( script->script_id!=TORIRS_GROUND_CAPTION_SCRIPT ||
+        app_script_fingerprint(script)!=TORIRS_GROUND_CAPTION_FINGERPRINT ||
+        thread->ints_stack_top<TORIRS_GROUND_CAPTION_INTS || thread->strs_stack_top<1 )
+    {
+        TORIRS_REPORT("script_callback: rejected incompatible groundItemCaption script=%d\n",script->script_id);
+        return;
+    }
+    struct PluginScriptStack stack={.user=thread,
+        .int_count=TORIRS_GROUND_CAPTION_INTS,.string_count=1,.writable_ints=TORIRS_GROUND_CAPTION_WRITE_INTS,.writable_strings=1,
+        .get_int=app_script_get_int,.set_int=app_script_set_int,
+        .get_string=app_script_get_string,.set_string=app_script_set_string};
+    PluginHost_ScriptCallback(app->plugins,name,CS2VM_FRAME(thread)->script->script_id,&stack);
+}
+
 static int
 app_plugin_capability(void* user, char const* name)
 {
@@ -1309,6 +1383,7 @@ app_plugin_capability(void* user, char const* name)
     assert(app);
     assert(name);
     if( strcmp(name, "widgets.geometry") == 0 ) return 1;
+    if( strcmp(name,"scripts.callbacks")==0 ) return App_UiLogic(app)==APP_UI_LOGIC_CS2;
     if( strcmp(name, "touch") == 0 )
         return app->touch_ui != 0;
     if( strcmp(name, "web") == 0 )
@@ -1328,6 +1403,15 @@ app_plugin_capability(void* user, char const* name)
 #endif
     }
     return 0;
+}
+
+static bool app_script_invalidate(void* user,char const* name)
+{
+    struct App* app=user;
+    if( App_UiLogic(app)!=APP_UI_LOGIC_CS2 || strcmp(name,"groundItemCaption")!=0 ||
+        app->host.script_ground_items_overlay<=0 ) return false;
+    app->ground_items_refresh_all=1;
+    return true;
 }
 
 static bool app_plugin_scene_origin(void* user,int* x,int* z)
@@ -5634,6 +5718,7 @@ app_plugin_engine(struct App* app)
     engine.frame_ms = app_plugin_frame_ms;
     engine.frame_work_us = app_plugin_frame_work_us;
     engine.capability = app_plugin_capability;
+    engine.script_invalidate = app_script_invalidate;
     engine.memory_bytes = app_plugin_memory_bytes;
     engine.local_player = app_plugin_local_player;
     engine.scene_origin = app_plugin_scene_origin;

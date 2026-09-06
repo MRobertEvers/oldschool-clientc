@@ -23,7 +23,7 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_PRODUCER_COUNT == 648,
+    HOST_REQUEST_PRODUCER_COUNT == 649,
     "the producer replay test must exercise every hosted opcode");
 
 struct CaptureHost
@@ -55,6 +55,7 @@ capture_host_exec(
     /* Force the interpreter to roll the opcode back once, then let its exact
      * retry complete. This catches both first-emission aliases and handlers
      * that accidentally rebuild a retry as a family-level request. */
+    if( request->kind==CS2VM_HOST_REQUEST_RUNELITE_CALLBACK ) return CS2VM_EXECNO_OK;
     return host->calls == 1 ? CS2VM_EXECNO_YIELD : CS2VM_EXECNO_OK;
 }
 
@@ -153,8 +154,10 @@ exercise_producer(struct HostRequestProducerEntry const* entry)
                        ? CS2VM2_ThreadResume(thread, &error)
                        : CS2VM2_THREAD_ERROR;
 
-    if( first_status != CS2VM2_THREAD_YIELDED || retry_status != CS2VM2_THREAD_DONE ||
-        host.calls != 2 || host.kinds[0] != entry->opcode || host.kinds[1] != entry->opcode )
+    bool synchronous=entry->opcode==CS2_OP_RUNELITE_CALLBACK;
+    if( synchronous ? (first_status!=CS2VM2_THREAD_DONE || host.calls!=1 || host.kinds[0]!=entry->opcode)
+        : (first_status != CS2VM2_THREAD_YIELDED || retry_status != CS2VM2_THREAD_DONE ||
+        host.calls != 2 || host.kinds[0] != entry->opcode || host.kinds[1] != entry->opcode) )
     {
         fprintf(
             stderr,
@@ -280,10 +283,53 @@ exercise_input_set_producer(
     return failed;
 }
 
+static int callback_calls,callback_yield;
+static int callback_exec(struct CS2VM2_Thread* thread,struct CS2VM_HostRequest* request)
+{
+    if( request->kind!=CS2VM_HOST_REQUEST_RUNELITE_CALLBACK ||
+        strcmp(request->u.RUNELITE_CALLBACK.name,"caption")!=0 ||
+        thread->ints_stack_top!=1 || thread->strs_stack_top!=1 ) return CS2VM_EXECNO_ERROR;
+    ++callback_calls;
+    if( callback_yield ) return CS2VM_EXECNO_YIELD;
+    thread->ints_stack[0]=41;
+    thread->strs_stack[0]=CS2VM2_StrDup(thread,"plugin");
+    return CS2VM_EXECNO_OK;
+}
+static int exercise_script_callback(void)
+{
+    uint16_t ops[]={CS2_OP_PUSH_CONSTANT_INT,CS2_OP_PUSH_CONSTANT_STRING,
+        CS2_OP_PUSH_CONSTANT_STRING,CS2_OP_RUNELITE_CALLBACK,CS2_OP_PUSH_CONSTANT_INT,
+        CS2_OP_ADD,CS2_OP_PUSH_CONSTANT_STRING,CS2_OP_JOIN_STRING,CS2_OP_RETURN};
+    int operands[]={7,0,0,0,1,0,0,2,0};
+    char* strings[]={NULL,"native","caption",NULL,NULL,NULL,"!",NULL,NULL};
+    struct CS2VM2_Script script={.script_id=99,.op_count=9,.opcodes=ops,
+        .int_operands=operands,.string_operands=strings};
+    int failures=0;
+    for( int yield=0;yield<2;++yield )
+    {
+        struct CS2VM2 vm;struct CS2VM2_ThreadError error={0};
+        CS2VM2_Init(&vm);CS2VM2_BindHost(&vm,NULL,callback_exec);
+        struct CS2VM2_Thread* thread=CS2VM2_ThreadMain(&vm);
+        callback_calls=0;callback_yield=yield;
+        CS2VM2_ThreadStart(thread,&script);
+        enum CS2VM2_ThreadStatus status=CS2VM2_ThreadRun(thread,&error);
+        if( yield )
+        {
+            if( status!=CS2VM2_THREAD_ERROR || callback_calls!=1 )
+            { fprintf(stderr,"FAIL: native script callback must not yield or replay\n");++failures; }
+        }
+        else if( status!=CS2VM2_THREAD_DONE || callback_calls!=1 || thread->ints_stack_top!=1 ||
+            thread->ints_stack[0]!=42 || thread->strs_stack_top!=1 || strcmp(thread->strs_stack[0],"plugin!")!=0 )
+        { fprintf(stderr,"FAIL: native instructions observe callback results synchronously\n");++failures; }
+        CS2VM2_Free(&vm);
+    }
+    return failures;
+}
+
 int
 main(void)
 {
-    int failures = 0;
+    int failures = exercise_script_callback();
 
     for( int i = 0; i < HOST_REQUEST_PRODUCER_COUNT; i++ )
         failures += exercise_producer(&HOST_REQUEST_PRODUCERS[i]);
@@ -305,7 +351,7 @@ main(void)
 
     printf(
         "host request producer replay: %d exact kinds and CC/IF input payloads "
-        "preserved across yield/retry\n",
+        "preserved across yield/retry; synchronous callback results checked\n",
         HOST_REQUEST_PRODUCER_COUNT);
     return 0;
 }

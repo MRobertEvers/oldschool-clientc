@@ -159,6 +159,21 @@ struct PluginWidgetRequest
  * publication fence. A zero instance means no ready native tree. */
 void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uint64_t generation);
 
+/* Internal native adapter. No VM pointer or borrowed stack slot reaches a
+ * plugin. The adapter and its strings live only through this dispatch. */
+struct PluginScriptStack
+{
+    void* user;
+    size_t int_count,string_count;
+    uint64_t writable_ints,writable_strings;
+    int32_t (*get_int)(void*,size_t);
+    void (*set_int)(void*,size_t,int32_t);
+    char const* (*get_string)(void*,size_t);
+    bool (*set_string)(void*,size_t,char const*);
+};
+void PluginHost_ScriptCallback(struct ToriRS_PluginHost*,char const* name,int script_id,
+    struct PluginScriptStack const*);
+
 struct ToriRS_PluginEngine
 {
     /** struct App*. */
@@ -198,6 +213,7 @@ struct ToriRS_PluginEngine
     /** Named runtime/platform capability. Unknown names return zero. Optional
      * for focused harnesses; absence means no advertised capabilities. */
     int (*capability)(void* user, char const* name);
+    bool (*script_invalidate)(void* user,char const* callback_name);
     size_t (*memory_bytes)(void* user);
 
     bool (*scene_origin)(void* user, int* tile_x, int* tile_z);

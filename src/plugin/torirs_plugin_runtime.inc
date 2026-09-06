@@ -635,6 +635,7 @@ v2_ui_invoke(
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
 
+    if( runtime->context->host->script_stack ) return false;
     assert(action);
     return plugin_v2_ui_invoke(
         runtime->context->host, runtime->context, node, action);
@@ -660,6 +661,7 @@ v2_ui_invoke_base(
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
 
+    if( runtime->context->host->script_stack ) return false;
     assert(action);
     return PluginHost_UiInvokeBase(runtime->context->host, node, action);
 }
@@ -3433,6 +3435,84 @@ plugin_v2_runtime_panel_end(
     builder->implementation = NULL;
 }
 
+static enum ToriRS_ContractResult script_access(void* user,struct ToriRS_ScriptRef ref,
+    struct PluginScriptStack const** out)
+{
+    struct PluginV2Runtime* runtime=user;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->tearing_down || ctx->host->dispatching!=ctx->index ||
+        ctx->host->dispatch_event!=PLUGIN_CALLBACK_SCRIPT_CALLBACK ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( !ref.token || ref.token!=ctx->host->script_ref.token || !ctx->host->script_stack )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
+    *out=ctx->host->script_stack;return TORIRS_CONTRACT_OK;
+}
+static bool script_available(void* user)
+{
+    struct PluginV2Runtime* runtime=user;
+    struct ToriRS_PluginHost* host=runtime->context->host;
+    return host->engine.capability && host->engine.capability(host->engine.user,"scripts.callbacks");
+}
+static enum ToriRS_ContractResult script_invalidate(void* user,char const* name)
+{
+    struct PluginV2Runtime* runtime=user;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching!=ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( !name || !*name ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    return ctx->host->engine.script_invalidate && ctx->host->engine.script_invalidate(ctx->host->engine.user,name)
+        ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_UNAVAILABLE;
+}
+static enum ToriRS_ContractResult script_counts(void* u,struct ToriRS_ScriptRef ref,size_t* ints,size_t* strings)
+{
+    if( !ints || !strings ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    *ints=stack->int_count;*strings=stack->string_count;return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult script_get_int(void* u,struct ToriRS_ScriptRef ref,size_t index,int32_t* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    if( index>=stack->int_count ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=stack->get_int(stack->user,index);return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult script_set_int(void* u,struct ToriRS_ScriptRef ref,size_t index,int32_t value)
+{
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    if( index>=stack->int_count ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( index>=64 || !(stack->writable_ints & (UINT64_C(1)<<index)) ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+    stack->set_int(stack->user,index,value);return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult script_get_string(void* u,struct ToriRS_ScriptRef ref,size_t index,
+    char* out,size_t capacity,size_t* required)
+{
+    if( !required || (capacity && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    if( index>=stack->string_count ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    char const* value=stack->get_string(stack->user,index);
+    if( !value ) value="";
+    *required=strlen(value)+1;
+    if( capacity ) snprintf(out,capacity,"%s",value);
+    return capacity<*required ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult script_set_string(void* u,struct ToriRS_ScriptRef ref,size_t index,char const* value)
+{
+    if( !value || strlen(value)>16384 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    if( index>=stack->string_count ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( index>=64 || !(stack->writable_strings & (UINT64_C(1)<<index)) ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+    return stack->set_string(stack->user,index,value) ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_FAILED;
+}
+
 static enum ToriRS_ContractResult
 plugin_widget_request(void* user, struct PluginWidgetRequest* request)
 {
@@ -3667,6 +3747,8 @@ v2_runtime_init(
         .major_version = TORIRS_PLUGIN_API_MAJOR,
         .minor_version = TORIRS_PLUGIN_API_MINOR,
         .instance = runtime,
+        .scripts = {.context=runtime,.available=script_available,.invalidate=script_invalidate,.counts=script_counts,
+            .get_int=script_get_int,.set_int=script_set_int,.get_string=script_get_string,.set_string=script_set_string},
         .widgets = {
             .context = runtime, .find = widget_find, .get_widget = widget_get,
             .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,

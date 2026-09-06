@@ -29347,5 +29347,26 @@
       "ground-caption-live-native"
     ],
     "remaining": "complete retained interaction combinations and native auxiliary-control layout acceptance"
+  },
+  "native_script_callbacks": {
+    "opcode": 6599,
+    "source": "tools/testdata/plugin-engine/script-hooks.json",
+    "native_producer": "RS_CS2Host_Exec -> app_script_callback",
+    "scope": "fingerprint-checked argument window; only declared result slots writable",
+    "lifetime": "globally unique callback token, current plugin dispatch and lifecycle snapshot",
+    "mutations": [
+      "native VM integer result slot",
+      "native VM string result slot copied into pool"
+    ],
+    "native_invalidation": "scripts.invalidate coalesces ground-item producer refresh; LootStore auxiliary-list revisions update native views",
+    "tests": [
+      "test-cs2-host-request-producers",
+      "test-plugin-host",
+      "test-plugin-native-hooks",
+      "script-dispatch-negative",
+      "script-timing-negative.log",
+      "callback-ignore-refreshed"
+    ],
+    "remaining": "additional hook producers, scheduling/pre/post events, full Ground Items layout/settings parity"
   }
 }

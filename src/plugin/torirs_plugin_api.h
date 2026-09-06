@@ -1407,6 +1407,7 @@ struct ToriRS_Api
     void* instance;
 
     struct ToriRS_WidgetApi widgets;
+    struct ToriRS_ScriptApi scripts;
 
     struct ToriRS_CoreApi core;
     struct ToriRS_ConfigApi config;
@@ -1458,6 +1459,7 @@ struct ToriRS_PluginCallbacks
         struct ToriRS_Api* api,
         void* state,
         struct ToriRS_WorldLoadedEvent const* event);
+    void (*on_script_callback)(struct ToriRS_Api*,void* state,struct ToriRS_ScriptEvent const*);
     void (*on_screen_changed)(
         struct ToriRS_Api* api,
         void* state,

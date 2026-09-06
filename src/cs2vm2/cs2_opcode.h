@@ -3,7 +3,7 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 8024
-#define CS2_OPCODE_COUNT 979
+#define CS2_OPCODE_COUNT 980
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -2680,6 +2680,14 @@
 #define CS2_OP_MOBILE_WIFIAVAILABLE 6526
 #define CS2_OP_PLATFORMTYPE 6527
 #define CS2_OP_CLIENT_VERSION 6531
+/* RUNELITE_CALLBACK — Invoke a synchronous named plugin callback.
+ * int stack in:   -
+ * str stack in:   event_name
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Remaining stack slots are live callback arguments/results. The host must not yield or recursively run scripts.
+ */
+#define CS2_OP_RUNELITE_CALLBACK 6599
 
 /* === CS2 opcode group: worldmap (6600..6699) ===
  * world-map and map-element commands.

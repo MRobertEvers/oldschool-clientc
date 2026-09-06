@@ -173,6 +173,8 @@ def run_host_controls(src, out, make_args, selected):
                          "restarted tree subscription cannot join an old dispatch"),
         "tree_watch_publish": ("if( strcmp(role,\"@tree\")==0 )\n        {", "if( strcmp(role,\"@tree\")==0 )\n        {\n            continue;",
                          "each tree subscription receives one initial notification"),
+        "script_dispatch_epoch": ("ctx->lifecycle!=snapshot[i].lifecycle ||", "false ||",
+                         "restarted plugin cannot join an active script callback dispatch"),
     }
     if selected and set(selected) - controls.keys():
         raise ValueError("unknown host control")

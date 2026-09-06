@@ -1604,12 +1604,12 @@ test-cs2-host-request-kinds: $(OBJ_DIR)
 	./$(OBJ_DIR)/cs2_host_request_kinds_test
 
 .PHONY: test-cs2-host-request-producers
-test-cs2-host-request-producers: $(OBJ_DIR)
+test-cs2-host-request-producers: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_producers_test \
 		cs2vm2/test/host_request_producers_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
 		perf/torirs_perf.c $(LDFLAGS)
-	./$(OBJ_DIR)/cs2_host_request_producers_test
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_host_request_producers_test
 
 .PHONY: test-cs2-array-bounds
 test-cs2-array-bounds: $(OBJ_DIR)
@@ -2247,6 +2247,17 @@ PLUGIN_TEST_ENV =
 ifneq ($(strip $(ASAN_DYLD_SHIM)),)
 PLUGIN_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
 endif
+.PHONY: plugin-engine-cache-hooks
+.PHONY: test-plugin-native-hooks
+test-plugin-native-hooks:
+	python3 $(REPO_ROOT)/tools/test_plugin_engine_script_hooks.py
+
+PLUGIN_HOOK_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239-curses
+PLUGIN_HOOK_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239-plugin-hooks
+plugin-engine-cache-hooks:
+	python3 $(REPO_ROOT)/tools/plugin_engine_script_hooks.py --build \
+		--base "$(PLUGIN_HOOK_CACHE_BASE)" --cache "$(PLUGIN_HOOK_CACHE_DIR)"
+
 .PHONY: test-plugin-lua
 test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
 		plugin/torirs_plugin_lua.c \

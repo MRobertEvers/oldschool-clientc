@@ -265,6 +265,7 @@ local PATTERN_MAGIC = "([%^%$%(%)%%%.%[%]%+%-%?])"
 -- obj_id -> price, from the asset. Empty until it lands, and empty forever if
 -- it is not shipped; the cache cost is the fallback either way.
 local prices = {}
+local native_captions = false
 
 local function items(api)
     local cursor = -1
@@ -457,6 +458,7 @@ end
 
 function plugin.on_start(api)
     prices = {}
+    native_captions = false
     load_lists(api)
     -- Native CS2 keeps its buttons, timers and live state. Hide its captions
     -- while this plugin supplies labels; host cleanup restores
@@ -469,6 +471,7 @@ function plugin.on_start(api)
     -- Optional: a client without the file simply prices everything from the
     -- cache. on_asset hears about it either way.
     api.assets.request(PRICES_ASSET)
+    api.scripts.invalidate("groundItemCaption")
 end
 
 function plugin.on_asset(api, ev)
@@ -483,6 +486,7 @@ function plugin.on_asset(api, ev)
     -- The bytes are parsed; there is no reason to keep a copy of the file
     -- resident for the rest of the session.
     api.assets.release(PRICES_ASSET)
+    if native_captions then api.scripts.invalidate("groundItemCaption") end
 end
 
 function plugin.on_config_changed(api, key)
@@ -490,6 +494,51 @@ function plugin.on_config_changed(api, key)
         key == "highlight_exceptions" or key == "hide_exceptions" then
         load_lists(api)
     end
+    if native_captions then api.scripts.invalidate("groundItemCaption") end
+end
+
+function plugin.on_stop(api)
+    if native_captions then api.scripts.invalidate("groundItemCaption") end
+    native_captions = false
+end
+
+-- The native row will measure this result before positioning its buttons and
+-- timers. Input slots are immutable; only the caption and color are outputs.
+function plugin.on_script_callback(api, event)
+    if event.name ~= "groundItemCaption" then return end
+    local ref = event.ref
+    local ints, strings = api.scripts.counts(ref)
+    assert(ints == 8 and strings == 1, "native caption hook contract mismatch")
+    if not native_captions then
+        native_captions = true
+        assert(api.widgets.watch_tree(nil))
+        for _, widget in ipairs(api.widgets.find_all("ground_item_labels") or {}) do
+            assert(widget:reset())
+        end
+        api.core.log("native caption formatting active")
+    end
+    local native_ignore = api.scripts.get_int(ref, 0) == 1
+    local native_high = api.scripts.get_int(ref, 1) == 1
+    local edit = api.scripts.get_int(ref, 2) == 1
+    local count = api.scripts.get_int(ref, 5)
+    local id = api.scripts.get_int(ref, 6)
+    local coord = api.scripts.get_int(ref, 7)
+    local info = api.game.item_info(id)
+    if not info or count < 1 then return end
+    local obj = {obj_id=id, name=info.name, count=count, cost=info.cost}
+    local exchange, alch = prices_of(obj)
+    local high = native_high and api.config.highlighted_color or
+        highlighted_colour(api, obj.name, value_by_mode(api, exchange, alch))
+    local hide = hidden_colour(api, obj.name, exchange, alch)
+    if native_ignore and not native_high then high=nil;hide=api.config.hidden_color end
+    local me = api.world.local_player()
+    local range = api.config.max_distance
+    local visible = me and ((coord >> 28) & 3) == me.level and
+        math.abs(((coord >> 14) & 16383) - me.true_x) <= range and
+        math.abs((coord & 16383) - me.true_z) <= range and
+        (edit or reveal_held(api) or high or (not hide and not api.config.show_highlighted_only))
+    assert(api.scripts.set_string(ref, 0, visible and label_for(api, obj, exchange, alch) or ""))
+    assert(api.scripts.set_int(ref, 3, high or hide or api.config.default_color))
 end
 
 --
@@ -577,7 +626,7 @@ function plugin.on_draw_world(api, draw)
 
         local sx, sy = api.draw.project(
             (tile.x - base_x) * 128 + 64, (tile.z - base_z) * 128 + 64, height)
-        if sx then
+        if sx and not native_captions then
             for i, item in ipairs(tile.items) do
                 text_at(draw, sx, sy - gap * (i - 1), item.text, item.colour, outline)
             end

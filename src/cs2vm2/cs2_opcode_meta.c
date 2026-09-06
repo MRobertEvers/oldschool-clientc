@@ -6683,7 +6683,7 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [6596] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6597] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6598] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [6599] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [6599] = { "RUNELITE_CALLBACK", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
 
     /* worldmap: 6600..6699 — world-map and map-element commands. */
     [6600] = { "WORLDMAP_INIT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },

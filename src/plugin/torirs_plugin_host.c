@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -36,6 +37,7 @@ enum PluginCallbackKind
     PLUGIN_CALLBACK_LOGIC_TICK,
     PLUGIN_CALLBACK_SERVER_TICK,
     PLUGIN_CALLBACK_WORLD_LOADED,
+    PLUGIN_CALLBACK_SCRIPT_CALLBACK,
     PLUGIN_CALLBACK_NPC_SPAWN,
     PLUGIN_CALLBACK_NPC_RETYPE,
     PLUGIN_CALLBACK_NPC_DESPAWN,
@@ -167,6 +169,7 @@ struct PluginContext
      * anything the plugin itself does -- see `refused`. */
     bool enabled;
     bool running;
+    uint64_t lifecycle;
     /** Guards teardown re-entry when a visibility/stop callback disables its
      *  own plugin. */
     bool tearing_down;
@@ -441,6 +444,8 @@ struct ToriRS_PluginHost
     int callback_count[PLUGIN_CALLBACK_COUNT];
     uint64_t widget_tree_instance, widget_tree_generation, widget_watch_serial;
     bool widget_watch_pending, widget_watch_dispatching;
+    struct PluginScriptStack const* script_stack;
+    struct ToriRS_ScriptRef script_ref;
 
     /* Menu routes live for one build. The hover pass rebuilds the menu every
      * frame, so they are reset per build rather than accumulated. */
@@ -1049,13 +1054,20 @@ plugin_dispatch(
     int const prev_dispatching = host->dispatching;
     int const prev_event = host->dispatch_event;
 
-    int const count = host->plugin_count;
+    struct DispatchEntry { int plugin; uint64_t lifecycle; } snapshot[TORIRS_PLUGIN_MAX];
+    int count=0;
     int const* order = plugin_ev_is_draw(ev) ? host->draw_order : host->event_order;
+    for( int i=0;i<host->plugin_count;++i )
+    {
+        struct PluginContext const* ctx=&host->plugins[order[i]];
+        if( ctx->enabled && ctx->running && plugin_v2_has_event_callback(ctx->def,ev) )
+            snapshot[count++]=(struct DispatchEntry){order[i],ctx->lifecycle};
+    }
     for( int i = 0; i < count; i++ )
     {
-        int const plugin = order[i];
+        int const plugin = snapshot[i].plugin;
         struct PluginContext* ctx = &host->plugins[plugin];
-        if( !ctx->enabled || !ctx->running ||
+        if( !ctx->enabled || !ctx->running || ctx->lifecycle!=snapshot[i].lifecycle ||
             !plugin_v2_has_event_callback(ctx->def, ev) )
             continue;
 
@@ -7585,6 +7597,8 @@ plugin_v2_has_event_callback(
         return def->callbacks.on_server_tick != NULL;
     case PLUGIN_CALLBACK_WORLD_LOADED:
         return def->callbacks.on_world_loaded != NULL;
+    case PLUGIN_CALLBACK_SCRIPT_CALLBACK:
+        return def->callbacks.on_script_callback != NULL;
     case PLUGIN_CALLBACK_SCREEN_CHANGE:
         return def->callbacks.on_screen_changed != NULL;
     case PLUGIN_CALLBACK_NPC_SPAWN:
@@ -7667,6 +7681,9 @@ plugin_v2_event(
         break;
     case PLUGIN_CALLBACK_WORLD_LOADED:
         v2->definition->callbacks.on_world_loaded(api, state, event);
+        break;
+    case PLUGIN_CALLBACK_SCRIPT_CALLBACK:
+        v2->definition->callbacks.on_script_callback(api,state,event);
         break;
     case PLUGIN_CALLBACK_SCREEN_CHANGE:
         v2->definition->callbacks.on_screen_changed(api, state, event);
@@ -8209,6 +8226,13 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
          * reconsidered, re-taken and re-logged on each one. */
         if( ctx->running || !ctx->enabled || ctx->refused )
             continue;
+        if( ctx->lifecycle==UINT64_MAX )
+        {
+            PluginHost_SetError(host,i,"Plugin lifecycle counter exhausted");
+            ctx->refused=true;
+            continue;
+        }
+        ++ctx->lifecycle;
         ctx->running = true;
         host->dispatching = i;
         plugin_v2_init(ctx);
@@ -10448,6 +10472,23 @@ PluginHost_WorldLoaded(
         return;
     struct ToriRS_WorldLoadedEvent ev = { base_tile_x, base_tile_z };
     plugin_dispatch(host, PLUGIN_CALLBACK_WORLD_LOADED, &ev);
+}
+
+void PluginHost_ScriptCallback(struct ToriRS_PluginHost* host,char const* name,int script_id,
+    struct PluginScriptStack const* stack)
+{
+    static _Atomic uint64_t serial;
+    if( !host || !stack || !name || host->script_stack ||
+        !host->callback_count[PLUGIN_CALLBACK_SCRIPT_CALLBACK] ) return;
+    uint64_t previous=atomic_load(&serial);
+    do { if( previous==UINT64_MAX ) return; }
+    while( !atomic_compare_exchange_weak(&serial,&previous,previous+1) );
+    host->script_ref.token=previous+1;
+    host->script_stack=stack;
+    struct ToriRS_ScriptEvent event={.name=name,.script_id=script_id,.ref=host->script_ref};
+    plugin_dispatch(host,PLUGIN_CALLBACK_SCRIPT_CALLBACK,&event);
+    host->script_stack=NULL;
+    host->script_ref.token=0;
 }
 
 static void

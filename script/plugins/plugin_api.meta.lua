@@ -607,8 +607,23 @@ warn = nil
 ---@field watch_tree fun(callback:fun(widget:torirs.Widget?,event:torirs.WidgetBindingEvent)?):boolean,string Initial and topology-change publication notifications; nil unregisters. The callback receives nil widget and queries current references.
 ---@field get fun(component_id:integer):torirs.Widget? Revision-specific lookup.
 
+---@class torirs.ScriptRef
+---@class torirs.ScriptEvent
+---@field name string
+---@field script_id integer
+---@field ref torirs.ScriptRef Valid only during this synchronous callback.
+---@class torirs.ScriptsApi
+---@field available fun():boolean False on CS1/revconfig adapters.
+---@field invalidate fun(callback_name:string):boolean Rebuild cached native results at the next safe point, including during shutdown.
+---@field counts fun(ref:torirs.ScriptRef):integer,integer Integer and string stack sizes.
+---@field get_int fun(ref:torirs.ScriptRef,index:integer):integer Index 0 is the top remaining slot.
+---@field set_int fun(ref:torirs.ScriptRef,index:integer,value:integer):boolean
+---@field get_string fun(ref:torirs.ScriptRef,index:integer):string
+---@field set_string fun(ref:torirs.ScriptRef,index:integer,value:string):boolean At most 16384 bytes, no embedded NUL.
+
 ---@class torirs.Api
 ---@field widgets torirs.WidgetsApi
+---@field scripts torirs.ScriptsApi
 ---@field core torirs.CoreApi
 ---@field config torirs.ConfigApi
 ---@field world torirs.WorldApi
@@ -639,6 +654,7 @@ warn = nil
 ---@field on_frame_start? fun(api: torirs.Api, ev: torirs.FrameEvent)
 ---@field on_logic_tick? fun(api: torirs.Api, ev: torirs.TickEvent)
 ---@field on_server_tick? fun(api: torirs.Api, ev: torirs.TickEvent)
+---@field on_script_callback? fun(api:torirs.Api,event:torirs.ScriptEvent) Synchronous; cannot yield or invoke native scripts.
 ---@field on_world_loaded? fun(api: torirs.Api, ev: torirs.WorldLoadedEvent)
 ---@field on_screen_changed? fun(api: torirs.Api, ev: torirs.ScreenChangedEvent)
 ---@field on_npc_spawn? fun(api: torirs.Api, npc: torirs.NpcSnap)

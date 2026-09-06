@@ -6683,7 +6683,7 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [6596] = 2,
     [6597] = 2,
     [6598] = 2,
-    [6599] = 2,
+    [6599] = 1,
 
     /* worldmap: 6600..6699 — world-map and map-element commands. */
     [6600] = 1,

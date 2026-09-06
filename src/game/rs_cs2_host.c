@@ -10793,6 +10793,20 @@ rs_cs2_host_exec_dispatch(
         (void)request->u.MOBILE_WIFIAVAILABLE._unused;
         return CS2VM2_PushInt(vm, host->network_kind == RS_CS2_NETWORK_WIFI ? 1 : 0);
 
+    case CS2VM_HOST_REQUEST_RUNELITE_CALLBACK:
+        if( host->script_callback_running ) return CS2VM_EXECNO_ERROR;
+        if( host->script_callback )
+        {
+            char const* source=request->u.RUNELITE_CALLBACK.name;
+            char name[256];
+            if( !source || strlen(source)>=sizeof(name) ) return CS2VM_EXECNO_ERROR;
+            snprintf(name,sizeof(name),"%s",source);
+            host->script_callback_running=true;
+            host->script_callback(host->script_callback_user,vm,name);
+            host->script_callback_running=false;
+        }
+        return CS2VM_EXECNO_OK;
+
         RS_CS2_VIEWPORT_CASE(VIEWPORT_SETFOV);
 
         RS_CS2_VIEWPORT_CASE(VIEWPORT_SETZOOM);

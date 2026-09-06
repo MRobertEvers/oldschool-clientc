@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-struct WidgetDemoState { struct ToriRS_WidgetRef label; };
+struct WidgetDemoState { struct ToriRS_WidgetRef label; int level; };
 static void widget_demo_update(struct ToriRS_Api* api, void* user, struct ToriRS_TickEvent const* tick)
 {
     struct WidgetDemoState* state=user;
@@ -11,6 +11,8 @@ static void widget_demo_update(struct ToriRS_Api* api, void* user, struct ToriRS
     char text[64];
     (void)tick;
     if( !state->label.opaque[2] || !api->game || !api->game->skill(api,2,&skill) ) return;
+    if( state->level==skill.current_level ) return;
+    state->level=skill.current_level;
     snprintf(text,sizeof(text),"Strength: %d",skill.current_level);
     api->widgets.set_text(api->widgets.context,state->label,text);
 }
@@ -27,6 +29,7 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
             return;
         }
         if( ui->create_text(ui->context,event->widget,"strength",&state->label)!=TORIRS_CONTRACT_OK ) return;
+        state->level=-1;
         ui->set_position(ui->context,state->label,12,40);
         ui->set_text_color(ui->context,state->label,0xffffff);
         widget_demo_update(api,user,NULL);
@@ -50,13 +53,29 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
 }
 static void widget_demo_start(struct ToriRS_Api* api, void* user)
 {
+    ((struct WidgetDemoState*)user)->level=-1;
+    api->core.log(api,"WIDGET_DEMO_SCRIPT_CALLBACKS available=%d",api->scripts.available(api->scripts.context));
+    api->scripts.invalidate(api->scripts.context,"groundItemCaption");
     api->widgets.watch(api->widgets.context,"sidebar",widget_demo_binding,user);
     api->widgets.watch(api->widgets.context,"viewport",widget_demo_binding,user);
 }
+static void widget_demo_script(struct ToriRS_Api* api,void* user,struct ToriRS_ScriptEvent const* event)
+{
+    (void)user;
+    if( strcmp(event->name,"groundItemCaption")!=0 ) return;
+    int32_t id,count;
+    if( api->scripts.get_int(api->scripts.context,event->ref,6,&id)!=TORIRS_CONTRACT_OK ||
+        api->scripts.get_int(api->scripts.context,event->ref,5,&count)!=TORIRS_CONTRACT_OK ) return;
+    char text[64];snprintf(text,sizeof(text),"C item %d x%d",id,count);
+    api->scripts.set_string(api->scripts.context,event->ref,0,text);
+    api->scripts.set_int(api->scripts.context,event->ref,3,0x00ffff);
+}
+static void widget_demo_stop(struct ToriRS_Api* api,void* user)
+{ (void)user;api->scripts.invalidate(api->scripts.context,"groundItemCaption"); }
 struct ToriRS_PluginDef const TORIRS_PLUGIN_WIDGET_DEMO={
     .struct_size=sizeof(struct ToriRS_PluginDef),
     .id="widget-demo",.title="Widget API Probe",.version="1",
     .state_size=sizeof(struct WidgetDemoState),
     .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=widget_demo_start,
-                .on_server_tick=widget_demo_update},
+                .on_logic_tick=widget_demo_update,.on_script_callback=widget_demo_script,.on_stop=widget_demo_stop},
 };
