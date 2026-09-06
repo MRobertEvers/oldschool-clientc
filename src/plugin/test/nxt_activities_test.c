@@ -1403,6 +1403,16 @@ main(void)
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 0, "the first tick with a cannon announces nothing");
 
+        /* A new cannon coordinate can arrive between two plugin ticks,
+         * without an observed zero in between. Its starting load is not a
+         * threshold crossing from the previous cannon. */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0x0C800C81;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 5;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 0, "replacement cannon does not inherit the previous ammo edge");
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+
         /* Firing down towards the line, but not across it. */
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 12;
         PluginHost_ServerTick(host, ++tick);
@@ -1451,6 +1461,28 @@ main(void)
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "setting 250 off is silent at empty");
+
+        /* Enabling with an already empty cannon cannot replay a decrease
+         * observed while the owner was disabled. */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_SetEnabled(host, p_cannon, false);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 1;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_SetEnabled(host, p_cannon, true);
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 4, "reenable does not replay disabled cannon ammo changes");
+
+        /* Native pickup publishes null (-1), while initial/absent adapters
+         * read zero. Neither sentinel represents an owned cannon. */
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 1;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = -1;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 4, "native null coordinate has no ammo events");
 
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0;
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;

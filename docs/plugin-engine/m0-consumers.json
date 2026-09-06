@@ -375,8 +375,21 @@
       "kind": "C",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
-      "screenshots": []
+      "port_status": "major-3 native tick/cache/notification API; coordinate/null/lifecycle fixes tested; OSRS empty/pickup and rs289 unavailable captures inspected; full release gate pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/cannon-native-empty/m01",
+          "scope": "native notifications checkpoint; remaining native model removal and release gates documented in PLUGIN_PORTS.md"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/cannon-native-pickup/m01",
+          "scope": "native notifications checkpoint; remaining native model removal and release gates documented in PLUGIN_PORTS.md"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/cannon-native-rs289/r01",
+          "scope": "native notifications checkpoint; remaining native model removal and release gates documented in PLUGIN_PORTS.md"
+        }
+      ]
     },
     {
       "path": "src/plugin/plugins/nxt_highlight.c",
