@@ -15,16 +15,6 @@ local nodes = {}
 local ticks = 0
 local report_done, public_done = false, false
 
-function plugin.on_start(api)
-    nodes, ticks, report_done, public_done = {}, 0, false, false
-    for _, role in ipairs(WATCHED) do
-        assert(api.widgets.watch(role, function(widget, event)
-            nodes[role] = event.kind == "bound" and widget or nil
-        end))
-    end
-    api.core.log("ROLEPROBE live-widget bindings registered")
-end
-
 local function invoke(api, role, label)
     local widget = nodes[role]
     local actions = widget and widget:actions()
@@ -47,6 +37,32 @@ local function invoke(api, role, label)
     return true
 end
 
+local function apply_pending(api)
+    if api.config.public_friends and not public_done then
+        public_done = invoke(api, "public_chat_button", "friends")
+    end
+    if api.config.press_report and not report_done then
+        report_done = invoke(api, "report_button", "report abuse")
+    end
+end
+
+function plugin.on_start(api)
+    nodes, ticks, report_done, public_done = {}, 0, false, false
+    for _, role in ipairs(WATCHED) do
+        assert(api.widgets.watch(role, function(widget, event)
+            nodes[role] = event.kind == "bound" and widget or nil
+            if event.kind == "bound" then apply_pending(api) end
+        end))
+    end
+    api.core.log("ROLEPROBE live-widget bindings registered")
+end
+
+function plugin.on_config_changed(api, key)
+    if key == "public_friends" then public_done = false end
+    if key == "press_report" then report_done = false end
+    apply_pending(api)
+end
+
 function plugin.on_logic_tick(api)
     ticks = ticks + 1
     if ticks ~= 20 and ticks ~= 80 then return end
@@ -60,12 +76,6 @@ function plugin.on_logic_tick(api)
         else
             api.core.log("ROLEPROBE", role, "not present")
         end
-    end
-    if api.config.public_friends and not public_done then
-        public_done = invoke(api, "public_chat_button", "friends")
-    end
-    if api.config.press_report and not report_done then
-        report_done = invoke(api, "report_button", "report abuse")
     end
 end
 

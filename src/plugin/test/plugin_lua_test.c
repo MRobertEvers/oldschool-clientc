@@ -699,6 +699,8 @@ main(void)
     PluginLua_Shutdown();
     reset_fake();
     test_bundled_scripts(&host);
+    test_product_behavior(&host,"../script/plugins/_roleprobe.lua",
+        "plugin/test/roleprobe_behavior.lua","roleprobe-behavior");
     test_product_behavior(&host,"../script/plugins/performance_display.lua",
         "plugin/test/performance_display_behavior.lua","performance-behavior");
     test_product_behavior(&host,"../script/plugins/tile_indicator.lua",

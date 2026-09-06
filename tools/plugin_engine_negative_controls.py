@@ -21,6 +21,8 @@ def run_lua_controls(src, out, make_args, selected):
     # Each mutant gets a private script fixture. Production sources and objects
     # remain untouched, and the existing runtime test binary runs all products.
     controls={
+        "role_binding":("_roleprobe.lua",[("if event.kind == \"bound\" then apply_pending(api) end", "if false then apply_pending(api) end")],
+            "late native binding must execute the pending probe action"),
         "fps_counter":("performance_display.lua",[("sample_frames = ev.drawn_frames - sample_drawn_at_start",
             "sample_frames = sample_frames + 1")],"FPS must count rendered frames"),
         "work_window":("performance_display.lua",[("recent_total = recent_total - (recent[slot] or 0)",
