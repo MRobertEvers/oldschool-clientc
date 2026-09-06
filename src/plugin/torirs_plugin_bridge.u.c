@@ -4094,6 +4094,8 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     {
         int32_t idx = r->kind == PLUGIN_WIDGET_FIND
             ? app_plugin_ui_boundary_node(app, r->name) : UITree_FindByComponentId(tree, r->id);
+        if( r->kind == PLUGIN_WIDGET_FIND && strcmp(r->name,"sidebar") == 0 && App_UiLogic(app) == APP_UI_LOGIC_CS2 )
+            idx = UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
         *r->refs = app_widget_ref(tree, idx);
         return r->refs->opaque[2] ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_UNAVAILABLE;
     }

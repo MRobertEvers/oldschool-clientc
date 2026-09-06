@@ -870,7 +870,7 @@ orbs_has_action(
     }
     if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
         return 1;
-    if( api->minor_version >= 3 && api->ui.base_action_available &&
+    if( api->ui.base_action_available &&
         state->node[orb].value != 0 &&
         api->ui.base_action_available(
             api, state->node[orb], orbs_base_action(api, orb)) )
@@ -1076,7 +1076,7 @@ orbs_action(
      * replacement because no component id crosses the plugin boundary. */
     if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
         goto invoke;
-    if( api->minor_version >= 3 && api->ui.invoke_base &&
+    if( api->ui.invoke_base &&
         api->ui.invoke_base(api, node, orbs_base_action(api, orb)) )
         return TORIRS_CALLBACK_CONSUME;
     if( !orbs_compat_button(api, name, &component, &operation) )

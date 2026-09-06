@@ -153,6 +153,10 @@ struct PluginWidgetRequest
     size_t* count;
 };
 
+/* Called after native frame bindings are available at the pre-input/paint
+ * publication fence. A zero instance means no ready native tree. */
+void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uint64_t generation);
+
 struct ToriRS_PluginEngine
 {
     /** struct App*. */

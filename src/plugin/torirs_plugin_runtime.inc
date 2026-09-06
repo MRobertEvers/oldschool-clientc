@@ -3504,6 +3504,44 @@ static enum ToriRS_ContractResult widget_reset(void* u, struct ToriRS_WidgetRef 
     return plugin_widget_request(u, &r);
 }
 
+static enum ToriRS_ContractResult
+widget_watch(void* user, char const* role, ToriRS_WidgetListener listener, void* listener_user)
+{
+    struct PluginV2Runtime* runtime = user;
+    struct PluginContext* ctx = runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching != ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( ctx->tearing_down ) return listener ? TORIRS_CONTRACT_WRONG_CONTEXT : TORIRS_CONTRACT_OK;
+    if( !role || !*role || strlen(role) >= TORIRS_UI_NAME_MAX ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( !ctx->host->engine.widget_request ) return TORIRS_CONTRACT_UNAVAILABLE;
+    if( !ctx->widget_watches )
+    {
+        if( !listener ) return TORIRS_CONTRACT_OK;
+        ctx->widget_watches = calloc(PLUGIN_WIDGET_WATCH_MAX, sizeof(*ctx->widget_watches));
+        if( !ctx->widget_watches ) return TORIRS_CONTRACT_FAILED;
+    }
+    int at = -1;
+    for( int i = 0; i < PLUGIN_WIDGET_WATCH_MAX; ++i )
+    {
+        if( ctx->widget_watches[i].serial && strcmp(ctx->widget_watches[i].role, role) == 0 )
+        { at = i; break; }
+        if( at < 0 && !ctx->widget_watches[i].serial ) at = i;
+    }
+    if( at < 0 ) return listener ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+    if( listener && ctx->host->widget_watch_serial == UINT64_MAX ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    struct PluginWidgetWatch* watch = &ctx->widget_watches[at];
+    memset(watch, 0, sizeof(*watch));
+    if( listener )
+    {
+        snprintf(watch->role, sizeof(watch->role), "%s", role);
+        watch->listener = listener;
+        watch->user = listener_user;
+        watch->serial = ++ctx->host->widget_watch_serial;
+        ctx->host->widget_watch_pending = true;
+    }
+    return TORIRS_CONTRACT_OK;
+}
+
 static bool
 v2_runtime_init(
     struct PluginV2Runtime* runtime,
@@ -3573,7 +3611,7 @@ v2_runtime_init(
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,
-            .revalidate = widget_revalidate, .reset = widget_reset,
+            .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch,
         },
         .core = {
             .struct_size = sizeof(runtime->api.core),

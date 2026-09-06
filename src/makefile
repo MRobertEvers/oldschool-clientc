@@ -2243,9 +2243,9 @@ test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c plugin/torirs_plugin_a
 # Native-V2 Lua runtime smoke test. Its fake host captures the dynamic
 # definitions, runs scoped callbacks, exercises source reload, and compiles all
 # bundled scripts inside the real sandboxed Lua VM.
-PLUGIN_LUA_TEST_ENV =
+PLUGIN_TEST_ENV =
 ifneq ($(strip $(ASAN_DYLD_SHIM)),)
-PLUGIN_LUA_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+PLUGIN_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
 endif
 .PHONY: test-plugin-lua
 test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
@@ -2256,7 +2256,7 @@ test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.
 		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
 		plugin/torirs_plugin_lua.c plugin/test/plugin_lua_test.c \
 		$(OBJ_DIR)/lua_unity.o $(LDFLAGS)
-	$(PLUGIN_LUA_TEST_ENV) ./$(OBJ_DIR)/torirs_plugin_lua_v2_test
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/torirs_plugin_lua_v2_test
 
 # The item-stats tooltip, against a hand-built api table rather than the host:
 # the whole plugin is "given a hovered item and a set of levels, what does the
@@ -2302,14 +2302,14 @@ test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracke
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c \
 		plugin/torirs_plugin_ui.c \
-		plugin/test/torirs_plugin_host_test.c
+		plugin/test/torirs_plugin_host_test.c $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 		plugin/torirs_plugin_placement.c \
 		plugin/torirs_plugin_ui.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/plugin_host_test
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/plugin_host_test
 
 # Public major-3 source contract. This target stays parse/type-check only so an API
 # header regression is reported directly; runtime registration and behavior

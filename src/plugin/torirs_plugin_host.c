@@ -63,6 +63,7 @@ enum PluginCallbackKind
     PLUGIN_CALLBACK_PANEL_LAYOUT,
     PLUGIN_CALLBACK_PANEL_DRAW,
     PLUGIN_CALLBACK_UI_NODE_ACTION,
+    PLUGIN_CALLBACK_WIDGET_BINDING,
     PLUGIN_CALLBACK_COUNT
 };
 
@@ -145,6 +146,16 @@ static enum ToriRS_CallbackResult plugin_v2_event(
     void* event,
     void* userdata);
 
+#define PLUGIN_WIDGET_WATCH_MAX 32
+struct PluginWidgetWatch
+{
+    char role[TORIRS_UI_NAME_MAX];
+    uint64_t serial;
+    struct ToriRS_WidgetRef current;
+    ToriRS_WidgetListener listener;
+    void* user;
+};
+
 struct PluginContext
 {
     struct ToriRS_PluginHost* host;
@@ -204,6 +215,7 @@ struct PluginContext
     struct ToriRS_UiContributionRef ui_contribution_refs[PLUGIN_UI_CONTRIBUTIONS_MAX];
     int ui_contribution_count;
     struct PluginV2Instance* v2;
+    struct PluginWidgetWatch* widget_watches;
     void (*reload_handler)(
         struct ToriRS_PluginHost* host,
         int plugin_index,
@@ -425,6 +437,8 @@ struct ToriRS_PluginHost
     int event_order[TORIRS_PLUGIN_MAX];
     int draw_order[TORIRS_PLUGIN_MAX];
     int callback_count[PLUGIN_CALLBACK_COUNT];
+    uint64_t widget_tree_instance, widget_tree_generation, widget_watch_serial;
+    bool widget_watch_pending, widget_watch_dispatching;
 
     /* Menu routes live for one build. The hover pass rebuilds the menu every
      * frame, so they are reset per build rather than accumulated. */
@@ -7888,7 +7902,10 @@ plugin_v2_order_insert(
 
     for( int i = 0; i < count; i++ )
         if( host->plugins[plugin].def->event_priority >
-            host->plugins[host->event_order[i]].def->event_priority )
+                host->plugins[host->event_order[i]].def->event_priority ||
+            (host->plugins[plugin].def->event_priority ==
+                 host->plugins[host->event_order[i]].def->event_priority &&
+             strcmp(host->plugins[plugin].name, host->plugins[host->event_order[i]].name) < 0) )
         {
             event_at = i;
             break;
@@ -8151,6 +8168,7 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
     bool contributions_changed = false;
 
     assert(host);
+    int const previous_owner=host->dispatching, previous_event=host->dispatch_event;
 
     /* This public call is the boot task's publication fence. Later calls come
      * from normal enable/reload/frame-resolution paths; before the first one,
@@ -8200,6 +8218,8 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
     /* The first pass selected which provider should run; this pass can commit
      * it now that its init/START callbacks have completed. */
     plugin_frame_resolve(host);
+    host->dispatching=previous_owner;
+    host->dispatch_event=previous_event;
 }
 
 /**
@@ -8218,10 +8238,13 @@ plugin_teardown(
 {
     struct PluginContext* ctx = plugin_at(host, plugin_index);
     bool ui_changed = false;
+    int const previous_owner=host->dispatching, previous_event=host->dispatch_event;
 
     if( ctx->tearing_down )
         return;
     ctx->tearing_down = true;
+    free(ctx->widget_watches);
+    ctx->widget_watches = NULL;
 
     /* Selection is released first: the plugin learns it became invisible
      * while its subscriptions and page model still exist, and no later STOP
@@ -8298,6 +8321,8 @@ plugin_teardown(
     ctx->tearing_down = false;
     if( ui_changed )
         PluginHost_LayoutChanged(host);
+    host->dispatching=previous_owner;
+    host->dispatch_event=previous_event;
 }
 
 void
@@ -10283,6 +10308,93 @@ PluginHost_FrameStart(
 
     struct ToriRS_FrameEvent ev = { now_ms, drawn_frames };
     plugin_dispatch(host, PLUGIN_CALLBACK_FRAME_START, &ev);
+}
+
+static struct PluginWidgetWatch*
+plugin_widget_watch_current(struct ToriRS_PluginHost* host, int owner, int slot, uint64_t serial)
+{
+    struct PluginContext* ctx = &host->plugins[owner];
+    if( !ctx->enabled || !ctx->running || ctx->tearing_down || !ctx->widget_watches ||
+        ctx->widget_watches[slot].serial != serial ) return NULL;
+    return &ctx->widget_watches[slot];
+}
+
+static void
+plugin_widget_watch_call(struct ToriRS_PluginHost* host, int owner, int slot, uint64_t serial,
+                         struct ToriRS_WidgetEvent const* event)
+{
+    struct PluginWidgetWatch* watch = plugin_widget_watch_current(host, owner, slot, serial);
+    if( !watch ) return;
+    int previous_owner = host->dispatching, previous_event = host->dispatch_event;
+    host->dispatching = owner;
+    host->dispatch_event = PLUGIN_CALLBACK_WIDGET_BINDING;
+    watch->listener(&host->plugins[owner].v2->runtime.api, watch->user, event);
+    host->dispatching = previous_owner;
+    host->dispatch_event = previous_event;
+}
+
+void
+PluginHost_WidgetsChanged(struct ToriRS_PluginHost* host, uint64_t instance, uint64_t generation)
+{
+    if( !host ) return;
+    if( host->widget_watch_dispatching ) { host->widget_watch_pending = true; return; }
+    if( !host->widget_watch_pending && host->widget_tree_instance == instance &&
+        host->widget_tree_generation == generation ) return;
+    host->widget_tree_instance = instance;
+    host->widget_tree_generation = generation;
+    host->widget_watch_pending = false;
+    host->widget_watch_dispatching = true;
+    struct WatchDispatch { int owner, slot; uint64_t serial; };
+    struct WatchDispatch snapshot[TORIRS_PLUGIN_MAX * PLUGIN_WIDGET_WATCH_MAX];
+    int count = 0;
+    for( int order = 0; order < host->plugin_count; ++order )
+    {
+        int owner = host->event_order[order];
+        struct PluginContext* ctx = &host->plugins[owner];
+        if( !ctx->running || !ctx->enabled || !ctx->widget_watches ) continue;
+        int const first = count;
+        for( int slot = 0; slot < PLUGIN_WIDGET_WATCH_MAX; ++slot )
+            if( ctx->widget_watches[slot].serial )
+            {
+                struct WatchDispatch item = {owner, slot, ctx->widget_watches[slot].serial};
+                int at = count++;
+                while( at > first && snapshot[at - 1].serial > item.serial )
+                { snapshot[at] = snapshot[at - 1]; --at; }
+                snapshot[at] = item;
+            }
+    }
+    for( int i = 0; i < count; ++i )
+    {
+        struct WatchDispatch item = snapshot[i];
+        struct PluginWidgetWatch* watch = plugin_widget_watch_current(host, item.owner, item.slot, item.serial);
+        if( !watch ) continue;
+        /* All data used after a callback is copied or revalidated: the callback
+         * can replace this watch or disable/reload either participating plugin. */
+        char role[TORIRS_UI_NAME_MAX];
+        snprintf(role, sizeof(role), "%s", watch->role);
+        struct ToriRS_WidgetRef previous = watch->current, current = {0};
+        if( instance && host->engine.widget_request )
+        {
+            struct PluginWidgetRequest request = {.kind=PLUGIN_WIDGET_FIND, .name=role, .refs=&current};
+            enum ToriRS_ContractResult result = host->engine.widget_request(
+                host->engine.user, (uint64_t)item.owner + 1, &request);
+            if( result != TORIRS_CONTRACT_OK && result != TORIRS_CONTRACT_UNAVAILABLE ) continue;
+        }
+        if( memcmp(&previous, &current, sizeof(current)) == 0 ) continue;
+        watch->current = current;
+        struct ToriRS_WidgetEvent event = {.native_revision=generation, .role=role};
+        if( previous.opaque[2] )
+        {
+            event.type = TORIRS_WIDGET_UNBOUND; event.widget = previous;
+            plugin_widget_watch_call(host, item.owner, item.slot, item.serial, &event);
+        }
+        if( current.opaque[2] )
+        {
+            event.type = TORIRS_WIDGET_BOUND; event.widget = current;
+            plugin_widget_watch_call(host, item.owner, item.slot, item.serial, &event);
+        }
+    }
+    host->widget_watch_dispatching = false;
 }
 
 void

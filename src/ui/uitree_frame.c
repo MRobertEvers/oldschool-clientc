@@ -309,9 +309,11 @@ UITree_FrameSlotIndex(
 static struct
 {
     struct UITree const* tree;
+    uint64_t instance;
     uint32_t generation;
     uint32_t count;
     int32_t node[UITREE_FRAME_SLOT_COUNT][1 + UITREE_FRAME_SLOT_NODES_MAX];
+    int32_t group[UITREE_FRAME_SLOT_COUNT];
 } frame_slot_cache;
 
 static int32_t*
@@ -320,13 +322,16 @@ frame_slot_cache_entry(
     int slot,
     int member)
 {
-    if( frame_slot_cache.tree != tree || frame_slot_cache.generation != tree->generation ||
+    if( frame_slot_cache.tree != tree || frame_slot_cache.instance != tree->instance_id ||
+        frame_slot_cache.generation != tree->generation ||
         frame_slot_cache.count != tree->component_count )
     {
         frame_slot_cache.tree = tree;
+        frame_slot_cache.instance = tree->instance_id;
         frame_slot_cache.generation = tree->generation;
         frame_slot_cache.count = tree->component_count;
         memset(frame_slot_cache.node, 0xFE, sizeof(frame_slot_cache.node)); /* -2 */
+        for( int i=0; i<UITREE_FRAME_SLOT_COUNT; ++i ) frame_slot_cache.group[i]=-2;
     }
     return &frame_slot_cache.node[slot][1 + member];
 }
@@ -372,6 +377,24 @@ UITree_FrameSlotNode(
             return *cached = (int32_t)i;
     }
     return -1;
+}
+
+int32_t
+UITree_FrameSlotGroupNode(struct UITree const* tree, int slot)
+{
+    if( !tree || slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT ) return -1;
+    (void)frame_slot_cache_entry(tree,slot,-1);
+    if( frame_slot_cache.group[slot] >= 0 ) return frame_slot_cache.group[slot];
+    int32_t parent=-1;
+    for( uint32_t i=0; i<tree->component_count; ++i )
+    {
+        struct UITreeComponent const* c=&tree->components[i];
+        if( c->freed || !c->frame_member_plus1 || !frame_node_is_slot(c,slot) ) continue;
+        if( c->parent < 0 || (parent >= 0 && parent != c->parent) )
+            return frame_slot_cache.group[slot]=-1;
+        parent=c->parent;
+    }
+    return frame_slot_cache.group[slot] = parent;
 }
 
 int32_t

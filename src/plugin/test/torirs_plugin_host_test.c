@@ -3302,12 +3302,13 @@ static struct ToriRS_PluginDef const V2_PRESENT_NESTED = {
 static struct ToriRS_WidgetApi saved_widgets;
 static int widget_requests, widget_resets;
 static uint64_t widget_owner;
+static struct ToriRS_WidgetRef watched_native = {{77,2,3}};
 static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
     (void)user;
     widget_owner = owner;
     ++widget_requests;
-    if( r->kind == PLUGIN_WIDGET_FIND ) *r->refs = (struct ToriRS_WidgetRef){{77,2,3}};
+    if( r->kind == PLUGIN_WIDGET_FIND ) *r->refs = watched_native;
     if( r->kind == PLUGIN_WIDGET_RESET_OWNER ) ++widget_resets;
     return TORIRS_CONTRACT_OK;
 }
@@ -3323,6 +3324,43 @@ static void widget_probe_start(struct ToriRS_Api* api, void* state)
           "live widget setter routes on the client callback");
     CHECK(api->widgets.revalidate(api->widgets.context, ref) == TORIRS_CONTRACT_OK,
           "live widget revalidation routes on the client callback");
+}
+
+static struct ToriRS_PluginHost* watched_host;
+static int watched_b, watch_churn, watch_self_remove;
+static char watch_trace[128];
+static void record_watch(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    char who = (char)(intptr_t)user;
+    size_t n = strlen(watch_trace);
+    watch_trace[n] = who;
+    watch_trace[n+1] = event->type == TORIRS_WIDGET_BOUND ? '+' : '-';
+    watch_trace[n+2] = 0;
+    CHECK(strcmp(event->role,"sidebar") == 0, "binding event identifies its subscription");
+    if( who == 'A' && watch_churn && event->type == TORIRS_WIDGET_BOUND )
+    {
+        watch_churn = 0;
+        struct ToriRS_WidgetBounds box;
+        PluginHost_SetEnabled(watched_host, watched_b, false);
+        CHECK(api->widgets.position(api->widgets.context,event->widget,&box) == TORIRS_CONTRACT_OK,
+              "nested disable preserves the outer widget callback context");
+        PluginHost_SetEnabled(watched_host, watched_b, true);
+        CHECK(api->widgets.position(api->widgets.context,event->widget,&box) == TORIRS_CONTRACT_OK,
+              "nested enable preserves the outer widget callback context");
+    }
+    if( who == 'A' && watch_self_remove && event->type == TORIRS_WIDGET_UNBOUND )
+    {
+        watch_self_remove = 0;
+        CHECK(api->widgets.watch(api->widgets.context,"sidebar",NULL,NULL) == TORIRS_CONTRACT_OK,
+              "watch callback can unsubscribe itself");
+    }
+}
+static void watch_start(struct ToriRS_Api* api, void* state)
+{
+    (void)state;
+    char who = strcmp(api->core.plugin_id(api),"watch-a") == 0 ? 'A' : 'B';
+    CHECK(api->widgets.watch(api->widgets.context,"sidebar",record_watch,(void*)(intptr_t)who) == TORIRS_CONTRACT_OK,
+          "widget binding subscription registers during startup");
 }
 
 int
@@ -4727,7 +4765,9 @@ main(void)
 
 
     {
-        struct ToriRS_PluginEngine widget_engine = {.widget_request=fake_widget_request, .screen=fake_plugin_screen};
+        memset(&g_engine,0,sizeof(g_engine));
+        struct ToriRS_PluginEngine widget_engine = fake_engine();
+        widget_engine.widget_request = fake_widget_request;
         struct ToriRS_PluginHost* widget_host = PluginHost_New(&widget_engine);
         struct ToriRS_PluginDef widget_def = {
             .struct_size=sizeof(widget_def), .id="widget-host-test", .title="Widget", .version="3",
@@ -4743,6 +4783,43 @@ main(void)
         PluginHost_SetEnabled(widget_host, owner, false);
         CHECK(widget_resets == 1, "plugin disable releases its native widget edits");
         PluginHost_Free(widget_host);
+    }
+
+    {
+        memset(&g_engine,0,sizeof(g_engine));
+        struct ToriRS_PluginEngine engine = fake_engine();
+        engine.widget_request = fake_widget_request;
+        watched_host = PluginHost_New(&engine);
+        struct ToriRS_PluginDef b = {.struct_size=sizeof(b),.id="watch-b",.title="B",.version="3",
+            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=watch_start}};
+        struct ToriRS_PluginDef a = b; a.id="watch-a"; a.title="A";
+        watched_b = PluginHost_Register(watched_host,&b);
+        PluginHost_Register(watched_host,&a);
+        PluginHost_Start(watched_host);
+        PluginHost_WidgetsChanged(watched_host,77,1);
+        CHECK(strcmp(watch_trace,"A+B+")==0, "binding callbacks use stable plugin order, not registration order");
+        int queries = widget_requests;
+        PluginHost_WidgetsChanged(watched_host,77,1);
+        CHECK(widget_requests==queries, "unchanged native topology does not poll widget subscriptions");
+        watch_trace[0]=0;
+        PluginHost_WidgetsChanged(watched_host,77,2);
+        CHECK(!watch_trace[0], "unrelated topology changes do not replay a stable binding");
+        watched_native.opaque[2]=4;
+        PluginHost_WidgetsChanged(watched_host,77,3);
+        CHECK(strcmp(watch_trace,"A-A+B-B+")==0, "native replacement unbinds old incarnation before binding new one");
+        watch_trace[0]=0; watch_churn=1; watched_native.opaque[2]=5;
+        PluginHost_WidgetsChanged(watched_host,77,4);
+        CHECK(strcmp(watch_trace,"A-A+")==0, "restarted subscription cannot join the old dispatch snapshot");
+        watch_trace[0]=0;
+        PluginHost_WidgetsChanged(watched_host,77,4);
+        CHECK(strcmp(watch_trace,"B+")==0, "restarted subscription receives an initial binding in the next dispatch");
+        watch_trace[0]=0; watch_self_remove=1; watched_native.opaque[2]=6;
+        PluginHost_WidgetsChanged(watched_host,77,5);
+        CHECK(strcmp(watch_trace,"A-B-B+")==0, "unsubscribing in unbound prevents the following bound callback");
+        watch_trace[0]=0;
+        PluginHost_WidgetsChanged(watched_host,0,0);
+        CHECK(strcmp(watch_trace,"B-")==0, "closing the native tree unbinds remaining subscriptions");
+        PluginHost_Free(watched_host);
     }
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

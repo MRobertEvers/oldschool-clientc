@@ -169,7 +169,7 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native"):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0):
     width, height, rows = read_bmp(path)
     failures = []
     if bounds_path:
@@ -183,9 +183,31 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             matches = re.findall(r"WIDGET_DEMO api=3 before=(-?\d+),(-?\d+) \d+x\d+ after=(-?\d+),(-?\d+)", log)
         else:
             matches = re.findall(r"LUA_WIDGET_DEMO (-?\d+) (-?\d+) (-?\d+) (-?\d+)", log)
-        valid = len(matches) == 1 and (int(matches[0][2]),int(matches[0][3])) == (int(matches[0][0])-12,int(matches[0][1]))
+        valid = len(matches) == widget_moves and all(
+            (int(m[2]),int(m[3])) == (int(m[0])-12,int(m[1])) for m in matches)
         print(f"PIXEL native_widget_api_move={'PASS' if valid else 'FAIL'} language={widget_demo} observations={len(matches)}")
         if not valid: failures.append("native_widget_api_move")
+        if revision == "osrs239":
+            # A moved hidden tab or unused side-modal can satisfy API readback
+            # while leaving the active inventory untouched. Check the actual
+            # mounted inventory and its painted rune against a native sibling.
+            entries = [(int(com),int(slot),int(member),tuple(map(int,box))) for com,slot,member,*box in re.findall(
+                r"NATIVE_UI[^\n]*? com=(-?\d+)[^\n]*? slot=(\d+) member=(\d+)[^\n]*? box=(-?\d+),(-?\d+),(\d+),(\d+)",log)]
+            modal = [box for com,slot,member,box in entries if com >> 16 == root and slot == 3 and member == 0]
+            inventory = [box for com,slot,member,box in entries if com == 149 << 16]
+            placed = len(modal)==1 and len(inventory)==1 and inventory[0] == (modal[0][0]-12,modal[0][1],190,261)
+            print(f"PIXEL native_widget_visible_inventory={'PASS' if placed else 'FAIL'}")
+            if not placed: failures.append("native_widget_visible_inventory")
+            ink = json.loads((Path(__file__).parent/"testdata/gameframe/native-body-rune-ink.json").read_text())
+            painted = False
+            if len(modal)==1:
+                x,y=modal[0][0]-12+16+(widget_rune_slot%4)*42,modal[0][1]+8+(widget_rune_slot//4)*36
+                painted = all(0<=y+dy<height and 0<=x+dx<width and
+                    rows[y+dy][x+dx][0]>rows[y+dy][x+dx][2]+ink["blue_over_red"] and
+                    rows[y+dy][x+dx][0]>rows[y+dy][x+dx][1]+ink["blue_over_green"]
+                    for dx,dy in ink["pixels"])
+            print(f"PIXEL native_widget_moved_item_ink={'PASS' if painted else 'FAIL'}")
+            if not painted: failures.append("native_widget_moved_item_ink")
     if revision == "rs289lc":
         if not bounds_path:
             raise ValueError("rs289lc requires its matching native trace")
@@ -278,10 +300,12 @@ if __name__ == "__main__":
     parser.add_argument("--input-state", help="focused native field parent uid:expected text")
     parser.add_argument("--native-focus-hide", action="store_true", help="verify the native Hiscores typing/hide packet sequence")
     parser.add_argument("--widget-demo", choices=("c", "lua"))
+    parser.add_argument("--widget-moves", type=int, default=1)
+    parser.add_argument("--widget-rune-slot", type=int, choices=range(28), default=0)
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

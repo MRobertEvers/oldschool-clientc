@@ -88,16 +88,57 @@ def run_cs2_controls(src, out, make_args, selected):
         print(f"{name}: observed expected failing assertion", flush=True)
 
 
+def run_host_controls(src, out, make_args, selected):
+    make = ["make", "--no-print-directory", *make_args]
+    with (out / "positive.log").open("w") as log:
+        subprocess.run([*make, "test-plugin-host"], cwd=src,
+                       stdout=log, stderr=subprocess.STDOUT, check=True)
+    recipe = subprocess.check_output([*make, "-n", "test-plugin-host"], cwd=src, text=True).replace("\\\n", " ")
+    command = next(shlex.split(line) for line in recipe.splitlines()
+                   if "plugin/test/torirs_plugin_host_test.c " in line and " -o " in line)
+    source = "plugin/torirs_plugin_host.c"
+    original = (src / source).read_text()
+    controls = {
+        "watch_epoch": ("ctx->widget_watches[slot].serial != serial", "!ctx->widget_watches[slot].serial",
+                        "restarted subscription cannot join the old dispatch snapshot"),
+        "watch_change": ("if( memcmp(&previous, &current, sizeof(current)) == 0 ) continue;", "if( false ) continue;",
+                         "unrelated topology changes do not replay a stable binding"),
+    }
+    if selected and set(selected) - controls.keys():
+        raise ValueError("unknown host control")
+    for name, (before, after, expected) in controls.items():
+        if selected and name not in selected:
+            continue
+        if original.count(before) != 1:
+            raise RuntimeError(f"{name}: mechanism changed; update explicit mutation")
+        mutant = out / f"{name}.c"
+        mutant.write_text(original.replace(before, after))
+        binary = out / name
+        build = [str(mutant) if arg == source else arg for arg in command]
+        build[build.index("-o") + 1] = str(binary)
+        with (out / f"{name}-build.log").open("w") as log:
+            subprocess.run(build, cwd=src, stdout=log, stderr=subprocess.STDOUT, check=True)
+        run = subprocess.run([str(binary)], cwd=src, text=True, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, timeout=30)
+        (out / f"{name}.log").write_text(run.stdout)
+        if run.returncode != 1 or expected not in run.stdout:
+            raise RuntimeError(f"{name}: expected assertion was not observed")
+        print(f"{name}: observed expected failing assertion", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", type=Path)
     parser.add_argument("--only", action="append", help="run only this named mechanism (repeatable)")
-    parser.add_argument("--suite", choices=("ui", "cs2"), default="ui")
+    parser.add_argument("--suite", choices=("ui", "cs2", "host"), default="ui")
     parser.add_argument("--make-arg", action="append", default=[], help="make assignment, e.g. OPT=1")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
     out = args.out.resolve()
     src = Path(__file__).resolve().parents[1] / "src"
+    if args.suite == "host":
+        run_host_controls(src, out, args.make_arg, args.only)
+        return
     if args.suite == "cs2":
         run_cs2_controls(src, out, args.make_arg, args.only)
         return
@@ -138,17 +179,23 @@ def main():
                        "mount cannot clear later server hide"),
         "topology": ("ancestor == child_index ||", "false ||", "reject descendant cycle"),
     }
+    controls = {name: ("ui/uitree.c", *control) for name, control in controls.items()}
+    controls["sidebar_group"] = ("ui/uitree_frame.c",
+        "return frame_slot_cache.group[slot] = parent;",
+        "return UITree_FrameSlotNode(tree,slot);",
+        "sidebar widget resolves member parent, not modal or hidden tab")
     if args.only and set(args.only) - controls.keys():
         parser.error("unknown control: " + ", ".join(set(args.only) - controls.keys()))
-    for name, (before, after, expected) in controls.items():
+    for name, (source, before, after, expected) in controls.items():
         if args.only and name not in args.only:
             continue
+        original = (src / source).read_text()
         if original.count(before) != 1:
             raise RuntimeError(f"{name}: mechanism changed; update the explicit mutation")
         mutant = out / f"{name}.c"
         mutant.write_text(original.replace(before, after))
         binary = out / name
-        build = [str(mutant) if arg == "ui/uitree.c" else arg for arg in command]
+        build = [str(mutant) if arg == source else arg for arg in command]
         build[build.index("-o") + 1] = str(binary)
         with (out / f"{name}-build.log").open("w") as log:
             subprocess.run(build, cwd=src, stdout=log, stderr=subprocess.STDOUT, check=True)

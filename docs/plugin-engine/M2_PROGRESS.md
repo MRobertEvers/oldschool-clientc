@@ -426,3 +426,72 @@ from a tick callback. Native load/rebuild subscriptions, synchronous script hook
 owned controls, re-skinning, live state binding and action invocation still need
 their actual two-generation examples. No general lifecycle, conflict-order or
 full plugin-port acceptance is claimed by these geometry probes.
+
+### Binding subscriptions and corrected visible-sidebar verification
+
+C and Lua probes now subscribe through `widgets.watch` at startup; neither polls
+from a tick callback. The host observes native publication epochs after frame
+binding, skips unchanged epochs, and emits only actual binding transitions.
+Subscription serials fence dispatch snapshots across replacement, unsubscribe
+and disable/re-enable. Callback order uses explicit priority, stable plugin ID
+and registration serial. Shutdown releases host registrations and Lua closure
+references. Nested plugin enable/disable previously clobbered the outer callback
+context; two assertions were observed failing before saving/restoring it.
+
+The new probe is now in the Lua smoke-test list. That exposed the old 16-script
+ceiling; the Lua table now matches the host's 32-plugin bound, and its lookup table
+is sized accordingly. All 17 shipped scripts/probes compile. Host and Lua ASan
+runs required completing the widget tests' fake engine (release builds had hidden
+its missing required callbacks); production constructor assertions remain intact.
+
+**Correction to earlier OSRS movement evidence:** the initial `sidebar` lookup
+used the old frame slot's arbitrary representative. This could be an unused
+side-modal or a hidden tab. Immediate API geometry changed, but the visible
+inventory did not. Enlarged comparison with the disabled-hook native reference
+exposed this. Those earlier OSRS captures prove transport/readback only, not
+visible repositioning, and the local evidence receipt now marks that limitation.
+
+The new widget helper resolves the common native parent of numbered tab mounts.
+It validates topology rather than selecting a member by ordering or hidden state.
+The existing old frame representative API remains unchanged for its pending
+ports. Its shared cache now also checks tree instance identity. A native-tree
+regression and an observed `sidebar_group` negative control cover selection.
+
+The gameframe checker independently requires the actual mounted inventory to
+move relative to its untouched native side-modal sibling, and checks 46 blue
+rune-sprite pixels from a native reference at the expected translated position.
+Both new assertions fail on the formerly passing OSRS capture. They pass for C
+and Lua in `widget-sidebar-{c,lua}-fixed` and `widget-sidebar-{c,lua}-remount`.
+The remount uses the real `layout 2` server path, from root 548 to 164; each probe
+unbinds/reset its old target and places the new target exactly once. C/Lua
+`widget-watch-{c,lua}-lc` retain the real stats/CS1/server scenario and fresh
+accounts, with 19 visible skill cells and Strength 20/20.
+
+`widget-watch-negative-checked` observes failures when subscription-serial
+validation or binding-change comparison is removed. Disabling the App's native
+publication seam in a separately compiled native binary makes the real OSRS
+remount scenario fail with zero callbacks, while launch, root selection and
+ordinary native pixel checks still pass. `widget-sidebar-old-red.log` separately
+records the incorrect-selection visual failure.
+
+`widget-sidebar-{c,lua}-edge-drag` drives an actual inventory drag at shifted
+control coordinates. The existing pixel checker places the rune in slot 1, and
+both isolated server saves confirm slots 0/1 are now platebody/body-rune while
+slot 2 remains platebody. These are native operations, not direct inventory edits.
+Fixed captures show 3 inventory icons, 14 tab icons, 8 chat filters and 4 native
+orbs. Root 164 has 13 tab icons plus the logout X; its special orb is partially
+covered at this small native window size, also in the disabled-hook reference.
+That existing native overlap is not accepted as comprehensive layout correctness.
+
+A separate major-3 migration regression was caught in the minimap-orbs test:
+minor-version-3 guards from API 2 disabled native actions under API 3.0. Those
+obsolete guards are removed; the unchanged test was observed failing then passing.
+
+Revised M2 still needs owned controls, styling, live state bindings and explicit
+native action invocation in the public widget API. Script-internal hooks, full
+composition/lifecycle coverage, all product ports and M3–M6 remain open.
+
+The final focused host suite passes 311 checks, and host/Lua/UI suites also pass
+with AddressSanitizer. The updated Lua smoke list includes all 17 scripts rather
+than leaving the new probe out. Remaining native-overlap and full-port gates
+above are unchanged.

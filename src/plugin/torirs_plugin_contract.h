@@ -80,7 +80,9 @@ enum ToriRS_WidgetEventType
     TORIRS_WIDGET_OPERATION,
     TORIRS_SCRIPT_PRE_FIRED,
     TORIRS_SCRIPT_POST_FIRED,
-    TORIRS_SCRIPT_CALLBACK
+    TORIRS_SCRIPT_CALLBACK,
+    TORIRS_WIDGET_BOUND,
+    TORIRS_WIDGET_UNBOUND
 };
 
 struct ToriRS_WidgetEvent
@@ -92,9 +94,13 @@ struct ToriRS_WidgetEvent
     int32_t script_id;
     char const* callback_name;
     int32_t operation;
+    /* Present for a semantic binding subscription. Borrowed for this call. */
+    char const* role;
 };
 
-typedef void (*ToriRS_WidgetListener)(void* user, struct ToriRS_WidgetEvent const* event);
+struct ToriRS_Api;
+typedef void (*ToriRS_WidgetListener)(struct ToriRS_Api*, void* user,
+                                    struct ToriRS_WidgetEvent const* event);
 
 /* Initial production slice: shared widget lookup plus explicitly revision-
  * scoped native lookup, live setters, native layout, owned children/listeners.
@@ -115,6 +121,11 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*set_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
     enum ToriRS_ContractResult (*revalidate)(void*, struct ToriRS_WidgetRef);
     enum ToriRS_ContractResult (*reset)(void*, struct ToriRS_WidgetRef);
+    /* Follow a semantic binding at native publication boundaries. A new
+     * subscription receives BOUND when available; replacement sends UNBOUND
+     * for the old incarnation then BOUND for the new one. Hidden is still
+     * bound. NULL listener unregisters this owner's subscription for the role. */
+    enum ToriRS_ContractResult (*watch)(void*, char const* role, ToriRS_WidgetListener, void* user);
 
 };
 

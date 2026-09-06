@@ -30,7 +30,7 @@
  * retain a native pointer past the callback.
  */
 
-#define PLUGIN_LUA_MAX_SCRIPTS 16
+#define PLUGIN_LUA_MAX_SCRIPTS TORIRS_PLUGIN_MAX
 #define PLUGIN_LUA_MAX_CONFIG 32
 #define PLUGIN_LUA_MAX_CONTRIBUTIONS 16
 #define PLUGIN_LUA_MAX_FRAMES 32
@@ -41,7 +41,7 @@
 #define PLUGIN_LUA_HARD_MEM_CAP_BYTES \
     (PLUGIN_LUA_MEM_CAP_BYTES + PLUGIN_LUA_INTERNAL_RESERVE_BYTES)
 #define PLUGIN_LUA_OPTIONS_MAX 128
-#define PLUGIN_LUA_LOOKUP_CAPACITY 32
+#define PLUGIN_LUA_LOOKUP_CAPACITY 64
 #define PLUGIN_LUA_CALLBACK_DEPTH_MAX 16
 _Static_assert(
     PLUGIN_LUA_LOOKUP_CAPACITY >= 2 * PLUGIN_LUA_MAX_SCRIPTS &&
@@ -135,6 +135,14 @@ struct LuaCallbackScope
     size_t memory_limit;
 };
 
+#define LUA_WIDGET_WATCH_MAX 32
+struct LuaWidgetWatch
+{
+    struct LuaScript* script;
+    char role[TORIRS_UI_NAME_MAX];
+    int function_ref;
+};
+
 struct LuaScript
 {
     lua_State* L;
@@ -168,6 +176,7 @@ struct LuaScript
     char frame_ids[PLUGIN_LUA_MAX_FRAMES][TORIRS_PLUGIN_FRAME_ID_MAX];
     char frame_titles[PLUGIN_LUA_MAX_FRAMES][TORIRS_PLUGIN_TITLE_MAX];
     int frame_count;
+    struct LuaWidgetWatch widget_watches[LUA_WIDGET_WATCH_MAX];
 
     /* Callback-scoped native values. Lua closures only read these while the
      * corresponding callback is armed. */
@@ -959,8 +968,75 @@ static int lua_widget_text(lua_State* L)
     luaL_pushresultsize(&buffer, required - 1);
     return 1;
 }
+
+static void lua_widget_binding_callback(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct LuaWidgetWatch* watch = user;
+    struct LuaScript* script = watch->script;
+    if( !script || !script->alive || !script->L || !watch->role[0] ) return;
+    if( !lua_callback_scope_push(script,api) ) return;
+    lua_State* L = script->L;
+    lua_rawgeti(L,LUA_REGISTRYINDEX,watch->function_ref);
+    lua_push_widget(L,event->widget);
+    lua_createtable(L,0,3);
+    lua_pushstring(L,event->type == TORIRS_WIDGET_BOUND ? "bound" : "unbound");lua_setfield(L,-2,"kind");
+    lua_pushstring(L,event->role);lua_setfield(L,-2,"role");
+    lua_pushinteger(L,(lua_Integer)event->native_revision);lua_setfield(L,-2,"native_revision");
+    int result = lua_callback_pcall(script,2,0);
+    if( result != LUA_OK )
+    {
+        char error[128];
+        snprintf(error,sizeof(error),"%s",lua_tostring(L,-1) ? lua_tostring(L,-1) : "error");
+        lua_pop(L,1);
+        lua_script_fault(script,api,"widgets.watch",error);
+    }
+    (void)lua_script_flush_disable(script,api);
+}
+static int lua_widget_watch(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
+    char const* role = luaL_checkstring(L,1);
+    if( !*role || strlen(role) >= TORIRS_UI_NAME_MAX ) return luaL_argerror(L,1,"invalid widget role");
+    bool remove = lua_isnoneornil(L,2);
+    if( !remove ) luaL_checktype(L,2,LUA_TFUNCTION);
+    int at = -1;
+    for( int i = 0; i < LUA_WIDGET_WATCH_MAX; ++i )
+    {
+        if( strcmp(script->widget_watches[i].role,role) == 0 ) { at=i; break; }
+        if( at < 0 && !script->widget_watches[i].role[0] ) at=i;
+    }
+    if( at < 0 ) return lua_widget_result(L, remove ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_BUDGET_EXCEEDED);
+    struct LuaWidgetWatch* watch = &script->widget_watches[at];
+    int next_ref = LUA_NOREF;
+    if( !remove ) { lua_pushvalue(L,2); next_ref=luaL_ref(L,LUA_REGISTRYINDEX); }
+    enum ToriRS_ContractResult result = ui->watch(ui->context,role,
+        remove ? NULL : lua_widget_binding_callback,watch);
+    if( result == TORIRS_CONTRACT_OK )
+    {
+        if( watch->role[0] ) luaL_unref(L,LUA_REGISTRYINDEX,watch->function_ref);
+        memset(watch,0,sizeof(*watch));
+        if( !remove )
+        {
+            watch->script=script; watch->function_ref=next_ref;
+            snprintf(watch->role,sizeof(watch->role),"%s",role);
+        }
+    }
+    else if( next_ref != LUA_NOREF ) luaL_unref(L,LUA_REGISTRYINDEX,next_ref);
+    return lua_widget_result(L,result);
+}
+static void lua_widget_watches_clear(struct LuaScript* script)
+{
+    if( !script || !script->L ) return;
+    for( int i = 0; i < LUA_WIDGET_WATCH_MAX; ++i )
+    {
+        if( script->widget_watches[i].role[0] )
+            luaL_unref(script->L,LUA_REGISTRYINDEX,script->widget_watches[i].function_ref);
+        memset(&script->widget_watches[i],0,sizeof(script->widget_watches[i]));
+    }
+}
 static struct LuaFn const LUA_WIDGET_FNS[] = {
-    {"find",lua_widget_find},{"get",lua_widget_get},{NULL,NULL}
+    {"find",lua_widget_find},{"get",lua_widget_get},{"watch",lua_widget_watch},{NULL,NULL}
 };
 static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"position",lua_widget_position},{"bounds",lua_widget_bounds},
@@ -1739,9 +1815,10 @@ lua_cb_stop(struct ToriRS_Api* api, void* state)
 {
     struct LuaScript* script = lua_script_for_api(api);
     (void)state;
-    if( script && script->reload_failed ) return;
+    if( script && script->reload_failed ) { lua_widget_watches_clear(script); return; }
     if( lua_call_begin(script, api, LUA_ON_STOP) )
         (void)lua_call_end(script, LUA_ON_STOP, 1, false);
+    lua_widget_watches_clear(script);
 }
 #define SIMPLE_EVENT_CB(fn,handler,type,push) static void fn(struct ToriRS_Api*a,void*state,type const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,handler)){push(s->L,e);lua_call_end(s,handler,2,false);}}
 SIMPLE_EVENT_CB(lua_cb_frame,LUA_ON_FRAME_START,struct ToriRS_FrameEvent,lua_push_frame_event)

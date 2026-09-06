@@ -4,8 +4,8 @@ This replaces the unshipped property-claim proposal following the user's explici
 choice of the RuneLite model. There are no public claims, bundles, declaration
 transactions or conflict-suspension rules. The existing production host now exposes the major-3 aggregate in
 `src/plugin/torirs_plugin_api.h`. Its live-widget geometry/read/reset methods
-are wired through `torirs_plugin_contract.h` for C and Lua. Owned controls,
-style/content setters, widget events and actions remain to implement; the
+are wired through `torirs_plugin_contract.h` for C and Lua. Semantic binding subscriptions are also live. Owned controls,
+style/content setters, other widget events and actions remain to implement; the
 former frame/UI builders remain only for the product ports still in progress.
 
 ## Execution and lifecycle
@@ -82,6 +82,24 @@ native state/semantic colors and preserve live text, quantities and state
 variants; a skin does not substitute an obsolete content snapshot.
 
 ## Events, listeners and actions
+
+`widgets.watch(role, listener, user)` follows the current semantic binding at the
+native pre-input/paint publication fence. It sends BOUND for a newly available
+incarnation and UNBOUND for a binding that disappeared or changed, with old
+UNBOUND preceding new BOUND. Native hiding alone is not an unbind. Callbacks are
+snapshotted by subscription serial; replacements/new subscriptions wait for the
+next dispatch, and removals/disabled owners are rechecked before each callback.
+Nested enable/disable preserves the calling callback's execution context.
+Lua closures use the same host subscriptions, scoped API access and budget.
+
+This helper does not represent individual cache-widget load completion or a
+synchronous CS2 decision hook. Those separate events remain to implement. On
+OSRS, the `sidebar` widget helper resolves the validated common parent of the
+numbered native tab mounts, not an arbitrary tab or the side-modal sibling.
+Incompatible member topology returns unavailable. The older adapter retains its
+revconfig region. Call `reset` on UNBOUND when the plugin no longer wants its
+edits on an old-but-still-cached widget; plugin shutdown resets all owner edits.
+
 
 The initial widget events are load, close, native state change, before/after
 layout and user operation. CS2 additionally has script pre/post and named script

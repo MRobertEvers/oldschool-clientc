@@ -279,7 +279,7 @@ test_runtime(struct ToriRS_PluginHost* host)
         "return {id='bad-action',ui_contributions={{node='frame.viewport',"
         "facets={'actions'},value={actions={{}}}}}}";
     static char const INVALID_ENUM_SOURCE[] =
-        /* Deliberately collides with lua-v2-test in the 32-slot id table. */
+        /* Deliberately collides with lua-v2-test in the 64-slot id table. */
         "return {id='invalid-enum-59',on_start=function(api) api.placement.area(99) end}";
     static char const BUDGET_SOURCE[] =
         "return {id='budget-after-reentry',config={{key='answer',type='int',default='42'}},"
@@ -511,6 +511,45 @@ test_runtime(struct ToriRS_PluginHost* host)
         "malformed pixel input faults without retaining a host allocation");
 }
 
+static ToriRS_WidgetListener lua_watch_listener;
+static void* lua_watch_user;
+static enum ToriRS_ContractResult fake_lua_watch(void* context, char const* role,
+                                               ToriRS_WidgetListener listener, void* user)
+{
+    (void)context;
+    CHECK(strcmp(role,"sidebar")==0,"Lua watch forwards its role");
+    lua_watch_listener=listener;lua_watch_user=user;
+    return TORIRS_CONTRACT_OK;
+}
+static void test_widget_watch(struct ToriRS_PluginHost* host)
+{
+    static char const source[] =
+        "local p={id='widget-watch'};function p.on_start(api) "
+        " assert(api.widgets.watch('sidebar',function(widget,event) "
+        "  assert(type(widget)=='userdata' and event.kind=='bound' and event.role=='sidebar');"
+        "  api.core.log('first');"
+        "  assert(api.widgets.watch('sidebar',function(widget,event) api.core.log('replacement') end))"
+        " end)) end; return p";
+    struct FakeInstance instance={"widget-watch",""};
+    struct ToriRS_Api api=fake_api(&instance);
+    api.widgets.watch=fake_lua_watch;
+    int index=PluginLua_AddScript(host,"widget-watch",source,(int)strlen(source));
+    CHECK(index>=0,"watch script registers");
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    CHECK(lua_watch_listener!=NULL,"Lua watch registers native listener");
+    struct ToriRS_WidgetEvent event={.type=TORIRS_WIDGET_BOUND,.widget={{1,2,3}},.role="sidebar",.native_revision=5};
+    int logs=g_logs;
+    lua_watch_listener(&api,lua_watch_user,&event);
+    lua_watch_listener(&api,lua_watch_user,&event);
+    CHECK(g_logs==logs+2,"Lua binding callbacks have API scope and can replace themselves");
+    g_defs[index]->callbacks.on_stop(&api,NULL);
+    lua_watch_listener(&api,lua_watch_user,&event);
+    CHECK(g_logs==logs+2,"Lua shutdown revokes retained watch closure state");
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    lua_watch_listener(&api,lua_watch_user,&event);
+    CHECK(g_logs==logs+3,"Lua watch starts fresh after enable");
+}
+
 static void
 test_bundled_scripts(struct ToriRS_PluginHost* host)
 {
@@ -520,6 +559,7 @@ test_bundled_scripts(struct ToriRS_PluginHost* host)
         {"_hoverprobe.lua","hover-probe"}, {"_hullprobe.lua","hull-probe"},
         {"_paneldemo.lua","paneldemo"}, {"_probe.lua","probe"},
         {"_roleprobe.lua","roleprobe"}, {"_windemo.lua","windemo"},
+        {"_widgetprobe.lua","widgetprobe"},
         {"entity_highlighter.lua","entity-highlighter"},
         {"ground_items.lua","ground-items"}, {"loot_beam.lua","loot-beam"},
         {"performance_display.lua","performance-display"},
@@ -540,7 +580,7 @@ test_bundled_scripts(struct ToriRS_PluginHost* host)
             free(source);
         }
     }
-    CHECK(g_registered == 16, "all sixteen bundled scripts registered");
+    CHECK(g_registered == 17, "all seventeen bundled scripts registered");
 }
 
 int
@@ -549,6 +589,7 @@ main(void)
     struct ToriRS_PluginHost host = { 0 };
     reset_fake();
     test_runtime(&host);
+    test_widget_watch(&host);
     PluginLua_Shutdown();
     reset_fake();
     test_bundled_scripts(&host);
@@ -558,6 +599,6 @@ main(void)
         fprintf(stderr, "lua plugin test: %d failure(s)\n", g_failures);
         return 1;
     }
-    puts("lua plugin test: runtime, reload, descriptors, builders, and 16 bundled scripts passed");
+    puts("lua plugin test: runtime, reload, descriptors, builders, and 17 bundled scripts passed");
     return 0;
 }

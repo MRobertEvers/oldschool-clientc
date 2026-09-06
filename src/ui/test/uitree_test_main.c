@@ -7,6 +7,7 @@ void test_native_object_swap_state(void);
 void test_native_hook_slot_ownership(void);
 void test_retained_operation_state(void);
 void test_live_widget_geometry(void);
+void test_widget_sidebar_group(void);
 void test_plugin_contract_copy(void);
 
 int g_failures;
@@ -22,6 +23,7 @@ main(void)
     test_native_hook_slot_ownership();
     test_retained_operation_state();
     test_live_widget_geometry();
+    test_widget_sidebar_group();
         test_plugin_contract_copy();
         return g_failures ? 1 : 0;
     }
@@ -31,6 +33,7 @@ main(void)
     test_native_hook_slot_ownership();
     test_retained_operation_state();
     test_live_widget_geometry();
+    test_widget_sidebar_group();
     test_plugin_contract_copy();
     test_dirty_marking();
     test_walk_topology();

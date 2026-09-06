@@ -322,3 +322,29 @@ void test_live_widget_geometry(void)
     TEST_ASSERT(!UITree_WidgetSetPosition(tree, old, 10, 3, 4), "stale widget setter cannot edit recycled node");
     UITree_Free(tree);
 }
+
+void test_widget_sidebar_group(void)
+{
+    struct UITree* tree=UITree_New(8);
+    int root=UITree_TestPushXy(tree,-1,UIELEM_RS_LAYER,0x350000,0,0,300,300);
+    int modal=UITree_TestPushXy(tree,root,UIELEM_RS_LAYER,0x350001,0,0,100,100);
+    tree->components[modal].slot_tag=UITREE_SLOT_SIDE_MODAL;
+    int group=UITree_TestPushXy(tree,root,UIELEM_RS_LAYER,0x350002,0,0,100,100);
+    int hidden=UITree_TestPushXy(tree,group,UIELEM_RS_LAYER,0x350003,0,0,100,100);
+    tree->components[hidden].slot_tag=UITREE_SLOT_SIDE_MODAL;
+    tree->components[hidden].frame_member_plus1=2;
+    UITree_SetHideAt(tree,hidden,1);
+    int active=UITree_TestPushXy(tree,group,UIELEM_RS_LAYER,0x350004,0,0,100,100);
+    tree->components[active].slot_tag=UITREE_SLOT_SIDE_MODAL;
+    tree->components[active].frame_member_plus1=1;
+    TEST_ASSERT(UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR)==group,
+                "sidebar widget resolves member parent, not modal or hidden tab");
+    UITree_WidgetSetPosition(tree,UITree_RefAt(tree,group),1,12,14);
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(tree->components[active].position.abs_x==12 && tree->components[hidden].position.abs_x==12,
+                "moving sidebar group moves every native tab together");
+    UITree_Reparent(tree,active,root);
+    TEST_ASSERT(UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR)<0,
+                "sidebar helper rejects incompatible member topology");
+    UITree_Free(tree);
+}

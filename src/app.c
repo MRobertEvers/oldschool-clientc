@@ -30491,6 +30491,10 @@ App_PluginLayoutTick(struct App* app)
         UITree_FrameSetBinder(app->tree, app_plugin_frame_bind, app);
         UITree_FrameBind(app->tree);
     }
+    bool const widgets_ready = app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0;
+    PluginHost_WidgetsChanged(app->plugins,
+        widgets_ready ? app->tree->instance_id : 0,
+        widgets_ready ? app->tree->generation : 0);
     PluginHost_ReconcileUi(app->plugins);
     frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
     if( !app->plugin_frame_active )

@@ -202,6 +202,11 @@ UITree_FrameSlotNode(
     struct UITree const* tree,
     int slot);
 
+/* Common native parent of a slot's numbered members. Unlike SlotNode (any
+ * representative), this identifies the actual content container. Unavailable
+ * when the declared members do not share a parent; no ancestor guessing. */
+int32_t UITree_FrameSlotGroupNode(struct UITree const* tree, int slot);
+
 /**
  * The node carrying `slot`'s role and answering to `member`, or -1.
  *

@@ -586,7 +586,13 @@ warn = nil
 ---@field revalidate fun(self:torirs.Widget):boolean,string
 ---@field reset fun(self:torirs.Widget):boolean,string Releases only this plugin's edits.
 
+---@class torirs.WidgetBindingEvent
+---@field kind 'bound'|'unbound'
+---@field role string
+---@field native_revision integer
+
 ---@class torirs.WidgetsApi
+---@field watch fun(role:string,callback:fun(widget:torirs.Widget,event:torirs.WidgetBindingEvent)?):boolean,string Follows native binding identity; nil removes this subscription.
 ---@field find fun(role:string):torirs.Widget?
 ---@field get fun(component_id:integer):torirs.Widget? Revision-specific lookup.
 
