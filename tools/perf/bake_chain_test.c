@@ -25,5 +25,30 @@ int main(void)
             if(memcmp(&fa,&fb,sizeof(fa))){fprintf(stderr,"bake mismatch pitch %d yaw %d face %u\n",pitch,yaw,face);return 1;}checks++;
         }
     }
-    free(m);printf("PASS: %u textured/untextured world-coordinate bake comparisons\n",checks);return 0;
+    m->face_textures=NULL;
+    const uint16_t shades[]={1400,TORIDRAWHSL16_FLAT,TORIDRAWHSL16_HIDDEN};
+    int order[]={1,0,-1,2};
+    float xyz[12];trspk_toridraw_world_vertices(m,&trspk_world_placement_identity,xyz);
+    for(unsigned shade=0;shade<3;shade++)for(unsigned av=0;av<256;av++) {
+        cc[0]=cc[1]=shades[shade];alpha[0]=alpha[1]=av;
+        struct TRSPK_VertexGLES2 got[12];
+        trspk_toridraw_gles2_untextured(m,order,4,xyz,got);
+        for(unsigned fi=0;fi<4;fi++) {
+            struct TRSPK_VertexGLES2 expected[3]={0};
+            if(fi<2) {
+                struct TRSPK_ToriDrawBakeFaceVerts f;
+                trspk_toridraw_bake_face_cached(m,order[fi],&trspk_world_placement_identity,NULL,true,TRSPK_BAKE_COLOR_ARGB,xyz,&f);
+                struct BakeChainFace packed=bake_chain_face(&f);
+                for(unsigned k=0;k<3;k++) {
+                    memcpy(expected[k].position,packed.xyz+k*3,sizeof(expected[k].position));
+                    uint32_t argb=packed.argb[k];
+                    expected[k].rgba=(argb&0xff00ff00u)|((argb>>16)&0xffu)|((argb&0xffu)<<16);
+                }
+            }
+            for(unsigned k=0;k<3;k++) {expected[k].texcoord[0]=expected[k].texcoord[1]=.5f;expected[k].anim_u=expected[k].anim_v=128;}
+            if(memcmp(expected,got+fi*3,sizeof(expected))){fprintf(stderr,"direct bytes mismatch shade %u alpha %u face %u\n",shade,av,fi);return 1;}
+            checks++;
+        }
+    }
+    free(m);printf("PASS: %u world-coordinate and packed-vertex comparisons\n",checks);return 0;
 }

@@ -529,10 +529,21 @@
 #define SS_OP_VESSEL_HP 11100
 #define SS_OP_VESSEL_DAMAGE 11101
 #define SS_OP_VESSEL_FACILITY 11102
+#define SS_OP_VESSEL_CONTROL 11103
+#define SS_OP_VESSEL_CARGO 11104
+#define SS_OP_VESSEL_CARGO_TRANSFER 11105
+#define SS_OP_VESSEL_FURNISH 11106
+#define SS_OP_VESSEL_INFO 11107
+#define SS_OP_VESSEL_GETFACILITY 11108
+#define SS_OP_VESSEL_STAT 11109
+#define SS_OP_VESSEL_OWNED 11110
+#define SS_OP_VESSEL_RECOVER 11111
+#define SS_OP_VESSEL_SLOT 11112
+#define SS_OP_VESSEL_PROJECT 11113
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11103
+#define SS_OPCODE_MAX 11114
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 507
+#define SS_OPCODE_COUNT 518
 
 #endif

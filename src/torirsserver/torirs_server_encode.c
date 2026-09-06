@@ -1315,6 +1315,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
     int kept_z[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_angle[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_seq_stamps[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_teleport_stamps[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_count = 0;
     const struct ToriRSServerWirePayload* pl;
 
@@ -1386,7 +1387,8 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
             if( vessel->seq_id >= 0 &&
                 player->wev_seq_stamps[i] != vessel->seq_stamp )
                 flags |= 0x1;
-        if( dx == 0 && dz == 0 && dangle == 0 )
+        int teleport = player->wev_teleport_stamps[i] != vessel->teleport_stamp;
+        if( dx == 0 && dz == 0 && dangle == 0 && !teleport )
         {
             /* Op 1 is the flags-only record: the slot has to be described
              * (the count addresses it positionally) and there is nothing to
@@ -1396,21 +1398,10 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         }
         else
         {
-            /*
-             * Op 2 = enqueue: the client interpolates over its 30-cycle
-             * window, which is what a hull under way wants.
-             *
-             * Op 3 (snap) is decoded by the client and deliberately has no
-             * producer here. It is the answer to a hull whose transform jumped
-             * — and the vessel module offers no way to make one jump: every
-             * mutation of `fine_x`/`fine_z`/`angle` after spawn goes through
-             * the mover, which is speed- and turn-rate-capped by construction.
-             * The one discontinuity that IS reachable, a view id changing
-             * hulls, needs a respawn rather than a snap (the config and deck
-             * size change with it), and is handled as one above. When S3 adds
-             * a vessel teleport this is the branch it turns on.
-             */
-            rsab_p1(&buf, 2);
+            /* Ordinary sailing interpolates. Recovery/checkpoint relocation
+             * explicitly snaps once per observer, including a zero-distance
+             * discontinuity used to reset interpolation coherently. */
+            rsab_p1(&buf, teleport ? 3 : 2);
             wev_put_transform(&buf, dx, 0, dz, dangle);
             rsab_p1(&buf, flags);
         }
@@ -1428,6 +1419,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         kept_z[kept_count] = vessel->fine_z;
         kept_angle[kept_count] = vessel->angle;
         kept_seq_stamps[kept_count] = vessel->seq_stamp;
+        kept_teleport_stamps[kept_count] = vessel->teleport_stamp;
         kept_count++;
     }
 
@@ -1468,6 +1460,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         /* Recorded unsent: a client that just learned of the hull has no
          * business replaying a sink already in progress. */
         kept_seq_stamps[kept_count] = vessel->seq_stamp;
+        kept_teleport_stamps[kept_count] = vessel->teleport_stamp;
         kept_count++;
     }
 
@@ -1481,6 +1474,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         player->wev_last_fine_z[i] = kept_z[i];
         player->wev_last_angle[i] = kept_angle[i];
         player->wev_seq_stamps[i] = kept_seq_stamps[i];
+        player->wev_teleport_stamps[i] = kept_teleport_stamps[i];
     }
     player->wev_tracked_count = kept_count;
 

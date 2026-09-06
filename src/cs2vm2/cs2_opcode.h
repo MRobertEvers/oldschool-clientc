@@ -3728,11 +3728,13 @@
  * str stack out:  -
  */
 #define CS2_OP_ARRAY_LENGTH 8003
+#define CS2_OP_ARRAY_FIND 8005
 /* ARRAY_COUNT_MATCHES — count cells in [start, end) equal to a typed value.
  * A negative end means "to the end". The array is a handle on the
  * string stack; value_type selects whether the search value is popped
  * from the int or string stack, so this opcode has variable arity. */
 #define CS2_OP_ARRAY_COUNT_MATCHES 8007
+#define CS2_OP_ARRAY_FILL_SEQUENCE 8011
 /* ARRAY_SPLIT — Split a string into a new string-array handle.
  * int stack in:   -
  * str stack in:   text, separator  (separator = top)

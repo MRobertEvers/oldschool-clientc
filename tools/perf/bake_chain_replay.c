@@ -13,6 +13,18 @@
 #include <string.h>
 struct Record {struct BakeChainHeader h;struct ToriDraw_Model* m;int32_t* order;struct BakeChainFace* expected;};
 static volatile uint64_t sink;
+static int encode_mode;
+static struct TRSPK_VertexGLES2* encoded_output;
+static void pack_expected(const struct BakeChainFace* face,struct TRSPK_VertexGLES2* out)
+{
+    for(unsigned k=0;k<3;k++) {
+        uint32_t argb=face->argb[k];
+        out[k]=(struct TRSPK_VertexGLES2){
+            {face->xyz[k*3],face->xyz[k*3+1],face->xyz[k*3+2]},
+            (argb&0xff00ff00u)|((argb>>16)&0xffu)|((argb&0xffu)<<16),
+            {0.5f,0.5f},0,0,128,128};
+    }
+}
 static void fail(const char* s){fprintf(stderr,"bake replay: %s\n",s);exit(1);}
 static void exact(FILE* f,void* p,size_t n){if(n&&fread(p,1,n,f)!=n)fail("truncated corpus");}
 static void* arr(FILE* f,size_t n){void* p=malloc(n?n:1);if(!p)fail("allocation");exact(f,p,n);return p;}
@@ -42,8 +54,24 @@ static void run(struct Record* records,size_t n,float* xyz,int arm,int verify)
     for(size_t r=0;r<n;r++){
         struct Record* record=&records[r];struct TRSPK_WorldPlacement placement;
         trspk_toridraw_placement_init(&placement,&record->h.position);
-        int use=arm&&record->h.ordered*3>record->h.vertices;
+        int use=(arm||encode_mode)&&record->h.ordered*3>record->h.vertices;
         if(use)trspk_toridraw_world_vertices(record->m,&placement,xyz);
+        if(encode_mode && use && !record->m->face_textures) {
+            if(arm)trspk_toridraw_gles2_untextured(record->m,record->order,record->h.ordered,xyz,encoded_output);
+            else for(int i=0;i<record->h.ordered;i++) {
+                struct TRSPK_ToriDrawBakeFaceVerts face;
+                trspk_toridraw_bake_face_cached(record->m,record->order[i],&placement,NULL,true,TRSPK_BAKE_COLOR_ARGB,xyz,&face);
+                struct BakeChainFace packed=bake_chain_face(&face);pack_expected(&packed,encoded_output+i*3);
+            }
+            for(int i=0;i<record->h.ordered;i++) {
+                if(verify) {
+                    struct TRSPK_VertexGLES2 expected[3];pack_expected(&record->expected[i],expected);
+                    if(memcmp(expected,encoded_output+i*3,sizeof(expected)))fail("direct encoded bytes mismatch");
+                }
+                total+=encoded_output[i*3].rgba;
+            }
+            continue;
+        }
         for(int i=0;i<record->h.ordered;i++){
             struct TRSPK_ToriDrawBakeFaceVerts f;
             if(use)trspk_toridraw_bake_face_cached(record->m,record->order[i],&placement,NULL,true,TRSPK_BAKE_COLOR_ARGB,xyz,&f);
@@ -56,7 +84,8 @@ static void run(struct Record* records,size_t n,float* xyz,int arm,int verify)
 }
 int main(int argc,char** argv)
 {
-    if(argc!=3)fail("usage: bake_chain_replay FILE EVENT|verify");
+    if(argc!=3 && argc!=4)fail("usage: bake_chain_replay FILE EVENT|verify [encode]");
+    encode_mode=argc==4 && !strcmp(argv[3],"encode");
     cpu_set_t mask;CPU_ZERO(&mask);CPU_SET(0,&mask);if(sched_setaffinity(0,sizeof(mask),&mask))fail("affinity");ToriDraw_Init();
     FILE* f=fopen(argv[1],"rb");if(!f)fail("open");struct Record* records=NULL;size_t count=0;int maxv=0;uint64_t faces=0,textured=0;
     for(;;){struct BakeChainHeader h={0};exact(f,&h.magic,4);if(h.magic==BAKE_CHAIN_END){uint32_t n;exact(f,&n,4);if(n!=count||fgetc(f)!=EOF)fail("footer");break;}
@@ -64,7 +93,9 @@ int main(int argc,char** argv)
         void* grown=realloc(records,(count+1)*sizeof(*records));if(!grown)fail("records");records=grown;records[count++]=load_record(f,h);
         if(h.vertices>maxv)maxv=h.vertices;faces+=h.ordered;for(int i=0;i<h.ordered;i++)textured+=records[count-1].expected[i].texture>=0;
     }
-    fclose(f);if(!count)fail("empty");float* xyz=malloc((size_t)(maxv?maxv:1)*12);if(!xyz)fail("scratch");run(records,count,xyz,0,1);run(records,count,xyz,1,1);
+    fclose(f);if(!count)fail("empty");float* xyz=malloc((size_t)(maxv?maxv:1)*12);if(!xyz)fail("scratch");
+    encoded_output=malloc(32768u*3u*sizeof(*encoded_output));if(!encoded_output)fail("encode scratch");
+    run(records,count,xyz,0,1);run(records,count,xyz,1,1);
     printf("verified: %zu real model bakes, %" PRIu64 " ordered faces, %" PRIu64 " textured, both arms\n",count,faces,textured);fflush(stdout);
     if(!strcmp(argv[2],"verify"))return 0;
     struct perf_event_attr a={0};a.size=sizeof(a);a.type=PERF_TYPE_HARDWARE;a.disabled=1;a.pinned=1;a.exclude_kernel=1;a.exclude_hv=1;a.read_format=PERF_FORMAT_TOTAL_TIME_ENABLED|PERF_FORMAT_TOTAL_TIME_RUNNING;

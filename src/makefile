@@ -686,7 +686,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/rs_minimenu_build.c \
+	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
@@ -820,6 +820,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
 	torirsserver/torirs_server_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
+	world/wev.c \
 	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
 	engine/world_builder/collision_map.c features/features.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c $(SS_SRCS)
@@ -840,6 +841,7 @@ CFLAGS += -DTORIRS_EMBED_SERVER=1
 # below.  Adding them again generates duplicate recipes for the same flat
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c \
+	world/wev.c \
 	platform/net_transport_ws_frame.c \
 	platform/net_transport_ws_handshake.c \
 	engine/world_builder/collision_map.c \
@@ -1520,6 +1522,23 @@ test-world-builder: $(OBJ_DIR) $(WB_TEST_OBJS)
 	./$(OBJ_DIR)/world_builder_test
 
 # CS2 math/bit opcode unit test (pure VM): reuse the main link set minus main.o.
+.PHONY: test-cs2-invother
+.PHONY: test-cs2-array-sequence
+test-cs2-array-sequence: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_sequence_test \
+		cs2vm2/test/array_sequence_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_sequence_test
+
+test-cs2-invother: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_invother_test \
+		cs2vm2/test/invother_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_invother_test
+
+test-cs2-array-find: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_find_test \
+		cs2vm2/test/array_find_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_find_test
+
 test-cs2-math: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_math_ops_test \
 		cs2vm2/test/math_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
@@ -2959,7 +2978,7 @@ test-uitree: $(OBJ_DIR)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_frame_depth.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_frame_depth.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
@@ -3628,6 +3647,12 @@ test-ground-items: $(OBJ_DIR) $(OBJS)
 	./$(OBJ_DIR)/rs_ground_items_test
 
 # Player-pick stack expansion + local-skip (Client-TS addViewportOptions).
+test-sailing-navigation: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sailing_navigation_test \
+		game/test/sailing_navigation_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/sailing_navigation_test
+
 test-minimenu-world: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -o $(OBJ_DIR)/rs_minimenu_world_test \
 		game/test/rs_minimenu_world_test.c \
@@ -5914,3 +5939,26 @@ test-seal-rig: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 	cd .. && ./src/$(OBJ_DIR)/seal_rig_scan
+
+# Sea terrain and hull geometry use a map distinct from walking collision.
+.PHONY: test-sailing-collision
+test-sailing-collision: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/sailing_collision_test \
+		torirsserver/test/sailing_collision_test.c \
+		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c \
+		torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
+		world/wev.c \
+		engine/world_builder/collision_map.c features/features.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/sailing_collision_test
+
+# Persistent content acceptance client. Its output cannot replace a live torirs.
+.PHONY: content-test-client test-canoes-server
+content-test-client:
+	$(MAKE) OPT=1 EMBED_SERVER=1 PLATFORM_TARGET=torirs_contenttest torirs_contenttest
+
+test-canoes-server:
+	$(MAKE) OPT=1 torirsserver
+	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_CANOES_ONLY=1 TORIRSSERVER_CACHE=cache.osrs239 ./src/build_opt/torirsserver --selftest

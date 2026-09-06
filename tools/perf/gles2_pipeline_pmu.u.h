@@ -3,6 +3,7 @@
  * Include in dualcore.c after the lane definition. All arm changes occur
  * between joined frames. Worker state is read only after the join. */
 #include "platform/platform_renderer_gles2_placement.h"
+#include "ui/uitree_canvas_measure.h"
 #include <linux/perf_event.h>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
@@ -11,7 +12,7 @@
 
 struct PipelinePmuThread { int fd; uint64_t last; };
 static struct {
-    bool initialized, enabled, measuring;
+    bool initialized, enabled, measuring, timings;
     const char *event, *target;
     unsigned warmup, frames, sample, block, arm;
     uint64_t draw_sum, worker_sum, models, worker_models, faces;
@@ -23,9 +24,12 @@ static void pipeline_pmu_error(const char* what)
     TORIRS_ERR("pipeline-pmu: %s: %s (no fallback)\n", what, strerror(errno));
     abort();
 }
+#if defined(TORIRS_FRAME_TIMES)
+#include "gles2_frame_times.u.h"
+#endif
 static void pipeline_pmu_begin_thread(struct PipelinePmuThread* thread)
 {
-    if( !pipeline_pmu.measuring ) return;
+    if( !pipeline_pmu.measuring || pipeline_pmu.timings ) return;
     if( !thread->fd )
     {
         struct perf_event_attr a = {0};
@@ -46,7 +50,7 @@ static void pipeline_pmu_begin_thread(struct PipelinePmuThread* thread)
 }
 static void pipeline_pmu_end_thread(struct PipelinePmuThread* thread)
 {
-    if( !pipeline_pmu.measuring ) return;
+    if( !pipeline_pmu.measuring || pipeline_pmu.timings ) return;
     struct { uint64_t value, enabled, running; } count;
     if( ioctl(thread->fd,PERF_EVENT_IOC_DISABLE,0) || read(thread->fd,&count,sizeof(count))!=sizeof(count)
         || !count.running || count.running!=count.enabled ) pipeline_pmu_error("counter unavailable/multiplexed");
@@ -69,6 +73,15 @@ static void pipeline_pmu_frame_begin(struct ToriRS_GLES2* renderer)
         v=getenv("TORIRS_PIPELINE_FRAMES");
         if( v ) pipeline_pmu.frames=(unsigned)atoi(v);
         if( !pipeline_pmu.frames ) pipeline_pmu_error("zero frame window");
+#if defined(TORIRS_FRAME_TIMES)
+        pipeline_pmu.timings=!strcmp(pipeline_pmu.event,"frame-time");
+        if( pipeline_pmu.timings ) {
+            if( pipeline_pmu.frames>1024 ) pipeline_pmu_error("frame-time window too large");
+            frame_times.capacity=12*pipeline_pmu.frames;
+            frame_times.rows=calloc(frame_times.capacity,sizeof(*frame_times.rows));
+            if( !frame_times.rows ) pipeline_pmu_error("frame-time allocation");
+        }
+#endif
     }
     if( !pipeline_pmu.enabled || pipeline_pmu.sample>=12 ) return;
     pipeline_pmu.arm=(pipeline_pmu.sample%4==1 || pipeline_pmu.sample%4==2);
@@ -113,9 +126,10 @@ static void pipeline_pmu_frame_begin(struct ToriRS_GLES2* renderer)
         renderer->pose_reuse_enabled=true;
         renderer->actor_world_cache_enabled=pipeline_pmu.arm!=0;
     }
-    if( !strcmp(pipeline_pmu.target,"complete") )
+    bool sub10=!strncmp(pipeline_pmu.target,"sub10",5);
+    if( !strcmp(pipeline_pmu.target,"complete") || sub10 )
     {
-        bool enabled=pipeline_pmu.warmup || pipeline_pmu.arm;
+        bool enabled=sub10 || pipeline_pmu.warmup || pipeline_pmu.arm;
         GLES2DualCoreStage_SetDirectOrder(enabled);
         GLES2DualCoreStage_SetAcquireCache(enabled);
         GLES2DualCoreStage_SetFeedBatch(enabled);
@@ -130,7 +144,19 @@ static void pipeline_pmu_frame_begin(struct ToriRS_GLES2* renderer)
         renderer->actor_world_cache_enabled=enabled;
         renderer->world_fast_shader=enabled;
     }
+    if( sub10 ) {
+        bool actor=!strcmp(pipeline_pmu.target,"sub10-actor");
+        UITree_CanvasQuerySetCompact(actor || (strcmp(pipeline_pmu.target,"sub10-aa") && pipeline_pmu.arm));
+        renderer->actor_direct_encode= ((actor || !strcmp(pipeline_pmu.target,"sub10")) && pipeline_pmu.arm);
+    }
     pipeline_pmu.measuring=!pipeline_pmu.warmup && pipeline_pmu.block>=6;
+#if defined(TORIRS_FRAME_TIMES)
+    if( pipeline_pmu.timings && pipeline_pmu.measuring ) {
+        frame_times.record=true;
+        frame_times.pending.sample=pipeline_pmu.sample;
+        frame_times.pending.arm=pipeline_pmu.arm;
+    }
+#endif
     pipeline_pmu.worker.last=0;
     pipeline_pmu_begin_thread(&pipeline_pmu.draw);
 }
@@ -138,7 +164,7 @@ static void pipeline_pmu_frame_end(struct ToriRS_GLES2DualCore* lane)
 {
     if( !pipeline_pmu.enabled || pipeline_pmu.sample>=12 ) return;
     if( pipeline_pmu.warmup ) { pipeline_pmu.warmup--; return; }
-    if( pipeline_pmu.measuring )
+    if( pipeline_pmu.measuring && !pipeline_pmu.timings )
     {
         pipeline_pmu_end_thread(&pipeline_pmu.draw);
         pipeline_pmu.draw_sum+=pipeline_pmu.draw.last;
@@ -148,7 +174,11 @@ static void pipeline_pmu_frame_end(struct ToriRS_GLES2DualCore* lane)
         for( uint32_t i=0;i<lane->arena.result_count;i++ )
             pipeline_pmu.worker_models+=!lane->arena.results[i].taken_by_draw;
     }
+#if defined(TORIRS_FRAME_TIMES)
+    if( frame_times.record ) frame_times.pending.models=lane->take_index;
+#endif
     if( ++pipeline_pmu.block < pipeline_pmu.frames+6 ) return;
+    if( !pipeline_pmu.timings )
     TORIRS_ERR("pipeline,%s,%s,%u,%u,%u,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 "\n",
         pipeline_pmu.event,pipeline_pmu.target,pipeline_pmu.sample,pipeline_pmu.arm,pipeline_pmu.frames,
         pipeline_pmu.draw_sum,pipeline_pmu.worker_sum,pipeline_pmu.models,pipeline_pmu.worker_models,pipeline_pmu.faces);

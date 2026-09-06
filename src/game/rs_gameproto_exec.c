@@ -128,7 +128,8 @@ exec_update_inv_full(
     /* Containers arrive long after the interface that paints them was built,
      * so the CS2 paint script has to be told to run again. */
     if( ctx->app )
-        RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
+        RS_CS2Host_NotifyInvChanged(&ctx->app->host,
+                                   p->inv_id > 0 ? container & 0x7fff : container);
     if( getenv("TORIRS_INV_DEBUG") )
     {
         TORIRS_LOG("inv-full: container=%d (com 0x%08x) size=%d\n",
@@ -179,7 +180,8 @@ exec_update_inv_partial(
                 slot.obj_count);
     }
     if( ctx->app && p->count > 0 )
-        RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
+        RS_CS2Host_NotifyInvChanged(&ctx->app->host,
+                                   p->inv_id > 0 ? container & 0x7fff : container);
 }
 
 /* The local player's plane is the fallback for classic zone headers which do

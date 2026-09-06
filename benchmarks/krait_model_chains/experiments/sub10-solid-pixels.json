@@ -1,0 +1,47 @@
+{
+  "scene": "live-lumbridge",
+  "solid": true,
+  "serial": "T062809L3Z",
+  "aa": false,
+  "parity": {
+    "width": 1196,
+    "height": 720,
+    "different_pixels": 0,
+    "draw_items": 64,
+    "frame": 480
+  },
+  "parities": [
+    {
+      "width": 1196,
+      "height": 720,
+      "different_pixels": 0,
+      "draw_items": 59,
+      "frame": 300
+    },
+    {
+      "width": 1196,
+      "height": 720,
+      "different_pixels": 0,
+      "draw_items": 56,
+      "frame": 360
+    },
+    {
+      "width": 1196,
+      "height": 720,
+      "different_pixels": 0,
+      "draw_items": 59,
+      "frame": 420
+    },
+    {
+      "width": 1196,
+      "height": 720,
+      "different_pixels": 0,
+      "draw_items": 64,
+      "frame": 480
+    }
+  ],
+  "motion": false,
+  "scope": "Real frozen painter draw-list replay; device-wide shader hardware counts. No time/occupancy/FPS inference.",
+  "rows": [],
+  "library_sha256": "91ad1fa4dcb97ee96b0bee52b5ff60f0ec7340d399799640b055dff4628bf0dd"
+}

@@ -29,6 +29,46 @@ trspk_toridraw_texture_is_animated(
     return tex_obj && tex_obj->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
 }
 
+static inline uint32_t trspk_hsl_to_gles2(hsl16_t hsl,uint32_t alpha)
+{
+    uint32_t rgb=(uint32_t)ToriDraw_Hsl16ToRgb(hsl);
+    return alpha | ((rgb&0xffu)<<16) | (rgb&0xff00u) | ((rgb>>16)&0xffu);
+}
+void trspk_toridraw_gles2_untextured(
+    const struct ToriDraw_Model* model,const int* order,uint32_t count,
+    const float* world_xyz,struct TRSPK_VertexGLES2* out)
+{
+    assert(!model->face_textures);
+    for(uint32_t i=0;i<count;i++,out+=3) {
+        uint32_t f=(uint32_t)order[i];
+        if(f>=(uint32_t)model->face_count) {
+            for(unsigned k=0;k<3;k++) {
+                out[k].position[0]=out[k].position[1]=out[k].position[2]=0.0f;
+                out[k].rgba=0;out[k].texcoord[0]=out[k].texcoord[1]=0.5f;
+                out[k].tile_col=out[k].tile_row=0;out[k].anim_u=out[k].anim_v=128;
+            }
+            continue;
+        }
+        uint32_t alpha=model->face_alphas ? 255u-model->face_alphas[f] : 255u;
+        hsl16_t c=model->face_colors_c[f];
+        if(alpha<=1u || c==TORIDRAWHSL16_HIDDEN)alpha=0;
+        alpha<<=24;
+        uint32_t colors[3];colors[0]=trspk_hsl_to_gles2(model->face_colors_a[f],alpha);
+        if(c==TORIDRAWHSL16_FLAT || c==TORIDRAWHSL16_HIDDEN)colors[1]=colors[2]=colors[0];
+        else {
+            colors[1]=trspk_hsl_to_gles2(model->face_colors_b[f],alpha);
+            colors[2]=trspk_hsl_to_gles2(c,alpha);
+        }
+        uint32_t indices[3]={(uint32_t)model->face_indices_a[f],(uint32_t)model->face_indices_b[f],(uint32_t)model->face_indices_c[f]};
+        for(unsigned k=0;k<3;k++) {
+            const float* xyz=world_xyz+indices[k]*3u;
+            out[k].position[0]=xyz[0];out[k].position[1]=xyz[1];out[k].position[2]=xyz[2];
+            out[k].rgba=colors[k];out[k].texcoord[0]=out[k].texcoord[1]=0.5f;
+            out[k].tile_col=out[k].tile_row=0;out[k].anim_u=out[k].anim_v=128;
+        }
+    }
+}
+
 void
 trspk_toridraw_hsl16_to_rgba(
     uint16_t hsl16,

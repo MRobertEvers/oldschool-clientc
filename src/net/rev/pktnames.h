@@ -374,6 +374,8 @@ enum GameProtoPktOutName
     PKTOUT_NAME_REPORT_ABUSE,
     PKTOUT_NAME_MOVE_MINIMAPCLICK,
     PKTOUT_NAME_MOVE_GAMECLICK,
+    /** Sailing's 16-point compass bearing; revision 239 carries one raw byte. */
+    PKTOUT_NAME_SET_HEADING,
 
     PKTOUT_NAME_IGNORELIST_DEL,
     PKTOUT_NAME_IGNORELIST_ADD,

@@ -1,6 +1,9 @@
 #ifndef TORIRS_WORLD_PROJECTION_H
 #define TORIRS_WORLD_PROJECTION_H
 
+#include <assert.h>
+#include <math.h>
+
 #include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_math.h"
 #include "toridraw_types.h"
@@ -67,6 +70,42 @@ ToriRS_WorldProjectPoint(
 
     *out_x = viewport_x + viewport_w / 2 + dx * scale / dz;
     *out_y = viewport_y + viewport_h / 2 + dy * scale / dz;
+    return 1;
+}
+
+/** Inverse of the point projector at a horizontal world plane. Sailing uses
+ * the cursor ray at the boat's height, rather than a tile's rounded center.
+ * Parallel rays and intersections behind the eye are ordinary misses. */
+static inline int
+ToriRS_WorldUnprojectPlane(
+    struct ToriDraw_Camera const* camera,
+    struct ToriDraw_Position const* eye,
+    int viewport_x, int viewport_y, int viewport_w, int viewport_h,
+    int screen_x, int screen_y, int plane_y,
+    double* out_x, double* out_z)
+{
+    assert(camera);
+    assert(eye);
+    assert(out_x);
+    assert(out_z);
+    if( viewport_w <= 0 || viewport_h <= 0 ) return 0;
+    int scale = camera->projection_mode == TORIDRAW_PROJECTION_MODE_FOV
+                    ? toridraw_projection_scale_from_fov(camera->fov_rpi2048)
+                    : camera->projection_scale;
+    if( scale <= 0 ) scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    double rx = (double)(screen_x - viewport_x - viewport_w / 2) / scale;
+    double ry = (double)(screen_y - viewport_y - viewport_h / 2) / scale;
+    double cp = ToriDraw_Cos(camera->pitch) / 65536.0;
+    double sp = ToriDraw_Sin(camera->pitch) / 65536.0;
+    double cy = ToriDraw_Cos(camera->yaw) / 65536.0;
+    double sy = ToriDraw_Sin(camera->yaw) / 65536.0;
+    double dy = ry * cp + sp;
+    double pz = cp - ry * sp;
+    if( fabs(dy) < 0.00001 ) return 0;
+    double distance = (plane_y - eye->y) / dy;
+    if( distance <= 0.0 ) return 0;
+    *out_x = eye->x + (rx * cy - pz * sy) * distance;
+    *out_z = eye->z + (pz * cy + rx * sy) * distance;
     return 1;
 }
 

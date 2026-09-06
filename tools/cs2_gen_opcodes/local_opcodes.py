@@ -434,6 +434,8 @@ LOCAL_NAMES: dict[int, str] = {
     # vendored table's maximum but are used by the Overview widget library.
     8000: "ARRAY_SORT_ALL",
     8003: "ARRAY_LENGTH",
+    8005: "ARRAY_FIND",
+    8011: "ARRAY_FILL_SEQUENCE",
     8007: "ARRAY_COUNT_MATCHES",
     8018: "ARRAY_SPLIT",
     8019: "ARRAY_JOIN",
@@ -553,6 +555,7 @@ HANDLER_OVERRIDES: dict[int, str] = {
     86: "CS2_HANDLER_VM",  # BRANCH_IF_ONE (RS2-era)
     4016: "CS2_HANDLER_VM",
     4017: "CS2_HANDLER_VM",
+    8005: "CS2_HANDLER_VM",
     6910: "CS2_HANDLER_VM",  # LOGIN_INT24 — offline stub pushes 0
 }
 

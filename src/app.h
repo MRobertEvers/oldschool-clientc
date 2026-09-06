@@ -867,6 +867,15 @@ struct App
      * (wev.h). An entity's id doubles as its view id in `worldviews`.
      */
     struct Wevs wevs;
+    /** Native bearing-marker models. Scene-owned elements are claimed across
+     * root rebuilds; a chosen heading remains highlighted for 30 cycles. */
+    int sailing_at_helm_varbit;
+    int sailing_crew_category;
+    int sailing_arrow_model[2];
+    int sailing_arrow_element[2];
+    int sailing_arrow_loading[2];
+    int sailing_selected_heading;
+    uint64_t sailing_selected_until;
     /** WorldEntityConfig table (config archive 72), loaded once at boot by
      * CreateTask_Dat2WevConfigLoad. Empty on a pre-sailing cache. */
     struct WevConfigTable wev_configs;

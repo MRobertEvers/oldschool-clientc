@@ -10,6 +10,12 @@
 
 struct ToriDraw_Scene;
 
+/* Exact ordered GLES2 output for an untextured full model whose world XYZ
+ * was already computed. Invalid order entries retain transparent triplets. */
+void trspk_toridraw_gles2_untextured(
+    const struct ToriDraw_Model* model,const int* order,uint32_t count,
+    const float* world_xyz,struct TRSPK_VertexGLES2* destination);
+
 bool
 trspk_toridraw_texture_is_animated(
     struct ToriDraw_Scene* ctx,

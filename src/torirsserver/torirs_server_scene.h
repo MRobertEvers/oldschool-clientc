@@ -410,6 +410,15 @@ ToriRSServer_SceneCollision(int level);
 int
 ToriRSServer_SceneTileFlags(int level, int x, int z);
 
+/** Independent hull navigation grid. Open ocean is zero; land and unknown
+ *  terrain block. Player/NPC occupancy is never stamped into this map. */
+struct CollisionMap*
+ToriRSServer_SceneBoatCollision(int level);
+
+/** Absolute boat-map query; returns blocked bounds outside every window. */
+int
+ToriRSServer_SceneBoatTileFlags(int level, int x, int z);
+
 /** Absolute tile of scene-local (0, 0). */
 int
 ToriRSServer_SceneDebugSettings(int level, int x, int z);

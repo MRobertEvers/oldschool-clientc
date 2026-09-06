@@ -1307,6 +1307,12 @@ struct UITree
     /** Tail of root sibling list — O(1) append while baking large packs. */
     int32_t last_root_index;
     uint32_t generation;
+    /* Structural candidates for canvas queries. Geometry and visibility are
+     * read live; topology or alignment-mode changes invalidate membership. */
+    uint32_t* canvas_candidate_ids;
+    uint32_t canvas_candidate_count, canvas_candidate_capacity;
+    uint32_t canvas_candidate_generation, canvas_candidate_nodes;
+    uint8_t canvas_candidates_valid;
     /** Monotonic source for UITreeComponent::incarnation. Zero is skipped. */
     uint32_t next_incarnation;
     /** Bumped every time `UITree_LayoutResolve` actually walks, i.e. every time

@@ -471,6 +471,15 @@ check_protocol_adapters(void)
 int
 main(void)
 {
+    for( uint8_t heading = 0; heading < 16; ++heading )
+    {
+        uint8_t decoded[4] = { 0xff };
+        int length = 0;
+        int name = mock239_inbound_translate(44, PKTOUT_NAME_SET_HEADING,
+            &heading, 1, decoded, sizeof(decoded), &length);
+        CHECK(name == PKTOUT_NAME_SET_HEADING && length == 1 && decoded[0] == heading,
+              "SET_HEADING %u must survive the live revision adapter", heading);
+    }
     check_table();
     check_buttons();
     check_script_trigger();

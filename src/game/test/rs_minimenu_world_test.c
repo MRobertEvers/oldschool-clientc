@@ -725,6 +725,26 @@ test_walk_here_ground_fallback(void)
     TEST_ASSERT(walk && walk->pick.secondary_id == 51, "picked tile beats the fallback (x)");
     TEST_ASSERT(walk && walk->pick.tertiary_id == 52, "picked tile beats the fallback (z)");
 
+    /* Navigation is a bearing even when the pointer is over a deck tile.
+     * A 0 heading is due south, and must not be mistaken for absent input. */
+    ctx.sailing_navigating = true;
+    ctx.sailing_heading_valid = true;
+    ctx.sailing_heading = 0;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    int heading_row = menu_index_of(&menu, "Set heading");
+    TEST_ASSERT(heading_row >= 0, "helm offers the native Set heading row");
+    TEST_ASSERT(menu_index_of(&menu, "Walk here") < 0, "helm does not offer player walking");
+    TEST_ASSERT(heading_row >= 0 && menu.options[heading_row].pick.kind == UI_MINIMENU_PICK_HEADING,
+                "heading row carries a bearing rather than staging tile coordinates");
+    TEST_ASSERT(heading_row >= 0 && menu.options[heading_row].pick.id == 0,
+                "due south survives as a valid compass choice");
+    ctx.sailing_heading_valid = false;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    TEST_ASSERT(menu_index_of(&menu, "Set heading") < 0,
+                "a ray above the horizon does not invent a bearing");
+
     World_Free(world);
 }
 

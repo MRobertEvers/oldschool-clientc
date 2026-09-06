@@ -999,7 +999,20 @@ RS_Minimenu_AddWorldRows(
      * back-to-front, so that is the LAST terrain item (matches the hover
      * tile the click cross and spawn hotkeys use). Suppressed while a use/
      * target mode is armed (reference gates it on useMode==0 && targetMode==0). */
-    if( sel->mode == RS_MINIMENU_SELECT_NONE )
+    if( sel->mode == RS_MINIMENU_SELECT_NONE && ctx->sailing_navigating )
+    {
+        if( ctx->sailing_heading_valid )
+        {
+            struct UIMinimenuPick pick = {
+                .kind = UI_MINIMENU_PICK_HEADING,
+                .id = ctx->sailing_heading,
+            };
+            /* class108.method3786 / action 60: a compass choice, not a
+             * destination tile. Interactive facilities keep their own rows. */
+            UIMinimenu_AddOption(menu, "Set heading", REVCONFIG_MINIMENU_WALK, 0, pick);
+        }
+    }
+    else if( sel->mode == RS_MINIMENU_SELECT_NONE )
     {
         struct World_Picked const* terrain = NULL;
         struct World_Picked const* view_terrain = NULL;

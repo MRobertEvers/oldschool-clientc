@@ -1,4 +1,5 @@
 #include "app.h"
+#include "ui/uitree_canvas_measure.h"
 #include "game/rs_minimap_state.h"
 #include "torirs_env.h"
 #include "log/torirs_log.h"
@@ -113,6 +114,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
 #include "render/torirs_world_projection.h"
+#include "game/sailing_navigation.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
 #include "ui/uitree_build.h"
@@ -1117,6 +1119,127 @@ app_wev_actor_root_fine(
     app_wev_deck_box(app, wev, app->world, &box);
     Wev_ParentFromDeck(&box, placement->x, placement->z, out_fx, out_fz);
     return 1;
+}
+
+static int
+app_sailing_at_helm(struct App* app)
+{
+    int id = app->sailing_at_helm_varbit;
+    return id >= 0 && id < app->varps.varbit_count &&
+           app->aboard_view != WORLDVIEW_ROOT &&
+           Wevs_IsLive(&app->wevs, app->aboard_view) &&
+           WorldviewRegistry_IsLive(&app->worldviews, app->aboard_view) &&
+           VarPManager_GetVarbit(&app->varps, id) != 0;
+}
+
+/* The native selector intersects the pointer ray with the boat's horizontal
+ * plane (class108.method3786), so it works over deck geometry and open sea. */
+static int
+app_sailing_heading_at(struct App* app, int mouse_x, int mouse_y, int* heading)
+{
+    assert(heading);
+    if( !app_sailing_at_helm(app) || !app->world_view_valid ) return 0;
+    struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
+    if( vessel->parent_view_id != WORLDVIEW_ROOT ) return 0;
+    double x, z;
+    if( !ToriRS_WorldUnprojectPlane(
+            &app->world_camera, &app->world_camera_pos,
+            app->world_emit_desc.x, app->world_emit_desc.y,
+            app->world_emit_desc.w, app->world_emit_desc.h,
+            mouse_x, mouse_y, vessel->y, &x, &z) ) return 0;
+    x -= vessel->x - app->world->_base_tile_x * 128;
+    z -= vessel->z - app->world->_base_tile_z * 128;
+    if( fabs(x) < 0.001 && fabs(z) < 0.001 ) return 0;
+    *heading = SailingNavigation_Heading(x, z);
+    return 1;
+}
+
+static void
+app_sailing_menu_context(struct App* app, struct RS_MinimenuBuildCtx* ctx,
+                         int mouse_x, int mouse_y)
+{
+    ctx->sailing_navigating = app_sailing_at_helm(app) != 0;
+    ctx->sailing_heading_valid = ctx->sailing_navigating &&
+        app_sailing_heading_at(app, mouse_x, mouse_y, &ctx->sailing_heading);
+}
+
+static int
+app_sailing_send_heading(struct App* app, int heading)
+{
+    if( !app_sailing_at_helm(app) || !app->net || app->net->state != TORIRS_NET_GAME ) return 0;
+    APP_NET_SEND(app, net_out_set_heading(
+        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), heading));
+    app->sailing_selected_heading = heading;
+    app->sailing_selected_until = app->logic_cycle + 30;
+    app->need_redraw = 1;
+    return 1;
+}
+
+/* The two native defaults meshes render through the world painter, including
+ * perspective, terrain occlusion, and GPU depth. They have no interaction row.
+ * Statics.method8694 places each four or more tiles along its chosen bearing. */
+static void
+app_sailing_register_arrows(struct App* app, struct World* world)
+{
+    if( world != app->world || !app_sailing_at_helm(app) ) return;
+    struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
+    if( vessel->parent_view_id != WORLDVIEW_ROOT ) return;
+    int hover = -1;
+    if( app->world_mouse_in_viewport && !app->pointer_absent &&
+        !app->interact.minimenu.visible &&
+        !strcmp(app->host.clientop.mouseover_op, "Set heading") )
+        app_sailing_heading_at(app, app->world_mouse_x, app->world_mouse_y, &hover);
+    int selected = app->logic_cycle < app->sailing_selected_until
+                       ? app->sailing_selected_heading : -1;
+    int scale = app->world_camera.projection_mode == TORIDRAW_PROJECTION_MODE_FOV
+                    ? toridraw_projection_scale_from_fov(app->world_camera.fov_rpi2048)
+                    : app->world_camera.projection_scale;
+    if( scale <= 0 ) scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    int distance = app->world_emit_desc.h > 0
+                       ? (int)(1400.0 - scale * 4.0 * 334.0 / app->world_emit_desc.h) : 512;
+    if( distance < 512 ) distance = 512;
+    for( int i = 0; i < 2; ++i )
+    {
+        int heading = i == 0 ? hover : selected;
+        if( heading < 0 || (i == 0 && heading == selected) ) continue;
+        int model_id = app->sailing_arrow_model[i];
+        if( model_id < 0 ) continue;
+        if( !CacheProvider_ModelHas(app->provider, model_id) )
+        {
+            if( !app->sailing_arrow_loading[i] )
+            {
+                ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_ModelLoad(app->provider, model_id));
+                app->sailing_arrow_loading[i] = 1;
+            }
+            continue;
+        }
+        int element = app->sailing_arrow_element[i];
+        if( element < 0 )
+        {
+            struct ToriRS_Model* source = CacheProvider_ModelGet(app->provider, model_id);
+            assert(source);
+            struct ToriDraw_Model* model = ToriDraw_ModelFromToriRS(source);
+            assert(model);
+            struct ToriDraw_ModelHandle handle = { .kind = TORIDRAWMK_MODEL };
+            handle.u.model.model = model;
+            ToriDraw_ModelSetBoundsCylinder(model);
+            ToriDraw_LightModelScene(handle, 0, 0);
+            element = ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+            assert(element >= 0);
+            ToriDraw_SceneElementSetModel(app->scene, element, handle);
+            app->sailing_arrow_element[i] = element;
+        }
+        int angle = heading * 128;
+        int x = vessel->x - world->_base_tile_x * 128 -
+                (int)((int64_t)ToriDraw_Sin(angle) * distance / 65536);
+        int z = vessel->z - world->_base_tile_z * 128 -
+                (int)((int64_t)ToriDraw_Cos(angle) * distance / 65536);
+        int gx = x >> 7, gz = z >> 7;
+        if( gx < 0 || gz < 0 || gx >= world->_scene_size || gz >= world->_scene_size ) continue;
+        ToriDraw_SceneElementSetPosition(app->scene, element, x, vessel->y - 8, z, angle);
+        painter_add_normal_scenery(world->painter, gx, gz,
+            World_LocPaintLevel(world, gx, gz, vessel->parent_level), element, 1, 1, 0);
+    }
 }
 
 /* World_LocalPlaneFn: the reference's minusedlevel — the plane of the MAP the
@@ -2559,8 +2682,7 @@ app_world_project_actor(
     int ground_y;
     int deck_level;
 
-    if( !placement || placement->home_view == 0 ||
-        placement->home_view != placement->view_id ||
+    if( !placement || placement->view_id == WORLDVIEW_ROOT ||
         !Wevs_IsLive(&app->wevs, placement->view_id) ||
         !WorldviewRegistry_IsLive(&app->worldviews, placement->view_id) )
         return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
@@ -2568,6 +2690,13 @@ app_world_project_actor(
     if( wev->parent_view_id != WORLDVIEW_ROOT )
         return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
     view = WorldviewRegistry_Get(&app->worldviews, placement->view_id);
+    if( placement->home_view == 0 )
+    {
+        /* Projected crew retain root-wire draw positions, but their borrowed
+         * render placement already contains the correct deck-local point. */
+        fine_x = placement->x;
+        fine_z = placement->z;
+    }
     app_wev_deck_box(app, wev, app->world, &box);
     Wev_ParentFromDeck(&box, fine_x, fine_z, &root_fx, &root_fz);
     deck_level = actor_level;
@@ -10172,6 +10301,11 @@ App_Init(
     /* World entities (sailing, SAILING_PLAN C1): no boats until
      * WORLDENTITY_INFO spawns one; the config table fills at boot. */
     Wevs_Init(&app->wevs);
+    app->sailing_at_helm_varbit = RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sailing_player_at_helm");
+    app->sailing_crew_category = RevConfigRefs_Get(&app->revconfig_refs, "category", "sailing_crew");
+    app->sailing_arrow_model[0] = RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_hover");
+    app->sailing_arrow_model[1] = RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_selected");
+    app->sailing_arrow_element[0] = app->sailing_arrow_element[1] = -1;
     WevConfigTable_Init(&app->wev_configs);
     /* The dynamic-registration pass puts every entity floating in this world
      * into its painter as a transient pseudo-loc (SAILING_PLAN C3). Boat worlds
@@ -11309,6 +11443,8 @@ app_wev_register_pseudo_locs(
     if( view_id == WORLDVIEW_ROOT )
         app_wev_decide_flatten(app);
 
+    app_sailing_register_arrows(app, world);
+
     count = Wevs_ViewListCount(&app->wevs, view_id);
     for( int i = 0; i < count; i++ )
     {
@@ -12281,14 +12417,48 @@ app_wev_route_actors(struct App* app)
 
         if( !npc || npc->element_id < 0 )
             continue;
-        /* NPCs are never wire-homed (the mock projects deck npcs into root
-         * coordinates), so by the staging-rect rule they always belong to
-         * the root — see the player branch above for why the footprint test
-         * is gone. A server-spawned deck npc draws at its projected root
-         * position until per-world NPC_INFO exists. */
+        int view_id = WORLDVIEW_ROOT;
+        int x = (int)npc->draw_position.x;
+        int z = (int)npc->draw_position.z;
+        struct ToriRS_Npctype* type = NULL;
+        if( app->sailing_crew_category > 0 && Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT) > 0 )
+        {
+            type = CacheProvider_NpctypeGet(
+                app->provider, npc->base_npc_id >= 0 ? npc->base_npc_id : npc->npc_id);
+            if( !type ) type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
+        }
+        /* Only native ship crew opt into projected rendering. Ordinary shore
+         * NPCs, sea monsters and dock recruits retain their root-world pose.
+         * NPC_INFO continues to track the original root coordinates; changing
+         * those would corrupt later relative movement and target packets. */
+        if( app->sailing_crew_category > 0 && type && type->category == app->sailing_crew_category )
+            for( int pass = 0; pass < WORLDVIEW_MAX; ++pass )
+            {
+                int candidate = pass == 0 ? npc->view_placement.view_id : pass;
+                if( candidate <= 0 || !Wevs_IsLive(&app->wevs, candidate) ||
+                    !WorldviewRegistry_IsLive(&app->worldviews, candidate) ) continue;
+                struct Wev* wev = Wevs_Get(&app->wevs, candidate);
+                struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, candidate);
+                if( wev->parent_view_id != WORLDVIEW_ROOT || !view->world->load_complete ) continue;
+                struct WevDeckBox box;
+                int dx, dz;
+                app_wev_deck_box(app, wev, world, &box);
+                Wev_DeckFromWireTarget(wev, &box, x, z, &dx, &dz);
+                if( !Wev_DeckContainsDeckPoint(&box, dx, dz) ) continue;
+                /* The wire rounds projected feet to a whole tile. One half
+                 * tile of tolerance keeps rail-side crew inside the authored
+                 * hull, without treating its whole staging zone as planking. */
+                const struct WevConfig* cfg = wev->config;
+                int hx = dx + box.recenter_x - cfg->bounds_off_x;
+                int hz = dz + box.recenter_z - cfg->bounds_off_z;
+                if( cfg->bounds_w > 0 && abs(hx) > cfg->bounds_w / 2 + 64 ) continue;
+                if( cfg->bounds_h > 0 && abs(hz) > cfg->bounds_h / 2 + 64 ) continue;
+                view_id = candidate;
+                x = dx; z = dz;
+                break;
+            }
         app_wev_apply_placement(
-            app, &npc->view_placement, npc->element_id, WORLDVIEW_ROOT,
-            (int)npc->draw_position.x, (int)npc->draw_position.z);
+            app, &npc->view_placement, npc->element_id, view_id, x, z);
     }
 }
 
@@ -12434,6 +12604,9 @@ app_wev_claim_deck_actors(
         return 0;
     if( view_id == WORLDVIEW_ROOT )
     {
+        for( int i = 0; i < 2 && n < max; ++i )
+            if( app->sailing_arrow_element[i] >= 0 )
+                out_element_ids[n++] = app->sailing_arrow_element[i];
         for( int id = WORLDVIEW_ROOT + 1; id < WORLDVIEW_MAX && n < max; id++ )
         {
             struct Wev* wev;
@@ -15843,6 +16016,287 @@ App_BootWait(struct App* app)
 static void
 app_player_model_poll(struct App* app);
 
+/* Input-driven host effects are drained at the frame's CS2 fixed point.
+ * They do not consume simulation time: a close or amount response must not
+ * remain queued until a later boat command when the test clock is paused. */
+static int
+app_cs2_flush_notifications(struct App* app)
+{
+    int pending = app->host.close_modal_requested || app->host.logout_requested ||
+        app->host.keyboard_request || app->host.resume_pausebutton_component_id != -1 ||
+        app->host.social_send_count > 0;
+    /*
+     * An interface asked to close itself.
+     *
+     * `if_close` is what every framed interface's X runs (steelborder binds op 1
+     * to clientscript 29, whose whole body is that one opcode). Rev-230's
+     * method9167 both sends CLOSE_MODAL and locally unmounts every open modal
+     * / sidemodal sub (type 0 / 3); overlays (type 1) stay. The deferred flag
+     * is drained here rather than inside the hook so the CS2 host stays free
+     * of the socket — same split every other host request has.
+     */
+    if( app->host.close_modal_requested )
+    {
+        app->host.close_modal_requested = false;
+        if( !app->closing_modals )
+        {
+            int uids[UITREE_INTERFACE_PARENT_MAX];
+            int n = 0;
+
+            app->closing_modals = 1;
+            if( app->button_sink.close_modal )
+                app->button_sink.close_modal(app->button_sink.user);
+
+            /* Snapshot first: App_CloseSubInterface mutates interface_parents. */
+            if( app->tree )
+            {
+                for( int i = 0; i < app->tree->interface_parent_count; i++ )
+                {
+                    int t = app->tree->interface_parents[i].type;
+                    if( t == 0 || t == 3 )
+                        uids[n++] = app->tree->interface_parents[i].container_uid;
+                }
+                for( int i = 0; i < n; i++ )
+                    App_CloseSubInterface(app, uids[i]);
+            }
+
+            /* CS1 IF1 slots: 2004 closeModal() cleared these locally too. */
+            if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
+                RS_UISlots_CloseModal(app);
+
+            app->closing_modals = 0;
+            app->need_redraw = 1;
+        }
+    }
+
+    /*
+     * A CS2 script ran LOGOUT (5630) -- the modern lane's "Click here to
+     * logout", whose button is script-driven and carries no cache op.
+     *
+     * Parked by the host and turned into a session teardown here, the same
+     * split if_close above takes: the CS2 host knows nothing about the socket.
+     * Handed to the tick's own drain rather than performed here so it lands
+     * behind whatever this tick has already queued. @see App_Logout.
+     */
+    if( app->host.logout_requested )
+    {
+        app->host.logout_requested = false;
+        app->logout_requested = 1;
+    }
+    /* The mobile scripts' soft keyboard: "Start chatting" shows it over the
+     * chat line, its second press hides it. The chat line's focus is what the
+     * platform keyboard follows (app_wants_text_input), so this is the same
+     * focus a tap on the chat area gives. */
+    if( app->host.keyboard_request )
+    {
+        app->vm_keyboard_open = app->host.keyboard_request > 0;
+        /* The push to the platform is edge-triggered on "wanted" (see
+         * App_TakeTextInputChange), and the person may have dismissed the
+         * keyboard with the system's own button, which changes nothing here.
+         * A request is a deliberate ask: forget what was last pushed so the
+         * next take pushes the current answer again, as a tap on a login
+         * field does. */
+        app->text_input_effective = -1;
+        app->host.keyboard_request = 0;
+        app->need_redraw = 1;
+    }
+
+    if( app->host.resume_pausebutton_component_id != -1 )
+    {
+        int const com_id = app->host.resume_pausebutton_component_id;
+        app->host.resume_pausebutton_component_id = -1;
+        if( app->button_sink.resume_pausebutton )
+            app->button_sink.resume_pausebutton(app->button_sink.user, com_id);
+    }
+
+    /*
+     * Social requests a CS2 script queued this tick (friend_add, ignore_del,
+     * chat_setfilter, chat_sendprivate — all reached from clientscript 681,
+     * which is what the name prompt's Enter key runs) plus docheat, the
+     * chatbox's own "::foo" handler (distinct from this function's
+     * TORIRS_NET_CHEAT hook above).
+     *
+     * Same split as if_close above: the CS2 host knows nothing about the
+     * socket, so it parks the request and this is where it becomes a packet.
+     * The host has already applied the local half (the store, the filter
+     * modes), because the server answers nothing at all on a delete.
+     */
+    {
+        struct RS_CS2SocialSend send;
+
+        while( RS_CS2Host_TakeSocialSend(&app->host, &send) )
+        {
+            int64_t name37 = (int64_t)strtobase37(send.name);
+
+            if( !app->net )
+                continue;
+            switch( send.kind )
+            {
+            case RS_CS2_SOCIAL_SEND_FRIEND_ADD:
+                APP_NET_SEND(
+                    app,
+                    net_out_friendlist_add(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_FRIEND_DEL:
+                APP_NET_SEND(
+                    app,
+                    net_out_friendlist_del(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_IGNORE_ADD:
+                APP_NET_SEND(
+                    app,
+                    net_out_ignorelist_add(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_IGNORE_DEL:
+                APP_NET_SEND(
+                    app,
+                    net_out_ignorelist_del(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_CHAT_SETMODE:
+                APP_NET_SEND(
+                    app,
+                    net_out_chat_setmode(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.modes[0],
+                        send.modes[1],
+                        send.modes[2]));
+                break;
+            case RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE:
+                APP_NET_SEND(
+                    app,
+                    net_out_message_private(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        name37,
+                        send.text));
+                /*
+                 * Local echo of the sent line, the reference's own behaviour
+                 * (Client.ts socialInputType 3): the "To Bob: ..." row appears
+                 * on send, not on a server round trip — the server never
+                 * echoes a private message back to its sender.
+                 */
+                {
+                    char shown[RS_SOCIAL_NAME_LEN];
+
+                    RS_Social_DisplayName(send.name, shown, (int)sizeof(shown));
+                    RS_CS2Host_ChatAdd(
+                        &app->host, RS_CHAT_TYPE_PRIVATE_TO, shown, send.name, send.text);
+                }
+                app->need_redraw = 1;
+                break;
+            /*
+             * chat_sendpublic from the chatbox's own submit path (script 73 ->
+             * ~script5517 at rev 230).
+             *
+             * No local echo, unlike the private send above: a public line comes
+             * back in the sender's own PLAYER_INFO extended info, and
+             * task_exec_entity_info's PKT_PLAYER_INFO_OP_CHAT arm is what adds
+             * the chatbox row and the overhead bubble for it. Echoing here as
+             * well would print every line the player says twice.
+             */
+            case RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC:
+                APP_NET_SEND(
+                    app,
+                    net_out_message_public(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.text,
+                        send.colour_effect));
+                break;
+            case RS_CS2_SOCIAL_SEND_CHEAT:
+                if( strncmp(send.text, "lootkill ", 9) == 0 )
+                {
+                    char lk_source[64] = { 0 };
+                    int lk_obj = 0;
+                    int lk_qty = 1;
+                    if( sscanf(send.text + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
+                    {
+                        if( lk_qty <= 0 )
+                            lk_qty = 1;
+                        App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
+                    }
+                    break;
+                }
+                APP_NET_SEND(
+                    app,
+                    net_out_client_cheat(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.text));
+                break;
+            /* resume_countdialog(text) from a CS2 script — the bank PIN
+             * keypad's fourth digit. Same packet the chatbox's own "Enter
+             * amount" prompt sends below, and the same atol: the opcode pops
+             * a string, the wire carries an int. */
+            case RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG:
+                APP_NET_SEND(
+                    app,
+                    net_out_resume_countdialog(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        (int)atol(send.text)));
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    return pending;
+}
+
+/* Typed server notifications belong to the same settled transaction as
+ * their CS2 click. Paused test clocks must not hold them until a logic tick. */
+static int
+app_cs2_flush_triggeroplocal(struct App* app)
+{
+    int sent = 0;
+    {
+        struct RS_CS2TriggerOpLocal trig;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_TRIGGEROPLOCAL_MAX * 4 &&
+               RS_CS2Host_TakeTriggerOpLocal(&app->host, &trig) )
+        {
+            sent = 1;
+            if( !app->net )
+                continue;
+            if( app->net->rev->packetout_code(PKTOUT_NAME_IF_SCRIPT_TRIGGER) >= 0 )
+            {
+                const char* strings[16];
+                for( int i=0; i<16; ++i ) strings[i]=trig.strings[i];
+                int object_id=-1;
+                int node=UITree_FindByComponentId(app->tree,trig.component_id);
+                if( node>=0 && trig.child>=0 )
+                    node=UITree_FindChildBySubid(app->tree,node,trig.component_id,trig.child);
+                if( node>=0 && app->tree->components[node].item_id>0 )
+                    object_id=app->tree->components[node].item_id;
+                APP_NET_SEND(app, net_out_if_script_trigger(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    trig.crc, trig.component_id, trig.child, object_id,
+                    trig.signature, trig.values, strings));
+            }
+            else
+                APP_NET_SEND(app, net_out_if_button_op(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    1, trig.component_id, trig.sub));
+        }
+    }
+
+    return sent;
+}
+
 /* Queue the CS2 work a just-completed script deferred back to the host.
  *
  * These requests cannot be dispatched from inside the VM which raised them:
@@ -15853,7 +16307,8 @@ app_player_model_poll(struct App* app);
 static int
 app_cs2_enqueue_followups(struct App* app)
 {
-    int queued = 0;
+    int queued = app_cs2_flush_notifications(app);
+    queued |= app_cs2_flush_triggeroplocal(app);
 
     {
         int com_id;
@@ -17457,233 +17912,7 @@ app_logic_tick(struct App* app)
 
     RS_CS2Host_Tick(&app->host);
 
-    /*
-     * An interface asked to close itself.
-     *
-     * `if_close` is what every framed interface's X runs (steelborder binds op 1
-     * to clientscript 29, whose whole body is that one opcode). Rev-230's
-     * method9167 both sends CLOSE_MODAL and locally unmounts every open modal
-     * / sidemodal sub (type 0 / 3); overlays (type 1) stay. The deferred flag
-     * is drained here rather than inside the hook so the CS2 host stays free
-     * of the socket — same split every other host request has.
-     */
-    if( app->host.close_modal_requested )
-    {
-        app->host.close_modal_requested = false;
-        if( !app->closing_modals )
-        {
-            int uids[UITREE_INTERFACE_PARENT_MAX];
-            int n = 0;
-
-            app->closing_modals = 1;
-            if( app->button_sink.close_modal )
-                app->button_sink.close_modal(app->button_sink.user);
-
-            /* Snapshot first: App_CloseSubInterface mutates interface_parents. */
-            if( app->tree )
-            {
-                for( int i = 0; i < app->tree->interface_parent_count; i++ )
-                {
-                    int t = app->tree->interface_parents[i].type;
-                    if( t == 0 || t == 3 )
-                        uids[n++] = app->tree->interface_parents[i].container_uid;
-                }
-                for( int i = 0; i < n; i++ )
-                    App_CloseSubInterface(app, uids[i]);
-            }
-
-            /* CS1 IF1 slots: 2004 closeModal() cleared these locally too. */
-            if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
-                RS_UISlots_CloseModal(app);
-
-            app->closing_modals = 0;
-            app->need_redraw = 1;
-        }
-    }
-
-    /*
-     * A CS2 script ran LOGOUT (5630) -- the modern lane's "Click here to
-     * logout", whose button is script-driven and carries no cache op.
-     *
-     * Parked by the host and turned into a session teardown here, the same
-     * split if_close above takes: the CS2 host knows nothing about the socket.
-     * Handed to the tick's own drain rather than performed here so it lands
-     * behind whatever this tick has already queued. @see App_Logout.
-     */
-    if( app->host.logout_requested )
-    {
-        app->host.logout_requested = false;
-        app->logout_requested = 1;
-    }
-    /* The mobile scripts' soft keyboard: "Start chatting" shows it over the
-     * chat line, its second press hides it. The chat line's focus is what the
-     * platform keyboard follows (app_wants_text_input), so this is the same
-     * focus a tap on the chat area gives. */
-    if( app->host.keyboard_request )
-    {
-        app->vm_keyboard_open = app->host.keyboard_request > 0;
-        /* The push to the platform is edge-triggered on "wanted" (see
-         * App_TakeTextInputChange), and the person may have dismissed the
-         * keyboard with the system's own button, which changes nothing here.
-         * A request is a deliberate ask: forget what was last pushed so the
-         * next take pushes the current answer again, as a tap on a login
-         * field does. */
-        app->text_input_effective = -1;
-        app->host.keyboard_request = 0;
-        app->need_redraw = 1;
-    }
-
-    if( app->host.resume_pausebutton_component_id != -1 )
-    {
-        int const com_id = app->host.resume_pausebutton_component_id;
-        app->host.resume_pausebutton_component_id = -1;
-        if( app->button_sink.resume_pausebutton )
-            app->button_sink.resume_pausebutton(app->button_sink.user, com_id);
-    }
-
-    /*
-     * Social requests a CS2 script queued this tick (friend_add, ignore_del,
-     * chat_setfilter, chat_sendprivate — all reached from clientscript 681,
-     * which is what the name prompt's Enter key runs) plus docheat, the
-     * chatbox's own "::foo" handler (distinct from this function's
-     * TORIRS_NET_CHEAT hook above).
-     *
-     * Same split as if_close above: the CS2 host knows nothing about the
-     * socket, so it parks the request and this is where it becomes a packet.
-     * The host has already applied the local half (the store, the filter
-     * modes), because the server answers nothing at all on a delete.
-     */
-    {
-        struct RS_CS2SocialSend send;
-
-        while( RS_CS2Host_TakeSocialSend(&app->host, &send) )
-        {
-            int64_t name37 = (int64_t)strtobase37(send.name);
-
-            if( !app->net )
-                continue;
-            switch( send.kind )
-            {
-            case RS_CS2_SOCIAL_SEND_FRIEND_ADD:
-                APP_NET_SEND(
-                    app,
-                    net_out_friendlist_add(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
-                break;
-            case RS_CS2_SOCIAL_SEND_FRIEND_DEL:
-                APP_NET_SEND(
-                    app,
-                    net_out_friendlist_del(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
-                break;
-            case RS_CS2_SOCIAL_SEND_IGNORE_ADD:
-                APP_NET_SEND(
-                    app,
-                    net_out_ignorelist_add(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
-                break;
-            case RS_CS2_SOCIAL_SEND_IGNORE_DEL:
-                APP_NET_SEND(
-                    app,
-                    net_out_ignorelist_del(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
-                break;
-            case RS_CS2_SOCIAL_SEND_CHAT_SETMODE:
-                APP_NET_SEND(
-                    app,
-                    net_out_chat_setmode(
-                        app->net->rev,
-                        app->net->random_out,
-                        _nsbuf,
-                        sizeof(_nsbuf),
-                        send.modes[0],
-                        send.modes[1],
-                        send.modes[2]));
-                break;
-            case RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE:
-                APP_NET_SEND(
-                    app,
-                    net_out_message_private(
-                        app->net->rev,
-                        app->net->random_out,
-                        _nsbuf,
-                        sizeof(_nsbuf),
-                        name37,
-                        send.text));
-                /*
-                 * Local echo of the sent line, the reference's own behaviour
-                 * (Client.ts socialInputType 3): the "To Bob: ..." row appears
-                 * on send, not on a server round trip — the server never
-                 * echoes a private message back to its sender.
-                 */
-                {
-                    char shown[RS_SOCIAL_NAME_LEN];
-
-                    RS_Social_DisplayName(send.name, shown, (int)sizeof(shown));
-                    RS_CS2Host_ChatAdd(
-                        &app->host, RS_CHAT_TYPE_PRIVATE_TO, shown, send.name, send.text);
-                }
-                app->need_redraw = 1;
-                break;
-            /*
-             * chat_sendpublic from the chatbox's own submit path (script 73 ->
-             * ~script5517 at rev 230).
-             *
-             * No local echo, unlike the private send above: a public line comes
-             * back in the sender's own PLAYER_INFO extended info, and
-             * task_exec_entity_info's PKT_PLAYER_INFO_OP_CHAT arm is what adds
-             * the chatbox row and the overhead bubble for it. Echoing here as
-             * well would print every line the player says twice.
-             */
-            case RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC:
-                APP_NET_SEND(
-                    app,
-                    net_out_message_public(
-                        app->net->rev,
-                        app->net->random_out,
-                        _nsbuf,
-                        sizeof(_nsbuf),
-                        send.text,
-                        send.colour_effect));
-                break;
-            case RS_CS2_SOCIAL_SEND_CHEAT:
-                if( strncmp(send.text, "lootkill ", 9) == 0 )
-                {
-                    char lk_source[64] = { 0 };
-                    int lk_obj = 0;
-                    int lk_qty = 1;
-                    if( sscanf(send.text + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
-                    {
-                        if( lk_qty <= 0 )
-                            lk_qty = 1;
-                        App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
-                    }
-                    break;
-                }
-                APP_NET_SEND(
-                    app,
-                    net_out_client_cheat(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.text));
-                break;
-            /* resume_countdialog(text) from a CS2 script — the bank PIN
-             * keypad's fourth digit. Same packet the chatbox's own "Enter
-             * amount" prompt sends below, and the same atol: the opcode pops
-             * a string, the wire carries an int. */
-            case RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG:
-                APP_NET_SEND(
-                    app,
-                    net_out_resume_countdialog(
-                        app->net->rev,
-                        app->net->random_out,
-                        _nsbuf,
-                        sizeof(_nsbuf),
-                        (int)atol(send.text)));
-                break;
-            default:
-                break;
-            }
-        }
-    }
+    app_cs2_flush_notifications(app);
 
     /* clientCode-populated components (friends rows, list sizes, design
      * preview) refresh from live state each tick (reference clientComponent
@@ -17899,33 +18128,7 @@ app_logic_tick(struct App* app)
     if( app_cs2_enqueue_followups(app) )
         redraw = 1;
 
-    /*
-     * if_triggeroplocal — CS2 asked the client to notify the server of a
-     * synthetic button click (skill-guide Quest XP View-journal). Real
-     * rev-239 wire is IF_SCRIPT_TRIGGER; over rev-230 this is IF_BUTTON1
-     * with the typed arg (quest id) in the sub field → last_slot.
-     */
-    {
-        struct RS_CS2TriggerOpLocal trig;
-        int guard = 0;
-
-        while( guard++ < RS_CS2_HOST_TRIGGEROPLOCAL_MAX * 4 &&
-               RS_CS2Host_TakeTriggerOpLocal(&app->host, &trig) )
-        {
-            if( !app->net )
-                continue;
-            APP_NET_SEND(
-                app,
-                net_out_if_button_op(
-                    app->net->rev,
-                    app->net->random_out,
-                    _nsbuf,
-                    sizeof(_nsbuf),
-                    1,
-                    trig.component_id,
-                    trig.sub));
-        }
-    }
+    app_cs2_flush_triggeroplocal(app);
 
     /* CS1 (IF1) value scripts drive active state and %N text. The reference
      * re-evaluates them at draw time; here a task does it once per tick so the
@@ -18118,7 +18321,9 @@ app_world_sync_placement(
      * so the yaw the mover derives from it, happens in view-local space — so
      * their yaw goes on unrotated; only a projected (footprint-routed) actor
      * carries a root-frame heading that needs the hull's yaw taken out. */
-    deck_yaw = placement->home_view == placement->view_id && placement->home_view != 0
+    /* The legacy NPC bridge projects positions but still sends each crew
+     * member's native deck-facing direction (NPC_INFO face_dir). */
+    deck_yaw = actor_level < 0 || (placement->home_view == placement->view_id && placement->home_view != 0)
                    ? yaw & 0x7ff
                    : (yaw - wev->angle) & 0x7ff;
     /* The deck plane: a PLAYER stands at their own wire plane inside the
@@ -20524,8 +20729,16 @@ app_minimap_click(
         rel_x = (center_y * sin + center_x * cos) >> 11;
         rel_y = (center_y * cos - center_x * sin) >> 11;
     }
-    tile_x = ((int)player->draw_position.x + rel_x) >> 7;
-    tile_z = ((int)player->draw_position.z - rel_y) >> 7;
+    if( app_sailing_at_helm(app) )
+    {
+        if( rel_x == 0 && rel_y == 0 ) return 0;
+        return app_sailing_send_heading(app, SailingNavigation_Heading(rel_x, -rel_y));
+    }
+    int player_x = (int)player->draw_position.x;
+    int player_z = (int)player->draw_position.z;
+    app_wev_actor_root_fine(app, &player->view_placement, &player_x, &player_z);
+    tile_x = (player_x + rel_x) >> 7;
+    tile_z = (player_z - rel_y) >> 7;
     if( tile_x < 0 || tile_z < 0 || tile_x >= app->world->_scene_size ||
         tile_z >= app->world->_scene_size )
         return 0;
@@ -20540,7 +20753,19 @@ app_minimap_click(
             tile_z,
             app->world->_base_tile_x + tile_x,
             app->world->_base_tile_z + tile_z);
-    app_try_move(app, tile_x, tile_z, 1, center_x, center_y, yaw, ctrl_held);
+    if( app->aboard_view != WORLDVIEW_ROOT && app->net )
+    {
+        int route_x[] = {tile_x}, route_z[] = {tile_z};
+        /* As with viewport shore clicks, the server chooses a reachable deck
+         * edge. Root BFS cannot start from a passenger's staging coordinates. */
+        APP_NET_SEND(app, net_out_move_minimapclick(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+            app->world->_base_tile_x, app->world->_base_tile_z,
+            route_x, route_z, 1, ctrl_held, center_x, center_y, yaw, 0, 0,
+            player_x, player_z, 0));
+    }
+    else
+        app_try_move(app, tile_x, tile_z, 1, center_x, center_y, yaw, ctrl_held);
     app->need_redraw = 1;
     return 1;
 }
@@ -27105,6 +27330,7 @@ app_hover_text_update(
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
+            app_sailing_menu_context(app, &mctx, mouse_x, mouse_y);
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
             app_minimenu_stamp_node_identities(app, &scratch);
             app_plugin_menu_build(app, &scratch, mouse_x, mouse_y, 1);
@@ -27530,6 +27756,7 @@ app_minimenu_open(
     int line_box = 0;
 
     app_minimenu_ctx_ground_fallback(app, &mctx, click_x, click_y);
+    app_sailing_menu_context(app, &mctx, click_x, click_y);
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
     /* Before the plugins, so their re-sort covers these rows too -- the client
      * ops are the cache's, and a plugin adding a row after them must not leave
@@ -29418,6 +29645,10 @@ app_minimenu_run_option(
             UICross_Show(&app->cross, UI_CROSS_INTERACT, click_x, click_y);
         }
         return 0;
+    case UI_MINIMENU_PICK_HEADING:
+        if( app_sailing_send_heading(app, opt.pick.id) )
+            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
+        return 0;
     case UI_MINIMENU_PICK_TERRAIN:
         /*
          * A WORLD-ENTITY view's tile: the pick coordinates are the DECK's own,
@@ -30010,6 +30241,9 @@ App_SetCanvasSize(
  * leaves every descendant's own flag clear and its stale abs_* box intact, so a
  * caller that reads geometry off the flat component array sees a hidden
  * subtree's boxes as live ones. */
+#if defined(TORIRS_CANVAS_CAPTURE)
+#include "../tools/perf/canvas_chain_capture.u.h"
+#endif
 static int
 component_hidden_or_orphaned(
     struct UITree const* tree,
@@ -30033,6 +30267,11 @@ component_hidden_or_orphaned(
 int
 App_MeasureRightChromeStripWidth(struct App const* app)
 {
+#if defined(TORIRS_CANVAS_CAPTURE)
+    canvas_chain_capture(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H);
+#endif
+    if( app->tree && UITree_CanvasQueryCompactEnabled() )
+        return UITree_CanvasMeasureCompact(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H).strip;
     /*
      * Memo, keyed on the tree publication this answer was read from.
      *
@@ -30157,6 +30396,11 @@ App_MeasureRightChromeStripWidth(struct App const* app)
 int
 App_MeasureLaneFrameCoreWidth(struct App const* app)
 {
+#if defined(TORIRS_CANVAS_CAPTURE)
+    canvas_chain_capture(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H);
+#endif
+    if( app->tree && UITree_CanvasQueryCompactEnabled() )
+        return UITree_CanvasMeasureCompact(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H).core;
     /* Memoised on the same three terms as the strip scan above, and for the
      * same reason: this is a full pass over every component, asked once per
      * frame from App_CanvasFloorWidth. @see App_MeasureRightChromeStripWidth. */
@@ -31504,9 +31748,13 @@ App_RunOnce(
      * held the visual latch a full tick per read, and a hitsplat whose
      * sprite+sound chain was several reads deep froze the world for that
      * many ticks — every server cycle, in combat. When nothing is parked
-     * this does not run at all, so tick cadence is otherwise untouched. */
+     * and no new packet is queued, this does not run. Newly received packets
+     * must also enter this pipeline: a paused client has no next logic tick to
+     * start it, so publish-only server responses otherwise wait forever. This
+     * drains the existing serial protocol queue without advancing simulation. */
     if( app->exec_runner_had_work || app->server_tick_open ||
-        app->pending_clientscript_count > 0 )
+        app->pending_clientscript_count > 0 ||
+        (app->net && app->net->packets_head) )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
         {
@@ -31961,6 +32209,7 @@ App_RunOnce(
 
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
+        app_sailing_menu_context(app, &mctx, out.clicked_x, out.clicked_y);
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
         app_minimenu_stamp_node_identities(app, &scratch);
         app_plugin_menu_build(app, &scratch, out.clicked_x, out.clicked_y, 0);
@@ -32086,6 +32335,7 @@ App_RunOnce(
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
+        app_sailing_menu_context(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
         app_minimenu_stamp_node_identities(app, &scratch);
         app_plugin_menu_build(app, &scratch, out.left_click_miss_x, out.left_click_miss_y, 0);
@@ -32954,6 +33204,39 @@ App_RunOnce(
             if( UIInk_IsActive(&app->ink) )
                 gate_quiet = 0;
 
+#if defined(TORIRS_UI_RETAIN_TRACE)
+            /* Correctness/dependency census only, never a timing run. Count
+             * failed retention inputs after startup; no per-node timer. */
+            {
+                static unsigned frames, quiet, dirty, layout, topology, hover, host,
+                    unrefreshable, ink, domains[UITREE_HOST_INPUT_DOMAIN_COUNT];
+                extern unsigned g_ui_retain_trace_mutations;
+                if( frames == 600u ) g_ui_retain_trace_mutations = 48u;
+                if( ++frames > 600u && frames <= 1800u )
+                {
+                    quiet += gate_quiet != 0;
+                    dirty += app->tree->dirty_gen != app->emit_gate.dirty_gen;
+                    layout += app->tree->layout_stale || app->tree->layout_force_full ||
+                        app->tree->layout_resolve_seq != app->emit_gate.layout_resolve_seq;
+                    topology += app->tree->generation != app->emit_gate.tree_generation;
+                    hover += app->hover_com_id != app->emit_gate.hovered_component_id;
+                    host += !UITree_EmitBufferHostInputsCurrent(&app->emit, &app->ui_host);
+                    unrefreshable += app->emit.volatile_unrefreshable != 0;
+                    ink += UIInk_IsActive(&app->ink) != 0;
+                    for( int d = 0; d < UITREE_HOST_INPUT_DOMAIN_COUNT; d++ )
+                        domains[d] += (app->emit.host_input_stamp.dependencies & UITREE_HOST_INPUT_BIT(d)) &&
+                            app->emit.host_input_stamp.epoch[d] != app->ui_host.input_epoch[d];
+                    if( frames == 1800u )
+                    {
+                        TORIRS_REPORT("ui-retain-trace: frames=1200 quiet=%u dirty=%u layout=%u topology=%u hover=%u host=%u unrefreshable=%u ink=%u\n",
+                            quiet, dirty, layout, topology, hover, host, unrefreshable, ink);
+                        for( int d = 0; d < UITREE_HOST_INPUT_DOMAIN_COUNT; d++ )
+                            TORIRS_REPORT("ui-retain-trace: host_domain=%d changed=%u\n", d, domains[d]);
+                    }
+                }
+            }
+#endif
+
             /* Every dirty_gen source was measured bursty (creates, hide flips,
              * child link/unlink — all interface-open work), so on a steady-state
              * frame the tree term should hold and the gate should fire. It fires
@@ -33178,7 +33461,9 @@ App_FrameSettled(struct App const* app)
     assert(app);
     return !app->runner_had_work && !app->runner.frame_settle_pending &&
            !app->exec_runner_had_work && !app->server_tick_open &&
-           app->pending_clientscript_count == 0;
+           app->pending_clientscript_count == 0 && app->host.triggeroplocal_count == 0 &&
+           !app->host.close_modal_requested && app->host.resume_pausebutton_component_id == -1 &&
+           app->host.social_send_count == 0;
 }
 
 int

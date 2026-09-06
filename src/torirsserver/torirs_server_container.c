@@ -970,7 +970,8 @@ bind_row(
     struct ToriRSServerContainer* row,
     struct ToriRSServerPlayer* viewer,
     int32_t inv_id,
-    int32_t component)
+    int32_t component,
+    int other_inventory)
 {
     int listener_i;
 
@@ -984,7 +985,8 @@ bind_row(
     for( listener_i = 0; listener_i < row->listener_count; listener_i++ )
     {
         if( row->listeners[listener_i].component == component &&
-            listener_matches(row, listener_i, viewer) )
+            listener_matches(row, listener_i, viewer) &&
+            row->listeners[listener_i].other_inventory == other_inventory )
             return 1;
     }
 
@@ -1004,12 +1006,13 @@ bind_row(
     listener_i = row->listener_count++;
     row->listeners[listener_i].component = component;
     row->listeners[listener_i].first_seen = 1;
+    row->listeners[listener_i].other_inventory = other_inventory;
     row->listeners[listener_i].player = viewer;
     /* The reference sends a full update the moment a listener is added, and the
      * interface being painted needs it: a paint hook only runs on a transmit,
      * so a panel mounted before the container existed stays empty otherwise.
      * Only this listener's first_seen is cleared — other listeners keep theirs. */
-    ToriRSServer_SendInvFull(viewer, (int)component, (int)inv_id, row->items, full_capacity(row));
+    ToriRSServer_SendInvFull(viewer, (int)component, (int)inv_id + (other_inventory ? 32768 : 0), row->items, full_capacity(row));
     row->listeners[listener_i].first_seen = 0;
     return 1;
 }
@@ -1022,7 +1025,7 @@ ToriRSServer_ContainerBind(
     int32_t component)
 {
     return bind_row(srv, ToriRSServer_ContainerResolve(srv, player, inv_id), player, inv_id,
-                    component);
+                    component, 0);
 }
 
 int
@@ -1036,7 +1039,19 @@ ToriRSServer_ContainerBindFrom(
     if( !owner || !viewer )
         return 0;
     return bind_row(srv, ToriRSServer_ContainerResolve(srv, owner, inv_id), viewer, inv_id,
-                    component);
+                    component, 0);
+}
+
+int
+ToriRSServer_ContainerBindOther(struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* owner, struct ToriRSServerPlayer* viewer,
+    int32_t inv_id, int32_t component)
+{
+    assert(srv);
+    assert(owner);
+    assert(viewer);
+    return bind_row(srv, ToriRSServer_ContainerResolve(srv, owner, inv_id), viewer,
+                    inv_id, component, 1);
 }
 
 void
@@ -1094,10 +1109,10 @@ ToriRSServer_ContainerFlush(struct ToriRSServerPlayer* player)
             if( !dirty && !row->listeners[l].first_seen )
                 continue;
             if( row->per_slot && dirty && !row->listeners[l].first_seen )
-                ToriRSServer_SendInvPartial(target, (int)component, (int)row->inv_id, row->items,
+                ToriRSServer_SendInvPartial(target, (int)component, (int)row->inv_id + (row->listeners[l].other_inventory ? 32768 : 0), row->items,
                                          row->slots, ToriRSServer_ContainerSlotMask(row));
             else
-                ToriRSServer_SendInvFull(target, (int)component, (int)row->inv_id, row->items,
+                ToriRSServer_SendInvFull(target, (int)component, (int)row->inv_id + (row->listeners[l].other_inventory ? 32768 : 0), row->items,
                                       full_capacity(row));
             row->listeners[l].first_seen = 0;
         }
@@ -1149,10 +1164,10 @@ ToriRSServer_ContainerFlushWorld(struct ToriRSServer* srv)
             if( !dirty && !row->listeners[l].first_seen )
                 continue;
             if( row->per_slot && dirty && !row->listeners[l].first_seen )
-                ToriRSServer_SendInvPartial(target, (int)component, (int)row->inv_id, row->items,
+                ToriRSServer_SendInvPartial(target, (int)component, (int)row->inv_id + (row->listeners[l].other_inventory ? 32768 : 0), row->items,
                                          row->slots, ToriRSServer_ContainerSlotMask(row));
             else
-                ToriRSServer_SendInvFull(target, (int)component, (int)row->inv_id, row->items,
+                ToriRSServer_SendInvFull(target, (int)component, (int)row->inv_id + (row->listeners[l].other_inventory ? 32768 : 0), row->items,
                                       full_capacity(row));
             row->listeners[l].first_seen = 0;
         }

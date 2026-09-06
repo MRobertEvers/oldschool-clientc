@@ -164,7 +164,7 @@ static const struct Osrs239PacketOutDef g_packet_out_definitions_osrs239[] = {
     { PKTOUT_NAME_NONE,                      61, 2,                       "MEMBERSHIP_PROMOTION_ELIGIBILITY" },
     { PKTOUT_NAME_NONE,                      39, 4,                       "SOUND_JINGLEEND" },
     { PKTOUT_NAME_WINDOW_STATUS,             10, 5,                       "WINDOW_STATUS" },
-    { PKTOUT_NAME_NONE,                      44, 1,                       "SET_HEADING" },
+    { PKTOUT_NAME_SET_HEADING,               44, 1,                       "SET_HEADING" },
     { PKTOUT_NAME_NONE,                     105, 1,                       "RSEVEN_STATUS" },
 
     /* Client-table-only fixed packets. These are framing rows; the

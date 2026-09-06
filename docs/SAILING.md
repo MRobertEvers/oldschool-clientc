@@ -257,8 +257,9 @@ The targeted view then loads map regions exactly like a main-world rebuild
 (instance-template or normal), and player lists are re-bucketed geometrically.
 
 **Config** (`class387`, config index **archive 72**, file = id): op 2 plane;
-ops 4/5 pivot offset x/y (**signed** — −64 occurs); ops 6–9 bounds w/h/offsets,
-u16 each (baked into 16-orientation corner tables, with margin variants
+ops 4/5 pivot offset x/y (**signed** — −64 occurs); ops 6/7 signed bounds
+x/z offsets and ops 8/9 unsigned bounds width/height (baked into
+16-orientation corner tables, with margin variants
 256/334/362); op 12 name; op 14 a **parameterless flag** (no payload); ops
 **15–19** the five right-click ops; op 20 category; op 23 click mode; op 24 u8
 (purpose unknown); op 25 default animation (the bob); op 26 u16 (unknown,
@@ -270,9 +271,11 @@ seq-id-shaped); op 27 flattened HSL (default 39188).
 > opcode, and the op strings start at 15 ("Board" on *The Zenith*). A loader
 > built from the old table mis-parses 6 of the 14 entries. Op 27 never appears
 > in this cache, so every hull uses the 39188 default; its u16 width is taken
-> from the deob, not from data. The w/h-vs-offset assignment within 6–9 is
-> likewise unconfirmed — op 7 reads back negative and a boardable ship carries
-> op8=op9=0, which a width/height pair should not.
+> from the deob, not from data. The 6–9 assignment is now confirmed by
+> `class387` constructing `class575(op8, op9, op6, op7)` and the box's printed
+> field order. Config 3's box is 384×1280 with offset (0,−256). The Zenith
+> (config 9) has zero authored bounds and uses its declared extent fallback.
+> Client and server now share `WevConfig_Decode`; see `sailing_collision.md`.
 
 **Click routing**: the menu hash gains a **world-view id in bits 52–63**
 (4095 = none) alongside type (4 = world entity, 5 = blocker). While drawing a

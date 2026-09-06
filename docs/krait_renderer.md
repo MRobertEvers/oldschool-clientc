@@ -1,5 +1,69 @@
 # Krait model-chain replay
 
+## Incremental sub-10 work
+
+See [implementation progress](../benchmarks/krait_model_chains/SUB10_PROGRESS.md)
+and [the active plan](../KRAIT_SUB10_IMPLEMENTATION_PLAN.md). The target remains
+unachieved. `--target sub10` compares the new canvas/actor bundle with the
+already optimized renderer; `sub10-canvas` and `sub10-actor` isolate the two
+mechanisms, and `sub10-aa` varies neither. The actor comparison keeps compact
+canvas queries enabled in both arms. `complete` is the earlier baseline and
+must not be used to claim an incremental sub-10 gain.
+
+Build timing APKs with `build_android_renderer.py --probe frame-times --install`.
+The build saves source and binary provenance; the runner refuses stale source
+or a mismatched installed APK. Results contain the exact switch matrix,
+per-block ABBA summaries and read-only governor/battery observations. Both
+`--manifest` and `--args-file` are required for a live session. Launch arguments
+are hashed without copying credentials into results. Never run two measurements
+on the device concurrently.
+
+`--probe bake-verify` with `TORIRS_GLES2_ACTOR_DIRECT=1` compares complete packed
+actor vertex streams against the generic writer. `--probe ui-retain-trace`
+records a bounded retention dependency and geometry-mutation census. Both are
+correctness diagnostics, separate from timing and PMU measurements. Rebuild
+with `--probe normal` to remove all such diagnostics.
+
+## Whole-frame time and presentation cadence
+
+The frame-time diagnostic was added at the user's explicit request for
+milliseconds. Hardware counters remain the profiling mechanism; this is a
+separate end-to-end timing comparison, with no cycle-to-time conversion.
+
+```sh
+python3 tools/perf/build_android_renderer.py --probe frame-times --install
+python3 tools/perf/gles2_frame_times.py --scene grand-exchange-ground \
+  --uncapped --out build/model-chain/ge-frame-times.json
+```
+
+Omit `--uncapped` to measure the normal application pacer. For live gameplay,
+pass `--manifest` with the device manifest and `--args-file` with a private
+local arguments file. The account must already be in the world. Confirm the
+saved screenshot; a character-creation panel is not a gameplay sample.
+
+Twelve ABBA windows compare all accepted runtime switches in one binary,
+after 600 warmup frames and six settling frames between windows. Each arm
+contributes 1,080 frames by default. The main-loop timer includes game updates,
+scene construction, UI, rendering, EGL swap waits and audio, and ends before
+the artificial pacing wait. Completed-swap intervals include pacing and any
+skipped draws. They measure submission cadence, not display scanout latency.
+The renderer requests EGL swap interval zero in both arms. The driver may
+still impose buffer-queue waits.
+
+The dedicated build disables hardware-counter ioctls in timing mode and keeps
+`TORIRS_PERF=0`. It buffers raw timestamps in memory and writes the CSV only
+after the final measured frame; it does not insert `glFinish`. JSON reports
+mean, median, p95 and p99 for work, swap wait and completed-swap cadence.
+CSV retains every frame and the window/arm labels. The driver rejects missing
+frames, invalid ABBA windows and nonmonotonic timestamps. Launch settings are
+restored even when a capture fails.
+
+Return to the normal app using `--probe normal --install`. The build helper
+also rebuilds `main.c` when switching probes so timing hooks cannot remain in
+the normal APK through stale objects.
+
+See [the live frame-time recheck](../benchmarks/krait_model_chains/FRAME_TIME_RECHECK.md).
+
 ~~~sh
 make -f tools/perf/model_chain.mk -j3
 python3 tools/perf/model_chain.py run \

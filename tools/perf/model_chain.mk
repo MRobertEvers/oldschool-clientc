@@ -20,6 +20,11 @@ MC_LDFLAGS := -flto -lm
 MC_MODEL_CPU_FLAGS ?=
 MC_OBJS := $(MC_OUT)/replay.o $(MC_OUT)/stage.o $(MC_OUT)/toridraw.o
 .PHONY: model-chain all FORCE
+.PHONY: canvas-chain
+canvas-chain: $(MC_OUT)/canvas_chain_replay
+$(MC_OUT)/canvas_chain_replay: $(MC_ROOT)/tools/perf/canvas_chain_replay.c $(MC_OUT)/config
+	$(MC_CC) $(MC_CFLAGS) -I$(MC_ROOT)/3rd/inih -I$(MC_ROOT)/3rd/trspk $< $(MC_LDFLAGS) -o $@
+-include $(MC_OUT)/canvas_chain_replay.d
 all model-chain: $(MC_OUT)/model_chain_replay
 $(MC_OUT)/model_chain_replay: $(MC_OBJS)
 	$(MC_CC) $(MC_OBJS) $(MC_LDFLAGS) -o $@

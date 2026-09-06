@@ -2708,6 +2708,321 @@ biohazard_run_dialogue(
     }
 }
 
+static void
+selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
+{
+    fprintf(stderr, "ToriRSServer selftest: a canoe is chopped, shaped, floated and paddled\n");
+    {
+        /*
+         * The whole canoe chain, driven through the real packets, at the real
+         * Lumbridge station. docs/CANOES.md is the map of what it is exercising.
+         *
+         * There are four things here that a clean `sscompile` says nothing
+         * about and that this is here to catch:
+         *
+         *  1. **The station is identified by `loc_coord`, not `loc_type`.** All
+         *     ten stations share one set of multiloc children, so a trigger is
+         *     bound to `canoestation_tree` and the station comes out of a
+         *     `db_find` on the loc's own tile. One transposed coordinate in
+         *     `canoe_station.dbrow` and the click is a silent no-op — the exact
+         *     fingerprint [[p-oploc-multiloc-op-check]] describes.
+         *  2. **The op arrives on the resolved child.** `handle_oploc` checks
+         *     the op against the varbit-resolved loc, so the chop only works if
+         *     `canoestation_tree` really is what state 0 resolves to and really
+         *     does carry `op1`.
+         *  3. **State 11 and not state 1 is what the travel map wants.** The
+         *     multiloc has two in-water bands and only the upper one
+         *     (11..14) makes clientscript 3104 offer a destination.
+         *  4. **Reach is enforced server-side.** The client greys out a
+         *     destination it will not allow; the assertion below sends the
+         *     click anyway.
+         *
+         * The chop is a random roll, so the loop is ticked to a deadline rather
+         * than a fixed count, and the deadline is generous: at 60 Woodcutting
+         * with a rune axe a roll lands every four ticks and almost never fails.
+         */
+        int owned = 0;
+        int loaded = srv->scripts_ok;
+
+        if( !loaded )
+        {
+            const char* selected = getenv("TORIRSSERVER_SCRIPTS");
+            loaded = ToriRSServer_ScriptsLoad(srv, selected ? selected : "OSRS-Content/osrs239-content/server/scripts/build");
+            if( !loaded && !selected )
+                loaded =
+                    ToriRSServer_ScriptsLoad(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            owned = loaded != 0;
+        }
+
+        if( !loaded )
+        {
+            SELFTEST_CHECK(0, "canoes require a compiled script pack");
+        }
+        else
+        {
+            /* Independent minimum-boat table: docs/CANOES.md and the vendored
+             * shortest-path canoe transport list. Zero means no valid journey. */
+            static const int minimum[10][11] = {
+                {4,0,1,2,3,4,0,0,0,0,0}, {4,1,0,1,2,4,0,0,0,0,0},
+                {4,2,1,0,1,4,0,0,0,0,0}, {4,3,2,1,0,4,0,0,0,0,0},
+                {4,4,3,2,1,0,0,0,0,0,0}, {0,0,0,0,0,0,0,1,2,3,4},
+                {0,0,0,0,0,0,1,0,1,2,3}, {0,0,0,0,0,0,2,1,0,1,2},
+                {0,0,0,0,0,0,3,2,1,0,1}, {0,0,0,0,0,0,4,3,2,1,0},
+            };
+            for( int from = 1; from <= 10; from++ )
+                for( int type = 1; type <= 4; type++ )
+                    for( int dest = 0; dest <= 10; dest++ )
+                    {
+                        int32_t args[] = {from, type, dest}, allowed = -1;
+                        int expected = minimum[from-1][dest] > 0 && type >= minimum[from-1][dest];
+                        SELFTEST_CHECK(ToriRSServer_ScriptsRunProcInt(srv,
+                            "[proc,canoe_reach_allowed]", args, 3, &allowed) && allowed == expected,
+                            "canoe reach from=%d type=%d destination=%d expected=%d got=%d",
+                            from, type, dest, expected, allowed);
+                    }
+            static struct ToriRSServerCapture canoe_capture;
+            /* Lumbridge: the station loc's own south-west tile, which is both
+             * the OPLOC target and the key `canoe_station.dbrow` is written
+             * against, and the bank tile the player stands on to reach it. */
+            const int station_x = 3241;
+            const int station_z = 3235;
+            const int stand_x = 3243;
+            const int stand_z = 3237;
+            int station_loc =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "canoeing_canoestation_lumbridge");
+            int state_bit =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "canoestation_state_lumbridge");
+            int type_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "canoe_type");
+            int from_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "canoe_startfrom");
+            int log_cell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "canoeing:log");
+            int dest_guild =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "canoe_map_lum:destination_2");
+            int dest_edge =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "canoe_map_lum:destination_4");
+            int axe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "rune_axe");
+            int woodcutting = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "woodcutting");
+
+            SELFTEST_CHECK(station_loc >= 0, "the Lumbridge canoe station should be in the cache");
+            SELFTEST_CHECK(state_bit >= 0, "canoestation_state_lumbridge should be a cache varbit");
+            SELFTEST_CHECK(type_bit >= 0, "canoe_type should be a cache varbit");
+            SELFTEST_CHECK(from_bit >= 0, "canoe_startfrom should be a cache varbit");
+            SELFTEST_CHECK(log_cell >= 0, "canoeing:log should resolve as a component");
+            SELFTEST_CHECK(dest_guild >= 0, "canoe_map_lum:destination_2 should resolve");
+
+            /*
+             * The station state has to reach the CLIENT, not just the server.
+             *
+             * A canoe station is one placed multiloc whose child the client
+             * picks from `canoestation_state_<name>`, and the travel map greys
+             * its destinations from `canoe_startfrom`. Both are varbits, and a
+             * varbit only goes out inside the varp that carries it -- which
+             * `ToriRSServer_WorldMarkVarp` will not send unless the varp's
+             * config says `transmit=yes`.
+             *
+             * Everything below this line passed for a build in which five of
+             * the six were undeclared: the varbits were written, read back and
+             * agreed with at every step, while the tree stood at the bank
+             * through the whole chop/shape/float/paddle chain because no VARP
+             * packet ever left. Reading the state back is not evidence that it
+             * was sent, so the sending is checked here, by name.
+             */
+            {
+                static const char* const carriers[] = {
+                    "canoeing_river_lum",      /* stations 1-4  */
+                    "canoeing_river_lum_2",    /* Ferox Enclave */
+                    "canoeing_river_dougne",   /* stations 6, 8, 9, 10 */
+                    "canoeing_river_dougne_2", /* Tree Gnome Village   */
+                    "canoeing_menu",           /* canoe_type      */
+                    "canoeing_menu_2",         /* canoe_startfrom, canoe_river */
+                };
+                for( size_t ci = 0; ci < sizeof(carriers) / sizeof(carriers[0]); ci++ )
+                {
+                    int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, carriers[ci]);
+                    const struct ToriRSServerVarpDef* def =
+                        varp >= 0 ? ToriRSServer_ContentVarp(varp) : NULL;
+                    SELFTEST_CHECK(
+                        def && def->transmit,
+                        "%s carries a canoe varbit the client reads, so it must be declared "
+                        "transmit=yes (see canoes/configs/canoes.varp)",
+                        carriers[ci]);
+                }
+            }
+
+            if( station_loc >= 0 && state_bit >= 0 && type_bit >= 0 && from_bit >= 0 &&
+                log_cell >= 0 && dest_guild >= 0 && dest_edge >= 0 && axe >= 0 && woodcutting >= 0 )
+            {
+                uint8_t oploc[6] = { (uint8_t)(station_x >> 8), (uint8_t)station_x,
+                                     (uint8_t)(station_z >> 8), (uint8_t)station_z,
+                                     (uint8_t)(station_loc >> 8), (uint8_t)station_loc };
+                struct ToriRSServerItem saved_inv[TORIRSSERVER_INV_SLOTS];
+                int saved_level;
+                int saved_xp;
+                int state;
+                int seat_seen = 0;
+                int refused = 0;
+
+                memcpy(saved_inv, player->inv, sizeof(saved_inv));
+                saved_level = player->stat_level[woodcutting];
+                saved_xp = player->stat_xp_tenths[woodcutting];
+                int saved_hp_level = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+                int saved_godmode = player->godmode;
+                player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 99;
+                player->max_hitpoints = 99;
+                player->godmode = 1;
+                selftest_park_player(srv, stand_x, stand_z);
+                selftest_clear_inv(player);
+                selftest_give(player, axe, 1);
+                player->stat_level[woodcutting] = 60;
+                player->stat_boosted[woodcutting] = 60;
+                ToriRSServer_VarbitSet(srv, state_bit, 0);
+                srv->rng = 0xca20e001u;
+
+                /* ---- Chop-down. State 0 -> 10, through the falling state. */
+                selftest_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
+                for( int tick = 0; tick < 40; tick++ )
+                {
+                    selftest_tick(srv);
+                    if( ToriRSServer_VarbitGet(player, state_bit) == 10 )
+                        break;
+                }
+                state = ToriRSServer_VarbitGet(player, state_bit);
+                SELFTEST_CHECK(state == 10,
+                               "chopping the station should leave a fallen tree (state 10), got %d",
+                               state);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, from_bit) == 1,
+                               "and canoe_startfrom should name Lumbridge, got %d",
+                               ToriRSServer_VarbitGet(player, from_bit));
+
+                /* ---- Shape. The "Make Log canoe" op is on a cc_create'd child
+                 * of canoeing:log, so the click carries sub 0. */
+                if( state == 10 )
+                {
+                    uint8_t button[6] = { (uint8_t)(log_cell >> 24), (uint8_t)(log_cell >> 16),
+                                          (uint8_t)(log_cell >> 8),  (uint8_t)log_cell,
+                                          0,                         0 };
+
+                    selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, 6);
+                    for( int tick = 0; tick < 8; tick++ )
+                        selftest_tick(srv);
+                    state = ToriRSServer_VarbitGet(player, state_bit);
+                    SELFTEST_CHECK(state == 1,
+                                   "shaping a log canoe should leave state 1, got %d", state);
+                    SELFTEST_CHECK(player->stat_xp_tenths[woodcutting] > saved_xp,
+                                   "and it should pay Woodcutting xp");
+                    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, type_bit) == 1,
+                                   "and canoe_type should be the log, got %d",
+                                   ToriRSServer_VarbitGet(player, type_bit));
+                }
+
+                /* ---- Float. State 1 -> 5 (the launch splash) -> 11. */
+                if( state == 1 )
+                {
+                    selftest_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
+                    for( int tick = 0; tick < 12; tick++ )
+                    {
+                        selftest_tick(srv);
+                        if( ToriRSServer_VarbitGet(player, state_bit) == 11 )
+                            break;
+                    }
+                    state = ToriRSServer_VarbitGet(player, state_bit);
+                    SELFTEST_CHECK(state == 11,
+                                   "floating the log canoe should settle it at state 11 — the "
+                                   "band clientscript 3104 will offer a destination for — got %d",
+                                   state);
+                }
+
+                /* ---- Board, then ask for somewhere a log canoe cannot reach.
+                 * Edgeville is three stops from Lumbridge; the client greys it
+                 * out, and the server has to refuse it anyway. */
+                if( state == 11 )
+                {
+                    uint8_t far_button[6] = { (uint8_t)(dest_edge >> 24), (uint8_t)(dest_edge >> 16),
+                                              (uint8_t)(dest_edge >> 8),  (uint8_t)dest_edge,
+                                              0xff,                       0xff };
+
+                    selftest_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
+                    for( int tick = 0; tick < 6; tick++ )
+                        selftest_tick(srv);
+
+                    ToriRSServer_CaptureBegin(srv, &canoe_capture);
+                    selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, far_button, 6);
+                    for( int tick = 0; tick < 6; tick++ )
+                        selftest_tick(srv);
+                    ToriRSServer_CaptureEnd(srv);
+
+                    for( int i = ToriRSServer_CaptureFindNamed(&canoe_capture, PKT_NAME_MESSAGE_GAME, 0);
+                         i >= 0; i = ToriRSServer_CaptureFindNamed(&canoe_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+                    {
+                        const struct ToriRSServerCapturedPacket* packet = &canoe_capture.packets[i];
+
+                        const char* text = selftest_message_text(srv, packet);
+                        if( !text )
+                            continue;
+                        if( strstr(text, "travel that far") )
+                            refused++;
+                    }
+                    SELFTEST_CHECK(refused > 0,
+                                   "a log canoe asked for Edgeville should be refused, not flown");
+                    SELFTEST_CHECK(player->x == stand_x && player->z == stand_z,
+                                   "and the player should not have moved, got %d,%d",
+                                   player->x, player->z);
+                    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, state_bit) == 11,
+                                   "and the canoe should still be waiting in the water");
+                }
+
+                /* ---- Now somewhere it can reach: the Champions' Guild, one
+                 * stop downstream. The ride goes through m28_70 — the cutscene
+                 * square — so the seat tile is sampled on the way past. That
+                 * sample is the only proof the backdrop is really being visited
+                 * rather than the player being teleported straight across. */
+                if( ToriRSServer_VarbitGet(player, state_bit) == 11 )
+                {
+                    uint8_t go[6] = { (uint8_t)(dest_guild >> 24), (uint8_t)(dest_guild >> 16),
+                                      (uint8_t)(dest_guild >> 8),  (uint8_t)dest_guild,
+                                      0xff,                        0xff };
+
+                    selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, go, 6);
+                    for( int tick = 0; tick < 30; tick++ )
+                    {
+                        selftest_tick(srv);
+                        if( player->x == 1817 && player->z == 4514 )
+                            seat_seen = 1;
+                        if( player->x == 3199 && player->z == 3344 )
+                            break;
+                    }
+                    SELFTEST_CHECK(seat_seen,
+                                   "the ride should seat the player in the m28_70 canoe at "
+                                   "1817,4514, got %d,%d",
+                                   player->x, player->z);
+                    SELFTEST_CHECK(player->x == 3199 && player->z == 3344,
+                                   "and land them at the Champions' Guild, got %d,%d",
+                                   player->x, player->z);
+                    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, state_bit) == 0,
+                                   "and the canoe should have sunk, leaving a tree, got %d",
+                                   ToriRSServer_VarbitGet(player, state_bit));
+                }
+
+                ToriRSServer_VarbitSet(srv, state_bit, 0);
+                ToriRSServer_VarbitSet(srv, type_bit, 0);
+                ToriRSServer_VarbitSet(srv, from_bit, 0);
+                ToriRSServer_WorldInteractionClear(srv);
+                selftest_park_player(srv, stand_x, stand_z);
+                memcpy(player->inv, saved_inv, sizeof(saved_inv));
+                player->inv_dirty = 0xfffffffu;
+                player->stat_level[woodcutting] = saved_level;
+                player->stat_boosted[woodcutting] = saved_level;
+                player->stat_xp_tenths[woodcutting] = saved_xp;
+                player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = saved_hp_level;
+                player->godmode = saved_godmode;
+                ToriRSServer_CombatSyncHitpoints(player);
+            }
+            if( owned )
+                ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+}
+
 int
 ToriRSServer_WorldSelftest(void)
 {
@@ -2830,6 +3145,15 @@ ToriRSServer_WorldSelftest(void)
     }
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
+
+    if( getenv("TORIRSSERVER_SELFTEST_CANOES_ONLY") )
+    {
+        selftest_canoes(srv, player);
+        fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
 
 
     /*
@@ -24173,286 +24497,7 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
-    fprintf(stderr, "ToriRSServer selftest: a canoe is chopped, shaped, floated and paddled\n");
-    {
-        /*
-         * The whole canoe chain, driven through the real packets, at the real
-         * Lumbridge station. docs/CANOES.md is the map of what it is exercising.
-         *
-         * There are four things here that a clean `sscompile` says nothing
-         * about and that this is here to catch:
-         *
-         *  1. **The station is identified by `loc_coord`, not `loc_type`.** All
-         *     ten stations share one set of multiloc children, so a trigger is
-         *     bound to `canoestation_tree` and the station comes out of a
-         *     `db_find` on the loc's own tile. One transposed coordinate in
-         *     `canoe_station.dbrow` and the click is a silent no-op — the exact
-         *     fingerprint [[p-oploc-multiloc-op-check]] describes.
-         *  2. **The op arrives on the resolved child.** `handle_oploc` checks
-         *     the op against the varbit-resolved loc, so the chop only works if
-         *     `canoestation_tree` really is what state 0 resolves to and really
-         *     does carry `op1`.
-         *  3. **State 11 and not state 1 is what the travel map wants.** The
-         *     multiloc has two in-water bands and only the upper one
-         *     (11..14) makes clientscript 3104 offer a destination.
-         *  4. **Reach is enforced server-side.** The client greys out a
-         *     destination it will not allow; the assertion below sends the
-         *     click anyway.
-         *
-         * The chop is a random roll, so the loop is ticked to a deadline rather
-         * than a fixed count, and the deadline is generous: at 60 Woodcutting
-         * with a rune axe a roll lands every four ticks and almost never fails.
-         */
-        int owned = 0;
-        int loaded = srv->scripts_ok;
-
-        if( !loaded )
-        {
-            loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
-            if( !loaded )
-                loaded =
-                    ToriRSServer_ScriptsLoad(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
-            owned = loaded != 0;
-        }
-
-        if( !loaded )
-        {
-            fprintf(stderr, "  SKIP  no compiled script pack\n");
-        }
-        else
-        {
-            static struct ToriRSServerCapture canoe_capture;
-            /* Lumbridge: the station loc's own south-west tile, which is both
-             * the OPLOC target and the key `canoe_station.dbrow` is written
-             * against, and the bank tile the player stands on to reach it. */
-            const int station_x = 3241;
-            const int station_z = 3235;
-            const int stand_x = 3243;
-            const int stand_z = 3237;
-            int station_loc =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "canoeing_canoestation_lumbridge");
-            int state_bit =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "canoestation_state_lumbridge");
-            int type_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "canoe_type");
-            int from_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "canoe_startfrom");
-            int log_cell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "canoeing:log");
-            int dest_guild =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "canoe_map_lum:destination_2");
-            int dest_edge =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "canoe_map_lum:destination_4");
-            int axe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "rune_axe");
-            int woodcutting = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "woodcutting");
-
-            SELFTEST_CHECK(station_loc >= 0, "the Lumbridge canoe station should be in the cache");
-            SELFTEST_CHECK(state_bit >= 0, "canoestation_state_lumbridge should be a cache varbit");
-            SELFTEST_CHECK(type_bit >= 0, "canoe_type should be a cache varbit");
-            SELFTEST_CHECK(from_bit >= 0, "canoe_startfrom should be a cache varbit");
-            SELFTEST_CHECK(log_cell >= 0, "canoeing:log should resolve as a component");
-            SELFTEST_CHECK(dest_guild >= 0, "canoe_map_lum:destination_2 should resolve");
-
-            /*
-             * The station state has to reach the CLIENT, not just the server.
-             *
-             * A canoe station is one placed multiloc whose child the client
-             * picks from `canoestation_state_<name>`, and the travel map greys
-             * its destinations from `canoe_startfrom`. Both are varbits, and a
-             * varbit only goes out inside the varp that carries it -- which
-             * `ToriRSServer_WorldMarkVarp` will not send unless the varp's
-             * config says `transmit=yes`.
-             *
-             * Everything below this line passed for a build in which five of
-             * the six were undeclared: the varbits were written, read back and
-             * agreed with at every step, while the tree stood at the bank
-             * through the whole chop/shape/float/paddle chain because no VARP
-             * packet ever left. Reading the state back is not evidence that it
-             * was sent, so the sending is checked here, by name.
-             */
-            {
-                static const char* const carriers[] = {
-                    "canoeing_river_lum",      /* stations 1-4  */
-                    "canoeing_river_lum_2",    /* Ferox Enclave */
-                    "canoeing_river_dougne",   /* stations 6, 8, 9, 10 */
-                    "canoeing_river_dougne_2", /* Tree Gnome Village   */
-                    "canoeing_menu",           /* canoe_type      */
-                    "canoeing_menu_2",         /* canoe_startfrom, canoe_river */
-                };
-                for( size_t ci = 0; ci < sizeof(carriers) / sizeof(carriers[0]); ci++ )
-                {
-                    int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, carriers[ci]);
-                    const struct ToriRSServerVarpDef* def =
-                        varp >= 0 ? ToriRSServer_ContentVarp(varp) : NULL;
-                    SELFTEST_CHECK(
-                        def && def->transmit,
-                        "%s carries a canoe varbit the client reads, so it must be declared "
-                        "transmit=yes (see canoes/configs/canoes.varp)",
-                        carriers[ci]);
-                }
-            }
-
-            if( station_loc >= 0 && state_bit >= 0 && type_bit >= 0 && from_bit >= 0 &&
-                log_cell >= 0 && dest_guild >= 0 && dest_edge >= 0 && axe >= 0 && woodcutting >= 0 )
-            {
-                uint8_t oploc[6] = { (uint8_t)(station_x >> 8), (uint8_t)station_x,
-                                     (uint8_t)(station_z >> 8), (uint8_t)station_z,
-                                     (uint8_t)(station_loc >> 8), (uint8_t)station_loc };
-                struct ToriRSServerItem saved_inv[TORIRSSERVER_INV_SLOTS];
-                int saved_level;
-                int saved_xp;
-                int state;
-                int seat_seen = 0;
-                int refused = 0;
-
-                memcpy(saved_inv, player->inv, sizeof(saved_inv));
-                saved_level = player->stat_level[woodcutting];
-                saved_xp = player->stat_xp_tenths[woodcutting];
-                selftest_park_player(srv, stand_x, stand_z);
-                selftest_clear_inv(player);
-                selftest_give(player, axe, 1);
-                player->stat_level[woodcutting] = 60;
-                player->stat_boosted[woodcutting] = 60;
-                ToriRSServer_VarbitSet(srv, state_bit, 0);
-                srv->rng = 0xca20e001u;
-
-                /* ---- Chop-down. State 0 -> 10, through the falling state. */
-                selftest_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
-                for( int tick = 0; tick < 40; tick++ )
-                {
-                    selftest_tick(srv);
-                    if( ToriRSServer_VarbitGet(player, state_bit) == 10 )
-                        break;
-                }
-                state = ToriRSServer_VarbitGet(player, state_bit);
-                SELFTEST_CHECK(state == 10,
-                               "chopping the station should leave a fallen tree (state 10), got %d",
-                               state);
-                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, from_bit) == 1,
-                               "and canoe_startfrom should name Lumbridge, got %d",
-                               ToriRSServer_VarbitGet(player, from_bit));
-
-                /* ---- Shape. The "Make Log canoe" op is on a cc_create'd child
-                 * of canoeing:log, so the click carries sub 0. */
-                if( state == 10 )
-                {
-                    uint8_t button[6] = { (uint8_t)(log_cell >> 24), (uint8_t)(log_cell >> 16),
-                                          (uint8_t)(log_cell >> 8),  (uint8_t)log_cell,
-                                          0,                         0 };
-
-                    selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, 6);
-                    for( int tick = 0; tick < 8; tick++ )
-                        selftest_tick(srv);
-                    state = ToriRSServer_VarbitGet(player, state_bit);
-                    SELFTEST_CHECK(state == 1,
-                                   "shaping a log canoe should leave state 1, got %d", state);
-                    SELFTEST_CHECK(player->stat_xp_tenths[woodcutting] > saved_xp,
-                                   "and it should pay Woodcutting xp");
-                    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, type_bit) == 1,
-                                   "and canoe_type should be the log, got %d",
-                                   ToriRSServer_VarbitGet(player, type_bit));
-                }
-
-                /* ---- Float. State 1 -> 5 (the launch splash) -> 11. */
-                if( state == 1 )
-                {
-                    selftest_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
-                    for( int tick = 0; tick < 12; tick++ )
-                    {
-                        selftest_tick(srv);
-                        if( ToriRSServer_VarbitGet(player, state_bit) == 11 )
-                            break;
-                    }
-                    state = ToriRSServer_VarbitGet(player, state_bit);
-                    SELFTEST_CHECK(state == 11,
-                                   "floating the log canoe should settle it at state 11 — the "
-                                   "band clientscript 3104 will offer a destination for — got %d",
-                                   state);
-                }
-
-                /* ---- Board, then ask for somewhere a log canoe cannot reach.
-                 * Edgeville is three stops from Lumbridge; the client greys it
-                 * out, and the server has to refuse it anyway. */
-                if( state == 11 )
-                {
-                    uint8_t far_button[6] = { (uint8_t)(dest_edge >> 24), (uint8_t)(dest_edge >> 16),
-                                              (uint8_t)(dest_edge >> 8),  (uint8_t)dest_edge,
-                                              0xff,                       0xff };
-
-                    selftest_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
-                    for( int tick = 0; tick < 6; tick++ )
-                        selftest_tick(srv);
-
-                    ToriRSServer_CaptureBegin(srv, &canoe_capture);
-                    selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, far_button, 6);
-                    for( int tick = 0; tick < 6; tick++ )
-                        selftest_tick(srv);
-                    ToriRSServer_CaptureEnd(srv);
-
-                    for( int i = ToriRSServer_CaptureFindNamed(&canoe_capture, PKT_NAME_MESSAGE_GAME, 0);
-                         i >= 0; i = ToriRSServer_CaptureFindNamed(&canoe_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
-                    {
-                        const struct ToriRSServerCapturedPacket* packet = &canoe_capture.packets[i];
-
-                        const char* text = selftest_message_text(srv, packet);
-                        if( !text )
-                            continue;
-                        if( strstr(text, "travel that far") )
-                            refused++;
-                    }
-                    SELFTEST_CHECK(refused > 0,
-                                   "a log canoe asked for Edgeville should be refused, not flown");
-                    SELFTEST_CHECK(player->x == stand_x && player->z == stand_z,
-                                   "and the player should not have moved, got %d,%d",
-                                   player->x, player->z);
-                    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, state_bit) == 11,
-                                   "and the canoe should still be waiting in the water");
-                }
-
-                /* ---- Now somewhere it can reach: the Champions' Guild, one
-                 * stop downstream. The ride goes through m28_70 — the cutscene
-                 * square — so the seat tile is sampled on the way past. That
-                 * sample is the only proof the backdrop is really being visited
-                 * rather than the player being teleported straight across. */
-                if( ToriRSServer_VarbitGet(player, state_bit) == 11 )
-                {
-                    uint8_t go[6] = { (uint8_t)(dest_guild >> 24), (uint8_t)(dest_guild >> 16),
-                                      (uint8_t)(dest_guild >> 8),  (uint8_t)dest_guild,
-                                      0xff,                        0xff };
-
-                    selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, go, 6);
-                    for( int tick = 0; tick < 30; tick++ )
-                    {
-                        selftest_tick(srv);
-                        if( player->x == 1817 && player->z == 4514 )
-                            seat_seen = 1;
-                        if( player->x == 3199 && player->z == 3344 )
-                            break;
-                    }
-                    SELFTEST_CHECK(seat_seen,
-                                   "the ride should seat the player in the m28_70 canoe at "
-                                   "1817,4514, got %d,%d",
-                                   player->x, player->z);
-                    SELFTEST_CHECK(player->x == 3199 && player->z == 3344,
-                                   "and land them at the Champions' Guild, got %d,%d",
-                                   player->x, player->z);
-                    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, state_bit) == 0,
-                                   "and the canoe should have sunk, leaving a tree, got %d",
-                                   ToriRSServer_VarbitGet(player, state_bit));
-                }
-
-                ToriRSServer_VarbitSet(srv, state_bit, 0);
-                ToriRSServer_VarbitSet(srv, type_bit, 0);
-                ToriRSServer_VarbitSet(srv, from_bit, 0);
-                ToriRSServer_WorldInteractionClear(srv);
-                selftest_park_player(srv, stand_x, stand_z);
-                memcpy(player->inv, saved_inv, sizeof(saved_inv));
-                player->inv_dirty = 0xfffffffu;
-                player->stat_level[woodcutting] = saved_level;
-                player->stat_boosted[woodcutting] = saved_level;
-                player->stat_xp_tenths[woodcutting] = saved_xp;
-            }
-            if( owned )
-                ToriRSServer_ScriptsFree(srv);
-        }
-    }
+    selftest_canoes(srv, player);
 
     fprintf(stderr, "ToriRSServer selftest: db_listall walks ascending row ids\n");
     {
@@ -38317,104 +38362,27 @@ ToriRSServer_WorldSelftest(void)
 
     fprintf(stderr, "ToriRSServer selftest: a vessel spawns and its deck projection round-trips\n");
     {
-        /*
-         * docs/SAILING_PLAN.md S1: the server half of a sailing boat is a map
-         * instance (the deck) plus a transform (the hull), and the mover that
-         * advances the transform once per tick.
-         *
-         * The water is STAMPED, not found. In this cache only rivers and
-         * harbours carry the BLOCK setting that becomes COLL_FLAG_FLOOR — the
-         * open sea's tiles read a flag word of zero, indistinguishable from an
-         * open field (the sailing water layer is its own map data, decoded in
-         * a later phase). No natural FLOOR patch in the Port Sarim window is
-         * big enough for the maneuvers below, so the fixture finds an
-         * all-zero patch and stamps it with the same collision_map_add_floor
-         * the terrain pass uses, exercising the mover against exactly the
-         * flag rule ToriRSServer_VesselTileSailable reads, then unstamps it.
-         */
+        /* Real revision-239 ocean: map m48_49, full sea overlays, no artificial
+         * floor stamp. Boats and walkers read separate maps of these tiles. */
         int instances_before = ToriRSServer_MapInstanceLiveCount();
-        int patch_x = 0;
-        int patch_z = 0;
-        int patch_found = 0;
+        int patch_x = 3072;
+        int patch_z = 3160;
+        int patch_found = 1;
         int handle = 0;
         struct ToriRSServerVessel* vessel = NULL;
 
-        selftest_park_player(srv, 3047, 3204);
-        {
-            struct CollisionMap* cm = ToriRSServer_SceneCollision(0);
-            int base_x = ToriRSServer_SceneBaseX();
-            int base_z = ToriRSServer_SceneBaseZ();
-
-            /* A 17x17 patch of flag-zero tiles: nothing on it to collide with,
-             * and stamping FLOOR over it makes every tile sailable with an
-             * 8-tile margin around the maneuvers below. */
-            for( int x = base_x + 8; cm && x < base_x + 104 - 8 && !patch_found; x++ )
-                for( int z = base_z + 8; z < base_z + 104 - 8; z++ )
-                {
-                    int all = 1;
-
-                    for( int dx = -8; dx <= 8 && all; dx++ )
-                        for( int dz = -8; dz <= 8; dz++ )
-                            if( collision_map_tile(cm, x + dx - base_x, z + dz - base_z) !=
-                                COLL_FLAG_OPEN )
-                            {
-                                all = 0;
-                                break;
-                            }
-                    if( all )
-                    {
-                        patch_x = x;
-                        patch_z = z;
-                        patch_found = 1;
-                        break;
-                    }
-                }
-            if( patch_found )
-                for( int dx = -8; dx <= 8; dx++ )
-                    for( int dz = -8; dz <= 8; dz++ )
-                        collision_map_add_floor(cm, patch_x + dx - base_x,
-                                                patch_z + dz - base_z);
-        }
-        SELFTEST_CHECK(patch_found, "the window yields a 17x17 open patch to stamp as water");
-        SELFTEST_CHECK(!patch_found ||
-                           ToriRSServer_VesselTileSailable(0, patch_x - 8, patch_z - 8),
-                       "and the stamped arena reads sailable corner to corner");
-        SELFTEST_CHECK(!patch_found ||
-                           !ToriRSServer_VesselTileSailable(0, patch_x, patch_z + 9),
-                       "while the ground past its edge does not");
-
-        /*
-         * The distinction ::vesselspawn's water stamp got wrong. Every tile
-         * the patch above covers started at flag zero, so there OR-ing FLOOR
-         * in and REPLACING the word are the same edit — which is exactly why
-         * this fixture never caught it. Stamp the same lake over ground that
-         * already carries a loc and they part company: FLOOR present *with*
-         * LOC present is blocked for every mover, so the hull turned on the
-         * spot and parked on its second tick against a fence it had
-         * supposedly just flooded.
-         *
-         * The tile ends on COLL_FLAG_FLOOR alone, which is what the stamp
-         * above left it on, so the maneuvers below see the arena unchanged.
-         */
-        if( patch_found )
-        {
-            struct CollisionMap* cm = ToriRSServer_SceneCollision(0);
-            int fenced_x = patch_x + 6 - ToriRSServer_SceneBaseX();
-            int fenced_z = patch_z + 6 - ToriRSServer_SceneBaseZ();
-
-            collision_map_add_loc(cm, fenced_x, fenced_z, 1, 1, COLL_ANGLE_WEST, 0);
-            SELFTEST_CHECK(
-                !ToriRSServer_VesselTileSailable(0, patch_x + 6, patch_z + 6),
-                "a loc standing on a stamped water tile refuses the hull");
-            collision_map_add_floor(cm, fenced_x, fenced_z);
-            SELFTEST_CHECK(
-                !ToriRSServer_VesselTileSailable(0, patch_x + 6, patch_z + 6),
-                "and stamping FLOOR over it again does not clear the loc");
-            collision_map_set_water(cm, fenced_x, fenced_z);
-            SELFTEST_CHECK(
-                ToriRSServer_VesselTileSailable(0, patch_x + 6, patch_z + 6),
-                "only collision_map_set_water leaves open water behind");
-        }
+        selftest_park_player(srv, patch_x, patch_z);
+        for( int dx = -8; dx <= 8; dx++ )
+            for( int dz = -8; dz <= 8; dz++ )
+                if( !ToriRSServer_VesselTileSailable(0, patch_x + dx, patch_z + dz) ||
+                    !ToriRSServer_SceneWalkBlocked(0, patch_x + dx, patch_z + dz) )
+                    patch_found = 0;
+        SELFTEST_CHECK(patch_found,
+                       "the real ocean's 17x17 area permits boats and blocks walking");
+        SELFTEST_CHECK(ToriRSServer_SceneBoatCollision(0) != ToriRSServer_SceneCollision(0),
+                       "boat and player collision maps have independent storage");
+        SELFTEST_CHECK(!ToriRSServer_VesselTileSailable(1, patch_x, patch_z),
+                       "empty sky over the sea is not another ocean");
 
         if( patch_found )
         {
@@ -38513,6 +38481,39 @@ ToriRSServer_WorldSelftest(void)
                                fz == vessel->fine_z - (pivot_z - 64),
                            "the deck's south-west tile projects half a deck box away, got (%d,%d)",
                            fx, fz);
+        }
+
+        fprintf(stderr, "ToriRSServer selftest: native heading requires the current helm\n");
+        if( vessel )
+        {
+            int base_tile_x = 0, base_tile_z = 0;
+            int saved_x = player->x, saved_z = player->z;
+            int saved_nav = player->navigating_vessel;
+            int saved_serial = player->navigating_vessel_serial;
+            SELFTEST_CHECK(ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z),
+                           "heading fixture has a live deck");
+            selftest_park_player(srv, base_tile_x + 4, base_tile_z + 4);
+            player->navigating_vessel = 0;
+            vessel->heading = 0;
+            uint8_t heading = 12;
+            selftest_handle(player, PKTOUT_NAME_SET_HEADING, &heading, 1);
+            SELFTEST_CHECK(vessel->heading == 0, "a passenger cannot steer with SET_HEADING");
+            player->navigating_vessel = vessel->index;
+            player->navigating_vessel_serial = vessel->serial;
+            for( heading = 0; heading < 16; ++heading )
+            {
+                selftest_handle(player, PKTOUT_NAME_SET_HEADING, &heading, 1);
+                SELFTEST_CHECK(vessel->heading == heading, "native compass heading %u reaches the hull", heading);
+            }
+            heading = 255;
+            selftest_handle(player, PKTOUT_NAME_SET_HEADING, &heading, 1);
+            SELFTEST_CHECK(vessel->heading == 15, "malformed headings are rejected without wrapping");
+            selftest_park_player(srv, saved_x, saved_z);
+            heading = 4;
+            selftest_handle(player, PKTOUT_NAME_SET_HEADING, &heading, 1);
+            SELFTEST_CHECK(vessel->heading == 15, "a stale helm after leaving the deck cannot steer");
+            player->navigating_vessel = saved_nav;
+            player->navigating_vessel_serial = saved_serial;
         }
 
         fprintf(stderr,
@@ -38720,22 +38721,35 @@ ToriRSServer_WorldSelftest(void)
 
         fprintf(stderr, "ToriRSServer selftest: a vessel refuses to drive onto land\n");
         {
-            /* The arena's north edge is the shoreline: two stamped tiles
-             * running north into unstamped flag-zero ground, which
-             * VesselTileSailable reads as un-sailable land. */
-            int coast_x = patch_x;
-            int coast_z = patch_z + 7;
-            int coast_found = patch_found &&
-                              ToriRSServer_VesselTileSailable(0, coast_x, coast_z) &&
-                              ToriRSServer_VesselTileSailable(0, coast_x, coast_z + 1) &&
-                              ToriRSServer_SceneContains(coast_x, coast_z + 2) &&
-                              !ToriRSServer_VesselTileSailable(0, coast_x, coast_z + 2);
+            /* Find a real two-tile sea approach to a north-facing coast in
+             * this loaded window; the shoreline comes from the cache. */
+            int coast_x = 0;
+            int coast_z = 0;
+            int coast_found = 0;
+            int best_distance = 100000;
+            int base_x = ToriRSServer_SceneBaseX();
+            int base_z = ToriRSServer_SceneBaseZ();
+            for( int x = base_x + 2; x < base_x + 102; x++ )
+                for( int z = base_z + 2; z < base_z + 100; z++ )
+                {
+                    int distance = abs(x - patch_x) + abs(z - patch_z);
+                    if( distance < best_distance &&
+                        ToriRSServer_VesselTileSailable(0, x, z) &&
+                        ToriRSServer_VesselTileSailable(0, x, z + 1) &&
+                        !ToriRSServer_VesselTileSailable(0, x, z + 2) )
+                    {
+                        coast_x = x;
+                        coast_z = z;
+                        coast_found = 1;
+                        best_distance = distance;
+                    }
+                }
 
             SELFTEST_CHECK(coast_found, "the arena edge gives a shoreline running north");
 
             if( coast_found )
             {
-                int skiff = ToriRSServer_VesselSpawn(srv, 1, 1, 1, 0, coast_x, coast_z, 1024);
+                int skiff = ToriRSServer_VesselSpawn(srv, 0, 1, 1, 0, coast_x, coast_z, 1024);
                 struct ToriRSServerVessel* boat = ToriRSServer_VesselGet(srv, skiff);
 
                 SELFTEST_CHECK(skiff > 0 && boat != NULL, "a 1x1 vessel spawns at the shore");
@@ -38867,7 +38881,7 @@ ToriRSServer_WorldSelftest(void)
         /*
          * docs/SAILING_PLAN.md S2 — the wire.
          *
-         * Same stamped arena: the rows above proved the transform, these prove
+         * Same real ocean: the rows above proved the transform, these prove
          * the three packets that put it on a client, and the cross-world
          * placement that lets the shore and the deck see each other.
          *
@@ -38903,7 +38917,7 @@ ToriRSServer_WorldSelftest(void)
              * trailer's size nibbles are 1 and 2 — DIFFERENT, which is the
              * only way the row can tell a swapped pair from a correct one.
              * Centred on the arena (VesselSpawn's tile is the hull's centre,
-             * not its corner), leaving two tiles of stamped water past each
+             * not its corner), leaving two tiles of open ocean past each
              * end for the sail below.
              */
             hull = ToriRSServer_VesselSpawn(srv, 9, 6, 12, 0, patch_x, patch_z, 0);
@@ -38911,18 +38925,8 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(boat != NULL, "a 6x12 hull spawns in the arena");
             if( boat )
             {
-                /*
-                 * The arena stamp above went into the MAIN player's window,
-                 * once. Boarding now re-anchors the rider's own window onto
-                 * the hull (player_scene_anchor), and that freshly built
-                 * window covers the arena with the cache's dry flags —
-                 * `window_containing` may resolve the sailable query through
-                 * it, parking the hull the rows below sail. The durable
-                 * stamp is the same answer ::vesselspawn uses: every window
-                 * build re-stamps this radius around the hull's current
-                 * tile.
-                 */
-                boat->water_stamp = 8;
+                /* Every window derives the same ocean from cache terrain;
+                 * boarding and rebuilding need no special water restamp. */
                 ToriRSServer_VesselDeckZones(boat, &zones_x, &zones_z);
                 SELFTEST_CHECK(zones_x == 1 && zones_z == 2,
                                "whose deck reserves 1x2 zones, got %dx%d", zones_x, zones_z);
@@ -39102,6 +39106,42 @@ ToriRSServer_WorldSelftest(void)
                 }
             }
 
+            /* Explicit relocations snap once for EACH observer; consuming the
+             * stamp for one watcher must not turn another watcher's jump into
+             * an ordinary interpolated movement. */
+            if( boat )
+            {
+                struct ToriRSServerPlayer* observer = malloc(sizeof(*observer));
+                assert(observer);
+                *observer = *player;
+                int original_x = boat->fine_x;
+                boat->fine_x += 64;
+                boat->teleport_stamp++;
+                for( int watcher = 0; watcher < 3; watcher++ )
+                {
+                    ToriRSServer_CaptureBegin(srv, &wev_cap);
+                    ToriRSServer_SendWorldEntityInfo(watcher == 1 ? observer : player);
+                    ToriRSServer_CaptureEnd(srv);
+                    at = ToriRSServer_CaptureFindNamed(&wev_cap, PKT_NAME_WORLDENTITY_INFO, 0);
+                    SELFTEST_CHECK(at >= 0, "relocation observer receives entity info");
+                    if( at >= 0 )
+                    {
+                        selftest_wev_decode(wev_cap.packets[at].data,
+                                            wev_cap.packets[at].len, &decoded);
+                        SELFTEST_CHECK(decoded.count == 1 &&
+                                           decoded.moves[0].op == (watcher < 2 ? 3 : 1),
+                                       "watcher%d sees one teleport then idle, got op%d", watcher,
+                                       decoded.count ? decoded.moves[0].op : -1);
+                    }
+                }
+                boat->fine_x = original_x;
+                boat->teleport_stamp++;
+                ToriRSServer_CaptureBegin(srv, &wev_cap);
+                ToriRSServer_SendWorldEntityInfo(player);
+                ToriRSServer_CaptureEnd(srv);
+                free(observer);
+            }
+
             /*
              * A hull under way: op 2 every tick, and the deltas SUM to the
              * path. Summing rather than checking one tick is the point — the
@@ -39120,7 +39160,7 @@ ToriRSServer_WorldSelftest(void)
                 int start_angle = boat->angle;
 
                 /* Heading 0 is the yaw the hull already carries, so it sails
-                 * without turning and stays inside the stamped water. */
+                 * without turning and stays inside the open ocean. */
                 ToriRSServer_VesselSetHeading(boat, 0);
                 ToriRSServer_VesselSetSpeed(boat, 1);
                 boat->sails_set = 1;
@@ -39315,7 +39355,7 @@ ToriRSServer_WorldSelftest(void)
                     /*
                      * Back to the spawn transform before anything is measured.
                      * The wire rows above sailed this hull three ticks north
-                     * and the stamped arena is 17 tiles across against a hull
+                     * and the surveyed ocean is 17 tiles across against a hull
                      * 12 tiles long, so from where they left it there is
                      * barely a tick of water ahead of the bow. Assigning the
                      * transform is a fixture reset — the same move the
@@ -39846,19 +39886,6 @@ ToriRSServer_WorldSelftest(void)
                            "no hull survives the wire rows");
             SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == instances_before,
                            "and the deck went back to the pool with it");
-        }
-
-        /* Unstamp the arena so the window's collision leaves the fixture the
-         * way the cache built it. */
-        if( patch_found )
-        {
-            struct CollisionMap* cm = ToriRSServer_SceneCollision(0);
-            int base_x = ToriRSServer_SceneBaseX();
-            int base_z = ToriRSServer_SceneBaseZ();
-
-            for( int dx = -8; dx <= 8; dx++ )
-                for( int dz = -8; dz <= 8; dz++ )
-                    collision_map_del_floor(cm, patch_x + dx - base_x, patch_z + dz - base_z);
         }
 
         /* Back to the suite's home window, the way the window row above left

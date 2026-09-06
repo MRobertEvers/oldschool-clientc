@@ -1998,28 +1998,35 @@ RS_CS2Host_TakeTriggerOp(
     return true;
 }
 
-static void
-rs_cs2_triggeroplocal_push(
-    struct RS_CS2Host* host,
-    int component_id,
-    int sub)
+static int
+rs_cs2_triggeroplocal_push(struct RS_CS2Host* host,
+    const struct CS2VM_HostRequest_IF_TRIGGEROPLOCAL* request)
 {
-    int slot;
-
     assert(host);
+    assert(request);
     if( host->triggeroplocal_count >= RS_CS2_HOST_TRIGGEROPLOCAL_MAX )
+        return CS2VM_EXECNO_ERROR;
+    if( request->count < 0 || request->count > 16 ) return CS2VM_EXECNO_ERROR;
+    for( int i=0; i<request->count; ++i )
+        if( request->signature[i] != 'i' &&
+            (!request->strings[i] || strlen(request->strings[i]) >= 256) )
+            return CS2VM_EXECNO_ERROR;
+    int slot=(host->triggeroplocal_head+host->triggeroplocal_count) % RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
+    struct RS_CS2TriggerOpLocal* out=&host->triggeroplocal[slot];
+    memset(out,0,sizeof(*out));
+    out->component_id=request->component_id;
+    out->sub=request->sub;
+    out->child=request->child;
+    out->crc=request->crc;
+    for( int i=0; i<request->count; ++i )
     {
-        TORIRS_LOG("cs2: if_triggeroplocal queue full (%d), dropped component 0x%08x sub %d\n",
-            RS_CS2_HOST_TRIGGEROPLOCAL_MAX,
-            (unsigned)component_id,
-            sub);
-        return;
+        out->signature[i]=request->signature[i];
+        out->values[i]=request->values[i];
+        if( request->signature[i] != 'i' )
+            snprintf(out->strings[i],sizeof(out->strings[i]),"%s",request->strings[i]);
     }
-    slot = (host->triggeroplocal_head + host->triggeroplocal_count) %
-           RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
-    host->triggeroplocal[slot].component_id = component_id;
-    host->triggeroplocal[slot].sub = sub;
     host->triggeroplocal_count++;
+    return CS2VM_EXECNO_OK;
 }
 
 bool
@@ -10323,12 +10330,7 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL:
-        /* Queued so the App can turn it into IF_BUTTON1 on the wire. */
-        rs_cs2_triggeroplocal_push(
-            host,
-            request->u.IF_TRIGGEROPLOCAL.component_id,
-            request->u.IF_TRIGGEROPLOCAL.sub);
-        return CS2VM_EXECNO_OK;
+        return rs_cs2_triggeroplocal_push(host, &request->u.IF_TRIGGEROPLOCAL);
 
         RS_CS2_CHAT_CASE(MES);
 
@@ -10451,6 +10453,18 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(
             vm,
             rs_cs2_inv_get_obj(host, request->u.INV_GETOBJ.inv_id, request->u.INV_GETOBJ.slot));
+    case CS2VM_HOST_REQUEST_INVOTHER_GETOBJ:
+        return CS2VM2_PushInt(vm, rs_cs2_inv_get_obj(host,
+            (int)((uint32_t)request->u.INVOTHER_GETOBJ.inv_id + 32768u),
+            request->u.INVOTHER_GETOBJ.slot));
+    case CS2VM_HOST_REQUEST_INVOTHER_GETNUM:
+        return CS2VM2_PushInt(vm, rs_cs2_inv_get_num(host,
+            (int)((uint32_t)request->u.INVOTHER_GETNUM.inv_id + 32768u),
+            request->u.INVOTHER_GETNUM.slot));
+    case CS2VM_HOST_REQUEST_INVOTHER_TOTAL:
+        return CS2VM2_PushInt(vm, rs_cs2_inv_total(host,
+            (int)((uint32_t)request->u.INVOTHER_TOTAL.inv_id + 32768u),
+            request->u.INVOTHER_TOTAL.item_id));
 
     case CS2VM_HOST_REQUEST_INV_GETNUM:
         return CS2VM2_PushInt(

@@ -1,0 +1,78 @@
+{
+  "session": "/tmp/sailing-crew-final",
+  "player": "crewfinal",
+  "renderer": "software",
+  "fresh_start_ms": 3659.199,
+  "script_pack_sha256": "25de89d466068781ce9da131a7f5815ee1c0e4f5eeffbe560d13eb7f7e2b5259",
+  "actions": [
+    "start --headless --boat skiff",
+    "setting 18314 50",
+    "setlevel 23 99",
+    "sailrecruit",
+    "button sailing_crew:assign -1 1",
+    "step 30",
+    "click 492 21",
+    "camera 512 340 900",
+    "sailpanel",
+    "click 544 186",
+    "button sailing_sidepanel:facilities_content_clicklayer 3 1",
+    "button sailing_sidepanel:crew_assignation_clicklayer 1 1",
+    "step 30",
+    "sails",
+    "step 90",
+    "vesselsail 4 1",
+    "step 60",
+    "step 60"
+  ],
+  "initial": {
+    "server_tick": 2,
+    "fine_x": 393280,
+    "fine_z": 404544,
+    "angle": 0,
+    "crew_count": 1,
+    "crew_wire_fine_x": 6208,
+    "crew_wire_fine_z": 6208
+  },
+  "duty": {
+    "native_varbit": "sailing_crew_slot_1_position",
+    "client": 2,
+    "server": 2,
+    "meaning": "Sails"
+  },
+  "after_straight_movement": {
+    "server_tick": 6,
+    "fine_x": 393280,
+    "fine_z": 404352,
+    "angle": 0,
+    "sails_set": 1
+  },
+  "after_turn": {
+    "server_tick": 10,
+    "fine_x": 393088,
+    "fine_z": 404224,
+    "angle": 512,
+    "heading": 4,
+    "crew_count": 1,
+    "crew_wire_fine_x": 5952,
+    "crew_wire_fine_z": 5952
+  },
+  "visually_inspected": [
+    "crew-stationary.png",
+    "crew-duty.png",
+    "crew-moving.png",
+    "crew-turning.png",
+    "crew-turned.png"
+  ],
+  "observations": [
+    "Jobless Jim is visible on the boat deck rather than the sea floor or scene corner.",
+    "Native assignment moves Jobless Jim to work at the sails.",
+    "The crew member remains visible on the deck while the boat translates and turns through 45 and 90 degrees."
+  ],
+  "capture_ms": [
+    44.683,
+    42.053,
+    41.235,
+    43.63,
+    41.396
+  ]
+}

@@ -1,10 +1,12 @@
 #include "test_harness.h"
 
 int g_failures;
+void test_canvas_queries(void);
 
 int
 main(void)
 {
+    test_canvas_queries();
     test_dirty_marking();
     test_walk_topology();
     test_mounted_world_resize();

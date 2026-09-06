@@ -1,0 +1,340 @@
+{
+  "ok": true,
+  "session": "/private/tmp/sailing-collision-live",
+  "elapsed_ms": 986.364,
+  "ocean": {
+    "x": 3072,
+    "z": 3160,
+    "tiles": 289
+  },
+  "before": {
+    "id": 1,
+    "serial": 1,
+    "view": 1,
+    "config": 2,
+    "instance": 1,
+    "fine_x": 393280,
+    "fine_z": 404544,
+    "angle": 0,
+    "heading": 0,
+    "state": 1,
+    "speed_tier": 1,
+    "sails_set": 0,
+    "reversing": 0,
+    "hp": 80,
+    "hp_max": 80,
+    "facilities": [
+      1,
+      1,
+      1
+    ]
+  },
+  "underway": {
+    "id": 1,
+    "serial": 1,
+    "view": 1,
+    "config": 2,
+    "instance": 1,
+    "fine_x": 393280,
+    "fine_z": 404288,
+    "angle": 0,
+    "heading": 0,
+    "state": 1,
+    "speed_tier": 2,
+    "sails_set": 1,
+    "reversing": 0,
+    "hp": 80,
+    "hp_max": 80,
+    "facilities": [
+      1,
+      1,
+      1
+    ]
+  },
+  "stopped": {
+    "id": 1,
+    "serial": 1,
+    "view": 1,
+    "config": 2,
+    "instance": 1,
+    "fine_x": 393280,
+    "fine_z": 401600,
+    "angle": 0,
+    "heading": 0,
+    "state": 0,
+    "speed_tier": 2,
+    "sails_set": 1,
+    "reversing": 0,
+    "hp": 78,
+    "hp_max": 80,
+    "facilities": [
+      1,
+      1,
+      1
+    ]
+  },
+  "land_spawn_rejected_at": [
+    3072,
+    3133
+  ],
+  "path": [
+    {
+      "tick": 4,
+      "pose": [
+        393280,
+        404288,
+        0
+      ]
+    },
+    {
+      "tick": 5,
+      "pose": [
+        393280,
+        404160,
+        0
+      ]
+    },
+    {
+      "tick": 6,
+      "pose": [
+        393280,
+        404032,
+        0
+      ]
+    },
+    {
+      "tick": 7,
+      "pose": [
+        393280,
+        403904,
+        0
+      ]
+    },
+    {
+      "tick": 8,
+      "pose": [
+        393280,
+        403776,
+        0
+      ]
+    },
+    {
+      "tick": 9,
+      "pose": [
+        393280,
+        403648,
+        0
+      ]
+    },
+    {
+      "tick": 10,
+      "pose": [
+        393280,
+        403520,
+        0
+      ]
+    },
+    {
+      "tick": 11,
+      "pose": [
+        393280,
+        403392,
+        0
+      ]
+    },
+    {
+      "tick": 12,
+      "pose": [
+        393280,
+        403264,
+        0
+      ]
+    },
+    {
+      "tick": 13,
+      "pose": [
+        393280,
+        403136,
+        0
+      ]
+    },
+    {
+      "tick": 14,
+      "pose": [
+        393280,
+        403008,
+        0
+      ]
+    },
+    {
+      "tick": 15,
+      "pose": [
+        393280,
+        402880,
+        0
+      ]
+    },
+    {
+      "tick": 16,
+      "pose": [
+        393280,
+        402752,
+        0
+      ]
+    },
+    {
+      "tick": 17,
+      "pose": [
+        393280,
+        402624,
+        0
+      ]
+    },
+    {
+      "tick": 18,
+      "pose": [
+        393280,
+        402496,
+        0
+      ]
+    },
+    {
+      "tick": 19,
+      "pose": [
+        393280,
+        402368,
+        0
+      ]
+    },
+    {
+      "tick": 20,
+      "pose": [
+        393280,
+        402240,
+        0
+      ]
+    },
+    {
+      "tick": 21,
+      "pose": [
+        393280,
+        402112,
+        0
+      ]
+    },
+    {
+      "tick": 22,
+      "pose": [
+        393280,
+        401984,
+        0
+      ]
+    },
+    {
+      "tick": 23,
+      "pose": [
+        393280,
+        401856,
+        0
+      ]
+    },
+    {
+      "tick": 24,
+      "pose": [
+        393280,
+        401728,
+        0
+      ]
+    },
+    {
+      "tick": 25,
+      "pose": [
+        393280,
+        401600,
+        0
+      ]
+    },
+    {
+      "tick": 26,
+      "pose": [
+        393280,
+        401600,
+        0
+      ]
+    }
+  ],
+  "captures": [
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-before.png",
+      "width": 807,
+      "height": 503,
+      "renderer": 0,
+      "runtime_ms": 40.932,
+      "elapsed_ms": 43.009,
+      "bytes": 208862
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-underway.png",
+      "width": 807,
+      "height": 503,
+      "renderer": 0,
+      "runtime_ms": 39.614,
+      "elapsed_ms": 41.818,
+      "bytes": 208362
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-mid-motion-restored.png",
+      "width": 807,
+      "height": 503,
+      "renderer": 0,
+      "runtime_ms": 39.743,
+      "elapsed_ms": 43.981,
+      "bytes": 208368
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-stopped.png",
+      "width": 807,
+      "height": 503,
+      "renderer": 0,
+      "runtime_ms": 34.908,
+      "elapsed_ms": 38.063,
+      "bytes": 202741
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-restored.png",
+      "width": 807,
+      "height": 503,
+      "renderer": 0,
+      "runtime_ms": 39.809,
+      "elapsed_ms": 41.917,
+      "bytes": 208721
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-land-rejected.png",
+      "width": 807,
+      "height": 503,
+      "renderer": 0,
+      "runtime_ms": 31.206,
+      "elapsed_ms": 34.666,
+      "bytes": 204923
+    }
+  ],
+  "visual_review_required": false,
+  "visual_review": {
+    "reviewed": true,
+    "findings": [
+      "Before: player visibly aboard a skiff in open ocean.",
+      "Stopped: bow reaches the real rocky shoreline and stays at the same safe boat-map position.",
+      "Restored: open-ocean world and minimap match the baseline again.",
+      "Mid-motion restore preserves the client pose and the received target."
+    ]
+  },
+  "script_pack_sha256": "33578d625eae7efa86eadbbc694bed8a34bba4647a34aadcb3bc6c17fabcf6d6",
+  "stale_script_override": false
+}

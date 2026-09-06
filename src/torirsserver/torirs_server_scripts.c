@@ -4155,6 +4155,38 @@ player_by_uid(struct ToriRSServer* srv, int32_t uid)
     return &srv->players[pid];
 }
 
+/* Sailing cargo remains the captain's persistent inventory. The hull keeps
+ * its slot, and every rider uses the same owner row through invother_transmit. */
+static struct ToriRSServerContainer*
+sailing_cargo(struct ToriRSServer* srv, struct ToriRSServerPlayer* rider,
+              struct ToriRSServerVessel* vessel)
+{
+    assert(srv);
+    assert(rider);
+    assert(vessel);
+    if( ToriRSServer_VesselAtTile(srv, rider->x, rider->z) != vessel ) return NULL;
+    if( vessel->owner_uid == 0 ) vessel->owner_uid = rider->pid + 1;
+    struct ToriRSServerPlayer* captain = player_by_uid(srv, vessel->owner_uid);
+    if( !captain ) return NULL;
+    if( vessel->cargo_slot == 0 )
+    {
+        unsigned occupied = 0;
+        for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
+        {
+            const struct ToriRSServerVessel* other = &srv->vessels[i];
+            if( other->in_use && other->owner_uid == vessel->owner_uid && other->cargo_slot > 0 )
+                occupied |= 1u << other->cargo_slot;
+        }
+        for( int i = 1; i <= 5; ++i )
+            if( !(occupied & (1u << i)) ) { vessel->cargo_slot = i; break; }
+    }
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    int inventories[] = { ids->inv_sailing_cargo_1, ids->inv_sailing_cargo_2,
+        ids->inv_sailing_cargo_3, ids->inv_sailing_cargo_4, ids->inv_sailing_cargo_5 };
+    if( vessel->cargo_slot < 1 || vessel->cargo_slot > 5 ) return NULL;
+    return ToriRSServer_ContainerResolve(srv, captain, inventories[vessel->cargo_slot - 1]);
+}
+
 /** The online player on this world whose canonical base-37 name matches. */
 static struct ToriRSServerPlayer*
 player_by_display_name(
@@ -4441,20 +4473,22 @@ container_row(
  *  than the component, so the host must retain this piece of server state long
  *  enough to transcribe the command faithfully. */
 static struct ToriRSServerContainer*
-container_listener_row(
-    struct ToriRSServerPlayer* player,
-    int32_t component)
+container_listener_row(struct ToriRSServerPlayer* player, int32_t component)
 {
     assert(player);
-    for( int i = 0; i < TORIRSSERVER_CONTAINER_MAX; i++ )
+    int owners = player->world ? TORIRSSERVER_PLAYER_MAX : 1;
+    for( int p = 0; p < owners; ++p )
     {
-        struct ToriRSServerContainer* row = &player->containers[i];
-
-        if( !row->used )
-            continue;
-        for( int listener = 0; listener < row->listener_count; listener++ )
-            if( row->listeners[listener].component == component )
-                return row;
+        struct ToriRSServerPlayer* owner = player->world ? &player->world->players[p] : player;
+        if( owner != player && !owner->active ) continue;
+        for( int i = 0; i < TORIRSSERVER_CONTAINER_MAX; ++i )
+        {
+            struct ToriRSServerContainer* row = &owner->containers[i];
+            if( !row->used ) continue;
+            for( int listener = 0; listener < row->listener_count; ++listener )
+                if( row->listeners[listener].component == component &&
+                    row->listeners[listener].player == player ) return row;
+        }
     }
     return NULL;
 }
@@ -10164,9 +10198,221 @@ ToriRSServer_ScriptCommand(
             /* Setting sail and holding position are exclusive states — the
              * same rule the helm's own toggle keeps. */
             if( vessel->sails_set )
+            {
                 vessel->reversing = 0;
+                if( vessel->state == TORIRSSERVER_VESSEL_IDLE )
+                    ToriRSServer_VesselSetHeading(vessel, ((vessel->angle + 64) / 128) & 15);
+            }
         }
         SSVM_PushInt(state, vessel ? vessel->sails_set : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_SLOT:
+    {
+        int32_t handle, slot;
+        if( !SSVM_PopInt(state,&slot) || !SSVM_PopInt(state,&handle) ) return 1;
+        struct ToriRSServerVessel* vessel=ToriRSServer_VesselGet(srv,handle);
+        int result=0;
+        if( vessel && srv->active_player && vessel->owner_uid==srv->active_player->pid+1 )
+        {
+            if( slot==0 ) result=vessel->cargo_slot;
+            else if( slot>=1 && slot<=5 && vessel->deck_src_x<0 )
+            {
+                int taken=0;
+                for( int i=0; i<TORIRSSERVER_VESSEL_MAX; ++i )
+                    if( &srv->vessels[i]!=vessel && srv->vessels[i].in_use &&
+                        srv->vessels[i].owner_uid==vessel->owner_uid &&
+                        srv->vessels[i].cargo_slot==slot ) taken=1;
+                if( !taken ) result=vessel->cargo_slot=slot;
+            }
+        }
+        SSVM_PushInt(state,result);
+        return 1;
+    }
+    case SS_OP_VESSEL_OWNED:
+    {
+        int32_t slot;
+        if( !SSVM_PopInt(state,&slot) ) return 1;
+        int found=0;
+        if( srv->active_player && slot>=1 && slot<=5 )
+            for( int i=0; i<TORIRSSERVER_VESSEL_MAX; ++i )
+                if( srv->vessels[i].in_use &&
+                    srv->vessels[i].owner_uid==srv->active_player->pid+1 &&
+                    srv->vessels[i].cargo_slot==slot ) { found=srv->vessels[i].index; break; }
+        SSVM_PushInt(state,found);
+        return 1;
+    }
+    case SS_OP_VESSEL_RECOVER:
+    {
+        int32_t handle, coord;
+        if( !SSVM_PopInt(state,&coord) || !SSVM_PopInt(state,&handle) ) return 1;
+        SSVM_PushInt(state,ToriRSServer_VesselRecover(srv,handle,
+            coord_level(coord),coord_x(coord),coord_z(coord)));
+        return 1;
+    }
+
+    case SS_OP_VESSEL_FURNISH:
+    {
+        int32_t handle;
+        if( !SSVM_PopInt(state, &handle) ) return 1;
+        SSVM_PushInt(state, ToriRSServer_VesselBuildPlayerDeck(srv, handle));
+        return 1;
+    }
+    case SS_OP_VESSEL_PROJECT:
+    {
+        int32_t handle, deck_coord;
+        if( !SSVM_PopInt(state, &deck_coord) || !SSVM_PopInt(state, &handle) ) return 1;
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
+        int x = coord_x(deck_coord), z = coord_z(deck_coord);
+        if( !vessel || ToriRSServer_MapInstanceFind(x, z) != vessel->instance )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        int fine_x, fine_z;
+        ToriRSServer_VesselDeckTileToRoot(vessel, x, z, &fine_x, &fine_z);
+        SSVM_PushInt(state, coord_pack(vessel->level, fine_x >> 7, fine_z >> 7));
+        return 1;
+    }
+    case SS_OP_VESSEL_INFO:
+    {
+        int32_t handle;
+        if( !SSVM_PopInt(state, &handle) ) return 1;
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
+        int x = 0, z = 0;
+        if( vessel ) ToriRSServer_MapInstanceBase(vessel->instance, &x, &z);
+        SSVM_PushInt(state, vessel ? coord_pack(ToriRSServer_VesselDeckPlane(vessel), x, z) : 0);
+        SSVM_PushInt(state, vessel ? vessel->config_id : 0);
+        return 1;
+    }
+    case SS_OP_VESSEL_GETFACILITY:
+    {
+        int32_t handle, slot;
+        if( !SSVM_PopInt(state, &slot) || !SSVM_PopInt(state, &handle) ) return 1;
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
+        SSVM_PushInt(state, vessel && slot >= 0 && slot < TORIRSSERVER_VESSEL_FACILITY_SLOTS
+            ? vessel->facility[slot] : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_STAT:
+    {
+        int32_t handle, key, value;
+        if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &key) ||
+            !SSVM_PopInt(state, &handle) ) return 1;
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
+        if( !vessel || key < 0 || key > 6 ) { SSVM_PushInt(state, 0); return 1; }
+        if( key == 6 )
+        {
+            SSVM_PushInt(state, vessel->reversing ? 3 : vessel->sails_set ?
+                (vessel->speed_tier > 1 ? 2 : 1) : 0);
+            return 1;
+        }
+        int* fields[] = { &vessel->hp_max, &vessel->base_speed_fine, &vessel->speed_cap_fine,
+            &vessel->acceleration_fine, &vessel->boost_duration, &vessel->armour };
+        if( value >= 0 )
+        {
+            int old_max = vessel->hp_max;
+            *fields[key] = value;
+            if( key == 0 && (vessel->hp == old_max || vessel->hp > value) ) vessel->hp = value;
+            if( key == 2 && vessel->speed_tier * 64 > value )
+                ToriRSServer_VesselSetSpeed(vessel, vessel->speed_tier);
+        }
+        SSVM_PushInt(state, *fields[key]);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_CONTROL:
+    {
+        int32_t handle, action;
+        if( !SSVM_PopInt(state, &action) || !SSVM_PopInt(state, &handle) ) return 1;
+        struct ToriRSServerPlayer* rider = srv->active_player;
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
+        if( !rider || !vessel || ToriRSServer_VesselAtTile(srv, rider->x, rider->z) != vessel ||
+            rider->navigating_vessel != vessel->index ||
+            rider->navigating_vessel_serial != vessel->serial || action < 0 || action > 3 )
+        { SSVM_PushInt(state, -1); return 1; }
+        if( vessel->hp <= 0 && action != 3 )
+        { SSVM_PushInt(state, -2); return 1; }
+        if( vessel->state == TORIRSSERVER_VESSEL_IDLE )
+            ToriRSServer_VesselSetHeading(vessel, ((vessel->angle + 64) / 128) & 15);
+        switch( action )
+        {
+        case 0:
+            if( vessel->reversing ) vessel->reversing = 0;
+            else vessel->sails_set = !vessel->sails_set;
+            break;
+        case 1:
+            if( !vessel->sails_set ) vessel->reversing = !vessel->reversing;
+            else if( vessel->speed_tier > TORIRSSERVER_VESSEL_SPEED_TIER_MIN ) vessel->speed_tier--;
+            else vessel->sails_set = 0;
+            break;
+        case 2:
+            if( vessel->reversing ) vessel->reversing = 0;
+            else if( !vessel->sails_set ) vessel->sails_set = 1;
+            else if( vessel->speed_tier * 64 < vessel->speed_cap_fine )
+                ToriRSServer_VesselSetSpeed(vessel, vessel->speed_tier + 1);
+            break;
+        case 3: vessel->sails_set = 0; vessel->reversing = 0; break;
+        }
+        if( vessel->sails_set ) vessel->reversing = 0;
+        SSVM_PushInt(state, vessel->reversing ? 3 : vessel->sails_set ?
+            (vessel->speed_tier > 1 ? 2 : 1) : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_CARGO:
+    {
+        int32_t handle;
+        if( !SSVM_PopInt(state, &handle) ) return 1;
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
+        struct ToriRSServerContainer* cargo = vessel && srv->active_player
+            ? sailing_cargo(srv, srv->active_player, vessel) : NULL;
+        SSVM_PushInt(state, cargo ? cargo->inv_id : -1);
+        SSVM_PushInt(state, cargo ? vessel->owner_uid : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_CARGO_TRANSFER:
+    {
+        int32_t args[5];
+        for( int i = 4; i >= 0; --i ) if( !SSVM_PopInt(state, &args[i]) ) return 1;
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, args[0]);
+        struct ToriRSServerContainer* cargo = vessel && srv->active_player
+            ? sailing_cargo(srv, srv->active_player, vessel) : NULL;
+        if( !cargo || args[2] <= 0 || args[4] <= 0 || args[4] > cargo->slots )
+        { SSVM_PushInt(state, 0); return 1; }
+        struct ToriRSServerContainer* backpack = ToriRSServer_ContainerResolve(
+            srv, srv->active_player, ToriRSServer_Ids()->inv_backpack);
+        assert(backpack);
+        struct ToriRSServerContainer* from = args[3] ? cargo : backpack;
+        struct ToriRSServerContainer* to = args[3] ? backpack : cargo;
+        int slot = args[1];
+        if( slot < 0 || slot >= from->slots || from->items[slot].obj_id < 0 )
+        { SSVM_PushInt(state, 0); return 1; }
+        int obj = from->items[slot].obj_id;
+        int left = args[2], moved = 0;
+        /* Add before deleting. Full hold/backpack leaves the remainder exactly
+         * where it was; nothing is spilled into the ocean or silently lost. */
+        for( int j = 0; j < from->slots && left > 0; ++j )
+        {
+            int i = (slot + j) % from->slots;
+            if( from->items[i].obj_id != obj ) continue;
+            int take = from->items[i].count < left ? from->items[i].count : left;
+            struct ToriRSServerItem saved = from->items[i];
+            int dest_slot = -1;
+            int full_slots = to->slots;
+            if( !args[3] ) to->slots = args[4];
+            int added = ToriRSServer_ContainerAddOutSlot(to, obj, take, 0, &dest_slot);
+            to->slots = full_slots;
+            if( added <= 0 ) break;
+            if( dest_slot >= 0 ) ToriRSServer_ItemVarsCopy(&to->items[dest_slot], &saved);
+            if( added == from->items[i].count ) ToriRSServer_ContainerClearSlot(from, i);
+            else { from->items[i].count -= added; ToriRSServer_ContainerMark(from, i); }
+            moved += added; left -= added;
+        }
+        SSVM_PushInt(state, moved);
         return 1;
     }
 
@@ -10290,6 +10536,16 @@ ToriRSServer_ScriptCommand(
             SSVM_PushInt(state, 0);
             return 1;
         }
+        if( ToriRSServer_VesselAtTile(srv, player->x, player->z) != vessel )
+        { SSVM_PushInt(state, -1); return 1; }
+        for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; ++i )
+        {
+            struct ToriRSServerPlayer* other = &srv->players[i];
+            if( other != player && other->active && other->navigating_vessel == vessel->index &&
+                other->navigating_vessel_serial == vessel->serial )
+            { SSVM_PushInt(state, -1); return 1; }
+        }
+        ToriRSServer_WorldStepsClear(player);
         player->navigating_vessel = vessel->index;
         player->navigating_vessel_serial = vessel->serial;
         /* Hold the current heading so turning and reversing act immediately —
@@ -11573,6 +11829,17 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_INVOTHER_TRANSMIT:
+    {
+        int32_t owner_uid, inv_id, component;
+        if( !SSVM_PopInt(state, &component) || !SSVM_PopInt(state, &inv_id) ||
+            !SSVM_PopInt(state, &owner_uid) ) return 1;
+        struct ToriRSServerPlayer* owner = player_by_uid(srv, owner_uid);
+        if( owner && player )
+            ToriRSServer_ContainerBindOther(srv, owner, player, inv_id, component);
+        return 1;
+    }
+
     case SS_OP_INV_TRANSMIT_FROM:
     {
         int32_t owner_uid;
@@ -11613,10 +11880,21 @@ ToriRSServer_ScriptCommand(
          * Revision 230 addresses the component and therefore always receives
          * the stop for the listener that was removed. */
         row = container_listener_row(srv->active_player, component);
+        int other_inventory = 0;
+        if( row )
+            for( int l = 0; l < row->listener_count; ++l )
+                if( row->listeners[l].component == component &&
+                    row->listeners[l].player == srv->active_player )
+                    other_inventory = row->listeners[l].other_inventory;
         ToriRSServer_ContainerUnbind(srv, srv->active_player, component);
         wire = srv->wire ? srv->wire : ToriRSServer_WireDefault();
-        if( row && (wire->revision < 239 || row->listener_count == 0) )
-            stop_inv = row->inv_id;
+        int still_listening = 0;
+        if( row )
+            for( int l = 0; l < row->listener_count; ++l )
+                if( row->listeners[l].player == srv->active_player &&
+                    row->listeners[l].other_inventory == other_inventory ) still_listening = 1;
+        if( row && (wire->revision < 239 || !still_listening) )
+            stop_inv = row->inv_id + (other_inventory ? 32768 : 0);
 
         /* The bank owns its transmit outside the generic listener registry.
          * Its close script names bankmain:scrollbar even though the payload

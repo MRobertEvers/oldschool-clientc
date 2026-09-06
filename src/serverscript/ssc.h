@@ -515,6 +515,9 @@ SSC_CompileRoots(
     struct SSC_Diag* diag);
 
 /** Writes `<dir>/script.dat` and `<dir>/script.idx`. */
+/* Transactional body-only update; declarations must remain compatible. */
+int SSC_RecompileFile(struct SSC_Compiler*, const char* path, struct SSC_Diag*);
+
 int
 SSC_Write(
     struct SSC_Compiler* compiler,

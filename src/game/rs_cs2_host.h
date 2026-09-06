@@ -343,11 +343,16 @@ enum RS_CS2SoundKind
     RS_CS2_SOUND_SONG_WITHSECONDARY,
 };
 
-/** An IF_TRIGGEROPLOCAL request: IF_BUTTON1(component, sub) to send. */
+/** Deferred native IF_SCRIPT_TRIGGER; own strings after the VM returns. */
 struct RS_CS2TriggerOpLocal
 {
     int component_id;
     int sub;
+    int crc;
+    int child;
+    char signature[17];
+    int values[16];
+    char strings[16][256];
 };
 
 /*

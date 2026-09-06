@@ -82,6 +82,9 @@ static int g_trace_loc = -1;
 struct ToriRSServerSceneWindow
 {
     struct CollisionMap* collision[SCENE_LEVELS];
+    /* Hull navigation is independent of player movement and occupancy. */
+    struct CollisionMap* boat_collision[SCENE_LEVELS];
+    uint8_t ocean[SCENE_LEVELS][SCENE_TILES][SCENE_TILES];
     /* Absolute tile of the window's (0,0); -1 = not built. */
     int base_x;
     int base_z;
@@ -145,6 +148,8 @@ scene_bound(void)
  * these: they resolve their own window per call, see window_containing.
  */
 #define g_collision (scene_bound()->collision)
+#define g_boat_collision (scene_bound()->boat_collision)
+#define g_ocean (scene_bound()->ocean)
 #define g_base_x (scene_bound()->base_x)
 #define g_base_z (scene_bound()->base_z)
 #define g_link_below (scene_bound()->link_below)
@@ -237,6 +242,8 @@ window_reset(struct ToriRSServerSceneWindow* window)
         if( window->collision[level] )
             collision_map_free(window->collision[level]);
         window->collision[level] = NULL;
+        collision_map_free(window->boat_collision[level]);
+        window->boat_collision[level] = NULL;
     }
     free(window->locs);
     window->locs = NULL;
@@ -352,6 +359,14 @@ ToriRSServer_SceneCollision(int level)
     if( level < 0 || level >= SCENE_LEVELS )
         return NULL;
     return g_collision[level];
+}
+
+struct CollisionMap*
+ToriRSServer_SceneBoatCollision(int level)
+{
+    if( level < 0 || level >= SCENE_LEVELS )
+        return NULL;
+    return g_boat_collision[level];
 }
 
 int
@@ -773,76 +788,82 @@ apply_loc_collision(
     angle = (enum CollisionLocAngle)(loc->angle & 3);
     blockrange = config->blocks_projectiles ? 1 : 0;
 
-    switch( loc->shape )
+    /* Loc mutations stamp both domains; entity occupancy never reaches boats. */
+    for( int domain = 0; domain < 2; domain++ )
     {
-    case RSCACHE_LOC_SHAPE_FLOOR_DECORATION:
-        /* Inactive ground decor never blocks — the reference gates on
-         * blockwalk == 1 *and* interactive. */
-        if( config->blocks_walk == 1 && config->is_interactive )
+        map = domain ? g_boat_collision[loc->level] : g_collision[loc->level];
+        assert(map);
+        switch( loc->shape )
         {
-            if( add )
-                collision_map_add_floor(map, scene_x, scene_z);
-            else
-                collision_map_del_floor(map, scene_x, scene_z);
-        }
-        break;
-    case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:
-    case RSCACHE_LOC_SHAPE_WALL_TRI_CORNER:
-    case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
-    case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER:
-        if( config->blocks_walk != 0 )
-        {
-            if( add )
-                collision_map_add_wall(map, scene_x, scene_z, loc->shape, angle, blockrange);
-            else
-                collision_map_del_wall(map, scene_x, scene_z, loc->shape, angle, blockrange);
-        }
-        break;
-    case RSCACHE_LOC_SHAPE_WALL_DIAGONAL:
-    case RSCACHE_LOC_SHAPE_SCENERY:
-    case RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL:
-    case RSCACHE_LOC_SHAPE_ROOF_SLOPED:
-    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
-    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
-    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
-    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
-    case RSCACHE_LOC_SHAPE_ROOF_FLAT:
-    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG:
-    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
-    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
-    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
-        if( config->blocks_walk != 0 )
-        {
-            /*
-             * The UN-rotated extents, deliberately.
-             *
-             * `collision_map_loc_apply` (collision_map.c:120-125) already swaps
-             * size_x/size_z itself for COLL_ANGLE_NORTH (1) and _SOUTH (3) —
-             * which is exactly `angle & 1`. `record_loc` pre-rotates into
-             * `loc->size_x`/`loc->size_z` for the same angles, so passing those
-             * applied the swap twice and it cancelled: every non-square loc at
-             * angle 1 or 3 (rotated tables, benches, 1x2 stairs, stalls) blocked
-             * its un-rotated rectangle, i.e. the wrong tiles.
-             *
-             * Do NOT "fix" this by removing the pre-rotation in `record_loc` —
-             * `ToriRSServer_SceneFindLoc` and `interaction_target` both need the
-             * rotated footprint. The two consumers want different things and
-             * this is the one that wants the raw config.
+        case RSCACHE_LOC_SHAPE_FLOOR_DECORATION:
+            /* Inactive ground decor never blocks — the reference gates on
+             * blockwalk == 1 *and* interactive. */
+            if( config->blocks_walk == 1 && config->is_interactive )
+            {
+                if( add )
+                    collision_map_add_floor(map, scene_x, scene_z);
+                else
+                    collision_map_del_floor(map, scene_x, scene_z);
+            }
+            break;
+        case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:
+        case RSCACHE_LOC_SHAPE_WALL_TRI_CORNER:
+        case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
+        case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER:
+            if( config->blocks_walk != 0 )
+            {
+                if( add )
+                    collision_map_add_wall(map, scene_x, scene_z, loc->shape, angle, blockrange);
+                else
+                    collision_map_del_wall(map, scene_x, scene_z, loc->shape, angle, blockrange);
+            }
+            break;
+        case RSCACHE_LOC_SHAPE_WALL_DIAGONAL:
+        case RSCACHE_LOC_SHAPE_SCENERY:
+        case RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL:
+        case RSCACHE_LOC_SHAPE_ROOF_SLOPED:
+        case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+        case RSCACHE_LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+        case RSCACHE_LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+        case RSCACHE_LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+        case RSCACHE_LOC_SHAPE_ROOF_FLAT:
+        case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+        case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
+        case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
+        case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
+            if( config->blocks_walk != 0 )
+            {
+                /*
+                 * The UN-rotated extents, deliberately.
+                 *
+                 * `collision_map_loc_apply` (collision_map.c:120-125) already swaps
+                 * size_x/size_z itself for COLL_ANGLE_NORTH (1) and _SOUTH (3) —
+                 * which is exactly `angle & 1`. `record_loc` pre-rotates into
+                 * `loc->size_x`/`loc->size_z` for the same angles, so passing those
+                 * applied the swap twice and it cancelled: every non-square loc at
+                 * angle 1 or 3 (rotated tables, benches, 1x2 stairs, stalls) blocked
+                 * its un-rotated rectangle, i.e. the wrong tiles.
+                 *
+                 * Do NOT "fix" this by removing the pre-rotation in `record_loc` —
+                 * `ToriRSServer_SceneFindLoc` and `interaction_target` both need the
+                 * rotated footprint. The two consumers want different things and
+                 * this is the one that wants the raw config.
+                 */
+                if( add )
+                    collision_map_add_loc(map, scene_x, scene_z, config->size_x, config->size_z,
+                                          angle, blockrange);
+                else
+                    collision_map_del_loc(map, scene_x, scene_z, config->size_x, config->size_z,
+                                          angle, blockrange);
+            }
+            break;
+        default:
+            /* Wall decorations (4..8) are ornaments hung on a wall that already
+             * blocks. They contribute nothing, which is not the same as being
+             * unhandled — hence the explicit case rather than a silent fallthrough.
              */
-            if( add )
-                collision_map_add_loc(map, scene_x, scene_z, config->size_x, config->size_z,
-                                      angle, blockrange);
-            else
-                collision_map_del_loc(map, scene_x, scene_z, config->size_x, config->size_z,
-                                      angle, blockrange);
+            break;
         }
-        break;
-    default:
-        /* Wall decorations (4..8) are ornaments hung on a wall that already
-         * blocks. They contribute nothing, which is not the same as being
-         * unhandled — hence the explicit case rather than a silent fallthrough.
-         */
-        break;
     }
 
     /* A removal takes the bits it shares with whatever else is still standing.
@@ -1041,6 +1062,23 @@ record_loc(
  * until every plane has been copied. Splitting the passes is what lets both
  * builds share one copy of the rules below.
  */
+/* The revision-239 cache's ocean overlay families, not player BLOCK flags.
+ * Map overlay IDs are one-based; configs/all.overlay records 441..624 are
+ * the sea textures. The transparent middle record of each triplet is an
+ * underlay companion, not proof of water. Partial shore tiles also refuse a
+ * hull. See docs/sailing_collision.md for cache evidence and fixture coords. */
+static int
+terrain_is_ocean(const struct RSCache_MapFloor* tile, int source_level)
+{
+    int overlay;
+
+    assert(tile);
+    overlay = tile->overlay_id;
+    return TORIRSSERVER_CACHE_REVISION == 239 && source_level == 0 &&
+           tile->shape == 0 && overlay >= 442 && overlay <= 625 &&
+           (overlay - 442) % 3 != 1;
+}
+
 static void
 gather_terrain_square(
     const struct RSCache_MapTerrain* terrain,
@@ -1059,9 +1097,12 @@ gather_terrain_square(
                 continue;
 
             for( int level = 0; level < SCENE_LEVELS; level++ )
-                g_settings[level][scene_x][scene_z] =
-                    terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, level)]
-                        .settings;
+            {
+                const struct RSCache_MapFloor* tile =
+                    &terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, level)];
+                g_settings[level][scene_x][scene_z] = tile->settings;
+                g_ocean[level][scene_x][scene_z] = (uint8_t)terrain_is_ocean(tile, level);
+            }
         }
     }
 }
@@ -1091,7 +1132,13 @@ apply_terrain_column(
         uint8_t settings = g_settings[level][scene_x][scene_z];
         int true_level = level;
 
-        if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 )
+        /* Unknown, inland, partial shore and empty upper planes all block
+         * boats. Ocean itself blocks walking even where the cache omits BLOCK.
+         * Player bridge shifts still apply: water below a raised pier must not
+         * replace the pier's walkable deck with blocked floor. */
+        if( level != 0 || !g_ocean[level][scene_x][scene_z] )
+            collision_map_add_floor(g_boat_collision[level], scene_x, scene_z);
+        if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 || g_ocean[level][scene_x][scene_z] )
         {
             if( link_below )
                 true_level--;
@@ -1221,8 +1268,9 @@ scene_build_begin(
     for( int level = 0; level < SCENE_LEVELS; level++ )
     {
         g_collision[level] = collision_map_new(SCENE_TILES, SCENE_TILES);
-        if( !g_collision[level] )
-            continue;
+        assert(g_collision[level]);
+        g_boat_collision[level] = collision_map_new(SCENE_TILES, SCENE_TILES);
+        assert(g_boat_collision[level]);
         collision_map_reset(g_collision[level]);
         /* The router's window is the era's, not the scene's — see
          * ToriRS_FeatureTable.route_window_tiles and
@@ -1232,6 +1280,7 @@ scene_build_begin(
     }
     memset(g_link_below, 0, sizeof(g_link_below));
     memset(g_settings, 0, sizeof(g_settings));
+    memset(g_ocean, 0, sizeof(g_ocean));
 
     /* Loc configs are cache state, not window state: decoded once and shared
      * by every window. Rebuilding a window keeps them; only SceneFree — the
@@ -1337,12 +1386,13 @@ gather_terrain_zone(
                 scene_z >= SCENE_TILES )
                 continue;
             ToriRSServer_MapInstanceRotateToSrc(zone->rotation, dx, dz, &sx, &sz);
-            g_settings[dst_level][scene_x][scene_z] =
-                terrain
-                    ->tiles_xyz[RSCACHE_MAP_TILE_COORD(src_local_zone_x * 8 + sx,
-                                                       src_local_zone_z * 8 + sz,
-                                                       zone->src_level)]
-                    .settings;
+            const struct RSCache_MapFloor* tile =
+                &terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(src_local_zone_x * 8 + sx,
+                                                          src_local_zone_z * 8 + sz,
+                                                          zone->src_level)];
+            g_settings[dst_level][scene_x][scene_z] = tile->settings;
+            g_ocean[dst_level][scene_x][scene_z] =
+                (uint8_t)terrain_is_ocean(tile, zone->src_level);
         }
     }
 }
@@ -2001,6 +2051,17 @@ ToriRSServer_SceneTileFlags(int level, int x, int z)
     if( !map )
         return 0;
     return collision_map_tile(map, x - window->base_x, z - window->base_z);
+}
+
+int
+ToriRSServer_SceneBoatTileFlags(int level, int x, int z)
+{
+    struct ToriRSServerSceneWindow* window = window_containing(x, z);
+
+    if( !window || level < 0 || level >= SCENE_LEVELS || !window->boat_collision[level] )
+        return COLL_FLAG_BOUNDS;
+    return collision_map_tile(window->boat_collision[level], x - window->base_x,
+                              z - window->base_z);
 }
 
 int

@@ -16,6 +16,7 @@
  * footprint above all — wants index 0; the inflated ones are for the
  * click/approach tests that have slack by design. */
 const int WEV_FOOTPRINT_MARGIN[WEV_FOOTPRINT_MARGINS] = { 0, 256, 334, 362 };
+static uint32_t g_wev_teleport_serial;
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -447,6 +448,7 @@ Wevs_Spawn(
     assert(wevs->lists[parent_view_id].count < WORLDVIEW_MAX);
 
     wev->live = true;
+    wev->teleport_serial = ++g_wev_teleport_serial;
     wev->id = id;
     wev->view_id = id;
     wev->parent_view_id = parent_view_id;
@@ -582,6 +584,7 @@ Wev_ApplyMove(
     {
         /* Op 3: teleport. The queue is abandoned and the transform lands
          * immediately; the next enqueue chains off here. */
+        wev->teleport_serial = ++g_wev_teleport_serial;
         wev->queue_count = 0;
         wev->interp_armed = false;
         wev->queue[0].x = ref_x + dx;

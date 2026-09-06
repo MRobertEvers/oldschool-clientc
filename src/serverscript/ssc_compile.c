@@ -3789,6 +3789,63 @@ SSC_CompileDir(
 
 /* ------------------------------------------------------------------ */
 
+/* Recompile a body edit against the already loaded declarations. Compile into
+ * a separate owner so errors cannot partially replace the last good program.
+ * New/removed signatures need a full compile: existing callers embed IDs and
+ * stack arities. This API deliberately refuses such edits. */
+int
+SSC_RecompileFile(struct SSC_Compiler* compiler, const char* path, struct SSC_Diag* diag)
+{
+    struct SSC_Compiler* next = SSC_New(compiler->symbols);
+    int ok = next && SSC_Declare(next, path, diag);
+    int old_count = 0;
+    for( int i = 0; i < compiler->script_count; i++ )
+        if( compiler->scripts[i].source_path && !strcmp(compiler->scripts[i].source_path, path) )
+            old_count++;
+    if( ok && (old_count == 0 || next->name_count != old_count) ) ok = 0;
+    for( int i = 0; ok && i < next->name_count; i++ )
+    {
+        int id = script_id_for_name(compiler, next->names[i]);
+        if( id < 0 || id >= compiler->script_count ||
+            !compiler->scripts[id].source_path || strcmp(compiler->scripts[id].source_path, path) ||
+            next->name_int_args[i] != compiler->name_int_args[id] ||
+            next->name_str_args[i] != compiler->name_str_args[id] ||
+            next->name_str_return[i] != compiler->name_str_return[id] ||
+            next->name_int_returns[i] != compiler->name_int_returns[id] ||
+            next->name_str_returns[i] != compiler->name_str_returns[id] ||
+            memcmp(next->name_param_kinds[i], compiler->name_param_kinds[id], SS_MAX_PARAM_TYPES) )
+            ok = 0;
+    }
+    if( !ok )
+    {
+        if( diag && !diag->message[0] )
+            snprintf(diag->message, sizeof(diag->message), "declarations changed or source not in this pack; full compile required");
+        SSC_Free(next);
+        return 0;
+    }
+    /* The declaration-only candidate owns no script bodies yet. */
+    next->name_count = compiler->name_count;
+    next->strong_name_count = compiler->strong_name_count;
+    memcpy(next->names, compiler->names, (size_t)compiler->name_count * sizeof(*compiler->names));
+#define COPY_DECL(field) memcpy(next->field, compiler->field, (size_t)compiler->name_count * sizeof(*compiler->field))
+    COPY_DECL(name_int_args); COPY_DECL(name_str_args); COPY_DECL(name_str_return);
+    COPY_DECL(name_int_returns); COPY_DECL(name_str_returns); COPY_DECL(name_param_kinds);
+#undef COPY_DECL
+    ok = SSC_CompileFile(next, path, diag);
+    if( ok )
+    {
+        for( int i = 0; i < next->script_count; i++ )
+        {
+            if( !next->scripts[i].op_count ) continue;
+            SSVM_ScriptFree(&compiler->scripts[i]);
+            compiler->scripts[i] = next->scripts[i];
+            memset(&next->scripts[i], 0, sizeof(next->scripts[i]));
+        }
+    }
+    SSC_Free(next);
+    return ok;
+}
+
 int
 SSC_Write(
     struct SSC_Compiler* compiler,

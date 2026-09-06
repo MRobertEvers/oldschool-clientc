@@ -6,12 +6,24 @@
 #include "perf/torirs_perf.h"
 #include "uitree_layout.h"
 #include "uitree_scroll.h"
+#include "uitree_canvas_measure.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "log/torirs_log.h"
+
+static int canvas_query_compact=-1;
+void UITree_CanvasQuerySetCompact(int enabled) { canvas_query_compact=enabled!=0; }
+int UITree_CanvasQueryCompactEnabled(void)
+{
+    if( canvas_query_compact<0 ) {
+        const char* value=getenv("TORIRS_UI_CANVAS_COMPACT");
+        canvas_query_compact=value ? atoi(value)!=0 : 0;
+    }
+    return canvas_query_compact;
+}
 
 
 
@@ -963,6 +975,7 @@ link_under_parent(
     int32_t parent_index,
     int32_t new_index)
 {
+    tree->canvas_candidates_valid = 0;
     struct UITreeComponent* new_c = &tree->components[new_index];
     new_c->parent = parent_index;
     /* Preserve first_child (bake may attach children before the parent is
@@ -1089,6 +1102,7 @@ push_element_unlinked(struct UITree* tree)
     component->target_priority = 4;
     component->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
+    tree->canvas_candidates_valid = 0;
     tree->generation++;
     return idx;
 }
@@ -1181,6 +1195,7 @@ UITree_UnlinkChild(
             tree->components[walk].next_sibling = -1;
             parent->is_dirty = 1;
             uitree_topo_bump(tree, __LINE__);
+            tree->canvas_candidates_valid = 0;
             tree->generation++;
             return;
         }
@@ -1207,6 +1222,7 @@ UITree_UnlinkFromRootList(
             tree->last_root_index = tree->root_index;
         tree->components[child_index].next_sibling = -1;
         tree->components[child_index].parent = -1;
+        tree->canvas_candidates_valid = 0;
         tree->generation++;
         return;
     }
@@ -1222,6 +1238,7 @@ UITree_UnlinkFromRootList(
                 tree->last_root_index = prev;
             tree->components[walk].next_sibling = -1;
             tree->components[walk].parent = -1;
+            tree->canvas_candidates_valid = 0;
             tree->generation++;
             return;
         }
@@ -1288,6 +1305,7 @@ UITree_Reparent(
         tree->components[new_parent_index].is_dirty = 1;
         uitree_topo_bump(tree, __LINE__);
     }
+    tree->canvas_candidates_valid = 0;
     tree->generation++;
 }
 
@@ -1553,6 +1571,7 @@ UITree_Free(struct UITree* tree)
     free(tree->layout_changed);
     free(tree->layout_dirty);
     free(tree->emit_visited);
+    free(tree->canvas_candidate_ids);
     uitree_all_sets_free(tree);
     UITree_FrameForget(tree);
     free(tree->components);
@@ -1577,6 +1596,7 @@ UITree_Clear(struct UITree* tree)
     tree->root_index = -1;
     tree->last_root_index = -1;
     tree->interface_parent_count = 0;
+    tree->canvas_candidates_valid = 0;
     tree->generation++;
     /* Reclaim already unregistered each node; clear empties any leftover buckets. */
     uitree_all_sets_clear(tree);
@@ -1658,6 +1678,10 @@ enum UITreeMutationImpact
     UITREE_IMPACT_REACHABILITY = 1u << 3,
 };
 
+#if defined(TORIRS_UI_RETAIN_TRACE)
+unsigned g_ui_retain_trace_mutations;
+#endif
+
 static void
 uitree_note_mutation(
     struct UITree* tree,
@@ -1667,6 +1691,18 @@ uitree_note_mutation(
     assert(tree);
     assert(idx >= 0 && (uint32_t)idx < tree->component_count);
     assert(!tree->components[idx].freed);
+
+#if defined(TORIRS_UI_RETAIN_TRACE)
+    if( g_ui_retain_trace_mutations )
+    {
+        const struct UITreeComponent* c = &tree->components[idx];
+        g_ui_retain_trace_mutations--;
+        TORIRS_REPORT("ui-retain-mutation: node=%d id=%d parent=%d type=%d impact=%u hide=%d xy=%d,%d wh=%d,%d resolved=%d\n",
+            idx, c->component_id, c->parent, c->type, impacts, c->behavior.hide,
+            c->position.x, c->position.y, c->position.width, c->position.height,
+            c->position.layout_resolved);
+    }
+#endif
 
     if( impacts & UITREE_IMPACT_LAYOUT_TREE )
         UITree_LayoutInvalidate(tree);
@@ -2725,6 +2761,7 @@ UITree_ClearChildren(
     uitree_child_index_drop(c);               /* ... and none left to index */
     c->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
+    tree->canvas_candidates_valid = 0;
     tree->generation++;
 }
 
@@ -3092,6 +3129,7 @@ UITree_CcCopy(
 
     dst->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
+    tree->canvas_candidates_valid = 0;
     tree->generation++;
     return idx;
 }
@@ -3157,6 +3195,7 @@ UITree_CcDelete(
     uitree_child_index_drop(parent);
     parent->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
+    tree->canvas_candidates_valid = 0;
     tree->generation++;
 }
 
@@ -3224,6 +3263,7 @@ UITree_CcDeleteAll(
     uitree_child_index_drop(parent);
     parent->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
+    tree->canvas_candidates_valid = 0;
     tree->generation++;
 }
 
@@ -4091,6 +4131,7 @@ UITree_SetPositionModesAt(
     }
     com->position.x = x;
     com->position.y = y;
+    if( com->position.x_mode!=(int8_t)x_mode ) tree->canvas_candidates_valid=0;
     com->position.x_mode = (int8_t)x_mode;
     com->position.y_mode = (int8_t)y_mode;
     if( frame_owned )
@@ -4139,6 +4180,8 @@ UITree_SetSizeModesAt(
     }
     com->position.width = width;
     com->position.height = height;
+    if( com->position.width_mode!=(int8_t)width_mode || com->position.height_mode!=(int8_t)height_mode )
+        tree->canvas_candidates_valid=0;
     com->position.width_mode = (int8_t)width_mode;
     com->position.height_mode = (int8_t)height_mode;
     if( frame_owned )
@@ -5309,6 +5352,7 @@ UITree_ReclaimInterfaceGroup(
     }
 
     free(heap_roots);
+    tree->canvas_candidates_valid = 0;
     tree->generation++;
 }
 

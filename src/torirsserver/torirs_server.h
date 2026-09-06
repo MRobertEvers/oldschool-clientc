@@ -1825,6 +1825,8 @@ struct ToriRSServerContainer
     {
         int32_t component;
         uint8_t first_seen;
+        /** Native invother_* reads use the separate inventory namespace +32768. */
+        uint8_t other_inventory;
         struct ToriRSServerPlayer* player;
     } listeners[TORIRSSERVER_CONTAINER_LISTENERS_MAX];
 };
@@ -2987,6 +2989,8 @@ struct ToriRSServerPlayer
      *  sink is transient, and a client that spawned the hull mid-anim has no
      *  frame history to play it against. */
     int wev_seq_stamps[TORIRSSERVER_WEV_VIEW_MAX];
+    /** Per positional tracked slot, last explicit hull teleport sent. */
+    int wev_teleport_stamps[TORIRSSERVER_WEV_VIEW_MAX];
 
     /*
      * Observation coordinates: where this player is to be SEEN, which is not
@@ -4834,6 +4838,16 @@ ToriRSServer_WorldReset(struct ToriRSServer* srv);
  *  produces (rebuild, player info, npc info, container deltas, tick end). */
 void
 ToriRSServer_WorldTick(struct ToriRSServer* srv);
+
+/** Publish changed state through the real wire without advancing simulation.
+ * Used by the opt-in persistent visual harness while its clock is paused. */
+void ToriRSServer_WorldPublish(struct ToriRSServer* srv);
+
+/** Build/furnish a spawned player boat using its revision-239 deck template.
+ * Returns zero for an unsupported hull, missing vessel, or blocked launch. */
+int ToriRSServer_VesselBuildPlayerDeck(struct ToriRSServer* srv, int handle);
+int ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
+                             int level, int near_x, int near_z);
 
 /*
  * Chambers of Xeric tick harness (torirs_server_cox_sim.c). Enters the raid under

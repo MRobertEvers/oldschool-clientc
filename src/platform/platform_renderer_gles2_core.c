@@ -1818,6 +1818,15 @@ gles2_bake_pose_vertices(
     gles2_bake_capture_begin(renderer,model_handle,world_position,face_order,order_count);
 #endif
 
+    if(renderer->actor_direct_encode && ordered_painter && world_xyz && !full_model->face_textures) {
+#if !defined(TORIRS_BAKE_CHAIN_CAPTURE) && !defined(TORIRS_BAKE_VERIFY)
+        trspk_toridraw_gles2_untextured(full_model,face_order,written_count,world_xyz,
+            &vbo->vertices.as_gles2[vertex_base]);
+        trspk_vbo_mark_dirty_range(vbo,vertex_base,written_count*3u);
+        return true;
+#endif
+    }
+
     for( order_index = 0u; order_index < written_count; order_index++ )
     {
         struct TRSPK_ToriDrawBakeFaceVerts face;
@@ -1931,6 +1940,30 @@ gles2_bake_pose_vertices(
      * changed. */
 #if defined(TORIRS_BAKE_CHAIN_CAPTURE)
     gles2_bake_capture_end();
+#endif
+#if defined(TORIRS_BAKE_VERIFY)
+    if( renderer->actor_direct_encode && ordered_painter && world_xyz && !full_model->face_textures )
+    {
+        /* Verify the entire ordered direct stream, including placeholders,
+         * against the generic final vertex writer above. The normal fast
+         * return is suppressed in this diagnostic so both paths execute. */
+        size_t bytes = (size_t)written_count * 3u * sizeof(struct TRSPK_VertexGLES2);
+        struct TRSPK_VertexGLES2* direct = malloc(bytes ? bytes : 1u);
+        if( !direct ) { fprintf(stderr, "direct bake verification allocation failed\n"); abort(); }
+        trspk_toridraw_gles2_untextured(full_model, face_order, written_count, world_xyz, direct);
+        if( memcmp(direct, &vbo->vertices.as_gles2[vertex_base], bytes) )
+        {
+            fprintf(stderr, "direct bake verification FAILED: %u ordered faces\n", written_count);
+            abort();
+        }
+        memcpy(&vbo->vertices.as_gles2[vertex_base], direct, bytes);
+        free(direct);
+        static unsigned matched_models, matched_faces;
+        matched_faces += written_count;
+        if( (++matched_models % 100u) == 0u )
+            fprintf(stderr, "direct bake verification: %u models, %u packed faces matched\n",
+                matched_models, matched_faces);
+    }
 #endif
     trspk_vbo_mark_dirty_range(vbo, vertex_base, written_count * 3u);
     return true;
@@ -3479,6 +3512,7 @@ ToriRS_GLES2_New(int width, int height)
 #endif
     }
     { const char* v=getenv("TORIRS_GLES2_FAST_SHADER");renderer->world_fast_shader=v && v[0]=='1'; }
+    { const char* v=getenv("TORIRS_GLES2_ACTOR_DIRECT");renderer->actor_direct_encode=v && v[0]=='1'; }
     renderer->lever_ui_defer = gles2_lever_enabled("TORIRS_GLES2_UI_DEFER");
     {
         const char* v=getenv("TORIRS_GLES2_STATIC_PRIMARY");

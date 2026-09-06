@@ -258,6 +258,9 @@ struct Wev
      */
     struct WevTarget queue[WEV_TARGET_QUEUE_SLOTS];
     int queue_count;
+    /** Receipt generation for a spawn or explicit op-3 snap. Never rewound
+     *  with interpolation; consumers can await actual protocol delivery. */
+    uint32_t teleport_serial;
 
     /*
      * Interpolator state (deob class458 through class467.method10477).
@@ -553,6 +556,15 @@ Wev_DeckFromParent(
     int parent_z,
     int* out_deck_x,
     int* out_deck_z);
+
+/** Project an authoritative root-wire position against the hull's queued
+ * wire target, independent of the hull's current 20 ms interpolation pose. */
+void
+Wev_DeckFromWireTarget(
+    struct Wev const* wev,
+    struct WevDeckBox const* current_box,
+    int root_x, int root_z,
+    int* out_deck_x, int* out_deck_z);
 
 /** Deck-local fine (x,z) -> parent-view fine. Both outputs are required. */
 void

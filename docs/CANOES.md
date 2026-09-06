@@ -503,3 +503,14 @@ the default login camera looks past it.
 - `canoe_avoid_if` (varbit 1844) suppresses the Wilderness warning. The warning
   itself is a plain `~p_choice2` here rather than the struct-driven wilderness
   panel (structs 1086/1088/1096 carry its text).
+
+## Fast acceptance pilot (2026-09-06)
+
+See [CONTENT_SELFTEST.md](CONTENT_SELFTEST.md) for the persistent client, warm
+compiler and reviewed render fixtures. The focused server gate covers 440 route
+combinations and the packet-driven Lumbridge chain. The live pilot checks CS2,
+transmitted state, rowing/moving scenery and camera cleanup with no restarts.
+
+Its cave screenshots caught the waka bow behind the fixed sidebar. The cave eye
+is now local (61,11), eight tiles east of the seat, aiming at (53,13). All four
+hulls fit the unobscured viewport; the river camera is unchanged.

@@ -78,6 +78,24 @@ Wev_ParentFromDeck(
     *out_parent_z = ((lz * cs - lx * sn) >> 16) + box->pos_z;
 }
 
+void
+Wev_DeckFromWireTarget(
+    struct Wev const* wev,
+    struct WevDeckBox const* current_box,
+    int root_x, int root_z,
+    int* out_deck_x, int* out_deck_z)
+{
+    assert(wev);
+    assert(current_box);
+    assert(out_deck_x);
+    assert(out_deck_z);
+    struct WevDeckBox target = *current_box;
+    target.pos_x += wev->queue[0].x - wev->x;
+    target.pos_z += wev->queue[0].z - wev->z;
+    target.angle = wev->queue[0].angle;
+    Wev_DeckFromParent(&target, root_x, root_z, out_deck_x, out_deck_z);
+}
+
 bool
 Wev_DeckContainsDeckPoint(
     struct WevDeckBox const* box,
