@@ -1690,6 +1690,26 @@ frame_loop_step(void)
                     NetTransport_Poll(sock, app.net, &bus);
             }
 
+        /* Drive the same enable/disable operation used by plugin settings. */
+        {
+            static int initialized;
+            static char const* cursor;
+            if( !initialized ) { cursor=getenv("TORIRS_SIM_PLUGIN_TOGGLE"); initialized=1; }
+            if( cursor && *cursor )
+            {
+                long at=-1; int enabled=-1; char id[64]={0};
+                if( sscanf(cursor,"%ld,%63[^,],%d",&at,id,&enabled)!=3 || at<0 || (enabled!=0 && enabled!=1) )
+                { TORIRS_REPORT("sim_plugin_toggle: invalid input\n"); cursor=NULL; }
+                else if( frame_count>=at && app.plugins )
+                {
+                    int index=PluginHost_IndexOf(app.plugins,id);
+                    if( index>=0 ) PluginHost_SetEnabled(app.plugins,index,enabled!=0);
+                    TORIRS_REPORT("sim_plugin_toggle: frame=%ld id=%s enabled=%d applied=%d\n",frame_count,id,enabled,index>=0);
+                    char const* next=strchr(cursor,';'); cursor=next ? next+1 : NULL;
+                }
+            }
+        }
+
         /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats[,button]]": press at
          * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
          * `repeats` times (default 1). The only way to exercise a drag
@@ -3182,6 +3202,15 @@ frame_loop_teardown(void)
                         c->slot_tag, c->frame_member_plus1, c->role_id,
                         c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h,
                         c->behavior.scripts_count, c->cs1_active);
+                if( getenv("TORIRS_TRACE_NATIVE_UI") && c->plugin_owner && c->type==UIELEM_RS_TEXT )
+                {
+                    char const* text=c->u.rs_text.text ? c->u.rs_text.text : "";
+                    uint64_t hash=UINT64_C(14695981039346656037);
+                    for( unsigned char const* p=(unsigned char const*)text; *p; ++p ) hash=(hash^*p)*UINT64_C(1099511628211);
+                    TORIRS_REPORT("OWNED_WIDGET owner=%" PRIu64 " key=%s node=%u box=%d,%d,%d,%d len=%zu hash=%016" PRIx64 "\n",
+                        c->plugin_owner,c->plugin_key ? c->plugin_key : "",i,
+                        c->position.abs_x,c->position.abs_y,c->position.abs_w,c->position.abs_h,strlen(text),hash);
+                }
                 if( getenv("TORIRS_TRACE_NATIVE_UI") && c->type == UIELEM_RS_TEXT && c->u.rs_text.input )
                 {
                     char const* text = c->u.rs_text.text ? c->u.rs_text.text : "";

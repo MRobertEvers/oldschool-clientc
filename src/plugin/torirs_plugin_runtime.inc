@@ -3433,6 +3433,7 @@ plugin_widget_request(void* user, struct PluginWidgetRequest* request)
     struct PluginContext* ctx = runtime ? runtime->context : NULL;
     if( !ctx || !ctx->running || ctx->host->dispatching != ctx->index )
         return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( request->kind == PLUGIN_WIDGET_CREATE_TEXT && ctx->tearing_down ) return TORIRS_CONTRACT_WRONG_CONTEXT;
     if( request->kind >= PLUGIN_WIDGET_POSITION && plugin_ev_is_draw(ctx->host->dispatch_event) )
         return TORIRS_CONTRACT_WRONG_CONTEXT;
     if( !ctx->host->engine.widget_request ) return TORIRS_CONTRACT_UNAVAILABLE;
@@ -3502,6 +3503,32 @@ static enum ToriRS_ContractResult widget_reset(void* u, struct ToriRS_WidgetRef 
 {
     struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_RESET, .ref=ref};
     return plugin_widget_request(u, &r);
+}
+
+static enum ToriRS_ContractResult widget_create_text(void* u, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out)
+{
+    if( !out || !key || !*key || strlen(key)>63 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=(struct ToriRS_WidgetRef){0};
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_CREATE_TEXT,.ref=parent,.name=key,.refs=out};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_set_text(void* u, struct ToriRS_WidgetRef ref, char const* text)
+{
+    if( !text ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( strlen(text)>4096 ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_SET_TEXT,.ref=ref,.name=text};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_text_color(void* u, struct ToriRS_WidgetRef ref, uint32_t rgb)
+{
+    if( rgb>0xffffff ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_COLOR,.ref=ref,.a=(int)rgb};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_remove(void* u, struct ToriRS_WidgetRef ref)
+{
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_REMOVE,.ref=ref};
+    return plugin_widget_request(u,&r);
 }
 
 static enum ToriRS_ContractResult
@@ -3612,6 +3639,7 @@ v2_runtime_init(
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,
             .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch,
+            .create_text=widget_create_text,.set_text=widget_set_text,.set_text_color=widget_text_color,.remove=widget_remove,
         },
         .core = {
             .struct_size = sizeof(runtime->api.core),

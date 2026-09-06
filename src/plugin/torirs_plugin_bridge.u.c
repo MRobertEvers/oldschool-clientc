@@ -4105,6 +4105,8 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     int32_t idx = UITree_ResolveRef(tree, ref);
     if( idx < 0 ) return TORIRS_CONTRACT_STALE_REFERENCE;
     struct UITreeComponent const* c = &tree->components[idx];
+    if( r->kind >= PLUGIN_WIDGET_POSITION && c->plugin_owner && c->plugin_owner != owner )
+        return TORIRS_CONTRACT_NATIVE_BLOCKED;
     switch( r->kind )
     {
     case PLUGIN_WIDGET_CHILDREN:
@@ -4136,6 +4138,24 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         if( r->capacity ) snprintf(r->text, r->capacity, "%s", text);
         return *r->count > r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
     }
+    case PLUGIN_WIDGET_CREATE_TEXT:
+    {
+        int font=UITreeSceneBridge_EnsureDebugFont1x(&app->bridge,TORIRS_CHROME_FONT_SMALL);
+        int child=UITree_WidgetCreateText(tree,ref,owner,r->name,font);
+        *r->refs=app_widget_ref(tree,child);
+        if( child<0 ) return TORIRS_CONTRACT_FAILED;
+        break;
+    }
+    case PLUGIN_WIDGET_SET_TEXT:
+    case PLUGIN_WIDGET_TEXT_COLOR:
+        if( c->plugin_owner!=owner || c->type!=UIELEM_RS_TEXT ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( r->kind==PLUGIN_WIDGET_SET_TEXT ) UITree_SetTextAt(tree,idx,r->name);
+        else UITree_SetColourAt(tree,idx,r->a);
+        break;
+    case PLUGIN_WIDGET_REMOVE:
+        if( c->plugin_owner!=owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_WidgetRemove(tree,ref,owner) ) return TORIRS_CONTRACT_FAILED;
+        break;
     case PLUGIN_WIDGET_POSITION:
     case PLUGIN_WIDGET_SIZE:
         /* The old frame builder is being ported. Do not silently compete with

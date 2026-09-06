@@ -790,6 +790,8 @@ struct UITreeComponent
     /* Host-owned live-widget geometry edits. Native layout inputs stay in
      * position; deleting/copying a native node never transfers these owners. */
     struct UITreeWidgetGeometry* widget_geometry;
+    uint64_t plugin_owner;
+    char* plugin_key;
     /**
      * A layer the plugin frame declared NOT to clip.
      *
@@ -1555,6 +1557,8 @@ struct UITree
 
 struct UITreeNodeSpec
 {
+    /* Internal initialization boundary for anonymous plugin-owned children. */
+    uint64_t plugin_owner;
     enum UITreeComponentType type;
     int component_id;
 
@@ -2112,6 +2116,10 @@ bool UITree_WidgetSetPosition(struct UITree*, struct UITreeNodeRef, uint64_t own
 bool UITree_WidgetSetSize(struct UITree*, struct UITreeNodeRef, uint64_t owner, int w, int h);
 bool UITree_WidgetReset(struct UITree*, struct UITreeNodeRef, uint64_t owner);
 void UITree_WidgetResetOwner(struct UITree*, uint64_t owner);
+int32_t UITree_WidgetCreateText(struct UITree*, struct UITreeNodeRef parent, uint64_t owner,
+                               char const* key, int font_id);
+bool UITree_WidgetRemove(struct UITree*, struct UITreeNodeRef, uint64_t owner);
+
 int UITree_WidgetPositionOverride(struct UITree const*, int32_t, struct UITreeElemPosition*);
 
 /** Current live focus component ID, or -1. Never transfers across node reuse. */

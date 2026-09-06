@@ -169,7 +169,7 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native"):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12):
     width, height, rows = read_bmp(path)
     failures = []
     if bounds_path:
@@ -195,19 +195,36 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
                 r"NATIVE_UI[^\n]*? com=(-?\d+)[^\n]*? slot=(\d+) member=(\d+)[^\n]*? box=(-?\d+),(-?\d+),(\d+),(\d+)",log)]
             modal = [box for com,slot,member,box in entries if com >> 16 == root and slot == 3 and member == 0]
             inventory = [box for com,slot,member,box in entries if com == 149 << 16]
-            placed = len(modal)==1 and len(inventory)==1 and inventory[0] == (modal[0][0]-12,modal[0][1],190,261)
+            placed = len(modal)==1 and len(inventory)==1 and inventory[0] == (modal[0][0]-widget_offset,modal[0][1],190,261)
             print(f"PIXEL native_widget_visible_inventory={'PASS' if placed else 'FAIL'}")
             if not placed: failures.append("native_widget_visible_inventory")
             ink = json.loads((Path(__file__).parent/"testdata/gameframe/native-body-rune-ink.json").read_text())
             painted = False
             if len(modal)==1:
-                x,y=modal[0][0]-12+16+(widget_rune_slot%4)*42,modal[0][1]+8+(widget_rune_slot//4)*36
+                x,y=modal[0][0]-widget_offset+16+(widget_rune_slot%4)*42,modal[0][1]+8+(widget_rune_slot//4)*36
                 painted = all(0<=y+dy<height and 0<=x+dx<width and
                     rows[y+dy][x+dx][0]>rows[y+dy][x+dx][2]+ink["blue_over_red"] and
                     rows[y+dy][x+dx][0]>rows[y+dy][x+dx][1]+ink["blue_over_green"]
                     for dx,dy in ink["pixels"])
             print(f"PIXEL native_widget_moved_item_ink={'PASS' if painted else 'FAIL'}")
             if not painted: failures.append("native_widget_moved_item_ink")
+    if owned_text is not None or owned_count==0:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        records = re.findall(r"OWNED_WIDGET owner=\d+ key=strength node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+) len=(\d+) hash=([0-9a-f]+)",log)
+        h=14695981039346656037
+        for byte in (owned_text or "").encode(): h=((h^byte)*1099511628211)&((1<<64)-1)
+        current=len(records)==owned_count and (owned_count==0 or records[0][4:]==(str(len(owned_text.encode())),f"{h:016x}"))
+        print(f"PIXEL owned_widget_live_text={'PASS' if current else 'FAIL'} count={len(records)}")
+        if not current: failures.append("owned_widget_live_text")
+        painted=owned_count==0 and not records
+        if owned_count==1 and len(records)==1:
+            x,y,w,h=map(int,records[0][:4])
+            emitted=bool(re.search(rf"EMIT_EXIT[^\n]*kind=2 com=0xffffffff[^\n]* x={x} y={y} w={w} h={h} ",log))
+            ink=sum(1 for yy in range(max(0,y),min(height,y+h)) for xx in range(max(0,x),min(width,x+w))
+                    if min(rows[yy][xx])>=240)
+            painted=emitted and ink>=30
+        print(f"PIXEL owned_widget_text_painted={'PASS' if painted else 'FAIL'}")
+        if not painted: failures.append("owned_widget_text_painted")
     if revision == "rs289lc":
         if not bounds_path:
             raise ValueError("rs289lc requires its matching native trace")
@@ -302,10 +319,13 @@ if __name__ == "__main__":
     parser.add_argument("--widget-demo", choices=("c", "lua"))
     parser.add_argument("--widget-moves", type=int, default=1)
     parser.add_argument("--widget-rune-slot", type=int, choices=range(28), default=0)
+    parser.add_argument("--owned-text")
+    parser.add_argument("--owned-count",type=int,choices=(0,1),default=1)
+    parser.add_argument("--widget-offset",type=int,default=12)
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

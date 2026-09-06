@@ -495,3 +495,40 @@ The final focused host suite passes 311 checks, and host/Lua/UI suites also pass
 with AddressSanitizer. The updated Lua smoke list includes all 17 scripts rather
 than leaving the new probe out. Remaining native-overlap and full-port gates
 above are unchanged.
+
+### Owned text widgets and live data (revised M2, partial)
+
+C/Lua now create keyed owned text widgets under a live parent, set their text/color,
+and remove them. Native component IDs and dynamic sub-IDs are not assigned to
+these widgets. The constructor sets ownership before native child indexing;
+lookup and iteration exclude owned children. Native slot replacement preserves
+attached owned children, while deleting the parent reclaims them. Cross-owner
+writes/removal and moving native nodes into an owned subtree are rejected.
+Owned geometry uses the ordinary typed setters; native geometry still uses the
+separate resettable edits. The host rejects new owned widgets during shutdown.
+
+The two probes add one Strength label to the native viewport, away from native
+controls, and update it on the existing server-tick callback through the shared
+skill API. Both actual revision paths render the label; rs289lc's real server
+stat changes update it to 20 alongside native CS1 skill cells. OSRS's actual
+`setlevel strength 20` path updates the label and isolated server save to 20.
+The examples also survive the native 548-to-164 remount without duplicate labels.
+
+The existing gameframe harness now drives plugin settings enable/disable through
+`TORIRS_SIM_PLUGIN_TOGGLE`. C/Lua disabled captures have zero owned labels and
+native sidebar placement. Re-enabling after a server-driven remount produces
+exactly one label on the new viewport. Text hashes, native text descriptors,
+painted ink and enlarged inspections support these assertions.
+
+Evidence: `owned-widget-{c,lua}-{osrs,lc,disabled,reenabled,updated}` under the
+local evidence directory, plus `owned-widget-label-inspection.png`. Inspected
+label counts are one in each enabled capture and zero in both disabled captures.
+The native inventory/skill controls remain present. Lost City captures used
+separate reserved accounts. `owned-widget-negative` observes failures when native
+child-key exclusion or preservation during slot replacement is broken. UI,
+host and Lua tests also pass under AddressSanitizer.
+
+This is a passive owned-control path, not completion of revised M2. Interactive
+owned controls/native action invocation, native styling, script-internal hooks,
+paint-time failure/teardown combinations, allocation-failure coverage and the
+remaining product/front-end ports still require implementation and acceptance.

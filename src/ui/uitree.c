@@ -853,6 +853,7 @@ UITree_HooksFree(struct UITreeComponent* c)
 static int32_t
 uitree_child_key(struct UITreeComponent const* child)
 {
+    if( child->plugin_owner ) return -1;
     return child->dynamic ? child->dynamic_child_index : (child->component_id & 0xFFFF);
 }
 
@@ -884,6 +885,7 @@ uitree_child_key_added(
 
     struct UITreeComponent* parent = &tree->components[parent_index];
     int32_t const key = uitree_child_key(&tree->components[child_index]);
+    if( key < 0 ) return;
 
     if( parent->child_key_index )
     {
@@ -930,6 +932,7 @@ uitree_child_key_removed(
 
     struct UITreeComponent* parent = &tree->components[parent_index];
     int32_t const key = uitree_child_key(&tree->components[child_index]);
+    if( key < 0 ) return;
 
     if( parent->child_key_index && key >= 0 && key < parent->child_key_index_cap )
     {
@@ -1344,6 +1347,10 @@ UITree_Reparent(
     if( !tree || child_index < 0 || (uint32_t)child_index >= tree->component_count ||
         tree->components[child_index].freed || new_parent_index < -1 )
         return false;
+    if( new_parent_index >= 0 && (uint32_t)new_parent_index < tree->component_count &&
+        tree->components[new_parent_index].plugin_owner &&
+        tree->components[new_parent_index].plugin_owner != tree->components[child_index].plugin_owner )
+        return false;
     /* Validate the entire proposed ancestor chain before changing any links. */
     int32_t ancestor = new_parent_index;
     uint32_t visited = 0;
@@ -1547,6 +1554,8 @@ UITree_ModelRenderCacheMut(struct UITreeComponent* component)
 static void
 uitree_component_free_owned(struct UITreeComponent* c)
 {
+    free(c->plugin_key);
+    c->plugin_key = NULL;
     while( c->widget_geometry )
     {
         struct UITreeWidgetGeometry* next = c->widget_geometry->next;
@@ -2459,6 +2468,7 @@ UITree_Push(
 
     struct UITreeComponent* component = &tree->components[idx];
     component->type = spec->type;
+    component->plugin_owner = spec->plugin_owner;
     component->component_id = spec->component_id;
     component->dynamic = spec->dynamic ? 1 : 0;
     uitree_id_index_note_added(tree, idx);
@@ -2859,7 +2869,8 @@ UITree_ClearChildren(
         {
             int32_t const next = tree->components[child].next_sibling;
             int const id = tree->components[child].component_id;
-            if( id >= 0 && ((id >> 16) & 0xFFFF) == TORIRS_REVCONFIG_GROUP )
+            if( tree->components[child].plugin_owner ||
+                (id >= 0 && ((id >> 16) & 0xFFFF) == TORIRS_REVCONFIG_GROUP) )
             {
                 tree->components[child].next_sibling = -1;
                 if( kept_tail >= 0 )
@@ -2954,6 +2965,7 @@ UITree_FindChildBySubid(
     {
         steps++;
         struct UITreeComponent const* c = &tree->components[child];
+        if( c->plugin_owner ) continue;
         if( c->dynamic && c->dynamic_child_index == sub_id )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_HIT, 1);
@@ -4026,6 +4038,11 @@ uitree_widget_set_geometry(struct UITree* tree, struct UITreeNodeRef ref,
     if( idx < 0 || !owner || (size && (a < 0 || b < 0)) || widget_geometry_serial == UINT64_MAX )
         return false;
     struct UITreeComponent* c = &tree->components[idx];
+    if( c->plugin_owner )
+    {
+        if( c->plugin_owner != owner ) return false;
+        return size ? UITree_SetSizeAt(tree,idx,a,b) : UITree_SetPositionAt(tree,idx,a,b);
+    }
     struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
     if( !edit ) return false;
     if( size )
@@ -4067,12 +4084,55 @@ bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t 
     return true;
 }
 
+int32_t UITree_WidgetCreateText(struct UITree* tree, struct UITreeNodeRef parent, uint64_t owner,
+                               char const* key, int font_id)
+{
+    int32_t p = UITree_ResolveRef(tree,parent);
+    if( p < 0 || !owner || !key || !*key || strlen(key) > 63 ||
+        (tree->components[p].plugin_owner && tree->components[p].plugin_owner != owner) ) return -1;
+    for( int32_t child=tree->components[p].first_child; child>=0; child=tree->components[child].next_sibling )
+        if( tree->components[child].plugin_owner == owner && tree->components[child].plugin_key &&
+            strcmp(tree->components[child].plugin_key,key)==0 ) return child;
+    int count=0;
+    for( uint32_t i=0; i<tree->component_count; ++i )
+        if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count;
+    if( count>=128 ) return -1;
+    char* saved_key=strdup(key);
+    if( !saved_key ) return -1;
+    struct UITreeNodeSpec spec={0};
+    spec.type=UIELEM_RS_TEXT; spec.component_id=-1; spec.plugin_owner=owner;
+    spec.width=180; spec.height=16;
+    spec.u.rs_text.font_id=font_id;
+    spec.u.rs_text.color=0xffffff;
+    spec.u.rs_text.shadowed=1;
+    int32_t index=UITree_Push(tree,p,&spec);
+    if( index<0 ) { free(saved_key); return -1; }
+    tree->components[index].plugin_key=saved_key;
+    return index;
+}
+
+bool UITree_WidgetRemove(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner)
+{
+    int32_t idx=UITree_ResolveRef(tree,ref);
+    if( idx<0 || !owner || tree->components[idx].plugin_owner!=owner ) return false;
+    if( tree->components[idx].parent>=0 ) UITree_UnlinkChild(tree,tree->components[idx].parent,idx);
+    else UITree_UnlinkFromRootList(tree,idx);
+    uitree_reclaim_subtree(tree,idx);
+    tree->generation++;
+    return true;
+}
+
 void UITree_WidgetResetOwner(struct UITree* tree, uint64_t owner)
 {
     if( !tree || !owner ) return;
     for( uint32_t i = 0; i < tree->component_count; ++i )
-        if( !tree->components[i].freed && tree->components[i].widget_geometry )
-            UITree_WidgetReset(tree, UITree_RefAt(tree, (int32_t)i), owner);
+    {
+        if( tree->components[i].freed ) continue;
+        if( tree->components[i].plugin_owner==owner )
+            UITree_WidgetRemove(tree,UITree_RefAt(tree,(int32_t)i),owner);
+        else if( tree->components[i].widget_geometry )
+            UITree_WidgetReset(tree,UITree_RefAt(tree,(int32_t)i),owner);
+    }
 }
 
 /* Bit 1: forced position, bit 2: forced dimensions, including an exact zero.

@@ -348,3 +348,44 @@ void test_widget_sidebar_group(void)
                 "sidebar helper rejects incompatible member topology");
     UITree_Free(tree);
 }
+
+void test_owned_widgets(void)
+{
+    struct UITree* t=UITree_New(16);
+    int root=UITree_TestPushXy(t,-1,UIELEM_RS_LAYER,0x360000,0,0,300,300);
+    int native=UITree_TestPushXy(t,root,UIELEM_RS_TEXT,0x360002,0,0,20,20);
+    struct UITreeNodeRef parent=UITree_RefAt(t,root);
+    int dynamic=UITree_CcCreate(t,root,0x360000,4,0);
+    int a=UITree_WidgetCreateText(t,parent,1,"caption",1);
+    int b=UITree_WidgetCreateText(t,parent,2,"caption",1);
+    struct UITreeNodeRef ar=UITree_RefAt(t,a), br=UITree_RefAt(t,b), nr=UITree_RefAt(t,native);
+    TEST_ASSERT(a>=0 && b>=0 && a!=b,"owned widget keys are isolated by owner");
+    TEST_ASSERT(UITree_WidgetCreateText(t,parent,1,"caption",1)==a,"owned create is idempotent by parent and key");
+    TEST_ASSERT(t->components[root].child_key_max<=2,"owned widgets do not pollute native child keys");
+    TEST_ASSERT(UITree_FindChildBySubid(t,root,0x360000,65535)<0,"anonymous owned widget has no native sub-id");
+    int children[8];
+    TEST_ASSERT(UITree_CollectDynamicChildIndices(t,0x360000,0,children,8)==1 && children[0]==0,
+                "native child iteration excludes owned widgets");
+    TEST_ASSERT(!UITree_WidgetRemove(t,nr,1),"owned remove cannot delete native widgets");
+    TEST_ASSERT(!UITree_WidgetRemove(t,br,1),"owned remove cannot delete another plugin's widget");
+    TEST_ASSERT(!UITree_Reparent(t,native,a),"native widget cannot enter an owned subtree");
+    TEST_ASSERT(UITree_WidgetCreateText(t,ar,2,"foreign",1)<0,"another owner cannot create in an owned subtree");
+    TEST_ASSERT(!UITree_WidgetSetPosition(t,ar,2,1,2),"another owner cannot reposition an owned widget");
+    UITree_CcDeleteAll(t,root);
+    TEST_ASSERT(t->components[dynamic].freed && UITree_ResolveRef(t,ar)==a && UITree_ResolveRef(t,br)==b,
+                "native deleteall preserves owned siblings");
+    UITree_ClearChildren(t,root);
+    TEST_ASSERT(UITree_ResolveRef(t,nr)<0 && UITree_ResolveRef(t,ar)==a,
+                "native slot replacement preserves attached owned controls");
+    UITree_SetHideAt(t,root,1);
+    UITree_SetTextAt(t,a,"live update");
+    TEST_ASSERT(UITree_NodeOrAncestorDisplayHidden(t,a),"native hiding remains authoritative over owned text updates");
+    UITree_WidgetResetOwner(t,1);
+    TEST_ASSERT(UITree_ResolveRef(t,ar)<0 && UITree_ResolveRef(t,br)==b,"owner teardown preserves other owners");
+    int layer=UITree_CcCreate(t,root,0x360000,0,2);
+    int nested=UITree_WidgetCreateText(t,UITree_RefAt(t,layer),2,"nested",1);
+    struct UITreeNodeRef nested_ref=UITree_RefAt(t,nested);
+    UITree_CcDeleteAll(t,root);
+    TEST_ASSERT(UITree_ResolveRef(t,nested_ref)<0,"closing a native subtree invalidates owned descendants");
+    UITree_Free(t);
+}

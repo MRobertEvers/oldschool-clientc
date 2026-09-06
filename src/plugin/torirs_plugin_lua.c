@@ -1035,6 +1035,30 @@ static void lua_widget_watches_clear(struct LuaScript* script)
         memset(&script->widget_watches[i],0,sizeof(script->widget_watches[i]));
     }
 }
+
+static int lua_widget_create_text(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    struct ToriRS_WidgetRef created;
+    enum ToriRS_ContractResult result=ui->create_text(ui->context,lua_widget_arg(L),luaL_checkstring(L,2),&created);
+    if( result!=TORIRS_CONTRACT_OK ) { lua_pushnil(L);return 1; }
+    lua_push_widget(L,created);return 1;
+}
+static int lua_widget_set_text(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    return lua_widget_result(L,ui->set_text(ui->context,lua_widget_arg(L),luaL_checkstring(L,2)));
+}
+static int lua_widget_set_text_color(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    return lua_widget_result(L,ui->set_text_color(ui->context,lua_widget_arg(L),lua_color_arg(L,2)));
+}
+static int lua_widget_remove(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    return lua_widget_result(L,ui->remove(ui->context,lua_widget_arg(L)));
+}
 static struct LuaFn const LUA_WIDGET_FNS[] = {
     {"find",lua_widget_find},{"get",lua_widget_get},{"watch",lua_widget_watch},{NULL,NULL}
 };
@@ -1042,7 +1066,9 @@ static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"position",lua_widget_position},{"bounds",lua_widget_bounds},
     {"children",lua_widget_children},{"text",lua_widget_text},
     {"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
-    {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},{NULL,NULL}
+    {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},
+    {"create_text",lua_widget_create_text},{"set_text",lua_widget_set_text},
+    {"set_text_color",lua_widget_set_text_color},{"remove",lua_widget_remove},{NULL,NULL}
 };
 
 static int lua_ui_ref(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_UiNodeRef r=a->ui.ref(a,luaL_checkstring(L,1));if(!r.value)lua_pushnil(L);else lua_pushinteger(L,r.value);return 1; }

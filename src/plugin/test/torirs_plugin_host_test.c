@@ -3326,6 +3326,15 @@ static void widget_probe_start(struct ToriRS_Api* api, void* state)
           "live widget revalidation routes on the client callback");
 }
 
+static void widget_probe_stop(struct ToriRS_Api* api, void* state)
+{
+    (void)state;
+    struct ToriRS_WidgetRef out;
+    CHECK(api->widgets.create_text(api->widgets.context,(struct ToriRS_WidgetRef){{77,2,3}},"late",&out)
+              == TORIRS_CONTRACT_WRONG_CONTEXT,
+          "shutdown cannot create new owned widgets");
+}
+
 static struct ToriRS_PluginHost* watched_host;
 static int watched_b, watch_churn, watch_self_remove;
 static char watch_trace[128];
@@ -4771,7 +4780,7 @@ main(void)
         struct ToriRS_PluginHost* widget_host = PluginHost_New(&widget_engine);
         struct ToriRS_PluginDef widget_def = {
             .struct_size=sizeof(widget_def), .id="widget-host-test", .title="Widget", .version="3",
-            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks), .on_start=widget_probe_start}
+            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks), .on_start=widget_probe_start,.on_stop=widget_probe_stop}
         };
         int owner = PluginHost_Register(widget_host, &widget_def);
         PluginHost_Start(widget_host);

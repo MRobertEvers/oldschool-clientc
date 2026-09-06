@@ -121,6 +121,13 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*set_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
     enum ToriRS_ContractResult (*revalidate)(void*, struct ToriRS_WidgetRef);
     enum ToriRS_ContractResult (*reset)(void*, struct ToriRS_WidgetRef);
+    /* Keys are scoped to owner and parent; repeated create_text returns the
+     * same live child. These content setters/remove apply only to owned text. */
+    enum ToriRS_ContractResult (*create_text)(void*, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef*);
+    enum ToriRS_ContractResult (*set_text)(void*, struct ToriRS_WidgetRef, char const*);
+    enum ToriRS_ContractResult (*set_text_color)(void*, struct ToriRS_WidgetRef, uint32_t rgb);
+    enum ToriRS_ContractResult (*remove)(void*, struct ToriRS_WidgetRef);
+
     /* Follow a semantic binding at native publication boundaries. A new
      * subscription receives BOUND when available; replacement sends UNBOUND
      * for the old incarnation then BOUND for the new one. Hidden is still

@@ -577,6 +577,10 @@ warn = nil
 ---@field rows? integer
 
 ---@class torirs.Widget
+---@field create_text fun(self:torirs.Widget,key:string):torirs.Widget? Creates or returns this owner's child.
+---@field set_text fun(self:torirs.Widget,text:string):boolean,string Owned text only.
+---@field set_text_color fun(self:torirs.Widget,color:torirs.Colour):boolean,string Owned text only.
+---@field remove fun(self:torirs.Widget):boolean,string Removes only this owner's widget.
 ---@field position fun(self:torirs.Widget):torirs.Rect? Native-parent-local, unscrolled geometry.
 ---@field bounds fun(self:torirs.Widget):torirs.Rect? Drawn canvas geometry, including scroll/drag.
 ---@field children fun(self:torirs.Widget):torirs.Widget[]?

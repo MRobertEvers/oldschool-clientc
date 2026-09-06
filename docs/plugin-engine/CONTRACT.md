@@ -81,6 +81,21 @@ Native self-opacity does not become subtree opacity. Re-skin helpers use current
 native state/semantic colors and preserve live text, quantities and state
 variants; a skin does not substitute an obsolete content snapshot.
 
+
+The initial owned-control path provides `create_text`, `set_text`,
+`set_text_color` and `remove` in C and Lua. Creation keys are scoped to owner and
+parent; repeated creation returns the same live child. Owned text uses ordinary
+typed geometry setters. Content/color setters currently accept only that owner's
+text widgets; native styling remains a separate unfinished port.
+
+Owned children have no native component ID or dynamic child index. Native child
+lookup/iteration excludes them. Clearing a native slot preserves attached owned
+siblings, like profile-owned controls; deleting the native parent invalidates the
+whole owned subtree. Native hiding and clipping still apply. Native or foreign
+widgets cannot be moved into an owned subtree, and another owner cannot create or
+write inside it. `remove` is ownership-checked; owner teardown removes its added
+widgets as well as its geometry edits. Creation during shutdown is rejected.
+
 ## Events, listeners and actions
 
 `widgets.watch(role, listener, user)` follows the current semantic binding at the

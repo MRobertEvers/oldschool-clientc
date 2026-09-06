@@ -149,6 +149,12 @@ def main():
                    if "ui/uitree.c " in line and " -o " in line)
     original = (src / "ui/uitree.c").read_text()
     controls = {
+        "owned_child_keys": (
+            "if( child->plugin_owner ) return -1;", "if( false ) return -1;",
+            "owned widgets do not pollute native child keys"),
+        "owned_slot_survival": (
+            "if( tree->components[child].plugin_owner ||", "if( false ||",
+            "native slot replacement preserves attached owned controls"),
         "widget_geometry": (
             "return (position ? 1 : 0) | (size ? 2 : 0);",
             "return 0;", "widget geometry reaches native layout including zero"),
