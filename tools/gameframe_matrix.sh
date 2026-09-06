@@ -246,6 +246,11 @@ while IFS='|' read tag m f s; do
       --performance-color "${GF_MATRIX_PERFORMANCE_COLOR:-FFFFFF}")
   fi
   [[ -n "${GF_MATRIX_OWNED_TEXT:-}" ]] && widget_args+=(--owned-text "$GF_MATRIX_OWNED_TEXT")
+  if [[ -n "${GF_MATRIX_OVERLAY_TEXT:-}" ]]; then
+    for expected_text in "${(@s:|:)GF_MATRIX_OVERLAY_TEXT}"; do
+      widget_args+=(--overlay-text "$expected_text")
+    done
+  fi
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]] && widget_args+=(--widget-demo c)
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua ]] && widget_args+=(--widget-demo lua)
   if [[ "$m" == R ]]; then

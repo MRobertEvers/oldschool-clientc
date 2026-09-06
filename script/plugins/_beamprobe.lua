@@ -80,7 +80,15 @@ end
 function plugin.on_stop(api)
     if beam then api.scene.instance_destroy(beam) end
     if mesh then api.scene.mesh_destroy(mesh) end
-    beam, mesh = nil, nil
+    beam, mesh, placed_at = nil, nil, nil
+end
+
+function plugin.on_config_changed(api, key)
+    if key == "height" then
+        plugin.on_stop(api)
+    elseif key == "colour" and beam then
+        api.scene.instance_recolor(beam, KEY, api.draw.hsl_from_rgb(api.config.colour))
+    end
 end
 
 function plugin.on_world_loaded(api)
@@ -89,7 +97,9 @@ function plugin.on_world_loaded(api)
     placed_at = nil
 end
 
-function plugin.on_server_tick(api)
+-- The client logic tick exists on both revisions; rs289lc has no explicit
+-- server-tick-end packet to drive on_server_tick.
+function plugin.on_logic_tick(api)
     local me = api.world.local_player()
     if not me then return end
 

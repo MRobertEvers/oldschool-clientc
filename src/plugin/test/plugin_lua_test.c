@@ -666,6 +666,14 @@ main(void)
         "plugin/test/tile_indicator_behavior.lua","tile-behavior");
     test_product_behavior(&host,"../script/plugins/entity_highlighter.lua",
         "plugin/test/entity_highlighter_behavior.lua","entity-behavior");
+    test_product_behavior(&host,"../script/plugins/ground_items.lua",
+        "plugin/test/ground_items_behavior.lua","ground-behavior");
+    test_product_behavior(&host,"../script/plugins/_beamprobe.lua",
+        "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-beam-probe");
+    test_product_behavior(&host,"../script/plugins/_gicount.lua",
+        "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-gi-count");
+    test_product_behavior(&host,"../script/plugins/_drawprobe.lua",
+        "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-drawprobe");
     PluginLua_Shutdown();
     if( g_failures )
     {

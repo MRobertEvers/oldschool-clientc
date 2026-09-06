@@ -17,7 +17,7 @@
 -- The two labels are drawn through DIFFERENT paths on purpose. The first
 -- projects the player's own fine position, which api.draw.project() takes as-is.
 -- The second projects an ABSOLUTE tile the way ground_items.lua has to -- back
--- through the scene origin from on_world_loaded -- so a wrong origin shows up
+-- through the current scene origin -- so a wrong origin shows up
 -- as the second label sitting somewhere other than two tiles east of the first,
 -- which is the one mistake that path can make.
 --
@@ -35,19 +35,19 @@ local plugin = {
     },
 }
 
-local base_x, base_z = nil, nil
 local reported = false
 
 function plugin.on_start(api)
-    base_x, base_z, reported = nil, nil, false
+    reported = false
 end
 
 function plugin.on_world_loaded(api, ev)
-    base_x, base_z, reported = ev.base_tile_x, ev.base_tile_z, false
+    reported = false
 end
 
 function plugin.on_draw_world(api, draw)
     local me = api.world.local_player()
+    local base_x, base_z = api.world.scene_origin()
     if not me or not base_x then return end
 
     local colour = api.config.colour

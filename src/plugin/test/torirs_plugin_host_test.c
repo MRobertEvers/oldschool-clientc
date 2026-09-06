@@ -145,6 +145,15 @@ fake_capability(void* u, char const* name)
         return g_capability_web;
     return 0;
 }
+static int fake_scene_x=3184,fake_scene_z=3392;
+static bool fake_scene_present=true;
+static bool fake_scene_origin(void* user,int* x,int* z)
+{
+    (void)user;
+    if( !fake_scene_present ) return false;
+    *x=fake_scene_x;*z=fake_scene_z;return true;
+}
+
 static int
 fake_local_player(
     void* u,
@@ -1702,6 +1711,7 @@ fake_engine(void)
     e.frame_work_us = fake_frame_work_us;
     e.capability = fake_capability;
     e.local_player = fake_local_player;
+    e.scene_origin = fake_scene_origin;
     e.npc_next = fake_npc_next;
     e.npc_by_slot = fake_npc_by_slot;
     e.player_next = fake_player_next;
@@ -3318,6 +3328,16 @@ static void widget_probe_start(struct ToriRS_Api* api, void* state)
     (void)state;
     saved_widgets = api->widgets;
     CHECK(api->major_version == 3, "live widget runtime uses the breaking API major");
+    int x=0,z=0;
+    fake_scene_x=3184;fake_scene_z=3392;fake_scene_present=true;
+    CHECK(api->world.scene_origin(api,&x,&z) && x==3184 && z==3392,
+          "scene origin is readable immediately on plugin start");
+    fake_scene_x=3192;fake_scene_z=3400;
+    CHECK(api->world.scene_origin(api,&x,&z) && x==3192 && z==3400,
+          "scene origin getter reads current native values without event replay");
+    fake_scene_present=false;
+    CHECK(!api->world.scene_origin(api,&x,&z),"unloaded world has no scene origin");
+    fake_scene_present=true;
     CHECK(api->widgets.find(api->widgets.context, "sidebar", &ref) == TORIRS_CONTRACT_OK && ref.opaque[0] == 77,
           "live widget lookup routes through the current plugin host");
     CHECK(api->widgets.set_position(api->widgets.context, ref, 12, 34) == TORIRS_CONTRACT_OK,

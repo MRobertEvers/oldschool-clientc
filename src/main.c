@@ -3381,6 +3381,17 @@ frame_loop_teardown(void)
         int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
         assert(pixels);
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            for( int i=0; i<app.entity_overlay_count; ++i )
+            {
+                struct UITreeEntityOverlay const* entry=&app.entity_overlays[i];
+                if( entry->kind!=UITREE_ENTITY_OVERLAY_TEXT ) continue;
+                uint64_t hash=UINT64_C(14695981039346656037);
+                for( unsigned char const* p=(unsigned char const*)entry->text;*p;++p )
+                    hash=(hash^*p)*UINT64_C(1099511628211);
+                TORIRS_REPORT("OVERLAY_TEXT x=%d y=%d color=%06x len=%zu hash=%016" PRIx64 "\n",
+                    entry->x,entry->y,entry->color&0xffffffu,strlen(entry->text),hash);
+            }
         bmp_write_file(
             getenv("TORIRS_EXIT_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         TORIRS_LOG("wrote %s\n", getenv("TORIRS_EXIT_BMP"));

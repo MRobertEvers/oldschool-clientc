@@ -459,6 +459,13 @@ v2_config_set(
                                                      : TORIRS_RESULT_INVALID;
 }
 
+static bool v2_world_scene_origin(struct ToriRS_Api* api,int* x,int* z)
+{
+    struct ToriRS_PluginHost* host=v2_runtime(api)->context->host;
+    if( !x || !z || !host->engine.scene_origin ) return false;
+    return host->engine.scene_origin(host->engine.user,x,z);
+}
+
 static bool
 v2_world_local_player(
     struct ToriRS_Api* api,
@@ -3669,6 +3676,7 @@ v2_runtime_init(
         },
         .world = {
             .struct_size = sizeof(runtime->api.world),
+            .scene_origin = v2_world_scene_origin,
             .local_player = v2_world_local_player,
             .npc_next = v2_world_npc_next,
             .npc_by_slot = v2_world_npc_by_slot,

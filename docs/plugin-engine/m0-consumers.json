@@ -6,40 +6,77 @@
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
-      "screenshots": []
+      "port_status": "common logic tick and live settings port; both-revision column captures inspected; full release gate pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/beamprobe-port-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/beamprobe-port-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "script/plugins/_drawprobe.lua",
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
-      "screenshots": []
+      "port_status": "live-world coordinates and rectangle opacity fixed; both-revision captures inspected",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/drawprobe-alpha-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/drawprobe-alpha-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "script/plugins/_gicount.lua",
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
-      "screenshots": []
+      "port_status": "live scene origin; labels no longer restricted to log frames; OSRS capture produced, LC pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/gicount-port-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "script/plugins/_giprobe.lua",
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
-      "screenshots": []
+      "port_status": "live scene origin; both revisions survive disable/re-enable with two labels and one tile marker",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/giprobe-origin-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/giprobe-text-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "script/plugins/_hoverprobe.lua",
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
-      "screenshots": []
+      "port_status": "major-3 graphics; OSRS hover marker inspected; LC pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/hoverprobe-port-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "script/plugins/_hullprobe.lua",
@@ -112,16 +149,34 @@
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
-      "screenshots": []
+      "port_status": "scene-origin/menu port; native CS2 labels overlap on OSRS239 (acceptance failure); hide/action integration pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-text-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-partyhat-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "script/plugins/loot_beam.lua",
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
-      "screenshots": []
+      "port_status": "major-3 scene API; real dropped-item beams inspected on both revisions; full lifecycle/composition acceptance pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/lootbeam-low-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/lootbeam-drop-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "script/plugins/performance_display.lua",

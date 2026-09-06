@@ -35,6 +35,18 @@ def run_lua_controls(src, out, make_args, selected):
             "retained Tag must not retarget a recycled NPC slot"),
         "entity_intent":("entity_highlighter.lua",[("tagged[id] = sel.tag % 2 == 1 or nil",
             "tagged[id] = not tagged[id] or nil")],"retained Tag preserves its intended operation"),
+        "ground_origin":("ground_items.lua",[("local base_x, base_z = api.world.scene_origin()",
+            "local base_x, base_z = nil, nil")],"mid-session enable while moving must immediately draw ground labels"),
+        "ground_intent":("ground_items.lua",[("local value = list_set(api.config[key], name, false)",
+            "enabled = not (hide and is_hidden(name) or not hide and is_highlighted(name))\n    local value = list_set(api.config[key], name, false)")],
+            "retained Highlight survives despawn and remains idempotent"),
+        "ground_exceptions":("ground_items.lua",[("not enabled and matches(compile_list(value), name)",
+            "false")],"Unhide one item must preserve wildcard rules and unrelated data"),
+        "beam_tick":("_beamprobe.lua",[("function plugin.on_logic_tick(api)",
+            "function plugin.on_server_tick(api)")],"beam creation must use the common logic tick"),
+        "probe_labels":("_gicount.lua",[("local report = frames % 300 == 0",
+            "local report = frames % 300 == 0\n    if not report then return end")],
+            "ground-count probe labels must render between log intervals"),
     }
     if selected and set(selected)-controls.keys(): raise ValueError("unknown Lua control")
     receipts=[]

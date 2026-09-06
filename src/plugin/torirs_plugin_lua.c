@@ -837,6 +837,13 @@ static int lua_config_newindex(lua_State* L)
 /* -------------------------------------------------------------- api.world */
 
 static int lua_world_local_player(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L); struct ToriRS_PlayerSnapshot v; if(!a->world.local_player(a,&v)){lua_pushnil(L);return 1;} lua_push_player(L,&v);return 1; }
+static int lua_world_scene_origin(lua_State* L)
+{
+    struct ToriRS_Api* api=lua_current_api(L);
+    int x,z;
+    if( !api->world.scene_origin(api,&x,&z) ) { lua_pushnil(L);return 1; }
+    lua_pushinteger(L,x);lua_pushinteger(L,z);return 2;
+}
 static int lua_world_npc_next(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L); struct ToriRS_NpcSnapshot v; int n=a->world.npc_next(a,(int)luaL_optinteger(L,1,-1),&v); if(n<0){lua_pushnil(L);return 1;} lua_pushinteger(L,n);lua_push_npc(L,&v);return 2; }
 static int lua_world_npc_by_slot(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L); struct ToriRS_NpcSnapshot v; if(!a->world.npc_by_slot(a,(int)luaL_checkinteger(L,1),&v)){lua_pushnil(L);return 1;}lua_push_npc(L,&v);return 1; }
 static int lua_world_player_next(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L); struct ToriRS_PlayerSnapshot v; int n=a->world.player_next(a,(int)luaL_optinteger(L,1,-1),&v);if(n<0){lua_pushnil(L);return 1;}lua_pushinteger(L,n);lua_push_player(L,&v);return 2; }
@@ -1608,7 +1615,7 @@ static struct LuaFn const LUA_CONFIG_FNS[] = {
     {"get_color",lua_config_get_color},{"get_string",lua_config_get_string},{"set",lua_config_set},{NULL,NULL}
 };
 static struct LuaFn const LUA_WORLD_FNS[] = {
-    {"local_player",lua_world_local_player},{"npc_next",lua_world_npc_next},
+    {"scene_origin",lua_world_scene_origin},{"local_player",lua_world_local_player},{"npc_next",lua_world_npc_next},
     {"npc_by_slot",lua_world_npc_by_slot},{"player_next",lua_world_player_next},
     {"item_next",lua_world_item_next},{"scenery_next",lua_world_scenery_next},{NULL,NULL}
 };

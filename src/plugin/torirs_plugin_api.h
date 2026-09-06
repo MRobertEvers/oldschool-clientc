@@ -853,6 +853,9 @@ struct ToriRS_ConfigApi
 struct ToriRS_WorldApi
 {
     uint32_t struct_size;
+    /** Current scene southwest corner in absolute tiles. Available immediately
+     * when enabling in a loaded world; false while no world exists. */
+    bool (*scene_origin)(struct ToriRS_Api* api, int* tile_x, int* tile_z);
     bool (*local_player)(
         struct ToriRS_Api* api,
         struct ToriRS_PlayerSnapshot* out);

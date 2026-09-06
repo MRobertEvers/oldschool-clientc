@@ -1330,6 +1330,15 @@ app_plugin_capability(void* user, char const* name)
     return 0;
 }
 
+static bool app_plugin_scene_origin(void* user,int* x,int* z)
+{
+    struct App* app=user;
+    if( !app->world || !x || !z ) return false;
+    *x=app->world->_base_tile_x;
+    *z=app->world->_base_tile_z;
+    return true;
+}
+
 static int
 app_plugin_local_player(void* user, struct ToriRS_PlayerSnapshot* out)
 {
@@ -5587,6 +5596,7 @@ app_plugin_engine(struct App* app)
     engine.capability = app_plugin_capability;
     engine.memory_bytes = app_plugin_memory_bytes;
     engine.local_player = app_plugin_local_player;
+    engine.scene_origin = app_plugin_scene_origin;
     engine.npc_next = app_plugin_npc_next;
     engine.npc_by_slot = app_plugin_npc_by_slot;
     engine.player_next = app_plugin_player_next;

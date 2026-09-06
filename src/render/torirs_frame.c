@@ -313,7 +313,7 @@ emit_color_argb(
     else if( trans > 255 )
         trans = 255;
     alpha = 255 - trans;
-    return (alpha << 24) | (color & 0xFFFFFF);
+    return (int)(((uint32_t)alpha << 24) | ((uint32_t)color & 0xFFFFFFu));
 }
 
 /* The emit desc's arc fields, as the shape render/torirs_arc.c wants. Shared by
@@ -1541,7 +1541,7 @@ translate_ui_cmd(
             out->u.fill_rect.y = item->y;
             out->u.fill_rect.w = item->w;
             out->u.fill_rect.h = item->h;
-            out->u.fill_rect.argb = item->color;
+            out->u.fill_rect.argb = emit_color_argb((int)item->color,item->trans);
             out->u.fill_rect.filled = 1;
             out->u.fill_rect.scissor_x = clip_x;
             out->u.fill_rect.scissor_y = clip_y;

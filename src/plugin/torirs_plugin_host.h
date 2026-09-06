@@ -199,6 +199,7 @@ struct ToriRS_PluginEngine
     int (*capability)(void* user, char const* name);
     size_t (*memory_bytes)(void* user);
 
+    bool (*scene_origin)(void* user, int* tile_x, int* tile_z);
     int (*local_player)(
         void* user,
         struct ToriRS_PlayerSnapshot* out);

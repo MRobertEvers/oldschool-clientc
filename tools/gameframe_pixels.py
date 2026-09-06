@@ -195,10 +195,31 @@ def check_performance(rows, log, enabled, metrics, position, color, failures):
         report("performance_"+key+"_ink",ink>=50,f"pixels={ink}")
 
 
+def check_overlay_text(rows, log, expected, failures):
+    for text in expected:
+        raw=text.encode();fingerprint=14695981039346656037
+        for byte in raw: fingerprint=((fingerprint^byte)*1099511628211)&((1<<64)-1)
+        entries=re.findall(rf"OVERLAY_TEXT x=(-?\d+) y=(-?\d+) color=([0-9a-f]+) len={len(raw)} hash={fingerprint:016x}",log)
+        entries=[(int(x),int(y),int(color,16)) for x,y,color in entries if int(color,16)!=0]
+        valid=len(entries)==1
+        ink=0
+        if valid:
+            x,y,rgb=entries[0];bgr=(rgb&255,(rgb>>8)&255,(rgb>>16)&255)
+            valid=0<=x<len(rows[0]) and 14<=y<len(rows)
+            half=max(20,len(text)*4)
+            ink=sum(rows[yy][xx]==bgr for yy in range(max(0,y-14),min(len(rows),y+2))
+                for xx in range(max(0,x-half),min(len(rows[0]),x+half)))
+            valid &= ink>=max(15,len(text)*2)
+        print(f"PIXEL overlay_text={'PASS' if valid else 'FAIL'} text={text!r} copies={len(entries)} ink={ink}")
+        if not valid: failures.append("overlay_text")
+
+
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF"):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None):
     width, height, rows = read_bmp(path)
     failures = []
+    if overlay_text:
+        check_overlay_text(rows,Path(bounds_path).read_text() if bounds_path else "",overlay_text,failures)
     if bounds_path:
         log = Path(bounds_path).read_text()
         if "after_ready=1" in log and not re.search(r"^SIM_READY elapsed_ms=\d+ tree_generation=[1-9]\d*", log, re.M):
@@ -217,6 +238,16 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             valid=cyan>=30
             print(f"PIXEL true_tile_marker={'PASS' if valid else 'FAIL'} cyan_pixels={cyan}")
             if not valid: failures.append("true_tile_marker")
+        if plugin_id=="drawprobe" and plugin_enabled:
+            # Interior of the probe's magenta rectangle, alpha 128, above the
+            # native world. The original translator dropped opacity and made
+            # every pixel pure magenta. Exclude its crossing green line by
+            # allowing a small minority of unmatched pixels.
+            blended=sum(128<=r<255 and 128<=b<255 and g<128
+                for row in rows[12:20] for b,g,r in row[15:45])
+            valid=blended>=200
+            print(f"PIXEL drawprobe_rect_opacity={'PASS' if valid else 'FAIL'} blended={blended}")
+            if not valid: failures.append("drawprobe_rect_opacity")
         if plugin_id in ("entity-highlighter","hull-probe") and plugin_enabled:
             colors=[("mesh_hull",(255,0,255))]
             if plugin_id=="hull-probe": colors.append(("bounds_hull",(255,255,0)))
@@ -378,10 +409,11 @@ if __name__ == "__main__":
     parser.add_argument("--performance-metrics",default="fps,frame,effective,memory")
     parser.add_argument("--performance-position",default="10,25")
     parser.add_argument("--performance-color",default="FFFFFF")
+    parser.add_argument("--overlay-text",action="append",help="require a single non-shadow overlay label and matching ink")
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

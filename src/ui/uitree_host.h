@@ -111,8 +111,8 @@ struct UITreeEntityOverlay
     int scene_id;
     int atlas_index;
     int font_id;
-    /** SPRITE only: 0 = opaque, 255 = invisible (ToriRS_RenderCommand_Sprite's
-     *  own sense). The health bar fades out with it. */
+    /** SPRITE, RECT and POLY_BEGIN: 0 = opaque, 255 = invisible.
+     *  Health bars and plugin fills retain their native transparency. */
     int trans;
     /** Optional extra clip, intersected with the world viewport. A zero `w` or
      *  `h` means "no extra clip", which is what every primitive but the health

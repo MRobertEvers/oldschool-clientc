@@ -227,6 +227,7 @@ warn = nil
 ---@field [string] boolean|integer|string|function Declared config keys are readable properties.
 
 ---@class torirs.WorldApi
+---@field scene_origin fun(): integer?, integer? Current southwest scene corner in absolute tiles, or nil without a world; works on mid-session enable.
 ---@field local_player fun(): torirs.PlayerSnap?
 ---@field npc_next fun(cursor?: integer): integer?, torirs.NpcSnap?
 ---@field npc_by_slot fun(server_slot: integer): torirs.NpcSnap?
