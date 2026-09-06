@@ -139,7 +139,7 @@ enum PluginWidgetRequestKind
     PLUGIN_WIDGET_BOUNDS, PLUGIN_WIDGET_LOCAL_BOUNDS, PLUGIN_WIDGET_TEXT,
     PLUGIN_WIDGET_POSITION, PLUGIN_WIDGET_SIZE,
     PLUGIN_WIDGET_REVALIDATE, PLUGIN_WIDGET_RESET, PLUGIN_WIDGET_RESET_OWNER,
-    PLUGIN_WIDGET_CREATE_TEXT, PLUGIN_WIDGET_SET_TEXT, PLUGIN_WIDGET_TEXT_COLOR, PLUGIN_WIDGET_REMOVE
+    PLUGIN_WIDGET_CREATE_TEXT, PLUGIN_WIDGET_SET_TEXT, PLUGIN_WIDGET_TEXT_COLOR, PLUGIN_WIDGET_TEXT_ALIGN, PLUGIN_WIDGET_REMOVE
 };
 struct PluginWidgetRequest
 {
@@ -947,6 +947,8 @@ bool
 PluginHost_IsEnabled(
     struct ToriRS_PluginHost const* host,
     int plugin_index);
+bool PluginHost_IsRunning(struct ToriRS_PluginHost const* host, int plugin_index);
+
 int
 PluginHost_Count(struct ToriRS_PluginHost const* host);
 /** The plugin's identity: the ini section, the manifest entry, the key

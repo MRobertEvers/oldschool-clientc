@@ -658,8 +658,8 @@ function plugin.on_menu_build(api, menu)
             if name then
                 local hl = matches(highlight_pats, name) and "Unhighlight" or "Highlight"
                 local hd = matches(hidden_pats, name) and "Unhide" or "Hide"
-                if not api.ui.menu_add(hl .. " @yel@" .. name, tag_of(id, false)) then break end
-                if not api.ui.menu_add(hd .. " @yel@" .. name, tag_of(id, true)) then break end
+                if not api.menu.add(hl .. " @yel@" .. name, tag_of(id, false)) then break end
+                if not api.menu.add(hd .. " @yel@" .. name, tag_of(id, true)) then break end
             end
         end
     end

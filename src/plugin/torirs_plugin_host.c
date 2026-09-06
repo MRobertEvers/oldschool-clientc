@@ -7715,7 +7715,7 @@ plugin_v2_event(
     case PLUGIN_CALLBACK_DRAW_WORLD:
     {
         struct PluginV2DrawScope scope;
-        struct ToriRS_DrawBuilder builder;
+        struct ToriRS_Graphics builder;
         plugin_v2_runtime_draw_begin(&v2->runtime, event, &scope, &builder);
         v2->definition->callbacks.on_draw_world(api, state, &builder);
         plugin_v2_runtime_draw_end(&scope, &builder);
@@ -7725,7 +7725,7 @@ plugin_v2_event(
     {
         struct PluginCanvasDispatch const* canvas = event;
         struct PluginV2DrawScope scope;
-        struct ToriRS_DrawBuilder builder;
+        struct ToriRS_Graphics builder;
         plugin_v2_runtime_draw_begin(&v2->runtime, canvas->surface, &scope, &builder);
         plugin_v2_runtime_draw_region(&scope, canvas->bounds);
         v2->definition->callbacks.on_draw_canvas(api, state, &builder);
@@ -7747,7 +7747,7 @@ plugin_v2_event(
     case PLUGIN_CALLBACK_PANEL_DRAW:
     {
         struct PluginV2DrawScope scope;
-        struct ToriRS_DrawBuilder builder;
+        struct ToriRS_Graphics builder;
         struct PluginPanelDraw const* draw = event;
         plugin_v2_runtime_draw_begin(&v2->runtime, draw->surface, &scope, &builder);
         plugin_v2_runtime_draw_region(
@@ -8513,6 +8513,12 @@ PluginHost_IsEnabled(
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
     return host->plugins[plugin_index].enabled && !host->plugins[plugin_index].refused;
+}
+
+bool PluginHost_IsRunning(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    return host && plugin_index>=0 && plugin_index<host->plugin_count &&
+           host->plugins[plugin_index].running && PluginHost_IsEnabled(host,plugin_index);
 }
 
 int
@@ -10117,7 +10123,7 @@ plugin_ui_present_draw(
             struct PluginContext* context = &host->plugins[row->appearance_plugin];
             struct PluginV2Instance* v2 = context->v2;
             struct PluginV2DrawScope scope;
-            struct ToriRS_DrawBuilder builder;
+            struct ToriRS_Graphics builder;
             struct ToriRS_ImageRef const image = plugin_ui_present_image(row, hovered);
             int const previous_dispatching = host->dispatching;
             int const previous_event = host->dispatch_event;
@@ -10685,7 +10691,7 @@ PluginHost_DrawFrame(
         {
             struct PluginV2Instance* v2 = host->plugins[owner].v2;
             struct PluginV2DrawScope scope;
-            struct ToriRS_DrawBuilder builder;
+            struct ToriRS_Graphics builder;
             int const previous_dispatching = host->dispatching;
             int const previous_event = host->dispatch_event;
 

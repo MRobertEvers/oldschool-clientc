@@ -591,7 +591,7 @@ struct FrameCall
     struct ToriRS_Api* api;
     struct FrameState* state;
     struct ToriRS_FrameBuilder* builder;
-    struct ToriRS_DrawBuilder* draw;
+    struct ToriRS_Graphics* draw;
     struct ToriRS_FrameBuildContext const* build;
     int origin_x;
     int origin_y;
@@ -3496,7 +3496,7 @@ static void
 frame_on_draw(
     struct ToriRS_Api* api,
     void* state_ptr,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct FrameState* state = state_ptr;
     struct FrameCall call;

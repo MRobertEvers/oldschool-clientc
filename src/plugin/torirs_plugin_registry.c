@@ -87,6 +87,15 @@ PluginRegistry_RegisterAll(struct ToriRS_PluginHost* host)
 {
     assert(host);
 
+    char const* only=getenv("TORIRS_PLUGIN_ONLY");
+    if( only && *only )
+    {
+        for( size_t i=0; i<sizeof(PLUGIN_TABLE)/sizeof(PLUGIN_TABLE[0]); ++i )
+            if( strcmp(only,PLUGIN_TABLE[i]->id)==0 )
+            { (void)PluginHost_Register(host,PLUGIN_TABLE[i]); return; }
+        return; /* The capture gate rejects a missing selected plugin. */
+    }
+
     if( getenv("TORIRS_WIDGET_DEMO") && strcmp(getenv("TORIRS_WIDGET_DEMO"), "lua") == 0 )
     {
         (void)PluginHost_Register(host, &TORIRS_PLUGIN_LUA);

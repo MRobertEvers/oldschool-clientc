@@ -1679,7 +1679,7 @@ xt_panel_draw(
     struct ToriRS_Api* api,
     void* plugin_state,
     char const* node,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct XtState* state = plugin_state;
     struct ToriRS_DrawContext context;

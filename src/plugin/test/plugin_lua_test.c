@@ -155,7 +155,7 @@ static void fake_disable_self(struct ToriRS_Api* api, char const* reason)
     g_disabled_self++;
 }
 static void fake_draw_rect(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_Rect rect,
     uint32_t rgb,
     int alpha)
@@ -352,7 +352,7 @@ test_runtime(struct ToriRS_PluginHost* host)
         "}";
     struct FakeInstance instance = { "lua-v2-test", "lua-v2-test/ready" };
     struct ToriRS_Api api = fake_api(&instance);
-    struct ToriRS_DrawBuilder draw;
+    struct ToriRS_Graphics draw;
     struct ToriRS_PanelBuilder panel;
     struct ToriRS_FrameBuilder frame;
     struct ToriRS_FrameBuildContext context;
@@ -550,6 +550,43 @@ static void test_widget_watch(struct ToriRS_PluginHost* host)
     CHECK(g_logs==logs+3,"Lua watch starts fresh after enable");
 }
 
+static int menu_calls;
+static struct ToriRS_MenuBuildEvent* expected_menu;
+static bool fake_menu_entry(struct ToriRS_Api* api,struct ToriRS_MenuBuildEvent* menu,
+    char const* text,uint32_t id)
+{
+    (void)api;
+    CHECK(menu==expected_menu && strcmp(text,"Tag Guard")==0 && id==85,
+        "menu module forwards current dispatch and intended action");
+    menu_calls++;
+    return true;
+}
+static void test_menu_module(struct ToriRS_PluginHost* host)
+{
+    char const source[]="return {id='menu-module',"
+        "on_menu_build=function(api,event) assert(api.ui.menu_add==nil);"
+        "assert(api.menu.add('Tag Guard',85)) end,"
+        "on_frame_start=function(api,event) api.menu.add('Tag Guard',85) end}";
+    struct FakeInstance instance={"menu-module",""};
+    struct ToriRS_Api api=fake_api(&instance);
+    api.menu.add=fake_menu_entry;
+    int index=PluginLua_AddScript(host,"menu-module",source,(int)strlen(source));
+    CHECK(index>=0,"menu module test registers");
+    if( index<0 ) return;
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    struct ToriRS_MenuBuildEvent event={0};
+    expected_menu=&event;menu_calls=0;
+    g_defs[index]->callbacks.on_menu_build(&api,NULL,&event);
+    CHECK(menu_calls==1,"menu addition reaches native API");
+    struct ToriRS_FrameEvent frame={0};
+    int disabled=g_disabled_self;
+    g_defs[index]->callbacks.on_frame_start(&api,NULL,&frame);
+    CHECK(g_disabled_self==disabled+1 && menu_calls==1 &&
+        strstr(g_disable_reason,"menu.add is only valid in on_menu_build"),
+        "menu addition after dispatch is rejected");
+    g_defs[index]->callbacks.on_stop(&api,NULL);
+}
+
 static void
 test_bundled_scripts(struct ToriRS_PluginHost* host)
 {
@@ -583,6 +620,35 @@ test_bundled_scripts(struct ToriRS_PluginHost* host)
     CHECK(g_registered == 17, "all seventeen bundled scripts registered");
 }
 
+static void test_product_behavior(struct ToriRS_PluginHost* host,
+    char const* product_path, char const* test_path, char const* id)
+{
+    int product_size=0,test_size=0;
+    char* product=read_file(product_path,&product_size);
+    char* test=read_file(test_path,&test_size);
+    CHECK(product && test,"product behavior sources readable");
+    if( !product || !test ) { free(product);free(test);return; }
+    size_t capacity=(size_t)product_size+(size_t)test_size+64;
+    char* source=malloc(capacity);
+    CHECK(source!=NULL,"product behavior source allocation");
+    if( !source ) { free(product);free(test);return; }
+    int size=snprintf(source,capacity,"local product=(function()\n%.*s\nend)()\n%.*s",
+        product_size,product,test_size,test);
+    int index=PluginLua_AddScript(host,id,source,size);
+    CHECK(index>=0,"product behavior registers");
+    if( index>=0 )
+    {
+        struct FakeInstance instance={id,""};
+        struct ToriRS_Api api=fake_api(&instance);
+        int logs=g_logs,disables=g_disabled_self;
+        g_defs[index]->callbacks.on_start(&api,NULL);
+        if( g_disabled_self!=disables ) fprintf(stderr,"%s: %s\n",id,g_disable_reason);
+        CHECK(g_disabled_self==disables && g_logs==logs+1,"product behavior passes");
+        g_defs[index]->callbacks.on_stop(&api,NULL);
+    }
+    free(source);free(product);free(test);
+}
+
 int
 main(void)
 {
@@ -590,9 +656,16 @@ main(void)
     reset_fake();
     test_runtime(&host);
     test_widget_watch(&host);
+    test_menu_module(&host);
     PluginLua_Shutdown();
     reset_fake();
     test_bundled_scripts(&host);
+    test_product_behavior(&host,"../script/plugins/performance_display.lua",
+        "plugin/test/performance_display_behavior.lua","performance-behavior");
+    test_product_behavior(&host,"../script/plugins/tile_indicator.lua",
+        "plugin/test/tile_indicator_behavior.lua","tile-behavior");
+    test_product_behavior(&host,"../script/plugins/entity_highlighter.lua",
+        "plugin/test/entity_highlighter_behavior.lua","entity-behavior");
     PluginLua_Shutdown();
     if( g_failures )
     {

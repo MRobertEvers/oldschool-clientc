@@ -168,8 +168,35 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native"):
             for uid,hidden in expected.items()))
 
 
+def check_performance(rows, log, enabled, metrics, position, color, failures):
+    def report(name, valid, detail=""):
+        print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
+        if not valid: failures.append(name)
+    entries=re.findall(r"OWNED_WIDGET owner=\d+ key=performance_(\w+) node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+) len=(\d+)",log)
+    keys={entry[0] for entry in entries}
+    report("performance_owned_lines",len(entries)==(4 if enabled else 0) and
+        keys==({"fps","frame","effective","memory"} if enabled else set()),f"count={len(entries)}")
+    if not enabled: return
+    visible=metrics.split(",") if metrics else []
+    report("performance_visible_lines",{e[0] for e in entries if int(e[5])>0}==set(visible),f"expected={len(visible)}")
+    viewport=re.findall(r"NATIVE_UI[^\n]*type=world hidden=0 native_paint=1[^\n]*box=(-?\d+),(-?\d+),\d+,\d+",log)
+    report("performance_viewport",len(viewport)==1)
+    if len(viewport)!=1: return
+    dx,dy=map(int,position.split(","));vx,vy=map(int,viewport[0])
+    rgb=int(color.lstrip("#"),16);bgr=(rgb&255,(rgb>>8)&255,(rgb>>16)&255)
+    for key,x,y,w,h,length in entries:
+        if key not in visible: continue
+        box=tuple(map(int,(x,y,w,h)))
+        expected=(vx+dx,vy+dy+3+visible.index(key)*15,132,15)
+        report("performance_"+key+"_position",box==expected,f"box={box}")
+        x,y,w,h=box
+        ink=sum(rows[yy][xx]==bgr for yy in range(max(0,y),min(len(rows),y+h))
+            for xx in range(max(0,x),min(len(rows[0]),x+w)))
+        report("performance_"+key+"_ink",ink>=50,f"pixels={ink}")
+
+
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF"):
     width, height, rows = read_bmp(path)
     failures = []
     if bounds_path:
@@ -177,6 +204,29 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         if "after_ready=1" in log and not re.search(r"^SIM_READY elapsed_ms=\d+ tree_generation=[1-9]\d*", log, re.M):
             print("PIXEL native_readiness=FAIL")
             failures.append("native_readiness")
+    if plugin_id:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        states={name:(int(enabled),int(running),int(error)) for name,enabled,running,error in re.findall(
+            r"PLUGIN_STATE id=(\S+) enabled=(\d) running=(\d) error=(\d)",log)}
+        expected={plugin_id,"lua"} if plugin_lua else {plugin_id}
+        valid=set(states)==expected and states.get(plugin_id)==(plugin_enabled,plugin_enabled,0)
+        print(f"PIXEL selected_plugin_running={'PASS' if valid else 'FAIL'} id={plugin_id}")
+        if not valid: failures.append("selected_plugin_running")
+        if plugin_id in ("tile-indicator-c","tile-indicator-lua") and plugin_enabled:
+            cyan=sum(pixel==(255,255,0) for row in rows for pixel in row)
+            valid=cyan>=30
+            print(f"PIXEL true_tile_marker={'PASS' if valid else 'FAIL'} cyan_pixels={cyan}")
+            if not valid: failures.append("true_tile_marker")
+        if plugin_id in ("entity-highlighter","hull-probe") and plugin_enabled:
+            colors=[("mesh_hull",(255,0,255))]
+            if plugin_id=="hull-probe": colors.append(("bounds_hull",(255,255,0)))
+            for name,color in colors:
+                ink=sum(pixel==color for row in rows for pixel in row)
+                valid=ink>=30
+                print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} pixels={ink}")
+                if not valid: failures.append(name)
+        if plugin_id=="performance-display":
+            check_performance(rows,log,plugin_enabled,performance_metrics,performance_position,performance_color,failures)
     if widget_demo:
         log = Path(bounds_path).read_text() if bounds_path else ""
         if widget_demo == "c":
@@ -322,10 +372,16 @@ if __name__ == "__main__":
     parser.add_argument("--owned-text")
     parser.add_argument("--owned-count",type=int,choices=(0,1),default=1)
     parser.add_argument("--widget-offset",type=int,default=12)
+    parser.add_argument("--plugin-id")
+    parser.add_argument("--plugin-enabled",type=int,choices=(0,1),default=1)
+    parser.add_argument("--plugin-lua",action="store_true")
+    parser.add_argument("--performance-metrics",default="fps,frame,effective,memory")
+    parser.add_argument("--performance-position",default="10,25")
+    parser.add_argument("--performance-color",default="FFFFFF")
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

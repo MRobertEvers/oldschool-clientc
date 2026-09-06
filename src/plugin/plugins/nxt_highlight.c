@@ -76,7 +76,7 @@ static void
 nxt_highlight_draw(
     struct ToriRS_Api* api,
     void* state,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     int iter = -1;
 

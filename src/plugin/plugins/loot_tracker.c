@@ -2042,7 +2042,7 @@ lt_panel_draw(
     struct ToriRS_Api* api,
     void* state_ptr,
     char const* node,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;

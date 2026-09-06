@@ -78,7 +78,7 @@ static void
 example_frame_draw(
     struct ToriRS_Api* api,
     void* plugin_state,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct ToriRS_Rect label;
     (void)plugin_state;
@@ -116,7 +116,7 @@ example_ui_node_draw(
     struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_UiNodeRef node,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     (void)api;
     (void)plugin_state;

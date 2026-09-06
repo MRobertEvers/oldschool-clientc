@@ -1690,6 +1690,26 @@ frame_loop_step(void)
                     NetTransport_Poll(sock, app.net, &bus);
             }
 
+        /* Scheduled plugin settings edits use the normal validated config API. */
+        {
+            static int initialized;
+            static char const* cursor;
+            if( !initialized ) { cursor=getenv("TORIRS_SIM_PLUGIN_CONFIG"); initialized=1; }
+            if( cursor && *cursor )
+            {
+                long at=-1;char id[64]={0},key[64]={0},value[192]={0};
+                if( sscanf(cursor,"%ld,%63[^,],%63[^,],%191[^;]",&at,id,key,value)!=4 || at<0 )
+                { TORIRS_REPORT("sim_plugin_config: invalid input\n");cursor=NULL; }
+                else if( frame_count>=at && app.plugins )
+                {
+                    int index=PluginHost_IndexOf(app.plugins,id);
+                    int applied=index>=0 && PluginHost_ConfigSet(app.plugins,index,key,value);
+                    TORIRS_REPORT("sim_plugin_config: frame=%ld id=%s key=%s applied=%d\n",frame_count,id,key,applied);
+                    char const* next=strchr(cursor,';');cursor=next ? next+1 : NULL;
+                }
+            }
+        }
+
         /* Drive the same enable/disable operation used by plugin settings. */
         {
             static int initialized;
@@ -3137,6 +3157,11 @@ frame_loop_teardown(void)
         /* Post-mount snapshot: unlike the boot-time TORIRS_DUMP_TREE (which
          * runs before any server IF_OPENSUB lands), this dumps after the
          * frame loop so server-driven interface mounts are visible. */
+        if( getenv("TORIRS_TRACE_NATIVE_UI") && app.plugins )
+            for( int i=0; i<PluginHost_Count(app.plugins); ++i )
+                TORIRS_REPORT("PLUGIN_STATE id=%s enabled=%d running=%d error=%d\n",
+                    PluginHost_Name(app.plugins,i),PluginHost_IsEnabled(app.plugins,i),
+                    PluginHost_IsRunning(app.plugins,i),PluginHost_Error(app.plugins,i)!=NULL);
         if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
             dump_tree(&app, cfg.interface_id);
         if( getenv("TORIRS_DUMP_ROOTS") && app.tree )

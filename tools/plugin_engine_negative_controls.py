@@ -1,10 +1,64 @@
 #!/usr/bin/env python3
 """Break temporary production sources; reuse the existing UI/CS2 test targets."""
 import argparse
+import hashlib
+import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
+
+
+def run_lua_controls(src, out, make_args, selected):
+    make=["make","--no-print-directory",*make_args,"test-plugin-lua"]
+    with (out/"positive.log").open("w") as log:
+        subprocess.run(make,cwd=src,stdout=log,stderr=subprocess.STDOUT,check=True)
+    recipe=subprocess.check_output([*make,"-n"],cwd=src,text=True).replace("\\\n"," ")
+    command=next(shlex.split(line) for line in recipe.splitlines()
+        if "./" in line and "/torirs_plugin_lua_v2_test" in line and " -o " not in line)
+    command=[str((src/arg).resolve()) if arg.startswith("./") else arg for arg in command]
+    # Each mutant gets a private script fixture. Production sources and objects
+    # remain untouched, and the existing runtime test binary runs all products.
+    controls={
+        "fps_counter":("performance_display.lua",[("sample_frames = ev.drawn_frames - sample_drawn_at_start",
+            "sample_frames = sample_frames + 1")],"FPS must count rendered frames"),
+        "work_window":("performance_display.lua",[("recent_total = recent_total - (recent[slot] or 0)",
+            "recent_total = recent_total")],"frame time must exclude pacing sleep"),
+        "metric_visibility":("performance_display.lua",[("api.config[metric.visible] and text[metric.key] or \"\"",
+            "text[metric.key]")],"disabled metrics must disappear"),
+        "hover_order":("tile_indicator.lua",[("function plugin.on_draw_world(api, draw)",
+            "function plugin.on_draw_world(api, draw)\n  plugin_draw_player(api, draw)"),
+            ("  plugin_draw_player(api, draw)\nend","end")],"hover uses picked level and draws first"),
+        "entity_slot":("entity_highlighter.lua",[("local id = math.floor(sel.tag / 2)",
+            "local id = api.world.npc_by_slot(7).base_npc_id")],
+            "retained Tag must not retarget a recycled NPC slot"),
+        "entity_intent":("entity_highlighter.lua",[("tagged[id] = sel.tag % 2 == 1 or nil",
+            "tagged[id] = not tagged[id] or nil")],"retained Tag preserves its intended operation"),
+    }
+    if selected and set(selected)-controls.keys(): raise ValueError("unknown Lua control")
+    receipts=[]
+    for name,(file,edits,expected) in controls.items():
+        if selected and name not in selected: continue
+        fixture=out/name
+        shutil.copytree(src.parent/"script",fixture/"script")
+        (fixture/"src/plugin").mkdir(parents=True)
+        (fixture/"src/plugin/test").symlink_to(src/"plugin/test",target_is_directory=True)
+        target=fixture/"script/plugins"/file
+        original=target.read_text();mutant=original
+        for before,after in edits:
+            if mutant.count(before)!=1: raise RuntimeError(f"{name}: mechanism changed")
+            mutant=mutant.replace(before,after)
+        target.write_text(mutant)
+        run=subprocess.run(command,cwd=fixture/"src",text=True,stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,timeout=30)
+        (out/(name+".log")).write_text(run.stdout)
+        valid=run.returncode==1 and expected in run.stdout
+        receipts.append(dict(name=name,source_sha256=hashlib.sha256(original.encode()).hexdigest(),
+            edits=edits,expected=expected,exit=run.returncode,observed=valid))
+        (out/"receipt.json").write_text(json.dumps(receipts,indent=2)+"\n")
+        if not valid: raise RuntimeError(f"{name}: intended failing assertion was not observed")
+        print(f"{name}: observed expected failing assertion",flush=True)
 
 
 def run_cs2_controls(src, out, make_args, selected):
@@ -130,12 +184,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", type=Path)
     parser.add_argument("--only", action="append", help="run only this named mechanism (repeatable)")
-    parser.add_argument("--suite", choices=("ui", "cs2", "host"), default="ui")
+    parser.add_argument("--suite", choices=("ui", "cs2", "host", "lua"), default="ui")
     parser.add_argument("--make-arg", action="append", default=[], help="make assignment, e.g. OPT=1")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
     out = args.out.resolve()
     src = Path(__file__).resolve().parents[1] / "src"
+    if args.suite == "lua":
+        run_lua_controls(src,out,args.make_arg,args.only)
+        return
     if args.suite == "host":
         run_host_controls(src, out, args.make_arg, args.only)
         return

@@ -216,7 +216,7 @@ static int run_energy(struct ToriRS_Api* api)
 { (void)api; return 75; }
 
 static void draw_image(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_ImageRef image,
     int x,
     int y,
@@ -224,7 +224,7 @@ static void draw_image(
 { (void)draw; (void)x; (void)y; (void)alpha; if( image.value ) images_drawn++; }
 
 static void draw_image_clip(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_ImageRef image,
     int x,
     int y,
@@ -236,7 +236,7 @@ static void draw_image_clip(
 }
 
 static void draw_text(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int x,
     int y,
     char const* text,
@@ -253,7 +253,7 @@ int main(void)
 {
     struct ToriRS_Api api;
     struct ToriRS_GameApi game;
-    struct ToriRS_DrawBuilder draw;
+    struct ToriRS_Graphics draw;
     void* state;
 
     memset(&api, 0, sizeof(api));

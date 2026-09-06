@@ -522,7 +522,7 @@ orbs_text_origin(
 static void
 orbs_draw_number(
     struct OrbsState const* state,
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int cx,
     int top,
     int value,
@@ -584,7 +584,7 @@ orbs_draw_number(
 static void
 orbs_draw_one(
     struct OrbsState const* state,
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int x,
     int y,
     int fill_image,
@@ -953,7 +953,7 @@ orbs_draw_node(
     struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_UiNodeRef node,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct OrbsState* state = plugin_state;
     struct ToriRS_UiNodeInfo info;

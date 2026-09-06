@@ -1282,7 +1282,7 @@ static void
 orb_draw_tooltip(
     struct ToriRS_Api* api,
     struct XpOrbState* state,
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct XpGlobe const* globe,
     int goal_xp,
     int canvas_w,
@@ -1519,7 +1519,7 @@ static void
 orb_draw_drops(
     struct ToriRS_Api* api,
     struct XpOrbState* state,
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     uint64_t now,
     int origin_x,
     int origin_y,
@@ -1653,7 +1653,7 @@ orb_draw(
     struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_UiNodeRef node,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct XpOrbState* state = plugin_state;
     uint64_t const now = api->core.frame_ms(api);

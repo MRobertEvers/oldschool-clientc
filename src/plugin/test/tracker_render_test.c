@@ -708,10 +708,10 @@ static enum ToriRS_Result v2_build_node(
     struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node)
 { (void)panel; return fake_panel_widget(NULL, TORIRS_PANEL_HEADING, node->id, node->text) ? TORIRS_RESULT_OK : TORIRS_RESULT_BUDGET; }
 static void v2_draw_image(
-    struct ToriRS_DrawBuilder* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
+    struct ToriRS_Graphics* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
 { (void)draw; (void)image; (void)x; (void)y; (void)alpha; }
 static bool v2_draw_context(
-    struct ToriRS_DrawBuilder* draw, struct ToriRS_DrawContext* out)
+    struct ToriRS_Graphics* draw, struct ToriRS_DrawContext* out)
 {
     (void)draw;
     out->bounds = (struct ToriRS_Rect){ 0, 0, g_draw_w, g_draw_h };
@@ -950,7 +950,7 @@ tick(uint64_t ms)
 static void
 draw_well(char const* id, int width)
 {
-    struct ToriRS_DrawBuilder draw = {
+    struct ToriRS_Graphics draw = {
         .struct_size = sizeof(draw),
         .image = v2_draw_image,
         .context = v2_draw_context,

@@ -154,12 +154,12 @@ plugin_v2_runtime_draw_begin(
     struct PluginV2Runtime* runtime,
     void* surface_token,
     struct PluginV2DrawScope* scope,
-    struct ToriRS_DrawBuilder* out);
+    struct ToriRS_Graphics* out);
 
 void
 plugin_v2_runtime_draw_end(
     struct PluginV2DrawScope* scope,
-    struct ToriRS_DrawBuilder* builder);
+    struct ToriRS_Graphics* builder);
 
 /** Restrict this callback-scoped builder to an already resolved semantic
  * tree clip. The setting dies with the scope. */

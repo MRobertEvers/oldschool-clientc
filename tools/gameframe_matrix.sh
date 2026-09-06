@@ -55,6 +55,31 @@ if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 && -e "$OUT" ]]; then
   exit 2
 fi
 mkdir -p "$OUT"
+if [[ -n "${GF_MATRIX_PLUGIN:-}" ]]; then
+  if [[ "$GF_MATRIX_PLUGIN" == lua:* ]]; then
+    export TORIRS_PLUGIN_ONLY=lua
+    export TORIRS_SCRIPT_DIR="$OUT/scripts"
+    export TORIRS_PLUGIN_MANIFEST=capture.ini
+    if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
+      python3 - "$TOOLS_DIR/../script" "$TORIRS_SCRIPT_DIR" "${GF_MATRIX_PLUGIN#lua:}" <<'PY_PLUGIN'
+from pathlib import Path
+import configparser, re, shutil, sys
+source,dest,plugin=Path(sys.argv[1]),Path(sys.argv[2]),sys.argv[3]
+shutil.copytree(source,dest)
+files=[]
+for p in (source/'plugins').glob('*.lua'):
+    if re.search(r"\bid\s*=\s*['\"]"+re.escape(plugin)+r"['\"]",p.read_text()): files.append(p)
+if len(files)!=1: raise SystemExit('selected Lua plugin must resolve to one source')
+config=configparser.ConfigParser();config['plugin:'+plugin]={'source':'plugins/'+files[0].name,'enabled':'1'}
+with (dest/'capture.ini').open('w') as out: config.write(out)
+PY_PLUGIN
+      [[ $? == 0 ]] || exit 2
+    fi
+  else
+    export TORIRS_PLUGIN_ONLY="$GF_MATRIX_PLUGIN"
+    export TORIRS_PLUGIN_MANIFEST=''
+  fi
+fi
 if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
   python3 "$TOOLS_DIR/gameframe_fixture.py" --repo "$REPO" --binary "$BIN" \
     --manifest "$MANIFEST" --revision "$REVISION" --out "$OUT/fixture.json"
@@ -133,7 +158,7 @@ one() {
   local -a env_extra
   env_extra=()
   [ "$mobile" = "1" ] && env_extra=(TORIRS_CLIENTTYPE=7)
-  [[ "$BASELINE" == 1 && "${GF_MATRIX_WIDGET_DEMO:-0}" == 0 ]] && env_extra+=(TORIRS_PLUGINS=0)
+  [[ "$BASELINE" == 1 && "${GF_MATRIX_WIDGET_DEMO:-0}" == 0 && -z "${GF_MATRIX_PLUGIN:-}" ]] && env_extra+=(TORIRS_PLUGINS=0)
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]] && env_extra+=(TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1)
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua ]] && env_extra+=(TORIRS_WIDGET_DEMO=lua TORIRS_PLUGIN_LOG=1)
   [[ "${GF_MATRIX_PERF:-0}" == 1 ]] && env_extra+=(TORIRS_PERF=1 TORIRS_PERF_CSV="$run/perf.csv" TORIRS_PERF_WINDOW=200)
@@ -213,6 +238,13 @@ printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" TAG TOP FRAME SIZE ROOT FILTERS VER
 while IFS='|' read tag m f s; do
   L=$OUT/$tag/log.txt
   widget_args=(--owned-count "${GF_MATRIX_OWNED_COUNT:-1}" --widget-offset "${GF_MATRIX_WIDGET_OFFSET:-12}" --widget-moves "${GF_MATRIX_WIDGET_MOVES:-1}" --widget-rune-slot "${GF_MATRIX_WIDGET_RUNE_SLOT:-0}")
+  if [[ -n "${GF_MATRIX_PLUGIN:-}" ]]; then
+    widget_args+=(--plugin-id "${GF_MATRIX_PLUGIN#lua:}" --plugin-enabled "${GF_MATRIX_PLUGIN_ENABLED:-1}")
+    [[ "$GF_MATRIX_PLUGIN" == lua:* ]] && widget_args+=(--plugin-lua)
+    widget_args+=(--performance-metrics "${GF_MATRIX_PERFORMANCE_METRICS-fps,frame,effective,memory}"
+      --performance-position "${GF_MATRIX_PERFORMANCE_POSITION:-10,25}"
+      --performance-color "${GF_MATRIX_PERFORMANCE_COLOR:-FFFFFF}")
+  fi
   [[ -n "${GF_MATRIX_OWNED_TEXT:-}" ]] && widget_args+=(--owned-text "$GF_MATRIX_OWNED_TEXT")
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]] && widget_args+=(--widget-demo c)
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua ]] && widget_args+=(--widget-demo lua)

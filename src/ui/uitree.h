@@ -2469,6 +2469,8 @@ UITree_ApplyTextFont(
     int component_id,
     int font_id);
 
+bool UITree_SetTextAlignAt(struct UITree*, int32_t index, int horizontal, int vertical, int line_height);
+
 bool
 UITree_ApplyTextAlign(
     struct UITree* tree,

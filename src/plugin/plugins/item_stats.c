@@ -2714,7 +2714,7 @@ static void
 is_on_draw_canvas(
     struct ToriRS_Api* api,
     void* state_ptr,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;

@@ -414,7 +414,7 @@ static bool v2_primary(
     struct ToriRS_Api* api, struct ToriRS_PlacementAreaRef area, struct ToriRS_Rect* out)
 { (void)api; (void)area; *out = (struct ToriRS_Rect){ 0, 0, 765, 503 }; return true; }
 static void v2_draw_image(
-    struct ToriRS_DrawBuilder* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
+    struct ToriRS_Graphics* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
 { (void)draw; (void)image; (void)x; (void)y; (void)alpha; g_client.draw_count++; }
 
 static void
@@ -471,7 +471,7 @@ frame(int hovered_obj_id)
 {
     struct ToriRS_MenuBuildEvent menu;
     struct ToriRS_FrameEvent frame_ev;
-    struct ToriRS_DrawBuilder draw;
+    struct ToriRS_Graphics draw;
 
     memset(&frame_ev, 0, sizeof(frame_ev));
     TORIRS_PLUGIN_ITEM_STATS.callbacks.on_frame_start(&g_api, g_plugin_state, &frame_ev);

@@ -249,6 +249,9 @@ warn = nil
 ---@field tile_z integer
 ---@field level integer
 
+---@class torirs.MenuApi
+---@field add fun(text: string, action_id: integer): boolean Only during on_menu_build; retain the intended operation, not an unchecked native slot.
+
 ---@class torirs.UiApi
 ---@field ref fun(name: string): torirs.UiNodeRef?
 ---@field info fun(node: torirs.UiNodeRef): torirs.UiNodeInfo?
@@ -257,7 +260,6 @@ warn = nil
 ---@field invoke_base fun(node: torirs.UiNodeRef, action: string): boolean Invoke the lane-owned semantic action without redispatching the plugin action provider. Since API 2.3.
 ---@field contribution_info fun(node: string, facets: torirs.UiFacet[]|torirs.UiFacet|integer): torirs.UiContributionInfo?
 ---@field update fun(node: torirs.UiNodeRef, facets: torirs.UiFacet[]|torirs.UiFacet|integer, value: torirs.UiNode): boolean, torirs.ResultName
----@field menu_add fun(text: string, action_id: integer): boolean Only during on_menu_build.
 ---@field set_enabled fun(node: torirs.UiNodeRef, enabled: boolean): boolean, torirs.ResultName Activate or release this plugin's static contribution.
 
 ---@class torirs.UiNode
@@ -360,7 +362,7 @@ warn = nil
 ---@field min_width? integer Required for window canvas.
 ---@field min_height? integer Required for window canvas.
 ---@field build fun(api: torirs.Api, frame: torirs.FrameBuilder, context: torirs.FrameBuildContext): 'ready'|'pending'|'unsupported'|'error'
----@field draw? fun(api: torirs.Api, draw: torirs.DrawBuilder)
+---@field draw? fun(api: torirs.Api, draw: torirs.Graphics)
 
 ---@class torirs.DrawApi
 ---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer?
@@ -513,7 +515,7 @@ warn = nil
 ---@field loot_revision fun(): integer
 ---@field loot_source_clear fun(source_id: integer): boolean
 
----@class torirs.DrawBuilder
+---@class torirs.Graphics
 ---@field rect fun(x: integer, y: integer, width: integer, height: integer, rgb: torirs.Colour, alpha?: integer)
 ---@field line fun(x0: integer, y0: integer, x1: integer, y1: integer, rgb: torirs.Colour, alpha?: integer)
 ---@field text fun(x: integer, y: integer, text: string, rgb?: torirs.Colour)
@@ -580,6 +582,7 @@ warn = nil
 ---@field create_text fun(self:torirs.Widget,key:string):torirs.Widget? Creates or returns this owner's child.
 ---@field set_text fun(self:torirs.Widget,text:string):boolean,string Owned text only.
 ---@field set_text_color fun(self:torirs.Widget,color:torirs.Colour):boolean,string Owned text only.
+---@field set_text_align fun(self:torirs.Widget,horizontal:integer,vertical:integer):boolean,string 0=start, 1=center, 2=end; owned text only.
 ---@field remove fun(self:torirs.Widget):boolean,string Removes only this owner's widget.
 ---@field position fun(self:torirs.Widget):torirs.Rect? Native-parent-local, unscrolled geometry.
 ---@field bounds fun(self:torirs.Widget):torirs.Rect? Drawn canvas geometry, including scroll/drag.
@@ -607,6 +610,7 @@ warn = nil
 ---@field world torirs.WorldApi
 ---@field input torirs.InputApi
 ---@field ui torirs.UiApi
+---@field menu torirs.MenuApi
 ---@field placement torirs.PlacementApi
 ---@field frame torirs.FrameApi
 ---@field draw torirs.DrawApi
@@ -646,13 +650,13 @@ warn = nil
 ---@field on_key? fun(api: torirs.Api, ev: torirs.KeyEvent): torirs.Verdict
 ---@field on_menu_build? fun(api: torirs.Api, ev: torirs.MenuBuildEvent): torirs.Verdict
 ---@field on_menu_select? fun(api: torirs.Api, ev: torirs.MenuSelectEvent): torirs.Verdict
----@field on_draw_world? fun(api: torirs.Api, draw: torirs.DrawBuilder)
----@field on_draw_canvas? fun(api: torirs.Api, draw: torirs.DrawBuilder)
+---@field on_draw_world? fun(api: torirs.Api, draw: torirs.Graphics)
+---@field on_draw_canvas? fun(api: torirs.Api, draw: torirs.Graphics)
 ---@field on_ui_build? fun(api: torirs.Api, panel: torirs.PanelBuilder, view: torirs.PanelView)
 ---@field on_ui_action? fun(api: torirs.Api, ev: torirs.PanelActionEvent)
----@field on_ui_draw? fun(api: torirs.Api, node: string, draw: torirs.DrawBuilder)
+---@field on_ui_draw? fun(api: torirs.Api, node: string, draw: torirs.Graphics)
 ---@field on_placement_changed? fun(api: torirs.Api, revision: integer)
----@field on_ui_node_draw? fun(api: torirs.Api, node: torirs.UiNodeRef, draw: torirs.DrawBuilder)
+---@field on_ui_node_draw? fun(api: torirs.Api, node: torirs.UiNodeRef, draw: torirs.Graphics)
 ---@field on_ui_node_action? fun(api: torirs.Api, node: torirs.UiNodeRef, action: string): torirs.Verdict
 ---@field on_canvas_action? fun(api: torirs.Api, ev: torirs.CanvasActionEvent): torirs.Verdict
 ---@field on_ui_layout? fun(api: torirs.Api, ev: torirs.PanelLayoutEvent)

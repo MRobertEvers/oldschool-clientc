@@ -31,7 +31,7 @@
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS])(void)
 
 struct ToriRS_Api;
-struct ToriRS_DrawBuilder;
+struct ToriRS_Graphics;
 struct ToriRS_DrawContext;
 struct ToriRS_FrameBuilder;
 struct ToriRS_PanelBuilder;
@@ -476,18 +476,20 @@ struct ToriRS_DrawContext
     struct ToriRS_Rect clip;
 };
 
-struct ToriRS_DrawBuilder
+/* Callback-scoped graphics context, like Overlay.render(Graphics2D). It draws
+ * primitives only; live UI is authored through widgets. Never retain it. */
+struct ToriRS_Graphics
 {
     uint32_t struct_size;
     void* implementation;
 
     void (*rect)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         struct ToriRS_Rect rect,
         uint32_t rgb,
         int alpha);
     void (*line)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         int x0,
         int y0,
         int x1,
@@ -495,19 +497,19 @@ struct ToriRS_DrawBuilder
         uint32_t rgb,
         int alpha);
     void (*text)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         int x,
         int y,
         char const* text,
         uint32_t rgb);
     void (*image)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         struct ToriRS_ImageRef image,
         int x,
         int y,
         int alpha);
     enum ToriRS_Result (*world_tile)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         int tile_x,
         int tile_z,
         int level,
@@ -515,18 +517,18 @@ struct ToriRS_DrawBuilder
         uint32_t outline_rgb,
         int alpha);
     enum ToriRS_Result (*world_hull)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         int element_id,
         uint32_t rgb,
         int alpha,
         int shape);
     enum ToriRS_Result (*action_region)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         struct ToriRS_Rect rect,
         char const* action);
     /** Blit at native size while intersecting with a canvas-space clip. */
     void (*image_clip)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         struct ToriRS_ImageRef image,
         int x,
         int y,
@@ -534,13 +536,13 @@ struct ToriRS_DrawBuilder
         int alpha);
     /** Dynamic action region routed to callbacks.on_canvas_action by id. */
     enum ToriRS_Result (*action_region_id)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         struct ToriRS_Rect rect,
         char const* action,
         uint32_t action_id);
     /** Current callback's local drawable bounds and clip. */
     bool (*context)(
-        struct ToriRS_DrawBuilder* draw,
+        struct ToriRS_Graphics* draw,
         struct ToriRS_DrawContext* out);
 };
 
@@ -618,7 +620,7 @@ typedef enum ToriRS_FrameBuildResult (*ToriRS_FrameBuildCallback)(
 typedef void (*ToriRS_FrameDrawCallback)(
     struct ToriRS_Api* api,
     void* plugin_state,
-    struct ToriRS_DrawBuilder* draw);
+    struct ToriRS_Graphics* draw);
 
 /* A NULL id terminates an offer array. Only the fields for the chosen canvas
  * policy are meaningful: width/height for FIXED, min_* for WINDOW. */
@@ -904,6 +906,17 @@ struct ToriRS_InputApi
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
 };
 
+/** Menu additions belong to the current on_menu_build dispatch. Text and the
+ * plugin-defined action ID are retained by the host. Disable revokes them.
+ * IDs describe the plugin's intended operation; a recycled native slot is
+ * not a stable identity. Native operations require checked action references. */
+struct ToriRS_MenuApi
+{
+    uint32_t struct_size;
+    bool (*add)(struct ToriRS_Api* api, struct ToriRS_MenuBuildEvent* menu,
+        char const* text, uint32_t action_id);
+};
+
 struct ToriRS_UiApi
 {
     uint32_t struct_size;
@@ -928,11 +941,6 @@ struct ToriRS_UiApi
         struct ToriRS_UiNodeRef node,
         uint32_t facets,
         struct ToriRS_UiNode const* value);
-    bool (*menu_add)(
-        struct ToriRS_Api* api,
-        struct ToriRS_MenuBuildEvent* menu,
-        char const* text,
-        uint32_t action_id);
     enum ToriRS_Result (*set_enabled)(
         struct ToriRS_Api* api,
         struct ToriRS_UiNodeRef node,
@@ -1021,7 +1029,7 @@ struct ToriRS_FrameApi
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
 };
 
-/* The pixels themselves are emitted through ToriRS_DrawBuilder. This module
+/* The pixels themselves are emitted through ToriRS_Graphics. This module
  * contains stable helpers that are meaningful outside one draw callback. */
 struct ToriRS_DrawApi
 {
@@ -1402,6 +1410,7 @@ struct ToriRS_Api
     struct ToriRS_WorldApi world;
     struct ToriRS_InputApi input;
     struct ToriRS_UiApi ui;
+    struct ToriRS_MenuApi menu;
     struct ToriRS_PlacementApi placement;
     struct ToriRS_FrameApi frame;
     struct ToriRS_DrawApi draw;
@@ -1505,11 +1514,11 @@ struct ToriRS_PluginCallbacks
     void (*on_draw_world)(
         struct ToriRS_Api* api,
         void* state,
-        struct ToriRS_DrawBuilder* draw);
+        struct ToriRS_Graphics* draw);
     void (*on_draw_canvas)(
         struct ToriRS_Api* api,
         void* state,
-        struct ToriRS_DrawBuilder* draw);
+        struct ToriRS_Graphics* draw);
     void (*on_ui_build)(
         struct ToriRS_Api* api,
         void* state,
@@ -1523,7 +1532,7 @@ struct ToriRS_PluginCallbacks
         struct ToriRS_Api* api,
         void* state,
         char const* node,
-        struct ToriRS_DrawBuilder* draw);
+        struct ToriRS_Graphics* draw);
     void (*on_placement_changed)(
         struct ToriRS_Api* api,
         void* state,
@@ -1535,7 +1544,7 @@ struct ToriRS_PluginCallbacks
         struct ToriRS_Api* api,
         void* state,
         struct ToriRS_UiNodeRef node,
-        struct ToriRS_DrawBuilder* draw);
+        struct ToriRS_Graphics* draw);
     enum ToriRS_CallbackResult (*on_ui_node_action)(
         struct ToriRS_Api* api,
         void* state,

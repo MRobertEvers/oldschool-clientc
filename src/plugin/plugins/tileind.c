@@ -69,7 +69,7 @@ static void
 tileind_draw(
     struct ToriRS_Api* api,
     void* state,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct ToriRS_PlayerSnapshot me;
     int hover_x;

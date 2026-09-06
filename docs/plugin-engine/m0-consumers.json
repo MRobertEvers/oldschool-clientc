@@ -5,97 +5,177 @@
       "path": "script/plugins/_beamprobe.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/_drawprobe.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/_gicount.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/_giprobe.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/_hoverprobe.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/_hullprobe.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "graphics probe; both-revision two-shape captures inspected; full release gate pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/hullprobe-port-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/hullprobe-port-lc/r01",
+          "scope": "two player hulls inspected at 2x; see PLUGIN_PORTS.md"
+        }
+      ]
     },
     {
       "path": "script/plugins/_paneldemo.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/_probe.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/_roleprobe.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/_windemo.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/entity_highlighter.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "menu port fixes retained species/action; OSRS highlight checked; LC spatial/occlusion and native menu acceptance pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/entity-visible-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/entity-visible-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "script/plugins/ground_items.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/loot_beam.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/performance_display.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "owned-widget port; settings, remount and disable/re-enable checked; full release gate pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/performance-port-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/performance-port-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/performance-settings-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/performance-disabled-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/performance-reenabled-remount-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "script/plugins/screenshot.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "script/plugins/tile_indicator.lua",
       "kind": "Lua",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "graphics port; stationary marker checked; native walking/overlap/lifecycle acceptance pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/tile-port-lua-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/tile-port-lua-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "src/plugin/plugins/client_settings.c",
@@ -103,7 +183,9 @@
       "id": "client-settings",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/feature_flags.c",
@@ -111,7 +193,9 @@
       "id": "feature-flags",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/gameframe.c",
@@ -119,7 +203,9 @@
       "id": "gameframe-layout",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/item_stats.c",
@@ -127,7 +213,9 @@
       "id": "item-stats",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/loot_tracker.c",
@@ -135,7 +223,9 @@
       "id": "loot-tracker",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/minimap_orbs.c",
@@ -143,7 +233,9 @@
       "id": "minimap-orbs",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/mobile_gameframe.c",
@@ -151,7 +243,9 @@
       "id": "mobile-gameframe",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/nxt_bird_nest.c",
@@ -159,7 +253,9 @@
       "id": "nxt-bird-nest",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/nxt_cannon_ammo.c",
@@ -167,7 +263,9 @@
       "id": "nxt-cannon-ammo",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/nxt_highlight.c",
@@ -175,7 +273,9 @@
       "id": "nxt-highlight",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/tileind.c",
@@ -183,7 +283,18 @@
       "id": "tile-indicator-c",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "graphics port; stationary marker checked; native walking/overlap/lifecycle acceptance pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/tile-port-c-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/tile-port-c-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     },
     {
       "path": "src/plugin/plugins/xp_orbs.c",
@@ -191,7 +302,9 @@
       "id": "xp-drop-orbs",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/plugins/xp_tracker.c",
@@ -199,7 +312,9 @@
       "id": "xp-tracker",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
     },
     {
       "path": "src/plugin/torirs_plugin_lua.c",
@@ -207,7 +322,43 @@
       "id": "lua",
       "kind": "C",
       "disposition": "PORT",
-      "verified_revisions": []
+      "verified_revisions": [],
+      "port_status": "pending product acceptance; major-3 registration alone is insufficient",
+      "screenshots": []
+    },
+    {
+      "path": "script/plugins/_widgetprobe.lua",
+      "kind": "Lua",
+      "disposition": "PORT",
+      "verified_revisions": [],
+      "port_status": "owned text and geometry probe; native actions/style extensions remain pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/owned-widget-lua-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/owned-widget-lua-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
+    },
+    {
+      "path": "src/plugin/plugins/widget_demo.c",
+      "kind": "C",
+      "disposition": "PORT",
+      "verified_revisions": [],
+      "port_status": "owned text and geometry probe; native actions/style extensions remain pending",
+      "screenshots": [
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/owned-widget-c-osrs/m01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/owned-widget-c-lc/r01",
+          "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        }
+      ]
     }
   ],
   "test_definitions": [

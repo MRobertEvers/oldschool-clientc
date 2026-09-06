@@ -140,7 +140,7 @@ fake_local_player(
 
 static enum ToriRS_Result
 fake_world_tile(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int tile_x,
     int tile_z,
     int level,
@@ -189,10 +189,10 @@ make_api(struct Fake* fake)
     return api;
 }
 
-static struct ToriRS_DrawBuilder
+static struct ToriRS_Graphics
 make_draw(struct Fake* fake)
 {
-    struct ToriRS_DrawBuilder draw = {
+    struct ToriRS_Graphics draw = {
         .struct_size = sizeof(draw),
         .implementation = fake,
         .world_tile = fake_world_tile,
@@ -239,7 +239,7 @@ main(void)
         },
     };
     struct ToriRS_Api api = make_api(&fake);
-    struct ToriRS_DrawBuilder draw = make_draw(&fake);
+    struct ToriRS_Graphics draw = make_draw(&fake);
     struct ToriRS_ConfigItem const* config;
     int config_count = 0;
 

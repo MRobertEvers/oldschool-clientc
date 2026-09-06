@@ -1971,7 +1971,7 @@ static void
 v2_probe_canvas(
     struct ToriRS_Api* api,
     void* state_ptr,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct V2ProbeState* state = state_ptr;
     (void)api;
@@ -2051,7 +2051,7 @@ v2_probe_ui_draw(
     struct ToriRS_Api* api,
     void* state,
     char const* node,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     (void)api;
     (void)state;
@@ -2153,7 +2153,7 @@ static void
 v2_probe_frame_draw(
     struct ToriRS_Api* api,
     void* state,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     (void)api;
     (void)state;
@@ -2876,7 +2876,7 @@ v2_present_draw(
     struct ToriRS_Api* api,
     void* state,
     struct ToriRS_UiNodeRef node,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
 

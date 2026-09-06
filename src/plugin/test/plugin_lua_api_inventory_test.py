@@ -90,7 +90,7 @@ def main() -> int:
 
     expected_array_names = set(modules.values()) | {
         "LUA_WIDGET_METHOD_FNS",
-        "LUA_DRAW_BUILDER_FNS",
+        "LUA_GRAPHICS_FNS",
         "LUA_PANEL_BUILDER_FNS",
         "LUA_FRAME_BUILDER_FNS",
     }
@@ -100,7 +100,7 @@ def main() -> int:
         "widgets": "ToriRS_WidgetApi",
         "core": "ToriRS_CoreApi", "config": "ToriRS_ConfigApi",
         "world": "ToriRS_WorldApi", "input": "ToriRS_InputApi",
-        "ui": "ToriRS_UiApi", "placement": "ToriRS_PlacementApi",
+        "ui": "ToriRS_UiApi", "menu": "ToriRS_MenuApi", "placement": "ToriRS_PlacementApi",
         "frame": "ToriRS_FrameApi", "draw": "ToriRS_DrawApi",
         "assets": "ToriRS_AssetsApi", "scene": "ToriRS_SceneApi",
         "panel": "ToriRS_PanelApi", "cache": "ToriRS_CacheApi",
@@ -135,7 +135,7 @@ def main() -> int:
         )
 
     for array, class_name in (
-        ("LUA_DRAW_BUILDER_FNS", "torirs.DrawBuilder"),
+        ("LUA_GRAPHICS_FNS", "torirs.Graphics"),
         ("LUA_PANEL_BUILDER_FNS", "torirs.PanelBuilder"),
         ("LUA_FRAME_BUILDER_FNS", "torirs.FrameBuilder"),
     ):
@@ -146,8 +146,8 @@ def main() -> int:
         )
     errors += difference(
         "draw builder versus API header",
-        arrays.get("LUA_DRAW_BUILDER_FNS", set()),
-        struct_callables(api_source, "ToriRS_DrawBuilder"),
+        arrays.get("LUA_GRAPHICS_FNS", set()),
+        struct_callables(api_source, "ToriRS_Graphics"),
     )
     errors += difference(
         "panel builder versus API header",

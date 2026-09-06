@@ -2268,7 +2268,7 @@ v2_game_loot_source_clear(
 }
 
 static struct PluginV2DrawScope*
-v2_draw_scope(struct ToriRS_DrawBuilder* draw)
+v2_draw_scope(struct ToriRS_Graphics* draw)
 {
     struct PluginV2DrawScope* scope;
 
@@ -2407,7 +2407,7 @@ v2_clip_line(
 
 static void
 v2_builder_rect(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_Rect rect,
     uint32_t rgb,
     int alpha)
@@ -2428,7 +2428,7 @@ v2_builder_rect(
 
 static void
 v2_builder_line(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int x0,
     int y0,
     int x1,
@@ -2446,7 +2446,7 @@ v2_builder_line(
 
 static void
 v2_builder_text(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int x,
     int y,
     char const* text,
@@ -2471,7 +2471,7 @@ v2_builder_text(
 
 static void
 v2_builder_image(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_ImageRef image,
     int x,
     int y,
@@ -2504,7 +2504,7 @@ v2_builder_image(
 
 static void
 v2_builder_image_clip(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_ImageRef image,
     int x,
     int y,
@@ -2538,7 +2538,7 @@ v2_builder_image_clip(
 
 static enum ToriRS_Result
 v2_builder_world_tile(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int tile_x,
     int tile_z,
     int level,
@@ -2561,7 +2561,7 @@ v2_builder_world_tile(
 
 static enum ToriRS_Result
 v2_builder_world_hull(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int element_id,
     uint32_t rgb,
     int alpha,
@@ -2593,7 +2593,7 @@ v2_action_tag(char const* action)
 
 static enum ToriRS_Result
 v2_builder_action_region(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_Rect rect,
     char const* action)
 {
@@ -2620,7 +2620,7 @@ v2_builder_action_region(
 
 static enum ToriRS_Result
 v2_builder_action_region_id(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_Rect rect,
     char const* action,
     uint32_t action_id)
@@ -2649,7 +2649,7 @@ v2_builder_action_region_id(
 
 static bool
 v2_builder_context(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_DrawContext* out)
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
@@ -2672,7 +2672,7 @@ plugin_v2_runtime_draw_begin(
     struct PluginV2Runtime* runtime,
     void* surface_token,
     struct PluginV2DrawScope* scope,
-    struct ToriRS_DrawBuilder* out)
+    struct ToriRS_Graphics* out)
 {
     assert(runtime);
     assert(surface_token);
@@ -2682,7 +2682,7 @@ plugin_v2_runtime_draw_begin(
     scope->runtime = runtime;
     scope->surface_token = surface_token;
     scope->active = true;
-    *out = (struct ToriRS_DrawBuilder){
+    *out = (struct ToriRS_Graphics){
         .struct_size = sizeof(*out),
         .implementation = scope,
         .rect = v2_builder_rect,
@@ -2701,7 +2701,7 @@ plugin_v2_runtime_draw_begin(
 void
 plugin_v2_runtime_draw_end(
     struct PluginV2DrawScope* scope,
-    struct ToriRS_DrawBuilder* builder)
+    struct ToriRS_Graphics* builder)
 {
     assert(scope);
     assert(builder);
@@ -3525,6 +3525,12 @@ static enum ToriRS_ContractResult widget_text_color(void* u, struct ToriRS_Widge
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_COLOR,.ref=ref,.a=(int)rgb};
     return plugin_widget_request(u,&r);
 }
+static enum ToriRS_ContractResult widget_text_align(void* u, struct ToriRS_WidgetRef ref, int h, int v)
+{
+    if( h<0 || h>2 || v<0 || v>2 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_ALIGN,.ref=ref,.a=h,.b=v};
+    return plugin_widget_request(u,&r);
+}
 static enum ToriRS_ContractResult widget_remove(void* u, struct ToriRS_WidgetRef ref)
 {
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_REMOVE,.ref=ref};
@@ -3639,7 +3645,7 @@ v2_runtime_init(
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,
             .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch,
-            .create_text=widget_create_text,.set_text=widget_set_text,.set_text_color=widget_text_color,.remove=widget_remove,
+            .create_text=widget_create_text,.set_text=widget_set_text,.set_text_color=widget_text_color,.set_text_align=widget_text_align,.remove=widget_remove,
         },
         .core = {
             .struct_size = sizeof(runtime->api.core),
@@ -3686,10 +3692,13 @@ v2_runtime_init(
             .invoke = v2_ui_invoke,
             .contribution_info = v2_ui_contribution_info,
             .update = v2_ui_update,
-            .menu_add = v2_ui_menu_add,
             .set_enabled = v2_ui_set_enabled,
             .base_action_available = v2_ui_base_action_available,
             .invoke_base = v2_ui_invoke_base,
+        },
+        .menu = {
+            .struct_size = sizeof(runtime->api.menu),
+            .add = v2_ui_menu_add,
         },
         .placement = {
             .struct_size = sizeof(runtime->api.placement),

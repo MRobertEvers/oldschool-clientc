@@ -22,7 +22,7 @@
 -- 53 by the second, and the gap between them is the headroom.
 --
 -- FPS and memory latch on the refresh interval so a late frame does not make
--- them flicker. The work numbers are read at draw time instead: a short window
+-- them flicker. The work numbers update at frame start: a short window
 -- is the whole reason to have one, and a stutter surfaced a second late is one
 -- you have stopped looking for. Averaging FRAME_WINDOW frames is what keeps
 -- them readable.
@@ -32,7 +32,7 @@
 local plugin = {
     id = "performance-display",
     title = "FPS and Memory",
-    version = "1.1.0",
+    version = "3.0.0",
     config = {
         { key = "show_fps", type = "bool", default = true, label = "Show FPS" },
         { key = "show_frame_time", type = "bool", default = true, label = "Show frame time (work)" },
@@ -98,6 +98,58 @@ local function format_memory(bytes)
     return string.format("%.0f KiB", bytes / 1024)
 end
 
+-- Owned native text widgets share the viewport's layout and visibility.
+-- Native remounts rebind them; no draw builder or per-frame geometry repair.
+local labels = {}
+local metrics = {
+    { key = "fps", visible = "show_fps" },
+    { key = "frame", visible = "show_frame_time" },
+    { key = "effective", visible = "show_effective_fps" },
+    { key = "memory", visible = "show_memory" },
+}
+local function update_text(api)
+    local work_us = recent_mean_us()
+    local text = {
+        fps = string.format("FPS: %.1f", sampled_fps),
+        frame = string.format("Frame: %.2f ms", work_us / 1000),
+        effective = string.format("Effective FPS: %.1f", work_us > 0 and 1000000 / work_us or 0),
+        memory = "Memory: " .. format_memory(sampled_memory),
+    }
+    for _, metric in ipairs(metrics) do
+        local label = labels[metric.key]
+        if label then label:set_text(api.config[metric.visible] and text[metric.key] or "") end
+    end
+end
+local function layout_labels(api)
+    local row = 0
+    for _, metric in ipairs(metrics) do
+        local label = labels[metric.key]
+        if label then
+            label:set_position(api.config.x, api.config.y + 3 + row * 15)
+            label:set_size(132, 15)
+            label:set_text_align(1, 0)
+            label:set_text_color(api.config.text_color)
+            label:revalidate()
+        end
+        if api.config[metric.visible] then row = row + 1 end
+    end
+    update_text(api)
+end
+function plugin.on_start(api)
+    assert(api.widgets.watch("viewport", function(viewport, event)
+        if event.kind == "unbound" then
+            for _, label in pairs(labels) do label:remove() end
+            labels = {}
+            return
+        end
+        for _, metric in ipairs(metrics) do
+            labels[metric.key] = assert(viewport:create_text("performance_" .. metric.key))
+        end
+        layout_labels(api)
+    end))
+end
+function plugin.on_config_changed(api) layout_labels(api) end
+
 function plugin.on_frame_start(api, ev)
     -- 0 means the host measured no frame -- a headless run reports nothing, and
     -- so does the first frame. Recording it would drag the mean toward a work
@@ -111,6 +163,7 @@ function plugin.on_frame_start(api, ev)
         sample_started_ms = ev.now_ms
         sample_drawn_at_start = ev.drawn_frames
         sampled_memory = api.client.memory_bytes()
+        update_text(api)
         return
     end
 
@@ -119,50 +172,18 @@ function plugin.on_frame_start(api, ev)
     -- is capped at 15.
     sample_frames = ev.drawn_frames - sample_drawn_at_start
     local elapsed = ev.now_ms - sample_started_ms
-    if elapsed < api.config.refresh_ms then return end
+    if elapsed < api.config.refresh_ms then update_text(api); return end
 
     sampled_fps = sample_frames * 1000 / elapsed
     sampled_memory = api.client.memory_bytes()
     sample_frames = 0
     sample_started_ms = ev.now_ms
     sample_drawn_at_start = ev.drawn_frames
-end
-
-function plugin.on_draw_world(api, draw)
-    local work_us = recent_mean_us()
-    local frame_ms = work_us / 1000
-    local effective_fps = 0
-    if work_us > 0 then effective_fps = 1000000 / work_us end
-
-    local lines = {}
-    if api.config.show_fps then
-        lines[#lines + 1] = string.format("FPS: %.1f", sampled_fps)
-    end
-    if api.config.show_frame_time then
-        lines[#lines + 1] = string.format("Frame: %.2f ms", frame_ms)
-    end
-    if api.config.show_effective_fps then
-        lines[#lines + 1] = string.format("Effective FPS: %.1f", effective_fps)
-    end
-    if api.config.show_memory then
-        lines[#lines + 1] = "Memory: " .. format_memory(sampled_memory)
-    end
-    if #lines == 0 then return end
-
-    local x = api.config.x
-    local y = api.config.y
-    local width = 132
-
-    for i = 1, #lines do
-        -- draw.text is centred on x and uses y as its baseline.
-        local text_x = x + width // 2
-        local text_y = y + 14 + (i - 1) * 15
-        draw.text(text_x + 1, text_y + 1, lines[i], 0x000000)
-        draw.text(text_x, text_y, lines[i], api.config.text_color)
-    end
+    update_text(api)
 end
 
 function plugin.on_stop(api)
+    labels = {}
     sample_started_ms = nil
     sample_frames = 0
     sampled_fps = 0

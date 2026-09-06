@@ -126,6 +126,7 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*create_text)(void*, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef*);
     enum ToriRS_ContractResult (*set_text)(void*, struct ToriRS_WidgetRef, char const*);
     enum ToriRS_ContractResult (*set_text_color)(void*, struct ToriRS_WidgetRef, uint32_t rgb);
+    enum ToriRS_ContractResult (*set_text_align)(void*, struct ToriRS_WidgetRef, int horizontal, int vertical);
     enum ToriRS_ContractResult (*remove)(void*, struct ToriRS_WidgetRef);
 
     /* Follow a semantic binding at native publication boundaries. A new

@@ -5241,16 +5241,15 @@ UITree_ApplyTextFont(
 }
 
 bool
-UITree_ApplyTextAlign(
+UITree_SetTextAlignAt(
     struct UITree* tree,
-    int component_id,
+    int32_t idx,
     int h_align,
     int v_align,
     int line_height)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
+    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count || tree->components[idx].freed || tree->components[idx].type != UIELEM_RS_TEXT )
         return false;
     if( tree->components[idx].u.rs_text.center == h_align &&
         tree->components[idx].u.rs_text.y_align == v_align &&
@@ -5265,6 +5264,9 @@ UITree_ApplyTextAlign(
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
+
+bool UITree_ApplyTextAlign(struct UITree* tree, int id, int h, int v, int height)
+{ return UITree_SetTextAlignAt(tree,UITree_ResolveComponentTarget(tree,id,-1),h,v,height); }
 
 bool
 UITree_ApplyTextShadow(

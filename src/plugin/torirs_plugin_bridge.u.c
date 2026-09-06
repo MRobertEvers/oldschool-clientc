@@ -1372,6 +1372,10 @@ app_plugin_npc_next(void* user, int iter, struct ToriRS_NpcSnapshot* out)
         if( npc && npc->element_id >= 0 )
         {
             app_plugin_fill_npc(app, npc, out);
+            static int trace_count;
+            if( getenv("TORIRS_TRACE_PLUGIN_WORLD") && trace_count++<32 )
+                TORIRS_REPORT("PLUGIN_NPC slot=%d base=%d type=%d element=%d\n",
+                    out->server_slot,out->base_npc_id,out->npc_id,out->element_id);
             return at;
         }
         at = World_EntityPoolNext(pool, at);
@@ -2886,6 +2890,10 @@ app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int fill_alpha, i
             element_id,
             app_plugin_overlay_argb(rgb),
             fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1);
+    static int trace_count;
+    if( getenv("TORIRS_TRACE_PLUGIN_WORLD") && trace_count++<32 )
+        TORIRS_REPORT("PLUGIN_HULL element=%d shape=%d emitted=%d\n",
+            element_id,shape,app_overlay_count(app)-before);
     return app_overlay_count(app) - before;
 }
 
@@ -4148,9 +4156,11 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     }
     case PLUGIN_WIDGET_SET_TEXT:
     case PLUGIN_WIDGET_TEXT_COLOR:
+    case PLUGIN_WIDGET_TEXT_ALIGN:
         if( c->plugin_owner!=owner || c->type!=UIELEM_RS_TEXT ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( r->kind==PLUGIN_WIDGET_SET_TEXT ) UITree_SetTextAt(tree,idx,r->name);
-        else UITree_SetColourAt(tree,idx,r->a);
+        else if( r->kind==PLUGIN_WIDGET_TEXT_COLOR ) UITree_SetColourAt(tree,idx,r->a);
+        else UITree_SetTextAlignAt(tree,idx,r->a,r->b,0);
         break;
     case PLUGIN_WIDGET_REMOVE:
         if( c->plugin_owner!=owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
