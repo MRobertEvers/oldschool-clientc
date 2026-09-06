@@ -5422,20 +5422,8 @@ exec_widget_set_int(
         (void)UITree_ApplyModelTransparent(rs_cs2_tree(host), component_id, value);
         break;
     case CS2VM_WIDGET_INT_MODEL_ANIM:
-        /* Sequence id for a model widget. The client tick driver loads the
-         * sequence and advances/applies frames to the model. -1 clears.
-         *
-         * Re-setting the sequence already running leaves the frame counters
-         * alone, for the same reason UITree_ApplyModelAnim does: a script that
-         * re-states an unchanged anim (an onvartransmit hook re-running, say)
-         * must not restart the animation. */
-        if( node->type == UIELEM_RS_MODEL && node->u.rs_model.anim_seq_id != value )
-        {
-            node->u.rs_model.anim_seq_id = value;
-            node->u.rs_model.anim_frame = 0;
-            node->u.rs_model.anim_frame_cycle = 0;
-        }
-        break;
+        (void)UITree_ApplyModelAnim(rs_cs2_tree(host), component_id, value);
+        return CS2VM_EXECNO_OK;
     /* IF/CC_SET2DANGLE. The only animated user is the world map's marker
      * timer (clientscript 1758 re-states the angle every tick from
      * clientclock), so a no-op here reads as "the You Are Here arrow is drawn

@@ -627,6 +627,13 @@ struct UITreeDebugOverlayConfig
     int skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
 };
 
+/** Derived rendering data; never copied as native widget state. */
+struct UITreeModelRenderCache
+{
+    void* data;
+    void (*release)(void* data);
+};
+
 struct UITreeComponent
 {
     /* --- Hot block: the fields every per-frame walk reads on every node it
@@ -732,6 +739,7 @@ struct UITreeComponent
     uint8_t drag_dead_zone;
     uint8_t drag_dead_time;
     uint8_t model_transparent;
+    struct UITreeModelRenderCache* model_render_cache;
     /** CC/IF_SETDRAGGABLE render-area parent uid (-1 = none). */
     int drag_render_area_uid;
     int drag_render_area_child_index;
@@ -1010,6 +1018,7 @@ struct UITreeComponent
              * anim_frame is advanced by the client tick driver; anim_frame_cycle
              * accumulates elapsed 50hz cycles toward the current frame's length. */
             int anim_seq_id;
+            int active_anim_seq_id;
             int anim_frame;
             int anim_frame_cycle;
             /* Hold anim_frame instead of advancing it. The player-design
@@ -1672,6 +1681,7 @@ struct UITreeNodeSpec
              * anim_frame is advanced by the client tick driver; anim_frame_cycle
              * accumulates elapsed 50hz cycles toward the current frame's length. */
             int anim_seq_id;
+            int active_anim_seq_id;
             int anim_frame;
             int anim_frame_cycle;
             /* Hold anim_frame instead of advancing it. The player-design
@@ -2400,6 +2410,12 @@ UITree_ApplyModelRotateSpeed(
 /** Set a MODEL widget's animation sequence (reference IF_SETANIM / modelAnim);
  * -1 clears it. Restarts playback only when the sequence actually changes —
  * re-applying the one already running must not reset the frame counters. */
+struct UITreeModelRenderCache* UITree_ModelRenderCacheMut(struct UITreeComponent* component);
+bool UITree_SetModelAnimationAt(struct UITree* tree, int32_t idx, int sequence,
+                                int frame, int cycle, int hold);
+bool UITree_SetModelAnimationCursorAt(struct UITree* tree, int32_t idx, int frame, int cycle);
+bool UITree_SetButtonTypeAt(struct UITree* tree, int32_t idx, int button_type);
+
 bool
 UITree_ApplyModelAnim(
     struct UITree* tree,

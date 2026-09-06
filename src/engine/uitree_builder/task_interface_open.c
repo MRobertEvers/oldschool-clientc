@@ -145,6 +145,8 @@ upload_model_nodes(
         c = &tree->components[i];
         if( c->type != UIELEM_RS_MODEL )
             continue;
+        if( c->u.rs_model.active_model_id >= 0 )
+            (void)UITreeSceneBridge_EnsureModel(bridge, c->u.rs_model.active_model_id);
         cache_id = c->u.rs_model.gamecache_model_id;
         if( getenv("TORIRS_ANIM_DEBUG") )
             TORIRS_LOG("upload_model_nodes: com=0x%x cache_id=%d client_code=%d\n",
@@ -167,11 +169,9 @@ upload_model_nodes(
                      * tick driver loads it and disables gracefully if absent.
                      * Held at frame 0 — the reference poses the design composite
                      * once and only spins modelYAn after that. */
-                    if( c->u.rs_model.anim_seq_id < 0 )
-                        c->u.rs_model.anim_seq_id = bridge->player_idle_seq;
-                    c->u.rs_model.anim_frame = 0;
-                    c->u.rs_model.anim_frame_cycle = 0;
-                    c->u.rs_model.anim_hold = 1;
+                    (void)UITree_SetModelAnimationAt(tree, i,
+                        c->u.rs_model.anim_seq_id < 0 ? bridge->player_idle_seq : c->u.rs_model.anim_seq_id,
+                        0, 0, 1);
                 }
             }
             continue;

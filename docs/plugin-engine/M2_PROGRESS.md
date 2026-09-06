@@ -201,3 +201,68 @@ includes complete mutation/dependency auditing and publication checks, retained
 operation semantics when labels/masks/content change, async teardown and
 allocation-failure behavior, and the remaining animation/resource writers.
 M3–M6 and the production major-3 C/Lua cutover are still required.
+
+## Animation and resource checkpoint
+
+[UI model animation](../../src/engine/uitree_anim.c) previously posed the shared
+scene asset in place. Two widgets using that asset therefore both rendered the
+last widget's pose. Four observed failures covered asset mutation, shared
+instances, wrong per-widget frames and unconditional sequence restatement dirties.
+
+The native clock now uses typed animation setters. Rendering resolves a private
+pose in a component-owned derived cache. The cache is keyed by the model's
+process-unique registration revision, sequence and frame; it reuses unchanged
+poses, refreshes after resource replacement, and releases its model on animation
+removal or widget destruction. Native model IDs, angles, requested geometry and
+animation state remain separate from the derived model. Copies do not inherit
+another node's rendering cache. The [render translator](../../src/render/torirs_frame.c)
+uses these instances, while [scene registration](../../3rd/toridraw/toridraw_scene.c)
+provides model-specific revisions.
+
+Both cache formats' active animation IDs were previously dropped between decode
+and UI construction. The dat1 and dat2 conversion/build paths now preserve them;
+CS1 active state selects the corresponding sequence. Pack preparation also
+loads active model assets. UI skeletal animations now advance and use the
+existing native skinning implementation rather than being treated as missing
+classic frames. All four active-variant/skeletal checks were observed failing
+before the fixes.
+
+Preview binding, player-entity mirroring, client-code button/graphic/colour
+writers and the CS2 animation setter use the shared typed mutations. A separate
+native-host regression caught the generic CS2 wrapper adding a dirty mark after
+a no-op animation setter; that wrapper now leaves invalidation to the typed API.
+
+The existing CS2/native test target covers rendered model instances, classic and
+skeletal poses, both cache conversion paths, resource replacement, cache release,
+and repeat-set behavior. ASan passes. `m2-animation-negative-fixed` contains four
+observed failing controls: bypassing private poses, ignoring model registration
+changes, skipping skeletal clocks, and dropping the active sequence at emission.
+They reuse the existing test target through `plugin_engine_negative_controls.py`.
+
+Actual native evidence:
+
+- `m2-animation-lc-design` and `m2-animation-lc-mutated`: new-account Lost City
+  character creation, real model node 3650, followed by gender and torso-colour
+  clicks. Both captures pass. At 2× there are 24 arrow controls, Male/Female and
+  Accept; the preview changes to the selected female design and new colour.
+- `m2-animation-osrs-preview` and `m2-animation-osrs-mutated`: native `equipstats`
+  opens interface 84, model node 84:4. A real item/equip operation replaces worn
+  legs with rune platelegs. Both captures pass; the avatar, item slot and bonus
+  values change. At 2× the 12 equipment positions, Set Bonus and Close remain.
+
+The harness now reserves every Lost City username in the isolated fixture's
+account ledger, checks existing saves, and records `player.json` for unseeded
+runs too. Seeded saves still use exclusive creation. A capture now requires
+`GF_MATRIX_LC_SERVER` so account uniqueness has durable fixture provenance.
+
+M2 is still open: the complete mutation/dependency audit, publication checks,
+retained operation semantics for changed labels/masks/content, and general
+async teardown/allocation-failure behavior remain. This checkpoint does not
+claim completion of M3–M6 or the major-3 production plugin cutover.
+
+A further animation case starts with an asset that has no saved bind vertices.
+The private instance captures them before its first pose, preventing frame-to-frame
+accumulation. This case was observed failing before the fix
+(`/private/tmp/plugin-engine-m2-animation-bind-red.log`). The native account
+ledger was exercised by `m2-animation-lc-ledger`, which passed the fresh-account
+character-design launch and recorded its exclusive reservation in `player.json`.

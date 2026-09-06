@@ -1428,11 +1428,30 @@ uitree_cs1_script_nodes_drop(struct UITree* tree)
     tree->cs1_script_nodes--;
 }
 
+struct UITreeModelRenderCache*
+UITree_ModelRenderCacheMut(struct UITreeComponent* component)
+{
+    assert(component && component->type == UIELEM_RS_MODEL);
+    if( !component->model_render_cache )
+    {
+        component->model_render_cache = calloc(1, sizeof(*component->model_render_cache));
+        if( !component->model_render_cache ) abort();
+    }
+    return component->model_render_cache;
+}
+
 /* Free a component's heap-owned resources and NULL the pointers so the slot is
  * safe to reuse and UITree_Free cannot double-free. */
 static void
 uitree_component_free_owned(struct UITreeComponent* c)
 {
+    if( c->model_render_cache )
+    {
+        if( c->model_render_cache->release )
+            c->model_render_cache->release(c->model_render_cache->data);
+        free(c->model_render_cache);
+        c->model_render_cache = NULL;
+    }
     if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
     {
         free((void*)c->u.rs_text.text);
@@ -2575,6 +2594,7 @@ UITree_Push(
         component->u.rs_model.orthog = spec->u.rs_model.orthog;
         component->u.rs_model.fixed_zoom = spec->u.rs_model.fixed_zoom;
         component->u.rs_model.anim_seq_id = spec->u.rs_model.anim_seq_id;
+        component->u.rs_model.active_anim_seq_id = spec->u.rs_model.active_anim_seq_id;
         component->u.rs_model.anim_frame = spec->u.rs_model.anim_frame;
         component->u.rs_model.anim_frame_cycle = 0;
         component->u.rs_model.anim_hold = spec->u.rs_model.anim_hold;
@@ -2902,6 +2922,7 @@ UITree_CcCreate(
         spec.u.rs_model.gamecache_model_id = -1;
         spec.u.rs_model.active_model_id = -1;
         spec.u.rs_model.anim_seq_id = -1;
+        spec.u.rs_model.active_anim_seq_id = -1;
         spec.u.rs_model.zoom = 100;
         break;
     case 9: /* TORIRS_COMPONENT_LINE */
@@ -4669,46 +4690,52 @@ UITree_ApplyModelRotateSpeed(
 }
 
 bool
-UITree_ApplyModelAnim(
-    struct UITree* tree,
-    int component_id,
-    int anim_seq_id)
+UITree_SetModelAnimationAt(struct UITree* tree, int32_t idx, int sequence,
+                           int frame, int cycle, int hold)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_RS_MODEL ) return false;
+    hold = hold != 0;
+    if( c->u.rs_model.anim_seq_id == sequence && c->u.rs_model.anim_frame == frame &&
+        c->u.rs_model.anim_frame_cycle == cycle && c->u.rs_model.anim_hold == hold )
+        return true;
+    bool visual = c->u.rs_model.anim_seq_id != sequence || c->u.rs_model.anim_frame != frame;
+    c->u.rs_model.anim_seq_id = sequence;
+    c->u.rs_model.anim_frame = frame;
+    c->u.rs_model.anim_frame_cycle = cycle;
+    c->u.rs_model.anim_hold = (uint8_t)hold;
+    uitree_note_mutation(tree, idx, visual ? UITREE_IMPACT_EMIT_SELF : 0);
+    return true;
+}
+
+bool
+UITree_SetModelAnimationCursorAt(struct UITree* tree, int32_t idx, int frame, int cycle)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_RS_MODEL ) return false;
+    return UITree_SetModelAnimationAt(tree, idx, c->u.rs_model.anim_seq_id, frame, cycle,
+                                      c->u.rs_model.anim_hold);
+}
+
+bool
+UITree_ApplyModelAnim(struct UITree* tree, int component_id, int anim_seq_id)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
-        return false;
-    /*
-     * Setting the sequence that is already running is a no-op, frame counters
-     * included.
-     *
-     * The reference's IF_SETANIM writes `IfType.modelAnim` and nothing else —
-     * `animFrame`/`animCycle` live on the component and are only ever moved by
-     * the animator (Client.ts animateInterface). Here the counters do get reset
-     * on a *change*, which is the sane reading of "play this instead"; what is
-     * not sane is resetting them on a re-apply, because this function has a
-     * caller that re-applies constantly: `app_if_head_poll` rebinds a chathead
-     * (model *and* anim) whenever the tree generation moves, and a rev-230
-     * gameframe bumps the generation on nearly every tick. A dialogue chathead
-     * therefore sat on frame 0 forever — the animator advanced it, the poll put
-     * it back, and nothing anywhere reported a problem.
-     */
-    if( tree->components[idx].u.rs_model.anim_seq_id != anim_seq_id )
-    {
-        tree->components[idx].u.rs_model.anim_seq_id = anim_seq_id;
-        tree->components[idx].u.rs_model.anim_frame = 0;
-        tree->components[idx].u.rs_model.anim_frame_cycle = 0;
-    }
-    /*
-     * The one applier that stays unconditional. `UITreeAnim_Advance` moves
-     * `anim_frame` without marking the node — it only reports "something was
-     * posed" to the frame loop — so on a widget whose sequence is running, this
-     * re-apply is what keeps the node emit-eligible while its pose changes
-     * underneath. Comparing here would freeze animated chatheads on whichever
-     * frame they were last dirtied at, which reads as a broken sequence rather
-     * than as a missing dirty bit.
-     */
-    UITree_MarkNodeDirty(tree, idx);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL ) return false;
+    struct UITreeComponent* c = &tree->components[idx];
+    if( c->u.rs_model.anim_seq_id == anim_seq_id ) return true;
+    return UITree_SetModelAnimationAt(tree, idx, anim_seq_id, 0, 0, c->u.rs_model.anim_hold);
+}
+
+bool
+UITree_SetButtonTypeAt(struct UITree* tree, int32_t idx, int button_type)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c ) return false;
+    if( c->behavior.button_type == button_type ) return true;
+    c->behavior.button_type = button_type;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
     return true;
 }
 

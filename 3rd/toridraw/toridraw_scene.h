@@ -233,6 +233,9 @@ ToriDraw_SceneModelGet(
     struct ToriDraw_Scene* scene,
     int model_id);
 
+/** Process-unique registration revision; zero when the model is absent. */
+uint64_t ToriDraw_SceneModelRevision(struct ToriDraw_Scene* scene, int model_id);
+
 bool
 ToriDraw_SceneModelHas(
     struct ToriDraw_Scene* scene,

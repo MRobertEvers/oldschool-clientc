@@ -117,6 +117,9 @@ struct UITreeEmitDesc
     int debug_skin_scene_id;
     int debug_skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
     int model_id;
+    int model_anim_seq;
+    int model_anim_frame;
+    struct UITreeModelRenderCache* model_render_cache;
     int model_zoom;
     int model_xan;
     int model_yan;

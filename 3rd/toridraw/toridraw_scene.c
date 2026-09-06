@@ -10,6 +10,7 @@
 #include "toridraw_sprite.h"
 
 #include <assert.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +28,7 @@
 struct MapEntry_ToriModel
 {
     int id;
+    uint64_t revision;
     struct ToriDraw_ModelHandle model;
 };
 
@@ -1091,7 +1093,10 @@ ToriDraw_SceneModelAdd(
      * already guarantees room. See ToriDraw_SceneSoundAdd for what the dangling
      * write actually looks like when it happens. */
 
+    static _Atomic uint64_t next_model_revision = 1;
     entry->id = model_id;
+    entry->revision = atomic_fetch_add(&next_model_revision, 1);
+    if( !entry->revision ) abort();
     entry->model = model;
     td_scene_ui_assets_changed(scene);
 }
@@ -1109,6 +1114,14 @@ ToriDraw_SceneModelGet(
         return model;
 
     return entry->model;
+}
+
+uint64_t
+ToriDraw_SceneModelRevision(struct ToriDraw_Scene* scene, int model_id)
+{
+    struct MapEntry_ToriModel* entry = (struct MapEntry_ToriModel*)ToriDraw_MapSearch(
+        scene->models_hmap, &model_id, TORIDRAW_MAP_FIND);
+    return entry ? entry->revision : 0;
 }
 
 bool

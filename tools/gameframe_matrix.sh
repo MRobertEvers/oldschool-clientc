@@ -131,26 +131,38 @@ one() {
   client_args=()
   if [[ "$REVISION" == rs289lc ]]; then
     local lc_user
-    lc_user=$(python3 -c "import uuid; print('gf' + uuid.uuid4().hex[:8])") || return 2
-    if [[ -n "${GF_MATRIX_LC_SAVE:-}" ]]; then
-      # Each capture gets a new account loaded from the SAME test-owned save.
-      # LostCity retains disconnected accounts briefly; reconnecting the same
-      # one immediately yields reply 5. Never overwrite a live user's save.
-      lc_user=$(python3 - "$GF_MATRIX_LC_SERVER" "$GF_MATRIX_LC_SAVE" "$run" <<'PY'
+    [[ -n "${GF_MATRIX_LC_SERVER:-}" ]] || { echo 'rs289 captures require GF_MATRIX_LC_SERVER for unique account allocation'; return 2; }
+    lc_user=$(python3 - "$GF_MATRIX_LC_SERVER" "${GF_MATRIX_LC_SAVE:-}" "$run" <<'PY_ACCOUNT'
 import hashlib, json, pathlib, sys, uuid
-server, seed, run = map(pathlib.Path, sys.argv[1:])
+server, seed_name, run_name = sys.argv[1:]
+server, run = pathlib.Path(server), pathlib.Path(run_name)
 profile = json.loads((server/'engine/data/config/world.json').read_text())['node']['profile']
-user = 'gf' + uuid.uuid4().hex[:8]
-data = seed.read_bytes()
-destination = server/'engine/data/players'/profile/(user+'.sav')
-with destination.open('xb') as stream:
-    stream.write(data)
-(run/'player.json').write_text(json.dumps({'user':user, 'seed':str(seed),
-    'seed_sha256':hashlib.sha256(data).hexdigest(), 'save':str(destination)}, indent=2)+'\n')
+ledger = server/'.gameframe-accounts'
+ledger.mkdir(exist_ok=True)
+for attempt in range(1024):
+    user = 'gf' + uuid.uuid4().hex[:10]
+    destination = server/'engine/data/players'/profile/(user+'.sav')
+    if destination.exists():
+        continue
+    try:
+        with (ledger/user).open('x') as marker:
+            marker.write(str(run)+'\n')
+    except FileExistsError:
+        continue
+    break
+else:
+    raise RuntimeError('could not reserve a fresh LostCity account')
+record = {'user':user, 'seed':None, 'save':str(destination), 'reservation':str(ledger/user)}
+if seed_name:
+    seed = pathlib.Path(seed_name)
+    data = seed.read_bytes()
+    with destination.open('xb') as stream:
+        stream.write(data)
+    record.update(seed=str(seed), seed_sha256=hashlib.sha256(data).hexdigest())
+(run/'player.json').write_text(json.dumps(record, indent=2)+'\n')
 print(user)
-PY
-      ) || return 2
-    fi
+PY_ACCOUNT
+    ) || return 2
     client_args=(--user "$lc_user" --pass "${GF_MATRIX_LC_PASS:-local}")
   fi
   ( cd "$REPO" && env TORIRS_PREFS="$run/preferences.ini" \

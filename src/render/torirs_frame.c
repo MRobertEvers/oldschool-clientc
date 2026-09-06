@@ -1,4 +1,5 @@
 #include "render/torirs_frame.h"
+#include "engine/uitree_anim.h"
 
 #include "painters/painters.h"
 #include "render/torirs_arc.h"
@@ -1146,7 +1147,8 @@ translate_ui_cmd(
         struct ToriDraw_ModelHandle hnd;
         if( desc->model_id < 0 )
             return false;
-        hnd = ToriDraw_SceneModelGet(frame->scene, desc->model_id);
+        hnd = UITreeAnim_ModelForDraw(frame->scene, desc->model_render_cache,
+            desc->model_id, desc->model_anim_seq, desc->model_anim_frame);
         if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
             return false;
         out->kind = TORIRSRC_DRAW_MODEL_WIDGET;

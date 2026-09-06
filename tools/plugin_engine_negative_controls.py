@@ -16,13 +16,7 @@ def run_cs2_controls(src, out, make_args, selected):
                                      cwd=src, text=True).replace("\\\n", " ")
     link = next(shlex.split(line) for line in recipe.splitlines()
                 if "game/test/rs_cs2_transmit_pump_test.c " in line and " -o " in line)
-    source = "game/task_cs2_run.c"
-    obj = next(arg for arg in link if arg.endswith("/task_cs2_run.o"))
-    recipe = subprocess.check_output([*make, "-n", "-W", source, obj],
-                                     cwd=src, text=True).replace("\\\n", " ")
-    compile_cmd = next(shlex.split(line) for line in recipe.splitlines()
-                       if f" -c {source} " in line)
-    original = (src / source).read_text()
+    compile_commands = {}
     snapshot = "this same pass. */\n        if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )"
     registry = ("if( UITree_ResolveRef(self->host->tree, hook->ref) < 0 )\n"
                 "        {\n            hook->last_seen_serial = self->host->inv_change_serial;")
@@ -43,11 +37,35 @@ def run_cs2_controls(src, out, make_args, selected):
             "UITree_FindByComponentId(self->host->tree, hook->component_id)"),
             "registry callback 0 cannot reach replacement"),
     }
+    controls = {name: ("game/task_cs2_run.c", *control) for name, control in controls.items()}
+    controls.update({
+        "widget_pose": ("engine/uitree_anim.c", "if( !cache ) return source;", "if( true ) return source;",
+                        "model widgets own independent animation poses"),
+        "model_resource_revision": ("engine/uitree_anim.c",
+            "if( !pose || pose->source_revision != revision )", "if( !pose )",
+            "resource replacement refreshes the private pose"),
+        "skeletal_widget": ("engine/uitree_anim.c",
+            "!anim || (!anim->base && !anim->skeletal) || anim->frame_count <= 0",
+            "!anim || !anim->base || anim->frame_count <= 0", "skeletal widget clock advances"),
+        "active_animation": ("ui/uitree_emit.c",
+            "out->model_anim_seq = active ? component->u.rs_model.active_anim_seq_id : component->u.rs_model.anim_seq_id;",
+            "out->model_anim_seq = component->u.rs_model.anim_seq_id;",
+            "cache active animation reaches native rendering dat2=0"),
+    })
     if selected and set(selected) - controls.keys():
         raise ValueError("unknown CS2 control")
-    for name, (before, after, expected) in controls.items():
+    for name, (source, before, after, expected) in controls.items():
         if selected and name not in selected:
             continue
+        if source not in compile_commands:
+            obj = next(arg for arg in link if arg.endswith("/" + Path(source).stem + ".o"))
+            recipe = subprocess.check_output([*make, "-n", "-W", source, obj],
+                                             cwd=src, text=True).replace("\\\n", " ")
+            compile_cmd = next(shlex.split(line) for line in recipe.splitlines()
+                               if f" -c {source} " in line)
+            compile_commands[source] = (obj, compile_cmd)
+        obj, compile_cmd = compile_commands[source]
+        original = (src / source).read_text()
         if original.count(before) != 1:
             raise RuntimeError(f"{name}: mechanism changed; update explicit mutation")
         mutant = out / f"{name}.c"
@@ -56,6 +74,7 @@ def run_cs2_controls(src, out, make_args, selected):
         binary = out / name
         compile_mutant = [str(mutant) if arg == source else arg for arg in compile_cmd]
         compile_mutant[compile_mutant.index("-o") + 1] = str(mutant_obj)
+        compile_mutant.extend(["-I", str((src / source).parent)])
         link_mutant = [str(mutant_obj) if arg == obj else arg for arg in link]
         link_mutant[link_mutant.index("-o") + 1] = str(binary)
         with (out / f"{name}-build.log").open("w") as log:

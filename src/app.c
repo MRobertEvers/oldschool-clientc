@@ -24465,14 +24465,8 @@ app_player_model_poll(struct App* app)
             yan,
             0,
             0);
-        if( anim_changed )
-            UITree_MarkNodeDirty(app->tree, i);
-        node->u.rs_model.anim_seq_id = seq_id;
-        /* Frame comes from the entity, so anim_hold is what keeps
-         * UITreeAnim_Advance from running a second, independent clock on it. */
-        node->u.rs_model.anim_hold = 1;
-        node->u.rs_model.anim_frame = seq_frame;
-        node->u.rs_model.anim_frame_cycle = 0;
+        /* The entity owns this clock; the UI driver must not advance it again. */
+        (void)UITree_SetModelAnimationAt(app->tree, i, seq_id, seq_frame, 0, 1);
         bound = 1;
     }
 

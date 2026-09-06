@@ -60,6 +60,16 @@
 #include "cs2vm2/cs2_opcode.h"
 #include "3rd/rscache/src/datatypes/clientscript.h"
 #include "engine/cache_provider.h"
+#include "engine/uitree_anim.h"
+#include "engine/torirs_component_from_rscache.h"
+#include "engine/uitree_from_component.h"
+#include "ui/uitree_build.h"
+#include "render/torirs_frame.h"
+#include "ui/uitree_emit.h"
+#include "ui/uitree_layout.h"
+#include "toridraw_model.h"
+#include "toridraw_model_transform.h"
+#include "toridraw_animation.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_cs2_host.h"
@@ -1154,6 +1164,207 @@ test_hidden_focus_does_not_receive_keys(void)
     fixture_free(&fx);
 }
 
+static void
+test_widget_animation_instances(void)
+{
+    struct Fixture fx;
+    fixture_init(&fx);
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    struct ToriDraw_Model* model = ToriDraw_ModelNew(1, 0, 0);
+    model->vertices_x = calloc(1, sizeof(vertexint_t));
+    model->vertices_y = calloc(1, sizeof(vertexint_t));
+    model->vertices_z = calloc(1, sizeof(vertexint_t));
+    model->vertex_bones = calloc(1, sizeof(*model->vertex_bones));
+    model->vertex_bones->bones_count = 1;
+    model->vertex_bones->bones = calloc(1, sizeof(boneint_t*));
+    model->vertex_bones->bones[0] = calloc(1, sizeof(boneint_t));
+    model->vertex_bones->bones_sizes = calloc(1, sizeof(boneint_t));
+    model->vertex_bones->bones_sizes[0] = 1;
+    model->animaya_vertex_count = 1;
+    model->animaya_group_counts = calloc(1, 1); model->animaya_group_counts[0] = 1;
+    model->animaya_groups = calloc(1, sizeof(uint8_t*)); model->animaya_groups[0] = calloc(1, 1);
+    model->animaya_scales = calloc(1, sizeof(uint8_t*)); model->animaya_scales[0] = malloc(1);
+    model->animaya_scales[0][0] = 255;
+    ToriDraw_ModelCaptureOriginalVertices(model);
+    struct ToriDraw_ModelHandle handle = {.kind=TORIDRAWMK_MODEL, .u.model.model=model};
+    ToriDraw_SceneModelAdd(scene, 101, handle);
+    struct ToriDraw_Animation* anim = calloc(1, sizeof(*anim));
+    anim->base = calloc(1, sizeof(*anim->base));
+    anim->base->length = 1;
+    anim->base->types = calloc(1, 1); anim->base->types[0] = 1;
+    anim->base->bone_groups = calloc(1, sizeof(uint8_t*));
+    anim->base->bone_groups[0] = calloc(1, 1);
+    anim->base->bone_group_lengths = calloc(1, sizeof(uint16_t));
+    anim->base->bone_group_lengths[0] = 1;
+    anim->frame_count = 2; anim->frame_step = 2;
+    anim->frames = calloc(2, sizeof(*anim->frames));
+    for( int f = 0; f < 2; ++f )
+    {
+        struct ToriDraw_AnimFrame* frame = &anim->frames[f];
+        frame->length = 1; frame->delay = 1;
+        frame->groups = calloc(1, sizeof(int16_t));
+        frame->x = calloc(1, sizeof(int16_t));
+        frame->y = calloc(1, sizeof(int16_t));
+        frame->z = calloc(1, sizeof(int16_t));
+        frame->x[0] = (f+1)*100;
+    }
+    ToriDraw_SceneAnimationAdd(scene, 202, anim);
+    for( int f = 0; f < 2; ++f )
+    {
+        struct UITreeNodeSpec spec = {.type=UIELEM_RS_MODEL, .component_id=0x1c0000+f,
+                                     .x=f*60, .width=50, .height=50};
+        spec.u.rs_model.gamecache_model_id = 101;
+        spec.u.rs_model.active_model_id = -1;
+        spec.u.rs_model.anim_seq_id = 202;
+        spec.u.rs_model.anim_frame = f;
+        spec.u.rs_model.anim_hold = 1;
+        spec.u.rs_model.zoom = 128;
+        UITree_Push(fx.tree, -1, &spec);
+    }
+    UITree_LayoutResolve(fx.tree, 0, 0, 200, 100);
+    UITreeAnim_Advance(fx.tree, scene, 1);
+    CHECK(model->vertices_x[0] == 0, "UI animation cannot mutate the shared model asset");
+    struct UITreeHost ui_host = {0};
+    struct UITreeEmitBuffer emit;
+    UITree_EmitBufferInit(&emit);
+    UITree_EmitWalk(fx.tree, &ui_host, &emit, -1);
+    struct ToriRS_Frame frame;
+    ToriRS_FrameInit(&frame);
+    ToriRS_FrameSetScene(&frame, scene);
+    ToriRS_FrameSetCanvas(&frame, 200, 100);
+    ToriRS_FrameSetEmitBuffer(&frame, &emit);
+    ToriRS_FrameBegin(&frame);
+    struct ToriRS_RenderCommand cmd;
+    struct ToriDraw_Model* drawn[2] = {0};
+    int count = 0;
+    while( ToriRS_FrameNextCommand(&frame, &cmd) )
+        if( cmd.kind == TORIRSRC_DRAW_MODEL_WIDGET && count < 2 )
+            drawn[count++] = cmd.u.model_widget.model.u.model.model;
+    CHECK(count == 2, "both native model widgets reach rendering");
+    if( count == 2 )
+    {
+        CHECK(drawn[0] != drawn[1] && drawn[0] != model && drawn[1] != model,
+              "model widgets own independent animation poses");
+        CHECK(drawn[0]->vertices_x[0] == 100 && drawn[1]->vertices_x[0] == 200,
+              "each rendered widget keeps its requested frame");
+    }
+    ToriRS_FrameEnd(&frame);
+    UITree_EmitBufferFree(&emit);
+    fx.tree->components[0].is_dirty = 0;
+    uint32_t dirty = fx.tree->dirty_gen;
+    UITree_ApplyModelAnim(fx.tree, 0x1c0000, 202);
+    CHECK(fx.tree->dirty_gen == dirty, "restating animation is a quiet native no-op");
+    struct CS2VM2* vm = CS2VM2_Acquire();
+    CS2VM2_BindHost(vm, &fx.host, RS_CS2Host_Exec);
+    struct CS2VM_HostRequest repeat = {.kind=CS2VM_HOST_REQUEST_CC_SETMODELANIM};
+    repeat.u.CC_SETMODELANIM.component_id = 0x1c0000;
+    repeat.u.CC_SETMODELANIM.field = CS2VM_WIDGET_INT_MODEL_ANIM;
+    repeat.u.CC_SETMODELANIM.value = 202;
+    CHECK(RS_CS2Host_Exec(CS2VM2_ThreadMain(vm), &repeat) == CS2VM_EXECNO_OK, "native animation restatement executes");
+    CHECK(fx.tree->dirty_gen == dirty, "CS2 animation restatement does not add a wrapper invalidation");
+    CS2VM2_Release(vm);
+    struct ToriDraw_Animation* skeletal = calloc(1, sizeof(*skeletal));
+    skeletal->frame_count = 2; skeletal->frame_step = 2;
+    skeletal->skeletal = calloc(1, sizeof(*skeletal->skeletal));
+    skeletal->skeletal->frame_count = 2; skeletal->skeletal->bone_count = 1;
+    skeletal->skeletal->matrices = calloc(32, sizeof(float));
+    for( int i = 0; i < 2; ++i )
+    {
+        float* m = skeletal->skeletal->matrices + i*16;
+        m[0] = m[5] = m[10] = m[15] = 1;
+        m[12] = 300 + 100*i;
+    }
+    ToriDraw_SceneAnimationAdd(scene, 303, skeletal);
+    UITree_SetModelAnimationAt(fx.tree, 0, 303, 0, 0, 0);
+    UITreeAnim_Advance(fx.tree, scene, 1);
+    CHECK(fx.tree->components[0].u.rs_model.anim_frame == 1, "skeletal widget clock advances");
+    struct ToriDraw_ModelHandle posed = UITreeAnim_ModelForDraw(scene,
+        UITree_ModelRenderCacheMut(&fx.tree->components[0]), 101, 303,
+        fx.tree->components[0].u.rs_model.anim_frame);
+    CHECK(posed.u.model.model->vertices_x[0] == 400, "skeletal widget uses native skinning");
+    CHECK(model->vertices_x[0] == 0, "skeletal posing preserves the asset");
+    struct UITreeModelRenderCache* cache = UITree_ModelRenderCacheMut(&fx.tree->components[0]);
+    struct ToriDraw_ModelHandle same = UITreeAnim_ModelForDraw(scene, cache, 101, 303, 1);
+    CHECK(same.u.model.model == posed.u.model.model, "unchanged pose reuses its private model");
+    uint64_t old_revision = ToriDraw_SceneModelRevision(scene, 101);
+    struct ToriDraw_Model* replacement = ToriDraw_ModelCopy(model);
+    replacement->vertices_x[0] = 7;
+    replacement->original_vertices_x[0] = 7;
+    struct ToriDraw_ModelHandle removed = ToriDraw_SceneModelRemove(scene, 101);
+    ToriDraw_ModelHandleFree(removed);
+    handle.u.model.model = replacement;
+    ToriDraw_SceneModelAdd(scene, 101, handle);
+    CHECK(ToriDraw_SceneModelRevision(scene, 101) != old_revision, "resource registration cannot reuse its revision");
+    posed = UITreeAnim_ModelForDraw(scene, cache, 101, 202, 0);
+    CHECK(posed.u.model.model->vertices_x[0] == 107, "resource replacement refreshes the private pose");
+    struct ToriDraw_ModelHandle unanimated = UITreeAnim_ModelForDraw(scene, cache, 101, -1, 0);
+    CHECK(unanimated.u.model.model == replacement && cache->data == NULL,
+          "releasing animation exposes current asset and releases derived pose");
+    struct ToriDraw_Model* uncaptured = ToriDraw_ModelCopy(replacement);
+    free(uncaptured->original_vertices_x); uncaptured->original_vertices_x = NULL;
+    free(uncaptured->original_vertices_y); uncaptured->original_vertices_y = NULL;
+    free(uncaptured->original_vertices_z); uncaptured->original_vertices_z = NULL;
+    handle.u.model.model = uncaptured;
+    ToriDraw_SceneModelAdd(scene, 102, handle);
+    (void)UITreeAnim_ModelForDraw(scene, cache, 102, 202, 0);
+    posed = UITreeAnim_ModelForDraw(scene, cache, 102, 202, 1);
+    CHECK(posed.u.model.model->vertices_x[0] == 207, "private pose captures a missing bind pose before animation");
+    fixture_free(&fx);
+    ToriDraw_SceneFree(scene);
+}
+
+static int
+model_test_host(void* user, struct UITreeHostRequest* req)
+{
+    (void)user;
+    if( req->kind == UITREE_HOST_IS_ACTIVE ) return req->u.is_active.component->cs1_active;
+    return 0;
+}
+
+static void
+test_cache_model_animation_variants(void)
+{
+    for( int dat2 = 0; dat2 < 2; ++dat2 )
+    {
+        struct ToriRS_Component* component;
+        if( dat2 )
+        {
+            struct RSCache_Dat2Component source;
+            RSCache_Dat2ComponentInit(&source);
+            source.id=777; source.type=6; source.baseWidth=50; source.baseHeight=50;
+            source.modelType=1; source.modelId=101; source.activeModelId=101;
+            source.modelSeqId=202; source.activeAnimId=303;
+            component=ToriRS_ComponentFromRSCacheDat2(&source);
+        }
+        else
+        {
+            struct RSCache_Dat1ConfigComponent source;
+            RSCache_Dat1ConfigComponentInit(&source);
+            source.id=777; source.type=6; source.width=50; source.height=50;
+            source.modelType=1; source.model=101; source.activeModelType=1; source.activeModel=101;
+            source.anim=202; source.activeAnim=303;
+            component=ToriRS_ComponentFromRSCacheDat1(&source);
+        }
+        struct UIBuildComponent build;
+        UITree_FillBuildFromToriRS(&build, component);
+        struct UITree* tree=UITree_New(1);
+        int node=UITree_PushBuildComponent(tree,-1,&build,NULL,NULL,NULL);
+        UITree_SetCS1ActiveAt(tree,node,1);
+        UITree_LayoutResolve(tree,0,0,100,100);
+        struct UITreeHost host={.request=model_test_host};
+        struct UITreeEmitBuffer emit;
+        UITree_EmitBufferInit(&emit);
+        UITree_EmitWalk(tree,&host,&emit,-1);
+        int sequence=-1;
+        for( int i=0; i<emit.count; ++i )
+            if( emit.cmds[i].kind==UITREE_EMIT_MODEL ) sequence=emit.cmds[i].model_anim_seq;
+        CHECK(sequence==303, "cache active animation reaches native rendering dat2=%d",dat2);
+        UITree_EmitBufferFree(&emit);
+        UITree_Free(tree);
+        ToriRS_ComponentFree(component);
+    }
+}
+
 int
 main(void)
 {
@@ -1164,6 +1375,8 @@ main(void)
     test_callback_context_across_asset_yield();
     test_registry_compaction_during_callback();
     test_hidden_focus_does_not_receive_keys();
+    test_widget_animation_instances();
+    test_cache_model_animation_variants();
     test_transmit_registry_identity();
     test_quiet_tick();
     test_standard_sizes_exist_before_first_packet();

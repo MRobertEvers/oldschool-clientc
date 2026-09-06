@@ -535,6 +535,10 @@ UITree_EmitFill(
         }
         out->kind = UITREE_EMIT_MODEL;
         out->model_id = model_id;
+        out->model_anim_seq = active ? component->u.rs_model.active_anim_seq_id : component->u.rs_model.anim_seq_id;
+        out->model_anim_frame = component->u.rs_model.anim_frame;
+        /* Like the ID index, this is derived cache allocation, not a native mutation. */
+        out->model_render_cache = UITree_ModelRenderCacheMut((struct UITreeComponent*)component);
         out->model_zoom = component->u.rs_model.zoom;
         /*
          * An OBJ bound to a MODEL widget fills the widget; an obj icon fills a

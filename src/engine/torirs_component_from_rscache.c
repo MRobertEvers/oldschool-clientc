@@ -352,6 +352,7 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     dst->active_model_type = src->activeModelId >= 0 ? src->modelType : 0;
     dst->active_model_id = src->activeModelId;
     dst->model_seq_id = src->modelSeqId;
+    dst->model_active_seq_id = src->activeAnimId;
     dst->model_zoom = src->modelZoom;
     dst->model_xan = src->modelXAngle;
     dst->model_yan = src->modelYAngle;
@@ -540,6 +541,7 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
     dst->active_model_type = src->activeModelType;
     dst->active_model_id = src->activeModel;
     dst->model_seq_id = src->anim;
+    dst->model_active_seq_id = src->activeAnim;
     dst->model_zoom = src->zoom;
     dst->model_xan = src->xan;
     dst->model_yan = src->yan;

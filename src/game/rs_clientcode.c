@@ -36,12 +36,14 @@ set_node_text(
 
 static int
 set_button_type(
-    struct UITreeComponent* c,
+    struct UITree* tree,
+    int32_t idx,
     int button_type)
 {
+    struct UITreeComponent* c = &tree->components[idx];
     if( c->behavior.button_type == button_type )
         return 0;
-    c->behavior.button_type = button_type;
+    (void)UITree_SetButtonTypeAt(tree, idx, button_type);
     return 1;
 }
 
@@ -80,14 +82,14 @@ friends_row_tick(
     if( client_code == RS_CC_FRIENDS_START && social->server_status == RS_SOCIAL_SERVER_LOADING )
     {
         changed |= set_node_text(tree, idx, "Loading friend list");
-        changed |= set_button_type(c, 0);
+        changed |= set_button_type(tree, idx, 0);
         return changed;
     }
     if( client_code == RS_CC_FRIENDS_START &&
         social->server_status == RS_SOCIAL_SERVER_CONNECTING )
     {
         changed |= set_node_text(tree, idx, "Connecting to friendserver");
-        changed |= set_button_type(c, 0);
+        changed |= set_button_type(tree, idx, 0);
         return changed;
     }
 
@@ -97,12 +99,12 @@ friends_row_tick(
         if( row >= count )
         {
             changed |= set_node_text(tree, idx, "");
-            changed |= set_button_type(c, 0);
+            changed |= set_button_type(tree, idx, 0);
         }
         else
         {
             changed |= set_node_text(tree, idx, social->friend_name[row]);
-            changed |= set_button_type(c, 1);
+            changed |= set_button_type(tree, idx, 1);
         }
     }
     return changed;
@@ -124,7 +126,7 @@ friends_world_row_tick(
     if( row >= count )
     {
         changed |= set_node_text(tree, idx, "");
-        changed |= set_button_type(c, 0);
+        changed |= set_button_type(tree, idx, 0);
         return changed;
     }
 
@@ -139,7 +141,7 @@ friends_world_row_tick(
             snprintf(text, sizeof(text), "@yel@World-%d", world);
         changed |= set_node_text(tree, idx, text);
     }
-    changed |= set_button_type(c, 1);
+    changed |= set_button_type(tree, idx, 1);
     return changed;
 }
 
@@ -157,12 +159,12 @@ ignores_row_tick(
     if( row >= social->ignore_count )
     {
         changed |= set_node_text(tree, idx, "");
-        changed |= set_button_type(c, 0);
+        changed |= set_button_type(tree, idx, 0);
     }
     else
     {
         changed |= set_node_text(tree, idx, social->ignore_name[row]);
-        changed |= set_button_type(c, 1);
+        changed |= set_button_type(tree, idx, 1);
     }
     return changed;
 }
@@ -270,8 +272,7 @@ design_gender_button_tick(
                : design->button_scene_id[0];
     if( c->u.rs_graphic.scene_id == want )
         return 0;
-    c->u.rs_graphic.scene_id = want;
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetGraphicAt(tree, idx, want, c->u.rs_graphic.atlas_index);
     return 1;
 }
 
@@ -361,8 +362,7 @@ welcome_unread_tick(
     changed |= set_node_text(tree, idx, text);
     if( c->type == UIELEM_RS_TEXT && c->u.rs_text.color != colour )
     {
-        c->u.rs_text.color = colour;
-        UITree_MarkNodeDirty(tree, idx);
+        (void)UITree_SetColourAt(tree, idx, colour);
         changed = 1;
     }
     return changed;
