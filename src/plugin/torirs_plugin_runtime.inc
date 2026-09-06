@@ -3468,6 +3468,19 @@ static enum ToriRS_ContractResult widget_children(void* u, struct ToriRS_WidgetR
     struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_CHILDREN, .ref=ref, .refs=out, .capacity=cap, .count=count};
     return plugin_widget_request(u, &r);
 }
+static enum ToriRS_ContractResult widget_find_all(void* u,char const* role,
+    struct ToriRS_WidgetRef* out,size_t cap,size_t* count)
+{
+    if( !role || !*role || !count || (cap && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *count=0;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_FIND_ALL,.name=role,.refs=out,.capacity=cap,.count=count};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_set_hidden(void* u,struct ToriRS_WidgetRef ref,bool hidden)
+{
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_HIDDEN,.ref=ref,.a=hidden};
+    return plugin_widget_request(u,&r);
+}
 static enum ToriRS_ContractResult widget_bounds(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
 {
     if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
@@ -3545,7 +3558,7 @@ static enum ToriRS_ContractResult widget_remove(void* u, struct ToriRS_WidgetRef
 }
 
 static enum ToriRS_ContractResult
-widget_watch(void* user, char const* role, ToriRS_WidgetListener listener, void* listener_user)
+widget_subscribe(void* user, char const* role, ToriRS_WidgetListener listener, void* listener_user)
 {
     struct PluginV2Runtime* runtime = user;
     struct PluginContext* ctx = runtime ? runtime->context : NULL;
@@ -3580,6 +3593,14 @@ widget_watch(void* user, char const* role, ToriRS_WidgetListener listener, void*
         ctx->host->widget_watch_pending = true;
     }
     return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult widget_watch_tree(void* u,ToriRS_WidgetListener listener,void* user)
+{ return widget_subscribe(u,"@tree",listener,user); }
+static enum ToriRS_ContractResult widget_watch(void* u,char const* role,ToriRS_WidgetListener listener,void* user)
+{
+    if( role && role[0]=='@' ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    return widget_subscribe(u,role,listener,user);
 }
 
 static bool
@@ -3648,6 +3669,7 @@ v2_runtime_init(
         .instance = runtime,
         .widgets = {
             .context = runtime, .find = widget_find, .get_widget = widget_get,
+            .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,

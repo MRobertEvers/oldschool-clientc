@@ -4,8 +4,8 @@ This replaces the unshipped property-claim proposal following the user's explici
 choice of the RuneLite model. There are no public claims, bundles, declaration
 transactions or conflict-suspension rules. The existing production host now exposes the major-3 aggregate in
 `src/plugin/torirs_plugin_api.h`. Its live-widget geometry/read/reset methods
-are wired through `torirs_plugin_contract.h` for C and Lua. Semantic binding subscriptions are also live. Owned controls,
-style/content setters, other widget events and actions remain to implement; the
+are wired through `torirs_plugin_contract.h` for C and Lua. Owned text, presentation hiding, semantic binding subscriptions and tree-publication subscriptions are also live. Interactive controls,
+native style/content setters, other widget events and actions remain to implement; the
 former frame/UI builders remain only for the product ports still in progress.
 
 ## Execution and lifecycle
@@ -149,3 +149,13 @@ comparison is removed. These focused controls do not validate host dispatch.
 The revised implementation plan requires actual C/Lua plugin examples on both
 real revisions before broad migration, then complete retained-interaction,
 owner-cleanup, ordering, native-state/reset and frontend conformance.
+
+## Implemented tree publications and presentation hiding
+
+`widgets.find_all(role)` returns checked references to all current matches. Ordinary frame roles currently produce their one bound widget. The `ground_item_labels` adapter returns the caption text widgets in OSRS239 coordinate-overlay slot 0; native buttons and absolute-width timer text remain separate. This mapping was checked against all six prepared `overlay_coord_create` producers: ground labels use slot 0, coordinate timers use 1, loc timers use 2–5, cannon HUD uses 6, clues use 7. The caption constructors in `torirs_gi_row` and the overflow row use width 108 with parent-relative sizing. That is an explicit adapter assumption for the pinned content, not a guarantee about arbitrary future caches. The rs289lc adapter reports this native-only role unavailable.
+
+`widgets.watch_tree(callback)` publishes an initial notification and later structural tree changes at the existing pre-input/paint fence. It shares subscription ownership, priority/plugin-ID/registration ordering and dispatch snapshots with binding watches. New or restarted subscriptions wait for the next dispatch; unchanged subscriptions are not replayed merely because another subscriber was added. Lua receives `(nil, event)` with `event.kind == 'tree_changed'`; query current widgets inside the callback. Pure geometry and presentation-hide changes do not generate structural notifications. Passing nil unregisters. Semantic role names beginning with `@` are reserved internally.
+
+`widget:set_hidden(boolean)` changes presentation and input eligibility without writing native `behavior.hide`, native server hiding, mounting or projection state. The last setter wins among plugin presentation edits; reset/disable exposes the remaining writer or current native state. A plugin show cannot reveal a natively hidden widget. Another plugin cannot hide an owned widget. Hiding invalidates paint/reachability readers, including mounted-ancestor queries, hit/hover, scrolling, drop targets and native input availability. Native copying does not copy these presentation edits.
+
+Ground Items now uses these ordinary methods at tree publication instead of hiding an entire native overlay or rewriting positions every frame. Its native captions return after disable, including changes made by native scripts while hidden. UI remount now also schedules ground-item overlay rebuilding in the existing native refresh driver. Edit-mode layout is not yet accepted: a long Lua caption can reach the native control's box. Keep that product row open until the text and native auxiliary controls are laid out coherently.

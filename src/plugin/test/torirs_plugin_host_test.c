@@ -3392,6 +3392,30 @@ static void watch_start(struct ToriRS_Api* api, void* state)
           "widget binding subscription registers during startup");
 }
 
+static int tree_events, tree_churn;
+static void tree_listener(struct ToriRS_Api* api,void* user,struct ToriRS_WidgetEvent const* event)
+{
+    (void)user;
+    CHECK(event->type==TORIRS_WIDGET_TREE_CHANGED && !event->widget.opaque[2],
+        "tree event requests live queries instead of fabricating widget identity");
+    ++tree_events;
+    if( tree_churn )
+    {
+        tree_churn=0;
+        PluginHost_SetEnabled(watched_host,watched_b,false);
+        PluginHost_SetEnabled(watched_host,watched_b,true);
+    }
+    struct ToriRS_WidgetRef refs[2];size_t count=0;
+    CHECK(api->widgets.find_all(api->widgets.context,"sidebar",refs,2,&count)==TORIRS_CONTRACT_OK,
+        "tree notification has a valid query context after nested lifecycle changes");
+}
+static void tree_watch_start(struct ToriRS_Api* api,void* state)
+{
+    (void)state;
+    CHECK(api->widgets.watch_tree(api->widgets.context,tree_listener,NULL)==TORIRS_CONTRACT_OK,
+        "tree subscription registers from startup");
+}
+
 int
 main(void)
 {
@@ -4848,6 +4872,28 @@ main(void)
         watch_trace[0]=0;
         PluginHost_WidgetsChanged(watched_host,0,0);
         CHECK(strcmp(watch_trace,"B-")==0, "closing the native tree unbinds remaining subscriptions");
+        PluginHost_Free(watched_host);
+    }
+    {
+        struct ToriRS_PluginEngine engine=fake_engine();engine.widget_request=fake_widget_request;
+        watched_host=PluginHost_New(&engine);tree_events=0;tree_churn=0;
+        struct ToriRS_PluginDef a={.struct_size=sizeof(a),.id="tree-a",.title="A",.version="3",
+            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=tree_watch_start}};
+        struct ToriRS_PluginDef b=a;b.id="tree-b";b.title="B";
+        int tree_a=PluginHost_Register(watched_host,&a);watched_b=PluginHost_Register(watched_host,&b);
+        CHECK(tree_a>=0 && watched_b>=0,"tree subscription fixtures register");
+        PluginHost_Start(watched_host);
+        PluginHost_WidgetsChanged(watched_host,77,1);
+        CHECK(tree_events==2,"each tree subscription receives one initial notification");
+        PluginHost_WidgetsChanged(watched_host,77,1);
+        CHECK(tree_events==2,"stable publications do not repeat tree callbacks");
+        tree_churn=1;PluginHost_WidgetsChanged(watched_host,77,2);
+        CHECK(tree_events==3,"restarted tree subscription cannot join an old dispatch");
+        PluginHost_WidgetsChanged(watched_host,77,2);
+        CHECK(tree_events==4,"only the new tree subscription receives its initial notification");
+        PluginHost_SetEnabled(watched_host,watched_b,false);
+        PluginHost_WidgetsChanged(watched_host,77,3);
+        CHECK(tree_events==5,"disabled tree subscriber receives no later callback");
         PluginHost_Free(watched_host);
     }
     printf("%d checks, %d failures\n", g_checks, g_failures);

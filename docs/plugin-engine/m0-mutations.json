@@ -29327,5 +29327,25 @@
       },
       "disposition": "M2_ROUTE_NATIVE_RUNTIME_WRITE"
     }
-  ]
+  ],
+  "plugin_presentation_visibility": {
+    "field": "UITreeComponent.widget_hidden",
+    "producers": [
+      "UITree_WidgetSetHidden",
+      "uitree_widget_refresh_hidden",
+      "UITree_WidgetReset",
+      "UITree_WidgetResetOwner"
+    ],
+    "scope": "native widget subtree presentation, including effective mounted-ancestor queries; never changes native hide inputs",
+    "invalidation": "EMIT_SELF and REACHABILITY; structural tree generation unchanged",
+    "ownership": "checked widget ref and plugin owner; last setter with current-native reset; foreign owned widgets denied",
+    "tests": [
+      "test_live_widget_visibility",
+      "widget-visibility-negative",
+      "ground-caption-negative",
+      "ground-caption-remount",
+      "ground-caption-live-native"
+    ],
+    "remaining": "complete retained interaction combinations and native auxiliary-control layout acceptance"
+  }
 }

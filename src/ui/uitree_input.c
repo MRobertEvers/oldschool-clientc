@@ -331,7 +331,7 @@ hit_test_interactive_recursive(
      * and the left half of Cancel -- both buttons visibly lit and dead over
      * the overlap. */
     if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
-        component->replacement_hidden || component->projection_hidden )
+        component->replacement_hidden || (component->projection_hidden || component->widget_hidden) )
         return -1;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST, exactly like the
@@ -524,7 +524,7 @@ UITree_HitTestRecursive(
 
     /* Match emit: hidden subtrees are not interactive. */
     if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
-        component->replacement_hidden || component->projection_hidden )
+        component->replacement_hidden || (component->projection_hidden || component->widget_hidden) )
         return -1;
 
     int32_t hit = -1;
@@ -611,7 +611,7 @@ collect_nodes_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( component->behavior.hide || component->mount_hidden || component->screen_hidden || component->projection_hidden ||
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
         (component->frame_hidden && !component->replacement_hidden) ) return;
     if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
     if( component->replacement_hidden )
@@ -1020,7 +1020,7 @@ role_boundary_walk_node(
         return;
     component = &tree->components[node];
     if( component->freed || component->frame_hidden || component->screen_hidden ||
-        component->projection_hidden || (component->behavior.hide || component->mount_hidden) )
+        (component->projection_hidden || component->widget_hidden) || (component->behavior.hide || component->mount_hidden) )
         return;
 
     if( !UITree_NodeNativeVisible(tree, order->host, node, -1) ) return;

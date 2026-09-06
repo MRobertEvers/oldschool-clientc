@@ -151,6 +151,8 @@ struct PluginWidgetWatch
 {
     char role[TORIRS_UI_NAME_MAX];
     uint64_t serial;
+    uint64_t tree_instance, tree_generation;
+    bool tree_notified;
     struct ToriRS_WidgetRef current;
     ToriRS_WidgetListener listener;
     void* user;
@@ -10378,6 +10380,17 @@ PluginHost_WidgetsChanged(struct ToriRS_PluginHost* host, uint64_t instance, uin
          * can replace this watch or disable/reload either participating plugin. */
         char role[TORIRS_UI_NAME_MAX];
         snprintf(role, sizeof(role), "%s", watch->role);
+        if( strcmp(role,"@tree")==0 )
+        {
+            if( watch->tree_notified && watch->tree_instance==instance &&
+                watch->tree_generation==generation ) continue;
+            watch->tree_notified=true;
+            watch->tree_instance=instance;watch->tree_generation=generation;
+            struct ToriRS_WidgetEvent event={.type=TORIRS_WIDGET_TREE_CHANGED,
+                .native_revision=generation,.role=""};
+            plugin_widget_watch_call(host,item.owner,item.slot,item.serial,&event);
+            continue;
+        }
         struct ToriRS_WidgetRef previous = watch->current, current = {0};
         if( instance && host->engine.widget_request )
         {

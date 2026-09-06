@@ -149,7 +149,7 @@
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "scene-origin/menu port; native CS2 labels overlap on OSRS239 (acceptance failure); hide/action integration pending",
+      "port_status": "live caption hiding and native remount recovery implemented; native edit-mode button overlaps long Lua text (layout acceptance open)",
       "screenshots": [
         {
           "capture": "/private/tmp/plugin-engine-evidence/ground-text-osrs/m01",
@@ -158,6 +158,22 @@
         {
           "capture": "/private/tmp/plugin-engine-evidence/ground-partyhat-lc/r01",
           "scope": "see PLUGIN_PORTS.md; capture is not complete product acceptance"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-caption-controls/m01",
+          "scope": "see PLUGIN_PORTS.md; auxiliary-control layout remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-caption-live-native/m01",
+          "scope": "see PLUGIN_PORTS.md; auxiliary-control layout remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-caption-remount/m01",
+          "scope": "see PLUGIN_PORTS.md; auxiliary-control layout remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-hide-rs289-stats/r01",
+          "scope": "see PLUGIN_PORTS.md; auxiliary-control layout remains open"
         }
       ]
     },

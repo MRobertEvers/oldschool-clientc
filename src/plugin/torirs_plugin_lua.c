@@ -943,23 +943,34 @@ static int lua_widget_reset(lua_State* L)
     return lua_widget_result(L, ui->reset(ui->context, lua_widget_arg(L)));
 }
 
-static int lua_widget_children(lua_State* L)
+static int lua_widget_collection(lua_State* L, bool all)
 {
     struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
-    struct ToriRS_WidgetRef ref = lua_widget_arg(L);
+    struct ToriRS_WidgetRef ref = all ? (struct ToriRS_WidgetRef){{0}} : lua_widget_arg(L);
+    char const* role = all ? luaL_checkstring(L,1) : NULL;
     size_t count = 0;
-    enum ToriRS_ContractResult result = ui->children(ui->context, ref, NULL, 0, &count);
+    enum ToriRS_ContractResult result = all ? ui->find_all(ui->context,role,NULL,0,&count)
+        : ui->children(ui->context, ref, NULL, 0, &count);
     if( result != TORIRS_CONTRACT_OK && result != TORIRS_CONTRACT_BUDGET_EXCEEDED )
     { lua_pushnil(L); return 1; }
     if( count > INT_MAX || count > SIZE_MAX / sizeof(struct ToriRS_WidgetRef) )
         return luaL_error(L, "widget collection exceeds runtime capacity");
     struct ToriRS_WidgetRef* refs = lua_newuserdatauv(L, count * sizeof(*refs), 0);
-    result = ui->children(ui->context, ref, refs, count, &count);
+    result = all ? ui->find_all(ui->context,role,refs,count,&count)
+        : ui->children(ui->context, ref, refs, count, &count);
     if( result != TORIRS_CONTRACT_OK ) { lua_pop(L,1); lua_pushnil(L); return 1; }
     lua_createtable(L, (int)count, 0);
     for( size_t i = 0; i < count; ++i ) { lua_push_widget(L, refs[i]); lua_rawseti(L,-2,(lua_Integer)i+1); }
     lua_remove(L,-2);
     return 1;
+}
+static int lua_widget_children(lua_State* L) { return lua_widget_collection(L,false); }
+static int lua_widget_find_all(lua_State* L) { return lua_widget_collection(L,true); }
+static int lua_widget_set_hidden(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    luaL_checktype(L,2,LUA_TBOOLEAN);
+    return lua_widget_result(L,ui->set_hidden(ui->context,lua_widget_arg(L),lua_toboolean(L,2)));
 }
 static int lua_widget_text(lua_State* L)
 {
@@ -984,9 +995,10 @@ static void lua_widget_binding_callback(struct ToriRS_Api* api, void* user, stru
     if( !lua_callback_scope_push(script,api) ) return;
     lua_State* L = script->L;
     lua_rawgeti(L,LUA_REGISTRYINDEX,watch->function_ref);
-    lua_push_widget(L,event->widget);
+    if( event->type==TORIRS_WIDGET_TREE_CHANGED ) lua_pushnil(L);
+    else lua_push_widget(L,event->widget);
     lua_createtable(L,0,3);
-    lua_pushstring(L,event->type == TORIRS_WIDGET_BOUND ? "bound" : "unbound");lua_setfield(L,-2,"kind");
+    lua_pushstring(L,event->type==TORIRS_WIDGET_TREE_CHANGED ? "tree_changed" : event->type == TORIRS_WIDGET_BOUND ? "bound" : "unbound");lua_setfield(L,-2,"kind");
     lua_pushstring(L,event->role);lua_setfield(L,-2,"role");
     lua_pushinteger(L,(lua_Integer)event->native_revision);lua_setfield(L,-2,"native_revision");
     int result = lua_callback_pcall(script,2,0);
@@ -999,14 +1011,15 @@ static void lua_widget_binding_callback(struct ToriRS_Api* api, void* user, stru
     }
     (void)lua_script_flush_disable(script,api);
 }
-static int lua_widget_watch(lua_State* L)
+static int lua_widget_watch_impl(lua_State* L,bool tree)
 {
     struct LuaScript* script = lua_upvalue_script(L);
     struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
-    char const* role = luaL_checkstring(L,1);
+    int callback_arg=tree ? 1 : 2;
+    char const* role = tree ? "@tree" : luaL_checkstring(L,1);
     if( !*role || strlen(role) >= TORIRS_UI_NAME_MAX ) return luaL_argerror(L,1,"invalid widget role");
-    bool remove = lua_isnoneornil(L,2);
-    if( !remove ) luaL_checktype(L,2,LUA_TFUNCTION);
+    bool remove = lua_isnoneornil(L,callback_arg);
+    if( !remove ) luaL_checktype(L,callback_arg,LUA_TFUNCTION);
     int at = -1;
     for( int i = 0; i < LUA_WIDGET_WATCH_MAX; ++i )
     {
@@ -1016,9 +1029,10 @@ static int lua_widget_watch(lua_State* L)
     if( at < 0 ) return lua_widget_result(L, remove ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_BUDGET_EXCEEDED);
     struct LuaWidgetWatch* watch = &script->widget_watches[at];
     int next_ref = LUA_NOREF;
-    if( !remove ) { lua_pushvalue(L,2); next_ref=luaL_ref(L,LUA_REGISTRYINDEX); }
-    enum ToriRS_ContractResult result = ui->watch(ui->context,role,
-        remove ? NULL : lua_widget_binding_callback,watch);
+    if( !remove ) { lua_pushvalue(L,callback_arg); next_ref=luaL_ref(L,LUA_REGISTRYINDEX); }
+    enum ToriRS_ContractResult result = tree
+        ? ui->watch_tree(ui->context,remove ? NULL : lua_widget_binding_callback,watch)
+        : ui->watch(ui->context,role,remove ? NULL : lua_widget_binding_callback,watch);
     if( result == TORIRS_CONTRACT_OK )
     {
         if( watch->role[0] ) luaL_unref(L,LUA_REGISTRYINDEX,watch->function_ref);
@@ -1032,6 +1046,8 @@ static int lua_widget_watch(lua_State* L)
     else if( next_ref != LUA_NOREF ) luaL_unref(L,LUA_REGISTRYINDEX,next_ref);
     return lua_widget_result(L,result);
 }
+static int lua_widget_watch(lua_State* L) { return lua_widget_watch_impl(L,false); }
+static int lua_widget_watch_tree(lua_State* L) { return lua_widget_watch_impl(L,true); }
 static void lua_widget_watches_clear(struct LuaScript* script)
 {
     if( !script || !script->L ) return;
@@ -1074,12 +1090,12 @@ static int lua_widget_remove(lua_State* L)
     return lua_widget_result(L,ui->remove(ui->context,lua_widget_arg(L)));
 }
 static struct LuaFn const LUA_WIDGET_FNS[] = {
-    {"find",lua_widget_find},{"get",lua_widget_get},{"watch",lua_widget_watch},{NULL,NULL}
+    {"find",lua_widget_find},{"find_all",lua_widget_find_all},{"watch_tree",lua_widget_watch_tree},{"get",lua_widget_get},{"watch",lua_widget_watch},{NULL,NULL}
 };
 static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"position",lua_widget_position},{"bounds",lua_widget_bounds},
     {"children",lua_widget_children},{"text",lua_widget_text},
-    {"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
+    {"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
     {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},
     {"create_text",lua_widget_create_text},{"set_text",lua_widget_set_text},
     {"set_text_color",lua_widget_set_text_color},{"set_text_align",lua_widget_set_text_align},{"remove",lua_widget_remove},{NULL,NULL}

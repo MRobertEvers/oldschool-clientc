@@ -839,6 +839,8 @@ struct UITreeComponent
      * layer (for example, its subject crossed behind the near plane). Kept
      * separate from `behavior.hide`, which remains script-owned. */
     uint8_t projection_hidden;
+    /** Effective live-widget presentation hide. Native hide remains separate. */
+    uint8_t widget_hidden;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
     /**
@@ -2114,6 +2116,7 @@ int32_t UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref);
  * inputs or the most recent remaining owner's edit, without saved snapshots. */
 bool UITree_WidgetSetPosition(struct UITree*, struct UITreeNodeRef, uint64_t owner, int x, int y);
 bool UITree_WidgetSetSize(struct UITree*, struct UITreeNodeRef, uint64_t owner, int w, int h);
+bool UITree_WidgetSetHidden(struct UITree*, struct UITreeNodeRef, uint64_t owner, bool hidden);
 bool UITree_WidgetReset(struct UITree*, struct UITreeNodeRef, uint64_t owner);
 void UITree_WidgetResetOwner(struct UITree*, uint64_t owner);
 int32_t UITree_WidgetCreateText(struct UITree*, struct UITreeNodeRef parent, uint64_t owner,

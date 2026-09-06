@@ -11,7 +11,13 @@ return {id='ground-behavior',on_start=function(host)
     local me={true_x=3210,true_z=3424,level=0,fine_x=3331,fine_z=4100,dest_x=3215,dest_z=3425}
     local obj={obj_id=1127,name='Rune platebody',count=1,tile_x=3210,tile_z=3424,level=0,cost=39000}
     local labels,projections={},{}
+    local tree_listener,hidden_count=nil,0
     local api={config=config,core={log=function() end},assets={request=function() end},
+        widgets={watch_tree=function(callback) tree_listener=callback;return true end,
+            find_all=function(role)
+                assert(role=='ground_item_labels')
+                return {{set_hidden=function(self,value) assert(value);hidden_count=hidden_count+1;return true end}}
+            end},
         input={key_held=function() return false end},
         world={local_player=function() return me end,
             scene_origin=function() if origin then return origin[1],origin[2] end end,
@@ -22,6 +28,10 @@ return {id='ground-behavior',on_start=function(host)
     local graphics={text=function(x,y,text,color) labels[#labels+1]=text end,world_tile=function() end}
     -- Startup after world loading, while moving. No world-loaded or server-tick event.
     product.on_start(api)
+    tree_listener()
+    assert(hidden_count==1,'native label widgets are hidden at publication')
+    api.widgets.find_all=function() return nil end
+    tree_listener() -- No native overlay capability on the older adapter.
     product.on_draw_world(api,graphics)
     assert(#labels>0 and labels[#labels]:find('Rune platebody',1,true),
         'mid-session enable while moving must immediately draw ground labels')

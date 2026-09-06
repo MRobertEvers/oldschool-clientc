@@ -2739,7 +2739,7 @@ emit_walk_node(
      * frame. Screen and projection hiding still win: those say the surface
      * itself is gone, not who draws it.
      */
-    if( c->screen_hidden || c->projection_hidden ||
+    if( c->screen_hidden || (c->projection_hidden || c->widget_hidden) ||
         (c->frame_hidden && !c->replacement_hidden) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);

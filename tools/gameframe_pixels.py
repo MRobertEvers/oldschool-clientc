@@ -215,11 +215,22 @@ def check_overlay_text(rows, log, expected, failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None):
     width, height, rows = read_bmp(path)
     failures = []
     if overlay_text:
         check_overlay_text(rows,Path(bounds_path).read_text() if bounds_path else "",overlay_text,failures)
+    if native_ground_labels:
+        log=Path(bounds_path).read_text() if bounds_path else ""
+        entries=re.findall(r"NATIVE_GROUND_OVERLAY root=\d+ widget_hide=(\d) native_hide=(\d) emitted=(\d+) coord=-?\d+ captions=(\d+) hidden_captions=(\d+) caption_emits=(\d+) buttons=(\d+) live_buttons=(\d+)",log)
+        hidden=native_ground_labels=="hidden"
+        parsed=[tuple(map(int,entry)) for entry in entries]
+        valid=bool(parsed) and all(root_hide==0 and native_hide==0 and captions>0 and
+            h==(captions if hidden else 0) and ((e==0) if hidden else e>=captions) and live==buttons
+            for root_hide,native_hide,total,captions,h,e,buttons,live in parsed)
+        print(f"PIXEL native_ground_labels={'PASS' if valid else 'FAIL'} expected={native_ground_labels} roots={len(entries)} captions={sum(e[3] for e in parsed)} caption_emits={sum(e[5] for e in parsed)} native_buttons={sum(e[7] for e in parsed)}")
+        if not valid: failures.append("native_ground_labels")
+
     if bounds_path:
         log = Path(bounds_path).read_text()
         if "after_ready=1" in log and not re.search(r"^SIM_READY elapsed_ms=\d+ tree_generation=[1-9]\d*", log, re.M):
@@ -410,10 +421,11 @@ if __name__ == "__main__":
     parser.add_argument("--performance-position",default="10,25")
     parser.add_argument("--performance-color",default="FFFFFF")
     parser.add_argument("--overlay-text",action="append",help="require a single non-shadow overlay label and matching ink")
+    parser.add_argument("--native-ground-labels",choices=("hidden","shown"))
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

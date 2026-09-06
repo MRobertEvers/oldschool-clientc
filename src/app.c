@@ -4777,6 +4777,9 @@ app_client_triggers_refire(struct App* app)
         return;
 
     RS_OverlayReset(&app->host.overlay);
+    /* The pile subjects survive a UI remount just like NPCs and scenery.
+     * Rebuild their native CS2 labels at the ordinary ground-items tick. */
+    app->ground_items_refresh_all = 1;
     app_client_triggers_world_loaded(app);
 
     pool = &app->world->entities.npc;

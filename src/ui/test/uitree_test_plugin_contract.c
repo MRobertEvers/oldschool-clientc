@@ -323,6 +323,62 @@ void test_live_widget_geometry(void)
     UITree_Free(tree);
 }
 
+void test_live_widget_visibility(void)
+{
+    struct UITree* tree=UITree_New(8);
+    int root=UITree_TestPushXy(tree,-1,UIELEM_RS_LAYER,0x360000,0,0,300,200);
+    int child=UITree_TestPushXy(tree,root,UIELEM_RS_RECT,0x360001,10,20,30,40);
+    struct UITreeBehavior behavior={.button_type=1};
+    UITree_SetBehavior(tree,child,&behavior);
+    struct UITreeNodeRef ref=UITree_RefAt(tree,root);
+    struct TestHostState hs;struct UITreeHost host;
+    UITree_TestHostInit(&host,&hs);UITree_TestResolve(tree);
+    TEST_ASSERT(UITree_HitTestInteractive(tree,&host,20,30)==child,"visibility fixture is interactive");
+    struct UITreeEmitBuffer emit;UITree_EmitBufferInit(&emit);
+    uint32_t generation=tree->generation,dirty=tree->dirty_gen;
+    TEST_ASSERT(UITree_WidgetSetHidden(tree,ref,10,true),"plugin can hide a live subtree");
+    TEST_ASSERT(tree->generation==generation && tree->dirty_gen!=dirty,
+        "presentation hide invalidates readers without fabricating a topology event");
+    TEST_ASSERT(!tree->components[root].behavior.hide && !tree->components[root].native_hide,
+        "plugin hide preserves native hiding inputs");
+    TEST_ASSERT(UITree_HitTestInteractive(tree,&host,20,30)!=child &&
+        !UITree_NodeNativeInputPresent(tree,&host,child),"hidden widget descendants reject input and native operations");
+    UITree_EmitWalk(tree,&host,&emit,-1);
+    bool painted=false;
+    for( int i=0;i<emit.count;++i ) if( emit.cmds[i].component_id==0x360001 ) painted=true;
+    TEST_ASSERT(!painted,"hidden widget subtree is absent from paint");
+    UITree_SetColourAt(tree,child,0x123456);
+    TEST_ASSERT(UITree_WidgetSetHidden(tree,ref,20,false) && !tree->components[root].widget_hidden,
+        "the latest presentation hide setter wins");
+    UITree_WidgetResetOwner(tree,20);
+    TEST_ASSERT(tree->components[root].widget_hidden,"removing the latest writer exposes the remaining hide edit");
+    UITree_SetHideAt(tree,root,1);
+    UITree_WidgetSetHidden(tree,ref,10,false);
+    TEST_ASSERT(!UITree_NodeNativeVisible(tree,&host,child,-1),"plugin show cannot override current native server hiding");
+    UITree_WidgetResetOwner(tree,10);
+    TEST_ASSERT(!UITree_NodeNativeVisible(tree,&host,child,-1),"disable cannot restore an obsolete native visibility snapshot");
+    UITree_SetHideAt(tree,root,0);
+    TEST_ASSERT(UITree_NodeNativeVisible(tree,&host,child,-1) && tree->components[child].u.rs_rect.color==0x123456,
+        "reset reveals the current native content and visibility");
+    tree->components[root].if3=1;
+    UITree_SetHideAt(tree,root,1);UITree_WidgetSetHidden(tree,ref,10,false);
+    TEST_ASSERT(!UITree_NodeNativeVisible(tree,&host,child,-1),"IF3 server hide also vetoes a plugin show");
+    UITree_WidgetResetOwner(tree,10);UITree_SetHideAt(tree,root,0);
+    int dynamic=UITree_CcCreate(tree,root,0x360000,3,7);
+    UITree_WidgetSetHidden(tree,UITree_RefAt(tree,dynamic),10,true);
+    int copy=UITree_CcCopy(tree,root,0x360000,7,8);
+    TEST_ASSERT(copy>=0 && !tree->components[copy].widget_hidden && !tree->components[copy].widget_geometry,
+        "native copying does not inherit presentation hiding or its owners");
+    int own=UITree_WidgetCreateText(tree,ref,10,"owned",0);
+    TEST_ASSERT(own>=0 && !UITree_WidgetSetHidden(tree,UITree_RefAt(tree,own),20,true),
+        "another plugin cannot hide an owned widget");
+    UITree_EmitBufferFree(&emit);UITree_Free(tree);
+    tree=UITree_New(8);
+    UITree_TestPushXy(tree,-1,UIELEM_RS_LAYER,0x360000,0,0,300,200);
+    TEST_ASSERT(!UITree_WidgetSetHidden(tree,ref,10,true),"retained hide cannot target a replacement tree");
+    UITree_Free(tree);
+}
+
 void test_widget_sidebar_group(void)
 {
     struct UITree* tree=UITree_New(8);

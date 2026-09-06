@@ -591,17 +591,20 @@ warn = nil
 ---@field text fun(self:torirs.Widget):string? Current native text input.
 ---@field set_position fun(self:torirs.Widget,x:integer,y:integer):boolean,string
 ---@field set_size fun(self:torirs.Widget,width:integer,height:integer):boolean,string
+---@field set_hidden fun(self:torirs.Widget,hidden:boolean):boolean,string Presentation only; native hiding remains authoritative. Reset/disable reveals current native state or another owner's edit.
 ---@field revalidate fun(self:torirs.Widget):boolean,string
 ---@field reset fun(self:torirs.Widget):boolean,string Releases only this plugin's edits.
 
 ---@class torirs.WidgetBindingEvent
----@field kind 'bound'|'unbound'
+---@field kind 'bound'|'unbound'|'tree_changed'
 ---@field role string
 ---@field native_revision integer
 
 ---@class torirs.WidgetsApi
 ---@field watch fun(role:string,callback:fun(widget:torirs.Widget,event:torirs.WidgetBindingEvent)?):boolean,string Follows native binding identity; nil removes this subscription.
 ---@field find fun(role:string):torirs.Widget?
+---@field find_all fun(role:string):torirs.Widget[]? All current matches. ground_item_labels is unavailable without the native CS2 overlay adapter.
+---@field watch_tree fun(callback:fun(widget:torirs.Widget?,event:torirs.WidgetBindingEvent)?):boolean,string Initial and topology-change publication notifications; nil unregisters. The callback receives nil widget and queries current references.
 ---@field get fun(component_id:integer):torirs.Widget? Revision-specific lookup.
 
 ---@class torirs.Api

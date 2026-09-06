@@ -458,6 +458,14 @@ end
 function plugin.on_start(api)
     prices = {}
     load_lists(api)
+    -- Native CS2 keeps its buttons, timers and live state. Hide its captions
+    -- while this plugin supplies labels; host cleanup restores
+    -- their current native visibility on disable. Older clients return nil.
+    assert(api.widgets.watch_tree(function()
+        for _, widget in ipairs(api.widgets.find_all("ground_item_labels") or {}) do
+            assert(widget:set_hidden(true))
+        end
+    end))
     -- Optional: a client without the file simply prices everything from the
     -- cache. on_asset hears about it either way.
     api.assets.request(PRICES_ASSET)

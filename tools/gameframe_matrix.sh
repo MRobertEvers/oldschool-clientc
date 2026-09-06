@@ -61,7 +61,7 @@ if [[ -n "${GF_MATRIX_PLUGIN:-}" ]]; then
     export TORIRS_SCRIPT_DIR="$OUT/scripts"
     export TORIRS_PLUGIN_MANIFEST=capture.ini
     if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
-      python3 - "$TOOLS_DIR/../script" "$TORIRS_SCRIPT_DIR" "${GF_MATRIX_PLUGIN#lua:}" <<'PY_PLUGIN'
+      python3 - "${GF_MATRIX_SCRIPT_SOURCE:-$TOOLS_DIR/../script}" "$TORIRS_SCRIPT_DIR" "${GF_MATRIX_PLUGIN#lua:}" <<'PY_PLUGIN'
 from pathlib import Path
 import configparser, re, shutil, sys
 source,dest,plugin=Path(sys.argv[1]),Path(sys.argv[2]),sys.argv[3]
@@ -245,6 +245,7 @@ while IFS='|' read tag m f s; do
       --performance-position "${GF_MATRIX_PERFORMANCE_POSITION:-10,25}"
       --performance-color "${GF_MATRIX_PERFORMANCE_COLOR:-FFFFFF}")
   fi
+  [[ -n "${GF_MATRIX_NATIVE_GROUND_LABELS:-}" ]] && widget_args+=(--native-ground-labels "$GF_MATRIX_NATIVE_GROUND_LABELS")
   [[ -n "${GF_MATRIX_OWNED_TEXT:-}" ]] && widget_args+=(--owned-text "$GF_MATRIX_OWNED_TEXT")
   if [[ -n "${GF_MATRIX_OVERLAY_TEXT:-}" ]]; then
     for expected_text in "${(@s:|:)GF_MATRIX_OVERLAY_TEXT}"; do

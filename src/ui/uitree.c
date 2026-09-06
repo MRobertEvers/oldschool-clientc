@@ -18,8 +18,9 @@
 struct UITreeWidgetGeometry
 {
     struct UITreeWidgetGeometry* next;
-    uint64_t owner, position_serial, size_serial;
+    uint64_t owner, position_serial, size_serial, hidden_serial;
     int x, y, width, height;
+    bool hidden;
 };
 static uint64_t widget_geometry_serial;
 
@@ -4064,6 +4065,32 @@ bool UITree_WidgetSetPosition(struct UITree* t, struct UITreeNodeRef r, uint64_t
 bool UITree_WidgetSetSize(struct UITree* t, struct UITreeNodeRef r, uint64_t owner, int w, int h)
 { return uitree_widget_set_geometry(t, r, owner, w, h, true); }
 
+static void uitree_widget_refresh_hidden(struct UITree* tree,int32_t idx)
+{
+    struct UITreeComponent* c=&tree->components[idx];
+    struct UITreeWidgetGeometry const* last=NULL;
+    for( struct UITreeWidgetGeometry const* e=c->widget_geometry;e;e=e->next )
+        if( e->hidden_serial && (!last || e->hidden_serial>last->hidden_serial) ) last=e;
+    bool hidden=last && last->hidden;
+    if( c->widget_hidden==hidden ) return;
+    c->widget_hidden=hidden;
+    uitree_note_mutation(tree,idx,UITREE_IMPACT_EMIT_SELF|UITREE_IMPACT_REACHABILITY);
+}
+
+bool UITree_WidgetSetHidden(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,bool hidden)
+{
+    int32_t idx=UITree_ResolveRef(tree,ref);
+    if( idx<0 || !owner || widget_geometry_serial==UINT64_MAX ) return false;
+    struct UITreeComponent* c=&tree->components[idx];
+    if( c->plugin_owner && c->plugin_owner!=owner ) return false;
+    struct UITreeWidgetGeometry* edit=uitree_widget_geometry(c,owner);
+    if( !edit ) return false;
+    edit->hidden=hidden;
+    edit->hidden_serial=++widget_geometry_serial;
+    uitree_widget_refresh_hidden(tree,idx);
+    return true;
+}
+
 bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner)
 {
     int32_t idx = UITree_ResolveRef(tree, ref);
@@ -4076,6 +4103,7 @@ bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t 
         {
             *link = edit->next;
             free(edit);
+            uitree_widget_refresh_hidden(tree,idx);
             uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
             break;
         }
@@ -6050,7 +6078,7 @@ uitree_node_or_ancestor_hidden(
                  ((tree->components[idx].frame_hidden && !ignore_frame_hidden &&
                    idx != ignore_own_replacement) ||
                   tree->components[idx].screen_hidden ||
-                  tree->components[idx].projection_hidden ||
+                  tree->components[idx].projection_hidden || tree->components[idx].widget_hidden ||
                   (tree->components[idx].replacement_hidden && !ignore_replacement_hidden &&
                    idx != ignore_own_replacement))) )
                 return 1;
@@ -6170,7 +6198,7 @@ drop_target_pick_in_subtree(
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
     if( c->behavior.hide || c->mount_hidden || c->frame_hidden || c->screen_hidden || c->replacement_hidden ||
-        c->projection_hidden )
+        (c->projection_hidden || c->widget_hidden) )
         return 0;
     if( c->component_id == exclude_component_id )
         return 0;
@@ -6275,7 +6303,7 @@ UITree_FindDropTargetNode(
         if( tree->components[root].behavior.hide || tree->components[root].mount_hidden || tree->components[root].frame_hidden ||
             tree->components[root].screen_hidden ||
             tree->components[root].replacement_hidden ||
-            tree->components[root].projection_hidden )
+            (tree->components[root].projection_hidden || tree->components[root].widget_hidden) )
             continue;
         drop_target_pick_in_subtree(
             tree,

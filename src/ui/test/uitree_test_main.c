@@ -7,6 +7,7 @@ void test_native_object_swap_state(void);
 void test_native_hook_slot_ownership(void);
 void test_retained_operation_state(void);
 void test_live_widget_geometry(void);
+void test_live_widget_visibility(void);
 void test_widget_sidebar_group(void);
 void test_owned_widgets(void);
 void test_plugin_contract_copy(void);
@@ -24,6 +25,7 @@ main(void)
     test_native_hook_slot_ownership();
     test_retained_operation_state();
     test_live_widget_geometry();
+    test_live_widget_visibility();
     test_widget_sidebar_group();
     test_owned_widgets();
         test_plugin_contract_copy();
@@ -35,6 +37,7 @@ main(void)
     test_native_hook_slot_ownership();
     test_retained_operation_state();
     test_live_widget_geometry();
+    test_live_widget_visibility();
     test_widget_sidebar_group();
     test_owned_widgets();
     test_plugin_contract_copy();

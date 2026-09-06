@@ -402,7 +402,7 @@ node_native_available(struct UITree const* tree, struct UITreeHost const* host,
     while( node >= 0 && (uint32_t)node < tree->component_count && guard++ < (int)tree->component_count )
     {
         struct UITreeComponent const* c = &tree->components[node];
-        if( c->freed || c->screen_hidden || c->projection_hidden ||
+        if( c->freed || c->screen_hidden || (c->projection_hidden || c->widget_hidden) ||
             !UITree_ComponentVisibleById(c, hovered) ) return false;
         struct NativeAvailability availability = component_native_availability(c, host);
         if( input && node == self ) { if( !availability.input ) return false; }

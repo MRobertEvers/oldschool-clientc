@@ -169,6 +169,10 @@ def run_host_controls(src, out, make_args, selected):
                         "restarted subscription cannot join the old dispatch snapshot"),
         "watch_change": ("if( memcmp(&previous, &current, sizeof(current)) == 0 ) continue;", "if( false ) continue;",
                          "unrelated topology changes do not replay a stable binding"),
+        "tree_watch_epoch": ("ctx->widget_watches[slot].serial != serial", "!ctx->widget_watches[slot].serial",
+                         "restarted tree subscription cannot join an old dispatch"),
+        "tree_watch_publish": ("if( strcmp(role,\"@tree\")==0 )\n        {", "if( strcmp(role,\"@tree\")==0 )\n        {\n            continue;",
+                         "each tree subscription receives one initial notification"),
     }
     if selected and set(selected) - controls.keys():
         raise ValueError("unknown host control")
@@ -218,6 +222,9 @@ def main():
                    if "ui/uitree.c " in line and " -o " in line)
     original = (src / "ui/uitree.c").read_text()
     controls = {
+        "widget_visibility": (
+            "c->widget_hidden=hidden;", "c->widget_hidden=false;",
+            "hidden widget descendants reject input and native operations"),
         "owned_child_keys": (
             "if( child->plugin_owner ) return -1;", "if( false ) return -1;",
             "owned widgets do not pollute native child keys"),

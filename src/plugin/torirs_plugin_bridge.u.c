@@ -4107,6 +4107,43 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         return TORIRS_CONTRACT_OK;
     }
     if( !tree ) return TORIRS_CONTRACT_UNAVAILABLE;
+    if( r->kind==PLUGIN_WIDGET_FIND_ALL && strcmp(r->name,"ground_item_labels")==0 )
+    {
+        /* The pinned CS2 ground-items script uses coordinate-overlay slot 0.
+         * Its item captions and overflow caption use the parent-relative
+         * 108-pixel inset; timer text uses absolute widths. Preserve the
+         * operational graphics and timer widgets alongside these captions.
+         * Older adapters have no such native overlay and report unavailable. */
+        if( App_UiLogic(app)!=APP_UI_LOGIC_CS2 || app->host.script_ground_items_overlay<=0 )
+            return TORIRS_CONTRACT_UNAVAILABLE;
+        for( int i=0;i<RS_OVERLAY_MAX;++i )
+        {
+            struct RS_Overlay const* overlay=RS_OverlayGet(&app->host.overlay,i);
+            if( !overlay || overlay->anchor!=RS_OVERLAY_ANCHOR_STATIC ||
+                overlay->static_type!=RS_OVERLAY_TYPE_COORD || overlay->slot!=0 ) continue;
+            int32_t idx=UITree_FindByComponentId(tree,overlay->component_id);
+            if( idx<0 ) continue;
+            for( int child=tree->components[idx].first_child;child>=0;child=tree->components[child].next_sibling )
+            {
+                struct UITreeComponent const* c=&tree->components[child];
+                if( c->freed || c->type!=UIELEM_RS_TEXT || c->position.width_mode!=1 ||
+                    c->position.width!=108 ) continue;
+                if( *r->count<r->capacity ) r->refs[*r->count]=app_widget_ref(tree,child);
+                ++*r->count;
+            }
+        }
+        return *r->count>r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+    }
+    if( r->kind==PLUGIN_WIDGET_FIND_ALL )
+    {
+        int32_t idx=app_plugin_ui_boundary_node(app,r->name);
+        if( strcmp(r->name,"sidebar")==0 && App_UiLogic(app)==APP_UI_LOGIC_CS2 )
+            idx=UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
+        if( idx<0 ) return TORIRS_CONTRACT_UNAVAILABLE;
+        *r->count=1;
+        if( !r->capacity ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+        r->refs[0]=app_widget_ref(tree,idx);return TORIRS_CONTRACT_OK;
+    }
     if( r->kind == PLUGIN_WIDGET_FIND || r->kind == PLUGIN_WIDGET_GET )
     {
         int32_t idx = r->kind == PLUGIN_WIDGET_FIND
@@ -4126,6 +4163,9 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         return TORIRS_CONTRACT_NATIVE_BLOCKED;
     switch( r->kind )
     {
+    case PLUGIN_WIDGET_HIDDEN:
+        if( !UITree_WidgetSetHidden(tree,ref,owner,r->a!=0) ) return TORIRS_CONTRACT_FAILED;
+        break;
     case PLUGIN_WIDGET_CHILDREN:
         for( int32_t child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
         {

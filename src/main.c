@@ -3381,6 +3381,42 @@ frame_loop_teardown(void)
         int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
         assert(pixels);
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        if( getenv("TORIRS_TRACE_NATIVE_UI") && app.tree )
+            for( int i=0;i<RS_OVERLAY_MAX;++i )
+            {
+                struct RS_Overlay const* overlay=RS_OverlayGet(&app.host.overlay,i);
+                if( !overlay || overlay->anchor!=RS_OVERLAY_ANCHOR_STATIC ||
+                    overlay->static_type!=RS_OVERLAY_TYPE_COORD || overlay->slot!=0 ) continue;
+                int root=UITree_FindByComponentId(app.tree,overlay->component_id);
+                if( root<0 ) continue;
+                int emitted=0;
+                for( int j=0;j<app.emit.count;++j )
+                {
+                    int node=app.emit.cmds[j].node_index,guard=0;
+                    while( node>=0 && (uint32_t)node<app.tree->component_count && guard++<(int)app.tree->component_count )
+                    {
+                        if( node==root ) { ++emitted;break; }
+                        node=app.tree->components[node].parent;
+                    }
+                }
+                struct UITreeComponent const* c=&app.tree->components[root];
+                int captions=0,hidden_captions=0,caption_emits=0,buttons=0,live_buttons=0;
+                for( int child=c->first_child;child>=0;child=app.tree->components[child].next_sibling )
+                {
+                    struct UITreeComponent const* item=&app.tree->components[child];
+                    if( item->type==UIELEM_RS_TEXT && item->position.width_mode==1 && item->position.width==108 )
+                    {
+                        ++captions;hidden_captions+=item->widget_hidden!=0;
+                        for( int j=0;j<app.emit.count;++j ) if( app.emit.cmds[j].node_index==child ) ++caption_emits;
+                    }
+                    bool has_op=false;
+                    if( item->menu_options )
+                        for( int op=0;op<UITREE_MENU_OPTION_SLOTS;++op ) has_op|=item->menu_options->ops[op][0]!=0;
+                    if( has_op ) { ++buttons;live_buttons+=UITree_NodeNativeInputPresent(app.tree,&app.ui_host,child); }
+                }
+                TORIRS_REPORT("NATIVE_GROUND_OVERLAY root=%d widget_hide=%d native_hide=%d emitted=%d coord=%d captions=%d hidden_captions=%d caption_emits=%d buttons=%d live_buttons=%d\n",
+                    root,c->widget_hidden,c->native_hide,emitted,overlay->coord,captions,hidden_captions,caption_emits,buttons,live_buttons);
+            }
         if( getenv("TORIRS_TRACE_NATIVE_UI") )
             for( int i=0; i<app.entity_overlay_count; ++i )
             {

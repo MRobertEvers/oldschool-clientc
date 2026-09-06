@@ -82,7 +82,8 @@ enum ToriRS_WidgetEventType
     TORIRS_SCRIPT_POST_FIRED,
     TORIRS_SCRIPT_CALLBACK,
     TORIRS_WIDGET_BOUND,
-    TORIRS_WIDGET_UNBOUND
+    TORIRS_WIDGET_UNBOUND,
+    TORIRS_WIDGET_TREE_CHANGED
 };
 
 struct ToriRS_WidgetEvent
@@ -110,6 +111,7 @@ struct ToriRS_WidgetApi
 {
     void* context;
     enum ToriRS_ContractResult (*find)(void*, char const* role, struct ToriRS_WidgetRef*);
+    enum ToriRS_ContractResult (*find_all)(void*, char const* role, struct ToriRS_WidgetRef*, size_t capacity, size_t* count);
     enum ToriRS_ContractResult (*get_widget)(void*, int32_t component_id, struct ToriRS_WidgetRef*);
     enum ToriRS_ContractResult (*children)(void*, struct ToriRS_WidgetRef,
                                          struct ToriRS_WidgetRef*, size_t capacity, size_t* count);
@@ -119,6 +121,7 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*get_text)(void*, struct ToriRS_WidgetRef, char*, size_t capacity, size_t* required);
     enum ToriRS_ContractResult (*set_position)(void*, struct ToriRS_WidgetRef, int32_t x, int32_t y);
     enum ToriRS_ContractResult (*set_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
+    enum ToriRS_ContractResult (*set_hidden)(void*, struct ToriRS_WidgetRef, bool hidden);
     enum ToriRS_ContractResult (*revalidate)(void*, struct ToriRS_WidgetRef);
     enum ToriRS_ContractResult (*reset)(void*, struct ToriRS_WidgetRef);
     /* Keys are scoped to owner and parent; repeated create_text returns the
@@ -134,6 +137,10 @@ struct ToriRS_WidgetApi
      * for the old incarnation then BOUND for the new one. Hidden is still
      * bound. NULL listener unregisters this owner's subscription for the role. */
     enum ToriRS_ContractResult (*watch)(void*, char const* role, ToriRS_WidgetListener, void* user);
+    /* Initial notification and subsequent topology publications. Geometry or
+     * hiding alone do not trigger this. Event widget is empty; query live refs.
+     * A replacement subscription starts at the next publication fence. */
+    enum ToriRS_ContractResult (*watch_tree)(void*, ToriRS_WidgetListener, void* user);
 
 };
 
