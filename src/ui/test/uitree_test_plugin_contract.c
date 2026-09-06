@@ -242,3 +242,41 @@ void test_native_hook_slot_ownership(void)
     TEST_ASSERT(tree->dirty_gen == dirty, "identical hook binding is quiet");
     UITree_Free(tree);
 }
+
+void test_retained_operation_state(void)
+{
+    struct UITree* tree = UITree_New(4);
+    int node = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 0x330000, 0, 0, 30, 30);
+    UITree_ApplyOpBase(tree, 0x330000, "First target");
+    UITree_ApplyClickMask(tree, 0x330000, 2);
+    struct UIMinimenuPick pick = {.kind=UI_MINIMENU_PICK_UI, .id=0x330000};
+    UITree_StampMenuPick(tree, node, &pick);
+    UITree_SetPositionAt(tree, node, 50, 60);
+    UITree_SetColourAt(tree, node, 0x123456);
+    UITree_SetTransparencyAt(tree, node, 80);
+    TEST_ASSERT(UITree_MenuPickCurrent(tree, &pick), "geometry and skin changes preserve an operation");
+    UITree_ApplyRuntimeHook(tree, 0x330000, &UITree_HooksMut(&tree->components[node])->on_timer,
+                           999, NULL, 0, 0, NULL, 0);
+    TEST_ASSERT(UITree_MenuPickCurrent(tree, &pick), "unrelated timer changes preserve an operation");
+    UITree_ApplyOpBase(tree, 0x330000, "Other target");
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &pick), "retained menu rejects changed operation labels");
+    UITree_StampMenuPick(tree, node, &pick);
+    UITree_ApplyClickMask(tree, 0x330000, 4);
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &pick), "retained menu rejects changed operation masks");
+    UITree_StampMenuPick(tree, node, &pick);
+    UITree_ApplyRuntimeHook(tree, 0x330000, &UITree_HooksMut(&tree->components[node])->on_op,
+                           101, NULL, 0, 0, NULL, 0);
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &pick), "retained menu rejects changed action hooks");
+    UITree_StampMenuPick(tree, node, &pick);
+    UITree_ApplyComponentParam(tree, 0x330000, 2370, 7, NULL);
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &pick), "retained menu rejects changed native action data");
+    UITree_StampMenuPick(tree, node, &pick);
+    UITree_ApplyObject(tree, 0x330000, 995, 10, 1, 0, 0);
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &pick), "retained menu rejects changed item state");
+    int social = UITree_TestPushXy(tree, -1, UIELEM_RS_TEXT, 0x330001, 0, 0, 30, 30);
+    UITree_SetTextAt(tree, social, "First friend");
+    UITree_StampMenuPick(tree, social, &pick);
+    UITree_SetTextAt(tree, social, "Other friend");
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &pick), "retained menu rejects changed native text target");
+    UITree_Free(tree);
+}

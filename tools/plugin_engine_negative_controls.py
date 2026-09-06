@@ -108,6 +108,12 @@ def main():
                    if "ui/uitree.c " in line and " -o " in line)
     original = (src / "ui/uitree.c").read_text()
     controls = {
+        "operation_freshness": (
+            "(!pick->action_signature || pick->action_signature == UITree_ActionSignatureAt(tree, pick->node_index))",
+            "true", "retained menu rejects changed operation labels"),
+        "operation_text": (
+            "hash = action_hash_text(hash, c->u.rs_text.text);",
+            "(void)hash;", "retained menu rejects changed native text target"),
         "geometry_audit": ("if( current[i] != record->values[i] )", "if( false )",
                            "audit catches unclassified native position"),
         "global_identity": ("component->incarnation = atomic_fetch_add(&next_incarnation, 1);",

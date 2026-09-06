@@ -27467,10 +27467,10 @@ app_minimenu_stamp_node_identities(
         if( pick->id < 0 )
             continue;
         if( pick->kind == UI_MINIMENU_PICK_UI )
-            idx = app_displayable_component_node(app, pick->id);
+            idx = UITree_FindByComponentId(app->tree, pick->id);
         else if( pick->kind == UI_MINIMENU_PICK_INV_SLOT )
         {
-            int32_t parent = app_displayable_component_node(app, pick->id);
+            int32_t parent = UITree_FindByComponentId(app->tree, pick->id);
             if( parent >= 0 && app->tree->components[parent].type == UIELEM_RS_INV )
                 idx = parent;
             else
@@ -27480,9 +27480,11 @@ app_minimenu_stamp_node_identities(
         if( idx < 0 || (uint32_t)idx >= app->tree->component_count ||
             app->tree->components[idx].freed )
             continue;
-        pick->has_node_identity = 1;
-        pick->node_index = idx;
-        pick->node_incarnation = app->tree->components[idx].incarnation;
+        UITree_StampMenuPick(app->tree, idx, pick);
+        pick->has_native_events = 1;
+        pick->native_events = pick->kind == UI_MINIMENU_PICK_INV_SLOT
+            ? App_IfEventsGetAt(app, pick->id, pick->secondary_id)
+            : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
     }
 }
 
@@ -28551,10 +28553,7 @@ app_minimenu_ui_pick_live(
         return 1;
     if( pick->has_node_identity )
     {
-        if( pick->node_index < 0 ||
-            (uint32_t)pick->node_index >= app->tree->component_count ||
-            app->tree->components[pick->node_index].freed ||
-            app->tree->components[pick->node_index].incarnation != pick->node_incarnation )
+        if( !UITree_MenuPickCurrent(app->tree, pick) )
             return 0;
         /*
          * `pick->id` names the stamped node itself only for a UI pick.
@@ -28592,6 +28591,13 @@ app_minimenu_ui_pick_live(
         idx = app_displayable_component_node(app, pick->id);
         if( idx < 0 )
             return 0;
+    }
+    if( pick->has_native_events )
+    {
+        unsigned current = pick->kind == UI_MINIMENU_PICK_INV_SLOT
+            ? App_IfEventsGetAt(app, pick->id, pick->secondary_id)
+            : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
+        if( current != pick->native_events ) return 0;
     }
     /* A winning named ACTIONS facet retires the target's native rows without
      * pruning independent descendants. An already-open native menu therefore
@@ -28658,7 +28664,7 @@ app_minimenu_plugin_option_live(
         region->tag != (uint32_t)opt->pick.secondary_id ||
         (region->ui_bounded ? region->ui_boundary_node : -1) != opt->pick.tertiary_id ||
         (region->ui_bounded ? region->ui_boundary_incarnation : 0) !=
-            (uint32_t)opt->pick.quaternary_id )
+            opt->pick.ui_boundary_incarnation )
         return 0;
     return app_plugin_role_region_live(app, region);
 }

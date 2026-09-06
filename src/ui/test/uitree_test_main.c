@@ -5,6 +5,7 @@ void test_plugin_contract_native(void);
 void test_native_geometry_audit(void);
 void test_native_object_swap_state(void);
 void test_native_hook_slot_ownership(void);
+void test_retained_operation_state(void);
 void test_plugin_contract_copy(void);
 
 int g_failures;
@@ -18,6 +19,7 @@ main(void)
     test_native_geometry_audit();
     test_native_object_swap_state();
     test_native_hook_slot_ownership();
+    test_retained_operation_state();
         test_plugin_contract_copy();
         return g_failures ? 1 : 0;
     }
@@ -25,6 +27,7 @@ main(void)
     test_native_geometry_audit();
     test_native_object_swap_state();
     test_native_hook_slot_ownership();
+    test_retained_operation_state();
     test_plugin_contract_copy();
     test_dirty_marking();
     test_walk_topology();

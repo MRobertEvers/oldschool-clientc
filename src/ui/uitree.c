@@ -2,6 +2,7 @@
 
 #include "uitree_frame.h"
 #include "uitree_input.h"
+#include "uitree_minimenu.h"
 
 #include "perf/torirs_perf.h"
 #include "uitree_layout.h"
@@ -3864,6 +3865,126 @@ UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref)
         return -1;
     struct UITreeComponent const* c = &tree->components[ref.index];
     return !c->freed && c->incarnation == ref.incarnation ? ref.index : -1;
+}
+
+static uint64_t
+action_hash_int(uint64_t hash, uint64_t value)
+{
+    for( int i = 0; i < 8; ++i )
+    {
+        hash = (hash ^ (uint8_t)value) * UINT64_C(1099511628211);
+        value >>= 8;
+    }
+    return hash;
+}
+
+static uint64_t
+action_hash_text(uint64_t hash, char const* text)
+{
+    if( text )
+        for( unsigned char const* p = (unsigned char const*)text; *p; ++p )
+            hash = (hash ^ *p) * UINT64_C(1099511628211);
+    return hash * UINT64_C(1099511628211); /* delimiter */
+}
+
+static uint64_t
+action_hash_hook(uint64_t hash, struct UITreeRuntimeScriptHook const* hook)
+{
+    hash = action_hash_int(hash, hook->script_id > 0 ? hook->script_id : 0);
+    if( hook->script_id <= 0 ) return hash;
+    hash = action_hash_int(hash, hook->argc);
+    hash = action_hash_int(hash, hook->str_argc);
+    hash = action_hash_int(hash, hook->str_mask);
+    for( int i = 0; i < hook->argc; ++i )
+        if( !(hook->str_mask & (UINT64_C(1) << i)) )
+            hash = action_hash_int(hash, UITree_HookArg(hook, i));
+    for( int i = 0; i < hook->str_argc; ++i )
+        hash = action_hash_text(hash, UITree_HookStr(hook, i));
+    return hash;
+}
+
+uint64_t
+UITree_ActionSignatureAt(struct UITree const* tree, int32_t idx)
+{
+    struct UITreeNodeRef ref = UITree_RefAt(tree, idx);
+    if( !ref.incarnation ) return 0;
+    struct UITreeComponent const* c = &tree->components[idx];
+    struct UITreeMenuOptions const* options = UITree_MenuOptions(c);
+    struct UITreeRuntimeHooks const* hooks = UITree_Hooks(c);
+    uint64_t hash = UINT64_C(14695981039346656037);
+#define ACTION_FIELD(field) hash = action_hash_int(hash, (uint64_t)c->field)
+    ACTION_FIELD(incarnation); ACTION_FIELD(type); ACTION_FIELD(if3);
+    ACTION_FIELD(behavior.button_type); ACTION_FIELD(behavior.client_code);
+    ACTION_FIELD(behavior.click_mask); ACTION_FIELD(behavior.target_mask);
+    ACTION_FIELD(target_priority); ACTION_FIELD(force_left_click);
+    ACTION_FIELD(item_id); ACTION_FIELD(item_count);
+#undef ACTION_FIELD
+    hash = action_hash_text(hash, c->data_text);
+    /* Native social rows and server-armed continue prompts derive their
+     * action label/target from the text, even without an explicit opbase. */
+    if( c->type == UIELEM_RS_TEXT )
+        hash = action_hash_text(hash, c->u.rs_text.text);
+    hash = action_hash_text(hash, options->option);
+    hash = action_hash_text(hash, options->target_verb);
+    hash = action_hash_text(hash, options->target_base);
+    hash = action_hash_int(hash, options->option_action);
+    for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; ++i )
+    {
+        hash = action_hash_text(hash, options->ops[i]);
+        hash = action_hash_int(hash, options->op_actions[i]);
+    }
+    if( options->submenus )
+        for( int op = 1; op <= UITREE_SUBMENU_OP_SLOTS; ++op )
+            for( int entry = 1; entry <= UITREE_SUBMENU_ENTRY_SLOTS; ++entry )
+            {
+                char const* text = UITree_MenuSubmenuEntry(options, op, entry);
+                if( !text[0] ) continue;
+                hash = action_hash_int(hash, (uint64_t)(op * 256 + entry));
+                hash = action_hash_text(hash, text);
+            }
+    hash = action_hash_int(hash, 0);
+    hash = action_hash_hook(hash, &hooks->on_op);
+    hash = action_hash_hook(hash, &hooks->on_click);
+    hash = action_hash_hook(hash, &hooks->on_target_enter);
+    hash = action_hash_hook(hash, &hooks->on_target_leave);
+    hash = action_hash_int(hash, c->params_count);
+    for( int i = 0; i < c->params_count; ++i )
+    {
+        hash = action_hash_int(hash, c->params[i].id);
+        hash = action_hash_int(hash, c->params[i].str != NULL);
+        if( c->params[i].str ) hash = action_hash_text(hash, c->params[i].str);
+        else hash = action_hash_int(hash, c->params[i].value);
+    }
+    if( c->type == UIELEM_RS_INV )
+    {
+        hash = action_hash_int(hash, c->u.rs_inv.inv_source_id);
+        hash = action_hash_int(hash, c->u.rs_inv.obj_ops);
+        hash = action_hash_int(hash, c->u.rs_inv.obj_use);
+    }
+    else if( c->type == UIELEM_RS_INV_TEXT ) hash = action_hash_int(hash, c->u.rs_inv_text.inv_source_id);
+    else if( c->type == UIELEM_BUILTIN_SIDEBAR ) hash = action_hash_int(hash, c->u.sidebar.inv_source_id);
+    return hash ? hash : 1;
+}
+
+void
+UITree_StampMenuPick(struct UITree const* tree, int32_t idx, struct UIMinimenuPick* pick)
+{
+    struct UITreeNodeRef ref = UITree_RefAt(tree, idx);
+    if( !ref.incarnation ) return;
+    pick->has_node_identity = 1;
+    pick->node_index = idx;
+    pick->node_incarnation = ref.incarnation;
+    pick->action_signature = UITree_ActionSignatureAt(tree, idx);
+}
+
+bool
+UITree_MenuPickCurrent(struct UITree const* tree, struct UIMinimenuPick const* pick)
+{
+    if( !pick->has_node_identity ) return true;
+    return tree && pick->node_index >= 0 && (uint32_t)pick->node_index < tree->component_count &&
+        !tree->components[pick->node_index].freed &&
+        tree->components[pick->node_index].incarnation == pick->node_incarnation &&
+        (!pick->action_signature || pick->action_signature == UITree_ActionSignatureAt(tree, pick->node_index));
 }
 
 bool

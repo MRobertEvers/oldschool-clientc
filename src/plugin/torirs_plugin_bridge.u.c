@@ -5371,8 +5371,8 @@ app_plugin_menu_build(
                 pick.id = region->plugin;
                 pick.secondary_id = (int)region->tag;
                 pick.tertiary_id = region->ui_bounded ? region->ui_boundary_node : -1;
-                pick.quaternary_id =
-                    region->ui_bounded ? (int)region->ui_boundary_incarnation : 0;
+                pick.ui_boundary_incarnation =
+                    region->ui_bounded ? region->ui_boundary_incarnation : 0;
                 /* Last op first: rows draw bottom-to-top, so adding in reverse puts
                  * op 0 on top -- the same order add_menu_ops_rows walks a component's
                  * own verbs in, and the reason op 1 is the one beside Cancel. */

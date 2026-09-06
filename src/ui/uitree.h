@@ -2094,6 +2094,11 @@ bool UITree_StageDragPickup(struct UITree* tree, int32_t index, int x, int y);
 void UITree_GeometryAuditEnable(struct UITree* tree);
 bool UITree_GeometryAuditCheck(struct UITree const* tree, char const* where);
 
+struct UIMinimenuPick;
+uint64_t UITree_ActionSignatureAt(struct UITree const* tree, int32_t idx);
+void UITree_StampMenuPick(struct UITree const* tree, int32_t idx, struct UIMinimenuPick* pick);
+bool UITree_MenuPickCurrent(struct UITree const* tree, struct UIMinimenuPick const* pick);
+
 struct UITreeNodeRef UITree_RefAt(struct UITree const* tree, int32_t index);
 int32_t UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref);
 
