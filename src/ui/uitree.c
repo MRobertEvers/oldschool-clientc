@@ -19,8 +19,12 @@ struct UITreeWidgetGeometry
 {
     struct UITreeWidgetGeometry* next;
     uint64_t owner, position_serial, size_serial, hidden_serial;
+    uint64_t projection_serial;
+    uint64_t outline_serial;
+    int projection_height;
     int x, y, width, height;
     bool hidden;
+    bool outline;
 };
 static uint64_t widget_geometry_serial;
 
@@ -4072,9 +4076,15 @@ static void uitree_widget_refresh_hidden(struct UITree* tree,int32_t idx)
     for( struct UITreeWidgetGeometry const* e=c->widget_geometry;e;e=e->next )
         if( e->hidden_serial && (!last || e->hidden_serial>last->hidden_serial) ) last=e;
     bool hidden=last && last->hidden;
-    if( c->widget_hidden==hidden ) return;
+    last=NULL;
+    for( struct UITreeWidgetGeometry const* e=c->widget_geometry;e;e=e->next )
+        if( e->outline_serial && (!last || e->outline_serial>last->outline_serial) ) last=e;
+    bool outline=last && last->outline;
+    if( c->widget_hidden==hidden && c->widget_text_outline==outline ) return;
+    bool visibility_changed=c->widget_hidden!=hidden;
     c->widget_hidden=hidden;
-    uitree_note_mutation(tree,idx,UITREE_IMPACT_EMIT_SELF|UITREE_IMPACT_REACHABILITY);
+    c->widget_text_outline=outline;
+    uitree_note_mutation(tree,idx,UITREE_IMPACT_EMIT_SELF|(visibility_changed ? UITREE_IMPACT_REACHABILITY : 0));
 }
 
 bool UITree_WidgetSetHidden(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,bool hidden)
@@ -4110,6 +4120,42 @@ bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t 
         link = &edit->next;
     }
     return true;
+}
+
+bool UITree_WidgetSetTextOutline(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,bool outline)
+{
+    int32_t idx=UITree_ResolveRef(tree,ref);
+    if( idx<0 || !owner || widget_geometry_serial==UINT64_MAX ) return false;
+    struct UITreeComponent* c=&tree->components[idx];
+    if( c->type!=UIELEM_RS_TEXT || (c->plugin_owner && c->plugin_owner!=owner) ) return false;
+    struct UITreeWidgetGeometry* edit=uitree_widget_geometry(c,owner);
+    if( !edit ) return false;
+    edit->outline=outline;edit->outline_serial=++widget_geometry_serial;
+    uitree_widget_refresh_hidden(tree,idx);
+    return true;
+}
+
+bool UITree_WidgetSetProjectionHeight(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,int height)
+{
+    int32_t idx=UITree_ResolveRef(tree,ref);
+    if( idx<0 || !owner || height<0 || height>32767 || widget_geometry_serial==UINT64_MAX ) return false;
+    struct UITreeComponent* c=&tree->components[idx];
+    if( tree->entity_overlay_index<0 || c->type!=UIELEM_RS_LAYER || c->parent!=tree->entity_overlay_index ||
+        (c->plugin_owner && c->plugin_owner!=owner) ) return false;
+    struct UITreeWidgetGeometry* edit=uitree_widget_geometry(c,owner);
+    if( !edit ) return false;
+    edit->projection_height=height;edit->projection_serial=++widget_geometry_serial;
+    uitree_note_mutation(tree,idx,UITREE_IMPACT_EMIT_SELF|UITREE_IMPACT_REACHABILITY);
+    return true;
+}
+
+int UITree_WidgetProjectionHeight(struct UITree const* tree,int32_t idx)
+{
+    if( !tree || idx<0 || (uint32_t)idx>=tree->component_count ) return 0;
+    struct UITreeWidgetGeometry const* last=NULL;
+    for( struct UITreeWidgetGeometry const* e=tree->components[idx].widget_geometry;e;e=e->next )
+        if( e->projection_serial && (!last || e->projection_serial>last->projection_serial) ) last=e;
+    return last ? last->projection_height : 0;
 }
 
 int32_t UITree_WidgetCreateText(struct UITree* tree, struct UITreeNodeRef parent, uint64_t owner,

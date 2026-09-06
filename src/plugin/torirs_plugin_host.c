@@ -10485,7 +10485,7 @@ void PluginHost_ScriptCallback(struct ToriRS_PluginHost* host,char const* name,i
     while( !atomic_compare_exchange_weak(&serial,&previous,previous+1) );
     host->script_ref.token=previous+1;
     host->script_stack=stack;
-    struct ToriRS_ScriptEvent event={.name=name,.script_id=script_id,.ref=host->script_ref};
+    struct ToriRS_ScriptEvent event={.name=name,.script_id=script_id,.ref=host->script_ref,.widget=stack->widget};
     plugin_dispatch(host,PLUGIN_CALLBACK_SCRIPT_CALLBACK,&event);
     host->script_stack=NULL;
     host->script_ref.token=0;

@@ -149,7 +149,7 @@
       "kind": "Lua",
       "disposition": "PORT",
       "verified_revisions": [],
-      "port_status": "native caption callback removes edit-control collision and preserves Ignore/Highlight feedback; custom height/gap/outline and multi-row parity remain open",
+      "port_status": "native caption controls and custom height/gap/outline implemented; full filtering/order, timer combinations and release acceptance remain open",
       "screenshots": [
         {
           "capture": "/private/tmp/plugin-engine-evidence/ground-text-osrs/m01",
@@ -186,6 +186,34 @@
         {
           "capture": "/private/tmp/plugin-engine-evidence/callback-ignore-refreshed/m01",
           "scope": "native callback checkpoint; full settings/layout parity remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-multi-gap15/m01",
+          "scope": "native layout settings checkpoint; full product acceptance remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-multi-gap30/m01",
+          "scope": "native layout settings checkpoint; full product acceptance remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-layout-height-outline/m01",
+          "scope": "native layout settings checkpoint; full product acceptance remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-layout-reset/m01",
+          "scope": "native layout settings checkpoint; full product acceptance remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-layout-camera/m01",
+          "scope": "native layout settings checkpoint; full product acceptance remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-layout-remount/m01",
+          "scope": "native layout settings checkpoint; full product acceptance remains open"
+        },
+        {
+          "capture": "/private/tmp/plugin-engine-evidence/ground-layout-rs289/r01",
+          "scope": "native layout settings checkpoint; full product acceptance remains open"
         }
       ]
     },

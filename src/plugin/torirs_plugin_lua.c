@@ -1034,6 +1034,24 @@ static int lua_widget_collection(lua_State* L, bool all)
 }
 static int lua_widget_children(lua_State* L) { return lua_widget_collection(L,false); }
 static int lua_widget_find_all(lua_State* L) { return lua_widget_collection(L,true); }
+static int lua_widget_parent(lua_State* L)
+{
+    struct ToriRS_WidgetApi* api=&lua_current_api(L)->widgets;struct ToriRS_WidgetRef out;
+    if( api->parent(api->context,lua_widget_arg(L),&out)!=TORIRS_CONTRACT_OK ) { lua_pushnil(L);return 1; }
+    lua_push_widget(L,out);return 1;
+}
+static int lua_widget_projection_height(lua_State* L)
+{
+    struct ToriRS_WidgetApi* api=&lua_current_api(L)->widgets;
+    lua_Integer height=luaL_checkinteger(L,2);
+    if( height<0 || height>32767 ) return luaL_argerror(L,2,"projection height out of range");
+    return lua_widget_result(L,api->set_projection_height(api->context,lua_widget_arg(L),(int32_t)height));
+}
+static int lua_widget_text_outline(lua_State* L)
+{
+    struct ToriRS_WidgetApi* api=&lua_current_api(L)->widgets;luaL_checktype(L,2,LUA_TBOOLEAN);
+    return lua_widget_result(L,api->set_text_outline(api->context,lua_widget_arg(L),lua_toboolean(L,2)));
+}
 static int lua_widget_set_hidden(lua_State* L)
 {
     struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
@@ -1163,7 +1181,7 @@ static struct LuaFn const LUA_WIDGET_FNS[] = {
 static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"position",lua_widget_position},{"bounds",lua_widget_bounds},
     {"children",lua_widget_children},{"text",lua_widget_text},
-    {"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
+    {"set_text_outline",lua_widget_text_outline},{"parent",lua_widget_parent},{"set_projection_height",lua_widget_projection_height},{"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
     {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},
     {"create_text",lua_widget_create_text},{"set_text",lua_widget_set_text},
     {"set_text_color",lua_widget_set_text_color},{"set_text_align",lua_widget_set_text_align},{"remove",lua_widget_remove},{NULL,NULL}
@@ -1982,6 +2000,7 @@ static void lua_cb_script(struct ToriRS_Api* api,void* state,struct ToriRS_Scrip
     lua_createtable(L,0,3);
     lua_pushstring(L,event->name);lua_setfield(L,-2,"name");
     lua_pushinteger(L,event->script_id);lua_setfield(L,-2,"script_id");
+    if( event->widget.opaque[2] ) { lua_push_widget(L,event->widget);lua_setfield(L,-2,"widget"); }
     struct ToriRS_ScriptRef* ref=lua_newuserdatauv(L,sizeof(*ref),0);*ref=event->ref;
     luaL_newmetatable(L,LUA_SCRIPT_REF_MT);lua_setmetatable(L,-2);lua_setfield(L,-2,"ref");
     lua_call_end(script,LUA_ON_SCRIPT_CALLBACK,2,false);

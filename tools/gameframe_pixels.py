@@ -232,11 +232,21 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None):
     width, height, rows = read_bmp(path)
     failures = []
     if native_caption:
         check_native_caption(rows,Path(bounds_path).read_text() if bounds_path else "",native_caption,failures)
+    if ground_row_gap is not None:
+        log=Path(bounds_path).read_text() if bounds_path else ""
+        groups={}
+        for root,y in re.findall(r"NATIVE_GROUND_CAPTION root=(\d+) node=\d+ painted=[1-9]\d* box=-?\d+,(-?\d+),\d+,\d+ color=[0-9a-f]+ len=[1-9]\d* hash=",log):
+            groups.setdefault(root,[]).append(int(y))
+        piles=[sorted(values) for values in groups.values() if len(values)>1]
+        valid=bool(piles) and all(all(b-a==ground_row_gap for a,b in zip(ys,ys[1:])) for ys in piles)
+        print(f"PIXEL native_ground_row_gap={'PASS' if valid else 'FAIL'} expected={ground_row_gap} piles={piles}")
+        if not valid: failures.append("native_ground_row_gap")
+
     if overlay_text:
         check_overlay_text(rows,Path(bounds_path).read_text() if bounds_path else "",overlay_text,failures)
     if native_ground_labels:
@@ -442,10 +452,11 @@ if __name__ == "__main__":
     parser.add_argument("--overlay-text",action="append",help="require a single non-shadow overlay label and matching ink")
     parser.add_argument("--native-ground-labels",choices=("hidden","shown"))
     parser.add_argument("--native-caption")
+    parser.add_argument("--ground-row-gap",type=int)
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

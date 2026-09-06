@@ -372,6 +372,17 @@ void test_live_widget_visibility(void)
     int own=UITree_WidgetCreateText(tree,ref,10,"owned",0);
     TEST_ASSERT(own>=0 && !UITree_WidgetSetHidden(tree,UITree_RefAt(tree,own),20,true),
         "another plugin cannot hide an owned widget");
+    struct UITreeNodeRef own_ref=UITree_RefAt(tree,own);
+    UITree_SetTextAt(tree,own,"outlined");
+    tree->components[own].u.rs_text.shadowed=1;
+    TEST_ASSERT(UITree_WidgetSetTextOutline(tree,own_ref,10,true),"owner can outline its text");
+    struct UITreeEmitDesc text_desc;
+    TEST_ASSERT(UITree_EmitFill(tree,&host,&tree->components[own],own,-1,&text_desc) &&
+        text_desc.text_shadowed==2,"outline style reaches the native text descriptor");
+    TEST_ASSERT(!UITree_WidgetSetTextOutline(tree,own_ref,20,false),"another owner cannot change text presentation");
+    UITree_WidgetReset(tree,own_ref,10);
+    TEST_ASSERT(UITree_EmitFill(tree,&host,&tree->components[own],own,-1,&text_desc) &&
+        text_desc.text_shadowed==1,"outline reset restores the current native shadow style");
     UITree_EmitBufferFree(&emit);UITree_Free(tree);
     tree=UITree_New(8);
     UITree_TestPushXy(tree,-1,UIELEM_RS_LAYER,0x360000,0,0,300,200);

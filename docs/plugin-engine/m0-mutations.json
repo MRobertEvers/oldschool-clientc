@@ -29368,5 +29368,37 @@
       "callback-ignore-refreshed"
     ],
     "remaining": "additional hook producers, scheduling/pre/post events, full Ground Items layout/settings parity"
+  },
+  "plugin_caption_layout": {
+    "producers": [
+      "UITree_WidgetSetProjectionHeight",
+      "UITree_WidgetSetTextOutline",
+      "UITree_WidgetReset",
+      "UITree_WidgetResetOwner",
+      "groundItemCaption native hook row-offset output"
+    ],
+    "readers": [
+      "app_overlay_anchor",
+      "app_entity_overlay_layout",
+      "uitree_emit text descriptor",
+      "native CS2 row/control layout"
+    ],
+    "scope": "checked native physical parent; overlay root projection and text-only outline; no topology changes",
+    "ownership": "last setter per property; foreign owned widgets denied; reset exposes remaining owner or native/default",
+    "invalidation": "projection: EMIT_SELF and REACHABILITY; outline: EMIT_SELF only; explicit native revalidation after forced size",
+    "tests": [
+      "test_scripted_entity_overlay",
+      "test_live_widget_visibility",
+      "test-font-markup",
+      "test-plugin-lua",
+      "projection-height-negative-v2",
+      "ground-multi-gap15",
+      "ground-multi-gap30",
+      "ground-layout-reset",
+      "ground-layout-camera",
+      "ground-layout-remount",
+      "ground-layout-rs289"
+    ],
+    "remaining": "full filtering/order and auxiliary-control/timer combinations; frontend rendering coverage"
   }
 }

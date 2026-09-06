@@ -432,7 +432,7 @@ UITree_EmitFill(
         out->text_center = component->u.rs_text.center;
         out->text_y_align = component->u.rs_text.y_align;
         out->text_baseline = component->u.rs_text.baseline;
-        out->text_shadowed = component->u.rs_text.shadowed;
+        out->text_shadowed = component->widget_text_outline ? 2 : component->u.rs_text.shadowed;
         out->text_line_height = component->u.rs_text.line_height;
         if( focused_input )
         {

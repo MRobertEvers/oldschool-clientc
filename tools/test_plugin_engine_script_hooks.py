@@ -22,7 +22,7 @@ class NativeHookTests(unittest.TestCase):
         self.assertEqual(hooks.encode(before),self.raw)
         self.assertEqual(hooks.encode(after),output)
         delta=len(after['ops'])-len(before['ops'])
-        self.assertEqual(delta,28)
+        self.assertEqual(delta,39)
         at=self.spec['before_pc']
         for pc,(opcode,operand) in enumerate(before['ops']):
             new_pc=pc+(delta if pc>=at else 0)

@@ -3561,6 +3561,24 @@ static enum ToriRS_ContractResult widget_set_hidden(void* u,struct ToriRS_Widget
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_HIDDEN,.ref=ref,.a=hidden};
     return plugin_widget_request(u,&r);
 }
+static enum ToriRS_ContractResult widget_text_outline(void* u,struct ToriRS_WidgetRef ref,bool outline)
+{
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_OUTLINE,.ref=ref,.a=outline};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_parent(void* u,struct ToriRS_WidgetRef ref,struct ToriRS_WidgetRef* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=(struct ToriRS_WidgetRef){{0}};
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_PARENT,.ref=ref,.refs=out};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_projection_height(void* u,struct ToriRS_WidgetRef ref,int32_t height)
+{
+    if( height<0 || height>32767 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_PROJECTION_HEIGHT,.ref=ref,.a=height};
+    return plugin_widget_request(u,&r);
+}
 static enum ToriRS_ContractResult widget_bounds(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
 {
     if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
@@ -3752,6 +3770,7 @@ v2_runtime_init(
         .widgets = {
             .context = runtime, .find = widget_find, .get_widget = widget_get,
             .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
+            .parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,

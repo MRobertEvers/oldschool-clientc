@@ -3066,12 +3066,12 @@ endif
 # Font markup grammar + the rules it strokes (<str>, <u>), rasterised into a
 # plain buffer with the baked font. Pixel-level, but needs no cache and no
 # renderer â ToriDraw2D_DrawString writes the buffer itself.
-test-font-markup: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+test-font-markup: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/font_markup_test \
 		ui/test/font_markup_test.c engine/torirs_debug_font_baked.c \
 		$(BMP_DIR)/bmp.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) -lm
-	./$(OBJ_DIR)/font_markup_test
+	$(UITREE_TEST_ENV) ./$(OBJ_DIR)/font_markup_test
 
 # Debug-overlay raster tests: display list -> emit desc -> ToriRS_Frame -> Soft3D,
 # with the *baked* fonts, one BMP per feature into build/. This is the only test

@@ -1302,6 +1302,7 @@ app_plugin_frame_work_us(void* user)
 }
 
 #include "plugin/native_script_hooks.gen.h"
+static struct ToriRS_WidgetRef app_widget_ref(struct UITree const*,int32_t);
 static void app_script_hash_word(uint64_t* hash,uint32_t value)
 {
     for( int i=0;i<4;++i ) { *hash=(*hash^(value&255))*UINT64_C(1099511628211);value>>=8; }
@@ -1372,6 +1373,7 @@ static void app_script_callback(void* user,struct CS2VM2_Thread* thread,char con
         .int_count=TORIRS_GROUND_CAPTION_INTS,.string_count=1,.writable_ints=TORIRS_GROUND_CAPTION_WRITE_INTS,.writable_strings=1,
         .get_int=app_script_get_int,.set_int=app_script_set_int,
         .get_string=app_script_get_string,.set_string=app_script_set_string};
+    stack.widget=app_widget_ref(app->tree,app->tree ? UITree_FindByComponentId(app->tree,thread->active_component_id) : -1);
     PluginHost_ScriptCallback(app->plugins,name,CS2VM_FRAME(thread)->script->script_id,&stack);
 }
 
@@ -4247,6 +4249,16 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         return TORIRS_CONTRACT_NATIVE_BLOCKED;
     switch( r->kind )
     {
+    case PLUGIN_WIDGET_PARENT:
+        *r->refs=app_widget_ref(tree,c->parent);
+        return r->refs->opaque[2] ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_UNAVAILABLE;
+    case PLUGIN_WIDGET_PROJECTION_HEIGHT:
+        if( tree->entity_overlay_index<0 || c->parent!=tree->entity_overlay_index || c->type!=UIELEM_RS_LAYER ) return TORIRS_CONTRACT_UNSUPPORTED_LAYOUT;
+        if( !UITree_WidgetSetProjectionHeight(tree,ref,owner,r->a) ) return TORIRS_CONTRACT_FAILED;
+        break;
+    case PLUGIN_WIDGET_TEXT_OUTLINE:
+        if( !UITree_WidgetSetTextOutline(tree,ref,owner,r->a!=0) ) return TORIRS_CONTRACT_FAILED;
+        break;
     case PLUGIN_WIDGET_HIDDEN:
         if( !UITree_WidgetSetHidden(tree,ref,owner,r->a!=0) ) return TORIRS_CONTRACT_FAILED;
         break;

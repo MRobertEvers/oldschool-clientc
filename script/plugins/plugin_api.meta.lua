@@ -583,11 +583,14 @@ warn = nil
 ---@field create_text fun(self:torirs.Widget,key:string):torirs.Widget? Creates or returns this owner's child.
 ---@field set_text fun(self:torirs.Widget,text:string):boolean,string Owned text only.
 ---@field set_text_color fun(self:torirs.Widget,color:torirs.Colour):boolean,string Owned text only.
+---@field set_text_outline fun(self:torirs.Widget,outline:boolean):boolean,string Native or owned text; false resumes native shadow style.
 ---@field set_text_align fun(self:torirs.Widget,horizontal:integer,vertical:integer):boolean,string 0=start, 1=center, 2=end; owned text only.
 ---@field remove fun(self:torirs.Widget):boolean,string Removes only this owner's widget.
 ---@field position fun(self:torirs.Widget):torirs.Rect? Native-parent-local, unscrolled geometry.
 ---@field bounds fun(self:torirs.Widget):torirs.Rect? Drawn canvas geometry, including scroll/drag.
 ---@field children fun(self:torirs.Widget):torirs.Widget[]?
+---@field parent fun(self:torirs.Widget):torirs.Widget? Native parent; not a presentation reparent.
+---@field set_projection_height fun(self:torirs.Widget,height:integer):boolean,string World-unit lift for an anchored overlay layer; camera projection stays native.
 ---@field text fun(self:torirs.Widget):string? Current native text input.
 ---@field set_position fun(self:torirs.Widget,x:integer,y:integer):boolean,string
 ---@field set_size fun(self:torirs.Widget,width:integer,height:integer):boolean,string
@@ -611,6 +614,7 @@ warn = nil
 ---@class torirs.ScriptEvent
 ---@field name string
 ---@field script_id integer
+---@field widget? torirs.Widget The live widget at an approved hook site.
 ---@field ref torirs.ScriptRef Valid only during this synchronous callback.
 ---@class torirs.ScriptsApi
 ---@field available fun():boolean False on CS1/revconfig adapters.

@@ -508,7 +508,7 @@ function plugin.on_script_callback(api, event)
     if event.name ~= "groundItemCaption" then return end
     local ref = event.ref
     local ints, strings = api.scripts.counts(ref)
-    assert(ints == 8 and strings == 1, "native caption hook contract mismatch")
+    assert(ints == 11 and strings == 1, "native caption hook contract mismatch")
     if not native_captions then
         native_captions = true
         assert(api.widgets.watch_tree(nil))
@@ -519,10 +519,21 @@ function plugin.on_script_callback(api, event)
     end
     local native_ignore = api.scripts.get_int(ref, 0) == 1
     local native_high = api.scripts.get_int(ref, 1) == 1
-    local edit = api.scripts.get_int(ref, 2) == 1
-    local count = api.scripts.get_int(ref, 5)
-    local id = api.scripts.get_int(ref, 6)
-    local coord = api.scripts.get_int(ref, 7)
+    local edit = api.scripts.get_int(ref, 5) == 1
+    local count = api.scripts.get_int(ref, 8)
+    local id = api.scripts.get_int(ref, 9)
+    local coord = api.scripts.get_int(ref, 10)
+    local rows = api.scripts.get_int(ref, 3)
+    local row = api.scripts.get_int(ref, 4)
+    assert(api.scripts.set_int(ref, 2, (rows - row - 1) * api.config.line_gap))
+    if event.widget then assert(event.widget:set_text_outline(api.config.text_outline)) end
+    local parent = event.widget and event.widget:parent()
+    if parent then
+        local box = assert(parent:position())
+        assert(parent:set_size(box.width, rows * api.config.line_gap))
+        assert(parent:set_projection_height(api.config.height))
+        assert(parent:revalidate())
+    end
     local info = api.game.item_info(id)
     if not info or count < 1 then return end
     local obj = {obj_id=id, name=info.name, count=count, cost=info.cost}
@@ -538,7 +549,7 @@ function plugin.on_script_callback(api, event)
         math.abs((coord & 16383) - me.true_z) <= range and
         (edit or reveal_held(api) or high or (not hide and not api.config.show_highlighted_only))
     assert(api.scripts.set_string(ref, 0, visible and label_for(api, obj, exchange, alch) or ""))
-    assert(api.scripts.set_int(ref, 3, high or hide or api.config.default_color))
+    assert(api.scripts.set_int(ref, 6, high or hide or api.config.default_color))
 end
 
 --

@@ -18,11 +18,14 @@
     6,
     7,
     8,
-    10
+    10,
+    2,
+    4,
+    13
   ],
   "color_local": 8,
   "string_local": 0,
-  "int_writable_mask": 8,
+  "int_writable_mask": 68,
   "string_writable_mask": 1,
   "highlight_helper": {
     "script_id": 7225,
@@ -35,5 +38,9 @@
       0,
       0
     ]
-  }
+  },
+  "output_locals": [
+    8,
+    13
+  ]
 }

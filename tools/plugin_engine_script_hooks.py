@@ -129,9 +129,12 @@ def patch(data, spec):
     added = [(33,i) for i in spec['int_locals']] + [
         (0,4),(33,5),(0,1),(40,spec['highlight_helper']['script_id']),
         (0,3),(33,5),(0,1),(40,spec['highlight_helper']['script_id']),
-        (3,spec['name'].encode()),(6599,0),(38,0),(38,0),
-        (38,0),(34,spec['color_local'])] + [(38,0)]*(len(spec['int_locals'])-2) + [
-        (36,spec['string_local']),(33,spec['color_local']),(1101,0),(35,spec['string_local'])]
+        (3,spec['name'].encode()),(6599,0),(38,0),(38,0)]
+    outputs=set(spec['output_locals'])
+    for local in reversed(spec['int_locals']):
+        added.append((34,local) if local in outputs else (38,0))
+    added += [(36,spec['string_local']),(33,spec['color_local']),(1101,0),
+        (0,0),(33,13),(0,1),(0,2),(1000,0),(35,spec['string_local'])]
     def target(pc): return pc+len(added) if pc>at else pc
     new_ops=[]
     switch_uses={}

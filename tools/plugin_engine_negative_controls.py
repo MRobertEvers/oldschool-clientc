@@ -227,6 +227,9 @@ def main():
         "widget_visibility": (
             "c->widget_hidden=hidden;", "c->widget_hidden=false;",
             "hidden widget descendants reject input and native operations"),
+        "projection_height": (
+            "return last ? last->projection_height : 0;", "return 0;",
+            "live overlay accepts world projection height"),
         "owned_child_keys": (
             "if( child->plugin_owner ) return -1;", "if( false ) return -1;",
             "owned widgets do not pollute native child keys"),

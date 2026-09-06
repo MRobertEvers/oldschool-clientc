@@ -73,11 +73,11 @@ return {id='ground-behavior',on_start=function(host)
         'Hide resumes the original wildcard rule without duplicate entries')
     -- Native formatter gets a declared argument window. Native edit controls
     -- must still expose ignored items and reflect native highlight/ignore state.
-    local values={[0]=0,0,1,0,39000,1,1127,(3210<<14)|3424}
-    local caption,color,invalidations=nil,nil,0
-    api.scripts.counts=function() return 8,1 end
+    local values={[0]=0,0,0,1,0,1,0,39000,1,1127,(3210<<14)|3424}
+    local caption,color,invalidations,offset=nil,nil,0,nil
+    api.scripts.counts=function() return 11,1 end
     api.scripts.get_int=function(ref,index) return values[index] end
-    api.scripts.set_int=function(ref,index,value) assert(index==3);color=value;return true end
+    api.scripts.set_int=function(ref,index,value) if index==6 then color=value else assert(index==2);offset=value end;return true end
     api.scripts.set_string=function(ref,index,value) assert(index==0);caption=value;return true end
     api.scripts.invalidate=function(name) assert(name=='groundItemCaption');invalidations=invalidations+1;return true end
     api.game.item_info=function() return {name='Rune platebody',cost=65000} end
@@ -91,6 +91,16 @@ return {id='ground-behavior',on_start=function(host)
     values[1]=1
     product.on_script_callback(api,{name='groundItemCaption',ref={}})
     assert(color==config.highlighted_color, 'native Highlight keeps priority over native Ignore')
+    local width,height,lift,outlined
+    local parent={position=function() return {width=458,height=34} end,
+        set_size=function(self,w,h) width=w;height=h;return true end,
+        set_projection_height=function(self,h) lift=h;return true end,revalidate=function() return true end}
+    local widget={parent=function() return parent end,
+        set_text_outline=function(self,value) outlined=value;return true end}
+    config.height=160;config.line_gap=30;config.text_outline=true;values[3]=2;values[4]=0
+    product.on_script_callback(api,{name='groundItemCaption',ref={},widget=widget})
+    assert(width==458 and height==60 and lift==160 and outlined and offset==30,
+        'native callback applies projection height, gap and outline through live widgets')
     product.on_config_changed(api,'price_mode')
     product.on_stop(api)
     assert(invalidations==2, 'configuration and disable refresh current native caption results')

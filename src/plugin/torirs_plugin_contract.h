@@ -18,6 +18,7 @@ struct ToriRS_ScriptEvent
     char const* name; /* borrowed during this callback */
     int32_t script_id;
     struct ToriRS_ScriptRef ref;
+    struct ToriRS_WidgetRef widget; /* Optional live widget at the approved hook site. */
 };
 struct ToriRS_WidgetActionRef
 {
@@ -137,6 +138,7 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*get_widget)(void*, int32_t component_id, struct ToriRS_WidgetRef*);
     enum ToriRS_ContractResult (*children)(void*, struct ToriRS_WidgetRef,
                                          struct ToriRS_WidgetRef*, size_t capacity, size_t* count);
+    enum ToriRS_ContractResult (*parent)(void*,struct ToriRS_WidgetRef,struct ToriRS_WidgetRef*);
     enum ToriRS_ContractResult (*bounds)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetBounds*);
     /* Native-parent-local, unscrolled geometry; bounds is drawn canvas space. */
     enum ToriRS_ContractResult (*position)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetBounds*);
@@ -144,6 +146,8 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*set_position)(void*, struct ToriRS_WidgetRef, int32_t x, int32_t y);
     enum ToriRS_ContractResult (*set_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
     enum ToriRS_ContractResult (*set_hidden)(void*, struct ToriRS_WidgetRef, bool hidden);
+    enum ToriRS_ContractResult (*set_projection_height)(void*,struct ToriRS_WidgetRef,int32_t height);
+    enum ToriRS_ContractResult (*set_text_outline)(void*,struct ToriRS_WidgetRef,bool outline);
     enum ToriRS_ContractResult (*revalidate)(void*, struct ToriRS_WidgetRef);
     enum ToriRS_ContractResult (*reset)(void*, struct ToriRS_WidgetRef);
     /* Keys are scoped to owner and parent; repeated create_text returns the

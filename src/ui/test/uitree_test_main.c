@@ -19,6 +19,7 @@ main(void)
 {
     if( getenv("TORIRS_TEST_CONTRACT_V3") )
     {
+        test_scripted_entity_overlay();
         test_plugin_contract_native();
     test_native_geometry_audit();
     test_native_object_swap_state();

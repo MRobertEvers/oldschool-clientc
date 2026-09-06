@@ -5342,11 +5342,13 @@ app_overlay_anchor(struct App* app, struct RS_Overlay const* item)
         out.subject_live = true;
     }
 
-    if( !app_world_project(app, fine_x, fine_z, height, &out.top_x, &out.top_y) )
+    int32_t overlay_node=app->tree ? UITree_FindByComponentId(app->tree,item->component_id) : -1;
+    int lift=UITree_WidgetProjectionHeight(app->tree,overlay_node);
+    if( !app_world_project(app, fine_x, fine_z, height+lift, &out.top_x, &out.top_y) )
         return out;
-    if( !app_world_project(app, fine_x, fine_z, height / 2, &out.mid_x, &out.mid_y) )
+    if( !app_world_project(app, fine_x, fine_z, height / 2+lift, &out.mid_x, &out.mid_y) )
         return out;
-    if( !app_world_project(app, fine_x, fine_z, -15, &out.foot_x, &out.foot_y) )
+    if( !app_world_project(app, fine_x, fine_z, -15+lift, &out.foot_x, &out.foot_y) )
         return out;
     out.ok = true;
     return out;
@@ -5448,8 +5450,10 @@ app_entity_overlay_layout(struct App* app)
         (void)UITree_SetProjectionHiddenAt(app->tree, node, 0);
 
         struct UITreeComponent* c = &app->tree->components[node];
-        int const w = c->position.width;
-        int const h = c->position.height;
+        struct UITreeElemPosition allocation=c->position;
+        UITree_WidgetPositionOverride(app->tree,node,&allocation);
+        int const w = allocation.width;
+        int const h = allocation.height;
         int x = anchor.mid_x - w / 2;
         int y = anchor.mid_y - h / 2;
 

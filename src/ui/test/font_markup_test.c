@@ -297,6 +297,29 @@ main(void)
         canvas_count(canvas, STRIKE_DEFAULT_ARGB) == struck,
         "a colour change inside the struck run does not recolour the rule");
 
+    struct Canvas* plain=calloc(1,sizeof(*plain));
+    assert(plain);
+    canvas_draw(plain,font,"<col=ff0000>A</col>");
+    canvas_init(canvas);
+    ToriDraw2D_DrawString(font,&canvas->view_port,TEXT_X,TEXT_BASELINE,
+        "<col=ff0000>A</col>",TEXT_RGB,false,2,canvas->pixels);
+    bool outline_ok=true,color_ok=true;int outline_edges=0;
+    int const neighbors[4][2]={{-1,0},{1,0},{0,-1},{0,1}};
+    for( int y=1;y<CANVAS_H-1;++y ) for( int x=1;x<CANVAS_W-1;++x )
+    {
+        int pixel=canvas_at(plain,x,y);
+        if( !pixel ) continue;
+        color_ok &= canvas_at(canvas,x,y)==pixel;
+        for( int n=0;n<4;++n )
+        {
+            int nx=x+neighbors[n][0],ny=y+neighbors[n][1];
+            if( canvas_at(plain,nx,ny) ) continue;
+            ++outline_edges;outline_ok &= (uint32_t)canvas_at(canvas,nx,ny)==UINT32_C(0xff000000);
+        }
+    }
+    check(color_ok,"outline preserves markup foreground colors");
+    check(outline_ok && outline_edges>0,"outline draws black glyph edges on all four sides");
+    free(plain);
     free(canvas);
 
     if( Failures > 0 )

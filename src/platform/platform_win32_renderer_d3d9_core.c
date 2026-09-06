@@ -2809,10 +2809,13 @@ d3d9_ui_draw_font(
     {
         int y = command->y - font->line_height;
         bool center = command->center != 0;
-        if( command->shadowed )
+        for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
+        {
+            int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
             d3d9_ui_draw_font_text(
-                renderer, slot, &scissor, command->text, command->x + 1, y + 1,
+                renderer, slot, &scissor, command->text, command->x + dx, y + dy,
                 command->color, true, center);
+        }
         d3d9_ui_draw_font_text(
             renderer, slot, &scissor, command->text, command->x, y,
             command->color, false, center);
@@ -2858,10 +2861,13 @@ d3d9_ui_draw_font(
                     x += (command->w > 0 ? command->w : 1) - text_width;
             }
             y = command->y + first_baseline + i * line_height - font_ascent;
-            if( command->shadowed )
+            for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
+            {
+                int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
                 d3d9_ui_draw_font_range(
-                    renderer, slot, &scissor, lines[i], lengths[i], x + 1, y + 1,
+                    renderer, slot, &scissor, lines[i], lengths[i], x + dx, y + dy,
                     command->color, true);
+            }
             d3d9_ui_draw_font_range(
                 renderer, slot, &scissor, lines[i], lengths[i], x, y,
                 command->color, false);

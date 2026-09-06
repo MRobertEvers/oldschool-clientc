@@ -127,6 +127,16 @@ ToriDraw2D_WrapLineCount(
     char const* text,
     int max_width);
 
+/* Shared by software and GPU text paths. 0=none, 1=shadow, 2=outline. */
+static inline int ToriDraw_FontShadowPassCount(int style)
+{ return style==2 ? 4 : style ? 1 : 0; }
+static inline void ToriDraw_FontShadowOffset(int style,int pass,int* x,int* y)
+{
+    static const int offsets[4][2]={{-1,0},{1,0},{0,-1},{0,1}};
+    *x=style==2 ? offsets[pass][0] : 1;
+    *y=style==2 ? offsets[pass][1] : 1;
+}
+
 /** Returns the number of opaque glyph pixels written (0 if nothing drawn). */
 int
 ToriDraw2D_DrawString(
@@ -137,7 +147,7 @@ ToriDraw2D_DrawString(
     char const* text,
     int color,
     bool center,
-    bool shadowed,
+    int shadowed,
     toripixel_t* pixel_buffer);
 
 /** Multi-line widget text with box alignment (OSRS drawLines semantics). */
@@ -154,7 +164,7 @@ ToriDraw2D_DrawStringBox(
     int x_align,
     int y_align,
     int line_height,
-    bool shadowed,
+    int shadowed,
     toripixel_t* pixel_buffer);
 
 #endif

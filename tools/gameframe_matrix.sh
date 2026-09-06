@@ -246,6 +246,7 @@ while IFS='|' read tag m f s; do
       --performance-color "${GF_MATRIX_PERFORMANCE_COLOR:-FFFFFF}")
   fi
   [[ -n "${GF_MATRIX_NATIVE_GROUND_LABELS:-}" ]] && widget_args+=(--native-ground-labels "$GF_MATRIX_NATIVE_GROUND_LABELS")
+  [[ -n "${GF_MATRIX_GROUND_ROW_GAP:-}" ]] && widget_args+=(--ground-row-gap "$GF_MATRIX_GROUND_ROW_GAP")
   [[ -n "${GF_MATRIX_NATIVE_CAPTION:-}" ]] && widget_args+=(--native-caption "$GF_MATRIX_NATIVE_CAPTION")
   [[ -n "${GF_MATRIX_OWNED_TEXT:-}" ]] && widget_args+=(--owned-text "$GF_MATRIX_OWNED_TEXT")
   if [[ -n "${GF_MATRIX_OVERLAY_TEXT:-}" ]]; then

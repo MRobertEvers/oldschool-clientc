@@ -64,11 +64,11 @@ static void widget_demo_script(struct ToriRS_Api* api,void* user,struct ToriRS_S
     (void)user;
     if( strcmp(event->name,"groundItemCaption")!=0 ) return;
     int32_t id,count;
-    if( api->scripts.get_int(api->scripts.context,event->ref,6,&id)!=TORIRS_CONTRACT_OK ||
-        api->scripts.get_int(api->scripts.context,event->ref,5,&count)!=TORIRS_CONTRACT_OK ) return;
+    if( api->scripts.get_int(api->scripts.context,event->ref,9,&id)!=TORIRS_CONTRACT_OK ||
+        api->scripts.get_int(api->scripts.context,event->ref,8,&count)!=TORIRS_CONTRACT_OK ) return;
     char text[64];snprintf(text,sizeof(text),"C item %d x%d",id,count);
     api->scripts.set_string(api->scripts.context,event->ref,0,text);
-    api->scripts.set_int(api->scripts.context,event->ref,3,0x00ffff);
+    api->scripts.set_int(api->scripts.context,event->ref,6,0x00ffff);
 }
 static void widget_demo_stop(struct ToriRS_Api* api,void* user)
 { (void)user;api->scripts.invalidate(api->scripts.context,"groundItemCaption"); }

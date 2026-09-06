@@ -1258,7 +1258,7 @@ ToriDraw2D_DrawString(
     char const* text,
     int color,
     bool center,
-    bool shadowed,
+    int shadowed,
     toripixel_t* pixel_buffer)
 {
     assert(font && view_port && text && pixel_buffer);
@@ -1294,10 +1294,11 @@ ToriDraw2D_DrawString(
 
         if( line_len > 0 )
         {
-            if( shadowed )
+            for( int pass=0;pass<ToriDraw_FontShadowPassCount(shadowed);++pass )
             {
+                int dx,dy;ToriDraw_FontShadowOffset(shadowed,pass,&dx,&dy);
                 pixels_written += font_draw_string_shadow_range(
-                    font, rest, line_len, line_x, y, cl, ct, cr, cb, stride, pixel_buffer);
+                    font, rest, line_len, line_x+dx-1, y+dy-1, cl, ct, cr, cb, stride, pixel_buffer);
             }
             pixels_written += font_draw_string_range(
                 font, rest, line_len, line_x, y, color, cl, ct, cr, cb, stride, pixel_buffer);
@@ -1681,7 +1682,7 @@ ToriDraw2D_DrawStringBox(
     int x_align,
     int y_align,
     int line_height,
-    bool shadowed,
+    int shadowed,
     toripixel_t* pixel_buffer)
 {
     assert(font && view_port && text && pixel_buffer);
@@ -1747,10 +1748,11 @@ ToriDraw2D_DrawStringBox(
         if( line_lens[i] <= 0 )
             continue;
 
-        if( shadowed )
+        for( int pass=0;pass<ToriDraw_FontShadowPassCount(shadowed);++pass )
         {
+            int dx,dy;ToriDraw_FontShadowOffset(shadowed,pass,&dx,&dy);
             pixels_written += font_draw_string_shadow_range(
-                font, lines[i], line_lens[i], line_x, draw_y, cl, ct, cr, cb, stride, pixel_buffer);
+                font, lines[i], line_lens[i], line_x+dx-1, draw_y+dy-1, cl, ct, cr, cb, stride, pixel_buffer);
         }
         pixels_written += font_draw_string_range(
             font,

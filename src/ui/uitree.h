@@ -841,6 +841,7 @@ struct UITreeComponent
     uint8_t projection_hidden;
     /** Effective live-widget presentation hide. Native hide remains separate. */
     uint8_t widget_hidden;
+    uint8_t widget_text_outline;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
     /**
@@ -2117,6 +2118,9 @@ int32_t UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref);
 bool UITree_WidgetSetPosition(struct UITree*, struct UITreeNodeRef, uint64_t owner, int x, int y);
 bool UITree_WidgetSetSize(struct UITree*, struct UITreeNodeRef, uint64_t owner, int w, int h);
 bool UITree_WidgetSetHidden(struct UITree*, struct UITreeNodeRef, uint64_t owner, bool hidden);
+bool UITree_WidgetSetProjectionHeight(struct UITree*,struct UITreeNodeRef,uint64_t owner,int height);
+int UITree_WidgetProjectionHeight(struct UITree const*,int32_t node);
+bool UITree_WidgetSetTextOutline(struct UITree*,struct UITreeNodeRef,uint64_t owner,bool outline);
 bool UITree_WidgetReset(struct UITree*, struct UITreeNodeRef, uint64_t owner);
 void UITree_WidgetResetOwner(struct UITree*, uint64_t owner);
 int32_t UITree_WidgetCreateText(struct UITree*, struct UITreeNodeRef parent, uint64_t owner,
