@@ -266,3 +266,46 @@ accumulation. This case was observed failing before the fix
 (`/private/tmp/plugin-engine-m2-animation-bind-red.log`). The native account
 ledger was exercised by `m2-animation-lc-ledger`, which passed the fresh-account
 character-design launch and recorded its exclusive reservation in `player.json`.
+
+## Geometry audit and canonical content checkpoint
+
+`TORIRS_UI_MUTATION_AUDIT=1` enables native geometry auditing. `UITree_Push` and
+`UITree_CcCopy` establish the constructor boundary. Typed geometry writes update
+recorded authored values, including writes underneath a frame allocation and
+scroll-offset canonicalization. A typed write checks the prior state, and emit
+publication rejects an unclassified change with component, field, old/new values
+and the observation point. Computed layout coordinates and presentation fields
+are excluded. Records follow incarnations through slot reuse and exist only when
+auditing is enabled. The focused tests detect raw position and scroll writes;
+`m2-geometry-audit-negative` confirms disabling the comparison fails the assertion.
+This is a geometry-domain audit, not yet a complete native-property audit.
+
+The CS2 scalar-property dispatcher, direct drag/graphic/fill variants, input
+caret/wrapping updates and inventory-source binding now use typed tree operations.
+Native no-ops no longer acquire an extra wrapper paint invalidation. The runtime
+hook setter validates that its slot belongs to the named live component before
+reading or changing it, and real binding changes invalidate reachability. Two
+ownership assertions were observed failing before that check.
+
+Dynamic object widgets previously stored item data twice: readback and optimistic
+swapping used common `item_*` fields, while drawing used `u.cc_obj`. The duplicate
+runtime state is removed; specs initialize the canonical fields, and drawing,
+setobject, server inventory clearing and item movement use them. Item swaps keep
+native hiding and count-display policy with the cell. The corrected regression
+filters actual item descriptors rather than their count-text companions. The
+same test was run against commit `5fe670bb8` in
+`/private/tmp/plugin-engine-object-negative` and failed both rendered-state and
+hide-ownership assertions (`plugin-engine-m2-object-swap-old-verified.log`).
+
+`m2-canonical-osrs` passes all 14 native captures with auditing enabled;
+`m2-canonical-lc` passes both actual packet/CS1 cases with auditing enabled and
+fresh reserved accounts. `m2-canonical-drag` drives a real inventory drag; the
+isolated server save records slots 0/1 changing to platebody/body-rune, matching
+three visible item icons in the inspected 2× capture. Native menu tests and UI/
+CS2 ASan suites pass. The focused audit run before the canonical-state changes
+also passed both revisions (`m2-geometry-audit-osrs`, `m2-geometry-audit-lc`).
+
+Remaining M2 work includes auditing other native property domains, operation
+freshness when labels/masks/content change, and general async teardown and
+allocation-failure behavior. The production major-3 plugin cutover and M3–M6
+remain open.

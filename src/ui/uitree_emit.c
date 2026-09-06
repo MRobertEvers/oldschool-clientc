@@ -578,13 +578,13 @@ UITree_EmitFill(
     }
 
     case UIELEM_CC_OBJ:
-        if( component->u.cc_obj.obj_id <= 0 )
+        if( component->item_id <= 0 )
             return false;
         out->kind = UITREE_EMIT_CC_OBJ;
-        out->obj_id = component->u.cc_obj.obj_id;
-        out->obj_count = component->u.cc_obj.obj_count;
-        out->scene_id = component->u.cc_obj.scene_id;
-        out->atlas_index = component->u.cc_obj.atlas_index;
+        out->obj_id = component->item_id;
+        out->obj_count = component->item_count;
+        out->scene_id = component->item_scene_id;
+        out->atlas_index = component->item_atlas_index;
         return true;
 
     case UIELEM_BUILTIN_WORLD:
@@ -3592,6 +3592,7 @@ UITree_EmitWalk(
 
     assert(tree);
     assert(out);
+    if( !UITree_GeometryAuditCheck(tree, "publication") ) abort();
     for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
         out->frame_order.position[slot] = out->frame_order.sequence[slot] = -1;
     out->frame_order.next_sequence = 0;

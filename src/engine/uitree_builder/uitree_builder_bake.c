@@ -526,11 +526,7 @@ uitree_builder_bake_pack_under_owner(
         if( inv_source_id >= 0 &&
             (build.type == UIBUILD_INV || build.type == UIBUILD_INV_TEXT) )
         {
-            struct UITreeComponent* node = &tree->components[idx];
-            if( node->type == UIELEM_RS_INV )
-                node->u.rs_inv.inv_source_id = inv_source_id;
-            else if( node->type == UIELEM_RS_INV_TEXT )
-                node->u.rs_inv_text.inv_source_id = inv_source_id;
+            (void)UITree_SetInventorySourceAt(tree, idx, inv_source_id);
         }
 
         collect_onload(builder, src);

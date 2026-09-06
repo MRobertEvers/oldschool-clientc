@@ -2174,6 +2174,7 @@ RS_CS2_InputKey(
     char const* text;
     char edited[UITREE_INPUT_TEXT_MAX];
     int caret;
+    int next_caret;
     int length;
     int com_id;
 
@@ -2189,6 +2190,7 @@ RS_CS2_InputKey(
     caret = node->u.rs_text.caret;
     if( caret < 0 || caret > length )
         caret = length;
+    next_caret = caret;
 
     /* Enter: release the caret FIRST, then submit. That order is the cache's
      * own requirement rather than a preference -- `torirs_hiscores_input_guard`
@@ -2215,14 +2217,14 @@ RS_CS2_InputKey(
     if( key_typed == TORIRS_OSRSKEY_LEFT )
     {
         if( caret > 0 )
-            node->u.rs_text.caret = caret - 1;
+            (void)UITree_SetInputCaretAt(tree, UITree_FindByComponentId(tree, com_id), caret - 1);
         UITree_MarkNodeDirty(tree, UITree_FindByComponentId(tree, com_id));
         return 1;
     }
     if( key_typed == TORIRS_OSRSKEY_RIGHT )
     {
         if( caret < length )
-            node->u.rs_text.caret = caret + 1;
+            (void)UITree_SetInputCaretAt(tree, UITree_FindByComponentId(tree, com_id), caret + 1);
         UITree_MarkNodeDirty(tree, UITree_FindByComponentId(tree, com_id));
         return 1;
     }
@@ -2235,7 +2237,7 @@ RS_CS2_InputKey(
         memcpy(edited, text, (size_t)cut);
         memcpy(edited + cut, text + cut + 1, (size_t)(length - cut - 1));
         edited[length - 1] = '\0';
-        node->u.rs_text.caret = cut;
+        next_caret = cut;
     }
     else if( key_typed < 0 && key_pressed >= 32 && key_pressed < 127 )
     {
@@ -2247,7 +2249,7 @@ RS_CS2_InputKey(
         edited[length + 1] = '\0';
         if( !rs_cs2_input_fits(host, node, edited) )
             return 1;
-        node->u.rs_text.caret = caret + 1;
+        next_caret = caret + 1;
     }
     else
     {
@@ -2257,6 +2259,7 @@ RS_CS2_InputKey(
     }
 
     UITree_SetTextAt(tree, UITree_FindByComponentId(tree, com_id), edited);
+    UITree_SetInputCaretAt(tree, UITree_FindByComponentId(tree, com_id), next_caret);
     rs_cs2_input_dispatch(
         host, runner, com_id, offsetof(struct UITreeRuntimeHooks, on_input_update));
     return 1;
@@ -5382,79 +5385,54 @@ exec_widget_set_int(
     switch( field )
     {
     case CS2VM_WIDGET_INT_HFLIP:
-        if( node->type == UIELEM_RS_GRAPHIC )
-            node->u.rs_graphic.flip_h = value ? 1 : 0;
-        break;
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_HFLIP, value);
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_VFLIP:
-        if( node->type == UIELEM_RS_GRAPHIC )
-            node->u.rs_graphic.flip_v = value ? 1 : 0;
-        break;
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_VFLIP, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_LINE_WIDTH:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_LINE_WIDTH, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_LINE_DIRECTION:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_LINE_DIRECTION, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_NO_CLICK_THROUGH:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_NO_CLICK_THROUGH, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_DRAG_DEAD_ZONE:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_DRAG_DEAD_ZONE, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_DRAG_DEAD_TIME:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_DRAG_DEAD_TIME, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_MODEL_ORTHOG:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_MODEL_ORTHOG, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_TRANS_BOT:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_TRANS_BOTTOM, value);
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_FILL_COLOUR:
         (void)UITree_ApplyFillColour(rs_cs2_tree(host), component_id, value);
-        break;
-    case CS2VM_WIDGET_INT_LINE_WIDTH:
-        if( node->type == UIELEM_RS_LINE )
-            node->u.rs_line.line_width = value;
-        else if( node->type == UIELEM_RS_ARC )
-            node->u.rs_arc.line_width = value > 0 ? value : 1;
-        break;
-    case CS2VM_WIDGET_INT_LINE_DIRECTION:
-        if( node->type == UIELEM_RS_LINE )
-            node->u.rs_line.horizontal = value ? 1 : 0;
-        break;
-    case CS2VM_WIDGET_INT_NO_CLICK_THROUGH:
-        node->no_click_through = value ? 1 : 0;
-        break;
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_CLICKMASK:
         (void)UITree_ApplyClickMask(rs_cs2_tree(host), component_id, value);
-        break;
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_FORCE_LEFT_CLICK:
-        (void)UITree_ApplyForceLeftClick(
-            rs_cs2_tree(host), component_id, value == 1);
-        break;
-    case CS2VM_WIDGET_INT_DRAG_DEAD_ZONE:
-        node->drag_dead_zone = (uint8_t)value;
-        break;
-    case CS2VM_WIDGET_INT_DRAG_DEAD_TIME:
-        node->drag_dead_time = (uint8_t)value;
-        break;
+        (void)UITree_ApplyForceLeftClick(rs_cs2_tree(host), component_id, value == 1);
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_MODEL_TRANSPARENT:
         (void)UITree_ApplyModelTransparent(rs_cs2_tree(host), component_id, value);
-        break;
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_MODEL_ANIM:
         (void)UITree_ApplyModelAnim(rs_cs2_tree(host), component_id, value);
         return CS2VM_EXECNO_OK;
-    /* IF/CC_SET2DANGLE. The only animated user is the world map's marker
-     * timer (clientscript 1758 re-states the angle every tick from
-     * clientclock), so a no-op here reads as "the You Are Here arrow is drawn
-     * but never turns". */
     case CS2VM_WIDGET_INT_ANGLE_2D:
-        (void)UITree_ApplyGraphic2DAngle(
-            rs_cs2_tree(host), component_id, value);
-        break;
-    case CS2VM_WIDGET_INT_MODEL_ORTHOG:
-        /* IF/CC_SETMODELORTHOG selects the reference client's orthographic
-         * widget-model path.  Treating this as a no-op leaves tall actor
-         * models crossing the perspective near-plane, so only disconnected
-         * faces render even though the model and animation are complete. */
-        if( node->type == UIELEM_RS_MODEL )
-            node->u.rs_model.orthog = value != 0;
-        break;
-    case CS2VM_WIDGET_INT_TRANS_BOT:
-        node->trans_bot = value;
-        break;
-    case CS2VM_WIDGET_INT_FILL_MODE:
-    case CS2VM_WIDGET_INT_NO_SCROLL_THROUGH:
-    case CS2VM_WIDGET_INT_PINCH:
-    case CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON:
-        /* UITree lacks these fields; accept no-op. */
-        break;
+        (void)UITree_ApplyGraphic2DAngle(rs_cs2_tree(host), component_id, value);
+        return CS2VM_EXECNO_OK;
     default:
-        break;
+        /* Unimplemented native properties remain explicit no-ops. */
+        return CS2VM_EXECNO_OK;
     }
-    if( idx >= 0 )
-        UITree_MarkNodeDirty(rs_cs2_tree(host), idx);
-    return CS2VM_EXECNO_OK;
 }
 
 /* CC/IF_SETARC. The two angles are the whole shape of a type-10 widget: with
@@ -8644,12 +8622,8 @@ exec_widget_set_graphic2(
     int graphic_id)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    struct UITreeComponent* node = rs_cs2_node(host, component_id);
-    if( node && node->type == UIELEM_RS_GRAPHIC )
-    {
-        node->u.rs_graphic.scene_id_active = graphic_id;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    if( tree ) (void)UITree_SetNativeIntAt(tree, rs_cs2_find_node(host, component_id),
+                                         UITREE_NATIVE_GRAPHIC_ACTIVE, graphic_id);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8709,18 +8683,8 @@ exec_widget_set_fill(
     int requested_filled)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    struct UITreeComponent* node = rs_cs2_node(host, component_id);
-    uint8_t const filled = requested_filled ? 1 : 0;
-    if( node && node->type == UIELEM_RS_RECT && node->u.rs_rect.filled != filled )
-    {
-        node->u.rs_rect.filled = filled;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
-    else if( node && node->type == UIELEM_RS_ARC )
-    {
-        node->u.rs_arc.filled = filled;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    if( tree ) (void)UITree_SetNativeIntAt(tree, rs_cs2_find_node(host, component_id),
+                                         UITREE_NATIVE_FILL, requested_filled);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8783,14 +8747,7 @@ exec_widget_set_draggable(
                 area_uid = tree->components[child].component_id;
         }
     }
-    if( !node->draggable || node->drag_render_area_uid != area_uid ||
-        node->drag_render_area_child_index != -1 )
-    {
-        node->draggable = 1;
-        node->drag_render_area_uid = area_uid;
-        node->drag_render_area_child_index = -1;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    (void)UITree_SetDragAreaAt(tree, rs_cs2_find_node(host, component_id), 1, area_uid, -1);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8801,12 +8758,8 @@ exec_widget_set_draggable_behavior(
     int behavior)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    struct UITreeComponent* node = rs_cs2_node(host, component_id);
-    if( node && node->drag_behavior != behavior )
-    {
-        node->drag_behavior = behavior;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    if( tree ) (void)UITree_SetNativeIntAt(tree, rs_cs2_find_node(host, component_id),
+                                         UITREE_NATIVE_DRAG_BEHAVIOR, behavior);
     return CS2VM_EXECNO_OK;
 }
 
@@ -9577,17 +9530,9 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_WIDGET_INT_CASE(CC_SETPINCH);
 
     case CS2VM_HOST_REQUEST_CC_SETNOCLICKTHROUGH:
-        node = rs_cs2_node(host, request->u.CC_SETNOCLICKTHROUGH.component_id);
-        if( node )
-        {
-            uint8_t const enabled = request->u.CC_SETNOCLICKTHROUGH.enabled ? 1 : 0;
-            if( node->no_click_through != enabled )
-            {
-                node->no_click_through = enabled;
-                UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.CC_SETNOCLICKTHROUGH.component_id));
-            }
-        }
+        if( tree ) (void)UITree_SetNativeIntAt(tree,
+            rs_cs2_find_node(host, request->u.CC_SETNOCLICKTHROUGH.component_id),
+            UITREE_NATIVE_NO_CLICK_THROUGH, request->u.CC_SETNOCLICKTHROUGH.enabled);
         return CS2VM_EXECNO_OK;
 
         RS_CS2_WIDGET_INT_CASE(CC_SETNOSCROLLTHROUGH);
@@ -9674,10 +9619,9 @@ rs_cs2_host_exec_dispatch(
      * colour/size/offset (the caret is drawn as a glyph after the text), submit
      * and accept modes, and the char filter. */
     case CS2VM_HOST_REQUEST_CC_INPUT_SETLINEWRAPPINGWIDTH:
-        node = rs_cs2_node(host, request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.component_id);
-        if( node && node->type == UIELEM_RS_TEXT )
-            node->u.rs_text.input_wrap_width =
-                request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.value;
+        if( tree ) (void)UITree_SetNativeIntAt(tree,
+            rs_cs2_find_node(host, request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.component_id),
+            UITREE_NATIVE_INPUT_WRAP_WIDTH, request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.value);
         return CS2VM_EXECNO_OK;
 
         RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETSELECTBGCOLOUR);
@@ -9719,29 +9663,15 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_SET_DRAG_BEHAVIOR_CASE(CC_SETDRAGGABLEBEHAVIOR);
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE:
-        node = rs_cs2_node(host, request->u.CC_SETDRAGDEADZONE.component_id);
-        if( node )
-        {
-            if( node->drag_dead_zone != (uint8_t)request->u.CC_SETDRAGDEADZONE.zone )
-            {
-                node->drag_dead_zone = (uint8_t)request->u.CC_SETDRAGDEADZONE.zone;
-                UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.CC_SETDRAGDEADZONE.component_id));
-            }
-        }
+        if( tree ) (void)UITree_SetNativeIntAt(tree,
+            rs_cs2_find_node(host, request->u.CC_SETDRAGDEADZONE.component_id),
+            UITREE_NATIVE_DRAG_DEAD_ZONE, request->u.CC_SETDRAGDEADZONE.zone);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME:
-        node = rs_cs2_node(host, request->u.CC_SETDRAGDEADTIME.component_id);
-        if( node )
-        {
-            if( node->drag_dead_time != (uint8_t)request->u.CC_SETDRAGDEADTIME.time )
-            {
-                node->drag_dead_time = (uint8_t)request->u.CC_SETDRAGDEADTIME.time;
-                UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.CC_SETDRAGDEADTIME.component_id));
-            }
-        }
+        if( tree ) (void)UITree_SetNativeIntAt(tree,
+            rs_cs2_find_node(host, request->u.CC_SETDRAGDEADTIME.component_id),
+            UITREE_NATIVE_DRAG_DEAD_TIME, request->u.CC_SETDRAGDEADTIME.time);
         return CS2VM_EXECNO_OK;
 
         RS_CS2_SET_OP_BASE_CASE(CC_SETOPBASE);

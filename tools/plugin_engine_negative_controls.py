@@ -108,6 +108,8 @@ def main():
                    if "ui/uitree.c " in line and " -o " in line)
     original = (src / "ui/uitree.c").read_text()
     controls = {
+        "geometry_audit": ("if( current[i] != record->values[i] )", "if( false )",
+                           "audit catches unclassified native position"),
         "global_identity": ("component->incarnation = atomic_fetch_add(&next_incarnation, 1);",
                             "component->incarnation = (uint64_t)idx + 1;",
                             "retained incarnation cannot affect another tree"),

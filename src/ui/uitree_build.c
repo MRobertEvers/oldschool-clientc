@@ -269,12 +269,12 @@ UITree_PushBuildComponent(
     behavior.script_kind = comp->script_kind;
     UITree_SetBehavior(tree, idx, &behavior);
 
-    node->trans = comp->transparency;
-    node->if3 = comp->if3 ? 1 : 0;
-    node->drag_dead_zone = comp->drag_dead_zone;
-    node->drag_dead_time = comp->drag_dead_time;
+    UITree_SetTransparencyAt(tree, idx, comp->transparency);
+    UITree_SetNativeIntAt(tree, idx, UITREE_NATIVE_IF3, comp->if3);
+    UITree_SetNativeIntAt(tree, idx, UITREE_NATIVE_DRAG_DEAD_ZONE, comp->drag_dead_zone);
+    UITree_SetNativeIntAt(tree, idx, UITREE_NATIVE_DRAG_DEAD_TIME, comp->drag_dead_time);
     if( comp->drag_dead_zone || comp->drag_dead_time )
-        node->draggable = 1;
+        UITree_SetDragAreaAt(tree, idx, 1, node->drag_render_area_uid, node->drag_render_area_child_index);
 
     return idx;
 }

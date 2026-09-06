@@ -199,11 +199,6 @@ test_if3_item_uses_only_scripted_ops(void)
     {
         int32_t child_index = UITree_Push(tree, parent_index, &child);
         TEST_ASSERT(child_index >= 0, "IF3 item child pushed");
-        if( child_index >= 0 )
-        {
-            tree->components[child_index].item_id = child.u.cc_obj.obj_id;
-            tree->components[child_index].item_count = child.u.cc_obj.obj_count;
-        }
     }
 
     UITree_LayoutResolve(tree, 0, 0, 200, 100);
@@ -269,9 +264,8 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
         TEST_ASSERT(child_index >= 0, "rev239 item child pushed");
         if( child_index >= 0 )
         {
-            tree->components[child_index].item_id = child.u.cc_obj.obj_id;
-            tree->components[child_index].item_count = child.u.cc_obj.obj_count;
-            UITree_HooksMut(&tree->components[child_index])->on_op.script_id = 123;
+            UITree_HookSet(&UITree_HooksMut(&tree->components[child_index])->on_op,
+                           123, NULL, 0, 0, NULL, 0);
         }
     }
 

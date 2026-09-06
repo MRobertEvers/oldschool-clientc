@@ -1063,13 +1063,6 @@ struct UITreeComponent
         } rs_inv;
         struct
         {
-            int obj_id;
-            int obj_count;
-            int scene_id;
-            int atlas_index;
-        } cc_obj;
-        struct
-        {
             int scroll_height;
             int scroll_width;
         } rs_layer;
@@ -1314,6 +1307,7 @@ struct UITreeNodeRef
 
 struct UITree
 {
+    struct UITreeGeometryAudit* geometry_audit;
     struct UITreeComponent* components;
     uint32_t component_count;
     uint32_t component_capacity;
@@ -2096,6 +2090,10 @@ UITree_IsInputNode(struct UITreeComponent const* c);
 /** Capture/resolve a live identity. Zero references and references from another
  * tree, deleted slots, or recycled slots resolve to -1. */
 bool UITree_StageDragPickup(struct UITree* tree, int32_t index, int x, int y);
+/** Development audit: constructor/typed-mutation state versus published native geometry. */
+void UITree_GeometryAuditEnable(struct UITree* tree);
+bool UITree_GeometryAuditCheck(struct UITree const* tree, char const* where);
+
 struct UITreeNodeRef UITree_RefAt(struct UITree const* tree, int32_t index);
 int32_t UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref);
 
@@ -2358,6 +2356,10 @@ UITree_ApplyScrollPos(
 /* num_mode is the SETOBJECT opcode variant's count-text rule: 0 = draw when
  * stackable (plain SETOBJECT, and the zero-init default for cells filled
  * outside CS2), 1 = always (_ALWAYS_NUM), 2 = never (_NONUM). */
+bool UITree_SetObjectAt(struct UITree* tree, int32_t idx, int obj_id, int obj_count,
+                        int scene_id, int atlas_index, int num_mode);
+bool UITree_SwapObjectStateAt(struct UITree* tree, int32_t a, int32_t b);
+
 bool
 UITree_ApplyObject(
     struct UITree* tree,
@@ -2415,6 +2417,20 @@ bool UITree_SetModelAnimationAt(struct UITree* tree, int32_t idx, int sequence,
                                 int frame, int cycle, int hold);
 bool UITree_SetModelAnimationCursorAt(struct UITree* tree, int32_t idx, int frame, int cycle);
 bool UITree_SetButtonTypeAt(struct UITree* tree, int32_t idx, int button_type);
+
+enum UITreeNativeIntField
+{
+    UITREE_NATIVE_IF3, UITREE_NATIVE_HFLIP, UITREE_NATIVE_VFLIP,
+    UITREE_NATIVE_LINE_WIDTH, UITREE_NATIVE_LINE_DIRECTION,
+    UITREE_NATIVE_NO_CLICK_THROUGH, UITREE_NATIVE_DRAG_DEAD_ZONE,
+    UITREE_NATIVE_DRAG_DEAD_TIME, UITREE_NATIVE_DRAG_BEHAVIOR,
+    UITREE_NATIVE_MODEL_ORTHOG, UITREE_NATIVE_TRANS_BOTTOM,
+    UITREE_NATIVE_INPUT_WRAP_WIDTH, UITREE_NATIVE_FILL, UITREE_NATIVE_GRAPHIC_ACTIVE
+};
+bool UITree_SetNativeIntAt(struct UITree* tree, int32_t idx, enum UITreeNativeIntField field, int value);
+bool UITree_SetDragAreaAt(struct UITree* tree, int32_t idx, int enabled, int uid, int child);
+bool UITree_SetInputCaretAt(struct UITree* tree, int32_t idx, int caret);
+bool UITree_SetInventorySourceAt(struct UITree* tree, int32_t idx, int source_id);
 
 bool
 UITree_ApplyModelAnim(

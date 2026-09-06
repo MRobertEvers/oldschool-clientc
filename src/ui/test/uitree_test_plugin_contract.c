@@ -1,5 +1,6 @@
 #include "test_harness.h"
 #include "uitree_interact.h"
+#include "uitree_obj_cell.h"
 
 /* Contract conformance cases use the production tree mutation/getter paths.
  * The revision harness remains the end-to-end acceptance gate in M3/M6. */
@@ -157,5 +158,87 @@ void test_plugin_contract_copy(void)
     UITree_CcDelete(tree, inv);
     TEST_ASSERT(UITree_InvSlots(&tree->components[inv_copy])->offset_x[0] == 17,
                 "inventory copy survives source deletion");
+    UITree_Free(tree);
+}
+
+void test_native_geometry_audit(void)
+{
+    struct UITree* tree = UITree_New(8);
+    UITree_GeometryAuditEnable(tree);
+    int root = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 0x300000, 0, 0, 100, 100);
+    int node = UITree_CcCreate(tree, root, 0x300000, 3, 0);
+    UITree_SetPositionAt(tree, node, 10, 20);
+    UITree_SetSizeAt(tree, node, 30, 40);
+    UITree_LayoutResolve(tree, 0, 0, 100, 100);
+    TEST_ASSERT(UITree_GeometryAuditCheck(tree, "test-valid"), "typed geometry and layout pass audit");
+    tree->components[node].position.x = 11;
+    TEST_ASSERT(!UITree_GeometryAuditCheck(tree, "test-direct"), "audit catches unclassified native position");
+    tree->components[node].position.x = 10;
+    tree->components[node].position.abs_x += 1;
+    TEST_ASSERT(UITree_GeometryAuditCheck(tree, "test-derived"), "derived coordinates do not masquerade as native writes");
+    UITree_SetScrollSizeAt(tree, root, 200, 200);
+    UITree_SetScrollPosAt(tree, root, 20, 30);
+    TEST_ASSERT(UITree_GeometryAuditCheck(tree, "test-scroll"), "typed scrolling passes audit");
+    tree->components[root].scroll_y = 31;
+    TEST_ASSERT(!UITree_GeometryAuditCheck(tree, "test-direct-scroll"), "audit catches unclassified scrolling");
+    tree->components[root].scroll_y = 30;
+    int copy = UITree_CcCopy(tree, root, 0x300000, 0, 1);
+    TEST_ASSERT(copy >= 0 && UITree_GeometryAuditCheck(tree, "test-copy"), "copy constructor seals native geometry");
+    UITree_CcDelete(tree, node);
+    UITree_CcCreate(tree, root, 0x300000, 3, 0);
+    TEST_ASSERT(UITree_GeometryAuditCheck(tree, "test-reuse"), "recycled slot gets a fresh audit record");
+    UITree_Free(tree);
+}
+
+void test_native_object_swap_state(void)
+{
+    struct UITree* tree = UITree_New(8);
+    int root = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 0x310000, 0, 0, 100, 100);
+    int a = UITree_CcCreate(tree, root, 0x310000, 2, 0);
+    int b = UITree_CcCreate(tree, root, 0x310000, 2, 1);
+    UITree_SetXYBoxAt(tree, a, 0, 0, 32, 32);
+    UITree_SetXYBoxAt(tree, b, 40, 0, 32, 32);
+    UITree_ApplyObject(tree, tree->components[a].component_id, 995, 10, 1, 0, 0);
+    UITree_ApplyObject(tree, tree->components[b].component_id, 1333, 1, 2, 0, 0);
+    TEST_ASSERT(UITree_ObjCellDynamicSwap(tree, 0x310000, 0, 1), "native item swap executes");
+    UITree_LayoutResolve(tree, 0, 0, 100, 100);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    UITree_TestHostInit(&host, &hs);
+    struct UITreeEmitBuffer emit;
+    UITree_EmitBufferInit(&emit);
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    int objects[2] = {-1, -1};
+    for( int i = 0; i < emit.count; ++i )
+    {
+        if( emit.cmds[i].kind != UITREE_EMIT_CC_OBJ ) continue;
+        if( emit.cmds[i].node_index == a ) objects[0] = emit.cmds[i].obj_id;
+        if( emit.cmds[i].node_index == b ) objects[1] = emit.cmds[i].obj_id;
+    }
+    TEST_ASSERT(objects[0] == 1333 && objects[1] == 995, "drawing observes the swapped native item state");
+    UITree_SetHideAt(tree, a, 1);
+    UITree_ObjCellDynamicSwap(tree, 0x310000, 0, 1);
+    TEST_ASSERT(tree->components[a].native_hide && !tree->components[b].native_hide,
+                "item movement cannot transfer native hiding");
+    UITree_EmitBufferFree(&emit);
+    UITree_Free(tree);
+}
+
+void test_native_hook_slot_ownership(void)
+{
+    struct UITree* tree = UITree_New(4);
+    int a = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 0x320000, 0, 0, 20, 20);
+    int b = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 0x320001, 30, 0, 20, 20);
+    struct UITreeRuntimeScriptHook* own = &UITree_HooksMut(&tree->components[a])->on_click;
+    struct UITreeRuntimeScriptHook* other = &UITree_HooksMut(&tree->components[b])->on_click;
+    UITree_HookSet(other, 111, NULL, 0, 0, NULL, 0);
+    TEST_ASSERT(!UITree_ApplyRuntimeHook(tree, 0x320000, other, 222, NULL, 0, 0, NULL, 0),
+                "hook mutation rejects another component's slot");
+    TEST_ASSERT(other->script_id == 111, "rejected hook mutation preserves its actual owner");
+    TEST_ASSERT(UITree_ApplyRuntimeHook(tree, 0x320000, own, 333, NULL, 0, 0, NULL, 0),
+                "owned hook mutation succeeds");
+    uint32_t dirty = tree->dirty_gen;
+    UITree_ApplyRuntimeHook(tree, 0x320000, own, 333, NULL, 0, 0, NULL, 0);
+    TEST_ASSERT(tree->dirty_gen == dirty, "identical hook binding is quiet");
     UITree_Free(tree);
 }

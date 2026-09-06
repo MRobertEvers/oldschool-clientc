@@ -94,18 +94,7 @@ exec_if_clearinv_node(
     c = &tree->components[idx];
     if( c->freed )
         return;
-    c->item_id = 0;
-    c->item_count = 0;
-    c->item_scene_id = -1;
-    c->item_atlas_index = 0;
-    if( c->type == UIELEM_CC_OBJ )
-    {
-        c->u.cc_obj.obj_id = 0;
-        c->u.cc_obj.obj_count = 0;
-        c->u.cc_obj.scene_id = -1;
-        c->u.cc_obj.atlas_index = 0;
-    }
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetObjectAt(tree, idx, 0, 0, -1, 0, c->item_num_mode);
     for( int32_t child = c->first_child; child >= 0; )
     {
         int32_t next = tree->components[child].next_sibling;
