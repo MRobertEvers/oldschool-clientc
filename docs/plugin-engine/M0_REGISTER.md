@@ -1,6 +1,11 @@
 # M0 implementation register
 
 M0 discovery and baseline preparation are complete for milestone sequencing.
+The implementation plan has since been revised by user decision to use the
+RuneLite widget/event model. References below to initial M1 claim policy are
+historical; that unshipped API has been removed. Native baseline and mutation
+evidence remains applicable. Use the current plan/CONTRACT for API work and the
+revised milestone numbering.
 Every mutation family and discovered consumer has a recorded disposition; the
 implementation gaps below remain requirements of M1–M6. This is not acceptance
 of complete tree-mutation correctness. M1 now has major-3 declarations, shared

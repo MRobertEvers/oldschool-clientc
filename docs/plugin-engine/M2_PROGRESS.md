@@ -1,5 +1,10 @@
 # M2 implementation evidence
 
+Milestone numbering below records work under the original plan. The user has
+since selected a RuneLite-style widget/event API; see the revised implementation
+plan and `CONTRACT.md`. Native correctness evidence remains applicable. Earlier
+claim/bundle policy results are historical and do not validate the new API.
+
 M2 is in progress. This checkpoint fixes native identity, geometry readback,
 content/hide independence, mount suppression and cycle rejection. It does not
 complete the mutation audit or the major-3 production cutover.
@@ -309,3 +314,63 @@ Remaining M2 work includes auditing other native property domains, operation
 freshness when labels/masks/content change, and general async teardown and
 allocation-failure behavior. The production major-3 plugin cutover and M3–M6
 remain open.
+
+### RuneLite CS2 source comparison
+
+Inspected upstream RuneLite commit `ac79ed8bd8926bec7bf172aa291574b4d944b0e7`
+in `/private/tmp/plugin-engine-runelite-reference`. This is source evidence;
+RuneLite was not launched for this comparison.
+
+- `BankPlugin.onScriptPreFired/onScriptPostFired` surround specific native
+  rebuilds; the price calculation explicitly precedes Bank Tags by subscriber
+  priority. `BankSearchFilter.rs2asm` inserts a synchronous named callback with
+  a return slot and native fallback. An after-frame notification cannot provide
+  the same in-script behavior.
+- `LayoutResizableStones.rs2asm` asks `forceStackStones` before choosing native
+  layout. `InterfaceStylesPlugin` answers through the VM stack, and separately
+  reapplies selected computed widget dimensions on `PostClientTick`.
+- `Widget` separates original layout inputs from computed coordinates, exposes
+  `revalidate` and `revalidateScroll`, and documents forced positioning across
+  revalidation. `WidgetOverlay` clears that force and revalidates on reset.
+- `TabInterface` creates real widget children and Java operation/scroll
+  listeners, defers work until native resize has completed, and clears retained
+  widgets on unload. `ChatboxTextMenuInput` provides a small fluent title/options
+  builder over the lower-level widget/listener implementation.
+- `Client.runScript` requires the client thread and is non-reentrant. The
+  official client-script guide requires original-script hashes for cache script
+  replacements. Current code uses an object stack where the guide still calls
+  it a string stack; raw VM details are a revision dependency.
+
+M3/M4 implications to verify in executable representative ports: expose useful
+native rebuild/decision points with typed arguments and explicitly defined
+timing; support native fallback and composition at those points; keep script IDs
+and VM stack offsets inside revision adapters; make layout revalidation and
+attachment cleanup host responsibilities; provide small C/Lua authoring helpers
+over the same checked contract. The current major-3 header's `NATIVE_EVENT` phase
+alone does not implement these facilities. A routine presentation declaration
+must not require each plugin to repair native layout every tick.
+
+Primary sources (paths relative to the pinned upstream commit):
+`runelite-client/src/main/java/net/runelite/client/plugins/bank/BankPlugin.java`,
+`plugins/banktags/tabs/TabInterface.java`,
+`plugins/interfacestyles/InterfaceStylesPlugin.java`,
+`ui/overlay/WidgetOverlay.java`, `game/chatbox/ChatboxTextMenuInput.java`;
+`runelite-client/src/main/scripts/BankSearchFilter.rs2asm` and
+`LayoutResizableStones.rs2asm`;
+`runelite-api/src/main/java/net/runelite/api/widgets/Widget.java` and `Client.java`.
+Guide: https://github.com/runelite/runelite/wiki/Working-with-client-scripts.
+
+### Retained native operation checkpoint
+
+Menu picks now capture a native action signature in addition to node incarnation.
+Changes to labels/opbase, masks, action hooks, parameters, item state and native
+text targets invalidate old picks; geometry, color, opacity and unrelated timer
+hooks do not. App dispatch also captures/rechecks effective server IF_SETEVENTS,
+which live outside the widget click mask. Plugin boundary incarnations now remain
+64-bit in menu picks instead of passing through an integer field.
+
+The existing UI suite passes. `m2-menu-policy-negative` observes the expected
+assertion failures after separately removing action freshness and native text
+from the signature. This checkpoint has not yet completed actual open-menu
+packet scenarios, inventory-count freshness or the broader lifecycle gate.
+Do not treat these focused tests as comprehensive operation correctness.

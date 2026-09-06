@@ -1,136 +1,115 @@
-# Plugin contract, major 3
+# Plugin contract, major 3: live widgets and native events
 
-This is the normative contract implemented by M2–M5. The declarations and
-shared policy code are in `src/plugin/torirs_plugin_contract.h` and `.c`.
-The current V2 host has not yet been replaced. No compatibility execution
-path is part of the intended result.
+This replaces the unshipped property-claim proposal following the user's explicit
+choice of the RuneLite model. There are no public claims, bundles, declaration
+transactions or conflict-suspension rules. The production V2 host has not yet
+been replaced; the declarations in `src/plugin/torirs_plugin_contract.h` are the
+initial slice to wire into it, not evidence of a completed major-3 runtime.
 
-## Identity, authority and capability
+## Execution and lifecycle
 
-1. A semantic selector names a query. An element reference names one exact
-   incarnation in one tree or plugin instance. Reparenting/reordering preserve
-   that incarnation; deletion, replacement, remount replacement and reuse do
-   not. A saved reference never silently resolves to another incarnation.
-2. Native IDs, parent links, child indices and script/server address spaces
-   remain native. Presentation placement is not native reparenting. Added UI
-   parts have their own identity; an extension is never fabricated as a native
-   control or used as evidence that a native capability exists.
-3. Every plugin declares required and optional semantic capabilities. Required
-   absence rejects activation before publication. Optional absence has an
-   explicit unavailable result and feature status. Native state remains
-   authoritative within each capability, including server hiding on IF1.
-4. A native hide blocks its native scope in paint, attached presentation and
-   actions. Native selected-panel, mount, mask, screen and controller limits
-   retain their own scope. Mount bookkeeping and item updates cannot clear an
-   independent native hide. Showing native content requires the corresponding
-   native show operation; releasing a plugin is not one.
+Plugins start, subscribe to events, operate on live widgets, and shut down.
+All native widget/script operations execute on the client thread. The host
+validates the plugin owner and execution context at API entry. An ordinary
+event may mutate widgets and invoke native scripts when the VM is idle. A
+callback inside script execution may read/write supported widget state and
+schedule later work, but may not recursively enter the VM. Paint may read and
+draw or schedule later work; it may not mutate widgets or execute scripts.
+Shutdown may reset widgets and release owned state, but cannot enqueue new work
+or invoke scripts. Invalid contexts return `WRONG_CONTEXT` without side effects.
+The host additionally checks actual VM occupancy, not just the callback label.
 
-## Property ownership and reads
+`revalidate` settles the addressed native widget's geometry; `revalidateScroll`
+also settles its native scroll/layout scope. These operations must give native
+computed getters coherent read-after-write behavior, including within one CS2
+script. Native layout inputs remain distinct from computed and forced geometry.
+Reading resolved zero returns zero. Paint and input share the settled result.
 
-| Family | Native state | Presentation may claim | Release / mutation outcome |
-|---|---|---|---|
-| Identity/topology | IDs, incarnation, hierarchy, mounts, sibling order | Relative attachment order; identity of owned parts | Native mutations remain live; stale references fail |
-| Geometry | Requested coordinates, sizing modes, aspect and native layout | Individually named X, Y, width and height constraints | Native requests keep updating; release resolves the latest request |
-| Scrolling/clipping | Content extent, canonical offsets, native masks and restrictions | An explicit permitted wrapper/popup clip policy | Moving a surface retains scroll and native restrictions; valid offsets survive, invalid offsets clamp natively |
-| Text/items/state | Native text, quantities, counters, CS1 active values, selection, parameters | Live bindings for extensions; state-to-style mappings | No startup copies replace native content; bindings revalidate identity |
-| Appearance | Current image, colours, font, opacity and state variants | Separate image mapping, fill mapping, default-text palette, font and opacity multiplier | Unmapped native variants fall through; native transitions remain observable |
-| Animation/model | Native sequence, frame/cycle, pose and animation updates | A separate presentation pose offset or mapped art | Native animation continues; a sprite claim does not claim animation or opacity |
-| Operations/hooks | Current operations, masks, labels, listeners and hotkeys | Declared added actions and explicit native action invocation | Native operations are never copied into stale startup menus |
+The host owns subscriptions, added widgets, resources and pending work. It
+revokes callbacks/actions before freeing owner state. New registrations wait
+until the next dispatch; removed/disabled participants are skipped even if they
+were in its original snapshot. Deferred work carries its owner epoch and checked
+widget references. Disable/reload cannot run old code against new plugin state.
+Native scripts remain non-reentrant; later and end-of-tick queues have explicit
+safe points and bounded processing. C plugins remain trusted in-process code.
 
-Native opacity applies to self where the revision's native renderer applies
-it to self. It does not become subtree opacity because a plugin owns an image.
-Opacity modulation multiplies current native opacity. Native drag translation
-and ghosting are separate native interaction effects with their native subtree
-scope. Native visibility is always evaluated independently of opacity.
+## Widgets, native state and reset
 
-Computed geometry getters observe current effective constraints synchronously,
-including native set/get sequences inside one script. Resolved zero is zero.
-Requested values remain available to the engine and inspector for release.
-Script relative coordinates remain native-parent-local and unscrolled. Canvas
-bounds include presentation placement and scrolling; window/drawable conversion
-is explicit. These coordinate labels cannot be mixed implicitly.
+A widget reference identifies one incarnation in one tree/instance. Reparenting
+and movement preserve identity; deletion, replacement and slot reuse do not.
+References never silently rebind. A fresh query or explicitly following helper
+can discover the current widget. C plugins receive checked references, not raw
+UITree pointers. Lua uses the same validation.
 
-Unclaimed descendants run native layout inside effective allocation. A provider
-that cannot support requested reflow rejects it with `UNSUPPORTED_LAYOUT` and
-a reason before publication. It does not give scripts one computed box and
-paint/hit testing another allocation. Geometry claims do not claim content,
-visibility, masks, operations, animation or unrelated axes.
+Shared role/frame helpers support portable plugins. Native numeric widget and
+script lookup is available to declared revision-specific features. CS2 APIs
+return `UNAVAILABLE` on a revision without that capability; the host does not
+pretend that CS1 is CS2. Required unavailable features reject activation before
+publishing UI; optional features have explicit reduced behavior.
 
-Text palette mappings operate on native semantic/default style. Inline semantic
-colours and native state changes survive. In particular, changing native chat's
-default white foreground for parchment does not rewrite chat strings, discard
-message colours or freeze text updates.
+Native identity, addressing and topology remain unchanged by presentation edits.
+A plugin can add owned children and listeners, but cannot remove another owner's
+or native children through the owned-widget remove API. Removing an owned parent
+revokes its descendants and their retained input/listeners before freeing them.
 
-## Transactions, conflicts and scheduling
+On native widgets, setters affect the documented presentation/content field and
+retain only the ownership/reset metadata necessary to reveal current native
+state later. Native writers continue to update their own state. Widget reset and
+plugin cleanup remove that owner's edits, exposing remaining active edits or
+current native values. They never restore a startup snapshot. Setters do not
+implicitly acquire unrelated fields, masks, operations, opacity or animation.
+Owned plugin widgets use ordinary setters with the same geometry/input rules.
 
-Declarations form an atomic presentation bundle. Invalid references, invalid
-properties, unsupported constraints or invalid anchor graphs reject the entire
-candidate and preserve a still-valid previous bundle. Existing native changes
-are not rolled back when a plugin declaration fails.
+There is no conflict negotiation. Event handlers run by descending explicit
+priority, then ascending stable plugin ID, then registration sequence. Direct
+writes become visible in that order; the last applicable setter wins. Equal
+priorities do not make plugin load order significant. The inspector reports the
+last writer. Teardown removes only that owner's edits and registrations.
+User-selected frames activate one frame provider; overlays remain independent.
 
-An exclusive property conflict suspends every presentation contribution in the
-conflicting bundles and exposes current native presentation. No contender wins
-by registration order. Unrelated bundles remain eligible. Releasing one
-contender resolves the others against current native state. The host reports
-the property, target and participants. A user-selected frame is a single
-activated provider; unselected frame offers publish no competing claims.
+Native hide, including RS2 server hiding, selected-panel state, mounts and native
+restrictions always bound paint and input. Plugin hide adds a restriction;
+clearing it releases only that restriction. Moving/skinning a widget cannot
+reveal hidden content or grant a denied operation. Native hide scope remains
+self/subtree/controller as defined by that revision.
 
-Additive attachments are ordered next to their anchor using BEFORE, AFTER or
-REPLACE_SELF, with stable owner/part-name ordering for equal relations. Anchor
-cycles are invalid. REPLACE_SELF replaces decoration only; native operational
-descendants remain intact. A replacement is eligible only while its source and
-target are eligible. This rule is transitive and is shared by paint, input and
-retained actions.
+Native scrolling, clipping, content extent, opacity and animation keep their
+own scope. Forced geometry does not remove native masks or scroll restrictions.
+Native self-opacity does not become subtree opacity. Re-skin helpers use current
+native state/semantic colors and preserve live text, quantities and state
+variants; a skin does not substitute an obsolete content snapshot.
 
-Native mutations apply first. Bindings and allocation constraints then resolve;
-native layout and required resize callbacks settle before one presentation
-revision is published for paint and interaction. Reentrant/async work enters
-at a documented safe point. No mutation can change half a published revision.
-Repeated conflicting layout changes terminate with responsible participants and
-properties reported; they do not oscillate indefinitely or silently defer a
-script-visible computed read to the next frame.
+## Events, listeners and actions
 
-| Callback phase | Read | Declare presentation | Invoke native action | Release |
-|---|---|---|---|---|
-| Describe | yes | no | no | no |
-| Activate | yes | yes | no | yes |
-| Native event | yes | yes | no | yes |
-| Layout | yes | yes | no | yes |
-| Action | yes | yes | yes | yes |
-| Paint | yes | no | no | no |
-| Stop | yes | no | no | yes |
+The initial widget events are load, close, native state change, before/after
+layout and user operation. CS2 additionally has script pre/post and named script
+callbacks. The older adapter emits real native widget/layout/state events from
+revconfig, mounted interfaces, completed CS1 evaluation, client-code updates and
+packets. It does not fabricate script execution events for CS1.
 
-An invocation returns dispatch status, not a fabricated server acknowledgement.
-The host revalidates action identity, current native operation/mask and
-availability immediately before dispatch. A decoration declaration grants no
-native action authority.
+Each event documents its exact native boundary, payload lifetime and whether it
+can be consumed or return a result. No generic mutable stack or event-reducer
+framework is needed. Callback arguments are borrowed for that call; saved widget
+references remain subject to normal incarnation checks. A synchronous script
+callback cannot yield. Its result is consumed before the native operation
+continues; absence/failure uses the declared native default. Incompatible script
+patches/profiles are rejected using pinned identity/hash and argument contracts.
 
-## Retained interaction and lifecycle
+Native action references include widget identity, operation and action revision.
+Dispatch rechecks current native availability, masks, labels/listeners and item
+identity, including retained menus and added controls. Calling an action returns
+dispatch status, not a fabricated server acknowledgement. Native hooks remain
+native; plugin listeners are separately owned and revoked on cleanup.
 
-Menus, pressed controls, drag sources/targets, focus, tooltips and queued
-callbacks retain checked identities and owner epochs. A recycled numeric ID
-does not inherit them. Changed operations/masks or presentation trigger
-revalidation; an unavailable target cannot receive a retained action. Focus
-transfer to a new incarnation requires an explicit valid focus operation.
+## Verification boundary
 
-Disable, failure, reload, frame selection and resource replacement publish
-transactionally. They revoke affected actions/callbacks before freeing state.
-Releasing presentation exposes current native state, never saved obsolete
-values. Callback APIs and borrowed snapshot pointers are scoped to the callback;
-only copied values and checked references may be retained. Data migration
-preserves useful configuration/tracker records without executing old code.
-
-Both C and Lua use the same result vocabulary, capabilities, phases, references,
-ordering, conflict rules and lifetime validation. No public raw-tree mutation,
-revision-specific component lookup, obsolete builder or compatibility loader
-is retained at the end of M5.
-
-## Executable conformance
-
-`make -C src test-plugin-contract` checks phase authority, incarnation equality,
-invalid candidate atomicity and order-independent bundle conflicts.
-`make -C src test-plugin-contract-native` selects M1's production-tree cases in
-the existing UITree harness. The original implementation is observed failing
-native-hide/content independence, zero-width computed readback, and focus on
-recycled IDs. M2 must make these pass and expand structural/retained cases;
-the actual revision harness remains mandatory in M3/M6.
+`make -C src test-plugin-contract` currently checks opaque widget identity and
+execution-context policy. The old claim resolver/tests have been removed.
+Existing UITree and native CS1/CS2 tests continue to validate their native fixes.
+These are not yet proof of the production major-3 widget API or event lifecycle.
+The initial context tests pass; `runelite-context-negative` in the local evidence
+directory observes failures when script reentry is allowed or widget incarnation
+comparison is removed. These focused controls do not validate host dispatch.
+The revised implementation plan requires actual C/Lua plugin examples on both
+real revisions before broad migration, then complete retained-interaction,
+owner-cleanup, ordering, native-state/reset and frontend conformance.
