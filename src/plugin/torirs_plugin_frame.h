@@ -1,7 +1,7 @@
 #ifndef TORIRS_PLUGIN_FRAME_H
 #define TORIRS_PLUGIN_FRAME_H
 
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #define TORIRS_PLUGIN_FRAME_OFFERS_MAX 32
 

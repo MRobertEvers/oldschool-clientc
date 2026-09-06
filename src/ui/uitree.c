@@ -15,6 +15,13 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+struct UITreeWidgetGeometry
+{
+    struct UITreeWidgetGeometry* next;
+    uint64_t owner, position_serial, size_serial;
+    int x, y, width, height;
+};
+static uint64_t widget_geometry_serial;
 
 
 #define UITREE_NATIVE_GEOMETRY_FIELDS(F) \
@@ -1540,6 +1547,12 @@ UITree_ModelRenderCacheMut(struct UITreeComponent* component)
 static void
 uitree_component_free_owned(struct UITreeComponent* c)
 {
+    while( c->widget_geometry )
+    {
+        struct UITreeWidgetGeometry* next = c->widget_geometry->next;
+        free(c->widget_geometry);
+        c->widget_geometry = next;
+    }
     if( c->model_render_cache )
     {
         if( c->model_render_cache->release )
@@ -3985,6 +3998,112 @@ UITree_MenuPickCurrent(struct UITree const* tree, struct UIMinimenuPick const* p
         !tree->components[pick->node_index].freed &&
         tree->components[pick->node_index].incarnation == pick->node_incarnation &&
         (!pick->action_signature || pick->action_signature == UITree_ActionSignatureAt(tree, pick->node_index));
+}
+
+static struct UITreeWidgetGeometry*
+uitree_widget_geometry(struct UITreeComponent* c, uint64_t owner)
+{
+    int count = 0;
+    for( struct UITreeWidgetGeometry* edit = c->widget_geometry; edit; edit = edit->next )
+    {
+        if( edit->owner == owner ) return edit;
+        ++count;
+    }
+    if( count >= 32 ) return NULL;
+    struct UITreeWidgetGeometry* edit = calloc(1, sizeof(*edit));
+    if( !edit ) return NULL;
+    edit->owner = owner;
+    edit->next = c->widget_geometry;
+    c->widget_geometry = edit;
+    return edit;
+}
+
+static bool
+uitree_widget_set_geometry(struct UITree* tree, struct UITreeNodeRef ref,
+                          uint64_t owner, int a, int b, bool size)
+{
+    int32_t idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 || !owner || (size && (a < 0 || b < 0)) || widget_geometry_serial == UINT64_MAX )
+        return false;
+    struct UITreeComponent* c = &tree->components[idx];
+    struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
+    if( !edit ) return false;
+    if( size )
+    {
+        edit->width = a; edit->height = b;
+        edit->size_serial = ++widget_geometry_serial;
+    }
+    else
+    {
+        edit->x = a; edit->y = b;
+        edit->position_serial = ++widget_geometry_serial;
+    }
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool UITree_WidgetSetPosition(struct UITree* t, struct UITreeNodeRef r, uint64_t owner, int x, int y)
+{ return uitree_widget_set_geometry(t, r, owner, x, y, false); }
+bool UITree_WidgetSetSize(struct UITree* t, struct UITreeNodeRef r, uint64_t owner, int w, int h)
+{ return uitree_widget_set_geometry(t, r, owner, w, h, true); }
+
+bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner)
+{
+    int32_t idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 || !owner ) return false;
+    struct UITreeWidgetGeometry** link = &tree->components[idx].widget_geometry;
+    while( *link )
+    {
+        struct UITreeWidgetGeometry* edit = *link;
+        if( edit->owner == owner )
+        {
+            *link = edit->next;
+            free(edit);
+            uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
+            break;
+        }
+        link = &edit->next;
+    }
+    return true;
+}
+
+void UITree_WidgetResetOwner(struct UITree* tree, uint64_t owner)
+{
+    if( !tree || !owner ) return;
+    for( uint32_t i = 0; i < tree->component_count; ++i )
+        if( !tree->components[i].freed && tree->components[i].widget_geometry )
+            UITree_WidgetReset(tree, UITree_RefAt(tree, (int32_t)i), owner);
+}
+
+/* Bit 1: forced position, bit 2: forced dimensions, including an exact zero.
+ * Modify a local layout specification; never overwrite current native inputs. */
+int UITree_WidgetPositionOverride(struct UITree const* tree, int32_t idx, struct UITreeElemPosition* out)
+{
+    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count || !out ) return 0;
+    struct UITreeWidgetGeometry const* position = NULL;
+    struct UITreeWidgetGeometry const* size = NULL;
+    for( struct UITreeWidgetGeometry const* edit = tree->components[idx].widget_geometry;
+         edit; edit = edit->next )
+    {
+        if( edit->position_serial && (!position || edit->position_serial > position->position_serial) ) position = edit;
+        if( edit->size_serial && (!size || edit->size_serial > size->size_serial) ) size = edit;
+    }
+    if( position )
+    {
+        out->x = position->x; out->y = position->y;
+        out->x_mode = out->y_mode = 0;
+        if( out->kind == UIPOS_RELATIVE )
+        {
+            out->relative_flags = UITREE_RELATIVE_FLAG_LEFT | UITREE_RELATIVE_FLAG_TOP;
+            out->left = position->x; out->top = position->y;
+        }
+    }
+    if( size )
+    {
+        out->width = size->width; out->height = size->height;
+        out->width_mode = out->height_mode = 0;
+    }
+    return (position ? 1 : 0) | (size ? 2 : 0);
 }
 
 bool

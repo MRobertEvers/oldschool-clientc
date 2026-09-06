@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -207,7 +207,7 @@ struct OrbsState
 };
 
 static bool
-orbs_cfg_bool(struct ToriRS_ApiV2* api, char const* key)
+orbs_cfg_bool(struct ToriRS_Api* api, char const* key)
 {
     bool value = false;
     (void)api->config.get_bool(api, key, &value);
@@ -215,7 +215,7 @@ orbs_cfg_bool(struct ToriRS_ApiV2* api, char const* key)
 }
 
 static int
-orbs_cfg_int(struct ToriRS_ApiV2* api, char const* key)
+orbs_cfg_int(struct ToriRS_Api* api, char const* key)
 {
     int value = 0;
     (void)api->config.get_int(api, key, &value);
@@ -223,7 +223,7 @@ orbs_cfg_int(struct ToriRS_ApiV2* api, char const* key)
 }
 
 static char const*
-orbs_cfg_string(struct ToriRS_ApiV2* api, char const* key)
+orbs_cfg_string(struct ToriRS_Api* api, char const* key)
 {
     char const* value = "";
     (void)api->config.get_string(api, key, &value);
@@ -295,7 +295,7 @@ orbs_parse_button(
  */
 static int
 orbs_compat_button(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     int* out_component,
     int* out_op)
@@ -311,7 +311,7 @@ orbs_compat_button(
 
 /** Request every authored image once; pending tokens become live in place. */
 static void
-orbs_load_images(struct ToriRS_ApiV2* api, struct OrbsState* state)
+orbs_load_images(struct ToriRS_Api* api, struct OrbsState* state)
 {
     for( int i = 0; i < ORB_IMG_COUNT; i++ )
     {
@@ -337,7 +337,7 @@ orbs_load_images(struct ToriRS_ApiV2* api, struct OrbsState* state)
  */
 static int
 orbs_varp(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     char const* name,
     int fallback)
@@ -383,7 +383,7 @@ orbs_varp(
  * the caller on its fallback.
  */
 static int
-orbs_load_digits(struct ToriRS_ApiV2* api, struct OrbsState* state)
+orbs_load_digits(struct ToriRS_Api* api, struct OrbsState* state)
 {
     char const* at;
     size_t size = 0;
@@ -729,7 +729,7 @@ orbs_node_index(struct OrbsState const* state, struct ToriRS_UiNodeRef node)
 
 static int
 orbs_map_bounds(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_Rect* out)
 {
     struct ToriRS_UiNodeInfo map;
@@ -796,7 +796,7 @@ orbs_map_ink_left(
 
 static void
 orbs_bounds(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_Rect const* map,
     int orb,
     struct ToriRS_Rect* out)
@@ -834,7 +834,7 @@ orbs_bounds(
 }
 
 static char const*
-orbs_base_action(struct ToriRS_ApiV2* api, int orb)
+orbs_base_action(struct ToriRS_Api* api, int orb)
 {
     if( orb != ORB_RUN )
         return "activate";
@@ -849,7 +849,7 @@ orbs_base_action(struct ToriRS_ApiV2* api, int orb)
 
 static int
 orbs_has_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct OrbsState const* state,
     int orb)
 {
@@ -885,7 +885,7 @@ orbs_has_action(
  * subtree non-presentable. Pick the deepest live boundary at each placement
  * refresh instead of turning that optional node into a global requirement. */
 static char const*
-orbs_parent(struct ToriRS_ApiV2* api)
+orbs_parent(struct ToriRS_Api* api)
 {
     struct ToriRS_UiNodeInfo housing;
     struct ToriRS_UiNodeRef const ref = api->ui.ref(api, "frame.minimap.housing");
@@ -900,7 +900,7 @@ orbs_parent(struct ToriRS_ApiV2* api)
 }
 
 static void
-orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
+orbs_update(struct ToriRS_Api* api, struct OrbsState* state)
 {
     char const* const parent = orbs_parent(api);
     struct ToriRS_Rect map = { 0 };
@@ -950,7 +950,7 @@ orbs_update(struct ToriRS_ApiV2* api, struct OrbsState* state)
 
 static void
 orbs_draw_node(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_UiNodeRef node,
     struct ToriRS_DrawBuilder* draw)
@@ -1045,7 +1045,7 @@ orbs_draw_node(
 
 static enum ToriRS_CallbackResult
 orbs_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_UiNodeRef node,
     char const* action)
@@ -1099,7 +1099,7 @@ invoke:
 }
 
 static void
-orbs_start(struct ToriRS_ApiV2* api, void* plugin_state)
+orbs_start(struct ToriRS_Api* api, void* plugin_state)
 {
     struct OrbsState* state = plugin_state;
 
@@ -1111,7 +1111,7 @@ orbs_start(struct ToriRS_ApiV2* api, void* plugin_state)
 }
 
 static void
-orbs_stop(struct ToriRS_ApiV2* api, void* plugin_state)
+orbs_stop(struct ToriRS_Api* api, void* plugin_state)
 {
     struct OrbsState* state = plugin_state;
 
@@ -1124,7 +1124,7 @@ orbs_stop(struct ToriRS_ApiV2* api, void* plugin_state)
 
 static void
 orbs_changed(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     char const* key)
 {
@@ -1134,7 +1134,7 @@ orbs_changed(
 
 static void
 orbs_asset(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_AssetEvent const* event)
 {
@@ -1144,7 +1144,7 @@ orbs_asset(
 
 static void
 orbs_placement(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     uint32_t revision)
 {
@@ -1164,7 +1164,7 @@ orbs_placement(
  */
 static void
 orbs_frame(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_FrameEvent const* event)
 {
@@ -1235,8 +1235,8 @@ static struct ToriRS_ConfigSchema const ORBS_SCHEMA = {
     .items = ORBS_CONFIG,
 };
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MINIMAP_ORBS = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "minimap-orbs",
     .title = "Minimap Orbs",
     .version = "1.0.0",

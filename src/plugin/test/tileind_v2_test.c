@@ -1,9 +1,9 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <stdio.h>
 #include <string.h>
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_TILEIND;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND;
 
 static int g_checks;
 static int g_failures;
@@ -44,14 +44,14 @@ struct Fake
 };
 
 static struct Fake*
-fake_api(struct ToriRS_ApiV2* api)
+fake_api(struct ToriRS_Api* api)
 {
     return api->instance;
 }
 
 static bool
 fake_config_bool(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     bool* out)
 {
@@ -68,7 +68,7 @@ fake_config_bool(
 
 static bool
 fake_config_int(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     int* out)
 {
@@ -86,7 +86,7 @@ fake_config_int(
 
 static bool
 fake_config_color(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     uint32_t* out)
 {
@@ -110,7 +110,7 @@ fake_config_color(
 
 static bool
 fake_hover_tile(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int* out_x,
     int* out_z,
     int* out_level)
@@ -127,7 +127,7 @@ fake_hover_tile(
 
 static bool
 fake_local_player(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_PlayerSnapshot* out)
 {
     struct Fake* fake = fake_api(api);
@@ -163,26 +163,26 @@ fake_world_tile(
     return TORIRS_RESULT_OK;
 }
 
-static struct ToriRS_ApiV2
+static struct ToriRS_Api
 make_api(struct Fake* fake)
 {
-    struct ToriRS_ApiV2 api = {
+    struct ToriRS_Api api = {
         .struct_size = sizeof(api),
-        .major_version = TORIRS_PLUGIN_API_V2_MAJOR,
-        .minor_version = TORIRS_PLUGIN_API_V2_MINOR,
+        .major_version = TORIRS_PLUGIN_API_MAJOR,
+        .minor_version = TORIRS_PLUGIN_API_MINOR,
         .instance = fake,
         .config = {
-            .struct_size = sizeof(struct ToriRS_ConfigApiV2),
+            .struct_size = sizeof(struct ToriRS_ConfigApi),
             .get_bool = fake_config_bool,
             .get_int = fake_config_int,
             .get_color = fake_config_color,
         },
         .world = {
-            .struct_size = sizeof(struct ToriRS_WorldApiV2),
+            .struct_size = sizeof(struct ToriRS_WorldApi),
             .local_player = fake_local_player,
         },
         .input = {
-            .struct_size = sizeof(struct ToriRS_InputApiV2),
+            .struct_size = sizeof(struct ToriRS_InputApi),
             .hover_tile = fake_hover_tile,
         },
     };
@@ -238,7 +238,7 @@ main(void)
             .level = 1,
         },
     };
-    struct ToriRS_ApiV2 api = make_api(&fake);
+    struct ToriRS_Api api = make_api(&fake);
     struct ToriRS_DrawBuilder draw = make_draw(&fake);
     struct ToriRS_ConfigItem const* config;
     int config_count = 0;

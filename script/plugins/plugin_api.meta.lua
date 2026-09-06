@@ -1,5 +1,5 @@
 ---@meta
--- LuaLS mirror of the native plugin API v2. The runtime/meta inventory test
+-- LuaLS mirror of the native plugin API major 3. The runtime/meta inventory test
 -- compares every module and callable in this file with torirs_plugin_lua.c.
 
 ---@deprecated Removed by the sandbox; use api.core.log.
@@ -344,6 +344,7 @@ warn = nil
 ---@class torirs.FrameBuilder
 ---@field surface fun(surface: torirs.Surface, rect: torirs.Rect)
 ---@field surface_member fun(surface: torirs.Surface, member: integer, rect: torirs.Rect)
+---@field surface_anchored fun(surface:torirs.Surface,rect:torirs.Rect,relation:"native"|"over"|"behind"|"replace",anchor:torirs.Surface)
 ---@field skin fun(surface: torirs.Surface, skin: table)
 ---@field ui_node fun(name: string, node: torirs.UiNode)
 ---@field scrollbar fun(skin: table)
@@ -575,7 +576,22 @@ warn = nil
 ---@field choices? string
 ---@field rows? integer
 
+---@class torirs.Widget
+---@field position fun(self:torirs.Widget):torirs.Rect? Native-parent-local, unscrolled geometry.
+---@field bounds fun(self:torirs.Widget):torirs.Rect? Drawn canvas geometry, including scroll/drag.
+---@field children fun(self:torirs.Widget):torirs.Widget[]?
+---@field text fun(self:torirs.Widget):string? Current native text input.
+---@field set_position fun(self:torirs.Widget,x:integer,y:integer):boolean,string
+---@field set_size fun(self:torirs.Widget,width:integer,height:integer):boolean,string
+---@field revalidate fun(self:torirs.Widget):boolean,string
+---@field reset fun(self:torirs.Widget):boolean,string Releases only this plugin's edits.
+
+---@class torirs.WidgetsApi
+---@field find fun(role:string):torirs.Widget?
+---@field get fun(component_id:integer):torirs.Widget? Revision-specific lookup.
+
 ---@class torirs.Api
+---@field widgets torirs.WidgetsApi
 ---@field core torirs.CoreApi
 ---@field config torirs.ConfigApi
 ---@field world torirs.WorldApi

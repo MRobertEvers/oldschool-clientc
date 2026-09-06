@@ -34,7 +34,7 @@ static int g_checks;
         }                                                                                          \
     } while( 0 )
 
-extern struct ToriRS_PluginDefV2 const TORIRS_FEATURE_FLAGS;
+extern struct ToriRS_PluginDef const TORIRS_FEATURE_FLAGS;
 
 /* ------------------------------------------------------------ fake engine */
 
@@ -179,7 +179,7 @@ fake_feature_set(
 /* Everything else the host asserts on, answered flatly. */
 
 /* In game: these harnesses exercise behaviour that is gated on it.
- * @see ToriRS_CoreApiV2::screen. */
+ * @see ToriRS_CoreApi::screen. */
 static int
 fake_plugin_screen(void* u)
 {
@@ -509,7 +509,7 @@ fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
  * the host's surface-member query, where that is an answer and not a
  * fault. */
 /** The lane states no size for any surface, so a caller falls back to its own.
- *  @see ToriRS_FrameApiV2::surface_native_size. */
+ *  @see ToriRS_FrameApi::surface_native_size. */
 static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
@@ -534,7 +534,7 @@ fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int
 }
 
 /* Nothing under test mounts a component tree, so every id answers "not
- * here" -- @see ToriRS_CacheApiV2::component_rect, where that is an answer. */
+ * here" -- @see ToriRS_CacheApi::component_rect, where that is an answer. */
 static int
 fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
 {
@@ -1435,7 +1435,7 @@ main(void)
 {
     struct ToriRS_PluginEngine engine = fake_engine();
     struct ToriRS_PluginHost* host = PluginHost_New(&engine);
-    int const p = PluginHost_RegisterV2(host, &TORIRS_FEATURE_FLAGS);
+    int const p = PluginHost_Register(host, &TORIRS_FEATURE_FLAGS);
 
     flags_reset();
 
@@ -1583,7 +1583,7 @@ main(void)
     {
         struct ToriRS_PluginEngine e2 = fake_engine();
         struct ToriRS_PluginHost* host2 = PluginHost_New(&e2);
-        int const p2 = PluginHost_RegisterV2(host2, &TORIRS_FEATURE_FLAGS);
+        int const p2 = PluginHost_Register(host2, &TORIRS_FEATURE_FLAGS);
 
         flags_reset();
         PluginHost_ConfigApply(host2, "feature-flags", "camera_zoom", "Fixed");
@@ -1609,7 +1609,7 @@ main(void)
     {
         struct ToriRS_PluginEngine e3 = fake_engine();
         struct ToriRS_PluginHost* host3 = PluginHost_New(&e3);
-        int const p3 = PluginHost_RegisterV2(host3, &TORIRS_FEATURE_FLAGS);
+        int const p3 = PluginHost_Register(host3, &TORIRS_FEATURE_FLAGS);
         struct ToriRS_PanelWidget const* w;
 
         flags_reset();

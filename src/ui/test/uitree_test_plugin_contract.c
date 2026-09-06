@@ -280,3 +280,45 @@ void test_retained_operation_state(void)
     TEST_ASSERT(!UITree_MenuPickCurrent(tree, &pick), "retained menu rejects changed native text target");
     UITree_Free(tree);
 }
+
+void test_live_widget_geometry(void)
+{
+    struct UITree* tree = UITree_New(8);
+    int root = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 0x340000, 0, 0, 300, 200);
+    int node = UITree_TestPushXy(tree, root, UIELEM_RS_RECT, 0x340001, 10, 20, 30, 40);
+    struct UITreeNodeRef ref = UITree_RefAt(tree, node);
+    UITree_GeometryAuditEnable(tree);
+    TEST_ASSERT(UITree_WidgetSetPosition(tree, ref, 10, 80, 90), "widget position setter accepts current ref");
+    TEST_ASSERT(UITree_WidgetSetSize(tree, ref, 20, 0, 50), "widget size setter accepts zero width");
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(tree->components[node].position.abs_x == 80 && tree->components[node].position.abs_w == 0,
+                "widget geometry reaches native layout including zero");
+    TEST_ASSERT(tree->components[node].position.x == 10 && tree->components[node].position.width == 30,
+                "widget edits do not overwrite native inputs");
+    UITree_SetPositionAt(tree, node, 11, 22);
+    UITree_SetSizeAt(tree, node, 44, 55);
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(tree->components[node].position.abs_x == 80 && tree->components[node].position.abs_w == 0,
+                "native updates preserve forced geometry");
+    UITree_WidgetSetPosition(tree, ref, 20, 100, 110);
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(tree->components[node].position.abs_x == 100, "last widget setter wins");
+    UITree_WidgetReset(tree, ref, 20);
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(tree->components[node].position.abs_x == 80 && tree->components[node].position.abs_w == 44,
+                "reset releases only its owner and exposes current native size");
+    UITree_WidgetResetOwner(tree, 10);
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(tree->components[node].position.abs_x == 11 && tree->components[node].position.abs_h == 55,
+                "widget cleanup exposes latest native geometry");
+    TEST_ASSERT(UITree_GeometryAuditCheck(tree, "widget tests"), "widget edits preserve native audit invariants");
+    int dyn = UITree_CcCreate(tree, root, 0x340000, 3, 7);
+    struct UITreeNodeRef old = UITree_RefAt(tree, dyn);
+    UITree_WidgetSetPosition(tree, old, 10, 1, 2);
+    int copy = UITree_CcCopy(tree, root, 0x340000, 7, 8);
+    TEST_ASSERT(copy >= 0 && !tree->components[copy].widget_geometry, "native copy does not inherit plugin owners");
+    UITree_CcDelete(tree, dyn);
+    UITree_CcCreate(tree, root, 0x340000, 3, 7);
+    TEST_ASSERT(!UITree_WidgetSetPosition(tree, old, 10, 3, 4), "stale widget setter cannot edit recycled node");
+    UITree_Free(tree);
+}

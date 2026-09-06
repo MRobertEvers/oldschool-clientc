@@ -728,7 +728,7 @@ struct ToriRS_PanelDescriptor
     /**
      * There is no title here, and that absence is the point.
      *
-     * A plugin's name is `ToriRS_PluginDefV2::title` -- the one a person sees in
+     * A plugin's name is `ToriRS_PluginDef::title` -- the one a person sees in
      * the roster, beside its switch, and against its saved settings. Letting
      * `panel_request` supply a second one made the name a thing a plugin could
      * change at runtime: two plugins could claim one spelling, a row could

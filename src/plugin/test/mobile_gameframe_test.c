@@ -32,7 +32,7 @@
 
 #include "engine/png_decode.h"
 #include "plugin/torirs_plugin_host.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -41,7 +41,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
 
 static int g_checks;
 static int g_failures;
@@ -473,7 +473,7 @@ fake_asset_read(void* u, char const* plugin, char const* name)
 
 /* In game: these harnesses exercise behaviour that is gated on it. Mutable so
  * the enabled-at-the-title scenario can move it; everything else leaves it be.
- * @see ToriRS_CoreApiV2::screen. */
+ * @see ToriRS_CoreApi::screen. */
 static int g_screen_now = TORIRS_SCREEN_GAME;
 static int fake_plugin_screen(void* u) { (void)u; return g_screen_now; }
 static char g_frame_preference[TORIRS_PLUGIN_FRAME_ID_MAX] =
@@ -598,7 +598,7 @@ static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, 
  * container, while a chatbox sized as a proportion of its parent has no native
  * size at all and the frame has to choose one. 0x0 is the default here so that
  * every test written before this verb existed still exercises the fallback.
- * @see ToriRS_FrameApiV2::surface_native_size.
+ * @see ToriRS_FrameApi::surface_native_size.
  */
 static int g_chat_native_w;
 static int g_chat_native_h;
@@ -979,21 +979,21 @@ click(uint32_t tag)
     }
 }
 
-static struct ToriRS_ApiV2* g_frame_settings_api;
+static struct ToriRS_Api* g_frame_settings_api;
 
 static void
-frame_settings_start(struct ToriRS_ApiV2* api, void* state)
+frame_settings_start(struct ToriRS_Api* api, void* state)
 {
     (void)state;
     g_frame_settings_api = api;
 }
 
-static struct ToriRS_PluginDefV2 const FRAME_SETTINGS = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+static struct ToriRS_PluginDef const FRAME_SETTINGS = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "mobile-frame-test-settings",
     .title = "Mobile Frame Test Settings",
     .version = "1.0.0",
-    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = frame_settings_start,
@@ -1133,10 +1133,10 @@ main(void)
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
 
-    g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
+    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
     CHECK(
-        PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
+        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
         "the frame settings client registers");
     CHECK(g_frame.active == 0, "nothing owns the frame before selection is resolved");
 
@@ -1668,9 +1668,9 @@ main(void)
     e.user = g_host;
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
-    g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
+    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
     CHECK(
-        PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
+        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
         "the frame settings client registers on OldSchool");
     PluginHost_Start(g_host);
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the drawer on");

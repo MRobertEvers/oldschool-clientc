@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -94,7 +94,7 @@ cs_frame_row(
 
 static void
 cs_frame_choices(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ClientSettingsState* state,
     struct ToriRS_FrameSelection const* selection)
 {
@@ -172,7 +172,7 @@ cs_remember(
  * two row mutations and the browser executor consumes only those entries. */
 static void
 cs_publish_frame(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ClientSettingsState* state,
     struct ToriRS_FrameSelection const* selection)
 {
@@ -212,7 +212,7 @@ cs_static_options(
 }
 
 static void
-cs_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
+cs_on_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct ClientSettingsState* state = state_ptr;
     struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PANEL_WIDTH_DEFAULT };
@@ -225,7 +225,7 @@ cs_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 
 static void
 cs_on_ui_build(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_PanelBuilder* panel,
     int view)
@@ -286,7 +286,7 @@ cs_frame_known(struct ClientSettingsState const* state, char const* id)
 
 static void
 cs_on_ui_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_PanelActionEvent const* event)
 {
@@ -330,7 +330,7 @@ cs_on_ui_action(
 
 static void
 cs_on_frame_start(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_FrameEvent const* event)
 {
@@ -344,13 +344,13 @@ cs_on_frame_start(
     cs_publish_frame(api, state, &selection);
 }
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS = {
+struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS = {
     .struct_size = sizeof(TORIRS_PLUGIN_CLIENT_SETTINGS),
     .id = "client-settings",
     .title = "Client Settings",
     .version = "2.0.0",
     .state_size = sizeof(struct ClientSettingsState),
-    .flags = TORIRS_PLUGIN_V2_ESSENTIAL,
+    .flags = TORIRS_PLUGIN_ESSENTIAL,
     .event_priority = 999,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),

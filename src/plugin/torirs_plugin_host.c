@@ -138,7 +138,7 @@ struct PluginV2Instance;
 static void plugin_v2_init(struct PluginContext* ctx);
 static void plugin_v2_shutdown(struct PluginContext* ctx);
 static int plugin_v2_has_event_callback(
-    struct ToriRS_PluginDefV2 const* def,
+    struct ToriRS_PluginDef const* def,
     enum PluginCallbackKind event);
 static enum ToriRS_CallbackResult plugin_v2_event(
     struct PluginContext* ctx,
@@ -148,7 +148,7 @@ static enum ToriRS_CallbackResult plugin_v2_event(
 struct PluginContext
 {
     struct ToriRS_PluginHost* host;
-    struct ToriRS_PluginDefV2 const* def;
+    struct ToriRS_PluginDef const* def;
     int index;
     /* The USER's switch, as the settings file holds it. Never written by
      * anything the plugin itself does -- see `refused`. */
@@ -238,8 +238,8 @@ struct PluginV2Instance
         char action[TORIRS_UI_ACTION_MAX];
         char actions[TORIRS_UI_NAMED_ACTIONS_MAX][TORIRS_UI_ACTION_MAX];
     } frame_ui[PLUGIN_V2_FRAME_UI_MAX], frame_ui_candidate[PLUGIN_V2_FRAME_UI_MAX];
-    struct ToriRS_PluginDefV2 const* definition;
-    struct ToriRS_PluginDefV2 definition_storage;
+    struct ToriRS_PluginDef const* definition;
+    struct ToriRS_PluginDef definition_storage;
     struct ToriRS_PluginCallbacks callbacks_storage;
     struct ToriRS_ConfigSchema config_storage;
     struct ToriRS_FrameOffer frame_offers[TORIRS_PLUGIN_FRAME_OFFERS_MAX + 1];
@@ -908,7 +908,7 @@ plugin_config_slot(
         return NULL;
     if( ctx->config_count >= TORIRS_PLUGIN_CONFIG_MAX )
     {
-        /* A declared schema cannot reach this -- PluginHost_RegisterV2 refuses
+        /* A declared schema cannot reach this -- PluginHost_Register refuses
          * one that does not fit. What can is an ini carrying more unclaimed
          * keys than the headroom above the schema, which is a settings file
          * that has outlived several renames. Said out loud because the
@@ -1059,7 +1059,7 @@ plugin_dispatch(
  * Is `ev` one of the passes whose order is a Z ORDER?
  *
  * On these, running first means being drawn UNDER, so they sort by
- * ToriRS_PluginDefV2::draw_order and the rest sort by `priority`. One list, two
+ * ToriRS_PluginDef::draw_order and the rest sort by `priority`. One list, two
  * keys, chosen here -- the alternative is a second subscription table that
  * only three events use.
  */
@@ -1088,6 +1088,15 @@ api_log(
      * per frame for a line nobody is reading.
      */
     va_list args;
+    if( getenv("TORIRS_PLUGIN_LOG") )
+    {
+        char text[2048];
+        va_start(args, fmt);
+        vsnprintf(text, sizeof(text), fmt, args);
+        va_end(args);
+        TORIRS_REPORT("[%s] %s\n", ctx->name, text);
+        return;
+    }
     TORIRS_LOG("[%s] ", ctx->name);
     va_start(args, fmt);
     TORIRS_VLOG(fmt, args);
@@ -3171,7 +3180,7 @@ api_disable_self(
     /* An essential plugin has one state -- the roster draws no switch for it
      * and SetEnabled refuses to clear it -- so a def that declares itself
      * essential and then stands down is that plugin's own bug. */
-    assert(!plugin_policy(ctx, TORIRS_PLUGIN_V2_ESSENTIAL));
+    assert(!plugin_policy(ctx, TORIRS_PLUGIN_ESSENTIAL));
 
     host = ctx->host;
     /* Idempotent: a plugin that says so twice, or from a second handler that
@@ -7542,7 +7551,7 @@ plugin_v2_item_image(
 
 static int
 plugin_v2_has_event_callback(
-    struct ToriRS_PluginDefV2 const* def,
+    struct ToriRS_PluginDef const* def,
     enum PluginCallbackKind event)
 {
     assert(def);
@@ -7615,7 +7624,7 @@ plugin_v2_event(
 {
     enum PluginCallbackKind const kind = (enum PluginCallbackKind)((intptr_t)userdata - 1);
     struct PluginV2Instance* v2;
-    struct ToriRS_ApiV2* api;
+    struct ToriRS_Api* api;
     void* state;
 
     assert(ctx);
@@ -7906,13 +7915,13 @@ plugin_v2_order_insert(
 }
 
 int
-PluginHost_RegisterV2(
+PluginHost_Register(
     struct ToriRS_PluginHost* host,
-    struct ToriRS_PluginDefV2 const* def)
+    struct ToriRS_PluginDef const* def)
 {
-    static uint32_t const KNOWN_FLAGS = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT |
-                                        TORIRS_PLUGIN_V2_ESSENTIAL | TORIRS_PLUGIN_V2_RUNTIME_HOST |
-                                        TORIRS_PLUGIN_V2_HIDDEN;
+    static uint32_t const KNOWN_FLAGS = TORIRS_PLUGIN_DISABLED_BY_DEFAULT |
+                                        TORIRS_PLUGIN_ESSENTIAL | TORIRS_PLUGIN_RUNTIME_HOST |
+                                        TORIRS_PLUGIN_HIDDEN;
     struct PluginV2Instance* v2;
     struct ToriRS_FrameOffer const* source_frames = NULL;
     struct ToriRS_UiContribution const* contributions = NULL;
@@ -7925,27 +7934,27 @@ PluginHost_RegisterV2(
 
     assert(host);
     assert(def);
-    if( def->struct_size < TORIRS_PLUGIN_DEF_V2_REQUIRED_SIZE ||
+    if( def->struct_size < TORIRS_PLUGIN_DEF_REQUIRED_SIZE ||
         !plugin_v2_id_valid(def->id) || !def->title ||
         !def->title[0] || strlen(def->title) >= TORIRS_PLUGIN_TITLE_MAX || !def->version ||
         !def->version[0] ||
         def->callbacks.struct_size < TORIRS_PLUGIN_CALLBACKS_REQUIRED_SIZE ||
         def->callbacks.struct_size >
-            def->struct_size - offsetof(struct ToriRS_PluginDefV2, callbacks) ||
+            def->struct_size - offsetof(struct ToriRS_PluginDef, callbacks) ||
         def->state_size > 1024u * 1024u )
     {
         TORIRS_ERR("plugin: invalid v2 definition refused\n");
         return -1;
     }
-    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, frames) )
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, frames) )
         source_frames = def->frames;
-    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, ui_contributions) )
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, ui_contributions) )
         contributions = def->ui_contributions;
-    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, flags) )
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, flags) )
         flags = def->flags;
-    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, event_priority) )
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, event_priority) )
         event_priority = def->event_priority;
-    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDefV2, draw_order) )
+    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, draw_order) )
         draw_order = def->draw_order;
     if( (flags & ~KNOWN_FLAGS) != 0 )
     {
@@ -8126,7 +8135,7 @@ PluginHost_RegisterV2(
         ctx->def = v2->definition;
         ctx->v2 = v2;
         ctx->index = index;
-        ctx->enabled = (flags & TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT) == 0;
+        ctx->enabled = (flags & TORIRS_PLUGIN_DISABLED_BY_DEFAULT) == 0;
         snprintf(ctx->name, sizeof(ctx->name), "%s", def->id);
         plugin_title_refresh(ctx);
         plugin_config_seed(ctx, schema_count);
@@ -8235,6 +8244,11 @@ plugin_teardown(
         ctx->running = false;
         plugin_v2_shutdown(ctx);
     }
+    if( host->engine.widget_request )
+    {
+        struct PluginWidgetRequest request = {.kind=PLUGIN_WIDGET_RESET_OWNER};
+        host->engine.widget_request(host->engine.user, (uint64_t)plugin_index + 1, &request);
+    }
     /* Geometry and bytes leave with the stopped instance. */
     plugin_objects_destroy_all(host, ctx);
     plugin_meshes_destroy_all(host, ctx);
@@ -8312,7 +8326,7 @@ PluginHost_SetEnabled(
      * it -- but from a plugin_prefs.ini written by a build where the plugin
      * was ordinary, and a saved line is not a caller's bug to abort on.
      */
-    if( !enabled && plugin_policy(ctx, TORIRS_PLUGIN_V2_ESSENTIAL) )
+    if( !enabled && plugin_policy(ctx, TORIRS_PLUGIN_ESSENTIAL) )
         return;
 
     /* Enable state is saved state: without this a panel toggle would hold for
@@ -8514,7 +8528,7 @@ PluginHost_IsRuntimeHost(
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
     return plugin_policy(
-        &host->plugins[plugin_index], TORIRS_PLUGIN_V2_RUNTIME_HOST);
+        &host->plugins[plugin_index], TORIRS_PLUGIN_RUNTIME_HOST);
 }
 
 bool
@@ -8530,7 +8544,7 @@ PluginHost_IsHidden(
         /* Providers with settings keep one locked row so their advanced
          * controls remain reachable. A provider with no settings has nothing
          * useful to show beside the one Gameframe selector. */
-        return plugin_policy(ctx, TORIRS_PLUGIN_V2_HIDDEN) ||
+        return plugin_policy(ctx, TORIRS_PLUGIN_HIDDEN) ||
                (plugin_provides_frames(ctx) && ctx->schema_count == 0);
     }
 }
@@ -8544,7 +8558,7 @@ PluginHost_IsEssential(
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
     return plugin_policy(
-               &host->plugins[plugin_index], TORIRS_PLUGIN_V2_ESSENTIAL) ||
+               &host->plugins[plugin_index], TORIRS_PLUGIN_ESSENTIAL) ||
            plugin_provides_frames(&host->plugins[plugin_index]);
 }
 
@@ -11227,7 +11241,7 @@ PluginHost_CanvasClick(
     {
         struct PluginV2Instance* v2 = ctx->v2;
         enum ToriRS_CallbackResult (*callback)(
-            struct ToriRS_ApiV2*, void*, uint32_t, int, int, int) =
+            struct ToriRS_Api*, void*, uint32_t, int, int, int) =
             v2->definition->callbacks.on_canvas_action;
 
         if( callback && op >= 0 )
@@ -11369,7 +11383,7 @@ PluginHost_ConfigApply(
          * this path writes the field directly, so an `enabled=0` left over
          * from a build where the plugin was ordinary would switch it off
          * behind both the panel and the host. */
-        if( !plugin_policy(ctx, TORIRS_PLUGIN_V2_ESSENTIAL) )
+        if( !plugin_policy(ctx, TORIRS_PLUGIN_ESSENTIAL) )
             ctx->enabled = atoi(value) != 0;
         return;
     }
@@ -11527,7 +11541,7 @@ PluginHost_ConfigEncode(
          * default-off plugin left off leaves no trace, and a default-on plugin
          * left on leaves none either -- the RS_Prefs rule. */
         if( !plugin_provides_frames(ctx) &&
-            ctx->enabled == plugin_policy(ctx, TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT) )
+            ctx->enabled == plugin_policy(ctx, TORIRS_PLUGIN_DISABLED_BY_DEFAULT) )
         {
             at += (size_t)snprintf(
                 buf + at, cap - at, "\n[plugin:%s]\nenabled=%d\n", ctx->name, ctx->enabled ? 1 : 0);

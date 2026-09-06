@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -906,7 +906,7 @@ struct MobileState;
 /** Callback-scoped native V2 services threaded through layout helpers. */
 struct MobileCall
 {
-    struct ToriRS_ApiV2* api;
+    struct ToriRS_Api* api;
     struct MobileState* state;
     struct ToriRS_FrameBuilder* builder;
     struct ToriRS_DrawBuilder* draw;
@@ -2757,7 +2757,7 @@ done:
  * Both numbers used to be constants here. That is a plugin asserting the shape
  * of every cache it will ever be loaded against, and it was already wrong on
  * two of the four OldSchool toplevels -- which is why the API grew a verb to
- * ask with. @see ToriRS_FrameApiV2::surface_native_size.
+ * ask with. @see ToriRS_FrameApi::surface_native_size.
  *
  * The fallback is the lane's own default and not an error path: a frame whose
  * chat is sized as a proportion of its parent has no native size to report,
@@ -3721,7 +3721,7 @@ mobile_draw_icon(
 
 static enum ToriRS_FrameBuildResult
 mobile_on_layout(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_FrameBuilder* builder,
     struct ToriRS_FrameBuildContext const* build)
@@ -3791,7 +3791,7 @@ mobile_on_layout(
 
 static void
 mobile_on_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_DrawBuilder* draw)
 {
@@ -3902,7 +3902,7 @@ mobile_on_draw(
          * a time and a new character starts with almost none of them, so an
          * answer recorded at declaration would draw the whole rail for someone
          * who has been given one panel. Hence the ask here, in the draw pass.
-         * @see ToriRS_CacheApiV2::tab_enabled.
+         * @see ToriRS_CacheApi::tab_enabled.
          */
         bool const given = g_api->cache.tab_enabled(g_api, t->tabno);
         int iw = 0;
@@ -3970,7 +3970,7 @@ mobile_on_draw(
  */
 static void
 mobile_on_frame(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_FrameEvent const* event)
 {
@@ -4003,7 +4003,7 @@ mobile_on_frame(
 
 static enum ToriRS_CallbackResult
 mobile_on_node_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_UiNodeRef node,
     char const* action)
@@ -4094,7 +4094,7 @@ mobile_on_node_action(
 
 static enum ToriRS_CallbackResult
 mobile_on_canvas_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     uint32_t action_id,
     int operation,
@@ -4136,7 +4136,7 @@ mobile_on_canvas_action(
  */
 static void
 mobile_on_screen(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_ScreenChangedEvent const* event)
 {
@@ -4157,7 +4157,7 @@ mobile_on_screen(
 
 static void
 mobile_image_request(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct MobileState* state,
     int image)
 {
@@ -4182,7 +4182,7 @@ mobile_image_request(
 }
 
 static void
-mobile_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
+mobile_on_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct MobileState* state = state_ptr;
 
@@ -4216,7 +4216,7 @@ mobile_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 
 static void
 mobile_on_asset(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_AssetEvent const* event)
 {
@@ -4244,7 +4244,7 @@ mobile_on_asset(
 
 static void
 mobile_on_stop(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr)
 {
     struct MobileState* state = state_ptr;
@@ -4289,7 +4289,7 @@ mobile_on_stop(
 
 static void
 mobile_on_placement(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     uint32_t revision)
 {
@@ -4312,7 +4312,7 @@ mobile_on_placement(
 
 static void
 mobile_on_config(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     char const* key)
 {
@@ -4438,8 +4438,8 @@ static struct ToriRS_FrameOffer const MOBILE_FRAME_OFFERS[] = {
     { .struct_size = sizeof(struct ToriRS_FrameOffer) },
 };
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "mobile-gameframe",
     .title = "Mobile Gameframe (Stone Drawer)",
     .version = "2.0.0",
@@ -4453,7 +4453,7 @@ struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
     .draw_order = -100,
     .config = &MOBILE_SCHEMA,
     .ui_contributions = MOBILE_CHAT_CONTRIBUTIONS,
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .frames = MOBILE_FRAME_OFFERS,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),

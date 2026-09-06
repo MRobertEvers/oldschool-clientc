@@ -169,7 +169,7 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native"):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None):
     width, height, rows = read_bmp(path)
     failures = []
     if bounds_path:
@@ -177,6 +177,15 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         if "after_ready=1" in log and not re.search(r"^SIM_READY elapsed_ms=\d+ tree_generation=[1-9]\d*", log, re.M):
             print("PIXEL native_readiness=FAIL")
             failures.append("native_readiness")
+    if widget_demo:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        if widget_demo == "c":
+            matches = re.findall(r"WIDGET_DEMO api=3 before=(-?\d+),(-?\d+) \d+x\d+ after=(-?\d+),(-?\d+)", log)
+        else:
+            matches = re.findall(r"LUA_WIDGET_DEMO (-?\d+) (-?\d+) (-?\d+) (-?\d+)", log)
+        valid = len(matches) == 1 and (int(matches[0][2]),int(matches[0][3])) == (int(matches[0][0])-12,int(matches[0][1]))
+        print(f"PIXEL native_widget_api_move={'PASS' if valid else 'FAIL'} language={widget_demo} observations={len(matches)}")
+        if not valid: failures.append("native_widget_api_move")
     if revision == "rs289lc":
         if not bounds_path:
             raise ValueError("rs289lc requires its matching native trace")
@@ -268,10 +277,11 @@ if __name__ == "__main__":
     parser.add_argument("--server-hide", help="expected native component uid:hide receipt")
     parser.add_argument("--input-state", help="focused native field parent uid:expected text")
     parser.add_argument("--native-focus-hide", action="store_true", help="verify the native Hiscores typing/hide packet sequence")
+    parser.add_argument("--widget-demo", choices=("c", "lua"))
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

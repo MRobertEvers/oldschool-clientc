@@ -10090,7 +10090,9 @@ App_Init(
         cfg->cache_quirks,
         cfg->cache_dir);
     Platform_IO_InitConfigPath(app->runner.px, cfg->config_dir);
-    Platform_IO_InitScriptPath(app->runner.px, cfg->script_dir);
+    char const* plugin_script_root = getenv("TORIRS_SCRIPT_DIR");
+    Platform_IO_InitScriptPath(app->runner.px,
+                              plugin_script_root && *plugin_script_root ? plugin_script_root : cfg->script_dir);
     /* After the script path, because it is the fallback FOR it: a stored file
      * is looked for under script_dir first and asked of this server second. */
     Platform_IO_InitIoServer(app->runner.px, cfg->io_host, cfg->io_port);

@@ -1,10 +1,10 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS;
 
 static int checks;
 static int failures;
@@ -32,10 +32,10 @@ struct Fake
 };
 static struct Fake fake;
 
-static void fake_log(struct ToriRS_ApiV2* api, char const* format, ...)
+static void fake_log(struct ToriRS_Api* api, char const* format, ...)
 { (void)api; (void)format; }
 static int fake_offer_next(
-    struct ToriRS_ApiV2* api, int iterator, struct ToriRS_FrameOfferInfo* out)
+    struct ToriRS_Api* api, int iterator, struct ToriRS_FrameOfferInfo* out)
 {
     int const next = iterator + 1;
     (void)api;
@@ -44,9 +44,9 @@ static int fake_offer_next(
     return next;
 }
 static void fake_selection(
-    struct ToriRS_ApiV2* api, struct ToriRS_FrameSelection* out)
+    struct ToriRS_Api* api, struct ToriRS_FrameSelection* out)
 { (void)api; *out = fake.selection; }
-static enum ToriRS_Result fake_select(struct ToriRS_ApiV2* api, char const* id)
+static enum ToriRS_Result fake_select(struct ToriRS_Api* api, char const* id)
 {
     (void)api;
     fake.selects++;
@@ -55,12 +55,12 @@ static enum ToriRS_Result fake_select(struct ToriRS_ApiV2* api, char const* id)
     return TORIRS_RESULT_OK;
 }
 static enum ToriRS_Result fake_panel_request(
-    struct ToriRS_ApiV2* api, struct ToriRS_PanelDescriptor const* desc)
+    struct ToriRS_Api* api, struct ToriRS_PanelDescriptor const* desc)
 { (void)api; (void)desc; fake.requests++; return TORIRS_RESULT_OK; }
-static void fake_panel_invalidate(struct ToriRS_ApiV2* api)
+static void fake_panel_invalidate(struct ToriRS_Api* api)
 { (void)api; fake.invalidates++; }
 static enum ToriRS_Result fake_panel_set_text(
-    struct ToriRS_ApiV2* api, char const* id, char const* text)
+    struct ToriRS_Api* api, char const* id, char const* text)
 {
     (void)api;
     fake.text_sets++;
@@ -69,7 +69,7 @@ static enum ToriRS_Result fake_panel_set_text(
     return TORIRS_RESULT_OK;
 }
 static enum ToriRS_Result fake_panel_set_options(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id,
     char const* value,
     struct ToriRS_SelectOption const* options,
@@ -88,7 +88,7 @@ static enum ToriRS_Result fake_panel_set_options(
     return TORIRS_RESULT_OK;
 }
 static bool fake_display_get(
-    struct ToriRS_ApiV2* api, int setting, int* value, int* min, int* max)
+    struct ToriRS_Api* api, int setting, int* value, int* min, int* max)
 { (void)api; (void)setting; (void)value; (void)min; (void)max; return false; }
 
 static void fake_heading(struct ToriRS_PanelBuilder* p, char const* t)
@@ -143,10 +143,10 @@ static void offer(int row, char const* id, char const* title)
 
 int main(void)
 {
-    struct ToriRS_ClientApiV2 client = {
+    struct ToriRS_ClientApi client = {
         .struct_size = sizeof(client), .display_get = fake_display_get,
     };
-    struct ToriRS_ApiV2 api = { 0 };
+    struct ToriRS_Api api = { 0 };
     struct ToriRS_PanelBuilder panel = {
         .struct_size = sizeof(panel), .heading = fake_heading,
         .paragraph = fake_paragraph, .toggle = fake_toggle,
@@ -175,8 +175,8 @@ int main(void)
     fake.selection.revision = 7;
 
     api.struct_size = sizeof(api);
-    api.major_version = TORIRS_PLUGIN_API_V2_MAJOR;
-    api.minor_version = TORIRS_PLUGIN_API_V2_MINOR;
+    api.major_version = TORIRS_PLUGIN_API_MAJOR;
+    api.minor_version = TORIRS_PLUGIN_API_MINOR;
     api.core.log = fake_log;
     api.frame.offer_next = fake_offer_next;
     api.frame.selection = fake_selection;
@@ -188,7 +188,7 @@ int main(void)
     api.client = &client;
     state = calloc(1, TORIRS_PLUGIN_CLIENT_SETTINGS.state_size);
 
-    CHECK(TORIRS_PLUGIN_CLIENT_SETTINGS.flags & TORIRS_PLUGIN_V2_ESSENTIAL,
+    CHECK(TORIRS_PLUGIN_CLIENT_SETTINGS.flags & TORIRS_PLUGIN_ESSENTIAL,
         "client settings is essential");
     TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_start(&api, state);
     CHECK(fake.requests == 1, "start registers one shared panel");

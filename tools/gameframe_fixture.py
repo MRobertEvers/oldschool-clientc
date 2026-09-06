@@ -43,11 +43,14 @@ def inspect(repo, binary, manifest_path, revision):
               "manifest_sha256": digest(manifest_path), "binary": str(binary),
               "binary_sha256": digest(binary), "derived": [], "files": {}, "blockers": []}
     report["inputs"] = {key: os.environ.get(key) for key in (
-        "GF_MATRIX_BASELINE", "GF_MATRIX_TAGS", "GF_MATRIX_MAX_FRAMES", "GF_MATRIX_LC_SAVE",
+        "TORIRS_SCRIPT_DIR", "TORIRS_PLUGIN_MANIFEST", "GF_MATRIX_BASELINE", "GF_MATRIX_WIDGET_DEMO", "TORIRS_WIDGET_DEMO", "GF_MATRIX_TAGS", "GF_MATRIX_MAX_FRAMES", "GF_MATRIX_LC_SAVE",
         "TORIRS_SIM_CMD", "TORIRS_SIM_CLICK_AT", "TORIRS_SIM_RESIZE", "TORIRS_SIM_HOVER",
         "TORIRS_CLIENTTYPE", "TORIRS_REVCONFIG_PLATFORM", "SDL_VIDEODRIVER",
         "TORIRS_SIM_AFTER_READY",
         "TORIRSSERVER_CONTENT", "TORIRSSERVER_CACHE", "TORIRSSERVER_SCRIPTS")}
+    script_root = os.environ.get("TORIRS_SCRIPT_DIR")
+    if script_root:
+        report["plugin_script_files"] = {str(p): digest(p) for p in sorted(Path(script_root).rglob("*")) if p.is_file()}
     expected = {"rs289lc": ("289", "lc289", "cs1"), "osrs239": ("239", "osrs239", "cs2")}
     actual = (manifest.revision, manifest.rev, manifest.ini.get("ui:boot", "logic"))
     if actual != expected[revision]:

@@ -374,3 +374,55 @@ assertion failures after separately removing action freshness and native text
 from the signature. This checkpoint has not yet completed actual open-menu
 packet scenarios, inventory-count freshness or the broader lifecycle gate.
 Do not treat these focused tests as comprehensive operation correctness.
+
+### First production major-3 widget path (revised M2, partial)
+
+The public aggregate/registration names are now `ToriRS_Api`,
+`ToriRS_PluginDef` and `PluginHost_Register` in `torirs_plugin_api.h`, reporting
+major 3. Repository C consumers and the Lua runtime compile against this same
+host; no second runtime or old-ABI registration wrapper was added. Former
+frame/UI builders remain for the still-pending product ports. Their internal
+V2-named implementation storage is not yet fully cleaned up.
+
+`api.widgets` routes live role/native lookup, children, current text input,
+drawn-canvas and parent-local geometry, position/size setters, revalidation and
+owner reset. Lua uses checked widget userdata with equivalent methods and
+metadata inventory checks. Native geometry remains authoritative under a small
+per-widget owner edit list: writes use call order, reset reveals another owner's
+remaining edit or latest native input. Native copies do not acquire these edits,
+node deletion frees them, and plugin teardown drops its owner edits. There is no
+claim/bundle arbitration. The old frame builder's active canvas allocations are
+explicitly unsupported by the new native-parent setters until those providers
+are ported; the new probes run against native frames.
+
+Tree regression and ASan tests pass for current-native reset, independent
+position/size ownership, zero-size layout, native mutation under a forced box,
+copying and stale references. `live-widget-geometry-negative` observes the intended
+failure with the override mechanism disabled. Host tests pass 284 checks including
+callback-only routing and automatic teardown reset. Lua runtime/metadata tests
+and frame/mobile suites pass. A previously omitted C frame-anchor operation was
+also bound in Lua while those remaining frame consumers are being migrated.
+
+Actual evidence in `/private/tmp/plugin-engine-evidence`:
+- `live-widget-c-isolated-osrs` and `live-widget-lua-osrs`: exactly one logged
+  12-pixel parent-local sidebar move; native inventory remains visible.
+- `live-widget-c-stats-lc` and `live-widget-lua-stats-lc`: identical plugin sources
+  move the revconfig sidebar, then a real tab click mounts the stats interface;
+  real server updates drive CS1 to Strength 20/20. Each connection reserves a
+  fresh account. Both show 19 skill cells, 13 sidebar tabs and 4 chat controls in
+  inspected 2x captures. OSRS captures show 3 inventory icons, 14 sidebar tabs,
+  8 chat filters and 4 native orbs.
+
+The first C captures also loaded the default Lua manifest. They proved the C
+call ran, but are not isolated references. The harness now suppresses that
+manifest for C-only probes and requires explicit manifests for Lua probes.
+Opt-in plugin logging survives optimized builds, and the existing pixel checker
+requires exactly one successful before/after geometry trace. `TORIRS_SCRIPT_DIR`
+selects isolated Lua source without changing the shared runtime assets; fixture
+receipts hash that source directory and record the manifest.
+
+This does not close revised M2: the examples currently retry initial readiness
+from a tick callback. Native load/rebuild subscriptions, synchronous script hooks,
+owned controls, re-skinning, live state binding and action invocation still need
+their actual two-generation examples. No general lifecycle, conflict-order or
+full plugin-port acceptance is claimed by these geometry probes.

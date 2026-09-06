@@ -1,5 +1,5 @@
 #include "plugin/plugins/plugin_draw.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -269,7 +269,7 @@ struct ItemStatsState
 
 struct ItemStatsRuntime
 {
-    struct ToriRS_ApiV2* api;
+    struct ToriRS_Api* api;
     struct ItemStatsState* state;
 };
 
@@ -2648,7 +2648,7 @@ is_build_equipment(
  */
 static enum ToriRS_CallbackResult
 is_on_menu_build(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_MenuBuildEvent* ev)
 {
@@ -2683,7 +2683,7 @@ is_on_menu_build(
 
 static void
 is_on_frame(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_FrameEvent const* event)
 {
@@ -2712,7 +2712,7 @@ is_load_art(struct ItemStatsRuntime* rt)
  */
 static void
 is_on_draw_canvas(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_DrawBuilder* draw)
 {
@@ -2833,7 +2833,7 @@ is_on_draw_canvas(
  * show the old ones until the pointer moved. */
 static void
 is_on_config_changed(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     char const* key)
 {
@@ -2846,7 +2846,7 @@ is_on_config_changed(
 }
 
 static void
-is_start(struct ToriRS_ApiV2* api, void* state_ptr)
+is_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct ItemStatsState* state = state_ptr;
     struct ItemStatsRuntime runtime = { api, state };
@@ -2866,7 +2866,7 @@ is_start(struct ToriRS_ApiV2* api, void* state_ptr)
 }
 
 static void
-is_stop(struct ToriRS_ApiV2* api, void* state_ptr)
+is_stop(struct ToriRS_Api* api, void* state_ptr)
 {
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;
@@ -2921,7 +2921,7 @@ static struct ToriRS_ConfigSchema const ITEM_STATS_SCHEMA = {
     .items = ITEM_STATS_CONFIG,
 };
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_ITEM_STATS = {
+struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS = {
     .struct_size = sizeof(TORIRS_PLUGIN_ITEM_STATS),
     .id = "item-stats",
     .title = "Item Stats",

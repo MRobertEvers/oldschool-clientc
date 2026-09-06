@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -588,7 +588,7 @@ struct FrameState;
 /** Callback-scoped native V2 services threaded through layout helpers. */
 struct FrameCall
 {
-    struct ToriRS_ApiV2* api;
+    struct ToriRS_Api* api;
     struct FrameState* state;
     struct ToriRS_FrameBuilder* builder;
     struct ToriRS_DrawBuilder* draw;
@@ -1770,7 +1770,7 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
          * because everything this frame composes for a chat assumes the bar is
          * the strip along the bottom. That is the Stone Drawer's frame to
          * dress, not this one, so here the pack is left where the lane put it.
-         * @see ToriRS_FrameApiV2::surface_native_size, mobile_chat_native.
+         * @see ToriRS_FrameApi::surface_native_size, mobile_chat_native.
          */
         int native_w = FRAME_O_CHAT_PACK_W;
         int native_h = FRAME_O_CHAT_PACK_H;
@@ -3377,7 +3377,7 @@ frame_layout_resolve(struct FrameCall* ctx)
 
 static enum ToriRS_FrameBuildResult
 frame_on_layout(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_FrameBuilder* builder,
     struct ToriRS_FrameBuildContext const* build)
@@ -3406,7 +3406,7 @@ frame_on_layout(
      * there is no frame to dress. Applying an empty retained declaration there
      * would hide title furniture behind a frame for a screen nobody is on yet.
      *
-     * @see ToriRS_CoreApiV2::screen. Declared here rather than left to the
+     * @see ToriRS_CoreApi::screen. Declared here rather than left to the
      * host because only the plugin knows that its effect is a GAME effect;
      * the host cannot tell a frame dresser from an overlay that belongs
      * everywhere.
@@ -3494,7 +3494,7 @@ frame_on_layout(
 
 static void
 frame_on_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_DrawBuilder* draw)
 {
@@ -3562,7 +3562,7 @@ frame_on_draw(
          * frame that recorded the answer at its first build would still be
          * drawing a new character's empty rail an hour later. The client's own
          * chrome gates the same two pictures on the same fact.
-         * @see ToriRS_CacheApiV2::tab_enabled.
+         * @see ToriRS_CacheApi::tab_enabled.
          */
         bool const given = g_api->cache.tab_enabled(g_api, t->tabno);
         /* Against the tab NUMBER, not the box index: on 548 they differ, and
@@ -3582,7 +3582,7 @@ frame_on_draw(
 
 static enum ToriRS_CallbackResult
 frame_on_node_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_UiNodeRef node,
     char const* action)
@@ -3619,7 +3619,7 @@ frame_on_node_action(
 
 static void
 frame_image_request(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct FrameState* state,
     int image)
 {
@@ -3644,7 +3644,7 @@ frame_image_request(
 }
 
 static void
-frame_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
+frame_on_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct FrameState* state = state_ptr;
 
@@ -3674,7 +3674,7 @@ frame_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
  */
 static void
 frame_on_frame_start(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_FrameEvent const* event)
 {
@@ -3705,7 +3705,7 @@ frame_on_frame_start(
 
 static void
 frame_on_asset(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_AssetEvent const* event)
 {
@@ -3727,7 +3727,7 @@ frame_on_asset(
 
 static void
 frame_on_placement(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     uint32_t revision)
 {
@@ -3742,7 +3742,7 @@ frame_on_placement(
 }
 
 static void
-frame_on_stop(struct ToriRS_ApiV2* api, void* state_ptr)
+frame_on_stop(struct ToriRS_Api* api, void* state_ptr)
 {
     struct FrameState* state = state_ptr;
 
@@ -3859,8 +3859,8 @@ static struct ToriRS_FrameOffer const FRAME_OFFERS[] = {
     { .struct_size = sizeof(struct ToriRS_FrameOffer) },
 };
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_GAMEFRAME = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "gameframe-layout",
     .title = "Gameframe Layout",
     .version = "2.0.0",
@@ -3875,7 +3875,7 @@ struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_GAMEFRAME = {
      * then the map surround's ring was drawn over them.
      */
     .draw_order = -100,
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .frames = FRAME_OFFERS,
     .ui_contributions = FRAME_CHAT_CONTRIBUTIONS,
     .callbacks = {

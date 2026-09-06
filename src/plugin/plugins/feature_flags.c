@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -56,7 +56,7 @@ ff_value_index(struct ToriRS_FeatureInfo const* flag, int value)
 }
 
 static char const*
-ff_stored(struct ToriRS_ApiV2* api, struct ToriRS_FeatureInfo const* flag)
+ff_stored(struct ToriRS_Api* api, struct ToriRS_FeatureInfo const* flag)
 {
     char const* value = "";
     if( !api->config.has(api, flag->key) ||
@@ -83,7 +83,7 @@ ff_stored_value(
 }
 
 static void
-ff_refresh(struct ToriRS_ApiV2* api, struct FeatureFlagsState* state)
+ff_refresh(struct ToriRS_Api* api, struct FeatureFlagsState* state)
 {
     struct ToriRS_FeatureInfo flag;
     int iter = -1;
@@ -100,7 +100,7 @@ ff_refresh(struct ToriRS_ApiV2* api, struct FeatureFlagsState* state)
 }
 
 static void
-ff_apply_all(struct ToriRS_ApiV2* api, struct FeatureFlagsState* state)
+ff_apply_all(struct ToriRS_Api* api, struct FeatureFlagsState* state)
 {
     for( int i = 0; i < state->flag_count; i++ )
     {
@@ -115,7 +115,7 @@ ff_apply_all(struct ToriRS_ApiV2* api, struct FeatureFlagsState* state)
 
 static int
 ff_options(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_FeatureInfo const* flag,
     struct ToriRS_SelectOption* options,
     char values[FF_OPTION_MAX][32],
@@ -178,7 +178,7 @@ ff_options(
 
 static void
 ff_publish_option(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_FeatureInfo* flag)
 {
     struct ToriRS_SelectOption options[FF_OPTION_MAX];
@@ -198,7 +198,7 @@ ff_publish_option(
 }
 
 static void
-ff_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
+ff_on_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct FeatureFlagsState* state = state_ptr;
     struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PANEL_WIDTH_DEFAULT };
@@ -210,7 +210,7 @@ ff_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 
 static void
 ff_on_ui_build(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_PanelBuilder* panel,
     int view)
@@ -241,7 +241,7 @@ ff_on_ui_build(
 
 static void
 ff_on_ui_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_PanelActionEvent const* event)
 {
@@ -276,7 +276,7 @@ ff_on_ui_action(
 
 static void
 ff_on_config_changed(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     char const* key)
 {
@@ -286,13 +286,13 @@ ff_on_config_changed(
     ff_apply_all(api, state);
 }
 
-struct ToriRS_PluginDefV2 const TORIRS_FEATURE_FLAGS = {
+struct ToriRS_PluginDef const TORIRS_FEATURE_FLAGS = {
     .struct_size = sizeof(TORIRS_FEATURE_FLAGS),
     .id = "feature-flags",
     .title = "Feature Flags",
     .version = "2.0.0",
     .state_size = sizeof(struct FeatureFlagsState),
-    .flags = TORIRS_PLUGIN_V2_ESSENTIAL,
+    .flags = TORIRS_PLUGIN_ESSENTIAL,
     .event_priority = 1000,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),

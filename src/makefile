@@ -749,7 +749,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/client_settings.c \
 	plugin/plugins/feature_flags.c \
-	plugin/plugins/tileind.c \
+	plugin/plugins/tileind.c plugin/plugins/widget_demo.c \
 	plugin/plugins/minimap_orbs.c \
 	plugin/plugins/xp_orbs.c \
 	plugin/plugins/gameframe.c \
@@ -2235,7 +2235,7 @@ test-nxt-plugins: $(OBJ_DIR) \
 # with plugin_api.meta.lua, so neither a missing completion nor a documented
 # nil function can ship unnoticed.
 .PHONY: test-plugin-lua-api-inventory
-test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c plugin/torirs_plugin_v2.h \
+test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c plugin/torirs_plugin_api.h \
 		plugin/test/plugin_lua_api_inventory_test.py \
 		$(REPO_ROOT)/script/plugins/plugin_api.meta.lua
 	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_lua_api_inventory_test.py
@@ -2250,11 +2250,11 @@ endif
 .PHONY: test-plugin-lua
 test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
 		plugin/torirs_plugin_lua.c \
-		plugin/test/torirs_plugin_lua_v2_test.c test-plugin-lua-api-inventory \
+		plugin/test/plugin_lua_test.c test-plugin-lua-api-inventory \
 		$(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -DTORIRS_PLUGIN_LUA_TESTING=1 -I$(LUA_DIR) \
 		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
-		plugin/torirs_plugin_lua.c plugin/test/torirs_plugin_lua_v2_test.c \
+		plugin/torirs_plugin_lua.c plugin/test/plugin_lua_test.c \
 		$(OBJ_DIR)/lua_unity.o $(LDFLAGS)
 	$(PLUGIN_LUA_TEST_ENV) ./$(OBJ_DIR)/torirs_plugin_lua_v2_test
 
@@ -2311,16 +2311,16 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_fr
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_host_test
 
-# Public v2 source contract. This target stays parse/type-check only so an API
+# Public major-3 source contract. This target stays parse/type-check only so an API
 # header regression is reported directly; runtime registration and behavior
 # are covered by test-plugin-host and the bundled-plugin suites.
-.PHONY: test-plugin-api-v2
-test-plugin-api-v2: plugin/torirs_plugin_v2.h plugin/test/torirs_plugin_v2_compile_test.c \
+.PHONY: test-plugin-api
+test-plugin-api: plugin/torirs_plugin_api.h plugin/test/plugin_api_compile_test.c \
 		plugin/test/plugin_api_single_version_test.py
 	$(CC) -std=c11 -fsyntax-only -Wall -Wextra -Werror=incompatible-pointer-types \
-		-I$(SRC_DIR) plugin/test/torirs_plugin_v2_compile_test.c
+		-I$(SRC_DIR) plugin/test/plugin_api_compile_test.c
 	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_api_single_version_test.py
-	@echo "test-plugin-api-v2: ok"
+	@echo "test-plugin-api: ok"
 
 # First bundled v2 consumer. The fake modules pin the old tile indicator's
 # drawing order and colours while proving it needs neither a global API pointer

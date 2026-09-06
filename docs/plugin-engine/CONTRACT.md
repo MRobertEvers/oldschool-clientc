@@ -2,9 +2,11 @@
 
 This replaces the unshipped property-claim proposal following the user's explicit
 choice of the RuneLite model. There are no public claims, bundles, declaration
-transactions or conflict-suspension rules. The production V2 host has not yet
-been replaced; the declarations in `src/plugin/torirs_plugin_contract.h` are the
-initial slice to wire into it, not evidence of a completed major-3 runtime.
+transactions or conflict-suspension rules. The existing production host now exposes the major-3 aggregate in
+`src/plugin/torirs_plugin_api.h`. Its live-widget geometry/read/reset methods
+are wired through `torirs_plugin_contract.h` for C and Lua. Owned controls,
+style/content setters, widget events and actions remain to implement; the
+former frame/UI builders remain only for the product ports still in progress.
 
 ## Execution and lifecycle
 
@@ -106,7 +108,8 @@ native; plugin listeners are separately owned and revoked on cleanup.
 `make -C src test-plugin-contract` currently checks opaque widget identity and
 execution-context policy. The old claim resolver/tests have been removed.
 Existing UITree and native CS1/CS2 tests continue to validate their native fixes.
-These are not yet proof of the production major-3 widget API or event lifecycle.
+Host routing and actual C/Lua geometry probes now pass on rs289lc and OSRS239.
+They do not prove the complete widget API or event lifecycle.
 The initial context tests pass; `runelite-context-negative` in the local evidence
 directory observes failures when script reentry is allowed or widget incarnation
 comparison is removed. These focused controls do not validate host dispatch.

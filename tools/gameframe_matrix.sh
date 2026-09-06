@@ -31,6 +31,14 @@ REPO=${REPO:-$(cd "$(dirname "$0")/.." && pwd)}
 BIN=${BIN:-$REPO/src/torirs_gfmatrix}
 REVISION=${GF_MATRIX_REVISION:-osrs239}
 BASELINE=${GF_MATRIX_BASELINE:-0}
+# A C-only probe must not inherit the default shipped Lua manifest. Otherwise
+# unrelated overlays make its supposedly isolated reference capture misleading.
+if [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]]; then
+  export TORIRS_PLUGIN_MANIFEST=''
+elif [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua && -z "${TORIRS_PLUGIN_MANIFEST:-}" ]]; then
+  echo 'Lua widget probe requires its explicit TORIRS_PLUGIN_MANIFEST' >&2
+  exit 2
+fi
 if [[ "$REVISION" == rs289lc ]]; then
   MANIFEST=${MANIFEST:-$REPO/manifests/manifest_rs289lc.ini}
 else
@@ -125,7 +133,9 @@ one() {
   local -a env_extra
   env_extra=()
   [ "$mobile" = "1" ] && env_extra=(TORIRS_CLIENTTYPE=7)
-  [[ "$BASELINE" == 1 ]] && env_extra+=(TORIRS_PLUGINS=0)
+  [[ "$BASELINE" == 1 && "${GF_MATRIX_WIDGET_DEMO:-0}" == 0 ]] && env_extra+=(TORIRS_PLUGINS=0)
+  [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]] && env_extra+=(TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1)
+  [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua ]] && env_extra+=(TORIRS_WIDGET_DEMO=lua TORIRS_PLUGIN_LOG=1)
   [[ "${GF_MATRIX_PERF:-0}" == 1 ]] && env_extra+=(TORIRS_PERF=1 TORIRS_PERF_CSV="$run/perf.csv" TORIRS_PERF_WINDOW=200)
   local -a client_args
   client_args=()
@@ -202,10 +212,13 @@ checks=0
 printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" TAG TOP FRAME SIZE ROOT FILTERS VERDICT
 while IFS='|' read tag m f s; do
   L=$OUT/$tag/log.txt
+  widget_args=()
+  [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]] && widget_args+=(--widget-demo c)
+  [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua ]] && widget_args+=(--widget-demo lua)
   if [[ "$m" == R ]]; then
     python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" \
       --root 0 --revision rs289lc --rs289-scenario "${GF_MATRIX_RS289_SCENARIO:-baseline}" \
-      --bounds "$L" > "$OUT/$tag/pixels.txt" 2>&1
+      --bounds "$L" "${widget_args[@]}" > "$OUT/$tag/pixels.txt" 2>&1
     result=$?
     cat "$OUT/$tag/pixels.txt"
     [[ "$result" == 0 && "$(cat "$OUT/$tag/exit-status" 2>/dev/null)" == 0 ]] || fail=$((fail+1))
@@ -243,7 +256,7 @@ while IFS='|' read tag m f s; do
     if [[ "$BASELINE" != 1 && "${GF_MATRIX_EXPECT_NATIVE:-0}" != 1 ]] && { ! grep -q "frameroles: root $rt, .*roles checked, .* absent, 0 unbound, 0 mismatched" "$L" || grep -Eq 'frameroles: .* (MISMATCH|UNBOUND)' "$L"; }; then
       v="ROLE AUDIT"; checks=$((checks+1))
     fi
-    local_state_args=()
+    local_state_args=("${widget_args[@]}")
     [[ "$BASELINE" == 1 ]] && local_state_args+=(--native-baseline)
     [[ -n "${GF_MATRIX_MINIMAP_STATE:-}" ]] && local_state_args+=(--minimap-state "$GF_MATRIX_MINIMAP_STATE")
     [[ -n "${GF_MATRIX_SERVER_HIDE:-}" ]] && local_state_args+=(--server-hide "$GF_MATRIX_SERVER_HIDE")

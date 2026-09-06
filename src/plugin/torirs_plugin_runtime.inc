@@ -270,7 +270,7 @@ plugin_v2_runtime_model_slot(
 
 
 static struct PluginV2Runtime*
-v2_runtime(struct ToriRS_ApiV2* api)
+v2_runtime(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime;
 
@@ -289,7 +289,7 @@ static bool v2_panel_options_valid(
 
 static void
 v2_core_log(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* format,
     ...)
 {
@@ -306,7 +306,7 @@ v2_core_log(
 
 static void
 v2_core_notify(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* text)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -316,21 +316,21 @@ v2_core_notify(
 }
 
 static int
-v2_core_screen(struct ToriRS_ApiV2* api)
+v2_core_screen(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_screen(runtime->context);
 }
 
 static uint64_t
-v2_core_frame_ms(struct ToriRS_ApiV2* api)
+v2_core_frame_ms(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_frame_ms(runtime->context);
 }
 
 static uint64_t
-v2_core_frame_work_us(struct ToriRS_ApiV2* api)
+v2_core_frame_work_us(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_frame_work_us(runtime->context);
@@ -338,7 +338,7 @@ v2_core_frame_work_us(struct ToriRS_ApiV2* api)
 
 static bool
 v2_core_lane(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_LaneInfo* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -349,7 +349,7 @@ v2_core_lane(
 
 static bool
 v2_core_capability(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -360,7 +360,7 @@ v2_core_capability(
 }
 
 static char const*
-v2_core_plugin_id(struct ToriRS_ApiV2* api)
+v2_core_plugin_id(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return runtime->context->name;
@@ -368,7 +368,7 @@ v2_core_plugin_id(struct ToriRS_ApiV2* api)
 
 static bool
 v2_config_has(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -379,7 +379,7 @@ v2_config_has(
 
 static bool
 v2_config_get_bool(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     bool* out)
 {
@@ -396,7 +396,7 @@ v2_config_get_bool(
 
 static bool
 v2_config_get_int(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     int* out)
 {
@@ -413,7 +413,7 @@ v2_config_get_int(
 
 static bool
 v2_config_get_color(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     uint32_t* out)
 {
@@ -430,7 +430,7 @@ v2_config_get_color(
 
 static bool
 v2_config_get_string(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     char const** out)
 {
@@ -447,7 +447,7 @@ v2_config_get_string(
 
 static enum ToriRS_Result
 v2_config_set(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     char const* value)
 {
@@ -461,7 +461,7 @@ v2_config_set(
 
 static bool
 v2_world_local_player(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_PlayerSnapshot* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -472,7 +472,7 @@ v2_world_local_player(
 
 static int
 v2_world_npc_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_NpcSnapshot* out)
 {
@@ -484,7 +484,7 @@ v2_world_npc_next(
 
 static bool
 v2_world_npc_by_slot(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int slot,
     struct ToriRS_NpcSnapshot* out)
 {
@@ -496,7 +496,7 @@ v2_world_npc_by_slot(
 
 static int
 v2_world_player_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_PlayerSnapshot* out)
 {
@@ -508,7 +508,7 @@ v2_world_player_next(
 
 static int
 v2_world_item_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_GroundItemSnapshot* out)
 {
@@ -520,7 +520,7 @@ v2_world_item_next(
 
 static int
 v2_world_scenery_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_ScenerySnapshot* out)
 {
@@ -532,7 +532,7 @@ v2_world_scenery_next(
 
 static bool
 v2_input_key_held(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int key)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -541,7 +541,7 @@ v2_input_key_held(
 
 static bool
 v2_input_pointer(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int* out_x,
     int* out_y)
 {
@@ -554,7 +554,7 @@ v2_input_pointer(
 
 static bool
 v2_input_hover_tile(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int* out_x,
     int* out_z,
     int* out_level)
@@ -569,7 +569,7 @@ v2_input_hover_tile(
 
 static bool
 v2_input_hover_entity(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_HoverTarget* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -580,7 +580,7 @@ v2_input_hover_entity(
 
 static void
 v2_input_text_input(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     bool enabled)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -589,7 +589,7 @@ v2_input_text_input(
 
 static void
 v2_input_chat_focus(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     bool focused)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -598,7 +598,7 @@ v2_input_chat_focus(
 
 static struct ToriRS_UiNodeRef
 v2_ui_ref(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -609,7 +609,7 @@ v2_ui_ref(
 
 static bool
 v2_ui_info(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef node,
     struct ToriRS_UiNodeInfo* out)
 {
@@ -622,7 +622,7 @@ v2_ui_info(
 
 static bool
 v2_ui_invoke(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef node,
     char const* action)
 {
@@ -635,7 +635,7 @@ v2_ui_invoke(
 
 static bool
 v2_ui_base_action_available(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef node,
     char const* action)
 {
@@ -647,7 +647,7 @@ v2_ui_base_action_available(
 
 static bool
 v2_ui_invoke_base(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef node,
     char const* action)
 {
@@ -659,7 +659,7 @@ v2_ui_invoke_base(
 
 static bool
 v2_ui_contribution_info(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* node,
     uint32_t facets,
     struct ToriRS_UiContributionInfo* out)
@@ -700,7 +700,7 @@ v2_ui_node_images_valid(
 
 static enum ToriRS_Result
 v2_ui_update(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef node,
     uint32_t facets,
     struct ToriRS_UiNode const* value)
@@ -717,7 +717,7 @@ v2_ui_update(
 
 static bool
 v2_ui_menu_add(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MenuBuildEvent* menu,
     char const* text,
     uint32_t action_id)
@@ -732,7 +732,7 @@ v2_ui_menu_add(
 
 static enum ToriRS_Result
 v2_ui_set_enabled(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef node,
     bool enabled)
 {
@@ -788,7 +788,7 @@ v2_rect_to_internal(
 }
 
 static uint32_t
-v2_placement_revision(struct ToriRS_ApiV2* api)
+v2_placement_revision(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return 1
@@ -798,7 +798,7 @@ v2_placement_revision(struct ToriRS_ApiV2* api)
 
 static struct ToriRS_PlacementAreaRef
 v2_placement_area(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int area)
 {
     struct ToriRS_PlacementAreaRef ref = { 0 };
@@ -811,7 +811,7 @@ v2_placement_area(
 
 static bool
 v2_placement_primary(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_PlacementAreaRef area_ref,
     struct ToriRS_Rect* out)
 {
@@ -849,7 +849,7 @@ v2_placement_primary(
 
 static bool
 v2_placement_place(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int area,
     int anchor,
     int width,
@@ -873,7 +873,7 @@ v2_placement_place(
 
 static int
 v2_placement_rect_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_PlacementAreaRef area_ref,
     int iterator,
     struct ToriRS_Rect* out)
@@ -894,7 +894,7 @@ v2_placement_rect_next(
 
 static bool
 v2_placement_contains(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_PlacementAreaRef area_ref,
     struct ToriRS_Rect rect)
 {
@@ -929,7 +929,7 @@ v2_reservation_name_valid(char const* name)
 
 static enum ToriRS_PlacementReserveResult
 v2_placement_reserve(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     int area,
     int edge,
@@ -948,7 +948,7 @@ v2_placement_reserve(
 
 static bool
 v2_placement_reservation_rect(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     struct ToriRS_Rect* out)
 {
@@ -966,7 +966,7 @@ v2_placement_reservation_rect(
 
 static int
 v2_frame_offer_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_FrameOfferInfo* out)
 {
@@ -988,7 +988,7 @@ v2_frame_offer_next(
 
 static void
 v2_frame_selection(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_FrameSelection* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1005,7 +1005,7 @@ v2_frame_selection(
 
 static enum ToriRS_Result
 v2_frame_select(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1016,7 +1016,7 @@ v2_frame_select(
 }
 
 static void
-v2_frame_invalidate(struct ToriRS_ApiV2* api)
+v2_frame_invalidate(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
         api_frame_invalidate(runtime->context);
@@ -1024,7 +1024,7 @@ v2_frame_invalidate(struct ToriRS_ApiV2* api)
 
 static bool
 v2_frame_surface_native_size(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int surface,
     int* out_width,
     int* out_height)
@@ -1040,7 +1040,7 @@ v2_frame_surface_native_size(
 
 static bool
 v2_draw_project(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int fine_x,
     int fine_z,
     int height,
@@ -1056,7 +1056,7 @@ v2_draw_project(
 
 static int
 v2_draw_element_height(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int element_id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1067,7 +1067,7 @@ v2_draw_element_height(
 
 static int
 v2_draw_hsl_from_rgb(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     uint32_t rgb)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1076,7 +1076,7 @@ v2_draw_hsl_from_rgb(
 
 static uint32_t
 v2_draw_hsl_to_rgb(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int hsl)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1113,7 +1113,7 @@ v2_asset_state_checked(enum ToriRS_AssetState state)
 
 static enum ToriRS_AssetState
 v2_assets_request(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1126,7 +1126,7 @@ v2_assets_request(
 
 static bool
 v2_assets_bytes(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     void const** out_data,
     size_t* out_size)
@@ -1153,7 +1153,7 @@ v2_assets_bytes(
 
 static enum ToriRS_Result
 v2_assets_save(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     void const* data,
     size_t size)
@@ -1171,7 +1171,7 @@ v2_assets_save(
 
 static void
 v2_assets_release(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1182,7 +1182,7 @@ v2_assets_release(
 
 static enum ToriRS_AssetState
 v2_assets_image(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     struct ToriRS_ImageRef* out)
 {
@@ -1218,7 +1218,7 @@ v2_assets_image(
 
 static bool
 v2_assets_image_size(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_ImageRef image,
     int* out_width,
     int* out_height)
@@ -1235,7 +1235,7 @@ v2_assets_image_size(
 
 static void
 v2_assets_image_release(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_ImageRef image)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1254,7 +1254,7 @@ v2_assets_image_release(
 
 static enum ToriRS_AssetState
 v2_assets_model(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     struct ToriRS_ModelRef* out)
 {
@@ -1286,7 +1286,7 @@ v2_assets_model(
 
 static void
 v2_assets_model_release(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_ModelRef model)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1304,7 +1304,7 @@ v2_assets_model_release(
 
 static enum ToriRS_Result
 v2_assets_screenshot(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* destination,
     char const* name,
     char* out_path,
@@ -1324,7 +1324,7 @@ v2_assets_screenshot(
 
 static bool
 v2_assets_image_pixels(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_ImageRef image,
     uint32_t* out_argb,
     size_t capacity,
@@ -1357,7 +1357,7 @@ v2_assets_image_pixels(
 
 static enum ToriRS_AssetState
 v2_assets_image_compose(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     int width,
     int height,
@@ -1387,7 +1387,7 @@ v2_assets_image_compose(
 
 static enum ToriRS_Result
 v2_scene_mesh_create(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MeshRef* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1414,7 +1414,7 @@ v2_scene_mesh_create(
 
 static void
 v2_scene_mesh_destroy(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MeshRef mesh)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1437,7 +1437,7 @@ v2_scene_mesh_destroy(
 
 static enum ToriRS_Result
 v2_scene_mesh_vertex(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MeshRef mesh,
     int x,
     int y,
@@ -1460,7 +1460,7 @@ v2_scene_mesh_vertex(
 
 static enum ToriRS_Result
 v2_scene_mesh_face(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MeshRef mesh,
     int a,
     int b,
@@ -1486,7 +1486,7 @@ v2_scene_mesh_face(
 
 static enum ToriRS_Result
 v2_scene_instance_create(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1513,7 +1513,7 @@ v2_scene_instance_create(
 
 static void
 v2_scene_instance_destroy(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1536,7 +1536,7 @@ v2_scene_instance_destroy(
 
 static enum ToriRS_Result
 v2_scene_instance_model(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     struct ToriRS_ModelRef model)
 {
@@ -1558,7 +1558,7 @@ v2_scene_instance_model(
 
 static enum ToriRS_Result
 v2_scene_instance_position(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int tile_x,
     int tile_z,
@@ -1583,7 +1583,7 @@ v2_scene_instance_position(
 
 static void
 v2_scene_instance_active(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     bool active)
 {
@@ -1600,7 +1600,7 @@ v2_scene_instance_active(
 
 static enum ToriRS_Result
 v2_scene_instance_mesh(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     struct ToriRS_MeshRef mesh)
 {
@@ -1621,7 +1621,7 @@ v2_scene_instance_mesh(
 
 static enum ToriRS_Result
 v2_scene_instance_cache_model(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int kind,
     int id)
@@ -1643,7 +1643,7 @@ v2_scene_instance_cache_model(
 
 static enum ToriRS_Result
 v2_scene_instance_recolor(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int from_hsl,
     int to_hsl)
@@ -1660,7 +1660,7 @@ v2_scene_instance_recolor(
 
 static void
 v2_scene_instance_clear_recolors(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1673,7 +1673,7 @@ v2_scene_instance_clear_recolors(
 
 static enum ToriRS_Result
 v2_scene_instance_animation(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int sequence_id,
     bool loop)
@@ -1691,7 +1691,7 @@ v2_scene_instance_animation(
 
 static enum ToriRS_Result
 v2_scene_instance_light(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int ambient,
     int contrast)
@@ -1709,7 +1709,7 @@ v2_scene_instance_light(
 
 static bool
 v2_scene_instance_ready(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1721,7 +1721,7 @@ v2_scene_instance_ready(
 
 static enum ToriRS_Result
 v2_panel_request(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_PanelDescriptor const* description)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1732,7 +1732,7 @@ v2_panel_request(
 }
 
 static void
-v2_panel_invalidate(struct ToriRS_ApiV2* api)
+v2_panel_invalidate(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
         api_panel_clear(runtime->context);
@@ -1740,7 +1740,7 @@ v2_panel_invalidate(struct ToriRS_ApiV2* api)
 
 static void
 v2_panel_attention(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     bool wanted)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1749,7 +1749,7 @@ v2_panel_attention(
 
 static enum ToriRS_Result
 v2_panel_set_text(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id,
     char const* text)
 {
@@ -1763,7 +1763,7 @@ v2_panel_set_text(
 
 static enum ToriRS_Result
 v2_panel_set_value(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id,
     int value)
 {
@@ -1776,7 +1776,7 @@ v2_panel_set_value(
 
 static enum ToriRS_Result
 v2_panel_set_height(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id,
     int preferred_height)
 {
@@ -1790,7 +1790,7 @@ v2_panel_set_height(
 
 static enum ToriRS_Result
 v2_panel_set_options(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id,
     char const* value,
     struct ToriRS_SelectOption const* options,
@@ -1812,7 +1812,7 @@ v2_panel_set_options(
 
 static void
 v2_panel_redraw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1821,7 +1821,7 @@ v2_panel_redraw(
 }
 
 static int
-v2_cache_frame_root(struct ToriRS_ApiV2* api)
+v2_cache_frame_root(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_frame_root(runtime->context);
@@ -1829,7 +1829,7 @@ v2_cache_frame_root(struct ToriRS_ApiV2* api)
 
 static int
 v2_cache_varbit(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1838,7 +1838,7 @@ v2_cache_varbit(
 
 static int
 v2_cache_varp(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1847,7 +1847,7 @@ v2_cache_varp(
 
 static bool
 v2_cache_component_rect(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int component_id,
     struct ToriRS_Rect* out)
 {
@@ -1867,7 +1867,7 @@ v2_cache_component_rect(
 
 static bool
 v2_cache_invoke(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int component_id,
     int op)
 {
@@ -1879,7 +1879,7 @@ v2_cache_invoke(
 
 static bool
 v2_cache_named_id(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* kind,
     char const* name,
     int* out_id)
@@ -1898,7 +1898,7 @@ v2_cache_named_id(
 }
 
 static int
-v2_cache_tab_active(struct ToriRS_ApiV2* api)
+v2_cache_tab_active(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return 1
@@ -1907,14 +1907,14 @@ v2_cache_tab_active(struct ToriRS_ApiV2* api)
 }
 
 static bool
-v2_cache_tab_enabled(struct ToriRS_ApiV2* api, int tab)
+v2_cache_tab_enabled(struct ToriRS_Api* api, int tab)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_tab_enabled(runtime->context, tab) != 0;
 }
 
 static bool
-v2_cache_tab_select(struct ToriRS_ApiV2* api, int tab)
+v2_cache_tab_select(struct ToriRS_Api* api, int tab)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_tab_select(runtime->context, tab);
@@ -1922,7 +1922,7 @@ v2_cache_tab_select(struct ToriRS_ApiV2* api, int tab)
 
 static bool
 v2_client_display_get(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int setting,
     int* out_value,
     int* out_min,
@@ -1935,7 +1935,7 @@ v2_client_display_get(
 
 static enum ToriRS_Result
 v2_client_display_set(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int setting,
     int value)
 {
@@ -1947,7 +1947,7 @@ v2_client_display_set(
 
 static int
 v2_client_feature_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_FeatureInfo* out)
 {
@@ -1960,7 +1960,7 @@ v2_client_feature_next(
 
 static bool
 v2_client_feature_get(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     int* out_value)
 {
@@ -1977,7 +1977,7 @@ v2_client_feature_get(
 
 static enum ToriRS_Result
 v2_client_feature_set(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     int value)
 {
@@ -1989,7 +1989,7 @@ v2_client_feature_set(
 }
 
 static int
-v2_client_world_cycle(struct ToriRS_ApiV2* api)
+v2_client_world_cycle(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return 1
@@ -1999,7 +1999,7 @@ v2_client_world_cycle(struct ToriRS_ApiV2* api)
 
 static bool
 v2_client_datestamp(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char* out,
     size_t out_size)
 {
@@ -2013,7 +2013,7 @@ v2_client_datestamp(
 
 static uint32_t
 v2_client_setting_color(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int varp_id,
     uint32_t fallback)
 {
@@ -2024,7 +2024,7 @@ v2_client_setting_color(
 }
 
 static size_t
-v2_client_memory_bytes(struct ToriRS_ApiV2* api)
+v2_client_memory_bytes(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return plugin_v2_memory_bytes(
@@ -2033,7 +2033,7 @@ v2_client_memory_bytes(struct ToriRS_ApiV2* api)
 
 static void
 v2_client_disable_self(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* reason)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -2043,7 +2043,7 @@ v2_client_disable_self(
 
 static bool
 v2_game_skill(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int index,
     struct ToriRS_SkillSnapshot* out)
 {
@@ -2076,7 +2076,7 @@ v2_game_skill(
 }
 
 static int
-v2_game_run_energy(struct ToriRS_ApiV2* api)
+v2_game_run_energy(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return 1
@@ -2085,7 +2085,7 @@ v2_game_run_energy(struct ToriRS_ApiV2* api)
 }
 
 static int
-v2_game_inventory_size(struct ToriRS_ApiV2* api, int inventory)
+v2_game_inventory_size(struct ToriRS_Api* api, int inventory)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return 1
@@ -2095,7 +2095,7 @@ v2_game_inventory_size(struct ToriRS_ApiV2* api, int inventory)
 
 static bool
 v2_game_inventory_slot(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int inventory,
     int slot,
     int* out_obj_id,
@@ -2108,7 +2108,7 @@ v2_game_inventory_slot(
 
 static bool
 v2_game_item_info(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int obj_id,
     struct ToriRS_ItemInfo* out)
 {
@@ -2119,7 +2119,7 @@ v2_game_item_info(
 
 static enum ToriRS_AssetState
 v2_game_item_image(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int obj_id,
     int count,
     int style,
@@ -2156,7 +2156,7 @@ v2_game_item_image(
 
 static int
 v2_game_highlight_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_HighlightItem* out)
 {
@@ -2169,7 +2169,7 @@ v2_game_highlight_next(
 
 static int
 v2_game_loot_source_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_LootSource* out)
 {
@@ -2182,7 +2182,7 @@ v2_game_loot_source_next(
 
 static int
 v2_game_loot_row_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int source_id,
     int iterator,
     struct ToriRS_LootRow* out)
@@ -2197,7 +2197,7 @@ v2_game_loot_row_next(
 
 static char const*
 v2_game_entity_part(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int kind,
     int a,
     int b,
@@ -2215,7 +2215,7 @@ v2_game_entity_part(
 
 static enum ToriRS_Result
 v2_game_entity_look(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* part,
     struct ToriRS_EntityAppearance const* look)
 {
@@ -2229,7 +2229,7 @@ v2_game_entity_look(
 
 static enum ToriRS_Result
 v2_game_entity_ops(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* part,
     int mode,
     char const* const* operations,
@@ -2250,7 +2250,7 @@ v2_game_entity_ops(
 }
 
 static uint64_t
-v2_game_loot_revision(struct ToriRS_ApiV2* api)
+v2_game_loot_revision(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return plugin_v2_loot_revision(
@@ -2259,7 +2259,7 @@ v2_game_loot_revision(struct ToriRS_ApiV2* api)
 
 static bool
 v2_game_loot_source_clear(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int source_id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -3426,6 +3426,84 @@ plugin_v2_runtime_panel_end(
     builder->implementation = NULL;
 }
 
+static enum ToriRS_ContractResult
+plugin_widget_request(void* user, struct PluginWidgetRequest* request)
+{
+    struct PluginV2Runtime* runtime = user;
+    struct PluginContext* ctx = runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching != ctx->index )
+        return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( request->kind >= PLUGIN_WIDGET_POSITION && plugin_ev_is_draw(ctx->host->dispatch_event) )
+        return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( !ctx->host->engine.widget_request ) return TORIRS_CONTRACT_UNAVAILABLE;
+    return ctx->host->engine.widget_request(ctx->host->engine.user, (uint64_t)ctx->index + 1, request);
+}
+static enum ToriRS_ContractResult widget_find(void* u, char const* role, struct ToriRS_WidgetRef* out)
+{
+    if( !role || !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out = (struct ToriRS_WidgetRef){0};
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_FIND, .name=role, .refs=out};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_get(void* u, int32_t id, struct ToriRS_WidgetRef* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out = (struct ToriRS_WidgetRef){0};
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_GET, .id=id, .refs=out};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_children(void* u, struct ToriRS_WidgetRef ref,
+                                                struct ToriRS_WidgetRef* out, size_t cap, size_t* count)
+{
+    if( !count || (cap && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *count = 0;
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_CHILDREN, .ref=ref, .refs=out, .capacity=cap, .count=count};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_bounds(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out = (struct ToriRS_WidgetBounds){0};
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_BOUNDS, .ref=ref, .bounds=out};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_text(void* u, struct ToriRS_WidgetRef ref, char* out, size_t cap, size_t* count)
+{
+    if( !count || (cap && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *count = 0;
+    if( cap ) out[0] = 0;
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_TEXT, .ref=ref, .text=out, .capacity=cap, .count=count};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_local_bounds(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out = (struct ToriRS_WidgetBounds){0};
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_LOCAL_BOUNDS, .ref=ref, .bounds=out};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_position(void* u, struct ToriRS_WidgetRef ref, int32_t x, int32_t y)
+{
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_POSITION, .ref=ref, .a=x, .b=y};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_size(void* u, struct ToriRS_WidgetRef ref, int32_t w, int32_t h)
+{
+    if( w < 0 || h < 0 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_SIZE, .ref=ref, .a=w, .b=h};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_revalidate(void* u, struct ToriRS_WidgetRef ref)
+{
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_REVALIDATE, .ref=ref};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_reset(void* u, struct ToriRS_WidgetRef ref)
+{
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_RESET, .ref=ref};
+    return plugin_widget_request(u, &r);
+}
+
 static bool
 v2_runtime_init(
     struct PluginV2Runtime* runtime,
@@ -3454,7 +3532,7 @@ v2_runtime_init(
         return false;
     }
 
-    runtime->client_api = (struct ToriRS_ClientApiV2){
+    runtime->client_api = (struct ToriRS_ClientApi){
         .struct_size = sizeof(runtime->client_api),
         .display_get = v2_client_display_get,
         .display_set = v2_client_display_set,
@@ -3467,7 +3545,7 @@ v2_runtime_init(
         .memory_bytes = v2_client_memory_bytes,
         .disable_self = v2_client_disable_self,
     };
-    runtime->game_api = (struct ToriRS_GameApiV2){
+    runtime->game_api = (struct ToriRS_GameApi){
         .struct_size = sizeof(runtime->game_api),
         .skill = v2_game_skill,
         .run_energy = v2_game_run_energy,
@@ -3485,11 +3563,18 @@ v2_runtime_init(
         .loot_source_clear = v2_game_loot_source_clear,
     };
 
-    runtime->api = (struct ToriRS_ApiV2){
+    runtime->api = (struct ToriRS_Api){
         .struct_size = sizeof(runtime->api),
-        .major_version = TORIRS_PLUGIN_API_V2_MAJOR,
-        .minor_version = TORIRS_PLUGIN_API_V2_MINOR,
+        .major_version = TORIRS_PLUGIN_API_MAJOR,
+        .minor_version = TORIRS_PLUGIN_API_MINOR,
         .instance = runtime,
+        .widgets = {
+            .context = runtime, .find = widget_find, .get_widget = widget_get,
+            .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
+            .position = widget_local_bounds,
+            .set_position = widget_position, .set_size = widget_size,
+            .revalidate = widget_revalidate, .reset = widget_reset,
+        },
         .core = {
             .struct_size = sizeof(runtime->api.core),
             .log = v2_core_log,

@@ -1,26 +1,19 @@
-#ifndef TORIRS_PLUGIN_V2_H
-#define TORIRS_PLUGIN_V2_H
+#ifndef TORIRS_PLUGIN_API_H
+#define TORIRS_PLUGIN_API_H
 
-/*
- * Public plugin API v2 shell.
- *
- * This header deliberately contains no host or engine declarations. A plugin
- * receives one ToriRS_ApiV2 for its instance and calls the embedded modules,
- * for example api->ui.ref(api, name) and api->placement.place(api, ...).
- * Drawing and frame construction use callback-scoped builders instead of a
- * surface token that can accidentally outlive its event.
- *
- * PluginHost_RegisterV2 constructs this table over the existing
- * language-neutral host while bundled plugins migrate incrementally.
- */
+/* Public plugin API major 3. One existing host/runtime serves all plugins.
+ * The widgets module is the live-widget migration path; obsolete frame/UI
+ * builders still present below are removed as their product ports land.
+ * No previous binary ABI is accepted or preserved by this aggregate. */
 
 #include "plugin/torirs_plugin_types.h"
+#include "plugin/torirs_plugin_contract.h"
 
 #include <stddef.h>
 #include <stdint.h>
 
-#define TORIRS_PLUGIN_API_V2_MAJOR 2u
-#define TORIRS_PLUGIN_API_V2_MINOR 4u
+#define TORIRS_PLUGIN_API_MAJOR 3u
+#define TORIRS_PLUGIN_API_MINOR 0u
 
 #define TORIRS_UI_NAME_MAX 128
 #define TORIRS_UI_ACTION_MAX 48
@@ -32,19 +25,18 @@
 #define TORIRS_API_V2_MODULE_RESERVED_SLOTS 8
 #define TORIRS_DESCRIPTOR_V2_RESERVED_WORDS 8
 
-/* ApiV2 embeds its modules by value. Their size is therefore frozen for major
- * version 2: minor versions replace reserved slots instead of growing a
- * module and shifting every module that follows it. */
+/* Existing module padding remains during the coordinated source migration.
+ * Major 3 does not preserve the previous aggregate layout or binary ABI. */
 #define TORIRS_API_V2_MODULE_RESERVED                                                   \
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS])(void)
 
-struct ToriRS_ApiV2;
+struct ToriRS_Api;
 struct ToriRS_DrawBuilder;
 struct ToriRS_DrawContext;
 struct ToriRS_FrameBuilder;
 struct ToriRS_PanelBuilder;
-struct ToriRS_ClientApiV2;
-struct ToriRS_GameApiV2;
+struct ToriRS_ClientApi;
+struct ToriRS_GameApi;
 
 /* ------------------------------------------------------------------------ */
 /* Small value types                                                        */
@@ -618,13 +610,13 @@ struct ToriRS_FrameBuilder
 };
 
 typedef enum ToriRS_FrameBuildResult (*ToriRS_FrameBuildCallback)(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_FrameBuilder* frame,
     struct ToriRS_FrameBuildContext const* context);
 
 typedef void (*ToriRS_FrameDrawCallback)(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_DrawBuilder* draw);
 
@@ -794,21 +786,21 @@ struct ToriRS_PanelBuilder
 /* Embedded API modules                                                     */
 /* ------------------------------------------------------------------------ */
 
-struct ToriRS_CoreApiV2
+struct ToriRS_CoreApi
 {
     uint32_t struct_size;
     void (*log)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* format,
         ...);
     void (*notify)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* text);
-    int (*screen)(struct ToriRS_ApiV2* api);
-    uint64_t (*frame_ms)(struct ToriRS_ApiV2* api);
-    uint64_t (*frame_work_us)(struct ToriRS_ApiV2* api);
+    int (*screen)(struct ToriRS_Api* api);
+    uint64_t (*frame_ms)(struct ToriRS_Api* api);
+    uint64_t (*frame_work_us)(struct ToriRS_Api* api);
     bool (*lane)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_LaneInfo* out);
     /**
      * Query a host/platform fact by stable name. Defined names are:
@@ -821,128 +813,128 @@ struct ToriRS_CoreApiV2
      * infer these answers from platform preprocessor symbols.
      */
     bool (*capability)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name);
-    char const* (*plugin_id)(struct ToriRS_ApiV2* api);
+    char const* (*plugin_id)(struct ToriRS_Api* api);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
 };
 
-struct ToriRS_ConfigApiV2
+struct ToriRS_ConfigApi
 {
     uint32_t struct_size;
     bool (*has)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* key);
     bool (*get_bool)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* key,
         bool* out);
     bool (*get_int)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* key,
         int* out);
     bool (*get_color)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* key,
         uint32_t* out_rgb);
     bool (*get_string)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* key,
         char const** out_value);
     enum ToriRS_Result (*set)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* key,
         char const* value);
     TORIRS_API_V2_MODULE_RESERVED;
 };
 
-struct ToriRS_WorldApiV2
+struct ToriRS_WorldApi
 {
     uint32_t struct_size;
     bool (*local_player)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_PlayerSnapshot* out);
     int (*npc_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int iterator,
         struct ToriRS_NpcSnapshot* out);
     bool (*npc_by_slot)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int slot,
         struct ToriRS_NpcSnapshot* out);
     int (*player_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int iterator,
         struct ToriRS_PlayerSnapshot* out);
     int (*item_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int iterator,
         struct ToriRS_GroundItemSnapshot* out);
     int (*scenery_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int iterator,
         struct ToriRS_ScenerySnapshot* out);
     TORIRS_API_V2_MODULE_RESERVED;
 };
 
-struct ToriRS_InputApiV2
+struct ToriRS_InputApi
 {
     uint32_t struct_size;
     bool (*key_held)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int key);
     bool (*pointer)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int* out_x,
         int* out_y);
     bool (*hover_tile)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int* out_x,
         int* out_z,
         int* out_level);
     bool (*hover_entity)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_HoverTarget* out);
     void (*text_input)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         bool enabled);
     void (*chat_focus)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         bool focused);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
 };
 
-struct ToriRS_UiApiV2
+struct ToriRS_UiApi
 {
     uint32_t struct_size;
     struct ToriRS_UiNodeRef (*ref)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name);
     bool (*info)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_UiNodeRef node,
         struct ToriRS_UiNodeInfo* out);
     bool (*invoke)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_UiNodeRef node,
         char const* action);
     bool (*contribution_info)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* node,
         uint32_t facets,
         struct ToriRS_UiContributionInfo* out);
     enum ToriRS_Result (*update)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_UiNodeRef node,
         uint32_t facets,
         struct ToriRS_UiNode const* value);
     bool (*menu_add)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_MenuBuildEvent* menu,
         char const* text,
         uint32_t action_id);
     enum ToriRS_Result (*set_enabled)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_UiNodeRef node,
         bool enabled);
     /**
@@ -956,29 +948,29 @@ struct ToriRS_UiApiV2
      * `action_<node-with-dots-as-underscores>_<action>`.
      */
     bool (*base_action_available)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_UiNodeRef node,
         char const* action);
     bool (*invoke_base)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_UiNodeRef node,
         char const* action);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
 };
 
-struct ToriRS_PlacementApiV2
+struct ToriRS_PlacementApi
 {
     uint32_t struct_size;
-    uint32_t (*revision)(struct ToriRS_ApiV2* api);
+    uint32_t (*revision)(struct ToriRS_Api* api);
     struct ToriRS_PlacementAreaRef (*area)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int area);
     bool (*primary)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_PlacementAreaRef area,
         struct ToriRS_Rect* out);
     bool (*place)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int area,
         int anchor,
         int width,
@@ -986,43 +978,43 @@ struct ToriRS_PlacementApiV2
         int margin,
         struct ToriRS_Rect* out);
     int (*rect_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_PlacementAreaRef area,
         int iterator,
         struct ToriRS_Rect* out);
     bool (*contains)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_PlacementAreaRef area,
         struct ToriRS_Rect rect);
     enum ToriRS_PlacementReserveResult (*reserve)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name,
         int area,
         int edge,
         int pixels);
     bool (*reservation_rect)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name,
         struct ToriRS_Rect* out);
     TORIRS_API_V2_MODULE_RESERVED;
 };
 
-struct ToriRS_FrameApiV2
+struct ToriRS_FrameApi
 {
     uint32_t struct_size;
     int (*offer_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int iterator,
         struct ToriRS_FrameOfferInfo* out);
     void (*selection)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_FrameSelection* out);
     enum ToriRS_Result (*select)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* id);
-    void (*invalidate)(struct ToriRS_ApiV2* api);
+    void (*invalidate)(struct ToriRS_Api* api);
     bool (*surface_native_size)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int surface,
         int* out_width,
         int* out_height);
@@ -1031,24 +1023,24 @@ struct ToriRS_FrameApiV2
 
 /* The pixels themselves are emitted through ToriRS_DrawBuilder. This module
  * contains stable helpers that are meaningful outside one draw callback. */
-struct ToriRS_DrawApiV2
+struct ToriRS_DrawApi
 {
     uint32_t struct_size;
     bool (*project)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int fine_x,
         int fine_z,
         int height,
         int* out_x,
         int* out_y);
     int (*element_height)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int element_id);
     int (*hsl_from_rgb)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         uint32_t rgb);
     uint32_t (*hsl_to_rgb)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int hsl);
     TORIRS_API_V2_MODULE_RESERVED;
 };
@@ -1073,61 +1065,61 @@ enum ToriRS_AssetState
     TORIRS_ASSET_ERROR,
 };
 
-struct ToriRS_AssetsApiV2
+struct ToriRS_AssetsApi
 {
     uint32_t struct_size;
     /** Start or join a byte request and return its current authoritative state. */
     enum ToriRS_AssetState (*request)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name);
     bool (*bytes)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name,
         void const** out_data,
         size_t* out_size);
     enum ToriRS_Result (*save)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name,
         void const* data,
         size_t size);
     void (*release)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name);
     /** Start/join and decode an image. `out` is zero on terminal failure. */
     enum ToriRS_AssetState (*image)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name,
         struct ToriRS_ImageRef* out);
     bool (*image_size)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_ImageRef image,
         int* out_width,
         int* out_height);
     void (*image_release)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_ImageRef image);
     /** Start/join and decode a model. `out` is zero on terminal failure. */
     enum ToriRS_AssetState (*model)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name,
         struct ToriRS_ModelRef* out);
     void (*model_release)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_ModelRef model);
     enum ToriRS_Result (*screenshot)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* destination,
         char const* name,
         char* out_path,
         size_t out_path_size);
     bool (*image_pixels)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_ImageRef image,
         uint32_t* out_argb,
         size_t capacity,
         size_t* out_count);
     enum ToriRS_AssetState (*image_compose)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* name,
         int width,
         int height,
@@ -1142,23 +1134,23 @@ enum ToriRS_SceneModelKind
     TORIRS_SCENE_MODEL_SPOTANIM,
 };
 
-struct ToriRS_SceneApiV2
+struct ToriRS_SceneApi
 {
     uint32_t struct_size;
     enum ToriRS_Result (*mesh_create)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_MeshRef* out);
     void (*mesh_destroy)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_MeshRef mesh);
     enum ToriRS_Result (*mesh_vertex)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_MeshRef mesh,
         int x,
         int y,
         int z);
     enum ToriRS_Result (*mesh_face)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_MeshRef mesh,
         int a,
         int b,
@@ -1166,17 +1158,17 @@ struct ToriRS_SceneApiV2
         int hsl,
         int alpha);
     enum ToriRS_Result (*instance_create)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef* out);
     void (*instance_destroy)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance);
     enum ToriRS_Result (*instance_model)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance,
         struct ToriRS_ModelRef model);
     enum ToriRS_Result (*instance_position)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance,
         int tile_x,
         int tile_z,
@@ -1184,192 +1176,192 @@ struct ToriRS_SceneApiV2
         int height,
         int yaw);
     void (*instance_active)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance,
         bool active);
     enum ToriRS_Result (*instance_mesh)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance,
         struct ToriRS_MeshRef mesh);
     enum ToriRS_Result (*instance_cache_model)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance,
         int kind,
         int id);
     enum ToriRS_Result (*instance_recolor)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance,
         int from_hsl,
         int to_hsl);
     void (*instance_clear_recolors)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance);
     enum ToriRS_Result (*instance_animation)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance,
         int sequence_id,
         bool loop);
     enum ToriRS_Result (*instance_light)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance,
         int ambient,
         int contrast);
     bool (*instance_ready)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_SceneInstanceRef instance);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 7])(void);
 };
 
-struct ToriRS_PanelApiV2
+struct ToriRS_PanelApi
 {
     uint32_t struct_size;
     enum ToriRS_Result (*request)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         struct ToriRS_PanelDescriptor const* description);
-    void (*invalidate)(struct ToriRS_ApiV2* api);
+    void (*invalidate)(struct ToriRS_Api* api);
     void (*attention)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         bool wanted);
     enum ToriRS_Result (*set_text)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* id,
         char const* text);
     enum ToriRS_Result (*set_value)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* id,
         int value);
     enum ToriRS_Result (*set_height)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* id,
         int preferred_height);
     enum ToriRS_Result (*set_options)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* id,
         char const* value,
         struct ToriRS_SelectOption const* options,
         int option_count);
     void (*redraw)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* id);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
 };
 
 /* Explicit escape hatch for lane-specific plugins. Nothing in the ui, frame,
  * or placement modules exposes cache component ids or numeric cache ops. */
-struct ToriRS_CacheApiV2
+struct ToriRS_CacheApi
 {
     uint32_t struct_size;
-    int (*frame_root)(struct ToriRS_ApiV2* api);
+    int (*frame_root)(struct ToriRS_Api* api);
     int (*varbit)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int id);
     int (*varp)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int id);
     bool (*component_rect)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int component_id,
         struct ToriRS_Rect* out);
     bool (*invoke)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int component_id,
         int op);
     bool (*named_id)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* kind,
         char const* name,
         int* out_id);
-    int (*tab_active)(struct ToriRS_ApiV2* api);
-    bool (*tab_enabled)(struct ToriRS_ApiV2* api, int tab);
+    int (*tab_active)(struct ToriRS_Api* api);
+    bool (*tab_enabled)(struct ToriRS_Api* api, int tab);
     /** Native navigation is allowed from action callbacks, not from layout,
      * draw or background updates that might fight a server/script closure. */
-    bool (*tab_select)(struct ToriRS_ApiV2* api, int tab);
+    bool (*tab_select)(struct ToriRS_Api* api, int tab);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 4])(void);
 };
 
 /** Client-owned settings and process facts, separate from plugin config. */
-struct ToriRS_ClientApiV2
+struct ToriRS_ClientApi
 {
     uint32_t struct_size;
     bool (*display_get)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int setting,
         int* out_value,
         int* out_min,
         int* out_max);
     enum ToriRS_Result (*display_set)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int setting,
         int value);
     int (*feature_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int iterator,
         struct ToriRS_FeatureInfo* out);
     bool (*feature_get)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* key,
         int* out_value);
     enum ToriRS_Result (*feature_set)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* key,
         int value);
-    int (*world_cycle)(struct ToriRS_ApiV2* api);
+    int (*world_cycle)(struct ToriRS_Api* api);
     bool (*datestamp)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char* out,
         size_t out_size);
     uint32_t (*setting_color)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int varp_id,
         uint32_t fallback);
-    size_t (*memory_bytes)(struct ToriRS_ApiV2* api);
+    size_t (*memory_bytes)(struct ToriRS_Api* api);
     void (*disable_self)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* reason);
     TORIRS_API_V2_MODULE_RESERVED;
 };
 
 /** Player/game data that is neither raw cache state nor scene ownership. */
-struct ToriRS_GameApiV2
+struct ToriRS_GameApi
 {
     uint32_t struct_size;
     bool (*skill)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int index,
         struct ToriRS_SkillSnapshot* out);
-    int (*run_energy)(struct ToriRS_ApiV2* api);
-    int (*inventory_size)(struct ToriRS_ApiV2* api, int inventory);
+    int (*run_energy)(struct ToriRS_Api* api);
+    int (*inventory_size)(struct ToriRS_Api* api, int inventory);
     bool (*inventory_slot)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int inventory,
         int slot,
         int* out_obj_id,
         int* out_count);
     bool (*item_info)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int obj_id,
         struct ToriRS_ItemInfo* out);
     enum ToriRS_AssetState (*item_image)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int obj_id,
         int count,
         int style,
         struct ToriRS_ImageRef* out);
     int (*highlight_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int iterator,
         struct ToriRS_HighlightItem* out);
     int (*loot_source_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int iterator,
         struct ToriRS_LootSource* out);
     int (*loot_row_next)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int source_id,
         int iterator,
         struct ToriRS_LootRow* out);
     char const* (*entity_part)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int kind,
         int a,
         int b,
@@ -1378,48 +1370,49 @@ struct ToriRS_GameApiV2
         char* buffer,
         size_t capacity);
     enum ToriRS_Result (*entity_look)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* part,
         struct ToriRS_EntityAppearance const* look);
     enum ToriRS_Result (*entity_ops)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         char const* part,
         int mode,
         char const* const* operations,
         int operation_count,
         uint32_t action_id);
-    uint64_t (*loot_revision)(struct ToriRS_ApiV2* api);
+    uint64_t (*loot_revision)(struct ToriRS_Api* api);
     bool (*loot_source_clear)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         int source_id);
     TORIRS_API_V2_MODULE_RESERVED;
 };
 
-/* The layout and sizeof this aggregate are frozen for major version 2.
- * Module minor extensions consume their reserved function slots in place. */
-struct ToriRS_ApiV2
+/* The coordinated major-3 migration may change this aggregate. */
+struct ToriRS_Api
 {
     uint32_t struct_size;
     uint32_t major_version;
     uint32_t minor_version;
     void* instance;
 
-    struct ToriRS_CoreApiV2 core;
-    struct ToriRS_ConfigApiV2 config;
-    struct ToriRS_WorldApiV2 world;
-    struct ToriRS_InputApiV2 input;
-    struct ToriRS_UiApiV2 ui;
-    struct ToriRS_PlacementApiV2 placement;
-    struct ToriRS_FrameApiV2 frame;
-    struct ToriRS_DrawApiV2 draw;
-    struct ToriRS_AssetsApiV2 assets;
-    struct ToriRS_SceneApiV2 scene;
-    struct ToriRS_PanelApiV2 panel;
-    struct ToriRS_CacheApiV2 cache;
+    struct ToriRS_WidgetApi widgets;
+
+    struct ToriRS_CoreApi core;
+    struct ToriRS_ConfigApi config;
+    struct ToriRS_WorldApi world;
+    struct ToriRS_InputApi input;
+    struct ToriRS_UiApi ui;
+    struct ToriRS_PlacementApi placement;
+    struct ToriRS_FrameApi frame;
+    struct ToriRS_DrawApi draw;
+    struct ToriRS_AssetsApi assets;
+    struct ToriRS_SceneApi scene;
+    struct ToriRS_PanelApi panel;
+    struct ToriRS_CacheApi cache;
     /* Minor-1 modules consume two pointer-sized reserved words without moving
      * any field known to 2.0. Check minor_version before requiring either. */
-    struct ToriRS_ClientApiV2 const* client;
-    struct ToriRS_GameApiV2 const* game;
+    struct ToriRS_ClientApi const* client;
+    struct ToriRS_GameApi const* game;
     uintptr_t reserved_v2[TORIRS_DESCRIPTOR_V2_RESERVED_WORDS - 2];
 };
 
@@ -1432,126 +1425,126 @@ struct ToriRS_PluginCallbacks
     uint32_t struct_size;
 
     void (*on_start)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state);
     void (*on_stop)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state);
     void (*on_frame_start)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_FrameEvent const* event);
     void (*on_logic_tick)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_TickEvent const* event);
     void (*on_server_tick)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_TickEvent const* event);
     void (*on_world_loaded)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_WorldLoadedEvent const* event);
     void (*on_screen_changed)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_ScreenChangedEvent const* event);
     void (*on_npc_spawn)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_NpcSnapshot const* npc);
     void (*on_npc_retype)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_NpcSnapshot const* npc);
     void (*on_npc_despawn)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_NpcSnapshot const* npc);
     void (*on_item_spawn)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_GroundItemSnapshot const* item);
     void (*on_item_changed)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_GroundItemSnapshot const* item);
     void (*on_item_despawn)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_GroundItemSnapshot const* item);
     void (*on_config_changed)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         char const* key);
     void (*on_asset)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_AssetEvent const* event);
     void (*on_chat_message)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_ChatMessageEvent const* event);
     void (*on_game_event)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_GameEvent const* event);
     enum ToriRS_CallbackResult (*on_key)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_KeyEvent const* event);
     enum ToriRS_CallbackResult (*on_menu_build)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_MenuBuildEvent* event);
     enum ToriRS_CallbackResult (*on_menu_select)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_MenuSelectEvent const* event);
     void (*on_draw_world)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_DrawBuilder* draw);
     void (*on_draw_canvas)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_DrawBuilder* draw);
     void (*on_ui_build)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_PanelBuilder* panel,
         int view);
     void (*on_ui_action)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_PanelActionEvent const* event);
     void (*on_ui_draw)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         char const* node,
         struct ToriRS_DrawBuilder* draw);
     void (*on_placement_changed)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         uint32_t revision);
 
     /* Retained named-node callbacks. These are deliberately distinct from
      * panel custom wells: `node` survives frame and cache rebuilds. */
     void (*on_ui_node_draw)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_UiNodeRef node,
         struct ToriRS_DrawBuilder* draw);
     enum ToriRS_CallbackResult (*on_ui_node_action)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_UiNodeRef node,
         char const* action);
 
     /** Action declared by DrawBuilder.action_region_id. */
     enum ToriRS_CallbackResult (*on_canvas_action)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         uint32_t action_id,
         int operation,
@@ -1559,22 +1552,22 @@ struct ToriRS_PluginCallbacks
         int y);
 
     void (*on_ui_layout)(
-        struct ToriRS_ApiV2* api,
+        struct ToriRS_Api* api,
         void* state,
         struct ToriRS_PanelLayoutEvent const* event);
 };
 
 #define TORIRS_PLUGIN_CALLBACKS_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
 
-enum ToriRS_PluginDefV2Flags
+enum ToriRS_PluginDefFlags
 {
-    TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT = 1u << 0,
-    TORIRS_PLUGIN_V2_ESSENTIAL = 1u << 1,
-    TORIRS_PLUGIN_V2_RUNTIME_HOST = 1u << 2,
-    TORIRS_PLUGIN_V2_HIDDEN = 1u << 3,
+    TORIRS_PLUGIN_DISABLED_BY_DEFAULT = 1u << 0,
+    TORIRS_PLUGIN_ESSENTIAL = 1u << 1,
+    TORIRS_PLUGIN_RUNTIME_HOST = 1u << 2,
+    TORIRS_PLUGIN_HIDDEN = 1u << 3,
 };
 
-struct ToriRS_PluginDefV2
+struct ToriRS_PluginDef
 {
     uint32_t struct_size;
     char const* id;
@@ -1598,8 +1591,8 @@ struct ToriRS_PluginDefV2
 /* A prefix-only definition can end inside its final embedded callback table.
  * The table's own struct_size says exactly how many callback bytes exist; the
  * unread tail is absent/defaulted. */
-#define TORIRS_PLUGIN_DEF_V2_REQUIRED_SIZE                                                \
-    ((uint32_t)(offsetof(struct ToriRS_PluginDefV2, callbacks) +                         \
+#define TORIRS_PLUGIN_DEF_REQUIRED_SIZE                                                \
+    ((uint32_t)(offsetof(struct ToriRS_PluginDef, callbacks) +                         \
                 TORIRS_PLUGIN_CALLBACKS_REQUIRED_SIZE))
 
 #endif

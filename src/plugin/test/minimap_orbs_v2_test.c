@@ -1,10 +1,10 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MINIMAP_ORBS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS;
 
 #define CHECK(x) do { if( !(x) ) { fprintf(stderr, "minimap v2: %s\n", #x); exit(1); } } while( 0 )
 
@@ -52,14 +52,14 @@ orb_covers_map(struct ToriRS_Rect map, struct ToriRS_Rect orb)
     return 0;
 }
 
-static bool cfg_bool(struct ToriRS_ApiV2* api, char const* key, bool* out)
+static bool cfg_bool(struct ToriRS_Api* api, char const* key, bool* out)
 {
     (void)api;
     *out = strncmp(key, "show_", 5) == 0;
     return true;
 }
 
-static bool cfg_int(struct ToriRS_ApiV2* api, char const* key, int* out)
+static bool cfg_int(struct ToriRS_Api* api, char const* key, int* out)
 {
     (void)api;
     if( strcmp(key, "offset_x") == 0 ) *out = 6;
@@ -70,14 +70,14 @@ static bool cfg_int(struct ToriRS_ApiV2* api, char const* key, int* out)
     return true;
 }
 
-static bool cfg_string(struct ToriRS_ApiV2* api, char const* key, char const** out)
+static bool cfg_string(struct ToriRS_Api* api, char const* key, char const** out)
 {
     (void)api; (void)key;
     *out = "";
     return true;
 }
 
-static struct ToriRS_UiNodeRef ui_ref(struct ToriRS_ApiV2* api, char const* name)
+static struct ToriRS_UiNodeRef ui_ref(struct ToriRS_Api* api, char const* name)
 {
     (void)api;
     if( strcmp(name, "frame.minimap") == 0 ) return (struct ToriRS_UiNodeRef){ 1 };
@@ -90,7 +90,7 @@ static struct ToriRS_UiNodeRef ui_ref(struct ToriRS_ApiV2* api, char const* name
 }
 
 static bool ui_info(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef ref,
     struct ToriRS_UiNodeInfo* out)
 {
@@ -121,7 +121,7 @@ static bool ui_info(
 }
 
 static enum ToriRS_Result ui_update(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef ref,
     uint32_t facets,
     struct ToriRS_UiNode const* value)
@@ -135,7 +135,7 @@ static enum ToriRS_Result ui_update(
 }
 
 static bool ui_base_action_available(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef ref,
     char const* action)
 {
@@ -145,7 +145,7 @@ static bool ui_base_action_available(
 }
 
 static bool ui_invoke_base(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef ref,
     char const* action)
 {
@@ -157,15 +157,15 @@ static bool ui_invoke_base(
     return true;
 }
 
-static enum ToriRS_AssetState asset_request(struct ToriRS_ApiV2* api, char const* name)
+static enum ToriRS_AssetState asset_request(struct ToriRS_Api* api, char const* name)
 { (void)api; (void)name; return TORIRS_ASSET_MISSING; }
 
 static bool asset_bytes(
-    struct ToriRS_ApiV2* api, char const* name, void const** data, size_t* size)
+    struct ToriRS_Api* api, char const* name, void const** data, size_t* size)
 { (void)api; (void)name; (void)data; (void)size; return false; }
 
 static enum ToriRS_AssetState asset_image(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     struct ToriRS_ImageRef* out)
 {
@@ -174,14 +174,14 @@ static enum ToriRS_AssetState asset_image(
     return TORIRS_ASSET_READY;
 }
 
-static void image_release(struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image)
+static void image_release(struct ToriRS_Api* api, struct ToriRS_ImageRef image)
 { (void)api; if( image.value ) released++; }
 
-static void asset_release(struct ToriRS_ApiV2* api, char const* name)
+static void asset_release(struct ToriRS_Api* api, char const* name)
 { (void)api; (void)name; }
 
 static bool named_id(
-    struct ToriRS_ApiV2* api, char const* kind, char const* name, int* out)
+    struct ToriRS_Api* api, char const* kind, char const* name, int* out)
 {
     (void)api;
     if( strcmp(kind, "iface") == 0 ) return false;
@@ -191,10 +191,10 @@ static bool named_id(
     return true;
 }
 
-static int cache_varp(struct ToriRS_ApiV2* api, int id)
+static int cache_varp(struct ToriRS_Api* api, int id)
 { (void)api; return id == 300 ? 500 : id == 173 ? run_mode : 0; }
 
-static bool cache_invoke(struct ToriRS_ApiV2* api, int component, int operation)
+static bool cache_invoke(struct ToriRS_Api* api, int component, int operation)
 {
     (void)api;
     invoked_component = component;
@@ -203,7 +203,7 @@ static bool cache_invoke(struct ToriRS_ApiV2* api, int component, int operation)
 }
 
 static bool skill(
-    struct ToriRS_ApiV2* api, int index, struct ToriRS_SkillSnapshot* out)
+    struct ToriRS_Api* api, int index, struct ToriRS_SkillSnapshot* out)
 {
     (void)api;
     if( index != 3 && index != 5 ) return false;
@@ -212,7 +212,7 @@ static bool skill(
     return true;
 }
 
-static int run_energy(struct ToriRS_ApiV2* api)
+static int run_energy(struct ToriRS_Api* api)
 { (void)api; return 75; }
 
 static void draw_image(
@@ -243,23 +243,23 @@ static void draw_text(
     uint32_t rgb)
 { (void)draw; (void)x; (void)y; (void)rgb; if( text && text[0] ) text_drawn++; }
 
-static void notify(struct ToriRS_ApiV2* api, char const* text)
+static void notify(struct ToriRS_Api* api, char const* text)
 { (void)api; (void)text; }
 
-static void log_line(struct ToriRS_ApiV2* api, char const* format, ...)
+static void log_line(struct ToriRS_Api* api, char const* format, ...)
 { (void)api; (void)format; }
 
 int main(void)
 {
-    struct ToriRS_ApiV2 api;
-    struct ToriRS_GameApiV2 game;
+    struct ToriRS_Api api;
+    struct ToriRS_GameApi game;
     struct ToriRS_DrawBuilder draw;
     void* state;
 
     memset(&api, 0, sizeof(api));
     memset(&game, 0, sizeof(game));
     memset(&draw, 0, sizeof(draw));
-    api.minor_version = TORIRS_PLUGIN_API_V2_MINOR;
+    api.minor_version = TORIRS_PLUGIN_API_MINOR;
     api.core.notify = notify;
     api.core.log = log_line;
     api.config.get_bool = cfg_bool;

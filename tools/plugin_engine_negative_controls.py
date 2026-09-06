@@ -108,6 +108,9 @@ def main():
                    if "ui/uitree.c " in line and " -o " in line)
     original = (src / "ui/uitree.c").read_text()
     controls = {
+        "widget_geometry": (
+            "return (position ? 1 : 0) | (size ? 2 : 0);",
+            "return 0;", "widget geometry reaches native layout including zero"),
         "operation_freshness": (
             "(!pick->action_signature || pick->action_signature == UITree_ActionSignatureAt(tree, pick->node_index))",
             "true", "retained menu rejects changed operation labels"),

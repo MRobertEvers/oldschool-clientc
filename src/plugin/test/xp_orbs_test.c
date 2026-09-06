@@ -38,7 +38,7 @@
 #include <string.h>
 #include "miniz.h"
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_ORBS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
 
 /*
  * A do-nothing second plugin.
@@ -49,20 +49,20 @@ extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_ORBS;
  */
 static int g_second;
 static int g_other;
-static struct ToriRS_ApiV2* g_second_api;
-static struct ToriRS_ApiV2* g_other_api;
+static struct ToriRS_Api* g_second_api;
+static struct ToriRS_Api* g_other_api;
 
 /* Set by the re-entrancy case: while non-NULL, this plugin answers every
  * layout notification by reserving a DIFFERENT width, which is the pattern
  * that would spin if the event nested. */
-static struct ToriRS_ApiV2* g_reentrant_api;
+static struct ToriRS_Api* g_reentrant_api;
 static int g_reentrant_left;
 static int g_reentrant_depth;
 static int g_reentrant_max_depth;
 
 static void
 second_placement_changed(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     uint32_t revision)
 {
@@ -86,25 +86,25 @@ second_placement_changed(
 }
 
 static void
-second_start(struct ToriRS_ApiV2* api, void* state)
+second_start(struct ToriRS_Api* api, void* state)
 {
     (void)state;
     g_second_api = api;
 }
 
 static void
-other_start(struct ToriRS_ApiV2* api, void* state)
+other_start(struct ToriRS_Api* api, void* state)
 {
     (void)state;
     g_other_api = api;
 }
 
-static struct ToriRS_PluginDefV2 const SECOND = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+static struct ToriRS_PluginDef const SECOND = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "second",
     .title = "Second",
     .version = "1.0.0",
-    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = second_start,
@@ -112,12 +112,12 @@ static struct ToriRS_PluginDefV2 const SECOND = {
     },
 };
 
-static struct ToriRS_PluginDefV2 const OTHER = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+static struct ToriRS_PluginDef const OTHER = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "other",
     .title = "Other",
     .version = "1.0.0",
-    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = other_start,
@@ -201,7 +201,7 @@ fake_build_xp_table(void)
 }
 
 /* In game: these harnesses exercise behaviour that is gated on it.
- * @see ToriRS_CoreApiV2::screen. */
+ * @see ToriRS_CoreApi::screen. */
 static int
 fake_plugin_screen(void* u)
 {
@@ -477,7 +477,7 @@ fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
  * the host's surface-member query, where that is an answer and not a
  * fault. */
 /** The lane states no size for any surface, so a caller falls back to its own.
- *  @see ToriRS_FrameApiV2::surface_native_size. */
+ *  @see ToriRS_FrameApi::surface_native_size. */
 static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
@@ -502,7 +502,7 @@ fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int
 }
 
 /* Nothing under test mounts a component tree, so every id answers "not
- * here" -- @see ToriRS_CacheApiV2::component_rect, where that is an answer. */
+ * here" -- @see ToriRS_CacheApi::component_rect, where that is an answer. */
 static int
 fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
 {
@@ -1433,12 +1433,12 @@ main(void)
               TORIRS_PLUGIN_XP_ORBS.callbacks.on_ui_node_draw &&
               TORIRS_PLUGIN_XP_ORBS.callbacks.on_canvas_action,
         "the orb implementation is a native per-instance V2 plugin");
-    index = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_XP_ORBS);
+    index = PluginHost_Register(g_host, &TORIRS_PLUGIN_XP_ORBS);
     CHECK(index >= 0, "the plugin registers");
     PluginHost_SetEnabled(g_host, index, true);
-    g_second = PluginHost_RegisterV2(g_host, &SECOND);
+    g_second = PluginHost_Register(g_host, &SECOND);
     PluginHost_SetEnabled(g_host, g_second, true);
-    g_other = PluginHost_RegisterV2(g_host, &OTHER);
+    g_other = PluginHost_Register(g_host, &OTHER);
     PluginHost_SetEnabled(g_host, g_other, true);
     PluginHost_Start(g_host);
 

@@ -8,7 +8,7 @@
  * the host's checked primitives directly, without a compatibility ABI.
  */
 
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -69,9 +69,9 @@ struct PluginV2ResourceToken
 
 struct PluginV2Runtime
 {
-    struct ToriRS_ApiV2 api;
-    struct ToriRS_ClientApiV2 client_api;
-    struct ToriRS_GameApiV2 game_api;
+    struct ToriRS_Api api;
+    struct ToriRS_ClientApi client_api;
+    struct ToriRS_GameApi game_api;
     struct PluginContext* context;
     struct PluginV2ResourceToken image_tokens[TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX];
     struct PluginV2ResourceToken model_tokens[TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX];

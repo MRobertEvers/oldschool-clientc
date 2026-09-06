@@ -26,7 +26,7 @@
 
 #include "engine/png_decode.h"
 #include "plugin/torirs_plugin_host.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -35,7 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_GAMEFRAME;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME;
 
 static int g_checks;
 static int g_failures;
@@ -518,7 +518,7 @@ fake_asset_read(void* u, char const* plugin, char const* name)
 /* -- everything the plugin does not use, answered flatly -- */
 
 /* In game: these harnesses exercise behaviour that is gated on it.
- * @see ToriRS_CoreApiV2::screen. */
+ * @see ToriRS_CoreApi::screen. */
 /* Mutable so the enabled-at-the-title scenario can move it; everything else
  * leaves it be. */
 static int g_screen_now = TORIRS_SCREEN_GAME;
@@ -638,7 +638,7 @@ fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h)
 }
 
 /** The lane states no size for any surface, so a caller falls back to its own.
- *  @see ToriRS_FrameApiV2::surface_native_size. */
+ *  @see ToriRS_FrameApi::surface_native_size. */
 static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
@@ -783,25 +783,25 @@ static uint32_t fake_hsl_to_rgb(void* u, int h) { (void)u; (void)h; return 0; }
 
 static struct ToriRS_PluginHost* g_host;
 static int g_plugin;
-static struct ToriRS_ApiV2* g_frame_settings_api;
+static struct ToriRS_Api* g_frame_settings_api;
 
 /* A settings-panel-shaped client of the public API. The frame provider must
  * not choose itself, and the host deliberately exposes no test-only selector,
  * so this ordinary hidden plugin captures the same frame_select entry point a
  * real settings surface uses. */
 static void
-frame_settings_start(struct ToriRS_ApiV2* api, void* state)
+frame_settings_start(struct ToriRS_Api* api, void* state)
 {
     (void)state;
     g_frame_settings_api = api;
 }
 
-static struct ToriRS_PluginDefV2 const FRAME_SETTINGS = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+static struct ToriRS_PluginDef const FRAME_SETTINGS = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "gameframe-test-settings",
     .title = "Gameframe Test Settings",
     .version = "1.0.0",
-    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = frame_settings_start,
@@ -1054,10 +1054,10 @@ main(void)
     CHECK(
         TORIRS_PLUGIN_GAMEFRAME.callbacks.on_placement_changed != NULL,
         "the resizable gameframe rebuilds when live lane chrome moves");
-    g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_GAMEFRAME);
+    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
     CHECK(
-        PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
+        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
         "the settings client registers");
     CHECK(g_frame.active == 0, "nothing owns the frame before selection is resolved");
 
@@ -1672,9 +1672,9 @@ main(void)
     e.user = g_host;
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
-    g_plugin = PluginHost_RegisterV2(g_host, &TORIRS_PLUGIN_GAMEFRAME);
+    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(
-        PluginHost_RegisterV2(g_host, &FRAME_SETTINGS) >= 0,
+        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
         "the settings client registers on the OldSchool host");
 
     PluginHost_Start(g_host);

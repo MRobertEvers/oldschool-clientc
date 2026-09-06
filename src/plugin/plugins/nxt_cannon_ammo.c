@@ -1,5 +1,5 @@
 #include "plugin/plugins/nxt_activities.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -51,7 +51,7 @@ struct NxtCannonState
 
 static int
 nxt_cannon_named(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* kind,
     char const* name,
     int absent)
@@ -65,7 +65,7 @@ nxt_cannon_named(
 
 static void
 nxt_cannon_tick(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_TickEvent const* event)
 {
@@ -141,7 +141,7 @@ nxt_cannon_tick(
 }
 
 static void
-nxt_cannon_start(struct ToriRS_ApiV2* api, void* state_ptr)
+nxt_cannon_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct NxtCannonState* state = state_ptr;
     (void)api;
@@ -150,14 +150,14 @@ nxt_cannon_start(struct ToriRS_ApiV2* api, void* state_ptr)
     state->had_cannon = 0;
 }
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_CANNON_AMMO = {
+struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO = {
     .struct_size = sizeof(TORIRS_PLUGIN_NXT_CANNON_AMMO),
     .id = "nxt-cannon-ammo",
     .title = "Cannon ammo notifications (All Settings)",
     .version = "1.0.0",
     .state_size = sizeof(struct NxtCannonState),
     .config = NULL,
-    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = nxt_cannon_start,

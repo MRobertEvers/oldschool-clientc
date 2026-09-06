@@ -19,7 +19,7 @@ An unchanged plugin is portable when its required APIs/capabilities exist on bot
 
 PR #82's layout, visibility, semantic binding, depth/input ordering and replacement eligibility remain a tested foundation. The existing 40-case matrix and 13 native scenarios do not establish comprehensive mutation correctness.
 
-Retain subsequent native fixes for identity, zero-size geometry, copying, native/mount hiding, queued callbacks, input, item state, animation and mutation auditing. M0 already has inventories and reproducible native fixtures. Some mutation work remains incomplete; the production host still uses V2.
+Retain subsequent native fixes for identity, zero-size geometry, copying, native/mount hiding, queued callbacks, input, item state, animation and mutation auditing. M0 already has inventories and reproducible native fixtures. Some mutation work remains incomplete. The production host now uses the major-3 aggregate and a live-widget geometry path in C/Lua; the former frame/UI builders still await their product ports and removal.
 
 Remove the unshipped major-3 property claims, claim bundles, declaration transactions and whole-bundle conflict-suspension policy. Do not preserve them under convenience wrappers or as a second public API. Replace their declarations/tests with the lifecycle/widget/event contract below. Atomic enable/reload and safe cleanup remain host requirements; they do not require a transaction object around every widget change.
 

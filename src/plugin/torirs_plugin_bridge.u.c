@@ -1308,6 +1308,7 @@ app_plugin_capability(void* user, char const* name)
 
     assert(app);
     assert(name);
+    if( strcmp(name, "widgets.geometry") == 0 ) return 1;
     if( strcmp(name, "touch") == 0 )
         return app->touch_ui != 0;
     if( strcmp(name, "web") == 0 )
@@ -2847,7 +2848,7 @@ emit:
 
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     /* The wash is the caller's fill colour, which is not always the outline's
-     * -- see draw_tile in torirs_plugin_v2.h. */
+     * -- see draw_tile in torirs_plugin_api.h. */
     if( fill_alpha > 0 )
         app_overlay_push_polygon_filled(
             app,
@@ -4067,6 +4068,92 @@ app_plugin_ui_boundary_node(struct App* app, char const* role)
         return -1;
 
     return UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+}
+
+static struct ToriRS_WidgetRef
+app_widget_ref(struct UITree const* tree, int32_t index)
+{
+    struct UITreeNodeRef ref = UITree_RefAt(tree, index);
+    if( !ref.incarnation ) return (struct ToriRS_WidgetRef){0};
+    return (struct ToriRS_WidgetRef){{ref.tree_instance, (uint64_t)ref.index + 1, ref.incarnation}};
+}
+
+static enum ToriRS_ContractResult
+app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
+{
+    struct App* app = user;
+    struct UITree* tree = app->tree;
+    if( r->kind == PLUGIN_WIDGET_RESET_OWNER )
+    {
+        UITree_WidgetResetOwner(tree, owner);
+        app->need_redraw = 1;
+        return TORIRS_CONTRACT_OK;
+    }
+    if( !tree ) return TORIRS_CONTRACT_UNAVAILABLE;
+    if( r->kind == PLUGIN_WIDGET_FIND || r->kind == PLUGIN_WIDGET_GET )
+    {
+        int32_t idx = r->kind == PLUGIN_WIDGET_FIND
+            ? app_plugin_ui_boundary_node(app, r->name) : UITree_FindByComponentId(tree, r->id);
+        *r->refs = app_widget_ref(tree, idx);
+        return r->refs->opaque[2] ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_UNAVAILABLE;
+    }
+    if( !r->ref.opaque[1] || r->ref.opaque[1] > INT32_MAX ) return TORIRS_CONTRACT_STALE_REFERENCE;
+    struct UITreeNodeRef ref = {.tree_instance=r->ref.opaque[0],
+        .index=(int32_t)r->ref.opaque[1] - 1, .incarnation=r->ref.opaque[2]};
+    int32_t idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 ) return TORIRS_CONTRACT_STALE_REFERENCE;
+    struct UITreeComponent const* c = &tree->components[idx];
+    switch( r->kind )
+    {
+    case PLUGIN_WIDGET_CHILDREN:
+        for( int32_t child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
+        {
+            if( tree->components[child].freed ) continue;
+            if( *r->count < r->capacity ) r->refs[*r->count] = app_widget_ref(tree, child);
+            ++*r->count;
+        }
+        return *r->count > r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_BOUNDS:
+        UITree_EnsureLayoutFor(tree, idx);
+        UITree_NodeDrawnBounds(tree, idx, &r->bounds->x, &r->bounds->y, &r->bounds->width, &r->bounds->height);
+        return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_LOCAL_BOUNDS:
+        UITree_EnsureLayoutFor(tree, idx);
+        *r->bounds = (struct ToriRS_WidgetBounds){c->position.abs_x,c->position.abs_y,c->position.abs_w,c->position.abs_h};
+        if( c->parent >= 0 )
+        {
+            r->bounds->x -= tree->components[c->parent].position.abs_x;
+            r->bounds->y -= tree->components[c->parent].position.abs_y;
+        }
+        return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_TEXT:
+    {
+        if( c->type != UIELEM_RS_TEXT ) return TORIRS_CONTRACT_UNAVAILABLE;
+        char const* text = c->u.rs_text.text ? c->u.rs_text.text : "";
+        *r->count = strlen(text) + 1;
+        if( r->capacity ) snprintf(r->text, r->capacity, "%s", text);
+        return *r->count > r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+    }
+    case PLUGIN_WIDGET_POSITION:
+    case PLUGIN_WIDGET_SIZE:
+        /* The old frame builder is being ported. Do not silently compete with
+         * its canvas-space allocation while this native-parent API is live. */
+        if( UITree_FramePositionOwned(tree, idx) ) return TORIRS_CONTRACT_UNSUPPORTED_LAYOUT;
+        if( !(r->kind == PLUGIN_WIDGET_POSITION
+                ? UITree_WidgetSetPosition(tree, ref, owner, r->a, r->b)
+                : UITree_WidgetSetSize(tree, ref, owner, r->a, r->b)) )
+            return TORIRS_CONTRACT_FAILED;
+        break;
+    case PLUGIN_WIDGET_REVALIDATE:
+        UITree_EnsureLayout(tree);
+        break;
+    case PLUGIN_WIDGET_RESET:
+        if( !UITree_WidgetReset(tree, ref, owner) ) return TORIRS_CONTRACT_FAILED;
+        break;
+    default: return TORIRS_CONTRACT_UNAVAILABLE;
+    }
+    app->need_redraw = 1;
+    return TORIRS_CONTRACT_OK;
 }
 
 static int
@@ -5458,6 +5545,7 @@ app_plugin_engine(struct App* app)
 
     memset(&engine, 0, sizeof(engine));
     engine.user = app;
+    engine.widget_request = app_plugin_widget_request;
     engine.screen = app_plugin_screen;
     engine.platform_safe_rect = app_plugin_platform_safe_rect;
     engine.platform_safe_next = app_plugin_platform_safe_next;

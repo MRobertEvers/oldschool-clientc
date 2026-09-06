@@ -787,6 +787,9 @@ struct UITreeComponent
      * cannot be argued with.
      */
     uint8_t frame_hidden;
+    /* Host-owned live-widget geometry edits. Native layout inputs stay in
+     * position; deleting/copying a native node never transfers these owners. */
+    struct UITreeWidgetGeometry* widget_geometry;
     /**
      * A layer the plugin frame declared NOT to clip.
      *
@@ -2101,6 +2104,15 @@ bool UITree_MenuPickCurrent(struct UITree const* tree, struct UIMinimenuPick con
 
 struct UITreeNodeRef UITree_RefAt(struct UITree const* tree, int32_t index);
 int32_t UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref);
+
+/* Client-thread widget setters. Owner is a nonzero plugin-instance identity.
+ * Position is native-parent-local, unscrolled. Reset exposes current native
+ * inputs or the most recent remaining owner's edit, without saved snapshots. */
+bool UITree_WidgetSetPosition(struct UITree*, struct UITreeNodeRef, uint64_t owner, int x, int y);
+bool UITree_WidgetSetSize(struct UITree*, struct UITreeNodeRef, uint64_t owner, int w, int h);
+bool UITree_WidgetReset(struct UITree*, struct UITreeNodeRef, uint64_t owner);
+void UITree_WidgetResetOwner(struct UITree*, uint64_t owner);
+int UITree_WidgetPositionOverride(struct UITree const*, int32_t, struct UITreeElemPosition*);
 
 /** Current live focus component ID, or -1. Never transfers across node reuse. */
 int

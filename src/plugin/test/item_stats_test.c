@@ -18,7 +18,7 @@
  * composed panel to.
  */
 
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include "engine/png_decode.h"
 
@@ -330,17 +330,17 @@ fake_image_release(int image)
     (void)image;
 }
 
-static struct ToriRS_ApiV2 g_api;
-static struct ToriRS_ClientApiV2 g_client_api;
-static struct ToriRS_GameApiV2 g_game_api;
+static struct ToriRS_Api g_api;
+static struct ToriRS_ClientApi g_client_api;
+static struct ToriRS_GameApi g_game_api;
 static void* g_plugin_state;
 
-static bool v2_cfg_bool(struct ToriRS_ApiV2* api, char const* key, bool* out)
+static bool v2_cfg_bool(struct ToriRS_Api* api, char const* key, bool* out)
 { (void)api; *out = fake_cfg_bool(key) != 0; return true; }
-static bool v2_cfg_color(struct ToriRS_ApiV2* api, char const* key, uint32_t* out)
+static bool v2_cfg_color(struct ToriRS_Api* api, char const* key, uint32_t* out)
 { (void)api; *out = fake_cfg_color(key); return true; }
 static bool v2_skill(
-    struct ToriRS_ApiV2* api, int skill, struct ToriRS_SkillSnapshot* out)
+    struct ToriRS_Api* api, int skill, struct ToriRS_SkillSnapshot* out)
 {
     (void)api;
     if( skill < 0 || skill >= FAKE_SKILLS ) return false;
@@ -352,23 +352,23 @@ static bool v2_skill(
     out->base_level = g_client.base[skill];
     return true;
 }
-static int v2_run_energy(struct ToriRS_ApiV2* api)
+static int v2_run_energy(struct ToriRS_Api* api)
 { (void)api; return g_client.run_energy; }
-static int v2_inv_size(struct ToriRS_ApiV2* api, int inv)
+static int v2_inv_size(struct ToriRS_Api* api, int inv)
 { (void)api; return fake_inv_size(inv); }
 static bool v2_inv_slot(
-    struct ToriRS_ApiV2* api, int inv, int slot, int* obj, int* count)
+    struct ToriRS_Api* api, int inv, int slot, int* obj, int* count)
 { (void)api; return fake_inv_slot(inv, slot, obj, count) != 0; }
 static bool v2_item_info(
-    struct ToriRS_ApiV2* api, int obj, struct ToriRS_ItemInfo* out)
+    struct ToriRS_Api* api, int obj, struct ToriRS_ItemInfo* out)
 { (void)api; return fake_obj_info(obj, out) != 0; }
-static bool v2_pointer(struct ToriRS_ApiV2* api, int* x, int* y)
+static bool v2_pointer(struct ToriRS_Api* api, int* x, int* y)
 { (void)api; return fake_mouse_pos(x, y) != 0; }
 static enum ToriRS_AssetState v2_asset_request(
-    struct ToriRS_ApiV2* api, char const* name)
+    struct ToriRS_Api* api, char const* name)
 { (void)api; return fake_asset_load(name) ? TORIRS_ASSET_READY : TORIRS_ASSET_MISSING; }
 static bool v2_asset_bytes(
-    struct ToriRS_ApiV2* api, char const* name, void const** data, size_t* size)
+    struct ToriRS_Api* api, char const* name, void const** data, size_t* size)
 {
     int n = 0;
     (void)api;
@@ -376,10 +376,10 @@ static bool v2_asset_bytes(
     *size = n > 0 ? (size_t)n : 0;
     return *data != NULL;
 }
-static void v2_asset_release(struct ToriRS_ApiV2* api, char const* name)
+static void v2_asset_release(struct ToriRS_Api* api, char const* name)
 { (void)api; fake_asset_release(name); }
 static enum ToriRS_AssetState v2_image(
-    struct ToriRS_ApiV2* api, char const* name, struct ToriRS_ImageRef* out)
+    struct ToriRS_Api* api, char const* name, struct ToriRS_ImageRef* out)
 {
     int const image = fake_image_load(name);
     (void)api;
@@ -387,10 +387,10 @@ static enum ToriRS_AssetState v2_image(
     return image > 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_MISSING;
 }
 static bool v2_image_size(
-    struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image, int* w, int* h)
+    struct ToriRS_Api* api, struct ToriRS_ImageRef image, int* w, int* h)
 { (void)api; return fake_image_size(image.value, w, h) != 0; }
 static bool v2_image_pixels(
-    struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image,
+    struct ToriRS_Api* api, struct ToriRS_ImageRef image,
     uint32_t* out, size_t capacity, size_t* count)
 {
     int const n = fake_image_pixels(image.value, out, (int)capacity);
@@ -399,19 +399,19 @@ static bool v2_image_pixels(
     return n > 0;
 }
 static enum ToriRS_AssetState v2_image_compose(
-    struct ToriRS_ApiV2* api, char const* name, int w, int h,
+    struct ToriRS_Api* api, char const* name, int w, int h,
     uint32_t const* pixels, struct ToriRS_ImageRef* out)
 {
     (void)api;
     out->value = fake_image_compose(name, w, h, pixels);
     return out->value > 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_ERROR;
 }
-static void v2_image_release(struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image)
+static void v2_image_release(struct ToriRS_Api* api, struct ToriRS_ImageRef image)
 { (void)api; fake_image_release(image.value); }
-static struct ToriRS_PlacementAreaRef v2_area(struct ToriRS_ApiV2* api, int area)
+static struct ToriRS_PlacementAreaRef v2_area(struct ToriRS_Api* api, int area)
 { struct ToriRS_PlacementAreaRef out = { (uint32_t)area + 1u }; (void)api; return out; }
 static bool v2_primary(
-    struct ToriRS_ApiV2* api, struct ToriRS_PlacementAreaRef area, struct ToriRS_Rect* out)
+    struct ToriRS_Api* api, struct ToriRS_PlacementAreaRef area, struct ToriRS_Rect* out)
 { (void)api; (void)area; *out = (struct ToriRS_Rect){ 0, 0, 765, 503 }; return true; }
 static void v2_draw_image(
     struct ToriRS_DrawBuilder* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
@@ -424,7 +424,7 @@ api_init(void)
     memset(&g_client_api, 0, sizeof(g_client_api));
     memset(&g_game_api, 0, sizeof(g_game_api));
     g_api.struct_size = sizeof(g_api);
-    g_api.major_version = TORIRS_PLUGIN_API_V2_MAJOR;
+    g_api.major_version = TORIRS_PLUGIN_API_MAJOR;
     g_api.config.get_bool = v2_cfg_bool;
     g_api.config.get_color = v2_cfg_color;
     g_api.input.pointer = v2_pointer;
@@ -449,7 +449,7 @@ api_init(void)
 
 /* ---------------------------------------------------------------- driving */
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_ITEM_STATS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS;
 
 /* The plugin's own line box: four pixels of margin top and bottom, and a
  * twelve-pixel line. Restated here rather than shared, so a change to either

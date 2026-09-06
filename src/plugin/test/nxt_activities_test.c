@@ -95,7 +95,7 @@ struct FakeEngine
 static struct FakeEngine g_engine;
 
 /* In game: these harnesses exercise behaviour that is gated on it.
- * @see ToriRS_CoreApiV2::screen. */
+ * @see ToriRS_CoreApi::screen. */
 static int
 fake_plugin_screen(void* u)
 {
@@ -843,7 +843,7 @@ fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
  * the host's surface-member query, where that is an answer and not a
  * fault. */
 /** The lane states no size for any surface, so a caller falls back to its own.
- *  @see ToriRS_FrameApiV2::surface_native_size. */
+ *  @see ToriRS_FrameApi::surface_native_size. */
 static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
@@ -868,7 +868,7 @@ fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int
 }
 
 /* Nothing under test mounts a component tree, so every id answers "not
- * here" -- @see ToriRS_CacheApiV2::component_rect, where that is an answer. */
+ * here" -- @see ToriRS_CacheApi::component_rect, where that is an answer. */
 static int
 fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
 {
@@ -1150,9 +1150,9 @@ fake_engine(void)
 
 /* ------------------------------------------------------------ the plugins */
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_HIGHLIGHT;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_BIRD_NEST;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_CANNON_AMMO;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
 static void
 draw_reset(void)
@@ -1179,9 +1179,9 @@ main(void)
     g_engine.hover_x = 3210;
     g_engine.hover_z = 3220;
 
-    p_hl = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
-    p_nest = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
-    p_cannon = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_NXT_CANNON_AMMO);
+    p_hl = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
+    p_nest = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
+    p_cannon = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_CANNON_AMMO);
     CHECK(
         p_hl >= 0 && p_nest >= 0 && p_cannon >= 0,
         "all three register");

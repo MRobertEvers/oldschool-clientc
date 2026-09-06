@@ -108,21 +108,14 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*children)(void*, struct ToriRS_WidgetRef,
                                          struct ToriRS_WidgetRef*, size_t capacity, size_t* count);
     enum ToriRS_ContractResult (*bounds)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetBounds*);
+    /* Native-parent-local, unscrolled geometry; bounds is drawn canvas space. */
+    enum ToriRS_ContractResult (*position)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetBounds*);
     enum ToriRS_ContractResult (*get_text)(void*, struct ToriRS_WidgetRef, char*, size_t capacity, size_t* required);
-    enum ToriRS_ContractResult (*set_text)(void*, struct ToriRS_WidgetRef, char const*);
-    enum ToriRS_ContractResult (*set_text_color)(void*, struct ToriRS_WidgetRef, uint32_t rgb);
     enum ToriRS_ContractResult (*set_position)(void*, struct ToriRS_WidgetRef, int32_t x, int32_t y);
     enum ToriRS_ContractResult (*set_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
-    enum ToriRS_ContractResult (*set_hidden)(void*, struct ToriRS_WidgetRef, bool);
     enum ToriRS_ContractResult (*revalidate)(void*, struct ToriRS_WidgetRef);
-    enum ToriRS_ContractResult (*revalidate_scroll)(void*, struct ToriRS_WidgetRef);
     enum ToriRS_ContractResult (*reset)(void*, struct ToriRS_WidgetRef);
-    enum ToriRS_ContractResult (*create_text)(void*, struct ToriRS_WidgetRef parent,
-                                            char const* key, struct ToriRS_WidgetRef*);
-    enum ToriRS_ContractResult (*remove)(void*, struct ToriRS_WidgetRef);
-    enum ToriRS_ContractResult (*set_listener)(void*, struct ToriRS_WidgetRef,
-                                             enum ToriRS_WidgetEventType, ToriRS_WidgetListener, void*);
-    enum ToriRS_ContractResult (*invoke)(void*, struct ToriRS_WidgetActionRef);
+
 };
 
 #endif

@@ -22,7 +22,7 @@
 #include "plugin/torirs_plugin_types.h"
 #include "plugin/torirs_plugin_host_types.h"
 #include "plugin/torirs_plugin_ui.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -37,7 +37,7 @@
  * those strays.
  *
  * The schema half of that pair is PLUGIN_LUA_MAX_CONFIG (32) for a script;
- * PluginHost_RegisterV2 refuses any def, C or Lua, whose schema does not fit
+ * PluginHost_Register refuses any def, C or Lua, whose schema does not fit
  * here. Sized against the plugin this tree ports from -- RuneLite's Ground
  * Items carries 33 settings -- rather than against the plugins that exist
  * today, since it was the smaller of these two numbers that a real port hit
@@ -133,10 +133,33 @@ struct ToriRS_PluginHost;
 /* The engine seam. app.c implements every one of these.                     */
 /* ------------------------------------------------------------------------ */
 
+enum PluginWidgetRequestKind
+{
+    PLUGIN_WIDGET_FIND, PLUGIN_WIDGET_GET, PLUGIN_WIDGET_CHILDREN,
+    PLUGIN_WIDGET_BOUNDS, PLUGIN_WIDGET_LOCAL_BOUNDS, PLUGIN_WIDGET_TEXT,
+    PLUGIN_WIDGET_POSITION, PLUGIN_WIDGET_SIZE,
+    PLUGIN_WIDGET_REVALIDATE, PLUGIN_WIDGET_RESET, PLUGIN_WIDGET_RESET_OWNER
+};
+struct PluginWidgetRequest
+{
+    enum PluginWidgetRequestKind kind;
+    struct ToriRS_WidgetRef ref;
+    char const* name;
+    int id, a, b;
+    struct ToriRS_WidgetRef* refs;
+    struct ToriRS_WidgetBounds* bounds;
+    char* text;
+    size_t capacity;
+    size_t* count;
+};
+
 struct ToriRS_PluginEngine
 {
     /** struct App*. */
     void* user;
+    /* Checked live-widget bridge. Requests are synchronous and borrowed. */
+    enum ToriRS_ContractResult (*widget_request)(void* user, uint64_t owner,
+                                                struct PluginWidgetRequest* request);
 
     /** enum AppScreen, as a TORIRS_SCREEN_* value.
      *  @see screen. */
@@ -861,9 +884,9 @@ PluginHost_Free(struct ToriRS_PluginHost* host);
  * before each start, and released after on_stop.
  */
 int
-PluginHost_RegisterV2(
+PluginHost_Register(
     struct ToriRS_PluginHost* host,
-    struct ToriRS_PluginDefV2 const* def);
+    struct ToriRS_PluginDef const* def);
 
 /** Calls on_start for each newly enabled plugin. Idempotent, so a dynamically
  * registered script can call this after registration. */

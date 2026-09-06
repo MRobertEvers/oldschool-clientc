@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -74,7 +74,7 @@ nxt_hl_fill(struct ToriRS_HighlightItem const* item, int flag)
 
 static void
 nxt_highlight_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_DrawBuilder* draw)
 {
@@ -139,14 +139,14 @@ nxt_highlight_draw(
     }
 }
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
+struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
     .struct_size = sizeof(TORIRS_PLUGIN_NXT_HIGHLIGHT),
     .id = "nxt-highlight",
     .title = "Cache highlights (All Settings)",
     .version = "1.0.0",
     .state_size = 0,
     .config = NULL,
-    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_draw_world = nxt_highlight_draw,

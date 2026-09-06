@@ -12,7 +12,7 @@
 
 struct ToriRS_PluginHost { int unused; };
 
-static struct ToriRS_PluginDefV2 const* g_defs[PLUGIN_LUA_TEST_MAX];
+static struct ToriRS_PluginDef const* g_defs[PLUGIN_LUA_TEST_MAX];
 static void (*g_reload[PLUGIN_LUA_TEST_MAX])(struct ToriRS_PluginHost*, int, void*);
 static void* g_reload_user[PLUGIN_LUA_TEST_MAX];
 static int g_registered;
@@ -36,15 +36,15 @@ static char g_disable_reason[192];
     {                                                                                   \
         if( !(condition) )                                                              \
         {                                                                               \
-            fprintf(stderr, "lua v2 test: %s\n", (message));                          \
+            fprintf(stderr, "lua plugin test: %s\n", (message));                          \
             g_failures++;                                                               \
         }                                                                               \
     } while( 0 )
 
 int
-PluginHost_RegisterV2(
+PluginHost_Register(
     struct ToriRS_PluginHost* host,
-    struct ToriRS_PluginDefV2 const* def)
+    struct ToriRS_PluginDef const* def)
 {
     (void)host;
     CHECK(g_registered < PLUGIN_LUA_TEST_MAX, "registration table capacity");
@@ -78,16 +78,16 @@ void PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int index, bool enabl
 
 struct FakeInstance { char const* id; char const* active_frame; };
 
-static char const* fake_plugin_id(struct ToriRS_ApiV2* api)
+static char const* fake_plugin_id(struct ToriRS_Api* api)
 {
     return ((struct FakeInstance*)api->instance)->id;
 }
-static void fake_log(struct ToriRS_ApiV2* api, char const* format, ...)
+static void fake_log(struct ToriRS_Api* api, char const* format, ...)
 {
     (void)api; (void)format;
     g_logs++;
 }
-static bool fake_config_get_int(struct ToriRS_ApiV2* api, char const* key, int* out)
+static bool fake_config_get_int(struct ToriRS_Api* api, char const* key, int* out)
 {
     (void)api;
     if( strcmp(key, "answer") != 0 ) return false;
@@ -95,7 +95,7 @@ static bool fake_config_get_int(struct ToriRS_ApiV2* api, char const* key, int* 
     return true;
 }
 static enum ToriRS_Result
-fake_config_set(struct ToriRS_ApiV2* api, char const* key, char const* value)
+fake_config_set(struct ToriRS_Api* api, char const* key, char const* value)
 {
     char const* id = ((struct FakeInstance*)api->instance)->id;
     if( strchr(value, '\n') || strchr(value, '\r') || strchr(key, '-') )
@@ -110,14 +110,14 @@ fake_config_set(struct ToriRS_ApiV2* api, char const* key, char const* value)
     }
     return TORIRS_RESULT_NOT_FOUND;
 }
-static struct ToriRS_UiNodeRef fake_ui_ref(struct ToriRS_ApiV2* api, char const* name)
+static struct ToriRS_UiNodeRef fake_ui_ref(struct ToriRS_Api* api, char const* name)
 {
     (void)api;
     struct ToriRS_UiNodeRef ref = { strcmp(name, "frame.chat.button.report") == 0 ? 77u : 0u };
     return ref;
 }
 static enum ToriRS_Result fake_ui_update(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef node,
     uint32_t facets,
     struct ToriRS_UiNode const* value)
@@ -132,7 +132,7 @@ static enum ToriRS_Result fake_ui_update(
     return TORIRS_RESULT_OK;
 }
 static enum ToriRS_Result fake_ui_set_enabled(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_UiNodeRef node,
     bool enabled)
 {
@@ -141,13 +141,13 @@ static enum ToriRS_Result fake_ui_set_enabled(
     g_ui_enabled += enabled ? 1 : -1;
     return TORIRS_RESULT_OK;
 }
-static void fake_frame_selection(struct ToriRS_ApiV2* api, struct ToriRS_FrameSelection* out)
+static void fake_frame_selection(struct ToriRS_Api* api, struct ToriRS_FrameSelection* out)
 {
     struct FakeInstance* instance = api->instance;
     snprintf(out->active_id, sizeof(out->active_id), "%s",
         instance->active_frame ? instance->active_frame : "");
 }
-static void fake_disable_self(struct ToriRS_ApiV2* api, char const* reason)
+static void fake_disable_self(struct ToriRS_Api* api, char const* reason)
 {
     (void)api;
     CHECK(reason && reason[0], "disable_self receives an actionable reload reason");
@@ -201,14 +201,14 @@ static void fake_reason(struct ToriRS_FrameBuilder* frame, char const* text)
     g_reasons++;
 }
 
-static struct ToriRS_ApiV2
+static struct ToriRS_Api
 fake_api(struct FakeInstance* instance)
 {
-    struct ToriRS_ApiV2 api;
+    struct ToriRS_Api api;
     memset(&api, 0, sizeof(api));
     api.struct_size = sizeof(api);
-    api.major_version = TORIRS_PLUGIN_API_V2_MAJOR;
-    api.minor_version = TORIRS_PLUGIN_API_V2_MINOR;
+    api.major_version = TORIRS_PLUGIN_API_MAJOR;
+    api.minor_version = TORIRS_PLUGIN_API_MINOR;
     api.instance = instance;
     api.core.struct_size = sizeof(api.core);
     api.core.log = fake_log;
@@ -222,7 +222,7 @@ fake_api(struct FakeInstance* instance)
     api.ui.set_enabled = fake_ui_set_enabled;
     api.frame.struct_size = sizeof(api.frame);
     api.frame.selection = fake_frame_selection;
-    static struct ToriRS_ClientApiV2 client;
+    static struct ToriRS_ClientApi client;
     memset(&client, 0, sizeof(client));
     client.struct_size = sizeof(client);
     client.disable_self = fake_disable_self;
@@ -351,7 +351,7 @@ test_runtime(struct ToriRS_PluginHost* host)
         "  panel.heading('Native V2');panel.action_row('skill_8','Woodcutting','XP/hr 12.3K') end"
         "}";
     struct FakeInstance instance = { "lua-v2-test", "lua-v2-test/ready" };
-    struct ToriRS_ApiV2 api = fake_api(&instance);
+    struct ToriRS_Api api = fake_api(&instance);
     struct ToriRS_DrawBuilder draw;
     struct ToriRS_PanelBuilder panel;
     struct ToriRS_FrameBuilder frame;
@@ -455,7 +455,7 @@ test_runtime(struct ToriRS_PluginHost* host)
               (int)strlen(INVALID_ENUM_SOURCE)) == 1,
         "enum misuse probe registered");
     struct FakeInstance invalid_instance = { "invalid-enum-59", NULL };
-    struct ToriRS_ApiV2 invalid_api = fake_api(&invalid_instance);
+    struct ToriRS_Api invalid_api = fake_api(&invalid_instance);
     g_defs[1]->callbacks.on_start(&invalid_api, NULL);
     CHECK(g_disabled_self == 3 && g_reported_errors == 0 && g_enabled_calls == 0,
         "out-of-range integer enum becomes a caught V2 lifecycle fault");
@@ -466,7 +466,7 @@ test_runtime(struct ToriRS_PluginHost* host)
               (int)strlen(BUDGET_SOURCE)) == 2,
         "nested-budget probe registered");
     struct FakeInstance budget_instance = { "budget-after-reentry", NULL };
-    struct ToriRS_ApiV2 budget_api = fake_api(&budget_instance);
+    struct ToriRS_Api budget_api = fake_api(&budget_instance);
     g_defs[2]->callbacks.on_start(&budget_api, NULL);
     CHECK(g_disabled_self == 4 &&
             strstr(g_disable_reason, "instruction budget exhausted") != NULL,
@@ -478,7 +478,7 @@ test_runtime(struct ToriRS_PluginHost* host)
               (int)strlen(NESTED_FAULT_SOURCE)) == 3,
         "nested-fault probe registered");
     struct FakeInstance nested_instance = { "nested-fault", NULL };
-    struct ToriRS_ApiV2 nested_api = fake_api(&nested_instance);
+    struct ToriRS_Api nested_api = fake_api(&nested_instance);
     g_defs[3]->callbacks.on_start(&nested_api, NULL);
     CHECK(g_logs == logs_before_nested_fault + 1,
         "inner fault keeps native state alive until the outer Lua callback returns");
@@ -496,7 +496,7 @@ test_runtime(struct ToriRS_PluginHost* host)
               (int)strlen(DISABLE_SOURCE)) == 4,
         "explicit-disable probe registered");
     struct FakeInstance disable_instance = { "explicit-disable", NULL };
-    struct ToriRS_ApiV2 disable_api = fake_api(&disable_instance);
+    struct ToriRS_Api disable_api = fake_api(&disable_instance);
     g_defs[4]->callbacks.on_start(&disable_api, NULL);
     CHECK(g_logs == logs_before_disable && strstr(g_disable_reason, "requested stop") != NULL,
         "disable_self unwinds Lua before native teardown and later API use");
@@ -505,7 +505,7 @@ test_runtime(struct ToriRS_PluginHost* host)
               (int)strlen(BAD_PIXELS_SOURCE)) == 5,
         "bad-pixels probe registered");
     struct FakeInstance pixels_instance = { "bad-pixels", NULL };
-    struct ToriRS_ApiV2 pixels_api = fake_api(&pixels_instance);
+    struct ToriRS_Api pixels_api = fake_api(&pixels_instance);
     g_defs[5]->callbacks.on_start(&pixels_api, NULL);
     CHECK(strstr(g_disable_reason, "pixel 2 is not an integer") != NULL,
         "malformed pixel input faults without retaining a host allocation");
@@ -555,9 +555,9 @@ main(void)
     PluginLua_Shutdown();
     if( g_failures )
     {
-        fprintf(stderr, "lua v2 test: %d failure(s)\n", g_failures);
+        fprintf(stderr, "lua plugin test: %d failure(s)\n", g_failures);
         return 1;
     }
-    puts("lua v2 test: runtime, reload, descriptors, builders, and 16 bundled scripts passed");
+    puts("lua plugin test: runtime, reload, descriptors, builders, and 16 bundled scripts passed");
     return 0;
 }

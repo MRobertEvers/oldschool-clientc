@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <math.h>
@@ -356,7 +356,7 @@ struct XpOrbState
 #define g_tip_ms (state->tip_ms)
 
 static bool
-orb_cfg_bool(struct ToriRS_ApiV2* api, char const* key)
+orb_cfg_bool(struct ToriRS_Api* api, char const* key)
 {
     bool value = false;
     (void)api->config.get_bool(api, key, &value);
@@ -364,7 +364,7 @@ orb_cfg_bool(struct ToriRS_ApiV2* api, char const* key)
 }
 
 static int
-orb_cfg_int(struct ToriRS_ApiV2* api, char const* key)
+orb_cfg_int(struct ToriRS_Api* api, char const* key)
 {
     int value = 0;
     (void)api->config.get_int(api, key, &value);
@@ -372,7 +372,7 @@ orb_cfg_int(struct ToriRS_ApiV2* api, char const* key)
 }
 
 static uint32_t
-orb_cfg_color(struct ToriRS_ApiV2* api, char const* key)
+orb_cfg_color(struct ToriRS_Api* api, char const* key)
 {
     uint32_t value = 0;
     (void)api->config.get_color(api, key, &value);
@@ -633,7 +633,7 @@ orb_blit_scaled(
  * from the comment lines, whose second byte is never that.
  */
 static int
-orb_load_glyphs(struct ToriRS_ApiV2* api, struct XpOrbState* state)
+orb_load_glyphs(struct ToriRS_Api* api, struct XpOrbState* state)
 {
     char const* at;
     size_t size = 0;
@@ -838,7 +838,7 @@ orb_virtual_level(int xp)
 /* ------------------------------------------------------------------ config */
 
 static uint32_t
-orb_cfg_argb(struct ToriRS_ApiV2* api, char const* key, int alpha)
+orb_cfg_argb(struct ToriRS_Api* api, char const* key, int alpha)
 {
     uint32_t const rgb = orb_cfg_color(api, key) & 0x00FFFFFFu;
     return ((uint32_t)orb_clampi(alpha, 0, 255) << 24) | rgb;
@@ -853,7 +853,7 @@ orb_cfg_argb(struct ToriRS_ApiV2* api, char const* key, int alpha)
  * other.
  */
 static uint32_t
-orb_skill_rgb(struct ToriRS_ApiV2* api, int skill)
+orb_skill_rgb(struct ToriRS_Api* api, int skill)
 {
     if( orb_cfg_bool(api, "custom_arc_color") )
         return orb_cfg_color(api, "arc_color") & 0x00FFFFFFu;
@@ -863,13 +863,13 @@ orb_skill_rgb(struct ToriRS_ApiV2* api, int skill)
 }
 
 static int
-orb_size(struct ToriRS_ApiV2* api)
+orb_size(struct ToriRS_Api* api)
 {
     return orb_clampi(orb_cfg_int(api, "orb_size"), 16, ORB_SIZE_MAX);
 }
 
 static int
-orb_arc_width(struct ToriRS_ApiV2* api)
+orb_arc_width(struct ToriRS_Api* api)
 {
     return orb_clampi(orb_cfg_int(api, "arc_width"), 1, 12);
 }
@@ -878,7 +878,7 @@ orb_arc_width(struct ToriRS_ApiV2* api)
  *  half of the widest of the two rings, top and bottom. The reference's own
  *  progressArcOffset. */
 static int
-orb_arc_offset(struct ToriRS_ApiV2* api)
+orb_arc_offset(struct ToriRS_Api* api)
 {
     int const widest =
         ORB_RING_WIDTH > orb_arc_width(api) ? ORB_RING_WIDTH : orb_arc_width(api);
@@ -1015,7 +1015,7 @@ orb_reset(struct XpOrbState* state)
 
 /** How many skills this client has, discovered once from api->skill_name. */
 static void
-orb_size_tables(struct ToriRS_ApiV2* api, struct XpOrbState* state)
+orb_size_tables(struct ToriRS_Api* api, struct XpOrbState* state)
 {
     int count = 0;
     struct ToriRS_SkillSnapshot skill;
@@ -1040,7 +1040,7 @@ orb_size_tables(struct ToriRS_ApiV2* api, struct XpOrbState* state)
 
 static void
 orb_tick(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_TickEvent const* event)
 {
@@ -1136,7 +1136,7 @@ orb_tick(
  */
 static uint64_t
 orb_key(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XpGlobe const* globe,
     int progress,
     int hovered)
@@ -1176,7 +1176,7 @@ orb_key(
  */
 static int
 orb_compose(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XpOrbState* state,
     struct XpGlobe const* globe,
     int slot,
@@ -1280,7 +1280,7 @@ struct OrbTipRow
  */
 static void
 orb_draw_tooltip(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XpOrbState* state,
     struct ToriRS_DrawBuilder* draw,
     struct XpGlobe const* globe,
@@ -1446,7 +1446,7 @@ blit:
 
 /** Ask for the art, and read back the pixels once they land. */
 static void
-orb_load_art(struct ToriRS_ApiV2* api, struct XpOrbState* state)
+orb_load_art(struct ToriRS_Api* api, struct XpOrbState* state)
 {
     if( g_img_skills == 0 )
     {
@@ -1517,7 +1517,7 @@ orb_load_art(struct ToriRS_ApiV2* api, struct XpOrbState* state)
  */
 static void
 orb_draw_drops(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XpOrbState* state,
     struct ToriRS_DrawBuilder* draw,
     uint64_t now,
@@ -1650,7 +1650,7 @@ orb_draw_drops(
 
 static void
 orb_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_UiNodeRef node,
     struct ToriRS_DrawBuilder* draw)
@@ -1808,7 +1808,7 @@ orb_draw(
 
 static enum ToriRS_CallbackResult
 orb_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     uint32_t action_id,
     int operation,
@@ -1829,7 +1829,7 @@ orb_action(
 /* --------------------------------------------------------------- lifecycle */
 
 static void
-orb_start(struct ToriRS_ApiV2* api, void* plugin_state)
+orb_start(struct ToriRS_Api* api, void* plugin_state)
 {
     struct XpOrbState* state = plugin_state;
 
@@ -1849,7 +1849,7 @@ orb_start(struct ToriRS_ApiV2* api, void* plugin_state)
 }
 
 static void
-orb_stop(struct ToriRS_ApiV2* api, void* plugin_state)
+orb_stop(struct ToriRS_Api* api, void* plugin_state)
 {
     struct XpOrbState* state = plugin_state;
 
@@ -1877,7 +1877,7 @@ orb_stop(struct ToriRS_ApiV2* api, void* plugin_state)
 
 static void
 orb_asset(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_AssetEvent const* event)
 {
@@ -1887,7 +1887,7 @@ orb_asset(
 
 static void
 orb_config_changed(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     char const* key)
 {
@@ -1958,15 +1958,15 @@ static struct ToriRS_ConfigSchema const ORB_SCHEMA = {
     .items = ORB_CONFIG,
 };
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_ORBS = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "xp-drop-orbs",
     .title = "XP Drop Orbs",
     .version = "1.0.0",
     .state_size = sizeof(struct XpOrbState),
     .config = &ORB_SCHEMA,
     .ui_contributions = XP_DROP_CONTRIBUTIONS,
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = orb_start,

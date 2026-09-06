@@ -1812,7 +1812,7 @@ struct V2ProbeState
 
 static void* g_v2_first_state[4];
 static void* g_v2_latest_state[4];
-static struct ToriRS_ApiV2* g_v2_api[4];
+static struct ToriRS_Api* g_v2_api[4];
 static int g_v2_starts[4];
 static int g_v2_stops[4];
 static int g_v2_zeroed_starts;
@@ -1855,7 +1855,7 @@ static struct ToriRS_SelectOption const V2_PANEL_OPTIONS[] = {
 
 static void
 v2_probe_start(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr)
 {
     struct V2ProbeState* state = state_ptr;
@@ -1946,7 +1946,7 @@ v2_probe_start(
 
 static void
 v2_probe_stop(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr)
 {
     struct V2ProbeState* state = state_ptr;
@@ -1958,7 +1958,7 @@ v2_probe_stop(
 
 static void
 v2_probe_logic(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_TickEvent const* event)
 {
@@ -1969,7 +1969,7 @@ v2_probe_logic(
 
 static void
 v2_probe_canvas(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_DrawBuilder* draw)
 {
@@ -1982,7 +1982,7 @@ v2_probe_canvas(
 
 static void
 v2_probe_placement(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     uint32_t revision)
 {
@@ -1994,7 +1994,7 @@ v2_probe_placement(
 
 static void
 v2_probe_ui_build(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_PanelBuilder* panel,
     int view)
@@ -2027,7 +2027,7 @@ v2_probe_ui_build(
 
 static void
 v2_probe_ui_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_PanelActionEvent const* event)
 {
@@ -2048,7 +2048,7 @@ v2_probe_ui_action(
 
 static void
 v2_probe_ui_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     char const* node,
     struct ToriRS_DrawBuilder* draw)
@@ -2064,7 +2064,7 @@ v2_probe_ui_draw(
 
 static enum ToriRS_CallbackResult
 v2_probe_node_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_UiNodeRef node,
     char const* action)
@@ -2080,7 +2080,7 @@ v2_probe_node_action(
 }
 
 static void
-v2_prefix_start(struct ToriRS_ApiV2* api, void* state)
+v2_prefix_start(struct ToriRS_Api* api, void* state)
 {
     (void)api;
     (void)state;
@@ -2089,7 +2089,7 @@ v2_prefix_start(struct ToriRS_ApiV2* api, void* state)
 
 static enum ToriRS_FrameBuildResult
 v2_probe_frame_build(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_FrameBuilder* frame,
     struct ToriRS_FrameBuildContext const* context)
@@ -2151,7 +2151,7 @@ v2_probe_frame_build(
 
 static void
 v2_probe_frame_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_DrawBuilder* draw)
 {
@@ -2210,7 +2210,7 @@ static struct ToriRS_ConfigSchema const V2_CONFIG_MULTILINE_DEFAULT = {
     .items = V2_CONFIG_MULTILINE_DEFAULT_ITEMS,
 };
 
-static struct ToriRS_PluginDefV2 const V2_BAD_CONFIG_KEY = {
+static struct ToriRS_PluginDef const V2_BAD_CONFIG_KEY = {
     .struct_size = sizeof(V2_BAD_CONFIG_KEY),
     .id = "v2-bad-config-key",
     .title = "Bad Config Key",
@@ -2218,7 +2218,7 @@ static struct ToriRS_PluginDefV2 const V2_BAD_CONFIG_KEY = {
     .config = &V2_CONFIG_BAD_KEY,
     .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
 };
-static struct ToriRS_PluginDefV2 const V2_DUPLICATE_CONFIG_KEY = {
+static struct ToriRS_PluginDef const V2_DUPLICATE_CONFIG_KEY = {
     .struct_size = sizeof(V2_DUPLICATE_CONFIG_KEY),
     .id = "v2-duplicate-config-key",
     .title = "Duplicate Config Key",
@@ -2226,7 +2226,7 @@ static struct ToriRS_PluginDefV2 const V2_DUPLICATE_CONFIG_KEY = {
     .config = &V2_CONFIG_DUPLICATE,
     .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
 };
-static struct ToriRS_PluginDefV2 const V2_MULTILINE_CONFIG_DEFAULT = {
+static struct ToriRS_PluginDef const V2_MULTILINE_CONFIG_DEFAULT = {
     .struct_size = sizeof(V2_MULTILINE_CONFIG_DEFAULT),
     .id = "v2-multiline-config-default",
     .title = "Multiline Config Default",
@@ -2295,7 +2295,7 @@ static struct ToriRS_FrameOffer const V2_FRAME_OFFERS[] = {
     { .struct_size = sizeof(struct ToriRS_FrameOffer) },
 };
 
-static struct ToriRS_PluginDefV2 const V2_PROBE_A = {
+static struct ToriRS_PluginDef const V2_PROBE_A = {
     .struct_size = sizeof(V2_PROBE_A),
     .id = "v2-probe-a",
     .title = "V2 Probe A",
@@ -2317,7 +2317,7 @@ static struct ToriRS_PluginDefV2 const V2_PROBE_A = {
     .ui_contributions = V2_UI_A,
 };
 
-static struct ToriRS_PluginDefV2 const V2_PROBE_B = {
+static struct ToriRS_PluginDef const V2_PROBE_B = {
     .struct_size = sizeof(V2_PROBE_B),
     .id = "v2-probe-b",
     .title = "V2 Probe B",
@@ -2336,10 +2336,10 @@ static struct ToriRS_PluginDefV2 const V2_PROBE_B = {
         .on_placement_changed = v2_probe_placement,
     },
     .ui_contributions = V2_UI_B,
-    .flags = TORIRS_PLUGIN_V2_RUNTIME_HOST,
+    .flags = TORIRS_PLUGIN_RUNTIME_HOST,
 };
 
-static struct ToriRS_PluginDefV2 const V2_FRAME_PROVIDER = {
+static struct ToriRS_PluginDef const V2_FRAME_PROVIDER = {
     .struct_size = sizeof(V2_FRAME_PROVIDER),
     .id = "v2-frame",
     .title = "V2 Frame",
@@ -2352,7 +2352,7 @@ static struct ToriRS_PluginDefV2 const V2_FRAME_PROVIDER = {
         .on_stop = v2_probe_stop,
     },
     .frames = V2_FRAME_OFFERS,
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
 };
 
 struct V2SeamResults
@@ -2381,7 +2381,7 @@ struct V2SeamResults
 static struct V2SeamResults g_v2_seam;
 
 static void
-v2_seam_start(struct ToriRS_ApiV2* api, void* state)
+v2_seam_start(struct ToriRS_Api* api, void* state)
 {
     struct ToriRS_ImageRef bad_image = { 0 };
     (void)state;
@@ -2400,7 +2400,7 @@ v2_seam_start(struct ToriRS_ApiV2* api, void* state)
 
 static void
 v2_seam_logic(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_TickEvent const* event)
 {
@@ -2430,7 +2430,7 @@ v2_seam_logic(
     }
 }
 
-static struct ToriRS_PluginDefV2 const V2_SEAM_PROBE = {
+static struct ToriRS_PluginDef const V2_SEAM_PROBE = {
     .struct_size = sizeof(V2_SEAM_PROBE),
     .id = "v2-seam-probe",
     .title = "V2 Seam Probe",
@@ -2492,10 +2492,10 @@ struct V2AbaResults
 
 static struct V2AbaResults g_v2_aba;
 static int g_v2_aba_starts;
-static struct ToriRS_ApiV2* g_v2_aba_api;
+static struct ToriRS_Api* g_v2_aba_api;
 
 static void
-v2_aba_start(struct ToriRS_ApiV2* api, void* state_ptr)
+v2_aba_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct V2AbaState* state = state_ptr;
     g_v2_aba_api = api;
@@ -2540,7 +2540,7 @@ v2_aba_start(struct ToriRS_ApiV2* api, void* state_ptr)
 
 static void
 v2_aba_logic(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_TickEvent const* event)
 {
@@ -2627,7 +2627,7 @@ v2_aba_logic(
 
 static enum ToriRS_FrameBuildResult
 v2_aba_frame(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_FrameBuilder* frame,
     struct ToriRS_FrameBuildContext const* context)
@@ -2683,7 +2683,7 @@ static struct ToriRS_FrameOffer const V2_ABA_FRAMES[] = {
     { .struct_size = sizeof(struct ToriRS_FrameOffer) },
 };
 
-static struct ToriRS_PluginDefV2 const V2_ABA_PROBE = {
+static struct ToriRS_PluginDef const V2_ABA_PROBE = {
     .struct_size = sizeof(V2_ABA_PROBE),
     .id = "v2-aba",
     .title = "V2 ABA Probe",
@@ -2696,13 +2696,13 @@ static struct ToriRS_PluginDefV2 const V2_ABA_PROBE = {
     },
     .frames = V2_ABA_FRAMES,
     .ui_contributions = V2_ABA_UI,
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
 };
 
 /* A definition ending inside its final callback table exercises append-only
  * minor-version reads without granting access to any callback tail. */
-static struct ToriRS_PluginDefV2 const V2_PREFIX_ONLY = {
-    .struct_size = offsetof(struct ToriRS_PluginDefV2, callbacks) +
+static struct ToriRS_PluginDef const V2_PREFIX_ONLY = {
+    .struct_size = offsetof(struct ToriRS_PluginDef, callbacks) +
                    offsetof(struct ToriRS_PluginCallbacks, on_stop),
     .id = "v2-prefix",
     .title = "V2 Prefix",
@@ -2718,10 +2718,10 @@ static int g_placement_v2_depth;
 static int g_placement_v2_max_depth;
 static int g_placement_v2_reenter;
 static uint32_t g_placement_v2_revision;
-static struct ToriRS_ApiV2* g_placement_v2_api;
+static struct ToriRS_Api* g_placement_v2_api;
 
 static void
-placement_v2_start(struct ToriRS_ApiV2* api, void* state)
+placement_v2_start(struct ToriRS_Api* api, void* state)
 {
     (void)state;
     g_placement_v2_api = api;
@@ -2729,7 +2729,7 @@ placement_v2_start(struct ToriRS_ApiV2* api, void* state)
 
 static void
 placement_v2_changed(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     uint32_t revision)
 {
@@ -2754,7 +2754,7 @@ placement_v2_changed(
     g_placement_v2_depth--;
 }
 
-static struct ToriRS_PluginDefV2 const V2_PLACEMENT_PROBE = {
+static struct ToriRS_PluginDef const V2_PLACEMENT_PROBE = {
     .struct_size = sizeof(V2_PLACEMENT_PROBE),
     .id = "v2-placement-probe",
     .title = "V2 Placement Probe",
@@ -2776,7 +2776,7 @@ static int g_v2_teardown_placement_calls;
 static int g_v2_teardown_after_shutdown;
 
 static void
-v2_teardown_start(struct ToriRS_ApiV2* api, void* state_ptr)
+v2_teardown_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct V2TeardownState* state = state_ptr;
 
@@ -2789,7 +2789,7 @@ v2_teardown_start(struct ToriRS_ApiV2* api, void* state_ptr)
 }
 
 static void
-v2_teardown_stop(struct ToriRS_ApiV2* api, void* state_ptr)
+v2_teardown_stop(struct ToriRS_Api* api, void* state_ptr)
 {
     struct V2TeardownState* state = state_ptr;
 
@@ -2798,7 +2798,7 @@ v2_teardown_stop(struct ToriRS_ApiV2* api, void* state_ptr)
 }
 
 static void
-v2_teardown_placement(struct ToriRS_ApiV2* api, void* state_ptr, uint32_t revision)
+v2_teardown_placement(struct ToriRS_Api* api, void* state_ptr, uint32_t revision)
 {
     struct V2TeardownState* state = state_ptr;
 
@@ -2810,7 +2810,7 @@ v2_teardown_placement(struct ToriRS_ApiV2* api, void* state_ptr, uint32_t revisi
         g_v2_teardown_placement_calls++;
 }
 
-static struct ToriRS_PluginDefV2 const V2_TEARDOWN_PROBE = {
+static struct ToriRS_PluginDef const V2_TEARDOWN_PROBE = {
     .struct_size = sizeof(V2_TEARDOWN_PROBE),
     .id = "v2-teardown-probe",
     .title = "V2 Teardown Probe",
@@ -2841,7 +2841,7 @@ static enum ToriRS_Result g_present_visibility_result;
 static int g_present_ancestor_visibility_request = -1;
 static enum ToriRS_Result g_present_ancestor_visibility_result;
 static void
-v2_present_start(struct ToriRS_ApiV2* api, void* state)
+v2_present_start(struct ToriRS_Api* api, void* state)
 {
     struct ToriRS_UiNodeRef const node = api->ui.ref(api, "frame.orb.run");
     struct ToriRS_UiNode appearance = {
@@ -2873,7 +2873,7 @@ v2_present_start(struct ToriRS_ApiV2* api, void* state)
 
 static void
 v2_present_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_UiNodeRef node,
     struct ToriRS_DrawBuilder* draw)
@@ -2894,7 +2894,7 @@ v2_present_draw(
 
 static enum ToriRS_CallbackResult
 v2_present_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_UiNodeRef node,
     char const* action)
@@ -2949,7 +2949,7 @@ static struct ToriRS_UiContribution const V2_PRESENT_B_UI[] = {
     { .struct_size = sizeof(struct ToriRS_UiContribution) },
 };
 
-static struct ToriRS_PluginDefV2 const V2_PRESENT_A = {
+static struct ToriRS_PluginDef const V2_PRESENT_A = {
     .struct_size = sizeof(V2_PRESENT_A),
     .id = "v2-present-a",
     .title = "V2 Present A",
@@ -2963,7 +2963,7 @@ static struct ToriRS_PluginDefV2 const V2_PRESENT_A = {
     },
 };
 
-static struct ToriRS_PluginDefV2 const V2_PRESENT_B = {
+static struct ToriRS_PluginDef const V2_PRESENT_B = {
     .struct_size = sizeof(V2_PRESENT_B),
     .id = "v2-present-b",
     .title = "V2 Present B",
@@ -2977,7 +2977,7 @@ static struct ToriRS_PluginDefV2 const V2_PRESENT_B = {
  * executed in these cases, but registration still requires a valid builder. */
 static enum ToriRS_FrameBuildResult
 legacy_frame_build(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_FrameBuilder* frame,
     struct ToriRS_FrameBuildContext const* context)
@@ -3014,22 +3014,22 @@ static struct ToriRS_FrameOffer const LEGACY_MOBILE_OFFERS[] = {
     { .struct_size = sizeof(struct ToriRS_FrameOffer) },
 };
 
-static struct ToriRS_PluginDefV2 const LEGACY_DESKTOP_PROVIDER = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+static struct ToriRS_PluginDef const LEGACY_DESKTOP_PROVIDER = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "gameframe-layout",
     .title = "Legacy desktop frame",
     .version = "1",
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .frames = LEGACY_DESKTOP_OFFERS,
     .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
 };
 
-static struct ToriRS_PluginDefV2 const LEGACY_MOBILE_PROVIDER = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+static struct ToriRS_PluginDef const LEGACY_MOBILE_PROVIDER = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "mobile-gameframe",
     .title = "Legacy mobile frame",
     .version = "1",
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .frames = LEGACY_MOBILE_OFFERS,
     .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
 };
@@ -3053,8 +3053,8 @@ check_legacy_frame_migration(
     g_screen_now = TORIRS_SCREEN_GAME;
     engine = fake_engine();
     host = PluginHost_New(&engine);
-    desktop = PluginHost_RegisterV2(host, &LEGACY_DESKTOP_PROVIDER);
-    mobile = PluginHost_RegisterV2(host, &LEGACY_MOBILE_PROVIDER);
+    desktop = PluginHost_Register(host, &LEGACY_DESKTOP_PROVIDER);
+    mobile = PluginHost_Register(host, &LEGACY_MOBILE_PROVIDER);
     CHECK(desktop >= 0 && mobile >= 0, "legacy migration providers register");
     if( desktop_enabled )
         PluginHost_ConfigApply(host, "gameframe-layout", "enabled", "1");
@@ -3082,7 +3082,7 @@ check_legacy_frame_migration(
 
 static void
 v2_present_reorder_logic(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_TickEvent const* event)
 {
@@ -3109,7 +3109,7 @@ v2_present_reorder_logic(
 
 static void
 v2_present_visibility_logic(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_TickEvent const* event)
 {
@@ -3134,7 +3134,7 @@ v2_present_visibility_logic(
 
 static void
 v2_present_ancestor_visibility_logic(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_TickEvent const* event)
 {
@@ -3190,7 +3190,7 @@ static struct ToriRS_UiContribution const V2_PRESENT_ACTIONS_UI[] = {
     { .struct_size = sizeof(struct ToriRS_UiContribution) },
 };
 
-static struct ToriRS_PluginDefV2 const V2_PRESENT_APPEARANCE = {
+static struct ToriRS_PluginDef const V2_PRESENT_APPEARANCE = {
     .struct_size = sizeof(V2_PRESENT_APPEARANCE),
     .id = "v2-present-appearance",
     .title = "V2 Present Appearance",
@@ -3201,10 +3201,10 @@ static struct ToriRS_PluginDefV2 const V2_PRESENT_APPEARANCE = {
         .on_ui_node_draw = v2_present_draw,
     },
     .ui_contributions = V2_PRESENT_APPEARANCE_UI,
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
 };
 
-static struct ToriRS_PluginDefV2 const V2_PRESENT_ACTIONS = {
+static struct ToriRS_PluginDef const V2_PRESENT_ACTIONS = {
     .struct_size = sizeof(V2_PRESENT_ACTIONS),
     .id = "v2-present-actions",
     .title = "V2 Present Actions",
@@ -3215,7 +3215,7 @@ static struct ToriRS_PluginDefV2 const V2_PRESENT_ACTIONS = {
         .on_ui_node_action = v2_present_action,
     },
     .ui_contributions = V2_PRESENT_ACTIONS_UI,
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
 };
 
 static struct ToriRS_UiContribution const V2_PRESENT_NESTED_UI[] = {
@@ -3282,7 +3282,7 @@ static struct ToriRS_UiContribution const V2_PRESENT_NESTED_UI[] = {
     { .struct_size = sizeof(struct ToriRS_UiContribution) },
 };
 
-static struct ToriRS_PluginDefV2 const V2_PRESENT_NESTED = {
+static struct ToriRS_PluginDef const V2_PRESENT_NESTED = {
     .struct_size = sizeof(V2_PRESENT_NESTED),
     .id = "v2-present-nested",
     .title = "V2 Present Nested",
@@ -3294,10 +3294,36 @@ static struct ToriRS_PluginDefV2 const V2_PRESENT_NESTED = {
         .on_ui_node_action = v2_present_action,
     },
     .ui_contributions = V2_PRESENT_NESTED_UI,
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
 };
 
 /* ------------------------------------------------------------------ tests */
+
+static struct ToriRS_WidgetApi saved_widgets;
+static int widget_requests, widget_resets;
+static uint64_t widget_owner;
+static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
+{
+    (void)user;
+    widget_owner = owner;
+    ++widget_requests;
+    if( r->kind == PLUGIN_WIDGET_FIND ) *r->refs = (struct ToriRS_WidgetRef){{77,2,3}};
+    if( r->kind == PLUGIN_WIDGET_RESET_OWNER ) ++widget_resets;
+    return TORIRS_CONTRACT_OK;
+}
+static void widget_probe_start(struct ToriRS_Api* api, void* state)
+{
+    struct ToriRS_WidgetRef ref;
+    (void)state;
+    saved_widgets = api->widgets;
+    CHECK(api->major_version == 3, "live widget runtime uses the breaking API major");
+    CHECK(api->widgets.find(api->widgets.context, "sidebar", &ref) == TORIRS_CONTRACT_OK && ref.opaque[0] == 77,
+          "live widget lookup routes through the current plugin host");
+    CHECK(api->widgets.set_position(api->widgets.context, ref, 12, 34) == TORIRS_CONTRACT_OK,
+          "live widget setter routes on the client callback");
+    CHECK(api->widgets.revalidate(api->widgets.context, ref) == TORIRS_CONTRACT_OK,
+          "live widget revalidation routes on the client callback");
+}
 
 int
 main(void)
@@ -3406,22 +3432,22 @@ main(void)
         hv2 = PluginHost_New(&engine);
 
         CHECK(
-            PluginHost_RegisterV2(hv2, &V2_BAD_CONFIG_KEY) < 0,
+            PluginHost_Register(hv2, &V2_BAD_CONFIG_KEY) < 0,
             "v2 registration rejects config keys outside [a-z0-9_]");
         CHECK(
-            PluginHost_RegisterV2(hv2, &V2_DUPLICATE_CONFIG_KEY) < 0,
+            PluginHost_Register(hv2, &V2_DUPLICATE_CONFIG_KEY) < 0,
             "v2 registration rejects duplicate config keys");
         CHECK(
-            PluginHost_RegisterV2(hv2, &V2_MULTILINE_CONFIG_DEFAULT) < 0,
+            PluginHost_Register(hv2, &V2_MULTILINE_CONFIG_DEFAULT) < 0,
             "v2 registration rejects defaults that cannot occupy one INI line");
         CHECK(
             PluginHost_Count(hv2) == 0,
             "rejected config schemas consume no host registration slots");
 
-        a2 = PluginHost_RegisterV2(hv2, &V2_PROBE_A);
-        b2 = PluginHost_RegisterV2(hv2, &V2_PROBE_B);
-        frame2 = PluginHost_RegisterV2(hv2, &V2_FRAME_PROVIDER);
-        prefix2 = PluginHost_RegisterV2(hv2, &V2_PREFIX_ONLY);
+        a2 = PluginHost_Register(hv2, &V2_PROBE_A);
+        b2 = PluginHost_Register(hv2, &V2_PROBE_B);
+        frame2 = PluginHost_Register(hv2, &V2_FRAME_PROVIDER);
+        prefix2 = PluginHost_Register(hv2, &V2_PREFIX_ONLY);
         CHECK(a2 == 0 && b2 == 1 && frame2 == 2, "v2 registration shares host indexing");
         CHECK(prefix2 == 3, "a definition ending in a shorter callback-table prefix registers");
         CHECK(
@@ -3783,7 +3809,7 @@ main(void)
         engine = fake_engine();
         seam_host = PluginHost_New(&engine);
         CHECK(
-            PluginHost_RegisterV2(seam_host, &V2_SEAM_PROBE) == 0,
+            PluginHost_Register(seam_host, &V2_SEAM_PROBE) == 0,
             "the V2 capability/asset seam probe registers");
         PluginHost_Start(seam_host);
         CHECK(
@@ -3854,7 +3880,7 @@ main(void)
         engine = fake_engine();
         aba_host = PluginHost_New(&engine);
         CHECK(
-            PluginHost_RegisterV2(aba_host, &V2_ABA_PROBE) == 0,
+            PluginHost_Register(aba_host, &V2_ABA_PROBE) == 0,
             "the V2 resource-incarnation probe registers");
         PluginHost_Start(aba_host);
 
@@ -3967,7 +3993,7 @@ main(void)
     /* ---- resolved placement revision and composed fragmented safe area -- */
     {
         struct ToriRS_PluginHost* hp;
-        struct ToriRS_ApiV2* api;
+        struct ToriRS_Api* api;
         struct ToriRS_Rect rect;
         struct ToriRS_Rect notch = { 0, 0, 10, 10 };
         struct ToriRS_Rect keyboard = { 0, 80, 100, 20 };
@@ -4017,7 +4043,7 @@ main(void)
 
         engine = fake_engine();
         hp = PluginHost_New(&engine);
-        probe = PluginHost_RegisterV2(hp, &V2_PLACEMENT_PROBE);
+        probe = PluginHost_Register(hp, &V2_PLACEMENT_PROBE);
         CHECK(probe == 0, "placement probe registers as a v2 plugin");
         PluginHost_Start(hp);
         api = g_placement_v2_api;
@@ -4199,7 +4225,7 @@ main(void)
         g_v2_teardown_after_shutdown = 0;
         teardown_engine = fake_engine();
         teardown_host = PluginHost_New(&teardown_engine);
-        probe = PluginHost_RegisterV2(teardown_host, &V2_TEARDOWN_PROBE);
+        probe = PluginHost_Register(teardown_host, &V2_TEARDOWN_PROBE);
         PluginHost_Start(teardown_host);
         CHECK(probe == 0 && g_v2_teardown_placement_calls > 0,
             "teardown fixture starts with live state and an assigned reservation");
@@ -4265,9 +4291,9 @@ main(void)
         g_hit_region_calls = 0;
         facet_engine = fake_engine();
         facet_host = PluginHost_New(&facet_engine);
-        appearance = PluginHost_RegisterV2(facet_host, &V2_PRESENT_APPEARANCE);
-        actions = PluginHost_RegisterV2(facet_host, &V2_PRESENT_ACTIONS);
-        nested = PluginHost_RegisterV2(facet_host, &V2_PRESENT_NESTED);
+        appearance = PluginHost_Register(facet_host, &V2_PRESENT_APPEARANCE);
+        actions = PluginHost_Register(facet_host, &V2_PRESENT_ACTIONS);
+        nested = PluginHost_Register(facet_host, &V2_PRESENT_NESTED);
         CHECK(
             appearance == 0 && actions == 1 && nested == 2,
             "independent facet presenter fixtures register");
@@ -4593,8 +4619,8 @@ main(void)
         g_present_last_action[0] = '\0';
         present_engine = fake_engine();
         present_host = PluginHost_New(&present_engine);
-        present_a = PluginHost_RegisterV2(present_host, &V2_PRESENT_A);
-        present_b = PluginHost_RegisterV2(present_host, &V2_PRESENT_B);
+        present_a = PluginHost_Register(present_host, &V2_PRESENT_A);
+        present_b = PluginHost_Register(present_host, &V2_PRESENT_B);
         CHECK(present_a == 0 && present_b == 1, "presenter providers register");
         PluginHost_Start(present_host);
         PluginHost_LayoutChanged(present_host);
@@ -4699,6 +4725,25 @@ main(void)
         g_role_name = NULL;
     }
 
+
+    {
+        struct ToriRS_PluginEngine widget_engine = {.widget_request=fake_widget_request, .screen=fake_plugin_screen};
+        struct ToriRS_PluginHost* widget_host = PluginHost_New(&widget_engine);
+        struct ToriRS_PluginDef widget_def = {
+            .struct_size=sizeof(widget_def), .id="widget-host-test", .title="Widget", .version="3",
+            .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks), .on_start=widget_probe_start}
+        };
+        int owner = PluginHost_Register(widget_host, &widget_def);
+        PluginHost_Start(widget_host);
+        CHECK(widget_requests == 3 && widget_owner == (uint64_t)owner + 1,
+              "widget bridge receives its plugin owner");
+        struct ToriRS_WidgetRef ref;
+        CHECK(saved_widgets.find(saved_widgets.context, "sidebar", &ref) == TORIRS_CONTRACT_WRONG_CONTEXT && widget_requests == 3,
+              "retained widget API cannot mutate outside a live dispatch");
+        PluginHost_SetEnabled(widget_host, owner, false);
+        CHECK(widget_resets == 1, "plugin disable releases its native widget edits");
+        PluginHost_Free(widget_host);
+    }
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

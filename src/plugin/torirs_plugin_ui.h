@@ -13,7 +13,7 @@
  * only the snapshot returned by Resolve is generation-specific.
  */
 
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <stdbool.h>
 #include <stdint.h>

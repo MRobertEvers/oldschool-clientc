@@ -1,5 +1,5 @@
 #include "plugin/plugins/plugin_draw.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <math.h>
@@ -292,7 +292,7 @@ struct XtState
 #define g_compose_key (state->compose_key)
 
 static bool
-xt_cfg_bool(struct ToriRS_ApiV2* api, char const* key)
+xt_cfg_bool(struct ToriRS_Api* api, char const* key)
 {
     bool value = false;
     (void)api->config.get_bool(api, key, &value);
@@ -300,7 +300,7 @@ xt_cfg_bool(struct ToriRS_ApiV2* api, char const* key)
 }
 
 static int
-xt_cfg_int(struct ToriRS_ApiV2* api, char const* key)
+xt_cfg_int(struct ToriRS_Api* api, char const* key)
 {
     int value = 0;
     (void)api->config.get_int(api, key, &value);
@@ -308,7 +308,7 @@ xt_cfg_int(struct ToriRS_ApiV2* api, char const* key)
 }
 
 static char const*
-xt_cfg_string(struct ToriRS_ApiV2* api, char const* key)
+xt_cfg_string(struct ToriRS_Api* api, char const* key)
 {
     char const* value = "";
     (void)api->config.get_string(api, key, &value);
@@ -317,7 +317,7 @@ xt_cfg_string(struct ToriRS_ApiV2* api, char const* key)
 
 static bool
 xt_skill_snapshot(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int index,
     struct ToriRS_SkillSnapshot* out)
 {
@@ -590,7 +590,7 @@ xt_reset_rate(struct XtSkill* skill)
 
 /** Forget everything about one skill and re-seed it from the client. */
 static void
-xt_reset_skill(struct ToriRS_ApiV2* api, struct XtState* state, int index)
+xt_reset_skill(struct ToriRS_Api* api, struct XtState* state, int index)
 {
     struct XtSkill* skill;
     struct ToriRS_SkillSnapshot snapshot;
@@ -611,7 +611,7 @@ xt_reset_skill(struct ToriRS_ApiV2* api, struct XtState* state, int index)
 
 /** Is this skill worth a row? Trained at all, and not hidden by hide_maxed. */
 static bool
-xt_row_wanted(struct ToriRS_ApiV2* api, struct XtState* state, int index)
+xt_row_wanted(struct ToriRS_Api* api, struct XtState* state, int index)
 {
     struct ToriRS_SkillSnapshot snapshot;
 
@@ -688,7 +688,7 @@ xt_observe(struct XtState* state, int index, int xp, uint64_t now)
  */
 static void
 xt_tick_second(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XtState* state,
     uint64_t now,
     uint64_t delta_ms)
@@ -740,7 +740,7 @@ xt_tick_second(
  * stable within a revision and this client boots several.
  */
 static void
-xt_state_save(struct ToriRS_ApiV2* api, struct XtState* state)
+xt_state_save(struct ToriRS_Api* api, struct XtState* state)
 {
     char buf[XT_STATE_MAX];
     int at = 0;
@@ -772,7 +772,7 @@ xt_state_save(struct ToriRS_ApiV2* api, struct XtState* state)
 /** Index of the skill this client calls `name`, or -1. */
 static int
 xt_skill_by_name(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XtState* state,
     char const* name)
 {
@@ -800,7 +800,7 @@ xt_skill_by_name(
  * you just earned a million xp in no time at all.
  */
 static void
-xt_state_apply(struct ToriRS_ApiV2* api, struct XtState* state)
+xt_state_apply(struct ToriRS_Api* api, struct XtState* state)
 {
     void const* data;
     size_t size = 0;
@@ -879,7 +879,7 @@ xt_state_apply(struct ToriRS_ApiV2* api, struct XtState* state)
  * seeding it from a fresh account's defaults.
  */
 static bool
-xt_stats_live(struct ToriRS_ApiV2* api, struct XtState* state)
+xt_stats_live(struct ToriRS_Api* api, struct XtState* state)
 {
     for( int i = 0; i < g_skill_count; i++ )
     {
@@ -920,7 +920,7 @@ xt_box_fill(uint32_t* buf, int w, int h, int top)
 
 /** Everything the compose needs, resident. */
 static int
-xt_art_ready(struct ToriRS_ApiV2* api, struct XtState* state)
+xt_art_ready(struct ToriRS_Api* api, struct XtState* state)
 {
     if( !PluginDraw_AtlasLoad(api, &g_font, "text") )
         return 0;
@@ -973,7 +973,7 @@ static char const* const XT_LABEL_KEY[XT_LABEL_COUNT] = {
 
 /** Read a label slot out of the config, by its choice text. */
 static int
-xt_label_slot(struct ToriRS_ApiV2* api, char const* key, int fallback)
+xt_label_slot(struct ToriRS_Api* api, char const* key, int fallback)
 {
     char const* value = xt_cfg_string(api, key);
     char const* at = XT_LABEL_CHOICES;
@@ -997,7 +997,7 @@ xt_label_slot(struct ToriRS_ApiV2* api, char const* key, int fallback)
 /** One stat slot's VALUE for one skill. */
 static void
 xt_label_value(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XtState* state,
     int skill,
     int which,
@@ -1070,7 +1070,7 @@ xt_label_value(
  */
 static void
 xt_draw_box(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XtState* state,
     uint32_t* buf,
     int w,
@@ -1288,7 +1288,7 @@ xt_draw_overview(struct XtState* state, uint32_t* buf, int w, int h, int top)
 /* ------------------------------------------------------------------------ */
 /** Which skills get a box, in stats-tab order. */
 static void
-xt_collect_boxes(struct ToriRS_ApiV2* api, struct XtState* state)
+xt_collect_boxes(struct ToriRS_Api* api, struct XtState* state)
 {
     g_box_count = 0;
     for( int i = 0; i < g_skill_count && g_box_count < XT_SKILLS_MAX; i++ )
@@ -1298,7 +1298,7 @@ xt_collect_boxes(struct ToriRS_ApiV2* api, struct XtState* state)
 
 /** The four label slots the user chose, in reading order. */
 static void
-xt_slots(struct ToriRS_ApiV2* api, int out[4])
+xt_slots(struct ToriRS_Api* api, int out[4])
 {
     /*
      * The cache's own pairing, and the ORDER is the half that was wrong:
@@ -1343,7 +1343,7 @@ xt_well_h(struct XtState const* state)
  */
 static uint64_t
 xt_compose_key(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XtState* state,
     int width,
     int const slot[4])
@@ -1398,7 +1398,7 @@ xt_compose_key(
 }
 
 static void
-xt_compose(struct ToriRS_ApiV2* api, struct XtState* state, int width)
+xt_compose(struct ToriRS_Api* api, struct XtState* state, int width)
 {
     int slot[4];
     int const height = xt_well_h(state);
@@ -1452,7 +1452,7 @@ xt_compose(struct ToriRS_ApiV2* api, struct XtState* state, int width)
  * on the drawn values; so is asking for the pass at all.
  */
 static void
-xt_strip_invalidate(struct ToriRS_ApiV2* api, struct XtState* state)
+xt_strip_invalidate(struct ToriRS_Api* api, struct XtState* state)
 {
     int slot[4];
 
@@ -1464,7 +1464,7 @@ xt_strip_invalidate(struct ToriRS_ApiV2* api, struct XtState* state)
 
 /** Rewrite the session readouts. The boxes are pixels and redraw themselves. */
 static void
-xt_page_refresh(struct ToriRS_ApiV2* api, struct XtState* state)
+xt_page_refresh(struct ToriRS_Api* api, struct XtState* state)
 {
     long long total_gained = 0;
     long long total_rate = 0;
@@ -1577,7 +1577,7 @@ xt_page_refresh(struct ToriRS_ApiV2* api, struct XtState* state)
  */
 static void
 xt_panel_build(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_PanelBuilder* panel,
     int view)
@@ -1633,7 +1633,7 @@ xt_panel_build(
 
 /** Does the built page still show the boxes the state now wants? */
 static bool
-xt_page_stale(struct ToriRS_ApiV2* api, struct XtState* state)
+xt_page_stale(struct ToriRS_Api* api, struct XtState* state)
 {
     bool wants_detail;
 
@@ -1656,7 +1656,7 @@ xt_page_stale(struct ToriRS_ApiV2* api, struct XtState* state)
 /** The shell moved, showed or hid this page. */
 static void
 xt_panel_layout(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_PanelLayoutEvent const* ev)
 {
@@ -1676,7 +1676,7 @@ xt_panel_layout(
 /** The strip, blitted into the well. */
 static void
 xt_panel_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     char const* node,
     struct ToriRS_DrawBuilder* draw)
@@ -1708,7 +1708,7 @@ xt_panel_draw(
  */
 static void
 xt_panel_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_PanelActionEvent const* ev)
 {
@@ -1774,7 +1774,7 @@ xt_panel_action(
 }
 
 static void
-xt_start(struct ToriRS_ApiV2* api, void* plugin_state)
+xt_start(struct ToriRS_Api* api, void* plugin_state)
 {
     struct XtState* state = plugin_state;
     struct ToriRS_PanelDescriptor desc;
@@ -1814,7 +1814,7 @@ xt_start(struct ToriRS_ApiV2* api, void* plugin_state)
 
 static void
 xt_asset(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_AssetEvent const* ev)
 {
@@ -1834,7 +1834,7 @@ xt_asset(
 }
 
 static void
-xt_stop(struct ToriRS_ApiV2* api, void* plugin_state)
+xt_stop(struct ToriRS_Api* api, void* plugin_state)
 {
     struct XtState* state = plugin_state;
     xt_state_save(api, state);
@@ -1864,7 +1864,7 @@ xt_stop(struct ToriRS_ApiV2* api, void* plugin_state)
  * Lazy and idempotent, which is how xp-drop-orbs sizes the same table.
  */
 static void
-xt_size_table(struct ToriRS_ApiV2* api, struct XtState* state)
+xt_size_table(struct ToriRS_Api* api, struct XtState* state)
 {
     int count = 0;
     struct ToriRS_SkillSnapshot snapshot;
@@ -1887,7 +1887,7 @@ xt_size_table(struct ToriRS_ApiV2* api, struct XtState* state)
 
 static void
 xt_tick(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_TickEvent const* event)
 {
@@ -1988,8 +1988,8 @@ static struct ToriRS_ConfigSchema const XT_SCHEMA = {
     .items = XT_CONFIG,
 };
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_TRACKER = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "xp-tracker",
     .title = "XP Tracker",
     .version = "2.0.0",

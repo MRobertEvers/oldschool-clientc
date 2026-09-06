@@ -1,5 +1,5 @@
 #include "plugin/plugins/plugin_draw.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -93,7 +93,7 @@
  *
  * The host's ceiling is TORIRS_PLUGIN_CONFIG_VALUE_MAX, but that lives in the
  * host header and a plugin has no business including one -- the whole contract
- * is torirs_plugin_v2.h. A shorter buffer here is not a disagreement, only a
+ * is torirs_plugin_api.h. A shorter buffer here is not a disagreement, only a
  * shorter ignore list than the store would have held.
  */
 #define LT_CONFIG_VALUE_MAX 192
@@ -301,7 +301,7 @@ struct LootTrackerState
 
 struct LootTrackerRuntime
 {
-    struct ToriRS_ApiV2* api;
+    struct ToriRS_Api* api;
     struct LootTrackerState* state;
 };
 
@@ -935,7 +935,7 @@ lt_pending_expire(struct LootTrackerRuntime* rt, uint64_t now)
 
 static void
 lt_npc_despawn(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_NpcSnapshot const* npc)
 {
@@ -972,7 +972,7 @@ lt_npc_despawn(
 
 static void
 lt_item_spawn(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_GroundItemSnapshot const* ground)
 {
@@ -1015,7 +1015,7 @@ lt_item_spawn(
 
 static void
 lt_world_loaded(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_WorldLoadedEvent const* event)
 {
@@ -1036,7 +1036,7 @@ lt_world_loaded(
  */
 static void
 lt_game_event(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_GameEvent const* ev)
 {
@@ -1933,7 +1933,7 @@ lt_page_refresh(struct LootTrackerRuntime* rt)
 
 static void
 lt_panel_build(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_PanelBuilder* panel,
     int view)
@@ -2035,11 +2035,11 @@ lt_panel_build(
  * Every icon is asked for again, on every pass, and that is the contract
  * rather than an oversight: `obj_image` hands back a handle out of a
  * host-owned evicting cache, and a plugin that remembered one across frames
- * would eventually draw nothing. @see ToriRS_GameApiV2::item_image.
+ * would eventually draw nothing. @see ToriRS_GameApi::item_image.
  */
 static void
 lt_panel_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     char const* node,
     struct ToriRS_DrawBuilder* draw)
@@ -2073,7 +2073,7 @@ lt_panel_draw(
 
 static void
 lt_panel_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_PanelActionEvent const* ev)
 {
@@ -2237,7 +2237,7 @@ lt_panel_action(
 
 
 static void
-lt_start(struct ToriRS_ApiV2* api, void* state_ptr)
+lt_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
@@ -2285,7 +2285,7 @@ lt_start(struct ToriRS_ApiV2* api, void* state_ptr)
 /** The shell moved, showed or hid this page. */
 static void
 lt_panel_layout(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_PanelLayoutEvent const* ev)
 {
@@ -2314,7 +2314,7 @@ lt_panel_layout(
 }
 
 static void
-lt_stop(struct ToriRS_ApiV2* api, void* state_ptr)
+lt_stop(struct ToriRS_Api* api, void* state_ptr)
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
@@ -2349,7 +2349,7 @@ lt_stop(struct ToriRS_ApiV2* api, void* state_ptr)
 
 static void
 lt_tick(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_TickEvent const* event)
 {
@@ -2420,7 +2420,7 @@ lt_filters_changed(struct LootTrackerRuntime* rt)
 
 static void
 lt_config_changed(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     char const* key)
 {
@@ -2456,7 +2456,7 @@ static struct ToriRS_ConfigSchema const LT_SCHEMA = {
     .items = LT_CONFIG,
 };
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LOOT_TRACKER = {
+struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER = {
     .struct_size = sizeof(TORIRS_PLUGIN_LOOT_TRACKER),
     .id = "loot-tracker",
     .title = "Loot Tracker",
