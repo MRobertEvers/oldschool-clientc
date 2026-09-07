@@ -187,6 +187,11 @@ fake_layout_end(void* u)
     (void)u;
     g_frame.end_calls++;
 }
+static void
+fake_frame_provide(void* u)
+{
+    (void)u;
+}
 
 static void
 fake_layout_slot_anchor(void* u, int slot, int relation, int target)
@@ -987,6 +992,7 @@ main(void)
     e.frame_activate = fake_frame_activate;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
+    e.frame_provide = fake_frame_provide;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_anchor = fake_layout_slot_anchor;
     e.layout_slot_exists = fake_layout_slot_exists;

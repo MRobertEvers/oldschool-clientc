@@ -273,6 +273,20 @@ UITree_FrameApply(
     struct UITree* tree,
     struct UITreeFrameSlotRect const* slots,
     int root_group);
+/**
+ * A plugin frame PROVIDED through the widget API rather than declared.
+ *
+ * The provider moves, hides, skins and anchors the live surfaces itself with
+ * retained widget edits, so this declaration places nothing and hides no
+ * surface; what it still does is the half only the engine can do -- collect
+ * and suppress the lane's own chrome, by root group -- and bind the roles so
+ * the fence's reassert and the staleness question keep working. Every surface
+ * stays native until the provider says otherwise.
+ */
+void
+UITree_FrameProvide(
+    struct UITree* tree,
+    int root_group);
 
 /**
  * The nodes a placed slot is spread across, for a caller that has to order

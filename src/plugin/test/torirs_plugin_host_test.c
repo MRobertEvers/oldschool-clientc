@@ -88,6 +88,7 @@ struct FakeEngine
     int native_tab_selects;
     int layout_begins;
     int layout_ends;
+    int frame_provides;
     int layout_sets;
     int frame_active;
     int layout_canvas;
@@ -611,6 +612,12 @@ fake_layout_end(void* u)
 {
     struct FakeEngine* e = u;
     e->layout_ends++;
+}
+static void
+fake_frame_provide(void* u)
+{
+    struct FakeEngine* e = u;
+    e->frame_provides++;
 }
 static int
 fake_model_publish(
@@ -1788,6 +1795,7 @@ fake_engine(void)
     e.screenshot = fake_screenshot;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
+    e.frame_provide = fake_frame_provide;
     e.model_publish = fake_model_publish;
     e.model_release = fake_model_release;
     e.mesh_create = fake_mesh_create;
@@ -3534,6 +3542,73 @@ static void img_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* 
     CHECK(api->widgets.set_mask(api->widgets.context,(struct ToriRS_WidgetRef){{77,2,3}},img_ref)==TORIRS_CONTRACT_WRONG_CONTEXT,
           "paint cannot re-skin a widget");
 }
+/* Frame provision through the widget API: an offer without a builder is
+ * served by on_gameframe; the host takes only the chrome (frame_provide). */
+static int gf_events,gf_active_last,gf_w,gf_h,gf_canvas,gf_widget_ok;
+static struct ToriRS_Api* gf_api;
+static char gf_offer[TORIRS_PLUGIN_FRAME_LOCAL_ID_MAX];
+static enum ToriRS_FrameBuildResult gf_answer=TORIRS_FRAME_READY;
+static enum ToriRS_FrameBuildResult gf_on_gameframe(struct ToriRS_Api* api,void* state,struct ToriRS_GameframeEvent const* ev)
+{
+    struct ToriRS_WidgetRef ref;
+    (void)state;gf_api=api;
+    ++gf_events;gf_active_last=ev->active;gf_w=ev->width;gf_h=ev->height;gf_canvas=ev->canvas;
+    snprintf(gf_offer,sizeof(gf_offer),"%s",ev->offer_id ? ev->offer_id : "");
+    if( api->widgets.find(api->widgets.context,"viewport",&ref)==TORIRS_CONTRACT_OK &&
+        api->widgets.set_position(api->widgets.context,ref,4,4)==TORIRS_CONTRACT_OK ) gf_widget_ok=1;
+    if( ev->active && gf_answer!=TORIRS_FRAME_READY ) snprintf(ev->reason,ev->reason_capacity,"%s","No stones cut for this lane.");
+    return ev->active ? gf_answer : TORIRS_FRAME_READY;
+}
+static struct ToriRS_FrameOffer const GF_OFFERS[]={
+    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="event",.title="Event Frame",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
+    {.struct_size=sizeof(struct ToriRS_FrameOffer)}};
+static struct ToriRS_PluginDef const GF_PROVIDER={.struct_size=sizeof(GF_PROVIDER),.id="gf-provider",.title="Provider",.version="3.0.0",
+    .frames=GF_OFFERS,.callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_gameframe=gf_on_gameframe}};
+static struct ToriRS_FrameOffer const GF_BUILDERLESS[]={
+    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="none",.title="No Handler",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
+    {.struct_size=sizeof(struct ToriRS_FrameOffer)}};
+static struct ToriRS_PluginDef const GF_NO_HANDLER={.struct_size=sizeof(GF_NO_HANDLER),.id="gf-none",.title="None",.version="3.0.0",
+    .frames=GF_BUILDERLESS,.callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks)}};
+static void test_gameframe_provider(void)
+{
+    struct ToriRS_PluginEngine engine;
+    struct ToriRS_PluginHost* host;
+    struct ToriRS_FrameSelection selection={.struct_size=sizeof(selection)};
+    memset(&g_engine,0,sizeof(g_engine));
+    g_screen_now=TORIRS_SCREEN_GAME;
+    engine=fake_engine();engine.widget_request=fake_widget_request;
+    host=PluginHost_New(&engine);
+    CHECK(PluginHost_Register(host,&GF_NO_HANDLER)<0,"an offer with neither builder nor on_gameframe is refused");
+    CHECK(PluginHost_Register(host,&GF_PROVIDER)>=0,"an event-driven frame provider registers without a builder");
+    g_engine.frame_preference_present=1;g_engine.frame_migration_version=1;
+    snprintf(g_engine.frame_preference,sizeof(g_engine.frame_preference),"%s","gf-provider/event");
+    gf_events=0;gf_answer=TORIRS_FRAME_READY;gf_widget_ok=0;
+    PluginHost_Start(host);
+    PluginHost_Layout(host,900,600);
+    gf_api->frame.selection(gf_api,&selection);
+    printf("GAMEFRAME_PROVIDER events=%d active=%d %dx%d canvas=%d offer=%s provides=%d ends=%d status=%d id=%s\n",
+           gf_events,gf_active_last,gf_w,gf_h,gf_canvas,gf_offer,g_engine.frame_provides,g_engine.layout_ends,selection.status,selection.active_id);
+    CHECK(gf_events==1 && gf_active_last==1 && gf_w==765 && gf_h==503 && gf_canvas==TORIRS_FRAME_CANVAS_FIXED && strcmp(gf_offer,"event")==0,
+          "the provider hears its offer activate against the pinned fixed canvas");
+    CHECK(gf_widget_ok==1,"the provider event may find and move widgets");
+    CHECK(g_engine.frame_provides==1 && g_engine.layout_ends==0 && g_engine.frame_active==1 &&
+          g_engine.layout_canvas==TORIRS_FRAME_CANVAS_FIXED && g_engine.layout_fixed_w==765,
+          "a READY provider publishes chrome suppression and its canvas policy without a slot declaration");
+    CHECK(selection.status==TORIRS_FRAME_STATUS_ACTIVE && strcmp(selection.active_id,"gf-provider/event")==0,
+          "the provided offer is the active frame");
+    /* A canvas change asks again. */
+    PluginHost_Layout(host,900,600);
+    CHECK(gf_events==2 && g_engine.frame_provides==2,"every layout pass re-asks the provider");
+    /* Declining with a reason falls back to native with that reason. */
+    gf_answer=TORIRS_FRAME_UNSUPPORTED;
+    PluginHost_Layout(host,900,600);
+    gf_api->frame.selection(gf_api,&selection);
+    CHECK(gf_events==4 && gf_active_last==0,"an unsupported answer releases the provider, which hears the release");
+    CHECK(selection.status==TORIRS_FRAME_STATUS_FALLBACK && strcmp(selection.reason,"No stones cut for this lane.")==0 &&
+          g_engine.frame_active==0,
+          "UNSUPPORTED falls back to native carrying the provider's reason");
+    PluginHost_Free(host);
+}
 static void test_widget_images(void)
 {
     struct ToriRS_PluginEngine engine=fake_engine();engine.widget_request=fake_widget_request;
@@ -5227,6 +5302,7 @@ main(void)
     test_script_callbacks();
     test_widget_operations();
     test_widget_images();
+    test_gameframe_provider();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

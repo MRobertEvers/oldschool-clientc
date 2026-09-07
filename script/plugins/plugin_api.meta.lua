@@ -128,6 +128,13 @@ warn = nil
 ---@field base_tile_x integer
 ---@field base_tile_z integer
 
+---@class torirs.GameframeEvent
+---@field offer_id string This plugin's offer id.
+---@field active boolean Selected and being laid out (true) or released (false).
+---@field canvas "fixed"|"window"
+---@field width integer Logical canvas width the frame is laid out against.
+---@field height integer
+
 ---@class torirs.ScreenChangedEvent
 ---@field screen string
 ---@field previous string
@@ -692,6 +699,7 @@ warn = nil
 ---@field on_chat_message? fun(api: torirs.Api, ev: torirs.ChatMessageEvent)
 ---@field on_game_event? fun(api: torirs.Api, ev: torirs.GameEvent)
 ---@field on_key? fun(api: torirs.Api, ev: torirs.KeyEvent): torirs.Verdict
+---@field on_gameframe? fun(api: torirs.Api, ev: torirs.GameframeEvent): ("ready"|"pending"|"unsupported"|boolean)?, string? Frame provision through the widget API: with ev.active the script's declared frame offer is the selected gameframe and is laid out against ev.width x ev.height by editing widgets (move, hide, skin, anchor); return nothing or "ready", or "pending"/"unsupported" with a reason. Raised again on every canvas change; ev.active=false announces the release before teardown.
 ---@field on_menu_build? fun(api: torirs.Api, ev: torirs.MenuBuildEvent): torirs.Verdict
 ---@field on_menu_select? fun(api: torirs.Api, ev: torirs.MenuSelectEvent): torirs.Verdict
 ---@field on_draw_world? fun(api: torirs.Api, draw: torirs.Graphics)

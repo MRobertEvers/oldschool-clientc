@@ -508,6 +508,11 @@ fake_layout_end(void* u)
 {
     (void)u;
 }
+static void
+fake_frame_provide(void* u)
+{
+    (void)u;
+}
 /* No role table under test either: every name answers "this revision does not
  * have that", which is the contract's own reading of an unbound role. */
 static int
@@ -1113,6 +1118,7 @@ fake_engine(void)
     e.frame_activate = fake_frame_activate;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
+    e.frame_provide = fake_frame_provide;
     e.role_rect = fake_role_rect;
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;

@@ -277,6 +277,9 @@ struct PluginV2Instance
     int frame_ui_count;
     int frame_ui_candidate_count;
     bool frame_ui_candidate_invalid;
+    /* This plugin's offer was provided through on_gameframe(active) and has
+     * not been released yet. */
+    bool gameframe_provided;
     struct ToriRS_ImageRef frame_images[TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX];
     struct ToriRS_ImageRef frame_images_candidate[TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX];
     int frame_image_count;
@@ -6135,6 +6138,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->frame_activate);
     assert(engine->layout_begin);
     assert(engine->layout_end);
+    assert(engine->frame_provide);
     assert(engine->layout_slot);
     assert(engine->layout_slot_skin);
     assert(engine->layout_slot_overlay);
@@ -6486,6 +6490,41 @@ plugin_frame_selection_active(
 
 }
 
+/* Tell a provider its offer is released. Dispatch context matches a build. */
+static void
+plugin_gameframe_release(struct ToriRS_PluginHost* host, int owner)
+{
+    struct PluginV2Instance* v2;
+    struct PluginFrameCatalogEntry const* entry;
+    struct ToriRS_GameframeEvent ev;
+    char reason[TORIRS_FRAME_REASON_MAX] = { 0 };
+    int const previous_dispatching = host->dispatching;
+    int const previous_event = host->dispatch_event;
+
+    assert(host);
+    assert(owner >= 0);
+    v2 = host->plugins[owner].v2;
+    assert(v2);
+    v2->gameframe_provided = false;
+    if( !host->plugins[owner].running || !v2->definition->callbacks.on_gameframe )
+        return;
+    entry = PluginFrameCatalog_At(&host->frame_catalog, host->frame_active_entry);
+    memset(&ev, 0, sizeof(ev));
+    ev.offer_id = entry ? entry->local_id : "";
+    ev.active = false;
+    ev.canvas = host->layout_canvas;
+    ev.width = host->layout_fixed_w;
+    ev.height = host->layout_fixed_h;
+    (void)v2->runtime.api.core.lane(&v2->runtime.api, &ev.lane);
+    ev.reason = reason;
+    ev.reason_capacity = sizeof(reason);
+    host->dispatching = owner;
+    host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
+    (void)v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &ev);
+    host->dispatching = previous_dispatching;
+    host->dispatch_event = previous_event;
+}
+
 static void
 plugin_frame_engine_activate(
     struct ToriRS_PluginHost* host,
@@ -6511,6 +6550,14 @@ plugin_frame_engine_activate(
         host->layout_fixed_h == height )
         return;
 
+    /* The provider that held the frame hears the release while it still runs;
+     * its teardown, when selection drops it, follows. */
+    {
+        int const previous = plugin_frame_owner(host);
+        if( previous >= 0 && previous != owner && host->plugins[previous].v2 &&
+            host->plugins[previous].v2->gameframe_provided )
+            plugin_gameframe_release(host, previous);
+    }
     host->frame_selection_epoch++;
     host->frame_active_entry = entry_index;
     host->layout_canvas = canvas;
@@ -8049,7 +8096,7 @@ PluginHost_Register(
             if( frame_count >= TORIRS_PLUGIN_FRAME_OFFERS_MAX ||
                 offer->struct_size < TORIRS_FRAME_OFFER_REQUIRED_SIZE ||
                 !offer->title || !offer->title[0] ||
-                !offer->build ||
+                (!offer->build && !v2->callbacks_storage.on_gameframe) ||
                 (offer->canvas != TORIRS_FRAME_CANVAS_FIXED &&
                  offer->canvas != TORIRS_FRAME_CANVAS_WINDOW) ||
                 (offer->canvas == TORIRS_FRAME_CANVAS_FIXED &&
@@ -11126,6 +11173,7 @@ PluginHost_Layout(
     int build_entry;
     int transitioning;
     int owner;
+    int provided = 0;
     uint32_t selection_epoch;
 
     if( !host )
@@ -11193,7 +11241,37 @@ PluginHost_Layout(
     host->layout_candidate_entry = build_entry;
     host->layout_declaring = 1;
     host->layout_declarer = owner;
-    if( v2_offer )
+    if( v2_offer && !v2_offer->build )
+    {
+        /* Provided, not declared: the offer's on_gameframe edits widgets and
+         * answers. No candidate table is built; the engine only takes the
+         * chrome and binds the roles (frame_provide). */
+        struct PluginV2Instance* v2 = host->plugins[owner].v2;
+        struct ToriRS_GameframeEvent gameframe;
+        int const previous_dispatching = host->dispatching;
+        int const previous_event = host->dispatch_event;
+
+        assert(v2->definition->callbacks.on_gameframe);
+        memset(&gameframe, 0, sizeof(gameframe));
+        gameframe.offer_id = v2_offer->id;
+        gameframe.active = true;
+        gameframe.canvas = entry->canvas == TORIRS_FRAME_CANVAS_FIXED ? TORIRS_FRAME_CANVAS_FIXED
+                                                                       : TORIRS_FRAME_CANVAS_WINDOW;
+        gameframe.width = ev.width;
+        gameframe.height = ev.height;
+        (void)v2->runtime.api.core.lane(&v2->runtime.api, &gameframe.lane);
+        gameframe.reason = v2_reason;
+        gameframe.reason_capacity = sizeof(v2_reason);
+        host->dispatching = owner;
+        host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
+        v2_result = v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &gameframe);
+        host->dispatching = previous_dispatching;
+        host->dispatch_event = previous_event;
+        if( v2_result < TORIRS_FRAME_READY || v2_result > TORIRS_FRAME_ERROR )
+            v2_result = TORIRS_FRAME_ERROR;
+        provided = 1;
+    }
+    else if( v2_offer )
     {
         struct PluginV2Instance* v2 = host->plugins[owner].v2;
         struct PluginV2FrameScope scope;
@@ -11255,7 +11333,7 @@ PluginHost_Layout(
         (!transitioning && host->frame_active_entry != build_entry) )
         return;
 
-    if( !host->layout_candidate.viewport_declared )
+    if( !host->layout_candidate.viewport_declared && !provided )
         plugin_layout_candidate_fail(host, "The frame did not declare its required viewport.");
     for( int slot = 0; slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; slot++ )
         if( host->layout_candidate.skins[slot].declared )
@@ -11288,7 +11366,32 @@ PluginHost_Layout(
                                                     : "The selected gameframe could not be built.";
 
         plugin_frame_discard_stale_binding(host, build_entry);
+        /* A provided frame that stops answering READY is released: its
+         * retained edits are the layout, and a provider that says it cannot
+         * lay this lane out must not keep the chrome suppressed under it. */
+        if( provided && host->frame_active_entry == build_entry )
+            plugin_frame_engine_activate(host, -1);
         plugin_frame_selection_active(host, plugin_frame_committed_id(host), status, reason);
+        return;
+    }
+
+    if( provided )
+    {
+        int const old_owner = plugin_frame_owner(host);
+
+        plugin_frame_engine_activate(host, build_entry);
+        host->plugins[owner].v2->gameframe_provided = true;
+        host->engine.frame_provide(host->engine.user);
+        host->frame_bound_root = host->engine.frame_root ? host->engine.frame_root(host->engine.user) : -1;
+        host->frame_bound_slots = 0;
+        plugin_frame_selection_active(host, entry->id, TORIRS_FRAME_STATUS_ACTIVE, "");
+        plugin_ui_refresh_base(host);
+        host->placement_cache_valid = 0;
+        if( old_owner >= 0 && old_owner != owner )
+        {
+            host->plugins[old_owner].enabled = false;
+            plugin_teardown(host, old_owner);
+        }
         return;
     }
 

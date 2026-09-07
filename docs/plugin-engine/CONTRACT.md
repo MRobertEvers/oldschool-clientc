@@ -175,6 +175,31 @@ widget keeps its own geometry (a non-zero size is `INVALID_ARGUMENT`; use
 polarity the era's cache masks use. Owned image controls keep taking their
 picture through `set_image` with a size, and take no mask (`NATIVE_BLOCKED`).
 
+### Provided gameframes (implemented slice)
+
+A frame offer (`ToriRS_PluginDef.frames`) no longer needs a builder. An offer
+without `build` is served by `on_gameframe(api, state, event)`: when the offer
+is the selected frame the host raises the event with `active` true and the
+logical canvas (the pinned size for a FIXED offer, the window for a WINDOW
+offer), and the provider lays the frame out with the widget API -- `set_position`
+and `set_size` on the role widgets, `set_hidden` for surfaces the frame does
+not show, `set_image`/`set_mask` for re-skins, owned images and controls with
+`set_anchor` for decoration behind, over or in place of the live surfaces. The
+event runs in the layout context, so every widget setter is permitted. The
+provider returns `READY`, `PENDING` (native stays up, status LOADING) or
+`UNSUPPORTED` (fallback with the provider's `reason`); a non-READY answer from
+an already provided frame releases it. The event is raised again on every
+canvas change while the offer stands, and once more with `active` false when
+the offer is released, before the provider's teardown.
+
+The engine's half of a provided frame is `UITree_FrameProvide`: it collects and
+suppresses the lane's own chrome by root group and binds the roles, but places
+and hides no surface -- unlike a declaration, whose unplaced surfaces are
+hidden -- and it leaves the surfaces' geometry unowned, so the provider's
+retained edits are the layout. Canvas policy (a FIXED offer pins the window,
+a WINDOW offer states a minimum) is unchanged. Lua: `on_gameframe(api, ev)`
+returns nothing or `"ready"`, or `"pending"`/`"unsupported"` with a reason.
+
 ## Events, listeners and actions
 
 `widgets.watch(role, listener, user)` follows the current semantic binding at the

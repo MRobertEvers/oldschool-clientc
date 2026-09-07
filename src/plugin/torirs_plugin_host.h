@@ -406,6 +406,10 @@ struct ToriRS_PluginEngine
     /** Apply what the declaration left behind, and hide every surface it did
      *  not place. */
     void (*layout_end)(void* user);
+    /** A frame PROVIDED through the widget API: suppress the lane's chrome and
+     *  bind the roles, but place and hide nothing -- the provider's retained
+     *  widget edits are the layout. @see UITree_FrameProvide. */
+    void (*frame_provide)(void* user);
     /** Retain an element-relative depth declaration in engine slot numbering. */
     void (*layout_slot_anchor)(void* user, int slot, int relation, int anchor_slot);
     /** Place one slot, or one MEMBER of it when `member` is not -1.

@@ -106,6 +106,8 @@ struct UITreeFrameLayout
     uint32_t applied_generation;
     int root_group;
     uint8_t active;
+    /** UITree_FrameProvide: nothing placed, nothing hidden but the chrome. */
+    uint8_t chrome_only;
 };
 
 static struct UITreeFrameLayout*
@@ -1052,11 +1054,12 @@ frame_mark_bound_nodes(
         UITree_MarkNodeDirty(tree, fl->area_node);
 }
 
-void
-UITree_FrameApply(
+static void
+frame_apply(
     struct UITree* tree,
     struct UITreeFrameSlotRect const* slots,
-    int root_group)
+    int root_group,
+    int chrome_only)
 {
     struct UITreeFrameLayout* fl;
     struct UITreeFrameLayout next;
@@ -1077,9 +1080,10 @@ UITree_FrameApply(
     next.root_group = root_group;
     next.applied_generation = tree->generation;
     next.active = 1;
+    next.chrome_only = chrome_only ? 1 : 0;
     frame_collect_slots(tree, &next);
 
-    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT && !chrome_only; s++ )
     {
         for( int n = 0; n < next.slot_node_count[s]; n++ )
         {
@@ -1176,6 +1180,26 @@ UITree_FrameApply(
 }
 
 void
+UITree_FrameApply(
+    struct UITree* tree,
+    struct UITreeFrameSlotRect const* slots,
+    int root_group)
+{
+    frame_apply(tree, slots, root_group, 0);
+}
+
+void
+UITree_FrameProvide(
+    struct UITree* tree,
+    int root_group)
+{
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+    assert(tree);
+    memset(slots, 0, sizeof(slots));
+    frame_apply(tree, slots, root_group, 1);
+}
+
+void
 UITree_FrameReassert(struct UITree* tree)
 {
     struct UITreeFrameLayout* fl;
@@ -1189,8 +1213,9 @@ UITree_FrameReassert(struct UITree* tree)
     {
         struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
         int const root_group = fl->root_group;
+        int const chrome_only = fl->chrome_only;
         memcpy(slots, fl->slot_rect, sizeof(slots));
-        UITree_FrameApply(tree, slots, root_group);
+        frame_apply(tree, slots, root_group, chrome_only);
     }
 }
 

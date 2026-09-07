@@ -5443,6 +5443,26 @@ app_plugin_layout_end(void* user)
     app->plugin_layout_dirty = 0;
 }
 
+static void
+app_plugin_frame_provide(void* user)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( !app->tree )
+        return;
+    if( !app->plugin_frame_active )
+    {
+        UITree_FrameRelease(app->tree);
+        return;
+    }
+    UITree_FrameProvide(app->tree, app_plugin_layout_root_group(app));
+    app->plugin_layout_w = UITREE_LAYOUT_ROOT_W;
+    app->plugin_layout_h = UITREE_LAYOUT_ROOT_H;
+    app->plugin_layout_generation = app->tree->generation;
+    app->plugin_layout_dirty = 0;
+}
+
 static int
 app_plugin_tab_active(void* user)
 {
@@ -5941,6 +5961,7 @@ app_plugin_engine(struct App* app)
     engine.frame_activate = app_plugin_frame_activate;
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;
+    engine.frame_provide = app_plugin_frame_provide;
     engine.layout_slot = app_plugin_layout_slot;
     engine.layout_slot_anchor = app_plugin_layout_slot_anchor;
     engine.layout_slot_exists = app_plugin_layout_slot_exists;

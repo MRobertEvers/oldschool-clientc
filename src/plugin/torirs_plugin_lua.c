@@ -81,6 +81,7 @@ enum LuaHandler
     LUA_ON_UI_NODE_ACTION,
     LUA_ON_CANVAS_ACTION,
     LUA_ON_UI_LAYOUT,
+    LUA_ON_GAMEFRAME,
     LUA_HANDLER_COUNT
 };
 
@@ -116,6 +117,7 @@ static char const* const LUA_HANDLER_NAMES[LUA_HANDLER_COUNT] = {
     "on_ui_node_action",
     "on_canvas_action",
     "on_ui_layout",
+    "on_gameframe",
 };
 
 struct LuaContributionStorage
@@ -2201,6 +2203,37 @@ static void lua_cb_placement(struct ToriRS_Api*a,void*state,uint32_t revision){(
 static void lua_cb_ui_node_draw(struct ToriRS_Api*a,void*state,struct ToriRS_UiNodeRef node,struct ToriRS_Graphics*d){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_NODE_DRAW)){s->cur_draw=d;lua_pushinteger(s->L,node.value);lua_rawgeti(s->L,LUA_REGISTRYINDEX,s->draw_ref);lua_call_end(s,LUA_ON_UI_NODE_DRAW,3,false);}}
 static enum ToriRS_CallbackResult lua_cb_ui_node_action(struct ToriRS_Api*a,void*state,struct ToriRS_UiNodeRef node,char const*action){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_UI_NODE_ACTION))return TORIRS_CALLBACK_CONTINUE;lua_pushinteger(s->L,node.value);lua_pushstring(s->L,action?action:"");return lua_call_end(s,LUA_ON_UI_NODE_ACTION,3,true);}
 static enum ToriRS_CallbackResult lua_cb_canvas_action(struct ToriRS_Api*a,void*state,uint32_t id,int operation,int x,int y){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_CANVAS_ACTION))return TORIRS_CALLBACK_CONTINUE;lua_createtable(s->L,0,4);lua_pushinteger(s->L,id);lua_setfield(s->L,-2,"id");lua_pushinteger(s->L,operation);lua_setfield(s->L,-2,"operation");lua_pushinteger(s->L,x);lua_setfield(s->L,-2,"x");lua_pushinteger(s->L,y);lua_setfield(s->L,-2,"y");return lua_call_end(s,LUA_ON_CANVAS_ACTION,2,true);}
+/* on_gameframe(api, ev) -> "ready" | "pending" | "unsupported" [, reason]. A
+ * nil or true return is ready; false is unsupported. */
+static enum ToriRS_FrameBuildResult lua_cb_gameframe(struct ToriRS_Api*a,void*state,struct ToriRS_GameframeEvent const*e)
+{
+    (void)state;struct LuaScript*s=lua_script_for_api(a);
+    if(!lua_call_begin(s,a,LUA_ON_GAMEFRAME))return e->active?TORIRS_FRAME_UNSUPPORTED:TORIRS_FRAME_READY;
+    lua_State*L=s->L;enum ToriRS_FrameBuildResult result=TORIRS_FRAME_READY;
+    lua_createtable(L,0,6);
+    lua_pushstring(L,e->offer_id?e->offer_id:"");lua_setfield(L,-2,"offer_id");
+    lua_pushboolean(L,e->active);lua_setfield(L,-2,"active");
+    lua_pushstring(L,e->canvas==TORIRS_FRAME_CANVAS_FIXED?"fixed":"window");lua_setfield(L,-2,"canvas");
+    lua_pushinteger(L,e->width);lua_setfield(L,-2,"width");
+    lua_pushinteger(L,e->height);lua_setfield(L,-2,"height");
+    int status=lua_callback_pcall(s,2,2);
+    if(status!=LUA_OK)
+    {
+        char const*error=lua_tostring(L,-1);char copy[128];snprintf(copy,sizeof(copy),"%s",error?error:"error");lua_pop(L,1);
+        lua_script_fault(s,a,LUA_HANDLER_NAMES[LUA_ON_GAMEFRAME],copy);(void)lua_script_flush_disable(s,a);
+        return TORIRS_FRAME_ERROR;
+    }
+    if(lua_isboolean(L,-2))result=lua_toboolean(L,-2)?TORIRS_FRAME_READY:TORIRS_FRAME_UNSUPPORTED;
+    else if(lua_type(L,-2)==LUA_TSTRING)
+    {
+        char const*word=lua_tostring(L,-2);
+        result=strcmp(word,"pending")==0?TORIRS_FRAME_PENDING:strcmp(word,"unsupported")==0?TORIRS_FRAME_UNSUPPORTED:TORIRS_FRAME_READY;
+    }
+    if(lua_type(L,-1)==LUA_TSTRING&&e->reason&&e->reason_capacity)snprintf(e->reason,e->reason_capacity,"%s",lua_tostring(L,-1));
+    lua_pop(L,2);
+    if(lua_script_flush_disable(s,a))result=TORIRS_FRAME_ERROR;
+    return result;
+}
 static void lua_cb_ui_layout(struct ToriRS_Api*a,void*state,struct ToriRS_PanelLayoutEvent const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_LAYOUT)){lua_push_panel_layout(s->L,e);lua_call_end(s,LUA_ON_UI_LAYOUT,2,false);}}
 
 static int
@@ -2643,6 +2676,7 @@ lua_definition_callbacks(struct ToriRS_PluginCallbacks* callbacks)
     callbacks->on_ui_node_action = lua_cb_ui_node_action;
     callbacks->on_canvas_action = lua_cb_canvas_action;
     callbacks->on_ui_layout = lua_cb_ui_layout;
+    callbacks->on_gameframe = lua_cb_gameframe;
 }
 
 /* Runs only through lua_pcall. Descriptor tables are inert data (all reads

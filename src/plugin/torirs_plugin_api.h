@@ -1562,6 +1562,12 @@ struct ToriRS_PluginCallbacks
         int x,
         int y);
 
+    /** Frame provision through the widget API; see ToriRS_GameframeEvent. An
+     *  offer without a builder is served by this callback. */
+    enum ToriRS_FrameBuildResult (*on_gameframe)(
+        struct ToriRS_Api* api,
+        void* state,
+        struct ToriRS_GameframeEvent const* event);
     void (*on_ui_layout)(
         struct ToriRS_Api* api,
         void* state,

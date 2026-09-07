@@ -836,6 +836,11 @@ fake_layout_end(void* u)
 {
     (void)u;
 }
+static void
+fake_frame_provide(void* u)
+{
+    (void)u;
+}
 static int
 fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
 {
@@ -1250,6 +1255,7 @@ main(void)
     e.frame_activate = fake_frame_activate;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
+    e.frame_provide = fake_frame_provide;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
     e.layout_slot_overlay = fake_layout_slot_overlay;

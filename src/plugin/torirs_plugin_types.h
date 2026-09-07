@@ -11,6 +11,7 @@
  */
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "plugin/torirs_plugin_placement.h"
@@ -984,6 +985,28 @@ struct ToriRS_LaneInfo
     int epoch;
     /** Numbered in `game`'s own lineage, so it means nothing without it. */
     int revision;
+};
+
+/** The gameframe asked of a frame provider (ToriRS_PluginCallbacks.on_gameframe).
+ *  `active` true: this offer is the selected frame and is being laid out
+ *  against `width` x `height` (the pinned size for a FIXED canvas, the window
+ *  for a WINDOW canvas); the provider answers by editing widgets -- moving,
+ *  hiding, skinning and anchoring the live surfaces and its owned controls --
+ *  and returns READY, PENDING (assets still loading; native stays up) or
+ *  UNSUPPORTED (this lane cannot take the frame), writing `reason` for the
+ *  latter two. Raised again on every canvas change while the offer stands.
+ *  `active` false: the offer is being released; the return is ignored and the
+ *  provider's teardown follows. */
+struct ToriRS_GameframeEvent
+{
+    char const* offer_id;
+    bool active;
+    int canvas;
+    int width;
+    int height;
+    struct ToriRS_LaneInfo lane;
+    char* reason;
+    size_t reason_capacity;
 };
 
 /* ------------------------------------------------------------------------ */
