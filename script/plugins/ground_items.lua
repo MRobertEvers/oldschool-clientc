@@ -470,7 +470,7 @@ function plugin.on_start(api)
     -- their current native visibility on disable. Older clients return nil.
     assert(api.widgets.watch_tree(function()
         for _, widget in ipairs(api.widgets.find_all("ground_item_labels") or {}) do
-            assert(widget:set_hidden(true))
+            if widget then assert(widget:set_hidden(true)) end
         end
     end))
     -- Optional: a client without the file simply prices everything from the
@@ -532,7 +532,7 @@ function plugin.on_script_callback(api, event)
         native_captions = true
         assert(api.widgets.watch_tree(nil))
         for _, widget in ipairs(api.widgets.find_all("ground_item_labels") or {}) do
-            assert(widget:reset())
+            if widget then assert(widget:reset()) end
         end
         api.core.log("native caption formatting active")
     end

@@ -163,6 +163,16 @@ struct ToriRS_WidgetApi
 {
     void* context;
     enum ToriRS_ContractResult (*find)(void*, char const* role, struct ToriRS_WidgetRef*);
+    /* Every widget carrying `role`, in the ROLE'S OWN NUMBERING: for a role
+     * spread over members (sidebar tabs, chat filters, orb-block children)
+     * slot m is member m, a member this frame does not have is an invalid
+     * reference (ToriRS_WidgetRefValid false) left in its slot, and count is
+     * one past the highest member present. A caller placing member m indexes
+     * refs[m] directly; a caller iterating skips the invalid slots. A role
+     * with no numbering answers its one widget; an adapter role such as
+     * ground_item_labels answers its current matches, all valid. Never
+     * compacted: closing over a gap would hand tab 9 to the plan for tab 8.
+     * With capacity 0, count alone is answered as BUDGET_EXCEEDED. */
     enum ToriRS_ContractResult (*find_all)(void*, char const* role, struct ToriRS_WidgetRef*, size_t capacity, size_t* count);
     enum ToriRS_ContractResult (*get_widget)(void*, int32_t component_id, struct ToriRS_WidgetRef*);
     enum ToriRS_ContractResult (*children)(void*, struct ToriRS_WidgetRef,

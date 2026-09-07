@@ -671,13 +671,15 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     }
     if( r->kind == PLUGIN_WIDGET_FIND_ALL )
     {
+        /* The role's own numbering, as the bridge answers it: slot m is
+         * member m, a missing member an invalid slot, count one past the
+         * highest present. */
         *r->count = 0;
         for( int m = 0; m < 16; m++ )
         {
             int id = fw_find(r->name, m);
-            if( id < 0 ) continue;
-            if( *r->count < r->capacity ) r->refs[*r->count] = fw_ref(id);
-            ++*r->count;
+            if( (size_t)m < r->capacity ) r->refs[m] = id < 0 ? (struct ToriRS_WidgetRef){ { 0 } } : fw_ref(id);
+            if( id >= 0 ) *r->count = (size_t)m + 1;
         }
         if( *r->count == 0 )
         {
@@ -1163,6 +1165,30 @@ main(void)
     CHECK(strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0 && native("compass", -1)->art < 0 &&
               native("compass", -1)->mask >= 0,
           "switching back takes the rose off again: a plan resets the surfaces before it writes");
+
+    /* ---- 6c. a member the lane does not have keeps the others' numbers --
+     *         the globe (orbs member 1) gone: find_all answers three slots
+     *         with the second invalid, and the wiki banner is still member 2,
+     *         seated on member 2's rect and not on the globe's. ------------ */
+    {
+        int const globe = fw_find("orbs", 1);
+        struct ToriRS_WidgetRef refs[16];
+        size_t count = 0;
+        struct PluginWidgetRequest r = {
+            .kind = PLUGIN_WIDGET_FIND_ALL, .name = "orbs", .refs = refs, .capacity = 16, .count = &count};
+        CHECK(globe >= 0, "the OldSchool lane has a globe to take away");
+        g_w[globe].alive = 0;
+        CHECK(fake_widget_request(NULL, 0, &r) == TORIRS_CONTRACT_OK && count == 3 && ToriRS_WidgetRefValid(refs[0]) &&
+                  !ToriRS_WidgetRefValid(refs[1]) && ToriRS_WidgetRefValid(refs[2]),
+              "find_all keeps the role's own numbering: a missing member is an invalid slot, not a gap closed over");
+        select_frame("gameframe-layout/modern-fixed", 570);
+        declare(765, 503);
+        select_frame("gameframe-layout/classic-fixed", 580);
+        declare(765, 503);
+        CHECK(placed("orbs", 2, 709, 139, 40, 34) && placed("orbs", 0, 723, 54, 34, 34),
+              "the wiki banner keeps member 2's seat when the globe is not there");
+        g_w[globe].alive = 1;
+    }
 
     /* ---- 7. the mobile toplevel declines classic ---------------------- */
     g_frame_root = 601;

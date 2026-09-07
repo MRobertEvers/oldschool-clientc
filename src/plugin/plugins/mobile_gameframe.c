@@ -3819,7 +3819,8 @@ mobile_reset_surfaces(struct MobileCall* ctx)
             TORIRS_CONTRACT_OK )
             continue;
         for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
-            (void)ui->reset(ui->context, members[m]);
+            if( ToriRS_WidgetRefValid(members[m]) )
+                (void)ui->reset(ui->context, members[m]);
     }
 }
 
@@ -3892,6 +3893,10 @@ mobile_apply_surfaces(struct MobileCall* ctx, struct ToriRS_WidgetRef viewport, 
         for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
         {
             struct MobileRect const* at = &g_frame.member[s][m];
+            /* find_all answers the role's own numbering, so m IS the member;
+             * a member this frame does not have is an invalid slot. */
+            if( !ToriRS_WidgetRefValid(members[m]) )
+                continue;
             if( at->placed )
                 (void)mobile_place_widget(ctx, members[m], at->rect, base, true);
             else if( s == FRAME_SURFACE_ORBS )
@@ -3907,7 +3912,7 @@ mobile_apply_surfaces(struct MobileCall* ctx, struct ToriRS_WidgetRef viewport, 
                 char key[24];
                 int w = 0;
                 int h = 0;
-                if( !at->placed || (size_t)i >= member_count ||
+                if( !at->placed || (size_t)i >= member_count || !ToriRS_WidgetRefValid(members[i]) ||
                     !g_api->assets.image_size(g_api, g_frame.plate_art[i], &w, &h) )
                 {
                     mobile_owned_drop(ctx, &state->plate[i]);

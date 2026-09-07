@@ -3823,7 +3823,12 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     {
         /* A frame role spread over MEMBERS -- the four chat filters, the
          * fourteen side panels, the orb block's children -- answers them in
-         * the role's own numbering; a role with none answers its one node. */
+         * the role's own numbering: slot m IS member m, a member this frame
+         * does not have is an invalid reference in its slot and never closed
+         * over, and count is one past the highest member present. A caller
+         * seating tab 9 or filter 3 indexes straight in; one that iterates
+         * skips the invalid slots. A role with no numbering answers its one
+         * node. */
         int const slot=app_plugin_role_slot(r->name);
         *r->count=0;
         if( slot>=0 && slot<TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
@@ -3832,9 +3837,9 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             for( int member=0; member<UITREE_FRAME_SLOT_NODES_MAX; ++member )
             {
                 int32_t node=UITree_FrameSlotMemberNode(tree,slot,member);
-                if( node<0 ) continue;
-                if( *r->count<r->capacity ) r->refs[*r->count]=app_widget_ref(tree,node);
-                ++*r->count;
+                if( (size_t)member<r->capacity )
+                    r->refs[member]=node<0 ? (struct ToriRS_WidgetRef){{0}} : app_widget_ref(tree,node);
+                if( node>=0 ) *r->count=(size_t)member+1;
             }
             if( *r->count ) return *r->count>r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
         }

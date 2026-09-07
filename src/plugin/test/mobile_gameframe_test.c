@@ -635,13 +635,15 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     }
     if( r->kind == PLUGIN_WIDGET_FIND_ALL )
     {
+        /* The role's own numbering, as the bridge answers it: slot m is
+         * member m, a missing member an invalid slot, count one past the
+         * highest present. */
         *r->count = 0;
         for( int m = 0; m < 16; m++ )
         {
             int id = fw_find(r->name, m);
-            if( id < 0 ) continue;
-            if( *r->count < r->capacity ) r->refs[*r->count] = fw_ref(id);
-            ++*r->count;
+            if( (size_t)m < r->capacity ) r->refs[m] = id < 0 ? (struct ToriRS_WidgetRef){ { 0 } } : fw_ref(id);
+            if( id >= 0 ) *r->count = (size_t)m + 1;
         }
         if( *r->count == 0 )
         {

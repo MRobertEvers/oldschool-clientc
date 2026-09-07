@@ -3298,6 +3298,10 @@ frame_apply_surfaces(struct FrameCall* ctx, struct ToriRS_WidgetRef viewport, st
         for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
         {
             struct FrameSurfaceRect const* at = &g_plan.member[s][m];
+            /* find_all answers the role's own numbering, so m IS the member;
+             * a member this frame does not have is an invalid slot. */
+            if( !ToriRS_WidgetRefValid(members[m]) )
+                continue;
             /* The sidebar's members are its mounts, all at one box; a member
              * the plan did not seat is hidden -- the adviser cut away, or a
              * panel this lane has and this frame does not show. */
@@ -3312,7 +3316,8 @@ frame_apply_surfaces(struct FrameCall* ctx, struct ToriRS_WidgetRef viewport, st
             {
                 struct FrameSurfaceRect const* at = &g_plan.member[s][i];
                 char key[24];
-                if( !g_plan.chat_switch || !at->placed || (size_t)i >= member_count )
+                if( !g_plan.chat_switch || !at->placed || (size_t)i >= member_count ||
+                    !ToriRS_WidgetRefValid(members[i]) )
                 {
                     frame_owned_drop(ctx, &state->chat_switch[i]);
                     continue;
@@ -3470,7 +3475,8 @@ frame_reset_surfaces(struct FrameCall* ctx)
             TORIRS_CONTRACT_OK )
             continue;
         for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
-            (void)ui->reset(ui->context, members[m]);
+            if( ToriRS_WidgetRefValid(members[m]) )
+                (void)ui->reset(ui->context, members[m]);
     }
 }
 

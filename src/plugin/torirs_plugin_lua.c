@@ -926,8 +926,15 @@ static int lua_widget_collection(lua_State* L, bool all)
     result = all ? ui->find_all(ui->context,role,refs,count,&count)
         : ui->children(ui->context, ref, refs, count, &count);
     if( result != TORIRS_CONTRACT_OK ) { lua_pop(L,1); lua_pushnil(L); return 1; }
+    /* find_all answers a role in its own numbering: t[m+1] is member m, and a
+     * member the frame does not have is `false` there -- a hole would stop
+     * ipairs at it and renumber everything after. */
     lua_createtable(L, (int)count, 0);
-    for( size_t i = 0; i < count; ++i ) { lua_push_widget(L, refs[i]); lua_rawseti(L,-2,(lua_Integer)i+1); }
+    for( size_t i = 0; i < count; ++i )
+    {
+        if( ToriRS_WidgetRefValid(refs[i]) ) lua_push_widget(L, refs[i]); else lua_pushboolean(L, 0);
+        lua_rawseti(L,-2,(lua_Integer)i+1);
+    }
     lua_remove(L,-2);
     return 1;
 }

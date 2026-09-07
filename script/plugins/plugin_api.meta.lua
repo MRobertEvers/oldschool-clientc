@@ -537,7 +537,7 @@ warn = nil
 ---@field invoke fun(action:torirs.WidgetActionRef):boolean, string? Rechecks current native visibility, masks and widget identity.
 ---@field watch fun(role:string,callback:fun(widget:torirs.Widget,event:torirs.WidgetBindingEvent)?):boolean,string Follows native binding identity; nil removes this subscription.
 ---@field find fun(role:string):torirs.Widget?
----@field find_all fun(role:string):torirs.Widget[]? All current matches. ground_item_labels is unavailable without the native CS2 overlay adapter.
+---@field find_all fun(role:string):(torirs.Widget|false)[]? All current matches in the role's own numbering: t[m+1] is member m, false where this frame has no member m; count is one past the highest present. Skip false entries when iterating. ground_item_labels is unavailable without the native CS2 overlay adapter.
 ---@field watch_tree fun(callback:fun(widget:torirs.Widget?,event:torirs.WidgetBindingEvent)?):boolean,string Initial and topology-change publication notifications; nil unregisters. The callback receives nil widget and queries current references.
 ---@field get fun(component_id:integer):torirs.Widget? Revision-specific lookup.
 
