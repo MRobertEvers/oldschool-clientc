@@ -269,7 +269,7 @@ _Static_assert(
  * is default-eligible, and having two ids is how that difference is stated.
  */
 #define RS_MINIMENU_ACTION_PLUGIN_REGION (UITREE_MINIMENU_ACTION_CLIENT_BASE + 6)
-#define RS_MINIMENU_ACTION_PLUGIN_WIDGET (UITREE_MINIMENU_ACTION_CLIENT_BASE + 8)
+#define RS_MINIMENU_ACTION_PLUGIN_WIDGET UITREE_MINIMENU_ACTION_OWNED_WIDGET
 
 /**
  * May this row be the LEFT-click default?

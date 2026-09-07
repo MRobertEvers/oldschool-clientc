@@ -256,6 +256,62 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", p
             for uid,hidden in expected.items()))
 
 
+def check_minimap_orbs(rows, log, enabled, failures):
+    """Four owned orb controls, 57x34 each, painted with their meters.
+
+    Read from the final publication: the plugin's own MINIMAP_ORBS_CONTROL lines
+    give each control's canvas box; on a lane with interface 160 the control
+    must cover the native orb root exactly (native=1), elsewhere it must not
+    cover the minimap disc. The lower half of each disc must carry the fill
+    colour (red hitpoints, gold run) and the top row of the hitpoints disc the
+    dark cap, so a composed picture that never landed fails here."""
+    def report(name, valid, detail=""):
+        print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
+        if not valid: failures.append(name)
+    final = log[log.rfind("NATIVE_ROOT id="):] if "NATIVE_ROOT id=" in log else log
+    controls = {}
+    for orb, native, armed, x, y, w, h in re.findall(r"MINIMAP_ORBS_CONTROL orb=(\w+) native=(\d) armed=(\d) box=(-?\d+),(-?\d+),(\d+),(\d+)", log):
+        controls[orb] = (int(native), int(armed), int(x), int(y), int(w), int(h))
+    report("orbs_controls", len(controls) == (4 if enabled else 0) and all(c[4] == 57 and c[5] == 34 for c in controls.values()), f"count={len(controls)}")
+    if not enabled or len(controls) != 4: return
+    minimap = re.findall(r"NATIVE_UI[^\n]*type=minimap hidden=0 native_paint=1[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)", final)
+    natives = re.findall(r"NATIVE_UI[^\n]*com=(\d+) type=rs_layer[^\n]*box=(-?\d+),(-?\d+),57,34", final)
+    native_boxes = {int(c): (int(x), int(y)) for c, x, y in natives}
+    height, width = len(rows), len(rows[0])
+    def covers_disc(map_box, box):
+        mx, my, mw, mh = map_box; x, y, w, h = box
+        cx, cy, r = 2 * mx + mw, 2 * my + mh, min(mw, mh)
+        return any((2 * px + 1 - cx) ** 2 + (2 * py + 1 - cy) ** 2 < r * r for py in range(y, y + h) for px in range(x, x + w))
+    if all(c[0] for c in controls.values()):
+        roots = {"orb_hitpoints": 160 << 16 | 7, "orb_prayer": 160 << 16 | 18, "orb_run": 160 << 16 | 26, "orb_special": 160 << 16 | 34}
+        placed = all(native_boxes.get(roots[k]) == (c[2], c[3]) for k, c in controls.items())
+        report("orbs_cover_native_roots", placed, f"roots={len(native_boxes)}")
+    else:
+        report("orbs_clear_of_minimap", len(minimap) == 1 and all(not covers_disc(tuple(map(int, minimap[0])), c[2:]) for c in controls.values()), f"minimap={len(minimap)}")
+    def disc_pixels(c, rows_from, rows_to):
+        x, y = c[2] + 27, c[3] + 4
+        return [rows[yy][xx] for yy in range(y + rows_from, y + rows_to) for xx in range(x + 6, x + 20) if 0 <= yy < height and 0 <= xx < width]
+    values = {}
+    for orb, value, filled, total, inactive in re.findall(r"MINIMAP_ORBS_VALUE orb=(\w+) value=(-?\d+) filled=(-?\d+) total=(\d+) inactive=(\d)", log):
+        values[orb] = (int(value), int(filled), int(total), int(inactive))
+    hp = controls.get("orb_hitpoints"); run = controls.get("orb_run")
+    hp_low = disc_pixels(hp, 16, 24); run_low = disc_pixels(run, 16, 24)
+    report("orbs_hitpoints_red", sum(r > g + 40 and r > b + 40 for b, g, r in hp_low) >= len(hp_low) // 2, f"pixels={len(hp_low)}")
+    run_value = values.get("orb_run")
+    if run_value and run_value[3]:
+        report("orbs_run_inactive_grey", sum(abs(r - g) < 30 and abs(g - b) < 30 and 40 < max(r, g, b) < 200 for b, g, r in run_low) >= len(run_low) // 3, f"pixels={len(run_low)} (walking)")
+    else:
+        report("orbs_run_gold", sum(r > 150 and g > 100 and b < 90 for b, g, r in run_low) >= len(run_low) // 3, f"pixels={len(run_low)}")
+    hp_value = values.get("orb_hitpoints")
+    if hp_value and hp_value[2] > 0:
+        hidden = 26 - (hp_value[1] * 26 + hp_value[2] - 1) // hp_value[2]
+        top = disc_pixels(hp, 0, 2)
+        if hidden >= 2:
+            report("orbs_hitpoints_cap_dark", sum(max(b, g, r) < 90 for b, g, r in top) >= len(top) // 2, f"hidden_rows={hidden}")
+        else:
+            report("orbs_hitpoints_full_no_cap", sum(r > g + 40 and r > b + 40 for b, g, r in top) >= len(top) // 2, f"hidden_rows={hidden}")
+
+
 def check_performance(rows, log, enabled, metrics, position, color, failures):
     def report(name, valid, detail=""):
         print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
@@ -391,6 +447,8 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
                 if not valid: failures.append(name)
         if plugin_id=="performance-display":
             check_performance(rows,log,plugin_enabled,performance_metrics,performance_position,performance_color,failures)
+        if plugin_id=="minimap-orbs":
+            check_minimap_orbs(rows,log,plugin_enabled,failures)
     if widget_demo:
         log = Path(bounds_path).read_text() if bounds_path else ""
         if widget_demo == "c":

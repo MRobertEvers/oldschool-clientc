@@ -232,6 +232,11 @@ UIMinimenu_SortPriorityActions(struct UIMinimenu* menu);
  * the menu closed, and nothing happened.
  */
 #define UITREE_MINIMENU_ACTION_CLIENT_BASE 500000
+/* A plugin-owned control's single operation. Its row keeps the position the
+ * hit test gave it instead of being demoted with the other client-range
+ * actions: the control is the topmost thing under the pointer, so its row is
+ * the natural left-click default even over a native button it covers. */
+#define UITREE_MINIMENU_ACTION_OWNED_WIDGET (UITREE_MINIMENU_ACTION_CLIENT_BASE + 8)
 
 /** Deprioritize bias (reference +2000): pushes a row below normal entries. */
 static inline int

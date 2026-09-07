@@ -241,6 +241,44 @@ def run_product_controls(src, out, make_args, selected):
         print(f"{name}: observed expected failing assertion", flush=True)
 
 
+def run_orbs_controls(src, out, make_args, selected):
+    """Mutate the ported minimap-orbs plugin; its widget-API unit test must fail."""
+    make = ["make", "--no-print-directory", *make_args, "test-minimap-orbs-v2"]
+    with (out / "positive.log").open("w") as log:
+        subprocess.run(make, cwd=src, stdout=log, stderr=subprocess.STDOUT, check=True)
+    recipe = subprocess.check_output([*make, "-n"], cwd=src, text=True).replace("\\\n", " ")
+    command = next(shlex.split(line) for line in recipe.splitlines()
+                   if "plugin/test/minimap_orbs_v2_test.c" in line and " -o " in line)
+    source = "plugin/plugins/minimap_orbs.c"
+    original = (src / source).read_text()
+    controls = {
+        "orbs_anchor_change": ("if( orb->control.opaque[2] && !ToriRS_WidgetRefEqual(orb->parent, parent) )\n            orbs_remove_control(api, orb);",
+                               "", "owned_under(W_MAP_PARENT, \"orb_run\") < 0"),
+        "orbs_disc_clamp": ("    if( x + ORB_W > limit )\n        x = limit - ORB_W;", "",
+                            "!orb_covers_map(&widgets[W_MINIMAP], &widgets[i])"),
+        "orbs_native_first": ("    if( orbs_native_action(api, orb, &action) )\n    {\n        enum ToriRS_ContractResult result = ui->invoke(ui->context, action);",
+                              "    if( false && orbs_native_action(api, orb, &action) )\n    {\n        enum ToriRS_ContractResult result = ui->invoke(ui->context, action);",
+                              "invoked_actions == 1"),
+    }
+    if selected and set(selected) - controls.keys(): raise ValueError("unknown orbs control")
+    for name, (before, after, expected) in controls.items():
+        if selected and name not in selected: continue
+        if original.count(before) != 1: raise RuntimeError(f"{name}: mechanism changed")
+        mutant = out / (name + ".c")
+        mutant.write_text(original.replace(before, after))
+        binary = out / name
+        build = [str(mutant) if arg == source else arg for arg in command]
+        build[build.index("-o") + 1] = str(binary)
+        with (out / (name + "-build.log")).open("w") as log:
+            subprocess.run(build, cwd=src, stdout=log, stderr=subprocess.STDOUT, check=True)
+        run = subprocess.run([str(binary)], cwd=src, text=True, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, timeout=30)
+        (out / (name + ".log")).write_text(run.stdout)
+        if run.returncode != 1 or expected not in run.stdout:
+            raise RuntimeError(f"{name}: intended failing assertion was not observed")
+        print(f"{name}: observed expected failing assertion", flush=True)
+
+
 def run_action_controls(src, out, make_args, selected):
     make=["make","--no-print-directory",*make_args]
     with (out/"positive.log").open("w") as log:
@@ -282,7 +320,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", type=Path)
     parser.add_argument("--only", action="append", help="run only this named mechanism (repeatable)")
-    parser.add_argument("--suite", choices=("ui", "cs2", "host", "lua", "products", "actions"), default="ui")
+    parser.add_argument("--suite", choices=("ui", "cs2", "host", "lua", "products", "actions", "orbs"), default="ui")
     parser.add_argument("--make-arg", action="append", default=[], help="make assignment, e.g. OPT=1")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
@@ -290,6 +328,9 @@ def main():
     src = Path(__file__).resolve().parents[1] / "src"
     if args.suite == "actions":
         run_action_controls(src, out, args.make_arg, args.only)
+        return
+    if args.suite == "orbs":
+        run_orbs_controls(src, out, args.make_arg, args.only)
         return
     if args.suite == "products":
         run_product_controls(src, out, args.make_arg, args.only)

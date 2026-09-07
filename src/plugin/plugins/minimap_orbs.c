@@ -64,19 +64,33 @@
  * today has used -- and the orb switches itself off if none of them answer.
  * See orbs_varp.
  *
+ * ## How an orb is presented now
+ *
+ * Each orb is an OWNED IMAGE CONTROL: one plugin-owned graphic child carrying
+ * a 57x34 picture the plugin composes itself from its shipped art (plate,
+ * fill disc clipped to the meter, icon, atlas digits), republished under a
+ * stable name whenever a value changes. On a lane whose cache draws its own
+ * orbs (interface 160) the control is a child of the native orb root, so it
+ * paints over the native art and follows the native layout, hiding, and
+ * remount exactly; the native button underneath keeps its identity and its
+ * operations. On a lane without native orbs the controls are children of the
+ * minimap's parent, placed by interface 160's own offsets and clamped out of
+ * the map disc.
+ *
  * ## Clicking one
  *
- * An orb is a button in the reference and it is a button here. Each canonical
- * named node retains its hit rectangle and verb; on_ui_node_action delegates
- * through ui.invoke_base, which resolves the lane's live semantic action.
+ * The control is armed with one operation (widgets.set_on_op) whose label is
+ * the reference verb. Pressing it invokes a CHECKED native widget action: the
+ * lane's `[role:action_frame_orb_*]` node is looked up live, its current
+ * actions are queried and the first is invoked through the ordinary native
+ * dispatcher, which re-checks visibility, masks and identity. A raw
+ * `<interface>:<component>[:<op>]` override, and the older `[iface:<name>]`
+ * compatibility lookup, remain as documented escape hatches.
  *
  * Pressing the real button rather than writing the var is what makes this
  * work at all: the run toggle and the special attack are the SERVER's, and a
  * client that flipped the varp locally would show a state the server never
- * agreed to and lose it on the next sync. Which component that button is
- * cannot be known from here -- it differs between revisions and may sit below
- * chrome a custom frame replaced. The RevConfig profile names that action
- * role. Raw component config remains only as a compatibility escape hatch.
+ * agreed to and lose it on the next sync.
  */
 
 /* The plate, and where interface 160 puts each piece inside it. */
@@ -188,10 +202,32 @@ struct OrbGlyph
     int advance;
 };
 
-/** All mutable data belongs to one registered V2 instance. */
+/** One orb's presentation: where it hangs, its control and its picture. */
+struct OrbControl
+{
+    /* The native orb root this control covers, or zero when the lane has no
+     * native orb and the control is placed beside the minimap instead. */
+    struct ToriRS_WidgetRef native_root;
+    struct ToriRS_WidgetRef control;
+    /* The parent the control was created under: a change of anchor removes
+     * the old control rather than leaving it behind under the old parent. */
+    struct ToriRS_WidgetRef parent;
+    struct ToriRS_ImageRef composed;
+    /* What the last composition drew, so a quiet frame composes nothing. */
+    uint32_t composed_key;
+    bool armed;
+    bool action_available;
+    bool native;
+};
+
+/** All mutable data belongs to one registered instance. */
 struct OrbsState
 {
     struct ToriRS_ImageRef image[ORB_IMG_COUNT];
+    /* Decoded source art, read once each through assets.image_pixels. */
+    uint32_t* pixels[ORB_IMG_COUNT];
+    int pixel_w[ORB_IMG_COUNT];
+    int pixel_h[ORB_IMG_COUNT];
     struct OrbGlyph digit[10];
     int digits_ready;
     int digit_steps;
@@ -199,11 +235,12 @@ struct OrbsState
     int digit_line_height;
     int digit_max_ascent;
     int digit_max_descent;
-    struct ToriRS_UiNodeRef node[ORB_COUNT];
-    struct ToriRS_Rect map_bounds;
-    int map_bounds_valid;
-    int parent_is_housing;
-    uint32_t action_mask;
+    struct ToriRS_WidgetRef minimap;
+    struct OrbControl orb[ORB_COUNT];
+    /* The minimap's parent-local box as last laid out against. */
+    struct ToriRS_WidgetBounds map_local;
+    bool map_valid;
+    uint32_t composed_buffer[ORB_W * ORB_H];
 };
 
 static bool
@@ -511,18 +548,120 @@ orbs_text_origin(
     return y + state->digit_max_ascent + space / 2 - state->digit_line_height;
 }
 
+/* Each orb's verb, the role of the native button it presses, and the config
+ * keys of its raw overrides. */
+static struct
+{
+    char const* key;
+    char const* show_key;
+    char const* button_key;
+    char const* button_name;
+    char const* action;
+    char const* native_role;
+    char const* action_role;
+} const ORB_PART[ORB_COUNT] = {
+    { "orb_hitpoints", "show_hp", "hp_button", "orb_hp_button", "Cure", "orb_hitpoints", NULL },
+    { "orb_prayer", "show_prayer", "prayer_button", "orb_prayer_button", "Quick-prayers", "orb_prayer", "action_frame_orb_prayer_activate" },
+    { "orb_run", "show_run", "run_button", "orb_run_on", "Toggle Run", "orb_run", "action_frame_orb_run_enable" },
+    { "orb_special", "show_spec", "spec_button", "orb_spec_button", "Use Special Attack", "orb_spec", "action_frame_orb_special_activate" },
+};
+
+/* ------------------------------------------------------------ compositing */
+
+/** The decoded pixels of one shipped image, read once; NULL until it lands. */
+static uint32_t const*
+orbs_pixels(struct ToriRS_Api* api, struct OrbsState* state, int which, int* out_w, int* out_h)
+{
+    if( !state->pixels[which] )
+    {
+        int w = 0, h = 0;
+        size_t count = 0;
+        if( state->image[which].value == 0 ||
+            !api->assets.image_size(api, state->image[which], &w, &h) || w <= 0 || h <= 0 ||
+            w > 1024 || h > 1024 )
+            return NULL;
+        uint32_t* argb = malloc((size_t)w * (size_t)h * sizeof(*argb));
+        assert(argb);
+        if( !api->assets.image_pixels(api, state->image[which], argb, (size_t)w * (size_t)h, &count) ||
+            count != (size_t)w * (size_t)h )
+        {
+            free(argb);
+            return NULL;
+        }
+        state->pixels[which] = argb;
+        state->pixel_w[which] = w;
+        state->pixel_h[which] = h;
+    }
+    *out_w = state->pixel_w[which];
+    *out_h = state->pixel_h[which];
+    return state->pixels[which];
+}
+
+/** Source-over one ARGB pixel scaled by `alpha` (255 = as authored). */
+static uint32_t
+orbs_blend(uint32_t dst, uint32_t src, int alpha)
+{
+    unsigned const sa = ((src >> 24) & 0xff) * (unsigned)alpha / 255u;
+    if( sa == 0 )
+        return dst;
+    unsigned const da = (dst >> 24) & 0xff;
+    unsigned const out_a = sa + da * (255u - sa) / 255u;
+    uint32_t out = out_a << 24;
+    for( int shift = 0; shift < 24; shift += 8 )
+    {
+        unsigned const sc = (src >> shift) & 0xff;
+        unsigned const dc = (dst >> shift) & 0xff;
+        unsigned const c = out_a ? (sc * sa + dc * da * (255u - sa) / 255u) / out_a : 0;
+        out |= (c > 255u ? 255u : c) << shift;
+    }
+    return out;
+}
+
 /**
- * `value`, centred on `cx`, with `top` as the line box's top.
- *
- * A glyph is drawn by sliding the WHOLE atlas so the glyph lands where it
- * belongs and clipping to the glyph's own box -- which is what the clip
- * argument on api->draw_image is for, and why it is an argument rather than a
- * second entry point.
+ * Blit the `clip` rectangle of `which` (clip given in ORB space) with the
+ * image's origin at (ox, oy) in orb space. Pixels outside the orb are dropped.
  */
 static void
-orbs_draw_number(
-    struct OrbsState const* state,
-    struct ToriRS_Graphics* draw,
+orbs_blit(
+    struct ToriRS_Api* api,
+    struct OrbsState* state,
+    int which,
+    int ox,
+    int oy,
+    int clip_x,
+    int clip_y,
+    int clip_w,
+    int clip_h,
+    int alpha)
+{
+    int w, h;
+    uint32_t const* src = orbs_pixels(api, state, which, &w, &h);
+    if( !src )
+        return;
+    for( int y = clip_y; y < clip_y + clip_h; y++ )
+    {
+        int const sy = y - oy;
+        if( y < 0 || y >= ORB_H || sy < 0 || sy >= h )
+            continue;
+        for( int x = clip_x; x < clip_x + clip_w; x++ )
+        {
+            int const sx = x - ox;
+            if( x < 0 || x >= ORB_W || sx < 0 || sx >= w )
+                continue;
+            state->composed_buffer[y * ORB_W + x] =
+                orbs_blend(state->composed_buffer[y * ORB_W + x], src[sy * w + sx], alpha);
+        }
+    }
+}
+
+/**
+ * `value`, centred on `cx`, with `top` as the line box's top, from the atlas.
+ * The colour is the METER's: the atlas carries clientscript 449's ramp as rows.
+ */
+static void
+orbs_compose_number(
+    struct ToriRS_Api* api,
+    struct OrbsState* state,
     int cx,
     int top,
     int value,
@@ -530,63 +669,52 @@ orbs_draw_number(
     int total)
 {
     char text[16];
-    int len;
-    int width = 0;
-    int pen;
-    int row = 0;
+    int len, width = 0, pen, row = 0;
 
-    /*
-     * The colour is the METER's, not the number's: clientscript 449 ramps it
-     * from red at empty through yellow at half to green at full, so a glance
-     * at the colour says as much as reading the digits. The atlas carries that
-     * ramp as rows (see tools/fontbake_atlas.py); this picks the row.
-     */
     if( state->digit_steps > 1 && total > 0 )
     {
         int const clamped = filled < 0 ? 0 : (filled > total ? total : filled);
         row = clamped * (state->digit_steps - 1) / total;
     }
-
     snprintf(text, sizeof(text), "%d", value);
     len = (int)strlen(text);
-
     for( int i = 0; i < len; i++ )
         width += state->digit[text[i] - '0'].advance;
     pen = cx - width / 2;
-
     for( int i = 0; i < len; i++ )
     {
         struct OrbGlyph const* g = &state->digit[text[i] - '0'];
         int const dx = pen + g->off_x;
         int const dy = top + g->off_y;
-
         int const src_y = g->y + row * state->digit_row_h;
-
-        draw->image_clip(
-            draw,
-            state->image[ORB_IMG_DIGITS],
-            dx - g->x,
-            dy - src_y,
-            (struct ToriRS_Rect){ dx, dy, g->w, g->h },
-            255);
+        orbs_blit(api, state, ORB_IMG_DIGITS, dx - g->x, dy - src_y, dx, dy, g->w, g->h, 255);
         pen += g->advance;
     }
 }
 
 /**
- * One orb, drawn.
+ * One orb's picture: plate, meter disc, icon and number. Returns the key of
+ * what was drawn so an unchanged orb costs nothing next frame.
  *
- * `value` is what the panel reads and `pct` how full the disc is, and they are
- * separate on purpose: the run orb shows a percent and fills by it, while the
- * hitpoints orb shows a LEVEL and fills by its share of the base level. A
- * single number could only serve one of them.
+ * The three states the reference draws an orb in (clientscript 2792):
+ * INACTIVE a grey disc at trans 50 and no operation; idle the orb's own colour
+ * at trans 25. The lit (hovered) plate is not reproduced.
  */
-static void
-orbs_draw_one(
-    struct OrbsState const* state,
-    struct ToriRS_Graphics* draw,
-    int x,
-    int y,
+/** What a composition would draw, hashed: equal keys mean an identical picture. */
+static uint32_t
+orbs_key(struct OrbsState const* state, int fill_image, int icon_image, int value, int filled, int total, int inactive)
+{
+    return 0x9e3779b9u * (uint32_t)(fill_image + 1) ^ (uint32_t)(icon_image + 1) * 0x85ebca6bu ^
+           (uint32_t)value * 0xc2b2ae35u ^ (uint32_t)filled * 0x27d4eb2fu ^ (uint32_t)total * 0x165667b1u ^
+           (uint32_t)(inactive ? 0x1000000u : 0u) ^ (uint32_t)(state->digits_ready ? 0x2000000u : 0u) ^
+           (uint32_t)(state->pixels[ORB_IMG_FRAME] ? 0x4000000u : 0u);
+}
+
+static uint32_t
+orbs_compose(
+    struct ToriRS_Api* api,
+    struct OrbsState* state,
+    int orb,
     int fill_image,
     int icon_image,
     int value,
@@ -594,191 +722,167 @@ orbs_draw_one(
     int total,
     int inactive)
 {
-    char text[16];
+    int const trans = inactive ? 50 : 25;
     int hidden;
-    int trans;
-
-    if( state->image[ORB_IMG_FRAME].value == 0 )
-        return;
-
-    /*
-     * The three states the reference draws an orb in, and what each one
-     * changes (clientscript 2792):
-     *
-     *   INACTIVE  a GREY disc at `if_settrans(50)` and the ops cleared -- what
-     *             the spec orb is when nothing you are holding has a special
-     *             attack.
-     *   idle      the orb's own colour at trans 25, which is what
-     *             `specenergy_indicator` is authored with.
-     *   HOVERED   the same, with the lit plate (graphic 1072 beside 1071).
-     *
-     * The plate, lit plate and hit region are retained named-node facets; the
-     * host picks the hovered plate from the pointer and box. This callback
-     * draws only what changes every tick over that retained plate.
-     */
-    trans = inactive ? 50 : 25;
+    uint32_t key;
+    /* The inactive substitution is part of the inputs the key describes, so
+     * the hash is taken after it; otherwise a walking run orb would rehash
+     * differently every frame and recompose for nothing. */
     if( inactive )
     {
         fill_image = ORB_IMG_FILL_GREY;
-        /* Full, so no dark cap is drawn over it: an inactive orb shows no
-         * level at all, rather than a level of zero. */
         filled = total;
     }
-
-    draw->image(
-        draw,
-        state->image[fill_image],
-        x + ORB_DISC_X,
-        y + ORB_DISC_Y,
-        255 - trans);
-
-    /*
-     * The dark disc over the unfilled part, clipped to the rows above the
-     * fill line -- interface 160's `orb_*_empty` container, whose height its
-     * clientscript sets and whose 26x26 child is cut by it.
-     *
-     * Rounded so that a meter which is not quite full never reads as full: a
-     * player on 98 of 99 hitpoints must see a sliver of dark, or the orb is
-     * lying about the one thing it exists to say.
-     */
+    key = orbs_key(state, fill_image, icon_image, value, filled, total, inactive);
+    /* Unchanged inputs draw nothing: a quiet frame costs one hash per orb. */
+    if( key == state->orb[orb].composed_key )
+        return key;
+    api->core.log(api, "MINIMAP_ORBS_VALUE orb=%s value=%d filled=%d total=%d inactive=%d",
+        ORB_PART[orb].key, value, filled, total, inactive);
+    memset(state->composed_buffer, 0, sizeof(state->composed_buffer));
+    orbs_blit(api, state, ORB_IMG_FRAME, 0, 0, 0, 0, ORB_W, ORB_H, 255);
+    orbs_blit(api, state, fill_image, ORB_DISC_X, ORB_DISC_Y, ORB_DISC_X, ORB_DISC_Y, ORB_DISC, ORB_DISC, 255 - trans);
+    /* The dark disc over the unfilled rows, rounded so 98 of 99 still shows
+     * a sliver of dark: the orb must never read as full when it is not. */
     hidden = total > 0 ? ORB_DISC - (filled * ORB_DISC + total - 1) / total : ORB_DISC;
-    if( hidden < 0 )
-        hidden = 0;
-    if( hidden > ORB_DISC )
-        hidden = ORB_DISC;
+    if( hidden < 0 ) hidden = 0;
+    if( hidden > ORB_DISC ) hidden = ORB_DISC;
     if( hidden > 0 )
-        draw->image_clip(
-            draw,
-            state->image[ORB_IMG_FILL_EMPTY],
-            x + ORB_DISC_X,
-            y + ORB_DISC_Y,
-            (struct ToriRS_Rect){ x + ORB_DISC_X, y + ORB_DISC_Y, ORB_DISC, hidden },
-            255);
-
-    draw->image(
-        draw, state->image[icon_image], x + ORB_DISC_X, y + ORB_DISC_Y, 255);
-
+        orbs_blit(api, state, ORB_IMG_FILL_EMPTY, ORB_DISC_X, ORB_DISC_Y, ORB_DISC_X, ORB_DISC_Y, ORB_DISC, hidden, 255);
+    orbs_blit(api, state, icon_image, ORB_DISC_X, ORB_DISC_Y, ORB_DISC_X, ORB_DISC_Y, ORB_DISC, ORB_DISC, 255);
     if( state->digits_ready && state->image[ORB_IMG_DIGITS].value != 0 )
+        orbs_compose_number(api, state, ORB_TEXT_CX, orbs_text_origin(state, ORB_TEXT_Y, ORB_TEXT_H), value, filled, total);
+    /* The frame art may have landed during this composition; hash again so a
+     * picture composed without its plate is redrawn once it arrives. */
+    return orbs_key(state, fill_image, icon_image, value, filled, total, inactive);
+}
+
+/* ------------------------------------------------------------ actions */
+
+static int
+orbs_running(struct ToriRS_Api* api)
+{
+    int const run_varp = orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
+    return run_varp >= 0 && api->cache.varp(api, run_varp) != 0;
+}
+
+static char const*
+orbs_action_role(struct ToriRS_Api* api, int orb)
+{
+    if( orb == ORB_RUN )
+        return orbs_running(api) ? "action_frame_orb_run_disable" : "action_frame_orb_run_enable";
+    return ORB_PART[orb].action_role;
+}
+
+/** The current native action behind this orb's button role, if any. */
+static bool
+orbs_native_action(
+    struct ToriRS_Api* api,
+    int orb,
+    struct ToriRS_WidgetActionRef* out)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    struct ToriRS_WidgetRef button;
+    struct ToriRS_WidgetAction action;
+    size_t count = 0;
+    char const* role = orbs_action_role(api, orb);
+    if( !role || ui->find(ui->context, role, &button) != TORIRS_CONTRACT_OK )
+        return false;
+    if( ui->actions(ui->context, button, &action, 1, &count) != TORIRS_CONTRACT_OK &&
+        count == 0 )
+        return false;
+    if( count == 0 )
+        return false;
+    if( out )
+        *out = action.ref;
+    return true;
+}
+
+static bool
+orbs_has_action(struct ToriRS_Api* api, int orb)
+{
+    int component, operation;
+    char const* key = ORB_PART[orb].button_key;
+    char const* name = ORB_PART[orb].button_name;
+    if( orb == ORB_RUN && orbs_running(api) )
     {
-        orbs_draw_number(
-            state,
-            draw,
-            x + ORB_TEXT_CX,
-            y + orbs_text_origin(state, ORB_TEXT_Y, ORB_TEXT_H),
-            value,
-            filled,
-            total);
+        key = "run_button_off";
+        name = "orb_run_off";
+    }
+    if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
+        return true;
+    if( orbs_native_action(api, orb, NULL) )
+        return true;
+    return orbs_compat_button(api, name, &component, &operation) != 0;
+}
+
+/** Press the orb: raw override, checked native action, then compatibility. */
+static void
+orbs_press(struct ToriRS_Api* api, int orb)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    struct ToriRS_WidgetActionRef action;
+    int component, operation;
+    char const* key = ORB_PART[orb].button_key;
+    char const* name = ORB_PART[orb].button_name;
+    if( orb == ORB_RUN && orbs_running(api) )
+    {
+        key = "run_button_off";
+        name = "orb_run_off";
+    }
+    if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
+        goto invoke;
+    if( orbs_native_action(api, orb, &action) )
+    {
+        enum ToriRS_ContractResult result = ui->invoke(ui->context, action);
+        api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=native result=%d", ORB_PART[orb].key, result);
+        if( result == TORIRS_CONTRACT_OK )
+            return;
+    }
+    if( !orbs_compat_button(api, name, &component, &operation) )
+    {
+        api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=none", ORB_PART[orb].key);
         return;
     }
-
-    /* The atlas has not landed yet, or would not decode. The client's own
-     * overlay face is the wrong one for an orb, but a number in the wrong face
-     * beats an orb with no number in it. */
-    snprintf(text, sizeof(text), "%d", value);
-    draw->text(draw, x + ORB_TEXT_CX, y + ORB_TEXT_BASELINE, text, ORB_TEXT_RGB);
+invoke:
+    if( !api->cache.invoke(api, component, operation) )
+    {
+        char message[160];
+        snprintf(message, sizeof(message),
+            "Minimap orbs: this world has no interface component %d for '%s'.", component, key);
+        api->core.notify(api, message);
+        api->core.log(api, "%s", message);
+        return;
+    }
+    api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=component component=%d op=%d", ORB_PART[orb].key, component, operation);
 }
 
-/* Each orb is a canonical named node. Static retained facets own its plate,
- * hover art, bounds and action; on_ui_node_draw adds only the live meter, icon
- * and number. That keeps arbitration, paint order and input on one semantic
- * tree without a separate ownership claim or role lookup. */
-
-static struct
+static void
+orbs_operation(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
 {
-    char const* node;
-    char const* show_key;
-    char const* button_key;
-    char const* button_name;
-    char const* action;
-} const ORB_PART[ORB_COUNT] = {
-    { "frame.orb.hitpoints", "show_hp", "hp_button", "orb_hp_button", "Cure" },
-    { "frame.orb.prayer", "show_prayer", "prayer_button", "orb_prayer_button", "Quick-prayers" },
-    { "frame.orb.run", "show_run", "run_button", "orb_run_on", "Toggle Run" },
-    { "frame.orb.special", "show_spec", "spec_button", "orb_spec_button", "Use Special Attack" },
-};
-
-#define ORB_CONTRIBUTION(name_)                                                    \
-    { .struct_size = sizeof(struct ToriRS_UiContribution),                        \
-      .node = (name_),                                                             \
-      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,                                        \
-      .facets = TORIRS_UI_FACET_ALL,                                               \
-      .value = { .struct_size = sizeof(struct ToriRS_UiNode),                      \
-                 .bounds = { 0, 0, 1, 1 },                                        \
-                 .parent = "frame.minimap.housing",                                \
-                 .anchor = TORIRS_ANCHOR_TOP_LEFT,                                 \
-                 .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,                      \
-                 .flags = TORIRS_UI_NODE_ENABLED,                                  \
-                 .hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM } }
-
-static struct ToriRS_UiContribution const ORB_CONTRIBUTIONS[] = {
-    ORB_CONTRIBUTION("frame.orb.hitpoints"),
-    ORB_CONTRIBUTION("frame.orb.prayer"),
-    ORB_CONTRIBUTION("frame.orb.run"),
-    ORB_CONTRIBUTION("frame.orb.special"),
-    { .node = NULL },
-};
-
-static int
-orbs_node_index(struct OrbsState const* state, struct ToriRS_UiNodeRef node)
-{
+    struct OrbsState* state = user;
     for( int i = 0; i < ORB_COUNT; i++ )
-        if( state->node[i].value == node.value )
-            return i;
-    return -1;
+        if( ToriRS_WidgetRefEqual(state->orb[i].control, event->widget) )
+        {
+            orbs_press(api, i);
+            return;
+        }
 }
 
-static int
-orbs_map_bounds(
-    struct ToriRS_Api* api,
-    struct ToriRS_Rect* out)
-{
-    struct ToriRS_UiNodeInfo map;
-    struct ToriRS_UiNodeRef const ref = api->ui.ref(api, "frame.minimap");
+/* ------------------------------------------------------------ layout */
 
-    memset(&map, 0, sizeof(map));
-    map.struct_size = sizeof(map);
-    if( ref.value == 0 || !api->ui.info(api, ref, &map) || !map.visible ||
-        map.bounds.width <= 0 || map.bounds.height <= 0 )
-        return 0;
-    *out = map.bounds;
-    return 1;
-}
-
-/*
- * The first column of the map's own ink over the rows [top, bottom).
- *
- * Every housing an orb hangs off in this tree draws its map as the disc
- * INSCRIBED in the box `frame.minimap` reports -- 2004's `mapback`, the
- * OldSchool fixed plate, both OldSchool rings and the Stone Drawer's own ring
- * are all a round window with the scene or the stone showing through the
- * corners -- so the box is enough to say where the map begins on any row, and
- * an orb does not have to know which housing it is beside.
- *
- * Answers the box's RIGHT edge when the span misses the disc entirely, which
- * is the honest "nothing here to keep clear of".
- *
- * A lane whose map is genuinely a square would need its box and not its disc;
- * none in this tree is, and the clamp below only ever moves an orb further
- * OUT, so the worst such a lane gets is the placement it already had.
- */
+/** The first column of the map disc's ink over rows [top, bottom), in the
+ * map's parent-local space; the box's right edge when the span misses it. */
 static int
-orbs_map_ink_left(
-    struct ToriRS_Rect const* map,
-    int top,
-    int bottom)
+orbs_map_ink_left(struct ToriRS_WidgetBounds const* map, int top, int bottom)
 {
-    /* Doubled coordinates: the centre of a box with an even side falls
-     * between two columns, and a half-pixel error here is a visible one. */
     long const cx = 2 * (long)map->x + map->width;
     long const cy = 2 * (long)map->y + map->height;
     long const r = map->width < map->height ? map->width : map->height;
     int left = map->x + map->width;
-
-    assert(map);
     for( int y = top; y < bottom; y++ )
     {
         long const dy = 2 * (long)y + 1 - cy;
-
         if( dy * dy >= r * r )
             continue;
         for( int x = map->x; x < left; x++ )
@@ -794,402 +898,291 @@ orbs_map_ink_left(
     return left;
 }
 
+/** Interface 160's slot for `orb` beside `map`, then clamped out of the disc. */
 static void
-orbs_bounds(
-    struct ToriRS_Api* api,
-    struct ToriRS_Rect const* map,
-    int orb,
-    struct ToriRS_Rect* out)
+orbs_beside_map(struct ToriRS_Api* api, struct ToriRS_WidgetBounds const* map, int orb, int* out_x, int* out_y)
 {
-    int limit;
-
-    assert(map);
-    assert(out);
-    out->x = map->x + orbs_cfg_int(api, "offset_x") - ORB_W + ORB_SLOT[orb].dx;
-    out->y = map->y + map->height / 4 + orbs_cfg_int(api, "offset_y") -
-             ORB_SLOT[0].dy + ORB_SLOT[orb].dy;
-    out->width = ORB_W;
-    out->height = ORB_H;
-
-    /*
-     * And then out of the map.
-     *
-     * The offsets above are interface 160's, measured against the OldSchool
-     * housings' window; the 2004 housing's window is a pixel wider and its
-     * disc reaches further left at every row, so the same numbers put the
-     * plates on the map's rim -- the disc's left edge and the housing's stone
-     * ring both disappear behind the hitpoints and prayer orbs, and the lower
-     * two step into map pixels outright.
-     *
-     * The per-housing offset that fixes it is not a constant anyone can write
-     * down once: it is the distance from this orb's own rows to the disc that
-     * THIS frame drew, which is what `orbs_map_ink_left` answers. Clamping
-     * rather than positioning keeps the reference's own curve wherever it
-     * already clears the map -- an orb is only ever pushed left, and only as
-     * far as it takes to stop covering the thing it is reporting on.
-     */
-    limit = orbs_map_ink_left(map, out->y, out->y + out->height);
-    if( out->x + out->width > limit )
-        out->x = limit - out->width;
-}
-
-static char const*
-orbs_base_action(struct ToriRS_Api* api, int orb)
-{
-    if( orb != ORB_RUN )
-        return "activate";
-    {
-        int const run_varp =
-            orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
-        return run_varp >= 0 && api->cache.varp(api, run_varp) != 0
-                   ? "disable"
-                   : "enable";
-    }
-}
-
-static int
-orbs_has_action(
-    struct ToriRS_Api* api,
-    struct OrbsState const* state,
-    int orb)
-{
-    int component;
-    int operation;
-    char const* key = ORB_PART[orb].button_key;
-    char const* name = ORB_PART[orb].button_name;
-
-    if( orb == ORB_RUN )
-    {
-        int const run_varp =
-            orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
-        if( run_varp >= 0 && api->cache.varp(api, run_varp) != 0 )
-        {
-            key = "run_button_off";
-            name = "orb_run_off";
-        }
-    }
-    if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
-        return 1;
-    if( api->ui.base_action_available &&
-        state->node[orb].value != 0 &&
-        api->ui.base_action_available(
-            api, state->node[orb], orbs_base_action(api, orb)) )
-        return 1;
-    return orbs_compat_button(api, name, &component, &operation);
-}
-
-/* The housing is the correct paint boundary when a frame publishes one: its
- * plate is drawn after the live map, so children of the map itself would sit
- * underneath it. It is optional, though. Older/custom lanes expose only the
- * minimap surface, and an unresolved semantic parent makes the whole retained
- * subtree non-presentable. Pick the deepest live boundary at each placement
- * refresh instead of turning that optional node into a global requirement. */
-static char const*
-orbs_parent(struct ToriRS_Api* api)
-{
-    struct ToriRS_UiNodeInfo housing;
-    struct ToriRS_UiNodeRef const ref = api->ui.ref(api, "frame.minimap.housing");
-
-    memset(&housing, 0, sizeof(housing));
-    housing.struct_size = sizeof(housing);
-    if( ref.value != 0 && api->ui.info(api, ref, &housing) && housing.visible &&
-        (housing.available_facets & TORIRS_UI_FACET_BOUNDS) != 0 &&
-        housing.bounds.width > 0 && housing.bounds.height > 0 )
-        return "frame.minimap.housing";
-    return "frame.minimap";
+    int x = map->x + orbs_cfg_int(api, "offset_x") - ORB_W + ORB_SLOT[orb].dx;
+    int const y = map->y + map->height / 4 + orbs_cfg_int(api, "offset_y") - ORB_SLOT[0].dy + ORB_SLOT[orb].dy;
+    int const limit = orbs_map_ink_left(map, y, y + ORB_H);
+    if( x + ORB_W > limit )
+        x = limit - ORB_W;
+    *out_x = x;
+    *out_y = y;
 }
 
 static void
-orbs_update(struct ToriRS_Api* api, struct OrbsState* state)
+orbs_remove_control(struct ToriRS_Api* api, struct OrbControl* orb)
 {
-    char const* const parent = orbs_parent(api);
-    struct ToriRS_Rect map = { 0 };
-    int const have_map = orbs_map_bounds(api, &map);
-    uint32_t action_mask = 0;
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    if( orb->control.opaque[2] )
+        (void)ui->remove(ui->context, orb->control);
+    orb->control = (struct ToriRS_WidgetRef){ 0 };
+    orb->parent = (struct ToriRS_WidgetRef){ 0 };
+    orb->composed_key = 0;
+    orb->armed = false;
+}
 
-    state->map_bounds_valid = have_map;
-    state->map_bounds = map;
-    state->parent_is_housing = strcmp(parent, "frame.minimap.housing") == 0;
+/** The control's current canvas box, for the headless harness. */
+static void
+orbs_log_control(struct ToriRS_Api* api, struct OrbsState* state, int i)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    struct ToriRS_WidgetBounds box = { 0 };
+    struct OrbControl const* orb = &state->orb[i];
+    if( !orb->control.opaque[2] )
+        return;
+    (void)ui->bounds(ui->context, orb->control, &box);
+    api->core.log(api, "MINIMAP_ORBS_CONTROL orb=%s native=%d armed=%d box=%d,%d,%d,%d",
+        ORB_PART[i].key, orb->native, orb->armed, box.x, box.y, box.width, box.height);
+}
 
-    orbs_load_images(api, state);
-    (void)orbs_load_digits(api, state);
+/**
+ * Place (or remove) every orb control for the current bindings and settings.
+ * Idempotent: create_image returns the existing child, and the setters are
+ * plain writes of current values.
+ */
+static void
+orbs_layout(struct ToriRS_Api* api, struct OrbsState* state)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    struct ToriRS_WidgetRef beside_parent = { 0 };
+    bool const replace_native = orbs_cfg_bool(api, "replace_native");
+    state->map_valid = false;
+    if( state->minimap.opaque[2] &&
+        ui->position(ui->context, state->minimap, &state->map_local) == TORIRS_CONTRACT_OK &&
+        state->map_local.width > 0 && state->map_local.height > 0 &&
+        ui->parent(ui->context, state->minimap, &beside_parent) == TORIRS_CONTRACT_OK )
+        state->map_valid = true;
+
     for( int i = 0; i < ORB_COUNT; i++ )
     {
-        struct ToriRS_UiNode value;
-        int have_bounds;
-
-        memset(&value, 0, sizeof(value));
-        have_bounds = have_map;
-        if( have_bounds )
-            orbs_bounds(api, &map, i, &value.bounds);
-        value.struct_size = sizeof(value);
-        value.parent = parent;
-        value.anchor = TORIRS_ANCHOR_TOP_LEFT;
-        value.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
-        value.clip = TORIRS_UI_CLIP_NONE;
-        value.flags = TORIRS_UI_NODE_ENABLED;
-        if( have_bounds && orbs_cfg_bool(api, ORB_PART[i].show_key) )
-            value.flags |= TORIRS_UI_NODE_VISIBLE;
-        value.hit_rect_mode = TORIRS_UI_HIT_RECT_CUSTOM;
-        value.hit_rect = value.bounds;
-        value.state_image_mask =
-            (1u << TORIRS_UI_VISUAL_IDLE) | (1u << TORIRS_UI_VISUAL_HOVER);
-        value.state_images[TORIRS_UI_VISUAL_IDLE] = state->image[ORB_IMG_FRAME];
-        value.state_images[TORIRS_UI_VISUAL_HOVER] = state->image[ORB_IMG_FRAME_OVER];
-        if( orbs_has_action(api, state, i) )
+        struct OrbControl* orb = &state->orb[i];
+        struct ToriRS_WidgetRef parent = { 0 };
+        int x = 0, y = 0;
+        bool native = replace_native && orb->native_root.opaque[2];
+        if( !orbs_cfg_bool(api, ORB_PART[i].show_key) )
         {
-            action_mask |= 1u << i;
-            value.action_count = 1;
-            value.actions[0] = ORB_PART[i].action;
+            orbs_remove_control(api, orb);
+            continue;
         }
-        if( state->node[i].value != 0 )
-            (void)api->ui.update(api, state->node[i], TORIRS_UI_FACET_ALL, &value);
+        if( native )
+            parent = orb->native_root;
+        else if( state->map_valid && !orb->native_root.opaque[2] )
+        {
+            parent = beside_parent;
+            orbs_beside_map(api, &state->map_local, i, &x, &y);
+        }
+        else
+        {
+            /* A native orb the user chose to keep, or no minimap yet. */
+            orbs_remove_control(api, orb);
+            continue;
+        }
+        if( orb->control.opaque[2] && !ToriRS_WidgetRefEqual(orb->parent, parent) )
+            orbs_remove_control(api, orb);
+        if( ui->create_image(ui->context, parent, ORB_PART[i].key, &orb->control) != TORIRS_CONTRACT_OK )
+        {
+            orb->control = (struct ToriRS_WidgetRef){ 0 };
+            orb->parent = (struct ToriRS_WidgetRef){ 0 };
+            continue;
+        }
+        orb->parent = parent;
+        (void)ui->set_position(ui->context, orb->control, x, y);
+        if( orb->composed.value )
+            (void)ui->set_image(ui->context, orb->control, orb->composed, ORB_W, ORB_H);
+        orb->action_available = orbs_has_action(api, i);
+        if( orb->action_available )
+        {
+            if( ui->set_on_op(ui->context, orb->control, ORB_PART[i].action, orbs_operation, state) == TORIRS_CONTRACT_OK )
+                orb->armed = true;
+        }
+        else if( orb->armed )
+        {
+            (void)ui->set_on_op(ui->context, orb->control, NULL, NULL, NULL);
+            orb->armed = false;
+        }
+        (void)ui->revalidate(ui->context, orb->control);
+        orb->composed_key = 0; /* a moved or re-created control redraws */
+        orb->native = native;
+        orbs_log_control(api, state, i);
     }
-    state->action_mask = action_mask;
 }
 
+/** Compose and publish one orb's picture when its inputs changed. */
 static void
-orbs_draw_node(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_UiNodeRef node,
-    struct ToriRS_Graphics* draw)
+orbs_refresh(struct ToriRS_Api* api, struct OrbsState* state, int i)
 {
-    struct OrbsState* state = plugin_state;
-    struct ToriRS_UiNodeInfo info;
-    int const orb = orbs_node_index(state, node);
-    int x;
-    int y;
-
-    if( orb < 0 )
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    struct OrbControl* orb = &state->orb[i];
+    uint32_t key = 0;
+    char name[32];
+    if( !orb->control.opaque[2] || state->image[ORB_IMG_FRAME].value == 0 )
         return;
-    memset(&info, 0, sizeof(info));
-    info.struct_size = sizeof(info);
-    if( !api->ui.info(api, node, &info) || !info.visible )
-        return;
-    x = info.bounds.x;
-    y = info.bounds.y;
-
-    if( orb == ORB_HP || orb == ORB_PRAYER )
+    if( i == ORB_HP || i == ORB_PRAYER )
     {
         struct ToriRS_SkillSnapshot skill;
-        int const index = orb == ORB_HP ? ORB_STAT_HITPOINTS : ORB_STAT_PRAYER;
-
+        int const index = i == ORB_HP ? ORB_STAT_HITPOINTS : ORB_STAT_PRAYER;
         memset(&skill, 0, sizeof(skill));
         skill.struct_size = sizeof(skill);
-        if( api->game && api->game->skill(api, index, &skill) && skill.base_level > 0 )
-            orbs_draw_one(
-                state,
-                draw,
-                x,
-                y,
-                orb == ORB_HP ? ORB_IMG_FILL_RED : ORB_IMG_FILL_PRAYER,
-                orb == ORB_HP ? ORB_IMG_ICON_HP : ORB_IMG_ICON_PRAYER,
-                skill.current_level,
-                skill.current_level,
-                skill.base_level,
-                0);
-        return;
+        if( !api->game || !api->game->skill(api, index, &skill) || skill.base_level <= 0 )
+            return;
+        key = orbs_compose(api, state, i, i == ORB_HP ? ORB_IMG_FILL_RED : ORB_IMG_FILL_PRAYER,
+            i == ORB_HP ? ORB_IMG_ICON_HP : ORB_IMG_ICON_PRAYER, skill.current_level, skill.current_level, skill.base_level, 0);
     }
-
-    if( orb == ORB_RUN )
+    else if( i == ORB_RUN )
     {
         int const energy = api->game ? api->game->run_energy(api) : 0;
-        int const run_varp =
-            orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
-        int const running = run_varp >= 0 && api->cache.varp(api, run_varp) != 0;
-
-        orbs_draw_one(
-            state,
-            draw,
-            x,
-            y,
-            ORB_IMG_FILL_GOLD,
-            running ? ORB_IMG_ICON_RUN : ORB_IMG_ICON_WALK,
-            energy,
-            energy,
-            100,
-            !running);
-        return;
+        int const running = orbs_running(api);
+        key = orbs_compose(api, state, i, ORB_IMG_FILL_GOLD, running ? ORB_IMG_ICON_RUN : ORB_IMG_ICON_WALK, energy, energy, 100, !running);
     }
-
-    if( orb == ORB_SPEC )
+    else
     {
-        int const spec_varp =
-            orbs_varp(api, "spec_varp", "special_attack_energy", ORB_VARP_SPEC_FALLBACK);
+        int const spec_varp = orbs_varp(api, "spec_varp", "special_attack_energy", ORB_VARP_SPEC_FALLBACK);
         int const spec_max = orbs_cfg_int(api, "spec_max");
-        if( spec_varp >= 0 && spec_max > 0 )
-        {
-            int energy = api->cache.varp(api, spec_varp);
-            int const armed = api->cache.varp(api, spec_varp + 1) > 0;
-            int const inactive = !orbs_has_action(api, state, ORB_SPEC);
-
-            if( energy < 0 )
-                energy = 0;
-            if( energy > spec_max )
-                energy = spec_max;
-            orbs_draw_one(
-                state,
-                draw,
-                x,
-                y,
-                armed ? ORB_IMG_FILL_CYAN_LIT : ORB_IMG_FILL_CYAN,
-                ORB_IMG_ICON_SPEC,
-                energy * 100 / spec_max,
-                energy,
-                spec_max,
-                inactive);
-        }
+        int energy, armed;
+        if( spec_varp < 0 || spec_max <= 0 )
+            return;
+        energy = api->cache.varp(api, spec_varp);
+        armed = api->cache.varp(api, spec_varp + 1) > 0;
+        if( energy < 0 ) energy = 0;
+        if( energy > spec_max ) energy = spec_max;
+        key = orbs_compose(api, state, i, armed ? ORB_IMG_FILL_CYAN_LIT : ORB_IMG_FILL_CYAN, ORB_IMG_ICON_SPEC,
+            energy * 100 / spec_max, energy, spec_max, !orb->action_available);
+    }
+    if( key == orb->composed_key )
+        return;
+    snprintf(name, sizeof(name), "%s.composed", ORB_PART[i].key);
+    if( api->assets.image_compose(api, name, ORB_W, ORB_H, state->composed_buffer, &orb->composed) != TORIRS_ASSET_READY )
+        return;
+    if( ui->set_image(ui->context, orb->control, orb->composed, ORB_W, ORB_H) == TORIRS_CONTRACT_OK )
+    {
+        orb->composed_key = key;
+        orbs_log_control(api, state, i);
     }
 }
 
-static enum ToriRS_CallbackResult
-orbs_action(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_UiNodeRef node,
-    char const* action)
+/* ------------------------------------------------------------ lifecycle */
+
+static void
+orbs_binding(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
 {
-    struct OrbsState* state = plugin_state;
-    int const orb = orbs_node_index(state, node);
-    char const* key;
-    char const* name;
-    int component;
-    int operation;
-
-    if( orb < 0 || strcmp(action, ORB_PART[orb].action) != 0 )
-        return TORIRS_CALLBACK_CONTINUE;
-    key = ORB_PART[orb].button_key;
-    name = ORB_PART[orb].button_name;
-    if( orb == ORB_RUN )
+    struct OrbsState* state = user;
+    struct ToriRS_WidgetRef const bound = event->type == TORIRS_WIDGET_BOUND ? event->widget : (struct ToriRS_WidgetRef){ 0 };
+    if( strcmp(event->role, "minimap") == 0 )
     {
-        int const run_varp =
-            orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
-        if( run_varp >= 0 && api->cache.varp(api, run_varp) != 0 )
-        {
-            key = "run_button_off";
-            name = "orb_run_off";
-        }
+        state->minimap = bound;
+        if( event->type == TORIRS_WIDGET_UNBOUND )
+            for( int i = 0; i < ORB_COUNT; i++ )
+                if( !state->orb[i].native_root.opaque[2] )
+                    state->orb[i].control = state->orb[i].parent = (struct ToriRS_WidgetRef){ 0 };
     }
-    /* An explicit raw override wins. Otherwise delegate to the lane action by
-     * semantic name; this remains valid through CS2 rebuilds and custom frame
-     * replacement because no component id crosses the plugin boundary. */
-    if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
-        goto invoke;
-    if( api->ui.invoke_base &&
-        api->ui.invoke_base(api, node, orbs_base_action(api, orb)) )
-        return TORIRS_CALLBACK_CONSUME;
-    if( !orbs_compat_button(api, name, &component, &operation) )
-        return TORIRS_CALLBACK_CONSUME;
+    else
+        for( int i = 0; i < ORB_COUNT; i++ )
+            if( strcmp(event->role, ORB_PART[i].native_role) == 0 )
+            {
+                state->orb[i].native_root = bound;
+                /* The native root's remount took the owned child with it. */
+                if( event->type == TORIRS_WIDGET_UNBOUND )
+                    state->orb[i].control = state->orb[i].parent = (struct ToriRS_WidgetRef){ 0 };
+            }
+    orbs_layout(api, state);
+    for( int i = 0; i < ORB_COUNT; i++ )
+        orbs_refresh(api, state, i);
+}
 
-invoke:
-    if( !api->cache.invoke(api, component, operation) )
-    {
-        char message[160];
-        snprintf(
-            message,
-            sizeof(message),
-            "Minimap orbs: this world has no interface component %d for '%s'.",
-            component,
-            key);
-        api->core.notify(api, message);
-        api->core.log(api, "%s", message);
-    }
-    return TORIRS_CALLBACK_CONSUME;
+/* Test seam: the unit test drives native bindings directly. */
+void
+minimap_orbs_test_binding(struct ToriRS_Api* api, void* state, struct ToriRS_WidgetEvent const* event)
+{
+    orbs_binding(api, state, event);
 }
 
 static void
 orbs_start(struct ToriRS_Api* api, void* plugin_state)
 {
     struct OrbsState* state = plugin_state;
-
+    struct ToriRS_WidgetApi* ui = &api->widgets;
     memset(state, 0, sizeof(*state));
     state->digit_steps = 1;
+    orbs_load_images(api, state);
+    (void)orbs_load_digits(api, state);
+    (void)ui->watch(ui->context, "minimap", orbs_binding, state);
     for( int i = 0; i < ORB_COUNT; i++ )
-        state->node[i] = api->ui.ref(api, ORB_PART[i].node);
-    orbs_update(api, state);
+        (void)ui->watch(ui->context, ORB_PART[i].native_role, orbs_binding, state);
 }
 
 static void
 orbs_stop(struct ToriRS_Api* api, void* plugin_state)
 {
     struct OrbsState* state = plugin_state;
-
+    /* Owner teardown removes the controls; the pictures and the source art
+     * are the plugin's to release. */
+    for( int i = 0; i < ORB_COUNT; i++ )
+        if( state->orb[i].composed.value != 0 )
+            api->assets.image_release(api, state->orb[i].composed);
     for( int i = 0; i < ORB_IMG_COUNT; i++ )
+    {
         if( state->image[i].value != 0 )
             api->assets.image_release(api, state->image[i]);
+        free(state->pixels[i]);
+    }
     api->assets.release(api, "digits.ini");
     memset(state, 0, sizeof(*state));
 }
 
 static void
-orbs_changed(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    char const* key)
+orbs_changed(struct ToriRS_Api* api, void* plugin_state, char const* key)
 {
+    struct OrbsState* state = plugin_state;
     (void)key;
-    orbs_update(api, plugin_state);
+    orbs_layout(api, state);
+    for( int i = 0; i < ORB_COUNT; i++ )
+        orbs_refresh(api, state, i);
 }
 
 static void
-orbs_asset(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_AssetEvent const* event)
+orbs_asset(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_AssetEvent const* event)
 {
+    struct OrbsState* state = plugin_state;
     (void)event;
-    orbs_update(api, plugin_state);
-}
-
-static void
-orbs_placement(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    uint32_t revision)
-{
-    (void)revision;
-    orbs_update(api, plugin_state);
+    orbs_load_images(api, state);
+    (void)orbs_load_digits(api, state);
+    for( int i = 0; i < ORB_COUNT; i++ )
+    {
+        state->orb[i].composed_key = 0;
+        orbs_refresh(api, state, i);
+    }
 }
 
 /*
- * The native frame can appear after plugins start without changing a placement
- * area: on_start then sees no frame.minimap and publishes hidden placeholders.
- * Re-read the one O(1) semantic node each frame, but restate the four orbs only
- * when its availability/box (or the optional housing boundary) actually
- * changes. Action roles are checked too: interface 160 can mount after the
- * minimap without moving it, and a CS2 can hide/reveal the special-attack
- * button in place as equipment changes. Once settled these are memoised role
- * lookups and zero mutations.
+ * Each frame: re-read the live numbers and republish only the pictures whose
+ * inputs changed; re-place the column only when the minimap's box moved or an
+ * action became (un)available. A settled frame composes nothing and writes no
+ * geometry.
  */
 static void
-orbs_frame(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_FrameEvent const* event)
+orbs_frame(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_FrameEvent const* event)
 {
     struct OrbsState* state = plugin_state;
-    struct ToriRS_Rect map = { 0 };
-    char const* parent;
-    int have_map;
-    int parent_is_housing;
-    uint32_t action_mask = 0;
-
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    bool relayout = false;
     (void)event;
-    have_map = orbs_map_bounds(api, &map);
-    parent = orbs_parent(api);
-    parent_is_housing = strcmp(parent, "frame.minimap.housing") == 0;
+    if( state->minimap.opaque[2] )
+    {
+        struct ToriRS_WidgetBounds map;
+        bool const valid = ui->position(ui->context, state->minimap, &map) == TORIRS_CONTRACT_OK && map.width > 0;
+        if( valid != state->map_valid || (valid && (map.x != state->map_local.x || map.y != state->map_local.y ||
+            map.width != state->map_local.width || map.height != state->map_local.height)) )
+            relayout = true;
+    }
+    for( int i = 0; i < ORB_COUNT && !relayout; i++ )
+        if( state->orb[i].control.opaque[2] && orbs_has_action(api, i) != state->orb[i].action_available )
+            relayout = true;
+    if( relayout )
+        orbs_layout(api, state);
     for( int i = 0; i < ORB_COUNT; i++ )
-        if( orbs_has_action(api, state, i) )
-            action_mask |= 1u << i;
-    if( have_map != state->map_bounds_valid ||
-        (have_map &&
-         (map.x != state->map_bounds.x || map.y != state->map_bounds.y ||
-          map.width != state->map_bounds.width ||
-          map.height != state->map_bounds.height)) ||
-        parent_is_housing != state->parent_is_housing ||
-        action_mask != state->action_mask )
-        orbs_update(api, state);
+        orbs_refresh(api, state, i);
 }
 
 /* Per-world overrides remain ordinary V2 config schema entries. */
@@ -1198,6 +1191,9 @@ static struct ToriRS_ConfigItem const ORBS_CONFIG[] = {
     { "show_prayer",    TORIRS_CONFIG_BOOL,   "Prayer orb",                     "1",    0,    0,      NULL, 0 },
     { "show_run",       TORIRS_CONFIG_BOOL,   "Run energy orb",                 "1",    0,    0,      NULL, 0 },
     { "show_spec",      TORIRS_CONFIG_BOOL,   "Special attack orb",             "1",    0,    0,      NULL, 0 },
+    /* Cover a cache's own orbs with the plugin's art (the historical default);
+     * off keeps the native orbs and adds none. */
+    { "replace_native", TORIRS_CONFIG_BOOL,   "Replace native orbs",            "1",    0,    0,      NULL, 0 },
     { "offset_x",       TORIRS_CONFIG_INT,    "Offset from minimap left",       "6",    -512, 512,    NULL, 0 },
     { "offset_y",       TORIRS_CONFIG_INT,    "Offset from the anchor",         "-3",   -512, 512,    NULL, 0 },
     { "run_varp",       TORIRS_CONFIG_INT,    "Run mode varp (-1 auto)",        "-1",   -1,   65535,  NULL, 0 },
@@ -1239,10 +1235,9 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS = {
     .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "minimap-orbs",
     .title = "Minimap Orbs",
-    .version = "1.0.0",
+    .version = "2.0.0",
     .state_size = sizeof(struct OrbsState),
     .config = &ORBS_SCHEMA,
-    .ui_contributions = ORB_CONTRIBUTIONS,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = orbs_start,
@@ -1250,8 +1245,5 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS = {
         .on_frame_start = orbs_frame,
         .on_config_changed = orbs_changed,
         .on_asset = orbs_asset,
-        .on_placement_changed = orbs_placement,
-        .on_ui_node_draw = orbs_draw_node,
-        .on_ui_node_action = orbs_action,
     },
 };

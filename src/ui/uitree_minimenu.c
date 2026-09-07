@@ -143,7 +143,8 @@ UIMinimenu_SortPriorityActions(struct UIMinimenu* menu)
         sorted = true;
         for( int i = 0; i < menu->option_count - 1; i++ )
         {
-            if( menu->options[i].action < 1000 && menu->options[i + 1].action > 1000 )
+            if( (menu->options[i].action < 1000 || menu->options[i].action == UITREE_MINIMENU_ACTION_OWNED_WIDGET) &&
+                menu->options[i + 1].action > 1000 && menu->options[i + 1].action != UITREE_MINIMENU_ACTION_OWNED_WIDGET )
             {
                 struct UIMinimenuOption tmp = menu->options[i];
                 menu->options[i] = menu->options[i + 1];

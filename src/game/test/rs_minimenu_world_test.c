@@ -1281,9 +1281,53 @@ test_owned_widget_operation_rows(void)
     UITree_Free(tree);
 }
 
+/* An owned control covering a native button: the control is the topmost hit,
+ * so its row is the left-click default and the native row stays available
+ * below it in the menu. */
+static void
+test_owned_widget_row_over_native_button(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec spec = { 0 };
+    struct UITreeBehavior behavior = { .button_type = REVCONFIG_BUTTON_TYPE_CONTINUE };
+    struct RS_MinimenuBuildCtx ctx = { .tree = tree };
+    struct UIMinimenu menu;
+    int owned_row = -1, native_rows = 0;
+
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = 0x360000;
+    spec.width = 300;
+    spec.height = 200;
+    int root = UITree_Push(tree, -1, &spec);
+    struct UITreeNodeSpec button = { 0 };
+    button.type = UIELEM_RS_TEXT;
+    button.component_id = 0x360001;
+    button.width = 100;
+    button.height = 30;
+    button.behavior = &behavior;
+    button.u.rs_text.text = "Native";
+    snprintf(button.menu_options.option, sizeof(button.menu_options.option), "Continue");
+    int native = UITree_Push(tree, root, &button);
+    int own = UITree_WidgetCreateText(tree, UITree_RefAt(tree, root), 3, "cover", 0);
+    TEST_ASSERT(root >= 0 && native >= 0 && own >= 0, "cover fixture pushed");
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 51, "Owned"), "cover armed");
+    UITree_LayoutResolve(tree, 0, 0, 400, 300);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    for( int i = 0; i < menu.option_count; i++ )
+    {
+        if( menu.options[i].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET ) owned_row = i;
+        else if( menu.options[i].action == REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON ) native_rows++;
+    }
+    TEST_ASSERT(owned_row >= 0 && native_rows == 1, "both the owned row and the covered native row are built");
+    TEST_ASSERT(RS_Minimenu_DefaultOptionIndex(&menu) == owned_row,
+        "the topmost owned control is the left-click default over a native button");
+    UITree_Free(tree);
+}
+
 int
 main(void)
 {
+    test_owned_widget_row_over_native_button();
     test_owned_widget_operation_rows();
     test_checked_widget_native_actions();
     test_widget_target_priority_default();
