@@ -1047,11 +1047,35 @@ static int pieces_behind_viewport(void)
             anchored(&g_w[i], "viewport", TORIRS_WIDGET_RELATION_OVER) ) { n++; g_last_piece = &g_w[i]; }
     return n;
 }
+static int anchored_to(struct FakeWidget const* n, struct FakeWidget const* target, int relation)
+{
+    return n && target && n->anchor_relation == relation && n->anchor_target == (int)(target - g_w);
+}
+/* Whether `n`'s anchor chain -- OVER the stone before it, OVER the one before
+ * that -- reaches `target` within the tree's own depth limit. */
+static int chain_reaches(struct FakeWidget const* n, struct FakeWidget const* target)
+{
+    for( int hop = 0; n && target && hop < 64; hop++ )
+    {
+        if( n == target ) return 1;
+        if( n->anchor_relation != TORIRS_WIDGET_RELATION_OVER || n->anchor_target < 0 ) return 0;
+        n = &g_w[n->anchor_target];
+    }
+    return 0;
+}
+/* A live surface sits over the LAST owned stone, face or icon, whose chain
+ * sits over the last piece of chrome: world, chrome, stones, surfaces. */
 static int over_chrome(char const* role)
 {
     struct FakeWidget const* n = native(role, -1);
-    return n && g_last_piece && n->anchor_relation == TORIRS_WIDGET_RELATION_OVER &&
-           n->anchor_target == (int)(g_last_piece - g_w);
+    struct FakeWidget const* on;
+    if( !n || !g_last_piece || n->anchor_relation != TORIRS_WIDGET_RELATION_OVER || n->anchor_target < 0 )
+        return 0;
+    on = &g_w[n->anchor_target];
+    if( !on->owner || !(strncmp(on->key, "tab.", 4) == 0 || strncmp(on->key, "face.", 5) == 0 ||
+                        strncmp(on->key, "icon.", 5) == 0) )
+        return 0;
+    return chain_reaches(on, g_last_piece);
 }
 static void press(char const* key)
 {
@@ -1261,8 +1285,12 @@ main(void)
     printf("GAMEFRAME classic pieces=%d tabs=%d icons=%d housing=%d\n", pieces_behind_viewport(), owned_count("tab."),
            owned_count("icon."), owned("housing") != NULL);
     CHECK(pieces_behind_viewport() == 14, "the fourteen classic surround pieces are owned images over the scene");
-    CHECK(over_chrome("minimap") && over_chrome("chat") && over_chrome("sidebar"),
-          "the live surfaces sit on the last piece of chrome, so world, chrome, surfaces stack in that order");
+    CHECK(over_chrome("minimap") && over_chrome("chat") && over_chrome("sidebar") && over_chrome("main_modal"),
+          "the live surfaces sit over the last stone, whose chain sits over the last piece of chrome: world, chrome, stones, surfaces");
+    CHECK(anchored_to(owned("tab.00"), g_last_piece, TORIRS_WIDGET_RELATION_OVER) &&
+              anchored_to(owned("icon.00"), owned("face.00"), TORIRS_WIDGET_RELATION_OVER) &&
+              anchored_to(owned("tab.01"), owned("icon.00"), TORIRS_WIDGET_RELATION_OVER),
+          "each stone, face and icon is anchored over the one before, in the tabs' own order");
     CHECK(owned_at("piece.00", 0, 0) && owned_at("piece.10", 17, 357) && owned_at("piece.13", 496, 466),
           "the surround pieces stand where the 2004 frame draws them");
     CHECK(owned_at("housing", 550, 4) && anchored(owned("housing"), "compass", TORIRS_WIDGET_RELATION_OVER),
@@ -1276,12 +1304,15 @@ main(void)
     CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 3, "the semantic tab action runs once and selects the named tab");
     g_frame.active_tab = 3;
     frame_tick();
-    CHECK(owned("tab.03")->image != owned("tab.00")->image && owned("tab.00")->image == owned("tab.01")->image,
-          "the open tab wears its redstone and the others their bare stone");
+    CHECK(owned("face.03") && !owned("face.03")->hidden && owned("face.00") && owned("face.00")->hidden,
+          "the open tab wears its redstone and the 2004 others wear nothing");
+    CHECK(owned("face.03")->img_w == 44 && owned("face.03")->img_h == 35 && owned("tab.03")->w == 33 &&
+              owned("tab.03")->h == 36 && owned("face.03")->image != owned("face.00")->image,
+          "the redstone is its own picture at its own size on a plate of another size, not stretched to it");
     CHECK(owned("icon.03") && !owned("icon.03")->hidden, "a given tab shows its icon");
     g_frame.ungiven_tab = 3;
     frame_tick();
-    CHECK(owned("icon.03")->hidden && owned("tab.03")->image == owned("tab.00")->image,
+    CHECK(owned("icon.03")->hidden && owned("face.03")->hidden,
           "a tab the server has not handed over wears neither icon nor highlight");
     g_frame.ungiven_tab = -1;
 
@@ -1313,9 +1344,16 @@ main(void)
     printf("GAMEFRAME modern-fixed pieces=%d\n", pieces_behind_viewport());
     CHECK(pieces_behind_viewport() == 14 && owned_at("housing", 545, 4), "the OldSchool surround and its housing are owned images");
     CHECK(owned_count("tab.") == 14 && owned_count("icon.") == 14, "548 publishes fourteen stones and fourteen icons");
+    CHECK(owned("face.01") && owned("face.01")->hidden, "an OldSchool stone not pressed wears nothing of its own: the row is in the surround");
     g_frame.select_calls = 0;
     press("tab.08");
     CHECK(g_frame.selected_tab == 9, "548's ninth stone is the account tab");
+    g_frame.active_tab = 9;
+    frame_tick();
+    CHECK(owned("face.08") && !owned("face.08")->hidden && owned("face.08")->img_w == 38 && owned("tab.08")->w == 33 &&
+              owned_at("face.08", 560, 466),
+          "the lit OldSchool mid stone stays 38 wide on its 33 pitch, on the plate's origin, not squeezed to the box");
+    g_frame.active_tab = -1;
 
     /* ---- 4. modern resizable on the 2004 lane -------------------------- */
     g_frame.active_tab = -1;
@@ -1400,6 +1438,17 @@ main(void)
     press("tab.08");
     CHECK(g_frame.selected_tab == 9, "the 2004 stones open rev-239's panels in screen order");
 
+    /* ---- 6b. the same provider, another offer: no teardown between ---- */
+    select_frame("gameframe-layout/modern-fixed", 550);
+    declare(765, 503);
+    CHECK(strcmp(selected_frame().active_id, "gameframe-layout/modern-fixed") == 0 && native("compass", -1)->art >= 0,
+          "the OldSchool layout puts its rose on the compass");
+    select_frame("gameframe-layout/classic-fixed", 560);
+    declare(765, 503);
+    CHECK(strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0 && native("compass", -1)->art < 0 &&
+              native("compass", -1)->mask >= 0,
+          "switching back takes the rose off again: a plan resets the surfaces before it writes");
+
     /* ---- 7. the mobile toplevel declines classic ---------------------- */
     g_frame_root = 601;
     PluginHost_FrameStart(g_host, 600, 0);
@@ -1410,6 +1459,12 @@ main(void)
         CHECK(selected.status == TORIRS_FRAME_STATUS_FALLBACK && strstr(selected.reason, "Stone Drawer") != NULL,
               "Classic Fixed declines the mobile toplevel with its reason");
         CHECK(g_frame.active == 0, "declining releases the frame");
+        CHECK(PluginHost_IsEnabled(g_host, g_plugin) && owned_count("piece.") == 0 && owned_count("tab.") == 0 &&
+                  owned_count("face.") == 0 && owned("housing") == NULL,
+              "the provider still runs, and takes every owned piece and control off the tree on release");
+        CHECK(!native("chat", -1)->moved && !native("sidebar", -1)->moved && native("compass", -1)->mask < 0 &&
+                  !native("orbs", 0)->hidden,
+              "release drops the retained moves, masks and hides under the lane's own chrome");
     }
     g_frame_root = 548;
     declare(765, 503);

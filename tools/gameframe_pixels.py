@@ -84,14 +84,23 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
 
     fixture = json.loads((Path(__file__).parent / "testdata/gameframe/orb-rim.json").read_text())
     discs = 0
-    for name in ("hitpoints", "prayer", "run", "special"):
+    orb_names = ("hitpoints", "prayer", "run", "special")
+    for index, name in enumerate(orb_names):
         box = parts.get("frame.orb."+name)
         if not box or not inside(box):
             continue
         x,y,_,_ = box
-        matches = sum(rows[y+dy][x+dx] == tuple(reversed(rgb))
-                      for (dx,dy),rgb in zip(fixture["points"], fixture["rgb"]))
-        discs += matches >= 15
+        # The orbs paint in interface 160's own order, and the mobile toplevel
+        # (601) seats the special orb's plate nine rows into the run orb's box:
+        # a rim point under a LATER orb's plate is that orb's pixel, natively
+        # (gf-stone-osrs601-baseline/m31 with every plugin off shows the same
+        # cover), so it is not sampled. Whatever is left must still match but
+        # one, which keeps the rule red for a disc that moved or never drew.
+        later = [parts["frame.orb."+other] for other in orb_names[index+1:] if parts.get("frame.orb."+other)]
+        points = [((dx,dy),rgb) for (dx,dy),rgb in zip(fixture["points"], fixture["rgb"])
+                  if not any(ox <= x+dx < ox+ow and oy <= y+dy < oy+oh for ox,oy,ow,oh in later)]
+        matches = sum(rows[y+dy][x+dx] == tuple(reversed(rgb)) for (dx,dy),rgb in points)
+        discs += len(points) >= 8 and matches >= len(points) - 1
     if not native_baseline:
         report("orb_column_four_discs", discs == 4, f"discs={discs}")
 

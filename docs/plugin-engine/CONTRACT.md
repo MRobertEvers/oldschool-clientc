@@ -196,7 +196,15 @@ The engine's half of a provided frame is `UITree_FrameProvide`: it collects and
 suppresses the lane's own chrome by root group and binds the roles, but places
 and hides no surface -- unlike a declaration, whose unplaced surfaces are
 hidden -- and it leaves the surfaces' geometry unowned, so the provider's
-retained edits are the layout. Canvas policy (a FIXED offer pins the window,
+retained edits are the layout. Every container above a native widget a plugin
+moved or resized stops clipping, so the new box is seen wherever it was put;
+that release reads the merged geometry override, so it follows ANY owner's
+move under a provided frame, not only the provider's (narrowing it to the
+provider is open). A provider that is released while it still runs -- the host
+took the frame back, or the provider declined the root it now finds itself
+over -- hears `active` false and must take its own furniture off the tree
+(owned children removed, role edits `reset`), because nothing else does until
+its teardown. Canvas policy (a FIXED offer pins the window,
 a WINDOW offer states a minimum) is unchanged. Lua: `on_gameframe(api, ev)`
 returns nothing or `"ready"`, or `"pending"`/`"unsupported"` with a reason.
 

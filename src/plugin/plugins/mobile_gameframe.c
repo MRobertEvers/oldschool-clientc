@@ -3695,12 +3695,18 @@ mobile_tab_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent
     api->frame.invalidate(api);
 }
 
-/* The stones: an owned control per cell, its lit stone and its icon over it. */
-static void
-mobile_apply_tabs(struct MobileCall* ctx, struct ToriRS_WidgetRef parent)
+/*
+ * The stones: an owned control per cell, its lit stone and its icon over it,
+ * each anchored over the one before starting at `base` (the last piece of
+ * chrome), so the caller can put the live surfaces over the LAST of them and
+ * a modal centred on the phone is never under a rock. Returns that last one.
+ */
+static struct ToriRS_WidgetRef
+mobile_apply_tabs(struct MobileCall* ctx, struct ToriRS_WidgetRef parent, struct ToriRS_WidgetRef base)
 {
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
     struct MobileState* state = ctx->state;
+    struct ToriRS_WidgetRef last = base;
     char key[24];
 
     assert(ctx);
@@ -3721,15 +3727,26 @@ mobile_apply_tabs(struct MobileCall* ctx, struct ToriRS_WidgetRef parent)
             continue;
         state->tab_handle[i] = (struct MobileTabHandle){ state, t->tabno };
         (void)ui->set_on_op(ui->context, state->cell[i].ref, "Select", mobile_tab_pressed, &state->tab_handle[i]);
+        if( ui->set_anchor(ui->context, state->cell[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+            last = state->cell[i].ref;
         (void)snprintf(key, sizeof(key), "lit.%02d", i);
         if( mobile_owned_centred(ctx, &state->lit[i], parent, key, t->lit, box) )
+        {
             (void)ui->set_hidden(ui->context, state->lit[i].ref, true);
+            if( ui->set_anchor(ui->context, state->lit[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+                last = state->lit[i].ref;
+        }
         (void)snprintf(key, sizeof(key), "icon.%02d", i);
         if( mobile_owned_centred(ctx, &state->icon[i], parent, key, t->icon, box) )
+        {
             (void)ui->set_hidden(ui->context, state->icon[i].ref, true);
+            if( ui->set_anchor(ui->context, state->icon[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+                last = state->icon[i].ref;
+        }
         state->lit_shown[i] = -1;
         state->icon_shown[i] = -1;
     }
+    return last;
 }
 
 /*
@@ -3802,13 +3819,15 @@ mobile_keyboard_toggle_pressed(struct ToriRS_Api* api, void* user, struct ToriRS
         api->input.chat_focus(api, false);
 }
 
-static void
+/* A switch and its glyph, over `base` like the stones; returns the last. */
+static struct ToriRS_WidgetRef
 mobile_apply_toggle(
     struct MobileCall* ctx, struct MobileToggle const* t, struct MobileOwned* control, struct MobileOwned* glyph,
-    struct ToriRS_WidgetRef parent, char const* key, char const* glyph_key, char const* label,
-    ToriRS_WidgetListener listener)
+    struct ToriRS_WidgetRef parent, struct ToriRS_WidgetRef base, char const* key, char const* glyph_key,
+    char const* label, ToriRS_WidgetListener listener)
 {
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct ToriRS_WidgetRef last = base;
     int w = 0;
     int h = 0;
 
@@ -3817,12 +3836,80 @@ mobile_apply_toggle(
     {
         mobile_owned_drop(ctx, control);
         mobile_owned_drop(ctx, glyph);
-        return;
+        return last;
     }
     if( !mobile_owned_image(ctx, control, parent, key, t->face, w, h, t->box.x, t->box.y) )
-        return;
+        return last;
     (void)ui->set_on_op(ui->context, control->ref, label, listener, ctx->state);
-    (void)mobile_owned_centred(ctx, glyph, parent, glyph_key, t->glyph, t->box);
+    if( ui->set_anchor(ui->context, control->ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+        last = control->ref;
+    if( mobile_owned_centred(ctx, glyph, parent, glyph_key, t->glyph, t->box) &&
+        ui->set_anchor(ui->context, glyph->ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+        last = glyph->ref;
+    return last;
+}
+
+/*
+ * Drop this plugin's retained edits on the live surfaces and their members
+ * before the next plan writes its own: the setters only ever ADD, so a member
+ * one plan hid would stay hidden for the next.
+ */
+static void
+mobile_reset_surfaces(struct MobileCall* ctx)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+
+    assert(ctx);
+    for( int s = 0; s < FRAME_SURFACE_COUNT; s++ )
+    {
+        struct ToriRS_WidgetRef members[FRAME_MEMBER_MAX];
+        size_t member_count = 0;
+        struct ToriRS_WidgetRef widget;
+
+        if( ui->find(ui->context, FRAME_SURFACE_ROLE[s], &widget) == TORIRS_CONTRACT_OK )
+            (void)ui->reset(ui->context, widget);
+        if( ui->find_all(ui->context, FRAME_SURFACE_ROLE[s], members, FRAME_MEMBER_MAX, &member_count) !=
+            TORIRS_CONTRACT_OK )
+            continue;
+        for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
+            (void)ui->reset(ui->context, members[m]);
+    }
+}
+
+/*
+ * Everything this plugin put on the tree, gone: the frame was given back while
+ * the plugin still runs, and the lane's own chrome comes up under whatever is
+ * left. The pack's backing re-skin goes with the surfaces' edits; the sheet
+ * and plates are owned pieces.
+ */
+static void
+mobile_clear(struct MobileCall* ctx)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct MobileState* state = ctx->state;
+    struct ToriRS_WidgetRef backing;
+
+    assert(ctx);
+    for( int i = 0; i < MOBILE_BLIT_MAX; i++ )
+        mobile_owned_drop(ctx, &state->piece[i]);
+    mobile_owned_drop(ctx, &state->housing);
+    for( int i = 0; i < MOBILE_TAB_COUNT; i++ )
+    {
+        mobile_owned_drop(ctx, &state->cell[i]);
+        mobile_owned_drop(ctx, &state->lit[i]);
+        mobile_owned_drop(ctx, &state->icon[i]);
+    }
+    mobile_owned_drop(ctx, &state->chat_toggle);
+    mobile_owned_drop(ctx, &state->chat_glyph);
+    mobile_owned_drop(ctx, &state->keyboard_toggle);
+    mobile_owned_drop(ctx, &state->keyboard_glyph);
+    for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
+        mobile_owned_drop(ctx, &state->plate[i]);
+    mobile_owned_drop(ctx, &state->pack_sheet);
+    if( ui->find(ui->context, "chat_backing", &backing) == TORIRS_CONTRACT_OK )
+        (void)ui->reset(ui->context, backing);
+    mobile_reset_surfaces(ctx);
+    memset(&g_frame, 0, sizeof(g_frame));
 }
 
 /* The live surfaces, moved to the plan's rectangles; an unplaced role is
@@ -4007,6 +4094,7 @@ mobile_apply(struct MobileCall* ctx, char* reason, size_t reason_capacity)
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
     struct ToriRS_WidgetRef viewport;
     struct ToriRS_WidgetRef parent;
+    struct ToriRS_WidgetRef base;
     struct MobileState* state = ctx->state;
 
     assert(ctx);
@@ -4023,16 +4111,19 @@ mobile_apply(struct MobileCall* ctx, char* reason, size_t reason_capacity)
             break;
         parent = above;
     }
-    mobile_apply_surfaces(ctx, viewport, mobile_apply_pieces(ctx, parent, viewport));
+    /* World, chrome, rocks and switches, surfaces: each over the last of the
+     * one before, so the stack order is stated once, here. */
+    mobile_reset_surfaces(ctx);
+    base = mobile_apply_tabs(ctx, parent, mobile_apply_pieces(ctx, parent, viewport));
+    base = mobile_apply_toggle(
+        ctx, &g_frame.chat_toggle, &state->chat_toggle, &state->chat_glyph, parent, base, "chat-toggle", "chat-glyph",
+        g_chat_open ? "Hide chat" : "Show chat", mobile_chat_toggle_pressed);
+    base = mobile_apply_toggle(
+        ctx, &g_frame.keyboard_toggle, &state->keyboard_toggle, &state->keyboard_glyph, parent, base,
+        "keyboard-toggle", "keyboard-glyph", "Keyboard", mobile_keyboard_toggle_pressed);
+    mobile_apply_surfaces(ctx, viewport, base);
     mobile_apply_skins(ctx);
     mobile_apply_housing(ctx, parent);
-    mobile_apply_tabs(ctx, parent);
-    mobile_apply_toggle(
-        ctx, &g_frame.chat_toggle, &state->chat_toggle, &state->chat_glyph, parent, "chat-toggle", "chat-glyph",
-        g_chat_open ? "Hide chat" : "Show chat", mobile_chat_toggle_pressed);
-    mobile_apply_toggle(
-        ctx, &g_frame.keyboard_toggle, &state->keyboard_toggle, &state->keyboard_glyph, parent, "keyboard-toggle",
-        "keyboard-glyph", "Keyboard", mobile_keyboard_toggle_pressed);
     mobile_refresh_tabs(ctx);
     return TORIRS_FRAME_READY;
 }
@@ -4065,6 +4156,7 @@ mobile_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamef
     mobile_call_init(&call, api, state);
     if( !event->active )
     {
+        mobile_clear(ctx);
         state->provided = 0;
         return TORIRS_FRAME_READY;
     }

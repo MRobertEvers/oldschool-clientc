@@ -273,9 +273,45 @@ frame releases the native containers above every moved surface (548's scene and 
 clipped the moved world and map). Evidence: `gameframe-port-checkpoint.json`; six live captures
 across both revisions, every pixel rule passing, each inspected at 2x. Open: resize/tab/remount
 scenarios and the 40-run matrix; the six-piece scrollbar skin
-(the client's emit paints the bars, no widget to re-skin); the resizable frame's safe area
-against the OSRS popout strip (`placement.primary` is superseded and nothing replaces it yet);
-`mobile_gameframe.c`.
+(the client's emit paints the bars, no widget to re-skin); the platform-safe band (see the
+review below); `mobile_gameframe.c`.
+
+Review of the port (2026-09-07, seven claims from session 3draster-15's read-only review, each
+checked by reading and pinned): (1) the popout strip was never subtracted -- nothing in the tree
+sets `TORIRS_UI_NODE_BLOCKS_FRAME`, so the old FRAME_BUILD area was the canvas less the
+platform-safe rect, which on the desktop is the whole window and on the phone the keyboard band
+the Stone Drawer used to hang its strip from; the provided event carries no safe rect and
+`placement.*` is being removed, so this stays OPEN with its fix named (a `safe` rect on
+`ToriRS_GameframeEvent` filled from `platform_safe_rect`, re-raised on change). (2) the bridge's
+`find_all` for a frame role compacts missing members (`torirs_plugin_bridge.u.c`, the slot-member
+loop skips `node<0`) while both frame plugins index members by position: OPEN, fix in the bridge
+(keep the role's numbering with a zero reference) once the API removal lands. (3) FIXED: a stone's
+picture is its own owned image (`face.NN`) at the art's natural size on the plate's origin, the
+control keeps a blank hit box (the 44x35 redstone on a 33x36 plate, the 38-wide lit mid stone on the
+33 pitch: `test-gameframe`). (4) FIXED: stones, faces and icons (mobile: cells, lit stones, icons,
+switches) are anchored OVER one another in tab order from the last piece, and the live surfaces are
+anchored OVER the last of them, so a centred modal is never under a stone (both tests). (5) FIXED:
+`frame_reset_surfaces` drops this owner's edits on every surface and member before a plan writes
+(modern-fixed then classic-fixed on the same provider clears the compass art: `test-gameframe`).
+(6) CONFIRMED by construction: the provide-mode container release follows the merged geometry
+override, any owner's move; documented in CONTRACT.md, narrowing OPEN (needs the provider's owner
+through `UITree_FrameProvide`). (7) FIXED: `active` false now clears every owned child and resets
+the role edits (`frame_clear`, `mobile_clear`; the mobile-toplevel decline leaves no pieces, no
+stones, no moved chat or sidebar, no compass mask). Negative control: the reset pre-pass and the
+clear stubbed turn exactly those three pins red (`gameframe-review-negative-reset-clear.log`).
+Lanes: `test-gameframe` 104, `test-mobile-gameframe` 67. Recaptured after the fixes:
+`gf-review-osrs-v1` (m03 classic, m05 modern, m08 resizable, m10 Stone Drawer on 548, m39 Stone
+Drawer on 601) and `gf-review-rs289-{classic,modern,resizable,stone}-v1/r01`, each inspected at 2x
+(verdicts in `gameframe-port-checkpoint.json`).
+
+Stone Drawer on 601: `orb_column_four_discs=FAIL discs=3` was the rule, not the frame. With every
+plugin off (`gf-stone-osrs601-baseline/m31`) the mobile toplevel paints the special orb's plate
+over the run disc's bottom rows, exactly as the ported build does, while the 548 toplevel
+(`gf-stone-osrs548-baseline/m02`) paints the run disc over the plate; the old orbs plugin drew at
+boxes offset from the native roots, the ported one covers the roots, so the fixture's bottom-rim
+points landed under the later plate. `tools/gameframe_pixels.py` now leaves out a rim point under a
+later orb's box and requires all but one of the rest; both Stone Drawer captures pass, a run box
+shifted three pixels fails (`discs=3`).
 
 OSRS captures must use the prepared manifest (`MANIFEST=/private/tmp/plugin-engine-prepared-actions.ini`,
 `TORIRSSERVER_CONTENT=/private/tmp/plugin-engine-content/osrs239-content`): the shared repo's

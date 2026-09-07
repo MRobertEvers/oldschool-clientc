@@ -1239,6 +1239,23 @@ main(void)
     CHECK(owned_count("tab.") == 14 && owned_count("icon.") == 13 && owned_count("lit.") == 14,
           "fourteen rock cells with thirteen 2004 icons and a lit stone each");
     CHECK(owned("tab.03") && strcmp(owned("tab.03")->op, "Select") == 0, "every rock carries the Select operation");
+    {
+        /* World, chrome, rocks and switches, surfaces: the first rock is over
+         * a piece, every later child over the one before, and the modal over
+         * the last of them rather than under a rock. */
+        struct FakeWidget const* first = owned("tab.00");
+        struct FakeWidget const* modal = native("main_modal", -1);
+        struct FakeWidget const* on = modal && modal->anchor_target >= 0 ? &g_w[modal->anchor_target] : NULL;
+        int hops = 0;
+        for( struct FakeWidget const* n = on; n && n != first && hops < 64; hops++ )
+            n = n->anchor_relation == TORIRS_WIDGET_RELATION_OVER && n->anchor_target >= 0 ? &g_w[n->anchor_target] : NULL;
+        CHECK(first && first->anchor_relation == TORIRS_WIDGET_RELATION_OVER && first->anchor_target >= 0 &&
+                  g_w[first->anchor_target].owner && strncmp(g_w[first->anchor_target].key, "piece.", 6) == 0,
+              "the first rock cell is anchored over the last piece of chrome");
+        CHECK(modal && modal->anchor_relation == TORIRS_WIDGET_RELATION_OVER && on && on->owner &&
+                  strncmp(on->key, "piece.", 6) != 0 && hops > 0 && hops < 64,
+              "the modal sits over the last rock or switch, whose chain leads back to the first cell");
+    }
     CHECK(owned("lit.03")->hidden, "no stone is lit while the drawer is shut");
     CHECK(owned("chat-toggle") && strcmp(owned("chat-toggle")->op, "Hide chat") == 0 && owned_at("chat-toggle", 4, 410),
           "the chat switch sits above the sheet");

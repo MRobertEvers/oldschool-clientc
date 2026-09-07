@@ -824,6 +824,9 @@ struct FrameState
     struct FrameOwned piece[FRAME_BLIT_MAX];
     struct FrameOwned housing;
     struct FrameOwned tab[FRAME_TAB_COUNT];
+    /** The picture a stone wears -- bare, or the redstone while pressed --
+     *  at the art's own size on the plate's origin. @see frame_apply_tabs */
+    struct FrameOwned face[FRAME_TAB_COUNT];
     struct FrameOwned icon[FRAME_TAB_COUNT];
     struct FrameOwned chat_switch[3];
     struct FrameTabHandle tab_handle[FRAME_TAB_COUNT];
@@ -3101,14 +3104,31 @@ frame_tab_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent 
     (void)api->cache.tab_select(api, handle->tabno);
 }
 
-/* The stones and their icons, as owned controls over the surround. Which
- * stone is lit and whether an icon is given change per frame; @see
- * frame_refresh_tabs, which writes only what moved. */
-static void
-frame_apply_tabs(struct FrameCall* ctx, struct ToriRS_WidgetRef parent)
+/*
+ * The stones, as owned controls over the surround.
+ *
+ * Three children per tab. The CONTROL is the plate's box wearing a 1x1 blank:
+ * the hit area and the Select operation, and nothing to stretch. The FACE is
+ * the picture the stone wears -- bare, or the redstone while pressed -- as its
+ * own image at the art's NATURAL size on the plate's origin, which is where
+ * the draw pass blitted it: the 2004 redstones are three sizes on one grid of
+ * boxes, and the OldSchool mid stone is 38 wide on a 33 pitch, so a face cut
+ * to the box squashed both. The ICON goes over the face.
+ *
+ * Every one of them is anchored over the previous, starting at `base` (the
+ * last piece of chrome), in the tabs' own order: the overlapping OldSchool
+ * stones paint left to right whatever order their nodes were created in, and
+ * the caller puts the live surfaces over the LAST of them, so a centred modal
+ * or the panel is never under a stone. Returns that last one. Which stone is
+ * lit and whether an icon is given change per frame; @see frame_refresh_tabs,
+ * which writes only what moved.
+ */
+static struct ToriRS_WidgetRef
+frame_apply_tabs(struct FrameCall* ctx, struct ToriRS_WidgetRef parent, struct ToriRS_WidgetRef base)
 {
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
     struct FrameState* state = ctx->state;
+    struct ToriRS_WidgetRef last = base;
     char key[24];
 
     assert(ctx);
@@ -3122,27 +3142,44 @@ frame_apply_tabs(struct FrameCall* ctx, struct ToriRS_WidgetRef parent)
         if( i >= g_plan.tab_count )
         {
             frame_owned_drop(ctx, &state->tab[i]);
+            frame_owned_drop(ctx, &state->face[i]);
             frame_owned_drop(ctx, &state->icon[i]);
             continue;
         }
-        /* The face is refreshed per frame; the control's box is the stone's. */
-        face = t->stone.value != 0 ? t->stone : state->blank;
         (void)snprintf(key, sizeof(key), "tab.%02d", i);
-        if( !frame_owned_image(ctx, &state->tab[i], parent, key, face, t->box.w, t->box.h, t->box.x, t->box.y, 0) )
+        if( !frame_owned_image(ctx, &state->tab[i], parent, key, state->blank, t->box.w, t->box.h, t->box.x, t->box.y, 0) )
             continue;
         state->tab_handle[i] = (struct FrameTabHandle){ state, t->tabno };
         (void)ui->set_on_op(ui->context, state->tab[i].ref, "Select", frame_tab_pressed, &state->tab_handle[i]);
+        if( ui->set_anchor(ui->context, state->tab[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+            last = state->tab[i].ref;
         state->tab_pressed_shown[i] = -1;
         state->tab_icon_shown[i] = -1;
+        /* Created on whichever picture the tab has and hidden until the
+         * refresh says which; a 2004 tab has only its redstone. */
+        face = t->stone.value != 0 ? t->stone : t->stone_pressed;
+        (void)snprintf(key, sizeof(key), "face.%02d", i);
+        if( face.value == 0 || !g_api->assets.image_size(g_api, face, &iw, &ih) )
+            frame_owned_drop(ctx, &state->face[i]);
+        else if( frame_owned_image(ctx, &state->face[i], parent, key, face, iw, ih, t->box.x, t->box.y, 0) )
+        {
+            (void)ui->set_hidden(ui->context, state->face[i].ref, true);
+            if( ui->set_anchor(ui->context, state->face[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+                last = state->face[i].ref;
+        }
         (void)snprintf(key, sizeof(key), "icon.%02d", i);
         if( t->icon.value == 0 || !g_api->assets.image_size(g_api, t->icon, &iw, &ih) )
         {
             frame_owned_drop(ctx, &state->icon[i]);
             continue;
         }
-        (void)frame_owned_image(ctx, &state->icon[i], parent, key, t->icon, iw, ih, t->icon_x, t->icon_y, 0);
+        if( !frame_owned_image(ctx, &state->icon[i], parent, key, t->icon, iw, ih, t->icon_x, t->icon_y, 0) )
+            continue;
         (void)ui->set_hidden(ui->context, state->icon[i].ref, true);
+        if( ui->set_anchor(ui->context, state->icon[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+            last = state->icon[i].ref;
     }
+    return last;
 }
 
 /*
@@ -3172,11 +3209,20 @@ frame_refresh_tabs(struct FrameCall* ctx)
             continue;
         if( pressed != state->tab_pressed_shown[i] )
         {
-            struct ToriRS_ImageRef const face =
-                pressed && t->stone_pressed.value != 0 ? t->stone_pressed
-                : t->stone.value != 0                  ? t->stone
-                                                       : state->blank;
-            if( ui->set_image(ui->context, state->tab[i].ref, face, t->box.w, t->box.h) == TORIRS_CONTRACT_OK )
+            /* The face at its own size; a tab with no picture for this state
+             * (a 2004 stone not pressed) shows nothing. */
+            struct ToriRS_ImageRef const face = pressed && t->stone_pressed.value != 0 ? t->stone_pressed : t->stone;
+            enum ToriRS_ContractResult written = TORIRS_CONTRACT_OK;
+            int fw = 0;
+            int fh = 0;
+
+            if( !state->face[i].live )
+                ;
+            else if( face.value == 0 || !g_api->assets.image_size(g_api, face, &fw, &fh) )
+                written = ui->set_hidden(ui->context, state->face[i].ref, true);
+            else if( (written = ui->set_image(ui->context, state->face[i].ref, face, fw, fh)) == TORIRS_CONTRACT_OK )
+                written = ui->set_hidden(ui->context, state->face[i].ref, false);
+            if( written == TORIRS_CONTRACT_OK )
                 state->tab_pressed_shown[i] = pressed;
         }
         if( state->icon[i].live && (int)given != state->tab_icon_shown[i] )
@@ -3398,6 +3444,63 @@ frame_chat_dress(struct FrameCall* ctx)
     state->chat_dressed = 1;
 }
 
+/*
+ * Drop this plugin's retained edits on the live surfaces and their members
+ * before the next plan writes its own. The setters only ever ADD: a layout
+ * that re-skins the compass followed by one that does not would leave the
+ * rose behind, and a member one plan hid stays hidden for the next.
+ */
+static void
+frame_reset_surfaces(struct FrameCall* ctx)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+
+    assert(ctx);
+    for( int s = 0; s < FRAME_SURFACE_COUNT; s++ )
+    {
+        struct ToriRS_WidgetRef members[FRAME_MEMBER_MAX];
+        size_t member_count = 0;
+        struct ToriRS_WidgetRef widget;
+
+        if( ui->find(ui->context, FRAME_SURFACE_ROLE[s], &widget) == TORIRS_CONTRACT_OK )
+            (void)ui->reset(ui->context, widget);
+        if( ui->find_all(ui->context, FRAME_SURFACE_ROLE[s], members, FRAME_MEMBER_MAX, &member_count) !=
+            TORIRS_CONTRACT_OK )
+            continue;
+        for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
+            (void)ui->reset(ui->context, members[m]);
+    }
+}
+
+/*
+ * Everything this plugin put on the tree, gone: the frame was given back while
+ * the plugin still runs -- the host released it, or the provider declined the
+ * root it now finds itself over -- and the lane's own chrome comes up under
+ * whatever is left. The chat dressing goes at the next frame start, which
+ * already takes it off a frame this plugin no longer provides.
+ * @see frame_chat_dress
+ */
+static void
+frame_clear(struct FrameCall* ctx)
+{
+    struct FrameState* state = ctx->state;
+
+    assert(ctx);
+    for( int i = 0; i < FRAME_BLIT_MAX; i++ )
+        frame_owned_drop(ctx, &state->piece[i]);
+    frame_owned_drop(ctx, &state->housing);
+    for( int i = 0; i < FRAME_TAB_COUNT; i++ )
+    {
+        frame_owned_drop(ctx, &state->tab[i]);
+        frame_owned_drop(ctx, &state->face[i]);
+        frame_owned_drop(ctx, &state->icon[i]);
+    }
+    for( int i = 0; i < 3; i++ )
+        frame_owned_drop(ctx, &state->chat_switch[i]);
+    frame_reset_surfaces(ctx);
+    memset(&g_plan, 0, sizeof(g_plan));
+}
+
 /* The whole plan onto the tree. PENDING until the lane has a scene to arrange
  * around, which is the ordinary state for the first frames after login. */
 static enum ToriRS_FrameBuildResult
@@ -3426,10 +3529,12 @@ frame_apply(struct FrameCall* ctx, char* reason, size_t reason_capacity)
             break;
         parent = above;
     }
-    frame_apply_surfaces(ctx, viewport, frame_apply_pieces(ctx, parent, viewport));
+    /* World, chrome, stones, surfaces: each anchored over the last of the
+     * one before, so the stack order is stated once, here. */
+    frame_reset_surfaces(ctx);
+    frame_apply_surfaces(ctx, viewport, frame_apply_tabs(ctx, parent, frame_apply_pieces(ctx, parent, viewport)));
     frame_apply_skins(ctx);
     frame_apply_housing(ctx, parent);
-    frame_apply_tabs(ctx, parent);
     frame_refresh_tabs(ctx);
     return TORIRS_FRAME_READY;
 }
@@ -3488,6 +3593,7 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
     frame_call_init(&call, api, state);
     if( !event->active )
     {
+        frame_clear(ctx);
         state->provided = 0;
         return TORIRS_FRAME_READY;
     }
