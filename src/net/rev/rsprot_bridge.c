@@ -539,12 +539,27 @@ bridge_cam_shake(int revision, uint8_t const* data, int len, struct RevPacket* o
 }
 
 /*
- * `chat_private_mode` is stated as 0, not left alone.
+ * `chat_private_mode` is stated as ABSENT, not as 0.
  *
  * The rev-239 packet carries only the public and trade filters -- private chat
- * moved to its own CHAT_FILTER_SETTINGS_PRIVATECHAT packet -- so there is no
- * value on the wire for it. Writing 0 makes that explicit; the hand-written arm
- * did the same.
+ * moved to its own CHAT_FILTER_SETTINGS_PRIVATECHAT packet (opcode 5, whose
+ * handler at client.java:3830 is the only writer of Statics.field5072, the
+ * object CS2 5005 chat_getfilter_private reads) -- so there is no value on the
+ * wire for it. This used to say 0, and the hand-written arm in
+ * `osrs239/osrs239_parse.c` said 0 beside it; both now say -1, because a
+ * fabricated 0 is not "no value", it is the value "Show all" written over
+ * whatever the player chose.
+ *
+ * What that cost: the filter bar read "Private On" the instant after the
+ * player picked Show friends, because this echo landed on top of the choice;
+ * and their NEXT filter change of any kind sent the fabricated 0 back to the
+ * server, through chat_set_filter_184's
+ * `chat_setfilter(chat_getfilter_public, chat_getfilter_private, $new)`,
+ * destroying the persisted Private setting Board-friend reads. The executor
+ * (`src/game/rs_gameproto_exec.c`, PKT_NAME_CHAT_FILTER_SETTINGS) applies the
+ * private mode only when it is non-negative, so -1 leaves the client's own copy
+ * standing -- the same absent convention the zone headers use for a plane a
+ * revision does not send.
  */
 static int
 bridge_chat_filter_settings(int revision, uint8_t const* data, int len, struct RevPacket* out)
@@ -552,7 +567,7 @@ bridge_chat_filter_settings(int revision, uint8_t const* data, int len, struct R
     BRIDGE_RUN(rsprot_chat_filter_settings_out, MsgChatFilterSettings)
     out->_chat_filter_settings.chat_public_mode = msg.public_chat_filter;
     out->_chat_filter_settings.chat_trade_mode = msg.trade_chat_filter;
-    out->_chat_filter_settings.chat_private_mode = 0;
+    out->_chat_filter_settings.chat_private_mode = -1;
     return 1;
 }
 

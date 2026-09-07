@@ -300,6 +300,9 @@ ToriRSServer_SceneFindLocId(
  */
 struct ToriRSServerSceneWindow;
 
+/** Monotonic window construction counter for rebuild diagnostics. */
+uint64_t ToriRSServer_SceneWindowBuildCount(const struct ToriRSServerSceneWindow* window);
+
 /** 1 root + one per player slot + one per vessel-deck slot.
  *  torirs_server_scene.h cannot include torirs_server.h, so this restates
  *  1 + TORIRSSERVER_PLAYER_MAX + TORIRSSERVER_VESSEL_WINDOW_MAX; the scene
@@ -310,9 +313,9 @@ struct ToriRSServerSceneWindow;
  *  coordinates), while their scene window follows the hull across the
  *  water (observed coordinates). A vessel's deck window pins the former
  *  while the rider's own window serves the latter. */
-#define TORIRSSERVER_SCENE_WINDOW_MAX 17
+#define TORIRSSERVER_SCENE_WINDOW_MAX 24
 #define TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE 9
-#define TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX 8
+#define TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX 15
 
 /** The world's root window — the default binding, and what a fresh process is
  *  bound to before anything is built. */

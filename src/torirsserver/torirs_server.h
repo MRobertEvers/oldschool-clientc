@@ -103,6 +103,7 @@
 #include "torirs_server_poh.h"
 #include "torirs_server_wire.h"
 #include "mock239_runclientscript.h"
+#include "mock239_playerinfo.h"
 #include "torirs_server_vessel.h"
 #include "torirs_server_zone.h"
 
@@ -1647,6 +1648,7 @@ enum
 
 struct ToriRSServerCapturedPacket
 {
+    int recipient_pid; /* Allows multi-observer captures to replay one real client stream. */
     int opcode;
     /**
      * Bytes this packet actually carried, which may exceed the `data` this
@@ -2934,15 +2936,12 @@ struct ToriRSServerPlayerZoneMap
 
 struct ToriRSServerPlayer
 {
-    /**
-     * Has a v5 PLAYER_INFO gone out since the init block?
-     *
-     * Selects which low-resolution section the untracked crowd is skipped in:
-     * section 4 on the first tick, section 3 thereafter, because the client
-     * sets a cycle bit on everyone it skips. Per player rather than per world,
-     * since it is a fact about what one client has been told.
-     */
+    /** Whether a v5 update followed the most recent login init block.
+     * Per-slot membership and cycle flags live in v5_gpi; this latch also
+     * supports the direct local-only encoder fixtures. */
     int v5_playerinfo_sent;
+    struct Mock239PlayerInfoState v5_gpi;
+    uint32_t v5_player_generation[TORIRSSERVER_PLAYER_MAX];
 
     /**
      * The position this client was last told, for the v5 stream's DELTA.
@@ -3063,14 +3062,13 @@ struct ToriRSServerPlayer
      */
     int navigating_vessel_serial;
 
-    /**
-     * Serial of the vessel whose DECK ZONES this player last flushed
-     * (SAILING_PLAN S2.3, torirs_server_zone.c deck_zone_flush). 0 = not
-     * aboard. A change is the boarding edge: the deck's zones get a FULL
-     * state resync before events flow, so a door opened before this player
-     * boarded is not invisible to them.
-     */
-    int deck_zone_serial;
+    /** Semantic owned boats and a real shore fallback, independent of the
+     * reusable deck/uid pools. See torirs_server_vessel_lifecycle.u.h. */
+    struct ToriRSServerSailingSave sailing;
+
+    /** Per published view, the vessel serial whose dynamic deck state this
+     * observer has received. Shore observers subscribe to visible decks too. */
+    int deck_zone_serials[TORIRSSERVER_WEV_VIEW_MAX + 1];
 
     /*
      * The world this player is in, and where its bytes go.
@@ -3234,6 +3232,24 @@ struct ToriRSServerPlayer
     /** Last Display-panel clientMode (0/1/2) from WINDOW_STATUS.
      *  Persisted in the player save; login restores via ~gameframe_set_mode. */
     int client_layout_mode;
+    /** The three chat filter modes as the save recorded them, and nothing
+     *  else. The live copy belongs to the friend service, keyed by name37
+     *  (torirs_server_friends.h §5.3 decision 4): CHAT_SETMODE writes it there
+     *  and `isVisibleTo` reads it there, for names whose player slot is long
+     *  gone. These three exist only to carry the modes across a process
+     *  restart -- `ToriRSServer_LoadPlayer` fills them and
+     *  `ToriRSServer_WorldLogin` spends them on the one `ToriRSServer_FriendsLogin`
+     *  call, after which they are not read again.
+     *
+     *  0 in each encoding is the reference's fresh-character default (public,
+     *  private and trade all ON, Player.ts:307-309), so the zeroed slot a new
+     *  player is handed and a save written before this key existed both mean
+     *  the same thing. Private ON is deliberately NOT
+     *  `ToriRSServer_FriendsChatModes`' unknown-name answer, which is OFF
+     *  because an unknown name must not be assumed visible. */
+    int saved_chat_public_mode;
+    int saved_chat_private_mode;
+    int saved_chat_trade_mode;
     /** The login header's clientType / platformType, copied from the session
      *  (see ToriRSServerSession). `ToriRSServer_PlayerIsMobile` reads them:
      *  a mobile client keeps the mobile gameframe (`toplevel_osm`) through

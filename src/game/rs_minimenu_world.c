@@ -1148,13 +1148,13 @@ RS_Minimenu_AddWorldRows(
         struct World_Picked const* hull_pick = NULL;
 
         for( int i = 0; i < picks->count; i++ )
-            if( picks->items[i].view_id != 0 )
+            if( picks->items[i].view_id != 0 && picks->items[i].type == WORLD_PICK_WEV )
                 hull_pick = &picks->items[i];
         if( hull_pick && Wevs_IsLive(ctx->wevs, hull_pick->view_id) )
         {
             struct Wev const* wev = Wevs_Get((struct Wevs*)ctx->wevs, hull_pick->view_id);
 
-            if( wev->config )
+            if( wev->config && wev->render_visible && !wev->flattened )
                 for( int op = 0; op < WEV_CONFIG_OPS; op++ )
                 {
                     struct UIMinimenuPick pick = {

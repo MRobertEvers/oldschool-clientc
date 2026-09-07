@@ -4,6 +4,7 @@
 #include "world/world.h"
 #include "world/world_pickset.h"
 #include "world/worldview.h"
+#include "world/wev.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -216,9 +217,11 @@ pick_debug_dump(
 }
 
 void
-ToriRS_PickHitsClassify(
+ToriRS_PickHitsClassifyViews(
     struct World* world,
     struct WorldviewRegistry* views,
+    const struct Wevs* wevs,
+    int aboard_view,
     struct ToriRS_PickHits const* hits,
     int player_level,
     struct World_PickSet* out_pickset,
@@ -237,6 +240,29 @@ ToriRS_PickHitsClassify(
     for( int i = 0; i < hits->count; i++ )
     {
         struct ToriRS_PickHit const* hit = &hits->items[i];
+        int mode = 2;
+        if( hit->view_id != 0 && wevs )
+        {
+            if( !Wevs_IsLive(wevs, hit->view_id) ) continue;
+            const struct Wev* wev = Wevs_Get((struct Wevs*)wevs, hit->view_id);
+            if( !wev->render_visible || wev->flattened ) continue;
+            assert(wev->config);
+            mode = hit->view_id == aboard_view ? 1 : wev->config->click_mode;
+            if( mode == 3 )
+            {
+                /* Back-to-front stream: the opaque blocker swallows everything
+                 * beneath it. A nearer surface later in the stream still wins. */
+                World_PickSetReset(out_pickset);
+                memset(out_result, 0, sizeof(*out_result));
+                continue;
+            }
+            if( mode == 0 )
+            {
+                World_PickSetAdd(out_pickset, -2-hit->view_id, WORLD_PICK_WEV,
+                                 -1, -1, -1, hit->view_id);
+                continue;
+            }
+        }
 
         if( hit->is_terrain )
         {
@@ -329,7 +355,8 @@ ToriRS_PickHitsClassify(
                 pick_classify_element(
                     WorldviewRegistry_Get(views, hit->view_id)->world, hit->element_id,
                     &type, &tile_x, &tile_z, &tile_level) &&
-                type == WORLD_PICK_SCENERY )
+                (type == WORLD_PICK_SCENERY || type == WORLD_PICK_NPC ||
+                 type == WORLD_PICK_PLAYER || type == WORLD_PICK_OBJSTACK) )
             {
                 /* A DECK LOC: it lives in the VIEW world's scenery table, so
                  * classification runs against that world — same interactive
@@ -341,7 +368,7 @@ ToriRS_PickHitsClassify(
                  * viewer's root level — reachability is the server's deck
                  * collision's problem, like every deck walk. */
                 World_PickSetAdd(
-                    out_pickset, hit->element_id, WORLD_PICK_SCENERY, tile_x, tile_z,
+                    out_pickset, hit->element_id, type, tile_x, tile_z,
                     tile_level, hit->view_id);
             }
             else
@@ -372,8 +399,9 @@ ToriRS_PickHitsClassify(
                  * boat" — surface the view id and let the menu layer offer
                  * the hull's config ops (the deob's menu hash carries the
                  * world-view id for exactly this). */
-                World_PickSetAdd(
-                    out_pickset, hit->element_id, WORLD_PICK_WEV, -1, -1, -1, hit->view_id);
+                if( mode != 1 )
+                    World_PickSetAdd(
+                        out_pickset, -2-hit->view_id, WORLD_PICK_WEV, -1, -1, -1, hit->view_id);
             }
         }
         else
@@ -419,4 +447,12 @@ ToriRS_PickHitsClassify(
     }
 
     pick_debug_dump(world, out_pickset);
+}
+
+void
+ToriRS_PickHitsClassify(struct World* world, struct WorldviewRegistry* views,
+                       const struct ToriRS_PickHits* hits, int player_level,
+                       struct World_PickSet* picks, struct ToriRS_PickResult* result)
+{
+    ToriRS_PickHitsClassifyViews(world, views, NULL, 0, hits, player_level, picks, result);
 }

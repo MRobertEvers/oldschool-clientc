@@ -45,7 +45,7 @@ Gameplay sources live under
 | Subtype | Facility | Operation and state |
 |---|---|---|
 | 1 | Salvaging hook | Finds a real wreck within seven tiles of the projected hook, measured to the rotated wreck footprint. Player and crew attempts run every **five game ticks**. Removal, lost reach, inadequate level, full storage or depletion stops work. |
-| 2 | Cargo hold | Native open/deposit-all/modify actions and quantity controls operate on the captain's real per-boat inventory **963–967**. The client receives that inventory in the other-inventory namespace (`base + 32768`). Transfers conserve items and respect installed capacity. |
+| 2 | Cargo hold | Native open/deposit-all/modify actions and quantity controls operate on the captain's real per-boat inventory **963–967**. The client receives that inventory in the other-inventory namespace (`base + 32768`). Deposits use the cache's explicit item/category whitelist and reject notes. Transfers conserve items and respect installed capacity. Shared charting tools use zero-capacity recovery slots and are accepted only when their recovery requirements are met. |
 | 3 | Range, loc **59682** | Physical Cook and item use open the existing cooking system, including quantities, burn chance, products and Cooking XP. A sailing approach handler requires a walkable adjacent deck tile; the land-style approach mask would point outside a narrow hull. |
 | 4 | Cannon | Real magazines, compatible ammunition, target selection, line of sight, native attack rate, projectile travel and damage. Native panel orders support Follow captain, Hold fire, Fire at will, Clear target and Swap ammunition. |
 | 5, 13 | Chum station/spreader | Manual or eligible crew work consumes cargo bait for a non-stacking extra-fish roll. Raw fish can be cut through physical item use; station rates are two/three/four fish per tick and 2 Cooking XP per fish. |
@@ -55,7 +55,7 @@ Gameplay sources live under
 | 9 | Teleport focus | Installed normal/greater focus synchronizes the native owned-boat focus level **0/1/2**, used by boat-selection/teleport gates. Physical operation remains Modify. |
 | 10 | Trawling net | Operate/stop, raise/lower and collect. A three-tick attempt queries a real shoal within four tiles of the projected net and requires matching depth, net capability and Fishing level. Catch is retained in inventory **968** (250 slots). |
 | 11 | Fathom stone/pearl, locs **59767/59768** | Remote Quick-locate, remembered species selection and Locate-shoal. Searches actual ripple NPCs within 128 tiles; the pearl adds a real NPC hint marker and Deactivate clears it. No matching shoal produces a negative result. |
-| 12 | Crystal extractor, locs **59702/59703** | Activate, charge for **100 ticks**, Harvest after a three-tick interaction, and Deactivate. Harvest awards **250 Sailing XP**, stores one mote if capacity permits, and rolls a quest-gated crystal shard. The charge is claimed before suspension to prevent duplicate harvests. |
+| 12 | Crystal extractor, locs **59702/59703** | Activate, charge for **100 ticks**, Harvest after a three-tick interaction, and Deactivate. Charging continues for **17 ticks (10.2 seconds)** after the captain disembarks, then pauses until return. Harvest awards **250 Sailing XP**, stores one mote if capacity permits, and rolls a quest-gated crystal shard. The charge is claimed before suspension to prevent duplicate harvests. |
 | 14 | Anchor, locs **59687–59690** | Walk to the actual anchor tile, Drop/Raise and swap native appearances. Anchoring stops translation immediately while permitting collision-checked rotation. Raising resumes the selected sailing state; replacing an anchor releases it. |
 | 15 | Keg, locs **59691–59698** | Check, Fill, Empty and use an empty beer glass. Fill consumes 25 pints of one ale, all noted or all unnoted. Empty does not refund them; glass use produces one drink. Duplicate keg bonuses do not stack. |
 | 16 | Ballistic attractor | Publishes the native ammunition-save percentage, which the cannon consumption roll uses. Physical operation remains Modify. |
@@ -107,6 +107,16 @@ are explicit server balance, not a claim of retail special-ammunition parity.
 
 ## Runtime and checkpoint contract
 
+Cargo policy comes from native DB row `sailing_boat_cargohold_whitelist_obj_lookup`
+(8663), with 41 explicit item entries and five category entries. The sidebar's
+varp 5205 is a per-backpack-slot bitmask, recomputed after transfers and while
+the interface remains open. Server handlers validate the policy independently
+of the visible bitmask. The [cargo reference](https://osrsindex.com/wiki/cargo-hold?site=osrs_wiki)
+also identifies unnoted-only storage and shared, zero-space charting tools.
+The native mouse acceptance covers category-based cannonballs, explicit-entry
+kits, prohibited coins/logs/notes, and a quest-locked crowbar. The earlier test
+that deposited coins was an incorrect fixture and has been replaced.
+
 A game tick is 600 ms. Script queues execute after their stored delay expires:
 `queue*(..., 4)` is a five-tick interval; trawling's delay 2 gives three ticks.
 The shared Sailing timer runs once per tick on the aboard captain. It services
@@ -115,6 +125,7 @@ crew and utilities before the sails-furled guard pauses wind/gust countdowns.
 | Storage | Meaning |
 |---|---|
 | Instance 0/1/2 | Stored wind motes, catcher enabled, remaining boost ticks |
+| Instance 3 | Extractor shore-grace generation; stale callbacks cannot double-charge |
 | Instance 5/6 | Remaining gust countdown / trim window (49 / 15 ticks in this server) |
 | Instance 110 | Shipyard mode |
 | Instance 112–116 | Retained crew NPC UID plus one |
@@ -151,14 +162,21 @@ wandering-fish shoals; Fathom searches ripple shoals. Higher-tier producers must
 supply the species data rather than deriving fish from player level.
 
 Passive resistance/focus stats and implemented perk consumers are wired, but
-full sea-hazard/encounter systems remain outside this module. The extractor
-currently stops charging immediately when the captain disembarks, rather than
-after the retail shore grace period; crystal-flecked waters do not yet double
-its shard reward. Kraken Ink Stout's 104% encounter helper needs an encounter
+full sea-hazard/encounter systems remain outside this module. Crystal-flecked
+waters do not yet double the extractor's shard reward.
+Kraken Ink Stout's 104% encounter helper needs an encounter
 producer. The chum bait cost/20% roll is the current server implementation,
 not a fully measured retail bait/depletion model.
 
 ## Evidence and reproducible fixtures
+
+`tools/sailing_extractor_acceptance.py --start` clicks the actual extractor,
+sails into the natural coast, uses the production gangplank body, and verifies
+17 charging ticks ashore followed by a pause. Quick reboarding and repeated
+departures charge exactly once per tick. The 124 warm commands took 1.63 seconds
+in the recorded run. Its [report](extractor-grace-results.json) and three native
+captures were visually inspected. The grace period follows Jagex's
+[December 3 update](https://secure.runescape.com/m=news/sailing-xp-review--further-fixes?oldschool=1).
 
 After setting suitable Sailing/Fishing/Ranged levels in an isolated session:
 
@@ -233,3 +251,15 @@ loops. Both stop on target death or NPC-generation change. This implements
 the qualitative effects described by Jagex while keeping the repo's revision239
 content scope; it does not claim exact current retail damage parity. See
 [Jagex, The Red Reef is Out Today!](https://secure.runescape.com/m=news/the-red-reef-is-out-today?oldschool=1).
+
+## Final shared-binary re-verification
+
+Every facility operation above was re-exercised on 2026-09-06 against the final
+the 2026-09-06 21:38 shared client `c7e62cce180aaeb6bc4cd044818b0209ca99edb478f5280c3ebd10d6b79b1d8d` (two pairs before the final `5e34b81f`; the facility acceptance was re-run on `4854e303` at 08:11 and on the final pair at 09:36, both `ok: true`)
+and the final 30,076-script pack
+`902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59`, in the
+natural ocean fixture at 3072,3160. The wind, salvage, trawling and cannon runs
+and their nine captures are recorded in `activity-results.json`; the crew-worked
+equivalents and their six captures are in `crew-actions.json`; the extractor
+shore-grace run is in `extractor-grace-results.json`. Each capture was opened
+and described in the README's final-acceptance section.

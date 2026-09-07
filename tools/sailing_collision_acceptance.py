@@ -40,6 +40,7 @@ def pose(boat: dict) -> tuple:
 
 def run(session: Session, output: Path) -> dict:
     output.mkdir(parents=True, exist_ok=True)
+    metadata = session.metadata()
     started = time.perf_counter()
     session.checked("pause")
     initial = session.checked("state")
@@ -153,6 +154,9 @@ def run(session: Session, output: Path) -> dict:
             "Land spawn changed the original boat or prevented checkpoint restore")
 
     result = {"ok": True, "session": str(session.directory),
+              "provenance": {key: metadata.get(key) for key in
+                             ("binary_sha256", "script_sha256", "script_pack",
+                              "allow_stale_scripts")},
               "elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
               "ocean": {"x": 3072, "z": 3160, "tiles": 289},
               "before": before, "underway": underway, "stopped": stopped,
@@ -169,11 +173,22 @@ def main() -> int:
     parser.add_argument("--session", type=Path, default=Path("/tmp/sailing-collision-live"))
     parser.add_argument("--output", type=Path, default=ROOT / "docs/sailing_validation")
     parser.add_argument("--start", action="store_true", help="Start/reuse a headless native client; never builds")
+    # A worker cannot run the shared build or the shared script pack, so
+    # --start has to be able to name a private client and an isolated pack;
+    # without these it could only ever measure src/torirs, which is somebody
+    # else's binary and usually somebody else's C.
+    parser.add_argument("--binary", type=Path, default=ROOT / "src/torirs",
+                        help="Client --start launches (default src/torirs)")
+    parser.add_argument("--scripts", type=Path,
+                        help="Isolated compiled script-pack directory for --start")
     args = parser.parse_args()
     session = Session(args.session)
     with session.locked():
         if args.start:
-            start_args = harness_parser().parse_args(["start", "--headless"])
+            argv = ["start", "--headless", "--binary", str(args.binary)]
+            if args.scripts:
+                argv += ["--scripts", str(args.scripts)]
+            start_args = harness_parser().parse_args(argv)
             session.start(start_args)
         require(session.alive(), "Start the native session first or pass --start")
         result = run(session, args.output.resolve())

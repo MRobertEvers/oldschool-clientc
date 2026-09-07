@@ -479,12 +479,7 @@ Wevs_Spawn(
     wev->anim_start_cycle = wevs->clock;
     wev->seq_start_cycle = 0.0;
     wev->flattened = false;
-    /* The bake is app-owned: the App frees it BEFORE despawn (the model and
-     * the scene element live in the App's scene), so a live pointer here at
-     * spawn is a leak upstream, not state to inherit. */
-    assert(wev->flat_model == NULL);
-    wev->flat_element = -1;
-
+    wev->render_visible = true;
     wevs->lists[parent_view_id].ids[wevs->lists[parent_view_id].count++] = id;
     return wev;
 }
@@ -789,6 +784,148 @@ Wev_FootprintTiles(
     *out_min_tile_z = min_tile_z;
     *out_size_x = max_tile_x - min_tile_x + 1;
     *out_size_z = max_tile_z - min_tile_z + 1;
+}
+
+void
+Wev_PainterFootprint(struct Wev const* wev, int* x, int* z, int* width, int* height)
+{
+    assert(wev);
+    assert(x);
+    assert(z);
+    assert(width);
+    assert(height);
+    *x = (wev->x - 60) >> 7;
+    *z = (wev->z - 60) >> 7;
+    *width = ((wev->x + 60) >> 7) - *x + 1;
+    *height = ((wev->z + 60) >> 7) - *z + 1;
+}
+
+void
+Wev_RenderBounds(struct Wev const* wev, int bounds[4])
+{
+    assert(wev);
+    assert(wev->config);
+    assert(bounds);
+    const struct WevConfig* cfg = wev->config;
+    double angle = (wev->angle & 2047) * (2.0 * M_PI / 2048.0);
+    /* method8755 reads class534's Q16 trig tables as doubles. Retain that
+     * quantization before truncating each rotated component: full-precision
+     * trig moves some native hull boundaries by one fine unit. */
+    double cs = (int)(cos(angle) * 65536.0) / 65536.0;
+    double sn = (int)(sin(angle) * 65536.0) / 65536.0;
+    int cx = wev->x + (int)(cfg->bounds_off_x * cs + cfg->bounds_off_z * sn);
+    int cz = wev->z + (int)(cfg->bounds_off_z * cs - cfg->bounds_off_x * sn);
+    int hx = cfg->bounds_w / 2, hz = cfg->bounds_h / 2;
+    int ax = (int)(hx * cs + hz * sn), az = (int)(hz * cs - hx * sn);
+    int bx = (int)(hx * cs - hz * sn), bz = (int)(hz * cs + hx * sn);
+    int ex = abs(ax) > abs(bx) ? abs(ax) : abs(bx);
+    int ez = abs(az) > abs(bz) ? abs(az) : abs(bz);
+    bounds[0] = cx - ex; bounds[1] = cz - ez;
+    bounds[2] = cx + ex; bounds[3] = cz + ez;
+}
+
+static bool
+wev_quads_overlap(const int ax[4], const int az[4], const int bx[4], const int bz[4])
+{
+    for( int shape = 0; shape < 2; ++shape )
+    {
+        const int* x = shape ? bx : ax;
+        const int* z = shape ? bz : az;
+        for( int edge = 0; edge < 2; ++edge )
+        {
+            int nx = z[edge + 1] - z[edge];
+            int nz = x[edge] - x[edge + 1];
+            if( !nx && !nz ) continue;
+            int64_t amin = INT64_MAX, amax = INT64_MIN;
+            int64_t bmin = INT64_MAX, bmax = INT64_MIN;
+            for( int i = 0; i < 4; ++i )
+            {
+                int64_t a = (int64_t)ax[i] * nx + (int64_t)az[i] * nz;
+                int64_t b = (int64_t)bx[i] * nx + (int64_t)bz[i] * nz;
+                if( a < amin ) amin = a;
+                if( a > amax ) amax = a;
+                if( b < bmin ) bmin = b;
+                if( b > bmax ) bmax = b;
+            }
+            if( amax < bmin || bmax < amin ) return false;
+        }
+    }
+    return true;
+}
+
+bool
+Wev_OverlapsActor(struct Wev const* wev, int x, int z, int size)
+{
+    assert(wev);
+    assert(wev->config);
+    assert(size > 0);
+    int ax[4], az[4];
+    int bucket = ((wev->angle + 64) & 2047) / 128;
+    for( int i = 0; i < 4; ++i )
+    {
+        ax[i] = wev->config->corner_x[0][bucket][i];
+        az[i] = wev->config->corner_z[0][bucket][i];
+    }
+    int radius = size * 64;
+    int minx = x - wev->x - radius + 1, maxx = x - wev->x + radius - 2;
+    int minz = z - wev->z - radius + 1, maxz = z - wev->z + radius - 2;
+    int bx[4] = {minx, maxx, maxx, minx};
+    int bz[4] = {minz, minz, maxz, maxz};
+    return wev_quads_overlap(ax, az, bx, bz);
+}
+
+void
+Wevs_SelectRenderStates(struct Wevs* wevs, int aboard_view, int limit,
+                       WevActorOverlapFn actor_overlap, void* user)
+{
+    assert(wevs);
+    assert(limit >= 0);
+    int placed[WORLDVIEW_MAX][4], placed_count = 0;
+    int count = Wevs_ViewListCount(wevs, WORLDVIEW_ROOT);
+    for( int i = 0; i < count; ++i )
+    {
+        struct Wev* wev = Wevs_ViewListAt(wevs, WORLDVIEW_ROOT, i);
+        wev->render_visible = false;
+        wev->flattened = false;
+    }
+    /* method2832's count is local to EACH group. Flattened entries still
+     * consume a group slot and stamp their scene for subsequent overlaps. */
+    const int groups[] = {-1, 2, 0, 1};
+    for( int pass = 0; pass < 4; ++pass )
+    {
+        int drawn = 0;
+        for( int i = 0; i < count; ++i )
+        {
+            struct Wev* wev = Wevs_ViewListAt(wevs, WORLDVIEW_ROOT, i);
+            bool aboard = wev->id == aboard_view;
+            if( pass == 0 ? !aboard : aboard || wev->priority_group != groups[pass] ) continue;
+            if( !aboard && drawn >= limit ) continue;
+            ++drawn;
+            wev->render_visible = true;
+            int box[4];
+            Wev_RenderBounds(wev, box);
+            if( !aboard && groups[pass] == 1 )
+            {
+                for( int p = 0; p < placed_count && !wev->flattened; ++p )
+                    if( box[0] <= placed[p][2] && box[2] >= placed[p][0] &&
+                        box[1] <= placed[p][3] && box[3] >= placed[p][1] ) wev->flattened = true;
+                if( !wev->flattened && actor_overlap ) wev->flattened = actor_overlap(user, wev);
+            }
+            assert(placed_count < WORLDVIEW_MAX);
+            memcpy(placed[placed_count++], box, sizeof(box));
+        }
+    }
+}
+
+void
+Wev_SmoothCameraFocus(float* x, float* z, int target_x, int target_z)
+{
+    assert(x);
+    assert(z);
+    float dx = target_x - *x, dz = target_z - *z;
+    if( fabsf(dx) > 500.0f || fabsf(dz) > 500.0f )
+    { *x = target_x; *z = target_z; }
+    else { *x += dx / 16.0f; *z += dz / 16.0f; }
 }
 
 void

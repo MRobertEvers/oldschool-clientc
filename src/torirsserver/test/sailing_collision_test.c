@@ -4,6 +4,8 @@
 #include "torirs_server_scene.h"
 #include "torirs_server_mapinstance.h"
 #include "torirs_server_vessel.h"
+#include "world/wev.h"
+#include "toridraw_math.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -67,6 +69,7 @@ int main(int argc, char** argv)
     struct ToriRSServer* srv = calloc(1, sizeof(*srv));
     struct ToriRSServerVessel* boat;
     assert(srv);
+    ToriDraw_InitMath();
     if( argc > 1 ) cache_dir = argv[1];
     CHECK(ToriRSServer_SceneBuild(cache_dir, ocean_x >> 3, ocean_z >> 3), "ocean cache scene builds");
     if( !ToriRSServer_SceneBoatCollision(0) ) return 1;
@@ -245,6 +248,59 @@ int main(int argc, char** argv)
         for( int i = 0; i < 3; i++ ) ToriRSServer_VesselTickAll(srv);
         CHECK(boat->state == TORIRSSERVER_VESSEL_HEADING, "all sixteen headings sail on real ocean");
         CHECK((boat->fine_x & 31) == 0 && (boat->fine_z & 31) == 0, "sailing retains quarter-tile quantum");
+    }
+
+    /* Boats may overlap and pass through one another; they never stamp the
+     * map that decides whether another hull may move. */
+    boat = fixture(srv, 2, 5, 0);
+    boat->config_id = 2;
+    srv->vessels[1] = *boat;
+    srv->vessels[1].index = 2;
+    srv->vessels[1].angle = 1024;
+    srv->vessels[1].heading = 8;
+    srv->vessel_count = 2;
+    for( int i = 0; i < 4; ++i ) ToriRSServer_VesselTickAll(srv);
+    CHECK(boat->fine_z == ocean_z * 128 + 64 - 256 &&
+          srv->vessels[1].fine_z == ocean_z * 128 + 64 + 256 &&
+          !boat->blocked_notice && !srv->vessels[1].blocked_notice,
+          "fully overlapping native hulls move apart without boat-versus-boat collision");
+    memset(&srv->vessels[1], 0, sizeof(srv->vessels[1]));
+
+    {
+        static const int starts[] = {2047, 1, 1920};
+        static const int headings[] = {0, 15, 1};
+        static const int expected[] = {0, 1921, 0};
+        for( int i = 0; i < 3; ++i )
+        {
+            boat = fixture(srv, 1, 1, starts[i]);
+            boat->anchored = 1;
+            boat->heading = headings[i];
+            ToriRSServer_VesselTickAll(srv);
+            CHECK(boat->angle == expected[i], "heading turns follow the capped shortest arc across zero");
+        }
+    }
+    /* Compare the independently implemented client transform as well as the
+     * inverse: matching inverse mistakes must not make this test pass. */
+    for( int heading = 0; heading < 16; ++heading )
+    {
+        static const int points[][2] = {{0,0},{64,64},{448,448},{1023,1023},{173,821}};
+        boat = fixture(srv, 1, 3, heading * 128);
+        boat->config_id = 1; /* Native raft pivot=-64,-64 in an8x8 view. */
+        struct WevDeckBox client = {.pos_x=boat->fine_x,.pos_z=boat->fine_z,
+            .angle=boat->angle,.recenter_x=-448,.recenter_z=-448,
+            .size_x_tiles=8,.size_z_tiles=8};
+        for( unsigned i = 0; i < sizeof(points)/sizeof(points[0]); ++i )
+        {
+            int x, z, cx, cz, back_x, back_z;
+            ToriRSServer_VesselDeckToRoot(boat,points[i][0],points[i][1],&x,&z);
+            Wev_ParentFromDeck(&client,points[i][0],points[i][1],&cx,&cz);
+            CHECK(x==cx && z==cz,"server projection matches actual client at every heading");
+            ToriRSServer_VesselRootToDeck(boat,x,z,&back_x,&back_z);
+            Wev_DeckFromParent(&client,x,z,&cx,&cz);
+            CHECK(back_x==cx && back_z==cz, "inverse projection matches the actual client at every heading");
+            CHECK(abs(back_x-points[i][0])<=2 && abs(back_z-points[i][1])<=2,
+                  "all sixteen inverse roundtrips stay within fixed-point rounding");
+        }
     }
 
     boat = fixture(srv, 1, 1, 1536);

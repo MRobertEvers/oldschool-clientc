@@ -91,6 +91,7 @@ struct ToriRSServerSceneWindow
     /* Absolute tile of the window's (0,0); -1 = not built. */
     int base_x;
     int base_z;
+    uint64_t build_count;
     /* Which scene columns have a bridge deck (LINK_BELOW at raw level 1),
      * captured during apply_terrain and read by apply_loc_collision for
      * place-time level shift (Client-TS / LostCity). Map-square terrain
@@ -402,6 +403,13 @@ int
 ToriRSServer_SceneBaseZ(void)
 {
     return g_base_z;
+}
+
+uint64_t
+ToriRSServer_SceneWindowBuildCount(const struct ToriRSServerSceneWindow* window)
+{
+    assert(window);
+    return window->build_count;
 }
 
 /* "Is this tile covered by built collision" — by ANY window, not just the
@@ -1265,6 +1273,8 @@ scene_build_begin(
     /* Only the BOUND window is rebuilt; the other windows and the shared loc
      * configs stay exactly as they are. */
     window_reset(scene_bound());
+
+    scene_bound()->build_count++;
 
     g_base_x = (zone_x - 6) * 8;
     g_base_z = (zone_z - 6) * 8;
@@ -2430,6 +2440,10 @@ ToriRSServer_SceneOpNearestOpts(struct CollisionNearestOpts* out)
     out->range = features->op_click_nearest_range;
     out->max_dist = 100;
     out->rank_by_rect_distance = features->nearest_ranks_by_rect_distance;
+    /* Op clicks never take the whole-flood last resort (that is a ground/minimap
+     * feature, see SceneGroundNearestOpts); write it so a caller's stack
+     * struct never carries garbage into collision_map_route_tiles. */
+    out->unbounded = 0;
 }
 
 void

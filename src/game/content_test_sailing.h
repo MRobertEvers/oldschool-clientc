@@ -6,6 +6,16 @@
 struct App;
 struct ToriRSServerEmbed;
 
+/** Real second server player; mutations still publish through normal packets. */
+int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed*, const char* command,
+                                  int* changed, char* error, size_t error_size);
+void ContentTestSailing_PeerState(struct App*, struct ToriRSServerEmbed*, char* json, size_t json_size);
+
+/** Run a named content proc in the PRIMARY player's context; the mirror of
+ * "peer proc". `command` is the bare name followed by up to four int args. */
+int ContentTestSailing_PrimaryProc(struct ToriRSServerEmbed*, const char* command,
+                                  char* error, size_t error_size);
+
 /* Bounded, in-memory movement/facilities test checkpoints. These preserve
  * vessel identity and publish changes through the existing protocol; they are
  * not a VM, scene, encounter, or network rollback. Call only after the harness

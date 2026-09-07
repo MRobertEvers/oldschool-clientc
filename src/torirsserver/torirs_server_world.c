@@ -19,6 +19,7 @@
 #include "torirs_server.h"
 #include "torirs_server_gwd_manifest.gen.h"
 #include "torirs_server_music_regions.gen.h"
+#include "game/sailing_settings.h"
 
 #include "torirs_server_container.h"
 #include "torirs_server_shop.h"
@@ -3063,6 +3064,11 @@ ToriRSServer_WorldMapInstanceFree(
     struct ToriRSServer* srv,
     int handle)
 {
+    /* A deck has a stronger owner than the generic pool. Every release path
+     * must remove that hull and evacuate its riders before giving tiles back. */
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
+        if( srv->vessels[i].in_use && srv->vessels[i].instance == handle )
+            return ToriRSServer_VesselFree(srv, srv->vessels[i].index);
     int x;
     int z;
     int width;
@@ -5410,7 +5416,8 @@ player_helm_vessel(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     if( player->navigating_vessel == 0 )
         return NULL;
     vessel = ToriRSServer_VesselGet(srv, player->navigating_vessel);
-    if( !vessel || vessel->serial != player->navigating_vessel_serial )
+    if( !vessel || vessel->serial != player->navigating_vessel_serial ||
+        !ToriRSServer_VesselCanNavigate(srv, player, vessel) )
     {
         player->navigating_vessel = 0;
         return NULL;
@@ -5430,6 +5437,7 @@ ToriRSServer_VesselPlayerControlAllowed(struct ToriRSServer* srv,
     assert(vessel);
     if( ToriRSServer_VesselAtTile(srv,player->x,player->z)!=vessel ||
         ToriRSServer_MapInstanceVarGet(vessel->instance,110) ) return 0;
+    if( !ToriRSServer_VesselCanNavigate(srv, player, vessel) ) return 0;
     /* All three player-boat DB rows in revision239 declare combined navigation. */
     int combined=vessel->config_id>=1 && vessel->config_id<=3;
     if( player_helm_vessel(srv,player)==vessel && (!sails || combined) ) return 1;
@@ -6472,15 +6480,20 @@ handle_oploc(
 
     ToriRSServer_WorldClearPendingAction(srv);
 
+    /* A deck rider stands on the native deck plane, while a clicked dock is
+     * in the root ocean view. The packet has no plane field; resolve it from
+     * the same view relationship that interaction reach already uses. */
+    int target_level = ToriRSServer_PlayerReachLevel(srv, srv->active_player, tile_x, tile_z);
+
     /* The footprint decides what counts as "beside it": a two-tile gate is
      * reachable from tiles a one-tile door is not. The slot is also what the op
      * is validated against below, so it has to be found first. */
     scene_bind_covering(tile_x, tile_z);
-    slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, srv->active_player->level, loc_id);
+    slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, target_level, loc_id);
     loc = ToriRSServer_SceneLoc(slot);
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- OPLOC%d %d at %d,%d lvl=%d slot=%d\n", op_num,
-                loc_id, tile_x, tile_z, srv->active_player->level, slot);
+                loc_id, tile_x, tile_z, target_level, slot);
 
     /*
      * LostCity OpLocHandler: validate ops against the multiloc-resolved child
@@ -6522,7 +6535,7 @@ handle_oploc(
         }
     }
     ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_LOC, op_num, -1, loc_id, tile_x,
-                                  tile_z, srv->active_player->level, size_x, size_z);
+                                  tile_z, target_level, size_x, size_z);
     {
         struct CollisionApproach approach;
         ToriRSServer_SceneLocApproach(slot, &approach);
@@ -6941,9 +6954,13 @@ handle_opplayert(
     if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
         return;
 
+    /* The packet names the player by the GPI index the server published in
+     * PLAYER_INFO and the login response (pool pid + 1), never by the pool
+     * slot: see ToriRSServer_WirePlayerIndex. Comparing against the pool pid
+     * silently dropped every player-targeted click from a real client. */
     for( int i = 0; i < srv->player_count; i++ )
     {
-        if( srv->players[i].active && srv->players[i].pid == pid )
+        if( srv->players[i].active && ToriRSServer_WirePlayerIndex(srv->players[i].pid) == pid )
         {
             slot = i;
             break;
@@ -7475,7 +7492,7 @@ vessel_deck_build(struct ToriRSServer* srv, struct ToriRSServerVessel* vessel,
     int32_t args[4] = { vessel->index, vessel->config_id,
         coord_pack_deck(base_x, base_z), coord_pack_deck(src_x, src_z) };
     int ran = ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_deck_built]", args, 4);
-    if( vessel->cargo_slot>0 && srv->active_player )
+    if( newly_owned && vessel->cargo_slot>0 && srv->active_player )
     {
         const char* keys[] = {"owned","type","name_1","name_2","name_3","stored_hp","stored_maxhp"};
         const int values[] = {1,vessel->config_id-1,0,vessel->name_descriptor,
@@ -7493,6 +7510,14 @@ vessel_deck_build(struct ToriRSServer* srv, struct ToriRSServerVessel* vessel,
     {
         int32_t owned_args[2]={vessel->index,vessel->cargo_slot};
         ToriRSServer_ScriptsRunProc(srv,"[proc,sailing_custom_sync_slot]",owned_args,2);
+    }
+    else if( vessel->cargo_slot > 0 && srv->active_player )
+    {
+        /* Furnishing a reconstructed owned hull must not overwrite its saved
+         * name, HP or selected parts with the template's defaults. */
+        int32_t owned_args[2] = { vessel->index, vessel->cargo_slot };
+        ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_facilities_load_owned]", owned_args, 2);
+        ToriRSServer_VesselRestoreOwned(srv, vessel);
     }
 
     if( srv->verbose )
@@ -7537,6 +7562,14 @@ ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
                 if( radius && abs(dx)!=radius && abs(dz)!=radius ) continue;
                 int x=(near_x+dx)*128+64, z=(near_z+dz)*128+64;
                 if( !ToriRSServer_VesselCanOccupy(vessel,x,z,0) ) continue;
+                /* A barely fitting berth can trap a retrieved boat beside a
+                 * pier on its very first turn. Check every native heading
+                 * against the real boat map before selecting this berth. */
+                int turn_clear = 1;
+                for( int heading = 1; heading < 16; ++heading )
+                    if( !ToriRSServer_VesselCanOccupy(vessel, x, z, heading * 128) )
+                    { turn_clear = 0; break; }
+                if( !turn_clear ) continue;
                 ToriRSServer_VesselStop(vessel);
                 vessel->teleport_stamp++;
                 vessel->fine_x=x; vessel->fine_z=z; vessel->level=level;
@@ -7723,6 +7756,8 @@ handle_cheat(
             say(srv, "setting: expected ::setting <varbit> <value>.");
             return;
         }
+        if( varbit_id == SAILING_CARGO_PRIVACY_VARBIT && !SailingCargoPrivacy_Valid(value) )
+            return;
         if( ToriRSServer_VarbitSet(srv, varbit_id, value) < 0 )
         {
             say(srv, "setting: varbit %d is not in this cache.", varbit_id);
@@ -8983,11 +9018,22 @@ ToriRSServer_WorldTeleport(
 {
     struct ToriRSServerPlayer* player = srv->active_player;
 
+    struct ToriRSServerVessel* old_boat = ToriRSServer_VesselAtTile(srv, player->x, player->z);
+    if( old_boat && ToriRSServer_MapInstanceFind(abs_x, abs_z) != old_boat->instance )
+    {
+        old_boat->navigator_generation[player->pid] = 0;
+        int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+        if( varp >= 0 && player->varps[varp] == old_boat->instance )
+            ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
+        player->sailing.aboard_slot = 0;
+    }
+
     steps_clear(player);
     /* A teleport is how every path leaves a deck; whoever held the helm has
      * left it. Harmless when the destination is the same deck — ::helm
      * re-takes it in one command. */
     player->navigating_vessel = 0;
+    player->navigating_vessel_serial = 0;
     player->level = level;
     player->x = abs_x;
     player->z = abs_z;
@@ -10218,6 +10264,56 @@ social_notify_followers(
 }
 
 /*
+ * Cache varbit `chat_filter_private` — bits 13..15 of varp 1054
+ * `chat_filter_clan`. The private chat filter's SECOND carrier, and on this
+ * lane the only one that reaches the client.
+ *
+ * Revision 239's CHAT_FILTER_SETTINGS (opcode 124) is two bytes, public and
+ * trade; the private filter has a packet of its own, opcode 5
+ * CHAT_FILTER_SETTINGS_PRIVATECHAT, which this lane does not speak. It does not
+ * have to, because the shipped cache already carries the private mode a second
+ * way and repaints off it — `torirs_chatbox_layout`, proc 113, line 86:
+ *
+ *     if (chat_getfilter_private ! %varbit13674) {
+ *         ~chat_set_filter_184(3, %varbit13674);
+ *     }
+ *     ~redraw_chat_buttons;
+ *
+ * and `chatbox_init` registers that proc as interface_162:0's onvartransmit
+ * hook with **var1054 first in its list**. So the write IS the repaint trigger:
+ * the varp transmit wakes the hook, the hook re-reads the varbit, applies it
+ * through chat_setfilter (which is also what tells the CS2 side, so
+ * chat_getfilter_private answers correctly for script 681) and redraws the
+ * filter captions. No mid-session opcode 5 is needed.
+ *
+ * Nothing in this tree wrote varbit 13674 before, which is exactly why that
+ * line pinned Private to "On" at every relayout.
+ *
+ * The value space is the one the chat button's own ops use — chat_button_onop
+ * case 3 maps op 3/4/5 to 0/1/2, "Show all"/"Show friends"/"Show none" — and it
+ * is the same space TORIRSSERVER_CHAT_PRIVATE_ON/FRIENDS/OFF numbers.
+ *
+ * `ToriRSServer_VarbitSetOn` answers -1 for a cache with no such record, which
+ * every caller must tolerate: a cache without it is a cache this content does
+ * not fit, not a crash.
+ */
+#define TORIRSSERVER_CHAT_PRIVATE_FILTER_VARBIT 13674
+
+static void
+chat_publish_private_filter_varbit(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int private_mode)
+{
+    assert(srv);
+    assert(player);
+    assert(private_mode >= TORIRSSERVER_CHAT_PRIVATE_ON);
+    assert(private_mode <= TORIRSSERVER_CHAT_PRIVATE_OFF);
+
+    ToriRSServer_VarbitSetOn(srv, player, TORIRSSERVER_CHAT_PRIVATE_FILTER_VARBIT, private_mode);
+}
+
+/*
  * The login dump — `sendFriendsListToPlayer` + `sendIgnoreListToPlayer` +
  * `FriendlistLoaded(2)`, then the follower broadcast.
  *
@@ -10274,6 +10370,12 @@ ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
 
         ToriRSServer_FriendsChatModes(me, &public_mode, &private_mode, &trade_mode);
         ToriRSServer_SendChatFilterSettings(player, public_mode, private_mode, trade_mode);
+        /* The private mode does not fit in that packet at this revision — it is
+         * two bytes wide — so it goes the way the cache's own chatbox layout
+         * reads it. Without this the [chat] section the save restored reached
+         * the friends service and stopped there, and the filter bar came back
+         * from a relogin reading "Private On" whatever the player had chosen. */
+        chat_publish_private_filter_varbit(srv, player, private_mode);
     }
 
     social_broadcast_to_followers(srv, me);
@@ -10418,6 +10520,15 @@ handle_chat_setmode(
      * other way to learn that happened. */
     ToriRSServer_FriendsChatModes(player->name37, &public_mode, &private_mode, &trade_mode);
     ToriRSServer_SendChatFilterSettings(player, public_mode, private_mode, trade_mode);
+    /* And the private mode again through its own carrier, because the echo
+     * above cannot say it. The client has already applied its own choice
+     * locally by the time this packet arrives, so this is not what repaints the
+     * caption — it is what keeps the varbit the next relayout reads, and the
+     * value the save is written from, in step with the choice. A trade-only or
+     * public-only change leaves the mode alone, and
+     * `ToriRSServer_WorldSetVarpOn` declines the unchanged write, so no varp
+     * goes out and no relayout is provoked. */
+    chat_publish_private_filter_varbit(srv, player, private_mode);
     /* A mode change is a visibility change for every follower. */
     social_broadcast_to_followers(srv, player->name37);
 
@@ -11120,6 +11231,35 @@ ToriRSServer_WorldMarkVarp(
     if( !def || !def->transmit )
         return;
     /*
+     * A reconnecting session has not been told the login verdict yet.
+     *
+     * `session->reconnect` is set by the GAMERECONNECT handshake and cleared in
+     * ToriRSServer_WorldLogin the instant ToriRSServer_SendReconnectOk returns,
+     * so while it is true this client is still reading the LOGIN stream and has
+     * not started framing game packets. RECONNECT_OK is deferred that far on
+     * purpose: it carries the player-info init block, and the block states
+     * where the player is, which is not known until the save has been read.
+     *
+     * What was not accounted for is that the read itself SENDS. A save that
+     * puts the player on a boat runs the deck reconstruction
+     * (ToriRSServer_VesselLogin -> vessel_deck_built -> ToriRSServer_VarbitSet),
+     * and each of those varbits lands here, four or more packets ahead of the
+     * response. The client is in OSRS239_AWAIT_REPLY, so it reads the first
+     * ISAAC-scrambled byte of the first one as the login verdict and dies with
+     * "osrs239 login: rejected reply=<n>" -- n being whatever the keystream
+     * produced, which is why the same failure was reported as 195, 239 and 16
+     * on three different runs and looked intermittent. Measured: an ASHORE save
+     * writes no varps in this window and reconnects cleanly every time.
+     *
+     * Holding them costs nothing. Step 4b of ToriRSServer_WorldLoginFinish
+     * restates every non-zero transmitted varp in full precisely because the
+     * loader writes player->varps[] directly and marks nothing, so the values
+     * dropped here are sent a few lines later by the code that already exists
+     * for exactly this reason.
+     */
+    if( player->session && player->session->reconnect )
+        return;
+    /*
      * VARP_SMALL's value is a single signed byte. Special attack energy is in
      * tenths of a percent, so a full bar is 1000 and would land as -24; the
      * bank's tab counters occupy bits 0..25 of their varp. The encoder is
@@ -11615,6 +11755,10 @@ ToriRSServer_WorldRemovePlayer(
     /* A logout script may itself touch encounter state; the disconnected slot
      * still leaves unlocked regardless. */
     player->action_locked = 0;
+
+    /* A vessel owns its pinned deck and all riders. Handle that lifecycle
+     * before generic instance teardown and before the reusable pid is freed. */
+    ToriRSServer_VesselLogout(srv, player);
 
     /*
      * The instance this session was standing in, released by default.
@@ -12468,6 +12612,10 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      */
     if( !ToriRSServer_LoadPlayer(player, ToriRSServer_SavePath(player->display_name)) )
         ToriRSServer_WorldPlaceNewCharacter(player);
+    /* Reconstruct an at-sea owned boat before the login scene/GPI coordinate
+     * is emitted. The save holds a safe root fallback and relative deck tile,
+     * so a process restart never treats a recycled pool square as a location. */
+    ToriRSServer_VesselLogin(srv, player);
     /* The save restores boosted HP into the stat array; the DAMAGE mask and
      * death check read player->hitpoints. LostCity's PlayerLoading writes both
      * together (`levels[i] = sav.g1()`); hydrate here so a returning character
@@ -12516,13 +12664,22 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * wire is unwritten: `alice adds bob` has to work whether or not anything
      * is told about it.
      *
-     * Chat modes come in at the reference's own defaults (Player.ts:307-309 —
+     * Chat modes come off the save. `ToriRSServer_LoadPlayer` above has already
+     * filled `saved_chat_*_mode`, and these three reads are the only ones: the
+     * service is the live copy from here on (torirs_server_friends.h), and
+     * CHAT_SETMODE writes it there.
+     *
+     * A character with no [chat] section -- a new one, or a save written before
+     * the key existed -- carries the reference's own defaults (Player.ts:307-309:
      * public, private and trade all ON, which is 0 in each of the three
-     * encodings) rather than off a save, because nothing persists them; see
-     * torirs_server_friends.h.
+     * encodings), so the previous unconditional constants are what an old save
+     * still gets. Resetting Private Chat to ON on every login was the bug: a
+     * player who set it to Friends or Off found it on again next session, and
+     * Board-friend reads exactly that mode.
      */
-    ToriRSServer_FriendsLogin(player->name37, /* public */ 0, TORIRSSERVER_CHAT_PRIVATE_ON,
-                          /* trade */ 0, /* staff level */ 0);
+    ToriRSServer_FriendsLogin(player->name37, player->saved_chat_public_mode,
+                          player->saved_chat_private_mode,
+                          player->saved_chat_trade_mode, /* staff level */ 0);
 
     /*
      * 1. The scene.
@@ -14146,8 +14303,35 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                 { ids->varbit_sailing_helm_status, vessel ? (at_helm ? 2 : 1) : 0 },
                 { ids->varbit_sailing_player_at_helm, at_helm },
                 { ids->varbit_sailing_player_at_sails, at_sails },
+                /* Role (19233, four bits) has exactly four values the cache
+                 * gives a meaning to, and a passenger's is 3, not 2.
+                 *
+                 * The rendering side is the constraint: every crew NPC aboard
+                 * a hull is a `multivarbit=sailing_sidepanel_player_role`
+                 * shell (npc 15255 sailing_crew_generic_1_ship and its nine
+                 * siblings), and both this client's resolver
+                 * (`VarPManager_ResolveTransform`) and the reference's
+                 * (deob class393, `configs[value]` while
+                 * `value < length - 1`) index the transform table BY THE
+                 * VALUE. The shells state multinpc1/4/7 = *_ship_no_op and
+                 * multinpc11 = *_ship_op with every other slot -1, i.e. a
+                 * drawn crew member only at 0, 3, 6 and 10; 2 resolved to -1
+                 * and a passenger saw an empty deck.
+                 *
+                 * Which value is which comes from the cache's own consumers:
+                 * cs2 8732 torirs_sailing_facility_row_state tests = 10 and
+                 * = 6, and the captain-only affordances (8732's build/assign
+                 * gate, torirs_sailing_facility_row_draw's Assign button and
+                 * torirs_sailing_edit_navigator_btn) test = 10 alone. So 10 is
+                 * the captain, 6 the granted navigator, 0 the not-aboard
+                 * default this table already writes when `vessel` is NULL, and
+                 * 3 is the only remaining rendered value — the aboard guest.
+                 * The bit layout says the same thing: 3, 6 and 10 are
+                 * 0b0011/0b0110/0b1010, one shared "aboard" bit plus one role
+                 * bit, and 2 is that aboard bit with no role at all. */
                 { ids->varbit_sailing_player_role, vessel ?
-                    (vessel->owner_uid == 0 || vessel->owner_uid == player->pid + 1 ? 10 : 6) : 0 },
+                    (vessel->owner_uid == 0 || vessel->owner_uid == player->pid + 1 ? 10 :
+                     ToriRSServer_VesselCanNavigate(srv, player, vessel) ? 6 : 3) : 0 },
                 { ids->varbit_sailing_players_aboard, aboard_count },
                 { ids->varbit_sailing_hotspot0, vessel ? vessel->facility[3] : 0 },
                 { ids->varbit_sailing_hotspot1, vessel ? vessel->facility[4] : 0 },

@@ -787,6 +787,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_interface_state.c \
 	torirsserver/torirs_server_poh.c \
 	torirsserver/mock239_playerinfo.c \
+	net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c \
 	torirsserver/mock239_interface_setters.c \
 	torirsserver/mock239_varp.c \
 	torirsserver/mock239_interface_inbound.c \
@@ -841,6 +842,7 @@ CFLAGS += -DTORIRS_EMBED_SERVER=1
 # below.  Adding them again generates duplicate recipes for the same flat
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c \
+	net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c \
 	world/wev.c \
 	platform/net_transport_ws_frame.c \
 	platform/net_transport_ws_handshake.c \
@@ -1629,6 +1631,26 @@ test-cs2-host-request-producers: $(OBJ_DIR)
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_host_request_producers_test
+
+.PHONY: test-cs2-array-fill
+test-cs2-array-fill: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_fill_test \
+		cs2vm2/test/array_fill_test.c \
+		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_fill_test
+
+.PHONY: test-cs2-worldentity-limit
+test-cs2-worldentity-limit: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/cs2_worldentity_limit_test \
+		cs2vm2/test/worldentity_limit_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_worldentity_limit_test
+
+.PHONY: test-cs2-sailing-settings
+test-cs2-sailing-settings: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/cs2_sailing_settings_test \
+		cs2vm2/test/sailing_settings_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_sailing_settings_test
 
 .PHONY: test-cs2-array-bounds
 test-cs2-array-bounds: $(OBJ_DIR)
@@ -2887,12 +2909,25 @@ test-pick-level: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 		render/test/pick_level_test.c render/torirs_pick.c \
 		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
-		world/worldview.c \
+		world/worldview.c world/wev.c \
 		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
 		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
 		features/features.c \
 		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/pick_level_test
+
+.PHONY: test-wev-population
+test-wev-population: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/wev_population_test \
+		world/test/wev_population_test.c \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		world/worldview.c world/wev.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/wev_population_test
 
 test-trig-tables-share: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trig_tables_share_test \
@@ -2960,6 +2995,18 @@ test-painters-world-entity: $(OBJ_DIR)
 		perf/torirs_perf.c \
 		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/painters_test_world_entity
+
+.PHONY: test-sailing-paint-order
+test-sailing-paint-order: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/sailing_paint_order_test \
+		game/test/sailing_paint_order_test.c
+	./$(OBJ_DIR)/sailing_paint_order_test
+
+.PHONY: test-wev-visibility
+test-wev-visibility: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wev_visibility_test \
+		world/test/wev_visibility_test.c world/wev.c -lm
+	./$(OBJ_DIR)/wev_visibility_test
 
 # The model tests link no platform, so they deliberately exercise the internal
 # BUFFER fallback. Strip every external executor advertised by the selected
@@ -3128,6 +3175,15 @@ test-frame-entity-overlay-sprite: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_entity_overlay_sprite_test
+
+.PHONY: test-frame-flat
+test-frame-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/frame_flat_test \
+		render/test/torirs_frame_flat_test.c \
+		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_flat_test
 
 # The message store the cache's chatbox scripts read: per-type rings, the uid
 # walk rebuildchatbox drives, ring recycling, friend/ignore state.
@@ -5251,7 +5307,7 @@ test-content-register: $(OBJ_DIR)
 # saying so.
 test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedTest \
-		torirsserver/test/embed_test.c $(TORIRSSERVER_CORE_SRCS) \
+		torirsserver/test/embed_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
@@ -5941,6 +5997,11 @@ test-seal-rig: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 	cd .. && ./src/$(OBJ_DIR)/seal_rig_scan
 
 # Sea terrain and hull geometry use a map distinct from walking collision.
+ifeq ($(shell uname -s),Darwin)
+SAILING_COLLISION_GC = -Wl,-dead_strip
+else
+SAILING_COLLISION_GC = -ffunction-sections -fdata-sections -Wl,--gc-sections
+endif
 .PHONY: test-sailing-collision
 test-sailing-collision: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -5948,10 +6009,11 @@ test-sailing-collision: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o 
 		torirsserver/test/sailing_collision_test.c \
 		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c \
 		torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
-		world/wev.c \
+		world/wev.c world/wev_deck.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c $(TORIDRAW_DIR)/toridraw_math.c \
 		engine/world_builder/collision_map.c features/features.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
-		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(SAILING_COLLISION_GC) -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/sailing_collision_test
 
 # Persistent content acceptance client. Its output cannot replace a live torirs.
@@ -5962,3 +6024,10 @@ content-test-client:
 test-canoes-server:
 	$(MAKE) OPT=1 torirsserver
 	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_CANOES_ONLY=1 TORIRSSERVER_CACHE=cache.osrs239 ./src/build_opt/torirsserver --selftest
+
+# Same S0/S1/S2 runtime assertions as the complete world selftest, without
+# requiring unrelated content suites to reach the sailing section first.
+.PHONY: test-sailing-server
+test-sailing-server: torirsserver
+	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_SAILING_ONLY=1 TORIRSSERVER_REV=osrs239 \
+		TORIRSSERVER_CACHE=cache.osrs239 ./src/$(OBJ_DIR)/torirsserver --selftest

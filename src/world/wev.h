@@ -321,25 +321,9 @@ struct Wev
     double anim_start_cycle; /* config idle loop's frame-0 cycle */
     double seq_start_cycle;  /* wire one-shot's frame-0 cycle (delay applied) */
 
-    /*
-     * C4 flatten state (docs/SAILING.md §5.3), app-owned.
-     *
-     * The deob's flatten is a degenerate re-render of the same sub-scene (Y
-     * scale 0.01, offset -1200, flat HSL, no actors, no picking). A software
-     * painter cannot re-render with a matrix without touching the pinned
-     * raster, so this engine takes the plan's sanctioned equivalent: a baked
-     * MERGED copy of the deck's static geometry, squashed and recoloured at
-     * bake time, drawn as one ordinary model instead of descending. The
-     * output is the same flat-colour silhouette; what is lost is only the
-     * live animation of a flattened deck, which the deob also mostly hides.
-     */
-    /** This frame's decision (aboard hull never; budget/overlap flatten). */
+    /** Native per-frame overlap silhouette and per-group draw-limit selection. */
     bool flattened;
-    /** The squashed flat-colour bake; NULL until first needed, freed on deck
-     * rebuild and despawn (the geometry it merged is gone either way). */
-    struct ToriDraw_Model* flat_model;
-    /** Root-pool dynamic scene element carrying flat_model; -1 = none. */
-    int flat_element;
+    bool render_visible;
 };
 
 /**
@@ -361,6 +345,19 @@ struct Wevs
      * Wevs_Frame(frame_cycles), stamped onto targets at enqueue. */
     double clock;
 };
+
+/** Native radius60 carrier insertion, independent of the hull overlap box. */
+void Wev_PainterFootprint(struct Wev const* wev, int* x, int* z, int* width, int* height);
+/** Fine-unit AABB of exactly rotated bounds (native method8755). */
+void Wev_RenderBounds(struct Wev const* wev, int bounds[4]);
+/** Actor rectangle against nearest16-oriented bounds (native method5535). */
+bool Wev_OverlapsActor(struct Wev const* wev, int x, int z, int size);
+typedef bool (*WevActorOverlapFn)(void* user, struct Wev const* wev);
+/** Aboard first, groups2/0/1; each group has its own nonnegative draw limit. */
+void Wevs_SelectRenderStates(struct Wevs* wevs, int aboard_view, int limit,
+                            WevActorOverlapFn actor_overlap, void* user);
+/** Native follow focus: snap both axes past500, otherwise ease1/16. */
+void Wev_SmoothCameraFocus(float* x, float* z, int target_x, int target_z);
 
 /**
  * Terrain height under a hull, for the per-frame driver: World_HeightFn plus

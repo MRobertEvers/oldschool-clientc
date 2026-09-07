@@ -3,7 +3,7 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 8024
-#define CS2_OPCODE_COUNT 979
+#define CS2_OPCODE_COUNT 984
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -3708,6 +3708,8 @@
 #define CS2_OP_HISCORE_GETMEMBERLEVEL 7819
 #define CS2_OP_HISCORE_GETMEMBERNAME 7823
 #define CS2_OP_HISCORE_GETMEMBERHISCORES 7824
+#define CS2_OP_WORLDENTITY_SETDRAWLIMIT 7900
+#define CS2_OP_WORLDENTITY_GETDRAWLIMIT 7901
 
 /* === CS2 opcode group: array (8000..8099) ===
  * typed list and array commands.
@@ -3734,6 +3736,7 @@
  * string stack; value_type selects whether the search value is popped
  * from the int or string stack, so this opcode has variable arity. */
 #define CS2_OP_ARRAY_COUNT_MATCHES 8007
+#define CS2_OP_ARRAY_FILL 8010
 #define CS2_OP_ARRAY_FILL_SEQUENCE 8011
 /* ARRAY_SPLIT — Split a string into a new string-array handle.
  * int stack in:   -

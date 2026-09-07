@@ -1532,3 +1532,117 @@ And on the server side, for symmetry: dropping `isVisibleTo` from
    checkout. Also: `make -C src PLATFORM_OBJ_BASE=build_lane2 torirs` fails if
    `build_lane2/` does not exist (the `torirs` target has no `$(OBJ_DIR)`
    prerequisite) — use the default `all` target first.
+
+---
+
+## 11. The private chat filter at revision 239 — a second carrier, not a third mode
+
+Everything above is the rev-230 lane, where `CHAT_FILTER_SETTINGS` is three
+bytes and the private filter is one of them. **At revision 239 it is not.**
+This section is the rev-239 half, measured 2026-09-06; the evidence is
+`docs/sailing_validation/lifecycle-chat-results.json` and the
+`lifecycle-chat-fixed-*.png` captures beside it.
+
+### 11.1 The packet has two bytes and never carried the private filter
+
+- Deob: `class243.field3058 = new class243(124, 2)`. Its handler,
+  `client.java:2820`, writes `field943` (public) and `field776` (trade) and
+  nothing else.
+- The private filter has a packet of its own:
+  `class243.field2939 = new class243(5, 1)`, whose handler at
+  `client.java:3830` is the **only** writer of `Statics.field5072` — the object
+  CS2 opcode 5005 `chat_getfilter_private` reads back.
+- RSProt agrees, and says it has *always* been so:
+  `3rd/rsprot/packets/chat_filter_settings.h` declares
+  `MsgChatFilterSettings { public_chat_filter, trade_chat_filter }` for every
+  version v1..v15, revisions 221 through 239. Rev 230 included.
+
+### 11.2 What a fabricated 0 cost
+
+Both decoders wrote `chat_private_mode = 0` for the missing field —
+`bridge_chat_filter_settings` in `src/net/rev/rsprot_bridge.c` and the
+hand-written arm in `src/net/rev/osrs239/osrs239_parse.c`. A fabricated 0 is not
+"no value"; it is the value *Show all*, written over whatever the player chose.
+Two symptoms, one cause:
+
+1. The filter bar read **Private On** in the instant after the player picked
+   *Show friends*, because the server's echo of their own `CHAT_SETMODE` landed
+   on top of the choice.
+2. Their **next filter change of any kind** sent the fabricated 0 back, through
+   `chat_set_filter_184`'s
+   `chat_setfilter(chat_getfilter_public, chat_getfilter_private, $new)` —
+   destroying the persisted Private setting. Changing only *Trade* rewrote
+   `[chat] private` from 1 to 0. Board-friend reads that mode, so the data loss
+   is not cosmetic.
+
+The fix is to state the field **absent** (`-1`) rather than zero, the same
+convention the zone headers use for a plane a revision does not send;
+`rs_gameproto_exec.c` applies the private mode only when it is non-negative, so
+the client's own copy stands.
+
+> **`osrs239_parse.c` is not where this runs.** `src/net/net.c:500` calls
+> `rsprot_bridge_parse` **first** and falls through to `rev->parse` only when it
+> returns < 0. `PKT_NAME_CHAT_FILTER_SETTINGS` is in the bridge table
+> (`rsprot_bridge.c:1082`), so the hand-written arm was dead code for this
+> packet and fixing only it changed nothing observable. Both say `-1` now, so
+> `rsprot_bridge_test.c`'s differential comparison still holds.
+
+### 11.3 How the private mode reaches the client instead: varbit 13674
+
+There is no need to implement opcode 5. The shipped cache already carries the
+private mode a second way and repaints off it.
+
+| fact | where |
+|---|---|
+| varbit **13674** = `chat_filter_private`, bits **13..15** of varp **1054** `chat_filter_clan` | `cachepack unpack --types varbit,varp` of `cache.osrs239` |
+| proc **113** `torirs_chatbox_layout` line 86: `if (chat_getfilter_private ! %varbit13674) { ~chat_set_filter_184(3, %varbit13674); }` then `~redraw_chat_buttons` | `OSRS-Content/osrs239-content/scripts/torirs_chatbox_layout.cs2` |
+| that proc is interface_162:0's `if_setonvartransmit` hook, and **`var1054` is first in its list** | `OSRS-Content/osrs239-content/scripts/chatbox_init.cs2:5` |
+
+So the varbit write **is** the repaint trigger: the varp transmit wakes the
+hook, the hook re-reads the varbit, applies it through `chat_setfilter` (which
+is also what makes `chat_getfilter_private` answer correctly for script 681) and
+redraws the captions. Nothing in this tree wrote varbit 13674 before, which is
+precisely why that line pinned Private to *On* at every relayout.
+
+Values are the chat button's own: `chat_button_onop` case 3 maps op 3/4/5 to
+0 *Show all* / 1 *Show friends* / 2 *Show none* — identical to
+`TORIRSSERVER_CHAT_PRIVATE_ON` / `_FRIENDS` / `_OFF`.
+
+The server writes it in two places, both in `torirs_server_world.c`:
+`ToriRSServer_WorldSocialLogin` (hydration from the saved `[chat]` section) and
+`handle_chat_setmode` (keeping the varbit and the save in step). A public- or
+trade-only change leaves the mode alone, `ToriRSServer_WorldSetVarpOn` declines
+the unchanged write, and no varp goes out — so no relayout is provoked.
+
+### 11.4 The dependency this needs from content
+
+`ToriRSServer_WorldMarkVarp` and the login varp flush both refuse a varp content
+has not declared, so **varp 1054 must be declared `transmit=yes`** or the write
+never leaves the server and proc 113 keeps reading 0:
+
+```ini
+; OSRS-Content/osrs239-content/server/scripts/**/chat_filter.varp
+[chat_filter_clan]
+protect=no
+transmit=yes
+scope=temp
+```
+
+`scope=temp` on purpose: the `[chat]` save section is the private mode's one
+persistent carrier, and a second saved copy is a second thing to disagree with
+it. The lifecycle selftest has a row for this declaration; it is red without the
+file and green with it.
+
+### 11.5 Known collateral — varp 1054 has nine tenants
+
+`chat_filter_friendschat` 0-2, `chat_filter_clanchat` 3-5, `side_channels_tab`
+6-7, `clanchat_left_own_channel` 8, `tli_storebutton_toggle_desktop` 9,
+`side_channels_tab_selected` 10-12, `chat_filter_private` 13-15,
+`osm_minimap_toggle` 16, `compass_reorientation_setheight` 17.
+
+The cache makes 1054 server-authoritative, but this lane tracks only bits 13-15,
+so transmitting the varp zeroes the client-written bits beside them. It
+transmits only when the private mode *changes*, so the cost is: changing Private
+resets a non-default Channel or Clan filter to *Show all*. Fixing it properly
+means the server storing `%varbit928`/`%varbit929` too — the same shape of work
+as §6's persistence decision, and not done here.

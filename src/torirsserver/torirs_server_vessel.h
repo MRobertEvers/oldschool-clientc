@@ -33,6 +33,7 @@
 
 struct ToriRSServer;
 struct ToriRSServerPlayer;
+struct ToriRSServerVessel;
 
 /** Concurrent vessels. Same order of magnitude as the map-instance pool that
  *  feeds their decks (each vessel owns one reservation of the 8). */
@@ -43,8 +44,8 @@ struct ToriRSServerPlayer;
  *
  * WORLDENTITY_INFO's id IS the client's world-view id (src/world/worldview.h
  * has 16 views and view 0 is the root), so the wire cannot name more than 15
- * live entities however many hulls the server pool holds. Vessels beyond that
- * exist server-side and simply have no view — `view_id == 0`.
+ * live entities however many hull slots the server pool holds. A spawn beyond
+ * that bound is rejected before acquiring any private map or collision window.
  */
 #define TORIRSSERVER_WEV_VIEW_MAX 15
 
@@ -80,6 +81,44 @@ struct ToriRSServerPlayer;
 #define TORIRSSERVER_VESSEL_FACILITY_HELM 1
 #define TORIRSSERVER_VESSEL_FACILITY_HULL 2
 
+/** Durable boat state contains no instance, player, NPC or wire identities.
+ * Selected parts remain in the native permanent owned-boat varps; cargo uses
+ * the ordinary persistent containers. Only stored resources survive logout,
+ * never a running facility job or a lease on an operator. */
+struct ToriRSServerSavedBoat
+{
+    int config_id;
+    int fine_x, fine_z, angle;
+    int hp, name_descriptor, name_noun, anchored;
+    int motes;
+    int resources[13][2];
+};
+
+struct ToriRSServerSailingSave
+{
+    int shore_x, shore_z, shore_level;
+    int aboard_slot, deck_x, deck_z;
+    struct ToriRSServerSavedBoat boats[5];
+};
+
+/** Navigator grants name login generations, never bare reusable pids. */
+#define TORIRSSERVER_VESSEL_NAVIGATOR_MAX 8
+uint32_t ToriRSServer_VesselNavigatorMask(struct ToriRSServer* srv,
+                                        const struct ToriRSServerVessel* vessel);
+int ToriRSServer_VesselSetNavigators(struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* captain, struct ToriRSServerVessel* vessel, uint32_t mask);
+int ToriRSServer_VesselCanNavigate(struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player, const struct ToriRSServerVessel* vessel);
+int ToriRSServer_VesselCargoAllowed(struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player, const struct ToriRSServerVessel* vessel);
+
+void ToriRSServer_VesselCapturePlayer(const struct ToriRSServerPlayer* player,
+                                   struct ToriRSServerSailingSave* out);
+void ToriRSServer_VesselLogout(struct ToriRSServer* srv, struct ToriRSServerPlayer* player);
+void ToriRSServer_VesselLogin(struct ToriRSServer* srv, struct ToriRSServerPlayer* player);
+void ToriRSServer_VesselRestoreOwned(struct ToriRSServer* srv,
+                                   struct ToriRSServerVessel* vessel);
+
 /** How far a gangplank looks for ground when putting a rider ashore. Wide
  *  enough to clear the longest hull's footprint from its centre, short enough
  *  that "there is no shore here" still means it. */
@@ -113,8 +152,7 @@ struct ToriRSServerVessel
     int index;
 
     /**
-     * The client world-view id this hull is published under, 1..15, or 0 when
-     * every view was taken at spawn time.
+     * The client world-view id this live hull is published under, 1..15.
      *
      * Distinct from `index` on purpose: the vessel pool is 32 deep and the
      * wire's registry is 15, so a 1:1 mapping would put ids on the wire the
@@ -196,6 +234,7 @@ struct ToriRSServerVessel
     int priority;
     /** Owning player uid, or 0 for a world-owned vessel. */
     int owner_uid;
+    uint32_t navigator_generation[TORIRSSERVER_VESSEL_NAVIGATOR_MAX];
     /** 1..5 indexes the captain's native cargo containers; 0 until claimed. */
     int cargo_slot;
 
@@ -257,9 +296,8 @@ struct ToriRSServerVessel
     int residual_z;
 
     /**
-     * Scene-window pool index holding this vessel's DECK collision, or 0 for
-     * none (the pool ran out — the hull still sails, but a rider whose own
-     * window has followed the hull away from the pool cannot walk the deck).
+     * Scene-window pool index holding this live vessel's DECK collision.
+     * A spawn reserves this window together with its view and map identity.
      *
      * A rider needs two collision domains at once — deck tiles under their
      * feet, water under the hull — and their own per-player window can only
@@ -281,10 +319,8 @@ struct ToriRSServerVessel
  * `tile_x`/`tile_z` are the absolute root-world tile the hull centers on;
  * `angle` is initial yaw in 2048-space. The hull spawns IDLE at speed tier 1.
  *
- * Returns the 1-based vessel handle, or 0 when the map-instance pool is
- * exhausted (a legitimate runtime state content checks, exactly as it does for
- * `map_instance_alloc`). Exhausting the VESSEL pool itself is asserted — 32
- * concurrent hulls is a capacity decision, not a load content can reach.
+ * Returns the 1-based vessel handle, or 0 when the vessel, view, collision
+ * window or map-instance pool is exhausted. Refusal leaves every pool unchanged.
  *
  * The deck instance is opted out of the engine's linger teardown
  * (`ToriRSServer_MapInstanceSetLinger(h, 0)`) because the vessel owns its

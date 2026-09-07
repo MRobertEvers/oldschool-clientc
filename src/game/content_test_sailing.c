@@ -9,12 +9,17 @@
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_content.h"
 #include "torirsserver/torirs_server_container.h"
+#include "torirsserver/torirs_server_friends.h"
 #include "torirsserver/torirs_server_embed.h"
 #include "torirsserver/torirs_server_ids.h"
 #include "torirsserver/torirs_server_mapinstance.h"
+#include "serverscript/ssvm.h"
 #include "serverscript/ssvm_provider.h"
 #include "world/world.h"
 #include "world/entity_scenery.h"
+#include "world/entity_player.h"
+#include "net/rev/pktnames.h"
+#include "render/torirs_world_projection.h"
 #include "toridraw_animation.h"
 
 #define SAILING_CHECKPOINT_MAX 8
@@ -116,6 +121,402 @@ static int fail(char* error, size_t cap, const char* message)
     return 0;
 }
 
+/* A second real server player with no external transport. It reaches the
+ * primary renderer exclusively through ordinary PLAYER_INFO packets. */
+static int peer_pid = -1;
+static uint32_t peer_generation;
+static int peer_query_varbit = -1;
+
+/* The crew-shell role varbit, by NAME. It was written here as the literal
+ * 19233, which is the id this cache happens to assign
+ * `sailing_sidepanel_player_role`; a content rebuild that moves it would have
+ * left this reading somebody else's varbit and reporting a plausible wrong
+ * role. Resolved once and cached, because the symbol table is fixed for the
+ * life of the process. */
+static int peer_role_varbit(void)
+{
+    static int resolved = -2;
+
+    if( resolved == -2 )
+        resolved = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
+                                              "sailing_sidepanel_player_role");
+    return resolved;
+}
+
+static struct ToriRSServerPlayer* sailing_peer(struct ToriRSServerEmbed* embed)
+{
+    struct ToriRSServer* srv = embed ? ToriRSServer_EmbedWorld(embed) : NULL;
+    if( !srv || peer_pid < 0 || peer_pid >= TORIRSSERVER_PLAYER_MAX ) return NULL;
+    struct ToriRSServerPlayer* peer = &srv->players[peer_pid];
+    return peer->active && peer->world == srv && peer->login_generation == peer_generation ? peer : NULL;
+}
+
+int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* command,
+                                  int* changed, char* error, size_t cap)
+{
+    assert(command);
+    assert(changed);
+    assert(error);
+    assert(cap);
+    *changed = 0;
+    error[0] = 0;
+    struct ToriRSServer* srv = embed ? ToriRSServer_EmbedWorld(embed) : NULL;
+    struct ToriRSServerPlayer* captain = embed ? ToriRSServer_EmbedPlayer(embed, 0) : NULL;
+    if( !srv || !captain || !captain->active ) return fail(error, cap, "peer requires an online embedded world");
+    while( *command == ' ' ) ++command;
+    struct ToriRSServerPlayer* peer = sailing_peer(embed);
+    if( !*command ) return 1;
+    if( !strncmp(command, "create", 6) && (!command[6] || command[6] == ' ') )
+    {
+        if( peer ) return fail(error, cap, "remove the current peer before creating another");
+        char name[32] = "HarnessMate";
+        sscanf(command + 6, "%31s", name);
+        for( int i = 0; name[i]; ++i )
+            if( !((name[i] >= 'a' && name[i] <= 'z') || (name[i] >= 'A' && name[i] <= 'Z') ||
+                  (name[i] >= '0' && name[i] <= '9') || name[i] == '_') )
+                return fail(error, cap, "peer name uses letters, digits and underscores");
+        peer = ToriRSServer_WorldAddPlayer(srv, NULL);
+        if( !peer ) return fail(error, cap, "no free player slot");
+        ToriRSServer_WorldPlayerInit(peer);
+        ToriRSServer_WorldSetDisplayName(peer, name);
+        if( !ToriRSServer_FriendsLogin(peer->name37, 0, TORIRSSERVER_CHAT_PRIVATE_ON, 0, 0) )
+        {
+            ToriRSServer_WorldPlayerFree(srv, peer->pid);
+            ToriRSServer_WorldPlayerReap(srv);
+            return fail(error, cap, "no free social presence slot");
+        }
+        peer_pid = peer->pid;
+        peer_generation = peer->login_generation;
+        peer_query_varbit = -1;
+        struct ToriRSServerPlayer* was = srv->active_player;
+        ToriRSServer_WorldSetActive(srv, peer);
+        struct ToriRSServerVessel* boat = ToriRSServer_VesselAtTile(srv, captain->x, captain->z);
+        if( !boat || !ToriRSServer_VesselBoardPlayer(srv, peer, boat) )
+            ToriRSServer_WorldTeleport(srv, captain->level, captain->x, captain->z);
+        ToriRSServer_WorldSetActive(srv, was);
+        *changed = 1;
+        return 1;
+    }
+    if( !peer ) return fail(error, cap, "create a peer first");
+    if( !strcmp(command, "remove") )
+    {
+        ToriRSServer_WorldRemovePlayer(srv, peer);
+        ToriRSServer_WorldPlayerReap(srv);
+        peer_pid = -1;
+        peer_generation = 0;
+        *changed = 1;
+        return 1;
+    }
+    int level, x, z, run = 0, handle = 0, op, group, component, slot;
+    char symbol[128];
+    struct ToriRSServerPlayer* was = srv->active_player;
+    int ok = 1;
+    ToriRSServer_WorldSetActive(srv, peer);
+    if( sscanf(command, "place %d %d %d", &level, &x, &z) == 3 &&
+        level >= 0 && level < 4 && x >= 0 && x < 16384 && z >= 0 && z < 16384 )
+        ToriRSServer_WorldTeleport(srv, level, x, z);
+    else if( !strncmp(command, "board", 5) && (!command[5] || command[5] == ' ') )
+    {
+        sscanf(command + 5, "%d", &handle);
+        struct ToriRSServerVessel* boat = handle ? ToriRSServer_VesselGet(srv, handle)
+            : ToriRSServer_VesselAtTile(srv, captain->x, captain->z);
+        if( !boat || !ToriRSServer_VesselBoardPlayer(srv, peer, boat) )
+            ok = fail(error, cap, "peer boarding requires a live boat with walkable deck");
+    }
+    else if( sscanf(command, "walk %d %d %d", &x, &z, &run) >= 2 &&
+             x >= 0 && x < 16384 && z >= 0 && z < 16384 && (run == 0 || run == 1) )
+    {
+        ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("option_run"), run);
+        peer->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
+        ToriRSServer_WorldWalkTo(srv, x, z);
+    }
+    else if( sscanf(command, "varbit %127s", symbol) == 1 )
+    {
+        peer_query_varbit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, symbol);
+        if( peer_query_varbit < 0 ) ok = fail(error, cap, "unknown peer varbit");
+        else if( sscanf(command, "varbit %*s %d", &x) == 1 ) ToriRSServer_VarbitSet(srv, peer_query_varbit, x);
+        else { ToriRSServer_WorldSetActive(srv, was); return 1; }
+    }
+    else if( sscanf(command, "private %d", &x) == 1 && x >= 0 && x <= 2 )
+    {
+        uint8_t payload[3] = {0, x, 0};
+        ToriRSServer_WorldHandle(peer, PKTOUT_NAME_CHAT_SETMODE, payload, 3);
+    }
+    else if( !strncmp(command, "cheat ", 6) && strlen(command + 6) < 127 )
+    {
+        uint8_t payload[128];
+        size_t n = strlen(command + 6);
+        memcpy(payload, command + 6, n);
+        payload[n++] = '\n';
+        ToriRSServer_WorldHandle(peer, PKTOUT_NAME_CLIENT_CHEAT, payload, (int)n);
+    }
+    else if( sscanf(command, "button %d %d %d %d", &group, &component, &slot, &op) == 4 &&
+             group >= 0 && group < 65536 && component >= 0 && component < 65536 &&
+             slot >= -1 && slot < 32768 && op >= 1 && op <= 10 )
+    {
+        uint32_t uid = ((uint32_t)group << 16) | component;
+        uint8_t payload[9] = {uid >> 24, uid >> 16, uid >> 8, uid,
+                             (unsigned)slot >> 8, slot, 255, 255, op};
+        ToriRSServer_WorldHandle(peer, PKTOUT_NAME_IF_BUTTONX, payload, 9);
+    }
+    /* The same button by content symbol, so a test names the component the
+     * script names ("sailing_boat_cargohold:items") instead of two numbers. */
+    else if( sscanf(command, "button %127s %d %d", symbol, &slot, &op) == 3 &&
+             slot >= -1 && slot < 32768 && op >= 1 && op <= 10 )
+    {
+        int com = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, symbol);
+        if( com <= 0 ) ok = fail(error, cap, "unknown peer button component");
+        else
+        {
+            uint8_t payload[9] = {com >> 24, com >> 16, com >> 8, com,
+                                 (unsigned)slot >> 8, slot, 255, 255, op};
+            ToriRSServer_WorldHandle(peer, PKTOUT_NAME_IF_BUTTONX, payload, 9);
+        }
+    }
+    /* The CAPTAIN's half of a player-targeted interface op: the OPPLAYERT an
+     * already-armed native click puts on the wire, aimed at the peer. It exists
+     * to separate the two halves of a target op — arming, which is the mouse's
+     * job, and the grant, which is the server's — and it is not a substitute
+     * for the click: an acceptance run that uses it must say the arming was
+     * exercised (or reported broken) separately. */
+    else if( sscanf(command, "target %127s", symbol) == 1 )
+    {
+        int com = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, symbol);
+        if( com <= 0 ) ok = fail(error, cap, "unknown peer target component");
+        else
+        {
+            /* OPPLAYERT carries the published GPI index, not the pool pid. */
+            int wire = ToriRSServer_WirePlayerIndex(peer->pid);
+            uint8_t payload[6] = {wire >> 8, wire,
+                                 com >> 24, com >> 16, com >> 8, com};
+            ToriRSServer_WorldHandle(captain, PKTOUT_NAME_OPPLAYERT, payload, 6);
+        }
+    }
+    /* A p_namedialog wait belongs to a client that types a name. The peer has
+     * no client, so the harness supplies the same RESUME_P_NAMEDIALOG the real
+     * one would send; ~sailing_board_friend is unreachable without it. */
+    else if( !strncmp(command, "namedialog ", 11) )
+    {
+        const unsigned char* text = (const unsigned char*)command + 11;
+        size_t length = strlen((const char*)text);
+        int printable = length > 0 && length <= 63;
+        for( size_t i = 0; i < length; ++i )
+            if( text[i] < 32 || text[i] > 126 ) printable = 0;
+        if( !printable ) ok = fail(error, cap, "peer namedialog requires 1..63 printable ASCII characters");
+        else
+        {
+            uint8_t payload[64];
+            memcpy(payload, text, length);
+            payload[length] = 0;
+            ToriRSServer_WorldHandle(peer, PKTOUT_NAME_RESUME_P_NAMEDIALOG, payload, (int)length + 1);
+        }
+    }
+    /* The peer's own click on a world loc: OPLOC<n> is p2 x, p2 z, p2 locId,
+     * exactly what a second client would put on the wire, so the server walks
+     * it there and runs the bound [oploc<n>] trigger. */
+    else if( sscanf(command, "oploc %d %d %d %127s", &op, &x, &z, symbol) == 4 &&
+             op >= 1 && op <= 5 && x >= 0 && x < 16384 && z >= 0 && z < 16384 )
+    {
+        int loc_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, symbol);
+        if( loc_id < 0 ) ok = fail(error, cap, "unknown peer loc");
+        else
+        {
+            uint8_t payload[6] = {x >> 8, x, z >> 8, z, loc_id >> 8, loc_id};
+            ToriRSServer_WorldHandle(peer, PKTOUT_NAME_OPLOC1 + (op - 1), payload, 6);
+        }
+    }
+    else if( sscanf(command, "proc %127s", symbol) == 1 )
+    {
+        int args[4];
+        int count = sscanf(command, "proc %*s %d %d %d %d", &args[0], &args[1], &args[2], &args[3]);
+        if( count < 0 ) count = 0;
+        char name[160];
+        snprintf(name, sizeof(name), "[proc,%s]", symbol);
+        if( !ToriRSServer_ScriptsRunProc(srv, name, args, count) ) ok = fail(error, cap, "peer content proc unavailable or invalid arguments");
+    }
+    else ok = fail(error, cap, "peer supports create/name, place/level/x/z, board/handle, walk/x/z/run, remove, varbit, private, cheat, proc, namedialog, oploc/op/x/z/loc, target/component and button/component-or-group+component/slot/op");
+    ToriRSServer_WorldSetActive(srv, was);
+    *changed = ok;
+    return ok;
+}
+
+int ContentTestSailing_PrimaryProc(struct ToriRSServerEmbed* embed, const char* command,
+                                  char* error, size_t cap)
+{
+    assert(command);
+    assert(error);
+    assert(cap);
+    error[0] = 0;
+    struct ToriRSServer* srv = embed ? ToriRSServer_EmbedWorld(embed) : NULL;
+    struct ToriRSServerPlayer* captain = embed ? ToriRSServer_EmbedPlayer(embed, 0) : NULL;
+    if( !srv || !captain || !captain->active ) return fail(error, cap, "proc requires an online embedded world");
+    char symbol[128];
+    if( sscanf(command, "%127s", symbol) != 1 ) return fail(error, cap, "proc requires a content proc name");
+    int args[4];
+    int count = sscanf(command, "%*s %d %d %d %d", &args[0], &args[1], &args[2], &args[3]);
+    if( count < 0 ) count = 0;
+    char name[160];
+    snprintf(name, sizeof(name), "[proc,%s]", symbol);
+    struct ToriRSServerPlayer* was = srv->active_player;
+    ToriRSServer_WorldSetActive(srv, captain);
+    int ok = ToriRSServer_ScriptsRunProc(srv, name, args, count);
+    ToriRSServer_WorldSetActive(srv, was);
+    if( !ok ) return fail(error, cap, "content proc unavailable or invalid arguments");
+    return 1;
+}
+
+/* app_world_height_in's rule, for the harness only: an out-of-scene column has
+ * no heightmap and a LINK_BELOW tile samples the level under it. */
+static int sailing_ground_height(struct World* world, int fine_x, int fine_z, int level)
+{
+    assert(world);
+    if( !world->heightmap ) return 0;
+    int tile_x = fine_x >> 7, tile_z = fine_z >> 7;
+    if( tile_x < 0 || tile_z < 0 || tile_x >= world->_scene_size || tile_z >= world->_scene_size )
+        return 0;
+    int real_level = level;
+    if( level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
+        (World_TileFlagGet(world, tile_x, tile_z, 1) & RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
+        real_level = level + 1;
+    return heightmap_get_interpolated(world->heightmap, fine_x, fine_z, real_level);
+}
+
+/*
+ * Where the peer's model stands on the captain's screen, so an acceptance test
+ * can aim a real mouse at another player the way a user does. This mirrors
+ * app.c's app_world_project_actor, which is static; it is a harness reading,
+ * never a render input, and the reply also carries the client's OWN pick-set
+ * verdict, so a drift from app.c shows up as a failed proof rather than a
+ * confidently wrong coordinate.
+ */
+static int peer_screen(struct App* app, const struct WorldEntity_Player* actor,
+                       int* out_x, int* out_y)
+{
+    assert(app);
+    assert(actor);
+    assert(out_x);
+    assert(out_y);
+    if( !app->world || !app->world_view_valid ) return 0;
+    int fine_x = (int)actor->draw_position.x;
+    int fine_z = (int)actor->draw_position.z;
+    int view_id = actor->view_placement.view_id;
+    int min_y = 0;
+    struct ToriDraw_SceneElement* element = actor->element_id >= 0
+        ? ToriDraw_SceneElementGet(app->scene, actor->element_id) : NULL;
+    const struct ToriDraw_Model* model = element && ToriDraw_ModelKindIsFull(element->model.kind)
+        ? ToriDraw_ModelRead(element->model) : NULL;
+    for( int i = 0; model && i < model->vertex_count; ++i )
+        if( model->vertices_y[i] < min_y ) min_y = model->vertices_y[i];
+    /* Half the model's height: mid-body, where a user aims and where the pick
+     * has the most of the actor under it. */
+    int height = -min_y / 2;
+    int ground_y;
+    if( view_id > 0 && Wevs_IsLive(&app->wevs, view_id) &&
+        WorldviewRegistry_IsLive(&app->worldviews, view_id) )
+    {
+        struct Wev* wev = Wevs_Get(&app->wevs, view_id);
+        struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, view_id);
+        struct WevDeckBox box;
+        int root_fx, root_fz, level;
+        assert(wev->config);
+        if( wev->flattened || !wev->render_visible ) return 0;
+        if( wev->parent_view_id != WORLDVIEW_ROOT ) return 0;
+        if( actor->view_placement.home_view == 0 )
+        {
+            fine_x = actor->view_placement.x;
+            fine_z = actor->view_placement.z;
+        }
+        box.pos_x = wev->x - (app->world->_base_tile_x << 7);
+        box.pos_z = wev->z - (app->world->_base_tile_z << 7);
+        box.angle = wev->angle;
+        box.recenter_x = -(view->size_x_tiles * 64) - wev->config->pivot_x;
+        box.recenter_z = -(view->size_z_tiles * 64) - wev->config->pivot_z;
+        box.size_x_tiles = view->size_x_tiles;
+        box.size_z_tiles = view->size_z_tiles;
+        Wev_ParentFromDeck(&box, fine_x, fine_z, &root_fx, &root_fz);
+        level = wev->config->plane < 0 ? 0 : wev->config->plane;
+        if( level >= COLLISION_LEVELS ) level = COLLISION_LEVELS - 1;
+        ground_y = wev->y + wev->bob_y + sailing_ground_height(view->world, fine_x, fine_z, level);
+        fine_x = root_fx;
+        fine_z = root_fz;
+    }
+    else
+    {
+        int level = actor->grid_position.level;
+        if( level < 0 ) level = 0;
+        if( level >= COLLISION_LEVELS ) level = COLLISION_LEVELS - 1;
+        ground_y = sailing_ground_height(app->world, fine_x, fine_z, level);
+    }
+    if( fine_x < 128 || fine_z < 128 ) return 0;
+    return ToriRS_WorldProjectPoint(&app->world_camera, &app->world_camera_pos,
+        app->world_emit_desc.x, app->world_emit_desc.y,
+        app->world_emit_desc.w, app->world_emit_desc.h, 50,
+        fine_x, ground_y - height, fine_z, out_x, out_y);
+}
+
+/* The client's own answer to "is that actor under the cursor?", from the last
+ * completed pick pass. A `hover` at the projected point proves the reading. */
+static int peer_picked(struct App* app, int element_id)
+{
+    assert(app);
+    for( int i = 0; i < app->world_pickset.count; ++i )
+        if( app->world_pickset.items[i].element_id == element_id &&
+            app->world_pickset.items[i].type == WORLD_PICK_PLAYER )
+            return 1;
+    return 0;
+}
+
+void ContentTestSailing_PeerState(struct App* app, struct ToriRSServerEmbed* embed,
+                                 char* json, size_t cap)
+{
+    assert(app);
+    assert(json);
+    assert(cap);
+    struct ToriRSServerPlayer* peer = sailing_peer(embed);
+    if( !peer ) { snprintf(json, cap, "{\"ok\":true,\"present\":false}"); return; }
+    int wire = ToriRSServer_WirePlayerIndex(peer->pid);
+    struct WorldEntity_Player* actor = World_PlayerGetByServerPid(app->world, wire);
+    for( int view = 1; !actor && view < WORLDVIEW_MAX; ++view )
+        if( WorldviewRegistry_IsLive(&app->worldviews, view) )
+            actor = World_PlayerGetByServerPid(WorldviewRegistry_Get(&app->worldviews, view)->world, wire);
+    int screen_x = -1, screen_y = -1;
+    int projected = actor && peer_screen(app, actor, &screen_x, &screen_y);
+    /* The server's own verdicts on the peer, read from the captain's hull:
+     * "can this guest steer?" and "can this guest reach the hold?". These are
+     * the two rules the social/permission proofs are about. */
+    struct ToriRSServer* srv = ToriRSServer_EmbedWorld(embed);
+    struct ToriRSServerPlayer* captain = ToriRSServer_EmbedPlayer(embed, 0);
+    struct ToriRSServerVessel* boat = srv && captain && captain->active
+        ? ToriRSServer_VesselAtTile(srv, captain->x, captain->z) : NULL;
+    int can_navigate = boat && ToriRSServer_VesselCanNavigate(srv, peer, boat);
+    int can_cargo = boat && ToriRSServer_VesselCargoAllowed(srv, peer, boat);
+    snprintf(json, cap,
+        "{\"ok\":true,\"present\":true,\"pid\":%d,\"wire_pid\":%d,\"name\":\"%s\","
+        "\"server\":{\"x\":%d,\"z\":%d,\"level\":%d,\"obs_x\":%d,\"obs_z\":%d,\"obs_level\":%d,"
+        "\"navigating\":%d,\"running\":%d,\"mainmodal\":%d,\"sidemodal\":%d,\"role\":%d,\"varbit\":%d,\"value\":%d,"
+        "\"script\":%d,\"script_wait\":%d},"
+        "\"client\":{\"present\":%s,\"element\":%d,\"view\":%d,\"home_view\":%d,\"fine_x\":%d,\"fine_z\":%d,\"view_x\":%d,\"view_z\":%d,\"route_length\":%d,\"route_run\":%d},"
+        "\"screen\":{\"projected\":%s,\"x\":%d,\"y\":%d,\"picked\":%s},"
+        "\"permissions\":{\"captain_boat\":%d,\"navigate\":%s,\"cargo\":%s}}",
+        peer->pid, wire, peer->display_name, peer->x, peer->z, peer->level,
+        peer->obs_x, peer->obs_z, peer->obs_level, peer->navigating_vessel, peer->running,
+        peer->mainmodal_group, peer->sidemodal_group,
+        peer_role_varbit() >= 0 ? ToriRSServer_VarbitGet(peer, peer_role_varbit()) : -1,
+        peer_query_varbit, peer_query_varbit >= 0 ? ToriRSServer_VarbitGet(peer, peer_query_varbit) : -1,
+        peer->active_script != NULL,
+        peer->active_script ? (int)peer->active_script->execution : -1,
+        actor ? "true" : "false", actor ? actor->element_id : -1,
+        actor ? actor->view_placement.view_id : -1, actor ? actor->view_placement.home_view : -1,
+        actor ? (int)actor->draw_position.x : -1, actor ? (int)actor->draw_position.z : -1,
+        actor ? actor->view_placement.x : -1, actor ? actor->view_placement.z : -1,
+        actor ? actor->pathing.route_length : -1,
+        actor && actor->pathing.route_length ? actor->pathing.route_run[actor->pathing.route_length-1] : -1,
+        projected ? "true" : "false", projected ? screen_x : -1, projected ? screen_y : -1,
+        actor && peer_picked(app, actor->element_id) ? "true" : "false",
+        boat ? boat->index : 0, can_navigate ? "true" : "false",
+        can_cargo ? "true" : "false");
+}
+
 static int ready(struct App* app, struct ToriRSServerEmbed* embed,
                  int require_aboard, char* error, size_t cap)
 {
@@ -126,6 +527,8 @@ static int ready(struct App* app, struct ToriRSServerEmbed* embed,
     struct ToriRSServer* srv = ToriRSServer_EmbedWorld(embed);
     assert(player);
     assert(srv);
+    if( sailing_peer(embed) )
+        return fail(error, cap, "remove the peer before checkpointing; checkpoints cover the primary player");
     if( player->active_script || player->action_locked || player->dying ||
         player->combat_target >= 0 || player->delayed_until > srv->tick ||
         player->remote_view_active || app->cam_script.scripted )
@@ -487,7 +890,8 @@ void ContentTestSailing_SettleRestore(struct App* app)
         int id=World_SceneryFindAt(view,saved->scenery[n].x,saved->scenery[n].z,
             saved->scenery[n].level,saved->scenery[n].shape);
         struct WorldEntity_Scenery* sc=id>=0 ? World_EntityPoolGet(&view->entities.scenery,id) : NULL;
-        assert(sc && sc->loc_id==saved->scenery[n].loc_id);
+        assert(sc);
+        assert(sc->loc_id==saved->scenery[n].loc_id);
         struct ToriDraw_Animation* anim=ToriDraw_SceneAnimationGet(app->scene,saved->scenery[n].seq_id);
         assert(anim);
         ToriDraw_SceneElementSetAnimationSeq(app->scene,sc->element_id,saved->scenery[n].seq_id);
@@ -567,11 +971,14 @@ void ContentTestSailing_State(struct App* app, struct ToriRSServerEmbed* embed,
         "\"vessel\":{\"id\":%d,\"serial\":%d,\"view\":%d,\"config\":%d,\"instance\":%d,"
         "\"fine_x\":%d,\"fine_z\":%d,\"angle\":%d,\"heading\":%d,\"state\":%d,"
         "\"speed_tier\":%d,\"sails_set\":%d,\"reversing\":%d,\"hp\":%d,\"hp_max\":%d,"
+        "\"owner_uid\":%d,\"cargo_slot\":%d,\"navigator_mask\":%u,"
         "\"facilities\":[%d,%d,%d]}}",
         count, srv->tick, player->x, player->z, player->level, player->navigating_vessel,
         vessel->index, vessel->serial, vessel->view_id, vessel->config_id, vessel->instance,
         vessel->fine_x, vessel->fine_z, vessel->angle, vessel->heading, vessel->state,
         vessel->speed_tier, vessel->sails_set, vessel->reversing, vessel->hp, vessel->hp_max,
+        vessel->owner_uid, vessel->cargo_slot,
+        (unsigned)ToriRSServer_VesselNavigatorMask(srv, vessel),
         vessel->facility[0], vessel->facility[1], vessel->facility[2]);
     const struct Wev* wev = vessel->view_id > 0 &&
         Wevs_IsLive(&app->wevs, vessel->view_id) ? Wevs_Get(&app->wevs, vessel->view_id) : NULL;
@@ -600,6 +1007,20 @@ void ContentTestSailing_Clear(void)
     }
 }
 #else
+int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* command,
+                                  int* changed, char* error, size_t cap)
+{ (void)embed; (void)command; *changed=0; snprintf(error,cap,"embedded server required"); return 0; }
+void ContentTestSailing_PeerState(struct App* app, struct ToriRSServerEmbed* embed, char* json, size_t cap)
+{ (void)app; (void)embed; snprintf(json,cap,"{\"ok\":false}"); }
+int ContentTestSailing_PrimaryProc(struct ToriRSServerEmbed* embed, const char* command,
+                                  char* error, size_t cap)
+{
+    (void)embed; (void)command;
+    assert(error);
+    assert(cap > 0);
+    snprintf(error, cap, "content procs require EMBED_SERVER=1");
+    return 0;
+}
 int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
                            const char* name, char* error, size_t cap)
 {

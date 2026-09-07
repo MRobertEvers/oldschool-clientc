@@ -106,7 +106,6 @@ ToriRSServer_OpsPlayer(
     case SS_OP_P_OPLOC:
     {
         int32_t op_num;
-        int slot;
         struct ToriRSServerSceneLoc* loc;
 
         if( !SSVM_PopInt(state, &op_num) )
@@ -119,8 +118,9 @@ ToriRSServer_OpsPlayer(
             return 1;
         }
 
-        slot = (int)((intptr_t)SSVM_Active(state, SSVM_ENT_LOC)) - 1;
-        loc = slot >= 0 ? ToriRSServer_SceneLoc(slot) : NULL;
+        /* Interactions may use a coordinate handle after a scene-window
+         * rebuild. Use the same resolver as the other loc opcodes. */
+        loc = ToriRSServer_ScriptLocResolve(srv, SSVM_Active(state, SSVM_ENT_LOC));
         if( !loc || !loc->active )
         {
             SSVM_Abort(state, "p_oploc: the active loc is gone");

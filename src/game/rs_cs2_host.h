@@ -690,6 +690,8 @@ struct RS_CS2Host
      *  back disagree (app.h says what that looks like). */
     int viewport_w;
     int viewport_h;
+    /** Native7900/7901, default30; zero suppresses unboarded carriers. */
+    int world_entity_draw_limit;
     /** Window mode (enum CS2VM_WindowMode), backing GET/SETWINDOWMODE and their
      *  `default` siblings. `window_mode_dirty` is raised by a SET and drained by
      *  the App, which owns the canvas and the SDL window — same shape as

@@ -960,6 +960,9 @@ collision_approach_from_shape(
 void
 collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts* out)
 {
+    /* Every arm writes every field: `unbounded` is a feature-flag overlay the
+     * production callers set afterwards, and a caller that does not (the route
+     * tests) must not read stack garbage as "search the whole flood". */
     assert(out);
     switch( nearest_model )
     {
@@ -969,6 +972,7 @@ collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts
         out->range = 0;
         out->max_dist = 0;
         out->rank_by_rect_distance = 0;
+        out->unbounded = 0;
         return;
 
     case TORIRS_NEAREST_BOX10_RECT:
@@ -982,6 +986,7 @@ collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts
         out->range = 10;
         out->max_dist = 100;
         out->rank_by_rect_distance = 1;
+        out->unbounded = 0;
         return;
 
     case TORIRS_NEAREST_RING3_STEPS:
@@ -992,6 +997,7 @@ collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts
         out->range = 1;
         out->max_dist = 100;
         out->rank_by_rect_distance = 0;
+        out->unbounded = 0;
         return;
     }
 }

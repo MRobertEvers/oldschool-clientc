@@ -1,9 +1,12 @@
 #include "content_test.h"
 #include "app.h"
 #include "cmd/cmdbus.h"
+#include "net/net.h"
+#include "input/torirs_keymap.h"
 #include "platform/net_transport.h"
 #include "platform/platform_window.h"
 #include "ui/uitree_layout.h"
+#include "painters/painters.h"
 #include "content_test_sailing.h"
 #include "game/rs_cs2_dispatch.h"
 #include <assert.h>
@@ -273,6 +276,69 @@ static void capture(struct App* app, const char* filename)
     }
 }
 
+/* Counts come from the last completed native painter pass. Actor lookups
+ * include root-owned passengers borrowed into a deck's dynamic scene. */
+static void wev_json(struct App* app, char* out, size_t capacity)
+{
+    int marker[WORLDVIEW_MAX]={0}, draws[WORLDVIEW_MAX]={0}, order[WORLDVIEW_MAX]={0}, next_order=0;
+    int terrain[WORLDVIEW_MAX]={0}, actors[WORLDVIEW_MAX]={0}, picks[WORLDVIEW_MAX]={0};
+    int stack[WORLDVIEW_MAX+1]={0}, depth=0;
+    if( app->painter_buffer )
+        for( int n=0; n<app->painter_buffer->command_count; ++n )
+        {
+            const struct PaintersElementCommand* cmd=&app->painter_buffer->commands[n];
+            int id=(int)cmd->_entity._bf_entity;
+            if( cmd->_bf_kind==PNTR_CMD_BEGIN_WORLD )
+            {
+                assert(id>0 && id<WORLDVIEW_MAX);
+                assert(depth<WORLDVIEW_MAX);
+                stack[++depth]=id; ++marker[id]; order[id]=++next_order;
+            }
+            else if( cmd->_bf_kind==PNTR_CMD_END_WORLD )
+            { assert(depth>0 && stack[depth]==id); --depth; }
+            else
+            {
+                int view=stack[depth];
+                if( cmd->_bf_kind==PNTR_CMD_TERRAIN || cmd->_bf_kind==PNTR_CMD_TERRAIN_PICK_ONLY )
+                    ++terrain[view];
+                else if( cmd->_bf_kind==PNTR_CMD_ELEMENT )
+                {
+                    id=painter_command_element_id(cmd);
+                    ++draws[view];
+                    struct World* own=WorldviewRegistry_IsLive(&app->worldviews,view)
+                        ? WorldviewRegistry_Get(&app->worldviews,view)->world : NULL;
+                    if( (app->world && (World_NpcGetByElementId(app->world,id,NULL) ||
+                                         World_PlayerGetByElementId(app->world,id))) ||
+                        (own && own!=app->world && (World_NpcGetByElementId(own,id,NULL) ||
+                                                   World_PlayerGetByElementId(own,id))) )
+                        ++actors[view];
+                }
+            }
+        }
+    assert(depth==0);
+    for( int n=0; n<app->world_pickset.count; ++n )
+    {
+        int id=app->world_pickset.items[n].view_id;
+        if( id>=0 && id<WORLDVIEW_MAX ) ++picks[id];
+    }
+    int used=snprintf(out,capacity,"{\"ok\":true,\"limit\":%d,\"aboard\":%d,\"views\":[",
+                      app->host.world_entity_draw_limit,app->aboard_view);
+    int count=0;
+    for( int id=1; id<WORLDVIEW_MAX; ++id )
+        if( Wevs_IsLive(&app->wevs,id) )
+        {
+            const struct Wev* w=Wevs_Get(&app->wevs,id);
+            int bounds[4]; Wev_RenderBounds(w,bounds);
+            used+=snprintf(out+used,capacity-(size_t)used,
+                "%s{\"id\":%d,\"group\":%d,\"visible\":%s,\"flat\":%s,\"fine\":[%d,%d],\"yaw\":%d,\"bounds\":[%d,%d,%d,%d],\"markers\":%d,\"draw_order\":%d,\"model_commands\":%d,\"terrain_commands\":%d,\"actor_commands\":%d,\"picked\":%d}",
+                count++ ? "," : "",id,w->priority_group,w->render_visible ? "true":"false",
+                w->flattened ? "true":"false",w->x,w->z,w->angle,
+                bounds[0],bounds[1],bounds[2],bounds[3],marker[id],order[id],draws[id],terrain[id],actors[id],picks[id]);
+            assert(used>=0 && (size_t)used<capacity);
+        }
+    snprintf(out+used,capacity-(size_t)used,"]}");
+}
+
 uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                           struct ToriRS_CmdBus* bus, uint64_t real_now)
 {
@@ -312,6 +378,33 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                 observe_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, name);
                 if( frames < 0 || frames > 30000 || observe_bit < 0 ) error("invalid observation frames or varbit");
                 else { remaining = frames; running = 0; observe_requested = 1; }
+            }
+            else if( sscanf(command,"wevlimit %d",&x)==1 )
+            {
+                app->host.world_entity_draw_limit=x<0 ? 0:x;
+                hover_requested=1; app->need_redraw=1;
+            }
+            else if( sscanf(command,"wevgroup %d %d",&x,&z)==2 )
+            {
+                if( x<=0 || x>=WORLDVIEW_MAX || !Wevs_IsLive(&app->wevs,x) || z<0 || z>2 )
+                    error("wevgroup requires a live view and group0..2");
+                else
+                {
+                    Wevs_Get(&app->wevs,x)->priority_group=z;
+                    hover_requested=1; app->need_redraw=1;
+                }
+            }
+            else if( !strcmp(command,"peer") || !strncmp(command,"peer ",5) )
+            {
+                char message[256]; int changed=0;
+                if( !ContentTestSailing_PeerCommand(embed,command+4,&changed,message,sizeof(message)) ) error(message);
+                else if( changed ) { publish_pending=1; app->need_redraw=1; }
+            }
+            else if( !strncmp(command, "proc ", 5) )
+            {
+                char message[256];
+                if( !ContentTestSailing_PrimaryProc(embed, command + 5, message, sizeof(message)) ) error(message);
+                else { publish_pending = 1; app->need_redraw = 1; }
             }
             else if( !strcmp(command, "pause") ) running = 0;
             else if( !strcmp(command, "resume") ) running = 1;
@@ -377,6 +470,48 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             }
             else if( !strcmp(command, "close") )
             { app->host.close_modal_requested = true; app->runner.frame_settle_pending = 1; publish_pending = 1; }
+            else if( !strncmp(command, "text ", 5) )
+            {
+                const unsigned char* text=(const unsigned char*)command+5;
+                size_t length=strlen((const char*)text);
+                int valid=length>0 && length<=63;
+                for( size_t i=0; i<length; ++i )
+                    if( text[i]<32 || text[i]>126 ) valid=0;
+                if( !valid ) error("text requires 1..63 printable ASCII characters");
+                else
+                {
+                    for( size_t i=0; i<length; ++i )
+                        CmdBus_PushKeyEvent(bus,-1,text[i],0);
+                    publish_pending=1;
+                }
+            }
+            else if( !strncmp(command, "key ", 4) )
+            {
+                int key=-1;
+                if( !strcmp(command+4,"enter") ) key=TORIRS_OSRSKEY_ENTER;
+                else if( !strcmp(command+4,"escape") ) key=TORIRS_OSRSKEY_ESCAPE;
+                else if( !strcmp(command+4,"backspace") ) key=TORIRS_OSRSKEY_BACKSPACE;
+                else if( !strcmp(command+4,"tab") ) key=TORIRS_OSRSKEY_TAB;
+                if( key<0 ) error("key requires enter, escape, backspace or tab");
+                else
+                {
+                    CmdBus_PushOsrsKey(bus,key,1,1);
+                    CmdBus_PushKeyEvent(bus,key,0,0);
+                    CmdBus_PushOsrsKey(bus,key,0,0);
+                    publish_pending=1;
+                }
+            }
+            else if( !strcmp(command, "logout") )
+            {
+                if( !app->net || app->net->state != TORIRS_NET_GAME ) error("not logged in");
+                else
+                {
+                    /* Use the production transport close: embedded and socket
+                     * servers both save through their ordinary disconnect. */
+                    ToriRS_Network_Logout(app->net);
+                    publish_pending = 1;
+                }
+            }
             else if( (!strcmp(command, "reload") || !strncmp(command, "reload ", 7)) && embed )
             {
                 struct ToriRSServer* srv = ToriRSServer_EmbedWorld(embed);
@@ -390,7 +525,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             }
             /* Queue readback only after input/network/UI settlement in End. */
             else if( !strncmp(command, "shot ", 5) ) { }
-            else if( strcmp(command, "state") && strncmp(command, "varbit ", 7) &&
+            else if( strcmp(command, "wev") && strcmp(command, "state") && strncmp(command, "varbit ", 7) &&
                      strcmp(command, "threats") && strncmp(command, "scenery ", 8) && strncmp(command, "npc ", 4) && strncmp(command, "widget ", 7) && strncmp(command, "save ", 5) &&
                      strncmp(command, "restore ", 8) && strncmp(command, "collision", 9) &&
                      strncmp(command, "varp ", 5) && strncmp(command, "inventory ", 10) &&
@@ -515,6 +650,14 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
             server ? ToriRSServer_VarbitGet(server, observe_bit) : -1, scenery, widget_state);
         observe_requested = 0;
     }
+    else if( !strcmp(command,"wev") || !strncmp(command,"wevlimit ",9) || !strncmp(command,"wevgroup ",9) )
+    {
+        if( !strstr(result,"\"ok\":false") ) wev_json(app,result,sizeof(result));
+    }
+    else if( !strcmp(command,"peer") || !strncmp(command,"peer ",5) )
+    {
+        if( !strstr(result,"\"ok\":false") ) ContentTestSailing_PeerState(app,embed,result,sizeof(result));
+    }
     else if( strcmp(command, "state") == 0 )
     {
         state_json(app, embed, result, sizeof(result));
@@ -536,6 +679,12 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
     {
         struct ToriRSServer* srv=ToriRSServer_EmbedWorld(embed);
         struct ToriRSServerVessel* boat=ToriRSServer_VesselAtTile(srv,server->x,server->z);
+        int handle;
+        if( sscanf(command,"activity %*d %d",&handle)==1 )
+        {
+            boat=ToriRSServer_VesselGet(srv,handle);
+            if( boat && boat->owner_uid!=server->pid+1 ) boat=NULL;
+        }
         if( !boat || sub<0 || sub>=13 ) error("activity requires a boat and hotspot0..12");
         else
         {
@@ -553,8 +702,8 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
                 burn_token=srv->npcs[target].script_vars[63];
             }
             snprintf(result,sizeof(result),
-                "{\"ok\":true,\"slot\":%d,\"registers\":[%d,%d,%d,%d,%d,%d,%d],\"wind\":[%d,%d,%d,%d,%d,%d,%d,%d],\"sailing_xp_tenths\":%d,\"fishing_xp_tenths\":%d,\"ranged_xp_tenths\":%d,\"construction_xp_tenths\":%d,\"target_hp\":%d,\"target_frozen\":%d,\"target_slow_token\":%d,\"target_burn_token\":%d}",
-                sub,reg[0],reg[1],reg[2],reg[3],reg[4],reg[5],reg[6],wind[0],wind[1],wind[2],wind[3],wind[4],wind[5],wind[6],wind[7],
+                "{\"ok\":true,\"vessel\":%d,\"slot\":%d,\"registers\":[%d,%d,%d,%d,%d,%d,%d],\"wind\":[%d,%d,%d,%d,%d,%d,%d,%d],\"sailing_xp_tenths\":%d,\"fishing_xp_tenths\":%d,\"ranged_xp_tenths\":%d,\"construction_xp_tenths\":%d,\"target_hp\":%d,\"target_frozen\":%d,\"target_slow_token\":%d,\"target_burn_token\":%d}",
+                boat->index,sub,reg[0],reg[1],reg[2],reg[3],reg[4],reg[5],reg[6],wind[0],wind[1],wind[2],wind[3],wind[4],wind[5],wind[6],wind[7],
                 server->stat_xp_tenths[23],server->stat_xp_tenths[10],server->stat_xp_tenths[4],server->stat_xp_tenths[22],hp,frozen,slow_token,burn_token);
         }
     }

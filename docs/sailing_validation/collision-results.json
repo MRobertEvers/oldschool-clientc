@@ -1,7 +1,13 @@
 {
   "ok": true,
-  "session": "/private/tmp/sailing-final-review",
-  "elapsed_ms": 1026.872,
+  "session": "/private/tmp/sailing-fin3-core",
+  "provenance": {
+    "binary_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+    "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "allow_stale_scripts": false
+  },
+  "elapsed_ms": 1011.174,
   "ocean": {
     "x": 3072,
     "z": 3160,
@@ -23,6 +29,9 @@
     "reversing": 0,
     "hp": 80,
     "hp_max": 80,
+    "owner_uid": 1,
+    "cargo_slot": 1,
+    "navigator_mask": 0,
     "facilities": [
       1,
       1,
@@ -45,6 +54,9 @@
     "reversing": 0,
     "hp": 80,
     "hp_max": 80,
+    "owner_uid": 1,
+    "cargo_slot": 1,
+    "navigator_mask": 0,
     "facilities": [
       1,
       1,
@@ -67,6 +79,9 @@
     "reversing": 0,
     "hp": 78,
     "hp_max": 80,
+    "owner_uid": 1,
+    "cargo_slot": 1,
+    "navigator_mask": 0,
     "facilities": [
       1,
       1,
@@ -270,9 +285,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 36.268,
-      "elapsed_ms": 37.805,
-      "bytes": 188127,
+      "runtime_ms": 36.51,
+      "elapsed_ms": 40.358,
+      "bytes": 188613,
       "world_order_mode": 0
     },
     {
@@ -281,9 +296,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 35.179,
-      "elapsed_ms": 36.4,
-      "bytes": 188630,
+      "runtime_ms": 35.297,
+      "elapsed_ms": 37.985,
+      "bytes": 189437,
       "world_order_mode": 0
     },
     {
@@ -292,9 +307,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 35.365,
-      "elapsed_ms": 37.757,
-      "bytes": 188183,
+      "runtime_ms": 35.171,
+      "elapsed_ms": 37.779,
+      "bytes": 188987,
       "world_order_mode": 0
     },
     {
@@ -303,9 +318,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 32.035,
-      "elapsed_ms": 34.944,
-      "bytes": 183797,
+      "runtime_ms": 30.865,
+      "elapsed_ms": 33.095,
+      "bytes": 184557,
       "world_order_mode": 0
     },
     {
@@ -314,9 +329,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 36.185,
-      "elapsed_ms": 38.319,
-      "bytes": 188316,
+      "runtime_ms": 35.037,
+      "elapsed_ms": 37.455,
+      "bytes": 188894,
       "world_order_mode": 0
     },
     {
@@ -325,9 +340,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 30.546,
-      "elapsed_ms": 32.224,
-      "bytes": 198345,
+      "runtime_ms": 29.876,
+      "elapsed_ms": 32.925,
+      "bytes": 198416,
       "world_order_mode": 0
     }
   ],

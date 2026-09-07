@@ -29,6 +29,7 @@
 
 #include "engine/world_builder/collision_map.h"
 #include "torirs_server.h"
+#include "torirs_server_content.h"
 #include "torirs_server_mapinstance.h"
 #include "torirs_server_scene.h"
 #include "world/wev.h"
@@ -51,6 +52,11 @@
  */
 static int g_vessel_serial;
 
+static void vessel_evacuate_player(struct ToriRSServer* srv,
+                                  struct ToriRSServerPlayer* player);
+static void vessel_forget_instance(struct ToriRSServer* srv,
+                                  struct ToriRSServerPlayer* player, int instance);
+
 /* ------------------------------------------------------------------ */
 /* Fixed-point trig                                                    */
 /* ------------------------------------------------------------------ */
@@ -61,6 +67,8 @@ static int g_vessel_serial;
  * 64-bit intermediates are fine — the no-64-bit rule covers 3rd/toridraw.
  */
 static int32_t s_sin16[TORIRSSERVER_VESSEL_ANGLE_UNITS];
+static int32_t s_draw_sin16[TORIRSSERVER_VESSEL_ANGLE_UNITS];
+static int32_t s_draw_cos16[TORIRSSERVER_VESSEL_ANGLE_UNITS];
 static int s_sin16_ready;
 
 static void
@@ -71,16 +79,16 @@ vessel_trig_init(void)
 
     if( s_sin16_ready )
         return;
-    /* Truncation toward zero, NOT lround: this table must be byte-identical
-     * to the client's (3rd/toridraw shared_tables.c builds its sin table
-     * with a plain cast), because the deck→root projection below must land
-     * on the same tile the client's Wev_ParentFromDeck computes. With
-     * lround here and truncation there, the two ends disagreed by 1-2 fine
-     * units at the twelve non-cardinal headings — enough to flap the
-     * rider's projected shadow across a tile boundary. */
+    /* Heading velocity uses the exact circle; deck rendering uses the client's
+     * independently generated sine/cosine tables (shared_tables.c). Its legacy
+     * angular constant is slightly truncated, so shifted sine is not identical
+     * to cosine. Preserve that exact projection at tile boundaries. */
     for( i = 0; i < TORIRSSERVER_VESSEL_ANGLE_UNITS; i++ )
-        s_sin16[i] =
-            (int32_t)(sin((double)i * k_two_pi / TORIRSSERVER_VESSEL_ANGLE_UNITS) * 65536.0);
+    {
+        s_sin16[i] = (int32_t)(sin((double)i * k_two_pi / TORIRSSERVER_VESSEL_ANGLE_UNITS) * 65536.0);
+        s_draw_sin16[i] = (int32_t)(sin((double)i * 0.0030679615) * 65536.0);
+        s_draw_cos16[i] = (int32_t)(cos((double)i * 0.0030679615) * 65536.0);
+    }
     s_sin16_ready = 1;
 }
 
@@ -110,8 +118,9 @@ vessel_rotate_forward(
     int* out_rx,
     int* out_rz)
 {
-    int64_t c = vessel_cos(angle);
-    int64_t s = vessel_sin(angle);
+    vessel_trig_init();
+    int64_t c = s_draw_cos16[angle & TORIRSSERVER_VESSEL_ANGLE_MASK];
+    int64_t s = s_draw_sin16[angle & TORIRSSERVER_VESSEL_ANGLE_MASK];
 
     *out_rx = (int)(((int64_t)lx * c + (int64_t)lz * s) >> 16);
     *out_rz = (int)(((int64_t)lz * c - (int64_t)lx * s) >> 16);
@@ -128,8 +137,9 @@ vessel_rotate_inverse(
     int* out_lx,
     int* out_lz)
 {
-    int64_t c = vessel_cos(angle);
-    int64_t s = vessel_sin(angle);
+    vessel_trig_init();
+    int64_t c = s_draw_cos16[angle & TORIRSSERVER_VESSEL_ANGLE_MASK];
+    int64_t s = s_draw_sin16[angle & TORIRSSERVER_VESSEL_ANGLE_MASK];
 
     *out_lx = (int)(((int64_t)rx * c - (int64_t)rz * s) >> 16);
     *out_lz = (int)(((int64_t)rz * c + (int64_t)rx * s) >> 16);
@@ -447,6 +457,8 @@ ToriRSServer_VesselSpawn(
     int zone_w;
     int zone_h;
     int instance;
+    int view_id = 0;
+    int deck_window = 0;
 
     assert(srv);
     assert(config_id >= 0);
@@ -462,9 +474,26 @@ ToriRSServer_VesselSpawn(
     for( slot = 0; slot < TORIRSSERVER_VESSEL_MAX; slot++ )
         if( !srv->vessels[slot].in_use )
             break;
-    /* Pool exhaustion is a capacity bug, not a state content can reach: 32
-     * hulls outruns the 8-instance deck pool four times over. */
-    assert(slot < TORIRSSERVER_VESSEL_MAX);
+    /* All identities are reserved together. Runtime capacity exhaustion must
+     * refuse the spawn before allocating a deck, never create an invisible
+     * hull or one whose passengers have no collision window. */
+    if( slot == TORIRSSERVER_VESSEL_MAX ) return 0;
+    for( int view = 1; view <= TORIRSSERVER_WEV_VIEW_MAX && !view_id; ++view )
+    {
+        int taken = 0;
+        for( int i = 0; i < TORIRSSERVER_VESSEL_MAX && !taken; ++i )
+            taken = srv->vessels[i].in_use && srv->vessels[i].view_id == view;
+        if( !taken ) view_id = view;
+    }
+    for( int wi = 0; wi < TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX && !deck_window; ++wi )
+    {
+        int index = TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE + wi;
+        int taken = 0;
+        for( int i = 0; i < TORIRSSERVER_VESSEL_MAX && !taken; ++i )
+            taken = srv->vessels[i].in_use && srv->vessels[i].deck_window == index;
+        if( !taken ) deck_window = index;
+    }
+    if( !view_id || !deck_window ) return 0;
 
     /* Deck reservation, rounded up to whole zones (8 tiles each). The
      * instance pool being exhausted IS a state content can reach, and 0 is the
@@ -494,21 +523,8 @@ ToriRSServer_VesselSpawn(
      * the same tick and both recycle the same numbers. */
     vessel->serial = ++g_vessel_serial;
     vessel->seq_id = -1;
-    /* Lowest free world-view id. 0 when all 15 are taken: the hull still sails,
-     * it just has no name the wire can say — see the field's comment. */
-    for( int view = 1; view <= TORIRSSERVER_WEV_VIEW_MAX; view++ )
-    {
-        int taken = 0;
-
-        for( int i = 0; i < TORIRSSERVER_VESSEL_MAX && !taken; i++ )
-            if( srv->vessels[i].in_use && srv->vessels[i].view_id == view )
-                taken = 1;
-        if( !taken )
-        {
-            vessel->view_id = view;
-            break;
-        }
-    }
+    vessel->view_id = view_id;
+    vessel->deck_window = deck_window;
     vessel->config_id = config_id;
     vessel->size_x_tiles = size_x_tiles;
     vessel->size_z_tiles = size_z_tiles;
@@ -546,29 +562,6 @@ ToriRSServer_VesselSpawn(
     vessel->speed_cap_fine = 256;
     vessel->turn_rate = TORIRSSERVER_VESSEL_TURN_RATE_DEFAULT;
 
-    /* Lowest free deck-window slot (see the field's comment). 0 when all are
-     * taken: the hull still sails, riders of THIS hull just lose deck
-     * collision once their own window follows the hull away from the pool. */
-    for( int wi = 0; wi < TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX; wi++ )
-    {
-        int pool_index = TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE + wi;
-        int taken = 0;
-
-        for( int i = 0; i < TORIRSSERVER_VESSEL_MAX && !taken; i++ )
-            if( srv->vessels[i].in_use && srv->vessels[i].deck_window == pool_index )
-                taken = 1;
-        if( !taken )
-        {
-            vessel->deck_window = pool_index;
-            break;
-        }
-    }
-    if( vessel->deck_window == 0 )
-        fprintf(stderr,
-                "torirsserver: vessel %d spawned with no free deck window — "
-                "riders cannot walk this deck while it sails\n",
-                vessel->index);
-
     srv->vessel_count++;
     return vessel->index;
 }
@@ -595,13 +588,10 @@ ToriRSServer_VesselFree(
      * behind is not misplaced, they are deleted from the game while still
      * logged in.
      *
-     * They are put down where they LOOKED like they were standing: their own
-     * deck tile projected through the hull's final transform, which is the last
-     * place every other client saw them. The disembark then reads as the hull
-     * vanishing from under them rather than as a teleport across the map.
-     * Whether that root tile is open water is content's business — a scuttling
-     * script that wants a dock moves them first; the engine's job is only to
-     * refuse to strand them in the pool.
+     * A projected deck coordinate is usually open water, so it is not a safe
+     * evacuation destination. Prefer a nearby shore, then the rider's own
+     * recorded boarding shore. No rider inherits a freed pool coordinate or
+     * an ocean walking tile, including guests when their captain disconnects.
      *
      * Before the instance release, because both the ownership test and the
      * projection belong to the vessel and neither survives it.
@@ -612,19 +602,19 @@ ToriRSServer_VesselFree(
         for( int i = 0; i < srv->player_count; i++ )
         {
             struct ToriRSServerPlayer* player = &srv->players[i];
-            int fine_x = 0;
-            int fine_z = 0;
-
             if( !player->active )
                 continue;
+            vessel_forget_instance(srv, player, vessel->instance);
+            if( player->navigating_vessel == vessel->index &&
+                player->navigating_vessel_serial == vessel->serial )
+                player->navigating_vessel = player->navigating_vessel_serial = 0;
             if( ToriRSServer_VesselAtTile(srv, player->x, player->z) != vessel )
                 continue;
-            ToriRSServer_VesselDeckTileToRoot(vessel, player->x, player->z, &fine_x, &fine_z);
             /* WorldTeleport acts on the bound player, so bind each in turn and
              * put the previous binding back — the same save/restore every
              * world-scoped helper called from outside a tick does. */
             ToriRSServer_WorldSetActive(srv, player);
-            ToriRSServer_WorldTeleport(srv, vessel->level, fine_x >> 7, fine_z >> 7);
+            vessel_evacuate_player(srv, player);
         }
         ToriRSServer_WorldSetActive(srv, was_active);
     }
@@ -637,7 +627,11 @@ ToriRSServer_VesselFree(
     /* The world-level release, not the bare registry one: the deck may hold
      * npcs, floor objects and loc changes, and the pool re-issues its squares
      * immediately (see ToriRSServer_WorldMapInstanceFree). */
-    ToriRSServer_WorldMapInstanceFree(srv, vessel->instance);
+    int instance = vessel->instance;
+    /* Detach before the generic release: its public entrypoint routes a boat
+     * instance through this owner so callers cannot leave an orphaned hull. */
+    vessel->instance = 0;
+    ToriRSServer_WorldMapInstanceFree(srv, instance);
     memset(vessel, 0, sizeof(*vessel));
     srv->vessel_count--;
     return 1;
@@ -921,6 +915,42 @@ ToriRSServer_VesselNearest(
     return best;
 }
 
+/*
+ * Is somebody ELSE standing on this deck tile?
+ *
+ * A deck tile is not walk-blocked by its occupant -- players do not block
+ * each other in this game -- so the boarding search cannot learn about the
+ * captain from the collision map. Without this the first walkable tile
+ * outward from the pivot is handed to every boarder in turn and the whole
+ * crew ends up stacked on one plank.
+ *
+ * `active` is the occupancy test, not `player_count`: the pool is never
+ * compacted, so the count is a high-water mark with holes in it.
+ */
+static int
+vessel_deck_tile_taken(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* boarder,
+    int level,
+    int tile_x,
+    int tile_z)
+{
+    assert(srv);
+    assert(boarder);
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        const struct ToriRSServerPlayer* other = &srv->players[i];
+
+        /* The boarder's own tile is not "taken": a rider re-boarding the deck
+         * they already stand on must keep their plank, not be pushed off it. */
+        if( !other->active || other == boarder )
+            continue;
+        if( other->level == level && other->x == tile_x && other->z == tile_z )
+            return 1;
+    }
+    return 0;
+}
+
 int
 ToriRSServer_VesselBoardPlayer(
     struct ToriRSServer* srv,
@@ -930,10 +960,20 @@ ToriRSServer_VesselBoardPlayer(
     int base_tile_x = 0;
     int base_tile_z = 0;
     int level;
+    /*
+     * The move below binds the world to `player`, because WorldTeleport acts
+     * on the bound player. The binding is this function's own scratch state
+     * and is put back before returning: a script that reaches here through
+     * p_finduid is moving somebody who is NOT the ticking player, and the
+     * tick's own active player has to survive the trip. Same save/restore as
+     * the `damage` op and ToriRSServer_VesselFree's evacuation loop.
+     */
+    struct ToriRSServerPlayer* saved_active;
 
     assert(srv);
     assert(player);
     assert(vessel);
+    saved_active = srv->active_player;
     if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
         return 0;
     /* The native pivot puts the raft's one-tile deck at local x3, not x4.
@@ -949,6 +989,14 @@ ToriRSServer_VesselBoardPlayer(
     int center_z = pivot_z >> 7;
     int hx, hz, off_x, off_z;
     vessel_bound_rect(vessel, &hx, &hz, &off_x, &off_z);
+    /*
+     * Two passes over the SAME pivot-outward order. The first refuses a tile
+     * another player is standing on, so a guest lands beside the captain
+     * instead of inside him; the second drops that refusal, because a full
+     * deck must still be boardable -- an unreachable boat is worse than a
+     * shared plank, and the client draws both riders either way.
+     */
+    for( int pass = 0; pass < 2; pass++ )
     for( int radius = 0; radius < 16; radius++ )
         for( int dz = -radius; dz <= radius; dz++ )
             for( int dx = -radius; dx <= radius; dx++ )
@@ -962,8 +1010,23 @@ ToriRSServer_VesselBoardPlayer(
                     local_x < -hx || local_x >= hx || local_z < -hz || local_z >= hz ||
                     ToriRSServer_SceneWalkBlocked(level, base_tile_x + x, base_tile_z + z) )
                     continue;
+                if( pass == 0 &&
+                    vessel_deck_tile_taken(srv, player, level,
+                                           base_tile_x + x, base_tile_z + z) )
+                    continue;
                 ToriRSServer_WorldSetActive(srv, player);
+                if( player->level == vessel->level &&
+                    !ToriRSServer_MapInstanceFind(player->x, player->z) &&
+                    !ToriRSServer_SceneWalkBlocked(player->level, player->x, player->z) &&
+                    !ToriRSServer_VesselTileSailable(player->level, player->x, player->z) )
+                {
+                    player->sailing.shore_x = player->x;
+                    player->sailing.shore_z = player->z;
+                    player->sailing.shore_level = player->level;
+                }
+                player->sailing.aboard_slot = 0;
                 ToriRSServer_WorldTeleport(srv, level, base_tile_x + x, base_tile_z + z);
+                ToriRSServer_WorldSetActive(srv, saved_active);
                 return 1;
             }
     return 0;
@@ -977,9 +1040,12 @@ ToriRSServer_VesselDisembarkPlayer(
     struct ToriRSServerVessel* vessel;
     int anchor_x;
     int anchor_z;
+    /* Same borrowed binding, same restore, as boarding above. */
+    struct ToriRSServerPlayer* saved_active;
 
     assert(srv);
     assert(player);
+    saved_active = srv->active_player;
     vessel = ToriRSServer_VesselAtTile(srv, player->x, player->z);
     if( !vessel )
         return 0;
@@ -1009,7 +1075,13 @@ ToriRSServer_VesselDisembarkPlayer(
                 if( ToriRSServer_VesselTileSailable(vessel->level, tx, tz) )
                     continue;
                 ToriRSServer_WorldSetActive(srv, player);
+                vessel_forget_instance(srv, player, vessel->instance);
                 ToriRSServer_WorldTeleport(srv, vessel->level, tx, tz);
+                player->sailing.shore_x = tx;
+                player->sailing.shore_z = tz;
+                player->sailing.shore_level = vessel->level;
+                player->sailing.aboard_slot = 0;
+                ToriRSServer_WorldSetActive(srv, saved_active);
                 return 1;
             }
     return 0;
@@ -1255,3 +1327,5 @@ ToriRSServer_VesselDeckZones(
     *out_zones_x = (vessel->size_x_tiles + 7) / 8;
     *out_zones_z = (vessel->size_z_tiles + 7) / 8;
 }
+
+#include "torirs_server_vessel_lifecycle.u.h"

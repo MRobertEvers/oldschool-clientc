@@ -26,12 +26,29 @@
         "anim_frame": 0,
         "chat_blocked": -1,
         "player_yaw": 0,
+        "cinematic": {
+          "eye_x": 6400,
+          "eye_z": 64,
+          "eye_height": 0,
+          "look_x": 6400,
+          "look_z": 64,
+          "look_height": 0,
+          "render_yaw": 1024,
+          "render_pitch": 256,
+          "render_x": 825472,
+          "render_y": -1829,
+          "render_z": 16139,
+          "hide_panels": 0,
+          "fov_mode": 0,
+          "visible_orbs": 4
+        },
         "rig": {
           "vertices": 288,
           "hash": 974037449,
           "min_y": -196,
           "max_y": 6,
-          "posed_frame": 5
+          "posed_frame": 5,
+          "yaw": 0
         },
         "sailing": {
           "ok": true,
@@ -61,6 +78,9 @@
             "reversing": 0,
             "hp": 80,
             "hp_max": 80,
+            "owner_uid": 1,
+            "cargo_slot": 1,
+            "navigator_mask": 0,
             "facilities": [
               1,
               1,
@@ -93,32 +113,32 @@
           "last_useslot": -1,
           "client_selected_obj": -1
         },
-        "runtime_ms": 0.479,
-        "elapsed_ms": 6.053
+        "runtime_ms": 0.412,
+        "elapsed_ms": 2.996
       }
     },
     {
       "command": "pause",
       "response": {
         "ok": true,
-        "runtime_ms": 1.879,
-        "elapsed_ms": 6.575
+        "runtime_ms": 1.152,
+        "elapsed_ms": 2.836
       }
     },
     {
       "command": "close",
       "response": {
         "ok": true,
-        "runtime_ms": 2.599,
-        "elapsed_ms": 4.406
+        "runtime_ms": 2.535,
+        "elapsed_ms": 5.331
       }
     },
     {
       "command": "camera 256 256 1000",
       "response": {
         "ok": true,
-        "runtime_ms": 1.986,
-        "elapsed_ms": 9.498
+        "runtime_ms": 1.222,
+        "elapsed_ms": 2.829
       }
     },
     {
@@ -126,8 +146,8 @@
       "response": {
         "ok": true,
         "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
-        "runtime_ms": 1.373,
-        "elapsed_ms": 7.3
+        "runtime_ms": 1.184,
+        "elapsed_ms": 2.803
       }
     },
     {
@@ -141,19 +161,20 @@
             "frame": 0,
             "cycle": 0,
             "angle": 0,
-            "element": 536873348,
+            "element": 536873294,
             "rig": {
               "vertices": 202,
               "hash": 3908446670,
               "min_y": -720,
               "max_y": -176,
-              "posed_frame": 0
+              "posed_frame": 0,
+              "yaw": 0
             },
             "view": 1
           }
         ],
-        "runtime_ms": 0.481,
-        "elapsed_ms": 2.971
+        "runtime_ms": 0.414,
+        "elapsed_ms": 2.652
       }
     },
     {
@@ -161,24 +182,24 @@
       "response": {
         "ok": true,
         "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
-        "runtime_ms": 1.237,
-        "elapsed_ms": 2.926
+        "runtime_ms": 1.182,
+        "elapsed_ms": 2.809
       }
     },
     {
       "command": "cheat vesselsail 0 2",
       "response": {
         "ok": true,
-        "runtime_ms": 4.199,
-        "elapsed_ms": 7.943
+        "runtime_ms": 4.064,
+        "elapsed_ms": 5.342
       }
     },
     {
       "command": "step 30",
       "response": {
         "ok": true,
-        "runtime_ms": 31.272,
-        "elapsed_ms": 34.366
+        "runtime_ms": 30.976,
+        "elapsed_ms": 33.046
       }
     },
     {
@@ -192,27 +213,28 @@
             "frame": 14,
             "cycle": 0,
             "angle": 0,
-            "element": 536873336,
+            "element": 536873280,
             "rig": {
               "vertices": 202,
               "hash": 862597058,
               "min_y": -720,
               "max_y": -195,
-              "posed_frame": 14
+              "posed_frame": 14,
+              "yaw": 0
             },
             "view": 1
           }
         ],
-        "runtime_ms": 0.415,
-        "elapsed_ms": 2.906
+        "runtime_ms": 0.409,
+        "elapsed_ms": 2.897
       }
     },
     {
       "command": "step 5",
       "response": {
         "ok": true,
-        "runtime_ms": 2.984,
-        "elapsed_ms": 5.402
+        "runtime_ms": 2.871,
+        "elapsed_ms": 4.879
       }
     },
     {
@@ -226,27 +248,28 @@
             "frame": 19,
             "cycle": 0,
             "angle": 0,
-            "element": 536873336,
+            "element": 536873280,
             "rig": {
               "vertices": 202,
               "hash": 860852514,
               "min_y": -720,
               "max_y": -196,
-              "posed_frame": 19
+              "posed_frame": 19,
+              "yaw": 0
             },
             "view": 1
           }
         ],
-        "runtime_ms": 0.469,
-        "elapsed_ms": 2.899
+        "runtime_ms": 0.417,
+        "elapsed_ms": 2.731
       }
     },
     {
       "command": "step 185",
       "response": {
         "ok": true,
-        "runtime_ms": 81.797,
-        "elapsed_ms": 84.979
+        "runtime_ms": 80.803,
+        "elapsed_ms": 82.141
       }
     },
     {
@@ -260,19 +283,20 @@
             "frame": 24,
             "cycle": 0,
             "angle": 0,
-            "element": 536873336,
+            "element": 536873280,
             "rig": {
               "vertices": 202,
               "hash": 1895221712,
               "min_y": -720,
               "max_y": -196,
-              "posed_frame": 24
+              "posed_frame": 24,
+              "yaw": 0
             },
             "view": 1
           }
         ],
-        "runtime_ms": 0.432,
-        "elapsed_ms": 2.972
+        "runtime_ms": 0.452,
+        "elapsed_ms": 2.903
       }
     },
     {
@@ -280,8 +304,8 @@
       "response": {
         "ok": true,
         "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
-        "runtime_ms": 6.81,
-        "elapsed_ms": 10.361
+        "runtime_ms": 6.877,
+        "elapsed_ms": 10.382
       }
     },
     {
@@ -295,19 +319,20 @@
             "frame": 0,
             "cycle": 0,
             "angle": 0,
-            "element": 536873330,
+            "element": 536873273,
             "rig": {
               "vertices": 202,
               "hash": 3908446670,
               "min_y": -720,
               "max_y": -176,
-              "posed_frame": 0
+              "posed_frame": 0,
+              "yaw": 0
             },
             "view": 1
           }
         ],
-        "runtime_ms": 0.433,
-        "elapsed_ms": 2.88
+        "runtime_ms": 0.415,
+        "elapsed_ms": 2.881
       }
     },
     {
@@ -315,16 +340,16 @@
       "response": {
         "ok": true,
         "items": [],
-        "runtime_ms": 0.462,
-        "elapsed_ms": 2.855
+        "runtime_ms": 0.409,
+        "elapsed_ms": 2.836
       }
     },
     {
       "command": "cheat sailnetfixture 4",
       "response": {
         "ok": true,
-        "runtime_ms": 5.405,
-        "elapsed_ms": 7.914
+        "runtime_ms": 5.216,
+        "elapsed_ms": 7.918
       }
     },
     {
@@ -338,19 +363,20 @@
             "frame": 0,
             "cycle": 0,
             "angle": 1,
-            "element": 536873322,
+            "element": 536873264,
             "rig": {
               "vertices": 1323,
               "hash": 4070985850,
               "min_y": -278,
               "max_y": 51,
-              "posed_frame": 0
+              "posed_frame": 0,
+              "yaw": 512
             },
             "view": 1
           }
         ],
-        "runtime_ms": 0.462,
-        "elapsed_ms": 3.033
+        "runtime_ms": 0.427,
+        "elapsed_ms": 2.859
       }
     },
     {
@@ -358,8 +384,8 @@
       "response": {
         "ok": true,
         "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
-        "runtime_ms": 6.742,
-        "elapsed_ms": 9.678
+        "runtime_ms": 6.872,
+        "elapsed_ms": 10.018
       }
     },
     {
@@ -367,8 +393,8 @@
       "response": {
         "ok": true,
         "items": [],
-        "runtime_ms": 0.422,
-        "elapsed_ms": 2.903
+        "runtime_ms": 0.415,
+        "elapsed_ms": 2.849
       }
     }
   ],
@@ -379,9 +405,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 55.037,
-      "elapsed_ms": 58.145,
-      "bytes": 221626,
+      "runtime_ms": 45.123,
+      "elapsed_ms": 47.862,
+      "bytes": 222835,
       "world_order_mode": 0
     },
     {
@@ -390,9 +416,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 43.558,
-      "elapsed_ms": 47.054,
-      "bytes": 218836,
+      "runtime_ms": 43.911,
+      "elapsed_ms": 47.7,
+      "bytes": 221692,
       "world_order_mode": 0
     },
     {
@@ -401,9 +427,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 44.712,
-      "elapsed_ms": 46.569,
-      "bytes": 220731,
+      "runtime_ms": 43.981,
+      "elapsed_ms": 47.697,
+      "bytes": 220393,
       "world_order_mode": 0
     },
     {
@@ -412,9 +438,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 44.168,
-      "elapsed_ms": 47.821,
-      "bytes": 221452,
+      "runtime_ms": 44.261,
+      "elapsed_ms": 47.395,
+      "bytes": 222197,
       "world_order_mode": 0
     },
     {
@@ -423,9 +449,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 45.227,
-      "elapsed_ms": 47.63,
-      "bytes": 221481,
+      "runtime_ms": 44.516,
+      "elapsed_ms": 47.24,
+      "bytes": 222645,
       "world_order_mode": 0
     },
     {
@@ -434,9 +460,9 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 45.161,
-      "elapsed_ms": 47.412,
-      "bytes": 223245,
+      "runtime_ms": 44.543,
+      "elapsed_ms": 45.583,
+      "bytes": 224495,
       "world_order_mode": 0
     },
     {
@@ -445,27 +471,33 @@
       "width": 807,
       "height": 503,
       "renderer": "soft3d",
-      "runtime_ms": 45.199,
-      "elapsed_ms": 49.096,
-      "bytes": 221495,
+      "runtime_ms": 44.147,
+      "elapsed_ms": 45.572,
+      "bytes": 222763,
       "world_order_mode": 0
     }
   ],
   "provenance": {
-    "pid": 54509,
-    "process_identity": "Sun Sep  6 15:02:11 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user sailingtest --pass test --soft3d",
+    "pid": 2907,
+    "process_identity": "Mon Sep  7 09:37:20 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user sailingtest --pass test --soft3d",
     "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs",
     "manifest": "/Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini",
     "renderer": "soft3d",
     "user": "sailingtest",
     "headless": true,
     "boat": "skiff",
-    "binary_sha256": "092d1e5bfc50466e66814f55675c39f6cc1d384ffc9f864a983830893098da04",
+    "fixture_tile": [
+      3072,
+      3160
+    ],
+    "resume_save": false,
+    "archived_save": null,
+    "binary_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
     "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
     "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
-    "script_sha256": "355e1388465d2eb336fb10894bc67cf88d868f90055ffabb8cc9e7dddb05907c",
+    "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
     "allow_stale_scripts": false
   },
   "visual_review_required": true,
-  "elapsed_ms": 566.722
+  "elapsed_ms": 526.643
 }

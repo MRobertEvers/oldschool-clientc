@@ -4169,6 +4169,7 @@ sailing_cargo(struct ToriRSServer* srv, struct ToriRSServerPlayer* rider,
     if( vessel->owner_uid == 0 ) vessel->owner_uid = rider->pid + 1;
     struct ToriRSServerPlayer* captain = player_by_uid(srv, vessel->owner_uid);
     if( !captain ) return NULL;
+    if( !ToriRSServer_VesselCargoAllowed(srv, rider, vessel) ) return NULL;
     if( vessel->cargo_slot == 0 )
     {
         unsigned occupied = 0;
@@ -10089,6 +10090,65 @@ ToriRSServer_ScriptCommand(
      * Script arguments are DATA here — an out-of-range footprint or heading is
      * refused the way the registries refuse a dead handle, never handed to the
      * C contract asserts that guard host-code callers.
+     *
+     * WHOSE player each vessel op answers for
+     * ---------------------------------------
+     * Every one of these used to read `srv->active_player` — the player whose
+     * tick is running — while the rest of this dispatch reads the local
+     * `player`, which is `SSVM_Active(state, SSVM_ENT_PLAYER)` and is what
+     * `p_finduid` / `p_findvisibleplayer` / `p_findmutualfriend` move. The two
+     * agree for a script that never switches player, and disagree for every
+     * script that does, which is all of the social and crew content:
+     *
+     *   sailing/scripts/boat_social.rs2   ~sailing_board_friend switches to the
+     *       captain with p_findvisibleplayer and then reads vessel_here /
+     *       vessel_slot; its aboard-count loop switches to each uid in turn and
+     *       reads vessel_here; ~sailing_player_names_all does the same.
+     *   sailing/scripts/boat_crew_actions.rs2  ~sailing_crew_worker switches to
+     *       the captain and then asks `vessel_here = $handle` to prove the
+     *       captain is aboard.
+     *   sailing/scripts/boat_facility_utilities.rs2  ~sailing_utility_staffed
+     *       switches to the registered operator and asks `vessel_here = $boat`.
+     *
+     * Read against `srv->active_player` those tests all answered for the
+     * caller, so the aboard-count was the caller counted eight times, the
+     * captain-aboard proof was vacuous, and Board-friend read the guest's tile
+     * where it meant the captain's. Each op below is therefore bound to
+     * `player`, and the per-op decision is:
+     *
+     *   vessel_spawn      OWNER = `player`. ~sailing_materialise_owned runs in
+     *                     the captain's context inside Board-friend; the hull
+     *                     must be owned by the captain, not by the guest whose
+     *                     tick is executing.
+     *   vessel_here       `player`. It is definitionally "the hull under the
+     *                     active player's feet".
+     *   vessel_slot       `player` — it is an owner-gated write of the
+     *                     captain's personal-boat slot.
+     *   vessel_owned      `player` — "which of the active player's five slots".
+     *   vessel_stat k=11  `player` is the ACTOR requesting a navigator-mask
+     *                     change; VesselSetNavigators re-checks that the actor
+     *                     is the hull's captain, so switching the active player
+     *                     cannot be used to grant permissions on someone
+     *                     else's boat.
+     *   vessel_stat k=9   `player` — "is the active player the one navigating".
+     *   vessel_control    `player` is the rider working the helm;
+     *                     VesselPlayerControlAllowed re-checks the permission.
+     *   vessel_cargo      `player` is the RIDER; sailing_cargo() then resolves
+     *                     the CAPTAIN's persistent inventory from
+     *                     vessel->owner_uid. "The captain of this boat" is
+     *                     already expressed by owner_uid — it is not, and must
+     *                     not be, expressed by the active player.
+     *   vessel_cargo_transfer  `player` — same rider, plus the ironman check
+     *                     which must be the rider's own varbit.
+     *   vessel_board      `player` — Board-friend's closing vessel_board($boat)
+     *                     runs after p_finduid($guest), so the guest boards.
+     *   vessel_disembark  `player`.
+     *   vessel_helm       `player`.
+     *
+     * The remaining ops (settarget, setheading, setspeed, pos, free, sails,
+     * recover, furnish, project, info, getfacility, facility, hp, damage,
+     * nearest, and vessel_stat keys 0-8/10/12/13) address the HULL only and
+     * name no player at all; they are unchanged.
      */
     case SS_OP_VESSEL_SPAWN:
     {
@@ -10106,8 +10166,8 @@ ToriRSServer_ScriptCommand(
                 srv, values[0], values[1], values[2], coord_level(values[3]),
                 coord_x(values[3]), coord_z(values[3]),
                 values[4] & TORIRSSERVER_VESSEL_ANGLE_MASK);
-        if( handle && srv->active_player )
-            ToriRSServer_VesselGet(srv, handle)->owner_uid = srv->active_player->pid + 1;
+        if( handle && player )
+            ToriRSServer_VesselGet(srv, handle)->owner_uid = player->pid + 1;
         SSVM_PushInt(state, handle);
         return 1;
     }
@@ -10197,7 +10257,6 @@ ToriRSServer_ScriptCommand(
 
     case SS_OP_VESSEL_HERE:
     {
-        struct ToriRSServerPlayer* player = srv->active_player;
         struct ToriRSServerVessel* vessel =
             player ? ToriRSServer_VesselAtTile(srv, player->x, player->z) : NULL;
 
@@ -10238,7 +10297,7 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopInt(state,&slot) || !SSVM_PopInt(state,&handle) ) return 1;
         struct ToriRSServerVessel* vessel=ToriRSServer_VesselGet(srv,handle);
         int result=0;
-        if( vessel && srv->active_player && vessel->owner_uid==srv->active_player->pid+1 )
+        if( vessel && player && vessel->owner_uid==player->pid+1 )
         {
             if( slot==0 ) result=vessel->cargo_slot;
             else if( slot>=1 && slot<=5 && vessel->deck_src_x<0 )
@@ -10259,10 +10318,10 @@ ToriRSServer_ScriptCommand(
         int32_t slot;
         if( !SSVM_PopInt(state,&slot) ) return 1;
         int found=0;
-        if( srv->active_player && slot>=1 && slot<=5 )
+        if( player && slot>=1 && slot<=5 )
             for( int i=0; i<TORIRSSERVER_VESSEL_MAX; ++i )
                 if( srv->vessels[i].in_use &&
-                    srv->vessels[i].owner_uid==srv->active_player->pid+1 &&
+                    srv->vessels[i].owner_uid==player->pid+1 &&
                     srv->vessels[i].cargo_slot==slot ) { found=srv->vessels[i].index; break; }
         SSVM_PushInt(state,found);
         return 1;
@@ -10326,11 +10385,30 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &key) ||
             !SSVM_PopInt(state, &handle) ) return 1;
         struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
-        if( !vessel || key < 0 || key > 9 ) { SSVM_PushInt(state, 0); return 1; }
+        if( !vessel || key < 0 || key > 13 ) { SSVM_PushInt(state, 0); return 1; }
+        if( key == 12 || key == 13 )
+        {
+            SSVM_PushInt(state, (key == 12 ? vessel->fine_x : vessel->fine_z) >> 7);
+            return 1;
+        }
+        if( key == 11 )
+        {
+            if( value >= 0 && (!player ||
+                !ToriRSServer_VesselSetNavigators(srv, player, vessel, (uint32_t)value)) )
+            { SSVM_PushInt(state, -1); return 1; }
+            SSVM_PushInt(state, (int32_t)ToriRSServer_VesselNavigatorMask(srv, vessel));
+            return 1;
+        }
+        if( key == 10 )
+        {
+            /* Delayed facility work must not follow a recycled vessel slot. */
+            SSVM_PushInt(state, (int32_t)vessel->serial);
+            return 1;
+        }
         if( key == 9 )
         {
             /* Authoritative release check, independent of UI publication. */
-            struct ToriRSServerPlayer* actor = srv->active_player;
+            struct ToriRSServerPlayer* actor = player;
             SSVM_PushInt(state, actor && actor->navigating_vessel == vessel->index &&
                 actor->navigating_vessel_serial == vessel->serial);
             return 1;
@@ -10370,7 +10448,7 @@ ToriRSServer_ScriptCommand(
     {
         int32_t handle, action;
         if( !SSVM_PopInt(state, &action) || !SSVM_PopInt(state, &handle) ) return 1;
-        struct ToriRSServerPlayer* rider = srv->active_player;
+        struct ToriRSServerPlayer* rider = player;
         struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
         if( !rider || !vessel || action < 0 || action > 3 ||
             !ToriRSServer_VesselPlayerControlAllowed(srv,rider,vessel,1) )
@@ -10409,10 +10487,10 @@ ToriRSServer_ScriptCommand(
         int32_t handle;
         if( !SSVM_PopInt(state, &handle) ) return 1;
         struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
-        struct ToriRSServerContainer* cargo = vessel && srv->active_player
-            ? sailing_cargo(srv, srv->active_player, vessel) : NULL;
+        struct ToriRSServerContainer* cargo = vessel && player
+            ? sailing_cargo(srv, player, vessel) : NULL;
         SSVM_PushInt(state, cargo ? cargo->inv_id : -1);
-        SSVM_PushInt(state, cargo ? vessel->owner_uid : 0);
+        SSVM_PushInt(state, vessel ? vessel->owner_uid : 0);
         return 1;
     }
 
@@ -10421,12 +10499,15 @@ ToriRSServer_ScriptCommand(
         int32_t args[5];
         for( int i = 4; i >= 0; --i ) if( !SSVM_PopInt(state, &args[i]) ) return 1;
         struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, args[0]);
-        struct ToriRSServerContainer* cargo = vessel && srv->active_player
-            ? sailing_cargo(srv, srv->active_player, vessel) : NULL;
+        struct ToriRSServerContainer* cargo = vessel && player
+            ? sailing_cargo(srv, player, vessel) : NULL;
         if( !cargo || args[2] <= 0 || args[4] <= 0 || args[4] > cargo->slots )
         { SSVM_PushInt(state, 0); return 1; }
+        if( args[3] && vessel->owner_uid != player->pid + 1 &&
+            ToriRSServer_VarbitGet(player, ToriRSServer_Ids()->varbit_ironman) != 0 )
+        { SSVM_PushInt(state, 0); return 1; }
         struct ToriRSServerContainer* backpack = ToriRSServer_ContainerResolve(
-            srv, srv->active_player, ToriRSServer_Ids()->inv_backpack);
+            srv, player, ToriRSServer_Ids()->inv_backpack);
         assert(backpack);
         struct ToriRSServerContainer* from = args[3] ? cargo : backpack;
         struct ToriRSServerContainer* to = args[3] ? backpack : cargo;
@@ -10534,6 +10615,14 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /*
+     * Board and disembark are the two vessel ops that MOVE somebody: both
+     * teleport through ToriRSServer_WorldSetActive + WorldTeleport. Since a
+     * p_finduid switch makes `player` somebody other than the ticking player,
+     * the world's active binding has to be put back afterwards -- and both
+     * functions now save and restore it themselves, so there is nothing for
+     * these two cases to work around.
+     */
     case SS_OP_VESSEL_BOARD:
     {
         int32_t handle;
@@ -10542,18 +10631,23 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopInt(state, &handle) )
             return 1;
         vessel = ToriRSServer_VesselGet(srv, handle);
-        SSVM_PushInt(state,
-                     vessel && srv->active_player
-                         ? ToriRSServer_VesselBoardPlayer(srv, srv->active_player, vessel)
-                         : 0);
+        if( !vessel || !player )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_PushInt(state, ToriRSServer_VesselBoardPlayer(srv, player, vessel));
         return 1;
     }
 
     case SS_OP_VESSEL_DISEMBARK:
     {
-        SSVM_PushInt(state, srv->active_player
-                                ? ToriRSServer_VesselDisembarkPlayer(srv, srv->active_player)
-                                : 0);
+        if( !player )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_PushInt(state, ToriRSServer_VesselDisembarkPlayer(srv, player));
         return 1;
     }
 
@@ -10561,7 +10655,6 @@ ToriRSServer_ScriptCommand(
     {
         int32_t handle;
         struct ToriRSServerVessel* vessel;
-        struct ToriRSServerPlayer* player = srv->active_player;
 
         if( !SSVM_PopInt(state, &handle) )
             return 1;
@@ -10591,6 +10684,8 @@ ToriRSServer_ScriptCommand(
         }
         if( ToriRSServer_VesselAtTile(srv, player->x, player->z) != vessel )
         { SSVM_PushInt(state, -1); return 1; }
+        if( !ToriRSServer_VesselCanNavigate(srv, player, vessel) )
+        { SSVM_PushInt(state, -3); return 1; }
         for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; ++i )
         {
             struct ToriRSServerPlayer* other = &srv->players[i];

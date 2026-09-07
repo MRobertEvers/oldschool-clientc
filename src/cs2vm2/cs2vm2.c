@@ -13029,9 +13029,53 @@ CS2VM2_RunOp(
     case CS2_OP_HISCORES_ERROR:
         return CS2VM2_Op_Hiscores(vm, opcode);
 
+    case CS2_OP_WORLDENTITY_SETDRAWLIMIT:
+    {
+        struct CS2VM_HostRequest request = {0};
+        request.kind = CS2VM_HOST_REQUEST_WORLDENTITY_SETDRAWLIMIT;
+        if( CS2VM2_PopInt(vm, &request.u.WORLDENTITY_SETDRAWLIMIT.limit) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_WORLDENTITY_GETDRAWLIMIT:
+    {
+        struct CS2VM_HostRequest request = {0};
+        request.kind = CS2VM_HOST_REQUEST_WORLDENTITY_GETDRAWLIMIT;
+        return vm->vm->host_exec(vm, &request);
+    }
+
     /* === CS2 opcode group: array (8000..8099) ===
      * typed list and array commands.
      * rev-239 dispatch: Statics.method6889 -> method12336. */
+    case CS2_OP_ARRAY_FILL:
+    {
+        /* Statics.method12336 -> method3374: typed value, offset and count.
+         * Native Sailing initializes its thirteen facility slots with -1. */
+        int type, count, offset, value=0;
+        char *text=NULL, *handle=NULL;
+        if( CS2VM2_PopInt(vm,&type)!=CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm,&count)!=CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm,&offset)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        if( type==0 )
+        {
+            if( CS2VM2_PopInt(vm,&value)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        }
+        else if( type==2 )
+        {
+            if( CS2VM2_PopStr(vm,&text)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        }
+        else if( type!=-1 ) return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm,&handle)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        struct CS2VM2_Array* array=cs2vm2_array_from_handle(vm,handle);
+        if( !array || (array->is_string ? type==0 : type!=0) ) return CS2VM_EXECNO_ERROR;
+        if( offset<0 ) offset=0;
+        if( offset>array->size ) return CS2VM_EXECNO_ERROR;
+        if( count<0 || count>array->size-offset ) count=array->size-offset;
+        for( int i=0; i<count; ++i )
+            if( array->is_string ) array->cells.strings[offset+i]=text;
+            else array->cells.ints[offset+i]=value;
+        return CS2VM_EXECNO_OK;
+    }
     case CS2_OP_ARRAY_FILL_SEQUENCE:
     {
         /* rev239 Statics.method12336 -> method8778: initialize a sequence,

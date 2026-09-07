@@ -1325,6 +1325,10 @@ WorldBuilder_ApplyLocChange(
             builder, CacheProvider_LocationGet(builder->cache, loc_id), &resolved_cfg);
         if( cfg )
         {
+            /* The map keeps its base id while a varp changes the child. A
+             * per-build memo hit here would restore the old child's actions
+             * (e.g. Board after logging in aboard, instead of Disembark). */
+            World_SceneryInfoMemoInvalidate(world, loc_id);
             struct ToriRS_MapLoc ml = {
                 .loc_id = loc_id,
                 .shape_select = shape,

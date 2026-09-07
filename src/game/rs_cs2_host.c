@@ -7,6 +7,7 @@
 #include "game/rs_player_stats.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
+#include "game/sailing_settings.h"
 
 #include "cs2vm2/cs2vm2.h"
 #include "engine/cache_provider.h"
@@ -900,6 +901,7 @@ RS_CS2Host_Init(
     assert(invs);
 
     memset(host, 0, sizeof(*host));
+    host->world_entity_draw_limit = 30;
     /* The answer a machine with no battery gives, which is what the three
      * device opcodes were literals for before the platform could answer.
      * @see RS_CS2Host_SetDeviceStatus. */
@@ -3638,6 +3640,20 @@ rs_cs2_settings_record_mirror(
     assert(host);
     root = rs_cs2_root_script_id(vm);
 
+    /* This native dropdown has its own apply script instead of announcing
+     * itself through settings_last_changed. Mirror only its own enum; other
+     * scripts' varbit writes remain outside this additional path. */
+    if( varbit_id == SAILING_CARGO_PRIVACY_VARBIT && vm && vm->frame_sp > 0 )
+    {
+        struct CS2VM2_Frame* frame = vm->frames[vm->frame_sp - 1];
+        if( frame && frame->script && frame->script->script_id == SAILING_CARGO_PRIVACY_SCRIPT )
+        {
+            if( SailingCargoPrivacy_Valid(value) )
+                RS_CS2Host_QueueSettingsMirror(host, varbit_id, value);
+            return;
+        }
+    }
+
     if( host->varbit_settings_last_changed > 0 &&
         varbit_id == host->varbit_settings_last_changed )
     {
@@ -3785,6 +3801,105 @@ rs_cs2_settings_apply_client_layout(
     }
     host->client_layout_mode = layout;
     host->client_layout_dirty = true;
+}
+
+/* The shipped cache's dropdown hub can update its label without invoking
+ * the server-applied cargo callback. Complete that one named setting from
+ * the hub's actual (setting, choice, secondary) arguments. If a cache also
+ * invokes8830, the existing mirror coalesces the identical choice. */
+static void
+rs_cs2_settings_apply_cargo_privacy(
+    struct RS_CS2Host* host, struct CS2VM2_Thread* vm, int varbit_id, int setting)
+{
+    assert(host);
+    if( varbit_id != host->varbit_settings_last_changed ||
+        setting != SAILING_CARGO_PRIVACY_SETTING || !vm || vm->frame_sp <= 0 ) return;
+    struct CS2VM2_Frame* frame = vm->frames[vm->frame_sp - 1];
+    if( !frame || !frame->script || frame->script->script_id != host->script_settings_client_apply ||
+        frame->script->int_argument_count < 2 ) return;
+    int value = frame->int_locals[1];
+    if( !SailingCargoPrivacy_Valid(value) ) return;
+    RS_CS2Host_ScriptWriteVarbit(host, SAILING_CARGO_PRIVACY_VARBIT, value);
+    RS_CS2Host_QueueSettingsMirror(host, SAILING_CARGO_PRIVACY_VARBIT, value);
+}
+
+/*
+ * Read one integer local without assuming the buffer reaches that far.
+ *
+ * A frame's locals are grown to what its occupant has actually written, and
+ * everything at or above `int_locals_dirty` is zero by that buffer's own
+ * invariant -- including the slots the allocation does not even cover. One
+ * compare answers both, which is what makes reading local13 of a frame safe
+ * to attempt before knowing the frame is the one being looked for.
+ */
+static int
+rs_cs2_frame_int_local(struct CS2VM2_Frame const* frame, int index)
+{
+    assert(frame);
+    assert(index >= 0);
+    return index < frame->int_locals_dirty ? frame->int_locals[index] : 0;
+}
+
+/*
+ * Finish the cargo-privacy row from the dropdown ENTRY script, script3852.
+ *
+ * This is the path the shipped cache actually takes. 3852 rewrites the row's
+ * label with `cc_settext` and then calls `~settings_set_dropdown` (3967) only
+ * when `$int12 == 0`; struct6372 carries `param1085=1`, so for cargo privacy
+ * the apply hub is never entered, neither8830 nor3967 runs, and every mirror
+ * that hangs off those two scripts stays silent. The label moved and the
+ * varbit did not -- client and server both read0 whichever choice was clicked.
+ *
+ * The seam is the label write itself rather than "some host request happened
+ * under3852": the text application is the point at which the choice has
+ * demonstrably landed on a real component, and it is one boundary rather than
+ * every opcode the script issues. See sailing_settings.h for why each of the
+ * five locals is checked; the identification has to be this narrow because a
+ * settings dropdown row is a shared script and every other row in the panel
+ * runs the same code.
+ *
+ * Deliberately not a general varp/varbit bridge. It applies one named varbit
+ * for one named row and queues the mirror that already exists -- the
+ * CLIENT_CHEAT `setting VARBIT VALUE` the App flushes at the settled CS2
+ * boundary, which the server validates against0..2 before storing.
+ */
+static void
+rs_cs2_settings_apply_cargo_privacy_dropdown(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm)
+{
+    struct CS2VM2_Frame* frame;
+    int choice;
+
+    assert(host);
+    if( !vm || vm->frame_sp <= 0 )
+        return;
+    frame = vm->frames[vm->frame_sp - 1];
+    if( !frame || !frame->script )
+        return;
+    if( frame->script->script_id != SAILING_CARGO_PRIVACY_DROPDOWN_SCRIPT )
+        return;
+    /* Arity before locals: a different cache's3852 with a shorter signature
+     * would have different parameters in these positions, not missing ones. */
+    if( frame->script->int_argument_count < SAILING_CARGO_PRIVACY_DROPDOWN_ARG_COUNT )
+        return;
+    if( rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_KIND) !=
+        SAILING_CARGO_PRIVACY_DROPDOWN_KIND )
+        return;
+    if( rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_SETTING) !=
+        SAILING_CARGO_PRIVACY_SETTING )
+        return;
+    if( rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_STRUCT) !=
+        SAILING_CARGO_PRIVACY_STRUCT )
+        return;
+    /* The other branch DOES call the apply hub; leave that one to the hub. */
+    if( rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_SERVER_APPLIED) == 0 )
+        return;
+    choice = rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_CHOICE);
+    if( !SailingCargoPrivacy_Valid(choice) )
+        return;
+    RS_CS2Host_ScriptWriteVarbit(host, SAILING_CARGO_PRIVACY_VARBIT, choice);
+    RS_CS2Host_QueueSettingsMirror(host, SAILING_CARGO_PRIVACY_VARBIT, choice);
 }
 
 /* Safe-area bounds (6220..6223, 6231). Desktop client, no notch/home indicator:
@@ -8615,6 +8730,7 @@ exec_widget_set_graphic2(
 static int
 exec_widget_set_text(
     struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
     int component_id,
     char const* text)
 {
@@ -8623,8 +8739,13 @@ exec_widget_set_text(
         component_id,
         text ? text : "");
 #endif
-    if( rs_cs2_tree(host) )
-        (void)UITree_ApplyText(rs_cs2_tree(host), component_id, text);
+    /* The applied-text boundary is where the settings dropdown's one
+     * server-applied row is finished; see the function below the mirror queue
+     * for why that row cannot finish itself. UITree_ApplyText answers true for
+     * text that was already the same string, which is the right answer here:
+     * re-picking the choice already showing is still a choice. */
+    if( rs_cs2_tree(host) && UITree_ApplyText(rs_cs2_tree(host), component_id, text) )
+        rs_cs2_settings_apply_cargo_privacy_dropdown(host, vm);
     return CS2VM_EXECNO_OK;
 }
 
@@ -9167,7 +9288,7 @@ rs_cs2_host_exec_dispatch(
         return exec_widget_set_graphic2(host, request->u.opname.component_id, request->u.opname.graphic_id)
 #define RS_CS2_SET_TEXT_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_text(host, request->u.opname.component_id, request->u.opname.text)
+        return exec_widget_set_text(host, vm, request->u.opname.component_id, request->u.opname.text)
 #define RS_CS2_SET_TILING_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_widget_set_tiling(host, request->u.opname.component_id, request->u.opname.tiling)
@@ -9401,6 +9522,9 @@ rs_cs2_host_exec_dispatch(
             host, vm, request->u.POP_VARBIT.varbit_id,
             request->u.POP_VARBIT.value);
         rs_cs2_settings_apply_client_layout(
+            host, vm, request->u.POP_VARBIT.varbit_id,
+            request->u.POP_VARBIT.value);
+        rs_cs2_settings_apply_cargo_privacy(
             host, vm, request->u.POP_VARBIT.varbit_id,
             request->u.POP_VARBIT.value);
         RS_CS2Host_ScriptWriteVarbit(
@@ -11304,6 +11428,13 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_HISCORES_CASE(HISCORES_STATUS);
 
         RS_CS2_HISCORES_CASE(HISCORES_ERROR);
+
+    case CS2VM_HOST_REQUEST_WORLDENTITY_SETDRAWLIMIT:
+        host->world_entity_draw_limit = request->u.WORLDENTITY_SETDRAWLIMIT.limit < 0
+            ? 0 : request->u.WORLDENTITY_SETDRAWLIMIT.limit;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_WORLDENTITY_GETDRAWLIMIT:
+        return CS2VM2_PushInt(vm, host->world_entity_draw_limit);
 
 #undef RS_CS2_KEY_CASE
 #undef RS_CS2_VARC_STRING_READ_CASE

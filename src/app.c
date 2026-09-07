@@ -993,6 +993,77 @@ app_if_events_for_node(
     return App_IfEventsGetEffective(app, com_id);
 }
 
+/*
+ * Which target kinds a component actually offers — deob `method12079`'s
+ * `method7577(method12093(this, widget))`, the same pair `rs_cs2_target_mask`
+ * keeps for IF/CC_GETTARGETMASK and `component_effective_target_mask`
+ * (rs_minimenu_build.c) uses to decide whether to BUILD the target row.
+ *
+ * The arm has to agree with the builder or the row and the arm disagree about
+ * what the click meant: reading only the widget's decoded `target_mask` armed
+ * a script-built button with mask 0, and `add_world_select_row` then refused
+ * every world row while target mode was active — a menu with the verb on it
+ * and nothing the verb could be used on. A `cc_create`d child is memset to
+ * zero and no `cc_` opcode can write a target mask, so its whole declaration
+ * is the server's `if_setevents` (sailing's crew panel: `^if_event_op_all +
+ * 16384`, bit 14 -> mask 0x8 PLAYER).
+ *
+ * The shift is IF3-only, exactly as in the two functions above: a dat1
+ * component stores `targetMask` unshifted in `click_mask`, so shifting an IF1
+ * events word by 11 would turn a real answer into noise.
+ */
+static int
+app_component_target_mask(
+    struct App const* app,
+    int com_id)
+{
+    int32_t idx;
+    struct UITreeComponent const* node;
+    int mask;
+
+    assert(app);
+    if( !app->tree )
+        return 0;
+    idx = UITree_FindByComponentId(app->tree, com_id);
+    if( idx < 0 )
+        return 0;
+    node = &app->tree->components[idx];
+    mask = (int)node->behavior.target_mask;
+    if( node->if3 )
+        mask |= (int)((App_IfEventsGetEffective(app, com_id) >> TORIRS_TARGET_MASK_IF3_SHIFT) &
+                      TORIRS_TARGET_MASK_IF3_BITS);
+    return mask;
+}
+
+/*
+ * The identity the SERVER knows the armed component by — the one that goes on
+ * the wire in OPPLAYERT/OPNPCT/OPLOCT/OPOBJT/OPHELDT.
+ *
+ * `targetsel.component_id` is the TREE id, because that is what the local
+ * target-enter/leave hooks are dispatched against. For a dynamic child that id
+ * is a runtime allocation the server has never heard of, so putting it on the
+ * wire meant `[opplayert,sailing_sidepanel:crew_content_clicklayer]` could
+ * never match and the armed click did nothing at all. `app_if_button_target`
+ * is the same (container, index-within-it) resolution IF_BUTTON already does,
+ * and it is a no-op for a static spellbook button.
+ *
+ * Resolved here rather than stored at arm time because the armed component's
+ * parent is what the packet needs and `targetsel` has no wire-id field; the
+ * tree cannot have moved the child to a different container between the arm
+ * and the click without destroying it, and a destroyed child resolves to
+ * itself, which is what an unarmed cast already sends.
+ */
+static int
+app_targetsel_wire_component(struct App const* app)
+{
+    int com;
+    int sub;
+
+    assert(app);
+    app_if_button_target(app, app->targetsel.component_id, &com, &sub);
+    return com;
+}
+
 static void
 app_send_if_button(
     void* user,
@@ -2717,6 +2788,9 @@ app_world_project_actor(
         !WorldviewRegistry_IsLive(&app->worldviews, placement->view_id) )
         return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
     wev = Wevs_Get(&app->wevs, placement->view_id);
+    /* Model population and its overlay have the same visibility contract:
+     * flattened/skipped passengers must not leave floating names or bars. */
+    if( wev->flattened || !wev->render_visible ) return 0;
     if( wev->parent_view_id != WORLDVIEW_ROOT )
         return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
     view = WorldviewRegistry_Get(&app->worldviews, placement->view_id);
@@ -11440,10 +11514,6 @@ app_wev_deck_box(
     struct WevDeckBox* out_box);
 static void
 app_wev_decide_flatten(struct App* app);
-static int
-app_wev_flat_ensure(
-    struct App* app,
-    struct Wev* wev);
 
 /**
  * World_WorldEntityRegisterFn: every entity floating in `world` goes in as a
@@ -11480,9 +11550,22 @@ app_wev_register_pseudo_locs(
     app_sailing_register_arrows(app, world);
 
     count = Wevs_ViewListCount(&app->wevs, view_id);
-    for( int i = 0; i < count; i++ )
+    int order[WORLDVIEW_MAX], ordered=0;
+    if( view_id==WORLDVIEW_ROOT )
     {
-        struct Wev* wev = Wevs_ViewListAt(&app->wevs, view_id, i);
+        static const int groups[]={-1,2,0,1};
+        for( int pass=0; pass<4; ++pass ) for( int i=0; i<count; ++i )
+        {
+            struct Wev* candidate=Wevs_ViewListAt(&app->wevs,view_id,i);
+            bool aboard=candidate->id==app->aboard_view;
+            if( pass==0 ? aboard : !aboard && candidate->priority_group==groups[pass] )
+                order[ordered++]=i;
+        }
+    }
+    else for( int i=0; i<count; ++i ) order[ordered++]=i;
+    for( int i = 0; i < ordered; i++ )
+    {
+        struct Wev* wev = Wevs_ViewListAt(&app->wevs, view_id, order[i]);
         int id;
         int gx;
         int gz;
@@ -11544,152 +11627,14 @@ app_wev_register_pseudo_locs(
             level = COLLISION_LEVELS - 1;
         level = World_LocPaintLevel(world, gx, gz, level);
 
-        /* The footprint is the hull box ROTATED by this frame's heading, so it
-         * is recomputed every frame rather than fixed at spawn — its tile
-         * extent grows and shrinks as the boat turns. Absolute tiles out of the
-         * wev, then rebased onto this scene and clipped to it, since element
-         * sx/sz are unsigned and a negative min corner would wrap. */
-        fsx = 1;
-        fsz = 1;
-        fx = gx;
-        fz = gz;
-        /* Every live Wev carries a config (Wevs_Spawn asserts it) — a silent
-         * 1x1 footprint here would just repaint the span-gate hole the union
-         * below exists to close. */
-        assert(wev->config);
-        {
-            Wev_FootprintTiles(wev, 0, &fx, &fz, &fsx, &fsz);
-
-            /*
-             * Widen to the rotated DECK BOX. The config's authored bounds are
-             * the HULL's box, but the descent draws the whole sub-scene — the
-             * view's size_x*size_z tile rectangle — and the painter's span
-             * gate only defers the parent ground of tiles inside THIS box. A
-             * deck box larger than the config bounds (an oversized debug
-             * spawn, or simply deck geometry past the hull line) left the
-             * uncovered tiles' sea to draw AFTER the ship: tile-aligned water
-             * rectangles punched through the planking, staircase-edged,
-             * camera-angle dependent. Union, not replacement — the config box
-             * can also stick out of the deck box through bounds_off.
-             */
-            {
-                struct Worldview const* fpview =
-                    WorldviewRegistry_Get(&app->worldviews, id);
-                struct WevDeckBox box;
-                int min_ax = INT_MAX;
-                int min_az = INT_MAX;
-                int max_ax = INT_MIN;
-                int max_az = INT_MIN;
-
-                app_wev_deck_box(app, wev, world, &box);
-                for( int corner = 0; corner < 4; corner++ )
-                {
-                    /* Deck membership is [0, size*128) — the far corner is the
-                     * last fine unit INSIDE the deck, not the exclusive edge,
-                     * or a tile-aligned axis-parallel hull claims one spare
-                     * row/column of parent ground past the gunwale. */
-                    int dx = (corner & 1) ? fpview->size_x_tiles * 128 - 1 : 0;
-                    int dz = (corner & 2) ? fpview->size_z_tiles * 128 - 1 : 0;
-                    int px;
-                    int pz;
-
-                    Wev_ParentFromDeck(&box, dx, dz, &px, &pz);
-                    /* Parent-scene fine -> absolute tiles, matching the
-                     * Wev_FootprintTiles output the union folds into. */
-                    px = (px >> 7) + world->_base_tile_x;
-                    pz = (pz >> 7) + world->_base_tile_z;
-                    if( px < min_ax )
-                        min_ax = px;
-                    if( px > max_ax )
-                        max_ax = px;
-                    if( pz < min_az )
-                        min_az = pz;
-                    if( pz > max_az )
-                        max_az = pz;
-                }
-                if( min_ax < fx )
-                {
-                    fsx += fx - min_ax;
-                    fx = min_ax;
-                }
-                if( min_az < fz )
-                {
-                    fsz += fz - min_az;
-                    fz = min_az;
-                }
-                if( max_ax + 1 > fx + fsx )
-                    fsx = max_ax + 1 - fx;
-                if( max_az + 1 > fz + fsz )
-                    fsz = max_az + 1 - fz;
-            }
-
-            fx -= world->_base_tile_x;
-            fz -= world->_base_tile_z;
-            if( fx < 0 )
-            {
-                fsx += fx;
-                fx = 0;
-            }
-            if( fz < 0 )
-            {
-                fsz += fz;
-                fz = 0;
-            }
-            if( fx + fsx > world->_scene_size )
-                fsx = world->_scene_size - fx;
-            if( fz + fsz > world->_scene_size )
-                fsz = world->_scene_size - fz;
-        }
-
-        /* A box whose offsets carry it clean off this scene still leaves the
-         * centre tile in it — paint that rather than nothing. */
-        if( fsx <= 0 || fsz <= 0 )
-        {
-            fx = gx;
-            fz = gz;
-            fsx = 1;
-            fsz = 1;
-        }
-
-        /*
-         * C4: a flattened hull draws its baked flat-colour silhouette as ONE
-         * ordinary model instead of descending — no actors (they were never
-         * registered into its deck this frame), and no picking (the flat
-         * element belongs to no entity or scenery record, so classification
-         * refuses it). Same footprint span, so it still painter-sorts under
-         * the sea it covers.
-         */
-        if( wev->flattened )
-        {
-            int flat_element = app_wev_flat_ensure(app, wev);
-
-            if( flat_element >= 0 )
-            {
-                ToriDraw_SceneElementSetPosition(
-                    app->scene,
-                    flat_element,
-                    wev->x - (world->_base_tile_x << 7),
-                    wev->y,
-                    wev->z - (world->_base_tile_z << 7),
-                    wev->angle);
-                painter_add_normal_scenery(
-                    world->painter, fx, fz, level, flat_element, fsx, fsz, 0);
-                if( debug )
-                    fprintf(
-                        stderr,
-                        "wev: view %d entity %d FLAT at scene tile %d,%d level %d "
-                        "(fine %d,%d angle %d)\n",
-                        view_id,
-                        id,
-                        gx,
-                        gz,
-                        level,
-                        wev->x,
-                        wev->z,
-                        wev->angle);
-            }
+        /* Native Scene.addDynamic uses a radius-60 pseudo-loc. The actual
+         * rotated hull bounds belong only to overlap/navigation decisions. */
+        Wev_PainterFootprint(wev, &fx, &fz, &fsx, &fsz);
+        fx -= world->_base_tile_x;
+        fz -= world->_base_tile_z;
+        if( fx < 0 || fz < 0 || fx + fsx > world->_scene_size ||
+            fz + fsz > world->_scene_size || !wev->render_visible )
             continue;
-        }
 
         /* model_height 0: the pseudo-loc is never occlusion-tested (the drain
          * descends on it), and a hull has no single merged model to measure. */
@@ -11910,296 +11855,129 @@ app_wev_bind_frame_xforms(
                 wev->y + wev->bob_y,
                 wev->z - (parent_world->_base_tile_z << 7),
                 wev->angle);
+            if( wev->flattened )
+            {
+                frame->views[wev->id].flatten_scale = 0.01f;
+                frame->views[wev->id].flatten_y_offset = -1200;
+                frame->views[wev->id].flat_hsl = wev->config->flat_hsl;
+            }
         }
     }
 }
 
 /* --- SAILING_PLAN C4: flatten (budget / priority / overlap) -------------- */
 
-/** Free a hull's flatten bake — the root-pool scene element carrying the
- * merged model. The element OWNS the model (a TORIDRAWMK_MODEL handle is
- * freed by SceneElementRemove, like every other full-model element in this
- * file), so the model is never freed separately here — that was a double
- * free. flat_model is only the Wev's back-reference. Not a deallocator for
- * the Wev; asserts its arguments. */
+/* Native actor overlaps use the drawn root position and nearest-16 oriented
+ * hull bounds. NPCs opt in only when their resolved type exposes an action. */
+#include "game/sailing_paint_order.u.h"
+
+static bool
+app_wev_ground_below(void* userdata,const struct SailingPaintSpan* span,int x,int z,int level)
+{
+    struct App* app=userdata;
+    assert(app);
+    assert(span);
+    struct World* world=WorldviewRegistry_Get(&app->worldviews,span->parent)->world;
+    if( !world->heightmap || x<0 || z<0 || x+1>=world->heightmap->size_x ||
+        z+1>=world->heightmap->size_z ) return false;
+    /* Negative Y is up. Preserve any tile with a corner above the hull's
+     * parent surface: a cliff or raised shore must still occlude the boat. */
+    for(int dz=0;dz<2;++dz)for(int dx=0;dx<2;++dx)
+        if(heightmap_get(world->heightmap,x+dx,z+dz,level)<span->surface_y)return false;
+    return true;
+}
+
 static void
-app_wev_flat_free(
-    struct App* app,
-    struct Wev* wev)
+app_wev_order_parent_ground(struct App* app)
 {
+    assert(app);
+    struct SailingPaintSpan spans[WORLDVIEW_MAX];int count=0;
+    for(int id=1;id<WORLDVIEW_MAX;++id)
+    {
+        if(!Wevs_IsLive(&app->wevs,id) || !WorldviewRegistry_IsLive(&app->worldviews,id))continue;
+        struct Wev* wev=Wevs_Get(&app->wevs,id);
+        if(!wev->render_visible)continue;
+        struct Worldview* view=WorldviewRegistry_Get(&app->worldviews,id);
+        if(!WorldviewRegistry_IsLive(&app->worldviews,wev->parent_view_id))continue;
+        struct World* parent=WorldviewRegistry_Get(&app->worldviews,wev->parent_view_id)->world;
+        struct WevDeckBox box;app_wev_deck_box(app,wev,parent,&box);
+        int x,z,width,height;Wev_FootprintTiles(wev,0,&x,&z,&width,&height);
+        x-=parent->_base_tile_x;z-=parent->_base_tile_z;
+        int max_x=x+width-1,max_z=z+height-1;
+        for(int corner=0;corner<4;++corner)
+        {
+            int px,pz;Wev_ParentFromDeck(&box,
+                corner&1 ? view->size_x_tiles*128-1:0,
+                corner&2 ? view->size_z_tiles*128-1:0,&px,&pz);
+            px>>=7;pz>>=7;
+            if(px<x)x=px;if(pz<z)z=pz;
+            if(px>max_x)max_x=px;if(pz>max_z)max_z=pz;
+        }
+        spans[count]=(struct SailingPaintSpan){.view=id,.parent=wev->parent_view_id,
+            .level=view->parent_level,.x=x,.z=z,.width=max_x-x+1,.height=max_z-z+1,
+            .surface_y=wev->y,.flat=wev->flattened};
+        Wev_RenderBounds(wev,spans[count].bounds);++count;
+    }
+    /* Zero boats returns before allocation or command scanning. */
+    if(count)
+    {
+        sailing_paint_order_flat(app->painter_buffer,spans,count);
+        sailing_paint_order_ground(app->painter_buffer,spans,count,app_wev_ground_below,app);
+    }
+}
+
+static bool
+app_wev_actor_overlaps(void* userdata, const struct Wev* wev)
+{
+    struct App* app = userdata;
     assert(app);
     assert(wev);
-    if( wev->flat_element >= 0 )
+    struct World* root = app->world;
+    if( !root ) return false;
+    struct World_EntityPool* pool = &root->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
     {
-        ToriDraw_SceneElementRemove(app->scene, wev->flat_element);
-        wev->flat_element = -1;
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+        if( !player || player->element_id < 0 ) continue;
+        int x = (int)player->draw_position.x, z = (int)player->draw_position.z;
+        app_wev_actor_root_fine(app, &player->view_placement, &x, &z);
+        if( Wev_OverlapsActor(wev, x + root->_base_tile_x * 128,
+                             z + root->_base_tile_z * 128, 1) ) return true;
     }
-    wev->flat_model = NULL;
+    pool = &root->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        if( !npc || npc->element_id < 0 || npc->multinpc_hidden ) continue;
+        struct ToriRS_Npctype* type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
+        bool actionable = false;
+        if( type ) for( int op = 0; op < 5; ++op )
+            if( type->actions[op] && type->actions[op][0] ) actionable = true;
+        if( !actionable ) continue;
+        int x = (int)npc->draw_position.x, z = (int)npc->draw_position.z;
+        app_wev_actor_root_fine(app, &npc->view_placement, &x, &z);
+        if( Wev_OverlapsActor(wev, x + root->_base_tile_x * 128,
+                             z + root->_base_tile_z * 128, npc->size > 0 ? npc->size : 1) )
+            return true;
+    }
+    return false;
 }
 
-void
-App_WevFlatInvalidate(
-    struct App* app,
-    int view_id)
-{
-    assert(app);
-    assert(view_id > WORLDVIEW_ROOT);
-    assert(view_id < WORLDVIEW_MAX);
-    if( Wevs_IsLive(&app->wevs, view_id) )
-        app_wev_flat_free(app, Wevs_Get(&app->wevs, view_id));
-}
-
-/**
- * The flattened stand-in for one hull: a MERGED copy of the deck's static
- * geometry, squashed and recoloured at bake time (docs/SAILING.md §5.3's
- * flatten, via the plan's software-path bake — the deob re-renders the live
- * sub-scene through a Y-scale-0.01 matrix, which a painter's model draw has
- * no seam for; the baked copy produces the same flat-colour silhouette).
- *
- * The bake is expressed in deck-local space TRANSLATED BY THE RECENTER, so
- * drawing it at the hull's position with the hull's yaw composes exactly the
- * descent transform's rotate-about-the-pivot. Returns the scene element id
- * carrying it, or -1 when the view has nothing static to merge (deck not
- * rebuilt yet).
- */
-static int
-app_wev_flat_ensure(
-    struct App* app,
-    struct Wev* wev)
-{
-    struct Worldview const* view;
-    struct ToriDraw_Model** copies = NULL;
-    int copy_count = 0;
-    int copy_cap = 0;
-    struct ToriDraw_Model* merged;
-    int slot_count;
-    int pool_tag;
-
-    assert(app);
-    assert(app->scene);
-    assert(wev);
-    assert(wev->config);
-
-    if( wev->flat_element >= 0 )
-        return wev->flat_element;
-    if( !WorldviewRegistry_IsLive(&app->worldviews, wev->id) )
-        return -1;
-    view = WorldviewRegistry_Get(&app->worldviews, wev->id);
-
-    /* Every static element of the view's pool, positioned. There is no pool
-     * iterator; the id space is small and bakes are rare, so a scan is the
-     * simple truth. Dynamic (actor) elements are excluded by design — a
-     * flattened boat draws no actors at all. */
-    pool_tag = TORIDRAW_SCENE_POOL_STATIC_VIEW(wev->id);
-    slot_count = ToriDraw_SceneElementSlotCount(app->scene);
-    for( int id = 0; id < slot_count; id++ )
-    {
-        struct ToriDraw_SceneElement* el;
-        struct ToriDraw_Model* copy;
-
-        if( !ToriDraw_SceneElementIsLive(app->scene, id) ||
-            ToriDraw_SceneElementPool(app->scene, id) != pool_tag )
-            continue;
-        el = ToriDraw_SceneElementGet(app->scene, id);
-        if( !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
-            continue;
-
-        copy = ToriDraw_ModelCopy(el->model.u.model.model);
-        assert(copy);
-        /* Static deck yaws are quarter turns (loc rotations); anything finer
-         * would need a real rotate, and the cache does not author one. */
-        if( el->world_position.yaw != 0 )
-            ToriDraw_ModelOrient(copy, (el->world_position.yaw + 256) >> 9);
-        ToriDraw_ModelTranslate(
-            copy, el->world_position.x, el->world_position.y, el->world_position.z);
-
-        if( copy_count == copy_cap )
-        {
-            copy_cap = copy_cap ? copy_cap * 2 : 64;
-            copies = realloc(copies, (size_t)copy_cap * sizeof(*copies));
-            assert(copies);
-        }
-        copies[copy_count++] = copy;
-    }
-
-    if( copy_count == 0 )
-    {
-        free(copies);
-        return -1;
-    }
-
-    merged = ToriDraw_ModelNewMerge(copies, copy_count);
-    assert(merged);
-    for( int i = 0; i < copy_count; i++ )
-        ToriDraw_ModelFree(copies[i]);
-    free(copies);
-
-    /* Recenter (so the draw's yaw rotates about the hull pivot), lift by the
-     * deob's pre-scale bias, squash. ModelScale is value/128, so height 1 is
-     * 1/128 — the nearest integer expression of the deob's 0.01. */
-    ToriDraw_ModelTranslate(
-        merged,
-        -(view->size_x_tiles * 64) - wev->config->pivot_x,
-        -1200,
-        -(view->size_z_tiles * 64) - wev->config->pivot_z);
-    ToriDraw_ModelScale(merged, 128, 128, 1);
-
-    /* Flat HSL at full strength, textures dropped: the "shadow" look. */
-    {
-        hsl16_t flat = (hsl16_t)(wev->config->flat_hsl & 0xFFFF);
-
-        for( int i = 0; i < merged->face_count; i++ )
-        {
-            if( merged->face_colors_a )
-                merged->face_colors_a[i] = flat;
-            if( merged->face_colors_b )
-                merged->face_colors_b[i] = flat;
-            if( merged->face_colors_c )
-                merged->face_colors_c[i] = flat;
-            if( merged->face_textures )
-                merged->face_textures[i] = -1;
-        }
-    }
-    ToriDraw_ModelSetBoundsCylinder(merged);
-
-    wev->flat_model = merged;
-    wev->flat_element = ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
-    /* Element-table exhaustion is the scene equivalent of an allocation
-     * failure: a "handled" -1 here silently draws no hull at all. */
-    assert(wev->flat_element >= 0);
-    {
-        struct ToriDraw_ModelHandle hnd;
-
-        memset(&hnd, 0, sizeof(hnd));
-        hnd.kind = TORIDRAWMK_MODEL;
-        hnd.u.model.model = merged;
-        ToriDraw_SceneElementSetModel(app->scene, wev->flat_element, hnd);
-    }
-    if( app_wev_debug_enabled() )
-        fprintf(
-            stderr,
-            "wev: FLAT BAKE view %d merged %d element(s) into %d face(s) (element %d)\n",
-            wev->id,
-            copy_count,
-            merged->face_count,
-            wev->flat_element);
-    return wev->flat_element;
-}
-
-/**
- * Which hulls render full-detail this frame, and which flatten — the deob's
- * per-frame rules (docs/SAILING.md §5.3): the aboard hull first and never
- * flattened; the rest in priority-group order 2, 0, 1 against a full-detail
- * budget; group-1 hulls additionally flatten when an actor stands on them or
- * their footprint intersects a hull already placed full-detail this frame
- * (first placed wins). The overlap test here is the AABB of the rotated
- * footprint rather than the deob's oriented box — a few tiles generous, never
- * tighter.
- */
 static void
 app_wev_decide_flatten(struct App* app)
 {
-    static int budget = -1;
-    int order[WORLDVIEW_MAX];
-    int order_count = 0;
-    int placed[WORLDVIEW_MAX][4];
-    int placed_count = 0;
-    int count;
-
     assert(app);
-    if( budget < 0 )
-    {
-        char const* env = getenv("TORIRS_WEV_BUDGET");
-
-        budget = (env && env[0]) ? atoi(env) : 4;
-        if( budget < 1 )
-            budget = 1;
-    }
-
-    count = Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT);
-    /* Aboard hull first, then groups 2, 0, 1 in list order. */
-    for( int pass = 0; pass < 4; pass++ )
-    {
-        static const int k_group[4] = { -1, 2, 0, 1 };
-
-        for( int i = 0; i < count; i++ )
+    Wevs_SelectRenderStates(&app->wevs, app->aboard_view,
+                           app->host.world_entity_draw_limit, app_wev_actor_overlaps, app);
+    for( int id = 1; id < WORLDVIEW_MAX; ++id )
+        if( Wevs_IsLive(&app->wevs, id) && WorldviewRegistry_IsLive(&app->worldviews, id) )
         {
-            struct Wev* wev = Wevs_ViewListAt(&app->wevs, WORLDVIEW_ROOT, i);
-            int is_aboard = wev->id == app->aboard_view;
-
-            if( pass == 0 ? !is_aboard : (is_aboard || wev->priority_group != k_group[pass]) )
-                continue;
-            order[order_count++] = wev->id;
+            struct Wev* wev = Wevs_Get(&app->wevs, id);
+            WorldviewRegistry_Get(&app->worldviews, id)->world->suppress_dynamic_population =
+                wev->flattened || !wev->render_visible;
         }
-    }
-
-    for( int oi = 0; oi < order_count; oi++ )
-    {
-        struct Wev* wev = Wevs_Get(&app->wevs, order[oi]);
-        int flatten = 0;
-        int box[4];
-
-        Wev_FootprintTiles(wev, 0, &box[0], &box[1], &box[2], &box[3]);
-        box[2] += box[0] - 1; /* -> max tile inclusive */
-        box[3] += box[1] - 1;
-
-        if( wev->id != app->aboard_view )
-        {
-            if( placed_count >= budget )
-                flatten = 1;
-            else if( wev->priority_group == 1 )
-            {
-                for( int p = 0; p < placed_count && !flatten; p++ )
-                    if( box[0] <= placed[p][2] && box[2] >= placed[p][0] &&
-                        box[1] <= placed[p][3] && box[3] >= placed[p][1] )
-                        flatten = 1;
-                if( !flatten )
-                {
-                    /* Any actor standing on it (its view placement says so). */
-                    struct World_EntityPool* pool = &app->world->entities.player;
-
-                    for( int pi = World_EntityPoolHead(pool);
-                         pi != WORLD_ENTITY_NIL && !flatten;
-                         pi = World_EntityPoolNext(pool, pi) )
-                    {
-                        struct WorldEntity_Player* pl = World_EntityPoolGet(pool, pi);
-
-                        if( pl && pl->view_placement.view_id == wev->id )
-                            flatten = 1;
-                    }
-                    pool = &app->world->entities.npc;
-                    for( int ni = World_EntityPoolHead(pool);
-                         ni != WORLD_ENTITY_NIL && !flatten;
-                         ni = World_EntityPoolNext(pool, ni) )
-                    {
-                        struct WorldEntity_NPC* np = World_EntityPoolGet(pool, ni);
-
-                        if( np && np->view_placement.view_id == wev->id )
-                            flatten = 1;
-                    }
-                }
-            }
-        }
-
-        if( !flatten && placed_count < WORLDVIEW_MAX )
-        {
-            placed[placed_count][0] = box[0];
-            placed[placed_count][1] = box[1];
-            placed[placed_count][2] = box[2];
-            placed[placed_count][3] = box[3];
-            placed_count++;
-        }
-        if( app_wev_debug_enabled() && wev->flattened != (flatten != 0) )
-            fprintf(
-                stderr,
-                "wev: entity %d %s (group %d, %d full-detail placed, budget %d)\n",
-                wev->id,
-                flatten ? "FLATTENS" : "full detail",
-                wev->priority_group,
-                placed_count,
-                budget);
-        wev->flattened = flatten != 0;
-    }
 }
 
 /* --- SAILING_PLAN C5: actors aboard ------------------------------------- */
@@ -12641,16 +12419,6 @@ app_wev_claim_deck_actors(
         for( int i = 0; i < 2 && n < max; ++i )
             if( app->sailing_arrow_element[i] >= 0 )
                 out_element_ids[n++] = app->sailing_arrow_element[i];
-        for( int id = WORLDVIEW_ROOT + 1; id < WORLDVIEW_MAX && n < max; id++ )
-        {
-            struct Wev* wev;
-
-            if( !Wevs_IsLive(&app->wevs, id) )
-                continue;
-            wev = Wevs_Get(&app->wevs, id);
-            if( wev->flat_element >= 0 )
-                out_element_ids[n++] = wev->flat_element;
-        }
         return n;
     }
     owner = app->world;
@@ -12817,8 +12585,8 @@ app_request_entity_seq(
  * One animaya frame per 20 ms client cycle (the Wevs clock). A completed
  * one-shot clears itself and restarts the idle at frame 0, exactly the
  * deob's completion rule. Seqs still loading request themselves and bob 0
- * until the load lands. Flattened hulls skip: their silhouette draws as
- * plain scenery, and the deob's flatten hides live animation too.
+ * until the load lands. Native class467.method10419 applies its current
+ * animation matrix to both full and flattened scenes.
  */
 static void
 app_wev_advance_bobs(struct App* app)
@@ -12839,8 +12607,6 @@ app_wev_advance_bobs(struct App* app)
             continue;
         wev = Wevs_Get(&app->wevs, id);
         wev->bob_y = 0;
-        if( wev->flattened )
-            continue;
         assert(wev->config);
 
         if( wev->seq_id >= 0 && app->wevs.clock >= wev->seq_start_cycle )
@@ -16053,6 +15819,35 @@ app_player_model_poll(struct App* app);
 /* Input-driven host effects are drained at the frame's CS2 fixed point.
  * They do not consume simulation time: a close or amount response must not
  * remain queued until a later boat command when the test clock is paused. */
+/* Settings writes settle with the click, including while simulation is paused. */
+static int
+app_cs2_flush_settings_mirrors(struct App* app)
+{
+    int sent = 0;
+    if( !app->net || app->net->state != TORIRS_NET_GAME ) return 0;
+    {
+        int mirror_varbit;
+        int mirror_value;
+        while( RS_CS2Host_TakeSettingsMirror(&app->host, &mirror_varbit, &mirror_value) )
+        {
+            char cmd[64];
+
+            snprintf(cmd, sizeof(cmd), "setting %d %d", mirror_varbit, mirror_value);
+            if( !App_SendCommand(app, cmd) )
+            {
+                RS_CS2Host_QueueSettingsMirror(&app->host, mirror_varbit, mirror_value);
+                break;
+            }
+            sent = 1;
+            if( getenv("TORIRS_SETTINGS_DEBUG") )
+                TORIRS_LOG("settings: mirror varbit %d = %d -> server\n", mirror_varbit,
+                        mirror_value);
+        }
+    }
+
+    return sent;
+}
+
 static int
 app_cs2_flush_notifications(struct App* app)
 {
@@ -16343,6 +16138,7 @@ app_cs2_enqueue_followups(struct App* app)
 {
     int queued = app_cs2_flush_notifications(app);
     queued |= app_cs2_flush_triggeroplocal(app);
+    queued |= app_cs2_flush_settings_mirrors(app);
 
     {
         int com_id;
@@ -19928,6 +19724,9 @@ app_world_paint(struct App* app)
     else
         painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 
+    if( app->world_render_mode != TORIRS_WORLD_DEPTH )
+        app_wev_order_parent_ground(app);
+
     app->world_camera_pos.x = shake_x;
     app->world_camera_pos.y = shake_y;
     app->world_camera_pos.z = shake_z;
@@ -20821,8 +20620,9 @@ app_world_pick_finish(
      * out of every click. */
     int player_level = player ? app_cinema_level(app) : -1;
 
-    ToriRS_PickHitsClassify(
-        app->world, &app->worldviews, hits, player_level, &app->world_pickset, &result);
+    ToriRS_PickHitsClassifyViews(
+        app->world, &app->worldviews, &app->wevs, app->aboard_view,
+        hits, player_level, &app->world_pickset, &result);
     if( result.hover_tile_valid )
     {
         app->world_hover_tile_x = result.hover_tile_x;
@@ -26781,17 +26581,7 @@ app_world_camera_follow(struct App* app)
      * direction the player last walked. The eye is built around that anchor, so
      * the player model swung round a point beside itself while orbiting — the
      * camera appeared to orbit the tile rather than the player. */
-    if( app->orbit_x - (float)target_x < -500.0f || app->orbit_x - (float)target_x > 500.0f ||
-        app->orbit_z - (float)target_z < -500.0f || app->orbit_z - (float)target_z > 500.0f )
-    {
-        app->orbit_x = (float)target_x;
-        app->orbit_z = (float)target_z;
-    }
-    else
-    {
-        app->orbit_x += ((float)target_x - app->orbit_x) / 16.0f;
-        app->orbit_z += ((float)target_z - app->orbit_z) / 16.0f;
-    }
+    Wev_SmoothCameraFocus(&app->orbit_x, &app->orbit_z, target_x, target_z);
 
     /* Arrow keys -> yaw/pitch velocity (impulse 24/12, halved decay). */
     if( app->cam_key_left )
@@ -28093,7 +27883,7 @@ app_minimenu_inv_action(
                 obj_id,
                 slot,
                 com_id,
-                app->targetsel.component_id));
+                app_targetsel_wire_component(app)));
         app_selection_clear(app);
         return 1;
     }
@@ -29289,7 +29079,12 @@ app_minimenu_run_option(
         if( idx >= 0 )
         {
             struct UITreeComponent const* node = &app->tree->components[idx];
-            app->targetsel.mask = node->behavior.target_mask;
+            /* The EFFECTIVE mask, not the decoded one: the row that was just
+             * clicked was built from the server's IF_SETEVENTS declaration
+             * (rs_minimenu_build's component_effective_target_mask), so the arm
+             * must read the same number or a script-built target button arms
+             * with mask 0 and every world row is refused. */
+            app->targetsel.mask = app_component_target_mask(app, opt.pick.id);
             /* targetsel.op only feeds the "Cast <spell> on ..." prompt text
              * built below. Each %s below is precision-capped so the sum of
              * parts is provably within sizeof(targetsel.op), rather than
@@ -29335,20 +29130,36 @@ app_minimenu_run_option(
                  * arrow rather than a verb suffix, so a row reads
                  * "Cast <col>Wind Strike</col> -> <col>Goblin</col>". Built into
                  * one string here because that is the shape the world/inventory
-                 * row builders append the target's name to. */
-                snprintf(
-                    app->targetsel.op,
-                    sizeof(app->targetsel.op),
-                    "%.*s %.*s ->",
-                    29,
-                    UITree_MenuOptions(node)->target_verb,
-                    29,
-                    UITree_MenuOptions(node)->option);
+                 * row builders append the target's name to.
+                 *
+                 * An empty opBase is the verb ALONE, not "verb + a space" —
+                 * the same rule add_if3_target_op_rows applies when it builds
+                 * the row. A cc_create'd button (sailing's "Edit navigator")
+                 * has no op text at all, and "Edit-navigator  -> Deckhand"
+                 * with the hole still in it is what reading the empty string
+                 * as a word looks like. */
+                if( UITree_MenuOptions(node)->option[0] == '\0' )
+                    snprintf(
+                        app->targetsel.op,
+                        sizeof(app->targetsel.op),
+                        "%.*s ->",
+                        29,
+                        UITree_MenuOptions(node)->target_verb);
+                else
+                    snprintf(
+                        app->targetsel.op,
+                        sizeof(app->targetsel.op),
+                        "%.*s %.*s ->",
+                        29,
+                        UITree_MenuOptions(node)->target_verb,
+                        29,
+                        UITree_MenuOptions(node)->option);
             }
         }
         if( getenv("TORIRS_CLICK_DEBUG") )
-            TORIRS_LOG("selarm: tgt com=0x%x mask=0x%x op='%s'\n",
+            TORIRS_LOG("selarm: tgt com=0x%x wire=0x%x mask=0x%x op='%s'\n",
                 app->targetsel.component_id,
+                app_targetsel_wire_component(app),
                 (unsigned)app->targetsel.mask,
                 app->targetsel.op);
         app_targetsel_dispatch_hook(app, 1);
@@ -29426,7 +29237,7 @@ app_minimenu_run_option(
                     abs_x,
                     abs_z,
                     opt.pick.secondary_id,
-                    app->targetsel.component_id));
+                    app_targetsel_wire_component(app)));
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONOBJ:
             app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
@@ -29456,7 +29267,7 @@ app_minimenu_run_option(
                     abs_x,
                     abs_z,
                     opt.pick.secondary_id,
-                    app->targetsel.component_id));
+                    app_targetsel_wire_component(app)));
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONNPC:
         {
@@ -29492,7 +29303,7 @@ app_minimenu_run_option(
                         _nsbuf,
                         sizeof(_nsbuf),
                         npc->server_slot,
-                        app->targetsel.component_id));
+                        app_targetsel_wire_component(app)));
             }
             break;
         }
@@ -29519,6 +29330,16 @@ app_minimenu_run_option(
         case REVCONFIG_MINIMENU_TGT_PLAYER:
         {
             struct WorldEntity_Player* player = World_PlayerGetByElementId(app->world, opt.pick.id);
+            /* The row was BUILT from this same pick, so "the menu offered it
+             * and the click sent nothing" can only be one of these three
+             * numbers — and none of them is visible from outside. */
+            if( getenv("TORIRS_CLICK_DEBUG") )
+                TORIRS_LOG("clickdbg: tgt player elem=0x%x found=%d pid=%d local=%d wire=0x%x\n",
+                    opt.pick.id,
+                    player ? 1 : 0,
+                    player ? player->server_pid : -1,
+                    app->world->local_pid,
+                    app_targetsel_wire_component(app));
             if( player && player->server_pid >= 0 && player->server_pid != app->world->local_pid )
             {
                 app_try_move_player(app, player, app->ctrl_held);
@@ -29530,7 +29351,7 @@ app_minimenu_run_option(
                         _nsbuf,
                         sizeof(_nsbuf),
                         player->server_pid,
-                        app->targetsel.component_id));
+                        app_targetsel_wire_component(app)));
             }
             break;
         }
@@ -31398,41 +31219,7 @@ App_RunOnce(
         }
     }
 
-    /*
-     * Settings varbit writes, mirrored to the SERVER.
-     *
-     * Ten Activities rows are decided server-side -- the Agility, Slayer and
-     * Blast Furnace helpers, the clue helper's worldmap marker, world arrow and
-     * infobox, the two iron loot warnings, the boss health overlay and the
-     * max-hit threshold -- and every one of them reads a varbit this panel
-     * writes into the client's copy alone. See `settings_mirror_varbit` in
-     * rs_cs2_host.h for why no packet in this revision carries it and why the
-     * mirror rides CLIENT_CHEAT.
-     *
-     * Retried rather than dropped when the send fails. `App_SendCommand`
-     * answers false until the connection reaches GAME, and the settings panel
-     * is reachable well before that on a slow login -- a mirror lost there
-     * would leave the server on the opposite value with no second chance,
-     * since a row already at the value the player wants is never written again.
-     */
-    {
-        int mirror_varbit;
-        int mirror_value;
-        while( RS_CS2Host_TakeSettingsMirror(&app->host, &mirror_varbit, &mirror_value) )
-        {
-            char cmd[64];
-
-            snprintf(cmd, sizeof(cmd), "setting %d %d", mirror_varbit, mirror_value);
-            if( !App_SendCommand(app, cmd) )
-            {
-                RS_CS2Host_QueueSettingsMirror(&app->host, mirror_varbit, mirror_value);
-                break;
-            }
-            if( getenv("TORIRS_SETTINGS_DEBUG") )
-                TORIRS_LOG("settings: mirror varbit %d = %d -> server\n", mirror_varbit,
-                        mirror_value);
-        }
-    }
+    app_cs2_flush_settings_mirrors(app);
 
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
@@ -34858,10 +34645,6 @@ App_WevDespawn(
      * is one of them while the root world still holds its id (SAILING_PLAN
      * C5.1). */
     app_wev_evict_view_actors(app, id);
-
-    /* The flatten bake before Wevs_Despawn memsets the record: its model and
-     * scene element are the App's to free. */
-    app_wev_flat_free(app, Wevs_Get(&app->wevs, id));
 
     Wevs_Despawn(&app->wevs, id);
 

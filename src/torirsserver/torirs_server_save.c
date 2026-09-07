@@ -8,6 +8,7 @@
 #include "torirs_server.h"
 #include "torirs_server_container.h"
 #include "torirs_server_content.h"
+#include "torirs_server_friends.h"
 
 #include "3rd/ini/ini.h"
 #include "content/content_register.h"
@@ -238,6 +239,18 @@ ToriRSServer_SavePlayer(
 {
     char temp[1100];
     FILE* file;
+    struct ToriRSServerSailingSave sailing;
+    ToriRSServer_VesselCapturePlayer(player, &sailing);
+    int save_x = player->x, save_z = player->z, save_level = player->level;
+    if( player->world && ToriRSServer_VesselAtTile(player->world, player->x, player->z) )
+    {
+        save_x = sailing.shore_x;
+        save_z = sailing.shore_z;
+        save_level = sailing.shore_level;
+        if( save_x <= 0 || save_x >= 6400 || save_z <= 0 || save_z >= 16384 ||
+            save_level != 0 )
+        { save_x = 3059; save_z = 2979; save_level = 0; }
+    }
 
     assert(path);
     if( !*path )
@@ -269,8 +282,54 @@ ToriRSServer_SavePlayer(
             "run_energy = %d\n"
             "run_toggle = %d\n"
             "client_layout_mode = %d\n",
-            TORIRSSERVER_SAVE_VERSION, player->display_name, player->x, player->z, player->level,
+            TORIRSSERVER_SAVE_VERSION, player->display_name, save_x, save_z, save_level,
             player->run_energy, player->run_toggle, player->client_layout_mode);
+
+    /*
+     * The three chat filter modes.
+     *
+     * Read out of the friend service, not off `player`: the service holds the
+     * live copy, keyed by name37, because `isVisibleTo` has to answer for names
+     * whose player slot is gone (torirs_server_friends.h). This is the one
+     * place that copy has to be turned back into a durable byte, and logout
+     * calls SavePlayer before ToriRSServer_FriendsLogout, so the entry is still
+     * registered here.
+     *
+     * A player the roster has never heard of -- an unnamed selftest fixture, a
+     * save taken before login registered the name -- writes no section at all,
+     * rather than writing ToriRSServer_FriendsChatModes' unknown-name answer.
+     * That answer is private OFF, deliberately, because an unknown name must
+     * not be assumed visible; persisting it would silently switch Private Chat
+     * off for a character who never touched the filter.
+     */
+    if( player->name37 != 0 && ToriRSServer_FriendsWorld(player->name37) != 0 )
+    {
+        int public_mode = 0;
+        int private_mode = TORIRSSERVER_CHAT_PRIVATE_ON;
+        int trade_mode = 0;
+
+        ToriRSServer_FriendsChatModes(player->name37, &public_mode, &private_mode,
+                                      &trade_mode);
+        fprintf(file, "\n[chat]\n; public 0-3, private 0-2, trade 0-2; 0 is ON in each\n"
+                      "public = %d\nprivate = %d\ntrade = %d\n",
+                public_mode, private_mode, trade_mode);
+    }
+
+    fprintf(file, "\n[sailing]\nshore = %d %d %d\naboard = %d %d %d\n",
+            sailing.shore_x, sailing.shore_z, sailing.shore_level,
+            sailing.aboard_slot, sailing.deck_x, sailing.deck_z);
+    for( int slot = 0; slot < 5; ++slot )
+    {
+        const struct ToriRSServerSavedBoat* boat = &sailing.boats[slot];
+        if( boat->config_id < 1 || boat->config_id > 3 ) continue;
+        fprintf(file, "boat%d = %d %d %d %d %d %d %d %d %d\n", slot + 1,
+                boat->config_id, boat->fine_x, boat->fine_z, boat->angle, boat->hp,
+                boat->name_descriptor, boat->name_noun, boat->anchored, boat->motes);
+        for( int h = 0; h < 13; ++h )
+            if( boat->resources[h][0] || boat->resources[h][1] )
+                fprintf(file, "resource%d_%d = %d %d\n", slot + 1, h,
+                        boat->resources[h][0], boat->resources[h][1]);
+    }
 
     /*
      * The character's own face.
@@ -385,6 +444,9 @@ enum SaveSection
 {
     SAVE_NONE = 0,
     SAVE_PLAYER,
+    SAVE_SAILING,
+    /** `[chat]` -- the three CHAT_SETMODE filter modes. */
+    SAVE_CHAT,
     /** `[appearance]` — gender, the seven body kits, the five design colours. */
     SAVE_APPEARANCE,
     SAVE_STATS,
@@ -491,6 +553,14 @@ ToriRSServer_LoadPlayer(
      * record. An absent save returned above and leaves the new-character
      * default alone. */
     ToriRSServer_PohInit(&player->poh);
+    memset(&player->sailing, 0, sizeof(player->sailing));
+    /* A save with no [chat] section is one written before the key existed, and
+     * it means the same thing a fresh character does: all three modes ON, which
+     * is 0 in each of the three encodings. Cleared here rather than trusted to
+     * be clear because a load also overlays a live player. */
+    player->saved_chat_public_mode = 0;
+    player->saved_chat_private_mode = TORIRSSERVER_CHAT_PRIVATE_ON;
+    player->saved_chat_trade_mode = 0;
 
     ini_reader_init(&reader);
     while( ini_reader_next(&reader, data, (uint32_t)size, &element) == TORI_INI_ERR_OK )
@@ -503,6 +573,10 @@ ToriRSServer_LoadPlayer(
             ContentIni_Trim(element._section.name);
             if( strcmp(element._section.name, "player") == 0 )
                 section = SAVE_PLAYER;
+            else if( strcmp(element._section.name, "sailing") == 0 )
+                section = SAVE_SAILING;
+            else if( strcmp(element._section.name, "chat") == 0 )
+                section = SAVE_CHAT;
             else if( strcmp(element._section.name, "appearance") == 0 )
                 section = SAVE_APPEARANCE;
             else if( strcmp(element._section.name, "stats") == 0 )
@@ -564,6 +638,61 @@ ToriRSServer_LoadPlayer(
 
         switch( section )
         {
+        case SAVE_CHAT:
+            /*
+             * Out of range keeps the default, the same rule
+             * `client_layout_mode` follows: a save is a text file and can be
+             * hand-edited, and these three reach the client inside
+             * CHAT_FILTER_SETTINGS as bytes it indexes with. `public` has the
+             * fourth HIDE value; the other two have three each.
+             */
+            if( strcmp(key, "public") == 0 )
+            {
+                int mode = atoi(value);
+
+                if( mode >= 0 && mode <= 3 )
+                    player->saved_chat_public_mode = mode;
+            }
+            else if( strcmp(key, "private") == 0 )
+            {
+                int mode = atoi(value);
+
+                if( mode >= TORIRSSERVER_CHAT_PRIVATE_ON &&
+                    mode <= TORIRSSERVER_CHAT_PRIVATE_OFF )
+                    player->saved_chat_private_mode = mode;
+            }
+            else if( strcmp(key, "trade") == 0 )
+            {
+                int mode = atoi(value);
+
+                if( mode >= 0 && mode <= 2 )
+                    player->saved_chat_trade_mode = mode;
+            }
+            break;
+        case SAVE_SAILING:
+            if( strcmp(key, "shore") == 0 )
+                sscanf(value, "%d %d %d", &player->sailing.shore_x,
+                       &player->sailing.shore_z, &player->sailing.shore_level);
+            else if( strcmp(key, "aboard") == 0 )
+                sscanf(value, "%d %d %d", &player->sailing.aboard_slot,
+                       &player->sailing.deck_x, &player->sailing.deck_z);
+            else
+            {
+                int slot = 0, hotspot = 0;
+                if( sscanf(key, "boat%d", &slot) == 1 && slot >= 1 && slot <= 5 )
+                {
+                    struct ToriRSServerSavedBoat* boat = &player->sailing.boats[slot - 1];
+                    if( sscanf(value, "%d %d %d %d %d %d %d %d %d", &boat->config_id,
+                        &boat->fine_x, &boat->fine_z, &boat->angle, &boat->hp,
+                        &boat->name_descriptor, &boat->name_noun, &boat->anchored,
+                        &boat->motes) != 9 ) memset(boat, 0, sizeof(*boat));
+                }
+                else if( sscanf(key, "resource%d_%d", &slot, &hotspot) == 2 &&
+                         slot >= 1 && slot <= 5 && hotspot >= 0 && hotspot < 13 )
+                    sscanf(value, "%d %d", &player->sailing.boats[slot - 1].resources[hotspot][0],
+                           &player->sailing.boats[slot - 1].resources[hotspot][1]);
+            }
+            break;
         case SAVE_PLAYER:
             if( strcmp(key, "version") == 0 )
                 version = atoi(value);

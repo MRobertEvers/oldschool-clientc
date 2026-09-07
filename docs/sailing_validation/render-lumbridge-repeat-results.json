@@ -1,0 +1,1834 @@
+{
+  "build": {
+    "kind": "current application with descent compiled out vs enabled",
+    "note": "Frozen pair built by sailing_render_acceptance.py before its first run exposed the desktop-only benchmark manifest bug; provenance recovered from the frozen artifacts.",
+    "painter_sha256": "b0743db585f2060fe20667a9d44a98fbf0f5003bd045cf2841c474eb0d8a51d4",
+    "bucket_sha256": "08f1e7adefcda11965969fa498b1a015f12103cc6a720fae22dd6599177916e8",
+    "shared_object_sha256": {
+      "pkt_rebuild_normal.o": "4e0109e93f01428da2a6da723c4647b41465a351435173bdb113b912dc1e12fc",
+      "main.o": "7f268abf179aeb1503222647cf361d339ca9f663bcdc6e3272c05b55412f05fa",
+      "uitree_snapshot.o": "b1c42a21f28497473f39edb4bf2ab33fdd37042fce5cc159c1dac0681a035020",
+      "gameproto_rev_osrs230.o": "d5a0c07bb1704eaf5a5e1b5b1b98aed8a0c1705adf23585bb530e6f9734d3a0e",
+      "editor.o": "24cf8410f073f7332866e8c01f1503448e8262382d6ff8951fd66ac99b2e2c2b",
+      "torirs_plugin_placement.o": "5c3ecb4add680ec82f555d50c396d35fcb696af840fd2b84b152fa0d02b42734",
+      "torirs_pcm.o": "3a2140141a93fb1c006aaea68f6d28ee48f1b47a8f452fe98ae8f27b3516f71f",
+      "torirs_input.o": "e1235377ebb906aaa8b18d46df0aa0743159b02962a92b80bcad460b67463c60",
+      "task_dat1_texture_load.o": "f4ecbc96134f0b432849392d7d065ddd344f547b3f5d11f93cecd4c5c98cfe28",
+      "mock239_varp.o": "4533897e9dd61814b9f5614c380ef74d1d74c5ae02ea866821404c15cd802f85",
+      "torirs_server_encode.o": "b81a3bcfd169bd356b620d3f6b926cc2e71e245b390e64807e3d28ffc63c87ce",
+      "task_gameproto_exec.o": "df3d391206c425252ed3c542efa3ead04442a0bb5a6c40739c557bf1b5a72b6e",
+      "platform_audio_sdl2.o": "5018d7ea75d9ab4bcd4219cbc43ec8d51f257d08a0ba791e078c7a452779960d",
+      "sockstream.o": "3687641108c012d86edde809a7492c572aba5740ac43363ab9d3bf382b07474e",
+      "torirs_plugin_registry.o": "9cea6b982d54d734a21e1c09f00f2c8dfd5138468ea4ceab412f98ef07ac9c81",
+      "torirs_server_ops_loc.o": "ed7f5fe158b61894d7de64339ec867597c8fc1de4d79dfa571c2c6ac7681e015",
+      "rs_game_events.o": "fd5331922e5282094444273c9f50b59de7097a061518b840c200516e1ec5b99c",
+      "toridraw_animation_from_rscache.o": "5c5d836fea97dac59c43efc9d0b42a26eb244582a787b2dbafb1cd6735cd41a9",
+      "rs_ui_slots.o": "21609c656e9e6f7eb132a847105f6cded0b8fea4c758735e4a7e14f63749b003",
+      "entity_registry.o": "b2729cf3e355bf86f6168867a6301e4d89635cbc687a55fac7ebe41f4e276529",
+      "nxt_highlight.o": "7bdf47747099fddd4ab85566ef8f3f8e1f1e9b62f3208efdcf6913965cf31966",
+      "torirs_chrome_shell.o": "fd322f9583adfb8516c8d9cb2c767a06e1db531f165c0a8294f0d738e4b982cf",
+      "torirs_server_scripts.o": "8a37739513735a134423c47244f207e12534e1ccbca9e610533015f9f6793123",
+      "task_dat1_varbit_load.o": "6db71370ebcf07564ad1db1d9df2e376fc0b94bf1dac71f76e028019d14bea51",
+      "torirs_server_ws.o": "57a71f7b5a3dbabc181539129489f0c936970d458f46f4cb42f4c09fe740328a",
+      "rs_client_trigger.o": "656b9f8d8b0ea4c4c98543f1b7405a968b8fa1737fdede06997a53c48c7a1510",
+      "contour_ground.o": "7a1ba807a4fc709a4864805fa01de8f4135bee896bab23083ac3d53ae40ad907",
+      "content_register.o": "8bbb7c190758f9d991cb8c1808aed045e1f8faedd37f36a137921f9d35b41cd1",
+      "task_dat1_component_pack_load.o": "d888f87ce4840cbc656fe99e8d889e1dde36755804e23d9e35bf94086f8d1086",
+      "torirs_server_worldmap.o": "2df747b642a710e1c64b62826e40d8276743231ce86f3205450130f84f0006b4",
+      "task_dat2_hitsplat_load.o": "52ada510787dc09dd4e705bfe001b83fc1e7819a99b2b77414845c75cb1c0fab",
+      "torirs_model_inst_cache.o": "2964f3d39d9b2f618d37af3c42dda57f9f48b0bf48e269ca0b6995eb67e43c19",
+      "inv_manager.o": "16be54e41d387711d827113c7eaf5a31a65b3cd0d2400a04165fb8029dc42b33",
+      "trspk_unity.o": "9fabfaad30557220eb518bf0ab0f83c60e9f5f25bec805bc7bdf066a175f7d86",
+      "task_dat2_spotanim_load.o": "bd11904ed711079ca3f6914030c32896987d8e29bf3443af038b3e00647736b0",
+      "plugin_draw.o": "f3f5031e93be3978bb742035f2d90501825a101b13b8413585cb4c4d0511f789",
+      "torirs_chrome_exec.o": "5becff753b9e3cf0a67d7d5862ceabb85d670c4ec202ae727236b3e19d9c9072",
+      "task_dat2_idk_load.o": "4257f4a39ec850f56b1f00ec740cb3c6e5692e4f042c25e8fa613cc16f191294",
+      "js5.o": "27614edab913f7e2c8d18bafa40ea8f61eea46668acbd431ac97dd09a35b6398",
+      "torirs_server_db.o": "7e0eb6e4adcabfe3da683590d654b32cbda2a5f066e7fca7697ebe93bbcbcce2",
+      "torirs_server_ops_player.o": "751b61f25e910f0858b67fafe82e113c988ec7bd0701ca81bd91c832cf723bf1",
+      "task_dat2_struct_load.o": "a58f3bf887afa3418f6c49d46dd0750857568780505f153dd01c7cfede80f801",
+      "torirs_music.o": "c0462cf06a3f0bc0fd996d3dfaa211a9cdc730b08e6ba93afd72b08c54f193c9",
+      "uitree_builder_bake.o": "2568938916bb7cfd3b5cc4185374ba18f04cbba2b5b83809fa7dc6032d089dbe",
+      "torirs_server_ops_poh.o": "be83c3bae16b05dd28bf5720e2c514c8c5320974db8d35f71adf0094240a2720",
+      "mobile_gameframe.o": "905372287be716288efd03afc10779f794347ae370925e5aba9d1f2f125d8938",
+      "uitree_from_component.o": "9b69e7a063885948fb576cb71ea9563ed136f7d78080756925a0b1ed9b98466b",
+      "rs_clientop.o": "de92aeff919373c84fbe99c4687889ccb28b47a57e92cec0a5f14af40e924d2a",
+      "static_sprites.o": "57ac85a9ba5589c41276b350a87c1b00b3fa52d784e71c59718e92c9d3c7c55b",
+      "uitree_anim.o": "f06a44c653214fd393346f65bb64f567e19f46500ec720dd96074b5b41610306",
+      "torirs_sprite_from_rscache.o": "ec31b7b62c0654500bd8ae42fe8732f2a1e2b0fcd2e90a728fad5eb04c670ed0",
+      "torirs_flotype_from_rscache.o": "2777808baaf2f9bc885dcc050a878558e9f8eb30f0d7d069f469c6494d888214",
+      "trspk_sprite.o": "1b0e133ed76bb6d9bce2569ca50336c5397b6e7bc7264ce92985b57e2445e65b",
+      "torirs_server_session.o": "b837865f30da78194cac2ab6dbbcc7290c284d2083dbf934c0f200c0121de731",
+      "torirs_chrome_inkwell.o": "2228bbda0f4ee7215a9e71a9b8135ae6d75c4e7bd32ec03d68c9d093887557ad",
+      "task_cs2_script_exec.o": "c3ae575c4d54b19258116a0de1a4070c7e2d8fe829fef4eac90378219ab14d29",
+      "cs2vm2_trigger_args.o": "258fb5ad258688b09bdb8dfb6bc8f0a51fe96441f4dff41468810b050c485dda",
+      "torirs_server_zone.o": "485678b01987cde9b894b5078586b658f1e6c26ea5470e1d7f9bd6b519f1ef2e",
+      "torirs_midi_file.o": "e22a5d54adcb36dc5d4378d2bec14f61772369b4a2ec787b68dde758a3496258",
+      "png_decode.o": "88320a1d746eb5dd9be769b5931d7fb34dd5080c0c95fe374bcff9fd7e0db73a",
+      "ringbuf.o": "ef397fdd13aa7d9b9d9979a4387a4ecc90ada6fcd3769d9ee285993c5c307f0f",
+      "cs2vm2_script_from_rscache.o": "3df3c0d8da77fff83a5835f5f0710be166af8130e774d0c3e8a645f117dca85a",
+      "rsprot_unity.o": "3c87361c9cade425bd13cd59ccf485af074ec4059029b745357cc22af3a169a8",
+      "torirs_struct_from_rscache.o": "854554325c9aa30d64a73deef46e33b599defdf626d97e25a77b2d7076f78cc5",
+      "torirs_types.o": "72b1bd7cd67790c06b6253d17b849efd4063947c9ad96205dd5885fca090eb2f",
+      "torirs_midi_synth.o": "4aae87edf2ed080db856fedf8516ed304328b0edb420da0afde035fca50a832e",
+      "torirs_server_locinfo.o": "fdc203a3a0bf4fae0746236c197037d15a6ad3ed93a1b540d232c2a638bd38fc",
+      "mock239_interface_setters.o": "139b3427e29a8ee2a6f08a4637a472bf291344435ffd236c51e4be8bcebbf6fd",
+      "task_dat2_npc_load.o": "3f1eff13898fe284371677bf39630d7a10682335ab44fcfe74807369061f22ec",
+      "net.o": "a971fe2ea9360f2195002dc3445e028d030211cf596dc08bbbf7f6aab01487d3",
+      "editor_cmd.o": "e37e33bfc9769a2225b7160c2b43bd48340a8bfe27e3bff10d65b4f192d002be",
+      "rsprot_bridge.o": "3ff68fb8ef5dcc8e47d47a66592b3a92db16b99fccc32169bb841dee51b4a741",
+      "torirs_server_poh.o": "102bd4991ab3f5c563a8c25fbd4b3f4850ebc15b8d69f4a859fcbaffc82accb4",
+      "nxt_bird_nest.o": "3c7b189a441aa16b181022d4497361e1851c5970d1097083bfc88065de1731a5",
+      "task_static_sprites_load.o": "255c574bece97524fda50b8704f02a6429dd6f7d863a9b362bc6b1b642a9e17d",
+      "task_dat1_loc_load.o": "ee49de2db9dd4fb0a92675157facd7951d9660170b87bb913916f4e71888629d",
+      "toridraw_sprite_from_torirs.o": "f3386a27a2e47cb3ecd0c5b96f60da6e8566a2462b6ad91591e03555290e2e5c",
+      "title_panel.o": "c5184fbfafb33e1422270d91d62a247bfa4fc43365073655eaffee2673285da8",
+      "loginproto_osrs230.o": "cd21f19c4b0084c5f1ccdd1a575d195a065c6fbfc55862de4b1c2ed6633ed27a",
+      "js5_rscache.o": "225297f68fa44821fadacb03cd46464c0aaf0a45c3517e57d4c51351ad6263a1",
+      "torirs_server_wire.o": "4fdbec7e0700902b99a9eac1917cdf6444b12d00e957f7f248c258a4e6f7ff2d",
+      "revconfig.o": "7275fe34596e1dbcf21b2cc1ce561b358c7101c37421501746d4a002bc86a22b",
+      "stb_image_impl.o": "d1457484a12d9363b95823a4747ebd3554dc96f64727c547b42f9c1e0ec01855",
+      "rs_audio.o": "d333eed99585e0bf5d9c5d621c5352de4947b12f13098ab6f39aa34f1da76966",
+      "uitree_hovertext.o": "6a94de46f85eeb5d116fd0cd07d45ea759a3b0ef18e5a2e5e1acabb3ddfffee5",
+      "rs_chat.o": "13b1c1e2f71834a7296b06cd44b9ea4a59650680741d6edd17999867e44491e3",
+      "torirs_plugin_ui.o": "23f5c446e3688c0e64678855a09f9d3302401cfbd2a0a37aae2cb98bfcaed1e6",
+      "features.o": "c0b99b9c7096aa4e1fc4dfe137cd23926db2f8ee0a09f99929a02fe8930e9814",
+      "task_dat2_music_load.o": "3440bee0d11fadaaca01b4849f80fb4890912c77ef898113378db62fcba57bf3",
+      "cs2_opcode_dialect.o": "6393150973777e683042e625fde89e28a2a1c58e8710b7475d945642ba0f249a",
+      "pow_sha256.o": "c73ff954f5e0f5aaecaf445b7b626cfcd225ea7de366bfb6c79483842dc0f5ad",
+      "torirs_worldmap_from_rscache.o": "e2f444a911a16fd88c17565194aabc159546c2cf1d8934405fc2c8cd5f33ae66",
+      "task_obj_model_load.o": "b457bdc3d87e62ef2d91e80eaa141a35b15316673bd6737d4c74ecce780e6c38",
+      "torirs_npctype_from_rscache.o": "d5df0d47b428acab16aa36dff0897a42959792aa2d9060aa74d5a0b7b8a7d902",
+      "task_uibuilder_assets_load.o": "d82ee86e5c19ea6558bab3af7fed4cbe79709c467d874a2298ff314cb716f3cc",
+      "task_prefs_io.o": "fa18c4a69e055ff9cbaceeb00a0cf07026c904f5563ea24bcac77d1127022731",
+      "platform_audio_capture.o": "fe3ce4f05d88d79b01b01f7082769220139b71942b0005ab21c0a5877917684c",
+      "preview_state.o": "08b2e288b91830d6820d694becb7f25c8d47c364a9974165de006636fe2bb621",
+      "loginproto.o": "fdaf20245b40d7a5f5590c53e4bb2202dde68b0d40494cc7891e86e4377225ac",
+      "task_dat2_varbit_load.o": "931b392ca379479041afe9f8e282a0c7d06fb09f31a7e28226c851b18d3d3123",
+      "task_slot_mount.o": "81f8e8498f8d957b23e2dc5b8f1ce80b4727b2bbfc6c71445ce52319be19c2b8",
+      "task_dat2_mapelement_load.o": "d78fa37386db3bd2e54463fa08861be662366944b906d2022348d8b304cecc2c",
+      "torirs_server_world_selftest.o": "489c79fd63f05a36da54921fd2a2e1873ee253fdee0af84c272910c3824826d8",
+      "lightmap.o": "bb591277ac923ed059fca76b8b4c845b4724655f2768eb17d8859bb42ef6ec07",
+      "gameproto_parse.o": "2934a60f2c272e84ca886e60d2e13343b24e7f5a1bb4cf0522047333ae6041c4",
+      "task_dat2_obj_load.o": "1532785fbde3e5325c9a4d6fc5e27b54fe009577544c20939209b34a358fc7a5",
+      "editor_jm2.o": "6761357185e72aff28d8b0e3ef58a4d4fae426771e40b80daf7d56d3f314c8a9",
+      "platform_sdl2.o": "bbcefaaf8273a33ef89fd8a446727248f6e7c7867eb3020adeaba6aeb909329c",
+      "pkt_npc_info.o": "6d240a23ee5bdd46f60c08d242ec44eebe171727fa0d23209e3469f6ae3a393c",
+      "world_builder.o": "b883b8645db2af10f36fb927dd330c882a9c023eaae5b08d37413f4c8850ae4c",
+      "torirs_touch.o": "dc590ee7cb522c86fe42d2ab63f135296f9c5ebaa1cbb3037604e3031afc30e9",
+      "loginproto_xrsps.o": "046e2773876414bdb3f8b4bdbe1c42d538d1ce002d04447d62d3712515ce07a8",
+      "task_dat2_preload.o": "e853d8b15a32b41bbe8de357d573dbd939eab5da204dbc2ae8cb050553e180cf",
+      "projection16.aarch64.o": "62fd9c7ddc0df6564ca6321cfb3ae3cf498d5e636bcbe8ba3c1ac83120ec2b40",
+      "torirs_server_bank_tables.o": "3448fe1bf073aeba60c20a8ea2adb351f772c77e535efedb4126ce43bb0d8d8f",
+      "net_transport_ws_handshake.o": "3f0179a2c678f02010165a0361558ded30d262f3ee34e29067f98cf6fe17ae5f",
+      "torirs_frame.o": "4432696eb9ac443c25a049b87fd4f781ede0699d8c4682e615bb64cf269eb1bf",
+      "uitree_inv_view.o": "1f0ea31097c9d98c46ed9d6795fc6a1cfdc81b3464544b5fd8695e45ff76516d",
+      "sharelight_map.o": "d8b8430b719584eca05f97dfca28ded920e8f97bedda715f6c21dac9095d7d09",
+      "uitree_builder.o": "18ff8b4391cf681549c85e2d88084847921ffe028489da78f4c001f653a3de43",
+      "cs1vm.o": "264a3049f1ca2845796f657d6645fe357ea1869936d219944122c7f5f0360d9d",
+      "task_uitree_build.o": "e83e0136b5de836cbcd7640422dfb380d38833a761f031825b6bfbfd7ddd8f8e",
+      "uitree_layout.o": "87bf552a9b756f2376e13bb0fd5ab425b6101fe14d70f60f57b6f3c27693b96e",
+      "torirs_chrome_mirror.o": "a455e18c1cd32b8dbaa63084bb08b1022488cc1721812fc8cae0b12316e20736",
+      "osrs239_entity_info.o": "d66f2c1287d29252927b793524e2c2a53e29d20ee1962e051210401a70532354",
+      "torirs_server_servercodec.o": "050195c177468885e1b4bedb905b14d6f36901db38a1d06279b3718f953ed6bd",
+      "task_dat2_texture_load.o": "e785707d9cbc77a1f75ebbdd283d7ceae545d04fa6e04cbb14ad294e69df1553",
+      "task_dat1_sequence_load.o": "c5caf488f925c5c3d045c8d38adbba2aa9e8e1f26d7fae7e0c8a159d7b97b4bd",
+      "opengl3_sdlgl.o": "b9a572955f1c70a7f6fcde3071ad86f3e004f745ef9aadf0342c76347b216c24",
+      "wev.o": "45ffedfc4c9001e060f981b570dc77b5938d1739788d8dcb8863304a1537263b",
+      "torirs_enum_from_rscache.o": "3f35cb392e051b743effb79e5f2c39a0ce2596aeb2087b805ba663e22ce9f7ef",
+      "cache_provider.o": "7549552ec58890134c55ec2a53524f7f583221d0703a1f0dbd7fc3742fe40602",
+      "torirs_server_vessel.o": "97b623bf356eb9c0cf1ac4089017f3435c347a4583906eef55cc3f8a17f70120",
+      "task_dat2_component_load.o": "b47a0f90887b9b03ebbed5efced2132e360684b4133787d2f79b4db13426210d",
+      "gameproto_rev_osrs239.o": "23e276ab256b6dd67516baa863f09b69bf7b0b851e8ca4c329ce2e235598a9b1",
+      "torirs_spotanimtype_from_rscache.o": "6e9d3d03f787ff13b67f8a98a15eb348005e002d33643cabfac9e8891ea4c8df",
+      "net_transport_tcp.o": "8d43bead392c64e48567407ace74d58783c4c506bf5b4c5111aab645d9230f36",
+      "content_fields.o": "112a63bfab3d85afae4d59eb29aab01a1ae32a70e561cb9c5eb888de961b4f35",
+      "torirs_server_structinfo.o": "cd1661d56205e7aa9595b9440a04e8143a322d108713bbaec7abcc0b1e26609d",
+      "torirs_server_boot.o": "644a912731f180e3766463dc60df61c6d2d43bf250ac6fa7cb6beac576237c86",
+      "rs_soundscape.o": "a656ca3bef7d5c7d37b7cd85f3b960ca5f52498218d95063b59f7e3268e0cf57",
+      "pkt_rebuild_region.o": "cba82cac9e434c8bfd77acd278b1f8f448b750a52defa0f045a3edfa258c7338",
+      "bmp.o": "995611455bc9cc06fe084fd6742a135ed03ca9356062e66aab0ec27f144ba618",
+      "platform_gl_context_sdl.o": "1d26fd533c374dac60200cf11cfed322d6147fa8d8c1b819f571251fc0138af0",
+      "task_dat2_soundscape_load.o": "27821ded0a35684202b8ead7416dec2e9ecddbadd42a0354d6b8837bed1f8b6b",
+      "torirs_server_transport.o": "484bb806f4e423ea19bd1795c89b8487ca071e4eccb0637a14aafa669d4c280f",
+      "task_dat2_enum_load.o": "d8437b1a4ab691d9b84461d5699d5200eef72ef1435c66f002b6adacf6491e82",
+      "task_dat1_sound_load.o": "a32f7c6e45933130b9f781fd59ef40103e557abccd9aed6edc12ba41c3c6b7dc",
+      "xp_tracker.o": "82f9090d0dd00a8c41ce9e16cf33c349601149bd1613dbc05d1cfb9e79fca589",
+      "cs2vm2_script.o": "321892d232b7b191ee365e6be29f5ac63a8ff60f2dd3971dc49a26f2bc1e58ca",
+      "torirs_map_from_rscache.o": "749bae8e5869649b53679189d13000c4ef6b00929088cd5ea6fcd18dfee3da6d",
+      "pkt_player_info.o": "c9550f9f9dad75b97dd26156fec62e015b55b02dd617b147986394387ba897d9",
+      "torirs_lru.o": "251e6bdf924c4f2df690c03cd2dcf768c599090793a14f7a6bfd5243f895e37a",
+      "rs_cs2_host.o": "da872290515402e75375a249eacac38b0c600cb75ba334210e933baef1f6138e",
+      "torirs_server_world.o": "31ac93f7c06caf020764be6e144df0b639722ca8bab61060fc955c3fd53dd0f2",
+      "rs_minimenu_build.o": "0d7fda276d3991acb1a961cc251c4c370c417d230a676dee23ba9378f3f8077a",
+      "rs_entity_sync.o": "8d71a707cc32de42aef825097e8122bfe1ebca4e6a6ad2045f26e8c2d6296608",
+      "torirs_server_loc_ops.o": "e47af5fe07c30147ac196db3fc2db1227c03543e6e15dc76a356db1485ad8b13",
+      "loot_tracker.o": "0469d6bfdb663c1758f960f7e48732172b6c79a40cd7b809747e272d18025b42",
+      "mock239_inbound.o": "2c5108deb1edb066353826edc92f4f5d9e8f838f8698f1149b4a6f731cb07e94",
+      "sha256.o": "de662d7f268fc8970b4a65326b9078259d5c138f3761f9ec199c313ddf426db4",
+      "toridraw_unity.o": "3cfc0bb4b82688c434d039739127fdc38c15573810f05017e3894c5b10a71c34",
+      "rs_gameproto_exec.o": "01e54ae0d0355c76085ecb743378acb08a5179c4b29d6fa6a67c117f40c8aff4",
+      "entity_pathing.o": "900fdd36e6444c7cc938c3e2047a04a211b39609fd75371434012d961679a19f",
+      "cs2_harness.o": "4ce24644179701b22b19f2b5d88c65972e93ea566e86b8f7986929ca548f7625",
+      "torirs_chrome_rail.o": "d2e96426332c255fbf4b48a65dff2c5ebe13f6228af57c1f1f1b213792ed9c65",
+      "task_exec_entity_info.o": "692ede1cea9372cdb095ccf83fef291c06149aaf54ee959bc0038eb34eb50695",
+      "task_dat2_dbtable_load.o": "f2f4ced151b03e58b9367331390f1687299445898940fdbd8f5f2d1c9688257e",
+      "rs_title.o": "c7a356842b3ae51a2be0034695f35c761b02b377bce457dedb09aa636d352fa3",
+      "torirs_server_scene.o": "01cc1eb971ba5ddecd4017ed0a6aa44d10b9bb83e110e9c03052d32fdf42b8d0",
+      "ssvm_provider.o": "30815c5a9edc16dc41bd3dd9f1cdcc37dff1219bed7dd89ad68e287e2630ad0f",
+      "torirs_location_from_rscache.o": "d59be359ae2318bc5ece8eb388d830a29e091dd00a3287187a6cef6628ce1755",
+      "uitree_minimenu.o": "8df14c8bec897b77667265d3fb8c30696e4e40ddc893ab5734f1ddac1c131fa5",
+      "feature_flags.o": "134718aa1e7e9964ccedb0632cd435196b041e36c238caf1720b6335a6781081",
+      "gameproto_rev_lc254.o": "e3a01e866d46ce320dd3395ce9e322c42b1e05ce7c8f30804814eeb5b482b7d1",
+      "torirs_server_split.o": "dc2e4df1c2c854bbfd99a3a6381d189052ee8e2d51be6d5a94a98145e504e028",
+      "toridraw_model_sprite.o": "bc5ad61007ac0dca6b4a9470b014367028a785a0f015bea854031eb76c6c2e54",
+      "trspk_toridraw.o": "475481c80cddc820d9ace6293a552029c89e4957c41981261579151997e0ec75",
+      "torirs_server_combat.o": "801e14873ea234b1e2127fcef898b4efbafcc1778e81b76160fe69ad6e0bca5e",
+      "uitree_debug_overlay.o": "9fe7464c545d20d558ecf256b17cd8b31eb32cfe3f0275e67fd55c603dfb848a",
+      "app.o": "4a12db25e8adfd6372d2e42ae3d6c91691450b8de88e7db615a6a27811a9edac",
+      "wb_minimap.o": "2d559c0fac3243dfd4c1e29aa73a7b730944609dac8597dbbd3c558c587cd78a",
+      "task_dat2_defaults_sprite_load.o": "c945e87885e74d56b0b884fce465375a61248decfb046c1cdc3c9e73c808e738",
+      "uitree_component_options.o": "a66429444e8fe22262efe16085bd2568a7cc408d0cd630a4e156e64d2d7b32ce",
+      "torirs_server_objinfo.o": "9a978cac3b03ee50bea05702d50fbec838494475b2a6ef9455d176353ac83efe",
+      "torirs_chrome_exec_kind.o": "c8f7844139f4ccdda4a422c911132ea8ef998a5dccfed4470bd3a45e3447486f",
+      "torirs_server_save.o": "552ad247a51a12f5791e6b1817ef9ffdcf90df1c971932eff2d406c374583416",
+      "task_dat2_model_load.o": "fab6e1dcb19a526765ad16d574cc31708731fc4fbb5cfac342db3d34c1c243c5",
+      "torirs_server_runenergy.o": "6f11566c54e632c9ad31c7aa692d43e15fecd0f359d699e7b89d22ea48e46a8d",
+      "torirs_chrome_exec_winbrowser.o": "be71d1d0a38e56c77ece1f5718104bda5ee96be9c628f0cd431dc374e2dece88",
+      "task_dat1_map_load.o": "c2c0b2947f079bec2539b06648a3215566fcf373ee1c507396862f981b77bd3b",
+      "platform_sdl2_renderer_gl3zb.o": "403bca65f0f5a3ec7d4d4cf16af38feb3b3f8d450ddf593710f345473b11df4a",
+      "rs_login_replies.o": "13fa4acd8f9ced21df7b99e6890ac57f960fbe797a325672fc26135e327fd380",
+      "bitbuffer.o": "b2febdd64494a7d290b32edf099f1980f87c25fefd6d34a786320e1835a390b7",
+      "task_dat2_clientscript_table_load.o": "93fcfc12f2d9626f2e27e368a7eb97af103f26f7711326233812f85860a37bca",
+      "platform_app_icon.o": "decdd96082007cb286322690ea1179aeec1f019f5a5c2953ae4c6ded13adaaad",
+      "task_plugin_io.o": "4e689564e6206040edb817a7a5c9eb5705241bb3763e6668c1c8685dd2ca966b",
+      "torirs_idk_from_rscache.o": "592427dfbb241add1052852e6e2e21d8a8f6bceb4c50dc8b432e99575a47c393",
+      "revconfig_refs.o": "3b0eaabe03210e9aad24b247fd6757ce440ee08b2ebdee5bc859225ff0e5bf50",
+      "rs_hitsplat.o": "97cffad26eab6847c32808c3f461b5fbc43eab82721168bcf79a68ef02eb00d0",
+      "net_out.o": "b7e0e79bf4e05e63dde229d35f2bedd3debbfcb55d1489767c76f598913e8622",
+      "hmap.o": "99e81862e32e7bb0b8e44e68716d295aa13698747df7fdd7e5db78c0333a4fc0",
+      "rs_highlight.o": "7bd3e01534c1c16719f938646282771843396e1b17191c8ec19c0e03f8c3bc35",
+      "torirs_server_ops_inv.o": "b8a3068d5bc547cacf41922eabc6207e19ea8e73652ebe0a6b45634072f874e6",
+      "task_dat2_worldmap_geography_load.o": "2b4797ae11760b32db33f2dd06a8173c7e909f1658c77f47e79d5554000a228c",
+      "dat1_buildcache.o": "f5b75934b00de7926cc261dc0d4f815c51a001dbc1b684f8172d375496995149",
+      "torirs_chrome_panel_draw.o": "22bebcf4c19ceff70e12056a37a5c4e18212e9a95d95bdd29c332eb6edd63623",
+      "uitree_emit.o": "453ea6080fcde513dca6702b3f4b2ba9ad3e85c0b291ed9ecfd7b2b569919b63",
+      "rsprot_buf.o": "6afbf3981400bf599ecdde044c4c05dc9180f2539d4b70e8be48680121c7325a",
+      "shademap.o": "1491f4185b243e32ddc10eb1fe47dd75b5d02657d94f145904705473fda1fead",
+      "uitree_builder_inv.o": "7b13e464e9c621ef8e544f8b403fec7f60d97dfa0db91f76606e60f2d1cfdb48",
+      "torirs_paramtype_from_rscache.o": "00bad46f6b208703c6a5601946927d2d68cc9698876c3497e00bfaed52dc9b75",
+      "loginproto_osrs239.o": "b1cf3a92e2d584db8b97b2ec1a12bc67ea6519b9e7e4f9a7aa4b853275ffb29e",
+      "world_cycle.o": "e022fb9809dab93fbed7f4391bb38eabb2ed705a6e6fa7bba323808292d87a05",
+      "editor_panel.o": "db030873090f47e5fe473d5cb2d4a72bf49d00c9a81a6f001f9f03a774e6e482",
+      "task_dat2_param_load.o": "aaa7c9dadc20e06ed67a764cc0177728b8be7da4c242a5f43164c74c718fe6b4",
+      "net_transport_ws.o": "0ff0944aed96a34a65f8a4010443b5a6846cdc962c8bf4fc878c0fddd9dff42d",
+      "editor_doc.o": "fe467afd8051d4387cdb9990356050e302b92bdb3fbb89c849f4949b08103e17",
+      "torirs_server_hpbar.o": "c2b696a1e537a89bfd2ab294709df510df44ac7611bbc4f872201a95ca03d667",
+      "varc_manager.o": "3257d2ec3af3912e44bd092592345d30b2530ab428c0d1b495afd5901ce814f4",
+      "torirs_server_npcinfo.o": "ddc0da276d999d468598a73b235159e48f721cb07e5a3f865cb36b458a9e3a65",
+      "xp_orbs.o": "b262daf9eb07ee918509a0c73b703238af9340246b6eac3e549eb2e773e54c37",
+      "task_dat2_font_load.o": "a76428a2d663faeb7de12897602c87d794c2781695bd4487526acd9b3f75c382",
+      "torirs_perf.o": "e22a6f5b06d46b275694248006f142f42ac5834873eced1c0f318990785bc785",
+      "torirs_server_healthbarinfo.o": "e15c5c4c53846bf5eaf6b81126bda675e8f7dfebba6b082a3df8ea3de2ea0d27",
+      "decor_buildmap.o": "353fd4ea74d5c90c82ab7bcc2e4096d63a4e793ed88c0677715876e12bb5efc1",
+      "task_dat2_invtype_load.o": "e69d9b39fbff6f62beacdb5a71cf60fcd7d965c5b4644c3f112f53cfcdc9501b",
+      "title_flames.o": "be7053f4b82ef16a7b5c15f2b8b9927a1c367be58729a5cfbd7c0eb1c8eca9dc",
+      "ini.o": "b1192d9ef5d88099b0f108090abe73b31a3caeb822eda556a0aa26b4fa153b65",
+      "miniz.o": "5dd39f028a2ff9de8c0691245c2f5e101700b28fbc39d2fd8ce9e9ab15354dc1",
+      "torirs_debug_font_baked.o": "80eef7270bbf3ce6912664ffb959eaad985ce4b74ad1f014c88e538462b94175",
+      "packetbuffer.o": "23ff8c745b66d912bffb02f363e09b3c30eb0347e67c8bfc4e0f88262f6c5f76",
+      "platform_x_io_ondemand.o": "19c743ec69401be34b7fd75c8af919cf82b37979d26e7494dcafb93bee34e786",
+      "task_dat1_preload.o": "c37317803a0e78c6d3696532dd1e520568d587c52667b2b27d9de4d1597d6a7c",
+      "uitree_build.o": "7a3938723d322a67eccab42d210163cf5cc9d57d43d082408e88e9d219867501",
+      "torirs_pick.o": "dcbf2df532eba57b7f418f5737b1eefe06684caa451717015610cec5e91797a4",
+      "jpeg_decode.o": "5d7bff307134b2fa53d137e2f1b75462c54729c83c71553f07e80023f77b7f99",
+      "scene_occluders.o": "0316af37d146a79269b0590016c56eef642efe8863b24d3036f056745b60c0c8",
+      "rs_worldmap_render.o": "8fbea1781a040e33eba7342952a9409dd32761664b01460756f5f3512352e334",
+      "wev_deck.o": "3d57201193e5f108a97742755e9d33bb0fce631119c26557c1a43f9e4df60e2d",
+      "rs_loot_store.o": "e343651ebec569aab472f7f77f77f5725666f4d46817f6dfb264595c9a2cac59",
+      "torirs_server_embed.o": "f973529cd6ecfd0a828e2d010e08e5f406c38951cc56361d547d604d280fd8dc",
+      "lc289_entity_info.o": "c009f9b403b3a870c35d9517ba2d55c072bd28b20a284f3bb79971162afa2666",
+      "ssvm_strpool.o": "5e4e8226fd2098f738cd62ca5c88444238f6a26889bfc2523949dc9640dbd34c",
+      "task_cs2_run.o": "501b5c56db18691648dcc49aaf9252badcd6c70a32587ce9c10a6dabcb62d050",
+      "torirs_server_paramtable.o": "76dfdcfc01e4b97ec66997874cbb2e81c2093b909c037b9f6524cc979d797dcc",
+      "torirs_font_from_rscache.o": "c31582eebfa58a8048f51bb298bf2344a8af3c80cf3ddadcd12839807400bffb",
+      "gameproto_rev_lc289.o": "c58f0ad53d4f27200d3fb8335f631d5bee183fe750665311d1b175d9ab7c0d17",
+      "cs1vm_script.o": "0719a93535756bb0258ae02a1085062c58e4e0c5770519ee17de899f3aaa90c9",
+      "torirs_server_mapinstance.o": "1281375bf7557928ed2bfcbbe847d84189b21d36e1ed39af7f340ca5cd6ead44",
+      "torirs_sound_from_rscache.o": "c1e9c9c50fcd53f0ea04166d2fb753bfa97d190016c149b218e1cc4d744b3371",
+      "torirs_arc.o": "3761abb594e1089be58ea4da792272dcacc6ef4b6ad5aced4eb24f690bd6ec90",
+      "executor_config.o": "25219a4eef6765d7d11dfd6861718d6f1b5d093653757207385079f3da74d502",
+      "task_dat2_sprite_load.o": "42db92f1dca8494bf08ade0b9b6298664ffb0125ca1933589f5e325ddd7f9c17",
+      "torirs_mixer.o": "8accac1bd24fcebbef5f6c181e6bf72bfd4a222b209bb0a83ce62073a139d33a",
+      "bzip_encode.o": "8d7b1251c2ab3c2a7312d63969b0a0f6c274bf08f79670040108361f05e1ff21",
+      "player_appearance.o": "8194522a6c38fba9ecde36607442c5e031a7c169b1fd1cb3e6e7b9531fa0a18e",
+      "torirs_server_content.o": "cbb0e016d0a2dfd5f96b0f98a87e3fb95ac25aa60b13ab1895d43871ac285c06",
+      "task_dat2_dbindex_load.o": "6ceead900a5843d5d994703ed37d4daf2ff97377152fc42a77261cb0ef5852ce",
+      "uitree_obj_cell.o": "3fe586e6d200edc911993cd4f976a577105ee26f9791fd4bbf7ef562c60a342d",
+      "uitree_host.o": "44727e75819adf002d47460648b1cc3157e4c60c40d879224ad8a8f31cb6dae7",
+      "task_dat2_dbrow_load.o": "27dabeafd16e41afb7eceba2cdec5fdd4a720165b697cb2beb5487b132f31366",
+      "task_dat2_worldmap_load.o": "d8bbc5ff09d20de04d5505c33e5bd7c86322fb30b2e72aeda64373b5c1871ece",
+      "task_dat2_sound_load.o": "8f9e5180b55a043b81139f392db31bdb2ccdfb4ccfb6bb430cb4014b2d804ec0",
+      "gameproto_rev_xrsps233.o": "92754dc77f3e6eaf6a77e0a5f34fbd769381db783ee672441fd8baf0ea164428",
+      "rs_idk_design.o": "51de31ed005e2c795120f5c86f2d8affedbd464356999122edf404684d01f136",
+      "rsprot_packets_unity.o": "44b8949adcb63aa4ec1fbc365f587ae2cef56f2fbf94dfd4ee9daddefac3336b",
+      "world_pickset.o": "19ac836d26b62433b82285db154f75628b70e8a45bdc46b13bb53752cf35de10",
+      "dat2_group_cache.o": "6a9038dc4eb25fdc004a65392654d9582027543e102f1c43977efcdef7487997",
+      "torirs_keymap.o": "a8f02c4272ba0baa1258e447d1acccc2a2eb47f22912587b3c86b68c112e0a1d",
+      "platform_sdl2_renderer_gl3.o": "8e7eef4ab4e3e1b44c2ab29a54299846444f309c08897a20ad783f3d0936c4af",
+      "uitree_cross.o": "3b516595f8752d1c6e774b6bd9363fc0a49cc50e164386a8436ddd71f7acd900",
+      "task_dat2_map_load.o": "e204e731cdee3916cb61aed081d1ab2a37a79f3a128e361cc485a823161b3d93",
+      "task_dat1_component_load.o": "c936dfea02277640a20a256d7f92d12e263628fa0c0690946e9f0ead62426bf7",
+      "client_settings.o": "78c8bca2fa3497bc2d5e00462156c3371aa0e43d8c6dec5b6a698875c04248d8",
+      "uitree_input.o": "efd41102120716bfe479236ffdf060d568899a5f2e4ecb32aa48c809492af90f",
+      "task_dat1_sprite_load.o": "49f88a2dd416dfd6c6c998e975e3bb2bb6bdcd4613a1f97a0991730549b45236",
+      "task_dat2_clientscript_load.o": "9bcca4015d4d2078728c7e08d0cd3a833394ed40322c737cd1101068692b03aa",
+      "varp_manager.o": "30b65a90839ba4c9cd085b045d9e505849f7425b8d7ba0318e3e68d00aee8d76",
+      "torirs_server_servpack.o": "0c7a128121c24e1598a457c517669b4dbc8c604300650bdfa78c1ada13ee72d8",
+      "task_interface_open.o": "b10d4235d460318971beb895e56116786a77653cc3e7d14a9bfda7d5391aef2f",
+      "gameframe.o": "69e66b5e8626c10964526b7c633691db1e9be2f986008b54394bf5ea89dc140f",
+      "torirs_server_seqinfo.o": "47ac0edfba83677309bb3839c91cd0df1c921b52f79ec6d3f90bfb83300467e4",
+      "rs_minimenu_world.o": "d2462c605882f0a970cf86114b850a94a8ec03c05e488c27f590b6ec424485c6",
+      "uitree_builder_manifest.o": "38b9e29ecfc8f407d51432df173e94154b01d0ddeb4d26e9470b600708d6a577",
+      "torirs_server_container.o": "ad0d1b5f092fd392e6b1c021299a159a1f71a45402979320b0f5cff6400abcb1",
+      "lua_unity.o": "9c59c85dc162b46c62f9f09aca9d4c56d4f4de5f87b8272f06552442d0effb42",
+      "torirs_plugin_frame.o": "7a6203f30efe0032409911ca04c77b2c36f3d772a7db6078fbcfc11b92a93d6d",
+      "cmdring.o": "ef3e8ba0e4a485812646b88e224bbf3e14b5bcceef68ba2c9c8543a35c11bb03",
+      "uitree_ink.o": "ddfd12182b9d316304d4b52d702c5155dc2ae2e52792f6f5e451a5ba956ae036",
+      "occluder_buildmap.o": "3a96238b14b73b95c43862f74742e48144e0b0f5d3b25d21fb3b2337cd1862c9",
+      "mock239_runclientscript.o": "392930ba918bd601f452c9657adf6f9d3a17ead3aca893d37501ca9a0a2dc821",
+      "net_transport_embed.o": "edcb17072d045c87c85005be43c76e6a185bdea681a028aaa21755d166790d51",
+      "task_pack_assets_load.o": "db9863e29cc8657614f8ba5250bc17fdefe3f64b8f375c41beb156c468dfef1f",
+      "platform_sdl2_renderer_soft3d.o": "d63f94cddf2365243c36ea17174e5409fa688ce0156971f5769ad9af16002fb9",
+      "platform_x_io_js5_cache.o": "b9b6d77dd47d605123aeee011c4847fc20e66a7bed95906e5cec9ac6e4fbf441",
+      "flat_tri_neon.o": "6babc237681f4ddf188840a918d53f84cc521187866f672dab403e4ca71675e8",
+      "editor_host_local.o": "750a355f6d041360cfcf05929399b4cd6da88f1e06fbad2c3f4a344bb2ca6c86",
+      "torirs_server_interface_state.o": "7a58193694025e41e3afb6e42ad1643974944e4097e4d427020672ac4c808557",
+      "terrain_shapemap.o": "f7717e3c6d38566618272639576d8bba7d59bbddb1bdc8926c759a9e0fe8ff6f",
+      "rs_worldmap.o": "a71299896106024e6e6f89b998e9e1ff51c4c28f1e44e3a63498708322cdc511",
+      "task_dat1_obj_load.o": "1dc01a855a0dc50b555538fb117da52faf5300af7e333d51858bd6aee6bf1216",
+      "rscache_unity.o": "d8fd04c159de18e94c3e471b52282dccfbd3a70983618907f7babbc375590a43",
+      "bzip.o": "c57fc11d312c7a08524795a499b7c63c2c9ade44177f7506a631da57ea0f99b4",
+      "task_dat2_flotype_load.o": "9803cbcf402624e07bc8bfc0a310eda519f172f5fef52abc2403b55603ac3729",
+      "texture_palette_bake.o": "b2d2d3a16e4e3b8978a846f5646f38d79981d4facfe6c033c90e3ba7d92c33b0",
+      "heightmap.o": "c41ae880a110f4a7979e7b24b3bb1003e308244108f018aa18005b88126fb86d",
+      "torirs_server_ops_param.o": "a0224bd8a260a59df7c35b814e30281f4b0a9f0199c2c484bb3c6729059997dc",
+      "content_test.o": "e31ddbba94a9d867ef9cd1ed7629e705d7fd371442d9fc4430c9e65d3a746901",
+      "platform_x_http.o": "d7599efc53539d8255b5719cca30ca126b08af6d97558bda25624c0cb426c343",
+      "task_dat2_component_pack_load.o": "68abe4fb67e747e6d988b2380198d01ec945373af5f9e88f0d88686c11344d9a",
+      "wordpack.o": "3e0f42e8696f77cf66beda6a7396059701a10c41fe6f6ccc6cc11027663bc1e1",
+      "platform_memory.o": "df48efc15be405346536ffe69be9776fe7b3540d52a4de35c784f29575efe732",
+      "dat2_buildcache.o": "f8fcd4dc8b4fba4c7c4a3579f18559ffe705a3376c4234f61c3c83918147c4ff",
+      "torirs_server_friends.o": "d7d7cbb1fbacf862ce079cf583e749efdaa4c54d484f373f720a31f8a6fbae85",
+      "task_dat1_spotanim_load.o": "646ad7d5ded384ba58eea137083c290de3b1c090fa0c7f17a1482ee4290dc399",
+      "platform_mdns.o": "35bd181040a9a69244b725a7a5c0ad2c2b0432526ca2a2f09a15ecd250281627",
+      "editor_derive.o": "23a37ce1f7a959cae4d3a84ee2e85a494de9765de410b18445fb25aff8313f49",
+      "rs_healthbar.o": "53660e53768f6f367c18ac824dba9215fc8b956d9589dd3016f4233bca86c05a",
+      "gameproto_rev_params.o": "d64a5ad17230f2ab32b3ca0ebb7aadf16fbbb8ea75846181bb4fa6f9282e5597",
+      "task_dat1_clientscript_load.o": "dda2bfc33d15470561bcdca47b68c2e177ceef68dfcada8f29925b97f3f8a1d7",
+      "rs_entity_overlay.o": "fdc6b034664a98a9a818631b459d1350d18ce54d69c42019f79737fa8ee85484",
+      "toridraw_frame_ab.o": "a36cd6072334e652fcdf1d5cc866dd2ec2b13c10c5185980084a87e644ba99f0",
+      "mock239_playerinfo.o": "ff5b9cb6c88305bfb8c45afef4ae2122e268be9eded369e5b5235737b0bb023f",
+      "torirs_server_equipment.o": "775e7b9643e2f5c93e39f6e528efaa09441c0b02964244928e70d6a77b1802b9",
+      "task_dat1_model_load.o": "ac6277d3451d9b8d37cc0ec0901113a326558e21c4e8305f849351443318aa3a",
+      "world_decode_tile.o": "ceb5b2ebd9c7bca365cf43837e1d5d222fce21dce74fbf5b8ff0cc305001786d",
+      "torirs_server_cox_sim.o": "a4e004986817e056a8d9fa564bf5793f7cd26003712c457ab4746057d8c3e97d",
+      "torirs_server_ops_db.o": "cb5a5b91baecb39c252180600726ffb93865b73e8dd7aa14bba7ddb5bf57ddbb",
+      "rs_social.o": "616799c2d9a568afc68b84d7d1b61e3d4f94e550ad5da56d3a833919ac5c2f49",
+      "proctex_generator.o": "c2e264b211f49aa1778308a728aac115afc7997a8bdc4604b85379128012354f",
+      "world.o": "364ba3f3a53df59abe7a925ed3d29d8489f47a162a8b1c1dac555d31240cccd8",
+      "blendmap.o": "a081772938ce6c0d4cc6636e9950b9a4cec96dcf3d21a61fe04710dab42af012",
+      "torirs_server_varbit.o": "b0842889b28d12cabe8f5634a905e80a65d13818d75bc075439106b25fe24cb7",
+      "task_dat2_healthbar_load.o": "60602db03b63eab30c80bcd3e025c12f1bd6307306c4b53c8196481fa25a2a3b",
+      "torirs_model_from_rscache.o": "d8d798b5c94e07a34ad06a845603b31e05209c0d1480b9a913858e6df0c001c1",
+      "task_cs1_run.o": "e00eaf32e062ef121d23eaf7c0073b7b058d7bc9b0650feed44133ae0f4835ba",
+      "task_dat2_underlay_load.o": "9125bfc3d3ed295df33fae119dab82404b23cec91e48c57c5d0eaaf471ae5be7",
+      "torirs_chrome_skin_baked.o": "0e187a43e64eb76df343a76e1dd19ddca57940cd707259dafb4fb1a12658e5f5",
+      "gameproto_rev_lc245_2.o": "13b91b49f7a33d5aa35397d1c5c457fa4dfe76961d9e84fa40a024ddf65967d6",
+      "uitree_scene_bridge.o": "afe685fd4eafa0cb9b9a16d73e05e6cf20134de162ae447326f25e12d2e33f88",
+      "editor_host_remote.o": "8e452511c5f5b913d405a39ce0b0ea55c35d4a7b4112968ff47a272d8e735fda",
+      "task_dat1_npc_load.o": "5cc229483955fee85713cd25bcf01ec14ab2b31cc1711e22854fab1643ae2365",
+      "uitree_role_load.o": "8a4a15feb710a0376802d6a0e511616818b7110fcd08cd75e517a90a5b1946cf",
+      "cs2vm2_strpool.o": "01743c8888d9ab75ad80ae6bf2bef0e1312c0d35b2eebbbd8a1494526668eade",
+      "nxt_cannon_ammo.o": "3bedd93cd54b5e47e9ce9a666aca8bc3c2342fa39711f8c3e3eb7ee4aa9bdc90",
+      "boot_bar.o": "38b0e81435bcdebd3c8d4d2dca2b367158810bd8ee18aae2acd7094580268049",
+      "ssvm_script.o": "1d6b114be84dc713b19d1af7f2e9dfdcdf568a0bb0e09c268b2ffccd43baab79",
+      "osrs239_parse.o": "41181f1207eb2b5810544d65ae0353cdeded2dc350672aeaf242fce976237542",
+      "worldview.o": "4fac416e2d9f12cd2bfde61fb412a166ead39b5598a379ea98bcc5a7192df34f",
+      "bootmanifest.o": "dba7667b02400556ff9b08ca01129324dac308387e98b575b1a1eaea297270a9",
+      "jbase37.o": "2b4eacbe1d46174e12be005e66f03205e4c5eb24cd78b74c087ff138cd551716",
+      "toridraw_model_from_torirs.o": "c427d60c8e0bda2c51d180b861db0b647c00d93625fc4b45ef75cf0e7e0add64",
+      "isaac.o": "ab8504d01459efa7f96018942dba8a76dd2258e146b72b852f29375ce6a9bf97",
+      "entity_model_build.o": "4b901791cad530b45294db0947e5366aa6f6acd5df11fec0f8c3fa2285188abb",
+      "torirs_server_ids.o": "97936f7d5cd1bcee1e29c4fc939258951c81823ba00210318a2e7dbce1365a76",
+      "task_world_load.o": "600b284ada290824da6e9ae4528717ff104277a00443401679207a05e6150b46",
+      "rsa.o": "c6814be5a181a7ff48769514097f7c421be53feb051163d5304a38d02f2d1614",
+      "torirs_maped_embed.o": "0df3d9d3ab8c9cd6d164c733db8a48a460c2cd76856f4a0a19391a32c95e0312",
+      "toridraw_eip_sample.o": "1563edfc1c3b668bdbaaedb08bce3c0e6a11ce4837636bd84df3f1756b524735",
+      "task_dat2_wevconfig_load.o": "46a0d22f323527ee36d469815a0f1a15240c46a069b420db5fd1e20d6ed4292a",
+      "task_dat2_varp_load.o": "945a1f2376e0554f78acf2db8e931aed01efde484de3ec89061bb802c241ca19",
+      "rs_if1_buttons.o": "56f75815fca5ff5de21241b1d5ce1015e969e1ea8f10542f791e1ae44a256890",
+      "revconfig_load.o": "1562b956eb73798440dba669ab90a956c703d773b7af76aff8c68a0162091ee5",
+      "rs_prefs.o": "0adc09f6aa0220534eee76af95524755b19c51b2cfd10aee7820bd98b65c9a0b",
+      "uitree.o": "4fc6cdf80a1f61a607cdaf7ba9361ba705e4f03d47195b19e3d0107f5eba2a0a",
+      "content_test_sailing.o": "ad5c80a94778e2b88fc6f71f40490e35c309926988b54da08be0178880c8bb37",
+      "platform_x_io.o": "d3dd7152f4cbdce39ea75029942bea07523ba10643587ee2f8aa4310f06ce4a3",
+      "rs_clientcode.o": "9a24d9b1a59fcd8a01475469d00ea664e21f2e241a383e2d33b3741c63038d31",
+      "task_dat2_loc_load.o": "ae5d58a85fd394af7f353184542c7c1a0e9c36921945321738cb6cf7de8eb5db",
+      "tex_tri_neon.o": "86222d1900a4d8405073c8ece2771cd97eaf8891c17a418907dbf29b2e9192ed",
+      "uitree_cmd_render.o": "f3d02f5314ed25b0d7a969792c53914bf1b2b2654e29732d851e5617bc3fe37f",
+      "toridraw_font_from_torirs.o": "c137a832fb01125f80233ae74c1f998c3b1811947f769a23390380114c3f0f41",
+      "platform_macos_webview.o": "3310a8a519570d95ae739194e84386ada86c7f0cddf6fdc7736f9695c30e6715",
+      "pacer.o": "1c24e6c9d481337d0fa43b7dc2650770628b3c35b10c0817df868c5c7200cac8",
+      "torirs_objtype_from_rscache.o": "6c736e748f02194fdace7b6019201081e842339df898fa3a8b608eca0a492427",
+      "osrs230_parse.o": "f5fa8e4f44fbd2b5f48b1283511529f4a7cfc7867cc33500c2db2a714555b690",
+      "torirs_component_from_rscache.o": "ba602ff53c592b58c5a86f9eadcaf5a39539eae68f1e2cad48e7a29e5574e84c",
+      "torirs_server_zone_index.o": "a6bd82fb57619e3cef0a0520f61414cf71ab3ff2f698c708ffbd4596fa43d33b",
+      "xteas.o": "dd578d8d7402b9e5fa25d84d191b530cae74393e1a1ebaac6fe8db52d60dbfff",
+      "gouraud_tri_neon.o": "58ed4242d58f6280a8224103e284ddeac7cfad8be0dfb816437f07383b42a9ce",
+      "tommath.o": "79ef6d98cb38ff14e87bd1a0a353cce7aa07daf45861de1790a9c579eb3b3a2b",
+      "uitree_hover.o": "6f4fd332c1eefb030754acf82e347abfe8d96644fc0014fef445fc6581f269bf",
+      "platform_socket.o": "38f3c0192cc32a0296e7ac9371225b3d8afe232222b465a0c8abe777d316a25b",
+      "item_stats.o": "43c666f609d1a74e224e98536d27de5bfb60b1b445cc20809279d0a6e6edde86",
+      "ss_meta.o": "24ef562d9576b9a01e73a3f07537e54121e6284e60b88b4abf8ddee2646325b4",
+      "task_dat1_flotype_load.o": "072097e045a91e329b08e14b589d244e8602fb63ba8ed3f274fb472f3faa0b27",
+      "uitree_interact.o": "69e3466ae6ad01d0829b4c316ef17354db2cff3d12a1393969708b443c83179b",
+      "torirs_db.o": "14cfad2216224e70bb08dd3670cb3374817471d012f44c99b8969f7a8c063ad6",
+      "rs_cs2_dispatch.o": "d7c2dedac92feb3d5e886739aeb4ca56984a028adc5e533eff20b1fe2b8aab58",
+      "task_dat2_sequence_load.o": "af8bfaed30a940648833456ea7063a80321de62f4019551fed8bf08df9e9ff04",
+      "cs2_opcode_meta.o": "2d19607c3d29fd4bb11eae0b12f66c3f7714092127afd8bf868b5e469b344138",
+      "uitree_role.o": "f44fdd0a747b5c232af13eaf6c3f8662f524b5a9e68912140d280577886bd9a4",
+      "uitree_frame.o": "442924ef1c9f7347d793b10a8395450aff81822fc854641138d66296cb01eb38",
+      "tileind.o": "e85deec2950d20d58ccdf2592ad3fd3e061df3fe81eca096b3e5ac5646db1fde",
+      "torirs_maped.o": "5e79bfde6c6b3547f003cf7209bd54792fa40d12a4bd72c92153f16ecdd1be67",
+      "torirs_server_ops_npc.o": "f2a734d4fd84144e268b9db0bb538888c5303f4020581b68c87e67982ce3d3a7",
+      "torirs_plugin_lua.o": "5b2916d99eccbeeb59240dab2a3611c896e5106c1de3cbefd2fe9395d9d149d7",
+      "pkt_player_appearance.o": "f166ed9ae3e026dd4f40e710aacae4365e40cdae0986c84e396a4bebf5c0f909",
+      "torirs_plugin_host.o": "77c8b90d065d0cf2cb047856b046c05969522ad153cef05b2c011fef4f7b14bd",
+      "mock239_interface_inbound.o": "0e121062b8647946bfb3e5c28ca0d4722f5071fc8e363c7e9004c580d4f023cb",
+      "rs_player_stats.o": "d59b49d8768d4b9fd37c599b5321c16da183a862272424f6240c6bb08b7b42e5",
+      "torirs_polygon.o": "28a14216b743cb7c6729dea64b8b355e44e82773b57f8459e343caf8e3313857",
+      "rsareabuf.o": "15ac2f4dc81e076c58acf852dab98fc0d739703080644600b1fa92c20a368273",
+      "revconfig_profile.o": "c9400fccabba5ca38b76c372dc7f789bc27f7e4d5a740e114924005023561dfe",
+      "torirs_server_ops_obj.o": "47726d620c820c45282fe8b7c21e3640909fba97625a314cbe2e49a5a11fbe9c",
+      "minimap_orbs.o": "a954c53798daccb5fd8a8da9c966ecc8de12d4a6f94d4cfb7e560be0a92ebc3a",
+      "entity_pool.o": "d3203af13d188a6a0cc00dc2d995d90a390c7c84da638cb2212b68e5e6977a6b",
+      "net_transport_ws_frame.o": "9e62617e45c61d316306a5fa64ba3091f14cba956803e1b648a8838d25c27dce",
+      "torirs_server_shop.o": "195f4180de045ea123edc9495807b0f713eb9203580dd6887c883b0626a94546",
+      "torirs_maped_buf.o": "bd785ba5922b15a85b6fdf0cc519c312edd43882f45ad3122bb269430d5af788",
+      "torirs_component_hook.o": "9bbe5d943acafd35cfdda0ba6161310d3483e04fc52af8ff2f60a5dad7678997",
+      "torirs_maped_cmdwire.o": "b26fee29d5a6f645c6e03747fde1753bea213616f2728fcb70c426b4a365b5ae",
+      "uitree_hook.o": "6a32c5a132e6534df2df949ef59976fdad8460361587c78b3c6c8812582b3d6f",
+      "task_dat2_title_panel_load.o": "e4ea5dfd22e6206996beba7475a5675e49cbf412fdf093d361f46bc99dd68de6",
+      "torirs_input_cmd.o": "f1cbe0ae43d8d0ba8f258b275e6a8a76f76822bffb48e0eaf3b37e79704d412f",
+      "cmdbus.o": "21373000ede2c6eaccc621564913d87dcdfb89c2d74c0f181d1bbb092cab01f9",
+      "cs2vm2.o": "d7223df0bc71290c48f60c3bdc88a74fb8b6abf6655c1216b6baf2fb0f9c66b4",
+      "rs_cs1_host.o": "c078a839ca415723debb4614f1cf7031dbc8099a11c80c1413cec18ba3035428",
+      "js5_server_cache.o": "628bd6dfd0850dcadf62c0b6be4240e761de5c7318e54ce66a67979cfbc5225c",
+      "ssvm.o": "7b51b766f07b5f5e5c18d191f7a829d6bdf167e43a8954eac016a79d0c4628bf",
+      "torirs_server_bank.o": "d452ac656e3a5b18368fd440fcfb0ab5e653ea36d87326094a0e511ede93c1ba",
+      "world_entity.o": "8c86f9072a7a84fefb240defd0f063c8028313c220beb09bd80d245d5e82ef55",
+      "pkt_exec.o": "e9d7dd24003066040c490ce5d94226047c00a0b88ef499ca337cc107d7e5ab77",
+      "torirs_server_helper.o": "1dfd1357370d67cb3ee1c786c491bae49332c33659ccca1ed073e01c638fa987",
+      "torirs_server_dbinfo.o": "fb5e1ca83a9c9d7d5b442d895afb85af06ea8d79a40c0d290a6b234680dbfcd5",
+      "uitree_scroll.o": "78efa46089e5cd683fd3ba4827a5c8a57d8544e0affc5f0e7e359d57417d8116",
+      "task_dat1_idk_load.o": "929b99b8b628fc77592e41679bdb25bd737d0de366e687faa12bf542be89f65a",
+      "collision_map.o": "9cb33db8ce88ff88bbf610fd91165f8a79370d448f31fb448ed24e9916c0f080",
+      "rs_preload.o": "987fc1e8b8f8d39ba38ec3d04c2a4fbde575cab0f2fb5f2cc07b8ab79e279890",
+      "torirs_soundbank.o": "eddea9b4f3272d54a26b119926b7db9cbdfbe823d61f69bc9e05d17ae0bf4bc8",
+      "overlaymap.o": "a35428d440fa176159f8dc37028279c261227817e308cf8ca56ec96717914be9",
+      "uitree_iface_stats.o": "3f3ff3521f5fb5e6f1ed1a8c58c85559505064c83326b46314bb0c3c00e14016",
+      "task_dat1_font_load.o": "d76901be9cec29d50229441cfc6fcd73fddedc59fc0ea96b44413d2c7de7e6cf",
+      "painters_cull_project.o": "a075df90ce329ef47b03cbd3d60de7caf65230e14767dcedb2b883f4c4c53b64"
+    },
+    "executables": {
+      "control": {
+        "sha256": "3c97a5e2d63179df4dd48fc6b9999c2f863ece7b2867986a52fbf640e225d7f3"
+      },
+      "sailing": {
+        "sha256": "8ce898ee359c39fbf09983f92d4354d4f23e5fc2b13b40d24b1cc63844eafe59"
+      }
+    }
+  },
+  "runs": [
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 0,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.053,
+          "p50_ms": 2.037,
+          "p95_ms": 2.163,
+          "p95_worst_ms": 2.177,
+          "max_ms": 2.437
+        },
+        "render": {
+          "mean_ms": 1.428,
+          "p50_ms": 1.414,
+          "p95_ms": 1.514,
+          "p95_worst_ms": 1.524,
+          "max_ms": 1.672
+        },
+        "build": {
+          "mean_ms": 0.451,
+          "p50_ms": 0.448,
+          "p95_ms": 0.476,
+          "p95_worst_ms": 0.493,
+          "max_ms": 0.578
+        },
+        "present": {
+          "mean_ms": 0.138,
+          "p50_ms": 0.137,
+          "p95_ms": 0.145,
+          "p95_worst_ms": 0.146,
+          "max_ms": 0.166
+        },
+        "paint": {
+          "mean_ms": 0.45,
+          "p50_ms": 0.448,
+          "p95_ms": 0.476,
+          "p95_worst_ms": 0.493,
+          "max_ms": 0.578
+        },
+        "r_project": {
+          "mean_ms": 0.151,
+          "p50_ms": 0.143,
+          "p95_ms": 0.203,
+          "p95_worst_ms": 0.206,
+          "max_ms": 0.259
+        },
+        "r_sort": {
+          "mean_ms": 0.189,
+          "p50_ms": 0.189,
+          "p95_ms": 0.203,
+          "p95_worst_ms": 0.205,
+          "max_ms": 0.218
+        },
+        "r_raster": {
+          "mean_ms": 0.743,
+          "p50_ms": 0.74,
+          "p95_ms": 0.793,
+          "p95_worst_ms": 0.812,
+          "max_ms": 0.906
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.054,
+        "p95_ms": 2.163,
+        "p95_worst_ms": 2.172
+      },
+      "variant": "control",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/control/shots/lumbridge.soft3d/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 0,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.036,
+          "p50_ms": 2.018,
+          "p95_ms": 2.175,
+          "p95_worst_ms": 2.224,
+          "max_ms": 2.438
+        },
+        "render": {
+          "mean_ms": 1.416,
+          "p50_ms": 1.399,
+          "p95_ms": 1.516,
+          "p95_worst_ms": 1.563,
+          "max_ms": 1.757
+        },
+        "build": {
+          "mean_ms": 0.448,
+          "p50_ms": 0.444,
+          "p95_ms": 0.486,
+          "p95_worst_ms": 0.491,
+          "max_ms": 0.594
+        },
+        "present": {
+          "mean_ms": 0.137,
+          "p50_ms": 0.137,
+          "p95_ms": 0.143,
+          "p95_worst_ms": 0.145,
+          "max_ms": 0.161
+        },
+        "paint": {
+          "mean_ms": 0.448,
+          "p50_ms": 0.444,
+          "p95_ms": 0.486,
+          "p95_worst_ms": 0.491,
+          "max_ms": 0.594
+        },
+        "r_project": {
+          "mean_ms": 0.147,
+          "p50_ms": 0.139,
+          "p95_ms": 0.204,
+          "p95_worst_ms": 0.218,
+          "max_ms": 0.333
+        },
+        "r_sort": {
+          "mean_ms": 0.182,
+          "p50_ms": 0.181,
+          "p95_ms": 0.196,
+          "p95_worst_ms": 0.197,
+          "max_ms": 0.227
+        },
+        "r_raster": {
+          "mean_ms": 0.741,
+          "p50_ms": 0.735,
+          "p95_ms": 0.803,
+          "p95_worst_ms": 0.815,
+          "max_ms": 0.958
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.037,
+        "p95_ms": 2.176,
+        "p95_worst_ms": 2.224
+      },
+      "variant": "sailing",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/sailing/shots/lumbridge.soft3d/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 1,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r2.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.056,
+          "p50_ms": 2.038,
+          "p95_ms": 2.183,
+          "p95_worst_ms": 2.203,
+          "max_ms": 2.615
+        },
+        "render": {
+          "mean_ms": 1.435,
+          "p50_ms": 1.417,
+          "p95_ms": 1.532,
+          "p95_worst_ms": 1.541,
+          "max_ms": 1.818
+        },
+        "build": {
+          "mean_ms": 0.448,
+          "p50_ms": 0.444,
+          "p95_ms": 0.483,
+          "p95_worst_ms": 0.493,
+          "max_ms": 0.62
+        },
+        "present": {
+          "mean_ms": 0.137,
+          "p50_ms": 0.136,
+          "p95_ms": 0.143,
+          "p95_worst_ms": 0.145,
+          "max_ms": 0.187
+        },
+        "paint": {
+          "mean_ms": 0.448,
+          "p50_ms": 0.444,
+          "p95_ms": 0.483,
+          "p95_worst_ms": 0.493,
+          "max_ms": 0.62
+        },
+        "r_project": {
+          "mean_ms": 0.153,
+          "p50_ms": 0.146,
+          "p95_ms": 0.205,
+          "p95_worst_ms": 0.209,
+          "max_ms": 0.26
+        },
+        "r_sort": {
+          "mean_ms": 0.183,
+          "p50_ms": 0.182,
+          "p95_ms": 0.198,
+          "p95_worst_ms": 0.198,
+          "max_ms": 0.217
+        },
+        "r_raster": {
+          "mean_ms": 0.751,
+          "p50_ms": 0.746,
+          "p95_ms": 0.811,
+          "p95_worst_ms": 0.831,
+          "max_ms": 0.966
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.057,
+        "p95_ms": 2.183,
+        "p95_worst_ms": 2.203
+      },
+      "variant": "sailing",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/sailing/shots/lumbridge.soft3d.r2/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 1,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r2.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.064,
+          "p50_ms": 2.05,
+          "p95_ms": 2.22,
+          "p95_worst_ms": 2.439,
+          "max_ms": 3.402
+        },
+        "render": {
+          "mean_ms": 1.435,
+          "p50_ms": 1.423,
+          "p95_ms": 1.544,
+          "p95_worst_ms": 1.728,
+          "max_ms": 2.142
+        },
+        "build": {
+          "mean_ms": 0.455,
+          "p50_ms": 0.45,
+          "p95_ms": 0.497,
+          "p95_worst_ms": 0.566,
+          "max_ms": 1.398
+        },
+        "present": {
+          "mean_ms": 0.137,
+          "p50_ms": 0.137,
+          "p95_ms": 0.144,
+          "p95_worst_ms": 0.145,
+          "max_ms": 0.195
+        },
+        "paint": {
+          "mean_ms": 0.455,
+          "p50_ms": 0.45,
+          "p95_ms": 0.497,
+          "p95_worst_ms": 0.566,
+          "max_ms": 1.397
+        },
+        "r_project": {
+          "mean_ms": 0.155,
+          "p50_ms": 0.149,
+          "p95_ms": 0.212,
+          "p95_worst_ms": 0.248,
+          "max_ms": 0.436
+        },
+        "r_sort": {
+          "mean_ms": 0.189,
+          "p50_ms": 0.19,
+          "p95_ms": 0.205,
+          "p95_worst_ms": 0.209,
+          "max_ms": 0.259
+        },
+        "r_raster": {
+          "mean_ms": 0.746,
+          "p50_ms": 0.737,
+          "p95_ms": 0.817,
+          "p95_worst_ms": 0.876,
+          "max_ms": 1.041
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.066,
+        "p95_ms": 2.22,
+        "p95_worst_ms": 2.438
+      },
+      "variant": "control",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/control/shots/lumbridge.soft3d.r2/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 2,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r3.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.076,
+          "p50_ms": 2.058,
+          "p95_ms": 2.239,
+          "p95_worst_ms": 2.295,
+          "max_ms": 2.914
+        },
+        "render": {
+          "mean_ms": 1.443,
+          "p50_ms": 1.43,
+          "p95_ms": 1.563,
+          "p95_worst_ms": 1.603,
+          "max_ms": 1.95
+        },
+        "build": {
+          "mean_ms": 0.458,
+          "p50_ms": 0.452,
+          "p95_ms": 0.508,
+          "p95_worst_ms": 0.52,
+          "max_ms": 0.76
+        },
+        "present": {
+          "mean_ms": 0.138,
+          "p50_ms": 0.137,
+          "p95_ms": 0.145,
+          "p95_worst_ms": 0.146,
+          "max_ms": 0.2
+        },
+        "paint": {
+          "mean_ms": 0.458,
+          "p50_ms": 0.452,
+          "p95_ms": 0.508,
+          "p95_worst_ms": 0.52,
+          "max_ms": 0.76
+        },
+        "r_project": {
+          "mean_ms": 0.155,
+          "p50_ms": 0.148,
+          "p95_ms": 0.211,
+          "p95_worst_ms": 0.227,
+          "max_ms": 0.394
+        },
+        "r_sort": {
+          "mean_ms": 0.19,
+          "p50_ms": 0.19,
+          "p95_ms": 0.205,
+          "p95_worst_ms": 0.206,
+          "max_ms": 0.245
+        },
+        "r_raster": {
+          "mean_ms": 0.749,
+          "p50_ms": 0.74,
+          "p95_ms": 0.829,
+          "p95_worst_ms": 0.838,
+          "max_ms": 1.014
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.077,
+        "p95_ms": 2.238,
+        "p95_worst_ms": 2.295
+      },
+      "variant": "control",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/control/shots/lumbridge.soft3d.r3/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 2,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r3.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.05,
+          "p50_ms": 2.03,
+          "p95_ms": 2.179,
+          "p95_worst_ms": 2.19,
+          "max_ms": 2.422
+        },
+        "render": {
+          "mean_ms": 1.429,
+          "p50_ms": 1.412,
+          "p95_ms": 1.532,
+          "p95_worst_ms": 1.542,
+          "max_ms": 1.677
+        },
+        "build": {
+          "mean_ms": 0.448,
+          "p50_ms": 0.445,
+          "p95_ms": 0.482,
+          "p95_worst_ms": 0.484,
+          "max_ms": 0.594
+        },
+        "present": {
+          "mean_ms": 0.137,
+          "p50_ms": 0.137,
+          "p95_ms": 0.144,
+          "p95_worst_ms": 0.145,
+          "max_ms": 0.157
+        },
+        "paint": {
+          "mean_ms": 0.448,
+          "p50_ms": 0.444,
+          "p95_ms": 0.482,
+          "p95_worst_ms": 0.484,
+          "max_ms": 0.594
+        },
+        "r_project": {
+          "mean_ms": 0.152,
+          "p50_ms": 0.142,
+          "p95_ms": 0.207,
+          "p95_worst_ms": 0.212,
+          "max_ms": 0.252
+        },
+        "r_sort": {
+          "mean_ms": 0.182,
+          "p50_ms": 0.182,
+          "p95_ms": 0.197,
+          "p95_worst_ms": 0.198,
+          "max_ms": 0.223
+        },
+        "r_raster": {
+          "mean_ms": 0.748,
+          "p50_ms": 0.743,
+          "p95_ms": 0.8,
+          "p95_worst_ms": 0.817,
+          "max_ms": 0.91
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.051,
+        "p95_ms": 2.18,
+        "p95_worst_ms": 2.191
+      },
+      "variant": "sailing",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/sailing/shots/lumbridge.soft3d.r3/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 3,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r4.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.053,
+          "p50_ms": 2.036,
+          "p95_ms": 2.179,
+          "p95_worst_ms": 2.185,
+          "max_ms": 2.52
+        },
+        "render": {
+          "mean_ms": 1.428,
+          "p50_ms": 1.416,
+          "p95_ms": 1.525,
+          "p95_worst_ms": 1.537,
+          "max_ms": 1.753
+        },
+        "build": {
+          "mean_ms": 0.449,
+          "p50_ms": 0.445,
+          "p95_ms": 0.48,
+          "p95_worst_ms": 0.485,
+          "max_ms": 0.622
+        },
+        "present": {
+          "mean_ms": 0.138,
+          "p50_ms": 0.137,
+          "p95_ms": 0.143,
+          "p95_worst_ms": 0.146,
+          "max_ms": 0.164
+        },
+        "paint": {
+          "mean_ms": 0.449,
+          "p50_ms": 0.445,
+          "p95_ms": 0.48,
+          "p95_worst_ms": 0.485,
+          "max_ms": 0.622
+        },
+        "r_project": {
+          "mean_ms": 0.155,
+          "p50_ms": 0.148,
+          "p95_ms": 0.212,
+          "p95_worst_ms": 0.22,
+          "max_ms": 0.279
+        },
+        "r_sort": {
+          "mean_ms": 0.183,
+          "p50_ms": 0.182,
+          "p95_ms": 0.198,
+          "p95_worst_ms": 0.2,
+          "max_ms": 0.222
+        },
+        "r_raster": {
+          "mean_ms": 0.742,
+          "p50_ms": 0.734,
+          "p95_ms": 0.808,
+          "p95_worst_ms": 0.821,
+          "max_ms": 0.926
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.054,
+        "p95_ms": 2.179,
+        "p95_worst_ms": 2.185
+      },
+      "variant": "sailing",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/sailing/shots/lumbridge.soft3d.r4/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 3,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r4.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.113,
+          "p50_ms": 2.088,
+          "p95_ms": 2.337,
+          "p95_worst_ms": 2.426,
+          "max_ms": 3.258
+        },
+        "render": {
+          "mean_ms": 1.469,
+          "p50_ms": 1.454,
+          "p95_ms": 1.63,
+          "p95_worst_ms": 1.695,
+          "max_ms": 2.436
+        },
+        "build": {
+          "mean_ms": 0.461,
+          "p50_ms": 0.455,
+          "p95_ms": 0.51,
+          "p95_worst_ms": 0.521,
+          "max_ms": 0.639
+        },
+        "present": {
+          "mean_ms": 0.14,
+          "p50_ms": 0.14,
+          "p95_ms": 0.147,
+          "p95_worst_ms": 0.148,
+          "max_ms": 0.22
+        },
+        "paint": {
+          "mean_ms": 0.461,
+          "p50_ms": 0.455,
+          "p95_ms": 0.51,
+          "p95_worst_ms": 0.521,
+          "max_ms": 0.639
+        },
+        "r_project": {
+          "mean_ms": 0.169,
+          "p50_ms": 0.157,
+          "p95_ms": 0.246,
+          "p95_worst_ms": 0.274,
+          "max_ms": 0.591
+        },
+        "r_sort": {
+          "mean_ms": 0.192,
+          "p50_ms": 0.192,
+          "p95_ms": 0.207,
+          "p95_worst_ms": 0.208,
+          "max_ms": 0.245
+        },
+        "r_raster": {
+          "mean_ms": 0.753,
+          "p50_ms": 0.747,
+          "p95_ms": 0.838,
+          "p95_worst_ms": 0.855,
+          "max_ms": 1.015
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.114,
+        "p95_ms": 2.336,
+        "p95_worst_ms": 2.427
+      },
+      "variant": "control",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/control/shots/lumbridge.soft3d.r4/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 4,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r5.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.09,
+          "p50_ms": 2.057,
+          "p95_ms": 2.292,
+          "p95_worst_ms": 2.355,
+          "max_ms": 2.721
+        },
+        "render": {
+          "mean_ms": 1.454,
+          "p50_ms": 1.433,
+          "p95_ms": 1.611,
+          "p95_worst_ms": 1.668,
+          "max_ms": 2.056
+        },
+        "build": {
+          "mean_ms": 0.456,
+          "p50_ms": 0.45,
+          "p95_ms": 0.499,
+          "p95_worst_ms": 0.525,
+          "max_ms": 0.59
+        },
+        "present": {
+          "mean_ms": 0.139,
+          "p50_ms": 0.138,
+          "p95_ms": 0.147,
+          "p95_worst_ms": 0.149,
+          "max_ms": 0.186
+        },
+        "paint": {
+          "mean_ms": 0.456,
+          "p50_ms": 0.45,
+          "p95_ms": 0.499,
+          "p95_worst_ms": 0.525,
+          "max_ms": 0.59
+        },
+        "r_project": {
+          "mean_ms": 0.16,
+          "p50_ms": 0.146,
+          "p95_ms": 0.241,
+          "p95_worst_ms": 0.272,
+          "max_ms": 0.505
+        },
+        "r_sort": {
+          "mean_ms": 0.19,
+          "p50_ms": 0.189,
+          "p95_ms": 0.204,
+          "p95_worst_ms": 0.206,
+          "max_ms": 0.226
+        },
+        "r_raster": {
+          "mean_ms": 0.75,
+          "p50_ms": 0.741,
+          "p95_ms": 0.835,
+          "p95_worst_ms": 0.85,
+          "max_ms": 0.941
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.091,
+        "p95_ms": 2.285,
+        "p95_worst_ms": 2.36
+      },
+      "variant": "control",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/control/shots/lumbridge.soft3d.r5/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 4,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r5.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.075,
+          "p50_ms": 2.057,
+          "p95_ms": 2.27,
+          "p95_worst_ms": 2.335,
+          "max_ms": 2.753
+        },
+        "render": {
+          "mean_ms": 1.443,
+          "p50_ms": 1.43,
+          "p95_ms": 1.571,
+          "p95_worst_ms": 1.64,
+          "max_ms": 1.949
+        },
+        "build": {
+          "mean_ms": 0.454,
+          "p50_ms": 0.448,
+          "p95_ms": 0.499,
+          "p95_worst_ms": 0.519,
+          "max_ms": 0.655
+        },
+        "present": {
+          "mean_ms": 0.138,
+          "p50_ms": 0.137,
+          "p95_ms": 0.143,
+          "p95_worst_ms": 0.147,
+          "max_ms": 0.176
+        },
+        "paint": {
+          "mean_ms": 0.454,
+          "p50_ms": 0.448,
+          "p95_ms": 0.499,
+          "p95_worst_ms": 0.519,
+          "max_ms": 0.654
+        },
+        "r_project": {
+          "mean_ms": 0.159,
+          "p50_ms": 0.151,
+          "p95_ms": 0.215,
+          "p95_worst_ms": 0.227,
+          "max_ms": 0.417
+        },
+        "r_sort": {
+          "mean_ms": 0.184,
+          "p50_ms": 0.184,
+          "p95_ms": 0.199,
+          "p95_worst_ms": 0.202,
+          "max_ms": 0.236
+        },
+        "r_raster": {
+          "mean_ms": 0.749,
+          "p50_ms": 0.739,
+          "p95_ms": 0.829,
+          "p95_worst_ms": 0.866,
+          "max_ms": 1.022
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.077,
+        "p95_ms": 2.253,
+        "p95_worst_ms": 2.343
+      },
+      "variant": "sailing",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/sailing/shots/lumbridge.soft3d.r5/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 5,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r6.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.111,
+          "p50_ms": 2.088,
+          "p95_ms": 2.285,
+          "p95_worst_ms": 2.384,
+          "max_ms": 2.88
+        },
+        "render": {
+          "mean_ms": 1.474,
+          "p50_ms": 1.46,
+          "p95_ms": 1.601,
+          "p95_worst_ms": 1.673,
+          "max_ms": 1.862
+        },
+        "build": {
+          "mean_ms": 0.458,
+          "p50_ms": 0.451,
+          "p95_ms": 0.507,
+          "p95_worst_ms": 0.547,
+          "max_ms": 0.859
+        },
+        "present": {
+          "mean_ms": 0.139,
+          "p50_ms": 0.139,
+          "p95_ms": 0.143,
+          "p95_worst_ms": 0.144,
+          "max_ms": 0.156
+        },
+        "paint": {
+          "mean_ms": 0.458,
+          "p50_ms": 0.451,
+          "p95_ms": 0.506,
+          "p95_worst_ms": 0.547,
+          "max_ms": 0.858
+        },
+        "r_project": {
+          "mean_ms": 0.168,
+          "p50_ms": 0.165,
+          "p95_ms": 0.223,
+          "p95_worst_ms": 0.245,
+          "max_ms": 0.376
+        },
+        "r_sort": {
+          "mean_ms": 0.185,
+          "p50_ms": 0.185,
+          "p95_ms": 0.2,
+          "p95_worst_ms": 0.204,
+          "max_ms": 0.223
+        },
+        "r_raster": {
+          "mean_ms": 0.763,
+          "p50_ms": 0.752,
+          "p95_ms": 0.85,
+          "p95_worst_ms": 0.878,
+          "max_ms": 0.928
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.112,
+        "p95_ms": 2.286,
+        "p95_worst_ms": 2.389
+      },
+      "variant": "sailing",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/sailing/shots/lumbridge.soft3d.r6/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 5,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r6.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.08,
+          "p50_ms": 2.055,
+          "p95_ms": 2.258,
+          "p95_worst_ms": 2.307,
+          "max_ms": 2.825
+        },
+        "render": {
+          "mean_ms": 1.448,
+          "p50_ms": 1.432,
+          "p95_ms": 1.57,
+          "p95_worst_ms": 1.601,
+          "max_ms": 1.986
+        },
+        "build": {
+          "mean_ms": 0.455,
+          "p50_ms": 0.449,
+          "p95_ms": 0.5,
+          "p95_worst_ms": 0.52,
+          "max_ms": 0.635
+        },
+        "present": {
+          "mean_ms": 0.138,
+          "p50_ms": 0.137,
+          "p95_ms": 0.144,
+          "p95_worst_ms": 0.146,
+          "max_ms": 0.163
+        },
+        "paint": {
+          "mean_ms": 0.455,
+          "p50_ms": 0.449,
+          "p95_ms": 0.5,
+          "p95_worst_ms": 0.519,
+          "max_ms": 0.635
+        },
+        "r_project": {
+          "mean_ms": 0.155,
+          "p50_ms": 0.146,
+          "p95_ms": 0.211,
+          "p95_worst_ms": 0.226,
+          "max_ms": 0.432
+        },
+        "r_sort": {
+          "mean_ms": 0.19,
+          "p50_ms": 0.19,
+          "p95_ms": 0.204,
+          "p95_worst_ms": 0.206,
+          "max_ms": 0.244
+        },
+        "r_raster": {
+          "mean_ms": 0.752,
+          "p50_ms": 0.744,
+          "p95_ms": 0.839,
+          "p95_worst_ms": 0.855,
+          "max_ms": 0.956
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.081,
+        "p95_ms": 2.259,
+        "p95_worst_ms": 2.308
+      },
+      "variant": "control",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/control/shots/lumbridge.soft3d.r6/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 6,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r7.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.059,
+          "p50_ms": 2.039,
+          "p95_ms": 2.204,
+          "p95_worst_ms": 2.504,
+          "max_ms": 3.594
+        },
+        "render": {
+          "mean_ms": 1.433,
+          "p50_ms": 1.419,
+          "p95_ms": 1.54,
+          "p95_worst_ms": 1.739,
+          "max_ms": 2.787
+        },
+        "build": {
+          "mean_ms": 0.452,
+          "p50_ms": 0.447,
+          "p95_ms": 0.493,
+          "p95_worst_ms": 0.551,
+          "max_ms": 0.714
+        },
+        "present": {
+          "mean_ms": 0.137,
+          "p50_ms": 0.136,
+          "p95_ms": 0.143,
+          "p95_worst_ms": 0.146,
+          "max_ms": 0.248
+        },
+        "paint": {
+          "mean_ms": 0.452,
+          "p50_ms": 0.447,
+          "p95_ms": 0.493,
+          "p95_worst_ms": 0.55,
+          "max_ms": 0.714
+        },
+        "r_project": {
+          "mean_ms": 0.154,
+          "p50_ms": 0.145,
+          "p95_ms": 0.204,
+          "p95_worst_ms": 0.248,
+          "max_ms": 0.4
+        },
+        "r_sort": {
+          "mean_ms": 0.191,
+          "p50_ms": 0.191,
+          "p95_ms": 0.206,
+          "p95_worst_ms": 0.211,
+          "max_ms": 0.325
+        },
+        "r_raster": {
+          "mean_ms": 0.742,
+          "p50_ms": 0.734,
+          "p95_ms": 0.816,
+          "p95_worst_ms": 0.893,
+          "max_ms": 1.454
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.06,
+        "p95_ms": 2.205,
+        "p95_worst_ms": 2.474
+      },
+      "variant": "control",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/control/shots/lumbridge.soft3d.r7/frame_00299.bmp"
+    },
+    {
+      "scene": "lumbridge",
+      "renderer": "soft3d",
+      "repetition": 6,
+      "squares": [
+        "50,50",
+        "51,50",
+        "50,51",
+        "51,51"
+      ],
+      "scene_size": 128,
+      "canvas": "765x503",
+      "eye": [
+        2880,
+        -2000,
+        2368
+      ],
+      "pitch": 450,
+      "yaw": 0,
+      "motion": null,
+      "sample_frames": 300,
+      "samples_kept": 4,
+      "samples_discarded": 1,
+      "csv": "lumbridge.soft3d.r7.csv",
+      "stages": {
+        "frame": {
+          "mean_ms": 2.053,
+          "p50_ms": 2.034,
+          "p95_ms": 2.224,
+          "p95_worst_ms": 2.279,
+          "max_ms": 2.509
+        },
+        "render": {
+          "mean_ms": 1.43,
+          "p50_ms": 1.415,
+          "p95_ms": 1.55,
+          "p95_worst_ms": 1.599,
+          "max_ms": 1.866
+        },
+        "build": {
+          "mean_ms": 0.449,
+          "p50_ms": 0.443,
+          "p95_ms": 0.491,
+          "p95_worst_ms": 0.506,
+          "max_ms": 0.588
+        },
+        "present": {
+          "mean_ms": 0.137,
+          "p50_ms": 0.137,
+          "p95_ms": 0.145,
+          "p95_worst_ms": 0.146,
+          "max_ms": 0.172
+        },
+        "paint": {
+          "mean_ms": 0.448,
+          "p50_ms": 0.443,
+          "p95_ms": 0.491,
+          "p95_worst_ms": 0.506,
+          "max_ms": 0.588
+        },
+        "r_project": {
+          "mean_ms": 0.153,
+          "p50_ms": 0.145,
+          "p95_ms": 0.206,
+          "p95_worst_ms": 0.218,
+          "max_ms": 0.27
+        },
+        "r_sort": {
+          "mean_ms": 0.182,
+          "p50_ms": 0.182,
+          "p95_ms": 0.198,
+          "p95_worst_ms": 0.199,
+          "max_ms": 0.229
+        },
+        "r_raster": {
+          "mean_ms": 0.749,
+          "p50_ms": 0.741,
+          "p95_ms": 0.831,
+          "p95_worst_ms": 0.855,
+          "max_ms": 0.996
+        }
+      },
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "cpu": {
+        "mean_ms": 2.054,
+        "p95_ms": 2.219,
+        "p95_worst_ms": 2.282
+      },
+      "variant": "sailing",
+      "image_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+      "image": "/private/tmp/sailing-render-lumbridge-repeat/sailing/shots/lumbridge.soft3d.r7/frame_00299.bmp"
+    }
+  ],
+  "comparisons": [
+    {
+      "scene": "lumbridge",
+      "pixels_identical": true,
+      "counters": {
+        "painter_commands": 4021.0,
+        "r_cmds_model": 4021.0,
+        "scene_elements": 25351.0
+      },
+      "stages": {
+        "render": {
+          "control": 1.43,
+          "sailing": 1.416,
+          "delta_percent": -0.9790209790209836
+        },
+        "paint": {
+          "control": 0.45,
+          "sailing": 0.444,
+          "delta_percent": -1.3333333333333308
+        },
+        "build": {
+          "control": 0.45,
+          "sailing": 0.445,
+          "delta_percent": -1.1111111111111072
+        },
+        "frame": {
+          "control": 2.055,
+          "sailing": 2.036,
+          "delta_percent": -0.9245742092457432
+        }
+      }
+    }
+  ],
+  "manifest_sha256": "0c4879194b9683cac33e6ff66179faf55f71105185fc6d2fdd471dbca3bac2ad",
+  "status": "Seven alternating repeats resolve the initial Lumbridge timing concern: render -0.98%, paint -1.33%; pixels and workload identical. Complete-suite final-client recheck remains pending."
+}

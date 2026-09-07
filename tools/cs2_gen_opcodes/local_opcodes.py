@@ -13,6 +13,9 @@ from __future__ import annotations
 
 # id -> name. Replaces a vendor placeholder, or adds an id vendor never listed.
 LOCAL_NAMES: dict[int, str] = {
+    # rev239 Statics.method11128: per-priority-group world-entity draw limit.
+    7900: "WORLDENTITY_SETDRAWLIMIT",
+    7901: "WORLDENTITY_GETDRAWLIMIT",
     # Modern nullable array/string-stack literal. The cache command catalogue
     # calls this PUSH_CONSTANT_NULL; older RuneLite tables use PUSH_NULL.
     63: "PUSH_CONSTANT_NULL",
@@ -435,6 +438,7 @@ LOCAL_NAMES: dict[int, str] = {
     8000: "ARRAY_SORT_ALL",
     8003: "ARRAY_LENGTH",
     8005: "ARRAY_FIND",
+    8010: "ARRAY_FILL",
     8011: "ARRAY_FILL_SEQUENCE",
     8007: "ARRAY_COUNT_MATCHES",
     8018: "ARRAY_SPLIT",
