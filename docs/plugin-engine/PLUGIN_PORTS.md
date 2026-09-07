@@ -7,7 +7,7 @@ This is an implementation checklist, not a completion claim. Every row still has
 Two sessions work in this worktree. A session claims a batch here before editing and
 removes the claim in the commit that closes it; the other session leaves those files alone.
 
-- No batch is currently claimed by the second session (the Lua product acceptance batch is committed).
+- **Claimed 2026-09-07 (second session, after 421f71743):** loot tracker rs289lc attribution capture (`src/plugin/plugins/loot_tracker.c` row, harness knobs it needs) and the `src/plugin/torirs_plugin_lua.c` runtime row.
 - Claimed by the first session (2026-09-06): the frame products batch: `src/plugin/plugins/gameframe.c`,
   `src/plugin/plugins/mobile_gameframe.c`, `src/plugin/test/gameframe_test.c`,
   `src/plugin/test/mobile_gameframe_test.c`, their harness/pixel rules, and afterwards the removal of
