@@ -20,7 +20,12 @@ int UITree_CanvasQueryCompactEnabled(void)
 {
     if( canvas_query_compact<0 ) {
         const char* value=getenv("TORIRS_UI_CANVAS_COMPACT");
+        /* Match the existing Krait renderer defaults on ARM32 NEON. */
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        canvas_query_compact=value ? atoi(value)!=0 : 1;
+#else
         canvas_query_compact=value ? atoi(value)!=0 : 0;
+#endif
     }
     return canvas_query_compact;
 }
@@ -3023,7 +3028,14 @@ UITree_EntityOverlaySetLayerPosition(
     c = &tree->components[idx];
     if( c->freed || c->type != UIELEM_RS_LAYER || c->parent != tree->entity_overlay_index )
         return false;
-    return UITree_SetPositionAt(tree, idx, x, y);
+    uint32_t dirty = tree->dirty_gen, layout = tree->layout_dirty_count;
+    bool result = UITree_SetPositionAt(tree, idx, x, y);
+    if( tree->overlay_motion_tracking )
+    {
+        tree->overlay_motion_dirty += tree->dirty_gen - dirty;
+        tree->overlay_motion_layout += tree->layout_dirty_count - layout;
+    }
+    return result;
 }
 
 int32_t

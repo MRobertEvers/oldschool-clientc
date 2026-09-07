@@ -1336,6 +1336,10 @@ struct UITree
      *  whereas under-counting reuses a stale list and freezes a panel. Anything
      *  that sets `is_dirty` must bump this in the same breath. */
     uint32_t dirty_gen;
+    /* Bounded accounting while App moves projected overlay layers. Any other
+     * dirty/layout publication makes the emission shortcut ineligible. */
+    uint32_t overlay_motion_dirty, overlay_motion_layout;
+    uint8_t overlay_motion_tracking;
     /** One byte per node, set by `emit_walk_node` for every node the last emit
      *  walk entered, cleared at the head of each walk. It is the reachability
      *  half of the retention signal: `UITree_MarkNodeDirty` skips the

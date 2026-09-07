@@ -33,6 +33,9 @@ int main(void)
         cc[0]=cc[1]=shades[shade];alpha[0]=alpha[1]=av;
         struct TRSPK_VertexGLES2 got[12];
         trspk_toridraw_gles2_untextured(m,order,4,xyz,got);
+        struct TRSPK_VertexGLES2 fast[12];
+        trspk_toridraw_gles2_untextured_words(m,order,4,xyz,fast);
+        if(memcmp(got,fast,sizeof(got))){fprintf(stderr,"word packed bytes mismatch\n");return 1;}
         for(unsigned fi=0;fi<4;fi++) {
             struct TRSPK_VertexGLES2 expected[3]={0};
             if(fi<2) {

@@ -1,0 +1,5 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/krait-summary-replay: unused DT entry: type 0x6ffffef5 arg 0x3dc
+WARNING: linker: /data/local/tmp/krait-summary-replay: unused DT entry: type 0x6ffffffe arg 0x3bc
+WARNING: linker: /data/local/tmp/krait-summary-replay: unused DT entry: type 0x6fffffff arg 0x1
+{"verified_snapshots":24,"before_count":1173658224,"after_count":10792327,"queries_per_arm":9216}

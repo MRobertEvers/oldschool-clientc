@@ -34,9 +34,11 @@ def switch_matrix(target):
     for arm, label in ((0, 'before'), (1, 'after')):
         enabled = target.startswith('sub10') or bool(arm)
         result[label] = {key: enabled for key in old}
-        result[label].update(canvas_compact=target == 'sub10-actor' or
+        result[label].update(canvas_compact=target in ('sub10-actor', 'sub10-ui', 'sub10-ui-aa', 'sub10-words', 'sub10-words-aa') or
                             (target in ('sub10-canvas', 'sub10') and bool(arm)),
-                            actor_direct=target in ('sub10-actor', 'sub10') and bool(arm))
+                            actor_direct=target in ('sub10-ui', 'sub10-ui-aa', 'sub10-words', 'sub10-words-aa') or (target in ('sub10-actor', 'sub10') and bool(arm)),
+                            overlay_retain=target in ('sub10-words', 'sub10-words-aa') or (target in ('sub10-ui', 'sub10') and bool(arm)),
+                            actor_words=target in ('sub10-words', 'sub10') and bool(arm))
     return result
 
 

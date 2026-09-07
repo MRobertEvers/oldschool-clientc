@@ -1,15 +1,16 @@
 # Krait implementation plan: sub-10 ms median frame work
 
-Status: in progress, 2026-09-06. P0 comparison/capture tooling and copy inventory,
-P1 compact candidate membership, and P2 untextured actor direct encoding are
-implemented. The new live packed-byte verifier passes. Three combined launches
-improve median whole-frame work by 4.6–6.0%, to 12.453, 12.788 and 12.284 ms; **sub-10 is
-not achieved**. Candidates remain opt-in while acceptance is incomplete.
+Status: in progress, 2026-09-06. Compact canvas candidates, direct actor encoding,
+and P3 stable UI retention are implemented. P3 improves median work by
+8.13–9.69% across three launches. A subsequent scalar actor-packing refinement
+improves the median by 1.92–2.22% in two further launches, to 10.956 and 10.744 ms.
+**Sub-10 is not achieved.** Positive mechanisms default on for ARM32 NEON at
+the user's request; the paired width-summary experiment was retired after
+an app regression. Tail metrics remain variable and final acceptance is open.
 
-See [implementation progress and rejected experiments](benchmarks/krait_model_chains/SUB10_PROGRESS.md).
-The next P3 target is stable UI subtree retention: real traces show scripted
-entity-overlay geometry changes invalidating the whole emit every frame.
-Host volatile-input changes are not the dominant retention blocker.
+See [P3](benchmarks/krait_model_chains/P3_OVERLAY_RETENTION.md),
+[actor packing and the rejected summary](benchmarks/krait_model_chains/ENCODER_WORD_STORES.md),
+and [earlier progress](benchmarks/krait_model_chains/SUB10_PROGRESS.md).
 
 ## Objective and fixed constraints
 

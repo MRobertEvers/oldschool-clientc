@@ -1,5 +1,8 @@
 #include "app.h"
 #include "ui/uitree_canvas_measure.h"
+#if defined(TORIRS_UI_EMIT_PMU)
+#include "../tools/perf/ui_emit_pmu.u.h"
+#endif
 #include "game/rs_minimap_state.h"
 #include "torirs_env.h"
 #include "log/torirs_log.h"
@@ -32992,7 +32995,18 @@ App_RunOnce(
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));
+#if defined(TORIRS_UI_EMIT_PMU)
+        ui_emit_pmu_begin();
+        int overlay_motion_reused = 0;
+#endif
+        struct UITreeEmitRetainGate overlay_motion_gate;
+        int overlay_motion_ready = 0;
+        if( !app->plugins && !UIInk_IsActive(&app->ink) )
+            (void)UITree_EmitOverlayMotionBegin(app->tree, &app->ui_host, &app->emit,
+                app->hover_com_id, &app->emit_gate);
         app_entity_overlay_layout(app);
+        overlay_motion_ready = UITree_EmitOverlayMotionEnd(app->tree, &app->emit_gate,
+            &overlay_motion_gate);
         /* Resolve before evaluating retention. Frame reconciliation and the
          * projected entity-overlay pass can both invalidate boxes without
          * changing an already-pruned node's filtered dirty mark; resolving here
@@ -33148,7 +33162,34 @@ App_RunOnce(
                 app->emit.volatile_unrefreshable )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAIN_BLOCKED, 1);
 
-            if( retain )
+            if( overlay_motion_ready && !verify &&
+                UITree_EmitOverlayMotionRefresh(app->tree, &app->ui_host, &app->emit,
+                    &app->hover_com_id, &overlay_motion_gate) )
+            {
+#if defined(TORIRS_UI_EMIT_PMU)
+                overlay_motion_reused = 1;
+#endif
+                /* Moving overlays repaint; keep ui_retained_frame false so
+                 * damage presentation never treats their pixels as stable. */
+#if defined(TORIRS_OVERLAY_RETAIN_VERIFY)
+                struct UITreeEmitBuffer reference;
+                UITree_EmitBufferInit(&reference);
+                UITree_EmitWalk(app->tree, &app->ui_host, &reference, app->hover_com_id);
+                if( reference.count != app->emit.count ||
+                    memcmp(reference.cmds, app->emit.cmds,
+                        (size_t)reference.count * sizeof(*reference.cmds)) )
+                {
+                    TORIRS_REPORT("overlay-retain verification FAILED: reference=%d partial=%d\n",
+                        reference.count, app->emit.count);
+                    abort();
+                }
+                UITree_EmitBufferFree(&reference);
+                static unsigned matched;
+                if( (++matched % 100u) == 0u )
+                    TORIRS_REPORT("overlay-retain verification: %u full command lists matched\n", matched);
+#endif
+            }
+            else if( retain )
             {
                 int reusable = UITree_EmitRetainGateRefreshVolatile(
                     app->tree,
@@ -33194,6 +33235,9 @@ App_RunOnce(
          * the next frame conservatively rebuild despite a settled result. */
         UITree_EmitRetainGateCapture(
             app->tree, &app->emit, app->hover_com_id, &app->emit_gate);
+#if defined(TORIRS_UI_EMIT_PMU)
+        ui_emit_pmu_end(overlay_motion_reused, (unsigned)app->emit.count);
+#endif
         /* DIAGNOSTIC (Opt 11 scoping, temporary): retaining the emit list only
          * pays if the list repeats, so measure the repeat rate before building
          * anything that could retain it. Every desc is memset before fill, so

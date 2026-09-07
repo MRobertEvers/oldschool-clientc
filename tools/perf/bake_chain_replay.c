@@ -14,6 +14,7 @@
 struct Record {struct BakeChainHeader h;struct ToriDraw_Model* m;int32_t* order;struct BakeChainFace* expected;};
 static volatile uint64_t sink;
 static int encode_mode;
+static int words_mode;
 static struct TRSPK_VertexGLES2* encoded_output;
 static void pack_expected(const struct BakeChainFace* face,struct TRSPK_VertexGLES2* out)
 {
@@ -57,7 +58,8 @@ static void run(struct Record* records,size_t n,float* xyz,int arm,int verify)
         int use=(arm||encode_mode)&&record->h.ordered*3>record->h.vertices;
         if(use)trspk_toridraw_world_vertices(record->m,&placement,xyz);
         if(encode_mode && use && !record->m->face_textures) {
-            if(arm)trspk_toridraw_gles2_untextured(record->m,record->order,record->h.ordered,xyz,encoded_output);
+            if(words_mode && arm)trspk_toridraw_gles2_untextured_words(record->m,record->order,record->h.ordered,xyz,encoded_output);
+            else if(arm || words_mode)trspk_toridraw_gles2_untextured(record->m,record->order,record->h.ordered,xyz,encoded_output);
             else for(int i=0;i<record->h.ordered;i++) {
                 struct TRSPK_ToriDrawBakeFaceVerts face;
                 trspk_toridraw_bake_face_cached(record->m,record->order[i],&placement,NULL,true,TRSPK_BAKE_COLOR_ARGB,xyz,&face);
@@ -84,8 +86,10 @@ static void run(struct Record* records,size_t n,float* xyz,int arm,int verify)
 }
 int main(int argc,char** argv)
 {
-    if(argc!=3 && argc!=4)fail("usage: bake_chain_replay FILE EVENT|verify [encode]");
-    encode_mode=argc==4 && !strcmp(argv[3],"encode");
+    if(argc!=3 && argc!=4)fail("usage: bake_chain_replay FILE EVENT|verify [encode|words]");
+    if(argc==4 && strcmp(argv[3],"encode") && strcmp(argv[3],"words"))fail("unknown encoder mode");
+    words_mode=argc==4 && !strcmp(argv[3],"words");
+    encode_mode=words_mode || (argc==4 && !strcmp(argv[3],"encode"));
     cpu_set_t mask;CPU_ZERO(&mask);CPU_SET(0,&mask);if(sched_setaffinity(0,sizeof(mask),&mask))fail("affinity");ToriDraw_Init();
     FILE* f=fopen(argv[1],"rb");if(!f)fail("open");struct Record* records=NULL;size_t count=0;int maxv=0;uint64_t faces=0,textured=0;
     for(;;){struct BakeChainHeader h={0};exact(f,&h.magic,4);if(h.magic==BAKE_CHAIN_END){uint32_t n;exact(f,&n,4);if(n!=count||fgetc(f)!=EOF)fail("footer");break;}

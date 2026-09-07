@@ -1820,8 +1820,12 @@ gles2_bake_pose_vertices(
 
     if(renderer->actor_direct_encode && ordered_painter && world_xyz && !full_model->face_textures) {
 #if !defined(TORIRS_BAKE_CHAIN_CAPTURE) && !defined(TORIRS_BAKE_VERIFY)
-        trspk_toridraw_gles2_untextured(full_model,face_order,written_count,world_xyz,
-            &vbo->vertices.as_gles2[vertex_base]);
+        if( renderer->actor_word_encode )
+            trspk_toridraw_gles2_untextured_words(full_model,face_order,written_count,world_xyz,
+                &vbo->vertices.as_gles2[vertex_base]);
+        else
+            trspk_toridraw_gles2_untextured(full_model,face_order,written_count,world_xyz,
+                &vbo->vertices.as_gles2[vertex_base]);
         trspk_vbo_mark_dirty_range(vbo,vertex_base,written_count*3u);
         return true;
 #endif
@@ -1950,7 +1954,10 @@ gles2_bake_pose_vertices(
         size_t bytes = (size_t)written_count * 3u * sizeof(struct TRSPK_VertexGLES2);
         struct TRSPK_VertexGLES2* direct = malloc(bytes ? bytes : 1u);
         if( !direct ) { fprintf(stderr, "direct bake verification allocation failed\n"); abort(); }
-        trspk_toridraw_gles2_untextured(full_model, face_order, written_count, world_xyz, direct);
+        if( renderer->actor_word_encode )
+            trspk_toridraw_gles2_untextured_words(full_model, face_order, written_count, world_xyz, direct);
+        else
+            trspk_toridraw_gles2_untextured(full_model, face_order, written_count, world_xyz, direct);
         if( memcmp(direct, &vbo->vertices.as_gles2[vertex_base], bytes) )
         {
             fprintf(stderr, "direct bake verification FAILED: %u ordered faces\n", written_count);
@@ -3512,7 +3519,22 @@ ToriRS_GLES2_New(int width, int height)
 #endif
     }
     { const char* v=getenv("TORIRS_GLES2_FAST_SHADER");renderer->world_fast_shader=v && v[0]=='1'; }
-    { const char* v=getenv("TORIRS_GLES2_ACTOR_DIRECT");renderer->actor_direct_encode=v && v[0]=='1'; }
+    {
+        const char* v=getenv("TORIRS_GLES2_ACTOR_DIRECT");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        renderer->actor_direct_encode=!v || v[0]!='0';
+#else
+        renderer->actor_direct_encode=v && v[0]=='1';
+#endif
+    }
+    {
+        const char* v=getenv("TORIRS_GLES2_ACTOR_WORDS");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        renderer->actor_word_encode=!v || v[0]!='0';
+#else
+        renderer->actor_word_encode=v && v[0]=='1';
+#endif
+    }
     renderer->lever_ui_defer = gles2_lever_enabled("TORIRS_GLES2_UI_DEFER");
     {
         const char* v=getenv("TORIRS_GLES2_STATIC_PRIMARY");

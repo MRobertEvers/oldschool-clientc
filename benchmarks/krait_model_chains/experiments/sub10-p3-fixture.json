@@ -1,0 +1,9 @@
+{
+  "script_pack_sha256": {
+    "script.dat": "48c445c219ca4d727f443db8be4b1892b28f0fb0354cf42563b26c4797f830eb",
+    "script.idx": "65532d3f7e7a049595d07bbaceae973da3b7980cbc5c36ee63b51fb1cda57f98"
+  },
+  "server_sha256": "b47684cbe0bee3c3bc2d59daccd73e40c572a1069d2a7e94e254060f0cd4886d",
+  "source_note": "Frozen existing compiled script pack used in both P3 arms; concurrent canoe source edits are excluded. Stale-source warning explicitly allowed only for this private frozen fixture.",
+  "pid": 7484
+}

@@ -1,0 +1,12 @@
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,0,0,180,3491486,0,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,1,1,180,1118163,167,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,2,1,180,1150869,167,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,3,0,180,3475799,0,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,4,0,180,3524688,0,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,5,1,180,1111931,171,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,6,1,180,1141731,169,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,7,0,180,3515903,0,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,8,0,180,3519677,0,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,9,1,180,1250950,164,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,10,1,180,1164151,166,20340
+I/torirs  (27322): ui-emit-pmu,L1-dcache-load-misses,11,0,180,3507560,0,20340

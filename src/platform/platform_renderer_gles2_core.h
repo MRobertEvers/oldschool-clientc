@@ -828,6 +828,7 @@ struct ToriRS_GLES2
     bool poses_prepared;
     bool actor_world_cache_enabled;
     bool actor_direct_encode;
+    bool actor_word_encode;
     bool world_fast_shader;
     float* actor_world_xyz;
     uint32_t actor_world_capacity;

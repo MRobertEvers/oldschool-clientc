@@ -1146,6 +1146,7 @@ UITree_EmitBufferFree(struct UITreeEmitBuffer* buf)
 {
     if( !buf )
         return;
+    free(buf->overlay_scratch);
     free(buf->cmds);
     memset(buf, 0, sizeof(*buf));
 }
@@ -3573,6 +3574,23 @@ emit_apply_frame_depth(struct UITree const* tree, struct UITreeHost const* host,
                                    offsetof(struct UITreeEmitDesc, frame_owner_plus_one), &out->frame_order);
 }
 
+static int overlay_retain_policy = -1;
+void UITree_EmitSetOverlayRetain(int enabled) { overlay_retain_policy = enabled != 0; }
+static int emit_overlay_retain_enabled(void)
+{
+    if( overlay_retain_policy < 0 )
+    {
+        const char* value = getenv("TORIRS_UI_OVERLAY_RETAIN");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        overlay_retain_policy = !value || value[0] != '0';
+#else
+        overlay_retain_policy = value && value[0] == '1';
+#endif
+    }
+    return overlay_retain_policy;
+}
+static void emit_overlay_range_capture(struct UITree const* tree, struct UITreeEmitBuffer* out);
+
 void
 UITree_EmitWalk(
     struct UITree const* tree,
@@ -3810,6 +3828,7 @@ UITree_EmitWalk(
         out->volatile_unrefreshable = 1;
     }
 
+    emit_overlay_range_capture(tree, out);
     UITree_HostInputStampCapture(
         stamp_host, out->host_input_dependencies, &out->host_input_stamp);
     emit_buffer_advance_publication(out);
@@ -3846,6 +3865,9 @@ emit_buffer_insert_at(
          other++ )
         if( other != source && out->volatile_overlay_insert_at[other] > at )
             out->volatile_overlay_insert_at[other]++;
+    if( out->overlay_range_valid && (at < out->overlay_range_start ||
+        (at == out->overlay_range_start && source == UITREE_EMIT_OVERLAY_ENTITY)) )
+        out->overlay_range_start++;
     out->volatile_overlay_insert_at[source] = at;
 }
 
@@ -3871,6 +3893,8 @@ emit_buffer_remove_at(struct UITreeEmitBuffer* out, int at)
             out->volatile_overlay_insert_at[other]--;
     /* The removed source still belongs immediately before the command that
      * slid into its old slot (or at end if it was last). */
+    if( out->overlay_range_valid && at < out->overlay_range_start )
+        out->overlay_range_start--;
     out->volatile_overlay_insert_at[source] = at;
 }
 
@@ -4120,3 +4144,5 @@ UITree_EmitRefreshVolatile(
         }
     return 1;
 }
+
+#include "uitree_emit_overlay.u.h"

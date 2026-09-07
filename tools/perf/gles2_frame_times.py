@@ -46,7 +46,7 @@ def main():
     parser.add_argument('--manifest')
     parser.add_argument('--args-file', type=Path)
     parser.add_argument('--uncapped', action='store_true')
-    parser.add_argument('--target',choices=('complete','sub10-aa','sub10-canvas','sub10-actor','sub10'),default='complete')
+    parser.add_argument('--target',choices=('complete','sub10-aa','sub10-canvas','sub10-actor','sub10-ui','sub10-ui-aa','sub10-words','sub10-words-aa','sub10'),default='complete')
     parser.add_argument('--env',action='append',default=[],metavar='NAME=VALUE')
     parser.add_argument('--frames', type=int, default=180)
     parser.add_argument('--warmup', type=int, default=600)
