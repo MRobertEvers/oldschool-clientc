@@ -13,13 +13,7 @@ removes the claim in the commit that closes it; the other session leaves those f
   harness/pixel rules (Stone Drawer captured on both revisions; the review fixes committed as
   `147fff5d8`; waiting on 3draster-15's safe-rect and find_all commits to switch the frame plugins
   onto them).
-- Handed to session 3draster-15 (2026-09-06, after the mobile port commit): the removal of the
-  superseded execution APIs (`ui_contributions`, `on_ui_node_draw/action`, `on_canvas_action`,
-  frame builder incl. the Lua `lua_frame_offer_build` / `LUA_FRAME_BUILDER_FNS`, placement,
-  `frame_root`, `action_region*`, the `frame.orb.*` dump block in `src/main.c`) across the host,
-  runtime, Lua runtime, `plugin_api.meta.lua` and their tests, in an isolated worktree branched
-  from the mobile port commit; and the OSRS239 gameframe resize/tab/remount scenario captures
-  (evidence `gfw-*`). The panel API is not superseded and stays.
+- Closed by session 3draster-15: the superseded execution APIs are removed (dabf74abe, e0075db2e) and the two host follow-ups the frame plugins were waiting for are in (a1a4bf9ff safe rect on the gameframe event, 9b01e1b7f find_all keeps member numbering); the OSRS239 gameframe scenario captures are recorded below.
 
 | Consumer | Current state | Captures |
 |---|---|---|
@@ -69,7 +63,7 @@ removes the claim in the commit that closes it; the other session leaves those f
 
 `tools/plugin_engine_negative_controls.py --suite lua NEW_DIRECTORY` runs the existing Lua test binary against private copied script fixtures. Six observed failures in `product-lua-negative`: rendered frame counter, work averaging window, metric visibility, hover order, recycled NPC slot and retained Tag intent. The earlier retained-menu source reproduced its named failing assertion in `/private/tmp/plugin-engine-entity-retained-menu-red.log`. Compiler/syntax failures are not counted.
 
-The runtime graphics context is now `ToriRS_Graphics` / `torirs.Graphics`. Menu additions moved from `api.ui.menu_add` to `api.menu.add`; no compatibility alias remains. This does not complete removal of the old frame/panel/UI contribution builders. Existing user configuration keys and tracker data have not been renamed or swept.
+The runtime graphics context is now `ToriRS_Graphics` / `torirs.Graphics`. Menu additions moved from `api.ui.menu_add` to `api.menu.add`; no compatibility alias remains. The old frame/UI contribution builders were removed later (see the removal checkpoint). Existing user configuration keys and tracker data have not been renamed or swept.
 
 ## Live world and ground-item checkpoint
 
@@ -175,7 +169,7 @@ Captures, each with `TORIRS_SIM_PLUGIN_CONFIG` selecting the mode and a simulate
 
 Regressions: `test-uitree` (`test_owned_image_widgets`), `test-plugin-host` (`test_widget_images`: composed token accepted, zero/foreign/released tokens rejected, size and opacity bounds, paint context), `test-plugin-lua` (`test_widget_images` and the new `screenshot_behavior.lua`: all placement modes, report hide and release, rebind after remount, event/tick/hotkey captures, teardown releases both images). Observed negative controls: the release sweep ignoring ownership fails "releasing an image blanks only plugin-owned graphics showing it" (`/private/tmp/plugin-engine-owned-image-negative-sweep.log`); skipping token validation fails five host checks (`...-negative-token.log`); `tools/plugin_engine_negative_controls.py --suite lua` gained `screenshot_report_hide`, `screenshot_corner_margin`, `screenshot_delay`, each observed (`/private/tmp/plugin-engine-screenshot-negative`). ASan host/Lua/uitree pass.
 
-Still open for this product: the legacy Lua callbacks (`on_ui_node_draw`, `on_ui_node_action`, `on_canvas_action`, `ui_contributions`, `api.ui.*`, `api.placement.*`) remain in the runtime until their C consumers are ported and the execution API is removed; a retained right-click menu whose listener is replaced before selection has no native capture yet.
+The legacy Lua callbacks (`on_ui_node_draw`, `on_ui_node_action`, `on_canvas_action`, `ui_contributions`, `api.ui.*`, `api.placement.*`) are gone from the runtime with the removal checkpoint; a Lua frame offer that still declares `build=` or `draw=` is refused at load.
 
 ## Hidden native features checkpoint: cache highlights and bird nest
 
@@ -286,8 +280,7 @@ the Stone Drawer used to hang its strip from; the provided event carried no safe
 `placement.*` was being removed. FIXED: `ToriRS_GameframeEvent.safe` is filled from the restored
 engine `platform_safe_rect` hook and the host re-asks the provided frame once when it moves
 (`test-plugin-host` pins both); the frame plugins switch their strip to it next. (2) the bridge's
-`find_all` for a frame role compacts missing members (`torirs_plugin_bridge.u.c`, the slot-member
-loop skips `node<0`) while both frame plugins index members by position: OPEN, fix in the bridge
+`find_all` for a frame role used to compact missing members while both frame plugins index members by position: CLOSED by 9b01e1b7f (one slot per member, an invalid reference for a missing one; rs289lc sidebar count=14 missing=7).
 (keep the role's numbering with a zero reference) once the API removal lands. (3) FIXED: a stone's
 picture is its own owned image (`face.NN`) at the art's natural size on the plate's origin, the
 control keeps a blank hit box (the 44x35 redstone on a 33x36 plate, the 38-wide lit mid stone on the
@@ -337,3 +330,14 @@ OSRS captures must use the prepared manifest (`MANIFEST=/private/tmp/plugin-engi
 `TORIRSSERVER_CONTENT=/private/tmp/plugin-engine-content/osrs239-content`): the shared repo's
 `OSRS-Content` carries live uncommitted edits and its manifest is refused by the freshness gate.
 
+## Superseded execution API removal
+
+Commit dabf74abe removes the declared plugin execution model with no compatibility layer: `ToriRS_FrameBuilder` and the offer's `build`/`draw` callbacks, `ToriRS_UiContribution`/`ui_contributions`, `ToriRS_UiNode`/`UiNodeInfo`/`UiNodeRef`, `ToriRS_UiApi` (`api->ui.*`), `ToriRS_PlacementApi` (`api->placement.*`), `action_region`/`action_region_id`, `on_ui_node_draw`/`on_ui_node_action`/`on_canvas_action`/`on_placement_changed`, `torirs_plugin_ui.{h,c}`, `torirs_plugin_placement.{h,c}` and their tests and makefile targets, the host's candidate table, base publication, presenter, placement reservations, canvas click regions and FRAME draw pass, the runtime's ui/placement modules and frame scope, the engine hooks and bridge implementations behind them, the app's plugin hit regions and role overlays, the render frame's scrollbar skin, the Lua ui/placement/frame-builder bindings and metadata, and `main.c`'s `UI_PART` dump. What stays: the widget contract, provided gameframes (`on_gameframe`), the panel model, the frame catalogue (`offer_next`, `selection`, `select`, `invalidate`, `surface_native_size`), `cache.frame_root`/`named_id`, events, config, assets and scene instances. Commit e0075db2e resolves the three verifiers' findings: the pixel rules that read the deleted dump now read the owned-piece exit lines, the `offer_next` INT_MAX assertion is re-homed, the declared-frame layer that survived only through its tests (`UITree_FrameApply` and the declared-slot inputs, the role-overlay emit requests, the replacement-hidden helpers) is removed with its tests ported onto `UITree_FrameProvide`, and the stale declaration wording is gone. Commits a1a4bf9ff and 9b01e1b7f are the host follow-ups from the gameframe review: the platform-safe rect on `ToriRS_GameframeEvent`, re-raised on change, and `find_all` keeping the role's member numbering with an invalid reference for a missing member (`PLUGIN_FIND_ALL owner=gameframe-layout role=sidebar count=14 missing=7` on rs289lc, whose lane has no clan chat tab; pixel rule `--find-all-holes`, knob `GF_MATRIX_FIND_ALL_HOLES`, and a default rs289 native-contract scenario). Commit f96846d72 drops the replacement-hidden flags and the presented/replaced helpers that survived with no writer, re-homes the click-hook inheritance assertion and pins the bridge's `find_all` path; commit 9e3c40ae8 makes a provided frame release containment only above its own provider's retained moves (`UITree_FrameProvide` takes the provider owner; a second owner's nudge under an unplaced native scroll layer no longer stops it clipping); commit cdba5620d is the last comment and dead-declaration sweep. The candidate was built from a clean detached worktree with `OPT=1 EMBED_SERVER=1` and passed the plugin, UI tree, CS2 highlight and frame catalogue test targets (binary 715e188f77b6f989a7705d141d3d06be49d1511783a55f528ebf522748755f0e); the workflow that produced it ran one removal agent, one fix agent, two host agents and three independent read-only verifiers per stage, all recorded under the session's workflow transcripts.
+OSRS239 gameframe scenario captures by workflow agents (binary built from d756507da in the verify worktree; each frame inspected at 2x; harness knobs GF_MATRIX_BASELINE=0 with the tag naming the frame):
+- `gfw-classic-fixed-osrs/m03`: PASS, Classic Fixed at 765x503 on root 548; all eight pixel rules, including the 2004 hollows, chat surround, four orb discs and parchment-over-rock chat backing.
+- `gfw-modern-fixed-osrs/m05`: PASS, Modern Fixed at 765x503 on root 548, frame_selection active status 1.
+- `gfw-modern-resizable-osrs/m28`: FAIL at 1200x800, mode 2: the frame relaid at the full 1200 width under the 42px popout rail at x=1158, the minimap circle cut and the seventh tab column drawn on the rail while the harness's five rules still passed. This is the strip subtraction the frame session fixed afterwards in 2b9ec4198; its recapture `gf-review-strip-m28-v1/m28` lays the frame out 1116 wide beside the rail with the minimap whole, every rule passing. The matrix still has no rail-width rule, which stays a harness gap.
+- `gfw-classic-resize-tabs-osrs/m03`: PASS: a resize to 1200x800 at frame 500 leaves a Classic Fixed frame pinned at 765x503 inside the 807x503 canvas by design, and the stats stone click at frame 540 opened the stats panel.
+- `gfw-modern-fixed-remount-osrs/m05`: PASS on the frame (it followed the server remount `layout 2` to root 164); the harness verdict said WRONG ROOT because the run omitted GF_MATRIX_EXPECT_ROOT=164 that the matrix's own remount scenario passes. Observed and left open: the native root-164 tab rows stay native_paint=1 under the plugin's panel back, covered rather than hidden.
+- `gfw-classic-tab-click-osrs/m03`: PASS, a left click on a Classic Fixed stone at frame 520 switched the native sidebar panel through the CS2 tab verb.
+Also noted by the agents: TORIRS_FRAME_DEBUG's `frameoverlay:` lines are TORIRS_LOG and compile out of OPT=1 binaries, so the optimised harness binary cannot show them.
