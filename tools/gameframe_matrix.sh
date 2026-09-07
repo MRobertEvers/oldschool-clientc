@@ -265,6 +265,12 @@ while IFS='|' read tag m f s; do
       widget_args+=(--expect-log "$expected_line")
     done
   fi
+  # GF_MATRIX_FORBID_LOG: pipe-separated regexes the client log must NOT contain.
+  if [[ -n "${GF_MATRIX_FORBID_LOG:-}" ]]; then
+    for forbidden_line in "${(@s:|:)GF_MATRIX_FORBID_LOG}"; do
+      widget_args+=(--forbid-log "$forbidden_line")
+    done
+  fi
   # GF_MATRIX_SCREENSHOT_SAVED=1: a plugin "captured <path>" line whose file exists.
   [[ "${GF_MATRIX_SCREENSHOT_SAVED:-0}" == 1 ]] && widget_args+=(--screenshot-saved)
   # GF_MATRIX_REPORT_REPLACED=1: the native report control is plugin-hidden (native

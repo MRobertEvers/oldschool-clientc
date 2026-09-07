@@ -11,6 +11,9 @@ struct WidgetDemoState {
 };
 static struct ToriRS_ConfigItem const WIDGET_CONFIG[]={
     {"public_friends",TORIRS_CONFIG_BOOL,"Set public chat to Friends on start","0",0,0,NULL,0},
+    /* Re-arm the owned control with a new label. Retained menu rows built for
+     * the earlier registration must then die instead of firing. */
+    {"rearm",TORIRS_CONFIG_BOOL,"Replace the owned control's operation","0",0,0,NULL,0},
     {NULL},
 };
 static struct ToriRS_ConfigSchema const WIDGET_SCHEMA={sizeof(WIDGET_SCHEMA),WIDGET_CONFIG};
@@ -118,6 +121,17 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
         api->major_version,before.x,before.y,before.width,before.height,
         after.x,after.y,after.width,after.height);
 }
+static void widget_demo_config(struct ToriRS_Api* api,void* user,char const* key)
+{
+    struct WidgetDemoState* state=user;
+    struct ToriRS_WidgetApi* ui=&api->widgets;
+    bool rearm=false;
+    if( strcmp(key,"rearm")!=0 || !state->control.opaque[2] ) return;
+    api->config.get_bool(api,"rearm",&rearm);
+    if( !rearm ) return;
+    enum ToriRS_ContractResult result=ui->set_on_op(ui->context,state->control,"Re-armed: set public chat to friends",widget_demo_operation,user);
+    api->core.log(api,"WIDGET_DEMO_REARM result=%d",result);
+}
 static void widget_demo_start(struct ToriRS_Api* api, void* user)
 {
     *(struct WidgetDemoState*)user=(struct WidgetDemoState){.level=-1};
@@ -145,5 +159,6 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_WIDGET_DEMO={
     .id="widget-demo",.title="Widget API Probe",.version="1",
     .state_size=sizeof(struct WidgetDemoState),.config=&WIDGET_SCHEMA,
     .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=widget_demo_start,
-                .on_logic_tick=widget_demo_update,.on_script_callback=widget_demo_script,.on_stop=widget_demo_stop},
+                .on_logic_tick=widget_demo_update,.on_script_callback=widget_demo_script,.on_stop=widget_demo_stop,
+                .on_config_changed=widget_demo_config},
 };

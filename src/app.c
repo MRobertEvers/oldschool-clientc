@@ -27648,12 +27648,30 @@ app_minimenu_open(
         /* Geometry beside the rows: a popup too narrow for its own text is a
          * measure that returned nothing, and this line is what says so. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
+        {
             TORIRS_LOG("minimenu: font=%d line_box=%d content_w=%d width=%d height=%d\n",
                 menu->font_id,
                 line_box,
                 content_w,
                 menu->width,
                 menu->height);
+            /* Each row's hit band, so a headless run can aim a click at a
+             * retained row and prove what it does (or no longer does). */
+            for( int i = 0; i < menu->option_count; i++ )
+            {
+                int const row_y = UIMinimenu_OptionY(menu, i);
+                /* REPORT, not LOG: opted in by the env, and wanted in the OPT
+                 * build the headless harness runs. */
+                TORIRS_REPORT("minimenu: row[%d] '%s' action=%d band=%d,%d..%d,%d\n",
+                    i,
+                    menu->options[i].text,
+                    menu->options[i].action,
+                    menu->x + 1,
+                    row_y - menu->layout.hover_above + 1,
+                    menu->x + menu->width - 1,
+                    row_y + menu->layout.hover_below - 1);
+            }
+        }
     }
 }
 

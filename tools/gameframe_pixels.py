@@ -186,6 +186,31 @@ def check_report_replaced(log, failures):
     if not camera_nodes: failures.append("report_camera_painted")
 
 
+def check_highlight_color(rows, log, spec, failures):
+    """A cache highlight group was recorded live by the engine AND its exact
+    colour is painted. spec is RRGGBB[:min_pixels]. The NATIVE_HIGHLIGHT line is
+    the engine's own record of the scripts' group, independent of the renderer;
+    the pixel count is what the renderer actually put on the canvas."""
+    color, _, minimum = spec.partition(":")
+    rgb = int(color, 16); wanted = int(minimum) if minimum else 20
+    bgr = (rgb & 255, (rgb >> 8) & 255, (rgb >> 16) & 255)
+    groups = [m for m in re.findall(r"NATIVE_HIGHLIGHT kind=(\d+) group=(\d+) colour=([0-9a-f]{6}) outline=\d+ opacity=\d+ flags=\d+ members=(\d+)", log)
+              if int(m[2], 16) == (rgb & 0xffffff) and int(m[3]) > 0]
+    ink = sum(pixel == bgr for row in rows for pixel in row)
+    print(f"PIXEL native_highlight_group={'PASS' if groups else 'FAIL'} colour={color} live_groups_with_members={len(groups)}")
+    if not groups: failures.append("native_highlight_group")
+    print(f"PIXEL highlight_painted={'PASS' if ink >= wanted else 'FAIL'} colour={color} pixels={ink} wanted={wanted}")
+    if ink < wanted: failures.append("highlight_painted")
+
+
+def check_forbidden_log(log, patterns, failures):
+    """The negative half of --expect-log: a line that must NOT appear."""
+    for pattern in patterns:
+        found = re.search(pattern, log) is not None
+        print(f"PIXEL forbidden_log={'PASS' if not found else 'FAIL'} pattern={pattern!r}")
+        if found: failures.append(f"forbidden_log:{pattern}")
+
+
 def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", public_chat_mode="on", report_replaced=False):
     """Revconfig controls, plus evidence that actual mounted CS1 ran.
 
@@ -303,7 +328,7 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None):
     width, height, rows = read_bmp(path)
     failures = []
     if public_chat_mode=="friends":
@@ -407,12 +432,16 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
                     for dx,dy in ink["pixels"])
             print(f"PIXEL native_widget_moved_item_ink={'PASS' if painted else 'FAIL'}")
             if not painted: failures.append("native_widget_moved_item_ink")
-    if expect_log or screenshot_saved:
+    if expect_log or screenshot_saved or forbid_log:
         log = Path(bounds_path).read_text() if bounds_path else ""
         for pattern in expect_log or []:
             found = re.search(pattern, log) is not None
             print(f"PIXEL expected_log={'PASS' if found else 'FAIL'} pattern={pattern!r}")
             if not found: failures.append(f"expected_log:{pattern}")
+        for pattern in forbid_log or []:
+            absent = re.search(pattern, log) is None
+            print(f"PIXEL forbidden_log={'PASS' if absent else 'FAIL'} pattern={pattern!r}")
+            if not absent: failures.append(f"forbidden_log:{pattern}")
         if screenshot_saved:
             check_screenshot_saved(log, failures)
     if report_replaced:
@@ -530,6 +559,7 @@ if __name__ == "__main__":
     parser.add_argument("--expect-log", action="append", default=[], help="regex the client log must contain (repeatable)")
     parser.add_argument("--screenshot-saved", action="store_true", help="a plugin 'captured <path>' line names an existing PNG")
     parser.add_argument("--report-replaced", action="store_true", help="the native report control is plugin-hidden and the camera sits in its slot")
+    parser.add_argument("--forbid-log", action="append", default=[], help="regex the client log must NOT contain (repeatable)")
     parser.add_argument("--widget-moves", type=int, default=1)
     parser.add_argument("--widget-rune-slot", type=int, choices=range(28), default=0)
     parser.add_argument("--owned-text")
@@ -549,7 +579,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)
