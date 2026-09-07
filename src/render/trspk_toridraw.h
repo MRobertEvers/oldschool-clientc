@@ -10,6 +10,12 @@
 
 struct ToriDraw_Scene;
 
+/* Exact ordered GLES2 output for an untextured full model whose world XYZ
+ * was already computed. Invalid order entries retain transparent triplets. */
+void trspk_toridraw_gles2_untextured(
+    const struct ToriDraw_Model* model,const int* order,uint32_t count,
+    const float* world_xyz,struct TRSPK_VertexGLES2* destination);
+
 bool
 trspk_toridraw_texture_is_animated(
     struct ToriDraw_Scene* ctx,
@@ -157,5 +163,13 @@ trspk_toridraw_bake_face_handle(
 
 int
 trspk_toridraw_face_count(struct ToriDraw_ModelHandle model_handle);
+
+/** Optional per-model world coordinates; caller owns vertex_count*3 floats. */
+void trspk_toridraw_world_vertices(const struct ToriDraw_Model* model,
+    const struct TRSPK_WorldPlacement* placement,float* xyz);
+void trspk_toridraw_bake_face_cached(struct ToriDraw_Model* model,uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,struct ToriDraw_Scene* ctx,
+    bool invert_face_alpha,enum TRSPK_BakeColorForm color_form,const float* world_xyz,
+    struct TRSPK_ToriDrawBakeFaceVerts* out);
 
 #endif

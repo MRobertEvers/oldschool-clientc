@@ -3266,6 +3266,7 @@ app_plugin_role_region_live(
         return 0;
     if( region->role_clip_w <= 0 || region->role_clip_h <= 0 )
         return 0;
+    if( !UITree_FrameNodePresented(app->tree, &app->ui_host, region->ui_boundary_node) ) return 0;
     if( !region->ui_boundary_replace )
         return !UITree_NodeOrAncestorDisplayHidden(app->tree, region->ui_boundary_node);
     if( !target->replacement_hidden )
@@ -4367,6 +4368,7 @@ app_plugin_ui_boundary(
     if( node < 0 || (uint32_t)node >= app->tree->component_count ||
         app->tree->components[node].freed )
         return 0;
+    if( !UITree_FrameNodePresented(app->tree, &app->ui_host, node) ) return 0;
     /* A whole-node replacement is already hidden at this point. Its draw must
      * enter the replacement tombstone rather than fail the ordinary visibility
      * fence (or become an additive SELF overlay before still-live children).
@@ -4497,6 +4499,221 @@ app_plugin_frame_stamp_role(
     next[(*next_count)++] = node;
 }
 
+static int
+app_plugin_frame_root(void* user);
+
+/* Read the control's authored LOAD arguments from the decoded cache pack.
+ * Runtime hooks are a different store and do not carry authored onload. */
+static int
+app_plugin_frame_role_enum_id(struct App* app, int root_group, int* control)
+{
+    int value = -1;
+    if( !app->provider || root_group < 0 ) return -1;
+    int const init = RevConfigRefs_Get(&app->revconfig_refs, "script", "frame_init");
+    struct ToriRS_ComponentPack const* pack =
+        CacheProvider_ComponentPackGet(app->provider, root_group);
+    if( init <= 0 || !ToriRS_ComponentPackLoadInt(pack, init, 2, control, &value) )
+        return -1;
+    return value;
+}
+
+/* A present -1 is an authored absence, distinct from a missing enum/key. */
+static int
+app_plugin_frame_enum_value(struct App* app, int enum_id, int key, int* value)
+{
+    struct ToriRS_Enum const* e = CacheProvider_EnumGet(app->provider, enum_id);
+    if( !e || e->output_is_string || !e->keys || !e->int_values ) return 0;
+    for( int i = 0; i < e->count; i++ )
+        if( e->keys[i] == key )
+        {
+            *value = e->int_values[i];
+            return 1;
+        }
+    return 0;
+}
+
+/* The plate is the unique authored graphic child of a filter container.
+ * Caption/state siblings must never be substituted for that decoration. */
+static int
+app_plugin_chat_plate_expected(struct App* app, int filter)
+{
+    int const enum_id = RevConfigRefs_Get(&app->revconfig_refs, "enum", "chat_filters");
+    int const chat = RevConfigRefs_Get(&app->revconfig_refs, "iface", "chat");
+    struct ToriRS_Enum const* filters = CacheProvider_EnumGet(app->provider, enum_id);
+    struct ToriRS_ComponentPack const* pack = CacheProvider_ComponentPackGet(app->provider, chat);
+    int container = -1, graphic = -1;
+    if( !filters || !pack ) return -1;
+    if( !app_plugin_frame_enum_value(app, enum_id, filter, &container) )
+    {
+        /* Report is not in the filter enum. It is the sole other actionable
+         * child of the filters' authored parent, so no copied component id
+         * or translated caption is needed to identify it. */
+        int first = -1;
+        struct ToriRS_Component const* first_component;
+        if( filter != filters->count ||
+            !app_plugin_frame_enum_value(app, enum_id, 0, &first) ) return -1;
+        first_component = CacheProvider_ComponentGet(app->provider, first);
+        if( !first_component ) return -1;
+        for( int i = 0; i < pack->component_count; i++ )
+        {
+            struct ToriRS_Component const* c = &pack->components[i];
+            int listed = 0, actionable = 0;
+            if( c->parent_id != first_component->parent_id ) continue;
+            for( int j = 0; j < filters->count; j++ )
+                if( filters->int_values[j] == c->id ) listed = 1;
+            for( int j = 0; j < TORIRS_MENU_ACTION_SLOTS; j++ )
+                if( c->ops[j][0] ) actionable = 1;
+            if( listed || !actionable ) continue;
+            if( container >= 0 ) return -1;
+            container = c->id;
+        }
+    }
+    if( container < 0 ) return -1;
+    for( int i = 0; i < pack->component_count; i++ )
+    {
+        struct ToriRS_Component const* c = &pack->components[i];
+        if( c->parent_id != container || c->type != TORIRS_COMPONENT_GRAPHIC ) continue;
+        if( graphic >= 0 ) return -1;
+        graphic = c->id;
+    }
+    return graphic;
+}
+
+/**
+ * The interface-161 uid a role's chain names, which is the key the cache's own
+ * scripts address that element by. -1 when the profile declares no 161 rung.
+ *
+ * 161 is the canonical spelling because that is the interface every rung in
+ * enum 1129/1130/1131/1745 is keyed on -- the cache reaches the chat as
+ * `interface_161:96` whichever toplevel is up, and the enum turns that into
+ * 548:11, 164:93 or 601:49. A profile that carries the 161 rung therefore
+ * carries the key, and the other three rungs are derivable rather than
+ * copied.
+ */
+static int
+app_plugin_frame_role_key_161(struct UITreeRoleTable const* table, uint16_t role_id)
+{
+    struct UITreeRoleEntry const* entry;
+
+    assert(table);
+    if( role_id == 0 || (int)role_id > table->count )
+        return -1;
+    entry = &table->entries[role_id - 1];
+    for( int i = 0; i < entry->matcher_count; i++ )
+        if( entry->matchers[i].kind == UITREE_ROLE_MATCH_ID &&
+            ((entry->matchers[i].uid >> 16) & 0xffff) == 161 )
+            return entry->matchers[i].uid;
+    return -1;
+}
+
+/* Native metadata is authoritative for compatible roots and shared chat
+ * pieces. Explicit profile values remain independently audited for drift. */
+static int32_t
+app_plugin_frame_role_fallback(struct UITree const* tree, struct UITreeRoleTable const* table,
+                               uint16_t role, void* user)
+{
+    struct App* app = user;
+    if( role == 0 || role > table->count ) return -2;
+    char const* name = table->entries[role - 1].name;
+    if( strncmp(name, "chat_plate_", 11) == 0 &&
+        RevConfigRefs_Get(&app->revconfig_refs, "enum", "chat_filters") >= 0 )
+    {
+        char* end;
+        long filter = strtol(name + 11, &end, 10);
+        if( end == name + 11 || *end || filter < 0 || filter > 255 ) return -1;
+        int uid = app_plugin_chat_plate_expected(app, (int)filter);
+        return uid < 0 ? -1 : UITree_FindByComponentId(tree, uid);
+    }
+    if( strncmp(name, "frame_", 6) && strncmp(name, "sidetab_", 8) ) return -2;
+    int key = app_plugin_frame_role_key_161(table, role), uid = -1, control = -1;
+    int root = app_plugin_frame_root(app);
+    int element_map = app_plugin_frame_role_enum_id(app, root, &control);
+    if( key < 0 || RevConfigRefs_Get(&app->revconfig_refs, "script", "frame_init") < 0 ) return -2;
+    if( element_map < 0 ) return -1;
+    if( !app_plugin_frame_enum_value(app, element_map, key, &uid) || uid < 0 ) return -1;
+    int32_t node = UITree_FindByComponentId(tree, uid);
+    if( node >= 0 && getenv("TORIRS_FRAME_ROLE_AUDIT") )
+        TORIRS_LOG("frameroles: derived %s root=%d enum=%d key=(161|%d) -> (%d|%d)\n",
+                   name, root, element_map, key & 65535, uid >> 16, uid & 65535);
+    return node;
+}
+
+static int
+app_plugin_frame_role_audit(struct App* app, struct UITree* tree)
+{
+    int const root = app_plugin_frame_root(app);
+    int control = -1;
+    int const enum_id = app_plugin_frame_role_enum_id(app, root, &control);
+    int const chat = RevConfigRefs_Get(&app->revconfig_refs, "iface", "chat");
+    int checked = 0, mismatched = 0, unbound = 0, absent = 0;
+    struct ToriRS_ComponentPack const* chat_pack = CacheProvider_ComponentPackGet(app->provider, chat);
+    /* The chat is server-mounted after the root; wait for the pack before
+     * auditing its plates rather than permanently reporting startup misses. */
+    if( root <= 0 || enum_id < 0 || !CacheProvider_EnumGet(app->provider, enum_id) ||
+        !chat_pack || chat_pack->component_count == 0 ||
+        UITree_FindByComponentId(tree, chat_pack->components[0].id) < 0 ||
+        app_plugin_chat_plate_expected(app, 0) < 0 ) return 0;
+    TORIRS_LOG("frameroles: root %d control=(%d|%d) authored enum=%d\n",
+               root, (control >> 16) & 0xffff, control & 0xffff, enum_id);
+    for( int i = 0; i < app->ui_roles.count; i++ )
+    {
+        struct UITreeRoleEntry const* entry = &app->ui_roles.entries[i];
+        int want = -1, known = 0, key = -1;
+        int32_t node;
+        if( strncmp(entry->name, "chat_plate_", 11) == 0 )
+        {
+            char* end;
+            long filter = strtol(entry->name + 11, &end, 10);
+            if( end == entry->name + 11 || *end || filter < 0 || filter > 255 ) continue;
+            want = app_plugin_chat_plate_expected(app, (int)filter);
+            known = want >= 0;
+        }
+        else if( strncmp(entry->name, "frame_", 6) == 0 ||
+                 strncmp(entry->name, "sidetab_", 8) == 0 )
+        {
+            key = app_plugin_frame_role_key_161(&app->ui_roles, (uint16_t)(i + 1));
+            if( key < 0 ) continue; /* Shared-pack members have no toplevel enum key. */
+            known = app_plugin_frame_enum_value(app, enum_id, key, &want);
+        }
+        else continue;
+        checked++;
+        node = UITree_RoleNode(tree, &app->ui_roles, (uint16_t)(i + 1));
+        int const got = node < 0 || (uint32_t)node >= tree->component_count ||
+                        tree->components[node].freed ? -1 : tree->components[node].component_id;
+        int declared = got;
+        if( key >= 0 || strncmp(entry->name, "chat_plate_", 11) == 0 )
+            for( int m = 0; m < entry->matcher_count; m++ )
+                if( (entry->matchers[m].kind == UITREE_ROLE_MATCH_ID || entry->matchers[m].kind == UITREE_ROLE_MATCH_IFACE) &&
+                    ((entry->matchers[m].uid >> 16) & 65535) == (key >= 0 ? root : chat) )
+                { declared = entry->matchers[m].uid; break; }
+        if( known && declared >= 0 && declared != want )
+        {
+            mismatched++;
+            TORIRS_LOG("frameroles: %s MISMATCH declared=(%d|%d) expected=(%d|%d) root=%d enum=%d\n",
+                       entry->name, declared >> 16, declared & 65535, want >> 16, want & 65535, root, enum_id);
+            continue;
+        }
+        if( known && want == -1 && got == -1 ) { absent++; continue; }
+        if( got == -1 )
+        {
+            unbound++;
+            TORIRS_LOG("frameroles: %s UNBOUND on root %d expected=(%d|%d)\n",
+                       entry->name, root, (want >> 16) & 0xffff, want & 0xffff);
+        }
+        else if( !known || want != got )
+        {
+            mismatched++;
+            TORIRS_LOG("frameroles: %s MISMATCH root=%d got=(%d|%d) expected=(%d|%d) enum=%d key=(%d|%d) known=%d\n",
+                       entry->name, root, (got >> 16) & 0xffff, got & 0xffff,
+                       (want >> 16) & 0xffff, want & 0xffff, enum_id,
+                       (key >> 16) & 0xffff, key & 0xffff, known);
+        }
+    }
+    TORIRS_LOG("frameroles: root %d, %d roles checked, %d absent, %d unbound, %d mismatched\n",
+               root, checked, absent, unbound, mismatched);
+    return 1;
+}
+
 static void
 app_plugin_frame_bind(struct UITree* tree, void* user)
 {
@@ -4512,6 +4729,12 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
     if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
         return;
 
+    if( app->ui_roles.fallback != app_plugin_frame_role_fallback || app->ui_roles.fallback_user != app )
+    {
+        app->ui_roles.fallback = app_plugin_frame_role_fallback;
+        app->ui_roles.fallback_user = app;
+        for( int i = 0; i < app->ui_roles.count; i++ ) app->ui_roles.entries[i].memo_valid = 0;
+    }
     for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
     {
         uint8_t const tag = app_plugin_frame_slot_tag(slot);
@@ -4528,6 +4751,29 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         {
             snprintf(role, sizeof(role), "frame_%s_%d", name, member);
             app_plugin_frame_stamp_role(app, tree, role, tag, member, next, &next_count);
+        }
+    }
+
+    /* One audit per root, when asked for: the rungs are hand-copied from a
+     * table the cache also ships, and a mistyped one is otherwise silent. */
+    {
+        static int audited_root = -1;
+        static uint32_t audited_incarnation;
+        static struct UITree const* audited_tree;
+        int const root = app_plugin_frame_root(app);
+        if( root > 0 && getenv("TORIRS_FRAME_ROLE_AUDIT") )
+        {
+            int control = -1;
+            (void)app_plugin_frame_role_enum_id(app, root, &control);
+            int32_t const node = UITree_FindByComponentId(tree, control);
+            uint32_t const incarnation = node >= 0 ? tree->components[node].incarnation : 0;
+            if( (tree != audited_tree || root != audited_root || incarnation != audited_incarnation) &&
+                app_plugin_frame_role_audit(app, tree) )
+            {
+                audited_tree = tree;
+                audited_root = root;
+                audited_incarnation = incarnation;
+            }
         }
     }
 
@@ -4652,6 +4898,15 @@ app_plugin_layout_slot(void* user, int slot, int member, int x, int y, int w, in
      * "did that land on anything" so it knows whether to draw the housing for
      * it, and a frame with no compass should get no compass ring. */
     return app->tree && UITree_FrameSlotMemberNode(app->tree, slot, member) >= 0;
+}
+
+static void
+app_plugin_layout_slot_anchor(void* user, int slot, int relation, int anchor_slot)
+{
+    struct App* app = user;
+    if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT ) return;
+    app->plugin_layout_slots[slot].anchor =
+        (struct UITreeFrameAnchor){ relation, anchor_slot };
 }
 
 static int
@@ -5275,6 +5530,7 @@ app_plugin_engine(struct App* app)
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;
     engine.layout_slot = app_plugin_layout_slot;
+    engine.layout_slot_anchor = app_plugin_layout_slot_anchor;
     engine.layout_slot_exists = app_plugin_layout_slot_exists;
     engine.layout_slot_skin = app_plugin_layout_slot_skin;
     engine.layout_slot_overlay = app_plugin_layout_slot_overlay;

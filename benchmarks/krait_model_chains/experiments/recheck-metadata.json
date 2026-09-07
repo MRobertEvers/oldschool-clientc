@@ -1,0 +1,13 @@
+{
+  "source_commit": "152dc6469e3c784ddd05dd76d15ae5dfbe02efd0",
+  "device": "T062809L3Z",
+  "probe": "pipeline-pmu",
+  "comparison": "Same binary, all accepted runtime switches off versus on; common alignment/refactoring remains in both arms.",
+  "scene": "Live server at Lumbridge, fixed startup destination; NPC animation and movement continue.",
+  "protocol": "12 ABBA windows, 180 frames/window, 600 warmup frames, six settling frames between windows. Hardware counters only.",
+  "excluded": "recheck-onboarding-excluded: screenshot showed character creation, excluded from gameplay conclusions.",
+  "files": {
+    "android/build/outputs/apk/debug/ToriRS-debug.apk": "37b1927b80fa65c9d33a060868a6e445ad51a432b8eccc1f8f1aad004c59d7d1",
+    "android/src/main/jniLibs/armeabi-v7a/libtorirs.so": "ba73b8a412cd660b2e50df6f04c7faaa33a5993d4ef1eaaff7b66f0ef3acfa45"
+  }
+}

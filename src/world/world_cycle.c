@@ -1668,6 +1668,12 @@ World_CycleRegisterPainterDynamics(struct World* world)
                 (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, sc->element_id) : 0));
     }
 
+    if( world->suppress_dynamic_population )
+    {
+        painter_dynamics_commit(world->painter);
+        return;
+    }
+
     /* World entities (boats) go in with the runtime-spawn locs: the reference
      * inserts each one as a temporary radius-60 GameObject in the parent scene,
      * so it is a loc for ordering purposes and must land in the loc tier, ahead

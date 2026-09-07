@@ -78,6 +78,7 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [1204, 'model'], /* CC_SETMODEL_PLAYERCHATHEAD */
     [1205, 'obj'], /* CC_SETOBJECT_NONUM */
     [1212, 'obj'], /* CC_SETOBJECT_ALWAYS_NUM */
+    [1214, 'model'], /* CC_SETLOCMODEL */
     [1308, 'component'], /* CC_SETOPFORCELEFTCLICK */
     [1613, 'struct'], /* CC_GETPARAM */
     [1703, 'sprite'], /* CC_GETCOMPONENTPARAM */
@@ -118,6 +119,7 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [2203, 'model'], /* IF_SETMODEL_PLAYERCHATHEAD */
     [2205, 'obj'], /* IF_SETOBJECT_NONUM */
     [2212, 'obj'], /* IF_SETOBJECT_ALWAYS_NUM */
+    [2214, 'model'], /* IF_SETLOCMODEL */
     [2303, 'component'], /* IF_SETDRAGDEADZONE */
     [2304, 'component'], /* IF_SETDRAGDEADTIME */
     [2308, 'component'], /* IF_SETCLICKMASK */

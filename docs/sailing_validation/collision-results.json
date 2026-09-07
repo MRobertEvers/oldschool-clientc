@@ -1,0 +1,350 @@
+{
+  "ok": true,
+  "session": "/private/tmp/sailing-fin3-core",
+  "provenance": {
+    "binary_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+    "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "allow_stale_scripts": false
+  },
+  "elapsed_ms": 1011.174,
+  "ocean": {
+    "x": 3072,
+    "z": 3160,
+    "tiles": 289
+  },
+  "before": {
+    "id": 1,
+    "serial": 1,
+    "view": 1,
+    "config": 2,
+    "instance": 1,
+    "fine_x": 393280,
+    "fine_z": 404544,
+    "angle": 0,
+    "heading": 0,
+    "state": 1,
+    "speed_tier": 1,
+    "sails_set": 0,
+    "reversing": 0,
+    "hp": 80,
+    "hp_max": 80,
+    "owner_uid": 1,
+    "cargo_slot": 1,
+    "navigator_mask": 0,
+    "facilities": [
+      1,
+      1,
+      1
+    ]
+  },
+  "underway": {
+    "id": 1,
+    "serial": 1,
+    "view": 1,
+    "config": 2,
+    "instance": 1,
+    "fine_x": 393280,
+    "fine_z": 404288,
+    "angle": 0,
+    "heading": 0,
+    "state": 1,
+    "speed_tier": 2,
+    "sails_set": 1,
+    "reversing": 0,
+    "hp": 80,
+    "hp_max": 80,
+    "owner_uid": 1,
+    "cargo_slot": 1,
+    "navigator_mask": 0,
+    "facilities": [
+      1,
+      1,
+      1
+    ]
+  },
+  "stopped": {
+    "id": 1,
+    "serial": 1,
+    "view": 1,
+    "config": 2,
+    "instance": 1,
+    "fine_x": 393280,
+    "fine_z": 401600,
+    "angle": 0,
+    "heading": 0,
+    "state": 0,
+    "speed_tier": 2,
+    "sails_set": 1,
+    "reversing": 0,
+    "hp": 78,
+    "hp_max": 80,
+    "owner_uid": 1,
+    "cargo_slot": 1,
+    "navigator_mask": 0,
+    "facilities": [
+      1,
+      1,
+      1
+    ]
+  },
+  "land_spawn_rejected_at": [
+    3072,
+    3133
+  ],
+  "path": [
+    {
+      "tick": 4,
+      "pose": [
+        393280,
+        404288,
+        0
+      ]
+    },
+    {
+      "tick": 5,
+      "pose": [
+        393280,
+        404160,
+        0
+      ]
+    },
+    {
+      "tick": 6,
+      "pose": [
+        393280,
+        404032,
+        0
+      ]
+    },
+    {
+      "tick": 7,
+      "pose": [
+        393280,
+        403904,
+        0
+      ]
+    },
+    {
+      "tick": 8,
+      "pose": [
+        393280,
+        403776,
+        0
+      ]
+    },
+    {
+      "tick": 9,
+      "pose": [
+        393280,
+        403648,
+        0
+      ]
+    },
+    {
+      "tick": 10,
+      "pose": [
+        393280,
+        403520,
+        0
+      ]
+    },
+    {
+      "tick": 11,
+      "pose": [
+        393280,
+        403392,
+        0
+      ]
+    },
+    {
+      "tick": 12,
+      "pose": [
+        393280,
+        403264,
+        0
+      ]
+    },
+    {
+      "tick": 13,
+      "pose": [
+        393280,
+        403136,
+        0
+      ]
+    },
+    {
+      "tick": 14,
+      "pose": [
+        393280,
+        403008,
+        0
+      ]
+    },
+    {
+      "tick": 15,
+      "pose": [
+        393280,
+        402880,
+        0
+      ]
+    },
+    {
+      "tick": 16,
+      "pose": [
+        393280,
+        402752,
+        0
+      ]
+    },
+    {
+      "tick": 17,
+      "pose": [
+        393280,
+        402624,
+        0
+      ]
+    },
+    {
+      "tick": 18,
+      "pose": [
+        393280,
+        402496,
+        0
+      ]
+    },
+    {
+      "tick": 19,
+      "pose": [
+        393280,
+        402368,
+        0
+      ]
+    },
+    {
+      "tick": 20,
+      "pose": [
+        393280,
+        402240,
+        0
+      ]
+    },
+    {
+      "tick": 21,
+      "pose": [
+        393280,
+        402112,
+        0
+      ]
+    },
+    {
+      "tick": 22,
+      "pose": [
+        393280,
+        401984,
+        0
+      ]
+    },
+    {
+      "tick": 23,
+      "pose": [
+        393280,
+        401856,
+        0
+      ]
+    },
+    {
+      "tick": 24,
+      "pose": [
+        393280,
+        401728,
+        0
+      ]
+    },
+    {
+      "tick": 25,
+      "pose": [
+        393280,
+        401600,
+        0
+      ]
+    },
+    {
+      "tick": 26,
+      "pose": [
+        393280,
+        401600,
+        0
+      ]
+    }
+  ],
+  "captures": [
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-before.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 36.51,
+      "elapsed_ms": 40.358,
+      "bytes": 188613,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-underway.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 35.297,
+      "elapsed_ms": 37.985,
+      "bytes": 189437,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-mid-motion-restored.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 35.171,
+      "elapsed_ms": 37.779,
+      "bytes": 188987,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-stopped.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 30.865,
+      "elapsed_ms": 33.095,
+      "bytes": 184557,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-restored.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 35.037,
+      "elapsed_ms": 37.455,
+      "bytes": 188894,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/collision-land-rejected.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 29.876,
+      "elapsed_ms": 32.925,
+      "bytes": 198416,
+      "world_order_mode": 0
+    }
+  ],
+  "visual_review_required": true
+}

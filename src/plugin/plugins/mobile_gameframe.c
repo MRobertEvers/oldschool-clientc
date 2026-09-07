@@ -2335,8 +2335,11 @@ mobile_surface(
     int height)
 {
     assert(ctx);
-    ctx->builder->surface(
-        ctx->builder, surface, (struct ToriRS_Rect){ x, y, width, height });
+    ctx->builder->surface_anchored(
+        ctx->builder, surface, (struct ToriRS_Rect){ x, y, width, height },
+        (struct ToriRS_FrameAnchor){ surface == TORIRS_SURFACE_VIEWPORT
+            ? TORIRS_FRAME_RELATION_NATIVE : TORIRS_FRAME_RELATION_OVER,
+            TORIRS_SURFACE_VIEWPORT });
 }
 
 static void

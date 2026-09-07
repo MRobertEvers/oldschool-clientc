@@ -159,30 +159,28 @@ records in `all.npc` with no combat level, no minimap dot, `turnspeed=0`, and a
 | `canoeing_cave_scenery_2` | 3338 | 12016 | 3 | cave channel |
 | `canoeing_cave_scenery_3` | 3339 | 12017 | 4 | cave channel |
 
-They are `npc_add`ed upstream of the canoe and walked past it. The canoe never
-moves; the trees do.
+The active river/cave set pieces are spawned at scheduled times and walk north.
+The `canoeing_cavemouth` cache asset is not used by the reference schedule.
+The canoe remains stationary; the environment moves.
 
-### Camera
+### Camera and staging
 
-`cam_moveto` / `cam_lookat` / `cam_reset` are all hosted
-(`torirs_server_scripts.c:7713`), signature `(coord, height, speed, acceleration)`.
-The camera sits off the bank looking at the canoe tile, and `cam_reset` runs
-before the teleport out — a camera left locked survives the scene change.
+The staging follows the independent RS Mod canoe implementation, recorded in
+`tools/testdata/canoes/cutscene-reference.json`. The player sits in the middle
+tile of the placed canoe: river (1817,4515), cave (1845,4492), facing west.
+The cameras stand on the **west** bank and look east:
 
-The shot is **across** the channel, not along it: the eye stands on the boat's
-own z line on the east bank, so the river lies flat across the frame and the
-canoe is broadside. Two things are deliberately off-centre, both compensating
-for the same thing — this client draws the world across the whole canvas with
-the gameframe over it, so the look point lands at *canvas* centre and not at the
-centre of the visible 3D viewport. `^canoe_cam_look_height` (40) aims below the
-boat to lift it clear of the chatbox; the look-at's z is one tile past the boat
-to slide it left of the sidebar. Screen-right is +z for a camera facing west.
+| Scene | Camera tile | Eye height | Look-at tile | Look height |
+|---|---|---:|---|---:|
+| River | (1812,4515) | 255 | (1817,4515) | 255 |
+| Cave | (1838,4492) | 275 | (1845,4492) | 100 |
 
-`cinemaCamera` clamps the derived pitch to `[128, 383]` (Client-TS 3364,
-`app_cinema_angles` matches), so 22.5 degrees is the flattest shot available no
-matter how low the eye goes — an eye height that asks for less just wastes
-distance. The river and cave eyes stand on very different ground (flat h13
-against the cave trench's h44 face) and so carry separate heights.
+`cutscene_status=1` and `fov_clamp=1` select the cache's cutscene layout and
+close camera projection. They return to zero on arrival. Scenery moves north,
+with seven staggered river instances and five cave instances; ordinary NPC
+wandering is disabled. These replace the pilot's unsupported opposite-bank
+camera, southbound scenery, and off-centre seating. See
+[CANOE_ANIMATION_TEST.md](CANOE_ANIMATION_TEST.md) for the reference and limits.
 
 ---
 
@@ -370,7 +368,7 @@ the real Lumbridge station: `OPLOC1` on the station until the tree falls,
 `IF_BUTTON1` on `canoeing:log` to shape it, `OPLOC1` to float it, `OPLOC1` to
 board, then two destination clicks — Edgeville, which a log canoe must be
 refused, and the Champions' Guild, which it must reach. It asserts the player
-is seated at 1817,4514 on the way past, which is the only thing that
+is seated at 1817,4515 on the way past, which is the only thing that
 distinguishes "rode the cutscene" from "teleported straight there".
 
 Both halves were mutation-tested rather than assumed:
@@ -378,7 +376,7 @@ Both halves were mutation-tested rather than assumed:
 | mutation | result |
 |---|---|
 | `canoe_station.dbrow` Lumbridge coord moved one tile | `FAIL chopping the station should leave a fallen tree (state 10), got 0` |
-| `^canoe_reach_log` 1 → 3 | `FAIL a log canoe asked for Edgeville should be refused, not flown` + the player found at 1817,4514 |
+| `^canoe_reach_log` 1 → 3 | `FAIL a log canoe asked for Edgeville should be refused, not flown` + the player found at 1817,4515 |
 
 The suite is otherwise clean. Note that this section pins `srv->rng`, as the
 woodcutting section above it already does, so it shifts the draws every later
@@ -397,7 +395,7 @@ player lands at Barbarian Village with "Your canoe sinks behind you."
 `::canoecave 4` shows the same with the cave scenery closing over the channel.
 
 One trap worth writing down: **use `TORIRSSERVER_SAVES` for these runs.** A run that
-ends mid-ride saves the player sitting in the canoe at 1817,4514, and the next
+ends mid-ride saves the player sitting in the canoe at 1817,4515, and the next
 run logs in there — which reads exactly like a cutscene that never exits. The
 first two attempts at this verification chased that and not the code.
 
@@ -503,3 +501,29 @@ the default login camera looks past it.
 - `canoe_avoid_if` (varbit 1844) suppresses the Wilderness warning. The warning
   itself is a plain `~p_choice2` here rather than the struct-driven wilderness
   panel (structs 1086/1088/1096 carry its text).
+
+## Fast acceptance pilot (2026-09-06)
+
+See [CONTENT_SELFTEST.md](CONTENT_SELFTEST.md) for the persistent client, warm
+compiler and reviewed render fixtures. The focused server gate covers 440 route
+combinations and the packet-driven Lumbridge chain. The live pilot checks CS2,
+transmitted state, rowing/moving scenery and camera cleanup with no restarts.
+
+The first pixel baselines encoded incorrect staging and masked the paddler.
+They were insufficient evidence of correct cutscenes. The subsequent reference
+audit checks camera, seat, zoom, facing, and the full scenery timeline.
+
+## Full animation audit
+
+[CANOE_ANIMATION_TEST.md](CANOE_ANIMATION_TEST.md) documents the complete-frame
+gate and its films. The original station waits could clear actions before their
+last frames reached the client. The first swing now has a guaranteed interval;
+carving, pushing and boarding run to completion; the player's push and loc roll
+start together. The player takes the reference seat and west-facing pose while the scene
+is covered. Departure/reset and scene changes use the cache fade overlay.
+
+Arrival now creates a real `canoeing_*_sinking` loc in adjacent water, plays
+`canoeing_sinking` after fade-in, then removes it. The temporary loc lifetime is
+nine server ticks, including the initial fade-in hold. The destination's station is
+not used as the sinking object. All eleven placements are listed by
+`canoe_sink_coord` and checked by the arrival matrix.

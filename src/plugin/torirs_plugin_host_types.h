@@ -22,6 +22,21 @@ enum ToriRS_HostSurfaceSlot
     TORIRS_HOST_SURFACE_COUNT
 };
 
+/*
+ * Members of TORIRS_HOST_SURFACE_ORBS, spelled again from enum
+ * ToriRS_OrbsMember. The tree needs the numbering -- the two kinds of member
+ * mean different things by an unmentioned box -- and a headless uitree test
+ * links no plugin contract to read it from. Kept true by the static asserts
+ * in torirs_plugin_host.c, which sees both headers.
+ */
+enum ToriRS_HostOrbsMember
+{
+    TORIRS_HOST_ORBS_MEMBER_ACTIVITY_ADVISER = 0,
+    TORIRS_HOST_ORBS_MEMBER_WORLD_MAP,
+    TORIRS_HOST_ORBS_MEMBER_WIKI,
+    TORIRS_HOST_ORBS_MEMBER_COUNT
+};
+
 #define TORIRS_HOST_LANE_CHROME_MAX 8
 #define TORIRS_HOST_RESERVATION_NAME_MAX 64
 

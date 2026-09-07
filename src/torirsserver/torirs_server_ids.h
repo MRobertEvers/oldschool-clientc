@@ -345,6 +345,34 @@ struct ToriRSServerIds
     /** 1 while standing on a vessel deck — shows the combat tab's sailing
      *  switch (cache varbit 19153, cs2 8583). */
     int varbit_sailing_switch;
+    int varbit_sailing_locked_in;
+    int varbit_sailing_move_mode;
+    int varbit_sailing_sail_toggle;
+    int varbit_sailing_helm_status;
+    int varbit_sailing_player_at_helm;
+    int varbit_sailing_player_at_sails;
+    int varbit_sailing_player_role;
+    int varbit_sailing_players_aboard;
+    int varbit_sailing_hotspot0;
+    int varbit_sailing_hotspot1;
+    int varbit_sailing_hotspot2;
+    int varbit_sailing_hotspot3;
+    int varbit_sailing_hotspot4;
+    int varbit_sailing_hotspot5;
+    int varbit_sailing_hotspot6;
+    int varbit_sailing_hotspot7;
+    int varbit_sailing_hotspot8;
+    int varbit_sailing_hotspot9;
+    int varbit_sailing_hotspot10;
+    int varbit_sailing_hotspot11;
+    int varbit_sailing_hotspot12;
+
+    int inv_sailing_cargo_1;
+    int inv_sailing_cargo_2;
+    int inv_sailing_cargo_3;
+    int inv_sailing_cargo_4;
+    int inv_sailing_cargo_5;
+
     /** The sailing sidepanel's data: aboard flag (19104), boarded boat type
      *  (19137 — the panel's name-table key), hull HP bar (19181/19177). */
     int varbit_sailing_on_boat;

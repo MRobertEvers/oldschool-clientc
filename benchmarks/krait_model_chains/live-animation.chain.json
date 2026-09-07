@@ -1,0 +1,9 @@
+{
+  "serial": "T062809L3Z",
+  "manifest": "/sdcard/Android/data/com.torirs.client/files/manifests/krait-live.ini",
+  "first_pass": 120,
+  "passes": 16,
+  "sha256": "4d6fb5c717a2548c9e8440747afa69aec70c517581b4dbf05f4753448739a2a5",
+  "bytes": 11450955,
+  "completion": "I/torirs  (26527): animation capture complete: 795 real pose calls"
+}

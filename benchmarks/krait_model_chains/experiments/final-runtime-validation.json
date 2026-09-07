@@ -1,0 +1,9 @@
+{
+  "original_device_files_restored": {
+    "env.txt": true,
+    "extra_args.txt": true
+  },
+  "gl_errors": [],
+  "normal_apk_region_transition": "live test account reached Varrock; screenshot confirms new region and actor/UI rendering",
+  "screenshot": "final-live-varrock.png"
+}

@@ -5,6 +5,34 @@
 #include <assert.h>
 #include <stdlib.h>
 
+int
+ToriRS_ComponentPackLoadInt(
+    struct ToriRS_ComponentPack const* pack, int script_id, int argument,
+    int* component_id, int* value)
+{
+    struct ToriRS_Component const* found = NULL;
+    struct ToriRS_ScriptHook const* load = NULL;
+    if( !pack || !component_id || !value || argument < 0 ||
+        argument >= TORIRS_COMPONENT_HOOK_ARG_MAX )
+        return 0;
+    for( int i = 0; i < pack->component_count; i++ )
+    {
+        struct ToriRS_ScriptHook const* hook =
+            ToriRS_ComponentHookPeek(&pack->components[i], TORIRS_COMPONENT_HOOK_LOAD);
+        if( !hook || hook->argc <= 0 || (hook->str_mask & 1) || hook->argv[0] != script_id )
+            continue;
+        if( found || hook->argc <= argument || (hook->str_mask & (UINT64_C(1) << argument)) )
+            return 0;
+        found = &pack->components[i];
+        load = hook;
+    }
+    if( !found )
+        return 0;
+    *component_id = found->id;
+    *value = load->argv[argument];
+    return 1;
+}
+
 static char const* const k_hook_names[] = {
     "on_load",         "on_click",        "on_op",
     "on_mouse_over",   "on_mouse_leave",  "on_drag",

@@ -13,6 +13,7 @@
 #include "ui/uitree_emit.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
+#include "ui/uitree_frame.h"
 #include "varp/varp_manager.h"
 
 #include <stdio.h>
@@ -78,13 +79,13 @@ cs1_test_eval_tree(
 
         bool active = false;
         if( RS_CS1Host_ComponentActive(host, component, &active) == CS1VM_EVAL_DONE )
-            component->cs1_active = active ? 1 : 0;
+            UITree_SetCS1ActiveAt(tree, (int32_t)i, active ? 1 : 0);
 
         for( int s = 0; s < UITREE_CS1_VALUE_MAX; s++ )
         {
             int value = 0;
             if( RS_CS1Host_ComponentValue(host, component, s, &value) == CS1VM_EVAL_DONE )
-                component->cs1_values[s] = value;
+                UITree_SetCS1ValueAt(tree, (int32_t)i, s, value);
         }
     }
 }
@@ -332,8 +333,9 @@ test_inv_count_opcode(void)
     TEST_ASSERT(source_id >= 0, "backpack source resolves");
 
     static int const items[] = { 995, 995, 1333 };
+    static int const quantities[] = { 1, 1, 1 };
     TEST_ASSERT(
-        InvManager_ApplyFull(&invs, INV_MANAGER_CONTAINER_BACKPACK, items, NULL, 3),
+        InvManager_ApplyFull(&invs, INV_MANAGER_CONTAINER_BACKPACK, items, quantities, 3),
         "backpack seeded");
 
     /* An inv grid the script can name, plus a text node holding the script. */
@@ -450,6 +452,78 @@ test_stat_defaults(void)
     UITree_Free(tree);
 }
 
+static void
+test_cs1_under_frame_ownership(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct InvManager invs;
+    struct VarPManager varps;
+    struct RS_PlayerStats stats;
+    struct RS_CS1Host host;
+    struct UITreeHost ui_host;
+    struct UITreeEmitBuffer buffer;
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT] = { 0 };
+    InvManager_Init(&invs);
+    VarPManager_Init(&varps);
+    cs1_test_declare_varps(&varps);
+    RS_PlayerStats_Init(&stats);
+    RS_CS1Host_Init(&host, tree, NULL, &invs, &varps, &stats);
+    UITree_HostInit(&ui_host);
+    ui_host.request = cs1_test_host_request;
+    int script[] = { CS1_OP_PUSH_VARP, 42, CS1_OP_RETURN };
+    int32_t text = push_scripted_text(tree, 100, "Off %1", "On %1", script, 3, CS1VM_COMPARATOR_EQUAL, 7);
+    tree->components[text].slot_tag = UITREE_SLOT_CHAT;
+    struct UITreeNodeSpec world = { .type = UIELEM_BUILTIN_WORLD, .component_id = 101,
+                                    .width = 200, .height = 120 };
+    UITree_Push(tree, -1, &world);
+    slots[UITREE_FRAME_SLOT_VIEWPORT].all = (struct UITreeFrameRect){ 1, 0, 0, 200, 120 };
+    slots[UITREE_FRAME_SLOT_CHAT].all = (struct UITreeFrameRect){ 1, 20, 30, 120, 20 };
+    slots[UITREE_FRAME_SLOT_CHAT].anchor = (struct UITreeFrameAnchor){ UITREE_FRAME_RELATION_OVER, UITREE_FRAME_SLOT_VIEWPORT };
+    UITree_LayoutResolve(tree, 0, 0, 765, 503);
+    UITree_FrameApply(tree, slots, 0);
+    UITree_EmitBufferInit(&buffer);
+    int values[] = { 0, 7, 9 };
+    for( int n = 0; n < 3; n++ )
+    {
+        char expected[32];
+        VarPManager_SetVarpOptimistic(&varps, 42, values[n]);
+        cs1_test_eval_tree(&host, tree);
+        buffer.count = 0;
+        UITree_EmitWalk(tree, &ui_host, &buffer, -1);
+        struct UITreeEmitDesc const* found = NULL;
+        for( int i = 0; i < buffer.count; i++ ) if( buffer.cmds[i].node_index == text ) found = &buffer.cmds[i];
+        snprintf(expected, sizeof(expected), "%s %d", values[n] == 7 ? "On" : "Off", values[n]);
+        TEST_ASSERT(found && strcmp(found->text_formatted, expected) == 0,
+                    "real CS1 values remain live inside a plugin-placed surface");
+        TEST_ASSERT(found && found->color == (values[n] == 7 ? 0xff0000 : 0x111111),
+                    "real CS1 active state changes cache-owned appearance");
+        TEST_ASSERT(found && found->x == 20 && found->y == 30, "only the declared geometry remains overridden");
+        if( found ) printf("CS1_FRAME varp=%d text=%s color=%06x xy=%d,%d\n", values[n], found->text_formatted, found->color, found->x, found->y);
+    }
+    UITree_ApplyHide(tree, 100, 1);
+    UITree_ApplyPosition(tree, 100, 43, 44);
+    VarPManager_SetVarpOptimistic(&varps, 42, 7);
+    cs1_test_eval_tree(&host, tree);
+    UITree_FrameRelease(tree);
+    buffer.count = 0;
+    UITree_EmitWalk(tree, &ui_host, &buffer, 100);
+    int visible = 0;
+    for( int i = 0; i < buffer.count; i++ ) visible |= buffer.cmds[i].node_index == text;
+    TEST_ASSERT(!visible && tree->components[text].cs1_active, "CS1 continues while server-hidden and frame release cannot unhide it");
+    UITree_ApplyHide(tree, 100, 0);
+    buffer.count = 0;
+    UITree_EmitWalk(tree, &ui_host, &buffer, -1);
+    struct UITreeEmitDesc const* found = NULL;
+    for( int i = 0; i < buffer.count; i++ ) if( buffer.cmds[i].node_index == text ) found = &buffer.cmds[i];
+    TEST_ASSERT(found && strcmp(found->text_formatted, "On 7") == 0 && found->x == 43 && found->y == 44,
+                "release and server show expose the latest native values and geometry");
+    if( found ) printf("CS1_FRAME released text=%s xy=%d,%d\n", found->text_formatted, found->x, found->y);
+    UITree_EmitBufferFree(&buffer);
+    InvManager_Free(&invs);
+    VarPManager_Free(&varps);
+    UITree_Free(tree);
+}
+
 int
 main(void)
 {
@@ -460,6 +534,7 @@ main(void)
     test_inv_count_opcode();
     test_inv_yields_for_unmounted_component();
     test_stat_defaults();
+    test_cs1_under_frame_ownership();
 
     if( g_failures )
     {

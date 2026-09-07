@@ -999,7 +999,20 @@ RS_Minimenu_AddWorldRows(
      * back-to-front, so that is the LAST terrain item (matches the hover
      * tile the click cross and spawn hotkeys use). Suppressed while a use/
      * target mode is armed (reference gates it on useMode==0 && targetMode==0). */
-    if( sel->mode == RS_MINIMENU_SELECT_NONE )
+    if( sel->mode == RS_MINIMENU_SELECT_NONE && ctx->sailing_navigating )
+    {
+        if( ctx->sailing_heading_valid )
+        {
+            struct UIMinimenuPick pick = {
+                .kind = UI_MINIMENU_PICK_HEADING,
+                .id = ctx->sailing_heading,
+            };
+            /* class108.method3786 / action 60: a compass choice, not a
+             * destination tile. Interactive facilities keep their own rows. */
+            UIMinimenu_AddOption(menu, "Set heading", REVCONFIG_MINIMENU_WALK, 0, pick);
+        }
+    }
+    else if( sel->mode == RS_MINIMENU_SELECT_NONE )
     {
         struct World_Picked const* terrain = NULL;
         struct World_Picked const* view_terrain = NULL;
@@ -1135,13 +1148,13 @@ RS_Minimenu_AddWorldRows(
         struct World_Picked const* hull_pick = NULL;
 
         for( int i = 0; i < picks->count; i++ )
-            if( picks->items[i].view_id != 0 )
+            if( picks->items[i].view_id != 0 && picks->items[i].type == WORLD_PICK_WEV )
                 hull_pick = &picks->items[i];
         if( hull_pick && Wevs_IsLive(ctx->wevs, hull_pick->view_id) )
         {
             struct Wev const* wev = Wevs_Get((struct Wevs*)ctx->wevs, hull_pick->view_id);
 
-            if( wev->config )
+            if( wev->config && wev->render_visible && !wev->flattened )
                 for( int op = 0; op < WEV_CONFIG_OPS; op++ )
                 {
                     struct UIMinimenuPick pick = {

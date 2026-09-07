@@ -1,5 +1,11 @@
 # Sailing — research notes
 
+Current implementation and visual evidence (2026-09-06):
+[validation report](sailing_validation/README.md), [fast harness](sailing_harness.md),
+and [separate collision maps](sailing_collision.md). Earlier prototype values
+and stamped-water test results below are historical; use the current acceptance
+records when assessing the implementation.
+
 Research for implementing OSRS Sailing (world-entity boats) in this client and
 its embedded server. Reference deob: osrs239 (`src_osrs239_rl1_12_33`). Sailing
 shipped in the real game on 19 November 2025, so revision 239 contains the
@@ -149,8 +155,9 @@ angle).
   stack (our port will use one, per project requirement).
 - **Insertion is per-frame and transient** (`Statics.method1449`): every frame
   each world entity is re-inserted into the parent scene as a *temporary*
-  GameObject at tile `(x>>7, z>>7)` with radius **60** (< 64 ⇒ always a
-  **1×1-tile footprint** in the parent painter grid), menu-hash type 4, and
+  GameObject around `(x, z)` with radius **60**: the bounds are
+  `floor((fine−60)/128)..floor((fine+60)/128)`, giving a **1×1 footprint at
+  tile centre and up to 2×2 across tile boundaries**, menu-hash type 4, and
   its y set from the parent terrain height under it. Temporary objects live in
   per-zone lists cleared at end of frame (max 5 game objects per tile). It
   therefore painter-sorts naturally against real locs, actors and projectiles.
@@ -196,24 +203,32 @@ shading, not from reduced geometry.
 - The entity the local player is aboard is drawn first and **never** flattened.
 - Remaining entities draw in priority-group order **2, 0 (default), then 1
   last**, in list order within a group.
-- A server-configured budget (`client.field824`) caps simultaneous
-  full-detail entities; past the cap, the rest are forced flat.
+- A CS2-controlled budget (`client.field824`, default **30**) caps placed
+  entities **separately for each priority group**. Opcode 7900 sets a
+  nonnegative limit and 7901 reads it. Entities past that group's cap are
+  **omitted**, not flattened; the aboard entity is placed separately.
 - **Overlap rule** (`method1003` returns "should flatten"): an entity
-  flattens if (a) any player is standing on it, (b) any NPC whose type opts
-  in is standing on it, or (c) its oriented bounding box intersects another
-  world entity **already drawn this frame**. See the port note below for why
-  (a)/(b) make sense.
+  flattens if (a) a player's rectangle intersects its nearest-16-heading
+  oriented footprint, (b) a resolved NPC type with a named operation has such
+  an intersection, or (c) its fine-coordinate enclosing rectangle intersects
+  another world entity **already drawn this frame**. See the port note below
+  for why (a)/(b) make sense.
 - The **topmost determination** is a frame-stamp: each sub-scene is stamped
-  with the frame counter when placed; a later entity whose **oriented
-  bounding box** (16 orientation buckets of 128 angle units, corner tables
-  precomputed per config bounds) intersects an already-stamped entity's box is
-  flattened. First-placed wins; stamps reset each frame.
+  with the frame counter when placed. Entity/entity overlap uses
+  `method8755` to rotate the footprint's corners at the actual yaw and take
+  their fine-unit min/max rectangle; `class521.method11500` compares those
+  rectangles. Actor/entity overlap instead uses the oriented polygon test
+  (`method12436` / `method2978`). Neither path rounds the hull to whole tiles.
+  First-placed wins; stamps reset each frame.
 
 > Port note on test (a)/(b): `method1003` is evaluated **only for priority
 > group 1** (drawn last). Group-1 entities are the "yield" group (e.g.
 > trawling shoals): they flatten when a player/NPC/another entity already
-> occupies their space. Groups 2 and 0 flatten only via the budget. This is
-> exactly the live behaviour "shoals render as shadows passing beneath boats".
+> occupies their space. Groups 2 and 0 do not use this overlap flattening.
+> This gives the live behaviour "shoals render as shadows passing beneath
+> boats". The earlier budget description was incorrect: reinspection of
+> revision-239 `Statics.method2832` shows its counter initialized inside each
+> group call and `method1449` called only while below the limit.
 
 ### 5.4 Packets and config
 
@@ -252,13 +267,22 @@ overwritten every frame from the parent terrain under the boat.
 entity id (0 = main world) + plane; the client throws if the id is unknown.
 (At rev 239 that prefix is gone from `REBUILD_WORLDENTITY` itself — V2 wrote a
 u16 index, V3/V4 dropped it, and the target view now comes from the preceding
-`SET_ACTIVE_WORLD`. `REBUILD_NORMAL` still carries its own `world_area`.)
+`SET_ACTIVE_WORLD`. `REBUILD_NORMAL` still carries its own `world_area`;
+`REBUILD_REGION` carries none, so it is root by construction. **V4's entire
+header is `p2 baseX, p2 baseZ`** — the view's SW corner in absolute root-world
+tiles — followed by the `encodeRegionV2` grid, whose dimensions the server
+takes from the view's spawn-time size and does *not* put on the wire
+(`3rd/rsprot/packets/rebuild_worldentity_v4.c`). The **plane** likewise never
+appears on the rebuild at 239: it is the level byte of the `SET_ACTIVE_WORLD`
+that aimed it. See `docs/SAILING_PLAN.md` C0.3 for the routing and the
+assert-internally / refuse-on-the-wire contract this implies.)
 The targeted view then loads map regions exactly like a main-world rebuild
 (instance-template or normal), and player lists are re-bucketed geometrically.
 
 **Config** (`class387`, config index **archive 72**, file = id): op 2 plane;
-ops 4/5 pivot offset x/y (**signed** — −64 occurs); ops 6–9 bounds w/h/offsets,
-u16 each (baked into 16-orientation corner tables, with margin variants
+ops 4/5 pivot offset x/y (**signed** — −64 occurs); ops 6/7 signed bounds
+x/z offsets and ops 8/9 unsigned bounds width/height (baked into
+16-orientation corner tables, with margin variants
 256/334/362); op 12 name; op 14 a **parameterless flag** (no payload); ops
 **15–19** the five right-click ops; op 20 category; op 23 click mode; op 24 u8
 (purpose unknown); op 25 default animation (the bob); op 26 u16 (unknown,
@@ -270,9 +294,11 @@ seq-id-shaped); op 27 flattened HSL (default 39188).
 > opcode, and the op strings start at 15 ("Board" on *The Zenith*). A loader
 > built from the old table mis-parses 6 of the 14 entries. Op 27 never appears
 > in this cache, so every hull uses the 39188 default; its u16 width is taken
-> from the deob, not from data. The w/h-vs-offset assignment within 6–9 is
-> likewise unconfirmed — op 7 reads back negative and a boardable ship carries
-> op8=op9=0, which a width/height pair should not.
+> from the deob, not from data. The 6–9 assignment is now confirmed by
+> `class387` constructing `class575(op8, op9, op6, op7)` and the box's printed
+> field order. Config 3's box is 384×1280 with offset (0,−256). The Zenith
+> (config 9) has zero authored bounds and uses its declared extent fallback.
+> Client and server now share `WevConfig_Decode`; see `sailing_collision.md`.
 
 **Click routing**: the menu hash gains a **world-view id in bits 52–63**
 (4095 = none) alongside type (4 = world entity, 5 = blocker). While drawing a
@@ -357,32 +383,58 @@ documents at launch ([Sailing](https://oldschool.runescape.wiki/w/Sailing),
 
 ### This engine's mapping (implemented)
 
+**Updated 2026-09-07.** The rows below were written when the cheat commands were
+the only way to drive a boat, and four of them said "not implemented" about
+things that now work through content and real mouse input. Each correction names
+the evidence.
+
 | Launch control | Here |
 |---|---|
-| Click the helm → navigate | `::helm` toggle; sets `player->navigating_vessel` and holds the current heading. The hull itself right-clicks (C5.2): an unclassifiable pick inside a view is `WORLD_PICK_WEV` and `rs_minimenu_world.c` adds the config's masked type-4 op rows below Walk here — picking one sends `::vesselop <view> <op>` (op 0 boards). Deck LOCS are clickable end-to-end too: an interactive deck loc classifies through the VIEW world's tables (SCENERY pick carrying the view id + deck-local tile), builds its own op/Examine rows, and dispatch sends OPLOC at `view.base + local` — the server finds the loc in the vessel's pinned deck window and runs `[oploc<n>]` content. What is still missing is CONTENT: a rev-239 cache authors no helm loc on any deck template, so `::helm` remains the stand-in until a content pack places one and binds its op |
-| White-arrow heading click | While navigating, an ordinary ground click is reinterpreted server-side in `handle_move`: the clicked ABSOLUTE tile's bearing from the hull quantizes to the 16-point heading (`ToriRSServer_VesselHeadingToward`) — no new wire packet; the white cursor arrow itself is not drawn yet |
-| Set/un-set sails | `::sails` — `vessel->sails_set` gates translation in `vessel_tick`; turning still happens with sails down (rotate toward the heading in place) |
+| Click the helm → navigate | **Done through content, not the cheat.** The hull right-clicks (C5.2): an unclassifiable pick inside a view is `WORLD_PICK_WEV` and `rs_minimenu_world.c` adds the config's masked type-4 op rows below Walk here — picking one sends `::vesselop <view> <op>` (op 0 boards). Deck LOCS are clickable end to end: an interactive deck loc classifies through the VIEW world's tables (SCENERY pick carrying the view id + deck-local tile), builds its own op/Examine rows, and dispatch sends OPLOC at `view.base + local`, where the server finds the loc in the vessel's pinned deck window and runs `[oploc<n>]`. **Corrected:** this row used to end "a rev-239 cache authors no helm loc on any deck template, so `::helm` remains the stand-in". Content now places one — the sailing dbrows state each tier's sail/steering loc and its template-absolute placement, `[proc,sailing_deck_built]` places them with `loc_add_op`, and the `[oploc1]` handlers call `vessel_here`/`vessel_sails`/`vessel_helm`. Measured: right-clicking the **physical** deck helm loc **59537** gives "Navigate Helm / Walk here / Examine Helm / Cancel"; clicking it prints "You take the helm. Click the water to steer.", flips the Facilities panel from *Not steering* to *Steering* and sets `sailing.player.navigating = 1` (`sailing_validation/lifecycle-helm-menu.png`, `lifecycle-dock-helm.png`). `::helm` survives only as a harness shortcut |
+| White-arrow heading click | While navigating, an ordinary ground click is reinterpreted server-side in `handle_move`: the clicked ABSOLUTE tile's bearing from the hull quantizes to the 16-point heading (`ToriRSServer_VesselHeadingToward`) — no new wire packet. **Corrected:** "the white cursor arrow itself is not drawn yet" is stale. A white bearing diamond is drawn on the water beside the hull whenever the helm is held, and the top-left mouseover reads `Set heading` — visible in `lifecycle-turn-heading8.png`, `lifecycle-native-steering.png`, `deck-sailing.png` and `collision-underway.png`. It is a diamond marker rather than the live game's arc-of-arrow, which is a cosmetic difference, not a missing control |
+| Set/un-set sails | `::sails`, and the Facilities sails control by mouse — `vessel->sails_set` gates translation in `vessel_tick`; turning still happens with sails down (rotate toward the heading in place). The control lights red in the Facilities row while under way (`lifecycle-native-steering.png`) |
 | Speed up/down arrows | `::speedup` / `::speeddown` — `speed_tier` 1..4 = 0.5..2.0 tiles/tick (the wiki's 0.5 steps; per-hull caps are content data we don't carry yet) |
 | Reverse (stationary, sails down) | `::reverse` — moves backward at 0.5 t/t only while `!sails_set` |
-| Escape / capsize teleport | `ToriRSServer_VesselFree`'s rider disembark (SAIL-54) is the same shape; mooring content is S3 |
-| Gust trimming, boat HP, hazards | Content (S3), not engine — not implemented |
+| Escape / capsize teleport, mooring | **Done.** `ToriRSServer_VesselFree`'s rider disembark (SAIL-54) evacuates captain and guest to walkable shore, pinned by the server suite. Recovery uses actual gangplank/mooring positions across 59 native docks, and `ToriRSServer_VesselRecover` requires a berth clear at **all 16 headings** so a recovered hull can turn. Boarding and disembarking run through the gangplank and the native selector 934, not a cheat (`lifecycle-shore-board-menu.png` → `lifecycle-dock-boat-selector.png`; `lifecycle-disembark-menu.png` → `lifecycle-disembarked.png`, "You walk down the gangplank.") |
+| Gust trimming, boat HP, hazards | **Corrected: no longer "not implemented".** Gust trimming works — a gust appears, chat prompts "Wait for a gust before trimming the sails." then "A gust fills the sails. Trim them for a burst of speed!", and trimming awards the speed burst (`activity-wind-gust.png`, `activity-wind-released.png`, and the crew station in `crew-trimming.png`). Hull HP is real: a wooden skiff has **80 HP**, grounding costs **2**, and repair kits consume actual inventory for native amounts ("The boat runs aground.", 80 → 78; "You patch the hull. 80/80"). Named hazard waters remain content that is not implemented |
+| Anchor | **This engine has one, the live game does not.** The wiki is explicit that no anchor exists at launch and un-setting sails is the stop; this tree additionally carries an anchor facility (`utility-anchor-lowered.png`, `-turn.png`, `-restored.png`). Recorded as a deliberate divergence so nobody "fixes" the wiki text to match the code |
 
 `::vesselsail` (harness) and the `vessel_setheading` script op set the sails
 themselves — they mean "sail there", and predate the gate.
 
-Distance flattening (C4) is implemented, unlike vanilla's no-bake (§5.3): over
-the budget, `app_wev_decide_flatten` picks victims by priority group (2/0/1,
-first-placed wins overlap) and `app_wev_flat_ensure` bakes the deck's models
-into one merged flat-colour model (Y scaled to 0.01, offset −1200), drawn as
-plain scenery — no actors, no picking. `App_WevFlatInvalidate` drops the bake
-when a REBUILD lands. `TORIRS_WEV_BUDGET` forces the budget for testing.
+**A blocked step is no longer silent.** The mover parks a commanded hull on a
+blocked step (whole step or none), which used to happen without a word while
+content had just announced that the boat was getting under way. The vessel now
+raises a one-shot `blocked_notice`, the tick reports it to whoever holds the
+helm, and content words it (`[proc,sailing_boat_blocked]`); `ToriRSServer_Say`
+is silent when a pack defines none, so the engine never invents a sentence.
+
+Flattening (C4) is implemented **as the deob does it, with no bake at all**.
+This paragraph previously described a merged-model bake and is corrected here
+(2026-09-06): `app_wev_flat_ensure`, `app_wev_flat_free`, `App_WevFlatInvalidate`
+and the `TORIRS_WEV_BUDGET` environment override have all been **deleted**.
+
+What runs now: the per-frame selection picks victims by priority group (2/0/1,
+first-placed wins overlap, the aboard hull exempt) against the **CS2** budget —
+`WORLDENTITY_SETDRAWLIMIT` 7900 / `WORLDENTITY_GETDRAWLIMIT` 7901, default 30,
+counted separately per priority group (`Statics.method11128`). A flattened hull
+is then rendered live: the frame view carries `flatten_scale = 0.01`,
+`flatten_y_offset = -1200` and the config's `flat_hsl`, and the emit path
+substitutes a scaled, recoloured, texture-free model per draw
+(`src/render/torirs_frame_flat.u.h`). Actors, projectiles/graphics and picks are
+suppressed for that view; runtime scenery on the deck is retained. Because there
+is no persistent bake, a REBUILD needs no invalidation, and the deck's live
+geometry changes are visible in the flat silhouette on the next frame.
 
 The bob is implemented too (deob class467.method10419 → class112.method4034:
 the active animaya seq's root-bone pose matrix multiplies the whole sub-scene
 transform). Config op 25 names the looping idle (13424/13426/13428 — the
 kandarin raft/skiff/sloop, 240 frames = 4.8 s); the wire's updateFlags-0x1
 seq is a one-shot override (the sink family, 13425/27/29, 180 frames) whose
-completion restarts the idle at frame 0. This engine samples the baked
+completion restarts the idle at frame 0. Flattened hulls bob too — the deob's
+`class467.method10419` applies the current animation matrix to the full and the
+flattened sub-scene alike, so the earlier "flattened hulls skip the bob" was
+wrong and the skip has been removed. This engine samples the baked
 skeletal palette's bone-0 Y translation (negated, per the deob's Y flip) into
 the descent transform's Y (`app_wev_advance_bobs` →
 `app_wev_bind_frame_xforms`), so deck, locs and everyone aboard bob together;

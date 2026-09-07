@@ -1,0 +1,18 @@
+{
+  "change": "stable four-key ARM compaction",
+  "source_commit": "9fca0e47a plus working-tree renderer changes",
+  "apk_sha256": "044235d2613a4d081e6c129e75dc1ce5742e07d03dd9dcb73d80acda6893f54d",
+  "library_sha256": "2d85f09fa2bf1f2ce3f2eca55f22fdead28cbafabe21b882b4610c93e9f63934",
+  "normal_build": true,
+  "tests": {
+    "on_device_face_fixtures": 1869,
+    "on_device_faces": 299546,
+    "all_three_corpora_verified_in_both_arms": true,
+    "host_format_tests": 5,
+    "host_stage_tiers": [
+      "small",
+      "full"
+    ]
+  },
+  "status": "installed on XT1060; broader renderer optimization remains active"
+}

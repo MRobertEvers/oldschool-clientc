@@ -199,6 +199,9 @@ struct GLES2DualCoreStageArena
     int32_t* orders;
     uint32_t order_capacity;
     uint32_t order_count;
+    /** Worker-private acquired prefix of the immutable command feed. */
+    uint32_t feed_acquired;
+    bool cache_acquires;
 
     /* The two words the consumer polls, each on its own cache line: the
      * producer's private counters above must not share a line with what
@@ -224,11 +227,27 @@ struct GLES2DualCoreStageArena
     struct ToriRS_RenderCommand* feed;
     uint32_t feed_capacity;
     uint32_t feed_count;
+    /** Draw-private deferred publication policy and count; zero mask is immediate. */
+    uint32_t feed_batch_mask;
+    uint32_t feed_flushed;
     /** Feeds that ran out of slots; BeginFrame grows the feed after one. */
     uint32_t feed_overflow_frames;
     _Alignas(64) atomic_uint feed_published;
     _Alignas(64) atomic_uint feed_state;
 };
+
+/** Change only between joined frames; -1 restores environment/default policy. */
+void GLES2DualCoreStage_SetAcquireCache(int enabled);
+void GLES2DualCoreStage_SetDirectOrder(int enabled);
+void GLES2DualCoreStage_SetFeedBatch(int enabled);
+/** Draw-only: publish every committed entry. Flush before any wait/close. */
+void GLES2DualCoreStageArena_FeedFlush(struct GLES2DualCoreStageArena* arena);
+/** Commit the reserved entry; publication may wait for a batch or FeedFlush.
+ * Only a translator that flushes before returning to dispatch may use this. */
+void GLES2DualCoreStageArena_FeedCommitBatched(struct GLES2DualCoreStageArena* arena);
+/** Consumer-private acquired_ready must start at zero each frame. */
+const struct GLES2DualCoreStageResult* GLES2DualCoreStageArena_TryAcquireResult(
+    const struct GLES2DualCoreStageArena* arena, uint32_t index, uint32_t* acquired_ready);
 
 /**
  * Consumer: the next free entry, to translate a command into; NULL when the
@@ -342,6 +361,10 @@ struct GLES2DualCoreStageContext
     /** The depth-buffered world pass: sort only a model with blended faces. */
     bool zbuffer;
     bool in_pass;
+    /** Painter-only destination policy, resolved once at BeginPass. */
+    bool direct_order;
+    /** Feed commands reference immutable poses prepared before publication. */
+    bool poses_prepared;
 };
 
 /** Take the pass camera and viewport from a BEGIN_3D command and publish the

@@ -343,11 +343,16 @@ enum RS_CS2SoundKind
     RS_CS2_SOUND_SONG_WITHSECONDARY,
 };
 
-/** An IF_TRIGGEROPLOCAL request: IF_BUTTON1(component, sub) to send. */
+/** Deferred native IF_SCRIPT_TRIGGER; own strings after the VM returns. */
 struct RS_CS2TriggerOpLocal
 {
     int component_id;
     int sub;
+    int crc;
+    int child;
+    char signature[17];
+    int values[16];
+    char strings[16][256];
 };
 
 /*
@@ -685,6 +690,8 @@ struct RS_CS2Host
      *  back disagree (app.h says what that looks like). */
     int viewport_w;
     int viewport_h;
+    /** Native7900/7901, default30; zero suppresses unboarded carriers. */
+    int world_entity_draw_limit;
     /** Window mode (enum CS2VM_WindowMode), backing GET/SETWINDOWMODE and their
      *  `default` siblings. `window_mode_dirty` is raised by a SET and drained by
      *  the App, which owns the canvas and the SDL window — same shape as
@@ -704,6 +711,11 @@ struct RS_CS2Host
      *  calls setwindowmode; drained to WINDOW_STATUS so the server remounts. */
     int client_layout_mode;
     bool client_layout_dirty;
+    /** The clientscript whose CS2VM2_ThreadRun is on the stack right now, or
+     *  -1 between runs. Read only by the TORIRS_DUMP_SETPOS trace, so a
+     *  position write can name the script that made it instead of leaving the
+     *  reader to infer it. Written by Task_CS2Run around the VM call. */
+    int trace_script_id;
     /** Cache id of settings_client_mode (pack name script_3998). Dialect/cache
      *  surface for observing the dropdown's mode arg on SETWINDOWMODE. */
     int script_settings_client_mode;

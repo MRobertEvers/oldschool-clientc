@@ -642,18 +642,11 @@ struct PktSetMultiway
     int multiway; /* g1: 1=in multicombat zone */
 };
 
-/*
- * MINIMAP_TOGGLE (LostCity 274+). One byte, and the three values are three
- * different things rather than a flag with a spare:
- *
- *   0 -- normal.
- *   1 -- the map is not drawn, but a click on it still walks. What a quest
- *        uses to take the map away without taking movement away.
- *   2 -- not drawn and not clickable.
- */
+/* Native minimap/compass state. The six-state interpretation is centralized
+ * in game/rs_minimap_state.h; raw wire state is retained for diagnostics. */
 struct PktMinimapToggle
 {
-    int state; /* g1: 0 normal, 1 hidden, 2 hidden + unclickable */
+    int state;
 };
 
 struct PktUpdateIgnoreList

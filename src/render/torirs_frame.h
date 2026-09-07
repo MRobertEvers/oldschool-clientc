@@ -34,9 +34,8 @@ enum ToriRS_FramePassKind
  * subtract: deck-local → pivot recenter → [flatten scale + y offset] →
  * [animation bob/roll] → yaw rotate → entity translate → parent space.
  *
- * The bracketed steps are RESERVED, not implemented: `flatten_scale_q16` is
- * 65536 and `flatten_y_offset` 0 until C4 fills them, `flat_hsl` is -1 (no
- * override), and the animation matrix is deferred with no slot spent yet.
+ * Flattening renders the live scene through Y scale 0.01 with a pre-scale
+ * offset of -1200 and a flat HSL override. Identity views use scale 1.
  */
 struct ToriRS_FrameViewXform
 {
@@ -51,8 +50,7 @@ struct ToriRS_FrameViewXform
     int translate_z;
     /** Entity heading, 0..2047; composes additively down the stack. */
     int yaw;
-    /* Reserved for C4 — identity values today. */
-    int flatten_scale_q16;
+    float flatten_scale;
     int flatten_y_offset;
     int flat_hsl;
     bool live;
@@ -86,12 +84,16 @@ struct ToriRS_Frame
         int off_y;
         int off_z;
         int yaw;
+        float scale_y;
+        int flat_hsl;
         /** Which view opened this level; slot 0 (the root) is 0. Kept so a
          *  close that names a different view than the open is caught here
          *  rather than resolving terrain against the wrong world. */
         int view_id;
     } view_stack[TORIRS_FRAME_MAX_VIEWS];
     int view_depth;
+    /** Shared with a world-only iterator; the owning FrameEnd frees it. */
+    struct ToriRS_FrameFlatArena* flat_arena;
     struct ToriDraw_Camera world_camera;
     int cam_x;
     int cam_y;
@@ -153,6 +155,8 @@ struct ToriRS_Frame
      * full iteration's.
      */
     bool world_only;
+    /** GPU lane: pose on this owning thread before publishing model inputs. */
+    bool prepare_gpu_poses;
     /** Cursor into ToriDraw_SceneEvents for unload/clear → TORIRSRC_* drain. */
     int event_index;
     struct ToriRS_RenderCommand queued;

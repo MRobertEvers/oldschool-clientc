@@ -300,6 +300,9 @@ ToriRSServer_SceneFindLocId(
  */
 struct ToriRSServerSceneWindow;
 
+/** Monotonic window construction counter for rebuild diagnostics. */
+uint64_t ToriRSServer_SceneWindowBuildCount(const struct ToriRSServerSceneWindow* window);
+
 /** 1 root + one per player slot + one per vessel-deck slot.
  *  torirs_server_scene.h cannot include torirs_server.h, so this restates
  *  1 + TORIRSSERVER_PLAYER_MAX + TORIRSSERVER_VESSEL_WINDOW_MAX; the scene
@@ -310,9 +313,9 @@ struct ToriRSServerSceneWindow;
  *  coordinates), while their scene window follows the hull across the
  *  water (observed coordinates). A vessel's deck window pins the former
  *  while the rider's own window serves the latter. */
-#define TORIRSSERVER_SCENE_WINDOW_MAX 17
+#define TORIRSSERVER_SCENE_WINDOW_MAX 24
 #define TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE 9
-#define TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX 8
+#define TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX 15
 
 /** The world's root window — the default binding, and what a fresh process is
  *  bound to before anything is built. */
@@ -409,6 +412,21 @@ ToriRSServer_SceneCollision(int level);
 /** Raw collision flags at an absolute tile; 0 outside the built scene. */
 int
 ToriRSServer_SceneTileFlags(int level, int x, int z);
+
+/** Independent hull navigation grid. Open ocean is zero; land and unknown
+ *  terrain block. Player/NPC occupancy is never stamped into this map. */
+struct CollisionMap*
+ToriRSServer_SceneBoatCollision(int level);
+
+/** Absolute boat-map query; returns blocked bounds outside every window. */
+int
+ToriRSServer_SceneBoatTileFlags(int level, int x, int z);
+
+/** In the bound window, block reservation tiles outside the native hull.
+ * Bounds are absolute and half-open; original plane/loc flags inside remain. */
+void ToriRSServer_SceneRestrictDeckWalk(
+    int base_x, int base_z, int width, int height,
+    int min_x, int min_z, int max_x, int max_z);
 
 /** Absolute tile of scene-local (0, 0). */
 int

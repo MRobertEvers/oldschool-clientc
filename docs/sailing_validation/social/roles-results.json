@@ -1,0 +1,57 @@
+{
+ "tool": "native passenger-role proof (roles worker)",
+ "recorded_utc": "2026-09-07T01:12:00Z",
+ "metadata": {
+  "pid": 83763,
+  "process_identity": "Sun Sep  6 20:06:41 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs_roles_opt --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user sailingtest --pass test --soft3d",
+  "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs_roles_opt",
+  "binary_sha256": "1c41816abcbb2e1de1fe9a2aafd8b040a08879f568747bf0f2575dae0090ba9c",
+  "script_pack": "/private/tmp/sailing-roles-pack/script.dat",
+  "script_sha256": "21e85980698a56d26db6d2539263bd8be4c45182d979c3593b3396681ee06be5",
+  "server_binary": "/Users/matthewevers/Documents/git_repos/3draster/src/build_roles_opt/torirsserver",
+  "server_binary_sha256": "e5f6b44ada5ce6cbd03cb827946974ad932b7b3c13a9de5413238d7b6b516c83",
+  "server_suite": "TORIRSSERVER_SELFTEST_SAILING_ONLY=1 ... src/build_roles_opt/torirsserver --selftest -> 520 checks, 0 failures (/tmp/sailing-roles-server.tsv)",
+  "peer_fixture": "ContentTestSailing_PeerCommand (tools/sailing_harness.py peer ...); a second real server player with no second external transport",
+  "fixture": "ocean 3072,3160, wooden skiff, captain sailingtest owns hull 1 (owner_uid 1), peer 'Deckhand' boarded at deck 6404,67 level 1"
+ },
+ "defect": {
+  "was": "the per-tick sync published role 2 for an aboard guest",
+  "why_it_mattered": "the crew NPC shells (npc 15255 and nine siblings) carry multivarbit=sailing_sidepanel_player_role and state a real npc only at rungs 0, 3, 6 and 10; both this client's VarPManager_ResolveTransform and the reference's class393 index configs[value], so rung 2 is -1 and a passenger saw a deck with no crew on it",
+  "now": "3, decided from the cache: cs2 8732 tests 10 and 6, the captain-only affordances test 10 alone, 0 is the not-aboard default, and 3 is the only remaining rendered rung (3/6/10 are also 0b0011/0b0110/0b1010, one shared aboard bit plus one role bit)",
+  "source": "src/torirsserver/torirs_server_world.c, the sailing varbit sync in ToriRSServer_WorldRefreshObservation"
+ },
+ "checks": [
+  {
+   "name": "a guest aboard the captain's hull is published role 3",
+   "detail": "peer create Deckhand; peer varbit sailing_sidepanel_player_role -> varbit 19233, value 3, role 3 (the same field read as 2 before this change)",
+   "result": "pass"
+  },
+  {
+   "name": "control: the value tracks the aboard state and is not a constant",
+   "detail": "peer place 0 3079 3161 (ashore) -> role 0 value 0 at 3079,3161 level 0; peer board -> role 3 value 3 at deck 6404,67 level 1",
+   "result": "pass"
+  },
+  {
+   "name": "the passenger really is rendered aboard the captain's hull",
+   "detail": "the captain's own client draws the peer on the skiff's planking; hovering its screen position (382,222) reads 'Walk here Deckhand (level-1)'",
+   "image": "docs/sailing_validation/social/roles-passenger-deck.png",
+   "result": "pass"
+  },
+  {
+   "name": "the crew shell really resolves through this varbit on a live client",
+   "detail": "with Jobless Jim recruited and assigned to crew slot 1 (crew actor 66938 at deck 6403,67), a right click on him from the CAPTAIN (role 10) opens 'Command Jobless Jim' / 'Examine Jobless Jim' -- the *_ship_op rung 10 of shell 15255. This is the same table a passenger's role 3 indexes.",
+   "image": "docs/sailing_validation/social/roles-captain-crew-menu.png",
+   "result": "pass"
+  },
+  {
+   "name": "rung 3 resolves to a real npc, rung 2 does not",
+   "detail": "proven in the server suite rather than on screen: selftest_sailing_multiplayer decodes npc 15255 out of the boot cache (12 rungs on varbit 19233) and resolves captain 10 -> npc 15256 (*_ship_op), navigator 6 -> 15257 and passenger 3 -> 15257 (*_ship_no_op, both ToriRSServer_NpcInfoKnown), while rung 2 is -1. Rows 000322..000328 of /tmp/sailing-roles-server.tsv.",
+   "result": "pass"
+  },
+  {
+   "name": "the PASSENGER's own rendered deck",
+   "detail": "NOT RUN. The peer is a server player with no client, so its view cannot be rendered; and the captain cannot be made a passenger with the levers this harness exposes (::vesselspawn leaves owner_uid 0, which the sync treats as captain, and no command reassigns ownership). Forcing the captain's own varbit 19233 to 3 with ::setting was TRIED and measured: after 'cheat setting 19233 3' and three frames the harness reads client 10 / server 10, because the same tick's sync rewrites the value before it is encoded. What a role-3 client resolves is therefore proven from the cache table in the suite, not from a screenshot.",
+   "result": "not_run"
+  }
+ ]
+}

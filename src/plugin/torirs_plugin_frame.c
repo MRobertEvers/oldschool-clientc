@@ -4,6 +4,42 @@
 #include <stdio.h>
 #include <string.h>
 
+int
+PluginFrameAnchorsValid(
+    struct ToriRS_FrameAnchor const* anchors, int count, uint32_t declared,
+    char* reason, size_t reason_size)
+{
+    char const* error = NULL;
+    if( count <= 0 || count > 32 ) error = "Invalid surface count.";
+    for( int i = 0; !error && i < count; i++ )
+    {
+        int target = anchors[i].slot;
+        int relation = anchors[i].relation;
+        if( relation == TORIRS_FRAME_RELATION_NATIVE ) continue;
+        if( relation < TORIRS_FRAME_RELATION_OVER || relation > TORIRS_FRAME_RELATION_REPLACE ||
+            target < 0 || target >= count || target == i )
+            error = "A surface needs a valid, different depth anchor.";
+        else if( !(declared & (1u << i)) || !(declared & (1u << target)) )
+            error = "Declare both surfaces before anchoring one to the other.";
+        else if( relation == TORIRS_FRAME_RELATION_REPLACE && target == TORIRS_SURFACE_VIEWPORT )
+            error = "The required live viewport cannot be replaced by another surface.";
+        else if( relation == TORIRS_FRAME_RELATION_REPLACE )
+            for( int j = 0; j < i; j++ )
+                if( anchors[j].relation == relation && anchors[j].slot == target )
+                    error = "Only one surface can replace a given anchor.";
+        int at = i;
+        for( int n = 0; !error && n <= count; n++ )
+        {
+            if( anchors[at].relation == TORIRS_FRAME_RELATION_NATIVE ) break;
+            at = anchors[at].slot;
+            if( at < 0 || at >= count ) { error = "Invalid depth anchor."; break; }
+            if( at == i || n == count ) error = "Surface depth anchors form a cycle.";
+        }
+    }
+    if( error && reason && reason_size ) snprintf(reason, reason_size, "%s", error);
+    return error == NULL;
+}
+
 static int
 plugin_frame_id_valid(char const* id)
 {

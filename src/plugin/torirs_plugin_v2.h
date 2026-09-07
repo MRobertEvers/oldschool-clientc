@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #define TORIRS_PLUGIN_API_V2_MAJOR 2u
-#define TORIRS_PLUGIN_API_V2_MINOR 3u
+#define TORIRS_PLUGIN_API_V2_MINOR 4u
 
 #define TORIRS_UI_NAME_MAX 128
 #define TORIRS_UI_ACTION_MAX 48
@@ -394,23 +394,39 @@ enum ToriRS_Surface
  * Members of TORIRS_SURFACE_ORBS, for ToriRS_FrameBuilder::surface_member.
  *
  * The orb pack (OldSchool interface 160) is placed whole by the ORBS surface
- * and lays its own children out inside that box: the four orbs, the XP
- * toggle, the world-map globe and the wiki banner sit at the same offsets on
- * every toplevel, so the block's rectangle is all a frame has to say about
- * them. The activity adviser is the one child whose spot the lane picks by
- * TOPLEVEL (`torirs_gridmaster_pos`: right-aligned beside the map on the
- * fixed one, under the run orb on the resizable ones), and a frame of the
- * other shape over that toplevel inherits the wrong spot -- inside the map
- * circle, or on the tab stones below the housing. So it is a member a frame
- * seats itself.
+ * and lays most of its children out inside that box on its own: the four
+ * orbs, the XP toggle and the store button are anchored to the block's top
+ * left and follow it wherever a frame puts it, so the block's rectangle is
+ * all a frame has to say about them.
  *
- * Unlike a sidebar tab, a member of the orb block a declaration does not
- * mention is HIDDEN, not moved with the block: it is a button inside the
- * block, and the block's box is no place for it.
+ * The three below are the ones the pack positions by TOPLEVEL, so a frame of
+ * one shape standing over another toplevel inherits the wrong spot for them:
+ *
+ *   ACTIVITY_ADVISER -- `torirs_gridmaster_pos` right-aligns it beside the
+ *     map on the fixed toplevel and puts it under the run orb on the
+ *     resizable ones, so the wrong one lands inside the map circle or on the
+ *     tab stones below the housing;
+ *   WORLD_MAP / WIKI -- `orbs_worldmap_setup_1700` and `wiki_icon_update_3306`
+ *     anchor both to the block's RIGHT edge and inset them by 10 and 8
+ *     columns on the fixed toplevel (1129) and by nothing on the resizable
+ *     ones (1130/1131), so the wrong one leaves the globe's rim and the
+ *     banner hanging off the alcove they are drawn to sit in.
+ *
+ * The two kinds behave differently when a declaration says nothing about
+ * them, because "nothing" means different things:
+ *
+ *   the adviser is SEATED -- a frame that does not place it does not show it,
+ *     because its native spot on the other toplevel is somewhere this frame
+ *     has no room for at all;
+ *   the globe and the banner are CARRIED -- a frame that does not place them
+ *     gets them where the pack put them, moved with the block, which is what
+ *     every frame written before they were named already asks for.
  */
 enum ToriRS_OrbsMember
 {
     TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER = 0,
+    TORIRS_ORBS_MEMBER_WORLD_MAP,
+    TORIRS_ORBS_MEMBER_WIKI,
     TORIRS_ORBS_MEMBER_COUNT,
 };
 
@@ -536,11 +552,39 @@ struct ToriRS_DrawBuilder
         struct ToriRS_DrawContext* out);
 };
 
+enum ToriRS_FrameRelation
+{
+    TORIRS_FRAME_RELATION_NATIVE = 0,
+    TORIRS_FRAME_RELATION_OVER,
+    TORIRS_FRAME_RELATION_BEHIND,
+    TORIRS_FRAME_RELATION_REPLACE,
+};
+
+/** Order the whole surface and its attached art relative to another surface.
+ * REPLACE suppresses that target's paint and input until this frame releases it.
+ * The target must be declared in the same build. The required live viewport
+ * may be arranged but cannot be substituted by another surface. Cycles and competing
+ * replacements reject the entire candidate and preserve the current frame. */
+struct ToriRS_FrameAnchor
+{
+    enum ToriRS_FrameRelation relation;
+    int slot; /* enum ToriRS_Surface */
+};
+
+/** A presentation declaration over live native UI. Server, CS1 and CS2
+ * mutations continue beneath effective geometry. Native hide/availability
+ * vetoes surface paint, attached contributions and actionable regions.
+ * Release exposes current native values. REPLACE inherits the target's
+ * native visibility and yields to it when the replacement source is hidden.
+ * Layout callbacks must not issue native navigation commands. */
 struct ToriRS_FrameBuilder
 {
     uint32_t struct_size;
     void* implementation;
 
+    /** Place a live surface. Non-viewport surfaces default to OVER(viewport),
+     * preserving a safe frame order even when only geometry is specified.
+     * Use surface_anchored for an explicit different relation. */
     void (*surface)(
         struct ToriRS_FrameBuilder* frame,
         int surface,
@@ -568,6 +612,9 @@ struct ToriRS_FrameBuilder
         struct ToriRS_FrameBuilder* frame,
         int surface,
         struct ToriRS_FrameSurfaceOverlay const* overlay);
+    void (*surface_anchored)(
+        struct ToriRS_FrameBuilder* frame, int surface,
+        struct ToriRS_Rect rect, struct ToriRS_FrameAnchor anchor);
 };
 
 typedef enum ToriRS_FrameBuildResult (*ToriRS_FrameBuildCallback)(
@@ -1234,6 +1281,8 @@ struct ToriRS_CacheApiV2
         int* out_id);
     int (*tab_active)(struct ToriRS_ApiV2* api);
     bool (*tab_enabled)(struct ToriRS_ApiV2* api, int tab);
+    /** Native navigation is allowed from action callbacks, not from layout,
+     * draw or background updates that might fight a server/script closure. */
     bool (*tab_select)(struct ToriRS_ApiV2* api, int tab);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 4])(void);
 };

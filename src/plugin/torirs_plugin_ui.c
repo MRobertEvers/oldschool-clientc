@@ -1284,6 +1284,7 @@ ToriRS_UiRegistry_AddContribution(
     memset(contribution, 0, sizeof(*contribution));
     contribution->used = true;
     contribution->enabled = true;
+    contribution->scope_enabled = true;
     contribution->serial = registry->_next_contribution_serial;
     registry->_next_contribution_serial = ui_revision_next(registry->_next_contribution_serial);
     contribution->node = (int)node_ref.value - 1;
@@ -1320,6 +1321,19 @@ ToriRS_UiRegistry_SetContributionEnabled(
     ui_queue_change(registry, contribution->node, contribution->facets);
     registry->_revision = ui_revision_next(registry->_revision);
     return TORIRS_UI_REGISTRY_OK;
+}
+
+void
+ToriRS_UiRegistry_SetPluginScope(struct ToriRS_UiRegistry* registry, char const* plugin, bool enabled)
+{
+    for( int i = 0; i < TORIRS_UI_REGISTRY_CONTRIBUTIONS_MAX; i++ )
+    {
+        struct ToriRS_UiRegistryContribution* contribution = &registry->_contributions[i];
+        if( !contribution->used || strcmp(contribution->plugin, plugin) || contribution->scope_enabled == enabled ) continue;
+        contribution->scope_enabled = enabled;
+        ui_queue_change(registry, contribution->node, contribution->facets);
+        registry->_revision = ui_revision_next(registry->_revision);
+    }
 }
 
 enum ToriRS_UiRegistryResult
@@ -1382,7 +1396,7 @@ ui_contribution_eligible(
     bool base_present)
 {
     assert(contribution);
-    if( !contribution->enabled )
+    if( !contribution->enabled || !contribution->scope_enabled )
         return false;
     if( contribution->mode == TORIRS_UI_MODIFY )
         return base_present;
@@ -1445,7 +1459,7 @@ ui_resolve_node(
         assert(contribution->used);
         contribution->active_facets = 0;
         contribution->conflict_facets = 0;
-        contribution->target_absent = contribution->enabled &&
+        contribution->target_absent = contribution->enabled && contribution->scope_enabled &&
                                       contribution->mode == TORIRS_UI_MODIFY &&
                                       !base_present;
     }

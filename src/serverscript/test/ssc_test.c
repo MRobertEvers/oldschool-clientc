@@ -2070,9 +2070,49 @@ test_lane_descriptors(void)
         printf("  note: could not clean up %s\n", dir);
 }
 
+static void
+test_recompile_transaction(void)
+{
+    struct Fixture fixture;
+    const char* label = "transactional incremental compile";
+    if( !fixture_compile(&fixture, "[proc,callee]()(int) return(7);\n[proc,caller]()(int) return(~callee);\n", label) ) return;
+    char path[600];
+    snprintf(path, sizeof(path), "%s/src/test.rs2", fixture.dir);
+    const char* cases[] = {
+        "[proc,callee]()(int) return(9);\n[proc,caller]()(int) return(~callee);\n",
+        "[proc,callee]()(int) return(123);\n[proc,caller]()(int) return(~missing);\n",
+        "[proc,callee](int $x)(int) return($x);\n[proc,caller]()(int) return(0);\n",
+        "[proc,callee]()(int) return(0);\n",
+        "[proc,callee]()(int) return(0);\n[proc,caller]()(int) return(0);\n[proc,new] return;\n",
+    };
+    for( int i = 0; i < 5; i++ )
+    {
+        FILE* file = fopen(path, "w");
+        CHECK(file != NULL, "write incremental fixture");
+        if( !file ) break;
+        fputs(cases[i], file); fclose(file);
+        struct SSC_Diag diag = {0};
+        int ok = SSC_RecompileFile(fixture.compiler, path, &diag);
+        CHECK_EQ(ok, i == 0, "body edit accepted; error/signature/add/remove rejected");
+        CHECK(SSC_Write(fixture.compiler, fixture.dir, &diag), "write last good compiler state");
+        SSVM_EnvFree(&fixture.env);
+        SSVM_ProviderFree(&fixture.provider);
+        struct SSVM_Error err;
+        SSVM_ErrorClear(&err);
+        CHECK(SSVM_ProviderLoadDir(&fixture.provider, fixture.dir, &err), "read incremental output");
+        SSVM_EnvInit(&fixture.env, &fixture.provider);
+        SSVM_EnvBindHost(&fixture.env, &fixture.record, record_command);
+        int32_t value = 0;
+        CHECK(run_script(&fixture, "[proc,caller]", NULL, 0, &value, label), "execute preserved caller");
+        CHECK_EQ(value, 9, "last good bytecode survives every failed edit");
+    }
+    fixture_close(&fixture);
+}
+
 int
 main(void)
 {
+    test_recompile_transaction();
     test_minimal();
     test_arguments_and_locals();
     test_calc_precedence();

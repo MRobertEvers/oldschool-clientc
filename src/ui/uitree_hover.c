@@ -2,6 +2,8 @@
 
 #include "perf/torirs_perf.h"
 #include "uitree_layout.h"
+#include "uitree_frame.h"
+#include <stdlib.h>
 
 #include <assert.h>
 #include <stddef.h>
@@ -66,6 +68,18 @@ UITree_HoverRoutingToIds(struct UIHoverRouting const* routing)
     return ids;
 }
 
+struct FrameHoverEvent
+{
+    int32_t node_plus_one;
+    int hovered;
+    int reset;
+};
+struct FrameHoverEvents
+{
+    struct FrameHoverEvent* items;
+    int count, capacity;
+};
+
 static void
 find_hovered_recursive(
     struct UITree const* tree,
@@ -77,7 +91,8 @@ find_hovered_recursive(
     int scroll_off_y,
     struct UITreeScrollClip const* clip,
     struct UITreeScrollClip const* surface,
-    int* out_hovered_component_id)
+    int* out_hovered_component_id,
+    struct FrameHoverEvents* ordered)
 {
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
@@ -85,11 +100,12 @@ find_hovered_recursive(
 
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_HOVER, 1);
 
-    if( clip && clip->clip_w > 0 && clip->clip_h > 0 &&
-        !UITree_PointInClip(mouse_x, mouse_y, clip) )
-        return;
+    bool const clipped = clip && clip->clip_w > 0 && clip->clip_h > 0 &&
+                         !UITree_PointInClip(mouse_x, mouse_y, clip);
+    if( clipped && !ordered->items ) return;
 
     struct UITreeComponent const* component = &tree->components[node_index];
+    if( !UITree_NodeNativeVisible(tree, host, node_index, -1) ) return;
 
     /* Match hit-test / emit: any hidden node is pruned (no self-report, no
      * children). IF_SETHIDE on type=5 spell icons must stop on_mouse_repeat
@@ -97,9 +113,17 @@ find_hovered_recursive(
      * visible jewellery-enchant sibling (last-match-wins). IF1 overlayer
      * tooltips stay correct: the visible cell redirects via over_layer_id;
      * the hidden tooltip layer never needs to self-report. */
-    if( component->behavior.hide || component->frame_hidden ||
-        component->replacement_hidden || component->projection_hidden )
+    if( component->behavior.hide || component->screen_hidden || component->projection_hidden ||
+        (component->frame_hidden && !component->replacement_hidden) ) return;
+    if( component->replacement_hidden )
+    {
+        if( ordered->items )
+        {
+            assert(ordered->count < ordered->capacity);
+            ordered->items[ordered->count++] = (struct FrameHoverEvent){ node_index + 1, -1, 0 };
+        }
         return;
+    }
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
      * walk), before this node can self-report as hovered via over_layer_id /
@@ -117,38 +141,48 @@ find_hovered_recursive(
     int bh = 0;
     UITree_LayoutGetBounds(&component->position, &bx, &by, &bw, &bh);
 
-    bool const mouse_in_bounds = UITree_PointInScrolledBounds(
+    bool const mouse_in_bounds = !clipped && UITree_PointInScrolledBounds(
         mouse_x, mouse_y, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 
     /* field4189/noClickThrough clears mouse events queued by widgets rendered
      * underneath before this widget contributes its own events. Preserve that
      * ordering here: discard the previous hover, then let this node/children
      * become hovered below. */
-    if( !component->replacement_input_hidden && mouse_in_bounds &&
-        component->no_click_through )
-        *out_hovered_component_id = -1;
+    int candidate = -1;
+    int const reset = !component->replacement_input_hidden && mouse_in_bounds &&
+                      (component->no_click_through || (ordered->items && node_index == tree->world_index));
 
     if( !component->replacement_input_hidden && mouse_in_bounds &&
         component->component_id >= 0 )
     {
         /* IF1 over-layer / colourOver redirect (TS addComponentOptions). */
         if( component->behavior.over_layer_id >= 0 )
-            *out_hovered_component_id = component->behavior.over_layer_id;
+            candidate = component->behavior.over_layer_id;
         else if( component->behavior.over_color != 0 )
-            *out_hovered_component_id = component->component_id;
+            candidate = component->component_id;
         /* CS2/IF3 addition: components with hover scripts must also report as
          * hovered so on_mouse_over / on_mouse_leave / on_mouse_repeat dispatch
          * (main loop). */
         else if( UITree_Hooks(component)->on_mouse_over.script_id > 0 ||
                  UITree_Hooks(component)->on_mouse_leave.script_id > 0 ||
                  UITree_Hooks(component)->on_mouse_repeat.script_id > 0 )
-            *out_hovered_component_id = component->component_id;
+            candidate = component->component_id;
+    }
+
+    if( ordered->items )
+    {
+        assert(ordered->count < ordered->capacity);
+        ordered->items[ordered->count++] = (struct FrameHoverEvent){ node_index + 1, candidate, reset };
+    }
+    else
+    {
+        if( reset ) *out_hovered_component_id = -1;
+        if( candidate >= 0 ) *out_hovered_component_id = candidate;
     }
 
     /* Inactive sidebar tabs already returned above; recursion only depends on
      * the mouse being inside this node's bounds. */
-    if( !mouse_in_bounds )
-        return;
+    if( !mouse_in_bounds && !ordered->items ) return;
 
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
@@ -214,57 +248,46 @@ find_hovered_recursive(
                 is_mount ? scroll_off_y : child_scroll_y,
                 &child_clip,
                 &child_surface,
-                out_hovered_component_id);
+                out_hovered_component_id, ordered);
         }
     }
 }
 
 int
 UITree_FindHoveredComponentIdForRegion(
-    struct UITree const* tree,
-    struct UITreeHost const* host,
-    int32_t root_index,
-    int mouse_x,
-    int mouse_y,
-    int region_x,
-    int region_y,
-    int region_w,
-    int region_h)
+    struct UITree const* tree, struct UITreeHost const* host, int32_t root_index,
+    int mouse_x, int mouse_y, int region_x, int region_y, int region_w, int region_h)
 {
+    int hovered = -1;
+    struct FrameHoverEvents ordered = { 0 };
     assert(tree);
-
-    int hovered_component_id = -1;
-
-    if( region_w <= 0 || region_h <= 0 )
-        return -1;
-
-    if( mouse_x < region_x || mouse_y < region_y ||
-        mouse_x >= region_x + region_w || mouse_y >= region_y + region_h )
-        return -1;
-
+    if( region_w <= 0 || region_h <= 0 || mouse_x < region_x || mouse_y < region_y ||
+        mouse_x >= region_x + region_w || mouse_y >= region_y + region_h ||
+        (root_index >= 0 && (uint32_t)root_index >= tree->component_count) ) return -1;
+    if( UITree_FrameHasDepth(tree) )
+    {
+        ordered.capacity = (int)tree->component_count + 1;
+        ordered.items = calloc((size_t)ordered.capacity, sizeof(*ordered.items));
+        assert(ordered.items);
+    }
     if( root_index >= 0 )
+        find_hovered_recursive(tree, host, root_index, mouse_x, mouse_y, 0, 0,
+                               NULL, NULL, &hovered, &ordered);
+    else
+        for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+            if( UITree_RootIsDisplayable(tree, root) )
+                find_hovered_recursive(tree, host, root, mouse_x, mouse_y, 0, 0,
+                                       NULL, NULL, &hovered, &ordered);
+    if( ordered.items )
     {
-        if( (uint32_t)root_index >= tree->component_count )
-            return -1;
-        find_hovered_recursive(
-            tree, host, root_index,
-            mouse_x, mouse_y, 0, 0, NULL, NULL,
-            &hovered_component_id);
-        return hovered_component_id;
+        ordered.count = UITree_FrameReorder(tree, host, ordered.items, ordered.count,
+                          sizeof(*ordered.items), offsetof(struct FrameHoverEvent, node_plus_one), NULL);
+        for( int i = 0; i < ordered.count; i++ )
+        {
+            if( ordered.items[i].reset ) hovered = -1;
+            if( ordered.items[i].hovered >= 0 ) hovered = ordered.items[i].hovered;
+        }
+        free(ordered.items);
     }
-
-    if( tree->root_index < 0 )
-        return -1;
-
-    for( int32_t root = tree->root_index; root >= 0;
-         root = tree->components[root].next_sibling )
-    {
-        if( !UITree_RootIsDisplayable(tree, root) )
-            continue;
-        find_hovered_recursive(
-            tree, host, root,
-            mouse_x, mouse_y, 0, 0, NULL, NULL,
-            &hovered_component_id);
-    }
-    return hovered_component_id;
+    return hovered;
 }

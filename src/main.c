@@ -9,12 +9,16 @@
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
 #include "game/cs2_harness.h"
+#include "game/content_test.h"
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
 #include "net/net.h"
 #include "net/net_out.h"
 #include "perf/torirs_perf.h"
+#if defined(TORIRS_FRAME_TIMES)
+#include "../tools/perf/gles2_frame_times.h"
+#endif
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_window.h"
@@ -635,7 +639,13 @@ interactive_render_present(
         App_DrawComplete(app, capture_from_gles2, gles2);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
+#if defined(TORIRS_FRAME_TIMES)
+            uint64_t before_us=PlatformWindow_TicksUs();
+#endif
             PlatformWindow_PresentGL(platform);
+#if defined(TORIRS_FRAME_TIMES)
+            ToriRS_FrameTimes_Present(before_us,PlatformWindow_TicksUs());
+#endif
         }
         return;
     }
@@ -1384,6 +1394,9 @@ frame_loop_step(void)
      * on every platform: the browser lane has no sleep to exclude but has the
      * same question to answer. */
     frame_start_us = PlatformWindow_TicksUs();
+#if defined(TORIRS_FRAME_TIMES)
+    ToriRS_FrameTimes_Begin(frame_start_us);
+#endif
     /* Carry the wall gap since the previous frame start, then open the frame:
      * FRAME_BEGIN moves the carry into this frame's bucket. Work and pace each
      * miss part of the loop, so only this is the period the player sees. */
@@ -1615,10 +1628,10 @@ frame_loop_step(void)
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INPUT_PREP)
         {
-            now = PlatformWindow_Ticks64();
+            now = ContentTest_Begin(&app, sock, &bus, PlatformWindow_Ticks64());
             /* Once per iteration, before any frame work: this is the sample
              * point the GameShell pacer's ten-iteration ring is built on. */
-            logic_now = ToriRS_Pacer_BeginFrame(&frame_pacer, now);
+            logic_now = ContentTest_Enabled() ? now : ToriRS_Pacer_BeginFrame(&frame_pacer, now);
             CmdBus_PushFrame(&bus, now);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PLATFORM_POLL)
             {
@@ -2622,6 +2635,14 @@ frame_loop_step(void)
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
         app_redraw = App_RunOnce(&app, logic_now, input);
+        /* Acceptance sessions rasterize explicit checkpoints; logic still runs at 50 Hz. */
+        if( ContentTest_Enabled() && getenv("TORIRS_CONTENT_TEST_CHECKPOINTS") )
+        {
+            int capture_pending = 0;
+            for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
+                capture_pending |= app.plugin_screenshots[i].in_use;
+            if( !capture_pending ) app_redraw = 0;
+        }
 
         /*
          * While the async pipeline has work, this loop stops waiting out the
@@ -2761,6 +2782,8 @@ frame_loop_step(void)
             }
         }
     }
+    if( ContentTest_DrawRequested(&app) )
+        app_redraw = 1;
     if( app_redraw )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
@@ -2931,6 +2954,9 @@ frame_loop_step(void)
      * main(). */
     fflush(stderr);
     App_NoteFrameTime(&app, PlatformWindow_TicksUs() - frame_start_us);
+#if defined(TORIRS_FRAME_TIMES)
+    ToriRS_FrameTimes_End(PlatformWindow_TicksUs());
+#endif
 
     /*
      * TORIRS_FPS_REPORT=1: frames per second, every two seconds.
@@ -3008,7 +3034,8 @@ frame_loop_step(void)
      * App_RunOnce, which does real work. When the queue drains, async_pending
      * clears and the ordinary wait resumes on the very next frame.
      */
-    if( !replay && !uncapped && !App_AsyncPending(&app) )
+    ContentTest_End(&app, sock);
+    if( !replay && !uncapped && !ContentTest_Enabled() && !App_AsyncPending(&app) )
     {
         uint64_t pace_begin_us = PlatformWindow_TicksUs();
         uint64_t wait_until_ms =
@@ -3089,11 +3116,12 @@ frame_loop_teardown(void)
          * than the cache says is why its children escape the clip. */
         if( getenv("TORIRS_DUMP_BOUNDS") && app.tree )
         {
-            int want = (int)strtol(getenv("TORIRS_DUMP_BOUNDS"), NULL, 0);
+            char const* filter = getenv("TORIRS_DUMP_BOUNDS");
+            int want = strcmp(filter, "all") == 0 ? -1 : (int)strtol(filter, NULL, 0);
             for( uint32_t i = 0; i < app.tree->component_count; i++ )
             {
                 struct UITreeComponent const* c = &app.tree->components[i];
-                if( c->freed || ((c->component_id >> 16) & 0xFFFF) != want )
+                if( c->freed || (want >= 0 && ((c->component_id >> 16) & 0xFFFF) != want) )
                     continue;
                 /* TORIRS_REPORT, not TORIRS_LOG: the lever is the env var,
                  * and the optimised build is the one the geometry question is
@@ -3122,6 +3150,21 @@ frame_loop_teardown(void)
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_width : -1,
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
                     c->scroll_x, c->scroll_y);
+            }
+        }
+
+        if( getenv("TORIRS_DUMP_BOUNDS") && app.plugins )
+        {
+            static char const* parts[] = { "frame.orb.hitpoints", "frame.orb.prayer",
+                "frame.orb.run", "frame.orb.special", "frame.chat.backing", "frame.chat.bar" };
+            int reader = PluginHost_IndexOf(app.plugins, "minimap-orbs");
+            for( size_t i = 0; reader >= 0 && i < sizeof(parts) / sizeof(parts[0]); i++ )
+            {
+                struct ToriRS_UiNodeRef ref = PluginHost_UiRef(app.plugins, reader, parts[i]);
+                struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+                if( PluginHost_UiInfo(app.plugins, ref, &info) )
+                    TORIRS_REPORT("UI_PART name=%s visible=%d box=%d,%d %dx%d\n", parts[i], info.visible,
+                                  info.bounds.x, info.bounds.y, info.bounds.width, info.bounds.height);
             }
         }
 

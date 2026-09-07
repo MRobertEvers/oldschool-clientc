@@ -60,7 +60,8 @@
 
 /** Concurrent instances. One per active POH / minigame session; the reference
  *  caps by pool size too (Kronos's FREE_REGIONS deque). */
-#define TORIRSSERVER_MAPINSTANCE_MAX 8
+/* Fifteen published vessel decks plus independent player activities. */
+#define TORIRSSERVER_MAPINSTANCE_MAX 32
 
 /**
  * Zones per axis the *scene* can show (REBUILD_REGION is a 4 x 13 x 13 grid).

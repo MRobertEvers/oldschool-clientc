@@ -2861,8 +2861,33 @@ v2_builder_surface(
         return;
     }
     scope->surface_mask |= 1u << surface;
+    scope->runtime->context->host->layout_candidate.anchors[surface_token] =
+        (struct ToriRS_FrameAnchor){ surface == TORIRS_SURFACE_VIEWPORT
+            ? TORIRS_FRAME_RELATION_NATIVE : TORIRS_FRAME_RELATION_OVER,
+            TORIRS_HOST_SURFACE_VIEWPORT };
+
         (void)host_frame_surface(
             scope->runtime->context, surface_token, rect.x, rect.y, rect.width, rect.height);
+}
+
+static void
+v2_builder_surface_anchored(
+    struct ToriRS_FrameBuilder* frame, int surface, struct ToriRS_Rect rect,
+    struct ToriRS_FrameAnchor anchor)
+{
+    struct PluginV2FrameScope* scope = v2_frame_scope(frame);
+    int const slot = v2_surface_slot(surface);
+    int const target = anchor.relation == TORIRS_FRAME_RELATION_NATIVE
+                           ? TORIRS_HOST_SURFACE_VIEWPORT : v2_surface_slot(anchor.slot);
+    v2_builder_surface(frame, surface, rect);
+    if( scope->invalid || slot < 0 || target < 0 )
+    {
+        scope->invalid = true;
+        snprintf(scope->reason, sizeof(scope->reason), "The depth declaration has an invalid surface, rectangle or anchor.");
+        return;
+    }
+    scope->runtime->context->host->layout_candidate.anchors[slot] =
+        (struct ToriRS_FrameAnchor){ anchor.relation, target };
 }
 
 static void
@@ -2890,6 +2915,12 @@ v2_builder_surface_member(
     scope->members[scope->member_count].surface = surface;
     scope->members[scope->member_count].member = member;
     scope->member_count++;
+    if( !(scope->surface_mask & (1u << surface)) )
+        scope->runtime->context->host->layout_candidate.anchors[surface_token] =
+            (struct ToriRS_FrameAnchor){ surface == TORIRS_SURFACE_VIEWPORT
+                ? TORIRS_FRAME_RELATION_NATIVE : TORIRS_FRAME_RELATION_OVER,
+                TORIRS_HOST_SURFACE_VIEWPORT };
+
         (void)host_frame_surface_member(
             scope->runtime->context,
             surface_token,
@@ -3048,6 +3079,7 @@ plugin_v2_runtime_frame_begin(
         .struct_size = sizeof(*out),
         .implementation = scope,
         .surface = v2_builder_surface,
+        .surface_anchored = v2_builder_surface_anchored,
         .surface_member = v2_builder_surface_member,
         .skin = v2_builder_skin,
         .surface_overlay = v2_builder_surface_overlay,

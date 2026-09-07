@@ -62,6 +62,7 @@ enum PluginCallbackKind
     PLUGIN_CALLBACK_PANEL_ACTION,
     PLUGIN_CALLBACK_PANEL_LAYOUT,
     PLUGIN_CALLBACK_PANEL_DRAW,
+    PLUGIN_CALLBACK_UI_NODE_ACTION,
     PLUGIN_CALLBACK_COUNT
 };
 
@@ -372,6 +373,7 @@ struct PluginLayoutCandidate
         int h;
     } rects[TORIRS_PLUGIN_LAYOUT_RECTS_MAX];
     int rect_count;
+    struct ToriRS_FrameAnchor anchors[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
     struct PluginLayoutSkin
     {
         bool declared;
@@ -451,6 +453,8 @@ struct ToriRS_PluginHost
     struct ToriRS_FrameSelection frame_selection;
     /** Last completely validated and engine-committed offer. */
     int frame_active_entry;
+    int frame_bound_root;
+    uint32_t frame_bound_slots;
     /** Offer named by the current request, still only a candidate. */
     int frame_target_entry;
     /** One-shot request consumed by the app's next safe layout fence. */
@@ -1106,6 +1110,22 @@ _Static_assert(
     (int)TORIRS_SCREEN_GAME == 30,
     "plugin screen GAME");
 
+/* And enum ToriRS_HostOrbsMember, which the tree reads, against the contract's
+ * enum ToriRS_OrbsMember, which a frame declaration is written in. */
+_Static_assert(
+    (int)TORIRS_HOST_ORBS_MEMBER_ACTIVITY_ADVISER ==
+        (int)TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER,
+    "orb member ACTIVITY_ADVISER");
+_Static_assert(
+    (int)TORIRS_HOST_ORBS_MEMBER_WORLD_MAP == (int)TORIRS_ORBS_MEMBER_WORLD_MAP,
+    "orb member WORLD_MAP");
+_Static_assert(
+    (int)TORIRS_HOST_ORBS_MEMBER_WIKI == (int)TORIRS_ORBS_MEMBER_WIKI,
+    "orb member WIKI");
+_Static_assert(
+    (int)TORIRS_HOST_ORBS_MEMBER_COUNT == (int)TORIRS_ORBS_MEMBER_COUNT,
+    "orb member count");
+
 static int
 api_screen(struct PluginContext* ctx)
 {
@@ -1555,6 +1575,17 @@ api_tab_select(
     int tabno)
 {
     assert(ctx);
+    switch( ctx->host->dispatch_event )
+    {
+    case PLUGIN_CALLBACK_KEY:
+    case PLUGIN_CALLBACK_MENU_SELECT:
+    case PLUGIN_CALLBACK_CANVAS_CLICK:
+    case PLUGIN_CALLBACK_PANEL_ACTION:
+    case PLUGIN_CALLBACK_UI_NODE_ACTION:
+        break;
+    default:
+        return false;
+    }
     /* A tab number a plugin read off its own stone table. */
     if( tabno < 0 )
         return false;
@@ -6402,6 +6433,10 @@ plugin_frame_selection_active(
     host->frame_selection.status = status;
     snprintf(host->frame_selection.reason, sizeof(host->frame_selection.reason), "%s", why);
     host->frame_selection.revision++;
+    if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
+        TORIRS_LOG("frame_selection: requested=%s active=%s status=%d reason=%s\n",
+                   host->frame_selection.requested_id, active, status, why);
+
 }
 
 static void
@@ -6435,6 +6470,28 @@ plugin_frame_engine_activate(
     host->layout_fixed_w = width;
     host->layout_fixed_h = height;
     plugin_layout_publish(host);
+    for( int i = 0; i < host->plugin_count; i++ )
+        if( host->plugins[i].def && host->plugins[i].def->frames )
+            ToriRS_UiRegistry_SetPluginScope(&host->ui_registry, host->plugins[i].name, i == owner);
+
+}
+
+static void plugin_frame_target_set(struct ToriRS_PluginHost* host, int entry);
+
+static void
+plugin_frame_discard_stale_binding(struct ToriRS_PluginHost* host, int desired_entry)
+{
+    if( host->frame_active_entry < 0 ) return;
+    bool stale = host->engine.frame_root && host->engine.frame_root(host->engine.user) != host->frame_bound_root;
+    if( host->engine.layout_slot_exists )
+        for( int slot = 0; slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; slot++ )
+            if( (host->frame_bound_slots & (1u << slot)) &&
+                !host->engine.layout_slot_exists(host->engine.user, slot, -1) ) stale = true;
+    if( !stale ) return;
+    plugin_frame_engine_activate(host, -1);
+    plugin_frame_target_set(host, desired_entry);
+    host->frame_layout_requested = 1;
+    plugin_ui_refresh_base(host);
 }
 
 static int
@@ -7770,6 +7827,9 @@ plugin_ui_contributions_start(struct PluginContext* ctx)
         }
         ctx->ui_contribution_refs[ctx->ui_contribution_count++] = ref;
     }
+    if( ctx->def->frames )
+        ToriRS_UiRegistry_SetPluginScope(&ctx->host->ui_registry, ctx->name,
+                                        plugin_frame_owner(ctx->host) == ctx->index);
     ctx->ui_contributions_registered = true;
     ctx->host->placement_cache_valid = 0;
     return 2;
@@ -8761,12 +8821,15 @@ PluginHost_UiInvoke(
         {
             struct PluginV2Instance* v2 = host->plugins[provider].v2;
             int const previous = host->dispatching;
+            int const previous_event = host->dispatch_event;
             enum ToriRS_CallbackResult result;
 
             host->dispatching = provider;
+            host->dispatch_event = PLUGIN_CALLBACK_UI_NODE_ACTION;
             result = v2->definition->callbacks.on_ui_node_action(
                 &v2->runtime.api, v2->state, node, action);
             host->dispatching = previous;
+            host->dispatch_event = previous_event;
             if( result == TORIRS_CALLBACK_CONSUME )
                 return true;
         }
@@ -10815,6 +10878,10 @@ plugin_layout_candidate_apply(struct ToriRS_PluginHost* host)
             candidate->scrollbar_count ? candidate->scrollbar : NULL,
             candidate->scrollbar_count);
 
+    if( host->engine.layout_slot_anchor )
+        for( int slot = 0; slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; slot++ )
+            host->engine.layout_slot_anchor(host->engine.user, slot,
+                candidate->anchors[slot].relation, candidate->anchors[slot].slot);
     host->engine.layout_end(host->engine.user);
 }
 
@@ -10994,12 +11061,38 @@ PluginHost_Layout(
             : v2_result == TORIRS_FRAME_UNSUPPORTED ? "The selected gameframe is unsupported here."
                                                     : "The selected gameframe could not be built.";
 
+        plugin_frame_discard_stale_binding(host, build_entry);
         plugin_frame_selection_active(host, plugin_frame_committed_id(host), status, reason);
         return;
     }
 
+    {
+        uint32_t declared = 0;
+        for( int i = 0; i < host->layout_candidate.rect_count; i++ )
+            declared |= 1u << host->layout_candidate.rects[i].slot;
+        if( !PluginFrameAnchorsValid(host->layout_candidate.anchors,
+                TORIRS_HOST_SURFACE_PLACEABLE_COUNT, declared,
+                validation_reason, sizeof(validation_reason)) )
+            plugin_layout_candidate_fail(host, validation_reason);
+        if( !host->engine.layout_slot_anchor )
+            for( int i = 0; i < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; i++ )
+                if( host->layout_candidate.anchors[i].relation )
+                    plugin_layout_candidate_fail(host, "This host cannot apply anchored surfaces.");
+    }
+    if( host->engine.layout_slot_exists )
+        for( int i = 0; i < host->layout_candidate.rect_count; i++ )
+        {
+            struct PluginLayoutRect const* rect = &host->layout_candidate.rects[i];
+            if( rect->member == -1 && !host->engine.layout_slot_exists(host->engine.user, rect->slot, -1) )
+            {
+                snprintf(validation_reason, sizeof(validation_reason),
+                         "The native layout has no bound %s surface.", plugin_frame_surface_name(rect->slot));
+                plugin_layout_candidate_fail(host, validation_reason);
+            }
+        }
     if( host->layout_candidate.invalid )
     {
+        plugin_frame_discard_stale_binding(host, build_entry);
         plugin_frame_selection_active(
             host,
             plugin_frame_committed_id(host),
@@ -11012,6 +11105,7 @@ PluginHost_Layout(
     if( !plugin_frame_candidate_ui_valid(
             host, owner, validation_reason, sizeof(validation_reason)) )
     {
+        plugin_frame_discard_stale_binding(host, build_entry);
         plugin_frame_selection_active(
             host,
             plugin_frame_committed_id(host),
@@ -11040,6 +11134,11 @@ PluginHost_Layout(
                 plugin_v2_frame_node_repoint(&v2->frame_ui[i]);
         }
         plugin_layout_candidate_apply(host);
+        host->frame_bound_root = host->engine.frame_root ? host->engine.frame_root(host->engine.user) : -1;
+        host->frame_bound_slots = 0;
+        for( int i = 0; i < host->layout_candidate.rect_count; i++ )
+            if( host->layout_candidate.rects[i].member == -1 )
+                host->frame_bound_slots |= 1u << host->layout_candidate.rects[i].slot;
         plugin_frame_selection_active(host, entry->id, TORIRS_FRAME_STATUS_ACTIVE, "");
         plugin_ui_refresh_base(host);
         host->placement_cache_valid = 0;

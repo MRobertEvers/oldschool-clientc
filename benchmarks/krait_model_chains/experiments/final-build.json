@@ -1,0 +1,9 @@
+{
+  "source_commit": "9fca0e47a plus working-tree renderer changes",
+  "files": {
+    "android/build/outputs/apk/debug/ToriRS-debug.apk": "2d60759add0557399904b86b4b2b4176104374fc1b8d4f113fbdf64a45ff0beb",
+    "android/src/main/jniLibs/armeabi-v7a/libtorirs.so": "f29aa1d82291afe975282a2870c836c9939f33f770075225c99d28d4382cafc7"
+  },
+  "normal_build": true,
+  "device": "T062809L3Z"
+}

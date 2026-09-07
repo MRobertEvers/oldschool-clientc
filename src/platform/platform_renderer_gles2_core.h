@@ -603,6 +603,8 @@ struct ToriRS_GLES2
     /* --- programs and cached GL state ----------------------------------- */
     struct GLES2Program program_world_plain;
     struct GLES2Program program_world_cutout;
+    struct GLES2Program program_world_fast_plain;
+    struct GLES2Program program_world_fast_cutout;
     struct GLES2Program program_ui;
     struct GLES2Program program_rotmask;
     const struct GLES2Program* current_program;
@@ -815,6 +817,20 @@ struct ToriRS_GLES2
     int pick_mouse_x;
     int pick_mouse_y;
     struct ToriRS_PickHits pick_hits;
+
+    /* Resolved primary static poses, rebuilt with batch_poses. Draw-owned. */
+    struct GLES2StaticPrimary* static_primary;
+    uint32_t static_primary_capacity;
+    uint32_t* static_primary_bits;
+    uint32_t static_resource_epoch;
+    bool static_primary_enabled;
+    bool pose_reuse_enabled;
+    bool poses_prepared;
+    bool actor_world_cache_enabled;
+    bool actor_direct_encode;
+    bool world_fast_shader;
+    float* actor_world_xyz;
+    uint32_t actor_world_capacity;
 };
 
 /**

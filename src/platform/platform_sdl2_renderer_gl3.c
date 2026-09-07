@@ -5697,7 +5697,9 @@ ToriRS_GL3_ReadPixels(
     assert(fb);
 
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
-    glReadBuffer(GL_BACK);
+    /* App_DrawComplete requests the presented frame after the swap. The back
+     * buffer is then reusable/undefined and can contain the next clear. */
+    glReadBuffer(GL_FRONT);
     glReadPixels(0, 0, fb_w, fb_h, TORIRS_GL_READ_FORMAT, GL_UNSIGNED_BYTE, fb);
 
     sx = (float)gl3->lb_w / (float)width;

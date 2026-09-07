@@ -9,6 +9,7 @@
 #include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_scene.h"
 #include "toridraw_types.h"
+#include "render/torirs_frame_flat.u.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -2338,8 +2339,13 @@ frame_view_push(
     frame->view_stack[depth + 1].world = xf->world ? xf->world : frame->view_stack[depth].world;
     frame->view_stack[depth + 1].off_x = frame->view_stack[depth].off_x + px;
     frame->view_stack[depth + 1].off_z = frame->view_stack[depth].off_z + pz;
-    frame->view_stack[depth + 1].off_y =
-        frame->view_stack[depth].off_y + xf->translate_y + xf->flatten_y_offset;
+    frame->view_stack[depth + 1].off_y = frame->view_stack[depth].off_y +
+        (int)(frame->view_stack[depth].scale_y *
+              (xf->translate_y + xf->flatten_scale * xf->flatten_y_offset));
+    frame->view_stack[depth + 1].scale_y =
+        frame->view_stack[depth].scale_y * xf->flatten_scale;
+    frame->view_stack[depth + 1].flat_hsl = xf->flat_hsl >= 0
+        ? xf->flat_hsl : frame->view_stack[depth].flat_hsl;
     frame->view_stack[depth + 1].yaw = (parent_yaw + xf->yaw) & 0x7ff;
     frame->view_stack[depth + 1].view_id = view_id;
 
@@ -2403,7 +2409,8 @@ frame_view_apply(
     sn = ToriDraw_Sin(yaw);
     out.x = ((local->x * cs + local->z * sn) >> 16) + frame->view_stack[depth].off_x;
     out.z = ((local->z * cs - local->x * sn) >> 16) + frame->view_stack[depth].off_z;
-    out.y = local->y + frame->view_stack[depth].off_y;
+    out.y = (int)(local->y * frame->view_stack[depth].scale_y) +
+            frame->view_stack[depth].off_y;
     out.yaw = ToriDraw_NormalizeAngle(local->yaw + yaw);
     return out;
 }
@@ -2462,8 +2469,16 @@ try_emit_world_draw_model(
             int reach = cur;
             int i;
             /* A view marker between here and a command moves the world the
-             * command resolves in: stop the lookahead at the marker. */
-            for( i = cur + 1; i <= cur + depth && i < count; i++ )
+             * command resolves in: stop the lookahead at the marker.
+             *
+             * The walk starts at `cur` itself, not at cur + 1. The markers are
+             * consumed BELOW this block, so while the current command is one,
+             * the view it opens (or closes) is not on the stack yet: every
+             * command after it would be resolved against the outgoing view's
+             * world and the ring would remember that answer for the command's
+             * own turn. A marker therefore prefetches nothing; the command
+             * after it resolves at its own turn, under its own view. */
+            for( i = cur; i <= cur + depth && i < count; i++ )
             {
                 uint32_t const kind = frame->painters->commands[i]._bf_kind;
                 if( kind == PNTR_CMD_BEGIN_WORLD || kind == PNTR_CMD_END_WORLD )
@@ -2495,6 +2510,17 @@ try_emit_world_draw_model(
          * TORIRS_ONLY_LOC or TORIRS_PAINT_LIMIT run cannot desync the stack. */
         if( cmd->_bf_kind == PNTR_CMD_BEGIN_WORLD )
         {
+            /* A refused descent is an adjacent empty pair. Consume it without
+             * another context: at the registry bound even that empty push
+             * would require a seventeenth frame. */
+            if( frame->painters_index < frame->painters->command_count )
+            {
+                const struct PaintersElementCommand* next =
+                    &frame->painters->commands[frame->painters_index];
+                if( next->_bf_kind == PNTR_CMD_END_WORLD &&
+                    next->_entity._bf_entity == cmd->_entity._bf_entity )
+                { ++frame->painters_index; continue; }
+            }
             frame_view_push(frame, (int)cmd->_entity._bf_entity);
             continue;
         }
@@ -2507,6 +2533,8 @@ try_emit_world_draw_model(
         assert(frame->view_depth >= 0);
         assert(frame->view_depth < TORIRS_FRAME_MAX_VIEWS);
         view_world = frame->view_stack[frame->view_depth].world;
+        bool flat = frame->view_stack[frame->view_depth].flat_hsl >= 0;
+        if( flat && cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY ) continue;
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT || cmd->_bf_kind == PNTR_CMD_TERRAIN ||
             cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
@@ -2660,23 +2688,36 @@ try_emit_world_draw_model(
             }
         }
 
+        /* A GPU frame may freeze each requested pose here. The model is
+         * element-owned and the world update cannot advance until FrameEnd.
+         * The feed release publishes these geometry writes to the worker. */
+        if( (frame->prepare_gpu_poses || flat) && el->animation )
+            ToriDraw_SceneElementApplyAnimationResolved(el,element_id,true,el->anim_frame,true);
+
         frame_command_reset(out);
         out->kind = TORIRSRC_DRAW_MODEL;
-        out->u.model.model = el->model;
+        out->u.model.model = flat
+            ? frame_flat_model(frame->flat_arena, el->model,
+                               frame->view_stack[frame->view_depth].scale_y,
+                               frame->view_stack[frame->view_depth].flat_hsl)
+            : el->model;
         out->u.model.position = rel;
         /* Root space, not deck space: picking and the debug dumps both read
          * this as "where the thing is in the world". */
         out->u.model.world_position = abs_pos;
         out->u.model.element_id = element_id;
-        out->u.model.animation = el->animation;
+        out->u.model.animation = flat ? NULL : el->animation;
         out->u.model.anim_frame = el->anim_frame;
-        out->u.model.dynamic = el->dynamic;
+        /* A static deck model moves in root space with its carrier. Retained
+         * GPU vertices baked at the deck's original placement cannot serve
+         * this draw: publish the composed placement through the dynamic lane. */
+        out->u.model.dynamic = el->dynamic || frame->view_depth>0;
         /* Primary pose track.  Assigned rather than left to a zeroed
          * command: this is the one field on the 1,621-per-frame path
          * that used to arrive as 0 by accident rather than on
          * purpose. */
         out->u.model.anim_index = 0;
-        out->u.model.pickable = true;
+        out->u.model.pickable = !flat;
         out->u.model.pick_aabb = el->pick_aabb;
         /* Which view this draw belongs to, off the descent stack: a deck
          * tile's pick coords are the DECK's own tiles, and the click layer
@@ -2810,7 +2851,7 @@ ToriRS_FrameSetWorld(
      * subtract it always has. */
     frame->views[0] = (struct ToriRS_FrameViewXform){
         .world = world,
-        .flatten_scale_q16 = 65536,
+        .flatten_scale = 1.0f,
         .flat_hsl = -1,
         .live = true,
     };
@@ -2849,7 +2890,7 @@ ToriRS_FrameSetViewXform(
         .translate_z = translate_z,
         .yaw = yaw & 0x7ff,
         /* C4 fills these; identity keeps the compose arithmetic uniform. */
-        .flatten_scale_q16 = 65536,
+        .flatten_scale = 1.0f,
         .flatten_y_offset = 0,
         .flat_hsl = -1,
         .live = true,
@@ -2862,6 +2903,14 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     assert(frame);
     assert(frame->scene);
     assert(frame->canvas_w > 0 && frame->canvas_h > 0);
+    assert(!frame->flat_arena);
+    for( int i = 1; i < TORIRS_FRAME_MAX_VIEWS; ++i )
+        if( frame->views[i].live && frame->views[i].flat_hsl >= 0 )
+        {
+            frame->flat_arena = calloc(1, sizeof(*frame->flat_arena));
+            assert(frame->flat_arena);
+            break;
+        }
     /* TORIRS_PAINT_LIMIT_STEP: advance the cap once per frame (from frame
      * TORIRS_PAINT_LIMIT_STEP_AT on, so a login/cinematic prefix does not
      * consume the sweep), so a TORIRS_BMP_SERIES run flips through the paint
@@ -2891,12 +2940,15 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->view_depth = 0;
     memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
     frame->view_stack[0].world = frame->world;
+    frame->view_stack[0].scale_y = 1.0f;
+    frame->view_stack[0].flat_hsl = -1;
     frame->scrollbar_step = 0;
     frame->event_index = 0;
     frame->in_world = false;
     frame->world_begun = false;
     frame->has_queued = false;
     frame->world_only = false;
+    frame->prepare_gpu_poses = false;
     memset(&frame->queued, 0, sizeof(frame->queued));
     memset(&frame->pending_begin_3d, 0, sizeof(frame->pending_begin_3d));
 }
@@ -2920,12 +2972,15 @@ ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame)
     frame->view_depth = 0;
     memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
     frame->view_stack[0].world = frame->world;
+    frame->view_stack[0].scale_y = 1.0f;
+    frame->view_stack[0].flat_hsl = -1;
     frame->scrollbar_step = 0;
     frame->event_index = 0;
     frame->in_world = false;
     frame->world_begun = false;
     frame->has_queued = false;
     frame->world_only = true;
+    frame->prepare_gpu_poses = false;
     memset(&frame->queued, 0, sizeof(frame->queued));
     memset(&frame->pending_begin_3d, 0, sizeof(frame->pending_begin_3d));
 }
@@ -3043,6 +3098,8 @@ again:
             frame->view_depth = 0;
             memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
             frame->view_stack[0].world = frame->world;
+            frame->view_stack[0].scale_y = 1.0f;
+            frame->view_stack[0].flat_hsl = -1;
 
             if( frame->pass == TORIRS_FRAME_PASS_2D )
             {
@@ -3116,6 +3173,10 @@ void
 ToriRS_FrameEnd(struct ToriRS_Frame* frame)
 {
     assert(frame);
+    assert(!frame->world_only);
+    frame_flat_free(frame->flat_arena);
+    frame->flat_arena = NULL;
+    frame->prepare_gpu_poses = false;
     if( frame->scene )
         ToriDraw_SceneFrameEnd(frame->scene);
     frame->pass = TORIRS_FRAME_PASS_NONE;

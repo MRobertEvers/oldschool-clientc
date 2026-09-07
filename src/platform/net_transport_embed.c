@@ -55,6 +55,8 @@ struct NetTransportEmbed
     char const* rev_name;
     int last_status;
     long next_tick_ms;
+    int test_clock;
+    unsigned long long test_now;
 };
 
 static void
@@ -132,7 +134,7 @@ embed_poll(
         return;
 
     /* 2. let the server act, and tick it on its own schedule */
-    now = (long)PlatformWindow_Ticks64();
+    now = self->test_clock ? (long)self->test_now : (long)PlatformWindow_Ticks64();
     run_tick = self->next_tick_ms == 0 || now >= self->next_tick_ms;
     if( run_tick )
     {
@@ -215,6 +217,16 @@ static struct NetTransportVTable const k_embed_vtable = {
     .free_ = embed_free,
 };
 
+struct ToriRSServerEmbed*
+NetTransport_TestClock(struct NetTransport* t, unsigned long long now)
+{
+    if( !t || t->vtable != &k_embed_vtable ) return NULL;
+    struct NetTransportEmbed* self = (struct NetTransportEmbed*)t;
+    self->test_clock = 1;
+    self->test_now = now;
+    return self->embed;
+}
+
 struct NetTransport*
 NetTransport_NewEmbed(int default_port, char const* rev_name)
 {
@@ -253,6 +265,13 @@ NetTransport_NewEmbed(int default_port, char const* rev_name)
     (void)rev_name;
     TORIRS_LOG("net: this build has no embedded server — rebuild with "
             "`make -C src torirs EMBED_SERVER=1`\n");
+    return NULL;
+}
+
+struct ToriRSServerEmbed*
+NetTransport_TestClock(struct NetTransport* t, unsigned long long now)
+{
+    (void)t; (void)now;
     return NULL;
 }
 

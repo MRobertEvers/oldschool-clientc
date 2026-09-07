@@ -2567,8 +2567,8 @@ CS2VM2_Op_CC_TriggerOp(
  * "STRING"], [], False)` for the common "i" signature) and xrsps's
  * forwardIfTriggerOpLocal: pop signature, then typed args per char, then
  * childIndex / component / crc (top to bottom). crc is the IF_SCRIPT_TRIGGER
- * script key on real rev-239 wire; ignored here. sub for the packet is
- * childIndex when set, else the first typed int (Quest XP View-journal).
+ * script key on real rev-239 wire. Preserve every argument for that packet;
+ * sub retains the pre-239 fallback for Quest XP View-journal.
  */
 int
 CS2VM2_Op_IF_TriggerOpLocal(
@@ -2585,44 +2585,30 @@ CS2VM2_Op_IF_TriggerOpLocal(
     if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK || !signature )
         return CS2VM_EXECNO_ERROR;
 
+    struct CS2VM_HostRequest request = {0};
+    request.kind = CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL;
     int typed0 = -1;
     int argc = (int)strlen(signature);
-    for( int i = argc - 1; i >= 0; i-- )
+    if( argc > 16 ) return CS2VM_EXECNO_ERROR;
+    request.u.IF_TRIGGEROPLOCAL.signature = signature;
+    request.u.IF_TRIGGEROPLOCAL.count = argc;
+    for( int i = argc - 1; i >= 0; --i )
     {
         if( signature[i] == 'i' )
         {
-            int v;
-            if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
+            if( CS2VM2_PopInt(vm, &request.u.IF_TRIGGEROPLOCAL.values[i]) != CS2VM_EXECNO_OK )
                 return CS2VM_EXECNO_ERROR;
-            if( i == 0 )
-                typed0 = v;
+            if( i == 0 ) typed0 = request.u.IF_TRIGGEROPLOCAL.values[i];
         }
-        else
-        {
-            char* ignored = NULL;
-            if( CS2VM2_PopStr(vm, &ignored) != CS2VM_EXECNO_OK )
-                return CS2VM_EXECNO_ERROR;
-        }
+        else if( CS2VM2_PopStr(vm, &request.u.IF_TRIGGEROPLOCAL.strings[i]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
     }
-
-    int child_index;
-    int component_id;
-    int crc;
-    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_PopInt(vm, &request.u.IF_TRIGGEROPLOCAL.child) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &request.u.IF_TRIGGEROPLOCAL.component_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &request.u.IF_TRIGGEROPLOCAL.crc) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &crc) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    (void)crc;
-
-    int sub = (child_index != -1) ? child_index : typed0;
-
-    struct CS2VM_HostRequest request;
-    request.kind = CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL;
-    memset(&request.u.IF_TRIGGEROPLOCAL, 0, sizeof(request.u.IF_TRIGGEROPLOCAL));
-    request.u.IF_TRIGGEROPLOCAL.component_id = component_id;
-    request.u.IF_TRIGGEROPLOCAL.sub = sub;
+    request.u.IF_TRIGGEROPLOCAL.sub = request.u.IF_TRIGGEROPLOCAL.child != -1
+        ? request.u.IF_TRIGGEROPLOCAL.child : typed0;
 
     return vm->vm->host_exec(vm, &request);
 }
@@ -7333,11 +7319,12 @@ CS2VM2_Op_ArraySortAll(
  * per run, silently, because the stub returned OK for anything past the
  * generated table. See CS2VM2_Op_StackMetaStub.
  */
-int
-CS2VM2_Op_ArrayCountMatches(
+static int
+cs2vm2_array_search(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
-    int operand)
+    int operand,
+    int first_only)
 {
     assert(vm);
     assert(frame);
@@ -7375,7 +7362,7 @@ CS2VM2_Op_ArrayCountMatches(
 
     struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
     if( !array )
-        return CS2VM2_PushInt(vm, 0);
+        return CS2VM2_PushInt(vm, first_only ? -1 : 0);
 
     int first = start < 0 ? 0 : start;
     int last = (end < 0 || end > array->size) ? array->size : end;
@@ -7387,15 +7374,34 @@ CS2VM2_Op_ArrayCountMatches(
         {
             char const* cell = array->cells.strings[i];
             if( want_str && strcmp(cell ? cell : "", search_str ? search_str : "") == 0 )
+            {
+                if( first_only ) return CS2VM2_PushInt(vm, i);
                 matches++;
+            }
         }
         else if( want_int && array->cells.ints[i] == search_int )
         {
+            if( first_only ) return CS2VM2_PushInt(vm, i);
             matches++;
         }
     }
 
-    return CS2VM2_PushInt(vm, matches);
+    return CS2VM2_PushInt(vm, first_only ? -1 : matches);
+}
+
+int
+CS2VM2_Op_ArrayCountMatches(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int operand)
+{
+    return cs2vm2_array_search(vm, frame, operand, 0);
+}
+
+/* Native opcode 8005: Statics.method12336 -> method5683. Same typed
+ * arguments as ARRAY_COUNT_MATCHES, but return the first index or -1.
+ * Sailing's facility loop searches repeatedly from previous_index + 1. */
+static int
+cs2vm2_array_find(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int operand)
+{
+    return cs2vm2_array_search(vm, frame, operand, 1);
 }
 
 /*
@@ -11018,6 +11024,7 @@ CS2VM2_Op_CC_SetModelKind(
     switch( opcode )
     {
         CS2VM_CC_MODEL_KIND_CASE(CC_SETNPCHEAD);
+        CS2VM_CC_MODEL_KIND_CASE(CC_SETLOCMODEL);
         CS2VM_CC_MODEL_KIND_CASE(CC_SETPLAYERHEAD_SELF);
         CS2VM_CC_MODEL_KIND_CASE(CC_SETPLAYERMODEL_SELF);
         CS2VM_CC_MODEL_KIND_CASE(CC_SETMODEL_PLAYERCHATHEAD);
@@ -11065,6 +11072,7 @@ CS2VM2_Op_IF_SetModelKind(
     switch( opcode )
     {
         CS2VM_IF_MODEL_KIND_CASE(IF_SETNPCHEAD);
+        CS2VM_IF_MODEL_KIND_CASE(IF_SETLOCMODEL);
         CS2VM_IF_MODEL_KIND_CASE(IF_SETPLAYERHEAD_SELF);
         CS2VM_IF_MODEL_KIND_CASE(IF_SETMODEL_PLAYERCHATHEAD);
     default:
@@ -11585,6 +11593,9 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETNPCHEAD:
         return CS2VM2_Op_CC_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_NPC_HEAD, true, opcode);
+    case CS2_OP_CC_SETLOCMODEL:
+        return CS2VM2_Op_CC_SetModelKind(
+            vm, frame, operand, CS2VM_MODEL_KIND_LOC, true, opcode);
     case CS2_OP_CC_SETPLAYERHEAD_SELF:
         return CS2VM2_Op_CC_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false, opcode);
@@ -11597,6 +11608,9 @@ CS2VM2_RunOp(
     case CS2_OP_IF_SETNPCHEAD:
         return CS2VM2_Op_IF_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_NPC_HEAD, true, opcode);
+    case CS2_OP_IF_SETLOCMODEL:
+        return CS2VM2_Op_IF_SetModelKind(
+            vm, frame, operand, CS2VM_MODEL_KIND_LOC, true, opcode);
     case CS2_OP_IF_SETPLAYERHEAD_SELF:
         return CS2VM2_Op_IF_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false, opcode);
@@ -12188,6 +12202,33 @@ CS2VM2_RunOp(
         return CS2VM2_Op_InvGetNum(vm, frame, operand);
     case CS2_OP_INV_TOTAL:
         return CS2VM2_Op_InvTotal(vm, frame, operand);
+    case CS2_OP_INVOTHER_GETOBJ:
+    case CS2_OP_INVOTHER_GETNUM:
+    case CS2_OP_INVOTHER_TOTAL:
+    {
+        int inv_id, value;
+        if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &inv_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        struct CS2VM_HostRequest request = {0};
+        request.kind = (enum CS2VM_HostRequestKind)opcode;
+        switch( opcode )
+        {
+        case CS2_OP_INVOTHER_GETOBJ:
+            request.u.INVOTHER_GETOBJ.inv_id = inv_id;
+            request.u.INVOTHER_GETOBJ.slot = value;
+            break;
+        case CS2_OP_INVOTHER_GETNUM:
+            request.u.INVOTHER_GETNUM.inv_id = inv_id;
+            request.u.INVOTHER_GETNUM.slot = value;
+            break;
+        default:
+            request.u.INVOTHER_TOTAL.inv_id = inv_id;
+            request.u.INVOTHER_TOTAL.item_id = value;
+            break;
+        }
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_CLIENTCLOCK:
     {
         struct CS2VM_HostRequest request;
@@ -12988,13 +13029,79 @@ CS2VM2_RunOp(
     case CS2_OP_HISCORES_ERROR:
         return CS2VM2_Op_Hiscores(vm, opcode);
 
+    case CS2_OP_WORLDENTITY_SETDRAWLIMIT:
+    {
+        struct CS2VM_HostRequest request = {0};
+        request.kind = CS2VM_HOST_REQUEST_WORLDENTITY_SETDRAWLIMIT;
+        if( CS2VM2_PopInt(vm, &request.u.WORLDENTITY_SETDRAWLIMIT.limit) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_WORLDENTITY_GETDRAWLIMIT:
+    {
+        struct CS2VM_HostRequest request = {0};
+        request.kind = CS2VM_HOST_REQUEST_WORLDENTITY_GETDRAWLIMIT;
+        return vm->vm->host_exec(vm, &request);
+    }
+
     /* === CS2 opcode group: array (8000..8099) ===
      * typed list and array commands.
      * rev-239 dispatch: Statics.method6889 -> method12336. */
+    case CS2_OP_ARRAY_FILL:
+    {
+        /* Statics.method12336 -> method3374: typed value, offset and count.
+         * Native Sailing initializes its thirteen facility slots with -1. */
+        int type, count, offset, value=0;
+        char *text=NULL, *handle=NULL;
+        if( CS2VM2_PopInt(vm,&type)!=CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm,&count)!=CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm,&offset)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        if( type==0 )
+        {
+            if( CS2VM2_PopInt(vm,&value)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        }
+        else if( type==2 )
+        {
+            if( CS2VM2_PopStr(vm,&text)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        }
+        else if( type!=-1 ) return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm,&handle)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        struct CS2VM2_Array* array=cs2vm2_array_from_handle(vm,handle);
+        if( !array || (array->is_string ? type==0 : type!=0) ) return CS2VM_EXECNO_ERROR;
+        if( offset<0 ) offset=0;
+        if( offset>array->size ) return CS2VM_EXECNO_ERROR;
+        if( count<0 || count>array->size-offset ) count=array->size-offset;
+        for( int i=0; i<count; ++i )
+            if( array->is_string ) array->cells.strings[offset+i]=text;
+            else array->cells.ints[offset+i]=value;
+        return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_ARRAY_FILL_SEQUENCE:
+    {
+        /* rev239 Statics.method12336 -> method8778: initialize a sequence,
+         * starting at value, over offset/count (negative count=the rest).
+         * Cargo uses (0,-1,-1) to preserve original slots while sorting. */
+        int value, offset, count;
+        char* handle;
+        if( CS2VM2_PopInt(vm,&count)!=CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm,&offset)!=CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm,&value)!=CS2VM_EXECNO_OK ||
+            CS2VM2_PopStr(vm,&handle)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        struct CS2VM2_Array* array=cs2vm2_array_from_handle(vm,handle);
+        if( !array || array->is_string ) return CS2VM_EXECNO_ERROR;
+        if( offset<0 ) offset=0;
+        if( offset>=array->size ) return CS2VM_EXECNO_OK;
+        if( count<0 || count>array->size-offset ) count=array->size-offset;
+        for( int i=0; i<count; ++i )
+            array->cells.ints[offset+i]=(int)((uint32_t)value+(uint32_t)i);
+        return CS2VM_EXECNO_OK;
+    }
     case CS2_OP_ARRAY_SORT_ALL:
         return CS2VM2_Op_ArraySortAll(vm, frame, operand);
     case CS2_OP_ARRAY_COUNT_MATCHES:
         return CS2VM2_Op_ArrayCountMatches(vm, frame, operand);
+    case CS2_OP_ARRAY_FIND:
+        return cs2vm2_array_find(vm, frame, operand);
     case CS2_OP_ARRAY_LENGTH:
         return CS2VM2_Op_ArrayLength(vm, frame, operand);
     case CS2_OP_ARRAY_SPLIT:

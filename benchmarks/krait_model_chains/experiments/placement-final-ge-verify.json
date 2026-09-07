@@ -1,0 +1,8 @@
+{
+  "corpus": "benchmarks/krait_model_chains/placement-ge-pipeline.chain.gz",
+  "sha256": "57e6d480c81a97fe12bfb9d023475b3ad463a57aebb69367bd5bae6594aee4d3",
+  "binary_sha256": "cf9e9cad0b8dd4da4e6b728448a1aa26fd806442498d679c7e7c579e5ad1bed1",
+  "events": {},
+  "graph": "graph: 33306 elements, 1 batches, 66 pages; descriptor bytes=1065792",
+  "verified": "verified: 2889 real placement queries, 7114 ordered records, both arms"
+}

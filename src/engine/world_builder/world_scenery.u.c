@@ -46,26 +46,22 @@ static const int ROTATION_WALL_CORNER_TYPE[] = {
 };
 
 static struct ToriRS_Location*
-world_builder_resolve_loc(
-    struct WorldBuilder* builder,
-    struct ToriRS_Location* base_loc)
+world_builder_resolve_loc(struct WorldBuilder* builder, struct ToriRS_Location* base_loc)
 {
-    int resolved_id;
-
+    assert(builder);
     assert(base_loc);
-    if( base_loc->transform_count <= 0 || !base_loc->transforms )
-        return base_loc;
-
-    resolved_id = VarPManager_ResolveTransform(
-        builder->varp,
-        base_loc->transforms,
-        base_loc->transform_count,
-        base_loc->transform_varbit,
-        base_loc->transform_varp);
-    if( resolved_id < 0 )
-        return NULL;
-
-    return CacheProvider_LocationGet(builder->cache, resolved_id);
+    struct ToriRS_Location* resolved = base_loc;
+    for( int depth = 0; depth < 16; ++depth )
+    {
+        if( resolved->transform_count <= 0 || !resolved->transforms ) return resolved;
+        int id = VarPManager_ResolveTransform(builder->varp, resolved->transforms,
+            resolved->transform_count, resolved->transform_varbit, resolved->transform_varp);
+        if( id < 0 ) return NULL;
+        if( id == resolved->id ) return resolved;
+        resolved = CacheProvider_LocationGet(builder->cache, id);
+        if( !resolved ) return NULL; /* async loader has not supplied this variant yet */
+    }
+    return NULL; /* malformed cyclic transform chain */
 }
 
 /**

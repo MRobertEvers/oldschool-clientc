@@ -101,6 +101,8 @@ static struct
         int h;
     } slot[TORIRS_HOST_SURFACE_COUNT];
     struct FakeRect member[TORIRS_HOST_SURFACE_COUNT][FAKE_SLOT_MEMBERS];
+    int anchor_relation[TORIRS_HOST_SURFACE_COUNT];
+    int anchor_slot[TORIRS_HOST_SURFACE_COUNT];
     int begin_calls;
     int end_calls;
 
@@ -147,7 +149,8 @@ static struct
 static int
 fake_has_slot(int slot)
 {
-    return slot != TORIRS_HOST_SURFACE_COMPASS;
+    (void)slot;
+    return 1;
 }
 
 static void
@@ -178,6 +181,14 @@ fake_layout_end(void* u)
 {
     (void)u;
     g_frame.end_calls++;
+}
+
+static void
+fake_layout_slot_anchor(void* u, int slot, int relation, int target)
+{
+    (void)u;
+    g_frame.anchor_relation[slot] = relation;
+    g_frame.anchor_slot[slot] = target;
 }
 
 static int
@@ -1055,6 +1066,7 @@ main(void)
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
+    e.layout_slot_anchor = fake_layout_slot_anchor;
     e.layout_slot_exists = fake_layout_slot_exists;
     e.layout_slot_skin = fake_layout_slot_skin;
     e.layout_slot_overlay = fake_layout_slot_overlay;

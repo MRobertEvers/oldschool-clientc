@@ -1,4 +1,6 @@
 #include "app.h"
+#include "ui/uitree_canvas_measure.h"
+#include "game/rs_minimap_state.h"
 #include "torirs_env.h"
 #include "log/torirs_log.h"
 
@@ -112,6 +114,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
 #include "render/torirs_world_projection.h"
+#include "game/sailing_navigation.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
 #include "ui/uitree_build.h"
@@ -990,6 +993,77 @@ app_if_events_for_node(
     return App_IfEventsGetEffective(app, com_id);
 }
 
+/*
+ * Which target kinds a component actually offers — deob `method12079`'s
+ * `method7577(method12093(this, widget))`, the same pair `rs_cs2_target_mask`
+ * keeps for IF/CC_GETTARGETMASK and `component_effective_target_mask`
+ * (rs_minimenu_build.c) uses to decide whether to BUILD the target row.
+ *
+ * The arm has to agree with the builder or the row and the arm disagree about
+ * what the click meant: reading only the widget's decoded `target_mask` armed
+ * a script-built button with mask 0, and `add_world_select_row` then refused
+ * every world row while target mode was active — a menu with the verb on it
+ * and nothing the verb could be used on. A `cc_create`d child is memset to
+ * zero and no `cc_` opcode can write a target mask, so its whole declaration
+ * is the server's `if_setevents` (sailing's crew panel: `^if_event_op_all +
+ * 16384`, bit 14 -> mask 0x8 PLAYER).
+ *
+ * The shift is IF3-only, exactly as in the two functions above: a dat1
+ * component stores `targetMask` unshifted in `click_mask`, so shifting an IF1
+ * events word by 11 would turn a real answer into noise.
+ */
+static int
+app_component_target_mask(
+    struct App const* app,
+    int com_id)
+{
+    int32_t idx;
+    struct UITreeComponent const* node;
+    int mask;
+
+    assert(app);
+    if( !app->tree )
+        return 0;
+    idx = UITree_FindByComponentId(app->tree, com_id);
+    if( idx < 0 )
+        return 0;
+    node = &app->tree->components[idx];
+    mask = (int)node->behavior.target_mask;
+    if( node->if3 )
+        mask |= (int)((App_IfEventsGetEffective(app, com_id) >> TORIRS_TARGET_MASK_IF3_SHIFT) &
+                      TORIRS_TARGET_MASK_IF3_BITS);
+    return mask;
+}
+
+/*
+ * The identity the SERVER knows the armed component by — the one that goes on
+ * the wire in OPPLAYERT/OPNPCT/OPLOCT/OPOBJT/OPHELDT.
+ *
+ * `targetsel.component_id` is the TREE id, because that is what the local
+ * target-enter/leave hooks are dispatched against. For a dynamic child that id
+ * is a runtime allocation the server has never heard of, so putting it on the
+ * wire meant `[opplayert,sailing_sidepanel:crew_content_clicklayer]` could
+ * never match and the armed click did nothing at all. `app_if_button_target`
+ * is the same (container, index-within-it) resolution IF_BUTTON already does,
+ * and it is a no-op for a static spellbook button.
+ *
+ * Resolved here rather than stored at arm time because the armed component's
+ * parent is what the packet needs and `targetsel` has no wire-id field; the
+ * tree cannot have moved the child to a different container between the arm
+ * and the click without destroying it, and a destroyed child resolves to
+ * itself, which is what an unarmed cast already sends.
+ */
+static int
+app_targetsel_wire_component(struct App const* app)
+{
+    int com;
+    int sub;
+
+    assert(app);
+    app_if_button_target(app, app->targetsel.component_id, &com, &sub);
+    return com;
+}
+
 static void
 app_send_if_button(
     void* user,
@@ -1116,6 +1190,157 @@ app_wev_actor_root_fine(
     app_wev_deck_box(app, wev, app->world, &box);
     Wev_ParentFromDeck(&box, placement->x, placement->z, out_fx, out_fz);
     return 1;
+}
+
+static int
+app_sailing_at_helm(struct App* app)
+{
+    int id = app->sailing_at_helm_varbit;
+    return id >= 0 && id < app->varps.varbit_count &&
+           app->aboard_view != WORLDVIEW_ROOT &&
+           Wevs_IsLive(&app->wevs, app->aboard_view) &&
+           WorldviewRegistry_IsLive(&app->worldviews, app->aboard_view) &&
+           VarPManager_GetVarbit(&app->varps, id) != 0;
+}
+
+static int
+app_sailing_can_steer(struct App* app)
+{
+    if( app_sailing_at_helm(app) ) return 1;
+    int role=app->sailing_captain_role_varbit;
+    if( app->aboard_view==WORLDVIEW_ROOT ||
+        !Wevs_IsLive(&app->wevs,app->aboard_view) ||
+        !WorldviewRegistry_IsLive(&app->worldviews,app->aboard_view) ||
+        role<0 || role>=app->varps.varbit_count ||
+        VarPManager_GetVarbit(&app->varps,role)!=10 ) return 0;
+    for( int slot=0; slot<5; ++slot )
+    {
+        int duty=app->sailing_crew_duty_varbit[slot];
+        int roster=app->sailing_crew_roster_varbit[slot];
+        if( duty>=0 && duty<app->varps.varbit_count &&
+            roster>=0 && roster<app->varps.varbit_count &&
+            (VarPManager_GetVarbit(&app->varps,duty)==3 || VarPManager_GetVarbit(&app->varps,duty)==4) &&
+            VarPManager_GetVarbit(&app->varps,roster)>0 ) return 1;
+    }
+    return 0;
+}
+
+/* The native selector intersects the pointer ray with the boat's horizontal
+ * plane (class108.method3786), so it works over deck geometry and open sea. */
+static int
+app_sailing_heading_at(struct App* app, int mouse_x, int mouse_y, int* heading)
+{
+    assert(heading);
+    if( !app_sailing_can_steer(app) || !app->world_view_valid ) return 0;
+    struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
+    if( vessel->parent_view_id != WORLDVIEW_ROOT ) return 0;
+    double x, z;
+    if( !ToriRS_WorldUnprojectPlane(
+            &app->world_camera, &app->world_camera_pos,
+            app->world_emit_desc.x, app->world_emit_desc.y,
+            app->world_emit_desc.w, app->world_emit_desc.h,
+            mouse_x, mouse_y, vessel->y, &x, &z) ) return 0;
+    x -= vessel->x - app->world->_base_tile_x * 128;
+    z -= vessel->z - app->world->_base_tile_z * 128;
+    if( fabs(x) < 0.001 && fabs(z) < 0.001 ) return 0;
+    *heading = SailingNavigation_Heading(x, z);
+    return 1;
+}
+
+static void
+app_sailing_menu_context(struct App* app, struct RS_MinimenuBuildCtx* ctx,
+                         int mouse_x, int mouse_y)
+{
+    ctx->sailing_navigating = app_sailing_can_steer(app) != 0;
+    /* With crew at the helm the captain is free to walk and work on deck.
+     * Only open-water/root picks become bearings; a held player helm keeps
+     * the native all-directions selector. */
+    if( ctx->sailing_navigating && !app_sailing_at_helm(app) && ctx->world_pickset )
+        for( int i=0; i<ctx->world_pickset->count; ++i )
+            if( ctx->world_pickset->items[i].type==WORLD_PICK_TERRAIN &&
+                ctx->world_pickset->items[i].view_id==app->aboard_view )
+                ctx->sailing_navigating=false;
+    ctx->sailing_heading_valid = ctx->sailing_navigating &&
+        app_sailing_heading_at(app, mouse_x, mouse_y, &ctx->sailing_heading);
+}
+
+static int
+app_sailing_send_heading(struct App* app, int heading)
+{
+    if( !app_sailing_can_steer(app) || !app->net || app->net->state != TORIRS_NET_GAME ) return 0;
+    APP_NET_SEND(app, net_out_set_heading(
+        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), heading));
+    app->sailing_selected_heading = heading;
+    app->sailing_selected_until = app->logic_cycle + 30;
+    app->need_redraw = 1;
+    return 1;
+}
+
+/* The two native defaults meshes render through the world painter, including
+ * perspective, terrain occlusion, and GPU depth. They have no interaction row.
+ * Statics.method8694 places each four or more tiles along its chosen bearing. */
+static void
+app_sailing_register_arrows(struct App* app, struct World* world)
+{
+    if( world != app->world || !app_sailing_can_steer(app) ) return;
+    struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
+    if( vessel->parent_view_id != WORLDVIEW_ROOT ) return;
+    int hover = -1;
+    if( app->world_mouse_in_viewport && !app->pointer_absent &&
+        !app->interact.minimenu.visible &&
+        !strcmp(app->host.clientop.mouseover_op, "Set heading") )
+        app_sailing_heading_at(app, app->world_mouse_x, app->world_mouse_y, &hover);
+    int selected = app->logic_cycle < app->sailing_selected_until
+                       ? app->sailing_selected_heading : -1;
+    int scale = app->world_camera.projection_mode == TORIDRAW_PROJECTION_MODE_FOV
+                    ? toridraw_projection_scale_from_fov(app->world_camera.fov_rpi2048)
+                    : app->world_camera.projection_scale;
+    if( scale <= 0 ) scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    int distance = app->world_emit_desc.h > 0
+                       ? (int)(1400.0 - scale * 4.0 * 334.0 / app->world_emit_desc.h) : 512;
+    if( distance < 512 ) distance = 512;
+    for( int i = 0; i < 2; ++i )
+    {
+        int heading = i == 0 ? hover : selected;
+        if( heading < 0 || (i == 0 && heading == selected) ) continue;
+        int model_id = app->sailing_arrow_model[i];
+        if( model_id < 0 ) continue;
+        if( !CacheProvider_ModelHas(app->provider, model_id) )
+        {
+            if( !app->sailing_arrow_loading[i] )
+            {
+                ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_ModelLoad(app->provider, model_id));
+                app->sailing_arrow_loading[i] = 1;
+            }
+            continue;
+        }
+        int element = app->sailing_arrow_element[i];
+        if( element < 0 )
+        {
+            struct ToriRS_Model* source = CacheProvider_ModelGet(app->provider, model_id);
+            assert(source);
+            struct ToriDraw_Model* model = ToriDraw_ModelFromToriRS(source);
+            assert(model);
+            struct ToriDraw_ModelHandle handle = { .kind = TORIDRAWMK_MODEL };
+            handle.u.model.model = model;
+            ToriDraw_ModelSetBoundsCylinder(model);
+            ToriDraw_LightModelScene(handle, 0, 0);
+            element = ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+            assert(element >= 0);
+            ToriDraw_SceneElementSetModel(app->scene, element, handle);
+            app->sailing_arrow_element[i] = element;
+        }
+        int angle = heading * 128;
+        int x = vessel->x - world->_base_tile_x * 128 -
+                (int)((int64_t)ToriDraw_Sin(angle) * distance / 65536);
+        int z = vessel->z - world->_base_tile_z * 128 -
+                (int)((int64_t)ToriDraw_Cos(angle) * distance / 65536);
+        int gx = x >> 7, gz = z >> 7;
+        if( gx < 0 || gz < 0 || gx >= world->_scene_size || gz >= world->_scene_size ) continue;
+        ToriDraw_SceneElementSetPosition(app->scene, element, x, vessel->y - 8, z, angle);
+        painter_add_normal_scenery(world->painter, gx, gz,
+            World_LocPaintLevel(world, gx, gz, vessel->parent_level), element, 1, 1, 0);
+    }
 }
 
 /* World_LocalPlaneFn: the reference's minusedlevel — the plane of the MAP the
@@ -2558,15 +2783,24 @@ app_world_project_actor(
     int ground_y;
     int deck_level;
 
-    if( !placement || placement->home_view == 0 ||
-        placement->home_view != placement->view_id ||
+    if( !placement || placement->view_id == WORLDVIEW_ROOT ||
         !Wevs_IsLive(&app->wevs, placement->view_id) ||
         !WorldviewRegistry_IsLive(&app->worldviews, placement->view_id) )
         return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
     wev = Wevs_Get(&app->wevs, placement->view_id);
+    /* Model population and its overlay have the same visibility contract:
+     * flattened/skipped passengers must not leave floating names or bars. */
+    if( wev->flattened || !wev->render_visible ) return 0;
     if( wev->parent_view_id != WORLDVIEW_ROOT )
         return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
     view = WorldviewRegistry_Get(&app->worldviews, placement->view_id);
+    if( placement->home_view == 0 )
+    {
+        /* Projected crew retain root-wire draw positions, but their borrowed
+         * render placement already contains the correct deck-local point. */
+        fine_x = placement->x;
+        fine_z = placement->z;
+    }
     app_wev_deck_box(app, wev, app->world, &box);
     Wev_ParentFromDeck(&box, fine_x, fine_z, &root_fx, &root_fz);
     deck_level = actor_level;
@@ -6494,7 +6728,9 @@ app_host_request(
         return app->world_map_scene_id;
     }
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
-        return app->minimap_state != APP_MINIMAP_STATE_NORMAL;
+        return !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_DRAW_MAP);
+    case UITREE_HOST_GET_COMPASS_HIDDEN:
+        return !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_DRAW_COMPASS);
     case UITREE_HOST_GET_MULTIWAY:
         return app->multiway == 1;
     case UITREE_HOST_GET_REBOOT_TIMER:
@@ -7922,81 +8158,76 @@ app_loc_transform_depends_on_varp(
 }
 
 static void
-app_varp_refresh_loc_transforms(
-    struct App* app,
-    int varp_id)
+app_varp_refresh_loc_transforms(struct App* app, int varp_id)
 {
-    struct World_EntityPool* pool;
-    enum
+    assert(app);
+    if( !app->provider || varp_id < 0 ) return;
+    int previous_view = app->active_world;
+    /* Each view has independent scene-local tile keys. In particular, (3,2)
+     * on a raft must never retype (3,2) in the root or another boat. */
+    for( int view = 0; view < WORLDVIEW_MAX; ++view )
     {
-        MAX_REFRESH = 256
-    };
-    struct
-    {
-        int x, z, level, loc_id, shape, angle;
-    } pending[MAX_REFRESH];
-    int n = 0;
-
-    if( !app || !app->world || !app->world->load_complete || !app->provider )
-        return;
-    if( varp_id < 0 )
-        return;
-
-    pool = &app->world->entities.scenery;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, i);
-        struct ToriRS_Location* loc;
-        int x, z, level, shape, angle, loc_id;
-        int dup;
-
-        if( !sc )
-            continue;
-        loc = CacheProvider_LocationGet(app->provider, sc->loc_id);
-        if( !app_loc_transform_depends_on_varp(app, loc, varp_id) )
-            continue;
-
-        x = sc->grid_position.x;
-        z = sc->grid_position.z;
-        level = sc->grid_position.level;
-        loc_id = sc->loc_id;
-        shape = sc->shape;
-        angle = sc->angle;
-
-        /* L-walls register two pool halves on the same tile+shape — one refresh. */
-        dup = 0;
-        for( int j = 0; j < n; j++ )
+        if( !WorldviewRegistry_IsLive(&app->worldviews, view) ) continue;
+        struct World* world = WorldviewRegistry_Get(&app->worldviews, view)->world;
+        if( !world || !world->load_complete ) continue;
+        enum { MAX_REFRESH = 256 };
+        struct
         {
-            if( pending[j].x == x && pending[j].z == z && pending[j].level == level &&
-                pending[j].shape == shape )
+            int x, z, level, loc_id, shape, angle, op_flags;
+            char ops[5][32];
+        } pending[MAX_REFRESH];
+        int n = 0;
+        struct World_EntityPool* pool = &world->entities.scenery;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, i);
+            assert(sc);
+            struct ToriRS_Location* loc = CacheProvider_LocationGet(app->provider, sc->loc_id);
+            int depends = 0;
+            /* A varp may drive a descendant of the placed wrapper. Every
+             * config along a previously materialised chain is resident. */
+            for( int depth = 0; loc && depth < 16; ++depth )
             {
-                dup = 1;
-                break;
+                if( app_loc_transform_depends_on_varp(app, loc, varp_id) )
+                { depends = 1; break; }
+                if( loc->transform_count <= 0 || !loc->transforms ) break;
+                int next = VarPManager_ResolveTransform(&app->varps, loc->transforms,
+                    loc->transform_count, loc->transform_varbit, loc->transform_varp);
+                if( next < 0 || next == loc->id ) break;
+                loc = CacheProvider_LocationGet(app->provider, next);
             }
+            if( !depends ) continue;
+            int duplicate = 0;
+            for( int j = 0; j < n; ++j )
+                if( pending[j].x == sc->grid_position.x && pending[j].z == sc->grid_position.z &&
+                    pending[j].level == sc->grid_position.level && pending[j].shape == sc->shape )
+                { duplicate = 1; break; }
+            if( duplicate ) continue;
+            if( n == MAX_REFRESH ) break;
+            pending[n].x = sc->grid_position.x; pending[n].z = sc->grid_position.z;
+            pending[n].level = sc->grid_position.level; pending[n].loc_id = sc->loc_id;
+            pending[n].shape = sc->shape; pending[n].angle = sc->angle;
+            pending[n].op_flags = 0x1f;
+            memset(pending[n].ops, 0, sizeof(pending[n].ops));
+            for( int op = 0; op < 5; ++op )
+                if( sc->placement_op_overrides & (1 << op) )
+                {
+                    if( !(sc->placement_op_mask & (1 << op)) )
+                        pending[n].op_flags &= ~(1 << op);
+                    else
+                        snprintf(pending[n].ops[op], sizeof(pending[n].ops[op]), "%s",
+                                 sc->info->actions[op].name);
+                }
+            ++n;
         }
-        if( dup )
-            continue;
-        if( n >= MAX_REFRESH )
-            break;
-        pending[n].x = x;
-        pending[n].z = z;
-        pending[n].level = level;
-        pending[n].loc_id = loc_id;
-        pending[n].shape = shape;
-        pending[n].angle = angle;
-        n++;
+        app->active_world = view;
+        for( int i = 0; i < n; ++i )
+            App_WorldLocChangeOps(app, pending[i].x, pending[i].z, pending[i].level,
+                pending[i].loc_id, pending[i].shape, pending[i].angle,
+                pending[i].op_flags, pending[i].ops);
     }
-
-    for( int i = 0; i < n; i++ )
-        App_WorldLocChange(
-            app,
-            pending[i].x,
-            pending[i].z,
-            pending[i].level,
-            pending[i].loc_id,
-            pending[i].shape,
-            pending[i].angle);
+    app->active_world = previous_view;
 }
 
 /*
@@ -10169,6 +10400,20 @@ App_Init(
     /* World entities (sailing, SAILING_PLAN C1): no boats until
      * WORLDENTITY_INFO spawns one; the config table fills at boot. */
     Wevs_Init(&app->wevs);
+    app->sailing_at_helm_varbit = RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sailing_player_at_helm");
+    app->sailing_captain_role_varbit = RevConfigRefs_Get(&app->revconfig_refs,"varbit","sailing_captain_role");
+    for( int slot=0; slot<5; ++slot )
+    {
+        char key[48];
+        snprintf(key,sizeof(key),"sailing_crew_duty_%d",slot+1);
+        app->sailing_crew_duty_varbit[slot]=RevConfigRefs_Get(&app->revconfig_refs,"varbit",key);
+        snprintf(key,sizeof(key),"sailing_crew_roster_%d",slot+1);
+        app->sailing_crew_roster_varbit[slot]=RevConfigRefs_Get(&app->revconfig_refs,"varbit",key);
+    }
+    app->sailing_crew_category = RevConfigRefs_Get(&app->revconfig_refs, "category", "sailing_crew");
+    app->sailing_arrow_model[0] = RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_hover");
+    app->sailing_arrow_model[1] = RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_selected");
+    app->sailing_arrow_element[0] = app->sailing_arrow_element[1] = -1;
     WevConfigTable_Init(&app->wev_configs);
     /* The dynamic-registration pass puts every entity floating in this world
      * into its painter as a transient pseudo-loc (SAILING_PLAN C3). Boat worlds
@@ -11269,10 +11514,6 @@ app_wev_deck_box(
     struct WevDeckBox* out_box);
 static void
 app_wev_decide_flatten(struct App* app);
-static int
-app_wev_flat_ensure(
-    struct App* app,
-    struct Wev* wev);
 
 /**
  * World_WorldEntityRegisterFn: every entity floating in `world` goes in as a
@@ -11306,10 +11547,25 @@ app_wev_register_pseudo_locs(
     if( view_id == WORLDVIEW_ROOT )
         app_wev_decide_flatten(app);
 
+    app_sailing_register_arrows(app, world);
+
     count = Wevs_ViewListCount(&app->wevs, view_id);
-    for( int i = 0; i < count; i++ )
+    int order[WORLDVIEW_MAX], ordered=0;
+    if( view_id==WORLDVIEW_ROOT )
     {
-        struct Wev* wev = Wevs_ViewListAt(&app->wevs, view_id, i);
+        static const int groups[]={-1,2,0,1};
+        for( int pass=0; pass<4; ++pass ) for( int i=0; i<count; ++i )
+        {
+            struct Wev* candidate=Wevs_ViewListAt(&app->wevs,view_id,i);
+            bool aboard=candidate->id==app->aboard_view;
+            if( pass==0 ? aboard : !aboard && candidate->priority_group==groups[pass] )
+                order[ordered++]=i;
+        }
+    }
+    else for( int i=0; i<count; ++i ) order[ordered++]=i;
+    for( int i = 0; i < ordered; i++ )
+    {
+        struct Wev* wev = Wevs_ViewListAt(&app->wevs, view_id, order[i]);
         int id;
         int gx;
         int gz;
@@ -11371,152 +11627,14 @@ app_wev_register_pseudo_locs(
             level = COLLISION_LEVELS - 1;
         level = World_LocPaintLevel(world, gx, gz, level);
 
-        /* The footprint is the hull box ROTATED by this frame's heading, so it
-         * is recomputed every frame rather than fixed at spawn — its tile
-         * extent grows and shrinks as the boat turns. Absolute tiles out of the
-         * wev, then rebased onto this scene and clipped to it, since element
-         * sx/sz are unsigned and a negative min corner would wrap. */
-        fsx = 1;
-        fsz = 1;
-        fx = gx;
-        fz = gz;
-        /* Every live Wev carries a config (Wevs_Spawn asserts it) — a silent
-         * 1x1 footprint here would just repaint the span-gate hole the union
-         * below exists to close. */
-        assert(wev->config);
-        {
-            Wev_FootprintTiles(wev, 0, &fx, &fz, &fsx, &fsz);
-
-            /*
-             * Widen to the rotated DECK BOX. The config's authored bounds are
-             * the HULL's box, but the descent draws the whole sub-scene — the
-             * view's size_x*size_z tile rectangle — and the painter's span
-             * gate only defers the parent ground of tiles inside THIS box. A
-             * deck box larger than the config bounds (an oversized debug
-             * spawn, or simply deck geometry past the hull line) left the
-             * uncovered tiles' sea to draw AFTER the ship: tile-aligned water
-             * rectangles punched through the planking, staircase-edged,
-             * camera-angle dependent. Union, not replacement — the config box
-             * can also stick out of the deck box through bounds_off.
-             */
-            {
-                struct Worldview const* fpview =
-                    WorldviewRegistry_Get(&app->worldviews, id);
-                struct WevDeckBox box;
-                int min_ax = INT_MAX;
-                int min_az = INT_MAX;
-                int max_ax = INT_MIN;
-                int max_az = INT_MIN;
-
-                app_wev_deck_box(app, wev, world, &box);
-                for( int corner = 0; corner < 4; corner++ )
-                {
-                    /* Deck membership is [0, size*128) — the far corner is the
-                     * last fine unit INSIDE the deck, not the exclusive edge,
-                     * or a tile-aligned axis-parallel hull claims one spare
-                     * row/column of parent ground past the gunwale. */
-                    int dx = (corner & 1) ? fpview->size_x_tiles * 128 - 1 : 0;
-                    int dz = (corner & 2) ? fpview->size_z_tiles * 128 - 1 : 0;
-                    int px;
-                    int pz;
-
-                    Wev_ParentFromDeck(&box, dx, dz, &px, &pz);
-                    /* Parent-scene fine -> absolute tiles, matching the
-                     * Wev_FootprintTiles output the union folds into. */
-                    px = (px >> 7) + world->_base_tile_x;
-                    pz = (pz >> 7) + world->_base_tile_z;
-                    if( px < min_ax )
-                        min_ax = px;
-                    if( px > max_ax )
-                        max_ax = px;
-                    if( pz < min_az )
-                        min_az = pz;
-                    if( pz > max_az )
-                        max_az = pz;
-                }
-                if( min_ax < fx )
-                {
-                    fsx += fx - min_ax;
-                    fx = min_ax;
-                }
-                if( min_az < fz )
-                {
-                    fsz += fz - min_az;
-                    fz = min_az;
-                }
-                if( max_ax + 1 > fx + fsx )
-                    fsx = max_ax + 1 - fx;
-                if( max_az + 1 > fz + fsz )
-                    fsz = max_az + 1 - fz;
-            }
-
-            fx -= world->_base_tile_x;
-            fz -= world->_base_tile_z;
-            if( fx < 0 )
-            {
-                fsx += fx;
-                fx = 0;
-            }
-            if( fz < 0 )
-            {
-                fsz += fz;
-                fz = 0;
-            }
-            if( fx + fsx > world->_scene_size )
-                fsx = world->_scene_size - fx;
-            if( fz + fsz > world->_scene_size )
-                fsz = world->_scene_size - fz;
-        }
-
-        /* A box whose offsets carry it clean off this scene still leaves the
-         * centre tile in it — paint that rather than nothing. */
-        if( fsx <= 0 || fsz <= 0 )
-        {
-            fx = gx;
-            fz = gz;
-            fsx = 1;
-            fsz = 1;
-        }
-
-        /*
-         * C4: a flattened hull draws its baked flat-colour silhouette as ONE
-         * ordinary model instead of descending — no actors (they were never
-         * registered into its deck this frame), and no picking (the flat
-         * element belongs to no entity or scenery record, so classification
-         * refuses it). Same footprint span, so it still painter-sorts under
-         * the sea it covers.
-         */
-        if( wev->flattened )
-        {
-            int flat_element = app_wev_flat_ensure(app, wev);
-
-            if( flat_element >= 0 )
-            {
-                ToriDraw_SceneElementSetPosition(
-                    app->scene,
-                    flat_element,
-                    wev->x - (world->_base_tile_x << 7),
-                    wev->y,
-                    wev->z - (world->_base_tile_z << 7),
-                    wev->angle);
-                painter_add_normal_scenery(
-                    world->painter, fx, fz, level, flat_element, fsx, fsz, 0);
-                if( debug )
-                    fprintf(
-                        stderr,
-                        "wev: view %d entity %d FLAT at scene tile %d,%d level %d "
-                        "(fine %d,%d angle %d)\n",
-                        view_id,
-                        id,
-                        gx,
-                        gz,
-                        level,
-                        wev->x,
-                        wev->z,
-                        wev->angle);
-            }
+        /* Native Scene.addDynamic uses a radius-60 pseudo-loc. The actual
+         * rotated hull bounds belong only to overlap/navigation decisions. */
+        Wev_PainterFootprint(wev, &fx, &fz, &fsx, &fsz);
+        fx -= world->_base_tile_x;
+        fz -= world->_base_tile_z;
+        if( fx < 0 || fz < 0 || fx + fsx > world->_scene_size ||
+            fz + fsz > world->_scene_size || !wev->render_visible )
             continue;
-        }
 
         /* model_height 0: the pseudo-loc is never occlusion-tested (the drain
          * descends on it), and a hull has no single merged model to measure. */
@@ -11737,296 +11855,129 @@ app_wev_bind_frame_xforms(
                 wev->y + wev->bob_y,
                 wev->z - (parent_world->_base_tile_z << 7),
                 wev->angle);
+            if( wev->flattened )
+            {
+                frame->views[wev->id].flatten_scale = 0.01f;
+                frame->views[wev->id].flatten_y_offset = -1200;
+                frame->views[wev->id].flat_hsl = wev->config->flat_hsl;
+            }
         }
     }
 }
 
 /* --- SAILING_PLAN C4: flatten (budget / priority / overlap) -------------- */
 
-/** Free a hull's flatten bake — the root-pool scene element carrying the
- * merged model. The element OWNS the model (a TORIDRAWMK_MODEL handle is
- * freed by SceneElementRemove, like every other full-model element in this
- * file), so the model is never freed separately here — that was a double
- * free. flat_model is only the Wev's back-reference. Not a deallocator for
- * the Wev; asserts its arguments. */
+/* Native actor overlaps use the drawn root position and nearest-16 oriented
+ * hull bounds. NPCs opt in only when their resolved type exposes an action. */
+#include "game/sailing_paint_order.u.h"
+
+static bool
+app_wev_ground_below(void* userdata,const struct SailingPaintSpan* span,int x,int z,int level)
+{
+    struct App* app=userdata;
+    assert(app);
+    assert(span);
+    struct World* world=WorldviewRegistry_Get(&app->worldviews,span->parent)->world;
+    if( !world->heightmap || x<0 || z<0 || x+1>=world->heightmap->size_x ||
+        z+1>=world->heightmap->size_z ) return false;
+    /* Negative Y is up. Preserve any tile with a corner above the hull's
+     * parent surface: a cliff or raised shore must still occlude the boat. */
+    for(int dz=0;dz<2;++dz)for(int dx=0;dx<2;++dx)
+        if(heightmap_get(world->heightmap,x+dx,z+dz,level)<span->surface_y)return false;
+    return true;
+}
+
 static void
-app_wev_flat_free(
-    struct App* app,
-    struct Wev* wev)
+app_wev_order_parent_ground(struct App* app)
 {
+    assert(app);
+    struct SailingPaintSpan spans[WORLDVIEW_MAX];int count=0;
+    for(int id=1;id<WORLDVIEW_MAX;++id)
+    {
+        if(!Wevs_IsLive(&app->wevs,id) || !WorldviewRegistry_IsLive(&app->worldviews,id))continue;
+        struct Wev* wev=Wevs_Get(&app->wevs,id);
+        if(!wev->render_visible)continue;
+        struct Worldview* view=WorldviewRegistry_Get(&app->worldviews,id);
+        if(!WorldviewRegistry_IsLive(&app->worldviews,wev->parent_view_id))continue;
+        struct World* parent=WorldviewRegistry_Get(&app->worldviews,wev->parent_view_id)->world;
+        struct WevDeckBox box;app_wev_deck_box(app,wev,parent,&box);
+        int x,z,width,height;Wev_FootprintTiles(wev,0,&x,&z,&width,&height);
+        x-=parent->_base_tile_x;z-=parent->_base_tile_z;
+        int max_x=x+width-1,max_z=z+height-1;
+        for(int corner=0;corner<4;++corner)
+        {
+            int px,pz;Wev_ParentFromDeck(&box,
+                corner&1 ? view->size_x_tiles*128-1:0,
+                corner&2 ? view->size_z_tiles*128-1:0,&px,&pz);
+            px>>=7;pz>>=7;
+            if(px<x)x=px;if(pz<z)z=pz;
+            if(px>max_x)max_x=px;if(pz>max_z)max_z=pz;
+        }
+        spans[count]=(struct SailingPaintSpan){.view=id,.parent=wev->parent_view_id,
+            .level=view->parent_level,.x=x,.z=z,.width=max_x-x+1,.height=max_z-z+1,
+            .surface_y=wev->y,.flat=wev->flattened};
+        Wev_RenderBounds(wev,spans[count].bounds);++count;
+    }
+    /* Zero boats returns before allocation or command scanning. */
+    if(count)
+    {
+        sailing_paint_order_flat(app->painter_buffer,spans,count);
+        sailing_paint_order_ground(app->painter_buffer,spans,count,app_wev_ground_below,app);
+    }
+}
+
+static bool
+app_wev_actor_overlaps(void* userdata, const struct Wev* wev)
+{
+    struct App* app = userdata;
     assert(app);
     assert(wev);
-    if( wev->flat_element >= 0 )
+    struct World* root = app->world;
+    if( !root ) return false;
+    struct World_EntityPool* pool = &root->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
     {
-        ToriDraw_SceneElementRemove(app->scene, wev->flat_element);
-        wev->flat_element = -1;
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+        if( !player || player->element_id < 0 ) continue;
+        int x = (int)player->draw_position.x, z = (int)player->draw_position.z;
+        app_wev_actor_root_fine(app, &player->view_placement, &x, &z);
+        if( Wev_OverlapsActor(wev, x + root->_base_tile_x * 128,
+                             z + root->_base_tile_z * 128, 1) ) return true;
     }
-    wev->flat_model = NULL;
+    pool = &root->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        if( !npc || npc->element_id < 0 || npc->multinpc_hidden ) continue;
+        struct ToriRS_Npctype* type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
+        bool actionable = false;
+        if( type ) for( int op = 0; op < 5; ++op )
+            if( type->actions[op] && type->actions[op][0] ) actionable = true;
+        if( !actionable ) continue;
+        int x = (int)npc->draw_position.x, z = (int)npc->draw_position.z;
+        app_wev_actor_root_fine(app, &npc->view_placement, &x, &z);
+        if( Wev_OverlapsActor(wev, x + root->_base_tile_x * 128,
+                             z + root->_base_tile_z * 128, npc->size > 0 ? npc->size : 1) )
+            return true;
+    }
+    return false;
 }
 
-void
-App_WevFlatInvalidate(
-    struct App* app,
-    int view_id)
-{
-    assert(app);
-    assert(view_id > WORLDVIEW_ROOT);
-    assert(view_id < WORLDVIEW_MAX);
-    if( Wevs_IsLive(&app->wevs, view_id) )
-        app_wev_flat_free(app, Wevs_Get(&app->wevs, view_id));
-}
-
-/**
- * The flattened stand-in for one hull: a MERGED copy of the deck's static
- * geometry, squashed and recoloured at bake time (docs/SAILING.md §5.3's
- * flatten, via the plan's software-path bake — the deob re-renders the live
- * sub-scene through a Y-scale-0.01 matrix, which a painter's model draw has
- * no seam for; the baked copy produces the same flat-colour silhouette).
- *
- * The bake is expressed in deck-local space TRANSLATED BY THE RECENTER, so
- * drawing it at the hull's position with the hull's yaw composes exactly the
- * descent transform's rotate-about-the-pivot. Returns the scene element id
- * carrying it, or -1 when the view has nothing static to merge (deck not
- * rebuilt yet).
- */
-static int
-app_wev_flat_ensure(
-    struct App* app,
-    struct Wev* wev)
-{
-    struct Worldview const* view;
-    struct ToriDraw_Model** copies = NULL;
-    int copy_count = 0;
-    int copy_cap = 0;
-    struct ToriDraw_Model* merged;
-    int slot_count;
-    int pool_tag;
-
-    assert(app);
-    assert(app->scene);
-    assert(wev);
-    assert(wev->config);
-
-    if( wev->flat_element >= 0 )
-        return wev->flat_element;
-    if( !WorldviewRegistry_IsLive(&app->worldviews, wev->id) )
-        return -1;
-    view = WorldviewRegistry_Get(&app->worldviews, wev->id);
-
-    /* Every static element of the view's pool, positioned. There is no pool
-     * iterator; the id space is small and bakes are rare, so a scan is the
-     * simple truth. Dynamic (actor) elements are excluded by design — a
-     * flattened boat draws no actors at all. */
-    pool_tag = TORIDRAW_SCENE_POOL_STATIC_VIEW(wev->id);
-    slot_count = ToriDraw_SceneElementSlotCount(app->scene);
-    for( int id = 0; id < slot_count; id++ )
-    {
-        struct ToriDraw_SceneElement* el;
-        struct ToriDraw_Model* copy;
-
-        if( !ToriDraw_SceneElementIsLive(app->scene, id) ||
-            ToriDraw_SceneElementPool(app->scene, id) != pool_tag )
-            continue;
-        el = ToriDraw_SceneElementGet(app->scene, id);
-        if( !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
-            continue;
-
-        copy = ToriDraw_ModelCopy(el->model.u.model.model);
-        assert(copy);
-        /* Static deck yaws are quarter turns (loc rotations); anything finer
-         * would need a real rotate, and the cache does not author one. */
-        if( el->world_position.yaw != 0 )
-            ToriDraw_ModelOrient(copy, (el->world_position.yaw + 256) >> 9);
-        ToriDraw_ModelTranslate(
-            copy, el->world_position.x, el->world_position.y, el->world_position.z);
-
-        if( copy_count == copy_cap )
-        {
-            copy_cap = copy_cap ? copy_cap * 2 : 64;
-            copies = realloc(copies, (size_t)copy_cap * sizeof(*copies));
-            assert(copies);
-        }
-        copies[copy_count++] = copy;
-    }
-
-    if( copy_count == 0 )
-    {
-        free(copies);
-        return -1;
-    }
-
-    merged = ToriDraw_ModelNewMerge(copies, copy_count);
-    assert(merged);
-    for( int i = 0; i < copy_count; i++ )
-        ToriDraw_ModelFree(copies[i]);
-    free(copies);
-
-    /* Recenter (so the draw's yaw rotates about the hull pivot), lift by the
-     * deob's pre-scale bias, squash. ModelScale is value/128, so height 1 is
-     * 1/128 — the nearest integer expression of the deob's 0.01. */
-    ToriDraw_ModelTranslate(
-        merged,
-        -(view->size_x_tiles * 64) - wev->config->pivot_x,
-        -1200,
-        -(view->size_z_tiles * 64) - wev->config->pivot_z);
-    ToriDraw_ModelScale(merged, 128, 128, 1);
-
-    /* Flat HSL at full strength, textures dropped: the "shadow" look. */
-    {
-        hsl16_t flat = (hsl16_t)(wev->config->flat_hsl & 0xFFFF);
-
-        for( int i = 0; i < merged->face_count; i++ )
-        {
-            if( merged->face_colors_a )
-                merged->face_colors_a[i] = flat;
-            if( merged->face_colors_b )
-                merged->face_colors_b[i] = flat;
-            if( merged->face_colors_c )
-                merged->face_colors_c[i] = flat;
-            if( merged->face_textures )
-                merged->face_textures[i] = -1;
-        }
-    }
-    ToriDraw_ModelSetBoundsCylinder(merged);
-
-    wev->flat_model = merged;
-    wev->flat_element = ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
-    /* Element-table exhaustion is the scene equivalent of an allocation
-     * failure: a "handled" -1 here silently draws no hull at all. */
-    assert(wev->flat_element >= 0);
-    {
-        struct ToriDraw_ModelHandle hnd;
-
-        memset(&hnd, 0, sizeof(hnd));
-        hnd.kind = TORIDRAWMK_MODEL;
-        hnd.u.model.model = merged;
-        ToriDraw_SceneElementSetModel(app->scene, wev->flat_element, hnd);
-    }
-    if( app_wev_debug_enabled() )
-        fprintf(
-            stderr,
-            "wev: FLAT BAKE view %d merged %d element(s) into %d face(s) (element %d)\n",
-            wev->id,
-            copy_count,
-            merged->face_count,
-            wev->flat_element);
-    return wev->flat_element;
-}
-
-/**
- * Which hulls render full-detail this frame, and which flatten — the deob's
- * per-frame rules (docs/SAILING.md §5.3): the aboard hull first and never
- * flattened; the rest in priority-group order 2, 0, 1 against a full-detail
- * budget; group-1 hulls additionally flatten when an actor stands on them or
- * their footprint intersects a hull already placed full-detail this frame
- * (first placed wins). The overlap test here is the AABB of the rotated
- * footprint rather than the deob's oriented box — a few tiles generous, never
- * tighter.
- */
 static void
 app_wev_decide_flatten(struct App* app)
 {
-    static int budget = -1;
-    int order[WORLDVIEW_MAX];
-    int order_count = 0;
-    int placed[WORLDVIEW_MAX][4];
-    int placed_count = 0;
-    int count;
-
     assert(app);
-    if( budget < 0 )
-    {
-        char const* env = getenv("TORIRS_WEV_BUDGET");
-
-        budget = (env && env[0]) ? atoi(env) : 4;
-        if( budget < 1 )
-            budget = 1;
-    }
-
-    count = Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT);
-    /* Aboard hull first, then groups 2, 0, 1 in list order. */
-    for( int pass = 0; pass < 4; pass++ )
-    {
-        static const int k_group[4] = { -1, 2, 0, 1 };
-
-        for( int i = 0; i < count; i++ )
+    Wevs_SelectRenderStates(&app->wevs, app->aboard_view,
+                           app->host.world_entity_draw_limit, app_wev_actor_overlaps, app);
+    for( int id = 1; id < WORLDVIEW_MAX; ++id )
+        if( Wevs_IsLive(&app->wevs, id) && WorldviewRegistry_IsLive(&app->worldviews, id) )
         {
-            struct Wev* wev = Wevs_ViewListAt(&app->wevs, WORLDVIEW_ROOT, i);
-            int is_aboard = wev->id == app->aboard_view;
-
-            if( pass == 0 ? !is_aboard : (is_aboard || wev->priority_group != k_group[pass]) )
-                continue;
-            order[order_count++] = wev->id;
+            struct Wev* wev = Wevs_Get(&app->wevs, id);
+            WorldviewRegistry_Get(&app->worldviews, id)->world->suppress_dynamic_population =
+                wev->flattened || !wev->render_visible;
         }
-    }
-
-    for( int oi = 0; oi < order_count; oi++ )
-    {
-        struct Wev* wev = Wevs_Get(&app->wevs, order[oi]);
-        int flatten = 0;
-        int box[4];
-
-        Wev_FootprintTiles(wev, 0, &box[0], &box[1], &box[2], &box[3]);
-        box[2] += box[0] - 1; /* -> max tile inclusive */
-        box[3] += box[1] - 1;
-
-        if( wev->id != app->aboard_view )
-        {
-            if( placed_count >= budget )
-                flatten = 1;
-            else if( wev->priority_group == 1 )
-            {
-                for( int p = 0; p < placed_count && !flatten; p++ )
-                    if( box[0] <= placed[p][2] && box[2] >= placed[p][0] &&
-                        box[1] <= placed[p][3] && box[3] >= placed[p][1] )
-                        flatten = 1;
-                if( !flatten )
-                {
-                    /* Any actor standing on it (its view placement says so). */
-                    struct World_EntityPool* pool = &app->world->entities.player;
-
-                    for( int pi = World_EntityPoolHead(pool);
-                         pi != WORLD_ENTITY_NIL && !flatten;
-                         pi = World_EntityPoolNext(pool, pi) )
-                    {
-                        struct WorldEntity_Player* pl = World_EntityPoolGet(pool, pi);
-
-                        if( pl && pl->view_placement.view_id == wev->id )
-                            flatten = 1;
-                    }
-                    pool = &app->world->entities.npc;
-                    for( int ni = World_EntityPoolHead(pool);
-                         ni != WORLD_ENTITY_NIL && !flatten;
-                         ni = World_EntityPoolNext(pool, ni) )
-                    {
-                        struct WorldEntity_NPC* np = World_EntityPoolGet(pool, ni);
-
-                        if( np && np->view_placement.view_id == wev->id )
-                            flatten = 1;
-                    }
-                }
-            }
-        }
-
-        if( !flatten && placed_count < WORLDVIEW_MAX )
-        {
-            placed[placed_count][0] = box[0];
-            placed[placed_count][1] = box[1];
-            placed[placed_count][2] = box[2];
-            placed[placed_count][3] = box[3];
-            placed_count++;
-        }
-        if( app_wev_debug_enabled() && wev->flattened != (flatten != 0) )
-            fprintf(
-                stderr,
-                "wev: entity %d %s (group %d, %d full-detail placed, budget %d)\n",
-                wev->id,
-                flatten ? "FLATTENS" : "full detail",
-                wev->priority_group,
-                placed_count,
-                budget);
-        wev->flattened = flatten != 0;
-    }
 }
 
 /* --- SAILING_PLAN C5: actors aboard ------------------------------------- */
@@ -12278,14 +12229,48 @@ app_wev_route_actors(struct App* app)
 
         if( !npc || npc->element_id < 0 )
             continue;
-        /* NPCs are never wire-homed (the mock projects deck npcs into root
-         * coordinates), so by the staging-rect rule they always belong to
-         * the root — see the player branch above for why the footprint test
-         * is gone. A server-spawned deck npc draws at its projected root
-         * position until per-world NPC_INFO exists. */
+        int view_id = WORLDVIEW_ROOT;
+        int x = (int)npc->draw_position.x;
+        int z = (int)npc->draw_position.z;
+        struct ToriRS_Npctype* type = NULL;
+        if( app->sailing_crew_category > 0 && Wevs_ViewListCount(&app->wevs, WORLDVIEW_ROOT) > 0 )
+        {
+            type = CacheProvider_NpctypeGet(
+                app->provider, npc->base_npc_id >= 0 ? npc->base_npc_id : npc->npc_id);
+            if( !type ) type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
+        }
+        /* Only native ship crew opt into projected rendering. Ordinary shore
+         * NPCs, sea monsters and dock recruits retain their root-world pose.
+         * NPC_INFO continues to track the original root coordinates; changing
+         * those would corrupt later relative movement and target packets. */
+        if( app->sailing_crew_category > 0 && type && type->category == app->sailing_crew_category )
+            for( int pass = 0; pass < WORLDVIEW_MAX; ++pass )
+            {
+                int candidate = pass == 0 ? npc->view_placement.view_id : pass;
+                if( candidate <= 0 || !Wevs_IsLive(&app->wevs, candidate) ||
+                    !WorldviewRegistry_IsLive(&app->worldviews, candidate) ) continue;
+                struct Wev* wev = Wevs_Get(&app->wevs, candidate);
+                struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, candidate);
+                if( wev->parent_view_id != WORLDVIEW_ROOT || !view->world->load_complete ) continue;
+                struct WevDeckBox box;
+                int dx, dz;
+                app_wev_deck_box(app, wev, world, &box);
+                Wev_DeckFromWireTarget(wev, &box, x, z, &dx, &dz);
+                if( !Wev_DeckContainsDeckPoint(&box, dx, dz) ) continue;
+                /* The wire rounds projected feet to a whole tile. One half
+                 * tile of tolerance keeps rail-side crew inside the authored
+                 * hull, without treating its whole staging zone as planking. */
+                const struct WevConfig* cfg = wev->config;
+                int hx = dx + box.recenter_x - cfg->bounds_off_x;
+                int hz = dz + box.recenter_z - cfg->bounds_off_z;
+                if( cfg->bounds_w > 0 && abs(hx) > cfg->bounds_w / 2 + 64 ) continue;
+                if( cfg->bounds_h > 0 && abs(hz) > cfg->bounds_h / 2 + 64 ) continue;
+                view_id = candidate;
+                x = dx; z = dz;
+                break;
+            }
         app_wev_apply_placement(
-            app, &npc->view_placement, npc->element_id, WORLDVIEW_ROOT,
-            (int)npc->draw_position.x, (int)npc->draw_position.z);
+            app, &npc->view_placement, npc->element_id, view_id, x, z);
     }
 }
 
@@ -12431,16 +12416,9 @@ app_wev_claim_deck_actors(
         return 0;
     if( view_id == WORLDVIEW_ROOT )
     {
-        for( int id = WORLDVIEW_ROOT + 1; id < WORLDVIEW_MAX && n < max; id++ )
-        {
-            struct Wev* wev;
-
-            if( !Wevs_IsLive(&app->wevs, id) )
-                continue;
-            wev = Wevs_Get(&app->wevs, id);
-            if( wev->flat_element >= 0 )
-                out_element_ids[n++] = wev->flat_element;
-        }
+        for( int i = 0; i < 2 && n < max; ++i )
+            if( app->sailing_arrow_element[i] >= 0 )
+                out_element_ids[n++] = app->sailing_arrow_element[i];
         return n;
     }
     owner = app->world;
@@ -12607,8 +12585,8 @@ app_request_entity_seq(
  * One animaya frame per 20 ms client cycle (the Wevs clock). A completed
  * one-shot clears itself and restarts the idle at frame 0, exactly the
  * deob's completion rule. Seqs still loading request themselves and bob 0
- * until the load lands. Flattened hulls skip: their silhouette draws as
- * plain scenery, and the deob's flatten hides live animation too.
+ * until the load lands. Native class467.method10419 applies its current
+ * animation matrix to both full and flattened scenes.
  */
 static void
 app_wev_advance_bobs(struct App* app)
@@ -12629,8 +12607,6 @@ app_wev_advance_bobs(struct App* app)
             continue;
         wev = Wevs_Get(&app->wevs, id);
         wev->bob_y = 0;
-        if( wev->flattened )
-            continue;
         assert(wev->config);
 
         if( wev->seq_id >= 0 && app->wevs.clock >= wev->seq_start_cycle )
@@ -15840,6 +15816,316 @@ App_BootWait(struct App* app)
 static void
 app_player_model_poll(struct App* app);
 
+/* Input-driven host effects are drained at the frame's CS2 fixed point.
+ * They do not consume simulation time: a close or amount response must not
+ * remain queued until a later boat command when the test clock is paused. */
+/* Settings writes settle with the click, including while simulation is paused. */
+static int
+app_cs2_flush_settings_mirrors(struct App* app)
+{
+    int sent = 0;
+    if( !app->net || app->net->state != TORIRS_NET_GAME ) return 0;
+    {
+        int mirror_varbit;
+        int mirror_value;
+        while( RS_CS2Host_TakeSettingsMirror(&app->host, &mirror_varbit, &mirror_value) )
+        {
+            char cmd[64];
+
+            snprintf(cmd, sizeof(cmd), "setting %d %d", mirror_varbit, mirror_value);
+            if( !App_SendCommand(app, cmd) )
+            {
+                RS_CS2Host_QueueSettingsMirror(&app->host, mirror_varbit, mirror_value);
+                break;
+            }
+            sent = 1;
+            if( getenv("TORIRS_SETTINGS_DEBUG") )
+                TORIRS_LOG("settings: mirror varbit %d = %d -> server\n", mirror_varbit,
+                        mirror_value);
+        }
+    }
+
+    return sent;
+}
+
+static int
+app_cs2_flush_notifications(struct App* app)
+{
+    int pending = app->host.close_modal_requested || app->host.logout_requested ||
+        app->host.keyboard_request || app->host.resume_pausebutton_component_id != -1 ||
+        app->host.social_send_count > 0;
+    /*
+     * An interface asked to close itself.
+     *
+     * `if_close` is what every framed interface's X runs (steelborder binds op 1
+     * to clientscript 29, whose whole body is that one opcode). Rev-230's
+     * method9167 both sends CLOSE_MODAL and locally unmounts every open modal
+     * / sidemodal sub (type 0 / 3); overlays (type 1) stay. The deferred flag
+     * is drained here rather than inside the hook so the CS2 host stays free
+     * of the socket — same split every other host request has.
+     */
+    if( app->host.close_modal_requested )
+    {
+        app->host.close_modal_requested = false;
+        if( !app->closing_modals )
+        {
+            int uids[UITREE_INTERFACE_PARENT_MAX];
+            int n = 0;
+
+            app->closing_modals = 1;
+            if( app->button_sink.close_modal )
+                app->button_sink.close_modal(app->button_sink.user);
+
+            /* Snapshot first: App_CloseSubInterface mutates interface_parents. */
+            if( app->tree )
+            {
+                for( int i = 0; i < app->tree->interface_parent_count; i++ )
+                {
+                    int t = app->tree->interface_parents[i].type;
+                    if( t == 0 || t == 3 )
+                        uids[n++] = app->tree->interface_parents[i].container_uid;
+                }
+                for( int i = 0; i < n; i++ )
+                    App_CloseSubInterface(app, uids[i]);
+            }
+
+            /* CS1 IF1 slots: 2004 closeModal() cleared these locally too. */
+            if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
+                RS_UISlots_CloseModal(app);
+
+            app->closing_modals = 0;
+            app->need_redraw = 1;
+        }
+    }
+
+    /*
+     * A CS2 script ran LOGOUT (5630) -- the modern lane's "Click here to
+     * logout", whose button is script-driven and carries no cache op.
+     *
+     * Parked by the host and turned into a session teardown here, the same
+     * split if_close above takes: the CS2 host knows nothing about the socket.
+     * Handed to the tick's own drain rather than performed here so it lands
+     * behind whatever this tick has already queued. @see App_Logout.
+     */
+    if( app->host.logout_requested )
+    {
+        app->host.logout_requested = false;
+        app->logout_requested = 1;
+    }
+    /* The mobile scripts' soft keyboard: "Start chatting" shows it over the
+     * chat line, its second press hides it. The chat line's focus is what the
+     * platform keyboard follows (app_wants_text_input), so this is the same
+     * focus a tap on the chat area gives. */
+    if( app->host.keyboard_request )
+    {
+        app->vm_keyboard_open = app->host.keyboard_request > 0;
+        /* The push to the platform is edge-triggered on "wanted" (see
+         * App_TakeTextInputChange), and the person may have dismissed the
+         * keyboard with the system's own button, which changes nothing here.
+         * A request is a deliberate ask: forget what was last pushed so the
+         * next take pushes the current answer again, as a tap on a login
+         * field does. */
+        app->text_input_effective = -1;
+        app->host.keyboard_request = 0;
+        app->need_redraw = 1;
+    }
+
+    if( app->host.resume_pausebutton_component_id != -1 )
+    {
+        int const com_id = app->host.resume_pausebutton_component_id;
+        app->host.resume_pausebutton_component_id = -1;
+        if( app->button_sink.resume_pausebutton )
+            app->button_sink.resume_pausebutton(app->button_sink.user, com_id);
+    }
+
+    /*
+     * Social requests a CS2 script queued this tick (friend_add, ignore_del,
+     * chat_setfilter, chat_sendprivate — all reached from clientscript 681,
+     * which is what the name prompt's Enter key runs) plus docheat, the
+     * chatbox's own "::foo" handler (distinct from this function's
+     * TORIRS_NET_CHEAT hook above).
+     *
+     * Same split as if_close above: the CS2 host knows nothing about the
+     * socket, so it parks the request and this is where it becomes a packet.
+     * The host has already applied the local half (the store, the filter
+     * modes), because the server answers nothing at all on a delete.
+     */
+    {
+        struct RS_CS2SocialSend send;
+
+        while( RS_CS2Host_TakeSocialSend(&app->host, &send) )
+        {
+            int64_t name37 = (int64_t)strtobase37(send.name);
+
+            if( !app->net )
+                continue;
+            switch( send.kind )
+            {
+            case RS_CS2_SOCIAL_SEND_FRIEND_ADD:
+                APP_NET_SEND(
+                    app,
+                    net_out_friendlist_add(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_FRIEND_DEL:
+                APP_NET_SEND(
+                    app,
+                    net_out_friendlist_del(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_IGNORE_ADD:
+                APP_NET_SEND(
+                    app,
+                    net_out_ignorelist_add(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_IGNORE_DEL:
+                APP_NET_SEND(
+                    app,
+                    net_out_ignorelist_del(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_CHAT_SETMODE:
+                APP_NET_SEND(
+                    app,
+                    net_out_chat_setmode(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.modes[0],
+                        send.modes[1],
+                        send.modes[2]));
+                break;
+            case RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE:
+                APP_NET_SEND(
+                    app,
+                    net_out_message_private(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        name37,
+                        send.text));
+                /*
+                 * Local echo of the sent line, the reference's own behaviour
+                 * (Client.ts socialInputType 3): the "To Bob: ..." row appears
+                 * on send, not on a server round trip — the server never
+                 * echoes a private message back to its sender.
+                 */
+                {
+                    char shown[RS_SOCIAL_NAME_LEN];
+
+                    RS_Social_DisplayName(send.name, shown, (int)sizeof(shown));
+                    RS_CS2Host_ChatAdd(
+                        &app->host, RS_CHAT_TYPE_PRIVATE_TO, shown, send.name, send.text);
+                }
+                app->need_redraw = 1;
+                break;
+            /*
+             * chat_sendpublic from the chatbox's own submit path (script 73 ->
+             * ~script5517 at rev 230).
+             *
+             * No local echo, unlike the private send above: a public line comes
+             * back in the sender's own PLAYER_INFO extended info, and
+             * task_exec_entity_info's PKT_PLAYER_INFO_OP_CHAT arm is what adds
+             * the chatbox row and the overhead bubble for it. Echoing here as
+             * well would print every line the player says twice.
+             */
+            case RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC:
+                APP_NET_SEND(
+                    app,
+                    net_out_message_public(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.text,
+                        send.colour_effect));
+                break;
+            case RS_CS2_SOCIAL_SEND_CHEAT:
+                if( strncmp(send.text, "lootkill ", 9) == 0 )
+                {
+                    char lk_source[64] = { 0 };
+                    int lk_obj = 0;
+                    int lk_qty = 1;
+                    if( sscanf(send.text + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
+                    {
+                        if( lk_qty <= 0 )
+                            lk_qty = 1;
+                        App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
+                    }
+                    break;
+                }
+                APP_NET_SEND(
+                    app,
+                    net_out_client_cheat(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.text));
+                break;
+            /* resume_countdialog(text) from a CS2 script — the bank PIN
+             * keypad's fourth digit. Same packet the chatbox's own "Enter
+             * amount" prompt sends below, and the same atol: the opcode pops
+             * a string, the wire carries an int. */
+            case RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG:
+                APP_NET_SEND(
+                    app,
+                    net_out_resume_countdialog(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        (int)atol(send.text)));
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    return pending;
+}
+
+/* Typed server notifications belong to the same settled transaction as
+ * their CS2 click. Paused test clocks must not hold them until a logic tick. */
+static int
+app_cs2_flush_triggeroplocal(struct App* app)
+{
+    int sent = 0;
+    {
+        struct RS_CS2TriggerOpLocal trig;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_TRIGGEROPLOCAL_MAX * 4 &&
+               RS_CS2Host_TakeTriggerOpLocal(&app->host, &trig) )
+        {
+            sent = 1;
+            if( !app->net )
+                continue;
+            if( app->net->rev->packetout_code(PKTOUT_NAME_IF_SCRIPT_TRIGGER) >= 0 )
+            {
+                const char* strings[16];
+                for( int i=0; i<16; ++i ) strings[i]=trig.strings[i];
+                int object_id=-1;
+                int node=UITree_FindByComponentId(app->tree,trig.component_id);
+                if( node>=0 && trig.child>=0 )
+                    node=UITree_FindChildBySubid(app->tree,node,trig.component_id,trig.child);
+                if( node>=0 && app->tree->components[node].item_id>0 )
+                    object_id=app->tree->components[node].item_id;
+                APP_NET_SEND(app, net_out_if_script_trigger(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    trig.crc, trig.component_id, trig.child, object_id,
+                    trig.signature, trig.values, strings));
+            }
+            else
+                APP_NET_SEND(app, net_out_if_button_op(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    1, trig.component_id, trig.sub));
+        }
+    }
+
+    return sent;
+}
+
 /* Queue the CS2 work a just-completed script deferred back to the host.
  *
  * These requests cannot be dispatched from inside the VM which raised them:
@@ -15850,7 +16136,9 @@ app_player_model_poll(struct App* app);
 static int
 app_cs2_enqueue_followups(struct App* app)
 {
-    int queued = 0;
+    int queued = app_cs2_flush_notifications(app);
+    queued |= app_cs2_flush_triggeroplocal(app);
+    queued |= app_cs2_flush_settings_mirrors(app);
 
     {
         int com_id;
@@ -17454,233 +17742,7 @@ app_logic_tick(struct App* app)
 
     RS_CS2Host_Tick(&app->host);
 
-    /*
-     * An interface asked to close itself.
-     *
-     * `if_close` is what every framed interface's X runs (steelborder binds op 1
-     * to clientscript 29, whose whole body is that one opcode). Rev-230's
-     * method9167 both sends CLOSE_MODAL and locally unmounts every open modal
-     * / sidemodal sub (type 0 / 3); overlays (type 1) stay. The deferred flag
-     * is drained here rather than inside the hook so the CS2 host stays free
-     * of the socket — same split every other host request has.
-     */
-    if( app->host.close_modal_requested )
-    {
-        app->host.close_modal_requested = false;
-        if( !app->closing_modals )
-        {
-            int uids[UITREE_INTERFACE_PARENT_MAX];
-            int n = 0;
-
-            app->closing_modals = 1;
-            if( app->button_sink.close_modal )
-                app->button_sink.close_modal(app->button_sink.user);
-
-            /* Snapshot first: App_CloseSubInterface mutates interface_parents. */
-            if( app->tree )
-            {
-                for( int i = 0; i < app->tree->interface_parent_count; i++ )
-                {
-                    int t = app->tree->interface_parents[i].type;
-                    if( t == 0 || t == 3 )
-                        uids[n++] = app->tree->interface_parents[i].container_uid;
-                }
-                for( int i = 0; i < n; i++ )
-                    App_CloseSubInterface(app, uids[i]);
-            }
-
-            /* CS1 IF1 slots: 2004 closeModal() cleared these locally too. */
-            if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
-                RS_UISlots_CloseModal(app);
-
-            app->closing_modals = 0;
-            app->need_redraw = 1;
-        }
-    }
-
-    /*
-     * A CS2 script ran LOGOUT (5630) -- the modern lane's "Click here to
-     * logout", whose button is script-driven and carries no cache op.
-     *
-     * Parked by the host and turned into a session teardown here, the same
-     * split if_close above takes: the CS2 host knows nothing about the socket.
-     * Handed to the tick's own drain rather than performed here so it lands
-     * behind whatever this tick has already queued. @see App_Logout.
-     */
-    if( app->host.logout_requested )
-    {
-        app->host.logout_requested = false;
-        app->logout_requested = 1;
-    }
-    /* The mobile scripts' soft keyboard: "Start chatting" shows it over the
-     * chat line, its second press hides it. The chat line's focus is what the
-     * platform keyboard follows (app_wants_text_input), so this is the same
-     * focus a tap on the chat area gives. */
-    if( app->host.keyboard_request )
-    {
-        app->vm_keyboard_open = app->host.keyboard_request > 0;
-        /* The push to the platform is edge-triggered on "wanted" (see
-         * App_TakeTextInputChange), and the person may have dismissed the
-         * keyboard with the system's own button, which changes nothing here.
-         * A request is a deliberate ask: forget what was last pushed so the
-         * next take pushes the current answer again, as a tap on a login
-         * field does. */
-        app->text_input_effective = -1;
-        app->host.keyboard_request = 0;
-        app->need_redraw = 1;
-    }
-
-    if( app->host.resume_pausebutton_component_id != -1 )
-    {
-        int const com_id = app->host.resume_pausebutton_component_id;
-        app->host.resume_pausebutton_component_id = -1;
-        if( app->button_sink.resume_pausebutton )
-            app->button_sink.resume_pausebutton(app->button_sink.user, com_id);
-    }
-
-    /*
-     * Social requests a CS2 script queued this tick (friend_add, ignore_del,
-     * chat_setfilter, chat_sendprivate — all reached from clientscript 681,
-     * which is what the name prompt's Enter key runs) plus docheat, the
-     * chatbox's own "::foo" handler (distinct from this function's
-     * TORIRS_NET_CHEAT hook above).
-     *
-     * Same split as if_close above: the CS2 host knows nothing about the
-     * socket, so it parks the request and this is where it becomes a packet.
-     * The host has already applied the local half (the store, the filter
-     * modes), because the server answers nothing at all on a delete.
-     */
-    {
-        struct RS_CS2SocialSend send;
-
-        while( RS_CS2Host_TakeSocialSend(&app->host, &send) )
-        {
-            int64_t name37 = (int64_t)strtobase37(send.name);
-
-            if( !app->net )
-                continue;
-            switch( send.kind )
-            {
-            case RS_CS2_SOCIAL_SEND_FRIEND_ADD:
-                APP_NET_SEND(
-                    app,
-                    net_out_friendlist_add(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
-                break;
-            case RS_CS2_SOCIAL_SEND_FRIEND_DEL:
-                APP_NET_SEND(
-                    app,
-                    net_out_friendlist_del(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
-                break;
-            case RS_CS2_SOCIAL_SEND_IGNORE_ADD:
-                APP_NET_SEND(
-                    app,
-                    net_out_ignorelist_add(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
-                break;
-            case RS_CS2_SOCIAL_SEND_IGNORE_DEL:
-                APP_NET_SEND(
-                    app,
-                    net_out_ignorelist_del(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
-                break;
-            case RS_CS2_SOCIAL_SEND_CHAT_SETMODE:
-                APP_NET_SEND(
-                    app,
-                    net_out_chat_setmode(
-                        app->net->rev,
-                        app->net->random_out,
-                        _nsbuf,
-                        sizeof(_nsbuf),
-                        send.modes[0],
-                        send.modes[1],
-                        send.modes[2]));
-                break;
-            case RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE:
-                APP_NET_SEND(
-                    app,
-                    net_out_message_private(
-                        app->net->rev,
-                        app->net->random_out,
-                        _nsbuf,
-                        sizeof(_nsbuf),
-                        name37,
-                        send.text));
-                /*
-                 * Local echo of the sent line, the reference's own behaviour
-                 * (Client.ts socialInputType 3): the "To Bob: ..." row appears
-                 * on send, not on a server round trip — the server never
-                 * echoes a private message back to its sender.
-                 */
-                {
-                    char shown[RS_SOCIAL_NAME_LEN];
-
-                    RS_Social_DisplayName(send.name, shown, (int)sizeof(shown));
-                    RS_CS2Host_ChatAdd(
-                        &app->host, RS_CHAT_TYPE_PRIVATE_TO, shown, send.name, send.text);
-                }
-                app->need_redraw = 1;
-                break;
-            /*
-             * chat_sendpublic from the chatbox's own submit path (script 73 ->
-             * ~script5517 at rev 230).
-             *
-             * No local echo, unlike the private send above: a public line comes
-             * back in the sender's own PLAYER_INFO extended info, and
-             * task_exec_entity_info's PKT_PLAYER_INFO_OP_CHAT arm is what adds
-             * the chatbox row and the overhead bubble for it. Echoing here as
-             * well would print every line the player says twice.
-             */
-            case RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC:
-                APP_NET_SEND(
-                    app,
-                    net_out_message_public(
-                        app->net->rev,
-                        app->net->random_out,
-                        _nsbuf,
-                        sizeof(_nsbuf),
-                        send.text,
-                        send.colour_effect));
-                break;
-            case RS_CS2_SOCIAL_SEND_CHEAT:
-                if( strncmp(send.text, "lootkill ", 9) == 0 )
-                {
-                    char lk_source[64] = { 0 };
-                    int lk_obj = 0;
-                    int lk_qty = 1;
-                    if( sscanf(send.text + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
-                    {
-                        if( lk_qty <= 0 )
-                            lk_qty = 1;
-                        App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
-                    }
-                    break;
-                }
-                APP_NET_SEND(
-                    app,
-                    net_out_client_cheat(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.text));
-                break;
-            /* resume_countdialog(text) from a CS2 script — the bank PIN
-             * keypad's fourth digit. Same packet the chatbox's own "Enter
-             * amount" prompt sends below, and the same atol: the opcode pops
-             * a string, the wire carries an int. */
-            case RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG:
-                APP_NET_SEND(
-                    app,
-                    net_out_resume_countdialog(
-                        app->net->rev,
-                        app->net->random_out,
-                        _nsbuf,
-                        sizeof(_nsbuf),
-                        (int)atol(send.text)));
-                break;
-            default:
-                break;
-            }
-        }
-    }
+    app_cs2_flush_notifications(app);
 
     /* clientCode-populated components (friends rows, list sizes, design
      * preview) refresh from live state each tick (reference clientComponent
@@ -17896,33 +17958,7 @@ app_logic_tick(struct App* app)
     if( app_cs2_enqueue_followups(app) )
         redraw = 1;
 
-    /*
-     * if_triggeroplocal — CS2 asked the client to notify the server of a
-     * synthetic button click (skill-guide Quest XP View-journal). Real
-     * rev-239 wire is IF_SCRIPT_TRIGGER; over rev-230 this is IF_BUTTON1
-     * with the typed arg (quest id) in the sub field → last_slot.
-     */
-    {
-        struct RS_CS2TriggerOpLocal trig;
-        int guard = 0;
-
-        while( guard++ < RS_CS2_HOST_TRIGGEROPLOCAL_MAX * 4 &&
-               RS_CS2Host_TakeTriggerOpLocal(&app->host, &trig) )
-        {
-            if( !app->net )
-                continue;
-            APP_NET_SEND(
-                app,
-                net_out_if_button_op(
-                    app->net->rev,
-                    app->net->random_out,
-                    _nsbuf,
-                    sizeof(_nsbuf),
-                    1,
-                    trig.component_id,
-                    trig.sub));
-        }
-    }
+    app_cs2_flush_triggeroplocal(app);
 
     /* CS1 (IF1) value scripts drive active state and %N text. The reference
      * re-evaluates them at draw time; here a task does it once per tick so the
@@ -18115,7 +18151,9 @@ app_world_sync_placement(
      * so the yaw the mover derives from it, happens in view-local space — so
      * their yaw goes on unrotated; only a projected (footprint-routed) actor
      * carries a root-frame heading that needs the hull's yaw taken out. */
-    deck_yaw = placement->home_view == placement->view_id && placement->home_view != 0
+    /* The legacy NPC bridge projects positions but still sends each crew
+     * member's native deck-facing direction (NPC_INFO face_dir). */
+    deck_yaw = actor_level < 0 || (placement->home_view == placement->view_id && placement->home_view != 0)
                    ? yaw & 0x7ff
                    : (yaw - wev->angle) & 0x7ff;
     /* The deck plane: a PLAYER stands at their own wire plane inside the
@@ -18438,9 +18476,11 @@ app_world_tick_animations(struct App* app)
                  * decides whether the final pose is retained or the sequence
                  * is discarded. Keep the skeletal playback span as the
                  * authoritative bound when the config limits it. */
-                if( anim && anim->frame_count == play_frames &&
-                    !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
-                    ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                if( anim && anim->frame_count == play_frames )
+                {
+                    if( !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
+                        ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                }
                 else
                     element->anim_frame = (element->anim_frame + 1) % play_frames;
                 element->anim_cycle = 0;
@@ -19684,6 +19724,9 @@ app_world_paint(struct App* app)
     else
         painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 
+    if( app->world_render_mode != TORIRS_WORLD_DEPTH )
+        app_wev_order_parent_ground(app);
+
     app->world_camera_pos.x = shake_x;
     app->world_camera_pos.y = shake_y;
     app->world_camera_pos.z = shake_z;
@@ -20503,11 +20546,8 @@ app_minimap_click(
 
     if( !app->minimap_view_valid || !app->world || !app->world->load_complete )
         return 0;
-    /* MINIMAP_TOGGLE state 2 takes the clicks as well as the picture; state 1
-     * takes only the picture, and walking by memory across a map you cannot
-     * see is the point of that state existing. */
-    if( app->minimap_state == APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE )
-        return 0;
+    /* Native permission, independent of whether the map is currently painted. */
+    if( !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_WALK) ) return 0;
     if( mouse_x < desc->x || mouse_x >= desc->x + desc->w || mouse_y < desc->y ||
         mouse_y >= desc->y + desc->h )
         return 0;
@@ -20524,8 +20564,16 @@ app_minimap_click(
         rel_x = (center_y * sin + center_x * cos) >> 11;
         rel_y = (center_y * cos - center_x * sin) >> 11;
     }
-    tile_x = ((int)player->draw_position.x + rel_x) >> 7;
-    tile_z = ((int)player->draw_position.z - rel_y) >> 7;
+    if( app_sailing_can_steer(app) )
+    {
+        if( rel_x == 0 && rel_y == 0 ) return 0;
+        return app_sailing_send_heading(app, SailingNavigation_Heading(rel_x, -rel_y));
+    }
+    int player_x = (int)player->draw_position.x;
+    int player_z = (int)player->draw_position.z;
+    app_wev_actor_root_fine(app, &player->view_placement, &player_x, &player_z);
+    tile_x = (player_x + rel_x) >> 7;
+    tile_z = (player_z - rel_y) >> 7;
     if( tile_x < 0 || tile_z < 0 || tile_x >= app->world->_scene_size ||
         tile_z >= app->world->_scene_size )
         return 0;
@@ -20540,7 +20588,19 @@ app_minimap_click(
             tile_z,
             app->world->_base_tile_x + tile_x,
             app->world->_base_tile_z + tile_z);
-    app_try_move(app, tile_x, tile_z, 1, center_x, center_y, yaw, ctrl_held);
+    if( app->aboard_view != WORLDVIEW_ROOT && app->net )
+    {
+        int route_x[] = {tile_x}, route_z[] = {tile_z};
+        /* As with viewport shore clicks, the server chooses a reachable deck
+         * edge. Root BFS cannot start from a passenger's staging coordinates. */
+        APP_NET_SEND(app, net_out_move_minimapclick(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+            app->world->_base_tile_x, app->world->_base_tile_z,
+            route_x, route_z, 1, ctrl_held, center_x, center_y, yaw, 0, 0,
+            player_x, player_z, 0));
+    }
+    else
+        app_try_move(app, tile_x, tile_z, 1, center_x, center_y, yaw, ctrl_held);
     app->need_redraw = 1;
     return 1;
 }
@@ -20560,8 +20620,9 @@ app_world_pick_finish(
      * out of every click. */
     int player_level = player ? app_cinema_level(app) : -1;
 
-    ToriRS_PickHitsClassify(
-        app->world, &app->worldviews, hits, player_level, &app->world_pickset, &result);
+    ToriRS_PickHitsClassifyViews(
+        app->world, &app->worldviews, &app->wevs, app->aboard_view,
+        hits, player_level, &app->world_pickset, &result);
     if( result.hover_tile_valid )
     {
         app->world_hover_tile_x = result.hover_tile_x;
@@ -21247,9 +21308,11 @@ app_world_catch_up_object_seq(
             element->anim_cycle++;
             if( element->anim_cycle >= 1 )
             {
-                if( anim->frame_count == play_frames &&
-                    !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
-                    ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                if( anim->frame_count == play_frames )
+                {
+                    if( !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
+                        ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                }
                 else
                     element->anim_frame = (element->anim_frame + 1) % play_frames;
                 element->anim_cycle = 0;
@@ -23209,6 +23272,9 @@ struct Task_AppSpawn
     int loc_shape;
     int loc_angle;
     int loc_model_j;
+    int loc_resolved_id;
+    int loc_resolve_depth;
+    int loc_base_seq;
     /** APP_SPAWN_LOC_CHANGE: the loc's models and sequence, fanned out and not yet ended. */
     int pending;
     /* APP_SPAWN_PLUGIN_OBJECT: the plugin object handle whose assets this task
@@ -23265,8 +23331,12 @@ app_loc_change_apply_ops(
         struct WorldEntity_SceneryInfo probe = *sc->info;
         int has_action = 0;
 
+        sc->placement_op_mask = (uint8_t)self->loc_op_flags;
+        sc->placement_op_overrides = 0;
         for( int i = 0; i < 5; i++ )
         {
+            if( !(self->loc_op_flags & (1 << i)) || self->loc_ops[i][0] )
+                sc->placement_op_overrides |= (uint8_t)(1 << i);
             char const* label = NULL;
 
             if( (self->loc_op_flags & (1 << i)) == 0 )
@@ -23496,9 +23566,25 @@ Task_AppSpawn_Run(
          * packet order on the serial exec FIFO. */
         if( self->loc_id >= 0 )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_id));
+            self->loc_resolved_id = self->loc_id;
+            self->loc_base_seq = -1;
+            for( self->loc_resolve_depth = 0;
+                 self->loc_resolved_id >= 0 && self->loc_resolve_depth < 16;
+                 ++self->loc_resolve_depth )
+            {
+                PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_resolved_id));
+                struct ToriRS_Location* cfg =
+                    CacheProvider_LocationGet(app->provider, self->loc_resolved_id);
+                if( !cfg ) { self->loc_resolved_id = -1; break; }
+                if( self->loc_resolve_depth == 0 ) self->loc_base_seq = cfg->seq_id;
+                if( cfg->transform_count <= 0 || !cfg->transforms ) break;
+                int next = VarPManager_ResolveTransform(&app->varps, cfg->transforms,
+                    cfg->transform_count, cfg->transform_varbit, cfg->transform_varp);
+                if( next == self->loc_resolved_id ) break;
+                self->loc_resolved_id = next;
+            }
             /*
-             * Every model the config names, and its sequence, TOGETHER: they
+             * Every model the resolved child names, and its sequence, TOGETHER: they
              * are independent reads with one consumer (the placement below),
              * and awaiting them one after another was a round trip each on a
              * streamed cache -- an open-door variant is commonly absent from
@@ -23506,8 +23592,8 @@ Task_AppSpawn_Run(
              * Queued as siblings on the asset queue and joined.
              */
             {
-                struct ToriRS_Location* cfg =
-                    CacheProvider_LocationGet(app->provider, self->loc_id);
+                struct ToriRS_Location* cfg = self->loc_resolved_id >= 0
+                    ? CacheProvider_LocationGet(app->provider, self->loc_resolved_id) : NULL;
                 int entries = 0;
                 if( cfg && cfg->models && cfg->lengths )
                     entries = cfg->shapes ? cfg->shapes_and_model_count : 1;
@@ -23518,7 +23604,7 @@ Task_AppSpawn_Run(
                                 app->runner.queue,
                                 CreateTask_ModelLoad(app->provider, cfg->models[i][j]),
                                 &self->pending);
-                self->seq_id = cfg ? cfg->seq_id : -1;
+                self->seq_id = cfg && cfg->seq_id >= 0 ? cfg->seq_id : self->loc_base_seq;
                 if( self->seq_id >= 0 )
                     ToriRS_TaskQueue_AddJoined(
                         app->runner.queue,
@@ -26495,17 +26581,7 @@ app_world_camera_follow(struct App* app)
      * direction the player last walked. The eye is built around that anchor, so
      * the player model swung round a point beside itself while orbiting — the
      * camera appeared to orbit the tile rather than the player. */
-    if( app->orbit_x - (float)target_x < -500.0f || app->orbit_x - (float)target_x > 500.0f ||
-        app->orbit_z - (float)target_z < -500.0f || app->orbit_z - (float)target_z > 500.0f )
-    {
-        app->orbit_x = (float)target_x;
-        app->orbit_z = (float)target_z;
-    }
-    else
-    {
-        app->orbit_x += ((float)target_x - app->orbit_x) / 16.0f;
-        app->orbit_z += ((float)target_z - app->orbit_z) / 16.0f;
-    }
+    Wev_SmoothCameraFocus(&app->orbit_x, &app->orbit_z, target_x, target_z);
 
     /* Arrow keys -> yaw/pitch velocity (impulse 24/12, halved decay). */
     if( app->cam_key_left )
@@ -27105,6 +27181,7 @@ app_hover_text_update(
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
+            app_sailing_menu_context(app, &mctx, mouse_x, mouse_y);
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
             app_minimenu_stamp_node_identities(app, &scratch);
             app_plugin_menu_build(app, &scratch, mouse_x, mouse_y, 1);
@@ -27530,6 +27607,7 @@ app_minimenu_open(
     int line_box = 0;
 
     app_minimenu_ctx_ground_fallback(app, &mctx, click_x, click_y);
+    app_sailing_menu_context(app, &mctx, click_x, click_y);
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
     /* Before the plugins, so their re-sort covers these rows too -- the client
      * ops are the cache's, and a plugin adding a row after them must not leave
@@ -27805,7 +27883,7 @@ app_minimenu_inv_action(
                 obj_id,
                 slot,
                 com_id,
-                app->targetsel.component_id));
+                app_targetsel_wire_component(app)));
         app_selection_clear(app);
         return 1;
     }
@@ -29001,7 +29079,12 @@ app_minimenu_run_option(
         if( idx >= 0 )
         {
             struct UITreeComponent const* node = &app->tree->components[idx];
-            app->targetsel.mask = node->behavior.target_mask;
+            /* The EFFECTIVE mask, not the decoded one: the row that was just
+             * clicked was built from the server's IF_SETEVENTS declaration
+             * (rs_minimenu_build's component_effective_target_mask), so the arm
+             * must read the same number or a script-built target button arms
+             * with mask 0 and every world row is refused. */
+            app->targetsel.mask = app_component_target_mask(app, opt.pick.id);
             /* targetsel.op only feeds the "Cast <spell> on ..." prompt text
              * built below. Each %s below is precision-capped so the sum of
              * parts is provably within sizeof(targetsel.op), rather than
@@ -29047,20 +29130,36 @@ app_minimenu_run_option(
                  * arrow rather than a verb suffix, so a row reads
                  * "Cast <col>Wind Strike</col> -> <col>Goblin</col>". Built into
                  * one string here because that is the shape the world/inventory
-                 * row builders append the target's name to. */
-                snprintf(
-                    app->targetsel.op,
-                    sizeof(app->targetsel.op),
-                    "%.*s %.*s ->",
-                    29,
-                    UITree_MenuOptions(node)->target_verb,
-                    29,
-                    UITree_MenuOptions(node)->option);
+                 * row builders append the target's name to.
+                 *
+                 * An empty opBase is the verb ALONE, not "verb + a space" —
+                 * the same rule add_if3_target_op_rows applies when it builds
+                 * the row. A cc_create'd button (sailing's "Edit navigator")
+                 * has no op text at all, and "Edit-navigator  -> Deckhand"
+                 * with the hole still in it is what reading the empty string
+                 * as a word looks like. */
+                if( UITree_MenuOptions(node)->option[0] == '\0' )
+                    snprintf(
+                        app->targetsel.op,
+                        sizeof(app->targetsel.op),
+                        "%.*s ->",
+                        29,
+                        UITree_MenuOptions(node)->target_verb);
+                else
+                    snprintf(
+                        app->targetsel.op,
+                        sizeof(app->targetsel.op),
+                        "%.*s %.*s ->",
+                        29,
+                        UITree_MenuOptions(node)->target_verb,
+                        29,
+                        UITree_MenuOptions(node)->option);
             }
         }
         if( getenv("TORIRS_CLICK_DEBUG") )
-            TORIRS_LOG("selarm: tgt com=0x%x mask=0x%x op='%s'\n",
+            TORIRS_LOG("selarm: tgt com=0x%x wire=0x%x mask=0x%x op='%s'\n",
                 app->targetsel.component_id,
+                app_targetsel_wire_component(app),
                 (unsigned)app->targetsel.mask,
                 app->targetsel.op);
         app_targetsel_dispatch_hook(app, 1);
@@ -29082,12 +29181,24 @@ app_minimenu_run_option(
     {
         int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
         int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
+        int deck_loc = opt.pick.view_id != 0 &&
+            (opt.action == REVCONFIG_MINIMENU_USEHELD_ONLOC ||
+             opt.action == REVCONFIG_MINIMENU_TGT_LOC);
+        if( deck_loc )
+        {
+            if( !WorldviewRegistry_IsLive(&app->worldviews, opt.pick.view_id) || !app->net )
+                return 0;
+            const struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, opt.pick.view_id);
+            abs_x = opt.pick.tertiary_id + view->base_x;
+            abs_z = opt.pick.quaternary_id + view->base_z;
+        }
         switch( opt.action )
         {
         case REVCONFIG_MINIMENU_USEHELD_ONLOC:
-            /* Reference interactWithLoc returns before sending anything when
-             * the placed loc cannot be resolved (typecode2 == -1). */
-            if( !app_try_move_loc(
+            /* Root locs use the ordinary client route. A deck loc is in a
+             * different collision map; the server routes that interaction,
+             * using the picked live view's coordinates as plain OPLOC does. */
+            if( !deck_loc && !app_try_move_loc(
                     app,
                     opt.pick.id,
                     opt.pick.tertiary_id,
@@ -29109,7 +29220,7 @@ app_minimenu_run_option(
                     app->objsel.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_LOC:
-            if( !app_try_move_loc(
+            if( !deck_loc && !app_try_move_loc(
                     app,
                     opt.pick.id,
                     opt.pick.tertiary_id,
@@ -29126,7 +29237,7 @@ app_minimenu_run_option(
                     abs_x,
                     abs_z,
                     opt.pick.secondary_id,
-                    app->targetsel.component_id));
+                    app_targetsel_wire_component(app)));
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONOBJ:
             app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
@@ -29156,7 +29267,7 @@ app_minimenu_run_option(
                     abs_x,
                     abs_z,
                     opt.pick.secondary_id,
-                    app->targetsel.component_id));
+                    app_targetsel_wire_component(app)));
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONNPC:
         {
@@ -29192,7 +29303,7 @@ app_minimenu_run_option(
                         _nsbuf,
                         sizeof(_nsbuf),
                         npc->server_slot,
-                        app->targetsel.component_id));
+                        app_targetsel_wire_component(app)));
             }
             break;
         }
@@ -29219,6 +29330,16 @@ app_minimenu_run_option(
         case REVCONFIG_MINIMENU_TGT_PLAYER:
         {
             struct WorldEntity_Player* player = World_PlayerGetByElementId(app->world, opt.pick.id);
+            /* The row was BUILT from this same pick, so "the menu offered it
+             * and the click sent nothing" can only be one of these three
+             * numbers — and none of them is visible from outside. */
+            if( getenv("TORIRS_CLICK_DEBUG") )
+                TORIRS_LOG("clickdbg: tgt player elem=0x%x found=%d pid=%d local=%d wire=0x%x\n",
+                    opt.pick.id,
+                    player ? 1 : 0,
+                    player ? player->server_pid : -1,
+                    app->world->local_pid,
+                    app_targetsel_wire_component(app));
             if( player && player->server_pid >= 0 && player->server_pid != app->world->local_pid )
             {
                 app_try_move_player(app, player, app->ctrl_held);
@@ -29230,7 +29351,7 @@ app_minimenu_run_option(
                         _nsbuf,
                         sizeof(_nsbuf),
                         player->server_pid,
-                        app->targetsel.component_id));
+                        app_targetsel_wire_component(app)));
             }
             break;
         }
@@ -29417,6 +29538,10 @@ app_minimenu_run_option(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_cmd));
             UICross_Show(&app->cross, UI_CROSS_INTERACT, click_x, click_y);
         }
+        return 0;
+    case UI_MINIMENU_PICK_HEADING:
+        if( app_sailing_send_heading(app, opt.pick.id) )
+            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
         return 0;
     case UI_MINIMENU_PICK_TERRAIN:
         /*
@@ -30010,6 +30135,9 @@ App_SetCanvasSize(
  * leaves every descendant's own flag clear and its stale abs_* box intact, so a
  * caller that reads geometry off the flat component array sees a hidden
  * subtree's boxes as live ones. */
+#if defined(TORIRS_CANVAS_CAPTURE)
+#include "../tools/perf/canvas_chain_capture.u.h"
+#endif
 static int
 component_hidden_or_orphaned(
     struct UITree const* tree,
@@ -30033,6 +30161,11 @@ component_hidden_or_orphaned(
 int
 App_MeasureRightChromeStripWidth(struct App const* app)
 {
+#if defined(TORIRS_CANVAS_CAPTURE)
+    canvas_chain_capture(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H);
+#endif
+    if( app->tree && UITree_CanvasQueryCompactEnabled() )
+        return UITree_CanvasMeasureCompact(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H).strip;
     /*
      * Memo, keyed on the tree publication this answer was read from.
      *
@@ -30126,6 +30259,116 @@ App_MeasureRightChromeStripWidth(struct App const* app)
     return best;
 }
 
+/*
+ * The width the LANE's own frame needs, when the canvas it was given is too
+ * narrow for it.
+ *
+ * The resizable OldSchool toplevels are not fluid all the way down: each one
+ * carves the popout strip off the canvas (a full-height layer authored as
+ * "parent width - <strip>") and then lays a single fixed-size block inside
+ * what is left, clamped up to 765x503 by its own resize script. Handed less
+ * than that, the script writes the floor anyway and the layout CENTRES the
+ * block, so it hangs off both sides -- and every lane widget anchored to its
+ * right edge (the XP counter, the tracker overlays) lands to the RIGHT of the
+ * area a plugin frame was handed, under that frame's own right-hand furniture.
+ *
+ * Nobody notices this natively because APP_CANVAS_MIN_W is that same 765: the
+ * canvas floor already holds the block. A plugin frame that declares
+ * TORIRS_FRAME_CANVAS_WINDOW replaces that floor with its OWN minimum, and a
+ * frame written for a phone declares a smaller one -- legitimately, for its
+ * own furniture, which is all a frame offer can speak for. It does not replace
+ * the lane's toplevel; it arranges over it. So the lane's floor still applies,
+ * and this is where it is read: not from a constant (the mobile toplevel is
+ * fluid and must stay able to lay out at phone widths) but from the lane's own
+ * layout, at the one moment it states the number -- when the block it lays in
+ * the carved area comes out WIDER than the carved area.
+ *
+ * 0 when everything fits, which is also the answer when there is no such
+ * block. Only the overflow case is measurable: a block that fits tells us
+ * nothing about how small it could have been, and needs nothing.
+ */
+int
+App_MeasureLaneFrameCoreWidth(struct App const* app)
+{
+#if defined(TORIRS_CANVAS_CAPTURE)
+    canvas_chain_capture(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H);
+#endif
+    if( app->tree && UITree_CanvasQueryCompactEnabled() )
+        return UITree_CanvasMeasureCompact(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H).core;
+    /* Memoised on the same three terms as the strip scan above, and for the
+     * same reason: this is a full pass over every component, asked once per
+     * frame from App_CanvasFloorWidth. @see App_MeasureRightChromeStripWidth. */
+    static struct UITree const* memo_tree = NULL;
+    static uint32_t memo_dirty_gen;
+    static uint32_t memo_layout_seq;
+    static uint32_t memo_count;
+    static int memo_value;
+
+    int canvas_w;
+    int canvas_h;
+    int strip;
+    int best;
+    uint32_t i;
+
+    assert(app);
+    if( !app->tree || app->tree->component_count == 0 )
+        return 0;
+
+    if( memo_tree == app->tree && memo_dirty_gen == app->tree->dirty_gen &&
+        memo_layout_seq == app->tree->layout_resolve_seq &&
+        memo_count == app->tree->component_count )
+        return memo_value;
+
+    canvas_w = UITREE_LAYOUT_ROOT_W;
+    canvas_h = UITREE_LAYOUT_ROOT_H;
+    strip = App_MeasureRightChromeStripWidth(app);
+    best = 0;
+
+    for( i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &app->tree->components[i];
+        struct UITreeComponent const* p;
+
+        /* A block with a size of its own -- not one that follows whatever it
+         * is put in, which by construction can never overflow. */
+        if( c->freed || c->position.width_mode != 0 || c->position.abs_w <= 0 )
+            continue;
+        if( c->parent < 0 || (uint32_t)c->parent >= app->tree->component_count )
+            continue;
+        p = &app->tree->components[c->parent];
+        if( c->position.abs_w <= p->position.abs_w )
+            continue;
+        /*
+         * The parent must be the CARVED AREA: full-canvas height, docked on
+         * the left edge, and exactly the strip narrower than the canvas. That
+         * signature is what separates the lane's frame from every other fixed
+         * box that is bigger than the container it hangs in -- a 512x334 modal
+         * parked inside the 42-column popout strip is the shape this would
+         * otherwise measure, and it is not short of anything.
+         */
+        if( p->position.width_mode != 1 || p->position.height_mode != 1 )
+            continue;
+        if( p->position.abs_x != 0 || p->position.abs_w != canvas_w - strip )
+            continue;
+        if( p->position.abs_h < canvas_h - 2 )
+            continue;
+        if( c->position.abs_w <= best )
+            continue;
+        /* Ancestors too, for the reason the strip scan gives: a speculatively
+         * baked panel keeps live-looking boxes under a hidden root. */
+        if( component_hidden_or_orphaned(app->tree, (int32_t)i) )
+            continue;
+        best = c->position.abs_w;
+    }
+
+    memo_tree = app->tree;
+    memo_dirty_gen = app->tree->dirty_gen;
+    memo_layout_seq = app->tree->layout_resolve_seq;
+    memo_count = app->tree->component_count;
+    memo_value = best;
+    return best;
+}
+
 int
 App_FixedCanvasWidth(struct App const* app)
 {
@@ -30141,6 +30384,15 @@ App_CanvasFloorWidth(struct App const* app)
 
     assert(app);
     App_PluginLayoutMinSize(app, &frame_min_w, &frame_min_h);
+    /* And never below the LANE's own frame, which a plugin layout arranges
+     * over rather than replaces: its widgets are still laid out by the lane's
+     * toplevel, and a toplevel handed less than it can use spills them out of
+     * the area the plugin frame was given. @see App_MeasureLaneFrameCoreWidth. */
+    {
+        int const lane_core_w = App_MeasureLaneFrameCoreWidth(app);
+        if( frame_min_w < lane_core_w )
+            frame_min_w = lane_core_w;
+    }
     /* The strip is CARVED OUT of the canvas -- the resizable toplevels lay
      * their own children out beside it (interface 728's rail is 42 columns of
      * the canvas on both of them, and a plugin layout gets the same canvas
@@ -30362,7 +30614,6 @@ App_PluginLayoutTick(struct App* app)
      * them at the same pre-interaction publication fence so a role
      * rebuilt into a recycled component-array slot cannot leak one native
      * frame or inherit another target's suppression. */
-    PluginHost_ReconcileUi(app->plugins);
     /*
      * Name the cache gameframe's regions before providers and placement code
      * query them. Frame builds and the emit-fence rebind read these stamps. The
@@ -30373,6 +30624,7 @@ App_PluginLayoutTick(struct App* app)
         UITree_FrameSetBinder(app->tree, app_plugin_frame_bind, app);
         UITree_FrameBind(app->tree);
     }
+    PluginHost_ReconcileUi(app->plugins);
     frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
     if( !app->plugin_frame_active )
     {
@@ -30967,41 +31219,7 @@ App_RunOnce(
         }
     }
 
-    /*
-     * Settings varbit writes, mirrored to the SERVER.
-     *
-     * Ten Activities rows are decided server-side -- the Agility, Slayer and
-     * Blast Furnace helpers, the clue helper's worldmap marker, world arrow and
-     * infobox, the two iron loot warnings, the boss health overlay and the
-     * max-hit threshold -- and every one of them reads a varbit this panel
-     * writes into the client's copy alone. See `settings_mirror_varbit` in
-     * rs_cs2_host.h for why no packet in this revision carries it and why the
-     * mirror rides CLIENT_CHEAT.
-     *
-     * Retried rather than dropped when the send fails. `App_SendCommand`
-     * answers false until the connection reaches GAME, and the settings panel
-     * is reachable well before that on a slow login -- a mirror lost there
-     * would leave the server on the opposite value with no second chance,
-     * since a row already at the value the player wants is never written again.
-     */
-    {
-        int mirror_varbit;
-        int mirror_value;
-        while( RS_CS2Host_TakeSettingsMirror(&app->host, &mirror_varbit, &mirror_value) )
-        {
-            char cmd[64];
-
-            snprintf(cmd, sizeof(cmd), "setting %d %d", mirror_varbit, mirror_value);
-            if( !App_SendCommand(app, cmd) )
-            {
-                RS_CS2Host_QueueSettingsMirror(&app->host, mirror_varbit, mirror_value);
-                break;
-            }
-            if( getenv("TORIRS_SETTINGS_DEBUG") )
-                TORIRS_LOG("settings: mirror varbit %d = %d -> server\n", mirror_varbit,
-                        mirror_value);
-        }
-    }
+    app_cs2_flush_settings_mirrors(app);
 
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
@@ -31390,9 +31608,13 @@ App_RunOnce(
      * held the visual latch a full tick per read, and a hitsplat whose
      * sprite+sound chain was several reads deep froze the world for that
      * many ticks — every server cycle, in combat. When nothing is parked
-     * this does not run at all, so tick cadence is otherwise untouched. */
+     * and no new packet is queued, this does not run. Newly received packets
+     * must also enter this pipeline: a paused client has no next logic tick to
+     * start it, so publish-only server responses otherwise wait forever. This
+     * drains the existing serial protocol queue without advancing simulation. */
     if( app->exec_runner_had_work || app->server_tick_open ||
-        app->pending_clientscript_count > 0 )
+        app->pending_clientscript_count > 0 ||
+        (app->net && app->net->packets_head) )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
         {
@@ -31847,6 +32069,7 @@ App_RunOnce(
 
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
+        app_sailing_menu_context(app, &mctx, out.clicked_x, out.clicked_y);
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
         app_minimenu_stamp_node_identities(app, &scratch);
         app_plugin_menu_build(app, &scratch, out.clicked_x, out.clicked_y, 0);
@@ -31972,6 +32195,7 @@ App_RunOnce(
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
+        app_sailing_menu_context(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
         app_minimenu_stamp_node_identities(app, &scratch);
         app_plugin_menu_build(app, &scratch, out.left_click_miss_x, out.left_click_miss_y, 0);
@@ -32840,6 +33064,39 @@ App_RunOnce(
             if( UIInk_IsActive(&app->ink) )
                 gate_quiet = 0;
 
+#if defined(TORIRS_UI_RETAIN_TRACE)
+            /* Correctness/dependency census only, never a timing run. Count
+             * failed retention inputs after startup; no per-node timer. */
+            {
+                static unsigned frames, quiet, dirty, layout, topology, hover, host,
+                    unrefreshable, ink, domains[UITREE_HOST_INPUT_DOMAIN_COUNT];
+                extern unsigned g_ui_retain_trace_mutations;
+                if( frames == 600u ) g_ui_retain_trace_mutations = 48u;
+                if( ++frames > 600u && frames <= 1800u )
+                {
+                    quiet += gate_quiet != 0;
+                    dirty += app->tree->dirty_gen != app->emit_gate.dirty_gen;
+                    layout += app->tree->layout_stale || app->tree->layout_force_full ||
+                        app->tree->layout_resolve_seq != app->emit_gate.layout_resolve_seq;
+                    topology += app->tree->generation != app->emit_gate.tree_generation;
+                    hover += app->hover_com_id != app->emit_gate.hovered_component_id;
+                    host += !UITree_EmitBufferHostInputsCurrent(&app->emit, &app->ui_host);
+                    unrefreshable += app->emit.volatile_unrefreshable != 0;
+                    ink += UIInk_IsActive(&app->ink) != 0;
+                    for( int d = 0; d < UITREE_HOST_INPUT_DOMAIN_COUNT; d++ )
+                        domains[d] += (app->emit.host_input_stamp.dependencies & UITREE_HOST_INPUT_BIT(d)) &&
+                            app->emit.host_input_stamp.epoch[d] != app->ui_host.input_epoch[d];
+                    if( frames == 1800u )
+                    {
+                        TORIRS_REPORT("ui-retain-trace: frames=1200 quiet=%u dirty=%u layout=%u topology=%u hover=%u host=%u unrefreshable=%u ink=%u\n",
+                            quiet, dirty, layout, topology, hover, host, unrefreshable, ink);
+                        for( int d = 0; d < UITREE_HOST_INPUT_DOMAIN_COUNT; d++ )
+                            TORIRS_REPORT("ui-retain-trace: host_domain=%d changed=%u\n", d, domains[d]);
+                    }
+                }
+            }
+#endif
+
             /* Every dirty_gen source was measured bursty (creates, hide flips,
              * child link/unlink — all interface-open work), so on a steady-state
              * frame the tree term should hold and the gate should fire. It fires
@@ -33064,7 +33321,9 @@ App_FrameSettled(struct App const* app)
     assert(app);
     return !app->runner_had_work && !app->runner.frame_settle_pending &&
            !app->exec_runner_had_work && !app->server_tick_open &&
-           app->pending_clientscript_count == 0;
+           app->pending_clientscript_count == 0 && app->host.triggeroplocal_count == 0 &&
+           !app->host.close_modal_requested && app->host.resume_pausebutton_component_id == -1 &&
+           app->host.social_send_count == 0;
 }
 
 int
@@ -34386,10 +34645,6 @@ App_WevDespawn(
      * is one of them while the root world still holds its id (SAILING_PLAN
      * C5.1). */
     app_wev_evict_view_actors(app, id);
-
-    /* The flatten bake before Wevs_Despawn memsets the record: its model and
-     * scene element are the App's to free. */
-    app_wev_flat_free(app, Wevs_Get(&app->wevs, id));
 
     Wevs_Despawn(&app->wevs, id);
 

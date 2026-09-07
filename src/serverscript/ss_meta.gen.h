@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11103] = {
+static const char* const g_ss_opcode_names[11114] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -514,6 +514,17 @@ static const char* const g_ss_opcode_names[11103] = {
     [11100] = "VESSEL_HP",
     [11101] = "VESSEL_DAMAGE",
     [11102] = "VESSEL_FACILITY",
+    [11103] = "VESSEL_CONTROL",
+    [11104] = "VESSEL_CARGO",
+    [11105] = "VESSEL_CARGO_TRANSFER",
+    [11106] = "VESSEL_FURNISH",
+    [11107] = "VESSEL_INFO",
+    [11108] = "VESSEL_GETFACILITY",
+    [11109] = "VESSEL_STAT",
+    [11110] = "VESSEL_OWNED",
+    [11111] = "VESSEL_RECOVER",
+    [11112] = "VESSEL_SLOT",
+    [11113] = "VESSEL_PROJECT",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -523,7 +534,7 @@ static const char* const g_ss_opcode_names[11103] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11103] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11114] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -860,7 +871,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11103] = {
     [4329] = { 2, 0, 1, 0, 1, 0, 0, 1, 0x001, 0x002 }, /* INV_TOTALPARAM_STACK */
     [4330] = { 2, 0, 1, 0, 1, 0, 0, 1, 0x001, 0x002 }, /* INV_TOTALPARAM */
     [4331] = { 2, 0, 0, 0, 1, 0, 0, 1, 0x001, 0x002 }, /* INV_TRANSMIT */
-    [4332] = { 3, 0, 0, 0, 1, 0, 0, 1, 0x003, 0x003 }, /* INVOTHER_TRANSMIT */
+    [4332] = { 3, 0, 0, 0, 1, 0, 0, 1, 0x001, 0x002 }, /* INVOTHER_TRANSMIT */
     [4400] = { 4, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* ENUM */
     [4401] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* ENUM_GETOUTPUTCOUNT */
     [4500] = { 1, 1, 0, 1, 1, 0, 0, 0, 0x000, 0x000 }, /* APPEND_NUM */
@@ -1031,6 +1042,17 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11103] = {
     [11100] = { 1, 0, 2, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_HP */
     [11101] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_DAMAGE */
     [11102] = { 3, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_FACILITY */
+    [11103] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_CONTROL */
+    [11104] = { 1, 0, 2, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_CARGO */
+    [11105] = { 5, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_CARGO_TRANSFER */
+    [11106] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_FURNISH */
+    [11107] = { 1, 0, 2, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_INFO */
+    [11108] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_GETFACILITY */
+    [11109] = { 3, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_STAT */
+    [11110] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_OWNED */
+    [11111] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_RECOVER */
+    [11112] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_SLOT */
+    [11113] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_PROJECT */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

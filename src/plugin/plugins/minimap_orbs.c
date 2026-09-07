@@ -732,6 +732,13 @@ orbs_map_bounds(
     struct ToriRS_ApiV2* api,
     struct ToriRS_Rect* out)
 {
+    /* A native minimap can retain its semantic bounds while the cinematic
+     * layout hides its contents. Plugin-owned orbs must follow that state. */
+    int cutscene;
+    if( api->cache.named_id && api->cache.varbit &&
+        api->cache.named_id(api, "varbit", "cutscene_status", &cutscene) &&
+        api->cache.varbit(api, cutscene) != 0 )
+        return 0;
     struct ToriRS_UiNodeInfo map;
     struct ToriRS_UiNodeRef const ref = api->ui.ref(api, "frame.minimap");
 

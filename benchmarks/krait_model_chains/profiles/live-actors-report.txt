@@ -1,0 +1,41 @@
+Cmdline: /data/data/com.torirs.client/simpleperf record -e cpu-cycles:u -c 150000 -p 24631 --duration 15 -o /sdcard/Android/data/com.torirs.client/files/pipeline-sample.data --no-dump-kernel-symbols
+Arch: arm
+Event: cpu-cycles:u (type 0, config 0)
+Samples: 148260
+Event count: 22239000000
+
+Overhead  Sample  Command      Symbol
+8.55%     12671   gles2-stage  ToriDraw_AnimApplyTransform
+5.09%     7552    Thread-2909  emit_walk_node
+4.17%     6189    Thread-2909  trspk_toridraw_bake_face
+3.71%     5499    Thread-2909  ToriDraw_AnimApplyTransform
+3.70%     5487    Thread-2909  bucket_paint_world
+3.69%     5471    gles2-stage  toridraw_compute_projected_face_order_small_general
+3.54%     5250    Thread-2909  __memcpy_base
+3.22%     4775    Thread-2909  ToriRS_FrameNextCommand
+2.89%     4290    Thread-2909  App_MeasureLaneFrameCoreWidth
+2.68%     3973    Thread-2909  gles2_bake_pose_vertices
+2.45%     3629    Thread-2909  App_MeasureRightChromeStripWidth
+2.05%     3042    Thread-2909  World_CycleRegisterPainterDynamics
+1.94%     2883    gles2-stage  ToriDraw_ProjectWithVTable
+1.63%     2418    Thread-2909  toridraw_compute_projected_face_order_small_general
+1.26%     1863    Thread-2909  @plt
+1.22%     1805    gles2-stage  GLES2DualCoreStage_ComputeModel
+1.10%     1633    Thread-2909  app_entity_overlay_layout
+1.07%     1593    Thread-2909  gles2_dispatch
+1.05%     1553    Thread-2909  unknown[+c0718358]
+1.01%     1503    Thread-2909  ToriDraw_ProjectWithVTable
+0.96%     1423    AudioTrack   advance
+0.93%     1386    Thread-2909  ToriRS_GLES2DualCore_RenderFrame
+0.91%     1348    gles2-stage  dualcore_worker_main
+0.78%     1150    Thread-2909  UITree_FindByComponentId
+0.77%     1146    gles2-stage  toridraw_projection_prepared_neon32_notex_noyaw_noclip
+0.72%     1066    Thread-2909  gles2_prefetch_ahead_ids
+0.71%     1053    Thread-2909  App_RunOnce
+0.65%     964     AudioTrack   ToriRS_PcmVoice_Mix
+0.65%     960     Thread-2909  trspk_toridraw_face_colors
+0.58%     863     Thread-2909  CS2VM2_RunOp
+0.53%     789     Thread-2909  dualcore_source_take
+0.53%     787     Thread-2909  frame_lookahead_element_id
+0.52%     764     Thread-2909  component_native_availability
+0.50%     747     Thread-2909  oxili_calc_vfd_regs

@@ -750,6 +750,9 @@ struct UITreeComponent
      *  host: emit stays synchronous while the VM's asset yields are serviced by
      *  the task layer. */
     uint8_t cs1_active;
+    /** Explicit server/script hiding, separate from an authored IF1 tooltip
+     * gate. Only the native hide setter changes it; frame release does not. */
+    uint8_t native_hide;
     int cs1_values[UITREE_CS1_VALUE_MAX];
     /** CS2 event hooks, owned by the component, NULL until one is registered.
      *  17 slots each carrying argv[64] and strv[4][80] inline is ~10 KB — the
@@ -1304,6 +1307,12 @@ struct UITree
     /** Tail of root sibling list — O(1) append while baking large packs. */
     int32_t last_root_index;
     uint32_t generation;
+    /* Structural candidates for canvas queries. Geometry and visibility are
+     * read live; topology or alignment-mode changes invalidate membership. */
+    uint32_t* canvas_candidate_ids;
+    uint32_t canvas_candidate_count, canvas_candidate_capacity;
+    uint32_t canvas_candidate_generation, canvas_candidate_nodes;
+    uint8_t canvas_candidates_valid;
     /** Monotonic source for UITreeComponent::incarnation. Zero is skipped. */
     uint32_t next_incarnation;
     /** Bumped every time `UITree_LayoutResolve` actually walks, i.e. every time

@@ -970,7 +970,27 @@ osrs239_parse(
         struct PktChatFilterSettings* p = &out->_chat_filter_settings;
         p->chat_public_mode = RSProt_BufferG1_add128(&c);
         p->chat_trade_mode = RSProt_BufferG1_sub128(&c);
-        p->chat_private_mode = 0;
+        /*
+         * ABSENT, not zero.
+         *
+         * `class243.field3058 = new class243(124, 2)` and its handler
+         * (client.java:2820) writes only field943 (public) and field776 (trade);
+         * it never touches the private filter. That filter has a packet of its
+         * own -- `field2939 = new class243(5, 1)`,
+         * CHAT_FILTER_SETTINGS_PRIVATECHAT, whose handler (client.java:3830) is
+         * the ONLY writer of Statics.field5072, the object CS2 opcode 5005
+         * chat_getfilter_private reads back.
+         *
+         * Fabricating a 0 put "Private On" back under the player the instant
+         * after they chose Show friends, and then fed that fabricated 0 to the
+         * server on their NEXT filter change, through chat_set_filter_184's
+         * `chat_setfilter(chat_getfilter_public, chat_getfilter_private, $new)`
+         * -- silent loss of a setting the player had set and the server had
+         * persisted. A negative value is the executor's "this revision sent no
+         * such field", the same convention the zone headers use for a plane a
+         * revision does not send, and it leaves the client's own copy standing.
+         */
+        p->chat_private_mode = -1;
         return c.err ? 0 : 1;
     }
 

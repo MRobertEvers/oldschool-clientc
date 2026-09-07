@@ -5,11 +5,15 @@
 #include "perf/torirs_perf.h"
 #include "uitree_inv_view.h"
 #include "uitree_layout.h"
+#include "uitree_frame.h"
 
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include "log/torirs_log.h"
+
+static int32_t frame_ordered_hit(struct UITree const* tree, struct UITreeHost const* host,
+                                 int px, int py, int geometric);
 
 /* Screen click (px,py) landed on one of an RS_INV grid's slot rects. Inventory
  * components carry cols/rows in their base width/height (4x7 for the backpack),
@@ -342,6 +346,7 @@ hit_test_interactive_recursive(
             return -1;
     }
 
+    if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return -1;
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -547,6 +552,7 @@ UITree_HitTest(
     int py)
 {
     assert(tree);
+    if( UITree_FrameHasDepth(tree) ) return frame_ordered_hit(tree, NULL, px, py, 1);
     if( tree->root_index < 0 )
         return -1;
 
@@ -564,9 +570,16 @@ UITree_HitTest(
     return hit;
 }
 
+struct FrameInputEvent
+{
+    int32_t node_plus_one;
+    unsigned char menu, interactive, geometric, barrier, world;
+};
+
 struct collect_nodes_ctx
 {
     int32_t* out;
+    struct FrameInputEvent* events;
     int max;
     int count;
     /** Entries below this index were drawn under a blocking panel/mount. */
@@ -593,14 +606,20 @@ collect_nodes_recursive(
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return;
 
-    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !UITree_PointInClip(px, py, clip) )
-        return;
+    bool const clipped = clip && clip->clip_w > 0 && clip->clip_h > 0 && !UITree_PointInClip(px, py, clip);
+    if( clipped && !ctx->events ) return;
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( component->behavior.hide || component->frame_hidden || component->screen_hidden ||
-        component->replacement_hidden || component->projection_hidden )
+    if( component->behavior.hide || component->screen_hidden || component->projection_hidden ||
+        (component->frame_hidden && !component->replacement_hidden) ) return;
+    if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
+    if( component->replacement_hidden )
+    {
+        if( ctx->events && ctx->count < ctx->max )
+            ctx->events[ctx->count++] = (struct FrameInputEvent){ .node_plus_one = node_index + 1 };
         return;
+    }
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
      * walk), before the no_click_through barrier below. Otherwise an inactive
@@ -613,6 +632,7 @@ collect_nodes_recursive(
             return;
     }
 
+    if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -626,11 +646,11 @@ collect_nodes_recursive(
     }
 
     bool const point_in_self =
-        UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
+        !clipped && UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 
     /* A blocking panel discards everything rendered under it — including
      * entries already collected — but keeps itself and its subtree. */
-    if( !component->replacement_input_hidden && point_in_self &&
+    if( !ctx->events && !component->replacement_input_hidden && point_in_self &&
         component->no_click_through && ctx->count > ctx->barrier )
         ctx->barrier = ctx->count;
 
@@ -638,8 +658,15 @@ collect_nodes_recursive(
      * (cols x rows)-pixel layout bounds — collect it when a slot is hit even if
      * the click misses the tiny node box. */
     bool const inv_slot_hit =
-        collect_inv_grid_slot_hit(component, bx, by, px, py, scroll_off_x, scroll_off_y);
+        !clipped && collect_inv_grid_slot_hit(component, bx, by, px, py, scroll_off_x, scroll_off_y);
 
+    struct FrameInputEvent event = { .node_plus_one = node_index + 1 };
+    event.barrier = !component->replacement_input_hidden && point_in_self && component->no_click_through;
+    event.world = node_index == tree->world_index && point_in_self;
+    event.geometric = !component->replacement_input_hidden && point_in_self && component->type != UIELEM_RS_LAYER;
+    event.interactive = !component->replacement_input_hidden && point_in_self &&
+                        !UITree_ComponentIsPassThrough(component, host) &&
+                        UITree_ComponentHitTestVisibleHost(component, -1, host);
     if( !component->replacement_input_hidden && (point_in_self || inv_slot_hit) &&
         UITree_ComponentHitTestVisibleHost(component, -1, host) )
     {
@@ -658,10 +685,12 @@ collect_nodes_recursive(
          * child — so every other test here calls it pass-through chrome and
          * drops it, and the equipment slots become unclickable. */
         bool const has_obj = component->item_id > 0;
-        if( (inv_grid || has_ops || has_obj || !UITree_ComponentIsPassThrough(component, host)) &&
-            ctx->count < ctx->max )
+        event.menu = inv_grid || has_ops || has_obj || !UITree_ComponentIsPassThrough(component, host);
+        if( event.menu && !ctx->events && ctx->count < ctx->max )
             ctx->out[ctx->count++] = node_index;
     }
+
+    if( ctx->events && ctx->count < ctx->max ) ctx->events[ctx->count++] = event;
 
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
@@ -702,7 +731,11 @@ collect_nodes_recursive(
     for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
         if( mount_sweep == 1 && mount_type == 0 && point_in_self )
-            ctx->barrier = ctx->count;
+        {
+            if( ctx->events && ctx->count < ctx->max )
+                ctx->events[ctx->count++] = (struct FrameInputEvent){ .node_plus_one = node_index + 1, .barrier = 1 };
+            else ctx->barrier = ctx->count;
+        }
 
         for( int32_t child = component->first_child; child >= 0;
              child = tree->components[child].next_sibling )
@@ -728,6 +761,37 @@ collect_nodes_recursive(
     }
 }
 
+static struct FrameInputEvent*
+frame_input_events(struct UITree const* tree, struct UITreeHost const* host,
+                   int px, int py, int* count)
+{
+    struct collect_nodes_ctx ctx = { .max = (int)tree->component_count * 2 + 1 };
+    ctx.events = calloc((size_t)ctx.max, sizeof(*ctx.events));
+    assert(ctx.events);
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+        if( UITree_RootIsDisplayable(tree, root) )
+            collect_nodes_recursive(tree, host, root, px, py, 0, 0, NULL, NULL, &ctx);
+    *count = UITree_FrameReorder(tree, host, ctx.events, ctx.count, sizeof(*ctx.events),
+                                offsetof(struct FrameInputEvent, node_plus_one), NULL);
+    return ctx.events;
+}
+
+static int32_t
+frame_ordered_hit(struct UITree const* tree, struct UITreeHost const* host,
+                  int px, int py, int geometric)
+{
+    int count;
+    int32_t hit = -1;
+    struct FrameInputEvent* events = frame_input_events(tree, host, px, py, &count);
+    for( int i = 0; i < count; i++ )
+    {
+        if( events[i].barrier || events[i].world ) hit = -1;
+        if( geometric ? events[i].geometric : events[i].interactive ) hit = events[i].node_plus_one - 1;
+    }
+    free(events);
+    return hit;
+}
+
 int
 UITree_CollectNodesAt(
     struct UITree const* tree,
@@ -741,6 +805,18 @@ UITree_CollectNodesAt(
 
     assert(tree);
     assert(out_nodes);
+
+    if( UITree_FrameHasDepth(tree) )
+    {
+        int count, barrier = 0, kept = 0;
+        struct FrameInputEvent* events = frame_input_events(tree, host, px, py, &count);
+        for( int i = 0; i < count; i++ )
+            if( events[i].barrier || events[i].world ) barrier = i;
+        for( int i = count - 1; i >= barrier && kept < max_nodes; i-- )
+            if( events[i].menu ) out_nodes[kept++] = events[i].node_plus_one - 1;
+        free(events);
+        return kept;
+    }
 
     for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
@@ -772,6 +848,7 @@ UITree_HitTestInteractive(
     int py)
 {
     assert(tree);
+    if( UITree_FrameHasDepth(tree) ) return frame_ordered_hit(tree, host, px, py, 0);
     if( tree->root_index < 0 )
         return -1;
 
@@ -800,6 +877,11 @@ UITree_HitTestInteractive(
  * array/component ids: dynamic nodes reuse both, mounted roots have their own
  * final sweep, and a picked-up drag subtree is emitted in a second global
  * pass. */
+struct FrameBoundaryEvent
+{
+    int32_t node_plus_one;
+    bool candidate, boundary, cover, world;
+};
 struct role_boundary_order
 {
     struct UITree const* tree;
@@ -822,7 +904,22 @@ struct role_boundary_order
     bool candidate_seen;
     bool boundary_seen;
     bool cover_seen;
+    struct FrameBoundaryEvent* events;
+    int event_count, event_capacity;
 };
+
+static void
+frame_boundary_push(struct role_boundary_order* order, int32_t node, bool world)
+{
+    if( !order->events ) return;
+    assert(order->event_count < order->event_capacity);
+    order->events[order->event_count++] = (struct FrameBoundaryEvent){
+        node + 1,
+        order->candidate_seen && order->candidate_sequence == order->sequence,
+        order->boundary_seen && order->boundary_sequence == order->sequence,
+        order->cover_seen && order->cover_sequence == order->sequence,
+        world };
+}
 
 static void
 role_boundary_mark_node(
@@ -868,6 +965,9 @@ role_boundary_mark_node(
         order->cover_sequence = order->sequence;
         order->cover_seen = true;
     }
+    frame_boundary_push(order, node,
+        order->point_query && node == order->tree->world_index && point_in_self);
+
 }
 
 static void
@@ -876,17 +976,21 @@ role_boundary_mark_anchor(struct role_boundary_order* order)
     order->sequence++;
     order->boundary_sequence = order->sequence;
     order->boundary_seen = true;
+    frame_boundary_push(order, order->anchor, false);
+
 }
 
 /** A blocking boundary which has no native paint node of its own. Type-0
  * InterfaceParents raise this between the host's ordinary children and the
  * mounted subtree, so it needs a sequence position of its own. */
 static void
-role_boundary_mark_cover(struct role_boundary_order* order)
+role_boundary_mark_cover(struct role_boundary_order* order, int32_t node)
 {
     order->sequence++;
     order->cover_sequence = order->sequence;
     order->cover_seen = true;
+    frame_boundary_push(order, node, false);
+
 }
 
 static void
@@ -919,6 +1023,7 @@ role_boundary_walk_node(
         component->projection_hidden || component->behavior.hide )
         return;
 
+    if( !UITree_NodeNativeVisible(tree, order->host, node, -1) ) return;
     /* Same selected-tab pruning as emit and interactive hit testing. */
     if( component->type == UIELEM_BUILTIN_SIDEBAR && order->host )
     {
@@ -1066,7 +1171,7 @@ role_boundary_walk_node(
              * interactive child at this pixel. */
             if( order->point_query && mount_sweep == 1 && mount_type == 0 &&
                 point_in_self )
-                role_boundary_mark_cover(order);
+                role_boundary_mark_cover(order, node);
             for( int32_t child = component->first_child; child >= 0;
                  child = tree->components[child].next_sibling )
             {
@@ -1103,6 +1208,12 @@ role_boundary_walk_tree(struct role_boundary_order* order)
 
     assert(order);
     tree = order->tree;
+    if( UITree_FrameHasDepth(tree) )
+    {
+        order->event_capacity = (int)tree->component_count * 3 + 8;
+        order->events = calloc((size_t)order->event_capacity, sizeof(*order->events));
+        assert(order->events);
+    }
     /* One monotonically increasing sequence spans both passes, so every
      * deferred drag node naturally sorts above every ordinary descriptor. */
     for( int drag_pass = 0; drag_pass <= (UITree_HasActiveDrag(tree) ? 1 : 0);
@@ -1124,6 +1235,30 @@ role_boundary_walk_tree(struct role_boundary_order* order)
                 NULL);
         }
     }
+    if( order->events )
+    {
+        order->event_count = UITree_FrameReorder(tree, order->host, order->events, order->event_count,
+                              sizeof(*order->events), offsetof(struct FrameBoundaryEvent, node_plus_one), NULL);
+        order->candidate_seen = order->boundary_seen = order->cover_seen = false;
+        for( int i = 0; i < order->event_count; i++ )
+        {
+            struct FrameBoundaryEvent const* event = &order->events[i];
+            uint64_t sequence = (uint64_t)i + 1;
+            if( event->candidate ) { order->candidate_seen = true; order->candidate_sequence = sequence; }
+            if( event->boundary ) { order->boundary_seen = true; order->boundary_sequence = sequence; }
+            if( event->world )
+            {
+                /* The world covers input regions behind it, but is not UI
+                 * cover for a global FRAME region that sits above the scene. */
+                order->cover_seen = order->anchor >= 0;
+                order->cover_sequence = sequence;
+            }
+            else if( event->cover ) { order->cover_seen = true; order->cover_sequence = sequence; }
+        }
+        free(order->events);
+        order->events = NULL;
+    }
+
 }
 
 bool
@@ -1212,6 +1347,7 @@ UITree_PointInputCoverPaintsAfterRolePlacement(
     order.point_x = px;
     order.point_y = py;
     role_boundary_walk_tree(&order);
+    if( UITree_FrameHasDepth(tree) && !order.boundary_seen ) return true;
     return order.cover_seen && order.boundary_seen &&
            order.cover_sequence > order.boundary_sequence;
 }
@@ -1269,6 +1405,19 @@ UITree_PointBlocksWorld(
     assert(tree);
     if( tree->root_index < 0 )
         return 0;
+
+    if( UITree_FrameHasDepth(tree) )
+    {
+        int count, blocked = 0;
+        struct FrameInputEvent* events = frame_input_events(tree, host, px, py, &count);
+        for( int i = 0; i < count; i++ )
+        {
+            if( events[i].world ) blocked = 0;
+            else if( events[i].barrier ) blocked = 1;
+        }
+        free(events);
+        return blocked;
+    }
 
     for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {

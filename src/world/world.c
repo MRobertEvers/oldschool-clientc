@@ -511,7 +511,10 @@ World_ResetSceneAlloc(
     world->scenery_changed_count = 0;
     world->scenery_changed_overflow = true;
     /* Pending EntityRemoved must be drained (SceneElementRemove) before a
-     * scene reset — wiping the queue here would orphan DYNAMIC elements. */
+     * scene reset — wiping the queue here would orphan DYNAMIC elements. Every
+     * caller drains first: the root rebuild and each boat view's deck rebuild
+     * in task_gameproto_exec.c, the offline load in app.c, App_WevDespawn.
+     * A failure here names the rebuild path that forgot to. */
     assert(world->event_count == 0 && "drain EntityRemoved before World_ResetSceneAlloc");
     world->mapfunc_count = 0;
     world->mapscene_count = 0;
@@ -1415,6 +1418,16 @@ World_SceneryInfoMemoClear(struct World* world)
  * its own index, and a collision (two locs sharing a slot) simply re-interns,
  * which is what every placement used to do.
  */
+void
+World_SceneryInfoMemoInvalidate(struct World* world, int loc_id)
+{
+    assert(world);
+    struct World_SceneryInfoTable* table = &world->scenery_info;
+    if( loc_id < 0 || table->memo_capacity == 0 ) return;
+    int slot = loc_id % table->memo_capacity;
+    if( table->memo_loc_ids[slot] == loc_id ) table->memo_loc_ids[slot] = -1;
+}
+
 static struct WorldEntity_SceneryInfo const*
 world_scenery_info_for_loc(
     struct World* world,

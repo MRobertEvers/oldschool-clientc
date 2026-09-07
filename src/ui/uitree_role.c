@@ -338,7 +338,8 @@ UITree_RoleNode(
     {
         /* A remembered node can still have been freed without either counter
          * moving, so the answer is re-checked rather than trusted. */
-        if( entry->memo_node < 0 || role_node_alive(tree, entry->memo_node) )
+        if( (entry->memo_node < 0 && !table->fallback) ||
+            (entry->memo_node >= 0 && role_node_alive(tree, entry->memo_node)) )
             return entry->memo_node;
     }
 
@@ -346,9 +347,13 @@ UITree_RoleNode(
      * outright, and a chain is what you write when you could not. */
     node = entry->authored ? role_find_authored(tree, role_id) : -1;
 
-    for( int i = 0; node < 0 && i < entry->matcher_count; i++ )
-        node = role_resolve_matcher(tree, &entry->matchers[i]);
-
+    int adapted = -2;
+    if( node < 0 && table->fallback )
+        adapted = table->fallback(tree, table, role_id, table->fallback_user);
+    if( node < 0 && adapted != -2 ) node = adapted;
+    else
+        for( int i = 0; node < 0 && i < entry->matcher_count; i++ )
+            node = role_resolve_matcher(tree, &entry->matchers[i]);
     entry->memo_node = node;
     entry->memo_generation = tree->generation;
     entry->memo_id_generation = tree->id_generation;

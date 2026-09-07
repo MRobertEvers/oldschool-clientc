@@ -1,0 +1,164 @@
+{
+  "worker": "lifecycle",
+  "recorded_utc": "2026-09-07T13:35:00Z",
+  "what": "Dock lifecycle re-proof on the SHARED 08:08 binaries. Supersedes the 2026-09-07T00:02Z run, which used Copernicus's private client/pack and recorded the berth turn as 'partial'.",
+
+  "provenance": {
+    "client": "src/torirs",
+    "client_sha256": "4854e3036abf814d07ce97649845d30206bac647b49adce560e3e9b28fa927a4",
+    "server_standalone": "src/build_opt/torirsserver",
+    "server_sha256": "214b43d7a30dd47b67b47693e1b9820d299c2154eeb2193aeb2c4ec0b7082186",
+    "script_pack": "OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "script_count": 30076,
+    "hashes_verified_before_the_run": true,
+    "note": "The client is EMBED_SERVER=1, so the server that served every session below is the one inside src/torirs. src/build_opt/torirsserver was hashed for the record; no standalone server ran in this proof.",
+    "renderer": "soft3d",
+    "headless": true,
+    "user": "finlife",
+    "dock": "The Pandemonium; gangplank loc 59828 at 3070,2987 level 0"
+  },
+
+  "sessions": [
+    {"dir": "/tmp/sailing-fin-lifecycle-dock",  "pid": 32314, "started": "Mon Sep  7 08:12:38 2026", "mode": "fresh fixture --fixture-tile 3073 2987"},
+    {"dir": "/tmp/sailing-fin-lifecycle-login", "pid": 41510, "started": "Mon Sep  7 08:21:04 2026", "mode": "--resume-save (aboard save)"},
+    {"dir": "/tmp/sailing-fin-lifecycle-sail2", "pid": 49423, "started": "Mon Sep  7 08:29:23 2026", "mode": "--resume-save (ashore save)"},
+    {"dir": "/tmp/sailing-fin-lifecycle-after", "pid": 50981, "started": "Mon Sep  7 08:33:08 2026", "mode": "--resume-save (ashore save, final)"}
+  ],
+
+  "berth_finding": {
+    "claim": "The cheat-spawned berth at 3073,2987 grounds; the CONTENT recovery berth at 3073,2984 does not.",
+    "cheat_berth": {
+      "how": "start --fixture-tile 3073 2987 (::vesselspawnat)",
+      "measured": "native left-clicks on the world with the helm held send SET_HEADING (opcode 44). Heading 0 -> 3 turned in place at fine 393408,382400 with HP 80. The NEXT turn (3 -> 8) reported 'The boat runs aground' and HP fell 80 -> 78; the hull's angle stalled at 256 (heading 2) instead of reaching 8. Two further clicks reached headings 12 and 1 with HP stuck at 78.",
+      "image": "docs/sailing_validation/lifecycle-cheatberth-aground.png",
+      "image_reads": "Menu header 'Set heading'; chat's last line 'The boat runs aground.'; hull bar 78/80; the skiff lies alongside the Pandemonium pier."
+    },
+    "recovered_berth": {
+      "how": "materialised through the CONTENT SELECTOR, not by cheat: ashore on the pier -> right-click the gangplank -> 'Board Gangplank' -> [oploc1,gangplank] -> ~sailing_gangplank_run($dock) -> ~sailing_select_owned(3, $dock, coord) -> native interface 934 'Board Boat' -> click 'Board' on row '1 - Adamant Bane' -> ~sailing_materialise_owned -> ~sailing_new_hull -> vessel_spawn + vessel_recover.",
+      "which_route": "content selector (interface 934) via the gangplank's own oploc1. Junior Jim was NOT used; the shipwright Recover (opnpc5, mode 5) route was not needed because the hull is freed at logout, so vessel_owned() is 0 and sailing_new_hull's vessel_recover picks the berth.",
+      "berth_chosen": "fine 393408,382016 = tile 3073,2984, angle 0 — three tiles south of the cheat berth. ToriRSServer_VesselRecover only accepts a footprint clear at ALL 16 native headings (torirs_server_world.c:7566-7572), which is exactly the widened-berth rule the cheat spawn bypasses.",
+      "reproduced_twice": "Two independent processes (pid 42522 and pid 49423) both landed on 393408,382016 from the same ashore save."
+    }
+  },
+
+  "steps": [
+    {
+      "step": "fresh fixture at the berth",
+      "detail": "start --headless --fixture-tile 3073 2987 --user finlife; startup 2715.63 ms. Aboard a skiff 'Adamant Bane' 80/80 at fine 393408,382400, helm held, sails down.",
+      "result": "pass"
+    },
+    {
+      "step": "cheat berth grounds under native SET_HEADING",
+      "detail": "see berth_finding.cheat_berth. This is the reason the previous run recorded 'partial'; it is a property of ::vesselspawnat, not of the content.",
+      "image": "docs/sailing_validation/lifecycle-cheatberth-aground.png",
+      "kept_control": "docs/sailing_validation/lifecycle-aground-control.png (2026-09-06, untouched)",
+      "result": "expected_negative"
+    },
+    {
+      "step": "production logout while ABOARD writes the save",
+      "detail": "raw logout -> /tmp/sailing-fin-lifecycle-dock/saves/finlife.ini: [sailing] aboard = 1 4 3 / boat1 = 2 393408 382400 128 78 1 6 0 0.",
+      "result": "pass"
+    },
+    {
+      "step": "INITIAL LOGIN aboard at the dock: the gangplank menu reads Disembark",
+      "detail": "new session dir, save copied in, start --resume-save; startup 3491.69 ms; reconstructed aboard at deck 6404,67 level 1, hull fine 393408,382400 angle 128 HP 78/80, sails down, stopped, helm NOT held (panel reads 'Not steering' — a resume must not take the helm). Right-click the gangplank at screen 281,112 (screen point obtained by projecting a peer standing on 3070,2987, then removing it).",
+      "menu_read": "Choose Option / Work Scenery / Disembark Gangplank / Walk here / Examine Scenery / Examine Gangplank / Cancel",
+      "image": "docs/sailing_validation/lifecycle-login-disembark-menu.png",
+      "negative_control": "docs/sailing_validation/lifecycle-login-stale-menu-before.png (untouched; shows Board / Board-previous / Board-friend at the same moment before root's World_SceneryInfoMemoInvalidate fix)",
+      "result": "pass"
+    },
+    {
+      "step": "disembark from the initial-login menu",
+      "detail": "left-click 'Disembark Gangplank' -> ashore at 3069,2988 level 0, aboard_view 0.",
+      "result": "pass"
+    },
+    {
+      "step": "ashore logout, then board through the content selector",
+      "detail": "raw logout ([sailing] shore = 3069 2988 0, aboard = 0 4 3, boat released). New session dir + --resume-save resumes ashore at 3069,2988. Right-click the gangplank at 382,288 -> 'Board Gangplank / Board-previous / Board-friend / Walk here / Examine / Cancel'; click Board -> native 934 'Board Boat' with row '1 - Adamant Bane, Location: The Pandemonium', four 'Empty boat slot' rows and 'Board friend's boat'. Click 'Board' -> hull materialises at 393408,382016 (3073,2984) and the player is aboard at 6404,67 level 1.",
+      "images": [
+        "docs/sailing_validation/lifecycle-shore-board-menu.png",
+        "docs/sailing_validation/lifecycle-dock-boat-selector.png",
+        "docs/sailing_validation/lifecycle-dock-boarded.png"
+      ],
+      "result": "pass"
+    },
+    {
+      "step": "take the helm from the PHYSICAL helm loc",
+      "detail": "right-click the helm loc 59537 on deck tile 6404,68 (screen 411,199) -> 'Navigate Helm / Walk here / Examine Helm / Cancel'; click Navigate Helm. Player walks to 6404,69, sailing.player.navigating = 1, vessel state 1, and the Facilities panel changes from 'Not steering' to 'Steering'. Chat: 'You take the helm. Click the water to steer.'",
+      "images": [
+        "docs/sailing_validation/lifecycle-helm-menu.png",
+        "docs/sailing_validation/lifecycle-dock-helm.png"
+      ],
+      "result": "pass"
+    },
+    {
+      "step": "FOUR headings turned inside the recovered berth with no grounding",
+      "detail": "sails down, four native world left-clicks (SET_HEADING, opcode 44) at screen 150,150 / 480,150 / 480,320 / 150,320 -> headings 4, 8, 13, 1 with angles 384, 768, 1152, 1536 — a full 360 degrees. fine_x/fine_z stayed 393408,382016 for all four (turned in place) and HP stayed 78/80 throughout. No 'The boat runs aground' line appears in any of the four frames. The identical four click points in the cheat berth grounded on the second one.",
+      "images": [
+        "docs/sailing_validation/lifecycle-turn-heading8.png",
+        "docs/sailing_validation/lifecycle-turn-heading1.png"
+      ],
+      "result": "pass"
+    },
+    {
+      "step": "Set sails and leave the berth",
+      "detail": "hover the Facilities panel's first button at 575,310 -> header reads 'Set sails'; click it -> sails_set 1 and the hull gets under way from 393408,382016 to 393536,381888 on the same tick. Steered out to open water; reached tile 3081,2997 via headings 9 and 6, HP unchanged at 78/80. The wind system spoke during the run ('A gust fills the sails. Trim them for a burst of speed!').",
+      "image": "docs/sailing_validation/lifecycle-native-steering.png",
+      "result": "pass"
+    },
+    {
+      "step": "return to the berth and strike sails",
+      "detail": "a native click at 150,320 set heading 1; the hull ran back 3081,2997 -> 3074,2984 over eleven ticks, then the sails button struck the sails (sails_set 0). HP still 78/80 — the whole out-and-back voyage cost no hull damage.",
+      "image": "docs/sailing_validation/lifecycle-returned-dock.png",
+      "result": "pass"
+    },
+    {
+      "step": "disembark down the gangplank from the deck",
+      "detail": "right-click the shore gangplank from the deck (screen 294,40) -> 'Disembark Gangplank / Search Crate / Set heading / Examine Gangplank / Examine Crate / Cancel'; click Disembark. Chat: 'You walk down the gangplank.' Player ashore at 3069,2988 level 0 and the sidebar returns to the Combat tab (Unarmed, Combat Lvl 3, Punch/Kick/Block, Auto Retaliate On).",
+      "images": [
+        "docs/sailing_validation/lifecycle-disembark-menu.png",
+        "docs/sailing_validation/lifecycle-disembarked.png",
+        "docs/sailing_validation/lifecycle-before-logout.png"
+      ],
+      "result": "pass"
+    },
+    {
+      "step": "raw logout, then --resume-save in a NEW session dir",
+      "detail": "save records shore = 3069 2988 0 / aboard = 0 4 3 / boat1 = 2 393504 381952 128 78 1 6 0 0. A genuinely fresh process with that save copied in resumes ashore at 3069,2988 level 0 in 2173.91 ms, no boat reconstructed (aboard_view 0), inventory intact (15000 coins and the same twelve items).",
+      "image": "docs/sailing_validation/lifecycle-after-login.png",
+      "result": "pass"
+    }
+  ],
+
+  "images_regenerated_today": [
+    "lifecycle-login-disembark-menu.png", "lifecycle-dock-boarded.png", "lifecycle-dock-helm.png",
+    "lifecycle-dock-boat-selector.png", "lifecycle-native-steering.png", "lifecycle-returned-dock.png",
+    "lifecycle-disembarked.png", "lifecycle-disembark-menu.png", "lifecycle-helm-menu.png",
+    "lifecycle-before-logout.png", "lifecycle-after-login.png",
+    "lifecycle-cheatberth-aground.png (new)", "lifecycle-shore-board-menu.png (new)",
+    "lifecycle-turn-heading8.png (new)", "lifecycle-turn-heading1.png (new)"
+  ],
+  "images_deliberately_untouched": [
+    "lifecycle-login-stale-menu-before.png — the negative control for the Disembark label",
+    "lifecycle-aground-control.png — the 2026-09-06 labelled grounding control",
+    "lifecycle-actual-gangplank.png, lifecycle-dock-shore.png, lifecycle-gangplank-menu.png, lifecycle-guest-aboard.png, lifecycle-crew-management.png, lifecycle-leaving-dock.png, lifecycle-owned-recovery.png, lifecycle-recovered-dock.png, lifecycle-shipwright-menu.png — 2026-09-06 images from routes this re-proof did not walk (Junior Jim, crew, guest). They are NOT evidence for the shared binary and are not cited above."
+  ],
+
+  "defects_found": [
+    {
+      "id": "LIFE-1",
+      "severity": "high",
+      "title": "The client's automatic reconnect after a production logout is rejected whenever the save reconstructs a boat",
+      "see": "docs/sailing_validation/lifecycle-reconnect-results.json"
+    },
+    {
+      "id": "LIFE-2",
+      "severity": "medium",
+      "title": "raw 'key escape' with a minimenu open wedges the client at 100% CPU",
+      "detail": "In /tmp/sailing-fin-lifecycle-sail (pid 42522) the command `raw 'key escape'` issued while a Choose Option menu was open never answered the mailbox; three `recover` calls timed out and `ps` showed the process pinned at 100.4% CPU with the client log repeating 'scene built at zone 384,373'. The session had to be SIGTERMed and the sequence restarted from the save. Not investigated further — outside this worker's ownership and not on the lifecycle path (menus were dismissed with a left click instead). Reported, not fixed."
+    }
+  ],
+
+  "status": "PASS — every step above is proved on the shared binary, with the berth caveat stated explicitly rather than hidden."
+}

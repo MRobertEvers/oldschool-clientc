@@ -2431,7 +2431,10 @@ emit_buffer_append(
         buf->cmds = grown;
         buf->cap = n;
     }
-    buf->cmds[buf->count++] = *desc;
+    buf->cmds[buf->count] = *desc;
+    if( !buf->cmds[buf->count].frame_owner_plus_one && desc->node_index >= 0 )
+        buf->cmds[buf->count].frame_owner_plus_one = desc->node_index + 1;
+    buf->count++;
 }
 
 static int
@@ -2573,6 +2576,7 @@ emit_frame_slot_overlay(
     /* Paint-only: it borrows the semantic node's placement and clip but is not
      * another interactive component, so it must not acquire its id. */
     desc.node_index = -1;
+    desc.frame_owner_plus_one = idx + 1;
     desc.component_id = -1;
     desc.scene_id = overlay.scene_id;
     desc.atlas_index = 0;
@@ -2638,6 +2642,7 @@ emit_role_overlay_groups(
         /* Paint-only: the replacement's hit surface is the plugin region, not
          * a second copy of the native semantic component. */
         desc.node_index = -1;
+    desc.frame_owner_plus_one = idx + 1;
         desc.component_id = -1;
         desc.clip = *parent_clip;
         desc.entity_overlays = group->items;
@@ -2702,6 +2707,18 @@ emit_walk_node(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_EMIT, 1);
 
     c = &tree->components[idx];
+    if( !UITree_NodeNativeVisible(tree, host, idx, hovered_component_id) ) return;
+    if( UITree_FrameHasDepth(tree) && UITree_FramePositionOwned(tree, idx) )
+    {
+        int slot = UITree_FrameNodeSlot(tree, idx);
+        if( slot >= 0 && out->frame_order.position[slot] < 0 )
+        {
+            out->frame_order.position[slot] = out->count;
+            out->frame_order.sequence[slot] = out->frame_order.next_sequence++;
+        }
+    }
+
+
     /*
      * Native/script hiding outranks replacement art: an anchor is local to a
      * target that is actually present in this frame, not a way to resurrect a
@@ -3547,48 +3564,13 @@ emit_hoist_entity_overlays(struct UITree const* tree, struct UITreeEmitBuffer* o
     }
 }
 
-/*
- * A plugin-placed world is the BACKDROP: it paints first.
- *
- * The 3D pass opens where the WORLD desc sits in this list, and the scene
- * overwrites everything emitted before it inside the viewport box. A cache
- * toplevel orders its subtrees for ITS viewport: the Fixed (548) toplevel
- * paints `mapcontainer` -- the minimap, the compass, the orb block with
- * interface 160 in it -- and only then `main`, which holds the viewport,
- * because the two boxes never overlapped. A plugin gameframe that placed the
- * viewport across the whole canvas kept that order, and the live minimap,
- * the compass and every claimed orb survived only where the scene left sky.
- * The resizable toplevels (161/164) happen to put the viewport first, which
- * is why the same frames looked right over them.
- *
- * So while a plugin declaration owns the viewport's box, the world desc is
- * rotated to the head of the list and everything else keeps its tree order
- * -- over the scene, which is the only place a surface a frame placed can
- * mean to be. Native frames are untouched: their tree order is the
- * reference's.
- *
- * Before the entity-overlay hoist and the plugin frame pass, both of which
- * anchor themselves to wherever the world desc is.
- */
+/* The same declared order also processes hover and input barriers. */
 static void
-emit_hoist_plugin_world(struct UITree const* tree, struct UITreeEmitBuffer* out)
+emit_apply_frame_depth(struct UITree const* tree, struct UITreeHost const* host, struct UITreeEmitBuffer* out)
 {
-    struct UITreeEmitDesc moved;
-    int world = -1;
-
-    assert(tree);
-    assert(out);
-    if( tree->world_index < 0 || !UITree_FramePositionOwned(tree, tree->world_index) )
-        return;
-    /* The last one, as every other consumer of the WORLD desc takes it. */
-    for( int i = 0; i < out->count; i++ )
-        if( out->cmds[i].kind == UITREE_EMIT_WORLD )
-            world = i;
-    if( world <= 0 )
-        return;
-    moved = out->cmds[world];
-    memmove(&out->cmds[1], &out->cmds[0], (size_t)world * sizeof(*out->cmds));
-    out->cmds[0] = moved;
+    out->count = UITree_FrameReorder(tree, host, out->cmds, out->count,
+                                   sizeof(*out->cmds),
+                                   offsetof(struct UITreeEmitDesc, frame_owner_plus_one), &out->frame_order);
 }
 
 void
@@ -3606,6 +3588,10 @@ UITree_EmitWalk(
 
     assert(tree);
     assert(out);
+    for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
+        out->frame_order.position[slot] = out->frame_order.sequence[slot] = -1;
+    out->frame_order.next_sequence = 0;
+
 
     /* Observe host reads through a shallow copy: the application's host stays
      * immutable, while every UITree_Host call made by this walk contributes
@@ -3753,7 +3739,7 @@ UITree_EmitWalk(
         out->volatile_overlay_seen |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_ENTITY);
         out->volatile_overlay_template[UITREE_EMIT_OVERLAY_ENTITY] = *d;
     }
-    emit_hoist_plugin_world(tree, out);
+    emit_apply_frame_depth(tree, host, out);
     /* A layout plugin's gameframe: over the scene, under the interfaces.
      * Before the hoist, which is what puts the bars and hitsplats it moves
      * BEHIND the chrome rather than over it. */

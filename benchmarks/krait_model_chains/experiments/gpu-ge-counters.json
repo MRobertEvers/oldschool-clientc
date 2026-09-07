@@ -1,0 +1,32 @@
+{
+  "scene": "grand-exchange-ground",
+  "serial": "T062809L3Z",
+  "scope": "Device-wide already-reserved SP hardware counters. glFinish at each 120-frame window boundary. No GPU time, occupancy or FPS inference.",
+  "rows": [
+    {
+      "sample": 0,
+      "frames": 120,
+      "sp_alu_cycles": 1736176250,
+      "sp_fragment_alu_instructions": 5496210520
+    },
+    {
+      "sample": 1,
+      "frames": 120,
+      "sp_alu_cycles": 1736161468,
+      "sp_fragment_alu_instructions": 5496213712
+    },
+    {
+      "sample": 2,
+      "frames": 120,
+      "sp_alu_cycles": 1736183812,
+      "sp_fragment_alu_instructions": 5496219104
+    },
+    {
+      "sample": 3,
+      "frames": 120,
+      "sp_alu_cycles": 1736153652,
+      "sp_fragment_alu_instructions": 5496211280
+    }
+  ],
+  "library_sha256": "3beb082f4be8ff775efb87218c3660576a5e037c5aee25f0fed3e33573e87c8f"
+}

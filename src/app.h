@@ -689,16 +689,15 @@ enum ToriRS_WorldRenderMode
  */
 #define APP_GROUND_ITEMS_DIRTY_MAX 32
 
-/**
- * MINIMAP_TOGGLE states. 1 and 2 are not degrees of the same thing: the map is
- * equally invisible in both, and what separates them is whether clicking where
- * it used to be still walks. See struct PktMinimapToggle.
- */
+/** Raw native states; game/rs_minimap_state.h defines their independent permissions. */
 enum AppMinimapState
 {
     APP_MINIMAP_STATE_NORMAL = 0,
-    APP_MINIMAP_STATE_HIDDEN = 1,
-    APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE = 2,
+    APP_MINIMAP_STATE_UNCLICKABLE = 1,
+    APP_MINIMAP_STATE_HIDDEN = 2,
+    APP_MINIMAP_STATE_COMPASS_HIDDEN = 3,
+    APP_MINIMAP_STATE_UNCLICKABLE_COMPASS_HIDDEN = 4,
+    APP_MINIMAP_STATE_DISABLED = 5,
 };
 
 /**
@@ -868,6 +867,18 @@ struct App
      * (wev.h). An entity's id doubles as its view id in `worldviews`.
      */
     struct Wevs wevs;
+    /** Native bearing-marker models. Scene-owned elements are claimed across
+     * root rebuilds; a chosen heading remains highlighted for 30 cycles. */
+    int sailing_at_helm_varbit;
+    int sailing_captain_role_varbit;
+    int sailing_crew_duty_varbit[5];
+    int sailing_crew_roster_varbit[5];
+    int sailing_crew_category;
+    int sailing_arrow_model[2];
+    int sailing_arrow_element[2];
+    int sailing_arrow_loading[2];
+    int sailing_selected_heading;
+    uint64_t sailing_selected_until;
     /** WorldEntityConfig table (config archive 72), loaded once at boot by
      * CreateTask_Dat2WevConfigLoad. Empty on a pre-sailing cache. */
     struct WevConfigTable wev_configs;
@@ -2768,6 +2779,20 @@ int
 App_MeasureRightChromeStripWidth(struct App const* app);
 
 /**
+ * The width the LANE's own frame is asking for, when the canvas it was given
+ * is too narrow to hold it: the fixed-size block a toplevel lays inside the
+ * strip-carved area, on the frames where that block comes out wider than the
+ * area. 0 when it fits, and when there is no such block.
+ *
+ * This is the floor a plugin frame's own minimum cannot go below: a layout
+ * plugin arranges OVER the lane's toplevel, so the lane's widgets are still
+ * laid out by it, and a toplevel that does not fit centres its block and hangs
+ * it off both edges of the area the plugin frame was handed.
+ */
+int
+App_MeasureLaneFrameCoreWidth(struct App const* app);
+
+/**
  * Fixed-mode canvas width that keeps the classic frame at APP_CANVAS_MIN_W and
  * parks the chrome strip outside it: MIN_W + measured strip. Resizable callers
  * want App_CanvasFloorWidth instead — they carve from whatever window size
@@ -3485,14 +3510,6 @@ App_WevDespawn(
  * REBUILD_WORLDENTITY yet) never match; the per-tick routing pass re-tests, so
  * an absolute op that raced the deck rebuild heals a tick later.
  */
-/** Drop view_id's flatten bake (C4): its deck geometry changed, so the merged
- * flat-colour stand-in no longer matches. Rebuilt lazily the next time the
- * hull flattens. No-op for a view with no live entity. */
-void
-App_WevFlatInvalidate(
-    struct App* app,
-    int view_id);
-
 int
 App_WevHomeViewForAbsTile(
     struct App* app,

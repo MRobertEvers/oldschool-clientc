@@ -913,6 +913,23 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # sidepanel's Facilities tab renders exactly this.
     "VESSEL_FACILITY": (11102, 3, 0, 0, 0),
 
+    # Authoritative helm throttle: toggle, lower/reverse, raise, or stop.
+    "VESSEL_CONTROL": (11103, 2, 0, 1, 0),
+    # Resolve the owning captain's persistent, per-boat cargo inventory.
+    "VESSEL_CARGO": (11104, 1, 0, 2, 0),
+    # Transfer slot contents between a rider and the captain cargo, safely bounded.
+    "VESSEL_CARGO_TRANSFER": (11105, 5, 0, 1, 0),
+    "VESSEL_FURNISH": (11106, 1, 0, 1, 0),
+    "VESSEL_INFO": (11107, 1, 0, 2, 0),
+    "VESSEL_GETFACILITY": (11108, 2, 0, 1, 0),
+    # Set/read native hull stats; value -1 is a query.
+    "VESSEL_STAT": (11109, 3, 0, 1, 0),
+    "VESSEL_OWNED": (11110, 1, 0, 1, 0),
+    "VESSEL_RECOVER": (11111, 2, 0, 1, 0),
+    "VESSEL_SLOT": (11112, 2, 0, 1, 0),
+    # Project a verified vessel deck tile into its current root-world position.
+    "VESSEL_PROJECT": (11113, 2, 0, 1, 0),
+
     # vessel_hp(handle)(int)
     # The hull's integrity, and its maximum as the second return — the pair
     # the sailing sidepanel's bar shows. 0,0 for a dead handle.
@@ -1660,6 +1677,10 @@ def main() -> int:
         triggers[extra_trigger] = extra_id
     sigs = parse_engine_rs2(ref / "content/scripts/engine.rs2")
     pointers = parse_pointers(script_dir / "ScriptOpcodePointers.ts", opcodes)
+    # The owner is an explicit UID argument; only the receiving player must
+    # already be selected (with the same alternate context for the dot form).
+    pointers["INVOTHER_TRANSMIT"] = (1 << POINTER_BITS["active_player"],
+                                      1 << POINTER_BITS["active_player2"])
     for extra_name, extra_mask in EXTRA_POINTERS.items():
         assert extra_name in EXTRA_OPCODES, f"{extra_name} is not an extra opcode"
         assert extra_name not in pointers, f"{extra_name} already has a reference mask"

@@ -101,6 +101,8 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
 
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
         return client | world;
+    case UITREE_HOST_GET_COMPASS_HIDDEN:
+        return world;
 
     case UITREE_HOST_GET_MULTIWAY:
         return world;
@@ -267,6 +269,7 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
      * player is not in a multi-combat zone, and no update is pending. Each is
      * the state a tree with no session is genuinely in, not a placeholder. */
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
+    case UITREE_HOST_GET_COMPASS_HIDDEN:
     case UITREE_HOST_GET_MULTIWAY:
     case UITREE_HOST_GET_REBOOT_TIMER:
     /* A tree with no session is not on the title screen, has nothing typed,
@@ -345,6 +348,83 @@ uitree_host_minimenu_drawn(struct UITreeHost const* host)
     return UIMinimenu_AfterimageActive(menu);
 }
 
+struct NativeAvailability { bool paint, input; };
+
+/* One native state interpretation feeds paint, attached contributions and
+ * input. Structural containers are available even when they draw no pixels. */
+static struct NativeAvailability
+component_native_availability(struct UITreeComponent const* component, struct UITreeHost const* host)
+{
+    struct NativeAvailability result = { true, true };
+    struct UITreeHostRequest req = { 0 };
+    if( !host ) return result;
+    switch( component->type )
+    {
+    case UIELEM_BUILTIN_REDSTONE_TAB:
+        req.kind = UITREE_HOST_GET_SELECTED_TAB;
+        result.paint = UITree_Host(host, &req) == component->u.redstone_tab.tabno;
+        break; /* An unlit tab is still a native tab-selection control. */
+    case UIELEM_BUILTIN_SIDEBAR:
+        req.kind = UITREE_HOST_GET_SELECTED_TAB;
+        result.paint = result.input = UITree_Host(host, &req) == component->u.sidebar.tabno;
+        break;
+    case UIELEM_BUILTIN_CROSS:
+        req.kind = UITREE_HOST_GET_CROSS_ACTIVE;
+        result.paint = result.input = UITree_Host(host, &req) != 0;
+        break;
+    case UIELEM_BUILTIN_MINIMENU:
+        req.kind = UITREE_HOST_GET_MINIMENU_VISIBLE;
+        result.input = UITree_Host(host, &req) != 0;
+        result.paint = uitree_host_minimenu_drawn(host);
+        break;
+    case UIELEM_BUILTIN_MINIMAP:
+        req.kind = UITREE_HOST_GET_MINIMAP_HIDDEN;
+        result.paint = !UITree_Host(host, &req);
+        /* Keep the controller reservation. App applies native WALK permission
+         * so disabled modes consume the point without clicking through. */
+        break;
+    case UIELEM_BUILTIN_COMPASS:
+        req.kind = UITREE_HOST_GET_COMPASS_HIDDEN;
+        result.paint = result.input = !UITree_Host(host, &req);
+        break;
+    default: break;
+    }
+    return result;
+}
+
+static bool
+node_native_available(struct UITree const* tree, struct UITreeHost const* host,
+                      int32_t node, int hovered, bool input)
+{
+    int guard = 0;
+    int32_t const self = node;
+    if( !tree || node < 0 || (uint32_t)node >= tree->component_count ) return false;
+    while( node >= 0 && (uint32_t)node < tree->component_count && guard++ < (int)tree->component_count )
+    {
+        struct UITreeComponent const* c = &tree->components[node];
+        if( c->freed || c->screen_hidden || c->projection_hidden ||
+            !UITree_ComponentVisibleById(c, hovered) ) return false;
+        struct NativeAvailability availability = component_native_availability(c, host);
+        if( input && node == self ) { if( !availability.input ) return false; }
+        else if( !availability.paint || (input && !availability.input) ) return false;
+        node = c->parent;
+    }
+    return node < 0;
+}
+
+bool
+UITree_NodeNativeVisible(struct UITree const* tree, struct UITreeHost const* host,
+                         int32_t node, int hovered_component_id)
+{
+    return node_native_available(tree, host, node, hovered_component_id, false);
+}
+
+bool
+UITree_NodeNativeInputPresent(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
+{
+    return node_native_available(tree, host, node, -1, true);
+}
+
 bool
 UITree_ComponentVisibleHost(
     struct UITreeComponent const* component,
@@ -352,51 +432,17 @@ UITree_ComponentVisibleHost(
     struct UITreeHost const* host)
 {
     assert(component);
-
-    if( component->type == UIELEM_BUILTIN_REDSTONE_TAB )
-    {
-        assert(host);
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
-        return UITree_Host(host, &req) == component->u.redstone_tab.tabno;
-    }
-
-    if( component->type == UIELEM_BUILTIN_SIDEBAR )
-    {
-        assert(host);
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
-        return UITree_Host(host, &req) == component->u.sidebar.tabno;
-    }
-
-    if( component->type == UIELEM_BUILTIN_CROSS )
-    {
-        assert(host);
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
-        return UITree_Host(host, &req) != 0;
-    }
-
-    if( component->type == UIELEM_BUILTIN_MINIMENU )
-    {
-        assert(host);
-        return uitree_host_minimenu_drawn(host);
-    }
-
-    return UITree_ComponentVisibleByHoverIds(component, hover_ids);
+    return UITree_ComponentVisibleByHoverIds(component, hover_ids) &&
+           component_native_availability(component, host).paint;
 }
 
 bool
-UITree_ComponentHitTestVisibleHost(
-    struct UITreeComponent const* component,
-    int hovered_component_id,
-    struct UITreeHost const* host)
+UITree_ComponentHitTestVisibleHost(struct UITreeComponent const* component,
+                                  int hovered_component_id, struct UITreeHost const* host)
 {
     assert(component);
-    (void)host;
-
-    if( component->type == UIELEM_BUILTIN_TAB_ICONS ||
-        component->type == UIELEM_BUILTIN_REDSTONE_TAB )
-        return true;
-
-    return UITree_ComponentVisibleById(component, hovered_component_id);
+    return UITree_ComponentVisibleById(component, hovered_component_id) &&
+           component_native_availability(component, host).input;
 }
 
 bool
@@ -416,45 +462,13 @@ UITree_ComponentIsActiveHost(
 }
 
 bool
-UITree_ComponentShouldEmit(
-    struct UITreeComponent const* component,
-    struct UITreeHost const* host)
+UITree_ComponentShouldEmit(struct UITreeComponent const* component, struct UITreeHost const* host)
 {
-    assert(component);
-    assert(host);
-
-    if( component->type == UIELEM_BUILTIN_REDSTONE_TAB )
-    {
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
-        return UITree_Host(host, &req) == component->u.redstone_tab.tabno;
-    }
-
-    if( component->type == UIELEM_BUILTIN_TAB_ICONS )
-        return true;
-
-    if( component->type == UIELEM_BUILTIN_SIDEBAR )
-        return false;
-
-    if( component->type == UIELEM_BUILTIN_CHAT )
-        return false;
-
-    if( component->type == UIELEM_BUILTIN_CROSS )
-    {
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
-        return UITree_Host(host, &req) != 0;
-    }
-
-    if( component->type == UIELEM_BUILTIN_MINIMENU )
-        return uitree_host_minimenu_drawn(host);
-
+    assert(component && host);
+    if( !component_native_availability(component, host).paint ) return false;
+    if( component->type == UIELEM_BUILTIN_SIDEBAR || component->type == UIELEM_BUILTIN_CHAT ) return false;
     if( component->type == UIELEM_RS_LAYER )
-    {
-        if( UITree_ScrollLayerNeedsVertical(component) ||
-            UITree_ScrollLayerNeedsHorizontal(component) )
-            return true;
-        return false;
-    }
-
+        return UITree_ScrollLayerNeedsVertical(component) || UITree_ScrollLayerNeedsHorizontal(component);
     return true;
 }
 

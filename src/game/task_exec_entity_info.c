@@ -398,22 +398,14 @@ player_local_tile(
     *out_x = 52;
     *out_z = 52;
     *out_level = 0;
-    if( self->app->npc_update_origin_valid )
-    {
-        *out_x = self->app->npc_update_origin_x;
-        *out_z = self->app->npc_update_origin_z;
-    }
     if( RS_EntitySync_FindPlayer(&self->app->esync, local_player_pid(&self->app->esync), &world_idx, NULL) )
     {
         struct WorldEntity_Player* player =
             World_EntityPoolGet(&self->app->world->entities.player, world_idx);
         if( player )
         {
-            if( !self->app->npc_update_origin_valid )
-            {
-                *out_x = player->pathing.route_x[0];
-                *out_z = player->pathing.route_z[0];
-            }
+            *out_x = player->pathing.route_x[0];
+            *out_z = player->pathing.route_z[0];
             *out_level = player->grid_position.level;
         }
     }
@@ -1119,15 +1111,19 @@ struct Task_ExecNpcInfo
     uint64_t bd_start; /* TORIRS_NPCINFO_BREAKDOWN only */
 };
 
-static void
-npc_local_tile(
-    struct Task_ExecNpcInfo* self,
+void
+RS_EntityInfo_NpcOrigin(
+    struct App* app,
     int* out_x,
     int* out_z,
     int* out_level)
 {
     int world_idx;
-    struct RS_EntitySync* esync = &self->app->esync;
+    assert(app);
+    assert(out_x);
+    assert(out_z);
+    assert(out_level);
+    struct RS_EntitySync* esync = &app->esync;
     *out_x = 52;
     *out_z = 52;
     *out_level = 0;
@@ -1138,7 +1134,7 @@ npc_local_tile(
             NULL) )
     {
         struct WorldEntity_Player* player =
-            World_EntityPoolGet(&self->app->world->entities.player, world_idx);
+            World_EntityPoolGet(&app->world->entities.player, world_idx);
         if( player )
         {
             /* routeX[0], not grid_position — see player_local_tile. */
@@ -1147,6 +1143,16 @@ npc_local_tile(
             *out_level = player->grid_position.level;
         }
     }
+    /* Revision239 explicitly states the ROOT origin for NPC deltas. The
+     * local player's route is deck-local aboard a boat and cannot anchor a
+     * shore NPC or a projected deckhand. PLAYER_INFO never reads this state. */
+    if( app->npc_update_origin_valid )
+    {
+        *out_x = app->npc_update_origin_x;
+        *out_z = app->npc_update_origin_z;
+    }
+    if( app->aboard_view > 0 && Wevs_IsLive(&app->wevs, app->aboard_view) )
+        *out_level = Wevs_Get(&app->wevs, app->aboard_view)->parent_level;
 }
 
 static void
@@ -1156,7 +1162,7 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
     int tile_x, tile_z, level;
     int idx;
 
-    npc_local_tile(self, &tile_x, &tile_z, &level);
+    RS_EntityInfo_NpcOrigin(app, &tile_x, &tile_z, &level);
     idx = App_WorldSpawnSyncedNpc(
         app, self->pending_npc_type, self->pending_npc_base_type, tile_x, tile_z, level);
     if( idx < 0 )
@@ -1386,7 +1392,7 @@ npc_apply_op(
         if( idx >= 0 )
         {
             int lx, lz, llevel;
-            npc_local_tile(self, &lx, &lz, &llevel);
+            RS_EntityInfo_NpcOrigin(app, &lx, &lz, &llevel);
             /*
              * The op that teleports an npc, and the one that moves the Queen
              * when a familiar is called: `idx` is whatever `cur_slot` resolved

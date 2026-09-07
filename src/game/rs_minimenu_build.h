@@ -118,6 +118,11 @@ struct RS_MinimenuBuildCtx
     /* Live world entities (sailing hulls), for the config's right-click op
      * rows on a picked hull (SAILING_PLAN C5.2). NULL = no hull rows. */
     struct Wevs const* wevs;
+    /** Native heading selector replaces the ground walk action at the helm.
+     * - A separate presence flag keeps a due-south heading (0) meaningful. */
+    bool sailing_navigating;
+    bool sailing_heading_valid;
+    int sailing_heading;
     /* Resolve a live world-entity view's own World, for SCENERY picks whose
      * view_id is non-zero (a deck loc classifies through the VIEW world's
      * tables — the root cannot see it). NULL when set, or fn NULL, drops

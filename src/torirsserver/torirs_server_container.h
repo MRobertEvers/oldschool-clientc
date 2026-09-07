@@ -357,6 +357,11 @@ ToriRSServer_ContainerUnbind(
  * carries. A row with no listeners still has its dirty dropped so a later bind
  * is not followed by a stale partial on top of the bind's own full update.
  */
+/** Bind the captain's container into the viewer's native invother namespace. */
+int ToriRSServer_ContainerBindOther(struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* owner, struct ToriRSServerPlayer* viewer,
+    int32_t inv_id, int32_t component);
+
 void
 ToriRSServer_ContainerFlush(struct ToriRSServerPlayer* player);
 
