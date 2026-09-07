@@ -1034,7 +1034,11 @@ orb_size_tables(struct ToriRS_Api* api, struct XpOrbState* state)
     skill.struct_size = sizeof(skill);
     while( api->game && api->game->skill(api, count, &skill) )
         count++;
-    assert(count > 0);
+    /* Before the server has stated a single stat there is no table to size:
+     * a plugin started on the title screen asks again next cycle rather than
+     * freezing an empty table for the life of the instance. */
+    if( count == 0 )
+        return;
 
     g_skill_count = count;
     g_seen_xp = malloc((size_t)count * sizeof(*g_seen_xp));
@@ -1061,6 +1065,8 @@ orb_tick(
     int const virtual_level = orb_cfg_bool(api, "show_virtual_level");
 
     orb_size_tables(api, state);
+    if( !g_seen_xp )
+        return;
 
     /*
      * Logged out is a reset, and it is the honest stand-in for the
@@ -1112,6 +1118,7 @@ orb_tick(
             g_track[skill].start_ms = now;
         }
         g_track[skill].actions++;
+        api->core.log(api, "XP_ORBS_GAIN skill=%d xp=%d gained=%d", skill, xp, xp - g_seen_xp[skill]);
         /* The AMOUNT, before the seen value moves -- it is the difference
          * between the two, and there is nowhere else to read it from. */
         if( orb_cfg_bool(api, "show_xp_drops") )
@@ -1682,6 +1689,8 @@ orb_frame(
         orb_remove_control(api, &state->globe_control[i]);
         state->globe_image_set[i] = 0;
     }
+    if( g_globe_count > 0 && !g_skills_px )
+        api->core.log(api, "XP_ORBS_ART_PENDING skills=%d text=%d", g_img_skills, g_img_text);
     if( g_globe_count == 0 || !g_skills_px )
     {
         orb_remove_control(api, &state->tip_control);
@@ -1810,6 +1819,7 @@ orb_viewport(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const
 {
     struct XpOrbState* state = user;
     state->viewport = event->type == TORIRS_WIDGET_BOUND ? event->widget : (struct ToriRS_WidgetRef){ 0 };
+    api->core.log(api, "XP_ORBS_VIEWPORT bound=%d", event->type == TORIRS_WIDGET_BOUND);
     for( int i = 0; i < ORB_MAX_SHOWN; i++ )
     {
         state->globe_control[i] = (struct ToriRS_WidgetRef){ 0 };

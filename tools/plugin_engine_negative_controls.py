@@ -294,6 +294,8 @@ def run_xporbs_controls(src, out, make_args, selected):
                               "hovering holds a globe past its duration"),
         "xporbs_flip": ("    (void)api->config.set(api, \"vertical\", orb_cfg_bool(api, \"vertical\") ? \"0\" : \"1\");", "",
                         "Flip stacks them into a column"),
+        "xporbs_table_frozen": ("    if( count == 0 )\n        return;\n\n    g_skill_count = count;", "    g_skill_count = count;",
+                                "a table sized after login still notices the first gain"),
         "xporbs_expired_control": ("    for( int i = g_globe_count; i < ORB_MAX_SHOWN; i++ )\n    {\n        orb_remove_control(api, &state->globe_control[i]);",
                                    "    for( int i = g_globe_count; i < ORB_MAX_SHOWN; i++ )\n    {\n        (void)0;",
                                    "a globe past its duration is gone with its control"),

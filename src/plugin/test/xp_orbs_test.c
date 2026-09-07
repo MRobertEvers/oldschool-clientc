@@ -504,11 +504,12 @@ fake_stat(void* u, int skill, int* cur, int* base)
 
 /* The bridge's own arithmetic: level_xp[n] is the xp that reaches level n + 2,
  * so a level's own threshold is two entries below it and the next one is one. */
+static int g_stats_ready = 1;
 static int
 fake_stat_xp(void* u, int skill, int* xp, int* level_xp, int* next_xp)
 {
     (void)u;
-    if( skill < 0 || skill >= SKILL_COUNT )
+    if( !g_stats_ready || skill < 0 || skill >= SKILL_COUNT )
         return 0;
     if( xp )
         *xp = g_xp[skill];
@@ -1299,9 +1300,23 @@ main(void)
     g_xp[3] = 1154;
     g_now_ms = 100000;
 
+    /* Started on the title screen: no stat has been stated yet. The table
+     * must not be sized empty for good. */
+    g_stats_ready = 0;
+    tick();
+    frame();
+    g_stats_ready = 1;
     tick();
     frame();
     CHECK(globes(g) == 0, "the first sight of the stat table places nothing");
+    g_now_ms += 600;
+    g_xp[3] = 1300;
+    tick();
+    frame();
+    CHECK(globes(g) == 1, "a table sized after login still notices the first gain");
+    g_now_ms += 11000;
+    frame();
+    CHECK(globes(g) == 0, "cleared before the fence case");
     {
         g_now_ms += 600;
         g_xp[19] = 5000;
