@@ -311,9 +311,21 @@ plugin off (`gf-stone-osrs601-baseline/m31`) the mobile toplevel paints the spec
 over the run disc's bottom rows, exactly as the ported build does, while the 548 toplevel
 (`gf-stone-osrs548-baseline/m02`) paints the run disc over the plate; the old orbs plugin drew at
 boxes offset from the native roots, the ported one covers the roots, so the fixture's bottom-rim
-points landed under the later plate. `tools/gameframe_pixels.py` now leaves out a rim point under a
-later orb's box and requires all but one of the rest; both Stone Drawer captures pass, a run box
-shifted three pixels fails (`discs=3`).
+points landed under the later plate. The full 40-run matrix on the fixed frames
+(`gf-review-matrix40-v1`) then showed the same rule red on the resizable toplevel at its 765-wide
+floor (m07, m17, and m11 -- the plain native Auto frame): the lane's own stone row and the adviser
+paint over the special orb there too, natively (`gf-review-m11-baseline/m11`, plugins off, misses
+the same three points). `tools/gameframe_pixels.py` now reads the exit draw list every capture
+already carries and leaves out a rim point that any command painted AFTER the orb's own covers,
+requiring all but one of the rest from at least eight; 40/40, both Stone Drawers and the classic
+capture keep four discs, a run box shifted three pixels still reads `discs=3`.
+
+The same matrix showed the provided resizable frame laying out against the 807-wide canvas the
+lane grows to at a 765 window (the floor plus the popout strip), 42 columns right of where the
+builder frame stood: the old FRAME_BUILD area subtracted the host's `lane_chrome_rect`, not a
+node flag. That is the desktop half of review item (1); the safe rect 3draster-15 adds to the
+event must be the platform-safe canvas less the lane chrome rect, and both frame plugins switch to
+it when it lands.
 
 OSRS captures must use the prepared manifest (`MANIFEST=/private/tmp/plugin-engine-prepared-actions.ini`,
 `TORIRSSERVER_CONTENT=/private/tmp/plugin-engine-content/osrs239-content`): the shared repo's

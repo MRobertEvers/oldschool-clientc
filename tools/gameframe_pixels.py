@@ -83,22 +83,29 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
         report(name, valid, detail)
 
     fixture = json.loads((Path(__file__).parent / "testdata/gameframe/orb-rim.json").read_text())
+    # The exit draw list, in paint order: what covers a rim point is whatever
+    # painted there AFTER the orb's own commands. The mobile toplevel (601)
+    # seats the special orb's plate nine rows into the run orb's box, the
+    # resizable toplevel at its floor (765 wide) puts its stone row over the
+    # special orb, and the adviser sits on its right edge -- all natively
+    # (gf-stone-osrs601-baseline/m31, gf-review-m11-baseline/m11 with every
+    # plugin off show the same covers). A covered point is that later
+    # command's pixel and is not sampled; whatever is left must still match
+    # but one, from at least eight, which keeps the rule red for a disc that
+    # moved or never drew (a box shifted three pixels reads discs=3).
+    draw_list = [(int(i), tuple(map(int, box))) for i, *box in re.findall(
+        r"EMIT_EXIT\[(\d+)\] kind=\d+ com=0x[0-9a-f]+[^\n]*? x=(-?\d+) y=(-?\d+) w=(\d+) h=(\d+)", log)]
     discs = 0
-    orb_names = ("hitpoints", "prayer", "run", "special")
-    for index, name in enumerate(orb_names):
+    for name in ("hitpoints", "prayer", "run", "special"):
         box = parts.get("frame.orb."+name)
         if not box or not inside(box):
             continue
-        x,y,_,_ = box
-        # The orbs paint in interface 160's own order, and the mobile toplevel
-        # (601) seats the special orb's plate nine rows into the run orb's box:
-        # a rim point under a LATER orb's plate is that orb's pixel, natively
-        # (gf-stone-osrs601-baseline/m31 with every plugin off shows the same
-        # cover), so it is not sampled. Whatever is left must still match but
-        # one, which keeps the rule red for a disc that moved or never drew.
-        later = [parts["frame.orb."+other] for other in orb_names[index+1:] if parts.get("frame.orb."+other)]
+        x,y,w,h = box
+        own = [i for i,(ex,ey,ew,eh) in draw_list if ex >= x and ey >= y and ex+ew <= x+w and ey+eh <= y+h]
+        last_own = max(own) if own else -1
         points = [((dx,dy),rgb) for (dx,dy),rgb in zip(fixture["points"], fixture["rgb"])
-                  if not any(ox <= x+dx < ox+ow and oy <= y+dy < oy+oh for ox,oy,ow,oh in later)]
+                  if not any(i > last_own and ex <= x+dx < ex+ew and ey <= y+dy < ey+eh
+                             for i,(ex,ey,ew,eh) in draw_list)]
         matches = sum(rows[y+dy][x+dx] == tuple(reversed(rgb)) for (dx,dy),rgb in points)
         discs += len(points) >= 8 and matches >= len(points) - 1
     if not native_baseline:
