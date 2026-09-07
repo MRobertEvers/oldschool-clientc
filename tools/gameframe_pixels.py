@@ -256,6 +256,29 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", p
             for uid,hidden in expected.items()))
 
 
+def check_xp_orbs(rows, log, enabled, failures):
+    """XP globes as owned image controls: the plugin's XP_ORBS_GLOBE lines give
+    each live slot's last canvas box; every box is inside the canvas and its
+    picture is painted (a globe is a coloured ring around an icon, so the box
+    holds many distinct colours). A Flip press is proven by XP_ORBS_FLIP."""
+    def report(name, valid, detail=""):
+        print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
+        if not valid: failures.append(name)
+    height, width = len(rows), len(rows[0])
+    slots = {}
+    for slot, skill, x, y, side in re.findall(r"XP_ORBS_GLOBE slot=(\d+) skill=(\d+) x=(-?\d+) y=(-?\d+) side=(\d+)", log):
+        slots[int(slot)] = (int(skill), int(x), int(y), int(side))
+    report("xp_orbs_globes", (len(slots) >= 1) == bool(enabled), f"slots={len(slots)}")
+    if not enabled or not slots: return
+    inside = all(0 <= x and 0 <= y and x + s <= width and y + s <= height for _, x, y, s in slots.values())
+    report("xp_orbs_inside_canvas", inside)
+    painted = 0
+    for _, x, y, s in slots.values():
+        colours = {rows[yy][xx] for yy in range(y, min(height, y + s)) for xx in range(x, min(width, x + s))}
+        painted += len(colours) >= 8
+    report("xp_orbs_painted", painted == len(slots), f"painted={painted}")
+
+
 def check_minimap_orbs(rows, log, enabled, failures):
     """Four owned orb controls, 57x34 each, painted with their meters.
 
@@ -449,6 +472,8 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             check_performance(rows,log,plugin_enabled,performance_metrics,performance_position,performance_color,failures)
         if plugin_id=="minimap-orbs":
             check_minimap_orbs(rows,log,plugin_enabled,failures)
+        if plugin_id=="xp-drop-orbs":
+            check_xp_orbs(rows,log,plugin_enabled,failures)
     if widget_demo:
         log = Path(bounds_path).read_text() if bounds_path else ""
         if widget_demo == "c":

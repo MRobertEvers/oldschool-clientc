@@ -36,7 +36,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "miniz.h"
 
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
 
@@ -47,84 +46,6 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
  * width replaces its own row -- that is the point of keying a reservation on
  * its owner -- and "these two stack" cannot be said with one.
  */
-static int g_second;
-static int g_other;
-static struct ToriRS_Api* g_second_api;
-static struct ToriRS_Api* g_other_api;
-
-/* Set by the re-entrancy case: while non-NULL, this plugin answers every
- * layout notification by reserving a DIFFERENT width, which is the pattern
- * that would spin if the event nested. */
-static struct ToriRS_Api* g_reentrant_api;
-static int g_reentrant_left;
-static int g_reentrant_depth;
-static int g_reentrant_max_depth;
-
-static void
-second_placement_changed(
-    struct ToriRS_Api* api,
-    void* state,
-    uint32_t revision)
-{
-    (void)state;
-    (void)revision;
-
-    g_reentrant_depth++;
-    if( g_reentrant_depth > g_reentrant_max_depth )
-        g_reentrant_max_depth = g_reentrant_depth;
-    if( g_reentrant_api == api && g_reentrant_left > 0 )
-    {
-        g_reentrant_left--;
-        (void)api->placement.reserve(
-            api,
-            "reentrant",
-            TORIRS_AREA_OVERLAY_SAFE,
-            TORIRS_EDGE_LEFT,
-            10 + g_reentrant_left);
-    }
-    g_reentrant_depth--;
-}
-
-static void
-second_start(struct ToriRS_Api* api, void* state)
-{
-    (void)state;
-    g_second_api = api;
-}
-
-static void
-other_start(struct ToriRS_Api* api, void* state)
-{
-    (void)state;
-    g_other_api = api;
-}
-
-static struct ToriRS_PluginDef const SECOND = {
-    .struct_size = sizeof(struct ToriRS_PluginDef),
-    .id = "second",
-    .title = "Second",
-    .version = "1.0.0",
-    .flags = TORIRS_PLUGIN_HIDDEN,
-    .callbacks = {
-        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
-        .on_start = second_start,
-        .on_placement_changed = second_placement_changed,
-    },
-};
-
-static struct ToriRS_PluginDef const OTHER = {
-    .struct_size = sizeof(struct ToriRS_PluginDef),
-    .id = "other",
-    .title = "Other",
-    .version = "1.0.0",
-    .flags = TORIRS_PLUGIN_HIDDEN,
-    .callbacks = {
-        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
-        .on_start = other_start,
-    },
-};
-
-
 static int g_checks;
 static int g_failures;
 
@@ -1133,130 +1054,7 @@ fake_hsl_to_rgb(void* u, int hsl)
 
 /* ------------------------------------------------------------- the sheet */
 
-/** 8-bit RGBA, no interlace -- the same container spritebake_png.py writes. */
-static void
-write_png(char const* path, int w, int h, uint32_t const* argb)
-{
-    unsigned char* raw;
-    mz_ulong raw_size = (unsigned long)(w * 4 + 1) * (unsigned long)h;
-    mz_ulong comp_size;
-    unsigned char* comp;
-    FILE* f;
-    int at = 0;
 
-    raw = malloc(raw_size);
-    assert(raw);
-    for( int y = 0; y < h; y++ )
-    {
-        raw[at++] = 0;
-        for( int x = 0; x < w; x++ )
-        {
-            uint32_t const p = argb[y * w + x];
-            raw[at++] = (unsigned char)(p >> 16);
-            raw[at++] = (unsigned char)(p >> 8);
-            raw[at++] = (unsigned char)p;
-            raw[at++] = (unsigned char)(p >> 24);
-        }
-    }
-    comp_size = mz_compressBound(raw_size);
-    comp = malloc(comp_size);
-    assert(comp);
-    mz_compress2(comp, &comp_size, raw, raw_size, 9);
-
-    f = fopen(path, "wb");
-    if( !f )
-    {
-        free(raw);
-        free(comp);
-        return;
-    }
-#define BE32(v) \
-    (unsigned char)((v) >> 24), (unsigned char)((v) >> 16), (unsigned char)((v) >> 8), \
-        (unsigned char)(v)
-    {
-        unsigned char const sig[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
-        unsigned char ihdr[25] = { BE32(13), 'I', 'H', 'D', 'R', BE32(w), BE32(h),
-                                   8,       6,   0,   0,   0,   0, 0, 0, 0 };
-        mz_ulong crc = mz_crc32(0, ihdr + 4, 17);
-        unsigned char iend[12] = { BE32(0), 'I', 'E', 'N', 'D', 0, 0, 0, 0 };
-        mz_ulong icrc = mz_crc32(0, iend + 4, 4);
-        unsigned char idat_head[8] = { BE32((unsigned)comp_size), 'I', 'D', 'A', 'T' };
-        mz_ulong dcrc;
-        unsigned char tail[4];
-
-        ihdr[21] = (unsigned char)(crc >> 24);
-        ihdr[22] = (unsigned char)(crc >> 16);
-        ihdr[23] = (unsigned char)(crc >> 8);
-        ihdr[24] = (unsigned char)crc;
-        fwrite(sig, 1, sizeof(sig), f);
-        fwrite(ihdr, 1, sizeof(ihdr), f);
-
-        dcrc = mz_crc32(0, idat_head + 4, 4);
-        dcrc = mz_crc32(dcrc, comp, (unsigned)comp_size);
-        fwrite(idat_head, 1, 8, f);
-        fwrite(comp, 1, comp_size, f);
-        tail[0] = (unsigned char)(dcrc >> 24);
-        tail[1] = (unsigned char)(dcrc >> 16);
-        tail[2] = (unsigned char)(dcrc >> 8);
-        tail[3] = (unsigned char)dcrc;
-        fwrite(tail, 1, 4, f);
-
-        iend[8] = (unsigned char)(icrc >> 24);
-        iend[9] = (unsigned char)(icrc >> 16);
-        iend[10] = (unsigned char)(icrc >> 8);
-        iend[11] = (unsigned char)icrc;
-        fwrite(iend, 1, sizeof(iend), f);
-    }
-#undef BE32
-    fclose(f);
-    free(raw);
-    free(comp);
-    printf("wrote %s (%dx%d)\n", path, w, h);
-}
-
-/** Every blit of this frame, composited onto a checkerboard so transparency
- *  reads as transparency rather than as black. */
-static void
-write_frame(char const* path, int w, int h)
-{
-    uint32_t* canvas = malloc((size_t)w * (size_t)h * sizeof(uint32_t));
-
-    assert(canvas);
-    for( int y = 0; y < h; y++ )
-        for( int x = 0; x < w; x++ )
-            canvas[y * w + x] =
-                0xFF000000u | (((x / 8 + y / 8) & 1) ? 0x2E3436u : 0x3C4448u);
-
-    for( int i = 0; i < g_blit_count; i++ )
-    {
-        struct FakeImage const* img = &g_image[g_blit[i].slot];
-        if( !img->argb )
-            continue;
-        for( int y = 0; y < img->h; y++ )
-        {
-            int const ty = g_blit[i].y + y;
-            if( ty < 0 || ty >= h )
-                continue;
-            for( int x = 0; x < img->w; x++ )
-            {
-                int const tx = g_blit[i].x + x;
-                uint32_t const p = img->argb[y * img->w + x];
-                uint32_t const a = p >> 24;
-                uint32_t d;
-                if( tx < 0 || tx >= w || a == 0 )
-                    continue;
-                d = canvas[ty * w + tx];
-                canvas[ty * w + tx] =
-                    0xFF000000u |
-                    (((((p >> 16) & 0xFF) * a + ((d >> 16) & 0xFF) * (255 - a)) / 255) << 16) |
-                    (((((p >> 8) & 0xFF) * a + ((d >> 8) & 0xFF) * (255 - a)) / 255) << 8) |
-                    ((((p & 0xFF) * a + (d & 0xFF) * (255 - a)) / 255));
-            }
-        }
-    }
-    write_png(path, w, h, canvas);
-    free(canvas);
-}
 
 /* ------------------------------------------------------------------ tests */
 
@@ -1264,60 +1062,114 @@ write_frame(char const* path, int w, int h)
 #define CANVAS_H 200
 
 static struct ToriRS_PluginHost* g_host;
-static void tick(void);
-static void draw(void);
-
-/**
- * One client cycle, and ONLY that.
- *
- * Deliberately not PluginHost_ServerTick: that event is raised from
- * PKT_NAME_SERVER_TICK_END, which only osrs230, osrs239 and the rsprot bridge
- * put on the wire. Every 2004-era lane in this tree -- lc245_2, lc254, lc289,
- * xrsps233 -- has no tick fence at all, so a plugin that polls there never runs
- * on those worlds and silently shows nothing while the player gains xp. That is
- * exactly what happened on the rev-289 profile, and driving the test off the
- * event those lanes DO raise is what keeps it from happening again.
+/* --------------------------------------------------------------- widgets */
+/*
+ * The fake native tree: one viewport and the plugin's owned image children.
+ * Positions are viewport-local; the viewport sits at the canvas origin so
+ * canvas and local coordinates coincide for the assertions below.
  */
-static void
-tick(void)
+struct FakeControl { int alive; char key[24]; int x, y, w, h, image, opacity; char op[32]; uint64_t registration; };
+#define FAKE_VIEWPORT_ID 1
+#define FAKE_FIRST_OWNED 100
+static struct FakeControl g_control[64];
+static int g_control_count;
+static int g_widget_owner = -1;
+static struct ToriRS_WidgetRef fake_ref(int id) { return (struct ToriRS_WidgetRef){{ 77, (uint64_t)id, 1 }}; }
+static int fake_id(struct ToriRS_WidgetRef r) { return r.opaque[0] == 77 && r.opaque[2] == 1 ? (int)r.opaque[1] : -1; }
+static enum ToriRS_ContractResult
+fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
 {
-    static int cycle;
-    PluginHost_LogicTick(g_host, ++cycle);
+    (void)u;
+    if( g_widget_owner < 0 ) g_widget_owner = (int)owner - 1;
+    switch( r->kind )
+    {
+    case PLUGIN_WIDGET_FIND:
+        if( strcmp(r->name, "viewport") != 0 ) return TORIRS_CONTRACT_UNAVAILABLE;
+        *r->refs = fake_ref(FAKE_VIEWPORT_ID); return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_RESET_OWNER:
+        for( int i = 0; i < g_control_count; i++ ) g_control[i].alive = 0;
+        return TORIRS_CONTRACT_OK;
+    default: break;
+    }
+    int const id = fake_id(r->ref);
+    if( id == FAKE_VIEWPORT_ID )
+    {
+        if( r->kind == PLUGIN_WIDGET_LOCAL_BOUNDS || r->kind == PLUGIN_WIDGET_BOUNDS )
+        { *r->bounds = (struct ToriRS_WidgetBounds){ 0, 0, CANVAS_W, CANVAS_H }; return TORIRS_CONTRACT_OK; }
+        if( r->kind == PLUGIN_WIDGET_CREATE_IMAGE )
+        {
+            for( int i = 0; i < g_control_count; i++ )
+                if( g_control[i].alive && strcmp(g_control[i].key, r->name) == 0 ) { *r->refs = fake_ref(FAKE_FIRST_OWNED + i); return TORIRS_CONTRACT_OK; }
+            assert(g_control_count < 64);
+            memset(&g_control[g_control_count], 0, sizeof(g_control[0]));
+            g_control[g_control_count].alive = 1;
+            snprintf(g_control[g_control_count].key, sizeof(g_control[0].key), "%s", r->name);
+            *r->refs = fake_ref(FAKE_FIRST_OWNED + g_control_count++);
+            return TORIRS_CONTRACT_OK;
+        }
+        return TORIRS_CONTRACT_NATIVE_BLOCKED;
+    }
+    if( id < FAKE_FIRST_OWNED || id - FAKE_FIRST_OWNED >= g_control_count || !g_control[id - FAKE_FIRST_OWNED].alive )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
+    struct FakeControl* c = &g_control[id - FAKE_FIRST_OWNED];
+    switch( r->kind )
+    {
+    case PLUGIN_WIDGET_SET_IMAGE: c->image = r->id + 1; c->w = r->a; c->h = r->b; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_POSITION: c->x = r->a; c->y = r->b; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_OPACITY: c->opacity = r->a; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_SET_ON_OP: snprintf(c->op, sizeof(c->op), "%s", r->name); c->registration = r->registration; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_REMOVE: c->alive = 0; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_BOUNDS: case PLUGIN_WIDGET_LOCAL_BOUNDS:
+        *r->bounds = (struct ToriRS_WidgetBounds){ c->x, c->y, c->w, c->h }; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_VISIBLE: *r->flag = true; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_REVALIDATE: return TORIRS_CONTRACT_OK;
+    default: return TORIRS_CONTRACT_UNAVAILABLE;
+    }
 }
-
-static void
-draw(void)
+/* Live globe controls, in slot order (their keys are "globe%d"). */
+static int globes(struct FakeControl const** out)
 {
-    g_blit_count = 0;
-    g_region_count = 0;
-    PluginHost_DrawCanvas(g_host, CANVAS_W, CANVAS_H);
+    int n = 0;
+    for( int slot = 0; slot < 8; slot++ )
+    {
+        char key[16]; snprintf(key, sizeof(key), "globe%d", slot);
+        for( int i = 0; i < g_control_count; i++ )
+            if( g_control[i].alive && g_control[i].image && strcmp(g_control[i].key, key) == 0 ) out[n++] = &g_control[i];
+    }
+    return n;
 }
+static struct FakeControl const* control_named(char const* prefix)
+{
+    for( int i = 0; i < g_control_count; i++ )
+        if( g_control[i].alive && g_control[i].image && strncmp(g_control[i].key, prefix, strlen(prefix)) == 0 ) return &g_control[i];
+    return NULL;
+}
+static int control_index(struct FakeControl const* c) { return (int)(c - g_control) + FAKE_FIRST_OWNED; }
 
-/**
- * One gain on `skill` with `drop_offset_y` set to `offset`: where its label
- * starts, and where it has climbed to a good way through.
- *
- * The screen is cleared first so the label being measured is the only one in
- * the air -- drops are drawn before globes, so `g_blit[0]` is then the label
- * and `g_blit[1]` the orb it belongs to.
- */
+/* One client cycle, and ONLY that -- the 2004-era lanes have no server tick
+ * fence, so the poll must live on the logic tick. */
+static void tick(void) { static int cycle; PluginHost_LogicTick(g_host, ++cycle); }
+/* One rendered frame: the frame-start publication places and repaints. */
+static void frame(void) { static uint64_t frames; PluginHost_FrameStart(g_host, g_now_ms, ++frames); }
+
 static void
 sample_drop(int plugin, int skill, char const* offset, int* out_first, int* out_last)
 {
+    struct FakeControl const* drop;
     PluginHost_ConfigSet(g_host, plugin, "drop_offset_y", offset);
     g_now_ms += 30000;
-    draw();
-
+    frame();
     g_now_ms += 600;
     g_level[skill] = 40;
     g_xp[skill] = g_level_xp[38] + 500;
     tick();
-    draw();
-    *out_first = g_blit_count == 2 ? g_blit[0].y : 0;
-
+    frame();
+    drop = control_named("drop");
+    *out_first = drop ? drop->y : 0;
     g_now_ms += 700;
-    draw();
-    *out_last = g_blit_count == 2 ? g_blit[0].y : 0;
+    frame();
+    drop = control_named("drop");
+    *out_last = drop ? drop->y : 0;
 }
 
 int
@@ -1325,9 +1177,9 @@ main(void)
 {
     struct ToriRS_PluginEngine e;
     int index;
+    struct FakeControl const* g[8];
 
     fake_build_xp_table();
-
     memset(&e, 0, sizeof(e));
     e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
@@ -1421,107 +1273,57 @@ main(void)
     e.hsl_from_rgb = fake_hsl_from_rgb;
     e.hsl_to_rgb = fake_hsl_to_rgb;
 
+    e.widget_request = fake_widget_request;
+
     g_host = PluginHost_New(&e);
-    /* asset_read has to answer into the host it is reading for, and the engine
-     * user pointer is the only channel it has. */
     e.user = g_host;
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
 
     CHECK(TORIRS_PLUGIN_XP_ORBS.struct_size == sizeof(TORIRS_PLUGIN_XP_ORBS) &&
               TORIRS_PLUGIN_XP_ORBS.state_size > 0 &&
-              TORIRS_PLUGIN_XP_ORBS.callbacks.on_ui_node_draw &&
-              TORIRS_PLUGIN_XP_ORBS.callbacks.on_canvas_action,
-        "the orb implementation is a native per-instance V2 plugin");
+              TORIRS_PLUGIN_XP_ORBS.callbacks.on_frame_start &&
+              !TORIRS_PLUGIN_XP_ORBS.callbacks.on_ui_node_draw &&
+              !TORIRS_PLUGIN_XP_ORBS.callbacks.on_canvas_action &&
+              !TORIRS_PLUGIN_XP_ORBS.ui_contributions,
+        "the orbs are owned widget controls, not a named-UI contribution or a canvas region");
     index = PluginHost_Register(g_host, &TORIRS_PLUGIN_XP_ORBS);
     CHECK(index >= 0, "the plugin registers");
     PluginHost_SetEnabled(g_host, index, true);
-    g_second = PluginHost_Register(g_host, &SECOND);
-    PluginHost_SetEnabled(g_host, g_second, true);
-    g_other = PluginHost_Register(g_host, &OTHER);
-    PluginHost_SetEnabled(g_host, g_other, true);
     PluginHost_Start(g_host);
-
-    /* CANVAS always answers; the other two are set per case below. Starting
-     * with only the canvas is the login-screen state -- no scene, no modal. */
-    g_slot_x[TORIRS_HOST_SURFACE_CANVAS] = 0;
-    g_slot_y[TORIRS_HOST_SURFACE_CANVAS] = 0;
-    g_slot_w[TORIRS_HOST_SURFACE_CANVAS] = CANVAS_W;
-    g_slot_h[TORIRS_HOST_SURFACE_CANVAS] = CANVAS_H;
-    /* Native V2 presentation resolves through the canonical viewport node;
-     * publish the fake lane's first layout before asking it to draw. */
-    PluginHost_LayoutChanged(g_host);
-
-    /* Off for the structural cases: a floating label is a second blit per
-     * globe and would make every count below say something about two features
-     * at once. It gets cases of its own, and the sheet, further down. */
+    PluginHost_WidgetsChanged(g_host, 77, 1);
     PluginHost_ConfigSet(g_host, index, "show_xp_drops", "0");
 
-    for( int i = 0; i < SKILL_COUNT; i++ )
-    {
-        g_level[i] = 1;
-        g_xp[i] = 0;
-    }
+    for( int i = 0; i < SKILL_COUNT; i++ ) { g_level[i] = 1; g_xp[i] = 0; }
     g_level[3] = 10;
     g_xp[3] = 1154;
     g_now_ms = 100000;
 
-    /* The login burst SEEDS. Every stat arrives at once and none of it is a
-     * gain the player just made. */
     tick();
-    draw();
-    CHECK(g_blit_count == 0, "the first sight of the stat table draws nothing");
-
-    /*
-     * A world with no tick fence still gets orbs.
-     *
-     * Stated as its own case rather than left implicit in `tick`, because what
-     * is being pinned is a NEGATIVE: that nothing here depends on
-     * PluginHost_ServerTick, which the 2004-era lanes never call. Raising the
-     * server tick and only the server tick must produce nothing, or the plugin
-     * has drifted back onto an event half this client's worlds do not have.
-     */
+    frame();
+    CHECK(globes(g) == 0, "the first sight of the stat table places nothing");
     {
-        int const before = g_blit_count;
         g_now_ms += 600;
-        g_xp[19] = 5000;   /* farming, a gain nobody polls for */
+        g_xp[19] = 5000;
         g_level[19] = 30;
         PluginHost_ServerTick(g_host, 1);
-        draw();
-        CHECK(
-            g_blit_count == before,
-            "the server-tick fence alone drives nothing -- half the lanes have none");
-        /* and the client cycle picks that same gain up. */
+        frame();
+        CHECK(globes(g) == 0, "the server-tick fence alone drives nothing -- half the lanes have none");
         tick();
-        draw();
-        CHECK(g_blit_count == before + 1, "the client cycle is what notices a gain");
+        frame();
+        CHECK(globes(g) == 1, "the client cycle is what notices a gain");
         g_now_ms += 11000;
-        draw();
-        CHECK(g_blit_count == 0, "cleared before the cases below");
+        frame();
+        CHECK(globes(g) == 0, "cleared before the cases below");
     }
-
-    /* One gain, one globe. */
     g_now_ms += 600;
-    g_level[8] = 3;  /* woodcutting, a fifth of the way to level 4 */
+    g_level[8] = 3;
     g_xp[8] = g_level_xp[1] + (g_level_xp[2] - g_level_xp[1]) / 5;
     tick();
-    draw();
-    CHECK(g_blit_count == 1, "a gain puts one globe on screen");
-    CHECK(g_region_count == 1, "and registers the box it drew in");
-    CHECK(g_region_tag == 1u, "with the Flip tag");
-    CHECK(
-        g_blit_count == 1 && g_blit[0].w == g_blit[0].h,
-        "the globe's picture is square");
-    CHECK(
-        g_blit_count == 1 && g_blit[0].w >= 40,
-        "and at least as wide as the default orb");
-
-    /* Five more skills: the ceiling holds and the OLDEST goes.
-     *
-     * Each is put a different fraction of the way through its level, so the
-     * sheet shows five different arcs rather than five full rings -- the arc
-     * is the whole point of the picture and a test that only ever draws it
-     * complete would not show it being drawn wrong. */
+    frame();
+    CHECK(globes(g) == 1, "a gain puts one globe control in the viewport");
+    CHECK(globes(g) == 1 && g[0]->w == g[0]->h && g[0]->w >= 40, "the globe's picture is square and at least the default orb");
+    CHECK(globes(g) == 1 && strcmp(g[0]->op, "Flip") == 0 && g[0]->registration != 0, "and it is armed with Flip");
     {
         int const more[] = { 0, 2, 6, 14, 20 };
         int const percent[] = { 12, 35, 58, 80, 96 };
@@ -1536,374 +1338,98 @@ main(void)
             tick();
         }
     }
-    draw();
-    CHECK(g_blit_count == 5, "no more than five globes are shown at once");
-
-    /* Ordered by skill, left to right, so the row does not reshuffle. */
+    frame();
+    CHECK(globes(g) == 5, "no more than five globes are shown at once");
     {
         int ordered = 1;
-        for( int i = 1; i < g_blit_count; i++ )
-            if( g_blit[i].x <= g_blit[i - 1].x )
-                ordered = 0;
+        int n = globes(g);
+        for( int i = 1; i < n; i++ ) if( g[i]->x <= g[i - 1]->x ) ordered = 0;
         CHECK(ordered, "and they are laid out left to right");
+        CHECK(n == 5 && g[0]->x == (CANVAS_W - (5 * 40 + 4 * 10)) / 2 - 3, "centred on the viewport");
     }
-
-    /* Hovering one holds it alive and opens the tooltip: a sixth blit. */
-    g_mouse_x = g_blit[2].x + g_blit[2].w / 2;
-    g_mouse_y = g_blit[2].y + g_blit[2].h / 2;
-    draw();
-    CHECK(g_blit_count == 6, "hovering a globe adds the tooltip");
-    CHECK(
-        g_blit_count == 6 && g_image[g_blit[5].slot].w == 150,
-        "which is the reference's own width");
-
-    /* Flip turns the row into a column. */
-    PluginHost_CanvasClick(g_host, index, 1u, 0, g_mouse_x, g_mouse_y);
+    globes(g);
+    g_mouse_x = g[2]->x + g[2]->w / 2;
+    g_mouse_y = g[2]->y + g[2]->h / 2;
+    frame();
+    CHECK(control_named("tooltip") != NULL, "hovering a globe adds the tooltip control");
+    CHECK(control_named("tooltip") && control_named("tooltip")->w == 150, "which is the reference's own width");
+    /* Flip: the globe's operation, dispatched as the native menu would. */
+    CHECK(PluginHost_WidgetOperation(g_host, (uint64_t)index + 1, fake_ref(control_index(g[2])), g[2]->registration),
+        "the Flip operation dispatches to the owning plugin");
     g_mouse_x = -1;
-    draw();
+    frame();
     {
-        int stacked = g_blit_count > 1;
-        for( int i = 1; i < g_blit_count; i++ )
-            if( g_blit[i].y <= g_blit[i - 1].y || g_blit[i].x != g_blit[0].x )
-                stacked = 0;
+        int n = globes(g);
+        int stacked = n > 1;
+        for( int i = 1; i < n; i++ ) if( g[i]->y <= g[i - 1]->y || g[i]->x != g[0]->x ) stacked = 0;
         CHECK(stacked, "Flip stacks them into a column");
     }
-    PluginHost_CanvasClick(g_host, index, 1u, 0, 0, 0);
-
-    /* And they expire. */
+    globes(g);
+    CHECK(PluginHost_WidgetOperation(g_host, (uint64_t)index + 1, fake_ref(control_index(g[0])), g[0]->registration), "Flip again");
     g_now_ms += 11000;
-    draw();
-    CHECK(g_blit_count == 0, "a globe past its duration is gone");
-
-    /* A hovered one does not, because a tooltip that vanishes mid-read is
-     * worse than one that overstays. */
+    frame();
+    CHECK(globes(g) == 0, "a globe past its duration is gone with its control");
     g_now_ms += 600;
     g_xp[10] = 5000;
     g_level[10] = 30;
     tick();
-    draw();
-    CHECK(g_blit_count == 1, "a fresh gain is back");
-    g_mouse_x = g_blit[0].x + g_blit[0].w / 2;
-    g_mouse_y = g_blit[0].y + g_blit[0].h / 2;
-    for( int i = 0; i < 40; i++ )
-    {
-        g_now_ms += 1000;
-        draw();
-    }
-    CHECK(g_blit_count >= 1, "hovering holds a globe past its duration");
-
-    /* Both cases below start from an empty screen and seed their own globes:
-     * they are the last in the file precisely so they can leave it in any
-     * state they like. */
+    frame();
+    CHECK(globes(g) == 1, "a fresh gain is back");
+    g_mouse_x = g[0]->x + g[0]->w / 2;
+    g_mouse_y = g[0]->y + g[0]->h / 2;
+    for( int i = 0; i < 40; i++ ) { g_now_ms += 1000; frame(); }
+    CHECK(globes(g) >= 1, "hovering holds a globe past its duration");
     g_mouse_x = -1;
     g_now_ms += 20000;
-    draw();
+    frame();
+    CHECK(globes(g) == 0 && control_named("tooltip") == NULL, "the tooltip leaves with the hover");
+
+    /* Floating labels. */
     {
-        /* Skills nothing above has touched: a value a skill already holds is
-         * not a gain, and re-using one from an earlier case would seed
-         * nothing. */
-        int const more[] = { 1, 4, 7, 13, 21 };
-        int const percent[] = { 12, 35, 58, 80, 96 };
-        for( size_t i = 0; i < sizeof(more) / sizeof(more[0]); i++ )
-        {
-            int const level = 40 + (int)i;
-            int const base = g_level_xp[level - 2];
-            int const next = g_level_xp[level - 1];
-            g_now_ms += 120;
-            g_level[more[i]] = level;
-            g_xp[more[i]] = base + (next - base) * percent[i] / 100;
-            tick();
-        }
-        draw();
-        CHECK(g_blit_count == 5, "five globes seeded for the cases below");
-    }
-
-    /*
-     * The column centres on the SAFE region, and the safe region is derived.
-     *
-     * The failure this pins is the one a resizable gameframe produces: the
-     * scene fills the whole window and the chrome floats on top of it, so a
-     * column centred on the canvas -- or even on the viewport -- sits off to
-     * the side of what the player is actually looking at. SAFE is the viewport
-     * with the chrome cut out of it, computed by the host, so what is being
-     * checked here is arithmetic the plugin never sees.
-     */
-    {
-        int const run = 5 * 40 + 4 * 10;
-        g_mouse_x = -1;
-
-        /* A resizable frame: the scene IS the window. */
-        g_slot_x[TORIRS_HOST_SURFACE_VIEWPORT] = 0;
-        g_slot_y[TORIRS_HOST_SURFACE_VIEWPORT] = 0;
-        g_slot_w[TORIRS_HOST_SURFACE_VIEWPORT] = CANVAS_W;
-        g_slot_h[TORIRS_HOST_SURFACE_VIEWPORT] = CANVAS_H;
-        PluginHost_LayoutChanged(g_host);
-        draw();
-        CHECK(
-            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,
-            "with nothing covering it, safe is the viewport");
-
-        /* Now dock the sidebar down the right, as a resizable frame does. */
-        g_slot_x[TORIRS_HOST_SURFACE_SIDEBAR] = CANVAS_W - 200;
-        g_slot_y[TORIRS_HOST_SURFACE_SIDEBAR] = 0;
-        g_slot_w[TORIRS_HOST_SURFACE_SIDEBAR] = 200;
-        g_slot_h[TORIRS_HOST_SURFACE_SIDEBAR] = CANVAS_H;
-        PluginHost_LayoutChanged(g_host);
-        draw();
-        CHECK(
-            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - 200 - run) / 2 - 3,
-            "the chrome is cut out of it, and the column re-centres");
-
-        /* A frame that reports no regions at all falls back to the canvas --
-         * the login screen, where there is no scene to measure. */
-        g_slot_w[TORIRS_HOST_SURFACE_VIEWPORT] = 0;
-        g_slot_w[TORIRS_HOST_SURFACE_SIDEBAR] = 0;
-        PluginHost_LayoutChanged(g_host);
-        draw();
-        CHECK(
-            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,
-            "and a frame with no regions falls back to the canvas");
-        g_slot_w[TORIRS_HOST_SURFACE_VIEWPORT] = CANVAS_W;
-        g_slot_h[TORIRS_HOST_SURFACE_VIEWPORT] = CANVAS_H;
-        PluginHost_LayoutChanged(g_host);
-    }
-
-    /*
-     * Reservations: what lets two plugins share a screen without knowing about
-     * each other.
-     *
-     * The orbs are the reader here; the writer is the test standing in for a
-     * dock plugin. Nothing in the orbs is aware a reservation exists, which is
-     * the property being checked -- they simply re-centre.
-    */
-    {
-        int const run = 5 * 40 + 4 * 10;
-        uint32_t const before = g_second_api->placement.revision(g_second_api);
-
-        CHECK(
-            g_second_api->placement.reserve(
-                g_second_api,
-                "xp-test",
-                TORIRS_AREA_OVERLAY_SAFE,
-                TORIRS_EDGE_RIGHT,
-                180) == TORIRS_RESERVE_OK,
-            "a plugin can make a named edge reservation");
-        CHECK(
-            g_second_api->placement.revision(g_second_api) > before,
-            "and the placement revision moves when it does");
-        draw();
-        CHECK(
-            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - 180 - run) / 2 - 3,
-            "the orbs re-centre in what is left, knowing nothing about it");
-        {
-            struct ToriRS_Rect reserved;
-            CHECK(
-                g_second_api->placement.reservation_rect(
-                    g_second_api, "xp-test", &reserved) &&
-                    reserved.x == CANVAS_W - 180 && reserved.y == 0 &&
-                    reserved.width == 180 && reserved.height == CANVAS_H,
-                "the named reservation reports the exact box it consumed");
-        }
-
-        /* A second reservation on the same edge stacks rather than replacing.
-         * It is made by a different plugin, because re-stating one plugin's width
-         * replaces its own row. */
-        {
-            CHECK(
-                g_other_api->placement.reserve(
-                    g_other_api,
-                    "other-test",
-                    TORIRS_AREA_OVERLAY_SAFE,
-                    TORIRS_EDGE_RIGHT,
-                    120) == TORIRS_RESERVE_OK,
-                "a second plugin reserves the same edge");
-            draw();
-            CHECK(
-                g_blit_count == 5 &&
-                    g_blit[0].x == (CANVAS_W - 300 - (5 * 40)) / 2 - 3,
-                "and the two stack while the orbs close their gaps to fit");
-
-            /* Disabling it hands the edge back with nobody asking. */
-            PluginHost_SetEnabled(g_host, g_other, false);
-            draw();
-            CHECK(
-                g_blit_count == 5 &&
-                    g_blit[0].x == (CANVAS_W - 180 - run) / 2 - 3,
-                "and a stopped plugin's reservation is dropped for it");
-        }
-
-        /* Only the derived regions can be reserved from: a placeable role is
-        * whatever the frame says it is. */
-        CHECK(
-            g_second_api->placement.reserve(
-                g_second_api,
-                "bad-area",
-                TORIRS_AREA_RAW_VIEWPORT,
-                TORIRS_EDGE_RIGHT,
-                10) != TORIRS_RESERVE_OK,
-            "a raw region refuses a reservation");
-
-        /* Zero gives it back. */
-        (void)g_second_api->placement.reserve(
-            g_second_api,
-            "xp-test",
-            TORIRS_AREA_OVERLAY_SAFE,
-            TORIRS_EDGE_RIGHT,
-            0);
-        draw();
-        CHECK(
-            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,
-            "and reserving zero releases it");
-    }
-
-    /*
-     * The gained amount floats up into its orb.
-     *
-     * Checked as a POSITION over time rather than as a pixel: what makes this
-     * read as "into the orb" is that the label starts below the disc and ends
-     * inside it, and that relationship requires two frames to verify.
-     */
-    {
-        int first_y = 0;
-        int last_y = 0;
-        int found = 0;
-
+        int first_y = 0, last_y = 0, found = 0;
+        struct FakeControl const* drop;
         PluginHost_ConfigSet(g_host, index, "show_xp_drops", "1");
         g_now_ms += 20000;
-        draw();
-        CHECK(g_blit_count == 0, "the screen is clear before the drop case");
-
+        frame();
         g_now_ms += 600;
-        g_level[15] = 50;   /* herblore, untouched above */
+        g_level[15] = 50;
         g_xp[15] = g_level_xp[48] + 777;
         tick();
-        draw();
-        CHECK(g_blit_count == 2, "a gain draws its globe AND its floating label");
-        /* Drawn first, so the label passes BEHIND the orb rather than over it. */
-        CHECK(
-            g_blit[0].y > g_blit[1].y,
-            "the label starts below the disc and is drawn under it");
-        first_y = g_blit[0].y;
-
+        frame();
+        drop = control_named("drop");
+        CHECK(globes(g) == 1 && drop != NULL, "a gain places its globe AND its floating label");
+        CHECK(drop && drop->y > g[0]->y, "the label starts below the disc");
+        first_y = drop ? drop->y : 0;
         for( int i = 0; i < 6; i++ )
         {
             g_now_ms += 150;
-            draw();
-            if( g_blit_count == 2 )
-            {
-                last_y = g_blit[0].y;
-                found = 1;
-            }
+            frame();
+            drop = control_named("drop");
+            if( drop ) { last_y = drop->y; found = 1; }
         }
         CHECK(found && last_y < first_y, "and climbs");
-
-        /*
-         * BOTH ends of the climb move with the setting.
-         *
-         * This is the regression, and it is a comparison of two runs rather
-         * than a fact about one, because the bug it pins was not that the
-         * label was in the wrong place -- it was that only the START responded
-         * to the setting while the finish stayed pinned inside the orb, so the
-         * number was buried at every value of it. Shifting the setting by 40
-         * has to shift where the label begins AND where it gets to by 40.
-         */
+        CHECK(drop && drop->opacity < 255, "fading over the tail of the climb");
         {
-            int lo_first = 0;
-            int lo_last = 0;
-            int hi_first = 0;
-            int hi_last = 0;
-
+            int lo_first = 0, lo_last = 0, hi_first = 0, hi_last = 0;
             sample_drop(index, 12, "20", &lo_first, &lo_last);
             sample_drop(index, 18, "60", &hi_first, &hi_last);
-            CHECK(lo_first > 0 && hi_first > 0, "both samples drew a label");
+            CHECK(lo_first > 0 && hi_first > 0, "both samples placed a label");
             CHECK(hi_first - lo_first == 40, "the setting moves where it starts");
             CHECK(hi_last - lo_last == 40, "and where it finishes, by the same 40");
             PluginHost_ConfigSet(g_host, index, "drop_offset_y", "20");
         }
-
-        /* Re-seed for the sheet: the samples above ran the clock out. */
         g_now_ms += 30000;
-        draw();
-
-        /* The sheet a human looks at: five globes, one hovered, with a label
-         * part way up into another. */
-        {
-            int const more[] = { 5, 9, 17, 22 };
-            int const percent[] = { 12, 35, 58, 96 };
-            for( size_t i = 0; i < sizeof(more) / sizeof(more[0]); i++ )
-            {
-                int const level = 40 + (int)i;
-                int const base = g_level_xp[level - 2];
-                int const next = g_level_xp[level - 1];
-                g_now_ms += 120;
-                g_level[more[i]] = level;
-                g_xp[more[i]] = base + (next - base) * percent[i] / 100;
-                tick();
-            }
-            /* One more gain immediately before the shot, so the sheet
-             * catches a label mid-climb rather than at the faded tail of one.
-             * On a skill that already HAS a globe, which is the ordinary case
-             * -- a second log, another ore. */
-            g_now_ms += 300;
-            g_xp[22] += 231;   /* the RIGHTMOST globe... */
-            tick();
-            g_now_ms += 250;
-            draw();
-            /* ...and the hover on the leftmost orb, so the tooltip opens away
-             * from the climbing label instead of on top of it. Both are in the
-             * shot that way.
-             *
-             * Found by SHAPE rather than by index: a globe's picture is square
-             * and at least an orb wide, a drop label is wide and one line tall,
-             * and how many of each are in flight depends on the clock. */
-            {
-                int leftmost = -1;
-                for( int b = 0; b < g_blit_count; b++ )
-                {
-                    if( g_blit[b].w != g_blit[b].h || g_blit[b].w < 40 )
-                        continue;
-                    if( leftmost < 0 || g_blit[b].x < g_blit[leftmost].x )
-                        leftmost = b;
-                }
-                CHECK(leftmost >= 0, "the sheet found an orb to hover");
-                if( leftmost >= 0 )
-                {
-                    g_mouse_x = g_blit[leftmost].x + g_blit[leftmost].w / 2;
-                    g_mouse_y = g_blit[leftmost].y + g_blit[leftmost].h / 2;
-                }
-            }
-            draw();
-            {
-                char const* path = getenv("XP_ORBS_TEST_PNG");
-                write_frame(path ? path : "xp_orbs_test.png", CANVAS_W, CANVAS_H);
-            }
-            g_mouse_x = -1;
-        }
+        frame();
+        CHECK(control_named("drop") == NULL, "expired labels remove their controls");
         PluginHost_ConfigSet(g_host, index, "show_xp_drops", "0");
-        g_now_ms += 20000;
-        draw();
     }
-
-
-    /*
-     * The tooltip's numbers hold still.
-     *
-     * Two of its lines are rates, and a rate recomputed per frame is a number
-     * nobody can read -- it is not wrong, it just never stops moving. What is
-     * pinned here is that the panel is REBUILT on a clock while still being
-     * drawn every frame, and that a change the reader would notice at once --
-     * a different orb, a fresh gain -- jumps the queue rather than waiting.
-     */
+    /* Tooltip contents: rebuilt on a change or on the clock. */
     {
-        int after_first;
-
-        /* Its own globes: the case above ends by running the clock out, so
-         * there is nothing on screen to hover by the time this starts. */
         g_now_ms += 20000;
-        draw();
+        frame();
         {
-            int const pair[] = { 11, 16 };   /* firemaking, agility: untouched */
-            for( size_t i = 0; i < sizeof(pair) / sizeof(pair[0]); i++ )
+            int const pair[] = { 11, 16 };
+            for( size_t i = 0; i < 2; i++ )
             {
                 int const level = 30 + (int)i;
                 g_now_ms += 120;
@@ -1911,77 +1437,41 @@ main(void)
                 g_xp[pair[i]] = g_level_xp[level - 2] + 100;
                 tick();
             }
-            draw();
-            CHECK(g_blit_count == 2, "two globes to hover between");
+            frame();
+            CHECK(globes(g) == 2, "two globes to hover between");
         }
-
-        g_mouse_x = g_blit[0].x + 20;
-        g_mouse_y = g_blit[0].y + 20;
+        g_mouse_x = g[0]->x + 20;
+        g_mouse_y = g[0]->y + 20;
         g_tip_composes = 0;
-        draw();
+        frame();
         CHECK(g_tip_composes == 1, "hovering builds the tooltip once");
-
-        after_first = g_blit_count;
-        for( int i = 0; i < 8; i++ )
-        {
-            g_now_ms += 400;   /* 3.2s, inside the window */
-            draw();
-        }
+        for( int i = 0; i < 8; i++ ) { g_now_ms += 400; frame(); }
         CHECK(g_tip_composes == 1, "and holds it while the pointer stays put");
-        CHECK(g_blit_count == after_first, "while still drawing it every frame");
-
-        g_now_ms += 2000;      /* now past five seconds */
-        draw();
+        g_now_ms += 2000;
+        frame();
         CHECK(g_tip_composes == 2, "past the window it refreshes");
-
-        /* A different orb is answered at once, not on the next tick of the
-         * clock -- a panel describing the orb next door is worse than a stale
-         * rate. */
-        g_mouse_x = g_blit[1].x + 20;
-        g_mouse_y = g_blit[1].y + 20;
+        g_mouse_x = g[1]->x + 20;
+        g_mouse_y = g[1]->y + 20;
         g_now_ms += 30;
-        draw();
+        frame();
         CHECK(g_tip_composes == 3, "and a different orb rebuilds it immediately");
         g_mouse_x = -1;
     }
-
-    /*
-     * A handler that reserves from inside the notification does not spin.
-     *
-     * The shape a cooperative layout invites: a dock hears that the safe
-     * region moved, recalculates the width it wants, and reserves -- which
-     * changes the layout again. Nothing here refuses that; what is dropped
-     * is the second telling, and the test for it is simply that this
-     * returns at all.
-    */
+    /* A native remount: the viewport unbinds with every owned child, and a
+     * fresh binding places the globes again from nothing. */
     {
-        PluginHost_SetEnabled(g_host, g_second, true);
-        PluginHost_SetEnabled(g_host, g_other, true);
-        uint32_t const before = g_second_api->placement.revision(g_second_api);
-        g_reentrant_api = g_second_api;
-        g_reentrant_left = 4;
-        g_reentrant_max_depth = 0;
-        CHECK(
-            g_other_api->placement.reserve(
-                g_other_api,
-                "reentrant-trigger",
-                TORIRS_AREA_OVERLAY_SAFE,
-                TORIRS_EDGE_LEFT,
-                1) == TORIRS_RESERVE_OK,
-            "a real placement mutation triggers the notification");
-        /* ONCE, not once per change: the handler's own reserve is recorded
-         * and moves the revision, but it does not re-deliver the event.
-         * Four would be the runaway. */
-        CHECK(g_reentrant_left == 3, "the handler is told once, not once per change");
-        CHECK(g_reentrant_max_depth == 1, "and the notification does not nest");
-        CHECK(
-            g_second_api->placement.revision(g_second_api) > before,
-            "while the reserve it made still counts");
-        g_reentrant_api = NULL;
-        PluginHost_SetEnabled(g_host, g_second, false);
-        PluginHost_SetEnabled(g_host, g_other, false);
+        int n_before;
+        frame();
+        n_before = globes(g);
+        CHECK(n_before == 2, "two globes before the remount");
+        for( int i = 0; i < g_control_count; i++ ) g_control[i].alive = 0;
+        PluginHost_WidgetsChanged(g_host, 0, 2);
+        PluginHost_WidgetsChanged(g_host, 77, 3);
+        frame();
+        CHECK(globes(g) == 2, "the globes come back under the rebound viewport");
     }
-
+    PluginHost_SetEnabled(g_host, index, false);
+    CHECK(globes(g) == 0, "disabling the plugin removes every owned control");
     PluginHost_Free(g_host);
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

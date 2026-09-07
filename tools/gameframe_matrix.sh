@@ -141,6 +141,8 @@ show_hp=1
 show_prayer=1
 show_run=1
 show_spec=1
+[plugin:xp-drop-orbs]
+enabled=1
 EOF
 
 one() {

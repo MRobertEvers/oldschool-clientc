@@ -2511,7 +2511,7 @@ test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c $(LDFLAGS)
-	XP_ORBS_TEST_PNG=$(OBJ_DIR)/xp_orbs_test.png ./$(OBJ_DIR)/xp_orbs_test
+	./$(OBJ_DIR)/xp_orbs_test
 
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/test/editor_cmd_test.c
